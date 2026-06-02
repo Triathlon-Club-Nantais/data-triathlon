@@ -137,18 +137,23 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
         parts = [p.strip() for p in meta.split("-")]
         for p in parts:
             p_low = p.lower()
-            if p.strip() in ("M", "F"):
-                result.gender = p.strip()
+            # Collapse internal spaces for gender/category matching ("BE F" → "BEF")
+            p_compact = re.sub(r"\s+", "", p)
+            if p_compact.upper() in ("M", "F", "H"):
+                # "H" is an alias for "M" used by some timing systems
+                result.gender = "M" if p_compact.upper() == "H" else p_compact.upper()
             elif "dossard" in p_low:
                 result.bib_number = re.sub(r"[^\d]", "", p)
             elif re.match(
-                r"^(SE[HF]?|S[1-9]\d*[HF]?|V[1-5][HF]?|JU[HF]?|ES[HF]?|CA[HF]?|BE[HF]?|MI[HF]?|PO[HF]?)$",
-                p.strip(), re.I
+                r"^(SE[HF]?|SEN[HF]?|S[1-9]\d*[HF]?|MA[1-9]\d*[HF]?|M[1-9]\d*[HF]?|"
+                r"V[1-5][HF]?|VET[HF]?\d*|JU[HF]?|ES[HF]?|ESP[HF]?|CA[HF]?|BE[HF]?|"
+                r"MI[HF]?|PO[HF]?|PU[HF]?)$",
+                p_compact, re.I
             ):
-                result.category = p.strip()
-            elif not any(x in p_low for x in ("dossard", "n°")) and p.strip() not in ("M", "F"):
+                result.category = p_compact
+            elif not any(x in p_low for x in ("dossard", "n°")) and p_compact.upper() not in ("M", "F", "H"):
                 if result.club == "":
-                    result.club = p.strip()
+                    result.club = p
 
     # Official time + Rankings — find label divs by exact text, then read sibling
     rank_map = {
@@ -205,7 +210,11 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
         ("velo", "bike"),
         ("bike", "bike"),
         ("cyclisme", "bike"),
-        # Run — duathlon: "CAP 1" (run1) → swim slot, "CAP 2" (run2) → run slot
+        # Run — duathlon: "CAP 1" / "Course à pied 1" (run1) → swim slot, "CAP 2" / "Course à pied 2" → run slot
+        ("course à pied 1", "swim"),
+        ("course a pied 1", "swim"),
+        ("course à pied 2", "run"),
+        ("course a pied 2", "run"),
         ("cap 1", "swim"),
         ("cap 2", "run"),
         ("course", "run"),
@@ -327,6 +336,16 @@ def _detect_event_type(heat: str, slug: str = "") -> str:
         if suffix.startswith("l-") or "-l-" in suffix:
             return "duathlon-l"
         return "duathlon"
+
+    # Other multisport — must be checked BEFORE triathlon distance patterns to
+    # prevent e.g. "aquathlon-s-champnat" matching the "-s" triathlon-s rule.
+    if "aquathlon" in combined:
+        return "aquathlon"
+    if "aquarun" in combined:
+        return "aquarun"
+    if any(p in combined for p in ("bike & run", "bike and run", "bike run", "bikerun",
+                                    "run & bike", "run and bike", "bike-run")):
+        return "bike-run"
 
     # Triathlon distance from heat name
     if "xxl" in h or "ironman" in h:

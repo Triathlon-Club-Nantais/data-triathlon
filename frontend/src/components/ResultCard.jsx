@@ -17,6 +17,14 @@ const EVENT_TYPE_LABELS = {
   "bike-run":     "Bike & Run",
 };
 
+function formatDate(d) {
+  if (!d) return "";
+  // Parse ISO dates (YYYY-MM-DD) as local time to avoid UTC-midnight → previous day shift
+  const m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString("fr-FR");
+  return String(d);
+}
+
 export default function ResultCard({ result, onDelete }) {
   const fullName = [result.athlete_firstname, result.athlete_name].filter(Boolean).join(" ");
 
@@ -52,7 +60,7 @@ export default function ResultCard({ result, onDelete }) {
         )}
         {result.event_date && (
           <span style={styles.eventDate}>
-            {new Date(result.event_date).toLocaleDateString("fr-FR")}
+            {formatDate(result.event_date)}
           </span>
         )}
         {result.bib_number && (

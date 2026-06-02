@@ -4,8 +4,7 @@ Tests d'intégration — nécessitent un accès réseau réel.
 Lancer avec : pytest -m integration
 
 Ces tests utilisent des URLs réelles vérifiées lors du développement.
-Pour les tests Klikego, renseignez search=NOM+PRENOM dans l'URL avant de
-retirer le @pytest.mark.skip.
+Chaque test est décrit avec l'événement, l'athlète, et ce qui est vérifié.
 """
 import pytest
 
@@ -13,7 +12,22 @@ from scrapers import scrape
 
 
 # ---------------------------------------------------------------------------
-# TimePulse — id_event=3090 (événement avec GOUBAUD Manon, bib=41)
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _secs(t: str) -> int:
+    """Convertit 'HH:MM:SS' en secondes."""
+    if not t:
+        return 0
+    try:
+        p = t.split(":")
+        return int(p[0]) * 3600 + int(p[1]) * 60 + int(p[2])
+    except (IndexError, ValueError):
+        return 0
+
+
+# ---------------------------------------------------------------------------
+# TimePulse — id_event=3090 (GOUBAUD Manon, bib=41)
 # ---------------------------------------------------------------------------
 
 TP_BIB_URL    = "https://www.timepulse.fr/epreuves/resultats/3090?id_event=3090&bib=41"
@@ -54,20 +68,176 @@ def test_timepulse_search_multiple_raises():
 
 
 # ---------------------------------------------------------------------------
-# Klikego — stubs à compléter avec un nom d'athlète réel
+# TimePulse — Sablé Dimanche (id_event=2957)
 # ---------------------------------------------------------------------------
 
 @pytest.mark.integration
-@pytest.mark.skip(reason="Ajouter &search=NOM+PRENOM à l'URL pour activer ce test")
+def test_timepulse_url_without_id_event_param():
+    """
+    URL sans query param id_event= — l'ID est dans le chemin :
+    https://www.timepulse.fr/epreuves/resultats/3090?bib=41
+    Doit retourner le même résultat que l'URL canonique.
+    """
+    r = scrape("https://www.timepulse.fr/epreuves/resultats/3090?bib=41")
+
+    assert r.provider == "timepulse"
+    assert r.bib_number == "41"
+    assert r.total_time != ""
+
+
+@pytest.mark.integration
+def test_timepulse_sable_dimanche():
+    """TimePulse id=2957 — Triathlon de Sablé Dimanche, bib=117 (FLOCARD Guillaume)."""
+    r = scrape("https://www.timepulse.fr/resultats/?id_event=2957&bib=117")
+
+    assert r.provider == "timepulse"
+    assert r.total_time != ""
+    # Au moins un split attendu
+    assert any([r.swim_time, r.bike_time, r.run_time])
+
+
+# ---------------------------------------------------------------------------
+# TimePulse — Bike & Run du Bignon (id_event=2917)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+def test_timepulse_bike_run_bignon():
+    """TimePulse id=2917 — Bike & Run du Bignon, bib=1 (ARNAUD Adrien)."""
+    r = scrape("https://www.timepulse.fr/resultats/?id_event=2917&bib=1")
+
+    assert r.provider == "timepulse"
+    assert r.event_type == "bike-run"
+    assert r.total_time != ""
+
+
+# ---------------------------------------------------------------------------
+# Klikego — Triathlon L — Coteaux du Vendômois 2026
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+def test_klikego_vendomois_triathlon_l():
+    """
+    Triathlon des Coteaux du Vendômois 2026 — ERK Frank (V4, RC Vorwarts Speyer).
+    Vérifie : provider, event_type=triathlon-l, total_time non vide.
+    Note : cet événement n'expose pas de splits intermédiaires (MISSING_SPLITS attendu).
+    """
+    url = (
+        "https://www.klikego.com/resultats/"
+        "triathlon-des-coteaux-du-vendomois-2026/1695506183783-4"
+        "?heat=triathlon-l-individuel&search=ERK"
+    )
+    r = scrape(url)
+
+    assert r.provider == "klikego"
+    assert r.event_type == "triathlon-l"
+    assert r.total_time != ""
+
+
+# ---------------------------------------------------------------------------
+# Klikego — Duathlon S — 3 Villages 2026
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+def test_klikego_3villages_duathlon_s():
+    """
+    Duathlon des 3 Villages 2026 — BELLANGER Quentin (S3, Caen Triathlon).
+    Vérifie : event_type=duathlon-s, total_time non vide.
+    """
+    url = (
+        "https://www.klikego.com/resultats/"
+        "duathlon-des-3-villages-2026-5-eme-edition/1579145109237-15"
+        "?heat=duathlon-s-individuel&search=BELLANGER"
+    )
+    r = scrape(url)
+
+    assert r.provider == "klikego"
+    assert r.event_type == "duathlon-s"
+    assert r.total_time != ""
+
+
+# ---------------------------------------------------------------------------
+# Klikego — Duathlon S — Cesson-Sévigné 2026 ("Course à pied" labels)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+def test_klikego_cesson_duathlon_s_course_a_pied():
+    """
+    Duathlons de Cesson-Sévigné 2026 — CORMIER Titouan (S1, Pontivy Triathlon).
+    Cet événement utilise 'Course à pied 1' / 'Course à pied 2' comme labels de splits.
+    Vérifie : event_type=duathlon-s, bike_time non vide.
+    """
+    url = (
+        "https://www.klikego.com/resultats/"
+        "duathlons-de-cesson-sevigne-2026/1723364024007-2"
+        "?heat=duathlon-s-v&search=CORMIER"
+    )
+    r = scrape(url)
+
+    assert r.provider == "klikego"
+    assert r.event_type == "duathlon-s"
+    assert r.total_time != ""
+    assert r.bike_time != ""
+
+
+# ---------------------------------------------------------------------------
+# Klikego — SwimRun L — Côte Beauté 2025
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+def test_klikego_swimrun_cote_beaute():
+    """
+    SwimRun Côte Beauté 2025 — DESSENOIX Boris (MA1, T.C.G. 79 Parthenay).
+    Vérifie : event_type=swimrun-l (slug swimrun + heat format-l-individuel).
+    """
+    url = (
+        "https://www.klikego.com/resultats/"
+        "swimrun-cote-beaute-2025/1643670876505-4"
+        "?heat=format-l-individuel&search=DESSENOIX"
+    )
+    r = scrape(url)
+
+    assert r.provider == "klikego"
+    assert r.event_type == "swimrun-l"
+    assert r.total_time != ""
+
+
+# ---------------------------------------------------------------------------
+# Klikego — Aquathlon — Des 2 Amants 2025
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+def test_klikego_aquathlon_2amants():
+    """
+    Aquathlon des 2 Amants 2025 — CREVIER Louis (JU, Les Piranhas).
+    Vérifie : event_type=aquathlon (heat 'aquathlon-s-champnat' détecté avant triathlon-s).
+    """
+    url = (
+        "https://www.klikego.com/resultats/"
+        "aquathlon-des-2-amants-2025/1643334174070-7"
+        "?heat=aquathlon-s-champnat&search=CREVIER"
+    )
+    r = scrape(url)
+
+    assert r.provider == "klikego"
+    assert r.event_type == "aquathlon"
+    assert r.total_time != ""
+    # Aquathlon = swim + run (pas de vélo)
+    assert r.swim_time != "" or r.run_time != ""
+
+
+# ---------------------------------------------------------------------------
+# Klikego — stubs conservés pour référence (events de tests en cours de saison)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+@pytest.mark.skip(reason="Event de 2026 — résultats disponibles uniquement après course")
 def test_klikego_redon_sprint_no_splits():
     """
     Redon Sprint 2026 — pas de splits intermédiaires.
-    URL : https://www.klikego.com/resultats/triathlon-de-redon-2026/1759801418691-2
-          ?heat=triathlon-s&search=NOM+PRENOM
     """
     url = (
         "https://www.klikego.com/resultats/triathlon-de-redon-2026/1759801418691-2"
-        "?heat=triathlon-s&search=NOM+PRENOM"
+        "?heat=triathlon-s&search=NOM"
     )
     r = scrape(url)
 
@@ -77,16 +247,14 @@ def test_klikego_redon_sprint_no_splits():
 
 
 @pytest.mark.integration
-@pytest.mark.skip(reason="Ajouter &search=NOM+PRENOM à l'URL pour activer ce test")
+@pytest.mark.skip(reason="Ajouter un athlète réel présent dans cet événement pour activer")
 def test_klikego_domino_chg_nat_velo():
     """
     Domino Val-de-Loire 2026 — T1/T2 labellisés "Chg Nat." / "Chg Vé.".
-    URL : https://www.klikego.com/resultats/triathlon-du-domino-val-de-loire-2026/1646273536851-6
-          ?heat=triathlon-m---individuel&search=NOM+PRENOM
     """
     url = (
         "https://www.klikego.com/resultats/triathlon-du-domino-val-de-loire-2026/1646273536851-6"
-        "?heat=triathlon-m---individuel&search=NOM+PRENOM"
+        "?heat=triathlon-m---individuel&search=NOM"
     )
     r = scrape(url)
 
@@ -95,16 +263,14 @@ def test_klikego_domino_chg_nat_velo():
 
 
 @pytest.mark.integration
-@pytest.mark.skip(reason="Ajouter &search=NOM+PRENOM à l'URL pour activer ce test")
+@pytest.mark.skip(reason="Ajouter un athlète réel pour activer")
 def test_klikego_frenchman_xxl_no_heat():
     """
     Frenchman XXL 2026 — pas de heat= dans l'URL d'origine, auto-détecté.
-    URL : https://www.klikego.com/resultats/medoc-atlantique-frenchman-triathlon-carcans-2026/1354050643080-23
-          ?search=NOM+PRENOM
     """
     url = (
         "https://www.klikego.com/resultats/medoc-atlantique-frenchman-triathlon-carcans-2026/1354050643080-23"
-        "?search=NOM+PRENOM"
+        "?search=NOM"
     )
     r = scrape(url)
 
@@ -114,48 +280,20 @@ def test_klikego_frenchman_xxl_no_heat():
 
 
 @pytest.mark.integration
-@pytest.mark.skip(reason="Ajouter &search=NOM+PRENOM à l'URL pour activer ce test")
-def test_klikego_lac_au_duc_format_s():
-    """
-    Lac au Duc 2025 — heat auto-détecté comme 'format-s-en-individuel' → triathlon-s.
-    URL : https://www.klikego.com/resultats/triathlon-du-lac-au-duc-2025/1640295575773-4
-          ?search=NOM+PRENOM
-    """
-    url = (
-        "https://www.klikego.com/resultats/triathlon-du-lac-au-duc-2025/1640295575773-4"
-        "?search=NOM+PRENOM"
-    )
-    r = scrape(url)
-
-    assert r.provider == "klikego"
-    assert r.event_type == "triathlon-s"
-
-
-@pytest.mark.integration
-@pytest.mark.skip(reason="Ajouter &search=NOM+PRENOM à l'URL pour activer ce test")
+@pytest.mark.skip(reason="Ajouter un athlète réel pour activer")
 def test_klikego_lacanau_cumulative():
     """
     Lacanau 2025 — temps cumulés → le scraper calcule les déltas.
-    URL : https://www.klikego.com/resultats/triathlon-de-lacanau-2025/1599610745249-68
-          ?search=NOM+PRENOM
-    Vérifier que les splits sont cohérents (swim+t1+bike+t2+run ≈ total).
     """
     url = (
         "https://www.klikego.com/resultats/triathlon-de-lacanau-2025/1599610745249-68"
-        "?search=NOM+PRENOM"
+        "?search=NOM"
     )
     r = scrape(url)
 
     assert r.raw_data.get("cumulative") is True
-    # La somme des splits doit reconstituer le temps total (± 1 s d'arrondi)
-    def secs(t):
-        if not t:
-            return 0
-        p = t.split(":")
-        return int(p[0]) * 3600 + int(p[1]) * 60 + int(p[2])
-
-    total = secs(r.total_time)
-    splits_sum = sum(secs(t) for t in [
+    total = _secs(r.total_time)
+    splits_sum = sum(_secs(t) for t in [
         r.swim_time, r.t1_time, r.bike_time, r.t2_time, r.run_time
     ])
     assert abs(total - splits_sum) <= 1

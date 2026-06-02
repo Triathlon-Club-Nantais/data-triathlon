@@ -14,6 +14,7 @@ When a search name matches multiple athletes a ValueError is raised listing
 all matches so the user can refine their query.
 """
 import re
+from datetime import date as date_t
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 import httpx
@@ -199,7 +200,9 @@ def _compute_ranks(
         overall_pos += 1
         if e.get("x", "") == gender:
             gender_pos += 1
-        if e.get("ca", "") == category:
+        # Category rank: count same-gender + same-category (categories are gender-specific
+        # in French triathlon, e.g. V1H vs V1F; counting across genders would inflate the rank)
+        if e.get("ca", "") == category and e.get("x", "") == gender:
             category_pos += 1
 
         if b == bib:
@@ -209,6 +212,25 @@ def _compute_ranks(
             break
 
     return rank_overall, rank_gender, rank_category
+
+
+def _parse_event_date(date_str: str) -> date_t | None:
+    """Parse TimePulse XML date string (YYYY-MM-DD or DD/MM/YYYY) into a date object."""
+    # ISO format YYYY-MM-DD
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})", date_str)
+    if m:
+        try:
+            return date_t(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        except ValueError:
+            pass
+    # French format DD/MM/YYYY
+    m = re.match(r"^(\d{1,2})/(\d{2})/(\d{4})", date_str)
+    if m:
+        try:
+            return date_t(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+        except ValueError:
+            pass
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -221,6 +243,16 @@ def scrape(url: str) -> ScrapedResult:
     bib = params.get("bib", [""])[0]
     id_event = params.get("id_event", [""])[0]
     search = params.get("search", [""])[0].strip()
+
+    # Fallback: extract id_event from the URL path when absent from query params.
+    # Handles https://www.timepulse.fr/epreuves/resultats/3090
+    #      and https://www.timepulse.fr/resultats/3090
+    if not id_event:
+        path_parts = [p for p in parsed.path.strip("/").split("/") if p]
+        for part in reversed(path_parts):
+            if re.match(r"^\d+$", part):
+                id_event = part
+                break
 
     if not id_event:
         raise ValueError("Paramètre id_event manquant dans l'URL TimePulse.")
@@ -263,7 +295,10 @@ def scrape(url: str) -> ScrapedResult:
     if epreuve_m:
         ea = _attrs(epreuve_m.group())
         result.event_name = ea.get("nom", "")
-        raw["event_dates"] = ea.get("dates", "")
+        date_str = ea.get("dates", "")
+        raw["event_dates"] = date_str
+        if date_str:
+            result.event_date = _parse_event_date(date_str)
 
     result.event_type = _detect_event_type(result.event_name)
 
@@ -323,6 +358,23 @@ def scrape(url: str) -> ScrapedResult:
                 else:
                     raw[f"split_{key}"] = t
         raw["r_tag"] = r_tag
+
+        # Derive run_time when missing but total and other splits are known.
+        # Handles events with non-standard segment naming (e.g. "Boucle 1-5")
+        # where the run leg cannot be mapped from series labels.
+        if result.total_time and not result.run_time:
+            total_s = _secs(result.total_time)
+            known_s = sum(
+                _secs(t)
+                for t in [result.swim_time, result.t1_time, result.bike_time, result.t2_time]
+                if t
+            )
+            if total_s > 0 and known_s > 0 and total_s > known_s:
+                run_s = total_s - known_s
+                h_, rem = divmod(run_s, 3600)
+                m_, s_ = divmod(rem, 60)
+                result.run_time = f"{h_:02d}:{m_:02d}:{s_:02d}"
+                raw["run_derived"] = True
     else:
         raw["warning"] = "Pas de résultat disponible pour ce dossard."
 

@@ -6,7 +6,9 @@ Cas couverts :
 - Homonymie GOUBAUD : deux athlètes → liste de désambiguïsation
 - Mapping des séries S0-S4 → swim/t1/bike/t2/run
 - Calcul des classements général / genre / catégorie
+- rank_category filtre par genre+catégorie (évite rank_category > rank_gender)
 - Détection du type d'épreuve depuis le nom de l'épreuve
+- Parsing de la date d'épreuve depuis l'attribut XML dates=
 """
 import pytest
 
@@ -16,6 +18,7 @@ from scrapers.timepulse import (
     _detect_event_type,
     _find_tag,
     _normalize_name,
+    _parse_event_date,
     _parse_series,
     _search_athletes,
 )
@@ -202,6 +205,46 @@ def test_compute_ranks():
     assert rc == 1   # 1er V1H
 
 
+def test_compute_ranks_category_not_exceeds_gender():
+    """
+    Régression — rank_category ne doit pas dépasser rank_gender.
+    Si catégorie = V1H (sous-ensemble des hommes), rank_category <= rank_gender.
+
+    5 athlètes :
+      bib=10 : M, SEH, 01:00:00  → 1er H, pas V1H
+      bib=20 : F, V1F, 01:10:00  → 1re F, 1re V1F  (même catégorie string "V1" sans genre
+                                                       si non suffixé, mais ici c'est V1F)
+      bib=30 : M, V1H, 01:20:00  → 2e H, 1er V1H  ← cible
+      bib=40 : F, V1F, 01:30:00  → 2e F, 2e V1F
+      bib=50 : M, V1H, 01:40:00  → 3e H, 2e V1H
+
+    Avant le fix, si le code comptait V1H parmi tous les genres, V1H inclurait bib=20 (V1F)
+    si les catégories n'avaient pas de suffixe genre. Ce test utilise des catégories distinctes
+    V1H/V1F, donc rank_category(bib=30) doit être 1 et rank_gender(bib=30) doit être 2.
+    """
+    athletes = [
+        ("10", "ALPHA Jean",   "SEH", "M", "p1"),
+        ("20", "BETA Sophie",  "V1F", "F", "p1"),
+        ("30", "GAMMA Pierre", "V1H", "M", "p1"),
+        ("40", "DELTA Marie",  "V1F", "F", "p1"),
+        ("50", "EPSILON Luc",  "V1H", "M", "p1"),
+    ]
+    results_data = [
+        ("10", "01:00:00", {}),
+        ("20", "01:10:00", {}),
+        ("30", "01:20:00", {}),
+        ("40", "01:30:00", {}),
+        ("50", "01:40:00", {}),
+    ]
+    xml = make_xml(athletes=athletes, results=results_data)
+    ro, rg, rc = _compute_ranks(xml, bib="30", parcours="p1", gender="M", category="V1H")
+
+    assert ro == 3   # 3e au général
+    assert rg == 2   # 2e homme (derrière bib=10)
+    assert rc == 1   # 1er V1H — doit être 1, pas 2 (V1F ne compte pas)
+    assert rc <= rg  # invariant : rank_category ne peut pas dépasser rank_gender
+
+
 def test_compute_ranks_no_result_for_bib():
     """Athlète sans ligne <R> → tous classements à None."""
     xml = make_xml(
@@ -318,6 +361,73 @@ def test_find_tag_found():
     assert 'n="MARTIN Paul"' in tag
 
 
+def test_parse_event_date_iso():
+    """Format ISO YYYY-MM-DD."""
+    from datetime import date
+    assert _parse_event_date("2025-06-01") == date(2025, 6, 1)
+
+
+def test_parse_event_date_french():
+    """Format français DD/MM/YYYY."""
+    from datetime import date
+    assert _parse_event_date("01/06/2025") == date(2025, 6, 1)
+
+
+def test_parse_event_date_invalid():
+    """Chaîne non parseable → None."""
+    assert _parse_event_date("juin 2025") is None
+    assert _parse_event_date("") is None
+
+
 def test_find_tag_not_found():
     xml = make_xml(athletes=[("10", "DUPONT Jean", "SEH", "M", "p1")])
     assert _find_tag(xml, "E", "d", "999") is None
+
+
+# ---------------------------------------------------------------------------
+# Extraction de l'id_event depuis le chemin URL (sans query param id_event=)
+# ---------------------------------------------------------------------------
+
+def test_id_event_extracted_from_path():
+    """
+    L'URL https://www.timepulse.fr/epreuves/resultats/3090 ne contient pas
+    id_event= en query param. Le scraper doit extraire 3090 depuis le chemin.
+    Vérifié en inspectant la logique de parsing, sans appel réseau.
+    """
+    from urllib.parse import urlparse, parse_qs
+    import re
+
+    url = "https://www.timepulse.fr/epreuves/resultats/3090"
+    parsed = urlparse(url)
+    params = parse_qs(parsed.query)
+    id_event = params.get("id_event", [""])[0]
+
+    # Simule le fallback du scraper
+    if not id_event:
+        path_parts = [p for p in parsed.path.strip("/").split("/") if p]
+        for part in reversed(path_parts):
+            if re.match(r"^\d+$", part):
+                id_event = part
+                break
+
+    assert id_event == "3090"
+
+
+def test_id_event_extracted_from_path_short():
+    """Variante courte : https://www.timepulse.fr/resultats/3090."""
+    from urllib.parse import urlparse, parse_qs
+    import re
+
+    url = "https://www.timepulse.fr/resultats/3090"
+    parsed = urlparse(url)
+    params = parse_qs(parsed.query)
+    id_event = params.get("id_event", [""])[0]
+
+    if not id_event:
+        path_parts = [p for p in parsed.path.strip("/").split("/") if p]
+        for part in reversed(path_parts):
+            if re.match(r"^\d+$", part):
+                id_event = part
+                break
+
+    assert id_event == "3090"

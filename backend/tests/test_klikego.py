@@ -97,6 +97,12 @@ def fresh_result() -> tuple[ScrapedResult, dict]:
     ("format-s---en-binome", "re-swimrun-2025", "swimrun-s"),
     ("format-m---en-solo", "swimrun-cote-beaute-2025", "swimrun-m"),
     ("format-l---championnat-de-france---en-binome", "re-swimrun-2025", "swimrun-l"),
+    # --- Aquathlon / aquarun / bike-run : détectés avant les distances triathlon ---
+    ("aquathlon-s-champnat", "aquathlon-des-2-amants-2025", "aquathlon"),      # "-s-" ne doit pas → triathlon-s
+    ("aquathlon-individuel", "", "aquathlon"),
+    ("aquarun-individuel", "aquarun-lacanau-2025", "aquarun"),
+    ("bike-run-individuel", "bike-run-halloween-2025", "bike-run"),
+    ("bikerun-sprint", "", "bike-run"),
     # heat vide → valeur brute retournée
     ("", "", "triathlon"),
 ])
@@ -279,6 +285,17 @@ def test_parse_detail_meta_s1_category():
     assert result.club     == "TRI CLUB OUEST"
 
 
+def test_parse_detail_meta_ma2_category():
+    """Catégorie MA2 (Masters Age) — cas Swimrun Cote Beaute 2025."""
+    html = make_detail_html(meta="M - Dossard N°1016 - MA2 - TRIATHLON CLUB SAUJONNAIS")
+    result, raw = fresh_result()
+
+    _parse_detail(html, result, raw)
+
+    assert result.category == "MA2"
+    assert result.club     == "TRIATHLON CLUB SAUJONNAIS"
+
+
 def test_parse_detail_meta_female_sef():
     html = make_detail_html(meta="F - Dossard N°42 - SEF - NANTES TRIATHLON")
     result, raw = fresh_result()
@@ -288,6 +305,29 @@ def test_parse_detail_meta_female_sef():
     assert result.gender   == "F"
     assert result.category == "SEF"
     assert result.club     == "NANTES TRIATHLON"
+
+
+def test_parse_detail_meta_h_gender_alias():
+    """Certains systèmes de chronométrage encodent le genre masculin comme 'H' (Homme)."""
+    html = make_detail_html(meta="H - Dossard N°77 - V2H - TRIATH CLUB")
+    result, raw = fresh_result()
+
+    _parse_detail(html, result, raw)
+
+    assert result.gender   == "M"   # "H" normalisé en "M"
+    assert result.category == "V2H"
+    assert result.club     == "TRIATH CLUB"
+
+
+def test_parse_detail_meta_be_f_spaces():
+    """Catégorie avec espace interne ('BE F') → normalisée en 'BEF'."""
+    html = make_detail_html(meta="F - Dossard N°5 - BE F - CLUB JUNIORS")
+    result, raw = fresh_result()
+
+    _parse_detail(html, result, raw)
+
+    assert result.category == "BEF"
+    assert result.club     == "CLUB JUNIORS"
 
 
 # ---------------------------------------------------------------------------
@@ -318,6 +358,30 @@ def test_parse_detail_duathlon_cap1_cap2():
     assert result.t2_time   == "00:01:00"
     assert result.run_time  == "00:10:00"   # CAP 2 → run
     assert raw["cumulative"] is False
+
+
+def test_parse_detail_duathlon_course_a_pied_labels():
+    """
+    Duathlon avec labels 'Course à pied 1' / 'Course à pied 2' (Cesson-Sévigné…).
+    Doit mapper run1 → swim_time et run2 → run_time comme CAP 1/CAP 2.
+    """
+    splits = [
+        ("Course à pied 1", "00:20:00"),
+        ("T1",               "00:01:00"),
+        ("Vélo",             "00:50:00"),
+        ("T2",               "00:01:00"),
+        ("Course à pied 2",  "00:12:00"),
+    ]
+    html = make_detail_html(total_time="01:24:00", splits=splits)
+    result, raw = fresh_result()
+
+    _parse_detail(html, result, raw)
+
+    assert result.swim_time == "00:20:00"   # run1 → slot swim
+    assert result.t1_time   == "00:01:00"
+    assert result.bike_time == "00:50:00"
+    assert result.t2_time   == "00:01:00"
+    assert result.run_time  == "00:12:00"   # run2 → slot run
 
 
 def test_parse_detail_duathlon_generic_cap_fallback():
