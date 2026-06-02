@@ -7,6 +7,8 @@ Chaque test correspond à un cas réel rencontré lors du développement :
 - Lacanau            : temps cumulés détectés automatiquement
 - S1H/S2F            : catégories numériques parsées depuis la méta-ligne
 - Frenchman XXL / Lac au Duc : détection du type d'épreuve depuis le heat
+- Duathlon           : "CAP 1"/"CAP 2" → swim_time/run_time, heat "duathlon-s-individuel"
+- Swimrun            : type détecté depuis le slug URL (heat = "format-l-en-binome")
 """
 import pytest
 
@@ -69,25 +71,32 @@ def fresh_result() -> tuple[ScrapedResult, dict]:
 # _detect_event_type
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("heat,expected", [
-    ("triathlon-s", "triathlon-s"),
-    ("triathlon-s-individuel", "triathlon-s"),
+@pytest.mark.parametrize("heat,slug,expected", [
+    # --- Triathlon (non-régression) ---
+    ("triathlon-s", "", "triathlon-s"),
+    ("triathlon-s-individuel", "", "triathlon-s"),
     # Lac au Duc : heat auto-détecté comme "format-s-en-individuel"
-    ("format-s-en-individuel", "triathlon-s"),
-    ("triathlon-m", "triathlon-m"),
+    ("format-s-en-individuel", "", "triathlon-s"),
+    ("triathlon-m", "", "triathlon-m"),
     # Domino : "triathlon-m---individuel"
-    ("triathlon-m---individuel", "triathlon-m"),
-    ("triathlon-l", "triathlon-l"),
-    ("triathlon-xl", "triathlon-xl"),
+    ("triathlon-m---individuel", "", "triathlon-m"),
+    ("triathlon-l", "", "triathlon-l"),
+    ("triathlon-xl", "", "triathlon-xl"),
     # Frenchman XXL
-    ("medoc-atlantique-frenchman-xxl", "triathlon-xl"),
-    ("duathlon-classique", "duathlon"),
-    ("swimrun-classique", "swimrun"),
+    ("medoc-atlantique-frenchman-xxl", "", "triathlon-xl"),
+    # --- Duathlon : doit passer AVANT les checks -s/-m (bug corrigé) ---
+    ("duathlon-classique", "", "duathlon"),
+    ("duathlon-s-individuel", "", "duathlon"),   # était détecté "triathlon-s" avant fix
+    ("duathlon-liffre-cormier-open--sprint-court", "", "duathlon"),
+    # --- Swimrun : détection via slug (heats = "format-l-en-binome" etc.) ---
+    ("swimrun-classique", "", "swimrun"),
+    ("format-l---en-binome", "re-swimrun-2025", "swimrun"),       # slug contient "swimrun"
+    ("format-m---en-solo", "swimrun-cote-beaute-2025", "swimrun"),
     # heat vide → valeur brute retournée
-    ("", "triathlon"),
+    ("", "", "triathlon"),
 ])
-def test_event_type_detection(heat, expected):
-    assert _detect_event_type(heat) == expected
+def test_event_type_detection(heat, slug, expected):
+    assert _detect_event_type(heat, slug) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -274,3 +283,52 @@ def test_parse_detail_meta_female_sef():
     assert result.gender   == "F"
     assert result.category == "SEF"
     assert result.club     == "NANTES TRIATHLON"
+
+
+# ---------------------------------------------------------------------------
+# Duathlon : "CAP 1" → swim_time (run1), "CAP 2" → run_time (run2)
+# ---------------------------------------------------------------------------
+
+def test_parse_detail_duathlon_cap1_cap2():
+    """
+    Duathlon — CAP 1 (1ère course) → swim_time, VELO → bike_time, CAP 2 → run_time.
+    Le slot swim_time est réutilisé pour la 1ère fraction de course du duathlon
+    car il n'y a pas de natation.
+    """
+    splits = [
+        ("CAP 1", "00:18:00"),
+        ("T1", "00:01:00"),
+        ("VELO", "00:45:00"),
+        ("T2", "00:01:00"),
+        ("CAP 2", "00:10:00"),
+    ]
+    html = make_detail_html(total_time="01:15:00", splits=splits)
+    result, raw = fresh_result()
+
+    _parse_detail(html, result, raw)
+
+    assert result.swim_time == "00:18:00"   # CAP 1 → slot swim
+    assert result.t1_time   == "00:01:00"
+    assert result.bike_time == "00:45:00"
+    assert result.t2_time   == "00:01:00"
+    assert result.run_time  == "00:10:00"   # CAP 2 → run
+    assert raw["cumulative"] is False
+
+
+def test_parse_detail_duathlon_generic_cap_fallback():
+    """
+    Si un duathlon utilise juste "CAP" sans numéro, le fallback ("cap", "run") s'applique.
+    Splits non cumulatifs (vélo < cap → pas monotone).
+    """
+    splits = [
+        ("CAP", "00:20:00"),    # 1200 s
+        ("VELO", "00:05:00"),   # 300 s < 1200 s → non cumulatif
+    ]
+    html = make_detail_html(total_time="00:25:00", splits=splits)
+    result, raw = fresh_result()
+
+    _parse_detail(html, result, raw)
+
+    assert raw["cumulative"] is False
+    assert result.run_time  == "00:20:00"
+    assert result.bike_time == "00:05:00"

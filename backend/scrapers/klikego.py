@@ -50,10 +50,11 @@ def scrape(url: str) -> ScrapedResult:
     result = ScrapedResult(source_url=url, provider="klikego")
 
     # Event name from URL slug
-    if len(path_parts) >= 2:
-        result.event_name = path_parts[-2].replace("-", " ").title()
+    slug = path_parts[-2] if len(path_parts) >= 2 else ""
+    if slug:
+        result.event_name = slug.replace("-", " ").title()
 
-    result.event_type = _detect_event_type(heat)
+    result.event_type = _detect_event_type(heat, slug)
     raw: dict = {"event_id": event_id, "heat": heat, "search": search}
 
     if not search:
@@ -65,7 +66,7 @@ def scrape(url: str) -> ScrapedResult:
         if not heat:
             heat = _detect_heat(event_id, client)
             raw["heat"] = heat
-            result.event_type = _detect_event_type(heat)
+            result.event_type = _detect_event_type(heat, slug)
         # 1 — Search by name
         search_url = (
             f"{BASE}/v8/evenement/resultats-search.jsp"
@@ -204,7 +205,9 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
         ("velo", "bike"),
         ("bike", "bike"),
         ("cyclisme", "bike"),
-        # Run
+        # Run — duathlon: "CAP 1" (run1) → swim slot, "CAP 2" (run2) → run slot
+        ("cap 1", "swim"),
+        ("cap 2", "run"),
         ("course", "run"),
         ("cap", "run"),
         ("run", "run"),
@@ -297,7 +300,14 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
             result.run_time = f"{h:02d}:{m:02d}:{s:02d}"
 
 
-def _detect_event_type(heat: str) -> str:
+def _detect_event_type(heat: str, slug: str = "") -> str:
+    # Check sport type first (slug covers swimrun events whose heat is "Format L…")
+    combined = (heat + " " + slug).lower()
+    if "swimrun" in combined or "swim-run" in combined:
+        return "swimrun"
+    if "duathlon" in combined:
+        return "duathlon"
+    # Triathlon distance from heat name
     h = heat.lower()
     if "xxl" in h or "ironman" in h:
         return "triathlon-xl"
@@ -307,8 +317,4 @@ def _detect_event_type(heat: str) -> str:
         return "triathlon-m"
     if "-s" in h or "sprint" in h:
         return "triathlon-s"
-    if "duathlon" in h:
-        return "duathlon"
-    if "swimrun" in h:
-        return "swimrun"
     return h or "triathlon"
