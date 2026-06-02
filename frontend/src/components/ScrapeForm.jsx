@@ -2,14 +2,71 @@ import { useState } from "react";
 import { api } from "../api/client.js";
 import ResultCard from "./ResultCard.jsx";
 
-const EVENT_TYPES = [
-  "triathlon-s",
-  "triathlon-m",
-  "triathlon-l",
-  "triathlon-xl",
-  "duathlon",
-  "swimrun",
+const EVENT_TYPE_OPTIONS = [
+  // Triathlon
+  { value: "triathlon-s",  label: "Triathlon S (Sprint)" },
+  { value: "triathlon-m",  label: "Triathlon M (Olympique)" },
+  { value: "triathlon-l",  label: "Triathlon L (Half)" },
+  { value: "triathlon-xl", label: "Triathlon XL (Ironman)" },
+  { value: "triathlon",    label: "Triathlon (format inconnu)" },
+  // Duathlon
+  { value: "duathlon-xs",  label: "Duathlon XS" },
+  { value: "duathlon-s",   label: "Duathlon S (Sprint)" },
+  { value: "duathlon-m",   label: "Duathlon M" },
+  { value: "duathlon-l",   label: "Duathlon L" },
+  { value: "duathlon",     label: "Duathlon (format inconnu)" },
+  // SwimRun
+  { value: "swimrun-s",    label: "SwimRun S" },
+  { value: "swimrun-m",    label: "SwimRun M" },
+  { value: "swimrun-l",    label: "SwimRun L" },
+  { value: "swimrun",      label: "SwimRun (format inconnu)" },
+  // Autres multisports
+  { value: "aquathlon",    label: "Aquathlon" },
+  { value: "aquarun",      label: "Aquarun" },
+  { value: "bike-run",     label: "Bike & Run" },
 ];
+
+function getSplitFields(eventType) {
+  const t = (eventType || "").toLowerCase();
+
+  if (t.startsWith("duathlon")) return [
+    { label: "Course 1",  field: "swim_time" },   // slot swim = run1 (pas de natation)
+    { label: "T1",        field: "t1_time" },
+    { label: "Vélo",      field: "bike_time" },
+    { label: "T2",        field: "t2_time" },
+    { label: "Course 2",  field: "run_time" },
+  ];
+
+  if (t === "bike-run") return [
+    { label: "Vélo",   field: "bike_time" },
+    { label: "Course", field: "run_time" },
+  ];
+
+  if (t === "aquathlon") return [
+    { label: "Natation", field: "swim_time" },
+    { label: "Course",   field: "run_time" },
+  ];
+
+  if (t === "aquarun") return [
+    { label: "Natation", field: "swim_time" },
+    { label: "T1",       field: "t1_time" },
+    { label: "Course",   field: "run_time" },
+  ];
+
+  if (t.startsWith("swimrun")) return [
+    { label: "Natation", field: "swim_time" },
+    { label: "Course",   field: "run_time" },
+  ];
+
+  // Triathlon (tous formats) + fallback type inconnu
+  return [
+    { label: "Natation",      field: "swim_time" },
+    { label: "T1",            field: "t1_time" },
+    { label: "Vélo",          field: "bike_time" },
+    { label: "T2",            field: "t2_time" },
+    { label: "Course à pied", field: "run_time" },
+  ];
+}
 
 const PROVIDER_LABELS = {
   breizhchrono: "Breizh Chrono",
@@ -166,8 +223,8 @@ export default function ScrapeForm({ onSaved }) {
                 onChange={(e) => handleField("event_type", e.target.value)}
               >
                 <option value="">-- choisir --</option>
-                {EVENT_TYPES.map((t) => (
-                  <option key={t} value={t}>{t}</option>
+                {EVENT_TYPE_OPTIONS.map(({ value, label }) => (
+                  <option key={value} value={value}>{label}</option>
                 ))}
               </select>
             </div>
@@ -176,11 +233,9 @@ export default function ScrapeForm({ onSaved }) {
 
           <div style={styles.timesGrid}>
             <TimeField label="Temps total" value={edited.total_time} onChange={(v) => handleField("total_time", v)} />
-            <TimeField label="Natation" value={edited.swim_time} onChange={(v) => handleField("swim_time", v)} />
-            <TimeField label="T1" value={edited.t1_time} onChange={(v) => handleField("t1_time", v)} />
-            <TimeField label="Vélo" value={edited.bike_time} onChange={(v) => handleField("bike_time", v)} />
-            <TimeField label="T2" value={edited.t2_time} onChange={(v) => handleField("t2_time", v)} />
-            <TimeField label="Course à pied" value={edited.run_time} onChange={(v) => handleField("run_time", v)} />
+            {getSplitFields(edited.event_type).map(({ label, field }) => (
+              <TimeField key={field} label={label} value={edited[field] || ""} onChange={(v) => handleField(field, v)} />
+            ))}
           </div>
 
           <div style={styles.ranksGrid}>

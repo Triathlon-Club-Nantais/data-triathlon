@@ -200,11 +200,14 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
         ("transition velo", "t2"),
         ("chg vé", "t2"),           # "Chg Vélo"
         ("chg ve", "t2"),           # "Chg Velo" (ASCII fallback)
+        ("transition 1", "t1"),     # "Transition 1" (variante numérotée)
+        ("transition 2", "t2"),     # "Transition 2"
         ("t1", "t1"),
         ("t2", "t2"),
         # Swim
         ("natation", "swim"),
         ("swim", "swim"),
+        ("nat", "swim"),            # "NAT" (forme abrégée utilisée sur certains events jeunes)
         # Bike
         ("vélo", "bike"),
         ("velo", "bike"),
