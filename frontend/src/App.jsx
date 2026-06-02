@@ -1,15 +1,34 @@
 import { useState } from "react";
 import ScrapeForm from "./components/ScrapeForm.jsx";
 import ResultsList from "./components/ResultsList.jsx";
+import ClubView from "./components/ClubView.jsx";
+import { api } from "./api/client.js";
 
 export default function App() {
   const [tab, setTab] = useState("add");
   const [refreshKey, setRefreshKey] = useState(0);
+  const [clubFilter, setClubFilter] = useState(
+    () => localStorage.getItem("tcn_club_filter") || ""
+  );
+  const [importStatus, setImportStatus] = useState(null); // null | "loading" | {imported,skipped} | "error"
 
-  function handleSaved() {
+  // Called by ScrapeForm after individual save: { club, url }
+  function handleSaved({ club, url }) {
     setRefreshKey((k) => k + 1);
-    // Switch to results tab after a short delay so the user sees the success message
-    setTimeout(() => setTab("results"), 1200);
+    if (club) {
+      setClubFilter(club);
+      localStorage.setItem("tcn_club_filter", club);
+    }
+    if (url) {
+      setImportStatus("loading");
+      api.importEvent(url)
+        .then((r) => {
+          setImportStatus(r);
+          setRefreshKey((k) => k + 1);
+          setTab("club");
+        })
+        .catch(() => setImportStatus("error"));
+    }
   }
 
   return (
@@ -36,11 +55,28 @@ export default function App() {
         >
           Tous les résultats
         </button>
+        <button
+          style={{ ...styles.tab, ...(tab === "club" ? styles.tabActive : {}) }}
+          onClick={() => setTab("club")}
+        >
+          Club TCN
+        </button>
       </nav>
+
+      {importStatus && (
+        <div style={styles.importBanner}>
+          {importStatus === "loading" && "⏳ Import de l'épreuve en cours…"}
+          {importStatus === "error" && "⚠️ Import de l'épreuve indisponible pour ce provider."}
+          {importStatus?.imported !== undefined && (
+            `✅ ${importStatus.imported} participant${importStatus.imported !== 1 ? "s" : ""} importé${importStatus.imported !== 1 ? "s" : ""}, ${importStatus.skipped} déjà présent${importStatus.skipped !== 1 ? "s" : ""}.`
+          )}
+        </div>
+      )}
 
       <main style={styles.main}>
         {tab === "add" && <ScrapeForm onSaved={handleSaved} />}
         {tab === "results" && <ResultsList refreshKey={refreshKey} />}
+        {tab === "club" && <ClubView refreshKey={refreshKey} club={clubFilter} />}
       </main>
     </div>
   );
@@ -56,4 +92,5 @@ const styles = {
   tab: { padding: "14px 20px", border: "none", background: "none", cursor: "pointer", fontSize: 15, color: "#718096", fontWeight: 600, borderBottom: "3px solid transparent", marginBottom: -2 },
   tabActive: { color: "#3b82f6", borderBottomColor: "#3b82f6" },
   main: { maxWidth: 900, margin: "0 auto", padding: "28px 16px" },
+  importBanner: { background: "#ebf8ff", color: "#2b6cb0", padding: "10px 24px", fontSize: 14, fontWeight: 600, borderBottom: "1px solid #bee3f8" },
 };

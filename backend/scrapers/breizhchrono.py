@@ -20,7 +20,7 @@ from bs4 import BeautifulSoup
 
 from .base import ScrapedResult
 from .utils import normalize_time
-from .klikego import _parse_detail, _detect_event_type as _klikego_detect_event_type
+from .klikego import _parse_detail, _parse_search_row as _klikego_parse_search_row, _detect_event_type as _klikego_detect_event_type
 
 BASE = "https://resultats.breizhchrono.com"
 HEADERS = {
@@ -56,6 +56,55 @@ def _parse_bc_url(url: str) -> tuple[str, str, str]:
     slug = slug_with_id[: m.start()].rstrip("-") if m else slug_with_id
 
     return event_id, heat, slug
+
+
+def scrape_event_all(
+    event_id: str, heat: str, event_name: str, slug: str
+) -> list[ScrapedResult]:
+    """
+    Fetch all participants for a Breizh Chrono event by paginating the search
+    endpoint with an empty search term. Shares the same /v8/ API as Klikego.
+    Full splits are fetched only for club athletes ('nantais').
+    """
+    results: list[ScrapedResult] = []
+
+    with httpx.Client(follow_redirects=True, timeout=20, headers=HEADERS) as client:
+        page = 1
+        rank = 1
+        while True:
+            search_url = (
+                f"{BASE}/v8/evenement/resultats-search.jsp"
+                f"?event={event_id}&heat={heat}&search=&city=&category=&sexe=&page={page}"
+            )
+            resp = client.get(search_url)
+            if resp.status_code != 200:
+                break
+            soup = BeautifulSoup(resp.text, "lxml")
+            rows = soup.select("tr.result-row[data-dossard]")
+            if not rows:
+                break
+            for row in rows:
+                # Reuse klikego's row parser but override source_url prefix
+                r = _klikego_parse_search_row(row, event_id, heat, event_name, slug, rank)
+                r.source_url = (
+                    f"{BASE}/resultats-courses/{slug}-{event_id}/{heat}"
+                )
+                r.provider = "breizhchrono"
+                results.append(r)
+                rank += 1
+            page += 1
+
+        for r in results:
+            if r.club and "nantais" in r.club.lower():
+                detail_url = (
+                    f"{BASE}/v8/evenement/resultat-participant.jsp"
+                    f"?embedded=1&e={event_id}&heat={heat}&dossard={r.bib_number}"
+                )
+                dr = client.get(detail_url)
+                if dr.status_code == 200:
+                    _parse_detail(dr.text, r, {})
+
+    return results
 
 
 def scrape(url: str) -> ScrapedResult:

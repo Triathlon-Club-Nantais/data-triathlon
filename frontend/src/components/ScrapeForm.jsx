@@ -150,12 +150,12 @@ export default function ScrapeForm({ onSaved }) {
     try {
       await api.saveResult(edited);
       setSaved(true);
-      onSaved?.();
+      onSaved?.({ club: edited.club, url: url.trim() });
     } catch (err) {
       setError(err.message);
-    } finally {
       setSaving(false);
     }
+    setSaving(false);
   }
 
   function handleField(field, value) {
@@ -266,6 +266,7 @@ export default function ScrapeForm({ onSaved }) {
               {saving ? "Enregistrement…" : "Enregistrer le résultat"}
             </button>
           )}
+
         </div>
       )}
     </div>
@@ -310,6 +311,7 @@ const styles = {
   inputMono: { flex: 1, padding: "9px 12px", border: "1px solid #cbd5e0", borderRadius: 7, fontSize: 14, fontFamily: "monospace", outline: "none" },
   btnPrimary: { padding: "9px 20px", background: "#3b82f6", color: "#fff", border: "none", borderRadius: 7, fontWeight: 600, cursor: "pointer", fontSize: 14, whiteSpace: "nowrap" },
   btnSave: { marginTop: 20, padding: "11px 24px", background: "#10b981", color: "#fff", border: "none", borderRadius: 7, fontWeight: 700, cursor: "pointer", fontSize: 15 },
+  hint: { color: "#718096", fontSize: 13, marginTop: 8 },
   error: { color: "#e53e3e", fontSize: 14, marginBottom: 10 },
   success: { color: "#10b981", fontWeight: 700, marginTop: 16, fontSize: 15 },
   preview: { marginTop: 20, padding: 20, background: "#f7fafc", borderRadius: 10, border: "1px solid #e2e8f0" },

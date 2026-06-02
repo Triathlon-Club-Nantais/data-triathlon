@@ -390,6 +390,93 @@ def scrape(url: str) -> ScrapedResult:
 
 
 # ---------------------------------------------------------------------------
+# Bulk event scraping
+# ---------------------------------------------------------------------------
+
+def scrape_event_all(url: str) -> list[ScrapedResult]:
+    """
+    Fetch ALL participants for a TimePulse event.
+    Uses a single XML request (same as scrape()), then iterates all <E>/<R> pairs.
+    _compute_ranks is intentionally skipped for performance (O(N²) × N athletes).
+    """
+    parsed = urlparse(url)
+    params = parse_qs(parsed.query)
+    id_event = params.get("id_event", [""])[0]
+    if not id_event:
+        path_parts = [p for p in parsed.path.strip("/").split("/") if p]
+        for part in reversed(path_parts):
+            if re.match(r"^\d+$", part):
+                id_event = part
+                break
+    if not id_event:
+        raise ValueError("Paramètre id_event manquant dans l'URL TimePulse.")
+
+    xml = _fetch_xml(id_event)
+    if not xml:
+        raise ValueError(f"Impossible de récupérer les données de l'événement {id_event}.")
+
+    series_map = _parse_series(xml)
+
+    # Event metadata
+    event_name = ""
+    event_date_val = None
+    epreuve_m = re.search(r"<Epreuve\s[^>]+>", xml)
+    if epreuve_m:
+        ea = _attrs(epreuve_m.group())
+        event_name = ea.get("nom", "")
+        date_str = ea.get("dates", "")
+        if date_str:
+            event_date_val = _parse_event_date(date_str)
+    event_type = _detect_event_type(event_name)
+
+    results: list[ScrapedResult] = []
+
+    for e_m in re.finditer(r"<E\s[^>]+/>", xml):
+        ea = _attrs(e_m.group())
+        bib = ea.get("d", "")
+        if not bib:
+            continue
+
+        r_tag = _find_tag(xml, "R", "d", bib)
+        if not r_tag:
+            continue  # no result for this athlete (DNS/DNF)
+
+        result = ScrapedResult(source_url=url, provider="timepulse", bib_number=bib)
+        result.event_name = event_name
+        result.event_date = event_date_val
+        result.event_type = event_type
+
+        full_name = ea.get("n", "")
+        surname, firstname = split_athlete_name(full_name)
+        result.athlete_name = surname
+        result.athlete_firstname = firstname
+        result.club = ea.get("c", "")
+        result.gender = ea.get("x", "")
+        result.category = ea.get("ca", "")
+
+        ra = _attrs(r_tag)
+        result.total_time = normalize_time(ra.get("t", ""))
+        for key, field in series_map.items():
+            t = normalize_time(ra.get(key, ""))
+            if not t:
+                continue
+            if field == "swim" and not result.swim_time:
+                result.swim_time = t
+            elif field == "t1" and not result.t1_time:
+                result.t1_time = t
+            elif field == "bike" and not result.bike_time:
+                result.bike_time = t
+            elif field == "t2" and not result.t2_time:
+                result.t2_time = t
+            elif field == "run" and not result.run_time:
+                result.run_time = t
+
+        results.append(result)
+
+    return results
+
+
+# ---------------------------------------------------------------------------
 # Event type detection
 # ---------------------------------------------------------------------------
 

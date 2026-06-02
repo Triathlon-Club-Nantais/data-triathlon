@@ -323,6 +323,135 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
             result.run_time = f"{h:02d}:{m:02d}:{s:02d}"
 
 
+def _parse_search_row(
+    row, event_id: str, heat: str, event_name: str, slug: str, rank: int
+) -> "ScrapedResult":
+    """Extract a ScrapedResult from a search-list <tr> row (no detail call)."""
+    result = ScrapedResult(
+        source_url=(
+            f"{BASE}/resultats/{slug}/{event_id}?heat={heat}"
+        ),
+        provider="klikego",
+    )
+    result.event_name = event_name
+    result.event_type = _detect_event_type(heat, slug)
+    result.rank_overall = rank
+
+    dossard = row.get("data-dossard", "")
+    result.bib_number = dossard
+
+    name_cell = row.select_one("td.truncate")
+    if name_cell:
+        full = name_cell.get_text(strip=True)
+        parts = full.split()
+        i = 0
+        while i < len(parts) and parts[i].isupper():
+            i += 1
+        result.athlete_name = " ".join(parts[:i])
+        result.athlete_firstname = " ".join(parts[i:])
+
+    time_cell = row.select_one("td.font-mono")
+    if time_cell:
+        result.total_time = normalize_time(time_cell.get_text(strip=True))
+
+    # Club column — present in some events as a td with class "truncate" after the name
+    # The search row may contain multiple truncate cells: [name, club]
+    truncate_cells = row.select("td.truncate")
+    if len(truncate_cells) >= 2:
+        result.club = truncate_cells[1].get_text(strip=True)
+
+    return result
+
+
+def scrape_event_all(
+    event_id: str, heat: str, event_name: str, slug: str
+) -> list["ScrapedResult"]:
+    """
+    Fetch all participants for an event.
+
+    Phase 1 — Paginate all participants (basic data, no detail calls).
+    Phase 2 — Second search with city=nantais to identify Nantais-area athletes
+               (robust: works even when the club column is absent or abbreviated in
+               the search row, e.g. "TCN" instead of "TRIATHLON CLUB NANTAIS").
+    Phase 3 — Fetch full detail pages only for those athletes so their club name,
+               category, gender and splits are correctly populated.
+    """
+    results: list[ScrapedResult] = []
+    bib_to_result: dict[str, ScrapedResult] = {}
+
+    with httpx.Client(follow_redirects=True, timeout=20, headers=HEADERS) as client:
+        # Phase 1 — all participants
+        # Klikego repeats the last page indefinitely for out-of-range page numbers,
+        # so we stop when the first bib of a page matches the first bib of the
+        # previous page (reliable end-of-pagination signal).
+        page = 1
+        rank = 1
+        prev_first_bib: str | None = None
+        while True:
+            url = (
+                f"{BASE}/v8/evenement/resultats-search.jsp"
+                f"?event={event_id}&heat={heat}&search=&city=&category=&sexe=&page={page}"
+            )
+            resp = client.get(url)
+            if resp.status_code != 200:
+                break
+            rows = BeautifulSoup(resp.text, "lxml").select("tr.result-row[data-dossard]")
+            if not rows:
+                break
+            first_bib = rows[0].get("data-dossard", "")
+            if first_bib and first_bib == prev_first_bib:
+                break  # Klikego is repeating the last page — we're done
+            prev_first_bib = first_bib
+            for row in rows:
+                r = _parse_search_row(row, event_id, heat, event_name, slug, rank)
+                results.append(r)
+                bib_to_result[r.bib_number] = r
+                rank += 1
+            page += 1
+
+        # Phase 2 — collect bibs of Nantais-area athletes via city filter
+        # city=nantais returns only Nantais athletes and shows their club name
+        # in the second truncate cell — reliable regardless of event layout.
+        nantais_bibs: set[str] = set()
+        page = 1
+        prev_first_bib = None
+        while True:
+            url = (
+                f"{BASE}/v8/evenement/resultats-search.jsp"
+                f"?event={event_id}&heat={heat}&search=&city=nantais&category=&sexe=&page={page}"
+            )
+            resp = client.get(url)
+            if resp.status_code != 200:
+                break
+            rows = BeautifulSoup(resp.text, "lxml").select("tr.result-row[data-dossard]")
+            if not rows:
+                break
+            first_bib = rows[0].get("data-dossard", "")
+            if first_bib and first_bib == prev_first_bib:
+                break
+            prev_first_bib = first_bib
+            for row in rows:
+                bib = row.get("data-dossard", "")
+                if bib:
+                    nantais_bibs.add(bib)
+            page += 1
+
+        # Phase 3 — fetch detail pages for Nantais athletes
+        for bib in nantais_bibs:
+            r = bib_to_result.get(bib)
+            if not r:
+                continue
+            detail_url = (
+                f"{BASE}/v8/evenement/resultat-participant.jsp"
+                f"?embedded=1&e={event_id}&heat={heat}&dossard={bib}"
+            )
+            dr = client.get(detail_url)
+            if dr.status_code == 200:
+                _parse_detail(dr.text, r, {})
+
+    return results
+
+
 def _detect_event_type(heat: str, slug: str = "") -> str:
     # Check sport type first (slug covers swimrun events whose heat is "Format L…")
     combined = (heat + " " + slug).lower()

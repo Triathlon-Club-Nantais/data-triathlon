@@ -88,10 +88,11 @@ def list_results(
     name: Optional[str] = Query(None),
     event_type: Optional[str] = Query(None),
     event_name: Optional[str] = Query(None),
+    club: Optional[str] = Query(None),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=1000),
     db: Session = Depends(get_db),
 ):
     q = db.query(Result)
@@ -100,6 +101,8 @@ def list_results(
         q = q.filter(
             Result.athlete_name.ilike(pattern) | Result.athlete_firstname.ilike(pattern)
         )
+    if club:
+        q = q.filter(Result.club.ilike(f"%{club}%"))
     if event_type:
         q = q.filter(Result.event_type == event_type)
     if event_name:

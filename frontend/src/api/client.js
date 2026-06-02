@@ -37,4 +37,10 @@ export const api = {
 
   deleteResult: (id) =>
     request(`/results/${id}`, { method: "DELETE" }),
+
+  importEvent: (url) =>
+    request("/scrape/event", {
+      method: "POST",
+      body: JSON.stringify({ url }),
+    }),
 };

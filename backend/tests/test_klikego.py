@@ -9,11 +9,13 @@ Chaque test correspond à un cas réel rencontré lors du développement :
 - Frenchman XXL / Lac au Duc : détection du type d'épreuve depuis le heat
 - Duathlon           : "CAP 1"/"CAP 2" → swim_time/run_time, heat "duathlon-s-individuel"
 - Swimrun            : type détecté depuis le slug URL (heat = "format-l-en-binome")
+- _parse_search_row  : extraction des lignes de résultat paginées (bulk import)
 """
 import pytest
+from bs4 import BeautifulSoup
 
 from scrapers.base import ScrapedResult
-from scrapers.klikego import _detect_event_type, _parse_detail
+from scrapers.klikego import _detect_event_type, _parse_detail, _parse_search_row
 
 
 # ---------------------------------------------------------------------------
@@ -503,3 +505,105 @@ def test_parse_detail_nat_not_matched_as_transition():
 
     assert result.swim_time == "00:10:00"
     assert result.t1_time   == ""
+
+
+# ---------------------------------------------------------------------------
+# _parse_search_row — extraction des lignes de la liste paginée (bulk import)
+# ---------------------------------------------------------------------------
+
+def _make_search_row(
+    bib: str,
+    name: str,
+    total_time: str = "01:30:00",
+    second_truncate: str | None = None,
+) -> "BeautifulSoup Tag":
+    """Génère un <tr class='result-row'> tel que retourné par resultats-search.jsp."""
+    second_cell = f'<td class="truncate">{second_truncate}</td>' if second_truncate else ""
+    html = f"""
+    <table><tbody>
+      <tr class="result-row" data-dossard="{bib}">
+        <td class="truncate">{name}</td>
+        {second_cell}
+        <td class="font-mono">{total_time}</td>
+      </tr>
+    </tbody></table>
+    """
+    soup = BeautifulSoup(html, "lxml")
+    return soup.select_one("tr.result-row[data-dossard]")
+
+
+def test_parse_search_row_basic():
+    """Extraction du dossard, nom/prénom et temps total depuis une ligne de recherche."""
+    row = _make_search_row(bib="995", name="BECT Oscar", total_time="10:57:46")
+    result = _parse_search_row(row, "EVT1", "triathlon-xl", "Frenchman 2026", "frenchman-2026", rank=42)
+
+    assert result.bib_number      == "995"
+    assert result.athlete_name    == "BECT"
+    assert result.athlete_firstname == "Oscar"
+    assert result.total_time      == "10:57:46"
+    assert result.rank_overall    == 42
+    assert result.event_name      == "Frenchman 2026"
+    assert result.event_type      == "triathlon-xl"
+    assert result.provider        == "klikego"
+
+
+def test_parse_search_row_multiword_name():
+    """Nom composé en majuscules suivi d'un prénom."""
+    row = _make_search_row(bib="42", name="LE GALL Pierre")
+    result = _parse_search_row(row, "E", "triathlon-m", "Event", "event", rank=1)
+
+    assert result.athlete_name      == "LE GALL"
+    assert result.athlete_firstname == "Pierre"
+
+
+def test_parse_search_row_club_present():
+    """Quand une 2ème cellule .truncate est présente, son contenu est le club."""
+    row = _make_search_row(
+        bib="997",
+        name="RINFRAY Julien",
+        second_truncate="TRIATHLON CLUB NANTAIS",
+    )
+    result = _parse_search_row(row, "E", "triathlon-xl", "Frenchman 2026", "frenchman-2026", rank=1)
+
+    assert result.club == "TRIATHLON CLUB NANTAIS"
+
+
+def test_parse_search_row_city_column():
+    """
+    Certaines épreuves affichent la ville (ex: 'HERBLAY (95220)') au lieu du club
+    dans la 2ème cellule. Ce texte est stocké tel quel — pas de traitement spécial.
+    Le filtre city=nantais est utilisé côté API pour l'identification TCN.
+    """
+    row = _make_search_row(
+        bib="17",
+        name="YVALUN Johan",
+        second_truncate="HERBLAY (95220)",
+    )
+    result = _parse_search_row(row, "E", "triathlon-xl", "Frenchman 2026", "frenchman-2026", rank=1)
+
+    assert result.club == "HERBLAY (95220)"
+
+
+def test_parse_search_row_no_second_truncate():
+    """Sans 2ème cellule .truncate, le club reste vide."""
+    row = _make_search_row(bib="1", name="DUPONT Jean")
+    result = _parse_search_row(row, "E", "triathlon-s", "Event", "event", rank=5)
+
+    assert result.club == ""
+
+
+def test_parse_search_row_source_url():
+    """L'URL source est construite depuis event_id, heat et slug."""
+    row = _make_search_row(bib="1", name="TEST Athlete")
+    result = _parse_search_row(
+        row,
+        event_id="1700025627600-3",
+        heat="triathlon-l-individuel",
+        event_name="Event",
+        slug="triathlon-dangers-entre-loire-et-maine-2026",
+        rank=1,
+    )
+
+    assert "1700025627600-3" in result.source_url
+    assert "triathlon-l-individuel" in result.source_url
+    assert "triathlon-dangers-entre-loire-et-maine-2026" in result.source_url
