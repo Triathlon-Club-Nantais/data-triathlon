@@ -7,7 +7,14 @@ const EVENT_TYPES = [
   "triathlon-m",
   "triathlon-l",
   "triathlon-xl",
+  "duathlon-xs",
+  "duathlon-s",
+  "duathlon-m",
+  "duathlon-l",
   "duathlon",
+  "swimrun-s",
+  "swimrun-m",
+  "swimrun-l",
   "swimrun",
 ];
 

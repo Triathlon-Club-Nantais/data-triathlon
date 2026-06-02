@@ -303,12 +303,32 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
 def _detect_event_type(heat: str, slug: str = "") -> str:
     # Check sport type first (slug covers swimrun events whose heat is "Format L…")
     combined = (heat + " " + slug).lower()
-    if "swimrun" in combined or "swim-run" in combined:
-        return "swimrun"
-    if "duathlon" in combined:
-        return "duathlon"
-    # Triathlon distance from heat name
     h = heat.lower()
+
+    if "swimrun" in combined or "swim-run" in combined:
+        # Format L/M/S from heat "format-l-…", "format-m-…", "format-s-…"
+        if "format-l" in h:
+            return "swimrun-l"
+        if "format-m" in h:
+            return "swimrun-m"
+        if "format-s" in h:
+            return "swimrun-s"
+        return "swimrun"
+
+    if "duathlon" in combined:
+        # Strip "duathlon-" prefix to read the format indicator
+        suffix = h.replace("duathlon-", "").replace("duathlon", "")
+        if "xs" in suffix or "extra-short" in suffix:
+            return "duathlon-xs"
+        if suffix.startswith("s-") or "-s-" in suffix or "sprint" in suffix:
+            return "duathlon-s"
+        if suffix.startswith("m-") or "-m-" in suffix:
+            return "duathlon-m"
+        if suffix.startswith("l-") or "-l-" in suffix:
+            return "duathlon-l"
+        return "duathlon"
+
+    # Triathlon distance from heat name
     if "xxl" in h or "ironman" in h:
         return "triathlon-xl"
     if "-l" in h or "longue" in h:

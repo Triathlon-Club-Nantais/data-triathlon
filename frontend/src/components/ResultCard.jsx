@@ -1,10 +1,17 @@
 const EVENT_TYPE_LABELS = {
-  "triathlon-s": "Triathlon S",
-  "triathlon-m": "Triathlon M",
-  "triathlon-l": "Triathlon L",
+  "triathlon-s":  "Triathlon S",
+  "triathlon-m":  "Triathlon M",
+  "triathlon-l":  "Triathlon L",
   "triathlon-xl": "Triathlon XL",
-  duathlon: "Duathlon",
-  swimrun: "SwimRun",
+  "duathlon-xs":  "Duathlon XS",
+  "duathlon-s":   "Duathlon S",
+  "duathlon-m":   "Duathlon M",
+  "duathlon-l":   "Duathlon L",
+  "duathlon":     "Duathlon",
+  "swimrun-s":    "SwimRun S",
+  "swimrun-m":    "SwimRun M",
+  "swimrun-l":    "SwimRun L",
+  "swimrun":      "SwimRun",
 };
 
 export default function ResultCard({ result, onDelete }) {
@@ -75,11 +82,7 @@ export default function ResultCard({ result, onDelete }) {
 
       {(result.swim_time || result.bike_time || result.run_time) && (
         <div style={styles.splits}>
-          <Split label="Natation" time={result.swim_time} color="#3b82f6" />
-          <Split label="T1" time={result.t1_time} color="#94a3b8" small />
-          <Split label="Vélo" time={result.bike_time} color="#f59e0b" />
-          <Split label="T2" time={result.t2_time} color="#94a3b8" small />
-          <Split label="Course" time={result.run_time} color="#10b981" />
+          <SplitsForSport result={result} />
         </div>
       )}
 
@@ -89,6 +92,34 @@ export default function ResultCard({ result, onDelete }) {
         </a>
       </div>
     </div>
+  );
+}
+
+function SplitsForSport({ result }) {
+  const type = result.event_type || "";
+  const isDuathlon = type.startsWith("duathlon");
+
+  if (isDuathlon) {
+    return (
+      <>
+        <Split label="Course 1" time={result.swim_time} color="#10b981" />
+        <Split label="T1"       time={result.t1_time}   color="#94a3b8" small />
+        <Split label="Vélo"     time={result.bike_time} color="#f59e0b" />
+        <Split label="T2"       time={result.t2_time}   color="#94a3b8" small />
+        <Split label="Course 2" time={result.run_time}  color="#10b981" />
+      </>
+    );
+  }
+
+  // Triathlon and swimrun: standard labels
+  return (
+    <>
+      <Split label="Natation" time={result.swim_time} color="#3b82f6" />
+      <Split label="T1"       time={result.t1_time}   color="#94a3b8" small />
+      <Split label="Vélo"     time={result.bike_time} color="#f59e0b" />
+      <Split label="T2"       time={result.t2_time}   color="#94a3b8" small />
+      <Split label="Course"   time={result.run_time}  color="#10b981" />
+    </>
   );
 }
 

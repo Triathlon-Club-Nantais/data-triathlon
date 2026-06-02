@@ -84,14 +84,19 @@ def fresh_result() -> tuple[ScrapedResult, dict]:
     ("triathlon-xl", "", "triathlon-xl"),
     # Frenchman XXL
     ("medoc-atlantique-frenchman-xxl", "", "triathlon-xl"),
-    # --- Duathlon : doit passer AVANT les checks -s/-m (bug corrigé) ---
-    ("duathlon-classique", "", "duathlon"),
-    ("duathlon-s-individuel", "", "duathlon"),   # était détecté "triathlon-s" avant fix
-    ("duathlon-liffre-cormier-open--sprint-court", "", "duathlon"),
-    # --- Swimrun : détection via slug (heats = "format-l-en-binome" etc.) ---
-    ("swimrun-classique", "", "swimrun"),
-    ("format-l---en-binome", "re-swimrun-2025", "swimrun"),       # slug contient "swimrun"
-    ("format-m---en-solo", "swimrun-cote-beaute-2025", "swimrun"),
+    # --- Duathlon : sous-formats XS/S/M/L + vérification pas de régression -s triathlon ---
+    ("duathlon-classique", "", "duathlon"),                                    # pas de format → générique
+    ("duathlon-s-individuel", "", "duathlon-s"),                               # était "triathlon-s" avant fix
+    ("duathlon-liffre-cormier-open--xs-court", "", "duathlon-xs"),             # XS
+    ("duathlon-liffre-cormier-open--sprint-court", "", "duathlon-s"),          # sprint → S
+    ("duathlon-m-individuel", "", "duathlon-m"),
+    ("duathlon-l-individuel", "", "duathlon-l"),
+    ("duathlon-liffre-cormier-clm-par-equipe", "", "duathlon"),                # relais → générique
+    # --- Swimrun : sous-formats S/M/L depuis heat "format-x-…" ---
+    ("swimrun-classique", "", "swimrun"),                                       # heat contient "swimrun"
+    ("format-s---en-binome", "re-swimrun-2025", "swimrun-s"),
+    ("format-m---en-solo", "swimrun-cote-beaute-2025", "swimrun-m"),
+    ("format-l---championnat-de-france---en-binome", "re-swimrun-2025", "swimrun-l"),
     # heat vide → valeur brute retournée
     ("", "", "triathlon"),
 ])
