@@ -290,16 +290,26 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
         else:
             time_val = time_norm
 
+        # In non-cumulative mode: "first set wins" — intermediate checkpoints
+        # (e.g. "Vélo km 85", "CAP km 14") share the same field key as the
+        # main segment but must not overwrite it.  In cumulative mode we always
+        # overwrite because each value is a freshly-computed delta.
+        def _set(attr: str, val: str) -> None:
+            if is_cumulative or not getattr(result, attr):
+                setattr(result, attr, val)
+            else:
+                raw[f"split_{stage}"] = val
+
         if field == "swim":
-            result.swim_time = time_val
+            _set("swim_time", time_val)
         elif field == "t1":
-            result.t1_time = time_val
+            _set("t1_time", time_val)
         elif field == "bike":
-            result.bike_time = time_val
+            _set("bike_time", time_val)
         elif field == "t2":
-            result.t2_time = time_val
+            _set("t2_time", time_val)
         elif field == "run":
-            result.run_time = time_val
+            _set("run_time", time_val)
         else:
             raw[f"split_{stage}"] = time_val
 

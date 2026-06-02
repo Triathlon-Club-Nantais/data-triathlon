@@ -1,8 +1,16 @@
 """
 Scraper for resultats.breizhchrono.com
-URL example:
-  https://resultats.breizhchrono.com/bc/resultats/coureur.jsp
-    ?ref=1700025627600-3&heat=triathlon-s-individuel&dossard=194
+
+Breizh Chrono uses the same underlying platform as Klikego (/v8/evenement/ API,
+identical HTML structure). Only the front-end URL format differs:
+
+  Klikego:       https://www.klikego.com/resultats/{slug}/{event-id}
+                   ?heat={heat}&search={name}
+  Breizh Chrono: https://resultats.breizhchrono.com/resultats-courses/{slug}-{event-id}/{heat}
+                   ?search={name}
+
+The detail page HTML (p.text-sm meta line, ranking divs, result-row splits table)
+is byte-for-byte identical, so _parse_detail is shared from klikego.
 """
 import re
 from urllib.parse import urlparse, parse_qs
@@ -11,104 +19,112 @@ import httpx
 from bs4 import BeautifulSoup
 
 from .base import ScrapedResult
-from .utils import normalize_time, normalize_rank
+from .utils import normalize_time
+from .klikego import _parse_detail, _detect_event_type as _klikego_detect_event_type
+
+BASE = "https://resultats.breizhchrono.com"
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+    ),
+    "Referer": "https://resultats.breizhchrono.com/",
+    "Accept": "text/html,*/*",
+}
 
 
-def _safe_int(value: str) -> int | None:
-    return normalize_rank(value)
+def _parse_bc_url(url: str) -> tuple[str, str, str]:
+    """
+    Parse a Breizh Chrono results URL into (event_id, heat, slug).
+
+    URL format:
+      /resultats-courses/{slug}-{event-id}/{heat}
+
+    event-id: 10+ digits, hyphen, 1+ digits  e.g. 1700025627600-3
+    heat:     last path segment               e.g. triathlon-s-individuel
+    slug:     human-readable prefix           e.g. triathlon-dangers-entre-loire-et-maine-2026
+    """
+    path_parts = [p for p in urlparse(url).path.strip("/").split("/") if p]
+    # path_parts[0] = "resultats-courses"
+    # path_parts[1] = "{slug}-{event-id}"
+    # path_parts[2] = "{heat}"
+    slug_with_id = path_parts[1] if len(path_parts) >= 2 else ""
+    heat = path_parts[2] if len(path_parts) >= 3 else ""
+
+    m = re.search(r"(\d{10,}-\d+)$", slug_with_id)
+    event_id = m.group(1) if m else ""
+    slug = slug_with_id[: m.start()].rstrip("-") if m else slug_with_id
+
+    return event_id, heat, slug
 
 
 def scrape(url: str) -> ScrapedResult:
-    params = parse_qs(urlparse(url).query)
-    heat = params.get("heat", [""])[0]
-    dossard = params.get("dossard", [""])[0]
+    parsed_url = urlparse(url)
+    params = parse_qs(parsed_url.query)
+    search = params.get("search", [""])[0].strip()
 
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0 Safari/537.36"
-        )
-    }
+    event_id, heat, slug = _parse_bc_url(url)
 
-    with httpx.Client(follow_redirects=True, timeout=20) as client:
-        resp = client.get(url, headers=headers)
-        resp.raise_for_status()
-
-    soup = BeautifulSoup(resp.text, "lxml")
     result = ScrapedResult(source_url=url, provider="breizhchrono")
 
-    # Event name — look for h1/h2
-    title_tag = soup.find("h1") or soup.find("h2")
-    if title_tag:
-        result.event_name = title_tag.get_text(strip=True)
+    if slug:
+        result.event_name = slug.replace("-", " ").title()
 
-    # Detect event type from heat param
-    result.event_type = _detect_event_type(heat)
-    result.bib_number = dossard
+    result.event_type = _klikego_detect_event_type(heat, slug)
+    raw: dict = {"event_id": event_id, "heat": heat, "search": search}
 
-    # Tables — first table usually has athlete info / results
-    tables = soup.find_all("table")
-    raw: dict = {"heat": heat, "dossard": dossard}
+    if not search:
+        result.raw_data = raw
+        return result  # need a name to search
 
-    for table in tables:
-        rows = table.find_all("tr")
-        for row in rows:
-            cells = [td.get_text(strip=True) for td in row.find_all(["td", "th"])]
-            if len(cells) < 2:
-                continue
-            key = cells[0].lower()
-            val = cells[1] if len(cells) > 1 else ""
-            raw[key] = val
+    with httpx.Client(follow_redirects=True, timeout=20, headers=HEADERS) as client:
+        # 1 — Search by name
+        search_url = (
+            f"{BASE}/v8/evenement/resultats-search.jsp"
+            f"?event={event_id}&heat={heat}&search={search}&city=&category=&sexe=&page="
+        )
+        resp = client.get(search_url)
+        if resp.status_code != 200:
+            raw["search_error"] = resp.status_code
+            result.raw_data = raw
+            return result
 
-            if "nom" in key or "name" in key:
-                parts = val.split()
-                if parts:
-                    result.athlete_name = parts[0]
-                    result.athlete_firstname = " ".join(parts[1:])
-            elif "prénom" in key or "prenom" in key:
-                result.athlete_firstname = val
-            elif "club" in key:
-                result.club = val
-            elif "catégorie" in key or "categorie" in key or "cat." in key:
-                result.category = val
-            elif "sexe" in key or "genre" in key:
-                result.gender = "F" if "f" in val.lower() else "M"
-            elif "classement général" in key or "rang général" in key or "position" in key:
-                result.rank_overall = _safe_int(val)
-            elif "classement catégorie" in key or "rang cat" in key:
-                result.rank_category = _safe_int(val)
-            elif "classement sexe" in key or "rang sexe" in key:
-                result.rank_gender = _safe_int(val)
-            elif "temps total" in key or "total" in key:
-                result.total_time = normalize_time(val)
-            elif "natation" in key or "swim" in key or "nage" in key:
-                result.swim_time = normalize_time(val)
-            elif "t1" in key:
-                result.t1_time = normalize_time(val)
-            elif "vélo" in key or "velo" in key or "bike" in key or "cyclisme" in key:
-                result.bike_time = normalize_time(val)
-            elif "t2" in key:
-                result.t2_time = normalize_time(val)
-            elif "cap" in key or "course à pied" in key or "run" in key:
-                result.run_time = normalize_time(val)
+        soup = BeautifulSoup(resp.text, "lxml")
+        raw["search_html"] = resp.text[:500]
+
+        row = soup.select_one("tr.result-row[data-dossard]")
+        if row is None:
+            raise ValueError(
+                f"Athlète « {search} » introuvable sur Breizh Chrono (événement {event_id}). "
+                "Vérifiez l'orthographe du nom."
+            )
+
+        dossard = row.get("data-dossard", "")
+        result.bib_number = dossard
+
+        # Name from search row
+        name_cell = row.select_one("td.truncate")
+        if name_cell:
+            full = name_cell.get_text(strip=True)
+            parts = full.split()
+            i = 0
+            while i < len(parts) and parts[i].isupper():
+                i += 1
+            result.athlete_name = " ".join(parts[:i])
+            result.athlete_firstname = " ".join(parts[i:])
+
+        time_cell = row.select_one("td.font-mono")
+        if time_cell:
+            result.total_time = normalize_time(time_cell.get_text(strip=True))
+
+        # 2 — Fetch participant detail for splits + full rankings
+        detail_url = (
+            f"{BASE}/v8/evenement/resultat-participant.jsp"
+            f"?embedded=1&e={event_id}&heat={heat}&dossard={dossard}"
+        )
+        detail_resp = client.get(detail_url)
+        if detail_resp.status_code == 200:
+            _parse_detail(detail_resp.text, result, raw)
 
     result.raw_data = raw
     return result
-
-
-def _detect_event_type(heat: str) -> str:
-    heat = heat.lower()
-    if "xxl" in heat or "ironman" in heat:
-        return "triathlon-xl"
-    if "-l" in heat or "triathlon-l" in heat or "long" in heat:
-        return "triathlon-l"
-    if "-m" in heat or "triathlon-m" in heat or "olymp" in heat:
-        return "triathlon-m"
-    if "-s" in heat or "triathlon-s" in heat or "sprint" in heat:
-        return "triathlon-s"
-    if "duathlon" in heat:
-        return "duathlon"
-    if "swimrun" in heat or "swim-run" in heat:
-        return "swimrun"
-    return heat

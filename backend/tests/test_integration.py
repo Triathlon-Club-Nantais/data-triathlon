@@ -305,3 +305,130 @@ def test_klikego_lacanau_cumulative():
         r.swim_time, r.t1_time, r.bike_time, r.t2_time, r.run_time
     ])
     assert abs(total - splits_sum) <= 1
+
+
+# ---------------------------------------------------------------------------
+# Breizh Chrono — Triathlon S — Dangers entre Loire et Maine 2026
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+def test_breizhchrono_triathlon_s():
+    """
+    Triathlon S Loire et Maine 2026 — ABDELMOULA Jawad (bib=1, S3).
+    Vérifie : provider, event_type, splits complets (5 segments).
+    """
+    url = (
+        "https://resultats.breizhchrono.com/resultats-courses/"
+        "triathlon-dangers-entre-loire-et-maine-2026-1700025627600-3/"
+        "triathlon-s-individuel?search=ABDELMOULA"
+    )
+    r = scrape(url)
+
+    assert r.provider == "breizhchrono"
+    assert r.event_type == "triathlon-s"
+    assert r.total_time != ""
+    assert r.swim_time != ""
+    assert r.t1_time   != ""
+    assert r.bike_time != ""
+    assert r.t2_time   != ""
+    assert r.run_time  != ""
+
+
+# ---------------------------------------------------------------------------
+# Breizh Chrono — Triathlon L — Châtelaillon-Plage 2026
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+def test_breizhchrono_triathlon_l_with_checkpoints():
+    """
+    Triathlon L Châtelaillon-Plage 2026 — BELGY Guillaume (bib=6).
+    L'événement expose des points intermédiaires (Vélo km 5/45/80/85, CAP km 7/14).
+    Vérifie que les checkpoints n'écrasent pas les segments principaux.
+    """
+    url = (
+        "https://resultats.breizhchrono.com/resultats-courses/"
+        "triathlon-chatelaillon-plage-2026-1360808403296-12/"
+        "triathlon-l?search=BELGY"
+    )
+    r = scrape(url)
+
+    assert r.provider == "breizhchrono"
+    assert r.event_type == "triathlon-l"
+    assert r.total_time != ""
+    # bike_time doit être le segment Vélo (02:03:54), pas un checkpoint km 85
+    assert r.bike_time != ""
+    # run_time doit être Cap (01:15:21), pas un checkpoint km 14
+    assert r.run_time != ""
+    # Les splits principaux + total doivent être cohérents (à 5s près)
+    def _s(t):
+        if not t: return 0
+        p = t.split(":")
+        try: return int(p[0])*3600+int(p[1])*60+int(p[2])
+        except: return 0
+    splits_sum = sum(_s(t) for t in [r.swim_time, r.t1_time, r.bike_time, r.t2_time, r.run_time] if t)
+    assert abs(_s(r.total_time) - splits_sum) <= 5
+
+
+# ---------------------------------------------------------------------------
+# Breizh Chrono — Duathlon S — Nozéen 2026 (splits CAP 1/Vélo/CAP 2)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+def test_breizhchrono_duathlon_s_cap_labels():
+    """
+    Duathlon Nozéen 2026 — BAZLEY George (bib=106, S2).
+    Labels : CAP 1 → swim_time, Vélo → bike_time, CAP 2 → run_time.
+    """
+    url = (
+        "https://resultats.breizhchrono.com/resultats-courses/"
+        "6e-duathlon-nozeen-2026-1517534975128-8/"
+        "duathlon-s---open?search=BAZLEY"
+    )
+    r = scrape(url)
+
+    assert r.provider == "breizhchrono"
+    assert r.event_type == "duathlon-s"
+    assert r.total_time != ""
+    assert r.swim_time  != ""   # CAP 1 → slot swim
+    assert r.bike_time  != ""   # Vélo
+    assert r.run_time   != ""   # CAP 2
+
+
+# ---------------------------------------------------------------------------
+# Breizh Chrono — SwimRun M & L — RE SwimRun 2025
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+def test_breizhchrono_swimrun_m():
+    """
+    RE SwimRun 2025 — CHAUMET David, format-m-solo.
+    Vérifie : event_type=swimrun-m, total_time non vide.
+    """
+    url = (
+        "https://resultats.breizhchrono.com/resultats-courses/"
+        "re-swimrun-2025-1571197277233-6/"
+        "format-m---en-solo?search=CHAUMET"
+    )
+    r = scrape(url)
+
+    assert r.provider == "breizhchrono"
+    assert r.event_type == "swimrun-m"
+    assert r.total_time != ""
+
+
+@pytest.mark.integration
+def test_breizhchrono_swimrun_l_binome():
+    """
+    RE SwimRun 2025 — DE LUSTRAC/GUEGUEN, format-l-binome (Championnat de France).
+    Vérifie : event_type=swimrun-l, total_time non vide.
+    """
+    url = (
+        "https://resultats.breizhchrono.com/resultats-courses/"
+        "re-swimrun-2025-1571197277233-6/"
+        "format-l---championnat-de-france---en-binome?search=DE+LUSTRAC"
+    )
+    r = scrape(url)
+
+    assert r.provider == "breizhchrono"
+    assert r.event_type == "swimrun-l"
+    assert r.total_time != ""

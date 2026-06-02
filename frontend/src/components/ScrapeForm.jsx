@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { api } from "../api/client.js";
-import ResultCard from "./ResultCard.jsx";
 
 const EVENT_TYPE_OPTIONS = [
   // Triathlon
@@ -80,6 +79,10 @@ function isKlikego(url) {
   return url.includes("klikego.com");
 }
 
+function isBreizhchrono(url) {
+  return url.includes("breizhchrono.com");
+}
+
 function isTimepulse(url) {
   return url.includes("timepulse.fr");
 }
@@ -87,7 +90,7 @@ function isTimepulse(url) {
 function needsSearch(url) {
   try {
     const p = new URLSearchParams(new URL(url).search);
-    if (isKlikego(url)) return !p.get("search");
+    if (isKlikego(url) || isBreizhchrono(url)) return !p.get("search");
     if (isTimepulse(url)) return !p.get("bib") && !p.get("search");
   } catch { /* invalid URL */ }
   return false;
@@ -95,6 +98,7 @@ function needsSearch(url) {
 
 function providerHint(url) {
   if (isKlikego(url)) return "Klikego";
+  if (isBreizhchrono(url)) return "Breizh Chrono";
   if (isTimepulse(url)) return "TimePulse";
   return "";
 }
