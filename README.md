@@ -77,6 +77,37 @@ Le champ de recherche s'affiche aussi automatiquement dans le formulaire.
 
 ---
 
+## Tests
+
+### Lancer les tests unitaires
+
+```bash
+cd backend
+
+# Installer les dépendances de test (une seule fois)
+pip install -r requirements-test.txt
+
+# Tests unitaires (rapides, sans réseau)
+pytest
+```
+
+### Tests d'intégration (réseau réel)
+
+```bash
+pytest -m integration
+```
+
+Ces tests appellent les APIs TimePulse directement. Ils nécessitent une connexion internet.
+
+### Tests Klikego (à compléter)
+
+Les stubs pour Redon, Domino, Frenchman XXL, Lac au Duc et Lacanau sont dans
+`backend/tests/test_integration.py`. Pour les activer :
+1. Remplacer `NOM+PRENOM` dans l'URL par un athlète réel de l'événement
+2. Retirer le `@pytest.mark.skip`
+
+---
+
 ## Structure du projet
 
 ```
@@ -86,16 +117,22 @@ data-triathlon/
 │   ├── database.py          # Engine SQLAlchemy + session
 │   ├── models.py            # Modèle Result (SQLite)
 │   ├── requirements.txt
+│   ├── requirements-test.txt
+│   ├── pytest.ini
 │   ├── routers/
 │   │   ├── scrape.py        # POST /api/scrape
 │   │   └── results.py       # GET / POST / DELETE /api/results
-│   └── scrapers/
-│       ├── __init__.py      # detect_provider() + scrape()
-│       ├── base.py          # Dataclass ScrapedResult
-│       ├── klikego.py
-│       ├── timepulse.py
-│       ├── breizhchrono.py
-│       └── wiclax.py
+│   ├── scrapers/
+│   │   ├── __init__.py      # detect_provider() + scrape()
+│   │   ├── base.py          # Dataclass ScrapedResult
+│   │   ├── klikego.py
+│   │   ├── timepulse.py
+│   │   ├── breizhchrono.py
+│   │   └── wiclax.py
+│   └── tests/
+│       ├── test_klikego.py      # 19 tests unitaires Klikego
+│       ├── test_timepulse.py    # 25 tests unitaires TimePulse
+│       └── test_integration.py  # tests réseau + stubs Klikego
 ├── frontend/
 │   ├── src/
 │   │   ├── App.jsx
