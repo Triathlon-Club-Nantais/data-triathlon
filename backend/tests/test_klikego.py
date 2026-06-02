@@ -103,6 +103,8 @@ def fresh_result() -> tuple[ScrapedResult, dict]:
     ("aquarun-individuel", "aquarun-lacanau-2025", "aquarun"),
     ("bike-run-individuel", "bike-run-halloween-2025", "bike-run"),
     ("bikerun-sprint", "", "bike-run"),
+    # Mimizan jeunes : heat "triathlon-xs-jeunes" → triathlon-s (xs = extra-short)
+    ("triathlon-xs-jeunes", "", "triathlon-s"),
     # heat vide → valeur brute retournée
     ("", "", "triathlon"),
 ])
@@ -401,3 +403,103 @@ def test_parse_detail_duathlon_generic_cap_fallback():
     assert raw["cumulative"] is False
     assert result.run_time  == "00:20:00"
     assert result.bike_time == "00:05:00"
+
+
+# ---------------------------------------------------------------------------
+# Sables et Cap 2026 : "Transition 1" / "Transition 2" (labels numérotés)
+# ---------------------------------------------------------------------------
+
+def test_parse_detail_transition_numbered_labels():
+    """
+    Cas Sables et Cap 2026 — T1/T2 labellisés "Transition 1" / "Transition 2".
+    Ces labels sont distincts de "Transition Natation" (T1 spécifique), c'est
+    la variante générique numérotée. Régression introduite avant l'ajout de
+    ("transition 1", "t1") et ("transition 2", "t2") dans la split_map.
+    """
+    splits = [
+        ("Natation",     "00:18:00"),
+        ("Transition 1", "00:01:30"),
+        ("Vélo",         "01:05:00"),
+        ("Transition 2", "00:01:00"),
+        ("Course",       "00:42:00"),
+    ]
+    html = make_detail_html(total_time="02:07:30", splits=splits)
+    result, raw = fresh_result()
+
+    _parse_detail(html, result, raw)
+
+    assert result.swim_time == "00:18:00"
+    assert result.t1_time   == "00:01:30"
+    assert result.bike_time == "01:05:00"
+    assert result.t2_time   == "00:01:00"
+    assert result.run_time  == "00:42:00"
+    assert raw["cumulative"] is False
+
+
+# ---------------------------------------------------------------------------
+# Mimizan 2026 : "NAT" (forme abrégée, épreuves jeunes)
+# ---------------------------------------------------------------------------
+
+def test_parse_detail_nat_abbreviated_swim():
+    """
+    Cas Mimizan 2026 (triathlon-xs-jeunes) — la natation est labellisée "NAT"
+    en majuscules abrégées. Régression introduite avant l'ajout de
+    ("nat", "swim") dans la split_map.
+    """
+    splits = [
+        ("NAT",  "00:05:32"),
+        ("T1",   "00:01:12"),
+        ("VELO", "00:16:24"),
+        ("T2",   "00:01:03"),
+        ("CAP",  "00:10:39"),
+    ]
+    html = make_detail_html(total_time="00:34:49", splits=splits)
+    result, raw = fresh_result()
+
+    _parse_detail(html, result, raw)
+
+    assert result.swim_time == "00:05:32"
+    assert result.t1_time   == "00:01:12"
+    assert result.bike_time == "00:16:24"
+    assert result.t2_time   == "00:01:03"
+    assert result.run_time  == "00:10:39"
+    assert raw["cumulative"] is False
+
+
+def test_parse_detail_generic_transition_aquathlon():
+    """
+    Aquathlon : label "Transition" (sans qualificatif) → t1_time.
+    Régression : sans cet entrée, le label était ignoré, seules 2 stages mappées
+    (swim+run) étaient détectées comme cumulatives (782 < 1022), produisant un
+    run_time erroné (delta cumulatif) au lieu du temps réel.
+    """
+    splits = [
+        ("Natation",    "00:13:02"),   # swim  (782s)
+        ("Transition",  "00:00:27"),   # t1    (27s)  ← brise la monotonie → non cumulatif
+        ("CAP",         "00:17:02"),   # run   (1022s)
+    ]
+    html = make_detail_html(total_time="00:30:32", splits=splits)
+    result, raw = fresh_result()
+
+    _parse_detail(html, result, raw)
+
+    assert raw["cumulative"] is False     # [782, 27, 1022] n'est pas monotone
+    assert result.swim_time == "00:13:02"
+    assert result.t1_time   == "00:00:27"
+    assert result.run_time  == "00:17:02"
+    assert result.bike_time == ""
+
+
+def test_parse_detail_nat_not_matched_as_transition():
+    """
+    "NAT" ne doit pas être absorbé par ("transition nat", "t1") dont la clé est
+    plus longue — seul ("nat", "swim") doit matcher.
+    """
+    splits = [("NAT", "00:10:00")]
+    html = make_detail_html(total_time="00:10:00", splits=splits)
+    result, raw = fresh_result()
+
+    _parse_detail(html, result, raw)
+
+    assert result.swim_time == "00:10:00"
+    assert result.t1_time   == ""

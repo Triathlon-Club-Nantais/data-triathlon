@@ -202,6 +202,7 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
         ("chg ve", "t2"),           # "Chg Velo" (ASCII fallback)
         ("transition 1", "t1"),     # "Transition 1" (variante numérotée)
         ("transition 2", "t2"),     # "Transition 2"
+        ("transition", "t1"),       # "Transition" générique (aquathlon, etc.)
         ("t1", "t1"),
         ("t2", "t2"),
         # Swim
@@ -357,6 +358,6 @@ def _detect_event_type(heat: str, slug: str = "") -> str:
         return "triathlon-l"
     if "-m" in h or "olymp" in h:
         return "triathlon-m"
-    if "-s" in h or "sprint" in h:
+    if "-s" in h or "-xs" in h or "sprint" in h:
         return "triathlon-s"
     return h or "triathlon"

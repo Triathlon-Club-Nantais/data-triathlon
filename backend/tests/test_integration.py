@@ -120,11 +120,12 @@ def test_klikego_vendomois_triathlon_l():
     Triathlon des Coteaux du Vendômois 2026 — ERK Frank (V4, RC Vorwarts Speyer).
     Vérifie : provider, event_type=triathlon-l, total_time non vide.
     Note : cet événement n'expose pas de splits intermédiaires (MISSING_SPLITS attendu).
+    Heat mis à jour : "swim-bike-longue-distance-individuel" (renommé lors de l'archivage).
     """
     url = (
         "https://www.klikego.com/resultats/"
         "triathlon-des-coteaux-du-vendomois-2026/1695506183783-4"
-        "?heat=triathlon-l-individuel&search=ERK"
+        "?heat=swim-bike-longue-distance-individuel&search=ERK"
     )
     r = scrape(url)
 
@@ -142,11 +143,12 @@ def test_klikego_3villages_duathlon_s():
     """
     Duathlon des 3 Villages 2026 — BELLANGER Quentin (S3, Caen Triathlon).
     Vérifie : event_type=duathlon-s, total_time non vide.
+    Heat mis à jour : "duathlon-s---indiv" (renommé lors de l'archivage).
     """
     url = (
         "https://www.klikego.com/resultats/"
         "duathlon-des-3-villages-2026-5-eme-edition/1579145109237-15"
-        "?heat=duathlon-s-individuel&search=BELLANGER"
+        "?heat=duathlon-s---indiv&search=BELLANGER"
     )
     r = scrape(url)
 
@@ -165,11 +167,12 @@ def test_klikego_cesson_duathlon_s_course_a_pied():
     Duathlons de Cesson-Sévigné 2026 — CORMIER Titouan (S1, Pontivy Triathlon).
     Cet événement utilise 'Course à pied 1' / 'Course à pied 2' comme labels de splits.
     Vérifie : event_type=duathlon-s, bike_time non vide.
+    Heat mis à jour : "duathlon-s-visual-open" (renommé lors de l'archivage).
     """
     url = (
         "https://www.klikego.com/resultats/"
         "duathlons-de-cesson-sevigne-2026/1723364024007-2"
-        "?heat=duathlon-s-v&search=CORMIER"
+        "?heat=duathlon-s-visual-open&search=CORMIER"
     )
     r = scrape(url)
 
@@ -209,20 +212,25 @@ def test_klikego_swimrun_cote_beaute():
 def test_klikego_aquathlon_2amants():
     """
     Aquathlon des 2 Amants 2025 — CREVIER Louis (JU, Les Piranhas).
-    Vérifie : event_type=aquathlon (heat 'aquathlon-s-champnat' détecté avant triathlon-s).
+    Vérifie : event_type=aquathlon, swim_time et run_time non vides.
+    Splits : Natation / Transition / CAP — "Transition" seul mappé → t1_time.
+    Heat mis à jour : long slug championnat (renommé lors de l'archivage).
     """
     url = (
         "https://www.klikego.com/resultats/"
         "aquathlon-des-2-amants-2025/1643334174070-7"
-        "?heat=aquathlon-s-champnat&search=CREVIER"
+        "?heat=aquathlon-s-championnat-normandie-cadetsjuniorsseniors-masters&search=CREVIER"
     )
     r = scrape(url)
 
     assert r.provider == "klikego"
     assert r.event_type == "aquathlon"
     assert r.total_time != ""
-    # Aquathlon = swim + run (pas de vélo)
-    assert r.swim_time != "" or r.run_time != ""
+    assert r.swim_time != ""
+    assert r.run_time != ""
+    # "Transition" seul → t1_time (pas de vélo, donc jamais t2)
+    assert r.t1_time != ""
+    assert r.bike_time == ""
 
 
 # ---------------------------------------------------------------------------
