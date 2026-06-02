@@ -112,14 +112,34 @@ def _series_field(nom: str) -> str | None:
 
 
 def _parse_series(xml: str) -> dict[str, str]:
-    """Return {s-index: field} e.g. {"s0": "swim", "s1": "t1", ...}"""
-    mapping: dict[str, str] = {}
+    """Return {s-index: field} e.g. {"s0": "swim", "s1": "t1", ...}
+
+    Special case — duathlon: both stages are "Course à pied" (no swim).
+    The first run is mapped to the "swim" slot so both runs have distinct slots.
+    """
+    entries: list[tuple[str, str]] = []
     for m in re.finditer(r"<S\s[^>]+/>", xml):
         a = _attrs(m.group())
         idx = a.get("id", "")
         nom = a.get("nom", a.get("lb", ""))
         field = _series_field(nom)
         if idx and field:
+            entries.append((idx, field))
+
+    run_count  = sum(1 for _, f in entries if f == "run")
+    swim_count = sum(1 for _, f in entries if f == "swim")
+    is_duathlon_layout = (run_count == 2 and swim_count == 0)
+
+    mapping: dict[str, str] = {}
+    first_run_seen = False
+    for idx, field in entries:
+        if field == "run" and is_duathlon_layout:
+            if not first_run_seen:
+                mapping[f"s{idx}"] = "swim"   # run1 → swim slot (no swimming in duathlon)
+                first_run_seen = True
+            else:
+                mapping[f"s{idx}"] = "run"
+        else:
             mapping[f"s{idx}"] = field
     return mapping
 
@@ -270,19 +290,38 @@ def scrape(url: str) -> ScrapedResult:
     if r_tag:
         ra = _attrs(r_tag)
         result.total_time = normalize_time(ra.get("t", ""))
-        # Map s0…s4 to swim/t1/bike/t2/run via series_map
+        # Map s0…sN to swim/t1/bike/t2/run via series_map.
+        # "First set wins": if a field is already populated (e.g. swimrun with
+        # multiple natation stages), subsequent values go to raw_data.
         for key, field in series_map.items():
             t = normalize_time(ra.get(key, ""))
+            if not t:
+                continue
             if field == "swim":
-                result.swim_time = t
+                if not result.swim_time:
+                    result.swim_time = t
+                else:
+                    raw[f"split_{key}"] = t
             elif field == "t1":
-                result.t1_time = t
+                if not result.t1_time:
+                    result.t1_time = t
+                else:
+                    raw[f"split_{key}"] = t
             elif field == "bike":
-                result.bike_time = t
+                if not result.bike_time:
+                    result.bike_time = t
+                else:
+                    raw[f"split_{key}"] = t
             elif field == "t2":
-                result.t2_time = t
+                if not result.t2_time:
+                    result.t2_time = t
+                else:
+                    raw[f"split_{key}"] = t
             elif field == "run":
-                result.run_time = t
+                if not result.run_time:
+                    result.run_time = t
+                else:
+                    raw[f"split_{key}"] = t
         raw["r_tag"] = r_tag
     else:
         raw["warning"] = "Pas de résultat disponible pour ce dossard."
@@ -304,6 +343,26 @@ def scrape(url: str) -> ScrapedResult:
 
 def _detect_event_type(name: str) -> str:
     n = name.lower()
+    # Check specific sports FIRST to avoid false triathlon-size matches.
+    # e.g. "Duathlon Sprint" must not become "triathlon-s" via the sprint check.
+    if "aquathlon" in n:
+        return "aquathlon"
+    if "aquarun" in n:
+        return "aquarun"
+    if any(p in n for p in ("bike & run", "bike and run", "bike run", "bikerun",
+                             "run & bike", "run and bike")):
+        return "bike-run"
+    if "swimrun" in n or "swim run" in n or "swim-run" in n:
+        return "swimrun"
+    if "duathlon" in n:
+        if "sprint" in n:
+            return "duathlon-s"
+        if " m " in n or "olympique" in n:
+            return "duathlon-m"
+        if " l " in n or "longue" in n:
+            return "duathlon-l"
+        return "duathlon"
+    # Triathlon distances
     if "xxl" in n or "ironman" in n or "longue distance" in n:
         return "triathlon-xl"
     if "half" in n or "70.3" in n or " l " in n or "longue" in n:
@@ -312,8 +371,4 @@ def _detect_event_type(name: str) -> str:
         return "triathlon-m"
     if "sprint" in n or "triathlon-s" in n:
         return "triathlon-s"
-    if "duathlon" in n:
-        return "duathlon"
-    if "swimrun" in n or "swim run" in n:
-        return "swimrun"
     return "triathlon"

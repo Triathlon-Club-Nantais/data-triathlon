@@ -16,6 +16,9 @@ const EVENT_TYPES = [
   "swimrun-m",
   "swimrun-l",
   "swimrun",
+  "aquathlon",
+  "aquarun",
+  "bike-run",
 ];
 
 export default function ResultsList({ refreshKey }) {

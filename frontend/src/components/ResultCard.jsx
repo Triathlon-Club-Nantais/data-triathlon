@@ -12,6 +12,9 @@ const EVENT_TYPE_LABELS = {
   "swimrun-m":    "SwimRun M",
   "swimrun-l":    "SwimRun L",
   "swimrun":      "SwimRun",
+  "aquathlon":    "Aquathlon",
+  "aquarun":      "Aquarun",
+  "bike-run":     "Bike & Run",
 };
 
 export default function ResultCard({ result, onDelete }) {
@@ -97,9 +100,9 @@ export default function ResultCard({ result, onDelete }) {
 
 function SplitsForSport({ result }) {
   const type = result.event_type || "";
-  const isDuathlon = type.startsWith("duathlon");
 
-  if (isDuathlon) {
+  if (type.startsWith("duathlon")) {
+    // swim_time slot holds run1 (CAP 1) since there is no swimming
     return (
       <>
         <Split label="Course 1" time={result.swim_time} color="#10b981" />
@@ -111,7 +114,36 @@ function SplitsForSport({ result }) {
     );
   }
 
-  // Triathlon and swimrun: standard labels
+  if (type === "bike-run") {
+    return (
+      <>
+        <Split label="Vélo"   time={result.bike_time} color="#f59e0b" />
+        <Split label="Course" time={result.run_time}  color="#10b981" />
+      </>
+    );
+  }
+
+  if (type === "aquathlon") {
+    // No bike, no transitions
+    return (
+      <>
+        <Split label="Natation" time={result.swim_time} color="#3b82f6" />
+        <Split label="Course"   time={result.run_time}  color="#10b981" />
+      </>
+    );
+  }
+
+  if (type === "aquarun") {
+    return (
+      <>
+        <Split label="Natation" time={result.swim_time} color="#3b82f6" />
+        <Split label="T1"       time={result.t1_time}   color="#94a3b8" small />
+        <Split label="Course"   time={result.run_time}  color="#10b981" />
+      </>
+    );
+  }
+
+  // Triathlon, swimrun, and unknown: standard 5-split layout
   return (
     <>
       <Split label="Natation" time={result.swim_time} color="#3b82f6" />

@@ -219,19 +219,83 @@ def test_compute_ranks_no_result_for_bib():
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("name,expected", [
+    # --- Triathlon (non-régression) ---
     ("Triathlon de Noirmoutier Sprint 2025", "triathlon-s"),
     ("Triathlon Olympique de Paris 2025",    "triathlon-m"),
     ("Triathlon L de Bordeaux",              "triathlon-l"),
     ("Ironman France 2025",                  "triathlon-xl"),
     ("Triathlon XXL Embrunman",              "triathlon-xl"),
     ("Triathlon 70.3 Aix-en-Provence",      "triathlon-l"),
+    ("Triathlon de Lacanau 2025",            "triathlon"),
+    # --- Duathlon : sous-formats + pas de régression "sprint" → triathlon-s ---
     ("Duathlon de Rennes",                   "duathlon"),
+    ("Duathlon Sprint de Couëron 2025",      "duathlon-s"),  # était "triathlon-s" avant fix
+    ("RSSC Duathlon",                        "duathlon"),
+    # --- Nouveaux sports ---
+    ("Aquathlon du RC Doué",                 "aquathlon"),
+    ("Planète Racing Aquarun 2026",          "aquarun"),
+    ("BIKE & RUN d'Halloween",               "bike-run"),
+    ("Run & Bike du Bignon",                 "bike-run"),
     ("SwimRun des Îles",                     "swimrun"),
-    ("Triathlon de Lacanau 2025",            "triathlon"),   # pas de mot-clé → défaut
+    ("SWIMRUN DE MAYENNE",                   "swimrun"),
 ])
 def test_detect_event_type_timepulse(name, expected):
     from scrapers.timepulse import _detect_event_type
     assert _detect_event_type(name) == expected
+
+
+# ---------------------------------------------------------------------------
+# _parse_series — duathlon et aquarun
+# ---------------------------------------------------------------------------
+
+def test_parse_series_duathlon():
+    """
+    Duathlon : 2 × 'Course à pied' + 0 natation.
+    Le premier run doit être mappé sur le slot 'swim' (run1), le second sur 'run' (run2).
+    """
+    xml = make_xml(
+        athletes=[],
+        series=[
+            ("0", "Course à pied"),   # run1
+            ("1", "T1"),
+            ("2", "Vélo"),
+            ("3", "T2"),
+            ("4", "Course à pied"),   # run2
+        ],
+    )
+    mapping = _parse_series(xml)
+    assert mapping["s0"] == "swim"   # run1 redirigé vers slot swim
+    assert mapping["s1"] == "t1"
+    assert mapping["s2"] == "bike"
+    assert mapping["s3"] == "t2"
+    assert mapping["s4"] == "run"    # run2 → slot run
+
+
+def test_parse_series_aquarun():
+    """Aquarun : Natation → T1 → Course à pied (pas de vélo)."""
+    xml = make_xml(
+        athletes=[],
+        series=[
+            ("0", "Natation"),
+            ("1", "T1"),
+            ("2", "Course à pied"),
+        ],
+    )
+    mapping = _parse_series(xml)
+    assert mapping == {"s0": "swim", "s1": "t1", "s2": "run"}
+
+
+def test_parse_series_aquathlon():
+    """Aquathlon : Natation → Course à pied (sans transition)."""
+    xml = make_xml(
+        athletes=[],
+        series=[
+            ("0", "Natation"),
+            ("1", "Course à pied"),
+        ],
+    )
+    mapping = _parse_series(xml)
+    assert mapping == {"s0": "swim", "s1": "run"}
 
 
 # ---------------------------------------------------------------------------
