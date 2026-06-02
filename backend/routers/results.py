@@ -32,6 +32,7 @@ class ResultCreate(BaseModel):
     bike_time: str = ""
     t2_time: str = ""
     run_time: str = ""
+    is_relay: bool = False
     raw_data: dict = {}
 
 
@@ -73,6 +74,7 @@ def create_result(body: ResultCreate, db: Session = Depends(get_db)):
         bike_time=body.bike_time,
         t2_time=body.t2_time,
         run_time=body.run_time,
+        is_relay=body.is_relay,
         raw_data=body.raw_data,
     )
     db.add(result)
@@ -158,6 +160,7 @@ def _serialize(r: Result) -> dict:
         "bike_time": r.bike_time or "",
         "t2_time": r.t2_time or "",
         "run_time": r.run_time or "",
+        "is_relay": bool(r.is_relay),
         "raw_data": r.raw_data or {},
         "scraped_at": r.scraped_at.isoformat() if r.scraped_at else None,
     }

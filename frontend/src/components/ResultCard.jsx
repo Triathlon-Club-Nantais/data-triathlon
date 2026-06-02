@@ -66,6 +66,9 @@ export default function ResultCard({ result, onDelete }) {
         {result.bib_number && (
           <span style={styles.bib}>#{result.bib_number}</span>
         )}
+        {result.is_relay && (
+          <span style={styles.relay}>Relais</span>
+        )}
       </div>
 
       {(result.rank_overall || result.rank_category || result.rank_gender) && (
@@ -189,6 +192,7 @@ const styles = {
   eventType: { background: "#f0fff4", color: "#276749", borderRadius: 10, padding: "2px 8px", fontSize: 12, fontWeight: 600 },
   eventDate: { color: "#718096", fontSize: 13 },
   bib: { color: "#718096", fontSize: 13 },
+  relay: { background: "#fff5f5", color: "#c53030", borderRadius: 10, padding: "2px 8px", fontSize: 12, fontWeight: 700 },
   ranks: { display: "flex", gap: 20, marginBottom: 12 },
   rankItem: { display: "flex", flexDirection: "column", alignItems: "center" },
   rankLabel: { fontSize: 11, color: "#a0aec0", fontWeight: 600, textTransform: "uppercase" },

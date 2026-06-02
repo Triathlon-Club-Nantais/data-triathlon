@@ -1,7 +1,7 @@
 # Triathlon Club — Résultats de compétition
 
 Application web pour centraliser les résultats de compétitions des membres du club.  
-Collez une URL de résultat Klikego, TimePulse, Breizh Chrono ou Wiclax — le backend scrape et stocke les données.
+Collez une URL de résultat Klikego, Breizh Chrono, TimePulse ou Wiclax — le backend scrape et stocke les données.
 
 ---
 
@@ -9,7 +9,6 @@ Collez une URL de résultat Klikego, TimePulse, Breizh Chrono ou Wiclax — le b
 
 - **Python 3.11+**
 - **Node.js 18+** (avec npm)
-- Git
 
 ---
 
@@ -22,7 +21,7 @@ git clone https://github.com/TON_USERNAME/data-triathlon.git
 cd data-triathlon
 ```
 
-### 2. Backend (FastAPI)
+### 2. Backend (FastAPI + SQLite)
 
 ```bash
 cd backend
@@ -38,12 +37,20 @@ source .venv/bin/activate
 # Installer les dépendances
 pip install -r requirements.txt
 
-# Lancer le serveur
+# Lancer le serveur (port 8001)
 uvicorn main:app --reload --port 8001
 ```
 
 Le backend est accessible sur `http://localhost:8001`  
-La documentation API interactive : `http://localhost:8001/docs`
+Documentation API interactive : `http://localhost:8001/docs`
+
+La base SQLite `triathlon.db` est créée automatiquement au premier démarrage.
+
+> **Note** : si vous ajoutez de nouvelles colonnes au modèle après une première exécution,
+> appliquez la migration manuellement via SQLite :
+> ```bash
+> python -c "import sqlite3; conn = sqlite3.connect('triathlon.db'); conn.execute('ALTER TABLE results ADD COLUMN ma_colonne TYPE DEFAULT valeur'); conn.commit()"
+> ```
 
 ### 3. Frontend (React + Vite)
 
@@ -55,7 +62,7 @@ npm install
 npm run dev
 ```
 
-Le frontend est accessible sur `http://localhost:3000`
+Le frontend est accessible sur `http://localhost:5173` (Vite) ou `http://localhost:3000` selon la config.
 
 > Les appels `/api/*` sont automatiquement proxifiés vers `http://localhost:8001` via la config Vite.
 
@@ -63,33 +70,42 @@ Le frontend est accessible sur `http://localhost:3000`
 
 ## Fournisseurs supportés
 
-| Site | Format | Exemple d'URL |
-|---|---|---|
-| **Klikego** | HTML | `https://www.klikego.com/resultats/event-name/ID?heat=...&search=NOM` |
-| **TimePulse** | XML API | `https://www.timepulse.fr/epreuves/resultats/ID?id_event=ID&bib=BIB` |
-| **Breizh Chrono** | HTML | `https://www.breizhchrono.com/...?dossard=BIB` |
-| **Wiclax** | XML `.clax` | `https://www.wiclax-results.com/...?f=fichier.clax&B=BIB` |
+| Site | Notes |
+|------|-------|
+| **Klikego** (`klikego.com`) | Recherche par nom obligatoire si absent de l'URL |
+| **Breizh Chrono** (`resultats.breizhchrono.com`) | Même API que Klikego — recherche par nom obligatoire |
+| **TimePulse** (`timepulse.fr`) | Recherche par dossard ou par nom |
+| **Wiclax / G-Live** | Fichier `.clax` XML |
+
+### Types d'épreuves supportés
+
+Triathlon (S/M/L/XL), Duathlon (XS/S/M/L), SwimRun (S/M/L), Aquathlon, Aquarun, Bike & Run.
 
 ### Recherche par nom
 
-Pour Klikego et TimePulse, si vous n'avez pas le numéro de dossard, ajoutez `&search=NOM PRENOM` à l'URL.  
-Le champ de recherche s'affiche aussi automatiquement dans le formulaire.
+Pour Klikego et Breizh Chrono, le formulaire affiche automatiquement un champ de saisie du nom
+si l'URL ne contient pas encore le paramètre `search=`.
 
 ---
 
 ## Tests
 
-### Lancer les tests unitaires
+Depuis le répertoire `backend/` avec le virtualenv activé :
+
+### Tests unitaires (sans réseau)
 
 ```bash
-cd backend
-
 # Installer les dépendances de test (une seule fois)
 pip install -r requirements-test.txt
 
-# Tests unitaires (rapides, sans réseau)
+# Lancer tous les tests unitaires
 pytest
+
+# Avec détail verbose
+pytest -v
 ```
+
+Couverture : ~85 tests unitaires Klikego + TimePulse, tous sans appel réseau (mocks HTTP).
 
 ### Tests d'intégration (réseau réel)
 
@@ -97,14 +113,13 @@ pytest
 pytest -m integration
 ```
 
-Ces tests appellent les APIs TimePulse directement. Ils nécessitent une connexion internet.
+Ces tests appellent les APIs Klikego, Breizh Chrono et TimePulse en conditions réelles.
+Ils nécessitent une connexion internet et peuvent être plus lents (~30 s).
 
-### Tests Klikego (à compléter)
-
-Les stubs pour Redon, Domino, Frenchman XXL, Lac au Duc et Lacanau sont dans
-`backend/tests/test_integration.py`. Pour les activer :
-1. Remplacer `NOM+PRENOM` dans l'URL par un athlète réel de l'événement
-2. Retirer le `@pytest.mark.skip`
+```bash
+# Exclure les tests d'intégration (comportement par défaut de pytest sans -m)
+pytest -m "not integration"
+```
 
 ---
 
@@ -113,37 +128,40 @@ Les stubs pour Redon, Domino, Frenchman XXL, Lac au Duc et Lacanau sont dans
 ```
 data-triathlon/
 ├── backend/
-│   ├── main.py              # App FastAPI, CORS, montage des routers
-│   ├── database.py          # Engine SQLAlchemy + session
-│   ├── models.py            # Modèle Result (SQLite)
-│   ├── requirements.txt
-│   ├── requirements-test.txt
-│   ├── pytest.ini
+│   ├── main.py                  # App FastAPI, CORS, montage des routers
+│   ├── database.py              # Engine SQLAlchemy + session
+│   ├── models.py                # Modèle Result (SQLite)
+│   ├── requirements.txt         # Dépendances de production
+│   ├── requirements-test.txt    # + pytest, respx
+│   ├── pytest.ini               # testpaths, markers, pythonpath
+│   ├── triathlon.db             # Base SQLite (créée au premier démarrage)
 │   ├── routers/
-│   │   ├── scrape.py        # POST /api/scrape
-│   │   └── results.py       # GET / POST / DELETE /api/results
+│   │   ├── scrape.py            # POST /api/scrape
+│   │   └── results.py           # GET / POST / DELETE /api/results
 │   ├── scrapers/
-│   │   ├── __init__.py      # detect_provider() + scrape()
-│   │   ├── base.py          # Dataclass ScrapedResult
-│   │   ├── klikego.py
-│   │   ├── timepulse.py
-│   │   ├── breizhchrono.py
-│   │   └── wiclax.py
+│   │   ├── __init__.py          # detect_provider() + scrape()
+│   │   ├── base.py              # Dataclass ScrapedResult
+│   │   ├── klikego.py           # Scraper Klikego (+ logique partagée avec BC)
+│   │   ├── breizhchrono.py      # Scraper Breizh Chrono (réutilise klikego._parse_detail)
+│   │   ├── timepulse.py         # Scraper TimePulse (XML API)
+│   │   ├── wiclax.py            # Scraper Wiclax / G-Live
+│   │   └── utils.py             # normalize_time, normalize_rank
 │   └── tests/
-│       ├── test_klikego.py      # 19 tests unitaires Klikego
-│       ├── test_timepulse.py    # 25 tests unitaires TimePulse
-│       └── test_integration.py  # tests réseau + stubs Klikego
+│       ├── conftest.py
+│       ├── test_klikego.py      # Tests unitaires Klikego (~45 tests)
+│       ├── test_timepulse.py    # Tests unitaires TimePulse (~40 tests)
+│       └── test_integration.py  # Tests réseau Klikego, Breizh Chrono, TimePulse
 ├── frontend/
 │   ├── src/
 │   │   ├── App.jsx
 │   │   ├── api/client.js
 │   │   └── components/
-│   │       ├── ScrapeForm.jsx
-│   │       ├── ResultsList.jsx
-│   │       └── ResultCard.jsx
-│   ├── vite.config.js       # Proxy /api → localhost:8001
-│   └── vercel.json          # Réécriture SPA pour Vercel
-├── render.yaml              # Config déploiement Render (backend)
+│   │       ├── ScrapeForm.jsx   # Formulaire de scraping + édition + sauvegarde
+│   │       ├── ResultsList.jsx  # Liste + filtres
+│   │       └── ResultCard.jsx   # Carte résultat (splits adaptatifs par sport)
+│   ├── vite.config.js           # Proxy /api → localhost:8001
+│   └── package.json
+├── render.yaml                  # Config déploiement Render (backend)
 └── docker-compose.yml
 ```
 

@@ -25,4 +25,5 @@ class ScrapedResult:
     bike_time: str = ""
     t2_time: str = ""
     run_time: str = ""
+    is_relay: bool = False
     raw_data: dict[str, Any] = field(default_factory=dict)

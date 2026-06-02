@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import JSON, Column, Date, DateTime, Integer, String
+from sqlalchemy import JSON, Boolean, Column, Date, DateTime, Integer, String
 
 from database import Base
 
@@ -29,5 +29,6 @@ class Result(Base):
     bike_time = Column(String, nullable=True)
     t2_time = Column(String, nullable=True)
     run_time = Column(String, nullable=True)
+    is_relay = Column(Boolean, default=False)
     raw_data = Column(JSON, nullable=True)
     scraped_at = Column(DateTime, default=datetime.utcnow)

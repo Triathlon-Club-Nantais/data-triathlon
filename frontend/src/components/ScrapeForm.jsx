@@ -233,6 +233,17 @@ export default function ScrapeForm({ onSaved }) {
               </select>
             </div>
             <Field label="Date (AAAA-MM-JJ)" value={edited.event_date || ""} onChange={(v) => handleField("event_date", v)} />
+            <div style={styles.checkboxField}>
+              <label style={styles.checkboxLabel}>
+                <input
+                  type="checkbox"
+                  checked={!!edited.is_relay}
+                  onChange={(e) => handleField("is_relay", e.target.checked)}
+                  style={styles.checkbox}
+                />
+                Épreuve en relais
+              </label>
+            </div>
           </div>
 
           <div style={styles.timesGrid}>
@@ -309,4 +320,7 @@ const styles = {
   timesGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 14, marginBottom: 14 },
   ranksGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 14 },
   fieldLabel: { display: "block", fontSize: 12, fontWeight: 600, color: "#4a5568", marginBottom: 4 },
+  checkboxField: { display: "flex", alignItems: "center", paddingTop: 20 },
+  checkboxLabel: { display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, color: "#4a5568", cursor: "pointer" },
+  checkbox: { width: 16, height: 16, cursor: "pointer" },
 };
