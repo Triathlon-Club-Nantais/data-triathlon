@@ -25,13 +25,11 @@ export default function ResultsList({ refreshKey }) {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({ name: "", event_type: "", event_name: "", club: "" });
-  const [page, setPage] = useState(1);
-  const PAGE_SIZE = 20;
 
-  const load = useCallback(async (f, p) => {
+  const load = useCallback(async (f) => {
     setLoading(true);
     try {
-      const data = await api.listResults({ ...f, page: p, page_size: PAGE_SIZE });
+      const data = await api.listResults({ ...f, page_size: 1000 });
       setResults(data);
     } catch {
       setResults([]);
@@ -41,18 +39,17 @@ export default function ResultsList({ refreshKey }) {
   }, []);
 
   useEffect(() => {
-    load(filters, page);
-  }, [filters, page, refreshKey, load]);
+    load(filters);
+  }, [filters, refreshKey, load]);
 
   function handleFilter(field, value) {
     setFilters((prev) => ({ ...prev, [field]: value }));
-    setPage(1);
   }
 
   async function handleDelete(id) {
     if (!window.confirm("Supprimer ce résultat ?")) return;
     await api.deleteResult(id);
-    load(filters, page);
+    load(filters);
   }
 
   return (
@@ -97,20 +94,6 @@ export default function ResultsList({ refreshKey }) {
       )}
 
       <EventGroupList results={results} onDelete={handleDelete} highlightTCN />
-
-      {results.length === PAGE_SIZE && (
-        <div style={styles.pagination}>
-          {page > 1 && (
-            <button style={styles.pageBtn} onClick={() => setPage((p) => p - 1)}>
-              ← Précédent
-            </button>
-          )}
-          <span style={styles.pageInfo}>Page {page}</span>
-          <button style={styles.pageBtn} onClick={() => setPage((p) => p + 1)}>
-            Suivant →
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -123,7 +106,4 @@ const styles = {
   filterSelect: { padding: "9px 12px", border: "1px solid #cbd5e0", borderRadius: 7, fontSize: 14, background: "#fff" },
   loading: { color: "#718096", textAlign: "center", padding: 20 },
   empty: { color: "#a0aec0", textAlign: "center", padding: 40, fontSize: 15 },
-  pagination: { display: "flex", justifyContent: "center", alignItems: "center", gap: 16, marginTop: 20 },
-  pageBtn: { padding: "8px 18px", background: "#3b82f6", color: "#fff", border: "none", borderRadius: 7, cursor: "pointer", fontWeight: 600 },
-  pageInfo: { color: "#718096", fontSize: 14 },
 };
