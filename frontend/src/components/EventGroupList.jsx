@@ -36,7 +36,7 @@ function isTCN(club) {
 function groupByEvent(results) {
   const map = {};
   for (const r of results) {
-    const key = `${r.event_name}||${r.event_date || ""}`;
+    const key = `${r.event_name}||${r.event_date || ""}||${r.event_type || ""}`;
     if (!map[key]) map[key] = {
       event_name: r.event_name,
       event_date: r.event_date,
@@ -45,9 +45,11 @@ function groupByEvent(results) {
     };
     map[key].results.push(r);
   }
-  return Object.values(map).sort((a, b) =>
-    (b.event_date || "").localeCompare(a.event_date || "")
-  );
+  return Object.values(map).sort((a, b) => {
+    const dateCmp = (b.event_date || "").localeCompare(a.event_date || "");
+    if (dateCmp !== 0) return dateCmp;
+    return (a.event_name || "").localeCompare(b.event_name || "");
+  });
 }
 
 export default function EventGroupList({ results, onDelete, highlightTCN = false, defaultOpen = false }) {
