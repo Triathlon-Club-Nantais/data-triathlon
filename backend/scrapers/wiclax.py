@@ -81,11 +81,12 @@ def _parse_competitor(comp, url: str, event_name: str, event_type: str) -> Scrap
     return result
 
 
-def _fetch_clax(url: str) -> tuple[ET.Element, str, str, str]:
+def _fetch_clax(url: str) -> tuple[ET.Element, str, str, str, object]:
     """
     Fetch and parse a .clax XML file from a Wiclax G-Live URL.
-    Returns (root, clax_url, event_name, event_type).
+    Returns (root, clax_url, event_name, event_type, event_date).
     """
+    from datetime import date as date_t
     parsed = urlparse(url)
     params = parse_qs(parsed.query)
     f_param = params.get("f", [""])[0]
@@ -106,7 +107,16 @@ def _fetch_clax(url: str) -> tuple[ET.Element, str, str, str]:
         or unquote(f_param).split("/")[-1].replace(".clax", "")
     )
     event_type = _detect_event_type(event_name)
-    return root, clax_url, event_name, event_type
+
+    event_date = None
+    dt1 = event_elem.get("dt1", "") or event_elem.get("Dt1", "") or event_elem.get("date", "")
+    if dt1:
+        try:
+            event_date = date_t.fromisoformat(dt1[:10])
+        except ValueError:
+            pass
+
+    return root, clax_url, event_name, event_type, event_date
 
 
 def scrape(url: str) -> ScrapedResult:
@@ -115,11 +125,12 @@ def scrape(url: str) -> ScrapedResult:
     f_param = params.get("f", [""])[0]
     bib = params.get("B", [""])[0]
 
-    root, clax_url, event_name, event_type = _fetch_clax(url)
+    root, clax_url, event_name, event_type, event_date = _fetch_clax(url)
 
     result = ScrapedResult(source_url=url, provider="wiclax", bib_number=bib)
     result.event_name = event_name
     result.event_type = event_type
+    result.event_date = event_date
 
     # Find competitor by bib
     competitor = None
@@ -167,7 +178,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     Fetch ALL participants from a Wiclax .clax event file.
     Uses a single HTTP request — the .clax XML contains all competitors.
     """
-    root, _clax_url, event_name, event_type = _fetch_clax(url)
+    root, _clax_url, event_name, event_type, event_date = _fetch_clax(url)
     results: list[ScrapedResult] = []
 
     for tag in ("Competitor", "COMPETITOR", "Runner", "RUNNER", "Participant"):
@@ -177,7 +188,9 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                 bib = comp.get("Bib") or comp.get("bib") or ""
                 if not bib:
                     continue
-                results.append(_parse_competitor(comp, url, event_name, event_type))
+                r = _parse_competitor(comp, url, event_name, event_type)
+                r.event_date = event_date
+                results.append(r)
             break
 
     return results

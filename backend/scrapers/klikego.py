@@ -15,7 +15,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from .base import ScrapedResult, MultipleMatchesError
-from .utils import normalize_time, normalize_rank
+from .utils import normalize_time, normalize_rank, parse_fr_date
 
 BASE = "https://www.klikego.com"
 HEADERS = {
@@ -28,14 +28,23 @@ HEADERS = {
 }
 
 
-def _detect_heat(event_id: str, client: httpx.Client) -> str:
-    """Fetch the event results page and extract the first heat= value found."""
+def _fetch_event_meta(event_id: str, slug: str, client: httpx.Client) -> tuple[str, object]:
+    """Fetch the event page and return (heat, event_date)."""
     try:
-        r = client.get(f"{BASE}/resultats/{event_id}")
+        r = client.get(f"{BASE}/resultats/{slug}/{event_id}" if slug else f"{BASE}/resultats/{event_id}")
         heats = re.findall(r'heat=([^&<>\s"\']+)', r.text)
-        return heats[0] if heats else ""
+        heat = heats[0] if heats else ""
+        soup = BeautifulSoup(r.text, "lxml")
+        date_el = soup.select_one("span.tag.tag-brand.tag-ghost")
+        event_date = parse_fr_date(date_el.get_text(strip=True)) if date_el else None
+        return heat, event_date
     except httpx.HTTPError:
-        return ""
+        return "", None
+
+
+def _detect_heat(event_id: str, client: httpx.Client) -> str:
+    heat, _ = _fetch_event_meta(event_id, "", client)
+    return heat
 
 
 def scrape(url: str, bib: str | None = None) -> ScrapedResult:
@@ -57,10 +66,14 @@ def scrape(url: str, bib: str | None = None) -> ScrapedResult:
     raw: dict = {"event_id": event_id, "heat": heat, "search": search}
 
     with httpx.Client(follow_redirects=True, timeout=20, headers=HEADERS) as client:
-        if not heat:
-            heat = _detect_heat(event_id, client)
-            raw["heat"] = heat
-            result.event_type = _detect_event_type(heat, slug)
+        if not heat or not result.event_date:
+            fetched_heat, fetched_date = _fetch_event_meta(event_id, slug, client)
+            if not heat:
+                heat = fetched_heat
+                raw["heat"] = heat
+                result.event_type = _detect_event_type(heat, slug)
+            if fetched_date and not result.event_date:
+                result.event_date = fetched_date
 
         if bib:
             # Bib provided (user selected from multiple matches) — skip search
@@ -396,6 +409,9 @@ def scrape_event_all(
     bib_to_result: dict[str, ScrapedResult] = {}
 
     with httpx.Client(follow_redirects=True, timeout=20, headers=HEADERS) as client:
+        # Fetch event date from event page
+        _, event_date = _fetch_event_meta(event_id, slug, client)
+
         # Phase 1 — all participants
         # Klikego repeats the last page indefinitely for out-of-range page numbers,
         # so we stop when the first bib of a page matches the first bib of the
@@ -420,6 +436,8 @@ def scrape_event_all(
             prev_first_bib = first_bib
             for row in rows:
                 r = _parse_search_row(row, event_id, heat, event_name, slug, rank)
+                if event_date:
+                    r.event_date = event_date
                 results.append(r)
                 bib_to_result[r.bib_number] = r
                 rank += 1

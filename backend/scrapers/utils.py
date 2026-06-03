@@ -2,6 +2,38 @@
 Shared utilities for all scrapers.
 """
 import re
+from datetime import date as date_t
+
+_FR_MONTHS = {
+    "janvier": 1, "fevrier": 2, "mars": 3, "avril": 4,
+    "mai": 5, "juin": 6, "juillet": 7, "aout": 8,
+    "septembre": 9, "octobre": 10, "novembre": 11, "decembre": 12,
+}
+
+
+def parse_fr_date(text: str) -> "date_t | None":
+    """Parse a French date string like '16 mai 2026' or '16–17 mai 2026'."""
+    if not text:
+        return None
+    # Normalize accented chars and dashes
+    normalized = (
+        text.lower()
+        .replace("é", "e").replace("è", "e").replace("û", "u")
+        .replace("ô", "o").replace("â", "a").replace("î", "i")
+        .replace("–", "-").replace("—", "-").replace("�", "-")
+    )
+    m = re.search(
+        r"(\d{1,2})(?:[\s\-/]+\d{1,2})?\s+(" + "|".join(_FR_MONTHS) + r")\s+(\d{4})",
+        normalized,
+    )
+    if m:
+        month = _FR_MONTHS.get(m.group(2))
+        if month:
+            try:
+                return date_t(int(m.group(3)), month, int(m.group(1)))
+            except ValueError:
+                pass
+    return None
 
 
 def normalize_time(raw: str) -> str:

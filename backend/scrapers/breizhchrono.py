@@ -19,7 +19,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from .base import ScrapedResult, MultipleMatchesError
-from .utils import normalize_time
+from .utils import normalize_time, parse_fr_date
 from .klikego import _parse_detail, _parse_search_row as _klikego_parse_search_row, _detect_event_type as _klikego_detect_event_type
 
 BASE = "https://resultats.breizhchrono.com"
@@ -69,6 +69,19 @@ def scrape_event_all(
     results: list[ScrapedResult] = []
 
     with httpx.Client(follow_redirects=True, timeout=20, headers=HEADERS) as client:
+        # Fetch event date
+        event_date = None
+        try:
+            page_url = f"{BASE}/resultats-courses/{slug}-{event_id}/{heat}" if slug and heat else ""
+            if page_url:
+                page_resp = client.get(page_url)
+                if page_resp.status_code == 200:
+                    date_el = BeautifulSoup(page_resp.text, "lxml").select_one("span.tag.tag-brand.tag-ghost")
+                    if date_el:
+                        event_date = parse_fr_date(date_el.get_text(strip=True))
+        except Exception:
+            pass
+
         page = 1
         rank = 1
         while True:
@@ -84,12 +97,11 @@ def scrape_event_all(
             if not rows:
                 break
             for row in rows:
-                # Reuse klikego's row parser but override source_url prefix
                 r = _klikego_parse_search_row(row, event_id, heat, event_name, slug, rank)
-                r.source_url = (
-                    f"{BASE}/resultats-courses/{slug}-{event_id}/{heat}"
-                )
+                r.source_url = f"{BASE}/resultats-courses/{slug}-{event_id}/{heat}"
                 r.provider = "breizhchrono"
+                if event_date:
+                    r.event_date = event_date
                 results.append(r)
                 rank += 1
             page += 1
@@ -123,6 +135,19 @@ def scrape(url: str, bib: str | None = None) -> ScrapedResult:
     raw: dict = {"event_id": event_id, "heat": heat, "search": search}
 
     with httpx.Client(follow_redirects=True, timeout=20, headers=HEADERS) as client:
+        # Fetch event date from the event page
+        try:
+            page_url = f"{BASE}/resultats-courses/{slug}-{event_id}/{heat}" if slug and heat else url
+            page_resp = client.get(page_url)
+            if page_resp.status_code == 200:
+                from bs4 import BeautifulSoup as _BS
+                _soup = _BS(page_resp.text, "lxml")
+                date_el = _soup.select_one("span.tag.tag-brand.tag-ghost")
+                if date_el:
+                    result.event_date = parse_fr_date(date_el.get_text(strip=True))
+        except Exception:
+            pass
+
         if bib:
             dossard = bib
             result.bib_number = dossard
