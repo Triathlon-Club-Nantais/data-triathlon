@@ -24,7 +24,7 @@ const EVENT_TYPES = [
 export default function ResultsList({ refreshKey }) {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [filters, setFilters] = useState({ name: "", event_type: "", event_name: "" });
+  const [filters, setFilters] = useState({ name: "", event_type: "", event_name: "", club: "" });
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 20;
 
@@ -81,6 +81,12 @@ export default function ResultsList({ refreshKey }) {
           placeholder="Nom d'épreuve…"
           value={filters.event_name}
           onChange={(e) => handleFilter("event_name", e.target.value)}
+        />
+        <input
+          style={styles.filterInput}
+          placeholder="Club…"
+          value={filters.club}
+          onChange={(e) => handleFilter("club", e.target.value)}
         />
       </div>
 
