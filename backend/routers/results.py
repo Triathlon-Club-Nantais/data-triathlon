@@ -113,7 +113,13 @@ def list_results(
             Result.athlete_name.ilike(pattern) | Result.athlete_firstname.ilike(pattern)
         )
     if club:
-        q = q.filter(Result.club.ilike(f"%{club}%"))
+        # Support OR filtering: "nantais|TCN" matches club containing "nantais" OR "TCN"
+        keywords = [k.strip() for k in club.split("|") if k.strip()]
+        if len(keywords) == 1:
+            q = q.filter(Result.club.ilike(f"%{keywords[0]}%"))
+        else:
+            from sqlalchemy import or_
+            q = q.filter(or_(*[Result.club.ilike(f"%{k}%") for k in keywords]))
     if event_type:
         q = q.filter(Result.event_type == event_type)
     if event_name:

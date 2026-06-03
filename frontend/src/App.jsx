@@ -8,9 +8,15 @@ import { api } from "./api/client.js";
 export default function App() {
   const [tab, setTab] = useState("add");
   const [refreshKey, setRefreshKey] = useState(0);
-  const [clubFilter, setClubFilter] = useState(
-    () => localStorage.getItem("tcn_club_filter") || "TRIATHLON CLUB NANTAIS"
-  );
+  const [clubFilter, setClubFilter] = useState(() => {
+    const stored = localStorage.getItem("tcn_club_filter");
+    // Normalize old full-name filters to keywords matching all TCN club name variants:
+    // "TRIATHLON CLUB NANTAIS", "TRI CLUB NANTAIS", "TCN", etc.
+    if (!stored || stored.toLowerCase().includes("nantais") || stored.toUpperCase() === "TCN") {
+      return "nantais|TCN";
+    }
+    return stored;
+  });
   const [importStatus, setImportStatus] = useState(null);
   const [pendingCount, setPendingCount] = useState(0);
 
@@ -22,10 +28,6 @@ export default function App() {
 
   function handleSaved({ club, url }) {
     setRefreshKey((k) => k + 1);
-    if (club) {
-      setClubFilter(club);
-      localStorage.setItem("tcn_club_filter", club);
-    }
     if (url) {
       setImportStatus("loading");
       api.importEvent(url)
