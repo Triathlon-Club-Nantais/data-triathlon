@@ -20,7 +20,6 @@ export default function ClubView({ refreshKey, club }) {
   const [typeFilter, setTypeFilter] = useState("");
   const [modalAthlete, setModalAthlete] = useState(null);
   const [refreshTick, setRefreshTick] = useState(0);
-  const [typeFilter, setTypeFilter] = useState("");
   const [openAthlete, setOpenAthlete] = useState(null);
 
   useEffect(() => {

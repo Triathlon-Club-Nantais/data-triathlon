@@ -419,7 +419,8 @@ def test_breizhchrono_swimrun_m():
 @pytest.mark.integration
 def test_breizhchrono_swimrun_l_binome():
     """
-    RE SwimRun 2025 — DE LUSTRAC/GUEGUEN, format-l-binome (Championnat de France).
+    RE SwimRun 2025 — DE LUSTRAC ARNAUD/GUEGUEN JEROME (bib 3), format-l-binome.
+    search=DE+LUSTRAC returns 2 candidates → use bib to select the right one.
     Vérifie : event_type=swimrun-l, total_time non vide.
     """
     url = (
@@ -427,7 +428,7 @@ def test_breizhchrono_swimrun_l_binome():
         "re-swimrun-2025-1571197277233-6/"
         "format-l---championnat-de-france---en-binome?search=DE+LUSTRAC"
     )
-    r = scrape(url)
+    r = scrape(url, bib="3")
 
     assert r.provider == "breizhchrono"
     assert r.event_type == "swimrun-l"
