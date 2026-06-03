@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "../api/client.js";
-import ResultCard from "./ResultCard.jsx";
+import EventGroupList from "./EventGroupList.jsx";
 
 const EVENT_TYPES = [
   "triathlon-s",
@@ -96,9 +96,7 @@ export default function ResultsList({ refreshKey }) {
         <p style={styles.empty}>Aucun résultat trouvé. Ajoutez-en un ci-dessus !</p>
       )}
 
-      {results.map((r) => (
-        <ResultCard key={r.id} result={r} onDelete={handleDelete} />
-      ))}
+      <EventGroupList results={results} onDelete={handleDelete} highlightTCN />
 
       {results.length === PAGE_SIZE && (
         <div style={styles.pagination}>

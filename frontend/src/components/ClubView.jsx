@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { api } from "../api/client.js";
 import ResultCard from "./ResultCard.jsx";
+import EventGroupList from "./EventGroupList.jsx";
 
 const EVENT_TYPE_LABELS = {
   "triathlon-s":  "Triathlon S",
@@ -191,16 +192,27 @@ export default function ClubView({ refreshKey, club }) {
             ))}
         </div>
 
-        {/* Progression par athlète — accordéon */}
+        {/* Athlètes du club */}
         <div style={styles.panel}>
-          <h3 style={styles.panelTitle}>Progression par athlète</h3>
+          <h3 style={styles.panelTitle}>Athlètes du club</h3>
           {stats.athletes.map((athlete) => (
             <div key={athlete.name} style={styles.athleteRow}>
               <button
                 style={styles.athleteBtn}
                 onClick={() => setOpenAthlete(openAthlete === athlete.name ? null : athlete.name)}
               >
-                <span style={styles.athleteBtnName}>{athlete.name}</span>
+                <div style={styles.athleteBtnLeft}>
+                  <span style={styles.athleteBtnName}>{athlete.name}</span>
+                  {Object.keys(athlete.bests).length > 0 && (
+                    <div style={styles.athleteInlineBests}>
+                      {Object.entries(athlete.bests).map(([type, time]) => (
+                        <span key={type} style={styles.athleteInlinePill}>
+                          {EVENT_TYPE_LABELS[type] || type} · <strong>{time}</strong>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <span style={styles.athleteBtnMeta}>
                   {athlete.results.length} résultat{athlete.results.length > 1 ? "s" : ""}
                 </span>
@@ -209,15 +221,6 @@ export default function ClubView({ refreshKey, club }) {
 
               {openAthlete === athlete.name && (
                 <div style={styles.athleteDetail}>
-                  {Object.keys(athlete.bests).length > 0 && (
-                    <div style={styles.bestsRow}>
-                      {Object.entries(athlete.bests).map(([type, time]) => (
-                        <span key={type} style={styles.bestPill}>
-                          {EVENT_TYPE_LABELS[type] || type} · <strong>{time}</strong>
-                        </span>
-                      ))}
-                    </div>
-                  )}
                   {athlete.results
                     .sort((a, b) => (b.event_date || "").localeCompare(a.event_date || ""))
                     .map((r) => (
@@ -256,9 +259,7 @@ export default function ClubView({ refreshKey, club }) {
         </div>
 
         {filtered.length === 0 && <p style={styles.empty}>Aucun résultat correspond aux filtres.</p>}
-        {filtered.map((r) => (
-          <ResultCard key={r.id} result={r} />
-        ))}
+        <EventGroupList results={filtered} />
 
       </>)}
 
@@ -333,12 +334,13 @@ const styles = {
 
   athleteRow: { borderBottom: "1px solid #f0f4f8", marginBottom: 4 },
   athleteBtn: { display: "flex", alignItems: "center", width: "100%", background: "none", border: "none", padding: "10px 0", cursor: "pointer", textAlign: "left", gap: 8 },
-  athleteBtnName: { flex: 1, fontWeight: 600, fontSize: 14, color: "#2d3748" },
-  athleteBtnMeta: { fontSize: 12, color: "#a0aec0" },
+  athleteBtnLeft: { flex: 1, minWidth: 0 },
+  athleteBtnName: { fontWeight: 700, fontSize: 14, color: "#2d3748", display: "block" },
+  athleteInlineBests: { display: "flex", flexWrap: "wrap", gap: 4, marginTop: 3 },
+  athleteInlinePill: { background: "#f0fff4", color: "#276749", borderRadius: 20, padding: "2px 8px", fontSize: 11 },
+  athleteBtnMeta: { fontSize: 12, color: "#a0aec0", whiteSpace: "nowrap" },
   athleteChevron: { fontSize: 11, color: "#a0aec0" },
   athleteDetail: { paddingBottom: 12, paddingLeft: 4 },
-  bestsRow: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 },
-  bestPill: { background: "#f0fff4", color: "#276749", borderRadius: 20, padding: "3px 10px", fontSize: 12 },
   athleteResult: { display: "flex", gap: 10, alignItems: "center", padding: "5px 0", fontSize: 13 },
   athleteTime: { fontWeight: 700, color: "#2d3748", fontFamily: "monospace" },
   athleteRank: { color: "#f59e0b", fontWeight: 700, fontSize: 12 },
