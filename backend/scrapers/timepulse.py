@@ -397,7 +397,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     """
     Fetch ALL participants for a TimePulse event.
     Uses a single XML request (same as scrape()), then iterates all <E>/<R> pairs.
-    _compute_ranks is intentionally skipped for performance (O(N²) × N athletes).
+    Rankings are computed in-memory from the same XML — no extra HTTP requests.
     """
     parsed = urlparse(url)
     params = parse_qs(parsed.query)
@@ -470,6 +470,13 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                 result.t2_time = t
             elif field == "run" and not result.run_time:
                 result.run_time = t
+
+        parcours = ea.get("p", "")
+        if parcours and result.gender and result.category:
+            ro, rg, rc = _compute_ranks(xml, bib, parcours, result.gender, result.category)
+            result.rank_overall = ro
+            result.rank_gender = rg
+            result.rank_category = rc
 
         results.append(result)
 
