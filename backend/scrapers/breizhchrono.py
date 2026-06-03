@@ -33,6 +33,19 @@ HEADERS = {
 }
 
 
+def _parse_bc_date(html: str):
+    """Extract event date from BC page HTML. BC embeds an ISO date (YYYY-MM-DD) in the raw HTML."""
+    import re as _re
+    from datetime import date as _date
+    m = _re.search(r'(\d{4}-\d{2}-\d{2})', html)
+    if m:
+        try:
+            return _date.fromisoformat(m.group(1))
+        except ValueError:
+            pass
+    return None
+
+
 def _parse_bc_url(url: str) -> tuple[str, str, str]:
     """
     Parse a Breizh Chrono results URL into (event_id, heat, slug).
@@ -69,21 +82,20 @@ def scrape_event_all(
     results: list[ScrapedResult] = []
 
     with httpx.Client(follow_redirects=True, timeout=20, headers=HEADERS) as client:
-        # Fetch event date
+        # Fetch event date — BC embeds an ISO date in the raw HTML
         event_date = None
         try:
             page_url = f"{BASE}/resultats-courses/{slug}-{event_id}/{heat}" if slug and heat else ""
             if page_url:
                 page_resp = client.get(page_url)
                 if page_resp.status_code == 200:
-                    date_el = BeautifulSoup(page_resp.text, "lxml").select_one("span.tag.tag-brand.tag-ghost")
-                    if date_el:
-                        event_date = parse_fr_date(date_el.get_text(strip=True))
+                    event_date = _parse_bc_date(page_resp.text)
         except Exception:
             pass
 
         page = 1
         rank = 1
+        prev_first_bib: str | None = None
         while True:
             search_url = (
                 f"{BASE}/v8/evenement/resultats-search.jsp"
@@ -96,6 +108,10 @@ def scrape_event_all(
             rows = soup.select("tr.result-row[data-dossard]")
             if not rows:
                 break
+            first_bib = rows[0].get("data-dossard", "")
+            if first_bib and first_bib == prev_first_bib:
+                break  # BC is repeating the last page — we're done
+            prev_first_bib = first_bib
             for row in rows:
                 r = _klikego_parse_search_row(row, event_id, heat, event_name, slug, rank)
                 r.source_url = f"{BASE}/resultats-courses/{slug}-{event_id}/{heat}"
@@ -135,16 +151,12 @@ def scrape(url: str, bib: str | None = None) -> ScrapedResult:
     raw: dict = {"event_id": event_id, "heat": heat, "search": search}
 
     with httpx.Client(follow_redirects=True, timeout=20, headers=HEADERS) as client:
-        # Fetch event date from the event page
+        # Fetch event date
         try:
             page_url = f"{BASE}/resultats-courses/{slug}-{event_id}/{heat}" if slug and heat else url
             page_resp = client.get(page_url)
             if page_resp.status_code == 200:
-                from bs4 import BeautifulSoup as _BS
-                _soup = _BS(page_resp.text, "lxml")
-                date_el = _soup.select_one("span.tag.tag-brand.tag-ghost")
-                if date_el:
-                    result.event_date = parse_fr_date(date_el.get_text(strip=True))
+                result.event_date = _parse_bc_date(page_resp.text)
         except Exception:
             pass
 
