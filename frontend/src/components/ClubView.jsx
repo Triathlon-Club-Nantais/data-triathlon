@@ -15,7 +15,9 @@ export default function ClubView({ refreshKey, club }) {
   const [allResults, setAllResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState("");
-  const [nameFilter, setNameFilter] = useState("");
+  const [eventFilter, setEventFilter] = useState("");
+  const [yearFilter, setYearFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
   const [modalAthlete, setModalAthlete] = useState(null);
   const [refreshTick, setRefreshTick] = useState(0);
   const [typeFilter, setTypeFilter] = useState("");
@@ -93,14 +95,19 @@ export default function ClubView({ refreshKey, club }) {
     return { total: allResults.length, athleteCount: athleteSet.size, eventCount: eventSet.size, activeSeason, recent, collective, athletes, byType };
   }, [allResults]);
 
+  const availableYears = useMemo(() => {
+    const years = [...new Set(allResults.map(r => r.event_date?.slice(0, 4)).filter(Boolean))];
+    return years.sort((a, b) => b.localeCompare(a));
+  }, [allResults]);
+
   const filtered = useMemo(() => {
     return allResults.filter((r) => {
-      const name = `${r.athlete_name} ${r.athlete_firstname}`.toLowerCase();
-      if (nameFilter && !name.includes(nameFilter.toLowerCase())) return false;
+      if (eventFilter && !r.event_name?.toLowerCase().includes(eventFilter.toLowerCase())) return false;
+      if (yearFilter && r.event_date?.slice(0, 4) !== yearFilter) return false;
       if (typeFilter && r.event_type !== typeFilter) return false;
       return true;
     });
-  }, [allResults, nameFilter, typeFilter]);
+  }, [allResults, eventFilter, yearFilter, typeFilter]);
 
   return (
     <div style={styles.container}>
@@ -225,14 +232,27 @@ export default function ClubView({ refreshKey, club }) {
           ))}
         </div>
 
-        {/* Filtres */}
+        {/* Section compétitions */}
+        <div style={styles.sectionHeader}>
+          <h3 style={styles.sectionTitle}>Compétitions</h3>
+        </div>
         <div style={styles.filters}>
           <input
             style={styles.filterInput}
-            placeholder="Rechercher par nom…"
-            value={nameFilter}
-            onChange={(e) => setNameFilter(e.target.value)}
+            placeholder="Rechercher une compétition…"
+            value={eventFilter}
+            onChange={(e) => setEventFilter(e.target.value)}
           />
+          <select
+            style={styles.filterSelect}
+            value={yearFilter}
+            onChange={(e) => setYearFilter(e.target.value)}
+          >
+            <option value="">Toutes les saisons</option>
+            {availableYears.map(y => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
           <select
             style={styles.filterSelect}
             value={typeFilter}
@@ -243,7 +263,6 @@ export default function ClubView({ refreshKey, club }) {
               <option key={val} value={val}>{label}</option>
             ))}
           </select>
-          <span style={styles.filterCount}>{filtered.length} résultat{filtered.length !== 1 ? "s" : ""}</span>
         </div>
 
         {filtered.length === 0 && <p style={styles.empty}>Aucun résultat correspond aux filtres.</p>}
@@ -338,6 +357,8 @@ const styles = {
   pills: { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 },
   pill: { background: "#ebf8ff", color: "#2b6cb0", borderRadius: 20, padding: "4px 12px", fontSize: 13 },
 
+  sectionHeader: { display: "flex", alignItems: "center", marginBottom: 12, marginTop: 8 },
+  sectionTitle: { fontSize: 16, fontWeight: 700, color: "#2d3748", textTransform: "uppercase", letterSpacing: "0.05em" },
   filters: { display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center" },
   filterInput: { flex: 1, minWidth: 160, padding: "9px 12px", border: "1px solid #cbd5e0", borderRadius: 7, fontSize: 14 },
   filterSelect: { padding: "9px 12px", border: "1px solid #cbd5e0", borderRadius: 7, fontSize: 14, background: "#fff" },
