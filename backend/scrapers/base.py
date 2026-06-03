@@ -3,6 +3,12 @@ from datetime import date
 from typing import Any
 
 
+class MultipleMatchesError(Exception):
+    def __init__(self, candidates: list[dict]):
+        self.candidates = candidates
+        super().__init__(f"{len(candidates)} athletes found")
+
+
 @dataclass
 class ScrapedResult:
     source_url: str

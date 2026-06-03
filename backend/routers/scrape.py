@@ -5,12 +5,14 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Result
 from scrapers import scrape as do_scrape, scrape_event_all as do_scrape_event_all, ScrapedResult, detect_provider
+from scrapers.base import MultipleMatchesError
 
 router = APIRouter()
 
 
 class ScrapeRequest(BaseModel):
     url: str
+    bib: str | None = None
 
 
 class ScrapeResponse(BaseModel):
@@ -37,14 +39,16 @@ class ScrapeResponse(BaseModel):
     raw_data: dict
 
 
-@router.post("/scrape", response_model=ScrapeResponse)
+@router.post("/scrape")
 def scrape_url(body: ScrapeRequest):
     url = str(body.url).strip()
     if not url.startswith("http"):
         raise HTTPException(status_code=400, detail="URL invalide")
 
     try:
-        result: ScrapedResult = do_scrape(url)
+        result: ScrapedResult = do_scrape(url, bib=body.bib)
+    except MultipleMatchesError as exc:
+        return {"multiple_matches": True, "candidates": exc.candidates}
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"Erreur lors du scraping : {exc}")
 

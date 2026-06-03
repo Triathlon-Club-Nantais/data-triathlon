@@ -14,14 +14,14 @@ def detect_provider(url: str) -> str:
     return "playwright"
 
 
-def scrape(url: str) -> ScrapedResult:
+def scrape(url: str, bib: str | None = None) -> ScrapedResult:
     provider = detect_provider(url)
     if provider == "breizhchrono":
-        return breizhchrono.scrape(url)
+        return breizhchrono.scrape(url, bib=bib)
     if provider == "wiclax":
         return wiclax.scrape(url)
     if provider == "klikego":
-        return klikego.scrape(url)
+        return klikego.scrape(url, bib=bib)
     if provider == "timepulse":
         return timepulse.scrape(url)
     return playwright_fallback.scrape(url)

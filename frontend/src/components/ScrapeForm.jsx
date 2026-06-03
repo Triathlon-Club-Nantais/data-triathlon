@@ -116,6 +116,7 @@ export default function ScrapeForm({ onSaved }) {
   const [athleteName, setAthleteName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [candidates, setCandidates] = useState(null);
   const [result, setResult] = useState(null);
   const [edited, setEdited] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -133,9 +134,29 @@ export default function ScrapeForm({ onSaved }) {
     setLoading(true);
     setError("");
     setResult(null);
+    setCandidates(null);
     setSaved(false);
     try {
       const data = await api.scrape(finalUrl);
+      if (data.multiple_matches) {
+        setCandidates({ list: data.candidates, url: finalUrl });
+      } else {
+        setResult(data);
+        setEdited({ ...data });
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSelectCandidate(bib) {
+    setLoading(true);
+    setError("");
+    setCandidates(null);
+    try {
+      const data = await api.scrape(candidates.url, bib);
       setResult(data);
       setEdited({ ...data });
     } catch (err) {
@@ -198,6 +219,28 @@ export default function ScrapeForm({ onSaved }) {
       </form>
 
       {error && <p style={styles.error}>{error}</p>}
+
+      {candidates && (
+        <div style={styles.candidates}>
+          <p style={styles.candidatesTitle}>
+            Plusieurs athlètes trouvés — sélectionnez le bon :
+          </p>
+          {candidates.list.map((c) => (
+            <button
+              key={c.bib}
+              style={styles.candidateBtn}
+              onClick={() => handleSelectCandidate(c.bib)}
+            >
+              <span style={styles.candidateName}>{c.athlete_name} {c.athlete_firstname}</span>
+              <span style={styles.candidateMeta}>
+                {c.total_time && <span>⏱ {c.total_time}</span>}
+                {c.club && <span> · {c.club}</span>}
+                <span style={styles.candidateBib}> · Dossard {c.bib}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {result && edited && (
         <div style={styles.preview}>
@@ -325,4 +368,10 @@ const styles = {
   checkboxField: { display: "flex", alignItems: "center", paddingTop: 20 },
   checkboxLabel: { display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, color: "#4a5568", cursor: "pointer" },
   checkbox: { width: 16, height: 16, cursor: "pointer" },
+  candidates: { marginTop: 16, padding: "16px 20px", background: "#fffbeb", border: "1px solid #f6e05e", borderRadius: 10 },
+  candidatesTitle: { fontWeight: 700, fontSize: 14, color: "#744210", marginBottom: 12 },
+  candidateBtn: { display: "flex", flexDirection: "column", alignItems: "flex-start", width: "100%", padding: "10px 14px", marginBottom: 8, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, cursor: "pointer", textAlign: "left", transition: "border-color 0.15s" },
+  candidateName: { fontWeight: 700, fontSize: 15, color: "#1a202c" },
+  candidateMeta: { fontSize: 13, color: "#718096", marginTop: 2 },
+  candidateBib: { color: "#a0aec0" },
 };

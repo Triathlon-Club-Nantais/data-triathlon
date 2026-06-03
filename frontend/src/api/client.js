@@ -14,10 +14,10 @@ async function request(path, options = {}) {
 }
 
 export const api = {
-  scrape: (url) =>
+  scrape: (url, bib = null) =>
     request("/scrape", {
       method: "POST",
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({ url, bib }),
     }),
 
   saveResult: (data) =>

@@ -18,7 +18,7 @@ from urllib.parse import urlparse, parse_qs
 import httpx
 from bs4 import BeautifulSoup
 
-from .base import ScrapedResult
+from .base import ScrapedResult, MultipleMatchesError
 from .utils import normalize_time
 from .klikego import _parse_detail, _parse_search_row as _klikego_parse_search_row, _detect_event_type as _klikego_detect_event_type
 
@@ -107,7 +107,7 @@ def scrape_event_all(
     return results
 
 
-def scrape(url: str) -> ScrapedResult:
+def scrape(url: str, bib: str | None = None) -> ScrapedResult:
     parsed_url = urlparse(url)
     params = parse_qs(parsed_url.query)
     search = params.get("search", [""])[0].strip()
@@ -122,51 +122,73 @@ def scrape(url: str) -> ScrapedResult:
     result.event_type = _klikego_detect_event_type(heat, slug)
     raw: dict = {"event_id": event_id, "heat": heat, "search": search}
 
-    if not search:
-        result.raw_data = raw
-        return result  # need a name to search
-
     with httpx.Client(follow_redirects=True, timeout=20, headers=HEADERS) as client:
-        # 1 — Search by name
-        search_url = (
-            f"{BASE}/v8/evenement/resultats-search.jsp"
-            f"?event={event_id}&heat={heat}&search={search}&city=&category=&sexe=&page="
-        )
-        resp = client.get(search_url)
-        if resp.status_code != 200:
-            raw["search_error"] = resp.status_code
-            result.raw_data = raw
-            return result
+        if bib:
+            dossard = bib
+            result.bib_number = dossard
+        else:
+            if not search:
+                result.raw_data = raw
+                return result
 
-        soup = BeautifulSoup(resp.text, "lxml")
-        raw["search_html"] = resp.text[:500]
-
-        row = soup.select_one("tr.result-row[data-dossard]")
-        if row is None:
-            raise ValueError(
-                f"Athlète « {search} » introuvable sur Breizh Chrono (événement {event_id}). "
-                "Vérifiez l'orthographe du nom."
+            search_url = (
+                f"{BASE}/v8/evenement/resultats-search.jsp"
+                f"?event={event_id}&heat={heat}&search={search}&city=&category=&sexe=&page="
             )
+            resp = client.get(search_url)
+            if resp.status_code != 200:
+                raw["search_error"] = resp.status_code
+                result.raw_data = raw
+                return result
 
-        dossard = row.get("data-dossard", "")
-        result.bib_number = dossard
+            soup = BeautifulSoup(resp.text, "lxml")
+            raw["search_html"] = resp.text[:500]
 
-        # Name from search row
-        name_cell = row.select_one("td.truncate")
-        if name_cell:
-            full = name_cell.get_text(strip=True)
-            parts = full.split()
-            i = 0
-            while i < len(parts) and parts[i].isupper():
-                i += 1
-            result.athlete_name = " ".join(parts[:i])
-            result.athlete_firstname = " ".join(parts[i:])
+            rows = soup.select("tr.result-row[data-dossard]")
+            if not rows:
+                raise ValueError(
+                    f"Athlète « {search} » introuvable sur Breizh Chrono (événement {event_id}). "
+                    "Vérifiez l'orthographe du nom."
+                )
 
-        time_cell = row.select_one("td.font-mono")
-        if time_cell:
-            result.total_time = normalize_time(time_cell.get_text(strip=True))
+            if len(rows) > 1:
+                candidates = []
+                for r in rows:
+                    name_cell = r.select_one("td.truncate")
+                    full = name_cell.get_text(strip=True) if name_cell else ""
+                    parts = full.split()
+                    i = 0
+                    while i < len(parts) and parts[i].isupper():
+                        i += 1
+                    time_cell = r.select_one("td.font-mono")
+                    truncate_cells = r.select("td.truncate")
+                    candidates.append({
+                        "bib": r.get("data-dossard", ""),
+                        "athlete_name": " ".join(parts[:i]),
+                        "athlete_firstname": " ".join(parts[i:]),
+                        "total_time": normalize_time(time_cell.get_text(strip=True)) if time_cell else "",
+                        "club": truncate_cells[1].get_text(strip=True) if len(truncate_cells) >= 2 else "",
+                    })
+                raise MultipleMatchesError(candidates)
 
-        # 2 — Fetch participant detail for splits + full rankings
+            row = rows[0]
+            dossard = row.get("data-dossard", "")
+            result.bib_number = dossard
+
+            name_cell = row.select_one("td.truncate")
+            if name_cell:
+                full = name_cell.get_text(strip=True)
+                parts = full.split()
+                i = 0
+                while i < len(parts) and parts[i].isupper():
+                    i += 1
+                result.athlete_name = " ".join(parts[:i])
+                result.athlete_firstname = " ".join(parts[i:])
+
+            time_cell = row.select_one("td.font-mono")
+            if time_cell:
+                result.total_time = normalize_time(time_cell.get_text(strip=True))
+
         detail_url = (
             f"{BASE}/v8/evenement/resultat-participant.jsp"
             f"?embedded=1&e={event_id}&heat={heat}&dossard={dossard}"
