@@ -18,6 +18,7 @@ Collez une URL de résultat Klikego, Breizh Chrono, TimePulse ou Wiclax — le b
 
 - **Python 3.11+**
 - **Node.js 18+** (avec npm)
+- **PostgreSQL** via [Supabase](https://supabase.com) (gratuit)
 
 ---
 
@@ -30,7 +31,19 @@ git clone https://github.com/TON_USERNAME/data-triathlon.git
 cd data-triathlon
 ```
 
-### 2. Backend (FastAPI + SQLite)
+### 2. Base de données (Supabase)
+
+1. Créer un projet sur [supabase.com](https://supabase.com)
+2. **Connect** → **Direct** → copier l'URI de connexion
+3. Créer `backend/.env` :
+
+```env
+DATABASE_URL=postgresql://postgres.VOTRE_REF:VOTRE_MDP@aws-0-eu-west-1.pooler.supabase.com:5432/postgres
+```
+
+> Les tables sont créées automatiquement au premier démarrage.
+
+### 3. Backend (FastAPI + PostgreSQL)
 
 ```bash
 cd backend
@@ -46,22 +59,14 @@ source .venv/bin/activate
 # Installer les dépendances
 pip install -r requirements.txt
 
-# Lancer le serveur (port 8000)
-uvicorn main:app --reload --port 8000
+# Lancer le serveur (port 8001)
+uvicorn main:app --reload --port 8001
 ```
 
-Le backend est accessible sur `http://localhost:8000`  
-Documentation API interactive : `http://localhost:8000/docs`
+Le backend est accessible sur `http://localhost:8001`  
+Documentation API interactive : `http://localhost:8001/docs`
 
-La base SQLite `triathlon.db` est créée automatiquement au premier démarrage.
-
-> **Note** : si vous ajoutez de nouvelles colonnes au modèle après une première exécution,
-> appliquez la migration manuellement via SQLite :
-> ```bash
-> python -c "import sqlite3; conn = sqlite3.connect('triathlon.db'); conn.execute('ALTER TABLE results ADD COLUMN ma_colonne TYPE DEFAULT valeur'); conn.commit()"
-> ```
-
-### 3. Frontend (React + Vite)
+### 4. Frontend (React + Vite)
 
 Dans un second terminal :
 
@@ -146,12 +151,12 @@ pytest -m "not integration"
 data-triathlon/
 ├── backend/
 │   ├── main.py                  # App FastAPI, CORS, montage des routers
-│   ├── database.py              # Engine SQLAlchemy + session
-│   ├── models.py                # Modèle Result (SQLite)
+│   ├── database.py              # Engine SQLAlchemy + session (PostgreSQL)
+│   ├── models.py                # Modèle Result
 │   ├── requirements.txt         # Dépendances de production
 │   ├── requirements-test.txt    # + pytest, respx
 │   ├── pytest.ini               # testpaths, markers, pythonpath
-│   ├── triathlon.db             # Base SQLite (créée au premier démarrage)
+│   ├── .env                     # Variables locales (DATABASE_URL) — non versionné
 │   ├── routers/
 │   │   ├── scrape.py            # POST /api/scrape  +  POST /api/scrape/event
 │   │   └── results.py           # GET / POST / DELETE /api/results
@@ -178,34 +183,30 @@ data-triathlon/
 │   │       ├── ResultCard.jsx   # Carte résultat (splits adaptatifs par sport)
 │   │       └── ClubView.jsx     # Statistiques et résultats filtrés par club
 │   ├── vite.config.js           # Proxy /api → localhost:8001
+│   ├── vercel.json              # Rewrites SPA pour Vercel
 │   └── package.json
-├── render.yaml                  # Config déploiement Render (backend)
-└── docker-compose.yml
+└── render.yaml                  # Config déploiement Render (backend)
 ```
 
 ---
 
 ## Déploiement
 
+### Base de données → Supabase
+
+1. Créer un projet sur [supabase.com](https://supabase.com)
+2. Récupérer l'URL de connexion : **Connect** → **Direct** → URI
+3. Utiliser cette URL comme variable `DATABASE_URL` sur Render
+
 ### Backend → Render.com
 
-Le fichier `render.yaml` configure automatiquement :
-- Service Python avec `uvicorn`
-- Disque persistant pour SQLite (`/data/triathlon.db`)
+1. Connecter le repo GitHub sur [render.com](https://render.com)
+2. Le fichier `render.yaml` configure automatiquement le service Python
+3. Dans **Environment** → ajouter :
+   - `DATABASE_URL` = URL Supabase (Session Pooler pour compatibilité IPv4)
 
 ### Frontend → Vercel
 
 1. Importer le repo sur [vercel.com](https://vercel.com)
 2. **Root Directory** : `frontend`
 3. Variable d'environnement : `VITE_API_URL` = URL de votre service Render
-
----
-
-## Lancer avec Docker Compose
-
-```bash
-docker compose up --build
-```
-
-- Frontend : `http://localhost:3000`
-- Backend : `http://localhost:8001`
