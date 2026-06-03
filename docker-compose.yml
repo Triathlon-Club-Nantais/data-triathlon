@@ -1,14 +1,15 @@
 services:
   backend:
-    build: ./backend
+    build:
+      context: ./backend
     container_name: triathlon_backend
     restart: unless-stopped
     volumes:
-      - db_data:/app/data
+      - db_data:/app/triathlon.db
     environment:
-      - DATABASE_URL=sqlite:////app/data/triathlon.db
-    expose:
-      - "8000"
+      - DATABASE_URL=sqlite:///./triathlon.db
+    ports:
+      - "8000:8000"
 
   frontend:
     build: ./frontend
