@@ -8,7 +8,7 @@ export default function App() {
   const [tab, setTab] = useState("add");
   const [refreshKey, setRefreshKey] = useState(0);
   const [clubFilter, setClubFilter] = useState(
-    () => localStorage.getItem("tcn_club_filter") || ""
+    () => localStorage.getItem("tcn_club_filter") || "TRIATHLON CLUB NANTAIS"
   );
   const [importStatus, setImportStatus] = useState(null); // null | "loading" | {imported,skipped} | "error"
 
