@@ -46,6 +46,17 @@ class ResultOut(ResultCreate):
 
 @router.post("/results", response_model=ResultOut, status_code=201)
 def create_result(body: ResultCreate, db: Session = Depends(get_db)):
+    if body.bib_number and body.event_name:
+        exists = db.query(Result).filter(
+            Result.bib_number == body.bib_number,
+            Result.event_name == body.event_name,
+        ).first()
+        if exists:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Ce résultat existe déjà (dossard {body.bib_number} — {body.event_name}).",
+            )
+
     event_date = None
     if body.event_date:
         try:
