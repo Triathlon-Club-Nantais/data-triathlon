@@ -1,5 +1,6 @@
 fastapi[standard]==0.115.5
 sqlalchemy==2.0.36
+psycopg2-binary==2.9.10
 httpx==0.28.1
 beautifulsoup4==4.12.3
 lxml==5.3.0

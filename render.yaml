@@ -8,8 +8,4 @@ services:
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL
-        value: sqlite:////data/triathlon.db
-    disk:
-      name: triathlon-db
-      mountPath: /data
-      sizeGB: 1
+        sync: false
