@@ -70,16 +70,9 @@ Tables créées automatiquement au démarrage (pas de migrations).
   (recréation auto sur DB vierge ; en prod Supabase, gérer la migration à la main).
 - Tests unitaires **sans réseau** (respx mocke httpx) ; le réseau réel est isolé
   derrière le marker `integration` (`pytest.ini`).
-- **Workflow IA (Superpowers + Speckit)** : pour savoir quel outil utiliser et
-  quand, voir [`docs/WORKFLOW-IA.md`](docs/WORKFLOW-IA.md).
 
 ## Fournisseurs supportés
 
 Klikego, Breizh Chrono, TimePulse, Wiclax/G-Live (individuel + épreuve complète).
 Types : Triathlon S/M/L/XL, Duathlon XS/S/M/L, SwimRun S/M/L, Aquathlon,
 Aquarun, Bike & Run.
-
-<!-- SPECKIT START -->
-For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
-<!-- SPECKIT END -->
