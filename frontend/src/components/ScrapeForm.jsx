@@ -69,6 +69,8 @@ const PROVIDER_LABELS = {
   wiclax: "Wiclax / G-Live",
   klikego: "Klikego",
   timepulse: "TimePulse",
+  prolivesport: "ProLiveSport",
+  sportinnovation: "Sport Innovation",
   playwright: "Autre (navigateur)",
 };
 
@@ -78,6 +80,37 @@ function isKlikego(url) {
 
 function isBreizhchrono(url) {
   return url.includes("breizhchrono.com");
+}
+
+function isLiveBreizhchrono(url) {
+  return url.includes("live.breizhchrono.com");
+}
+
+function isDetailBreizhchrono(url) {
+  return url.includes("breizhchrono.com/detail-de-la-course/");
+}
+
+function extractDetailEventName(url) {
+  try {
+    const path = new URL(url).pathname;
+    const slug = path.split("/detail-de-la-course/")[1] || "";
+    // Remove trailing numeric ID (e.g. -18960)
+    const cleaned = slug.replace(/-\d+$/, "");
+    // Split camelCase-merged words before uppercasing (e.g. "triathlonswimrun" → "triathlon swimrun")
+    // then split on "-" and capitalize each word
+    const spaced = cleaned
+      .replace(/([a-z])([A-Z])/g, "$1 $2")          // camelCase splits
+      .replace(/(\d+)/g, " $1 ")                      // isolate numbers
+      .split("-")
+      .join(" ");
+    return spaced
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+  } catch {
+    return "";
+  }
 }
 
 function isTimepulse(url) {
@@ -90,12 +123,23 @@ function isWiclax(url) {
     || url.includes("chronosmetron.com");
 }
 
+function isProlivesport(url) {
+  return url.includes("prolivesport.fr") && url.includes("eventId");
+}
+
+function isSportinnovation(url) {
+  return url.includes("sportinnovation.fr");
+}
+
 function needsSearch(url) {
+  if (isLiveBreizhchrono(url) || isDetailBreizhchrono(url)) return false;
   try {
     const p = new URLSearchParams(new URL(url).search);
     if (isKlikego(url) || isBreizhchrono(url)) return !p.get("search");
     if (isTimepulse(url)) return !p.get("bib") && !p.get("search");
     if (isWiclax(url)) return !p.get("B") && !p.get("b") && !p.get("search") && !p.get("f");
+    if (isProlivesport(url)) return !p.get("search");
+    if (isSportinnovation(url)) return !p.get("search");
   } catch { /* invalid URL */ }
   return false;
 }
@@ -105,6 +149,8 @@ function providerHint(url) {
   if (isBreizhchrono(url)) return "Breizh Chrono";
   if (isTimepulse(url)) return "TimePulse";
   if (isWiclax(url)) return "Wiclax";
+  if (isProlivesport(url)) return "ProLiveSport";
+  if (isSportinnovation(url)) return "Sport Innovation";
   return "";
 }
 
@@ -248,10 +294,43 @@ export default function ScrapeForm({ onSaved }) {
             onChange={(e) => { setUrl(e.target.value); setResult(null); }}
             required
           />
-          <button style={styles.btnPrimary} type="submit" disabled={loading}>
+          <button style={styles.btnPrimary} type="submit" disabled={loading || isLiveBreizhchrono(url) || isDetailBreizhchrono(url)}>
             {loading ? "Récupération…" : "Récupérer"}
           </button>
         </div>
+        {isLiveBreizhchrono(url) && (
+          <div style={styles.liveWarning}>
+            <span style={styles.liveWarningIcon}>⚠</span>
+            <span>
+              Ce lien est une page <strong>live</strong> de Breizh Chrono et n'est pas supporté.{" "}
+              Rendez-vous sur{" "}
+              <a href="https://resultats.breizhchrono.com" target="_blank" rel="noreferrer" style={styles.liveWarningLink}>
+                resultats.breizhchrono.com
+              </a>{" "}
+              pour copier le lien de résultats de votre course.
+            </span>
+          </div>
+        )}
+        {isDetailBreizhchrono(url) && (() => {
+          const eventName = extractDetailEventName(url);
+          const searchUrl = "https://resultats.breizhchrono.com"
+            + (eventName ? `/search?q=${encodeURIComponent(eventName)}` : "");
+          return (
+            <div style={styles.liveWarning}>
+              <span style={styles.liveWarningIcon}>⏳</span>
+              <span>
+                Les résultats ne sont pas encore disponibles sur ce lien.
+                Plusieurs heures après la compétition, retrouvez-les sur{" "}
+                <a href="https://resultats.breizhchrono.com" target="_blank" rel="noreferrer" style={styles.liveWarningLink}>
+                  resultats.breizhchrono.com
+                </a>
+                {eventName && (
+                  <> — recherchez <strong>« {eventName} »</strong> et copiez le lien de votre épreuve.</>
+                )}
+              </span>
+            </div>
+          );
+        })()}
         {showNameField && (
           <div style={styles.nameHint}>
             <span style={styles.hintIcon}>ℹ</span>
@@ -264,6 +343,17 @@ export default function ScrapeForm({ onSaved }) {
               onChange={(e) => setAthleteName(e.target.value)}
               required={showNameField}
             />
+          </div>
+        )}
+        {isBreizhchrono(url) && !isLiveBreizhchrono(url) && !isDetailBreizhchrono(url) && (
+          <div style={styles.bcHint}>
+            <span style={styles.hintIcon}>💡</span>
+            <span>
+              Privilégiez le lien depuis la section <strong>Résultats</strong> du site Breizh Chrono :{" "}
+              <a href="https://resultats.breizhchrono.com" target="_blank" rel="noreferrer" style={styles.bcHintLink}>
+                resultats.breizhchrono.com
+              </a>
+            </span>
           </div>
         )}
       </form>
@@ -420,6 +510,11 @@ const styles = {
   input: { flex: 1, padding: "9px 12px", border: "1px solid #cbd5e0", borderRadius: 7, fontSize: 14, outline: "none", minWidth: 0 },
   nameHint: { display: "flex", alignItems: "center", gap: 10, marginTop: 10, padding: "10px 14px", background: "#ebf8ff", borderRadius: 8, fontSize: 13, color: "#2b6cb0", flexWrap: "wrap" },
   hintIcon: { fontWeight: 700, fontSize: 16 },
+  liveWarning: { display: "flex", alignItems: "flex-start", gap: 10, marginTop: 10, padding: "10px 14px", background: "#fffbeb", border: "1px solid #f6ad55", borderRadius: 8, fontSize: 13, color: "#7b341e" },
+  liveWarningIcon: { fontWeight: 700, fontSize: 16, flexShrink: 0 },
+  liveWarningLink: { color: "#c05621", fontWeight: 600 },
+  bcHint: { display: "flex", alignItems: "center", gap: 10, marginTop: 8, padding: "8px 14px", background: "#ebf8ff", borderRadius: 8, fontSize: 12, color: "#2c5282" },
+  bcHintLink: { color: "#2b6cb0", fontWeight: 600 },
   inputMono: { flex: 1, padding: "9px 12px", border: "1px solid #cbd5e0", borderRadius: 7, fontSize: 14, fontFamily: "monospace", outline: "none" },
   btnPrimary: { padding: "9px 20px", background: "#3b82f6", color: "#fff", border: "none", borderRadius: 7, fontWeight: 600, cursor: "pointer", fontSize: 14, whiteSpace: "nowrap" },
   btnSave: { marginTop: 20, padding: "11px 24px", background: "#10b981", color: "#fff", border: "none", borderRadius: 7, fontWeight: 700, cursor: "pointer", fontSize: 15 },

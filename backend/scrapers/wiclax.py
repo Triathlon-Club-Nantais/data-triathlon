@@ -259,6 +259,25 @@ def scrape(url: str) -> ScrapedResult:
 
     if competitor is not None:
         parsed_result = _parse_competitor(competitor, url, event_name, event_type)
+
+        # ChronoSmetron E/R format: competitor is <E>, times are in a sibling <R d=bib>
+        if competitor.tag == "E" and not parsed_result.total_time:
+            result_elem = root.find(f".//R[@d='{bib}']")
+            if result_elem is not None:
+                raw.update(dict(result_elem.attrib))
+                parsed_result.total_time = normalize_time(result_elem.get("t", ""))
+                # Split mapping: s2=swim/run1, s3=T1, s4=bike, s5=T2, s10=run/run2
+                is_duathlon = "duathlon" in event_type
+                parsed_result.swim_time = normalize_time(result_elem.get("s2", ""))
+                parsed_result.t1_time   = normalize_time(result_elem.get("s3", ""))
+                parsed_result.bike_time = normalize_time(result_elem.get("s4", ""))
+                parsed_result.t2_time   = normalize_time(result_elem.get("s5", ""))
+                parsed_result.run_time  = normalize_time(result_elem.get("s10", ""))
+                # Overall rank from v attribute on E element
+                if competitor.get("v") and not parsed_result.rank_overall:
+                    from .utils import normalize_rank
+                    parsed_result.rank_overall = normalize_rank(competitor.get("v"))
+
         # Copy all fields from parsed_result into result
         result.athlete_name = parsed_result.athlete_name
         result.athlete_firstname = parsed_result.athlete_firstname

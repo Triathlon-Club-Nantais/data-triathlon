@@ -9,6 +9,9 @@ identical HTML structure). Only the front-end URL format differs:
   Breizh Chrono: https://resultats.breizhchrono.com/resultats-courses/{slug}-{event-id}/{heat}
                    ?search={name}
 
+Note: live.breizhchrono.com URLs are not supported. The frontend detects them
+and asks the user to copy the URL from resultats.breizhchrono.com instead.
+
 The detail page HTML (p.text-sm meta line, ranking divs, result-row splits table)
 is byte-for-byte identical, so _parse_detail is shared from klikego.
 """
@@ -137,18 +140,23 @@ def scrape_event_all(
 
 def scrape(url: str, bib: str | None = None) -> ScrapedResult:
     parsed_url = urlparse(url)
+
+    if "live.breizhchrono.com" in parsed_url.netloc:
+        raise ValueError(
+            "Les liens live.breizhchrono.com ne sont pas supportés. "
+            "Rendez-vous sur resultats.breizhchrono.com pour récupérer le lien de résultats."
+        )
+
     params = parse_qs(parsed_url.query)
     search = params.get("search", [""])[0].strip()
 
     event_id, heat, slug = _parse_bc_url(url)
 
-    result = ScrapedResult(source_url=url, provider="breizhchrono")
-
     if slug:
         result.event_name = slug.replace("-", " ").title()
 
     result.event_type = _klikego_detect_event_type(heat, slug)
-    raw: dict = {"event_id": event_id, "heat": heat, "search": search}
+    raw = {"event_id": event_id, "heat": heat, "search": search}
 
     with httpx.Client(follow_redirects=True, timeout=20, headers=HEADERS) as client:
         # Fetch event date

@@ -1,5 +1,5 @@
 from .base import ScrapedResult
-from . import breizhchrono, wiclax, klikego, timepulse, playwright_fallback
+from . import breizhchrono, wiclax, klikego, timepulse, prolivesport, sportinnovation, playwright_fallback
 
 
 def detect_provider(url: str) -> str:
@@ -13,6 +13,10 @@ def detect_provider(url: str) -> str:
         return "klikego"
     if "timepulse.fr" in url:
         return "timepulse"
+    if "prolivesport.fr" in url:
+        return "prolivesport"
+    if "sportinnovation.fr" in url:
+        return "sportinnovation"
     return "playwright"
 
 
@@ -21,18 +25,23 @@ def scrape(url: str, bib: str | None = None) -> ScrapedResult:
     if provider == "breizhchrono":
         return breizhchrono.scrape(url, bib=bib)
     if provider == "wiclax":
-        return wiclax.scrape(url)
+        return wiclax.scrape(url)        # wiclax résout le bib via ?B= dans l'URL
     if provider == "klikego":
         return klikego.scrape(url, bib=bib)
     if provider == "timepulse":
-        return timepulse.scrape(url)
+        return timepulse.scrape(url)     # timepulse résout le bib via ?bib= dans l'URL
+    if provider == "prolivesport":
+        return prolivesport.scrape(url, bib=bib)
+    if provider == "sportinnovation":
+        return sportinnovation.scrape(url, bib=bib)
     return playwright_fallback.scrape(url)
 
 
 def scrape_event_all(url: str) -> list[ScrapedResult]:
     """
     Fetch ALL participants for an event from the given results URL.
-    Supported providers: klikego, breizhchrono, timepulse, wiclax.
+    Supported providers: klikego, breizhchrono, timepulse, wiclax,
+                         prolivesport, sportinnovation.
     """
     from urllib.parse import urlparse, parse_qs
 
@@ -57,7 +66,12 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
 
     if provider == "breizhchrono":
         from .breizhchrono import _parse_bc_url
-        from .klikego import _detect_event_type
+        from urllib.parse import urlparse as _urlparse
+        if "live.breizhchrono.com" in _urlparse(url).netloc:
+            raise ValueError(
+                "Les liens live.breizhchrono.com ne sont pas supportés. "
+                "Rendez-vous sur resultats.breizhchrono.com pour récupérer le lien de résultats."
+            )
         event_id, heat, slug = _parse_bc_url(url)
         event_name = slug.replace("-", " ").title() if slug else ""
         return breizhchrono.scrape_event_all(event_id, heat, event_name, slug)
@@ -67,6 +81,12 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
 
     if provider == "wiclax":
         return wiclax.scrape_event_all(url)
+
+    if provider == "prolivesport":
+        return prolivesport.scrape_event_all(url)
+
+    if provider == "sportinnovation":
+        return sportinnovation.scrape_event_all(url)
 
     raise ValueError(
         f"Import de tous les participants non supporté pour ce provider : {provider}"
