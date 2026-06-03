@@ -2,25 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { api } from "../api/client.js";
 import ResultCard from "./ResultCard.jsx";
 import EventGroupList from "./EventGroupList.jsx";
-
-const EVENT_TYPE_LABELS = {
-  "triathlon-s":  "Triathlon S",
-  "triathlon-m":  "Triathlon M",
-  "triathlon-l":  "Triathlon L",
-  "triathlon-xl": "Triathlon XL",
-  "duathlon-xs":  "Duathlon XS",
-  "duathlon-s":   "Duathlon S",
-  "duathlon-m":   "Duathlon M",
-  "duathlon-l":   "Duathlon L",
-  "duathlon":     "Duathlon",
-  "swimrun-s":    "SwimRun S",
-  "swimrun-m":    "SwimRun M",
-  "swimrun-l":    "SwimRun L",
-  "swimrun":      "SwimRun",
-  "aquathlon":    "Aquathlon",
-  "aquarun":      "Aquarun",
-  "bike-run":     "Bike & Run",
-};
+import { EVENT_TYPE_LABELS } from "../constants.js";
 
 function formatDate(dateStr) {
   if (!dateStr) return "";
@@ -35,6 +17,7 @@ export default function ClubView({ refreshKey, club }) {
   const [fetchError, setFetchError] = useState("");
   const [nameFilter, setNameFilter] = useState("");
   const [modalAthlete, setModalAthlete] = useState(null);
+  const [refreshTick, setRefreshTick] = useState(0);
   const [typeFilter, setTypeFilter] = useState("");
   const [openAthlete, setOpenAthlete] = useState(null);
 
@@ -47,7 +30,7 @@ export default function ClubView({ refreshKey, club }) {
       .then((data) => setAllResults(data || []))
       .catch((err) => { setFetchError(err.message || "Erreur inconnue"); setAllResults([]); })
       .finally(() => setLoading(false));
-  }, [refreshKey, club]);
+  }, [refreshKey, club, refreshTick]);
 
   const stats = useMemo(() => {
     if (!allResults.length) return null;
@@ -123,7 +106,12 @@ export default function ClubView({ refreshKey, club }) {
     <div style={styles.container}>
       <h2 style={styles.title}>{club || "Club TCN"}</h2>
 
-      {fetchError && <p style={styles.error}>Erreur : {fetchError}</p>}
+      {fetchError && (
+        <div style={styles.errorRow}>
+          <p style={styles.error}>Erreur : {fetchError}</p>
+          <button style={styles.retryBtn} onClick={() => setRefreshTick(t => t + 1)}>Réessayer</button>
+        </div>
+      )}
       {loading && <p style={styles.loading}>Chargement…</p>}
 
       {!loading && !allResults.length && !fetchError && (
@@ -306,7 +294,9 @@ const styles = {
   title: { fontSize: 22, fontWeight: 800, color: "#1a202c", marginBottom: 20 },
   loading: { color: "#718096", textAlign: "center", padding: 40 },
   empty: { color: "#a0aec0", textAlign: "center", padding: 40, fontSize: 15 },
-  error: { color: "#e53e3e", fontSize: 14, marginBottom: 10 },
+  errorRow: { display: "flex", alignItems: "center", gap: 12, marginBottom: 10 },
+  error: { color: "#e53e3e", fontSize: 14, margin: 0 },
+  retryBtn: { padding: "5px 14px", background: "#e53e3e", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 600 },
 
   statRow: { display: "flex", gap: 16, marginBottom: 20, flexWrap: "wrap" },
   statCard: { flex: "1 1 140px", background: "#fff", borderRadius: 10, padding: "16px 20px", boxShadow: "0 1px 4px rgba(0,0,0,0.08)", borderTop: "4px solid #ccc" },

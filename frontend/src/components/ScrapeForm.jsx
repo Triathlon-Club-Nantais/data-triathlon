@@ -1,25 +1,22 @@
 import { useState } from "react";
 import { api } from "../api/client.js";
+import { EVENT_TYPE_OPTIONS } from "../constants.js";
 
-const EVENT_TYPE_OPTIONS = [
-  // Triathlon
+const EXTENDED_EVENT_TYPE_OPTIONS = [
   { value: "triathlon-s",  label: "Triathlon S (Sprint)" },
   { value: "triathlon-m",  label: "Triathlon M (Olympique)" },
   { value: "triathlon-l",  label: "Triathlon L (Half)" },
   { value: "triathlon-xl", label: "Triathlon XL (Ironman)" },
   { value: "triathlon",    label: "Triathlon (format inconnu)" },
-  // Duathlon
   { value: "duathlon-xs",  label: "Duathlon XS" },
   { value: "duathlon-s",   label: "Duathlon S (Sprint)" },
   { value: "duathlon-m",   label: "Duathlon M" },
   { value: "duathlon-l",   label: "Duathlon L" },
   { value: "duathlon",     label: "Duathlon (format inconnu)" },
-  // SwimRun
   { value: "swimrun-s",    label: "SwimRun S" },
   { value: "swimrun-m",    label: "SwimRun M" },
   { value: "swimrun-l",    label: "SwimRun L" },
   { value: "swimrun",      label: "SwimRun (format inconnu)" },
-  // Autres multisports
   { value: "aquathlon",    label: "Aquathlon" },
   { value: "aquarun",      label: "Aquarun" },
   { value: "bike-run",     label: "Bike & Run" },
@@ -172,17 +169,36 @@ export default function ScrapeForm({ onSaved }) {
     }
   }
 
+  function validateEdited() {
+    if (!edited.athlete_name?.trim()) return "Le nom de l'athlète est requis.";
+    if (!edited.event_name?.trim()) return "Le nom de l'épreuve est requis.";
+    if (!edited.event_type) return "Le type d'épreuve est requis.";
+    return null;
+  }
+
   async function handleSave() {
+    const validationError = validateEdited();
+    if (validationError) { setError(validationError); return; }
     setSaving(true);
+    setError("");
     try {
       await api.saveResult(edited);
       setSaved(true);
       onSaved?.({ club: edited.club, url: url.trim() });
+      // Reset form after short delay so user sees the success message
+      setTimeout(() => {
+        setUrl("");
+        setAthleteName("");
+        setResult(null);
+        setEdited(null);
+        setCandidates(null);
+        setSaved(false);
+      }, 2000);
     } catch (err) {
       setError(err.message);
+    } finally {
       setSaving(false);
     }
-    setSaving(false);
   }
 
   function handleField(field, value) {
@@ -276,7 +292,7 @@ export default function ScrapeForm({ onSaved }) {
                 onChange={(e) => handleField("event_type", e.target.value)}
               >
                 <option value="">-- choisir --</option>
-                {EVENT_TYPE_OPTIONS.map(({ value, label }) => (
+                {EXTENDED_EVENT_TYPE_OPTIONS.map(({ value, label }) => (
                   <option key={value} value={value}>{label}</option>
                 ))}
               </select>
@@ -369,7 +385,7 @@ const styles = {
   hint: { color: "#718096", fontSize: 13 },
   grid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14, marginBottom: 14 },
   timesGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 14, marginBottom: 14 },
-  ranksGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 14 },
+  ranksGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 14, marginBottom: 14 },
   fieldLabel: { display: "block", fontSize: 12, fontWeight: 600, color: "#4a5568", marginBottom: 4 },
   checkboxField: { display: "flex", alignItems: "center", paddingTop: 20 },
   checkboxLabel: { display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, color: "#4a5568", cursor: "pointer" },

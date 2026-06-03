@@ -1,37 +1,23 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "../api/client.js";
 import EventGroupList from "./EventGroupList.jsx";
-
-const EVENT_TYPES = [
-  "triathlon-s",
-  "triathlon-m",
-  "triathlon-l",
-  "triathlon-xl",
-  "duathlon-xs",
-  "duathlon-s",
-  "duathlon-m",
-  "duathlon-l",
-  "duathlon",
-  "swimrun-s",
-  "swimrun-m",
-  "swimrun-l",
-  "swimrun",
-  "aquathlon",
-  "aquarun",
-  "bike-run",
-];
+import { EVENT_TYPE_LABELS } from "../constants.js";
 
 export default function ResultsList({ refreshKey }) {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState("");
   const [filters, setFilters] = useState({ name: "", event_type: "", event_name: "", club: "" });
+  const [retryTick, setRetryTick] = useState(0);
 
   const load = useCallback(async (f) => {
     setLoading(true);
+    setFetchError("");
     try {
       const data = await api.listResults({ ...f, page_size: 1000 });
       setResults(data);
-    } catch {
+    } catch (err) {
+      setFetchError(err.message || "Erreur réseau");
       setResults([]);
     } finally {
       setLoading(false);
@@ -40,7 +26,7 @@ export default function ResultsList({ refreshKey }) {
 
   useEffect(() => {
     load(filters);
-  }, [filters, refreshKey, load]);
+  }, [filters, refreshKey, retryTick, load]);
 
   function handleFilter(field, value) {
     setFilters((prev) => ({ ...prev, [field]: value }));
@@ -69,8 +55,8 @@ export default function ResultsList({ refreshKey }) {
           onChange={(e) => handleFilter("event_type", e.target.value)}
         >
           <option value="">Tous les types</option>
-          {EVENT_TYPES.map((t) => (
-            <option key={t} value={t}>{t}</option>
+          {Object.entries(EVENT_TYPE_LABELS).map(([val, label]) => (
+            <option key={val} value={val}>{label}</option>
           ))}
         </select>
         <input
@@ -89,7 +75,14 @@ export default function ResultsList({ refreshKey }) {
 
       {loading && <p style={styles.loading}>Chargement…</p>}
 
-      {!loading && results.length === 0 && (
+      {!loading && fetchError && (
+        <div style={styles.errorRow}>
+          <p style={styles.error}>Erreur : {fetchError}</p>
+          <button style={styles.retryBtn} onClick={() => setRetryTick(t => t + 1)}>Réessayer</button>
+        </div>
+      )}
+
+      {!loading && !fetchError && results.length === 0 && (
         <p style={styles.empty}>Aucun résultat trouvé. Ajoutez-en un ci-dessus !</p>
       )}
 
@@ -106,4 +99,7 @@ const styles = {
   filterSelect: { padding: "9px 12px", border: "1px solid #cbd5e0", borderRadius: 7, fontSize: 14, background: "#fff" },
   loading: { color: "#718096", textAlign: "center", padding: 20 },
   empty: { color: "#a0aec0", textAlign: "center", padding: 40, fontSize: 15 },
+  errorRow: { display: "flex", alignItems: "center", gap: 12, marginBottom: 10 },
+  error: { color: "#e53e3e", fontSize: 14, margin: 0 },
+  retryBtn: { padding: "5px 14px", background: "#e53e3e", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 600 },
 };

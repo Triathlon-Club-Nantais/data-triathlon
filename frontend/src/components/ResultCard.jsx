@@ -1,32 +1,36 @@
-const EVENT_TYPE_LABELS = {
-  "triathlon-s":  "Triathlon S",
-  "triathlon-m":  "Triathlon M",
-  "triathlon-l":  "Triathlon L",
-  "triathlon-xl": "Triathlon XL",
-  "duathlon-xs":  "Duathlon XS",
-  "duathlon-s":   "Duathlon S",
-  "duathlon-m":   "Duathlon M",
-  "duathlon-l":   "Duathlon L",
-  "duathlon":     "Duathlon",
-  "swimrun-s":    "SwimRun S",
-  "swimrun-m":    "SwimRun M",
-  "swimrun-l":    "SwimRun L",
-  "swimrun":      "SwimRun",
-  "aquathlon":    "Aquathlon",
-  "aquarun":      "Aquarun",
-  "bike-run":     "Bike & Run",
-};
+import { useState } from "react";
+import { EVENT_TYPE_LABELS } from "../constants.js";
 
 function formatDate(d) {
   if (!d) return "";
-  // Parse ISO dates (YYYY-MM-DD) as local time to avoid UTC-midnight → previous day shift
   const m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (m) return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString("fr-FR");
   return String(d);
 }
 
+function timeAgo(isoStr) {
+  if (!isoStr) return "";
+  const diff = Date.now() - new Date(isoStr).getTime();
+  const days = Math.floor(diff / 86400000);
+  if (days === 0) return "aujourd'hui";
+  if (days === 1) return "hier";
+  if (days < 30) return `il y a ${days} j`;
+  if (days < 365) return `il y a ${Math.floor(days / 30)} mois`;
+  return `il y a ${Math.floor(days / 365)} an${Math.floor(days / 365) > 1 ? "s" : ""}`;
+}
+
 export default function ResultCard({ result, onDelete }) {
+  const [confirming, setConfirming] = useState(false);
   const fullName = [result.athlete_firstname, result.athlete_name].filter(Boolean).join(" ");
+
+  function handleDeleteClick() {
+    if (confirming) {
+      onDelete(result.id);
+    } else {
+      setConfirming(true);
+      setTimeout(() => setConfirming(false), 3000);
+    }
+  }
 
   return (
     <div style={styles.card}>
@@ -44,8 +48,12 @@ export default function ResultCard({ result, onDelete }) {
             <div style={styles.totalTime}>{result.total_time}</div>
           )}
           {onDelete && (
-            <button style={styles.deleteBtn} onClick={() => onDelete(result.id)} title="Supprimer">
-              ×
+            <button
+              style={confirming ? styles.deleteBtnConfirm : styles.deleteBtn}
+              onClick={handleDeleteClick}
+              title={confirming ? "Cliquer pour confirmer" : "Supprimer"}
+            >
+              {confirming ? "Confirmer ?" : "×"}
             </button>
           )}
         </div>
@@ -59,9 +67,7 @@ export default function ResultCard({ result, onDelete }) {
           </span>
         )}
         {result.event_date && (
-          <span style={styles.eventDate}>
-            {formatDate(result.event_date)}
-          </span>
+          <span style={styles.eventDate}>{formatDate(result.event_date)}</span>
         )}
         {result.bib_number && (
           <span style={styles.bib}>#{result.bib_number}</span>
@@ -104,6 +110,9 @@ export default function ResultCard({ result, onDelete }) {
         <a href={result.source_url} target="_blank" rel="noopener noreferrer" style={styles.sourceLink}>
           Source ({result.provider})
         </a>
+        {result.scraped_at && (
+          <span style={styles.addedAt}>Ajouté {timeAgo(result.scraped_at)}</span>
+        )}
       </div>
     </div>
   );
@@ -113,7 +122,6 @@ function SplitsForSport({ result }) {
   const type = result.event_type || "";
 
   if (type.startsWith("duathlon")) {
-    // swim_time slot holds run1 (CAP 1) since there is no swimming
     return (
       <>
         <Split label="Course 1" time={result.swim_time} color="#10b981" />
@@ -135,7 +143,6 @@ function SplitsForSport({ result }) {
   }
 
   if (type === "aquathlon") {
-    // No bike, no transitions
     return (
       <>
         <Split label="Natation" time={result.swim_time} color="#3b82f6" />
@@ -154,7 +161,6 @@ function SplitsForSport({ result }) {
     );
   }
 
-  // Triathlon, swimrun, and unknown: standard 5-split layout
   return (
     <>
       <Split label="Natation" time={result.swim_time} color="#3b82f6" />
@@ -187,6 +193,7 @@ const styles = {
   headerRight: { display: "flex", alignItems: "center", gap: 12 },
   totalTime: { fontFamily: "monospace", fontSize: 22, fontWeight: 800, color: "#1a202c" },
   deleteBtn: { background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#a0aec0", lineHeight: 1, padding: "0 4px" },
+  deleteBtnConfirm: { background: "#fff5f5", border: "1px solid #fc8181", borderRadius: 6, cursor: "pointer", fontSize: 12, color: "#c53030", fontWeight: 700, padding: "4px 8px" },
   eventRow: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid #e2e8f0" },
   eventName: { fontWeight: 600, fontSize: 14, color: "#2d3748" },
   eventType: { background: "#f0fff4", color: "#276749", borderRadius: 10, padding: "2px 8px", fontSize: 12, fontWeight: 600 },
@@ -201,6 +208,7 @@ const styles = {
   split: { display: "flex", flexDirection: "column", alignItems: "center", minWidth: 60 },
   splitLabel: { fontSize: 11, fontWeight: 700, textTransform: "uppercase" },
   splitTime: { fontSize: 14, fontFamily: "monospace", fontWeight: 600, color: "#2d3748" },
-  footer: { marginTop: 8 },
+  footer: { marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" },
   sourceLink: { fontSize: 12, color: "#a0aec0", textDecoration: "none" },
+  addedAt: { fontSize: 11, color: "#cbd5e0" },
 };
