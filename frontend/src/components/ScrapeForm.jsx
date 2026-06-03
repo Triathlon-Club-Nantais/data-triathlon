@@ -84,11 +84,16 @@ function isTimepulse(url) {
   return url.includes("timepulse.fr");
 }
 
+function isWiclax(url) {
+  return url.includes("wiclax-results.com") || (url.includes("wiclax.com") && url.includes("G-Live"));
+}
+
 function needsSearch(url) {
   try {
     const p = new URLSearchParams(new URL(url).search);
     if (isKlikego(url) || isBreizhchrono(url)) return !p.get("search");
     if (isTimepulse(url)) return !p.get("bib") && !p.get("search");
+    if (isWiclax(url)) return !p.get("B") && !p.get("b") && !p.get("search");
   } catch { /* invalid URL */ }
   return false;
 }
@@ -97,6 +102,7 @@ function providerHint(url) {
   if (isKlikego(url)) return "Klikego";
   if (isBreizhchrono(url)) return "Breizh Chrono";
   if (isTimepulse(url)) return "TimePulse";
+  if (isWiclax(url)) return "Wiclax";
   return "";
 }
 

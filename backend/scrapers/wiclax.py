@@ -13,8 +13,8 @@ from urllib.parse import urljoin, urlparse, parse_qs, unquote
 
 import httpx
 
-from .base import ScrapedResult
-from .utils import normalize_time, normalize_rank
+from .base import ScrapedResult, MultipleMatchesError
+from .utils import normalize_time, normalize_rank, split_athlete_name
 
 HEADERS = {
     "User-Agent": (
@@ -27,25 +27,28 @@ HEADERS = {
 
 
 def _parse_competitor(comp, url: str, event_name: str, event_type: str) -> ScrapedResult:
-    """Build a ScrapedResult from a single competitor XML element."""
-    bib = comp.get("Bib") or comp.get("bib") or ""
+    """Build a ScrapedResult from a single competitor XML element.
+    Handles both Wiclax Competitor/Runner format and TimePulse-style E format.
+    """
+    bib = _get_competitor_bib(comp)
     result = ScrapedResult(source_url=url, provider="wiclax", bib_number=bib)
     result.event_name = event_name
     result.event_type = event_type
 
+    # Try standard Competitor/Runner attributes first
     name = comp.get("Name") or comp.get("name") or ""
     firstname = comp.get("FirstName") or comp.get("firstname") or ""
     if not name and not firstname:
-        full = comp.get("FullName") or comp.get("fullname") or ""
-        parts = full.split()
-        name = parts[0] if parts else ""
-        firstname = " ".join(parts[1:]) if len(parts) > 1 else ""
+        full = _get_competitor_fullname(comp)
+        if full:
+            surname, fname = split_athlete_name(full)
+            name, firstname = surname, fname
 
     result.athlete_name = name
     result.athlete_firstname = firstname
-    result.club = comp.get("Club") or comp.get("club") or ""
-    result.category = comp.get("Category") or comp.get("category") or ""
-    result.gender = comp.get("Gender") or comp.get("gender") or ""
+    result.club = comp.get("Club") or comp.get("club") or comp.get("c") or ""
+    result.category = comp.get("Category") or comp.get("category") or comp.get("ca") or ""
+    result.gender = comp.get("Gender") or comp.get("gender") or comp.get("x") or ""
     result.rank_overall = normalize_rank(comp.get("Rank") or comp.get("rank"))
     result.rank_category = normalize_rank(
         comp.get("CategoryRank") or comp.get("categoryrank")
@@ -81,20 +84,45 @@ def _parse_competitor(comp, url: str, event_name: str, event_type: str) -> Scrap
     return result
 
 
+def _resolve_directory_url(url: str, client: httpx.Client) -> str:
+    """
+    Wiclax directory URLs (e.g. /Triathlon%20de%20la%20Roche%202026/) wrap a G-Live
+    iframe. Extract the iframe src and return the full G-Live URL.
+    """
+    resp = client.get(url, headers=HEADERS)
+    resp.raise_for_status()
+    import re as _re
+    m = _re.search(r'<iframe[^>]+src=["\']([^"\']+g-live\.html[^"\']*)["\']', resp.text, _re.I)
+    if m:
+        src = m.group(1)
+        parsed = urlparse(url)
+        base = f"{parsed.scheme}://{parsed.netloc}"
+        return urljoin(base, src)
+    raise ValueError(f"Impossible de trouver le lien G-Live dans la page Wiclax : {url}")
+
+
 def _fetch_clax(url: str) -> tuple[ET.Element, str, str, str, object]:
     """
     Fetch and parse a .clax XML file from a Wiclax G-Live URL.
+    Directory URLs (no f= param) are resolved via iframe extraction first.
     Returns (root, clax_url, event_name, event_type, event_date).
     """
     from datetime import date as date_t
-    parsed = urlparse(url)
-    params = parse_qs(parsed.query)
-    f_param = params.get("f", [""])[0]
-    base = f"{parsed.scheme}://{parsed.netloc}"
-    glive_dir = "/G-Live/"
-    clax_url = urljoin(base + glive_dir, f_param)
 
     with httpx.Client(follow_redirects=True, timeout=30) as client:
+        # Resolve directory URL to G-Live URL if needed
+        parsed = urlparse(url)
+        params = parse_qs(parsed.query)
+        if not params.get("f"):
+            url = _resolve_directory_url(url, client)
+            parsed = urlparse(url)
+            params = parse_qs(parsed.query)
+
+        f_param = params.get("f", [""])[0]
+        base = f"{parsed.scheme}://{parsed.netloc}"
+        glive_dir = "/G-Live/"
+        clax_url = urljoin(base + glive_dir, f_param)
+
         resp = client.get(clax_url, headers=HEADERS)
         resp.raise_for_status()
         xml_content = resp.text
@@ -119,11 +147,52 @@ def _fetch_clax(url: str) -> tuple[ET.Element, str, str, str, object]:
     return root, clax_url, event_name, event_type, event_date
 
 
+def _get_competitor_fullname(comp) -> str:
+    """Extract full name from a competitor element (handles both XML formats)."""
+    # Format 1: Competitor/Runner with Name + FirstName attributes
+    name = comp.get("Name") or comp.get("name") or ""
+    firstname = comp.get("FirstName") or comp.get("firstname") or ""
+    if name or firstname:
+        return re.sub(r"\s+", " ", f"{firstname} {name}").strip()
+    # Format 2: TimePulse/Wiclax E element with n="Firstname\xa0SURNAME"
+    n = comp.get("n") or comp.get("N") or ""
+    return re.sub(r"[\s\xa0]+", " ", n).strip()
+
+
+def _get_competitor_bib(comp) -> str:
+    return (comp.get("Bib") or comp.get("bib") or
+            comp.get("d") or comp.get("D") or "")
+
+
+def _search_in_xml(root, search: str) -> list:
+    """Return competitor elements whose name matches search (all words, any order)."""
+    words = re.sub(r"[\s\xa0]+", " ", search).strip().upper().split()
+    if not words:
+        return []
+
+    def matches_words(full: str) -> bool:
+        full_up = full.upper()
+        return all(w in full_up for w in words)
+
+    matches = []
+    # Format 1: Competitor/Runner tags
+    for tag in ("Competitor", "COMPETITOR", "Runner", "RUNNER", "Participant"):
+        for comp in root.iter(tag):
+            if matches_words(_get_competitor_fullname(comp)):
+                matches.append(comp)
+    # Format 2: TimePulse-style E elements
+    if not matches:
+        for comp in root.iter("E"):
+            if matches_words(_get_competitor_fullname(comp)):
+                matches.append(comp)
+    return matches
+
+
 def scrape(url: str) -> ScrapedResult:
     parsed = urlparse(url)
     params = parse_qs(parsed.query)
-    f_param = params.get("f", [""])[0]
-    bib = params.get("B", [""])[0]
+    bib = params.get("B", [""])[0] or params.get("b", [""])[0]
+    search = params.get("search", [""])[0].strip()
 
     root, clax_url, event_name, event_type, event_date = _fetch_clax(url)
 
@@ -131,6 +200,29 @@ def scrape(url: str) -> ScrapedResult:
     result.event_name = event_name
     result.event_type = event_type
     result.event_date = event_date
+
+    # Resolve bib from name search if needed
+    if not bib and search:
+        matches = _search_in_xml(root, search)
+        if not matches:
+            raise ValueError(
+                f"Athlète « {search} » introuvable dans cet événement Wiclax."
+            )
+        if len(matches) > 1:
+            candidates = []
+            for comp in matches:
+                full = _get_competitor_fullname(comp)
+                surname, firstname = split_athlete_name(full)
+                candidates.append({
+                    "bib": _get_competitor_bib(comp),
+                    "athlete_name": surname,
+                    "athlete_firstname": firstname,
+                    "total_time": normalize_time(comp.get("Time") or comp.get("time") or comp.get("t") or ""),
+                    "club": comp.get("Club") or comp.get("club") or comp.get("c") or "",
+                })
+            raise MultipleMatchesError(candidates)
+        bib = _get_competitor_bib(matches[0])
+        result.bib_number = bib
 
     # Find competitor by bib
     competitor = None
@@ -143,7 +235,7 @@ def scrape(url: str) -> ScrapedResult:
 
     if competitor is None:
         for comp in root.iter():
-            if comp.get("Bib") == bib or comp.get("bib") == bib:
+            if _get_competitor_bib(comp) == bib and bib:
                 competitor = comp
                 break
 
