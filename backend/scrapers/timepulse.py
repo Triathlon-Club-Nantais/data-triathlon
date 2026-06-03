@@ -20,7 +20,7 @@ from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 import httpx
 
 from .base import ScrapedResult
-from .utils import normalize_time, split_athlete_name
+from .utils import normalize_time, split_athlete_name, parse_fr_date
 
 _HEADERS = {
     "User-Agent": (
@@ -215,7 +215,15 @@ def _compute_ranks(
 
 
 def _parse_event_date(date_str: str) -> date_t | None:
-    """Parse TimePulse XML date string (YYYY-MM-DD or DD/MM/YYYY) into a date object."""
+    """Parse TimePulse XML date string into a date object.
+
+    Handles:
+      YYYY-MM-DD           → ISO format
+      DD/MM/YYYY           → French numeric
+      'dimanche 19 octobre 2025' → French with day-of-week prefix
+    """
+    if not date_str:
+        return None
     # ISO format YYYY-MM-DD
     m = re.match(r"^(\d{4})-(\d{2})-(\d{2})", date_str)
     if m:
@@ -223,14 +231,15 @@ def _parse_event_date(date_str: str) -> date_t | None:
             return date_t(int(m.group(1)), int(m.group(2)), int(m.group(3)))
         except ValueError:
             pass
-    # French format DD/MM/YYYY
+    # French numeric DD/MM/YYYY
     m = re.match(r"^(\d{1,2})/(\d{2})/(\d{4})", date_str)
     if m:
         try:
             return date_t(int(m.group(3)), int(m.group(2)), int(m.group(1)))
         except ValueError:
             pass
-    return None
+    # French textual: 'dimanche 19 octobre 2025' or '19 octobre 2025'
+    return parse_fr_date(date_str)
 
 
 # ---------------------------------------------------------------------------

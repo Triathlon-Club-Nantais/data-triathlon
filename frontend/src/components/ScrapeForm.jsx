@@ -152,11 +152,17 @@ export default function ScrapeForm({ onSaved }) {
   }
 
   async function handleSelectCandidate(bib) {
+    const candidate = candidates.list.find(c => c.bib === bib);
+    const savedCandidates = candidates;
     setLoading(true);
     setError("");
     setCandidates(null);
     try {
-      const data = await api.scrape(candidates.url, bib);
+      const data = await api.scrape(savedCandidates.url, bib);
+      if (candidate) {
+        if (!data.athlete_name) data.athlete_name = candidate.athlete_name;
+        if (!data.athlete_firstname) data.athlete_firstname = candidate.athlete_firstname;
+      }
       setResult(data);
       setEdited({ ...data });
     } catch (err) {
