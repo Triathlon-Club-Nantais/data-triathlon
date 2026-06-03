@@ -85,7 +85,9 @@ function isTimepulse(url) {
 }
 
 function isWiclax(url) {
-  return url.includes("wiclax-results.com") || (url.includes("wiclax.com") && url.includes("G-Live"));
+  return url.includes("wiclax-results.com")
+    || (url.includes("wiclax.com") && url.includes("G-Live"))
+    || url.includes("chronosmetron.com");
 }
 
 function needsSearch(url) {
@@ -93,7 +95,7 @@ function needsSearch(url) {
     const p = new URLSearchParams(new URL(url).search);
     if (isKlikego(url) || isBreizhchrono(url)) return !p.get("search");
     if (isTimepulse(url)) return !p.get("bib") && !p.get("search");
-    if (isWiclax(url)) return !p.get("B") && !p.get("b") && !p.get("search");
+    if (isWiclax(url)) return !p.get("B") && !p.get("b") && !p.get("search") && !p.get("f");
   } catch { /* invalid URL */ }
   return false;
 }

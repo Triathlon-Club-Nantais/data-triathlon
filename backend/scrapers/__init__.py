@@ -7,6 +7,8 @@ def detect_provider(url: str) -> str:
         return "breizhchrono"
     if "wiclax-results.com" in url or ("wiclax.com" in url and "G-Live" in url):
         return "wiclax"
+    if "chronosmetron.com" in url:
+        return "wiclax"
     if "klikego.com" in url:
         return "klikego"
     if "timepulse.fr" in url:

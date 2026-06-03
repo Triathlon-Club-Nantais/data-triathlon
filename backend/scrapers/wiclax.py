@@ -84,20 +84,36 @@ def _parse_competitor(comp, url: str, event_name: str, event_type: str) -> Scrap
     return result
 
 
-def _resolve_directory_url(url: str, client: httpx.Client) -> str:
+def _resolve_to_wiclax_url(url: str, client: httpx.Client) -> str:
     """
-    Wiclax directory URLs (e.g. /Triathlon%20de%20la%20Roche%202026/) wrap a G-Live
-    iframe. Extract the iframe src and return the full G-Live URL.
+    Resolve various Wiclax-family URL formats to a usable URL:
+    - chronosmetron.com event pages → extract wiclax-results.com link
+    - wiclax-results.com directory pages → extract G-Live iframe src
     """
     resp = client.get(url, headers=HEADERS)
     resp.raise_for_status()
-    import re as _re
-    m = _re.search(r'<iframe[^>]+src=["\']([^"\']+g-live\.html[^"\']*)["\']', resp.text, _re.I)
+
+    # chronosmetron.com: find the wiclax-results.com results link in href attribute
+    if "chronosmetron.com" in url and "wiclax-results.com" not in url:
+        from urllib.parse import quote
+        m = re.search(r'href=["\']([^"\']*wiclax-results\.com/[^"\']+)["\']', resp.text, re.I)
+        if m:
+            raw = m.group(1).strip()
+            # URL-encode spaces in the path
+            parsed_raw = urlparse(raw)
+            encoded_path = quote(parsed_raw.path, safe="/%+")
+            found = parsed_raw._replace(path=encoded_path).geturl().rstrip("/") + "/"
+            return _resolve_to_wiclax_url(found, client)
+        raise ValueError(f"Aucun lien de résultats Wiclax trouvé sur : {url}")
+
+    # wiclax-results.com directory: extract G-Live iframe src
+    m = re.search(r'<iframe[^>]+src=["\']([^"\']+g-live\.html[^"\']*)["\']', resp.text, re.I)
     if m:
         src = m.group(1)
         parsed = urlparse(url)
         base = f"{parsed.scheme}://{parsed.netloc}"
         return urljoin(base, src)
+
     raise ValueError(f"Impossible de trouver le lien G-Live dans la page Wiclax : {url}")
 
 
@@ -110,11 +126,11 @@ def _fetch_clax(url: str) -> tuple[ET.Element, str, str, str, object]:
     from datetime import date as date_t
 
     with httpx.Client(follow_redirects=True, timeout=30) as client:
-        # Resolve directory URL to G-Live URL if needed
+        # Resolve chronosmetron.com or directory URLs to G-Live URL if needed
         parsed = urlparse(url)
         params = parse_qs(parsed.query)
-        if not params.get("f"):
-            url = _resolve_directory_url(url, client)
+        if not params.get("f") or "chronosmetron.com" in url and "wiclax-results.com" not in url:
+            url = _resolve_to_wiclax_url(url, client)
             parsed = urlparse(url)
             params = parse_qs(parsed.query)
 
