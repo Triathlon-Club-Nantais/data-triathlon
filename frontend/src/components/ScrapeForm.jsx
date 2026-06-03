@@ -118,6 +118,7 @@ export default function ScrapeForm({ onSaved }) {
   const [edited, setEdited] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [manualMode, setManualMode] = useState(false);
 
   const showNameField = needsSearch(url);
 
@@ -133,6 +134,7 @@ export default function ScrapeForm({ onSaved }) {
     setResult(null);
     setCandidates(null);
     setSaved(false);
+    setManualMode(false);
     try {
       const data = await api.scrape(finalUrl);
       if (data.multiple_matches) {
@@ -193,12 +195,30 @@ export default function ScrapeForm({ onSaved }) {
         setEdited(null);
         setCandidates(null);
         setSaved(false);
+        setManualMode(false);
       }, 2000);
     } catch (err) {
       setError(err.message);
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleManualEntry() {
+    setManualMode(true);
+    setError("");
+    const empty = {
+      provider: "manuel", source_url: url.trim(),
+      athlete_name: "", athlete_firstname: "", club: "", category: "", gender: "",
+      bib_number: "", event_name: "", event_date: "", event_type: "",
+      rank_overall: null, rank_category: null, rank_gender: null,
+      total_time: "", swim_time: "", t1_time: "", bike_time: "", t2_time: "", run_time: "",
+      is_relay: false, raw_data: {},
+    };
+    setResult(empty);
+    setEdited({ ...empty });
+    // Notify backend
+    try { await api.reportPendingProvider(url.trim()); } catch { /* non-blocking */ }
   }
 
   function handleField(field, value) {
@@ -240,7 +260,21 @@ export default function ScrapeForm({ onSaved }) {
         )}
       </form>
 
-      {error && <p style={styles.error}>{error}</p>}
+      {error && (
+        <div style={styles.errorBlock}>
+          <p style={styles.error}>{error}</p>
+          {!result && url.trim() && (
+            <div style={styles.manualHint}>
+              <span style={styles.manualHintText}>
+                Ce provider n'est pas encore supporté ou le scraping a échoué.
+              </span>
+              <button style={styles.btnManual} onClick={handleManualEntry}>
+                Saisir manuellement <span style={styles.lastResort}>(dernier recours)</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {candidates && (
         <div style={styles.candidates}>
@@ -266,11 +300,16 @@ export default function ScrapeForm({ onSaved }) {
 
       {result && edited && (
         <div style={styles.preview}>
+          {manualMode && (
+            <div style={styles.manualWarning}>
+              ⚠️ Saisie manuelle — remplissez tous les champs. Un administrateur sera notifié pour implémenter ce provider.
+            </div>
+          )}
           <div style={styles.previewHeader}>
             <span style={styles.badge}>
-              {PROVIDER_LABELS[result.provider] || result.provider}
+              {manualMode ? "Saisie manuelle" : (PROVIDER_LABELS[result.provider] || result.provider)}
             </span>
-            <span style={styles.hint}>Vérifiez et corrigez si besoin</span>
+            <span style={styles.hint}>{manualMode ? "Remplissez tous les champs" : "Vérifiez et corrigez si besoin"}</span>
           </div>
 
           <div style={styles.grid}>
@@ -390,6 +429,12 @@ const styles = {
   checkboxField: { display: "flex", alignItems: "center", paddingTop: 20 },
   checkboxLabel: { display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, color: "#4a5568", cursor: "pointer" },
   checkbox: { width: 16, height: 16, cursor: "pointer" },
+  errorBlock: { marginBottom: 10 },
+  manualHint: { marginTop: 8, padding: "10px 14px", background: "#fff5f5", border: "1px solid #feb2b2", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" },
+  manualHintText: { fontSize: 13, color: "#742a2a", flex: 1 },
+  btnManual: { padding: "7px 14px", background: "#fff", border: "1px solid #fc8181", borderRadius: 7, cursor: "pointer", fontSize: 13, color: "#c53030", fontWeight: 600, whiteSpace: "nowrap" },
+  lastResort: { fontSize: 11, fontWeight: 400, color: "#e53e3e" },
+  manualWarning: { background: "#fffbeb", border: "1px solid #f6e05e", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#744210", marginBottom: 14 },
   candidates: { marginTop: 16, padding: "16px 20px", background: "#fffbeb", border: "1px solid #f6e05e", borderRadius: 10 },
   candidatesTitle: { fontWeight: 700, fontSize: 14, color: "#744210", marginBottom: 12 },
   candidateBtn: { display: "flex", flexDirection: "column", alignItems: "flex-start", width: "100%", padding: "10px 14px", marginBottom: 8, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, cursor: "pointer", textAlign: "left", transition: "border-color 0.15s" },

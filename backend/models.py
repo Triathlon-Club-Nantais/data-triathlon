@@ -32,3 +32,13 @@ class Result(Base):
     is_relay = Column(Boolean, default=False)
     raw_data = Column(JSON, nullable=True)
     scraped_at = Column(DateTime, default=datetime.utcnow)
+
+
+class PendingProvider(Base):
+    __tablename__ = "pending_providers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    url = Column(String, nullable=False)
+    provider_hint = Column(String, default="")  # domain extracted from URL
+    reported_at = Column(DateTime, default=datetime.utcnow)
+    handled = Column(Boolean, default=False)

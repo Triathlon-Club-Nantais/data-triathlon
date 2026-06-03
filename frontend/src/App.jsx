@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import ScrapeForm from "./components/ScrapeForm.jsx";
 import ResultsList from "./components/ResultsList.jsx";
 import ClubView from "./components/ClubView.jsx";
+import AdminView from "./components/AdminView.jsx";
 import { api } from "./api/client.js";
 
 export default function App() {
@@ -10,9 +11,15 @@ export default function App() {
   const [clubFilter, setClubFilter] = useState(
     () => localStorage.getItem("tcn_club_filter") || "TRIATHLON CLUB NANTAIS"
   );
-  const [importStatus, setImportStatus] = useState(null); // null | "loading" | {imported,skipped} | "error"
+  const [importStatus, setImportStatus] = useState(null);
+  const [pendingCount, setPendingCount] = useState(0);
 
-  // Called by ScrapeForm after individual save: { club, url }
+  useEffect(() => {
+    api.listPendingProviders()
+      .then((data) => setPendingCount(data.length))
+      .catch(() => {});
+  }, []);
+
   function handleSaved({ club, url }) {
     setRefreshKey((k) => k + 1);
     if (club) {
@@ -61,6 +68,15 @@ export default function App() {
         >
           Club TCN
         </button>
+        <button
+          style={{ ...styles.tab, ...(tab === "admin" ? styles.tabActive : {}), marginLeft: "auto", position: "relative" }}
+          onClick={() => setTab("admin")}
+        >
+          Admin
+          {pendingCount > 0 && (
+            <span style={styles.badge}>{pendingCount}</span>
+          )}
+        </button>
       </nav>
 
       {importStatus && (
@@ -77,6 +93,9 @@ export default function App() {
         {tab === "add" && <ScrapeForm onSaved={handleSaved} />}
         {tab === "results" && <ResultsList refreshKey={refreshKey} />}
         {tab === "club" && <ClubView refreshKey={refreshKey} club={clubFilter} />}
+        {tab === "admin" && (
+          <AdminView onCountChange={(n) => setPendingCount(n)} />
+        )}
       </main>
     </div>
   );
@@ -91,6 +110,7 @@ const styles = {
   nav: { background: "#fff", borderBottom: "2px solid #e2e8f0", padding: "0 24px", display: "flex", gap: 4 },
   tab: { padding: "14px 20px", border: "none", background: "none", cursor: "pointer", fontSize: 15, color: "#718096", fontWeight: 600, borderBottom: "3px solid transparent", marginBottom: -2 },
   tabActive: { color: "#3b82f6", borderBottomColor: "#3b82f6" },
+  badge: { position: "absolute", top: 8, right: 4, background: "#e53e3e", color: "#fff", borderRadius: "50%", width: 18, height: 18, fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" },
   main: { maxWidth: 900, margin: "0 auto", padding: "28px 16px" },
   importBanner: { background: "#ebf8ff", color: "#2b6cb0", padding: "10px 24px", fontSize: 14, fontWeight: 600, borderBottom: "1px solid #bee3f8" },
 };

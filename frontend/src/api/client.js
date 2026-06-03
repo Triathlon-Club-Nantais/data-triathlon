@@ -43,4 +43,15 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ url }),
     }),
+
+  reportPendingProvider: (url) =>
+    request("/admin/pending-providers", {
+      method: "POST",
+      body: JSON.stringify({ url }),
+    }),
+
+  listPendingProviders: () => request("/admin/pending-providers"),
+
+  markProviderHandled: (id) =>
+    request(`/admin/pending-providers/${id}`, { method: "DELETE" }),
 };
