@@ -46,12 +46,12 @@ source .venv/bin/activate
 # Installer les dépendances
 pip install -r requirements.txt
 
-# Lancer le serveur (port 8001)
-uvicorn main:app --reload --port 8001
+# Lancer le serveur (port 8000)
+uvicorn main:app --reload --port 8000
 ```
 
-Le backend est accessible sur `http://localhost:8001`  
-Documentation API interactive : `http://localhost:8001/docs`
+Le backend est accessible sur `http://localhost:8000`  
+Documentation API interactive : `http://localhost:8000/docs`
 
 La base SQLite `triathlon.db` est créée automatiquement au premier démarrage.
 
