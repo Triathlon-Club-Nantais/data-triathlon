@@ -76,3 +76,8 @@ Tables créées automatiquement au démarrage (pas de migrations).
 Klikego, Breizh Chrono, TimePulse, Wiclax/G-Live (individuel + épreuve complète).
 Types : Triathlon S/M/L/XL, Duathlon XS/S/M/L, SwimRun S/M/L, Aquathlon,
 Aquarun, Bike & Run.
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+<!-- SPECKIT END -->
