@@ -98,17 +98,18 @@ def scrape_event(body: ScrapeRequest, db: Session = Depends(get_db)):
 
     event_name = all_results[0].event_name
 
-    # Single DB query to collect already-existing bibs for this event
-    existing_bibs: set[str] = {
-        row[0]
-        for row in db.query(Result.bib_number)
+    # Single DB query — key is (bib_number, event_type) because bibs are only
+    # unique within a discipline (multi-format events reuse bib numbers across heats)
+    existing_keys: set[tuple] = {
+        (row[0], row[1])
+        for row in db.query(Result.bib_number, Result.event_type)
         .filter(Result.event_name == event_name, Result.bib_number.isnot(None))
         .all()
     }
 
     imported = skipped = 0
     for r in all_results:
-        if r.bib_number in existing_bibs:
+        if (r.bib_number, r.event_type) in existing_keys:
             skipped += 1
             continue
         db.add(Result(
@@ -135,7 +136,7 @@ def scrape_event(body: ScrapeRequest, db: Session = Depends(get_db)):
             is_relay=r.is_relay,
             raw_data=r.raw_data,
         ))
-        existing_bibs.add(r.bib_number)
+        existing_keys.add((r.bib_number, r.event_type))
         imported += 1
 
     db.commit()
@@ -168,9 +169,9 @@ async def scrape_event_stream(body: ScrapeRequest, db: Session = Depends(get_db)
             return
 
         event_name = all_results[0].event_name
-        existing_bibs: set[str] = {
-            row[0]
-            for row in db.query(Result.bib_number)
+        existing_keys: set[tuple] = {
+            (row[0], row[1])
+            for row in db.query(Result.bib_number, Result.event_type)
             .filter(Result.event_name == event_name, Result.bib_number.isnot(None))
             .all()
         }
@@ -180,7 +181,7 @@ async def scrape_event_stream(body: ScrapeRequest, db: Session = Depends(get_db)
         # Phase 2 — insert with progress
         imported = skipped = 0
         for i, r in enumerate(all_results):
-            if r.bib_number in existing_bibs:
+            if (r.bib_number, r.event_type) in existing_keys:
                 skipped += 1
             else:
                 db.add(Result(
@@ -195,7 +196,7 @@ async def scrape_event_stream(body: ScrapeRequest, db: Session = Depends(get_db)
                     t2_time=r.t2_time, run_time=r.run_time,
                     is_relay=r.is_relay, raw_data=r.raw_data,
                 ))
-                existing_bibs.add(r.bib_number)
+                existing_keys.add((r.bib_number, r.event_type))
                 imported += 1
 
             if (i + 1) % 20 == 0 or i == total - 1:

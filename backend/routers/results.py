@@ -50,11 +50,12 @@ def create_result(body: ResultCreate, db: Session = Depends(get_db)):
         exists = db.query(Result).filter(
             Result.bib_number == body.bib_number,
             Result.event_name == body.event_name,
+            Result.event_type == body.event_type,
         ).first()
         if exists:
             raise HTTPException(
                 status_code=409,
-                detail=f"Ce résultat existe déjà (dossard {body.bib_number} — {body.event_name}).",
+                detail=f"Ce résultat existe déjà (dossard {body.bib_number} — {body.event_name} / {body.event_type}).",
             )
 
     event_date = None

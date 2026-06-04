@@ -538,13 +538,18 @@ def _detect_event_type(heat: str, slug: str = "") -> str:
                                     "run & bike", "run and bike", "bike-run")):
         return "bike-run"
 
-    # Triathlon distance from heat name
-    if "xxl" in h or "ironman" in h:
+    # Triathlon distance from heat name.
+    # Use segment-boundary checks (e.g. "-m-" or trailing "-m") to avoid false
+    # positives like "aesio-mutuelle" matching "-m" or "trail" matching "-l".
+    def _seg(tag: str) -> bool:
+        return f"-{tag}-" in h or h.endswith(f"-{tag}")
+
+    if "xxl" in h or "ironman" in h or _seg("xl"):
         return "triathlon-xl"
-    if "-l" in h or "longue" in h:
+    if "longue" in h or _seg("l"):
         return "triathlon-l"
-    if "-m" in h or "olymp" in h:
+    if "olymp" in h or _seg("m"):
         return "triathlon-m"
-    if "-s" in h or "-xs" in h or "sprint" in h:
+    if "sprint" in h or "decouverte" in h or _seg("s") or _seg("xs"):
         return "triathlon-s"
-    return h or "triathlon"
+    return "triathlon"
