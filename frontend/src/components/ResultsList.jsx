@@ -3,22 +3,27 @@ import { api } from "../api/client.js";
 import EventGroupList from "./EventGroupList.jsx";
 import { EVENT_TYPE_LABELS } from "../constants.js";
 
-export default function ResultsList({ refreshKey }) {
-  const [results, setResults] = useState([]);
+export default function ResultsList({ refreshKey, initialSearch = "" }) {
+  const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState("");
-  const [filters, setFilters] = useState({ name: "", event_type: "", event_name: "", club: "" });
+  const [filters, setFilters] = useState({ name: initialSearch, event_type: "", event_name: "", club: "" });
   const [retryTick, setRetryTick] = useState(0);
+
+  // Sync when parent changes globalSearch
+  useEffect(() => {
+    setFilters(prev => ({ ...prev, name: initialSearch }));
+  }, [initialSearch]);
 
   const load = useCallback(async (f) => {
     setLoading(true);
     setFetchError("");
     try {
-      const data = await api.listResults({ ...f, page_size: 1000 });
-      setResults(data);
+      const data = await api.listEvents(f);
+      setEvents(data);
     } catch (err) {
       setFetchError(err.message || "Erreur réseau");
-      setResults([]);
+      setEvents([]);
     } finally {
       setLoading(false);
     }
@@ -32,9 +37,7 @@ export default function ResultsList({ refreshKey }) {
     setFilters((prev) => ({ ...prev, [field]: value }));
   }
 
-  async function handleDelete(id) {
-    if (!window.confirm("Supprimer ce résultat ?")) return;
-    await api.deleteResult(id);
+  async function handleDeleteAndReload() {
     load(filters);
   }
 
@@ -82,11 +85,16 @@ export default function ResultsList({ refreshKey }) {
         </div>
       )}
 
-      {!loading && !fetchError && results.length === 0 && (
+      {!loading && !fetchError && events.length === 0 && (
         <p style={styles.empty}>Aucun résultat trouvé. Ajoutez-en un ci-dessus !</p>
       )}
 
-      <EventGroupList results={results} onDelete={handleDelete} highlightTCN />
+      <EventGroupList
+        events={events}
+        filters={filters}
+        onDelete={handleDeleteAndReload}
+        highlightTCN
+      />
     </div>
   );
 }

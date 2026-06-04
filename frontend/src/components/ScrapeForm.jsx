@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "../api/client.js";
-import { EVENT_TYPE_OPTIONS } from "../constants.js";
+import { EVENT_TYPE_OPTIONS, EVENT_TYPE_LABELS } from "../constants.js";
 
 const EXTENDED_EVENT_TYPE_OPTIONS = [
   { value: "triathlon-s",  label: "Triathlon S (Sprint)" },
@@ -135,7 +135,7 @@ function needsSearch(url) {
   if (isLiveBreizhchrono(url) || isDetailBreizhchrono(url)) return false;
   try {
     const p = new URLSearchParams(new URL(url).search);
-    if (isKlikego(url) || isBreizhchrono(url)) return !p.get("search");
+    if (isKlikego(url) || isBreizhchrono(url)) return !p.get("search") && !p.get("dossard");
     if (isTimepulse(url)) return !p.get("bib") && !p.get("search");
     if (isWiclax(url)) return !p.get("B") && !p.get("b") && !p.get("search") && !p.get("f");
     if (isProlivesport(url)) return !p.get("search");
@@ -162,6 +162,12 @@ function injectSearch(url, name) {
   } catch { return url; }
 }
 
+function formatDate(d) {
+  if (!d) return "";
+  try { return new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }); }
+  catch { return d; }
+}
+
 export default function ScrapeForm({ onSaved }) {
   const [url, setUrl] = useState("");
   const [athleteName, setAthleteName] = useState("");
@@ -173,6 +179,13 @@ export default function ScrapeForm({ onSaved }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [manualMode, setManualMode] = useState(false);
+  const [recentResults, setRecentResults] = useState([]);
+
+  useEffect(() => {
+    api.listResults({ page_size: 5, page: 1, club: "nantais|TCN" })
+      .then(setRecentResults)
+      .catch(() => {});
+  }, [saved]);
 
   const showNameField = needsSearch(url);
 
@@ -285,7 +298,7 @@ export default function ScrapeForm({ onSaved }) {
 
       <form onSubmit={handleScrape} style={styles.form}>
         <label style={styles.label}>Lien de résultat</label>
-        <div style={styles.row}>
+        <div style={styles.row} className="scrape-row">
           <input
             style={styles.input}
             type="url"
@@ -396,6 +409,29 @@ export default function ScrapeForm({ onSaved }) {
         </div>
       )}
 
+      {!result && !candidates && !loading && !error && recentResults.length > 0 && (
+        <div style={recentStyles.wrapper}>
+          <p style={recentStyles.title}>Derniers résultats ajoutés</p>
+          {recentResults.map((r) => {
+            const name = [r.athlete_firstname, r.athlete_name].filter(Boolean).join(" ");
+            return (
+              <div key={r.id} style={recentStyles.item}>
+                <div style={recentStyles.avatar}>{(r.athlete_name?.[0] || "?").toUpperCase()}</div>
+                <div style={recentStyles.info}>
+                  <span style={recentStyles.name}>{name || "Inconnu"}</span>
+                  <span style={recentStyles.sub}>
+                    {r.event_name}
+                    {r.event_type && <span style={recentStyles.pill}>{EVENT_TYPE_LABELS[r.event_type] || r.event_type}</span>}
+                  </span>
+                </div>
+                {r.total_time && <span style={recentStyles.time}>{r.total_time}</span>}
+                <span style={recentStyles.date}>{formatDate(r.event_date)}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {result && edited && (
         <div style={styles.preview}>
           {manualMode && (
@@ -407,7 +443,7 @@ export default function ScrapeForm({ onSaved }) {
             <span style={styles.badge}>
               {manualMode ? "Saisie manuelle" : (PROVIDER_LABELS[result.provider] || result.provider)}
             </span>
-            <span style={styles.hint}>{manualMode ? "Remplissez tous les champs" : "Vérifiez et corrigez si besoin"}</span>
+            <span style={styles.previewHint}>{manualMode ? "Remplissez tous les champs" : "Vérifiez et corrigez si besoin"}</span>
           </div>
 
           <div style={styles.grid}>
@@ -481,6 +517,7 @@ function Field({ label, value, onChange }) {
       <label style={styles.fieldLabel}>{label}</label>
       <input
         style={{ ...styles.input, width: "100%" }}
+        aria-label={label}
         value={value || ""}
         onChange={(e) => onChange(e.target.value)}
       />
@@ -494,6 +531,7 @@ function TimeField({ label, value, onChange }) {
       <label style={styles.fieldLabel}>{label}</label>
       <input
         style={{ ...styles.inputMono, width: "100%" }}
+        aria-label={label}
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
       />
@@ -501,14 +539,27 @@ function TimeField({ label, value, onChange }) {
   );
 }
 
+const recentStyles = {
+  wrapper: { marginTop: 24, borderTop: "1px solid #f0f0f0", paddingTop: 18 },
+  title:   { fontSize: 12, fontWeight: 700, color: "#aaa", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12 },
+  item:    { display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid #f5f5f5" },
+  avatar:  { width: 32, height: 32, borderRadius: "50%", background: "#f0f0f0", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13, color: "#1a1a1a", flexShrink: 0 },
+  info:    { flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 },
+  name:    { fontWeight: 700, fontSize: 14, color: "#1a1a1a" },
+  sub:     { fontSize: 12, color: "#888", display: "flex", alignItems: "center", gap: 6, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" },
+  pill:    { background: "#fff5f0", color: "#e95d0f", borderRadius: 10, padding: "0 7px", fontSize: 11, fontWeight: 600, flexShrink: 0 },
+  time:    { fontFamily: "monospace", fontWeight: 700, color: "#e95d0f", fontSize: 13, flexShrink: 0 },
+  date:    { fontSize: 11, color: "#bbb", whiteSpace: "nowrap", flexShrink: 0 },
+};
+
 const styles = {
   container: { background: "#fff", borderRadius: 12, padding: 28, marginBottom: 28, boxShadow: "0 1px 4px rgba(0,0,0,0.08)" },
-  title: { fontSize: 20, fontWeight: 700, marginBottom: 18, color: "#1a202c" },
+  title: { fontSize: 20, fontWeight: 700, marginBottom: 18, color: "#1a1a1a" },
   form: { marginBottom: 16 },
   label: { display: "block", fontWeight: 600, marginBottom: 6, fontSize: 14 },
   row: { display: "flex", gap: 10 },
   input: { flex: 1, padding: "9px 12px", border: "1px solid #cbd5e0", borderRadius: 7, fontSize: 14, outline: "none", minWidth: 0 },
-  nameHint: { display: "flex", alignItems: "center", gap: 10, marginTop: 10, padding: "10px 14px", background: "#ebf8ff", borderRadius: 8, fontSize: 13, color: "#2b6cb0", flexWrap: "wrap" },
+  nameHint: { display: "flex", alignItems: "center", gap: 10, marginTop: 10, padding: "10px 14px", background: "#fff5f0", borderRadius: 8, fontSize: 13, color: "#c4500d", flexWrap: "wrap" },
   hintIcon: { fontWeight: 700, fontSize: 16 },
   liveWarning: { display: "flex", alignItems: "flex-start", gap: 10, marginTop: 10, padding: "10px 14px", background: "#fffbeb", border: "1px solid #f6ad55", borderRadius: 8, fontSize: 13, color: "#7b341e" },
   liveWarningIcon: { fontWeight: 700, fontSize: 16, flexShrink: 0 },
@@ -516,15 +567,15 @@ const styles = {
   bcHint: { display: "flex", alignItems: "center", gap: 10, marginTop: 8, padding: "8px 14px", background: "#ebf8ff", borderRadius: 8, fontSize: 12, color: "#2c5282" },
   bcHintLink: { color: "#2b6cb0", fontWeight: 600 },
   inputMono: { flex: 1, padding: "9px 12px", border: "1px solid #cbd5e0", borderRadius: 7, fontSize: 14, fontFamily: "monospace", outline: "none" },
-  btnPrimary: { padding: "9px 20px", background: "#3b82f6", color: "#fff", border: "none", borderRadius: 7, fontWeight: 600, cursor: "pointer", fontSize: 14, whiteSpace: "nowrap" },
-  btnSave: { marginTop: 20, padding: "11px 24px", background: "#10b981", color: "#fff", border: "none", borderRadius: 7, fontWeight: 700, cursor: "pointer", fontSize: 15 },
+  btnPrimary: { padding: "9px 20px", background: "#e95d0f", color: "#fff", border: "none", borderRadius: 7, fontWeight: 600, cursor: "pointer", fontSize: 14, whiteSpace: "nowrap" },
+  btnSave: { marginTop: 20, padding: "11px 24px", background: "#1a1a1a", color: "#fff", border: "none", borderRadius: 7, fontWeight: 700, cursor: "pointer", fontSize: 15 },
   hint: { color: "#718096", fontSize: 13, marginTop: 8 },
   error: { color: "#e53e3e", fontSize: 14, marginBottom: 10 },
-  success: { color: "#10b981", fontWeight: 700, marginTop: 16, fontSize: 15 },
-  preview: { marginTop: 20, padding: 20, background: "#f7fafc", borderRadius: 10, border: "1px solid #e2e8f0" },
+  success: { color: "#1a1a1a", fontWeight: 700, marginTop: 16, fontSize: 15 },
+  preview: { marginTop: 20, padding: 20, background: "#fafafa", borderRadius: 10, border: "1px solid #ebebeb" },
   previewHeader: { display: "flex", alignItems: "center", gap: 12, marginBottom: 18 },
-  badge: { background: "#ebf8ff", color: "#2b6cb0", borderRadius: 20, padding: "3px 12px", fontSize: 12, fontWeight: 700 },
-  hint: { color: "#718096", fontSize: 13 },
+  badge: { background: "#fff5f0", color: "#e95d0f", borderRadius: 20, padding: "3px 12px", fontSize: 12, fontWeight: 700 },
+  previewHint: { color: "#888", fontSize: 13 },
   grid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14, marginBottom: 14 },
   timesGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 14, marginBottom: 14 },
   ranksGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 14, marginBottom: 14 },

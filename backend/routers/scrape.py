@@ -1,4 +1,8 @@
+import asyncio
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -136,6 +140,73 @@ def scrape_event(body: ScrapeRequest, db: Session = Depends(get_db)):
 
     db.commit()
     return {"imported": imported, "skipped": skipped}
+
+
+@router.post("/scrape/event/stream")
+async def scrape_event_stream(body: ScrapeRequest, db: Session = Depends(get_db)):
+    """Import all participants with real-time SSE progress updates."""
+    url = str(body.url).strip()
+    if not url.startswith("http"):
+        raise HTTPException(status_code=400, detail="URL invalide")
+
+    def _sse(data: dict) -> str:
+        return f"data: {json.dumps(data)}\n\n"
+
+    async def generate():
+        # Phase 1 — scraping (blocking → run in thread)
+        yield _sse({"phase": "scraping", "message": "Récupération des participants…"})
+        try:
+            loop = asyncio.get_event_loop()
+            all_results = await loop.run_in_executor(None, do_scrape_event_all, url)
+        except Exception as exc:
+            yield _sse({"phase": "error", "message": str(exc)})
+            return
+
+        total = len(all_results)
+        if total == 0:
+            yield _sse({"phase": "done", "imported": 0, "skipped": 0, "total": 0})
+            return
+
+        event_name = all_results[0].event_name
+        existing_bibs: set[str] = {
+            row[0]
+            for row in db.query(Result.bib_number)
+            .filter(Result.event_name == event_name, Result.bib_number.isnot(None))
+            .all()
+        }
+
+        yield _sse({"phase": "saving", "total": total, "imported": 0, "skipped": 0, "progress": 0})
+
+        # Phase 2 — insert with progress
+        imported = skipped = 0
+        for i, r in enumerate(all_results):
+            if r.bib_number in existing_bibs:
+                skipped += 1
+            else:
+                db.add(Result(
+                    source_url=r.source_url, provider=r.provider,
+                    athlete_name=r.athlete_name, athlete_firstname=r.athlete_firstname,
+                    club=r.club, category=r.category, gender=r.gender,
+                    bib_number=r.bib_number, event_name=r.event_name,
+                    event_date=r.event_date, event_type=r.event_type,
+                    rank_overall=r.rank_overall, rank_category=r.rank_category,
+                    rank_gender=r.rank_gender, total_time=r.total_time,
+                    swim_time=r.swim_time, t1_time=r.t1_time, bike_time=r.bike_time,
+                    t2_time=r.t2_time, run_time=r.run_time,
+                    is_relay=r.is_relay, raw_data=r.raw_data,
+                ))
+                existing_bibs.add(r.bib_number)
+                imported += 1
+
+            if (i + 1) % 20 == 0 or i == total - 1:
+                yield _sse({"phase": "saving", "total": total, "imported": imported,
+                            "skipped": skipped, "progress": i + 1})
+
+        db.commit()
+        yield _sse({"phase": "done", "imported": imported, "skipped": skipped, "total": total})
+
+    return StreamingResponse(generate(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @router.get("/scrape/detect")

@@ -6,6 +6,8 @@ __pycache__/
 venv/
 .venv/
 *.egg-info/
+.benchmarks/
+.pytest_cache/
 
 # Database
 *.db
@@ -14,6 +16,8 @@ venv/
 # Excel
 *.xlsx
 *.xls
+xlsx_urls.json
+audit_report.md
 
 # Node
 node_modules/
@@ -31,3 +35,12 @@ Thumbs.db
 
 # Claude Code
 .claude/
+
+# Test fixtures (contain athlete names from private club data)
+tests/e2e/fixtures/providers.json
+
+# Playwright test output
+test-results/
+tests/e2e/playwright-report/
+tests/e2e/test-results/
+tests/e2e/.cache/
