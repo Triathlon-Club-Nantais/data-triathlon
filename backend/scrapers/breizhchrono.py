@@ -53,17 +53,22 @@ def _parse_bc_url(url: str) -> tuple[str, str, str]:
     """
     Parse a Breizh Chrono results URL into (event_id, heat, slug).
 
-    URL format:
-      /resultats-courses/{slug}-{event-id}/{heat}
-
-    event-id: 10+ digits, hyphen, 1+ digits  e.g. 1700025627600-3
-    heat:     last path segment               e.g. triathlon-s-individuel
-    slug:     human-readable prefix           e.g. triathlon-dangers-entre-loire-et-maine-2026
+    Supported formats:
+      1. /resultats-courses/{slug}-{event-id}/{heat}      (standard)
+      2. /bc/resultats/coureur.jsp?ref={event-id}&heat={heat}&dossard={bib}  (direct-bib)
     """
-    path_parts = [p for p in urlparse(url).path.strip("/").split("/") if p]
-    # path_parts[0] = "resultats-courses"
-    # path_parts[1] = "{slug}-{event-id}"
-    # path_parts[2] = "{heat}"
+    parsed = urlparse(url)
+    path = parsed.path
+    params = parse_qs(parsed.query)
+
+    # Format 2: coureur.jsp — event_id in ?ref=, heat in ?heat=
+    if "coureur.jsp" in path:
+        event_id = params.get("ref", [""])[0].strip()
+        heat = params.get("heat", [""])[0].strip()
+        return event_id, heat, ""
+
+    # Format 1: /resultats-courses/{slug}-{event-id}/{heat}
+    path_parts = [p for p in path.strip("/").split("/") if p]
     slug_with_id = path_parts[1] if len(path_parts) >= 2 else ""
     heat = path_parts[2] if len(path_parts) >= 3 else ""
 
@@ -150,8 +155,13 @@ def scrape(url: str, bib: str | None = None) -> ScrapedResult:
     params = parse_qs(parsed_url.query)
     search = params.get("search", [""])[0].strip()
 
+    # coureur.jsp format: bib is the ?dossard= query parameter
+    if not bib:
+        bib = params.get("dossard", [""])[0].strip() or None
+
     event_id, heat, slug = _parse_bc_url(url)
 
+    result = ScrapedResult(source_url=url, provider="breizhchrono")
     if slug:
         result.event_name = slug.replace("-", " ").title()
 

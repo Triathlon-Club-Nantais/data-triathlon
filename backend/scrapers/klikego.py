@@ -90,9 +90,11 @@ def scrape(url: str, bib: str | None = None) -> ScrapedResult:
             )
             resp = client.get(search_url)
             if resp.status_code != 200:
-                raw["search_error"] = resp.status_code
-                result.raw_data = raw
-                return result
+                raise ValueError(
+                    f"L'API Klikego a retourné une erreur {resp.status_code} "
+                    f"pour l'événement {event_id} (heat={heat!r}). "
+                    "Vérifiez l'URL ou réessayez."
+                )
 
             soup = BeautifulSoup(resp.text, "lxml")
             raw["search_html"] = resp.text[:500]
@@ -469,6 +471,14 @@ def scrape_event_all(
                 if bib:
                     nantais_bibs.add(bib)
             page += 1
+
+        # Phase 2b — also identify athletes by club name already present in Phase 1 data
+        # Handles athletes from Nantes suburbs (Saint-Herblain, Vertou, etc.) whose
+        # city isn't matched by city=nantais but whose club name contains TCN keywords.
+        _TCN_KEYWORDS = ("nantais", "tcn", "tri club nant", "triathlon club nant")
+        for bib, r in bib_to_result.items():
+            if r.club and any(k in r.club.lower() for k in _TCN_KEYWORDS):
+                nantais_bibs.add(bib)
 
         # Phase 3 — fetch detail pages for Nantais athletes
         for bib in nantais_bibs:

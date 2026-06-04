@@ -94,6 +94,80 @@ def create_result(body: ResultCreate, db: Session = Depends(get_db)):
     return _serialize(result)
 
 
+_TCN_KEYWORDS = ("nantais", "tcn", "triathlon club nant")
+
+
+@router.get("/results/events")
+def list_events(
+    name: Optional[str] = Query(None),
+    event_type: Optional[str] = Query(None),
+    event_name: Optional[str] = Query(None),
+    club: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """
+    Return distinct events with result count and TCN count.
+    Filters mirror /api/results. Used by the frontend for the events list view.
+    """
+    from sqlalchemy import func, case, or_
+    from sqlalchemy.orm import aliased
+
+    q = db.query(Result)
+
+    if name:
+        pattern = f"%{name}%"
+        q = q.filter(
+            Result.athlete_name.ilike(pattern) | Result.athlete_firstname.ilike(pattern)
+        )
+    if club:
+        keywords = [k.strip() for k in club.split("|") if k.strip()]
+        if len(keywords) == 1:
+            q = q.filter(Result.club.ilike(f"%{keywords[0]}%"))
+        else:
+            q = q.filter(or_(*[Result.club.ilike(f"%{k}%") for k in keywords]))
+    if event_type:
+        q = q.filter(Result.event_type == event_type)
+    if event_name:
+        q = q.filter(Result.event_name.ilike(f"%{event_name}%"))
+    if date_from:
+        try:
+            q = q.filter(Result.event_date >= date.fromisoformat(date_from))
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            q = q.filter(Result.event_date <= date.fromisoformat(date_to))
+        except ValueError:
+            pass
+
+    tcn_conds = or_(*[Result.club.ilike(f"%{k}%") for k in _TCN_KEYWORDS])
+    rows = (
+        q.with_entities(
+            Result.event_name,
+            Result.event_date,
+            Result.event_type,
+            func.count(Result.id).label("total"),
+            func.sum(case((tcn_conds, 1), else_=0)).label("tcn_count"),
+        )
+        .group_by(Result.event_name, Result.event_date, Result.event_type)
+        .order_by(Result.event_date.desc(), Result.event_name)
+        .all()
+    )
+
+    return [
+        {
+            "event_name": r.event_name or "",
+            "event_date": r.event_date.isoformat() if r.event_date else None,
+            "event_type": r.event_type or "",
+            "total": r.total,
+            "tcn_count": int(r.tcn_count or 0),
+        }
+        for r in rows
+    ]
+
+
 @router.get("/results", response_model=list[ResultOut])
 def list_results(
     name: Optional[str] = Query(None),
@@ -103,7 +177,7 @@ def list_results(
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=1000),
+    page_size: int = Query(20, ge=1, le=5000),
     db: Session = Depends(get_db),
 ):
     q = db.query(Result)

@@ -49,7 +49,10 @@ def _parse_competitor(comp, url: str, event_name: str, event_type: str) -> Scrap
     result.club = comp.get("Club") or comp.get("club") or comp.get("c") or ""
     result.category = comp.get("Category") or comp.get("category") or comp.get("ca") or ""
     result.gender = comp.get("Gender") or comp.get("gender") or comp.get("x") or ""
-    result.rank_overall = normalize_rank(comp.get("Rank") or comp.get("rank"))
+    # v = overall rank in ChronoSmetron E format; Rank/rank in Competitor format
+    result.rank_overall = normalize_rank(
+        comp.get("Rank") or comp.get("rank") or comp.get("v")
+    )
     result.rank_category = normalize_rank(
         comp.get("CategoryRank") or comp.get("categoryrank")
     )
@@ -180,6 +183,96 @@ def _get_competitor_bib(comp) -> str:
             comp.get("d") or comp.get("D") or "")
 
 
+def _build_split_indices(root: ET.Element) -> dict[str, int]:
+    """
+    Parse <Segments><S> definitions to build a dynamic sN-key mapping.
+
+    Each <S> element's 0-based position in the list is its sN index.
+    Segments are classified by disc and trans attributes:
+      disc=5, trans absent → swim
+      disc=-1, trans=1     → transition (first=T1, second=T2)
+      disc=0               → bike
+      disc=6               → run
+
+    We identify TOTAL segments (not individual laps) by matching
+    checkpoint ranges: total segment spans T1_end→T2_start (bike) or
+    T2_end→finish (run).
+    """
+    segs_elem = root.find(".//Segments")
+    if segs_elem is None:
+        return {}
+
+    segments = list(segs_elem)
+    result: dict[str, int] = {}
+
+    # Find T1 and T2 (first two elements with trans=1)
+    t1_ptg1 = t1_ptg2 = t2_ptg1 = t2_ptg2 = None
+    trans_found = 0
+    for i, s in enumerate(segments):
+        if s.get("trans") == "1":
+            if trans_found == 0:
+                result["t1"] = i
+                t1_ptg1, t1_ptg2 = s.get("ptg1"), s.get("ptg2")
+            elif trans_found == 1:
+                result["t2"] = i
+                t2_ptg1, t2_ptg2 = s.get("ptg1"), s.get("ptg2")
+            trans_found += 1
+            if trans_found == 2:
+                break
+
+    # Swim total: disc=5, ptg1=-999, ptg2 = t1_ptg1 (ends exactly where T1 starts)
+    for i, s in enumerate(segments):
+        if s.get("disc") == "5" and s.get("ptg1") == "-999":
+            if t1_ptg1 is None or s.get("ptg2") == t1_ptg1:
+                result["swim"] = i
+                break
+
+    # Bike total: disc=0, spans exactly from T1_end to T2_start
+    if t1_ptg2 and t2_ptg1:
+        for i, s in enumerate(segments):
+            if (s.get("disc") == "0"
+                    and s.get("ptg1") == t1_ptg2
+                    and s.get("ptg2") == t2_ptg1):
+                result["bike"] = i
+                break
+
+    # Run total: disc=6, starts exactly where T2 ends, goes to finish (ptg2=999)
+    if t2_ptg2:
+        for i, s in enumerate(segments):
+            if (s.get("disc") == "6"
+                    and s.get("ptg1") == t2_ptg2
+                    and s.get("ptg2") == "999"):
+                result["run"] = i
+                break
+
+    return result
+
+
+def _fill_er_splits(
+    result_elem: ET.Element,
+    r: ScrapedResult,
+    split_idx: dict[str, int],
+) -> None:
+    """Fill split times on r from a ChronoSmetron R element using split_idx."""
+    def get(key: str) -> str:
+        n = split_idx.get(key)
+        return normalize_time(result_elem.get(f"s{n}", "")) if n is not None else ""
+
+    if split_idx:
+        r.swim_time = get("swim")
+        r.t1_time   = get("t1")
+        r.bike_time = get("bike")
+        r.t2_time   = get("t2")
+        r.run_time  = get("run")
+    else:
+        # Fallback when no <Segments> definition found (older events)
+        r.swim_time = normalize_time(result_elem.get("s2", ""))
+        r.t1_time   = normalize_time(result_elem.get("s3", ""))
+        r.bike_time = normalize_time(result_elem.get("s4", ""))
+        r.t2_time   = normalize_time(result_elem.get("s5", ""))
+        r.run_time  = normalize_time(result_elem.get("s10", ""))
+
+
 def _search_in_xml(root, search: str) -> list:
     """Return competitor elements whose name matches search (all words, any order)."""
     words = re.sub(r"[\s\xa0]+", " ", search).strip().upper().split()
@@ -211,6 +304,7 @@ def scrape(url: str) -> ScrapedResult:
     search = params.get("search", [""])[0].strip()
 
     root, clax_url, event_name, event_type, event_date = _fetch_clax(url)
+    split_idx = _build_split_indices(root)
 
     result = ScrapedResult(source_url=url, provider="wiclax", bib_number=bib)
     result.event_name = event_name
@@ -266,17 +360,7 @@ def scrape(url: str) -> ScrapedResult:
             if result_elem is not None:
                 raw.update(dict(result_elem.attrib))
                 parsed_result.total_time = normalize_time(result_elem.get("t", ""))
-                # Split mapping: s2=swim/run1, s3=T1, s4=bike, s5=T2, s10=run/run2
-                is_duathlon = "duathlon" in event_type
-                parsed_result.swim_time = normalize_time(result_elem.get("s2", ""))
-                parsed_result.t1_time   = normalize_time(result_elem.get("s3", ""))
-                parsed_result.bike_time = normalize_time(result_elem.get("s4", ""))
-                parsed_result.t2_time   = normalize_time(result_elem.get("s5", ""))
-                parsed_result.run_time  = normalize_time(result_elem.get("s10", ""))
-                # Overall rank from v attribute on E element
-                if competitor.get("v") and not parsed_result.rank_overall:
-                    from .utils import normalize_rank
-                    parsed_result.rank_overall = normalize_rank(competitor.get("v"))
+                _fill_er_splits(result_elem, parsed_result, split_idx)
 
         # Copy all fields from parsed_result into result
         result.athlete_name = parsed_result.athlete_name
@@ -304,10 +388,13 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     """
     Fetch ALL participants from a Wiclax .clax event file.
     Uses a single HTTP request — the .clax XML contains all competitors.
+    Handles both Competitor/Runner format and ChronoSmetron E/R format.
     """
     root, _clax_url, event_name, event_type, event_date = _fetch_clax(url)
+    split_idx = _build_split_indices(root)
     results: list[ScrapedResult] = []
 
+    # Format 1: Competitor / Runner / Participant elements
     for tag in ("Competitor", "COMPETITOR", "Runner", "RUNNER", "Participant"):
         found = list(root.iter(tag))
         if found:
@@ -319,6 +406,29 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                 r.event_date = event_date
                 results.append(r)
             break
+
+    # Format 2: ChronoSmetron E/R elements (E = competitor, R = timing keyed by d=bib)
+    if not results:
+        r_by_bib: dict[str, ET.Element] = {
+            elem.get("d", ""): elem
+            for elem in root.iter("R")
+            if elem.get("d")
+        }
+        for comp in root.iter("E"):
+            bib = _get_competitor_bib(comp)
+            if not bib:
+                continue
+            r = _parse_competitor(comp, url, event_name, event_type)
+            # Rank from v attribute on E element
+            if comp.get("v") and not r.rank_overall:
+                r.rank_overall = normalize_rank(comp.get("v"))
+            # Timing from sibling R element
+            result_elem = r_by_bib.get(bib)
+            if result_elem is not None and not r.total_time:
+                r.total_time = normalize_time(result_elem.get("t", ""))
+                _fill_er_splits(result_elem, r, split_idx)
+            r.event_date = event_date
+            results.append(r)
 
     return results
 

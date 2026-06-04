@@ -21,6 +21,8 @@ export default function ClubView({ refreshKey, club }) {
   const [modalAthlete, setModalAthlete] = useState(null);
   const [refreshTick, setRefreshTick] = useState(0);
   const [openAthlete, setOpenAthlete] = useState(null);
+  const [events, setEvents] = useState([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -32,6 +34,22 @@ export default function ClubView({ refreshKey, club }) {
       .catch((err) => { setFetchError(err.message || "Erreur inconnue"); setAllResults([]); })
       .finally(() => setLoading(false));
   }, [refreshKey, club, refreshTick]);
+
+  useEffect(() => {
+    setEventsLoading(true);
+    const params = {};
+    if (club) params.club = club;
+    if (eventFilter) params.event_name = eventFilter;
+    if (typeFilter) params.event_type = typeFilter;
+    if (yearFilter) {
+      params.date_from = `${yearFilter}-01-01`;
+      params.date_to   = `${yearFilter}-12-31`;
+    }
+    api.listEvents(params)
+      .then((data) => setEvents(data || []))
+      .catch(() => setEvents([]))
+      .finally(() => setEventsLoading(false));
+  }, [club, eventFilter, typeFilter, yearFilter, refreshKey, refreshTick]);
 
   const stats = useMemo(() => {
     if (!allResults.length) return null;
@@ -130,11 +148,11 @@ export default function ClubView({ refreshKey, club }) {
 
         {/* Chiffres clés */}
         <div style={styles.statRow}>
-          <StatCard label="Résultats" value={stats.total} color="#3b82f6" />
-          <StatCard label="Athlètes" value={stats.athleteCount} color="#10b981" />
-          <StatCard label="Épreuves couvertes" value={stats.eventCount} color="#8b5cf6" />
+          <StatCard label="Résultats" value={stats.total} color="#e95d0f" />
+          <StatCard label="Athlètes" value={stats.athleteCount} color="#1a1a1a" />
+          <StatCard label="Épreuves couvertes" value={stats.eventCount} color="#c6c7c8" />
           {stats.activeSeason && (
-            <StatCard label="Saison la + active" value={stats.activeSeason} color="#f59e0b" />
+            <StatCard label="Saison la + active" value={stats.activeSeason} color="#e95d0f" />
           )}
         </div>
 
@@ -264,8 +282,8 @@ export default function ClubView({ refreshKey, club }) {
           </select>
         </div>
 
-        {filtered.length === 0 && <p style={styles.empty}>Aucun résultat correspond aux filtres.</p>}
-        <EventGroupList results={filtered} />
+        {!eventsLoading && events.length === 0 && <p style={styles.empty}>Aucune compétition correspond aux filtres.</p>}
+        <EventGroupList events={events} filters={{ club }} />
 
       </>)}
 
@@ -309,64 +327,64 @@ function StatCard({ label, value, color }) {
 
 const styles = {
   container: {},
-  title: { fontSize: 22, fontWeight: 800, color: "#1a202c", marginBottom: 20 },
-  loading: { color: "#718096", textAlign: "center", padding: 40 },
-  empty: { color: "#a0aec0", textAlign: "center", padding: 40, fontSize: 15 },
+  title: { fontSize: 22, fontWeight: 800, color: "#1a1a1a", marginBottom: 20 },
+  loading: { color: "#888", textAlign: "center", padding: 40 },
+  empty: { color: "#bbb", textAlign: "center", padding: 40, fontSize: 15 },
   errorRow: { display: "flex", alignItems: "center", gap: 12, marginBottom: 10 },
   error: { color: "#e53e3e", fontSize: 14, margin: 0 },
-  retryBtn: { padding: "5px 14px", background: "#e53e3e", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 600 },
+  retryBtn: { padding: "5px 14px", background: "#e95d0f", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 600 },
 
   statRow: { display: "flex", gap: 16, marginBottom: 20, flexWrap: "wrap" },
-  statCard: { flex: "1 1 140px", background: "#fff", borderRadius: 10, padding: "16px 20px", boxShadow: "0 1px 4px rgba(0,0,0,0.08)", borderTop: "4px solid #ccc" },
+  statCard: { flex: "1 1 140px", background: "#fff", borderRadius: 8, padding: "16px 20px", boxShadow: "0 1px 3px rgba(0,0,0,0.06)", borderTop: "4px solid #e95d0f" },
   statValue: { fontSize: 28, fontWeight: 800, lineHeight: 1 },
-  statLabel: { fontSize: 13, color: "#718096", marginTop: 4, fontWeight: 600 },
+  statLabel: { fontSize: 12, color: "#888", marginTop: 4, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" },
 
   twoCol: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 },
-  panel: { background: "#fff", borderRadius: 10, padding: "16px 20px", boxShadow: "0 1px 4px rgba(0,0,0,0.08)", marginBottom: 16 },
-  panelTitle: { fontSize: 14, fontWeight: 700, color: "#4a5568", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.05em" },
-  emptyPanel: { color: "#a0aec0", fontSize: 13 },
+  panel: { background: "#fff", borderRadius: 8, padding: "16px 20px", boxShadow: "0 1px 3px rgba(0,0,0,0.06)", marginBottom: 16 },
+  panelTitle: { fontSize: 13, fontWeight: 700, color: "#1a1a1a", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.07em" },
+  emptyPanel: { color: "#bbb", fontSize: 13 },
 
-  feedDate: { fontSize: 11, color: "#a0aec0", whiteSpace: "nowrap", paddingTop: 2, minWidth: 72 },
-  feedEvent: { fontSize: 12, color: "#718096", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  feedDate: { fontSize: 11, color: "#bbb", whiteSpace: "nowrap", paddingTop: 2, minWidth: 72 },
+  feedEvent: { fontSize: 12, color: "#888", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
 
   timeline: { position: "relative", paddingLeft: 20 },
-  timelineItem: { position: "relative", paddingBottom: 20, paddingLeft: 16, borderLeft: "2px solid #e2e8f0" },
-  timelineDot: { position: "absolute", left: -7, top: 4, width: 12, height: 12, borderRadius: "50%", background: "#3b82f6", border: "2px solid #fff", boxShadow: "0 0 0 2px #3b82f6" },
+  timelineItem: { position: "relative", paddingBottom: 20, paddingLeft: 16, borderLeft: "2px solid #ebebeb" },
+  timelineDot: { position: "absolute", left: -7, top: 4, width: 12, height: 12, borderRadius: "50%", background: "#e95d0f", border: "2px solid #fff", boxShadow: "0 0 0 2px #e95d0f" },
   timelineContent: { paddingBottom: 4 },
   timelineHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" },
-  collectiveName: { fontWeight: 700, fontSize: 15, color: "#1a202c" },
-  collectiveBadge: { background: "#ebf8ff", color: "#2b6cb0", borderRadius: 20, padding: "2px 10px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" },
-  collectiveDate: { fontSize: 12, color: "#a0aec0", display: "block", marginTop: 2, marginBottom: 6 },
+  collectiveName: { fontWeight: 700, fontSize: 15, color: "#1a1a1a" },
+  collectiveBadge: { background: "#fff5f0", color: "#e95d0f", borderRadius: 20, padding: "2px 10px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" },
+  collectiveDate: { fontSize: 12, color: "#bbb", display: "block", marginTop: 2, marginBottom: 6 },
   memberChips: { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 },
-  memberChip: { background: "#f7fafc", border: "1px solid #e2e8f0", borderRadius: 20, padding: "3px 12px", fontSize: 12, fontWeight: 600, color: "#2d3748", cursor: "pointer", transition: "background 0.15s" },
+  memberChip: { background: "#fafafa", border: "1px solid #ebebeb", borderRadius: 20, padding: "3px 12px", fontSize: 12, fontWeight: 600, color: "#1a1a1a", cursor: "pointer", transition: "background 0.15s" },
 
-  athleteRow: { borderBottom: "1px solid #f0f4f8", marginBottom: 4 },
+  athleteRow: { borderBottom: "1px solid #f5f5f5", marginBottom: 4 },
   athleteBtn: { display: "flex", alignItems: "center", width: "100%", background: "none", border: "none", padding: "10px 0", cursor: "pointer", textAlign: "left", gap: 8 },
   athleteBtnLeft: { flex: 1, minWidth: 0 },
-  athleteBtnName: { fontWeight: 700, fontSize: 14, color: "#2d3748", display: "block" },
+  athleteBtnName: { fontWeight: 700, fontSize: 14, color: "#1a1a1a", display: "block" },
   athleteInlineBests: { display: "flex", flexWrap: "wrap", gap: 4, marginTop: 3 },
-  athleteInlinePill: { background: "#f0fff4", color: "#276749", borderRadius: 20, padding: "2px 8px", fontSize: 11 },
-  athleteBtnMeta: { fontSize: 12, color: "#a0aec0", whiteSpace: "nowrap" },
-  athleteChevron: { fontSize: 11, color: "#a0aec0" },
+  athleteInlinePill: { background: "#fff5f0", color: "#e95d0f", borderRadius: 20, padding: "2px 8px", fontSize: 11, fontWeight: 600 },
+  athleteBtnMeta: { fontSize: 12, color: "#bbb", whiteSpace: "nowrap" },
+  athleteChevron: { fontSize: 11, color: "#bbb" },
   athleteDetail: { paddingBottom: 12, paddingLeft: 4 },
   athleteResult: { display: "flex", gap: 10, alignItems: "center", padding: "5px 0", fontSize: 13 },
-  athleteTime: { fontWeight: 700, color: "#2d3748", fontFamily: "monospace" },
-  athleteRank: { color: "#f59e0b", fontWeight: 700, fontSize: 12 },
+  athleteTime: { fontWeight: 700, color: "#e95d0f", fontFamily: "monospace" },
+  athleteRank: { color: "#888", fontWeight: 700, fontSize: 12 },
 
   pills: { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 },
-  pill: { background: "#ebf8ff", color: "#2b6cb0", borderRadius: 20, padding: "4px 12px", fontSize: 13 },
+  pill: { background: "#fff5f0", color: "#e95d0f", borderRadius: 20, padding: "4px 12px", fontSize: 13, fontWeight: 600 },
 
   sectionHeader: { display: "flex", alignItems: "center", marginBottom: 12, marginTop: 8 },
-  sectionTitle: { fontSize: 16, fontWeight: 700, color: "#2d3748", textTransform: "uppercase", letterSpacing: "0.05em" },
+  sectionTitle: { fontSize: 13, fontWeight: 700, color: "#1a1a1a", textTransform: "uppercase", letterSpacing: "0.07em" },
   filters: { display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center" },
-  filterInput: { flex: 1, minWidth: 160, padding: "9px 12px", border: "1px solid #cbd5e0", borderRadius: 7, fontSize: 14 },
-  filterSelect: { padding: "9px 12px", border: "1px solid #cbd5e0", borderRadius: 7, fontSize: 14, background: "#fff" },
-  filterCount: { fontSize: 13, color: "#718096", whiteSpace: "nowrap" },
+  filterInput: { flex: 1, minWidth: 160, padding: "9px 12px", border: "1px solid #e0e0e0", borderRadius: 6, fontSize: 14, outline: "none" },
+  filterSelect: { padding: "9px 12px", border: "1px solid #e0e0e0", borderRadius: 6, fontSize: 14, background: "#fff" },
+  filterCount: { fontSize: 13, color: "#888", whiteSpace: "nowrap" },
 
-  modalOverlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 60, paddingBottom: 40 },
-  modalBox: { background: "#f0f4f8", borderRadius: 14, width: "100%", maxWidth: 720, maxHeight: "80vh", overflowY: "auto", boxShadow: "0 8px 32px rgba(0,0,0,0.2)", padding: 24 },
+  modalOverlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 60, paddingBottom: 40 },
+  modalBox: { background: "#f5f5f5", borderRadius: 12, width: "100%", maxWidth: 720, maxHeight: "80vh", overflowY: "auto", boxShadow: "0 8px 32px rgba(0,0,0,0.2)", padding: 24 },
   modalHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  modalTitle: { fontSize: 20, fontWeight: 800, color: "#1a202c" },
-  modalClose: { background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "#718096", padding: "4px 8px" },
+  modalTitle: { fontSize: 20, fontWeight: 800, color: "#1a1a1a" },
+  modalClose: { background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "#888", padding: "4px 8px" },
   modalResults: { marginTop: 12 },
 };
