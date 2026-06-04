@@ -9,7 +9,7 @@ We fetch it and find the competitor by bib number (B param).
 """
 import re
 import xml.etree.ElementTree as ET
-from urllib.parse import urljoin, urlparse, parse_qs, unquote
+from urllib.parse import urljoin, urlparse, parse_qs, unquote, urlencode, urlunparse
 
 import httpx
 
@@ -33,6 +33,14 @@ def _parse_competitor(comp, url: str, event_name: str, event_type: str) -> Scrap
     bib = _get_competitor_bib(comp)
     result = ScrapedResult(source_url=url, provider="wiclax", bib_number=bib)
     result.event_name = event_name
+
+    # p= (parcours) gives per-competitor discipline in ChronoSmetron format
+    # e.g. "Triathlon M", "Triathlon L", "Relais S" — takes priority over root event name
+    p_attr = comp.get("p") or comp.get("P") or ""
+    if p_attr:
+        event_type = _detect_event_type(p_attr)
+        result.is_relay = "relais" in p_attr.lower() or "relay" in p_attr.lower()
+
     result.event_type = event_type
 
     # Try standard Competitor/Runner attributes first
@@ -392,6 +400,8 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     """
     root, _clax_url, event_name, event_type, event_date = _fetch_clax(url)
     split_idx = _build_split_indices(root)
+    # Strip the B= athlete-selector so each result links to the event, not a random athlete
+    base_url = _strip_athlete_param(url)
     results: list[ScrapedResult] = []
 
     # Format 1: Competitor / Runner / Participant elements
@@ -402,7 +412,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                 bib = comp.get("Bib") or comp.get("bib") or ""
                 if not bib:
                     continue
-                r = _parse_competitor(comp, url, event_name, event_type)
+                r = _parse_competitor(comp, base_url, event_name, event_type)
                 r.event_date = event_date
                 results.append(r)
             break
@@ -418,7 +428,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
             bib = _get_competitor_bib(comp)
             if not bib:
                 continue
-            r = _parse_competitor(comp, url, event_name, event_type)
+            r = _parse_competitor(comp, base_url, event_name, event_type)
             # Rank from v attribute on E element
             if comp.get("v") and not r.rank_overall:
                 r.rank_overall = normalize_rank(comp.get("v"))
@@ -433,18 +443,28 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     return results
 
 
+def _strip_athlete_param(url: str) -> str:
+    """Remove the B= (athlete selector) parameter from a Wiclax G-Live URL."""
+    parsed = urlparse(url)
+    params = {k: v[0] for k, v in parse_qs(parsed.query).items() if k.upper() != "B"}
+    return urlunparse(parsed._replace(query=urlencode(params)))
+
+
+
 def _detect_event_type(name: str) -> str:
-    name = name.lower()
-    if "xxl" in name or "ironman" in name or "longue distance" in name:
+    n = name.lower().strip()
+    if "xxl" in n or "ironman" in n or "longue distance" in n or n.endswith(" xl") or " xl " in n:
         return "triathlon-xl"
-    if "longue" in name or " l " in name or "half" in name or "70.3" in name:
+    if "longue" in n or " l " in n or n.endswith(" l") or "half" in n or "70.3" in n:
         return "triathlon-l"
-    if "olympique" in name or "olympic" in name or " m " in name or "triathlon-m" in name:
+    if "olympique" in n or "olympic" in n or " m " in n or n.endswith(" m") or "triathlon-m" in n:
         return "triathlon-m"
-    if "sprint" in name or " s " in name or "triathlon-s" in name:
+    if "sprint" in n or " s " in n or n.endswith(" s") or " s-" in n or "triathlon-s" in n:
         return "triathlon-s"
-    if "duathlon" in name:
+    if "xs" in n:
+        return "triathlon-s"
+    if "duathlon" in n:
         return "duathlon"
-    if "swimrun" in name or "swim-run" in name or "swim run" in name:
+    if "swimrun" in n or "swim-run" in n or "swim run" in n:
         return "swimrun"
     return "triathlon"

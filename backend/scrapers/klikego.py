@@ -501,7 +501,11 @@ def _detect_event_type(heat: str, slug: str = "") -> str:
     combined = (heat + " " + slug).lower()
     h = heat.lower()
 
-    if "swimrun" in combined or "swim-run" in combined:
+    # Only classify as swimrun when the heat itself says so, or when the slug says so
+    # but the heat doesn't override with an explicit triathlon/duathlon discipline.
+    _swimrun_in_combined = "swimrun" in combined or "swim-run" in combined
+    _heat_overrides_sport = "triathlon" in h or "duathlon" in h
+    if _swimrun_in_combined and not _heat_overrides_sport:
         # Format L/M/S from heat "format-l-…", "format-m-…", "format-s-…"
         if "format-l" in h:
             return "swimrun-l"
@@ -511,7 +515,7 @@ def _detect_event_type(heat: str, slug: str = "") -> str:
             return "swimrun-s"
         return "swimrun"
 
-    if "duathlon" in combined:
+    if "duathlon" in combined and not "triathlon" in h:
         # Strip "duathlon-" prefix to read the format indicator
         suffix = h.replace("duathlon-", "").replace("duathlon", "")
         if "xs" in suffix or "extra-short" in suffix:

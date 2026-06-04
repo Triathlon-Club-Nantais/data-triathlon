@@ -180,6 +180,7 @@ export default function ScrapeForm({ onSaved }) {
   const [saved, setSaved] = useState(false);
   const [manualMode, setManualMode] = useState(false);
   const [recentResults, setRecentResults] = useState([]);
+  const [saveAttempted, setSaveAttempted] = useState(false);
 
   useEffect(() => {
     api.listResults({ page_size: 5, page: 1, club: "nantais|TCN" })
@@ -246,6 +247,7 @@ export default function ScrapeForm({ onSaved }) {
   }
 
   async function handleSave() {
+    setSaveAttempted(true);
     const validationError = validateEdited();
     if (validationError) { setError(validationError); return; }
     setSaving(true);
@@ -263,6 +265,7 @@ export default function ScrapeForm({ onSaved }) {
         setCandidates(null);
         setSaved(false);
         setManualMode(false);
+        setSaveAttempted(false);
       }, 2000);
     } catch (err) {
       setError(err.message);
@@ -458,9 +461,15 @@ export default function ScrapeForm({ onSaved }) {
           <div style={styles.grid}>
             <Field label="Épreuve" value={edited.event_name} onChange={(v) => handleField("event_name", v)} />
             <div>
-              <label style={styles.fieldLabel}>Type d'épreuve</label>
+              <label style={styles.fieldLabel}>
+                Type d'épreuve <span style={styles.required}>*</span>
+              </label>
               <select
-                style={{ ...styles.input, width: "100%" }}
+                style={{
+                  ...styles.input, width: "100%",
+                  borderColor: saveAttempted && !edited.event_type ? "#e53e3e" : undefined,
+                  boxShadow: saveAttempted && !edited.event_type ? "0 0 0 2px rgba(229,62,62,0.2)" : undefined,
+                }}
                 value={edited.event_type}
                 onChange={(e) => handleField("event_type", e.target.value)}
               >
@@ -469,6 +478,9 @@ export default function ScrapeForm({ onSaved }) {
                   <option key={value} value={value}>{label}</option>
                 ))}
               </select>
+              {saveAttempted && !edited.event_type && (
+                <span style={styles.fieldError}>Sélectionnez un format avant d'enregistrer.</span>
+              )}
             </div>
             <Field label="Date (AAAA-MM-JJ)" value={edited.event_date || ""} onChange={(v) => handleField("event_date", v)} />
             <div style={styles.checkboxField}>
@@ -580,6 +592,8 @@ const styles = {
   timesGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 14, marginBottom: 14 },
   ranksGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 14, marginBottom: 14 },
   fieldLabel: { display: "block", fontSize: 12, fontWeight: 600, color: "#4a5568", marginBottom: 4 },
+  required: { color: "#e53e3e" },
+  fieldError: { display: "block", fontSize: 11, color: "#e53e3e", marginTop: 4 },
   checkboxField: { display: "flex", alignItems: "center", paddingTop: 20 },
   checkboxLabel: { display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, color: "#4a5568", cursor: "pointer" },
   checkbox: { width: 16, height: 16, cursor: "pointer" },
