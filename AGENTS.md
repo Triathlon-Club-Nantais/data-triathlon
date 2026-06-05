@@ -70,6 +70,8 @@ Tables créées automatiquement au démarrage (pas de migrations).
   (recréation auto sur DB vierge ; en prod Supabase, gérer la migration à la main).
 - Tests unitaires **sans réseau** (respx mocke httpx) ; le réseau réel est isolé
   derrière le marker `integration` (`pytest.ini`).
+- **Workflow IA (Superpowers + Speckit)** : pour savoir quel outil utiliser et
+  quand, voir [`docs/WORKFLOW-IA.md`](docs/WORKFLOW-IA.md).
 
 ## Fournisseurs supportés
 
