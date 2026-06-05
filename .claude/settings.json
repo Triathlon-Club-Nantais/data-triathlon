@@ -20,7 +20,6 @@
       "Bash(git stash*)",
       "Bash(pytest*)",
       "Bash(python -m pytest*)",
-      "Bash(python -m*)",
       "Bash(python backend/*)",
       "Bash(pip install*)",
       "Bash(pip list*)",
