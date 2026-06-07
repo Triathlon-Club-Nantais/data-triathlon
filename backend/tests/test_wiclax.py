@@ -16,7 +16,7 @@ from unittest.mock import patch
 import pytest
 
 from scrapers.base import ScrapedResult
-from scrapers.wiclax import _assign_ranks_by_time, scrape_event_all
+from scrapers.wiclax import _assign_ranks_by_time, _build_split_indices, scrape_event_all
 
 
 # ---------------------------------------------------------------------------
@@ -222,6 +222,38 @@ def test_scrape_event_all_xs_and_s_ranked_independently():
     # Tri XS — pas 3 et 4 mais bien 1 et 2
     assert by_name["DURAND"].rank_overall == 1
     assert by_name["LEROY"].rank_overall == 2
+
+
+def test_build_split_indices_multilap_run():
+    """
+    Régression Montreuil 2026 : la CAP est découpée en tours (disc=6 ptg 3→5 et 5→999)
+    et le total CAP a disc=-1 (ptg1=t2_ptg2, ptg2=999).
+    _build_split_indices doit trouver le total CAP (index 8) via le fallback disc!=-1.
+    """
+    xml = """<?xml version="1.0" encoding="utf-8"?>
+<Epreuve nom="Montreuil 2026">
+  <Segments>
+    <S id="7" nom="CaP1"         ptg1="-999" ptg2="1"   disc="6"  />
+    <S id="0" nom="Natation"     ptg1="-999" ptg2="0"   disc="5"  />
+    <S id="1" nom="T1"           ptg1="0"    ptg2="1"   disc="-1" trans="1" />
+    <S id="8" nom="Velo(enf)"    ptg1="1"    ptg2="2"   disc="-1" />
+    <S id="2" nom="Velo"         ptg1="1"    ptg2="2"   disc="0"  />
+    <S id="3" nom="T2"           ptg1="2"    ptg2="3"   disc="-1" trans="1" />
+    <S id="5" nom="1er Tour"     ptg1="3"    ptg2="5"   disc="6"  />
+    <S id="6" nom="2eme tour"    ptg1="5"    ptg2="999" disc="6"  />
+    <S id="4" nom="Course pied"  ptg1="3"    ptg2="999" disc="-1" />
+    <S id="9" nom="CaP2"         ptg1="2"    ptg2="999" disc="-1" />
+  </Segments>
+</Epreuve>"""
+    import xml.etree.ElementTree as ET
+    root = ET.fromstring(xml)
+    idx = _build_split_indices(root)
+    # T2 ptg2=3, total CAP est S[8] (disc=-1, ptg1=3, ptg2=999) → index 8
+    assert idx.get("swim") == 1    # Natation, disc=5
+    assert idx.get("t1") == 2      # T1, trans=1
+    assert idx.get("bike") == 4    # Velo, disc=0
+    assert idx.get("t2") == 5      # T2, trans=1
+    assert idx.get("run") == 8     # Course à pied total (disc=-1, fallback)
 
 
 def test_scrape_event_all_dnf_has_no_rank():

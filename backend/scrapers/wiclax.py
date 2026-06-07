@@ -252,14 +252,21 @@ def _build_split_indices(root: ET.Element) -> dict[str, int]:
                 result["bike"] = i
                 break
 
-    # Run total: disc=6, starts exactly where T2 ends, goes to finish (ptg2=999)
+    # Run total: starts exactly where T2 ends, goes to finish (ptg2=999).
+    # Prefer disc=6 (run discipline), but fall back to any disc (e.g. disc=-1
+    # when the event splits run into laps and only the aggregate has ptg1=t2_ptg2).
     if t2_ptg2:
+        fallback_run = None
         for i, s in enumerate(segments):
-            if (s.get("disc") == "6"
-                    and s.get("ptg1") == t2_ptg2
-                    and s.get("ptg2") == "999"):
-                result["run"] = i
-                break
+            if s.get("ptg1") == t2_ptg2 and s.get("ptg2") == "999":
+                if s.get("disc") == "6":
+                    result["run"] = i
+                    break
+                elif fallback_run is None:
+                    fallback_run = i
+        else:
+            if "run" not in result and fallback_run is not None:
+                result["run"] = fallback_run
 
     return result
 
