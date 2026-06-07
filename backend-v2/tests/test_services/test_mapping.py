@@ -1,0 +1,39 @@
+from app.scrapers.base import ScrapedResult
+from app.services import mapping
+
+
+def _scraped(**kw) -> ScrapedResult:
+    base = dict(source_url="http://x", provider="klikego")
+    base.update(kw)
+    return ScrapedResult(**base)
+
+
+def test_build_splits_only_non_empty():
+    s = _scraped(swim_time="00:20:00", bike_time="01:00:00", run_time="00:40:00")
+    assert mapping.build_splits(s) == {
+        "swim": "00:20:00",
+        "bike": "01:00:00",
+        "run": "00:40:00",
+    }
+
+
+def test_build_splits_empty():
+    assert mapping.build_splits(_scraped()) == {}
+
+
+def test_derive_status():
+    assert mapping.derive_status(_scraped(total_time="01:59:00")) == "finisher"
+    assert mapping.derive_status(_scraped()) == "DNF"
+
+
+def test_participation_fields():
+    s = _scraped(
+        bib_number="42", club="TCN", category="V1H",
+        rank_overall=10, total_time="01:59:00", swim_time="00:20:00",
+    )
+    fields = mapping.participation_fields(s, athlete_id=1, course_id=2)
+    assert fields["athlete_id"] == 1
+    assert fields["course_id"] == 2
+    assert fields["bib_number"] == "42"
+    assert fields["status"] == "finisher"
+    assert fields["splits"] == {"swim": "00:20:00"}
