@@ -1,5 +1,10 @@
 # Data Triathlon — Claude Code Guide
 
+> **⚠️ Backend v1 — déprécié.** Ce dossier reste en production mais la refonte
+> vit dans `../backend-v2/` (archi en couches, modèle normalisé, Alembic, API
+> `/api/v1`). Tout nouveau développement va dans `backend-v2/`. Voir
+> [`../AGENTS.md`](../AGENTS.md) et [`../backend-v2/README.md`](../backend-v2/README.md).
+
 Application de suivi des résultats de course pour le **Tri Club Nantais (TCN)**.
 Agrège les résultats de 6 providers de chronométrage, avec filtrage par club et stats.
 

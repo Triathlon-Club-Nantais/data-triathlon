@@ -3,6 +3,12 @@
 Application web pour centraliser les résultats de compétitions des membres du club TCN.  
 Collez une URL de résultat — le backend scrape et stocke les données automatiquement.
 
+> **⚠️ Refonte en cours.** Le dépôt contient deux générations du backend :
+> `backend/` (déployé, **déprécié**) et `backend-v2/` (nouvelle architecture en
+> couches + modèle normalisé + Alembic, **non encore déployée**). Le frontend
+> Next.js `frontend-v2/` est **spécifié mais pas encore codé**. Détails :
+> [`docs/superpowers/`](docs/superpowers/) et [`backend-v2/README.md`](backend-v2/README.md).
+
 ---
 
 ## Fonctionnalités
@@ -56,6 +62,8 @@ DATABASE_URL=sqlite:///./triathlon.db
 
 ### 3. Backend (FastAPI)
 
+**Backend v1 (`backend/`, déployé en prod — déprécié)**
+
 ```bash
 cd backend
 
@@ -70,6 +78,21 @@ pip install -r requirements.txt
 
 uvicorn main:app --reload --port 8001
 ```
+
+**Backend v2 (`backend-v2/`, nouvelle architecture — cible)**
+
+```bash
+cd backend-v2
+python -m venv .venv && source .venv/bin/activate   # .venv\Scripts\activate sous Windows
+
+pip install -r requirements-dev.txt   # requirements.txt seul en prod
+
+alembic upgrade head                   # crée le schéma (plus de create_all auto)
+uvicorn app.main:app --reload --port 8001
+```
+
+> En v2, les endpoints sont versionnés sous **`/api/v1`** et le schéma DB est géré
+> par **Alembic**. Voir [`backend-v2/README.md`](backend-v2/README.md) pour le détail.
 
 Backend : `http://localhost:8001`  
 Docs API : `http://localhost:8001/docs`
@@ -113,6 +136,8 @@ Lors de l'import d'une épreuve, les co-membres sont identifiés par filtre sur 
 
 ### Tests unitaires (sans réseau)
 
+**Backend v1 (`backend/`)**
+
 ```bash
 cd backend
 pip install -r requirements-test.txt
@@ -122,6 +147,18 @@ pytest -m "not integration"
 91 tests couvrant :
 - Klikego : détection du type d'épreuve (30 variantes), parsing des splits, classements, recherche paginée
 - TimePulse : parsing XML, normalisation des noms, calcul des rangs, détection du type
+
+**Backend v2 (`backend-v2/`)**
+
+```bash
+cd backend-v2
+pip install -r requirements-dev.txt
+pytest -m "not integration"   # 130 tests
+ruff check .                  # lint
+```
+
+130 tests par couche : `test_repositories/`, `test_services/`, `test_api/`,
+plus les scrapers Klikego / TimePulse.
 
 ### Tests d'intégration (réseau réel)
 
@@ -157,7 +194,7 @@ npx playwright test
 
 ```
 data-triathlon/
-├── backend/
+├── backend/                     # ⚠️ v1 — déployé en prod, déprécié
 │   ├── main.py                  # App FastAPI, CORS, montage des routers
 │   ├── database.py              # Engine SQLAlchemy + session
 │   ├── models.py                # Modèle Result + PendingProvider
@@ -183,7 +220,25 @@ data-triathlon/
 │       ├── test_klikego.py
 │       ├── test_timepulse.py
 │       └── test_integration.py
-├── frontend/
+├── backend-v2/                  # 🎯 v2 — architecture en couches (cible)
+│   ├── app/
+│   │   ├── main.py              # create_app() : CORS, handlers d'erreurs, routers
+│   │   ├── core/               # config (pydantic-settings), logging, database, exceptions
+│   │   ├── models/             # SQLAlchemy normalisé : Athlete, Course, Participation
+│   │   ├── schemas/            # DTO Pydantic v2
+│   │   ├── repositories/       # accès données (seule couche qui touche la Session)
+│   │   ├── services/           # métier : mapping, cache TTL, scrape, import, stats, geocode
+│   │   ├── api/v1/             # routers fins montés sous /api/v1
+│   │   └── scrapers/           # registre Protocol + un module par provider
+│   ├── alembic/                # migrations (révision initiale = schéma complet)
+│   ├── tests/                  # test_repositories / test_services / test_api (130 tests)
+│   ├── Dockerfile
+│   └── README.md
+├── docs/
+│   ├── WORKFLOW-IA.md
+│   └── superpowers/            # specs & plans de refonte (backend-v2, frontend-v2)
+├── frontend/                    # ⚠️ v1 React/Vite — déployé en prod
+│                                # (frontend-v2 Next.js : spécifié, pas encore codé)
 │   ├── src/
 │   │   ├── App.jsx              # Onglets, recherche globale, bannière import SSE
 │   │   ├── index.css            # Styles globaux, responsive mobile
@@ -222,6 +277,10 @@ data-triathlon/
 1. Connecter le repo GitHub sur [render.com](https://render.com)
 2. `render.yaml` configure automatiquement le service Python
 3. Ajouter la variable d'environnement `DATABASE_URL` (Supabase Session Pooler)
+
+> `render.yaml` cible actuellement `backend/` (v1). Lors de la bascule v2, mettre
+> à jour `rootDir`, `startCommand` (`uvicorn app.main:app …`) et ajouter
+> `alembic upgrade head` au déploiement.
 
 ### Frontend → Vercel
 
