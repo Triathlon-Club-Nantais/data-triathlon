@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models import Result
-from scrapers import scrape as do_scrape, scrape_event_all as do_scrape_event_all, ScrapedResult, detect_provider
+from scrapers import scrape as do_scrape, scrape_event_all as do_scrape_event_all, scrape_event_preview as do_preview, ScrapedResult, detect_provider
 from scrapers.base import MultipleMatchesError
 
 router = APIRouter()
@@ -79,6 +79,18 @@ def scrape_url(body: ScrapeRequest):
         run_time=result.run_time,
         raw_data=result.raw_data,
     )
+
+
+@router.post("/scrape/event/preview")
+def preview_event(body: ScrapeRequest):
+    """Return event metadata (name, date, disciplines, counts) without importing."""
+    url = str(body.url).strip()
+    if not url.startswith("http"):
+        raise HTTPException(status_code=400, detail="URL invalide")
+    try:
+        return do_preview(url)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 @router.post("/scrape/event")

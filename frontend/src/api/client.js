@@ -54,6 +54,18 @@ export const api = {
   deleteResult: (id) =>
     request(`/results/${id}`, { method: "DELETE" }),
 
+  deleteEvent: (eventName, eventDate) => {
+    const params = new URLSearchParams({ event_name: eventName });
+    if (eventDate) params.set("event_date", eventDate);
+    return request(`/results/event/delete?${params.toString()}`, { method: "DELETE" });
+  },
+
+  previewImport: (url) =>
+    request("/scrape/event/preview", {
+      method: "POST",
+      body: JSON.stringify({ url }),
+    }),
+
   importEvent: (url) =>
     request("/scrape/event", {
       method: "POST",

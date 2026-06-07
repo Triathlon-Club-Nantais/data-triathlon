@@ -16,45 +16,21 @@ async function resetDb() {
   await ctx.dispose();
 }
 
-async function doScrapeAndSave(page, url, search) {
+async function doImportEvent(page, url) {
   await page.goto("/");
-  await page.waitForLoadState("domcontentloaded"); // faster than "load" — avoid networkidle blocking
+  await page.waitForLoadState("domcontentloaded");
 
   await page.locator('input[type="url"]').fill(url);
   await page.waitForTimeout(400);
 
-  const nameField = page.locator('input[placeholder*="ARNOUX"]');
-  if (search && await nameField.isVisible({ timeout: 1_000 }).catch(() => false)) {
-    await nameField.fill(search);
-  }
+  // New UI: provider guide appears → click "Importer la compétition"
+  const importBtn = page.locator("button", { hasText: "Importer la compétition" });
+  await importBtn.waitFor({ timeout: 10_000 });
+  await importBtn.click();
 
-  await page.locator('button[type="submit"]').click();
-
-  // Handle multiple matches → pick first matching name
-  const multiMatch = page.locator("text=Plusieurs athlètes trouvés");
-  const preview    = page.locator("text=Enregistrer le résultat");
-  const outcome = await Promise.race([
-    preview.waitFor({ timeout: SCRAPE_TIMEOUT }).then(() => "ok"),
-    multiMatch.waitFor({ timeout: SCRAPE_TIMEOUT }).then(() => "multiple"),
-  ]).catch(() => "timeout");
-
-  if (outcome === "timeout") {
-    throw new Error(`Scrape timed out for ${url}`);
-  }
-
-  if (outcome === "multiple") {
-    const nameBtn = page.locator("button").filter({ hasText: new RegExp(search, "i") });
-    if (await nameBtn.count() > 0) {
-      await nameBtn.first().click();
-    } else {
-      await page.locator("button").filter({ hasText: /Dossard/ }).first().click();
-    }
-    await preview.waitFor({ timeout: SCRAPE_TIMEOUT });
-  }
-
-  // Save
-  await page.locator("text=Enregistrer le résultat").click();
-  await expect(page.locator("text=Résultat enregistré !")).toBeVisible({ timeout: 10_000 });
+  // Wait for SSE done banner
+  const doneBanner = page.locator("text=participants importés");
+  await doneBanner.waitFor({ timeout: SCRAPE_TIMEOUT });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -70,9 +46,9 @@ const MULTI_TCN_EVENTS = [
     minTcnResults: 2,
   },
   {
-    label: "BreizhChrono — Châtelaillon 2026",
-    url: "https://resultats.breizhchrono.com/resultats-courses/triathlon-chatelaillon-plage-2026-1360808403296-12/triathlon-l",
-    search: "AUBERGEON",
+    label: "BreizhChrono — Swimrun Dinard 2025 Triathlon M",
+    url: "https://resultats.breizhchrono.com/resultats-courses/triathlon-swimrun-dinard-cote-demeraude-2025-1488071608761-688/triathlon-distance-olympique",
+    search: "AIGNEL",
     minTcnResults: 1,
   },
   {
@@ -97,13 +73,10 @@ test.describe("Import événement → section Club TCN", () => {
 
       await resetDb();
 
-      // 1. Scrape & save individual result (triggers importEvent in background)
-      await doScrapeAndSave(page, tc.url, tc.search);
+      // 1. Import the whole event (new UI: provider guide → "Importer la compétition")
+      await doImportEvent(page, tc.url);
 
-      // 2. Wait for the import banner to indicate progress or completion
-      // New SSE banner: shows "importé" (saving phase counter) or "participants importés" (done)
-      const importBanner = page.locator("text=importé").or(page.locator("text=déjà présent"));
-      await importBanner.waitFor({ timeout: SCRAPE_TIMEOUT }).catch(() => {});
+      // 2. Banner already shows done at this point (waited in doImportEvent)
 
       // 3. Check via API: the saved athlete must appear by name
       const ctx = await apiRequest.newContext({ baseURL: BACKEND_URL });

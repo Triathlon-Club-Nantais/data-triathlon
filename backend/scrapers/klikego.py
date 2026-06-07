@@ -506,12 +506,12 @@ def _detect_event_type(heat: str, slug: str = "") -> str:
     _swimrun_in_combined = "swimrun" in combined or "swim-run" in combined
     _heat_overrides_sport = "triathlon" in h or "duathlon" in h
     if _swimrun_in_combined and not _heat_overrides_sport:
-        # Format L/M/S from heat "format-l-…", "format-m-…", "format-s-…"
-        if "format-l" in h:
+        # Format L/M/S — Klikego: "format-l/m/s-…" ; BC: "swimrun-long/medium/court-…"
+        if "format-l" in h or "long" in h:
             return "swimrun-l"
-        if "format-m" in h:
+        if "format-m" in h or "medium" in h:
             return "swimrun-m"
-        if "format-s" in h:
+        if "format-s" in h or "court" in h:
             return "swimrun-s"
         return "swimrun"
 

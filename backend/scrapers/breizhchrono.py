@@ -117,29 +117,27 @@ def _import_one_heat(
 ) -> list[ScrapedResult]:
     """Paginate one heat and return its ScrapedResult list."""
     results: list[ScrapedResult] = []
+    seen_bibs: set[str] = set()
     is_relay = "relais" in heat_label.lower() or heat_slug.endswith("---")
     source_url = f"{BASE}/resultats-courses/{slug}-{event_id}/{heat_slug}"
-    page = 1
-    prev_first_bib: str | None = None
 
-    while True:
-        search_url = (
+    def _fetch_page(page_param: str) -> list:
+        url = (
             f"{BASE}/v8/evenement/resultats-search.jsp"
-            f"?event={event_id}&heat={heat_slug}&search=&city=&category=&sexe=&page={page}"
+            f"?event={event_id}&heat={heat_slug}&search=&city=&category=&sexe=&page={page_param}"
         )
-        resp = client.get(search_url)
+        resp = client.get(url)
         if resp.status_code != 200:
-            break
-        soup = BeautifulSoup(resp.text, "lxml")
-        rows = soup.select("tr.result-row[data-dossard]")
-        if not rows:
-            break
-        first_bib = rows[0].get("data-dossard", "")
-        if first_bib and first_bib == prev_first_bib:
-            break
-        prev_first_bib = first_bib
-        for rank, row in enumerate(rows, start=len(results) + 1):
-            r = _klikego_parse_search_row(row, event_id, heat_slug, event_name, slug, rank)
+            return []
+        return BeautifulSoup(resp.text, "lxml").select("tr.result-row[data-dossard]")
+
+    def _add_rows(rows: list) -> None:
+        for row in rows:
+            bib = row.get("data-dossard", "")
+            if bib in seen_bibs:
+                continue
+            seen_bibs.add(bib)
+            r = _klikego_parse_search_row(row, event_id, heat_slug, event_name, slug, len(results) + 1)
             r.source_url = source_url
             r.provider = "breizhchrono"
             r.is_relay = is_relay
@@ -147,6 +145,22 @@ def _import_one_heat(
                 r.event_date = event_date
             r.raw_data["heat_slug"] = heat_slug
             results.append(r)
+
+    # BC exposes a "default" page (page="") that may contain athletes not
+    # present on numbered pages — fetch it first to avoid missing any.
+    _add_rows(_fetch_page(""))
+
+    page = 1
+    prev_first_bib: str | None = None
+    while True:
+        rows = _fetch_page(str(page))
+        if not rows:
+            break
+        first_bib = rows[0].get("data-dossard", "")
+        if first_bib and first_bib == prev_first_bib:
+            break
+        prev_first_bib = first_bib
+        _add_rows(rows)
         page += 1
 
     return results

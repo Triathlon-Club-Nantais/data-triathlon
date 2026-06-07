@@ -19,10 +19,11 @@ function isTCN(club) {
 const PAGE_SIZE = 50; // résultats rendus par tranche
 
 function EventGroup({ g, onDelete, highlightTCN, filters }) {
-  const [isOpen, setIsOpen]       = useState(false);
-  const [results, setResults]     = useState(null);
-  const [loading, setLoading]     = useState(false);
+  const [isOpen, setIsOpen]             = useState(false);
+  const [results, setResults]           = useState(null);
+  const [loading, setLoading]           = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   async function toggle() {
     if (!isOpen && results === null) {
@@ -57,8 +58,19 @@ function EventGroup({ g, onDelete, highlightTCN, filters }) {
     onDelete?.();
   }
 
+  async function handleDeleteEvent(e) {
+    e.stopPropagation();
+    if (!confirmDelete) { setConfirmDelete(true); return; }
+    await api.deleteEvent(g.event_name, g.event_date);
+    setConfirmDelete(false);
+    onDelete?.();
+  }
+
   const sortedResults = results
-    ? [...results].sort((a, b) => (a.rank_overall || 9999) - (b.rank_overall || 9999))
+    ? [...results].sort((a, b) => {
+        if (a.event_type !== b.event_type) return (a.event_type || "").localeCompare(b.event_type || "");
+        return (a.rank_overall || 9999) - (b.rank_overall || 9999);
+      })
     : [];
   const displayedResults = sortedResults.slice(0, visibleCount);
   const hasMore = sortedResults.length > visibleCount;
@@ -70,11 +82,11 @@ function EventGroup({ g, onDelete, highlightTCN, filters }) {
           <span style={styles.groupName}>{g.event_name || "Épreuve inconnue"}</span>
           <div style={styles.groupMeta}>
             {g.event_date && <span style={styles.groupDate}>{formatDate(g.event_date)}</span>}
-            {g.event_type && (
-              <span style={styles.groupType}>
-                {EVENT_TYPE_LABELS[g.event_type] || g.event_type}
+            {(g.event_types ?? (g.event_type ? [g.event_type] : [])).map((et) => (
+              <span key={et} style={styles.groupType}>
+                {EVENT_TYPE_LABELS[et] || et}
               </span>
-            )}
+            ))}
           </div>
         </div>
         <div style={styles.groupRight}>
@@ -84,6 +96,13 @@ function EventGroup({ g, onDelete, highlightTCN, filters }) {
           {highlightTCN && g.tcn_count > 0 && (
             <span style={styles.tcnBadge}>{g.tcn_count} TCN</span>
           )}
+          <button
+            style={confirmDelete ? styles.deleteBtnConfirm : styles.deleteEventBtn}
+            onClick={handleDeleteEvent}
+            title={confirmDelete ? "Cliquer pour confirmer la suppression" : "Supprimer toute la compétition"}
+          >
+            {confirmDelete ? "Confirmer ?" : "Supprimer"}
+          </button>
           <span style={styles.chevron}>{isOpen ? "▲" : "▼"}</span>
         </div>
       </button>
@@ -91,14 +110,21 @@ function EventGroup({ g, onDelete, highlightTCN, filters }) {
       {isOpen && (
         <div style={styles.groupBody}>
           {loading && <p style={styles.loadingInner}>Chargement…</p>}
-          {!loading && displayedResults.map((r) => (
-            <div
-              key={r.id}
-              style={highlightTCN && isTCN(r.club) ? styles.tcnHighlight : undefined}
-            >
-              <ResultCard result={r} onDelete={() => handleDelete(r.id)} />
-            </div>
-          ))}
+          {!loading && displayedResults.map((r, i) => {
+            const showDivider = g.event_types?.length > 1 && r.event_type !== displayedResults[i - 1]?.event_type;
+            return (
+              <div key={r.id}>
+                {showDivider && (
+                  <div style={styles.disciplineHeader}>
+                    {EVENT_TYPE_LABELS[r.event_type] || r.event_type}
+                  </div>
+                )}
+                <div style={highlightTCN && isTCN(r.club) ? styles.tcnHighlight : undefined}>
+                  <ResultCard result={r} onDelete={() => handleDelete(r.id)} />
+                </div>
+              </div>
+            );
+          })}
           {!loading && hasMore && (
             <button
               style={styles.loadMoreBtn}
@@ -117,9 +143,28 @@ function EventGroup({ g, onDelete, highlightTCN, filters }) {
 export default function EventGroupList({ events = [], onDelete, highlightTCN = false, filters }) {
   if (!events.length) return null;
 
+  // Consolidate rows with same (event_name, event_date) across disciplines into one group.
+  // The API returns one row per (event_name, event_date, event_type); without merging,
+  // React key collisions would silently drop all but one discipline per competition.
+  const groupMap = new Map();
+  for (const e of events) {
+    const key = `${e.event_name}||${e.event_date}`;
+    if (!groupMap.has(key)) {
+      groupMap.set(key, { ...e, event_types: e.event_type ? [e.event_type] : [] });
+    } else {
+      const g = groupMap.get(key);
+      g.total += e.total;
+      g.tcn_count += e.tcn_count;
+      if (e.event_type && !g.event_types.includes(e.event_type)) {
+        g.event_types.push(e.event_type);
+      }
+    }
+  }
+  const consolidated = Array.from(groupMap.values());
+
   return (
     <div>
-      {events.map((g) => (
+      {consolidated.map((g) => (
         <EventGroup
           key={`${g.event_name}||${g.event_date}`}
           g={g}
@@ -156,6 +201,14 @@ const styles = {
   groupCount: { fontSize: 13, color: "#aaa", whiteSpace: "nowrap" },
   tcnBadge: { background: "#fff5f0", color: "#e95d0f", borderRadius: 20, padding: "2px 10px", fontSize: 12, fontWeight: 700 },
   chevron: { fontSize: 11, color: "#bbb" },
+  deleteEventBtn: { padding: "3px 10px", fontSize: 12, fontWeight: 600, color: "#e53e3e", background: "none", border: "1px solid #fed7d7", borderRadius: 5, cursor: "pointer" },
+  deleteBtnConfirm: { padding: "3px 10px", fontSize: 12, fontWeight: 700, color: "#fff", background: "#e53e3e", border: "none", borderRadius: 5, cursor: "pointer" },
   groupBody: { paddingTop: 6 },
+  disciplineHeader: {
+    margin: "14px 0 6px", padding: "6px 12px",
+    background: "#fff5f0", borderLeft: "3px solid #e95d0f",
+    borderRadius: 4, fontSize: 12, fontWeight: 700,
+    color: "#c4500d", letterSpacing: "0.04em", textTransform: "uppercase",
+  },
   tcnHighlight: { borderLeft: "3px solid #e95d0f", borderRadius: 4, marginBottom: 2 },
 };

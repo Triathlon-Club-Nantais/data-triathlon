@@ -223,6 +223,22 @@ def get_result(result_id: int, db: Session = Depends(get_db)):
     return _serialize(row)
 
 
+@router.delete("/results/event/delete", status_code=200)
+def delete_event(event_name: str, event_date: str | None = None, db: Session = Depends(get_db)):
+    """Delete all results for a given competition (event_name + optional event_date)."""
+    q = db.query(Result).filter(Result.event_name == event_name)
+    if event_date:
+        from datetime import date as date_t
+        try:
+            d = date_t.fromisoformat(event_date)
+            q = q.filter(Result.event_date == d)
+        except ValueError:
+            pass
+    deleted = q.delete()
+    db.commit()
+    return {"deleted": deleted}
+
+
 @router.delete("/results/{result_id}", status_code=204)
 def delete_result(result_id: int, db: Session = Depends(get_db)):
     row = db.get(Result, result_id)

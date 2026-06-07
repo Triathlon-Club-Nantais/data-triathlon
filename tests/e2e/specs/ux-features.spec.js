@@ -141,21 +141,16 @@ test.describe("[ux] Bannière de progression import (SSE)", () => {
     await page.goto("/");
     await page.waitForLoadState("domcontentloaded");
 
-    // Scrape a real URL so the import triggers
+    // New UI: paste URL → provider guide → "Importer la compétition" → SSE
     const urlInput = page.locator('input[type="url"]');
     await urlInput.fill(
-      "https://www.klikego.com/resultats/triathlon-swimrun-dinard-cote-demeraude-2025/1488071608761-688?heat=triathlon-distance-olympique&search=AIGNEL"
+      "https://www.klikego.com/resultats/triathlon-swimrun-dinard-cote-demeraude-2025/1488071608761-688?heat=triathlon-distance-olympique"
     );
     await page.waitForTimeout(400);
-    await page.locator('button[type="submit"]').click();
 
-    // Wait for preview form
-    const saveBtn = page.locator("text=Enregistrer le résultat");
-    await saveBtn.waitFor({ timeout: SCRAPE_TIMEOUT });
-
-    // Save → triggers SSE import
-    await saveBtn.click();
-    await expect(page.locator("text=Résultat enregistré !")).toBeVisible({ timeout: 10_000 });
+    const importBtn = page.locator("button", { hasText: "Importer la compétition" });
+    await importBtn.waitFor({ timeout: 10_000 });
+    await importBtn.click();
 
     // The scraping phase banner should appear
     const scrapingBanner = page.locator("text=Récupération des participants");

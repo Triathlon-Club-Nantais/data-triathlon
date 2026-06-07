@@ -57,9 +57,10 @@ def _parse_competitor(comp, url: str, event_name: str, event_type: str) -> Scrap
     result.club = comp.get("Club") or comp.get("club") or comp.get("c") or ""
     result.category = comp.get("Category") or comp.get("category") or comp.get("ca") or ""
     result.gender = comp.get("Gender") or comp.get("gender") or comp.get("x") or ""
-    # v = overall rank in ChronoSmetron E format; Rank/rank in Competitor format
+    # Rank/rank in standard Competitor format only
+    # v attribute = visible dossard in ChronoSmetron format, NOT rank
     result.rank_overall = normalize_rank(
-        comp.get("Rank") or comp.get("rank") or comp.get("v")
+        comp.get("Rank") or comp.get("rank")
     )
     result.rank_category = normalize_rank(
         comp.get("CategoryRank") or comp.get("categoryrank")
@@ -187,8 +188,15 @@ def _get_competitor_fullname(comp) -> str:
 
 
 def _get_competitor_bib(comp) -> str:
+    # Standard Wiclax Competitor format: Bib/bib attribute
+    # ChronoSmetron E format: v = visible dossard (printed on bib), d = internal Wiclax ID
     return (comp.get("Bib") or comp.get("bib") or
-            comp.get("d") or comp.get("D") or "")
+            comp.get("v") or comp.get("d") or comp.get("D") or "")
+
+
+def _get_internal_id(comp) -> str:
+    """Return the internal Wiclax ID used for R-element lookup (ChronoSmetron d attribute)."""
+    return comp.get("d") or comp.get("D") or _get_competitor_bib(comp)
 
 
 def _build_split_indices(root: ET.Element) -> dict[str, int]:
@@ -343,6 +351,7 @@ def scrape(url: str) -> ScrapedResult:
         result.bib_number = bib
 
     # Find competitor by bib
+    # bib here = B-parameter from URL = internal d-value for ChronoSmetron format
     competitor = None
     for tag in ("Competitor", "COMPETITOR", "Runner", "RUNNER", "Participant"):
         competitor = root.find(f".//{tag}[@Bib='{bib}']")
@@ -352,19 +361,24 @@ def scrape(url: str) -> ScrapedResult:
             break
 
     if competitor is None:
+        # ChronoSmetron: B parameter = internal d attribute
+        competitor = root.find(f".//E[@d='{bib}']")
+
+    if competitor is None:
         for comp in root.iter():
-            if _get_competitor_bib(comp) == bib and bib:
+            if _get_internal_id(comp) == bib and bib:
                 competitor = comp
                 break
 
-    raw: dict = {"bib": bib, "clax_url": clax_url}
+    raw: dict = {"internal_id": bib, "clax_url": clax_url}
 
     if competitor is not None:
         parsed_result = _parse_competitor(competitor, url, event_name, event_type)
+        internal_id = _get_internal_id(competitor)
 
-        # ChronoSmetron E/R format: competitor is <E>, times are in a sibling <R d=bib>
+        # ChronoSmetron E/R format: times in sibling <R d=internal_id>
         if competitor.tag == "E" and not parsed_result.total_time:
-            result_elem = root.find(f".//R[@d='{bib}']")
+            result_elem = root.find(f".//R[@d='{internal_id}']")
             if result_elem is not None:
                 raw.update(dict(result_elem.attrib))
                 parsed_result.total_time = normalize_time(result_elem.get("t", ""))
@@ -417,30 +431,68 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                 results.append(r)
             break
 
-    # Format 2: ChronoSmetron E/R elements (E = competitor, R = timing keyed by d=bib)
+    # Format 2: ChronoSmetron E/R elements
+    # E: v = visible dossard, d = internal ID for R lookup
+    # R: keyed by d attribute, holds timing data
     if not results:
-        r_by_bib: dict[str, ET.Element] = {
+        r_by_internal: dict[str, ET.Element] = {
             elem.get("d", ""): elem
             for elem in root.iter("R")
             if elem.get("d")
         }
+        # Track original p= discipline per result for correct rank grouping —
+        # multiple disciplines can share the same event_type (e.g. XS and S both → triathlon-s)
+        disc_tags: list[str] = []
         for comp in root.iter("E"):
-            bib = _get_competitor_bib(comp)
-            if not bib:
+            internal_id = _get_internal_id(comp)
+            if not internal_id:
                 continue
             r = _parse_competitor(comp, base_url, event_name, event_type)
-            # Rank from v attribute on E element
-            if comp.get("v") and not r.rank_overall:
-                r.rank_overall = normalize_rank(comp.get("v"))
-            # Timing from sibling R element
-            result_elem = r_by_bib.get(bib)
+            # Timing from sibling R element (keyed by internal d)
+            result_elem = r_by_internal.get(internal_id)
             if result_elem is not None and not r.total_time:
                 r.total_time = normalize_time(result_elem.get("t", ""))
                 _fill_er_splits(result_elem, r, split_idx)
             r.event_date = event_date
             results.append(r)
+            disc_tags.append(comp.get("p") or comp.get("P") or "")
+
+        # Rank by net time within each original discipline (p= attribute).
+        # Net time is wave-corrected, so sorting by it gives correct ranking.
+        # We group by raw p= rather than event_type to avoid mixing e.g. XS and S.
+        _assign_ranks_by_time(results, disc_tags)
 
     return results
+
+
+def _assign_ranks_by_time(results: list, disc_tags: "list[str] | None" = None) -> None:
+    """Assign rank_overall by sorting net time within each discipline group.
+
+    disc_tags: original p= attribute per result (same order as results).
+    Falls back to event_type grouping when not provided (Format 1).
+    """
+    from collections import defaultdict
+
+    def _to_seconds(t: str) -> "int | None":
+        import re as _re
+        m = _re.match(r"^(\d{2}):(\d{2}):(\d{2})$", t)
+        if m:
+            return int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3))
+        return None
+
+    groups: dict = defaultdict(list)
+    tags = disc_tags if disc_tags is not None else [r.event_type for r in results]
+    for tag, r in zip(tags, results):
+        if not r.is_relay:
+            groups[tag].append(r)
+
+    for group in groups.values():
+        finished = sorted(
+            [(t, r) for r in group if (t := _to_seconds(r.total_time)) is not None],
+            key=lambda x: x[0],
+        )
+        for rank, (_, r) in enumerate(finished, 1):
+            r.rank_overall = rank
 
 
 def _strip_athlete_param(url: str) -> str:

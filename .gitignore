@@ -13,11 +13,15 @@ venv/
 *.db
 *.sqlite3
 
-# Excel
+# Excel / rapports de fiabilité (données personnelles ou générées localement)
 *.xlsx
 *.xls
 xlsx_urls.json
 audit_report.md
+reliability_report.json
+reliability_report.md
+tests/e2e/fixtures/reliability_urls.json
+bc_pagination_report.json
 
 # Node
 node_modules/

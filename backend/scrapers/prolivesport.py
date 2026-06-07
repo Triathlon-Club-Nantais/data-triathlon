@@ -75,11 +75,14 @@ def _parse_athlete(athlete: dict, split_map: dict, url: str, event_name: str, ev
     result.event_date = event_date
 
     result.athlete_name = athlete.get("lastname", "").strip().upper()
-    result.athlete_firstname = athlete.get("firstname", "").strip()
+    firstname = athlete.get("firstname", "").strip()
+    result.athlete_firstname = "" if firstname in (".", "-", "") else firstname
     result.bib_number = athlete.get("number", "")
     result.club = athlete.get("club", "")
-    result.category = athlete.get("categoryRef", athlete.get("category", ""))
+    category_ref = athlete.get("categoryRef", athlete.get("category", ""))
+    result.category = category_ref
     result.gender = athlete.get("sex", "")
+    result.is_relay = category_ref.upper() in ("R", "RELAY") or "relay" in athlete.get("category", "").lower()
     result.rank_overall = normalize_rank(athlete.get("rank"))
     result.rank_gender = normalize_rank(athlete.get("rankSex"))
     result.rank_category = normalize_rank(athlete.get("rankCat"))
@@ -149,8 +152,21 @@ def _search_athletes(athletes: list[dict], search: str) -> list[dict]:
     ]
 
 
-def _detect_event_type(race: str) -> str:
-    race_l = race.lower()
+def _detect_event_type(race: str, distance_km: str = "") -> str:
+    import re as _re
+    race_l = _re.sub(r"[\*\s]+$", "", race.lower().strip())  # strip trailing * and spaces
+
+    # Short ProLiveSport race codes: "XS", "S", "M", "L", "XL", "XXL"
+    if _re.fullmatch(r"(xs|xxl|xl|l|m|s)", race_l):
+        if race_l == "xs":
+            return "triathlon-s"
+        if race_l == "s":
+            return "triathlon-s"
+        if race_l == "m":
+            return "triathlon-m"
+        if race_l in ("l", "xl", "xxl"):
+            return "triathlon-l"
+
     if "duathlon" in race_l:
         if any(x in race_l for x in ["xs", "extra"]):
             return "duathlon-xs"
@@ -179,19 +195,67 @@ def _detect_event_type(race: str) -> str:
         if "xl" in race_l:
             return "triathlon-xl"
         return "triathlon"
+
+    # Fallback: use distance_km to infer type for unknown race codes (e.g. TRGP, Challenge)
+    try:
+        dist = float(distance_km)
+        if dist < 20:
+            return "triathlon-s"   # youth / XS
+        if dist < 35:
+            return "triathlon-s"   # sprint ~25km
+        if dist < 70:
+            return "triathlon-m"   # olympic ~50km
+        if dist < 130:
+            return "triathlon-l"   # half ~90km
+        return "triathlon-xl"
+    except (ValueError, TypeError):
+        pass
+
     return "triathlon"
 
 
-def scrape(url: str, bib: str | None = None) -> ScrapedResult:
+def _parse_url(url: str) -> tuple[str, str, str]:
+    """Return (event_id, race, search) from any ProLiveSport URL format."""
     parsed = urlparse(url)
     params = parse_qs(parsed.query)
-
-    event_id = params.get("eventId", [""])[0]
     race = params.get("race", [""])[0].strip()
     search = params.get("search", [""])[0].strip()
 
+    # 1. Query param: eventId= or id= or event=
+    event_id = (
+        params.get("eventId", [""])[0]
+        or params.get("id", [""])[0]
+        or params.get("event", [""])[0]
+    )
+
+    # 2. Path segment: /result/1079, /chrono/1079, /1079/M, etc.
     if not event_id:
-        raise ValueError("URL prolivesport.fr sans paramètre eventId.")
+        path_parts = [p for p in parsed.path.strip("/").split("/") if p]
+        for i, part in enumerate(path_parts):
+            if part.isdigit():
+                event_id = part
+                if i + 1 < len(path_parts) and not path_parts[i + 1].isdigit():
+                    race = race or path_parts[i + 1]
+                break
+
+    # 3. Fallback: any 3+ digit number anywhere in the URL (last resort)
+    if not event_id:
+        import re as _re
+        m = _re.search(r"/(\d{3,})", parsed.path)
+        if m:
+            event_id = m.group(1)
+
+    if not event_id:
+        raise ValueError(
+            "Cette URL pointe vers une page de liste ou un circuit, pas vers une épreuve précise. "
+            "Clique sur une compétition spécifique, puis copie son URL "
+            "(format attendu : prolivesport.fr/result/1079)."
+        )
+    return event_id, race, search
+
+
+def scrape(url: str, bib: str | None = None) -> ScrapedResult:
+    event_id, race, search = _parse_url(url)
 
     with httpx.Client(follow_redirects=True, timeout=20, headers=HEADERS) as client:
         event_name, event_date = _fetch_event_meta(event_id, client)
@@ -242,31 +306,39 @@ def scrape(url: str, bib: str | None = None) -> ScrapedResult:
         return _parse_athlete(matches[0], split_map, url, event_name, event_type, event_date)
 
 
-def scrape_event_all(url: str) -> list[ScrapedResult]:
-    """Fetch all participants for a Prolivesport event/race."""
-    parsed = urlparse(url)
-    params = parse_qs(parsed.query)
-    event_id = params.get("eventId", [""])[0]
-    race = params.get("race", [""])[0].strip()
+_DNS_SENTINEL_RANKS = {"99992", "99993", "99994", "99999"}
 
-    if not event_id:
-        raise ValueError("URL prolivesport.fr sans paramètre eventId.")
+
+def scrape_event_all(url: str) -> list[ScrapedResult]:
+    """Fetch all participants for a Prolivesport event/race.
+
+    When no race is specified (e.g. /result/1079), imports ALL races for
+    the event. When a race is specified, imports only that race.
+    """
+    event_id, race, _ = _parse_url(url)
 
     with httpx.Client(follow_redirects=True, timeout=30, headers=HEADERS) as client:
         event_name, event_date = _fetch_event_meta(event_id, client)
-        if not race:
-            r = client.get(f"{API_BASE}/result/raceList/{event_id}/", timeout=15)
-            races = r.json().get("result", [])
-            race = races[0].get("race", "") if races else ""
-        if not race:
+        r = client.get(f"{API_BASE}/result/raceList/{event_id}/", timeout=15)
+        race_list = r.json().get("result", [])
+        all_races = [rc.get("race", "") for rc in race_list if rc.get("race")]
+        dist_map = {rc.get("race", ""): rc.get("distance", "") for rc in race_list if rc.get("race")}
+
+        if not all_races:
             raise ValueError(f"Aucune épreuve trouvée pour l'événement prolivesport {event_id}.")
 
-        event_type = _detect_event_type(race)
-        athletes = _fetch_indiv(event_id, race, client)
-        split_map = _fetch_split_map(event_id, race, client)
+        # Import only the requested race, or all races when none is specified
+        races_to_import = [race] if race else all_races
+        split_map = _fetch_split_map(event_id, races_to_import[0], client)
 
-    return [
-        _parse_athlete(a, split_map, url, event_name, event_type, event_date)
-        for a in athletes
-        if a.get("dns", "N") != "O"  # exclude DNS
-    ]
+        results: list[ScrapedResult] = []
+        for rc in races_to_import:
+            event_type = _detect_event_type(rc, dist_map.get(rc, ""))
+            athletes = _fetch_indiv(event_id, rc, client)
+            results.extend(
+                _parse_athlete(a, split_map, url, event_name, event_type, event_date)
+                for a in athletes
+                if str(a.get("rank", "0")) not in _DNS_SENTINEL_RANKS
+            )
+
+    return results

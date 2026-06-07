@@ -93,4 +93,59 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     )
 
 
-__all__ = ["ScrapedResult", "detect_provider", "scrape", "scrape_event_all"]
+def scrape_event_preview(url: str) -> dict:
+    """
+    Fetch lightweight event metadata without importing any results.
+    Returns: {provider, event_name, event_date, races: [{label, event_type, count}]}
+    """
+    from urllib.parse import urlparse, parse_qs
+    from datetime import date as date_t
+    from .utils import normalize_time
+
+    provider = detect_provider(url)
+
+    if provider == "prolivesport":
+        from .prolivesport import _parse_url, _fetch_event_meta, _detect_event_type
+        import httpx
+        HEADERS = {"access-token": "AUTH_PLSWS_V2", "Accept": "application/json"}
+        API_BASE = "https://api.prolivesport.fr/apiws"
+        event_id, race, _ = _parse_url(url)
+        with httpx.Client(follow_redirects=True, timeout=20, headers=HEADERS) as client:
+            event_name, event_date = _fetch_event_meta(event_id, client)
+            r = client.get(f"{API_BASE}/result/raceList/{event_id}/", timeout=15)
+            race_list = r.json().get("result", [])
+            races_to_show = [rc for rc in race_list if not race or rc.get("race") == race]
+            races = []
+            for rc in races_to_show:
+                rc_name = rc.get("race", "")
+                dist = rc.get("distance", "")
+                r2 = client.get(f"{API_BASE}/result/indiv/{event_id}/{rc_name}/", timeout=20)
+                athletes = r2.json().get("result", [])
+                count = sum(1 for a in athletes if str(a.get("rank", "0")) not in ("99992", "99993", "99994", "99999"))
+                races.append({
+                    "label": rc_name,
+                    "event_type": _detect_event_type(rc_name, dist),
+                    "count": count,
+                })
+        return {
+            "provider": "prolivesport",
+            "event_name": event_name,
+            "event_date": event_date.isoformat() if event_date else None,
+            "races": races,
+        }
+
+    # Generic fallback: use scrape() to get event metadata, count unknown
+    try:
+        result = scrape(url)
+        return {
+            "provider": provider,
+            "event_name": result.event_name,
+            "event_date": result.event_date.isoformat() if result.event_date else None,
+            "races": [{"label": result.event_type, "event_type": result.event_type, "count": None}]
+            if result.event_type else [],
+        }
+    except Exception as exc:
+        raise ValueError(str(exc))
+
+
+__all__ = ["ScrapedResult", "detect_provider", "scrape", "scrape_event_all", "scrape_event_preview"]

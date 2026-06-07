@@ -32,6 +32,7 @@ export default function App() {
   async function handleSaved({ club, url }) {
     setRefreshKey((k) => k + 1);
     if (!url) return;
+    // url fournie → import toute la compétition via SSE
     setImportStatus({ phase: "scraping", message: "Récupération des participants…" });
     try {
       for await (const evt of api.importEventStream(url)) {
