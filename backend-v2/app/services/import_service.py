@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.core.exceptions import InvalidUrlError, ProviderNotSupportedError, ScraperError
 from app.models.course import Course
-from app.repositories import course_repo, participation_repo
+from app.repositories import course_repository, participation_repository
 from app.scrapers import scrape_event_all as registry_scrape_event_all
 from app.scrapers.base import ScrapedResult
 from app.services import cache, mapping
@@ -53,14 +53,14 @@ class _Persister:
         course = mapping.get_or_create_course(self.db, scraped, self.event_url)
         self._courses[course.id] = course
         bibs = self._bibs.setdefault(
-            course.id, participation_repo.existing_bibs_for_course(self.db, course.id)
+            course.id, participation_repository.existing_bibs_for_course(self.db, course.id)
         )
         bib = scraped.bib_number or None
         if bib and bib in bibs:
             self.skipped += 1
             return
         athlete = mapping.get_or_create_athlete(self.db, scraped)
-        participation_repo.create(
+        participation_repository.create(
             self.db,
             **mapping.participation_fields(
                 scraped, athlete_id=athlete.id, course_id=course.id
@@ -72,14 +72,14 @@ class _Persister:
 
     def finalize(self) -> None:
         for course in self._courses.values():
-            course_repo.touch_scraped_at(self.db, course)
+            course_repository.touch_scraped_at(self.db, course)
 
 
 def _cached_result(db: Session, url: str, settings: Settings) -> dict | None:
     """Si une course fraîche existe pour cette URL, renvoie le résultat sans re-scraper."""
-    existing = course_repo.get_latest_by_source_url(db, url)
+    existing = course_repository.get_latest_by_source_url(db, url)
     if existing and cache.is_fresh(db, existing, settings):
-        count = len(participation_repo.existing_bibs_for_course(db, existing.id))
+        count = len(participation_repository.existing_bibs_for_course(db, existing.id))
         logger.info("Cache TTL frais pour %s — re-scraping court-circuité", url)
         return {"imported": 0, "skipped": count, "cached": True}
     return None

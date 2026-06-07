@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
-from app.repositories import participation_repo
+from app.repositories import participation_repository
 from app.schemas.participation import ParticipationCreate, ParticipationOut
 from app.scrapers.base import ScrapedResult
 from app.services import scrape_service
@@ -54,7 +54,7 @@ def _to_scraped(body: ParticipationCreate) -> ScrapedResult:
 def create_participation(body: ParticipationCreate, db: Session = Depends(get_db)):
     """Crée manuellement un résultat (athlète + course + participation)."""
     participation = scrape_service.save_one(db, _to_scraped(body))
-    return participation_repo.get(db, participation.id)
+    return participation_repository.get(db, participation.id)
 
 
 @router.get("/participations", response_model=list[ParticipationOut])
@@ -69,7 +69,7 @@ def list_participations(
     page_size: int = Query(20, ge=1, le=5000),
     db: Session = Depends(get_db),
 ):
-    return participation_repo.list_participations(
+    return participation_repository.list_participations(
         db,
         name=name,
         event_type=event_type,
@@ -84,7 +84,7 @@ def list_participations(
 
 @router.get("/participations/{participation_id}", response_model=ParticipationOut)
 def get_participation(participation_id: int, db: Session = Depends(get_db)):
-    row = participation_repo.get(db, participation_id)
+    row = participation_repository.get(db, participation_id)
     if not row:
         raise NotFoundError("Résultat introuvable")
     return row
@@ -92,7 +92,7 @@ def get_participation(participation_id: int, db: Session = Depends(get_db)):
 
 @router.delete("/participations/{participation_id}", status_code=204)
 def delete_participation(participation_id: int, db: Session = Depends(get_db)):
-    row = participation_repo.get(db, participation_id)
+    row = participation_repository.get(db, participation_id)
     if not row:
         raise NotFoundError("Résultat introuvable")
     db.delete(row)

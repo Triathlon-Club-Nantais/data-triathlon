@@ -14,7 +14,7 @@ from app.core.exceptions import (
     ScraperError,
 )
 from app.models.participation import Participation
-from app.repositories import participation_repo
+from app.repositories import participation_repository
 from app.scrapers import MultipleMatchesError as ScraperMultipleMatches
 from app.scrapers import scrape as registry_scrape
 from app.scrapers.base import ScrapedResult
@@ -45,7 +45,7 @@ def preview(url: str, bib: str | None = None) -> ScrapedResult:
 def save_one(db: Session, scraped: ScrapedResult, event_url: str = "") -> Participation:
     """Persiste un résultat scrapé/édité (athlète + course + participation)."""
     course = mapping.get_or_create_course(db, scraped, event_url)
-    if scraped.bib_number and participation_repo.exists_for_bib(
+    if scraped.bib_number and participation_repository.exists_for_bib(
         db, course.id, scraped.bib_number
     ):
         raise DuplicateError(
@@ -53,7 +53,7 @@ def save_one(db: Session, scraped: ScrapedResult, event_url: str = "") -> Partic
             f"{scraped.event_name} / {scraped.event_type})."
         )
     athlete = mapping.get_or_create_athlete(db, scraped)
-    participation = participation_repo.create(
+    participation = participation_repository.create(
         db, **mapping.participation_fields(scraped, athlete_id=athlete.id, course_id=course.id)
     )
     db.commit()

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
-from app.repositories import course_repo, participation_repo
+from app.repositories import course_repository, participation_repository
 from app.schemas.course import CourseBrief, EventOut
 from app.schemas.participation import ParticipationOut
 from app.services import stats_service
@@ -53,17 +53,17 @@ def list_courses(
     page_size: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
 ):
-    return course_repo.list_all(
+    return course_repository.list_all(
         db, event_type=event_type, club=club, page=page, page_size=page_size
     )
 
 
 @router.get("/courses/{course_id}")
 def get_course(course_id: int, db: Session = Depends(get_db)):
-    course = course_repo.get(db, course_id)
+    course = course_repository.get(db, course_id)
     if not course:
         raise NotFoundError("Course introuvable")
-    participations = participation_repo.list_for_course(db, course_id)
+    participations = participation_repository.list_for_course(db, course_id)
     return {
         "course": CourseBrief.model_validate(course),
         "participations": [ParticipationOut.model_validate(p) for p in participations],

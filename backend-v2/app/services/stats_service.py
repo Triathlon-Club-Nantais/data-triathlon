@@ -1,7 +1,7 @@
 """Agrégations statistiques (club / tableau de bord)."""
 from sqlalchemy.orm import Session
 
-from app.repositories import participation_repo
+from app.repositories import participation_repository
 
 
 def _athlete_key(part) -> str:
@@ -11,7 +11,7 @@ def _athlete_key(part) -> str:
 
 def get_stats(db: Session, club: str | None = None) -> dict:
     """Stats agrégées : total, athlètes, épreuves, répartition par type/mois, récents."""
-    parts = participation_repo.for_stats(db, club)
+    parts = participation_repository.for_stats(db, club)
     if not parts:
         return {"total": 0, "athletes": 0, "events": 0, "by_type": {}, "by_month": {}, "recent": []}
 
@@ -61,7 +61,7 @@ def get_stats(db: Session, club: str | None = None) -> dict:
 
 def list_events(db: Session, **filters) -> list[dict]:
     """Épreuves distinctes avec compteurs (total + membres TCN)."""
-    rows = participation_repo.events_with_counts(db, **filters)
+    rows = participation_repository.events_with_counts(db, **filters)
     return [
         {
             "event_name": r.event_name or "",

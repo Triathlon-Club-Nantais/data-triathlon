@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.repositories import participation_repo
+from app.repositories import participation_repository
 from app.services import geocode_service, stats_service
 
 router = APIRouter(tags=["stats"])
@@ -17,7 +17,7 @@ def get_stats(club: str | None = Query(None), db: Session = Depends(get_db)):
 @router.get("/stats/events-geo")
 def get_events_geo(club: str | None = Query(None), db: Session = Depends(get_db)):
     """Épreuves géocodées (lat/lon) pour la carte. Géocodage caché en mémoire."""
-    rows = participation_repo.events_with_counts(db, club=club)
+    rows = participation_repository.events_with_counts(db, club=club)
     geo_events = []
     for r in rows:
         if not r.event_name:

@@ -2,7 +2,7 @@ from datetime import date, timedelta
 
 from app.core.config import Settings
 from app.core.time import utcnow
-from app.repositories import athlete_repo, course_repo, participation_repo
+from app.repositories import athlete_repository, course_repository, participation_repository
 from app.services import cache
 
 
@@ -11,11 +11,11 @@ def _settings() -> Settings:
 
 
 def _course_with_participation(db, total_time):
-    athlete = athlete_repo.get_or_create(db, nom="DUPONT", prenom="Jean")
-    course = course_repo.get_or_create(
+    athlete = athlete_repository.get_or_create(db, nom="DUPONT", prenom="Jean")
+    course = course_repository.get_or_create(
         db, name="Tri", event_date=date(2026, 5, 16), event_type="triathlon-m"
     )
-    participation_repo.create(
+    participation_repository.create(
         db, athlete_id=athlete.id, course_id=course.id, bib_number="1",
         total_time=total_time,
     )

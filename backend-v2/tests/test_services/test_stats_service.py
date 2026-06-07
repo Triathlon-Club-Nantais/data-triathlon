@@ -1,17 +1,17 @@
 from datetime import date
 
-from app.repositories import athlete_repo, course_repo, participation_repo
+from app.repositories import athlete_repository, course_repository, participation_repository
 from app.services import stats_service
 
 
 def _seed(db):
-    a1 = athlete_repo.get_or_create(db, nom="DUPONT", prenom="Jean", club="TCN")
-    a2 = athlete_repo.get_or_create(db, nom="MARTIN", prenom="Paul", club="ASPTT")
-    c = course_repo.get_or_create(
+    a1 = athlete_repository.get_or_create(db, nom="DUPONT", prenom="Jean", club="TCN")
+    a2 = athlete_repository.get_or_create(db, nom="MARTIN", prenom="Paul", club="ASPTT")
+    c = course_repository.get_or_create(
         db, name="Tri de Nantes", event_date=date(2026, 5, 16), event_type="triathlon-m"
     )
-    participation_repo.create(db, athlete_id=a1.id, course_id=c.id, bib_number="1", club="TCN")
-    participation_repo.create(db, athlete_id=a2.id, course_id=c.id, bib_number="2", club="ASPTT")
+    participation_repository.create(db, athlete_id=a1.id, course_id=c.id, bib_number="1", club="TCN")
+    participation_repository.create(db, athlete_id=a2.id, course_id=c.id, bib_number="2", club="ASPTT")
     db.flush()
 
 

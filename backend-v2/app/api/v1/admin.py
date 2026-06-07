@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.repositories import pending_provider_repo
+from app.repositories import pending_provider_repository
 
 router = APIRouter(tags=["admin"])
 
@@ -21,7 +21,7 @@ def report_pending_provider(body: PendingProviderCreate, db: Session = Depends(g
         hint = urlparse(body.url).netloc
     except Exception:
         hint = ""
-    entry = pending_provider_repo.create(db, url=body.url, provider_hint=hint)
+    entry = pending_provider_repository.create(db, url=body.url, provider_hint=hint)
     db.commit()
     db.refresh(entry)
     return {"id": entry.id, "url": entry.url, "provider_hint": entry.provider_hint}
@@ -29,7 +29,7 @@ def report_pending_provider(body: PendingProviderCreate, db: Session = Depends(g
 
 @router.get("/admin/pending-providers")
 def list_pending_providers(db: Session = Depends(get_db)):
-    rows = pending_provider_repo.list_unhandled(db)
+    rows = pending_provider_repository.list_unhandled(db)
     return [
         {
             "id": r.id,
@@ -43,5 +43,5 @@ def list_pending_providers(db: Session = Depends(get_db)):
 
 @router.delete("/admin/pending-providers/{entry_id}", status_code=204)
 def mark_handled(entry_id: int, db: Session = Depends(get_db)):
-    pending_provider_repo.mark_handled(db, entry_id)
+    pending_provider_repository.mark_handled(db, entry_id)
     db.commit()
