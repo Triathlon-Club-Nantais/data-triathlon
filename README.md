@@ -227,4 +227,12 @@ data-triathlon/
 
 1. Importer le repo sur [vercel.com](https://vercel.com)
 2. **Root Directory** : `frontend`
-3. Variable d'environnement : `VITE_API_URL` = URL du service Render
+3. Variable d'environnement : `VITE_API_URL` = URL de votre service Render
+
+---
+
+## Contribuer avec les outils IA (Superpowers + Speckit)
+
+Ce projet embarque deux outils d'assistance IA préconfigurés pour le vibe coding.
+Pour savoir quel outil utiliser (bugfix vs vraie feature, quand lancer les
+sous-agents…) : voir [`docs/WORKFLOW-IA.md`](docs/WORKFLOW-IA.md).

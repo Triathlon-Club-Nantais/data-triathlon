@@ -37,9 +37,6 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Claude Code
-.claude/
-
 # Test fixtures (contain athlete names from private club data)
 tests/e2e/fixtures/providers.json
 
@@ -48,3 +45,8 @@ test-results/
 tests/e2e/playwright-report/
 tests/e2e/test-results/
 tests/e2e/.cache/
+
+
+# AI Tools
+.claude/memory/
+docs/local/
