@@ -1,0 +1,557 @@
+"""
+Scraper for klikego.com results.
+URL example:
+  https://www.klikego.com/resultats/triathlon-dangers-entre-loire-et-maine-2026/1700025627600-3
+    ?heat=triathlon-m-individuel&search=CADEAU&city=&category=&sexe=
+
+Klikego API returns HTML (not JSON):
+  Search: GET /v8/evenement/resultats-search.jsp?event={id}&heat={heat}&search={name}
+  Detail: GET /v8/evenement/resultat-participant.jsp?embedded=1&e={id}&heat={heat}&dossard={bib}
+"""
+import re
+from urllib.parse import parse_qs, urlparse
+
+import httpx
+from bs4 import BeautifulSoup
+
+from .base import MultipleMatchesError, ScrapedResult
+from .utils import normalize_time, parse_fr_date
+
+BASE = "https://www.klikego.com"
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+    ),
+    "Referer": "https://www.klikego.com/",
+    "Accept": "text/html,*/*",
+}
+
+
+def _fetch_event_meta(event_id: str, slug: str, client: httpx.Client) -> tuple[str, object]:
+    """Fetch the event page and return (heat, event_date)."""
+    try:
+        r = client.get(f"{BASE}/resultats/{slug}/{event_id}" if slug else f"{BASE}/resultats/{event_id}")
+        heats = re.findall(r'heat=([^&<>\s"\']+)', r.text)
+        heat = heats[0] if heats else ""
+        soup = BeautifulSoup(r.text, "lxml")
+        date_el = soup.select_one("span.tag.tag-brand.tag-ghost")
+        event_date = parse_fr_date(date_el.get_text(strip=True)) if date_el else None
+        return heat, event_date
+    except httpx.HTTPError:
+        return "", None
+
+
+def _detect_heat(event_id: str, client: httpx.Client) -> str:
+    heat, _ = _fetch_event_meta(event_id, "", client)
+    return heat
+
+
+def scrape(url: str, bib: str | None = None) -> ScrapedResult:
+    parsed = urlparse(url)
+    params = parse_qs(parsed.query)
+    path_parts = [p for p in parsed.path.strip("/").split("/") if p]
+
+    event_id = path_parts[-1] if path_parts else ""
+    heat = params.get("heat", [""])[0]
+    search = params.get("search", [""])[0].strip()
+
+    result = ScrapedResult(source_url=url, provider="klikego")
+
+    slug = path_parts[-2] if len(path_parts) >= 2 else ""
+    if slug:
+        result.event_name = slug.replace("-", " ").title()
+
+    result.event_type = _detect_event_type(heat, slug)
+    raw: dict = {"event_id": event_id, "heat": heat, "search": search}
+
+    with httpx.Client(follow_redirects=True, timeout=20, headers=HEADERS) as client:
+        if not heat or not result.event_date:
+            fetched_heat, fetched_date = _fetch_event_meta(event_id, slug, client)
+            if not heat:
+                heat = fetched_heat
+                raw["heat"] = heat
+                result.event_type = _detect_event_type(heat, slug)
+            if fetched_date and not result.event_date:
+                result.event_date = fetched_date
+
+        if bib:
+            # Bib provided (user selected from multiple matches) — skip search
+            dossard = bib
+            result.bib_number = dossard
+        else:
+            if not search:
+                result.raw_data = raw
+                return result
+
+            search_url = (
+                f"{BASE}/v8/evenement/resultats-search.jsp"
+                f"?event={event_id}&heat={heat}&search={search}&city=&category=&sexe=&page="
+            )
+            resp = client.get(search_url)
+            if resp.status_code != 200:
+                raise ValueError(
+                    f"L'API Klikego a retourné une erreur {resp.status_code} "
+                    f"pour l'événement {event_id} (heat={heat!r}). "
+                    "Vérifiez l'URL ou réessayez."
+                )
+
+            soup = BeautifulSoup(resp.text, "lxml")
+            raw["search_html"] = resp.text[:500]
+
+            rows = soup.select("tr.result-row[data-dossard]")
+            if not rows:
+                raise ValueError(
+                    f"Athlète « {search} » introuvable sur Klikego (événement {event_id}). "
+                    "Vérifiez l'orthographe du nom."
+                )
+
+            if len(rows) > 1:
+                candidates = []
+                for r in rows:
+                    name_cell = r.select_one("td.truncate")
+                    full = name_cell.get_text(strip=True) if name_cell else ""
+                    parts = full.split()
+                    i = 0
+                    while i < len(parts) and parts[i].isupper():
+                        i += 1
+                    time_cell = r.select_one("td.font-mono")
+                    truncate_cells = r.select("td.truncate")
+                    candidates.append({
+                        "bib": r.get("data-dossard", ""),
+                        "athlete_name": " ".join(parts[:i]),
+                        "athlete_firstname": " ".join(parts[i:]),
+                        "total_time": normalize_time(time_cell.get_text(strip=True)) if time_cell else "",
+                        "club": truncate_cells[1].get_text(strip=True) if len(truncate_cells) >= 2 else "",
+                    })
+                raise MultipleMatchesError(candidates)
+
+            row = rows[0]
+            dossard = row.get("data-dossard", "")
+            result.bib_number = dossard
+
+            name_cell = row.select_one("td.truncate")
+            if name_cell:
+                full = name_cell.get_text(strip=True)
+                parts = full.split()
+                i = 0
+                while i < len(parts) and parts[i].isupper():
+                    i += 1
+                result.athlete_name = " ".join(parts[:i])
+                result.athlete_firstname = " ".join(parts[i:])
+
+            time_cell = row.select_one("td.font-mono")
+            if time_cell:
+                result.total_time = normalize_time(time_cell.get_text(strip=True))
+
+        detail_url = (
+            f"{BASE}/v8/evenement/resultat-participant.jsp"
+            f"?embedded=1&e={event_id}&heat={heat}&dossard={dossard}"
+        )
+        detail_resp = client.get(detail_url)
+        if detail_resp.status_code == 200:
+            _parse_detail(detail_resp.text, result, raw)
+
+    result.raw_data = raw
+    return result
+
+
+def _parse_detail(html: str, result: ScrapedResult, raw: dict):
+    soup = BeautifulSoup(html, "lxml")
+    raw["detail_html"] = html[:500]
+
+    # Name + metadata line: "M - Dossard N°2141 - V1 - LE MANS TRIATHLON"
+    meta_p = soup.select_one("p.text-sm")
+    if meta_p:
+        meta = meta_p.get_text(strip=True)
+        raw["meta"] = meta
+        parts = [p.strip() for p in meta.split("-")]
+        for p in parts:
+            p_low = p.lower()
+            # Collapse internal spaces for gender/category matching ("BE F" → "BEF")
+            p_compact = re.sub(r"\s+", "", p)
+            if p_compact.upper() in ("M", "F", "H"):
+                # "H" is an alias for "M" used by some timing systems
+                result.gender = "M" if p_compact.upper() == "H" else p_compact.upper()
+            elif "dossard" in p_low:
+                result.bib_number = re.sub(r"[^\d]", "", p)
+            elif re.match(
+                r"^(SE[HF]?|SEN[HF]?|S[1-9]\d*[HF]?|MA[1-9]\d*[HF]?|M[1-9]\d*[HF]?|"
+                r"V[1-5][HF]?|VET[HF]?\d*|JU[HF]?|ES[HF]?|ESP[HF]?|CA[HF]?|BE[HF]?|"
+                r"MI[HF]?|PO[HF]?|PU[HF]?)$",
+                p_compact, re.I
+            ):
+                result.category = p_compact
+            elif not any(x in p_low for x in ("dossard", "n°")) and p_compact.upper() not in ("M", "F", "H"):
+                if result.club == "":
+                    result.club = p
+
+    # Official time + Rankings — find label divs by exact text, then read sibling
+    rank_map = {
+        "classement général": "overall",
+        "classement catégorie": "category",
+        "classement sexe": "gender",
+        "classement genre": "gender",
+    }
+    for div in soup.find_all("div"):
+        text = div.get_text(strip=True)
+        text_low = text.lower()
+
+        if text == "Temps Officiel":
+            val_div = div.find_next_sibling("div")
+            if val_div:
+                t = normalize_time(val_div.get_text(strip=True))
+                if t:
+                    result.total_time = t
+
+        for label, field in rank_map.items():
+            if text_low == label:
+                val_div = div.find_next_sibling("div")
+                if val_div:
+                    rank_text = val_div.get_text(strip=True)
+                    m = re.match(r"(\d+)", rank_text)
+                    if m:
+                        rank = int(m.group(1))
+                        if field == "overall":
+                            result.rank_overall = rank
+                        elif field == "category":
+                            result.rank_category = rank
+                        else:
+                            result.rank_gender = rank
+
+    # Split times — table rows: [stage_name, time, pos_gen, pos_cat]
+    # Order: most specific (longest) patterns first to avoid "natation" matching
+    # "transition natation - vélo" before the transition key does.
+    split_map = [
+        # Transitions — specific before generic
+        ("transition natation", "t1"),
+        ("transition nat", "t1"),
+        ("chg nat", "t1"),          # "Chg Nat." (changement natation)
+        ("transition vélo", "t2"),
+        ("transition velo", "t2"),
+        ("chg vé", "t2"),           # "Chg Vélo"
+        ("chg ve", "t2"),           # "Chg Velo" (ASCII fallback)
+        ("transition 1", "t1"),     # "Transition 1" (variante numérotée)
+        ("transition 2", "t2"),     # "Transition 2"
+        ("transition", "t1"),       # "Transition" générique (aquathlon, etc.)
+        ("t1", "t1"),
+        ("t2", "t2"),
+        # Swim
+        ("natation", "swim"),
+        ("swim", "swim"),
+        ("nat", "swim"),            # "NAT" (forme abrégée utilisée sur certains events jeunes)
+        # Bike
+        ("vélo", "bike"),
+        ("velo", "bike"),
+        ("bike", "bike"),
+        ("cyclisme", "bike"),
+        # Run — duathlon: "CAP 1" / "Course à pied 1" (run1) → swim slot, "CAP 2" / "Course à pied 2" → run slot
+        ("course à pied 1", "swim"),
+        ("course a pied 1", "swim"),
+        ("course à pied 2", "run"),
+        ("course a pied 2", "run"),
+        ("cap 1", "swim"),
+        ("cap 2", "run"),
+        ("course", "run"),
+        ("cap", "run"),
+        ("run", "run"),
+        ("à pied", "run"),
+        ("a pied", "run"),
+    ]
+
+    # --- Collect split rows ---
+    splits_raw: list[tuple[str, str, str | None]] = []  # (stage, time_norm, field|None)
+    for row in soup.select("tr.result-row[data-dossard]"):
+        tds = row.find_all("td")
+        if len(tds) < 2:
+            continue
+        stage = tds[0].get_text(strip=True).lower()
+        time_norm = normalize_time(tds[1].get_text(strip=True))
+
+        # "temps réel" row = total time reported by timing system, not a split
+        if "temps" in stage and "réel" in stage:
+            if not result.total_time:
+                result.total_time = time_norm
+            continue
+
+        field: str | None = None
+        for key, f in split_map:
+            if key in stage:
+                field = f
+                break
+        splits_raw.append((stage, time_norm, field))
+
+    # --- Detect cumulative times ---
+    # If times for mapped stages are strictly increasing → they are cumulative
+    # (checkpoints like KM42 are skipped for this check)
+    def _secs(t: str) -> int:
+        if not t:
+            return 0
+        p = t.split(":")
+        try:
+            return int(p[0]) * 3600 + int(p[1]) * 60 + int(p[2])
+        except (IndexError, ValueError):
+            return 0
+
+    mapped_secs = [_secs(t) for _, t, f in splits_raw if f and t]
+    is_cumulative = (
+        len(mapped_secs) >= 2
+        and all(mapped_secs[i] < mapped_secs[i + 1] for i in range(len(mapped_secs) - 1))
+    )
+    raw["cumulative"] = is_cumulative
+
+    # --- Assign split times (computing deltas if cumulative) ---
+    prev_secs = 0
+    last_mapped_secs = 0
+    for stage, time_norm, field in splits_raw:
+        secs = _secs(time_norm)
+
+        if is_cumulative and secs > 0:
+            if field is not None:
+                # Duration = cumulative_now - cumulative_after_previous_mapped_stage
+                dur = secs - prev_secs
+                prev_secs = secs
+                last_mapped_secs = secs
+                h, rem = divmod(dur, 3600)
+                m, s = divmod(rem, 60)
+                time_val = f"{h:02d}:{m:02d}:{s:02d}"
+            else:
+                # Intermediate checkpoint (e.g. KM42) — store as-is, don't shift prev
+                time_val = time_norm
+        else:
+            time_val = time_norm
+
+        # In non-cumulative mode: "first set wins" — intermediate checkpoints
+        # (e.g. "Vélo km 85", "CAP km 14") share the same field key as the
+        # main segment but must not overwrite it.  In cumulative mode we always
+        # overwrite because each value is a freshly-computed delta.
+        def _set(attr: str, val: str) -> None:
+            if is_cumulative or not getattr(result, attr):
+                setattr(result, attr, val)
+            else:
+                # _set est appelé immédiatement dans l'itération courante : la capture
+                # de `stage` est correcte ici (pas de closure différée). → B023 faux positif.
+                raw[f"split_{stage}"] = val  # noqa: B023
+
+        if field == "swim":
+            _set("swim_time", time_val)
+        elif field == "t1":
+            _set("t1_time", time_val)
+        elif field == "bike":
+            _set("bike_time", time_val)
+        elif field == "t2":
+            _set("t2_time", time_val)
+        elif field == "run":
+            _set("run_time", time_val)
+        else:
+            raw[f"split_{stage}"] = time_val
+
+    # If cumulative and run is absent, derive from total − last mapped stage end
+    if is_cumulative and not result.run_time and result.total_time:
+        total_s = _secs(result.total_time)
+        if total_s > last_mapped_secs > 0:
+            run_s = total_s - last_mapped_secs
+            h, rem = divmod(run_s, 3600)
+            m, s = divmod(rem, 60)
+            result.run_time = f"{h:02d}:{m:02d}:{s:02d}"
+
+
+def _parse_search_row(
+    row, event_id: str, heat: str, event_name: str, slug: str, rank: int
+) -> "ScrapedResult":
+    """Extract a ScrapedResult from a search-list <tr> row (no detail call)."""
+    result = ScrapedResult(
+        source_url=(
+            f"{BASE}/resultats/{slug}/{event_id}?heat={heat}"
+        ),
+        provider="klikego",
+    )
+    result.event_name = event_name
+    result.event_type = _detect_event_type(heat, slug)
+    result.rank_overall = rank
+
+    dossard = row.get("data-dossard", "")
+    result.bib_number = dossard
+
+    name_cell = row.select_one("td.truncate")
+    if name_cell:
+        full = name_cell.get_text(strip=True)
+        parts = full.split()
+        i = 0
+        while i < len(parts) and parts[i].isupper():
+            i += 1
+        result.athlete_name = " ".join(parts[:i])
+        result.athlete_firstname = " ".join(parts[i:])
+
+    time_cell = row.select_one("td.font-mono")
+    if time_cell:
+        result.total_time = normalize_time(time_cell.get_text(strip=True))
+
+    # Club column — present in some events as a td with class "truncate" after the name
+    # The search row may contain multiple truncate cells: [name, club]
+    truncate_cells = row.select("td.truncate")
+    if len(truncate_cells) >= 2:
+        result.club = truncate_cells[1].get_text(strip=True)
+
+    return result
+
+
+def scrape_event_all(
+    event_id: str, heat: str, event_name: str, slug: str
+) -> list["ScrapedResult"]:
+    """
+    Fetch all participants for an event.
+
+    Phase 1 — Paginate all participants (basic data, no detail calls).
+    Phase 2 — Second search with city=nantais to identify Nantais-area athletes
+               (robust: works even when the club column is absent or abbreviated in
+               the search row, e.g. "TCN" instead of "TRIATHLON CLUB NANTAIS").
+    Phase 3 — Fetch full detail pages only for those athletes so their club name,
+               category, gender and splits are correctly populated.
+    """
+    results: list[ScrapedResult] = []
+    bib_to_result: dict[str, ScrapedResult] = {}
+
+    with httpx.Client(follow_redirects=True, timeout=20, headers=HEADERS) as client:
+        # Fetch event date from event page
+        _, event_date = _fetch_event_meta(event_id, slug, client)
+
+        # Phase 1 — all participants
+        # Klikego repeats the last page indefinitely for out-of-range page numbers,
+        # so we stop when the first bib of a page matches the first bib of the
+        # previous page (reliable end-of-pagination signal).
+        page = 1
+        rank = 1
+        prev_first_bib: str | None = None
+        while True:
+            url = (
+                f"{BASE}/v8/evenement/resultats-search.jsp"
+                f"?event={event_id}&heat={heat}&search=&city=&category=&sexe=&page={page}"
+            )
+            resp = client.get(url)
+            if resp.status_code != 200:
+                break
+            rows = BeautifulSoup(resp.text, "lxml").select("tr.result-row[data-dossard]")
+            if not rows:
+                break
+            first_bib = rows[0].get("data-dossard", "")
+            if first_bib and first_bib == prev_first_bib:
+                break  # Klikego is repeating the last page — we're done
+            prev_first_bib = first_bib
+            for row in rows:
+                r = _parse_search_row(row, event_id, heat, event_name, slug, rank)
+                if event_date:
+                    r.event_date = event_date
+                results.append(r)
+                bib_to_result[r.bib_number] = r
+                rank += 1
+            page += 1
+
+        # Phase 2 — collect bibs of Nantais-area athletes via city filter
+        # city=nantais returns only Nantais athletes and shows their club name
+        # in the second truncate cell — reliable regardless of event layout.
+        nantais_bibs: set[str] = set()
+        page = 1
+        prev_first_bib = None
+        while True:
+            url = (
+                f"{BASE}/v8/evenement/resultats-search.jsp"
+                f"?event={event_id}&heat={heat}&search=&city=nantais&category=&sexe=&page={page}"
+            )
+            resp = client.get(url)
+            if resp.status_code != 200:
+                break
+            rows = BeautifulSoup(resp.text, "lxml").select("tr.result-row[data-dossard]")
+            if not rows:
+                break
+            first_bib = rows[0].get("data-dossard", "")
+            if first_bib and first_bib == prev_first_bib:
+                break
+            prev_first_bib = first_bib
+            for row in rows:
+                bib = row.get("data-dossard", "")
+                if bib:
+                    nantais_bibs.add(bib)
+            page += 1
+
+        # Phase 2b — also identify athletes by club name already present in Phase 1 data
+        # Handles athletes from Nantes suburbs (Saint-Herblain, Vertou, etc.) whose
+        # city isn't matched by city=nantais but whose club name contains TCN keywords.
+        _TCN_KEYWORDS = ("nantais", "tcn", "tri club nant", "triathlon club nant")
+        for bib, r in bib_to_result.items():
+            if r.club and any(k in r.club.lower() for k in _TCN_KEYWORDS):
+                nantais_bibs.add(bib)
+
+        # Phase 3 — fetch detail pages for Nantais athletes
+        for bib in nantais_bibs:
+            r = bib_to_result.get(bib)
+            if not r:
+                continue
+            detail_url = (
+                f"{BASE}/v8/evenement/resultat-participant.jsp"
+                f"?embedded=1&e={event_id}&heat={heat}&dossard={bib}"
+            )
+            dr = client.get(detail_url)
+            if dr.status_code == 200:
+                _parse_detail(dr.text, r, {})
+
+    return results
+
+
+def _detect_event_type(heat: str, slug: str = "") -> str:
+    # Check sport type first (slug covers swimrun events whose heat is "Format L…")
+    combined = (heat + " " + slug).lower()
+    h = heat.lower()
+
+    # Only classify as swimrun when the heat itself says so, or when the slug says so
+    # but the heat doesn't override with an explicit triathlon/duathlon discipline.
+    _swimrun_in_combined = "swimrun" in combined or "swim-run" in combined
+    _heat_overrides_sport = "triathlon" in h or "duathlon" in h
+    if _swimrun_in_combined and not _heat_overrides_sport:
+        # Format L/M/S from heat "format-l-…", "format-m-…", "format-s-…"
+        if "format-l" in h:
+            return "swimrun-l"
+        if "format-m" in h:
+            return "swimrun-m"
+        if "format-s" in h:
+            return "swimrun-s"
+        return "swimrun"
+
+    if "duathlon" in combined and "triathlon" not in h:
+        # Strip "duathlon-" prefix to read the format indicator
+        suffix = h.replace("duathlon-", "").replace("duathlon", "")
+        if "xs" in suffix or "extra-short" in suffix:
+            return "duathlon-xs"
+        if suffix.startswith("s-") or "-s-" in suffix or "sprint" in suffix:
+            return "duathlon-s"
+        if suffix.startswith("m-") or "-m-" in suffix:
+            return "duathlon-m"
+        if suffix.startswith("l-") or "-l-" in suffix:
+            return "duathlon-l"
+        return "duathlon"
+
+    # Other multisport — must be checked BEFORE triathlon distance patterns to
+    # prevent e.g. "aquathlon-s-champnat" matching the "-s" triathlon-s rule.
+    if "aquathlon" in combined:
+        return "aquathlon"
+    if "aquarun" in combined:
+        return "aquarun"
+    if any(p in combined for p in ("bike & run", "bike and run", "bike run", "bikerun",
+                                    "run & bike", "run and bike", "bike-run")):
+        return "bike-run"
+
+    # Triathlon distance from heat name.
+    # Use segment-boundary checks (e.g. "-m-" or trailing "-m") to avoid false
+    # positives like "aesio-mutuelle" matching "-m" or "trail" matching "-l".
+    def _seg(tag: str) -> bool:
+        return f"-{tag}-" in h or h.endswith(f"-{tag}")
+
+    if "xxl" in h or "ironman" in h or _seg("xl"):
+        return "triathlon-xl"
+    if "longue" in h or _seg("l"):
+        return "triathlon-l"
+    if "olymp" in h or _seg("m"):
+        return "triathlon-m"
+    if "sprint" in h or "decouverte" in h or _seg("s") or _seg("xs"):
+        return "triathlon-s"
+    return "triathlon"
