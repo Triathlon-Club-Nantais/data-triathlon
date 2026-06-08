@@ -5,9 +5,13 @@ Couvre les helpers purs : parsing de la cellule nom ("NOM PrénomG-CatG"),
 mapping des colonnes depuis l'en-tête, construction d'un résultat depuis une
 ligne HTML, et détection du type d'épreuve.
 """
+import pytest
+
 from app.scrapers.sportinnovation import (
+    _classify_results_url,
     _col_indices,
     _detect_event_type,
+    _parse_api_athlete,
     _parse_html_row,
     _parse_name_cell,
 )
@@ -83,3 +87,54 @@ def test_parse_html_row():
     assert r.bike_time == "01:05:00"
     assert r.t2_time == "00:00:50"
     assert r.run_time == "00:41:10"
+
+
+# ---------------------------------------------------------------------------
+# _classify_results_url — distingue la forme 2026 /race/{slug} de /{codeUrl}
+# ---------------------------------------------------------------------------
+
+def test_classify_results_url_race_form():
+    kind, ident = _classify_results_url("https://results.sportinnovation.fr/race/zmhc-triathlon-m")
+    assert (kind, ident) == ("race", "zmhc-triathlon-m")
+
+
+def test_classify_results_url_event_form():
+    kind, ident = _classify_results_url("https://results.sportinnovation.fr/bayman_triathlon")
+    assert (kind, ident) == ("event", "bayman_triathlon")
+
+
+def test_classify_results_url_empty_raises():
+    with pytest.raises(ValueError):
+        _classify_results_url("https://results.sportinnovation.fr/")
+
+
+# ---------------------------------------------------------------------------
+# _parse_api_athlete — mapping d'un athlète JSON (API results.sportinnovation.fr)
+# ---------------------------------------------------------------------------
+
+def test_parse_api_athlete():
+    a = {
+        "lastName": "SAMSON", "firstName": "Fabian", "bib": "213",
+        "clubName": None, "sex": "M", "category": "M SENIOR",
+        "generalRanking": 1, "sexRanking": 1, "categoryRanking": 1,
+        "officialTime": "01:53:37", "realTime": "01:53:37",
+    }
+    r = _parse_api_athlete(a, "http://x", "Bayman", "triathlon-m", None)
+    assert r.event_name == "Bayman"
+    assert r.event_type == "triathlon-m"
+    assert r.athlete_name == "SAMSON"
+    assert r.athlete_firstname == "Fabian"
+    assert r.bib_number == "213"
+    assert r.club == ""            # None → chaîne vide
+    assert r.gender == "M"
+    assert r.category == "M SENIOR"
+    assert r.rank_overall == 1
+    assert r.rank_gender == 1
+    assert r.rank_category == 1
+    assert r.total_time == "01:53:37"
+
+
+def test_parse_api_athlete_falls_back_to_real_time():
+    a = {"lastName": "X", "bib": "1", "officialTime": "", "realTime": "00:59:00"}
+    r = _parse_api_athlete(a, "http://x", "E", "triathlon", None)
+    assert r.total_time == "00:59:00"

@@ -47,3 +47,13 @@ def test_scrape_event_all_live(provider, url):
     assert any(r.total_time for r in results), f"{provider} : aucun temps total"
     # Type d'épreuve détecté sur au moins un résultat
     assert any(r.event_type for r in results), f"{provider} : type d'épreuve non détecté"
+
+
+@pytest.mark.integration
+def test_sportinnovation_2026_race_url():
+    """Forme 2026 results.sportinnovation.fr/race/{slug} (niveau course, API JSON)."""
+    url = "https://results.sportinnovation.fr/race/zmhc-triathlon-m"
+    results = registry.scrape_event_all(url)
+    assert results
+    assert any(r.athlete_name and r.total_time for r in results)
+    assert any(r.event_type for r in results)

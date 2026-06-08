@@ -231,47 +231,98 @@ def _fetch_all_pages(event_id: str, client: httpx.Client) -> tuple[str, list[lis
     return race_name, all_rows, col
 
 
+def _classify_results_url(url: str) -> tuple[str, str]:
+    """
+    Classe une URL results.sportinnovation.fr :
+      - /race/{slug}  → ("race", slug)    [affichage 2026, niveau course]
+      - /{codeUrl}    → ("event", codeUrl) [niveau événement]
+    """
+    parts = [p for p in urlparse(url).path.strip("/").split("/") if p]
+    if not parts:
+        raise ValueError(f"URL results.sportinnovation.fr sans identifiant : {url}")
+    if parts[0] == "race" and len(parts) >= 2:
+        return "race", parts[1]
+    return "event", parts[0]
+
+
+def _parse_api_athlete(
+    a: dict, url: str, event_name: str, event_type: str, event_date
+) -> ScrapedResult:
+    """Construit un ScrapedResult depuis un athlète de l'API JSON sportinnovation."""
+    res = ScrapedResult(source_url=url, provider="sportinnovation")
+    res.event_name = event_name
+    res.event_type = event_type
+    res.event_date = event_date
+    res.athlete_name = (a.get("lastName") or "").strip().upper()
+    res.athlete_firstname = (a.get("firstName") or "").strip()
+    res.bib_number = str(a.get("bib") or "")
+    res.club = a.get("clubName") or ""
+    res.gender = a.get("sex") or ""
+    res.category = a.get("category") or ""
+    res.rank_overall = normalize_rank(str(a.get("generalRanking") or ""))
+    res.rank_gender = normalize_rank(str(a.get("sexRanking") or ""))
+    res.rank_category = normalize_rank(str(a.get("categoryRanking") or ""))
+    res.total_time = normalize_time(a.get("officialTime") or a.get("realTime") or "")
+    res.raw_data = a
+    return res
+
+
+def _fetch_event_meta_api(event_id, client: httpx.Client) -> tuple[str, date | None]:
+    """Récupère (nom, date) d'un événement via /api/events/{id}."""
+    ev = client.get(f"{API_BASE}/events/{event_id}", timeout=15).json()
+    event_date = None
+    raw = ev.get("eventDate", "")
+    if raw:
+        try:
+            event_date = date.fromisoformat(raw[:10])
+        except ValueError:
+            pass
+    return ev.get("title", ""), event_date
+
+
+def _scrape_results_race(slug: str, url: str, client: httpx.Client) -> list[ScrapedResult]:
+    """
+    Forme 2026 `results.sportinnovation.fr/race/{slug}` (niveau course) :
+    résout le slug → course → résultats via l'API JSON.
+    """
+    meta = client.get(f"{API_BASE}/races/slug/{slug}", timeout=15).json()
+    race_id = meta.get("raceId")
+    if not race_id:
+        raise ValueError(f"Course Sportinnovation introuvable : {slug}")
+    race = client.get(f"{API_BASE}/races/{race_id}", timeout=15).json()
+    event_type = _detect_event_type(race.get("title", ""))
+    event_name, event_date = _fetch_event_meta_api(race.get("eventId"), client)
+    athletes = client.get(f"{API_BASE}/races/{race_id}/results", timeout=20).json()
+    return [_parse_api_athlete(a, url, event_name, event_type, event_date) for a in athletes]
+
+
 def scrape_event_all(url: str) -> list[ScrapedResult]:
     """Fetch all participants for a Sportinnovation event."""
     parsed = urlparse(url)
 
     with httpx.Client(follow_redirects=True, timeout=30, headers=HEADERS) as client:
         if "results.sportinnovation.fr" in parsed.netloc:
-            path_parts = [p for p in parsed.path.strip("/").split("/") if p]
-            slug = path_parts[0] if path_parts else ""
-            r = client.get(f"{API_BASE}/events", timeout=15)
-            events = r.json()
-            event = next((e for e in events if e.get("codeUrl") == slug), None)
+            kind, ident = _classify_results_url(url)
+            if kind == "race":
+                # Forme 2026 /race/{slug} : une seule course
+                return _scrape_results_race(ident, url, client)
+
+            # Forme /{codeUrl} : niveau événement (toutes ses courses)
+            events = client.get(f"{API_BASE}/events", timeout=15).json()
+            event = next((e for e in events if e.get("codeUrl") == ident), None)
             if not event:
-                raise ValueError(f"Événement {slug} introuvable.")
+                raise ValueError(f"Événement {ident} introuvable.")
             event_id = event["id"]
-            event_name = event.get("title", "")
-            event_date_raw = event.get("eventDate", "")
-            event_date = None
-            if event_date_raw:
-                try:
-                    event_date = date.fromisoformat(event_date_raw[:10])
-                except ValueError:
-                    pass
+            event_name, event_date = _fetch_event_meta_api(event_id, client)
             races = client.get(f"{API_BASE}/events/{event_id}/races", timeout=15).json()
-            results = []
+            results: list[ScrapedResult] = []
             for race in races:
                 athletes = client.get(f"{API_BASE}/races/{race['id']}/results", timeout=20).json()
-                for a in athletes:
-                    res = ScrapedResult(source_url=url, provider="sportinnovation")
-                    res.event_name = event_name
-                    res.event_type = _detect_event_type(race.get("title", ""))
-                    res.event_date = event_date
-                    res.athlete_name = (a.get("lastName") or "").strip().upper()
-                    res.athlete_firstname = (a.get("firstName") or "").strip()
-                    res.bib_number = str(a.get("bib") or "")
-                    res.club = a.get("clubName") or ""
-                    res.gender = a.get("sex") or ""
-                    res.category = a.get("category") or ""
-                    res.rank_overall = normalize_rank(str(a.get("generalRanking") or ""))
-                    res.total_time = normalize_time(a.get("officialTime") or a.get("realTime") or "")
-                    res.raw_data = a
-                    results.append(res)
+                event_type = _detect_event_type(race.get("title", ""))
+                results.extend(
+                    _parse_api_athlete(a, url, event_name, event_type, event_date)
+                    for a in athletes
+                )
             return results
 
         m = re.search(r"/Resultats/(?:DetailMobile/)?(\d+)", parsed.path)

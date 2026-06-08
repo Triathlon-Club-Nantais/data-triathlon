@@ -37,11 +37,9 @@ qui exposent les splits pour tous (wiclax, timepulse, sportinnovation).
   (extraction de l'id depuis le chemin).
 - **prolivesport** — ✅ **corrigé** (1080 finishers, splits 99 %). Auparavant KO pour
   deux raisons (format d'URL + filtre DNS inversé) — détail et correctif ci-dessous.
-- **sportinnovation** — ✅ via l'URL HTML `…/Evenements/Resultats/7031` (541 résultats,
-  tout à 100 %). ⚠️ La 2ᵉ forme d'URL fournie, `results.sportinnovation.fr/race/{slug}`
-  (nouvel affichage 2026), **n'a pas été testée** et n'est probablement pas gérée par
-  `scrape_event_all` (qui attend `path_parts[0]` = codeUrl, or le chemin commence par
-  `/race/`). À vérifier en Phase 2.
+- **sportinnovation** — ✅ via l'URL HTML `…/Evenements/Resultats/7031` (541 résultats)
+  **et** via la forme 2026 `results.sportinnovation.fr/race/{slug}` (✅ ajoutée — 696
+  résultats avec métadonnées complètes, cf. Phase 2 #2).
 
 ## Détail prolivesport — DEUX bugs (✅ corrigés)
 
@@ -78,8 +76,9 @@ Le champ `"O"` ne signifie donc pas « non-partant » ici → le filtre vide la 
 
 1. ~~**prolivesport — débloquer `scrape_event_all`**~~ ✅ **FAIT** (bugs A + B corrigés,
    tests offline + integration verts).
-2. **sportinnovation — forme 2026** : supporter `results.sportinnovation.fr/race/{slug}`
-   dans `scrape_event_all` (le chemin `/race/…` casse l'hypothèse actuelle).
+2. ~~**sportinnovation — forme 2026** `results.sportinnovation.fr/race/{slug}`~~ ✅
+   **FAIT** : branche API JSON (slug → `raceId` → résultats), helpers
+   `_classify_results_url` / `_parse_api_athlete` / `_scrape_results_race`.
 3. **Excel xlsx (optionnel)** : breizhchrono et chronosmetron exposent un export
    Excel. Les scrapers HTML/XML actuels **fonctionnent déjà** → migration Excel = pari
    robustesse/simplicité, pas une nécessité. À évaluer si le HTML/XML casse.
