@@ -36,12 +36,6 @@ function toQuery(filters: Record<string, unknown>): string {
 }
 
 export const apiClient = {
-  scrape: (url: string, bib: string | null = null) =>
-    request<ScrapedPreview>("/scrape", {
-      method: "POST",
-      body: JSON.stringify({ url, bib }),
-    }),
-
   detectProvider: (url: string) =>
     request<{ provider: string }>(`/scrape/detect${toQuery({ url })}`),
 
