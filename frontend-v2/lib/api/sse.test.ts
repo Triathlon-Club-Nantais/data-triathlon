@@ -40,6 +40,7 @@ describe("importEventStream", () => {
   it("lève une erreur si la réponse n'est pas ok", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false } as Response));
     await expect(async () => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       for await (const _ of importEventStream("http://x")) { /* noop */ }
     }).rejects.toThrow();
     vi.unstubAllGlobals();

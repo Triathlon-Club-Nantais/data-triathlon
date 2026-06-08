@@ -31,6 +31,7 @@ export function MapView({ club }: { club?: string }) {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     setError("");
     apiClient

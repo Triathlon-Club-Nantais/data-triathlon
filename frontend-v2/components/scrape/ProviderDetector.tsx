@@ -18,6 +18,7 @@ export function ProviderDetector({
 
   useEffect(() => {
     if (!debounced || !debounced.startsWith("http")) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setProvider(null);
       return;
     }

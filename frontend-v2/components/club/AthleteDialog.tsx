@@ -25,6 +25,7 @@ export function AthleteDialog({
 
   useEffect(() => {
     if (!open || athleteId == null) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     setData(null);
     apiClient
