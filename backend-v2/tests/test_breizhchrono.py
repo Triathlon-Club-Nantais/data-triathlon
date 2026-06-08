@@ -53,3 +53,13 @@ def test_parse_bc_date_iso():
 
 def test_parse_bc_date_absent():
     assert _parse_bc_date("<div>pas de date ici</div>") is None
+
+
+def test_breizhchrono_reuses_klikego_search_row():
+    """Breizh Chrono ne duplique pas la logique : il pointe sur le parseur klikego.
+
+    Garantit que le fix statut de Task 4 s'applique aussi à Breizh Chrono.
+    """
+    from app.scrapers import breizhchrono, klikego
+
+    assert breizhchrono._klikego_parse_search_row is klikego._parse_search_row
