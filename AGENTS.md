@@ -88,6 +88,13 @@ Archi en couches, le flux ne traverse qu'une direction
 - **Participation** — `UNIQUE(course_id, bib_number)` → plus de doublons à l'import.
 - **splits** en **JSON** (remplace les colonnes figées swim/t1/bike/t2/run) →
   couvre tous les sports (duathlon course1/course2, swimrun…). Temps = strings.
+  Les scrapers rangent les segments dans 5 slots positionnels triathlon
+  (`swim/t1/bike/t2/run` de `ScrapedResult`) ; `services/mapping.build_splits`
+  ré-étiquette ces slots selon `event_type` via le gabarit
+  `_SPLIT_KEYS_BY_SPORT` (ex. duathlon → `course1`/`course2`) et omet les slots
+  non pertinents. *Limite* : plafonné à 5 segments — un swimrun multi-legs reste
+  collapsé. Évolution future si besoin : porter une **liste ordonnée de segments
+  étiquetés** dès `ScrapedResult` (touche les 7 scrapers).
 
 ### Cache TTL (v2)
 

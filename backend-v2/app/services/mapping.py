@@ -12,15 +12,44 @@ from app.models.course import Course
 from app.repositories import athlete_repository, course_repository
 from app.scrapers.base import ScrapedResult
 
-# Segments standards exposés par ScrapedResult → clés du dict splits.
-_SEGMENT_FIELDS = ("swim_time", "t1_time", "bike_time", "t2_time", "run_time")
+# Les scrapers rangent toujours les segments dans 5 slots positionnels triathlon
+# (swim/t1/bike/t2/run). Selon le sport, on ré-étiquette ces slots avec des clés
+# parlantes et on omet les slots non pertinents. Gabarit = {champ ScrapedResult: clé splits}.
+# Le triathlon est le défaut (clés = nom du slot sans le suffixe `_time`).
+_DEFAULT_SPLIT_KEYS = {
+    "swim_time": "swim", "t1_time": "t1", "bike_time": "bike",
+    "t2_time": "t2", "run_time": "run",
+}
+_SPLIT_KEYS_BY_SPORT: dict[str, dict[str, str]] = {
+    # Duathlon : course à pied 1 → slot swim, course à pied 2 → slot run.
+    "duathlon": {
+        "swim_time": "course1", "t1_time": "t1", "bike_time": "bike",
+        "t2_time": "t2", "run_time": "course2",
+    },
+    "aquathlon": {"swim_time": "swim", "t1_time": "t1", "run_time": "run"},
+    "aquarun": {"swim_time": "swim", "t1_time": "t1", "run_time": "run"},
+    "bike-run": {"bike_time": "bike", "run_time": "run"},
+    "swimrun": {"swim_time": "swim", "run_time": "run"},
+}
+
+
+def _sport_base(event_type: str) -> str:
+    """Préfixe de sport sans le suffixe de taille : ``duathlon-m`` → ``duathlon``.
+
+    ``bike-run`` n'a pas de suffixe de taille : le tiret fait partie du nom.
+    """
+    et = (event_type or "").lower()
+    if et.startswith("bike-run"):
+        return "bike-run"
+    return et.split("-", 1)[0]
 
 
 def build_splits(scraped: ScrapedResult) -> dict[str, str]:
-    """Construit le dict des temps intermédiaires non vides."""
+    """Construit le dict des temps intermédiaires non vides, clés adaptées au sport."""
+    template = _SPLIT_KEYS_BY_SPORT.get(_sport_base(scraped.event_type), _DEFAULT_SPLIT_KEYS)
     return {
-        field.removesuffix("_time"): getattr(scraped, field)
-        for field in _SEGMENT_FIELDS
+        key: getattr(scraped, field)
+        for field, key in template.items()
         if getattr(scraped, field)
     }
 

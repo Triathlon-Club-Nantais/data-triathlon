@@ -21,6 +21,25 @@ def test_build_splits_empty():
     assert mapping.build_splits(_scraped()) == {}
 
 
+def test_build_splits_duathlon_renames_keys():
+    # Duathlon : les scrapers rangent course1 → swim_time, course2 → run_time.
+    # build_splits doit ré-étiqueter selon le sport (course1/course2, pas swim/run).
+    s = _scraped(
+        event_type="duathlon-m",
+        swim_time="00:15:00", bike_time="00:40:00", run_time="00:18:00",
+    )
+    assert mapping.build_splits(s) == {
+        "course1": "00:15:00",
+        "bike": "00:40:00",
+        "course2": "00:18:00",
+    }
+
+
+def test_build_splits_bike_run_omits_swim():
+    s = _scraped(event_type="bike-run", bike_time="00:20:00", run_time="00:10:00")
+    assert mapping.build_splits(s) == {"bike": "00:20:00", "run": "00:10:00"}
+
+
 def test_derive_status():
     assert mapping.derive_status(_scraped(total_time="01:59:00")) == "finisher"
     assert mapping.derive_status(_scraped()) == "DNF"
