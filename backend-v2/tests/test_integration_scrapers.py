@@ -75,3 +75,35 @@ def test_prolivesport_includes_non_finishers():
         if r.status != "finisher":
             assert not r.total_time, f"{r.status} avec un temps total : {r.total_time}"
             assert r.rank_overall is None, f"{r.status} avec un rang : {r.rank_overall}"
+
+
+@pytest.mark.integration
+def test_timepulse_conserve_non_finishers():
+    """Le fix TimePulse conserve les non-finishers s'il y en a (best-effort).
+
+    Données réelles évolutives → pas d'assertion stricte sur le nombre. On vérifie
+    que des finishers remontent et on documente le nombre de non-finishers
+    conservés (un <E> sans <R> → total_time vide).
+    """
+    results = registry.scrape_event_all(LIVE_URLS["timepulse"])
+    assert results, "timepulse : aucun participant"
+    assert any(r.total_time for r in results), "timepulse : aucun finisher"
+    non_finishers = [r for r in results if not r.total_time]
+    print(
+        f"timepulse non-finishers conservés : {len(non_finishers)}/{len(results)}"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("provider, url", sorted(LIVE_URLS.items()))
+def test_scrape_event_all_status_jamais_incoherent(provider, url):
+    """Garde-fou : un résultat avec statut non-finisher n'a pas de temps total.
+
+    Vérifie l'hygiène cross-provider (DNF/DNS/DSQ ⇒ total_time vide).
+    """
+    results = registry.scrape_event_all(url)
+    for r in results:
+        if r.status in ("DNF", "DNS", "DSQ"):
+            assert not r.total_time, (
+                f"{provider} : {r.athlete_name} statut {r.status} mais temps {r.total_time!r}"
+            )
