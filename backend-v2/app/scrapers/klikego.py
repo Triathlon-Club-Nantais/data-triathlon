@@ -14,7 +14,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from .base import ScrapedResult
-from .utils import normalize_time, parse_fr_date
+from .utils import derive_status_from_label, normalize_time, parse_fr_date
 
 BASE = "https://www.klikego.com"
 HEADERS = {
@@ -275,7 +275,15 @@ def _parse_search_row(
 
     time_cell = row.select_one("td.font-mono")
     if time_cell:
-        result.total_time = normalize_time(time_cell.get_text(strip=True))
+        raw_time = time_cell.get_text(strip=True)
+        status = derive_status_from_label(raw_time)
+        if status:
+            # La colonne temps porte un label de statut (Abandon/DNF…) au lieu
+            # d'un temps : on pose le statut et on purge temps/rang positionnel.
+            result.status = status
+            result.rank_overall = None
+        else:
+            result.total_time = normalize_time(raw_time)
 
     # Club column — present in some events as a td with class "truncate" after the name
     # The search row may contain multiple truncate cells: [name, club]

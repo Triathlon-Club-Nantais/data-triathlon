@@ -606,3 +606,33 @@ def test_parse_search_row_source_url():
     assert "1700025627600-3" in result.source_url
     assert "triathlon-l-individuel" in result.source_url
     assert "triathlon-dangers-entre-loire-et-maine-2026" in result.source_url
+
+
+def _row(html: str):
+    return BeautifulSoup(html, "lxml").select_one("tr")
+
+
+def test_parse_search_row_explicit_status_dnf():
+    """La cellule temps porte 'Abandon' → status DNF, total_time vide, rang purgé."""
+    html = (
+        '<table><tr class="result-row" data-dossard="42">'
+        '<td class="truncate">DUPONT Jean</td>'
+        '<td class="font-mono">Abandon</td></tr></table>'
+    )
+    r = _parse_search_row(_row(html), "evt", "heat", "Tri", "slug", 5)
+    assert r.status == "DNF"
+    assert r.total_time == ""
+    assert r.rank_overall is None
+
+
+def test_parse_search_row_finisher_no_status():
+    """Cellule temps = vrai temps → status="" et total_time normalisé."""
+    html = (
+        '<table><tr class="result-row" data-dossard="42">'
+        '<td class="truncate">DUPONT Jean</td>'
+        '<td class="font-mono">01:23:45</td></tr></table>'
+    )
+    r = _parse_search_row(_row(html), "evt", "heat", "Tri", "slug", 5)
+    assert r.status == ""
+    assert r.total_time == "01:23:45"
+    assert r.rank_overall == 5
