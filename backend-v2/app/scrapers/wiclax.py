@@ -34,7 +34,7 @@ HEADERS = {
 _STATUS_ATTRS = ("Status", "status", "State", "state", "Etat", "etat", "st")
 
 
-def _competitor_status(comp) -> str:
+def _competitor_status(comp: ET.Element) -> str:
     """Statut explicite d'un élément (E/Competitor/R) ; "" sinon.
 
     Découverte (épreuve réelle) : Wiclax ne pose pas d'attribut de statut nommé
