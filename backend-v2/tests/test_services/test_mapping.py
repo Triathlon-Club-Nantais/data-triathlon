@@ -40,9 +40,20 @@ def test_build_splits_bike_run_omits_swim():
     assert mapping.build_splits(s) == {"bike": "00:20:00", "run": "00:10:00"}
 
 
-def test_derive_status():
+def test_derive_status_heuristic_finisher():
+    # Pas de status explicite + temps total → finisher (heuristique).
     assert mapping.derive_status(_scraped(total_time="01:59:00")) == "finisher"
+
+
+def test_derive_status_heuristic_dnf():
+    # Pas de status explicite + pas de temps → DNF (heuristique).
     assert mapping.derive_status(_scraped()) == "DNF"
+
+
+def test_derive_status_respects_explicit_status():
+    # Un status posé par le scraper prime sur l'heuristique, même contre le temps.
+    assert mapping.derive_status(_scraped(status="DSQ", total_time="01:59:00")) == "DSQ"
+    assert mapping.derive_status(_scraped(status="DNS")) == "DNS"
 
 
 def test_participation_fields():

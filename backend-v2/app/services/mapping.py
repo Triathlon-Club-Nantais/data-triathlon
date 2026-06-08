@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.repositories import athlete_repository, course_repository
-from app.scrapers.base import ScrapedResult
+from app.scrapers.base import STATUS_DNF, STATUS_FINISHER, ScrapedResult
 
 # Les scrapers rangent toujours les segments dans 5 slots positionnels triathlon
 # (swim/t1/bike/t2/run). Selon le sport, on ré-étiquette ces slots avec des clés
@@ -55,8 +55,11 @@ def build_splits(scraped: ScrapedResult) -> dict[str, str]:
 
 
 def derive_status(scraped: ScrapedResult) -> str:
-    """Statut sportif : finisher si un temps total existe, sinon DNF."""
-    return "finisher" if scraped.total_time else "DNF"
+    """Statut sportif. Respecte le statut explicite du scraper s'il existe,
+    sinon retombe sur l'heuristique (finisher si temps total, sinon DNF)."""
+    if scraped.status:
+        return scraped.status
+    return STATUS_FINISHER if scraped.total_time else STATUS_DNF
 
 
 def get_or_create_course(db: Session, scraped: ScrapedResult, event_url: str) -> Course:
