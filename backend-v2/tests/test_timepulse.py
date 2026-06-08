@@ -2,8 +2,6 @@
 Tests unitaires pour scrapers/timepulse.py.
 
 Cas couverts :
-- GOUBAUD\xa0Manon : espace insécable dans le XML → trouvé par recherche avec espace normal
-- Homonymie GOUBAUD : deux athlètes → liste de désambiguïsation
 - Mapping des séries S0-S4 → swim/t1/bike/t2/run
 - Calcul des classements général / genre / catégorie
 - rank_category filtre par genre+catégorie (évite rank_category > rank_gender)
@@ -17,10 +15,8 @@ from app.scrapers.timepulse import (
     _compute_ranks,
     _detect_event_type,
     _find_tag,
-    _normalize_name,
     _parse_event_date,
     _parse_series,
-    _search_athletes,
 )
 
 # ---------------------------------------------------------------------------
@@ -72,72 +68,6 @@ def make_xml(
   {athletes_xml}
   {results_xml}
 </Triathlon>"""
-
-
-# ---------------------------------------------------------------------------
-# _normalize_name
-# ---------------------------------------------------------------------------
-
-def test_normalize_name_regular_space():
-    assert _normalize_name("dupont jean") == "DUPONT JEAN"
-
-
-def test_normalize_name_nbsp():
-    """L'espace insécable (\\xa0) doit être normalisé comme un espace ordinaire."""
-    assert _normalize_name("GOUBAUD\xa0Manon") == "GOUBAUD MANON"
-
-
-def test_normalize_name_multiple_spaces():
-    assert _normalize_name("GOUBAUD  Manon") == "GOUBAUD MANON"
-
-
-# ---------------------------------------------------------------------------
-# _search_athletes
-# ---------------------------------------------------------------------------
-
-def test_search_athletes_no_match():
-    xml = make_xml(athletes=[("10", "DUPONT Jean", "SEH", "M", "p1")])
-    assert _search_athletes(xml, "MARTIN") == []
-
-
-def test_search_athletes_one_match():
-    xml = make_xml(athletes=[
-        ("10", "DUPONT Jean", "SEH", "M", "p1"),
-        ("20", "MARTIN Sophie", "SEF", "F", "p1"),
-    ])
-    matches = _search_athletes(xml, "MARTIN")
-    assert len(matches) == 1
-    assert matches[0][0] == "20"
-    assert "MARTIN" in matches[0][1]
-
-
-def test_search_athletes_multiple_goubaud():
-    """Cas réel : GOUBAUD Céline (127) et GOUBAUD Manon (41) sur id_event=3090."""
-    xml = make_xml(athletes=[
-        ("127", "GOUBAUD Celine", "V1F", "F", "p1"),
-        ("41",  "GOUBAUD Manon",  "SEF", "F", "p1"),
-        ("99",  "DUPONT Jean",    "SEH", "M", "p1"),
-    ])
-    matches = _search_athletes(xml, "GOUBAUD")
-    assert len(matches) == 2
-    bibs = {m[0] for m in matches}
-    assert bibs == {"41", "127"}
-
-
-def test_search_athletes_nbsp_in_xml():
-    """
-    Cas GOUBAUD Manon : le XML TimePulse stocke le nom avec un espace insécable
-    (\\xa0). La recherche avec un espace ordinaire doit quand même trouver l'athlète.
-    """
-    xml = make_xml(athletes=[("41", "GOUBAUD\xa0Manon", "SEF", "F", "p1")])
-    matches = _search_athletes(xml, "GOUBAUD Manon")
-    assert len(matches) == 1
-    assert matches[0][0] == "41"
-
-
-def test_search_case_insensitive():
-    xml = make_xml(athletes=[("5", "LECLERC Paul", "SEH", "M", "p1")])
-    assert len(_search_athletes(xml, "leclerc")) == 1
 
 
 # ---------------------------------------------------------------------------

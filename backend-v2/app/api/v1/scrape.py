@@ -1,4 +1,4 @@
-"""Routers de scraping : prévisualisation, import épreuve (sync + SSE), détection."""
+"""Routers de scraping : import épreuve (sync + SSE), détection de provider."""
 import json
 
 from fastapi import APIRouter, Depends
@@ -8,18 +8,11 @@ from sqlalchemy.orm import Session
 from app.api.deps import settings_dep
 from app.core.config import Settings
 from app.core.database import SessionLocal, get_db
-from app.schemas.scrape import ImportResult, ScrapedPreview, ScrapeRequest
+from app.schemas.scrape import ImportResult, ScrapeRequest
 from app.scrapers import detect_provider
-from app.services import import_service, scrape_service
+from app.services import import_service
 
 router = APIRouter(tags=["scrape"])
-
-
-@router.post("/scrape", response_model=ScrapedPreview)
-def scrape_athlete(body: ScrapeRequest):
-    """Scrape un athlète et renvoie une prévisualisation éditable (non persistée)."""
-    result = scrape_service.preview(body.url, bib=body.bib)
-    return ScrapedPreview.from_scraped(result)
 
 
 @router.post("/scrape/event", response_model=ImportResult)

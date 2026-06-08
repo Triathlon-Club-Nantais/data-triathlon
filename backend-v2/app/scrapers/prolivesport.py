@@ -22,7 +22,7 @@ from urllib.parse import parse_qs, urlparse
 
 import httpx
 
-from .base import MultipleMatchesError, ScrapedResult
+from .base import ScrapedResult
 from .utils import normalize_rank, normalize_time
 
 API_BASE = "https://api.prolivesport.fr/apiws"
@@ -138,17 +138,6 @@ def _fetch_event_meta(event_id: str, client: httpx.Client) -> tuple[str, date | 
     return name, event_date
 
 
-def _search_athletes(athletes: list[dict], search: str) -> list[dict]:
-    """Filter athletes by lastname (all words must appear)."""
-    words = search.strip().upper().split()
-    if not words:
-        return []
-    return [
-        a for a in athletes
-        if all(w in (a.get("lastname", "") + " " + a.get("firstname", "")).upper() for w in words)
-    ]
-
-
 def _detect_event_type(race: str) -> str:
     race_l = race.lower()
     if "duathlon" in race_l:
@@ -180,66 +169,6 @@ def _detect_event_type(race: str) -> str:
             return "triathlon-xl"
         return "triathlon"
     return "triathlon"
-
-
-def scrape(url: str, bib: str | None = None) -> ScrapedResult:
-    parsed = urlparse(url)
-    params = parse_qs(parsed.query)
-
-    event_id = params.get("eventId", [""])[0]
-    race = params.get("race", [""])[0].strip()
-    search = params.get("search", [""])[0].strip()
-
-    if not event_id:
-        raise ValueError("URL prolivesport.fr sans paramètre eventId.")
-
-    with httpx.Client(follow_redirects=True, timeout=20, headers=HEADERS) as client:
-        event_name, event_date = _fetch_event_meta(event_id, client)
-        if not race:
-            # Try to get first available race
-            r = client.get(f"{API_BASE}/result/raceList/{event_id}/", timeout=15)
-            races = r.json().get("result", [])
-            race = races[0].get("race", "") if races else ""
-        if not race:
-            raise ValueError(f"Aucune épreuve trouvée pour l'événement prolivesport {event_id}.")
-
-        event_type = _detect_event_type(race)
-        athletes = _fetch_indiv(event_id, race, client)
-        split_map = _fetch_split_map(event_id, race, client)
-
-        # Find athlete
-        if bib:
-            matches = [a for a in athletes if a.get("number") == bib]
-        elif search:
-            matches = _search_athletes(athletes, search)
-        else:
-            result = ScrapedResult(source_url=url, provider="prolivesport")
-            result.event_name = event_name
-            result.event_type = event_type
-            result.event_date = event_date
-            result.raw_data = {"event_id": event_id, "race": race}
-            return result
-
-        if not matches:
-            raise ValueError(
-                f"Athlète « {search or bib} » introuvable sur Prolivesport "
-                f"(événement {event_id}, épreuve {race!r})."
-            )
-
-        if len(matches) > 1:
-            candidates = [
-                {
-                    "bib": a.get("number", ""),
-                    "athlete_name": a.get("lastname", "").upper(),
-                    "athlete_firstname": a.get("firstname", ""),
-                    "total_time": normalize_time(a.get("time", "")),
-                    "club": a.get("club", ""),
-                }
-                for a in matches
-            ]
-            raise MultipleMatchesError(candidates)
-
-        return _parse_athlete(matches[0], split_map, url, event_name, event_type, event_date)
 
 
 def scrape_event_all(url: str) -> list[ScrapedResult]:

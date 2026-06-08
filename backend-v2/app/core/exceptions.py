@@ -36,16 +36,6 @@ class ScraperError(DomainError):
     message = "Erreur lors du scraping"
 
 
-class MultipleMatchesError(DomainError):
-    """Plusieurs athlètes correspondent — l'appelant doit choisir un dossard."""
-
-    status_code = 300  # Multiple Choices
-
-    def __init__(self, candidates: list[dict]):
-        self.candidates = candidates
-        super().__init__(f"{len(candidates)} athlètes trouvés")
-
-
 class NotFoundError(DomainError):
     status_code = 404
     message = "Ressource introuvable"
@@ -58,13 +48,6 @@ class DuplicateError(DomainError):
 
 def register_exception_handlers(app: FastAPI) -> None:
     """Branche les handlers d'exceptions domaine sur l'application FastAPI."""
-
-    @app.exception_handler(MultipleMatchesError)
-    async def _multiple_matches(request: Request, exc: MultipleMatchesError):
-        return JSONResponse(
-            status_code=200,
-            content={"multiple_matches": True, "candidates": exc.candidates},
-        )
 
     @app.exception_handler(DomainError)
     async def _domain_error(request: Request, exc: DomainError):

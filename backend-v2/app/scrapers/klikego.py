@@ -9,12 +9,11 @@ Klikego API returns HTML (not JSON):
   Detail: GET /v8/evenement/resultat-participant.jsp?embedded=1&e={id}&heat={heat}&dossard={bib}
 """
 import re
-from urllib.parse import parse_qs, urlparse
 
 import httpx
 from bs4 import BeautifulSoup
 
-from .base import MultipleMatchesError, ScrapedResult
+from .base import ScrapedResult
 from .utils import normalize_time, parse_fr_date
 
 BASE = "https://www.klikego.com"
@@ -45,115 +44,6 @@ def _fetch_event_meta(event_id: str, slug: str, client: httpx.Client) -> tuple[s
 def _detect_heat(event_id: str, client: httpx.Client) -> str:
     heat, _ = _fetch_event_meta(event_id, "", client)
     return heat
-
-
-def scrape(url: str, bib: str | None = None) -> ScrapedResult:
-    parsed = urlparse(url)
-    params = parse_qs(parsed.query)
-    path_parts = [p for p in parsed.path.strip("/").split("/") if p]
-
-    event_id = path_parts[-1] if path_parts else ""
-    heat = params.get("heat", [""])[0]
-    search = params.get("search", [""])[0].strip()
-
-    result = ScrapedResult(source_url=url, provider="klikego")
-
-    slug = path_parts[-2] if len(path_parts) >= 2 else ""
-    if slug:
-        result.event_name = slug.replace("-", " ").title()
-
-    result.event_type = _detect_event_type(heat, slug)
-    raw: dict = {"event_id": event_id, "heat": heat, "search": search}
-
-    with httpx.Client(follow_redirects=True, timeout=20, headers=HEADERS) as client:
-        if not heat or not result.event_date:
-            fetched_heat, fetched_date = _fetch_event_meta(event_id, slug, client)
-            if not heat:
-                heat = fetched_heat
-                raw["heat"] = heat
-                result.event_type = _detect_event_type(heat, slug)
-            if fetched_date and not result.event_date:
-                result.event_date = fetched_date
-
-        if bib:
-            # Bib provided (user selected from multiple matches) — skip search
-            dossard = bib
-            result.bib_number = dossard
-        else:
-            if not search:
-                result.raw_data = raw
-                return result
-
-            search_url = (
-                f"{BASE}/v8/evenement/resultats-search.jsp"
-                f"?event={event_id}&heat={heat}&search={search}&city=&category=&sexe=&page="
-            )
-            resp = client.get(search_url)
-            if resp.status_code != 200:
-                raise ValueError(
-                    f"L'API Klikego a retourné une erreur {resp.status_code} "
-                    f"pour l'événement {event_id} (heat={heat!r}). "
-                    "Vérifiez l'URL ou réessayez."
-                )
-
-            soup = BeautifulSoup(resp.text, "lxml")
-            raw["search_html"] = resp.text[:500]
-
-            rows = soup.select("tr.result-row[data-dossard]")
-            if not rows:
-                raise ValueError(
-                    f"Athlète « {search} » introuvable sur Klikego (événement {event_id}). "
-                    "Vérifiez l'orthographe du nom."
-                )
-
-            if len(rows) > 1:
-                candidates = []
-                for r in rows:
-                    name_cell = r.select_one("td.truncate")
-                    full = name_cell.get_text(strip=True) if name_cell else ""
-                    parts = full.split()
-                    i = 0
-                    while i < len(parts) and parts[i].isupper():
-                        i += 1
-                    time_cell = r.select_one("td.font-mono")
-                    truncate_cells = r.select("td.truncate")
-                    candidates.append({
-                        "bib": r.get("data-dossard", ""),
-                        "athlete_name": " ".join(parts[:i]),
-                        "athlete_firstname": " ".join(parts[i:]),
-                        "total_time": normalize_time(time_cell.get_text(strip=True)) if time_cell else "",
-                        "club": truncate_cells[1].get_text(strip=True) if len(truncate_cells) >= 2 else "",
-                    })
-                raise MultipleMatchesError(candidates)
-
-            row = rows[0]
-            dossard = row.get("data-dossard", "")
-            result.bib_number = dossard
-
-            name_cell = row.select_one("td.truncate")
-            if name_cell:
-                full = name_cell.get_text(strip=True)
-                parts = full.split()
-                i = 0
-                while i < len(parts) and parts[i].isupper():
-                    i += 1
-                result.athlete_name = " ".join(parts[:i])
-                result.athlete_firstname = " ".join(parts[i:])
-
-            time_cell = row.select_one("td.font-mono")
-            if time_cell:
-                result.total_time = normalize_time(time_cell.get_text(strip=True))
-
-        detail_url = (
-            f"{BASE}/v8/evenement/resultat-participant.jsp"
-            f"?embedded=1&e={event_id}&heat={heat}&dossard={dossard}"
-        )
-        detail_resp = client.get(detail_url)
-        if detail_resp.status_code == 200:
-            _parse_detail(detail_resp.text, result, raw)
-
-    result.raw_data = raw
-    return result
 
 
 def _parse_detail(html: str, result: ScrapedResult, raw: dict):

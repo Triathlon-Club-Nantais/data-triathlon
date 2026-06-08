@@ -19,7 +19,6 @@ from urllib.parse import parse_qs, urlparse
 from app.scrapers import (
     breizhchrono,
     klikego,
-    playwright_fallback,
     prolivesport,
     sportinnovation,
     timepulse,
@@ -40,10 +39,6 @@ class ScraperProtocol(Protocol):
         """Vrai si ce provider sait traiter l'URL."""
         ...
 
-    def scrape(self, url: str, bib: str | None = None) -> ScrapedResult:
-        """Scrape un athlète unique."""
-        ...
-
     def scrape_event_all(self, url: str) -> list[ScrapedResult]:
         """Scrape tous les participants de l'épreuve (peut lever ValueError si non supporté)."""
         ...
@@ -54,9 +49,6 @@ class KlikegoProvider:
 
     def matches(self, url: str) -> bool:
         return "klikego.com" in url
-
-    def scrape(self, url: str, bib: str | None = None) -> ScrapedResult:
-        return klikego.scrape(url, bib=bib)
 
     def scrape_event_all(self, url: str) -> list[ScrapedResult]:
         parsed = urlparse(url)
@@ -83,9 +75,6 @@ class BreizhChronoProvider:
     def matches(self, url: str) -> bool:
         return "breizhchrono.com" in url
 
-    def scrape(self, url: str, bib: str | None = None) -> ScrapedResult:
-        return breizhchrono.scrape(url, bib=bib)
-
     def scrape_event_all(self, url: str) -> list[ScrapedResult]:
         from app.scrapers.breizhchrono import _parse_bc_url
 
@@ -109,9 +98,6 @@ class WiclaxProvider:
             or "chronosmetron.com" in url
         )
 
-    def scrape(self, url: str, bib: str | None = None) -> ScrapedResult:
-        return wiclax.scrape(url)  # wiclax résout le bib via ?B= dans l'URL
-
     def scrape_event_all(self, url: str) -> list[ScrapedResult]:
         return wiclax.scrape_event_all(url)
 
@@ -121,9 +107,6 @@ class TimePulseProvider:
 
     def matches(self, url: str) -> bool:
         return "timepulse.fr" in url
-
-    def scrape(self, url: str, bib: str | None = None) -> ScrapedResult:
-        return timepulse.scrape(url)  # timepulse résout le bib via ?bib= dans l'URL
 
     def scrape_event_all(self, url: str) -> list[ScrapedResult]:
         return timepulse.scrape_event_all(url)
@@ -135,9 +118,6 @@ class ProLiveSportProvider:
     def matches(self, url: str) -> bool:
         return "prolivesport.fr" in url
 
-    def scrape(self, url: str, bib: str | None = None) -> ScrapedResult:
-        return prolivesport.scrape(url, bib=bib)
-
     def scrape_event_all(self, url: str) -> list[ScrapedResult]:
         return prolivesport.scrape_event_all(url)
 
@@ -147,9 +127,6 @@ class SportInnovationProvider:
 
     def matches(self, url: str) -> bool:
         return "sportinnovation.fr" in url
-
-    def scrape(self, url: str, bib: str | None = None) -> ScrapedResult:
-        return sportinnovation.scrape(url, bib=bib)
 
     def scrape_event_all(self, url: str) -> list[ScrapedResult]:
         return sportinnovation.scrape_event_all(url)
@@ -162,9 +139,6 @@ class PlaywrightProvider:
 
     def matches(self, url: str) -> bool:
         return True  # capte tout ce qui n'a pas été reconnu avant
-
-    def scrape(self, url: str, bib: str | None = None) -> ScrapedResult:
-        return playwright_fallback.scrape(url)
 
     def scrape_event_all(self, url: str) -> list[ScrapedResult]:
         raise ValueError(
@@ -193,12 +167,6 @@ def _find_provider(url: str) -> ScraperProtocol:
 
 def detect_provider(url: str) -> str:
     return _find_provider(url).name
-
-
-def scrape(url: str, bib: str | None = None) -> ScrapedResult:
-    provider = _find_provider(url)
-    logger.info("Scrape athlète via %s : %s", provider.name, url)
-    return provider.scrape(url, bib=bib)
 
 
 def scrape_event_all(url: str) -> list[ScrapedResult]:

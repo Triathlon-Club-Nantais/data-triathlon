@@ -13,7 +13,7 @@ from urllib.parse import parse_qs, unquote, urlencode, urljoin, urlparse, urlunp
 
 import httpx
 
-from .base import MultipleMatchesError, ScrapedResult
+from .base import ScrapedResult
 from .utils import normalize_rank, normalize_time, split_athlete_name
 
 HEADERS = {
@@ -279,117 +279,6 @@ def _fill_er_splits(
         r.bike_time = normalize_time(result_elem.get("s4", ""))
         r.t2_time   = normalize_time(result_elem.get("s5", ""))
         r.run_time  = normalize_time(result_elem.get("s10", ""))
-
-
-def _search_in_xml(root, search: str) -> list:
-    """Return competitor elements whose name matches search (all words, any order)."""
-    words = re.sub(r"[\s\xa0]+", " ", search).strip().upper().split()
-    if not words:
-        return []
-
-    def matches_words(full: str) -> bool:
-        full_up = full.upper()
-        return all(w in full_up for w in words)
-
-    matches = []
-    # Format 1: Competitor/Runner tags
-    for tag in ("Competitor", "COMPETITOR", "Runner", "RUNNER", "Participant"):
-        for comp in root.iter(tag):
-            if matches_words(_get_competitor_fullname(comp)):
-                matches.append(comp)
-    # Format 2: TimePulse-style E elements
-    if not matches:
-        for comp in root.iter("E"):
-            if matches_words(_get_competitor_fullname(comp)):
-                matches.append(comp)
-    return matches
-
-
-def scrape(url: str) -> ScrapedResult:
-    parsed = urlparse(url)
-    params = parse_qs(parsed.query)
-    bib = params.get("B", [""])[0] or params.get("b", [""])[0]
-    search = params.get("search", [""])[0].strip()
-
-    root, clax_url, event_name, event_type, event_date = _fetch_clax(url)
-    split_idx = _build_split_indices(root)
-
-    result = ScrapedResult(source_url=url, provider="wiclax", bib_number=bib)
-    result.event_name = event_name
-    result.event_type = event_type
-    result.event_date = event_date
-
-    # Resolve bib from name search if needed
-    if not bib and search:
-        matches = _search_in_xml(root, search)
-        if not matches:
-            raise ValueError(
-                f"Athlète « {search} » introuvable dans cet événement Wiclax."
-            )
-        if len(matches) > 1:
-            candidates = []
-            for comp in matches:
-                full = _get_competitor_fullname(comp)
-                surname, firstname = split_athlete_name(full)
-                candidates.append({
-                    "bib": _get_competitor_bib(comp),
-                    "athlete_name": surname,
-                    "athlete_firstname": firstname,
-                    "total_time": normalize_time(comp.get("Time") or comp.get("time") or comp.get("t") or ""),
-                    "club": comp.get("Club") or comp.get("club") or comp.get("c") or "",
-                })
-            raise MultipleMatchesError(candidates)
-        bib = _get_competitor_bib(matches[0])
-        result.bib_number = bib
-
-    # Find competitor by bib
-    competitor = None
-    for tag in ("Competitor", "COMPETITOR", "Runner", "RUNNER", "Participant"):
-        competitor = root.find(f".//{tag}[@Bib='{bib}']")
-        if competitor is None:
-            competitor = root.find(f".//{tag}[@bib='{bib}']")
-        if competitor is not None:
-            break
-
-    if competitor is None:
-        for comp in root.iter():
-            if _get_competitor_bib(comp) == bib and bib:
-                competitor = comp
-                break
-
-    raw: dict = {"bib": bib, "clax_url": clax_url}
-
-    if competitor is not None:
-        parsed_result = _parse_competitor(competitor, url, event_name, event_type)
-
-        # ChronoSmetron E/R format: competitor is <E>, times are in a sibling <R d=bib>
-        if competitor.tag == "E" and not parsed_result.total_time:
-            result_elem = root.find(f".//R[@d='{bib}']")
-            if result_elem is not None:
-                raw.update(dict(result_elem.attrib))
-                parsed_result.total_time = normalize_time(result_elem.get("t", ""))
-                _fill_er_splits(result_elem, parsed_result, split_idx)
-
-        # Copy all fields from parsed_result into result
-        result.athlete_name = parsed_result.athlete_name
-        result.athlete_firstname = parsed_result.athlete_firstname
-        result.club = parsed_result.club
-        result.category = parsed_result.category
-        result.gender = parsed_result.gender
-        result.rank_overall = parsed_result.rank_overall
-        result.rank_category = parsed_result.rank_category
-        result.rank_gender = parsed_result.rank_gender
-        result.total_time = parsed_result.total_time
-        result.swim_time = parsed_result.swim_time
-        result.t1_time = parsed_result.t1_time
-        result.bike_time = parsed_result.bike_time
-        result.t2_time = parsed_result.t2_time
-        result.run_time = parsed_result.run_time
-        raw.update(parsed_result.raw_data)
-        raw.update(dict(competitor.attrib))
-
-    result.raw_data = raw
-    return result
 
 
 def scrape_event_all(url: str) -> list[ScrapedResult]:

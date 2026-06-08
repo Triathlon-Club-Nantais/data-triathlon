@@ -15,7 +15,7 @@ all matches so the user can refine their query.
 """
 import re
 from datetime import date as date_t
-from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+from urllib.parse import parse_qs, urlparse
 
 import httpx
 
@@ -65,30 +65,6 @@ def _find_tag(xml: str, tag: str, attr: str, value: str) -> str | None:
         xml,
     )
     return m.group() if m else None
-
-
-# ---------------------------------------------------------------------------
-# Search helpers
-# ---------------------------------------------------------------------------
-
-def _normalize_name(s: str) -> str:
-    """Collapse all whitespace variants to a single space for comparison."""
-    return re.sub(r"[\s\xa0]+", " ", s).strip().upper()
-
-
-def _search_athletes(xml: str, name: str) -> list[tuple[str, str, str]]:
-    """
-    Return [(bib, full_name, category), …] for athletes whose name
-    contains the search string (case-insensitive, whitespace-normalised).
-    """
-    name_norm = _normalize_name(name)
-    matches = []
-    for m in re.finditer(r"<E\s[^>]+/>", xml):
-        a = _attrs(m.group())
-        full_name = a.get("n", "")
-        if name_norm in _normalize_name(full_name):
-            matches.append((a.get("d", ""), full_name, a.get("ca", "")))
-    return matches
 
 
 # ---------------------------------------------------------------------------
@@ -240,162 +216,6 @@ def _parse_event_date(date_str: str) -> date_t | None:
             pass
     # French textual: 'dimanche 19 octobre 2025' or '19 octobre 2025'
     return parse_fr_date(date_str)
-
-
-# ---------------------------------------------------------------------------
-# Main scrape function
-# ---------------------------------------------------------------------------
-
-def scrape(url: str) -> ScrapedResult:
-    parsed = urlparse(url)
-    params = parse_qs(parsed.query)
-    bib = params.get("bib", [""])[0]
-    id_event = params.get("id_event", [""])[0]
-    search = params.get("search", [""])[0].strip()
-
-    # Fallback: extract id_event from the URL path when absent from query params.
-    # Handles https://www.timepulse.fr/epreuves/resultats/3090
-    #      and https://www.timepulse.fr/resultats/3090
-    if not id_event:
-        path_parts = [p for p in parsed.path.strip("/").split("/") if p]
-        for part in reversed(path_parts):
-            if re.match(r"^\d+$", part):
-                id_event = part
-                break
-
-    if not id_event:
-        raise ValueError("Paramètre id_event manquant dans l'URL TimePulse.")
-
-    xml = _fetch_xml(id_event)
-    if not xml:
-        raise ValueError(f"Impossible de récupérer les données de l'événement {id_event}.")
-
-    # Resolve name → bib
-    if not bib and search:
-        matches = _search_athletes(xml, search)
-        if not matches:
-            raise ValueError(
-                f"Athlète « {search} » introuvable sur l'événement TimePulse {id_event}. "
-                "Vérifiez l'orthographe du nom."
-            )
-        if len(matches) > 1:
-            listing = ", ".join(f"{name} (dossard {b})" for b, name, _ in matches)
-            raise ValueError(
-                f"Plusieurs athlètes correspondent à « {search} » : {listing}. "
-                "Précisez le prénom ou le dossard."
-            )
-        bib = matches[0][0]
-        new_qs = {k: v[0] for k, v in params.items()}
-        new_qs["bib"] = bib
-        new_qs.pop("search", None)
-        url = urlunparse(parsed._replace(query=urlencode(new_qs)))
-
-    if not bib:
-        raise ValueError(
-            "Numéro de dossard manquant. Ajoutez &bib=NUMERO à l'URL "
-            "ou saisissez le nom de l'athlète."
-        )
-
-    result = ScrapedResult(source_url=url, provider="timepulse", bib_number=bib)
-    raw: dict = {"bib": bib, "search": search, "id_event": id_event}
-
-    # --- Event metadata ---
-    epreuve_m = re.search(r"<Epreuve\s[^>]+>", xml)
-    if epreuve_m:
-        ea = _attrs(epreuve_m.group())
-        result.event_name = ea.get("nom", "")
-        date_str = ea.get("dates", "")
-        raw["event_dates"] = date_str
-        if date_str:
-            result.event_date = _parse_event_date(date_str)
-
-    result.event_type = _detect_event_type(result.event_name)
-
-    # --- Series → split field mapping ---
-    series_map = _parse_series(xml)  # {"s0": "swim", "s1": "t1", …}
-    raw["series_map"] = series_map
-
-    # --- Athlete registration (E tag) ---
-    e_tag = _find_tag(xml, "E", "d", bib)
-    parcours = ""
-    if e_tag:
-        ea = _attrs(e_tag)
-        full_name = ea.get("n", "")
-        surname, firstname = split_athlete_name(full_name)
-        result.athlete_name = surname
-        result.athlete_firstname = firstname
-        result.club = ea.get("c", "")
-        result.gender = ea.get("x", "")
-        result.category = ea.get("ca", "")
-        parcours = ea.get("p", "")
-
-    # --- Result (R tag) ---
-    r_tag = _find_tag(xml, "R", "d", bib)
-    if r_tag:
-        ra = _attrs(r_tag)
-        result.total_time = normalize_time(ra.get("t", ""))
-        # Map s0…sN to swim/t1/bike/t2/run via series_map.
-        # "First set wins": if a field is already populated (e.g. swimrun with
-        # multiple natation stages), subsequent values go to raw_data.
-        for key, field in series_map.items():
-            t = normalize_time(ra.get(key, ""))
-            if not t:
-                continue
-            if field == "swim":
-                if not result.swim_time:
-                    result.swim_time = t
-                else:
-                    raw[f"split_{key}"] = t
-            elif field == "t1":
-                if not result.t1_time:
-                    result.t1_time = t
-                else:
-                    raw[f"split_{key}"] = t
-            elif field == "bike":
-                if not result.bike_time:
-                    result.bike_time = t
-                else:
-                    raw[f"split_{key}"] = t
-            elif field == "t2":
-                if not result.t2_time:
-                    result.t2_time = t
-                else:
-                    raw[f"split_{key}"] = t
-            elif field == "run":
-                if not result.run_time:
-                    result.run_time = t
-                else:
-                    raw[f"split_{key}"] = t
-        raw["r_tag"] = r_tag
-
-        # Derive run_time when missing but total and other splits are known.
-        # Handles events with non-standard segment naming (e.g. "Boucle 1-5")
-        # where the run leg cannot be mapped from series labels.
-        if result.total_time and not result.run_time:
-            total_s = _secs(result.total_time)
-            known_s = sum(
-                _secs(t)
-                for t in [result.swim_time, result.t1_time, result.bike_time, result.t2_time]
-                if t
-            )
-            if total_s > 0 and known_s > 0 and total_s > known_s:
-                run_s = total_s - known_s
-                h_, rem = divmod(run_s, 3600)
-                m_, s_ = divmod(rem, 60)
-                result.run_time = f"{h_:02d}:{m_:02d}:{s_:02d}"
-                raw["run_derived"] = True
-    else:
-        raw["warning"] = "Pas de résultat disponible pour ce dossard."
-
-    # --- Rankings ---
-    if parcours and result.gender and result.category:
-        ro, rg, rc = _compute_ranks(xml, bib, parcours, result.gender, result.category)
-        result.rank_overall = ro
-        result.rank_gender = rg
-        result.rank_category = rc
-
-    result.raw_data = raw
-    return result
 
 
 # ---------------------------------------------------------------------------

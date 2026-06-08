@@ -1,45 +1,20 @@
 """
-Service de scraping d'un athlète unique (prévisualisation et sauvegarde manuelle).
+Service de persistance d'un résultat (saisie manuelle ou import d'épreuve).
 
-Traduit les exceptions des scrapers en exceptions domaine.
+`save_one` est la brique unitaire : réutilisée par la saisie manuelle
+(`POST /participations`) et en boucle par l'import d'épreuve complète.
 """
 import logging
 
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import (
-    DuplicateError,
-    InvalidUrlError,
-    MultipleMatchesError,
-    ScraperError,
-)
+from app.core.exceptions import DuplicateError
 from app.models.participation import Participation
 from app.repositories import participation_repository
-from app.scrapers import MultipleMatchesError as ScraperMultipleMatches
-from app.scrapers import scrape as registry_scrape
 from app.scrapers.base import ScrapedResult
 from app.services import mapping
 
 logger = logging.getLogger(__name__)
-
-
-def _validate_url(url: str) -> str:
-    url = (url or "").strip()
-    if not url.startswith("http"):
-        raise InvalidUrlError()
-    return url
-
-
-def preview(url: str, bib: str | None = None) -> ScrapedResult:
-    """Scrape un athlète sans persister (prévisualisation du formulaire)."""
-    url = _validate_url(url)
-    try:
-        return registry_scrape(url, bib=bib)
-    except ScraperMultipleMatches as exc:
-        raise MultipleMatchesError(exc.candidates) from exc
-    except Exception as exc:
-        logger.warning("Échec scraping %s : %s", url, exc)
-        raise ScraperError(f"Erreur lors du scraping : {exc}") from exc
 
 
 def save_one(db: Session, scraped: ScrapedResult, event_url: str = "") -> Participation:
