@@ -4,6 +4,7 @@ Configuration centralisée de l'application.
 Toutes les variables d'environnement passent par cet objet `Settings` typé
 (pydantic-settings) — plus aucun `os.getenv` éparpillé dans le code.
 """
+
 from functools import lru_cache
 
 from pydantic import field_validator
@@ -23,7 +24,12 @@ class Settings(BaseSettings):
     # ── CORS ──────────────────────────────────────────────────────────────────
     # Liste restreinte en production (plus de "*"). Format : URLs séparées par des
     # virgules dans la variable d'env CORS_ORIGINS.
-    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+    cors_origins: list[str] = [
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://localhost:5173",
+    ]
 
     # ── Logging ───────────────────────────────────────────────────────────────
     log_level: str = "INFO"
@@ -31,7 +37,7 @@ class Settings(BaseSettings):
 
     # ── Cache TTL dynamique (PRD F1) ──────────────────────────────────────────
     # Course en cours (un temps final manquant) → re-scrape rapide.
-    cache_ttl_in_progress_seconds: int = 10 * 60        # 10 minutes
+    cache_ttl_in_progress_seconds: int = 10 * 60  # 10 minutes
     # Course terminée (tous les temps présents) → re-scrape rare.
     cache_ttl_finished_seconds: int = 30 * 24 * 60 * 60  # 30 jours
 
@@ -58,7 +64,5 @@ def get_settings() -> Settings:
     settings = Settings()
     # Supabase (et certains PaaS) exposent postgres:// — SQLAlchemy veut postgresql://
     if settings.database_url.startswith("postgres://"):
-        settings.database_url = settings.database_url.replace(
-            "postgres://", "postgresql://", 1
-        )
+        settings.database_url = settings.database_url.replace("postgres://", "postgresql://", 1)
     return settings
