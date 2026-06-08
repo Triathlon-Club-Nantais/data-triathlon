@@ -53,7 +53,7 @@ def _extract_status(ea: dict[str, str], ra: dict[str, str]) -> str:
     Cherche d'abord un label texte (_STATUS_ATTRS) traduit via
     derive_status_from_label, puis le flag binaire np de TimePulse.
     """
-    for attrs in (ra, ea):
+    for attrs in (ea, ra):
         for name in _STATUS_ATTRS:
             val = attrs.get(name, "")
             if val:
