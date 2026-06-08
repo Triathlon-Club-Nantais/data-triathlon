@@ -50,3 +50,5 @@ tests/e2e/.cache/
 # AI Tools
 .claude/memory/
 docs/local/
+# Worktrees (git worktree fallback)
+.claude/worktrees/
