@@ -265,5 +265,4 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     return [
         _parse_athlete(a, split_map, url, event_name, event_type, event_date)
         for a in athletes
-        if _derive_status(a) == STATUS_FINISHER
     ]
