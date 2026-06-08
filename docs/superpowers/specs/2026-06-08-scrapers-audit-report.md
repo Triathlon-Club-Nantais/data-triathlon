@@ -79,9 +79,16 @@ Le champ `"O"` ne signifie donc pas « non-partant » ici → le filtre vide la 
 2. ~~**sportinnovation — forme 2026** `results.sportinnovation.fr/race/{slug}`~~ ✅
    **FAIT** : branche API JSON (slug → `raceId` → résultats), helpers
    `_classify_results_url` / `_parse_api_athlete` / `_scrape_results_race`.
-3. **Excel xlsx (optionnel)** : breizhchrono et chronosmetron exposent un export
-   Excel. Les scrapers HTML/XML actuels **fonctionnent déjà** → migration Excel = pari
-   robustesse/simplicité, pas une nécessité. À évaluer si le HTML/XML casse.
+3. ~~**Excel (optionnel)**~~ ❌ **ABANDONNÉ** (décision @tjarrier, 2026-06-08) après
+   investigation :
+   - **breizhchrono** : l'export `…/{heat}/export` est un **`.xls` legacy** (BIFF/OLE2,
+     pas `.xlsx`) → imposerait la dépendance `xlrd` + un parsing de colonnes dynamiques
+     (`Dossard, Nom, Prénom, Sexe, Club, Temps Officiel, Classement T1, T2 + CAP…`),
+     pour **remplacer un scraper qui marche** (302 participants, splits TCN déjà
+     récupérés). Bénéfice marginal, coût (dépendance + format legacy) trop élevé.
+   - **chronosmetron** : **aucun export Excel exposé** ; les données sont dans le XML
+     `.clax` déjà exploité par le scraper wiclax (1911 résultats, 84 % splits).
+   - *Réévaluable uniquement si le HTML/XML casse un jour.*
 4. **klikego/timepulse** : aucun correctif requis (fonctionnels).
 
 ## Reproduire
