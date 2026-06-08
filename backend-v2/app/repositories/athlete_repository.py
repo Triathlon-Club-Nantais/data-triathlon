@@ -71,6 +71,7 @@ def search(
         )
     if club:
         keywords = [k.strip() for k in club.split("|") if k.strip()]
-        q = q.filter(or_(*[Athlete.club.ilike(f"%{k}%") for k in keywords]))
+        if keywords:
+            q = q.filter(or_(*[Athlete.club.ilike(f"%{k}%") for k in keywords]))
     offset = (page - 1) * page_size
     return q.order_by(Athlete.nom, Athlete.prenom).offset(offset).limit(page_size).all()

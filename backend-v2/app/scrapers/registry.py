@@ -92,10 +92,13 @@ class WiclaxProvider:
     name = "wiclax"
 
     def matches(self, url: str) -> bool:
+        parsed = urlparse(url)
+        host = (parsed.netloc or "").lower()
+        path = parsed.path or ""
         return (
-            "wiclax-results.com" in url
-            or ("wiclax.com" in url and "G-Live" in url)
-            or "chronosmetron.com" in url
+            host.endswith("wiclax-results.com")
+            or host.endswith("chronosmetron.com")
+            or (host.endswith("wiclax.com") and "G-Live" in path)
         )
 
     def scrape_event_all(self, url: str) -> list[ScrapedResult]:

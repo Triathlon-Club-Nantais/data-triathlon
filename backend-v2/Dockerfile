@@ -1,4 +1,4 @@
-# Image API (sans Playwright). Le fallback Playwright pourra être isolé dans une
+# Image API (sans navigateurs Playwright). Le fallback Playwright pourra être isolé dans une
 # image dédiée ultérieurement (voir README — Suites).
 FROM python:3.11-slim
 

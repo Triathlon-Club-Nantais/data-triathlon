@@ -56,7 +56,8 @@ def _apply_filters(q, *, name, event_type, event_name, club, date_from, date_to)
         q = q.filter(or_(Athlete.nom.ilike(pattern), Athlete.prenom.ilike(pattern)))
     if club:
         keywords = [k.strip() for k in club.split("|") if k.strip()]
-        q = q.filter(or_(*[Participation.club.ilike(f"%{k}%") for k in keywords]))
+        if keywords:
+            q = q.filter(or_(*[Participation.club.ilike(f"%{k}%") for k in keywords]))
     if event_type:
         q = q.filter(Course.event_type == event_type)
     if event_name:
@@ -133,7 +134,8 @@ def for_stats(db: Session, club: str | None = None) -> list[Participation]:
     )
     if club:
         keywords = [k.strip() for k in club.split("|") if k.strip()]
-        q = q.filter(or_(*[Participation.club.ilike(f"%{k}%") for k in keywords]))
+        if keywords:
+            q = q.filter(or_(*[Participation.club.ilike(f"%{k}%") for k in keywords]))
     return q.all()
 
 
@@ -164,7 +166,8 @@ def events_with_counts(
         q = q.filter(or_(Athlete.nom.ilike(pattern), Athlete.prenom.ilike(pattern)))
     if club:
         keywords = [k.strip() for k in club.split("|") if k.strip()]
-        q = q.filter(or_(*[Participation.club.ilike(f"%{k}%") for k in keywords]))
+        if keywords:
+            q = q.filter(or_(*[Participation.club.ilike(f"%{k}%") for k in keywords]))
     if event_type:
         q = q.filter(Course.event_type == event_type)
     if event_name:

@@ -82,11 +82,12 @@ def list_all(
         q = q.filter(Course.event_type == event_type)
     if club:
         keywords = [k.strip() for k in club.split("|") if k.strip()]
-        q = (
-            q.join(Participation, Participation.course_id == Course.id)
-            .filter(or_(*[Participation.club.ilike(f"%{k}%") for k in keywords]))
-            .distinct()
-        )
+        if keywords:
+            q = (
+                q.join(Participation, Participation.course_id == Course.id)
+                .filter(or_(*[Participation.club.ilike(f"%{k}%") for k in keywords]))
+                .distinct()
+            )
     offset = (page - 1) * page_size
     return (
         q.order_by(Course.event_date.desc().nullslast(), Course.name)

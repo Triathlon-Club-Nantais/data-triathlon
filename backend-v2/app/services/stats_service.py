@@ -4,9 +4,9 @@ from sqlalchemy.orm import Session
 from app.repositories import participation_repository
 
 
-def _athlete_key(part) -> str:
-    a = part.athlete
-    return f"{a.nom}||{a.prenom}" if a else f"id:{part.athlete_id}"
+def _athlete_key(part) -> int:
+    # Utiliser l'id DB pour éviter les collisions entre homonymes.
+    return part.athlete_id
 
 
 def get_stats(db: Session, club: str | None = None) -> dict:
@@ -15,9 +15,8 @@ def get_stats(db: Session, club: str | None = None) -> dict:
     if not parts:
         return {"total": 0, "athletes": 0, "events": 0, "by_type": {}, "by_month": {}, "recent": []}
 
-    athlete_set = {_athlete_key(p) for p in parts}
-    event_set = {p.course.name for p in parts if p.course and p.course.name}
-
+    athlete_set = {p.athlete_id for p in parts}
+    event_set = {p.course_id for p in parts}
     by_type: dict[str, int] = {}
     by_month: dict[str, int] = {}
     for p in parts:
