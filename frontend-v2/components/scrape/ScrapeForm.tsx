@@ -27,7 +27,7 @@ export function ScrapeForm() {
     reportedRef.current = null;
     setManual(false);
     importStream.start(url);
-  }, [url, importStream.start]);
+  }, [url, importStream]);
 
   // Option A : sur échec réel de l'import, signaler le fournisseur et proposer la saisie manuelle.
   useEffect(() => {
