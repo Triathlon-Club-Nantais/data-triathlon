@@ -57,3 +57,21 @@ def test_sportinnovation_2026_race_url():
     assert results
     assert any(r.athlete_name and r.total_time for r in results)
     assert any(r.event_type for r in results)
+
+
+@pytest.mark.integration
+def test_prolivesport_includes_non_finishers():
+    """prolivesport renvoie désormais finishers ET non-finishers, chacun statué."""
+    url = LIVE_URLS["prolivesport"]
+    results = registry.scrape_event_all(url)
+    assert results, "prolivesport : aucun participant renvoyé"
+    statuses = {r.status for r in results}
+    assert "finisher" in statuses, "prolivesport : aucun finisher"
+    assert any(s != "finisher" for s in statuses), (
+        f"prolivesport : aucun non-finisher (statuts vus : {statuses})"
+    )
+    # Un non-finisher n'a ni temps total ni rang.
+    for r in results:
+        if r.status != "finisher":
+            assert not r.total_time, f"{r.status} avec un temps total : {r.total_time}"
+            assert r.rank_overall is None, f"{r.status} avec un rang : {r.rank_overall}"
