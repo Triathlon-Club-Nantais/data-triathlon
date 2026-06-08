@@ -1,5 +1,21 @@
 # Statuts DNS / DNF / DSQ — extension aux providers restants — design (2026-06-08)
 
+> **Implémenté** (2026-06-08) : commits `94d3202` (helper partagé),
+> `dc485b5`+`353409d` (TimePulse), `4268db0`+`f3e8d96` (Wiclax), `724df31`
+> (Klikego), `af489b1` (Breizh par héritage), `b63b5eb` (Sport Innovation),
+> `15cf6e0` (tests d'intégration). 209 tests unitaires verts.
+>
+> **Découvertes (réseau réel)** ayant ajusté les emplacements candidats du plan :
+> - **TimePulse** : non-partant encodé par le flag binaire `np="1"` sur `<E>`
+>   (→ DNS), pas par un attribut texte. Fix structurel : les `<E>` sans `<R>`
+>   sont désormais conservés.
+> - **Wiclax** : `np="1"` sur `<E>` (→ DNS) + libellé dans l'attribut temps `t`
+>   du `<R>` (`t="Abandon"`→DNF, `t="Disqualifié"`→DSQ). Correctif annexe : la
+>   ré-population du rang depuis `v` est gardée pour ne pas ressusciter un rang purgé.
+> - **Sport Innovation** : aucun champ de statut dans l'API (les non-finishers
+>   sont simplement omis) ni de libellé dans le HTML aujourd'hui → l'extraction
+>   est défensive (no-op tant que le payload n'expose pas de statut).
+
 > **Suite de** `2026-06-08-dns-dnf-handling-design.md` (prolivesport + infra,
 > déjà implémenté : commits `9a30c0e`, `574cd5f`, `85fc221`, `f16a11c`).
 > Ce spec couvre **les 5 providers restants** explicitement exclus du premier.
