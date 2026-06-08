@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,49 +15,48 @@ import type { ScrapedPreview } from "@/lib/types";
 
 export function ScrapeForm() {
   const [url, setUrl] = useState("");
-  const [bib, setBib] = useState("");
-  const [preview, setPreview] = useState<ScrapedPreview | null>(null);
-  const [scraping, setScraping] = useState(false);
   const [manual, setManual] = useState(false);
+  // Garde anti double-signalement pour une même URL en échec.
+  const reportedRef = useRef<string | null>(null);
 
   const save = useSaveParticipation();
   const importStream = useImportStream();
+  const { phase, error, running } = importStream.state;
 
-  const scrape = useCallback(async () => {
-    setScraping(true);
+  const startImport = useCallback(() => {
+    reportedRef.current = null;
     setManual(false);
-    try {
-      const result = await apiClient.scrape(url, bib || null);
-      setPreview(result);
-    } catch (e) {
-      toast.error((e as Error).message);
-      setManual(true);
-      apiClient.reportPendingProvider(url).catch(() => {});
-    } finally {
-      setScraping(false);
-    }
-  }, [url, bib]);
+    importStream.start(url);
+  }, [url, importStream.start]);
+
+  // Option A : sur échec réel de l'import, signaler le fournisseur et proposer la saisie manuelle.
+  useEffect(() => {
+    if (phase !== "error" || reportedRef.current === url) return;
+    reportedRef.current = url;
+    toast.error(error ?? "Import impossible");
+    apiClient.reportPendingProvider(url).catch(() => {});
+    setManual(true);
+  }, [phase, error, url]);
 
   const persist = useCallback(
     async (data: Partial<ScrapedPreview>) => {
       try {
         await save.mutateAsync(data);
         toast.success("Résultat enregistré.");
-        setPreview(null);
-        const eventUrl = data.source_url || url;
-        if (eventUrl) importStream.start(eventUrl);
+        setManual(false);
       } catch (e) {
         toast.error((e as Error).message);
       }
     },
-    [save, url, importStream],
+    [save],
   );
 
   return (
     <div className="space-y-6">
       <Card>
-        <CardContent className="space-y-4 p-5">
-          <div className="flex flex-col gap-1">
+        <CardContent className="space-y-4">
+          <StepHeader n={1} title="Source" hint="URL de chronométrage de l'épreuve" />
+          <div className="flex flex-col gap-1.5">
             <Label>URL de chronométrage</Label>
             <Input
               value={url}
@@ -66,13 +65,9 @@ export function ScrapeForm() {
             />
             <ProviderDetector url={url} />
           </div>
-          <div className="flex items-end gap-3">
-            <div className="flex flex-col gap-1">
-              <Label>Dossard (optionnel)</Label>
-              <Input value={bib} onChange={(e) => setBib(e.target.value)} className="w-32" />
-            </div>
-            <Button onClick={scrape} disabled={!url || scraping}>
-              {scraping ? "Analyse…" : "Analyser"}
+          <div className="flex flex-wrap items-end gap-3">
+            <Button onClick={startImport} disabled={!url || running}>
+              {running ? "Import…" : "Importer l'épreuve"}
             </Button>
             <Button variant="outline" onClick={() => setManual((m) => !m)}>
               Saisie manuelle
@@ -81,22 +76,10 @@ export function ScrapeForm() {
         </CardContent>
       </Card>
 
-      {preview && !manual && (
-        <Card>
-          <CardContent className="space-y-4 p-5">
-            <h3 className="font-semibold">Prévisualisation — vérifiez puis enregistrez</h3>
-            <PreviewEditor preview={preview} onChange={setPreview} />
-            <Button onClick={() => persist(preview)} disabled={save.isPending}>
-              {save.isPending ? "Enregistrement…" : "Enregistrer"}
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
       {manual && (
         <Card>
-          <CardContent className="space-y-4 p-5">
-            <h3 className="font-semibold">Saisie manuelle</h3>
+          <CardContent className="space-y-4">
+            <StepHeader n={2} title="Saisie manuelle" hint="Renseignez le résultat à la main" />
             <ManualResultForm defaultUrl={url} onSubmit={persist} submitting={save.isPending} />
           </CardContent>
         </Card>
@@ -107,32 +90,16 @@ export function ScrapeForm() {
   );
 }
 
-/** Éditeur minimal des champs clés de la preview avant enregistrement. */
-function PreviewEditor({
-  preview,
-  onChange,
-}: {
-  preview: ScrapedPreview;
-  onChange: (p: ScrapedPreview) => void;
-}) {
-  const set = (k: keyof ScrapedPreview, v: string) => onChange({ ...preview, [k]: v });
+function StepHeader({ n, title, hint }: { n: number; title: string; hint: string }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      <Labeled label="Prénom"><Input value={preview.athlete_firstname} onChange={(e) => set("athlete_firstname", e.target.value)} /></Labeled>
-      <Labeled label="Nom"><Input value={preview.athlete_name} onChange={(e) => set("athlete_name", e.target.value)} /></Labeled>
-      <Labeled label="Club"><Input value={preview.club} onChange={(e) => set("club", e.target.value)} /></Labeled>
-      <Labeled label="Catégorie"><Input value={preview.category} onChange={(e) => set("category", e.target.value)} /></Labeled>
-      <Labeled label="Épreuve"><Input value={preview.event_name} onChange={(e) => set("event_name", e.target.value)} /></Labeled>
-      <Labeled label="Temps total"><Input value={preview.total_time} onChange={(e) => set("total_time", e.target.value)} /></Labeled>
-    </div>
-  );
-}
-
-function Labeled({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <Label>{label}</Label>
-      {children}
+    <div className="flex items-center gap-3 border-b pb-3">
+      <span className="grid size-7 shrink-0 place-content-center rounded-full bg-primary text-primary-foreground text-sm font-bold">
+        {n}
+      </span>
+      <div>
+        <h3 className="font-heading font-semibold leading-tight">{title}</h3>
+        <p className="text-xs text-muted-foreground">{hint}</p>
+      </div>
     </div>
   );
 }
