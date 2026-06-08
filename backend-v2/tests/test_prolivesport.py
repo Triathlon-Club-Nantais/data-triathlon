@@ -86,6 +86,44 @@ def test_parse_athlete_skips_zero_splits():
     assert r.swim_time == ""
 
 
+def test_parse_athlete_finisher_keeps_time_and_ranks_and_status():
+    athlete = {
+        "lastname": "Dupont", "firstname": "Jean", "number": "42",
+        "rank": "5", "rankSex": "4", "rankCat": "1", "time": "01:59:00",
+    }
+    r = _parse_athlete(athlete, {}, "http://x", "E", "triathlon-s", None)
+    assert r.status == "finisher"
+    assert r.total_time == "01:59:00"
+    assert r.rank_overall == 5
+    assert r.rank_gender == 4
+    assert r.rank_category == 1
+
+
+def test_parse_athlete_dns_clears_time_and_ranks():
+    # Non-partant : pas de temps. L'API renvoie des rangs sentinelles (99991/99992).
+    athlete = {
+        "lastname": "Martin", "number": "7",
+        "rank": "99991", "rankSex": "99992", "rankCat": "99991", "time": "",
+    }
+    r = _parse_athlete(athlete, {}, "http://x", "E", "triathlon-s", None)
+    assert r.status == "DNS"
+    assert r.total_time == ""
+    assert r.rank_overall is None
+    assert r.rank_gender is None
+    assert r.rank_category is None
+
+
+def test_parse_athlete_dnf_clears_time_and_ranks():
+    athlete = {
+        "lastname": "Durand", "number": "8",
+        "dnf": "O", "rank": "99991", "time": "00:00:00",
+    }
+    r = _parse_athlete(athlete, {}, "http://x", "E", "triathlon-s", None)
+    assert r.status == "DNF"
+    assert r.total_time == ""
+    assert r.rank_overall is None
+
+
 def test_detect_event_type():
     assert _detect_event_type("Triathlon M") == "triathlon-m"
     assert _detect_event_type("Triathlon S") == "triathlon-s"

@@ -86,10 +86,14 @@ def _parse_athlete(athlete: dict, split_map: dict, url: str, event_name: str, ev
     result.club = athlete.get("club", "")
     result.category = athlete.get("categoryRef", athlete.get("category", ""))
     result.gender = athlete.get("sex", "")
-    result.rank_overall = normalize_rank(athlete.get("rank"))
-    result.rank_gender = normalize_rank(athlete.get("rankSex"))
-    result.rank_category = normalize_rank(athlete.get("rankCat"))
-    result.total_time = normalize_time(athlete.get("time", ""))
+    result.status = _derive_status(athlete)
+    if result.status == STATUS_FINISHER:
+        result.rank_overall = normalize_rank(athlete.get("rank"))
+        result.rank_gender = normalize_rank(athlete.get("rankSex"))
+        result.rank_category = normalize_rank(athlete.get("rankCat"))
+        result.total_time = normalize_time(athlete.get("time", ""))
+    # Non-finisher : on laisse total_time="" et les rangs à None (défauts de la
+    # dataclass) — l'API renvoie des sentinelles (99991/99992) pour les non-classés.
 
     # Extract splits using the field→role mapping
     for field, role in split_map.items():
