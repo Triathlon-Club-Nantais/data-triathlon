@@ -3,7 +3,7 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Users } from "lucide-react";
-import { CLUB_COOKIE } from "@/lib/club-cookie";
+import { CLUB_COOKIE } from "@/lib/club-constants";
 
 export function ClubFilterToggle({ active }: { active: boolean }) {
   const router = useRouter();
