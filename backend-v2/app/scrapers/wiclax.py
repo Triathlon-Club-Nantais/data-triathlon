@@ -13,8 +13,13 @@ from urllib.parse import parse_qs, unquote, urlencode, urljoin, urlparse, urlunp
 
 import httpx
 
-from .base import ScrapedResult
-from .utils import normalize_rank, normalize_time, split_athlete_name
+from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
+from .utils import (
+    derive_status_from_label,
+    normalize_rank,
+    normalize_time,
+    split_athlete_name,
+)
 
 HEADERS = {
     "User-Agent": (
@@ -24,6 +29,27 @@ HEADERS = {
     )
 }
 
+
+# Attributs candidats (forward-compat) ; le vrai signal Wiclax est le flag np.
+_STATUS_ATTRS = ("Status", "status", "State", "state", "Etat", "etat", "st")
+
+
+def _competitor_status(comp) -> str:
+    """Statut explicite d'un élément (E/Competitor/R) ; "" sinon.
+
+    Découverte (épreuve réelle) : Wiclax ne pose pas d'attribut de statut nommé
+    mais un flag binaire np="1" sur le <E> pour les non-partants (→ DNS), comme
+    TimePulse. Les attributs nommés restent scannés par sécurité/forward-compat.
+    """
+    for name in _STATUS_ATTRS:
+        val = comp.get(name)
+        if val:
+            status = derive_status_from_label(val)
+            if status:
+                return status
+    if (comp.get("np") or "").strip() not in ("", "0"):
+        return STATUS_DNS
+    return ""
 
 
 def _parse_competitor(comp, url: str, event_name: str, event_type: str) -> ScrapedResult:
@@ -90,6 +116,13 @@ def _parse_competitor(comp, url: str, event_name: str, event_type: str) -> Scrap
         elif "run" in sname or "cap" in sname or "course" in sname:
             if not result.run_time:
                 result.run_time = stime
+
+    result.status = _competitor_status(comp)
+    if result.status in (STATUS_DNF, STATUS_DNS, STATUS_DSQ):
+        result.total_time = ""
+        result.rank_overall = None
+        result.rank_category = None
+        result.rank_gender = None
 
     result.raw_data = raw
     return result
@@ -318,14 +351,26 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
             if not bib:
                 continue
             r = _parse_competitor(comp, base_url, event_name, event_type)
-            # Rank from v attribute on E element
-            if comp.get("v") and not r.rank_overall:
+            # Rank from v attribute on E element — sauf non-finisher (hygiène déjà
+            # appliquée par _parse_competitor : ne pas ressusciter un rang purgé).
+            is_non_finisher = r.status in (STATUS_DNF, STATUS_DNS, STATUS_DSQ)
+            if comp.get("v") and not r.rank_overall and not is_non_finisher:
                 r.rank_overall = normalize_rank(comp.get("v"))
             # Timing from sibling R element
             result_elem = r_by_bib.get(bib)
-            if result_elem is not None and not r.total_time:
-                r.total_time = normalize_time(result_elem.get("t", ""))
-                _fill_er_splits(result_elem, r, split_idx)
+            if result_elem is not None:
+                raw_t = result_elem.get("t", "")
+                # Le statut peut venir d'un attribut nommé du <R>, ou d'un libellé
+                # logé dans l'attribut temps (ex. t="Abandon"/"Disqualifié").
+                if not r.status:
+                    r.status = _competitor_status(result_elem) or derive_status_from_label(raw_t)
+                is_non_finisher = r.status in (STATUS_DNF, STATUS_DNS, STATUS_DSQ)
+                if is_non_finisher:
+                    r.total_time = ""
+                    r.rank_overall = r.rank_category = r.rank_gender = None
+                elif not r.total_time:
+                    r.total_time = normalize_time(raw_t)
+                    _fill_er_splits(result_elem, r, split_idx)
             r.event_date = event_date
             results.append(r)
 

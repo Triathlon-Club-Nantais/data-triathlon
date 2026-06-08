@@ -10,11 +10,13 @@ import xml.etree.ElementTree as ET
 from app.scrapers.base import ScrapedResult
 from app.scrapers.wiclax import (
     _build_split_indices,
+    _competitor_status,
     _detect_event_type,
     _fill_er_splits,
     _get_competitor_bib,
     _get_competitor_fullname,
     _parse_competitor,
+    scrape_event_all,
 )
 
 
@@ -122,3 +124,128 @@ def test_fill_er_splits_fallback_no_segments():
     assert r.bike_time == "01:05:00"
     assert r.t2_time == "00:00:50"
     assert r.run_time == "00:41:10"
+
+
+# --- Statut explicite + hygiène non-finisher ---------------------------------
+
+
+def test_parse_competitor_explicit_status_dnf():
+    """Attribut Status="Abandon" → DNF + hygiène (temps/rangs purgés)."""
+    comp = _el(
+        '<Competitor Bib="5" Name="DUPONT" FirstName="Jean" '
+        'Status="Abandon" Time="01:00:00" Rank="3"/>'
+    )
+    r = _parse_competitor(comp, "http://x", "Triathlon", "triathlon-s")
+    assert r.status == "DNF"
+    assert r.total_time == ""
+    assert r.rank_overall is None
+
+
+def test_parse_competitor_no_status_is_empty():
+    """Sans marqueur → status="" et temps conservé (heuristique infra)."""
+    comp = _el(
+        '<Competitor Bib="5" Name="DUPONT" FirstName="Jean" Time="01:00:00" Rank="3"/>'
+    )
+    r = _parse_competitor(comp, "http://x", "Triathlon", "triathlon-s")
+    assert r.status == ""
+    assert r.total_time == "01:00:00"
+    assert r.rank_overall == 3
+
+
+def test_competitor_status_real_np_flag_is_dns():
+    """Vrai signal Wiclax : flag binaire np="1" sur le <E> → DNS."""
+    assert _competitor_status(_el('<E d="7" np="1"/>')) == "DNS"
+    assert _competitor_status(_el('<E d="7" np="0"/>')) == ""
+    assert _competitor_status(_el('<E d="7"/>')) == ""
+
+
+def test_parse_competitor_np_flag_dns_hygiene():
+    """np="1" sur un <E> → DNS + hygiène (temps/rangs purgés)."""
+    comp = _el('<E d="7" v="12" x="M" ca="S3H" Time="01:00:00" np="1"/>')
+    r = _parse_competitor(comp, "http://x", "Triathlon", "triathlon-s")
+    assert r.status == "DNS"
+    assert r.total_time == ""
+    assert r.rank_overall is None
+    assert r.rank_category is None
+    assert r.rank_gender is None
+
+
+def _event_xml(competitors: str, results: str) -> str:
+    """Construit un .clax minimal au format ChronoSmetron E/R."""
+    return (
+        '<Root><Event Name="Triathlon Test" dt1="2026-06-08"/>'
+        f"<Competitors>{competitors}</Competitors>"
+        f"<Results>{results}</Results></Root>"
+    )
+
+
+def test_scrape_event_all_er_status_label_in_time_dnf(monkeypatch):
+    """Un <R t="Abandon"> (libellé logé dans l'attribut temps) → DNF + hygiène."""
+    xml = _event_xml(
+        competitors='<E d="11" n="Jean DUPONT" x="M" ca="S3H" v="2"/>',
+        results='<R d="11" t="Abandon"/>',
+    )
+    root = ET.fromstring(xml)
+    monkeypatch.setattr(
+        "app.scrapers.wiclax._fetch_clax",
+        lambda _url: (root, "http://x", "Triathlon Test", "triathlon-s", None),
+    )
+    results = scrape_event_all("http://x")
+    by_bib = {r.bib_number: r for r in results}
+    assert by_bib["11"].status == "DNF"
+    assert by_bib["11"].total_time == ""
+    assert by_bib["11"].rank_overall is None
+
+
+def test_scrape_event_all_er_status_label_in_time_dsq(monkeypatch):
+    """Un <R t="Disqualifié"> → DSQ + hygiène."""
+    xml = _event_xml(
+        competitors='<E d="12" n="Marie BETA" x="F" ca="S2F" v="4"/>',
+        results='<R d="12" t="Disqualifié"/>',
+    )
+    root = ET.fromstring(xml)
+    monkeypatch.setattr(
+        "app.scrapers.wiclax._fetch_clax",
+        lambda _url: (root, "http://x", "Triathlon Test", "triathlon-s", None),
+    )
+    results = scrape_event_all("http://x")
+    by_bib = {r.bib_number: r for r in results}
+    assert by_bib["12"].status == "DSQ"
+    assert by_bib["12"].total_time == ""
+    assert by_bib["12"].rank_overall is None
+
+
+def test_scrape_event_all_er_np_flag_dns(monkeypatch):
+    """np="1" sur l'<E> dans le flux épreuve → DNS, même sans <R>."""
+    xml = _event_xml(
+        competitors='<E d="13" n="Paul GAMMA" x="M" ca="V1H" v="9" np="1"/>',
+        results="",
+    )
+    root = ET.fromstring(xml)
+    monkeypatch.setattr(
+        "app.scrapers.wiclax._fetch_clax",
+        lambda _url: (root, "http://x", "Triathlon Test", "triathlon-s", None),
+    )
+    results = scrape_event_all("http://x")
+    by_bib = {r.bib_number: r for r in results}
+    assert by_bib["13"].status == "DNS"
+    assert by_bib["13"].total_time == ""
+    assert by_bib["13"].rank_overall is None
+
+
+def test_scrape_event_all_er_finisher_unaffected(monkeypatch):
+    """Un finisher normal (R t=temps) conserve temps/rang, status vide."""
+    xml = _event_xml(
+        competitors='<E d="14" n="Luc DELTA" x="M" ca="S3H" v="1"/>',
+        results='<R d="14" t="01:02:03"/>',
+    )
+    root = ET.fromstring(xml)
+    monkeypatch.setattr(
+        "app.scrapers.wiclax._fetch_clax",
+        lambda _url: (root, "http://x", "Triathlon Test", "triathlon-s", None),
+    )
+    results = scrape_event_all("http://x")
+    by_bib = {r.bib_number: r for r in results}
+    assert by_bib["14"].status == ""
+    assert by_bib["14"].total_time == "01:02:03"
+    assert by_bib["14"].rank_overall == 1
