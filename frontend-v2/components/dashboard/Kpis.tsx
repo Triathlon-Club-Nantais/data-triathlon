@@ -1,9 +1,10 @@
 import { Card, CardContent } from "@/components/ui/card";
+import { Stat } from "@/components/ui/stat";
 import type { Stats } from "@/lib/types";
 
 export function Kpis({ stats }: { stats: Stats }) {
-  const items = [
-    { label: "Résultats importés", value: stats.total },
+  const items: { label: string; value: number; accent?: boolean }[] = [
+    { label: "Résultats importés", value: stats.total, accent: true },
     { label: "Athlètes", value: stats.athletes },
     { label: "Épreuves", value: stats.events },
   ];
@@ -12,8 +13,7 @@ export function Kpis({ stats }: { stats: Stats }) {
       {items.map((it) => (
         <Card key={it.label}>
           <CardContent className="p-5">
-            <div className="text-3xl font-extrabold">{it.value}</div>
-            <div className="text-sm text-muted-foreground">{it.label}</div>
+            <Stat value={it.value} label={it.label} accent={it.accent} />
           </CardContent>
         </Card>
       ))}

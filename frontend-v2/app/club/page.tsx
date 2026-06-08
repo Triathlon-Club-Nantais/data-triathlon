@@ -1,15 +1,22 @@
 import { apiServer } from "@/lib/api/server";
-import { isClubFilterActive, TCN_CLUB_FILTER } from "@/lib/club-cookie";
-import { ClubStats } from "@/components/club/ClubStats";
+import { TCN_CLUB_FILTER } from "@/lib/club-constants";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { ClubDashboard } from "@/components/club/ClubDashboard";
 
+// La page Club est TOUJOURS filtrée sur le club, indépendamment de toute portée.
 export default async function ClubPage() {
-  const clubActive = await isClubFilterActive();
-  const stats = await apiServer.getStats(clubActive ? TCN_CLUB_FILTER : undefined);
+  const [stats, participations] = await Promise.all([
+    apiServer.getStats(TCN_CLUB_FILTER),
+    apiServer.listParticipations({ club: TCN_CLUB_FILTER, page_size: 1000 }),
+  ]);
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Statistiques du club</h1>
-      <ClubStats stats={stats} />
+    <div className="space-y-8">
+      <PageHeader
+        title="Espace club"
+        description="Synthèse, podiums et athlètes du Triathlon Club Nantais."
+      />
+      <ClubDashboard stats={stats} participations={participations} />
     </div>
   );
 }

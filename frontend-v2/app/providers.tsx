@@ -12,7 +12,8 @@ export function Providers({ children }: { children: ReactNode }) {
   );
   return (
     <QueryClientProvider client={client}>
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      {/* SPLIT : thème clair par défaut, sombre en option (Tweaks). */}
+      <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
         {children}
       </ThemeProvider>
     </QueryClientProvider>

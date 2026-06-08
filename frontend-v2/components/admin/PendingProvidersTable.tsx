@@ -9,6 +9,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { usePendingProviders, useMarkProviderHandled } from "@/lib/queries/admin";
 import { formatDate } from "@/lib/utils/date";
 
@@ -16,9 +19,14 @@ export function PendingProvidersTable() {
   const { data, isLoading } = usePendingProviders();
   const mark = useMarkProviderHandled();
 
-  if (isLoading) return <p className="text-muted-foreground">Chargement…</p>;
+  if (isLoading) return <Skeleton className="h-40 w-full" />;
   if (!data || data.length === 0) {
-    return <p className="text-muted-foreground">Aucun fournisseur signalé.</p>;
+    return (
+      <EmptyState
+        title="Aucun fournisseur signalé"
+        description="Tout fournisseur de chronométrage non reconnu lors d'un import apparaîtra ici."
+      />
+    );
   }
 
   async function handle(id: number) {
@@ -31,6 +39,7 @@ export function PendingProvidersTable() {
   }
 
   return (
+    <Card className="p-0">
     <Table>
       <TableHeader>
         <TableRow>
@@ -59,5 +68,6 @@ export function PendingProvidersTable() {
         ))}
       </TableBody>
     </Table>
+    </Card>
   );
 }

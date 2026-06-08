@@ -1,5 +1,7 @@
 import { apiServer } from "@/lib/api/server";
-import { isClubFilterActive, TCN_CLUB_FILTER } from "@/lib/club-cookie";
+import { clubFromScope } from "@/lib/scope";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { ScopeToggle } from "@/components/layout/ScopeToggle";
 import { ResultsFilters } from "@/components/results/ResultsFilters";
 import { ResultsList } from "@/components/results/ResultsList";
 import type { ParticipationFilters } from "@/lib/types";
@@ -10,7 +12,6 @@ export default async function ResultatsPage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const sp = await searchParams;
-  const clubActive = await isClubFilterActive();
 
   const filters: ParticipationFilters = {
     name: sp.name,
@@ -18,7 +19,7 @@ export default async function ResultatsPage({
     event_name: sp.event_name,
     date_from: sp.date_from,
     date_to: sp.date_to,
-    club: clubActive ? TCN_CLUB_FILTER : undefined,
+    club: clubFromScope(sp.scope),
     page_size: 500,
   };
 
@@ -26,7 +27,11 @@ export default async function ResultatsPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Résultats</h1>
+      <PageHeader
+        title="Résultats"
+        description={`${participations.length} résultat${participations.length > 1 ? "s" : ""}`}
+        actions={<ScopeToggle />}
+      />
       <ResultsFilters />
       <ResultsList initial={participations} />
     </div>

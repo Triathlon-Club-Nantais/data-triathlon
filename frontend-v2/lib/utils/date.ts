@@ -15,6 +15,15 @@ export function formatMonth(ym: string | null | undefined): string {
   });
 }
 
+export function formatMonthShort(ym: string | null | undefined): string {
+  if (!ym) return "";
+  const m = String(ym).match(/^(\d{4})-(\d{2})/);
+  if (!m) return String(ym);
+  return new Date(+m[1], +m[2] - 1, 1)
+    .toLocaleDateString("fr-FR", { month: "short" })
+    .replace(".", "");
+}
+
 export function timeAgo(iso: string | null | undefined): string {
   if (!iso) return "";
   const ts = new Date(iso).getTime();

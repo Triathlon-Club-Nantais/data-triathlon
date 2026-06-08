@@ -7,6 +7,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { ResultCard } from "./ResultCard";
 import { SportBadge } from "./SportBadge";
 import { formatDate } from "@/lib/utils/date";
@@ -49,7 +50,12 @@ export function EventGroup({
   }, [participations]);
 
   if (groups.length === 0) {
-    return <p className="py-10 text-center text-muted-foreground">Aucun résultat.</p>;
+    return (
+      <EmptyState
+        title="Aucun résultat"
+        description="Importez une épreuve depuis une URL de chronométrage pour voir apparaître les résultats ici."
+      />
+    );
   }
 
   return (

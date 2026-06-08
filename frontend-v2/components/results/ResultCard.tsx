@@ -1,10 +1,13 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
+import { Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SportBadge } from "./SportBadge";
+import { Medal } from "@/components/ui/medal";
+import { InitialsAvatar } from "@/components/ui/initials-avatar";
 import { splitSegments } from "@/lib/utils/splits";
 import { formatDate, timeAgo } from "@/lib/utils/date";
 import type { Participation } from "@/lib/types";
@@ -36,28 +39,31 @@ export function ResultCard({
     <Card>
       <CardContent className="space-y-3 p-5">
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <Link href={`/athletes/${a.id}`} className="text-lg font-bold hover:underline">
-              {fullName}
-            </Link>
-            <div className="mt-1 flex flex-wrap gap-2 text-sm text-muted-foreground">
-              {result.club && <span>{result.club}</span>}
-              {result.category && <Badge variant="outline">{result.category}</Badge>}
-              {a?.gender && <Badge variant="outline">{a.gender}</Badge>}
+          <div className="flex items-start gap-3">
+            <InitialsAvatar name={fullName} size={38} className="mt-0.5" />
+            <div>
+              <Link href={`/athletes/${a.id}`} className="text-lg font-bold hover:underline">
+                {fullName}
+              </Link>
+              <div className="mt-1 flex flex-wrap gap-2 text-sm text-muted-foreground">
+                {result.club && <span>{result.club}</span>}
+                {result.category && <Badge variant="outline">{result.category}</Badge>}
+                {a?.gender && <Badge variant="outline">{a.gender}</Badge>}
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-3">
             {result.total_time && (
-              <span className="font-mono text-xl font-extrabold">{result.total_time}</span>
+              <span className="num text-xl font-extrabold">{result.total_time}</span>
             )}
             {onDelete && (
               <Button
                 variant={confirming ? "destructive" : "ghost"}
-                size="sm"
+                size={confirming ? "sm" : "icon-sm"}
                 onClick={handleDelete}
                 aria-label={confirming ? "Confirmer la suppression" : "Supprimer"}
               >
-                {confirming ? "Confirmer ?" : "×"}
+                {confirming ? "Confirmer ?" : <Trash2 className="size-4" />}
               </Button>
             )}
           </div>
@@ -93,10 +99,15 @@ export function ResultCard({
                 className="flex min-w-[60px] flex-col items-center"
                 style={{ opacity: s.small ? 0.6 : 1 }}
               >
-                <span className="text-xs font-bold uppercase" style={{ color: s.color }}>
+                <span
+                  className="micro-label"
+                  style={{
+                    color: `color-mix(in oklch, ${s.color}, var(--foreground) var(--ink-mix))`,
+                  }}
+                >
                   {s.label}
                 </span>
-                <span className="font-mono text-sm font-semibold">{s.time}</span>
+                <span className="num text-sm font-semibold">{s.time}</span>
               </div>
             ))}
           </div>
@@ -115,9 +126,16 @@ export function ResultCard({
 
 function Rank({ label, value }: { label: string; value: number }) {
   return (
-    <div className="flex flex-col items-center">
-      <span className="text-[11px] font-semibold uppercase text-muted-foreground">{label}</span>
-      <span className="text-xl font-extrabold">{value}e</span>
+    <div className="flex flex-col items-center gap-1">
+      <span className="micro-label text-muted-foreground">{label}</span>
+      {value <= 3 ? (
+        <Medal rank={value} size={26} />
+      ) : (
+        <span className="num text-xl font-extrabold">
+          {value}
+          <span className="align-super text-xs">ᵉ</span>
+        </span>
+      )}
     </div>
   );
 }

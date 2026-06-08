@@ -10,10 +10,11 @@ export interface Segment {
 
 type SchemaEntry = { key: string; label: string; color: string; small?: boolean };
 
-const SWIM = "#3b82f6";
-const RUN = "#10b981";
-const BIKE = "#f59e0b";
-const TRANS = "#94a3b8";
+// Échelle catégorielle SPLIT (cf. lib/sport-colors).
+const SWIM = "var(--swim)";
+const RUN = "var(--run)";
+const BIKE = "var(--bike)";
+const TRANS = "var(--muted-foreground)"; // transitions T1/T2 en neutre
 
 const SCHEMAS: Record<string, SchemaEntry[]> = {
   duathlon: [
