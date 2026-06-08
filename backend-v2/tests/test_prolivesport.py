@@ -8,8 +8,8 @@ import pytest
 
 from app.scrapers.prolivesport import (
     _build_split_map,
+    _derive_status,
     _detect_event_type,
-    _is_finisher,
     _parse_athlete,
     _parse_url,
     _resolve_race,
@@ -142,24 +142,32 @@ def test_resolve_race_index_out_of_range_raises():
 
 
 # ---------------------------------------------------------------------------
-# _is_finisher — un finisher a un temps réel (le champ dns n'est pas fiable)
+# _derive_status — lit dsq / dnf / time (le champ dns de l'API n'est pas fiable)
 # ---------------------------------------------------------------------------
 
-def test_is_finisher_with_time():
-    # Cas réel : dns="O" alors que l'athlète a fini (le filtre ne doit PAS l'exclure)
-    assert _is_finisher({"time": "01:59:00", "dns": "O"}) is True
+def test_derive_status_dsq():
+    assert _derive_status({"dsq": "O", "time": "01:59:00"}) == "DSQ"
 
 
-def test_is_finisher_no_time():
-    assert _is_finisher({"time": "", "dns": "O"}) is False
+def test_derive_status_dnf():
+    assert _derive_status({"dnf": "O", "time": ""}) == "DNF"
 
 
-def test_is_finisher_zero_time():
-    assert _is_finisher({"time": "00:00:00"}) is False
+def test_derive_status_finisher_with_time():
+    # Cas réel : dns="O" alors que l'athlète a fini → finisher (pas DNS).
+    assert _derive_status({"time": "01:59:00", "dns": "O"}) == "finisher"
 
 
-def test_is_finisher_missing_time():
-    assert _is_finisher({}) is False
+def test_derive_status_dns_no_time():
+    assert _derive_status({"time": "", "dns": "O"}) == "DNS"
+
+
+def test_derive_status_dns_zero_time():
+    assert _derive_status({"time": "00:00:00"}) == "DNS"
+
+
+def test_derive_status_dsq_takes_precedence_over_dnf():
+    assert _derive_status({"dsq": "O", "dnf": "O", "time": ""}) == "DSQ"
 
 
 # ---------------------------------------------------------------------------

@@ -22,7 +22,13 @@ from urllib.parse import parse_qs, urlparse
 
 import httpx
 
-from .base import ScrapedResult
+from .base import (
+    STATUS_DNF,
+    STATUS_DNS,
+    STATUS_DSQ,
+    STATUS_FINISHER,
+    ScrapedResult,
+)
 from .utils import normalize_rank, normalize_time
 
 API_BASE = "https://api.prolivesport.fr/apiws"
@@ -218,13 +224,20 @@ def _resolve_race(race: str, races: list[dict]) -> str:
     return race
 
 
-def _is_finisher(athlete: dict) -> bool:
+def _derive_status(athlete: dict) -> str:
+    """Statut sportif d'un athlète prolivesport, lu des champs distincts de l'API.
+
+    Le champ `dns` est ignoré car non fiable (`dns="O"` est posé sur des
+    finishers) ; on déduit DNS de l'absence de temps réel.
     """
-    Vrai si l'athlète a un temps réel. Le champ `dns` de l'API n'est pas fiable
-    (des finishers portent `dns="O"`) → on se base sur la présence d'un temps non nul.
-    """
+    if (athlete.get("dsq") or "").strip().upper() == "O":
+        return STATUS_DSQ
+    if (athlete.get("dnf") or "").strip().upper() == "O":
+        return STATUS_DNF
     t = (athlete.get("time") or "").strip()
-    return bool(t) and t != "00:00:00"
+    if t and t != "00:00:00":
+        return STATUS_FINISHER
+    return STATUS_DNS
 
 
 def scrape_event_all(url: str) -> list[ScrapedResult]:
@@ -248,5 +261,5 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     return [
         _parse_athlete(a, split_map, url, event_name, event_type, event_date)
         for a in athletes
-        if _is_finisher(a)
+        if _derive_status(a) == STATUS_FINISHER
     ]
