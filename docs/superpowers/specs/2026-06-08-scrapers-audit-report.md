@@ -40,26 +40,39 @@ qui exposent les splits pour tous (wiclax, timepulse, sportinnovation).
   `scrape_event_all` (qui attend `path_parts[0]` = codeUrl, or le chemin commence par
   `/race/`). À vérifier en Phase 2.
 
-## Détail prolivesport (faux négatif d'URL)
+## Détail prolivesport — DEUX bugs (scrape_event_all non fonctionnel)
 
-L'URL front `prolivesport.fr/result/1082/6` utilise un **index positionnel** de
-course, pas un code. Le scraper, lui, n'accepte que `?eventId=…&race=<code>`.
+L'API est saine (token `AUTH_PLSWS_V2`), mais `scrape_event_all` ne renvoie
+**jamais** de résultat sur cet événement, pour deux raisons cumulées :
 
-Vérifié sur l'API (`api.prolivesport.fr/apiws`, token `AUTH_PLSWS_V2`) :
-- `result/raceList/1082/` → 11 courses, codes nommés : `PO-PU, BE-MI, S_Light,
-  Challenge, TREP, TRGP, S, M, M_relay, SUPP2, SUPP`.
-- L'index **6** (0-based) de cette liste = **`S`**.
-- `result/indiv/1082/S/` → **1188 athlètes**. `result/indiv/1082/6/` → 0.
+**Bug A — forme d'URL non gérée.** L'URL front `prolivesport.fr/result/1082/6`
+utilise un **index positionnel** de course, pas un code. Le scraper n'accepte que
+`?eventId=…&race=<code>`.
+- `result/raceList/1082/` → 11 courses : `PO-PU, BE-MI, S_Light, Challenge, TREP,
+  TRGP, S, M, M_relay, SUPP2, SUPP`. L'index **6** (0-based) = **`S`**.
+- *Correctif :* parser `/result/{eventId}/{raceIndex}` et résoudre l'index → code
+  via `raceList` avant l'appel `indiv`.
 
-→ L'API et le parsing sont sains. **Correctif Phase 2 :** parser la forme
-`/result/{eventId}/{raceIndex}` et résoudre `raceIndex` → code course via
-`raceList` avant l'appel `indiv`.
+**Bug B — filtre DNS inversé (le plus grave).** Même avec une URL valide
+(`?eventId=1082&race=S`), `scrape_event_all` renvoie **0**. `_fetch_indiv` ramène
+pourtant bien **1188 athlètes**, mais le filtre final les supprime tous :
+```python
+[... for a in athletes if a.get("dns", "N") != "O"]  # exclut les "DNS"
+```
+Or sur ces données **les 1188 finishers ont `dns="O"`** (et tous ont un temps).
+Le champ `"O"` ne signifie donc pas « non-partant » ici → le filtre vide la liste.
+- *Correctif :* ne plus exclure sur `dns=="O"`. Filtrer les vrais abandons via la
+  présence d'un `time` (ou recouper `dnf`/`dns`/`dsq`, qui sont des champs distincts).
+
+→ Tant que **B** n'est pas corrigé, prolivesport reste KO quelle que soit l'URL.
 
 ## Backlog Phase 2 (priorisé par les faits)
 
-1. **prolivesport — adaptateur d'URL** (gain immédiat, API déjà OK) : gérer
-   `prolivesport.fr/result/{eventId}/{raceIndex}` ; résoudre l'index via `raceList`.
-   Sans race → déjà géré (1ʳᵉ course). *Touche `app/scrapers/prolivesport.py`.*
+1. **prolivesport — débloquer `scrape_event_all`** (API déjà OK) : *Touche
+   `app/scrapers/prolivesport.py`.*
+   - **Bug B (prioritaire)** : corriger le filtre DNS qui exclut tous les finishers
+     (`dns=="O"`). Garder les athlètes ayant un `time`.
+   - **Bug A** : parser `/result/{eventId}/{raceIndex}` + résoudre l'index via `raceList`.
 2. **sportinnovation — forme 2026** : supporter `results.sportinnovation.fr/race/{slug}`
    dans `scrape_event_all` (le chemin `/race/…` casse l'hypothèse actuelle).
 3. **Excel xlsx (optionnel)** : breizhchrono et chronosmetron exposent un export
