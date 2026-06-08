@@ -138,3 +138,36 @@ def test_parse_api_athlete_falls_back_to_real_time():
     a = {"lastName": "X", "bib": "1", "officialTime": "", "realTime": "00:59:00"}
     r = _parse_api_athlete(a, "http://x", "E", "triathlon", None)
     assert r.total_time == "00:59:00"
+
+
+# ---------------------------------------------------------------------------
+# Statut non-finisher — HTML (colonne temps) + API (champ status/state)
+# ---------------------------------------------------------------------------
+
+def test_parse_html_row_explicit_status():
+    """Colonne temps = 'Abandon' → status DNF + temps purgé."""
+    col = {"name": 0, "bib": 1, "total_time": 2}
+    tds = ["DUPONT JeanH-S3H", "42", "Abandon"]
+    r = _parse_html_row(tds, col, "http://x", "Triathlon S")
+    assert r.status == "DNF"
+    assert r.total_time == ""
+
+
+def test_parse_html_row_finisher_no_status():
+    col = {"name": 0, "bib": 1, "total_time": 2}
+    tds = ["DUPONT JeanH-S3H", "42", "01:23:45"]
+    r = _parse_html_row(tds, col, "http://x", "Triathlon S")
+    assert r.status == ""
+    assert r.total_time == "01:23:45"
+
+
+def test_parse_api_athlete_explicit_status():
+    """Champ JSON status='DNS' → DNS + hygiène."""
+    a = {
+        "lastName": "Dupont", "firstName": "Jean", "bib": 42,
+        "status": "DNS", "generalRanking": "5", "officialTime": "",
+    }
+    r = _parse_api_athlete(a, "http://x", "Triathlon", "triathlon-s", None)
+    assert r.status == "DNS"
+    assert r.total_time == ""
+    assert r.rank_overall is None

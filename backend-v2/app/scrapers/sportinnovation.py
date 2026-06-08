@@ -20,8 +20,8 @@ from urllib.parse import urlparse
 import httpx
 from bs4 import BeautifulSoup
 
-from .base import ScrapedResult
-from .utils import normalize_rank, normalize_time
+from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
+from .utils import derive_status_from_label, normalize_rank, normalize_time
 
 HEADERS = {
     "User-Agent": (
@@ -154,12 +154,21 @@ def _parse_html_row(tds: list[str], col: dict[str, int], url: str, race_name: st
     result.club = get("club")
     result.rank_overall = normalize_rank(get("rank_overall"))
     result.rank_category = normalize_rank(get("rank_cat"))
-    result.total_time = normalize_time(get("total_time"))
+    raw_total = get("total_time")
+    status = derive_status_from_label(raw_total)
+    if status:
+        result.status = status
+    else:
+        result.total_time = normalize_time(raw_total)
     result.swim_time = normalize_time(get("swim_time"))
     result.t1_time = normalize_time(get("t1_time"))
     result.bike_time = normalize_time(get("bike_time"))
     result.t2_time = normalize_time(get("t2_time"))
     result.run_time = normalize_time(get("run_time"))
+    if result.status in (STATUS_DNF, STATUS_DNS, STATUS_DSQ):
+        result.rank_overall = None
+        result.rank_category = None
+        result.rank_gender = None
     result.raw_data = {"col_map": col}
     return result
 
@@ -262,7 +271,12 @@ def _parse_api_athlete(
     res.rank_overall = normalize_rank(str(a.get("generalRanking") or ""))
     res.rank_gender = normalize_rank(str(a.get("sexRanking") or ""))
     res.rank_category = normalize_rank(str(a.get("categoryRanking") or ""))
-    res.total_time = normalize_time(a.get("officialTime") or a.get("realTime") or "")
+    res.status = derive_status_from_label(str(a.get("status") or a.get("state") or ""))
+    if res.status in (STATUS_DNF, STATUS_DNS, STATUS_DSQ):
+        res.total_time = ""
+        res.rank_overall = res.rank_gender = res.rank_category = None
+    else:
+        res.total_time = normalize_time(a.get("officialTime") or a.get("realTime") or "")
     res.raw_data = a
     return res
 
