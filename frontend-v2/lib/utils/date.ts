@@ -17,7 +17,10 @@ export function formatMonth(ym: string | null | undefined): string {
 
 export function timeAgo(iso: string | null | undefined): string {
   if (!iso) return "";
-  const diff = Date.now() - new Date(iso).getTime();
+  const ts = new Date(iso).getTime();
+  if (Number.isNaN(ts)) return "";
+
+  const diff = Date.now() - ts;
   const days = Math.floor(diff / 86400000);
   if (days <= 0) return "aujourd'hui";
   if (days === 1) return "hier";
