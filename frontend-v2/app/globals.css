@@ -1,0 +1,213 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-foreground-subtle: var(--foreground-subtle);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  /* Échelle catégorielle — disciplines (alias lisibles des charts) */
+  --color-swim: var(--swim);
+  --color-bike: var(--bike);
+  --color-run: var(--run);
+  --color-violet: var(--violet);
+  --color-tri: var(--tri);
+  /* Marque (orange TCN) — accent ponctuel : nav active, CTA clé, sélection */
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  /* Médailles */
+  --color-gold: var(--gold);
+  --color-silver: var(--silver);
+  --color-bronze: var(--bronze);
+  /* Statuts custom */
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  /* Accent lisible en texte (orange TCN assombri vers le foreground) */
+  --color-accent-ink: var(--accent-ink);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --radius: 0.875rem; /* 14px — cartes / surfaces (SPLIT) */
+
+  /* Échelle catégorielle (fixe, indépendante du thème) */
+  --chart-1: oklch(0.72 0.13 235); /* natation */
+  --chart-2: oklch(0.83 0.13 82); /* vélo */
+  --chart-3: oklch(0.69 0.17 32); /* course */
+  --chart-4: oklch(0.74 0.12 292); /* violet */
+  --chart-5: oklch(0.94 0.19 119); /* accent */
+
+  /* Alias disciplines (mêmes valeurs que les charts) */
+  --swim: oklch(0.72 0.13 235);
+  --bike: oklch(0.83 0.13 82);
+  --run: oklch(0.69 0.17 32);
+  --violet: oklch(0.74 0.12 292);
+
+  /* Marque : orange Triathlon Club Nantais (#e3573c), accent ponctuel découplé
+     du primaire (bleu nuit). Sert aussi de couleur de discipline « triathlon » (--tri). */
+  --brand: oklch(0.637 0.18 33);
+  --brand-foreground: oklch(0.985 0.006 33);
+  --tri: var(--brand);
+
+  /* Médailles */
+  --gold: oklch(0.84 0.14 88);
+  --silver: oklch(0.80 0.012 250);
+  --bronze: oklch(0.70 0.10 55);
+
+  /* Accent lisible en texte : aplat = --brand, texte/trait = --accent-ink.
+     --ink-mix assombrit l'accent vers le texte (0% sombre, 52% clair). */
+  --accent-ink: color-mix(in oklch, var(--brand), var(--foreground) var(--ink-mix));
+}
+
+/* ── Thème clair (défaut) ── */
+:root,
+.light {
+  --background: oklch(0.984 0.003 256);
+  --foreground: oklch(0.21 0.02 256);
+  --foreground-subtle: oklch(0.44 0.018 256);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.02 256);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.02 256);
+  --primary: oklch(0.30 0.045 256); /* bleu nuit (slate-900/blue) */
+  --primary-foreground: oklch(0.985 0.004 250);
+  --secondary: oklch(0.962 0.005 256);
+  --secondary-foreground: oklch(0.21 0.02 256);
+  --muted: oklch(0.965 0.005 256);
+  --muted-foreground: oklch(0.52 0.016 256);
+  --accent: oklch(0.962 0.005 256); /* survol neutre */
+  --accent-foreground: oklch(0.21 0.02 256);
+  --destructive: oklch(0.62 0.20 26);
+  --destructive-foreground: oklch(0.99 0.002 250);
+  --success: oklch(0.62 0.15 152);
+  --success-foreground: oklch(0.99 0.002 250);
+  --warning: oklch(0.70 0.15 75);
+  --warning-foreground: oklch(0.18 0.03 130);
+  --border: oklch(0.912 0.006 256);
+  --input: oklch(0.912 0.006 256);
+  --ring: oklch(0.30 0.045 256);
+  --ink-mix: 52%; /* assombrit --accent-ink pour le texte */
+
+  --sidebar: oklch(0.27 0.035 256); /* bleu nuit profond */
+  --sidebar-foreground: oklch(0.92 0.01 256);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: var(--brand-foreground);
+  --sidebar-accent: oklch(0.34 0.04 256);
+  --sidebar-accent-foreground: oklch(0.985 0.004 256);
+  --sidebar-border: oklch(0.34 0.035 256);
+  --sidebar-ring: var(--brand);
+}
+
+/* ── Thème sombre (option) ── */
+.dark {
+  --background: oklch(0.165 0.012 256);
+  --foreground: oklch(0.97 0.005 256);
+  --foreground-subtle: oklch(0.78 0.012 256);
+  --card: oklch(0.205 0.014 256);
+  --card-foreground: oklch(0.97 0.005 256);
+  --popover: oklch(0.205 0.014 256);
+  --popover-foreground: oklch(0.97 0.005 256);
+  --primary: oklch(0.62 0.13 256); /* bleu clair lisible sur fond sombre */
+  --primary-foreground: oklch(0.15 0.02 256);
+  --secondary: oklch(0.245 0.015 256);
+  --secondary-foreground: oklch(0.97 0.005 256);
+  --muted: oklch(0.245 0.015 256);
+  --muted-foreground: oklch(0.64 0.013 256);
+  --accent: oklch(0.245 0.015 256); /* survol neutre */
+  --accent-foreground: oklch(0.97 0.005 256);
+  --destructive: oklch(0.66 0.19 26);
+  --destructive-foreground: oklch(0.97 0.005 256);
+  --success: oklch(0.80 0.15 152);
+  --success-foreground: oklch(0.18 0.03 130);
+  --warning: oklch(0.83 0.15 75);
+  --warning-foreground: oklch(0.18 0.03 130);
+  --border: oklch(0.30 0.013 256);
+  --input: oklch(0.30 0.013 256);
+  --ring: oklch(0.62 0.13 256);
+  --ink-mix: 0%; /* l'orange reste tel quel sur fond sombre */
+
+  --sidebar: oklch(0.185 0.013 256);
+  --sidebar-foreground: oklch(0.92 0.01 256);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: var(--brand-foreground);
+  --sidebar-accent: oklch(0.27 0.015 256);
+  --sidebar-accent-foreground: oklch(0.97 0.005 256);
+  --sidebar-border: oklch(0.30 0.013 256);
+  --sidebar-ring: var(--brand);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+@layer utilities {
+  /* Chiffres = monospace tabulaire (temps, classements, %, dates, URLs). */
+  .num,
+  .mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+  /* Micro-label : 10.5px, 700, capitales espacées (SPLIT). */
+  .micro-label {
+    font-size: 0.656rem; /* ~10.5px */
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+}
+
+::selection {
+  background: var(--brand);
+  color: var(--brand-foreground);
+}
