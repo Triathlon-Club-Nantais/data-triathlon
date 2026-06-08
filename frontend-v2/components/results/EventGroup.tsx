@@ -34,10 +34,12 @@ export function EventGroup({
     for (const p of participations) {
       const name = p.course?.name ?? "Épreuve inconnue";
       const date = p.course?.event_date ?? null;
-      const key = `${name}||${date ?? ""}`;
+      const type = p.course?.event_type ?? "";
+      const isRelay = Boolean(p.course?.is_relay);
+      const key = `${name}||${date ?? ""}||${type}||${isRelay ? "relay" : "solo"}`;
       let g = map.get(key);
       if (!g) {
-        g = { key, name, date, type: p.course?.event_type ?? "", items: [], tcnCount: 0 };
+        g = { key, name, date, type, items: [], tcnCount: 0 };
         map.set(key, g);
       }
       g.items.push(p);
