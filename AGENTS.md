@@ -13,14 +13,15 @@ Le dépôt contient **deux générations** de chaque brique. Bien repérer la ci
 | Brique | En production | Cible (refonte) | Statut |
 |--------|---------------|-----------------|--------|
 | Backend | `backend/` (déployé Render) | `backend-v2/` | v2 codée (130 tests verts), **pas encore déployée** |
-| Frontend | `frontend/` (déployé Vercel) | `frontend-v2/` | **spec seulement**, pas encore codée |
+| Frontend | `frontend/` (déployé Vercel, **déprécié**) | `frontend-v2/` | **codée** (33 tests verts, build prod OK), **pas encore déployée** |
 
 - **Nouveau développement backend → `backend-v2/`** (archi en couches, modèle
   normalisé). `backend/` reste **déprécié** mais en prod jusqu'à la bascule :
   n'y faire que les correctifs urgents.
-- `frontend-v2/` n'existe pas encore : seules la spec et le plan sont écrits
-  (`docs/superpowers/specs/2026-06-07-frontend-v2-nextjs-design.md`,
-  `docs/superpowers/plans/2026-06-07-frontend-v2-nextjs.md`).
+- **Nouveau développement frontend → `frontend-v2/`** (Next.js 16, App Router,
+  TypeScript, Tailwind, shadcn/ui). `frontend/` est **déprécié** — conservé en prod
+  jusqu'à la bascule Vercel, n'y faire que les correctifs urgents.
+  Spec : `docs/superpowers/specs/2026-06-07-frontend-v2-nextjs-design.md`.
 - Specs de refonte : `docs/superpowers/specs/`.
 
 ## Stack
@@ -30,8 +31,10 @@ Le dépôt contient **deux générations** de chaque brique. Bien repérer la ci
   Playwright. Tests pytest, ruff. API versionnée sous `/api/v1`.
 - **Backend v1** (`backend/`, déprécié) : même stack, sans couches ni Alembic
   (tables via `create_all()` au démarrage).
-- **Frontend** (`frontend/`) : React 18 + Vite 6, JSX, pas de TypeScript, pas
-  de lib UI. **frontend-v2** (planifié) : Next.js + TypeScript + Tailwind + shadcn/ui.
+- **Frontend v1** (`frontend/`, **déprécié**) : React 18 + Vite 6, JSX, pas de TypeScript,
+  pas de lib UI. Conservé en prod jusqu'à bascule Vercel.
+- **Frontend v2** (`frontend-v2/`) : Next.js 16 (App Router) + TypeScript + Tailwind + shadcn/ui.
+  **Codée** (33 tests Vitest verts, build prod OK), pas encore déployée.
 - **Déploiement** : backend → Render (`render.yaml`), front → Vercel, DB → Supabase.
 
 ## Commandes
@@ -49,7 +52,13 @@ ruff check .                                 # lint
 uvicorn main:app --reload --port 8001       # tables créées au démarrage (pas d'Alembic)
 pytest -m "not integration"
 
-# Frontend (depuis frontend/)
+# Frontend v2 (depuis frontend-v2/) — CIBLE
+npm run dev        # Next.js sur :3000, rewrites /api → :8001
+npm run build      # build prod (strict TS + RSC)
+npm test           # vitest run (33 tests)
+npm run lint       # ESLint
+
+# Frontend v1 (depuis frontend/, déprécié)
 npm run dev        # Vite sur :3000, proxy /api → :8001
 npm run build      # build prod
 ```
@@ -130,10 +139,23 @@ re-scraping si frais. Réglable via `CACHE_TTL_IN_PROGRESS_SECONDS` /
   Splits adaptés au sport : **en v2** dans `splits` (JSON) + `raw_data` (JSON) ;
   **en v1** dans les colonnes dédiées + `raw_data` (JSON).
 
-## Architecture frontend (`frontend/`)
+## Architecture frontend v2 (`frontend-v2/`) — cible
 
-> Une refonte `frontend-v2/` (Next.js + TypeScript + Tailwind + shadcn/ui) est
-> spécifiée mais **pas encore codée** — voir `docs/superpowers/`.
+Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
+`/api/v1` de backend-v2. 33 tests Vitest + RTL verts. Build prod OK.
+
+- `app/` — App Router : `dashboard`, `resultats`, `athletes/[id]`, `courses/[id]`,
+  `club`, `carte`, `ajouter`, `admin`.
+- `components/` — `scrape/` (ScrapeForm, ProviderDetector, ImportProgress),
+  `results/` (ResultCard, ResultsList), `club/` (ClubView, AthleteDialog),
+  `map/` (MapView), `dashboard/` (StatsCards, RecentCourses), `ui/` (shadcn).
+- `lib/api/` — `client.ts` (appels `/api/v1`), `sse.ts` (streaming import SSE).
+- `lib/types.ts` — types TypeScript partagés.
+- Déploiement : Vercel, variables `BACKEND_URL` + `API_URL`.
+
+## Architecture frontend v1 (`frontend/`) — déprécié
+
+> `frontend/` est remplacé par `frontend-v2/`. Conservé pour référence jusqu'à bascule.
 
 - `App.jsx` — onglets + déclenche l'import épreuve en arrière-plan après save.
 - `api/client.js` — appels `/api/*`. `constants.js` — constantes partagées.
