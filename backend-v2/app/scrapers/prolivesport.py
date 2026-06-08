@@ -171,24 +171,75 @@ def _detect_event_type(race: str) -> str:
     return "triathlon"
 
 
-def scrape_event_all(url: str) -> list[ScrapedResult]:
-    """Fetch all participants for a Prolivesport event/race."""
+def _parse_url(url: str) -> tuple[str, str]:
+    """
+    Extrait (event_id, race) d'une URL prolivesport. Deux formes gérées :
+      - query : `?eventId=1082&race=S`
+      - front : `/result/{eventId}/{race}` où race est un index positionnel
+        (ex. `6`) ou un code (ex. `S`).
+    `race` peut être vide → 1ʳᵉ course par défaut (résolu plus tard).
+    """
     parsed = urlparse(url)
     params = parse_qs(parsed.query)
     event_id = params.get("eventId", [""])[0]
     race = params.get("race", [""])[0].strip()
 
     if not event_id:
-        raise ValueError("URL prolivesport.fr sans paramètre eventId.")
+        # Forme front /result/{eventId}/{race}
+        parts = [p for p in parsed.path.strip("/").split("/") if p]
+        if "result" in parts:
+            rest = parts[parts.index("result") + 1:]
+            event_id = rest[0] if rest else ""
+            race = rest[1] if len(rest) >= 2 else race
+
+    if not event_id:
+        raise ValueError("URL prolivesport.fr sans identifiant d'événement.")
+    return event_id, race
+
+
+def _resolve_race(race: str, races: list[dict]) -> str:
+    """
+    Résout le token `race` en code de course :
+      - vide → 1ʳᵉ course de la liste
+      - numérique → index positionnel (0-based) dans `races`
+      - sinon → code course tel quel
+    """
+    if not race:
+        if not races:
+            raise ValueError("Aucune course disponible pour cet événement.")
+        return races[0].get("race", "")
+    if race.isdigit():
+        idx = int(race)
+        if not 0 <= idx < len(races):
+            raise ValueError(
+                f"Index de course {idx} hors limites ({len(races)} courses)."
+            )
+        return races[idx].get("race", "")
+    return race
+
+
+def _is_finisher(athlete: dict) -> bool:
+    """
+    Vrai si l'athlète a un temps réel. Le champ `dns` de l'API n'est pas fiable
+    (des finishers portent `dns="O"`) → on se base sur la présence d'un temps non nul.
+    """
+    t = (athlete.get("time") or "").strip()
+    return bool(t) and t != "00:00:00"
+
+
+def scrape_event_all(url: str) -> list[ScrapedResult]:
+    """Fetch all participants for a Prolivesport event/race."""
+    event_id, race_token = _parse_url(url)
 
     with httpx.Client(follow_redirects=True, timeout=30, headers=HEADERS) as client:
         event_name, event_date = _fetch_event_meta(event_id, client)
+        r = client.get(f"{API_BASE}/result/raceList/{event_id}/", timeout=15)
+        races = r.json().get("result", [])
+        race = _resolve_race(race_token, races)
         if not race:
-            r = client.get(f"{API_BASE}/result/raceList/{event_id}/", timeout=15)
-            races = r.json().get("result", [])
-            race = races[0].get("race", "") if races else ""
-        if not race:
-            raise ValueError(f"Aucune épreuve trouvée pour l'événement prolivesport {event_id}.")
+            raise ValueError(
+                f"Aucune épreuve trouvée pour l'événement prolivesport {event_id}."
+            )
 
         event_type = _detect_event_type(race)
         athletes = _fetch_indiv(event_id, race, client)
@@ -197,5 +248,5 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     return [
         _parse_athlete(a, split_map, url, event_name, event_type, event_date)
         for a in athletes
-        if a.get("dns", "N") != "O"  # exclude DNS
+        if _is_finisher(a)
     ]

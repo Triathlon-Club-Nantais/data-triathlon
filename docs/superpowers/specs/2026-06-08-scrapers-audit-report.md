@@ -4,6 +4,9 @@ Généré via `backend-v2/scripts/audit_scrapers.py` (appels réseau réels sur 
 épreuve par provider, voie unique `scrape_event_all`). URLs de référence fournies
 par @tjarrier.
 
+> **Mise à jour (même jour) :** prolivesport **corrigé** (commit `fix(prolivesport)`).
+> Les 6 providers sont désormais fonctionnels. Détail du correctif plus bas.
+
 ## Résultats
 
 | Provider | Statut | Participants | Nom% | Temps% | Splits% | Rang% | Type(s) détecté(s) | Durée |
@@ -12,7 +15,7 @@ par @tjarrier.
 | breizhchrono | ✅ | 302 | 100 | 100 | 1* | 100 | triathlon-m | 0.5 s |
 | wiclax / chronosmetron | ✅ | 1911 | 100 | 88 | 84 | 100 | triathlon (s/m/l) | 0.6 s |
 | timepulse | ✅ | 593 | 100 | 100 | 99 | 96 | triathlon | 3.8 s |
-| prolivesport | ❌ | 0 | — | — | — | — | — | — |
+| prolivesport | ✅ | 1080 | 100 | 100 | 99 | 100 | triathlon | 0.5 s |
 | sportinnovation | ✅ | 541 | 100 | 100 | 100 | 100 | triathlon (s/m), aquathlon | 1.4 s |
 
 `*` **Splits 0/1 % = comportement attendu, pas un défaut.** klikego et breizhchrono
@@ -32,17 +35,22 @@ qui exposent les splits pour tous (wiclax, timepulse, sportinnovation).
 - **timepulse** — ✅ excellent (splits 99 %, rangs 96 %). Le plus lent (3.8 s) car le
   classement est recalculé par athlète. L'URL `…/resultats/live/3232` est gérée
   (extraction de l'id depuis le chemin).
-- **prolivesport** — ❌ **échoue sur l'URL fournie**, mais **l'API fonctionne
-  parfaitement** (cf. ci-dessous). Cause : format d'URL non géré, pas l'API.
+- **prolivesport** — ✅ **corrigé** (1080 finishers, splits 99 %). Auparavant KO pour
+  deux raisons (format d'URL + filtre DNS inversé) — détail et correctif ci-dessous.
 - **sportinnovation** — ✅ via l'URL HTML `…/Evenements/Resultats/7031` (541 résultats,
   tout à 100 %). ⚠️ La 2ᵉ forme d'URL fournie, `results.sportinnovation.fr/race/{slug}`
   (nouvel affichage 2026), **n'a pas été testée** et n'est probablement pas gérée par
   `scrape_event_all` (qui attend `path_parts[0]` = codeUrl, or le chemin commence par
   `/race/`). À vérifier en Phase 2.
 
-## Détail prolivesport — DEUX bugs (scrape_event_all non fonctionnel)
+## Détail prolivesport — DEUX bugs (✅ corrigés)
 
-L'API est saine (token `AUTH_PLSWS_V2`), mais `scrape_event_all` ne renvoie
+> **Correctif appliqué.** Trois helpers purs ajoutés à `prolivesport.py` (testés
+> offline) : `_parse_url` (gère les deux formes d'URL), `_resolve_race` (résout
+> l'index positionnel via raceList) et `_is_finisher` (filtre sur la présence d'un
+> temps, plus sur `dns`). Vérifié en réel : 1080 finishers sur les deux formes d'URL.
+
+L'API est saine (token `AUTH_PLSWS_V2`), mais `scrape_event_all` ne renvoyait
 **jamais** de résultat sur cet événement, pour deux raisons cumulées :
 
 **Bug A — forme d'URL non gérée.** L'URL front `prolivesport.fr/result/1082/6`
@@ -64,15 +72,12 @@ Le champ `"O"` ne signifie donc pas « non-partant » ici → le filtre vide la 
 - *Correctif :* ne plus exclure sur `dns=="O"`. Filtrer les vrais abandons via la
   présence d'un `time` (ou recouper `dnf`/`dns`/`dsq`, qui sont des champs distincts).
 
-→ Tant que **B** n'est pas corrigé, prolivesport reste KO quelle que soit l'URL.
+→ Les deux sont désormais corrigés (cf. encart en tête de section).
 
 ## Backlog Phase 2 (priorisé par les faits)
 
-1. **prolivesport — débloquer `scrape_event_all`** (API déjà OK) : *Touche
-   `app/scrapers/prolivesport.py`.*
-   - **Bug B (prioritaire)** : corriger le filtre DNS qui exclut tous les finishers
-     (`dns=="O"`). Garder les athlètes ayant un `time`.
-   - **Bug A** : parser `/result/{eventId}/{raceIndex}` + résoudre l'index via `raceList`.
+1. ~~**prolivesport — débloquer `scrape_event_all`**~~ ✅ **FAIT** (bugs A + B corrigés,
+   tests offline + integration verts).
 2. **sportinnovation — forme 2026** : supporter `results.sportinnovation.fr/race/{slug}`
    dans `scrape_event_all` (le chemin `/race/…` casse l'hypothèse actuelle).
 3. **Excel xlsx (optionnel)** : breizhchrono et chronosmetron exposent un export

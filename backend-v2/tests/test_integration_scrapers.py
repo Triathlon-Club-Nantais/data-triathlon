@@ -15,8 +15,8 @@ import pytest
 
 from app.scrapers import registry
 
-# URLs réelles fonctionnelles, une par provider opérationnel.
-# prolivesport est traité à part (cassé aujourd'hui — cf. xfail plus bas).
+# URLs réelles fonctionnelles, une par provider.
+# prolivesport : forme front `/result/{eventId}/{index}` (l'index 6 = course "S").
 LIVE_URLS = {
     "klikego": "https://www.klikego.com/resultats/triathlon-de-vierzon-2026/1674523163798-4",
     "breizhchrono": (
@@ -25,16 +25,13 @@ LIVE_URLS = {
     ),
     "wiclax": "https://chronosmetron.wiclax-results.com/Triathlon%20de%20la%20Roche%202026/",
     "timepulse": "https://www.timepulse.fr/epreuves/resultats/live/3232",
+    "prolivesport": "https://www.prolivesport.fr/result/1082/6",
     "sportinnovation": "https://sportinnovation.fr/Evenements/Resultats/7031",
 }
 
-# Détection : prolivesport.fr est bien routé (le domaine matche), même si son
-# scrape_event_all est cassé — on vérifie donc la détection des 6 providers.
-DETECT_URLS = {**LIVE_URLS, "prolivesport": "https://www.prolivesport.fr/result/1082/6"}
-
 
 @pytest.mark.integration
-@pytest.mark.parametrize("provider, url", sorted(DETECT_URLS.items()))
+@pytest.mark.parametrize("provider, url", sorted(LIVE_URLS.items()))
 def test_detection(provider, url):
     """L'URL est routée vers le bon provider."""
     assert registry.detect_provider(url) == provider
@@ -50,20 +47,3 @@ def test_scrape_event_all_live(provider, url):
     assert any(r.total_time for r in results), f"{provider} : aucun temps total"
     # Type d'épreuve détecté sur au moins un résultat
     assert any(r.event_type for r in results), f"{provider} : type d'épreuve non détecté"
-
-
-@pytest.mark.integration
-@pytest.mark.xfail(
-    strict=True,
-    reason="prolivesport scrape_event_all cassé — backlog Phase 2 #1. Deux bugs : "
-    "(a) forme d'URL /result/{eventId}/{index} non parsée ; (b) filtre DNS inversé "
-    "(`dns != 'O'` exclut tous les finishers, qui ont dns='O'). "
-    "Cet xfail lèvera quand les deux seront corrigés.",
-)
-def test_prolivesport_known_gap():
-    """Documente le double gap : même avec eventId/race valides, 0 résultat aujourd'hui."""
-    # Forme query-param valide (race 'S' = 1188 athlètes côté API), pourtant vidée
-    # par le filtre DNS dans scrape_event_all.
-    url = "https://www.prolivesport.fr/index.php?eventId=1082&race=S"
-    results = registry.scrape_event_all(url)
-    assert results
