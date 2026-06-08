@@ -46,7 +46,8 @@
       "Bash(curl -s http://localhost*)",
       "Bash(curl -X * http://localhost*)",
       "Bash(rtk*)",
-      "Read(/**/.env.example)"
+      "Read(/**/.env.example)",
+      "Bash(npx vitest *)"
     ],
     "ask": [
       "Bash(git add .)",
