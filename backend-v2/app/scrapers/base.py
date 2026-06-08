@@ -2,6 +2,14 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
+# Statuts sportifs d'une participation. Centralisés ici (couche la plus basse,
+# importée par les scrapers ET par services/mapping) pour éviter les chaînes
+# magiques disséminées.
+STATUS_FINISHER = "finisher"
+STATUS_DNF = "DNF"  # abandon (Did Not Finish)
+STATUS_DNS = "DNS"  # non-partant (Did Not Start)
+STATUS_DSQ = "DSQ"  # disqualifié
+
 
 @dataclass
 class ScrapedResult:
@@ -26,4 +34,7 @@ class ScrapedResult:
     t2_time: str = ""
     run_time: str = ""
     is_relay: bool = False
+    # "" = le scraper ne se prononce pas → l'infra retombe sur l'heuristique.
+    # Un scraper qui sait (prolivesport) le renseigne explicitement.
+    status: str = ""
     raw_data: dict[str, Any] = field(default_factory=dict)

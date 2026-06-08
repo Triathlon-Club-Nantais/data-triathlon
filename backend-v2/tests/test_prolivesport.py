@@ -160,3 +160,26 @@ def test_is_finisher_zero_time():
 
 def test_is_finisher_missing_time():
     assert _is_finisher({}) is False
+
+
+# ---------------------------------------------------------------------------
+# Constantes de statut + champ ScrapedResult.status
+# ---------------------------------------------------------------------------
+
+def test_status_constants_values():
+    from app.scrapers.base import (
+        STATUS_DNF,
+        STATUS_DNS,
+        STATUS_DSQ,
+        STATUS_FINISHER,
+    )
+    assert STATUS_FINISHER == "finisher"
+    assert STATUS_DNF == "DNF"
+    assert STATUS_DNS == "DNS"
+    assert STATUS_DSQ == "DSQ"
+
+
+def test_scraped_result_status_defaults_empty():
+    from app.scrapers.base import ScrapedResult
+    r = ScrapedResult(source_url="http://x", provider="prolivesport")
+    assert r.status == ""
