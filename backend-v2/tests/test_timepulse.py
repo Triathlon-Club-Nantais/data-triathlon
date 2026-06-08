@@ -17,6 +17,7 @@ from app.scrapers.timepulse import (
     _find_tag,
     _parse_event_date,
     _parse_series,
+    scrape_event_all,
 )
 
 # ---------------------------------------------------------------------------
@@ -339,6 +340,61 @@ def test_id_event_extracted_from_path():
                 break
 
     assert id_event == "3090"
+
+
+# ---------------------------------------------------------------------------
+# scrape_event_all — conservation des non-finishers + statut
+# ---------------------------------------------------------------------------
+
+def test_scrape_event_all_keeps_non_finisher(monkeypatch):
+    """Un <E> sans <R> est désormais CONSERVÉ (régression du drop historique)."""
+    xml = make_xml(
+        athletes=[
+            ("10", "ALPHA Jean", "SEH", "M", "p1"),   # finisher (a un <R>)
+            ("20", "BETA Marie", "SEF", "F", "p1"),   # non-finisher (pas de <R>)
+        ],
+        results=[("10", "01:00:00", {"s0": "00:20:00"})],
+    )
+    monkeypatch.setattr("app.scrapers.timepulse._fetch_xml", lambda _id: xml)
+
+    results = scrape_event_all("https://www.timepulse.fr/resultats/3090")
+    by_bib = {r.bib_number: r for r in results}
+
+    assert set(by_bib) == {"10", "20"}          # le non-finisher n'est plus jeté
+    assert by_bib["10"].total_time == "01:00:00"
+    assert by_bib["20"].total_time == ""        # pas de <R> → pas de temps
+    assert by_bib["20"].rank_overall is None
+    assert by_bib["20"].status == ""            # aucun marqueur → heuristique infra
+    assert by_bib["20"].athlete_name == "BETA"
+    assert by_bib["20"].athlete_firstname == "Marie"
+
+
+def test_scrape_event_all_reads_explicit_status(monkeypatch):
+    """Statut explicite sur <E> (attribut candidat etat=) → DNF + hygiène."""
+    xml = make_xml(
+        athletes=[("30", "GAMMA Paul", "SEH", "M", "p1")],
+        results=[],
+    ).replace('<E d="30"', '<E etat="Abandon" d="30"')
+    monkeypatch.setattr("app.scrapers.timepulse._fetch_xml", lambda _id: xml)
+
+    results = scrape_event_all("https://www.timepulse.fr/resultats/3090")
+    assert results[0].status == "DNF"
+    assert results[0].total_time == ""
+    assert results[0].rank_overall is None
+
+
+def test_scrape_event_all_reads_np_flag_dns(monkeypatch):
+    """Découverte réelle : np="1" sur <E> → DNS + hygiène (ni temps ni rang)."""
+    xml = make_xml(
+        athletes=[("40", "DELTA Luc", "SEH", "M", "p1")],
+        results=[],
+    ).replace('<E d="40"', '<E np="1" d="40"')
+    monkeypatch.setattr("app.scrapers.timepulse._fetch_xml", lambda _id: xml)
+
+    results = scrape_event_all("https://www.timepulse.fr/resultats/3090")
+    assert results[0].status == "DNS"
+    assert results[0].total_time == ""
+    assert results[0].rank_overall is None
 
 
 def test_id_event_extracted_from_path_short():

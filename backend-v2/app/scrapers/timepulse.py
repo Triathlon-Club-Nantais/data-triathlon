@@ -19,8 +19,13 @@ from urllib.parse import parse_qs, urlparse
 
 import httpx
 
-from .base import ScrapedResult
-from .utils import normalize_time, parse_fr_date, split_athlete_name
+from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
+from .utils import (
+    derive_status_from_label,
+    normalize_time,
+    parse_fr_date,
+    split_athlete_name,
+)
 
 _HEADERS = {
     "User-Agent": (
@@ -33,6 +38,34 @@ _DATA_API_URLS = [
     "https://www.timepulse.fr/resultats/api/data.php?id_event={id_event}",
     "https://www.timepulse.fr/epreuves/resultats/api/data.php?id_event={id_event}",
 ]
+
+# Attributs susceptibles de porter un label de statut texte (DNF/DNS/DSQ) sur
+# <E>/<R>. Conservé même si aucune épreuve réelle observée n'expose un tel label
+# (le XML pose un flag binaire np, cf. _extract_status) : reste utile si un futur
+# payload expose un libellé texte, et garde le test synthétique etat="Abandon"
+# pertinent.
+_STATUS_ATTRS = ("etat", "st", "status", "statut")
+
+
+def _extract_status(ea: dict[str, str], ra: dict[str, str]) -> str:
+    """Lit un statut explicite depuis les attributs E puis R ; "" sinon.
+
+    Cherche d'abord un label texte (_STATUS_ATTRS) traduit via
+    derive_status_from_label, puis le flag binaire np de TimePulse.
+    """
+    for attrs in (ra, ea):
+        for name in _STATUS_ATTRS:
+            val = attrs.get(name, "")
+            if val:
+                status = derive_status_from_label(val)
+                if status:
+                    return status
+
+    # Flag non-partant TimePulse (np="1") → DNS. Découverte (épreuve réelle) : le
+    # XML ne pose pas de libellé texte mais un flag binaire np sur le <E>.
+    if (ea.get("np") or "").strip() not in ("", "0"):
+        return STATUS_DNS
+    return ""
 
 
 # ---------------------------------------------------------------------------
@@ -266,10 +299,6 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         if not bib:
             continue
 
-        r_tag = _find_tag(xml, "R", "d", bib)
-        if not r_tag:
-            continue  # no result for this athlete (DNS/DNF)
-
         result = ScrapedResult(source_url=url, provider="timepulse", bib_number=bib)
         result.event_name = event_name
         result.event_date = event_date_val
@@ -283,29 +312,38 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         result.gender = ea.get("x", "")
         result.category = ea.get("ca", "")
 
-        ra = _attrs(r_tag)
-        result.total_time = normalize_time(ra.get("t", ""))
-        for key, field in series_map.items():
-            t = normalize_time(ra.get(key, ""))
-            if not t:
-                continue
-            if field == "swim" and not result.swim_time:
-                result.swim_time = t
-            elif field == "t1" and not result.t1_time:
-                result.t1_time = t
-            elif field == "bike" and not result.bike_time:
-                result.bike_time = t
-            elif field == "t2" and not result.t2_time:
-                result.t2_time = t
-            elif field == "run" and not result.run_time:
-                result.run_time = t
+        r_tag = _find_tag(xml, "R", "d", bib)
+        ra = _attrs(r_tag) if r_tag else {}
 
-        parcours = ea.get("p", "")
-        if parcours and result.gender and result.category:
-            ro, rg, rc = _compute_ranks(xml, bib, parcours, result.gender, result.category)
-            result.rank_overall = ro
-            result.rank_gender = rg
-            result.rank_category = rc
+        # Statut explicite éventuel (E puis R) ; "" → heuristique de l'infra.
+        result.status = _extract_status(ea, ra)
+        is_non_finisher = result.status in (STATUS_DNF, STATUS_DNS, STATUS_DSQ)
+
+        # Sans <R> (non-partant/abandon) OU statut non-finisher explicite : on
+        # conserve l'athlète mais on laisse total_time="", splits vides, rangs None.
+        if r_tag and not is_non_finisher:
+            result.total_time = normalize_time(ra.get("t", ""))
+            for key, field in series_map.items():
+                t = normalize_time(ra.get(key, ""))
+                if not t:
+                    continue
+                if field == "swim" and not result.swim_time:
+                    result.swim_time = t
+                elif field == "t1" and not result.t1_time:
+                    result.t1_time = t
+                elif field == "bike" and not result.bike_time:
+                    result.bike_time = t
+                elif field == "t2" and not result.t2_time:
+                    result.t2_time = t
+                elif field == "run" and not result.run_time:
+                    result.run_time = t
+
+            parcours = ea.get("p", "")
+            if parcours and result.gender and result.category:
+                ro, rg, rc = _compute_ranks(xml, bib, parcours, result.gender, result.category)
+                result.rank_overall = ro
+                result.rank_gender = rg
+                result.rank_category = rc
 
         results.append(result)
 
