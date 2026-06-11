@@ -76,7 +76,7 @@ tasks:
     desc: 'backend-v2 : nouvelle migration auto — usage : task bv2:migration -- "message"'
     dir: backend-v2
     cmds:
-      - alembic revision --autogenerate -m {{.CLI_ARGS}}
+      - alembic revision --autogenerate -m "{{.CLI_ARGS}}"
 
   bv2:test:
     desc: 'backend-v2 : tests unitaires (sans réseau)'
