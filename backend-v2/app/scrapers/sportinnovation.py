@@ -78,24 +78,8 @@ def _parse_name_cell(raw: str) -> tuple[str, str, str, str]:
 
 
 def _detect_event_type(race_name: str) -> str:
-    n = race_name.lower()
-    if "duathlon" in n:
-        for size, code in [("xs", "xs"), ("xxl", "xxl"), ("xl", "xl"), (" l", "l"), (" m", "m"), (" s", "s")]:
-            if size in n:
-                return f"duathlon-{code}"
-        return "duathlon"
-    if "swimrun" in n or "swim run" in n or "swim&run" in n:
-        return "swimrun"
-    if "aquathlon" in n:
-        return "aquathlon"
-    if "bike" in n and "run" in n:
-        return "bike-run"
-    if "triathlon" in n or "tri " in n:
-        for size, code in [("xs", "xs"), ("xxl", "xxl"), ("xl", "xl"), (" l", "l"), (" m", "m"), (" s", "s")]:
-            if size in n:
-                return f"triathlon-{code}"
-        return "triathlon"
-    return "triathlon"
+    from app.scrapers.classify import classify_event_type
+    return classify_event_type(race_name)
 
 
 def _col_indices(headers: list[str]) -> dict[str, int]:

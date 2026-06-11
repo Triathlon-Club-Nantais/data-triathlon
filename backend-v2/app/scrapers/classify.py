@@ -44,8 +44,10 @@ def _detect_size(t: str) -> str:
     déclenche pas la frontière `-s-`).
     """
     def seg(tag: str) -> bool:
+        # `-{tag} ` : taille en fin de heat suivie d'un slug séparé par un
+        # espace (ex. "triathlon-xl frenchman-2026").
         return (
-            f"-{tag}-" in t or t.endswith(f"-{tag}")
+            f"-{tag}-" in t or t.endswith(f"-{tag}") or f"-{tag} " in t
             or f" {tag} " in t or t.endswith(f" {tag}")
             or f"format-{tag}" in t
         )

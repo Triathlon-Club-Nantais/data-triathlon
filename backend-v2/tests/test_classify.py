@@ -26,6 +26,9 @@ from app.scrapers.classify import (
     ("Triathlon 70.3 Aix-en-Provence", "triathlon-l"),
     ("Triathlon de Lacanau 2025", "triathlon"),
     ("Sprint de la Roche", "triathlon-s"),             # pas de sport explicite → triathlon + taille
+    ("triathlon-xl frenchman-2026", "triathlon-xl"),   # heat+slug séparés par espace (régression seg())
+    ("triathlon-m nantais-2026", "triathlon-m"),
+    ("triathlon-s nantais-sprint-2026", "triathlon-s"),
     ("", "triathlon"),
 ])
 def test_classify_triathlon(text, expected):
