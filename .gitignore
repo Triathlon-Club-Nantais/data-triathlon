@@ -52,3 +52,6 @@ tests/e2e/.cache/
 docs/local/
 # Worktrees (git worktree fallback)
 .claude/worktrees/
+
+# Worktrees isolés (superpowers)
+.worktrees/
