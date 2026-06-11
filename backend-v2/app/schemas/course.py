@@ -14,6 +14,7 @@ class CourseBrief(BaseModel):
     provider: str = ""
     source_url: str = ""
     is_relay: bool = False
+    distance_km: float | None = None
 
 
 class EventOut(BaseModel):
