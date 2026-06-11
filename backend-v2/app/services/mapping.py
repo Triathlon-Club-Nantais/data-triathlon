@@ -11,6 +11,7 @@ from app.models.athlete import Athlete
 from app.models.course import Course
 from app.repositories import athlete_repository, course_repository
 from app.scrapers.base import STATUS_DNF, STATUS_FINISHER, ScrapedResult
+from app.scrapers.classify import extract_distance_km
 
 # Les scrapers rangent toujours les segments dans 5 slots positionnels triathlon
 # (swim/t1/bike/t2/run). Selon le sport, on ré-étiquette ces slots avec des clés
@@ -30,17 +31,26 @@ _SPLIT_KEYS_BY_SPORT: dict[str, dict[str, str]] = {
     "aquarun": {"swim_time": "swim", "t1_time": "t1", "run_time": "run"},
     "bike-run": {"bike_time": "bike", "run_time": "run"},
     "swimrun": {"swim_time": "swim", "run_time": "run"},
+    # Mono-sports : un seul segment pertinent.
+    "course-a-pied": {"run_time": "run"},
+    "trail": {"run_time": "run"},
+    "cyclisme": {"bike_time": "bike"},
 }
+
+# Bases de sport dont le nom contient un tiret (le tiret ne sépare pas la taille).
+_MULTI_WORD_BASES = ("bike-run", "course-a-pied")
 
 
 def _sport_base(event_type: str) -> str:
-    """Préfixe de sport sans le suffixe de taille : ``duathlon-m`` → ``duathlon``.
+    """Préfixe de sport sans suffixe de taille : ``duathlon-m`` → ``duathlon``.
 
-    ``bike-run`` n'a pas de suffixe de taille : le tiret fait partie du nom.
+    Les bases multi-mots (``bike-run``, ``course-a-pied``) contiennent un tiret
+    qui fait partie du nom, pas un séparateur de taille.
     """
     et = (event_type or "").lower()
-    if et.startswith("bike-run"):
-        return "bike-run"
+    for base in _MULTI_WORD_BASES:
+        if et.startswith(base):
+            return base
     return et.split("-", 1)[0]
 
 
@@ -64,6 +74,9 @@ def derive_status(scraped: ScrapedResult) -> str:
 
 def get_or_create_course(db: Session, scraped: ScrapedResult, event_url: str) -> Course:
     """Course identifiée par (nom, date, type) ; `source_url` = URL d'import (clé de cache)."""
+    distance_km = scraped.distance_km
+    if distance_km is None:
+        distance_km = extract_distance_km(scraped.event_name)
     return course_repository.get_or_create(
         db,
         name=scraped.event_name,
@@ -72,6 +85,7 @@ def get_or_create_course(db: Session, scraped: ScrapedResult, event_url: str) ->
         source_url=event_url or scraped.source_url,
         provider=scraped.provider,
         is_relay=scraped.is_relay,
+        distance_km=distance_km,
     )
 
 
