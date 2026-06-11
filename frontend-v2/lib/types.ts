@@ -16,6 +16,7 @@ export interface CourseBrief {
   provider: string;
   source_url: string;
   is_relay: boolean;
+  distance_km?: number | null;
 }
 
 // Clés possibles de splits : "swim" | "t1" | "bike" | "t2" | "run"
