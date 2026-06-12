@@ -35,6 +35,7 @@ def get_or_create(
     source_url: str = "",
     provider: str = "",
     is_relay: bool = False,
+    distance_km: float | None = None,
 ) -> Course:
     existing = get_by_identity(db, name, event_date, event_type)
     if existing:
@@ -46,6 +47,7 @@ def get_or_create(
         source_url=source_url,
         provider=provider,
         is_relay=is_relay,
+        distance_km=distance_km,
     )
     db.add(course)
     db.flush()

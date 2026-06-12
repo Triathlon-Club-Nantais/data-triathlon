@@ -33,6 +33,8 @@ class ScrapedResult:
     bike_time: str = ""
     t2_time: str = ""
     run_time: str = ""
+    # Kilométrage de l'épreuve si connu/extrait. Sinon mapping l'extrait du nom.
+    distance_km: float | None = None
     is_relay: bool = False
     # "" = le scraper ne se prononce pas → l'infra retombe sur l'heuristique.
     # Un scraper qui sait (prolivesport) le renseigne explicitement.

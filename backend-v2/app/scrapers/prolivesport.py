@@ -149,36 +149,8 @@ def _fetch_event_meta(event_id: str, client: httpx.Client) -> tuple[str, date | 
 
 
 def _detect_event_type(race: str) -> str:
-    race_l = race.lower()
-    if "duathlon" in race_l:
-        if any(x in race_l for x in ["xs", "extra"]):
-            return "duathlon-xs"
-        if "-s" in race_l or " s" in race_l:
-            return "duathlon-s"
-        if "-m" in race_l or " m" in race_l:
-            return "duathlon-m"
-        if "-l" in race_l or " l" in race_l:
-            return "duathlon-l"
-        return "duathlon"
-    if "swimrun" in race_l or "swim run" in race_l:
-        return "swimrun"
-    if "aquathlon" in race_l:
-        return "aquathlon"
-    if "bike" in race_l and "run" in race_l:
-        return "bike-run"
-    if "triathlon" in race_l or "tri" in race_l:
-        if "xs" in race_l:
-            return "triathlon-xs"
-        if "-s" in race_l or " s" in race_l or race_l.endswith(" s"):
-            return "triathlon-s"
-        if "-m" in race_l or " m" in race_l or race_l.endswith(" m"):
-            return "triathlon-m"
-        if "-l" in race_l or " l" in race_l or race_l.endswith(" l"):
-            return "triathlon-l"
-        if "xl" in race_l:
-            return "triathlon-xl"
-        return "triathlon"
-    return "triathlon"
+    from app.scrapers.classify import classify_event_type
+    return classify_event_type(race)
 
 
 def _parse_url(url: str) -> tuple[str, str]:

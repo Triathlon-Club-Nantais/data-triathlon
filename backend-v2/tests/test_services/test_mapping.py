@@ -67,3 +67,32 @@ def test_participation_fields():
     assert fields["bib_number"] == "42"
     assert fields["status"] == "finisher"
     assert fields["splits"] == {"swim": "00:20:00"}
+
+
+def test_build_splits_trail_single_run():
+    s = _scraped(event_type="trail", run_time="01:45:00")
+    assert mapping.build_splits(s) == {"run": "01:45:00"}
+
+
+def test_build_splits_course_a_pied_named_size():
+    # _sport_base doit gérer la base multi-mots "course-a-pied" (pas "course").
+    s = _scraped(event_type="course-a-pied-10k", run_time="00:38:00")
+    assert mapping.build_splits(s) == {"run": "00:38:00"}
+
+
+def test_build_splits_cyclisme_single_bike():
+    s = _scraped(event_type="cyclisme-route", bike_time="03:10:00")
+    assert mapping.build_splits(s) == {"bike": "03:10:00"}
+
+
+def test_get_or_create_course_extracts_distance_km(db_session):
+    s = _scraped(event_name="Trail des Forts 23 km", event_type="trail")
+    course = mapping.get_or_create_course(db_session, s, event_url="http://x")
+    assert course.distance_km == 23.0
+
+
+def test_get_or_create_course_explicit_distance_km_wins(db_session):
+    s = _scraped(event_name="Trail sans km dans le nom", event_type="trail",
+                 distance_km=30.0)
+    course = mapping.get_or_create_course(db_session, s, event_url="http://x")
+    assert course.distance_km == 30.0

@@ -386,19 +386,5 @@ def _strip_athlete_param(url: str) -> str:
 
 
 def _detect_event_type(name: str) -> str:
-    n = name.lower().strip()
-    if "xxl" in n or "ironman" in n or "longue distance" in n or n.endswith(" xl") or " xl " in n:
-        return "triathlon-xl"
-    if "longue" in n or " l " in n or n.endswith(" l") or "half" in n or "70.3" in n:
-        return "triathlon-l"
-    if "olympique" in n or "olympic" in n or " m " in n or n.endswith(" m") or "triathlon-m" in n:
-        return "triathlon-m"
-    if "sprint" in n or " s " in n or n.endswith(" s") or " s-" in n or "triathlon-s" in n:
-        return "triathlon-s"
-    if "xs" in n:
-        return "triathlon-s"
-    if "duathlon" in n:
-        return "duathlon"
-    if "swimrun" in n or "swim-run" in n or "swim run" in n:
-        return "swimrun"
-    return "triathlon"
+    from app.scrapers.classify import classify_event_type
+    return classify_event_type(name)

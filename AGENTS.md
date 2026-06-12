@@ -176,5 +176,5 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 ## Fournisseurs supportés
 
 Klikego, Breizh Chrono, TimePulse, Wiclax/G-Live (individuel + épreuve complète).
-Types : Triathlon S/M/L/XL, Duathlon XS/S/M/L, SwimRun S/M/L, Aquathlon,
+Types : Triathlon XS/S/M/L/XL, Duathlon XS/S/M/L, SwimRun S/M/L, Aquathlon,
 Aquarun, Bike & Run.

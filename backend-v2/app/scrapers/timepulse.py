@@ -355,33 +355,5 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
 # ---------------------------------------------------------------------------
 
 def _detect_event_type(name: str) -> str:
-    n = name.lower()
-    # Check specific sports FIRST to avoid false triathlon-size matches.
-    # e.g. "Duathlon Sprint" must not become "triathlon-s" via the sprint check.
-    if "aquathlon" in n:
-        return "aquathlon"
-    if "aquarun" in n:
-        return "aquarun"
-    if any(p in n for p in ("bike & run", "bike and run", "bike run", "bikerun",
-                             "run & bike", "run and bike")):
-        return "bike-run"
-    if "swimrun" in n or "swim run" in n or "swim-run" in n:
-        return "swimrun"
-    if "duathlon" in n:
-        if "sprint" in n:
-            return "duathlon-s"
-        if " m " in n or "olympique" in n:
-            return "duathlon-m"
-        if " l " in n or "longue" in n:
-            return "duathlon-l"
-        return "duathlon"
-    # Triathlon distances
-    if "xxl" in n or "ironman" in n or "longue distance" in n:
-        return "triathlon-xl"
-    if "half" in n or "70.3" in n or " l " in n or "longue" in n:
-        return "triathlon-l"
-    if "olympique" in n or "olympic" in n or "triathlon-m" in n:
-        return "triathlon-m"
-    if "sprint" in n or "triathlon-s" in n:
-        return "triathlon-s"
-    return "triathlon"
+    from app.scrapers.classify import classify_event_type
+    return classify_event_type(name)

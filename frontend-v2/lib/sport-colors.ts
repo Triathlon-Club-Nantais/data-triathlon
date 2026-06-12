@@ -15,9 +15,12 @@ export const DISCIPLINE_COLORS = {
 export function eventTypeColor(type: string | null | undefined): string {
   const t = (type ?? "").toLowerCase();
   if (t.startsWith("triathlon")) return DISCIPLINE_COLORS.accent;
-  if (t.startsWith("duathlon") || t === "bike-run") return DISCIPLINE_COLORS.bike;
+  if (t.startsWith("duathlon") || t === "bike-run" || t.startsWith("cyclisme"))
+    return DISCIPLINE_COLORS.bike;
   if (t.startsWith("swimrun") || t === "aquathlon" || t === "aquarun")
     return DISCIPLINE_COLORS.swim;
+  if (t.startsWith("trail") || t.startsWith("course-a-pied"))
+    return DISCIPLINE_COLORS.run;
   return "var(--muted-foreground)";
 }
 
