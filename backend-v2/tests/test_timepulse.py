@@ -397,6 +397,84 @@ def test_scrape_event_all_reads_np_flag_dns(monkeypatch):
     assert results[0].rank_overall is None
 
 
+def test_scrape_event_all_event_type_from_parcours(monkeypatch):
+    """Le format (S/M/L) vient du parcours `p`, pas du nom global d'épreuve.
+
+    Cas réel (épreuve 3232 « LE NORTH MAY ») : le nom de l'épreuve ne porte
+    aucune taille, seul le parcours de chaque <E> distingue Triathlon S/M/L.
+    """
+    xml = make_xml(
+        athletes=[
+            ("10", "ALPHA Jean", "SEH", "M", "Triathlon S SOLO"),
+            ("20", "BETA Marie", "SEF", "F", "Triathlon M SOLO"),
+            ("30", "GAMMA Paul", "SEH", "M", "Triathlon L SOLO"),
+            ("40", "DELTA Luc", "SEH", "M", ""),  # parcours absent → repli nom global
+        ],
+        results=[
+            ("10", "01:00:00", {}),
+            ("20", "02:00:00", {}),
+            ("30", "03:00:00", {}),
+            ("40", "04:00:00", {}),
+        ],
+        event_name="LE NORTH MAY",  # aucune taille dans le nom global
+    )
+    monkeypatch.setattr("app.scrapers.timepulse._fetch_xml", lambda _id: xml)
+
+    results = scrape_event_all("https://www.timepulse.fr/resultats/3232")
+    by_bib = {r.bib_number: r for r in results}
+
+    assert by_bib["10"].event_type == "triathlon-s"
+    assert by_bib["20"].event_type == "triathlon-m"
+    assert by_bib["30"].event_type == "triathlon-l"
+    assert by_bib["40"].event_type == "triathlon"  # repli nom global
+
+
+def test_scrape_event_all_derives_t2_and_run_from_passages(monkeypatch):
+    """T2/course non publiés en segments (np="1") → dérivés des points cumulés.
+
+    Cas réel (épreuve 3232) : le <R> ne porte que s0/s1/s2 (natation/T1/vélo) ;
+    T2 et course à pied n'existent que sous forme de points de passage cumulés
+    p0..p7. T2 = 1er point après la fin du vélo − fin du vélo ; course = total −
+    ce point. Chiffres du dossard 685 (parcours S).
+    """
+    xml = make_xml(
+        athletes=[("685", "ALPHA Jean", "SEH", "M", "Triathlon S SOLO")],
+        results=[("685", "01:01:19", {
+            "s0": "00:10:21", "s1": "00:01:23", "s2": "00:30:24",
+            "p0": "00:10:21", "p1": "00:11:44", "p2": "00:42:08",
+            "p4": "00:43:25", "p6": "00:47:22", "p7": "00:50:49",
+        })],
+        event_name="LE NORTH MAY",
+    )
+    monkeypatch.setattr("app.scrapers.timepulse._fetch_xml", lambda _id: xml)
+
+    r = scrape_event_all("https://www.timepulse.fr/resultats/3232")[0]
+
+    assert r.swim_time == "00:10:21"
+    assert r.t1_time == "00:01:23"
+    assert r.bike_time == "00:30:24"
+    assert r.t2_time == "00:01:17"   # p4 (00:43:25) − fin vélo (00:42:08)
+    assert r.run_time == "00:17:54"  # total (01:01:19) − p4 (00:43:25)
+
+
+def test_scrape_event_all_keeps_native_segments_over_derivation(monkeypatch):
+    """Si TimePulse fournit s3/s4, on les garde tels quels (pas de dérivation)."""
+    xml = make_xml(
+        athletes=[("700", "BETA Marc", "SEH", "M", "Triathlon S SOLO")],
+        results=[("700", "01:01:19", {
+            "s0": "00:10:21", "s1": "00:01:23", "s2": "00:30:24",
+            "s3": "00:00:30", "s4": "00:18:41",
+            "p0": "00:10:21", "p2": "00:42:08", "p4": "00:43:25",
+        })],
+        event_name="LE NORTH MAY",
+    )
+    monkeypatch.setattr("app.scrapers.timepulse._fetch_xml", lambda _id: xml)
+
+    r = scrape_event_all("https://www.timepulse.fr/resultats/3232")[0]
+    assert r.t2_time == "00:00:30"   # segment natif, pas la dérivation
+    assert r.run_time == "00:18:41"
+
+
 def test_id_event_extracted_from_path_short():
     """Variante courte : https://www.timepulse.fr/resultats/3090."""
     import re
