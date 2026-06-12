@@ -52,6 +52,19 @@ alembic upgrade head                       # applique les migrations
 alembic revision --autogenerate -m "..."   # nouvelle migration après modif d'un modèle
 ```
 
+### Réinitialiser la base (dev — SQLite uniquement)
+
+`scripts/reset_db.py` vide la base, réapplique les migrations, puis ré-importe
+un jeu de données démo réel (toutes disciplines). **Garde-fou** : le script
+refuse de s'exécuter si `DATABASE_URL` n'est pas SQLite (jamais sur Supabase).
+
+```bash
+python scripts/reset_db.py            # vide + migre + seed démo
+python scripts/reset_db.py --no-seed  # schéma vierge seulement (rapide, hors réseau)
+python scripts/reset_db.py --yes      # sans confirmation interactive
+python scripts/seed_demo.py           # (re)seed seul, sans toucher au schéma
+```
+
 ## Lancer l'API
 
 ```bash

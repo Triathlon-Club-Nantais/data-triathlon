@@ -44,6 +44,8 @@ Le dépôt contient **deux générations** de chaque brique. Bien repérer la ci
 uvicorn app.main:app --reload --port 8001  # API + /docs (endpoints sous /api/v1)
 alembic upgrade head                        # applique les migrations (plus de create_all)
 alembic revision --autogenerate -m "..."    # nouvelle migration après modif d'un modèle
+python scripts/reset_db.py                  # reset base dev SQLite (vide + migre + seed démo)
+python scripts/reset_db.py --no-seed --yes  # schéma vierge seul (refuse si DB non-SQLite)
 pytest -m "not integration"                 # tests unitaires (sans réseau) — défaut CI
 pytest -m integration                       # tests réseau réel (scrapers)
 ruff check .                                 # lint
