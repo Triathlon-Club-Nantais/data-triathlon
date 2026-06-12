@@ -1,5 +1,6 @@
 export const EVENT_TYPE_LABELS: Record<string, string> = {
   triathlon: "Triathlon",
+  "triathlon-xs": "Triathlon XS",
   "triathlon-s": "Triathlon S",
   "triathlon-m": "Triathlon M",
   "triathlon-l": "Triathlon L",

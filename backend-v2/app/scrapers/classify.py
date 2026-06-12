@@ -21,7 +21,8 @@ BARE_TYPES = frozenset({
 # l'idempotence stricte de `normalize_event_type` (un slug déjà propre est
 # renvoyé tel quel, sans risque de re-classement erroné).
 CANONICAL_TYPES = frozenset({
-    "triathlon", "triathlon-s", "triathlon-m", "triathlon-l", "triathlon-xl",
+    "triathlon", "triathlon-xs", "triathlon-s", "triathlon-m", "triathlon-l",
+    "triathlon-xl",
     "duathlon", "duathlon-xs", "duathlon-s", "duathlon-m", "duathlon-l",
     "swimrun", "swimrun-s", "swimrun-m", "swimrun-l",
     "aquathlon", "aquarun", "bike-run",
@@ -69,8 +70,6 @@ def _triathlon(t: str) -> str:
     size = _detect_size(t)
     if not size:
         return "triathlon"
-    if size == "xs":  # le triathlon n'a pas de XS canonique → collapse vers S
-        size = "s"
     return f"triathlon-{size}"
 
 

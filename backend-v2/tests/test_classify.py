@@ -17,7 +17,7 @@ from app.scrapers.classify import (
     ("triathlon-l", "triathlon-l"),
     ("triathlon-xl", "triathlon-xl"),
     ("medoc-atlantique-frenchman-xxl", "triathlon-xl"),
-    ("triathlon-xs-jeunes", "triathlon-s"),            # XS triathlon → S (collapse)
+    ("triathlon-xs-jeunes", "triathlon-xs"),           # XS triathlon (jeunes/découverte)
     ("Triathlon de Noirmoutier Sprint 2025", "triathlon-s"),
     ("Triathlon Olympique de Paris 2025", "triathlon-m"),
     ("Triathlon L de Bordeaux", "triathlon-l"),

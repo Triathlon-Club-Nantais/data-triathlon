@@ -104,8 +104,8 @@ def fresh_result() -> tuple[ScrapedResult, dict]:
     ("aquarun-individuel", "aquarun-lacanau-2025", "aquarun"),
     ("bike-run-individuel", "bike-run-halloween-2025", "bike-run"),
     ("bikerun-sprint", "", "bike-run"),
-    # Mimizan jeunes : heat "triathlon-xs-jeunes" → triathlon-s (xs = extra-short)
-    ("triathlon-xs-jeunes", "", "triathlon-s"),
+    # Mimizan jeunes : heat "triathlon-xs-jeunes" → triathlon-xs (extra-short)
+    ("triathlon-xs-jeunes", "", "triathlon-xs"),
     # heat vide → valeur brute retournée
     ("", "", "triathlon"),
 ])
