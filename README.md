@@ -40,6 +40,25 @@ git clone https://github.com/TON_USERNAME/data-triathlon.git
 cd data-triathlon
 ```
 
+### Raccourcis Task (optionnel mais recommandé)
+
+Un `Taskfile.yml` ([go-task](https://taskfile.dev)) regroupe toutes les commandes
+courantes. Une fois Task installé (`brew install go-task`, ou voir la
+[doc d'installation](https://taskfile.dev/installation/)) :
+
+```bash
+task                 # liste toutes les tâches disponibles
+task install         # installe les deps de la pile cible (backend-v2 + frontend-v2)
+task dev             # lance backend-v2 (:8001) + frontend-v2 (:3000) en parallèle
+task test            # tests unitaires backend-v2 + frontend-v2
+task lint            # lint des deux
+```
+
+Préfixes : `bv2:*` (backend-v2, cible), `fv2:*` (frontend-v2, cible),
+`b1:*`/`f1:*` (v1 dépréciés), `docker:*` (docker-compose). Ex. :
+`task bv2:migrate`, `task bv2:migration -- "mon message"`, `task fv2:build`.
+Les sections ci-dessous documentent les commandes brutes équivalentes.
+
 ### 2. Base de données
 
 **Option A — Supabase (recommandé pour la prod)**
