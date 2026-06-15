@@ -113,6 +113,19 @@ _SERIES_SPLIT_MAP = [
 ]
 
 
+# Catégories d'équipe TimePulse : EQX (mixte), EQM (hommes), EQF (femmes).
+_RELAY_CATEGORIES = frozenset({"EQX", "EQM", "EQF"})
+
+
+def _is_relay(parcours: str, category: str) -> bool:
+    """Vrai si la participation est un relais d'équipe.
+
+    Deux marqueurs concordants sur TimePulse : le parcours `p` contient
+    « RELAIS » (vs « SOLO »), et/ou la catégorie `ca` est une catégorie d'équipe.
+    """
+    return "relais" in (parcours or "").lower() or (category or "").upper() in _RELAY_CATEGORIES
+
+
 def _series_field(nom: str) -> str | None:
     n = nom.lower().strip()
     for key, field in _SERIES_SPLIT_MAP:
@@ -360,6 +373,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         result.club = ea.get("c", "")
         result.gender = ea.get("x", "")
         result.category = ea.get("ca", "")
+        result.is_relay = _is_relay(parcours, result.category)
 
         r_tag = _find_tag(xml, "R", "d", bib)
         ra = _attrs(r_tag) if r_tag else {}

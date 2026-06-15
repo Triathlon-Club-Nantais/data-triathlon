@@ -429,6 +429,36 @@ def test_scrape_event_all_event_type_from_parcours(monkeypatch):
     assert by_bib["40"].event_type == "triathlon"  # repli nom global
 
 
+def test_scrape_event_all_detects_relay(monkeypatch):
+    """Relais détecté via parcours « RELAIS » et/ou catégorie EQ* ; solo → False.
+
+    Cas réel (épreuve 3232 « LE NORTH MAY ») : une même épreuve mélange des
+    solos (p="Triathlon S SOLO", ca="SEH") et des relais d'équipe
+    (p="Triathlon S RELAIS", ca="EQX"/"EQM"/"EQF").
+    """
+    xml = make_xml(
+        athletes=[
+            ("10", "ALPHA Jean", "SEH", "M", "Triathlon S SOLO"),       # solo
+            ("20", "ROUXEL/ROUXEL Didier/Emma", "EQX", "M", "Triathlon S RELAIS"),  # relais mixte
+            ("30", "CANNIOU/OLIVIER Cedric/Leclerc", "EQM", "M", "Triathlon S RELAIS"),
+        ],
+        results=[
+            ("10", "01:00:00", {}),
+            ("20", "01:24:03", {}),
+            ("30", "01:30:00", {}),
+        ],
+        event_name="LE NORTH MAY",
+    )
+    monkeypatch.setattr("app.scrapers.timepulse._fetch_xml", lambda _id: xml)
+
+    results = scrape_event_all("https://www.timepulse.fr/resultats/3232")
+    by_bib = {r.bib_number: r for r in results}
+
+    assert by_bib["10"].is_relay is False
+    assert by_bib["20"].is_relay is True
+    assert by_bib["30"].is_relay is True
+
+
 def test_scrape_event_all_derives_t2_and_run_from_passages(monkeypatch):
     """T2/course non publiés en segments (np="1") → dérivés des points cumulés.
 

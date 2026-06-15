@@ -24,6 +24,7 @@ const base: Participation = {
   rank_gender: 3,
   total_time: "02:15:30",
   status: "finisher",
+  is_relay: false,
   splits: { swim: "00:25:00", t1: "00:01:10", bike: "01:05:00", t2: "00:00:50", run: "00:43:30" },
   created_at: "2026-05-11T10:00:00Z",
 };
@@ -57,6 +58,16 @@ describe("ResultCard", () => {
   it("n'affiche pas de bloc splits si splits est null", () => {
     render(<ResultCard result={{ ...base, splits: null }} />);
     expect(screen.queryByText("Natation")).not.toBeInTheDocument();
+  });
+
+  it("affiche le badge Relais quand la participation est un relais", () => {
+    render(<ResultCard result={{ ...base, is_relay: true }} />);
+    expect(screen.getByText("Relais")).toBeInTheDocument();
+  });
+
+  it("n'affiche pas le badge Relais pour un solo", () => {
+    render(<ResultCard result={base} />);
+    expect(screen.queryByText("Relais")).not.toBeInTheDocument();
   });
 
   it("appelle onDelete après confirmation", async () => {

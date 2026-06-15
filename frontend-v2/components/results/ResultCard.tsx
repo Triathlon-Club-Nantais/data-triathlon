@@ -80,7 +80,7 @@ export function ResultCard({
           {result.bib_number && (
             <span className="text-muted-foreground">#{result.bib_number}</span>
           )}
-          {c?.is_relay && <Badge variant="destructive">Relais</Badge>}
+          {(result.is_relay || c?.is_relay) && <Badge variant="destructive">Relais</Badge>}
         </div>
 
         {(result.rank_overall || result.rank_category || result.rank_gender) && (

@@ -110,6 +110,7 @@ def participation_fields(
         "club": scraped.club or None,
         "category": scraped.category or None,
         "bib_number": scraped.bib_number or None,
+        "is_relay": scraped.is_relay,
         "rank_overall": scraped.rank_overall,
         "rank_category": scraped.rank_category,
         "rank_gender": scraped.rank_gender,

@@ -34,6 +34,7 @@ export interface Participation {
   rank_gender: number | null;
   total_time: string | null;
   status: string;
+  is_relay: boolean;
   splits: Splits | null;
   created_at: string | null;
 }
