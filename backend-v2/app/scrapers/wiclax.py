@@ -56,8 +56,7 @@ def _parse_competitor(comp, url: str, event_name: str, event_type: str) -> Scrap
     """Build a ScrapedResult from a single competitor XML element.
     Handles both Wiclax Competitor/Runner format and TimePulse-style E format.
     """
-    bib = _get_competitor_bib(comp)
-    result = ScrapedResult(source_url=url, provider="wiclax", bib_number=bib)
+    result = ScrapedResult(source_url=url, provider="wiclax", bib_number=_display_bib(comp))
     result.event_name = event_name
 
     # p= (parcours) gives per-competitor discipline in ChronoSmetron format
@@ -83,10 +82,10 @@ def _parse_competitor(comp, url: str, event_name: str, event_type: str) -> Scrap
     result.club = comp.get("Club") or comp.get("club") or comp.get("c") or ""
     result.category = comp.get("Category") or comp.get("category") or comp.get("ca") or ""
     result.gender = comp.get("Gender") or comp.get("gender") or comp.get("x") or ""
-    # v = overall rank in ChronoSmetron E format; Rank/rank in Competitor format
-    result.rank_overall = normalize_rank(
-        comp.get("Rank") or comp.get("rank") or comp.get("v")
-    )
+    # Rang général : Rank/rank en format Competitor uniquement. En ChronoSmetron
+    # E/R le rang N'EST PAS stocké (l'attribut `v` est le dossard réel, pas le
+    # rang) → il est calculé au tri par scrape_event_all (_compute_er_ranks).
+    result.rank_overall = normalize_rank(comp.get("Rank") or comp.get("rank"))
     result.rank_category = normalize_rank(
         comp.get("CategoryRank") or comp.get("categoryrank")
     )
@@ -220,73 +219,168 @@ def _get_competitor_fullname(comp) -> str:
 
 
 def _get_competitor_bib(comp) -> str:
+    """Clé de jointure E↔R (et bib en format Competitor).
+
+    En ChronoSmetron, `d` est l'identifiant interne (numéroté par vague, ex.
+    5176) qui relie le <E> à son <R> — c'est la clé de jointure, PAS le dossard
+    affiché (cf. _display_bib)."""
     return (comp.get("Bib") or comp.get("bib") or
             comp.get("d") or comp.get("D") or "")
 
 
-def _build_split_indices(root: ET.Element) -> dict[str, int]:
+def _display_bib(comp) -> str:
+    """Dossard affiché à l'athlète.
+
+    Format Competitor : attribut Bib. Format ChronoSmetron E/R : l'attribut `v`
+    porte le *dossard réel* (« NumVoitureOuDosRéel », ex. 176) ; `d` n'est qu'un
+    id interne préfixé par vague (ex. 5176). On préfère donc `v`, repli sur `d`.
     """
-    Parse <Segments><S> definitions to build a dynamic sN-key mapping.
+    return (comp.get("Bib") or comp.get("bib") or
+            comp.get("v") or comp.get("V") or
+            comp.get("d") or comp.get("D") or "")
 
-    Each <S> element's 0-based position in the list is its sN index.
-    Segments are classified by disc and trans attributes:
-      disc=5, trans absent → swim
-      disc=-1, trans=1     → transition (first=T1, second=T2)
-      disc=0               → bike
-      disc=6               → run
 
-    We identify TOTAL segments (not individual laps) by matching
-    checkpoint ranges: total segment spans T1_end→T2_start (bike) or
-    T2_end→finish (run).
+def _time_to_secs(t: str) -> int:
+    """Convertit un temps normalisé "HH:MM:SS" en secondes (0 si invalide)."""
+    parts = (t or "").split(":")
+    try:
+        return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+    except (IndexError, ValueError):
+        return 0
+
+
+def _compute_er_ranks(
+    root: ET.Element, r_by_bib: dict[str, ET.Element]
+) -> dict[str, tuple[int, int, int]]:
+    """Rangs (général, sexe, catégorie) des finishers, calculés au tri par temps.
+
+    ChronoSmetron ne stocke pas le classement dans le .clax : la page live le
+    calcule en triant les finishers par temps total, au sein de chaque parcours
+    (`p`). On reproduit ce tri. Le dict renvoyé est indexé par la clé de jointure
+    `d` ; les non-finishers et temps absents sont exclus du classement.
     """
-    segs_elem = root.find(".//Segments")
-    if segs_elem is None:
-        return {}
+    from collections import defaultdict
 
-    segments = list(segs_elem)
-    result: dict[str, int] = {}
+    by_parcours: dict[str, list[tuple[int, str, str, str]]] = defaultdict(list)
+    for comp in root.iter("E"):
+        d = comp.get("d") or comp.get("D")
+        if not d:
+            continue
+        result_elem = r_by_bib.get(d)
+        if result_elem is None:
+            continue
+        raw_t = result_elem.get("t", "")
+        status = (_competitor_status(comp) or _competitor_status(result_elem)
+                  or derive_status_from_label(raw_t))
+        if status in (STATUS_DNF, STATUS_DNS, STATUS_DSQ):
+            continue
+        secs = _time_to_secs(normalize_time(raw_t))
+        if not secs:
+            continue
+        parcours = comp.get("p") or comp.get("P") or ""
+        by_parcours[parcours].append((secs, d, comp.get("x") or "", comp.get("ca") or ""))
 
-    # Find T1 and T2 (first two elements with trans=1)
-    t1_ptg1 = t1_ptg2 = t2_ptg1 = t2_ptg2 = None
-    trans_found = 0
-    for i, s in enumerate(segments):
-        if s.get("trans") == "1":
-            if trans_found == 0:
-                result["t1"] = i
-                t1_ptg1, t1_ptg2 = s.get("ptg1"), s.get("ptg2")
-            elif trans_found == 1:
-                result["t2"] = i
-                t2_ptg1, t2_ptg2 = s.get("ptg1"), s.get("ptg2")
-            trans_found += 1
-            if trans_found == 2:
-                break
+    ranks: dict[str, tuple[int, int, int]] = {}
+    for entries in by_parcours.values():
+        entries.sort(key=lambda e: e[0])
+        overall = 0
+        gender_pos: dict[str, int] = defaultdict(int)
+        cat_pos: dict[tuple[str, str], int] = defaultdict(int)
+        for _secs, d, gender, cat in entries:
+            overall += 1
+            gender_pos[gender] += 1
+            # Catégorie = même sexe + même catégorie (les catégories sont
+            # genrées en triathlon FR : S2H/S2F distincts).
+            cat_pos[(gender, cat)] += 1
+            ranks[d] = (overall, gender_pos[gender], cat_pos[(gender, cat)])
+    return ranks
 
-    # Swim total: disc=5, ptg1=-999, ptg2 = t1_ptg1 (ends exactly where T1 starts)
-    for i, s in enumerate(segments):
-        if s.get("disc") == "5" and s.get("ptg1") == "-999":
-            if t1_ptg1 is None or s.get("ptg2") == t1_ptg1:
-                result["swim"] = i
-                break
 
-    # Bike total: disc=0, spans exactly from T1_end to T2_start
-    if t1_ptg2 and t2_ptg1:
-        for i, s in enumerate(segments):
-            if (s.get("disc") == "0"
-                    and s.get("ptg1") == t1_ptg2
-                    and s.get("ptg2") == t2_ptg1):
-                result["bike"] = i
-                break
+# Codes `disc` Wiclax → discipline (trans="1"/disc="-1" = transition, traité à part).
+_DISC_KIND = {"5": "swim", "0": "bike", "6": "run"}
 
-    # Run total: disc=6, starts exactly where T2 ends, goes to finish (ptg2=999)
-    if t2_ptg2:
-        for i, s in enumerate(segments):
-            if (s.get("disc") == "6"
-                    and s.get("ptg1") == t2_ptg2
-                    and s.get("ptg2") == "999"):
-                result["run"] = i
-                break
 
-    return result
+def _segment_kind(s: ET.Element) -> str:
+    if s.get("trans") == "1" or s.get("disc") == "-1":
+        return "transition"
+    return _DISC_KIND.get(s.get("disc") or "", "other")
+
+
+def _segment_chain(segments: list[ET.Element], parcours: str) -> list[tuple[int, str]]:
+    """Splits « totaux » d'un parcours, ordonnés du départ à l'arrivée.
+
+    Le `.clax` partage UN bloc <Segments> entre tous les parcours, chaque <S>
+    étant scopé par l'attribut `pcs`. On filtre les segments du parcours, puis on
+    voit chaque <S> comme une arête `ptg1→ptg2` et on prend le chemin du
+    checkpoint de départ (`-999`) à l'arrivée (`999`) comptant le MOINS d'arêtes :
+    il retient les segments totaux et écarte les tours/laps (qui subdivisent un
+    total en plusieurs arêtes). Renvoie une liste de (index sN, nature) où
+    nature ∈ {swim, bike, run, transition, other}.
+    """
+    from collections import defaultdict, deque
+
+    adj: dict[str, list[tuple[str, int, ET.Element]]] = defaultdict(list)
+    for idx, s in enumerate(segments):
+        pcs = s.get("pcs") or ""
+        names = {n.strip() for n in pcs.split(",") if n.strip()}
+        # pcs vide → segment commun à tous les parcours (pas de filtrage).
+        if names and parcours and parcours not in names:
+            continue
+        adj[s.get("ptg1")].append((s.get("ptg2"), idx, s))
+
+    start, finish = "-999", "999"
+    queue: deque[tuple[str, list[tuple[int, str]]]] = deque([(start, [])])
+    visited = {start}
+    while queue:
+        node, path = queue.popleft()
+        if node == finish:
+            return path
+        for nxt, idx, s in adj.get(node, []):
+            if nxt not in visited:
+                visited.add(nxt)
+                queue.append((nxt, path + [(idx, _segment_kind(s))]))
+    return []
+
+
+def _parcours_split_map(
+    segments: list[ET.Element], parcours: str
+) -> tuple[dict[str, int], str | None]:
+    """(mapping {slot ScrapedResult → index sN}, surcharge event_type | None).
+
+    La discipline est déduite de la séquence des segments du parcours :
+      - natation/vélo/CaP (+ T1/T2) → triathlon : slots swim/t1/bike/t2/run,
+        pas de surcharge (on conserve l'event_type détecté depuis `p`).
+      - CaP/vélo/CaP — course jeune run-bike-run, sans natation : 1re course à
+        pied → slot swim, 2e course à pied → slot run, surcharge
+        event_type="duathlon" pour que build_splits étiquette course1/bike/course2.
+      - tout autre motif → rattachement par nature (best effort), sans surcharge.
+    """
+    chain = _segment_chain(segments, parcours)
+    if not chain:
+        return {}, None
+
+    discs = [kind for _idx, kind in chain if kind != "transition"]
+    trans = [idx for idx, kind in chain if kind == "transition"]
+
+    def _with_transitions(split_map: dict[str, int]) -> dict[str, int]:
+        if len(trans) >= 1:
+            split_map["t1"] = trans[0]
+        if len(trans) >= 2:
+            split_map["t2"] = trans[1]
+        return split_map
+
+    # Course jeune run-bike-run : pas de natation, deux courses à pied autour du vélo.
+    if discs == ["run", "bike", "run"]:
+        runs = [idx for idx, kind in chain if kind == "run"]
+        bike = next(idx for idx, kind in chain if kind == "bike")
+        return _with_transitions({"swim": runs[0], "bike": bike, "run": runs[1]}), "duathlon"
+
+    # Triathlon (et défaut) : un slot par nature, premier segment rencontré.
+    split_map: dict[str, int] = {}
+    for idx, kind in chain:
+        if kind in ("swim", "bike", "run") and kind not in split_map:
+            split_map[kind] = idx
+    return _with_transitions(split_map), None
 
 
 def _fill_er_splits(
@@ -321,7 +415,10 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     Handles both Competitor/Runner format and ChronoSmetron E/R format.
     """
     root, _clax_url, event_name, event_type, event_date = _fetch_clax(url)
-    split_idx = _build_split_indices(root)
+    segs_elem = root.find(".//Segments")
+    segments = list(segs_elem) if segs_elem is not None else []
+    # Mapping des splits calculé une fois par parcours (mémoïsé).
+    split_cache: dict[str, tuple[dict[str, int], str | None]] = {}
     # Strip the B= athlete-selector so each result links to the event, not a random athlete
     base_url = _strip_athlete_param(url)
     results: list[ScrapedResult] = []
@@ -346,31 +443,41 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
             for elem in root.iter("R")
             if elem.get("d")
         }
+        # Rangs calculés au tri (le .clax ne les stocke pas), indexés par clé `d`.
+        ranks_by_d = _compute_er_ranks(root, r_by_bib)
         for comp in root.iter("E"):
-            bib = _get_competitor_bib(comp)
-            if not bib:
+            join_key = _get_competitor_bib(comp)  # clé de jointure E↔R = `d`
+            if not join_key:
                 continue
             r = _parse_competitor(comp, base_url, event_name, event_type)
-            # Rank from v attribute on E element — sauf non-finisher (hygiène déjà
-            # appliquée par _parse_competitor : ne pas ressusciter un rang purgé).
-            is_non_finisher = r.status in (STATUS_DNF, STATUS_DNS, STATUS_DSQ)
-            if comp.get("v") and not r.rank_overall and not is_non_finisher:
-                r.rank_overall = normalize_rank(comp.get("v"))
+            # Mapping des splits propre au parcours (segments scopés par `pcs`) :
+            # une course jeune run-bike-run lit ses propres sN et est reclassée duathlon.
+            parcours = comp.get("p") or comp.get("P") or ""
+            if parcours not in split_cache:
+                split_cache[parcours] = _parcours_split_map(segments, parcours)
+            split_map, event_type_override = split_cache[parcours]
+            if event_type_override:
+                r.event_type = event_type_override
             # Timing from sibling R element
-            result_elem = r_by_bib.get(bib)
+            result_elem = r_by_bib.get(join_key)
             if result_elem is not None:
                 raw_t = result_elem.get("t", "")
                 # Le statut peut venir d'un attribut nommé du <R>, ou d'un libellé
                 # logé dans l'attribut temps (ex. t="Abandon"/"Disqualifié").
                 if not r.status:
                     r.status = _competitor_status(result_elem) or derive_status_from_label(raw_t)
-                is_non_finisher = r.status in (STATUS_DNF, STATUS_DNS, STATUS_DSQ)
-                if is_non_finisher:
+                if r.status in (STATUS_DNF, STATUS_DNS, STATUS_DSQ):
                     r.total_time = ""
-                    r.rank_overall = r.rank_category = r.rank_gender = None
                 elif not r.total_time:
                     r.total_time = normalize_time(raw_t)
-                    _fill_er_splits(result_elem, r, split_idx)
+                    _fill_er_splits(result_elem, r, split_map)
+            # Rang calculé au tri pour les finishers ; None sinon (hygiène).
+            if r.status in (STATUS_DNF, STATUS_DNS, STATUS_DSQ):
+                r.rank_overall = r.rank_category = r.rank_gender = None
+            else:
+                rg = ranks_by_d.get(join_key)
+                if rg is not None:
+                    r.rank_overall, r.rank_gender, r.rank_category = rg
             r.event_date = event_date
             results.append(r)
 

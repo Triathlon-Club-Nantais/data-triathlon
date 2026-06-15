@@ -113,6 +113,19 @@ _SERIES_SPLIT_MAP = [
 ]
 
 
+# Catégories d'équipe TimePulse : EQX (mixte), EQM (hommes), EQF (femmes).
+_RELAY_CATEGORIES = frozenset({"EQX", "EQM", "EQF"})
+
+
+def _is_relay(parcours: str, category: str) -> bool:
+    """Vrai si la participation est un relais d'équipe.
+
+    Deux marqueurs concordants sur TimePulse : le parcours `p` contient
+    « RELAIS » (vs « SOLO »), et/ou la catégorie `ca` est une catégorie d'équipe.
+    """
+    return "relais" in (parcours or "").lower() or (category or "").upper() in _RELAY_CATEGORIES
+
+
 def _series_field(nom: str) -> str | None:
     n = nom.lower().strip()
     for key, field in _SERIES_SPLIT_MAP:
@@ -166,6 +179,49 @@ def _secs(t: str) -> int:
         return int(p[0]) * 3600 + int(p[1]) * 60 + int(p[2])
     except (IndexError, ValueError):
         return 0
+
+
+def _fmt_secs(s: int) -> str:
+    return f"{s // 3600:02d}:{(s % 3600) // 60:02d}:{s % 60:02d}"
+
+
+def _derive_late_splits(result: ScrapedResult, ra: dict[str, str]) -> None:
+    """Reconstitue T2 + course depuis les points de passage cumulés (`pN`).
+
+    Quand TimePulse ne publie pas de segment T2/course (séries `np="1"`, pas de
+    `s3`/`s4`), les temps n'existent que sous forme de passages cumulés. La fin
+    du vélo est le passage cumulé le plus proche du cumul natation+T1+vélo (on
+    s'ancre sur le passage réel, pas sur la somme des segments arrondis, qui
+    dérive de quelques secondes) ; le passage suivant est la sortie T2 :
+      T2     = (passage de sortie T2) − (passage fin vélo)
+      course = total − (passage de sortie T2)
+    Sans aucun passage après le vélo, tout le reliquat est rangé en course.
+    """
+    approx_bike_end = (
+        _secs(result.swim_time) + _secs(result.t1_time) + _secs(result.bike_time)
+    )
+    total = _secs(result.total_time)
+    if not approx_bike_end or total <= approx_bike_end:
+        return
+
+    points = sorted(
+        c
+        for k, v in ra.items()
+        if re.fullmatch(r"p\d+", k) and (c := _secs(normalize_time(v))) > 0
+    )
+    if not points:
+        result.run_time = _fmt_secs(total - approx_bike_end)
+        return
+
+    bike_pt = min(points, key=lambda p: abs(p - approx_bike_end))
+    after = [p for p in points if p > bike_pt]
+    if after:
+        t2_out = min(after)
+        if not result.t2_time:
+            result.t2_time = _fmt_secs(t2_out - bike_pt)
+        result.run_time = _fmt_secs(total - t2_out)
+    else:
+        result.run_time = _fmt_secs(total - bike_pt)
 
 
 def _compute_ranks(
@@ -289,7 +345,8 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         date_str = ea.get("dates", "")
         if date_str:
             event_date_val = _parse_event_date(date_str)
-    event_type = _detect_event_type(event_name)
+    # Repli si un participant n'a pas de parcours (`p` vide).
+    event_type_fallback = _detect_event_type(event_name)
 
     results: list[ScrapedResult] = []
 
@@ -302,7 +359,12 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         result = ScrapedResult(source_url=url, provider="timepulse", bib_number=bib)
         result.event_name = event_name
         result.event_date = event_date_val
-        result.event_type = event_type
+        # Le format (S/M/L) est porté par le parcours `p` de chaque <E>, pas par
+        # le nom global de l'épreuve (ex. « LE NORTH MAY » → Triathlon S/M/L SOLO).
+        parcours = ea.get("p", "")
+        result.event_type = (
+            _detect_event_type(parcours) if parcours else event_type_fallback
+        )
 
         full_name = ea.get("n", "")
         surname, firstname = split_athlete_name(full_name)
@@ -311,6 +373,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         result.club = ea.get("c", "")
         result.gender = ea.get("x", "")
         result.category = ea.get("ca", "")
+        result.is_relay = _is_relay(parcours, result.category)
 
         r_tag = _find_tag(xml, "R", "d", bib)
         ra = _attrs(r_tag) if r_tag else {}
@@ -338,7 +401,12 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                 elif field == "run" and not result.run_time:
                     result.run_time = t
 
-            parcours = ea.get("p", "")
+            # T2 + course à pied : TimePulse marque parfois ces séries np="1" et
+            # ne fournit aucun segment (s3/s4). Le temps n'existe alors que sous
+            # forme de points de passage cumulés → on le reconstitue.
+            if not result.run_time:
+                _derive_late_splits(result, ra)
+
             if parcours and result.gender and result.category:
                 ro, rg, rc = _compute_ranks(xml, bib, parcours, result.gender, result.category)
                 result.rank_overall = ro

@@ -9,6 +9,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     DateTime,
     ForeignKey,
     Integer,
@@ -41,6 +42,9 @@ class Participation(Base):
 
     total_time: Mapped[str | None] = mapped_column(String, nullable=True)
     status: Mapped[str] = mapped_column(String, default="finisher")  # finisher / DNF / DNS
+    # Relais d'équipe (TimePulse mélange solos et relais dans une même course) :
+    # l'info est portée par la participation, pas par la course.
+    is_relay: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
     splits: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     raw_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)

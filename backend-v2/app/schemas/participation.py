@@ -23,6 +23,7 @@ class ParticipationOut(BaseModel):
     rank_gender: int | None = None
     total_time: str | None = None
     status: str = "finisher"
+    is_relay: bool = False
     splits: dict[str, str] | None = None
     created_at: datetime | None = None
 

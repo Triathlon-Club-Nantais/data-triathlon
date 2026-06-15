@@ -69,6 +69,15 @@ def test_participation_fields():
     assert fields["splits"] == {"swim": "00:20:00"}
 
 
+def test_participation_fields_carries_is_relay():
+    assert mapping.participation_fields(
+        _scraped(is_relay=True), athlete_id=1, course_id=2
+    )["is_relay"] is True
+    assert mapping.participation_fields(
+        _scraped(), athlete_id=1, course_id=2
+    )["is_relay"] is False
+
+
 def test_build_splits_trail_single_run():
     s = _scraped(event_type="trail", run_time="01:45:00")
     assert mapping.build_splits(s) == {"run": "01:45:00"}
