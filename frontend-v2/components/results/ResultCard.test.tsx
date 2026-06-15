@@ -70,6 +70,14 @@ describe("ResultCard", () => {
     expect(screen.queryByText("Relais")).not.toBeInTheDocument();
   });
 
+  it("affiche le sigle DNS à la place du temps pour un non-partant", () => {
+    render(
+      <ResultCard result={{ ...base, total_time: null, status: "DNS" }} />,
+    );
+    expect(screen.getByText("DNS")).toBeInTheDocument();
+    expect(screen.queryByText("02:15:30")).not.toBeInTheDocument();
+  });
+
   it("appelle onDelete après confirmation", async () => {
     const onDelete = vi.fn();
     render(<ResultCard result={base} onDelete={onDelete} />);

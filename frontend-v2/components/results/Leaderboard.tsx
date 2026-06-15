@@ -8,6 +8,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "./StatusBadge";
 import { Medal } from "@/components/ui/medal";
 import { InitialsAvatar } from "@/components/ui/initials-avatar";
 import { Card } from "@/components/ui/card";
@@ -91,7 +92,9 @@ export function Leaderboard({
                   {p.bib_number ? `#${p.bib_number}` : "—"}
                 </TableCell>
                 <TableCell className="num text-right font-semibold">
-                  {p.total_time ?? "—"}
+                  {p.total_time ?? (
+                    <StatusBadge status={p.status} className="ml-auto" fallback="—" />
+                  )}
                 </TableCell>
               </TableRow>
             );

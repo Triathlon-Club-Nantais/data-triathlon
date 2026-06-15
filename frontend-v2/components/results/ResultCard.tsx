@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SportBadge } from "./SportBadge";
+import { StatusBadge } from "./StatusBadge";
 import { Medal } from "@/components/ui/medal";
 import { InitialsAvatar } from "@/components/ui/initials-avatar";
 import { splitSegments } from "@/lib/utils/splits";
@@ -53,8 +54,10 @@ export function ResultCard({
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {result.total_time && (
+            {result.total_time ? (
               <span className="num text-xl font-extrabold">{result.total_time}</span>
+            ) : (
+              <StatusBadge status={result.status} />
             )}
             {onDelete && (
               <Button
