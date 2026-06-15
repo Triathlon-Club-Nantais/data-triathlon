@@ -35,7 +35,12 @@ def test_get_stats_filtered_by_club(db_session):
 
 def test_list_events_counts_tcn(db_session):
     _seed(db_session)
-    events = stats_service.list_events(db_session)
-    assert len(events) == 1
-    assert events[0]["total"] == 2
-    assert events[0]["tcn_count"] == 1
+    page = stats_service.list_events(db_session)
+    assert page["total_events"] == 1
+    assert page["total_participations"] == 2
+    assert len(page["items"]) == 1
+    event = page["items"][0]
+    assert event["total"] == 2
+    assert event["tcn_count"] == 1
+    assert event["id"] > 0
+    assert event["is_relay"] is False

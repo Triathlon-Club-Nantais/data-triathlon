@@ -1,7 +1,7 @@
 import type {
   AthleteDetail,
   CourseDetail,
-  EventOut,
+  EventPage,
   Participation,
   ParticipationFilters,
   PendingProvider,
@@ -35,7 +35,7 @@ export const apiServer = {
   getAthlete: (id: number) => serverFetch<AthleteDetail>(`/athletes/${id}`),
   getCourse: (id: number) => serverFetch<CourseDetail>(`/courses/${id}`),
   listEvents: (filters: ParticipationFilters = {}) =>
-    serverFetch<EventOut[]>(`/courses/events${toQuery(filters as Record<string, unknown>)}`),
+    serverFetch<EventPage>(`/courses/events${toQuery(filters as Record<string, unknown>)}`),
   getStats: (club?: string) => serverFetch<Stats>(`/stats${toQuery({ club })}`),
   listPendingProviders: () =>
     serverFetch<PendingProvider[]>("/admin/pending-providers"),

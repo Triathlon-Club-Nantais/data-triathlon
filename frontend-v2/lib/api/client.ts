@@ -1,7 +1,7 @@
 import type {
   AthleteDetail,
   CourseDetail,
-  EventOut,
+  EventPage,
   GeoEvent,
   ImportResult,
   Participation,
@@ -61,7 +61,7 @@ export const apiClient = {
   getCourse: (id: number) => request<CourseDetail>(`/courses/${id}`),
 
   listEvents: (filters: ParticipationFilters = {}) =>
-    request<EventOut[]>(`/courses/events${toQuery(filters as Record<string, unknown>)}`),
+    request<EventPage>(`/courses/events${toQuery(filters as Record<string, unknown>)}`),
 
   getStats: (club?: string) => request<Stats>(`/stats${toQuery({ club })}`),
   getEventsGeo: (club?: string) =>

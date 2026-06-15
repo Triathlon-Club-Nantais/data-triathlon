@@ -40,11 +40,20 @@ export interface Participation {
 }
 
 export interface EventOut {
+  id: number; // course_id — sert à charger les participants au dépliage
   event_name: string;
   event_date: string | null;
   event_type: string;
+  is_relay: boolean;
+  distance_km?: number | null;
   total: number;
   tcn_count: number;
+}
+
+export interface EventPage {
+  items: EventOut[];
+  total_events: number;
+  total_participations: number;
 }
 
 export interface GeoEvent {
@@ -141,6 +150,8 @@ export interface ParticipationFilters {
   club?: string;
   date_from?: string;
   date_to?: string;
+  course_id?: number;
+  sort?: string; // "date_desc" | "date_asc" | "name" (épreuves)
   page?: number;
   page_size?: number;
 }

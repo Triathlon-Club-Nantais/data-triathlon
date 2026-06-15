@@ -27,16 +27,24 @@ def test_courses_events_and_detail(client):
     client.post("/api/v1/participations", json=_payload(bib="1", club="TCN"))
     client.post("/api/v1/participations", json=_payload(bib="2", nom="MARTIN", club="ASPTT"))
 
-    events = client.get("/api/v1/courses/events").json()
-    assert len(events) == 1
-    assert events[0]["total"] == 2
-    assert events[0]["tcn_count"] == 1
+    page = client.get("/api/v1/courses/events").json()
+    assert page["total_events"] == 1
+    assert page["total_participations"] == 2
+    assert len(page["items"]) == 1
+    event = page["items"][0]
+    assert event["total"] == 2
+    assert event["tcn_count"] == 1
+    assert event["id"] > 0
 
     courses = client.get("/api/v1/courses").json()
     assert len(courses) == 1
     cid = courses[0]["id"]
     detail = client.get(f"/api/v1/courses/{cid}").json()
     assert len(detail["participations"]) == 2
+
+    # course_id sur /participations → participants d'une épreuve précise.
+    by_course = client.get("/api/v1/participations", params={"course_id": event["id"]}).json()
+    assert len(by_course) == 2
 
 
 def test_stats(client):

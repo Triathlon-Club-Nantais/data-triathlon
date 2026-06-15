@@ -1,13 +1,27 @@
 """Accès données pour Participation, incluant les filtres de la liste publique."""
 from datetime import date
 
-from sqlalchemy import or_
+from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.club import TCN_KEYWORDS
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.participation import Participation
+
+
+def _is_postgres(db: Session) -> bool:
+    """Vrai si le moteur est PostgreSQL (prod) — sinon SQLite (dev)."""
+    return db.bind is not None and db.bind.dialect.name == "postgresql"
+
+
+def _course_name_filter(db: Session, term: str):
+    """Filtre nom de course tolérant : trigram pg_trgm (Postgres) sinon ILIKE (SQLite)."""
+    like = Course.name.ilike(f"%{term}%")
+    if _is_postgres(db):
+        # `%` = opérateur de similarité trigram → tolère les fautes de frappe.
+        return or_(like, Course.name.op("%")(term))
+    return like
 
 
 def get(db: Session, participation_id: int) -> Participation | None:
@@ -47,10 +61,24 @@ def create(db: Session, **fields) -> Participation:
     return participation
 
 
-def _apply_filters(q, *, name, event_type, event_name, club, date_from, date_to):
+def _apply_filters(
+    q,
+    db,
+    *,
+    name,
+    event_type,
+    event_name,
+    club,
+    date_from,
+    date_to,
+    course_id=None,
+):
+    """Joint Athlete + Course et applique les filtres communs (liste + épreuves)."""
     q = q.join(Athlete, Participation.athlete_id == Athlete.id).join(
         Course, Participation.course_id == Course.id
     )
+    if course_id:
+        q = q.filter(Participation.course_id == course_id)
     if name:
         pattern = f"%{name}%"
         q = q.filter(or_(Athlete.nom.ilike(pattern), Athlete.prenom.ilike(pattern)))
@@ -61,7 +89,7 @@ def _apply_filters(q, *, name, event_type, event_name, club, date_from, date_to)
     if event_type:
         q = q.filter(Course.event_type == event_type)
     if event_name:
-        q = q.filter(Course.name.ilike(f"%{event_name}%"))
+        q = q.filter(_course_name_filter(db, event_name))
     if date_from:
         q = q.filter(Course.event_date >= date_from)
     if date_to:
@@ -78,6 +106,7 @@ def list_participations(
     club: str | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
+    course_id: int | None = None,
     page: int = 1,
     page_size: int = 20,
 ) -> list[Participation]:
@@ -86,20 +115,23 @@ def list_participations(
     )
     q = _apply_filters(
         q,
+        db,
         name=name,
         event_type=event_type,
         event_name=event_name,
         club=club,
         date_from=date_from,
         date_to=date_to,
+        course_id=course_id,
     )
     offset = (page - 1) * page_size
-    return (
-        q.order_by(Participation.created_at.desc())
-        .offset(offset)
-        .limit(page_size)
-        .all()
+    # Pour le détail d'une épreuve, trier par classement ; sinon par date d'import.
+    order = (
+        (Participation.rank_overall.is_(None), Participation.rank_overall)
+        if course_id
+        else (Participation.created_at.desc(),)
     )
+    return q.order_by(*order).offset(offset).limit(page_size).all()
 
 
 def list_for_athlete(db: Session, athlete_id: int) -> list[Participation]:
@@ -139,6 +171,47 @@ def for_stats(db: Session, club: str | None = None) -> list[Participation]:
     return q.all()
 
 
+def _grouped_events_query(
+    db: Session,
+    *,
+    name=None,
+    event_type=None,
+    event_name=None,
+    club=None,
+    date_from=None,
+    date_to=None,
+):
+    """Requête de base : une ligne par épreuve (course) avec compteurs total + TCN."""
+    q = db.query(
+        Course.id.label("course_id"),
+        Course.name.label("event_name"),
+        Course.event_date.label("event_date"),
+        Course.event_type.label("event_type"),
+        Course.is_relay.label("is_relay"),
+        Course.distance_km.label("distance_km"),
+        func.count(Participation.id).label("total"),
+        func.sum(case((tcn_filter(), 1), else_=0)).label("tcn_count"),
+    )
+    q = _apply_filters(
+        q,
+        db,
+        name=name,
+        event_type=event_type,
+        event_name=event_name,
+        club=club,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    return q.group_by(
+        Course.id,
+        Course.name,
+        Course.event_date,
+        Course.event_type,
+        Course.is_relay,
+        Course.distance_km,
+    )
+
+
 def events_with_counts(
     db: Session,
     *,
@@ -149,36 +222,82 @@ def events_with_counts(
     date_from: date | None = None,
     date_to: date | None = None,
 ) -> list:
-    """Épreuves distinctes (nom, date, type) avec total participants et compte TCN."""
-    from sqlalchemy import case, func
-
-    q = db.query(
-        Course.name.label("event_name"),
-        Course.event_date.label("event_date"),
-        Course.event_type.label("event_type"),
-        func.count(Participation.id).label("total"),
-        func.sum(case((tcn_filter(), 1), else_=0)).label("tcn_count"),
-    ).join(Course, Participation.course_id == Course.id)
-    q = q.join(Athlete, Participation.athlete_id == Athlete.id)
-
-    if name:
-        pattern = f"%{name}%"
-        q = q.filter(or_(Athlete.nom.ilike(pattern), Athlete.prenom.ilike(pattern)))
-    if club:
-        keywords = [k.strip() for k in club.split("|") if k.strip()]
-        if keywords:
-            q = q.filter(or_(*[Participation.club.ilike(f"%{k}%") for k in keywords]))
-    if event_type:
-        q = q.filter(Course.event_type == event_type)
-    if event_name:
-        q = q.filter(Course.name.ilike(f"%{event_name}%"))
-    if date_from:
-        q = q.filter(Course.event_date >= date_from)
-    if date_to:
-        q = q.filter(Course.event_date <= date_to)
-
+    """Épreuves distinctes avec total participants et compte TCN (non paginé — carte/stats)."""
     return (
-        q.group_by(Course.name, Course.event_date, Course.event_type)
+        _grouped_events_query(
+            db,
+            name=name,
+            event_type=event_type,
+            event_name=event_name,
+            club=club,
+            date_from=date_from,
+            date_to=date_to,
+        )
         .order_by(Course.event_date.desc(), Course.name)
         .all()
     )
+
+
+def _events_order(db: Session, sort: str, event_name: str | None):
+    """Ordre de tri des épreuves. Si recherche fuzzy (Postgres), tri par similarité."""
+    if event_name and _is_postgres(db):
+        return (func.similarity(Course.name, event_name).desc(), Course.event_date.desc())
+    if sort == "date_asc":
+        return (Course.event_date.asc().nullslast(), Course.name)
+    if sort == "name":
+        return (Course.name.asc(), Course.event_date.desc())
+    # date_desc par défaut : dates nulles en dernier.
+    return (Course.event_date.desc().nullslast(), Course.name)
+
+
+def events_page(
+    db: Session,
+    *,
+    name: str | None = None,
+    event_type: str | None = None,
+    event_name: str | None = None,
+    club: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    sort: str = "date_desc",
+    page: int = 1,
+    page_size: int = 30,
+) -> dict:
+    """Page d'épreuves (scroll infini) + total épreuves et total participations."""
+    grouped = _grouped_events_query(
+        db,
+        name=name,
+        event_type=event_type,
+        event_name=event_name,
+        club=club,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+    total_events = db.query(func.count()).select_from(grouped.subquery()).scalar() or 0
+
+    parts = db.query(func.count(Participation.id))
+    parts = _apply_filters(
+        parts,
+        db,
+        name=name,
+        event_type=event_type,
+        event_name=event_name,
+        club=club,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    total_participations = parts.scalar() or 0
+
+    offset = (page - 1) * page_size
+    rows = (
+        grouped.order_by(*_events_order(db, sort, event_name))
+        .offset(offset)
+        .limit(page_size)
+        .all()
+    )
+    return {
+        "items": rows,
+        "total_events": int(total_events),
+        "total_participations": int(total_participations),
+    }
