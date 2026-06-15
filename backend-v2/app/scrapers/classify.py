@@ -45,13 +45,12 @@ def _detect_size(t: str) -> str:
     déclenche pas la frontière `-s-`).
     """
     def seg(tag: str) -> bool:
-        # `-{tag} ` : taille en fin de heat suivie d'un slug séparé par un
-        # espace (ex. "triathlon-xl frenchman-2026").
-        return (
-            f"-{tag}-" in t or t.endswith(f"-{tag}") or f"-{tag} " in t
-            or f" {tag} " in t or t.endswith(f" {tag}")
-            or f"format-{tag}" in t
-        )
+        # Token de taille isolé : non entouré d'alphanumériques. Couvre tous les
+        # délimiteurs (espace, tiret, début/fin) sans énumérer chaque motif —
+        # « triathlon-s », « format-s », « triathlon s », « Relais S-Entreprises »
+        # matchent ; le « s » final de « relais » ou celui de « xs » non (précédé
+        # d'une lettre). XS reste testé après S grâce à l'ordre de _detect_size.
+        return re.search(rf"(?<![a-z0-9]){tag}(?![a-z0-9])", t) is not None
 
     if "xxl" in t or "ironman" in t or "embrunman" in t or seg("xl"):
         return "xl"

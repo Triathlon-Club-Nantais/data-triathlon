@@ -35,6 +35,20 @@ def test_classify_triathlon(text, expected):
     assert classify_event_type(text) == expected
 
 
+# --- Parcours relais (Wiclax/TimePulse) : la taille doit survivre au nommage ---
+@pytest.mark.parametrize("parcours,expected", [
+    ("Relais XS", "triathlon-xs"),
+    ("Relais S", "triathlon-s"),
+    ("Relais M", "triathlon-m"),
+    ("Relais L", "triathlon-l"),
+    ("Relais S-Entreprises", "triathlon-s"),    # taille collée à un tiret (régression)
+    ("Triathlon S RELAIS", "triathlon-s"),      # forme TimePulse
+    ("Relais Entreprise", "triathlon"),         # aucune taille dans le nom → nu (attendu)
+])
+def test_classify_relais(parcours, expected):
+    assert classify_event_type(parcours) == expected
+
+
 # --- Duathlon ---
 @pytest.mark.parametrize("text,expected", [
     ("duathlon-classique", "duathlon"),
