@@ -54,10 +54,14 @@ class ParticipationCreate(BaseModel):
     rank_category: int | None = None
     rank_gender: int | None = None
     total_time: str = ""
-    # Segments (mappés vers splits)
+    # Segments — commodité de saisie triathlon (mappés vers splits, ré-étiquetés
+    # par sport). Pour les autres sports, préférer `segments` (chemin générique).
     swim_time: str = ""
     t1_time: str = ""
     bike_time: str = ""
     t2_time: str = ""
     run_time: str = ""
+    # Chemin générique optionnel : liste ordonnée de (label, temps). Si renseigné,
+    # prime sur les champs ci-dessus (déplafonné, étiquettes libres).
+    segments: list[tuple[str, str]] | None = None
     raw_data: dict = {}

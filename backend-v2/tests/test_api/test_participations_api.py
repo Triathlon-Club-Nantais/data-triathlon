@@ -32,6 +32,23 @@ def test_create_and_get_participation(client):
     assert got.json()["bib_number"] == "42"
 
 
+def test_create_participation_with_segments(client):
+    # Chemin générique : segments étiquetés libres, déplafonnés, priment sur les slots.
+    payload = _payload(bib="77")
+    payload.pop("swim_time", None)
+    payload.pop("bike_time", None)
+    payload.pop("run_time", None)
+    payload["event_type"] = "swimrun-l"
+    payload["segments"] = [["swim1", "00:10:00"], ["run1", "00:20:00"], ["swim2", "00:08:00"]]
+    resp = client.post("/api/v1/participations", json=payload)
+    assert resp.status_code == 201
+    assert resp.json()["splits"] == {
+        "swim1": "00:10:00",
+        "run1": "00:20:00",
+        "swim2": "00:08:00",
+    }
+
+
 def test_duplicate_participation_409(client):
     client.post("/api/v1/participations", json=_payload())
     dup = client.post("/api/v1/participations", json=_payload())
