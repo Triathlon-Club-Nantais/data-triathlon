@@ -65,6 +65,7 @@ def list_participations(
     club: str | None = Query(None),
     date_from: str | None = Query(None),
     date_to: str | None = Query(None),
+    course_id: int | None = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=5000),
     db: Session = Depends(get_db),
@@ -77,6 +78,7 @@ def list_participations(
         club=club,
         date_from=_parse_date(date_from),
         date_to=_parse_date(date_to),
+        course_id=course_id,
         page=page,
         page_size=page_size,
     )

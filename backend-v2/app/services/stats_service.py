@@ -58,16 +58,24 @@ def get_stats(db: Session, club: str | None = None) -> dict:
     }
 
 
-def list_events(db: Session, **filters) -> list[dict]:
-    """Épreuves distinctes avec compteurs (total + membres TCN)."""
-    rows = participation_repository.events_with_counts(db, **filters)
-    return [
-        {
-            "event_name": r.event_name or "",
-            "event_date": r.event_date.isoformat() if r.event_date else None,
-            "event_type": r.event_type or "",
-            "total": r.total,
-            "tcn_count": int(r.tcn_count or 0),
-        }
-        for r in rows
-    ]
+def _event_row(r) -> dict:
+    return {
+        "id": r.course_id,
+        "event_name": r.event_name or "",
+        "event_date": r.event_date.isoformat() if r.event_date else None,
+        "event_type": r.event_type or "",
+        "is_relay": bool(r.is_relay),
+        "distance_km": r.distance_km,
+        "total": r.total,
+        "tcn_count": int(r.tcn_count or 0),
+    }
+
+
+def list_events(db: Session, **filters) -> dict:
+    """Page d'épreuves (scroll infini) + compteurs globaux du filtre."""
+    page = participation_repository.events_page(db, **filters)
+    return {
+        "items": [_event_row(r) for r in page["items"]],
+        "total_events": page["total_events"],
+        "total_participations": page["total_participations"],
+    }

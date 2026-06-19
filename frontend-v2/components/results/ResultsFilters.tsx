@@ -30,23 +30,32 @@ export function ResultsFilters() {
   const router = useRouter();
   const sp = useSearchParams();
   const [name, setName] = useState(sp.get("name") ?? "");
+  const [eventName, setEventName] = useState(sp.get("event_name") ?? "");
   const [eventType, setEventType] = useState(sp.get("event_type") ?? "");
   const [dateFrom, setDateFrom] = useState(sp.get("date_from") ?? "");
   const [dateTo, setDateTo] = useState(sp.get("date_to") ?? "");
 
   const scope = sp.get("scope") ?? undefined;
+  const sort = sp.get("sort") ?? undefined;
 
   function push(filters: Record<string, string | undefined>) {
-    const qs = buildResultsQuery({ ...filters, scope });
+    const qs = buildResultsQuery({ ...filters, scope, sort });
     router.push(`/resultats${qs ? `?${qs}` : ""}`);
   }
 
   function apply() {
-    push({ name, event_type: eventType, date_from: dateFrom, date_to: dateTo });
+    push({
+      name,
+      event_name: eventName,
+      event_type: eventType,
+      date_from: dateFrom,
+      date_to: dateTo,
+    });
   }
 
   function reset() {
     setName("");
+    setEventName("");
     setEventType("");
     setDateFrom("");
     setDateTo("");
@@ -55,7 +64,9 @@ export function ResultsFilters() {
 
   // Filtres actifs (depuis l'URL) → chips.
   const active: { key: string; label: string }[] = [];
-  if (sp.get("name")) active.push({ key: "name", label: `Nom : ${sp.get("name")}` });
+  if (sp.get("name")) active.push({ key: "name", label: `Athlète : ${sp.get("name")}` });
+  if (sp.get("event_name"))
+    active.push({ key: "event_name", label: `Course : ${sp.get("event_name")}` });
   if (sp.get("event_type"))
     active.push({ key: "event_type", label: eventTypeLabel(sp.get("event_type")) });
   if (sp.get("date_from"))
@@ -66,12 +77,14 @@ export function ResultsFilters() {
   function removeChip(key: string) {
     const next = {
       name: sp.get("name") ?? undefined,
+      event_name: sp.get("event_name") ?? undefined,
       event_type: sp.get("event_type") ?? undefined,
       date_from: sp.get("date_from") ?? undefined,
       date_to: sp.get("date_to") ?? undefined,
     } as Record<string, string | undefined>;
     next[key] = undefined;
     setName(next.name ?? "");
+    setEventName(next.event_name ?? "");
     setEventType(next.event_type ?? "");
     setDateFrom(next.date_from ?? "");
     setDateTo(next.date_to ?? "");
@@ -82,12 +95,21 @@ export function ResultsFilters() {
     <Card>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap items-end gap-3">
-          <Field label="Nom">
+          <Field label="Athlète">
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && apply()}
               placeholder="Rechercher un athlète"
+              className="w-48"
+            />
+          </Field>
+          <Field label="Course">
+            <Input
+              value={eventName}
+              onChange={(e) => setEventName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && apply()}
+              placeholder="Rechercher une course"
               className="w-48"
             />
           </Field>
@@ -97,7 +119,11 @@ export function ResultsFilters() {
               onValueChange={(v) => setEventType(v === ALL ? "" : (v as string))}
             >
               <SelectTrigger className="h-9 w-48">
-                <SelectValue placeholder="Toutes les disciplines" />
+                <SelectValue placeholder="Toutes les disciplines">
+                  {(v) =>
+                    !v || v === ALL ? "Toutes les disciplines" : eventTypeLabel(v as string)
+                  }
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Toutes les disciplines</SelectItem>

@@ -20,8 +20,19 @@ class CourseBrief(BaseModel):
 class EventOut(BaseModel):
     """Épreuve distincte avec compteurs (vue liste / groupes)."""
 
+    id: int
     event_name: str
     event_date: str | None = None
     event_type: str = ""
+    is_relay: bool = False
+    distance_km: float | None = None
     total: int
     tcn_count: int
+
+
+class EventPage(BaseModel):
+    """Page d'épreuves pour le scroll infini + compteurs globaux du filtre."""
+
+    items: list[EventOut]
+    total_events: int
+    total_participations: int

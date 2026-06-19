@@ -3,7 +3,8 @@ import { clubFromScope } from "@/lib/scope";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ScopeToggle } from "@/components/layout/ScopeToggle";
 import { ResultsFilters } from "@/components/results/ResultsFilters";
-import { ResultsList } from "@/components/results/ResultsList";
+import { EventList } from "@/components/results/EventList";
+import { EVENTS_PAGE_SIZE } from "@/lib/queries/events";
 import type { ParticipationFilters } from "@/lib/types";
 
 export default async function ResultatsPage({
@@ -20,20 +21,25 @@ export default async function ResultatsPage({
     date_from: sp.date_from,
     date_to: sp.date_to,
     club: clubFromScope(sp.scope),
-    page_size: 500,
+    sort: sp.sort,
   };
 
-  const participations = await apiServer.listParticipations(filters);
+  // Page 1 récupérée côté serveur : compteurs honnêtes + données initiales (pas de flash).
+  const firstPage = await apiServer.listEvents({ ...filters, page: 1, page_size: EVENTS_PAGE_SIZE });
+  const { total_events, total_participations } = firstPage;
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Résultats"
-        description={`${participations.length} résultat${participations.length > 1 ? "s" : ""}`}
+        description={
+          `${total_events} épreuve${total_events > 1 ? "s" : ""}` +
+          ` · ${total_participations} résultat${total_participations > 1 ? "s" : ""}`
+        }
         actions={<ScopeToggle />}
       />
       <ResultsFilters />
-      <ResultsList initial={participations} />
+      <EventList filters={filters} initial={firstPage} />
     </div>
   );
 }
