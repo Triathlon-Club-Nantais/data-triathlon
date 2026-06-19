@@ -15,8 +15,11 @@ export function useInfiniteEvents(
     queryFn: ({ pageParam }) =>
       apiClient.listEvents({ ...filters, page: pageParam, page_size: EVENTS_PAGE_SIZE }),
     initialPageParam: 1,
-    getNextPageParam: (lastPage, allPages) =>
-      lastPage.items.length === EVENTS_PAGE_SIZE ? allPages.length + 1 : undefined,
+    getNextPageParam: (lastPage, allPages) => {
+      // total_events connu → on s'arrête dès que tout est chargé (pas de requête vide superflue).
+      const loaded = allPages.reduce((sum, p) => sum + p.items.length, 0);
+      return loaded < lastPage.total_events ? allPages.length + 1 : undefined;
+    },
     initialData: initialData
       ? { pages: [initialData], pageParams: [1] }
       : undefined,

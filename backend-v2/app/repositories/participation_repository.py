@@ -77,7 +77,7 @@ def _apply_filters(
     q = q.join(Athlete, Participation.athlete_id == Athlete.id).join(
         Course, Participation.course_id == Course.id
     )
-    if course_id:
+    if course_id is not None:
         q = q.filter(Participation.course_id == course_id)
     if name:
         pattern = f"%{name}%"
@@ -233,7 +233,7 @@ def events_with_counts(
             date_from=date_from,
             date_to=date_to,
         )
-        .order_by(Course.event_date.desc(), Course.name)
+        .order_by(Course.event_date.desc().nullslast(), Course.name)
         .all()
     )
 
@@ -241,7 +241,10 @@ def events_with_counts(
 def _events_order(db: Session, sort: str, event_name: str | None):
     """Ordre de tri des épreuves. Si recherche fuzzy (Postgres), tri par similarité."""
     if event_name and _is_postgres(db):
-        return (func.similarity(Course.name, event_name).desc(), Course.event_date.desc())
+        return (
+            func.similarity(Course.name, event_name).desc(),
+            Course.event_date.desc().nullslast(),
+        )
     if sort == "date_asc":
         return (Course.event_date.asc().nullslast(), Course.name)
     if sort == "name":
