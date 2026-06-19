@@ -24,7 +24,7 @@ export function MonthlyTrend({ byMonth }: { byMonth: Record<string, number> }) {
       {entries.map(([key, value]) => (
         <div
           key={key}
-          className="group flex flex-1 flex-col items-center justify-end gap-1.5"
+          className="group flex h-full flex-1 flex-col items-center justify-end gap-1.5"
           title={`${formatMonth(key)} — ${value}`}
         >
           <span className="num text-[11px] font-bold text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
