@@ -1,14 +1,14 @@
-name: CI backend-v2
+name: CI backend
 
 on:
   push:
     branches: [master, "feat/**"]
     paths:
-      - "backend-v2/**"
+      - "backend/**"
       - ".github/workflows/ci.yml"
   pull_request:
     paths:
-      - "backend-v2/**"
+      - "backend/**"
       - ".github/workflows/ci.yml"
 
 jobs:
@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: backend-v2
+        working-directory: backend
     steps:
       - uses: actions/checkout@v4
 
@@ -24,7 +24,7 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-          cache-dependency-path: backend-v2/requirements-dev.txt
+          cache-dependency-path: backend/requirements-dev.txt
 
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
