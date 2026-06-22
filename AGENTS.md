@@ -6,43 +6,29 @@ et importe en arrière-plan tous les participants de l'épreuve.
 
 Détails install/déploiement : voir `README.md`. Ce fichier cible les agents IA.
 
-## État du projet — migration en cours
+## Pile applicative
 
-Le dépôt contient **deux générations** de chaque brique. Bien repérer la cible :
+Une seule génération, en deux briques :
 
-| Brique | En production | Cible (refonte) | Statut |
-|--------|---------------|-----------------|--------|
-| Backend | `backend/` (déployé Render) | `backend-v2/` | v2 codée (130 tests verts), **pas encore déployée** |
-| Frontend | `frontend/` (déployé Vercel, **déprécié**) | `frontend-v2/` | **codée** (33 tests verts, build prod OK), **pas encore déployée** |
+- **Backend** (`backend/`) : FastAPI, archi en couches, modèle normalisé, Alembic.
+- **Frontend** (`frontend/`) : Next.js 16 (App Router), TypeScript, Tailwind, shadcn/ui.
 
-- **Nouveau développement backend → `backend-v2/`** (archi en couches, modèle
-  normalisé). `backend/` reste **déprécié** mais en prod jusqu'à la bascule :
-  n'y faire que les correctifs urgents.
-- **Nouveau développement frontend → `frontend-v2/`** (Next.js 16, App Router,
-  TypeScript, Tailwind, shadcn/ui). `frontend/` est **déprécié** — conservé en prod
-  jusqu'à la bascule Vercel, n'y faire que les correctifs urgents.
-  Spec : `docs/superpowers/specs/2026-06-07-frontend-v2-nextjs-design.md`.
-- Specs de refonte : `docs/superpowers/specs/`.
+Specs de refonte (historiques) : `docs/superpowers/specs/`.
 
 ## Stack
-- **Backend v2** (`backend-v2/`) : Python 3.11+, FastAPI 0.115, SQLAlchemy 2.0
+- **Backend** (`backend/`) : Python 3.11+, FastAPI 0.115, SQLAlchemy 2.0
   (sync), Pydantic v2 + pydantic-settings, **Alembic** (migrations), PostgreSQL
   (Supabase) / SQLite en dev. Scraping httpx + BeautifulSoup/lxml, fallback
   Playwright. Tests pytest, ruff. API versionnée sous `/api/v1`.
-- **Backend v1** (`backend/`, déprécié) : même stack, sans couches ni Alembic
-  (tables via `create_all()` au démarrage).
-- **Frontend v1** (`frontend/`, **déprécié**) : React 18 + Vite 6, JSX, pas de TypeScript,
-  pas de lib UI. Conservé en prod jusqu'à bascule Vercel.
-- **Frontend v2** (`frontend-v2/`) : Next.js 16 (App Router) + TypeScript + Tailwind + shadcn/ui.
-  **Codée** (33 tests Vitest verts, build prod OK), pas encore déployée.
+- **Frontend** (`frontend/`) : Next.js 16 (App Router) + TypeScript + Tailwind + shadcn/ui.
 - **Déploiement** : backend → Render (`render.yaml`), front → Vercel, DB → Supabase.
 
 ## Commandes
 
 ```bash
-# Backend v2 (depuis backend-v2/, venv activé) — CIBLE
+# Backend (depuis backend/, venv activé)
 uvicorn app.main:app --reload --port 8001  # API + /docs (endpoints sous /api/v1)
-alembic upgrade head                        # applique les migrations (plus de create_all)
+alembic upgrade head                        # applique les migrations
 alembic revision --autogenerate -m "..."    # nouvelle migration après modif d'un modèle
 python scripts/reset_db.py                  # reset base dev SQLite (vide + migre + seed démo)
 python scripts/reset_db.py --no-seed --yes  # schéma vierge seul (refuse si DB non-SQLite)
@@ -50,26 +36,17 @@ pytest -m "not integration"                 # tests unitaires (sans réseau) —
 pytest -m integration                       # tests réseau réel (scrapers)
 ruff check .                                 # lint
 
-# Backend v1 (depuis backend/, déprécié)
-uvicorn main:app --reload --port 8001       # tables créées au démarrage (pas d'Alembic)
-pytest -m "not integration"
-
-# Frontend v2 (depuis frontend-v2/) — CIBLE
+# Frontend (depuis frontend/)
 npm run dev        # Next.js sur :3000, rewrites /api → :8001
 npm run build      # build prod (strict TS + RSC)
-npm test           # vitest run (33 tests)
+npm test           # vitest run
 npm run lint       # ESLint
-
-# Frontend v1 (depuis frontend/, déprécié)
-npm run dev        # Vite sur :3000, proxy /api → :8001
-npm run build      # build prod
 ```
 
-Variable requise : `<backend>/.env` avec `DATABASE_URL` (voir `.env.example`).
-En v2, le schéma est géré par **Alembic** (`alembic upgrade head`) ; en v1, les
-tables sont créées automatiquement au démarrage.
+Variable requise : `backend/.env` avec `DATABASE_URL` (voir `.env.example`). Le
+schéma est géré par **Alembic** (`alembic upgrade head`).
 
-## Architecture backend v2 (`backend-v2/`) — cible
+## Architecture backend (`backend/`)
 
 Archi en couches, le flux ne traverse qu'une direction
 (`api → services → repositories → DB`) :
@@ -84,15 +61,15 @@ Archi en couches, le flux ne traverse qu'une direction
 - `app/services/` — logique métier : `mapping`, `cache` (TTL), `scrape_service`,
   `import_service`, `stats_service`, `geocode_service`.
 - `app/api/` — `deps.py` + `v1/` (routers fins : validation + délégation au service),
-  agrégés dans `v1/router.py`, montés sous `/api/v1`. Une future v2 vivra dans `v1/`→`v2/`.
+  agrégés dans `v1/router.py`, montés sous `/api/v1`. Une future API v2 vivra dans `v1/`→`v2/`.
 - `app/scrapers/` — `registry.py` (registre **Protocol**, fin des `if-else`) +
-  un module par provider (porté de `backend/`). `base.py` = `ScrapedResult`,
+  un module par provider. `base.py` = `ScrapedResult`,
   `utils.py` = helpers de normalisation.
 - `alembic/` — migrations (révision initiale = schéma complet).
 - `tests/` — `test_repositories/`, `test_services/`, `test_api/`, `test_klikego.py`,
-  `test_timepulse.py` (130 tests).
+  `test_timepulse.py` (≈130 tests).
 
-### Modèle normalisé (v2)
+### Modèle normalisé
 
 - **Athlete** — `UNIQUE(nom, prenom, birth_date)`.
 - **Course** — `UNIQUE(name, event_date, event_type)` ; `source_url` = clé de cache TTL.
@@ -107,44 +84,29 @@ Archi en couches, le flux ne traverse qu'une direction
   collapsé. Évolution future si besoin : porter une **liste ordonnée de segments
   étiquetés** dès `ScrapedResult` (touche les 7 scrapers).
 
-### Cache TTL (v2)
+### Cache TTL
 
 `services/cache.py` : `is_fresh(course)` → 10 min si course en cours (une
 participation sans `total_time`), sinon 30 j. `scrape_service` court-circuite le
 re-scraping si frais. Réglable via `CACHE_TTL_IN_PROGRESS_SECONDS` /
 `CACHE_TTL_FINISHED_SECONDS`.
 
-## Architecture backend v1 (`backend/`) — déprécié
-
-- `main.py` — app FastAPI, CORS, montage des routers.
-- `database.py` — engine + session SQLAlchemy. `models.py` — `Result`, `PendingProvider`.
-- `routers/` — `scrape.py` (`POST /api/scrape`, `/api/scrape/event`),
-  `results.py` (CRUD `/api/results`), `admin.py` (providers non supportés signalés).
-- `scrapers/` — **registre central dans `__init__.py`** :
-  `detect_provider(url)`, `scrape(url, bib)`, `scrape_event_all(url)`.
-  Un module par fournisseur : `klikego.py`, `breizhchrono.py`, `timepulse.py`,
-  `wiclax.py`, + `playwright_fallback.py` (provider par défaut).
-  `base.py` = dataclass `ScrapedResult`. `utils.py` = `normalize_time/rank`.
-- `scripts/` — `audit.py`, `seed_demo.py` (utilitaires hors runtime).
-
 ### Conventions scrapers
 
 - Tout nouveau fournisseur : créer `scrapers/<nom>.py`, exposer `scrape()` (et
   `scrape_event_all()` si l'import de masse est possible), puis l'enregistrer
-  dans le registre. **En v2** : `scrapers/registry.py` (registre Protocol). **En
-  v1** : les 3 fonctions de `scrapers/__init__.py`. Provider inconnu → `playwright`.
+  dans `scrapers/registry.py` (registre Protocol). Provider inconnu → `playwright`.
 - **Breizh Chrono réutilise la logique Klikego** (`klikego._parse_detail`,
   `_detect_event_type`) — ne pas dupliquer, factoriser dans `klikego.py`.
 - Identification club lors d'un import épreuve : filtre `city=nantais` de l'API
   (plus fiable que le nom de club, qui varie : « TCN », « TRIATHLON CLUB NANTAIS »…).
 - Les temps restent des **strings** (`"01:23:45"`), normalisés via `utils.py`.
-  Splits adaptés au sport : **en v2** dans `splits` (JSON) + `raw_data` (JSON) ;
-  **en v1** dans les colonnes dédiées + `raw_data` (JSON).
+  Splits adaptés au sport : dans `splits` (JSON) + `raw_data` (JSON).
 
-## Architecture frontend v2 (`frontend-v2/`) — cible
+## Architecture frontend (`frontend/`)
 
 Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
-`/api/v1` de backend-v2. 33 tests Vitest + RTL verts. Build prod OK.
+`/api/v1` du backend. Tests Vitest + RTL verts. Build prod OK.
 
 - `app/` — App Router : `dashboard`, `resultats`, `athletes/[id]`, `courses/[id]`,
   `club`, `carte`, `ajouter`, `admin`.
@@ -155,23 +117,12 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 - `lib/types.ts` — types TypeScript partagés.
 - Déploiement : Vercel, variables `BACKEND_URL` + `API_URL`.
 
-## Architecture frontend v1 (`frontend/`) — déprécié
-
-> `frontend/` est remplacé par `frontend-v2/`. Conservé pour référence jusqu'à bascule.
-
-- `App.jsx` — onglets + déclenche l'import épreuve en arrière-plan après save.
-- `api/client.js` — appels `/api/*`. `constants.js` — constantes partagées.
-- `components/` — `ScrapeForm` (scrape + édition + save, saisie manuelle si
-  provider non supporté), `ResultsList` + `ResultCard`, `EventGroupList`,
-  `ClubView` (stats club), `AdminView` (providers signalés).
-
 ## Conventions générales
 
 - **Langue** : UI, commentaires et messages en **français** (avec accents).
 - Commits : Conventional Commits (`feat:`, `fix:`…), déjà en place dans l'historique.
-- Schéma DB — **v2** : migrations **Alembic** (`alembic revision --autogenerate`
-  après modif d'un modèle, puis `alembic upgrade head`). **v1** (déprécié) :
-  édition `models.py`, recréation auto sur DB vierge (migration prod manuelle).
+- Schéma DB : migrations **Alembic** (`alembic revision --autogenerate`
+  après modif d'un modèle, puis `alembic upgrade head`).
 - Tests unitaires **sans réseau** ; le réseau réel est isolé derrière le marker
   `integration` (`pytest.ini`).
 
