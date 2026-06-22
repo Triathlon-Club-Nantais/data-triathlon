@@ -45,6 +45,7 @@ def _to_scraped(body: ParticipationCreate) -> ScrapedResult:
         bike_time=body.bike_time,
         t2_time=body.t2_time,
         run_time=body.run_time,
+        segments=body.segments,
         is_relay=body.is_relay,
         raw_data=body.raw_data,
     )

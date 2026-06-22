@@ -40,6 +40,32 @@ def test_build_splits_bike_run_omits_swim():
     assert mapping.build_splits(s) == {"bike": "00:20:00", "run": "00:10:00"}
 
 
+def test_build_splits_uses_segments_when_provided():
+    # Chemin générique : si `segments` est renseigné, il prime sur les 5 slots
+    # et les étiquettes libres sont conservées (ordre inclus).
+    s = _scraped(
+        event_type="triathlon-m",
+        swim_time="00:20:00",  # ignoré car segments fourni
+        segments=[("prologue", "00:05:00"), ("bike", "01:00:00"), ("epilogue", "00:30:00")],
+    )
+    assert mapping.build_splits(s) == {
+        "prologue": "00:05:00",
+        "bike": "01:00:00",
+        "epilogue": "00:30:00",
+    }
+
+
+def test_build_splits_segments_skip_empty():
+    s = _scraped(segments=[("a", "00:01:00"), ("b", ""), ("c", "00:03:00")])
+    assert mapping.build_splits(s) == {"a": "00:01:00", "c": "00:03:00"}
+
+
+def test_build_splits_segments_uncapped():
+    # Plus de 5 segments (ex. swimrun multi-legs) : aucun plafond sur le chemin générique.
+    segs = [(f"leg{i}", f"00:0{i}:00") for i in range(1, 8)]
+    assert len(mapping.build_splits(_scraped(segments=segs))) == 7
+
+
 def test_derive_status_heuristic_finisher():
     # Pas de status explicite + temps total → finisher (heuristique).
     assert mapping.derive_status(_scraped(total_time="01:59:00")) == "finisher"

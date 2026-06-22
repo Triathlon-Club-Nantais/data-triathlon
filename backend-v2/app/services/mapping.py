@@ -55,7 +55,14 @@ def _sport_base(event_type: str) -> str:
 
 
 def build_splits(scraped: ScrapedResult) -> dict[str, str]:
-    """Construit le dict des temps intermédiaires non vides, clés adaptées au sport."""
+    """Construit le dict des temps intermédiaires non vides, clés adaptées au sport.
+
+    Si le scraper fournit `segments` (chemin générique, déplafonné, étiquettes
+    libres), il prime sur les 5 slots positionnels. Sinon, on ré-étiquette les
+    slots selon le sport.
+    """
+    if scraped.segments:
+        return {label: time for label, time in scraped.segments if time}
     template = _SPLIT_KEYS_BY_SPORT.get(_sport_base(scraped.event_type), _DEFAULT_SPLIT_KEYS)
     return {
         key: getattr(scraped, field)
