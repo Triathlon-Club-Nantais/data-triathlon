@@ -2,8 +2,6 @@
 Tests unitaires pour scrapers/timepulse.py.
 
 Cas couverts :
-- GOUBAUD\xa0Manon : espace insécable dans le XML → trouvé par recherche avec espace normal
-- Homonymie GOUBAUD : deux athlètes → liste de désambiguïsation
 - Mapping des séries S0-S4 → swim/t1/bike/t2/run
 - Calcul des classements général / genre / catégorie
 - rank_category filtre par genre+catégorie (évite rank_category > rank_gender)
@@ -12,17 +10,15 @@ Cas couverts :
 """
 import pytest
 
-from scrapers.timepulse import (
+from app.scrapers.timepulse import (
     _attrs,
     _compute_ranks,
     _detect_event_type,
     _find_tag,
-    _normalize_name,
     _parse_event_date,
     _parse_series,
-    _search_athletes,
+    scrape_event_all,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -73,72 +69,6 @@ def make_xml(
   {athletes_xml}
   {results_xml}
 </Triathlon>"""
-
-
-# ---------------------------------------------------------------------------
-# _normalize_name
-# ---------------------------------------------------------------------------
-
-def test_normalize_name_regular_space():
-    assert _normalize_name("dupont jean") == "DUPONT JEAN"
-
-
-def test_normalize_name_nbsp():
-    """L'espace insécable (\\xa0) doit être normalisé comme un espace ordinaire."""
-    assert _normalize_name("GOUBAUD\xa0Manon") == "GOUBAUD MANON"
-
-
-def test_normalize_name_multiple_spaces():
-    assert _normalize_name("GOUBAUD  Manon") == "GOUBAUD MANON"
-
-
-# ---------------------------------------------------------------------------
-# _search_athletes
-# ---------------------------------------------------------------------------
-
-def test_search_athletes_no_match():
-    xml = make_xml(athletes=[("10", "DUPONT Jean", "SEH", "M", "p1")])
-    assert _search_athletes(xml, "MARTIN") == []
-
-
-def test_search_athletes_one_match():
-    xml = make_xml(athletes=[
-        ("10", "DUPONT Jean", "SEH", "M", "p1"),
-        ("20", "MARTIN Sophie", "SEF", "F", "p1"),
-    ])
-    matches = _search_athletes(xml, "MARTIN")
-    assert len(matches) == 1
-    assert matches[0][0] == "20"
-    assert "MARTIN" in matches[0][1]
-
-
-def test_search_athletes_multiple_goubaud():
-    """Cas réel : GOUBAUD Céline (127) et GOUBAUD Manon (41) sur id_event=3090."""
-    xml = make_xml(athletes=[
-        ("127", "GOUBAUD Celine", "V1F", "F", "p1"),
-        ("41",  "GOUBAUD Manon",  "SEF", "F", "p1"),
-        ("99",  "DUPONT Jean",    "SEH", "M", "p1"),
-    ])
-    matches = _search_athletes(xml, "GOUBAUD")
-    assert len(matches) == 2
-    bibs = {m[0] for m in matches}
-    assert bibs == {"41", "127"}
-
-
-def test_search_athletes_nbsp_in_xml():
-    """
-    Cas GOUBAUD Manon : le XML TimePulse stocke le nom avec un espace insécable
-    (\\xa0). La recherche avec un espace ordinaire doit quand même trouver l'athlète.
-    """
-    xml = make_xml(athletes=[("41", "GOUBAUD\xa0Manon", "SEF", "F", "p1")])
-    matches = _search_athletes(xml, "GOUBAUD Manon")
-    assert len(matches) == 1
-    assert matches[0][0] == "41"
-
-
-def test_search_case_insensitive():
-    xml = make_xml(athletes=[("5", "LECLERC Paul", "SEH", "M", "p1")])
-    assert len(_search_athletes(xml, "leclerc")) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -283,7 +213,6 @@ def test_compute_ranks_no_result_for_bib():
     ("SWIMRUN DE MAYENNE",                   "swimrun"),
 ])
 def test_detect_event_type_timepulse(name, expected):
-    from scrapers.timepulse import _detect_event_type
     assert _detect_event_type(name) == expected
 
 
@@ -394,8 +323,8 @@ def test_id_event_extracted_from_path():
     id_event= en query param. Le scraper doit extraire 3090 depuis le chemin.
     Vérifié en inspectant la logique de parsing, sans appel réseau.
     """
-    from urllib.parse import urlparse, parse_qs
     import re
+    from urllib.parse import parse_qs, urlparse
 
     url = "https://www.timepulse.fr/epreuves/resultats/3090"
     parsed = urlparse(url)
@@ -413,10 +342,173 @@ def test_id_event_extracted_from_path():
     assert id_event == "3090"
 
 
+# ---------------------------------------------------------------------------
+# scrape_event_all — conservation des non-finishers + statut
+# ---------------------------------------------------------------------------
+
+def test_scrape_event_all_keeps_non_finisher(monkeypatch):
+    """Un <E> sans <R> est désormais CONSERVÉ (régression du drop historique)."""
+    xml = make_xml(
+        athletes=[
+            ("10", "ALPHA Jean", "SEH", "M", "p1"),   # finisher (a un <R>)
+            ("20", "BETA Marie", "SEF", "F", "p1"),   # non-finisher (pas de <R>)
+        ],
+        results=[("10", "01:00:00", {"s0": "00:20:00"})],
+    )
+    monkeypatch.setattr("app.scrapers.timepulse._fetch_xml", lambda _id: xml)
+
+    results = scrape_event_all("https://www.timepulse.fr/resultats/3090")
+    by_bib = {r.bib_number: r for r in results}
+
+    assert set(by_bib) == {"10", "20"}          # le non-finisher n'est plus jeté
+    assert by_bib["10"].total_time == "01:00:00"
+    assert by_bib["20"].total_time == ""        # pas de <R> → pas de temps
+    assert by_bib["20"].rank_overall is None
+    assert by_bib["20"].status == ""            # aucun marqueur → heuristique infra
+    assert by_bib["20"].athlete_name == "BETA"
+    assert by_bib["20"].athlete_firstname == "Marie"
+
+
+def test_scrape_event_all_reads_explicit_status(monkeypatch):
+    """Statut explicite sur <E> (attribut candidat etat=) → DNF + hygiène."""
+    xml = make_xml(
+        athletes=[("30", "GAMMA Paul", "SEH", "M", "p1")],
+        results=[],
+    ).replace('<E d="30"', '<E etat="Abandon" d="30"')
+    monkeypatch.setattr("app.scrapers.timepulse._fetch_xml", lambda _id: xml)
+
+    results = scrape_event_all("https://www.timepulse.fr/resultats/3090")
+    assert results[0].status == "DNF"
+    assert results[0].total_time == ""
+    assert results[0].rank_overall is None
+
+
+def test_scrape_event_all_reads_np_flag_dns(monkeypatch):
+    """Découverte réelle : np="1" sur <E> → DNS + hygiène (ni temps ni rang)."""
+    xml = make_xml(
+        athletes=[("40", "DELTA Luc", "SEH", "M", "p1")],
+        results=[],
+    ).replace('<E d="40"', '<E np="1" d="40"')
+    monkeypatch.setattr("app.scrapers.timepulse._fetch_xml", lambda _id: xml)
+
+    results = scrape_event_all("https://www.timepulse.fr/resultats/3090")
+    assert results[0].status == "DNS"
+    assert results[0].total_time == ""
+    assert results[0].rank_overall is None
+
+
+def test_scrape_event_all_event_type_from_parcours(monkeypatch):
+    """Le format (S/M/L) vient du parcours `p`, pas du nom global d'épreuve.
+
+    Cas réel (épreuve 3232 « LE NORTH MAY ») : le nom de l'épreuve ne porte
+    aucune taille, seul le parcours de chaque <E> distingue Triathlon S/M/L.
+    """
+    xml = make_xml(
+        athletes=[
+            ("10", "ALPHA Jean", "SEH", "M", "Triathlon S SOLO"),
+            ("20", "BETA Marie", "SEF", "F", "Triathlon M SOLO"),
+            ("30", "GAMMA Paul", "SEH", "M", "Triathlon L SOLO"),
+            ("40", "DELTA Luc", "SEH", "M", ""),  # parcours absent → repli nom global
+        ],
+        results=[
+            ("10", "01:00:00", {}),
+            ("20", "02:00:00", {}),
+            ("30", "03:00:00", {}),
+            ("40", "04:00:00", {}),
+        ],
+        event_name="LE NORTH MAY",  # aucune taille dans le nom global
+    )
+    monkeypatch.setattr("app.scrapers.timepulse._fetch_xml", lambda _id: xml)
+
+    results = scrape_event_all("https://www.timepulse.fr/resultats/3232")
+    by_bib = {r.bib_number: r for r in results}
+
+    assert by_bib["10"].event_type == "triathlon-s"
+    assert by_bib["20"].event_type == "triathlon-m"
+    assert by_bib["30"].event_type == "triathlon-l"
+    assert by_bib["40"].event_type == "triathlon"  # repli nom global
+
+
+def test_scrape_event_all_detects_relay(monkeypatch):
+    """Relais détecté via parcours « RELAIS » et/ou catégorie EQ* ; solo → False.
+
+    Cas réel (épreuve 3232 « LE NORTH MAY ») : une même épreuve mélange des
+    solos (p="Triathlon S SOLO", ca="SEH") et des relais d'équipe
+    (p="Triathlon S RELAIS", ca="EQX"/"EQM"/"EQF").
+    """
+    xml = make_xml(
+        athletes=[
+            ("10", "ALPHA Jean", "SEH", "M", "Triathlon S SOLO"),       # solo
+            ("20", "ROUXEL/ROUXEL Didier/Emma", "EQX", "M", "Triathlon S RELAIS"),  # relais mixte
+            ("30", "CANNIOU/OLIVIER Cedric/Leclerc", "EQM", "M", "Triathlon S RELAIS"),
+        ],
+        results=[
+            ("10", "01:00:00", {}),
+            ("20", "01:24:03", {}),
+            ("30", "01:30:00", {}),
+        ],
+        event_name="LE NORTH MAY",
+    )
+    monkeypatch.setattr("app.scrapers.timepulse._fetch_xml", lambda _id: xml)
+
+    results = scrape_event_all("https://www.timepulse.fr/resultats/3232")
+    by_bib = {r.bib_number: r for r in results}
+
+    assert by_bib["10"].is_relay is False
+    assert by_bib["20"].is_relay is True
+    assert by_bib["30"].is_relay is True
+
+
+def test_scrape_event_all_derives_t2_and_run_from_passages(monkeypatch):
+    """T2/course non publiés en segments (np="1") → dérivés des points cumulés.
+
+    Cas réel (épreuve 3232) : le <R> ne porte que s0/s1/s2 (natation/T1/vélo) ;
+    T2 et course à pied n'existent que sous forme de points de passage cumulés
+    p0..p7. T2 = 1er point après la fin du vélo − fin du vélo ; course = total −
+    ce point. Chiffres du dossard 685 (parcours S).
+    """
+    xml = make_xml(
+        athletes=[("685", "ALPHA Jean", "SEH", "M", "Triathlon S SOLO")],
+        results=[("685", "01:01:19", {
+            "s0": "00:10:21", "s1": "00:01:23", "s2": "00:30:24",
+            "p0": "00:10:21", "p1": "00:11:44", "p2": "00:42:08",
+            "p4": "00:43:25", "p6": "00:47:22", "p7": "00:50:49",
+        })],
+        event_name="LE NORTH MAY",
+    )
+    monkeypatch.setattr("app.scrapers.timepulse._fetch_xml", lambda _id: xml)
+
+    r = scrape_event_all("https://www.timepulse.fr/resultats/3232")[0]
+
+    assert r.swim_time == "00:10:21"
+    assert r.t1_time == "00:01:23"
+    assert r.bike_time == "00:30:24"
+    assert r.t2_time == "00:01:17"   # p4 (00:43:25) − fin vélo (00:42:08)
+    assert r.run_time == "00:17:54"  # total (01:01:19) − p4 (00:43:25)
+
+
+def test_scrape_event_all_keeps_native_segments_over_derivation(monkeypatch):
+    """Si TimePulse fournit s3/s4, on les garde tels quels (pas de dérivation)."""
+    xml = make_xml(
+        athletes=[("700", "BETA Marc", "SEH", "M", "Triathlon S SOLO")],
+        results=[("700", "01:01:19", {
+            "s0": "00:10:21", "s1": "00:01:23", "s2": "00:30:24",
+            "s3": "00:00:30", "s4": "00:18:41",
+            "p0": "00:10:21", "p2": "00:42:08", "p4": "00:43:25",
+        })],
+        event_name="LE NORTH MAY",
+    )
+    monkeypatch.setattr("app.scrapers.timepulse._fetch_xml", lambda _id: xml)
+
+    r = scrape_event_all("https://www.timepulse.fr/resultats/3232")[0]
+    assert r.t2_time == "00:00:30"   # segment natif, pas la dérivation
+    assert r.run_time == "00:18:41"
+
+
 def test_id_event_extracted_from_path_short():
     """Variante courte : https://www.timepulse.fr/resultats/3090."""
-    from urllib.parse import urlparse, parse_qs
     import re
+    from urllib.parse import parse_qs, urlparse
 
     url = "https://www.timepulse.fr/resultats/3090"
     parsed = urlparse(url)

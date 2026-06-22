@@ -1,10 +1,10 @@
-# backend-v2 — Triathlon Club Results
+# backend — Triathlon Club Results
 
-Refonte du backend en **architecture en couches** avec un **modèle de données
+Backend en **architecture en couches** avec un **modèle de données
 normalisé** (Athlete / Course / Participation). Construit avec FastAPI +
 SQLAlchemy 2.0, migrations Alembic, configuration typée et tests par couche.
 
-> Ce dossier remplace progressivement `../backend/`. Voir le design dans
+> Design d'origine :
 > `../docs/superpowers/specs/2026-06-07-refactoring-backend-architecture-design.md`.
 
 ## Architecture
@@ -21,7 +21,7 @@ app/
     deps.py        # dépendances partagées (version-agnostiques)
     v1/            # routers FastAPI fins de la v1 — montés sous /api/v1
       router.py    # agrège tous les routers v1
-  scrapers/        # registre Protocol + un module par provider (porté de ../backend)
+  scrapers/        # registre Protocol + un module par provider
 alembic/           # migrations (révision initiale = schéma complet)
 tests/             # test_repositories / test_services / test_api / test_scrapers
 ```
@@ -32,13 +32,13 @@ Flux d'un import épreuve :
 
 ## Prérequis
 
-- Python 3.11+ (testé en 3.13)
-- `backend-v2/.env` avec au minimum `DATABASE_URL` (voir `.env.example`)
+- Python 3.11+
+- `backend/.env` avec au minimum `DATABASE_URL` (voir `.env.example`)
 
 ## Installation
 
 ```bash
-cd backend-v2
+cd backend
 python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements-dev.txt   # requirements.txt seul en prod
 ```
@@ -100,9 +100,8 @@ ruff check .                  # lint
 - **splits** (JSON) remplace les colonnes figées swim/t1/bike/t2/run → couvre tous
   les sports (duathlon course1/course2, swimrun…). Les temps restent des strings.
 
-## Suites (hors périmètre de cette refonte)
+## Suites (pistes d'amélioration)
 
-- Adaptation du frontend React aux nouveaux endpoints.
 - Factorisation des helpers internes des scrapers (`_detect_event_type`, mapping
   des splits) — différée car signatures divergentes et couverture de tests inégale.
 - Isolation de Playwright dans une image Docker dédiée.

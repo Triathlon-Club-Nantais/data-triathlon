@@ -7,7 +7,7 @@ d'épreuve réelle par provider, et produit un rapport Markdown : OK/KO, nombre 
 participants, champs peuplés, type d'épreuve détecté, première erreur éventuelle.
 
 Usage :
-    cd backend-v2
+    cd backend
     python scripts/audit_scrapers.py [--provider <nom|all>] [--out FICHIER] [--json]
 
 Les URLs de référence sont dans FIXTURE_URLS (événements passés/stables).

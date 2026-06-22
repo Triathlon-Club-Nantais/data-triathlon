@@ -1,269 +1,231 @@
 """
-Tests unitaires pour scrapers/prolivesport.py.
+Tests unitaires pour scrapers/prolivesport.py (sans réseau).
 
-Cas couverts :
-- _parse_url : tous les formats d'URL supportés + erreur sur page de liste
-- _detect_event_type : codes courts, wildcard, fallback par distance
-- _parse_athlete : normalisation prénom ".", détection relais, athlète individuel
-- scrape_event_all : filtre DNS sentinel, relais détectés
+Couvre les helpers purs : mapping des splits (champ→rôle), parsing d'un athlète
+depuis le dict JSON de l'API, et détection du type d'épreuve.
 """
 import pytest
-from unittest.mock import patch, MagicMock
-from datetime import date
 
-from scrapers.prolivesport import (
-    _parse_url,
+from app.scrapers.prolivesport import (
+    _build_split_map,
+    _derive_status,
     _detect_event_type,
     _parse_athlete,
+    _parse_url,
+    _resolve_race,
 )
-from scrapers.base import ScrapedResult
+
+# Liste de courses telle que renvoyée par result/raceList/{eventId}/
+RACES = [
+    {"race": "PO-PU"}, {"race": "BE-MI"}, {"race": "S_Light"}, {"race": "Challenge"},
+    {"race": "TREP"}, {"race": "TRGP"}, {"race": "S"}, {"race": "M"},
+]
 
 
-# ---------------------------------------------------------------------------
-# _parse_url
-# ---------------------------------------------------------------------------
-
-def test_parse_url_legacy_with_race():
-    eid, race, search = _parse_url(
-        "https://www.prolivesport.fr/index.php?chap=event&sub=liveV3&eventId=1079&race=M*"
-    )
-    assert eid == "1079"
-    assert race == "M*"
-    assert search == ""
-
-
-def test_parse_url_legacy_no_race():
-    eid, race, _ = _parse_url(
-        "https://www.prolivesport.fr/index.php?chap=event&sub=liveV3&eventId=1082"
-    )
-    assert eid == "1082"
-    assert race == ""
+def test_build_split_map_filters_by_race():
+    splits = [
+        {"race": "S", "field": "Nat", "label": "Natation"},
+        {"race": "S", "field": "Tr1", "label": "T1"},
+        {"race": "S", "field": "Velo", "label": "Vélo"},
+        {"race": "S", "field": "Tr2", "label": "T2"},
+        {"race": "S", "field": "Cap", "label": "Course à pied"},
+        {"race": "M", "field": "AutreNat", "label": "Natation"},  # autre course → ignoré
+    ]
+    mapping = _build_split_map(splits, race="S")
+    assert mapping == {
+        "Nat": "swim",
+        "Tr1": "t1",
+        "Velo": "bike",
+        "Tr2": "t2",
+        "Cap": "run",
+    }
 
 
-def test_parse_url_modern_id_only():
-    eid, race, _ = _parse_url("https://www.prolivesport.fr/result/1079")
-    assert eid == "1079"
-    assert race == ""
-
-
-def test_parse_url_modern_with_race():
-    eid, race, _ = _parse_url("https://www.prolivesport.fr/result/1079/M")
-    assert eid == "1079"
-    assert race == "M"
-
-
-def test_parse_url_chrono_path():
-    """Autre format de chemin contenant l'ID numérique."""
-    eid, _, _ = _parse_url("https://www.prolivesport.fr/chrono/1082")
-    assert eid == "1082"
-
-
-def test_parse_url_id_query_param():
-    """Paramètre id= au lieu de eventId=."""
-    eid, _, _ = _parse_url("https://www.prolivesport.fr/event?id=999")
-    assert eid == "999"
-
-
-def test_parse_url_listing_page_raises():
-    """Page de liste sans ID numérique → ValueError explicite."""
-    with pytest.raises(ValueError, match="page de liste"):
-        _parse_url("https://www.prolivesport.fr/fftri/grand-prix-duathlon")
-
-
-def test_parse_url_with_search():
-    eid, race, search = _parse_url(
-        "https://www.prolivesport.fr/index.php?eventId=1079&race=M&search=DUPONT"
-    )
-    assert eid == "1079"
-    assert search == "DUPONT"
-
-
-# ---------------------------------------------------------------------------
-# _detect_event_type
-# ---------------------------------------------------------------------------
-
-@pytest.mark.parametrize("race,expected", [
-    ("S",    "triathlon-s"),
-    ("XS",   "triathlon-s"),
-    ("M",    "triathlon-m"),
-    ("M*",   "triathlon-m"),   # wildcard stripped
-    ("L",    "triathlon-l"),
-    ("XL",   "triathlon-l"),
-    ("XXL",  "triathlon-l"),
-    ("Triathlon M", "triathlon-m"),
-    ("Triathlon S", "triathlon-s"),
-    ("Duathlon S",  "duathlon-s"),
-])
-def test_detect_event_type_known(race, expected):
-    assert _detect_event_type(race) == expected
-
-
-@pytest.mark.parametrize("race,distance,expected", [
-    ("TRGP",      "25.5",  "triathlon-s"),   # Grand Prix relay, sprint distance
-    ("Challenge", "49.5",  "triathlon-m"),   # Olympic
-    ("TREP",      "90.0",  "triathlon-l"),   # Half
-    ("SUPP",      "999",   "triathlon-xl"),  # Very long
-    ("UNKNOWN",   "12.0",  "triathlon-s"),   # Youth/XS
-    ("UNKNOWN",   "",      "triathlon"),     # No distance → fallback
-])
-def test_detect_event_type_distance_fallback(race, distance, expected):
-    assert _detect_event_type(race, distance) == expected
-
-
-# ---------------------------------------------------------------------------
-# _parse_athlete
-# ---------------------------------------------------------------------------
-
-def _make_athlete(**kwargs) -> dict:
-    base = {
-        "lastname": "DUPONT",
+def test_parse_athlete_fields_and_splits():
+    athlete = {
+        "lastname": "Dupont",
         "firstname": "Jean",
         "number": "42",
-        "club": "TRI CLUB NANTAIS",
-        "categoryRef": "SE",
-        "category": "Senior",
-        "sex": "M",
+        "club": "TCN",
+        "categoryRef": "S3H",
+        "sex": "H",
         "rank": "5",
         "rankSex": "4",
-        "rankCat": "3",
-        "time": "01:30:00",
-        "dns": "O",
-        "dnf": "N",
+        "rankCat": "1",
+        "time": "01:59:00",
+        "timeNat": "00:11:00",
+        "timeTr1": "00:01:00",
+        "timeVelo": "01:05:00",
+        "timeTr2": "00:00:50",
+        "timeCap": "00:41:10",
     }
-    base.update(kwargs)
-    return base
+    split_map = {"Nat": "swim", "Tr1": "t1", "Velo": "bike", "Tr2": "t2", "Cap": "run"}
+    r = _parse_athlete(athlete, split_map, "http://x", "Triathlon Test", "triathlon-s", None)
 
-
-def test_parse_athlete_standard():
-    r = _parse_athlete(_make_athlete(), {}, "http://x", "Test 2025", "triathlon-s", date(2025, 6, 1))
-    assert r.athlete_name == "DUPONT"
+    assert r.athlete_name == "DUPONT"          # lastname en majuscules
     assert r.athlete_firstname == "Jean"
-    assert r.club == "TRI CLUB NANTAIS"
-    assert r.is_relay is False
-    assert r.total_time == "01:30:00"
+    assert r.bib_number == "42"
+    assert r.club == "TCN"
+    assert r.category == "S3H"
+    assert r.gender == "H"
     assert r.rank_overall == 5
+    assert r.rank_gender == 4
+    assert r.rank_category == 1
+    assert r.total_time == "01:59:00"
+    assert r.swim_time == "00:11:00"
+    assert r.t1_time == "00:01:00"
+    assert r.bike_time == "01:05:00"
+    assert r.t2_time == "00:00:50"
+    assert r.run_time == "00:41:10"
 
 
-def test_parse_athlete_firstname_dot_normalized():
-    """ProLiveSport utilise '.' comme prénom factice pour les relais → doit être vide."""
-    r = _parse_athlete(_make_athlete(firstname="."), {}, "http://x", "Test", "triathlon-s", None)
-    assert r.athlete_firstname == ""
+def test_parse_athlete_skips_zero_splits():
+    """Un split à 00:00:00 ne doit pas être enregistré."""
+    athlete = {"lastname": "Test", "number": "1", "time": "01:00:00", "timeNat": "00:00:00"}
+    r = _parse_athlete(athlete, {"Nat": "swim"}, "http://x", "E", "triathlon-s", None)
+    assert r.swim_time == ""
 
 
-def test_parse_athlete_firstname_dash_normalized():
-    r = _parse_athlete(_make_athlete(firstname="-"), {}, "http://x", "Test", "triathlon-s", None)
-    assert r.athlete_firstname == ""
+def test_parse_athlete_finisher_keeps_time_and_ranks_and_status():
+    athlete = {
+        "lastname": "Dupont", "firstname": "Jean", "number": "42",
+        "rank": "5", "rankSex": "4", "rankCat": "1", "time": "01:59:00",
+    }
+    r = _parse_athlete(athlete, {}, "http://x", "E", "triathlon-s", None)
+    assert r.status == "finisher"
+    assert r.total_time == "01:59:00"
+    assert r.rank_overall == 5
+    assert r.rank_gender == 4
+    assert r.rank_category == 1
 
 
-def test_parse_athlete_relay_from_category_ref():
-    """categoryRef='R' → is_relay=True."""
-    r = _parse_athlete(_make_athlete(categoryRef="R", category="Relay"), {}, "http://x", "Test", "triathlon-s", None)
-    assert r.is_relay is True
+def test_parse_athlete_dns_clears_time_and_ranks():
+    # Non-partant : pas de temps. L'API renvoie des rangs sentinelles (99991/99992).
+    athlete = {
+        "lastname": "Martin", "number": "7",
+        "rank": "99991", "rankSex": "99992", "rankCat": "99991", "time": "",
+    }
+    r = _parse_athlete(athlete, {}, "http://x", "E", "triathlon-s", None)
+    assert r.status == "DNS"
+    assert r.total_time == ""
+    assert r.rank_overall is None
+    assert r.rank_gender is None
+    assert r.rank_category is None
 
 
-def test_parse_athlete_relay_from_category_label():
-    """category='Relay' (majuscules différentes) → is_relay=True."""
-    r = _parse_athlete(_make_athlete(categoryRef="REL", category="relay"), {}, "http://x", "Test", "triathlon-s", None)
-    assert r.is_relay is True
+def test_parse_athlete_dnf_clears_time_and_ranks():
+    athlete = {
+        "lastname": "Durand", "number": "8",
+        "dnf": "O", "rank": "99991", "time": "00:00:00",
+    }
+    r = _parse_athlete(athlete, {}, "http://x", "E", "triathlon-s", None)
+    assert r.status == "DNF"
+    assert r.total_time == ""
+    assert r.rank_overall is None
 
 
-def test_parse_athlete_individual_not_relay():
-    r = _parse_athlete(_make_athlete(categoryRef="SE", category="Senior"), {}, "http://x", "Test", "triathlon-s", None)
-    assert r.is_relay is False
+def test_detect_event_type():
+    assert _detect_event_type("Triathlon M") == "triathlon-m"
+    assert _detect_event_type("Triathlon S") == "triathlon-s"
+    assert _detect_event_type("Duathlon Sprint") == "duathlon-s"
+    assert _detect_event_type("Aquathlon") == "aquathlon"
+    assert _detect_event_type("Triathlon") == "triathlon"
 
 
 # ---------------------------------------------------------------------------
-# scrape_event_all — filtre DNS sentinel (avec mock HTTP)
+# _parse_url — supporte la forme query ET la forme front /result/{id}/{index}
 # ---------------------------------------------------------------------------
 
-def _mock_pls_client(athletes: list[dict], event_name="Test 2025",
-                     event_date="2025-06-01", races=None):
-    """Retourne un mock httpx.Client pour scrape_event_all."""
-    if races is None:
-        races = [{"race": "S", "distance": "25.5"}]
-
-    def mock_get(url, **kwargs):
-        resp = MagicMock()
-        resp.raise_for_status = MagicMock()
-        if "/event/detail/" in url:
-            resp.json.return_value = {"result": [{"eventName": event_name, "eventDateStart": event_date}]}
-        elif "/result/raceList/" in url:
-            resp.json.return_value = {"result": races}
-        elif "/result/indiv/" in url:
-            resp.json.return_value = {"success": True, "result": athletes}
-        elif "/result/splitDetail/" in url:
-            resp.json.return_value = {"result": []}
-        return resp
-
-    client = MagicMock()
-    client.__enter__ = MagicMock(return_value=client)
-    client.__exit__ = MagicMock(return_value=False)
-    client.get = mock_get
-    return client
+def test_parse_url_query_form():
+    assert _parse_url("https://www.prolivesport.fr/index.php?eventId=1082&race=S") == ("1082", "S")
 
 
-def test_scrape_event_all_excludes_dns_sentinel():
-    """Athlètes avec rank=99992 (non-partant sentinel) exclus de l'import."""
-    athletes = [
-        _make_athlete(number="1", rank="1",   dns="O"),   # finisher
-        _make_athlete(number="2", rank="2",   dns="O"),   # finisher
-        _make_athlete(number="3", rank="99992", dns="N", time="00:00:00"),  # DNS
-    ]
-    with patch("scrapers.prolivesport.httpx.Client", return_value=_mock_pls_client(athletes)):
-        from scrapers.prolivesport import scrape_event_all
-        results = scrape_event_all("https://www.prolivesport.fr/result/1000")
-
-    assert len(results) == 2
-    bibs = {r.bib_number for r in results}
-    assert "3" not in bibs
+def test_parse_url_query_form_no_race():
+    assert _parse_url("https://www.prolivesport.fr/index.php?eventId=1082") == ("1082", "")
 
 
-def test_scrape_event_all_relay_detected():
-    """Athlètes avec categoryRef='R' → is_relay=True dans les résultats."""
-    athletes = [
-        _make_athlete(number="10", categoryRef="SE", category="Senior"),
-        _make_athlete(number="20", categoryRef="R",  category="Relay", firstname="."),
-    ]
-    with patch("scrapers.prolivesport.httpx.Client", return_value=_mock_pls_client(athletes)):
-        from scrapers.prolivesport import scrape_event_all
-        results = scrape_event_all("https://www.prolivesport.fr/result/1000")
-
-    by_bib = {r.bib_number: r for r in results}
-    assert by_bib["10"].is_relay is False
-    assert by_bib["20"].is_relay is True
-    assert by_bib["20"].athlete_firstname == ""
+def test_parse_url_path_form():
+    """Forme front : /result/{eventId}/{raceIndex}."""
+    assert _parse_url("https://www.prolivesport.fr/result/1082/6") == ("1082", "6")
 
 
-def test_scrape_event_all_imports_all_races_when_no_race():
-    """Sans race dans l'URL, toutes les races sont importées."""
-    athletes_s  = [_make_athlete(number=str(i), rank=str(i)) for i in range(1, 4)]
-    athletes_m  = [_make_athlete(number=str(i), rank=str(i)) for i in range(10, 13)]
-    races = [{"race": "S", "distance": "25.5"}, {"race": "M", "distance": "51.5"}]
+def test_parse_url_path_form_no_race():
+    assert _parse_url("https://www.prolivesport.fr/result/1082") == ("1082", "")
 
-    call_count = {"n": 0}
-    def mock_get(url, **kwargs):
-        resp = MagicMock()
-        resp.raise_for_status = MagicMock()
-        if "/event/detail/" in url:
-            resp.json.return_value = {"result": [{"eventName": "Test", "eventDateStart": "2025-06-01"}]}
-        elif "/result/raceList/" in url:
-            resp.json.return_value = {"result": races}
-        elif "/result/indiv/" in url:
-            call_count["n"] += 1
-            batch = athletes_s if "/S/" in url else athletes_m
-            resp.json.return_value = {"success": True, "result": batch}
-        elif "/result/splitDetail/" in url:
-            resp.json.return_value = {"result": []}
-        return resp
 
-    client = MagicMock()
-    client.__enter__ = MagicMock(return_value=client)
-    client.__exit__ = MagicMock(return_value=False)
-    client.get = mock_get
+def test_parse_url_missing_event_id_raises():
+    with pytest.raises(ValueError):
+        _parse_url("https://www.prolivesport.fr/")
 
-    with patch("scrapers.prolivesport.httpx.Client", return_value=client):
-        from scrapers.prolivesport import scrape_event_all
-        results = scrape_event_all("https://www.prolivesport.fr/result/1000")
 
-    assert call_count["n"] == 2          # deux appels indiv (S + M)
-    assert len(results) == 6             # 3 + 3
+# ---------------------------------------------------------------------------
+# _resolve_race — un token numérique est un index positionnel dans raceList
+# ---------------------------------------------------------------------------
+
+def test_resolve_race_by_positional_index():
+    assert _resolve_race("6", RACES) == "S"   # index 6 (0-based) = "S"
+
+
+def test_resolve_race_by_code():
+    assert _resolve_race("S", RACES) == "S"
+
+
+def test_resolve_race_empty_uses_first():
+    assert _resolve_race("", RACES) == "PO-PU"
+
+
+def test_resolve_race_index_out_of_range_raises():
+    with pytest.raises(ValueError):
+        _resolve_race("99", RACES)
+
+
+# ---------------------------------------------------------------------------
+# _derive_status — lit dsq / dnf / time (le champ dns de l'API n'est pas fiable)
+# ---------------------------------------------------------------------------
+
+def test_derive_status_dsq():
+    assert _derive_status({"dsq": "O", "time": "01:59:00"}) == "DSQ"
+
+
+def test_derive_status_dnf():
+    assert _derive_status({"dnf": "O", "time": ""}) == "DNF"
+
+
+def test_derive_status_finisher_with_time():
+    # Cas réel : dns="O" alors que l'athlète a fini → finisher (pas DNS).
+    assert _derive_status({"time": "01:59:00", "dns": "O"}) == "finisher"
+
+
+def test_derive_status_dns_no_time():
+    assert _derive_status({"time": "", "dns": "O"}) == "DNS"
+
+
+def test_derive_status_dns_zero_time():
+    assert _derive_status({"time": "00:00:00"}) == "DNS"
+
+
+def test_derive_status_dsq_takes_precedence_over_dnf():
+    assert _derive_status({"dsq": "O", "dnf": "O", "time": ""}) == "DSQ"
+
+
+# ---------------------------------------------------------------------------
+# Constantes de statut + champ ScrapedResult.status
+# ---------------------------------------------------------------------------
+
+def test_status_constants_values():
+    from app.scrapers.base import (
+        STATUS_DNF,
+        STATUS_DNS,
+        STATUS_DSQ,
+        STATUS_FINISHER,
+    )
+    assert STATUS_FINISHER == "finisher"
+    assert STATUS_DNF == "DNF"
+    assert STATUS_DNS == "DNS"
+    assert STATUS_DSQ == "DSQ"
+
+
+def test_scraped_result_status_defaults_empty():
+    from app.scrapers.base import ScrapedResult
+    r = ScrapedResult(source_url="http://x", provider="prolivesport")
+    assert r.status == ""

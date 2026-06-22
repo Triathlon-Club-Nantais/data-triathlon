@@ -14,9 +14,8 @@ Chaque test correspond à un cas réel rencontré lors du développement :
 import pytest
 from bs4 import BeautifulSoup
 
-from scrapers.base import ScrapedResult
-from scrapers.klikego import _detect_event_type, _parse_detail, _parse_search_row
-
+from app.scrapers.base import ScrapedResult
+from app.scrapers.klikego import _detect_event_type, _parse_detail, _parse_search_row
 
 # ---------------------------------------------------------------------------
 # Helper
@@ -105,8 +104,8 @@ def fresh_result() -> tuple[ScrapedResult, dict]:
     ("aquarun-individuel", "aquarun-lacanau-2025", "aquarun"),
     ("bike-run-individuel", "bike-run-halloween-2025", "bike-run"),
     ("bikerun-sprint", "", "bike-run"),
-    # Mimizan jeunes : heat "triathlon-xs-jeunes" → triathlon-s (xs = extra-short)
-    ("triathlon-xs-jeunes", "", "triathlon-s"),
+    # Mimizan jeunes : heat "triathlon-xs-jeunes" → triathlon-xs (extra-short)
+    ("triathlon-xs-jeunes", "", "triathlon-xs"),
     # heat vide → valeur brute retournée
     ("", "", "triathlon"),
 ])
@@ -516,7 +515,7 @@ def _make_search_row(
     name: str,
     total_time: str = "01:30:00",
     second_truncate: str | None = None,
-) -> "BeautifulSoup Tag":
+):
     """Génère un <tr class='result-row'> tel que retourné par resultats-search.jsp."""
     second_cell = f'<td class="truncate">{second_truncate}</td>' if second_truncate else ""
     html = f"""
@@ -607,3 +606,33 @@ def test_parse_search_row_source_url():
     assert "1700025627600-3" in result.source_url
     assert "triathlon-l-individuel" in result.source_url
     assert "triathlon-dangers-entre-loire-et-maine-2026" in result.source_url
+
+
+def _row(html: str):
+    return BeautifulSoup(html, "lxml").select_one("tr")
+
+
+def test_parse_search_row_explicit_status_dnf():
+    """La cellule temps porte 'Abandon' → status DNF, total_time vide, rang purgé."""
+    html = (
+        '<table><tr class="result-row" data-dossard="42">'
+        '<td class="truncate">DUPONT Jean</td>'
+        '<td class="font-mono">Abandon</td></tr></table>'
+    )
+    r = _parse_search_row(_row(html), "evt", "heat", "Tri", "slug", 5)
+    assert r.status == "DNF"
+    assert r.total_time == ""
+    assert r.rank_overall is None
+
+
+def test_parse_search_row_finisher_no_status():
+    """Cellule temps = vrai temps → status="" et total_time normalisé."""
+    html = (
+        '<table><tr class="result-row" data-dossard="42">'
+        '<td class="truncate">DUPONT Jean</td>'
+        '<td class="font-mono">01:23:45</td></tr></table>'
+    )
+    r = _parse_search_row(_row(html), "evt", "heat", "Tri", "slug", 5)
+    assert r.status == ""
+    assert r.total_time == "01:23:45"
+    assert r.rank_overall == 5

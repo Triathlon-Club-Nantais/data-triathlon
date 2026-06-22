@@ -4,10 +4,10 @@
 # Usage        : `task` (liste les tâches) puis `task <nom>`
 #
 # Convention de nommage :
-#   bv2:*  → backend-v2/  (CIBLE)        b1:*  → backend/   (déprécié)
-#   fv2:*  → frontend-v2/ (CIBLE)        f1:*  → frontend/  (déprécié)
-#   docker:* → docker-compose
-# Les tâches sans préfixe sont des raccourcis qui agissent sur la pile v2 (la cible).
+#   b:*  → backend/   (FastAPI + SQLAlchemy + Alembic)
+#   f:*  → frontend/  (Next.js + TypeScript + Tailwind)
+#   docker:* → docker-compose (pile full-stack locale)
+# Les tâches sans préfixe sont des raccourcis qui agissent sur l'ensemble de la pile.
 #
 # Prérequis backend : venv Python activé (cf. README). Les tâches `*:install`
 # installent les dépendances ; elles n'activent pas le venv à votre place.
@@ -22,181 +22,139 @@ tasks:
     silent: true
 
   # ──────────────────────────────────────────────────────────────────────────
-  # Raccourcis pile v2 (cible)
+  # Raccourcis pile complète
   # ──────────────────────────────────────────────────────────────────────────
   install:
-    desc: Installe toutes les dépendances (backend-v2 + frontend-v2)
+    desc: Installe toutes les dépendances (backend + frontend)
     cmds:
-      - task: bv2:install
-      - task: fv2:install
+      - task: b:install
+      - task: f:install
 
   dev:
-    desc: Lance backend-v2 (:8001) ET frontend-v2 (:3000) en parallèle
-    deps: [bv2:dev, fv2:dev]
+    desc: Lance backend (:8001) ET frontend (:3000) en parallèle
+    deps: [b:dev, f:dev]
 
   test:
-    desc: Tests unitaires backend-v2 + frontend-v2 (sans réseau)
+    desc: Tests unitaires backend + frontend (sans réseau)
     cmds:
-      - task: bv2:test
-      - task: fv2:test
+      - task: b:test
+      - task: f:test
 
   lint:
-    desc: Lint backend-v2 + frontend-v2
+    desc: Lint backend + frontend
     cmds:
-      - task: bv2:lint
-      - task: fv2:lint
+      - task: b:lint
+      - task: f:lint
 
   build:
-    desc: Build de production frontend-v2
+    desc: Build de production frontend
     cmds:
-      - task: fv2:build
+      - task: f:build
 
   # ──────────────────────────────────────────────────────────────────────────
-  # backend-v2/ — CIBLE (FastAPI + SQLAlchemy + Alembic)
+  # backend/ (FastAPI + SQLAlchemy + Alembic)
   # ──────────────────────────────────────────────────────────────────────────
-  bv2:install:
-    desc: 'backend-v2 : installe les dépendances de dev (pip)'
-    dir: backend-v2
+  b:install:
+    desc: 'backend : installe les dépendances de dev (pip)'
+    dir: backend
     cmds:
       - pip install -r requirements-dev.txt
 
-  bv2:dev:
-    desc: 'backend-v2 : serveur API + /docs sur :8001 (reload)'
-    dir: backend-v2
+  b:dev:
+    desc: 'backend : serveur API + /docs sur :8001 (reload)'
+    dir: backend
     cmds:
       - uvicorn app.main:app --reload --port 8001
 
-  bv2:migrate:
-    desc: 'backend-v2 : applique les migrations Alembic (upgrade head)'
-    dir: backend-v2
+  b:migrate:
+    desc: 'backend : applique les migrations Alembic (upgrade head)'
+    dir: backend
     cmds:
       - alembic upgrade head
 
-  bv2:migration:
-    desc: 'backend-v2 : nouvelle migration auto — usage : task bv2:migration -- "message"'
-    dir: backend-v2
+  b:migration:
+    desc: 'backend : nouvelle migration auto — usage : task b:migration -- "message"'
+    dir: backend
     cmds:
       - alembic revision --autogenerate -m "{{.CLI_ARGS}}"
 
-  bv2:reset-db:
-    desc: 'backend-v2 : reset base dev SQLite (vide + migre + seed démo) — args : task bv2:reset-db -- --no-seed --yes'
-    dir: backend-v2
+  b:reset-db:
+    desc: 'backend : reset base dev SQLite (vide + migre + seed démo) — args : task b:reset-db -- --no-seed --yes'
+    dir: backend
     cmds:
       - python scripts/reset_db.py {{.CLI_ARGS}}
 
-  bv2:test:
-    desc: 'backend-v2 : tests unitaires (sans réseau)'
-    dir: backend-v2
+  b:test:
+    desc: 'backend : tests unitaires (sans réseau)'
+    dir: backend
     cmds:
       - pytest -m "not integration"
 
-  bv2:test:integration:
-    desc: 'backend-v2 : tests d''intégration (réseau réel, scrapers)'
-    dir: backend-v2
+  b:test:integration:
+    desc: 'backend : tests d''intégration (réseau réel, scrapers)'
+    dir: backend
     cmds:
       - pytest -m integration
 
-  bv2:test:all:
-    desc: 'backend-v2 : tous les tests (unitaires + intégration)'
-    dir: backend-v2
+  b:test:all:
+    desc: 'backend : tous les tests (unitaires + intégration)'
+    dir: backend
     cmds:
       - pytest
 
-  bv2:lint:
-    desc: 'backend-v2 : lint ruff'
-    dir: backend-v2
+  b:lint:
+    desc: 'backend : lint ruff'
+    dir: backend
     cmds:
       - ruff check .
 
-  bv2:lint:fix:
-    desc: 'backend-v2 : lint ruff avec corrections automatiques'
-    dir: backend-v2
+  b:lint:fix:
+    desc: 'backend : lint ruff avec corrections automatiques'
+    dir: backend
     cmds:
       - ruff check --fix .
 
   # ──────────────────────────────────────────────────────────────────────────
-  # frontend-v2/ — CIBLE (Next.js 16 + TypeScript + Tailwind)
+  # frontend/ (Next.js 16 + TypeScript + Tailwind)
   # ──────────────────────────────────────────────────────────────────────────
-  fv2:install:
-    desc: 'frontend-v2 : installe les dépendances npm'
-    dir: frontend-v2
+  f:install:
+    desc: 'frontend : installe les dépendances npm'
+    dir: frontend
     cmds:
       - npm install
 
-  fv2:dev:
-    desc: 'frontend-v2 : serveur Next.js sur :3000 (rewrites /api → :8001)'
-    dir: frontend-v2
+  f:dev:
+    desc: 'frontend : serveur Next.js sur :3000 (rewrites /api → :8001)'
+    dir: frontend
     cmds:
       - npm run dev
 
-  fv2:build:
-    desc: 'frontend-v2 : build de production (TS strict + RSC)'
-    dir: frontend-v2
+  f:build:
+    desc: 'frontend : build de production (TS strict + RSC)'
+    dir: frontend
     cmds:
       - npm run build
 
-  fv2:test:
-    desc: 'frontend-v2 : tests Vitest (run unique)'
-    dir: frontend-v2
+  f:test:
+    desc: 'frontend : tests Vitest (run unique)'
+    dir: frontend
     cmds:
       - npm test
 
-  fv2:test:watch:
-    desc: 'frontend-v2 : tests Vitest en mode watch'
-    dir: frontend-v2
+  f:test:watch:
+    desc: 'frontend : tests Vitest en mode watch'
+    dir: frontend
     cmds:
       - npm run test:watch
 
-  fv2:lint:
-    desc: 'frontend-v2 : lint ESLint'
-    dir: frontend-v2
+  f:lint:
+    desc: 'frontend : lint ESLint'
+    dir: frontend
     cmds:
       - npm run lint
 
   # ──────────────────────────────────────────────────────────────────────────
-  # backend/ — DÉPRÉCIÉ (en prod jusqu'à la bascule ; correctifs urgents only)
-  # ──────────────────────────────────────────────────────────────────────────
-  b1:install:
-    desc: 'backend (v1, déprécié) : installe les dépendances (pip)'
-    dir: backend
-    cmds:
-      - pip install -r requirements.txt
-
-  b1:dev:
-    desc: 'backend (v1, déprécié) : serveur API sur :8001 (tables créées au démarrage)'
-    dir: backend
-    cmds:
-      - uvicorn main:app --reload --port 8001
-
-  b1:test:
-    desc: 'backend (v1, déprécié) : tests unitaires (sans réseau)'
-    dir: backend
-    cmds:
-      - pytest -m "not integration"
-
-  # ──────────────────────────────────────────────────────────────────────────
-  # frontend/ — DÉPRÉCIÉ (en prod jusqu'à la bascule Vercel ; correctifs only)
-  # ──────────────────────────────────────────────────────────────────────────
-  f1:install:
-    desc: 'frontend (v1, déprécié) : installe les dépendances npm'
-    dir: frontend
-    cmds:
-      - npm install
-
-  f1:dev:
-    desc: 'frontend (v1, déprécié) : serveur Vite sur :3000 (proxy /api → :8001)'
-    dir: frontend
-    cmds:
-      - npm run dev
-
-  f1:build:
-    desc: 'frontend (v1, déprécié) : build de production Vite'
-    dir: frontend
-    cmds:
-      - npm run build
-
-  # ──────────────────────────────────────────────────────────────────────────
-  # Docker Compose (pile v1 : backend :8000 + frontend :3000)
+  # Docker Compose (pile full-stack : backend :8000 + frontend :3000)
   # ──────────────────────────────────────────────────────────────────────────
   docker:up:
     desc: 'docker : build + lance la pile (backend :8000, frontend :3000)'

@@ -20,7 +20,6 @@ xlsx_urls.json
 audit_report.md
 reliability_report.json
 reliability_report.md
-tests/e2e/fixtures/reliability_urls.json
 bc_pagination_report.json
 
 # Node
@@ -36,16 +35,6 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
-
-# Test fixtures (contain athlete names from private club data)
-tests/e2e/fixtures/providers.json
-
-# Playwright test output
-test-results/
-tests/e2e/playwright-report/
-tests/e2e/test-results/
-tests/e2e/.cache/
-
 
 # AI Tools
 .claude/memory/
