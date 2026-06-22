@@ -1,4 +1,4 @@
-// Miroir des schémas Pydantic backend-v2. Source de vérité : app/schemas/*.py.
+// Miroir des schémas Pydantic backend. Source de vérité : app/schemas/*.py.
 
 export interface AthleteBrief {
   id: number;
