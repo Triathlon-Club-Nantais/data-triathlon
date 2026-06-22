@@ -9,7 +9,7 @@ ré-importe un jeu de données démo réel via `scripts/seed_demo.py`.
 Il ne touche donc jamais une base PostgreSQL / Supabase (prod).
 
 Usage :
-    cd backend-v2
+    cd backend
     python scripts/reset_db.py            # vide + migre + seed démo
     python scripts/reset_db.py --no-seed  # schéma vierge seulement
     python scripts/reset_db.py --yes      # sans confirmation interactive
