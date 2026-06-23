@@ -6,9 +6,10 @@ Toutes les variables d'environnement passent par cet objet `Settings` typé
 """
 
 from functools import lru_cache
+from typing import Annotated
 
 from pydantic import field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -24,7 +25,9 @@ class Settings(BaseSettings):
     # ── CORS ──────────────────────────────────────────────────────────────────
     # Liste restreinte en production (plus de "*"). Format : URLs séparées par des
     # virgules dans la variable d'env CORS_ORIGINS.
-    cors_origins: list[str] = [
+    # NoDecode : désactive le parsing JSON de pydantic-settings pour ce champ, afin
+    # que le validateur _split_cors reçoive bien la chaîne CSV brute (sinon JSONDecodeError).
+    cors_origins: Annotated[list[str], NoDecode] = [
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
         "http://localhost:3000",
