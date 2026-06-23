@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
+  # Déclenchement manuel d'une preview depuis l'onglet Actions
+  # (« Run workflow » → choix de la branche de la PR).
+  workflow_dispatch:
 
 concurrency:
   group: deploy-${{ github.ref }}
@@ -14,10 +17,10 @@ jobs:
   ci:
     uses: ./.github/workflows/ci.yml
 
-  # ---- PREVIEW : merge sur main ----
+  # ---- PREVIEW : merge sur main OU déclenchement manuel d'une branche de PR ----
   deploy-preview:
     needs: ci
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: preview
     env:
