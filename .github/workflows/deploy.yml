@@ -39,7 +39,7 @@ jobs:
       - run: npm i -g vercel@54 # major épinglé : évite qu'une release Vercel casse le pipeline
 
       - name: Vercel (frontend) — preview
-        working-directory: frontend
+        # Pas de working-directory : le Root Directory (frontend) est déjà configuré côté projet Vercel.
         run: |
           vercel pull --yes --environment=preview --token="$VERCEL_TOKEN"
           vercel build --token="$VERCEL_TOKEN"
@@ -69,7 +69,7 @@ jobs:
       - run: npm i -g vercel@54 # major épinglé : évite qu'une release Vercel casse le pipeline
 
       - name: Vercel (frontend) — production
-        working-directory: frontend
+        # Pas de working-directory : le Root Directory (frontend) est déjà configuré côté projet Vercel.
         run: |
           vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
           vercel build --prod --token="$VERCEL_TOKEN"
