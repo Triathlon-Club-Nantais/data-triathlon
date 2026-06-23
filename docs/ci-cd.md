@@ -28,13 +28,16 @@ dans les réglages du service) empêche tout déploiement automatique hors hook.
 
 ### Render (offre gratuite) — 2 services web
 
-Deux services existent désormais dans le workspace « Triathlon Club Nantais »
-(`tea-d8sq2evavr4c73ar9lr0`), région Frankfurt, plan free, runtime python :
+Deux services existent désormais dans le workspace « Triathlon Club Nantais »,
+région Frankfurt, plan free, runtime python :
 
-| Rôle | Service | ID | Dashboard / URL |
-|---|---|---|---|
-| **PROD** | `data-triathlon` (existant) | `srv-d8ssck6q1p3s738mh8g0` | [settings](https://dashboard.render.com/web/srv-d8ssck6q1p3s738mh8g0/settings) · https://data-triathlon-vq6u.onrender.com |
-| **PREVIEW** | `triathlon-backend-preview` (créé via MCP) | `srv-d8t4cbv7f7vs73bpn4mg` | [settings](https://dashboard.render.com/web/srv-d8t4cbv7f7vs73bpn4mg/settings) · https://triathlon-backend-preview.onrender.com |
+| Rôle | Service | Accès |
+|---|---|---|
+| **PROD** | `data-triathlon` (existant) | dashboard Render → service `data-triathlon` → Settings |
+| **PREVIEW** | `triathlon-backend-preview` (créé via MCP) | dashboard Render → service `triathlon-backend-preview` → Settings |
+
+> Les IDs de service (`srv-…`) et les URLs publiques sont visibles dans le
+> dashboard Render ; ils ne sont volontairement pas committés ici (dépôt public).
 
 Réglages restants à faire **dans le dashboard** (non supportés par le MCP) :
 
@@ -63,9 +66,10 @@ Réglages restants à faire **dans le dashboard** (non supportés par le MCP) :
    d'auto-deploy, ou définir un *Ignored Build Step* renvoyant `exit 0` sur les
    pushs Git.
 3. `VERCEL_ORG_ID` et `VERCEL_PROJECT_ID` (projet `data-triathlon` existant,
-   team « Triathlon Club Nantais ») :
-   - `VERCEL_ORG_ID` = `team_yhzwA15m2hwjBeo4k2GrhDPn`
-   - `VERCEL_PROJECT_ID` = `prj_TJkk3hjdCaCtBO7ybfc2OtK5CV6A`
+   team « Triathlon Club Nantais ») — à récupérer (non committés, dépôt public) :
+   - via la CLI : `vercel link` puis lire `.vercel/project.json`
+     (`orgId` → `VERCEL_ORG_ID`, `projectId` → `VERCEL_PROJECT_ID`) ;
+   - ou dans le dashboard : Project → Settings → General.
 4. Créer un **`VERCEL_TOKEN`** (Account Settings → Tokens).
 5. Variables d'environnement projet :
    - env **Preview** : `BACKEND_URL` / `API_URL` → backend Render **preview**.
