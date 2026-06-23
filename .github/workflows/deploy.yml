@@ -2,7 +2,8 @@ name: Deploy
 
 on:
   push:
-    branches: [main]
+    # TEMP: ci/cd-render-vercel ajoutée pour tester la MR en preview — à retirer ensuite.
+    branches: [main, ci/cd-render-vercel]
     tags: ["v*"]
 
 concurrency:
@@ -17,7 +18,8 @@ jobs:
   # ---- PREVIEW : merge sur main ----
   deploy-preview:
     needs: ci
-    if: github.ref == 'refs/heads/main'
+    # TEMP: ci/cd-render-vercel ajoutée pour tester la MR en preview — à retirer ensuite.
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ci/cd-render-vercel'
     runs-on: ubuntu-latest
     environment: preview
     env:
@@ -25,7 +27,8 @@ jobs:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
       - name: Render (backend) — deploy hook preview
-        run: curl -fsSL -X POST --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 "${{ secrets.RENDER_DEPLOY_HOOK_PREVIEW }}"
+        # &ref force Render à builder la branche poussée (sinon il déploierait la branche suivie par le service, p. ex. main).
+        run: curl -fsSL -X POST --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 "${{ secrets.RENDER_DEPLOY_HOOK_PREVIEW }}&ref=${{ github.ref_name }}"
 
       - uses: actions/checkout@v4
 
