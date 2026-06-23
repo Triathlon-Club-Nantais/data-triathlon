@@ -2,180 +2,217 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+/* ════════════════════════════════════════════════════════════════════════
+   TCN Design System — récupéré de Claude Design (« TCN Design System »).
+   Identité : orange chaud sur encre, papier off-white, Anton + Barlow.
+   Thème clair uniquement (le mode sombre du design SPLIT a été retiré).
+   ════════════════════════════════════════════════════════════════════════ */
 
 @theme inline {
+  /* Surfaces / texte (alias shadcn → tokens TCN) */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-foreground-subtle: var(--foreground-subtle);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-mono);
-  --font-heading: var(--font-sans);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  /* Échelle catégorielle — disciplines (alias lisibles des charts) */
-  --color-swim: var(--swim);
-  --color-bike: var(--bike);
-  --color-run: var(--run);
-  --color-violet: var(--violet);
-  --color-tri: var(--tri);
-  /* Marque (orange TCN) — accent ponctuel : nav active, CTA clé, sélection */
-  --color-brand: var(--brand);
-  --color-brand-foreground: var(--brand-foreground);
-  /* Médailles */
-  --color-gold: var(--gold);
-  --color-silver: var(--silver);
-  --color-bronze: var(--bronze);
-  /* Statuts custom */
-  --color-success: var(--success);
-  --color-success-foreground: var(--success-foreground);
-  --color-warning: var(--warning);
-  --color-warning-foreground: var(--warning-foreground);
-  /* Accent lisible en texte (orange TCN assombri vers le foreground) */
-  --color-accent-ink: var(--accent-ink);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Marque + sémantique (orange TCN) */
+  --color-brand: var(--tcn-orange);
+  --color-brand-foreground: #ffffff;
+  --color-accent-ink: var(--tcn-danger-text);
+  --color-success: var(--tcn-success);
+  --color-success-foreground: #ffffff;
+  --color-warning: var(--tcn-warning);
+  --color-warning-foreground: var(--tcn-warning-text);
+
+  /* Échelle disciplines (ramp orange / encre du DS) */
+  --color-swim: var(--tcn-ink);
+  --color-bike: var(--tcn-orange-300);
+  --color-run: var(--tcn-orange);
+  --color-violet: var(--tcn-ink-3);
+  --color-tri: var(--tcn-orange);
+
+  /* Médailles (réutilise la palette TCN) */
+  --color-gold: var(--tcn-orange);
+  --color-silver: var(--tcn-grey-400);
+  --color-bronze: var(--tcn-orange-300);
+
+  /* Polices */
+  --font-sans: var(--tcn-font-body);
+  --font-mono: var(--tcn-font-cond);
+  --font-heading: var(--tcn-font-display);
+  --font-display: var(--tcn-font-display);
+
+  /* Rayons (sur l'échelle TCN, base 18px = carte standard) */
+  --radius-sm: var(--tcn-radius-sm);
+  --radius-md: var(--tcn-radius-md);
+  --radius-lg: var(--tcn-radius-lg);
+  --radius-xl: var(--tcn-radius-xl);
+  --radius-2xl: var(--tcn-radius-2xl);
+  --radius-3xl: var(--tcn-radius-3xl);
 }
 
 :root {
-  --radius: 0.875rem; /* 14px — cartes / surfaces (SPLIT) */
+  /* ── Brand orange ─────────────────────────────────────────────── */
+  --tcn-orange:        #E9530E;
+  --tcn-orange-bright: #ff6620;
+  --tcn-orange-deep:   #c04008;
+  --tcn-orange-grad:   linear-gradient(150deg, #ff6620, #E9530E);
+  --tcn-orange-12:     rgba(233, 83, 14, 0.12);
+  --tcn-orange-10:     rgba(233, 83, 14, 0.10);
+  --tcn-orange-08:     rgba(233, 83, 14, 0.08);
+  --tcn-orange-300:    #f2864a;
+  --tcn-orange-200:    #f8b58c;
 
-  /* Échelle catégorielle (fixe, indépendante du thème) */
-  --chart-1: oklch(0.72 0.13 235); /* natation */
-  --chart-2: oklch(0.83 0.13 82); /* vélo */
-  --chart-3: oklch(0.69 0.17 32); /* course */
-  --chart-4: oklch(0.74 0.12 292); /* violet */
-  --chart-5: oklch(0.94 0.19 119); /* accent */
+  /* ── Ink ──────────────────────────────────────────────────────── */
+  --tcn-ink:           #1c1e22;
+  --tcn-ink-2:         #3a3d44;
+  --tcn-ink-3:         #5b5e65;
 
-  /* Alias disciplines (mêmes valeurs que les charts) */
-  --swim: oklch(0.72 0.13 235);
-  --bike: oklch(0.83 0.13 82);
-  --run: oklch(0.69 0.17 32);
-  --violet: oklch(0.74 0.12 292);
+  /* ── Texte ────────────────────────────────────────────────────── */
+  --tcn-text:          #1c1e22;
+  --tcn-text-body:     #3a3833;
+  --tcn-text-muted:    #857f74;
+  --tcn-text-faint:    #a39d93;
+  --tcn-text-disabled: #c4bdb1;
+  --tcn-placeholder:   #b3ada3;
 
-  /* Marque : orange Triathlon Club Nantais (#e3573c), accent ponctuel découplé
-     du primaire (bleu nuit). Sert aussi de couleur de discipline « triathlon » (--tri). */
-  --brand: oklch(0.637 0.18 33);
-  --brand-foreground: oklch(0.985 0.006 33);
-  --tri: var(--brand);
+  /* ── Surfaces ─────────────────────────────────────────────────── */
+  --tcn-paper:         #f4f3f0;
+  --tcn-surface:       #ffffff;
+  --tcn-surface-sunk:  #faf9f7;
+  --tcn-fill:          #f4f3f0;
 
-  /* Médailles */
-  --gold: oklch(0.84 0.14 88);
-  --silver: oklch(0.80 0.012 250);
-  --bronze: oklch(0.70 0.10 55);
+  /* ── Bordures ─────────────────────────────────────────────────── */
+  --tcn-border:        #ebe8e2;
+  --tcn-border-strong: #e7e4de;
+  --tcn-border-faint:  #f1efea;
+  --tcn-border-faint2: #f5f3f0;
+  --tcn-border-input:  #d8d4cc;
 
-  /* Accent lisible en texte : aplat = --brand, texte/trait = --accent-ink.
-     --ink-mix assombrit l'accent vers le texte (0% sombre, 52% clair). */
-  --accent-ink: color-mix(in oklch, var(--brand), var(--foreground) var(--ink-mix));
-}
+  /* ── Ramp neutre ──────────────────────────────────────────────── */
+  --tcn-grey-400:      #b0aaa0;
+  --tcn-grey-300:      #d6d1c8;
 
-/* ── Thème clair (défaut) ── */
-:root,
-.light {
-  --background: oklch(0.984 0.003 256);
-  --foreground: oklch(0.21 0.02 256);
-  --foreground-subtle: oklch(0.44 0.018 256);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.21 0.02 256);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.21 0.02 256);
-  --primary: oklch(0.30 0.045 256); /* bleu nuit (slate-900/blue) */
-  --primary-foreground: oklch(0.985 0.004 250);
-  --secondary: oklch(0.962 0.005 256);
-  --secondary-foreground: oklch(0.21 0.02 256);
-  --muted: oklch(0.965 0.005 256);
-  --muted-foreground: oklch(0.52 0.016 256);
-  --accent: oklch(0.962 0.005 256); /* survol neutre */
-  --accent-foreground: oklch(0.21 0.02 256);
-  --destructive: oklch(0.62 0.20 26);
-  --destructive-foreground: oklch(0.99 0.002 250);
-  --success: oklch(0.62 0.15 152);
-  --success-foreground: oklch(0.99 0.002 250);
-  --warning: oklch(0.70 0.15 75);
-  --warning-foreground: oklch(0.18 0.03 130);
-  --border: oklch(0.912 0.006 256);
-  --input: oklch(0.912 0.006 256);
-  --ring: oklch(0.30 0.045 256);
-  --ink-mix: 52%; /* assombrit --accent-ink pour le texte */
+  /* ── Sémantique — succès ──────────────────────────────────────── */
+  --tcn-success:       #1f8a4d;
+  --tcn-success-bg:    #f0fdf5;
+  --tcn-success-border:#84d4a8;
+  --tcn-success-text:  #176039;
+  --tcn-success-text2: #2a7a50;
 
-  --sidebar: oklch(0.27 0.035 256); /* bleu nuit profond */
-  --sidebar-foreground: oklch(0.92 0.01 256);
-  --sidebar-primary: var(--brand);
-  --sidebar-primary-foreground: var(--brand-foreground);
-  --sidebar-accent: oklch(0.34 0.04 256);
-  --sidebar-accent-foreground: oklch(0.985 0.004 256);
-  --sidebar-border: oklch(0.34 0.035 256);
-  --sidebar-ring: var(--brand);
-}
+  /* ── Sémantique — avertissement ───────────────────────────────── */
+  --tcn-warning:       #e6b020;
+  --tcn-warning-bg:    #fdf8f0;
+  --tcn-warning-border:#e6d29a;
+  --tcn-warning-text:  #7a5800;
+  --tcn-warning-text2: #8a6820;
 
-/* ── Thème sombre (option) ── */
-.dark {
-  --background: oklch(0.165 0.012 256);
-  --foreground: oklch(0.97 0.005 256);
-  --foreground-subtle: oklch(0.78 0.012 256);
-  --card: oklch(0.205 0.014 256);
-  --card-foreground: oklch(0.97 0.005 256);
-  --popover: oklch(0.205 0.014 256);
-  --popover-foreground: oklch(0.97 0.005 256);
-  --primary: oklch(0.62 0.13 256); /* bleu clair lisible sur fond sombre */
-  --primary-foreground: oklch(0.15 0.02 256);
-  --secondary: oklch(0.245 0.015 256);
-  --secondary-foreground: oklch(0.97 0.005 256);
-  --muted: oklch(0.245 0.015 256);
-  --muted-foreground: oklch(0.64 0.013 256);
-  --accent: oklch(0.245 0.015 256); /* survol neutre */
-  --accent-foreground: oklch(0.97 0.005 256);
-  --destructive: oklch(0.66 0.19 26);
-  --destructive-foreground: oklch(0.97 0.005 256);
-  --success: oklch(0.80 0.15 152);
-  --success-foreground: oklch(0.18 0.03 130);
-  --warning: oklch(0.83 0.15 75);
-  --warning-foreground: oklch(0.18 0.03 130);
-  --border: oklch(0.30 0.013 256);
-  --input: oklch(0.30 0.013 256);
-  --ring: oklch(0.62 0.13 256);
-  --ink-mix: 0%; /* l'orange reste tel quel sur fond sombre */
+  /* ── Sémantique — danger / doublon ────────────────────────────── */
+  --tcn-danger:        #E9530E;
+  --tcn-danger-bg:     #fff4f0;
+  --tcn-danger-border: #f2c2ad;
+  --tcn-danger-text:   #c04008;
+  --tcn-danger-text2:  #a05030;
 
-  --sidebar: oklch(0.185 0.013 256);
-  --sidebar-foreground: oklch(0.92 0.01 256);
-  --sidebar-primary: var(--brand);
-  --sidebar-primary-foreground: var(--brand-foreground);
-  --sidebar-accent: oklch(0.27 0.015 256);
-  --sidebar-accent-foreground: oklch(0.97 0.005 256);
-  --sidebar-border: oklch(0.30 0.013 256);
-  --sidebar-ring: var(--brand);
+  /* ── Overlay ──────────────────────────────────────────────────── */
+  --tcn-overlay:       rgba(28, 30, 34, 0.45);
+
+  /* ── Polices (les variables next/font sont injectées sur <html>) ─ */
+  --tcn-font-display: var(--font-anton), 'Anton', 'Barlow', sans-serif;
+  --tcn-font-body:    var(--font-barlow), system-ui, sans-serif;
+  --tcn-font-cond:    var(--font-barlow-cond), var(--font-barlow), sans-serif;
+
+  /* Tailles display (Anton) */
+  --tcn-display-hero: 86px;
+  --tcn-display-xxl:  68px;
+  --tcn-display-xl:   46px;
+  --tcn-display-lg:   40px;
+  --tcn-display-md:   24px;
+  --tcn-display-sm:   20px;
+  --tcn-display-xs:   18px;
+
+  /* Poids */
+  --tcn-weight-regular:  400;
+  --tcn-weight-medium:   500;
+  --tcn-weight-semibold: 600;
+  --tcn-weight-bold:     700;
+  --tcn-weight-extrabold:800;
+  --tcn-weight-black:    900;
+
+  /* Eyebrow */
+  --tcn-eyebrow-tracking: 0.16em;
+
+  /* ── Spacing / layout ─────────────────────────────────────────── */
+  --tcn-space-1: 4px;  --tcn-space-2: 8px;  --tcn-space-3: 12px;
+  --tcn-space-4: 14px; --tcn-space-5: 18px; --tcn-space-6: 22px;
+  --tcn-space-7: 26px; --tcn-space-8: 28px; --tcn-space-9: 36px;
+  --tcn-space-10: 40px; --tcn-space-12: 64px;
+  --tcn-content-max:  1320px;
+  --tcn-content-form: 1120px;
+
+  /* ── Rayons ───────────────────────────────────────────────────── */
+  --tcn-radius-sm:   6px;
+  --tcn-radius-md:   8px;
+  --tcn-radius-lg:   10px;
+  --tcn-radius-xl:   12px;
+  --tcn-radius-2xl:  16px;
+  --tcn-radius-3xl:  18px;
+  --tcn-radius-modal:20px;
+  --tcn-radius-pill: 999px;
+
+  /* ── Ombres ───────────────────────────────────────────────────── */
+  --tcn-shadow-orange:    0 6px 16px rgba(233, 83, 14, 0.30);
+  --tcn-shadow-orange-lg: 0 8px 20px rgba(233, 83, 14, 0.30);
+  --tcn-shadow-orange-xl: 0 12px 30px rgba(233, 83, 14, 0.28);
+  --tcn-shadow-card:  0 12px 30px rgba(28, 30, 34, 0.06);
+  --tcn-shadow-modal: 0 30px 80px rgba(28, 30, 34, 0.35);
+  --tcn-shadow-pop:   0 12px 32px rgba(0, 0, 0, 0.20);
+
+  /* ── Motion ───────────────────────────────────────────────────── */
+  --tcn-dur-fast: 0.15s;
+  --tcn-dur:      0.18s;
+  --tcn-dur-pop:  0.2s;
+
+  /* ── Rayon de base shadcn (cartes 18px) ───────────────────────── */
+  --radius: 0.75rem;
+
+  /* ════ Remap des variables sémantiques shadcn → tokens TCN ════ */
+  --background: var(--tcn-paper);
+  --foreground: var(--tcn-ink);
+  --foreground-subtle: var(--tcn-text-muted);
+  --card: var(--tcn-surface);
+  --card-foreground: var(--tcn-ink);
+  --popover: var(--tcn-surface);
+  --popover-foreground: var(--tcn-ink);
+  --primary: var(--tcn-orange);
+  --primary-foreground: #ffffff;
+  --secondary: var(--tcn-fill);
+  --secondary-foreground: var(--tcn-ink);
+  --muted: var(--tcn-fill);
+  --muted-foreground: var(--tcn-text-muted);
+  --accent: var(--tcn-orange-10);
+  --accent-foreground: var(--tcn-orange);
+  --destructive: var(--tcn-danger);
+  --destructive-foreground: #ffffff;
+  --border: var(--tcn-border);
+  --input: var(--tcn-border-input);
+  --ring: var(--tcn-orange);
 }
 
 @layer base {
@@ -191,23 +228,39 @@
 }
 
 @layer utilities {
-  /* Chiffres = monospace tabulaire (temps, classements, %, dates, URLs). */
+  /* Chiffres tabulaires (temps, classements) — Barlow Semi Condensed. */
   .num,
   .mono {
-    font-family: var(--font-mono);
+    font-family: var(--tcn-font-cond);
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum";
   }
-  /* Micro-label : 10.5px, 700, capitales espacées (SPLIT). */
-  .micro-label {
-    font-size: 0.656rem; /* ~10.5px */
+  /* Titres / grands chiffres — Anton. */
+  .font-display {
+    font-family: var(--tcn-font-display);
+  }
+  /* Eyebrow : capitales orange espacées. */
+  .eyebrow {
+    font-family: var(--tcn-font-cond);
     font-weight: 700;
+    font-size: 13px;
+    letter-spacing: var(--tcn-eyebrow-tracking);
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    color: var(--tcn-orange);
+  }
+  /* Ligne de tableau cliquable (survol surface sunk) — pages Server. */
+  .tcn-rowlink {
+    cursor: pointer;
+    transition: background var(--tcn-dur-fast);
+    text-decoration: none;
+    color: inherit;
+  }
+  .tcn-rowlink:hover {
+    background: var(--tcn-surface-sunk);
   }
 }
 
 ::selection {
-  background: var(--brand);
-  color: var(--brand-foreground);
+  background: var(--tcn-orange);
+  color: #ffffff;
 }

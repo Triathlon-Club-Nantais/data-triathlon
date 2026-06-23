@@ -1,8 +1,8 @@
 "use client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ThemeProvider } from "next-themes";
 import { useState, type ReactNode } from "react";
 
+// TCN Design System : thème clair uniquement (le mode sombre a été retiré).
 export function Providers({ children }: { children: ReactNode }) {
   const [client] = useState(
     () =>
@@ -10,12 +10,5 @@ export function Providers({ children }: { children: ReactNode }) {
         defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false } },
       }),
   );
-  return (
-    <QueryClientProvider client={client}>
-      {/* SPLIT : thème clair par défaut, sombre en option (Tweaks). */}
-      <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-        {children}
-      </ThemeProvider>
-    </QueryClientProvider>
-  );
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
