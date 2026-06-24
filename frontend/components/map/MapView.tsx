@@ -64,8 +64,8 @@ export function MapView({ club }: { club?: string }) {
             center={[ev.lat, ev.lon]}
             radius={radius}
             pathOptions={{
-              fillColor: hasTCN ? "#3b82f6" : "#94a3b8",
-              color: hasTCN ? "#1d4ed8" : "#64748b",
+              fillColor: hasTCN ? "#E9530E" : "#b0aaa0",
+              color: hasTCN ? "#c04008" : "#857f74",
               weight: hasTCN ? 2 : 1,
               fillOpacity: 0.55,
             }}
@@ -79,7 +79,7 @@ export function MapView({ club }: { club?: string }) {
                   {ev.count} participant{ev.count > 1 ? "s" : ""}
                 </div>
                 {hasTCN && (
-                  <div className="font-semibold text-blue-600">
+                  <div className="font-semibold text-brand">
                     {ev.tcn_count} membre{ev.tcn_count > 1 ? "s" : ""} TCN
                   </div>
                 )}

@@ -36,6 +36,7 @@ function part(over: Partial<Participation> & { id: number }): Participation {
     rank_gender: over.rank_gender ?? null,
     total_time: over.total_time ?? "02:00:00",
     status: "finisher",
+    is_relay: over.is_relay ?? false,
     splits: over.splits ?? null,
     created_at: over.created_at ?? "2026-05-11T10:00:00Z",
   };

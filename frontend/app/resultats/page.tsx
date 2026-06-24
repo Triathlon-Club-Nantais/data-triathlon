@@ -1,6 +1,7 @@
 import { apiServer } from "@/lib/api/server";
 import { clubFromScope } from "@/lib/scope";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { PageShell } from "@/components/layout/PageShell";
 import { ScopeToggle } from "@/components/layout/ScopeToggle";
 import { ResultsFilters } from "@/components/results/ResultsFilters";
 import { EventList } from "@/components/results/EventList";
@@ -29,17 +30,20 @@ export default async function ResultatsPage({
   const { total_events, total_participations } = firstPage;
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Résultats"
-        description={
-          `${total_events} épreuve${total_events > 1 ? "s" : ""}` +
-          ` · ${total_participations} résultat${total_participations > 1 ? "s" : ""}`
-        }
-        actions={<ScopeToggle />}
-      />
-      <ResultsFilters />
-      <EventList filters={filters} initial={firstPage} />
-    </div>
+    <PageShell>
+      <div className="space-y-6">
+        <PageHeader
+          eyebrow="Toutes les épreuves"
+          title="Résultats"
+          description={
+            `${total_events} épreuve${total_events > 1 ? "s" : ""}` +
+            ` · ${total_participations} résultat${total_participations > 1 ? "s" : ""}`
+          }
+          actions={<ScopeToggle />}
+        />
+        <ResultsFilters />
+        <EventList filters={filters} initial={firstPage} />
+      </div>
+    </PageShell>
   );
 }

@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
  */
 export function PageHeader({
   title,
+  eyebrow,
   description,
   actions,
   backHref,
@@ -16,6 +17,7 @@ export function PageHeader({
   children,
 }: {
   title: React.ReactNode;
+  eyebrow?: React.ReactNode;
   description?: React.ReactNode;
   actions?: React.ReactNode;
   backHref?: string;
@@ -37,7 +39,8 @@ export function PageHeader({
       )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1.5">
-          <h1 className="font-heading text-2xl font-bold tracking-tight sm:text-[28px]">
+          {eyebrow && <div className="eyebrow">{eyebrow}</div>}
+          <h1 className="font-heading text-[40px] leading-none tracking-tight text-foreground">
             {title}
           </h1>
           {description && (
