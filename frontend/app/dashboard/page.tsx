@@ -27,7 +27,7 @@ export default async function DashboardPage({
   const [stats, eventsPage, participations] = await Promise.all([
     apiServer.getStats(club),
     apiServer.listEvents({ club, page_size: 200 }),
-    apiServer.listParticipations({ club, page_size: 2000 }),
+    apiServer.listParticipations({ club, page_size: 5000 }),
   ]);
 
   const victoires = participations.filter((p) => p.rank_overall === 1).length;

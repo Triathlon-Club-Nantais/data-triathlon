@@ -37,6 +37,7 @@ export function SegmentedControl({
         return (
           <button
             key={val}
+            type="button"
             onClick={() => onChange(val)}
             style={{
               display: "inline-flex",

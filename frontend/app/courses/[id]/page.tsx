@@ -40,7 +40,9 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
     else if (c === "m" || c === "h") male += 1;
   }
   const genderTotal = male + female;
-  const malePct = genderTotal ? (male / genderTotal) * 100 : 0;
+  const hasGender = genderTotal > 0;
+  const malePct = hasGender ? (male / genderTotal) * 100 : 0;
+  const femalePct = hasGender ? (female / genderTotal) * 100 : 0;
 
   // ── Répartition par catégorie ──
   const catMap = new Map<string, number>();
@@ -83,7 +85,7 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
       <div style={{ display: "grid", gridTemplateColumns: "220px 1fr 260px", gap: 18, marginBottom: 18 }}>
         <Card padding={24} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 18 }}>
           <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 18, color: "var(--tcn-ink)", alignSelf: "flex-start" }}>Répartition genre</div>
-          <div style={{ position: "relative", width: 130, height: 130, borderRadius: 999, background: `conic-gradient(var(--tcn-orange) 0 ${malePct}%, var(--tcn-ink) ${malePct}% 100%)` }}>
+          <div style={{ position: "relative", width: 130, height: 130, borderRadius: 999, background: hasGender ? `conic-gradient(var(--tcn-orange) 0 ${malePct}%, var(--tcn-ink) ${malePct}% 100%)` : "var(--tcn-grey-300)" }}>
             <div style={{ position: "absolute", inset: 26, borderRadius: 999, background: "var(--tcn-surface)", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column" }}>
               <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)", lineHeight: 1 }}>{Math.round(malePct)}%</div>
               <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "var(--tcn-text-faint)", letterSpacing: ".05em" }}>Hommes</div>
@@ -91,7 +93,7 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
             <Legend color="var(--tcn-orange)" label="Homme" value={`${pctFr(malePct)}%`} />
-            <Legend color="var(--tcn-ink)" label="Femme" value={`${pctFr(100 - malePct)}%`} />
+            <Legend color="var(--tcn-ink)" label="Femme" value={`${pctFr(femalePct)}%`} />
           </div>
         </Card>
 

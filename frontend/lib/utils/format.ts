@@ -57,7 +57,8 @@ export function aggregateDisciplines(
     .sort((a, b) => FAMILY_ORDER.indexOf(a.name) - FAMILY_ORDER.indexOf(b.name));
 }
 
-/** Formate un pourcentage à la française : « 71,2 % ». */
+/** Formate la valeur numérique d'un pourcentage à la française (« 71,2 »),
+ *  sans le symbole « % » (les appelants l'ajoutent eux-mêmes). */
 export function pctFr(pct: number, decimals = 1): string {
   return pct.toFixed(decimals).replace(".", ",");
 }

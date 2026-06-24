@@ -22,6 +22,7 @@ export function IconButton({
   const isClose = variant === "close";
   return (
     <button
+      type="button"
       style={{
         display: "inline-flex",
         alignItems: "center",

@@ -49,7 +49,7 @@ export function Button({
   };
 
   return (
-    <button style={{ ...base, ...variants[variant], ...style }} {...rest}>
+    <button type="button" style={{ ...base, ...variants[variant], ...style }} {...rest}>
       {icon}
       {children}
       {iconRight}

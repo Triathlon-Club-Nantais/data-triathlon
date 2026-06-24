@@ -174,10 +174,21 @@ function AthletePicker({ onClose, onPick }: { onClose: () => void; onPick: (id: 
           return (
             <div
               key={a.id}
+              role="button"
+              tabIndex={0}
+              aria-label={`Choisir ${fullName}`}
               onClick={() => onPick(a.id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onPick(a.id);
+                }
+              }}
               style={{ display: "flex", alignItems: "center", gap: 14, padding: "11px 14px", borderRadius: 12, cursor: "pointer" }}
               onMouseEnter={(e) => (e.currentTarget.style.background = "var(--tcn-fill)")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              onFocus={(e) => (e.currentTarget.style.background = "var(--tcn-fill)")}
+              onBlur={(e) => (e.currentTarget.style.background = "transparent")}
             >
               <Avatar name={fullName} size={40} />
               <div style={{ flex: 1 }}>

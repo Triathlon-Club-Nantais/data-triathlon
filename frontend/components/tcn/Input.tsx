@@ -6,6 +6,7 @@ export function Input({
   status = "default",
   style,
   containerStyle,
+  className,
   ...rest
 }: {
   icon?: ReactNode;
@@ -36,12 +37,12 @@ export function Input({
     >
       {icon ? <span style={{ color: "var(--tcn-text-faint)", fontSize: 15, display: "inline-flex" }}>{icon}</span> : null}
       <input
+        className={["tcn-input", className].filter(Boolean).join(" ")}
         style={{
           flex: 1,
           width: "100%",
           background: "transparent",
           border: "none",
-          outline: "none",
           color: "var(--tcn-text)",
           fontFamily: "var(--tcn-font-body)",
           fontSize: 15,

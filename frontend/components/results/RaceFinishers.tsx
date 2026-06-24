@@ -54,7 +54,16 @@ export function RaceFinishers({
             return (
               <div
                 key={p.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`Voir le profil de ${name}`}
                 onClick={() => router.push(`/athletes/${p.athlete?.id}`)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    router.push(`/athletes/${p.athlete?.id}`);
+                  }
+                }}
                 className="tcn-rowlink"
                 style={{ display: "grid", gridTemplateColumns: FCOLS, gap: "0 12px", alignItems: "center", padding: "12px 22px", borderBottom: "1px solid var(--tcn-border-faint)", borderLeft: `3px solid ${own ? "var(--tcn-orange)" : "transparent"}` }}
               >

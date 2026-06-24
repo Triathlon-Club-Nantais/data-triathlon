@@ -2,6 +2,12 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* Mode sombre opt-in via la classe `.dark` (jamais posée → DS clair only).
+   Sans cette redéfinition, le variant `dark:` retombe sur le défaut Tailwind v4
+   (`prefers-color-scheme: dark`) et réactiverait les styles `dark:` encore
+   présents dans les composants shadcn `components/ui/*`. */
+@custom-variant dark (&:is(.dark *));
+
 /* ════════════════════════════════════════════════════════════════════════
    TCN Design System — récupéré de Claude Design (« TCN Design System »).
    Identité : orange chaud sur encre, papier off-white, Anton + Barlow.
@@ -257,6 +263,19 @@
   }
   .tcn-rowlink:hover {
     background: var(--tcn-surface-sunk);
+  }
+  .tcn-rowlink:focus-visible {
+    outline: 2px solid var(--tcn-orange);
+    outline-offset: -2px;
+  }
+  /* Champ texte TCN : focus clavier visible (l'outline natif est masqué hors :focus-visible). */
+  .tcn-input {
+    outline: none;
+  }
+  .tcn-input:focus-visible {
+    outline: 2px solid var(--tcn-orange);
+    outline-offset: 2px;
+    border-radius: 4px;
   }
 }
 
