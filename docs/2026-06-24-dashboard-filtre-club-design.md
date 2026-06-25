@@ -5,9 +5,15 @@ Cible : `frontend/`
 Issue : [#6 — Filtre Club sur la page d'accueil](https://github.com/Triathlon-Club-Nantais/data-triathlon/issues/6)
 Demandeur : Vincent (@Vinzzou)
 
-> **Spec en attente de validation.** Cette PR est ouverte en *Draft* : elle ne
-> contient que la spécification de la correction. L'implémentation suivra après
-> validation de Vincent.
+> **Spec validée par Vincent (2026-06-25).** Cette PR a d'abord été ouverte en
+> *Draft* (spec seule) ; Vincent a confirmé la portée
+> ([commentaire #6](https://github.com/Triathlon-Club-Nantais/data-triathlon/pull/13#issuecomment-4800185417)).
+> L'implémentation suit dans cette même PR.
+>
+> > « Sur la page d'accueil, on n'affiche que les résultats des tcnistes : c'est
+> > le tableau de bord du TCN. Par contre, sur les courses, on a 2 vues : la vue
+> > avec tous les participants, et la vue avec uniquement les athlètes du
+> > club. » — Vincent (@Vinzzou)
 
 ## Contexte
 
@@ -68,25 +74,36 @@ Dans `app/dashboard/page.tsx` :
    pour expliciter la portée (ex. « Vue d'ensemble des performances **des
    athlètes du club** » — déjà le cas, on le garde).
 
-### Hors périmètre (décision à valider)
+### Hors périmètre — validé par Vincent
 
-Le `ScopeToggle` reste utilisé sur **deux autres pages** :
+Vincent a tranché : seul **le tableau de bord** (page d'accueil) est verrouillé
+sur le club. Le double affichage « tous / club » reste pertinent ailleurs, en
+particulier **au niveau des courses**.
 
-- `/resultats` (`app/resultats/page.tsx`) ;
+**Le double affichage existe déjà sur le détail d'une course**
+(`/courses/[id]`) : le composant `RaceFinishers`
+(`components/results/RaceFinishers.tsx`) propose un `SegmentedControl` à deux
+vues — « Tous les coureurs (N) » et « Triathlon Club Nantais (N) ». C'est
+exactement la double vue décrite par Vincent ; **rien à faire de ce côté**, le
+comportement attendu est déjà en place.
+
+Le `ScopeToggle` reste donc utilisé sur **deux autres pages**, où comparer club
+vs. tous garde un intérêt (situer le club dans le panorama des épreuves, voir la
+carte de tous les participants) :
+
+- `/resultats` (`app/resultats/page.tsx`) — liste des épreuves ;
 - `/carte` (`app/carte/page.tsx`).
 
-L'issue ne vise que la page d'accueil. **Proposition : on conserve le toggle sur
-ces deux pages**, où comparer club vs. tous garde un intérêt (ex. situer le club
-dans une épreuve, voir la carte de tous les participants).
-
-→ **Question pour Vincent** : confirmes-tu qu'on ne touche QUE la page d'accueil,
-et qu'on laisse le choix « Tous / Membres TCN » sur *Résultats* et *Carte* ? Ou
-veux-tu forcer le club partout ?
+→ Le commentaire de Vincent ne demande pas de les modifier : **on les laisse
+inchangées**. Si une revue ultérieure souhaitait aligner `/resultats` sur la
+logique « tableau de bord = club only », ce serait une évolution distincte, hors
+issue #6.
 
 ### Composant `ScopeToggle`
 
 Inchangé. Toujours utilisé par `/resultats` et `/carte`. Aucune suppression de
-fichier.
+fichier. Le détail d'une course n'utilise pas `ScopeToggle` mais son propre
+`SegmentedControl` (`RaceFinishers`), qui couvre déjà la double vue.
 
 ## Impacts
 
@@ -103,7 +120,7 @@ fichier.
 - `npm run build` (strict TS + RSC) et `npm test` verts.
 - Vérification manuelle : page d'accueil → KPI = chiffres TCN, plus de toggle.
 
-## Plan d'implémentation (après validation)
+## Plan d'implémentation (spec validée)
 
 1. Modifier `app/dashboard/page.tsx` (portée forcée + retrait du toggle).
 2. Mettre à jour/ajouter le test du dashboard.
