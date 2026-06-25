@@ -23,51 +23,90 @@ Cette fiche course existe déjà (`app/courses/[id]/page.tsx`) et offre une vue
 bien plus riche que l'accordéon : entête, répartitions genre / catégories /
 clubs, classement complet (`RaceFinishers`). C'est la bonne destination.
 
+## Décisions de Vincent (revue PR #12, 2026-06-25)
+
+Les trois questions ouvertes (cf. bas de spec) sont tranchées :
+
+1. **Accordéon supprimé** au profit d'une liste cliquable — confirmé, pas de
+   demi-mesure (« oui, on supprime l'accordéon »).
+2. **Forme de l'item** : « on fait un menu qui ressemble à la page athlète ».
+   → on n'aligne **pas** sur l'ancien rendu shadcn (badges dans un trigger) mais
+   sur le **TCN Design System** déjà en place sur `/athletes/[id]` : une `Card`
+   contenant une **table de lignes-liens** (`tcn-rowlink`). Voir Design ci-dessous.
+3. **Suppression d'un résultat** : « à supprimer de cette page ». On la retire
+   purement et simplement de `/resultats`, et on **ne la porte pas** sur la fiche
+   course. Vincent prévoit une **page d'administration / validation des résultats
+   dédiée**, réservée (derrière un mot de passe) — c'est elle qui hébergera la
+   suppression. Hors périmètre de cette issue (voir Hors périmètre).
+
 ## Objectif
 
 Transformer la liste de la page Résultats : remplacer l'accordéon dépliable par
-une **liste de lignes/cartes cliquables** qui naviguent vers `/courses/[id]`.
-Supprimer le chargement inline des participations sur cette page.
+une **liste de lignes-liens au style « page athlète » (TCN Design System)** qui
+naviguent vers `/courses/[id]`. Supprimer le chargement inline des participations
+**et** la suppression de résultat sur cette page.
 
 ## Design
 
-### `EventList.tsx` — de l'accordéon à la liste de liens
+### `EventList.tsx` — de l'accordéon à la table de lignes-liens (style page athlète)
+
+Modèle de référence : `app/athletes/[id]/page.tsx` — une `Card` (composant
+`@/components/tcn`) enveloppant une grille de lignes, chaque ligne étant un
+`<Link className="tcn-rowlink">` vers `/courses/[id]`, avec un entête de colonnes
+et une flèche `→` en fin de ligne. On reprend ce vocabulaire visuel (tokens
+`--tcn-*`, `Card`, `tcn-rowlink`, `FormatChip`, `eventTypeLabel`) plutôt que les
+`Badge` / `Accordion` shadcn actuels.
 
 - **Supprimer** le bloc `Accordion / AccordionItem / AccordionTrigger /
   AccordionContent` et le montage de `<EventParticipations />`.
-- **Remplacer** chaque épreuve par un élément `<Link href={\`/courses/${ev.id}\`}>`
-  (composant `next/link`) rendant **exactement les mêmes métadonnées** qu'aujourd'hui
-  dans le trigger, pour ne rien perdre visuellement :
-  - `ev.event_name` (titre)
-  - `<SportBadge type={ev.event_type} />`
-  - date `formatDate(ev.event_date)`
-  - badge « Relais » si `ev.is_relay`
-  - badge « N résultats » (`ev.total`)
-  - badge « N TCN » si `ev.tcn_count > 0`
-- Conserver l'affordance de clic : `hover`, `focus-visible`, curseur pointeur,
-  bordure arrondie (réutiliser le style de carte `rounded-md border px-4 py-3`).
-- **Conserver** le tri (`Select` `SORT_OPTIONS`), le scroll infini
-  (`IntersectionObserver` + sentinelle), l'`EmptyState` et l'état de chargement.
+- **Envelopper** la liste dans une `Card` (`padding={0}`, `overflow: hidden`)
+  avec un titre type « Toutes les épreuves » + sous-titre « Clique sur une épreuve
+  pour voir le détail → », comme la fiche athlète. Le `Select` de tri se place
+  dans cet entête de carte (à droite).
+- **Rendre un entête de colonnes** puis une ligne `<Link href={\`/courses/${ev.id}\`}
+  className="tcn-rowlink">` par épreuve. Colonnes proposées à partir des champs
+  `EventOut` disponibles (`id, event_name, event_date, event_type, is_relay,
+  distance_km, total, tcn_count`) :
+  - **Date** — `formatDate(ev.event_date)`
+  - **Épreuve** — `ev.event_name` (colonne large `1fr`)
+  - **Type** — `eventTypeLabel(ev.event_type)`
+  - **Format** — `<FormatChip>{formatToken(ev.event_type, ev.distance_km)}</FormatChip>`
+  - **Résultats** — `ev.total`
+  - **TCN** — `ev.tcn_count` (ou « — » si 0)
+  - colonne finale **→** (`--tcn-text-disabled`)
 
-### Suppression du delete inline (à valider avec Vincent)
+  Le badge « Relais » (`ev.is_relay`) est conservé, accolé au nom de l'épreuve
+  (petit chip), pour ne pas perdre l'information.
+- Reprendre l'affordance `tcn-rowlink` (hover/focus déjà gérés par cette classe)
+  et la trame de colonnes via une constante `COLS` (cf. page athlète).
+- **Conserver** le tri (`SORT_OPTIONS`), le scroll infini (`IntersectionObserver`
+  + sentinelle), l'`EmptyState` et l'état de chargement. Le `Select` peut rester
+  le composant shadcn existant ; seul le conteneur des épreuves change.
 
-Aujourd'hui `EventList` câble `onDelete` → `useDeleteParticipation`, utilisé par
-les `ResultCard` dépliées. En passant en liste de liens, **plus aucune
-participation n'est rendue sur `/resultats`** : le bouton supprimer disparaît de
-cette page.
+> Note : `EventList` reste un Client Component (`useInfiniteEvents`, scroll
+> infini, tri via l'URL). On reproduit donc le **rendu visuel** de la page
+> athlète, pas son implémentation Server Component.
 
-- **Proposition** : retirer de `EventList` la logique `onDelete` / `del` /
-  invalidations associées (elle n'a plus de point d'usage ici).
-- La suppression d'un résultat reste possible depuis la fiche course
-  `/courses/[id]` **si** elle y est exposée — **à confirmer** : faut-il porter
-  l'action « supprimer un résultat » sur `RaceFinishers` ? (hors périmètre
-  immédiat de l'issue, mais c'est la conséquence directe).
+### Suppression du delete inline — retirée de cette page
+
+Décision Vincent : la suppression d'un résultat **quitte** `/resultats` et n'est
+**pas** portée sur la fiche course. Elle vivra sur une future page
+d'administration/validation dédiée (protégée par mot de passe), hors périmètre.
+
+- Retirer de `EventList` toute la logique `onDelete` / `del`
+  (`useDeleteParticipation`) / invalidations / `toast` associés : sans
+  participation rendue ici, elle n'a plus de point d'usage.
+- Ne **rien** ajouter sur `/courses/[id]` ni `RaceFinishers` dans le cadre de
+  cette issue.
 
 ### Composants devenus inutilisés
 
 - `components/results/EventParticipations.tsx` n'est plus monté par `EventList`.
   Vérifier qu'aucun autre appelant ne l'utilise ; si non → **suppression** (et de
   son éventuel test).
+- `components/results/SportBadge.tsx` n'est plus utilisé par `EventList` (remplacé
+  par `eventTypeLabel` + `FormatChip`) mais **reste utilisé** par `ResultCard` et
+  `ClubDashboard` → **ne pas** le supprimer.
 - Vérifier les usages restants de `ResultCard` (probablement la fiche athlète
   `/athletes/[id]`) avant toute suppression : **ne pas** toucher `ResultCard`.
 
@@ -85,14 +124,14 @@ cette page.
 - Aucune modification backend ni API.
 - Pas de refonte de la fiche `/courses/[id]` elle-même (destination déjà en
   place).
-- L'éventuel portage de la suppression de résultat vers la fiche course est
-  listé comme question ouverte, pas livré par défaut.
+- **Suppression d'un résultat** : retirée de cette page, **pas** portée sur la
+  fiche course. Sera traitée par la future **page d'administration / validation
+  des résultats** (réservée, protégée par mot de passe) — non couverte ici.
 
-## Points à valider par Vincent
+## Questions tranchées (revue PR #12, voir « Décisions de Vincent »)
 
-1. **OK pour supprimer purement l'accordéon** au profit d'une simple liste
-   cliquable (pas de demi-mesure type « voir un aperçu » au survol) ?
-2. **Suppression d'un résultat** : on l'enlève de la page Résultats — faut-il la
-   réexposer sur la fiche course `/courses/[id]`, ou est-ce inutile ?
-3. **Forme de l'item** : ligne pleine largeur cliquable (style actuel) convient,
-   ou souhaite-t-il un autre rendu (grille de cartes, etc.) ?
+1. **Accordéon → liste cliquable** : oui, suppression franche. ✅
+2. **Suppression d'un résultat** : retirée de `/resultats`, non réexposée sur
+   `/courses/[id]` ; reportée à une page d'admin dédiée. ✅
+3. **Forme de l'item** : table de lignes-liens au style de la page athlète
+   (TCN Design System), pas l'ancien rendu shadcn. ✅
