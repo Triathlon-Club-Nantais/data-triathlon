@@ -99,6 +99,9 @@ describe("EventList", () => {
     renderList();
 
     expect(screen.queryByRole("button", { name: /supprimer/i })).toBeNull();
+    // L'épreuve est un lien plein, plus un trigger d'accordéon dépliable.
+    expect(screen.queryByRole("button", { name: /Tri de Nantes/i })).toBeNull();
+    expect(screen.getByRole("link", { name: /Tri de Nantes/ })).toBeInTheDocument();
   });
 
   it("affiche un état vide quand aucune épreuve", () => {

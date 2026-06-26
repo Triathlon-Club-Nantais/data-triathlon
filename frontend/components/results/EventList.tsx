@@ -81,8 +81,13 @@ export function EventList({
           padding: "20px 26px 16px",
         }}
       >
-        <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)" }}>
-          Toutes les épreuves
+        <div>
+          <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)" }}>
+            Toutes les épreuves
+          </div>
+          <div style={{ fontSize: 13, color: "var(--tcn-text-faint)", fontWeight: 600 }}>
+            Clique sur une épreuve pour voir le détail →
+          </div>
         </div>
         <Select value={currentSort} onValueChange={(v) => setSort(v as string)}>
           <SelectTrigger className="h-9 w-44">
@@ -161,6 +166,12 @@ export function EventList({
           <div style={{ textAlign: "right", color: "var(--tcn-text-disabled)", fontSize: 16 }}>→</div>
         </Link>
       ))}
+
+      {isLoading && events.length === 0 && (
+        <p style={{ padding: 24, textAlign: "center", fontSize: 14, color: "var(--tcn-text-faint)" }}>
+          Chargement…
+        </p>
+      )}
 
       <div ref={sentinel} aria-hidden />
       {isFetchingNextPage && (
