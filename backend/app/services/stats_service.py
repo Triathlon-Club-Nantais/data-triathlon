@@ -1,6 +1,7 @@
 """Agrégations statistiques (club / tableau de bord)."""
 from sqlalchemy.orm import Session
 
+from app.core import season as season_module
 from app.repositories import participation_repository
 
 
@@ -9,9 +10,9 @@ def _athlete_key(part) -> int:
     return part.athlete_id
 
 
-def get_stats(db: Session, club: str | None = None) -> dict:
+def get_stats(db: Session, club: str | None = None, seasons: list[int] | None = None) -> dict:
     """Stats agrégées : total, athlètes, épreuves, répartition par type/mois, récents."""
-    parts = participation_repository.for_stats(db, club)
+    parts = participation_repository.for_stats(db, club, seasons=seasons)
     if not parts:
         return {"total": 0, "athletes": 0, "events": 0, "by_type": {}, "by_month": {}, "recent": []}
 
@@ -56,6 +57,35 @@ def get_stats(db: Session, club: str | None = None) -> dict:
             for p in recent
         ],
     }
+
+
+def list_seasons(db: Session, club: str | None = None) -> list[dict]:
+    """Saisons disponibles pour le sélecteur.
+
+    Saisons ayant ≥ 1 résultat daté + saison en cours toujours présente (à 0 si
+    absente), enrichies de `label`/`is_current`, triées par année décroissante.
+    """
+    rows = participation_repository.distinct_seasons(db, club)
+    by_year = {r["start_year"]: r for r in rows}
+
+    current = season_module.current_season()
+    by_year.setdefault(
+        current, {"start_year": current, "event_count": 0, "participation_count": 0}
+    )
+
+    out = []
+    for year in sorted(by_year, reverse=True):
+        entry = by_year[year]
+        out.append(
+            {
+                "start_year": year,
+                "event_count": entry["event_count"],
+                "participation_count": entry["participation_count"],
+                "label": season_module.season_label(year),
+                "is_current": year == current,
+            }
+        )
+    return out
 
 
 def _event_row(r) -> dict:
