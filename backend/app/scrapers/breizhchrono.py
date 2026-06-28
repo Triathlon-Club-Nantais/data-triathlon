@@ -22,8 +22,6 @@ import httpx
 from bs4 import BeautifulSoup
 
 from .base import ScrapedResult
-from .klikego import _parse_detail
-from .klikego import _parse_search_row as _klikego_parse_search_row
 
 BASE = "https://resultats.breizhchrono.com"
 HEADERS = {
@@ -115,40 +113,30 @@ def _import_one_heat(
     event_id: str, heat_slug: str, heat_label: str,
     event_name: str, slug: str, event_date, client: httpx.Client,
 ) -> list[ScrapedResult]:
-    """Paginate one heat and return its ScrapedResult list."""
-    results: list[ScrapedResult] = []
+    """Liste complète d'un heat (finishers + DNF/DNS/DSQ) via le moteur partagé."""
+    from app.scrapers import klikego_platform as plat
+    from app.scrapers.klikego import _detect_event_type
+
     is_relay = "relais" in heat_label.lower() or heat_slug.endswith("---")
     source_url = f"{BASE}/resultats-courses/{slug}-{event_id}/{heat_slug}"
-    page = 1
-    prev_first_bib: str | None = None
+    heat_page = client.get(source_url)
+    heat_page_html = heat_page.text if heat_page.status_code == 200 else ""
 
-    while True:
-        search_url = (
-            f"{BASE}/v8/evenement/resultats-search.jsp"
-            f"?event={event_id}&heat={heat_slug}&search=&city=&category=&sexe=&page={page}"
-        )
-        resp = client.get(search_url)
-        if resp.status_code != 200:
-            break
-        soup = BeautifulSoup(resp.text, "lxml")
-        rows = soup.select("tr.result-row[data-dossard]")
-        if not rows:
-            break
-        first_bib = rows[0].get("data-dossard", "")
-        if first_bib and first_bib == prev_first_bib:
-            break
-        prev_first_bib = first_bib
-        for rank, row in enumerate(rows, start=len(results) + 1):
-            r = _klikego_parse_search_row(row, event_id, heat_slug, event_name, slug, rank)
-            r.source_url = source_url
-            r.provider = "breizhchrono"
-            r.is_relay = is_relay
-            if event_date:
-                r.event_date = event_date
-            r.raw_data["heat_slug"] = heat_slug
-            results.append(r)
-        page += 1
-
+    results = plat.build_heat_results(
+        base=BASE,
+        provider="breizhchrono",
+        event_id=event_id,
+        heat=heat_slug,
+        heat_page_html=heat_page_html,
+        event_name=event_name,
+        slug=slug,
+        event_type=_detect_event_type(heat_slug, slug),
+        source_url=source_url,
+        event_date=event_date,
+        client=client,
+    )
+    for r in results:
+        r.is_relay = is_relay
     return results
 
 
@@ -193,16 +181,15 @@ def scrape_event_all(
             )
             results.extend(heat_results)
 
-        # Fetch full splits for TCN / Nantais athletes
-        _TCN = ("nantais", "tcn", "tri club nant", "triathlon club nant")
+        # Splits fins pour les athlètes TCN/Nantais (priment sur les splits inter)
+        from app.scrapers.klikego import _TCN_KEYWORDS, _parse_detail
         for r in results:
-            if r.club and any(k in r.club.lower() for k in _TCN):
+            if r.club and any(k in r.club.lower() for k in _TCN_KEYWORDS):
                 h = r.raw_data.get("heat_slug", heat)
-                detail_url = (
+                dr = client.get(
                     f"{BASE}/v8/evenement/resultat-participant.jsp"
                     f"?embedded=1&e={event_id}&heat={h}&dossard={r.bib_number}"
                 )
-                dr = client.get(detail_url)
                 if dr.status_code == 200:
                     _parse_detail(dr.text, r, {})
 
