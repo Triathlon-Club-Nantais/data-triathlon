@@ -159,7 +159,7 @@ def test_events_page_filtre_par_saison_exclut_sans_date(db_session):
     assert page["items"][0].event_name == "Tri Z"
 
 
-def test_distinct_seasons_compte_et_force_aucune_saison_courante(db_session):
+def test_distinct_seasons_compte_et_exclut_epreuves_sans_date(db_session):
     athlete, course_2025 = _setup(db_session)  # saison 2025
     c_2023 = course_repository.get_or_create(
         db_session, name="Tri 2023", event_date=date(2023, 10, 1), event_type="triathlon-s"

@@ -17,6 +17,7 @@ def get_stats(
     seasons: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
+    """Stats agrégées du club, filtrables par saison(s) (CSV d'années)."""
     return stats_service.get_stats(db, club, seasons=parse_seasons(seasons))
 
 
