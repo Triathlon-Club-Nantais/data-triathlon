@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
+from app.core.season import parse_seasons
 from app.repositories import participation_repository
 from app.schemas.participation import ParticipationCreate, ParticipationOut
 from app.scrapers.base import ScrapedResult
@@ -66,6 +67,7 @@ def list_participations(
     club: str | None = Query(None),
     date_from: str | None = Query(None),
     date_to: str | None = Query(None),
+    seasons: str | None = Query(None),
     course_id: int | None = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=5000),
@@ -79,6 +81,7 @@ def list_participations(
         club=club,
         date_from=_parse_date(date_from),
         date_to=_parse_date(date_to),
+        seasons=parse_seasons(seasons),
         course_id=course_id,
         page=page,
         page_size=page_size,
