@@ -703,5 +703,18 @@ def test_parse_data_row_dnf_neutralises_rank_and_time():
 
 
 def test_parse_data_row_dns_and_dsq():
-    assert parse_data_row("476|false|DNS|DNS|AVENARD Benedicte|S2|F|||||".split("|"))["status"] == "DNS"
-    assert parse_data_row("375|false|DSQ|DSQ|MOTTAY Aude|V3|F|||||".split("|"))["status"] == "DSQ"
+    # DNS
+    dns_fields = "476|false|DNS|DNS|AVENARD Benedicte|S2|F|||||".split("|")
+    dns_result = parse_data_row(dns_fields)
+    assert dns_result["status"] == "DNS"
+    assert dns_result["rank_overall"] is None
+    assert dns_result["rank_category"] is None
+    assert dns_result["total_time"] == ""
+
+    # DSQ
+    dsq_fields = "375|false|DSQ|DSQ|MOTTAY Aude|V3|F|||||".split("|")
+    dsq_result = parse_data_row(dsq_fields)
+    assert dsq_result["status"] == "DSQ"
+    assert dsq_result["rank_overall"] is None
+    assert dsq_result["rank_category"] is None
+    assert dsq_result["total_time"] == ""
