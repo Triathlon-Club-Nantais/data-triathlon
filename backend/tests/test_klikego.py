@@ -12,13 +12,17 @@ Chaque test correspond à un cas réel rencontré lors du développement :
 - _parse_search_row  : extraction des lignes de résultat paginées (bulk import)
 """
 import base64
+from pathlib import Path
 
 import pytest
 from bs4 import BeautifulSoup
 
+import app.scrapers.klikego_platform as plat
 from app.scrapers.base import ScrapedResult
 from app.scrapers.klikego import _detect_event_type, _parse_detail, _parse_search_row
 from app.scrapers.klikego_platform import decode_data_block, parse_data_row
+
+FIXTURES = Path(__file__).parent / "fixtures"
 
 # ---------------------------------------------------------------------------
 # Helper
@@ -748,3 +752,52 @@ def test_parse_data_row_dns_and_dsq():
     assert dsq_result["rank_overall"] is None
     assert dsq_result["rank_category"] is None
     assert dsq_result["total_time"] == ""
+
+
+# ---------------------------------------------------------------------------
+# Fixture réelle page 0 — valide le décodage + parse sur données réelles
+# ---------------------------------------------------------------------------
+
+
+def test_fixture_page0_contains_dnf_and_finishers():
+    html = (FIXTURES / "klikego_datablock_page0.html").read_text()
+    rows = [parse_data_row(r) for r in decode_data_block(html)]
+    assert len(rows) == 50  # page pleine
+    statuses = {r["status"] for r in rows}
+    assert "" in statuses  # des finishers
+    # au moins un finisher a un temps total non vide
+    assert any(r["total_time"] for r in rows if not r["status"])
+
+
+# ---------------------------------------------------------------------------
+# fetch_heat_rows — pagination via monkeypatch (sans réseau)
+# ---------------------------------------------------------------------------
+
+
+def test_fetch_heat_rows_paginates_and_stops(monkeypatch):
+    page0 = (FIXTURES / "klikego_datablock_page0.html").read_text()
+    # page 1 : moins de 50 lignes -> doit arrêter après
+    calls = {"n": 0}
+
+    class FakeResp:
+        status_code = 200
+        def __init__(self, text): self.text = text
+
+    # Construit une page courte (2 lignes) encodée comme le fournisseur
+    short_lines = "\n".join([
+        "999|true|51|1|TEST Alpha|S1|M|CLUB X||01:00:00||",
+        "998|true|52|2|TEST Beta|S1|M|CLUB Y||01:01:00||",
+    ]).encode()
+    short_b64 = base64.b64encode(bytes(b ^ ord("K") for b in short_lines)).decode()
+    page1 = f'<script id="data">{short_b64}</script>'
+
+    def fake_get(url):
+        calls["n"] += 1
+        return FakeResp(page0 if "page=0" in url else page1)
+
+    class FakeClient:
+        def get(self, url): return fake_get(url)
+
+    rows = plat.fetch_heat_rows("https://x", "evt", "heat", FakeClient())
+    assert calls["n"] == 2          # page 0 (pleine) + page 1 (courte) puis stop
+    assert len(rows) == 52          # 50 + 2, dédoublonnés
