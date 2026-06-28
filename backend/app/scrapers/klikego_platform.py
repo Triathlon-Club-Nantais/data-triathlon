@@ -13,11 +13,12 @@ Format d'une ligne (séparateur `|`), 12 champs :
 """
 import base64
 import re
+from datetime import date as _date
 
 import httpx
 from bs4 import BeautifulSoup
 
-from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ
+from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
 from .utils import normalize_time
 
 _XOR_KEY = ord("K")
@@ -203,3 +204,46 @@ def fetch_inter_splits(
             if bib and inter_time:
                 out.setdefault(bib, {})[slot] = inter_time
     return out
+
+
+def build_heat_results(
+    *,
+    base: str,
+    provider: str,
+    event_id: str,
+    heat: str,
+    heat_page_html: str,
+    event_name: str,
+    slug: str,
+    event_type: str,
+    source_url: str,
+    event_date: _date | None,
+    client: httpx.Client,
+) -> list[ScrapedResult]:
+    """Assemble la liste complète d'un heat (finishers + DNF/DNS/DSQ) avec splits inter."""
+    rows = fetch_heat_rows(base, event_id, heat, client)
+    inter_options = discover_inter_options(heat_page_html)
+    splits = fetch_inter_splits(base, event_id, heat, inter_options, client) if inter_options else {}
+
+    results: list[ScrapedResult] = []
+    for raw in rows:
+        d = parse_data_row(raw)
+        r = ScrapedResult(source_url=source_url, provider=provider)
+        r.event_name = event_name
+        r.event_type = event_type
+        r.event_date = event_date
+        r.bib_number = d["bib_number"]
+        r.athlete_name = d["athlete_name"]
+        r.athlete_firstname = d["athlete_firstname"]
+        r.category = d["category"]
+        r.gender = d["gender"]
+        r.club = d["club"]
+        r.rank_overall = d["rank_overall"]
+        r.rank_category = d["rank_category"]
+        r.total_time = d["total_time"]
+        r.status = d["status"]
+        r.raw_data["heat_slug"] = heat
+        for slot, t in splits.get(d["bib_number"], {}).items():
+            setattr(r, f"{slot}_time", t)
+        results.append(r)
+    return results
