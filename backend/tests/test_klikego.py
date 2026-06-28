@@ -801,3 +801,42 @@ def test_fetch_heat_rows_paginates_and_stops(monkeypatch):
     rows = plat.fetch_heat_rows("https://x", "evt", "heat", FakeClient())
     assert calls["n"] == 2          # page 0 (pleine) + page 1 (courte) puis stop
     assert len(rows) == 52          # 50 + 2, dédoublonnés
+
+
+# ---------------------------------------------------------------------------
+# discover_inter_options et inter_label_to_slot — découverte des checkpoints
+# ---------------------------------------------------------------------------
+
+
+def test_discover_inter_options_triathlon():
+    from app.scrapers.klikego_platform import discover_inter_options
+
+    html = '''
+    <select name="inter" id="inter">
+      <option value="">Arrivée</option>
+      <option value="Natation___T1">Natation + T1</option>
+      <option value="Vélo">Vélo</option>
+      <option value="Course">Course</option>
+    </select>'''
+    assert discover_inter_options(html) == [
+        ("Natation___T1", "Natation + T1"),
+        ("Vélo", "Vélo"),
+        ("Course", "Course"),
+    ]
+
+
+def test_discover_inter_options_absent():
+    from app.scrapers.klikego_platform import discover_inter_options
+
+    assert discover_inter_options("<html>pas de select</html>") == []
+
+
+def test_inter_label_to_slot():
+    from app.scrapers.klikego_platform import inter_label_to_slot
+
+    assert inter_label_to_slot("Natation + T1") == "swim"
+    assert inter_label_to_slot("Vélo") == "bike"
+    assert inter_label_to_slot("Course") == "run"
+    assert inter_label_to_slot("Course à pied 1") == "swim"   # duathlon CAP1 -> slot swim
+    assert inter_label_to_slot("Course à pied 2") == "run"    # duathlon CAP2 -> slot run
+    assert inter_label_to_slot("Truc inconnu") is None
