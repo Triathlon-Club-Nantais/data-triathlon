@@ -13,7 +13,7 @@ doit renvoyer ≥1 participant avec au moins un nom et un temps total peuplés.
 """
 import pytest
 
-from app.scrapers import registry
+from app.scrapers import breizhchrono, klikego, registry
 
 # URLs réelles fonctionnelles, une par provider.
 # prolivesport : forme front `/result/{eventId}/{index}` (l'index 6 = course "S").
@@ -107,3 +107,27 @@ def test_scrape_event_all_status_jamais_incoherent(provider, url):
             assert not r.total_time, (
                 f"{provider} : {r.athlete_name} statut {r.status} mais temps {r.total_time!r}"
             )
+
+
+@pytest.mark.integration
+def test_bc_audencia_la_baule_exhaustif():
+    results = breizhchrono.scrape_event_all(
+        "1488071608761-572", "triathlon-s-light",
+        "Triathlon Audencia La Baule 2024", "triathlon-audencia-la-baule-2024",
+    )
+    assert len(results) == 591
+    assert sum(1 for r in results if not r.status) == 483       # finishers
+    assert sum(1 for r in results if r.status == "DNF") >= 1
+    assert sum(1 for r in results if r.status == "DNS") >= 1
+    # splits inter présents pour les finishers (event avec checkpoints)
+    assert any(r.bike_time for r in results if not r.status)
+
+
+@pytest.mark.integration
+def test_klikego_nozeen_exhaustif():
+    results = klikego.scrape_event_all(
+        "1517534975128-8", "duathlon-s---open",
+        "6e Duathlon Nozeen 2026", "6e-duathlon-nozeen-2026",
+    )
+    assert len(results) == 166
+    assert sum(1 for r in results if r.status == "DNF") == 27
