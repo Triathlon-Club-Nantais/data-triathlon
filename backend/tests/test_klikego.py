@@ -810,3 +810,43 @@ def test_inter_label_to_slot():
     assert inter_label_to_slot("Course à pied 1") == "swim"   # duathlon CAP1 -> slot swim
     assert inter_label_to_slot("Course à pied 2") == "run"    # duathlon CAP2 -> slot run
     assert inter_label_to_slot("Truc inconnu") is None
+
+
+# ---------------------------------------------------------------------------
+# fetch_inter_splits — collecte des temps intermédiaires pour tous les participants
+# ---------------------------------------------------------------------------
+
+
+def _block(lines):
+    """Encode des lignes comme le fait le fournisseur : XOR 'K' puis base64."""
+    payload = "\n".join(lines).encode()
+    return f'<script id="data">{base64.b64encode(bytes(b ^ ord("K") for b in payload)).decode()}</script>'
+
+
+def test_fetch_inter_splits_collects_per_slot(monkeypatch):
+    """Collecte les temps de checkpoints pour tous les participants d'un heat.
+
+    Pour chaque option `inter` mappable sur un slot, pagine le data block et lit
+    le champ `inter` (idx 8). Retourne `{bib: {slot: "HH:MM:SS"}}`.
+    Les checkpoints dont le label ne mappe sur aucun slot sont ignorés.
+    """
+    # inter=Vélo : le temps du checkpoint est dans le champ idx 8
+    velo = _block(["358|true|1|1|DE POORTER Axel|S3|M|CLUB|00:19:28|||"])
+    nat = _block(["358|true|1|1|DE POORTER Axel|S3|M|CLUB|00:06:24|||"])
+
+    class FakeResp:
+        status_code = 200
+        def __init__(self, t):
+            self.text = t
+
+    class FakeClient:
+        def get(self, url):
+            if "inter=Vélo" in url:
+                return FakeResp(velo)
+            if "inter=Natation___T1" in url:
+                return FakeResp(nat)
+            return FakeResp(_block([]))
+
+    options = [("Natation___T1", "Natation + T1"), ("Vélo", "Vélo")]
+    splits = plat.fetch_inter_splits("https://x", "evt", "heat", options, FakeClient())
+    assert splits["358"] == {"swim": "00:06:24", "bike": "00:19:28"}
