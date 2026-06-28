@@ -2,7 +2,7 @@
 
 **Date** : 2026-06-27
 **Cible** : `backend/`, `frontend/`
-**Statut** : proposé, en attente de validation (issue [#7](https://github.com/Triathlon-Club-Nantais/data-triathlon/issues/7))
+**Statut** : implémenté (issue [#7](https://github.com/Triathlon-Club-Nantais/data-triathlon/issues/7))
 **Branche cible** : `claude/issue-7-specification-f1db8t` → PR Draft vers `main`
 
 ## Contexte & problème
