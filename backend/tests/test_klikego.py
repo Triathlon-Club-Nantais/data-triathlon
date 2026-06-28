@@ -975,3 +975,102 @@ def test_klikego_scrape_event_all_returns_dnf(monkeypatch):
     )
     assert len(results) == 50
     assert any(r.status == "DNF" for r in results)
+
+
+# ---------------------------------------------------------------------------
+# Phase C — les splits fins TCN priment sur les splits inter pré-remplis
+# ---------------------------------------------------------------------------
+
+
+def test_scrape_event_all_tcn_detail_overrides_inter_splits(monkeypatch):
+    """Phase C : les splits fins de la page détail priment sur les splits inter pré-remplis.
+
+    Sans le reset des slots avant _parse_detail, la règle « first-wins » de
+    _parse_detail bloque l'écriture du split fin quand le slot est déjà rempli
+    par la valeur inter (ex. Natation___T1 → swim_time = 00:10:00).
+    Avec le reset, _parse_detail repeuple intégralement et swim_time vaut 00:06:24.
+    """
+    page0 = (FIXTURES / "klikego_datablock_page0.html").read_text()
+
+    # Data block inter=Natation___T1 : bib 422 a 00:10:00 en idx 8 (valeur inter combinée nat+T1)
+    natation_inter_block = _block(["422|true|1|1|CASE Kay|V6|F||00:10:00|||"])
+
+    heat_page_html = """
+    <html><body>
+      <select name="inter" id="inter">
+        <option value="">Arrivée</option>
+        <option value="Natation___T1">Natation + T1</option>
+      </select>
+    </body></html>
+    """
+
+    nantais_search_html = """
+    <html><body><table><tbody>
+      <tr class="result-row" data-dossard="422">
+        <td class="truncate">CASE Kay</td>
+        <td class="font-mono">01:14:31</td>
+      </tr>
+    </tbody></table></body></html>
+    """
+
+    # Page détail bib 422 : split natation FIN différent (00:06:24 ≠ 00:10:00 inter)
+    detail_html = make_detail_html(
+        meta="F - Dossard N°422 - V6 - TRIATHLON CLUB NANTAIS",
+        total_time="01:14:31",
+        splits=[
+            ("Natation", "00:06:24"),
+            ("T1",        "00:01:30"),
+            ("Vélo",      "00:35:00"),
+            ("T2",        "00:01:00"),
+            ("Course",    "00:31:07"),
+        ],
+    )
+
+    class FakeResp:
+        def __init__(self, t, code=200):
+            self.text, self.status_code = t, code
+
+    nantais_calls = {"n": 0}
+
+    class FakeClient:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+        def get(self, url):
+            # Heat page : contient le <select name="inter"> avec Natation___T1
+            if "klikego.com/resultats/" in url and "heat=" in url:
+                return FakeResp(heat_page_html)
+            # course-result.jsp : liste principale (inter=vide, page 0)
+            if "course-result.jsp" in url and "inter=&page=0" in url:
+                return FakeResp(page0)
+            # course-result.jsp : splits inter Natation___T1 → bib 422 a 00:10:00
+            if "course-result.jsp" in url and "inter=Natation___T1" in url:
+                return FakeResp(natation_inter_block)
+            # course-result.jsp : autres pages → stop pagination
+            if "course-result.jsp" in url:
+                return FakeResp("<html></html>")
+            # TCN search city=nantais : bib 422 à la 1ère page, vide ensuite
+            if "resultats-search.jsp" in url and "city=nantais" in url:
+                nantais_calls["n"] += 1
+                return FakeResp(nantais_search_html if nantais_calls["n"] == 1 else "<html></html>")
+            # Page détail bib 422 : split natation FIN = 00:06:24
+            if "resultat-participant.jsp" in url and "dossard=422" in url:
+                return FakeResp(detail_html)
+            return FakeResp("<html></html>")
+
+    monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
+    monkeypatch.setattr(klikego, "_fetch_event_meta", lambda *a, **k: ("triathlon-s-light", None))
+
+    results = klikego.scrape_event_all(
+        "1488071608761-572", "triathlon-s-light",
+        "Triathlon Test 2024", "triathlon-test-2024",
+    )
+
+    r422 = next(r for r in results if r.bib_number == "422")
+    # Sans le reset (avant fix) : swim_time resterait "00:10:00" (valeur inter pré-remplie)
+    # Avec le reset (après fix)  : swim_time = "00:06:24" (valeur fine de la page détail)
+    assert r422.swim_time == "00:06:24", (
+        f"Les splits fins TCN doivent primer sur les splits inter. "
+        f"swim_time={r422.swim_time!r} (attendu '00:06:24')."
+    )
