@@ -10,6 +10,7 @@ import { ResultCard } from "@/components/results/ResultCard";
 import { BarList } from "@/components/charts/BarList";
 import { MonthlyTrend } from "@/components/charts/MonthlyTrend";
 import { eventTypeLabel } from "@/lib/constants";
+import { formatEventName } from "@/lib/utils/event";
 import { eventTypeColor } from "@/lib/sport-colors";
 import {
   buildRoster,
@@ -93,7 +94,7 @@ export function ClubDashboard({
                           {name}
                         </Link>
                         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                          <span className="truncate">{p.course?.name}</span>
+                          <span className="truncate">{formatEventName(p.course.name, p.course.is_relay)}</span>
                           <SportBadge type={p.course?.event_type} />
                           <span className="micro-label text-[9px]">
                             {SCOPE_LABEL[best.scope]}

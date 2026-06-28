@@ -104,6 +104,38 @@ describe("EventList", () => {
     expect(screen.getByRole("link", { name: /Tri de Nantes/ })).toBeInTheDocument();
   });
 
+  it("affiche « (Relais) » dans le nom d'une épreuve relais", () => {
+    setEvents({
+      data: {
+        pages: [
+          {
+            items: [
+              {
+                id: 2,
+                event_name: "Triathlon de Nantes",
+                event_type: "triathlon-m",
+                event_date: "2026-06-01",
+                is_relay: true,
+                total: 10,
+                tcn_count: 2,
+              },
+            ],
+            total_events: 1,
+            total_participations: 10,
+          },
+        ],
+      },
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+    });
+
+    renderList();
+
+    expect(screen.getByText("Triathlon de Nantes (Relais)")).toBeInTheDocument();
+  });
+
   it("affiche un état vide quand aucune épreuve", () => {
     setEvents({
       data: { pages: [{ items: [], total_events: 0, total_participations: 0 }] },
