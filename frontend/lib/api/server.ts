@@ -5,6 +5,7 @@ import type {
   Participation,
   ParticipationFilters,
   PendingProvider,
+  Season,
   Stats,
 } from "@/lib/types";
 
@@ -23,7 +24,12 @@ async function serverFetch<T>(path: string): Promise<T> {
 function toQuery(filters: Record<string, unknown>): string {
   const params = new URLSearchParams();
   Object.entries(filters).forEach(([k, v]) => {
-    if (v !== undefined && v !== null && v !== "") params.set(k, String(v));
+    if (v === undefined || v === null || v === "") return;
+    if (Array.isArray(v)) {
+      if (v.length > 0) params.set(k, v.join(","));
+      return;
+    }
+    params.set(k, String(v));
   });
   const qs = params.toString();
   return qs ? `?${qs}` : "";
@@ -37,6 +43,8 @@ export const apiServer = {
   listEvents: (filters: ParticipationFilters = {}) =>
     serverFetch<EventPage>(`/courses/events${toQuery(filters as Record<string, unknown>)}`),
   getStats: (club?: string) => serverFetch<Stats>(`/stats${toQuery({ club })}`),
+  listSeasons: (club?: string) =>
+    serverFetch<Season[]>(`/stats/seasons${toQuery({ club })}`),
   listPendingProviders: () =>
     serverFetch<PendingProvider[]>("/admin/pending-providers"),
 };

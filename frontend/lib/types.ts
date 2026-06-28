@@ -87,6 +87,15 @@ export interface Stats {
   recent: RecentItem[];
 }
 
+// Saison sportive disponible (miroir de SeasonOut backend).
+export interface Season {
+  start_year: number;
+  label: string;
+  event_count: number;
+  participation_count: number;
+  is_current: boolean;
+}
+
 // Forme plate renvoyée par POST /scrape et attendue par POST /participations.
 export interface ScrapedPreview {
   provider: string;
@@ -150,6 +159,7 @@ export interface ParticipationFilters {
   club?: string;
   date_from?: string;
   date_to?: string;
+  seasons?: number[];
   course_id?: number;
   sort?: string; // "date_desc" | "date_asc" | "name" (épreuves)
   page?: number;
