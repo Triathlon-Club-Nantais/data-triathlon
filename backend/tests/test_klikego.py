@@ -861,10 +861,8 @@ def test_build_heat_results_includes_dnf_and_total_times(monkeypatch):
     """
     build_heat_results pagine le data block et retourne des ScrapedResult complets.
 
-    Adaptation du brief : la fixture page0 contient 50 finishers uniquement.
-    Pour tester le chemin DNF, une page 1 synthétique (inline, sans nouveau
-    fichier fixture) avec 2 DNF est injectée via FakeClient.
-    Le brief attendait len == 50 et supposait des DNF dans page0 — corrigé ici.
+    La fixture page0 est une page « charnière » réelle du heat (50 lignes :
+    finishers avec temps + DNF/DSQ/DNS), ce qui couvre les deux chemins.
     """
     from datetime import date
 
@@ -872,22 +870,15 @@ def test_build_heat_results_includes_dnf_and_total_times(monkeypatch):
 
     page0 = (FIXTURES / "klikego_datablock_page0.html").read_text()
 
-    # Page synthétique avec des DNF (2 lignes < 50 → la pagination s'arrête)
-    page1_dnf = _block([
-        "282|false|DNF|DNF|DELAUNAY Juliette|S2|F|||||",
-        "476|false|DNS|DNS|AVENARD Benedicte|S2|F|||||",
-    ])
-
     class FakeResp:
         status_code = 200
         def __init__(self, t): self.text = t
 
     class FakeClient:
         def get(self, url):
+            # Liste : page 0 pleine puis page vide pour arrêter
             if "inter=&page=0" in url:
                 return FakeResp(page0)
-            if "inter=&page=1" in url:
-                return FakeResp(page1_dnf)
             return FakeResp("<html></html>")
 
     # Pas de checkpoints inter dans ce test -> heat_page_html sans select
@@ -904,8 +895,7 @@ def test_build_heat_results_includes_dnf_and_total_times(monkeypatch):
         event_date=date(2024, 9, 28),
         client=FakeClient(),
     )
-    # 50 finishers (page 0) + 2 DNF/DNS (page 1 synthétique)
-    assert len(results) == 52
+    assert len(results) == 50
     assert any(r.status == "DNF" for r in results)
     assert any(r.status == "" and r.total_time for r in results)
     assert all(r.provider == "breizhchrono" for r in results)
