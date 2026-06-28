@@ -850,3 +850,64 @@ def test_fetch_inter_splits_collects_per_slot(monkeypatch):
     options = [("Natation___T1", "Natation + T1"), ("Vélo", "Vélo")]
     splits = plat.fetch_inter_splits("https://x", "evt", "heat", options, FakeClient())
     assert splits["358"] == {"swim": "00:06:24", "bike": "00:19:28"}
+
+
+# ---------------------------------------------------------------------------
+# build_heat_results — assemblage des ScrapedResult complets d'un heat
+# ---------------------------------------------------------------------------
+
+
+def test_build_heat_results_includes_dnf_and_total_times(monkeypatch):
+    """
+    build_heat_results pagine le data block et retourne des ScrapedResult complets.
+
+    Adaptation du brief : la fixture page0 contient 50 finishers uniquement.
+    Pour tester le chemin DNF, une page 1 synthétique (inline, sans nouveau
+    fichier fixture) avec 2 DNF est injectée via FakeClient.
+    Le brief attendait len == 50 et supposait des DNF dans page0 — corrigé ici.
+    """
+    from datetime import date
+
+    from app.scrapers.klikego_platform import build_heat_results
+
+    page0 = (FIXTURES / "klikego_datablock_page0.html").read_text()
+
+    # Page synthétique avec des DNF (2 lignes < 50 → la pagination s'arrête)
+    page1_dnf = _block([
+        "282|false|DNF|DNF|DELAUNAY Juliette|S2|F|||||",
+        "476|false|DNS|DNS|AVENARD Benedicte|S2|F|||||",
+    ])
+
+    class FakeResp:
+        status_code = 200
+        def __init__(self, t): self.text = t
+
+    class FakeClient:
+        def get(self, url):
+            if "inter=&page=0" in url:
+                return FakeResp(page0)
+            if "inter=&page=1" in url:
+                return FakeResp(page1_dnf)
+            return FakeResp("<html></html>")
+
+    # Pas de checkpoints inter dans ce test -> heat_page_html sans select
+    results = build_heat_results(
+        base="https://resultats.breizhchrono.com",
+        provider="breizhchrono",
+        event_id="1488071608761-572",
+        heat="triathlon-s-light",
+        heat_page_html="<html>pas de inter</html>",
+        event_name="Triathlon Audencia La Baule 2024",
+        slug="triathlon-audencia-la-baule-2024",
+        event_type="triathlon_s",
+        source_url="https://resultats.breizhchrono.com/x",
+        event_date=date(2024, 9, 28),
+        client=FakeClient(),
+    )
+    # 50 finishers (page 0) + 2 DNF/DNS (page 1 synthétique)
+    assert len(results) == 52
+    assert any(r.status == "DNF" for r in results)
+    assert any(r.status == "" and r.total_time for r in results)
+    assert all(r.provider == "breizhchrono" for r in results)
+    assert all(r.event_type == "triathlon_s" for r in results)
+    assert all(r.event_date == date(2024, 9, 28) for r in results)
