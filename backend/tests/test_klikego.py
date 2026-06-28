@@ -11,11 +11,14 @@ Chaque test correspond à un cas réel rencontré lors du développement :
 - Swimrun            : type détecté depuis le slug URL (heat = "format-l-en-binome")
 - _parse_search_row  : extraction des lignes de résultat paginées (bulk import)
 """
+import base64
+
 import pytest
 from bs4 import BeautifulSoup
 
 from app.scrapers.base import ScrapedResult
 from app.scrapers.klikego import _detect_event_type, _parse_detail, _parse_search_row
+from app.scrapers.klikego_platform import decode_data_block
 
 # ---------------------------------------------------------------------------
 # Helper
@@ -636,3 +639,33 @@ def test_parse_search_row_finisher_no_status():
     assert r.status == ""
     assert r.total_time == "01:23:45"
     assert r.rank_overall == 5
+
+
+# ---------------------------------------------------------------------------
+# decode_data_block — décodage du data block base64+XOR
+# ---------------------------------------------------------------------------
+
+
+def _encode_block(lines: list[str]) -> str:
+    """Encode des lignes comme le fait le fournisseur : XOR 'K' puis base64."""
+    payload = "\n".join(lines).encode("utf-8")
+    xored = bytes(b ^ ord("K") for b in payload)
+    b64 = base64.b64encode(xored).decode("ascii")
+    return f'<script type="text/plain" id="data">{b64}</script>'
+
+
+def test_decode_data_block_returns_split_rows():
+    html = _encode_block([
+        "358|true|1|1|DE POORTER Axel|S3|M|LE MANS TRIATHLON||00:38:05||",
+        "282|false|DNF|DNF|DELAUNAY Juliette|S2|F|||||",
+    ])
+    rows = decode_data_block(html)
+    assert len(rows) == 2
+    assert rows[0][0] == "358"
+    assert rows[0][4] == "DE POORTER Axel"
+    assert rows[0][9] == "00:38:05"
+    assert rows[1][2] == "DNF"
+
+
+def test_decode_data_block_empty_when_no_element():
+    assert decode_data_block("<html><body>rien</body></html>") == []
