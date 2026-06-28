@@ -177,3 +177,29 @@ def inter_label_to_slot(label: str) -> str | None:
         if key in low:
             return slot
     return None
+
+
+def fetch_inter_splits(
+    base: str,
+    event_id: str,
+    heat: str,
+    inter_options: list[tuple[str, str]],
+    client: httpx.Client,
+) -> dict[str, dict[str, str]]:
+    """Collecte les temps de checkpoints pour tous les participants.
+
+    Pour chaque option `inter` mappable sur un slot, pagine le data block et lit
+    le champ `inter` (idx 8). Retourne `{bib: {slot: "HH:MM:SS"}}`.
+    Les checkpoints dont le label ne mappe sur aucun slot sont ignorés.
+    """
+    out: dict[str, dict[str, str]] = {}
+    for value, label in inter_options:
+        slot = inter_label_to_slot(label)
+        if slot is None:
+            continue
+        for row in fetch_heat_rows(base, event_id, heat, client, inter=value):
+            f = (row + [""] * 12)[:12]
+            bib, inter_time = f[0].strip(), normalize_time(f[8].strip())
+            if bib and inter_time:
+                out.setdefault(bib, {})[slot] = inter_time
+    return out
