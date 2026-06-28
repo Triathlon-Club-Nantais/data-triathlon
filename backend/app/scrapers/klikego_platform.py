@@ -24,15 +24,6 @@ from .utils import normalize_time
 _XOR_KEY = ord("K")
 _PAGE_SIZE = 50
 
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-    ),
-    "Accept": "text/html,*/*",
-}
-
-
 def decode_data_block(html: str) -> list[list[str]]:
     """Décode le `<script id="data">` d'une page course-result.jsp.
 

@@ -377,6 +377,8 @@ def scrape_event_all(
                 f"?embedded=1&e={event_id}&heat={heat}&dossard={bib}"
             )
             if dr.status_code == 200:
+                # Les splits fins TCN repeuplent les slots, qui priment sur les splits inter pré-remplis.
+                r.swim_time = r.t1_time = r.bike_time = r.t2_time = r.run_time = ""
                 _parse_detail(dr.text, r, {})
 
     return results
