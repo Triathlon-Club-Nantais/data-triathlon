@@ -18,7 +18,7 @@ from bs4 import BeautifulSoup
 
 from app.scrapers.base import ScrapedResult
 from app.scrapers.klikego import _detect_event_type, _parse_detail, _parse_search_row
-from app.scrapers.klikego_platform import decode_data_block
+from app.scrapers.klikego_platform import decode_data_block, parse_data_row
 
 # ---------------------------------------------------------------------------
 # Helper
@@ -699,3 +699,39 @@ def test_decode_data_block_returns_split_rows():
 
 def test_decode_data_block_empty_when_no_element():
     assert decode_data_block("<html><body>rien</body></html>") == []
+
+
+# ---------------------------------------------------------------------------
+# parse_data_row — transformation d'une ligne du data block en dict
+# ---------------------------------------------------------------------------
+
+
+def test_parse_data_row_finisher():
+    fields = "358|true|1|1|DE POORTER Axel|S3|M|LE MANS TRIATHLON||00:38:05||".split("|")
+    r = parse_data_row(fields)
+    assert r["bib_number"] == "358"
+    assert r["athlete_name"] == "DE POORTER"
+    assert r["athlete_firstname"] == "Axel"
+    assert r["category"] == "S3"
+    assert r["gender"] == "M"
+    assert r["club"] == "LE MANS TRIATHLON"
+    assert r["rank_overall"] == 1
+    assert r["rank_category"] == 1
+    assert r["total_time"] == "00:38:05"
+    assert r["status"] == ""
+
+
+def test_parse_data_row_dnf_neutralises_rank_and_time():
+    fields = "282|false|DNF|DNF|DELAUNAY Juliette|S2|F|||||".split("|")
+    r = parse_data_row(fields)
+    assert r["status"] == "DNF"
+    assert r["rank_overall"] is None
+    assert r["rank_category"] is None
+    assert r["total_time"] == ""
+    assert r["athlete_name"] == "DELAUNAY"
+    assert r["athlete_firstname"] == "Juliette"
+
+
+def test_parse_data_row_dns_and_dsq():
+    assert parse_data_row("476|false|DNS|DNS|AVENARD Benedicte|S2|F|||||".split("|"))["status"] == "DNS"
+    assert parse_data_row("375|false|DSQ|DSQ|MOTTAY Aude|V3|F|||||".split("|"))["status"] == "DSQ"
