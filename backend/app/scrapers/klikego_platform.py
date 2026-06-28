@@ -14,12 +14,22 @@ Format d'une ligne (séparateur `|`), 12 champs :
 import base64
 import re
 
+import httpx
 from bs4 import BeautifulSoup
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ
 from .utils import normalize_time
 
 _XOR_KEY = ord("K")
+_PAGE_SIZE = 50
+
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+    ),
+    "Accept": "text/html,*/*",
+}
 
 
 def decode_data_block(html: str) -> list[list[str]]:
@@ -88,3 +98,38 @@ def parse_data_row(fields: list[str]) -> dict:
         "total_time": "" if status else normalize_time(officiel.strip()),
         "status": status,
     }
+
+
+def _course_result_url(base: str, event_id: str, heat: str, inter: str, page: int) -> str:
+    return (
+        f"{base}/bc/resultats/course-result.jsp"
+        f"?ref={event_id}&heat={heat}&query=&category=&sex=&inter={inter}&page={page}"
+    )
+
+
+def fetch_heat_rows(
+    base: str, event_id: str, heat: str, client: httpx.Client, inter: str = ""
+) -> list[list[str]]:
+    """Pagine course-result.jsp et retourne toutes les lignes brutes (dédoublonnées)."""
+    out: dict[str, list[str]] = {}
+    page = 0
+    prev_first: str | None = None
+    while True:
+        resp = client.get(_course_result_url(base, event_id, heat, inter, page))
+        if resp.status_code != 200:
+            break
+        rows = decode_data_block(resp.text)
+        if not rows:
+            break
+        first_bib = rows[0][0] if rows[0] else ""
+        if first_bib and first_bib == prev_first:
+            break  # la plateforme répète la dernière page
+        prev_first = first_bib
+        for r in rows:
+            bib = r[0] if r else ""
+            if bib and bib not in out:
+                out[bib] = r
+        if len(rows) < _PAGE_SIZE:
+            break
+        page += 1
+    return list(out.values())
