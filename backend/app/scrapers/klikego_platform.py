@@ -133,3 +133,47 @@ def fetch_heat_rows(
             break
         page += 1
     return list(out.values())
+
+
+def discover_inter_options(heat_page_html: str) -> list[tuple[str, str]]:
+    """Retourne les checkpoints (value, label) du <select name="inter">, sauf 'Arrivée'."""
+    sel = BeautifulSoup(heat_page_html, "lxml").find("select", {"name": "inter"})
+    if not sel:
+        return []
+    out = []
+    for opt in sel.find_all("option"):
+        value = (opt.get("value") or "").strip()
+        if value:
+            out.append((value, opt.get_text(strip=True)))
+    return out
+
+
+# Mapping label de checkpoint -> slot positionnel ScrapedResult.
+# Ordre : motifs spécifiques (numérotés) avant génériques.
+_INTER_SLOT_RULES = [
+    ("course à pied 1", "swim"),
+    ("course a pied 1", "swim"),
+    ("cap 1", "swim"),
+    ("course à pied 2", "run"),
+    ("course a pied 2", "run"),
+    ("cap 2", "run"),
+    ("natation", "swim"),
+    ("nat", "swim"),
+    ("t1", "t1"),
+    ("vélo", "bike"),
+    ("velo", "bike"),
+    ("bike", "bike"),
+    ("t2", "t2"),
+    ("course", "run"),
+    ("cap", "run"),
+    ("run", "run"),
+]
+
+
+def inter_label_to_slot(label: str) -> str | None:
+    """Mappe un label de checkpoint (`"Natation + T1"`, `"Vélo"`…) vers un slot."""
+    low = label.lower()
+    for key, slot in _INTER_SLOT_RULES:
+        if key in low:
+            return slot
+    return None
