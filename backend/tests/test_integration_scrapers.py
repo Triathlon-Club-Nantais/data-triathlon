@@ -130,4 +130,8 @@ def test_klikego_nozeen_exhaustif():
         "6e Duathlon Nozeen 2026", "6e-duathlon-nozeen-2026",
     )
     assert len(results) == 166
-    assert sum(1 for r in results if r.status == "DNF") == 27
+    assert sum(1 for r in results if not r.status) == 139           # finishers
+    # 27 non-classés (166 - 139) : mélange DNF + DNS/DSQ selon le millésime.
+    # Le data block expose bien les statuts (l'ancien endpoint les omettait).
+    assert sum(1 for r in results if r.status) == 27
+    assert sum(1 for r in results if r.status == "DNF") >= 1
