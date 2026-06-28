@@ -69,7 +69,8 @@ export const apiClient = {
   listEvents: (filters: ParticipationFilters = {}) =>
     request<EventPage>(`/courses/events${toQuery(filters as Record<string, unknown>)}`),
 
-  getStats: (club?: string) => request<Stats>(`/stats${toQuery({ club })}`),
+  getStats: (club?: string, seasons?: number[]) =>
+    request<Stats>(`/stats${toQuery({ club, seasons })}`),
   listSeasons: (club?: string) =>
     request<Season[]>(`/stats/seasons${toQuery({ club })}`),
   getEventsGeo: (club?: string) =>

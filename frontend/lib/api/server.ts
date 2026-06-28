@@ -42,7 +42,8 @@ export const apiServer = {
   getCourse: (id: number) => serverFetch<CourseDetail>(`/courses/${id}`),
   listEvents: (filters: ParticipationFilters = {}) =>
     serverFetch<EventPage>(`/courses/events${toQuery(filters as Record<string, unknown>)}`),
-  getStats: (club?: string) => serverFetch<Stats>(`/stats${toQuery({ club })}`),
+  getStats: (club?: string, seasons?: number[]) =>
+    serverFetch<Stats>(`/stats${toQuery({ club, seasons })}`),
   listSeasons: (club?: string) =>
     serverFetch<Season[]>(`/stats/seasons${toQuery({ club })}`),
   listPendingProviders: () =>
