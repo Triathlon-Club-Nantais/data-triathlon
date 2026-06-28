@@ -74,6 +74,19 @@ def _build_split_map(splits: list, race: str) -> dict[str, str]:
     return mapping
 
 
+def _is_relay(athlete: dict) -> bool:
+    """Vrai si la participation est un relais d'équipe.
+
+    Sur ProliveSport, une équipe de relais porte `category="Relay"` /
+    `categoryRef="R"`, là où une participation solo porte une catégorie d'âge
+    (Senior/SE, Master/MA, Cadet/CA…). Le nom du relais arrive dans `lastname`.
+    """
+    return (
+        (athlete.get("categoryRef") or "").strip().upper() == "R"
+        or (athlete.get("category") or "").strip().lower() == "relay"
+    )
+
+
 def _parse_athlete(athlete: dict, split_map: dict, url: str, event_name: str, event_type: str, event_date) -> ScrapedResult:
     result = ScrapedResult(source_url=url, provider="prolivesport")
     result.event_name = event_name
@@ -86,6 +99,7 @@ def _parse_athlete(athlete: dict, split_map: dict, url: str, event_name: str, ev
     result.club = athlete.get("club", "")
     result.category = athlete.get("categoryRef", athlete.get("category", ""))
     result.gender = athlete.get("sex", "")
+    result.is_relay = _is_relay(athlete)
     result.status = _derive_status(athlete)
     if result.status == STATUS_FINISHER:
         result.rank_overall = normalize_rank(athlete.get("rank"))
