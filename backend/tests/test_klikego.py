@@ -10,6 +10,7 @@ Chaque test correspond à un cas réel rencontré lors du développement :
 - Duathlon           : "CAP 1"/"CAP 2" → swim_time/run_time, heat "duathlon-s-individuel"
 - Swimrun            : type détecté depuis le slug URL (heat = "format-l-en-binome")
 - _parse_search_row  : extraction des lignes de résultat paginées (bulk import)
+- scrape_event_all   : import exhaustif via data block (finishers + DNF/DNS/DSQ)
 """
 import base64
 from pathlib import Path
@@ -17,6 +18,7 @@ from pathlib import Path
 import pytest
 from bs4 import BeautifulSoup
 
+import app.scrapers.klikego as klikego
 import app.scrapers.klikego_platform as plat
 from app.scrapers.base import ScrapedResult
 from app.scrapers.klikego import _detect_event_type, _parse_detail, _parse_search_row
@@ -931,3 +933,45 @@ def test_build_heat_results_includes_dnf_and_total_times(monkeypatch):
     assert all(r.provider == "breizhchrono" for r in results)
     assert all(r.event_type == "triathlon_s" for r in results)
     assert all(r.event_date == date(2024, 9, 28) for r in results)
+
+
+# ---------------------------------------------------------------------------
+# scrape_event_all — import exhaustif via data block (finishers + DNF/DNS/DSQ)
+# ---------------------------------------------------------------------------
+
+
+def test_klikego_scrape_event_all_returns_dnf(monkeypatch):
+    """
+    scrape_event_all doit utiliser le data block (course-result.jsp) pour récupérer
+    tous les participants, y compris DNF/DNS/DSQ absents de resultats-search.jsp.
+
+    La fixture page0 contient 50 lignes (finishers + DNF) : le résultat doit en
+    avoir exactement 50 et au moins un avec status=="DNF".
+    """
+    page0 = (FIXTURES / "klikego_datablock_page0.html").read_text()
+
+    class FakeResp:
+        def __init__(self, t, code=200): self.text, self.status_code = t, code
+
+    class FakeClient:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def get(self, url):
+            if "course-result.jsp" in url and "inter=&page=0" in url:
+                return FakeResp(page0)
+            if "course-result.jsp" in url:
+                return FakeResp("<html></html>")
+            if "resultats-search.jsp" in url:  # phase TCN city=nantais -> vide
+                return FakeResp("<html></html>")
+            return FakeResp("<html></html>")
+
+    monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
+    monkeypatch.setattr(klikego, "_fetch_event_meta", lambda *a, **k: ("triathlon-s-light", None))
+
+    results = klikego.scrape_event_all(
+        "1488071608761-572", "triathlon-s-light",
+        "Triathlon Audencia La Baule 2024", "triathlon-audencia-la-baule-2024",
+    )
+    assert len(results) == 50
+    assert any(r.status == "DNF" for r in results)
