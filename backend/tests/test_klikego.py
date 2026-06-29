@@ -762,6 +762,32 @@ def test_parse_data_row_dns_and_dsq():
     assert dsq_result["total_time"] == ""
 
 
+def test_parse_data_row_dnf_keeps_time_when_present():
+    # DNF ayant couru avant d'abandonner : officiel (idx 9) rempli
+    fields = "12|false|DNF|DNF|MARTIN Paul|S2|M|CLUB|00:41:10|01:05:00||".split("|")
+    r = parse_data_row(fields)
+    assert r["status"] == "DNF"
+    assert r["total_time"] == "01:05:00"   # temps conservé
+    assert r["rank_overall"] is None       # jamais classé
+    assert r["rank_category"] is None
+
+
+def test_parse_data_row_dsq_keeps_time_when_present():
+    fields = "34|false|DSQ|DSQ|DURAND Lea|S3|F|CLUB||01:12:30||".split("|")
+    r = parse_data_row(fields)
+    assert r["status"] == "DSQ"
+    assert r["total_time"] == "01:12:30"
+    assert r["rank_overall"] is None
+
+
+def test_parse_data_row_dns_has_no_time():
+    fields = "114|false|DNS|DNS|CHAUVET Romain|S4|M|TRIATHLON CLUB NANTAIS||00:00:00||".split("|")
+    r = parse_data_row(fields)
+    assert r["status"] == "DNS"
+    assert r["total_time"] == ""           # un non-partant n'a pas de temps
+    assert r["rank_overall"] is None
+
+
 # ---------------------------------------------------------------------------
 # Fixture réelle page 0 — valide le décodage + parse sur données réelles
 # ---------------------------------------------------------------------------
