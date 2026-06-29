@@ -92,7 +92,7 @@ def parse_data_row(fields: list[str]) -> dict:
         "club": club.strip(),
         "rank_overall": None if status else _parse_rank(clt),
         "rank_category": None if status else _parse_rank(cltcat),
-        "total_time": "" if status else normalize_time(officiel.strip()),
+        "total_time": "" if status == STATUS_DNS else normalize_time(officiel.strip()),
         "status": status,
     }
 
