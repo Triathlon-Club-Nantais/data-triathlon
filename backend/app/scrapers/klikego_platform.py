@@ -14,6 +14,7 @@ Format d'une ligne (séparateur `|`), 12 champs :
 import base64
 import re
 from datetime import date as _date
+from urllib.parse import urlencode
 
 import httpx
 from bs4 import BeautifulSoup
@@ -74,7 +75,7 @@ def _parse_rank(value: str) -> int | None:
 def parse_data_row(fields: list[str]) -> dict:
     """Transforme une ligne du data block (12 champs) en dict de champs ScrapedResult."""
     f = (fields + [""] * 12)[:12]
-    dossard, _diploma, clt, cltcat, nom, cat, sexe, club, inter, officiel, reel, _end = f
+    dossard, _diploma, clt, cltcat, nom, cat, sexe, club, _inter, officiel, _reel, _end = f
 
     status = _STATUS_BY_TOKEN.get(clt.strip().upper(), "")
     nom_fam, prenom = _split_name(nom.strip())
@@ -97,10 +98,18 @@ def parse_data_row(fields: list[str]) -> dict:
 
 
 def _course_result_url(base: str, event_id: str, heat: str, inter: str, page: int) -> str:
-    return (
-        f"{base}/bc/resultats/course-result.jsp"
-        f"?ref={event_id}&heat={heat}&query=&category=&sex=&inter={inter}&page={page}"
+    query = urlencode(
+        {
+            "ref": event_id,
+            "heat": heat,
+            "query": "",
+            "category": "",
+            "sex": "",
+            "inter": inter,
+            "page": page,
+        }
     )
+    return f"{base}/bc/resultats/course-result.jsp?{query}"
 
 
 def fetch_heat_rows(
