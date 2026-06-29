@@ -879,7 +879,8 @@ def test_fetch_inter_splits_collects_per_slot(monkeypatch):
 
     class FakeClient:
         def get(self, url):
-            if "inter=Vélo" in url:
+            # La valeur `inter` est désormais URL-encodée (Vélo -> V%C3%A9lo).
+            if "inter=V%C3%A9lo" in url:
                 return FakeResp(velo)
             if "inter=Natation___T1" in url:
                 return FakeResp(nat)
