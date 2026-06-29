@@ -17,7 +17,7 @@ def get_by_identity(
     name: str,
     event_date: date | None,
     event_type: str,
-    is_relay: bool = False,
+    is_relay: bool,
 ) -> Course | None:
     return (
         db.query(Course)

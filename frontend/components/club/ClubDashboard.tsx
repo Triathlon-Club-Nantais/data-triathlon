@@ -95,7 +95,7 @@ export function ClubDashboard({
                         </Link>
                         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                           <span className="truncate">{formatEventName(p.course.name, p.course.is_relay)}</span>
-                          <SportBadge type={p.course?.event_type} />
+                          <SportBadge type={p.course.event_type} />
                           <span className="micro-label text-[9px]">
                             {SCOPE_LABEL[best.scope]}
                           </span>
