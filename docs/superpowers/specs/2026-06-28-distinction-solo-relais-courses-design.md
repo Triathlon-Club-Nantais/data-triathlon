@@ -85,7 +85,9 @@ Traitement de l'existant : **reset + re-import**.
 1. Helper partagé `formatEventName(name: string, isRelay: boolean): string` dans
    `frontend/lib/` → renvoie `"<name> (Relais)"` quand `isRelay`, sinon `name`.
 2. Appliquer ce helper partout où le nom d'épreuve est affiché : `EventList`,
-   détail course (`app/courses/[id]`), carte (`MapView`), vues club, `ResultCard`.
+   détail course (`app/courses/[id]`), vues club, `ResultCard`.
+   *Hors périmètre : `MapView`* — `GeoEvent` ne porte pas `is_relay`
+   (agrégation côté endpoint), la carte reste donc inchangée.
 3. Le badge « Relais » existant (`EventList`, `ResultCard`) est conservé.
 4. `lib/types.ts` : `is_relay` est déjà présent sur les types concernés —
    **aucun changement**.
