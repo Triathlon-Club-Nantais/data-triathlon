@@ -91,7 +91,7 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
             val_div = div.find_next_sibling("div")
             if val_div:
                 t = normalize_time(val_div.get_text(strip=True))
-                if t:
+                if t and t != "00:00:00":
                     result.total_time = t
 
         for label, field in rank_map.items():
@@ -100,7 +100,7 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
                 if val_div:
                     rank_text = val_div.get_text(strip=True)
                     m = re.match(r"(\d+)", rank_text)
-                    if m:
+                    if m and int(m.group(1)) > 0:
                         rank = int(m.group(1))
                         if field == "overall":
                             result.rank_overall = rank

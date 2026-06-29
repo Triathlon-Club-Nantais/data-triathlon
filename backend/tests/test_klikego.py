@@ -1015,6 +1015,19 @@ def test_klikego_scrape_event_all_returns_dnf(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
+def test_parse_detail_ignores_zero_placeholders():
+    """Page détail d'un non-partant : ignore les placeholders 00:00:00 et rang 0."""
+    html = """
+    <div><div>Temps Officiel</div><div>00:00:00</div></div>
+    <div><div>Classement Général</div><div>0</div></div>
+    """
+    r = ScrapedResult(source_url="https://x", provider="klikego")
+    r.status = "DNS"
+    _parse_detail(html, r, {})
+    assert r.total_time == ""        # le 00:00:00 placeholder est ignoré
+    assert r.rank_overall is None    # le rang 0 est ignoré
+
+
 def test_scrape_event_all_tcn_detail_overrides_inter_splits(monkeypatch):
     """Phase C : les splits fins de la page détail priment sur les splits inter pré-remplis.
 
