@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { TcnTopbar } from "./TcnTopbar";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard",
@@ -10,6 +9,8 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/lib/api/client", () => ({
   apiClient: { listParticipations: vi.fn().mockResolvedValue([]) },
 }));
+
+import { TcnTopbar } from "./TcnTopbar";
 
 describe("TcnTopbar — visibilité des onglets (issue #10)", () => {
   it("affiche les onglets conservés : Tableau de bord, Résultats, Club", () => {
