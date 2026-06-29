@@ -107,12 +107,12 @@ def test_events_page_pagination_and_sort(db_session):
 
 
 def test_for_stats_filtre_par_saison_unique(db_session):
-    athlete, _ = _setup(db_session)  # course "Tri Z" le 2026-05-16 → saison 2025
+    athlete, course_2025 = _setup(db_session)  # course "Tri Z" le 2026-05-16 → saison 2025
     c_autre = course_repository.get_or_create(
         db_session, name="Tri Automne", event_date=date(2024, 10, 1), event_type="triathlon-s"
     )  # saison 2024
     participation_repository.create(
-        db_session, athlete_id=athlete.id, course_id=_setup(db_session)[1].id, bib_number="1", club="TCN"
+        db_session, athlete_id=athlete.id, course_id=course_2025.id, bib_number="1", club="TCN"
     )
     participation_repository.create(
         db_session, athlete_id=athlete.id, course_id=c_autre.id, bib_number="2", club="TCN"

@@ -3,7 +3,7 @@
 Module pur (aucune dépendance DB). L'identifiant d'une saison est son année de
 début Y. La saison Y couvre [Y-09-01, (Y+1)-08-31] et s'affiche « Saison Y — Y+1 ».
 """
-from datetime import date
+from datetime import MAXYEAR, MINYEAR, date
 
 from app.core.time import utcnow
 
@@ -32,7 +32,9 @@ def parse_seasons(raw: str | None) -> list[int]:
     """Parse un CSV d'années de début (« 2025,2023 ») → liste d'entiers.
 
     Tolère les espaces, ignore les valeurs non entières, dédoublonne en
-    conservant l'ordre d'apparition.
+    conservant l'ordre d'apparition. Ignore les années hors plage exploitable
+    par `season_bounds()` (qui construit `date(year, …)` et `date(year + 1, …)`),
+    pour éviter qu'une entrée client comme `seasons=0` ne déclenche une 500.
     """
     if not raw:
         return []
@@ -44,6 +46,8 @@ def parse_seasons(raw: str | None) -> list[int]:
         try:
             year = int(token)
         except ValueError:
+            continue
+        if not (MINYEAR <= year <= MAXYEAR - 1):
             continue
         if year not in out:
             out.append(year)

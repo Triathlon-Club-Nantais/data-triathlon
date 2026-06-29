@@ -8,10 +8,12 @@ export function seasonOf(iso: string): number {
   return month >= 9 ? year : year - 1;
 }
 
-/** Saison en cours (bascule au 1ᵉʳ septembre). `now` injectable pour les tests. */
+/** Saison en cours (bascule au 1ᵉʳ septembre). `now` injectable pour les tests.
+ *  Getters UTC pour rester miroir du backend (`utcnow()`) et éviter tout
+ *  mismatch SSR/hydratation autour du 1ᵉʳ septembre selon le fuseau local. */
 export function currentSeason(now: Date = new Date()): number {
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1;
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth() + 1;
   return month >= 9 ? year : year - 1;
 }
 
