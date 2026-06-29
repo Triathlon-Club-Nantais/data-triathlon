@@ -353,7 +353,10 @@ def scrape_event_all(
         )
         heat_page_html = heat_page.text if heat_page.status_code == 200 else ""
 
-        source_url = f"{BASE}/resultats/{slug}/{event_id}?heat={heat}"
+        source_url = (
+            f"{BASE}/resultats/{slug}/{event_id}?heat={heat}" if slug
+            else f"{BASE}/resultats/{event_id}?heat={heat}"
+        )
         results = plat.build_heat_results(
             base=BASE,
             provider="klikego",

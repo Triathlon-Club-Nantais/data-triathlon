@@ -36,8 +36,12 @@ def decode_data_block(html: str) -> list[list[str]]:
     raw_b64 = el.get_text().strip()
     if not raw_b64:
         return []
-    raw = base64.b64decode(raw_b64)
-    text = bytes(b ^ _XOR_KEY for b in raw).decode("utf-8")
+    try:
+        raw = base64.b64decode(raw_b64)
+        text = bytes(b ^ _XOR_KEY for b in raw).decode("utf-8")
+    except (ValueError, UnicodeDecodeError):
+        # HTML externe : un bloc corrompu ne doit pas faire échouer l'import.
+        return []
     return [line.split("|") for line in text.split("\n") if line.strip()]
 
 

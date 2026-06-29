@@ -707,6 +707,12 @@ def test_decode_data_block_empty_when_no_element():
     assert decode_data_block("<html><body>rien</body></html>") == []
 
 
+def test_decode_data_block_tolerant_on_invalid_payload():
+    # Bloc présent mais base64 corrompu : on ne casse pas l'import, on renvoie [].
+    html = '<script type="text/plain" id="data">!!!pas-du-base64!!!</script>'
+    assert decode_data_block(html) == []
+
+
 # ---------------------------------------------------------------------------
 # parse_data_row — transformation d'une ligne du data block en dict
 # ---------------------------------------------------------------------------
