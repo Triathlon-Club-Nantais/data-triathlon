@@ -27,7 +27,7 @@ export function useInfiniteEvents(
 }
 
 /**
- * Participants d'une épreuve, chargés à la demande (au dépliage de l'accordéon).
+ * Participants d'une épreuve, chargés à la demande.
  * On rejoue les filtres club + nom pour rester cohérent avec les compteurs.
  */
 export function useCourseParticipations(

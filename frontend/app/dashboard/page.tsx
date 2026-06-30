@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { apiServer } from "@/lib/api/server";
-import { clubFromScope } from "@/lib/scope";
-import { ScopeToggle } from "@/components/layout/ScopeToggle";
+import { TCN_CLUB_FILTER } from "@/lib/club-constants";
 import { StatCard, Card, Eyebrow, FormatChip } from "@/components/tcn";
 import { aggregateDisciplines, formatToken, pctFr } from "@/lib/utils/format";
 import { isPodium } from "@/lib/utils/club-aggregate";
@@ -21,8 +20,11 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  const sp = await searchParams;
-  const club = clubFromScope(sp.scope);
+  // Page d'accueil = vitrine du club : portée TCN forcée, pas de choix « Tous »
+  // (validé par Vincent, issue #6). On garde la signature `searchParams` pour
+  // l'App Router, mais le paramètre `?scope` est volontairement ignoré ici.
+  await searchParams;
+  const club = TCN_CLUB_FILTER;
 
   const [stats, eventsPage, participations] = await Promise.all([
     apiServer.getStats(club),
@@ -45,7 +47,6 @@ export default async function DashboardPage({
           <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 40, color: "var(--tcn-ink)", lineHeight: 1, marginTop: 6 }}>Saison 2025 — 2026</div>
           <div style={{ fontSize: 15, color: "var(--tcn-text-muted)", marginTop: 8, fontWeight: 500 }}>Vue d&apos;ensemble des performances des athlètes du club</div>
         </div>
-        <ScopeToggle />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr 1fr", gap: 18, marginBottom: 18 }}>

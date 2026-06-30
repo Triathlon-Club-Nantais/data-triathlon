@@ -6,7 +6,6 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
 }));
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 const eventsMock = vi.hoisted(() => ({
   value: {} as ReturnType<typeof Object>,
@@ -15,10 +14,6 @@ const eventsMock = vi.hoisted(() => ({
 vi.mock("@/lib/queries/events", () => ({
   EVENTS_PAGE_SIZE: 30,
   useInfiniteEvents: () => eventsMock.value,
-  useCourseParticipations: () => ({ data: [], isLoading: false, isError: false }),
-}));
-vi.mock("@/lib/queries/participations", () => ({
-  useDeleteParticipation: () => ({ mutateAsync: vi.fn() }),
 }));
 
 import { EventList } from "./EventList";
@@ -37,14 +32,14 @@ function renderList(filters = {}) {
 }
 
 describe("EventList", () => {
-  it("affiche les épreuves avec libellé de discipline et compteurs", () => {
+  it("rend chaque épreuve comme un lien vers sa fiche course", () => {
     setEvents({
       data: {
         pages: [
           {
             items: [
               {
-                id: 1,
+                id: 14,
                 event_name: "Tri de Nantes",
                 event_type: "triathlon-m",
                 event_date: "2026-05-16",
@@ -66,10 +61,47 @@ describe("EventList", () => {
 
     renderList();
 
-    expect(screen.getByText("Tri de Nantes")).toBeInTheDocument();
-    expect(screen.getByText("Triathlon M")).toBeInTheDocument();
-    expect(screen.getByText("42 résultats")).toBeInTheDocument();
-    expect(screen.getByText("3 TCN")).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: /Tri de Nantes/ });
+    expect(link).toHaveAttribute("href", "/courses/14");
+    // Métadonnées conservées dans la ligne.
+    expect(link).toHaveTextContent("Triathlon M");
+    expect(link).toHaveTextContent("42 résultats");
+    expect(link).toHaveTextContent("3");
+  });
+
+  it("n'affiche plus de bouton de suppression ni d'accordéon", () => {
+    setEvents({
+      data: {
+        pages: [
+          {
+            items: [
+              {
+                id: 14,
+                event_name: "Tri de Nantes",
+                event_type: "triathlon-m",
+                event_date: "2026-05-16",
+                is_relay: false,
+                total: 42,
+                tcn_count: 3,
+              },
+            ],
+            total_events: 1,
+            total_participations: 42,
+          },
+        ],
+      },
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+    });
+
+    renderList();
+
+    expect(screen.queryByRole("button", { name: /supprimer/i })).toBeNull();
+    // L'épreuve est un lien plein, plus un trigger d'accordéon dépliable.
+    expect(screen.queryByRole("button", { name: /Tri de Nantes/i })).toBeNull();
+    expect(screen.getByRole("link", { name: /Tri de Nantes/ })).toBeInTheDocument();
   });
 
   it("affiche un état vide quand aucune épreuve", () => {
