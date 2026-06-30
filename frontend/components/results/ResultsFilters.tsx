@@ -101,7 +101,7 @@ export function ResultsFilters() {
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && apply()}
               placeholder="Rechercher un athlète"
-              className="w-48"
+              className="w-full sm:w-48"
             />
           </Field>
           <Field label="Course">
@@ -110,7 +110,7 @@ export function ResultsFilters() {
               onChange={(e) => setEventName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && apply()}
               placeholder="Rechercher une course"
-              className="w-48"
+              className="w-full sm:w-48"
             />
           </Field>
           <Field label="Discipline">
@@ -118,7 +118,7 @@ export function ResultsFilters() {
               value={eventType || ALL}
               onValueChange={(v) => setEventType(v === ALL ? "" : (v as string))}
             >
-              <SelectTrigger className="h-9 w-48">
+              <SelectTrigger className="h-9 w-full sm:w-48">
                 <SelectValue placeholder="Toutes les disciplines">
                   {(v) =>
                     !v || v === ALL ? "Toutes les disciplines" : eventTypeLabel(v as string)
@@ -140,7 +140,7 @@ export function ResultsFilters() {
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="w-40"
+              className="w-full sm:w-40"
             />
           </Field>
           <Field label="Au">
@@ -148,7 +148,7 @@ export function ResultsFilters() {
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className="w-40"
+              className="w-full sm:w-40"
             />
           </Field>
           <div className="flex gap-2">
@@ -185,7 +185,7 @@ export function ResultsFilters() {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex w-full flex-col gap-1.5 sm:w-auto">
       <label className="text-xs font-medium text-muted-foreground">{label}</label>
       {children}
     </div>

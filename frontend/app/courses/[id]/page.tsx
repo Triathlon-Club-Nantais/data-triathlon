@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { apiServer } from "@/lib/api/server";
 import { Card, Eyebrow, MetaPill } from "@/components/tcn";
+import { PageShell } from "@/components/layout/PageShell";
 import { RaceFinishers } from "@/components/results/RaceFinishers";
 import { eventTypeLabel } from "@/lib/constants";
 import { formatToken } from "@/lib/utils/format";
@@ -69,10 +70,10 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
   const hist = buildHistogram(secs);
 
   return (
-    <div style={{ maxWidth: "var(--tcn-content-max)", margin: "0 auto", padding: "36px 40px 64px" }}>
+    <PageShell>
       <div style={{ marginBottom: 24 }}>
         <Eyebrow style={{ marginBottom: 6 }}>Résultats complets</Eyebrow>
-        <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 46, color: "var(--tcn-ink)", lineHeight: 1, marginBottom: 12 }}>{course.name}</div>
+        <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(30px, 5vw, 46px)", color: "var(--tcn-ink)", lineHeight: 1, marginBottom: 12 }}>{course.name}</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
           <MetaPill label="Type">{eventTypeLabel(course.event_type)}</MetaPill>
           <MetaPill label="Format">{formatToken(course.event_type, course.distance_km)}</MetaPill>
@@ -82,7 +83,7 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "220px 1fr 260px", gap: 18, marginBottom: 18 }}>
+      <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card padding={24} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 18 }}>
           <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 18, color: "var(--tcn-ink)", alignSelf: "flex-start" }}>Répartition genre</div>
           <div style={{ position: "relative", width: 130, height: 130, borderRadius: 999, background: hasGender ? `conic-gradient(var(--tcn-orange) 0 ${malePct}%, var(--tcn-ink) ${malePct}% 100%)` : "var(--tcn-grey-300)" }}>
@@ -116,7 +117,7 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
           )}
         </Card>
 
-        <Card padding={24}>
+        <Card padding={24} className="sm:col-span-2 lg:col-span-1">
           <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 18, color: "var(--tcn-ink)", marginBottom: 14 }}>Top clubs</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, paddingBottom: 8, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--tcn-text-faint)", borderBottom: "1px solid var(--tcn-border)", marginBottom: 4 }}>
             <div>Club</div><div style={{ textAlign: "right" }}>Athlètes</div>
@@ -146,7 +147,7 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
       )}
 
       <RaceFinishers participations={participations} tcnCount={tcnCount} />
-    </div>
+    </PageShell>
   );
 }
 
