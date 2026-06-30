@@ -10,12 +10,21 @@ Chaque test correspond à un cas réel rencontré lors du développement :
 - Duathlon           : "CAP 1"/"CAP 2" → swim_time/run_time, heat "duathlon-s-individuel"
 - Swimrun            : type détecté depuis le slug URL (heat = "format-l-en-binome")
 - _parse_search_row  : extraction des lignes de résultat paginées (bulk import)
+- scrape_event_all   : import exhaustif via data block (finishers + DNF/DNS/DSQ)
 """
+import base64
+from pathlib import Path
+
 import pytest
 from bs4 import BeautifulSoup
 
+import app.scrapers.klikego as klikego
+import app.scrapers.klikego_platform as plat
 from app.scrapers.base import ScrapedResult
 from app.scrapers.klikego import _detect_event_type, _parse_detail, _parse_search_row
+from app.scrapers.klikego_platform import decode_data_block, parse_data_row
+
+FIXTURES = Path(__file__).parent / "fixtures"
 
 # ---------------------------------------------------------------------------
 # Helper
@@ -636,3 +645,448 @@ def test_parse_search_row_finisher_no_status():
     assert r.status == ""
     assert r.total_time == "01:23:45"
     assert r.rank_overall == 5
+
+
+# ---------------------------------------------------------------------------
+# decode_data_block — décodage du data block base64+XOR
+# ---------------------------------------------------------------------------
+
+
+def _encode_block(lines: list[str]) -> str:
+    """Encode des lignes comme le fait le fournisseur : XOR 'K' puis base64."""
+    payload = "\n".join(lines).encode("utf-8")
+    xored = bytes(b ^ ord("K") for b in payload)
+    b64 = base64.b64encode(xored).decode("ascii")
+    return f'<script type="text/plain" id="data">{b64}</script>'
+
+
+def test_decode_data_block_returns_split_rows():
+    html = _encode_block([
+        "358|true|1|1|DE POORTER Axel|S3|M|LE MANS TRIATHLON||00:38:05||",
+        "282|false|DNF|DNF|DELAUNAY Juliette|S2|F|||||",
+    ])
+    rows = decode_data_block(html)
+    assert len(rows) == 2
+    assert rows[0][0] == "358"
+    assert rows[0][4] == "DE POORTER Axel"
+    assert rows[0][9] == "00:38:05"
+    assert rows[1][2] == "DNF"
+
+
+def test_decode_data_block_empty_when_no_element():
+    assert decode_data_block("<html><body>rien</body></html>") == []
+
+
+def test_decode_data_block_tolerant_on_invalid_payload():
+    # Bloc présent mais base64 corrompu : on ne casse pas l'import, on renvoie [].
+    html = '<script type="text/plain" id="data">!!!pas-du-base64!!!</script>'
+    assert decode_data_block(html) == []
+
+
+# ---------------------------------------------------------------------------
+# parse_data_row — transformation d'une ligne du data block en dict
+# ---------------------------------------------------------------------------
+
+
+def test_parse_data_row_finisher():
+    fields = "358|true|1|1|DE POORTER Axel|S3|M|LE MANS TRIATHLON||00:38:05||".split("|")
+    r = parse_data_row(fields)
+    assert r["bib_number"] == "358"
+    assert r["athlete_name"] == "DE POORTER"
+    assert r["athlete_firstname"] == "Axel"
+    assert r["category"] == "S3"
+    assert r["gender"] == "M"
+    assert r["club"] == "LE MANS TRIATHLON"
+    assert r["rank_overall"] == 1
+    assert r["rank_category"] == 1
+    assert r["total_time"] == "00:38:05"
+    assert r["status"] == ""
+
+
+def test_parse_data_row_dnf_neutralises_rank_and_time():
+    fields = "282|false|DNF|DNF|DELAUNAY Juliette|S2|F|||||".split("|")
+    r = parse_data_row(fields)
+    assert r["status"] == "DNF"
+    assert r["rank_overall"] is None
+    assert r["rank_category"] is None
+    assert r["total_time"] == ""
+    assert r["athlete_name"] == "DELAUNAY"
+    assert r["athlete_firstname"] == "Juliette"
+
+
+def test_parse_data_row_dns_and_dsq():
+    # DNS
+    dns_fields = "476|false|DNS|DNS|AVENARD Benedicte|S2|F|||||".split("|")
+    dns_result = parse_data_row(dns_fields)
+    assert dns_result["status"] == "DNS"
+    assert dns_result["rank_overall"] is None
+    assert dns_result["rank_category"] is None
+    assert dns_result["total_time"] == ""
+
+    # DSQ
+    dsq_fields = "375|false|DSQ|DSQ|MOTTAY Aude|V3|F|||||".split("|")
+    dsq_result = parse_data_row(dsq_fields)
+    assert dsq_result["status"] == "DSQ"
+    assert dsq_result["rank_overall"] is None
+    assert dsq_result["rank_category"] is None
+    assert dsq_result["total_time"] == ""
+
+
+def test_parse_data_row_dnf_keeps_time_when_present():
+    # DNF ayant couru avant d'abandonner : officiel (idx 9) rempli
+    fields = "12|false|DNF|DNF|MARTIN Paul|S2|M|CLUB|00:41:10|01:05:00||".split("|")
+    r = parse_data_row(fields)
+    assert r["status"] == "DNF"
+    assert r["total_time"] == "01:05:00"   # temps conservé
+    assert r["rank_overall"] is None       # jamais classé
+    assert r["rank_category"] is None
+
+
+def test_parse_data_row_dsq_keeps_time_when_present():
+    fields = "34|false|DSQ|DSQ|DURAND Lea|S3|F|CLUB||01:12:30||".split("|")
+    r = parse_data_row(fields)
+    assert r["status"] == "DSQ"
+    assert r["total_time"] == "01:12:30"
+    assert r["rank_overall"] is None
+
+
+def test_parse_data_row_dns_has_no_time():
+    fields = "114|false|DNS|DNS|CHAUVET Romain|S4|M|TRIATHLON CLUB NANTAIS||00:00:00||".split("|")
+    r = parse_data_row(fields)
+    assert r["status"] == "DNS"
+    assert r["total_time"] == ""           # un non-partant n'a pas de temps
+    assert r["rank_overall"] is None
+
+
+# ---------------------------------------------------------------------------
+# Fixture réelle page 0 — valide le décodage + parse sur données réelles
+# ---------------------------------------------------------------------------
+
+
+def test_fixture_page0_contains_dnf_and_finishers():
+    html = (FIXTURES / "klikego_datablock_page0.html").read_text()
+    rows = [parse_data_row(r) for r in decode_data_block(html)]
+    assert len(rows) == 50  # page pleine
+    statuses = {r["status"] for r in rows}
+    assert "" in statuses  # des finishers
+    # au moins un finisher a un temps total non vide
+    assert any(r["total_time"] for r in rows if not r["status"])
+
+
+# ---------------------------------------------------------------------------
+# fetch_heat_rows — pagination via monkeypatch (sans réseau)
+# ---------------------------------------------------------------------------
+
+
+def test_fetch_heat_rows_paginates_and_stops(monkeypatch):
+    page0 = (FIXTURES / "klikego_datablock_page0.html").read_text()
+    # page 1 : moins de 50 lignes -> doit arrêter après
+    calls = {"n": 0}
+
+    class FakeResp:
+        status_code = 200
+        def __init__(self, text): self.text = text
+
+    # Construit une page courte (2 lignes) encodée comme le fournisseur
+    short_lines = "\n".join([
+        "999|true|51|1|TEST Alpha|S1|M|CLUB X||01:00:00||",
+        "998|true|52|2|TEST Beta|S1|M|CLUB Y||01:01:00||",
+    ]).encode()
+    short_b64 = base64.b64encode(bytes(b ^ ord("K") for b in short_lines)).decode()
+    page1 = f'<script id="data">{short_b64}</script>'
+
+    def fake_get(url):
+        calls["n"] += 1
+        return FakeResp(page0 if "page=0" in url else page1)
+
+    class FakeClient:
+        def get(self, url): return fake_get(url)
+
+    rows = plat.fetch_heat_rows("https://x", "evt", "heat", FakeClient())
+    assert calls["n"] == 2          # page 0 (pleine) + page 1 (courte) puis stop
+    assert len(rows) == 52          # 50 + 2, dédoublonnés
+
+
+# ---------------------------------------------------------------------------
+# discover_inter_options et inter_label_to_slot — découverte des checkpoints
+# ---------------------------------------------------------------------------
+
+
+def test_discover_inter_options_triathlon():
+    from app.scrapers.klikego_platform import discover_inter_options
+
+    html = '''
+    <select name="inter" id="inter">
+      <option value="">Arrivée</option>
+      <option value="Natation___T1">Natation + T1</option>
+      <option value="Vélo">Vélo</option>
+      <option value="Course">Course</option>
+    </select>'''
+    assert discover_inter_options(html) == [
+        ("Natation___T1", "Natation + T1"),
+        ("Vélo", "Vélo"),
+        ("Course", "Course"),
+    ]
+
+
+def test_discover_inter_options_absent():
+    from app.scrapers.klikego_platform import discover_inter_options
+
+    assert discover_inter_options("<html>pas de select</html>") == []
+
+
+def test_inter_label_to_slot():
+    from app.scrapers.klikego_platform import inter_label_to_slot
+
+    assert inter_label_to_slot("Natation + T1") == "swim"
+    assert inter_label_to_slot("Vélo") == "bike"
+    assert inter_label_to_slot("Course") == "run"
+    assert inter_label_to_slot("Course à pied 1") == "swim"   # duathlon CAP1 -> slot swim
+    assert inter_label_to_slot("Course à pied 2") == "run"    # duathlon CAP2 -> slot run
+    assert inter_label_to_slot("Truc inconnu") is None
+
+
+# ---------------------------------------------------------------------------
+# fetch_inter_splits — collecte des temps intermédiaires pour tous les participants
+# ---------------------------------------------------------------------------
+
+
+def _block(lines):
+    """Encode des lignes comme le fait le fournisseur : XOR 'K' puis base64."""
+    payload = "\n".join(lines).encode()
+    return f'<script id="data">{base64.b64encode(bytes(b ^ ord("K") for b in payload)).decode()}</script>'
+
+
+def test_fetch_inter_splits_collects_per_slot(monkeypatch):
+    """Collecte les temps de checkpoints pour tous les participants d'un heat.
+
+    Pour chaque option `inter` mappable sur un slot, pagine le data block et lit
+    le champ `inter` (idx 8). Retourne `{bib: {slot: "HH:MM:SS"}}`.
+    Les checkpoints dont le label ne mappe sur aucun slot sont ignorés.
+    """
+    # inter=Vélo : le temps du checkpoint est dans le champ idx 8
+    velo = _block(["358|true|1|1|DE POORTER Axel|S3|M|CLUB|00:19:28|||"])
+    nat = _block(["358|true|1|1|DE POORTER Axel|S3|M|CLUB|00:06:24|||"])
+
+    class FakeResp:
+        status_code = 200
+        def __init__(self, t):
+            self.text = t
+
+    class FakeClient:
+        def get(self, url):
+            # La valeur `inter` est désormais URL-encodée (Vélo -> V%C3%A9lo).
+            if "inter=V%C3%A9lo" in url:
+                return FakeResp(velo)
+            if "inter=Natation___T1" in url:
+                return FakeResp(nat)
+            return FakeResp(_block([]))
+
+    options = [("Natation___T1", "Natation + T1"), ("Vélo", "Vélo")]
+    splits = plat.fetch_inter_splits("https://x", "evt", "heat", options, FakeClient())
+    assert splits["358"] == {"swim": "00:06:24", "bike": "00:19:28"}
+
+
+# ---------------------------------------------------------------------------
+# build_heat_results — assemblage des ScrapedResult complets d'un heat
+# ---------------------------------------------------------------------------
+
+
+def test_build_heat_results_includes_dnf_and_total_times(monkeypatch):
+    """
+    build_heat_results pagine le data block et retourne des ScrapedResult complets.
+
+    La fixture page0 est une page « charnière » réelle du heat (50 lignes :
+    finishers avec temps + DNF/DSQ/DNS), ce qui couvre les deux chemins.
+    """
+    from datetime import date
+
+    from app.scrapers.klikego_platform import build_heat_results
+
+    page0 = (FIXTURES / "klikego_datablock_page0.html").read_text()
+
+    class FakeResp:
+        status_code = 200
+        def __init__(self, t): self.text = t
+
+    class FakeClient:
+        def get(self, url):
+            # Liste : page 0 pleine puis page vide pour arrêter
+            if "inter=&page=0" in url:
+                return FakeResp(page0)
+            return FakeResp("<html></html>")
+
+    # Pas de checkpoints inter dans ce test -> heat_page_html sans select
+    results = build_heat_results(
+        base="https://resultats.breizhchrono.com",
+        provider="breizhchrono",
+        event_id="1488071608761-572",
+        heat="triathlon-s-light",
+        heat_page_html="<html>pas de inter</html>",
+        event_name="Triathlon Audencia La Baule 2024",
+        slug="triathlon-audencia-la-baule-2024",
+        event_type="triathlon_s",
+        source_url="https://resultats.breizhchrono.com/x",
+        event_date=date(2024, 9, 28),
+        client=FakeClient(),
+    )
+    assert len(results) == 50
+    assert any(r.status == "DNF" for r in results)
+    assert any(r.status == "" and r.total_time for r in results)
+    assert all(r.provider == "breizhchrono" for r in results)
+    assert all(r.event_type == "triathlon_s" for r in results)
+    assert all(r.event_date == date(2024, 9, 28) for r in results)
+
+
+# ---------------------------------------------------------------------------
+# scrape_event_all — import exhaustif via data block (finishers + DNF/DNS/DSQ)
+# ---------------------------------------------------------------------------
+
+
+def test_klikego_scrape_event_all_returns_dnf(monkeypatch):
+    """
+    scrape_event_all doit utiliser le data block (course-result.jsp) pour récupérer
+    tous les participants, y compris DNF/DNS/DSQ absents de resultats-search.jsp.
+
+    La fixture page0 contient 50 lignes (finishers + DNF) : le résultat doit en
+    avoir exactement 50 et au moins un avec status=="DNF".
+    """
+    page0 = (FIXTURES / "klikego_datablock_page0.html").read_text()
+
+    class FakeResp:
+        def __init__(self, t, code=200): self.text, self.status_code = t, code
+
+    class FakeClient:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def get(self, url):
+            if "course-result.jsp" in url and "inter=&page=0" in url:
+                return FakeResp(page0)
+            if "course-result.jsp" in url:
+                return FakeResp("<html></html>")
+            if "resultats-search.jsp" in url:  # phase TCN city=nantais -> vide
+                return FakeResp("<html></html>")
+            return FakeResp("<html></html>")
+
+    monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
+    monkeypatch.setattr(klikego, "_fetch_event_meta", lambda *a, **k: ("triathlon-s-light", None))
+
+    results = klikego.scrape_event_all(
+        "1488071608761-572", "triathlon-s-light",
+        "Triathlon Audencia La Baule 2024", "triathlon-audencia-la-baule-2024",
+    )
+    assert len(results) == 50
+    assert any(r.status == "DNF" for r in results)
+
+
+# ---------------------------------------------------------------------------
+# Phase C — les splits fins TCN priment sur les splits inter pré-remplis
+# ---------------------------------------------------------------------------
+
+
+def test_parse_detail_ignores_zero_placeholders():
+    """Page détail d'un non-partant : ignore les placeholders 00:00:00 et rang 0."""
+    html = """
+    <div><div>Temps Officiel</div><div>00:00:00</div></div>
+    <div><div>Classement Général</div><div>0</div></div>
+    """
+    r = ScrapedResult(source_url="https://x", provider="klikego")
+    r.status = "DNS"
+    _parse_detail(html, r, {})
+    assert r.total_time == ""        # le 00:00:00 placeholder est ignoré
+    assert r.rank_overall is None    # le rang 0 est ignoré
+
+
+def test_scrape_event_all_tcn_detail_overrides_inter_splits(monkeypatch):
+    """Phase C : les splits fins de la page détail priment sur les splits inter pré-remplis.
+
+    Sans le reset des slots avant _parse_detail, la règle « first-wins » de
+    _parse_detail bloque l'écriture du split fin quand le slot est déjà rempli
+    par la valeur inter (ex. Natation___T1 → swim_time = 00:10:00).
+    Avec le reset, _parse_detail repeuple intégralement et swim_time vaut 00:06:24.
+    """
+    page0 = (FIXTURES / "klikego_datablock_page0.html").read_text()
+
+    # Data block inter=Natation___T1 : bib 422 a 00:10:00 en idx 8 (valeur inter combinée nat+T1)
+    natation_inter_block = _block(["422|true|1|1|CASE Kay|V6|F||00:10:00|||"])
+
+    heat_page_html = """
+    <html><body>
+      <select name="inter" id="inter">
+        <option value="">Arrivée</option>
+        <option value="Natation___T1">Natation + T1</option>
+      </select>
+    </body></html>
+    """
+
+    nantais_search_html = """
+    <html><body><table><tbody>
+      <tr class="result-row" data-dossard="422">
+        <td class="truncate">CASE Kay</td>
+        <td class="font-mono">01:14:31</td>
+      </tr>
+    </tbody></table></body></html>
+    """
+
+    # Page détail bib 422 : split natation FIN différent (00:06:24 ≠ 00:10:00 inter)
+    detail_html = make_detail_html(
+        meta="F - Dossard N°422 - V6 - TRIATHLON CLUB NANTAIS",
+        total_time="01:14:31",
+        splits=[
+            ("Natation", "00:06:24"),
+            ("T1",        "00:01:30"),
+            ("Vélo",      "00:35:00"),
+            ("T2",        "00:01:00"),
+            ("Course",    "00:31:07"),
+        ],
+    )
+
+    class FakeResp:
+        def __init__(self, t, code=200):
+            self.text, self.status_code = t, code
+
+    nantais_calls = {"n": 0}
+
+    class FakeClient:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+        def get(self, url):
+            # Heat page : contient le <select name="inter"> avec Natation___T1
+            if "klikego.com/resultats/" in url and "heat=" in url:
+                return FakeResp(heat_page_html)
+            # course-result.jsp : liste principale (inter=vide, page 0)
+            if "course-result.jsp" in url and "inter=&page=0" in url:
+                return FakeResp(page0)
+            # course-result.jsp : splits inter Natation___T1 → bib 422 a 00:10:00
+            if "course-result.jsp" in url and "inter=Natation___T1" in url:
+                return FakeResp(natation_inter_block)
+            # course-result.jsp : autres pages → stop pagination
+            if "course-result.jsp" in url:
+                return FakeResp("<html></html>")
+            # TCN search city=nantais : bib 422 à la 1ère page, vide ensuite
+            if "resultats-search.jsp" in url and "city=nantais" in url:
+                nantais_calls["n"] += 1
+                return FakeResp(nantais_search_html if nantais_calls["n"] == 1 else "<html></html>")
+            # Page détail bib 422 : split natation FIN = 00:06:24
+            if "resultat-participant.jsp" in url and "dossard=422" in url:
+                return FakeResp(detail_html)
+            return FakeResp("<html></html>")
+
+    monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
+    monkeypatch.setattr(klikego, "_fetch_event_meta", lambda *a, **k: ("triathlon-s-light", None))
+
+    results = klikego.scrape_event_all(
+        "1488071608761-572", "triathlon-s-light",
+        "Triathlon Test 2024", "triathlon-test-2024",
+    )
+
+    r422 = next(r for r in results if r.bib_number == "422")
+    # Sans le reset (avant fix) : swim_time resterait "00:10:00" (valeur inter pré-remplie)
+    # Avec le reset (après fix)  : swim_time = "00:06:24" (valeur fine de la page détail)
+    assert r422.swim_time == "00:06:24", (
+        f"Les splits fins TCN doivent primer sur les splits inter. "
+        f"swim_time={r422.swim_time!r} (attendu '00:06:24')."
+    )
