@@ -4,10 +4,9 @@ import type { ReactNode } from "react";
 export function PageShell({ form = false, children }: { form?: boolean; children: ReactNode }) {
   return (
     <div
+      className="mx-auto px-4 pt-6 pb-16 sm:px-8 sm:pt-9 md:px-10"
       style={{
         maxWidth: form ? "var(--tcn-content-form)" : "var(--tcn-content-max)",
-        margin: "0 auto",
-        padding: "36px 40px 64px",
       }}
     >
       {children}
