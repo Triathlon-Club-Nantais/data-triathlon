@@ -2,6 +2,7 @@ import Link from "next/link";
 import { apiServer } from "@/lib/api/server";
 import { TCN_CLUB_FILTER } from "@/lib/club-constants";
 import { StatCard, Card, Eyebrow, FormatChip } from "@/components/tcn";
+import { PageShell } from "@/components/layout/PageShell";
 import { aggregateDisciplines, formatToken, pctFr } from "@/lib/utils/format";
 import { isPodium } from "@/lib/utils/club-aggregate";
 
@@ -40,23 +41,23 @@ export default async function DashboardPage({
   const topEvents = [...eventsPage.items].sort((a, b) => b.total - a.total).slice(0, 6);
 
   return (
-    <div style={{ maxWidth: "var(--tcn-content-max)", margin: "0 auto", padding: "36px 40px 64px" }}>
+    <PageShell>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 26 }}>
         <div>
           <Eyebrow>Participations aux courses</Eyebrow>
-          <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 40, color: "var(--tcn-ink)", lineHeight: 1, marginTop: 6 }}>Saison 2025 — 2026</div>
+          <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(28px, 5vw, 40px)", color: "var(--tcn-ink)", lineHeight: 1, marginTop: 6 }}>Saison 2025 — 2026</div>
           <div style={{ fontSize: 15, color: "var(--tcn-text-muted)", marginTop: 8, fontWeight: 500 }}>Vue d&apos;ensemble des performances des athlètes du club</div>
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr 1fr", gap: 18, marginBottom: 18 }}>
+      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard variant="hero" label="Dossards enregistrés" value={stats.total.toLocaleString("fr-FR")} delta={`${stats.athletes} athlètes · ${stats.events} épreuves`} />
         <StatCard label="Victoires" value={victoires} icon={<TrophyIcon />} />
         <StatCard label="Podiums" value={podiums} icon={<PodiumIcon />} />
         <StatCard label="Top 10" value={top10} icon={<Top10Icon />} />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1.25fr", gap: 18 }}>
+      <div className="grid gap-4 lg:grid-cols-2" style={{ gridTemplateColumns: undefined }}>
         <Card>
           <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 24, color: "var(--tcn-ink)", marginBottom: 20 }}>Type d&apos;épreuves</div>
           {disciplines.length === 0 ? (
@@ -94,6 +95,6 @@ export default async function DashboardPage({
           {topEvents.length === 0 && <div style={{ padding: 20, textAlign: "center", color: "var(--tcn-text-faint)", fontSize: 14 }}>Aucune épreuve.</div>}
         </Card>
       </div>
-    </div>
+    </PageShell>
   );
 }

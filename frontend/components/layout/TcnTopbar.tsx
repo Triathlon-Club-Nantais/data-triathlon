@@ -2,7 +2,9 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Menu } from "lucide-react";
 import { Button, Modal, Input, Avatar } from "@/components/tcn";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { apiClient } from "@/lib/api/client";
 import type { AthleteBrief } from "@/lib/types";
 
@@ -20,6 +22,15 @@ export function TcnTopbar() {
   const pathname = usePathname();
   const router = useRouter();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const visibleItems = NAV.filter((item) => !item.hidden);
+
+  function isActive(href: string) {
+    return href === "/dashboard"
+      ? pathname === "/" || pathname.startsWith("/dashboard")
+      : pathname.startsWith(href);
+  }
 
   return (
     <div
@@ -27,25 +38,25 @@ export function TcnTopbar() {
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        gap: 24,
-        padding: "16px 40px",
+        gap: 12,
+        padding: "14px 16px",
         background: "var(--tcn-surface)",
         borderBottom: "1px solid var(--tcn-border-strong)",
-        flexWrap: "wrap",
       }}
+      className="sm:px-10"
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
-        <Link href="/dashboard" aria-label="TCN — Accueil" style={{ display: "inline-flex", alignItems: "center" }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-tcn.png" alt="Triathlon Club Nantais" style={{ height: 34, width: "auto", display: "block" }} />
-        </Link>
-        <div style={{ width: 1, height: 26, background: "var(--tcn-border-strong)" }} />
+      {/* Logo */}
+      <Link href="/dashboard" aria-label="TCN — Accueil" style={{ display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo-tcn.png" alt="Triathlon Club Nantais" style={{ height: 34, width: "auto", display: "block" }} />
+      </Link>
+
+      {/* Nav desktop (cachée sur mobile) */}
+      <div className="hidden sm:flex sm:items-center sm:gap-1">
+        <div style={{ width: 1, height: 26, background: "var(--tcn-border-strong)", marginRight: 10 }} />
         <nav style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          {NAV.filter((item) => !item.hidden).map((item) => {
-            const active =
-              item.href === "/dashboard"
-                ? pathname === "/" || pathname.startsWith("/dashboard")
-                : pathname.startsWith(item.href);
+          {visibleItems.map((item) => {
+            const active = isActive(item.href);
             return (
               <Link
                 key={item.href}
@@ -68,7 +79,8 @@ export function TcnTopbar() {
         </nav>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      {/* Actions desktop (cachées sur mobile) */}
+      <div className="hidden sm:flex sm:items-center sm:gap-3">
         <Button
           variant="secondary"
           onClick={() => setPickerOpen(true)}
@@ -97,6 +109,78 @@ export function TcnTopbar() {
           Ajouter un triathlon
         </Button>
       </div>
+
+      {/* Bouton hamburger mobile (caché sur sm+) */}
+      <button
+        type="button"
+        aria-label="Ouvrir le menu"
+        onClick={() => setDrawerOpen(true)}
+        className="sm:hidden flex items-center justify-center flex-shrink-0"
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: "var(--tcn-radius-lg)",
+          background: "var(--tcn-fill)",
+          border: "1px solid var(--tcn-border-strong)",
+          cursor: "pointer",
+        }}
+      >
+        <Menu size={20} color="var(--tcn-ink)" />
+      </button>
+
+      {/* Drawer de navigation mobile */}
+      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+        <SheetContent side="left">
+          <SheetTitle>Navigation</SheetTitle>
+          <nav style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
+            {visibleItems.map((item) => {
+              const active = isActive(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setDrawerOpen(false)}
+                  style={{
+                    padding: "11px 14px",
+                    borderRadius: "var(--tcn-radius-lg)",
+                    fontSize: 15,
+                    fontWeight: active ? 700 : 600,
+                    color: active ? "var(--tcn-orange)" : "var(--tcn-text-muted)",
+                    background: active ? "var(--tcn-orange-10)" : "transparent",
+                    textDecoration: "none",
+                  }}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--tcn-border)" }}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setDrawerOpen(false);
+                setPickerOpen(true);
+              }}
+              style={{ justifyContent: "flex-start" }}
+              icon={
+                <span style={{ display: "inline-flex", width: 20, height: 20, borderRadius: 999, background: "var(--tcn-orange)", color: "#fff", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800 }}>★</span>
+              }
+            >
+              Sélectionner mon nom
+            </Button>
+            <Button
+              onClick={() => {
+                setDrawerOpen(false);
+                router.push("/ajouter");
+              }}
+              icon={<span style={{ fontSize: 18, lineHeight: 1 }}>+</span>}
+            >
+              Ajouter un triathlon
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {pickerOpen && (
         <AthletePicker

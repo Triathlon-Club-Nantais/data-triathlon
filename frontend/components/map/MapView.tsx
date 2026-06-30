@@ -49,7 +49,7 @@ export function MapView({ club }: { club?: string }) {
   const maxCount = Math.max(...events.map((e) => e.count), 1);
 
   return (
-    <MapContainer center={[47.2, -1.5]} zoom={7} scrollWheelZoom={false} className="h-[480px] w-full rounded-md">
+    <MapContainer center={[47.2, -1.5]} zoom={7} scrollWheelZoom={false} className="h-[320px] w-full rounded-md sm:h-[480px]">
       <TileLayer
         attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
