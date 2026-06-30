@@ -281,16 +281,28 @@ def _fetch_event_meta_api(event_id, client: httpx.Client) -> tuple[str, date | N
 def _scrape_results_race(slug: str, url: str, client: httpx.Client) -> list[ScrapedResult]:
     """
     Forme 2026 `results.sportinnovation.fr/race/{slug}` (niveau course) :
-    résout le slug → course → résultats via l'API JSON.
+    GET /api/races/{slug} → meta (title, eventSlug)
+    GET /api/events/{eventSlug} → nom et date de l'événement
+    GET /api/races/{slug}/results → liste des athlètes
     """
-    meta = client.get(f"{API_BASE}/races/slug/{slug}", timeout=15).json()
-    race_id = meta.get("raceId")
-    if not race_id:
+    meta = client.get(f"{API_BASE}/races/{slug}", timeout=15).json()
+    if "error" in meta or not meta.get("slug"):
         raise ValueError(f"Course Sportinnovation introuvable : {slug}")
-    race = client.get(f"{API_BASE}/races/{race_id}", timeout=15).json()
-    event_type = _detect_event_type(race.get("title", ""))
-    event_name, event_date = _fetch_event_meta_api(race.get("eventId"), client)
-    athletes = client.get(f"{API_BASE}/races/{race_id}/results", timeout=20).json()
+    event_type = _detect_event_type(meta.get("title", ""))
+    event_name = ""
+    event_date = None
+    event_slug = meta.get("eventSlug", "")
+    if event_slug:
+        ev = client.get(f"{API_BASE}/events/{event_slug}", timeout=15).json()
+        event_name = ev.get("title", "")
+        raw_date = ev.get("eventDate", "")
+        if raw_date:
+            try:
+                from datetime import date as _date
+                event_date = _date.fromisoformat(raw_date[:10])
+            except ValueError:
+                pass
+    athletes = client.get(f"{API_BASE}/races/{slug}/results", timeout=20).json()
     return [_parse_api_athlete(a, url, event_name, event_type, event_date) for a in athletes]
 
 
