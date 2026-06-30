@@ -24,7 +24,7 @@ function p(over: Partial<Participation> & { id: number }): Participation {
 describe("orderParticipations", () => {
   it("place les finishers avant les non-finishers, par rang", () => {
     const out = orderParticipations([
-      p({ id: 3, status: "DNS" }),
+      p({ id: 3, status: "DNS", rank_overall: 1 }),
       p({ id: 1, status: "finisher", rank_overall: 2 }),
       p({ id: 2, status: "finisher", rank_overall: 1 }),
     ]);
@@ -67,5 +67,6 @@ describe("isNonFinisher", () => {
     expect(isNonFinisher("finisher")).toBe(false);
     expect(isNonFinisher("")).toBe(false);
     expect(isNonFinisher(null)).toBe(false);
+    expect(isNonFinisher(undefined)).toBe(false);
   });
 });
