@@ -72,6 +72,9 @@ DATABASE_URL=sqlite:///./triathlon.db
 
 > Le schéma est géré par **Alembic** : appliquer `alembic upgrade head` après
 > avoir configuré `DATABASE_URL` (voir ci-dessous).
+>
+> 📊 **Modèle de données (MCD)** : voir [`docs/modele-donnees.md`](docs/modele-donnees.md)
+> — diagramme Mermaid des entités, relations et contraintes d'unicité.
 
 ### 3. Backend (FastAPI)
 
@@ -189,6 +192,7 @@ data-triathlon/
 │   ├── Dockerfile
 │   └── package.json
 ├── docs/
+│   ├── modele-donnees.md       # MCD : diagramme Mermaid + contraintes (entités & migrations)
 │   ├── WORKFLOW-IA.md
 │   └── superpowers/            # specs & plans de refonte
 ├── docker-compose.yml           # pile full-stack locale (backend :8000 + frontend :3000)
