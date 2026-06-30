@@ -3,6 +3,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Card, SegmentedControl, PlaceBadge } from "@/components/tcn";
 import { isTCN } from "@/lib/utils/club";
+import { StatusBadge } from "@/components/results/StatusBadge";
+import { orderParticipations, isNonFinisher } from "@/lib/utils/raceOrder";
 import type { Participation } from "@/lib/types";
 
 const FCOLS = "54px 1fr 70px 56px 100px 80px 64px 80px 64px 80px 1.1fr";
@@ -23,7 +25,8 @@ export function RaceFinishers({
 }) {
   const router = useRouter();
   const [filter, setFilter] = useState("all");
-  const rows = filter === "tcn" ? participations.filter((p) => isTCN(p.club)) : participations;
+  const filtered = filter === "tcn" ? participations.filter((p) => isTCN(p.club)) : participations;
+  const rows = orderParticipations(filtered);
   const total = participations.length;
 
   return (
@@ -49,6 +52,7 @@ export function RaceFinishers({
           </div>
           {rows.map((p) => {
             const own = isTCN(p.club);
+            const nf = isNonFinisher(p.status);
             const name = [p.athlete?.nom, p.athlete?.prenom].filter(Boolean).join(" ");
             const splits = p.splits ?? {};
             return (
@@ -65,9 +69,17 @@ export function RaceFinishers({
                   }
                 }}
                 className="tcn-rowlink"
-                style={{ display: "grid", gridTemplateColumns: FCOLS, gap: "0 12px", alignItems: "center", padding: "12px 22px", borderBottom: "1px solid var(--tcn-border-faint)", borderLeft: `3px solid ${own ? "var(--tcn-orange)" : "transparent"}` }}
+                style={{ display: "grid", gridTemplateColumns: FCOLS, gap: "0 12px", alignItems: "center", padding: "12px 22px", borderBottom: "1px solid var(--tcn-border-faint)", borderLeft: `3px solid ${own ? "var(--tcn-orange)" : "transparent"}`, background: nf ? "color-mix(in srgb, var(--tcn-grey-400) 15%, transparent)" : undefined }}
               >
-                <div>{p.rank_overall != null ? <PlaceBadge place={p.rank_overall} style={{ minWidth: 28, fontSize: 16 }} /> : <span style={{ color: "var(--tcn-text-faint)" }}>—</span>}</div>
+                <div>
+                  {nf ? (
+                    <StatusBadge status={p.status} />
+                  ) : p.rank_overall != null ? (
+                    <PlaceBadge place={p.rank_overall} style={{ minWidth: 28, fontSize: 16 }} />
+                  ) : (
+                    <span style={{ color: "var(--tcn-text-faint)" }}>—</span>
+                  )}
+                </div>
                 <div style={{ fontSize: 14, fontWeight: 700, color: "var(--tcn-ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
                 <div style={{ fontSize: 13, color: "var(--tcn-text-body)" }}>{p.category ?? "—"}</div>
                 <div style={{ fontSize: 13, color: "var(--tcn-text-body)" }}>{genderShort(p.athlete?.gender)}</div>
