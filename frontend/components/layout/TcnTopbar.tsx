@@ -6,12 +6,14 @@ import { Button, Modal, Input, Avatar } from "@/components/tcn";
 import { apiClient } from "@/lib/api/client";
 import type { AthleteBrief } from "@/lib/types";
 
+// `hidden: true` → onglet temporairement masqué (issue #10). Code et page
+// conservés ; réafficher en retirant le drapeau.
 const NAV = [
   { href: "/dashboard", label: "Tableau de bord" },
   { href: "/resultats", label: "Résultats" },
   { href: "/club", label: "Club" },
-  { href: "/carte", label: "Carte" },
-  { href: "/admin", label: "Admin" },
+  { href: "/carte", label: "Carte", hidden: true },
+  { href: "/admin", label: "Admin", hidden: true },
 ];
 
 export function TcnTopbar() {
@@ -39,7 +41,7 @@ export function TcnTopbar() {
         </Link>
         <div style={{ width: 1, height: 26, background: "var(--tcn-border-strong)" }} />
         <nav style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          {NAV.map((item) => {
+          {NAV.filter((item) => !item.hidden).map((item) => {
             const active =
               item.href === "/dashboard"
                 ? pathname === "/" || pathname.startsWith("/dashboard")
