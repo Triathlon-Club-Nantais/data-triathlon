@@ -1,15 +1,8 @@
 "use client";
 import { useEffect, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { toast } from "sonner";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import { Badge } from "@/components/ui/badge";
+import { Card, Badge, FormatChip } from "@/components/tcn";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Select,
@@ -18,10 +11,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { SportBadge } from "./SportBadge";
-import { EventParticipations } from "./EventParticipations";
 import { useInfiniteEvents } from "@/lib/queries/events";
-import { useDeleteParticipation } from "@/lib/queries/participations";
+import { eventTypeLabel } from "@/lib/constants";
+import { formatToken } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
 import type { EventPage, ParticipationFilters } from "@/lib/types";
 
@@ -30,6 +22,9 @@ const SORT_OPTIONS = [
   { value: "date_asc", label: "Date (ancien)" },
   { value: "name", label: "Nom" },
 ];
+
+// Date | Épreuve | Type | Format | Résultats | TCN | →
+const COLS = "120px 1fr 150px 90px 110px 90px 28px";
 
 export function EventList({
   filters,
@@ -42,8 +37,6 @@ export function EventList({
     filters,
     initial,
   );
-  const qc = useQueryClient();
-  const del = useDeleteParticipation();
   const router = useRouter();
   const sp = useSearchParams();
   const sentinel = useRef<HTMLDivElement | null>(null);
@@ -60,18 +53,6 @@ export function EventList({
     io.observe(el);
     return () => io.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
-
-  async function onDelete(id: number) {
-    try {
-      await del.mutateAsync(id);
-      qc.invalidateQueries({ queryKey: ["events"] });
-      qc.invalidateQueries({ queryKey: ["course-participations"] });
-      router.refresh(); // rafraîchit les compteurs rendus côté serveur
-      toast.success("Résultat supprimé.");
-    } catch (e) {
-      toast.error((e as Error).message);
-    }
-  }
 
   function setSort(value: string) {
     const params = new URLSearchParams(sp.toString());
@@ -91,8 +72,23 @@ export function EventList({
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex justify-end">
+    <Card padding={0} style={{ overflow: "hidden" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "20px 26px 16px",
+        }}
+      >
+        <div>
+          <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)" }}>
+            Toutes les épreuves
+          </div>
+          <div style={{ fontSize: 13, color: "var(--tcn-text-faint)", fontWeight: 600 }}>
+            Clique sur une épreuve pour voir le détail →
+          </div>
+        </div>
         <Select value={currentSort} onValueChange={(v) => setSort(v as string)}>
           <SelectTrigger className="h-9 w-44">
             <SelectValue>
@@ -109,39 +105,80 @@ export function EventList({
         </Select>
       </div>
 
-      <Accordion multiple className="space-y-2">
-        {events.map((ev) => (
-          <AccordionItem key={ev.id} value={String(ev.id)} className="rounded-md border px-4">
-            <AccordionTrigger>
-              <div className="flex flex-1 flex-wrap items-center gap-3 pr-4 text-left">
-                <span className="font-semibold">{ev.event_name}</span>
-                <SportBadge type={ev.event_type} />
-                {ev.event_date && (
-                  <span className="text-sm text-muted-foreground">{formatDate(ev.event_date)}</span>
-                )}
-                {ev.is_relay && <Badge variant="destructive">Relais</Badge>}
-                <Badge variant="secondary" className="ml-auto">
-                  {ev.total} résultat{ev.total > 1 ? "s" : ""}
-                </Badge>
-                {ev.tcn_count > 0 && <Badge>{ev.tcn_count} TCN</Badge>}
-              </div>
-            </AccordionTrigger>
-            <AccordionContent className="space-y-3 pt-2">
-              <EventParticipations
-                courseId={ev.id}
-                club={filters.club}
-                name={filters.name}
-                onDelete={onDelete}
-              />
-            </AccordionContent>
-          </AccordionItem>
-        ))}
-      </Accordion>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: COLS,
+          gap: "0 18px",
+          padding: "0 26px 12px",
+          fontSize: 12,
+          fontWeight: 700,
+          textTransform: "uppercase",
+          letterSpacing: ".04em",
+          color: "var(--tcn-text-faint)",
+          borderBottom: "1px solid var(--tcn-border)",
+        }}
+      >
+        <div>Date</div>
+        <div>Épreuve</div>
+        <div>Type</div>
+        <div>Format</div>
+        <div>Résultats</div>
+        <div>TCN</div>
+        <div></div>
+      </div>
+
+      {events.map((ev) => (
+        <Link
+          key={ev.id}
+          href={`/courses/${ev.id}`}
+          className="tcn-rowlink"
+          style={{
+            display: "grid",
+            gridTemplateColumns: COLS,
+            gap: "0 18px",
+            alignItems: "center",
+            padding: "15px 26px",
+            borderBottom: "1px solid var(--tcn-border-faint)",
+          }}
+        >
+          <div style={{ fontSize: 14, color: "var(--tcn-text-muted)", fontWeight: 600 }}>
+            {formatDate(ev.event_date)}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+            <span style={{ fontSize: 15, color: "var(--tcn-ink)", fontWeight: 700 }}>{ev.event_name}</span>
+            {ev.is_relay && <Badge variant="orange">Relais</Badge>}
+          </div>
+          <div style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>{eventTypeLabel(ev.event_type)}</div>
+          <div>
+            <FormatChip>{formatToken(ev.event_type, ev.distance_km)}</FormatChip>
+          </div>
+          <div style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>
+            {ev.total} résultat{ev.total > 1 ? "s" : ""}
+          </div>
+          <div>
+            {ev.tcn_count > 0 ? (
+              <Badge count>{ev.tcn_count}</Badge>
+            ) : (
+              <span style={{ color: "var(--tcn-text-faint)" }}>—</span>
+            )}
+          </div>
+          <div style={{ textAlign: "right", color: "var(--tcn-text-disabled)", fontSize: 16 }}>→</div>
+        </Link>
+      ))}
+
+      {isLoading && events.length === 0 && (
+        <p style={{ padding: 24, textAlign: "center", fontSize: 14, color: "var(--tcn-text-faint)" }}>
+          Chargement…
+        </p>
+      )}
 
       <div ref={sentinel} aria-hidden />
       {isFetchingNextPage && (
-        <p className="py-4 text-center text-sm text-muted-foreground">Chargement…</p>
+        <p style={{ padding: 16, textAlign: "center", fontSize: 14, color: "var(--tcn-text-faint)" }}>
+          Chargement…
+        </p>
       )}
-    </div>
+    </Card>
   );
 }
