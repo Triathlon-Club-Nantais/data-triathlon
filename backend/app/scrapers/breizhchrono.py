@@ -109,6 +109,18 @@ def _fetch_all_heats(slug_id: str, client: httpx.Client) -> list[tuple[str, str]
     return heats
 
 
+def _detect_relay(heat_label: str, heat_slug: str) -> bool:
+    """Indique si un heat est une épreuve de relais.
+
+    Le relais est une propriété du heat (et non du participant) : tous les
+    résultats d'un même heat héritent donc de cette valeur. Deux signaux :
+      - le libellé affiché contient « Relais » (cas nominal) ;
+      - à défaut de libellé (heat ciblé directement, sans label), le slug
+        d'un heat relais se termine par « --- » sur Breizh Chrono.
+    """
+    return "relais" in heat_label.lower() or heat_slug.endswith("---")
+
+
 def _import_one_heat(
     event_id: str, heat_slug: str, heat_label: str,
     event_name: str, slug: str, event_date, client: httpx.Client,
@@ -117,7 +129,7 @@ def _import_one_heat(
     from app.scrapers import klikego_platform as plat
     from app.scrapers.klikego import _detect_event_type
 
-    is_relay = "relais" in heat_label.lower() or heat_slug.endswith("---")
+    is_relay = _detect_relay(heat_label, heat_slug)
     source_url = f"{BASE}/resultats-courses/{slug}-{event_id}/{heat_slug}"
     heat_page = client.get(source_url)
     heat_page_html = heat_page.text if heat_page.status_code == 200 else ""
@@ -135,6 +147,7 @@ def _import_one_heat(
         event_date=event_date,
         client=client,
     )
+    # is_relay est une propriété du heat : on la propage à tous ses résultats.
     for r in results:
         r.is_relay = is_relay
     return results

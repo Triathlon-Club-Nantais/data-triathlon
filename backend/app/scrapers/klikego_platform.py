@@ -75,11 +75,13 @@ def _parse_rank(value: str) -> int | None:
 def parse_data_row(fields: list[str]) -> dict:
     """Transforme une ligne du data block (12 champs) en dict de champs ScrapedResult."""
     f = (fields + [""] * 12)[:12]
-    dossard, _diploma, clt, cltcat, nom, cat, sexe, club, _inter, officiel, _reel, _end = f
+    # `gender_raw` = champ `sexe` du data block (cf. docstring du module) ; on
+    # le normalise en `gender` ("M"/"F"), le nom utilisé côté modèle.
+    dossard, _diploma, clt, cltcat, nom, cat, gender_raw, club, _inter, officiel, _reel, _end = f
 
     status = _STATUS_BY_TOKEN.get(clt.strip().upper(), "")
     nom_fam, prenom = _split_name(nom.strip())
-    gender = sexe.strip().upper()
+    gender = gender_raw.strip().upper()
     if gender == "H":  # alias utilisé par certains systèmes
         gender = "M"
 
