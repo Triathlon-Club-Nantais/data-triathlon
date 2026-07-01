@@ -9,11 +9,16 @@ Two URL formats:
    - Name cell format: "LASTNAME FirstnameG-CatG" (G=H/F, Cat=category)
    - Columns: Place | Dossard | Nom | Place Cat. | Club | Temps | ... | Tps Nat | T1 | Tps Velo | T2 | Tps CAP
 
-2. results.sportinnovation.fr/detail/{resultId}  (4 URLs)
-   - JSON API: GET https://sportinnovation.fr/api/results/{id}
-   - No splits available in this format
+2. results.sportinnovation.fr/race/{slug}  (format 2026)
+   - JSON API : GET /api/races/{slug} → meta, /api/races/{slug}/results → athlètes
+   - Splits via GET /api/results/{id_or_slug}?intermediates=1 par athlète
+   - Récupérés en parallèle (ThreadPoolExecutor, max 20 workers)
+
+3. results.sportinnovation.fr/detail/{id}  (lien individuel)
+   - Résout le raceSlug via GET /api/results/{id}, puis même pipeline que /race/{slug}
 """
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 from urllib.parse import urlparse
 
@@ -242,7 +247,12 @@ def _classify_results_url(url: str) -> tuple[str, str]:
 
 
 def _parse_api_athlete(
-    a: dict, url: str, event_name: str, event_type: str, event_date
+    a: dict,
+    url: str,
+    event_name: str,
+    event_type: str,
+    event_date,
+    splits: dict[str, str] | None = None,
 ) -> ScrapedResult:
     """Construit un ScrapedResult depuis un athlète de l'API JSON sportinnovation."""
     res = ScrapedResult(source_url=url, provider="sportinnovation")
@@ -252,7 +262,7 @@ def _parse_api_athlete(
     res.athlete_name = (a.get("lastName") or "").strip().upper()
     res.athlete_firstname = (a.get("firstName") or "").strip()
     res.bib_number = str(a.get("bib") or "")
-    res.club = a.get("clubName") or ""
+    res.club = (a.get("clubName") or "").strip()
     res.gender = a.get("sex") or ""
     res.category = a.get("category") or ""
     res.rank_overall = normalize_rank(str(a.get("generalRanking") or ""))
@@ -264,6 +274,12 @@ def _parse_api_athlete(
         res.rank_overall = res.rank_gender = res.rank_category = None
     else:
         res.total_time = normalize_time(a.get("officialTime") or a.get("realTime") or "")
+    if splits:
+        res.swim_time = splits.get("swim", "")
+        res.t1_time = splits.get("t1", "")
+        res.bike_time = splits.get("bike", "")
+        res.t2_time = splits.get("t2", "")
+        res.run_time = splits.get("run", "")
     res.raw_data = a
     return res
 
@@ -279,6 +295,109 @@ def _fetch_event_meta_api(event_id, client: httpx.Client) -> tuple[str, date | N
         except ValueError:
             pass
     return ev.get("title", ""), event_date
+
+
+def _location_to_slot(location: str) -> str | None:
+    """
+    Traduit un nom de point intermédiaire sportinnovation en slot triathlon.
+
+    Triathlon (labels français, ex. BayMan) :
+      "Temps Natation" → swim, "Transition 1" → t1, "Temps Vélo" → bike,
+      "Transition 2" → t2, "Temps CaP" → run
+
+    Duathlon (labels checkpoints) :
+      IN1 → swim (course1), OUT1 → t1, VELO1 → bike, OUT2 → t2, IN2 → run (course2)
+      CAP*/START/FINISH ignorés (sous-checkpoints, non porteurs du temps de segment)
+      (build_splits ré-étiquette swim/run → course1/course2 selon event_type)
+    """
+    loc = location.lower().strip()
+    # Triathlon — labels français (Temps Natation, Transition 1, Temps Vélo…)
+    if any(k in loc for k in ("natation", "swim", "nage")):
+        return "swim"
+    if "transition 1" in loc or loc == "t1":
+        return "t1"
+    if "transition 2" in loc or loc == "t2":
+        return "t2"
+    if any(k in loc for k in ("vélo", "velo", "bike", "cycle")):
+        return "bike"
+    if any(k in loc for k in ("temps cap", "temps cour", "course à pied")):
+        return "run"
+    # Duathlon — checkpoint labels exacts (évite de matcher CAP1/CAP2)
+    if loc == "in1":
+        return "swim"
+    if loc == "out1":
+        return "t1"
+    if loc in ("velo1", "velo"):
+        return "bike"
+    if loc == "out2":
+        return "t2"
+    if loc == "in2":
+        return "run"
+    return None
+
+
+def _intermediates_to_splits(intermediates: list[dict]) -> dict[str, str]:
+    """Construit un dict slot→temps depuis la liste d'intermédiaires triés par position."""
+    splits: dict[str, str] = {}
+    sorted_inter = sorted(intermediates, key=lambda x: x.get("position") or 99)
+    for inter in sorted_inter:
+        slot = _location_to_slot(inter.get("location") or "")
+        if not slot:
+            continue
+        t = normalize_time(inter.get("officialTime") or "")
+        if t and slot not in splits:
+            splits[slot] = t
+    return splits
+
+
+def _fetch_athlete_splits(
+    athlete_ref: str | int,
+    client: httpx.Client,
+) -> dict[str, str]:
+    """Récupère les splits d'un athlète via /api/results/{ref}?intermediates=1."""
+    try:
+        r = client.get(
+            f"{API_BASE}/results/{athlete_ref}",
+            params={"intermediates": "1"},
+            timeout=15,
+        )
+        r.raise_for_status()
+        data = r.json()
+        return _intermediates_to_splits(data.get("intermediates") or [])
+    except Exception:
+        return {}
+
+
+def _fetch_splits_parallel(
+    athletes: list[dict],
+    client: httpx.Client,
+    max_workers: int = 20,
+) -> dict[str, dict[str, str]]:
+    """
+    Récupère les splits de tous les athlètes en parallèle.
+    Clé du dict retourné : bib (str) → splits dict.
+    """
+    ref_key = "id" if athletes and athletes[0].get("id") else "slug"
+    tasks: dict[str, str | int] = {
+        a["bib"]: a[ref_key]
+        for a in athletes
+        if a.get(ref_key)
+    }
+    if not tasks:
+        return {}
+
+    results: dict[str, dict[str, str]] = {}
+
+    def fetch(bib: str, ref: str | int) -> tuple[str, dict[str, str]]:
+        return bib, _fetch_athlete_splits(ref, client)
+
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = {pool.submit(fetch, bib, ref): bib for bib, ref in tasks.items()}
+        for future in as_completed(futures):
+            bib, splits = future.result()
+            results[bib] = splits
+
+    return results
 
 
 def _scrape_results_race(slug: str, url: str, client: httpx.Client) -> list[ScrapedResult]:
@@ -306,7 +425,11 @@ def _scrape_results_race(slug: str, url: str, client: httpx.Client) -> list[Scra
             except ValueError:
                 pass
     athletes = client.get(f"{API_BASE}/races/{slug}/results", timeout=20).json()
-    return [_parse_api_athlete(a, url, event_name, event_type, event_date) for a in athletes]
+    splits_by_bib = _fetch_splits_parallel(athletes, client)
+    return [
+        _parse_api_athlete(a, url, event_name, event_type, event_date, splits_by_bib.get(a.get("bib", ""), {}))
+        for a in athletes
+    ]
 
 
 def scrape_event_all(url: str) -> list[ScrapedResult]:
