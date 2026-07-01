@@ -11,7 +11,9 @@ from app.core.time import utcnow
 class Course(Base):
     __tablename__ = "courses"
     __table_args__ = (
-        UniqueConstraint("name", "event_date", "event_type", name="uq_course_identity"),
+        UniqueConstraint(
+            "name", "event_date", "event_type", "is_relay", name="uq_course_identity"
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)

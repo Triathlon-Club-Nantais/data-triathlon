@@ -53,7 +53,7 @@ def reclassify_existing(db: Session) -> int:
 
         # Collision d'identité (nom, date, new_type) avec une course existante ?
         target = course_repository.get_by_identity(
-            db, course.name, course.event_date, new_type
+            db, course.name, course.event_date, new_type, course.is_relay
         )
         if target is not None and target.id != course.id:
             # Fusion : repointer les participations vers la course canonique via

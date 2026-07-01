@@ -131,3 +131,21 @@ def test_get_or_create_course_explicit_distance_km_wins(db_session):
                  distance_km=30.0)
     course = mapping.get_or_create_course(db_session, s, event_url="http://x")
     assert course.distance_km == 30.0
+
+
+def test_get_or_create_course_solo_and_relay_are_distinct(db_session):
+    solo = _scraped(
+        event_name="Triathlon de Nantes",
+        event_type="triathlon-m",
+        is_relay=False,
+    )
+    relais = _scraped(
+        event_name="Triathlon de Nantes",
+        event_type="triathlon-m",
+        is_relay=True,
+    )
+    c_solo = mapping.get_or_create_course(db_session, solo, event_url="http://x")
+    c_relais = mapping.get_or_create_course(db_session, relais, event_url="http://x")
+    assert c_solo.id != c_relais.id
+    assert c_solo.is_relay is False
+    assert c_relais.is_relay is True

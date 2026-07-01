@@ -10,6 +10,7 @@ from app.scrapers.prolivesport import (
     _build_split_map,
     _derive_status,
     _detect_event_type,
+    _is_relay,
     _parse_athlete,
     _parse_url,
     _resolve_race,
@@ -122,6 +123,39 @@ def test_parse_athlete_dnf_clears_time_and_ranks():
     assert r.status == "DNF"
     assert r.total_time == ""
     assert r.rank_overall is None
+
+
+# ---------------------------------------------------------------------------
+# _is_relay — un relais ProliveSport a category="Relay" / categoryRef="R"
+# (les courses solo portent des catégories d'âge : Senior/SE, Master/MA…)
+# ---------------------------------------------------------------------------
+
+def test_is_relay_from_category_ref():
+    assert _is_relay({"category": "Relay", "categoryRef": "R"}) is True
+
+
+def test_is_relay_from_category_label_only():
+    assert _is_relay({"category": "relay", "categoryRef": ""}) is True
+
+
+def test_is_relay_solo_age_category():
+    assert _is_relay({"category": "Senior", "categoryRef": "SE"}) is False
+
+
+def test_parse_athlete_detects_relay():
+    athlete = {
+        "lastname": "CEMONTRIATHLON", "firstname": ".", "number": "754",
+        "category": "Relay", "categoryRef": "R", "sex": "X",
+        "rank": "1", "time": "00:54:47",
+    }
+    r = _parse_athlete(athlete, {}, "http://x", "Triathlon Audencia", "triathlon", None)
+    assert r.is_relay is True
+
+
+def test_parse_athlete_solo_not_relay():
+    athlete = {"lastname": "Dupont", "number": "1", "categoryRef": "SE", "time": "01:00:00"}
+    r = _parse_athlete(athlete, {}, "http://x", "E", "triathlon-s", None)
+    assert r.is_relay is False
 
 
 def test_detect_event_type():
