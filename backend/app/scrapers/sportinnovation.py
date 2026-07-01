@@ -17,6 +17,7 @@ Two URL formats:
 3. results.sportinnovation.fr/detail/{id}  (lien individuel)
    - Résout le raceSlug via GET /api/results/{id}, puis même pipeline que /race/{slug}
 """
+import logging
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
@@ -27,6 +28,8 @@ from bs4 import BeautifulSoup
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
 from .utils import derive_status_from_label, normalize_rank, normalize_time
+
+logger = logging.getLogger(__name__)
 
 HEADERS = {
     "User-Agent": (
@@ -350,32 +353,32 @@ def _intermediates_to_splits(intermediates: list[dict]) -> dict[str, str]:
     return splits
 
 
-def _fetch_athlete_splits(
-    athlete_ref: str | int,
-    client: httpx.Client,
-) -> dict[str, str]:
-    """Récupère les splits d'un athlète via /api/results/{ref}?intermediates=1."""
+def _fetch_athlete_splits(athlete_ref: str | int) -> dict[str, str]:
+    """Récupère les splits d'un athlète via /api/results/{ref}?intermediates=1.
+    Crée son propre client httpx (thread-safe, pas de partage de connexion).
+    """
     try:
-        r = client.get(
-            f"{API_BASE}/results/{athlete_ref}",
-            params={"intermediates": "1"},
-            timeout=15,
-        )
-        r.raise_for_status()
-        data = r.json()
-        return _intermediates_to_splits(data.get("intermediates") or [])
+        with httpx.Client(follow_redirects=True, timeout=15, headers=HEADERS) as c:
+            r = c.get(
+                f"{API_BASE}/results/{athlete_ref}",
+                params={"intermediates": "1"},
+            )
+            r.raise_for_status()
+            data = r.json()
+            return _intermediates_to_splits(data.get("intermediates") or [])
     except Exception:
+        logger.warning("Échec récupération splits pour l'athlète %s", athlete_ref, exc_info=True)
         return {}
 
 
 def _fetch_splits_parallel(
     athletes: list[dict],
-    client: httpx.Client,
     max_workers: int = 20,
 ) -> dict[str, dict[str, str]]:
     """
     Récupère les splits de tous les athlètes en parallèle.
-    Clé du dict retourné : bib (str) → splits dict.
+    Clé du dict retourné : bib → splits dict.
+    Chaque worker crée son propre httpx.Client pour éviter les conflits de pool.
     """
     ref_key = "id" if athletes and athletes[0].get("id") else "slug"
     tasks: dict[str, str | int] = {
@@ -389,7 +392,7 @@ def _fetch_splits_parallel(
     results: dict[str, dict[str, str]] = {}
 
     def fetch(bib: str, ref: str | int) -> tuple[str, dict[str, str]]:
-        return bib, _fetch_athlete_splits(ref, client)
+        return bib, _fetch_athlete_splits(ref)
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = {pool.submit(fetch, bib, ref): bib for bib, ref in tasks.items()}
@@ -425,7 +428,7 @@ def _scrape_results_race(slug: str, url: str, client: httpx.Client) -> list[Scra
             except ValueError:
                 pass
     athletes = client.get(f"{API_BASE}/races/{slug}/results", timeout=20).json()
-    splits_by_bib = _fetch_splits_parallel(athletes, client)
+    splits_by_bib = _fetch_splits_parallel(athletes)
     return [
         _parse_api_athlete(a, url, event_name, event_type, event_date, splits_by_bib.get(a.get("bib", ""), {}))
         for a in athletes
