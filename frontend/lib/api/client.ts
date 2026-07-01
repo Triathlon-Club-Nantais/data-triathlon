@@ -8,6 +8,7 @@ import type {
   ParticipationFilters,
   PendingProvider,
   ScrapedPreview,
+  Season,
   Stats,
 } from "@/lib/types";
 
@@ -29,7 +30,12 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 function toQuery(filters: Record<string, unknown>): string {
   const params = new URLSearchParams();
   Object.entries(filters).forEach(([k, v]) => {
-    if (v !== undefined && v !== null && v !== "") params.set(k, String(v));
+    if (v === undefined || v === null || v === "") return;
+    if (Array.isArray(v)) {
+      if (v.length > 0) params.set(k, v.join(","));
+      return;
+    }
+    params.set(k, String(v));
   });
   const qs = params.toString();
   return qs ? `?${qs}` : "";
@@ -63,7 +69,10 @@ export const apiClient = {
   listEvents: (filters: ParticipationFilters = {}) =>
     request<EventPage>(`/courses/events${toQuery(filters as Record<string, unknown>)}`),
 
-  getStats: (club?: string) => request<Stats>(`/stats${toQuery({ club })}`),
+  getStats: (club?: string, seasons?: number[]) =>
+    request<Stats>(`/stats${toQuery({ club, seasons })}`),
+  listSeasons: (club?: string) =>
+    request<Season[]>(`/stats/seasons${toQuery({ club })}`),
   getEventsGeo: (club?: string) =>
     request<GeoEvent[]>(`/stats/events-geo${toQuery({ club })}`),
 

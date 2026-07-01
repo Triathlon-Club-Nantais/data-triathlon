@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
+from app.core.season import parse_seasons
 from app.repositories import course_repository, participation_repository
 from app.schemas.course import CourseBrief, EventPage
 from app.schemas.participation import ParticipationOut
@@ -31,6 +32,7 @@ def list_events(
     club: str | None = Query(None),
     date_from: str | None = Query(None),
     date_to: str | None = Query(None),
+    seasons: str | None = Query(None),
     sort: str = Query("date_desc"),
     page: int = Query(1, ge=1),
     page_size: int = Query(30, ge=1, le=200),
@@ -45,6 +47,7 @@ def list_events(
         club=club,
         date_from=_parse_date(date_from),
         date_to=_parse_date(date_to),
+        seasons=parse_seasons(seasons),
         sort=sort,
         page=page,
         page_size=page_size,
