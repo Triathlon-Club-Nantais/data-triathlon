@@ -98,6 +98,11 @@ def test_classify_results_url_race_form():
     assert (kind, ident) == ("race", "zmhc-triathlon-m")
 
 
+def test_classify_results_url_detail_form():
+    kind, ident = _classify_results_url("https://results.sportinnovation.fr/detail/51636b-18-c1066a43c01880e8")
+    assert (kind, ident) == ("detail", "51636b-18-c1066a43c01880e8")
+
+
 def test_classify_results_url_event_form():
     kind, ident = _classify_results_url("https://results.sportinnovation.fr/bayman_triathlon")
     assert (kind, ident) == ("event", "bayman_triathlon")

@@ -227,14 +227,17 @@ def _fetch_all_pages(event_id: str, client: httpx.Client) -> tuple[str, list[lis
 def _classify_results_url(url: str) -> tuple[str, str]:
     """
     Classe une URL results.sportinnovation.fr :
-      - /race/{slug}  → ("race", slug)    [affichage 2026, niveau course]
-      - /{codeUrl}    → ("event", codeUrl) [niveau événement]
+      - /race/{slug}    → ("race", slug)    [affichage 2026, niveau course]
+      - /detail/{id}    → ("detail", id)    [lien individuel → résout le raceSlug]
+      - /{codeUrl}      → ("event", codeUrl) [niveau événement]
     """
     parts = [p for p in urlparse(url).path.strip("/").split("/") if p]
     if not parts:
         raise ValueError(f"URL results.sportinnovation.fr sans identifiant : {url}")
     if parts[0] == "race" and len(parts) >= 2:
         return "race", parts[1]
+    if parts[0] == "detail" and len(parts) >= 2:
+        return "detail", parts[1]
     return "event", parts[0]
 
 
@@ -316,6 +319,14 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
             if kind == "race":
                 # Forme 2026 /race/{slug} : une seule course
                 return _scrape_results_race(ident, url, client)
+
+            if kind == "detail":
+                # Lien individuel /detail/{id} → résout le raceSlug puis importe toute la course
+                result_meta = client.get(f"{API_BASE}/results/{ident}", timeout=15).json()
+                race_slug = result_meta.get("raceSlug")
+                if not race_slug:
+                    raise ValueError(f"Impossible de résoudre le raceSlug depuis le détail : {ident}")
+                return _scrape_results_race(race_slug, url, client)
 
             # Forme /{codeUrl} : niveau événement (toutes ses courses)
             events = client.get(f"{API_BASE}/events", timeout=15).json()
