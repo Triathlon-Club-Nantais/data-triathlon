@@ -13,7 +13,11 @@ def get(db: Session, course_id: int) -> Course | None:
 
 
 def get_by_identity(
-    db: Session, name: str, event_date: date | None, event_type: str
+    db: Session,
+    name: str,
+    event_date: date | None,
+    event_type: str,
+    is_relay: bool,
 ) -> Course | None:
     return (
         db.query(Course)
@@ -21,6 +25,7 @@ def get_by_identity(
             Course.name == name,
             Course.event_date == event_date,
             Course.event_type == event_type,
+            Course.is_relay == is_relay,
         )
         .first()
     )
@@ -37,7 +42,7 @@ def get_or_create(
     is_relay: bool = False,
     distance_km: float | None = None,
 ) -> Course:
-    existing = get_by_identity(db, name, event_date, event_type)
+    existing = get_by_identity(db, name, event_date, event_type, is_relay)
     if existing:
         return existing
     course = Course(

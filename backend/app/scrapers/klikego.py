@@ -259,6 +259,9 @@ def _parse_search_row(
     result.event_name = event_name
     result.event_type = _detect_event_type(heat, slug)
     result.rank_overall = rank
+    # Un heat Klikego est mono-discipline → drapeau relais uniforme sur ses résultats.
+    # Le « s » final de « relais » n'est pas un token de taille → classification intacte.
+    result.is_relay = "relais" in (heat or "").lower()
 
     dossard = row.get("data-dossard", "")
     result.bib_number = dossard

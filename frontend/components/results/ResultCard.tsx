@@ -11,6 +11,7 @@ import { Medal } from "@/components/ui/medal";
 import { InitialsAvatar } from "@/components/ui/initials-avatar";
 import { splitSegments } from "@/lib/utils/splits";
 import { formatDate, timeAgo } from "@/lib/utils/date";
+import { formatEventName } from "@/lib/utils/event";
 import type { Participation } from "@/lib/types";
 
 export function ResultCard({
@@ -74,7 +75,7 @@ export function ResultCard({
 
         <div className="flex flex-wrap items-center gap-2 border-b pb-3 text-sm">
           <Link href={`/courses/${c.id}`} className="font-semibold hover:underline">
-            {c?.name || "Épreuve inconnue"}
+            {c?.name ? formatEventName(c.name, c.is_relay) : "Épreuve inconnue"}
           </Link>
           <SportBadge type={c?.event_type} />
           {c?.event_date && (

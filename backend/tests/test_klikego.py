@@ -636,3 +636,33 @@ def test_parse_search_row_finisher_no_status():
     assert r.status == ""
     assert r.total_time == "01:23:45"
     assert r.rank_overall == 5
+
+
+def test_parse_search_row_relay_heat_sets_is_relay():
+    """Un heat « ...relais » marque tous les résultats du heat comme relais."""
+    row = _make_search_row(bib="12", name="DUPONT Jean")
+    result = _parse_search_row(
+        row, "EVT1", "triathlon-m-relais", "Tri M", "tri-m", rank=1
+    )
+    assert result.is_relay is True
+    assert result.event_type == "triathlon-m"
+
+
+def test_parse_search_row_individual_heat_not_relay():
+    """Un heat « ...individuel » reste solo."""
+    row = _make_search_row(bib="13", name="MARTIN Paul")
+    result = _parse_search_row(
+        row, "EVT1", "triathlon-m-individuel", "Tri M", "tri-m", rank=1
+    )
+    assert result.is_relay is False
+    assert result.event_type == "triathlon-m"
+
+
+def test_parse_search_row_duathlon_en_relais_heat():
+    """Heat « duathlon-s---en-relais » → relais + event_type duathlon-s."""
+    row = _make_search_row(bib="14", name="DURAND Eve")
+    result = _parse_search_row(
+        row, "EVT1", "duathlon-s---en-relais", "Dua S", "dua-s", rank=1
+    )
+    assert result.is_relay is True
+    assert result.event_type == "duathlon-s"
