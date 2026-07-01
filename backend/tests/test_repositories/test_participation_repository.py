@@ -104,3 +104,82 @@ def test_events_page_pagination_and_sort(db_session):
 
     by_name = participation_repository.events_page(db_session, sort="name")
     assert [r.event_name for r in by_name["items"]] == ["Alpha", "Beta"]
+
+
+def test_for_stats_filtre_par_saison_unique(db_session):
+    athlete, course_2025 = _setup(db_session)  # course "Tri Z" le 2026-05-16 → saison 2025
+    c_autre = course_repository.get_or_create(
+        db_session, name="Tri Automne", event_date=date(2024, 10, 1), event_type="triathlon-s"
+    )  # saison 2024
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course_2025.id, bib_number="1", club="TCN"
+    )
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=c_autre.id, bib_number="2", club="TCN"
+    )
+    db_session.flush()
+
+    only_2025 = participation_repository.for_stats(db_session, seasons=[2025])
+    assert {p.course.name for p in only_2025} == {"Tri Z"}
+
+
+def test_for_stats_multi_saisons_non_contigues(db_session):
+    athlete, course_2025 = _setup(db_session)  # "Tri Z" 2026-05-16 → saison 2025
+    c_2023 = course_repository.get_or_create(
+        db_session, name="Tri 2023", event_date=date(2023, 10, 1), event_type="triathlon-s"
+    )  # saison 2023
+    c_2024 = course_repository.get_or_create(
+        db_session, name="Tri 2024", event_date=date(2024, 10, 1), event_type="triathlon-s"
+    )  # saison 2024
+    for i, c in enumerate((course_2025, c_2023, c_2024)):
+        participation_repository.create(
+            db_session, athlete_id=athlete.id, course_id=c.id, bib_number=str(i), club="TCN"
+        )
+    db_session.flush()
+
+    rows = participation_repository.for_stats(db_session, seasons=[2025, 2023])
+    assert {p.course.name for p in rows} == {"Tri Z", "Tri 2023"}
+
+
+def test_events_page_filtre_par_saison_exclut_sans_date(db_session):
+    athlete, course_2025 = _setup(db_session)  # "Tri Z" → saison 2025
+    c_sans_date = course_repository.get_or_create(
+        db_session, name="Sans Date", event_date=None, event_type="triathlon-s"
+    )
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course_2025.id, bib_number="1", club="TCN"
+    )
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=c_sans_date.id, bib_number="2", club="TCN"
+    )
+    db_session.flush()
+
+    page = participation_repository.events_page(db_session, seasons=[2025])
+    assert page["total_events"] == 1
+    assert page["items"][0].event_name == "Tri Z"
+
+
+def test_distinct_seasons_compte_et_exclut_epreuves_sans_date(db_session):
+    athlete, course_2025 = _setup(db_session)  # saison 2025
+    c_2023 = course_repository.get_or_create(
+        db_session, name="Tri 2023", event_date=date(2023, 10, 1), event_type="triathlon-s"
+    )
+    c_sans_date = course_repository.get_or_create(
+        db_session, name="Sans Date", event_date=None, event_type="triathlon-s"
+    )
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course_2025.id, bib_number="1", club="TCN"
+    )
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=c_2023.id, bib_number="2", club="TCN"
+    )
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=c_sans_date.id, bib_number="3", club="TCN"
+    )
+    db_session.flush()
+
+    rows = participation_repository.distinct_seasons(db_session)
+    by_year = {r["start_year"]: r for r in rows}
+    assert set(by_year) == {2025, 2023}  # épreuve sans date exclue
+    assert by_year[2025]["event_count"] == 1
+    assert by_year[2025]["participation_count"] == 1

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { apiServer } from "@/lib/api/server";
 import { TCN_CLUB_FILTER } from "@/lib/club-constants";
+import { SeasonSelector } from "@/components/dashboard/SeasonSelector";
+import { currentSeason, parseSeasonsParam, seasonSelectionLabel } from "@/lib/utils/season";
 import { StatCard, Card, Eyebrow, FormatChip } from "@/components/tcn";
 import { aggregateDisciplines, formatToken, pctFr } from "@/lib/utils/format";
 import { isPodium } from "@/lib/utils/club-aggregate";
@@ -21,15 +23,20 @@ export default async function DashboardPage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   // Page d'accueil = vitrine du club : portée TCN forcée, pas de choix « Tous »
-  // (validé par Vincent, issue #6). On garde la signature `searchParams` pour
-  // l'App Router, mais le paramètre `?scope` est volontairement ignoré ici.
-  await searchParams;
+  // (validé par Vincent, issue #6). Le paramètre `?scope` est volontairement
+  // ignoré, mais on lit `?seasons` pour le sélecteur de saison (issue #7).
+  const sp = await searchParams;
   const club = TCN_CLUB_FILTER;
 
-  const [stats, eventsPage, participations] = await Promise.all([
-    apiServer.getStats(club),
-    apiServer.listEvents({ club, page_size: 200 }),
-    apiServer.listParticipations({ club, page_size: 5000 }),
+  // Calcul de la sélection de saisons depuis l'URL, avec fallback sur la saison en cours
+  const fromUrl = parseSeasonsParam(sp.seasons);
+  const selected = fromUrl.length > 0 ? fromUrl : [currentSeason()];
+
+  const [stats, eventsPage, participations, seasons] = await Promise.all([
+    apiServer.getStats(club, selected),
+    apiServer.listEvents({ club, seasons: selected, page_size: 200 }),
+    apiServer.listParticipations({ club, seasons: selected, page_size: 5000 }),
+    apiServer.listSeasons(club),
   ]);
 
   const victoires = participations.filter((p) => p.rank_overall === 1).length;
@@ -44,8 +51,11 @@ export default async function DashboardPage({
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 26 }}>
         <div>
           <Eyebrow>Participations aux courses</Eyebrow>
-          <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 40, color: "var(--tcn-ink)", lineHeight: 1, marginTop: 6 }}>Saison 2025 — 2026</div>
+          <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 40, color: "var(--tcn-ink)", lineHeight: 1, marginTop: 6 }}>{seasonSelectionLabel(selected)}</div>
           <div style={{ fontSize: 15, color: "var(--tcn-text-muted)", marginTop: 8, fontWeight: 500 }}>Vue d&apos;ensemble des performances des athlètes du club</div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <SeasonSelector seasons={seasons} />
         </div>
       </div>
 

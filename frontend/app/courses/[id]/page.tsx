@@ -6,6 +6,7 @@ import { eventTypeLabel } from "@/lib/constants";
 import { formatToken } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
 import { isTCN } from "@/lib/utils/club";
+import { formatEventName } from "@/lib/utils/event";
 
 const CAT_COLORS = [
   "var(--tcn-orange)", "var(--tcn-orange-300)", "var(--tcn-ink)", "var(--tcn-ink-2)",
@@ -72,7 +73,7 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
     <div style={{ maxWidth: "var(--tcn-content-max)", margin: "0 auto", padding: "36px 40px 64px" }}>
       <div style={{ marginBottom: 24 }}>
         <Eyebrow style={{ marginBottom: 6 }}>Résultats complets</Eyebrow>
-        <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 46, color: "var(--tcn-ink)", lineHeight: 1, marginBottom: 12 }}>{course.name}</div>
+        <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 46, color: "var(--tcn-ink)", lineHeight: 1, marginBottom: 12 }}>{formatEventName(course.name, course.is_relay)}</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
           <MetaPill label="Type">{eventTypeLabel(course.event_type)}</MetaPill>
           <MetaPill label="Format">{formatToken(course.event_type, course.distance_km)}</MetaPill>

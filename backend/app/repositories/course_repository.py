@@ -1,9 +1,9 @@
 """Accès données pour Course."""
 from datetime import date
 
-from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.core.club import club_keyword_filter
 from app.core.time import utcnow
 from app.models.course import Course
 
@@ -13,7 +13,11 @@ def get(db: Session, course_id: int) -> Course | None:
 
 
 def get_by_identity(
-    db: Session, name: str, event_date: date | None, event_type: str
+    db: Session,
+    name: str,
+    event_date: date | None,
+    event_type: str,
+    is_relay: bool,
 ) -> Course | None:
     return (
         db.query(Course)
@@ -21,6 +25,7 @@ def get_by_identity(
             Course.name == name,
             Course.event_date == event_date,
             Course.event_type == event_type,
+            Course.is_relay == is_relay,
         )
         .first()
     )
@@ -37,7 +42,7 @@ def get_or_create(
     is_relay: bool = False,
     distance_km: float | None = None,
 ) -> Course:
-    existing = get_by_identity(db, name, event_date, event_type)
+    existing = get_by_identity(db, name, event_date, event_type, is_relay)
     if existing:
         return existing
     course = Course(
@@ -82,14 +87,13 @@ def list_all(
     q = db.query(Course)
     if event_type:
         q = q.filter(Course.event_type == event_type)
-    if club:
-        keywords = [k.strip() for k in club.split("|") if k.strip()]
-        if keywords:
-            q = (
-                q.join(Participation, Participation.course_id == Course.id)
-                .filter(or_(*[Participation.club.ilike(f"%{k}%") for k in keywords]))
-                .distinct()
-            )
+    clause = club_keyword_filter(Participation.club, club)
+    if clause is not None:
+        q = (
+            q.join(Participation, Participation.course_id == Course.id)
+            .filter(clause)
+            .distinct()
+        )
     offset = (page - 1) * page_size
     return (
         q.order_by(Course.event_date.desc().nullslast(), Course.name)

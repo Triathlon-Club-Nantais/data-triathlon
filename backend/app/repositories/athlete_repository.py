@@ -4,6 +4,7 @@ from datetime import date
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
+from app.core.club import club_keyword_filter
 from app.models.athlete import Athlete
 
 
@@ -69,9 +70,8 @@ def search(
         q = q.filter(
             or_(Athlete.nom.ilike(pattern), Athlete.prenom.ilike(pattern))
         )
-    if club:
-        keywords = [k.strip() for k in club.split("|") if k.strip()]
-        if keywords:
-            q = q.filter(or_(*[Athlete.club.ilike(f"%{k}%") for k in keywords]))
+    clause = club_keyword_filter(Athlete.club, club)
+    if clause is not None:
+        q = q.filter(clause)
     offset = (page - 1) * page_size
     return q.order_by(Athlete.nom, Athlete.prenom).offset(offset).limit(page_size).all()

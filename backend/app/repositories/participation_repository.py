@@ -1,10 +1,11 @@
 """Accès données pour Participation, incluant les filtres de la liste publique."""
 from datetime import date
 
-from sqlalchemy import case, func, or_
+from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.club import TCN_KEYWORDS
+from app.core.club import TCN_KEYWORDS, club_keyword_filter
+from app.core.season import season_bounds, season_of
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.participation import Participation
@@ -61,6 +62,14 @@ def create(db: Session, **fields) -> Participation:
     return participation
 
 
+def _season_clause(seasons: list[int]):
+    """OU de plages de dates pour les saisons demandées (event_date NULL exclu)."""
+    bounds = [season_bounds(y) for y in seasons]
+    return or_(
+        *[and_(Course.event_date >= start, Course.event_date <= end) for start, end in bounds]
+    )
+
+
 def _apply_filters(
     q,
     db,
@@ -72,6 +81,7 @@ def _apply_filters(
     date_from,
     date_to,
     course_id=None,
+    seasons=None,
 ):
     """Joint Athlete + Course et applique les filtres communs (liste + épreuves)."""
     q = q.join(Athlete, Participation.athlete_id == Athlete.id).join(
@@ -82,10 +92,9 @@ def _apply_filters(
     if name:
         pattern = f"%{name}%"
         q = q.filter(or_(Athlete.nom.ilike(pattern), Athlete.prenom.ilike(pattern)))
-    if club:
-        keywords = [k.strip() for k in club.split("|") if k.strip()]
-        if keywords:
-            q = q.filter(or_(*[Participation.club.ilike(f"%{k}%") for k in keywords]))
+    clause = club_keyword_filter(Participation.club, club)
+    if clause is not None:
+        q = q.filter(clause)
     if event_type:
         q = q.filter(Course.event_type == event_type)
     if event_name:
@@ -94,6 +103,8 @@ def _apply_filters(
         q = q.filter(Course.event_date >= date_from)
     if date_to:
         q = q.filter(Course.event_date <= date_to)
+    if seasons:
+        q = q.filter(_season_clause(seasons))
     return q
 
 
@@ -107,6 +118,7 @@ def list_participations(
     date_from: date | None = None,
     date_to: date | None = None,
     course_id: int | None = None,
+    seasons: list[int] | None = None,
     page: int = 1,
     page_size: int = 20,
 ) -> list[Participation]:
@@ -123,6 +135,7 @@ def list_participations(
         date_from=date_from,
         date_to=date_to,
         course_id=course_id,
+        seasons=seasons,
     )
     offset = (page - 1) * page_size
     # Pour le détail d'une épreuve, trier par classement ; sinon par date d'import.
@@ -156,18 +169,21 @@ def list_for_course(db: Session, course_id: int) -> list[Participation]:
 
 def tcn_filter():
     """Clause SQLAlchemy : la participation appartient au TCN (mots-clés club)."""
-    return or_(*[Participation.club.ilike(f"%{k}%") for k in TCN_KEYWORDS])
+    return club_keyword_filter(Participation.club, "|".join(TCN_KEYWORDS))
 
 
-def for_stats(db: Session, club: str | None = None) -> list[Participation]:
+def for_stats(
+    db: Session, club: str | None = None, seasons: list[int] | None = None
+) -> list[Participation]:
     """Charge les participations (avec course + athlète) pour les agrégations stats."""
     q = db.query(Participation).options(
         joinedload(Participation.course), joinedload(Participation.athlete)
     )
-    if club:
-        keywords = [k.strip() for k in club.split("|") if k.strip()]
-        if keywords:
-            q = q.filter(or_(*[Participation.club.ilike(f"%{k}%") for k in keywords]))
+    clause = club_keyword_filter(Participation.club, club)
+    if clause is not None:
+        q = q.filter(clause)
+    if seasons:
+        q = q.join(Course, Participation.course_id == Course.id).filter(_season_clause(seasons))
     return q.all()
 
 
@@ -180,6 +196,7 @@ def _grouped_events_query(
     club=None,
     date_from=None,
     date_to=None,
+    seasons=None,
 ):
     """Requête de base : une ligne par épreuve (course) avec compteurs total + TCN."""
     q = db.query(
@@ -201,6 +218,7 @@ def _grouped_events_query(
         club=club,
         date_from=date_from,
         date_to=date_to,
+        seasons=seasons,
     )
     return q.group_by(
         Course.id,
@@ -221,6 +239,7 @@ def events_with_counts(
     club: str | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
+    seasons: list[int] | None = None,
 ) -> list:
     """Épreuves distinctes avec total participants et compte TCN (non paginé — carte/stats)."""
     return (
@@ -232,6 +251,7 @@ def events_with_counts(
             club=club,
             date_from=date_from,
             date_to=date_to,
+            seasons=seasons,
         )
         .order_by(Course.event_date.desc().nullslast(), Course.name)
         .all()
@@ -262,6 +282,7 @@ def events_page(
     club: str | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
+    seasons: list[int] | None = None,
     sort: str = "date_desc",
     page: int = 1,
     page_size: int = 30,
@@ -275,6 +296,7 @@ def events_page(
         club=club,
         date_from=date_from,
         date_to=date_to,
+        seasons=seasons,
     )
 
     total_events = db.query(func.count()).select_from(grouped.subquery()).scalar() or 0
@@ -289,6 +311,7 @@ def events_page(
         club=club,
         date_from=date_from,
         date_to=date_to,
+        seasons=seasons,
     )
     total_participations = parts.scalar() or 0
 
@@ -304,3 +327,33 @@ def events_page(
         "total_events": int(total_events),
         "total_participations": int(total_participations),
     }
+
+
+def distinct_seasons(db: Session, club: str | None = None) -> list[dict]:
+    """Saisons présentes (≥ 1 participation sur une épreuve datée), repliées en Python.
+
+    Repli Python plutôt que SQL pour rester portable SQLite/Postgres sans
+    fonctions de date spécifiques. Volume de données modeste.
+    """
+    q = (
+        db.query(
+            Course.event_date.label("event_date"),
+            func.count(Participation.id).label("part_count"),
+        )
+        .join(Participation, Participation.course_id == Course.id)
+        .filter(Course.event_date.isnot(None))
+    )
+    clause = club_keyword_filter(Participation.club, club)
+    if clause is not None:
+        q = q.filter(clause)
+    rows = q.group_by(Course.id, Course.event_date).all()
+
+    agg: dict[int, dict] = {}
+    for event_date, part_count in rows:
+        year = season_of(event_date)
+        entry = agg.setdefault(
+            year, {"start_year": year, "event_count": 0, "participation_count": 0}
+        )
+        entry["event_count"] += 1
+        entry["participation_count"] += int(part_count or 0)
+    return list(agg.values())

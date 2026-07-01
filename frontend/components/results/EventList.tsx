@@ -15,6 +15,7 @@ import { useInfiniteEvents } from "@/lib/queries/events";
 import { eventTypeLabel } from "@/lib/constants";
 import { formatToken } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
+import { formatEventName } from "@/lib/utils/event";
 import type { EventPage, ParticipationFilters } from "@/lib/types";
 
 const SORT_OPTIONS = [
@@ -146,7 +147,9 @@ export function EventList({
             {formatDate(ev.event_date)}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-            <span style={{ fontSize: 15, color: "var(--tcn-ink)", fontWeight: 700 }}>{ev.event_name}</span>
+            <span style={{ fontSize: 15, color: "var(--tcn-ink)", fontWeight: 700 }}>
+              {formatEventName(ev.event_name, ev.is_relay)}
+            </span>
             {ev.is_relay && <Badge variant="orange">Relais</Badge>}
           </div>
           <div style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>{eventTypeLabel(ev.event_type)}</div>
