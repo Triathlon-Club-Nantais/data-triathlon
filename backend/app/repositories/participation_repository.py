@@ -4,7 +4,7 @@ from datetime import date
 from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.club import TCN_KEYWORDS
+from app.core.club import TCN_KEYWORDS, club_keyword_filter
 from app.core.season import season_bounds, season_of
 from app.models.athlete import Athlete
 from app.models.course import Course
@@ -92,10 +92,9 @@ def _apply_filters(
     if name:
         pattern = f"%{name}%"
         q = q.filter(or_(Athlete.nom.ilike(pattern), Athlete.prenom.ilike(pattern)))
-    if club:
-        keywords = [k.strip() for k in club.split("|") if k.strip()]
-        if keywords:
-            q = q.filter(or_(*[Participation.club.ilike(f"%{k}%") for k in keywords]))
+    clause = club_keyword_filter(Participation.club, club)
+    if clause is not None:
+        q = q.filter(clause)
     if event_type:
         q = q.filter(Course.event_type == event_type)
     if event_name:
@@ -170,7 +169,7 @@ def list_for_course(db: Session, course_id: int) -> list[Participation]:
 
 def tcn_filter():
     """Clause SQLAlchemy : la participation appartient au TCN (mots-clés club)."""
-    return or_(*[Participation.club.ilike(f"%{k}%") for k in TCN_KEYWORDS])
+    return club_keyword_filter(Participation.club, "|".join(TCN_KEYWORDS))
 
 
 def for_stats(
@@ -180,10 +179,9 @@ def for_stats(
     q = db.query(Participation).options(
         joinedload(Participation.course), joinedload(Participation.athlete)
     )
-    if club:
-        keywords = [k.strip() for k in club.split("|") if k.strip()]
-        if keywords:
-            q = q.filter(or_(*[Participation.club.ilike(f"%{k}%") for k in keywords]))
+    clause = club_keyword_filter(Participation.club, club)
+    if clause is not None:
+        q = q.filter(clause)
     if seasons:
         q = q.join(Course, Participation.course_id == Course.id).filter(_season_clause(seasons))
     return q.all()
@@ -345,10 +343,9 @@ def distinct_seasons(db: Session, club: str | None = None) -> list[dict]:
         .join(Participation, Participation.course_id == Course.id)
         .filter(Course.event_date.isnot(None))
     )
-    if club:
-        keywords = [k.strip() for k in club.split("|") if k.strip()]
-        if keywords:
-            q = q.filter(or_(*[Participation.club.ilike(f"%{k}%") for k in keywords]))
+    clause = club_keyword_filter(Participation.club, club)
+    if clause is not None:
+        q = q.filter(clause)
     rows = q.group_by(Course.id, Course.event_date).all()
 
     agg: dict[int, dict] = {}
