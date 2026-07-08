@@ -429,6 +429,26 @@ def test_scrape_event_all_event_type_from_parcours(monkeypatch):
     assert by_bib["40"].event_type == "triathlon"  # repli nom global
 
 
+def test_scrape_event_all_event_date_falls_back_to_dt1(monkeypatch):
+    """Épreuve sans attribut `dates` mais avec `dt1` (cas réel 3232 « LE NORTH MAY »).
+
+    L'API TimePulse laisse parfois `dates=""` et ne renseigne que `dt1`/`dt2`
+    (dates ISO de début/fin). On doit alors replier sur `dt1`.
+    """
+    from datetime import date
+    xml = (
+        '<?xml version="1.0"?>\n<Triathlon>\n'
+        '  <Epreuve nom="LE NORTH MAY" dates="" dt1="2026-06-07" dt2="2026-06-07"/>\n'
+        '  <E d="10" n="ALPHA Jean" c="Club" x="M" ca="SEH" p="Triathlon S SOLO"/>\n'
+        '  <R d="10" t="01:00:00"/>\n'
+        '</Triathlon>'
+    )
+    monkeypatch.setattr("app.scrapers.timepulse._fetch_xml", lambda _id: xml)
+
+    results = scrape_event_all("https://www.timepulse.fr/resultats/3232")
+    assert results[0].event_date == date(2026, 6, 7)
+
+
 def test_scrape_event_all_detects_relay(monkeypatch):
     """Relais détecté via parcours « RELAIS » et/ou catégorie EQ* ; solo → False.
 

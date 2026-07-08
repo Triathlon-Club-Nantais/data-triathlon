@@ -8,7 +8,7 @@ export interface Segment {
   small?: boolean;
 }
 
-type SchemaEntry = { key: string; label: string; color: string; small?: boolean };
+export type SchemaEntry = { key: string; label: string; color: string; small?: boolean };
 
 // Échelle catégorielle SPLIT (cf. lib/sport-colors).
 const SWIM = "var(--swim)";
@@ -18,11 +18,12 @@ const TRANS = "var(--muted-foreground)"; // transitions T1/T2 en neutre
 
 const SCHEMAS: Record<string, SchemaEntry[]> = {
   duathlon: [
-    { key: "swim", label: "Course 1", color: RUN },
+    // Clés alignées sur le backend (mapping.build_splits) : course1/course2.
+    { key: "course1", label: "Course 1", color: RUN },
     { key: "t1", label: "T1", color: TRANS, small: true },
     { key: "bike", label: "Vélo", color: BIKE },
     { key: "t2", label: "T2", color: TRANS, small: true },
-    { key: "run", label: "Course 2", color: RUN },
+    { key: "course2", label: "Course 2", color: RUN },
   ],
   "bike-run": [
     { key: "bike", label: "Vélo", color: BIKE },
@@ -46,7 +47,8 @@ const SCHEMAS: Record<string, SchemaEntry[]> = {
   ],
 };
 
-function schemaFor(eventType: string): SchemaEntry[] {
+/** Schéma de segments (clés/libellés/couleurs) adapté au sport. */
+export function splitSchema(eventType: string): SchemaEntry[] {
   const type = eventType || "";
   if (type.startsWith("duathlon")) return SCHEMAS.duathlon;
   if (type === "bike-run") return SCHEMAS["bike-run"];
@@ -60,7 +62,7 @@ export function splitSegments(
   splits: Splits | null | undefined,
 ): Segment[] {
   if (!splits) return [];
-  return schemaFor(eventType)
+  return splitSchema(eventType)
     .filter((s) => splits[s.key])
     .map((s) => ({ ...s, time: splits[s.key] }));
 }

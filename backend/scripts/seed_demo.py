@@ -14,6 +14,7 @@ Usage :
     cd backend
     python scripts/seed_demo.py
 """
+
 from __future__ import annotations
 
 import sys
@@ -61,6 +62,10 @@ CATALOG: list[dict] = [
         ),
     },
     {
+        "desc": "Duathlon S - 6e Duathlon Nozéen 2026 (Klikego)",
+        "url": "https://www.klikego.com/resultats/6e-duathlon-nozeen-2026/1517534975128-8?heat=duathlon-s---open&search=&city=&category=&sexe=",
+    },
+    {
         "desc": "SwimRun L — Côte Beauté 2025 (Klikego)",
         "url": "https://www.klikego.com/resultats/swimrun-cote-beaute-2025/1643670876505-4",
     },
@@ -87,8 +92,7 @@ def main() -> int:
             total_imported += res.get("imported", 0)
             summary = (
                 f"OK — {res.get('imported', 0)} importé(s), "
-                f"{res.get('skipped', 0)} ignoré(s)"
-                + (" [cache]" if res.get("cached") else "")
+                f"{res.get('skipped', 0)} ignoré(s)" + (" [cache]" if res.get("cached") else "")
             )
         except Exception as exc:  # noqa: BLE001 — on rapporte sans tout interrompre
             errors += 1

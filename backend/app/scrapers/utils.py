@@ -10,11 +10,17 @@ _FR_MONTHS = {
     "janvier": 1, "fevrier": 2, "mars": 3, "avril": 4,
     "mai": 5, "juin": 6, "juillet": 7, "aout": 8,
     "septembre": 9, "octobre": 10, "novembre": 11, "decembre": 12,
+    # Formes abrégées telles qu'écrites par Klikego/Breizh Chrono ('12 avr. 2026').
+    "janv": 1, "fevr": 2, "avr": 4, "juil": 7,
+    "sept": 9, "oct": 10, "nov": 11, "dec": 12,
 }
+# Motifs de mois, les plus longs d'abord pour éviter qu'un abrégé (« juil »)
+# ne capture avant le nom complet (« juillet »).
+_FR_MONTHS_PATTERN = "|".join(sorted(_FR_MONTHS, key=len, reverse=True))
 
 
 def parse_fr_date(text: str) -> "date_t | None":
-    """Parse a French date string like '16 mai 2026' or '16–17 mai 2026'."""
+    """Parse a French date string like '16 mai 2026', '16–17 mai 2026' or '12 avr. 2026'."""
     if not text:
         return None
     # Normalize accented chars and dashes
@@ -24,8 +30,9 @@ def parse_fr_date(text: str) -> "date_t | None":
         .replace("ô", "o").replace("â", "a").replace("î", "i")
         .replace("–", "-").replace("—", "-").replace("�", "-")
     )
+    # `\.?` tolère le point final des mois abrégés ('avr.', 'sept.').
     m = re.search(
-        r"(\d{1,2})(?:[\s\-/]+\d{1,2})?\s+(" + "|".join(_FR_MONTHS) + r")\s+(\d{4})",
+        r"(\d{1,2})(?:[\s\-/]+\d{1,2})?\s+(" + _FR_MONTHS_PATTERN + r")\.?\s+(\d{4})",
         normalized,
     )
     if m:

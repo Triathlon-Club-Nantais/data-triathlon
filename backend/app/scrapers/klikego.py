@@ -91,7 +91,7 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
             val_div = div.find_next_sibling("div")
             if val_div:
                 t = normalize_time(val_div.get_text(strip=True))
-                if t:
+                if t and t != "00:00:00":
                     result.total_time = t
 
         for label, field in rank_map.items():
@@ -100,7 +100,7 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
                 if val_div:
                     rank_text = val_div.get_text(strip=True)
                     m = re.match(r"(\d+)", rank_text)
-                    if m:
+                    if m and int(m.group(1)) > 0:
                         rank = int(m.group(1))
                         if field == "overall":
                             result.rank_overall = rank
@@ -297,106 +297,73 @@ def _parse_search_row(
     return result
 
 
+# Mots-clés d'appartenance TCN, réutilisés par le scraper Breizh Chrono.
+_TCN_KEYWORDS = ("nantais", "tcn", "tri club nant", "triathlon club nant")
+
+
 def scrape_event_all(
     event_id: str, heat: str, event_name: str, slug: str
 ) -> list["ScrapedResult"]:
-    """
-    Fetch all participants for an event.
+    """Tous les participants d'un heat Klikego (finishers + DNF/DNS/DSQ) via le data block.
 
-    Phase 1 — Paginate all participants (basic data, no detail calls).
-    Phase 2 — Second search with city=nantais to identify Nantais-area athletes
-               (robust: works even when the club column is absent or abbreviated in
-               the search row, e.g. "TCN" instead of "TRIATHLON CLUB NANTAIS").
-    Phase 3 — Fetch full detail pages only for those athletes so their club name,
-               category, gender and splits are correctly populated.
+    Phase A — meta (date) + HTML de la page heat (options inter).
+    Phase B — liste complète + splits inter pour tous (moteur partagé).
+    Phase C — splits fins via page détail pour tous les participants (priment).
     """
-    results: list[ScrapedResult] = []
-    bib_to_result: dict[str, ScrapedResult] = {}
+    from app.scrapers import klikego_platform as plat
 
-    with httpx.Client(follow_redirects=True, timeout=20, headers=HEADERS) as client:
-        # Fetch event date from event page
+    with httpx.Client(follow_redirects=True, timeout=30, headers=HEADERS) as client:
         _, event_date = _fetch_event_meta(event_id, slug, client)
+        heat_page = client.get(
+            f"{BASE}/resultats/{slug}/{event_id}?heat={heat}" if slug
+            else f"{BASE}/resultats/{event_id}?heat={heat}"
+        )
+        heat_page_html = heat_page.text if heat_page.status_code == 200 else ""
 
-        # Phase 1 — all participants
-        # Klikego repeats the last page indefinitely for out-of-range page numbers,
-        # so we stop when the first bib of a page matches the first bib of the
-        # previous page (reliable end-of-pagination signal).
-        page = 1
-        rank = 1
-        prev_first_bib: str | None = None
-        while True:
-            url = (
-                f"{BASE}/v8/evenement/resultats-search.jsp"
-                f"?event={event_id}&heat={heat}&search=&city=&category=&sexe=&page={page}"
-            )
-            resp = client.get(url)
-            if resp.status_code != 200:
-                break
-            rows = BeautifulSoup(resp.text, "lxml").select("tr.result-row[data-dossard]")
-            if not rows:
-                break
-            first_bib = rows[0].get("data-dossard", "")
-            if first_bib and first_bib == prev_first_bib:
-                break  # Klikego is repeating the last page — we're done
-            prev_first_bib = first_bib
-            for row in rows:
-                r = _parse_search_row(row, event_id, heat, event_name, slug, rank)
-                if event_date:
-                    r.event_date = event_date
-                results.append(r)
-                bib_to_result[r.bib_number] = r
-                rank += 1
-            page += 1
+        source_url = (
+            f"{BASE}/resultats/{slug}/{event_id}?heat={heat}" if slug
+            else f"{BASE}/resultats/{event_id}?heat={heat}"
+        )
+        results = plat.build_heat_results(
+            base=BASE,
+            provider="klikego",
+            event_id=event_id,
+            heat=heat,
+            heat_page_html=heat_page_html,
+            event_name=event_name,
+            slug=slug,
+            event_type=_detect_event_type(heat, slug),
+            source_url=source_url,
+            event_date=event_date,
+            client=client,
+        )
+        bib_to_result = {r.bib_number: r for r in results}
 
-        # Phase 2 — collect bibs of Nantais-area athletes via city filter
-        # city=nantais returns only Nantais athletes and shows their club name
-        # in the second truncate cell — reliable regardless of event layout.
-        nantais_bibs: set[str] = set()
-        page = 1
-        prev_first_bib = None
-        while True:
-            url = (
-                f"{BASE}/v8/evenement/resultats-search.jsp"
-                f"?event={event_id}&heat={heat}&search=&city=nantais&category=&sexe=&page={page}"
-            )
-            resp = client.get(url)
-            if resp.status_code != 200:
-                break
-            rows = BeautifulSoup(resp.text, "lxml").select("tr.result-row[data-dossard]")
-            if not rows:
-                break
-            first_bib = rows[0].get("data-dossard", "")
-            if first_bib and first_bib == prev_first_bib:
-                break
-            prev_first_bib = first_bib
-            for row in rows:
-                bib = row.get("data-dossard", "")
-                if bib:
-                    nantais_bibs.add(bib)
-            page += 1
-
-        # Phase 2b — also identify athletes by club name already present in Phase 1 data
-        # Handles athletes from Nantes suburbs (Saint-Herblain, Vertou, etc.) whose
-        # city isn't matched by city=nantais but whose club name contains TCN keywords.
-        _TCN_KEYWORDS = ("nantais", "tcn", "tri club nant", "triathlon club nant")
+        # Phase C — splits fins via la page détail pour TOUS les participants.
+        # La page détail (natation/T1/vélo/T2/course) est la source fine ; elle
+        # prime sur les splits inter grossiers de la phase B quand elle en fournit.
+        # Coût mesuré ~0,03 s/participant ; l'import tourne en arrière-plan (SSE).
         for bib, r in bib_to_result.items():
-            if r.club and any(k in r.club.lower() for k in _TCN_KEYWORDS):
-                nantais_bibs.add(bib)
-
-        # Phase 3 — fetch detail pages for Nantais athletes
-        for bib in nantais_bibs:
-            r = bib_to_result.get(bib)
-            if not r:
-                continue
-            detail_url = (
+            dr = client.get(
                 f"{BASE}/v8/evenement/resultat-participant.jsp"
                 f"?embedded=1&e={event_id}&heat={heat}&dossard={bib}"
             )
-            dr = client.get(detail_url)
-            if dr.status_code == 200:
-                _parse_detail(dr.text, r, {})
+            if dr.status_code != 200:
+                continue
+            # Reset des slots pour que les splits fins priment sur les inter pré-remplis.
+            inter_backup = {s: getattr(r, f"{s}_time") for s in _SPLIT_SLOTS}
+            for s in _SPLIT_SLOTS:
+                setattr(r, f"{s}_time", "")
+            _parse_detail(dr.text, r, {})
+            # Page détail sans splits (ex. non-partant) : on restaure les inter.
+            if not any(getattr(r, f"{s}_time") for s in _SPLIT_SLOTS):
+                for s, t in inter_backup.items():
+                    setattr(r, f"{s}_time", t)
 
     return results
+
+
+_SPLIT_SLOTS = ("swim", "t1", "bike", "t2", "run")
 
 
 def _detect_event_type(heat: str, slug: str = "") -> str:

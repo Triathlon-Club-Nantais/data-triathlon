@@ -48,11 +48,14 @@ describe("ResultCard", () => {
     const dua: Participation = {
       ...base,
       course: { ...base.course, event_type: "duathlon-s" },
-      splits: { swim: "00:18:00", bike: "00:40:00", run: "00:20:00" },
+      // Clés backend : course1/course2 (cf. mapping.build_splits).
+      splits: { course1: "00:18:00", bike: "00:40:00", course2: "00:20:00" },
     };
     render(<ResultCard result={dua} />);
     expect(screen.getByText("Course 1")).toBeInTheDocument();
     expect(screen.getByText("Course 2")).toBeInTheDocument();
+    expect(screen.getByText("00:18:00")).toBeInTheDocument();
+    expect(screen.getByText("00:20:00")).toBeInTheDocument();
   });
 
   it("n'affiche pas de bloc splits si splits est null", () => {
