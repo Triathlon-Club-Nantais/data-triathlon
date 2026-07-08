@@ -21,7 +21,7 @@ function p(over: Partial<Participation> & { id: number; nom: string }): Particip
     total_time: over.total_time ?? null,
     status: over.status ?? "finisher",
     is_relay: false,
-    splits: null,
+    splits: over.splits ?? null,
     created_at: null,
   } as Participation;
 }
@@ -48,5 +48,26 @@ describe("RaceFinishers", () => {
       "Voir le profil de DNFGUY T",
       "Voir le profil de DNSGUY T",
     ]);
+  });
+
+  it("duathlon : colonnes Course 1 / Vélo / Course 2 avec les temps (clés backend course1/course2)", () => {
+    const dua = [
+      p({
+        id: 1,
+        nom: "BAZLEY",
+        status: "finisher",
+        rank_overall: 1,
+        total_time: "00:56:19",
+        splits: { course1: "00:16:24", bike: "00:31:00", course2: "00:08:55" },
+      } as Partial<Participation> & { id: number; nom: string }),
+    ];
+    render(<RaceFinishers participations={dua} tcnCount={0} eventType="duathlon-s" />);
+    // En-têtes sport-aware
+    expect(screen.getByText("Course 1")).toBeInTheDocument();
+    expect(screen.getByText("Course 2")).toBeInTheDocument();
+    expect(screen.queryByText("Natation")).not.toBeInTheDocument();
+    // Temps des deux courses à pied affichés
+    expect(screen.getByText("00:16:24")).toBeInTheDocument();
+    expect(screen.getByText("00:08:55")).toBeInTheDocument();
   });
 });
