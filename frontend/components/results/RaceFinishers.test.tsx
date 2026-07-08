@@ -11,7 +11,7 @@ function p(over: Partial<Participation> & { id: number; nom: string }): Particip
   return {
     id: over.id,
     athlete: { id: over.id, nom: over.nom, prenom: "T", gender: "M", club: null },
-    course: { id: 1, event_name: "C", event_date: null, event_type: null },
+    course: { id: 1, name: "C", event_date: null, event_type: "", provider: "", source_url: "", is_relay: false },
     club: over.club ?? null,
     category: "S4",
     bib_number: null,
