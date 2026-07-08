@@ -97,6 +97,55 @@ def test_parse_competitor_relay_detected():
     assert r.is_relay is True
 
 
+def test_parse_competitor_event_name_qualified_by_parcours():
+    """Issue #21 : le nom de course est qualifié par le parcours `p`.
+
+    Deux parcours de même type (S-Open / S-Open Femmes → triathlon-s) doivent
+    produire des noms de course distincts, sinon ils fusionnent en une seule
+    Course (collisions de dossards → participants manquants, rangs dupliqués)."""
+    comp = _el('<E d="5001" x="F" ca="S2F" v="12" p="S-Open Femmes"/>')
+    r = _parse_competitor(comp, "http://x", "Triathlon de Vertou 2026", "triathlon")
+    assert r.event_type == "triathlon-s"
+    assert r.event_name == "Triathlon de Vertou 2026 - S-Open Femmes"
+
+
+def test_parse_competitor_no_parcours_keeps_root_name():
+    """Sans parcours `p`, le nom de course reste le nom racine de l'épreuve."""
+    comp = _el('<E d="9999" n="ASPTT NANTES TRI"/>')
+    r = _parse_competitor(comp, "http://x", "Triathlon de Vertou 2026", "triathlon")
+    assert r.event_name == "Triathlon de Vertou 2026"
+
+
+def test_scrape_event_all_same_type_parcours_distinct_courses(monkeypatch):
+    """Issue #21 : deux parcours de même type avec dossards en collision restent
+    des épreuves distinctes (noms de course différents) au lieu de fusionner."""
+    xml = _event_xml(
+        competitors=(
+            '<E d="5001" n="Alice WIN" x="F" ca="S2F" v="1" p="S-Open Femmes"/>'
+            '<E d="6001" n="Bob RUN" x="M" ca="S3M" v="1" p="S-Open"/>'
+        ),
+        results=(
+            '<R d="5001" t="01:05:00"/>'
+            '<R d="6001" t="00:58:00"/>'
+        ),
+    )
+    root = ET.fromstring(xml)
+    monkeypatch.setattr(
+        "app.scrapers.wiclax._fetch_clax",
+        lambda _url: (root, "http://x", "Triathlon de Vertou 2026", "triathlon", None),
+    )
+    results = scrape_event_all("http://x")
+    by_name = {r.event_name for r in results}
+    # Même dossard v="1" dans deux parcours → deux noms de course distincts,
+    # sinon la déduplication (course_id, bib) fait disparaître un participant.
+    assert by_name == {
+        "Triathlon de Vertou 2026 - S-Open Femmes",
+        "Triathlon de Vertou 2026 - S-Open",
+    }
+    # Chaque parcours a son propre 1er (rang calculé au tri par parcours).
+    assert all(r.rank_overall == 1 for r in results)
+
+
 # --- Chaîne de segments par parcours (détection via les disc) ----------------
 
 

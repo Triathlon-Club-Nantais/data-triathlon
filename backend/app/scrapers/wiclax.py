@@ -57,7 +57,6 @@ def _parse_competitor(comp, url: str, event_name: str, event_type: str) -> Scrap
     Handles both Wiclax Competitor/Runner format and TimePulse-style E format.
     """
     result = ScrapedResult(source_url=url, provider="wiclax", bib_number=_display_bib(comp))
-    result.event_name = event_name
 
     # p= (parcours) gives per-competitor discipline in ChronoSmetron format
     # e.g. "Triathlon M", "Triathlon L", "Relais S" — takes priority over root event name
@@ -65,7 +64,14 @@ def _parse_competitor(comp, url: str, event_name: str, event_type: str) -> Scrap
     if p_attr:
         event_type = _detect_event_type(p_attr)
         result.is_relay = "relais" in p_attr.lower() or "relay" in p_attr.lower()
+        # Chaque parcours ChronoSmetron est une épreuve distincte : classement
+        # propre et dossards réutilisés d'un parcours à l'autre. On qualifie le
+        # nom de course par le parcours pour éviter que plusieurs parcours de même
+        # type ne fusionnent en une seule Course (issue #21 : collisions de
+        # dossards → participants manquants, rangs dupliqués).
+        event_name = _qualify_event_name(event_name, p_attr)
 
+    result.event_name = event_name
     result.event_type = event_type
 
     # Try standard Competitor/Runner attributes first
@@ -125,6 +131,19 @@ def _parse_competitor(comp, url: str, event_name: str, event_type: str) -> Scrap
 
     result.raw_data = raw
     return result
+
+
+def _qualify_event_name(event_name: str, parcours: str) -> str:
+    """Qualifie le nom d'épreuve par le parcours ChronoSmetron.
+
+    « Triathlon de Vertou 2026 » + « S-Open Femmes » →
+    « Triathlon de Vertou 2026 - S-Open Femmes ». Le parcours déjà présent dans
+    le nom (ex. libellé identique) n'est pas ré-ajouté.
+    """
+    parcours = (parcours or "").strip()
+    if not parcours or parcours.lower() in (event_name or "").lower():
+        return event_name
+    return f"{event_name} - {parcours}"
 
 
 def _resolve_to_wiclax_url(url: str, client: httpx.Client) -> str:
