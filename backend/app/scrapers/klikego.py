@@ -297,41 +297,8 @@ def _parse_search_row(
     return result
 
 
+# Mots-clés d'appartenance TCN, réutilisés par le scraper Breizh Chrono.
 _TCN_KEYWORDS = ("nantais", "tcn", "tri club nant", "triathlon club nant")
-
-
-def _collect_nantais_bibs(
-    event_id: str, heat: str, client: httpx.Client,
-    bib_to_result: dict[str, "ScrapedResult"],
-) -> set[str]:
-    """Dossards des athlètes nantais : filtre API city=nantais + mots-clés club."""
-    nantais: set[str] = set()
-    page = 1
-    prev_first: str | None = None
-    while True:
-        url = (
-            f"{BASE}/v8/evenement/resultats-search.jsp"
-            f"?event={event_id}&heat={heat}&search=&city=nantais&category=&sexe=&page={page}"
-        )
-        resp = client.get(url)
-        if resp.status_code != 200:
-            break
-        rows = BeautifulSoup(resp.text, "lxml").select("tr.result-row[data-dossard]")
-        if not rows:
-            break
-        first_bib = rows[0].get("data-dossard", "")
-        if first_bib and first_bib == prev_first:
-            break
-        prev_first = first_bib
-        for row in rows:
-            bib = row.get("data-dossard", "")
-            if bib:
-                nantais.add(bib)
-        page += 1
-    for bib, r in bib_to_result.items():
-        if r.club and any(k in r.club.lower() for k in _TCN_KEYWORDS):
-            nantais.add(bib)
-    return nantais
 
 
 def scrape_event_all(
@@ -341,7 +308,7 @@ def scrape_event_all(
 
     Phase A — meta (date) + HTML de la page heat (options inter).
     Phase B — liste complète + splits inter pour tous (moteur partagé).
-    Phase C — splits fins via page détail pour les athlètes TCN/Nantais (priment).
+    Phase C — splits fins via page détail pour tous les participants (priment).
     """
     from app.scrapers import klikego_platform as plat
 
@@ -372,22 +339,31 @@ def scrape_event_all(
         )
         bib_to_result = {r.bib_number: r for r in results}
 
-        # Phase C — détection TCN (city=nantais + mots-clés club) puis splits fins
-        nantais_bibs = _collect_nantais_bibs(event_id, heat, client, bib_to_result)
-        for bib in nantais_bibs:
-            r = bib_to_result.get(bib)
-            if not r:
-                continue
+        # Phase C — splits fins via la page détail pour TOUS les participants.
+        # La page détail (natation/T1/vélo/T2/course) est la source fine ; elle
+        # prime sur les splits inter grossiers de la phase B quand elle en fournit.
+        # Coût mesuré ~0,03 s/participant ; l'import tourne en arrière-plan (SSE).
+        for bib, r in bib_to_result.items():
             dr = client.get(
                 f"{BASE}/v8/evenement/resultat-participant.jsp"
                 f"?embedded=1&e={event_id}&heat={heat}&dossard={bib}"
             )
-            if dr.status_code == 200:
-                # Les splits fins TCN repeuplent les slots, qui priment sur les splits inter pré-remplis.
-                r.swim_time = r.t1_time = r.bike_time = r.t2_time = r.run_time = ""
-                _parse_detail(dr.text, r, {})
+            if dr.status_code != 200:
+                continue
+            # Reset des slots pour que les splits fins priment sur les inter pré-remplis.
+            inter_backup = {s: getattr(r, f"{s}_time") for s in _SPLIT_SLOTS}
+            for s in _SPLIT_SLOTS:
+                setattr(r, f"{s}_time", "")
+            _parse_detail(dr.text, r, {})
+            # Page détail sans splits (ex. non-partant) : on restaure les inter.
+            if not any(getattr(r, f"{s}_time") for s in _SPLIT_SLOTS):
+                for s, t in inter_backup.items():
+                    setattr(r, f"{s}_time", t)
 
     return results
+
+
+_SPLIT_SLOTS = ("swim", "t1", "bike", "t2", "run")
 
 
 def _detect_event_type(heat: str, slug: str = "") -> str:

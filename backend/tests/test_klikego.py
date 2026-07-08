@@ -1120,3 +1120,56 @@ def test_scrape_event_all_tcn_detail_overrides_inter_splits(monkeypatch):
         f"Les splits fins TCN doivent primer sur les splits inter. "
         f"swim_time={r422.swim_time!r} (attendu '00:06:24')."
     )
+
+
+def test_scrape_event_all_fetches_detail_for_non_tcn(monkeypatch):
+    """Phase C : la page détail est récupérée pour TOUS les participants, pas seulement les TCN.
+
+    Le bib 182 (BELATTAR Claudine) n'a aucun club et n'apparaît pas dans la
+    recherche city=nantais : sous l'ancienne logique il n'aurait aucun split.
+    Avec le correctif, sa page détail alimente ses splits fins.
+    """
+    page0 = (FIXTURES / "klikego_datablock_page0.html").read_text()
+
+    detail_182 = make_detail_html(
+        meta="F - Dossard N°182 - V3 - ST NAZAIRE",
+        total_time="01:14:35",
+        splits=[
+            ("Natation", "00:16:24"),
+            ("Vélo",     "00:31:00"),
+            ("Course",   "00:08:55"),
+        ],
+    )
+
+    class FakeResp:
+        def __init__(self, t, code=200): self.text, self.status_code = t, code
+
+    class FakeClient:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def get(self, url):
+            if "course-result.jsp" in url and "inter=&page=0" in url:
+                return FakeResp(page0)
+            if "course-result.jsp" in url:
+                return FakeResp("<html></html>")
+            if "resultats-search.jsp" in url:  # aucun TCN (city=nantais vide)
+                return FakeResp("<html></html>")
+            if "resultat-participant.jsp" in url and "dossard=182" in url:
+                return FakeResp(detail_182)
+            if "resultat-participant.jsp" in url:  # autres bibs : détail sans splits
+                return FakeResp("<html></html>")
+            return FakeResp("<html></html>")
+
+    monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
+    monkeypatch.setattr(klikego, "_fetch_event_meta", lambda *a, **k: ("triathlon-s-light", None))
+
+    results = klikego.scrape_event_all(
+        "1488071608761-572", "triathlon-s-light",
+        "Triathlon Audencia La Baule 2024", "triathlon-audencia-la-baule-2024",
+    )
+
+    r182 = next(r for r in results if r.bib_number == "182")
+    assert r182.swim_time == "00:16:24"
+    assert r182.bike_time == "00:31:00"
+    assert r182.run_time == "00:08:55"
