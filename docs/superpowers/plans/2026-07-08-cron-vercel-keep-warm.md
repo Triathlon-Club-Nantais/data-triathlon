@@ -2,21 +2,21 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ajouter une Route Handler Next.js `/cron/keep-warm` qui ping `${BACKEND_URL}/api/v1/health`, appelée toutes les ~10 min par un cron externe (serveur Azure), pour empêcher le cold start du backend Render.
+**Goal:** Ajouter une Route Handler Next.js `/api/cron/keep-warm` qui ping `${BACKEND_URL}/api/v1/health`, appelée toutes les ~10 min par un cron externe (serveur Azure), pour empêcher le cold start du backend Render.
 
-**Architecture:** Une Route Handler `GET` sous `frontend/app/cron/keep-warm/route.ts` (hors `/api/` pour éviter le rewrite `next.config.ts`). Elle vérifie un secret optionnel (`CRON_SECRET`), relaie un `fetch` avec timeout `AbortController` vers l'endpoint de santé du backend, et renvoie `200`/`401`/`502`. Un cron externe hébergé sur notre serveur Azure appelle cette route toutes les ~10 min en envoyant l'en-tête `Authorization: Bearer $CRON_SECRET`. Le secret est documenté dans `.env.local.example`.
+**Architecture:** Une Route Handler `GET` sous `frontend/app/api/cron/keep-warm/route.ts` (convention Vercel Cron ; la route de fichier a priorité sur le rewrite `afterFiles` `/api/:path*` de `next.config.ts`, donc elle s'exécute localement au lieu d'être proxyfiée vers Render). Elle vérifie un secret optionnel (`CRON_SECRET`), relaie un `fetch` avec timeout `AbortController` vers l'endpoint de santé du backend, et renvoie `200`/`401`/`502`. Un cron externe hébergé sur notre serveur Azure appelle cette route toutes les ~10 min en envoyant l'en-tête `Authorization: Bearer $CRON_SECRET`. Le secret est documenté dans `.env.local.example`.
 
 **Tech Stack:** Next.js 16 (App Router, Route Handlers), TypeScript strict, Vitest 4, cron externe (serveur Azure).
 
 ## Global Constraints
 
 - **UI, commentaires et messages en français** (avec accents).
-- **Route hors de `/api/`** : `next.config.ts` réécrit `/api/:path*` vers le backend Render → utiliser `/cron/keep-warm`.
+- **Route `/api/cron/keep-warm`** (convention Vercel Cron) : `next.config.ts` réécrit `/api/:path*` vers le backend Render en phase `afterFiles`, mais une route de fichier a priorité sur ce rewrite → ce Route Handler s'exécute localement, le reste de `/api/*` reste proxyfié.
 - **Rendu dynamique obligatoire** : `export const dynamic = "force-dynamic"` (pas de cache statique).
 - **Timeout du `fetch` backend ≈ 10 s** via `AbortController`.
 - **Ne jamais committer la vraie valeur de `CRON_SECRET`** — placeholder uniquement.
 - **Endpoint cible** : `${BACKEND_URL}/api/v1/health` (un seul endpoint, YAGNI).
-- **Planification** : un cron externe (serveur Azure) appelle `GET /cron/keep-warm` toutes les ~10 min en envoyant `Authorization: Bearer $CRON_SECRET`. La cadence est configurée côté Azure — **aucun `vercel.json`** n'est créé.
+- **Planification** : un cron externe (serveur Azure) appelle `GET /api/cron/keep-warm` toutes les ~10 min en envoyant `Authorization: Bearer $CRON_SECRET`. La cadence est configurée côté Azure — **aucun `vercel.json`** n'est créé.
 - **Tests unitaires sans réseau** : `fetch` global mocké via `vi.stubGlobal`.
 - Commits : Conventional Commits (`feat:`…).
 - Travailler depuis le worktree courant ; toutes les commandes frontend s'exécutent depuis `frontend/`.
@@ -27,8 +27,8 @@
 
 | Fichier | Rôle |
 |---------|------|
-| `frontend/app/cron/keep-warm/route.ts` | **Créer** — Route Handler `GET` : auth optionnelle, ping backend avec timeout, réponses `200/401/502`. |
-| `frontend/app/cron/keep-warm/route.test.ts` | **Créer** — Tests Vitest (401, 200, 502 non-2xx, 502 réseau, dev sans secret). |
+| `frontend/app/api/cron/keep-warm/route.ts` | **Créer** — Route Handler `GET` : auth optionnelle, ping backend avec timeout, réponses `200/401/502`. |
+| `frontend/app/api/cron/keep-warm/route.test.ts` | **Créer** — Tests Vitest (401, 200, 502 non-2xx, 502 réseau, dev sans secret). |
 | `frontend/.env.local.example` | **Modifier** — Ajouter le placeholder `CRON_SECRET` + note sur le cron externe (Azure). |
 
 Deux tâches :
@@ -37,11 +37,11 @@ Deux tâches :
 
 ---
 
-### Task 1: Route Handler `/cron/keep-warm`
+### Task 1: Route Handler `/api/cron/keep-warm`
 
 **Files:**
-- Create: `frontend/app/cron/keep-warm/route.ts`
-- Test: `frontend/app/cron/keep-warm/route.test.ts`
+- Create: `frontend/app/api/cron/keep-warm/route.ts`
+- Test: `frontend/app/api/cron/keep-warm/route.test.ts`
 
 **Interfaces:**
 - Consumes : `process.env.BACKEND_URL` (déjà utilisé par `next.config.ts`, défaut `http://localhost:8001`), `process.env.CRON_SECRET` (optionnel).
@@ -57,7 +57,7 @@ Deux tâches :
 
 - [ ] **Step 1: Écrire les tests qui échouent**
 
-Créer `frontend/app/cron/keep-warm/route.test.ts` :
+Créer `frontend/app/api/cron/keep-warm/route.test.ts` :
 
 ```ts
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -75,10 +75,10 @@ afterEach(() => {
 });
 
 function makeRequest(headers: Record<string, string> = {}): Request {
-  return new Request("http://localhost/cron/keep-warm", { headers });
+  return new Request("http://localhost/api/cron/keep-warm", { headers });
 }
 
-describe("GET /cron/keep-warm", () => {
+describe("GET /api/cron/keep-warm", () => {
   it("répond 401 si CRON_SECRET est défini et l'en-tête Authorization manque", async () => {
     vi.stubEnv("CRON_SECRET", "s3cr3t");
     const fetchMock = vi.fn();
@@ -144,12 +144,12 @@ describe("GET /cron/keep-warm", () => {
 
 - [ ] **Step 2: Lancer les tests pour vérifier qu'ils échouent**
 
-Run (depuis `frontend/`) : `npm test -- app/cron/keep-warm/route.test.ts`
+Run (depuis `frontend/`) : `npm test -- app/api/cron/keep-warm/route.test.ts`
 Expected : FAIL — le module `./route` n'existe pas (erreur d'import/résolution).
 
 - [ ] **Step 3: Écrire l'implémentation minimale**
 
-Créer `frontend/app/cron/keep-warm/route.ts` :
+Créer `frontend/app/api/cron/keep-warm/route.ts` :
 
 ```ts
 import { NextResponse } from "next/server";
@@ -165,6 +165,11 @@ const TIMEOUT_MS = 10_000;
 // Appelée toutes les ~10 min par un cron externe hébergé sur notre serveur Azure, qui
 // envoie l'en-tête `Authorization: Bearer $CRON_SECRET`. La cadence est configurée côté
 // Azure (pas de vercel.json).
+//
+// Route sous /api/cron/keep-warm (convention Vercel Cron). Le rewrite `/api/:path*`
+// de next.config.ts (phase `afterFiles` par défaut) ne s'applique qu'aux chemins SANS
+// route de fichier : ce Route Handler, étant une route de fichier, a priorité et n'est
+// donc PAS proxyfié vers Render — contrairement au reste de /api/*.
 export async function GET(request: Request): Promise<Response> {
   // 1. Auth : si CRON_SECRET est défini, exiger `Authorization: Bearer <secret>`.
   //    Le cron externe (Azure) doit envoyer cet en-tête ; sinon la requête est rejetée.
@@ -210,7 +215,7 @@ export async function GET(request: Request): Promise<Response> {
 
 - [ ] **Step 4: Lancer les tests pour vérifier qu'ils passent**
 
-Run (depuis `frontend/`) : `npm test -- app/cron/keep-warm/route.test.ts`
+Run (depuis `frontend/`) : `npm test -- app/api/cron/keep-warm/route.test.ts`
 Expected : PASS (5 tests verts).
 
 - [ ] **Step 5: Vérifier le lint**
@@ -221,7 +226,7 @@ Expected : aucune erreur ESLint sur les nouveaux fichiers.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add frontend/app/cron/keep-warm/route.ts frontend/app/cron/keep-warm/route.test.ts
+git add frontend/app/api/cron/keep-warm/route.ts frontend/app/api/cron/keep-warm/route.test.ts
 git commit -m "feat(cron): route handler keep-warm ping le backend Render"
 ```
 
@@ -233,7 +238,7 @@ git commit -m "feat(cron): route handler keep-warm ping le backend Render"
 - Modify: `frontend/.env.local.example`
 
 **Interfaces:**
-- Consumes : la route `GET /cron/keep-warm` produite par Task 1.
+- Consumes : la route `GET /api/cron/keep-warm` produite par Task 1.
 - Produces : documentation du secret `CRON_SECRET` que le cron externe (Azure) envoie dans `Authorization: Bearer`.
 
 **Note :** Le choix retenu est un **cron externe hébergé sur notre serveur Azure** (pas de `vercel.json`). La cadence (~10 min) est configurée côté Azure ; côté dépôt, seul le secret partagé est documenté.
@@ -244,8 +249,8 @@ Ouvrir `frontend/.env.local.example` et **ajouter à la fin** (en conservant les
 
 ```dotenv
 
-# Secret partagé du cron « keep-warm » (frontend/app/cron/keep-warm/route.ts).
-# Un cron externe (serveur Azure) appelle GET /cron/keep-warm toutes les ~10 min en
+# Secret partagé du cron « keep-warm » (frontend/app/api/cron/keep-warm/route.ts).
+# Un cron externe (serveur Azure) appelle GET /api/cron/keep-warm toutes les ~10 min en
 # envoyant l'en-tête `Authorization: Bearer $CRON_SECRET` ; la route rejette (401) sinon.
 # Générer une valeur : openssl rand -hex 32.
 # NE JAMAIS committer la vraie valeur ; laissée vide en local => auth du cron ignorée.
@@ -255,7 +260,7 @@ CRON_SECRET=
 - [ ] **Step 2: Vérifier que le build reste OK**
 
 Run (depuis `frontend/`) : `npm run build`
-Expected : build prod OK, la route `/cron/keep-warm` apparaît comme route dynamique (`ƒ`) dans la sortie de build, aucune erreur TypeScript.
+Expected : build prod OK, la route `/api/cron/keep-warm` apparaît comme route dynamique (`ƒ`) dans la sortie de build, aucune erreur TypeScript.
 
 - [ ] **Step 3: Vérifier que la suite de tests reste verte**
 
@@ -274,7 +279,7 @@ git commit -m "docs(cron): documente CRON_SECRET pour le cron externe keep-warm"
 ## Self-Review
 
 **1. Spec coverage :**
-- Route Handler `/cron/keep-warm` `GET`, hors `/api/`, `force-dynamic` → Task 1. ✅
+- Route Handler `/api/cron/keep-warm` `GET` (route de fichier prioritaire sur le rewrite), `force-dynamic` → Task 1. ✅
 - Auth `CRON_SECRET` optionnelle, `401` si mauvais/absent en présence du secret, ignorée sans secret → Task 1 (impl + tests 401 & dev). ✅
 - Ping `${BACKEND_URL}/api/v1/health` avec timeout `AbortController` ~10 s → Task 1. ✅
 - Réponses `200 {ok,backendStatus,durationMs}` / `502 {ok,error,durationMs}` + `console.error` → Task 1. ✅
@@ -285,6 +290,6 @@ git commit -m "docs(cron): documente CRON_SECRET pour le cron externe keep-warm"
 
 **2. Placeholder scan :** Chaque step de code contient le code complet (route, tests, JSON, dotenv). Aucun « TODO / à compléter ». ✅
 
-**3. Type consistency :** `GET(request: Request): Promise<Response>` et `dynamic` sont cohérents entre l'implémentation (Task 1 Step 3), les tests (Step 1) et le bloc Interfaces. Le `path` du cron (`/cron/keep-warm`) correspond au dossier `app/cron/keep-warm/`. ✅
+**3. Type consistency :** `GET(request: Request): Promise<Response>` et `dynamic` sont cohérents entre l'implémentation (Task 1 Step 3), les tests (Step 1) et le bloc Interfaces. Le `path` du cron (`/api/cron/keep-warm`) correspond au dossier `app/api/cron/keep-warm/`. ✅
 
 **Note de vérification factuelle :** `.env.local.example` étant protégé en lecture dans cet environnement, Task 2 Step 2 procède par **ajout** en préservant l'existant (plutôt qu'un remplacement exact). L'exécutant doit conserver la ligne `BACKEND_URL` déjà présente.

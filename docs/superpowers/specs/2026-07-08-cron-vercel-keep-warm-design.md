@@ -31,15 +31,18 @@ relaie un `fetch` vers `${BACKEND_URL}/api/v1/health` pour réveiller / mainteni
 
 Deux artefacts, tous dans `frontend/`.
 
-### 1. `frontend/app/cron/keep-warm/route.ts`
+### 1. `frontend/app/api/cron/keep-warm/route.ts`
 
 Route Handler Next.js (méthode `GET`).
 
-**Choix de chemin — hors de `/api/`** : `next.config.ts` réécrit **tout**
-`/api/:path*` vers le backend Render. Une route sous `/api/` entrerait en
-ambiguïté avec ce rewrite. On utilise donc `/cron/keep-warm`, qui n'est pas
-capté par le rewrite (les rewrites `afterFiles` ne s'appliquent qu'aux chemins
-sans route de fichier ; une route hors `/api/` est sans ambiguïté).
+**Choix de chemin — `/api/cron/keep-warm`** (convention Vercel Cron) :
+`next.config.ts` réécrit `/api/:path*` vers le backend Render via un rewrite en
+phase `afterFiles` (comportement par défaut de `rewrites()`). Ces rewrites ne
+s'appliquent qu'aux chemins **sans route de fichier** : ce Route Handler, étant
+une route de fichier, a priorité sur le rewrite et s'exécute **localement** — le
+reste de `/api/*` continue d'être proxyfié vers Render. Vérifié au runtime :
+`/api/cron/keep-warm` renvoie la réponse du handler local (401/502) tandis que
+`/api/v1/health` est bien relayé au backend.
 
 Comportement :
 
@@ -71,7 +74,7 @@ pour ne pas être mis en cache statiquement.
 ## Flux
 
 ```
-Vercel Cron (*/10) ──GET──▶ /cron/keep-warm   (Authorization: Bearer $CRON_SECRET)
+Cron Azure (~10 min) ─GET─▶ /api/cron/keep-warm  (Authorization: Bearer $CRON_SECRET)
                               │  vérifie le secret (401 sinon)
                               └──fetch(timeout 10s)──▶ ${BACKEND_URL}/api/v1/health
                                                         (réveille / garde chaud Render)

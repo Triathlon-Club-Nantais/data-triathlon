@@ -13,10 +13,10 @@ afterEach(() => {
 });
 
 function makeRequest(headers: Record<string, string> = {}): Request {
-  return new Request("http://localhost/cron/keep-warm", { headers });
+  return new Request("http://localhost/api/cron/keep-warm", { headers });
 }
 
-describe("GET /cron/keep-warm", () => {
+describe("GET /api/cron/keep-warm", () => {
   it("répond 401 si CRON_SECRET est défini et l'en-tête Authorization manque", async () => {
     vi.stubEnv("CRON_SECRET", "s3cr3t");
     const fetchMock = vi.fn();

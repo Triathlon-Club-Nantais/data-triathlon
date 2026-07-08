@@ -11,6 +11,11 @@ const TIMEOUT_MS = 10_000;
 // Appelée toutes les ~10 min par un cron externe hébergé sur notre serveur Azure, qui
 // envoie l'en-tête `Authorization: Bearer $CRON_SECRET`. La cadence est configurée côté
 // Azure (pas de vercel.json).
+//
+// Route sous /api/cron/keep-warm (convention Vercel Cron). Le rewrite `/api/:path*`
+// de next.config.ts (phase `afterFiles` par défaut) ne s'applique qu'aux chemins SANS
+// route de fichier : ce Route Handler, étant une route de fichier, a priorité et n'est
+// donc PAS proxyfié vers Render — contrairement au reste de /api/*.
 export async function GET(request: Request): Promise<Response> {
   // 1. Auth : si CRON_SECRET est défini, exiger `Authorization: Bearer <secret>`.
   //    Le cron externe (Azure) doit envoyer cet en-tête ; sinon la requête est rejetée.
