@@ -1,4 +1,4 @@
-# Cron Vercel « keep-warm » du backend Render
+# Cron « keep-warm » du backend Render (cron externe Azure)
 
 **Date** : 2026-07-08
 **Branche** : `worktree-vercel-cron-keep-warm`
@@ -9,8 +9,9 @@
 Le backend FastAPI est déployé sur **Render**. Sur l'offre gratuite, le service
 s'endort après ~15 min d'inactivité et subit un **cold start** (plusieurs
 secondes) à la première requête suivante. On veut réduire cet effet en gardant
-le backend chaud via un **cron Vercel** (côté frontend Next.js) qui ping
-périodiquement l'endpoint de santé `/api/v1/health`.
+le backend chaud via un **cron externe** (hébergé sur notre serveur Azure) qui
+ping périodiquement, via une Route Handler Next.js, l'endpoint de santé
+`/api/v1/health`.
 
 ## Objectif
 
@@ -18,14 +19,13 @@ Un cron sur notre serveur Azure appellera toutes les ~10 min une Route Handler N
 relaie un `fetch` vers `${BACKEND_URL}/api/v1/health` pour réveiller / maintenir
 éveillé le backend Render.
 
-## Contrainte de plan (importante)
+## Choix de planification (important)
 
-- La planification `*/10 * * * *` (toutes les 10 min) **nécessite Vercel Pro**.
-- En plan **Hobby**, les crons Vercel sont plafonnés à **1 exécution/jour**
-  (granularité horaire) — insuffisant pour empêcher le cold start Render.
-- Décision : on configure `*/10` (cible Pro) et on **documente la limite Hobby**
-  en commentaire, avec l'alternative externe (cron-job.org / UptimeRobot) pour
-  qui reste sur Hobby.
+- Les crons Vercel natifs sont trop limités sur l'offre Hobby (1 exécution/jour,
+  granularité horaire) pour empêcher le cold start Render (~15 min).
+- Décision : la cadence `*/10 * * * *` (toutes les 10 min) est portée par un
+  **cron externe hébergé sur notre serveur Azure**, indépendant du plan Vercel.
+  **Aucun `vercel.json`** n'est créé ; la Route Handler ne fait qu'exécuter le ping.
 
 ## Architecture
 
@@ -47,9 +47,9 @@ reste de `/api/*` continue d'être proxyfié vers Render. Vérifié au runtime :
 Comportement :
 
 1. **Auth** : lit l'en-tête `Authorization`. Si `CRON_SECRET` est défini et que
-   l'en-tête ne vaut pas `Bearer ${CRON_SECRET}` → réponse `401`. Vercel injecte
-   automatiquement cet en-tête sur les invocations cron quand `CRON_SECRET`
-   existe dans les variables d'environnement du projet.
+   l'en-tête ne vaut pas `Bearer ${CRON_SECRET}` → réponse `401`. Le cron externe
+   (Azure) envoie explicitement cet en-tête, avec le même secret que celui
+   configuré dans les variables d'environnement du projet Vercel (côté frontend).
    - Si `CRON_SECRET` n'est pas défini (dev local), l'auth est **ignorée** pour
      permettre de tester la route manuellement.
 2. **Ping** : `fetch(${BACKEND_URL}/api/v1/health)` avec un **timeout** via
@@ -68,8 +68,10 @@ pour ne pas être mis en cache statiquement.
 - Ajouter `CRON_SECRET` (placeholder) à la doc frontend / `.env.example` s'il
   existe. **Ne jamais committer la vraie valeur.**
 - `BACKEND_URL` existe déjà (utilisé par `next.config.ts`).
-- Génération du secret : `openssl rand -hex 32` (ou base64 / `crypto.randomBytes`),
-  à renseigner dans Vercel → Settings → Environment Variables.
+- Génération du secret : `openssl rand -hex 32` (ou base64 / `crypto.randomBytes`).
+  La **même** valeur doit être renseignée à deux endroits : Vercel → Settings →
+  Environment Variables (le frontend la lit pour vérifier) **et** la config du cron
+  Azure (qui l'envoie dans `Authorization: Bearer`).
 
 ## Flux
 
@@ -104,4 +106,4 @@ Test unitaire de la Route Handler, `fetch` global mocké :
 
 - Pas de métriques / persistance des pings.
 - Pas de multi-endpoints (un seul `/api/v1/health`).
-- Pas de retry interne : Vercel relance au prochain créneau cron.
+- Pas de retry interne : le cron Azure relance au prochain créneau.
