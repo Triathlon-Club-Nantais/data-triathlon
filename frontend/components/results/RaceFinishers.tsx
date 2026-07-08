@@ -27,8 +27,13 @@ export function RaceFinishers({
   const rows = orderParticipations(filtered);
   const total = participations.length;
 
-  // Colonnes de splits adaptées au sport (clés/libellés alignés sur le backend).
-  const segments = splitSchema(eventType ?? "");
+  // Colonnes de splits adaptées au sport (clés/libellés alignés sur le backend),
+  // limitées aux segments renseignés pour au moins un participant. On se base sur
+  // l'ensemble complet (pas les lignes filtrées) pour que les colonnes restent
+  // stables quand on bascule le filtre TCN.
+  const segments = splitSchema(eventType ?? "").filter((s) =>
+    participations.some((p) => p.splits?.[s.key]),
+  );
   const fcols = [BASE_COLS, ...segments.map((s) => (s.small ? "64px" : "80px")), CLUB_COL].join(" ");
 
   return (

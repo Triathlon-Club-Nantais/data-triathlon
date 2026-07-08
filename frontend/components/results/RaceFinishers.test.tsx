@@ -70,4 +70,58 @@ describe("RaceFinishers", () => {
     expect(screen.getByText("00:16:24")).toBeInTheDocument();
     expect(screen.getByText("00:08:55")).toBeInTheDocument();
   });
+
+  it("masque les colonnes de split vides pour tous les participants (T1/T2 du duathlon Nozeen)", () => {
+    const dua = [
+      p({
+        id: 1,
+        nom: "BAZLEY",
+        status: "finisher",
+        rank_overall: 1,
+        total_time: "00:56:19",
+        splits: { course1: "00:16:24", bike: "00:31:00", course2: "00:08:55" },
+      } as Partial<Participation> & { id: number; nom: string }),
+      p({
+        id: 2,
+        nom: "VALLAEYS",
+        status: "finisher",
+        rank_overall: 2,
+        total_time: "00:57:38",
+        splits: { course1: "00:16:51", bike: "00:31:44", course2: "00:09:04" },
+      } as Partial<Participation> & { id: number; nom: string }),
+    ];
+    render(<RaceFinishers participations={dua} tcnCount={0} eventType="duathlon-s" />);
+    // Aucun participant n'a de T1/T2 → colonnes masquées.
+    expect(screen.queryByText("T1")).not.toBeInTheDocument();
+    expect(screen.queryByText("T2")).not.toBeInTheDocument();
+    // Les colonnes renseignées restent.
+    expect(screen.getByText("Course 1")).toBeInTheDocument();
+    expect(screen.getByText("Vélo")).toBeInTheDocument();
+    expect(screen.getByText("Course 2")).toBeInTheDocument();
+  });
+
+  it("conserve une colonne renseignée pour au moins un participant", () => {
+    const dua = [
+      p({
+        id: 1,
+        nom: "AVEC_T1",
+        status: "finisher",
+        rank_overall: 1,
+        total_time: "00:56:19",
+        splits: { course1: "00:16:24", t1: "00:00:30", bike: "00:31:00", course2: "00:08:55" },
+      } as Partial<Participation> & { id: number; nom: string }),
+      p({
+        id: 2,
+        nom: "SANS_T1",
+        status: "finisher",
+        rank_overall: 2,
+        total_time: "00:57:38",
+        splits: { course1: "00:16:51", bike: "00:31:44", course2: "00:09:04" },
+      } as Partial<Participation> & { id: number; nom: string }),
+    ];
+    render(<RaceFinishers participations={dua} tcnCount={0} eventType="duathlon-s" />);
+    // T1 renseigné pour un seul → colonne conservée, "—" pour l'autre.
+    expect(screen.getByText("T1")).toBeInTheDocument();
+    expect(screen.getByText("00:00:30")).toBeInTheDocument();
+  });
 });
