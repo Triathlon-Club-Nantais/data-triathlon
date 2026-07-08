@@ -53,6 +53,14 @@ CATALOG: list[dict] = [
         "desc": "Triathlon — épreuve live 3232 (TimePulse)",
         "url": "https://www.timepulse.fr/epreuves/resultats/live/3232",
     },
+    {
+        "desc": "Triathlon de Vertou (Chronometron / Wiclax)",
+        "url": "https://www.chronosmetron.wiclax-results.com/Triathlon%20de%20Vertou%202026/",
+    },
+    {
+        "desc": "Bayman - Triathlon M du Mont Saint-Michel (Sport Innovation)",
+        "url": "https://results.sportinnovation.fr/race/zmhc-triathlon-m",
+    },
     # ── Autres disciplines (Klikego, URL d'épreuve = /resultats/{slug}/{id}) ──
     {
         "desc": "Duathlon S — 3 Villages 2026 (Klikego)",
