@@ -39,6 +39,12 @@ describe("RaceFinishers", () => {
     expect(screen.getByText("DNF")).toBeInTheDocument();
   });
 
+  it("ventile le pied de tableau : partants · finishers · abandons (pas « X finishers au total »)", () => {
+    render(<RaceFinishers participations={data} tcnCount={0} />);
+    // 3 partants, 1 finisher, 2 non-finishers (DNF + DNS).
+    expect(screen.getByText("3 partants · 1 finisher · 2 abandons")).toBeInTheDocument();
+  });
+
   it("relègue les non-finishers après les finishers (DNF avant DNS)", () => {
     render(<RaceFinishers participations={data} tcnCount={0} />);
     const rows = screen.getAllByRole("button", { name: /Voir le profil/ });

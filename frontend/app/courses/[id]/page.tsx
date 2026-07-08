@@ -7,6 +7,7 @@ import { formatToken } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
 import { isTCN } from "@/lib/utils/club";
 import { formatEventName } from "@/lib/utils/event";
+import { countOutcomes } from "@/lib/utils/raceOrder";
 
 const CAT_COLORS = [
   "var(--tcn-orange)", "var(--tcn-orange-300)", "var(--tcn-ink)", "var(--tcn-ink-2)",
@@ -29,7 +30,10 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
   const data = await apiServer.getCourse(Number(id)).catch(() => null);
   if (!data) notFound();
   const { course, participations } = data;
-  const total = participations.length;
+  // Ventilation partants / finishers / abandons / indéterminés — la pastille
+  // d'en-tête ne doit plus étiqueter « Finishers » un total qui inclut les
+  // DNF/DNS/DSQ (cf. issue #23).
+  const { total, finishers, nonFinishers, unknown } = countOutcomes(participations);
   const tcnCount = participations.filter((p) => isTCN(p.club)).length;
 
   // ── Répartition genre ──
@@ -78,7 +82,10 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
           <MetaPill label="Type">{eventTypeLabel(course.event_type)}</MetaPill>
           <MetaPill label="Format">{formatToken(course.event_type, course.distance_km)}</MetaPill>
           {course.event_date && <MetaPill label="Date">{formatDate(course.event_date)}</MetaPill>}
-          <MetaPill label="Finishers">{total}</MetaPill>
+          <MetaPill label="Partants">{total}</MetaPill>
+          <MetaPill label="Finishers">{finishers}</MetaPill>
+          {nonFinishers > 0 && <MetaPill label="Abandons">{nonFinishers}</MetaPill>}
+          {unknown > 0 && <MetaPill label="Indéterminés">{unknown}</MetaPill>}
           {tcnCount > 0 && <MetaPill accent dot>{tcnCount} athlète{tcnCount > 1 ? "s" : ""} TCN</MetaPill>}
         </div>
       </div>

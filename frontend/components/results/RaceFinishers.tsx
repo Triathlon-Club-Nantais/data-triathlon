@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Card, SegmentedControl, PlaceBadge } from "@/components/tcn";
 import { isTCN } from "@/lib/utils/club";
 import { StatusBadge } from "@/components/results/StatusBadge";
-import { orderParticipations, isNonFinisher } from "@/lib/utils/raceOrder";
+import { orderParticipations, isNonFinisher, countOutcomes } from "@/lib/utils/raceOrder";
 import { splitSchema } from "@/lib/utils/splits";
 import type { Participation } from "@/lib/types";
 
@@ -25,7 +25,9 @@ export function RaceFinishers({
   const [filter, setFilter] = useState("all");
   const filtered = filter === "tcn" ? participations.filter((p) => isTCN(p.club)) : participations;
   const rows = orderParticipations(filtered);
-  const total = participations.length;
+  // Décompte ventilé sur l'ensemble complet (indépendant du filtre TCN) pour un
+  // pied de tableau honnête : « partants » ≠ « finishers » (cf. issue #23).
+  const { total, finishers, nonFinishers } = countOutcomes(participations);
 
   // Colonnes de splits adaptées au sport (clés/libellés alignés sur le backend),
   // limitées aux segments renseignés pour au moins un participant. On se base sur
@@ -39,7 +41,7 @@ export function RaceFinishers({
   return (
     <Card padding={0} style={{ overflow: "hidden" }}>
       <div style={{ padding: "20px 26px", borderBottom: "1px solid var(--tcn-border)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-        <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)" }}>Finishers</div>
+        <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)" }}>Classement</div>
         <SegmentedControl
           tone="ink"
           value={filter}
@@ -100,11 +102,13 @@ export function RaceFinishers({
               </div>
             );
           })}
-          {rows.length === 0 && <div style={{ padding: 30, textAlign: "center", color: "var(--tcn-text-faint)", fontSize: 14 }}>Aucun finisher à afficher.</div>}
+          {rows.length === 0 && <div style={{ padding: 30, textAlign: "center", color: "var(--tcn-text-faint)", fontSize: 14 }}>Aucun participant à afficher.</div>}
         </div>
       </div>
       <div style={{ padding: "16px 24px", borderTop: "1px solid var(--tcn-border)", textAlign: "center", fontSize: 13, color: "var(--tcn-text-faint)" }}>
-        {filter === "tcn" ? `${rows.length} athlète${rows.length > 1 ? "s" : ""} TCN affiché${rows.length > 1 ? "s" : ""} · ${total} au total` : `${total} finisher${total > 1 ? "s" : ""} au total`}
+        {filter === "tcn"
+          ? `${rows.length} athlète${rows.length > 1 ? "s" : ""} TCN affiché${rows.length > 1 ? "s" : ""} · ${total} au total`
+          : `${total} partant${total > 1 ? "s" : ""} · ${finishers} finisher${finishers > 1 ? "s" : ""}${nonFinishers > 0 ? ` · ${nonFinishers} abandon${nonFinishers > 1 ? "s" : ""}` : ""}`}
       </div>
     </Card>
   );
