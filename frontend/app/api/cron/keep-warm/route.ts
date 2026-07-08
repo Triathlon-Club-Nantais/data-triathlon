@@ -24,7 +24,7 @@ export async function GET(request: Request): Promise<Response> {
   if (cronSecret) {
     const auth = request.headers.get("authorization");
     if (auth !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+      return NextResponse.json({ ok: false, error: "non autorisé" }, { status: 401 });
     }
   }
 
@@ -36,13 +36,15 @@ export async function GET(request: Request): Promise<Response> {
   const start = Date.now();
 
   try {
-    const res = await fetch(url, { signal: controller.signal });
+    // `cache: "no-store"` : chaque ping doit réellement toucher Render (jamais le
+    // Data Cache de Next), sinon le keep-warm ne réveille rien. Cf. lib/api/server.ts.
+    const res = await fetch(url, { signal: controller.signal, cache: "no-store" });
     const durationMs = Date.now() - start;
 
     if (!res.ok) {
       console.error(`[keep-warm] backend a répondu ${res.status} en ${durationMs}ms`);
       return NextResponse.json(
-        { ok: false, error: `backend status ${res.status}`, durationMs },
+        { ok: false, error: `statut backend ${res.status}`, durationMs },
         { status: 502 },
       );
     }
