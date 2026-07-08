@@ -27,7 +27,7 @@ export function RaceFinishers({
   const rows = orderParticipations(filtered);
   // Décompte ventilé sur l'ensemble complet (indépendant du filtre TCN) pour un
   // pied de tableau honnête : « partants » ≠ « finishers » (cf. issue #23).
-  const { total, finishers, nonFinishers } = countOutcomes(participations);
+  const { total, finishers, nonFinishers, unknown } = countOutcomes(participations);
 
   // Colonnes de splits adaptées au sport (clés/libellés alignés sur le backend),
   // limitées aux segments renseignés pour au moins un participant. On se base sur
@@ -108,7 +108,7 @@ export function RaceFinishers({
       <div style={{ padding: "16px 24px", borderTop: "1px solid var(--tcn-border)", textAlign: "center", fontSize: 13, color: "var(--tcn-text-faint)" }}>
         {filter === "tcn"
           ? `${rows.length} athlète${rows.length > 1 ? "s" : ""} TCN affiché${rows.length > 1 ? "s" : ""} · ${total} au total`
-          : `${total} partant${total > 1 ? "s" : ""} · ${finishers} finisher${finishers > 1 ? "s" : ""}${nonFinishers > 0 ? ` · ${nonFinishers} abandon${nonFinishers > 1 ? "s" : ""}` : ""}`}
+          : `${total} partant${total > 1 ? "s" : ""} · ${finishers} finisher${finishers > 1 ? "s" : ""}${nonFinishers > 0 ? ` · ${nonFinishers} abandon${nonFinishers > 1 ? "s" : ""}` : ""}${unknown > 0 ? ` · ${unknown} indéterminé${unknown > 1 ? "s" : ""}` : ""}`}
       </div>
     </Card>
   );
