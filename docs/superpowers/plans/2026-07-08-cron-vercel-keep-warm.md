@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ajouter une Route Handler Next.js `/cron/keep-warm` qui ping `${BACKEND_URL}/api/v1/health`, planifiée par un cron Vercel toutes les 10 min, pour empêcher le cold start du backend Render.
+**Goal:** Ajouter une Route Handler Next.js `/cron/keep-warm` qui ping `${BACKEND_URL}/api/v1/health`, appelée toutes les ~10 min par un cron externe (serveur Azure), pour empêcher le cold start du backend Render.
 
-**Architecture:** Une Route Handler `GET` sous `frontend/app/cron/keep-warm/route.ts` (hors `/api/` pour éviter le rewrite `next.config.ts`). Elle vérifie un secret optionnel (`CRON_SECRET`), relaie un `fetch` avec timeout `AbortController` vers l'endpoint de santé du backend, et renvoie `200`/`401`/`502`. Un `frontend/vercel.json` déclare le cron `*/10 * * * *`. Le secret est documenté dans `.env.local.example`.
+**Architecture:** Une Route Handler `GET` sous `frontend/app/cron/keep-warm/route.ts` (hors `/api/` pour éviter le rewrite `next.config.ts`). Elle vérifie un secret optionnel (`CRON_SECRET`), relaie un `fetch` avec timeout `AbortController` vers l'endpoint de santé du backend, et renvoie `200`/`401`/`502`. Un cron externe hébergé sur notre serveur Azure appelle cette route toutes les ~10 min en envoyant l'en-tête `Authorization: Bearer $CRON_SECRET`. Le secret est documenté dans `.env.local.example`.
 
-**Tech Stack:** Next.js 16 (App Router, Route Handlers), TypeScript strict, Vitest 4, Vercel Cron Jobs.
+**Tech Stack:** Next.js 16 (App Router, Route Handlers), TypeScript strict, Vitest 4, cron externe (serveur Azure).
 
 ## Global Constraints
 
@@ -16,7 +16,7 @@
 - **Timeout du `fetch` backend ≈ 10 s** via `AbortController`.
 - **Ne jamais committer la vraie valeur de `CRON_SECRET`** — placeholder uniquement.
 - **Endpoint cible** : `${BACKEND_URL}/api/v1/health` (un seul endpoint, YAGNI).
-- **Planification cron** : `*/10 * * * *` (cible Vercel Pro) ; documenter la limite Hobby (1 exéc/jour) + alternative externe (cron-job.org / UptimeRobot).
+- **Planification** : un cron externe (serveur Azure) appelle `GET /cron/keep-warm` toutes les ~10 min en envoyant `Authorization: Bearer $CRON_SECRET`. La cadence est configurée côté Azure — **aucun `vercel.json`** n'est créé.
 - **Tests unitaires sans réseau** : `fetch` global mocké via `vi.stubGlobal`.
 - Commits : Conventional Commits (`feat:`…).
 - Travailler depuis le worktree courant ; toutes les commandes frontend s'exécutent depuis `frontend/`.
@@ -29,12 +29,11 @@
 |---------|------|
 | `frontend/app/cron/keep-warm/route.ts` | **Créer** — Route Handler `GET` : auth optionnelle, ping backend avec timeout, réponses `200/401/502`. |
 | `frontend/app/cron/keep-warm/route.test.ts` | **Créer** — Tests Vitest (401, 200, 502 non-2xx, 502 réseau, dev sans secret). |
-| `frontend/vercel.json` | **Créer** — Déclaration du cron Vercel `*/10 * * * *` → `/cron/keep-warm`. |
-| `frontend/.env.local.example` | **Modifier** — Ajouter le placeholder `CRON_SECRET` + note limite Hobby / alternative. |
+| `frontend/.env.local.example` | **Modifier** — Ajouter le placeholder `CRON_SECRET` + note sur le cron externe (Azure). |
 
 Deux tâches :
 1. **Task 1** — Route Handler + tests (le cœur, TDD). Deliverable testable de bout en bout.
-2. **Task 2** — Câblage cron Vercel (`vercel.json`) + documentation d'environnement. Config/doc, vérifiée par `npm run build` et relecture.
+2. **Task 2** — Documentation d'environnement (`CRON_SECRET`). Doc, vérifiée par `npm run build` et relecture.
 
 ---
 
@@ -161,14 +160,14 @@ export const dynamic = "force-dynamic";
 const HEALTH_PATH = "/api/v1/health";
 const TIMEOUT_MS = 10_000;
 
-// Cron Vercel « keep-warm » : maintient le backend Render éveillé (évite le cold start ~15 min).
+// Cron « keep-warm » : maintient le backend Render éveillé (évite le cold start ~15 min).
 //
-// Planification : `*/10 * * * *` (voir vercel.json) — NÉCESSITE le plan Vercel Pro.
-// En plan Hobby, les crons sont plafonnés à 1 exécution/jour (insuffisant). Alternative
-// pour rester en Hobby : cron externe (cron-job.org / UptimeRobot) pointant sur cette route.
+// Appelée toutes les ~10 min par un cron externe hébergé sur notre serveur Azure, qui
+// envoie l'en-tête `Authorization: Bearer $CRON_SECRET`. La cadence est configurée côté
+// Azure (pas de vercel.json).
 export async function GET(request: Request): Promise<Response> {
   // 1. Auth : si CRON_SECRET est défini, exiger `Authorization: Bearer <secret>`.
-  //    Vercel injecte automatiquement cet en-tête sur les crons quand CRON_SECRET existe.
+  //    Le cron externe (Azure) doit envoyer cet en-tête ; sinon la requête est rejetée.
   //    En dev local (CRON_SECRET absent/vide), l'auth est ignorée pour tester manuellement.
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
@@ -228,63 +227,46 @@ git commit -m "feat(cron): route handler keep-warm ping le backend Render"
 
 ---
 
-### Task 2: Cron Vercel + documentation d'environnement
+### Task 2: Documentation d'environnement (`CRON_SECRET`)
 
 **Files:**
-- Create: `frontend/vercel.json`
 - Modify: `frontend/.env.local.example`
 
 **Interfaces:**
 - Consumes : la route `GET /cron/keep-warm` produite par Task 1.
-- Produces : configuration cron Vercel (`crons[].path = "/cron/keep-warm"`, `schedule = "*/10 * * * *"`) et documentation du secret `CRON_SECRET`.
+- Produces : documentation du secret `CRON_SECRET` que le cron externe (Azure) envoie dans `Authorization: Bearer`.
 
-**Note :** `vercel.json` est du JSON strict — **pas de commentaires possibles**. La note sur la limite Hobby / l'alternative externe vit donc dans l'en-tête de `route.ts` (Task 1) et dans `.env.local.example` (ci-dessous).
+**Note :** Le choix retenu est un **cron externe hébergé sur notre serveur Azure** (pas de `vercel.json`). La cadence (~10 min) est configurée côté Azure ; côté dépôt, seul le secret partagé est documenté.
 
-- [ ] **Step 1: Créer `frontend/vercel.json`**
-
-```json
-{
-  "crons": [
-    {
-      "path": "/cron/keep-warm",
-      "schedule": "*/10 * * * *"
-    }
-  ]
-}
-```
-
-- [ ] **Step 2: Documenter `CRON_SECRET` dans `.env.local.example`**
+- [ ] **Step 1: Documenter `CRON_SECRET` dans `.env.local.example`**
 
 Ouvrir `frontend/.env.local.example` et **ajouter à la fin** (en conservant les lignes existantes, dont `BACKEND_URL`) le bloc suivant :
 
 ```dotenv
 
 # Secret partagé du cron « keep-warm » (frontend/app/cron/keep-warm/route.ts).
-# Vercel injecte automatiquement `Authorization: Bearer $CRON_SECRET` sur les invocations cron.
-# Générer une valeur : openssl rand -hex 32 — à renseigner dans Vercel > Settings > Environment Variables.
+# Un cron externe (serveur Azure) appelle GET /cron/keep-warm toutes les ~10 min en
+# envoyant l'en-tête `Authorization: Bearer $CRON_SECRET` ; la route rejette (401) sinon.
+# Générer une valeur : openssl rand -hex 32.
 # NE JAMAIS committer la vraie valeur ; laissée vide en local => auth du cron ignorée.
-#
-# Planification `*/10 * * * *` (vercel.json) => nécessite le plan Vercel Pro.
-# En plan Hobby (1 cron/jour max), utiliser un cron externe (cron-job.org / UptimeRobot)
-# pointant sur https://<domaine>/cron/keep-warm avec le même en-tête Authorization.
 CRON_SECRET=
 ```
 
-- [ ] **Step 3: Vérifier que le build accepte la config**
+- [ ] **Step 2: Vérifier que le build reste OK**
 
 Run (depuis `frontend/`) : `npm run build`
 Expected : build prod OK, la route `/cron/keep-warm` apparaît comme route dynamique (`ƒ`) dans la sortie de build, aucune erreur TypeScript.
 
-- [ ] **Step 4: Vérifier que la suite de tests reste verte**
+- [ ] **Step 3: Vérifier que la suite de tests reste verte**
 
 Run (depuis `frontend/`) : `npm test`
 Expected : PASS (tous les tests existants + les 5 nouveaux).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add frontend/vercel.json frontend/.env.local.example
-git commit -m "feat(cron): planifie le cron Vercel keep-warm et documente CRON_SECRET"
+git add frontend/.env.local.example
+git commit -m "docs(cron): documente CRON_SECRET pour le cron externe keep-warm"
 ```
 
 ---
@@ -297,8 +279,8 @@ git commit -m "feat(cron): planifie le cron Vercel keep-warm et documente CRON_S
 - Ping `${BACKEND_URL}/api/v1/health` avec timeout `AbortController` ~10 s → Task 1. ✅
 - Réponses `200 {ok,backendStatus,durationMs}` / `502 {ok,error,durationMs}` + `console.error` → Task 1. ✅
 - Tests Vitest 401 / 200 / 502 (non-2xx & réseau) / dev sans secret, `fetch` mocké → Task 1 Step 1. ✅
-- Planification `*/10 * * * *` (cible Pro) + doc limite Hobby + alternative externe → `vercel.json` (Task 2) + commentaires `route.ts` (Task 1) + `.env.local.example` (Task 2). ✅
-- `CRON_SECRET` placeholder dans la doc d'env, jamais la vraie valeur, `BACKEND_URL` déjà présent → Task 2 Step 2. ✅
+- Cron externe (serveur Azure) appelant la route avec `Authorization: Bearer $CRON_SECRET`, cadence ~10 min configurée côté Azure, **pas de `vercel.json`** → commentaires `route.ts` (Task 1) + `.env.local.example` (Task 2). ✅
+- `CRON_SECRET` placeholder dans la doc d'env, jamais la vraie valeur, `BACKEND_URL` déjà présent → Task 2 Step 1. ✅
 - Hors périmètre (métriques, multi-endpoints, retry interne) → non implémentés. ✅
 
 **2. Placeholder scan :** Chaque step de code contient le code complet (route, tests, JSON, dotenv). Aucun « TODO / à compléter ». ✅
