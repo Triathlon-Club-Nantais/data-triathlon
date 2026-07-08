@@ -14,7 +14,7 @@ périodiquement l'endpoint de santé `/api/v1/health`.
 
 ## Objectif
 
-Un cron Vercel appelle toutes les ~10 min une Route Handler Next.js dédiée, qui
+Un cron sur notre serveur Azure appellera toutes les ~10 min une Route Handler Next.js dédiée, qui
 relaie un `fetch` vers `${BACKEND_URL}/api/v1/health` pour réveiller / maintenir
 éveillé le backend Render.
 
@@ -29,24 +29,9 @@ relaie un `fetch` vers `${BACKEND_URL}/api/v1/health` pour réveiller / mainteni
 
 ## Architecture
 
-Trois artefacts, tous dans `frontend/`.
+Deux artefacts, tous dans `frontend/`.
 
-### 1. `frontend/vercel.json`
-
-Déclaration du cron Vercel :
-
-```json
-{
-  "crons": [
-    { "path": "/cron/keep-warm", "schedule": "*/10 * * * *" }
-  ]
-}
-```
-
-La limite Hobby est rappelée en commentaire dans le code accompagnant (ou dans le
-README frontend, `vercel.json` n'acceptant pas de commentaires JSON).
-
-### 2. `frontend/app/cron/keep-warm/route.ts`
+### 1. `frontend/app/cron/keep-warm/route.ts`
 
 Route Handler Next.js (méthode `GET`).
 
@@ -75,7 +60,7 @@ Comportement :
 Le handler force le rendu dynamique (`export const dynamic = "force-dynamic"`)
 pour ne pas être mis en cache statiquement.
 
-### 3. Documentation d'environnement
+### 1. Documentation d'environnement
 
 - Ajouter `CRON_SECRET` (placeholder) à la doc frontend / `.env.example` s'il
   existe. **Ne jamais committer la vraie valeur.**
