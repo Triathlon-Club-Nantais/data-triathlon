@@ -342,7 +342,9 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     if epreuve_m:
         ea = _attrs(epreuve_m.group())
         event_name = ea.get("nom", "")
-        date_str = ea.get("dates", "")
+        # `dates` (libellé libre) est parfois vide ; on replie alors sur les
+        # dates ISO de début/fin `dt1`/`dt2` (cas réel 3232 « LE NORTH MAY »).
+        date_str = ea.get("dates", "") or ea.get("dt1", "") or ea.get("dt2", "")
         if date_str:
             event_date_val = _parse_event_date(date_str)
     # Repli si un participant n'a pas de parcours (`p` vide).
