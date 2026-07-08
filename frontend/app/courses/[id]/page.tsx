@@ -146,7 +146,7 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
         </Card>
       )}
 
-      <RaceFinishers participations={participations} tcnCount={tcnCount} />
+      <RaceFinishers participations={participations} tcnCount={tcnCount} eventType={course.event_type} />
     </div>
   );
 }
