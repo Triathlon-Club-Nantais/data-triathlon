@@ -45,7 +45,12 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.json({ ok: true, backendStatus: res.status, durationMs });
   } catch (err) {
     const durationMs = Date.now() - start;
-    const error = err instanceof Error ? err.message : "erreur inconnue";
+    const error =
+      err instanceof Error
+        ? err.name === "AbortError"
+          ? "délai dépassé"
+          : err.message
+        : "erreur inconnue";
     console.error(`[keep-warm] échec du ping backend après ${durationMs}ms : ${error}`);
     return NextResponse.json({ ok: false, error, durationMs }, { status: 502 });
   } finally {

@@ -77,4 +77,29 @@ describe("GET /cron/keep-warm", () => {
     expect(res.status).toBe(200);
     expect(fetchMock).toHaveBeenCalled();
   });
+
+  it("répond 401 quand l'en-tête Authorization est présent mais incorrect", async () => {
+    vi.stubEnv("CRON_SECRET", "s3cr3t");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await GET(makeRequest({ authorization: "Bearer mauvais" }));
+
+    expect(res.status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("répond 502 avec un message français quand le fetch expire (AbortError)", async () => {
+    vi.stubEnv("CRON_SECRET", "s3cr3t");
+    const abortErr = Object.assign(new Error("This operation was aborted"), {
+      name: "AbortError",
+    });
+    const fetchMock = vi.fn().mockRejectedValue(abortErr);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await GET(makeRequest({ authorization: "Bearer s3cr3t" }));
+
+    expect(res.status).toBe(502);
+    await expect(res.json()).resolves.toMatchObject({ ok: false, error: "délai dépassé" });
+  });
 });
