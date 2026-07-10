@@ -218,3 +218,18 @@ def test_unsupported_provider_raises(db_session, monkeypatch):
     monkeypatch.setattr(import_service, "registry_scrape_event_all", _raise)
     with pytest.raises(ProviderNotSupportedError):
         import_service.import_event(db_session, URL, _settings())
+
+
+def test_force_bypasse_le_cache_ttl(db_session, patch_scraper):
+    """Avec force=True, on re-scrape même si la course est fraîche (cache non expiré)."""
+    patch_scraper([_result("1", "DUPONT")])
+    import_service.import_event(db_session, URL, _settings())
+
+    # Course fraîche → sans force, le cache court-circuite le re-scraping.
+    out = import_service.import_event(db_session, URL, _settings())
+    assert out.get("cached") is True
+
+    # Avec force=True → re-scrape malgré la fraîcheur ; le dossard 2 est nouveau.
+    patch_scraper([_result("1", "DUPONT"), _result("2", "MARTIN")])
+    out = import_service.import_event(db_session, URL, _settings(), force=True)
+    assert out == {"imported": 1, "skipped": 1}

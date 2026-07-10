@@ -129,13 +129,17 @@ def _cached_result(db: Session, url: str, settings: Settings) -> dict | None:
     return None
 
 
-def import_event(db: Session, url: str, settings: Settings) -> dict:
-    """Import complet (bloquant). Renvoie {imported, skipped, [cached]}."""
+def import_event(db: Session, url: str, settings: Settings, force: bool = False) -> dict:
+    """Import complet (bloquant). Renvoie {imported, skipped, [cached]}.
+
+    force=True saute le cache TTL (`_cached_result`) → le scraping a toujours lieu.
+    """
     url = _validate_url(url)
 
-    cached = _cached_result(db, url, settings)
-    if cached is not None:
-        return cached
+    if not force:
+        cached = _cached_result(db, url, settings)
+        if cached is not None:
+            return cached
 
     results = _scrape_all(url)
     if not results:
@@ -155,11 +159,15 @@ def import_event(db: Session, url: str, settings: Settings) -> dict:
     return {"imported": persister.imported, "skipped": persister.skipped}
 
 
-def iter_import_event(db: Session, url: str, settings: Settings) -> Iterator[dict]:
+def iter_import_event(
+    db: Session, url: str, settings: Settings, force: bool = False
+) -> Iterator[dict]:
     """
     Générateur de progression pour le SSE. Émet des dicts de phase :
       {phase: scraping} → {phase: saving, progress, total, imported, skipped}
       → {phase: done, …}   (ou {phase: error, message})
+
+    force=True saute le cache TTL (`_cached_result`).
     """
     try:
         url = _validate_url(url)
@@ -167,10 +175,11 @@ def iter_import_event(db: Session, url: str, settings: Settings) -> Iterator[dic
         yield {"phase": "error", "message": exc.message}
         return
 
-    cached = _cached_result(db, url, settings)
-    if cached is not None:
-        yield {"phase": "done", "total": cached["skipped"], **cached}
-        return
+    if not force:
+        cached = _cached_result(db, url, settings)
+        if cached is not None:
+            yield {"phase": "done", "total": cached["skipped"], **cached}
+            return
 
     yield {"phase": "scraping", "message": "Récupération des participants…"}
     try:
