@@ -1,5 +1,5 @@
 """Accès données pour Course."""
-from datetime import date
+from datetime import date, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -109,3 +109,22 @@ def list_all(
         .limit(page_size)
         .all()
     )
+
+
+def iter_all(
+    db: Session,
+    *,
+    provider: str | None = None,
+    older_than_days: int | None = None,
+) -> list[Course]:
+    """Toutes les courses (non paginé), filtrables par provider et ancienneté de scraped_at.
+
+    Alimente le rescrape en masse ; l'accès DB reste confiné au repository.
+    """
+    q = db.query(Course)
+    if provider:
+        q = q.filter(Course.provider == provider)
+    if older_than_days is not None:
+        cutoff = utcnow() - timedelta(days=older_than_days)
+        q = q.filter(Course.scraped_at < cutoff)
+    return q.order_by(Course.event_date.desc().nullslast(), Course.name).all()
