@@ -19,6 +19,7 @@ import typer
 
 from app.core.config import get_settings
 from app.core.database import session_scope
+from app.repositories import course_repository
 from app.scrapers import registry
 from app.services import import_service
 
@@ -212,6 +213,107 @@ def import_sheet(
             dry_run=dry_run, limit=limit, only_provider=only_provider, delay=delay,
         )
     typer.echo(render_sheet_report(outcome, dry_run=dry_run))
+    if json_output:
+        typer.echo(json.dumps(asdict(outcome), ensure_ascii=False))
+
+
+@dataclass
+class RescrapeOutcome:
+    """Bilan d'un rescrape-db."""
+    total: int = 0
+    imported: int = 0
+    skipped: int = 0
+    errors: int = 0
+    dry_run_urls: list[str] = field(default_factory=list)
+
+
+def run_rescrape_db(
+    db,
+    settings,
+    *,
+    dry_run: bool = False,
+    older_than: int | None = None,
+    provider: str | None = None,
+    limit: int | None = None,
+    delay: float = 1.0,
+) -> RescrapeOutcome:
+    """Re-scrape toutes les courses en DB avec force=True (bypass du cache TTL).
+
+    Ne retient que les courses ayant une source_url (clé de re-scraping).
+    En dry-run : liste les URLs sans scraper ni persister.
+    """
+    courses = course_repository.iter_all(
+        db, provider=provider, older_than_days=older_than
+    )
+    courses = [c for c in courses if c.source_url]
+    if limit is not None:
+        courses = courses[:limit]
+
+    outcome = RescrapeOutcome(
+        total=len(courses),
+        dry_run_urls=[c.source_url for c in courses],
+    )
+    if dry_run:
+        return outcome
+
+    for i, course in enumerate(courses):
+        try:
+            res = import_service.import_event(db, course.source_url, settings, force=True)
+            outcome.imported += res.get("imported", 0)
+            outcome.skipped += res.get("skipped", 0)
+        except Exception as exc:
+            outcome.errors += 1
+            logger.warning("Échec rescrape %s : %s", course.source_url, exc)
+        if delay and i < len(courses) - 1:
+            time.sleep(delay)
+
+    return outcome
+
+
+def render_rescrape_report(outcome: RescrapeOutcome, *, dry_run: bool) -> str:
+    """Rapport texte lisible pour rescrape-db."""
+    lignes = []
+    titre = "RESCRAPE DB (dry-run)" if dry_run else "RESCRAPE DB"
+    lignes.append(f"=== {titre} ===")
+    lignes.append(f"Courses ciblées : {outcome.total}")
+    if dry_run:
+        for url in outcome.dry_run_urls:
+            lignes.append(f"  - {url}")
+    else:
+        lignes.append(f"Importées : {outcome.imported}")
+        lignes.append(f"Ignorées  : {outcome.skipped}")
+        lignes.append(f"En erreur : {outcome.errors}")
+    return "\n".join(lignes)
+
+
+@app.command("rescrape-db")
+def rescrape_db(
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Liste les courses sans scraper ni persister."
+    ),
+    older_than: int | None = typer.Option(
+        None, "--older-than", help="Ne re-scrape que les courses plus vieilles que N jours."
+    ),
+    provider: str | None = typer.Option(
+        None, "--provider", help="Restreint à un provider."
+    ),
+    limit: int | None = typer.Option(None, "--limit", help="Borne le nombre de courses."),
+    delay: float = typer.Option(
+        1.0, "--delay", help="Pause de politesse entre scrapes (s)."
+    ),
+    json_output: bool = typer.Option(
+        False, "--json", help="Rapport machine-lisible en plus du texte."
+    ),
+) -> None:
+    """Re-scrape tous les events en DB (force=True, bypass du cache TTL)."""
+    settings = get_settings()
+    with session_scope() as db:
+        outcome = run_rescrape_db(
+            db, settings,
+            dry_run=dry_run, older_than=older_than, provider=provider,
+            limit=limit, delay=delay,
+        )
+    typer.echo(render_rescrape_report(outcome, dry_run=dry_run))
     if json_output:
         typer.echo(json.dumps(asdict(outcome), ensure_ascii=False))
 
