@@ -1,12 +1,14 @@
 import { notFound } from "next/navigation";
 import { apiServer } from "@/lib/api/server";
 import { Card, Eyebrow, MetaPill } from "@/components/tcn";
+import { PageShell } from "@/components/layout/PageShell";
 import { RaceFinishers } from "@/components/results/RaceFinishers";
 import { eventTypeLabel } from "@/lib/constants";
 import { formatToken } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
 import { isTCN } from "@/lib/utils/club";
 import { formatEventName } from "@/lib/utils/event";
+import { countOutcomes } from "@/lib/utils/raceOrder";
 
 const CAT_COLORS = [
   "var(--tcn-orange)", "var(--tcn-orange-300)", "var(--tcn-ink)", "var(--tcn-ink-2)",
@@ -29,7 +31,10 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
   const data = await apiServer.getCourse(Number(id)).catch(() => null);
   if (!data) notFound();
   const { course, participations } = data;
-  const total = participations.length;
+  // Ventilation partants / finishers / abandons / indéterminés — la pastille
+  // d'en-tête ne doit plus étiqueter « Finishers » un total qui inclut les
+  // DNF/DNS/DSQ (cf. issue #23).
+  const { total, finishers, nonFinishers, unknown } = countOutcomes(participations);
   const tcnCount = participations.filter((p) => isTCN(p.club)).length;
 
   // ── Répartition genre ──
@@ -70,20 +75,23 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
   const hist = buildHistogram(secs);
 
   return (
-    <div style={{ maxWidth: "var(--tcn-content-max)", margin: "0 auto", padding: "36px 40px 64px" }}>
+    <PageShell>
       <div style={{ marginBottom: 24 }}>
         <Eyebrow style={{ marginBottom: 6 }}>Résultats complets</Eyebrow>
-        <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 46, color: "var(--tcn-ink)", lineHeight: 1, marginBottom: 12 }}>{formatEventName(course.name, course.is_relay)}</div>
+        <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(30px, 5vw, 46px)", color: "var(--tcn-ink)", lineHeight: 1, marginBottom: 12 }}>{formatEventName(course.name, course.is_relay)}</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
           <MetaPill label="Type">{eventTypeLabel(course.event_type)}</MetaPill>
           <MetaPill label="Format">{formatToken(course.event_type, course.distance_km)}</MetaPill>
           {course.event_date && <MetaPill label="Date">{formatDate(course.event_date)}</MetaPill>}
-          <MetaPill label="Finishers">{total}</MetaPill>
+          <MetaPill label="Partants">{total}</MetaPill>
+          <MetaPill label="Finishers">{finishers}</MetaPill>
+          {nonFinishers > 0 && <MetaPill label="Abandons">{nonFinishers}</MetaPill>}
+          {unknown > 0 && <MetaPill label="Indéterminés">{unknown}</MetaPill>}
           {tcnCount > 0 && <MetaPill accent dot>{tcnCount} athlète{tcnCount > 1 ? "s" : ""} TCN</MetaPill>}
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "220px 1fr 260px", gap: 18, marginBottom: 18 }}>
+      <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card padding={24} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 18 }}>
           <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 18, color: "var(--tcn-ink)", alignSelf: "flex-start" }}>Répartition genre</div>
           <div style={{ position: "relative", width: 130, height: 130, borderRadius: 999, background: hasGender ? `conic-gradient(var(--tcn-orange) 0 ${malePct}%, var(--tcn-ink) ${malePct}% 100%)` : "var(--tcn-grey-300)" }}>
@@ -117,7 +125,7 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
           )}
         </Card>
 
-        <Card padding={24}>
+        <Card padding={24} className="sm:col-span-2 lg:col-span-1">
           <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 18, color: "var(--tcn-ink)", marginBottom: 14 }}>Top clubs</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, paddingBottom: 8, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--tcn-text-faint)", borderBottom: "1px solid var(--tcn-border)", marginBottom: 4 }}>
             <div>Club</div><div style={{ textAlign: "right" }}>Athlètes</div>
@@ -147,7 +155,7 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
       )}
 
       <RaceFinishers participations={participations} tcnCount={tcnCount} eventType={course.event_type} />
-    </div>
+    </PageShell>
   );
 }
 

@@ -51,12 +51,17 @@ function SheetContent({
       <DialogPrimitive.Popup
         data-slot="sheet-content"
         data-side={side}
+        style={{
+          background: "var(--tcn-surface)",
+          color: "var(--tcn-ink)",
+          borderColor: "var(--tcn-border-strong)",
+        }}
         className={cn(
-          "fixed inset-y-0 z-50 flex w-72 max-w-[85%] flex-col gap-4 bg-sidebar text-sidebar-foreground p-4 shadow-xl duration-200 outline-none data-open:animate-in data-closed:animate-out",
+          "fixed inset-y-0 z-50 flex w-72 max-w-[85%] flex-col gap-4 p-4 shadow-xl duration-200 outline-none data-open:animate-in data-closed:animate-out",
           side === "left" &&
-            "left-0 border-r border-sidebar-border data-open:slide-in-from-left data-closed:slide-out-to-left",
+            "left-0 border-r data-open:slide-in-from-left data-closed:slide-out-to-left",
           side === "right" &&
-            "right-0 border-l border-sidebar-border data-open:slide-in-from-right data-closed:slide-out-to-right",
+            "right-0 border-l data-open:slide-in-from-right data-closed:slide-out-to-right",
           className
         )}
         {...props}

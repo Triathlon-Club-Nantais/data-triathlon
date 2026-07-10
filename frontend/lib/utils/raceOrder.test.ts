@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { orderParticipations, isNonFinisher } from "./raceOrder";
+import { orderParticipations, isNonFinisher, isFinisher, countOutcomes } from "./raceOrder";
 import type { Participation } from "@/lib/types";
 
 function p(over: Partial<Participation> & { id: number }): Participation {
   return {
     id: over.id,
     athlete: { id: over.id, nom: over.athlete?.nom ?? "X", prenom: over.athlete?.prenom ?? "Y", gender: "M", club: null },
-    course: { id: 1, event_name: "C", event_date: null, event_type: null },
+    course: { id: 1, name: "C", event_date: null, event_type: "", provider: "", source_url: "", is_relay: false },
     club: null,
     category: null,
     bib_number: null,
@@ -68,5 +68,35 @@ describe("isNonFinisher", () => {
     expect(isNonFinisher("")).toBe(false);
     expect(isNonFinisher(null)).toBe(false);
     expect(isNonFinisher(undefined)).toBe(false);
+  });
+});
+
+describe("isFinisher", () => {
+  it("ne reconnaît que le statut explicite « finisher » (toute casse)", () => {
+    expect(isFinisher("finisher")).toBe(true);
+    expect(isFinisher("Finisher")).toBe(true);
+    expect(isFinisher("DNF")).toBe(false);
+    expect(isFinisher("")).toBe(false);
+    expect(isFinisher(null)).toBe(false);
+    expect(isFinisher(undefined)).toBe(false);
+  });
+});
+
+describe("countOutcomes", () => {
+  it("décompte finishers / non-finishers / indéterminés séparément", () => {
+    const out = countOutcomes([
+      p({ id: 1, status: "finisher" }),
+      p({ id: 2, status: "finisher" }),
+      p({ id: 3, status: "DNF" }),
+      p({ id: 4, status: "DNS" }),
+      p({ id: 5, status: "DSQ" }),
+      p({ id: 6, status: "" }),
+      p({ id: 7, status: "en course" }),
+    ]);
+    expect(out).toEqual({ total: 7, finishers: 2, nonFinishers: 3, unknown: 2 });
+  });
+
+  it("gère une liste vide", () => {
+    expect(countOutcomes([])).toEqual({ total: 0, finishers: 0, nonFinishers: 0, unknown: 0 });
   });
 });

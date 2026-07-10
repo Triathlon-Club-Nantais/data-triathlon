@@ -3,6 +3,7 @@ Service d'import en masse d'une épreuve (tous les participants).
 
 Inclut le cache TTL (court-circuite le re-scraping si la course est fraîche),
 la déduplication par (course, dossard), un rollback explicite en cas d'erreur,
+le calcul de l'indice de fiabilité de chaque course touchée (`services/quality.py`),
 et un générateur de progression pour le streaming SSE.
 """
 import logging
@@ -16,7 +17,7 @@ from app.models.course import Course
 from app.repositories import course_repository, participation_repository
 from app.scrapers import scrape_event_all as registry_scrape_event_all
 from app.scrapers.base import ScrapedResult
-from app.services import cache, mapping
+from app.services import cache, mapping, quality
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,8 @@ class _Persister:
         self.db = db
         self.event_url = event_url
         self._bibs: dict[int, set[str]] = {}
+        self._added_bibs: dict[int, set[str]] = {}
+        self._duplicate_bibs: dict[int, int] = {}
         self._courses: dict[int, Course] = {}
         self.imported = 0
         self.skipped = 0
@@ -55,9 +58,15 @@ class _Persister:
         bibs = self._bibs.setdefault(
             course.id, participation_repository.existing_bibs_for_course(self.db, course.id)
         )
+        added = self._added_bibs.setdefault(course.id, set())
         bib = scraped.bib_number or None
         if bib and bib in bibs:
             self.skipped += 1
+            # Dossard déjà persisté avant cet import → doublon bénin (re-scrape).
+            # Déjà ajouté pendant cet import → la source se contredit, la ligne est
+            # perdue : c'est une anomalie de fiabilité (cf. services/quality.py).
+            if bib in added:
+                self._duplicate_bibs[course.id] = self._duplicate_bibs.get(course.id, 0) + 1
             return
         athlete = mapping.get_or_create_athlete(self.db, scraped)
         participation_repository.create(
@@ -68,11 +77,22 @@ class _Persister:
         )
         if bib:
             bibs.add(bib)
+            added.add(bib)
         self.imported += 1
 
     def finalize(self) -> None:
-        for course in self._courses.values():
+        for course_id, course in self._courses.items():
             course_repository.touch_scraped_at(self.db, course)
+            report = quality.analyze(
+                participation_repository.list_for_course(self.db, course_id),
+                duplicate_bibs=self._duplicate_bibs.get(course_id, 0),
+            )
+            course_repository.set_quality(
+                self.db,
+                course,
+                is_reliable=report.is_reliable,
+                quality_issues=report.anomalies,
+            )
 
 
 def _cached_result(db: Session, url: str, settings: Settings) -> dict | None:
