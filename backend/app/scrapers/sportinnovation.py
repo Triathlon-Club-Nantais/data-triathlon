@@ -8,6 +8,8 @@ Two URL formats:
    - GET all rows, filter by name in Python
    - Name cell format: "LASTNAME FirstnameG-CatG" (G=H/F, Cat=category)
    - Columns: Place | Dossard | Nom | Place Cat. | Club | Temps | ... | Tps Nat | T1 | Tps Velo | T2 | Tps CAP
+   - Nom d'événement et date : absents de la page liste (bandeau rempli en JS),
+     lus sur la page du modal de détail `/Evenements/Resultats/Detail/{id}/1`.
 
 2. results.sportinnovation.fr/race/{slug}  (format 2026)
    - JSON API : GET /api/races/{slug} → meta, /api/races/{slug}/results → athlètes
@@ -90,6 +92,69 @@ def _detect_event_type(race_name: str) -> str:
     return classify_event_type(race_name)
 
 
+_H6_RE = re.compile(r"^(?P<race>.+?)\s*\((?P<date>\d{2}/\d{2}/\d{4})\)\s*$", re.S)
+_SHARE_TITLE_RE = re.compile(r"sharer\.php\?u=[^&]*&t=(?P<title>[^\"']+)")
+
+
+def _parse_race_meta(html: str) -> tuple[str, str, date | None]:
+    """Extrait (nom de course, nom d'événement, date) d'une page de détail participant.
+
+    Deux porteurs indépendants dans la page :
+      - `<h6>Triathlon M (05/10/2025)</h6>` → course + date (la date est propre à
+        la course : à Carnac les aquathlons ont lieu la veille des triathlons) ;
+      - le lien de partage `…&t=Résultats - {course} - {événement}` → événement.
+
+    Le nom de course peut contenir « - » (« Bike & Run - Kids ») : on retire le
+    préfixe `Résultats - {course} - ` déjà connu plutôt que de couper au dernier
+    tiret. Chaque champ manquant retombe sur une valeur vide.
+    """
+    soup = BeautifulSoup(html, "lxml")
+
+    race_name = ""
+    event_date = None
+    h6 = soup.find("h6")
+    if h6:
+        m = _H6_RE.match(h6.get_text(strip=True))
+        if m:
+            race_name = m.group("race").strip()
+            day, month, year = m.group("date").split("/")
+            try:
+                event_date = date(int(year), int(month), int(day))
+            except ValueError:
+                logger.warning("Date de course illisible : %s", m.group("date"))
+
+    event_name = ""
+    if race_name:
+        # `href` est lu via bs4 (entités déjà décodées) : le HTML sérialisé ré-encode « & ».
+        for a in soup.find_all("a", href=True):
+            share = _SHARE_TITLE_RE.search(a["href"])
+            if not share:
+                continue
+            title = share.group("title").strip()
+            prefix = f"Résultats - {race_name} - "
+            if title.startswith(prefix):
+                event_name = title[len(prefix):].strip()
+                break
+
+    return race_name, event_name, event_date
+
+
+def _compose_course_name(event_name: str, race_name: str) -> str:
+    """Nom de Course « Événement - Course ».
+
+    `uq_course_identity` porte sur (name, event_date, event_type, is_relay) : les
+    quatre aquathlons de Carnac partagent date et `event_type`, seul le nom de
+    course les distingue. On omet la moitié absente, et on ne duplique pas un
+    événement mono-course dont le titre est déjà celui de la course.
+    """
+    event_name, race_name = event_name.strip(), race_name.strip()
+    if not event_name:
+        return race_name
+    if not race_name or race_name.lower() == event_name.lower():
+        return event_name
+    return f"{event_name} - {race_name}"
+
+
 def _col_indices(headers: list[str]) -> dict[str, int]:
     """Map column role → index from the <th> header row."""
     mapping = {}
@@ -126,10 +191,24 @@ def _col_indices(headers: list[str]) -> dict[str, int]:
     return mapping
 
 
-def _parse_html_row(tds: list[str], col: dict[str, int], url: str, race_name: str) -> ScrapedResult:
+def _parse_html_row(
+    tds: list[str],
+    col: dict[str, int],
+    url: str,
+    race_name: str,
+    course_name: str | None = None,
+    event_date: date | None = None,
+) -> ScrapedResult:
+    """Construit un ScrapedResult depuis une ligne du tableau HTML.
+
+    `race_name` sert à classifier le sport (« Triathlon M ») ; `course_name` est
+    le nom stocké (« Triathlon de Carnac 2025 - Triathlon M ») et retombe sur
+    `race_name` quand les métadonnées d'événement n'ont pas pu être lues.
+    """
     result = ScrapedResult(source_url=url, provider="sportinnovation")
-    result.event_name = race_name
+    result.event_name = course_name or race_name
     result.event_type = _detect_event_type(race_name)
+    result.event_date = event_date
 
     def get(key: str) -> str:
         idx = col.get(key)
@@ -212,6 +291,25 @@ def _fetch_html_results(
     return race_name, rows_data, col
 
 
+def _fetch_race_meta(race_id: str, client: httpx.Client) -> tuple[str, date | None]:
+    """(nom d'événement, date) d'une course legacy, via la page de détail du 1er participant.
+
+    Best-effort : une course vide ou une page inattendue renvoie ("", None), et
+    l'appelant retombe alors sur le seul titre de course.
+    """
+    try:
+        resp = client.get(
+            f"https://sportinnovation.fr/Evenements/Resultats/Detail/{race_id}/1",
+            timeout=15,
+        )
+        resp.raise_for_status()
+        _, event_name, event_date = _parse_race_meta(resp.text)
+        return event_name, event_date
+    except Exception:
+        logger.warning("Métadonnées introuvables pour la course %s", race_id, exc_info=True)
+        return "", None
+
+
 def _fetch_all_pages(event_id: str, client: httpx.Client) -> tuple[str, list[list[str]], dict[str, int]]:
     """Fetch all paginated rows for a race (250 rows per page)."""
     all_rows: list[list[str]] = []
@@ -287,9 +385,9 @@ def _parse_api_athlete(
     return res
 
 
-def _fetch_event_meta_api(event_id, client: httpx.Client) -> tuple[str, date | None]:
-    """Récupère (nom, date) d'un événement via /api/events/{id}."""
-    ev = client.get(f"{API_BASE}/events/{event_id}", timeout=15).json()
+def _fetch_event_meta_api(event_ref, client: httpx.Client) -> tuple[str, date | None]:
+    """Récupère (nom, date) d'un événement via /api/events/{slug}."""
+    ev = client.get(f"{API_BASE}/events/{event_ref}", timeout=15).json()
     event_date = None
     raw = ev.get("eventDate", "")
     if raw:
@@ -403,6 +501,33 @@ def _fetch_splits_parallel(
     return results
 
 
+def _race_results_api(
+    race_slug: str,
+    race_title: str,
+    event_name: str,
+    event_date: date | None,
+    url: str,
+    client: httpx.Client,
+) -> list[ScrapedResult]:
+    """Athlètes d'une course de l'API, nommée « Événement - Course » comme le legacy.
+
+    Le sport est classifié sur le titre de course seul : le nom composé porte le
+    nom de l'événement, qui peut mentionner un autre sport (« Triathlon de
+    Carnac 2025 - Aquathlon Pupilles » est un aquathlon).
+    """
+    course_name = _compose_course_name(event_name, race_title)
+    event_type = _detect_event_type(race_title)
+    athletes = client.get(f"{API_BASE}/races/{race_slug}/results", timeout=20).json()
+    splits_by_bib = _fetch_splits_parallel(athletes)
+    return [
+        _parse_api_athlete(
+            a, url, course_name, event_type, event_date,
+            splits_by_bib.get(a.get("bib", ""), {}),
+        )
+        for a in athletes
+    ]
+
+
 def _scrape_results_race(slug: str, url: str, client: httpx.Client) -> list[ScrapedResult]:
     """
     Forme 2026 `results.sportinnovation.fr/race/{slug}` (niveau course) :
@@ -413,26 +538,12 @@ def _scrape_results_race(slug: str, url: str, client: httpx.Client) -> list[Scra
     meta = client.get(f"{API_BASE}/races/{slug}", timeout=15).json()
     if "error" in meta or not meta.get("slug"):
         raise ValueError(f"Course Sportinnovation introuvable : {slug}")
-    event_type = _detect_event_type(meta.get("title", ""))
     event_name = ""
     event_date = None
     event_slug = meta.get("eventSlug", "")
     if event_slug:
-        ev = client.get(f"{API_BASE}/events/{event_slug}", timeout=15).json()
-        event_name = ev.get("title", "")
-        raw_date = ev.get("eventDate", "")
-        if raw_date:
-            try:
-                from datetime import date as _date
-                event_date = _date.fromisoformat(raw_date[:10])
-            except ValueError:
-                pass
-    athletes = client.get(f"{API_BASE}/races/{slug}/results", timeout=20).json()
-    splits_by_bib = _fetch_splits_parallel(athletes)
-    return [
-        _parse_api_athlete(a, url, event_name, event_type, event_date, splits_by_bib.get(a.get("bib", ""), {}))
-        for a in athletes
-    ]
+        event_name, event_date = _fetch_event_meta_api(event_slug, client)
+    return _race_results_api(slug, meta.get("title", ""), event_name, event_date, url, client)
 
 
 def scrape_event_all(url: str) -> list[ScrapedResult]:
@@ -454,21 +565,25 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                     raise ValueError(f"Impossible de résoudre le raceSlug depuis le détail : {ident}")
                 return _scrape_results_race(race_slug, url, client)
 
-            # Forme /{codeUrl} : niveau événement (toutes ses courses)
+            # Forme /{codeUrl} : niveau événement (toutes ses courses).
+            # Événements et courses sont adressés par `slug` : l'API n'expose
+            # pas d'`id`. `customUrl` est l'alias lisible (ex. `bayman_triathlon`).
             events = client.get(f"{API_BASE}/events", timeout=15).json()
-            event = next((e for e in events if e.get("codeUrl") == ident), None)
+            event = next(
+                (e for e in events if ident in (e.get("customUrl"), e.get("slug"))), None
+            )
             if not event:
                 raise ValueError(f"Événement {ident} introuvable.")
-            event_id = event["id"]
-            event_name, event_date = _fetch_event_meta_api(event_id, client)
-            races = client.get(f"{API_BASE}/events/{event_id}/races", timeout=15).json()
+            event_slug = event["slug"]
+            event_name, event_date = _fetch_event_meta_api(event_slug, client)
+            races = client.get(f"{API_BASE}/events/{event_slug}/races", timeout=15).json()
             results: list[ScrapedResult] = []
             for race in races:
-                athletes = client.get(f"{API_BASE}/races/{race['id']}/results", timeout=20).json()
-                event_type = _detect_event_type(race.get("title", ""))
                 results.extend(
-                    _parse_api_athlete(a, url, event_name, event_type, event_date)
-                    for a in athletes
+                    _race_results_api(
+                        race["slug"], race.get("title", ""),
+                        event_name, event_date, url, client,
+                    )
                 )
             return results
 
@@ -496,6 +611,8 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
 
         for rid in race_ids:
             race_name, rows, col = _fetch_all_pages(rid, client)
+            event_name, event_date = _fetch_race_meta(rid, client)
+            course_name = _compose_course_name(event_name, race_name)
             race_url = f"https://sportinnovation.fr/Evenements/Resultats/{rid}"
             for tds in rows:
                 bib_idx = col.get("bib", 1)
@@ -504,6 +621,8 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                 if key in seen_bibs:
                     continue
                 seen_bibs.add(key)
-                all_results.append(_parse_html_row(tds, col, race_url, race_name))
+                all_results.append(
+                    _parse_html_row(tds, col, race_url, race_name, course_name, event_date)
+                )
 
         return all_results
