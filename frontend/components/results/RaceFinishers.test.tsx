@@ -39,6 +39,26 @@ describe("RaceFinishers", () => {
     expect(screen.getByText("DNF")).toBeInTheDocument();
   });
 
+  it("ventile le pied de tableau : partants · finishers · abandons (pas « X finishers au total »)", () => {
+    render(<RaceFinishers participations={data} tcnCount={0} />);
+    // 3 partants, 1 finisher, 2 non-finishers (DNF + DNS).
+    expect(screen.getByText("3 partants · 1 finisher · 2 abandons")).toBeInTheDocument();
+  });
+
+  it("ajoute les « indéterminés » au pied de tableau pour réconcilier avec le total", () => {
+    const withUnknown = [
+      p({ id: 1, nom: "FINISHER", status: "finisher", rank_overall: 1, total_time: "00:55:00" }),
+      p({ id: 2, nom: "DNFGUY", status: "DNF", total_time: "01:10:00" }),
+      p({ id: 3, nom: "INCONNU", status: "" }),
+      p({ id: 4, nom: "VIDE", status: "" }),
+    ];
+    render(<RaceFinishers participations={withUnknown} tcnCount={0} />);
+    // 4 partants = 1 finisher + 1 abandon + 2 indéterminés.
+    expect(
+      screen.getByText("4 partants · 1 finisher · 1 abandon · 2 indéterminés"),
+    ).toBeInTheDocument();
+  });
+
   it("relègue les non-finishers après les finishers (DNF avant DNS)", () => {
     render(<RaceFinishers participations={data} tcnCount={0} />);
     const rows = screen.getAllByRole("button", { name: /Voir le profil/ });

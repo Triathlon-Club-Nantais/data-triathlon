@@ -7,6 +7,40 @@ export function isNonFinisher(status: string | null | undefined): boolean {
   return NON_FINISHER.has((status ?? "").toUpperCase());
 }
 
+/**
+ * Vrai si le statut est un finisher explicite (le backend pose « finisher »).
+ * Un statut vide ou non reconnu n'est pas un finisher : il tombe dans les
+ * « indéterminés » (cf. `countOutcomes`) pour ne pas gonfler le décompte.
+ */
+export function isFinisher(status: string | null | undefined): boolean {
+  return (status ?? "").toLowerCase() === "finisher";
+}
+
+/** Décompte d'une liste ventilé en finishers / non-finishers / indéterminés. */
+export interface OutcomeCounts {
+  total: number;
+  finishers: number;
+  nonFinishers: number;
+  unknown: number;
+}
+
+/**
+ * Ventile les participations en trois catégories distinctes : finishers
+ * (statut « finisher »), non-finishers (DNF/DNS/DSQ) et indéterminés (statut
+ * vide ou inconnu). Les trois compteurs somment toujours à `total`.
+ */
+export function countOutcomes(parts: Participation[]): OutcomeCounts {
+  let finishers = 0;
+  let nonFinishers = 0;
+  let unknown = 0;
+  for (const p of parts) {
+    if (isNonFinisher(p.status)) nonFinishers += 1;
+    else if (isFinisher(p.status)) finishers += 1;
+    else unknown += 1;
+  }
+  return { total: parts.length, finishers, nonFinishers, unknown };
+}
+
 // Rang de groupe : finishers d'abord, puis DNF, DSQ, DNS.
 function groupRank(p: Participation): number {
   const s = (p.status ?? "").toUpperCase();
