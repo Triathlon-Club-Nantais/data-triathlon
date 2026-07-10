@@ -73,7 +73,7 @@ class BreizhChronoProvider:
     name = "breizhchrono"
 
     def matches(self, url: str) -> bool:
-        return "breizhchrono.com" in url
+        return "breizhchrono.com" in url.lower()
 
     def scrape_event_all(self, url: str) -> list[ScrapedResult]:
         from app.scrapers.breizhchrono import (
@@ -84,7 +84,8 @@ class BreizhChronoProvider:
 
         # live.breizhchrono.com = même plateforme Klikego (cf. #34), façade
         # différente : on route vers le moteur live plutôt que de rejeter.
-        if "live.breizhchrono.com" in urlparse(url).netloc:
+        # netloc en minuscules → robuste à une URL copiée/collée avec majuscules.
+        if "live.breizhchrono.com" in urlparse(url).netloc.lower():
             reference, heat = _parse_live_url(url)
             if not reference:
                 raise ValueError(
