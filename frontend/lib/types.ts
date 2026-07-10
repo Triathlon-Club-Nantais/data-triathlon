@@ -17,6 +17,9 @@ export interface CourseBrief {
   source_url: string;
   is_relay: boolean;
   distance_km?: number | null;
+  // Indice de fiabilité calculé à l'import ; null = course jamais évaluée.
+  is_reliable?: boolean | null;
+  quality_issues?: Record<string, number> | null;
 }
 
 // Clés possibles de splits : "swim" | "t1" | "bike" | "t2" | "run"

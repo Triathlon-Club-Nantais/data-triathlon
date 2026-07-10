@@ -74,6 +74,14 @@ def touch_scraped_at(db: Session, course: Course) -> None:
     course.scraped_at = utcnow()
 
 
+def set_quality(
+    db: Session, course: Course, *, is_reliable: bool, quality_issues: dict[str, int]
+) -> None:
+    """Persiste l'indice de fiabilité calculé à l'import (cf. services/quality.py)."""
+    course.is_reliable = is_reliable
+    course.quality_issues = quality_issues
+
+
 def list_all(
     db: Session,
     *,

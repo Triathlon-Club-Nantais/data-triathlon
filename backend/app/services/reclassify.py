@@ -5,16 +5,32 @@ seulement) et complète `distance_km`. Sans réseau, idempotent.
 
 Réutilisé par la migration Alembic. Isolé ici pour être testable hors Alembic.
 """
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 
 from app.models.course import Course
-from app.repositories import course_repository
 from app.scrapers.classify import (
     BARE_TYPES,
     classify_event_type,
     extract_distance_km,
     normalize_event_type,
 )
+
+# Colonnes de `Course` existant à la révision Alembic qui appelle ce module
+# (e734b8c5c962). Le SELECT y est restreint : charger l'entité complète ferait
+# porter au reclassement les colonnes ajoutées par les révisions *suivantes*,
+# absentes de la base à ce stade — et `alembic upgrade head` échouerait sur une
+# base vierge dès qu'une colonne est ajoutée au modèle.
+_COLUMNS_AT_REVISION = (
+    Course.name,
+    Course.event_date,
+    Course.event_type,
+    Course.is_relay,
+    Course.distance_km,
+)
+
+
+def _courses(db: Session):
+    return db.query(Course).options(load_only(*_COLUMNS_AT_REVISION))
 
 
 def _sport_base(event_type: str) -> str:
@@ -38,7 +54,7 @@ def _resolve_event_type(course: Course) -> str:
 def reclassify_existing(db: Session) -> int:
     """Applique le re-classement à toutes les courses. Renvoie le nombre modifié."""
     changed = 0
-    for course in db.query(Course).all():
+    for course in _courses(db).all():
         new_type = _resolve_event_type(course)
 
         # Backfill distance_km.
@@ -52,8 +68,17 @@ def reclassify_existing(db: Session) -> int:
             continue
 
         # Collision d'identité (nom, date, new_type) avec une course existante ?
-        target = course_repository.get_by_identity(
-            db, course.name, course.event_date, new_type, course.is_relay
+        # Requête locale plutôt que `course_repository.get_by_identity` : celui-ci
+        # charge l'entité complète (cf. `_COLUMNS_AT_REVISION`).
+        target = (
+            _courses(db)
+            .filter(
+                Course.name == course.name,
+                Course.event_date == course.event_date,
+                Course.event_type == new_type,
+                Course.is_relay == course.is_relay,
+            )
+            .first()
         )
         if target is not None and target.id != course.id:
             # Fusion : repointer les participations vers la course canonique via
