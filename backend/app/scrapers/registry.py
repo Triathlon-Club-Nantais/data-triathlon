@@ -76,13 +76,21 @@ class BreizhChronoProvider:
         return "breizhchrono.com" in url
 
     def scrape_event_all(self, url: str) -> list[ScrapedResult]:
-        from app.scrapers.breizhchrono import _parse_bc_url
+        from app.scrapers.breizhchrono import (
+            _parse_bc_url,
+            _parse_live_url,
+            scrape_live_event_all,
+        )
 
+        # live.breizhchrono.com = même plateforme Klikego (cf. #34), façade
+        # différente : on route vers le moteur live plutôt que de rejeter.
         if "live.breizhchrono.com" in urlparse(url).netloc:
-            raise ValueError(
-                "Les liens live.breizhchrono.com ne sont pas supportés. "
-                "Rendez-vous sur resultats.breizhchrono.com pour récupérer le lien de résultats."
-            )
+            reference, heat = _parse_live_url(url)
+            if not reference:
+                raise ValueError(
+                    "URL live.breizhchrono.com sans paramètre 'reference' exploitable."
+                )
+            return scrape_live_event_all(reference, heat)
         event_id, heat, slug = _parse_bc_url(url)
         event_name = slug.replace("-", " ").title() if slug else ""
         return breizhchrono.scrape_event_all(event_id, heat, event_name, slug)

@@ -158,9 +158,11 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
         stage = tds[0].get_text(strip=True).lower()
         time_norm = normalize_time(tds[1].get_text(strip=True))
 
-        # "temps réel" row = total time reported by timing system, not a split
+        # "temps réel" row = total time reported by timing system, not a split.
+        # Garde symétrique au bloc « Temps Officiel » : un 00:00:00 (non-finisher
+        # DNS) ne doit pas ressusciter un total_time vidé en amont par le statut.
         if "temps" in stage and "réel" in stage:
-            if not result.total_time:
+            if not result.total_time and time_norm and time_norm != "00:00:00":
                 result.total_time = time_norm
             continue
 
