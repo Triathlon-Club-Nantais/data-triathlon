@@ -1,7 +1,7 @@
 """Modèle Course — une épreuve = nom + date + type (un « heat »), clé de cache par scraped_at."""
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, Float, String, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Date, DateTime, Float, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -24,6 +24,11 @@ class Course(Base):
     event_type: Mapped[str] = mapped_column(String, index=True, default="")
     distance_km: Mapped[float | None] = mapped_column(Float, nullable=True)
     is_relay: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Indice de fiabilité des données, calculé à l'import (cf. services/quality.py).
+    # NULL = jamais évaluée (course antérieure à l'indice, ou servie par le cache TTL).
+    is_reliable: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    # Détail des anomalies relevées : {code: nombre}. `{}` = évaluée, rien à signaler.
+    quality_issues: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     scraped_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 

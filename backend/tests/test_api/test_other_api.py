@@ -47,6 +47,46 @@ def test_courses_events_and_detail(client):
     assert len(by_course) == 2
 
 
+def test_course_saisie_hors_import_na_pas_dindice(client):
+    """Aucun import ne l'a évaluée : `is_reliable` vaut None, pas False."""
+    client.post("/api/v1/participations", json=_payload())
+    cid = client.get("/api/v1/courses").json()[0]["id"]
+
+    course = client.get(f"/api/v1/courses/{cid}").json()["course"]
+    assert course["is_reliable"] is None
+    assert course["quality_issues"] is None
+
+
+def test_course_importee_expose_ses_anomalies(client, db_session, monkeypatch):
+    from datetime import date
+
+    from app.core.config import get_settings
+    from app.scrapers.base import ScrapedResult
+    from app.services import import_service
+
+    scraped = ScrapedResult(
+        source_url="https://chrono/detail",
+        provider="klikego",
+        athlete_name="DURAND",
+        athlete_firstname="Paul",
+        bib_number="7",
+        event_name="Duathlon de Vertou",
+        event_date=date(2026, 3, 1),
+        event_type="duathlon-s",
+        total_time="",
+        status="DQ",  # hors nomenclature finisher/DNF/DNS/DSQ
+    )
+    monkeypatch.setattr(import_service, "registry_scrape_event_all", lambda url: [scraped])
+    import_service.import_event(db_session, "https://chrono/epreuve", get_settings())
+
+    courses = client.get("/api/v1/courses").json()
+    cid = next(c["id"] for c in courses if c["name"] == "Duathlon de Vertou")
+
+    course = client.get(f"/api/v1/courses/{cid}").json()["course"]
+    assert course["is_reliable"] is False
+    assert course["quality_issues"] == {"unknown_status": 1}
+
+
 def test_stats(client):
     client.post("/api/v1/participations", json=_payload(bib="1", club="TCN"))
     stats = client.get("/api/v1/stats").json()

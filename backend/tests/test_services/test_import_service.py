@@ -1,12 +1,13 @@
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
 from app.core.config import Settings
 from app.core.exceptions import ProviderNotSupportedError
-from app.repositories import participation_repository
+from app.core.time import utcnow
+from app.repositories import course_repository, participation_repository
 from app.scrapers.base import ScrapedResult
-from app.services import import_service
+from app.services import import_service, quality
 
 
 def _settings() -> Settings:
@@ -64,17 +65,63 @@ def test_reimport_after_cache_dedups_by_bib(db_session, patch_scraper):
     import_service.import_event(db_session, URL, _settings())
 
     # Force l'expiration du cache → re-scrape, mais le dossard 1 existe déjà
-    from app.repositories import course_repository
     course = course_repository.get_latest_by_source_url(db_session, URL)
-    from datetime import timedelta
-
-    from app.core.time import utcnow
     course.scraped_at = utcnow() - timedelta(days=40)
     db_session.flush()
 
     patch_scraper([_result("1", "DUPONT"), _result("2", "MARTIN")])
     out = import_service.import_event(db_session, URL, _settings())
     assert out == {"imported": 1, "skipped": 1}
+
+
+def test_import_calcule_l_indice_de_fiabilite(db_session, patch_scraper):
+    patch_scraper([_result("1", "DUPONT", rank_overall=1), _result("2", "MARTIN", rank_overall=2)])
+    import_service.import_event(db_session, URL, _settings())
+
+    course = course_repository.get_latest_by_source_url(db_session, URL)
+    assert course.is_reliable is True
+    assert course.quality_issues == {}
+
+
+def test_import_signale_une_course_suspecte(db_session, patch_scraper):
+    # Dossard 1 en double dans la source → la 2e ligne est jetée, jamais persistée.
+    # « DQ » est hors de la nomenclature finisher/DNF/DNS/DSQ.
+    patch_scraper(
+        [
+            _result("1", "DUPONT", rank_overall=1),
+            _result("1", "MARTIN"),
+            _result("3", "DURAND", status="DQ", total_time=""),
+        ]
+    )
+    out = import_service.import_event(db_session, URL, _settings())
+    assert out == {"imported": 2, "skipped": 1}
+
+    course = course_repository.get_latest_by_source_url(db_session, URL)
+    assert course.is_reliable is False
+    assert course.quality_issues == {
+        quality.ANOMALY_DUPLICATE_BIB: 1,
+        quality.ANOMALY_UNKNOWN_STATUS: 1,
+    }
+
+
+def test_reimport_apres_cache_ne_compte_pas_les_dossards_deja_en_base(
+    db_session, patch_scraper
+):
+    """Un dossard déjà persisté est un skip bénin, pas un doublon de la source."""
+    patch_scraper([_result("1", "DUPONT", rank_overall=1)])
+    import_service.import_event(db_session, URL, _settings())
+
+    course = course_repository.get_latest_by_source_url(db_session, URL)
+    course.scraped_at = utcnow() - timedelta(days=40)  # force l'expiration du cache
+    db_session.flush()
+
+    patch_scraper([_result("1", "DUPONT", rank_overall=1), _result("2", "MARTIN", rank_overall=2)])
+    out = import_service.import_event(db_session, URL, _settings())
+    assert out == {"imported": 1, "skipped": 1}
+
+    db_session.refresh(course)
+    assert course.is_reliable is True
+    assert course.quality_issues == {}
 
 
 def test_unsupported_provider_raises(db_session, monkeypatch):

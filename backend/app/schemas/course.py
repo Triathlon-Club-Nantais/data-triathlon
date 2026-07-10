@@ -15,6 +15,9 @@ class CourseBrief(BaseModel):
     source_url: str = ""
     is_relay: bool = False
     distance_km: float | None = None
+    # Indice de fiabilité calculé à l'import. `None` = course jamais évaluée.
+    is_reliable: bool | None = None
+    quality_issues: dict[str, int] | None = None
 
 
 class EventOut(BaseModel):
