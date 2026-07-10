@@ -3,7 +3,9 @@ Engine et session SQLAlchemy.
 
 La création des tables est gérée par Alembic (plus de `create_all()` au démarrage).
 """
+import contextlib
 import sqlite3
+from collections.abc import Iterator
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
@@ -47,6 +49,16 @@ Base = declarative_base()
 
 def get_db():
     """Dépendance FastAPI : fournit une session, la ferme en fin de requête."""
+    db: Session = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@contextlib.contextmanager
+def session_scope() -> Iterator[Session]:
+    """Ouvre une Session hors requête HTTP (CLI, scripts) et la ferme à la sortie."""
     db: Session = SessionLocal()
     try:
         yield db
