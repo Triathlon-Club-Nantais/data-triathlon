@@ -183,3 +183,35 @@ def test_distinct_seasons_compte_et_exclut_epreuves_sans_date(db_session):
     assert set(by_year) == {2025, 2023}  # épreuve sans date exclue
     assert by_year[2025]["event_count"] == 1
     assert by_year[2025]["participation_count"] == 1
+
+
+def test_athlete_counts_without_bib(db_session):
+    """Compte les participations sans dossard par athlète, en ignorant celles qui en ont un."""
+    athlete, course = _setup(db_session)
+    autre = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Anne")
+
+    # Deux participations sans dossard pour le même athlète, une avec dossard.
+    for _ in range(2):
+        participation_repository.create(
+            db_session, athlete_id=athlete.id, course_id=course.id, bib_number=None
+        )
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="42"
+    )
+    participation_repository.create(
+        db_session, athlete_id=autre.id, course_id=course.id, bib_number=None
+    )
+
+    counts = participation_repository.athlete_counts_without_bib(db_session, course.id)
+    assert counts == {athlete.id: 2, autre.id: 1}
+
+
+def test_athlete_counts_without_bib_ignore_les_autres_courses(db_session):
+    athlete, course = _setup(db_session)
+    autre_course = course_repository.get_or_create(
+        db_session, name="Tri Y", event_date=date(2026, 6, 1), event_type="triathlon-s"
+    )
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=autre_course.id, bib_number=None
+    )
+    assert participation_repository.athlete_counts_without_bib(db_session, course.id) == {}
