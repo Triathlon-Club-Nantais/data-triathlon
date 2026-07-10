@@ -81,6 +81,10 @@ CATALOG: list[dict] = [
         "desc": "Aquathlon — Des 2 Amants 2025 (Klikego)",
         "url": "https://www.klikego.com/resultats/aquathlon-des-2-amants-2025/1643334174070-7",
     },
+    {
+        "desc": "Épreuves de Carnac 2025 (Sportinnovation)",
+        "url": "https://sportinnovation.fr/Evenements/Resultats/7031",
+    },
 ]
 
 
