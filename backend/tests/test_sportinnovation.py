@@ -394,6 +394,85 @@ class _FakeClient:
         raise AssertionError(f"URL non routée : {url}")
 
 
+def test_scrape_event_api_ignore_les_courses_sans_slug(monkeypatch):
+    """3 courses réelles sur 155 n'ont pas de `slug` : elles sont injoignables,
+    pas fatales. Un KeyError ferait échouer l'import de tout l'événement."""
+    from app.scrapers import sportinnovation as si
+
+    monkeypatch.setattr(si, "_fetch_splits_parallel", lambda athletes, **kw: {})
+    client = _FakeClient({
+        "/events": [{"slug": "ev-1", "customUrl": "mon_event", "title": "Mon Event"}],
+        "/events/ev-1": {"title": "Mon Event", "eventDate": "2026-06-20"},
+        "/events/ev-1/races": [
+            {"title": "Joëlettes"},                       # sans slug → ignorée
+            {"slug": "r-2", "title": "Marathon"},
+        ],
+        "/races/r-2/results": [{"lastName": "X", "bib": "1", "officialTime": "03:00:00"}],
+    })
+
+    # Le helper est testé directement : `scrape_event_all` ouvre son propre client.
+    results = si._scrape_event_api("mon_event", "https://results.sportinnovation.fr/mon_event", client)
+    assert len(results) == 1
+    assert results[0].event_name == "Mon Event - Marathon"
+
+
+def test_scrape_event_api_evenement_sans_slug_erreur_explicite():
+    """Un événement de l'API peut n'avoir que `customUrl` et être injoignable
+    (« Marathon de La Rochelle ») : message clair plutôt que KeyError."""
+    from app.scrapers import sportinnovation as si
+
+    client = _FakeClient({
+        "/events": [{"customUrl": "marathon_de_la_rochelle", "title": "Marathon de La Rochelle"}],
+    })
+    with pytest.raises(ValueError, match="non adressable"):
+        si._scrape_event_api("marathon_de_la_rochelle", "http://x", client)
+
+
+def test_race_results_api_reponse_en_erreur_leve():
+    """Import direct d'une course dont /results répond 500 : erreur explicite."""
+    from app.scrapers import sportinnovation as si
+
+    client = _FakeClient({"/races/r-1/results": {"error": "More than one result was found"}})
+    with pytest.raises(ValueError, match="Résultats indisponibles"):
+        si._race_results_api("r-1", "Joëlette", "Ev", None, "http://x", client)
+
+
+def test_scrape_event_api_course_en_erreur_nempeche_pas_les_autres(monkeypatch):
+    """Une course cassée côté fournisseur (500) ne doit pas faire échouer
+    l'import de tout l'événement — cas réel des « 20Km de Paris »."""
+    from app.scrapers import sportinnovation as si
+
+    monkeypatch.setattr(si, "_fetch_splits_parallel", lambda athletes, **kw: {})
+    client = _FakeClient({
+        "/events": [{"slug": "ev-1", "customUrl": "paris", "title": "20Km de Paris"}],
+        "/events/ev-1": {"title": "20Km de Paris", "eventDate": "2026-06-20"},
+        "/events/ev-1/races": [
+            {"slug": "r-ok", "title": "20 km"},
+            {"slug": "r-ko", "title": "20 km Joëlette"},
+        ],
+        "/races/r-ok/results": [{"lastName": "X", "bib": "1", "officialTime": "01:20:00"}],
+        "/races/r-ko/results": {"error": "More than one result was found"},
+    })
+
+    results = si._scrape_event_api("paris", "http://x", client)
+    assert len(results) == 1
+    assert results[0].event_name == "20Km de Paris - 20 km"
+
+
+def test_scrape_event_api_reponse_races_en_erreur():
+    """Deux événements partagent un slug → /races répond 500 avec un objet
+    d'erreur. Itérer dessus donnerait des chaînes, pas des courses."""
+    from app.scrapers import sportinnovation as si
+
+    client = _FakeClient({
+        "/events": [{"slug": "ev-1", "customUrl": "mon_event", "title": "Mon Event"}],
+        "/events/ev-1": {"title": "Mon Event", "eventDate": "2026-06-20"},
+        "/events/ev-1/races": {"error": "More than one result was found for query"},
+    })
+    with pytest.raises(ValueError, match="courses"):
+        si._scrape_event_api("mon_event", "http://x", client)
+
+
 def test_scrape_results_race_compose_le_nom_et_porte_la_date(monkeypatch):
     from app.scrapers import sportinnovation as si
 

@@ -547,6 +547,9 @@ def _race_results_api(
     course_name = _compose_course_name(event_name, race_title)
     event_type = _detect_event_type(race_title)
     athletes = client.get(f"{API_BASE}/races/{race_slug}/results", timeout=20).json()
+    if not isinstance(athletes, list):
+        # L'API répond 500 avec un objet d'erreur sur certaines courses.
+        raise ValueError(f"Résultats indisponibles pour la course {race_slug} : {athletes}")
     splits_by_bib = _fetch_splits_parallel(athletes)
     return [
         _parse_api_athlete(
@@ -575,6 +578,48 @@ def _scrape_results_race(slug: str, url: str, client: httpx.Client) -> list[Scra
     return _race_results_api(slug, meta.get("title", ""), event_name, event_date, url, client)
 
 
+def _scrape_event_api(ident: str, url: str, client: httpx.Client) -> list[ScrapedResult]:
+    """Toutes les courses d'un événement de l'API (forme `results…fr/{codeUrl}`).
+
+    Événements et courses sont adressés par `slug` ; l'API n'expose pas d'`id`.
+    Trois cas réels de données incomplètes, tous rencontrés en juillet 2026 :
+    un événement sans `slug` (injoignable), une course sans `slug` (ignorée),
+    et un `/races` en erreur quand deux événements partagent un slug.
+    """
+    events = client.get(f"{API_BASE}/events", timeout=15).json()
+    event = next((e for e in events if ident in (e.get("customUrl"), e.get("slug"))), None)
+    if not event:
+        raise ValueError(f"Événement {ident} introuvable.")
+
+    event_slug = event.get("slug")
+    if not event_slug:
+        raise ValueError(
+            f"Événement {ident} non adressable : l'API ne lui donne pas de slug. "
+            "Ses résultats ne sont probablement publiés que sur le site historique."
+        )
+
+    event_name, event_date = _fetch_event_meta_api(event_slug, client)
+    races = client.get(f"{API_BASE}/events/{event_slug}/races", timeout=15).json()
+    if not isinstance(races, list):
+        raise ValueError(f"Liste des courses indisponible pour {ident} : {races}")
+
+    results: list[ScrapedResult] = []
+    for race in races:
+        race_slug = race.get("slug")
+        title = race.get("title", "?")
+        if not race_slug:
+            logger.warning("Course « %s » ignorée : aucun slug dans l'API.", title)
+            continue
+        try:
+            results.extend(
+                _race_results_api(race_slug, title, event_name, event_date, url, client)
+            )
+        except ValueError:
+            # Une course cassée côté fournisseur ne doit pas emporter tout l'événement.
+            logger.warning("Course « %s » ignorée : résultats indisponibles.", title)
+    return results
+
+
 def scrape_event_all(url: str) -> list[ScrapedResult]:
     """Fetch all participants for a Sportinnovation event."""
     parsed = urlparse(url)
@@ -595,26 +640,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                 return _scrape_results_race(race_slug, url, client)
 
             # Forme /{codeUrl} : niveau événement (toutes ses courses).
-            # Événements et courses sont adressés par `slug` : l'API n'expose
-            # pas d'`id`. `customUrl` est l'alias lisible (ex. `bayman_triathlon`).
-            events = client.get(f"{API_BASE}/events", timeout=15).json()
-            event = next(
-                (e for e in events if ident in (e.get("customUrl"), e.get("slug"))), None
-            )
-            if not event:
-                raise ValueError(f"Événement {ident} introuvable.")
-            event_slug = event["slug"]
-            event_name, event_date = _fetch_event_meta_api(event_slug, client)
-            races = client.get(f"{API_BASE}/events/{event_slug}/races", timeout=15).json()
-            results: list[ScrapedResult] = []
-            for race in races:
-                results.extend(
-                    _race_results_api(
-                        race["slug"], race.get("title", ""),
-                        event_name, event_date, url, client,
-                    )
-                )
-            return results
+            return _scrape_event_api(ident, url, client)
 
         m = re.search(r"/Resultats/(?:DetailMobile/)?(\d+)", parsed.path)
         if not m:
