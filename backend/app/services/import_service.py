@@ -40,7 +40,16 @@ def _scrape_all(url: str) -> list[ScrapedResult]:
 
 
 class _Persister:
-    """Persiste les résultats scrapés avec déduplication et caches en mémoire."""
+    """Persiste les résultats scrapés avec déduplication et caches en mémoire.
+
+    Deux clés de déduplication, par course :
+      - le dossard, quand il existe (`uq_participation_bib`) ;
+      - sinon l'athlète, en **multiset**. Certains chronométreurs n'attribuent
+        pas de dossard ; la même personne peut alors figurer plusieurs fois dans
+        les résultats source, et ces occurrences doivent survivre au réimport
+        sans être dupliquées. On décompte donc les participations sans dossard
+        déjà en base au lieu de tester leur simple présence.
+    """
 
     def __init__(self, db: Session, event_url: str):
         self.db = db
@@ -48,6 +57,7 @@ class _Persister:
         self._bibs: dict[int, set[str]] = {}
         self._added_bibs: dict[int, set[str]] = {}
         self._duplicate_bibs: dict[int, int] = {}
+        self._athlete_credits: dict[int, dict[int, int]] = {}
         self._courses: dict[int, Course] = {}
         self.imported = 0
         self.skipped = 0
@@ -55,27 +65,41 @@ class _Persister:
     def add(self, scraped: ScrapedResult) -> None:
         course = mapping.get_or_create_course(self.db, scraped, self.event_url)
         self._courses[course.id] = course
-        bibs = self._bibs.setdefault(
-            course.id, participation_repository.existing_bibs_for_course(self.db, course.id)
-        )
-        added = self._added_bibs.setdefault(course.id, set())
         bib = scraped.bib_number or None
-        if bib and bib in bibs:
-            self.skipped += 1
-            # Dossard déjà persisté avant cet import → doublon bénin (re-scrape).
-            # Déjà ajouté pendant cet import → la source se contredit, la ligne est
-            # perdue : c'est une anomalie de fiabilité (cf. services/quality.py).
-            if bib in added:
-                self._duplicate_bibs[course.id] = self._duplicate_bibs.get(course.id, 0) + 1
-            return
+
+        if bib is not None:
+            bibs = self._bibs.setdefault(
+                course.id, participation_repository.existing_bibs_for_course(self.db, course.id)
+            )
+            added = self._added_bibs.setdefault(course.id, set())
+            if bib in bibs:
+                self.skipped += 1
+                # Dossard déjà persisté avant cet import → doublon bénin (re-scrape).
+                # Déjà ajouté pendant cet import → la source se contredit, la ligne est
+                # perdue : c'est une anomalie de fiabilité (cf. services/quality.py).
+                if bib in added:
+                    self._duplicate_bibs[course.id] = self._duplicate_bibs.get(course.id, 0) + 1
+                return
+
+        # Sans dossard, l'identité repose sur l'athlète : il faut le résoudre d'abord.
         athlete = mapping.get_or_create_athlete(self.db, scraped)
+        if bib is None:
+            credits = self._athlete_credits.setdefault(
+                course.id,
+                participation_repository.athlete_counts_without_bib(self.db, course.id),
+            )
+            if credits.get(athlete.id, 0) > 0:
+                credits[athlete.id] -= 1
+                self.skipped += 1
+                return
+
         participation_repository.create(
             self.db,
             **mapping.participation_fields(
                 scraped, athlete_id=athlete.id, course_id=course.id
             ),
         )
-        if bib:
+        if bib is not None:
             bibs.add(bib)
             added.add(bib)
         self.imported += 1

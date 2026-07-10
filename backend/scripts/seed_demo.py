@@ -53,6 +53,14 @@ CATALOG: list[dict] = [
         "desc": "Triathlon — épreuve live 3232 (TimePulse)",
         "url": "https://www.timepulse.fr/epreuves/resultats/live/3232",
     },
+    {
+        "desc": "Triathlon de Vertou (Chronometron / Wiclax)",
+        "url": "https://www.chronosmetron.wiclax-results.com/Triathlon%20de%20Vertou%202026/",
+    },
+    {
+        "desc": "Bayman - Triathlon M du Mont Saint-Michel (Sport Innovation)",
+        "url": "https://results.sportinnovation.fr/race/zmhc-triathlon-m",
+    },
     # ── Autres disciplines (Klikego, URL d'épreuve = /resultats/{slug}/{id}) ──
     {
         "desc": "Duathlon S — 3 Villages 2026 (Klikego)",
@@ -72,6 +80,10 @@ CATALOG: list[dict] = [
     {
         "desc": "Aquathlon — Des 2 Amants 2025 (Klikego)",
         "url": "https://www.klikego.com/resultats/aquathlon-des-2-amants-2025/1643334174070-7",
+    },
+    {
+        "desc": "Épreuves de Carnac 2025 (Sportinnovation)",
+        "url": "https://sportinnovation.fr/Evenements/Resultats/7031",
     },
 ]
 

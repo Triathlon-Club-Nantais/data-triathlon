@@ -149,3 +149,27 @@ def test_get_or_create_course_solo_and_relay_are_distinct(db_session):
     assert c_solo.id != c_relais.id
     assert c_solo.is_relay is False
     assert c_relais.is_relay is True
+
+
+def test_get_or_create_course_aquathlons_meme_jour_restent_distincts(db_session):
+    """Régression : les 4 aquathlons de Carnac partagent date et `event_type`.
+
+    `uq_course_identity` = (name, event_date, event_type, is_relay) : seul le nom
+    de course, présent dans le nom composé « Événement - Course », les sépare.
+    Nommer les courses d'après le seul événement les fusionnerait en une Course.
+    """
+    from datetime import date
+
+    courses = [
+        mapping.get_or_create_course(
+            db_session,
+            _scraped(
+                event_name=f"Triathlon de Carnac 2025 - Aquathlon {categorie}",
+                event_type="aquathlon",
+                event_date=date(2025, 10, 4),
+            ),
+            event_url="http://x",
+        )
+        for categorie in ("Pupilles", "Benjamins", "Minimes", "Poussins et Mini-Poussins")
+    ]
+    assert len({c.id for c in courses}) == 4

@@ -3,18 +3,26 @@ Tests unitaires pour scrapers/sportinnovation.py (sans réseau).
 
 Couvre les helpers purs : parsing de la cellule nom ("NOM PrénomG-CatG"),
 mapping des colonnes depuis l'en-tête, construction d'un résultat depuis une
-ligne HTML, et détection du type d'épreuve.
+ligne HTML, détection du type d'épreuve, et extraction des métadonnées
+(nom d'événement + date) depuis la page de détail d'un participant.
 """
+from datetime import date
+from pathlib import Path
+
 import pytest
 
 from app.scrapers.sportinnovation import (
     _classify_results_url,
     _col_indices,
+    _compose_course_name,
     _detect_event_type,
     _parse_api_athlete,
     _parse_html_row,
     _parse_name_cell,
+    _parse_race_meta,
 )
+
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def test_parse_name_cell_standard():
@@ -90,12 +98,120 @@ def test_parse_html_row():
 
 
 # ---------------------------------------------------------------------------
+# _parse_race_meta — nom d'événement + date, depuis la page de détail legacy
+#
+# La page liste `/Evenements/Resultats/{id}` n'expose ni le nom de l'événement
+# ni sa date (le bandeau est rempli en JS). La page du modal de détail,
+# `/Evenements/Resultats/Detail/{id}/1`, porte les deux : un <h6> « Course
+# (jj/mm/aaaa) » et un lien de partage « Résultats - Course - Événement ».
+# ---------------------------------------------------------------------------
+
+def test_parse_race_meta_extrait_course_evenement_et_date():
+    html = (FIXTURES / "sportinnovation_detail_7031.html").read_text(encoding="utf-8")
+    race_name, event_name, event_date = _parse_race_meta(html)
+    assert race_name == "Triathlon M"
+    assert event_name == "Triathlon de Carnac 2025"
+    assert event_date == date(2025, 10, 5)
+
+
+def test_parse_race_meta_course_contenant_un_tiret():
+    """Le nom de course peut contenir « - » : le découpage part du <h6>, pas du dernier tiret."""
+    html = (
+        '<h6 class="col-12">Bike &amp; Run - Kids (04/10/2025)</h6>'
+        '<a href="https://www.facebook.com/sharer/sharer.php?u=https://x'
+        '&t=Résultats - Bike &amp; Run - Kids - Triathlon de Carnac 2025"></a>'
+    )
+    race_name, event_name, event_date = _parse_race_meta(html)
+    assert race_name == "Bike & Run - Kids"
+    assert event_name == "Triathlon de Carnac 2025"
+    assert event_date == date(2025, 10, 4)
+
+
+def test_parse_race_meta_sans_lien_de_partage():
+    """Sans lien de partage, on garde la course et la date ; l'événement reste vide."""
+    race_name, event_name, event_date = _parse_race_meta("<h6>Aquathlon Pupilles (04/10/2025)</h6>")
+    assert race_name == "Aquathlon Pupilles"
+    assert event_name == ""
+    assert event_date == date(2025, 10, 4)
+
+
+def test_parse_race_meta_page_vide():
+    assert _parse_race_meta("<div>rien</div>") == ("", "", None)
+
+
+def test_parse_race_meta_date_invalide_ignoree():
+    race_name, event_name, event_date = _parse_race_meta("<h6>Triathlon M (32/13/2025)</h6>")
+    assert race_name == "Triathlon M"
+    assert event_date is None
+
+
+# ---------------------------------------------------------------------------
+# _compose_course_name — « Événement - Course », clé d'unicité de la Course
+#
+# `uq_course_identity` = (name, event_date, event_type, is_relay). Les quatre
+# aquathlons de Carnac partagent date + event_type : sans le nom de course dans
+# le nom, ils fusionneraient en une seule Course.
+# ---------------------------------------------------------------------------
+
+def test_compose_course_name_concatene():
+    assert _compose_course_name("Triathlon de Carnac 2025", "Triathlon M") == (
+        "Triathlon de Carnac 2025 - Triathlon M"
+    )
+
+
+def test_compose_course_name_aquathlons_restent_distincts():
+    noms = {
+        _compose_course_name("Triathlon de Carnac 2025", r)
+        for r in ("Aquathlon Pupilles", "Aquathlon Benjamins", "Aquathlon Minimes")
+    }
+    assert len(noms) == 3
+
+
+def test_compose_course_name_evenement_manquant():
+    assert _compose_course_name("", "Triathlon M") == "Triathlon M"
+
+
+def test_compose_course_name_course_manquante():
+    assert _compose_course_name("Triathlon de Carnac 2025", "") == "Triathlon de Carnac 2025"
+
+
+def test_compose_course_name_identiques_pas_de_doublon():
+    """Événement mono-course : « Swimrun Cote Beaute 2025 », pas « X - X »."""
+    assert _compose_course_name("Swimrun Cote Beaute 2025", "Swimrun Cote Beaute 2025") == (
+        "Swimrun Cote Beaute 2025"
+    )
+
+
+# ---------------------------------------------------------------------------
+# _parse_html_row — porte désormais le nom composé et la date
+# ---------------------------------------------------------------------------
+
+def test_parse_html_row_porte_nom_composé_et_date():
+    col = {"name": 0, "bib": 1, "total_time": 2}
+    tds = ["DUPONT JeanH-S3H", "42", "01:23:45"]
+    r = _parse_html_row(
+        tds, col, "http://x", "Aquathlon Pupilles",
+        course_name="Triathlon de Carnac 2025 - Aquathlon Pupilles",
+        event_date=date(2025, 10, 4),
+    )
+    assert r.event_name == "Triathlon de Carnac 2025 - Aquathlon Pupilles"
+    assert r.event_date == date(2025, 10, 4)
+    # Le type reste classifié sur le titre de course, jamais sur le nom composé.
+    assert r.event_type == "aquathlon"
+
+
+# ---------------------------------------------------------------------------
 # _classify_results_url — distingue la forme 2026 /race/{slug} de /{codeUrl}
 # ---------------------------------------------------------------------------
 
 def test_classify_results_url_race_form():
     kind, ident = _classify_results_url("https://results.sportinnovation.fr/race/zmhc-triathlon-m")
     assert (kind, ident) == ("race", "zmhc-triathlon-m")
+
+
+def test_classify_results_url_detail_form():
+    kind, ident = _classify_results_url("https://results.sportinnovation.fr/detail/51636b-18-c1066a43c01880e8")
+    assert (kind, ident) == ("detail", "51636b-18-c1066a43c01880e8")
 
 
 def test_classify_results_url_event_form():
@@ -171,3 +287,214 @@ def test_parse_api_athlete_explicit_status():
     assert r.status == "DNS"
     assert r.total_time == ""
     assert r.rank_overall is None
+
+
+# ---------------------------------------------------------------------------
+# Second schéma de l'API results (≈11 % des courses : 17 sur 155 en 2026-07).
+#
+# Les rangs, temps et référence athlète y portent d'autres noms :
+#   generalRank / sexRank / categoryRank   (au lieu de …Ranking)
+#   officialTimeFfa / realTimeFfa          (au lieu de officialTime / realTime)
+#   ni `id` ni `slug`                      → pas de splits récupérables
+# Sans ces alias, l'athlète ressort sans temps ni rang, donc DNF à l'import.
+# ---------------------------------------------------------------------------
+
+def test_parse_api_athlete_schema_ffa():
+    a = {
+        "lastName": "BOURGUENOLLE", "firstName": "Pierre-arnaud", "bib": "3008",
+        "clubName": "ENTENTE ATHLETIQUE DU LAC DAIGUEBELETTE", "sex": "H", "category": "M0H",
+        "generalRank": 1, "sexRank": 1, "categoryRank": 1,
+        "officialTimeFfa": "11:40:03", "realTimeFfa": "11:40:03", "status": None,
+    }
+    r = _parse_api_athlete(a, "http://x", "La Barjo 2026 - La mora", "trail", None)
+    assert r.total_time == "11:40:03"
+    assert r.rank_overall == 1
+    assert r.rank_gender == 1
+    assert r.rank_category == 1
+    assert r.status == ""
+    assert r.club == "ENTENTE ATHLETIQUE DU LAC DAIGUEBELETTE"
+
+
+def test_parse_api_athlete_schema_ffa_temps_au_dela_de_24h():
+    """Un ultra dépasse 24 h : le temps reste une chaîne, jamais tronquée."""
+    a = {"lastName": "CASROUGE", "bib": "1", "generalRank": 1, "officialTimeFfa": "29:46:00"}
+    r = _parse_api_athlete(a, "http://x", "Raid", "trail", None)
+    assert r.total_time == "29:46:00"
+
+
+def test_parse_api_athlete_schema_ffa_non_finisher():
+    """En schéma FFA les non-partants n'ont pas de temps : DNS + rangs purgés."""
+    a = {"lastName": "PATOUX", "bib": "", "status": "DNS",
+         "generalRank": None, "officialTimeFfa": None, "realTimeFfa": None}
+    r = _parse_api_athlete(a, "http://x", "La Barjo 2026 - La petite barjo", "trail", None)
+    assert r.status == "DNS"
+    assert r.total_time == ""
+    assert r.rank_overall is None
+
+
+def test_parse_api_athlete_schema_historique_prime():
+    """Si les deux jeux de clés coexistent, le schéma historique fait foi."""
+    a = {
+        "lastName": "X", "bib": "1",
+        "generalRanking": 3, "generalRank": 99,
+        "officialTime": "01:00:00", "officialTimeFfa": "09:09:09",
+    }
+    r = _parse_api_athlete(a, "http://x", "E", "triathlon", None)
+    assert r.rank_overall == 3
+    assert r.total_time == "01:00:00"
+
+
+def test_athlete_ref_par_athlete():
+    """La référence pour les splits se lit par athlète : `id`, sinon `slug`, sinon rien."""
+    from app.scrapers.sportinnovation import _athlete_ref
+
+    assert _athlete_ref({"id": 42, "slug": "s"}) == 42
+    assert _athlete_ref({"slug": "zmhc-1"}) == "zmhc-1"
+    assert _athlete_ref({"bib": "3008"}) is None  # schéma FFA : aucune référence
+
+
+def test_fetch_splits_parallel_schema_ffa_ne_fabrique_pas_de_reference():
+    """Sans `id`/`slug`, aucun appel splits : sinon `/api/results/{bib}` renverrait
+    l'athlète d'une autre course (l'id est global, pas relatif au dossard)."""
+    from app.scrapers import sportinnovation as si
+
+    appels = []
+    si_orig = si._fetch_athlete_splits
+    try:
+        si._fetch_athlete_splits = lambda ref: appels.append(ref) or {}
+        out = si._fetch_splits_parallel([{"bib": "3008", "generalRank": 1}])
+    finally:
+        si._fetch_athlete_splits = si_orig
+    assert appels == []
+    assert out == {}
+
+
+# ---------------------------------------------------------------------------
+# _scrape_results_race — chemin API : même convention de nommage que le legacy
+# ---------------------------------------------------------------------------
+
+class _FakeResponse:
+    def __init__(self, payload):
+        self._payload = payload
+
+    def json(self):
+        return self._payload
+
+
+class _FakeClient:
+    """Client httpx minimal : sert des payloads indexés par suffixe d'URL."""
+
+    def __init__(self, routes):
+        self.routes = routes
+
+    def get(self, url, **_kwargs):
+        for suffix, payload in self.routes.items():
+            if url.endswith(suffix):
+                return _FakeResponse(payload)
+        raise AssertionError(f"URL non routée : {url}")
+
+
+def test_scrape_event_api_ignore_les_courses_sans_slug(monkeypatch):
+    """3 courses réelles sur 155 n'ont pas de `slug` : elles sont injoignables,
+    pas fatales. Un KeyError ferait échouer l'import de tout l'événement."""
+    from app.scrapers import sportinnovation as si
+
+    monkeypatch.setattr(si, "_fetch_splits_parallel", lambda athletes, **kw: {})
+    client = _FakeClient({
+        "/events": [{"slug": "ev-1", "customUrl": "mon_event", "title": "Mon Event"}],
+        "/events/ev-1": {"title": "Mon Event", "eventDate": "2026-06-20"},
+        "/events/ev-1/races": [
+            {"title": "Joëlettes"},                       # sans slug → ignorée
+            {"slug": "r-2", "title": "Marathon"},
+        ],
+        "/races/r-2/results": [{"lastName": "X", "bib": "1", "officialTime": "03:00:00"}],
+    })
+
+    # Le helper est testé directement : `scrape_event_all` ouvre son propre client.
+    results = si._scrape_event_api("mon_event", "https://results.sportinnovation.fr/mon_event", client)
+    assert len(results) == 1
+    assert results[0].event_name == "Mon Event - Marathon"
+
+
+def test_scrape_event_api_evenement_sans_slug_erreur_explicite():
+    """Un événement de l'API peut n'avoir que `customUrl` et être injoignable
+    (« Marathon de La Rochelle ») : message clair plutôt que KeyError."""
+    from app.scrapers import sportinnovation as si
+
+    client = _FakeClient({
+        "/events": [{"customUrl": "marathon_de_la_rochelle", "title": "Marathon de La Rochelle"}],
+    })
+    with pytest.raises(ValueError, match="non adressable"):
+        si._scrape_event_api("marathon_de_la_rochelle", "http://x", client)
+
+
+def test_race_results_api_reponse_en_erreur_leve():
+    """Import direct d'une course dont /results répond 500 : erreur explicite."""
+    from app.scrapers import sportinnovation as si
+
+    client = _FakeClient({"/races/r-1/results": {"error": "More than one result was found"}})
+    with pytest.raises(ValueError, match="Résultats indisponibles"):
+        si._race_results_api("r-1", "Joëlette", "Ev", None, "http://x", client)
+
+
+def test_scrape_event_api_course_en_erreur_nempeche_pas_les_autres(monkeypatch):
+    """Une course cassée côté fournisseur (500) ne doit pas faire échouer
+    l'import de tout l'événement — cas réel des « 20Km de Paris »."""
+    from app.scrapers import sportinnovation as si
+
+    monkeypatch.setattr(si, "_fetch_splits_parallel", lambda athletes, **kw: {})
+    client = _FakeClient({
+        "/events": [{"slug": "ev-1", "customUrl": "paris", "title": "20Km de Paris"}],
+        "/events/ev-1": {"title": "20Km de Paris", "eventDate": "2026-06-20"},
+        "/events/ev-1/races": [
+            {"slug": "r-ok", "title": "20 km"},
+            {"slug": "r-ko", "title": "20 km Joëlette"},
+        ],
+        "/races/r-ok/results": [{"lastName": "X", "bib": "1", "officialTime": "01:20:00"}],
+        "/races/r-ko/results": {"error": "More than one result was found"},
+    })
+
+    results = si._scrape_event_api("paris", "http://x", client)
+    assert len(results) == 1
+    assert results[0].event_name == "20Km de Paris - 20 km"
+
+
+def test_scrape_event_api_reponse_races_en_erreur():
+    """Deux événements partagent un slug → /races répond 500 avec un objet
+    d'erreur. Itérer dessus donnerait des chaînes, pas des courses."""
+    from app.scrapers import sportinnovation as si
+
+    client = _FakeClient({
+        "/events": [{"slug": "ev-1", "customUrl": "mon_event", "title": "Mon Event"}],
+        "/events/ev-1": {"title": "Mon Event", "eventDate": "2026-06-20"},
+        "/events/ev-1/races": {"error": "More than one result was found for query"},
+    })
+    with pytest.raises(ValueError, match="courses"):
+        si._scrape_event_api("mon_event", "http://x", client)
+
+
+def test_scrape_results_race_compose_le_nom_et_porte_la_date(monkeypatch):
+    from app.scrapers import sportinnovation as si
+
+    monkeypatch.setattr(si, "_fetch_splits_parallel", lambda athletes, **kw: {})
+    client = _FakeClient({
+        "/races/zmhc-aquathlon-pupilles": {
+            "slug": "zmhc-aquathlon-pupilles",
+            "title": "Aquathlon Pupilles",
+            "eventSlug": "gqjk02-triathlon-de-carnac-2025",
+        },
+        "/events/gqjk02-triathlon-de-carnac-2025": {
+            "title": "Triathlon de Carnac 2025",
+            "eventDate": "2025-10-04",
+        },
+        "/races/zmhc-aquathlon-pupilles/results": [
+            {"lastName": "DUPONT", "firstName": "Jean", "bib": "7", "officialTime": "00:20:00"},
+        ],
+    })
+
+    results = si._scrape_results_race("zmhc-aquathlon-pupilles", "http://x", client)
+
+    assert len(results) == 1
+    assert results[0].event_name == "Triathlon de Carnac 2025 - Aquathlon Pupilles"
+    assert results[0].event_type == "aquathlon"
+    assert results[0].event_date == date(2025, 10, 4)

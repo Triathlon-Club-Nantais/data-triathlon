@@ -55,6 +55,23 @@ def existing_bibs_for_course(db: Session, course_id: int) -> set[str]:
     return {r[0] for r in rows}
 
 
+def athlete_counts_without_bib(db: Session, course_id: int) -> dict[int, int]:
+    """Nombre de participations **sans dossard** déjà importées, par athlète.
+
+    Repli de déduplication quand le chronométreur n'attribue pas de dossard : la
+    clé `(course, dossard)` ne discrimine plus rien. On compte au lieu de tester
+    la présence, car une même personne peut légitimement figurer plusieurs fois
+    dans les résultats source.
+    """
+    rows = (
+        db.query(Participation.athlete_id, func.count(Participation.id))
+        .filter(Participation.course_id == course_id, Participation.bib_number.is_(None))
+        .group_by(Participation.athlete_id)
+        .all()
+    )
+    return {athlete_id: int(count) for athlete_id, count in rows}
+
+
 def create(db: Session, **fields) -> Participation:
     participation = Participation(**fields)
     db.add(participation)

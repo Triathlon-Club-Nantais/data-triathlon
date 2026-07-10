@@ -38,3 +38,19 @@ def test_search_by_name(db_session):
 
     found = athlete_repository.search(db_session, name="lero")
     assert [a.nom for a in found] == ["LEROY"]
+
+
+def test_get_or_create_dedup_noms_accentues(db_session):
+    """`lower()` de SQLite ignore les accents majuscules ('LEMÉE' → 'lemÉe').
+
+    Sans fonction Unicode-aware, chaque import recréait un athlète accentué.
+    """
+    a1 = athlete_repository.get_or_create(db_session, nom="LEMÉE", prenom="Sébastien")
+    a2 = athlete_repository.get_or_create(db_session, nom="LEMÉE", prenom="Sébastien")
+    assert a2.id == a1.id
+
+
+def test_get_or_create_dedup_accents_casse_mixte(db_session):
+    a1 = athlete_repository.get_or_create(db_session, nom="LEMÉE", prenom="Sébastien")
+    a2 = athlete_repository.get_or_create(db_session, nom="lemée", prenom="sébastien")
+    assert a2.id == a1.id
