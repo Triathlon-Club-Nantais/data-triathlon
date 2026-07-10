@@ -124,6 +124,31 @@ def test_bc_audencia_la_baule_exhaustif():
 
 
 @pytest.mark.integration
+def test_bc_live_dinard_swimrun():
+    """live.breizhchrono.com routé vers le moteur Klikego (issue #34).
+
+    Un heat unique de l'épreuve Dinard 2025 (plus gros volume du Sheet). On cible
+    un heat descriptif pour vérifier la classification heat-seul (le slug de
+    l'événement contient « swimrun » et ne doit PAS polluer un heat triathlon).
+    """
+    url = (
+        "https://live.breizhchrono.com/external/live5/classements.jsp"
+        "?version=new&reference=1488071608761-688&heat=triathlon-distance-olympique"
+    )
+    assert registry.detect_provider(url) == "breizhchrono"
+    results = registry.scrape_event_all(url)
+    assert results, "live BC : aucun participant renvoyé"
+    assert any(r.athlete_name for r in results)
+    assert any(r.total_time for r in results)
+    # Classification correcte malgré le slug « swimrun » de l'événement.
+    assert any(r.event_type == "triathlon-m" for r in results)
+    # Statut cohérent : un non-finisher n'a pas de temps total.
+    for r in results:
+        if r.status in ("DNF", "DNS", "DSQ"):
+            assert not r.total_time
+
+
+@pytest.mark.integration
 def test_klikego_nozeen_exhaustif():
     results = klikego.scrape_event_all(
         "1517534975128-8", "duathlon-s---open",
