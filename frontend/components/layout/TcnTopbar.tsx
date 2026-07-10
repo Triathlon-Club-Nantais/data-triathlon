@@ -8,12 +8,12 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { apiClient } from "@/lib/api/client";
 import type { AthleteBrief } from "@/lib/types";
 
-// `hidden: true` → onglet temporairement masqué (issue #10). Code et page
+// `hidden: true` → onglet temporairement masqué (issues #10, #28). Code et page
 // conservés ; réafficher en retirant le drapeau.
 const NAV = [
   { href: "/dashboard", label: "Tableau de bord" },
   { href: "/resultats", label: "Résultats" },
-  { href: "/club", label: "Club" },
+  { href: "/club", label: "Club", hidden: true },
   { href: "/carte", label: "Carte", hidden: true },
   { href: "/admin", label: "Admin", hidden: true },
 ];

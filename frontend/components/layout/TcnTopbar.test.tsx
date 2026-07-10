@@ -12,16 +12,16 @@ vi.mock("@/lib/api/client", () => ({
 
 import { TcnTopbar } from "./TcnTopbar";
 
-describe("TcnTopbar — visibilité des onglets (issue #10)", () => {
-  it("affiche les onglets conservés : Tableau de bord, Résultats, Club", () => {
+describe("TcnTopbar — visibilité des onglets (issues #10, #28)", () => {
+  it("affiche les onglets conservés : Tableau de bord et Résultats", () => {
     render(<TcnTopbar />);
     expect(screen.getByRole("link", { name: "Tableau de bord" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Résultats" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Club" })).toBeInTheDocument();
   });
 
-  it("n'affiche pas les onglets masqués : Carte et Admin", () => {
+  it("n'affiche pas les onglets masqués : Club, Carte et Admin", () => {
     render(<TcnTopbar />);
+    expect(screen.queryByRole("link", { name: "Club" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Carte" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Admin" })).not.toBeInTheDocument();
   });
