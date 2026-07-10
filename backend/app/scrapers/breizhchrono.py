@@ -315,10 +315,14 @@ def scrape_live_event_all(reference: str, heat: str = "") -> list[ScrapedResult]
         slug, event_date = _parse_live_meta(root_html)
         event_name = slug.replace("-", " ").title() if slug else ""
 
+        all_heats = _parse_live_heats(root_html)
         if heat:
-            heats_to_import = [(heat, "")]
+            # Mode heat unique : on récupère le libellé depuis la liste des heats
+            # pour préserver la détection de relais (un slug live « ...---relais »
+            # ne se détecte que via son libellé, cf. _detect_relay).
+            heats_to_import = [(heat, dict(all_heats).get(heat, ""))]
         else:
-            heats_to_import = _parse_live_heats(root_html) or [(heat, "")]
+            heats_to_import = all_heats or [(heat, "")]
 
         for heat_slug, heat_label in heats_to_import:
             source_url = (

@@ -224,3 +224,58 @@ def test_registry_route_live_vers_moteur_klikego(monkeypatch):
     out = registry.scrape_event_all(url)
     assert out == ["sentinel"]
     assert captured == {"reference": "1488071608761-688", "heat": ""}
+
+
+def test_registry_route_live_insensible_casse(monkeypatch):
+    """Un hôte en majuscules (URL copiée/collée) route quand même vers le live."""
+    from app.scrapers import registry
+
+    captured = {}
+
+    def fake_live(reference, heat=""):
+        captured["reference"] = reference
+        return ["sentinel"]
+
+    monkeypatch.setattr(breizhchrono, "scrape_live_event_all", fake_live)
+
+    url = "https://LIVE.BreizhChrono.com/external/live5/index.jsp?reference=42-7"
+    assert registry.scrape_event_all(url) == ["sentinel"]
+    assert captured["reference"] == "42-7"
+
+
+def test_live_mode_heat_unique_conserve_le_libelle_pour_le_relais(monkeypatch):
+    """En mode heat unique, le libellé est récupéré depuis classements.jsp afin
+    que la détection de relais fonctionne pour un slug live « ...---relais »."""
+    page0 = (
+        Path(__file__).parent / "fixtures" / "klikego_datablock_page0.html"
+    ).read_text()
+
+    class FakeResp:
+        def __init__(self, t, code=200):
+            self.text, self.status_code = t, code
+
+    class FakeClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def get(self, url):
+            if "course-result.jsp" in url and "inter=&page=0" in url:
+                return FakeResp(page0)
+            if "course-result.jsp" in url:
+                return FakeResp("<html></html>")
+            # Page racine classements.jsp (sans heat=) → liste des heats + libellés.
+            if "classements.jsp" in url and "heat=" not in url:
+                return FakeResp(_LIVE_CLASSEMENTS)
+            return FakeResp("<html></html>")
+
+    monkeypatch.setattr(breizhchrono.httpx, "Client", lambda *a, **k: FakeClient())
+
+    results = breizhchrono.scrape_live_event_all(
+        "1488071608761-688", "triathlon-distance-olympique---relais"
+    )
+    assert len(results) == 50
+    # Le libellé « ... - Relais » du root a bien été récupéré → is_relay propagé.
+    assert all(r.is_relay is True for r in results)
