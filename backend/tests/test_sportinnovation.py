@@ -290,6 +290,86 @@ def test_parse_api_athlete_explicit_status():
 
 
 # ---------------------------------------------------------------------------
+# Second schéma de l'API results (≈11 % des courses : 17 sur 155 en 2026-07).
+#
+# Les rangs, temps et référence athlète y portent d'autres noms :
+#   generalRank / sexRank / categoryRank   (au lieu de …Ranking)
+#   officialTimeFfa / realTimeFfa          (au lieu de officialTime / realTime)
+#   ni `id` ni `slug`                      → pas de splits récupérables
+# Sans ces alias, l'athlète ressort sans temps ni rang, donc DNF à l'import.
+# ---------------------------------------------------------------------------
+
+def test_parse_api_athlete_schema_ffa():
+    a = {
+        "lastName": "BOURGUENOLLE", "firstName": "Pierre-arnaud", "bib": "3008",
+        "clubName": "ENTENTE ATHLETIQUE DU LAC DAIGUEBELETTE", "sex": "H", "category": "M0H",
+        "generalRank": 1, "sexRank": 1, "categoryRank": 1,
+        "officialTimeFfa": "11:40:03", "realTimeFfa": "11:40:03", "status": None,
+    }
+    r = _parse_api_athlete(a, "http://x", "La Barjo 2026 - La mora", "trail", None)
+    assert r.total_time == "11:40:03"
+    assert r.rank_overall == 1
+    assert r.rank_gender == 1
+    assert r.rank_category == 1
+    assert r.status == ""
+    assert r.club == "ENTENTE ATHLETIQUE DU LAC DAIGUEBELETTE"
+
+
+def test_parse_api_athlete_schema_ffa_temps_au_dela_de_24h():
+    """Un ultra dépasse 24 h : le temps reste une chaîne, jamais tronquée."""
+    a = {"lastName": "CASROUGE", "bib": "1", "generalRank": 1, "officialTimeFfa": "29:46:00"}
+    r = _parse_api_athlete(a, "http://x", "Raid", "trail", None)
+    assert r.total_time == "29:46:00"
+
+
+def test_parse_api_athlete_schema_ffa_non_finisher():
+    """En schéma FFA les non-partants n'ont pas de temps : DNS + rangs purgés."""
+    a = {"lastName": "PATOUX", "bib": "", "status": "DNS",
+         "generalRank": None, "officialTimeFfa": None, "realTimeFfa": None}
+    r = _parse_api_athlete(a, "http://x", "La Barjo 2026 - La petite barjo", "trail", None)
+    assert r.status == "DNS"
+    assert r.total_time == ""
+    assert r.rank_overall is None
+
+
+def test_parse_api_athlete_schema_historique_prime():
+    """Si les deux jeux de clés coexistent, le schéma historique fait foi."""
+    a = {
+        "lastName": "X", "bib": "1",
+        "generalRanking": 3, "generalRank": 99,
+        "officialTime": "01:00:00", "officialTimeFfa": "09:09:09",
+    }
+    r = _parse_api_athlete(a, "http://x", "E", "triathlon", None)
+    assert r.rank_overall == 3
+    assert r.total_time == "01:00:00"
+
+
+def test_athlete_ref_par_athlete():
+    """La référence pour les splits se lit par athlète : `id`, sinon `slug`, sinon rien."""
+    from app.scrapers.sportinnovation import _athlete_ref
+
+    assert _athlete_ref({"id": 42, "slug": "s"}) == 42
+    assert _athlete_ref({"slug": "zmhc-1"}) == "zmhc-1"
+    assert _athlete_ref({"bib": "3008"}) is None  # schéma FFA : aucune référence
+
+
+def test_fetch_splits_parallel_schema_ffa_ne_fabrique_pas_de_reference():
+    """Sans `id`/`slug`, aucun appel splits : sinon `/api/results/{bib}` renverrait
+    l'athlète d'une autre course (l'id est global, pas relatif au dossard)."""
+    from app.scrapers import sportinnovation as si
+
+    appels = []
+    si_orig = si._fetch_athlete_splits
+    try:
+        si._fetch_athlete_splits = lambda ref: appels.append(ref) or {}
+        out = si._fetch_splits_parallel([{"bib": "3008", "generalRank": 1}])
+    finally:
+        si._fetch_athlete_splits = si_orig
+    assert appels == []
+    assert out == {}
+
+
+# ---------------------------------------------------------------------------
 # _scrape_results_race — chemin API : même convention de nommage que le legacy
 # ---------------------------------------------------------------------------
 

@@ -347,6 +347,25 @@ def _classify_results_url(url: str) -> tuple[str, str]:
     return "event", parts[0]
 
 
+def _first(a: dict, *keys: str):
+    """Première clé présente et non vide parmi `keys` (schéma historique d'abord)."""
+    for key in keys:
+        value = a.get(key)
+        if value not in (None, ""):
+            return value
+    return None
+
+
+def _athlete_ref(a: dict) -> str | int | None:
+    """Référence d'un athlète pour `/api/results/{ref}` : `id`, sinon `slug`.
+
+    Le schéma FFA n'en expose aucune : renvoie None plutôt que de replier sur le
+    dossard, car `/api/results/{bib}` interprète son argument comme un `id`
+    global et renverrait l'athlète d'une autre course.
+    """
+    return _first(a, "id", "slug")
+
+
 def _parse_api_athlete(
     a: dict,
     url: str,
@@ -355,7 +374,13 @@ def _parse_api_athlete(
     event_date,
     splits: dict[str, str] | None = None,
 ) -> ScrapedResult:
-    """Construit un ScrapedResult depuis un athlète de l'API JSON sportinnovation."""
+    """Construit un ScrapedResult depuis un athlète de l'API JSON sportinnovation.
+
+    L'API sert deux schémas de résultats selon la course : l'historique
+    (`generalRanking`, `officialTime`) et un schéma « FFA » (`generalRank`,
+    `officialTimeFfa`), sans référence athlète. On lit les deux, l'historique
+    primant quand les deux coexistent.
+    """
     res = ScrapedResult(source_url=url, provider="sportinnovation")
     res.event_name = event_name
     res.event_type = event_type
@@ -366,15 +391,17 @@ def _parse_api_athlete(
     res.club = (a.get("clubName") or "").strip()
     res.gender = a.get("sex") or ""
     res.category = a.get("category") or ""
-    res.rank_overall = normalize_rank(str(a.get("generalRanking") or ""))
-    res.rank_gender = normalize_rank(str(a.get("sexRanking") or ""))
-    res.rank_category = normalize_rank(str(a.get("categoryRanking") or ""))
+    res.rank_overall = normalize_rank(str(_first(a, "generalRanking", "generalRank") or ""))
+    res.rank_gender = normalize_rank(str(_first(a, "sexRanking", "sexRank") or ""))
+    res.rank_category = normalize_rank(str(_first(a, "categoryRanking", "categoryRank") or ""))
     res.status = derive_status_from_label(str(a.get("status") or a.get("state") or ""))
     if res.status in (STATUS_DNF, STATUS_DNS, STATUS_DSQ):
         res.total_time = ""
         res.rank_overall = res.rank_gender = res.rank_category = None
     else:
-        res.total_time = normalize_time(a.get("officialTime") or a.get("realTime") or "")
+        res.total_time = normalize_time(
+            _first(a, "officialTime", "realTime", "officialTimeFfa", "realTimeFfa") or ""
+        )
     if splits:
         res.swim_time = splits.get("swim", "")
         res.t1_time = splits.get("t1", "")
@@ -477,13 +504,15 @@ def _fetch_splits_parallel(
     Récupère les splits de tous les athlètes en parallèle.
     Clé du dict retourné : bib → splits dict.
     Chaque worker crée son propre httpx.Client pour éviter les conflits de pool.
+
+    La référence est lue athlète par athlète : le schéma FFA n'en fournit aucune,
+    et l'ensemble est alors vide (pas de splits pour ces courses).
     """
-    ref_key = "id" if athletes and athletes[0].get("id") else "slug"
-    tasks: dict[str, str | int] = {
-        a["bib"]: a[ref_key]
-        for a in athletes
-        if a.get(ref_key)
-    }
+    tasks: dict[str, str | int] = {}
+    for a in athletes:
+        ref = _athlete_ref(a)
+        if ref is not None and a.get("bib"):
+            tasks[a["bib"]] = ref
     if not tasks:
         return {}
 
