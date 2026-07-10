@@ -335,7 +335,7 @@ def _classify_results_url(url: str) -> tuple[str, str]:
     Classe une URL results.sportinnovation.fr :
       - /race/{slug}    → ("race", slug)    [affichage 2026, niveau course]
       - /detail/{id}    → ("detail", id)    [lien individuel → résout le raceSlug]
-      - /{codeUrl}      → ("event", codeUrl) [niveau événement]
+      - /{customUrl}    → ("event", customUrl) [niveau événement]
     """
     parts = [p for p in urlparse(url).path.strip("/").split("/") if p]
     if not parts:
@@ -371,7 +371,7 @@ def _parse_api_athlete(
     url: str,
     event_name: str,
     event_type: str,
-    event_date,
+    event_date: date | None,
     splits: dict[str, str] | None = None,
 ) -> ScrapedResult:
     """Construit un ScrapedResult depuis un athlète de l'API JSON sportinnovation.
@@ -579,7 +579,7 @@ def _scrape_results_race(slug: str, url: str, client: httpx.Client) -> list[Scra
 
 
 def _scrape_event_api(ident: str, url: str, client: httpx.Client) -> list[ScrapedResult]:
-    """Toutes les courses d'un événement de l'API (forme `results…fr/{codeUrl}`).
+    """Toutes les courses d'un événement de l'API (forme `results…fr/{customUrl}`).
 
     Événements et courses sont adressés par `slug` ; l'API n'expose pas d'`id`.
     Trois cas réels de données incomplètes, tous rencontrés en juillet 2026 :
@@ -639,7 +639,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                     raise ValueError(f"Impossible de résoudre le raceSlug depuis le détail : {ident}")
                 return _scrape_results_race(race_slug, url, client)
 
-            # Forme /{codeUrl} : niveau événement (toutes ses courses).
+            # Forme /{customUrl} : niveau événement (toutes ses courses).
             return _scrape_event_api(ident, url, client)
 
         m = re.search(r"/Resultats/(?:DetailMobile/)?(\d+)", parsed.path)
