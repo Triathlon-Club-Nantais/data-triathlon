@@ -41,9 +41,12 @@ CATALOG: list[dict] = [
     {
         "desc": "Triathlon M — Trégastel 2026 (Breizh Chrono)",
         "url": (
-            "https://resultats.breizhchrono.com/resultats-courses/"
-            "triathlon-de-la-cote-de-granit-rose-tregastel-2026-1295405190290-19/triathlon-m"
+            "https://resultats.breizhchrono.com/resultats-courses/triathlon-de-la-cote-de-granit-rose-tregastel-2026-1295405190290-19/triathlon-m"
         ),
+    },
+    {
+        "desc": "Triathlon SwimRun Dinard Côte d'Emeraude 2025",
+        "url": "https://live.breizhchrono.com/external/live5/index.jsp?reference=1488071608761-688&heat-id=1694153262420",
     },
     {
         "desc": "Triathlon — La Roche 2026 (Wiclax)",
