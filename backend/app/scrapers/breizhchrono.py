@@ -12,12 +12,19 @@ identical HTML structure). Only the front-end URL format differs:
 live.breizhchrono.com sert la MÊME plateforme Klikego (course-result.jsp, bloc
 base64+XOR), seule change la façade : les heats se découvrent via
 `/external/live5/classements.jsp?reference=...` et la `reference` de l'URL est
-directement la clé `ref` de course-result.jsp. Voir `scrape_live_event_all`.
+directement la clé `ref` de course-result.jsp. Le nom d'épreuve et la date de
+chaque heat, eux, ne vivent que sur `/external/live5/index.jsp?reference=...`.
+Voir `scrape_live_event_all`.
+
+Une Course du modèle = un heat : son nom porte donc le libellé du heat
+(`_course_name`), faute de quoi les heats d'une même épreuve fusionnent sur
+l'identité (nom, date, type, relais).
 
 The detail page HTML (p.text-sm meta line, ranking divs, result-row splits table)
 is byte-for-byte identical, so _parse_detail is shared from klikego.
 """
 import re
+from datetime import date
 from urllib.parse import parse_qs, urlparse
 
 import httpx
@@ -36,25 +43,23 @@ HEADERS = {
 }
 
 
-def _parse_bc_date(html: str):
+def _parse_bc_date(html: str) -> date | None:
     """Extract event date from BC page HTML.
 
     resultats.breizhchrono.com embeds an ISO date (YYYY-MM-DD) ; le front live
     (live.breizhchrono.com) affiche la date au format FR (DD/MM/YYYY). On tente
     l'ISO d'abord (plus spécifique), puis le format FR en repli.
     """
-    import re as _re
-    from datetime import date as _date
-    m = _re.search(r'(\d{4}-\d{2}-\d{2})', html)
+    m = re.search(r'(\d{4}-\d{2}-\d{2})', html)
     if m:
         try:
-            return _date.fromisoformat(m.group(1))
+            return date.fromisoformat(m.group(1))
         except ValueError:
             pass
-    m = _re.search(r'(\d{2})/(\d{2})/(\d{4})', html)
+    m = re.search(r'(\d{2})/(\d{2})/(\d{4})', html)
     if m:
         try:
-            return _date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+            return date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
         except ValueError:
             pass
     return None
@@ -122,6 +127,23 @@ def _fetch_all_heats(slug_id: str, client: httpx.Client) -> list[tuple[str, str]
     return heats
 
 
+def _course_name(event_name: str, heat_label: str) -> str:
+    """Nom de course = « <Épreuve> — <Heat> ».
+
+    Une Course du modèle EST un heat (cf. `models/course.py`), et son identité
+    est (nom, date, type, relais). Sans le libellé du heat dans le nom, les heats
+    d'une même épreuve partageant un type fusionnent en une seule course : à
+    Dinard 2025, les six swimruns (Court/Medium/Long × Solo/Duo, tous classés
+    `swimrun`) n'en formaient qu'une, et le heat « Trail 11 KM » s'affichait sous
+    un nom de triathlon.
+
+    Les espaces sont compactés : la plateforme en sème des doubles dans ses
+    libellés (« Triathlon Découverte  Aésio Mutuelle »).
+    """
+    parts = [p for p in (event_name, heat_label) if p]
+    return " — ".join(" ".join(p.split()) for p in parts)
+
+
 def _detect_relay(heat_label: str, heat_slug: str) -> bool:
     """Indique si un heat est une épreuve de relais.
 
@@ -163,7 +185,7 @@ def _import_one_heat(
         event_id=event_id,
         heat=heat_slug,
         heat_page_html=heat_page_html,
-        event_name=event_name,
+        event_name=_course_name(event_name, heat_label),
         slug=slug,
         event_type=event_type,
         source_url=source_url,
@@ -283,22 +305,69 @@ def _parse_live_heats(html: str) -> list[tuple[str, str]]:
     return heats
 
 
-def _parse_live_meta(html: str) -> tuple[str, object]:
-    """Extrait (slug, event_date) de la page live5/classements.jsp.
+def _parse_live_slug(html: str) -> str:
+    """Extrait le slug d'épreuve de la page live5/classements.jsp.
 
-    Le slug se lit dans le lien d'export « Résultats »
-    (`/resultats-courses/{slug}-{reference}/...`) ; la date via _parse_bc_date.
+    Il se lit dans le lien d'export « Résultats »
+    (`/resultats-courses/{slug}-{reference}/...`). Sert de repli au nom
+    d'épreuve : la date, elle, n'existe pas sur cette page (cf. _parse_live_index).
     """
     m = re.search(r"/resultats-courses/([a-z0-9-]+?)-\d{10,}-\d+/", html)
-    slug = m.group(1) if m else ""
-    return slug, _parse_bc_date(html)
+    return m.group(1) if m else ""
+
+
+def _norm_label(label: str) -> str:
+    """Clé de jointure entre les libellés de heats des deux pages live.
+
+    `classements.jsp` (slug + libellé) et `index.jsp` (libellé + date) exposent
+    des libellés identiques au détail près de la casse et des espaces multiples.
+    """
+    return " ".join(label.lower().split())
+
+
+def _parse_live_index(html: str) -> tuple[str, dict[str, date]]:
+    """Extrait (nom d'épreuve, {libellé de heat normalisé: date}) de live5/index.jsp.
+
+    C'est la SEULE page live qui porte les dates (`classements.jsp` n'en a
+    aucune, d'où les courses sans date jusqu'ici). Chaque heat est une carte
+    `<a href="?...&heat-id=…">` : libellé dans `div.h6`, date au format FR dans
+    `div.small`. Les heats d'une même épreuve tombent parfois des jours
+    différents (Dinard 2025 : trail le 12/09, triathlons les 13 et 14/09), d'où
+    une date par heat plutôt qu'une date d'événement.
+
+    Le `<title>` porte le vrai nom accentué (« Triathlon SwimRun Dinard Côte
+    d'Emeraude »), là où le slug l'aplatit en « Cote Demeraude ».
+    """
+    soup = BeautifulSoup(html, "lxml")
+
+    event_name = ""
+    if soup.title and soup.title.string:
+        title = " ".join(soup.title.string.split())
+        m = re.match(r"(?i)^live\s*-\s*(.+?)\s*avec\s+breizhchrono$", title)
+        event_name = m.group(1) if m else title
+
+    dates: dict[str, date] = {}
+    for link in soup.find_all("a", href=True):
+        if "heat-id=" not in link["href"]:
+            continue
+        label_el = link.select_one("div.h6")
+        meta_el = link.select_one("div.small")
+        if not label_el or not meta_el:
+            continue
+        heat_date = _parse_bc_date(meta_el.get_text(" ", strip=True))
+        if heat_date:
+            dates[_norm_label(label_el.get_text(strip=True))] = heat_date
+
+    return event_name, dates
 
 
 def scrape_live_event_all(reference: str, heat: str = "") -> list[ScrapedResult]:
     """Import complet d'une épreuve live.breizhchrono.com via le moteur Klikego.
 
-    Découvre les heats via classements.jsp (sauf si `heat` est fourni), décode
-    chaque course-result.jsp sur l'hôte live, puis récupère les splits fins TCN.
+    Deux pages live sont nécessaires : `classements.jsp` liste les heats (slug +
+    libellé) mais ne porte aucune date ; `index.jsp` porte le nom d'épreuve
+    accentué et la date de chaque heat. On les joint par libellé (_norm_label).
+
     La classification se fait sur le heat SEUL : les libellés de heats du live
     sont descriptifs (« triathlon-distance-olympique »), alors que le slug de
     l'événement mentionne souvent une seule discipline vedette et fausserait le
@@ -312,8 +381,15 @@ def scrape_live_event_all(reference: str, heat: str = "") -> list[ScrapedResult]
             f"{LIVE_BASE}/external/live5/classements.jsp?reference={reference}"
         )
         root_html = root.text if root.status_code == 200 else ""
-        slug, event_date = _parse_live_meta(root_html)
-        event_name = slug.replace("-", " ").title() if slug else ""
+        slug = _parse_live_slug(root_html)
+
+        index = client.get(f"{LIVE_BASE}/external/live5/index.jsp?reference={reference}")
+        index_html = index.text if index.status_code == 200 else ""
+        event_name, dates_by_heat = _parse_live_index(index_html)
+        if not event_name:
+            event_name = slug.replace("-", " ").title() if slug else ""
+        # Repli pour un heat absent de l'index : le premier jour de l'épreuve.
+        default_date = min(dates_by_heat.values()) if dates_by_heat else None
 
         all_heats = _parse_live_heats(root_html)
         if heat:
@@ -332,7 +408,7 @@ def scrape_live_event_all(reference: str, heat: str = "") -> list[ScrapedResult]
             results.extend(
                 _import_one_heat(
                     reference, heat_slug, heat_label, event_name, slug,
-                    event_date, client,
+                    dates_by_heat.get(_norm_label(heat_label), default_date), client,
                     base=LIVE_BASE, source_url=source_url,
                     event_type=_detect_event_type(heat_slug),
                 )

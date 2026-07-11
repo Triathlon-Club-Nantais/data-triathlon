@@ -11,6 +11,8 @@ Les URLs (événements passés/stables) sont documentées dans
 Assertions volontairement souples (les données d'épreuve évoluent) : le scraper
 doit renvoyer ≥1 participant avec au moins un nom et un temps total peuplés.
 """
+from datetime import date
+
 import pytest
 
 from app.scrapers import breizhchrono, klikego, registry
@@ -142,6 +144,14 @@ def test_bc_live_dinard_swimrun():
     assert any(r.total_time for r in results)
     # Classification correcte malgré le slug « swimrun » de l'événement.
     assert any(r.event_type == "triathlon-m" for r in results)
+    # La date vient d'index.jsp (classements.jsp n'en porte aucune) et elle est
+    # propre au heat : l'olympique court le 14/09, le trail de la même épreuve le 12.
+    assert all(r.event_date == date(2025, 9, 14) for r in results)
+    # Le nom porte le libellé du heat, sans quoi les heats d'une même épreuve
+    # fusionnent sur l'identité de course (nom, date, type, relais).
+    assert all(
+        r.event_name.endswith("— Triathlon Distance Olympique") for r in results
+    )
     # Statut cohérent : un non-finisher n'a pas de temps total.
     for r in results:
         if r.status in ("DNF", "DNS", "DSQ"):
