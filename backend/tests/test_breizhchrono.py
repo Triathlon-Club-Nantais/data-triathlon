@@ -9,10 +9,12 @@ from pathlib import Path
 
 from app.scrapers import breizhchrono
 from app.scrapers.breizhchrono import (
+    _course_name,
     _parse_bc_date,
     _parse_bc_url,
     _parse_live_heats,
-    _parse_live_meta,
+    _parse_live_index,
+    _parse_live_slug,
     _parse_live_url,
 )
 
@@ -120,6 +122,10 @@ _LIVE_CLASSEMENTS = (
     Path(__file__).parent / "fixtures" / "breizhchrono_live_classements.html"
 ).read_text()
 
+_LIVE_INDEX = (
+    Path(__file__).parent / "fixtures" / "breizhchrono_live_index.html"
+).read_text()
+
 
 def test_parse_live_url_avec_heat():
     url = (
@@ -147,17 +153,52 @@ def test_parse_live_heats_dedoublonne():
         "triathlon-distance-olympique",
         "swimrun-court-solo",
         "triathlon-distance-olympique---relais",
+        "trail-11-km",
     ]
     # Le libellé permet la détection de relais en aval.
     labels = dict(heats)
     assert "Relais" in labels["triathlon-distance-olympique---relais"]
 
 
-def test_parse_live_meta():
-    """slug lu dans le lien d'export, date au format FR."""
-    slug, event_date = _parse_live_meta(_LIVE_CLASSEMENTS)
-    assert slug == "triathlon-swimrun-dinard-cote-demeraude-2025"
-    assert event_date == date(2025, 9, 12)
+def test_parse_live_slug():
+    """Le slug se lit dans le lien d'export de classements.jsp."""
+    assert _parse_live_slug(_LIVE_CLASSEMENTS) == "triathlon-swimrun-dinard-cote-demeraude-2025"
+
+
+def test_classements_ne_porte_aucune_date():
+    """Garde-fou : classements.jsp n'expose PAS de date (c'est index.jsp qui l'a).
+
+    Une date fictive dans la fixture avait masqué le bug « courses sans date ».
+    """
+    assert _parse_bc_date(_LIVE_CLASSEMENTS) is None
+
+
+def test_parse_live_index_nom_et_dates_par_heat():
+    """index.jsp donne le vrai nom d'épreuve (accentué) et une date PAR heat."""
+    event_name, dates = _parse_live_index(_LIVE_INDEX)
+    assert event_name == "Triathlon SwimRun Dinard Côte d'Emeraude"
+    # Les heats d'une même épreuve peuvent tomber des jours différents.
+    assert dates["trail 11 km"] == date(2025, 9, 12)
+    assert dates["triathlon distance olympique"] == date(2025, 9, 14)
+    assert dates["swimrun court solo"] == date(2025, 9, 14)
+
+
+def test_parse_live_index_vide():
+    """HTML inexploitable → pas de nom, pas de dates (aucune exception)."""
+    assert _parse_live_index("<html></html>") == ("", {})
+
+
+def test_course_name_suffixe_le_heat():
+    """Le nom de course porte le libellé du heat : deux heats d'une même épreuve
+    ne peuvent plus fusionner sur l'identité (nom, date, type, relais)."""
+    assert (
+        _course_name("Triathlon SwimRun Dinard Côte d'Emeraude", "Trail 11 KM")
+        == "Triathlon SwimRun Dinard Côte d'Emeraude — Trail 11 KM"
+    )
+    # Heat ciblé sans libellé connu → nom d'épreuve seul (pas de suffixe vide).
+    assert _course_name("Triathlon de Vannes 2025", "") == "Triathlon de Vannes 2025"
+    # Nom d'épreuve introuvable → le libellé du heat fait office de nom.
+    assert _course_name("", "Trail 11 KM") == "Trail 11 KM"
 
 
 def test_live_import_one_heat_route_sur_lhote_live(monkeypatch):
@@ -279,3 +320,77 @@ def test_live_mode_heat_unique_conserve_le_libelle_pour_le_relais(monkeypatch):
     assert len(results) == 50
     # Le libellé « ... - Relais » du root a bien été récupéré → is_relay propagé.
     assert all(r.is_relay is True for r in results)
+
+
+class _FakeLiveClient:
+    """Client live factice : sert classements.jsp, index.jsp et le data block."""
+
+    def __init__(self):
+        self.page0 = (
+            Path(__file__).parent / "fixtures" / "klikego_datablock_page0.html"
+        ).read_text()
+
+    class _Resp:
+        def __init__(self, t, code=200):
+            self.text, self.status_code = t, code
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def get(self, url):
+        if "course-result.jsp" in url and "inter=&page=0" in url:
+            return self._Resp(self.page0)
+        if "index.jsp" in url:
+            return self._Resp(_LIVE_INDEX)
+        if "classements.jsp" in url and "heat=" not in url:
+            return self._Resp(_LIVE_CLASSEMENTS)
+        return self._Resp("<html></html>")
+
+
+def test_live_chaque_heat_a_son_nom_et_sa_date(monkeypatch):
+    """Régression : les heats d'une épreuve live ne partagent plus un nom unique
+    ni une date absente.
+
+    Avant : les 4 heats sortaient tous nommés « Triathlon Swimrun Dinard Cote
+    Demeraude 2025 » avec event_date=None → le Trail s'affichait sous un nom de
+    triathlon, et les heats de même type fusionnaient sur l'identité de course.
+    """
+    monkeypatch.setattr(breizhchrono.httpx, "Client", lambda *a, **k: _FakeLiveClient())
+
+    results = breizhchrono.scrape_live_event_all("1488071608761-688")
+
+    by_name = {r.event_name: r for r in results}
+    assert set(by_name) == {
+        "Triathlon SwimRun Dinard Côte d'Emeraude — Triathlon Distance Olympique",
+        "Triathlon SwimRun Dinard Côte d'Emeraude — Swimrun Court Solo",
+        "Triathlon SwimRun Dinard Côte d'Emeraude — Triathlon Distance Olympique - Relais",
+        "Triathlon SwimRun Dinard Côte d'Emeraude — Trail 11 KM",
+    }
+    # Date propre à chaque heat (le trail court la veille des triathlons).
+    trail = by_name["Triathlon SwimRun Dinard Côte d'Emeraude — Trail 11 KM"]
+    olympique = by_name[
+        "Triathlon SwimRun Dinard Côte d'Emeraude — Triathlon Distance Olympique"
+    ]
+    assert trail.event_date == date(2025, 9, 12)
+    assert olympique.event_date == date(2025, 9, 14)
+    # Le type reste classé sur le heat seul.
+    assert trail.event_type == "trail"
+    assert olympique.event_type == "triathlon-m"
+
+
+def test_bc_classique_nomme_chaque_heat():
+    """Même correctif côté resultats.breizhchrono.com : un heat = une course nommée."""
+    results = breizhchrono._import_one_heat(
+        "1488071608761-688", "trail-11-km", "Trail 11 KM",
+        "Triathlon Swimrun Dinard Cote Demeraude 2025",
+        "triathlon-swimrun-dinard-cote-demeraude-2025",
+        date(2025, 9, 12), _FakeLiveClient(),
+    )
+    assert results
+    assert all(
+        r.event_name == "Triathlon Swimrun Dinard Cote Demeraude 2025 — Trail 11 KM"
+        for r in results
+    )

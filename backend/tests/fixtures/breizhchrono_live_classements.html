@@ -1,15 +1,18 @@
-<!-- Fixture minimale de la page live5/classements.jsp de live.breizhchrono.com.
-     Seuls sont conservés : le lien « Résultats » (révèle le slug), la date
-     affichée (DD/MM/YYYY) et les liens de heats (classements.jsp?...&heat=). -->
+<!-- Fixture de la page live5/classements.jsp de live.breizhchrono.com.
+     Seuls sont conservés : le lien « Résultats » (révèle le slug) et les liens
+     de heats (classements.jsp?...&heat=).
+     ATTENTION — fidélité : cette page ne contient AUCUNE date. La date d'épreuve
+     vit sur index.jsp (cf. breizhchrono_live_index.html). Ne pas en réintroduire
+     une ici : c'est une date fictive dans cette fixture qui avait masqué le bug. -->
 <html>
 <body>
-  <span class="event-date">12/09/2025</span>
   <a href="/external/live5/classements.jsp?reference=1488071608761-688">Classements</a>
   <a href="/resultats-courses/triathlon-swimrun-dinard-cote-demeraude-2025-1488071608761-688/swimrun-court-duo/export">Résultats</a>
   <ul>
     <li><a href="/external/live5/classements.jsp?version=new&reference=1488071608761-688&heat=triathlon-distance-olympique">Triathlon Distance Olympique</a></li>
     <li><a href="/external/live5/classements.jsp?version=new&reference=1488071608761-688&heat=swimrun-court-solo">Swimrun Court Solo</a></li>
     <li><a href="/external/live5/classements.jsp?version=new&reference=1488071608761-688&heat=triathlon-distance-olympique---relais">Triathlon Distance Olympique - Relais</a></li>
+    <li><a href="/external/live5/classements.jsp?version=new&reference=1488071608761-688&heat=trail-11-km">Trail 11 KM</a></li>
     <!-- doublon volontaire : doit être dédoublonné -->
     <li><a href="/external/live5/classements.jsp?version=new&reference=1488071608761-688&heat=triathlon-distance-olympique">Triathlon Distance Olympique</a></li>
   </ul>
