@@ -7,19 +7,19 @@ direct. Invocable depuis backend/ :
     python -m app.cli rescrape-db --dry-run
 """
 import json
-import logging
-import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict
 
 import typer
 
 from app.core.config import get_settings
 from app.core.database import session_scope
-from app.repositories import course_repository
-from app.services import import_service
 from app.services.bulk_import_service import (  # noqa: F401 — ré-export transitoire (Task 7)
     SheetOutcome,
     run_import_sheet,
+)
+from app.services.rescrape_service import (  # noqa: F401 — ré-export transitoire (Task 7)
+    RescrapeOutcome,
+    run_rescrape_db,
 )
 from app.services.sheet_source import (  # noqa: F401 — ré-export transitoire (Task 7)
     DEFAULT_SHEET_URL,
@@ -30,8 +30,6 @@ from app.services.sheet_source import (  # noqa: F401 — ré-export transitoire
     normalize_url,
     parse_sheet_csv,
 )
-
-logger = logging.getLogger(__name__)
 
 app = typer.Typer(help="Outillage d'import de masse et de rescrape.")
 
@@ -85,59 +83,6 @@ def import_sheet(
     typer.echo(render_sheet_report(outcome, dry_run=dry_run))
     if json_output:
         typer.echo(json.dumps(asdict(outcome), ensure_ascii=False))
-
-
-@dataclass
-class RescrapeOutcome:
-    """Bilan d'un rescrape-db."""
-    total: int = 0
-    imported: int = 0
-    skipped: int = 0
-    errors: int = 0
-    dry_run_urls: list[str] = field(default_factory=list)
-
-
-def run_rescrape_db(
-    db,
-    settings,
-    *,
-    dry_run: bool = False,
-    older_than: int | None = None,
-    provider: str | None = None,
-    limit: int | None = None,
-    delay: float = 1.0,
-) -> RescrapeOutcome:
-    """Re-scrape toutes les courses en DB avec force=True (bypass du cache TTL).
-
-    Ne retient que les courses ayant une source_url (clé de re-scraping).
-    En dry-run : liste les URLs sans scraper ni persister.
-    """
-    courses = course_repository.iter_all(
-        db, provider=provider, older_than_days=older_than
-    )
-    courses = [c for c in courses if c.source_url]
-    if limit is not None:
-        courses = courses[:limit]
-
-    outcome = RescrapeOutcome(
-        total=len(courses),
-        dry_run_urls=[c.source_url for c in courses],
-    )
-    if dry_run:
-        return outcome
-
-    for i, course in enumerate(courses):
-        try:
-            res = import_service.import_event(db, course.source_url, settings, force=True)
-            outcome.imported += res.get("imported", 0)
-            outcome.skipped += res.get("skipped", 0)
-        except Exception as exc:
-            outcome.errors += 1
-            logger.warning("Échec rescrape %s : %s", course.source_url, exc)
-        if delay and i < len(courses) - 1:
-            time.sleep(delay)
-
-    return outcome
 
 
 def render_rescrape_report(outcome: RescrapeOutcome, *, dry_run: bool) -> str:
