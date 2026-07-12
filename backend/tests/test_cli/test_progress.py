@@ -3,8 +3,8 @@ import sys
 
 from rich.console import Console
 
-from app import cli_reporters
-from app.cli_reporters import PlainReporter, RichReporter, select_reporter, truncate
+from app.cli import progress as cli_reporters
+from app.cli.progress import PlainReporter, RichReporter, select_reporter, truncate
 from app.services.progress import NullReporter, ProgressReporter
 
 
