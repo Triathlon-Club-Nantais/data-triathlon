@@ -42,7 +42,7 @@ cd backend
 uv sync   # crée .venv (Python 3.13) + installe les dépendances depuis uv.lock
 ```
 
-> `uv sync --no-dev` écarte le groupe `dev` (pytest, respx, ruff) — c'est ce que font Render et l'image Docker.
+> `uv sync --frozen --no-dev` écarte le groupe `dev` (pytest, respx, ruff) — c'est ce que font Render et l'image Docker.
 
 ## Base de données (Alembic)
 
