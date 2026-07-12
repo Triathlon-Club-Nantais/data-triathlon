@@ -13,7 +13,7 @@ Toute PR déclenche la CI seule (aucun déploiement).
 
 - **`.github/workflows/ci.yml`** — source unique des contrôles qualité,
   réutilisable (`workflow_call`) et déclenché sur `pull_request`.
-  - Backend : `ruff check .` + `pytest -m "not integration"` (Python 3.13).
+  - Backend : `uv run ruff check .` + `uv run pytest -m "not integration"` (Python 3.13).
   - Frontend : `npm run lint` (eslint) + `npm test` (vitest) + `npm run build`
     (typecheck TS strict + build Next/RSC).
 - **`.github/workflows/deploy.yml`** — déclenché sur `push` (branche `main` et
@@ -50,7 +50,7 @@ Réglages restants à faire **dans le dashboard** (non supportés par le MCP) :
 **Service PREVIEW `triathlon-backend-preview`** :
 1. **Settings → Root Directory = `backend`** (créé avec un rootDir vide — le MCP
    ne permet pas de le définir ; sans ça le build échoue : pas de `pyproject.toml`
-   et `uv.lock` à la racine du repo).
+   ni de `uv.lock` à la racine du repo).
 2. Renseigner `DATABASE_URL` (Supabase preview).
 3. Copier l'URL du **Deploy Hook** (Settings → Deploy Hook) → secret `RENDER_DEPLOY_HOOK_PREVIEW`.
 
