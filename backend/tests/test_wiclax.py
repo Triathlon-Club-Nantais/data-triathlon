@@ -6,6 +6,10 @@ compétiteur (formats Competitor et ChronoSmetron E/R), mapping des segments
 (<Segments>) vers les index sN, et remplissage des splits depuis un <R>.
 """
 import xml.etree.ElementTree as ET
+from pathlib import Path
+
+import httpx
+import pytest
 
 from app.scrapers import registry
 from app.scrapers.base import ScrapedResult
@@ -13,14 +17,23 @@ from app.scrapers.wiclax import (
     _competitor_status,
     _detect_event_type,
     _fill_er_splits,
+    _find_glive_url,
+    _find_wiclax_link,
     _get_competitor_bib,
     _get_competitor_fullname,
     _parcours_split_map,
     _parse_competitor,
+    _resolve_to_wiclax_url,
     _segment_chain,
     scrape_event_all,
 )
 from app.services.mapping import build_splits
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def _fixture(nom: str) -> str:
+    return (FIXTURES / nom).read_text(encoding="utf-8")
 
 
 def _el(xml: str) -> ET.Element:
@@ -539,3 +552,103 @@ def test_registry_hosts_wiclax_existants_inchanges():
 def test_registry_host_inconnu_reste_playwright():
     """L'allowlist reste explicite : pas de sniffing de contenu."""
     assert registry.detect_provider("https://exemple-inconnu.fr/resultats/") == "playwright"
+
+
+# ---------------------------------------------------------------------------
+# Résolution d'URL : page → iframe G-Live
+# ---------------------------------------------------------------------------
+
+
+def test_find_glive_url_apostrophe_non_tronquee():
+    """Bug #35 : la regex `[^"\\']*` coupait le src à l'apostrophe de LOC'orrida."""
+    src = _find_glive_url(
+        _fixture("chronowest_shell_locorrida.html"),
+        "https://chronowest.fr/resultats/locorrida-2026/",
+    )
+    assert src == (
+        "https://chronowest.fr/wp-content/glive/g-live.html"
+        "?f=/wp-content/glive-results/locorrida-2026/LOC'orrida%202026.clax"
+        "&t=0203054427&wp=1"
+    )
+
+
+def test_find_glive_url_src_racine_absolu():
+    """ChronoSmetron : src racine-absolu → résolu contre l'host de la page."""
+    src = _find_glive_url(
+        _fixture("wiclax_directory_chronosmetron.html"),
+        "https://chronosmetron.wiclax-results.com/Triathlon%20de%20la%20Roche%202026/",
+    )
+    assert src.startswith("https://chronosmetron.wiclax-results.com/G-Live/g-live.html?f=")
+
+
+def test_find_glive_url_absente():
+    """Une page sans iframe G-Live renvoie None (et non une exception)."""
+    assert _find_glive_url(_fixture("chronowest_event_page.html"), "https://chronowest.fr/x/") is None
+
+
+# ---------------------------------------------------------------------------
+# Résolution d'URL : page épreuve → coquille de résultats
+# ---------------------------------------------------------------------------
+
+
+def test_find_wiclax_link_page_wordpress():
+    """La page épreuve WordPress pointe vers la coquille /resultats/<slug>/.
+
+    Le lien de nav /resultats-des-courses-et-classement/ ne doit pas matcher.
+    """
+    lien = _find_wiclax_link(
+        _fixture("chronowest_event_page.html"),
+        "https://chronowest.fr/trail-des-2-ponts-2026/",
+    )
+    assert lien == "https://chronowest.fr/resultats/trail-des-2-ponts-2026/"
+
+
+def test_find_wiclax_link_absent():
+    """Une coquille à iframe n'a pas de lien sortant Wiclax → None."""
+    assert _find_wiclax_link(
+        _fixture("chronowest_shell_locorrida.html"),
+        "https://chronowest.fr/resultats/locorrida-2026/",
+    ) is None
+
+
+class _FakeClient:
+    """Client httpx factice : sert des fixtures depuis une table url → html."""
+
+    def __init__(self, pages: dict[str, str]):
+        self.pages = pages
+        self.appels: list[str] = []
+
+    def get(self, url: str, headers=None):  # noqa: ARG002 — signature httpx
+        self.appels.append(url)
+        if url not in self.pages:
+            raise AssertionError(f"URL non prévue par le test : {url}")
+        return httpx.Response(200, text=self.pages[url], request=httpx.Request("GET", url))
+
+
+def test_resolve_saute_de_la_page_epreuve_a_la_coquille():
+    """Page épreuve WP (sans iframe) → lien /resultats/ → iframe G-Live."""
+    client = _FakeClient({
+        "https://chronowest.fr/trail-des-2-ponts-2026/": _fixture("chronowest_event_page.html"),
+        "https://chronowest.fr/resultats/trail-des-2-ponts-2026/": _fixture(
+            "chronowest_shell_locorrida.html"
+        ),
+    })
+    url = _resolve_to_wiclax_url("https://chronowest.fr/trail-des-2-ponts-2026/", client)
+    assert url.startswith("https://chronowest.fr/wp-content/glive/g-live.html?f=")
+    assert len(client.appels) == 2
+
+
+def test_resolve_boucle_infinie_gardee():
+    """Une page qui se pointe elle-même s'arrête sur ValueError, pas sur RecursionError."""
+    piege = (
+        '<html><body><a href="https://chronowest.fr/resultats/boucle/">ici</a></body></html>'
+    )
+    client = _FakeClient({"https://chronowest.fr/resultats/boucle/": piege})
+    with pytest.raises(ValueError, match="G-Live"):
+        _resolve_to_wiclax_url("https://chronowest.fr/resultats/boucle/", client)
+
+
+def test_resolve_sans_iframe_ni_lien_leve_valueerror():
+    client = _FakeClient({"https://chronowest.fr/vide/": "<html><body>rien</body></html>"})
+    with pytest.raises(ValueError, match="G-Live"):
+        _resolve_to_wiclax_url("https://chronowest.fr/vide/", client)
