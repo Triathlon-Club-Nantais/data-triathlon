@@ -43,11 +43,11 @@ def run_rescrape_db(
     if limit is not None:
         courses = courses[:limit]
 
-    outcome = RescrapeOutcome(
-        total=len(courses),
-        dry_run_urls=[c.source_url for c in courses],
-    )
+    outcome = RescrapeOutcome(total=len(courses))
     if dry_run:
+        # Charge utile réservée au dry-run : hors dry-run, embarquer l'URL de
+        # chaque course gonflerait la sortie --json de plusieurs dizaines de Ko.
+        outcome.dry_run_urls = [c.source_url for c in courses]
         return outcome
 
     # Le nom de la course vient de la DB : on peut libeller proprement.

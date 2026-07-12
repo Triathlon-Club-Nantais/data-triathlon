@@ -51,6 +51,21 @@ def test_run_rescrape_dry_run_liste_sans_scraper(db_session, monkeypatch):
     assert out.total == 1
 
 
+def test_run_rescrape_hors_dry_run_n_embarque_pas_les_urls(db_session, monkeypatch):
+    """`dry_run_urls` est une charge utile de dry-run : hors dry-run, la sortie
+    `--json` n'a pas à trimbaler l'URL de chaque course (des dizaines de Ko)."""
+    _course(db_session, "A", "https://k/1")
+
+    def _iter(db, url, settings, force=False):
+        yield {"phase": "done", "imported": 1, "skipped": 0, "total": 1}
+
+    monkeypatch.setattr(import_service, "iter_import_event", _iter)
+
+    out = rescrape_service.run_rescrape_db(db_session, _settings(), delay=0.0)
+    assert out.total == 1
+    assert out.dry_run_urls == []
+
+
 def test_run_rescrape_ignore_les_courses_sans_url(db_session, monkeypatch):
     _course(db_session, "SansUrl", "")
     vus: list[str] = []

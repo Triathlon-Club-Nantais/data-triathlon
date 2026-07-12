@@ -1,11 +1,8 @@
 """Commande `rescrape-db` : options Typer, câblage, affichage. Zéro logique métier."""
-import json
-from dataclasses import asdict
-
 import typer
 
 from app.cli.progress import select_reporter
-from app.cli.reports import render_rescrape_report
+from app.cli.reports import emit_outcome, render_rescrape_report
 from app.core.config import get_settings
 from app.core.database import session_scope
 from app.services import rescrape_service
@@ -26,7 +23,8 @@ def rescrape_db(
         1.0, "--delay", help="Pause de politesse entre scrapes (s)."
     ),
     json_output: bool = typer.Option(
-        False, "--json", help="Rapport machine-lisible en plus du texte."
+        False, "--json",
+        help="stdout ne contient que le JSON ; le rapport texte passe sur stderr.",
     ),
     no_progress: bool = typer.Option(
         False, "--no-progress", help="Aucun affichage de progression."
@@ -46,8 +44,8 @@ def rescrape_db(
             limit=limit, delay=delay, reporter=reporter,
         )
 
-    typer.echo(render_rescrape_report(outcome, dry_run=dry_run))
-    if json_output:
-        typer.echo(json.dumps(asdict(outcome), ensure_ascii=False))
-    if outcome.interrupted:
-        raise typer.Exit(code=130)
+    emit_outcome(
+        outcome,
+        render_rescrape_report(outcome, dry_run=dry_run),
+        json_output=json_output,
+    )

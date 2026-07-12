@@ -1,6 +1,13 @@
-"""Rendu texte des bilans de batch. Aucune logique métier : de la mise en forme."""
+"""Rendu et émission des bilans de batch. Aucune logique métier : de la mise en forme."""
+import json
+from dataclasses import asdict
+
+import typer
+
 from app.services.bulk_import_service import SheetOutcome
 from app.services.rescrape_service import RescrapeOutcome
+
+Outcome = SheetOutcome | RescrapeOutcome
 
 
 def _titre(base: str, *, dry_run: bool, interrupted: bool) -> str:
@@ -39,3 +46,18 @@ def render_rescrape_report(outcome: RescrapeOutcome, *, dry_run: bool) -> str:
         lignes.append(f"Ignorées  : {outcome.skipped}")
         lignes.append(f"En erreur : {outcome.errors}")
     return "\n".join(lignes)
+
+
+def emit_outcome(outcome: Outcome, rapport: str, *, json_output: bool) -> None:
+    """Émet le bilan puis sort en 130 si le batch a été interrompu.
+
+    `--json` est **exclusif** : stdout ne contient alors QUE la ligne JSON, pour
+    que `… --json | jq` fonctionne. Le rapport texte bascule sur **stderr**, là
+    où sort déjà la progression : un humain le voit toujours, le pipe reste pur.
+    Sans `--json`, le rapport texte sort sur stdout comme avant.
+    """
+    typer.echo(rapport, err=json_output)
+    if json_output:
+        typer.echo(json.dumps(asdict(outcome), ensure_ascii=False))
+    if outcome.interrupted:
+        raise typer.Exit(code=130)
