@@ -168,6 +168,21 @@ def _find_provider(url: str) -> ScraperProtocol:
     return _FALLBACK
 
 
+def provider_names() -> list[str]:
+    """Noms des providers **ciblables**, dans l'ordre de détection.
+
+    Source de vérité unique pour valider un `--provider` / `--only-provider` :
+    dérivée de `PROVIDERS`, elle ne peut pas se désynchroniser au prochain
+    provider ajouté.
+
+    `playwright` en est absent volontairement : c'est le fallback des URLs non
+    reconnues, pas un provider qu'on peut cibler. `sheet_source.is_supported`
+    l'exclut déjà de l'import de masse, et aucune course en base ne peut porter
+    ce nom (son `scrape_event_all` lève).
+    """
+    return [provider.name for provider in PROVIDERS]
+
+
 def detect_provider(url: str) -> str:
     return _find_provider(url).name
 

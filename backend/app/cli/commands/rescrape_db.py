@@ -3,6 +3,7 @@ import typer
 
 from app.cli.progress import select_reporter
 from app.cli.reports import emit_outcome, render_rescrape_report
+from app.cli.validators import valider_provider
 from app.core.config import get_settings
 from app.core.database import session_scope
 from app.services import rescrape_service
@@ -16,7 +17,8 @@ def rescrape_db(
         None, "--older-than", help="Ne re-scrape que les courses plus vieilles que N jours."
     ),
     provider: str | None = typer.Option(
-        None, "--provider", help="Restreint à un provider."
+        None, "--provider", callback=valider_provider,
+        help="Restreint à un provider (défaut : tous).",
     ),
     limit: int | None = typer.Option(None, "--limit", help="Borne le nombre de courses."),
     delay: float = typer.Option(

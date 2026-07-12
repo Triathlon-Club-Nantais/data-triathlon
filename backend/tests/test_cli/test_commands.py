@@ -214,6 +214,39 @@ def test_import_sheet_transmet_les_options_au_service(monkeypatch):
     assert espion.kwargs["dry_run"] is False
 
 
+def test_import_sheet_only_provider_inconnu_echoue(monkeypatch):
+    """`--only-provider klikgo` (faute de frappe) ne doit pas filtrer 0 lien en silence."""
+    espion = _brancher_import(monkeypatch, SheetOutcome(unique_supported=1))
+
+    result = runner.invoke(app, ["import-sheet", "--only-provider", "klikgo"])
+
+    assert result.exit_code != 0
+    assert espion.kwargs == {}  # échoué avant tout travail : le service n'est pas appelé
+    assert "klikgo" in result.stderr
+    assert "klikego" in result.stderr  # les valeurs acceptées sont listées
+    assert "timepulse" in result.stderr
+    assert result.stdout == ""  # contrat stdout : aucune pollution
+
+
+def test_import_sheet_only_provider_valide_passe(monkeypatch):
+    espion = _brancher_import(monkeypatch, SheetOutcome(unique_supported=1))
+
+    result = runner.invoke(app, ["import-sheet", "--only-provider", "timepulse"])
+
+    assert result.exit_code == 0
+    assert espion.kwargs["only_provider"] == "timepulse"
+
+
+def test_import_sheet_sans_only_provider_passe(monkeypatch):
+    """Option absente = « tous les providers » : le service reçoit None."""
+    espion = _brancher_import(monkeypatch, SheetOutcome(unique_supported=1))
+
+    result = runner.invoke(app, ["import-sheet"])
+
+    assert result.exit_code == 0
+    assert espion.kwargs["only_provider"] is None
+
+
 # --- rescrape-db -------------------------------------------------------------
 
 
@@ -338,3 +371,55 @@ def test_rescrape_db_transmet_les_options_au_service(monkeypatch):
     assert espion.kwargs["older_than"] == 30
     assert espion.kwargs["delay"] == 0.0
     assert espion.kwargs["dry_run"] is False
+
+
+def test_rescrape_db_provider_inconnu_echoue(monkeypatch):
+    """`--provider kliego` affichait « Courses ciblées : 0 » et sortait en 0."""
+    espion = _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
+
+    result = runner.invoke(app, ["rescrape-db", "--provider", "kliego"])
+
+    assert result.exit_code != 0
+    assert espion.kwargs == {}  # échoué avant d'ouvrir la moindre Session
+    assert "kliego" in result.stderr
+    assert "klikego" in result.stderr  # les valeurs acceptées sont listées
+    assert "breizhchrono" in result.stderr
+    assert result.stdout == ""  # contrat stdout : aucune pollution
+
+
+def test_rescrape_db_provider_inconnu_echoue_aussi_en_json(monkeypatch):
+    """Même avec `--json`, l'erreur reste sur stderr : stdout ne porte rien."""
+    _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
+
+    result = runner.invoke(app, ["rescrape-db", "--provider", "kliego", "--json"])
+
+    assert result.exit_code != 0
+    assert result.stdout == ""
+
+
+def test_rescrape_db_provider_valide_passe(monkeypatch):
+    espion = _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
+
+    result = runner.invoke(app, ["rescrape-db", "--provider", "klikego"])
+
+    assert result.exit_code == 0
+    assert espion.kwargs["provider"] == "klikego"
+
+
+def test_rescrape_db_sans_provider_passe(monkeypatch):
+    """Option absente = « tous les providers » : le service reçoit None."""
+    espion = _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
+
+    result = runner.invoke(app, ["rescrape-db"])
+
+    assert result.exit_code == 0
+    assert espion.kwargs["provider"] is None
+
+
+def test_playwright_n_est_pas_un_provider_ciblable(monkeypatch):
+    """Le fallback des URLs non reconnues n'est pas une valeur qu'on peut cibler."""
+    _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
+
+    result = runner.invoke(app, ["rescrape-db", "--provider", "playwright"])
+
+    assert result.exit_code != 0
