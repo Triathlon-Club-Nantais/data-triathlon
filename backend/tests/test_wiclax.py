@@ -660,19 +660,16 @@ def test_resolve_saute_de_la_page_epreuve_a_la_coquille():
 
 
 def test_resolve_saute_de_la_page_evenement_chronosmetron_a_la_coquille():
-    """Non-régression ChronoSmetron : page événement Joomla (lien vers
-    `*.wiclax-results.com`) → page annuaire (iframe G-Live en `src` racine-absolu).
+    """Couverture bout-en-bout du chemin de résolution ChronoSmetron : page
+    événement Joomla (lien vers `*.wiclax-results.com`) → page annuaire (iframe
+    G-Live en `src` racine-absolu).
 
-    Passe par `_resolve_to_wiclax_url` (pas par les helpers isolés) : une future
-    inversion des branches `_find_glive_url`/`_find_wiclax_link`, ou une régression
-    du passage de `_hops`, casserait ce test — alors qu'auparavant seul le chemin
-    WordPress/ChronoWest était couvert de bout en bout.
-
-    Les deux fixtures ont été capturées indépendamment sur des épreuves
-    différentes (St Calais / La Roche) ; le `src` de l'iframe étant racine-absolu,
-    seul l'host de la 2e URL compte pour la résolution — le nom d'épreuve « La
-    Roche » figé dans la fixture annuaire se retrouve donc, sans incohérence,
-    dans l'URL G-Live finale.
+    Exerce le flux complet via `_resolve_to_wiclax_url` : deux requêtes HTTP
+    successives (page événement → page annuaire), et validation que l'URL G-Live
+    finale est construite correctement (host de la 2e page, src racine-absolu
+    résolu). Les deux fixtures (St Calais / La Roche) assurent que chaque page
+    joue son rôle (lien sortant sur la première, iframe sur la seconde) sans
+    ambiguïté sur le flux réel exercé en production par `_fetch_clax`.
     """
     client = _FakeClient({
         "https://www.chronosmetron.com/741-triathlon-de-st-calais-sam-2026": _fixture(
