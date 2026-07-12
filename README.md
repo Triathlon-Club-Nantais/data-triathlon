@@ -19,7 +19,7 @@ Collez une URL de résultat — le backend scrape et stocke les données automat
 
 ## Prérequis
 
-- **Python 3.11+**
+- **[uv](https://docs.astral.sh/uv/)** — gère les dépendances *et* l'interpréteur Python (3.13, téléchargé au besoin)
 - **Node.js 20+** (avec npm)
 - **PostgreSQL** via [Supabase](https://supabase.com) (gratuit) — ou SQLite en local
 
@@ -80,13 +80,14 @@ DATABASE_URL=sqlite:///./triathlon.db
 
 ```bash
 cd backend
-python -m venv .venv && source .venv/bin/activate   # .venv\Scripts\activate sous Windows
 
-pip install -r requirements-dev.txt   # requirements.txt seul en prod
+uv sync                                # crée .venv (Python 3.13) et installe depuis uv.lock
 
-alembic upgrade head                   # crée / met à jour le schéma
-uvicorn app.main:app --reload --port 8001
+uv run alembic upgrade head            # crée / met à jour le schéma
+uv run uvicorn app.main:app --reload --port 8001
 ```
+
+Aucun venv à activer : `uv run` synchronise l'environnement avant d'exécuter.
 
 > Les endpoints sont versionnés sous **`/api/v1`** et le schéma DB est géré par
 > **Alembic**. Voir [`backend/README.md`](backend/README.md) pour le détail.
@@ -138,9 +139,9 @@ Lors de l'import d'une épreuve, les co-membres sont identifiés par filtre sur 
 
 ```bash
 cd backend
-pip install -r requirements-dev.txt
-pytest -m "not integration"   # tests par couche (≈130)
-ruff check .                  # lint
+uv sync
+uv run pytest -m "not integration"   # tests par couche (≈130)
+uv run ruff check .                  # lint
 ```
 
 ≈130 tests par couche : `test_repositories/`, `test_services/`, `test_api/`,
@@ -158,7 +159,7 @@ npm run lint   # ESLint
 
 ```bash
 cd backend
-pytest -m integration
+uv run pytest -m integration
 ```
 
 Tests avec appels aux APIs Klikego, Breizh Chrono et TimePulse en conditions réelles.

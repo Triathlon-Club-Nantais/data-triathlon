@@ -32,24 +32,25 @@ Flux d'un import épreuve :
 
 ## Prérequis
 
-- Python 3.11+
+- [uv](https://docs.astral.sh/uv/) — gère les dépendances et l'interpréteur (Python 3.13)
 - `backend/.env` avec au minimum `DATABASE_URL` (voir `.env.example`)
 
 ## Installation
 
 ```bash
 cd backend
-python3 -m venv .venv && . .venv/bin/activate
-pip install -r requirements-dev.txt   # requirements.txt seul en prod
+uv sync   # crée .venv (Python 3.13) + installe les dépendances depuis uv.lock
 ```
+
+> `uv sync --no-dev` écarte le groupe `dev` (pytest, respx, ruff) — c'est ce que font Render et l'image Docker.
 
 ## Base de données (Alembic)
 
 Les tables ne sont **plus** créées au démarrage : tout passe par les migrations.
 
 ```bash
-alembic upgrade head                       # applique les migrations
-alembic revision --autogenerate -m "..."   # nouvelle migration après modif d'un modèle
+uv run alembic upgrade head                       # applique les migrations
+uv run alembic revision --autogenerate -m "..."   # nouvelle migration après modif d'un modèle
 ```
 
 ### Réinitialiser la base (dev — SQLite uniquement)
@@ -59,16 +60,16 @@ un jeu de données démo réel (toutes disciplines). **Garde-fou** : le script
 refuse de s'exécuter si `DATABASE_URL` n'est pas SQLite (jamais sur Supabase).
 
 ```bash
-python scripts/reset_db.py            # vide + migre + seed démo
-python scripts/reset_db.py --no-seed  # schéma vierge seulement (rapide, hors réseau)
-python scripts/reset_db.py --yes      # sans confirmation interactive
-python scripts/seed_demo.py           # (re)seed seul, sans toucher au schéma
+uv run python scripts/reset_db.py            # vide + migre + seed démo
+uv run python scripts/reset_db.py --no-seed  # schéma vierge seulement (rapide, hors réseau)
+uv run python scripts/reset_db.py --yes      # sans confirmation interactive
+uv run python scripts/seed_demo.py           # (re)seed seul, sans toucher au schéma
 ```
 
 ## Lancer l'API
 
 ```bash
-uvicorn app.main:app --reload --port 8001  # API + /docs
+uv run uvicorn app.main:app --reload --port 8001  # API + /docs
 ```
 
 **API versionnée** : tous les endpoints sont sous `/api/v1/*` (une future v2 vivra
@@ -77,9 +78,9 @@ dans `app/api/v2/`). `GET /api/v1/health` vérifie l'API **et** la connexion DB.
 ## Tests & qualité
 
 ```bash
-pytest -m "not integration"   # tests rapides (sans réseau) — défaut CI
-pytest -m integration         # tests réseau réel (scrapers)
-ruff check .                  # lint
+uv run pytest -m "not integration"   # tests rapides (sans réseau) — défaut CI
+uv run pytest -m integration         # tests réseau réel (scrapers)
+uv run ruff check .                  # lint
 ```
 
 ## Configuration (variables d'environnement)
