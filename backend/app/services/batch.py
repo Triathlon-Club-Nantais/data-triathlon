@@ -7,7 +7,9 @@ conservant le travail déjà persisté (chaque épreuve est commitée séparéme
 """
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
+from functools import partial
 
 from sqlalchemy.orm import Session
 
@@ -34,6 +36,49 @@ class BatchTotals:
     interrupted: bool = False
 
 
+def _notify(action: Callable[[], None]) -> None:
+    """Notifie le reporter sans jamais faire échouer le batch.
+
+    L'affichage est accessoire, les données ne le sont pas : un
+    `python -m app.cli rescrape-db 2>&1 | head -20` ferme le tube, le reporter
+    lève `BrokenPipeError` — et sans ce filet, l'exception traverserait
+    `run_batch`, faisant perdre le `BatchTotals` alors que N épreuves sont déjà
+    commitées. L'opérateur recevrait une traceback à la place de son bilan.
+
+    `KeyboardInterrupt` est une `BaseException` : elle n'est pas attrapée ici et
+    continue de remonter (Ctrl-C doit rester possible pendant un affichage).
+    """
+    try:
+        action()
+    except Exception as exc:
+        logger.warning("Reporter en échec (%s) — batch poursuivi", exc)
+
+
+def _liberer_session(db: Session) -> None:
+    """Referme la transaction laissée ouverte par l'épreuve qui vient d'être traitée.
+
+    Deux raisons, une seule instruction :
+
+    - **Transaction de lecture jamais refermée.** `import_service._cached_result`
+      ouvre une transaction (SELECT du cache TTL) ; sur les retours « cached » et
+      « error », personne ne commit ni ne rollback. Relancer `import-sheet` sur un
+      Sheet déjà importé (300 liens tous frais) laissait une transaction Postgres
+      ouverte tout le run — `idle in transaction` sur Supabase pendant plusieurs
+      minutes.
+    - **Session saine pour l'épreuve suivante.** Une exception brute (coupure DB)
+      peut laisser la Session en `PendingRollbackError`, ce qui ferait échouer en
+      cascade des épreuves sans rapport avec la panne.
+
+    Rien n'est perdu : chaque épreuve est commitée par `import_service` lui-même,
+    ce rollback ne porte donc que sur une transaction de lecture (ou sur du travail
+    déjà annulé par le rollback interne de l'import).
+    """
+    try:
+        db.rollback()
+    except Exception:
+        logger.warning("Rollback de rattrapage impossible — Session irrécupérable")
+
+
 def _import_one(
     db: Session,
     url: str,
@@ -53,7 +98,13 @@ def _import_one(
     for phase in import_service.iter_import_event(db, url, settings, force=force):
         nom = phase.get("phase")
         if nom == "saving":
-            reporter.item_progress(phase.get("progress", 0), phase.get("total", 0))
+            _notify(
+                partial(
+                    reporter.item_progress,
+                    phase.get("progress", 0),
+                    phase.get("total", 0),
+                )
+            )
         elif nom == "done":
             imported = phase.get("imported", 0)
             skipped = phase.get("skipped", 0)
@@ -79,10 +130,10 @@ def run_batch(
     reporter = reporter or NullReporter()
     totals = BatchTotals()
 
-    reporter.batch_start(len(items))
+    _notify(partial(reporter.batch_start, len(items)))
     try:
         for i, item in enumerate(items):
-            reporter.item_start(i, item.label)
+            _notify(partial(reporter.item_start, i, item.label))
             try:
                 imported, skipped, error = _import_one(
                     db, item.url, settings, force=force, reporter=reporter
@@ -91,18 +142,14 @@ def run_batch(
                 logger.warning("Échec import %s : %s", item.url, exc)
                 imported = skipped = 0
                 error = str(exc)
-                try:
-                    # invariant : la Session doit être saine pour l'épreuve suivante
-                    db.rollback()
-                except Exception:
-                    logger.warning("Rollback de rattrapage impossible — Session irrécupérable")
 
             if error:
                 totals.errors += 1
             else:
                 totals.imported += imported
                 totals.skipped += skipped
-            reporter.item_done(imported, skipped, error)
+            _notify(partial(reporter.item_done, imported, skipped, error))
+            _liberer_session(db)
 
             if delay and i < len(items) - 1:
                 time.sleep(delay)
@@ -110,7 +157,8 @@ def run_batch(
         # Ctrl-C : on ne perd pas le bilan de ce qui est déjà en base.
         totals.interrupted = True
         logger.warning("Interruption clavier — arrêt du batch")
+        _liberer_session(db)  # le Ctrl-C a pu couper une épreuve en plein SELECT
     finally:
-        reporter.batch_end()
+        _notify(reporter.batch_end)
 
     return totals

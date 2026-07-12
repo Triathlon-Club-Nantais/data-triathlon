@@ -188,6 +188,77 @@ def test_run_batch_saving_puis_error_ne_credite_pas_les_compteurs(
     assert totals.skipped == 0
 
 
+def test_run_batch_un_reporter_qui_leve_ne_fait_pas_perdre_le_bilan(db_session, monkeypatch):
+    """`… | head -20` ferme le tube : le reporter lève `BrokenPipeError` en plein
+    batch. L'affichage est accessoire, les données ne le sont pas — le batch doit
+    aller au bout et rendre son `BatchTotals`, pas une traceback.
+    """
+
+    class ReporterCasse:
+        """Tube fermé : tout écrit échoue."""
+
+        def batch_start(self, total): raise BrokenPipeError("tube fermé")
+        def item_start(self, index, label): raise BrokenPipeError("tube fermé")
+        def item_progress(self, done, total): raise BrokenPipeError("tube fermé")
+        def item_done(self, imported, skipped, error): raise BrokenPipeError("tube fermé")
+        def batch_end(self): raise BrokenPipeError("tube fermé")
+
+    monkeypatch.setattr(import_service, "iter_import_event", _phases_ok)
+
+    totals = batch.run_batch(
+        db_session,
+        [BatchItem(url="https://k/1", label="A"), BatchItem(url="https://k/2", label="B")],
+        _settings(), force=False, delay=0.0, reporter=ReporterCasse(),
+    )
+
+    assert totals.imported == 56  # les 2 épreuves ont bien été traitées
+    assert totals.skipped == 4
+    assert totals.errors == 0  # un affichage cassé n'est pas une épreuve en échec
+    assert totals.interrupted is False
+
+
+def test_run_batch_un_reporter_qui_leve_ne_masque_pas_le_ctrl_c(db_session, monkeypatch):
+    """Le filet du reporter ne doit pas avaler `KeyboardInterrupt` (BaseException)."""
+
+    class ReporterCtrlC:
+        def batch_start(self, total): pass
+        def item_start(self, index, label): raise KeyboardInterrupt
+        def item_progress(self, done, total): pass
+        def item_done(self, imported, skipped, error): pass
+        def batch_end(self): pass
+
+    monkeypatch.setattr(import_service, "iter_import_event", _phases_ok)
+
+    totals = batch.run_batch(
+        db_session, [BatchItem(url="https://k/1", label="A")], _settings(),
+        force=False, delay=0.0, reporter=ReporterCtrlC(),
+    )
+
+    assert totals.interrupted is True  # le Ctrl-C a bien remonté jusqu'à run_batch
+
+
+def test_run_batch_referme_la_transaction_de_lecture_de_chaque_epreuve(db_session, monkeypatch):
+    """Chemins « cached » et « error » de `iter_import_event` : le SELECT du cache
+    TTL (`_cached_result`) ouvre une transaction que personne ne referme. Sur
+    Supabase, un `import-sheet` relancé sur un Sheet déjà importé la laissait
+    `idle in transaction` pendant tout le run.
+    """
+
+    def _phases_cached(db, url, settings, force=False):
+        db.query(Athlete).count()  # le SELECT de `_cached_result` : ouvre la transaction
+        yield {"phase": "done", "imported": 0, "skipped": 3, "total": 3, "cached": True}
+
+    monkeypatch.setattr(import_service, "iter_import_event", _phases_cached)
+
+    totals = batch.run_batch(
+        db_session, [BatchItem(url="https://k/1", label="A")], _settings(),
+        force=False, delay=0.0,
+    )
+
+    assert totals.skipped == 3
+    assert db_session.in_transaction() is False  # aucune transaction ne survit à l'épreuve
+
+
 def test_run_batch_pause_entre_epreuves_mais_pas_apres_la_derniere(
     db_session, monkeypatch, fake_reporter
 ):
