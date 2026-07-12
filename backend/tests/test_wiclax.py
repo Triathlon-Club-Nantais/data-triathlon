@@ -659,6 +659,39 @@ def test_resolve_saute_de_la_page_epreuve_a_la_coquille():
     assert len(client.appels) == 2
 
 
+def test_resolve_saute_de_la_page_evenement_chronosmetron_a_la_coquille():
+    """Non-régression ChronoSmetron : page événement Joomla (lien vers
+    `*.wiclax-results.com`) → page annuaire (iframe G-Live en `src` racine-absolu).
+
+    Passe par `_resolve_to_wiclax_url` (pas par les helpers isolés) : une future
+    inversion des branches `_find_glive_url`/`_find_wiclax_link`, ou une régression
+    du passage de `_hops`, casserait ce test — alors qu'auparavant seul le chemin
+    WordPress/ChronoWest était couvert de bout en bout.
+
+    Les deux fixtures ont été capturées indépendamment sur des épreuves
+    différentes (St Calais / La Roche) ; le `src` de l'iframe étant racine-absolu,
+    seul l'host de la 2e URL compte pour la résolution — le nom d'épreuve « La
+    Roche » figé dans la fixture annuaire se retrouve donc, sans incohérence,
+    dans l'URL G-Live finale.
+    """
+    client = _FakeClient({
+        "https://www.chronosmetron.com/741-triathlon-de-st-calais-sam-2026": _fixture(
+            "chronosmetron_event_page.html"
+        ),
+        "https://chronosmetron.wiclax-results.com/Triathlon%20de%20St%20Calais%202026-Sam/": (
+            _fixture("wiclax_directory_chronosmetron.html")
+        ),
+    })
+    url = _resolve_to_wiclax_url(
+        "https://www.chronosmetron.com/741-triathlon-de-st-calais-sam-2026", client
+    )
+    assert url == (
+        "https://chronosmetron.wiclax-results.com/G-Live/g-live.html"
+        "?f=../Triathlon de la Roche 2026/Triathlon de la Roche.clax&t=1782107927"
+    )
+    assert len(client.appels) == 2
+
+
 def test_resolve_boucle_infinie_gardee():
     """Une page qui se pointe elle-même s'arrête sur ValueError, pas sur RecursionError."""
     piege = (
