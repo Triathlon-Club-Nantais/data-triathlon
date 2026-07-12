@@ -5,7 +5,7 @@ services:
     autoDeploy: false # déploiement uniquement via deploy hook (gate CI)
     rootDir: backend
     buildCommand: uv sync --frozen --no-dev
-    startCommand: uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: uv run --no-sync alembic upgrade head && uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL
         sync: false

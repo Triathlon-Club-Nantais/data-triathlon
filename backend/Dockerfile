@@ -19,8 +19,11 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
 
 # Le code ensuite : le modifier ne réinstalle pas les dépendances.
-COPY . .
-RUN chown -R appuser:appuser /app
+# --chown à la copie (pas de chown -R après coup, qui dupliquerait le venv dans une nouvelle
+# couche). /app seul (non récursif) : appuser doit pouvoir y écrire triathlon.db en dev SQLite ;
+# le venv sous .venv/ reste possédé par root, ce qui est sans problème (lecture + exécution seules).
+COPY --chown=appuser:appuser . .
+RUN chown appuser:appuser /app
 USER appuser
 
 # Le venv du projet sur le PATH : alembic et uvicorn s'appellent sans préfixe.
