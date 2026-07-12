@@ -578,7 +578,10 @@ def test_find_glive_url_src_racine_absolu():
         _fixture("wiclax_directory_chronosmetron.html"),
         "https://chronosmetron.wiclax-results.com/Triathlon%20de%20la%20Roche%202026/",
     )
-    assert src.startswith("https://chronosmetron.wiclax-results.com/G-Live/g-live.html?f=")
+    assert src == (
+        "https://chronosmetron.wiclax-results.com/G-Live/g-live.html"
+        "?f=../Triathlon de la Roche 2026/Triathlon de la Roche.clax&t=1782107927"
+    )
 
 
 def test_find_glive_url_absente():
@@ -611,6 +614,20 @@ def test_find_wiclax_link_absent():
     ) is None
 
 
+def test_find_wiclax_link_page_chronosmetron():
+    """Page événement ChronoSmetron (`chronosmetron.com`) : le lien LIVE/RESULTATS
+    pointe vers `*.wiclax-results.com`, espaces du nom d'épreuve tels quels dans
+    le `href` (fixture fondée sur https://www.chronosmetron.com/741-triathlon-de-
+    st-calais-sam-2026, page réelle récupérée le 2026-07-12 : le lien y est bien
+    porté par une balise <a href>, dans <div class="content-links">).
+    """
+    lien = _find_wiclax_link(
+        _fixture("chronosmetron_event_page.html"),
+        "https://www.chronosmetron.com/741-triathlon-de-st-calais-sam-2026",
+    )
+    assert lien == "https://chronosmetron.wiclax-results.com/Triathlon%20de%20St%20Calais%202026-Sam/"
+
+
 class _FakeClient:
     """Client httpx factice : sert des fixtures depuis une table url → html."""
 
@@ -634,7 +651,11 @@ def test_resolve_saute_de_la_page_epreuve_a_la_coquille():
         ),
     })
     url = _resolve_to_wiclax_url("https://chronowest.fr/trail-des-2-ponts-2026/", client)
-    assert url.startswith("https://chronowest.fr/wp-content/glive/g-live.html?f=")
+    assert url == (
+        "https://chronowest.fr/wp-content/glive/g-live.html"
+        "?f=/wp-content/glive-results/locorrida-2026/LOC'orrida%202026.clax"
+        "&t=0203054427&wp=1"
+    )
     assert len(client.appels) == 2
 
 
