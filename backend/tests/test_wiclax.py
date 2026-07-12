@@ -6,6 +6,7 @@ compétiteur (formats Competitor et ChronoSmetron E/R), mapping des segments
 (<Segments>) vers les index sN, et remplissage des splits depuis un <R>.
 """
 import xml.etree.ElementTree as ET
+from datetime import date
 from pathlib import Path
 
 import httpx
@@ -789,3 +790,49 @@ def test_clax_url_chronowest_f_racine_absolu():
 def test_clax_url_sans_f_leve_valueerror():
     with pytest.raises(ValueError, match="f="):
         _clax_url("https://chronowest.fr/wp-content/glive/g-live.html")
+
+
+# ---------------------------------------------------------------------------
+# Parsing d'un .clax ChronoWest réel (réduit)
+# ---------------------------------------------------------------------------
+
+
+def test_scrape_event_all_clax_chronowest(monkeypatch):
+    """Le .clax ChronoWest a le même format que ChronoSmetron.
+
+    Verrouille aussi l'immunité aux <E> parasites : ceux de <Equipes> sont des
+    clubs, pas des athlètes. Ils n'ont pas d'attribut `d` et doivent être ignorés
+    (le scraper itère largement via root.iter("E")).
+    """
+    root = ET.fromstring(_fixture("chronowest_red_ouf_reduit.clax"))
+    monkeypatch.setattr(
+        "app.scrapers.wiclax._fetch_clax",
+        lambda _url: (root, "http://x", "RED OUF Swimrun 2026", "swimrun", date(2026, 6, 28)),
+    )
+    results = scrape_event_all("https://chronowest.fr/resultats/red-ouf-2026/")
+
+    # Les 2 <E> de <Equipes> (clubs, sans `d`) ne sont pas des participants.
+    assert len(results) == 4
+    by_bib = {r.bib_number: r for r in results}
+    assert set(by_bib) == {"1", "2", "152", "153"}
+
+    # Temps ChronoWest au format "01h47'59" → normalisé.
+    assert by_bib["1"].total_time == "01:47:59"
+    assert by_bib["2"].total_time == "01:49:04"
+
+    # Rangs calculés au tri, par parcours (le .clax ne les stocke pas).
+    assert by_bib["1"].rank_overall == 1
+    assert by_bib["2"].rank_overall == 2
+
+    # <R t="Abandon"> → DNF ; np="1" sans <R> → DNS. Hygiène dans les deux cas.
+    assert by_bib["152"].status == "DNF"
+    assert by_bib["153"].status == "DNS"
+    for bib in ("152", "153"):
+        assert by_bib[bib].total_time == ""
+        assert by_bib[bib].rank_overall is None
+
+    # Le sport vient du nom d'épreuve, la taille du parcours (Task 4).
+    assert by_bib["1"].event_type == "swimrun-s"
+    assert by_bib["152"].event_type == "swimrun-m"
+    assert by_bib["1"].event_name == "RED OUF Swimrun 2026 - S Duo"
+    assert by_bib["1"].event_date == date(2026, 6, 28)
