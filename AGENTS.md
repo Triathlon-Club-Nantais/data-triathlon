@@ -16,8 +16,8 @@ Une seule génération, en deux briques :
 Specs de refonte (historiques) : `docs/superpowers/specs/`.
 
 ## Stack
-- **Backend** (`backend/`) : Python 3.11+, FastAPI 0.115, SQLAlchemy 2.0
-  (sync), Pydantic v2 + pydantic-settings, **Alembic** (migrations), PostgreSQL
+- **Backend** (`backend/`) : Python 3.13, **uv** (`pyproject.toml` + `uv.lock`), FastAPI 0.115,
+  SQLAlchemy 2.0 (sync), Pydantic v2 + pydantic-settings, **Alembic** (migrations), PostgreSQL
   (Supabase) / SQLite en dev. Scraping httpx + BeautifulSoup/lxml, fallback
   Playwright. Tests pytest, ruff. API versionnée sous `/api/v1`.
 - **Frontend** (`frontend/`) : Next.js 16 (App Router) + TypeScript + Tailwind + shadcn/ui.
@@ -26,21 +26,22 @@ Specs de refonte (historiques) : `docs/superpowers/specs/`.
 ## Commandes
 
 ```bash
-# Backend (depuis backend/, venv activé)
-uvicorn app.main:app --reload --port 8001  # API + /docs (endpoints sous /api/v1)
-alembic upgrade head                        # applique les migrations
-alembic revision --autogenerate -m "..."    # nouvelle migration après modif d'un modèle
-python scripts/reset_db.py                  # reset base dev SQLite (vide + migre + seed démo)
-python scripts/reset_db.py --no-seed --yes  # schéma vierge seul (refuse si DB non-SQLite)
-pytest -m "not integration"                 # tests unitaires (sans réseau) — défaut CI
-pytest -m integration                       # tests réseau réel (scrapers)
-ruff check .                                 # lint
+# Backend (depuis backend/ — aucun venv à activer, uv run s'en charge)
+uv sync                                            # installe les dépendances (dev incluses)
+uv run uvicorn app.main:app --reload --port 8001   # API + /docs (endpoints sous /api/v1)
+uv run alembic upgrade head                        # applique les migrations
+uv run alembic revision --autogenerate -m "..."    # nouvelle migration après modif d'un modèle
+uv run python scripts/reset_db.py                  # reset base dev SQLite (vide + migre + seed démo)
+uv run python scripts/reset_db.py --no-seed --yes  # schéma vierge seul (refuse si DB non-SQLite)
+uv run pytest -m "not integration"                 # tests unitaires (sans réseau) — défaut CI
+uv run pytest -m integration                       # tests réseau réel (scrapers)
+uv run ruff check .                                # lint
 
-# CLI de batch (depuis backend/, venv activé)
-python -m app.cli import-sheet --dry-run     # import de masse (Sheet) : ce qui serait importé
-python -m app.cli import-sheet --limit 5     # import réel — progression en direct
-python -m app.cli rescrape-db --limit 10     # re-scrape la DB (force=True) ; --plain, --no-progress
-python -m app.cli rescrape-db --json | jq    # bilan machine-lisible (stdout = JSON seul)
+# CLI de batch (depuis backend/)
+uv run python -m app.cli import-sheet --dry-run     # import de masse (Sheet) : ce qui serait importé
+uv run python -m app.cli import-sheet --limit 5     # import réel — progression en direct
+uv run python -m app.cli rescrape-db --limit 10     # re-scrape la DB (force=True) ; --plain, --no-progress
+uv run python -m app.cli rescrape-db --json | jq    # bilan machine-lisible (stdout = JSON seul)
 
 # Frontend (depuis frontend/)
 npm run dev        # Next.js sur :3000, rewrites /api → :8001
@@ -50,7 +51,8 @@ npm run lint       # ESLint
 ```
 
 Variable requise : `backend/.env` avec `DATABASE_URL` (voir `.env.example`). Le
-schéma est géré par **Alembic** (`alembic upgrade head`).
+schéma est géré par **Alembic** (`alembic upgrade head`). Les dépendances et la
+config des outils vivent dans `backend/pyproject.toml` (lock : `backend/uv.lock`).
 
 ## Architecture backend (`backend/`)
 
@@ -187,7 +189,7 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 - Schéma DB : migrations **Alembic** (`alembic revision --autogenerate`
   après modif d'un modèle, puis `alembic upgrade head`).
 - Tests unitaires **sans réseau** ; le réseau réel est isolé derrière le marker
-  `integration` (`pytest.ini`).
+  `integration` (déclaré dans `backend/pyproject.toml`).
 
 ## Fournisseurs supportés
 
