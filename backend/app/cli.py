@@ -16,8 +16,11 @@ import typer
 from app.core.config import get_settings
 from app.core.database import session_scope
 from app.repositories import course_repository
-from app.scrapers import registry
 from app.services import import_service
+from app.services.bulk_import_service import (  # noqa: F401 — ré-export transitoire (Task 7)
+    SheetOutcome,
+    run_import_sheet,
+)
 from app.services.sheet_source import (  # noqa: F401 — ré-export transitoire (Task 7)
     DEFAULT_SHEET_URL,
     dedupe_links,
@@ -31,71 +34,6 @@ from app.services.sheet_source import (  # noqa: F401 — ré-export transitoire
 logger = logging.getLogger(__name__)
 
 app = typer.Typer(help="Outillage d'import de masse et de rescrape.")
-
-
-@dataclass
-class SheetOutcome:
-    """Bilan d'un import-sheet."""
-    imported: int = 0
-    skipped: int = 0
-    errors: int = 0
-    rows_without_link: int = 0
-    unique_supported: int = 0
-    ignored_by_host: dict[str, int] = field(default_factory=dict)
-
-
-def run_import_sheet(
-    db,
-    csv_text: str,
-    settings,
-    *,
-    dry_run: bool = False,
-    limit: int | None = None,
-    only_provider: str | None = None,
-    delay: float = 1.0,
-) -> SheetOutcome:
-    """Détecte, dédoublonne et importe les liens supportés du CSV du Sheet.
-
-    En dry-run : ne scrape rien, ne persiste rien, ne temporise pas.
-    Les liens non supportés vont au rapport (ignored_by_host) ; jamais une erreur.
-    """
-    links, rows_without_link = parse_sheet_csv(csv_text)
-    unique = dedupe_links(links)
-
-    supported: list[str] = []
-    ignored_by_host: dict[str, int] = {}
-    for url in unique:
-        if is_supported(url):
-            if only_provider and registry.detect_provider(url) != only_provider:
-                continue
-            supported.append(url)
-        else:
-            host = host_of(url)
-            ignored_by_host[host] = ignored_by_host.get(host, 0) + 1
-
-    if limit is not None:
-        supported = supported[:limit]
-
-    outcome = SheetOutcome(
-        rows_without_link=rows_without_link,
-        unique_supported=len(supported),
-        ignored_by_host=ignored_by_host,
-    )
-    if dry_run:
-        return outcome
-
-    for i, url in enumerate(supported):
-        try:
-            res = import_service.import_event(db, url, settings, force=False)
-            outcome.imported += res.get("imported", 0)
-            outcome.skipped += res.get("skipped", 0)
-        except Exception as exc:
-            outcome.errors += 1
-            logger.warning("Échec import %s : %s", url, exc)
-        if delay and i < len(supported) - 1:
-            time.sleep(delay)
-
-    return outcome
 
 
 def render_sheet_report(outcome: SheetOutcome, *, dry_run: bool) -> str:
