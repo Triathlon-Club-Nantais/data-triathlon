@@ -164,10 +164,10 @@ re-scraping.
 
 | Option | Effet |
 | --- | --- |
-| `--dry-run` | Liste les courses qui seraient re-scrapées, sans écrire ni scraper. |
-| `--older-than <jours>` | Ne re-scrape que les courses dont `scraped_at` dépasse N jours. |
+| `--dry-run` | Liste les épreuves qui seraient re-scrapées, sans écrire ni scraper. |
+| `--older-than <jours>` | Ne re-scrape que les épreuves dont `scraped_at` dépasse N jours. |
 | `--provider <nom>` | Restreint à un provider. |
-| `--limit N` | Borne le nombre de courses. |
+| `--limit N` | Borne le nombre d'**épreuves** (arbitrage postérieur à ce design : les `Course` sont dédoublonnées par `source_url` avant le batch — une épreuve porte N courses en base, les heats — donc `--limit` et les compteurs comptent des épreuves, jamais des lignes de la table `course`). |
 | `--delay <s>` | Pause de politesse entre scrapes (défaut ~1 s). |
 | `--json` | **stdout ne contient que le JSON** ; le rapport texte bascule sur stderr. |
 
@@ -189,6 +189,21 @@ re-scraping.
   **en plus** du texte » initialement prévu ici rendait impossible. En cas de
   Ctrl-C, la charge JSON est émise **avant** la sortie en code 130 : le bilan
   partiel n'est jamais perdu.
+- **Codes de sortie** (arbitrage postérieur à ce design) :
+  - `0` — succès, y compris **partiel** (quelques épreuves en échec sur N) et
+    y compris « rien à faire » (zéro épreuve ciblée). Un dry-run sort toujours en 0.
+  - `1` — **échec total** : aucune des épreuves ciblées n'a abouti
+    (`batch.est_echec_total`). Sans lui, un cron dont les 53 épreuves échouent
+    (site tiers down) sortait en 0 et n'alertait jamais. Le bilan reste émis
+    **avant** la sortie.
+  - `2` — **erreur d'usage** (convention Click) : option invalide, notamment un
+    `--provider` / `--only-provider` inconnu (faute de frappe), rejeté par
+    `cli/validators.valider_provider` **avant** tout travail. Auparavant, un
+    `--provider kliego` filtrait 0 épreuve en silence et sortait en 0.
+  - `130` — Ctrl-C (convention shell 128 + SIGINT). **Prioritaire sur 1** :
+    l'interruption est une action de l'opérateur, pas une panne.
+  Un tube fermé (`… | head -2`) ne modifie **aucun** de ces codes : le
+  `BrokenPipeError` est rattrapé, le bilan bascule sur stderr.
 - **Settings** : `settings = get_settings()` suffit (`import_event` ne consomme
   que les TTL de cache).
 

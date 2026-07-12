@@ -256,7 +256,7 @@ def test_rescrape_db_dry_run_affiche_les_urls(monkeypatch):
     result = runner.invoke(app, ["rescrape-db", "--dry-run"])
 
     assert result.exit_code == 0
-    assert "Courses ciblées : 1" in result.stdout
+    assert "Épreuves ciblées : 1" in result.stdout
     assert "https://k/1" in result.stdout
 
 
@@ -374,7 +374,7 @@ def test_rescrape_db_transmet_les_options_au_service(monkeypatch):
 
 
 def test_rescrape_db_provider_inconnu_echoue(monkeypatch):
-    """`--provider kliego` affichait « Courses ciblées : 0 » et sortait en 0."""
+    """`--provider kliego` affichait « Épreuves ciblées : 0 » et sortait en 0."""
     espion = _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
 
     result = runner.invoke(app, ["rescrape-db", "--provider", "kliego"])

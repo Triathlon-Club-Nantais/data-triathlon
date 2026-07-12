@@ -1,4 +1,10 @@
-"""Re-scrape en masse des courses déjà en base (force=True, bypass du cache TTL)."""
+"""Re-scrape en masse des épreuves déjà en base (force=True, bypass du cache TTL).
+
+Unité de travail : l'**épreuve**, c'est-à-dire une `source_url` unique — et non
+la course. La table `course` en porte N par épreuve (heats Breizh Chrono,
+variantes individuel/relais) ; un seul scrape d'épreuve les réimporte toutes.
+Compteurs et `--limit` raisonnent donc en épreuves (cf. `_dedupe_par_url`).
+"""
 from dataclasses import dataclass, field
 
 from sqlalchemy.orm import Session

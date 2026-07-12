@@ -118,6 +118,24 @@ n'est jamais perdu de vue (chaque épreuve est commitée séparément). `--no-pr
 coupe la progression (le rapport final, lui, est toujours émis) ; `--plain` force
 les lignes simples même en terminal.
 
+**Codes de sortie** (`cli/reports.emit_outcome`) — le bilan est **toujours émis
+avant** la sortie :
+
+| Code | Sens |
+| --- | --- |
+| `0` | Succès, y compris **partiel** (quelques épreuves en échec sur N) ou « rien à faire » (zéro épreuve ciblée). Un dry-run sort toujours en 0. |
+| `1` | **Échec total** : aucune des épreuves ciblées n'a abouti (`batch.est_echec_total` : `errors >= épreuves > 0`). Sinon un cron dont les 53 épreuves échouent n'alerterait jamais. |
+| `2` | **Erreur d'usage** (convention Click) : option invalide — notamment `--provider` / `--only-provider` inconnu, rejeté avant tout travail par `cli/validators`. |
+| `130` | Ctrl-C. **Prioritaire sur 1** : une interruption est une action de l'opérateur, pas une panne. |
+
+Un tube fermé (`… | head -2`) ne fausse aucun de ces codes : le `BrokenPipeError`
+est rattrapé, et le bilan bascule sur stderr plutôt que d'être perdu.
+
+**Vocabulaire** : la CLI compte des **épreuves** (une `source_url` unique), jamais
+des courses. Une épreuve porte N `Course` en base (heats Breizh Chrono, variantes
+individuel/relais) : `rescrape-db` dédoublonne par `source_url` avant le batch,
+donc « Épreuves ciblées : 12 » sur une table de 53 courses n'est pas une perte.
+
 ### Conventions scrapers
 
 - Tout nouveau fournisseur : créer `scrapers/<nom>.py`, exposer `scrape()` (et
