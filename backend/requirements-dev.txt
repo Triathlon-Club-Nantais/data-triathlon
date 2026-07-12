@@ -1,4 +1,0 @@
--r requirements.txt
-pytest==9.0.3
-respx==0.21.1
-ruff==0.8.4
