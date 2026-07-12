@@ -114,6 +114,68 @@ def test_import_sheet_json_interrompu_emet_quand_meme_le_json(monkeypatch):
     assert charge["interrupted"] is True
 
 
+def test_import_sheet_echec_total_sort_en_code_non_nul(monkeypatch):
+    """Toutes les épreuves en échec (site tiers down) ⇒ le cron doit alerter."""
+    _brancher_import(monkeypatch, SheetOutcome(unique_supported=3, errors=3))
+
+    result = runner.invoke(app, ["import-sheet"])
+
+    assert result.exit_code == 1
+    assert "En erreur : 3" in result.stdout  # le bilan reste émis avant la sortie
+    assert "Échec total" in result.stdout
+
+
+def test_import_sheet_echec_total_json_emet_quand_meme_le_json(monkeypatch):
+    """Échec total + `--json` : la charge JSON sort AVANT l'exit non nul."""
+    _brancher_import(monkeypatch, SheetOutcome(unique_supported=3, errors=3))
+
+    result = runner.invoke(app, ["import-sheet", "--json"])
+
+    assert result.exit_code == 1
+    assert json.loads(result.stdout)["errors"] == 3  # stdout reste parsable tel quel
+
+
+def test_import_sheet_succes_partiel_sort_en_zero(monkeypatch):
+    """Quelques échecs sur 10 épreuves : ce n'est pas un échec du batch."""
+    _brancher_import(
+        monkeypatch, SheetOutcome(unique_supported=10, imported=42, errors=3)
+    )
+
+    result = runner.invoke(app, ["import-sheet"])
+
+    assert result.exit_code == 0
+    assert "Échec total" not in result.stdout
+
+
+def test_import_sheet_aucune_epreuve_a_traiter_sort_en_zero(monkeypatch):
+    """Sheet vide / `--limit 0` : rien à faire n'est pas un échec."""
+    _brancher_import(monkeypatch, SheetOutcome(unique_supported=0))
+
+    result = runner.invoke(app, ["import-sheet"])
+
+    assert result.exit_code == 0
+
+
+def test_import_sheet_epreuves_reussies_sans_rien_importer_sort_en_zero(monkeypatch):
+    """Tous les participants déjà en base (`imported=0`, `skipped=N`) : c'est un succès."""
+    _brancher_import(monkeypatch, SheetOutcome(unique_supported=4, imported=0, skipped=180))
+
+    result = runner.invoke(app, ["import-sheet"])
+
+    assert result.exit_code == 0
+
+
+def test_import_sheet_interruption_prime_sur_l_echec_total(monkeypatch):
+    """Interrompu ET rien de réussi : 130 (action de l'opérateur), pas 1 (panne)."""
+    _brancher_import(
+        monkeypatch, SheetOutcome(unique_supported=2, errors=2, interrupted=True)
+    )
+
+    result = runner.invoke(app, ["import-sheet"])
+
+    assert result.exit_code == 130
+
+
 def test_import_sheet_dry_run_coupe_la_progression(monkeypatch):
     """Un dry-run ne scrape rien : le service doit recevoir un NullReporter."""
     espion = _brancher_import(monkeypatch, SheetOutcome(unique_supported=1))
@@ -184,6 +246,69 @@ def test_rescrape_db_interrompu_sort_en_130(monkeypatch):
 
     assert result.exit_code == 130
     assert "Importées : 2" in result.stdout  # le bilan partiel est bien affiché
+
+
+def test_rescrape_db_echec_total_sort_en_code_non_nul(monkeypatch):
+    """Les 53 épreuves du cron échouent : code non nul, sinon le cron n'alerte jamais."""
+    _brancher_rescrape(monkeypatch, RescrapeOutcome(total=53, errors=53))
+
+    result = runner.invoke(app, ["rescrape-db"])
+
+    assert result.exit_code == 1
+    assert "En erreur : 53" in result.stdout  # le bilan reste émis avant la sortie
+    assert "Échec total" in result.stdout
+
+
+def test_rescrape_db_echec_total_json_emet_quand_meme_le_json(monkeypatch):
+    _brancher_rescrape(monkeypatch, RescrapeOutcome(total=53, errors=53))
+
+    result = runner.invoke(app, ["rescrape-db", "--json"])
+
+    assert result.exit_code == 1
+    assert json.loads(result.stdout)["errors"] == 53
+    assert "RESCRAPE DB" not in result.stdout  # stdout reste le JSON seul
+
+
+def test_rescrape_db_succes_partiel_sort_en_zero(monkeypatch):
+    _brancher_rescrape(
+        monkeypatch, RescrapeOutcome(total=50, imported=120, skipped=8, errors=4)
+    )
+
+    result = runner.invoke(app, ["rescrape-db"])
+
+    assert result.exit_code == 0
+    assert "Échec total" not in result.stdout
+
+
+def test_rescrape_db_aucune_epreuve_a_traiter_sort_en_zero(monkeypatch):
+    """Aucune course au filtre (`--older-than`, `--limit 0`) : pas un échec."""
+    _brancher_rescrape(monkeypatch, RescrapeOutcome(total=0))
+
+    result = runner.invoke(app, ["rescrape-db"])
+
+    assert result.exit_code == 0
+
+
+def test_rescrape_db_dry_run_sort_en_zero(monkeypatch):
+    """Un dry-run ne scrape rien : il ne peut jamais être un échec total."""
+    _brancher_rescrape(
+        monkeypatch, RescrapeOutcome(total=53, dry_run_urls=["https://k/1"])
+    )
+
+    result = runner.invoke(app, ["rescrape-db", "--dry-run"])
+
+    assert result.exit_code == 0
+
+
+def test_rescrape_db_interruption_prime_sur_l_echec_total(monkeypatch):
+    """Interrompu ET rien de réussi : 130 (opérateur) l'emporte sur 1 (panne)."""
+    _brancher_rescrape(
+        monkeypatch, RescrapeOutcome(total=2, errors=2, interrupted=True)
+    )
+
+    result = runner.invoke(app, ["rescrape-db"])
+
+    assert result.exit_code == 130
 
 
 def test_rescrape_db_dry_run_coupe_la_progression(monkeypatch):

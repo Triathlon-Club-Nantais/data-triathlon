@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.scrapers import registry
 from app.services import sheet_source
-from app.services.batch import BatchItem, run_batch
+from app.services.batch import BatchItem, est_echec_total, run_batch
 from app.services.progress import ProgressReporter
 
 
@@ -24,6 +24,20 @@ class SheetOutcome:
     unique_supported: int = 0
     ignored_by_host: dict[str, int] = field(default_factory=dict)
     interrupted: bool = False
+
+    @property
+    def echec_total(self) -> bool:
+        """Toutes les épreuves ciblées ont échoué (cf. `batch.est_echec_total`).
+
+        `unique_supported` est le nombre d'épreuves **réellement soumises au
+        batch** (liens supportés, dédoublonnés, après `--limit`) : c'est bien à
+        lui qu'`errors` se compare. Les liens non supportés (`ignored_by_host`)
+        n'ont jamais été tentés, ils ne comptent donc ni en succès ni en échec.
+
+        Propriété (et non champ) : `asdict()` ne sérialise que les champs, la
+        charge utile `--json` reste inchangée.
+        """
+        return est_echec_total(epreuves=self.unique_supported, errors=self.errors)
 
 
 def run_import_sheet(

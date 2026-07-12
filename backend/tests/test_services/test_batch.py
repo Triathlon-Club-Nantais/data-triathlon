@@ -275,3 +275,20 @@ def test_run_batch_pause_entre_epreuves_mais_pas_apres_la_derniere(
     batch.run_batch(db_session, items, _settings(), force=False, delay=2.5, reporter=fake_reporter)
 
     assert appels == [2.5, 2.5]
+
+
+# --- règle « échec total » ----------------------------------------------------
+
+
+def test_est_echec_total_quand_toutes_les_epreuves_echouent():
+    assert batch.est_echec_total(epreuves=53, errors=53) is True
+
+
+def test_est_echec_total_faux_sur_un_succes_partiel():
+    """Quelques échecs sur 50 : le batch reste un succès."""
+    assert batch.est_echec_total(epreuves=50, errors=3) is False
+
+
+def test_est_echec_total_faux_quand_il_n_y_avait_rien_a_traiter():
+    """Sheet vide, `--limit 0`, filtre sans résultat : rien à faire n'est pas un échec."""
+    assert batch.est_echec_total(epreuves=0, errors=0) is False

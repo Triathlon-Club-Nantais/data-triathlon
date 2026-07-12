@@ -165,3 +165,59 @@ def test_run_import_sheet_ctrl_c_remonte_le_drapeau(db_session, monkeypatch):
     out = bulk_import_service.run_import_sheet(db_session, csv_text, _settings(), delay=0.0)
 
     assert out.interrupted is True
+
+
+def test_run_import_sheet_echec_total_quand_tout_echoue(db_session, monkeypatch):
+    from app.scrapers import registry
+
+    monkeypatch.setattr(registry, "detect_provider", lambda url: "klikego")
+
+    def _iter(db, url, settings, force=False):
+        yield {"phase": "error", "message": "503"}
+
+    monkeypatch.setattr(import_service, "iter_import_event", _iter)
+
+    csv_text = (
+        "a,Donne-nous un lien pour accéder aux résultats.\n"
+        "x,https://www.klikego.com/e/1\n"
+        "x,https://www.klikego.com/e/2\n"
+    )
+    out = bulk_import_service.run_import_sheet(db_session, csv_text, _settings(), delay=0.0)
+
+    assert out.errors == 2
+    assert out.echec_total is True
+
+
+def test_run_import_sheet_rien_de_neuf_n_est_pas_un_echec(db_session, monkeypatch):
+    """Tous les participants déjà en base (`imported=0`, `skipped=N`) : c'est un succès."""
+    from app.scrapers import registry
+
+    monkeypatch.setattr(registry, "detect_provider", lambda url: "klikego")
+
+    def _iter(db, url, settings, force=False):
+        yield {"phase": "done", "imported": 0, "skipped": 42, "total": 42}
+
+    monkeypatch.setattr(import_service, "iter_import_event", _iter)
+
+    csv_text = (
+        "a,Donne-nous un lien pour accéder aux résultats.\n"
+        "x,https://www.klikego.com/e/1\n"
+    )
+    out = bulk_import_service.run_import_sheet(db_session, csv_text, _settings(), delay=0.0)
+
+    assert out.imported == 0
+    assert out.skipped == 42
+    assert out.echec_total is False
+
+
+def test_run_import_sheet_liens_non_supportes_ne_font_pas_un_echec(db_session, monkeypatch):
+    """Aucun lien supporté dans le Sheet : rien n'a été tenté, donc rien n'a échoué."""
+    csv_text = (
+        "a,Donne-nous un lien pour accéder aux résultats.\n"
+        "x,https://inconnu.example/r/1\n"
+    )
+    out = bulk_import_service.run_import_sheet(db_session, csv_text, _settings(), delay=0.0)
+
+    assert out.unique_supported == 0
+    assert out.ignored_by_host == {"inconnu.example": 1}
+    assert out.echec_total is False

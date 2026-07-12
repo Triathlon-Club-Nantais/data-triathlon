@@ -215,3 +215,29 @@ def test_run_rescrape_libelle_avec_le_nom_de_course(db_session, monkeypatch, fak
     rescrape_service.run_rescrape_db(db_session, _settings(), delay=0.0, reporter=fake_reporter)
 
     assert ("item_start", 0, "klikego · Triathlon de Nantes") in fake_reporter.calls
+
+
+def test_run_rescrape_echec_total_quand_toutes_les_epreuves_echouent(db_session, monkeypatch):
+    """Site tiers down : le bilan porte l'échec total, la CLI en tirera son code de sortie."""
+    _course(db_session, "A", "https://k/1")
+    _course(db_session, "B", "https://k/2", jour=2)
+
+    def _iter(db, url, settings, force=False):
+        yield {"phase": "error", "message": "503"}
+
+    monkeypatch.setattr(import_service, "iter_import_event", _iter)
+
+    out = rescrape_service.run_rescrape_db(db_session, _settings(), delay=0.0)
+
+    assert out.errors == 2
+    assert out.echec_total is True
+
+
+def test_run_rescrape_dry_run_n_est_jamais_un_echec_total(db_session, monkeypatch):
+    """Un dry-run ne scrape rien : il ne peut pas échouer, même sur 53 courses."""
+    _course(db_session, "A", "https://k/1")
+
+    out = rescrape_service.run_rescrape_db(db_session, _settings(), dry_run=True, delay=0.0)
+
+    assert out.total == 1
+    assert out.echec_total is False
