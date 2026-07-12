@@ -1,7 +1,8 @@
 from datetime import date
 
 from app.core.config import Settings
-from app.repositories import course_repository
+from app.repositories import course_repository, participation_repository
+from app.scrapers.base import ScrapedResult
 from app.services import import_service, rescrape_service
 
 
@@ -158,6 +159,48 @@ def test_run_rescrape_limit_borne_les_epreuves_pas_les_courses(db_session, monke
 
     assert out.total == 2
     assert sorted(vus) == sorted([url_a, "https://k/b"])  # 2 épreuves, pas 2 heats
+
+
+def _scraped(bib: str, nom: str) -> ScrapedResult:
+    return ScrapedResult(
+        source_url="http://detail",
+        provider="klikego",
+        athlete_name=nom,
+        athlete_firstname="Jean",
+        bib_number=bib,
+        event_name="Triathlon de Nantes",
+        event_date=date(2026, 5, 16),
+        event_type="triathlon-m",
+        total_time="01:59:00",
+    )
+
+
+def test_run_rescrape_traverse_le_vrai_generateur_et_bypasse_le_cache(db_session, monkeypatch):
+    """Jonction réelle de `rescrape-db` : run_batch → **vrai** `iter_import_event(force=True)`.
+
+    Tous les autres tests de batch doublent le générateur ; le seul test de `force`
+    sur du vrai code portait sur `import_event`, que la CLI n'appelle jamais. Ici
+    on ne double que le scraper (zéro réseau) : le bypass du cache TTL est vérifié
+    sur le chemin exact qu'exécute la commande.
+    """
+    url = "https://www.klikego.com/resultats/event/123"
+
+    def _scraper(resultats: list[ScrapedResult]) -> None:
+        monkeypatch.setattr(
+            import_service, "registry_scrape_event_all", lambda _u: resultats
+        )
+
+    # Une course fraîche en base (scraped_at = maintenant) : le cache TTL mord.
+    _scraper([_scraped("1", "DUPONT")])
+    import_service.import_event(db_session, url, _settings())
+
+    _scraper([_scraped("1", "DUPONT"), _scraped("2", "MARTIN")])
+    out = rescrape_service.run_rescrape_db(db_session, _settings(), delay=0.0)
+
+    assert out.total == 1
+    assert out.imported == 1  # force=True : re-scrapé malgré la fraîcheur
+    assert out.skipped == 1  # le dossard 1 était déjà en base
+    assert len(participation_repository.list_participations(db_session, page_size=100)) == 2
 
 
 def test_run_rescrape_libelle_avec_le_nom_de_course(db_session, monkeypatch, fake_reporter):

@@ -233,3 +233,34 @@ def test_force_bypasse_le_cache_ttl(db_session, patch_scraper):
     patch_scraper([_result("1", "DUPONT"), _result("2", "MARTIN")])
     out = import_service.import_event(db_session, URL, _settings(), force=True)
     assert out == {"imported": 1, "skipped": 1}
+
+
+def test_iter_import_event_force_bypasse_le_cache_ttl(db_session, patch_scraper):
+    """Même garde que ci-dessus, mais sur le **générateur** — le chemin de prod.
+
+    `rescrape-db` ne passe pas par `import_event` : `batch.run_batch` consomme
+    `iter_import_event(force=True)`. C'est donc ici que se joue le bypass du
+    cache TTL. Sans ce test, inverser la garde (`if not force:` → `if force:`)
+    transformerait le rescrape en no-op silencieux sur toute course fraîche
+    (bilan « Importées : 0 », indiscernable d'un rescrape sans nouveauté).
+    """
+    patch_scraper([_result("1", "DUPONT")])
+    import_service.import_event(db_session, URL, _settings())
+
+    # Course fraîche, sans force → le générateur court-circuite le scraping.
+    phases = list(import_service.iter_import_event(db_session, URL, _settings()))
+    assert [p["phase"] for p in phases] == ["done"]
+    assert phases[-1]["cached"] is True
+
+    # force=True → la phase `scraping` a bien lieu malgré la fraîcheur, et le
+    # dossard 2 (nouveau) est importé : le cache n'a pas été consulté.
+    patch_scraper([_result("1", "DUPONT"), _result("2", "MARTIN")])
+    phases = list(
+        import_service.iter_import_event(db_session, URL, _settings(), force=True)
+    )
+    assert "scraping" in [p["phase"] for p in phases]
+    final = phases[-1]
+    assert final["phase"] == "done"
+    assert (final["imported"], final["skipped"]) == (1, 1)
+    assert "cached" not in final
+    assert len(participation_repository.list_participations(db_session, page_size=100)) == 2
