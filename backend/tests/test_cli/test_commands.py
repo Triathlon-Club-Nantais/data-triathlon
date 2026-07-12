@@ -1,3 +1,4 @@
+import json
 from contextlib import contextmanager
 
 from typer.testing import CliRunner
@@ -6,6 +7,7 @@ from app.cli import app
 from app.cli.commands import import_sheet as cmd_import
 from app.cli.commands import rescrape_db as cmd_rescrape
 from app.services.bulk_import_service import SheetOutcome
+from app.services.progress import NullReporter
 from app.services.rescrape_service import RescrapeOutcome
 
 runner = CliRunner()
@@ -16,13 +18,45 @@ def _fausse_session():
     yield None
 
 
-def test_import_sheet_dry_run_affiche_le_rapport(monkeypatch):
+class _ServiceEspion:
+    """Double de service : capture les arguments reçus et renvoie l'outcome fourni.
+
+    Une `lambda *a, **k` avalerait tout : impossible alors de voir qu'une option
+    Typer n'arrive jamais au service (ou arrive inversée). On capture donc.
+    """
+
+    def __init__(self, outcome):
+        self.outcome = outcome
+        self.args: tuple = ()
+        self.kwargs: dict = {}
+
+    def __call__(self, *args, **kwargs):
+        self.args = args
+        self.kwargs = kwargs
+        return self.outcome
+
+
+def _brancher_import(monkeypatch, outcome: SheetOutcome) -> _ServiceEspion:
+    """Neutralise session + téléchargement CSV, et espionne le service."""
+    espion = _ServiceEspion(outcome)
     monkeypatch.setattr(cmd_import, "session_scope", _fausse_session)
     monkeypatch.setattr(cmd_import.sheet_source, "download_csv", lambda url: "a,b\n")
-    monkeypatch.setattr(
-        cmd_import.bulk_import_service, "run_import_sheet",
-        lambda *a, **k: SheetOutcome(unique_supported=4, rows_without_link=1),
-    )
+    monkeypatch.setattr(cmd_import.bulk_import_service, "run_import_sheet", espion)
+    return espion
+
+
+def _brancher_rescrape(monkeypatch, outcome: RescrapeOutcome) -> _ServiceEspion:
+    espion = _ServiceEspion(outcome)
+    monkeypatch.setattr(cmd_rescrape, "session_scope", _fausse_session)
+    monkeypatch.setattr(cmd_rescrape.rescrape_service, "run_rescrape_db", espion)
+    return espion
+
+
+# --- import-sheet ------------------------------------------------------------
+
+
+def test_import_sheet_dry_run_affiche_le_rapport(monkeypatch):
+    _brancher_import(monkeypatch, SheetOutcome(unique_supported=4, rows_without_link=1))
 
     result = runner.invoke(app, ["import-sheet", "--dry-run"])
 
@@ -31,29 +65,30 @@ def test_import_sheet_dry_run_affiche_le_rapport(monkeypatch):
     assert "Liens supportés uniques : 4" in result.stdout
 
 
-def test_import_sheet_json_emet_du_json_sur_stdout(monkeypatch):
-    import json
-
-    monkeypatch.setattr(cmd_import, "session_scope", _fausse_session)
-    monkeypatch.setattr(cmd_import.sheet_source, "download_csv", lambda url: "a,b\n")
-    monkeypatch.setattr(
-        cmd_import.bulk_import_service, "run_import_sheet",
-        lambda *a, **k: SheetOutcome(imported=7, skipped=2, unique_supported=1),
-    )
+def test_import_sheet_json_n_emet_que_du_json_sur_stdout(monkeypatch):
+    """`--json` est exclusif : stdout doit être parsable tel quel (`| jq`)."""
+    _brancher_import(monkeypatch, SheetOutcome(imported=7, skipped=2, unique_supported=1))
 
     result = runner.invoke(app, ["import-sheet", "--json"])
 
     assert result.exit_code == 0
-    derniere = result.stdout.strip().splitlines()[-1]
-    assert json.loads(derniere)["imported"] == 7
+    assert json.loads(result.stdout)["imported"] == 7  # tout stdout, pas juste sa fin
+    assert "IMPORT SHEET" in result.stderr  # le rapport texte reste visible, sur stderr
+    assert "IMPORT SHEET" not in result.stdout
+
+
+def test_import_sheet_sans_json_le_rapport_sort_sur_stdout(monkeypatch):
+    _brancher_import(monkeypatch, SheetOutcome(imported=7, unique_supported=1))
+
+    result = runner.invoke(app, ["import-sheet"])
+
+    assert result.exit_code == 0
+    assert "IMPORT SHEET" in result.stdout
 
 
 def test_import_sheet_interrompu_sort_en_130(monkeypatch):
-    monkeypatch.setattr(cmd_import, "session_scope", _fausse_session)
-    monkeypatch.setattr(cmd_import.sheet_source, "download_csv", lambda url: "a,b\n")
-    monkeypatch.setattr(
-        cmd_import.bulk_import_service, "run_import_sheet",
-        lambda *a, **k: SheetOutcome(imported=3, unique_supported=9, interrupted=True),
+    _brancher_import(
+        monkeypatch, SheetOutcome(imported=3, unique_supported=9, interrupted=True)
     )
 
     result = runner.invoke(app, ["import-sheet"])
@@ -62,12 +97,49 @@ def test_import_sheet_interrompu_sort_en_130(monkeypatch):
     assert "Importées : 3" in result.stdout  # le bilan partiel est bien affiché
 
 
-def test_rescrape_db_dry_run_affiche_les_urls(monkeypatch):
-    monkeypatch.setattr(cmd_rescrape, "session_scope", _fausse_session)
+def test_import_sheet_dry_run_coupe_la_progression(monkeypatch):
+    """Un dry-run ne scrape rien : le service doit recevoir un NullReporter."""
+    espion = _brancher_import(monkeypatch, SheetOutcome(unique_supported=1))
+
+    result = runner.invoke(app, ["import-sheet", "--dry-run"])
+
+    assert result.exit_code == 0
+    assert isinstance(espion.kwargs["reporter"], NullReporter)
+
+
+def test_import_sheet_transmet_les_options_au_service(monkeypatch):
+    """Le câblage options Typer → service : une inversion doit se voir ici."""
+    espion = _ServiceEspion(SheetOutcome(unique_supported=1))
+    urls_telechargees: list[str] = []
+    monkeypatch.setattr(cmd_import, "session_scope", _fausse_session)
     monkeypatch.setattr(
-        cmd_rescrape.rescrape_service, "run_rescrape_db",
-        lambda *a, **k: RescrapeOutcome(total=1, dry_run_urls=["https://k/1"]),
+        cmd_import.sheet_source, "download_csv",
+        lambda url: urls_telechargees.append(url) or "nom,lien\n",
     )
+    monkeypatch.setattr(cmd_import.bulk_import_service, "run_import_sheet", espion)
+
+    result = runner.invoke(app, [
+        "import-sheet",
+        "--limit", "3",
+        "--only-provider", "klikego",
+        "--delay", "0",
+        "--sheet-url", "https://exemple.test/feuille.csv",
+    ])
+
+    assert result.exit_code == 0
+    assert urls_telechargees == ["https://exemple.test/feuille.csv"]
+    assert espion.args[1] == "nom,lien\n"  # le CSV téléchargé arrive au service
+    assert espion.kwargs["limit"] == 3
+    assert espion.kwargs["only_provider"] == "klikego"
+    assert espion.kwargs["delay"] == 0.0
+    assert espion.kwargs["dry_run"] is False
+
+
+# --- rescrape-db -------------------------------------------------------------
+
+
+def test_rescrape_db_dry_run_affiche_les_urls(monkeypatch):
+    _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1, dry_run_urls=["https://k/1"]))
 
     result = runner.invoke(app, ["rescrape-db", "--dry-run"])
 
@@ -76,13 +148,51 @@ def test_rescrape_db_dry_run_affiche_les_urls(monkeypatch):
     assert "https://k/1" in result.stdout
 
 
+def test_rescrape_db_json_n_emet_que_du_json_sur_stdout(monkeypatch):
+    """`python -m app.cli rescrape-db --json | jq` doit fonctionner."""
+    _brancher_rescrape(monkeypatch, RescrapeOutcome(total=9, imported=5, skipped=1))
+
+    result = runner.invoke(app, ["rescrape-db", "--json"])
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["imported"] == 5
+    assert "RESCRAPE DB" in result.stderr
+    assert "RESCRAPE DB" not in result.stdout
+
+
 def test_rescrape_db_interrompu_sort_en_130(monkeypatch):
-    monkeypatch.setattr(cmd_rescrape, "session_scope", _fausse_session)
-    monkeypatch.setattr(
-        cmd_rescrape.rescrape_service, "run_rescrape_db",
-        lambda *a, **k: RescrapeOutcome(total=9, imported=2, interrupted=True),
-    )
+    _brancher_rescrape(monkeypatch, RescrapeOutcome(total=9, imported=2, interrupted=True))
 
     result = runner.invoke(app, ["rescrape-db"])
 
     assert result.exit_code == 130
+    assert "Importées : 2" in result.stdout  # le bilan partiel est bien affiché
+
+
+def test_rescrape_db_dry_run_coupe_la_progression(monkeypatch):
+    """Un dry-run ne scrape rien : le service doit recevoir un NullReporter."""
+    espion = _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
+
+    result = runner.invoke(app, ["rescrape-db", "--dry-run"])
+
+    assert result.exit_code == 0
+    assert isinstance(espion.kwargs["reporter"], NullReporter)
+
+
+def test_rescrape_db_transmet_les_options_au_service(monkeypatch):
+    espion = _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
+
+    result = runner.invoke(app, [
+        "rescrape-db",
+        "--limit", "4",
+        "--provider", "timepulse",
+        "--older-than", "30",
+        "--delay", "0",
+    ])
+
+    assert result.exit_code == 0
+    assert espion.kwargs["limit"] == 4
+    assert espion.kwargs["provider"] == "timepulse"
+    assert espion.kwargs["older_than"] == 30
+    assert espion.kwargs["delay"] == 0.0
+    assert espion.kwargs["dry_run"] is False
