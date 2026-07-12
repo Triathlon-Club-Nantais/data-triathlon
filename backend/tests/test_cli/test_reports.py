@@ -37,7 +37,10 @@ def test_rapport_rescrape_dry_run_liste_les_urls():
     texte = render_rescrape_report(out, dry_run=True)
 
     assert "RESCRAPE DB (dry-run)" in texte
-    assert "Courses ciblées : 2" in texte
+    # « épreuves », pas « courses » : depuis la dédup, `total` compte des URLs
+    # uniques — une épreuve porte N courses en base (heats).
+    assert "Épreuves ciblées : 2" in texte
+    assert "Courses ciblées" not in texte
     assert "https://k/1" in texte
 
 

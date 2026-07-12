@@ -47,9 +47,16 @@ def render_sheet_report(outcome: SheetOutcome, *, dry_run: bool) -> str:
 
 
 def render_rescrape_report(outcome: RescrapeOutcome, *, dry_run: bool) -> str:
-    """Rapport texte lisible pour rescrape-db."""
+    """Rapport texte lisible pour rescrape-db.
+
+    On compte des **épreuves** (URLs uniques), pas des courses : depuis la dédup
+    par `source_url`, une épreuve porte N courses en base (les heats Breizh
+    Chrono, les variantes individuel/relais…). Afficher « courses » ici ferait
+    croire à une perte de données à qui compare au `SELECT count(*) FROM course`
+    (base de dev : 53 courses pour 12 épreuves).
+    """
     lignes = [_titre("RESCRAPE DB", dry_run=dry_run, interrupted=outcome.interrupted)]
-    lignes.append(f"Courses ciblées : {outcome.total}")
+    lignes.append(f"Épreuves ciblées : {outcome.total}")
     if dry_run:
         for url in outcome.dry_run_urls:
             lignes.append(f"  - {url}")
