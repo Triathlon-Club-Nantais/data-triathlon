@@ -91,6 +91,11 @@ def run_batch(
                 logger.warning("Échec import %s : %s", item.url, exc)
                 imported = skipped = 0
                 error = str(exc)
+                try:
+                    # invariant : la Session doit être saine pour l'épreuve suivante
+                    db.rollback()
+                except Exception:
+                    logger.warning("Rollback de rattrapage impossible — Session irrécupérable")
 
             if error:
                 totals.errors += 1
