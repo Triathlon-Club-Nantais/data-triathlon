@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Epreuve vMaj="10" vMin="2" nom="RED OUF Swimrun 2026" dt1="2026-06-28" sport="6">
+  <Parcours>
+    <Pcs nom="S Duo" dosdeb="1" dosfin="28" distance="12000"/>
+    <Pcs nom="M Solo" dosdeb="152" dosfin="183" distance="18500"/>
+  </Parcours>
+  <Equipes>
+    <E n="QUIBERON TRIATHLON" x="2"/>
+    <E n="CAUDAN NATATION" x="2"/>
+  </Equipes>
+  <Engages>
+    <E d="1" n="LES PHELIPOPOV&#160;." a="1970" x="X" ca="V4" p="S Duo" na="FR"/>
+    <E d="2" n="LES TITOUILLES&#160;." a="1970" x="M" ca="V4" p="S Duo" na="FR"/>
+    <E d="152" n="Jean DUPONT" a="1985" x="M" ca="S3H" p="M Solo" na="FR"/>
+    <E d="153" n="Marie MARTIN" a="1990" x="F" ca="S2F" p="M Solo" na="FR" np="1"/>
+  </Engages>
+  <Resultats>
+    <R d="1" t="01h47'59" m="8,26"/>
+    <R d="2" t="01h49'04" m="8,02"/>
+    <R d="152" t="Abandon"/>
+  </Resultats>
+</Epreuve>
