@@ -3,7 +3,7 @@ from contextlib import contextmanager
 
 from typer.testing import CliRunner
 
-from app.cli import app
+from app.cli import app, reports
 from app.cli.commands import import_sheet as cmd_import
 from app.cli.commands import rescrape_db as cmd_rescrape
 from app.services.bulk_import_service import SheetOutcome
@@ -16,6 +16,28 @@ runner = CliRunner()
 @contextmanager
 def _fausse_session():
     yield None
+
+
+class _EchoTubeFerme:
+    """`typer.echo` dont **stdout** est un tube fermé (`… | head -2`).
+
+    Fidèle au scénario réel : seul stdout casse (le lecteur a fermé le tube),
+    stderr reste ouvert sur le terminal de l'opérateur.
+    """
+
+    def __init__(self) -> None:
+        self.stderr: list[str] = []
+
+    def __call__(self, message: str = "", err: bool = False, **kwargs) -> None:
+        if not err:
+            raise BrokenPipeError(32, "Broken pipe")
+        self.stderr.append(message)
+
+
+def _brancher_tube_ferme(monkeypatch) -> _EchoTubeFerme:
+    faux_echo = _EchoTubeFerme()
+    monkeypatch.setattr(reports.typer, "echo", faux_echo)
+    return faux_echo
 
 
 class _ServiceEspion:
@@ -422,4 +444,68 @@ def test_playwright_n_est_pas_un_provider_ciblable(monkeypatch):
 
     result = runner.invoke(app, ["rescrape-db", "--provider", "playwright"])
 
+    assert result.exit_code != 0
+
+
+# --- tube fermé (`… | head -2`) ----------------------------------------------
+
+
+def test_rescrape_db_tube_ferme_ne_fausse_pas_le_code_de_sortie(monkeypatch):
+    """`rescrape-db | head -2` sur un batch partiellement réussi doit sortir en 0.
+
+    Sans filet, le `BrokenPipeError` de l'émission remonte jusqu'à Click, qui le
+    convertit en exit 1 : indiscernable de l'échec total, alors que le batch a
+    réussi. Et le bilan est perdu — y compris sur stderr.
+    """
+    _brancher_rescrape(monkeypatch, RescrapeOutcome(total=3, imported=12, errors=2))
+    faux_echo = _brancher_tube_ferme(monkeypatch)
+
+    result = runner.invoke(app, ["rescrape-db"])
+
+    assert result.exit_code == 0  # 2 erreurs sur 3 : succès partiel, pas un échec
+    # stdout est mort : le bilan se replie sur stderr plutôt que de disparaître.
+    assert any("Importées : 12" in ligne for ligne in faux_echo.stderr)
+
+
+def test_import_sheet_tube_ferme_preserve_l_echec_total(monkeypatch):
+    """Tube fermé ET échec total : le code 1 est celui du batch, pas celui du tube."""
+    _brancher_import(monkeypatch, SheetOutcome(unique_supported=3, errors=3))
+    faux_echo = _brancher_tube_ferme(monkeypatch)
+
+    result = runner.invoke(app, ["import-sheet"])
+
+    assert result.exit_code == 1
+    assert any("Échec total" in ligne for ligne in faux_echo.stderr)
+
+
+def test_rescrape_db_tube_ferme_en_json_conserve_le_code_de_sortie(monkeypatch):
+    """`--json | head -1` : la ligne JSON est perdue, mais ni le code ni le rapport.
+
+    Aucun repli du JSON sur stdout ou d'un rapport texte sur stdout : le contrat
+    « stdout ne porte que le JSON » tient même quand le tube casse.
+    """
+    _brancher_rescrape(monkeypatch, RescrapeOutcome(total=3, imported=12, errors=2))
+    faux_echo = _brancher_tube_ferme(monkeypatch)
+
+    result = runner.invoke(app, ["rescrape-db", "--json"])
+
+    assert result.exit_code == 0
+    assert any("RESCRAPE DB" in ligne for ligne in faux_echo.stderr)
+
+
+def test_tube_ferme_ne_masque_pas_le_ctrl_c(monkeypatch):
+    """Filet étroit : `_echo` n'attrape que `BrokenPipeError`, jamais une BaseException.
+
+    Un Ctrl-C pendant l'émission du bilan doit continuer de remonter — sinon on
+    avalerait l'interruption de l'opérateur au motif d'un problème d'affichage.
+    """
+    def _echo_interrompu(message="", err=False, **kwargs):
+        raise KeyboardInterrupt
+
+    _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1, imported=1))
+    monkeypatch.setattr(reports.typer, "echo", _echo_interrompu)
+
+    result = runner.invoke(app, ["rescrape-db"])
+
+    assert isinstance(result.exception, KeyboardInterrupt | SystemExit)
     assert result.exit_code != 0
