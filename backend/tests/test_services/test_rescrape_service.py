@@ -99,6 +99,67 @@ def test_run_rescrape_un_echec_n_interrompt_pas_le_batch(db_session, monkeypatch
     assert out.imported == 1
 
 
+def test_run_rescrape_dedoublonne_les_courses_partageant_une_url(db_session, monkeypatch):
+    """Cas Breizh Chrono : un scrape d'épreuve crée N courses (les heats), toutes
+    portées par la même `source_url`. Une seule doit être re-scrapée — sinon on
+    frappe N fois le site tiers et on gonfle `skipped` d'autant.
+    """
+    url = "https://live.breizhchrono.com/external/live5/index.jsp?reference=1488-688"
+    for i, nom in enumerate(("Heat 1", "Heat 2", "Heat 3"), start=1):
+        _course(db_session, nom, url, jour=i)
+
+    vus: list[str] = []
+
+    def _iter(db, url, settings, force=False):
+        vus.append(url)
+        yield {"phase": "done", "imported": 2, "skipped": 1, "total": 3}
+
+    monkeypatch.setattr(import_service, "iter_import_event", _iter)
+
+    out = rescrape_service.run_rescrape_db(db_session, _settings(), delay=0.0)
+
+    assert vus == [url]  # un seul scrape, pas trois
+    assert out.total == 1  # on compte des épreuves, pas des courses
+    assert out.imported == 2
+    assert out.skipped == 1
+
+
+def test_run_rescrape_dry_run_liste_les_urls_uniques(db_session, monkeypatch):
+    url = "https://live.breizhchrono.com/external/live5/index.jsp?reference=1488-688"
+    _course(db_session, "Heat 1", url, jour=1)
+    _course(db_session, "Heat 2", url, jour=2)
+    _course(db_session, "Autre", "https://k/2", jour=3)
+
+    out = rescrape_service.run_rescrape_db(db_session, _settings(), dry_run=True, delay=0.0)
+
+    assert out.total == 2
+    assert sorted(out.dry_run_urls) == sorted([url, "https://k/2"])
+
+
+def test_run_rescrape_limit_borne_les_epreuves_pas_les_courses(db_session, monkeypatch):
+    """`--limit 1` doit couvrir une épreuve entière, pas une course d'une épreuve."""
+    # Les heats sont les plus récents (iter_all trie par date décroissante) : sans
+    # dédup, `--limit 2` les consommerait à eux seuls et n'atteindrait jamais B.
+    url_a = "https://bc/epreuve-a"
+    _course(db_session, "Heat 1", url_a, jour=2)
+    _course(db_session, "Heat 2", url_a, jour=3)
+    _course(db_session, "Heat 3", url_a, jour=4)
+    _course(db_session, "Épreuve B", "https://k/b", jour=1)
+
+    vus: list[str] = []
+
+    def _iter(db, url, settings, force=False):
+        vus.append(url)
+        yield {"phase": "done", "imported": 1, "skipped": 0, "total": 1}
+
+    monkeypatch.setattr(import_service, "iter_import_event", _iter)
+
+    out = rescrape_service.run_rescrape_db(db_session, _settings(), limit=2, delay=0.0)
+
+    assert out.total == 2
+    assert sorted(vus) == sorted([url_a, "https://k/b"])  # 2 épreuves, pas 2 heats
+
+
 def test_run_rescrape_libelle_avec_le_nom_de_course(db_session, monkeypatch, fake_reporter):
     """Ici le nom vient de la DB : contrairement à import-sheet, on l'a avant le scrape."""
     _course(db_session, "Triathlon de Nantes", "https://k/1")
