@@ -3,6 +3,7 @@ import typer
 
 from app.cli.progress import select_reporter
 from app.cli.reports import emit_outcome, render_sheet_report
+from app.cli.validators import valider_provider
 from app.core.config import get_settings
 from app.core.database import session_scope
 from app.services import bulk_import_service, sheet_source
@@ -14,7 +15,8 @@ def import_sheet(
     ),
     limit: int | None = typer.Option(None, "--limit", help="Borne le nombre d'épreuves."),
     only_provider: str | None = typer.Option(
-        None, "--only-provider", help="Restreint à un provider (ex. klikego)."
+        None, "--only-provider", callback=valider_provider,
+        help="Restreint à un provider, ex. klikego (défaut : tous).",
     ),
     sheet_url: str = typer.Option(
         sheet_source.DEFAULT_SHEET_URL, "--sheet-url", envvar="IMPORT_SHEET_URL",
