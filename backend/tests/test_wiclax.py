@@ -131,6 +131,33 @@ def test_parse_competitor_no_parcours_keeps_root_name():
     assert r.event_name == "Triathlon de Vertou 2026"
 
 
+def test_parse_competitor_event_type_suit_le_sport_de_l_epreuve():
+    """Le sport vient du nom d'épreuve, la taille du parcours.
+
+    Les parcours ChronoWest ne nomment pas le sport (« S Duo », « M Solo ») : les
+    classer seuls faisait retomber le classifieur sur son défaut `triathlon` et un
+    swimrun était importé en triathlon-s.
+    """
+    comp = _el('<E d="1" n="LES PHELIPOPOV ." x="X" ca="V4" p="S Duo"/>')
+    r = _parse_competitor(comp, "http://x", "RED OUF Swimrun 2026", "swimrun")
+    assert r.event_type == "swimrun-s"
+    assert r.event_name == "RED OUF Swimrun 2026 - S Duo"
+
+
+def test_parse_competitor_event_type_parcours_nommant_le_sport():
+    """Non-régression ChronoSmetron : un parcours qui nomme le sport reste prioritaire."""
+    comp = _el('<E d="6159" v="3" p="Triathlon L"/>')
+    r = _parse_competitor(comp, "http://x", "Triathlon de la Roche", "triathlon")
+    assert r.event_type == "triathlon-l"
+
+
+def test_parse_competitor_event_type_parcours_autre_sport():
+    """Un parcours d'un autre sport dans une épreuve triathlon garde sa discipline."""
+    comp = _el('<E d="7" v="7" p="Duathlon jeunes"/>')
+    r = _parse_competitor(comp, "http://x", "Triathlon de Vertou 2026", "triathlon")
+    assert r.event_type == "duathlon"
+
+
 def test_scrape_event_all_same_type_parcours_distinct_courses(monkeypatch):
     """Issue #21 : deux parcours de même type avec dossards en collision restent
     des épreuves distinctes (noms de course différents) au lieu de fusionner."""
