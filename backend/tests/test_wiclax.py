@@ -158,6 +158,34 @@ def test_parse_competitor_event_type_parcours_autre_sport():
     assert r.event_type == "duathlon"
 
 
+def test_parse_competitor_event_type_relais_chronosmetron_non_regression():
+    """Non-régression ChronoSmetron (production) : parcours `Relais S`.
+
+    Ce parcours ne nomme pas le sport — seul le nom d'épreuve qualifié
+    (« Triathlon de la Roche - Relais S ») porte l'information « triathlon ».
+    C'est justement le genre de cas visé par le changement de classification
+    sur le nom qualifié (issue #21 / RED OUF) : si `classify.py` ou
+    `_qualify_event_name` régresse, ce parcours dériverait silencieusement en
+    production sans qu'aucun autre test ne le détecte.
+    """
+    comp = _el('<E d="10" p="Relais S"/>')
+    r = _parse_competitor(comp, "http://x", "Triathlon de la Roche", "triathlon")
+    assert r.event_type == "triathlon-s"
+
+
+def test_parse_competitor_event_type_6_9_ans_chronosmetron_non_regression():
+    """Non-régression ChronoSmetron (production) : parcours `6-9 Ans`.
+
+    Comme « Relais S » ci-dessus, ce parcours ne nomme aucun sport : sans le
+    nom d'épreuve qualifié, le classifieur n'a aucun indice de discipline. Le
+    résultat attendu est le triathlon nu (sans taille), car « 6-9 Ans » ne
+    porte pas non plus d'information de format.
+    """
+    comp = _el('<E d="11" p="6-9 Ans"/>')
+    r = _parse_competitor(comp, "http://x", "Triathlon de la Roche", "triathlon")
+    assert r.event_type == "triathlon"
+
+
 def test_scrape_event_all_same_type_parcours_distinct_courses(monkeypatch):
     """Issue #21 : deux parcours de même type avec dossards en collision restent
     des épreuves distinctes (noms de course différents) au lieu de fusionner."""
