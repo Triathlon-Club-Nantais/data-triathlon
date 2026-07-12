@@ -148,7 +148,7 @@ Amorce la base depuis le Google Sheet des adhérents.
 | `--only-provider <nom>` | Restreint à un provider (ex. `klikego`). |
 | `--sheet-url <url>` | Override la source. |
 | `--delay <s>` | Pause de politesse entre scrapes réels (défaut ~1 s). |
-| `--json` | Rapport machine-lisible en plus du rendu texte. |
+| `--json` | **stdout ne contient que le JSON** ; le rapport texte bascule sur stderr. |
 
 ## Commande 2 — `rescrape-db`
 
@@ -169,7 +169,7 @@ re-scraping.
 | `--provider <nom>` | Restreint à un provider. |
 | `--limit N` | Borne le nombre de courses. |
 | `--delay <s>` | Pause de politesse entre scrapes (défaut ~1 s). |
-| `--json` | Rapport machine-lisible. |
+| `--json` | **stdout ne contient que le JSON** ; le rapport texte bascule sur stderr. |
 
 ## Détails techniques & points d'attention
 
@@ -181,8 +181,14 @@ re-scraping.
   pause ni de scrape en `--dry-run`. Le cache TTL reste un second filet.
 - **`force`** : `False` par défaut (API SSE inchangée) ; `rescrape-db` → `True`,
   `import-sheet` → `False`.
-- **Sortie** : rapport texte lisible (compteurs + table des ignorés) ; `--json`
-  pour réusage.
+- **Sortie** : rapport texte lisible (compteurs + table des ignorés) sur **stdout**.
+  `--json` est **exclusif** (arbitrage postérieur à ce design) : stdout ne porte
+  alors **que** la ligne JSON, et le rapport texte bascule sur **stderr**, là où
+  sort déjà la progression. Un humain voit toujours le rapport, et
+  `… --json | jq` fonctionne sans découpage préalable — ce que le rendu « JSON
+  **en plus** du texte » initialement prévu ici rendait impossible. En cas de
+  Ctrl-C, la charge JSON est émise **avant** la sortie en code 130 : le bilan
+  partiel n'est jamais perdu.
 - **Settings** : `settings = get_settings()` suffit (`import_event` ne consomme
   que les TTL de cache).
 
