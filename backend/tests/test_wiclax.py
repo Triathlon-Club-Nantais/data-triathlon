@@ -14,6 +14,7 @@ import pytest
 from app.scrapers import registry
 from app.scrapers.base import ScrapedResult
 from app.scrapers.wiclax import (
+    _clax_url,
     _competitor_status,
     _detect_event_type,
     _fill_er_splits,
@@ -703,3 +704,33 @@ def test_resolve_sans_iframe_ni_lien_leve_valueerror():
     client = _FakeClient({"https://chronowest.fr/vide/": "<html><body>rien</body></html>"})
     with pytest.raises(ValueError, match="G-Live"):
         _resolve_to_wiclax_url("https://chronowest.fr/vide/", client)
+
+
+# ---------------------------------------------------------------------------
+# Résolution d'URL : g-live.html?f=… → .clax
+# ---------------------------------------------------------------------------
+
+
+def test_clax_url_chronosmetron_f_relatif():
+    """Moteur sous /G-Live/, f= relatif (../) → remonte d'un cran."""
+    assert _clax_url(
+        "https://chronosmetron.wiclax-results.com/G-Live/g-live.html"
+        "?f=../Triathlon%20de%20la%20Roche%202026/Triathlon%20de%20la%20Roche.clax"
+    ) == (
+        "https://chronosmetron.wiclax-results.com/"
+        "Triathlon de la Roche 2026/Triathlon de la Roche.clax"
+    )
+
+
+def test_clax_url_chronowest_f_racine_absolu():
+    """Moteur sous /wp-content/glive/, f= racine-absolu → écrase le chemin."""
+    assert _clax_url(
+        "https://chronowest.fr/wp-content/glive/g-live.html"
+        "?f=/wp-content/glive-results/locorrida-2026/LOC'orrida%202026.clax"
+        "&t=0203054427&wp=1"
+    ) == "https://chronowest.fr/wp-content/glive-results/locorrida-2026/LOC'orrida 2026.clax"
+
+
+def test_clax_url_sans_f_leve_valueerror():
+    with pytest.raises(ValueError, match="f="):
+        _clax_url("https://chronowest.fr/wp-content/glive/g-live.html")

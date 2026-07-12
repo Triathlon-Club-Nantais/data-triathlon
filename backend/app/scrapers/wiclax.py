@@ -243,6 +243,20 @@ def _clax_event_date(event_elem: ET.Element):
     return parse_fr_date(event_elem.get("dates", "") or event_elem.get("Dates", ""))
 
 
+def _clax_url(glive_url: str) -> str:
+    """URL absolue du `.clax` depuis une URL de moteur `g-live.html?f=…`.
+
+    Le `f=` est résolu contre l'URL réelle du `g-live.html` — et non contre un
+    `/G-Live/` codé en dur. Ça couvre les deux familles connues : moteur sous
+    `/G-Live/` avec un `f=` relatif (ChronoSmetron), et moteur sous
+    `/wp-content/glive/` avec un `f=` racine-absolu (ChronoWest).
+    """
+    f_param = parse_qs(urlparse(glive_url).query).get("f", [""])[0]
+    if not f_param:
+        raise ValueError(f"Paramètre f= absent de l'URL G-Live : {glive_url}")
+    return urljoin(glive_url, f_param)
+
+
 def _fetch_clax(url: str) -> tuple[ET.Element, str, str, str, object]:
     """
     Fetch and parse a .clax XML file from a Wiclax G-Live URL.
@@ -250,18 +264,13 @@ def _fetch_clax(url: str) -> tuple[ET.Element, str, str, str, object]:
     Returns (root, clax_url, event_name, event_type, event_date).
     """
     with httpx.Client(follow_redirects=True, timeout=30) as client:
-        # Resolve chronosmetron.com or directory URLs to G-Live URL if needed
-        parsed = urlparse(url)
-        params = parse_qs(parsed.query)
-        if not params.get("f") or "chronosmetron.com" in url and "wiclax-results.com" not in url:
+        # Toute URL qui ne porte pas déjà le `f=` du moteur (page épreuve, coquille
+        # WordPress, annuaire ChronoSmetron) est remontée jusqu'au `g-live.html`.
+        if not parse_qs(urlparse(url).query).get("f"):
             url = _resolve_to_wiclax_url(url, client)
-            parsed = urlparse(url)
-            params = parse_qs(parsed.query)
 
-        f_param = params.get("f", [""])[0]
-        base = f"{parsed.scheme}://{parsed.netloc}"
-        glive_dir = "/G-Live/"
-        clax_url = urljoin(base + glive_dir, f_param)
+        clax_url = _clax_url(url)
+        f_param = parse_qs(urlparse(url).query).get("f", [""])[0]
 
         resp = client.get(clax_url, headers=HEADERS)
         resp.raise_for_status()
