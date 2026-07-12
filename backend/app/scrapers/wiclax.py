@@ -496,7 +496,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     Uses a single HTTP request — the .clax XML contains all competitors.
     Handles both Competitor/Runner format and ChronoSmetron E/R format.
     """
-    root, _clax_url, event_name, event_type, event_date = _fetch_clax(url)
+    root, _, event_name, event_type, event_date = _fetch_clax(url)
     segs_elem = root.find(".//Segments")
     segments = list(segs_elem) if segs_elem is not None else []
     # Mapping des splits calculé une fois par parcours (mémoïsé).
