@@ -170,3 +170,37 @@ def test_klikego_nozeen_exhaustif():
     # Le data block expose bien les statuts (l'ancien endpoint les omettait).
     assert sum(1 for r in results if r.status) == 27
     assert sum(1 for r in results if r.status == "DNF") >= 1
+
+
+@pytest.mark.integration
+def test_chronowest_deploiement_wiclax():
+    """chronowest.fr = déploiement WordPress + iframe G-Live (issue #35).
+
+    Épreuve terminée et stable. Ne PAS utiliser /resultats/armorun-2025/ :
+    son .clax a été réinitialisé pour l'édition 2026 (pas encore courue) et ne
+    contient plus ni <Engages> ni <Resultats> — 0 résultat, alors que le scraper
+    fonctionne.
+    """
+    url = "https://chronowest.fr/resultats/trail-des-2-ponts-2026/"
+    assert registry.detect_provider(url) == "wiclax"
+    results = registry.scrape_event_all(url)
+    assert len(results) > 100, f"chronowest : seulement {len(results)} participants"
+    assert any(r.athlete_name and r.total_time for r in results)
+    assert all(r.event_type == "trail" for r in results if r.event_type)
+
+
+@pytest.mark.integration
+def test_chronowest_apostrophe_dans_le_nom_de_fichier():
+    """Non-régression du src d'iframe tronqué : LOC'orrida 2026.clax → 404."""
+    results = registry.scrape_event_all("https://chronowest.fr/resultats/locorrida-2026/")
+    assert results, "locorrida : aucun participant (src d'iframe tronqué à l'apostrophe ?)"
+
+
+@pytest.mark.integration
+def test_chronowest_swimrun_nest_pas_un_triathlon():
+    """Les parcours (« S Duo », « M Solo ») ne nomment pas le sport : il vient du
+    nom d'épreuve, sinon le classifieur retombe sur triathlon."""
+    results = registry.scrape_event_all("https://chronowest.fr/resultats/red-ouf-2026/")
+    assert results
+    types = {r.event_type for r in results}
+    assert types <= {"swimrun", "swimrun-s", "swimrun-m", "swimrun-l"}, types

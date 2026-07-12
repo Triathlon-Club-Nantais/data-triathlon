@@ -194,5 +194,8 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 ## Fournisseurs supportés
 
 Klikego, Breizh Chrono, TimePulse, Wiclax/G-Live (individuel + épreuve complète).
+Wiclax/G-Live couvre plusieurs déploiements : `wiclax-results.com`,
+`chronosmetron.com` et `chronowest.fr` (WordPress + iframe G-Live). Un nouveau
+déploiement tiers = un host dans `WiclaxProvider._HOSTS`.
 Types : Triathlon XS/S/M/L/XL, Duathlon XS/S/M/L, SwimRun S/M/L, Aquathlon,
 Aquarun, Bike & Run.
