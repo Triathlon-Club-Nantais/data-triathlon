@@ -4,14 +4,38 @@ from dataclasses import dataclass, field
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
+from app.models.course import Course
 from app.repositories import course_repository
+from app.services import sheet_source
 from app.services.batch import BatchItem, run_batch
 from app.services.progress import ProgressReporter
 
 
+def _dedupe_par_url(courses: list[Course]) -> list[Course]:
+    """Une épreuve par `source_url`, en conservant la première course rencontrée.
+
+    Une même URL porte souvent **plusieurs** courses : heats auto-découverts de
+    Breizh Chrono, variantes individuel/relais de wiclax/timepulse… Or un seul
+    scrape d'épreuve les réimporte toutes. Sans dédup, on scraperait la même URL
+    N fois (base de dev : 53 courses pour 12 URLs, dont une portée par 13 heats)
+    — requêtes inutiles vers les sites tiers, `skipped` et `errors` gonflés d'un
+    facteur N, et `--limit` qui ne bornerait plus des épreuves mais des courses.
+
+    Clé de dédup : `sheet_source.normalize_url`, par symétrie avec `dedupe_links`
+    de l'import de masse. Ces URLs viennent de la DB (donc des scrapers, pas
+    d'une saisie manuelle) : la normalisation est ici quasi neutre, elle ne fait
+    que rattraper les écarts de casse d'hôte ou de slash final entre deux
+    providers. La course retenue fournit le libellé `provider · name`.
+    """
+    uniques: dict[str, Course] = {}
+    for course in courses:
+        uniques.setdefault(sheet_source.normalize_url(course.source_url), course)
+    return list(uniques.values())
+
+
 @dataclass
 class RescrapeOutcome:
-    """Bilan d'un rescrape-db."""
+    """Bilan d'un rescrape-db. `total` = nombre d'**épreuves** (URLs uniques)."""
     total: int = 0
     imported: int = 0
     skipped: int = 0
@@ -31,28 +55,30 @@ def run_rescrape_db(
     delay: float = 1.0,
     reporter: ProgressReporter | None = None,
 ) -> RescrapeOutcome:
-    """Re-scrape toutes les courses en DB avec force=True (bypass du cache TTL).
+    """Re-scrape toutes les épreuves en DB avec force=True (bypass du cache TTL).
 
-    Ne retient que les courses ayant une source_url (clé de re-scraping).
+    Ne retient que les courses ayant une source_url (clé de re-scraping), puis
+    dédoublonne par URL : on raisonne en **épreuves à scraper**, pas en courses.
+    `limit` borne donc les épreuves, et s'applique **après** la dédup.
     En dry-run : liste les URLs sans scraper ni persister.
     """
     courses = course_repository.iter_all(
         db, provider=provider, older_than_days=older_than
     )
-    courses = [c for c in courses if c.source_url]
+    epreuves = _dedupe_par_url([c for c in courses if c.source_url])
     if limit is not None:
-        courses = courses[:limit]
+        epreuves = epreuves[:limit]
 
-    outcome = RescrapeOutcome(total=len(courses))
+    outcome = RescrapeOutcome(total=len(epreuves))
     if dry_run:
         # Charge utile réservée au dry-run : hors dry-run, embarquer l'URL de
-        # chaque course gonflerait la sortie --json de plusieurs dizaines de Ko.
-        outcome.dry_run_urls = [c.source_url for c in courses]
+        # chaque épreuve gonflerait la sortie --json de plusieurs dizaines de Ko.
+        outcome.dry_run_urls = [c.source_url for c in epreuves]
         return outcome
 
     # Le nom de la course vient de la DB : on peut libeller proprement.
     items = [
-        BatchItem(url=c.source_url, label=f"{c.provider} · {c.name}") for c in courses
+        BatchItem(url=c.source_url, label=f"{c.provider} · {c.name}") for c in epreuves
     ]
     totals = run_batch(db, items, settings, force=True, delay=delay, reporter=reporter)
 
