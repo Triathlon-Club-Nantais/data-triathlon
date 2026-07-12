@@ -36,6 +36,12 @@ pytest -m "not integration"                 # tests unitaires (sans réseau) —
 pytest -m integration                       # tests réseau réel (scrapers)
 ruff check .                                 # lint
 
+# CLI de batch (depuis backend/, venv activé)
+python -m app.cli import-sheet --dry-run     # import de masse (Sheet) : ce qui serait importé
+python -m app.cli import-sheet --limit 5     # import réel — progression en direct
+python -m app.cli rescrape-db --limit 10     # re-scrape la DB (force=True) ; --plain, --no-progress
+python -m app.cli rescrape-db --json | jq    # bilan machine-lisible (stdout = JSON seul)
+
 # Frontend (depuis frontend/)
 npm run dev        # Next.js sur :3000, rewrites /api → :8001
 npm run build      # build prod (strict TS + RSC)
@@ -59,15 +65,22 @@ Archi en couches, le flux ne traverse qu'une direction
 - `app/schemas/` — DTO Pydantic v2 (entrée/sortie).
 - `app/repositories/` — `*_repository.py` : **seule couche qui touche la Session**.
 - `app/services/` — logique métier : `mapping`, `cache` (TTL), `scrape_service`,
-  `import_service`, `stats_service`, `geocode_service`.
+  `import_service`, `stats_service`, `geocode_service`, plus les batches CLI :
+  `sheet_source` (source Google Sheet), `batch` (boucle + progression),
+  `bulk_import_service`, `rescrape_service`, `progress` (Protocol `ProgressReporter`
+  + `NullReporter`, le défaut muet).
+- `app/cli/` — Typer, **couche mince** (zéro logique métier) : `commands/` (une
+  commande par fichier), `progress.py` (reporters Rich/Plain, `select_reporter`),
+  `reports.py` (rendu des bilans + émission). La progression réutilise
+  `import_service.iter_import_event()`, le générateur de phases du SSE.
 - `app/api/` — `deps.py` + `v1/` (routers fins : validation + délégation au service),
   agrégés dans `v1/router.py`, montés sous `/api/v1`. Une future API v2 vivra dans `v1/`→`v2/`.
 - `app/scrapers/` — `registry.py` (registre **Protocol**, fin des `if-else`) +
   un module par provider. `base.py` = `ScrapedResult`,
   `utils.py` = helpers de normalisation.
 - `alembic/` — migrations (révision initiale = schéma complet).
-- `tests/` — `test_repositories/`, `test_services/`, `test_api/`, `test_klikego.py`,
-  `test_timepulse.py` (≈130 tests).
+- `tests/` — `test_repositories/`, `test_services/`, `test_api/`, `test_cli/`,
+  `test_klikego.py`, `test_timepulse.py` (≈510 tests).
 
 ### Modèle normalisé
 
@@ -90,6 +103,19 @@ Archi en couches, le flux ne traverse qu'une direction
 participation sans `total_time`), sinon 30 j. `scrape_service` court-circuite le
 re-scraping si frais. Réglable via `CACHE_TTL_IN_PROGRESS_SECONDS` /
 `CACHE_TTL_FINISHED_SECONDS`.
+
+### Sorties de la CLI (stdout parsable)
+
+Règle structurante, pas un détail : **stdout reste parsable**. La progression sort
+donc toujours sur **stderr** (Rich en terminal, lignes simples sinon — cron, CI,
+redirection), et avec `--json`, le rapport texte y bascule aussi : stdout ne
+contient alors **que** la ligne JSON, d'où `… --json | jq` sans découpage. Sans
+`--json`, le rapport texte sort sur stdout comme attendu.
+
+Un batch interrompu (Ctrl-C) émet son **bilan partiel** — texte et, le cas
+échéant, JSON — **avant** de sortir en code **130** : le travail déjà persisté
+n'est jamais perdu de vue (chaque épreuve est commitée séparément). `--no-progress`
+coupe tout affichage ; `--plain` force les lignes simples même en terminal.
 
 ### Conventions scrapers
 
