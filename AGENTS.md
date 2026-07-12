@@ -66,13 +66,13 @@ Archi en couches, le flux ne traverse qu'une direction
 - `app/repositories/` — `*_repository.py` : **seule couche qui touche la Session**.
 - `app/services/` — logique métier : `mapping`, `cache` (TTL), `scrape_service`,
   `import_service`, `stats_service`, `geocode_service`, plus les batches CLI :
-  `sheet_source` (source Google Sheet), `batch` (boucle + progression),
-  `bulk_import_service`, `rescrape_service`, `progress` (Protocol `ProgressReporter`
-  + `NullReporter`, le défaut muet).
+  `sheet_source` (source Google Sheet), `batch` (la boucle : elle consomme
+  `import_service.iter_import_event()` — le générateur de phases du SSE — et
+  relaie la progression), `bulk_import_service`, `rescrape_service`, `progress`
+  (Protocol `ProgressReporter` + `NullReporter`, le défaut muet).
 - `app/cli/` — Typer, **couche mince** (zéro logique métier) : `commands/` (une
   commande par fichier), `progress.py` (reporters Rich/Plain, `select_reporter`),
-  `reports.py` (rendu des bilans + émission). La progression réutilise
-  `import_service.iter_import_event()`, le générateur de phases du SSE.
+  `reports.py` (rendu des bilans + émission).
 - `app/api/` — `deps.py` + `v1/` (routers fins : validation + délégation au service),
   agrégés dans `v1/router.py`, montés sous `/api/v1`. Une future API v2 vivra dans `v1/`→`v2/`.
 - `app/scrapers/` — `registry.py` (registre **Protocol**, fin des `if-else`) +
@@ -115,7 +115,8 @@ contient alors **que** la ligne JSON, d'où `… --json | jq` sans découpage. S
 Un batch interrompu (Ctrl-C) émet son **bilan partiel** — texte et, le cas
 échéant, JSON — **avant** de sortir en code **130** : le travail déjà persisté
 n'est jamais perdu de vue (chaque épreuve est commitée séparément). `--no-progress`
-coupe tout affichage ; `--plain` force les lignes simples même en terminal.
+coupe la progression (le rapport final, lui, est toujours émis) ; `--plain` force
+les lignes simples même en terminal.
 
 ### Conventions scrapers
 
