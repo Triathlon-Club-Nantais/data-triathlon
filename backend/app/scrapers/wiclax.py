@@ -64,7 +64,6 @@ def _parse_competitor(comp, url: str, event_name: str, event_type: str) -> Scrap
     # e.g. "Triathlon M", "Triathlon L", "Relais S" — takes priority over root event name
     p_attr = comp.get("p") or comp.get("P") or ""
     if p_attr:
-        event_type = _detect_event_type(p_attr)
         result.is_relay = "relais" in p_attr.lower() or "relay" in p_attr.lower()
         # Chaque parcours ChronoSmetron est une épreuve distincte : classement
         # propre et dossards réutilisés d'un parcours à l'autre. On qualifie le
@@ -72,6 +71,13 @@ def _parse_competitor(comp, url: str, event_name: str, event_type: str) -> Scrap
         # type ne fusionnent en une seule Course (issue #21 : collisions de
         # dossards → participants manquants, rangs dupliqués).
         event_name = _qualify_event_name(event_name, p_attr)
+        # On classe le nom *qualifié*, pas le parcours nu : beaucoup de parcours ne
+        # nomment pas le sport (« S Duo », « M Solo » chez ChronoWest) et le
+        # classifieur retombe alors sur son défaut `triathlon` — un swimrun finissait
+        # en triathlon-s. Le sport vient du nom d'épreuve, la taille du parcours ; un
+        # parcours qui nomme explicitement une autre discipline (« Duathlon jeunes »)
+        # reste prioritaire, les multisports étant testés avant le triathlon.
+        event_type = _detect_event_type(event_name)
 
     result.event_name = event_name
     result.event_type = event_type

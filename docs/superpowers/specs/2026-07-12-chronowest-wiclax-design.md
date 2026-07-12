@@ -149,6 +149,17 @@ l'autre :
 vers `/resultats/…` sur la page et **recurser une fois** (garde anti-boucle :
 profondeur max 2, puis `ValueError` avec un message explicite).
 
+### E. `event_type` : classer le nom qualifié, pas le parcours nu
+
+Découvert à la planification. `_parse_competitor` écrasait l'`event_type` par
+`classify_event_type(p)`. Le classifieur retombant sur `triathlon` par défaut
+(`classify.py`, étape 4), les parcours ChronoWest qui ne nomment pas le sport
+(« S Duo », « M Solo ») faisaient importer le **RED OUF Swimrun en triathlon-s**.
+
+Correctif : classer le nom qualifié (« RED OUF Swimrun 2026 - S Duo ») → sport
+depuis le nom d'épreuve, taille depuis le parcours. Vérifié sans aucun changement
+sur ChronoSmetron (Relais S/M/L, 6-9 Ans → types identiques).
+
 ## Flux
 
 ```
@@ -209,9 +220,6 @@ côté de l'entrée `wiclax` existante. Choisir une épreuve **terminée et stab
   casser des `.clax` anciens sans ces conteneurs, pour un gain nul aujourd'hui.
 - **Détection automatique** d'un déploiement G-Live sur un host inconnu : non.
   Allowlist explicite (voir A).
-- **Classification** : « Armorun 2026 » est classée `triathlon` par défaut alors
-  que c'est une course à pied. C'est un comportement du classifieur
-  (`classify.py`), commun à tous les providers — hors sujet ici.
 - **Équipes / relais** : les épreuves en équipe (RED OUF Swimrun) sortent avec un
   nom d'équipe et un prénom `.`. Comportement Wiclax préexistant, non aggravé par
   ce changement.
