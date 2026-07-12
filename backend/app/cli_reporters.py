@@ -95,8 +95,14 @@ class RichReporter:
 
     def item_start(self, index: int, label: str) -> None:
         self._label = truncate(label)
-        self._progress.reset(
-            self._item_task, total=None, description=f"  {self._label} · scraping…"
+        # Rich lit `total=None` comme « garde le total actuel » (dans reset() comme
+        # dans update()), jamais comme « repasse en indéterminé ». On recrée donc la
+        # tâche : sinon la barre afficherait 0/<total de l'épreuve précédente>
+        # pendant le scrape, alors qu'on ignore encore le nombre de participants.
+        if self._item_task is not None:
+            self._progress.remove_task(self._item_task)
+        self._item_task = self._progress.add_task(
+            f"  {self._label} · scraping…", total=None
         )
 
     def item_progress(self, done: int, total: int) -> None:
