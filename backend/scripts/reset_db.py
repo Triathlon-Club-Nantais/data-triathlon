@@ -33,8 +33,9 @@ from app.core.database import Base, engine  # noqa: E402
 
 def _reset_schema() -> None:
     """Drop de toutes les tables (+ table de version Alembic), puis upgrade head."""
-    from alembic import command
     from alembic.config import Config
+
+    from alembic import command
 
     print("  Suppression des tables…")
     Base.metadata.drop_all(bind=engine)

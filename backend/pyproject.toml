@@ -1,0 +1,58 @@
+[project]
+name = "data-triathlon-backend"
+version = "0.1.0"
+description = "API FastAPI des résultats de compétition du Triathlon Club Nantais"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi[standard]>=0.115.5",
+    "uvicorn[standard]>=0.32.1",
+    "python-dotenv>=1.0.1",
+    "pydantic>=2.10.3",
+    "pydantic-settings>=2.7.0",
+    "sqlalchemy>=2.0.36",
+    "alembic>=1.14.0",
+    "psycopg2-binary>=2.9.10",
+    "httpx>=0.28.1",
+    "beautifulsoup4>=4.12.3",
+    "lxml>=5.3.0",
+    "playwright>=1.49.0",
+    "typer>=0.26.7",
+    "rich>=15.0.0",
+]
+
+# PEP 735 : installé par `uv sync`, écarté par `uv sync --no-dev` (Render, Docker).
+[dependency-groups]
+dev = [
+    "pytest>=8.3.4",
+    "respx>=0.21.1",
+    "ruff>=0.8.4",
+]
+
+[tool.uv]
+# Le backend est une application, pas une bibliothèque : rien à builder,
+# aucune installation editable. `pythonpath = ["."]` ci-dessous suffit aux tests.
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-v"
+markers = [
+    "integration: tests nécessitant un accès réseau réel (pytest -m integration)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+# Les migrations sont autogénérées par Alembic — hors périmètre du lint.
+exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B"]
+ignore = [
+    "E501",  # longueur de ligne gérée par le formateur
+    "B008",  # Depends(...) en argument par défaut = motif idiomatique FastAPI
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
