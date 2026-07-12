@@ -9,9 +9,10 @@ We fetch it and find the competitor by bib number (B param).
 """
 import re
 import xml.etree.ElementTree as ET
-from urllib.parse import parse_qs, unquote, urlencode, urljoin, urlparse, urlunparse
+from urllib.parse import parse_qs, quote, unquote, urlencode, urljoin, urlparse, urlunparse
 
 import httpx
+from bs4 import BeautifulSoup
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
 from .utils import (
@@ -147,35 +148,75 @@ def _qualify_event_name(event_name: str, parcours: str) -> str:
     return f"{event_name} - {parcours}"
 
 
-def _resolve_to_wiclax_url(url: str, client: httpx.Client) -> str:
+# Sauts max dans la chaîne « page épreuve → coquille → iframe G-Live ».
+# Garde anti-boucle : une page qui se pointe elle-même s'arrête sur ValueError.
+_MAX_RESOLVE_HOPS = 3
+
+
+def _find_glive_url(html: str, page_url: str) -> str | None:
+    """URL absolue du moteur G-Live référencé par une <iframe> de la page.
+
+    BeautifulSoup et non une regex : le `src` contient des apostrophes dès que le
+    nom d'épreuve en a une (« LOC'orrida 2026.clax »), ce qui tronquait la capture
+    d'une classe `[^"']*` et produisait un 404 (issue #35). Le parseur décode aussi
+    les entités HTML. Le `src` est résolu contre l'URL de la page : correct pour un
+    src absolu (ChronoWest) comme racine-relatif (ChronoSmetron).
     """
-    Resolve various Wiclax-family URL formats to a usable URL:
-    - chronosmetron.com event pages → extract wiclax-results.com link
-    - wiclax-results.com directory pages → extract G-Live iframe src
+    soup = BeautifulSoup(html, "lxml")
+    for iframe in soup.find_all("iframe"):
+        src = iframe.get("src") or ""
+        if "g-live.html" in src.lower():
+            return urljoin(page_url, src)
+    return None
+
+
+def _find_wiclax_link(html: str, page_url: str) -> str | None:
+    """Lien sortant menant à une page de résultats Wiclax, ou None.
+
+    Deux formes, unifiées ici :
+      - un lien vers `*.wiclax-results.com` (page événement ChronoSmetron) ;
+      - un lien vers la coquille `/resultats/<slug>/` du même host (page épreuve
+        WordPress d'un déploiement type ChronoWest). Le lien de nav
+        `/resultats-des-courses-et-classement/` ne matche pas : on exige le
+        segment `resultats` exact suivi d'un unique slug.
     """
+    soup = BeautifulSoup(html, "lxml")
+    host = urlparse(page_url).netloc.lower()
+    for a in soup.find_all("a", href=True):
+        cible = urljoin(page_url, a["href"])
+        parsed = urlparse(cible)
+        if parsed.netloc.lower().endswith("wiclax-results.com"):
+            # Les espaces du nom d'épreuve vivent tels quels dans le href.
+            chemin = quote(parsed.path, safe="/%+").rstrip("/") + "/"
+            return parsed._replace(path=chemin).geturl()
+        if parsed.netloc.lower() == host and re.fullmatch(
+            r"/resultats/[^/]+/?", parsed.path
+        ):
+            return cible
+    return None
+
+
+def _resolve_to_wiclax_url(url: str, client: httpx.Client, _hops: int = 0) -> str:
+    """Remonte de n'importe quelle page Wiclax jusqu'à l'URL du `g-live.html`.
+
+    Chaîne : page épreuve WordPress → coquille `/resultats/<slug>/` → iframe
+    G-Live. Une page portant directement l'iframe court-circuite les sauts.
+    """
+    if _hops >= _MAX_RESOLVE_HOPS:
+        raise ValueError(
+            f"Trop de sauts en cherchant le moteur G-Live depuis : {url}"
+        )
+
     resp = client.get(url, headers=HEADERS)
     resp.raise_for_status()
 
-    # chronosmetron.com: find the wiclax-results.com results link in href attribute
-    if "chronosmetron.com" in url and "wiclax-results.com" not in url:
-        from urllib.parse import quote
-        m = re.search(r'href=["\']([^"\']*wiclax-results\.com/[^"\']+)["\']', resp.text, re.I)
-        if m:
-            raw = m.group(1).strip()
-            # URL-encode spaces in the path
-            parsed_raw = urlparse(raw)
-            encoded_path = quote(parsed_raw.path, safe="/%+")
-            found = parsed_raw._replace(path=encoded_path).geturl().rstrip("/") + "/"
-            return _resolve_to_wiclax_url(found, client)
-        raise ValueError(f"Aucun lien de résultats Wiclax trouvé sur : {url}")
+    glive_url = _find_glive_url(resp.text, url)
+    if glive_url:
+        return glive_url
 
-    # wiclax-results.com directory: extract G-Live iframe src
-    m = re.search(r'<iframe[^>]+src=["\']([^"\']+g-live\.html[^"\']*)["\']', resp.text, re.I)
-    if m:
-        src = m.group(1)
-        parsed = urlparse(url)
-        base = f"{parsed.scheme}://{parsed.netloc}"
-        return urljoin(base, src)
+    lien = _find_wiclax_link(resp.text, url)
+    if lien:
+        return _resolve_to_wiclax_url(lien, client, _hops + 1)
 
     raise ValueError(f"Impossible de trouver le lien G-Live dans la page Wiclax : {url}")
 
