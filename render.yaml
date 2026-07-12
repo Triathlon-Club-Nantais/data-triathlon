@@ -4,7 +4,7 @@ services:
     runtime: python
     autoDeploy: false # déploiement uniquement via deploy hook (gate CI)
     rootDir: backend
-    buildCommand: uv sync --no-dev
+    buildCommand: uv sync --frozen --no-dev
     startCommand: uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL
