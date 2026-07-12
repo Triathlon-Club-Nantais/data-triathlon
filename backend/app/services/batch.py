@@ -36,6 +36,26 @@ class BatchTotals:
     interrupted: bool = False
 
 
+def est_echec_total(*, epreuves: int, errors: int) -> bool:
+    """Vrai si **toutes** les épreuves ciblées ont échoué — et qu'il y en avait.
+
+    Définition unique de l'« échec total », partagée par les deux bilans
+    (`SheetOutcome`, `RescrapeOutcome`) : un cron dont les 53 épreuves échouent
+    (site tiers down) doit sortir en code non nul, sinon il n'alerte jamais.
+
+    On compare des **épreuves**, pas des participants : `errors` compte une unité
+    par épreuve en échec, alors qu'`imported`/`skipped` comptent des
+    participants. Une épreuve qui réussit sans rien importer de neuf (tous les
+    participants déjà en base, ou épreuve vide) reste donc un **succès** — d'où
+    la comparaison `errors` vs nombre d'épreuves plutôt qu'un test sur `imported`.
+
+    Cas dégénérés couverts par `epreuves > 0` : batch de zéro épreuve (Sheet
+    vide, `--limit 0`, filtre sans résultat) → pas un échec. Un dry-run ne
+    scrape rien : ses `errors` restent à 0, il ne peut donc jamais être un échec.
+    """
+    return epreuves > 0 and errors >= epreuves
+
+
 def _notify(action: Callable[[], None]) -> None:
     """Notifie le reporter sans jamais faire échouer le batch.
 

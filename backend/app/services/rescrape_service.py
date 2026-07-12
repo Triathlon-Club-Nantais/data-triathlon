@@ -7,7 +7,7 @@ from app.core.config import Settings
 from app.models.course import Course
 from app.repositories import course_repository
 from app.services import sheet_source
-from app.services.batch import BatchItem, run_batch
+from app.services.batch import BatchItem, est_echec_total, run_batch
 from app.services.progress import ProgressReporter
 
 
@@ -42,6 +42,18 @@ class RescrapeOutcome:
     errors: int = 0
     dry_run_urls: list[str] = field(default_factory=list)
     interrupted: bool = False
+
+    @property
+    def echec_total(self) -> bool:
+        """Toutes les épreuves ciblées ont échoué (cf. `batch.est_echec_total`).
+
+        `total` est le nombre d'épreuves soumises au batch (URLs uniques, après
+        `--limit`) : c'est à lui qu'`errors` se compare.
+
+        Propriété (et non champ) : `asdict()` ne sérialise que les champs, la
+        charge utile `--json` reste inchangée.
+        """
+        return est_echec_total(epreuves=self.total, errors=self.errors)
 
 
 def run_rescrape_db(
