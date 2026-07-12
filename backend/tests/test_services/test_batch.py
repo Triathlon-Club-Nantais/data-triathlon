@@ -1,4 +1,7 @@
+from datetime import date
+
 from app.core.config import Settings
+from app.models.athlete import Athlete
 from app.services import batch, import_service
 from app.services.batch import BatchItem
 
@@ -124,3 +127,80 @@ def test_run_batch_sans_reporter_ne_leve_pas(db_session, monkeypatch):
     )
 
     assert totals.imported == 28  # NullReporter par défaut
+
+
+def test_run_batch_assainit_la_session_apres_une_exception_brute(
+    db_session, monkeypatch, fake_reporter
+):
+    """Une exception brute (pas le chemin persistance de `iter_import_event`, qui
+    fait déjà son propre rollback) ne doit pas poisonner la Session pour les
+    épreuves suivantes — sans quoi elles échouent en cascade avec
+    `PendingRollbackError`, même si elles n'ont rien à voir avec la 1re panne.
+    """
+
+    def _phases(db, url, settings, force=False):
+        if "boom" in url:
+            # Simule une coupure DB brute : IntegrityError qui remonte sans
+            # rollback, comme le SELECT non protégé de `_cached_result`.
+            db.add(Athlete(nom="Dupont", prenom="Jean", birth_date=date(1990, 1, 1)))
+            db.add(Athlete(nom="Dupont", prenom="Jean", birth_date=date(1990, 1, 1)))
+            db.flush()
+            return
+        # 2e épreuve : une vraie requête sur la même Session — lève
+        # PendingRollbackError si la Session n'a pas été assainie entre-temps.
+        db.query(Athlete).count()
+        yield {"phase": "done", "imported": 5, "skipped": 1, "total": 6}
+
+    monkeypatch.setattr(import_service, "iter_import_event", _phases)
+
+    totals = batch.run_batch(
+        db_session,
+        [BatchItem(url="https://k/boom", label="A"), BatchItem(url="https://k/ok", label="B")],
+        _settings(), force=False, delay=0.0, reporter=fake_reporter,
+    )
+
+    assert totals.errors == 1
+    assert totals.imported == 5  # la 2e épreuve a bien pu utiliser la Session
+    assert totals.skipped == 1
+
+
+def test_run_batch_saving_puis_error_ne_credite_pas_les_compteurs(
+    db_session, monkeypatch, fake_reporter
+):
+    """Chemin réel de `iter_import_event` : des phases `saving` avec des
+    compteurs non nuls, suivies d'une phase `error` sur son rollback interne —
+    ces compteurs partiels ne doivent pas être crédités au batch.
+    """
+
+    def _phases(db, url, settings, force=False):
+        yield {"phase": "saving", "total": 30, "imported": 10, "skipped": 1, "progress": 15}
+        yield {"phase": "error", "message": "coupure réseau pendant l'enregistrement"}
+
+    monkeypatch.setattr(import_service, "iter_import_event", _phases)
+
+    totals = batch.run_batch(
+        db_session, [BatchItem(url="https://k/1", label="A")], _settings(),
+        force=False, delay=0.0, reporter=fake_reporter,
+    )
+
+    assert totals.errors == 1
+    assert totals.imported == 0
+    assert totals.skipped == 0
+
+
+def test_run_batch_pause_entre_epreuves_mais_pas_apres_la_derniere(
+    db_session, monkeypatch, fake_reporter
+):
+    monkeypatch.setattr(import_service, "iter_import_event", _phases_ok)
+
+    appels: list[float] = []
+    monkeypatch.setattr(batch.time, "sleep", lambda s: appels.append(s))
+
+    items = [
+        BatchItem(url="https://k/1", label="A"),
+        BatchItem(url="https://k/2", label="B"),
+        BatchItem(url="https://k/3", label="C"),
+    ]
+    batch.run_batch(db_session, items, _settings(), force=False, delay=2.5, reporter=fake_reporter)
+
+    assert appels == [2.5, 2.5]
