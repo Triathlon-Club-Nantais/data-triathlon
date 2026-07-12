@@ -49,8 +49,8 @@ Réglages restants à faire **dans le dashboard** (non supportés par le MCP) :
 
 **Service PREVIEW `triathlon-backend-preview`** :
 1. **Settings → Root Directory = `backend`** (créé avec un rootDir vide — le MCP
-   ne permet pas de le définir ; sans ça le build échoue : pas de `requirements.txt`
-   à la racine du repo).
+   ne permet pas de le définir ; sans ça le build échoue : pas de `pyproject.toml`
+   et `uv.lock` à la racine du repo).
 2. Renseigner `DATABASE_URL` (Supabase preview).
 3. Copier l'URL du **Deploy Hook** (Settings → Deploy Hook) → secret `RENDER_DEPLOY_HOOK_PREVIEW`.
 
