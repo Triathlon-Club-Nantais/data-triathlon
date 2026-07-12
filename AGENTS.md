@@ -16,7 +16,7 @@ Une seule génération, en deux briques :
 Specs de refonte (historiques) : `docs/superpowers/specs/`.
 
 ## Stack
-- **Backend** (`backend/`) : Python 3.13, **uv** (`pyproject.toml` + `uv.lock`), FastAPI 0.115,
+- **Backend** (`backend/`) : Python 3.13, **uv** (`pyproject.toml` + `uv.lock`), FastAPI,
   SQLAlchemy 2.0 (sync), Pydantic v2 + pydantic-settings, **Alembic** (migrations), PostgreSQL
   (Supabase) / SQLite en dev. Scraping httpx + BeautifulSoup/lxml, fallback
   Playwright. Tests pytest, ruff. API versionnée sous `/api/v1`.
