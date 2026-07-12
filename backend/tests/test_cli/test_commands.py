@@ -1,11 +1,14 @@
 import json
 from contextlib import contextmanager
+from types import SimpleNamespace
 
 from typer.testing import CliRunner
 
 from app.cli import app, reports
 from app.cli.commands import import_sheet as cmd_import
 from app.cli.commands import rescrape_db as cmd_rescrape
+from app.repositories import course_repository
+from app.services import import_service
 from app.services.bulk_import_service import SheetOutcome
 from app.services.progress import NullReporter
 from app.services.rescrape_service import RescrapeOutcome
@@ -38,6 +41,23 @@ def _brancher_tube_ferme(monkeypatch) -> _EchoTubeFerme:
     faux_echo = _EchoTubeFerme()
     monkeypatch.setattr(reports.typer, "echo", faux_echo)
     return faux_echo
+
+
+class _SessionFactice:
+    """Session inerte : `run_batch` ne fait que la rollback entre deux épreuves."""
+
+    def rollback(self) -> None:
+        pass
+
+
+@contextmanager
+def _fausse_session_db():
+    yield _SessionFactice()
+
+
+def _iter_en_echec(db, url, settings, force=False):
+    """Toute épreuve tentée échoue — site tiers down (zéro réseau, zéro DB)."""
+    yield {"phase": "error", "message": "503 Service Unavailable"}
 
 
 class _ServiceEspion:
@@ -509,3 +529,64 @@ def test_tube_ferme_ne_masque_pas_le_ctrl_c(monkeypatch):
 
     assert isinstance(result.exception, KeyboardInterrupt | SystemExit)
     assert result.exit_code != 0
+
+
+# --- dénominateur d'`echec_total` sous `--limit` -----------------------------
+#
+# Ces deux tests traversent la **vraie** chaîne commande → service → run_batch
+# (seuls le scrape et la Session sont doublés) : ce sont les seuls à épingler le
+# dénominateur de l'échec total, que les tests à service espionné ne voient pas.
+
+
+def test_import_sheet_limit_toutes_les_epreuves_tentees_echouent_sort_en_1(monkeypatch):
+    """`--limit 5` sur un Sheet de 300 liens, les 5 épreuves tentées échouent ⇒ exit 1.
+
+    Épingle le **dénominateur** d'`echec_total` : `unique_supported` doit compter
+    les épreuves réellement soumises au batch (donc **après** le slice `--limit`),
+    et non les 300 liens uniques du Sheet. Le calculer avant le slice — la
+    « correction » que suggère le Minor d'affichage ouvert sur ce compteur —
+    donnerait `errors=5` contre `unique_supported=300` : plus d'échec total, exit
+    0, et le cron n'alerterait plus jamais alors que tout ce qu'il a tenté a
+    échoué.
+    """
+    csv_text = "nom,Donne-nous un lien pour accéder aux résultats.\n" + "".join(
+        f"x,https://www.klikego.com/resultats/course-{i}/16745231637-{i}\n"
+        for i in range(300)
+    )
+    monkeypatch.setattr(cmd_import, "session_scope", _fausse_session_db)
+    monkeypatch.setattr(cmd_import.sheet_source, "download_csv", lambda url: csv_text)
+    monkeypatch.setattr(import_service, "iter_import_event", _iter_en_echec)
+
+    result = runner.invoke(app, ["import-sheet", "--limit", "5", "--delay", "0"])
+
+    assert result.exit_code == 1
+    assert "Liens supportés uniques : 5" in result.stdout  # les épreuves soumises
+    assert "En erreur : 5" in result.stdout
+    assert "Échec total" in result.stdout
+
+
+def test_rescrape_db_limit_toutes_les_epreuves_tentees_echouent_sort_en_1(monkeypatch):
+    """`--limit 5` sur 53 épreuves en base, les 5 tentées échouent ⇒ exit 1.
+
+    Même piège que pour `import-sheet` : `RescrapeOutcome.total` est le
+    dénominateur de l'échec total. Compté avant le slice `--limit` (53), il
+    noierait les 5 erreurs et rendrait le code de sortie muet.
+    """
+    courses = [
+        SimpleNamespace(
+            source_url=f"https://www.klikego.com/resultats/course-{i}/16745-{i}",
+            provider="klikego",
+            name=f"Épreuve {i}",
+        )
+        for i in range(53)
+    ]
+    monkeypatch.setattr(cmd_rescrape, "session_scope", _fausse_session_db)
+    monkeypatch.setattr(course_repository, "iter_all", lambda db, **kwargs: courses)
+    monkeypatch.setattr(import_service, "iter_import_event", _iter_en_echec)
+
+    result = runner.invoke(app, ["rescrape-db", "--limit", "5", "--delay", "0"])
+
+    assert result.exit_code == 1
+    assert "Épreuves ciblées : 5" in result.stdout  # les épreuves soumises au batch
+    assert "En erreur : 5" in result.stdout
+    assert "Échec total" in result.stdout
