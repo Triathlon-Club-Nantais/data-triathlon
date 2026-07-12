@@ -97,6 +97,23 @@ def test_import_sheet_interrompu_sort_en_130(monkeypatch):
     assert "Importées : 3" in result.stdout  # le bilan partiel est bien affiché
 
 
+def test_import_sheet_json_interrompu_emet_quand_meme_le_json(monkeypatch):
+    """Ctrl-C + `--json` : la charge JSON doit sortir AVANT l'exit 130.
+
+    Sinon un cron qui pipe vers `jq` perdrait silencieusement le bilan partiel.
+    """
+    _brancher_import(
+        monkeypatch, SheetOutcome(imported=3, unique_supported=9, interrupted=True)
+    )
+
+    result = runner.invoke(app, ["import-sheet", "--json"])
+
+    assert result.exit_code == 130
+    charge = json.loads(result.stdout)  # stdout reste parsable tel quel
+    assert charge["imported"] == 3
+    assert charge["interrupted"] is True
+
+
 def test_import_sheet_dry_run_coupe_la_progression(monkeypatch):
     """Un dry-run ne scrape rien : le service doit recevoir un NullReporter."""
     espion = _brancher_import(monkeypatch, SheetOutcome(unique_supported=1))
