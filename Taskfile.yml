@@ -9,8 +9,8 @@
 #   docker:* → docker-compose (pile full-stack locale)
 # Les tâches sans préfixe sont des raccourcis qui agissent sur l'ensemble de la pile.
 #
-# Prérequis backend : venv Python activé (cf. README). Les tâches `*:install`
-# installent les dépendances ; elles n'activent pas le venv à votre place.
+# Prérequis backend : uv (https://docs.astral.sh/uv/). Aucun venv à activer :
+# `uv run` synchronise l'environnement depuis uv.lock avant d'exécuter.
 
 version: '3'
 
@@ -55,64 +55,64 @@ tasks:
   # backend/ (FastAPI + SQLAlchemy + Alembic)
   # ──────────────────────────────────────────────────────────────────────────
   b:install:
-    desc: 'backend : installe les dépendances de dev (pip)'
+    desc: 'backend : installe les dépendances (uv sync, dev inclus)'
     dir: backend
     cmds:
-      - pip install -r requirements-dev.txt
+      - uv sync
 
   b:dev:
     desc: 'backend : serveur API + /docs sur :8001 (reload)'
     dir: backend
     cmds:
-      - uvicorn app.main:app --reload --port 8001
+      - uv run uvicorn app.main:app --reload --port 8001
 
   b:migrate:
     desc: 'backend : applique les migrations Alembic (upgrade head)'
     dir: backend
     cmds:
-      - alembic upgrade head
+      - uv run alembic upgrade head
 
   b:migration:
     desc: 'backend : nouvelle migration auto — usage : task b:migration -- "message"'
     dir: backend
     cmds:
-      - alembic revision --autogenerate -m "{{.CLI_ARGS}}"
+      - uv run alembic revision --autogenerate -m "{{.CLI_ARGS}}"
 
   b:reset-db:
     desc: 'backend : reset base dev SQLite (vide + migre + seed démo) — args : task b:reset-db -- --no-seed --yes'
     dir: backend
     cmds:
-      - python scripts/reset_db.py {{.CLI_ARGS}}
+      - uv run python scripts/reset_db.py {{.CLI_ARGS}}
 
   b:test:
     desc: 'backend : tests unitaires (sans réseau)'
     dir: backend
     cmds:
-      - pytest -m "not integration"
+      - uv run pytest -m "not integration"
 
   b:test:integration:
     desc: 'backend : tests d''intégration (réseau réel, scrapers)'
     dir: backend
     cmds:
-      - pytest -m integration
+      - uv run pytest -m integration
 
   b:test:all:
     desc: 'backend : tous les tests (unitaires + intégration)'
     dir: backend
     cmds:
-      - pytest
+      - uv run pytest
 
   b:lint:
     desc: 'backend : lint ruff'
     dir: backend
     cmds:
-      - ruff check .
+      - uv run ruff check .
 
   b:lint:fix:
     desc: 'backend : lint ruff avec corrections automatiques'
     dir: backend
     cmds:
-      - ruff check --fix .
+      - uv run ruff check --fix .
 
   # ──────────────────────────────────────────────────────────────────────────
   # frontend/ (Next.js 16 + TypeScript + Tailwind)

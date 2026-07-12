@@ -13,20 +13,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v8
         with:
-          python-version: "3.13" # version CI épinglée (cf. backend/.python-version)
-          cache: pip
-          cache-dependency-path: backend/requirements-dev.txt
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
 
+      # --locked : échoue si uv.lock n'est pas à jour avec pyproject.toml.
+      # C'est le garde-fou qui empêche une dépendance ajoutée sans lock de passer en revue.
       - name: Install dependencies
-        run: pip install -r requirements-dev.txt
+        run: uv sync --locked
 
       - name: Lint (ruff)
-        run: ruff check .
+        run: uv run ruff check .
 
       - name: Tests (hors réseau)
-        run: pytest -m "not integration"
+        run: uv run pytest -m "not integration"
 
   frontend:
     runs-on: ubuntu-latest
