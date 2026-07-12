@@ -100,13 +100,18 @@ class BreizhChronoProvider:
 class WiclaxProvider:
     name = "wiclax"
 
+    # Hosts servant un moteur G-Live. Allowlist **explicite** : détecter du G-Live
+    # par le contenu obligerait à télécharger la page de toute URL inconnue avant
+    # de savoir la traiter. Un nouveau déploiement tiers = une ligne ici.
+    # `chronowest.fr` : WordPress + iframe G-Live (issue #35).
+    _HOSTS = ("wiclax-results.com", "chronosmetron.com", "chronowest.fr")
+
     def matches(self, url: str) -> bool:
         parsed = urlparse(url)
         host = (parsed.netloc or "").lower()
         path = parsed.path or ""
         return (
-            host.endswith("wiclax-results.com")
-            or host.endswith("chronosmetron.com")
+            any(host == h or host.endswith(f".{h}") for h in self._HOSTS)
             or (host.endswith("wiclax.com") and "G-Live" in path)
         )
 

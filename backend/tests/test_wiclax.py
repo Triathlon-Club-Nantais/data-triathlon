@@ -7,6 +7,7 @@ compétiteur (formats Competitor et ChronoSmetron E/R), mapping des segments
 """
 import xml.etree.ElementTree as ET
 
+from app.scrapers import registry
 from app.scrapers.base import ScrapedResult
 from app.scrapers.wiclax import (
     _competitor_status,
@@ -510,3 +511,31 @@ def test_clax_event_date_absent():
     from app.scrapers.wiclax import _clax_event_date
 
     assert _clax_event_date(_el('<Epreuve nom="X"/>')) is None
+
+
+# ---------------------------------------------------------------------------
+# Détection de provider (registre)
+# ---------------------------------------------------------------------------
+
+
+def test_registry_detecte_chronowest():
+    """chronowest.fr est un déploiement Wiclax/G-Live, pas un moteur inconnu."""
+    assert registry.detect_provider(
+        "https://chronowest.fr/resultats/trail-des-2-ponts-2026/"
+    ) == "wiclax"
+    assert registry.detect_provider("https://chronowest.fr/trail-des-2-ponts-2026/") == "wiclax"
+
+
+def test_registry_hosts_wiclax_existants_inchanges():
+    """Non-régression : les hosts déjà supportés restent routés vers wiclax."""
+    for url in (
+        "https://chronosmetron.wiclax-results.com/Triathlon%20de%20la%20Roche%202026/",
+        "https://www.chronosmetron.com/resultats/",
+        "https://x.wiclax.com/G-Live/g-live.html?f=../E/e.clax",
+    ):
+        assert registry.detect_provider(url) == "wiclax", url
+
+
+def test_registry_host_inconnu_reste_playwright():
+    """L'allowlist reste explicite : pas de sniffing de contenu."""
+    assert registry.detect_provider("https://exemple-inconnu.fr/resultats/") == "playwright"
