@@ -51,7 +51,7 @@ npm run lint       # ESLint
 ```
 
 Variable requise : `backend/.env` avec `DATABASE_URL` (voir `.env.example`). Le
-schéma est géré par **Alembic** (`alembic upgrade head`). Les dépendances et la
+schéma est géré par **Alembic** (`uv run alembic upgrade head`). Les dépendances et la
 config des outils vivent dans `backend/pyproject.toml` (lock : `backend/uv.lock`).
 
 ## Architecture backend (`backend/`)
@@ -186,8 +186,8 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 
 - **Langue** : UI, commentaires et messages en **français** (avec accents).
 - Commits : Conventional Commits (`feat:`, `fix:`…), déjà en place dans l'historique.
-- Schéma DB : migrations **Alembic** (`alembic revision --autogenerate`
-  après modif d'un modèle, puis `alembic upgrade head`).
+- Schéma DB : migrations **Alembic** (`uv run alembic revision --autogenerate`
+  après modif d'un modèle, puis `uv run alembic upgrade head`).
 - Tests unitaires **sans réseau** ; le réseau réel est isolé derrière le marker
   `integration` (déclaré dans `backend/pyproject.toml`).
 

@@ -114,8 +114,11 @@ Le job `frontend` n'est pas touché.
 Render supporte uv nativement : la présence d'un `uv.lock` à la racine du service
 (ici `backend/`, via `rootDir`) suffit à mettre uv à disposition du build.
 
-- `render.yaml` : `buildCommand: uv sync --no-dev`,
-  `startCommand: uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
+- `render.yaml` : `buildCommand: uv sync --frozen --no-dev`,
+  `startCommand: uv run --no-sync alembic upgrade head && uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
+  `--frozen` interdit toute re-résolution silencieuse au build (même garantie que
+  l'image Docker) ; `--no-sync` empêche `uv run` de re-synchroniser
+  l'environnement au démarrage, déjà figé par le build.
 - **Étape obligatoire, hors fichier** : les deux services (`data-triathlon` en
   prod, `triathlon-backend-preview`) ont été créés hors blueprint ; leurs
   `buildCommand` / `startCommand` sont stockés **dans le dashboard Render** et ne
