@@ -474,9 +474,11 @@ Attendu : les migrations s'appliquent au démarrage, puis une réponse JSON de s
 Render met uv à disposition du build dès qu'un `uv.lock` est présent à la racine du service (ici `backend/`, via `rootDir`). Remplacer les deux commandes :
 
 ```yaml
-    buildCommand: uv sync --no-dev
-    startCommand: uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    buildCommand: uv sync --frozen --no-dev
+    startCommand: uv run --no-sync alembic upgrade head && uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port $PORT
 ```
+
+`--frozen` aligne le build sur l'image Docker (aucune re-résolution silencieuse) ; `--no-sync` évite que `uv run` re-synchronise l'environnement à chaque démarrage alors que le build l'a déjà figé.
 
 Le reste du fichier (`type`, `name`, `runtime: python`, `autoDeploy: false`, `rootDir: backend`, `envVars`) est inchangé.
 
@@ -691,8 +693,8 @@ Pour chacun des deux `id`, appeler `mcp__render__get_service` et noter les `buil
 
 Pour chaque `id`, appeler `mcp__render__update_web_service` avec exactement les commandes de `render.yaml` :
 
-- `buildCommand` : `uv sync --no-dev`
-- `startCommand` : `uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+- `buildCommand` : `uv sync --frozen --no-dev`
+- `startCommand` : `uv run --no-sync alembic upgrade head && uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 
 Ne toucher à **rien d'autre** : ni `rootDir` (`backend`), ni les variables d'environnement (`DATABASE_URL`), ni l'auto-deploy.
 
