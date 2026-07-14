@@ -101,6 +101,64 @@ def test_run_batch_ctrl_c_conserve_le_travail_deja_fait(db_session, monkeypatch,
     assert fake_reporter.calls[-1] == ("batch_end",)          # les barres sont bien fermées
 
 
+def test_run_batch_compte_les_epreuves_traitees(db_session, monkeypatch):
+    """`processed` compte des **épreuves**, là où `imported`/`skipped` comptent des participants.
+
+    Sans lui, un bilan interrompu affiche « Épreuves ciblées : 42 » et des
+    milliers de participants ignorés, sans dire combien des 42 ont réellement
+    été tentées : l'opérateur ne peut pas situer où le Ctrl-C a coupé.
+    """
+    monkeypatch.setattr(import_service, "iter_import_event", _phases_ok)
+
+    totals = batch.run_batch(
+        db_session,
+        [BatchItem(url="https://k/1", label="A"), BatchItem(url="https://k/2", label="B")],
+        _settings(), force=False, delay=0.0,
+    )
+
+    assert totals.processed == 2       # deux épreuves
+    assert totals.imported == 56       # 28 participants chacune : une autre unité
+
+
+def test_run_batch_ctrl_c_ne_compte_pas_l_epreuve_coupee_en_traitee(db_session, monkeypatch):
+    """Une épreuve interrompue en plein vol n'a pas été traitée : elle ne compte pas.
+
+    Le Ctrl-C tombe pendant la 2e des trois épreuves ⇒ une seule est allée au bout.
+    """
+    def _phases(db, url, settings, force=False):
+        if "stop" in url:
+            raise KeyboardInterrupt
+        yield from _phases_ok(db, url, settings, force)
+
+    monkeypatch.setattr(import_service, "iter_import_event", _phases)
+
+    totals = batch.run_batch(
+        db_session,
+        [BatchItem(url="https://k/ok", label="A"), BatchItem(url="https://k/stop", label="B"),
+         BatchItem(url="https://k/jamais", label="C")],
+        _settings(), force=False, delay=0.0,
+    )
+
+    assert totals.interrupted is True
+    assert totals.processed == 1
+
+
+def test_run_batch_une_epreuve_en_erreur_reste_une_epreuve_traitee(db_session, monkeypatch):
+    """Tentée et échouée = traitée. Sinon `traitées` mentirait sur ce qui a été tenté."""
+    def _phases(db, url, settings, force=False):
+        yield {"phase": "error", "message": "timeout scrape"}
+
+    monkeypatch.setattr(import_service, "iter_import_event", _phases)
+
+    totals = batch.run_batch(
+        db_session, [BatchItem(url="https://k/boom", label="A")], _settings(),
+        force=False, delay=0.0,
+    )
+
+    assert totals.errors == 1
+    assert totals.processed == 1
+
+
 def test_run_batch_transmet_force_au_generateur(db_session, monkeypatch):
     vus: list[bool] = []
 

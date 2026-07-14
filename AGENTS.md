@@ -136,6 +136,14 @@ des courses. Une épreuve porte N `Course` en base (heats Breizh Chrono, variant
 individuel/relais) : `rescrape-db` dédoublonne par `source_url` avant le batch,
 donc « Épreuves ciblées : 12 » sur une table de 53 courses n'est pas une perte.
 
+**Deux unités dans un bilan**, et chaque libellé doit le dire : « Épreuves
+ciblées / traitées / en erreur » comptent des **épreuves** ; « Participants
+ajoutés / déjà en base » comptent des **participants**. Ne pas revenir à des
+libellés muets sur l'unité (« Importées / Ignorées ») : lus sous « Épreuves
+ciblées : 42 », ils se comprennent en épreuves, et « Ignorées : 5820 » devient un
+non-sens. « Épreuves traitées » n'apparaît que sur un bilan interrompu, où elle
+situe le Ctrl-C (7 des 42).
+
 ### Conventions scrapers
 
 - Tout nouveau fournisseur : créer `scrapers/<nom>.py`, exposer `scrape()` (et

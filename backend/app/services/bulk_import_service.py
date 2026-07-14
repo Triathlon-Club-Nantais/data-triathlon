@@ -16,10 +16,16 @@ from app.services.progress import ProgressReporter
 
 @dataclass
 class SheetOutcome:
-    """Bilan d'un import-sheet."""
+    """Bilan d'un import-sheet.
+
+    `unique_supported`, `processed` et `errors` comptent des **épreuves** ;
+    `imported` et `skipped`, des **participants**. Le rapport nomme ces unités.
+    """
     imported: int = 0
     skipped: int = 0
     errors: int = 0
+    #: Épreuves réellement traitées — égal à `unique_supported`, sauf sous Ctrl-C.
+    processed: int = 0
     rows_without_link: int = 0
     unique_supported: int = 0
     ignored_by_host: dict[str, int] = field(default_factory=dict)
@@ -93,5 +99,6 @@ def run_import_sheet(
     outcome.imported = totals.imported
     outcome.skipped = totals.skipped
     outcome.errors = totals.errors
+    outcome.processed = totals.processed
     outcome.interrupted = totals.interrupted
     return outcome
