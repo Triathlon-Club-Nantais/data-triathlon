@@ -41,11 +41,17 @@ def _dedupe_par_url(courses: list[Course]) -> list[Course]:
 
 @dataclass
 class RescrapeOutcome:
-    """Bilan d'un rescrape-db. `total` = nombre d'**épreuves** (URLs uniques)."""
+    """Bilan d'un rescrape-db. `total` = nombre d'**épreuves** (URLs uniques).
+
+    `total`, `processed` et `errors` comptent des **épreuves** ; `imported` et
+    `skipped`, des **participants**. Le rapport texte nomme ces unités.
+    """
     total: int = 0
     imported: int = 0
     skipped: int = 0
     errors: int = 0
+    #: Épreuves réellement traitées — égal à `total`, sauf sous Ctrl-C.
+    processed: int = 0
     dry_run_urls: list[str] = field(default_factory=list)
     interrupted: bool = False
 
@@ -103,5 +109,6 @@ def run_rescrape_db(
     outcome.imported = totals.imported
     outcome.skipped = totals.skipped
     outcome.errors = totals.errors
+    outcome.processed = totals.processed
     outcome.interrupted = totals.interrupted
     return outcome

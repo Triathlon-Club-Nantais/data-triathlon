@@ -29,10 +29,17 @@ class BatchItem:
 
 @dataclass
 class BatchTotals:
-    """Compteurs cumulés d'un batch. `interrupted` = arrêté par Ctrl-C."""
+    """Compteurs cumulés d'un batch. `interrupted` = arrêté par Ctrl-C.
+
+    Deux unités cohabitent, et le bilan doit les nommer : `processed`/`errors`
+    comptent des **épreuves**, `imported`/`skipped` des **participants**.
+    """
     imported: int = 0
     skipped: int = 0
     errors: int = 0
+    #: Épreuves allées au bout (succès **ou** échec). Sous Ctrl-C, celle qui a
+    #: été coupée en plein vol n'est pas comptée : elle n'a pas été traitée.
+    processed: int = 0
     interrupted: bool = False
 
 
@@ -168,6 +175,7 @@ def run_batch(
             else:
                 totals.imported += imported
                 totals.skipped += skipped
+            totals.processed += 1  # tentée et allée au bout, réussie ou non
             _notify(partial(reporter.item_done, imported, skipped, error))
             _liberer_session(db)
 

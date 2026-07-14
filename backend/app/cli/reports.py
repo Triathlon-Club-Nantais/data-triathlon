@@ -22,6 +22,38 @@ _LIGNE_ECHEC_TOTAL = (
 )
 
 
+#: Largeur de la colonne des libellés (le plus long : « Participants déjà en base »).
+_COL = 25
+
+
+def _ligne(libelle: str, valeur: object) -> str:
+    return f"{libelle:<{_COL}} : {valeur}"
+
+
+def _lignes_compteurs(outcome: Outcome) -> list[str]:
+    """Les compteurs du batch, **unité nommée dans chaque libellé**.
+
+    Un bilan croise deux unités : des **épreuves** (ciblées, traitées, en
+    erreur) et des **participants** (ajoutés, déjà en base). Les libellés
+    d'origine — « Importées / Ignorées » — les taisaient, et se lisaient donc
+    dans l'unité de la ligne du dessus : « Épreuves ciblées : 42 / Ignorées :
+    5820 » donnait « 5820 épreuves ignorées », un non-sens qui a réellement
+    dérouté un opérateur. On nomme l'unité plutôt que de compter sur le contexte.
+
+    « Épreuves traitées » n'apparaît que si le batch a été interrompu : mené à
+    son terme, `processed` égale le nombre d'épreuves ciblées, déjà affiché.
+    """
+    lignes = []
+    if outcome.interrupted:
+        lignes.append(_ligne("Épreuves traitées", outcome.processed))
+    lignes.append(_ligne("Épreuves en erreur", outcome.errors))
+    lignes.append(_ligne("Participants ajoutés", outcome.imported))
+    lignes.append(_ligne("Participants déjà en base", outcome.skipped))
+    if outcome.echec_total:
+        lignes.append(_LIGNE_ECHEC_TOTAL)
+    return lignes
+
+
 def _titre(base: str, *, dry_run: bool, interrupted: bool) -> str:
     if dry_run:
         return f"=== {base} (dry-run) ==="
@@ -33,14 +65,10 @@ def _titre(base: str, *, dry_run: bool, interrupted: bool) -> str:
 def render_sheet_report(outcome: SheetOutcome, *, dry_run: bool) -> str:
     """Rapport texte lisible : compteurs + table des ignorés groupés par host."""
     lignes = [_titre("IMPORT SHEET", dry_run=dry_run, interrupted=outcome.interrupted)]
-    lignes.append(f"Liens supportés uniques : {outcome.unique_supported}")
-    lignes.append(f"Lignes sans lien        : {outcome.rows_without_link}")
+    lignes.append(_ligne("Liens supportés uniques", outcome.unique_supported))
+    lignes.append(_ligne("Lignes sans lien", outcome.rows_without_link))
     if not dry_run:
-        lignes.append(f"Importées : {outcome.imported}")
-        lignes.append(f"Ignorées  : {outcome.skipped}")
-        lignes.append(f"En erreur : {outcome.errors}")
-        if outcome.echec_total:
-            lignes.append(_LIGNE_ECHEC_TOTAL)
+        lignes.extend(_lignes_compteurs(outcome))
     if outcome.ignored_by_host:
         lignes.append("Liens non supportés (suivis dans #33) :")
         for host, count in sorted(outcome.ignored_by_host.items()):
@@ -58,16 +86,12 @@ def render_rescrape_report(outcome: RescrapeOutcome, *, dry_run: bool) -> str:
     (base de dev : 53 courses pour 12 épreuves).
     """
     lignes = [_titre("RESCRAPE DB", dry_run=dry_run, interrupted=outcome.interrupted)]
-    lignes.append(f"Épreuves ciblées : {outcome.total}")
+    lignes.append(_ligne("Épreuves ciblées", outcome.total))
     if dry_run:
         for url in outcome.dry_run_urls:
             lignes.append(f"  - {url}")
     else:
-        lignes.append(f"Importées : {outcome.imported}")
-        lignes.append(f"Ignorées  : {outcome.skipped}")
-        lignes.append(f"En erreur : {outcome.errors}")
-        if outcome.echec_total:
-            lignes.append(_LIGNE_ECHEC_TOTAL)
+        lignes.extend(_lignes_compteurs(outcome))
     return "\n".join(lignes)
 
 

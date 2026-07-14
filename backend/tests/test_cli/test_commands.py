@@ -104,7 +104,7 @@ def test_import_sheet_dry_run_affiche_le_rapport(monkeypatch):
 
     assert result.exit_code == 0
     assert "IMPORT SHEET (dry-run)" in result.stdout
-    assert "Liens supportés uniques : 4" in result.stdout
+    assert "Liens supportés uniques   : 4" in result.stdout
 
 
 def test_import_sheet_json_n_emet_que_du_json_sur_stdout(monkeypatch):
@@ -136,7 +136,7 @@ def test_import_sheet_interrompu_sort_en_130(monkeypatch):
     result = runner.invoke(app, ["import-sheet"])
 
     assert result.exit_code == 130
-    assert "Importées : 3" in result.stdout  # le bilan partiel est bien affiché
+    assert "Participants ajoutés      : 3" in result.stdout  # le bilan partiel est bien affiché
 
 
 def test_import_sheet_json_interrompu_emet_quand_meme_le_json(monkeypatch):
@@ -163,7 +163,7 @@ def test_import_sheet_echec_total_sort_en_code_non_nul(monkeypatch):
     result = runner.invoke(app, ["import-sheet"])
 
     assert result.exit_code == 1
-    assert "En erreur : 3" in result.stdout  # le bilan reste émis avant la sortie
+    assert "Épreuves en erreur        : 3" in result.stdout  # le bilan reste émis avant la sortie
     assert "Échec total" in result.stdout
 
 
@@ -298,7 +298,7 @@ def test_rescrape_db_dry_run_affiche_les_urls(monkeypatch):
     result = runner.invoke(app, ["rescrape-db", "--dry-run"])
 
     assert result.exit_code == 0
-    assert "Épreuves ciblées : 1" in result.stdout
+    assert "Épreuves ciblées          : 1" in result.stdout
     assert "https://k/1" in result.stdout
 
 
@@ -320,7 +320,7 @@ def test_rescrape_db_interrompu_sort_en_130(monkeypatch):
     result = runner.invoke(app, ["rescrape-db"])
 
     assert result.exit_code == 130
-    assert "Importées : 2" in result.stdout  # le bilan partiel est bien affiché
+    assert "Participants ajoutés      : 2" in result.stdout  # le bilan partiel est bien affiché
 
 
 def test_rescrape_db_echec_total_sort_en_code_non_nul(monkeypatch):
@@ -330,7 +330,7 @@ def test_rescrape_db_echec_total_sort_en_code_non_nul(monkeypatch):
     result = runner.invoke(app, ["rescrape-db"])
 
     assert result.exit_code == 1
-    assert "En erreur : 53" in result.stdout  # le bilan reste émis avant la sortie
+    assert "Épreuves en erreur        : 53" in result.stdout  # le bilan reste émis avant la sortie
     assert "Échec total" in result.stdout
 
 
@@ -484,7 +484,7 @@ def test_rescrape_db_tube_ferme_ne_fausse_pas_le_code_de_sortie(monkeypatch):
 
     assert result.exit_code == 0  # 2 erreurs sur 3 : succès partiel, pas un échec
     # stdout est mort : le bilan se replie sur stderr plutôt que de disparaître.
-    assert any("Importées : 12" in ligne for ligne in faux_echo.stderr)
+    assert any("Participants ajoutés      : 12" in ligne for ligne in faux_echo.stderr)
 
 
 def test_import_sheet_tube_ferme_preserve_l_echec_total(monkeypatch):
@@ -560,8 +560,8 @@ def test_import_sheet_limit_toutes_les_epreuves_tentees_echouent_sort_en_1(monke
     result = runner.invoke(app, ["import-sheet", "--limit", "5", "--delay", "0"])
 
     assert result.exit_code == 1
-    assert "Liens supportés uniques : 5" in result.stdout  # les épreuves soumises
-    assert "En erreur : 5" in result.stdout
+    assert "Liens supportés uniques   : 5" in result.stdout  # les épreuves soumises
+    assert "Épreuves en erreur        : 5" in result.stdout
     assert "Échec total" in result.stdout
 
 
@@ -587,6 +587,6 @@ def test_rescrape_db_limit_toutes_les_epreuves_tentees_echouent_sort_en_1(monkey
     result = runner.invoke(app, ["rescrape-db", "--limit", "5", "--delay", "0"])
 
     assert result.exit_code == 1
-    assert "Épreuves ciblées : 5" in result.stdout  # les épreuves soumises au batch
-    assert "En erreur : 5" in result.stdout
+    assert "Épreuves ciblées          : 5" in result.stdout  # les épreuves soumises au batch
+    assert "Épreuves en erreur        : 5" in result.stdout
     assert "Échec total" in result.stdout
