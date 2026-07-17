@@ -31,12 +31,29 @@ def _validate_url(url: str) -> str:
 
 def _scrape_all(url: str) -> list[ScrapedResult]:
     try:
-        return registry_scrape_event_all(url)
+        results = registry_scrape_event_all(url)
     except ValueError as exc:  # provider non supporté pour l'import en masse
         raise ProviderNotSupportedError(str(exc)) from exc
     except Exception as exc:
         logger.warning("Échec import %s : %s", url, exc)
         raise ScraperError(f"Erreur lors de l'import : {exc}") from exc
+    _require_event_name(url, results)
+    return results
+
+
+def _require_event_name(url: str, results: list[ScrapedResult]) -> None:
+    """Refuse un scrape dont l'épreuve n'a pas de nom : la course serait illisible.
+
+    Une `Course` sans nom n'est ni lisible dans l'UI ni retrouvable à la
+    recherche, et son identité `(nom, date, type)` entre en collision avec
+    toute autre course anonyme du même jour. On échoue avant d'écrire : le
+    batch la compte en erreur et l'opérateur la voit dans son bilan.
+    """
+    if any(not (r.event_name or "").strip() for r in results):
+        raise ScraperError(
+            f"Nom d'épreuve introuvable pour {url} — import refusé "
+            "(une course sans nom serait inexploitable)."
+        )
 
 
 class _Persister:
