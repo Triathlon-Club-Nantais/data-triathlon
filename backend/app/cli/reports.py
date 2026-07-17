@@ -69,6 +69,12 @@ def render_sheet_report(outcome: SheetOutcome, *, dry_run: bool) -> str:
     lignes.append(_ligne("Lignes sans lien", outcome.rows_without_link))
     if not dry_run:
         lignes.extend(_lignes_compteurs(outcome))
+        if outcome.failures:
+            # Le compteur « Épreuves en erreur » dit *combien* ; ce détail dit
+            # *lesquelles* et *pourquoi*, sans avoir à rejouer l'import.
+            lignes.append("Épreuves en erreur (détail) :")
+            for failure in outcome.failures:
+                lignes.append(f"  - {failure.url} : {failure.message}")
     if outcome.ignored_by_host:
         lignes.append("Liens non supportés (suivis dans #33) :")
         for host, count in sorted(outcome.ignored_by_host.items()):

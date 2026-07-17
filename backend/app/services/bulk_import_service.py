@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.scrapers import registry
 from app.services import sheet_source
-from app.services.batch import BatchItem, est_echec_total, run_batch
+from app.services.batch import BatchFailure, BatchItem, est_echec_total, run_batch
 from app.services.progress import ProgressReporter
 
 
@@ -30,6 +30,10 @@ class SheetOutcome:
     unique_supported: int = 0
     ignored_by_host: dict[str, int] = field(default_factory=dict)
     interrupted: bool = False
+    #: Détail des épreuves en échec (URL + cause), pour diagnostiquer sans
+    #: rejouer l'import. Borné aux seuls échecs (≈ dizaines), il reste léger dans
+    #: la charge `--json`, contrairement à la liste de toutes les épreuves.
+    failures: list[BatchFailure] = field(default_factory=list)
 
     @property
     def echec_total(self) -> bool:
@@ -101,4 +105,5 @@ def run_import_sheet(
     outcome.errors = totals.errors
     outcome.processed = totals.processed
     outcome.interrupted = totals.interrupted
+    outcome.failures = totals.failures
     return outcome

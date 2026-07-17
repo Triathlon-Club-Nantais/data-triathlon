@@ -1,4 +1,5 @@
 from app.cli.reports import render_rescrape_report, render_sheet_report
+from app.services.batch import BatchFailure
 from app.services.bulk_import_service import SheetOutcome
 from app.services.rescrape_service import RescrapeOutcome
 
@@ -23,6 +24,38 @@ def test_rapport_sheet_liste_les_ignores_par_host():
     assert "Participants ajoutés      : 5" in texte
     assert "Épreuves en erreur        : 1" in texte
     assert "inconnu.example : 3" in texte
+
+
+def test_rapport_sheet_liste_le_detail_des_epreuves_en_erreur():
+    """Le compteur dit *combien* ; le détail dit *lesquelles* et *pourquoi*."""
+    out = SheetOutcome(
+        imported=5, errors=2, unique_supported=7, processed=7,
+        failures=[
+            BatchFailure(url="https://k/boom", label="klikego · A", message="timeout scrape"),
+            BatchFailure(url="https://t/nope", label="timepulse · B", message="404"),
+        ],
+    )
+    texte = render_sheet_report(out, dry_run=False)
+
+    assert "Épreuves en erreur        : 2" in texte
+    assert "Épreuves en erreur (détail) :" in texte
+    assert "  - https://k/boom : timeout scrape" in texte
+    assert "  - https://t/nope : 404" in texte
+
+
+def test_rapport_sheet_sans_echec_n_affiche_pas_la_section_detail():
+    out = SheetOutcome(imported=5, errors=0, unique_supported=5, processed=5)
+    texte = render_sheet_report(out, dry_run=False)
+
+    assert "(détail)" not in texte
+
+
+def test_rapport_sheet_dry_run_masque_le_detail_des_erreurs():
+    """Un dry-run ne scrape rien : pas d'échec réel à lister."""
+    out = SheetOutcome(unique_supported=3, rows_without_link=1)
+    texte = render_sheet_report(out, dry_run=True)
+
+    assert "(détail)" not in texte
 
 
 def test_rapport_sheet_signale_l_interruption():

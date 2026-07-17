@@ -144,6 +144,16 @@ ciblées : 42 », ils se comprennent en épreuves, et « Ignorées : 5820 » dev
 non-sens. « Épreuves traitées » n'apparaît que sur un bilan interrompu, où elle
 situe le Ctrl-C (7 des 42).
 
+**Détail des épreuves en erreur** : le compteur « Épreuves en erreur : N » dit
+*combien*, pas *lesquelles*. `import-sheet` liste donc les échecs (URL + cause)
+sous « Épreuves en erreur (détail) : » — la boucle `batch` collecte un
+`BatchFailure(url, label, message)` par épreuve fautive (phase `error` ou
+exception rattrapée). Ce détail est aussi dans la charge `--json` (`failures`),
+et borné aux seuls échecs : il reste léger, contrairement à la liste de toutes
+les épreuves. À distinguer des **liens non supportés** (`ignored_by_host`, suivis
+dans #33) : ces derniers ne sont **jamais** soumis au batch, ils ne comptent ni
+en succès ni en échec.
+
 ### Conventions scrapers
 
 - Tout nouveau fournisseur : créer `scrapers/<nom>.py`, exposer `scrape()` (et
