@@ -13,6 +13,7 @@ Format d'une ligne (séparateur `|`), 12 champs :
 """
 import base64
 import re
+import unicodedata
 from datetime import date as _date
 from urllib.parse import urlencode
 
@@ -24,6 +25,11 @@ from .utils import normalize_time
 
 _XOR_KEY = ord("K")
 _PAGE_SIZE = 50
+
+# Les deux fronts terminent le <title> par «  - {code postal} - {ville} » ; ce
+# marqueur borne le nom de l'épreuve, qui peut lui-même contenir des « - »
+# (« Triathlon d'Angers - Entre Loire et Maine 2026 »).
+_TITLE_LOCATION_RE = re.compile(r"\s-\s\d{5}\s-\s")
 
 def decode_data_block(html: str) -> list[list[str]]:
     """Décode le `<script id="data">` d'une page course-result.jsp.
@@ -44,6 +50,46 @@ def decode_data_block(html: str) -> list[list[str]]:
         # HTML externe : un bloc corrompu ne doit pas faire échouer l'import.
         return []
     return [line.split("|") for line in text.split("\n") if line.strip()]
+
+
+def _slugify(text: str) -> str:
+    """« Triathlon M individuel » → « triathlon-m-individuel » (forme des heats)."""
+    plain = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
+    return re.sub(r"[^a-z0-9]+", "-", plain.lower()).strip("-")
+
+
+def parse_event_name(html: str, heat: str = "") -> str:
+    """Nom de l'épreuve lu dans le `<title>` de la page de résultats.
+
+    C'est la seule source fiable : le slug de l'URL perd les accents, les
+    esperluettes et la casse (« Run  Bike De Fay De Bretagne »), et une URL
+    `coureur.jsp` n'en porte aucun. Deux gabarits, un par front :
+
+      Klikego : « {épreuve} - {code postal} - {ville} - Résultats | Klikego »
+      BC      : « Résultats {libellé du heat} - {épreuve} - {code postal} - {ville} »
+
+    Renvoie `""` si le titre ne situe pas d'épreuve (page générique de
+    `coureur.jsp`) : mieux vaut pas de nom qu'un faux nom, l'appelant repliera.
+    """
+    soup = BeautifulSoup(html, "lxml")
+    if not soup.title:
+        return ""
+    title = re.sub(r"\s+", " ", soup.title.get_text()).strip()
+
+    loc = _TITLE_LOCATION_RE.search(title)
+    if not loc:
+        # Sans « - {code postal} - », le titre ne parle pas d'une épreuve précise.
+        return ""
+    name = title[: loc.start()].strip()
+    name = re.sub(r"^R[ée]sultats\s+", "", name)
+
+    # BC préfixe le nom par le libellé du heat, dont le slug est le heat lui-même.
+    if heat:
+        parts = name.split(" - ")
+        for i in range(1, len(parts)):
+            if _slugify(" - ".join(parts[:i])) == _slugify(heat):
+                return " - ".join(parts[i:]).strip()
+    return name
 
 
 _STATUS_BY_TOKEN = {
@@ -230,6 +276,10 @@ def build_heat_results(
     rows = fetch_heat_rows(base, event_id, heat, client)
     inter_options = discover_inter_options(heat_page_html)
     splits = fetch_inter_splits(base, event_id, heat, inter_options, client) if inter_options else {}
+
+    # Le nom porté par la page prime sur celui dérivé du slug d'URL (accents,
+    # casse, esperluette) ; le slug reste le repli quand la page n'en donne pas.
+    event_name = parse_event_name(heat_page_html, heat) or event_name
 
     results: list[ScrapedResult] = []
     for raw in rows:
