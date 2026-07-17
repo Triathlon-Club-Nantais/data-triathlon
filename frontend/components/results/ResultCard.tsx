@@ -12,6 +12,7 @@ import { InitialsAvatar } from "@/components/ui/initials-avatar";
 import { splitSegments } from "@/lib/utils/splits";
 import { formatDate, timeAgo } from "@/lib/utils/date";
 import { formatEventName } from "@/lib/utils/event";
+import { isHttpUrl } from "@/lib/utils/url";
 import type { Participation } from "@/lib/types";
 
 export function ResultCard({
@@ -118,9 +119,13 @@ export function ResultCard({
         )}
 
         <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <a href={c?.source_url} target="_blank" rel="noopener noreferrer" className="hover:underline">
-            Source ({c?.provider})
-          </a>
+          {isHttpUrl(c?.source_url) ? (
+            <a href={c?.source_url} target="_blank" rel="noopener noreferrer" className="hover:underline">
+              Source ({c?.provider})
+            </a>
+          ) : (
+            <span>Source ({c?.provider})</span>
+          )}
           {result.created_at && <span>Ajouté {timeAgo(result.created_at)}</span>}
         </div>
       </CardContent>
