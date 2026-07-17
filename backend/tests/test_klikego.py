@@ -838,6 +838,123 @@ def test_fetch_heat_rows_paginates_and_stops(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# parse_event_name — le nom d'épreuve vient de la page, pas du slug d'URL
+# ---------------------------------------------------------------------------
+
+
+def test_parse_event_name_klikego_title():
+    """Klikego : « {épreuve} - {code postal} - {ville} - Résultats | Klikego »."""
+    from app.scrapers.klikego_platform import parse_event_name
+
+    html = (
+        "<html><head><title>\n\t\tRun &amp; Bike de Fay de Bretagne 2026 - 44130 - "
+        "Fay de bretagne - Résultats | Klikego\n\t</title></head></html>"
+    )
+    assert parse_event_name(html, heat="") == "Run & Bike de Fay de Bretagne 2026"
+
+
+def test_parse_event_name_bc_title_strips_heat_label():
+    """Breizh Chrono : « Résultats {heat} - {épreuve} - {code postal} - {ville} ».
+
+    Le nom d'épreuve contient lui-même des « - » : on ne peut pas découper
+    naïvement. Le libellé de tête est identifié par son slug, égal au heat.
+    """
+    from app.scrapers.klikego_platform import parse_event_name
+
+    html = (
+        "<html><head><title>Résultats Triathlon M individuel - Triathlon d'Angers - "
+        "Entre Loire et Maine 2026 - 49000 - Angers</title></head></html>"
+    )
+    got = parse_event_name(html, heat="triathlon-m-individuel")
+    assert got == "Triathlon d'Angers - Entre Loire et Maine 2026"
+
+
+def test_parse_event_name_generic_page_returns_empty():
+    """Page sans contexte d'épreuve (titre générique) → aucun nom inventé.
+
+    `coureur.jsp` sert ce titre : sans le marqueur « - {code postal} - », on
+    renverrait « des courses Breizh Chrono » comme nom de course.
+    """
+    from app.scrapers.klikego_platform import parse_event_name
+
+    html = "<html><head><title>Résultats des courses Breizh Chrono</title></head></html>"
+    assert parse_event_name(html, heat="triathlon-m-individuel") == ""
+
+
+def test_parse_event_name_no_title():
+    from app.scrapers.klikego_platform import parse_event_name
+
+    assert parse_event_name("<html><body>rien</body></html>", heat="") == ""
+
+
+def test_build_heat_results_prefers_page_title_over_url_name(monkeypatch):
+    """Le nom de la page prime sur le nom dérivé du slug d'URL (accents, & , casse).
+
+    Cas de la course 103 : une URL `coureur.jsp` n'a pas de slug → l'appelant ne
+    peut fournir aucun nom, et la course était persistée sans nom.
+    """
+    from app.scrapers.klikego_platform import build_heat_results
+
+    page0 = (FIXTURES / "klikego_datablock_page0.html").read_text()
+    heat_page = (
+        "<html><head><title>Résultats Triathlon M individuel - Triathlon d'Angers - "
+        "Entre Loire et Maine 2026 - 49000 - Angers</title></head></html>"
+    )
+
+    class FakeResp:
+        status_code = 200
+        def __init__(self, t): self.text = t
+
+    class FakeClient:
+        def get(self, url):
+            if "inter=&page=0" in url:
+                return FakeResp(page0)
+            return FakeResp("<html></html>")
+
+    results = build_heat_results(
+        base="https://resultats.breizhchrono.com",
+        provider="breizhchrono",
+        event_id="1700025627600-3",
+        heat="triathlon-m-individuel",
+        heat_page_html=heat_page,
+        event_name="",  # slug absent de l'URL → l'appelant n'a pas de nom
+        slug="",
+        event_type="triathlon-m",
+        source_url="https://resultats.breizhchrono.com/x",
+        event_date=None,
+        client=FakeClient(),
+    )
+    assert results
+    assert all(
+        r.event_name == "Triathlon d'Angers - Entre Loire et Maine 2026" for r in results
+    )
+
+
+def test_build_heat_results_falls_back_to_url_name_without_title():
+    """Sans titre exploitable, on conserve le nom fourni par l'appelant (slug)."""
+    from app.scrapers.klikego_platform import build_heat_results
+
+    page0 = (FIXTURES / "klikego_datablock_page0.html").read_text()
+
+    class FakeResp:
+        status_code = 200
+        def __init__(self, t): self.text = t
+
+    class FakeClient:
+        def get(self, url):
+            return FakeResp(page0 if "inter=&page=0" in url else "<html></html>")
+
+    results = build_heat_results(
+        base="https://x", provider="klikego", event_id="1", heat="triathlon-m",
+        heat_page_html="<html>pas de titre</html>",
+        event_name="Triathlon De Vierzon 2026", slug="triathlon-de-vierzon-2026",
+        event_type="triathlon-m", source_url="https://x", event_date=None,
+        client=FakeClient(),
+    )
+    assert all(r.event_name == "Triathlon De Vierzon 2026" for r in results)
+
+
+# ---------------------------------------------------------------------------
 # discover_inter_options et inter_label_to_slot — découverte des checkpoints
 # ---------------------------------------------------------------------------
 
