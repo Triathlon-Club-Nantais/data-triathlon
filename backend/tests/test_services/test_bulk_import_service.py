@@ -68,6 +68,10 @@ def test_run_import_sheet_un_echec_n_interrompt_pas_le_batch(db_session, monkeyp
     out = bulk_import_service.run_import_sheet(db_session, csv_text, _settings(), delay=0.0)
     assert out.errors == 1
     assert out.imported == 1
+    # Le détail de l'échec remonte jusqu'au bilan (URL + cause).
+    assert [(f.url, f.message) for f in out.failures] == [
+        ("https://www.klikego.com/boom", "échec scrape")
+    ]
 
 
 def test_run_import_sheet_dry_run_ne_scrape_pas(db_session, monkeypatch):

@@ -63,6 +63,46 @@ def test_run_batch_phase_error_compte_une_erreur_sans_interrompre(
     assert ("item_done", 0, 0, "timeout scrape") in fake_reporter.calls
 
 
+def test_run_batch_collecte_le_detail_des_echecs(db_session, monkeypatch):
+    """`errors` dit *combien* ; `failures` dit *lesquelles* et *pourquoi*.
+
+    On veut pouvoir diagnostiquer (ou rescraper) les épreuves fautives sans
+    rejouer le batch : chaque échec retient son URL et son message.
+    """
+    def _phases(db, url, settings, force=False):
+        if "crash" in url:
+            raise RuntimeError("bug inattendu")  # exception réelle → filet de run_batch
+        yield {"phase": "error", "message": "timeout scrape"}  # phase error explicite
+
+    monkeypatch.setattr(import_service, "iter_import_event", _phases)
+
+    totals = batch.run_batch(
+        db_session,
+        [
+            BatchItem(url="https://k/boom", label="klikego · A"),
+            BatchItem(url="https://k/crash", label="klikego · B"),
+        ],
+        _settings(), force=False, delay=0.0,
+    )
+
+    assert totals.errors == 2
+    assert totals.failures == [
+        batch.BatchFailure(url="https://k/boom", label="klikego · A", message="timeout scrape"),
+        batch.BatchFailure(url="https://k/crash", label="klikego · B", message="bug inattendu"),
+    ]
+
+
+def test_run_batch_sans_echec_ne_collecte_rien(db_session, monkeypatch):
+    monkeypatch.setattr(import_service, "iter_import_event", _phases_ok)
+
+    totals = batch.run_batch(
+        db_session, [BatchItem(url="https://k/1", label="A")], _settings(),
+        force=False, delay=0.0,
+    )
+
+    assert totals.failures == []
+
+
 def test_run_batch_une_exception_reelle_compte_aussi_une_erreur(db_session, monkeypatch):
     def _phases(db, url, settings, force=False):
         raise RuntimeError("bug inattendu")

@@ -8,7 +8,7 @@ conservant le travail déjà persisté (chaque épreuve est commitée séparéme
 import logging
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial
 
 from sqlalchemy.orm import Session
@@ -27,6 +27,19 @@ class BatchItem:
     label: str
 
 
+@dataclass(frozen=True)
+class BatchFailure:
+    """Une épreuve en échec, de quoi la diagnostiquer sans rejouer le batch.
+
+    `url` pour la retrouver (ou la rescraper), `message` pour la cause — la phase
+    `error` d'`iter_import_event`, ou l'exception rattrapée par le filet de
+    `run_batch`. `label` reprend le libellé d'affichage (`provider · …`).
+    """
+    url: str
+    label: str
+    message: str
+
+
 @dataclass
 class BatchTotals:
     """Compteurs cumulés d'un batch. `interrupted` = arrêté par Ctrl-C.
@@ -41,6 +54,9 @@ class BatchTotals:
     #: été coupée en plein vol n'est pas comptée : elle n'a pas été traitée.
     processed: int = 0
     interrupted: bool = False
+    #: Détail des épreuves en échec (une entrée par `errors`), dans l'ordre du
+    #: batch : le compteur `errors` dit combien, celui-ci dit lesquelles et pourquoi.
+    failures: list[BatchFailure] = field(default_factory=list)
 
 
 def est_echec_total(*, epreuves: int, errors: int) -> bool:
@@ -172,6 +188,9 @@ def run_batch(
 
             if error:
                 totals.errors += 1
+                totals.failures.append(
+                    BatchFailure(url=item.url, label=item.label, message=error)
+                )
             else:
                 totals.imported += imported
                 totals.skipped += skipped

@@ -119,6 +119,27 @@ def test_import_sheet_json_n_emet_que_du_json_sur_stdout(monkeypatch):
     assert "IMPORT SHEET" not in result.stdout
 
 
+def test_import_sheet_json_embarque_le_detail_des_erreurs(monkeypatch):
+    """Le détail des échecs (URL + cause) doit survivre à la sérialisation `asdict`."""
+    from app.services.batch import BatchFailure
+
+    _brancher_import(
+        monkeypatch,
+        SheetOutcome(
+            errors=1, unique_supported=2, processed=2, imported=3,
+            failures=[BatchFailure(url="https://k/boom", label="klikego · A", message="404")],
+        ),
+    )
+
+    result = runner.invoke(app, ["import-sheet", "--json"])
+
+    assert result.exit_code == 0
+    charge = json.loads(result.stdout)
+    assert charge["failures"] == [
+        {"url": "https://k/boom", "label": "klikego · A", "message": "404"}
+    ]
+
+
 def test_import_sheet_sans_json_le_rapport_sort_sur_stdout(monkeypatch):
     _brancher_import(monkeypatch, SheetOutcome(imported=7, unique_supported=1))
 
