@@ -3,7 +3,7 @@ import { apiServer } from "@/lib/api/server";
 import { Card, Eyebrow, MetaPill } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
 import { RaceFinishers } from "@/components/results/RaceFinishers";
-import { eventTypeLabel } from "@/lib/constants";
+import { eventTypeLabel, providerLabel } from "@/lib/constants";
 import { formatToken } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
 import { isTCN } from "@/lib/utils/club";
@@ -88,6 +88,12 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
           {nonFinishers > 0 && <MetaPill label="Abandons">{nonFinishers}</MetaPill>}
           {unknown > 0 && <MetaPill label="Indéterminés">{unknown}</MetaPill>}
           {tcnCount > 0 && <MetaPill accent dot>{tcnCount} athlète{tcnCount > 1 ? "s" : ""} TCN</MetaPill>}
+          {course.source_url && (
+            <MetaPill label="Source" href={course.source_url} title="Ouvrir les résultats du chronométreur dans un nouvel onglet">
+              {providerLabel(course.provider)}
+              <span aria-hidden="true">↗</span>
+            </MetaPill>
+          )}
         </div>
       </div>
 

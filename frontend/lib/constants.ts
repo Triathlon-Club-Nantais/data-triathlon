@@ -36,6 +36,22 @@ export function eventTypeLabel(type: string | null | undefined): string {
   return EVENT_TYPE_LABELS[type] ?? type;
 }
 
+/** Nom commercial des chronométreurs, dont le slug technique sert de clé en base. */
+export const PROVIDER_LABELS: Record<string, string> = {
+  klikego: "Klikego",
+  breizhchrono: "Breizh Chrono",
+  timepulse: "TimePulse",
+  wiclax: "Wiclax",
+  prolivesport: "ProLiveSport",
+  sportinnovation: "Sport Innovation",
+};
+
+/** Libellé d'un chronométreur ; le slug brut à défaut, « Source » si non renseigné. */
+export function providerLabel(provider: string | null | undefined): string {
+  if (!provider) return "Source";
+  return PROVIDER_LABELS[provider] ?? provider;
+}
+
 /** Libellé complet d'une discipline : type + kilométrage si disponible. */
 export function disciplineLabel(course: {
   event_type: string | null | undefined;
