@@ -264,3 +264,37 @@ def test_iter_import_event_force_bypasse_le_cache_ttl(db_session, patch_scraper)
     assert (final["imported"], final["skipped"]) == (1, 1)
     assert "cached" not in final
     assert len(participation_repository.list_participations(db_session, page_size=100)) == 2
+
+
+# ---------------------------------------------------------------------------
+# Garde-fou : une épreuve sans nom n'est jamais persistée
+# ---------------------------------------------------------------------------
+
+
+def test_import_refuses_event_without_name(db_session, patch_scraper):
+    """Un scrape qui ne trouve pas le nom de l'épreuve échoue, sans rien écrire.
+
+    Sans ce garde-fou, une course sans nom se retrouve en base (cas réel de la
+    course 103, importée depuis une URL `coureur.jsp` sans slug) : illisible
+    dans l'UI, et invisible à la recherche.
+    """
+    from app.core.exceptions import ScraperError
+
+    patch_scraper([_result("1", "DUPONT", event_name=""), _result("2", "MARTIN", event_name="")])
+
+    with pytest.raises(ScraperError):
+        import_service.import_event(db_session, URL, _settings())
+
+    assert course_repository.list_all(db_session) == []
+    assert participation_repository.list_participations(db_session, page_size=100) == []
+
+
+def test_iter_import_refuses_event_without_name(db_session, patch_scraper):
+    """Même refus côté SSE : une phase `error` explicite, aucune course créée."""
+    patch_scraper([_result("1", "DUPONT", event_name="")])
+
+    phases = list(import_service.iter_import_event(db_session, URL, _settings()))
+
+    assert phases[-1]["phase"] == "error"
+    assert "nom" in phases[-1]["message"].lower()
+    assert course_repository.list_all(db_session) == []
