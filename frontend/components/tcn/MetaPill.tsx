@@ -1,21 +1,37 @@
 import type { CSSProperties, ReactNode } from "react";
 
-/** Chip clé/valeur des sous-en-têtes de page (« Format M », « Date … »). */
+/**
+ * Chip clé/valeur des sous-en-têtes de page (« Format M », « Date … »).
+ *
+ * Avec `href`, le chip devient un lien vers un site tiers (la page de résultats
+ * du chronométreur) : un `<a>` natif, pas un `Link` — Next ne préchargera jamais
+ * une URL externe, et le lien doit fonctionner sans routeur.
+ */
 export function MetaPill({
   label,
   children,
   accent = false,
   dot = false,
+  href,
+  title,
   style,
 }: {
   label?: ReactNode;
   children?: ReactNode;
   accent?: boolean;
   dot?: boolean;
+  href?: string;
+  title?: string;
   style?: CSSProperties;
 }) {
+  const Tag = href ? "a" : "span";
+  const linkProps = href
+    ? { href, target: "_blank", rel: "noopener noreferrer", className: "hover:underline" }
+    : {};
   return (
-    <span
+    <Tag
+      {...linkProps}
+      title={title}
       style={{
         display: "inline-flex",
         alignItems: "center",
@@ -35,6 +51,6 @@ export function MetaPill({
       ) : null}
       {label ? <span style={{ color: "var(--tcn-text-faint)" }}>{label}</span> : null}
       {children}
-    </span>
+    </Tag>
   );
 }
