@@ -543,3 +543,77 @@ def test_id_event_extracted_from_path_short():
                 break
 
     assert id_event == "3090"
+
+
+# ---------------------------------------------------------------------------
+# Date d'épreuve — repli sur la page publique quand le XML n'en porte aucune
+# ---------------------------------------------------------------------------
+
+
+def test_parse_event_page_date():
+    """La page TimePulse affiche la date de l'épreuve (📅 2024-10-06)."""
+    from datetime import date
+
+    from app.scrapers.timepulse import _parse_event_page_date
+
+    html = (
+        '<div class="infos">'
+        "<span>&#x1F4CD; Kiosque à musique de Couëron</span>"
+        "<span>&#x1F4C5; 2024-10-06</span>"
+        "</div>"
+    )
+    assert _parse_event_page_date(html) == date(2024, 10, 6)
+
+
+def test_parse_event_page_date_absent():
+    from app.scrapers.timepulse import _parse_event_page_date
+
+    assert _parse_event_page_date("<div>aucune date</div>") is None
+
+
+def test_scrape_event_all_event_date_from_event_page(monkeypatch):
+    """XML sans aucune date (`dates` vide, ni dt1 ni dt2) → repli sur la page.
+
+    Cas réel 2679 « COUËRON DUATHLON » : importé sans date. Le seul attribut
+    restant du XML est un numéro de série peu fiable ; la page, elle, affiche
+    la vraie date.
+    """
+    from datetime import date
+
+    xml = (
+        '<?xml version="1.0"?>\n<Triathlon>\n'
+        '  <Epreuve nom="COUËRON DUATHLON" dates="" date="45566"/>\n'
+        '  <E d="10" n="ALPHA Jean" c="Club" x="M" ca="SEH" p="Duathlon S"/>\n'
+        '  <R d="10" t="01:00:00"/>\n'
+        "</Triathlon>"
+    )
+    monkeypatch.setattr("app.scrapers.timepulse._fetch_xml", lambda _id: xml)
+    monkeypatch.setattr(
+        "app.scrapers.timepulse._fetch_event_page",
+        lambda _id: "<span>&#x1F4C5; 2024-10-06</span>",
+    )
+
+    results = scrape_event_all("https://www.timepulse.fr/epreuves/resultats/2679")
+    assert results[0].event_date == date(2024, 10, 6)
+
+
+def test_scrape_event_all_does_not_fetch_page_when_xml_has_date(monkeypatch):
+    """La page n'est interrogée qu'en dernier recours (pas de requête inutile)."""
+    from datetime import date
+
+    xml = (
+        '<?xml version="1.0"?>\n<Triathlon>\n'
+        '  <Epreuve nom="LE NORTH MAY" dates="dimanche 8 juin 2025"/>\n'
+        '  <E d="10" n="ALPHA Jean" c="Club" x="M" ca="SEH" p="Triathlon S"/>\n'
+        '  <R d="10" t="01:00:00"/>\n'
+        "</Triathlon>"
+    )
+    monkeypatch.setattr("app.scrapers.timepulse._fetch_xml", lambda _id: xml)
+
+    def _boom(_id):
+        raise AssertionError("la page ne doit pas être interrogée")
+
+    monkeypatch.setattr("app.scrapers.timepulse._fetch_event_page", _boom)
+
+    results = scrape_event_all("https://www.timepulse.fr/epreuves/resultats/2943")
+    assert results[0].event_date == date(2025, 6, 8)

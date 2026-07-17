@@ -86,6 +86,33 @@ def _fetch_xml(id_event: str) -> str:
     return ""
 
 
+def _fetch_event_page(id_event: str) -> str:
+    """HTML de la page publique de l'épreuve (dernier recours pour la date)."""
+    try:
+        r = httpx.get(
+            f"https://www.timepulse.fr/epreuves/resultats/{id_event}",
+            follow_redirects=True, timeout=20, headers=_HEADERS,
+        )
+        return r.text if r.status_code == 200 else ""
+    except httpx.HTTPError:
+        return ""
+
+
+def _parse_event_page_date(html: str) -> date_t | None:
+    """Date affichée par la page de l'épreuve, à côté du pictogramme 📅.
+
+    Source de dernier recours, mais la seule qui fasse autorité quand le XML ne
+    porte aucune date lisible (cas 2679 « COUËRON DUATHLON »).
+    """
+    m = re.search(r"(?:\U0001F4C5|&#x1F4C5;)\s*(\d{4}-\d{2}-\d{2})", html)
+    if not m:
+        return None
+    try:
+        return date_t.fromisoformat(m.group(1))
+    except ValueError:
+        return None
+
+
 def _attrs(tag: str) -> dict[str, str]:
     """Extract all key="value" attributes from an XML tag string."""
     return dict(re.findall(r'(\w+)="([^"]*)"', tag))
@@ -347,6 +374,11 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         date_str = ea.get("dates", "") or ea.get("dt1", "") or ea.get("dt2", "")
         if date_str:
             event_date_val = _parse_event_date(date_str)
+    # XML muet sur la date (cas réel 2679 « COUËRON DUATHLON ») : la page
+    # publique l'affiche. Le seul attribut restant du XML est un numéro de série
+    # peu fiable — on ne s'en sert pas (cf. wiclax._clax_event_date).
+    if event_date_val is None:
+        event_date_val = _parse_event_page_date(_fetch_event_page(id_event))
     # Repli si un participant n'a pas de parcours (`p` vide).
     event_type_fallback = _detect_event_type(event_name)
 
