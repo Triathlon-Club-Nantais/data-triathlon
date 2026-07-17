@@ -18,6 +18,7 @@ from .utils import (
     derive_status_from_label,
     normalize_rank,
     normalize_time,
+    parse_fr_date,
     split_athlete_name,
 )
 
@@ -179,14 +180,34 @@ def _resolve_to_wiclax_url(url: str, client: httpx.Client) -> str:
     raise ValueError(f"Impossible de trouver le lien G-Live dans la page Wiclax : {url}")
 
 
+def _clax_event_date(event_elem: ET.Element):
+    """Date de l'épreuve d'un `.clax`, `None` si le fichier n'en porte aucune.
+
+    Trois attributs coexistent selon l'âge du fichier :
+      - `dt1` : date ISO — absente des fichiers anciens ;
+      - `dates` : libellé français (« dimanche 1 juin 2025 ») — le repli ;
+      - `date` : numéro de série du logiciel. **Volontairement ignoré** : il vaut
+        la date saisie à la création du fichier, parfois fausse (Couëron :
+        sérial au 2024-10-01, épreuve courue le 2024-10-06). Pas de date vaut
+        mieux qu'une date inventée.
+    """
+    from datetime import date as date_t
+
+    iso = event_elem.get("dt1", "") or event_elem.get("Dt1", "")
+    if iso:
+        try:
+            return date_t.fromisoformat(iso[:10])
+        except ValueError:
+            pass
+    return parse_fr_date(event_elem.get("dates", "") or event_elem.get("Dates", ""))
+
+
 def _fetch_clax(url: str) -> tuple[ET.Element, str, str, str, object]:
     """
     Fetch and parse a .clax XML file from a Wiclax G-Live URL.
     Directory URLs (no f= param) are resolved via iframe extraction first.
     Returns (root, clax_url, event_name, event_type, event_date).
     """
-    from datetime import date as date_t
-
     with httpx.Client(follow_redirects=True, timeout=30) as client:
         # Resolve chronosmetron.com or directory URLs to G-Live URL if needed
         parsed = urlparse(url)
@@ -214,15 +235,7 @@ def _fetch_clax(url: str) -> tuple[ET.Element, str, str, str, object]:
     )
     event_type = _detect_event_type(event_name)
 
-    event_date = None
-    dt1 = event_elem.get("dt1", "") or event_elem.get("Dt1", "") or event_elem.get("date", "")
-    if dt1:
-        try:
-            event_date = date_t.fromisoformat(dt1[:10])
-        except ValueError:
-            pass
-
-    return root, clax_url, event_name, event_type, event_date
+    return root, clax_url, event_name, event_type, _clax_event_date(event_elem)
 
 
 def _get_competitor_fullname(comp) -> str:

@@ -457,3 +457,56 @@ def test_scrape_event_all_er_ranks_computed_by_time(monkeypatch):
     # JARRIER : 2e homme (MID devant), seul S2M de son sexe → 1er catégorie
     assert by_bib["176"].rank_gender == 2
     assert by_bib["176"].rank_category == 1
+
+
+# ---------------------------------------------------------------------------
+# Date d'épreuve — le .clax ancien ne porte pas de date ISO
+# ---------------------------------------------------------------------------
+
+
+def test_clax_event_date_iso():
+    """Fichier récent : `dt1` porte la date ISO (cas Roche-sur-Yon 2025)."""
+    from datetime import date
+
+    from app.scrapers.wiclax import _clax_event_date
+
+    elem = _el(
+        '<Epreuve nom="Triathlon de la Roche 2025" dt1="2025-05-18" '
+        'dates="dimanche 18 mai 2025" date="45795"/>'
+    )
+    assert _clax_event_date(elem) == date(2025, 5, 18)
+
+
+def test_clax_event_date_french_label_when_no_iso():
+    """Fichier ancien : pas de `dt1`, mais `dates` en toutes lettres.
+
+    Cas réels « Triathlon de Montreuil Juigné » (2025) et « Sud Vendée (Sam) »
+    (2024), tous deux importés sans date faute de lire ce libellé.
+    """
+    from datetime import date
+
+    from app.scrapers.wiclax import _clax_event_date
+
+    elem = _el(
+        '<Epreuve nom="Triathlon de Montreuil Juigné" '
+        'dates="dimanche 1 juin 2025" date="45809"/>'
+    )
+    assert _clax_event_date(elem) == date(2025, 6, 1)
+
+
+def test_clax_event_date_ignores_serial_number():
+    """Le numéro de série `date` n'est pas une source de vérité.
+
+    Il vaut la date saisie dans le logiciel, parfois fausse (Couëron : sérial
+    au 2024-10-01, épreuve réellement courue le 2024-10-06). Sans date lisible,
+    on préfère aucune date à une date inventée.
+    """
+    from app.scrapers.wiclax import _clax_event_date
+
+    assert _clax_event_date(_el('<Epreuve nom="COUËRON DUATHLON" dates="" date="45566"/>')) is None
+
+
+def test_clax_event_date_absent():
+    from app.scrapers.wiclax import _clax_event_date
+
+    assert _clax_event_date(_el('<Epreuve nom="X"/>')) is None
