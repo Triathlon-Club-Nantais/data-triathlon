@@ -21,4 +21,14 @@ describe("MetaPill", () => {
     // Onglet ouvert sur un site tiers : `noopener` lui coupe l'accès à window.opener.
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
+
+  it("retombe sur un chip quand href n'est pas une URL http(s)", () => {
+    const { container } = render(
+      <MetaPill label="Source" href="javascript:alert(1)">
+        Klikego
+      </MetaPill>,
+    );
+    expect(container.querySelector("a")).toBeNull();
+    expect(screen.getByText("Klikego")).toBeInTheDocument();
+  });
 });

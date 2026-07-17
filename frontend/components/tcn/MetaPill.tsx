@@ -1,11 +1,14 @@
 import type { CSSProperties, ReactNode } from "react";
 
+import { isHttpUrl } from "@/lib/utils/url";
+
 /**
  * Chip clé/valeur des sous-en-têtes de page (« Format M », « Date … »).
  *
  * Avec `href`, le chip devient un lien vers un site tiers (la page de résultats
  * du chronométreur) : un `<a>` natif, pas un `Link` — Next ne préchargera jamais
- * une URL externe, et le lien doit fonctionner sans routeur.
+ * une URL externe, et le lien doit fonctionner sans routeur. Le lien n'est rendu
+ * que pour une URL `http(s)` ; sinon on retombe sur un simple chip.
  */
 export function MetaPill({
   label,
@@ -24,8 +27,9 @@ export function MetaPill({
   title?: string;
   style?: CSSProperties;
 }) {
-  const Tag = href ? "a" : "span";
-  const linkProps = href
+  const isLink = isHttpUrl(href);
+  const Tag = isLink ? "a" : "span";
+  const linkProps = isLink
     ? { href, target: "_blank", rel: "noopener noreferrer", className: "hover:underline" }
     : {};
   return (
