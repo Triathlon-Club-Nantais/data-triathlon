@@ -241,3 +241,129 @@ def test_run_rescrape_dry_run_n_est_jamais_un_echec_total(db_session, monkeypatc
 
     assert out.total == 1
     assert out.echec_total is False
+
+
+def test_mode_urls_n_interroge_pas_iter_all(db_session, monkeypatch):
+    """`--url` court-circuite la base : une URL inconnue est le cas nominal du
+    rejeu d'un échec d'import, dont l'épreuve n'a rien persisté."""
+    _course(db_session, "A", "https://k/en-base")
+    appels: list[str] = []
+
+    def _iter_all_interdit(*args, **kwargs):
+        raise AssertionError("iter_all ne doit pas être appelé en mode urls")
+
+    def _iter(db, url, settings, force=False):
+        appels.append(url)
+        yield {"phase": "done", "imported": 1, "skipped": 0, "total": 1}
+
+    monkeypatch.setattr(course_repository, "iter_all", _iter_all_interdit)
+    monkeypatch.setattr(import_service, "iter_import_event", _iter)
+
+    out = rescrape_service.run_rescrape_db(
+        db_session, _settings(), delay=0.0, urls=["https://k/inconnue"]
+    )
+
+    assert appels == ["https://k/inconnue"]
+    assert out.total == 1
+    assert out.imported == 1
+
+
+def test_mode_urls_libelle_depuis_la_base_sinon_l_url(db_session, monkeypatch):
+    """Le libellé est cosmétique (ligne de progression) : repli sur l'URL."""
+    _course(db_session, "Triathlon de Nantes", "https://k/en-base")
+    libelles: list[str] = []
+
+    class _Reporter:
+        """Capture les libellés annoncés. Signatures : cf. `ProgressReporter`."""
+
+        def batch_start(self, total: int) -> None:
+            pass
+
+        def item_start(self, index: int, label: str) -> None:
+            libelles.append(label)
+
+        def item_progress(self, done: int, total: int) -> None:
+            pass
+
+        def item_done(self, imported: int, skipped: int, error: str | None) -> None:
+            pass
+
+        def batch_end(self) -> None:
+            pass
+
+    def _iter(db, url, settings, force=False):
+        yield {"phase": "done", "imported": 0, "skipped": 0, "total": 0}
+
+    monkeypatch.setattr(import_service, "iter_import_event", _iter)
+
+    rescrape_service.run_rescrape_db(
+        db_session, _settings(), delay=0.0,
+        urls=["https://k/en-base", "https://k/inconnue"],
+        reporter=_Reporter(),
+    )
+
+    assert libelles == ["klikego · Triathlon de Nantes", "https://k/inconnue"]
+
+
+def test_mode_urls_dedoublonne_les_formes_equivalentes(db_session, monkeypatch):
+    """Casse d'hôte et slash final : une seule épreuve scrapée."""
+    vus: list[str] = []
+
+    def _iter(db, url, settings, force=False):
+        vus.append(url)
+        yield {"phase": "done", "imported": 0, "skipped": 0, "total": 0}
+
+    monkeypatch.setattr(import_service, "iter_import_event", _iter)
+
+    out = rescrape_service.run_rescrape_db(
+        db_session, _settings(), delay=0.0,
+        urls=["https://Klikego.com/e/1", "https://klikego.com/e/1/"],
+    )
+
+    assert vus == ["https://Klikego.com/e/1"]
+    assert out.total == 1
+
+
+def test_mode_urls_dry_run_liste_sans_scraper(db_session, monkeypatch):
+    def _iter(db, url, settings, force=False):
+        raise AssertionError("aucun scrape en dry-run")
+
+    monkeypatch.setattr(import_service, "iter_import_event", _iter)
+
+    out = rescrape_service.run_rescrape_db(
+        db_session, _settings(), dry_run=True, delay=0.0, urls=["https://k/1"]
+    )
+
+    assert out.dry_run_urls == ["https://k/1"]
+    assert out.total == 1
+
+
+def test_mode_urls_vide_cible_zero_epreuve(db_session, monkeypatch):
+    """Liste d'échecs vide en fin de boucle de rejeu : rien à faire, pas la base."""
+    def _iter_all_interdit(*args, **kwargs):
+        raise AssertionError("iter_all ne doit pas être appelé en mode urls")
+
+    monkeypatch.setattr(course_repository, "iter_all", _iter_all_interdit)
+
+    out = rescrape_service.run_rescrape_db(db_session, _settings(), delay=0.0, urls=[])
+
+    assert out.total == 0
+    assert out.echec_total is False
+
+
+def test_mode_urls_respecte_limit(db_session, monkeypatch):
+    vus: list[str] = []
+
+    def _iter(db, url, settings, force=False):
+        vus.append(url)
+        yield {"phase": "done", "imported": 0, "skipped": 0, "total": 0}
+
+    monkeypatch.setattr(import_service, "iter_import_event", _iter)
+
+    out = rescrape_service.run_rescrape_db(
+        db_session, _settings(), delay=0.0, limit=1,
+        urls=["https://k/1", "https://k/2"],
+    )
+
+    assert vus == ["https://k/1"]
+    assert out.total == 1
