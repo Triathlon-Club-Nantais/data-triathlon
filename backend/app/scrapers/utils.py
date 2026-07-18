@@ -103,6 +103,12 @@ def split_athlete_name(full: str) -> tuple[str, str]:
     Le bloc majuscule est pris dans son intégralité des deux côtés, sinon un nom
     à particule (« Jean DE LA TOUR ») se réduirait à son dernier token. Sans
     aucun bloc majuscule, on retombe sur la convention « prénom(s) puis nom ».
+
+    Limite assumée : un prénom entièrement en majuscules bascule à tort sur la
+    convention « NOM Prénom ». Ainsi « JP ROUX » donne (« JP ROUX », « »)
+    au lieu de (« ROUX », « JP »), et « JEAN MARTIN » donne (« JEAN MARTIN », « »).
+    C'est une ambiguïté irréductible sans information supplémentaire — les deux
+    lectures sont légitimes — et non un bug à corriger.
     """
     parts = full.strip().split("\n")[0].strip().split()
     if not parts:

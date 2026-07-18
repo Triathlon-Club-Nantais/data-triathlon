@@ -75,6 +75,9 @@ def test_parse_fr_date_none(text):
     # Cas dégénérés.
     ("", ("", "")),
     ("MARTIN", ("MARTIN", "")),
+    # Limite assumée : prénom entièrement en majuscules bascule à tort sur « NOM Prénom ».
+    ("JP ROUX", ("JP ROUX", "")),
+    ("JEAN MARTIN", ("JEAN MARTIN", "")),
 ])
 def test_split_athlete_name(brut, attendu):
     assert split_athlete_name(brut) == attendu
