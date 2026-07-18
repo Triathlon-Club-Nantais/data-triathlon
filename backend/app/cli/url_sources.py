@@ -21,8 +21,9 @@ def _lignes_du_fichier(chemin: str) -> list[str]:
     if chemin == "-":
         # Même BOM (export Notepad/Excel Windows) que sur le chemin fichier :
         # `sys.stdin` ne le retire pas tout seul (contrairement à `utf-8-sig`
-        # côté fichier), il faut donc le faire explicitement ici aussi.
-        return sys.stdin.read().removeprefix("﻿").splitlines()
+        # côté fichier), il faut donc le faire explicitement ici aussi. Le BOM
+        # est écrit en échappement : un caractère littéral serait invisible.
+        return sys.stdin.read().removeprefix("\ufeff").splitlines()
     try:
         # utf-8-sig : retire un BOM en tête (export Notepad/Excel Windows) sans
         # rien changer pour un fichier UTF-8 sans BOM.
