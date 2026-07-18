@@ -671,6 +671,19 @@ def test_find_wiclax_link_absent():
     ) is None
 
 
+def test_find_wiclax_link_ignore_host_sosie():
+    """`evilwiclax-results.com` n'est pas un sous-domaine de `wiclax-results.com`.
+
+    Un suffixe brut suivrait ce lien hors du domaine attendu ; on exige le
+    domaine exact ou un vrai sous-domaine (point séparateur).
+    """
+    html = (
+        '<html><body><a href="https://evilwiclax-results.com/Course/">'
+        "Résultats</a></body></html>"
+    )
+    assert _find_wiclax_link(html, "https://chronowest.fr/une-epreuve/") is None
+
+
 def test_find_wiclax_link_page_chronosmetron():
     """Page événement ChronoSmetron (`chronosmetron.com`) : le lien LIVE/RESULTATS
     pointe vers `*.wiclax-results.com`, espaces du nom d'épreuve tels quels dans
