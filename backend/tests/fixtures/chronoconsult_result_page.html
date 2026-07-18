@@ -1,0 +1,19 @@
+<!--
+  Fixture réduite à la main d'une page façade ChronoConsult.
+  Provenance : https://www.chronoconsult.fr/result/triathlon-de-roanne-villerest/
+  Récupérée le 2026-07-18. Seuls le <script> RRPublish et le lien logo sont
+  conservés ; l'`eventId` RaceResult est 399938, `comp_uid` est un identifiant
+  interne au WordPress et n'a rien à voir avec l'API.
+-->
+<html>
+<head><title>Résultats — Triathlon de Roanne Villerest</title></head>
+<body>
+  <div id="divRRPublish"></div>
+  <script type="text/javascript">
+    var rrp = new RRPublish(document.getElementById("divRRPublish"),  399938 , 'results');
+    rrp.ShowTitle = false;
+  </script>
+  <a href="/index.php?page=resultats&amp;comp_uid=3178">Retour</a>
+  <img src="https://my.raceresult.com/399938/api/logo" alt="logo">
+</body>
+</html>
