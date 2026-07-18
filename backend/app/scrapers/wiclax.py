@@ -157,6 +157,7 @@ def _qualify_event_name(event_name: str, parcours: str) -> str:
 # Sauts max dans la chaîne « page épreuve → coquille → iframe G-Live ».
 # Garde anti-boucle : une page qui se pointe elle-même s'arrête sur ValueError.
 _MAX_RESOLVE_HOPS = 3
+_HOST_RESULTATS = "wiclax-results.com"
 
 
 def _find_glive_url(html: str, page_url: str) -> str | None:
@@ -191,7 +192,10 @@ def _find_wiclax_link(html: str, page_url: str) -> str | None:
     for a in soup.find_all("a", href=True):
         cible = urljoin(page_url, a["href"])
         parsed = urlparse(cible)
-        if parsed.netloc.lower().endswith("wiclax-results.com"):
+        cible_host = parsed.netloc.lower()
+        # Domaine exact ou vrai sous-domaine : un suffixe brut suivrait aussi un
+        # host sosie du type `evilwiclax-results.com`.
+        if cible_host == _HOST_RESULTATS or cible_host.endswith(f".{_HOST_RESULTATS}"):
             # Les espaces du nom d'épreuve vivent tels quels dans le href.
             chemin = quote(parsed.path, safe="/%+").rstrip("/") + "/"
             return parsed._replace(path=chemin).geturl()
