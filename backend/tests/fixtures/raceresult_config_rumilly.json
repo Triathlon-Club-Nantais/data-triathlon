@@ -1,0 +1,23 @@
+{
+  "_provenance": "GET https://my3.raceresult.com/393893/RRPublish/data/config?page=results — 2026-07-18, réduite à la main (Triathlon de Rumilly).",
+  "key": "0123456789abcdef",
+  "eventname": "Triathlon de Rumilly",
+  "server": "my3.raceresult.com",
+  "contests": {
+    "1": "Distance XS",
+    "4": "Distance M"
+  },
+  "splits": {
+    "1": {"Label": "Natation"},
+    "2": {"Label": "Transition 1"},
+    "3": {"Label": "Vélo"},
+    "4": {"Label": "Transition 2"},
+    "5": {"Label": "Course à pied"}
+  },
+  "lists": {
+    "En ligne": {
+      "Final": {"Contest": 0, "Name": "En ligne|Final"},
+      "Relais": {"Contest": 3, "Name": "En ligne|Relais"}
+    }
+  }
+}

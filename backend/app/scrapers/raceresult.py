@@ -16,11 +16,14 @@ Chaînage d'appels (établi par sondage réel le 2026-07-18) :
   3. La date d'épreuve n'est dans aucun des deux : elle vit dans le JSON-LD
      schema.org de la page /{eventId}/results.
 """
+import json
 import logging
 import re
+from datetime import date as date_t
 from urllib.parse import urlparse
 
 import httpx
+from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +85,100 @@ def _resolve_event_id(url: str, client: httpx.Client) -> str:
     raise ValueError(
         f"Identifiant d'épreuve RaceResult introuvable dans la page : {url}"
     )
+
+
+def _json_ld_event(html: str) -> dict:
+    """Premier bloc JSON-LD de type Event de la page, `{}` si aucun.
+
+    Le bloc peut être un objet seul, une liste d'objets, ou un `@graph` — on
+    balaie les trois formes plutôt que de parier sur une seule.
+    """
+    soup = BeautifulSoup(html, "lxml")
+    for balise in soup.find_all("script", type="application/ld+json"):
+        try:
+            charge = json.loads(balise.string or "")
+        except (ValueError, TypeError):
+            continue
+        candidats = charge if isinstance(charge, list) else [charge]
+        if isinstance(charge, dict) and isinstance(charge.get("@graph"), list):
+            candidats = charge["@graph"]
+        for noeud in candidats:
+            if isinstance(noeud, dict) and noeud.get("@type") == "Event":
+                return noeud
+    return {}
+
+
+def _fetch_meta(
+    event_id: str, base: str, client: httpx.Client
+) -> tuple[str, "date_t | None", str]:
+    """(nom d'épreuve, date, ville) depuis le JSON-LD de la page /results.
+
+    C'est la **seule** source de la date : l'API `config` comme l'API `list` n'en
+    portent aucune. Une page sans JSON-LD exploitable renvoie des valeurs vides
+    plutôt que de lever : l'épreuve reste importable, le nom retombera sur
+    `config["eventname"]` et la date sur `None`.
+    """
+    try:
+        resp = client.get(f"{base}/{event_id}/results", headers=HEADERS)
+        resp.raise_for_status()
+    except httpx.HTTPError as exc:
+        logger.debug("RaceResult %s : page /results illisible (%s)", event_id, exc)
+        return "", None, ""
+
+    noeud = _json_ld_event(resp.text)
+    if not noeud:
+        return "", None, ""
+
+    jour = None
+    brut = str(noeud.get("startDate") or "")
+    if brut:
+        try:
+            jour = date_t.fromisoformat(brut[:10])
+        except ValueError:
+            logger.debug("RaceResult %s : startDate illisible (%r)", event_id, brut)
+
+    adresse = (noeud.get("location") or {}).get("address") or {}
+    ville = str(adresse.get("addressLocality") or "")
+    return str(noeud.get("name") or ""), jour, ville
+
+
+def _fetch_config(event_id: str, base: str, client: httpx.Client) -> dict:
+    """Config publique de l'épreuve : `key`, `contests`, `lists`, `splits`."""
+    resp = client.get(
+        f"{base}/{event_id}/RRPublish/data/config?page=results",
+        headers=HEADERS,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+# Clés qui marquent une feuille dans l'arbre `lists` (une liste réelle, pas un
+# groupe intermédiaire).
+_CLES_FEUILLE = ("Contest", "Name", "ID")
+
+
+def _iter_list_specs(config: dict) -> list[tuple[str, str]]:
+    """Listes exploitables : [(listname, indice de contest), …].
+
+    `config["lists"]` est un arbre dont le chemin, joint par `|`, forme le
+    `listname` attendu par l'API. On aplatit récursivement : une feuille est un
+    nœud non-dict, ou un dict portant une clé de description (`Contest`,
+    `Name`, `ID`). L'indice de contest n'est qu'un **indice** — il est vérifié
+    empiriquement à l'appel (cf. `_contest_candidates`).
+    """
+    specs: list[tuple[str, str]] = []
+
+    def descendre(noeud, chemin: list[str]) -> None:
+        if not isinstance(noeud, dict) or any(c in noeud for c in _CLES_FEUILLE):
+            indice = noeud.get("Contest") if isinstance(noeud, dict) else None
+            specs.append(("|".join(chemin), "" if indice is None else str(indice)))
+            return
+        for cle, valeur in noeud.items():
+            descendre(valeur, [*chemin, str(cle)])
+
+    for cle, valeur in (config.get("lists") or {}).items():
+        descendre(valeur, [str(cle)])
+    return specs
 
 
 def scrape_event_all(url: str) -> list:
