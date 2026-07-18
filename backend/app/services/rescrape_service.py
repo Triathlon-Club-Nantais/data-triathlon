@@ -39,6 +39,26 @@ def _dedupe_par_url(courses: list[Course]) -> list[Course]:
     return list(uniques.values())
 
 
+def _items_depuis_urls(db: Session, urls: list[str]) -> list[BatchItem]:
+    """Épreuves ciblées **explicitement** : la base ne sert plus qu'à libeller.
+
+    Une URL inconnue en base est le cas **nominal** du rejeu d'un échec
+    d'import : l'épreuve fautive n'a rien persisté, elle est absente de la table
+    `course`. La sélectionner via `iter_all` porterait sur zéro épreuve et
+    sortirait en code 0 — un silence trompeur. On soumet donc les URLs telles
+    quelles au batch, connues ou non.
+
+    Le libellé est purement cosmétique (ligne de progression) : quand la course
+    est inconnue, il retombe sur l'URL, sans avertissement ni dégradation.
+    """
+    items: list[BatchItem] = []
+    for url in sheet_source.dedupe_links(urls):
+        course = course_repository.get_latest_by_source_url(db, url)
+        label = f"{course.provider} · {course.name}" if course else url
+        items.append(BatchItem(url=url, label=label))
+    return items
+
+
 @dataclass
 class RescrapeOutcome:
     """Bilan d'un rescrape-db. `total` = nombre d'**épreuves** (URLs uniques).
@@ -78,6 +98,7 @@ def run_rescrape_db(
     limit: int | None = None,
     delay: float = 1.0,
     reporter: ProgressReporter | None = None,
+    urls: list[str] | None = None,
 ) -> RescrapeOutcome:
     """Re-scrape toutes les épreuves en DB avec force=True (bypass du cache TTL).
 
@@ -85,25 +106,36 @@ def run_rescrape_db(
     dédoublonne par URL : on raisonne en **épreuves à scraper**, pas en courses.
     `limit` borne donc les épreuves, et s'applique **après** la dédup.
     En dry-run : liste les URLs sans scraper ni persister.
-    """
-    courses = course_repository.iter_all(
-        db, provider=provider, older_than_days=older_than
-    )
-    epreuves = _dedupe_par_url([c for c in courses if c.source_url])
-    if limit is not None:
-        epreuves = epreuves[:limit]
 
-    outcome = RescrapeOutcome(total=len(epreuves))
+    Deux modes de sélection, un seul batch en aval. `urls=None` : les épreuves
+    viennent de la base (`provider`, `older_than`, dédup par URL). `urls`
+    fourni : la base **n'est pas interrogée pour sélectionner**, chaque URL
+    devient une épreuve — c'est ce qui permet de rejouer un échec d'import, dont
+    l'épreuve n'existe pas en base. `limit` borne la liste finale dans les deux
+    cas ; `force=True`, `delay`, dry-run et Ctrl-C sont inchangés.
+    """
+    if urls is not None:
+        items = _items_depuis_urls(db, urls)
+    else:
+        courses = course_repository.iter_all(
+            db, provider=provider, older_than_days=older_than
+        )
+        epreuves = _dedupe_par_url([c for c in courses if c.source_url])
+        # Le nom de la course vient de la DB : on peut libeller proprement.
+        items = [
+            BatchItem(url=c.source_url, label=f"{c.provider} · {c.name}")
+            for c in epreuves
+        ]
+    if limit is not None:
+        items = items[:limit]
+
+    outcome = RescrapeOutcome(total=len(items))
     if dry_run:
         # Charge utile réservée au dry-run : hors dry-run, embarquer l'URL de
         # chaque épreuve gonflerait la sortie --json de plusieurs dizaines de Ko.
-        outcome.dry_run_urls = [c.source_url for c in epreuves]
+        outcome.dry_run_urls = [item.url for item in items]
         return outcome
 
-    # Le nom de la course vient de la DB : on peut libeller proprement.
-    items = [
-        BatchItem(url=c.source_url, label=f"{c.provider} · {c.name}") for c in epreuves
-    ]
     totals = run_batch(db, items, settings, force=True, delay=delay, reporter=reporter)
 
     outcome.imported = totals.imported
