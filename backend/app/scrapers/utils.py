@@ -94,25 +94,32 @@ def normalize_rank(val) -> int | None:
 
 
 def split_athlete_name(full: str) -> tuple[str, str]:
-    """
-    Wiclax / TimePulse convention: 'NOM Prénom' (surname first, uppercase).
-    Returns (surname, firstname).
+    """Scinde un nom complet en (nom, prénom), quelle que soit la convention.
+
+    Deux conventions coexistent chez les fournisseurs :
+      - « NOM Prénom » (Wiclax, TimePulse) : bloc majuscule **en tête** ;
+      - « Prénom NOM » (RaceResult) : bloc majuscule **en queue**.
+
+    Le bloc majuscule est pris dans son intégralité des deux côtés, sinon un nom
+    à particule (« Jean DE LA TOUR ») se réduirait à son dernier token. Sans
+    aucun bloc majuscule, on retombe sur la convention « prénom(s) puis nom ».
     """
     parts = full.strip().split("\n")[0].strip().split()
     if not parts:
         return "", ""
-    # Detect if first token is all-uppercase → surname
     if parts[0].isupper():
-        # Find where uppercase tokens end
+        # « NOM Prénom » : le nom est le préfixe majuscule.
         i = 0
         while i < len(parts) and parts[i].isupper():
             i += 1
-        surname = " ".join(parts[:i])
-        firstname = " ".join(parts[i:])
-    else:
-        surname = parts[-1]
-        firstname = " ".join(parts[:-1])
-    return surname, firstname
+        return " ".join(parts[:i]), " ".join(parts[i:])
+    if parts[-1].isupper():
+        # « Prénom NOM » : le nom est le suffixe majuscule, particules incluses.
+        i = len(parts)
+        while i > 0 and parts[i - 1].isupper():
+            i -= 1
+        return " ".join(parts[i:]), " ".join(parts[:i])
+    return parts[-1], " ".join(parts[:-1])
 
 
 # Jetons de statut bruts (FR/EN) → constante STATUS_*. Comparés sur le label
