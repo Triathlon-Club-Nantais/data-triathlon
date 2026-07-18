@@ -21,7 +21,16 @@ def _lignes_du_fichier(chemin: str) -> list[str]:
     if chemin == "-":
         return sys.stdin.read().splitlines()
     try:
-        return Path(chemin).read_text(encoding="utf-8").splitlines()
+        # utf-8-sig : retire un BOM en tête (export Notepad/Excel Windows) sans
+        # rien changer pour un fichier UTF-8 sans BOM.
+        return Path(chemin).read_text(encoding="utf-8-sig").splitlines()
+    except UnicodeDecodeError as exc:
+        # Hérite de ValueError, pas de OSError (pas de `strerror`) : bloc à part,
+        # avec un message qui pointe l'encodage plutôt que de laisser filer une
+        # trace Python brute.
+        raise typer.BadParameter(
+            f"fichier d'URLs illisible : « {chemin} » n'est pas encodé en UTF-8 ({exc})."
+        ) from exc
     except OSError as exc:
         raise typer.BadParameter(
             f"fichier d'URLs illisible : « {chemin} » ({exc.strerror})."

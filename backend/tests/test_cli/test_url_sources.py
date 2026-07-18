@@ -86,6 +86,25 @@ def test_fichier_introuvable_rejete(tmp_path):
     assert "absent.txt" in str(exc.value)
 
 
+def test_fichier_avec_bom_utf8_n_altere_pas_la_premiere_url(tmp_path):
+    """Un export Notepad/Excel « UTF-8 avec BOM » ne doit pas polluer la 1ère URL."""
+    fichier = tmp_path / "echecs.txt"
+    fichier.write_bytes("https://k/1\nhttps://k/2\n".encode("utf-8-sig"))
+
+    assert url_sources.charger_urls([], str(fichier)) == ["https://k/1", "https://k/2"]
+
+
+def test_fichier_non_utf8_rejete_avec_message_parlant(tmp_path):
+    """Un byte non-UTF8 (0xff) doit être rejeté par BadParameter, pas par une trace brute."""
+    fichier = tmp_path / "echecs.txt"
+    fichier.write_bytes(b"\xff\xfe\x00\x01")
+
+    with pytest.raises(typer.BadParameter) as exc:
+        url_sources.charger_urls([], str(fichier))
+
+    assert "encod" in str(exc.value).lower()
+
+
 def test_dedoublonne_en_conservant_la_forme_d_origine():
     """Casse d'hôte et slash final : une seule épreuve, forme d'origine gardée."""
     urls = url_sources.charger_urls(
