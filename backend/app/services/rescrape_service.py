@@ -13,7 +13,7 @@ from app.core.config import Settings
 from app.models.course import Course
 from app.repositories import course_repository
 from app.services import sheet_source
-from app.services.batch import BatchItem, est_echec_total, run_batch
+from app.services.batch import BatchFailure, BatchItem, est_echec_total, run_batch
 from app.services.progress import ProgressReporter
 
 
@@ -74,6 +74,10 @@ class RescrapeOutcome:
     processed: int = 0
     dry_run_urls: list[str] = field(default_factory=list)
     interrupted: bool = False
+    #: Épreuves fautives (URL + cause). Borné aux seuls échecs : léger,
+    #: contrairement à la liste de toutes les épreuves. `asdict()` l'embarque
+    #: dans `--json`, ce qui referme la boucle de rejeu sans fichier d'état.
+    failures: list[BatchFailure] = field(default_factory=list)
 
     @property
     def echec_total(self) -> bool:
@@ -141,6 +145,7 @@ def run_rescrape_db(
     outcome.imported = totals.imported
     outcome.skipped = totals.skipped
     outcome.errors = totals.errors
+    outcome.failures = totals.failures
     outcome.processed = totals.processed
     outcome.interrupted = totals.interrupted
     return outcome

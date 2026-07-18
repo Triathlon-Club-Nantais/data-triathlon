@@ -335,6 +335,27 @@ def test_rescrape_db_json_n_emet_que_du_json_sur_stdout(monkeypatch):
     assert "RESCRAPE DB" not in result.stdout
 
 
+def test_rescrape_db_json_embarque_les_echecs(monkeypatch):
+    """La boucle de rejeu (`--json | jq -r '.failures[].url'`) en dépend."""
+    from app.services.batch import BatchFailure
+
+    _brancher_rescrape(
+        monkeypatch,
+        RescrapeOutcome(
+            total=2, errors=1, imported=3,
+            failures=[BatchFailure(url="https://k/1", label="klikego · A", message="503")],
+        ),
+    )
+
+    result = runner.invoke(app, ["rescrape-db", "--json"])
+
+    assert result.exit_code == 0
+    charge = json.loads(result.stdout)
+    assert charge["failures"] == [
+        {"url": "https://k/1", "label": "klikego · A", "message": "503"}
+    ]
+
+
 def test_rescrape_db_interrompu_sort_en_130(monkeypatch):
     _brancher_rescrape(monkeypatch, RescrapeOutcome(total=9, imported=2, interrupted=True))
 

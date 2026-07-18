@@ -85,6 +85,30 @@ def test_rapport_rescrape_signale_l_interruption():
     assert "Participants ajoutés      : 3" in texte
 
 
+def test_rescrape_report_liste_les_echecs():
+    """« Épreuves en erreur : 2 » dit *combien*, pas *lesquelles*. Sans le
+    détail, une troisième tentative suppose de relire le terminal à la main."""
+    outcome = RescrapeOutcome(
+        total=3, errors=2, imported=10,
+        failures=[
+            BatchFailure(url="https://k/1", label="klikego · A", message="503"),
+            BatchFailure(url="https://k/2", label="klikego · B", message="timeout"),
+        ],
+    )
+
+    rapport = render_rescrape_report(outcome, dry_run=False)
+
+    assert "Épreuves en erreur (détail) :" in rapport
+    assert "  - https://k/1 : 503" in rapport
+    assert "  - https://k/2 : timeout" in rapport
+
+
+def test_rescrape_report_sans_echec_n_affiche_pas_le_bloc():
+    rapport = render_rescrape_report(RescrapeOutcome(total=3, imported=10), dry_run=False)
+
+    assert "détail" not in rapport
+
+
 # --- unités des compteurs ----------------------------------------------------
 #
 # Le bilan croise deux unités : des **épreuves** (ciblées, traitées, en erreur)
