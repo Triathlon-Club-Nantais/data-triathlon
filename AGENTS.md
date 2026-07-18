@@ -42,6 +42,11 @@ uv run python -m app.cli import-sheet --dry-run     # import de masse (Sheet) : 
 uv run python -m app.cli import-sheet --limit 5     # import réel — progression en direct
 uv run python -m app.cli rescrape-db --limit 10     # re-scrape la DB (force=True) ; --plain, --no-progress
 uv run python -m app.cli rescrape-db --json | jq    # bilan machine-lisible (stdout = JSON seul)
+uv run python -m app.cli rescrape-db --url <url> --url <url2>   # cible des épreuves précises
+uv run python -m app.cli rescrape-db --urls-from echecs.txt     # ou « - » pour lire stdin
+# rejeu des échecs, sans fichier intermédiaire ni état persistant :
+uv run python -m app.cli import-sheet --json | jq -r '.failures[].url' \
+  | uv run python -m app.cli rescrape-db --urls-from -
 
 # Frontend (depuis frontend/)
 npm run dev        # Next.js sur :3000, rewrites /api → :8001
@@ -138,6 +143,15 @@ des courses. Une épreuve porte N `Course` en base (heats Breizh Chrono, variant
 individuel/relais) : `rescrape-db` dédoublonne par `source_url` avant le batch,
 donc « Épreuves ciblées : 12 » sur une table de 53 courses n'est pas une perte.
 
+**Deux modes de sélection pour `rescrape-db`**, exclusifs l'un de l'autre :
+par filtre sur la base (`--provider`, `--older-than`), ou par URL explicite
+(`--url`, répétable, et `--urls-from <fichier|->`). Le second **court-circuite
+la base** : une URL inconnue en table `course` est scrapée normalement, sans
+avertissement — c'est le cas nominal du rejeu d'un échec d'import, dont
+l'épreuve n'a rien persisté. Les combiner est une erreur d'usage (code 2) : ce
+sont deux modes, pas des filtres à composer. `--limit` reste compatible avec les
+deux : il borne la liste finale, il ne sélectionne rien.
+
 **Deux unités dans un bilan**, et chaque libellé doit le dire : « Épreuves
 ciblées / traitées / en erreur » comptent des **épreuves** ; « Participants
 ajoutés / déjà en base » comptent des **participants**. Ne pas revenir à des
@@ -147,14 +161,16 @@ non-sens. « Épreuves traitées » n'apparaît que sur un bilan interrompu, où
 situe le Ctrl-C (7 des 42).
 
 **Détail des épreuves en erreur** : le compteur « Épreuves en erreur : N » dit
-*combien*, pas *lesquelles*. `import-sheet` liste donc les échecs (URL + cause)
-sous « Épreuves en erreur (détail) : » — la boucle `batch` collecte un
-`BatchFailure(url, label, message)` par épreuve fautive (phase `error` ou
-exception rattrapée). Ce détail est aussi dans la charge `--json` (`failures`),
-et borné aux seuls échecs : il reste léger, contrairement à la liste de toutes
-les épreuves. À distinguer des **liens non supportés** (`ignored_by_host`, suivis
-dans #33) : ces derniers ne sont **jamais** soumis au batch, ils ne comptent ni
-en succès ni en échec.
+*combien*, pas *lesquelles*. **Les deux commandes** listent donc les échecs
+(URL + cause) sous « Épreuves en erreur (détail) : » — la boucle `batch`
+collecte un `BatchFailure(url, label, message)` par épreuve fautive (phase
+`error` ou exception rattrapée). Ce détail est aussi dans la charge `--json`
+(`failures`), et borné aux seuls échecs : il reste léger, contrairement à la
+liste de toutes les épreuves. C'est lui qui referme la boucle de rejeu
+(`… --json | jq -r '.failures[].url' | … rescrape-db --urls-from -`), sans
+fichier d'état. À distinguer des **liens non supportés** (`ignored_by_host`,
+suivis dans #33) : ces derniers ne sont **jamais** soumis au batch, ils ne
+comptent ni en succès ni en échec.
 
 ### Conventions scrapers
 
