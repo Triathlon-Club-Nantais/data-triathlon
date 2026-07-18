@@ -19,7 +19,10 @@ from app.services import sheet_source
 def _lignes_du_fichier(chemin: str) -> list[str]:
     """Lit `chemin`, ou **stdin** si `chemin` vaut `-` (pas de fichier temporaire)."""
     if chemin == "-":
-        return sys.stdin.read().splitlines()
+        # Même BOM (export Notepad/Excel Windows) que sur le chemin fichier :
+        # `sys.stdin` ne le retire pas tout seul (contrairement à `utf-8-sig`
+        # côté fichier), il faut donc le faire explicitement ici aussi.
+        return sys.stdin.read().removeprefix("﻿").splitlines()
     try:
         # utf-8-sig : retire un BOM en tête (export Notepad/Excel Windows) sans
         # rien changer pour un fichier UTF-8 sans BOM.
@@ -85,7 +88,7 @@ def charger_urls(urls: list[str] | None, urls_from: str | None) -> list[str] | N
 
 
 def valider_ciblage_exclusif(
-    *, urls: list[str] | None, provider: str | None, older_than: int | None
+    *, url: list[str], urls_from: str | None, provider: str | None, older_than: int | None
 ) -> None:
     """Refuse un ciblage par URL combiné à `--provider` ou `--older-than`.
 
@@ -95,10 +98,18 @@ def valider_ciblage_exclusif(
     `--older-than` filtrent ce que la base contient. Les combiner produirait un
     ET dont personne ne peut prédire le résultat.
 
+    Prend les paramètres **bruts** de la commande (`url`, `urls_from`), pas le
+    résultat de `charger_urls` : un ciblage est demandé dès que `--url` est
+    non vide ou `--urls-from` est renseigné, sans avoir besoin de lire quoi
+    que ce soit (fichier ou stdin) pour le savoir. C'est ce qui permet
+    d'appeler cette validation **avant** `charger_urls` — sinon
+    `--urls-from -` combiné à une option incompatible bloquerait en attente
+    d'une saisie stdin qui sera de toute façon rejetée.
+
     Vérification croisée, donc appelée explicitement en tête de commande : un
     callback Typer ne voit que sa propre option.
     """
-    if urls is None:
+    if not url and urls_from is None:
         return
     incompatibles = []
     if provider is not None:

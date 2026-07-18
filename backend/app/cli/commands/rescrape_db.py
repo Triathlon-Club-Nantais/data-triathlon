@@ -45,7 +45,7 @@ def rescrape_db(
         False, "--plain", help="Progression ligne à ligne même dans un terminal."
     ),
 ) -> None:
-    """Re-scrape toutes les épreuves en DB (force=True, bypass du cache TTL).
+    """Re-scrape des épreuves (toute la base, ou celles ciblées par `--url`).
 
     Une épreuve = une source_url unique. Elle porte souvent plusieurs courses en
     base (heats Breizh Chrono, variantes individuel/relais) : le rapport et
@@ -59,8 +59,8 @@ def rescrape_db(
         … import-sheet --json | jq -r '.failures[].url' \\
           | … rescrape-db --urls-from -
     """
+    valider_ciblage_exclusif(url=url, urls_from=urls_from, provider=provider, older_than=older_than)
     urls = charger_urls(url, urls_from)
-    valider_ciblage_exclusif(urls=urls, provider=provider, older_than=older_than)
 
     settings = get_settings()
     reporter = select_reporter(no_progress=no_progress or dry_run, plain=plain)
