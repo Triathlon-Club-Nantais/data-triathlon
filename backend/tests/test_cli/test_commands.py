@@ -509,6 +509,108 @@ def test_playwright_n_est_pas_un_provider_ciblable(monkeypatch):
     assert result.exit_code != 0
 
 
+def test_rescrape_db_url_transmise_au_service(monkeypatch):
+    espion = _brancher_rescrape(monkeypatch, RescrapeOutcome(total=2))
+
+    result = runner.invoke(
+        app, ["rescrape-db", "--url", "https://k/1", "--url", "https://k/2"]
+    )
+
+    assert result.exit_code == 0
+    assert espion.kwargs["urls"] == ["https://k/1", "https://k/2"]
+
+
+def test_rescrape_db_urls_from_fichier(monkeypatch, tmp_path):
+    fichier = tmp_path / "echecs.txt"
+    fichier.write_text("https://k/1\n# commentaire\n\n", encoding="utf-8")
+    espion = _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
+
+    result = runner.invoke(app, ["rescrape-db", "--urls-from", str(fichier)])
+
+    assert result.exit_code == 0
+    assert espion.kwargs["urls"] == ["https://k/1"]
+
+
+def test_rescrape_db_urls_from_stdin(monkeypatch):
+    """`… --json | jq -r '.failures[].url' | … --urls-from -`, sans fichier."""
+    espion = _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
+
+    result = runner.invoke(app, ["rescrape-db", "--urls-from", "-"], input="https://k/1\n")
+
+    assert result.exit_code == 0
+    assert espion.kwargs["urls"] == ["https://k/1"]
+
+
+def test_rescrape_db_sans_url_reste_en_mode_base(monkeypatch):
+    espion = _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
+
+    result = runner.invoke(app, ["rescrape-db"])
+
+    assert result.exit_code == 0
+    assert espion.kwargs["urls"] is None
+
+
+def test_rescrape_db_liste_vide_cible_zero_epreuve(monkeypatch, tmp_path):
+    """Fichier vide → « rien à faire », code 0 : la boucle de rejeu converge."""
+    fichier = tmp_path / "vide.txt"
+    fichier.write_text("", encoding="utf-8")
+    espion = _brancher_rescrape(monkeypatch, RescrapeOutcome(total=0))
+
+    result = runner.invoke(app, ["rescrape-db", "--urls-from", str(fichier)])
+
+    assert result.exit_code == 0
+    assert espion.kwargs["urls"] == []
+
+
+def test_rescrape_db_url_avec_provider_est_une_erreur_d_usage(monkeypatch):
+    espion = _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
+
+    result = runner.invoke(
+        app, ["rescrape-db", "--url", "https://k/1", "--provider", "klikego"]
+    )
+
+    assert result.exit_code == 2
+    assert espion.args == ()  # aucun travail engagé
+
+
+def test_rescrape_db_url_avec_older_than_est_une_erreur_d_usage(monkeypatch):
+    _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
+
+    result = runner.invoke(
+        app, ["rescrape-db", "--url", "https://k/1", "--older-than", "30"]
+    )
+
+    assert result.exit_code == 2
+
+
+def test_rescrape_db_url_non_http_est_une_erreur_d_usage(monkeypatch):
+    _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
+
+    result = runner.invoke(app, ["rescrape-db", "--url", "pas-une-url"])
+
+    assert result.exit_code == 2
+
+
+def test_rescrape_db_urls_from_introuvable_est_une_erreur_d_usage(monkeypatch, tmp_path):
+    _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
+
+    result = runner.invoke(app, ["rescrape-db", "--urls-from", str(tmp_path / "absent.txt")])
+
+    assert result.exit_code == 2
+
+
+def test_rescrape_db_url_reste_compatible_avec_limit(monkeypatch):
+    """`--limit` ne sélectionne rien : il borne la liste finale."""
+    espion = _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
+
+    result = runner.invoke(
+        app, ["rescrape-db", "--url", "https://k/1", "--url", "https://k/2", "--limit", "1"]
+    )
+
+    assert result.exit_code == 0
+    assert espion.kwargs["limit"] == 1
+
+
 # --- tube fermé (`… | head -2`) ----------------------------------------------
 
 
