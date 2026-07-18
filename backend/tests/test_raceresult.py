@@ -5,6 +5,8 @@ Fixtures réduites à la main, provenance et date en tête de chaque fichier.
 Les appels HTTP passent par un faux client httpx (pattern test_sportinnovation.py)
 ou par monkeypatch des helpers `_fetch_*` (pattern test_wiclax.py).
 """
+import json
+from datetime import date
 from pathlib import Path
 
 import httpx
@@ -102,3 +104,50 @@ def test_event_id_introuvable_leve_value_error():
 def test_api_base_suit_le_host_raceresult():
     assert raceresult._api_base("https://my3.raceresult.com/393893/") == "https://my3.raceresult.com"
     assert raceresult._api_base("https://www.chronoconsult.fr/result/x/") == "https://my.raceresult.com"
+
+
+# ── Métadonnées (JSON-LD) et configuration ──────────────────────────────────
+
+def test_fetch_meta_lit_le_json_ld():
+    client = _FauxClient({"/results": (200, _fixture("raceresult_page_meta.html"))})
+
+    nom, jour, ville = raceresult._fetch_meta("399938", "https://my.raceresult.com", client)
+
+    assert nom == "Triathlon de Roanne Villerest"
+    assert jour == date(2026, 6, 18)
+    assert ville == "SAINT-HERBLAIN"
+
+
+def test_fetch_meta_sans_json_ld_ne_leve_pas():
+    """Une page sans JSON-LD dégrade proprement : l'épreuve reste importable."""
+    client = _FauxClient({"/results": (200, "<html><body>vide</body></html>")})
+
+    assert raceresult._fetch_meta("1", "https://my.raceresult.com", client) == ("", None, "")
+
+
+def test_fetch_config_interroge_la_bonne_route():
+    client = _FauxClient({
+        "/RRPublish/data/config": (200, _fixture("raceresult_config_rumilly.json")),
+    })
+
+    config = raceresult._fetch_config("393893", "https://my3.raceresult.com", client)
+
+    assert config["key"] == "0123456789abcdef"
+    assert config["contests"] == {"1": "Distance XS", "4": "Distance M"}
+    assert "page=results" in client.appels[0]
+
+
+def test_iter_list_specs_aplatit_les_listes_imbriquees():
+    """Les listes RaceResult sont un arbre ; le `listname` est le chemin en `|`."""
+    config = json.loads(_fixture("raceresult_config_rumilly.json"))
+
+    assert raceresult._iter_list_specs(config) == [
+        ("En ligne|Final", "0"),
+        ("En ligne|Relais", "3"),
+    ]
+
+
+def test_iter_list_specs_accepte_une_liste_plate():
+    config = {"lists": {"Résultats": {"Contest": 2}}}
+
+    assert raceresult._iter_list_specs(config) == [("Résultats", "2")]
