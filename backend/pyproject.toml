@@ -56,3 +56,6 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
+# Le dossier `alembic/` fait prendre le paquet tiers `alembic` pour du code local,
+# ce qui scindait `from alembic import command` de `from alembic.config import Config`.
+known-third-party = ["alembic"]
