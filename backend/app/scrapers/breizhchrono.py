@@ -128,7 +128,7 @@ def _fetch_all_heats(slug_id: str, client: httpx.Client) -> list[tuple[str, str]
 
 
 def _course_name(event_name: str, heat_label: str) -> str:
-    """Nom de course = « <Épreuve> — <Heat> ».
+    """Nom de course = « <Épreuve> - <Heat> ».
 
     Une Course du modèle EST un heat (cf. `models/course.py`), et son identité
     est (nom, date, type, relais). Sans le libellé du heat dans le nom, les heats
@@ -139,9 +139,13 @@ def _course_name(event_name: str, heat_label: str) -> str:
 
     Les espaces sont compactés : la plateforme en sème des doubles dans ses
     libellés (« Triathlon Découverte  Aésio Mutuelle »).
+
+    Le séparateur est un tiret ASCII (et non un cadratin « — ») : il reste
+    tapable au clavier, donc trouvable en CTRL+F comme dans un futur champ de
+    recherche.
     """
     parts = [p for p in (event_name, heat_label) if p]
-    return " — ".join(" ".join(p.split()) for p in parts)
+    return " - ".join(" ".join(p.split()) for p in parts)
 
 
 def _detect_relay(heat_label: str, heat_slug: str) -> bool:

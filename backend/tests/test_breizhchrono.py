@@ -193,7 +193,7 @@ def test_course_name_suffixe_le_heat():
     ne peuvent plus fusionner sur l'identité (nom, date, type, relais)."""
     assert (
         _course_name("Triathlon SwimRun Dinard Côte d'Emeraude", "Trail 11 KM")
-        == "Triathlon SwimRun Dinard Côte d'Emeraude — Trail 11 KM"
+        == "Triathlon SwimRun Dinard Côte d'Emeraude - Trail 11 KM"
     )
     # Heat ciblé sans libellé connu → nom d'épreuve seul (pas de suffixe vide).
     assert _course_name("Triathlon de Vannes 2025", "") == "Triathlon de Vannes 2025"
@@ -364,15 +364,15 @@ def test_live_chaque_heat_a_son_nom_et_sa_date(monkeypatch):
 
     by_name = {r.event_name: r for r in results}
     assert set(by_name) == {
-        "Triathlon SwimRun Dinard Côte d'Emeraude — Triathlon Distance Olympique",
-        "Triathlon SwimRun Dinard Côte d'Emeraude — Swimrun Court Solo",
-        "Triathlon SwimRun Dinard Côte d'Emeraude — Triathlon Distance Olympique - Relais",
-        "Triathlon SwimRun Dinard Côte d'Emeraude — Trail 11 KM",
+        "Triathlon SwimRun Dinard Côte d'Emeraude - Triathlon Distance Olympique",
+        "Triathlon SwimRun Dinard Côte d'Emeraude - Swimrun Court Solo",
+        "Triathlon SwimRun Dinard Côte d'Emeraude - Triathlon Distance Olympique - Relais",
+        "Triathlon SwimRun Dinard Côte d'Emeraude - Trail 11 KM",
     }
     # Date propre à chaque heat (le trail court la veille des triathlons).
-    trail = by_name["Triathlon SwimRun Dinard Côte d'Emeraude — Trail 11 KM"]
+    trail = by_name["Triathlon SwimRun Dinard Côte d'Emeraude - Trail 11 KM"]
     olympique = by_name[
-        "Triathlon SwimRun Dinard Côte d'Emeraude — Triathlon Distance Olympique"
+        "Triathlon SwimRun Dinard Côte d'Emeraude - Triathlon Distance Olympique"
     ]
     assert trail.event_date == date(2025, 9, 12)
     assert olympique.event_date == date(2025, 9, 14)
@@ -391,6 +391,6 @@ def test_bc_classique_nomme_chaque_heat():
     )
     assert results
     assert all(
-        r.event_name == "Triathlon Swimrun Dinard Cote Demeraude 2025 — Trail 11 KM"
+        r.event_name == "Triathlon Swimrun Dinard Cote Demeraude 2025 - Trail 11 KM"
         for r in results
     )
