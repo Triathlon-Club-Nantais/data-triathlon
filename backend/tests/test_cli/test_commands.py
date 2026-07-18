@@ -599,6 +599,28 @@ def test_rescrape_db_urls_from_introuvable_est_une_erreur_d_usage(monkeypatch, t
     assert result.exit_code == 2
 
 
+def test_rescrape_db_urls_from_stdin_avec_provider_ne_lit_pas_stdin(monkeypatch):
+    """L'exclusivité doit être validée avant toute lecture de stdin (`--urls-from -`).
+
+    Un terminal interactif attendrait sinon une saisie qui sera de toute façon
+    jetée : le rejet doit être immédiat, sans lire quoi que ce soit.
+    """
+
+    def _charger_urls_espion(*args, **kwargs):
+        raise AssertionError(
+            "charger_urls ne doit pas être appelé avant valider_ciblage_exclusif"
+        )
+
+    monkeypatch.setattr(cmd_rescrape, "charger_urls", _charger_urls_espion)
+    _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
+
+    result = runner.invoke(
+        app, ["rescrape-db", "--urls-from", "-", "--provider", "klikego"]
+    )
+
+    assert result.exit_code == 2
+
+
 def test_rescrape_db_url_reste_compatible_avec_limit(monkeypatch):
     """`--limit` ne sélectionne rien : il borne la liste finale."""
     espion = _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))

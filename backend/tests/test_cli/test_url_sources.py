@@ -43,6 +43,16 @@ def test_urls_from_tiret_lit_stdin(monkeypatch):
     assert url_sources.charger_urls([], "-") == ["https://k/1", "https://k/2"]
 
 
+def test_urls_from_tiret_bom_n_altere_pas_la_premiere_url(monkeypatch):
+    """Même bug que le fichier (BOM Notepad/Excel), côté stdin : `cat … | --urls-from -`."""
+    import io
+    import sys
+
+    monkeypatch.setattr(sys, "stdin", io.StringIO("﻿https://k/1\nhttps://k/2\n"))
+
+    assert url_sources.charger_urls([], "-") == ["https://k/1", "https://k/2"]
+
+
 def test_lignes_vides_et_commentaires_ignorees(tmp_path):
     """Un opérateur commente une URL plutôt que de la supprimer."""
     fichier = tmp_path / "echecs.txt"
@@ -115,24 +125,46 @@ def test_dedoublonne_en_conservant_la_forme_d_origine():
 
 
 def test_ciblage_exclusif_accepte_le_mode_base():
-    url_sources.valider_ciblage_exclusif(urls=None, provider="klikego", older_than=30)
+    url_sources.valider_ciblage_exclusif(
+        url=[], urls_from=None, provider="klikego", older_than=30
+    )
 
 
 def test_ciblage_exclusif_accepte_les_urls_seules():
-    url_sources.valider_ciblage_exclusif(urls=["https://k/1"], provider=None, older_than=None)
+    url_sources.valider_ciblage_exclusif(
+        url=["https://k/1"], urls_from=None, provider=None, older_than=None
+    )
 
 
 def test_ciblage_exclusif_refuse_url_avec_provider():
     with pytest.raises(typer.BadParameter) as exc:
         url_sources.valider_ciblage_exclusif(
-            urls=["https://k/1"], provider="klikego", older_than=None
+            url=["https://k/1"], urls_from=None, provider="klikego", older_than=None
         )
 
     assert "--provider" in str(exc.value)
 
 
 def test_ciblage_exclusif_refuse_url_avec_older_than():
+    """`urls_from` seul (sans `--url`) suffit à déclencher le ciblage."""
     with pytest.raises(typer.BadParameter) as exc:
-        url_sources.valider_ciblage_exclusif(urls=[], provider=None, older_than=30)
+        url_sources.valider_ciblage_exclusif(
+            url=[], urls_from="echecs.txt", provider=None, older_than=30
+        )
 
     assert "--older-than" in str(exc.value)
+
+
+def test_ciblage_exclusif_valide_avant_toute_lecture():
+    """Verrouille le correctif : la validation ne doit rien lire (fichier/stdin).
+
+    Passer un chemin de fichier inexistant à `urls_from` doit tout de même
+    déclencher le rejet d'exclusivité — la fonction ne doit jamais tenter de
+    l'ouvrir.
+    """
+    with pytest.raises(typer.BadParameter) as exc:
+        url_sources.valider_ciblage_exclusif(
+            url=[], urls_from="/chemin/qui-n-existe-pas.txt", provider="klikego", older_than=None
+        )
+
+    assert "--provider" in str(exc.value)
