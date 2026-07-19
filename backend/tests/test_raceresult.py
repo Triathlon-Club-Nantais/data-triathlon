@@ -587,7 +587,16 @@ def test_role_regle_de_forme_ne_sur_generalise_pas(expr):
 def test_map_columns_reconnait_finish_gun_seul():
     """Reproduction du symptôme réel de 380823 : `Finish.GUN` est l'unique
     colonne de temps de l'épreuve (pas de chip publié). Avant C4, aucun rôle
-    n'était reconnu et les 58 participants perdaient leur `total_time`."""
+    n'était reconnu et les 58 participants perdaient leur `total_time`.
+
+    Ce test porte un **second** invariant, à ne pas retirer en le croyant
+    accessoire (M15/M13) : `assert "Finish.OVERALL.GapTop" in extras` verrouille
+    l'exclusion du point de `_RE_TOKEN_SIMPLE`. `Finish.OVERALL.GapTop` n'obtient
+    aucun rôle (`_role` ne couvre que le suffixe `.p`) et sa valeur n'est jamais
+    qualifiée par `_RE_DUREE`, qui n'intervient qu'en aval sur les segments
+    retenus : c'est le point exclu du motif, et lui seul, qui garde cette
+    expression qualifiée en extras plutôt que candidate au rôle de segment —
+    où elle disparaîtrait de `raw_data` au lieu d'y être conservée."""
     payload = {
         "DataFields": ["BIB", "ID", "Finish.GUN", "Finish.OVERALL.GapTop"],
         "list": {"Fields": [
@@ -1198,7 +1207,12 @@ def test_build_result_purge_temps_et_rangs_dun_non_finisher():
     """
     ligne = _payload_rumilly()["data"]["#1_Distance M"]["#1_"][1]
 
-    # Prémisse : cette ligne est bien renseignée, la purge a de quoi mordre.
+    # Double rôle, à ne pas retirer comme un simple échafaudage : ce bloc est la
+    # prémisse du cas polluant (la ligne est bien renseignée, la purge a donc de
+    # quoi mordre — sans quoi les assertions du bas seraient vertes par accident
+    # d'absence, exactement le travers des tests DNF existants), ET le **sens
+    # légitime** de la garde : hors statut non-finisher, temps et rangs doivent
+    # survivre intacts. Une purge inconditionnelle passerait le bas de ce test.
     finisher = _construire(ligne)
     assert finisher.total_time == "02:01:56"
     assert (finisher.rank_overall, finisher.rank_category, finisher.rank_gender) == (
