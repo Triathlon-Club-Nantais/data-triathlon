@@ -922,6 +922,89 @@ def test_map_columns_detecte_un_segment_sans_crochets():
     assert segments == [("Natation", 2), ("Course", 3)]
 
 
+def test_map_columns_exclut_customflag_de_406211():
+    """I3 — `CustomFlag` (drapeau) n'est plus une candidate au rôle de segment.
+
+    Sur l'event 406211, sa colonne est étiquetée `{FR:Nat.|EN:Team}`, soit
+    « Nat. » une fois l'i18n retiré (I1) : **indiscernable de « Natation »**, à
+    laquelle elle est ici juxtaposée. `peel('CustomFlag') == 'customflag'`
+    passait `_RE_TOKEN_SIMPLE` ; le faux positif n'était neutralisé que parce que
+    la valeur `[img:…]` est effacée par `_clean_cell`, donc falsy — par accident
+    et non par conception.
+
+    La colonne n'est pas perdue pour autant : elle retombe en extras → `raw_data`.
+    """
+    payload = {
+        "DataFields": ["BIB", "ID", "CustomFlag", "Natation"],
+        "list": {"Fields": [
+            {"Expression": "CustomFlag", "Label": "{FR:Nat.|EN:Team}"},
+            {"Expression": "Natation", "Label": "Natation"},
+        ]},
+    }
+
+    _roles, segments, extras = raceresult._map_columns(payload)
+
+    assert segments == [("Natation", 3)]
+    assert extras == {"CustomFlag": 2}
+
+
+def test_map_columns_exclut_customflag_meme_avec_une_valeur_textuelle():
+    """I3, le cœur du correctif : l'exclusion ne dépend plus de la valeur.
+
+    Une épreuve qui servirait son drapeau en texte (code pays) au lieu d'un
+    `[img:…]` rouvrait le faux positif — la neutralisation par valeur vide ne
+    tenait qu'à la forme des cellules observées.
+    """
+    payload = {
+        "DataFields": ["BIB", "ID", "CustomFlag"],
+        "list": {"Fields": [
+            {"Expression": "CustomFlag", "Label": "Nat."},
+        ]},
+    }
+
+    _roles, segments, _extras = raceresult._map_columns(payload)
+
+    assert segments == []
+
+
+@pytest.mark.parametrize("expr", [
+    "CustomFlag",
+    "LienPhotos",
+    "Lienphotos",
+    "[LienPhotos]",
+    "NATION.IOCNAME",
+    'Icone("photos")',
+    'GapTimeTop(1;1;"--";"+H:mm:ss")',
+])
+def test_colonne_exclue_reconnait_les_colonnes_d_agrement(expr):
+    """I3 — les cinq formes que le §6 du sondage demandait d'exclure, dans les
+    graphies réellement relevées sur le panel (`LienPhotos`, `Lienphotos` et
+    `[LienPhotos]` coexistent)."""
+    assert raceresult._colonne_exclue(raceresult._peel(expr)) is True
+
+
+@pytest.mark.parametrize("expr", [
+    # Les vrais segments, sous leurs deux graphies.
+    "Natation", "[Natation]", "Vélo", "[Vélo]", "Course", "Swim", "Bike", "Run",
+    "Transition1", "[Transition_2]",
+    # Une liste d'exclusion doit aussi **laisser passer** ce qui n'y figure pas :
+    # ces colonnes restent candidates et continuent d'être arbitrées sur la
+    # forme de leurs valeurs (`_RE_DUREE`), comme avant.
+    "TIME19", "DistanceTotale", "Speed", "Year", "License",
+    # Voisinages lexicaux : ni un préfixe ni un fragment ne doit suffire.
+    "Flag", "Photos", "Icone", "GapTimeTopSplit", "Nation", "CustomFlagTime",
+])
+def test_colonne_exclue_laisse_passer_le_reste(expr):
+    """I3, sens inverse : l'exclusion est ancrée sur l'expression **entière**
+    (égalité exacte, ou préfixe suivi de la parenthèse ouvrante).
+
+    `Icone` nu et `GapTimeTopSplit` ne sont pas les colonnes visées : sans cette
+    précision, une liste d'exclusion mord sur des colonnes légitimes, ce qui est
+    le symétrique — et le plus coûteux — du faux positif qu'elle corrige.
+    """
+    assert raceresult._colonne_exclue(raceresult._peel(expr)) is False
+
+
 def test_build_result_ecarte_les_colonnes_qui_ne_sont_pas_des_durees():
     """Une colonne candidate au rôle de segment (`TIME19` étiquetée « Tours »,
     `DistanceTotale` étiquetée « Distance ») a la même forme d'expression qu'un
