@@ -163,49 +163,42 @@ def _fetch_config(event_id: str, base: str, client: httpx.Client) -> dict:
     return resp.json()
 
 
-# Clés qui marquent une feuille dans l'arbre `lists` (une liste réelle, pas un
-# groupe intermédiaire).
-_CLES_FEUILLE = ("Contest", "Name", "ID")
-
-
 def _iter_list_specs(config: dict) -> list[tuple[str, str]]:
     """Listes exploitables : [(listname, indice de contest), …].
 
-    `config["lists"]` a été **observé en production (event 393893, sondage du
-    2026-07-19) comme un tableau plat** : chaque élément est un dict portant
-    déjà le `listname` complet (`Name`, ex. `"04 - Classements|Classement
+    `config["lists"]` est un **tableau plat** (observé en production, event
+    393893, sondage du 2026-07-19) : chaque élément est un dict portant déjà
+    le `listname` complet (`Name`, ex. `"04 - Classements|Classement
     général"`, le `|` n'étant qu'un séparateur d'affichage posé par
-    RaceResult, pas une hiérarchie à reconstruire) et son `Contest`. C'est le
-    chemin normal, traité en priorité.
+    RaceResult, pas une hiérarchie à reconstruire) et son `Contest`. Toute
+    autre forme lève : aucun déploiement sondé n'en sert d'autre, et un
+    algorithme jamais validé contre l'API réelle ne doit pas tourner en
+    silence sur un cas qu'on n'a pas vu (cf. historique I1 : un repli
+    dict-arbre y a longtemps traîné sans preuve qu'il existe côté API).
 
-    Un `lists` en **dict** reste accepté (repli) pour les payloads réduits à
-    la main du reste de la suite de tests, qui modélisent un arbre à aplatir
-    plutôt qu'un tableau — rien n'indique que cette forme existe réellement
-    côté API, mais rien ne prouve non plus qu'aucun déploiement RaceResult ne
-    la sert. L'indice de contest n'est qu'un **indice** dans les deux cas — il
-    est vérifié empiriquement à l'appel (cf. `_contest_candidates`).
+    Écarte les listes marquées `Live` (valeur non nulle) : ce sont des
+    listes d'**affichage** temps réel (ex. `"03 - Affichages|LIVE EXTRA sans
+    predictif"`, `Live: 1`), dont les `Expression` sont des formules
+    `switch(...)/if(...)` qui dépendent du curseur d'affichage
+    (`{Selector.Splits}`) et qu'aucun rôle de `_role` ne reconnaît (C1) — à
+    la différence des listes de classement réelles, qui portent `Live: 0`
+    même quand leur `Format` vaut aussi `"V"` (le `Format` seul ne distingue
+    donc pas les deux : `Live` est le signal fiable). Sur l'event 393893,
+    seule `"03 - Affichages|…"` porte `Live: 1` ; les 3 autres listes
+    (`Concurrents`, `Classement général`, `Classement général Jeunes`)
+    portent `Live: 0` et sont conservées.
+
+    L'indice de contest n'est qu'un **indice** — il est vérifié
+    empiriquement à l'appel (cf. `_contest_candidates`).
     """
     lists = config.get("lists")
-    if isinstance(lists, list):
-        return [
-            (str(item.get("Name") or ""), str(item.get("Contest") or "0"))
-            for item in lists
-            if isinstance(item, dict) and item.get("Name")
-        ]
-
-    specs: list[tuple[str, str]] = []
-
-    def descendre(noeud, chemin: list[str]) -> None:
-        if not isinstance(noeud, dict) or any(c in noeud for c in _CLES_FEUILLE):
-            indice = noeud.get("Contest") if isinstance(noeud, dict) else None
-            specs.append(("|".join(chemin), "" if indice is None else str(indice)))
-            return
-        for cle, valeur in noeud.items():
-            descendre(valeur, [*chemin, str(cle)])
-
-    for cle, valeur in (lists or {}).items():
-        descendre(valeur, [str(cle)])
-    return specs
+    if not isinstance(lists, list):
+        raise ValueError(f"lists de forme inattendue : {type(lists)!r}")
+    return [
+        (str(item.get("Name") or ""), str(item.get("Contest") or "0"))
+        for item in lists
+        if isinstance(item, dict) and item.get("Name") and not item.get("Live")
+    ]
 
 
 _ACCENTS = str.maketrans("àâäéèêëîïôöùûüçÀÂÄÉÈÊËÎÏÔÖÙÛÜÇ", "aaaeeeeiioouuucAAAEEEEIIOOUUUC")
@@ -286,6 +279,29 @@ def _role(peeled: str) -> str:
     return ""
 
 
+_RE_LABEL_I18N = re.compile(r"^\{(.*)\}$")
+
+
+def _label_i18n(label: str) -> str:
+    """Étiquette débarrassée de son enrobage i18n `{DE:…|EN:…|FR:…}`.
+
+    Certaines listes (notamment les listes d'affichage, cf. C1) encodent leurs
+    libellés dans les trois langues (`{DE:Startnr|EN:Bib|FR:Dos.}`) : sans
+    normalisation, ce brut atterrit tel quel comme clé JSON de `segments` /
+    `raw_data`. Priorité à `FR:`, repli sur `EN:`, puis sur la première
+    variante présente ; une étiquette sans cet enrobage traverse inchangée.
+    """
+    trouve = _RE_LABEL_I18N.match(label)
+    if not trouve:
+        return label
+    variantes = dict(
+        p.split(":", 1) for p in trouve.group(1).split("|") if ":" in p
+    )
+    if not variantes:
+        return label
+    return variantes.get("FR") or variantes.get("EN") or next(iter(variantes.values()))
+
+
 def _map_columns(
     payload: dict,
 ) -> tuple[dict[str, int], list[tuple[str, int]], dict[str, int]]:
@@ -299,13 +315,15 @@ def _map_columns(
 
     Étage 2, le rôle : cf. `_role`. Un champ dont l'expression est un token nu
     entre crochets (`[Natation]`) et sans suffixe de rang est un **segment**,
-    étiqueté par son `Label`. Tout le reste part en extras → `raw_data`.
+    étiqueté par son `Label` (passé par `_label_i18n`). Tout le reste part en
+    extras → `raw_data`.
 
-    `Fields` a été **observé en production niché sous `payload["list"]`**, pas
-    à la racine du payload (sondage du 2026-07-19, event 393893) — la racine ne
-    porte que `list`, `data`, `DataFields`, `mid`, `groupFilters`… Le repli sur
-    `payload["Fields"]` reste accepté au cas où un autre déploiement l'exposerait
-    directement à la racine.
+    `Fields` vit sous `payload["list"]` (observé en production, sondage du
+    2026-07-19, event 393893) — la racine du payload ne porte que `list`,
+    `data`, `DataFields`, `mid`, `groupFilters`… Aucun repli sur une autre
+    forme : un `Fields` absent ou vide (`[]`) ne laisse alors que le rôle
+    `bib`, jamais une racine `payload["Fields"]` jamais observée côté API
+    (ancien repli, I1/I2).
     """
     data_fields = [str(e) for e in payload.get("DataFields") or []]
     index_par_expr = {expr: i for i, expr in enumerate(data_fields)}
@@ -317,9 +335,7 @@ def _map_columns(
     if "BIB" in index_par_expr:
         roles["bib"] = index_par_expr["BIB"]
 
-    champs_liste = payload.get("Fields")
-    if champs_liste is None:
-        champs_liste = (payload.get("list") or {}).get("Fields")
+    champs_liste = (payload.get("list") or {}).get("Fields")
     for champ in champs_liste or []:
         expr = str(champ.get("Expression") or "")
         col = index_par_expr.get(expr)
@@ -333,7 +349,7 @@ def _map_columns(
         if role:
             roles.setdefault(role, col)
             continue
-        label = str(champ.get("Label") or "").strip()
+        label = _label_i18n(str(champ.get("Label") or "").strip())
         # Segment : token nu entre crochets, donc sans point de qualification.
         if "[" in expr and "." not in peeled and label:
             segments.append((label, col))
@@ -535,11 +551,23 @@ def _prefer(nouveau: ScrapedResult, ancien: ScrapedResult) -> bool:
     détruire un finisher réel — une liste « Non Partants » figée à la veille
     (dossard réattribué, engagé finalement présent) écrasait alors temps,
     rang et club corrects (N1, régression du garde-fou I2).
+
+    Au-delà des non-finishers, un temps d'arrivée réel doit aussi primer sur
+    la seule richesse en colonnes (C1) : une liste d'affichage LIVE peut être
+    plus large que le vrai classement (drapeau, écart au leader, colonnes
+    i18n non reconnues…) tout en étant muette sur le temps — ses `Expression`
+    sont des formules `switch(...)/if(...)` que `_role` ne décode pas. Sans
+    cette garde, `_richness` la faisait gagner et écrasait un classement réel
+    par une ligne sans temps ni rang (event 393893, contest « Distance
+    Jeunes » : 49 participants sur 874 vidés par `03 - Affichages|LIVE EXTRA
+    sans predictif`).
     """
     if nouveau.status in _NON_FINISHERS and not ancien.total_time:
         return True
     if ancien.status in _NON_FINISHERS and not nouveau.total_time:
         return False
+    if bool(nouveau.total_time) != bool(ancien.total_time):
+        return bool(nouveau.total_time)
     return _richness(nouveau) > _richness(ancien)
 
 
@@ -548,7 +576,13 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
 
     Balaie **toutes** les listes exploitables et fusionne : une liste
     « Individuel » et une liste « Relais » se complètent au lieu de s'écraser.
-    Borne réseau : `len(lists) × (1 + len(contests))` requêtes au pire, ~5 en pratique.
+    Borne réseau : `len(lists) × (1 + len(contests))` requêtes au pire. Mesuré
+    sur l'épreuve réelle (393893, 2026-07-19, après filtrage des listes `Live`
+    de C1) : **15 requêtes `list`, dont 11 en 404** — les listes `Concurrents`
+    et `Classement général` de cette épreuve n'ont pas d'indice de contest
+    fiable en config (`Contest: "0"`) et retentent chacune tous les contests
+    déclarés faute de mieux. Avant le filtrage C1, la liste d'affichage LIVE
+    s'ajoutait à ce total (16 requêtes, 10 en 404 alors mesurées).
     """
     base = _api_base(url)
     with httpx.Client(follow_redirects=True, timeout=30, headers=HEADERS) as client:
