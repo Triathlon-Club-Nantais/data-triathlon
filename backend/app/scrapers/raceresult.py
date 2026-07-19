@@ -410,7 +410,21 @@ def _strip_rank_suffix(valeur: str) -> str:
 # forme généralise sans élargir à l'aveugle : le préfixe reste fermé à ces
 # trois racines précises — `finishresult` (le statut texte de C1, hors
 # périmètre ici) n'en fait PAS partie, seul `finish` l'est — et le suffixe aux
-# trois variantes réellement rencontrées.
+# trois variantes réellement rencontrées. `temps` nu (sans suffixe) reste géré
+# à part, dans la table d'égalités exactes de `_role` : c'était un trou du
+# même vocabulaire, comblé après revue (constat Important 1).
+#
+# Priorité entre les trois suffixes (cf. `_role` puis le repli de
+# `_map_columns`) : **chip > gun > texte**. Chip et gun sont deux temps
+# officiels réellement observés sur le panel (`Arrivée.*`, 411749/410891) ;
+# `.text` n'a été vu sur AUCUNE épreuve sondée sous ces trois préfixes — seul
+# `FinishResult.TEXT` (préfixe distinct, hors périmètre C1) l'expose en
+# pratique. Le classer au même rang que le chip ferait perdre un chip pourtant
+# publié dès lors qu'une liste énumère `.TEXT` avant `.CHIP` dans `Fields`
+# (`_map_columns` retient le premier champ qui revendique un rôle) : `_role`
+# lui donne donc un rôle distinct, `temps_texte`, promu `temps` en tout
+# dernier repli seulement — jamais mesuré, mais l'ordre de préférence reste
+# sûr même si cette branche s'active un jour.
 _RE_TEMPS_SUFFIXE = re.compile(r"^(temps|arrivee|finish)\.(gun|chip|text)$")
 
 
@@ -458,19 +472,20 @@ def _role(peeled: str) -> str:
     if peeled in ("sex", "sexe", "gender"):
         return "sexe"
     if peeled in (
-        "time", "tempstotal", "tempsfinal", "tempsfinal.decimal",
+        "time", "temps", "tempstotal", "tempsfinal", "tempsfinal.decimal",
         "tempscorrige", "tempsoustatut", "finish", "arrivee",
     ):
         return "temps"
-    # `Arrivée.GUN`/`Finish.GUN`/`Temps.GUN` est le temps au coup de pistolet ;
-    # `Arrivée.CHIP`/`Finish.CHIP`/`Temps.CHIP` le temps réel (`.text` — cas
-    # rencontré sur aucune épreuve du panel mais couvert par la même forme —
-    # rejoint le chip, aucune épreuve ne distinguant un troisième temps
-    # « texte »). Les deux rôles restent distincts : `_map_columns` préfère le
-    # chip, qui est le temps officiel de l'athlète (cf. `_RE_TEMPS_SUFFIXE`).
+    # Priorité chip > gun > texte et statut de `.text` : cf. le commentaire de
+    # `_RE_TEMPS_SUFFIXE`. `_map_columns` résout les deux replis.
     trouve = _RE_TEMPS_SUFFIXE.match(peeled)
     if trouve:
-        return "temps_pistolet" if trouve.group(2) == "gun" else "temps"
+        suffixe = trouve.group(2)
+        if suffixe == "gun":
+            return "temps_pistolet"
+        if suffixe == "text":
+            return "temps_texte"
+        return "temps"
     return ""
 
 
@@ -565,6 +580,15 @@ def _map_columns(
     if "temps_pistolet" in roles:
         roles.setdefault("temps", roles.pop("temps_pistolet"))
         roles.pop("temps_pistolet", None)
+    # Temps texte (`.text`) en tout dernier repli — cf. Mineur 2 de la revue
+    # C4 : rôle distinct du chip/gun *pendant* la boucle ci-dessus, pour
+    # qu'un `Finish.TEXT` qui précéderait un `Finish.CHIP` dans `Fields` ne
+    # squatte pas la place et ne renvoie pas le chip en extras. Résolu après
+    # le repli pistolet : gun, réellement observé sur le panel, prime sur
+    # texte, jamais vu.
+    if "temps_texte" in roles:
+        roles.setdefault("temps", roles.pop("temps_texte"))
+        roles.pop("temps_texte", None)
     return roles, segments, extras
 
 
