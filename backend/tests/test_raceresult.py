@@ -374,3 +374,109 @@ def test_build_result_marque_le_relais():
     r = _construire(ligne, contest="Relais M")
 
     assert r.is_relay is True
+
+
+# ── Pipeline complet : contests empiriques, fusion, erreurs ────────────────
+
+def test_contest_candidates_essaie_l_indice_puis_zero_puis_chaque_contest():
+    assert raceresult._contest_candidates("4", {"1": "XS", "4": "M"}) == ["4", "0", "1"]
+    # Indice nul ou absent : `0` en tête, puis chaque contest déclaré.
+    assert raceresult._contest_candidates("0", {"1": "XS", "4": "M"}) == ["0", "1", "4"]
+    assert raceresult._contest_candidates("", {"1": "XS"}) == ["0", "1"]
+
+
+def test_fetch_list_renvoie_none_sur_404():
+    client = _FauxClient({"/data/list": (404, "")})
+
+    assert raceresult._fetch_list(
+        "393893", "https://my3.raceresult.com", "k", "En ligne|Final", "0", client
+    ) is None
+
+
+def test_fetch_list_renvoie_none_sur_payload_sans_data():
+    client = _FauxClient({"/data/list": (200, '{"DataFields": [], "data": {}}')})
+
+    assert raceresult._fetch_list(
+        "393893", "https://my3.raceresult.com", "k", "L", "0", client
+    ) is None
+
+
+def _brancher(monkeypatch, payloads_par_contest: dict[str, dict | None]):
+    """Monkeypatche les helpers réseau ; `_fetch_list` répond selon le contest."""
+    monkeypatch.setattr(raceresult, "_resolve_event_id", lambda url, client: "393893")
+    monkeypatch.setattr(
+        raceresult, "_fetch_meta",
+        lambda eid, base, client: ("Triathlon de Rumilly", date(2026, 6, 18), "RUMILLY"),
+    )
+    monkeypatch.setattr(
+        raceresult, "_fetch_config",
+        lambda eid, base, client: json.loads(_fixture("raceresult_config_rumilly.json")),
+    )
+    essais: list[str] = []
+
+    def faux_fetch_list(eid, base, key, listname, contest, client):
+        essais.append(contest)
+        return payloads_par_contest.get(contest)
+
+    monkeypatch.setattr(raceresult, "_fetch_list", faux_fetch_list)
+    return essais
+
+
+def test_scrape_event_all_resout_le_contest_empiriquement(monkeypatch):
+    """404 sur contest=0, succès sur contest=1 : le balayage ne s'arrête pas au premier échec."""
+    essais = _brancher(monkeypatch, {"1": _payload_rumilly()})
+
+    resultats = raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
+
+    assert essais[:2] == ["0", "1"], f"ordre d'essai inattendu : {essais}"
+    assert len(resultats) == 4
+    assert {r.bib_number for r in resultats} == {"79", "112", "205", "310"}
+
+
+def test_scrape_event_all_fusionne_sans_doublon(monkeypatch):
+    """Deux listes livrant la même tranche : un participant, pas deux."""
+    _brancher(monkeypatch, {"0": _payload_rumilly(), "3": _payload_rumilly()})
+
+    resultats = raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
+
+    assert len(resultats) == 4
+
+
+def test_scrape_event_all_retient_la_ligne_la_plus_riche(monkeypatch):
+    """Sur clé (contest, dossard) identique, la ligne la mieux remplie gagne."""
+    pauvre = _payload_rumilly()
+    pauvre["data"] = {"#1_Distance M": {"#1_": [
+        ["79", "56", "2.", "79", "Alexis ROUX", "", "", "", "", "", "", "", "",
+         "", "", "", "", "", "2:01:56", ""]
+    ]}}
+    riche = _payload_rumilly()
+    riche["data"] = {"#1_Distance M": {"#1_": [
+        riche["data"]["#1_Distance M"]["#1_"][0]
+    ]}}
+    # `En ligne|Final` (Contest 0) sert la ligne pauvre, `En ligne|Relais` (3) la riche.
+    _brancher(monkeypatch, {"0": pauvre, "3": riche})
+
+    resultats = raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
+
+    assert len(resultats) == 1
+    assert resultats[0].club == "GRESIVAUDAN TRIATHLON"
+
+
+def test_scrape_event_all_sans_liste_exploitable_leve(monkeypatch):
+    """Cas Roanne : config valide, toutes les listes en 404 → erreur messagée."""
+    _brancher(monkeypatch, {})
+
+    with pytest.raises(ValueError) as exc:
+        raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
+
+    assert "393893" in str(exc.value)
+    assert "En ligne|Final" in str(exc.value)
+
+
+def test_scrape_event_all_qualifie_par_contest(monkeypatch):
+    """Une Course par contest : le nom qualifié évite les collisions de dossards (#21)."""
+    _brancher(monkeypatch, {"0": _payload_rumilly()})
+
+    resultats = raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
+
+    assert {r.event_name for r in resultats} == {"Triathlon de Rumilly - Distance M"}

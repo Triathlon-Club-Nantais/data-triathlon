@@ -426,6 +426,124 @@ def _build_result(
     return r
 
 
-def scrape_event_all(url: str) -> list:
-    """Importe tous les participants d'une épreuve RaceResult."""
-    raise NotImplementedError  # complété en Task 6
+def _contest_candidates(indice: str, contests: dict) -> list[str]:
+    """Contests à essayer pour une liste, dans l'ordre le plus probable.
+
+    `contest=0` (« tous ») n'est pas universel : sur certaines épreuves il
+    répond 404 sur toutes les listes et il faut interroger contest par contest,
+    chacun livrant son propre payload. On essaie donc l'indice annoncé par la
+    config s'il est significatif, puis `0`, puis chaque contest déclaré.
+    """
+    candidats: list[str] = []
+    if indice and indice != "0":
+        candidats.append(indice)
+    candidats.append("0")
+    candidats.extend(str(c) for c in (contests or {}))
+    vus: set[str] = set()
+    return [c for c in candidats if not (c in vus or vus.add(c))]
+
+
+def _fetch_list(
+    event_id: str,
+    base: str,
+    key: str,
+    listname: str,
+    contest: str,
+    client: httpx.Client,
+) -> dict | None:
+    """Payload d'une liste pour un contest donné, `None` si indisponible.
+
+    La route répond **301** vers `/{eventId}/results/list` : le client doit être
+    ouvert avec `follow_redirects=True`, sinon la réponse est vide. Un 404 (liste
+    non servie pour ce contest, ou liste morte) est journalisé en `debug` et
+    renvoie `None` — le balayage continue.
+    """
+    resp = client.get(
+        f"{base}/{event_id}/RRPublish/data/list",
+        params={
+            "key": key,
+            "listname": listname,
+            "page": "results",
+            "contest": contest,
+            "r": "all",
+        },
+        headers=HEADERS,
+    )
+    if resp.status_code == 404:
+        logger.debug(
+            "RaceResult %s : liste %r absente pour contest=%s", event_id, listname, contest
+        )
+        return None
+    resp.raise_for_status()
+    try:
+        payload = resp.json()
+    except ValueError:
+        logger.debug("RaceResult %s : liste %r non JSON", event_id, listname)
+        return None
+    if not isinstance(payload, dict) or not payload.get("data"):
+        return None
+    return payload
+
+
+def _richness(r: ScrapedResult) -> int:
+    """Nombre de champs renseignés — arbitre les doublons entre listes."""
+    champs = (
+        r.athlete_name, r.athlete_firstname, r.club, r.category, r.gender, r.total_time
+    )
+    return sum(1 for c in champs if c) + len(r.segments or []) + len(r.raw_data)
+
+
+def scrape_event_all(url: str) -> list[ScrapedResult]:
+    """Importe tous les participants d'une épreuve RaceResult.
+
+    Balaie **toutes** les listes exploitables et fusionne : une liste
+    « Individuel » et une liste « Relais » se complètent au lieu de s'écraser.
+    Borne réseau : `len(lists) + len(contests)` requêtes au pire, ~5 en pratique.
+    """
+    base = _api_base(url)
+    with httpx.Client(follow_redirects=True, timeout=30, headers=HEADERS) as client:
+        event_id = _resolve_event_id(url, client)
+        config = _fetch_config(event_id, base, client)
+        key = str(config.get("key") or "")
+        contests = config.get("contests") or {}
+        nom_meta, jour, _ville = _fetch_meta(event_id, base, client)
+        event_name = nom_meta or str(config.get("eventname") or "")
+
+        specs = _iter_list_specs(config)
+        # Clé de fusion (contest, dossard) : deux contests peuvent porter le même
+        # dossard, c'est précisément le cas que la qualification par contest règle.
+        fusion: dict[tuple[str, str], ScrapedResult] = {}
+        for listname, indice in specs:
+            for contest in _contest_candidates(indice, contests):
+                payload = _fetch_list(event_id, base, key, listname, contest, client)
+                if payload is None:
+                    continue
+                roles, segments, extras = _map_columns(payload)
+                for contest_label, status_label, lignes in _iter_groups(payload["data"]):
+                    # Le nom de contest vient de la clé de groupe, avec repli sur
+                    # la table `contests` de la config.
+                    libelle = contest_label or str(contests.get(contest) or "")
+                    for ligne in lignes:
+                        r = _build_result(
+                            ligne, roles, segments, extras,
+                            source_url=url,
+                            event_name=event_name,
+                            event_date=jour,
+                            contest_label=libelle,
+                            status_label=status_label,
+                        )
+                        if not r.bib_number:
+                            continue
+                        cle = (libelle, r.bib_number)
+                        ancien = fusion.get(cle)
+                        if ancien is None or _richness(r) > _richness(ancien):
+                            fusion[cle] = r
+                break  # une liste servie : on ne tente pas ses autres contests
+
+    if not fusion:
+        essayees = ", ".join(nom for nom, _ in specs) or "aucune liste déclarée"
+        raise ValueError(
+            f"Épreuve RaceResult {event_id} : aucune liste exploitable "
+            f"(listes essayées : {essayees})."
+        )
+    return list(fusion.values())
