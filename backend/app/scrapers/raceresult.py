@@ -344,8 +344,17 @@ def _clean_cell(brut) -> str:
 
 # `"1.S4M"` — le rang colle le libellé, forme `#[Classement.p][AGEGROUP…]`.
 _RE_RANG_PREFIXE = re.compile(r"^(\d+)\.\s*(.*)$")
-# `"M0M (1.)"` — le rang suit entre parenthèses, forme `X & iif(…)`.
+# `"M0M (1.)"` — le rang suit entre parenthèses, forme `X & iif(…)`. Le point
+# final est facultatif ici : `sexe`/`categorie` sont des vocabulaires fermés
+# (`"M"`, `"S4M"`) où un suffixe `(44)` sans point ne peut pas survenir.
 _RE_RANG_SUFFIXE = re.compile(r"^(.*?)\s*\(\s*(\d+)\.?\s*\)$")
+# Même forme, mais point final EXIGÉ : `nom`/`club`/`temps` sont du texte
+# libre saisi par les organisateurs, où une parenthèse finale sans point est
+# un contenu légitime (code départemental `"TRIATHLON CLUB NANTAIS (44)"`,
+# numéro d'équipe de relais `"TCN (1)"`) et non un rang collé. Seul le point,
+# marqueur de rang effectif de RaceResult (présent dans toutes les captures
+# réelles : `(1.)`, `(10.)`, `(5.)`), distingue les deux sans ambiguïté.
+_RE_RANG_SUFFIXE_STRICT = re.compile(r"^(.*?)\s*\(\s*(\d+)\.\s*\)$")
 
 
 def _split_rank_category(cell: str) -> tuple[int | None, str]:
@@ -366,23 +375,27 @@ def _split_rank_category(cell: str) -> tuple[int | None, str]:
     return None, cell
 
 
-def _strip_segment_rank(valeur: str) -> str:
+def _strip_rank_suffix(valeur: str) -> str:
     """Décolle un rang suffixé (`"2:08:00 (1.)"` → `"2:08:00"`) d'une cellule.
 
     Toute colonne issue d'une concaténation `[X] & " (" & [X.OVERALL.P] & ")"`
-    porte son rang collé de cette façon (même forme que `_RE_RANG_SUFFIXE`,
-    déjà utilisée pour sexe/catégorie) — un segment de course, mais aussi bien
-    `nom`, `club` ou `temps` : le point fixe de `_peel` (C2) fait désormais
-    converger vers ces rôles des expressions composées qui restaient opaques
-    avant, sans garantie que leur valeur soit épargnée par le même motif de
-    concaténation que les segments. Un rang n'est jamais un composant valide
-    de ces valeurs. Pour un segment, `_RE_DUREE` rejette la cellule polluée et
-    le split est perdu ; pour `total_time`, `normalize_time` est permissif et
-    laisserait passer `"3:18:21 (5.)"` tel quel — d'où ce décollage
-    systématique plutôt qu'un relâchement de `normalize_time` ou de
-    `_RE_DUREE`, tous deux proscrits.
+    porte son rang collé de cette façon — un segment de course, mais aussi
+    bien `nom`, `club` ou `temps` : le point fixe de `_peel` (C2) fait
+    désormais converger vers ces rôles des expressions composées qui
+    restaient opaques avant, sans garantie que leur valeur soit épargnée par
+    le même motif de concaténation que les segments. Pour un segment,
+    `_RE_DUREE` rejette la cellule polluée et le split est perdu ; pour
+    `total_time`, `normalize_time` est permissif et laisserait passer
+    `"3:18:21 (5.)"` tel quel — d'où ce décollage systématique plutôt qu'un
+    relâchement de `normalize_time` ou de `_RE_DUREE`, tous deux proscrits.
+
+    Utilise `_RE_RANG_SUFFIXE_STRICT` (point final exigé), pas
+    `_RE_RANG_SUFFIXE` : `nom` et `club` sont du texte libre où une parenthèse
+    finale sans point est un contenu légitime (code départemental, numéro
+    d'équipe de relais), à la différence de `sexe`/`categorie` (vocabulaire
+    fermé, traités par `_split_rank_category`) où l'ambiguïté n'existe pas.
     """
-    trouve = _RE_RANG_SUFFIXE.match(valeur)
+    trouve = _RE_RANG_SUFFIXE_STRICT.match(valeur)
     return trouve.group(1).strip() if trouve else valeur
 
 
@@ -626,16 +639,19 @@ def _build_result(
     # `nom`/`club`/`temps` peuvent désormais provenir d'une expression composée
     # que C2 a fait converger vers ce rôle (`[TIME] & " (" & [TIME.OVERALL.P] &
     # ")"`, imbriquée ou non dans un `if(…)`) : leur valeur porte alors le même
-    # rang collé qu'un segment, et `_strip_segment_rank` les protège pareil.
-    # `sexe`/`categorie` passent par `_split_rank_category`, qui fait de même.
-    nom, prenom = split_athlete_name(_strip_segment_rank(cellule("nom")))
+    # rang collé qu'un segment, et `_strip_rank_suffix` les protège pareil —
+    # avec la variante stricte de la regex (point exigé), car ce sont des
+    # champs de texte libre où une parenthèse finale peut être légitime.
+    # `sexe`/`categorie` passent par `_split_rank_category`, qui fait de même
+    # avec la regex permissive (vocabulaire fermé, pas d'ambiguïté possible).
+    nom, prenom = split_athlete_name(_strip_rank_suffix(cellule("nom")))
     r.athlete_name, r.athlete_firstname = nom, prenom
-    r.club = _strip_segment_rank(cellule("club"))
+    r.club = _strip_rank_suffix(cellule("club"))
     # `ucase([SEX]) & iif(…)` sérialise « M (1.) » : le rang de sexe voyage dans
     # la même cellule que le sexe et doit en être détaché.
     r.rank_gender, r.gender = _split_rank_category(cellule("sexe"))
     r.rank_category, r.category = _split_rank_category(cellule("categorie"))
-    r.total_time = normalize_time(_strip_segment_rank(cellule("temps")))
+    r.total_time = normalize_time(_strip_rank_suffix(cellule("temps")))
     r.is_relay = any(
         mot in contest_label.lower() for mot in ("relais", "relay", "equipe", "équipe")
     )
@@ -663,7 +679,7 @@ def _build_result(
         for label, col in segments
         if col < len(ligne)
         and (cellule_brute := _clean_cell(ligne[col]))
-        and (valeur := _strip_segment_rank(cellule_brute))
+        and (valeur := _strip_rank_suffix(cellule_brute))
         and _RE_DUREE.match(valeur)
     ] or None
 
