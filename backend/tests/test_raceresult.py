@@ -695,7 +695,7 @@ def test_scrape_event_all_desambiguise_les_groupes_non_nommes(monkeypatch):
     resultats = raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
 
     assert len(resultats) == 1
-    assert resultats[0].event_name == "Triathlon de Rumilly - 5"
+    assert resultats[0].event_name == "Triathlon de Rumilly - Contest 5"
 
 
 def test_scrape_event_all_desambiguise_par_contest_sans_dupliquer_entre_listes(monkeypatch):
@@ -868,6 +868,65 @@ def test_scrape_event_all_garde_le_payload_ambigu_en_dernier_recours(monkeypatch
     assert len(resultats) == 2
     assert "TROISIEME" in {r.athlete_name for r in resultats}
     assert len({r.athlete_name for r in resultats} & {"DUPONT", "COUREUR"}) == 1
+
+
+def test_scrape_event_all_distingue_deux_listes_ambigues_dans_le_filet(monkeypatch):
+    """N4 : dans le filet de dernier recours, `contest` vaut toujours "0" par
+    construction — une constante qui ne distingue rien. Deux payloads ambigus
+    distincts (scénario phare du module : une liste « Individuel » et une
+    liste « Relais », dossards réutilisés d'une liste à l'autre) tombant tous
+    deux dans ce filet (contests explicites 1 et 2 en 404) recevaient donc le
+    même libellé de repli (« 0 ») et fusionnaient — perdant l'« Equipe ALPHA »
+    (dossard 79 en relais, collision avec Jean DUPONT, même dossard en
+    individuel). Régression contre 69ec266, qui étiquetait ces deux listes
+    `- Individuel` / `- Relais` et gardait les 3 lignes. Le filet doit
+    distinguer par `listname`, comme le contest explicite distingue déjà par
+    son numéro (I3)."""
+
+    def _ligne(bib, nom):
+        return [bib, "1", "1.", bib, nom, "M", "1.S1M", "CLUB",
+                "", "", "", "", "", "", "", "", "", "", "01:00:00", ""]
+
+    config = {
+        "key": "k",
+        "contests": {"1": "Distance XS", "2": "Distance M"},
+        "lists": {"Individuel": {"Contest": 0}, "Relais": {"Contest": 0}},
+    }
+    monkeypatch.setattr(raceresult, "_resolve_event_id", lambda url, client: "393893")
+    monkeypatch.setattr(
+        raceresult, "_fetch_meta",
+        lambda eid, base, client: ("Triathlon de Rumilly", date(2026, 6, 18), "RUMILLY"),
+    )
+    monkeypatch.setattr(raceresult, "_fetch_config", lambda eid, base, client: config)
+
+    champs = {k: _payload_rumilly()[k] for k in ("DataFields", "Fields")}
+
+    def _payload(lignes):
+        return {**champs, "data": {"#1_": lignes}}
+
+    individuel = _payload([_ligne("79", "Jean DUPONT"), _ligne("100", "Un TROISIEME")])
+    relais = _payload([_ligne("79", "Equipe ALPHA")])
+
+    def faux_fetch_list(eid, base, key, listname, contest, client):
+        # Les contests explicites (1, 2) répondent tous deux 404 : seul
+        # contest=0 (« tous ») est servi, différemment selon la liste.
+        if contest != "0":
+            return None
+        return {"Individuel": individuel, "Relais": relais}.get(listname)
+
+    monkeypatch.setattr(raceresult, "_fetch_list", faux_fetch_list)
+
+    resultats = raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
+
+    assert len(resultats) == 3, "les 3 lignes doivent survivre sous deux libellés distincts"
+    assert {(r.bib_number, r.athlete_name) for r in resultats} == {
+        ("79", "DUPONT"), ("100", "TROISIEME"), ("79", "ALPHA"),
+    }
+    assert {r.event_name for r in resultats} == {
+        "Triathlon de Rumilly - Individuel", "Triathlon de Rumilly - Relais",
+    }
+    equipe_alpha = [r for r in resultats if r.athlete_name == "ALPHA"][0]
+    assert equipe_alpha.is_relay is True
 
 
 def test_scrape_event_all_ouvre_le_client_avec_follow_redirects(monkeypatch):
