@@ -351,11 +351,53 @@ def _peel(expr: str) -> str:
     return s.translate(_ACCENTS).lower().strip()
 
 
+_RE_LABEL_I18N = re.compile(r"^\{(.*)\}$")
+
+
+def _label_i18n(label: str) -> str:
+    """Étiquette débarrassée de son enrobage i18n `{DE:…|EN:…|FR:…}`.
+
+    Les épreuves internationales encodent leurs libellés dans les trois langues
+    (`{DE:Startnr|EN:Bib|FR:Dos.}`) : sans normalisation, ce brut atterrit tel
+    quel comme clé JSON de `segments` / `raw_data`. Priorité à `FR:`, repli sur
+    `EN:`, puis sur la première variante présente ; une étiquette sans cet
+    enrobage traverse inchangée.
+
+    Sert aussi bien aux **libellés de colonne** qu'aux **cellules** (cf.
+    `_clean_cell`) : RaceResult emploie le même encodage des deux côtés.
+    """
+    trouve = _RE_LABEL_I18N.match(label)
+    if not trouve:
+        return label
+    variantes = dict(
+        p.split(":", 1) for p in trouve.group(1).split("|") if ":" in p
+    )
+    if not variantes:
+        return label
+    return variantes.get("FR") or variantes.get("EN") or next(iter(variantes.values()))
+
+
 def _clean_cell(brut) -> str:
-    """Cellule débarrassée de ses décorations d'affichage."""
+    """Cellule débarrassée de ses décorations d'affichage.
+
+    L'enrobage i18n `{EN:…|FR:…}` ne décore pas que les libellés de colonne : il
+    voyage aussi dans les **valeurs**. Mesuré sur l'event 401699, dont les 33
+    cellules de catégorie relais entraient en base telles quelles
+    (`category = '{EN:Men|FR:Masculin}'`) — illisible en UI et non regroupable.
+    `_label_i18n` est donc appliqué ici, sur le chemin de toutes les cellules,
+    plutôt que dupliqué rôle par rôle.
+
+    Sa portée reste étroite par construction : `_RE_LABEL_I18N` est ancré
+    `^\\{…\\}$` et exige au moins une variante `LANGUE:valeur`. Une cellule qui
+    contiendrait légitimement une accolade ou un `|` sans être *entièrement*
+    enrobée traverse intacte. Mesuré sur les 176 691 cellules des 17 épreuves
+    capturées : 33 cellules transformées (toutes sur 401699, toutes de la forme
+    i18n attendue), et une seule autre cellule contenant l'un de ces caractères
+    — `'ROBERT Julie}'`, une accolade parasite dans un nom — laissée intacte.
+    """
     if brut is None:
         return ""
-    return _RE_IMG.sub("", str(brut)).strip().lstrip("#").strip()
+    return _label_i18n(_RE_IMG.sub("", str(brut)).strip().lstrip("#").strip())
 
 
 # `"1.S4M"` — le rang colle le libellé, forme `#[Classement.p][AGEGROUP…]`.
@@ -515,29 +557,6 @@ def _role(peeled: str) -> str:
     if _RE_TEMPS_RESULTAT_TEXTE.match(peeled):
         return "temps_texte"
     return ""
-
-
-_RE_LABEL_I18N = re.compile(r"^\{(.*)\}$")
-
-
-def _label_i18n(label: str) -> str:
-    """Étiquette débarrassée de son enrobage i18n `{DE:…|EN:…|FR:…}`.
-
-    Les épreuves internationales encodent leurs libellés dans les trois langues
-    (`{DE:Startnr|EN:Bib|FR:Dos.}`) : sans normalisation, ce brut atterrit tel
-    quel comme clé JSON de `segments` / `raw_data`. Priorité à `FR:`, repli sur
-    `EN:`, puis sur la première variante présente ; une étiquette sans cet
-    enrobage traverse inchangée.
-    """
-    trouve = _RE_LABEL_I18N.match(label)
-    if not trouve:
-        return label
-    variantes = dict(
-        p.split(":", 1) for p in trouve.group(1).split("|") if ":" in p
-    )
-    if not variantes:
-        return label
-    return variantes.get("FR") or variantes.get("EN") or next(iter(variantes.values()))
 
 
 def _map_columns(
