@@ -122,7 +122,7 @@ def _fetch_meta(
         resp = client.get(f"{base}/{event_id}/results", headers=HEADERS)
         resp.raise_for_status()
     except httpx.HTTPError as exc:
-        logger.debug("RaceResult %s : page /results illisible (%s)", event_id, exc)
+        logger.warning("RaceResult %s : page /results illisible (%s)", event_id, exc)
         return "", None, ""
 
     noeud = _json_ld_event(resp.text)
@@ -135,7 +135,7 @@ def _fetch_meta(
         try:
             jour = date_t.fromisoformat(brut[:10])
         except ValueError:
-            logger.debug("RaceResult %s : startDate illisible (%r)", event_id, brut)
+            logger.warning("RaceResult %s : startDate illisible (%r)", event_id, brut)
 
     adresse = (noeud.get("location") or {}).get("address") or {}
     ville = str(adresse.get("addressLocality") or "")
