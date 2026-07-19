@@ -145,7 +145,8 @@ def _fetch_meta(
 def _fetch_config(event_id: str, base: str, client: httpx.Client) -> dict:
     """Config publique de l'épreuve : `key`, `contests`, `lists`, `splits`."""
     resp = client.get(
-        f"{base}/{event_id}/RRPublish/data/config?page=results",
+        f"{base}/{event_id}/RRPublish/data/config",
+        params={"page": "results"},
         headers=HEADERS,
     )
     resp.raise_for_status()
