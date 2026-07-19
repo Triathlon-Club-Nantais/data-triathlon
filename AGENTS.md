@@ -224,12 +224,22 @@ RaceResult couvre de même trois façades d'un même produit (`raceresult.com`,
 `espace-competition.com`, `chronoconsult.fr`, cf. `RaceResultProvider._HOSTS`),
 toutes servies par la même API JSON publique — sans Playwright, et toutes
 joignables via l'apex `my.raceresult.com` (aucune résolution de shard).
-Particularités du moteur : les listes publiées sont celles dont `Mode` n'est pas
+Particularités du moteur : les listes retenues sont celles dont `Mode` n'est pas
 `"hidden"` dans `config["TabConfig"]["Lists"]` (qui porte le contest
-explicitement), plusieurs listes peuvent couvrir un même contest et doivent être
-fusionnées, et la date d'épreuve n'existe que dans le JSON-LD schema.org de la
-page `/{eventId}/results`.
-Vérité d'API (9 épreuves, 3 façades) :
+explicitement) — critère **nécessaire mais non suffisant** : sur 406211 les
+listes non-`hidden` sont des listes d'affichage et le seul vrai classement est
+`hidden`. L'élargissement aux listes `hidden` est **différé** derrière la
+réconciliation des libellés de contest, ni réfuté ni clos (cf. §4.2 du sondage).
+Plusieurs listes peuvent couvrir un même contest et doivent être fusionnées.
+La qualification de `Course` vient du **contest explicite** de `TabConfig.Lists` ;
+le libellé de groupe de niveau 0 n'est consulté qu'en `Contest="0"`, et
+seulement si tous ces libellés recoupent `contests` (ils sont sinon un axe
+d'affichage : catégorie, sélecteur de split). Le `Name` de liste n'est **jamais**
+un qualifiant — c'est un nom interne à pipe, et l'employer dupliquait
+silencieusement des participations (cf. §3 du sondage).
+La date d'épreuve n'existe que dans le JSON-LD schema.org de la page
+`/{eventId}/results`.
+Vérité d'API (15 épreuves au panel, 3 façades ; mesures détaillées sur 12/14/17) :
 `docs/superpowers/specs/2026-07-19-raceresult-api-sondage.md` — elle prime sur le
 design et sur le plan. Ne pas revenir à la route `/{id}/RRPublish/data/…` (alias
 hérité, 404 sur les épreuves récentes) ni au filtre `Live` (qui vide certaines
