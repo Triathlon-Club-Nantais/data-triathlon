@@ -539,23 +539,33 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         # dossard, c'est précisément le cas que la qualification par contest règle.
         fusion: dict[tuple[str, str], ScrapedResult] = {}
 
-        def fusionner(groupes, contest: str, listname: str, roles, segments, extras) -> bool:
-            """Fusionne un payload résolu dans `fusion`. Vrai si une ligne a été retenue."""
+        def fusionner(
+            groupes, contest: str, listname: str, roles, segments, extras, *, repli: str,
+        ) -> bool:
+            """Fusionne un payload résolu dans `fusion`. Vrai si une ligne a été retenue.
+
+            Le nom de contest vient de la clé de groupe, avec repli sur la table
+            `contests` de la config — plus stable et injectif qu'un chemin de
+            liste : deux listes menant au même contest doivent converger vers la
+            même clé de fusion (cf. N2/#21). Au-delà, `repli` distingue les deux
+            chemins d'appel plutôt que d'imposer un ordre unique : côté contest
+            explicite (I3), le numéro de contest lui-même est injectif et
+            convergent — deux listes atteignant le même contest doivent fusionner.
+            Côté filet de dernier recours (N4), `contest` vaut au contraire
+            **toujours** "0" par construction — une constante qui ne distingue
+            rien — et seul le `listname` sépare encore deux listes ambiguës
+            distinctes (dossards réutilisés d'une liste à l'autre, cf. issue #21).
+            Un libellé encore vide au bout de cette chaîne retombe sur
+            `f"Contest {contest}"`, lisible dans `Course.name` contrairement au
+            numéro brut.
+            """
             ajoute = False
             for contest_label, status_label, lignes in groupes:
-                # Le nom de contest vient de la clé de groupe, avec repli sur la
-                # table `contests` de la config, puis sur le contest brut — plus
-                # stable et injectif qu'un chemin de liste : deux listes menant
-                # au même contest doivent converger vers la même clé de fusion
-                # (cf. N2/#21) — et seulement en tout dernier recours sur le
-                # `listname`, pour rester injectif même quand le payload ne
-                # nomme rien et que le contest est absent de la table `contests`
-                # (I3 / issue #21).
                 libelle = (
                     contest_label
                     or str(contests.get(contest) or "")
-                    or contest
-                    or listname
+                    or repli
+                    or f"Contest {contest}"
                 )
                 for ligne in lignes:
                     r = _build_result(
@@ -617,7 +627,10 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                 if ambigu:
                     ambigu_en_reserve = (roles, segments, extras, groupes, contest)
                     continue
-                if fusionner(groupes, contest, listname, roles, segments, extras):
+                # Chemin normal : le numéro de contest est un repli stable et
+                # convergent (I3) — inutile de retomber sur `listname` ici, il
+                # est réservé au filet de dernier recours (N4).
+                if fusionner(groupes, contest, listname, roles, segments, extras, repli=""):
                     resolu = True
                 if contest == "0":
                     # contest=0 (« tous ») livre déjà l'ensemble des contests dans
@@ -639,8 +652,11 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                 # perdre l'une des deux lignes concurrentes (cf. `_prefer`),
                 # mais c'est strictement mieux qu'une épreuve vidée entièrement
                 # (N3).
+                # Filet de dernier recours : `contest` vaut ici toujours "0"
+                # (cf. `ambigu` ci-dessus) — seul `listname` distingue encore
+                # deux listes ambiguës distinctes (N4).
                 roles, segments, extras, groupes, contest = ambigu_en_reserve
-                fusionner(groupes, contest, listname, roles, segments, extras)
+                fusionner(groupes, contest, listname, roles, segments, extras, repli=listname)
 
     if not fusion:
         essayees = ", ".join(nom for nom, _ in specs) or "aucune liste déclarée"
