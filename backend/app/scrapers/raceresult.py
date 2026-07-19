@@ -321,6 +321,15 @@ def _peel(expr: str) -> str:
 
         if s == avant:
             break
+    else:
+        # Point fixe non atteint en `_PEEL_MAX_ITERATIONS` tours : jamais vu en
+        # production (cf. note de robustesse ci-dessus), mais si une formule
+        # inédite oscillait un jour, la chaîne partiellement pelée retournée
+        # ici serait sinon corrompue sans aucune trace pour le diagnostiquer.
+        logger.debug(
+            "RaceResult : _peel n'a pas convergé en %d tours, arrêt sur %r",
+            _PEEL_MAX_ITERATIONS, s,
+        )
 
     s = s.replace("#", "").replace("[", "").replace("]", "")
     return s.translate(_ACCENTS).lower().strip()
@@ -358,16 +367,20 @@ def _split_rank_category(cell: str) -> tuple[int | None, str]:
 
 
 def _strip_segment_rank(valeur: str) -> str:
-    """Décolle un rang suffixé (`"2:08:00 (1.)"` → `"2:08:00"`) d'une valeur de
-    segment.
+    """Décolle un rang suffixé (`"2:08:00 (1.)"` → `"2:08:00"`) d'une cellule.
 
-    Une colonne de segment issue d'une concaténation
-    `[Vélo] & " (" & [Vélo.OVERALL.P] & ")"` porte son rang collé de la même
-    façon que la cellule sexe/catégorie (même forme que `_RE_RANG_SUFFIXE`),
-    mais un rang n'est jamais un composant valide d'une durée. Sans ce
-    décollage, `_RE_DUREE` rejette la cellule entière et le split est perdu —
-    `normalize_time` ne doit PAS être relâché pour compenser : il laisserait
-    passer des valeurs qui ne sont pas des durées.
+    Toute colonne issue d'une concaténation `[X] & " (" & [X.OVERALL.P] & ")"`
+    porte son rang collé de cette façon (même forme que `_RE_RANG_SUFFIXE`,
+    déjà utilisée pour sexe/catégorie) — un segment de course, mais aussi bien
+    `nom`, `club` ou `temps` : le point fixe de `_peel` (C2) fait désormais
+    converger vers ces rôles des expressions composées qui restaient opaques
+    avant, sans garantie que leur valeur soit épargnée par le même motif de
+    concaténation que les segments. Un rang n'est jamais un composant valide
+    de ces valeurs. Pour un segment, `_RE_DUREE` rejette la cellule polluée et
+    le split est perdu ; pour `total_time`, `normalize_time` est permissif et
+    laisserait passer `"3:18:21 (5.)"` tel quel — d'où ce décollage
+    systématique plutôt qu'un relâchement de `normalize_time` ou de
+    `_RE_DUREE`, tous deux proscrits.
     """
     trouve = _RE_RANG_SUFFIXE.match(valeur)
     return trouve.group(1).strip() if trouve else valeur
@@ -610,14 +623,19 @@ def _build_result(
         event_type=classify_event_type(nom_qualifie),
     )
 
-    nom, prenom = split_athlete_name(cellule("nom"))
+    # `nom`/`club`/`temps` peuvent désormais provenir d'une expression composée
+    # que C2 a fait converger vers ce rôle (`[TIME] & " (" & [TIME.OVERALL.P] &
+    # ")"`, imbriquée ou non dans un `if(…)`) : leur valeur porte alors le même
+    # rang collé qu'un segment, et `_strip_segment_rank` les protège pareil.
+    # `sexe`/`categorie` passent par `_split_rank_category`, qui fait de même.
+    nom, prenom = split_athlete_name(_strip_segment_rank(cellule("nom")))
     r.athlete_name, r.athlete_firstname = nom, prenom
-    r.club = cellule("club")
+    r.club = _strip_segment_rank(cellule("club"))
     # `ucase([SEX]) & iif(…)` sérialise « M (1.) » : le rang de sexe voyage dans
     # la même cellule que le sexe et doit en être détaché.
     r.rank_gender, r.gender = _split_rank_category(cellule("sexe"))
     r.rank_category, r.category = _split_rank_category(cellule("categorie"))
-    r.total_time = normalize_time(cellule("temps"))
+    r.total_time = normalize_time(_strip_segment_rank(cellule("temps")))
     r.is_relay = any(
         mot in contest_label.lower() for mot in ("relais", "relay", "equipe", "équipe")
     )

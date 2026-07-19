@@ -6,6 +6,7 @@ Les appels HTTP passent par un faux client httpx (pattern test_sportinnovation.p
 ou par monkeypatch des helpers `_fetch_*` (pattern test_wiclax.py).
 """
 import json
+import logging
 from datetime import date
 from pathlib import Path
 
@@ -274,7 +275,6 @@ def test_peel_point_fixe_concatenation_imbriquee_dans_if():
     simple d'un segment."""
     expr = 'if([STATUS]<>2;[Vélo] & " (" & [Vélo.OVERALL.P] & ")")'
     assert raceresult._peel(expr) == "velo"
-    assert raceresult._role("velo") == ""  # rôle inconnu => candidat segment
 
 
 def test_peel_concatenation_non_imbriquee_deja_correcte():
@@ -286,13 +286,60 @@ def test_peel_concatenation_non_imbriquee_deja_correcte():
     assert raceresult._peel(expr) == "velo"
 
 
-def test_peel_termine_sur_une_imbrication_profonde():
-    """Garantie de terminaison : `_peel` doit converger même au-delà des deux
-    niveaux observés en production plutôt que de dépendre d'un nombre d'étages
-    fixe — la boucle est bornée par `_PEEL_MAX_ITERATIONS`, pas seulement par
-    le point fixe."""
-    expr = "if(1;if(1;if(1;if(1;[Vélo]))))"
+def _nidifier_if_status(n: int, coeur: str = "[Vélo]") -> str:
+    """`n` enveloppes `if([STATUS]<>2;…)` autour de `coeur` — la forme réelle
+    de production (contrairement à un `if(1;…)` littéral, dont la condition ne
+    comporte aucun opérateur de comparaison et n'exerce donc jamais
+    `_RE_COMPARAISON`)."""
+    s = coeur
+    for _ in range(n):
+        s = f"if([STATUS]<>2;{s})"
+    return s
+
+
+def test_peel_converge_au_dela_des_niveaux_observes_en_production():
+    """Le point fixe (pas le repli `max(len)`) résout une imbrication plus
+    profonde que celle observée en production (2 niveaux) : chaque enveloppe
+    porte une vraie condition `[STATUS]<>2`, donc chaque tour élimine le terme
+    qui compare via `_RE_COMPARAISON` — pas via la longueur."""
+    expr = _nidifier_if_status(4)
     assert raceresult._peel(expr) == "velo"
+
+
+def test_peel_borne_par_peel_max_iterations_au_dela_du_point_fixe(caplog):
+    """`_peel` est réellement borné par `_PEEL_MAX_ITERATIONS`, pas seulement
+    par le point fixe : chaque enveloppe `if([STATUS]<>2;…)` ne se défait que
+    d'un niveau par tour (l'enrobage `if(…)` puis la conditionnelle `;`
+    exposent le niveau suivant, mais pas plus), donc une imbrication de plus
+    de `_PEEL_MAX_ITERATIONS` niveaux n'a pas fini de converger quand la
+    boucle s'arrête — `_peel` rend alors une chaîne partiellement pelée, sans
+    lever, et le signale via `logger.debug` (cf. Mineur 3)."""
+    profondeur = raceresult._PEEL_MAX_ITERATIONS + 1
+    expr = _nidifier_if_status(profondeur)
+
+    # Handler attaché directement au logger du module plutôt que de compter
+    # sur la propagation vers le root logger : `setup_logging()` (appelé par
+    # tout test qui importe `app.main`) vide les handlers du root logger, ce
+    # qui désactiverait `caplog` s'il ne s'y accrochait que par propagation.
+    # `.disabled` est remis à `False` explicitement : dans la suite complète,
+    # `test_migrations.py` déclenche `alembic/env.py`, dont le `fileConfig()`
+    # désactive silencieusement tout logger déjà enregistré (`disable_existing_
+    # loggers=True` par défaut, hors périmètre de ce correctif) — sans ce reset
+    # local, ce test devient un faux négatif d'ordre d'exécution plutôt qu'une
+    # preuve sur `_peel`.
+    logger_etat = raceresult.logger.disabled
+    raceresult.logger.disabled = False
+    raceresult.logger.addHandler(caplog.handler)
+    raceresult.logger.setLevel(logging.DEBUG)
+    try:
+        resultat = raceresult._peel(expr)
+    finally:
+        raceresult.logger.removeHandler(caplog.handler)
+        raceresult.logger.disabled = logger_etat
+
+    assert resultat != "velo", "une imbrication de plus de 10 niveaux ne doit pas converger"
+    assert resultat == "if(status<>2;velo)"  # point fixe atteint à 10 niveaux prématurément clos
+    assert "n'a pas convergé" in caplog.text
 
 
 # ── C3 : rang collé sur une valeur de segment ───────────────────────────────
@@ -581,6 +628,68 @@ def test_build_result_decolle_le_rang_suffixe_dune_valeur_de_segment():
     )
 
     assert r.segments == [("Vélo", "02:08:00")]
+
+
+# ── Important 1 (revue du correctif C2+C3) : C2 élargit les rôles reconnus,
+# une colonne temps/nom/club peut donc désormais provenir d'une concaténation
+# composée `[X] & " (" & [X.OVERALL.P] & ")"` — exactement le motif qui polluait
+# les segments avant C3. `_strip_segment_rank` doit protéger ces trois cellules
+# comme elle protège déjà les segments, sans quoi le rang collé migre en base
+# (`total_time = "3:18:21 (5.)"`), symptôme C3 déplacé sur un chemin non
+# corrigé. Motif repris verbatim de 401699 (§ Important 1 des constats de
+# revue), avec le rôle substitué à `[TIME]` : aucune épreuve du panel ne
+# l'expose telle quelle sur `temps`/`nom`/`club` (sondé en série sur les 12
+# épreuves connues), mais le motif de concaténation lui-même est confirmé réel
+# — seule sa combinaison avec ces rôles ne l'est pas encore.
+
+def test_build_result_protege_le_temps_dune_colonne_composee():
+    """Si `_peel` fait converger une colonne de temps composée vers le rôle
+    `temps` (C2), sa valeur brute porte le même rang collé qu'un segment —
+    `normalize_time` est permissif et laisserait passer `"3:18:21 (5.)"` tel
+    quel si `_strip_segment_rank` n'était pas appliqué avant."""
+    expr = 'if([STATUS]<>2;[TIME] & " (" & [TIME.OVERALL.P] & ")")'
+    payload = {
+        "DataFields": ["BIB", "ID", expr],
+        "list": {"Fields": [{"Expression": expr, "Label": "Temps"}]},
+    }
+    roles, segments, extras = raceresult._map_columns(payload)
+    assert roles["temps"] == 2  # C2 : la concaténation imbriquée pèle en "temps"
+
+    r = raceresult._build_result(
+        ["1", "1", "3:18:21 (5.)"], roles, segments, extras,
+        source_url="u", event_name="E", event_date=None,
+        contest_label="C", status_label="",
+    )
+
+    assert r.total_time == "03:18:21"
+
+
+def test_build_result_protege_le_nom_et_le_club_dune_colonne_composee():
+    """Même risque que pour `temps`, vérifié pour `nom` et `club` (constat
+    Important 1) : une colonne de nom ou de club qui afficherait un rang de
+    la même façon composée ne doit pas le laisser polluer la valeur."""
+    expr_nom = 'if([Relais]=1;[NomRelais] & " (" & [NomRelais.OVERALL.P] & ")";[AfficherNom])'
+    expr_club = '[CLUB] & " (" & [CLUB.OVERALL.P] & ")"'
+    payload = {
+        "DataFields": ["BIB", "ID", expr_nom, expr_club],
+        "list": {"Fields": [
+            {"Expression": expr_nom, "Label": "Nom"},
+            {"Expression": expr_club, "Label": "Club"},
+        ]},
+    }
+    roles, segments, extras = raceresult._map_columns(payload)
+    assert roles["nom"] == 2
+    assert roles["club"] == 3
+
+    r = raceresult._build_result(
+        ["1", "1", "DUPONT Jean (3.)", "TCN (12.)"], roles, segments, extras,
+        source_url="u", event_name="E", event_date=None,
+        contest_label="C", status_label="",
+    )
+
+    assert r.athlete_name == "DUPONT"
+    assert r.athlete_firstname == "Jean"
+    assert r.club == "TCN"
 
 
 def test_resolve_event_id_exige_bien_les_deux_syntaxes():
