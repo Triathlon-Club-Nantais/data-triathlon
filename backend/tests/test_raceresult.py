@@ -1761,6 +1761,113 @@ def test_scrape_event_all_supporte_les_profondeurs_variables(monkeypatch):
     assert res["8"].event_name == "Épreuve - Distance M"
 
 
+def test_scrape_event_all_contest_explicite_prime_sur_le_libelle_de_groupe(monkeypatch):
+    """K2, mesuré sur 406211. Les clés de niveau 0 y sont `Finish` et
+    `Run - Start` — des **sélecteurs de point de chrono**, pas des contests. Les
+    consulter écrasait les 13 contests publiés en 2 `Course` nommées d'après un
+    point de chrono, et la clé de fusion `(libellé, dossard)` cessait de séparer
+    les contests.
+
+    Le contest étant explicite dans `TabConfig.Lists`, il fait autorité dès
+    qu'il est renseigné.
+    """
+    specs = [("LIVE", "1"), ("LIVE", "2")]
+    payloads = {
+        ("LIVE", "1"): _payload({"#1_Finish": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]}),
+        ("LIVE", "2"): _payload({"#1_Run - Start": [["7", "2", "Luc MARTIN", "TCN", "02:00:00"]]}),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads)
+
+    res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert {r.event_name for r in res} == {"Épreuve - Distance S", "Épreuve - Distance M"}
+    assert len(res) == 2, "le même dossard sous deux contests reste séparé"
+
+
+def test_scrape_event_all_ne_retombe_jamais_sur_le_nom_de_liste(monkeypatch):
+    """K1, mesuré sur 409130. Une liste en `Contest="0"` sans libellé de groupe
+    retombait sur `listname` — un nom interne à pipe. Servant à la fois de
+    qualifiant de `Course` et de clé de fusion, il fabriquait une `Course`
+    fantôme *et* y dupliquait 370 participants déjà importés ailleurs (302
+    dossards présents dans plusieurs `Course`).
+
+    Le nom de liste ne doit apparaître dans aucun `event_name`.
+    """
+    specs = [("03-Qualifs|Classement Qualifs", "0"), ("En ligne|Concurrents", "0")]
+    payloads = {
+        ("03-Qualifs|Classement Qualifs", "0"): _payload(
+            [["7", "1", "Jean DUPONT", "", ""]]
+        ),
+        ("En ligne|Concurrents", "0"): _payload(
+            {"#1_14H": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]}
+        ),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads)
+
+    res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert all("|" not in r.event_name for r in res), [r.event_name for r in res]
+    assert all("Qualifs" not in r.event_name for r in res)
+    assert len(res) == 1, "le dossard 7 ne doit pas être importé deux fois"
+    assert res[0].club == "TCN", "la ligne renseignée doit primer à la fusion"
+
+
+def test_groupes_zero_fiables_exige_que_tous_les_libelles_recoupent_contests():
+    """La confiance dans le groupement `Contest="0"` est **tout ou rien** à
+    l'échelle de l'épreuve.
+
+    Mesuré : sur 380823 les groupes `10 Km`/`20 Km` recoupent tous deux
+    `contests` et portent des dossards disjoints — les distinguer est juste. Sur
+    409130 `14H` recoupe `contests` mais `24h DECOUVERTE` est une **catégorie**,
+    et les 72 dossards de celle-ci sont tous inclus dans les 456 de `14H` : une
+    corroboration libellé par libellé les aurait laissés dans deux `Course` à la
+    fois. Un seul libellé étranger disqualifie donc le groupement entier.
+    """
+    contests = {"1": "10 Km", "2": "20 Km"}
+    assert raceresult._groupes_zero_fiables({"10 Km", "20 Km"}, contests) is True
+    # Le cas 409130 : un libellé corroboré, un autre non.
+    assert raceresult._groupes_zero_fiables({"14H", "24h DECOUVERTE"}, {"1": "14H"}) is False
+    # Un groupe vide (liste plate) n'est pas un contest.
+    assert raceresult._groupes_zero_fiables({"10 Km", ""}, contests) is False
+    assert raceresult._groupes_zero_fiables(set(), contests) is False
+
+
+def test_scrape_event_all_groupe_zero_corrobore_qualifie_toujours(monkeypatch):
+    """Témoin 380823 : la seule liste est en `Contest="0"` et ses groupes
+    recouvrent exactement `contests`. Le correctif K1/K2 ne doit pas leur retirer
+    leur qualification — deux distances différentes ne sont pas une `Course`.
+    """
+    specs = [("Classement général", "0")]
+    payloads = {("Classement général", "0"): _payload({
+        "#1_Distance S": {"#1_": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]},
+        "#2_Distance M": {"#1_": [["8", "2", "Luc MARTIN", "TCN", "02:00:00"]]},
+    })}
+    _monte_pipeline(monkeypatch, specs, payloads)
+
+    res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert {r.event_name for r in res} == {"Épreuve - Distance S", "Épreuve - Distance M"}
+
+
+def test_scrape_event_all_contest_absent_de_la_table_reste_separateur(monkeypatch):
+    """Un contest explicite mais absent de `contests` garde un qualifiant propre
+    et **injectif** — jamais le nom de liste. Sans quoi deux contests
+    fusionneraient sous une même `Course` et leurs dossards entreraient en
+    collision.
+    """
+    specs = [("Classement", "7"), ("Classement", "8")]
+    payloads = {
+        ("Classement", "7"): _payload([["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]),
+        ("Classement", "8"): _payload([["7", "2", "Luc MARTIN", "TCN", "02:00:00"]]),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads)
+
+    res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert len(res) == 2
+    assert {r.event_name for r in res} == {"Épreuve - Contest 7", "Épreuve - Contest 8"}
+
+
 def test_scrape_event_all_ignore_une_liste_absente(monkeypatch):
     """Un 404 sur une liste annoncée n'emporte pas l'épreuve."""
     specs = [("Morte", "1"), ("Vivante", "2")]
