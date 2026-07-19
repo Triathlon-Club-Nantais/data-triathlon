@@ -722,10 +722,19 @@ def _build_result(
     r.rank_category, r.category = _split_rank_category(cellule("categorie"))
     # `total_time` n'a aucun garde-fou de forme en aval : `normalize_time`
     # renvoie son entrée **telle quelle** quand elle ne la reconnaît pas, si
-    # bien qu'un libellé partirait en base comme chrono. Les colonnes d'horloge
-    # (`temps`, et le pistolet déjà promu) ne rendent qu'une durée ou rien, et
-    # traversent donc sans condition, y compris dans les formats que
-    # `_RE_DUREE` ne couvre pas mais que `normalize_time` sait lire (`1h23'45`).
+    # bien qu'un libellé partirait en base comme chrono.
+    #
+    # La colonne du rôle `temps` traverse néanmoins sans condition, pour ne pas
+    # perdre les formats que `_RE_DUREE` ne couvre pas mais que
+    # `normalize_time` sait lire (`1h23'45`). Ce n'est sûr que des champs
+    # d'horloge `.chip`/`.gun`, qui rendent une durée ou rien. Le rôle `temps`
+    # est plus large : la table d'égalités exactes de `_role` y range
+    # `tempsoustatut`, et `OuStatut(…)` étant un enrobage pelé,
+    # `OuStatut([Temps])` obtient ce rôle et pourrait donc rendre un statut.
+    # Trou **pré-existant à C1**, mesuré latent (aucune valeur non-durée sur
+    # les 12 épreuves du panel) ; le fermer proprement suppose une garde
+    # « `normalize_time` a reconnu la valeur » plutôt que `_RE_DUREE`, ce qui
+    # déborde le périmètre de ce correctif → à traiter séparément.
     #
     # La colonne `.text`, elle, rend le *texte affiché* : le chrono sur une
     # ligne terminée, mais `"DNF"`/`"DSQ"` sur un non-finisher. Elle n'est donc
@@ -734,6 +743,13 @@ def _build_result(
     # segment non reconnu et un temps d'arrivée non reconnu sont le même
     # signal. Sans cette garde, un `"DNF"` deviendrait un `total_time` et la
     # ligne serait ensuite marquée `finisher` par la clôture ci-dessous.
+    #
+    # Ce repli étant évalué **ligne à ligne**, il couvre deux cas et non un
+    # seul : l'épreuve qui ne publie aucun chip ni gun (406211), mais aussi la
+    # ligne où une colonne d'horloge existe et rend une cellule vide — que la
+    # résolution en amont, dans `_map_columns`, abandonnait définitivement au
+    # profit d'une colonne muette. Élargissement latéral assumé, et inerte sur
+    # le panel : aucune épreuve n'y gagne ni n'y perd de temps.
     temps = _strip_rank_suffix(cellule("temps"))
     if not temps:
         candidat = _strip_rank_suffix(cellule("temps_texte"))
