@@ -27,6 +27,10 @@ class _FauxClient:
     `routes` mappe un fragment d'URL vers (status_code, texte). Une URL sans
     route déclarée lève, pour qu'un appel réseau inattendu casse le test au lieu
     de passer silencieusement.
+
+    `appels` enregistre l'URL **effective**, `params=` fusionné dans la query :
+    le code de production reste libre de passer ses paramètres comme httpx
+    l'attend, sans devoir les concaténer à la main pour être observable.
     """
 
     def __init__(self, routes: dict[str, tuple[int, str]]):
@@ -34,7 +38,8 @@ class _FauxClient:
         self.appels: list[str] = []
 
     def get(self, url: str, **kwargs) -> httpx.Response:
-        self.appels.append(url)
+        params = kwargs.get("params")
+        self.appels.append(str(httpx.URL(url, params=params)) if params else url)
         for fragment, (status, texte) in self.routes.items():
             if fragment in url:
                 return httpx.Response(
