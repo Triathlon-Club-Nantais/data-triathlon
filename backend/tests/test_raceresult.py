@@ -506,21 +506,27 @@ def test_role_du_vocabulaire_reel(expr, role):
 # dont les 58 participants perdaient leur `total_time` faute de rôle reconnu
 # pour `Finish.GUN`. Plutôt que trois entrées de plus (qui échoueraient en
 # silence sur la prochaine variante non relevée), `_RE_TEMPS_SUFFIXE` généralise
-# par la forme : préfixe fermé (`temps`/`arrivee`/`finish`/`finishresult`) +
-# suffixe fermé (`.gun`/`.chip`/`.text`). Les cas ci-dessous couvrent les deux
-# sens du balancier qui a fait échouer C1 deux fois : la reconnaissance ET sa
-# non-sur-généralisation.
+# par la forme : préfixe fermé (`temps`/`arrivee`/`finish`) + suffixe fermé
+# (`.gun`/`.chip`/`.text`). Les cas ci-dessous couvrent les deux sens du
+# balancier qui a fait échouer C1 deux fois : la reconnaissance ET sa
+# non-sur-généralisation — d'où le maintien de `Finisher.CHIP` parmi les cas
+# négatifs.
 #
-# `finishresult` est la racine ajoutée par C1 : le préfixe reste une
-# alternation fermée de quatre racines exactes, pas un préfixe large — d'où le
-# maintien de `Finisher.CHIP` parmi les cas négatifs ci-dessous.
+# La racine `finishresult` ajoutée par C1 ne fait **pas** partie de ce préfixe :
+# le suffixe y étant mutualisé, elle y aurait aussi rendu reconnus
+# `finishresult.gun`/`.chip`, jamais observés et de priorité haute. Elle vit
+# dans sa propre constante appariée à `.text` (`_RE_TEMPS_RESULTAT_TEXTE`), ce
+# qui est précisément ce que vérifient les cas négatifs `FinishResult.GUN` /
+# `FinishResult.CHIP` plus bas.
 
 @pytest.mark.parametrize("expr,role", [
-    # Positif : les trois préfixes, les trois suffixes — dont les variantes qui
-    # ne sont apparues sur aucune épreuve du panel mais que la forme couvre.
-    # `.text` reçoit un rôle distinct (`temps_texte`, pas `temps`) : cf.
+    # Positif : les trois préfixes de `_RE_TEMPS_SUFFIXE` croisés avec ses trois
+    # suffixes — dont les variantes qui ne sont apparues sur aucune épreuve du
+    # panel mais que la forme couvre. `.text` reçoit un rôle distinct
+    # (`temps_texte`, pas `temps`) : cf.
     # `test_map_columns_le_texte_ne_declasse_pas_un_chip_qui_le_precede`
-    # (Mineur 2 de la revue C4) pour la raison.
+    # (Mineur 2 de la revue C4) pour la raison. La dernière entrée, elle, relève
+    # de la constante appariée de C1 et non de ce croisement.
     ("Finish.GUN", "temps_pistolet"),
     ("Finish.CHIP", "temps"),
     ("Finish.TEXT", "temps_texte"),
@@ -771,8 +777,10 @@ def test_map_columns_le_texte_ne_declasse_pas_un_chip_qui_le_precede():
     # ligne à ligne, sous condition de durée), mais il ne prend pas la place du
     # chip — c'est ce que ce test garde.
     assert roles.get("temps_texte") != roles["temps"]
-    # Colonne texte évincée : ni promue, ni renvoyée en extras — même sort
-    # que la colonne gun évincée par un chip (précédent déjà en place).
+    # La colonne texte n'est pas renvoyée en extras : elle garde son rôle
+    # `temps_texte`. Depuis C1 elle n'est plus *évincée* pour autant — elle
+    # sert de repli ligne à ligne, y compris sur une ligne où le chip serait
+    # vide (cf. le commentaire de `total_time` dans `_build_result`).
     assert "Finish.TEXT" not in extras
 
 
