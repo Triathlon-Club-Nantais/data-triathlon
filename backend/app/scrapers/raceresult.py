@@ -399,6 +399,21 @@ def _strip_rank_suffix(valeur: str) -> str:
     return trouve.group(1).strip() if trouve else valeur
 
 
+# Vocabulaire temps franco-anglais (C4) : un préfixe d'arrivée
+# (`temps`/`arrivee`/`finish`) suivi d'un suffixe qui distingue chip/gun/texte.
+# Une table d'égalités exactes échoue en silence hors relevé — les 9 épreuves
+# du panel n'exposaient que les variantes françaises et `Finish` nu ;
+# `Finish.GUN`/`Finish.CHIP` (anglais, suffixés) n'y apparaissaient pas et une
+# épreuve qui ne les expose que sous cette forme perdait tout temps d'arrivée
+# (constaté sur l'épreuve 380823, Bike & Run de Pontcharra : 58 participants,
+# 58 sans temps, `raw_data` contenant `'Finish.GUN': '31:27'`). La règle de
+# forme généralise sans élargir à l'aveugle : le préfixe reste fermé à ces
+# trois racines précises — `finishresult` (le statut texte de C1, hors
+# périmètre ici) n'en fait PAS partie, seul `finish` l'est — et le suffixe aux
+# trois variantes réellement rencontrées.
+_RE_TEMPS_SUFFIXE = re.compile(r"^(temps|arrivee|finish)\.(gun|chip|text)$")
+
+
 def _role(peeled: str) -> str:
     """Rôle sémantique d'une expression pelée, "" si non reconnu.
 
@@ -444,14 +459,18 @@ def _role(peeled: str) -> str:
         return "sexe"
     if peeled in (
         "time", "tempstotal", "tempsfinal", "tempsfinal.decimal",
-        "tempscorrige", "tempsoustatut", "finish", "arrivee", "arrivee.chip",
+        "tempscorrige", "tempsoustatut", "finish", "arrivee",
     ):
         return "temps"
-    # `Arrivée.GUN` est le temps au coup de pistolet, `Arrivée.CHIP` le temps
-    # réel. Les deux coexistent : le rôle distinct laisse `_map_columns`
-    # préférer le chip, qui est le temps officiel de l'athlète.
-    if peeled == "arrivee.gun":
-        return "temps_pistolet"
+    # `Arrivée.GUN`/`Finish.GUN`/`Temps.GUN` est le temps au coup de pistolet ;
+    # `Arrivée.CHIP`/`Finish.CHIP`/`Temps.CHIP` le temps réel (`.text` — cas
+    # rencontré sur aucune épreuve du panel mais couvert par la même forme —
+    # rejoint le chip, aucune épreuve ne distinguant un troisième temps
+    # « texte »). Les deux rôles restent distincts : `_map_columns` préfère le
+    # chip, qui est le temps officiel de l'athlète (cf. `_RE_TEMPS_SUFFIXE`).
+    trouve = _RE_TEMPS_SUFFIXE.match(peeled)
+    if trouve:
+        return "temps_pistolet" if trouve.group(2) == "gun" else "temps"
     return ""
 
 

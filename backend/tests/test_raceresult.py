@@ -498,6 +498,108 @@ def test_role_du_vocabulaire_reel(expr, role):
     assert raceresult._role(raceresult._peel(expr)) == role
 
 
+# ── C4 : vocabulaire de temps franco-centré (règle de forme) ───────────────
+#
+# La table d'égalités exactes de `_role` anticipait `Arrivée.GUN`/`Arrivée.CHIP`
+# et `Finish` nu, mais pas les variantes anglaises suffixées `Finish.GUN` /
+# `Finish.CHIP` : constaté sur l'épreuve 380823 (Bike & Run de Pontcharra),
+# dont les 58 participants perdaient leur `total_time` faute de rôle reconnu
+# pour `Finish.GUN`. Plutôt que trois entrées de plus (qui échoueraient en
+# silence sur la prochaine variante non relevée), `_RE_TEMPS_SUFFIXE` généralise
+# par la forme : préfixe fermé (`temps`/`arrivee`/`finish`) + suffixe fermé
+# (`.gun`/`.chip`/`.text`). Les cas ci-dessous couvrent les deux sens du
+# balancier qui a fait échouer C1 deux fois : la reconnaissance ET sa
+# non-sur-généralisation.
+
+@pytest.mark.parametrize("expr,role", [
+    # Positif : les trois préfixes, les trois suffixes — dont les variantes qui
+    # ne sont apparues sur aucune épreuve du panel mais que la forme couvre.
+    ("Finish.GUN", "temps_pistolet"),
+    ("Finish.CHIP", "temps"),
+    ("Finish.TEXT", "temps"),
+    ("Temps.GUN", "temps_pistolet"),
+    ("Temps.CHIP", "temps"),
+    ("Temps.TEXT", "temps"),
+    ("Arrivée.GUN", "temps_pistolet"),
+    ("Arrivée.CHIP", "temps"),
+    ("Arrivée.TEXT", "temps"),
+])
+def test_role_regle_de_forme_temps_gun_chip_text(expr, role):
+    assert raceresult._role(raceresult._peel(expr)) == role
+
+
+@pytest.mark.parametrize("expr", [
+    # `FinishResult.TEXT` (C1, hors périmètre ici) : le préfixe pelé est
+    # `finishresult`, PAS `finish` — l'ancrage `^...$` de `_RE_TEMPS_SUFFIXE`
+    # l'exclut par construction, sans exclusion ad hoc. Si ce test échouait,
+    # la règle de forme aurait débordé sur le périmètre de C1.
+    "FinishResult.TEXT",
+    # Préfixe qui contient `finish`/`temps` sans lui être égal : la forme ne
+    # doit reconnaître QUE les trois racines fermées, pas un préfixe large.
+    "Finisher.CHIP",
+    "TempsIntermediaire.CHIP",
+    "TempsIntermediaire.GUN",
+    # Suffixe hors du vocabulaire fermé : une colonne d'écart n'est pas un
+    # temps d'arrivée.
+    "Finish.GAP",
+    "Arrivée.RANG",
+    # Absence de suffixe qualifié : reste géré par la table d'égalités
+    # exactes existante (`finish` nu), pas par la règle de forme.
+    "Finish.OVERALL.GapTop",
+])
+def test_role_regle_de_forme_ne_sur_generalise_pas(expr):
+    """Un jeton qui n'est pas un temps ne doit pas devenir `temps` par accident
+    — le défaut symétrique explicitement mis en garde par le brief C4."""
+    assert raceresult._role(raceresult._peel(expr)) == ""
+
+
+def test_map_columns_reconnait_finish_gun_seul():
+    """Reproduction du symptôme réel de 380823 : `Finish.GUN` est l'unique
+    colonne de temps de l'épreuve (pas de chip publié). Avant C4, aucun rôle
+    n'était reconnu et les 58 participants perdaient leur `total_time`."""
+    payload = {
+        "DataFields": ["BIB", "ID", "Finish.GUN", "Finish.OVERALL.GapTop"],
+        "list": {"Fields": [
+            {"Expression": "Finish.GUN", "Label": "Tps"},
+            {"Expression": "Finish.OVERALL.GapTop", "Label": "Ecart"},
+        ]},
+    }
+
+    roles, _segments, extras = raceresult._map_columns(payload)
+
+    # `temps_pistolet` est promu `temps` en repli (aucun chip publié) — même
+    # mécanisme de repli que pour `Arrivée.GUN`, la forme ne le change pas.
+    assert roles["temps"] == 2
+    assert "temps_pistolet" not in roles
+    assert "Finish.OVERALL.GapTop" in extras
+
+    r = raceresult._build_result(
+        ["86", "1", "31:27", "--"], roles, _segments, extras,
+        source_url="u", event_name="E", event_date=None,
+        contest_label="C", status_label="",
+    )
+    assert r.total_time == "00:31:27"
+
+
+def test_map_columns_prefere_le_chip_au_gun_sous_la_regle_de_forme():
+    """Le même arbitrage chip > gun que l'ancienne table d'égalités exactes,
+    mais exercé via `Finish.*` — variante jamais vue avec les deux temps sur
+    le panel, mais que la règle de forme doit traiter identiquement à
+    `Arrivée.*` (411749/410891, cf. mesures du rapport C4)."""
+    payload = {
+        "DataFields": ["BIB", "ID", "Finish.GUN", "Finish.CHIP"],
+        "list": {"Fields": [
+            {"Expression": "Finish.GUN", "Label": "Tps"},
+            {"Expression": "Finish.CHIP", "Label": "Tps Réél"},
+        ]},
+    }
+
+    roles, _segments, _extras = raceresult._map_columns(payload)
+
+    assert roles["temps"] == 3, "le chip doit primer sur le gun"
+    assert "temps_pistolet" not in roles
+
+
 def test_split_profondeur_ignore_les_separateurs_imbriques():
     """Une découpe naïve sur `;` coupe à l'intérieur du `switch(...)` interne et
     fait perdre la colonne : `if(a;switch(b;c);d)` a TROIS termes, pas quatre."""
