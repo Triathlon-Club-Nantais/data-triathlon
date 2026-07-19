@@ -500,16 +500,21 @@ def _richness(r: ScrapedResult) -> int:
 def _prefer(nouveau: ScrapedResult, ancien: ScrapedResult) -> bool:
     """Vrai si `nouveau` doit remplacer `ancien` dans la fusion par clé.
 
-    Un statut non-finisher (DNF/DNS/DSQ) est un signal fort qui ne doit jamais
+    Un statut non-finisher (DNF/DNS/DSQ) est un signal fort qui ne doit pas
     être écrasé par une ligne simplement plus riche en colonnes mais muette
     sur le statut — cas d'une même personne présente dans une seconde liste
-    sans sous-groupe de statut. Faute de ce garde-fou, `_richness` (qui ignore
-    `status`) laisse la ligne la mieux remplie gagner et le DNF/DNS se perd.
+    sans sous-groupe de statut (I2). Mais ce signal ne doit jouer que face à
+    une ligne concurrente qui n'a elle-même **aucun temps d'arrivée réel** :
+    un chrono est un signal plus fort qu'un statut annoncé. Sans cette
+    seconde garde, un statut non-finisher devenait inconditionnel et pouvait
+    détruire un finisher réel — une liste « Non Partants » figée à la veille
+    (dossard réattribué, engagé finalement présent) écrasait alors temps,
+    rang et club corrects (N1, régression du garde-fou I2).
     """
-    if ancien.status in _NON_FINISHERS and nouveau.status not in _NON_FINISHERS:
-        return False
-    if nouveau.status in _NON_FINISHERS and ancien.status not in _NON_FINISHERS:
+    if nouveau.status in _NON_FINISHERS and not ancien.total_time:
         return True
+    if ancien.status in _NON_FINISHERS and not nouveau.total_time:
+        return False
     return _richness(nouveau) > _richness(ancien)
 
 
@@ -540,41 +545,71 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                     continue
                 roles, segments, extras = _map_columns(payload)
                 data = payload.get("data") or {}
-                for contest_label, status_label, lignes in _iter_groups(data):
-                    # Le nom de contest vient de la clé de groupe, avec repli sur
-                    # la table `contests` de la config, puis sur le `listname`,
-                    # puis sur le contest brut en dernier recours : la clé de
-                    # fusion doit rester injective même quand le payload ne nomme
-                    # rien (groupe non nommé servi avec un contest absent de la
-                    # table `contests`, cf. I3 / issue #21).
-                    libelle = (
-                        contest_label
-                        or str(contests.get(contest) or "")
-                        or listname
-                        or contest
-                    )
-                    for ligne in lignes:
-                        r = _build_result(
-                            ligne, roles, segments, extras,
-                            source_url=url,
-                            event_name=event_name,
-                            event_date=jour,
-                            contest_label=libelle,
-                            status_label=status_label,
+                groupes = _iter_groups(data)
+                # `contest=0` (« tous ») peut, sur certaines épreuves, renvoyer un
+                # payload **plat et non nommé** au lieu du sous-découpage par
+                # contest vu sur Rumilly (`#1_Distance M` / `#2_Abandons`…) : les
+                # lignes de plusieurs contests distincts s'y retrouvent mélangées
+                # sans qu'aucun signal (ni la clé de groupe, ni `contests`) ne
+                # permette de les rattacher chacune au bon contest. Le seul repli
+                # qui restait — `listname`, constant sur tout le payload — ne
+                # règle pas ce cas : deux lignes du même dossard (une par contest
+                # réel) y collisionnent encore (N2 / #21, au-delà de la collision
+                # *entre* listes qu'I3 réglait déjà). Pire, quand la même tranche
+                # est exposée par deux chemins de listes différents, ce repli
+                # produit alors deux « Courses » distinctes pour les mêmes
+                # athlètes (I3 a échangé une collision contre une duplication).
+                # Dans ce cas ambigu, ce payload n'est donc pas exploité : on ne
+                # `break` pas, le balayage continue contest par contest — chacun
+                # devient alors étiquetable via `contests.get(contest)`, seule
+                # source de contest fiable ici, et convergera vers la même clé
+                # de fusion quel que soit le chemin de liste qui y a mené (ce qui
+                # résout la duplication en même temps que la collision).
+                ambigu = (
+                    contest == "0"
+                    and len(contests) > 1
+                    and bool(groupes)
+                    and not any(label for label, _statut, _lignes in groupes)
+                )
+                if not ambigu:
+                    for contest_label, status_label, lignes in groupes:
+                        # Le nom de contest vient de la clé de groupe, avec repli
+                        # sur la table `contests` de la config, puis sur le
+                        # `listname`, puis sur le contest brut en dernier
+                        # recours : la clé de fusion doit rester injective même
+                        # quand le payload ne nomme rien (groupe non nommé servi
+                        # avec un contest absent de la table `contests`, cf. I3
+                        # / issue #21).
+                        libelle = (
+                            contest_label
+                            or str(contests.get(contest) or "")
+                            or listname
+                            or contest
                         )
-                        if not r.bib_number:
-                            continue
-                        cle = (libelle, r.bib_number)
-                        ancien = fusion.get(cle)
-                        if ancien is None or _prefer(r, ancien):
-                            fusion[cle] = r
-                if contest == "0":
+                        for ligne in lignes:
+                            r = _build_result(
+                                ligne, roles, segments, extras,
+                                source_url=url,
+                                event_name=event_name,
+                                event_date=jour,
+                                contest_label=libelle,
+                                status_label=status_label,
+                            )
+                            if not r.bib_number:
+                                continue
+                            cle = (libelle, r.bib_number)
+                            ancien = fusion.get(cle)
+                            if ancien is None or _prefer(r, ancien):
+                                fusion[cle] = r
+                if contest == "0" and not ambigu:
                     # contest=0 (« tous ») livre déjà l'ensemble des contests dans
                     # un seul payload : inutile de tenter les autres candidats.
                     # Un contest spécifique, lui, ne livre QUE sa propre tranche
                     # (cf. docstring `_contest_candidates`) — le balayage doit donc
                     # continuer sur les contests suivants, faute de quoi ils sont
-                    # silencieusement perdus (C1).
+                    # silencieusement perdus (C1). Un payload ambigu ne compte
+                    # pas comme une réponse exploitée : le balayage doit
+                    # continuer pour aller chercher les payloads spécifiques.
                     break
 
     if not fusion:
