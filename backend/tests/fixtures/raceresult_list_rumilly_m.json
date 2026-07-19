@@ -1,5 +1,5 @@
 {
-  "_provenance": "GET https://my3.raceresult.com/393893/RRPublish/data/list?key=…&listname=En%20ligne%7CFinal&contest=4&r=all — 2026-07-18. Tronquée à 4 lignes (2 finishers, 1 DNF, 1 DNS) sur 308/6/33.",
+  "_provenance": "GET https://my3.raceresult.com/393893/RRPublish/data/list?key=…&listname=En%20ligne%7CFinal&contest=4&r=all — Tronquée à 4 lignes (2 finishers, 1 DNF, 1 DNS) sur 308/6/33. `Fields` réaligné le 2026-07-19 sous `list.Fields` (Task 7) : la version du 2026-07-18 le plaçait à tort à la racine du payload, jamais vérifié contre l'API réelle — la racine réelle ne porte que `list`, `data`, `DataFields`, `mid`, `groupFilters`, `comments`, `LiveUpdateInterval`, `Favorites`.",
   "DataFields": [
     "BIB", "ID", "OuStatut([ClassementGénéral.P])", "DossardBis",
     "AfficherNom", "SexeMF", "#[ClassementCatégorie.p][AGEGROUP.NAMESHORT]",
@@ -8,26 +8,28 @@
     "[Transition2.OVERALL.P]", "[Transition2]", "[Course.OVERALL.P] ", "[Course]",
     "TIME", "Arrivée.OVERALL.GapTop"
   ],
-  "Fields": [
-    {"Expression": "OuStatut([ClassementGénéral.P])", "Label": "Pl."},
-    {"Expression": "DossardBis", "Label": "#"},
-    {"Expression": "AfficherNom", "Label": "Nom"},
-    {"Expression": "SexeMF", "Label": "M|F"},
-    {"Expression": "#[ClassementCatégorie.p][AGEGROUP.NAMESHORT]", "Label": "Cat."},
-    {"Expression": "ucase([CLUB])", "Label": "Club"},
-    {"Expression": "[Natation.OVERALL.P]", "Label": ""},
-    {"Expression": "[Natation]", "Label": "Nat."},
-    {"Expression": "[Transition1.OVERALL.P]", "Label": ""},
-    {"Expression": "[Transition1]", "Label": "T1"},
-    {"Expression": "[Vélo.OVERALL.P]", "Label": ""},
-    {"Expression": "[Vélo]", "Label": "Vélo"},
-    {"Expression": "[Transition2.OVERALL.P]", "Label": ""},
-    {"Expression": "[Transition2]", "Label": "T2"},
-    {"Expression": "[Course.OVERALL.P] ", "Label": ""},
-    {"Expression": "[Course]", "Label": "CAP"},
-    {"Expression": "TIME", "Label": "Temps"},
-    {"Expression": "Arrivée.OVERALL.GapTop", "Label": ""}
-  ],
+  "list": {
+    "Fields": [
+      {"Expression": "OuStatut([ClassementGénéral.P])", "Label": "Pl."},
+      {"Expression": "DossardBis", "Label": "#"},
+      {"Expression": "AfficherNom", "Label": "Nom"},
+      {"Expression": "SexeMF", "Label": "M|F"},
+      {"Expression": "#[ClassementCatégorie.p][AGEGROUP.NAMESHORT]", "Label": "Cat."},
+      {"Expression": "ucase([CLUB])", "Label": "Club"},
+      {"Expression": "[Natation.OVERALL.P]", "Label": ""},
+      {"Expression": "[Natation]", "Label": "Nat."},
+      {"Expression": "[Transition1.OVERALL.P]", "Label": ""},
+      {"Expression": "[Transition1]", "Label": "T1"},
+      {"Expression": "[Vélo.OVERALL.P]", "Label": ""},
+      {"Expression": "[Vélo]", "Label": "Vélo"},
+      {"Expression": "[Transition2.OVERALL.P]", "Label": ""},
+      {"Expression": "[Transition2]", "Label": "T2"},
+      {"Expression": "[Course.OVERALL.P] ", "Label": ""},
+      {"Expression": "[Course]", "Label": "CAP"},
+      {"Expression": "TIME", "Label": "Temps"},
+      {"Expression": "Arrivée.OVERALL.GapTop", "Label": ""}
+    ]
+  },
   "data": {
     "#1_Distance M": {
       "#1_": [

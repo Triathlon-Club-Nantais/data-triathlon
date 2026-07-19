@@ -171,12 +171,28 @@ _CLES_FEUILLE = ("Contest", "Name", "ID")
 def _iter_list_specs(config: dict) -> list[tuple[str, str]]:
     """Listes exploitables : [(listname, indice de contest), …].
 
-    `config["lists"]` est un arbre dont le chemin, joint par `|`, forme le
-    `listname` attendu par l'API. On aplatit récursivement : une feuille est un
-    nœud non-dict, ou un dict portant une clé de description (`Contest`,
-    `Name`, `ID`). L'indice de contest n'est qu'un **indice** — il est vérifié
-    empiriquement à l'appel (cf. `_contest_candidates`).
+    `config["lists"]` a été **observé en production (event 393893, sondage du
+    2026-07-19) comme un tableau plat** : chaque élément est un dict portant
+    déjà le `listname` complet (`Name`, ex. `"04 - Classements|Classement
+    général"`, le `|` n'étant qu'un séparateur d'affichage posé par
+    RaceResult, pas une hiérarchie à reconstruire) et son `Contest`. C'est le
+    chemin normal, traité en priorité.
+
+    Un `lists` en **dict** reste accepté (repli) pour les payloads réduits à
+    la main du reste de la suite de tests, qui modélisent un arbre à aplatir
+    plutôt qu'un tableau — rien n'indique que cette forme existe réellement
+    côté API, mais rien ne prouve non plus qu'aucun déploiement RaceResult ne
+    la sert. L'indice de contest n'est qu'un **indice** dans les deux cas — il
+    est vérifié empiriquement à l'appel (cf. `_contest_candidates`).
     """
+    lists = config.get("lists")
+    if isinstance(lists, list):
+        return [
+            (str(item.get("Name") or ""), str(item.get("Contest") or "0"))
+            for item in lists
+            if isinstance(item, dict) and item.get("Name")
+        ]
+
     specs: list[tuple[str, str]] = []
 
     def descendre(noeud, chemin: list[str]) -> None:
@@ -187,7 +203,7 @@ def _iter_list_specs(config: dict) -> list[tuple[str, str]]:
         for cle, valeur in noeud.items():
             descendre(valeur, [*chemin, str(cle)])
 
-    for cle, valeur in (config.get("lists") or {}).items():
+    for cle, valeur in (lists or {}).items():
         descendre(valeur, [str(cle)])
     return specs
 
@@ -284,6 +300,12 @@ def _map_columns(
     Étage 2, le rôle : cf. `_role`. Un champ dont l'expression est un token nu
     entre crochets (`[Natation]`) et sans suffixe de rang est un **segment**,
     étiqueté par son `Label`. Tout le reste part en extras → `raw_data`.
+
+    `Fields` a été **observé en production niché sous `payload["list"]`**, pas
+    à la racine du payload (sondage du 2026-07-19, event 393893) — la racine ne
+    porte que `list`, `data`, `DataFields`, `mid`, `groupFilters`… Le repli sur
+    `payload["Fields"]` reste accepté au cas où un autre déploiement l'exposerait
+    directement à la racine.
     """
     data_fields = [str(e) for e in payload.get("DataFields") or []]
     index_par_expr = {expr: i for i, expr in enumerate(data_fields)}
@@ -295,7 +317,10 @@ def _map_columns(
     if "BIB" in index_par_expr:
         roles["bib"] = index_par_expr["BIB"]
 
-    for champ in payload.get("Fields") or []:
+    champs_liste = payload.get("Fields")
+    if champs_liste is None:
+        champs_liste = (payload.get("list") or {}).get("Fields")
+    for champ in champs_liste or []:
         expr = str(champ.get("Expression") or "")
         col = index_par_expr.get(expr)
         if col is None:

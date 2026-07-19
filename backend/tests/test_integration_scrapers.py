@@ -29,6 +29,9 @@ LIVE_URLS = {
     "timepulse": "https://www.timepulse.fr/epreuves/resultats/live/3232",
     "prolivesport": "https://www.prolivesport.fr/result/1082/6",
     "sportinnovation": "https://sportinnovation.fr/Evenements/Resultats/7031",
+    # Triathlon de Rumilly 2026 : 4 contests, dossards en collision d'un contest
+    # à l'autre — l'épreuve qui a servi au sondage d'API du 2026-07-18.
+    "raceresult": "https://my3.raceresult.com/393893/results",
 }
 
 
@@ -204,3 +207,23 @@ def test_chronowest_swimrun_nest_pas_un_triathlon():
     assert results
     types = {r.event_type for r in results}
     assert types <= {"swimrun", "swimrun-s", "swimrun-m", "swimrun-l"}, types
+
+
+@pytest.mark.integration
+def test_raceresult_contests_et_non_finishers():
+    """RaceResult : une Course par contest, non-finishers statués et purgés."""
+    results = registry.scrape_event_all(LIVE_URLS["raceresult"])
+    assert results, "raceresult : aucun participant renvoyé"
+
+    # Plusieurs contests → plusieurs noms d'épreuve qualifiés.
+    assert len({r.event_name for r in results}) >= 2, (
+        f"raceresult : un seul contest vu ({ {r.event_name for r in results} })"
+    )
+    statuses = {r.status for r in results}
+    assert "finisher" in statuses, f"raceresult : aucun finisher (vus : {statuses})"
+    for r in results:
+        if r.status not in ("", "finisher"):
+            assert not r.total_time, f"{r.status} avec un temps total : {r.total_time}"
+            assert r.rank_overall is None, f"{r.status} avec un rang : {r.rank_overall}"
+    # Segments étiquetés plutôt que les 5 slots positionnels.
+    assert any(r.segments for r in results), "raceresult : aucun segment"

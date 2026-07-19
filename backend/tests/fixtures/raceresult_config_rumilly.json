@@ -1,5 +1,5 @@
 {
-  "_provenance": "GET https://my3.raceresult.com/393893/RRPublish/data/config?page=results — 2026-07-18, réduite à la main (Triathlon de Rumilly).",
+  "_provenance": "GET https://my3.raceresult.com/393893/RRPublish/data/config?page=results — réduite à la main (Triathlon de Rumilly). `lists` réaligné le 2026-07-19 sur le tableau plat observé réellement (Task 7) : `raceresult_config_rumilly.json` du 2026-07-18 supposait à tort un arbre imbriqué, jamais vérifié contre l'API réelle.",
   "key": "0123456789abcdef",
   "eventname": "Triathlon de Rumilly",
   "server": "my3.raceresult.com",
@@ -14,10 +14,8 @@
     "4": {"Label": "Transition 2"},
     "5": {"Label": "Course à pied"}
   },
-  "lists": {
-    "En ligne": {
-      "Final": {"Contest": 0, "Name": "En ligne|Final"},
-      "Relais": {"Contest": 3, "Name": "En ligne|Relais"}
-    }
-  }
+  "lists": [
+    {"Name": "En ligne|Final", "Contest": "0"},
+    {"Name": "En ligne|Relais", "Contest": "3"}
+  ]
 }
