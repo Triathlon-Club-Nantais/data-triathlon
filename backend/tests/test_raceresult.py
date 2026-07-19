@@ -13,6 +13,7 @@ import httpx
 import pytest
 
 from app.scrapers import raceresult, registry
+from app.scrapers.base import STATUS_DNF, STATUS_DNS
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -227,3 +228,149 @@ def test_map_columns_range_les_champs_non_reconnus_en_extras():
 
     assert extras["Arrivée.OVERALL.GapTop"] == 19
     assert extras["DossardBis"] == 3
+
+
+# ── Groupes (contest / statut) ──────────────────────────────────────────────
+
+@pytest.mark.parametrize("cle,attendu", [
+    ("#1_Distance M", "Distance M"),
+    ("#2_Abandons", "Abandons"),
+    ("#1_", ""),
+    ("Distance M", "Distance M"),
+])
+def test_strip_group_prefix(cle, attendu):
+    assert raceresult._strip_group_prefix(cle) == attendu
+
+
+def test_iter_groups_expose_contest_et_statut():
+    groupes = raceresult._iter_groups(_payload_rumilly()["data"])
+
+    assert [(c, s, len(lignes)) for c, s, lignes in groupes] == [
+        ("Distance M", "", 2),
+        ("Distance M", "Abandons", 1),
+        ("Distance M", "Non Partants", 1),
+    ]
+
+
+def test_iter_groups_supporte_un_seul_niveau():
+    """Certains payloads n'ont pas de sous-groupe de statut."""
+    data = {"#1_Distance S": [["1", "2", "1.", "1"]]}
+
+    assert raceresult._iter_groups(data) == [("Distance S", "", [["1", "2", "1.", "1"]])]
+
+
+# ── Construction d'un ScrapedResult ─────────────────────────────────────────
+
+def _construire(ligne, contest="Distance M", statut=""):
+    payload = _payload_rumilly()
+    roles, segments, extras = raceresult._map_columns(payload)
+    return raceresult._build_result(
+        ligne, roles, segments, extras,
+        source_url="https://my3.raceresult.com/393893/results",
+        event_name="Triathlon de Rumilly",
+        event_date=date(2026, 6, 18),
+        contest_label=contest,
+        status_label=statut,
+    )
+
+
+def test_build_result_finisher():
+    ligne = _payload_rumilly()["data"]["#1_Distance M"]["#1_"][0]
+
+    r = _construire(ligne)
+
+    assert r.provider == "raceresult"
+    assert r.bib_number == "79"
+    assert r.athlete_name == "ROUX"
+    assert r.athlete_firstname == "Alexis"
+    assert r.gender == "M"
+    assert r.club == "GRESIVAUDAN TRIATHLON"
+    assert r.category == "S4M"
+    assert r.rank_category == 1
+    assert r.rank_overall == 2
+    assert r.total_time == "02:01:56"
+    assert r.status == "finisher"
+    assert r.event_name == "Triathlon de Rumilly - Distance M"
+    assert r.event_type == "triathlon-m"
+    assert r.event_date == date(2026, 6, 18)
+
+
+def test_build_result_nom_compose_en_prenom_nom():
+    """`Jean DE LA TOUR` — le nom est le bloc majuscule entier (cf. Task 1)."""
+    ligne = _payload_rumilly()["data"]["#1_Distance M"]["#1_"][1]
+
+    r = _construire(ligne)
+
+    assert (r.athlete_name, r.athlete_firstname) == ("DE LA TOUR", "Jean")
+
+
+def test_build_result_segments_ordonnes_et_etiquetes():
+    """Liste ordonnée, pas les 5 slots positionnels : le plafond de 5 est levé."""
+    ligne = _payload_rumilly()["data"]["#1_Distance M"]["#1_"][0]
+
+    r = _construire(ligne)
+
+    assert r.segments == [
+        ("Nat.", "00:20:04"),
+        ("T1", "00:00:53"),
+        ("Vélo", "01:05:49"),
+        ("T2", "00:00:56"),
+        ("CAP", "00:34:14"),
+    ]
+
+
+def test_build_result_extras_dans_raw_data():
+    ligne = _payload_rumilly()["data"]["#1_Distance M"]["#1_"][0]
+
+    r = _construire(ligne)
+
+    assert r.raw_data["Arrivée.OVERALL.GapTop"] == "+2:44"
+
+
+def test_build_result_dnf_depuis_le_groupe():
+    ligne = _payload_rumilly()["data"]["#1_Distance M"]["#2_Abandons"][0]
+
+    r = _construire(ligne, statut="Abandons")
+
+    assert r.status == STATUS_DNF
+    assert r.total_time == ""
+    assert (r.rank_overall, r.rank_category, r.rank_gender) == (None, None, None)
+
+
+def test_build_result_dns_depuis_le_groupe():
+    ligne = _payload_rumilly()["data"]["#1_Distance M"]["#3_Non Partants"][0]
+
+    r = _construire(ligne, statut="Non Partants")
+
+    assert r.status == STATUS_DNS
+    assert r.total_time == ""
+
+
+def test_build_result_statut_depuis_la_cellule_de_rang():
+    """Sans groupe de statut, la cellule de rang vaut littéralement « DNF »."""
+    ligne = _payload_rumilly()["data"]["#1_Distance M"]["#2_Abandons"][0]
+
+    r = _construire(ligne, statut="")
+
+    assert r.status == STATUS_DNF
+
+
+def test_build_result_statut_du_groupe_sans_cellule():
+    """Le groupe suffit : une cellule de rang vide ne dégrade pas le statut.
+
+    Sans ce cas, `test_build_result_dnf_depuis_le_groupe` serait un faux vert —
+    il passerait par le repli sur la cellule sans jamais exercer le groupe.
+    """
+    ligne = list(_payload_rumilly()["data"]["#1_Distance M"]["#2_Abandons"][0])
+    ligne[2] = ""  # colonne de rang vidée
+
+    assert _construire(ligne, statut="Abandons").status == STATUS_DNF
+    assert _construire(ligne, statut="Non Partants").status == STATUS_DNS
+
+
+def test_build_result_marque_le_relais():
+    ligne = _payload_rumilly()["data"]["#1_Distance M"]["#1_"][0]
+
+    r = _construire(ligne, contest="Relais M")
+
+    assert r.is_relay is True

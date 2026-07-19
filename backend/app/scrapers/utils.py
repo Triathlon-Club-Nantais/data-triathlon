@@ -142,10 +142,14 @@ _STATUS_TOKENS: dict[str, str] = {
     "dnf": STATUS_DNF,
     "abd": STATUS_DNF,
     "abandon": STATUS_DNF,
+    # Pluriel : RaceResult nomme ses groupes de statut « Abandons ».
+    "abandons": STATUS_DNF,
     "ab": STATUS_DNF,
     # Non-partant (Did Not Start)
     "dns": STATUS_DNS,
     "nonpartant": STATUS_DNS,
+    # Pluriel : groupe RaceResult « Non Partants ».
+    "nonpartants": STATUS_DNS,
     "np": STATUS_DNS,
     "forfait": STATUS_DNS,
     "ff": STATUS_DNS,
@@ -179,3 +183,19 @@ def derive_status_from_label(label: str) -> str:
     if not label:
         return ""
     return _STATUS_TOKENS.get(_normalize_label(label), "")
+
+
+def qualify_event_name(event_name: str, qualifiant: str) -> str:
+    """Qualifie un nom d'épreuve par son parcours / contest.
+
+    « Triathlon de Rumilly » + « Distance M » → « Triathlon de Rumilly - Distance M ».
+    Chaque parcours est une épreuve distincte (classement propre, dossards
+    réutilisés d'un parcours à l'autre) : sans qualification, plusieurs parcours
+    de même type fusionnent en une seule Course et leurs dossards entrent en
+    collision (issue #21 : participants manquants, rangs dupliqués). Un
+    qualifiant déjà présent dans le nom n'est pas ré-ajouté.
+    """
+    qualifiant = (qualifiant or "").strip()
+    if not qualifiant or qualifiant.lower() in (event_name or "").lower():
+        return event_name
+    return f"{event_name} - {qualifiant}"
