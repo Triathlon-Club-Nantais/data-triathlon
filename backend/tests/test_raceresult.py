@@ -381,6 +381,15 @@ def test_strip_rank_suffix(brut, attendu):
     ("{DE:X}", "X"),
     ("Nat.", "Nat."),
     ("", ""),
+    # Formes réelles du panel, toujours reconnues après le resserrement de la
+    # règle : la sévérité vise le texte libre, pas les libellés de l'outil.
+    ("{FR:Nat.|EN:Team}", "Nat."),
+    ("{EN:Gender|DE:M/W|FR:Sexe}", "Sexe"),
+    ("{EN:Rank|DE:Pl.|FR:Rank}", "Rank"),
+    # Une variante vide n'est pas retenue : on descend à la suivante.
+    ("{DE:|EN:Time}", "Time"),
+    # La valeur peut contenir un deux-points ; seule la première coupure compte.
+    ("{FR:10:30}", "10:30"),
 ])
 def test_label_i18n(label, attendu):
     """Mineur : les listes d'affichage encodent leurs libellés en `{DE:…|EN:…|
@@ -432,16 +441,40 @@ def test_clean_cell_retire_l_enrobage_i18n_des_valeurs(brut, attendu):
     "{}",
     # Une variante ne doit pas être devinée sur une accolade non fermée.
     "{FR:Masculin",
+    # --- Axe « clé de langue » : la partie gauche n'est pas un code de langue,
+    # c'est du texte. La prendre pour une clé jetait le sens de la cellule.
+    "{Team: Bleu}",
+    "{ATTENTION: dossard 12}",
+    "{Equipe:Les Bleus}",
+    # --- Axe « accolade interne » : deux enrobages accolés ne forment pas un
+    # enrobage unique. Un `.*` gourmand rendait ici `"1} et {B:2"`.
+    "{A:1} et {B:2}",
+    "{FR:Bleu} / {FR:Rouge}",
+    # --- Axe « toutes les parties bien formées » : une partie de texte libre
+    # désarme la reconnaissance plutôt que de faire jeter le reste.
+    "{FR:Masculin|à confirmer}",
+    # --- Axe « variante vide » : vider une cellule en silence est le pire des
+    # résultats, rien en aval ne peut le rattraper.
+    "{FR:}",
+    "{FR:|EN:}",
 ])
 def test_clean_cell_laisse_intacte_une_valeur_legitime(valeur):
     """I1, sens inverse : `_clean_cell` est sur le chemin de **toutes** les
-    cellules, donc la garde doit aussi laisser passer ce qui n'est pas de l'i18n.
+    cellules — donc de champs de texte libre saisis par des organisateurs, où un
+    deux-points, une accolade ou un `|` sont banals. La garde doit laisser
+    passer tout ce qui n'est pas un enrobage i18n.
 
-    `_RE_LABEL_I18N` est ancré `^\\{…\\}$` et exige au moins une variante
-    `LANGUE:valeur` — deux conditions qu'aucune de ces valeurs ne remplit.
-    Mesuré sur les 176 691 cellules des 17 épreuves capturées : 33 transformées
-    (toutes sur 401699, toutes de forme i18n), une seule autre cellule portant
-    l'un de ces caractères, et laissée intacte.
+    Les quatre derniers groupes couvrent les quatre axes de sévérité de la
+    reconnaissance (clé de langue, accolade interne, parties toutes bien
+    formées, variante non vide). Chacun correspond à une corruption
+    effectivement produite par une reconnaissance lâche `^\\{(.*)\\}$` :
+    `'{Team: Bleu}'` → `' Bleu'`, `'{A:1} et {B:2}'` → `'1} et {B:2'`,
+    `'{FR:}'` → `''`.
+
+    Aucun de ces axes n'est exercé par le panel — c'est précisément pourquoi ils
+    sont ici : le resserrement ne déplace rien sur les 17 épreuves capturées
+    (0 écart mesuré sur 176 691 cellules et 834 libellés), il ne protège que des
+    formes non observées.
     """
     assert raceresult._clean_cell(valeur) == valeur
 
