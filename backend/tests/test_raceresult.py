@@ -672,13 +672,21 @@ def test_scrape_event_all_temps_reel_prime_meme_sans_filtrage_live(monkeypatch):
     """C1, niveau pipeline, double défense : même si une liste d'affichage
     échappait au filtre `Live` de `_iter_list_specs` (ex. déploiement où le
     champ serait absent de la config), `_prefer` doit encore refuser qu'elle
-    écrase un vrai classement. Reproduit fidèlement la forme réelle du
-    contest « Distance Jeunes » (event 393893) : la liste d'affichage groupe
-    ses lignes par contest (`#2_Distance Jeunes|#3_Arrivée`, comme
-    l'API réelle) mais son unique colonne exploitable (`Dos.`, étiquette
-    i18n) n'est pas reconnue comme un temps ; la liste de classement, elle,
-    groupe tout sous une clé neutre (`#1_`) et se rattache au même contest via
-    `contests.get("2")`."""
+    écrase un vrai classement — **y compris quand cette liste d'affichage est
+    la plus riche en colonnes des deux**, cas réel qui la ferait sinon gagner
+    sur la seule `_richness`, sans même solliciter la garde. Reproduit
+    fidèlement la forme réelle du contest « Distance Jeunes » (event 393893) :
+    la liste d'affichage groupe ses lignes par contest
+    (`#2_Distance Jeunes|#3_Arrivée`, comme l'API réelle) et porte 5 colonnes
+    exploitables (dossard, nation, club, sexe, écart au leader — richesse 5,
+    supérieure à la richesse 3 du classement, nom+prénom+temps), reproduisant
+    la largeur réelle d'une liste `LIVE EXTRA` (drapeau, écart au leader,
+    sexe, catégorie, club…) ; aucune de ces colonnes n'est toutefois reconnue
+    comme un temps réel. La liste de classement, elle, groupe tout sous une
+    clé neutre (`#1_`) et se rattache au même contest via
+    `contests.get("2")`. Sans la garde de `_prefer` (temps réel prime sur la
+    seule richesse en colonnes), c'est la ligne d'affichage — plus riche —
+    qui l'emporterait : temps et nom seraient écrasés."""
     config = {
         "key": "k",
         "contests": {"2": "Distance Jeunes"},
@@ -694,12 +702,23 @@ def test_scrape_event_all_temps_reel_prime_meme_sans_filtrage_live(monkeypatch):
     )
     monkeypatch.setattr(raceresult, "_fetch_config", lambda eid, base, client: config)
 
+    # Richesse 5 (Dos + 3 extras + club/sexe reconnus), volontairement > à la
+    # richesse 3 du classement ci-dessous : sans la garde `_prefer`, c'est
+    # cette ligne d'affichage — plus riche mais sans temps réel — qui gagnerait.
     champs_affichage = {
-        "DataFields": ["BIB", "Dos"],
+        "DataFields": [
+            "BIB", "Dos", "NATION.UCINAME", "ucase([CLUB])", "SexeMF", "EcartLeader",
+        ],
         "list": {"Fields": [
-            {"Expression": "Dos", "Label": "{DE:Startnr|EN:Bib|FR:Dos.}"}
+            {"Expression": "Dos", "Label": "{DE:Startnr|EN:Bib|FR:Dos.}"},
+            {"Expression": "NATION.UCINAME", "Label": "Nat."},
+            {"Expression": "ucase([CLUB])", "Label": "Club"},
+            {"Expression": "SexeMF", "Label": "Sexe"},
+            {"Expression": "EcartLeader", "Label": "Ecart"},
         ]},
-        "data": {"#2_Distance Jeunes": {"#3_Arrivée": [["24", "24"]]}},
+        "data": {"#2_Distance Jeunes": {"#3_Arrivée": [
+            ["24", "24", "FRA", "TEAM LIVE", "M", "+00:00:12"]
+        ]}},
     }
     champs_classement = {
         "DataFields": ["BIB", "AfficherNom", "TIME"],
