@@ -326,8 +326,10 @@ def test_peel_borne_par_peel_max_iterations_au_dela_du_point_fixe(caplog):
     # désactive silencieusement tout logger déjà enregistré (`disable_existing_
     # loggers=True` par défaut, hors périmètre de ce correctif) — sans ce reset
     # local, ce test devient un faux négatif d'ordre d'exécution plutôt qu'une
-    # preuve sur `_peel`.
+    # preuve sur `_peel`. Le niveau est restauré pour la même raison : sans
+    # cela, le passage à DEBUG fuite sur le reste de la suite (Mineur 4).
     logger_etat = raceresult.logger.disabled
+    niveau_etat = raceresult.logger.level
     raceresult.logger.disabled = False
     raceresult.logger.addHandler(caplog.handler)
     raceresult.logger.setLevel(logging.DEBUG)
@@ -336,22 +338,41 @@ def test_peel_borne_par_peel_max_iterations_au_dela_du_point_fixe(caplog):
     finally:
         raceresult.logger.removeHandler(caplog.handler)
         raceresult.logger.disabled = logger_etat
+        raceresult.logger.setLevel(niveau_etat)
 
     assert resultat != "velo", "une imbrication de plus de 10 niveaux ne doit pas converger"
-    assert resultat == "if(status<>2;velo)"  # point fixe atteint à 10 niveaux prématurément clos
+    # Pas d'assertion sur la forme exacte du résidu partiellement pelé
+    # (Mineur 5) : elle figerait la forme cosmétique du nettoyage final
+    # (`replace("[", "")`, `translate(_ACCENTS)`) sans rien prouver de plus
+    # que `resultat != "velo"` ci-dessus — c'est la non-convergence qui
+    # importe, pas la chaîne précise sur laquelle `_peel` s'arrête.
     assert "n'a pas convergé" in caplog.text
 
 
 # ── C3 : rang collé sur une valeur de segment ───────────────────────────────
-
+#
+# Important 2 (revue du correctif Important 1) : les cas ci-dessous couvrent
+# deux familles distinctes, à parité — pas seulement « pousser une valeur
+# polluée et vérifier qu'elle est nettoyée ». La seconde famille pratique le
+# test symétrique qui manquait : pousser une valeur légitime portant des
+# parenthèses de texte libre et vérifier qu'elle SURVIT intacte. Sans ce
+# second axe, une regex trop permissive (motif d'origine, point facultatif)
+# passe la suite tout en amputant `"TCN (1)"` en `"TCN"` — deux équipes de
+# relais fusionnées sous un même nom.
 @pytest.mark.parametrize("brut,attendu", [
+    # -- rang collé, doit être décollé --
     ("2:08:00 (1.)", "2:08:00"),   # capture réelle 401699, colonne Vélo
     ("33:18 (10.)", "33:18"),      # capture réelle 401699, colonne Nat. + T1
     ("35:28", "35:28"),            # pas de rang collé : inchangée
     ("", ""),
+    # -- texte libre légitime portant des parenthèses, doit survivre intact --
+    ("TCN (44)", "TCN (44)"),                        # code départemental
+    ("PAYS DE GEX NATATION (PGN)", "PAYS DE GEX NATATION (PGN)"),  # sigle
+    ("TCN (1)", "TCN (1)"),                           # numéro d'équipe de relais
+    ("TCN (2)", "TCN (2)"),                           # équipe distincte de la précédente
 ])
-def test_strip_segment_rank(brut, attendu):
-    assert raceresult._strip_segment_rank(brut) == attendu
+def test_strip_rank_suffix(brut, attendu):
+    assert raceresult._strip_rank_suffix(brut) == attendu
 
 
 @pytest.mark.parametrize("label,attendu", [
@@ -633,7 +654,7 @@ def test_build_result_decolle_le_rang_suffixe_dune_valeur_de_segment():
 # ── Important 1 (revue du correctif C2+C3) : C2 élargit les rôles reconnus,
 # une colonne temps/nom/club peut donc désormais provenir d'une concaténation
 # composée `[X] & " (" & [X.OVERALL.P] & ")"` — exactement le motif qui polluait
-# les segments avant C3. `_strip_segment_rank` doit protéger ces trois cellules
+# les segments avant C3. `_strip_rank_suffix` doit protéger ces trois cellules
 # comme elle protège déjà les segments, sans quoi le rang collé migre en base
 # (`total_time = "3:18:21 (5.)"`), symptôme C3 déplacé sur un chemin non
 # corrigé. Motif repris verbatim de 401699 (§ Important 1 des constats de
@@ -646,7 +667,7 @@ def test_build_result_protege_le_temps_dune_colonne_composee():
     """Si `_peel` fait converger une colonne de temps composée vers le rôle
     `temps` (C2), sa valeur brute porte le même rang collé qu'un segment —
     `normalize_time` est permissif et laisserait passer `"3:18:21 (5.)"` tel
-    quel si `_strip_segment_rank` n'était pas appliqué avant."""
+    quel si `_strip_rank_suffix` n'était pas appliqué avant."""
     expr = 'if([STATUS]<>2;[TIME] & " (" & [TIME.OVERALL.P] & ")")'
     payload = {
         "DataFields": ["BIB", "ID", expr],
