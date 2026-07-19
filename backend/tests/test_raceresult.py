@@ -654,15 +654,18 @@ def test_prefer_autorise_un_statut_non_finisher_sans_temps_concurrent():
 
 
 def test_scrape_event_all_desambiguise_les_groupes_non_nommes(monkeypatch):
-    """I3 : sans libellé de contest dans la clé de groupe ni entrée dans
-    `contests` pour le contest interrogé, la clé de fusion doit rester
-    injective — repli sur le `listname` pour ne pas fusionner deux contests
-    distincts sous la même clé vide (issue #21).
+    """I3 (recentré, N3 mineur) : sans libellé de contest dans la clé de
+    groupe ni entrée dans `contests` pour le contest interrogé, la clé de
+    fusion doit rester injective — repli sur le contest brut ("5") pour ne
+    pas fusionner deux contests distincts sous la même clé vide (issue #21).
 
     Contrairement à `contest="0"` (repli désormais géré à part, cf. N2
     ci-dessous), un contest explicite non déclaré dans `contests` (ici "5")
-    ne bénéficie d'aucun autre signal : le repli sur `listname` reste alors la
-    seule désambiguïsation possible."""
+    ne bénéficie d'aucun autre signal que son propre numéro. Le repli sur ce
+    numéro de contest — plutôt que sur le `listname` (version initiale d'I3)
+    — est strictement plus robuste : deux listes distinctes atteignant ce
+    même contest 5 convergent alors vers la même clé de fusion au lieu de
+    rouvrir la duplication qu'I3 avait justement fermée (N3 mineur)."""
     config = {
         "key": "k",
         "contests": {"1": "Distance XS", "4": "Distance M"},
@@ -692,7 +695,7 @@ def test_scrape_event_all_desambiguise_les_groupes_non_nommes(monkeypatch):
     resultats = raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
 
     assert len(resultats) == 1
-    assert resultats[0].event_name == "Triathlon de Rumilly - Groupe2"
+    assert resultats[0].event_name == "Triathlon de Rumilly - 5"
 
 
 def test_scrape_event_all_desambiguise_par_contest_sans_dupliquer_entre_listes(monkeypatch):
@@ -807,6 +810,64 @@ def test_scrape_event_all_desambiguise_la_collision_intra_payload(monkeypatch):
     assert {r.event_name for r in resultats} == {
         "Triathlon de Rumilly - Distance XS", "Triathlon de Rumilly - Distance M",
     }
+
+
+def test_scrape_event_all_garde_le_payload_ambigu_en_dernier_recours(monkeypatch):
+    """N3 : même config que la collision intra-payload ci-dessus, mais les
+    contests explicites (1 et 2) répondent tous les deux 404 — cas attesté par
+    le brief (« certaines listes annoncées en config répondent 404 en dur »).
+
+    Le balayage contest par contest censé lever l'ambiguïté ne rapporte alors
+    rien : avant correctif, le payload ambigu était jeté sans filet et
+    l'épreuve entière échouait (`ValueError`), alors qu'il restait exploitable
+    (2 des 3 lignes ne collisionnent pas). Le correctif doit le fusionner en
+    dernier recours plutôt que d'abandonner l'épreuve — quitte à perdre la
+    ligne réellement ambiguë (COUREUR, même dossard 79 que DUPONT, non
+    départageable sans le détail par contest)."""
+
+    def _ligne(bib, nom):
+        return [bib, "1", "1.", bib, nom, "M", "1.S1M", "CLUB",
+                "", "", "", "", "", "", "", "", "", "", "01:00:00", ""]
+
+    config = {
+        "key": "k",
+        "contests": {"1": "Distance XS", "2": "Distance M"},
+        "lists": {"Résultats": {"Contest": 0}},
+    }
+    monkeypatch.setattr(raceresult, "_resolve_event_id", lambda url, client: "393893")
+    monkeypatch.setattr(
+        raceresult, "_fetch_meta",
+        lambda eid, base, client: ("Triathlon de Rumilly", date(2026, 6, 18), "RUMILLY"),
+    )
+    monkeypatch.setattr(raceresult, "_fetch_config", lambda eid, base, client: config)
+
+    champs = {k: _payload_rumilly()[k] for k in ("DataFields", "Fields")}
+
+    def _payload(lignes):
+        return {**champs, "data": {"#1_": lignes}}
+
+    payload_ambigu = _payload([
+        _ligne("79", "Jean DUPONT"),
+        _ligne("79", "Autre COUREUR"),
+        _ligne("100", "Un TROISIEME"),
+    ])
+
+    def faux_fetch_list(eid, base, key, listname, contest, client):
+        # Seul contest=0 répond ; les contests explicites 1 et 2 sont en 404.
+        return {"0": payload_ambigu}.get(contest)
+
+    monkeypatch.setattr(raceresult, "_fetch_list", faux_fetch_list)
+
+    resultats = raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
+
+    # 2 sur 3 : le dossard 79 collisionne toujours à l'intérieur du payload
+    # ambigu (aucun signal ne permet de trancher entre DUPONT et COUREUR sans
+    # le détail par contest) ; seul le dossard 100, non ambigu, survit en
+    # plus. C'est strictement mieux que l'échec total et cohérent avec le
+    # comportement du commit précédent (N1/N2) sur ce même scénario.
+    assert len(resultats) == 2
+    assert "TROISIEME" in {r.athlete_name for r in resultats}
+    assert len({r.athlete_name for r in resultats} & {"DUPONT", "COUREUR"}) == 1
 
 
 def test_scrape_event_all_ouvre_le_client_avec_follow_redirects(monkeypatch):

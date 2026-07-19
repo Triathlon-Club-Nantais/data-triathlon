@@ -538,7 +538,49 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         # Clé de fusion (contest, dossard) : deux contests peuvent porter le même
         # dossard, c'est précisément le cas que la qualification par contest règle.
         fusion: dict[tuple[str, str], ScrapedResult] = {}
+
+        def fusionner(groupes, contest: str, listname: str, roles, segments, extras) -> bool:
+            """Fusionne un payload résolu dans `fusion`. Vrai si une ligne a été retenue."""
+            ajoute = False
+            for contest_label, status_label, lignes in groupes:
+                # Le nom de contest vient de la clé de groupe, avec repli sur la
+                # table `contests` de la config, puis sur le contest brut — plus
+                # stable et injectif qu'un chemin de liste : deux listes menant
+                # au même contest doivent converger vers la même clé de fusion
+                # (cf. N2/#21) — et seulement en tout dernier recours sur le
+                # `listname`, pour rester injectif même quand le payload ne
+                # nomme rien et que le contest est absent de la table `contests`
+                # (I3 / issue #21).
+                libelle = (
+                    contest_label
+                    or str(contests.get(contest) or "")
+                    or contest
+                    or listname
+                )
+                for ligne in lignes:
+                    r = _build_result(
+                        ligne, roles, segments, extras,
+                        source_url=url,
+                        event_name=event_name,
+                        event_date=jour,
+                        contest_label=libelle,
+                        status_label=status_label,
+                    )
+                    if not r.bib_number:
+                        continue
+                    cle = (libelle, r.bib_number)
+                    ancien = fusion.get(cle)
+                    if ancien is None or _prefer(r, ancien):
+                        fusion[cle] = r
+                    ajoute = True
+            return ajoute
+
         for listname, indice in specs:
+            # Payload jugé ambigu mis de côté (au plus un par liste, cf.
+            # ci-dessous), fusionné en tout dernier recours si le balayage
+            # contest par contest ne rapporte rien pour cette liste (N3).
+            ambigu_en_reserve: tuple | None = None
+            resolu = False
             for contest in _contest_candidates(indice, contests):
                 payload = _fetch_list(event_id, base, key, listname, contest, client)
                 if payload is None:
@@ -559,58 +601,46 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                 # est exposée par deux chemins de listes différents, ce repli
                 # produit alors deux « Courses » distinctes pour les mêmes
                 # athlètes (I3 a échangé une collision contre une duplication).
-                # Dans ce cas ambigu, ce payload n'est donc pas exploité : on ne
-                # `break` pas, le balayage continue contest par contest — chacun
-                # devient alors étiquetable via `contests.get(contest)`, seule
-                # source de contest fiable ici, et convergera vers la même clé
-                # de fusion quel que soit le chemin de liste qui y a mené (ce qui
-                # résout la duplication en même temps que la collision).
+                # Dans ce cas ambigu, ce payload n'est donc pas fusionné tout de
+                # suite : on le met de côté et le balayage continue contest par
+                # contest — chacun devient alors étiquetable via
+                # `contests.get(contest)`, seule source de contest fiable ici, et
+                # convergera vers la même clé de fusion quel que soit le chemin
+                # de liste qui y a mené (ce qui résout la duplication en même
+                # temps que la collision).
                 ambigu = (
                     contest == "0"
                     and len(contests) > 1
                     and bool(groupes)
                     and not any(label for label, _statut, _lignes in groupes)
                 )
-                if not ambigu:
-                    for contest_label, status_label, lignes in groupes:
-                        # Le nom de contest vient de la clé de groupe, avec repli
-                        # sur la table `contests` de la config, puis sur le
-                        # `listname`, puis sur le contest brut en dernier
-                        # recours : la clé de fusion doit rester injective même
-                        # quand le payload ne nomme rien (groupe non nommé servi
-                        # avec un contest absent de la table `contests`, cf. I3
-                        # / issue #21).
-                        libelle = (
-                            contest_label
-                            or str(contests.get(contest) or "")
-                            or listname
-                            or contest
-                        )
-                        for ligne in lignes:
-                            r = _build_result(
-                                ligne, roles, segments, extras,
-                                source_url=url,
-                                event_name=event_name,
-                                event_date=jour,
-                                contest_label=libelle,
-                                status_label=status_label,
-                            )
-                            if not r.bib_number:
-                                continue
-                            cle = (libelle, r.bib_number)
-                            ancien = fusion.get(cle)
-                            if ancien is None or _prefer(r, ancien):
-                                fusion[cle] = r
-                if contest == "0" and not ambigu:
+                if ambigu:
+                    ambigu_en_reserve = (roles, segments, extras, groupes, contest)
+                    continue
+                if fusionner(groupes, contest, listname, roles, segments, extras):
+                    resolu = True
+                if contest == "0":
                     # contest=0 (« tous ») livre déjà l'ensemble des contests dans
-                    # un seul payload : inutile de tenter les autres candidats.
-                    # Un contest spécifique, lui, ne livre QUE sa propre tranche
-                    # (cf. docstring `_contest_candidates`) — le balayage doit donc
-                    # continuer sur les contests suivants, faute de quoi ils sont
-                    # silencieusement perdus (C1). Un payload ambigu ne compte
-                    # pas comme une réponse exploitée : le balayage doit
-                    # continuer pour aller chercher les payloads spécifiques.
+                    # un seul payload non ambigu : inutile de tenter les autres
+                    # candidats. Un contest spécifique, lui, ne livre QUE sa
+                    # propre tranche (cf. docstring `_contest_candidates`) — le
+                    # balayage doit donc continuer sur les contests suivants,
+                    # faute de quoi ils sont silencieusement perdus (C1).
                     break
+
+            if not resolu and ambigu_en_reserve is not None:
+                # Le balayage contest par contest, censé lever l'ambiguïté, n'a
+                # rien rapporté pour cette liste (cas attesté : certaines listes
+                # de contests annoncées en config répondent 404 en dur). Plutôt
+                # que d'abandonner ce payload — et avec lui l'épreuve entière si
+                # aucune autre liste ne compense — on le fusionne en dernier
+                # recours : une éventuelle collision intra-payload résiduelle
+                # (même dossard, deux contests réels) reste possible et fait
+                # perdre l'une des deux lignes concurrentes (cf. `_prefer`),
+                # mais c'est strictement mieux qu'une épreuve vidée entièrement
+                # (N3).
+                roles, segments, extras, groupes, contest = ambigu_en_reserve
+                fusionner(groupes, contest, listname, roles, segments, extras)
 
     if not fusion:
         essayees = ", ".join(nom for nom, _ in specs) or "aucune liste déclarée"
