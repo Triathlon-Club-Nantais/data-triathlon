@@ -254,11 +254,18 @@ def _split_profondeur(s: str, sep: str) -> list[str]:
     return parties
 
 
+# Borne de sécurité pour la boucle de point fixe de `_peel` : sur les formules
+# réellement observées (jusqu'à 3 imbrications), le point fixe est atteint en
+# 2-3 tours. Cette borne n'est là que pour garantir la terminaison si une
+# formule inédite oscillait — elle ne doit jamais être atteinte en pratique.
+_PEEL_MAX_ITERATIONS = 10
+
+
 def _peel(expr: str) -> str:
     """Expression RaceResult ramenée à sa forme comparable.
 
-    Trois formes se superposent en production et doivent être défaites dans cet
-    ordre précis :
+    Trois formes se superposent en production, et doivent être défaites dans cet
+    ordre à **chaque tour** :
 
     1. **La concaténation** `X & iif(…)` colle un rang au libellé
        (`"M (1.)"`, `"M0M (1.)"`). Seul le premier terme porte la valeur. Elle
@@ -273,31 +280,47 @@ def _peel(expr: str) -> str:
        Retenir le plus long tout court sélectionnait `[STATUS]<>2` et faisait
        perdre tous les segments de Genève et Besançon.
 
+    Cet ordre reste le bon *au sein d'un tour*, mais une seule passe ne suffit
+    pas : une concaténation peut être **imbriquée dans** un `if(…)`
+    (`if([STATUS]<>2;[Vélo] & " (" & [Vélo.OVERALL.P] & ")")`), auquel cas
+    l'étape 1 ne la voit pas (profondeur > 0 au premier tour) et ne serait
+    jamais rejouée après l'étape 3 qui vient de l'exposer. `_peel` boucle donc
+    sur les trois étapes jusqu'à un **point fixe** (la chaîne cesse de changer),
+    borné par `_PEEL_MAX_ITERATIONS` pour garantir la terminaison même sur une
+    formule inédite qui ne convergerait pas.
+
     `ucase([CLUB])` et `[Club]` convergent ainsi vers `club`, ce qui permet une
     table de motifs courte au lieu d'une énumération de variantes.
     """
     s = (expr or "").strip()
 
-    # 1. Concaténation : la valeur est portée par le premier terme non littéral.
-    # `"#"&[BIB]` commence par une décoration ; retenir `"#"` produisait une
-    # expression vide qui finissait classée en segment sous son étiquette « N° ».
-    termes = [t.strip() for t in _split_profondeur(s, "&")]
-    if len(termes) > 1:
-        utiles = [t for t in termes if t and not _RE_LITTERAL.match(t)]
-        s = (utiles or termes)[0].strip()
+    for _ in range(_PEEL_MAX_ITERATIONS):
+        avant = s
 
-    # 2. Enrobages d'affichage, en pelures successives.
-    while True:
-        trouve = _RE_ENROBAGE.match(s)
-        if not trouve or not s.endswith(")"):
+        # 1. Concaténation : la valeur est portée par le premier terme non
+        # littéral. `"#"&[BIB]` commence par une décoration ; retenir `"#"`
+        # produisait une expression vide qui finissait classée en segment sous
+        # son étiquette « N° ».
+        termes = [t.strip() for t in _split_profondeur(s, "&")]
+        if len(termes) > 1:
+            utiles = [t for t in termes if t and not _RE_LITTERAL.match(t)]
+            s = (utiles or termes)[0].strip()
+
+        # 2. Enrobages d'affichage, en pelures successives.
+        while True:
+            trouve = _RE_ENROBAGE.match(s)
+            if not trouve or not s.endswith(")"):
+                break
+            s = s[trouve.end():-1].strip()
+
+        # 3. Conditionnelle : on écarte les termes qui comparent.
+        termes = [t.strip() for t in _split_profondeur(s, ";") if t.strip()]
+        if len(termes) > 1:
+            valeurs = [t for t in termes if not _RE_COMPARAISON.search(t)] or termes
+            s = max(valeurs, key=len).strip()
+
+        if s == avant:
             break
-        s = s[trouve.end():-1].strip()
-
-    # 3. Conditionnelle : on écarte les termes qui comparent.
-    termes = [t.strip() for t in _split_profondeur(s, ";") if t.strip()]
-    if len(termes) > 1:
-        valeurs = [t for t in termes if not _RE_COMPARAISON.search(t)] or termes
-        s = max(valeurs, key=len).strip()
 
     s = s.replace("#", "").replace("[", "").replace("]", "")
     return s.translate(_ACCENTS).lower().strip()
@@ -332,6 +355,22 @@ def _split_rank_category(cell: str) -> tuple[int | None, str]:
     if trouve:
         return int(trouve.group(2)), trouve.group(1).strip()
     return None, cell
+
+
+def _strip_segment_rank(valeur: str) -> str:
+    """Décolle un rang suffixé (`"2:08:00 (1.)"` → `"2:08:00"`) d'une valeur de
+    segment.
+
+    Une colonne de segment issue d'une concaténation
+    `[Vélo] & " (" & [Vélo.OVERALL.P] & ")"` porte son rang collé de la même
+    façon que la cellule sexe/catégorie (même forme que `_RE_RANG_SUFFIXE`),
+    mais un rang n'est jamais un composant valide d'une durée. Sans ce
+    décollage, `_RE_DUREE` rejette la cellule entière et le split est perdu —
+    `normalize_time` ne doit PAS être relâché pour compenser : il laisserait
+    passer des valeurs qui ne sont pas des durées.
+    """
+    trouve = _RE_RANG_SUFFIXE.match(valeur)
+    return trouve.group(1).strip() if trouve else valeur
 
 
 def _role(peeled: str) -> str:
@@ -598,13 +637,16 @@ def _build_result(
 
     # Une colonne candidate ne devient un segment que si sa valeur est bien une
     # durée : c'est ce qui écarte les colonnes « Tours » ou « Distance », dont
-    # l'expression est un token simple indiscernable de celle d'un split.
+    # l'expression est un token simple indiscernable de celle d'un split. Le
+    # rang suffixé (`"33:18 (10.)"`) est décollé AVANT cette qualification :
+    # `_RE_DUREE` le rejetterait tel quel et ferait perdre le split entier.
     r.segments = [
-        (label, normalize_time(cellule_brute))
+        (label, normalize_time(valeur))
         for label, col in segments
         if col < len(ligne)
         and (cellule_brute := _clean_cell(ligne[col]))
-        and _RE_DUREE.match(cellule_brute)
+        and (valeur := _strip_segment_rank(cellule_brute))
+        and _RE_DUREE.match(valeur)
     ] or None
 
     r.raw_data = {

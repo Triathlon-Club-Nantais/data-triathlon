@@ -259,6 +259,54 @@ def test_peel(expr, attendu):
     assert raceresult._peel(expr) == attendu
 
 
+# ── C2 : point fixe de `_peel` (concaténation imbriquée dans un `if(…)`) ────
+# Capture réelle du 2026-07-19 sur l'épreuve 401699 (Half Iron du Lac
+# d'Annecy, colonne Vélo) : `docs/superpowers/specs/2026-07-19-raceresult-api-
+# sondage.md` ne couvrait pas ce cas, seul le sondage de cette épreuve l'a
+# révélé (0 segment sur 587 participants avant correctif).
+
+def test_peel_point_fixe_concatenation_imbriquee_dans_if():
+    """Une seule passe ordonnée s'arrête à la conditionnelle défaite —
+    `if([STATUS]<>2;[Vélo] & " (" & [Vélo.OVERALL.P] & ")")` devient
+    `[Vélo] & " (" & [Vélo.OVERALL.P] & ")"` — sans rejouer l'étape de
+    concaténation, qui n'était visible qu'une fois l'enrobage `if(…)` retiré.
+    Le peel restait une expression composée, jamais reconnue comme le token
+    simple d'un segment."""
+    expr = 'if([STATUS]<>2;[Vélo] & " (" & [Vélo.OVERALL.P] & ")")'
+    assert raceresult._peel(expr) == "velo"
+    assert raceresult._role("velo") == ""  # rôle inconnu => candidat segment
+
+
+def test_peel_concatenation_non_imbriquee_deja_correcte():
+    """Non-régression : la même colonne, sur la liste Relais de la même
+    épreuve, n'est pas enveloppée dans un `if(…)` — elle pelait déjà
+    correctement avant C2 (cf. le sondage du brief), la boucle de point fixe
+    ne doit pas la casser."""
+    expr = '[Vélo] & " (" & [Vélo.OVERALL.P] & ")"'
+    assert raceresult._peel(expr) == "velo"
+
+
+def test_peel_termine_sur_une_imbrication_profonde():
+    """Garantie de terminaison : `_peel` doit converger même au-delà des deux
+    niveaux observés en production plutôt que de dépendre d'un nombre d'étages
+    fixe — la boucle est bornée par `_PEEL_MAX_ITERATIONS`, pas seulement par
+    le point fixe."""
+    expr = "if(1;if(1;if(1;if(1;[Vélo]))))"
+    assert raceresult._peel(expr) == "velo"
+
+
+# ── C3 : rang collé sur une valeur de segment ───────────────────────────────
+
+@pytest.mark.parametrize("brut,attendu", [
+    ("2:08:00 (1.)", "2:08:00"),   # capture réelle 401699, colonne Vélo
+    ("33:18 (10.)", "33:18"),      # capture réelle 401699, colonne Nat. + T1
+    ("35:28", "35:28"),            # pas de rang collé : inchangée
+    ("", ""),
+])
+def test_strip_segment_rank(brut, attendu):
+    assert raceresult._strip_segment_rank(brut) == attendu
+
+
 @pytest.mark.parametrize("label,attendu", [
     ("{DE:Startnr|EN:Bib|FR:Dos.}", "Dos."),
     ("{DE:Zeit|EN:Time}", "Time"),
@@ -461,6 +509,78 @@ def test_build_result_ecarte_les_colonnes_qui_ne_sont_pas_des_durees():
     )
 
     assert r.segments == [("Natation", "00:13:16")]
+
+
+def test_build_result_recupere_les_segments_malgre_la_concatenation_imbriquee():
+    """C2 + C3 combinés, sur une capture réelle de l'épreuve 401699 (Half Iron
+    du Lac d'Annecy, liste Individuel, athlète GOUAULT Pierre) : avant
+    correctif, `_peel` s'arrêtait à `[Vélo] & " (" & [Vélo.OVERALL.P] & ")"`
+    (composée, donc non reconnue comme segment) ET la valeur brute portait un
+    rang collé (`"2:08:00 (1.)"`) que `_RE_DUREE` rejetait. Les deux causes
+    devaient être corrigées pour que ce split réapparaisse."""
+    payload = {
+        "DataFields": [
+            "BIB", "ID", "OuStatut([ClassementGénéral.p])", "AfficherNom",
+            'if([STATUS]<>2;[Natation] & " (" & [Natation.OVERALL.P] & ")")',
+            'if([STATUS]<>2;[Vélo] & " (" & [Vélo.OVERALL.P] & ")")',
+            'if([STATUS]<>2;[Course] & " (" & [Course.OVERALL.P] & ")")',
+            "OuStatut([TIME])",
+        ],
+        "list": {"Fields": [
+            {"Expression": "OuStatut([ClassementGénéral.p])", "Label": "Rang"},
+            {"Expression": "AfficherNom", "Label": "Nom"},
+            {
+                "Expression": 'if([STATUS]<>2;[Natation] & " (" & [Natation.OVERALL.P] & ")")',
+                "Label": "Nat. + T1",
+            },
+            {
+                "Expression": 'if([STATUS]<>2;[Vélo] & " (" & [Vélo.OVERALL.P] & ")")',
+                "Label": "Vélo",
+            },
+            {
+                "Expression": 'if([STATUS]<>2;[Course] & " (" & [Course.OVERALL.P] & ")")',
+                "Label": "Course + T2",
+            },
+            {"Expression": "OuStatut([TIME])", "Label": "Temps"},
+        ]},
+    }
+    roles, segments, extras = raceresult._map_columns(payload)
+    ligne = ["452", "452", "1.", "GOUAULT Pierre", "28:51 (10.)", "2:08:00 (1.)", "41:30 (4.)", "3:18:21"]
+
+    r = raceresult._build_result(
+        ligne, roles, segments, extras,
+        source_url="u", event_name="Half Iron du Lac d'Annecy", event_date=None,
+        contest_label="Individuel", status_label="",
+    )
+
+    assert r.segments == [
+        ("Nat. + T1", "00:28:51"),
+        ("Vélo", "02:08:00"),
+        ("Course + T2", "00:41:30"),
+    ]
+
+
+def test_build_result_decolle_le_rang_suffixe_dune_valeur_de_segment():
+    """C3 isolé de C2 : sur la liste Relais de la même épreuve (401699),
+    l'expression `[Vélo] & " (" & [Vélo.OVERALL.P] & ")"` pèle déjà
+    correctement — `Vélo` est bien reconnu segment — mais seule la VALEUR
+    porte le rang collé (`"2:08:00 (1.)"`), qui faisait rejeter la cellule par
+    `_RE_DUREE`."""
+    expr = '[Vélo] & " (" & [Vélo.OVERALL.P] & ")"'
+    payload = {
+        "DataFields": ["BIB", "ID", expr],
+        "list": {"Fields": [{"Expression": expr, "Label": "Vélo"}]},
+    }
+    roles, segments, extras = raceresult._map_columns(payload)
+    assert segments == [("Vélo", 2)]  # le peel n'était pas en cause ici
+
+    r = raceresult._build_result(
+        ["1", "1", "2:08:00 (1.)"], roles, segments, extras,
+        source_url="u", event_name="E", event_date=None,
+        contest_label="C", status_label="",
+    )
+
+    assert r.segments == [("Vélo", "02:08:00")]
 
 
 def test_resolve_event_id_exige_bien_les_deux_syntaxes():
