@@ -400,6 +400,52 @@ def test_clean_cell(brut, attendu):
     assert raceresult._clean_cell(brut) == attendu
 
 
+@pytest.mark.parametrize("brut,attendu", [
+    ("{EN:Men|FR:Masculin}", "Masculin"),
+    ("{EN:Mixed|FR:Mixte}", "Mixte"),
+    ("{EN:Women|FR:Féminin}", "Féminin"),
+    # Repli anglais quand le français manque, comme pour les libellés.
+    ("{DE:Männer|EN:Men}", "Men"),
+])
+def test_clean_cell_retire_l_enrobage_i18n_des_valeurs(brut, attendu):
+    """I1 — l'enrobage i18n ne décore pas que les libellés, il voyage aussi dans
+    les **valeurs**.
+
+    Mesuré sur l'event 401699 : ses 33 cellules de catégorie relais entraient en
+    base telles quelles (`category = '{EN:Men|FR:Masculin}'`), illisibles en UI
+    et non regroupables. `_label_i18n` existait déjà mais n'était appliqué qu'à
+    la construction des libellés de colonne.
+    """
+    assert raceresult._clean_cell(brut) == attendu
+
+
+@pytest.mark.parametrize("valeur", [
+    # Le témoin réel du panel : une accolade parasite dans un nom saisi à la
+    # main (event 411749). Elle n'ouvre ni ne ferme un enrobage complet.
+    "ROBERT Julie}",
+    "{ALEX",
+    # Une barre verticale hors accolades n'est pas un séparateur de variantes.
+    "TCN | Section triathlon",
+    # Enrobage complet mais sans variante `LANGUE:valeur` : rien à choisir, donc
+    # rien à retirer — sans quoi la valeur disparaîtrait.
+    "{équipe}",
+    "{}",
+    # Une variante ne doit pas être devinée sur une accolade non fermée.
+    "{FR:Masculin",
+])
+def test_clean_cell_laisse_intacte_une_valeur_legitime(valeur):
+    """I1, sens inverse : `_clean_cell` est sur le chemin de **toutes** les
+    cellules, donc la garde doit aussi laisser passer ce qui n'est pas de l'i18n.
+
+    `_RE_LABEL_I18N` est ancré `^\\{…\\}$` et exige au moins une variante
+    `LANGUE:valeur` — deux conditions qu'aucune de ces valeurs ne remplit.
+    Mesuré sur les 176 691 cellules des 17 épreuves capturées : 33 transformées
+    (toutes sur 401699, toutes de forme i18n), une seule autre cellule portant
+    l'un de ces caractères, et laissée intacte.
+    """
+    assert raceresult._clean_cell(valeur) == valeur
+
+
 @pytest.mark.parametrize("cell,attendu", [
     ("1.S4M", (1, "S4M")),
     ("12.V1M", (12, "V1M")),
@@ -1248,6 +1294,67 @@ def test_build_result_le_groupe_prime_sur_la_cellule_en_cas_de_divergence():
 
     assert _construire(ligne, statut="Non Partants").status == STATUS_DNS
     assert _construire(ligne, statut="").status == STATUS_DNF
+
+
+def _payload_401699_relais():
+    """Liste relais de l'event 401699 (Half Iron du Lac d'Annecy), forme réelle.
+
+    Capturée telle quelle : c'est la seule épreuve du panel dont les valeurs de
+    catégorie portent l'enrobage i18n (`CatégorieRelais` rend
+    `{EN:Men|FR:Masculin}`), d'où son rôle de témoin pour I1.
+    """
+    return {
+        "DataFields": [
+            "BIB", "ID", "OuStatut([ClassementGénéral.p])", "NomRelais",
+            "CatégorieRelais", '" (" & [ClassementRelais.p] & ")"',
+            "AfficherNoms",
+            '[Natation] & " (" & [Natation.OVERALL.P] & ")"',
+            "OuStatut([TIME])",
+        ],
+        "list": {"Fields": [
+            {"Expression": "OuStatut([ClassementGénéral.p])", "Label": "Rang"},
+            {"Expression": "BIB", "Label": "Dos."},
+            {"Expression": "NomRelais", "Label": "Nom"},
+            {"Expression": "CatégorieRelais", "Label": "Cat."},
+            {"Expression": '" (" & [ClassementRelais.p] & ")"', "Label": ""},
+            {"Expression": "AfficherNoms", "Label": "Relayeurs"},
+            {"Expression": '[Natation] & " (" & [Natation.OVERALL.P] & ")"',
+             "Label": "Nat. + T1"},
+            {"Expression": "OuStatut([TIME])", "Label": "Temps"},
+        ]},
+        "data": {"#1_Relais": [[
+            "614", "565", "1.", "COLLER AU PARQUET", "{EN:Men|FR:Masculin}",
+            " (1.)", "VIDAL Florian, L'HER Antonin, DUSSUCHAL Pierrick",
+            "33:18 (10.)", "3:35:02",
+        ]]},
+    }
+
+
+def test_build_result_categorie_i18n_de_401699_entre_lisible():
+    """I1, bout en bout sur la forme réelle : la catégorie relais de 401699
+    n'entre plus en base sous son enrobage i18n.
+
+    Verrou d'anti-régression : `_label_i18n` n'était appliqué qu'aux libellés de
+    colonne, si bien que `category` valait `'{EN:Men|FR:Masculin}'`.
+    """
+    payload = _payload_401699_relais()
+    roles, segments, extras = raceresult._map_columns(payload)
+    ligne = payload["data"]["#1_Relais"][0]
+
+    r = raceresult._build_result(
+        ligne, roles, segments, extras,
+        source_url="https://my.raceresult.com/401699/results",
+        event_name="Half Iron du Lac d'Annecy",
+        event_date=date(2026, 6, 21),
+        contest_label="Relais",
+        status_label="",
+    )
+
+    assert r.category == "Masculin"
+    # Le reste de la ligne est inchangé : le correctif ne touche qu'à l'enrobage.
+    assert r.athlete_name == "COLLER AU PARQUET"
+    assert r.total_time == "03:35:02"
+    assert r.segments == [("Nat. + T1", "00:33:18")]
 
 
 def test_build_result_marque_le_relais():
