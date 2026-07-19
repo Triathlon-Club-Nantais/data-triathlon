@@ -559,6 +559,43 @@ def _role(peeled: str) -> str:
     return ""
 
 
+# Colonnes d'agrément (drapeau, photo, écart au leader) que le §6 du sondage
+# demande d'exclure **explicitement** de la candidature au rôle de segment.
+#
+# L'exclusion porte sur l'**expression de colonne** pelée, jamais sur le libellé
+# affiché : sur l'event 406211, `CustomFlag` est étiqueté `{FR:Nat.|EN:Team}`,
+# soit « Nat. » une fois l'i18n retiré (I1) — indiscernable de « Natation ».
+# Seule l'expression distingue les deux sans ambiguïté.
+#
+# Ce que la mesure établit, entrée par entrée, sur les 17 épreuves capturées :
+#
+#   - `customflag` (27 listes) est **la seule qui porte réellement** : elle pèle
+#     en un token simple, est étiquetée sur 3 épreuves, et entrait donc bien
+#     dans `segments`. Ses 766 cellules n'étaient neutralisées que parce que
+#     leur valeur `[img:…]` est effacée par `_clean_cell` et devient falsy —
+#     par accident, pas par conception. Une épreuve qui servirait son drapeau
+#     autrement (code pays en texte) rouvrirait le faux positif.
+#   - `lienphotos` pèle aussi en token simple (13 listes, 3 graphies), mais
+#     n'apparaît que dans `DataFields`, jamais dans `list.Fields` : elle n'est
+#     aujourd'hui candidate à rien. Entrée **défensive**.
+#   - `nation.iocname`, `icone("photos")` et `gaptimetop(…)` sont déjà écartées
+#     par la forme (`_RE_TOKEN_SIMPLE` refuse le point et la parenthèse).
+#     Entrées **défensives** elles aussi : elles nomment l'intention plutôt que
+#     de dépendre d'une propriété de `_RE_TOKEN_SIMPLE` qui pourrait bouger.
+#
+# Deux colonnes de même nature observées hors de cette liste —
+# `ChampionOrTeamJersey` et `TeamJersey`, des maillots en `[img:…]` sur 392745 —
+# restent candidates et neutralisées par leur seule valeur. Elles ne figurent
+# pas au §6 ; les ajouter ici serait un élargissement non instruit.
+_EXCLUSIONS_EXACTES = frozenset({"customflag", "lienphotos", "nation.iocname"})
+_EXCLUSIONS_PREFIXES = ("icone(", "gaptimetop(")
+
+
+def _colonne_exclue(peeled: str) -> bool:
+    """Vrai si l'expression pelée désigne une colonne d'agrément, jamais un segment."""
+    return peeled in _EXCLUSIONS_EXACTES or peeled.startswith(_EXCLUSIONS_PREFIXES)
+
+
 def _map_columns(
     payload: dict,
 ) -> tuple[dict[str, int], list[tuple[str, int]], dict[str, int]]:
@@ -575,8 +612,9 @@ def _map_columns(
 
     Étage 2, le rôle : cf. `_role`. Un champ dont l'expression est un token nu
     entre crochets (`[Natation]`) et sans suffixe de rang est un **segment**,
-    étiqueté par son `Label` (passé par `_label_i18n`). Tout le reste part en
-    extras → `raw_data`.
+    étiqueté par son `Label` (passé par `_label_i18n`), sauf si son expression
+    figure dans la liste d'exclusion des colonnes d'agrément
+    (cf. `_colonne_exclue`). Tout le reste part en extras → `raw_data`.
 
     `Fields` vit sous `payload["list"]`.
     """
@@ -610,7 +648,12 @@ def _map_columns(
         # `Natation` là où d'autres écrivent `[Natation]`, et l'exigence les
         # privait de tous leurs splits. La qualification finale se fait sur la
         # forme des valeurs, ligne à ligne (cf. `_RE_DUREE`).
-        if not role and label and _RE_TOKEN_SIMPLE.match(peeled):
+        if (
+            not role
+            and label
+            and not _colonne_exclue(peeled)
+            and _RE_TOKEN_SIMPLE.match(peeled)
+        ):
             segments.append((label, col))
         else:
             # Un rôle déjà pris ne doit pas faire disparaître la colonne : elle
