@@ -184,28 +184,23 @@ def _iter_list_specs(config: dict) -> list[tuple[str, str]]:
     couvre les contests de façon quasi exhaustive (13/13 sur Genève, 4/4 sur
     Rumilly).
 
-    **Ce que ce critère n'est pas.** Une version antérieure de cette docstring
-    affirmait que les listes `hidden` sont les listes d'*affichage* (bandeaux
-    LIVE, inscrits) et les non-`hidden` les vrais classements. C'est faux, et
-    l'épreuve 406211 l'inverse exactement : ses 13 listes publiées sont des
-    listes d'affichage LIVE à formules `{Selector.Splits}`, tandis que son seul
-    vrai classement — celui qui porte les splits natation/vélo/course — est
-    `Mode == "hidden"`. `Mode` sépare donc ce que l'organisateur a choisi de
-    publier, pas le classement de l'affichage.
+    `Mode` sépare ce que l'organisateur a choisi de publier, **pas** le
+    classement de l'affichage : sur 406211 les deux sont même inversés — les 13
+    listes publiées y sont des listes d'affichage LIVE, et le seul vrai
+    classement, celui qui porte les splits, est `hidden`.
 
-    **Pourquoi on n'élargit pas pour autant.** La tentation est d'ajouter les
-    listes `hidden` en repli quand les listes publiées ne donnent aucun temps.
-    Mesuré sur 406211, cela coûte plus que ça ne rapporte : le classement
-    `hidden` y est en `Contest="0"` et indexe ses contests sous d'autres
-    libellés (`'PTS5 Men'`) que les listes publiées (`'Finish'`,
-    `'Run - Start'`). La fusion par clé `(libellé, dossard)` n'y trouve
-    **aucune** clé commune — 37 doublons viennent s'ajouter aux 42
-    participants, soit 79 lignes et autant de `Course` fantômes en base.
-    Le trou de temps de 406211 se règle donc en amont, dans `_role`
-    (cf. `_RE_TEMPS_SUFFIXE` et la racine `finishresult`), sans toucher à la
-    sélection. Si un jour une épreuve exige vraiment les listes `hidden`, le
-    préalable est de réconcilier les libellés de contest, pas de fusionner en
-    l'état.
+    Élargir aux listes `hidden` en repli a donc été prototypé, et mesuré sur
+    cette épreuve : le classement `hidden` y est en `Contest="0"` et indexe ses
+    contests sous d'autres libellés (`'PTS5 Men'`) que les listes publiées
+    (`'Finish'`, `'Run - Start'`). La fusion par clé `(libellé, dossard)` n'y
+    trouve **aucune** clé commune — 37 doublons s'ajoutent aux 42 participants,
+    soit 79 lignes et autant de `Course` fantômes.
+
+    Ce chiffre établit un **préalable** (réconcilier les libellés de contest),
+    pas une impossibilité. La sélection n'a pas eu à bouger ici, le trou de
+    temps de 406211 se réglant en amont dans `_role` (cf.
+    `_RE_TEMPS_RESULTAT_TEXTE`) ; une épreuve qui exigerait vraiment les listes
+    `hidden` reste à instruire.
 
     Ne PAS revenir au critère `Live` : il avait été calibré sur une seule
     épreuve, où il coïncidait. Sur l'event 405100 les 10 listes portent `Live=1`,
@@ -422,46 +417,41 @@ def _strip_rank_suffix(valeur: str) -> str:
 
 # Vocabulaire temps franco-anglais (C4) : un préfixe d'arrivée
 # (`temps`/`arrivee`/`finish`) suivi d'un suffixe qui distingue chip/gun/texte.
-# Une table d'égalités exactes échoue en silence hors relevé — les 9 épreuves
-# du panel n'exposaient que les variantes françaises et `Finish` nu ;
-# `Finish.GUN`/`Finish.CHIP` (anglais, suffixés) n'y apparaissaient pas et une
-# épreuve qui ne les expose que sous cette forme perdait tout temps d'arrivée
-# (constaté sur l'épreuve 380823, Bike & Run de Pontcharra : 58 participants,
-# 58 sans temps, `raw_data` contenant `'Finish.GUN': '31:27'`). La règle de
-# forme généralise sans élargir à l'aveugle : le préfixe reste fermé à ces
-# trois racines précises — `finishresult` (le statut texte de C1, hors
-# périmètre ici) n'en fait PAS partie, seul `finish` l'est — et le suffixe aux
-# trois variantes réellement rencontrées. `temps` nu (sans suffixe) reste géré
-# à part, dans la table d'égalités exactes de `_role` : c'était un trou du
-# même vocabulaire, comblé après revue (constat Important 1).
+# Une table d'égalités exactes échoue en silence hors relevé : les 9 épreuves
+# du panel n'exposaient que les variantes françaises et `Finish` nu, et
+# l'épreuve 380823 (Bike & Run de Pontcharra), qui ne publie que `Finish.GUN`,
+# y perdait ses 58 temps (`raw_data` contenait pourtant `'Finish.GUN':
+# '31:27'`). La règle de forme généralise sans élargir à l'aveugle : préfixe et
+# suffixe restent deux alternations **fermées**, ancrées `^…$` — `finisher.chip`
+# et `tempsintermediaire.gun` ne passent pas. `temps` nu reste géré à part,
+# dans la table d'égalités exactes de `_role`.
 #
 # Priorité entre les trois suffixes (cf. `_role` puis le repli de
 # `_map_columns`) : **chip > gun > texte**. Chip et gun sont deux temps
-# officiels réellement observés sur le panel (`Arrivée.*`, 411749/410891).
+# officiels réellement observés (`Arrivée.*`, 411749/410891) ; `.text` ne l'a
+# jamais été sous ces trois racines. Le rôle distinct `temps_texte` existe pour
+# qu'un `.TEXT` énuméré **avant** un `.CHIP` dans `Fields` ne squatte pas la
+# place du chip (`_map_columns` retient le premier champ qui revendique un rôle).
+_RE_TEMPS_SUFFIXE = re.compile(r"^(temps|arrivee|finish)\.(gun|chip|text)$")
+
+# `FinishResult.TEXT` (C1) — racine distincte, appariée à son **seul** suffixe.
 #
-# `finishresult` (C1) est une **quatrième racine**, ajoutée après mesure sur
-# l'épreuve 406211 (World Triathlon Para Cup, Besançon), où les 13 listes
+# Mesuré sur 406211 (World Triathlon Para Cup, Besançon) : ses 13 listes
 # publiées exposent leur chrono sous
-# `switch([{Selector.Splits}.NAME]=[Finish.NAME];[FinishResult.TEXT];…)`,
-# que `_peel` réduit à `finishresult.text`. Sans elle, les 42 participants de
-# cette épreuve sortent sans `total_time` alors que la valeur (`'1:03:01'`)
-# est bien dans la ligne — et `services/cache.is_fresh` classe alors la course
-# « en cours » (TTL 10 min au lieu de 30 j), d'où un re-scraping perpétuel.
+# `switch([{Selector.Splits}.NAME]=[Finish.NAME];[FinishResult.TEXT];…)`, que
+# `_peel` réduit à `finishresult.text`. Sans cette entrée, ses 42 participants
+# sortent sans `total_time` alors que la valeur est dans la ligne, et
+# `services/cache.is_fresh` classe la course « en cours » (TTL 10 min au lieu
+# de 30 j) — d'où un re-scraping perpétuel.
 #
-# Elle n'arrive **que** sous le suffixe `.text`, donc au rôle `temps_texte`,
-# le plus faible des trois : sur une épreuve qui publierait à la fois un
-# `FinishResult.TEXT` et un chip ou un gun, le temps officiel continue de
-# primer. C'est ce qui rend cet élargissement sûr — il ne peut que combler un
-# trou, jamais évincer un temps mieux qualifié. Le classer au même rang que le
-# chip ferait au contraire perdre un chip pourtant publié dès lors qu'une
-# liste énumère `.TEXT` avant `.CHIP` dans `Fields` (`_map_columns` retient le
-# premier champ qui revendique un rôle).
-#
-# Le préfixe reste une alternation **fermée** de quatre racines exactes :
-# `finisher.chip` ou `tempsintermediaire.gun` ne doivent toujours pas passer.
-_RE_TEMPS_SUFFIXE = re.compile(
-    r"^(temps|arrivee|finish|finishresult)\.(gun|chip|text)$"
-)
+# Constante à part, et non quatrième racine de l'alternation ci-dessus, dont le
+# suffixe est mutualisé : `finishresult.gun`/`.chip` y deviendraient reconnus,
+# donc de priorité **haute**, alors qu'aucun n'a jamais été observé. L'appariement
+# rend vraie **par construction** la propriété qui fait la sûreté de C1 —
+# `finishresult` ne peut obtenir que `temps_texte`, le rôle le plus faible. Une
+# épreuve qui publierait un jour `FinishResult.GUN` verrait sa valeur partir en
+# `raw_data` : visible et récupérable, plutôt que promue en silence.
+_RE_TEMPS_RESULTAT_TEXTE = re.compile(r"^finishresult\.text$")
 
 
 def _role(peeled: str) -> str:
@@ -512,8 +502,8 @@ def _role(peeled: str) -> str:
         "tempscorrige", "tempsoustatut", "finish", "arrivee",
     ):
         return "temps"
-    # Priorité chip > gun > texte et statut de `.text` : cf. le commentaire de
-    # `_RE_TEMPS_SUFFIXE`. `_map_columns` résout les deux replis.
+    # Priorité chip > gun > texte : cf. le commentaire de `_RE_TEMPS_SUFFIXE`.
+    # `_map_columns` résout le repli pistolet, `_build_result` le repli texte.
     trouve = _RE_TEMPS_SUFFIXE.match(peeled)
     if trouve:
         suffixe = trouve.group(2)
@@ -522,6 +512,8 @@ def _role(peeled: str) -> str:
         if suffixe == "text":
             return "temps_texte"
         return "temps"
+    if _RE_TEMPS_RESULTAT_TEXTE.match(peeled):
+        return "temps_texte"
     return ""
 
 
@@ -613,18 +605,16 @@ def _map_columns(
     if "rang_categorie" in roles:
         roles.setdefault("categorie", roles["rang_categorie"])
     # Temps au pistolet en repli quand l'épreuve n'expose pas de temps réel.
+    # Le gun est un champ d'horloge : sa valeur est une durée ou rien, il peut
+    # donc être promu ici, sans regarder les lignes.
     if "temps_pistolet" in roles:
         roles.setdefault("temps", roles.pop("temps_pistolet"))
         roles.pop("temps_pistolet", None)
-    # Temps texte (`.text`) en tout dernier repli — cf. Mineur 2 de la revue
-    # C4 : rôle distinct du chip/gun *pendant* la boucle ci-dessus, pour
-    # qu'un `Finish.TEXT` qui précéderait un `Finish.CHIP` dans `Fields` ne
-    # squatte pas la place et ne renvoie pas le chip en extras. Résolu après
-    # le repli pistolet : gun, réellement observé sur le panel, prime sur
-    # texte, jamais vu.
-    if "temps_texte" in roles:
-        roles.setdefault("temps", roles.pop("temps_texte"))
-        roles.pop("temps_texte", None)
+    # `temps_texte` n'est **pas** promu ici, à la différence du pistolet : une
+    # colonne `.text` porte le *texte affiché*, qui vaut le chrono sur une
+    # ligne terminée mais un libellé de statut (`"DNF"`, `"DSQ"`) sur les
+    # autres. La promotion est donc ligne à ligne, sous condition de durée,
+    # dans `_build_result` — cf. le commentaire de `total_time` qui s'y trouve.
     return roles, segments, extras
 
 
@@ -730,7 +720,26 @@ def _build_result(
     # la même cellule que le sexe et doit en être détaché.
     r.rank_gender, r.gender = _split_rank_category(cellule("sexe"))
     r.rank_category, r.category = _split_rank_category(cellule("categorie"))
-    r.total_time = normalize_time(_strip_rank_suffix(cellule("temps")))
+    # `total_time` n'a aucun garde-fou de forme en aval : `normalize_time`
+    # renvoie son entrée **telle quelle** quand elle ne la reconnaît pas, si
+    # bien qu'un libellé partirait en base comme chrono. Les colonnes d'horloge
+    # (`temps`, et le pistolet déjà promu) ne rendent qu'une durée ou rien, et
+    # traversent donc sans condition, y compris dans les formats que
+    # `_RE_DUREE` ne couvre pas mais que `normalize_time` sait lire (`1h23'45`).
+    #
+    # La colonne `.text`, elle, rend le *texte affiché* : le chrono sur une
+    # ligne terminée, mais `"DNF"`/`"DSQ"` sur un non-finisher. Elle n'est donc
+    # retenue en repli que si sa valeur **est** une durée — même qualification
+    # `_RE_DUREE` que les segments plus bas, et pour la même raison : un
+    # segment non reconnu et un temps d'arrivée non reconnu sont le même
+    # signal. Sans cette garde, un `"DNF"` deviendrait un `total_time` et la
+    # ligne serait ensuite marquée `finisher` par la clôture ci-dessous.
+    temps = _strip_rank_suffix(cellule("temps"))
+    if not temps:
+        candidat = _strip_rank_suffix(cellule("temps_texte"))
+        if _RE_DUREE.match(candidat):
+            temps = candidat
+    r.total_time = normalize_time(temps)
     r.is_relay = any(
         mot in contest_label.lower() for mot in ("relais", "relay", "equipe", "équipe")
     )

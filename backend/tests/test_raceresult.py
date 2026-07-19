@@ -530,11 +530,9 @@ def test_role_du_vocabulaire_reel(expr, role):
     ("Arrivée.GUN", "temps_pistolet"),
     ("Arrivée.CHIP", "temps"),
     ("Arrivée.TEXT", "temps_texte"),
-    # `FinishResult` (C1) : quatrième racine, ajoutée après mesure sur 406211
-    # où elle porte l'unique chrono des 13 listes publiées. Elle n'apparaît
-    # que sous `.text`, donc au rôle le plus faible — un chip ou un gun publié
-    # par la même liste continue de primer (cf.
-    # `test_map_columns_le_texte_ne_declasse_pas_un_chip_qui_le_precede`).
+    # `FinishResult` (C1) : racine distincte, **appariée à son seul suffixe**
+    # `.text` (`_RE_TEMPS_RESULTAT_TEXTE`), donc au rôle le plus faible. Un
+    # chip ou un gun publié par la même liste continue de primer.
     ("FinishResult.TEXT", "temps_texte"),
     # `Temps` nu (Important 1 de la revue C4) : la table d'égalités exactes
     # contenait `finish`/`arrivee` nus et l'anglais `time`, mais pas le
@@ -548,6 +546,14 @@ def test_role_regle_de_forme_temps_gun_chip_text(expr, role):
 
 
 @pytest.mark.parametrize("expr", [
+    # Mineur 3 de la revue C1 : la racine `finishresult` est appariée au seul
+    # suffixe `.text`. Le suffixe de `_RE_TEMPS_SUFFIXE` étant mutualisé, une
+    # quatrième entrée dans son préfixe aurait aussi reconnu ces deux formes —
+    # et leur aurait donné une priorité **haute**, alors qu'aucune n'a jamais
+    # été observée. Les rejeter rend la propriété de sûreté de C1 (« la racine
+    # ne peut obtenir que le rôle le plus faible ») vraie par construction.
+    "FinishResult.GUN",
+    "FinishResult.CHIP",
     # Préfixe qui contient `finish`/`temps` sans lui être égal : la forme ne
     # doit reconnaître QUE les trois racines fermées, pas un préfixe large.
     "Finisher.CHIP",
@@ -632,9 +638,10 @@ def test_map_columns_reconnait_finishresult_text_de_406211():
 
     roles, segments, extras = raceresult._map_columns(payload)
 
-    # Promu `temps` par le repli de dernier rang : aucun chip ni gun publié.
-    assert roles["temps"] == 3
-    assert "temps_texte" not in roles
+    # Le rôle reste `temps_texte` : la promotion est ligne à ligne, sous
+    # condition de durée (cf. le test négatif ci-dessous).
+    assert roles["temps_texte"] == 3
+    assert "temps" not in roles
 
     r = raceresult._build_result(
         ["222", "1", "Jules RIBSTEIN", "1:03:01"], roles, segments, extras,
@@ -643,6 +650,62 @@ def test_map_columns_reconnait_finishresult_text_de_406211():
     )
     assert r.total_time == "01:03:01"
     assert r.status == "finisher"
+
+
+@pytest.mark.parametrize("cellule", ["DNF", "DSQ", "DNS", "Abandon", "--", ""])
+def test_build_result_un_statut_texte_ne_devient_pas_un_total_time(cellule):
+    """Important 1 de la revue C1 — le défaut symétrique du correctif.
+
+    La racine promue par C1 est précisément celle que RaceResult destine au
+    *texte affiché* : sur une ligne non terminée, `FinishResult.TEXT` rend un
+    libellé de statut, pas une durée. Or `total_time` n'a aucun garde-fou de
+    forme en aval — `normalize_time` renvoie son entrée telle quelle quand elle
+    ne la reconnaît pas (`utils.py`, `return s  # return as-is if
+    unrecognized`) — et la ligne serait ensuite marquée `finisher`.
+
+    Le repli `.text` est donc qualifié par `_RE_DUREE`, comme les segments.
+    """
+    payload = {
+        "DataFields": ["BIB", "ID", "FinishResult.TEXT"],
+        "list": {"Fields": [
+            {"Expression": "FinishResult.TEXT", "Label": "Time"},
+        ]},
+    }
+    roles, segments, extras = raceresult._map_columns(payload)
+
+    r = raceresult._build_result(
+        ["222", "1", cellule], roles, segments, extras,
+        source_url="u", event_name="E", event_date=None,
+        contest_label="C", status_label="",
+    )
+
+    assert r.total_time == "", f"{cellule!r} ne doit pas devenir un chrono"
+    assert r.status != "finisher", "une ligne sans durée n'est pas un finisher"
+
+
+def test_build_result_une_colonne_horloge_traverse_sans_garde_de_duree():
+    """L'autre sens : la qualification `_RE_DUREE` ne vaut que pour `.text`.
+
+    Une colonne d'horloge (`temps`, ou le pistolet déjà promu) ne rend qu'une
+    durée ou rien, et doit traverser **y compris** dans les formats que
+    `_RE_DUREE` ne couvre pas mais que `normalize_time` sait lire. Étendre la
+    garde à toutes les colonnes de temps ferait perdre ces formats-là.
+    """
+    payload = {
+        "DataFields": ["BIB", "ID", "TIME"],
+        "list": {"Fields": [{"Expression": "TIME", "Label": "Temps"}]},
+    }
+    roles, segments, extras = raceresult._map_columns(payload)
+    assert roles["temps"] == 2, "prémisse : colonne d'horloge"
+
+    r = raceresult._build_result(
+        ["222", "1", "1h23'45"], roles, segments, extras,
+        source_url="u", event_name="E", event_date=None,
+        contest_label="C", status_label="",
+    )
+
+    assert not raceresult._RE_DUREE.match("1h23'45"), "prémisse : _RE_DUREE la rejette"
+    assert r.total_time == "01:23:45"
 
 
 def test_map_columns_un_chip_prime_sur_finishresult_text():
@@ -661,29 +724,6 @@ def test_map_columns_un_chip_prime_sur_finishresult_text():
     roles, _segments, _extras = raceresult._map_columns(payload)
 
     assert roles["temps"] == 3, "le chip officiel doit primer sur le texte"
-
-
-def test_c1_ne_modifie_pas_la_selection_des_listes():
-    """Non-régression de conception : C1 se règle dans `_role`, **pas** dans
-    `_iter_list_specs`.
-
-    Mesuré sur 406211 : la seule liste portant un vrai classement y est
-    `Mode == "hidden"`, mais l'inclure ne répare rien — elle indexe ses contests
-    sous d'autres libellés (`'PTS5 Men'`) que les listes publiées
-    (`'Finish'`, `'Run - Start'`). La fusion par clé `(libellé, dossard)` n'y
-    trouve **aucune** clé commune : 37 doublons s'ajoutent aux 42 participants,
-    soit 79 lignes et autant de `Course` fantômes en base. Élargir la sélection
-    coûterait donc plus que le trou qu'il prétend combler.
-    """
-    config = {"TabConfig": {"Lists": [
-        {"Name": "01-Classements|Classement général", "Contest": "0", "Mode": "hidden"},
-        {"Name": "01-Résultats en ligne|LIVE", "Contest": "1", "Mode": ""},
-        {"Name": "01-Résultats en ligne|Concurrents", "Contest": "0", "Mode": "hidden"},
-    ]}}
-
-    assert raceresult._iter_list_specs(config) == [
-        ("01-Résultats en ligne|LIVE", "1"),
-    ]
 
 
 def test_map_columns_prefere_le_chip_au_gun_sous_la_regle_de_forme():
@@ -727,22 +767,39 @@ def test_map_columns_le_texte_ne_declasse_pas_un_chip_qui_le_precede():
     roles, _segments, extras = raceresult._map_columns(payload)
 
     assert roles["temps"] == 3, "le chip doit primer sur le texte, même publié avant"
-    assert "temps_texte" not in roles
+    # `temps_texte` survit désormais à `_map_columns` (C1 : sa promotion est
+    # ligne à ligne, sous condition de durée), mais il ne prend pas la place du
+    # chip — c'est ce que ce test garde.
+    assert roles.get("temps_texte") != roles["temps"]
     # Colonne texte évincée : ni promue, ni renvoyée en extras — même sort
     # que la colonne gun évincée par un chip (précédent déjà en place).
     assert "Finish.TEXT" not in extras
 
 
 def test_map_columns_retient_le_texte_faute_de_chip_et_de_gun():
-    """Repli de dernier recours : aucun temps mesuré publié, seul `.text`."""
+    """Repli de dernier recours : aucun temps mesuré publié, seul `.text`.
+
+    Depuis C1, ce repli se résout dans `_build_result` et non dans
+    `_map_columns` : la colonne `.text` peut rendre un statut plutôt qu'une
+    durée, ce qui ne se décide qu'à la ligne. Le comportement observable —
+    « faute de chip et de gun, le texte fait le `total_time` » — est inchangé.
+    """
     payload = {
         "DataFields": ["BIB", "ID", "Finish.TEXT"],
         "list": {"Fields": [{"Expression": "Finish.TEXT", "Label": "Tps"}]},
     }
 
-    roles, _segments, _extras = raceresult._map_columns(payload)
+    roles, segments, extras = raceresult._map_columns(payload)
 
-    assert roles["temps"] == 2
+    assert roles["temps_texte"] == 2
+    assert "temps" not in roles
+
+    r = raceresult._build_result(
+        ["12", "1", "2:08:00"], roles, segments, extras,
+        source_url="u", event_name="E", event_date=None,
+        contest_label="C", status_label="",
+    )
+    assert r.total_time == "02:08:00"
 
 
 def test_split_profondeur_ignore_les_separateurs_imbriques():
