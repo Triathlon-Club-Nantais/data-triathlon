@@ -7,14 +7,29 @@ plus) :
 
   - `my*.raceresult.com`      — RaceResult direct, l'eventId est dans le path ;
   - `espace-competition.com`  — front RaceResult, `new RRPublish(el, <id>, …)` ;
-  - `chronoconsult.fr`        — façade WordPress au-dessus de RaceResult.
+  - `chronoconsult.fr`        — même front, mais l'id est servi **entre
+    guillemets** (`new RRPublish(el, "392745", …)`).
 
-Chaînage d'appels (établi par sondage réel le 2026-07-18) :
-  1. GET /{eventId}/RRPublish/data/config?page=results
-  2. GET /{eventId}/RRPublish/data/list?key=…&listname=…&contest=N&r=all
-     → **301** vers /{eventId}/results/list : `follow_redirects=True` obligatoire.
+Chaînage d'appels — cf. `docs/superpowers/specs/2026-07-19-raceresult-api-sondage.md`,
+qui fait foi (9 épreuves, 3 façades) :
+
+  1. GET https://my.raceresult.com/{eventId}/results/config?page=results
+     → `key`, `contests`, et surtout `TabConfig.Lists` : un tableau plat d'une
+       entrée par couple (liste, contest), le contest étant **explicite**.
+  2. GET https://my.raceresult.com/{eventId}/results/list
+         ?key=…&listname=…&contest=N&page=results
   3. La date d'épreuve n'est dans aucun des deux : elle vit dans le JSON-LD
      schema.org de la page /{eventId}/results.
+
+Deux pièges qui ont coûté une revue de branche entière, et qu'il ne faut pas
+réintroduire :
+
+  - La route `/{eventId}/RRPublish/data/…` est un **alias hérité**. Elle répond
+    404 sur toute épreuve de la saison en cours. Le 301 qu'elle émettait vers
+    `/results/` était l'indice.
+  - `my.raceresult.com` (l'apex, **sans chiffre**) sert toutes les épreuves, y
+    compris celles que l'interface héberge sur `my2`/`my3`/`my4`. Aucune
+    résolution de serveur n'est nécessaire.
 """
 import json
 import logging
@@ -45,28 +60,19 @@ HEADERS = {
     "Accept": "text/html,application/json,*/*",
 }
 
-# Racine par défaut quand l'URL d'entrée est une façade tierce : toutes les
-# façades sondées pointent leurs assets vers my.raceresult.com.
-_API_DEFAUT = "https://my.raceresult.com"
+# Racine unique de l'API. Vérifiée sur les 9 épreuves du panel de sondage, dont
+# des épreuves servies par l'interface depuis my2/my3/my4 : l'apex les sert
+# toutes en 200, sans redirection. Les façades tierces chargent d'ailleurs
+# elles-mêmes `//my.raceresult.com/RRPublish/load.js.php`.
+_API_BASE = "https://my.raceresult.com"
 
-# `RRPublish(document.getElementById("divRRPublish"),  399938 , 'results')` — les
-# espaces autour de l'argument sont fréquents et doivent être tolérés.
-_RE_RRPUBLISH = re.compile(r"RRPublish\s*\([^,]+,\s*(\d+)\s*,")
+# `new RRPublish(document.getElementById("divRRPublish"), 411749, "results")` sur
+# espace-competition.com, mais `…, "392745", …` sur chronoconsult.fr : les
+# guillemets autour de l'identifiant sont **optionnels**. Sans cette tolérance,
+# aucune épreuve chronoconsult n'est résolvable.
+_RE_RRPUBLISH = re.compile(r"""RRPublish\s*\([^,]+,\s*["']?(\d+)["']?\s*,""")
 # Repli : le logo de l'épreuve est servi par l'API et porte le même id.
 _RE_LOGO = re.compile(r"raceresult\.com/(\d+)/api/logo")
-
-
-def _api_base(url: str) -> str:
-    """Racine HTTPS de l'API RaceResult à interroger pour cette URL.
-
-    Un host `my*.raceresult.com` est déjà la bonne racine (les épreuves sont
-    réparties sur plusieurs serveurs : my, my2, my3…). Toute autre façade est
-    servie depuis la racine par défaut.
-    """
-    host = (urlparse(url).netloc or "").lower()
-    if host == "raceresult.com" or host.endswith(".raceresult.com"):
-        return f"https://{host}"
-    return _API_DEFAUT
 
 
 def _resolve_event_id(url: str, client: httpx.Client) -> str:
@@ -119,17 +125,17 @@ def _json_ld_event(html: str) -> dict:
 
 
 def _fetch_meta(
-    event_id: str, base: str, client: httpx.Client
-) -> tuple[str, "date_t | None", str]:
+    event_id: str, client: httpx.Client
+) -> tuple[str, date_t | None, str]:
     """(nom d'épreuve, date, ville) depuis le JSON-LD de la page /results.
 
     C'est la **seule** source de la date : l'API `config` comme l'API `list` n'en
-    portent aucune. Une page sans JSON-LD exploitable renvoie des valeurs vides
-    plutôt que de lever : l'épreuve reste importable, le nom retombera sur
-    `config["eventname"]` et la date sur `None`.
+    portent aucune. Confirmé sur les 9 épreuves du panel. Une page sans JSON-LD
+    exploitable renvoie des valeurs vides plutôt que de lever : l'épreuve reste
+    importable, le nom retombera sur `config["eventname"]` et la date sur `None`.
     """
     try:
-        resp = client.get(f"{base}/{event_id}/results", headers=HEADERS)
+        resp = client.get(f"{_API_BASE}/{event_id}/results", headers=HEADERS)
         resp.raise_for_status()
     except httpx.HTTPError as exc:
         logger.warning("RaceResult %s : page /results illisible (%s)", event_id, exc)
@@ -152,10 +158,10 @@ def _fetch_meta(
     return str(noeud.get("name") or ""), jour, ville
 
 
-def _fetch_config(event_id: str, base: str, client: httpx.Client) -> dict:
-    """Config publique de l'épreuve : `key`, `contests`, `lists`, `splits`."""
+def _fetch_config(event_id: str, client: httpx.Client) -> dict:
+    """Config publique de l'épreuve : `key`, `contests`, `TabConfig`, `splits`."""
     resp = client.get(
-        f"{base}/{event_id}/RRPublish/data/config",
+        f"{_API_BASE}/{event_id}/results/config",
         params={"page": "results"},
         headers=HEADERS,
     )
@@ -164,68 +170,135 @@ def _fetch_config(event_id: str, base: str, client: httpx.Client) -> dict:
 
 
 def _iter_list_specs(config: dict) -> list[tuple[str, str]]:
-    """Listes exploitables : [(listname, indice de contest), …].
+    """Listes publiées : [(listname, contest), …].
 
-    `config["lists"]` est un **tableau plat** (observé en production, event
-    393893, sondage du 2026-07-19) : chaque élément est un dict portant déjà
-    le `listname` complet (`Name`, ex. `"04 - Classements|Classement
-    général"`, le `|` n'étant qu'un séparateur d'affichage posé par
-    RaceResult, pas une hiérarchie à reconstruire) et son `Contest`. Toute
-    autre forme lève : aucun déploiement sondé n'en sert d'autre, et un
-    algorithme jamais validé contre l'API réelle ne doit pas tourner en
-    silence sur un cas qu'on n'a pas vu (cf. historique I1 : un repli
-    dict-arbre y a longtemps traîné sans preuve qu'il existe côté API).
+    Les listes vivent sous `config["TabConfig"]["Lists"]` : un **tableau plat**,
+    une entrée par couple (liste, contest), chacune portant son `Name` complet
+    (`"04 - Classements|Classement général"` — le `|` est un séparateur
+    d'affichage posé par RaceResult, pas une hiérarchie à reconstruire) et son
+    `Contest` **explicite**. `config["lists"]` vaut `null` sur cette route : le
+    contest n'a donc rien à résoudre empiriquement, contrairement à ce que
+    faisait la première version de ce module.
 
-    Écarte les listes marquées `Live` (valeur non nulle) : ce sont des
-    listes d'**affichage** temps réel (ex. `"03 - Affichages|LIVE EXTRA sans
-    predictif"`, `Live: 1`), dont les `Expression` sont des formules
-    `switch(...)/if(...)` qui dépendent du curseur d'affichage
-    (`{Selector.Splits}`) et qu'aucun rôle de `_role` ne reconnaît (C1) — à
-    la différence des listes de classement réelles, qui portent `Live: 0`
-    même quand leur `Format` vaut aussi `"V"` (le `Format` seul ne distingue
-    donc pas les deux : `Live` est le signal fiable). Sur l'event 393893,
-    seule `"03 - Affichages|…"` porte `Live: 1` ; les 3 autres listes
-    (`Concurrents`, `Classement général`, `Classement général Jeunes`)
-    portent `Live: 0` et sont conservées.
+    Écarte les listes `Mode == "hidden"` : ce sont les listes d'**affichage**
+    (bandeaux LIVE, listes d'inscrits), dont les `Expression` sont des formules
+    dépendant du curseur d'affichage (`{Selector.Splits}`) qu'aucun rôle de
+    `_role` ne décode. Sur le panel, `Mode != "hidden"` couvre les contests de
+    façon quasi exhaustive (13/13 sur Genève, 4/4 sur Rumilly).
 
-    L'indice de contest n'est qu'un **indice** — il est vérifié
-    empiriquement à l'appel (cf. `_contest_candidates`).
+    Ne PAS revenir au critère `Live` : il avait été calibré sur une seule
+    épreuve, où il coïncidait. Sur l'event 405100 les 10 listes portent `Live=1`,
+    y compris les 3 vrais classements — le filtre y vide l'épreuve entière.
+    `Format` ne discrimine pas davantage.
     """
-    lists = config.get("lists")
+    lists = (config.get("TabConfig") or {}).get("Lists")
     if not isinstance(lists, list):
-        raise ValueError(f"lists de forme inattendue : {type(lists)!r}")
+        raise ValueError(
+            f"TabConfig.Lists de forme inattendue : {type(lists)!r} "
+            "(route héritée interrogée par erreur ?)"
+        )
     return [
         (str(item.get("Name") or ""), str(item.get("Contest") or "0"))
         for item in lists
-        if isinstance(item, dict) and item.get("Name") and not item.get("Live")
+        if isinstance(item, dict)
+        and item.get("Name")
+        and item.get("Mode") != "hidden"
     ]
 
 
 _ACCENTS = str.maketrans("àâäéèêëîïôöùûüçÀÂÄÉÈÊËÎÏÔÖÙÛÜÇ", "aaaeeeeiioouuucAAAEEEEIIOOUUUC")
 
 # Enrobages d'affichage posés par RaceResult autour de l'expression réelle.
-_RE_ENROBAGE = re.compile(r"^(ucase|lcase|OuStatut|Statut|if)\s*\(", re.IGNORECASE)
+_RE_ENROBAGE = re.compile(
+    r"^(ucase|lcase|trim|format|OuStatut|Statut|iif|if|switch)\s*\(", re.IGNORECASE
+)
+# Terme purement littéral (`"#"` dans `"#"&[BIB]`) : décoration, pas la valeur.
+_RE_LITTERAL = re.compile(r'^"[^"]*"$')
+# Expression réduite à un token simple : `Natation`, `[Vélo]`, `Transition1`.
+# Un point, une parenthèse ou un espace signalent une expression qualifiée
+# (`Natation.OVERALL.p`) ou calculée, jamais un segment de course.
+_RE_TOKEN_SIMPLE = re.compile(r"^[a-z0-9_]+$")
+# Une durée : `19:46`, `1:05:07`, `20:27:34.12`. Sert à qualifier les **valeurs**
+# d'une colonne candidate au rôle de segment. `normalize_time` est permissif et
+# laisse passer `107` (un nombre de tours) ou `447.795` (des kilomètres) : sans
+# ce filtre, une colonne « Tours » ou « Distance » atterrissait dans `splits`.
+_RE_DUREE = re.compile(r"^\d{1,3}:\d{2}(:\d{2})?([.,]\d+)?$")
 # Décorations de cellule : `[img:https://…]` en préfixe, `#` de `"#" & [BIB]`.
 _RE_IMG = re.compile(r"\[img:[^\]]*\]")
+# Un terme qui compare n'est pas la valeur affichée mais la condition qui la
+# choisit : `[STATUS]<>2`, `[SEX]="f"`, `[Relais]=1`.
+_RE_COMPARAISON = re.compile(r"(<>|>=|<=|=|<|>)")
+
+
+def _split_profondeur(s: str, sep: str) -> list[str]:
+    """Découpe `s` sur `sep`, en ignorant les séparateurs entre parenthèses.
+
+    `if([Relais]=1;switch(a;b);[AfficherNom])` doit se couper en trois termes,
+    pas en cinq : le `;` interne au `switch(...)` appartient à ce dernier. Une
+    découpe naïve tronquait l'expression et faisait perdre la colonne.
+    """
+    parties: list[str] = []
+    courant: list[str] = []
+    profondeur = 0
+    for car in s:
+        if car == "(":
+            profondeur += 1
+        elif car == ")":
+            profondeur -= 1
+        if car == sep and profondeur == 0:
+            parties.append("".join(courant))
+            courant = []
+        else:
+            courant.append(car)
+    parties.append("".join(courant))
+    return parties
 
 
 def _peel(expr: str) -> str:
     """Expression RaceResult ramenée à sa forme comparable.
 
-    Pèle les enrobages d'affichage (`ucase(…)`, `OuStatut(…)`, `if(…;X;…)`), les
-    crochets et le `#`, puis met en minuscules sans accents. `ucase([CLUB])` et
-    `[Club]` convergent ainsi vers `club`, ce qui permet une table de motifs
-    courte au lieu d'une énumération de variantes.
+    Trois formes se superposent en production et doivent être défaites dans cet
+    ordre précis :
+
+    1. **La concaténation** `X & iif(…)` colle un rang au libellé
+       (`"M (1.)"`, `"M0M (1.)"`). Seul le premier terme porte la valeur. Elle
+       se traite en premier : `ucase([SEX]) & iif(…)` commence par un enrobage
+       *et* se termine par `)`, si bien qu'un dépelage préalable avalerait toute
+       l'expression et la corromprait.
+    2. **Les enrobages d'affichage** (`ucase(…)`, `OuStatut(…)`, `if(…)`,
+       `switch(…)`, `trim(…)`).
+    3. **Les conditionnelles** `if(cond;valeur)` : l'enveloppe
+       `if([STATUS]<>2;[X])` est omniprésente sur les épreuves récentes. Le
+       terme utile n'est pas le plus long — c'est celui qui **ne compare pas**.
+       Retenir le plus long tout court sélectionnait `[STATUS]<>2` et faisait
+       perdre tous les segments de Genève et Besançon.
+
+    `ucase([CLUB])` et `[Club]` convergent ainsi vers `club`, ce qui permet une
+    table de motifs courte au lieu d'une énumération de variantes.
     """
     s = (expr or "").strip()
+
+    # 1. Concaténation : la valeur est portée par le premier terme non littéral.
+    # `"#"&[BIB]` commence par une décoration ; retenir `"#"` produisait une
+    # expression vide qui finissait classée en segment sous son étiquette « N° ».
+    termes = [t.strip() for t in _split_profondeur(s, "&")]
+    if len(termes) > 1:
+        utiles = [t for t in termes if t and not _RE_LITTERAL.match(t)]
+        s = (utiles or termes)[0].strip()
+
+    # 2. Enrobages d'affichage, en pelures successives.
     while True:
         trouve = _RE_ENROBAGE.match(s)
         if not trouve or not s.endswith(")"):
             break
         s = s[trouve.end():-1].strip()
-    # Une expression conditionnelle garde son premier terme utile.
-    if ";" in s:
-        s = max(s.split(";"), key=len).strip()
+
+    # 3. Conditionnelle : on écarte les termes qui comparent.
+    termes = [t.strip() for t in _split_profondeur(s, ";") if t.strip()]
+    if len(termes) > 1:
+        valeurs = [t for t in termes if not _RE_COMPARAISON.search(t)] or termes
+        s = max(valeurs, key=len).strip()
+
     s = s.replace("#", "").replace("[", "").replace("]", "")
     return s.translate(_ACCENTS).lower().strip()
 
@@ -237,45 +310,83 @@ def _clean_cell(brut) -> str:
     return _RE_IMG.sub("", str(brut)).strip().lstrip("#").strip()
 
 
-_RE_RANG_CAT = re.compile(r"^(\d+)\.\s*(.*)$")
+# `"1.S4M"` — le rang colle le libellé, forme `#[Classement.p][AGEGROUP…]`.
+_RE_RANG_PREFIXE = re.compile(r"^(\d+)\.\s*(.*)$")
+# `"M0M (1.)"` — le rang suit entre parenthèses, forme `X & iif(…)`.
+_RE_RANG_SUFFIXE = re.compile(r"^(.*?)\s*\(\s*(\d+)\.?\s*\)$")
 
 
 def _split_rank_category(cell: str) -> tuple[int | None, str]:
-    """Sépare `"1.S4M"` en (rang catégorie, catégorie).
+    """Sépare une cellule « libellé + rang » en (rang, libellé).
 
-    L'expression `#[ClassementCatégorie.p][AGEGROUP.NAMESHORT]` colle les deux
-    dans une seule colonne. Une cellule sans préfixe numérique est une catégorie
-    nue (cas des non-finishers, qui n'ont pas de rang).
+    Deux formes coexistent selon la façon dont l'épreuve compose sa colonne :
+    `#[ClassementCatégorie.p][AGEGROUP.NAMESHORT]` produit `"1.S4M"`, tandis que
+    `[AGEGROUP1.NAMESHORT] & iif(…;" (" & [RANK3p] & ")")` produit `"M0M (1.)"`.
+    Une cellule sans rang est un libellé nu (cas des non-finishers).
     """
     cell = _clean_cell(cell)
-    trouve = _RE_RANG_CAT.match(cell)
+    trouve = _RE_RANG_PREFIXE.match(cell)
     if trouve:
         return int(trouve.group(1)), trouve.group(2).strip()
+    trouve = _RE_RANG_SUFFIXE.match(cell)
+    if trouve:
+        return int(trouve.group(2)), trouve.group(1).strip()
     return None, cell
 
 
 def _role(peeled: str) -> str:
     """Rôle sémantique d'une expression pelée, "" si non reconnu.
 
-    Ordre des tests significatif : les rangs sont testés en premier, car une
-    expression suffixée `.p` / `.overall.p` est **toujours** un rang, jamais un
-    temps. Sans cette règle, `[Natation.OVERALL.P]` (« 2. ») passerait pour le
-    temps de natation, qui vit dans la colonne suivante.
+    Vocabulaire relevé sur les 9 épreuves du panel (§6 du sondage) : le jeu
+    initial, calibré sur une seule épreuve, laissait 506 lignes sur 507 sans nom
+    ni temps sur une autre.
+
+    Ordre des tests significatif. Les rangs nommés passent **avant** la règle du
+    suffixe `.p`, car `OuStatut([AUTORANK.p])` est le rang général et non un rang
+    de split : traité par la règle générique, il était écarté et l'épreuve
+    perdait son classement. La règle du suffixe reste indispensable pour tout le
+    reste — une expression suffixée `.p` / `.overall.p` est **toujours** un rang,
+    jamais un temps, sans quoi `[Natation.OVERALL.P]` (« 2. ») passerait pour le
+    temps de natation, qui vit dans la colonne suivante. La casse du suffixe
+    varie (`.P` et `.p` coexistent) : le pelage ayant tout mis en minuscules, la
+    comparaison est de fait insensible à la casse.
     """
-    if "classementgeneral" in peeled:
+    # Le dossard vient de `DataFields.index("BIB")`, jamais d'une colonne
+    # d'affichage : sans cette écartement explicite, `"#"&[BIB]` (étiqueté
+    # « N° ») se faisait passer pour un segment de course.
+    if peeled in ("bib", "displaybib", "dossard", "dossardbis"):
+        return "dossard_affiche"  # colonne à écarter
+    if "classementgeneral" in peeled or "autorank" in peeled:
         return "rang"
-    if "agegroup" in peeled or "classementcategorie" in peeled:
+    if "classementcategorie" in peeled or "agegroup" in peeled:
         return "rang_categorie"
+    if "categorie" in peeled or "category" in peeled:
+        return "categorie"
+    # `#[ClassementMF.p][SexeMF]` colle le rang de sexe au sexe : reconnu ici,
+    # avant la règle du suffixe, car la cellule porte les deux.
+    if "sexemf" in peeled:
+        return "sexe"
     if peeled.endswith(".p"):
         return "rang_de_split"  # colonne à écarter
-    if any(motif in peeled for motif in ("affichernom", "nomrelais", "nomequipe")):
+    if any(
+        motif in peeled
+        for motif in ("affichernom", "nomrelais", "nomequipe", "lfname", "displayname")
+    ):
         return "nom"
     if "club" in peeled:
         return "club"
-    if peeled in ("sexemf", "sex", "sexe", "gender"):
+    if peeled in ("sex", "sexe", "gender"):
         return "sexe"
-    if peeled in ("time", "tempstotal", "tempscorrige", "finish", "arrivee"):
+    if peeled in (
+        "time", "tempstotal", "tempsfinal", "tempsfinal.decimal",
+        "tempscorrige", "tempsoustatut", "finish", "arrivee", "arrivee.chip",
+    ):
         return "temps"
+    # `Arrivée.GUN` est le temps au coup de pistolet, `Arrivée.CHIP` le temps
+    # réel. Les deux coexistent : le rôle distinct laisse `_map_columns`
+    # préférer le chip, qui est le temps officiel de l'athlète.
+    if peeled == "arrivee.gun":
+        return "temps_pistolet"
     return ""
 
 
@@ -285,11 +396,11 @@ _RE_LABEL_I18N = re.compile(r"^\{(.*)\}$")
 def _label_i18n(label: str) -> str:
     """Étiquette débarrassée de son enrobage i18n `{DE:…|EN:…|FR:…}`.
 
-    Certaines listes (notamment les listes d'affichage, cf. C1) encodent leurs
-    libellés dans les trois langues (`{DE:Startnr|EN:Bib|FR:Dos.}`) : sans
-    normalisation, ce brut atterrit tel quel comme clé JSON de `segments` /
-    `raw_data`. Priorité à `FR:`, repli sur `EN:`, puis sur la première
-    variante présente ; une étiquette sans cet enrobage traverse inchangée.
+    Les épreuves internationales encodent leurs libellés dans les trois langues
+    (`{DE:Startnr|EN:Bib|FR:Dos.}`) : sans normalisation, ce brut atterrit tel
+    quel comme clé JSON de `segments` / `raw_data`. Priorité à `FR:`, repli sur
+    `EN:`, puis sur la première variante présente ; une étiquette sans cet
+    enrobage traverse inchangée.
     """
     trouve = _RE_LABEL_I18N.match(label)
     if not trouve:
@@ -308,9 +419,12 @@ def _map_columns(
     """(rôles, segments, extras) — l'index de chaque colonne du payload.
 
     Étage 1, l'index : `col = DataFields.index(Field.Expression)`, l'algorithme
-    exact de `RRPublish.js`. `DataFields` préfixe toujours `BIB` et `ID`, qui
-    n'ont pas d'entrée dans `Fields` — la position dans `Fields` est donc
-    décalée et inutilisable telle quelle. Le dossard, lui, vient de
+    exact de `RRPublish.js`. `DataFields` est à la **racine du payload**
+    (`payload["list"]["DataFields"]` vaut `null`) et préfixe toujours `BIB` et
+    `ID`, qui n'ont pas d'entrée dans `Fields`. Cette indirection reste
+    indispensable : `DataFields` compte régulièrement plus d'entrées que
+    `Fields` (20 contre 18 sur Rumilly, 22 contre 19 sur Genève), donc lire les
+    colonnes positionnellement les décalerait toutes. Le dossard, lui, vient de
     `DataFields.index("BIB")` et ne passe par aucune heuristique.
 
     Étage 2, le rôle : cf. `_role`. Un champ dont l'expression est un token nu
@@ -318,12 +432,7 @@ def _map_columns(
     étiqueté par son `Label` (passé par `_label_i18n`). Tout le reste part en
     extras → `raw_data`.
 
-    `Fields` vit sous `payload["list"]` (observé en production, sondage du
-    2026-07-19, event 393893) — la racine du payload ne porte que `list`,
-    `data`, `DataFields`, `mid`, `groupFilters`… Aucun repli sur une autre
-    forme : un `Fields` absent ou vide (`[]`) ne laisse alors que le rôle
-    `bib`, jamais une racine `payload["Fields"]` jamais observée côté API
-    (ancien repli, I1/I2).
+    `Fields` vit sous `payload["list"]`.
     """
     data_fields = [str(e) for e in payload.get("DataFields") or []]
     index_par_expr = {expr: i for i, expr in enumerate(data_fields)}
@@ -344,21 +453,34 @@ def _map_columns(
             continue
         peeled = _peel(expr)
         role = _role(peeled)
-        if role == "rang_de_split":
+        if role in ("rang_de_split", "dossard_affiche"):
             continue
-        if role:
-            roles.setdefault(role, col)
+        if role and role not in roles:
+            roles[role] = col
             continue
         label = _label_i18n(str(champ.get("Label") or "").strip())
-        # Segment : token nu entre crochets, donc sans point de qualification.
-        if "[" in expr and "." not in peeled and label:
+        # Segment candidat : expression réduite à un token simple, étiquetée.
+        # Les crochets ne sont PAS exigés — certaines épreuves écrivent
+        # `Natation` là où d'autres écrivent `[Natation]`, et l'exigence les
+        # privait de tous leurs splits. La qualification finale se fait sur la
+        # forme des valeurs, ligne à ligne (cf. `_RE_DUREE`).
+        if not role and label and _RE_TOKEN_SIMPLE.match(peeled):
             segments.append((label, col))
         else:
+            # Un rôle déjà pris ne doit pas faire disparaître la colonne : elle
+            # part en extras plutôt que d'être perdue silencieusement. Cas réel :
+            # une liste relais expose `ucase([NomRelais])` (nom d'équipe) puis
+            # `AfficherNoms` (les équipiers) — les deux pèlent vers « nom ».
             extras[expr] = col
 
-    # La catégorie partage la colonne du rang de catégorie (cellule « 1.S4M »).
+    # La catégorie partage la colonne du rang de catégorie (cellule « 1.S4M »),
+    # sauf si une colonne de catégorie distincte a déjà été reconnue.
     if "rang_categorie" in roles:
         roles.setdefault("categorie", roles["rang_categorie"])
+    # Temps au pistolet en repli quand l'épreuve n'expose pas de temps réel.
+    if "temps_pistolet" in roles:
+        roles.setdefault("temps", roles.pop("temps_pistolet"))
+        roles.pop("temps_pistolet", None)
     return roles, segments, extras
 
 
@@ -366,27 +488,53 @@ _RE_PREFIXE_GROUPE = re.compile(r"^#\d+_")
 
 
 def _strip_group_prefix(cle: str) -> str:
-    """Retire le préfixe d'ordonnancement d'une clé de groupe (`#1_Distance M`)."""
+    """Retire le préfixe d'ordonnancement d'une clé de groupe (`#1_Distance M`).
+
+    Le numéro n'est qu'un rang d'affichage : il ne code ni le contest ni le
+    statut. `#2_Abandons` et `#3_Non Partants` sur une épreuve, `#2_Non Partants`
+    sur une autre — s'y fier ferait passer des non-partants pour des abandons.
+    """
     return _RE_PREFIXE_GROUPE.sub("", str(cle)).strip()
 
 
-def _iter_groups(data: dict) -> list[tuple[str, str, list]]:
-    """[(libellé contest, libellé statut, lignes), …] depuis le dict `data`.
+def _iter_groups(
+    data, *, contest: str = "", statut: str = "", profondeur: int = 0
+) -> list[tuple[str, str, list]]:
+    """[(libellé contest, libellé statut, lignes), …] depuis l'arbre `data`.
 
-    `data` est imbriqué à deux niveaux : le groupe de niveau 1 identifie le
-    **contest** (`#1_Distance M`), celui de niveau 2 le **statut**
-    (`#1_` = finishers, `#2_Abandons` = DNF, `#3_Non Partants` = DNS). Certains
-    payloads n'ont qu'un niveau ; les deux formes sont acceptées.
+    La profondeur de `data` **varie** — tableau plat, un niveau, ou deux — et
+    parfois au sein d'une même épreuve. On descend donc récursivement jusqu'aux
+    feuilles au lieu de présumer une forme fixe.
+
+    Le niveau 1 nomme le **contest** (`#1_Distance M`, qui recoupe exactement
+    `config["contests"]`). Les niveaux suivants nomment le statut — mais pas
+    toujours : sur l'event 406212 ils portent `#1_Masculin` / `#1_Féminin`, un
+    groupement par **sexe**. Le libellé n'est donc retenu comme statut que s'il
+    est reconnu par la table de `derive_status_from_label` ; tout libellé inconnu
+    est un groupement neutre qui laisse le statut hérité intact. Traiter
+    l'inconnu comme un abandon marquerait DNF les 175 finishers de ce contest.
     """
+    if isinstance(data, list):
+        return [(contest, statut, data)] if data else []
+    if not isinstance(data, dict):
+        if data is not None:
+            logger.warning(
+                "RaceResult : nœud de données ignoré, ni dict ni liste (%r)", type(data)
+            )
+        return []
+
     groupes: list[tuple[str, str, list]] = []
-    for cle_contest, contenu in (data or {}).items():
-        contest = _strip_group_prefix(cle_contest)
-        if isinstance(contenu, dict):
-            for cle_statut, lignes in contenu.items():
-                if isinstance(lignes, list):
-                    groupes.append((contest, _strip_group_prefix(cle_statut), lignes))
-        elif isinstance(contenu, list):
-            groupes.append((contest, "", contenu))
+    for cle, contenu in data.items():
+        libelle = _strip_group_prefix(cle)
+        if profondeur == 0:
+            groupes += _iter_groups(
+                contenu, contest=libelle, statut=statut, profondeur=1
+            )
+        else:
+            reconnu = libelle if derive_status_from_label(libelle) else statut
+            groupes += _iter_groups(
+                contenu, contest=contest, statut=reconnu, profondeur=profondeur + 1
+            )
     return groupes
 
 
@@ -426,7 +574,9 @@ def _build_result(
     nom, prenom = split_athlete_name(cellule("nom"))
     r.athlete_name, r.athlete_firstname = nom, prenom
     r.club = cellule("club")
-    r.gender = cellule("sexe")
+    # `ucase([SEX]) & iif(…)` sérialise « M (1.) » : le rang de sexe voyage dans
+    # la même cellule que le sexe et doit en être détaché.
+    r.rank_gender, r.gender = _split_rank_category(cellule("sexe"))
     r.rank_category, r.category = _split_rank_category(cellule("categorie"))
     r.total_time = normalize_time(cellule("temps"))
     r.is_relay = any(
@@ -446,10 +596,15 @@ def _build_result(
         or ""
     )
 
+    # Une colonne candidate ne devient un segment que si sa valeur est bien une
+    # durée : c'est ce qui écarte les colonnes « Tours » ou « Distance », dont
+    # l'expression est un token simple indiscernable de celle d'un split.
     r.segments = [
-        (label, normalize_time(_clean_cell(ligne[col])))
+        (label, normalize_time(cellule_brute))
         for label, col in segments
-        if col < len(ligne) and _clean_cell(ligne[col])
+        if col < len(ligne)
+        and (cellule_brute := _clean_cell(ligne[col]))
+        and _RE_DUREE.match(cellule_brute)
     ] or None
 
     r.raw_data = {
@@ -467,26 +622,8 @@ def _build_result(
     return r
 
 
-def _contest_candidates(indice: str, contests: dict) -> list[str]:
-    """Contests à essayer pour une liste, dans l'ordre le plus probable.
-
-    `contest=0` (« tous ») n'est pas universel : sur certaines épreuves il
-    répond 404 sur toutes les listes et il faut interroger contest par contest,
-    chacun livrant son propre payload. On essaie donc l'indice annoncé par la
-    config s'il est significatif, puis `0`, puis chaque contest déclaré.
-    """
-    candidats: list[str] = []
-    if indice and indice != "0":
-        candidats.append(indice)
-    candidats.append("0")
-    candidats.extend(str(c) for c in (contests or {}))
-    vus: set[str] = set()
-    return [c for c in candidats if not (c in vus or vus.add(c))]
-
-
 def _fetch_list(
     event_id: str,
-    base: str,
     key: str,
     listname: str,
     contest: str,
@@ -494,19 +631,21 @@ def _fetch_list(
 ) -> dict | None:
     """Payload d'une liste pour un contest donné, `None` si indisponible.
 
-    La route répond **301** vers `/{eventId}/results/list` : le client doit être
-    ouvert avec `follow_redirects=True`, sinon la réponse est vide. Un 404 (liste
-    non servie pour ce contest, ou liste morte) est journalisé en `debug` et
-    renvoie `None` — le balayage continue.
+    Un 404 (liste annoncée mais non servie) est journalisé en `debug` et renvoie
+    `None` — le balayage continue. Les autres erreurs HTTP remontent : une
+    épreuve à moitié importée dont toutes les lignes portent un temps bascule en
+    « terminée » pour `services/cache.is_fresh`, ce qui gèle le cache 30 jours
+    sur une perte évitable, alors qu'un échec dur remonte en `BatchFailure` et
+    sera re-tenté. Si de la robustesse est voulue ici, la réponse est un retry
+    avec backoff, pas une dégradation silencieuse.
     """
     resp = client.get(
-        f"{base}/{event_id}/RRPublish/data/list",
+        f"{_API_BASE}/{event_id}/results/list",
         params={
             "key": key,
             "listname": listname,
-            "page": "results",
             "contest": contest,
-            "r": "all",
+            "page": "results",
         },
         headers=HEADERS,
     )
@@ -527,7 +666,12 @@ def _fetch_list(
 
 
 def _richness(r: ScrapedResult) -> int:
-    """Nombre de champs renseignés — arbitre les doublons entre listes."""
+    """Nombre de champs **renseignés** — arbitre les doublons entre listes.
+
+    Compte les données, pas les colonnes : une liste large mais vide ne doit pas
+    l'emporter sur une liste étroite et renseignée, sous peine d'effacer le club,
+    qui est le critère d'attribution au club (TCN).
+    """
     champs = (
         r.athlete_name, r.athlete_firstname, r.club, r.category, r.gender, r.total_time
     )
@@ -541,26 +685,20 @@ def _richness(r: ScrapedResult) -> int:
 def _prefer(nouveau: ScrapedResult, ancien: ScrapedResult) -> bool:
     """Vrai si `nouveau` doit remplacer `ancien` dans la fusion par clé.
 
-    Un statut non-finisher (DNF/DNS/DSQ) est un signal fort qui ne doit pas
-    être écrasé par une ligne simplement plus riche en colonnes mais muette
-    sur le statut — cas d'une même personne présente dans une seconde liste
-    sans sous-groupe de statut (I2). Mais ce signal ne doit jouer que face à
-    une ligne concurrente qui n'a elle-même **aucun temps d'arrivée réel** :
-    un chrono est un signal plus fort qu'un statut annoncé. Sans cette
-    seconde garde, un statut non-finisher devenait inconditionnel et pouvait
-    détruire un finisher réel — une liste « Non Partants » figée à la veille
-    (dossard réattribué, engagé finalement présent) écrasait alors temps,
-    rang et club corrects (N1, régression du garde-fou I2).
+    Une même épreuve expose couramment plusieurs listes sur un même contest
+    (6 listes sur le contest 1 de l'event 392745, 3 en `Contest="0"` sur 409130) :
+    la même personne y apparaît plusieurs fois, avec des colonnes différentes.
 
-    Au-delà des non-finishers, un temps d'arrivée réel doit aussi primer sur
-    la seule richesse en colonnes (C1) : une liste d'affichage LIVE peut être
-    plus large que le vrai classement (drapeau, écart au leader, colonnes
-    i18n non reconnues…) tout en étant muette sur le temps — ses `Expression`
-    sont des formules `switch(...)/if(...)` que `_role` ne décode pas. Sans
-    cette garde, `_richness` la faisait gagner et écrasait un classement réel
-    par une ligne sans temps ni rang (event 393893, contest « Distance
-    Jeunes » : 49 participants sur 874 vidés par `03 - Affichages|LIVE EXTRA
-    sans predictif`).
+    Un statut non-finisher (DNF/DNS/DSQ) est un signal fort qui ne doit pas être
+    écrasé par une ligne simplement plus riche mais muette sur le statut. Mais ce
+    signal ne joue que face à une ligne concurrente sans **aucun temps d'arrivée
+    réel** : un chrono est un signal plus fort qu'un statut annoncé. Sans cette
+    seconde garde, une liste « Non Partants » figée à la veille (dossard
+    réattribué, engagé finalement présent) écrasait temps, rang et club corrects.
+
+    Au-delà des non-finishers, un temps d'arrivée réel prime aussi sur la seule
+    richesse : une liste peut être plus large que le vrai classement (drapeau,
+    écart au leader, colonnes non reconnues) tout en étant muette sur le temps.
     """
     if nouveau.status in _NON_FINISHERS and not ancien.total_time:
         return True
@@ -574,56 +712,45 @@ def _prefer(nouveau: ScrapedResult, ancien: ScrapedResult) -> bool:
 def scrape_event_all(url: str) -> list[ScrapedResult]:
     """Importe tous les participants d'une épreuve RaceResult.
 
-    Balaie **toutes** les listes exploitables et fusionne : une liste
-    « Individuel » et une liste « Relais » se complètent au lieu de s'écraser.
-    Borne réseau : `len(lists) × (1 + len(contests))` requêtes au pire. Mesuré
-    sur l'épreuve réelle (393893, 2026-07-19, après filtrage des listes `Live`
-    de C1) : **15 requêtes `list`, dont 11 en 404** — les listes `Concurrents`
-    et `Classement général` de cette épreuve n'ont pas d'indice de contest
-    fiable en config (`Contest: "0"`) et retentent chacune tous les contests
-    déclarés faute de mieux. Avant le filtrage C1, la liste d'affichage LIVE
-    s'ajoutait à ce total (16 requêtes, 10 en 404 alors mesurées).
+    Balaie les listes publiées annoncées par la config et les **fusionne** : une
+    liste « Individuel » et une liste « Relais » se complètent au lieu de
+    s'écraser, et plusieurs listes couvrant un même contest convergent vers la
+    même clé.
+
+    Borne réseau : exactement `len(specs)` requêtes `list`, plus une `config` et
+    une `results` — le contest étant explicite, il n'y a plus de balayage à
+    l'aveugle. Mesuré : 4 requêtes `list` sur Rumilly (contre 15, dont 11 en 404,
+    dans la version qui interrogeait la route héritée).
     """
-    base = _api_base(url)
     with httpx.Client(follow_redirects=True, timeout=30, headers=HEADERS) as client:
         event_id = _resolve_event_id(url, client)
-        config = _fetch_config(event_id, base, client)
+        config = _fetch_config(event_id, client)
         key = str(config.get("key") or "")
         contests = config.get("contests") or {}
-        nom_meta, jour, _ville = _fetch_meta(event_id, base, client)
+        nom_meta, jour, _ville = _fetch_meta(event_id, client)
         event_name = nom_meta or str(config.get("eventname") or "")
 
         specs = _iter_list_specs(config)
-        # Clé de fusion (contest, dossard) : deux contests peuvent porter le même
-        # dossard, c'est précisément le cas que la qualification par contest règle.
+        # Clé de fusion (libellé de contest, dossard) : deux contests peuvent
+        # porter le même dossard — c'est précisément le cas que la qualification
+        # par contest règle (issue #21).
         fusion: dict[tuple[str, str], ScrapedResult] = {}
 
-        def fusionner(
-            groupes, contest: str, listname: str, roles, segments, extras, *, repli: str,
-        ) -> bool:
-            """Fusionne un payload résolu dans `fusion`. Vrai si une ligne a été retenue.
-
-            Le nom de contest vient de la clé de groupe, avec repli sur la table
-            `contests` de la config — plus stable et injectif qu'un chemin de
-            liste : deux listes menant au même contest doivent converger vers la
-            même clé de fusion (cf. N2/#21). Au-delà, `repli` distingue les deux
-            chemins d'appel plutôt que d'imposer un ordre unique : côté contest
-            explicite (I3), le numéro de contest lui-même est injectif et
-            convergent — deux listes atteignant le même contest doivent fusionner.
-            Côté filet de dernier recours (N4), `contest` vaut au contraire
-            **toujours** "0" par construction — une constante qui ne distingue
-            rien — et seul le `listname` sépare encore deux listes ambiguës
-            distinctes (dossards réutilisés d'une liste à l'autre, cf. issue #21).
-            Un libellé encore vide au bout de cette chaîne retombe sur
-            `f"Contest {contest}"`, lisible dans `Course.name` contrairement au
-            numéro brut.
-            """
-            ajoute = False
-            for contest_label, status_label, lignes in groupes:
+        for listname, contest in specs:
+            payload = _fetch_list(event_id, key, listname, contest, client)
+            if payload is None:
+                continue
+            roles, segments, extras = _map_columns(payload)
+            for contest_label, status_label, lignes in _iter_groups(payload.get("data")):
+                # Le libellé de groupe fait autorité : il recoupe `contests` et
+                # reste juste même pour les listes en `Contest="0"`, où la table
+                # `contests` ne sait rien. Repli sur `contests`, puis sur le nom
+                # de liste — qui sépare deux listes non étiquetées du même
+                # contest plutôt que de les faire collisionner.
                 libelle = (
                     contest_label
                     or str(contests.get(contest) or "")
-                    or repli
+                    or listname
                     or f"Contest {contest}"
                 )
                 for ligne in lignes:
@@ -641,84 +768,9 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                     ancien = fusion.get(cle)
                     if ancien is None or _prefer(r, ancien):
                         fusion[cle] = r
-                    ajoute = True
-            return ajoute
-
-        for listname, indice in specs:
-            # Payload jugé ambigu mis de côté (au plus un par liste, cf.
-            # ci-dessous), fusionné en tout dernier recours si le balayage
-            # contest par contest ne rapporte rien pour cette liste (N3).
-            ambigu_en_reserve: tuple | None = None
-            resolu = False
-            for contest in _contest_candidates(indice, contests):
-                payload = _fetch_list(event_id, base, key, listname, contest, client)
-                if payload is None:
-                    continue
-                roles, segments, extras = _map_columns(payload)
-                data = payload.get("data") or {}
-                groupes = _iter_groups(data)
-                # `contest=0` (« tous ») peut, sur certaines épreuves, renvoyer un
-                # payload **plat et non nommé** au lieu du sous-découpage par
-                # contest vu sur Rumilly (`#1_Distance M` / `#2_Abandons`…) : les
-                # lignes de plusieurs contests distincts s'y retrouvent mélangées
-                # sans qu'aucun signal (ni la clé de groupe, ni `contests`) ne
-                # permette de les rattacher chacune au bon contest. Le seul repli
-                # qui restait — `listname`, constant sur tout le payload — ne
-                # règle pas ce cas : deux lignes du même dossard (une par contest
-                # réel) y collisionnent encore (N2 / #21, au-delà de la collision
-                # *entre* listes qu'I3 réglait déjà). Pire, quand la même tranche
-                # est exposée par deux chemins de listes différents, ce repli
-                # produit alors deux « Courses » distinctes pour les mêmes
-                # athlètes (I3 a échangé une collision contre une duplication).
-                # Dans ce cas ambigu, ce payload n'est donc pas fusionné tout de
-                # suite : on le met de côté et le balayage continue contest par
-                # contest — chacun devient alors étiquetable via
-                # `contests.get(contest)`, seule source de contest fiable ici, et
-                # convergera vers la même clé de fusion quel que soit le chemin
-                # de liste qui y a mené (ce qui résout la duplication en même
-                # temps que la collision).
-                ambigu = (
-                    contest == "0"
-                    and len(contests) > 1
-                    and bool(groupes)
-                    and not any(label for label, _statut, _lignes in groupes)
-                )
-                if ambigu:
-                    ambigu_en_reserve = (roles, segments, extras, groupes, contest)
-                    continue
-                # Chemin normal : le numéro de contest est un repli stable et
-                # convergent (I3) — inutile de retomber sur `listname` ici, il
-                # est réservé au filet de dernier recours (N4).
-                if fusionner(groupes, contest, listname, roles, segments, extras, repli=""):
-                    resolu = True
-                if contest == "0":
-                    # contest=0 (« tous ») livre déjà l'ensemble des contests dans
-                    # un seul payload non ambigu : inutile de tenter les autres
-                    # candidats. Un contest spécifique, lui, ne livre QUE sa
-                    # propre tranche (cf. docstring `_contest_candidates`) — le
-                    # balayage doit donc continuer sur les contests suivants,
-                    # faute de quoi ils sont silencieusement perdus (C1).
-                    break
-
-            if not resolu and ambigu_en_reserve is not None:
-                # Le balayage contest par contest, censé lever l'ambiguïté, n'a
-                # rien rapporté pour cette liste (cas attesté : certaines listes
-                # de contests annoncées en config répondent 404 en dur). Plutôt
-                # que d'abandonner ce payload — et avec lui l'épreuve entière si
-                # aucune autre liste ne compense — on le fusionne en dernier
-                # recours : une éventuelle collision intra-payload résiduelle
-                # (même dossard, deux contests réels) reste possible et fait
-                # perdre l'une des deux lignes concurrentes (cf. `_prefer`),
-                # mais c'est strictement mieux qu'une épreuve vidée entièrement
-                # (N3).
-                # Filet de dernier recours : `contest` vaut ici toujours "0"
-                # (cf. `ambigu` ci-dessus) — seul `listname` distingue encore
-                # deux listes ambiguës distinctes (N4).
-                roles, segments, extras, groupes, contest = ambigu_en_reserve
-                fusionner(groupes, contest, listname, roles, segments, extras, repli=listname)
 
     if not fusion:
-        essayees = ", ".join(nom for nom, _ in specs) or "aucune liste déclarée"
+        essayees = ", ".join(nom for nom, _ in specs) or "aucune liste publiée"
         raise ValueError(
             f"Épreuve RaceResult {event_id} : aucune liste exploitable "
             f"(listes essayées : {essayees})."

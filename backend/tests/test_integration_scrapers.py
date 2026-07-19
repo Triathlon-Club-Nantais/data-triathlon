@@ -30,7 +30,7 @@ LIVE_URLS = {
     "prolivesport": "https://www.prolivesport.fr/result/1082/6",
     "sportinnovation": "https://sportinnovation.fr/Evenements/Resultats/7031",
     # Triathlon de Rumilly 2026 : 4 contests, dossards en collision d'un contest
-    # à l'autre — l'épreuve qui a servi au sondage d'API du 2026-07-18.
+    # à l'autre — l'épreuve qui a servi au sondage d'API initial.
     "raceresult": "https://my3.raceresult.com/393893/results",
 }
 
@@ -207,6 +207,76 @@ def test_chronowest_swimrun_nest_pas_un_triathlon():
     assert results
     types = {r.event_type for r in results}
     assert types <= {"swimrun", "swimrun-s", "swimrun-m", "swimrun-l"}, types
+
+
+# Panel RaceResult : la première version du moteur ne fonctionnait QUE sur
+# l'épreuve qui avait servi à la construire (revue de branche : 5 défauts
+# bloquants, tous invisibles sans trafic réel au-delà d'elle). Ces épreuves
+# couvrent les trois façades et les formes d'API qui l'avaient mise en défaut.
+# Cf. docs/superpowers/specs/2026-07-19-raceresult-api-sondage.md.
+RACERESULT_PANEL = {
+    # 13 contests, relais, libellés i18n.
+    "geneve": "https://my4.raceresult.com/405215/results",
+    # Les 10 listes portent `Live: 1`, dont les 3 vrais classements : filtrer
+    # sur `Live` plutôt que sur `Mode` y vide l'épreuve entière (C-C).
+    "foulee": "https://my2.raceresult.com/405100/results",
+    # Groupes de niveau 2 par SEXE (`#1_Masculin`), pas par statut (C-E).
+    "besancon": "https://my4.raceresult.com/406212/results",
+    # Façade espace-competition.com — identifiant nu dans `new RRPublish(...)`.
+    "espace_competition": (
+        "https://www.espace-competition.com/index.php"
+        "?module=sportif&action=resultat&comp_uid=3205"
+    ),
+    # Façade chronoconsult.fr — identifiant ENTRE GUILLEMETS (C-D).
+    "chronoconsult": "https://chronoconsult.fr/result/2026-24h-roller-le-mans/",
+}
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("cle, url", sorted(RACERESULT_PANEL.items()))
+def test_raceresult_panel_multi_epreuves(cle, url):
+    """Chaque épreuve du panel remonte des participants nommés.
+
+    Ne vérifie PAS le temps total : deux épreuves du panel publient des listes
+    légitimement sans chrono (liste d'inscrits, classement de qualification).
+    Le nom, lui, est exigé partout — c'est ce qui manquait à 506 lignes sur 507
+    avant l'élargissement du vocabulaire d'expressions (C-E).
+    """
+    results = registry.scrape_event_all(url)
+
+    assert results, f"{cle} : aucun participant renvoyé"
+    nommes = [r for r in results if r.athlete_name or r.athlete_firstname]
+    assert len(nommes) >= 0.95 * len(results), (
+        f"{cle} : {len(results) - len(nommes)}/{len(results)} lignes sans nom"
+    )
+    assert all(r.bib_number for r in results), f"{cle} : dossard manquant"
+
+
+@pytest.mark.integration
+def test_raceresult_route_heritee_ne_couvre_pas_les_epreuves_recentes():
+    """C-A, garde vivante. La route `/{id}/RRPublish/data/config` employée par
+    la première version est un alias hérité : elle répond 404 sur les épreuves
+    de la saison en cours. Ce test échouera si RaceResult la généralise un
+    jour — auquel cas la note du sondage sera à revoir, mais jamais dans le
+    sens d'un retour à l'alias.
+    """
+    import httpx
+
+    from app.scrapers import raceresult
+
+    with httpx.Client(follow_redirects=True, timeout=30) as client:
+        heritee = client.get(
+            "https://my4.raceresult.com/405215/RRPublish/data/config",
+            params={"page": "results"}, headers=raceresult.HEADERS,
+        )
+        canonique = client.get(
+            f"{raceresult._API_BASE}/405215/results/config",
+            params={"page": "results"}, headers=raceresult.HEADERS,
+        )
+
+    assert heritee.status_code == 404, "l'alias hérité répondrait de nouveau ?"
+    assert canonique.status_code == 200
+    assert canonique.json()["TabConfig"]["Lists"], "les listes sont sous TabConfig"
 
 
 @pytest.mark.integration

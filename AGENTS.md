@@ -224,9 +224,11 @@ Particularités du moteur : les listes publiées sont celles dont `Mode` n'est p
 explicitement), plusieurs listes peuvent couvrir un même contest et doivent être
 fusionnées, et la date d'épreuve n'existe que dans le JSON-LD schema.org de la
 page `/{eventId}/results`.
-⚠️ **Le moteur actuel est non mergeable** : il vise une route héritée qui répond
-404 sur les épreuves récentes. Vérité d'API et correctifs à appliquer :
-`docs/superpowers/specs/2026-07-19-raceresult-api-sondage.md`.
+Vérité d'API (9 épreuves, 3 façades) :
+`docs/superpowers/specs/2026-07-19-raceresult-api-sondage.md` — elle prime sur le
+design et sur le plan. Ne pas revenir à la route `/{id}/RRPublish/data/…` (alias
+hérité, 404 sur les épreuves récentes) ni au filtre `Live` (qui vide certaines
+épreuves) : les deux ont des tests de non-régression dédiés.
 Design : `docs/superpowers/specs/2026-07-19-raceresult-scraper-design.md`.
 Types : Triathlon XS/S/M/L/XL, Duathlon XS/S/M/L, SwimRun S/M/L, Aquathlon,
 Aquarun, Bike & Run.
