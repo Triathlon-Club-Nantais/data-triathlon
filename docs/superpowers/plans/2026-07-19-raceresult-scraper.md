@@ -8,9 +8,42 @@
 
 **Tech Stack :** Python 3.13, uv, httpx, BeautifulSoup/lxml (JSON-LD), pytest, ruff.
 
+---
+
+## ⚠️ ERRATA — l'API décrite ci-dessous est fausse (2026-07-19)
+
+**Ce plan a été exécuté puis invalidé par sa revue finale.** Son sondage d'API
+(2026-07-18) portait sur une seule épreuve ; le moteur bâti dessus ne fonctionne
+que sur elle. Un re-sondage sur **9 épreuves et les trois façades** a produit
+`docs/superpowers/specs/2026-07-19-raceresult-api-sondage.md`, **qui fait foi** :
+en cas de contradiction avec le corps de ce plan, c'est le sondage qui a raison.
+
+Sept corrections, dont chacune casse le moteur actuel sur une partie du parc :
+
+| # | Ce que ce plan affirme | Ce que l'API fait réellement |
+| --- | --- | --- |
+| 1 | route `/{id}/RRPublish/data/…` | **alias hérité** : 404 sur toute épreuve de la saison en cours. Route réelle `/{id}/results/…` |
+| 2 | base `my2/my3/my4.raceresult.com` | **`my.raceresult.com`** (apex) sert les 9 épreuves ; aucune résolution de shard nécessaire |
+| 3 | listes sous `config["lists"]`, en arbre | `config["lists"]` vaut `null` ; listes dans **`TabConfig.Lists`**, tableau plat, **contest explicite** |
+| 4 | le contest se résout empiriquement | il est **donné** — la découverte par essais répond à un problème propre à l'alias |
+| 5 | `DataFields` sous `payload["list"]` | à la **racine** du payload. *L'algorithme d'indexation, lui, reste correct* |
+| 6 | `data` = 2 niveaux, niveau 2 = statut | profondeur **variable** (parfois dans la même épreuve) ; certains groupes sont des **sexes**, pas des statuts |
+| 7 | `Live` sépare les listes d'affichage | c'est **`Mode == "hidden"`** ; le filtre `Live` vide entièrement certaines épreuves |
+
+S'y ajoutent : `chronoconsult.fr` sert l'`eventId` **entre guillemets** (aucune
+épreuve résolvable sans cela), et le vocabulaire d'expressions reconnu est trop
+étroit — sur une épreuve du panel, 506 lignes sur 507 ressortent sans nom ni
+temps. Détail et mesures : §6 et §8 du sondage.
+
+**Ne pas ré-exécuter ce plan tel quel.** Les Tasks 1 à 5 restent globalement
+valides ; les Tasks 3, 4, 6 et 7 sont à refonder sur le sondage.
+
+---
+
 ## Global Constraints
 
 - Design de référence : `docs/superpowers/specs/2026-07-19-raceresult-scraper-design.md`. En cas de doute, il fait foi.
+- **Vérité d'API : `docs/superpowers/specs/2026-07-19-raceresult-api-sondage.md`** — prime sur ce plan *et* sur le design (cf. errata ci-dessus).
 - Commandes lancées **depuis `backend/`**, toujours via `uv run` (aucun venv à activer).
 - Tests unitaires **sans réseau**. Tout appel réel va derrière `@pytest.mark.integration`.
 - Nom du provider : exactement `raceresult` (chaîne utilisée par la CLI, le Sheet et l'API).
@@ -325,12 +358,17 @@ plus) :
   - `espace-competition.com`  — front RaceResult, `new RRPublish(el, <id>, …)` ;
   - `chronoconsult.fr`        — façade WordPress au-dessus de RaceResult.
 
-Chaînage d'appels (établi par sondage réel le 2026-07-18) :
-  1. GET /{eventId}/RRPublish/data/config?page=results
-  2. GET /{eventId}/RRPublish/data/list?key=…&listname=…&contest=N&r=all
-     → **301** vers /{eventId}/results/list : `follow_redirects=True` obligatoire.
+Chaînage d'appels — CORRIGÉ au sondage du 2026-07-19 (cf. errata) :
+  1. GET {base}/{eventId}/results/config?page=results
+     → base = https://my.raceresult.com (apex, universel).
+     → listes dans config["TabConfig"]["Lists"] (tableau plat, contest explicite).
+  2. GET {base}/{eventId}/results/list?key=…&listname=…&contest=N&page=results
   3. La date d'épreuve n'est dans aucun des deux : elle vit dans le JSON-LD
-     schema.org de la page /{eventId}/results.
+     schema.org de la page {base}/{eventId}/results.
+
+  ANCIENNE FORME (fausse, conservée pour mémoire) : /{eventId}/RRPublish/data/…
+  est un alias hérité qui répond 404 sur toute épreuve de la saison en cours.
+  Le 301 qu'il émettait vers /results/ était l'indice ignoré.
 """
 import logging
 import re
@@ -477,6 +515,14 @@ git commit -m "feat(scrapers): routage RaceResult et résolution de l'eventId"
 ---
 
 ### Task 3 : Métadonnées (JSON-LD) et config de l'épreuve
+
+> ⚠️ **Partiellement invalidée (errata).** Le volet JSON-LD reste exact et vérifié
+> sur 9 épreuves. Le volet config est faux sur deux points : la route
+> (`/results/config`, pas `/RRPublish/data/config`) et la forme des listes
+> (`config["TabConfig"]["Lists"]`, tableau plat à contest explicite —
+> `config["lists"]` vaut `null`). La fixture `raceresult_config_rumilly.json` et
+> `_iter_list_specs` sont donc à refaire depuis une capture de la bonne route.
+
 
 Ni `config` ni `list` ne portent de date : la seule source est le JSON-LD schema.org de la page `/{eventId}/results`, qui donne aussi le nom et la ville. `config` livre la `key` d'accès, les contests, les listes et les splits.
 
@@ -736,6 +782,15 @@ git commit -m "feat(scrapers): métadonnées JSON-LD et config RaceResult"
 ---
 
 ### Task 4 : Mapping des colonnes
+
+> ⚠️ **Emplacement faux, algorithme juste (errata).** `DataFields` est à la
+> **racine du payload**, pas sous `payload["list"]` (qui le porte à `null`).
+> L'algorithme `col = DataFields.index(Field.Expression)` et le préfixe `BIB`/`ID`
+> sont confirmés, et restent nécessaires : `DataFields` compte souvent plus
+> d'entrées que `Fields` (20 vs 18, 22 vs 19). En revanche le vocabulaire de
+> `_role` est trop étroit — voir §6 du sondage : enveloppe `if([STATUS]<>2;[X])`,
+> suffixe `.p` minuscule, concaténations `X & iif(…)`, `LFNAME`, `TempsOuStatut`.
+
 
 Le cœur du moteur. L'algorithme d'index est **autoritatif** (extrait de `RRPublish.js`, pas une heuristique) :
 
@@ -1054,6 +1109,15 @@ git commit -m "feat(scrapers): mapping des colonnes RaceResult par DataFields.in
 ---
 
 ### Task 5 : Groupes, statut et construction d'un `ScrapedResult`
+
+> ⚠️ **Prémisse invalidée (errata).** `data` n'a pas deux niveaux fixes : la
+> profondeur varie (plat, 1 ou 2 niveaux), parfois **au sein d'une même épreuve**.
+> Et le libellé de groupe n'est pas toujours un statut — 406212 groupe par
+> `#1_Masculin` / `#1_Féminin`. Deux règles : descendre récursivement jusqu'aux
+> feuilles, et n'interpréter le libellé que par **liste blanche** de jetons connus
+> (dont `Disqualifiés`, absent du plan) — tout libellé inconnu est un groupement
+> neutre, pas un abandon. Voir §7 du sondage.
+
 
 `data` est un dict imbriqué à deux niveaux : le groupe de niveau 1 identifie le **contest**, celui de niveau 2 le **statut**. Deux signaux concordants alimentent `derive_status_from_label`, le groupe primant sur la cellule.
 
@@ -1472,6 +1536,14 @@ git commit -m "feat(scrapers): statut par groupe et construction des résultats 
 
 ### Task 6 : Pipeline complet — contests empiriques, fusion, erreurs
 
+> ⚠️ **Prémisse invalidée (errata).** Sur la route canonique, `TabConfig.Lists`
+> donne le contest **explicitement** pour chaque liste : il n'y a rien à résoudre
+> empiriquement. Toute cette tâche est à refonder — sélection par
+> `Mode != "hidden"`, itération directe sur les couples (liste, contest) annoncés.
+> Ce qui **reste nécessaire** : la fusion et l'arbitrage par richesse, car une même
+> épreuve peut exposer plusieurs listes sur un même contest (392745 : 6 listes sur
+> le contest 1 ; 409130 : 3 listes en `Contest="0"`).
+
 Le couple (liste, contest) doit être résolu **empiriquement** : `contest=0` n'est pas universel (sur Rumilly il renvoie 404 sur toutes les listes, il faut interroger contest par contest), et certaines listes annoncées en config répondent 404 en dur (Roanne n'expose qu'une liste morte). Un 404 est journalisé en `debug` et n'interrompt rien.
 
 Les listes exploitables sont toutes balayées puis **fusionnées** : une liste « Individuel » et une liste « Relais » se complètent au lieu de s'écraser.
@@ -1761,6 +1833,14 @@ git commit -m "feat(scrapers): pipeline RaceResult — contests empiriques et fu
 
 ### Task 7 : Test d'intégration réel et documentation
 
+> ⚠️ **Couverture insuffisante (errata).** Une seule épreuve, sur une route non
+> générale : aucun des cinq défauts bloquants de la revue finale ne pouvait être
+> attrapé. Le panel de re-sondage (9 épreuves, 3 façades) est listé en tête du
+> sondage ; `LIVE_URLS` doit inclure au minimum une épreuve espace-competition et
+> une chronoconsult. La fixture `chronoconsult_result_page.html` teste la
+> mauvaise syntaxe (identifiant nu au lieu de quoté) — voir §8.
+
+
 Les tests paramétrés de `test_integration_scrapers.py` prennent automatiquement toute entrée ajoutée à `LIVE_URLS`. C'est le seul endroit où le moteur touche le réseau réel, et le seul qui valide que les fixtures réduites n'ont pas dérivé de la vraie API.
 
 **Files:**
@@ -1841,11 +1921,15 @@ Wiclax/G-Live couvre plusieurs déploiements : `wiclax-results.com`,
 déploiement tiers = un host dans `WiclaxProvider._HOSTS`.
 RaceResult couvre de même trois façades d'un même produit (`raceresult.com`,
 `espace-competition.com`, `chronoconsult.fr`, cf. `RaceResultProvider._HOSTS`),
-toutes servies par la même API JSON publique — sans Playwright. Deux
-particularités du moteur : le couple (liste, contest) est résolu
-**empiriquement** (`contest=0` n'est pas universel, certaines listes annoncées
-répondent 404 en dur), et la date d'épreuve n'existe que dans le JSON-LD
-schema.org de la page `/{eventId}/results`. Design : `docs/superpowers/specs/2026-07-19-raceresult-scraper-design.md`.
+toutes servies par la même API JSON publique — sans Playwright, et toutes
+joignables via l'apex `my.raceresult.com` (aucune résolution de shard).
+Particularités du moteur : les listes publiées sont celles dont `Mode` n'est pas
+`"hidden"` dans `config["TabConfig"]["Lists"]` (qui porte le contest
+explicitement), plusieurs listes peuvent couvrir un même contest et doivent être
+fusionnées, et la date d'épreuve n'existe que dans le JSON-LD schema.org de la
+page `/{eventId}/results`.
+Vérité d'API : `docs/superpowers/specs/2026-07-19-raceresult-api-sondage.md`.
+Design : `docs/superpowers/specs/2026-07-19-raceresult-scraper-design.md`.
 Types : Triathlon XS/S/M/L/XL, Duathlon XS/S/M/L, SwimRun S/M/L, Aquathlon,
 Aquarun, Bike & Run.
 ```

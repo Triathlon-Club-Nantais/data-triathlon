@@ -217,10 +217,16 @@ Wiclax/G-Live couvre plusieurs déploiements : `wiclax-results.com`,
 déploiement tiers = un host dans `WiclaxProvider._HOSTS`.
 RaceResult couvre de même trois façades d'un même produit (`raceresult.com`,
 `espace-competition.com`, `chronoconsult.fr`, cf. `RaceResultProvider._HOSTS`),
-toutes servies par la même API JSON publique — sans Playwright. Deux
-particularités du moteur : le couple (liste, contest) est résolu
-**empiriquement** (`contest=0` n'est pas universel, certaines listes annoncées
-répondent 404 en dur), et la date d'épreuve n'existe que dans le JSON-LD
-schema.org de la page `/{eventId}/results`. Design : `docs/superpowers/specs/2026-07-19-raceresult-scraper-design.md`.
+toutes servies par la même API JSON publique — sans Playwright, et toutes
+joignables via l'apex `my.raceresult.com` (aucune résolution de shard).
+Particularités du moteur : les listes publiées sont celles dont `Mode` n'est pas
+`"hidden"` dans `config["TabConfig"]["Lists"]` (qui porte le contest
+explicitement), plusieurs listes peuvent couvrir un même contest et doivent être
+fusionnées, et la date d'épreuve n'existe que dans le JSON-LD schema.org de la
+page `/{eventId}/results`.
+⚠️ **Le moteur actuel est non mergeable** : il vise une route héritée qui répond
+404 sur les épreuves récentes. Vérité d'API et correctifs à appliquer :
+`docs/superpowers/specs/2026-07-19-raceresult-api-sondage.md`.
+Design : `docs/superpowers/specs/2026-07-19-raceresult-scraper-design.md`.
 Types : Triathlon XS/S/M/L/XL, Duathlon XS/S/M/L, SwimRun S/M/L, Aquathlon,
 Aquarun, Bike & Run.
