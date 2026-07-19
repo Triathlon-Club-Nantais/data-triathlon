@@ -1178,6 +1178,64 @@ def test_build_result_statut_du_groupe_sans_cellule():
     assert _construire(ligne, statut="Non Partants").status == STATUS_DNS
 
 
+def test_build_result_purge_temps_et_rangs_dun_non_finisher():
+    """M15 : la purge finale, sur une ligne qui porte **vraiment** temps et rangs.
+
+    Les lignes « Abandons » de la capture Rumilly ont déjà une cellule de temps
+    vide : les tests qui s'en servent passeraient à l'identique sans la purge —
+    ils constatent une absence, ils n'exercent pas le nettoyage. L'invariant
+    n'était couvert que par `test_scrape_event_all_status_jamais_incoherent`
+    (`tests/test_integration_scrapers.py`), marqué `integration`, donc jamais
+    joué par la CI (`-m "not integration"`).
+
+    Le cas réel qu'il faut tenir : une liste de classement annonce un chrono et
+    des rangs pour un dossard qu'une autre liste range sous « Abandons » — le
+    payload est contradictoire, et c'est le statut qui fait foi. Sans la purge,
+    la course partirait en base avec un DNF chronométré et classé, et
+    `services/cache.is_fresh` la croirait terminée.
+
+    Deux sens : un finisher, lui, **conserve** temps et rangs.
+    """
+    ligne = _payload_rumilly()["data"]["#1_Distance M"]["#1_"][1]
+
+    # Prémisse : cette ligne est bien renseignée, la purge a de quoi mordre.
+    finisher = _construire(ligne)
+    assert finisher.total_time == "02:01:56"
+    assert (finisher.rank_overall, finisher.rank_category, finisher.rank_gender) == (
+        2, 1, None,
+    )
+
+    abandon = _construire(ligne, statut="Abandons")
+
+    assert abandon.status == STATUS_DNF
+    assert abandon.total_time == ""
+    assert (abandon.rank_overall, abandon.rank_category, abandon.rank_gender) == (
+        None, None, None,
+    )
+
+
+def test_build_result_le_groupe_prime_sur_la_cellule_en_cas_de_divergence():
+    """M19 : précédence groupe > cellule, sur le seul cas qui les distingue.
+
+    Tant que groupe et cellule s'accordent (tout le corpus de fixtures), les
+    deux ordres de précédence rendent le même statut : la ligne de production
+    est indiscernable de son inverse. Ils ne divergent qu'ici — un groupe
+    « Non Partants » dont une ligne porte encore une cellule `OuStatut`
+    contradictoire, résidu d'un statut antérieur au reclassement du dossard.
+
+    Le groupe fait autorité parce qu'il est le classement **courant** de
+    l'organisateur : il qualifie toute la tranche, là où la cellule n'est qu'un
+    repli pour les payloads sans sous-groupe de statut.
+
+    Deux sens : sans groupe reconnu, la cellule reprend la main.
+    """
+    ligne = list(_payload_rumilly()["data"]["#1_Distance M"]["#3_Non Partants"][0])
+    ligne[2] = "DNF"  # cellule de rang contradictoire avec son groupe
+
+    assert _construire(ligne, statut="Non Partants").status == STATUS_DNS
+    assert _construire(ligne, statut="").status == STATUS_DNF
+
+
 def test_build_result_marque_le_relais():
     ligne = _payload_rumilly()["data"]["#1_Distance M"]["#1_"][0]
 
@@ -1226,6 +1284,43 @@ def test_prefer_un_temps_reel_prime_sur_la_seule_richesse():
 
     assert raceresult._prefer(riche_sans_temps, pauvre_avec_temps) is False
     assert raceresult._prefer(pauvre_avec_temps, riche_sans_temps) is True
+
+
+def test_prefer_un_non_finisher_arrivant_en_second_ecrase_une_ligne_muette():
+    """M3 : les deux gardes non-finisher de `_prefer` sont **asymétriques**.
+
+    La seconde (`ancien.status …`) protège un DNF déjà retenu ; seule la
+    première protège un DNF qui arrive **après** une ligne muette. Sans elle,
+    l'ordre des listes déciderait du statut : la ligne muette, plus riche en
+    colonnes d'affichage, l'emporterait sur la seule liste qui sait que le
+    dossard a abandonné — et le participant sortirait sans statut.
+
+    Le test tient les deux sens de la garde, conjonction comprise :
+      - face à une ligne muette **sans temps**, le DNF second doit écraser ;
+      - face à une ligne portant un **vrai chrono**, il ne doit pas — un temps
+        d'arrivée réel reste un signal plus fort qu'un statut annoncé (cas de
+        la liste « Non Partants » figée à la veille).
+    """
+    dnf_muet = ScrapedResult(
+        source_url="x", provider="raceresult", bib_number="9",
+        athlete_name="ROUSSELON", status=STATUS_DNF,
+    )
+    riche_sans_temps = ScrapedResult(
+        source_url="x", provider="raceresult", bib_number="9",
+        athlete_name="ROUSSELON", club="AIX SAVOIE TRIATHLON", gender="M",
+        raw_data={"Drapeau": "fr", "Écart": "+2:44"},
+    )
+    avec_temps = ScrapedResult(
+        source_url="x", provider="raceresult", bib_number="9",
+        athlete_name="ROUSSELON", total_time="02:01:56", rank_overall=2,
+    )
+
+    # Sens 1 : le DNF arrive en second sur une ligne muette, pourtant plus riche.
+    assert raceresult._richness(riche_sans_temps) > raceresult._richness(dnf_muet)
+    assert raceresult._prefer(dnf_muet, riche_sans_temps) is True
+
+    # Sens 2 : le même DNF n'écrase pas un chrono réel (non-régression 0a1536d).
+    assert raceresult._prefer(dnf_muet, avec_temps) is False
 
 
 # ── Pipeline complet : listes explicites, fusion, erreurs ───────────────────
