@@ -102,8 +102,13 @@ Archi en couches, le flux ne traverse qu'une direction
   `_SPLIT_KEYS_BY_SPORT` (ex. duathlon → `course1`/`course2`) et omet les slots
   non pertinents. *Limite levée pour les scrapers qui renseignent `segments`*
   (RaceResult) : la liste ordonnée de segments étiquetés prime sur les 5 slots
-  et n'a pas de plafond — un swimrun multi-legs y garde toutes ses étapes. Les
-  scrapers qui remplissent encore les 5 slots restent plafonnés à 5 segments.
+  et n'a pas de plafond côté code. **Ce déplafonnement n'est pas mesuré** : sur
+  le panel RaceResult, le maximum observé est de 5 segments (Rumilly, Genève,
+  Besançon), et les trois swimruns sondés (400001, 409725, 403144) ne publient
+  aucune colonne de split — ils sortent donc à 0 segment, non par troncature.
+  Ne pas en déduire qu'un swimrun multi-legs « garde toutes ses étapes » : rien
+  ne l'établit à ce jour. Les scrapers qui remplissent encore les 5 slots
+  restent plafonnés à 5 segments.
 
 ### Cache TTL
 
