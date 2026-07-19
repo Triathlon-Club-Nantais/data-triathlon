@@ -315,13 +315,22 @@ de buter dessus. Mesuré à l'exécution :
 | Expression | Après `_peel` | Ce qui la rejette réellement |
 | --- | --- | --- |
 | `format(3.6*[CONTEST.LENGTH];"0.0")` | `3.6*contest.length` | le point et l'astérisque (`_RE_TOKEN_SIMPLE`) |
-| `iif([X]>1;"red";"blue")` | `"blue"` | c'est un littéral (`_RE_LITTERAL`) |
+| `iif([X]>1;"red";"blue")` | `"blue"` | les guillemets (`_RE_TOKEN_SIMPLE`) |
 | `Icone("photos")` | `icone("photos")` | la parenthèse — ici l'explication d'origine **est** juste |
 
 `Icone(` n'étant pas un enrobage, sa parenthèse survit : c'est le seul des trois
 cas où le mécanisme annoncé était le bon. La différence n'est pas cosmétique —
 elle dit que la parenthèse n'est *pas* un critère de rejet général, puisque tout
 enrobage reconnu la fait disparaître.
+
+**Piège à ne pas reproduire**, relevé sur une 1re version de ce rectificatif :
+`_RE_LITTERAL` *matche* bien `"blue"`, mais **elle n'est jamais consultée sur ce
+chemin**. Elle ne sert qu'à l'étape 1 de `_peel` (`raceresult.py:322`), au
+découpage sur `&`. La colonne est qualifiée plus loin, dans `_map_columns`
+(`:729`), où le seul filtre de forme est `_RE_TOKEN_SIMPLE` — ce sont donc les
+guillemets, refusés par cette regex, qui écartent l'expression. Citer une regex
+qui matche mais ne s'exécute pas, c'est refaire à échelle réduite l'erreur que ce
+rectificatif corrige : **vérifier le chemin d'appel, pas seulement le prédicat.**
 
 Trois précisions qui appartiennent à la vérité de référence :
 
@@ -681,3 +690,22 @@ regardé, ou l'a été trop peu pour fonder quoi que ce soit.
     380823), soit toutes celles du panel — mais deux seulement. Le caractère
     « tout ou rien » est le comportement correct sur ces deux-là ; il n'est pas
     établi au-delà.
+19. **Le repli « aucun qualifiant » du §3.1 porte son propre risque silencieux,
+    et c'est l'angle mort symétrique du défaut qu'il corrige.** Le point 3 range
+    toutes les lignes d'une épreuve `Contest="0"` non corroborée dans une `Course`
+    unique. Si une telle épreuve avait à la fois un libellé étranger (qui
+    disqualifie le groupement) **et** des contests réellement disjoints se
+    partageant des dossards, la non-qualification les fusionnerait : `_prefer`
+    arbitrerait alors entre deux personnes différentes portant le même dossard,
+    et en écraserait une **sans trace**.
+
+    Sur 409130 c'est sans effet — union = 529 = autant de personnes distinctes,
+    **mesuré**. Mais c'est une propriété de cette épreuve, **pas une garantie de
+    construction** : rien dans le code ne détecte ce cas.
+
+    Le choix reste le bon : il échange une duplication **prouvée** (302 dossards
+    sur une épreuve réelle) contre une collision **jamais observée**. Mais les
+    deux branches du §3.1 sont silencieuses, et il serait malhonnête de n'en
+    déclarer qu'une. Signal à guetter si le cas se matérialise : un import dont
+    le total de participants est nettement inférieur à la somme des lignes
+    publiées, sans doublon apparent.
