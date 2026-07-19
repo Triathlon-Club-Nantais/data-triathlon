@@ -490,7 +490,27 @@ def _richness(r: ScrapedResult) -> int:
     champs = (
         r.athlete_name, r.athlete_firstname, r.club, r.category, r.gender, r.total_time
     )
-    return sum(1 for c in champs if c) + len(r.segments or []) + len(r.raw_data)
+    return (
+        sum(1 for c in champs if c)
+        + len(r.segments or [])
+        + sum(1 for v in r.raw_data.values() if v)
+    )
+
+
+def _prefer(nouveau: ScrapedResult, ancien: ScrapedResult) -> bool:
+    """Vrai si `nouveau` doit remplacer `ancien` dans la fusion par clé.
+
+    Un statut non-finisher (DNF/DNS/DSQ) est un signal fort qui ne doit jamais
+    être écrasé par une ligne simplement plus riche en colonnes mais muette
+    sur le statut — cas d'une même personne présente dans une seconde liste
+    sans sous-groupe de statut. Faute de ce garde-fou, `_richness` (qui ignore
+    `status`) laisse la ligne la mieux remplie gagner et le DNF/DNS se perd.
+    """
+    if ancien.status in _NON_FINISHERS and nouveau.status not in _NON_FINISHERS:
+        return False
+    if nouveau.status in _NON_FINISHERS and ancien.status not in _NON_FINISHERS:
+        return True
+    return _richness(nouveau) > _richness(ancien)
 
 
 def scrape_event_all(url: str) -> list[ScrapedResult]:
@@ -498,7 +518,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
 
     Balaie **toutes** les listes exploitables et fusionne : une liste
     « Individuel » et une liste « Relais » se complètent au lieu de s'écraser.
-    Borne réseau : `len(lists) + len(contests)` requêtes au pire, ~5 en pratique.
+    Borne réseau : `len(lists) × (1 + len(contests))` requêtes au pire, ~5 en pratique.
     """
     base = _api_base(url)
     with httpx.Client(follow_redirects=True, timeout=30, headers=HEADERS) as client:
@@ -519,10 +539,20 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                 if payload is None:
                     continue
                 roles, segments, extras = _map_columns(payload)
-                for contest_label, status_label, lignes in _iter_groups(payload["data"]):
+                data = payload.get("data") or {}
+                for contest_label, status_label, lignes in _iter_groups(data):
                     # Le nom de contest vient de la clé de groupe, avec repli sur
-                    # la table `contests` de la config.
-                    libelle = contest_label or str(contests.get(contest) or "")
+                    # la table `contests` de la config, puis sur le `listname`,
+                    # puis sur le contest brut en dernier recours : la clé de
+                    # fusion doit rester injective même quand le payload ne nomme
+                    # rien (groupe non nommé servi avec un contest absent de la
+                    # table `contests`, cf. I3 / issue #21).
+                    libelle = (
+                        contest_label
+                        or str(contests.get(contest) or "")
+                        or listname
+                        or contest
+                    )
                     for ligne in lignes:
                         r = _build_result(
                             ligne, roles, segments, extras,
@@ -536,9 +566,16 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                             continue
                         cle = (libelle, r.bib_number)
                         ancien = fusion.get(cle)
-                        if ancien is None or _richness(r) > _richness(ancien):
+                        if ancien is None or _prefer(r, ancien):
                             fusion[cle] = r
-                break  # une liste servie : on ne tente pas ses autres contests
+                if contest == "0":
+                    # contest=0 (« tous ») livre déjà l'ensemble des contests dans
+                    # un seul payload : inutile de tenter les autres candidats.
+                    # Un contest spécifique, lui, ne livre QUE sa propre tranche
+                    # (cf. docstring `_contest_candidates`) — le balayage doit donc
+                    # continuer sur les contests suivants, faute de quoi ils sont
+                    # silencieusement perdus (C1).
+                    break
 
     if not fusion:
         essayees = ", ".join(nom for nom, _ in specs) or "aucune liste déclarée"
