@@ -351,7 +351,17 @@ def _peel(expr: str) -> str:
     return s.translate(_ACCENTS).lower().strip()
 
 
-_RE_LABEL_I18N = re.compile(r"^\{(.*)\}$")
+# Enrobage i18n complet, **sans accolade interne** : `{DE:Startnr|EN:Bib}`.
+# Le `[^{}]*` (plutôt qu'un `.*` gourmand) est ce qui empêche `"{A:1} et {B:2}"`
+# d'être vu comme un seul enrobage et amputé en `"1} et {B:2"`.
+_RE_LABEL_I18N = re.compile(r"^\{([^{}]*)\}$")
+# Une variante, et le format d'une **clé de langue** : deux ou trois lettres.
+# Cette ancre est la garde utile, car `_label_i18n` sert aussi aux cellules
+# (cf. `_clean_cell`), donc à du texte libre saisi par les organisateurs, où un
+# deux-points est banal. Sans elle, `"{Team: Bleu}"` devenait `" Bleu"` et
+# `"{ATTENTION: dossard 12}"` devenait `" dossard 12"` : la partie gauche,
+# pourtant porteuse de sens, était prise pour un code de langue et jetée.
+_RE_VARIANTE_I18N = re.compile(r"^([A-Za-z]{2,3}):(.*)$", re.DOTALL)
 
 
 def _label_i18n(label: str) -> str:
@@ -360,21 +370,40 @@ def _label_i18n(label: str) -> str:
     Les épreuves internationales encodent leurs libellés dans les trois langues
     (`{DE:Startnr|EN:Bib|FR:Dos.}`) : sans normalisation, ce brut atterrit tel
     quel comme clé JSON de `segments` / `raw_data`. Priorité à `FR:`, repli sur
-    `EN:`, puis sur la première variante présente ; une étiquette sans cet
+    `EN:`, puis sur la première variante non vide ; une étiquette sans cet
     enrobage traverse inchangée.
 
     Sert aussi bien aux **libellés de colonne** qu'aux **cellules** (cf.
-    `_clean_cell`) : RaceResult emploie le même encodage des deux côtés.
+    `_clean_cell`) : RaceResult emploie le même encodage des deux côtés. C'est
+    ce second usage qui impose la sévérité de la reconnaissance — un libellé de
+    colonne est écrit par l'outil, une cellule est saisie par un organisateur.
+    Trois refus explicites, chacun contre une corruption constatée :
+
+    1. **Toutes** les parties doivent être des variantes bien formées. Une seule
+       qui ne l'est pas désarme la reconnaissance et rend la valeur intacte : la
+       forme `{…|…}` où une partie est du texte libre n'est pas un enrobage
+       i18n, et en extraire une variante reviendrait à jeter le reste.
+    2. La clé doit être un code de langue plausible (2-3 lettres), sans quoi
+       `"{Team: Bleu}"` perd son `Team`.
+    3. Si **toutes** les variantes sont vides (`"{FR:}"`), la valeur est rendue
+       intacte plutôt que réduite à `""` : vider une cellule en silence est le
+       plus coûteux des résultats, puisque rien en aval ne peut le rattraper.
     """
     trouve = _RE_LABEL_I18N.match(label)
     if not trouve:
         return label
-    variantes = dict(
-        p.split(":", 1) for p in trouve.group(1).split("|") if ":" in p
-    )
-    if not variantes:
-        return label
-    return variantes.get("FR") or variantes.get("EN") or next(iter(variantes.values()))
+
+    variantes: dict[str, str] = {}
+    for partie in trouve.group(1).split("|"):
+        forme = _RE_VARIANTE_I18N.match(partie)
+        if not forme:
+            return label
+        variantes[forme.group(1).upper()] = forme.group(2)
+
+    for cle in ("FR", "EN"):
+        if variantes.get(cle):
+            return variantes[cle]
+    return next((v for v in variantes.values() if v), label)
 
 
 def _clean_cell(brut) -> str:
@@ -387,13 +416,20 @@ def _clean_cell(brut) -> str:
     `_label_i18n` est donc appliqué ici, sur le chemin de toutes les cellules,
     plutôt que dupliqué rôle par rôle.
 
-    Sa portée reste étroite par construction : `_RE_LABEL_I18N` est ancré
-    `^\\{…\\}$` et exige au moins une variante `LANGUE:valeur`. Une cellule qui
-    contiendrait légitimement une accolade ou un `|` sans être *entièrement*
-    enrobée traverse intacte. Mesuré sur les 176 691 cellules des 17 épreuves
-    capturées : 33 cellules transformées (toutes sur 401699, toutes de la forme
-    i18n attendue), et une seule autre cellule contenant l'un de ces caractères
-    — `'ROBERT Julie}'`, une accolade parasite dans un nom — laissée intacte.
+    C'est un chemin exigeant : une cellule est du **texte libre** saisi par un
+    organisateur, là où un libellé de colonne est écrit par l'outil. La
+    reconnaissance de l'enrobage est donc volontairement sévère — enrobage
+    complet, sans accolade interne, dont *toutes* les parties sont des variantes
+    à clé de langue et dont au moins une est non vide (cf. `_label_i18n`, qui
+    détaille les trois refus et la corruption que chacun évite).
+
+    Mesuré sur les 176 691 cellules des 17 épreuves capturées : 33 cellules
+    transformées (toutes sur 401699, toutes de la forme i18n attendue), et une
+    seule autre cellule contenant `{`, `}` ou `|` — `'ROBERT Julie}'`, une
+    accolade parasite dans un nom — laissée intacte. Le resserrement de la
+    reconnaissance ne déplace aucune de ces 33 cellules ni aucun libellé du
+    panel : il ne protège que des formes non observées, ce qui est précisément
+    son objet.
     """
     if brut is None:
         return ""
@@ -592,7 +628,22 @@ _EXCLUSIONS_PREFIXES = ("icone(", "gaptimetop(")
 
 
 def _colonne_exclue(peeled: str) -> bool:
-    """Vrai si l'expression pelée désigne une colonne d'agrément, jamais un segment."""
+    """Vrai si l'expression pelée désigne une colonne d'agrément, jamais un segment.
+
+    **Portée exacte** : cette garde n'est consultée que sur la branche « segment
+    candidat » de `_map_columns`. Elle n'écarte donc pas une colonne qui
+    obtiendrait d'abord un **rôle** via `_role` — celui-ci est testé avant. La
+    distinction est inerte aujourd'hui (aucune des cinq entrées ne matche
+    `_role`) mais elle n'est pas garantie par construction : ce n'est pas une
+    exclusion générale de la colonne, seulement de sa candidature au rôle de
+    segment.
+
+    Angle mort consigné : la comparaison des enrobages est faite sur la
+    parenthèse **collée** au nom. `Icone ("photos")`, avec une espace, ne serait
+    pas exclu. Variante jamais observée sur le panel (13 listes, toutes en
+    `Icone("photos")`), et `_peel` ne normalise pas les espaces — à traiter si
+    une épreuve la produit un jour, plutôt qu'à deviner ici.
+    """
     return peeled in _EXCLUSIONS_EXACTES or peeled.startswith(_EXCLUSIONS_PREFIXES)
 
 
