@@ -998,6 +998,44 @@ def _richness(r: ScrapedResult) -> int:
     )
 
 
+def _groupes_zero_fiables(labels: set[str], contests: dict) -> bool:
+    """Les libellés de groupe des listes `Contest="0"` recoupent-ils `contests` ?
+
+    `Contest="0"` signifie « toutes catégories » : la liste ne dit pas à quel
+    contest ses lignes appartiennent, et le libellé de groupe de niveau 0 est le
+    seul indice disponible. Mais ce libellé n'est **pas** toujours un contest —
+    mesuré, pas supposé :
+
+    - 380823 (Bike & Run de Pontcharra) : une seule liste, groupes `10 Km` /
+      `20 Km`, tous deux présents dans `contests`, dossards **disjoints**. Le
+      groupement mirroite fidèlement les contests : s'en priver fusionnerait deux
+      courses de distances différentes en une.
+    - 409130 (24H Rollers du Mans) : trois listes, groupes `24h DECOUVERTE`
+      (une **catégorie** — la liste s'appelle « Classement par catégories »),
+      `14H`, et un groupe vide. Les dossards se **recouvrent massivement** : les
+      72 de `24h DECOUVERTE` sont tous dans les 456 de `14H`, et 297 des 370 de
+      la liste Qualifs aussi. Qualifier par ces libellés fabrique 3 `Course` et
+      302 dossards présents dans plusieurs d'entre elles.
+
+    D'où le critère **tout ou rien à l'échelle de l'épreuve** : on ne fait
+    confiance au groupement de niveau 0 que si **chacun** de ses libellés est une
+    valeur de `contests`. Un seul libellé étranger (catégorie, sélecteur de
+    split, statut) suffit à disqualifier le groupement entier, car il révèle un
+    axe d'affichage et non la partition en contests. Les lignes retombent alors
+    sur le nom d'épreuve nu : une seule `Course`, où la fusion par dossard
+    dédoublonne au lieu de dupliquer.
+
+    Noter que sur 409130 `14H` est bien une valeur de `contests` : une
+    corroboration **par libellé** ne suffisait pas, elle laissait les 72 dossards
+    de la catégorie dans une `Course` distincte de `14H` tout en les y laissant
+    aussi. C'est le caractère global du critère qui ferme le défaut.
+    """
+    if not labels:
+        return False
+    connus = {str(v).strip().lower() for v in (contests or {}).values() if str(v).strip()}
+    return bool(connus) and all(lab.strip().lower() in connus for lab in labels)
+
+
 def _prefer(nouveau: ScrapedResult, ancien: ScrapedResult) -> bool:
     """Vrai si `nouveau` doit remplacer `ancien` dans la fusion par clé.
 
@@ -1052,23 +1090,51 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         # par contest règle (issue #21).
         fusion: dict[tuple[str, str], ScrapedResult] = {}
 
+        # Phase 1 : tout récupérer (mêmes requêtes, même ordre qu'avant) avant de
+        # décider des libellés. La fiabilité du groupement `Contest="0"` est une
+        # propriété de l'épreuve entière (cf. `_groupes_zero_fiables`) : elle ne
+        # peut pas être tranchée liste par liste.
+        recuperees: list[tuple[str, dict, list]] = []
+        labels_zero: set[str] = set()
         for listname, contest in specs:
             payload = _fetch_list(event_id, key, listname, contest, client)
             if payload is None:
                 continue
+            groupes = _iter_groups(payload.get("data"))
+            recuperees.append((contest, payload, groupes))
+            if contest == "0":
+                labels_zero.update(cl for cl, _st, _lg in groupes)
+
+        fiable_zero = _groupes_zero_fiables(labels_zero, contests)
+
+        # Phase 2 : qualifier et fusionner.
+        for contest, payload, groupes in recuperees:
             roles, segments, extras = _map_columns(payload)
-            for contest_label, status_label, lignes in _iter_groups(payload.get("data")):
-                # Le libellé de groupe fait autorité : il recoupe `contests` et
-                # reste juste même pour les listes en `Contest="0"`, où la table
-                # `contests` ne sait rien. Repli sur `contests`, puis sur le nom
-                # de liste — qui sépare deux listes non étiquetées du même
-                # contest plutôt que de les faire collisionner.
-                libelle = (
-                    contest_label
-                    or str(contests.get(contest) or "")
-                    or listname
-                    or f"Contest {contest}"
-                )
+            for contest_label, status_label, lignes in groupes:
+                # Le contest est **explicite** dans `TabConfig.Lists` (§3 du
+                # sondage) : quand il est renseigné, il fait autorité et le
+                # libellé de groupe n'est pas consulté. Ce libellé n'est en effet
+                # pas fiable — mesuré sur 406211, où les clés de niveau 0 sont
+                # `Finish` et `Run - Start`, des **sélecteurs de point de chrono**
+                # qui écrasaient les 13 contests publiés en 2 `Course`.
+                #
+                # `Contest="0"` (« toutes catégories ») est le seul cas où le
+                # contest n'est pas donné ; le groupement n'y est consulté que
+                # s'il recoupe entièrement `contests`.
+                #
+                # On ne retombe **jamais** sur `listname` : c'est un nom interne
+                # à pipe (`"03-Qualifs|Classement Qualifs"`), un séparateur
+                # d'affichage et non une hiérarchie. Servant à la fois de
+                # qualifiant de `Course` et de clé de fusion, il fabriquait une
+                # `Course` fantôme *et* y dupliquait des participants déjà
+                # importés sous leur vrai contest (issue #21 par la porte du
+                # repli).
+                if contest != "0":
+                    libelle = str(contests.get(contest) or "") or f"Contest {contest}"
+                elif fiable_zero:
+                    libelle = contest_label
+                else:
+                    libelle = ""
                 for ligne in lignes:
                     r = _build_result(
                         ligne, roles, segments, extras,
