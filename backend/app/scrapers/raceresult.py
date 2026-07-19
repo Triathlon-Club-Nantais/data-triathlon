@@ -355,13 +355,35 @@ def _peel(expr: str) -> str:
 # Le `[^{}]*` (plutôt qu'un `.*` gourmand) est ce qui empêche `"{A:1} et {B:2}"`
 # d'être vu comme un seul enrobage et amputé en `"1} et {B:2"`.
 _RE_LABEL_I18N = re.compile(r"^\{([^{}]*)\}$")
-# Une variante, et le format d'une **clé de langue** : deux ou trois lettres.
+# Une variante, et le format d'une **clé de langue** : exactement deux lettres.
 # Cette ancre est la garde utile, car `_label_i18n` sert aussi aux cellules
 # (cf. `_clean_cell`), donc à du texte libre saisi par les organisateurs, où un
 # deux-points est banal. Sans elle, `"{Team: Bleu}"` devenait `" Bleu"` et
 # `"{ATTENTION: dossard 12}"` devenait `" dossard 12"` : la partie gauche,
 # pourtant porteuse de sens, était prise pour un code de langue et jetée.
-_RE_VARIANTE_I18N = re.compile(r"^([A-Za-z]{2,3}):(.*)$", re.DOTALL)
+#
+# **Deux lettres, ni plus ni moins** — et non « 2 à 3 », ni une énumération
+# fermée `FR|EN|DE|…`. Les trois options ont été pesées sur la mesure : les 266
+# clés relevées sur le panel sont toutes de longueur 2 (`EN` 103, `FR` 103,
+# `DE` 60), ce qui est aussi la forme d'ISO 639-1.
+#
+#   - « 2 à 3 » laissait passer `"{Nom:Dupont}"` → `"Dupont"` et
+#     `"{Cat:S4M}"` → `"S4M"` : des cellules légitimes amputées en silence.
+#     Les deux contre-exemples sont de longueur 3, donc fermés ici.
+#   - Une énumération fermée fermerait le même axe, mais coûterait cher en
+#     portée **à cause de la règle « toutes les parties bien formées »** : une
+#     seule langue non listée (`{DE:…|EN:…|CS:…}`) désarmerait l'enrobage
+#     entier et rendrait la valeur brute. Or RaceResult est un produit allemand
+#     à diffusion européenne, et le panel contient déjà des épreuves
+#     internationales (Tour of Hellas, World Triathlon Para Cup) où une langue
+#     hors liste est plausible.
+#
+# La longueur fixe ferme les deux contre-exemples connus sans fermer aucune
+# langue : elle domine les deux autres options sur les faits relevés. Le risque
+# résiduel — une clé de langue à 3 lettres (ISO 639-2, `"{GER:…}"`) qui ne
+# serait pas dépelée — est une erreur **bruyante et réversible** (valeur brute
+# visible en UI), pas une amputation muette.
+_RE_VARIANTE_I18N = re.compile(r"^([A-Za-z]{2}):(.*)$", re.DOTALL)
 
 
 def _label_i18n(label: str) -> str:
@@ -383,8 +405,9 @@ def _label_i18n(label: str) -> str:
        qui ne l'est pas désarme la reconnaissance et rend la valeur intacte : la
        forme `{…|…}` où une partie est du texte libre n'est pas un enrobage
        i18n, et en extraire une variante reviendrait à jeter le reste.
-    2. La clé doit être un code de langue plausible (2-3 lettres), sans quoi
-       `"{Team: Bleu}"` perd son `Team`.
+    2. La clé doit avoir la forme d'un code de langue — **exactement deux
+       lettres**, comme les 266 clés relevées sur le panel et comme ISO 639-1 —
+       sans quoi `"{Team: Bleu}"` perd son `Team` et `"{Cat:S4M}"` son `Cat`.
     3. Si **toutes** les variantes sont vides (`"{FR:}"`), la valeur est rendue
        intacte plutôt que réduite à `""` : vider une cellule en silence est le
        plus coûteux des résultats, puisque rien en aval ne peut le rattraper.

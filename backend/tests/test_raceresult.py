@@ -446,6 +446,10 @@ def test_clean_cell_retire_l_enrobage_i18n_des_valeurs(brut, attendu):
     "{Team: Bleu}",
     "{ATTENTION: dossard 12}",
     "{Equipe:Les Bleus}",
+    # Clés de 3 lettres : la longueur est fixée à 2 (ISO 639-1, et les 266 clés
+    # du panel), sans quoi ces deux cellules seraient amputées en silence.
+    "{Nom:Dupont}",
+    "{Cat:S4M}",
     # --- Axe « accolade interne » : deux enrobages accolés ne forment pas un
     # enrobage unique. Un `.*` gourmand rendait ici `"1} et {B:2"`.
     "{A:1} et {B:2}",
