@@ -514,15 +514,24 @@ def test_role_du_vocabulaire_reel(expr, role):
 @pytest.mark.parametrize("expr,role", [
     # Positif : les trois préfixes, les trois suffixes — dont les variantes qui
     # ne sont apparues sur aucune épreuve du panel mais que la forme couvre.
+    # `.text` reçoit un rôle distinct (`temps_texte`, pas `temps`) : cf.
+    # `test_map_columns_le_texte_ne_declasse_pas_un_chip_qui_le_precede`
+    # (Mineur 2 de la revue C4) pour la raison.
     ("Finish.GUN", "temps_pistolet"),
     ("Finish.CHIP", "temps"),
-    ("Finish.TEXT", "temps"),
+    ("Finish.TEXT", "temps_texte"),
     ("Temps.GUN", "temps_pistolet"),
     ("Temps.CHIP", "temps"),
-    ("Temps.TEXT", "temps"),
+    ("Temps.TEXT", "temps_texte"),
     ("Arrivée.GUN", "temps_pistolet"),
     ("Arrivée.CHIP", "temps"),
-    ("Arrivée.TEXT", "temps"),
+    ("Arrivée.TEXT", "temps_texte"),
+    # `Temps` nu (Important 1 de la revue C4) : la table d'égalités exactes
+    # contenait `finish`/`arrivee` nus et l'anglais `time`, mais pas le
+    # français `temps` — trou du même vocabulaire que celui que C4 ferme,
+    # révélé par la revue.
+    ("Temps", "temps"),
+    ("TEMPS", "temps"),
 ])
 def test_role_regle_de_forme_temps_gun_chip_text(expr, role):
     assert raceresult._role(raceresult._peel(expr)) == role
@@ -539,6 +548,11 @@ def test_role_regle_de_forme_temps_gun_chip_text(expr, role):
     "Finisher.CHIP",
     "TempsIntermediaire.CHIP",
     "TempsIntermediaire.GUN",
+    # Idem pour `temps` nu (Important 1) : l'ajout à la table d'égalités
+    # exactes est une comparaison stricte (`peeled in (...)`), pas un test de
+    # sous-chaîne — `TempsIntermediaire` seul (sans suffixe gun/chip/text) ne
+    # doit matcher ni la table ni la règle de forme.
+    "TempsIntermediaire",
     # Suffixe hors du vocabulaire fermé : une colonne d'écart n'est pas un
     # temps d'arrivée.
     "Finish.GAP",
@@ -598,6 +612,46 @@ def test_map_columns_prefere_le_chip_au_gun_sous_la_regle_de_forme():
 
     assert roles["temps"] == 3, "le chip doit primer sur le gun"
     assert "temps_pistolet" not in roles
+
+
+def test_map_columns_le_texte_ne_declasse_pas_un_chip_qui_le_precede():
+    """Mineur 2 (revue C4) : `.text` reçoit le rôle distinct `temps_texte`,
+    résolu en `temps` seulement en tout dernier repli (après le repli gun).
+
+    Sans ce rôle distinct, `_map_columns` retient le PREMIER champ qui
+    revendique `temps` (`role and role not in roles`) : une liste publiant
+    `Finish.TEXT` avant `Finish.CHIP` dans `Fields` verrait le texte
+    squatter `temps` et le chip, pourtant publié et mesuré, partir en extras.
+    Branche spéculative — aucune épreuve sondée ne publie `.TEXT` sur
+    `temps`/`arrivee`/`finish` — mais l'ordre de priorité doit rester sûr si
+    elle s'active un jour."""
+    payload = {
+        "DataFields": ["BIB", "ID", "Finish.TEXT", "Finish.CHIP"],
+        "list": {"Fields": [
+            {"Expression": "Finish.TEXT", "Label": "Tps (texte)"},
+            {"Expression": "Finish.CHIP", "Label": "Tps Réél"},
+        ]},
+    }
+
+    roles, _segments, extras = raceresult._map_columns(payload)
+
+    assert roles["temps"] == 3, "le chip doit primer sur le texte, même publié avant"
+    assert "temps_texte" not in roles
+    # Colonne texte évincée : ni promue, ni renvoyée en extras — même sort
+    # que la colonne gun évincée par un chip (précédent déjà en place).
+    assert "Finish.TEXT" not in extras
+
+
+def test_map_columns_retient_le_texte_faute_de_chip_et_de_gun():
+    """Repli de dernier recours : aucun temps mesuré publié, seul `.text`."""
+    payload = {
+        "DataFields": ["BIB", "ID", "Finish.TEXT"],
+        "list": {"Fields": [{"Expression": "Finish.TEXT", "Label": "Tps"}]},
+    }
+
+    roles, _segments, _extras = raceresult._map_columns(payload)
+
+    assert roles["temps"] == 2
 
 
 def test_split_profondeur_ignore_les_separateurs_imbriques():
