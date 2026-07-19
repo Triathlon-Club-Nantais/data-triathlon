@@ -137,6 +137,8 @@ _STATUS_TOKENS: dict[str, str] = {
     "dsq": STATUS_DSQ,
     "disq": STATUS_DSQ,
     "disqualifie": STATUS_DSQ,
+    # Pluriel : groupe RaceResult « Disqualifiés ».
+    "disqualifies": STATUS_DSQ,
     "disqualified": STATUS_DSQ,
     # Abandon (Did Not Finish)
     "dnf": STATUS_DNF,

@@ -1,63 +1,63 @@
 {
-  "_provenance": "GET https://my3.raceresult.com/393893/RRPublish/data/config?page=results — sondée réellement le 2026-07-19 (fix des défauts C1/I1/I2/I3 relevés en revue). `key`, `contests`, `eventname`, `server` et `lists` sont la copie exacte de la réponse réelle (4 contests, 4 listes avec leurs clés `Mode`/`ShowAs`/`Format`/`Live`/`Sortable`/`Leader`/`ID` complètes). `splits` est en revanche tronqué à 3 des ~40 entrées réelles (champ non consommé par le code de production, cf. grep `config.get(` dans raceresult.py) ; les champs de config sans usage dans le code (`infotext`, `LinkCertificates`, `showResults`…) sont omis pour la lisibilité. Les deux précédentes versions de cette fixture (2026-07-18 et 2026-07-19/Task 7) inventaient `lists` (`En ligne|Final` / `En ligne|Relais`, deux noms qui n'existent pas côté API) tout en prétendant à une capture réelle — c'est précisément cette hétérogénéité de noms fictive qui masquait C1 (la vraie liste d'affichage `03 - Affichages|LIVE EXTRA sans predictif`, `Live: 1`, écrasant le classement réel `04 - Classements|Classement général Jeunes`, `Contest: 2`, 49/874 participants vidés).",
-  "key": "0149954ef060e08fce32a6ea646cf880",
   "eventname": "Triathlon de Rumilly",
-  "server": "my1.raceresult.com",
+  "key": "0149954ef060e08fce32a6ea646cf880",
   "contests": {
     "1": "Distance XS",
     "2": "Distance Jeunes - Poussin, Pupille",
     "3": "Half Iron du Semnoz",
     "4": "Distance M"
   },
-  "splits": [
-    {"ID": 68, "Name": "EntréeTransition1", "Label": "Sortie Natation", "SplitType": 0, "Contest": 1, "TypeOfSport": 4},
-    {"ID": 73, "Name": "Natation", "Label": "Natation", "SplitType": 9, "Contest": 1, "TypeOfSport": 0},
-    {"ID": 82, "Name": "Arrivée", "Label": "Arrivée", "SplitType": 0, "Contest": 2, "TypeOfSport": 100}
-  ],
-  "lists": [
-    {
-      "Name": "01 - Concurrents|Liste des concurrents 123",
-      "Mode": "",
-      "Contest": "0",
-      "ShowAs": "Liste des inscrits",
-      "Format": "VP",
-      "Live": 0,
-      "Sortable": 1,
-      "Leader": 10,
-      "ID": "65AB43"
-    },
-    {
-      "Name": "03 - Affichages|LIVE EXTRA sans predictif",
-      "Mode": "",
-      "Contest": "0",
-      "ShowAs": "LIVE Internet",
-      "Format": "V",
-      "Live": 1,
-      "Sortable": 0,
-      "Leader": 10,
-      "ID": "0A0396"
-    },
-    {
-      "Name": "04 - Classements|Classement général",
-      "Mode": "hidden",
-      "Contest": "0",
-      "ShowAs": "",
-      "Format": "P",
-      "Live": 0,
-      "Sortable": 0,
-      "Leader": 0,
-      "ID": "AC6809"
-    },
-    {
-      "Name": "04 - Classements|Classement général Jeunes",
-      "Mode": "hidden",
-      "Contest": "2",
-      "ShowAs": "",
-      "Format": "V",
-      "Live": 0,
-      "Sortable": 1,
-      "Leader": 10,
-      "ID": "5EF834"
-    }
-  ]
+  "lists": null,
+  "TabConfig": {
+    "Lists": [
+      {
+        "Name": "04 - Classements|Classement général",
+        "Mode": "",
+        "Contest": "3",
+        "ShowAs": "Classement général",
+        "Format": "VP",
+        "Live": 0,
+        "Sortable": 0,
+        "Leader": 0,
+        "Details": "details0",
+        "ID": "1FECBC"
+      },
+      {
+        "Name": "04 - Classements|Classement général",
+        "Mode": "",
+        "Contest": "4",
+        "ShowAs": "Classement général",
+        "Format": "P",
+        "Live": 0,
+        "Sortable": 0,
+        "Leader": 0,
+        "Details": "details0",
+        "ID": "E83AED"
+      },
+      {
+        "Name": "04 - Classements|Classement général",
+        "Mode": "",
+        "Contest": "1",
+        "ShowAs": "Classement général",
+        "Format": "VP",
+        "Live": 0,
+        "Sortable": 1,
+        "Leader": 0,
+        "Details": "details0",
+        "ID": "0E2DB3"
+      },
+      {
+        "Name": "04 - Classements|Classement général Jeunes",
+        "Mode": "",
+        "Contest": "2",
+        "ShowAs": "Classement général",
+        "Format": "VP",
+        "Live": 0,
+        "Sortable": 1,
+        "Leader": 0,
+        "Details": "details0",
+        "ID": "5EF834"
+      }
+    ]
+  }
 }

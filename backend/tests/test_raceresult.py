@@ -90,6 +90,19 @@ def test_event_id_depuis_la_facade_chronoconsult():
     assert raceresult._resolve_event_id(url, client) == "399938"
 
 
+def test_event_id_depuis_la_facade_espace_competition():
+    """C-D, second volet : espace-competition.com sert l'identifiant NU, quand
+    chronoconsult.fr le sert entre guillemets. Les deux fixtures sont des
+    captures réelles du 2026-07-19 ; l'expression rationnelle doit accepter les
+    deux formes, faute de quoi une façade entière devient inexploitable."""
+    client = _FauxClient({
+        "espace-competition.com": (200, _fixture("espace_competition_result_page.html")),
+    })
+    url = "https://www.espace-competition.com/index.php?module=sportif&action=resultat&comp_uid=3205"
+
+    assert raceresult._resolve_event_id(url, client) == "411749"
+
+
 def test_event_id_repli_sur_le_logo():
     """Sans appel RRPublish lisible, le lien `/api/logo` porte le même id."""
     html = '<html><body><img src="https://my.raceresult.com/406844/api/logo"></body></html>'
@@ -107,9 +120,11 @@ def test_event_id_introuvable_leve_value_error():
         raceresult._resolve_event_id(url, client)
 
 
-def test_api_base_suit_le_host_raceresult():
-    assert raceresult._api_base("https://my3.raceresult.com/393893/") == "https://my3.raceresult.com"
-    assert raceresult._api_base("https://www.chronoconsult.fr/result/x/") == "https://my.raceresult.com"
+def test_base_api_unique_quel_que_soit_le_host():
+    """C-A/§2 du sondage : l'apex `my.raceresult.com` sert les 9 épreuves du
+    panel, y compris celles que l'interface héberge sur my2/my3/my4. Il n'y a
+    donc plus de résolution de serveur — une seule constante."""
+    assert raceresult._API_BASE == "https://my.raceresult.com"
 
 
 # ── Métadonnées (JSON-LD) et configuration ──────────────────────────────────
@@ -117,7 +132,7 @@ def test_api_base_suit_le_host_raceresult():
 def test_fetch_meta_lit_le_json_ld():
     client = _FauxClient({"/results": (200, _fixture("raceresult_page_meta.html"))})
 
-    nom, jour, ville = raceresult._fetch_meta("399938", "https://my.raceresult.com", client)
+    nom, jour, ville = raceresult._fetch_meta("399938", client)
 
     assert nom == "Triathlon de Roanne Villerest"
     assert jour == date(2026, 6, 18)
@@ -128,15 +143,19 @@ def test_fetch_meta_sans_json_ld_ne_leve_pas():
     """Une page sans JSON-LD dégrade proprement : l'épreuve reste importable."""
     client = _FauxClient({"/results": (200, "<html><body>vide</body></html>")})
 
-    assert raceresult._fetch_meta("1", "https://my.raceresult.com", client) == ("", None, "")
+    assert raceresult._fetch_meta("1", client) == ("", None, "")
 
 
-def test_fetch_config_interroge_la_bonne_route():
+def test_fetch_config_interroge_la_route_canonique():
+    """C-A : `/{id}/RRPublish/data/config` est un alias hérité qui répond 404 sur
+    toute épreuve de la saison en cours. Seule `/{id}/results/config` est
+    générale — le faux client ne route QUE celle-ci, donc un retour à l'alias
+    fait échouer ce test au lieu de passer inaperçu."""
     client = _FauxClient({
-        "/RRPublish/data/config": (200, _fixture("raceresult_config_rumilly.json")),
+        "/results/config": (200, _fixture("raceresult_config_rumilly.json")),
     })
 
-    config = raceresult._fetch_config("393893", "https://my3.raceresult.com", client)
+    config = raceresult._fetch_config("393893", client)
 
     assert config["key"] == "0149954ef060e08fce32a6ea646cf880"
     assert config["contests"] == {
@@ -146,51 +165,70 @@ def test_fetch_config_interroge_la_bonne_route():
         "4": "Distance M",
     }
     assert "page=results" in client.appels[0]
+    assert "/393893/results/config" in client.appels[0]
+    assert "RRPublish/data" not in client.appels[0]
 
 
-def test_iter_list_specs_lit_le_tableau_plat_observe_en_production():
-    """`config["lists"]` est un tableau plat (event 393893, sondage 2026-07-19) :
-    chaque élément porte déjà le `listname` complet dans `Name`, le `|` n'étant
-    qu'un séparateur d'affichage, pas une hiérarchie à reconstruire. La liste
-    d'affichage LIVE (`Live: 1`) est écartée (C1) ; les 3 autres (Concurrents,
-    Classement général, Classement général Jeunes) sont conservées."""
+def test_iter_list_specs_lit_tabconfig_lists():
+    """C-B : sur la route canonique `config["lists"]` vaut `null` — les listes
+    vivent sous `TabConfig.Lists`, un tableau plat d'une entrée par couple
+    (liste, contest), le contest étant **explicite**. Fixture : capture réelle de
+    l'event 393893 le 2026-07-19."""
     config = json.loads(_fixture("raceresult_config_rumilly.json"))
 
+    assert config["lists"] is None, "la route canonique ne sert rien sous `lists`"
     assert raceresult._iter_list_specs(config) == [
-        ("01 - Concurrents|Liste des concurrents 123", "0"),
-        ("04 - Classements|Classement général", "0"),
+        ("04 - Classements|Classement général", "3"),
+        ("04 - Classements|Classement général", "4"),
+        ("04 - Classements|Classement général", "1"),
         ("04 - Classements|Classement général Jeunes", "2"),
     ]
 
 
-def test_iter_list_specs_ecarte_les_listes_live():
-    """C1 : une liste marquée `Live` est une liste d'**affichage** temps réel —
-    ses `Expression` sont des formules `switch(...)/if(...)` évaluées selon le
-    curseur d'affichage, qu'aucun rôle de `_role` ne reconnaît. Repérée sur
-    l'event 393893 (`03 - Affichages|LIVE EXTRA sans predictif`, `Live: 1`)
-    en train d'écraser le vrai classement `04 - Classements|Classement
-    général Jeunes` (`Live: 0`) — 49 participants sur 874 vidés."""
-    config = {"lists": [
-        {"Name": "Affichage live", "Contest": "0", "Live": 1},
-        {"Name": "Classement", "Contest": "0", "Live": 0},
-        {"Name": "Classement sans champ Live", "Contest": "0"},
-    ]}
+def test_iter_list_specs_ecarte_les_listes_hidden():
+    """Le discriminant est `Mode == "hidden"` : les listes d'affichage et les
+    listes d'inscrits y sont marquées, les classements publiés non."""
+    config = {"TabConfig": {"Lists": [
+        {"Name": "Affichage live", "Contest": "1", "Mode": "hidden"},
+        {"Name": "Classement", "Contest": "1", "Mode": ""},
+        {"Name": "Classement sans champ Mode", "Contest": "2"},
+    ]}}
 
     assert raceresult._iter_list_specs(config) == [
-        ("Classement", "0"),
-        ("Classement sans champ Live", "0"),
+        ("Classement", "1"),
+        ("Classement sans champ Mode", "2"),
     ]
 
 
-def test_iter_list_specs_leve_sur_une_forme_de_lists_inattendue():
-    """I1 : le repli dict-arbre a été supprimé — rien n'indiquait qu'il
-    corresponde à une forme réellement servie par l'API (7 tests sur 71 le
-    traversaient sans jamais exercer le chemin réel). Une forme inconnue lève
-    bruyamment plutôt que de traverser un algorithme jamais validé."""
-    config = {"lists": {"Résultats": {"Contest": 2}}}
+def test_iter_list_specs_ne_filtre_pas_sur_live():
+    """C-C, non-régression. Le critère `Live` avait été calibré sur une seule
+    épreuve, où il coïncidait avec `Mode`. Sur l'event 405100, les 10 listes
+    portent `Live: 1` — y compris les 3 vrais classements : filtrer sur `Live`
+    y vide l'épreuve entière. Fixture : capture réelle du 2026-07-19."""
+    config = json.loads(_fixture("raceresult_config_foulee.json"))
+    toutes = config["TabConfig"]["Lists"]
 
-    with pytest.raises(ValueError, match="lists de forme inattendue"):
-        raceresult._iter_list_specs(config)
+    assert len(toutes) == 10
+    assert all(e["Live"] == 1 for e in toutes), "prémisse de la fixture"
+
+    specs = raceresult._iter_list_specs(config)
+
+    assert specs == [
+        ("1-CHRONO|Class génél", "1"),
+        ("1-CHRONO|Class génél", "2"),
+        ("1-CHRONO|Class génél", "3"),
+    ]
+    assert {c for _n, c in specs} == set(config["contests"]), (
+        "les listes publiées doivent couvrir tous les contests annoncés"
+    )
+
+
+def test_iter_list_specs_leve_sur_une_forme_inattendue():
+    """Une config sans `TabConfig.Lists` exploitable lève bruyamment : c'est le
+    symptôme exact d'une interrogation de la route héritée, qui doit se voir
+    plutôt que de produire une épreuve silencieusement vide."""
+    with pytest.raises(ValueError, match="TabConfig.Lists de forme inattendue"):
+        raceresult._iter_list_specs({"lists": [{"Name": "X", "Contest": "0"}]})
 
 
 # ── Mapping des colonnes ─────────────────────────────────────────────────────
@@ -285,7 +323,9 @@ def test_map_columns_range_les_champs_non_reconnus_en_extras():
     _roles, _segments, extras = raceresult._map_columns(_payload_rumilly())
 
     assert extras["Arrivée.OVERALL.GapTop"] == 19
-    assert extras["DossardBis"] == 3
+    # `DossardBis` n'y est pas : c'est une colonne d'affichage du dossard, que
+    # `_role` écarte — le dossard vient de `DataFields.index("BIB")`.
+    assert "DossardBis" not in extras
 
 
 def test_map_columns_gere_un_fields_vide_ou_absent():
@@ -299,6 +339,137 @@ def test_map_columns_gere_un_fields_vide_ou_absent():
     assert raceresult._map_columns({"DataFields": ["BIB"], "list": {}}) == (
         {"bib": 0}, [], {},
     )
+
+
+# ── Vocabulaire réel des expressions (§6 du sondage) ────────────────────────
+
+@pytest.mark.parametrize("expr,role", [
+    # Enveloppe `if([STATUS]<>2;[X])`, omniprésente sur les épreuves récentes.
+    # Retenir le terme le plus long tout court sélectionnait `[STATUS]<>2` et
+    # faisait perdre TOUS les segments de Genève et Besançon.
+    ("if([STATUS]<>2;[TIME])", "temps"),
+    ("if([SEX]=\"f\";[SexeMF])", "sexe"),
+    ("if([Relais]=1;ucase([NomRelais]);[AfficherNom])", "nom"),
+    # Rangs nommés : doivent passer AVANT la règle du suffixe `.p`, sinon
+    # `AUTORANK.p` est pris pour un rang de split et l'épreuve perd son
+    # classement général.
+    ("OuStatut([AUTORANK.p])", "rang"),
+    ("OuStatut([ClassementGénéral.P])", "rang"),
+    ("ClassementGeneralp", "rang"),
+    # Vocabulaire relevé hors de l'épreuve d'origine.
+    ("LFNAME", "nom"),
+    ("DisplayNameAsterisk", "nom"),
+    ("TempsOuStatut", "temps"),
+    ("Format([TempsFinal.DECIMAL];\"hh:mm:ss\")", "temps"),
+    ("Arrivée.CHIP", "temps"),
+    ("CLUB", "club"),
+    # Concaténation `X & iif(…)` : la valeur est portée par le premier terme.
+    ("ucase([SEX]) & iif([SexeMF]>0;\" (\" & [RANK2p] & \")\";\"\")", "sexe"),
+    ("[AGEGROUP1.NAMESHORT] & iif([AGEGROUP1.NAMESHORT]>0;\"x\";\"\")", "rang_categorie"),
+    # `#[ClassementMF.p][SexeMF]` colle le rang de sexe au sexe.
+    ("#[ClassementMF.p][SexeMF]", "sexe"),
+    # Colonnes d'affichage du dossard : écartées, le dossard vient de `BIB`.
+    ("\"#\"&[BIB]", "dossard_affiche"),
+    ("DossardBis", "dossard_affiche"),
+    ("DisplayBib", "dossard_affiche"),
+    # Rangs de split : « 2. » n'est pas le temps de natation.
+    ("[Natation.OVERALL.P]", "rang_de_split"),
+    # Bruit d'affichage : aucun rôle, part en extras.
+    ("Icone(\"photos\")", ""),
+    ("GapTimeTop(1;2;\"-\";\"+HH:MM:ss\")", ""),
+])
+def test_role_du_vocabulaire_reel(expr, role):
+    assert raceresult._role(raceresult._peel(expr)) == role
+
+
+def test_split_profondeur_ignore_les_separateurs_imbriques():
+    """Une découpe naïve sur `;` coupe à l'intérieur du `switch(...)` interne et
+    fait perdre la colonne : `if(a;switch(b;c);d)` a TROIS termes, pas quatre."""
+    assert raceresult._split_profondeur(
+        "[Relais]=1;switch([X]=1;[A];[B]);[AfficherNom]", ";"
+    ) == ["[Relais]=1", "switch([X]=1;[A];[B])", "[AfficherNom]"]
+
+    # Et sur l'expression complète, le rôle retenu reste le bon.
+    expr = "if([Relais]=1;switch([X]=1;[A];[B]);[AfficherNom])"
+    assert raceresult._role(raceresult._peel(expr)) == "nom"
+
+
+def test_map_columns_prefere_le_temps_reel_au_temps_pistolet():
+    """`Arrivée.GUN` (coup de pistolet) et `Arrivée.CHIP` (temps réel)
+    coexistent sur les épreuves de trail — le temps officiel de l'athlète est
+    le chip, alors que le gun apparaît en premier dans `Fields`."""
+    payload = {
+        "DataFields": ["BIB", "ID", "Arrivée.GUN", "Arrivée.CHIP"],
+        "list": {"Fields": [
+            {"Expression": "Arrivée.GUN", "Label": "Tps"},
+            {"Expression": "Arrivée.CHIP", "Label": "Tps Réél"},
+        ]},
+    }
+
+    roles, _segments, _extras = raceresult._map_columns(payload)
+
+    assert roles["temps"] == 3, "le chip doit primer sur le gun"
+    assert "temps_pistolet" not in roles
+
+
+def test_map_columns_retient_le_pistolet_faute_de_chip():
+    payload = {
+        "DataFields": ["BIB", "ID", "Arrivée.GUN"],
+        "list": {"Fields": [{"Expression": "Arrivée.GUN", "Label": "Tps"}]},
+    }
+
+    roles, _segments, _extras = raceresult._map_columns(payload)
+
+    assert roles["temps"] == 2
+
+
+def test_map_columns_detecte_un_segment_sans_crochets():
+    """Certaines épreuves écrivent `Natation` là où d'autres écrivent
+    `[Natation]` : exiger les crochets privait Roanne de tous ses splits."""
+    payload = {
+        "DataFields": ["BIB", "ID", "Natation", "Course"],
+        "list": {"Fields": [
+            {"Expression": "Natation", "Label": "Natation"},
+            {"Expression": "Course", "Label": "Course"},
+        ]},
+    }
+
+    _roles, segments, _extras = raceresult._map_columns(payload)
+
+    assert segments == [("Natation", 2), ("Course", 3)]
+
+
+def test_build_result_ecarte_les_colonnes_qui_ne_sont_pas_des_durees():
+    """Une colonne candidate au rôle de segment (`TIME19` étiquetée « Tours »,
+    `DistanceTotale` étiquetée « Distance ») a la même forme d'expression qu'un
+    split. Seule la valeur les sépare : `normalize_time` est permissif et
+    laisse passer `107` ou `447.795`."""
+    payload = {
+        "DataFields": ["BIB", "ID", "Natation", "TIME19", "DistanceTotale"],
+        "list": {"Fields": [
+            {"Expression": "Natation", "Label": "Natation"},
+            {"Expression": "TIME19", "Label": "Tours"},
+            {"Expression": "DistanceTotale", "Label": "Distance"},
+        ]},
+    }
+    roles, segments, extras = raceresult._map_columns(payload)
+
+    r = raceresult._build_result(
+        ["9046", "1", "13:16", "107", "447.795"], roles, segments, extras,
+        source_url="u", event_name="E", event_date=None,
+        contest_label="C", status_label="",
+    )
+
+    assert r.segments == [("Natation", "00:13:16")]
+
+
+def test_resolve_event_id_exige_bien_les_deux_syntaxes():
+    """Garde directe sur l'expression rationnelle : les deux façades réelles."""
+    quote = 'new RRPublish(document.getElementById("d"), "392745", "results");'
+    nu = 'new RRPublish(document.getElementById("d"), 411749, "results");'
+
+    assert raceresult._RE_RRPUBLISH.search(quote).group(1) == "392745"
+    assert raceresult._RE_RRPUBLISH.search(nu).group(1) == "411749"
 
 
 # ── Groupes (contest / statut) ──────────────────────────────────────────────
@@ -318,8 +489,8 @@ def test_iter_groups_expose_contest_et_statut():
 
     assert [(c, s, len(lignes)) for c, s, lignes in groupes] == [
         ("Distance M", "", 2),
-        ("Distance M", "Abandons", 1),
-        ("Distance M", "Non Partants", 1),
+        ("Distance M", "Abandons", 2),
+        ("Distance M", "Non Partants", 2),
     ]
 
 
@@ -346,7 +517,7 @@ def _construire(ligne, contest="Distance M", statut=""):
 
 
 def test_build_result_finisher():
-    ligne = _payload_rumilly()["data"]["#1_Distance M"]["#1_"][0]
+    ligne = _payload_rumilly()["data"]["#1_Distance M"]["#1_"][1]
 
     r = _construire(ligne)
 
@@ -367,8 +538,14 @@ def test_build_result_finisher():
 
 
 def test_build_result_nom_compose_en_prenom_nom():
-    """`Jean DE LA TOUR` — le nom est le bloc majuscule entier (cf. Task 1)."""
-    ligne = _payload_rumilly()["data"]["#1_Distance M"]["#1_"][1]
+    """`Jean DE LA TOUR` — le nom est le bloc majuscule entier (cf. Task 1).
+
+    Ligne construite ici plutôt que lue dans la fixture : celle-ci est une
+    capture réelle et ne contient aucun nom à particule. Fabriquer un tel
+    athlète *dans* la fixture ferait mentir une capture — c'est précisément ce
+    qui a laissé passer cinq défauts sur cette branche."""
+    ligne = list(_payload_rumilly()["data"]["#1_Distance M"]["#1_"][1])
+    ligne[4] = "Jean DE LA TOUR"
 
     r = _construire(ligne)
 
@@ -377,7 +554,7 @@ def test_build_result_nom_compose_en_prenom_nom():
 
 def test_build_result_segments_ordonnes_et_etiquetes():
     """Liste ordonnée, pas les 5 slots positionnels : le plafond de 5 est levé."""
-    ligne = _payload_rumilly()["data"]["#1_Distance M"]["#1_"][0]
+    ligne = _payload_rumilly()["data"]["#1_Distance M"]["#1_"][1]
 
     r = _construire(ligne)
 
@@ -391,7 +568,7 @@ def test_build_result_segments_ordonnes_et_etiquetes():
 
 
 def test_build_result_extras_dans_raw_data():
-    ligne = _payload_rumilly()["data"]["#1_Distance M"]["#1_"][0]
+    ligne = _payload_rumilly()["data"]["#1_Distance M"]["#1_"][1]
 
     r = _construire(ligne)
 
@@ -489,663 +666,239 @@ def test_prefer_un_temps_reel_prime_sur_la_seule_richesse():
     assert raceresult._prefer(pauvre_avec_temps, riche_sans_temps) is True
 
 
-# ── Pipeline complet : contests empiriques, fusion, erreurs ────────────────
-
-def test_contest_candidates_essaie_l_indice_puis_zero_puis_chaque_contest():
-    assert raceresult._contest_candidates("4", {"1": "XS", "4": "M"}) == ["4", "0", "1"]
-    # Indice nul ou absent : `0` en tête, puis chaque contest déclaré.
-    assert raceresult._contest_candidates("0", {"1": "XS", "4": "M"}) == ["0", "1", "4"]
-    assert raceresult._contest_candidates("", {"1": "XS"}) == ["0", "1"]
-
+# ── Pipeline complet : listes explicites, fusion, erreurs ───────────────────
 
 def test_fetch_list_renvoie_none_sur_404():
-    client = _FauxClient({"/data/list": (404, "")})
+    """Une liste annoncée mais non servie n'interrompt pas le balayage."""
+    client = _FauxClient({"/results/list": (404, "")})
 
-    assert raceresult._fetch_list(
-        "393893", "https://my3.raceresult.com", "k", "En ligne|Final", "0", client
-    ) is None
+    assert raceresult._fetch_list("393893", "k", "L", "1", client) is None
 
 
 def test_fetch_list_renvoie_none_sur_payload_sans_data():
-    client = _FauxClient({"/data/list": (200, '{"DataFields": [], "data": {}}')})
+    client = _FauxClient({"/results/list": (200, '{"DataFields": [], "data": {}}')})
 
-    assert raceresult._fetch_list(
-        "393893", "https://my3.raceresult.com", "k", "L", "0", client
-    ) is None
+    assert raceresult._fetch_list("393893", "k", "L", "1", client) is None
 
 
-def _brancher(monkeypatch, payloads_par_contest: dict[str, dict | None]):
-    """Monkeypatche les helpers réseau ; `_fetch_list` répond selon le contest."""
-    monkeypatch.setattr(raceresult, "_resolve_event_id", lambda url, client: "393893")
-    monkeypatch.setattr(
-        raceresult, "_fetch_meta",
-        lambda eid, base, client: ("Triathlon de Rumilly", date(2026, 6, 18), "RUMILLY"),
-    )
-    monkeypatch.setattr(
-        raceresult, "_fetch_config",
-        lambda eid, base, client: json.loads(_fixture("raceresult_config_rumilly.json")),
-    )
-    essais: list[str] = []
+def test_fetch_list_interroge_la_route_canonique():
+    """C-A : même garde que pour la config, côté liste."""
+    client = _FauxClient({"/results/list": (200, '{"DataFields": [], "data": {}}')})
 
-    def faux_fetch_list(eid, base, key, listname, contest, client):
-        essais.append(contest)
-        return payloads_par_contest.get(contest)
+    raceresult._fetch_list("393893", "cle", "04|Général", "4", client)
 
-    monkeypatch.setattr(raceresult, "_fetch_list", faux_fetch_list)
-    return essais
+    appel = client.appels[0]
+    assert "/393893/results/list" in appel
+    assert "RRPublish/data" not in appel
+    assert "contest=4" in appel
+    assert "key=cle" in appel
 
 
-def test_scrape_event_all_resout_le_contest_empiriquement(monkeypatch):
-    """404 partout sauf contest=1 : le balayage ne s'arrête pas au premier échec.
+def test_fetch_list_propage_une_erreur_serveur():
+    """I4, tranché : un 5xx ne doit PAS être dégradé en liste vide. Un import
+    partiel dont toutes les lignes portent un temps fait basculer la Course en
+    « terminée » pour `cache.is_fresh` → cache gelé 30 jours sur une perte
+    évitable, alors qu'un échec dur remonte en `BatchFailure` et sera re-tenté."""
+    client = _FauxClient({"/results/list": (503, "")})
 
-    L'ordre complet est vérifié (pas un `essais[:2]` tronqué, qui masquerait un
-    `break` prématuré sur un contest non-"0" — cf. C1) : la config réelle
-    Rumilly porte 3 specs après filtrage des listes d'affichage (Concurrents
-    et Classement général, indice "0" ; Classement général Jeunes, indice
-    "2") et 4 contests déclarés (1 à 4) — chacune retente donc tous ses
-    candidats faute de succès sur son indice de départ ni sur "0".
+    with pytest.raises(httpx.HTTPStatusError):
+        raceresult._fetch_list("393893", "k", "L", "1", client)
+
+
+# Un payload minimal : 3 colonnes (BIB, ID, nom, temps) et un arbre `data`.
+def _payload(lignes_par_groupe: dict, *, avec_temps: bool = True) -> dict:
+    champs = [
+        {"Expression": "AfficherNom", "Label": "Nom"},
+        {"Expression": "ucase([CLUB])", "Label": "Club"},
+    ]
+    data_fields = ["BIB", "ID", "AfficherNom", "ucase([CLUB])"]
+    if avec_temps:
+        champs.append({"Expression": "TIME", "Label": "Temps"})
+        data_fields.append("TIME")
+    return {
+        "DataFields": data_fields,
+        "list": {"Fields": champs},
+        "data": lignes_par_groupe,
+    }
+
+
+def _monte_pipeline(monkeypatch, specs, payloads):
+    """Câble `scrape_event_all` sur des payloads en mémoire.
+
+    `payloads` mappe (listname, contest) → payload ou None. Les appels sont
+    enregistrés pour vérifier qu'aucun balayage à l'aveugle ne subsiste.
     """
-    essais = _brancher(monkeypatch, {"1": _payload_rumilly()})
-
-    resultats = raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
-
-    assert essais == [
-        "0", "1", "2", "3", "4",
-        "0", "1", "2", "3", "4",
-        "2", "0", "1", "3", "4",
-    ], f"ordre d'essai inattendu : {essais}"
-    assert len(resultats) == 4
-    assert {r.bib_number for r in resultats} == {"79", "112", "205", "310"}
-
-
-def test_scrape_event_all_ne_s_arrete_pas_au_premier_contest_qui_repond(monkeypatch):
-    """Non-régression C1 : 404 sur contest=0, contest 1 ET contest 4 tous deux
-    porteurs de données. Le `break` ne doit couper le balayage que lorsque
-    c'est contest=0 (« tous ») qui répond — sinon chaque contest suivant est
-    silencieusement perdu (cas réel Rumilly : Distance M disparaissait, 1
-    participant importé au lieu de 5)."""
+    appels: list[tuple[str, str]] = []
     config = {
         "key": "k",
-        "contests": {"1": "Distance XS", "4": "Distance M"},
-        "lists": [{"Name": "Résultats", "Contest": "0"}],
-    }
-    monkeypatch.setattr(raceresult, "_resolve_event_id", lambda url, client: "393893")
-    monkeypatch.setattr(
-        raceresult, "_fetch_meta",
-        lambda eid, base, client: ("Triathlon de Rumilly", date(2026, 6, 18), "RUMILLY"),
-    )
-    monkeypatch.setattr(raceresult, "_fetch_config", lambda eid, base, client: config)
-
-    payload_xs = _payload_rumilly()
-    payload_xs["data"] = {"#1_Distance XS": {"#1_": [
-        ["1", "10", "1.", "1", "Jean DUPONT", "M", "1.S1M", "CLUB A", "", "",
-         "", "", "", "", "", "", "", "", "01:00:00", ""],
-    ]}}
-    payload_m = _payload_rumilly()
-
-    essais: list[str] = []
-
-    def faux_fetch_list(eid, base, key, listname, contest, client):
-        essais.append(contest)
-        return {"1": payload_xs, "4": payload_m}.get(contest)
-
-    monkeypatch.setattr(raceresult, "_fetch_list", faux_fetch_list)
-
-    resultats = raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
-
-    assert essais == ["0", "1", "4"]
-    assert {r.bib_number for r in resultats} == {"1", "79", "112", "205", "310"}
-    assert {r.event_name for r in resultats} == {
-        "Triathlon de Rumilly - Distance XS",
-        "Triathlon de Rumilly - Distance M",
-    }
-
-
-def test_scrape_event_all_fusionne_sans_doublon(monkeypatch):
-    """Deux listes livrant la même tranche : un participant, pas deux."""
-    _brancher(monkeypatch, {"0": _payload_rumilly(), "3": _payload_rumilly()})
-
-    resultats = raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
-
-    assert len(resultats) == 4
-
-
-def test_scrape_event_all_retient_la_ligne_la_plus_riche(monkeypatch):
-    """Sur clé (contest, dossard) identique, la ligne la mieux remplie gagne."""
-    pauvre = _payload_rumilly()
-    pauvre["data"] = {"#1_Distance M": {"#1_": [
-        ["79", "56", "2.", "79", "Alexis ROUX", "", "", "", "", "", "", "", "",
-         "", "", "", "", "", "2:01:56", ""]
-    ]}}
-    riche = _payload_rumilly()
-    riche["data"] = {"#1_Distance M": {"#1_": [
-        riche["data"]["#1_Distance M"]["#1_"][0]
-    ]}}
-    # Contest "0" (essayé par les specs Concurrents / Classement général) sert
-    # la ligne pauvre ; contest "2" (indice de la spec Classement général
-    # Jeunes) sert la riche.
-    _brancher(monkeypatch, {"0": pauvre, "2": riche})
-
-    resultats = raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
-
-    assert len(resultats) == 1
-    assert resultats[0].club == "GRESIVAUDAN TRIATHLON"
-
-
-def test_scrape_event_all_liste_inscrits_vide_n_ecrase_pas_le_classement(monkeypatch):
-    """I1, niveau pipeline : une liste "Inscrits" plus large en colonnes mais
-    vide sur ce dossard ne doit pas l'emporter sur une liste "Classement" qui,
-    elle, renseigne le club — critère d'attribution TCN. Avant le correctif,
-    `_richness` comptait `len(raw_data)` (la largeur de la liste source, pas
-    ses données) : 10 extras vides battaient les 4 champs réellement remplis
-    du classement."""
-    classement = {
-        "DataFields": ["BIB", "AfficherNom", "ucase([CLUB])", "TIME"],
-        "list": {"Fields": [
-            {"Expression": "AfficherNom", "Label": "Nom"},
-            {"Expression": "ucase([CLUB])", "Label": "Club"},
-            {"Expression": "TIME", "Label": "Temps"},
+        "eventname": "Épreuve",
+        "contests": {"1": "Distance S", "2": "Distance M"},
+        "TabConfig": {"Lists": [
+            {"Name": n, "Contest": c, "Mode": ""} for n, c in specs
         ]},
-        "data": {"#1_Distance M": {"#1_": [
-            ["79", "Alexis ROUX", "GRESIVAUDAN TRIATHLON", "02:01:56"]
-        ]}},
     }
-    inscrits = {
-        "DataFields": ["BIB"] + [f"Extra{i}" for i in range(10)],
-        "list": {"Fields": [
-            {"Expression": f"Extra{i}", "Label": f"E{i}"} for i in range(10)
-        ]},
-        "data": {"#1_Distance M": {"#1_": [["79"] + [""] * 10]}},
-    }
-    # Contest "0" (Concurrents / Classement général) sert le classement en
-    # premier ; contest "2" (indice de la spec Classement général Jeunes)
-    # sert ensuite la liste Inscrits, qui ne doit pas l'écraser.
-    _brancher(monkeypatch, {"0": classement, "2": inscrits})
-
-    resultats = raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
-
-    cible = [r for r in resultats if r.bib_number == "79"][0]
-    assert cible.club == "GRESIVAUDAN TRIATHLON"
-
-
-def test_scrape_event_all_temps_reel_prime_meme_sans_filtrage_live(monkeypatch):
-    """C1, niveau pipeline, double défense : même si une liste d'affichage
-    échappait au filtre `Live` de `_iter_list_specs` (ex. déploiement où le
-    champ serait absent de la config), `_prefer` doit encore refuser qu'elle
-    écrase un vrai classement — **y compris quand cette liste d'affichage est
-    la plus riche en colonnes des deux**, cas réel qui la ferait sinon gagner
-    sur la seule `_richness`, sans même solliciter la garde. Reproduit
-    fidèlement la forme réelle du contest « Distance Jeunes » (event 393893) :
-    la liste d'affichage groupe ses lignes par contest
-    (`#2_Distance Jeunes|#3_Arrivée`, comme l'API réelle) et porte 5 colonnes
-    exploitables (dossard, nation, club, sexe, écart au leader — richesse 5,
-    supérieure à la richesse 3 du classement, nom+prénom+temps), reproduisant
-    la largeur réelle d'une liste `LIVE EXTRA` (drapeau, écart au leader,
-    sexe, catégorie, club…) ; aucune de ces colonnes n'est toutefois reconnue
-    comme un temps réel. La liste de classement, elle, groupe tout sous une
-    clé neutre (`#1_`) et se rattache au même contest via
-    `contests.get("2")`. Sans la garde de `_prefer` (temps réel prime sur la
-    seule richesse en colonnes), c'est la ligne d'affichage — plus riche —
-    qui l'emporterait : temps et nom seraient écrasés."""
-    config = {
-        "key": "k",
-        "contests": {"2": "Distance Jeunes"},
-        "lists": [
-            {"Name": "Affichage", "Contest": "0"},  # pas de champ Live : passe quand même le filtre
-            {"Name": "Classement Jeunes", "Contest": "2"},
-        ],
-    }
-    monkeypatch.setattr(raceresult, "_resolve_event_id", lambda url, client: "393893")
+    monkeypatch.setattr(raceresult, "_resolve_event_id", lambda url, client: "1")
+    monkeypatch.setattr(raceresult, "_fetch_config", lambda ev, client: config)
     monkeypatch.setattr(
-        raceresult, "_fetch_meta",
-        lambda eid, base, client: ("Triathlon de Rumilly", date(2026, 6, 18), "RUMILLY"),
-    )
-    monkeypatch.setattr(raceresult, "_fetch_config", lambda eid, base, client: config)
-
-    # Richesse 5 (Dos + 3 extras + club/sexe reconnus), volontairement > à la
-    # richesse 3 du classement ci-dessous : sans la garde `_prefer`, c'est
-    # cette ligne d'affichage — plus riche mais sans temps réel — qui gagnerait.
-    champs_affichage = {
-        "DataFields": [
-            "BIB", "Dos", "NATION.UCINAME", "ucase([CLUB])", "SexeMF", "EcartLeader",
-        ],
-        "list": {"Fields": [
-            {"Expression": "Dos", "Label": "{DE:Startnr|EN:Bib|FR:Dos.}"},
-            {"Expression": "NATION.UCINAME", "Label": "Nat."},
-            {"Expression": "ucase([CLUB])", "Label": "Club"},
-            {"Expression": "SexeMF", "Label": "Sexe"},
-            {"Expression": "EcartLeader", "Label": "Ecart"},
-        ]},
-        "data": {"#2_Distance Jeunes": {"#3_Arrivée": [
-            ["24", "24", "FRA", "TEAM LIVE", "M", "+00:00:12"]
-        ]}},
-    }
-    champs_classement = {
-        "DataFields": ["BIB", "AfficherNom", "TIME"],
-        "list": {"Fields": [
-            {"Expression": "AfficherNom", "Label": "Nom"},
-            {"Expression": "TIME", "Label": "Temps"},
-        ]},
-        "data": {"#1_": [["24", "Milan MARCHAND", "00:09:08"]]},
-    }
-
-    def faux_fetch_list(eid, base, key, listname, contest, client):
-        return {
-            "Affichage": champs_affichage, "Classement Jeunes": champs_classement,
-        }.get(listname)
-
-    monkeypatch.setattr(raceresult, "_fetch_list", faux_fetch_list)
-
-    resultats = raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
-
-    cible = [r for r in resultats if r.bib_number == "24"][0]
-    assert cible.total_time == "00:09:08"
-    assert cible.athlete_name == "MARCHAND"
-
-
-def test_scrape_event_all_preserve_le_statut_non_finisher_moins_riche(monkeypatch):
-    """I2 : un DNF (groupe « Abandons ») ne doit pas être écrasé par une ligne
-    plus riche en colonnes mais sans sous-groupe de statut pour le même
-    (contest, dossard) — sinon le statut non-finisher se perd silencieusement.
-
-    La ligne concurrente reste riche en colonnes (club, catégorie…) mais
-    n'annonce elle-même aucun temps réel (cas d'une liste "Inscrits" plus
-    large) : c'est ce qui doit trancher, pas la seule richesse (cf. N1 — une
-    ligne concurrente qui, elle, porterait un vrai temps d'arrivée doit au
-    contraire l'emporter, cf. test_scrape_event_all_un_dns_n_ecrase_pas_un_finisher_reel)."""
-    dnf = _payload_rumilly()
-    dnf["data"] = {"#1_Distance M": {"#2_Abandons": [
-        dnf["data"]["#1_Distance M"]["#2_Abandons"][0]
-    ]}}
-    riche_sans_statut = _payload_rumilly()
-    ligne_riche = list(riche_sans_statut["data"]["#1_Distance M"]["#1_"][0])
-    ligne_riche[0] = "205"  # même dossard que le DNF, ligne sans groupe de statut
-    ligne_riche[3] = "205"
-    ligne_riche[18] = ""  # aucun temps réel : ne doit pas primer sur le statut
-    riche_sans_statut["data"] = {"#1_Distance M": {"#1_": [ligne_riche]}}
-
-    _brancher(monkeypatch, {"0": dnf, "3": riche_sans_statut})
-
-    resultats = raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
-
-    cible = [r for r in resultats if r.bib_number == "205"]
-    assert len(cible) == 1
-    assert cible[0].status == STATUS_DNF
-    assert cible[0].total_time == ""
-
-
-def test_scrape_event_all_un_dns_n_ecrase_pas_un_finisher_reel(monkeypatch):
-    """N1 (régression critique du correctif I2) : un DNS/DNF ne doit jamais
-    écraser un finisher réel, même si la règle de statut était inconditionnelle
-    dans le correctif précédent — un chrono d'arrivée est un signal plus fort
-    qu'un statut annoncé.
-
-    Reproduction du relecteur : liste A / contest 0 porte un finisher riche
-    (dossard 79, temps réel, rang, club) ; liste B / contest 3 reporte ce même
-    dossard dans le groupe « Non Partants » (liste figée à la veille, dossard
-    réattribué). Avant correctif : `_prefer(DNS_vide, finisher_riche)` valait
-    True inconditionnellement (statut non-finisher toujours prioritaire) et le
-    temps, le rang et le club réels étaient détruits."""
-    finisher = _payload_rumilly()  # contest "0" : bib 79 finisher réel, intact
-    dns = _payload_rumilly()
-    ligne_dns = list(dns["data"]["#1_Distance M"]["#3_Non Partants"][0])
-    ligne_dns[0] = "79"  # même dossard que le finisher, réattribué côté DNS
-    ligne_dns[3] = "79"
-    dns["data"] = {"#1_Distance M": {"#3_Non Partants": [ligne_dns]}}
-
-    _brancher(monkeypatch, {"0": finisher, "3": dns})
-
-    resultats = raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
-
-    cible = [r for r in resultats if r.bib_number == "79"][0]
-    assert cible.status == "finisher"
-    assert cible.total_time == "02:01:56"
-    assert cible.rank_overall == 2
-    assert cible.club == "GRESIVAUDAN TRIATHLON"
-
-
-def test_prefer_refuse_qu_un_statut_non_finisher_ecrase_un_temps_reel():
-    """N1, niveau unitaire : un DNS sans aucune donnée ne doit jamais écraser
-    un finisher réel — même si la règle de statut, seule, l'y autoriserait."""
-    finisher = ScrapedResult(
-        source_url="x", provider="raceresult", bib_number="79",
-        total_time="02:01:56", rank_overall=2, club="GRESIVAUDAN TRIATHLON",
-        status="finisher",
-    )
-    dns_vide = ScrapedResult(
-        source_url="x", provider="raceresult", bib_number="79",
-        club="CHAMBERY TRIATHLON", status=STATUS_DNS,
+        raceresult, "_fetch_meta", lambda ev, client: ("Épreuve", date(2026, 5, 24), "")
     )
 
-    assert raceresult._prefer(dns_vide, finisher) is False
+    def faux_fetch(event_id, key, listname, contest, client):
+        appels.append((listname, contest))
+        return payloads.get((listname, contest))
+
+    monkeypatch.setattr(raceresult, "_fetch_list", faux_fetch)
+    return appels
 
 
-def test_prefer_autorise_un_statut_non_finisher_sans_temps_concurrent():
-    """N1, garde-fou symétrique : le correctif ne doit pas réintroduire I2 —
-    un DNF continue de l'emporter sur une ligne concurrente qui n'a elle-même
-    aucun temps réel."""
-    vide_sans_statut = ScrapedResult(
-        source_url="x", provider="raceresult", bib_number="205", club="X",
-    )
-    dnf = ScrapedResult(
-        source_url="x", provider="raceresult", bib_number="205", status=STATUS_DNF,
-    )
-
-    assert raceresult._prefer(dnf, vide_sans_statut) is True
-
-
-def test_scrape_event_all_desambiguise_les_groupes_non_nommes(monkeypatch):
-    """I3 (recentré, N3 mineur) : sans libellé de contest dans la clé de
-    groupe ni entrée dans `contests` pour le contest interrogé, la clé de
-    fusion doit rester injective — repli sur le contest brut ("5") pour ne
-    pas fusionner deux contests distincts sous la même clé vide (issue #21).
-
-    Contrairement à `contest="0"` (repli désormais géré à part, cf. N2
-    ci-dessous), un contest explicite non déclaré dans `contests` (ici "5")
-    ne bénéficie d'aucun autre signal que son propre numéro. Le repli sur ce
-    numéro de contest — plutôt que sur le `listname` (version initiale d'I3)
-    — est strictement plus robuste : deux listes distinctes atteignant ce
-    même contest 5 convergent alors vers la même clé de fusion au lieu de
-    rouvrir la duplication qu'I3 avait justement fermée (N3 mineur)."""
-    config = {
-        "key": "k",
-        "contests": {"1": "Distance XS", "4": "Distance M"},
-        "lists": [{"Name": "Groupe2", "Contest": 5}],
+def test_scrape_event_all_interroge_exactement_les_listes_annoncees(monkeypatch):
+    """Le contest étant explicite dans `TabConfig.Lists`, il n'y a plus rien à
+    découvrir : une requête par couple annoncé, ni plus ni moins. L'ancienne
+    version balayait `contest=0` puis chaque contest déclaré, soit 15 requêtes
+    dont 11 en 404 sur Rumilly."""
+    specs = [("Classement", "1"), ("Classement", "2")]
+    payloads = {
+        ("Classement", "1"): _payload({"#1_Distance S": {"#1_": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]}}),
+        ("Classement", "2"): _payload({"#1_Distance M": {"#1_": [["8", "2", "Luc MARTIN", "TCN", "02:00:00"]]}}),
     }
-    monkeypatch.setattr(raceresult, "_resolve_event_id", lambda url, client: "393893")
-    monkeypatch.setattr(
-        raceresult, "_fetch_meta",
-        lambda eid, base, client: ("Triathlon de Rumilly", date(2026, 6, 18), "RUMILLY"),
-    )
-    monkeypatch.setattr(raceresult, "_fetch_config", lambda eid, base, client: config)
+    appels = _monte_pipeline(monkeypatch, specs, payloads)
 
-    def _ligne(bib):
-        return [bib, "1", "1.", bib, "Jean DUPONT", "M", "1.S1M", "CLUB",
-                "", "", "", "", "", "", "", "", "", "", "01:00:00", ""]
+    res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
 
-    payload_b = _payload_rumilly()
-    payload_b["data"] = {"#1_": [_ligne("79")]}
-
-    def faux_fetch_list(eid, base, key, listname, contest, client):
-        if listname == "Groupe2" and contest == "5":
-            return payload_b
-        return None
-
-    monkeypatch.setattr(raceresult, "_fetch_list", faux_fetch_list)
-
-    resultats = raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
-
-    assert len(resultats) == 1
-    assert resultats[0].event_name == "Triathlon de Rumilly - Contest 5"
-
-
-def test_scrape_event_all_desambiguise_par_contest_sans_dupliquer_entre_listes(monkeypatch):
-    """N2, effet de bord du repli `listname` (I3) : deux listes exposent,
-    chacune sous un groupe non nommé sans `contest="0"` déclaré dans
-    `contests`, la **même** tranche réelle (contest 1), une des deux listes
-    exposant en plus un second contest (4) exclusif. Le repli I3 distinguait
-    bien les deux listes par leur `listname` — mais en fabriquait deux
-    « Courses » pour le même athlète recopié dans les deux (constaté en revue :
-    4 participations pour 3 athlètes). Le contest réel, seule information
-    fiable une fois `contest="0"` écarté (cf. `scrape_event_all`), doit à la
-    fois désambiguïser *et* faire converger les deux accès vers la même clé de
-    fusion — peu importe le chemin de liste par lequel on y arrive."""
-    config = {
-        "key": "k",
-        "contests": {"1": "Distance XS", "4": "Distance M"},
-        "lists": [{"Name": "Groupe1", "Contest": 0}, {"Name": "Groupe2", "Contest": 0}],
-    }
-    monkeypatch.setattr(raceresult, "_resolve_event_id", lambda url, client: "393893")
-    monkeypatch.setattr(
-        raceresult, "_fetch_meta",
-        lambda eid, base, client: ("Triathlon de Rumilly", date(2026, 6, 18), "RUMILLY"),
-    )
-    monkeypatch.setattr(raceresult, "_fetch_config", lambda eid, base, client: config)
-
-    def _ligne(bib, nom):
-        return [bib, "1", "1.", bib, nom, "M", "1.S1M", "CLUB",
-                "", "", "", "", "", "", "", "", "", "", "01:00:00", ""]
-
-    champs = _champs_rumilly()
-
-    def _payload(lignes):
-        return {**champs, "data": {"#1_": lignes}}
-
-    # `contest=0` : payload plat, différent selon la liste interrogée — deux
-    # vues d'un même serveur qui n'a pas de sous-découpage par contest.
-    ambigu_groupe1 = _payload([_ligne("79", "Jean DUPONT"), _ligne("100", "Un TROISIEME")])
-    ambigu_groupe2 = _payload([_ligne("79", "Jean DUPONT")])  # même athlète, même tranche
-    # Contest explicite : la même donnée réelle, quelle que soit la liste —
-    # c'est elle qui doit trancher, pas le chemin de liste emprunté.
-    reel_xs = _payload([_ligne("79", "Jean DUPONT")])
-    reel_m = _payload([_ligne("100", "Un TROISIEME")])
-
-    def faux_fetch_list(eid, base, key, listname, contest, client):
-        if contest == "0":
-            return {"Groupe1": ambigu_groupe1, "Groupe2": ambigu_groupe2}.get(listname)
-        return {"1": reel_xs, "4": reel_m}.get(contest)
-
-    monkeypatch.setattr(raceresult, "_fetch_list", faux_fetch_list)
-
-    resultats = raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
-
-    assert len(resultats) == 2  # DUPONT (Distance XS) + TROISIEME (Distance M) — pas 3
-    assert {r.athlete_name for r in resultats} == {"DUPONT", "TROISIEME"}
-    assert {r.event_name for r in resultats} == {
-        "Triathlon de Rumilly - Distance XS", "Triathlon de Rumilly - Distance M",
-    }
-
-
-def test_scrape_event_all_desambiguise_la_collision_intra_payload(monkeypatch):
-    """N2 : I3 ne réglait la collision qu'entre listes distinctes — au sein
-    d'un même payload non nommé (`data = {"#1_": [...]}`), `listname` est
-    **constant sur tout le payload** et ne distingue donc pas deux lignes du
-    même dossard servies par deux contests réels différents (cas RaceResult où
-    `contest=0` renvoie tout mélangé, sans sous-groupe par contest).
-
-    Reproduction : le payload `contest=0` porte trois lignes, dont deux sous
-    le dossard 79 (une par contest réel). Avant correctif : `listname`
-    collisionne les deux lignes du dossard 79 (une est perdue) et le `break`
-    inconditionnel sur `contest="0"` empêche même d'aller consulter les
-    payloads `contest=1`/`contest=2`, seuls capables de lever l'ambiguïté —
-    3 lignes en entrée, 2 résultats en sortie, un coureur toujours perdu."""
-
-    def _ligne(bib, nom):
-        return [bib, "1", "1.", bib, nom, "M", "1.S1M", "CLUB",
-                "", "", "", "", "", "", "", "", "", "", "01:00:00", ""]
-
-    config = {
-        "key": "k",
-        "contests": {"1": "Distance XS", "2": "Distance M"},
-        "lists": [{"Name": "Résultats", "Contest": 0}],
-    }
-    monkeypatch.setattr(raceresult, "_resolve_event_id", lambda url, client: "393893")
-    monkeypatch.setattr(
-        raceresult, "_fetch_meta",
-        lambda eid, base, client: ("Triathlon de Rumilly", date(2026, 6, 18), "RUMILLY"),
-    )
-    monkeypatch.setattr(raceresult, "_fetch_config", lambda eid, base, client: config)
-
-    champs = _champs_rumilly()
-
-    def _payload(lignes):
-        return {**champs, "data": {"#1_": lignes}}
-
-    payload_ambigu = _payload([
-        _ligne("79", "Jean DUPONT"),
-        _ligne("79", "Autre COUREUR"),
-        _ligne("100", "Un TROISIEME"),
-    ])
-    payload_xs = _payload([_ligne("79", "Jean DUPONT"), _ligne("100", "Un TROISIEME")])
-    payload_m = _payload([_ligne("79", "Autre COUREUR")])
-
-    def faux_fetch_list(eid, base, key, listname, contest, client):
-        return {"0": payload_ambigu, "1": payload_xs, "2": payload_m}.get(contest)
-
-    monkeypatch.setattr(raceresult, "_fetch_list", faux_fetch_list)
-
-    resultats = raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
-
-    assert len(resultats) == 3
-    assert {r.athlete_name for r in resultats} == {"DUPONT", "COUREUR", "TROISIEME"}
-    assert {r.event_name for r in resultats} == {
-        "Triathlon de Rumilly - Distance XS", "Triathlon de Rumilly - Distance M",
-    }
-
-
-def test_scrape_event_all_garde_le_payload_ambigu_en_dernier_recours(monkeypatch):
-    """N3 : même config que la collision intra-payload ci-dessus, mais les
-    contests explicites (1 et 2) répondent tous les deux 404 — cas attesté par
-    le brief (« certaines listes annoncées en config répondent 404 en dur »).
-
-    Le balayage contest par contest censé lever l'ambiguïté ne rapporte alors
-    rien : avant correctif, le payload ambigu était jeté sans filet et
-    l'épreuve entière échouait (`ValueError`), alors qu'il restait exploitable
-    (2 des 3 lignes ne collisionnent pas). Le correctif doit le fusionner en
-    dernier recours plutôt que d'abandonner l'épreuve — quitte à perdre la
-    ligne réellement ambiguë (COUREUR, même dossard 79 que DUPONT, non
-    départageable sans le détail par contest)."""
-
-    def _ligne(bib, nom):
-        return [bib, "1", "1.", bib, nom, "M", "1.S1M", "CLUB",
-                "", "", "", "", "", "", "", "", "", "", "01:00:00", ""]
-
-    config = {
-        "key": "k",
-        "contests": {"1": "Distance XS", "2": "Distance M"},
-        "lists": [{"Name": "Résultats", "Contest": 0}],
-    }
-    monkeypatch.setattr(raceresult, "_resolve_event_id", lambda url, client: "393893")
-    monkeypatch.setattr(
-        raceresult, "_fetch_meta",
-        lambda eid, base, client: ("Triathlon de Rumilly", date(2026, 6, 18), "RUMILLY"),
-    )
-    monkeypatch.setattr(raceresult, "_fetch_config", lambda eid, base, client: config)
-
-    champs = _champs_rumilly()
-
-    def _payload(lignes):
-        return {**champs, "data": {"#1_": lignes}}
-
-    payload_ambigu = _payload([
-        _ligne("79", "Jean DUPONT"),
-        _ligne("79", "Autre COUREUR"),
-        _ligne("100", "Un TROISIEME"),
-    ])
-
-    def faux_fetch_list(eid, base, key, listname, contest, client):
-        # Seul contest=0 répond ; les contests explicites 1 et 2 sont en 404.
-        return {"0": payload_ambigu}.get(contest)
-
-    monkeypatch.setattr(raceresult, "_fetch_list", faux_fetch_list)
-
-    resultats = raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
-
-    # 2 sur 3 : le dossard 79 collisionne toujours à l'intérieur du payload
-    # ambigu (aucun signal ne permet de trancher entre DUPONT et COUREUR sans
-    # le détail par contest) ; seul le dossard 100, non ambigu, survit en
-    # plus. C'est strictement mieux que l'échec total et cohérent avec le
-    # comportement du commit précédent (N1/N2) sur ce même scénario.
-    assert len(resultats) == 2
-    assert "TROISIEME" in {r.athlete_name for r in resultats}
-    assert len({r.athlete_name for r in resultats} & {"DUPONT", "COUREUR"}) == 1
-
-
-def test_scrape_event_all_distingue_deux_listes_ambigues_dans_le_filet(monkeypatch):
-    """N4 : dans le filet de dernier recours, `contest` vaut toujours "0" par
-    construction — une constante qui ne distingue rien. Deux payloads ambigus
-    distincts (scénario phare du module : une liste « Individuel » et une
-    liste « Relais », dossards réutilisés d'une liste à l'autre) tombant tous
-    deux dans ce filet (contests explicites 1 et 2 en 404) recevaient donc le
-    même libellé de repli (« 0 ») et fusionnaient — perdant l'« Equipe ALPHA »
-    (dossard 79 en relais, collision avec Jean DUPONT, même dossard en
-    individuel). Régression contre 69ec266, qui étiquetait ces deux listes
-    `- Individuel` / `- Relais` et gardait les 3 lignes. Le filet doit
-    distinguer par `listname`, comme le contest explicite distingue déjà par
-    son numéro (I3)."""
-
-    def _ligne(bib, nom):
-        return [bib, "1", "1.", bib, nom, "M", "1.S1M", "CLUB",
-                "", "", "", "", "", "", "", "", "", "", "01:00:00", ""]
-
-    config = {
-        "key": "k",
-        "contests": {"1": "Distance XS", "2": "Distance M"},
-        "lists": [{"Name": "Individuel", "Contest": 0}, {"Name": "Relais", "Contest": 0}],
-    }
-    monkeypatch.setattr(raceresult, "_resolve_event_id", lambda url, client: "393893")
-    monkeypatch.setattr(
-        raceresult, "_fetch_meta",
-        lambda eid, base, client: ("Triathlon de Rumilly", date(2026, 6, 18), "RUMILLY"),
-    )
-    monkeypatch.setattr(raceresult, "_fetch_config", lambda eid, base, client: config)
-
-    champs = _champs_rumilly()
-
-    def _payload(lignes):
-        return {**champs, "data": {"#1_": lignes}}
-
-    individuel = _payload([_ligne("79", "Jean DUPONT"), _ligne("100", "Un TROISIEME")])
-    relais = _payload([_ligne("79", "Equipe ALPHA")])
-
-    def faux_fetch_list(eid, base, key, listname, contest, client):
-        # Les contests explicites (1, 2) répondent tous deux 404 : seul
-        # contest=0 (« tous ») est servi, différemment selon la liste.
-        if contest != "0":
-            return None
-        return {"Individuel": individuel, "Relais": relais}.get(listname)
-
-    monkeypatch.setattr(raceresult, "_fetch_list", faux_fetch_list)
-
-    resultats = raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
-
-    assert len(resultats) == 3, "les 3 lignes doivent survivre sous deux libellés distincts"
-    assert {(r.bib_number, r.athlete_name) for r in resultats} == {
-        ("79", "DUPONT"), ("100", "TROISIEME"), ("79", "ALPHA"),
-    }
-    assert {r.event_name for r in resultats} == {
-        "Triathlon de Rumilly - Individuel", "Triathlon de Rumilly - Relais",
-    }
-    equipe_alpha = [r for r in resultats if r.athlete_name == "ALPHA"][0]
-    assert equipe_alpha.is_relay is True
-
-
-def test_scrape_event_all_ouvre_le_client_avec_follow_redirects(monkeypatch):
-    """L'API `list` répond 301 : sans `follow_redirects=True`, toutes les
-    listes reviennent vides. Verrouille le kwarg pour éviter une régression
-    silencieuse."""
-    captes: dict = {}
-    VraiClient = httpx.Client
-
-    class ClientObserve(VraiClient):
-        def __init__(self, *args, **kwargs):
-            captes.update(kwargs)
-            super().__init__(*args, **kwargs)
-
-    monkeypatch.setattr(httpx, "Client", ClientObserve)
-    _brancher(monkeypatch, {})
-
-    with pytest.raises(ValueError):
-        raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
-
-    assert captes.get("follow_redirects") is True
-
-
-def test_scrape_event_all_sans_liste_exploitable_leve(monkeypatch):
-    """Cas Roanne : config valide, toutes les listes en 404 → erreur messagée."""
-    _brancher(monkeypatch, {})
-
-    with pytest.raises(ValueError) as exc:
-        raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
-
-    assert "393893" in str(exc.value)
-    assert "01 - Concurrents|Liste des concurrents 123" in str(exc.value)
+    assert appels == [("Classement", "1"), ("Classement", "2")]
+    assert len(res) == 2
 
 
 def test_scrape_event_all_qualifie_par_contest(monkeypatch):
-    """Une Course par contest : le nom qualifié évite les collisions de dossards (#21)."""
-    _brancher(monkeypatch, {"0": _payload_rumilly()})
+    """Issue #21 : chaque contest devient une Course distincte, sans quoi deux
+    dossards identiques de contests différents entrent en collision."""
+    specs = [("Classement", "1"), ("Classement", "2")]
+    payloads = {
+        ("Classement", "1"): _payload({"#1_Distance S": {"#1_": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]}}),
+        ("Classement", "2"): _payload({"#1_Distance M": {"#1_": [["7", "2", "Luc MARTIN", "TCN", "02:00:00"]]}}),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads)
 
-    resultats = raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
+    res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
 
-    assert {r.event_name for r in resultats} == {"Triathlon de Rumilly - Distance M"}
+    assert len(res) == 2, "même dossard, deux contests : aucune collision"
+    assert {r.event_name for r in res} == {
+        "Épreuve - Distance S", "Épreuve - Distance M"
+    }
+
+
+def test_scrape_event_all_fusionne_deux_listes_du_meme_contest(monkeypatch):
+    """Plusieurs listes couvrent couramment un même contest (6 sur le contest 1
+    de l'event 392745). La plus riche l'emporte, sans dupliquer le participant."""
+    specs = [("Maigre", "1"), ("Riche", "1")]
+    payloads = {
+        ("Maigre", "1"): _payload({"#1_Distance S": {"#1_": [["7", "1", "Jean DUPONT", "", "01:00:00"]]}}),
+        ("Riche", "1"): _payload({"#1_Distance S": {"#1_": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]}}),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads)
+
+    res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert len(res) == 1
+    assert res[0].club == "TCN", "la ligne renseignée doit primer"
+
+
+def test_scrape_event_all_un_groupe_par_sexe_n_est_pas_un_statut(monkeypatch):
+    """C-E / §7 : sur l'event 406212 le niveau 2 porte `#1_Masculin` /
+    `#1_Féminin`, un groupement par **sexe**. Interpréter tout libellé de groupe
+    comme un statut y marquerait abandonnés tous les finishers."""
+    specs = [("Classement", "1")]
+    payloads = {("Classement", "1"): _payload({"#1_Distance S": {
+        "#1_Masculin": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]],
+        "#2_Féminin": [["8", "2", "Marie CURIE", "TCN", "01:10:00"]],
+        "#3_Abandons": [["9", "3", "Luc MARTIN", "TCN", ""]],
+    }})}
+    _monte_pipeline(monkeypatch, specs, payloads)
+
+    res = {r.bib_number: r for r in raceresult.scrape_event_all(
+        "https://my.raceresult.com/1/results")}
+
+    assert res["7"].status == "finisher"
+    assert res["8"].status == "finisher"
+    assert res["9"].status == STATUS_DNF, "un libellé RECONNU reste un statut"
+
+
+def test_iter_groups_un_libelle_inconnu_n_efface_pas_le_statut_herite():
+    """Le libellé d'un sous-groupe n'est retenu comme statut que s'il est
+    reconnu. Sans cette garde, un groupement neutre imbriqué SOUS un groupe de
+    statut effacerait ce dernier.
+
+    Propriété de robustesse : l'imbrication statut → sexe n'a pas été observée
+    sur le panel (qui ne dépasse pas deux niveaux), mais l'ordre inverse
+    (sexe → statut) l'a été sur l'event 406212, et rien dans l'API ne garantit
+    que RaceResult n'émette pas l'un après l'autre. La garde coûte une ligne ;
+    ce test la rend vérifiable au lieu de la laisser en pari."""
+    data = {"#1_Distance M": {"#2_Abandons": {"#1_Masculin": [["9", "3", "x"]]}}}
+
+    assert raceresult._iter_groups(data) == [
+        ("Distance M", "Abandons", [["9", "3", "x"]])
+    ]
+
+
+def test_scrape_event_all_supporte_les_profondeurs_variables(monkeypatch):
+    """§7 : `data` est tantôt un tableau plat, tantôt à un niveau, tantôt à
+    deux — parfois au sein d'une même épreuve. La descente est récursive."""
+    specs = [("Plat", "1"), ("UnNiveau", "2")]
+    payloads = {
+        ("Plat", "1"): _payload([["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]),
+        ("UnNiveau", "2"): _payload(
+            {"#1_Distance M": [["8", "2", "Luc MARTIN", "TCN", "02:00:00"]]}
+        ),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads)
+
+    res = {r.bib_number: r for r in raceresult.scrape_event_all(
+        "https://my.raceresult.com/1/results")}
+
+    assert set(res) == {"7", "8"}
+    # Sans libellé de groupe, le repli est la table `contests`, plus parlante
+    # que le nom de liste (lequel ne sert que si `contests` ne sait rien, cas
+    # des listes en `Contest="0"`).
+    assert res["7"].event_name == "Épreuve - Distance S"
+    assert res["8"].event_name == "Épreuve - Distance M"
+
+
+def test_scrape_event_all_ignore_une_liste_absente(monkeypatch):
+    """Un 404 sur une liste annoncée n'emporte pas l'épreuve."""
+    specs = [("Morte", "1"), ("Vivante", "2")]
+    payloads = {
+        ("Morte", "1"): None,
+        ("Vivante", "2"): _payload({"#1_Distance M": {"#1_": [["8", "2", "Luc MARTIN", "TCN", "02:00:00"]]}}),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads)
+
+    res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert len(res) == 1
+
+
+def test_scrape_event_all_sans_liste_exploitable_leve(monkeypatch):
+    specs = [("Morte", "1")]
+    _monte_pipeline(monkeypatch, specs, {("Morte", "1"): None})
+
+    with pytest.raises(ValueError, match="aucune liste exploitable"):
+        raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+
+def test_scrape_event_all_ouvre_le_client_avec_follow_redirects(monkeypatch):
+    vus: dict = {}
+    vrai_client = httpx.Client
+
+    def espion(*args, **kwargs):
+        vus.update(kwargs)
+        return vrai_client(*args, **kwargs)
+
+    monkeypatch.setattr(httpx, "Client", espion)
+    specs = [("Classement", "1")]
+    _monte_pipeline(monkeypatch, specs, {
+        ("Classement", "1"): _payload({"#1_Distance S": {"#1_": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]}}),
+    })
+
+    raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert vus.get("follow_redirects") is True
