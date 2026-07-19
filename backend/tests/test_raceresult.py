@@ -565,7 +565,13 @@ def test_scrape_event_all_liste_inscrits_vide_n_ecrase_pas_le_classement(monkeyp
 def test_scrape_event_all_preserve_le_statut_non_finisher_moins_riche(monkeypatch):
     """I2 : un DNF (groupe « Abandons ») ne doit pas être écrasé par une ligne
     plus riche en colonnes mais sans sous-groupe de statut pour le même
-    (contest, dossard) — sinon le statut non-finisher se perd silencieusement."""
+    (contest, dossard) — sinon le statut non-finisher se perd silencieusement.
+
+    La ligne concurrente reste riche en colonnes (club, catégorie…) mais
+    n'annonce elle-même aucun temps réel (cas d'une liste "Inscrits" plus
+    large) : c'est ce qui doit trancher, pas la seule richesse (cf. N1 — une
+    ligne concurrente qui, elle, porterait un vrai temps d'arrivée doit au
+    contraire l'emporter, cf. test_scrape_event_all_un_dns_n_ecrase_pas_un_finisher_reel)."""
     dnf = _payload_rumilly()
     dnf["data"] = {"#1_Distance M": {"#2_Abandons": [
         dnf["data"]["#1_Distance M"]["#2_Abandons"][0]
@@ -574,6 +580,7 @@ def test_scrape_event_all_preserve_le_statut_non_finisher_moins_riche(monkeypatc
     ligne_riche = list(riche_sans_statut["data"]["#1_Distance M"]["#1_"][0])
     ligne_riche[0] = "205"  # même dossard que le DNF, ligne sans groupe de statut
     ligne_riche[3] = "205"
+    ligne_riche[18] = ""  # aucun temps réel : ne doit pas primer sur le statut
     riche_sans_statut["data"] = {"#1_Distance M": {"#1_": [ligne_riche]}}
 
     _brancher(monkeypatch, {"0": dnf, "3": riche_sans_statut})
@@ -586,15 +593,80 @@ def test_scrape_event_all_preserve_le_statut_non_finisher_moins_riche(monkeypatc
     assert cible[0].total_time == ""
 
 
+def test_scrape_event_all_un_dns_n_ecrase_pas_un_finisher_reel(monkeypatch):
+    """N1 (régression critique du correctif I2) : un DNS/DNF ne doit jamais
+    écraser un finisher réel, même si la règle de statut était inconditionnelle
+    dans le correctif précédent — un chrono d'arrivée est un signal plus fort
+    qu'un statut annoncé.
+
+    Reproduction du relecteur : liste A / contest 0 porte un finisher riche
+    (dossard 79, temps réel, rang, club) ; liste B / contest 3 reporte ce même
+    dossard dans le groupe « Non Partants » (liste figée à la veille, dossard
+    réattribué). Avant correctif : `_prefer(DNS_vide, finisher_riche)` valait
+    True inconditionnellement (statut non-finisher toujours prioritaire) et le
+    temps, le rang et le club réels étaient détruits."""
+    finisher = _payload_rumilly()  # contest "0" : bib 79 finisher réel, intact
+    dns = _payload_rumilly()
+    ligne_dns = list(dns["data"]["#1_Distance M"]["#3_Non Partants"][0])
+    ligne_dns[0] = "79"  # même dossard que le finisher, réattribué côté DNS
+    ligne_dns[3] = "79"
+    dns["data"] = {"#1_Distance M": {"#3_Non Partants": [ligne_dns]}}
+
+    _brancher(monkeypatch, {"0": finisher, "3": dns})
+
+    resultats = raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
+
+    cible = [r for r in resultats if r.bib_number == "79"][0]
+    assert cible.status == "finisher"
+    assert cible.total_time == "02:01:56"
+    assert cible.rank_overall == 2
+    assert cible.club == "GRESIVAUDAN TRIATHLON"
+
+
+def test_prefer_refuse_qu_un_statut_non_finisher_ecrase_un_temps_reel():
+    """N1, niveau unitaire : un DNS sans aucune donnée ne doit jamais écraser
+    un finisher réel — même si la règle de statut, seule, l'y autoriserait."""
+    finisher = ScrapedResult(
+        source_url="x", provider="raceresult", bib_number="79",
+        total_time="02:01:56", rank_overall=2, club="GRESIVAUDAN TRIATHLON",
+        status="finisher",
+    )
+    dns_vide = ScrapedResult(
+        source_url="x", provider="raceresult", bib_number="79",
+        club="CHAMBERY TRIATHLON", status=STATUS_DNS,
+    )
+
+    assert raceresult._prefer(dns_vide, finisher) is False
+
+
+def test_prefer_autorise_un_statut_non_finisher_sans_temps_concurrent():
+    """N1, garde-fou symétrique : le correctif ne doit pas réintroduire I2 —
+    un DNF continue de l'emporter sur une ligne concurrente qui n'a elle-même
+    aucun temps réel."""
+    vide_sans_statut = ScrapedResult(
+        source_url="x", provider="raceresult", bib_number="205", club="X",
+    )
+    dnf = ScrapedResult(
+        source_url="x", provider="raceresult", bib_number="205", status=STATUS_DNF,
+    )
+
+    assert raceresult._prefer(dnf, vide_sans_statut) is True
+
+
 def test_scrape_event_all_desambiguise_les_groupes_non_nommes(monkeypatch):
     """I3 : sans libellé de contest dans la clé de groupe ni entrée dans
-    `contests` (contest="0" servi hors de la table), la clé de fusion doit
-    rester injective — repli sur le `listname` pour ne pas fusionner deux
-    contests distincts sous la même clé vide (issue #21)."""
+    `contests` pour le contest interrogé, la clé de fusion doit rester
+    injective — repli sur le `listname` pour ne pas fusionner deux contests
+    distincts sous la même clé vide (issue #21).
+
+    Contrairement à `contest="0"` (repli désormais géré à part, cf. N2
+    ci-dessous), un contest explicite non déclaré dans `contests` (ici "5")
+    ne bénéficie d'aucun autre signal : le repli sur `listname` reste alors la
+    seule désambiguïsation possible."""
     config = {
         "key": "k",
         "contests": {"1": "Distance XS", "4": "Distance M"},
-        "lists": {"Groupe1": {"Contest": 0}, "Groupe2": {"Contest": 5}},
+        "lists": {"Groupe2": {"Contest": 5}},
     }
     monkeypatch.setattr(raceresult, "_resolve_event_id", lambda url, client: "393893")
     monkeypatch.setattr(
@@ -607,14 +679,10 @@ def test_scrape_event_all_desambiguise_les_groupes_non_nommes(monkeypatch):
         return [bib, "1", "1.", bib, "Jean DUPONT", "M", "1.S1M", "CLUB",
                 "", "", "", "", "", "", "", "", "", "", "01:00:00", ""]
 
-    payload_a = _payload_rumilly()
-    payload_a["data"] = {"#1_": [_ligne("79"), _ligne("100")]}
     payload_b = _payload_rumilly()
     payload_b["data"] = {"#1_": [_ligne("79")]}
 
     def faux_fetch_list(eid, base, key, listname, contest, client):
-        if listname == "Groupe1" and contest == "0":
-            return payload_a
         if listname == "Groupe2" and contest == "5":
             return payload_b
         return None
@@ -623,9 +691,121 @@ def test_scrape_event_all_desambiguise_les_groupes_non_nommes(monkeypatch):
 
     resultats = raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
 
-    assert len(resultats) == 3
+    assert len(resultats) == 1
+    assert resultats[0].event_name == "Triathlon de Rumilly - Groupe2"
+
+
+def test_scrape_event_all_desambiguise_par_contest_sans_dupliquer_entre_listes(monkeypatch):
+    """N2, effet de bord du repli `listname` (I3) : deux listes exposent,
+    chacune sous un groupe non nommé sans `contest="0"` déclaré dans
+    `contests`, la **même** tranche réelle (contest 1), une des deux listes
+    exposant en plus un second contest (4) exclusif. Le repli I3 distinguait
+    bien les deux listes par leur `listname` — mais en fabriquait deux
+    « Courses » pour le même athlète recopié dans les deux (constaté en revue :
+    4 participations pour 3 athlètes). Le contest réel, seule information
+    fiable une fois `contest="0"` écarté (cf. `scrape_event_all`), doit à la
+    fois désambiguïser *et* faire converger les deux accès vers la même clé de
+    fusion — peu importe le chemin de liste par lequel on y arrive."""
+    config = {
+        "key": "k",
+        "contests": {"1": "Distance XS", "4": "Distance M"},
+        "lists": {"Groupe1": {"Contest": 0}, "Groupe2": {"Contest": 0}},
+    }
+    monkeypatch.setattr(raceresult, "_resolve_event_id", lambda url, client: "393893")
+    monkeypatch.setattr(
+        raceresult, "_fetch_meta",
+        lambda eid, base, client: ("Triathlon de Rumilly", date(2026, 6, 18), "RUMILLY"),
+    )
+    monkeypatch.setattr(raceresult, "_fetch_config", lambda eid, base, client: config)
+
+    def _ligne(bib, nom):
+        return [bib, "1", "1.", bib, nom, "M", "1.S1M", "CLUB",
+                "", "", "", "", "", "", "", "", "", "", "01:00:00", ""]
+
+    champs = {k: _payload_rumilly()[k] for k in ("DataFields", "Fields")}
+
+    def _payload(lignes):
+        return {**champs, "data": {"#1_": lignes}}
+
+    # `contest=0` : payload plat, différent selon la liste interrogée — deux
+    # vues d'un même serveur qui n'a pas de sous-découpage par contest.
+    ambigu_groupe1 = _payload([_ligne("79", "Jean DUPONT"), _ligne("100", "Un TROISIEME")])
+    ambigu_groupe2 = _payload([_ligne("79", "Jean DUPONT")])  # même athlète, même tranche
+    # Contest explicite : la même donnée réelle, quelle que soit la liste —
+    # c'est elle qui doit trancher, pas le chemin de liste emprunté.
+    reel_xs = _payload([_ligne("79", "Jean DUPONT")])
+    reel_m = _payload([_ligne("100", "Un TROISIEME")])
+
+    def faux_fetch_list(eid, base, key, listname, contest, client):
+        if contest == "0":
+            return {"Groupe1": ambigu_groupe1, "Groupe2": ambigu_groupe2}.get(listname)
+        return {"1": reel_xs, "4": reel_m}.get(contest)
+
+    monkeypatch.setattr(raceresult, "_fetch_list", faux_fetch_list)
+
+    resultats = raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
+
+    assert len(resultats) == 2  # DUPONT (Distance XS) + TROISIEME (Distance M) — pas 3
+    assert {r.athlete_name for r in resultats} == {"DUPONT", "TROISIEME"}
     assert {r.event_name for r in resultats} == {
-        "Triathlon de Rumilly - Groupe1", "Triathlon de Rumilly - Groupe2",
+        "Triathlon de Rumilly - Distance XS", "Triathlon de Rumilly - Distance M",
+    }
+
+
+def test_scrape_event_all_desambiguise_la_collision_intra_payload(monkeypatch):
+    """N2 : I3 ne réglait la collision qu'entre listes distinctes — au sein
+    d'un même payload non nommé (`data = {"#1_": [...]}`), `listname` est
+    **constant sur tout le payload** et ne distingue donc pas deux lignes du
+    même dossard servies par deux contests réels différents (cas RaceResult où
+    `contest=0` renvoie tout mélangé, sans sous-groupe par contest).
+
+    Reproduction : le payload `contest=0` porte trois lignes, dont deux sous
+    le dossard 79 (une par contest réel). Avant correctif : `listname`
+    collisionne les deux lignes du dossard 79 (une est perdue) et le `break`
+    inconditionnel sur `contest="0"` empêche même d'aller consulter les
+    payloads `contest=1`/`contest=2`, seuls capables de lever l'ambiguïté —
+    3 lignes en entrée, 2 résultats en sortie, un coureur toujours perdu."""
+
+    def _ligne(bib, nom):
+        return [bib, "1", "1.", bib, nom, "M", "1.S1M", "CLUB",
+                "", "", "", "", "", "", "", "", "", "", "01:00:00", ""]
+
+    config = {
+        "key": "k",
+        "contests": {"1": "Distance XS", "2": "Distance M"},
+        "lists": {"Résultats": {"Contest": 0}},
+    }
+    monkeypatch.setattr(raceresult, "_resolve_event_id", lambda url, client: "393893")
+    monkeypatch.setattr(
+        raceresult, "_fetch_meta",
+        lambda eid, base, client: ("Triathlon de Rumilly", date(2026, 6, 18), "RUMILLY"),
+    )
+    monkeypatch.setattr(raceresult, "_fetch_config", lambda eid, base, client: config)
+
+    champs = {k: _payload_rumilly()[k] for k in ("DataFields", "Fields")}
+
+    def _payload(lignes):
+        return {**champs, "data": {"#1_": lignes}}
+
+    payload_ambigu = _payload([
+        _ligne("79", "Jean DUPONT"),
+        _ligne("79", "Autre COUREUR"),
+        _ligne("100", "Un TROISIEME"),
+    ])
+    payload_xs = _payload([_ligne("79", "Jean DUPONT"), _ligne("100", "Un TROISIEME")])
+    payload_m = _payload([_ligne("79", "Autre COUREUR")])
+
+    def faux_fetch_list(eid, base, key, listname, contest, client):
+        return {"0": payload_ambigu, "1": payload_xs, "2": payload_m}.get(contest)
+
+    monkeypatch.setattr(raceresult, "_fetch_list", faux_fetch_list)
+
+    resultats = raceresult.scrape_event_all("https://my3.raceresult.com/393893/results")
+
+    assert len(resultats) == 3
+    assert {r.athlete_name for r in resultats} == {"DUPONT", "COUREUR", "TROISIEME"}
+    assert {r.event_name for r in resultats} == {
+        "Triathlon de Rumilly - Distance XS", "Triathlon de Rumilly - Distance M",
     }
 
 
