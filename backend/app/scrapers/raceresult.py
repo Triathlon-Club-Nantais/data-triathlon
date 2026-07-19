@@ -182,6 +182,135 @@ def _iter_list_specs(config: dict) -> list[tuple[str, str]]:
     return specs
 
 
+_ACCENTS = str.maketrans("àâäéèêëîïôöùûüçÀÂÄÉÈÊËÎÏÔÖÙÛÜÇ", "aaaeeeeiioouuucAAAEEEEIIOOUUUC")
+
+# Enrobages d'affichage posés par RaceResult autour de l'expression réelle.
+_RE_ENROBAGE = re.compile(r"^(ucase|lcase|OuStatut|Statut|if)\s*\(", re.IGNORECASE)
+# Décorations de cellule : `[img:https://…]` en préfixe, `#` de `"#" & [BIB]`.
+_RE_IMG = re.compile(r"\[img:[^\]]*\]")
+
+
+def _peel(expr: str) -> str:
+    """Expression RaceResult ramenée à sa forme comparable.
+
+    Pèle les enrobages d'affichage (`ucase(…)`, `OuStatut(…)`, `if(…;X;…)`), les
+    crochets et le `#`, puis met en minuscules sans accents. `ucase([CLUB])` et
+    `[Club]` convergent ainsi vers `club`, ce qui permet une table de motifs
+    courte au lieu d'une énumération de variantes.
+    """
+    s = (expr or "").strip()
+    while True:
+        trouve = _RE_ENROBAGE.match(s)
+        if not trouve or not s.endswith(")"):
+            break
+        s = s[trouve.end():-1].strip()
+    # Une expression conditionnelle garde son premier terme utile.
+    if ";" in s:
+        s = max(s.split(";"), key=len).strip()
+    s = s.replace("#", "").replace("[", "").replace("]", "")
+    return s.translate(_ACCENTS).lower().strip()
+
+
+def _clean_cell(brut) -> str:
+    """Cellule débarrassée de ses décorations d'affichage."""
+    if brut is None:
+        return ""
+    return _RE_IMG.sub("", str(brut)).strip().lstrip("#").strip()
+
+
+_RE_RANG_CAT = re.compile(r"^(\d+)\.\s*(.*)$")
+
+
+def _split_rank_category(cell: str) -> tuple[int | None, str]:
+    """Sépare `"1.S4M"` en (rang catégorie, catégorie).
+
+    L'expression `#[ClassementCatégorie.p][AGEGROUP.NAMESHORT]` colle les deux
+    dans une seule colonne. Une cellule sans préfixe numérique est une catégorie
+    nue (cas des non-finishers, qui n'ont pas de rang).
+    """
+    cell = _clean_cell(cell)
+    trouve = _RE_RANG_CAT.match(cell)
+    if trouve:
+        return int(trouve.group(1)), trouve.group(2).strip()
+    return None, cell
+
+
+def _role(peeled: str) -> str:
+    """Rôle sémantique d'une expression pelée, "" si non reconnu.
+
+    Ordre des tests significatif : les rangs sont testés en premier, car une
+    expression suffixée `.p` / `.overall.p` est **toujours** un rang, jamais un
+    temps. Sans cette règle, `[Natation.OVERALL.P]` (« 2. ») passerait pour le
+    temps de natation, qui vit dans la colonne suivante.
+    """
+    if "classementgeneral" in peeled:
+        return "rang"
+    if "agegroup" in peeled or "classementcategorie" in peeled:
+        return "rang_categorie"
+    if peeled.endswith(".p"):
+        return "rang_de_split"  # colonne à écarter
+    if any(motif in peeled for motif in ("affichernom", "nomrelais", "nomequipe")):
+        return "nom"
+    if "club" in peeled:
+        return "club"
+    if peeled in ("sexemf", "sex", "sexe", "gender"):
+        return "sexe"
+    if peeled in ("time", "tempstotal", "tempscorrige", "finish", "arrivee"):
+        return "temps"
+    return ""
+
+
+def _map_columns(
+    payload: dict,
+) -> tuple[dict[str, int], list[tuple[str, int]], dict[str, int]]:
+    """(rôles, segments, extras) — l'index de chaque colonne du payload.
+
+    Étage 1, l'index : `col = DataFields.index(Field.Expression)`, l'algorithme
+    exact de `RRPublish.js`. `DataFields` préfixe toujours `BIB` et `ID`, qui
+    n'ont pas d'entrée dans `Fields` — la position dans `Fields` est donc
+    décalée et inutilisable telle quelle. Le dossard, lui, vient de
+    `DataFields.index("BIB")` et ne passe par aucune heuristique.
+
+    Étage 2, le rôle : cf. `_role`. Un champ dont l'expression est un token nu
+    entre crochets (`[Natation]`) et sans suffixe de rang est un **segment**,
+    étiqueté par son `Label`. Tout le reste part en extras → `raw_data`.
+    """
+    data_fields = [str(e) for e in payload.get("DataFields") or []]
+    index_par_expr = {expr: i for i, expr in enumerate(data_fields)}
+
+    roles: dict[str, int] = {}
+    segments: list[tuple[str, int]] = []
+    extras: dict[str, int] = {}
+
+    if "BIB" in index_par_expr:
+        roles["bib"] = index_par_expr["BIB"]
+
+    for champ in payload.get("Fields") or []:
+        expr = str(champ.get("Expression") or "")
+        col = index_par_expr.get(expr)
+        if col is None:
+            logger.debug("RaceResult : champ sans colonne de données (%r)", expr)
+            continue
+        peeled = _peel(expr)
+        role = _role(peeled)
+        if role == "rang_de_split":
+            continue
+        if role:
+            roles.setdefault(role, col)
+            continue
+        label = str(champ.get("Label") or "").strip()
+        # Segment : token nu entre crochets, donc sans point de qualification.
+        if "[" in expr and "." not in peeled and label:
+            segments.append((label, col))
+        else:
+            extras[expr] = col
+
+    # La catégorie partage la colonne du rang de catégorie (cellule « 1.S4M »).
+    if "rang_categorie" in roles:
+        roles.setdefault("categorie", roles["rang_categorie"])
+    return roles, segments, extras
+
+
 def scrape_event_all(url: str) -> list:
     """Importe tous les participants d'une épreuve RaceResult."""
     raise NotImplementedError  # complété en Task 6

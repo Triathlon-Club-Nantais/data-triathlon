@@ -1,0 +1,52 @@
+{
+  "_provenance": "GET https://my3.raceresult.com/393893/RRPublish/data/list?key=…&listname=En%20ligne%7CFinal&contest=4&r=all — 2026-07-18. Tronquée à 4 lignes (2 finishers, 1 DNF, 1 DNS) sur 308/6/33.",
+  "DataFields": [
+    "BIB", "ID", "OuStatut([ClassementGénéral.P])", "DossardBis",
+    "AfficherNom", "SexeMF", "#[ClassementCatégorie.p][AGEGROUP.NAMESHORT]",
+    "ucase([CLUB])", "[Natation.OVERALL.P]", "[Natation]",
+    "[Transition1.OVERALL.P]", "[Transition1]", "[Vélo.OVERALL.P]", "[Vélo]",
+    "[Transition2.OVERALL.P]", "[Transition2]", "[Course.OVERALL.P] ", "[Course]",
+    "TIME", "Arrivée.OVERALL.GapTop"
+  ],
+  "Fields": [
+    {"Expression": "OuStatut([ClassementGénéral.P])", "Label": "Pl."},
+    {"Expression": "DossardBis", "Label": "#"},
+    {"Expression": "AfficherNom", "Label": "Nom"},
+    {"Expression": "SexeMF", "Label": "M|F"},
+    {"Expression": "#[ClassementCatégorie.p][AGEGROUP.NAMESHORT]", "Label": "Cat."},
+    {"Expression": "ucase([CLUB])", "Label": "Club"},
+    {"Expression": "[Natation.OVERALL.P]", "Label": ""},
+    {"Expression": "[Natation]", "Label": "Nat."},
+    {"Expression": "[Transition1.OVERALL.P]", "Label": ""},
+    {"Expression": "[Transition1]", "Label": "T1"},
+    {"Expression": "[Vélo.OVERALL.P]", "Label": ""},
+    {"Expression": "[Vélo]", "Label": "Vélo"},
+    {"Expression": "[Transition2.OVERALL.P]", "Label": ""},
+    {"Expression": "[Transition2]", "Label": "T2"},
+    {"Expression": "[Course.OVERALL.P] ", "Label": ""},
+    {"Expression": "[Course]", "Label": "CAP"},
+    {"Expression": "TIME", "Label": "Temps"},
+    {"Expression": "Arrivée.OVERALL.GapTop", "Label": ""}
+  ],
+  "data": {
+    "#1_Distance M": {
+      "#1_": [
+        ["79", "56", "2.", "79", "Alexis ROUX", "M", "1.S4M",
+         "GRESIVAUDAN TRIATHLON", "2.", "20:04", "3.", "00:53", "2.", "1:05:49",
+         "45.", "00:56", "3.", "34:14", "2:01:56", "+2:44"],
+        ["112", "57", "3.", "112", "Jean DE LA TOUR", "M", "2.S4M",
+         "TRIATHLON CLUB NANTAIS", "5.", "21:10", "8.", "01:02", "4.", "1:07:30",
+         "12.", "00:51", "9.", "35:40", "2:06:13", "+7:01"]
+      ],
+      "#2_Abandons": [
+        ["205", "58", "DNF", "205", "Sophie MARTIN", "F", "S3F",
+         "ANNECY TRIATHLON", "", "22:31", "", "01:04", "", "", "", "", "", "",
+         "", ""]
+      ],
+      "#3_Non Partants": [
+        ["310", "59", "DNS", "310", "Paul BERNARD", "M", "V1M",
+         "CHAMBERY TRIATHLON", "", "", "", "", "", "", "", "", "", "", "", ""]
+      ]
+    }
+  }
+}
