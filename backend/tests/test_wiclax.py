@@ -849,3 +849,15 @@ def test_scrape_event_all_clax_chronowest(monkeypatch):
     assert by_bib["152"].event_type == "swimrun-m"
     assert by_bib["1"].event_name == "RED OUF Swimrun 2026 - S Duo"
     assert by_bib["1"].event_date == date(2026, 6, 28)
+
+
+def test_qualify_event_name_factorise_dans_utils():
+    from app.scrapers.utils import qualify_event_name
+    from app.scrapers.wiclax import _qualify_event_name
+
+    assert _qualify_event_name("Triathlon de Vertou 2026", "S-Open Femmes") == (
+        "Triathlon de Vertou 2026 - S-Open Femmes"
+    )
+    # Qualifiant déjà présent : pas de doublon.
+    assert _qualify_event_name("Triathlon M", "Triathlon M") == "Triathlon M"
+    assert qualify_event_name("Triathlon M", "") == "Triathlon M"

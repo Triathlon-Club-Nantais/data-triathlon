@@ -25,6 +25,16 @@ from urllib.parse import urlparse
 import httpx
 from bs4 import BeautifulSoup
 
+from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
+from .classify import classify_event_type
+from .utils import (
+    derive_status_from_label,
+    normalize_rank,
+    normalize_time,
+    qualify_event_name,
+    split_athlete_name,
+)
+
 logger = logging.getLogger(__name__)
 
 HEADERS = {
@@ -309,6 +319,111 @@ def _map_columns(
     if "rang_categorie" in roles:
         roles.setdefault("categorie", roles["rang_categorie"])
     return roles, segments, extras
+
+
+_RE_PREFIXE_GROUPE = re.compile(r"^#\d+_")
+
+
+def _strip_group_prefix(cle: str) -> str:
+    """Retire le préfixe d'ordonnancement d'une clé de groupe (`#1_Distance M`)."""
+    return _RE_PREFIXE_GROUPE.sub("", str(cle)).strip()
+
+
+def _iter_groups(data: dict) -> list[tuple[str, str, list]]:
+    """[(libellé contest, libellé statut, lignes), …] depuis le dict `data`.
+
+    `data` est imbriqué à deux niveaux : le groupe de niveau 1 identifie le
+    **contest** (`#1_Distance M`), celui de niveau 2 le **statut**
+    (`#1_` = finishers, `#2_Abandons` = DNF, `#3_Non Partants` = DNS). Certains
+    payloads n'ont qu'un niveau ; les deux formes sont acceptées.
+    """
+    groupes: list[tuple[str, str, list]] = []
+    for cle_contest, contenu in (data or {}).items():
+        contest = _strip_group_prefix(cle_contest)
+        if isinstance(contenu, dict):
+            for cle_statut, lignes in contenu.items():
+                if isinstance(lignes, list):
+                    groupes.append((contest, _strip_group_prefix(cle_statut), lignes))
+        elif isinstance(contenu, list):
+            groupes.append((contest, "", contenu))
+    return groupes
+
+
+_NON_FINISHERS = (STATUS_DNF, STATUS_DNS, STATUS_DSQ)
+
+
+def _build_result(
+    ligne: list,
+    roles: dict[str, int],
+    segments: list[tuple[str, int]],
+    extras: dict[str, int],
+    *,
+    source_url: str,
+    event_name: str,
+    event_date,
+    contest_label: str,
+    status_label: str,
+) -> ScrapedResult:
+    """Construit un `ScrapedResult` depuis une ligne de données RaceResult."""
+
+    def cellule(role: str) -> str:
+        col = roles.get(role)
+        if col is None or col >= len(ligne):
+            return ""
+        return _clean_cell(ligne[col])
+
+    nom_qualifie = qualify_event_name(event_name, contest_label)
+    r = ScrapedResult(
+        source_url=source_url,
+        provider="raceresult",
+        bib_number=cellule("bib"),
+        event_name=nom_qualifie,
+        event_date=event_date,
+        event_type=classify_event_type(nom_qualifie),
+    )
+
+    nom, prenom = split_athlete_name(cellule("nom"))
+    r.athlete_name, r.athlete_firstname = nom, prenom
+    r.club = cellule("club")
+    r.gender = cellule("sexe")
+    r.rank_category, r.category = _split_rank_category(cellule("categorie"))
+    r.total_time = normalize_time(cellule("temps"))
+    r.is_relay = any(
+        mot in contest_label.lower() for mot in ("relais", "relay", "equipe", "équipe")
+    )
+
+    # La cellule de rang porte le rang **ou** le statut (`OuStatut(…)`).
+    cellule_rang = cellule("rang")
+    r.rank_overall = normalize_rank(cellule_rang)
+
+    # Deux signaux concordants, le groupe primant sur la cellule : un groupe
+    # « Abandons » qualifie toute la tranche, la cellule ne renseigne que les
+    # payloads sans sous-groupe de statut.
+    r.status = (
+        derive_status_from_label(status_label)
+        or derive_status_from_label(cellule_rang)
+        or ""
+    )
+
+    r.segments = [
+        (label, normalize_time(_clean_cell(ligne[col])))
+        for label, col in segments
+        if col < len(ligne) and _clean_cell(ligne[col])
+    ] or None
+
+    r.raw_data = {
+        expr: _clean_cell(ligne[col]) for expr, col in extras.items() if col < len(ligne)
+    }
+
+    # Nettoyage systématique de la maison (cf. wiclax.py) : un non-finisher n'a
+    # ni temps total ni rang, quoi qu'annonce le payload.
+    if r.status in _NON_FINISHERS:
+        r.total_time = ""
+        r.rank_overall = r.rank_category = r.rank_gender = None
+    elif r.total_time:
+        r.status = r.status or "finisher"
+
+    return r
 
 
 def scrape_event_all(url: str) -> list:

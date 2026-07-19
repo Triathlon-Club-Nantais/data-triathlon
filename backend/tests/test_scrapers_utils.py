@@ -26,6 +26,9 @@ from app.scrapers.utils import derive_status_from_label, parse_fr_date, split_at
     # Finisher (label positif explicite)
     ("Finisher", "finisher"),
     ("Classé", "finisher"),
+    # Formes plurielles des groupes RaceResult
+    ("Abandons", "DNF"),
+    ("Non Partants", "DNS"),
 ])
 def test_derive_status_from_label_recognized(label, expected):
     assert derive_status_from_label(label) == expected
