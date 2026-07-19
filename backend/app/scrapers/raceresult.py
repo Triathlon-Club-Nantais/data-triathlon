@@ -180,11 +180,32 @@ def _iter_list_specs(config: dict) -> list[tuple[str, str]]:
     contest n'a donc rien à résoudre empiriquement, contrairement à ce que
     faisait la première version de ce module.
 
-    Écarte les listes `Mode == "hidden"` : ce sont les listes d'**affichage**
-    (bandeaux LIVE, listes d'inscrits), dont les `Expression` sont des formules
-    dépendant du curseur d'affichage (`{Selector.Splits}`) qu'aucun rôle de
-    `_role` ne décode. Sur le panel, `Mode != "hidden"` couvre les contests de
-    façon quasi exhaustive (13/13 sur Genève, 4/4 sur Rumilly).
+    Écarte les listes `Mode == "hidden"`. Sur le panel, `Mode != "hidden"`
+    couvre les contests de façon quasi exhaustive (13/13 sur Genève, 4/4 sur
+    Rumilly).
+
+    **Ce que ce critère n'est pas.** Une version antérieure de cette docstring
+    affirmait que les listes `hidden` sont les listes d'*affichage* (bandeaux
+    LIVE, inscrits) et les non-`hidden` les vrais classements. C'est faux, et
+    l'épreuve 406211 l'inverse exactement : ses 13 listes publiées sont des
+    listes d'affichage LIVE à formules `{Selector.Splits}`, tandis que son seul
+    vrai classement — celui qui porte les splits natation/vélo/course — est
+    `Mode == "hidden"`. `Mode` sépare donc ce que l'organisateur a choisi de
+    publier, pas le classement de l'affichage.
+
+    **Pourquoi on n'élargit pas pour autant.** La tentation est d'ajouter les
+    listes `hidden` en repli quand les listes publiées ne donnent aucun temps.
+    Mesuré sur 406211, cela coûte plus que ça ne rapporte : le classement
+    `hidden` y est en `Contest="0"` et indexe ses contests sous d'autres
+    libellés (`'PTS5 Men'`) que les listes publiées (`'Finish'`,
+    `'Run - Start'`). La fusion par clé `(libellé, dossard)` n'y trouve
+    **aucune** clé commune — 37 doublons viennent s'ajouter aux 42
+    participants, soit 79 lignes et autant de `Course` fantômes en base.
+    Le trou de temps de 406211 se règle donc en amont, dans `_role`
+    (cf. `_RE_TEMPS_SUFFIXE` et la racine `finishresult`), sans toucher à la
+    sélection. Si un jour une épreuve exige vraiment les listes `hidden`, le
+    préalable est de réconcilier les libellés de contest, pas de fusionner en
+    l'état.
 
     Ne PAS revenir au critère `Live` : il avait été calibré sur une seule
     épreuve, où il coïncidait. Sur l'event 405100 les 10 listes portent `Live=1`,
@@ -416,16 +437,31 @@ def _strip_rank_suffix(valeur: str) -> str:
 #
 # Priorité entre les trois suffixes (cf. `_role` puis le repli de
 # `_map_columns`) : **chip > gun > texte**. Chip et gun sont deux temps
-# officiels réellement observés sur le panel (`Arrivée.*`, 411749/410891) ;
-# `.text` n'a été vu sur AUCUNE épreuve sondée sous ces trois préfixes — seul
-# `FinishResult.TEXT` (préfixe distinct, hors périmètre C1) l'expose en
-# pratique. Le classer au même rang que le chip ferait perdre un chip pourtant
-# publié dès lors qu'une liste énumère `.TEXT` avant `.CHIP` dans `Fields`
-# (`_map_columns` retient le premier champ qui revendique un rôle) : `_role`
-# lui donne donc un rôle distinct, `temps_texte`, promu `temps` en tout
-# dernier repli seulement — jamais mesuré, mais l'ordre de préférence reste
-# sûr même si cette branche s'active un jour.
-_RE_TEMPS_SUFFIXE = re.compile(r"^(temps|arrivee|finish)\.(gun|chip|text)$")
+# officiels réellement observés sur le panel (`Arrivée.*`, 411749/410891).
+#
+# `finishresult` (C1) est une **quatrième racine**, ajoutée après mesure sur
+# l'épreuve 406211 (World Triathlon Para Cup, Besançon), où les 13 listes
+# publiées exposent leur chrono sous
+# `switch([{Selector.Splits}.NAME]=[Finish.NAME];[FinishResult.TEXT];…)`,
+# que `_peel` réduit à `finishresult.text`. Sans elle, les 42 participants de
+# cette épreuve sortent sans `total_time` alors que la valeur (`'1:03:01'`)
+# est bien dans la ligne — et `services/cache.is_fresh` classe alors la course
+# « en cours » (TTL 10 min au lieu de 30 j), d'où un re-scraping perpétuel.
+#
+# Elle n'arrive **que** sous le suffixe `.text`, donc au rôle `temps_texte`,
+# le plus faible des trois : sur une épreuve qui publierait à la fois un
+# `FinishResult.TEXT` et un chip ou un gun, le temps officiel continue de
+# primer. C'est ce qui rend cet élargissement sûr — il ne peut que combler un
+# trou, jamais évincer un temps mieux qualifié. Le classer au même rang que le
+# chip ferait au contraire perdre un chip pourtant publié dès lors qu'une
+# liste énumère `.TEXT` avant `.CHIP` dans `Fields` (`_map_columns` retient le
+# premier champ qui revendique un rôle).
+#
+# Le préfixe reste une alternation **fermée** de quatre racines exactes :
+# `finisher.chip` ou `tempsintermediaire.gun` ne doivent toujours pas passer.
+_RE_TEMPS_SUFFIXE = re.compile(
+    r"^(temps|arrivee|finish|finishresult)\.(gun|chip|text)$"
+)
 
 
 def _role(peeled: str) -> str:

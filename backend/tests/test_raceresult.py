@@ -506,10 +506,14 @@ def test_role_du_vocabulaire_reel(expr, role):
 # dont les 58 participants perdaient leur `total_time` faute de rôle reconnu
 # pour `Finish.GUN`. Plutôt que trois entrées de plus (qui échoueraient en
 # silence sur la prochaine variante non relevée), `_RE_TEMPS_SUFFIXE` généralise
-# par la forme : préfixe fermé (`temps`/`arrivee`/`finish`) + suffixe fermé
-# (`.gun`/`.chip`/`.text`). Les cas ci-dessous couvrent les deux sens du
-# balancier qui a fait échouer C1 deux fois : la reconnaissance ET sa
+# par la forme : préfixe fermé (`temps`/`arrivee`/`finish`/`finishresult`) +
+# suffixe fermé (`.gun`/`.chip`/`.text`). Les cas ci-dessous couvrent les deux
+# sens du balancier qui a fait échouer C1 deux fois : la reconnaissance ET sa
 # non-sur-généralisation.
+#
+# `finishresult` est la racine ajoutée par C1 : le préfixe reste une
+# alternation fermée de quatre racines exactes, pas un préfixe large — d'où le
+# maintien de `Finisher.CHIP` parmi les cas négatifs ci-dessous.
 
 @pytest.mark.parametrize("expr,role", [
     # Positif : les trois préfixes, les trois suffixes — dont les variantes qui
@@ -526,6 +530,12 @@ def test_role_du_vocabulaire_reel(expr, role):
     ("Arrivée.GUN", "temps_pistolet"),
     ("Arrivée.CHIP", "temps"),
     ("Arrivée.TEXT", "temps_texte"),
+    # `FinishResult` (C1) : quatrième racine, ajoutée après mesure sur 406211
+    # où elle porte l'unique chrono des 13 listes publiées. Elle n'apparaît
+    # que sous `.text`, donc au rôle le plus faible — un chip ou un gun publié
+    # par la même liste continue de primer (cf.
+    # `test_map_columns_le_texte_ne_declasse_pas_un_chip_qui_le_precede`).
+    ("FinishResult.TEXT", "temps_texte"),
     # `Temps` nu (Important 1 de la revue C4) : la table d'égalités exactes
     # contenait `finish`/`arrivee` nus et l'anglais `time`, mais pas le
     # français `temps` — trou du même vocabulaire que celui que C4 ferme,
@@ -538,11 +548,6 @@ def test_role_regle_de_forme_temps_gun_chip_text(expr, role):
 
 
 @pytest.mark.parametrize("expr", [
-    # `FinishResult.TEXT` (C1, hors périmètre ici) : le préfixe pelé est
-    # `finishresult`, PAS `finish` — l'ancrage `^...$` de `_RE_TEMPS_SUFFIXE`
-    # l'exclut par construction, sans exclusion ad hoc. Si ce test échouait,
-    # la règle de forme aurait débordé sur le périmètre de C1.
-    "FinishResult.TEXT",
     # Préfixe qui contient `finish`/`temps` sans lui être égal : la forme ne
     # doit reconnaître QUE les trois racines fermées, pas un préfixe large.
     "Finisher.CHIP",
@@ -593,6 +598,92 @@ def test_map_columns_reconnait_finish_gun_seul():
         contest_label="C", status_label="",
     )
     assert r.total_time == "00:31:27"
+
+
+# ── C1 : `FinishResult.TEXT`, le chrono des listes d'affichage ───────────────
+#
+# Symptôme réel de l'épreuve 406211 (World Triathlon Para Cup, Besançon) : ses
+# 13 listes publiées sont des listes d'affichage LIVE dont la colonne de temps
+# est une formule `switch(...)` au curseur d'affichage. `_peel` la réduit à
+# `finishresult.text`, qu'aucun rôle ne reconnaissait : les 42 participants
+# sortaient sans `total_time` alors que la valeur était bien dans la ligne,
+# ce qui gelait la course en « en cours » pour `services/cache.is_fresh`
+# (TTL 10 min au lieu de 30 j → re-scraping perpétuel).
+
+def test_map_columns_reconnait_finishresult_text_de_406211():
+    """Reproduction de la formule réelle de 406211, verbatim.
+
+    C'est le cas que la règle de forme de C4 excluait délibérément, en laissant
+    le préfixe fermé à `finish` : `finishresult` en est une racine distincte.
+    """
+    expr_temps = (
+        "switch([{Selector.Splits}.NAME]=[Finish.NAME];[FinishResult.TEXT];"
+        "[{Selector.Splits}.NAME]<>[Start.NAME];[{Selector.Splits}])"
+    )
+    payload = {
+        "DataFields": ["BIB", "ID", "AfficherNom", expr_temps],
+        "list": {"Fields": [
+            {"Expression": "AfficherNom", "Label": "{EN:Name|FR:Name}"},
+            {"Expression": expr_temps, "Label": "{EN:Time|DE:Zeit|FR:Time}"},
+        ]},
+    }
+
+    assert raceresult._peel(expr_temps) == "finishresult.text", "prémisse"
+
+    roles, segments, extras = raceresult._map_columns(payload)
+
+    # Promu `temps` par le repli de dernier rang : aucun chip ni gun publié.
+    assert roles["temps"] == 3
+    assert "temps_texte" not in roles
+
+    r = raceresult._build_result(
+        ["222", "1", "Jules RIBSTEIN", "1:03:01"], roles, segments, extras,
+        source_url="u", event_name="E", event_date=None,
+        contest_label="PTS5 M", status_label="",
+    )
+    assert r.total_time == "01:03:01"
+    assert r.status == "finisher"
+
+
+def test_map_columns_un_chip_prime_sur_finishresult_text():
+    """L'autre sens du balancier : l'élargissement de C1 ne doit pas évincer un
+    temps mieux qualifié. `FinishResult.TEXT` reçoit `temps_texte`, le rôle le
+    plus faible, **même quand il précède le chip** dans `Fields` — c'est la
+    raison d'être du rôle distinct plutôt que d'un `temps` direct."""
+    payload = {
+        "DataFields": ["BIB", "ID", "FinishResult.TEXT", "Finish.CHIP"],
+        "list": {"Fields": [
+            {"Expression": "FinishResult.TEXT", "Label": "Tps affiché"},
+            {"Expression": "Finish.CHIP", "Label": "Tps officiel"},
+        ]},
+    }
+
+    roles, _segments, _extras = raceresult._map_columns(payload)
+
+    assert roles["temps"] == 3, "le chip officiel doit primer sur le texte"
+
+
+def test_c1_ne_modifie_pas_la_selection_des_listes():
+    """Non-régression de conception : C1 se règle dans `_role`, **pas** dans
+    `_iter_list_specs`.
+
+    Mesuré sur 406211 : la seule liste portant un vrai classement y est
+    `Mode == "hidden"`, mais l'inclure ne répare rien — elle indexe ses contests
+    sous d'autres libellés (`'PTS5 Men'`) que les listes publiées
+    (`'Finish'`, `'Run - Start'`). La fusion par clé `(libellé, dossard)` n'y
+    trouve **aucune** clé commune : 37 doublons s'ajoutent aux 42 participants,
+    soit 79 lignes et autant de `Course` fantômes en base. Élargir la sélection
+    coûterait donc plus que le trou qu'il prétend combler.
+    """
+    config = {"TabConfig": {"Lists": [
+        {"Name": "01-Classements|Classement général", "Contest": "0", "Mode": "hidden"},
+        {"Name": "01-Résultats en ligne|LIVE", "Contest": "1", "Mode": ""},
+        {"Name": "01-Résultats en ligne|Concurrents", "Contest": "0", "Mode": "hidden"},
+    ]}}
+
+    assert raceresult._iter_list_specs(config) == [
+        ("01-Résultats en ligne|LIVE", "1"),
+    ]
 
 
 def test_map_columns_prefere_le_chip_au_gun_sous_la_regle_de_forme():
