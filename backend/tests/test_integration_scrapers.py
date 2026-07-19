@@ -229,18 +229,45 @@ RACERESULT_PANEL = {
     ),
     # Façade chronoconsult.fr — identifiant ENTRE GUILLEMETS (C-D).
     "chronoconsult": "https://chronoconsult.fr/result/2026-24h-roller-le-mans/",
+    # Témoin C1 : liste d'affichage {Selector.Splits} non-`hidden` → 42/42 sans
+    # temps avant correctif. Aussi le témoin de K2 : les clés de groupe de niveau
+    # 0 y sont `Finish` / `Run - Start`, des sélecteurs de point de chrono.
+    "besancon_para": "https://my.raceresult.com/406211/results",
+    # Témoin C2+C3 : concaténation imbriquée dans `if(…)` et rang collé aux
+    # segments → 0 segment sur un half-ironman avant correctif.
+    "annecy": "https://my.raceresult.com/401699/results",
+    # Témoin C4 : `Finish.GUN`/`Finish.CHIP` → 58/58 sans temps avant correctif.
+    "pontcharra": "https://my.raceresult.com/380823/results",
+}
+
+# Épreuves dont un `total_time` est attendu sur la quasi-totalité des lignes.
+# Les autres publient des listes légitimement sans chrono (inscrits, qualifs),
+# cf. `test_raceresult_panel_multi_epreuves`.
+RACERESULT_ATTEND_TEMPS = {
+    "besancon_para": 1.0,   # C1 : 42/42 sans temps → 0
+    "annecy": 0.75,         # 145/587 DNS/DNF/DSQ légitimes
+    "pontcharra": 0.90,     # C4 : 58/58 sans temps → 3 (tous DNS)
+    "geneve": 0.90,
 }
 
 
 @pytest.mark.integration
 @pytest.mark.parametrize("cle, url", sorted(RACERESULT_PANEL.items()))
 def test_raceresult_panel_multi_epreuves(cle, url):
-    """Chaque épreuve du panel remonte des participants nommés.
+    """Chaque épreuve du panel remonte des participants nommés, non dupliqués.
 
-    Ne vérifie PAS le temps total : deux épreuves du panel publient des listes
-    légitimement sans chrono (liste d'inscrits, classement de qualification).
-    Le nom, lui, est exigé partout — c'est ce qui manquait à 506 lignes sur 507
-    avant l'élargissement du vocabulaire d'expressions (C-E).
+    Le `total_time` n'est exigé que sur les épreuves de `RACERESULT_ATTEND_TEMPS` :
+    les autres publient des listes légitimement sans chrono (liste d'inscrits,
+    classement de qualification). Le nom, lui, est exigé partout — c'est ce qui
+    manquait à 506 lignes sur 507 avant l'élargissement du vocabulaire
+    d'expressions (C-E).
+
+    La garde anti-duplication est celle qui manquait pour attraper K1 : le
+    libellé de contest sert **à la fois** de qualifiant de `Course` et de clé de
+    fusion, si bien qu'un mauvais repli produit simultanément une `Course`
+    fantôme et une duplication de participations. `UNIQUE(course_id, bib_number)`
+    ne s'y oppose pas — les `Course` sont distinctes — donc la perte est
+    silencieuse. Mesuré sur 409130 : 302 dossards dans plusieurs `Course`.
     """
     results = registry.scrape_event_all(url)
 
@@ -250,6 +277,29 @@ def test_raceresult_panel_multi_epreuves(cle, url):
         f"{cle} : {len(results) - len(nommes)}/{len(results)} lignes sans nom"
     )
     assert all(r.bib_number for r in results), f"{cle} : dossard manquant"
+
+    # K1 : aucun dossard ne doit apparaître sous deux `event_name`.
+    courses_par_dossard: dict[str, set[str]] = {}
+    for r in results:
+        courses_par_dossard.setdefault(r.bib_number, set()).add(r.event_name)
+    multi = {b: c for b, c in courses_par_dossard.items() if len(c) > 1}
+    assert not multi, (
+        f"{cle} : {len(multi)} dossard(s) présents dans plusieurs Course "
+        f"(duplication silencieuse) — ex. {dict(list(multi.items())[:2])}"
+    )
+
+    # Aucun `event_name` ne doit porter un nom interne de liste RaceResult : le
+    # `|` est un séparateur d'affichage, jamais un qualifiant de Course (K1).
+    assert all("|" not in r.event_name for r in results), (
+        f"{cle} : nom de liste employé comme qualifiant de Course"
+    )
+
+    seuil = RACERESULT_ATTEND_TEMPS.get(cle)
+    if seuil is not None:
+        avec = [r for r in results if r.total_time]
+        assert len(avec) >= seuil * len(results), (
+            f"{cle} : seulement {len(avec)}/{len(results)} lignes avec un temps"
+        )
 
 
 @pytest.mark.integration
