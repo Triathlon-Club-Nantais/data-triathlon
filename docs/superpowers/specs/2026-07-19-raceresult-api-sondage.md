@@ -101,6 +101,47 @@ Tout l'échafaudage de découverte par essais (`_contest_candidates`, réserve
 d'ambiguïté, filet de dernier recours) répond à un problème qui n'existe que sur
 l'alias hérité.
 
+### 3.1 Le libellé de groupe n'est **pas** un contest **(amendement, revue de branche)**
+
+Le contest de `TabConfig.Lists` fait autorité **dès qu'il est renseigné**. Le
+libellé de groupe de niveau 0 de `data` ne doit pas le concurrencer : mesuré, il
+n'est un contest que par coïncidence.
+
+| Épreuve | Libellés de niveau 0 | Ce qu'ils sont réellement |
+| --- | --- | --- |
+| 393893 (Rumilly) | `#1_Distance M` | un contest — d'où la généralisation d'origine |
+| 406211 (Para Cup) | `Finish`, `Run - Start` | des **sélecteurs de point de chrono** |
+| 409130 (24H Rollers) | `24h DECOUVERTE`, `14H`, `` | une **catégorie**, un contest, rien |
+| 380823 (Pontcharra) | `10 Km`, `20 Km` | des contests, corroborés par `contests` |
+
+Le libellé servant **à la fois** de qualifiant de `Course` et de clé de fusion,
+s'y fier produit *simultanément* une `Course` fantôme et une duplication de
+participations — que `UNIQUE(course_id, bib_number)` ne bloque pas, les `Course`
+étant distinctes. **La perte est silencieuse.** Mesuré sur 409130 : 3 `Course`,
+302 dossards présents dans plusieurs d'entre elles, dont 370 lignes rangées sous
+le `Name` de liste `03-Qualifs|Classement Qualifs`.
+
+**Règle retenue**, et pourquoi elle est globale :
+
+1. `Contest != "0"` → `contests[contest]`, sans consulter le groupe. Repli
+   `f"Contest {n}"` si la table l'ignore — jamais le `Name` de liste.
+2. `Contest == "0"` (« toutes catégories », le seul cas sans contest donné) → on
+   consulte le groupe **seulement si tous** les libellés de niveau 0 des listes
+   `Contest="0"` de l'épreuve sont des valeurs de `contests`.
+3. Sinon, aucun qualifiant : une `Course` unique, où la fusion par dossard
+   dédoublonne au lieu de dupliquer.
+
+Le point 2 est **tout ou rien à l'échelle de l'épreuve**, et ce n'est pas un
+excès de prudence : sur 409130 `14H` *est* une valeur de `contests`, mais les 72
+dossards de `24h DECOUVERTE` sont **tous** inclus dans les 456 de `14H`. Une
+corroboration libellé par libellé les aurait laissés dans deux `Course` à la
+fois. Un seul libellé étranger révèle un axe d'affichage, pas la partition en
+contests, et disqualifie donc le groupement entier.
+
+Effet mesuré (avant → après) : 409130 3 `Course` / 302 dossards dupliqués → 1 / 0 ;
+406211 2 `Course` de points de chrono → 10 contests réels ; 380823, 393893,
+401699, 405215 **inchangées à l'octet**.
+
 ## 4. `Mode == "hidden"` est le discriminant — pas `Live`
 
 Le critère `Live` retenu en Task 7 est faux : il avait été calibré sur une seule
@@ -259,8 +300,28 @@ l'a relevé, et `fix-6` (I3) a tranché. État réel, mesuré sur le panel de
 | `NATION.IOCNAME` | oui (égalité exacte) | défensive — le point la fait déjà rejeter par la forme |
 | `Icone("photos")` | oui (préfixe) | défensive — la parenthèse la fait déjà rejeter |
 | `GapTimeTop(…)` | oui (préfixe) | défensive — idem, 16 variantes relevées |
-| `format(3.6*[CONTEST.LENGTH]…)` | **non** | écartée par la seule forme (parenthèse) |
-| expressions de couleur `iif(…)` | **non** | écartées par la seule forme (parenthèse) |
+| `format(3.6*[CONTEST.LENGTH]…)` | **non** | écartée par la seule forme, mais **pas par la parenthèse** — cf. ci-dessous |
+| expressions de couleur `iif(…)` | **non** | écartées par la seule forme, mais **pas par la parenthèse** — cf. ci-dessous |
+
+**Rectificatif (revue de branche)** : les deux dernières lignes portaient une
+explication fausse (« écartée par la seule forme (parenthèse) »). Le verdict —
+exclue — est juste, le mécanisme ne l'était pas, et c'est le mécanisme que les
+tâches futures citeront.
+
+`format` **et** `iif` sont l'un et l'autre dans `_RE_ENROBAGE`
+(`raceresult.py:228-230`) : `_peel` leur **retire** donc la parenthèse au lieu
+de buter dessus. Mesuré à l'exécution :
+
+| Expression | Après `_peel` | Ce qui la rejette réellement |
+| --- | --- | --- |
+| `format(3.6*[CONTEST.LENGTH];"0.0")` | `3.6*contest.length` | le point et l'astérisque (`_RE_TOKEN_SIMPLE`) |
+| `iif([X]>1;"red";"blue")` | `"blue"` | c'est un littéral (`_RE_LITTERAL`) |
+| `Icone("photos")` | `icone("photos")` | la parenthèse — ici l'explication d'origine **est** juste |
+
+`Icone(` n'étant pas un enrobage, sa parenthèse survit : c'est le seul des trois
+cas où le mécanisme annoncé était le bon. La différence n'est pas cosmétique —
+elle dit que la parenthèse n'est *pas* un critère de rejet général, puisque tout
+enrobage reconnu la fait disparaître.
 
 Trois précisions qui appartiennent à la vérité de référence :
 
@@ -586,3 +647,37 @@ regardé, ou l'a été trop peu pour fonder quoi que ce soit.
 14. **Genève (405215)** : club renseigné sur 132/4226 lignes seulement. À
     vérifier **à la source** avant de conclure à un défaut de mapping ; ce n'a
     pas été fait.
+
+**Nommés par la revue complète de branche (amendement) :**
+
+15. **Une clé de groupe de niveau 0 qui serait un statut.** `_iter_groups`
+    (`raceresult.py:799-802`) traite inconditionnellement la profondeur 0 comme
+    un contest : un `{'#2_Abandons': […]}` produirait `contest="Abandons",
+    statut=""` — le statut est **perdu**. Le relecteur a sondé les 9 épreuves du
+    panel d'origine : **aucune clé de niveau 0 reconnue comme statut**. Latent.
+    *Portée réduite par le §3.1* : la moitié « `Course` fantôme » du défaut est
+    désormais fermée par construction — à `Contest != "0"` le libellé de groupe
+    n'est plus consulté, et à `Contest == "0"` un `Abandons` absent de `contests`
+    disqualifie le groupement. Il ne reste que la perte du statut. Non corrigé :
+    poser une garde de vocabulaire à la profondeur 0 rejouerait exactement le
+    mode de défaillance de cette branche — une règle calibrée sur ce qui n'a
+    jamais été observé.
+16. **`split_athlete_name` (`utils.py:96-125`) est partagé et sa sémantique a
+    changé** en tâche 1 : « Jean DE LA TOUR » passe de `("TOUR", "Jean DE LA")` à
+    `("DE LA TOUR", "Jean")`. **Wiclax et TimePulse l'appellent aussi.** Un
+    `rescrape-db` peut donc créer des `Athlete` doublons sous
+    `UNIQUE(nom, prenom, birth_date)` pour les patronymes composés **déjà en
+    base**. Jamais analysé : `task-1-report` concluait « aucune régression » sur
+    la seule foi d'une suite verte, ce qui ne dit rien des données persistées.
+    **Vérification à faire avant tout re-scrape de masse** : requêter les
+    `Athlete` existants dont `nom` ou `prenom` porte plusieurs tokens en
+    majuscules, et mesurer combien changeraient de clé.
+17. **Une épreuve mêlant des listes `Contest="0"` et `Contest!="0"`** n'a été
+    rencontrée sur aucune épreuve sondée. Les lignes des premières y sortiraient
+    sans qualifiant tandis que les secondes seraient nommées : rien ne garantit
+    qu'aucun dossard ne se retrouve dans les deux. Le §3.1 n'est **pas** vérifié
+    sur cette forme.
+18. **Le critère du §3.1 est fondé sur 2 épreuves en `Contest="0"`** (409130,
+    380823), soit toutes celles du panel — mais deux seulement. Le caractère
+    « tout ou rien » est le comportement correct sur ces deux-là ; il n'est pas
+    établi au-delà.
