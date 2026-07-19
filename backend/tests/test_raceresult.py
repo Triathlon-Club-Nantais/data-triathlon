@@ -143,8 +143,10 @@ def test_fetch_config_interroge_la_bonne_route():
     assert "page=results" in client.appels[0]
 
 
-def test_iter_list_specs_aplatit_les_listes_imbriquees():
-    """Les listes RaceResult sont un arbre ; le `listname` est le chemin en `|`."""
+def test_iter_list_specs_lit_le_tableau_plat_observe_en_production():
+    """`config["lists"]` est un tableau plat (event 393893, sondage 2026-07-19) :
+    chaque élément porte déjà le `listname` complet dans `Name`, le `|` n'étant
+    qu'un séparateur d'affichage, pas une hiérarchie à reconstruire."""
     config = json.loads(_fixture("raceresult_config_rumilly.json"))
 
     assert raceresult._iter_list_specs(config) == [
@@ -154,6 +156,9 @@ def test_iter_list_specs_aplatit_les_listes_imbriquees():
 
 
 def test_iter_list_specs_accepte_une_liste_plate():
+    """Repli dict-arbre : rien ne prouve cette forme réelle côté API, mais elle
+    reste acceptée — c'est le raccourci utilisé par le reste de la suite pour
+    monkeypatcher `_fetch_config` sans reproduire le tableau complet."""
     config = {"lists": {"Résultats": {"Contest": 2}}}
 
     assert raceresult._iter_list_specs(config) == [("Résultats", "2")]
@@ -163,6 +168,13 @@ def test_iter_list_specs_accepte_une_liste_plate():
 
 def _payload_rumilly() -> dict:
     return json.loads(_fixture("raceresult_list_rumilly_m.json"))
+
+
+def _champs_rumilly() -> dict:
+    """`DataFields` + `Fields` de la fixture Rumilly — `Fields` vit sous `list`
+    (forme réelle observée en production, cf. `_map_columns`)."""
+    payload = _payload_rumilly()
+    return {"DataFields": payload["DataFields"], "Fields": payload["list"]["Fields"]}
 
 
 @pytest.mark.parametrize("expr,attendu", [
@@ -725,7 +737,7 @@ def test_scrape_event_all_desambiguise_par_contest_sans_dupliquer_entre_listes(m
         return [bib, "1", "1.", bib, nom, "M", "1.S1M", "CLUB",
                 "", "", "", "", "", "", "", "", "", "", "01:00:00", ""]
 
-    champs = {k: _payload_rumilly()[k] for k in ("DataFields", "Fields")}
+    champs = _champs_rumilly()
 
     def _payload(lignes):
         return {**champs, "data": {"#1_": lignes}}
@@ -785,7 +797,7 @@ def test_scrape_event_all_desambiguise_la_collision_intra_payload(monkeypatch):
     )
     monkeypatch.setattr(raceresult, "_fetch_config", lambda eid, base, client: config)
 
-    champs = {k: _payload_rumilly()[k] for k in ("DataFields", "Fields")}
+    champs = _champs_rumilly()
 
     def _payload(lignes):
         return {**champs, "data": {"#1_": lignes}}
@@ -841,7 +853,7 @@ def test_scrape_event_all_garde_le_payload_ambigu_en_dernier_recours(monkeypatch
     )
     monkeypatch.setattr(raceresult, "_fetch_config", lambda eid, base, client: config)
 
-    champs = {k: _payload_rumilly()[k] for k in ("DataFields", "Fields")}
+    champs = _champs_rumilly()
 
     def _payload(lignes):
         return {**champs, "data": {"#1_": lignes}}
@@ -899,7 +911,7 @@ def test_scrape_event_all_distingue_deux_listes_ambigues_dans_le_filet(monkeypat
     )
     monkeypatch.setattr(raceresult, "_fetch_config", lambda eid, base, client: config)
 
-    champs = {k: _payload_rumilly()[k] for k in ("DataFields", "Fields")}
+    champs = _champs_rumilly()
 
     def _payload(lignes):
         return {**champs, "data": {"#1_": lignes}}

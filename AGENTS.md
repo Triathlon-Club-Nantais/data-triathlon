@@ -100,9 +100,10 @@ Archi en couches, le flux ne traverse qu'une direction
   (`swim/t1/bike/t2/run` de `ScrapedResult`) ; `services/mapping.build_splits`
   ré-étiquette ces slots selon `event_type` via le gabarit
   `_SPLIT_KEYS_BY_SPORT` (ex. duathlon → `course1`/`course2`) et omet les slots
-  non pertinents. *Limite* : plafonné à 5 segments — un swimrun multi-legs reste
-  collapsé. Évolution future si besoin : porter une **liste ordonnée de segments
-  étiquetés** dès `ScrapedResult` (touche les 7 scrapers).
+  non pertinents. *Limite levée pour les scrapers qui renseignent `segments`*
+  (RaceResult) : la liste ordonnée de segments étiquetés prime sur les 5 slots
+  et n'a pas de plafond — un swimrun multi-legs y garde toutes ses étapes. Les
+  scrapers qui remplissent encore les 5 slots restent plafonnés à 5 segments.
 
 ### Cache TTL
 
@@ -209,9 +210,17 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 
 ## Fournisseurs supportés
 
-Klikego, Breizh Chrono, TimePulse, Wiclax/G-Live (individuel + épreuve complète).
+Klikego, Breizh Chrono, TimePulse, Wiclax/G-Live (individuel + épreuve complète),
+ProLiveSport, Sportinnovation, RaceResult.
 Wiclax/G-Live couvre plusieurs déploiements : `wiclax-results.com`,
 `chronosmetron.com` et `chronowest.fr` (WordPress + iframe G-Live). Un nouveau
 déploiement tiers = un host dans `WiclaxProvider._HOSTS`.
+RaceResult couvre de même trois façades d'un même produit (`raceresult.com`,
+`espace-competition.com`, `chronoconsult.fr`, cf. `RaceResultProvider._HOSTS`),
+toutes servies par la même API JSON publique — sans Playwright. Deux
+particularités du moteur : le couple (liste, contest) est résolu
+**empiriquement** (`contest=0` n'est pas universel, certaines listes annoncées
+répondent 404 en dur), et la date d'épreuve n'existe que dans le JSON-LD
+schema.org de la page `/{eventId}/results`. Design : `docs/superpowers/specs/2026-07-19-raceresult-scraper-design.md`.
 Types : Triathlon XS/S/M/L/XL, Duathlon XS/S/M/L, SwimRun S/M/L, Aquathlon,
 Aquarun, Bike & Run.
