@@ -103,12 +103,12 @@ Archi en couches, le flux ne traverse qu'une direction
   non pertinents. *Limite levée pour les scrapers qui renseignent `segments`*
   (RaceResult) : la liste ordonnée de segments étiquetés prime sur les 5 slots
   et n'a pas de plafond côté code. **Ce déplafonnement n'est pas mesuré** : sur
-  le panel RaceResult, le maximum observé est de 5 segments (Rumilly, Genève,
-  Besançon), et les trois swimruns sondés (400001, 409725, 403144) ne publient
-  aucune colonne de split — ils sortent donc à 0 segment, non par troncature.
-  Ne pas en déduire qu'un swimrun multi-legs « garde toutes ses étapes » : rien
-  ne l'établit à ce jour. Les scrapers qui remplissent encore les 5 slots
-  restent plafonnés à 5 segments.
+  le panel RaceResult, le maximum observé est de 5 segments, et les swimruns
+  sondés n'ont **aucune liste publiée portant une colonne de split** — ils
+  sortent donc à 0 segment, non par troncature. Ne pas en déduire qu'un swimrun
+  multi-legs « garde toutes ses étapes » : rien ne l'établit à ce jour. Panel et
+  chiffres : `docs/superpowers/specs/2026-07-19-raceresult-api-sondage.md`. Les
+  scrapers qui remplissent encore les 5 slots restent plafonnés à 5 segments.
 
 ### Cache TTL
 
