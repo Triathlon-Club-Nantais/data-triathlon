@@ -211,7 +211,15 @@ def test_chronowest_swimrun_nest_pas_un_triathlon():
 
 @pytest.mark.integration
 def test_raceresult_contests_et_non_finishers():
-    """RaceResult : une Course par contest, non-finishers statués et purgés."""
+    """RaceResult : une Course par contest, non-finishers statués et purgés.
+
+    Resserré après C1 (revue) : une liste d'affichage LIVE (`Live: 1`,
+    `03 - Affichages|LIVE EXTRA sans predictif`) écrasait le vrai classement
+    du contest « Distance Jeunes » et vidait 49 des 874 participants (temps,
+    rang, statut). L'ancienne version de ce test ne pouvait pas l'attraper :
+    la boucle exemptait explicitement le statut vide (`r.status not in ("",
+    "finisher")`) et n'exigeait aucun temps sur les finishers.
+    """
     results = registry.scrape_event_all(LIVE_URLS["raceresult"])
     assert results, "raceresult : aucun participant renvoyé"
 
@@ -221,9 +229,25 @@ def test_raceresult_contests_et_non_finishers():
     )
     statuses = {r.status for r in results}
     assert "finisher" in statuses, f"raceresult : aucun finisher (vus : {statuses})"
+
+    # Un finisher a TOUJOURS un temps (C1 : une liste d'affichage LIVE ne doit
+    # plus jamais écraser le vrai classement par une ligne vidée).
+    assert all(r.total_time for r in results if r.status == "finisher"), (
+        "raceresult : au moins un finisher sans temps total (régression C1)"
+    )
     for r in results:
         if r.status not in ("", "finisher"):
             assert not r.total_time, f"{r.status} avec un temps total : {r.total_time}"
             assert r.rank_overall is None, f"{r.status} avec un rang : {r.rank_overall}"
+
+    # Borne sur la proportion de lignes vidées (ni temps ni statut) : le bug
+    # C1 en produisait 49/874 (~5,6 %) via la liste d'affichage LIVE.
+    videes = [r for r in results if not r.total_time and not r.status]
+    taux = len(videes) / len(results)
+    assert taux < 0.02, (
+        f"raceresult : {len(videes)}/{len(results)} lignes sans temps ni statut "
+        f"({taux:.1%}) — régression C1 ?"
+    )
+
     # Segments étiquetés plutôt que les 5 slots positionnels.
     assert any(r.segments for r in results), "raceresult : aucun segment"
