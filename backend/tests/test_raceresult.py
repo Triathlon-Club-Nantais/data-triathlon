@@ -156,3 +156,74 @@ def test_iter_list_specs_accepte_une_liste_plate():
     config = {"lists": {"Résultats": {"Contest": 2}}}
 
     assert raceresult._iter_list_specs(config) == [("Résultats", "2")]
+
+
+# ── Mapping des colonnes ─────────────────────────────────────────────────────
+
+def _payload_rumilly() -> dict:
+    return json.loads(_fixture("raceresult_list_rumilly_m.json"))
+
+
+@pytest.mark.parametrize("expr,attendu", [
+    ("OuStatut([ClassementGénéral.P])", "classementgeneral.p"),
+    ("ucase([CLUB])", "club"),
+    ("AfficherNom", "affichernom"),
+    ("[Course.OVERALL.P] ", "course.overall.p"),
+    ("TIME", "time"),
+    ("#[ClassementCatégorie.p][AGEGROUP.NAMESHORT]", "classementcategorie.pagegroup.nameshort"),
+])
+def test_peel(expr, attendu):
+    assert raceresult._peel(expr) == attendu
+
+
+@pytest.mark.parametrize("brut,attendu", [
+    ("  2.  ", "2."),
+    ("[img:https://my.raceresult.com/flag.png]FRA", "FRA"),
+    ('#79', "79"),
+    (None, ""),
+    (42, "42"),
+])
+def test_clean_cell(brut, attendu):
+    assert raceresult._clean_cell(brut) == attendu
+
+
+@pytest.mark.parametrize("cell,attendu", [
+    ("1.S4M", (1, "S4M")),
+    ("12.V1M", (12, "V1M")),
+    ("S3F", (None, "S3F")),
+    ("", (None, "")),
+])
+def test_split_rank_category(cell, attendu):
+    assert raceresult._split_rank_category(cell) == attendu
+
+
+def test_map_columns_utilise_l_index_de_datafields():
+    """Le décalage BIB/ID rend la position dans `Fields` inutilisable telle quelle."""
+    roles, segments, extras = raceresult._map_columns(_payload_rumilly())
+
+    assert roles["bib"] == 0          # DataFields[0] est toujours BIB
+    assert roles["rang"] == 2         # Fields[0], mais DataFields[2]
+    assert roles["nom"] == 4
+    assert roles["sexe"] == 5
+    assert roles["rang_categorie"] == 6
+    assert roles["club"] == 7
+    assert roles["temps"] == 18
+
+
+def test_map_columns_rejette_les_colonnes_de_rang_de_split():
+    """`[Natation.OVERALL.P]` vaut "2." — c'est un rang, pas le temps de natation."""
+    _roles, segments, _extras = raceresult._map_columns(_payload_rumilly())
+
+    assert segments == [
+        ("Nat.", 9), ("T1", 11), ("Vélo", 13), ("T2", 15), ("CAP", 17)
+    ]
+    indices_de_rang_de_split = {8, 10, 12, 14, 16}
+    assert not indices_de_rang_de_split & {col for _label, col in segments}
+
+
+def test_map_columns_range_les_champs_non_reconnus_en_extras():
+    """Un champ inconnu n'est pas perdu : il partira dans `raw_data`."""
+    _roles, _segments, extras = raceresult._map_columns(_payload_rumilly())
+
+    assert extras["Arrivée.OVERALL.GapTop"] == 19
+    assert extras["DossardBis"] == 3
