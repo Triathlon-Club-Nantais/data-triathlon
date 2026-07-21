@@ -1886,6 +1886,53 @@ def test_scrape_event_all_groupe_zero_corrobore_qualifie_toujours(monkeypatch):
     assert {r.event_name for r in res} == {"Épreuve - Distance S", "Épreuve - Distance M"}
 
 
+def test_scrape_event_all_collision_didentite_dans_le_repli_alerte(monkeypatch, caplog):
+    """§13.19 : repli `Contest="0"` non corroboré → une `Course` unique. Deux
+    personnes distinctes au même dossard entrent en collision sur la clé
+    `("", dossard)` ; `_prefer` en écrasera une. On veut un warning explicite —
+    le comportement de fusion, lui, ne change pas.
+
+    Groupe `Découverte` étranger à `contests` ({1: Distance S, 2: Distance M}) →
+    repli sans qualifiant.
+    """
+    specs = [("Général", "0")]
+    payloads = {("Général", "0"): _payload({
+        "#1_Découverte": {"#1_": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]},
+        "#2_Rando": {"#1_": [["7", "2", "Luc MARTIN", "ACL", "02:00:00"]]},
+    })}
+    _monte_pipeline(monkeypatch, specs, payloads)
+
+    with caplog.at_level("WARNING", logger="app.scrapers.raceresult"):
+        res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    # Comportement inchangé : repli → une seule Course, un seul dossard retenu.
+    assert len(res) == 1
+    assert {r.event_name for r in res} == {"Épreuve"}
+    # Signal émis, mentionnant le dossard et les deux identités.
+    collisions = [rec for rec in caplog.records if "collision" in rec.message.lower()]
+    assert len(collisions) == 1
+    msg = collisions[0].getMessage()
+    assert "7" in msg
+    assert "DUPONT" in msg and "MARTIN" in msg
+
+
+def test_scrape_event_all_fusion_denrichissement_ne_declenche_aucune_alerte(monkeypatch, caplog):
+    """Deux listes d'un même contest décrivant la **même** personne, l'une sans
+    club : fusion d'enrichissement nominale. Aucun warning ne doit être émis."""
+    specs = [("Maigre", "1"), ("Riche", "1")]
+    payloads = {
+        ("Maigre", "1"): _payload({"#1_Distance S": {"#1_": [["7", "1", "Jean DUPONT", "", "01:00:00"]]}}),
+        ("Riche", "1"): _payload({"#1_Distance S": {"#1_": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]}}),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads)
+
+    with caplog.at_level("WARNING", logger="app.scrapers.raceresult"):
+        res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert len(res) == 1 and res[0].club == "TCN"
+    assert [rec for rec in caplog.records if "collision" in rec.message.lower()] == []
+
+
 def test_scrape_event_all_contest_absent_de_la_table_reste_separateur(monkeypatch):
     """Un contest explicite mais absent de `contests` garde un qualifiant propre
     et **injectif** — jamais le nom de liste. Sans quoi deux contests
