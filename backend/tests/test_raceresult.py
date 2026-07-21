@@ -1564,6 +1564,43 @@ def test_prefer_un_non_finisher_arrivant_en_second_ecrase_une_ligne_muette():
     assert raceresult._prefer(dnf_muet, avec_temps) is False
 
 
+def _res(nom: str = "", prenom: str = "") -> raceresult.ScrapedResult:
+    """ScrapedResult minimal pour éprouver la comparaison d'identités."""
+    return raceresult.ScrapedResult(
+        source_url="u", provider="raceresult", bib_number="7",
+        athlete_name=nom, athlete_firstname=prenom,
+    )
+
+
+def test_identites_incompatibles_deux_noms_pleins_distincts():
+    assert raceresult._identites_incompatibles(
+        _res("DUPONT", "Jean"), _res("MARTIN", "Luc")
+    ) is True
+
+
+def test_identites_incompatibles_un_cote_anonyme_est_un_enrichissement():
+    # Une liste sans patronyme : fusion d'enrichissement légitime, pas collision.
+    assert raceresult._identites_incompatibles(
+        _res("DUPONT", "Jean"), _res("", "")
+    ) is False
+    assert raceresult._identites_incompatibles(
+        _res("", ""), _res("MARTIN", "Luc")
+    ) is False
+
+
+def test_identites_incompatibles_tolere_casse_et_accents():
+    # « José » / « JOSE » : même personne, divergence de casse/accent seulement.
+    assert raceresult._identites_incompatibles(
+        _res("DUPONT", "José"), _res("dupont", "JOSE")
+    ) is False
+
+
+def test_identites_incompatibles_meme_identite_pleine():
+    assert raceresult._identites_incompatibles(
+        _res("DUPONT", "Jean"), _res("DUPONT", "Jean")
+    ) is False
+
+
 # ── Pipeline complet : listes explicites, fusion, erreurs ───────────────────
 
 def test_fetch_list_renvoie_none_sur_404():
