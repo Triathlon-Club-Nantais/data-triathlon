@@ -77,6 +77,27 @@ def _lignes_echecs(outcome: Outcome) -> list[str]:
     return lignes
 
 
+def _lignes_reconciliation(outcome: RescrapeOutcome) -> list[str]:
+    """Le bilan de réconciliation d'identité (issue #66), borné aux réassignations.
+
+    Unités nommées : on compte des **participations** et des **athlètes**, jamais
+    des « lignes ». Masqué quand rien n'a été réconcilié.
+    """
+    if not outcome.reconciled:
+        return []
+    lignes = [
+        _ligne("Participations réconciliées", outcome.reconciled),
+        _ligne("Athlètes fusionnés", outcome.merged),
+        _ligne("Athlètes orphelins supprimés", outcome.orphans_removed),
+        "Identités réconciliées (détail) :",
+    ]
+    lignes.extend(
+        f"  - {r.ancien}  ->  {r.nouveau}   ({r.participations} participations)"
+        for r in outcome.reconciliations
+    )
+    return lignes
+
+
 def render_sheet_report(outcome: SheetOutcome, *, dry_run: bool) -> str:
     """Rapport texte lisible : compteurs + table des ignorés groupés par host."""
     lignes = [_titre("IMPORT SHEET", dry_run=dry_run, interrupted=outcome.interrupted)]
@@ -109,6 +130,7 @@ def render_rescrape_report(outcome: RescrapeOutcome, *, dry_run: bool) -> str:
     else:
         lignes.extend(_lignes_compteurs(outcome))
         lignes.extend(_lignes_echecs(outcome))
+    lignes.extend(_lignes_reconciliation(outcome))
     return "\n".join(lignes)
 
 
