@@ -178,6 +178,26 @@ fichier d'état. À distinguer des **liens non supportés** (`ignored_by_host`,
 suivis dans #33) : ces derniers ne sont **jamais** soumis au batch, ils ne
 comptent ni en succès ni en échec.
 
+**Réconciliation de l'identité d'athlète** (issue #66) : `rescrape-db` n'est plus
+purement additif. Sur un dossard déjà en base, il **résout l'athlète** et, si la
+graphie stockée a divergé de la graphie corrigée, **réassigne
+`participation.athlete_id`** — puis supprime en fin de batch les fiches d'athlète
+ainsi vidées (`athlete_repository.delete_orphans`, no-op sur une base sans
+orphelin). Le bilan compte, unités nommées : « Participations réconciliées »,
+« Athlètes fusionnés », « Athlètes orphelins supprimés », avec le détail
+`ancien -> nouveau (N participations)` — repris dans `--json`.
+
+Il ne réconcilie **que** l'identité : temps, rangs, statuts et splits d'une
+participation existante restent intouchés. Ce silence sur les valeurs est
+délibéré (idempotence contre additivité : une autre question, une autre issue).
+Garde structurante : une correction qui **viderait le prénom** n'est jamais
+appliquée (cas « JP ROUX » / prénoms stockés en majuscules).
+
+`--dry-run` a changé de nature : il **scrape désormais** (le prix d'un aperçu
+véritable) et **ne persiste rien** (rollback au lieu de commit). Il rend le détail
+`avant -> après` sans écrire. `--limit` / `--url` le bornent. Un dry-run sort
+toujours en code 0.
+
 ### Conventions scrapers
 
 - Tout nouveau fournisseur : créer `scrapers/<nom>.py`, exposer `scrape()` (et
