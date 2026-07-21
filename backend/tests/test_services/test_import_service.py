@@ -405,3 +405,28 @@ def test_reconciliation_renommage_a_le_flag_fusion_false(db_session, patch_scrap
     assert done["reassignments"][0].fusion is False
     assert done["reassignments"][0].ancien == "BERRE | Audrey LE"
     assert done["reassignments"][0].nouveau == "LE BERRE | Audrey"
+
+
+def test_persist_false_scrape_mais_n_ecrit_rien(db_session, patch_scraper):
+    """Dry-run : le scrape a lieu, les compteurs sont calculés, rien n'est persisté."""
+    patch_scraper([_result("1", "DUPONT"), _result("2", "MARTIN")])
+
+    out = import_service.import_event(db_session, URL, _settings(), persist=False)
+
+    assert out["imported"] == 2  # calculé
+    db_session.expire_all()
+    assert participation_repository.list_participations(db_session, page_size=100) == []
+    assert course_repository.list_all(db_session) == []
+
+
+def test_iter_persist_false_annule_la_transaction(db_session, patch_scraper):
+    patch_scraper([_result("1", "DUPONT")])
+
+    phases = list(
+        import_service.iter_import_event(db_session, URL, _settings(), persist=False)
+    )
+
+    assert phases[-1]["phase"] == "done"
+    assert phases[-1]["imported"] == 1
+    db_session.expire_all()
+    assert participation_repository.list_participations(db_session, page_size=100) == []
