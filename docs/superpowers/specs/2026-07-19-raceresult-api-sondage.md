@@ -686,6 +686,12 @@ regardé, ou l'a été trop peu pour fonder quoi que ce soit.
     sans qualifiant tandis que les secondes seraient nommées : rien ne garantit
     qu'aucun dossard ne se retrouve dans les deux. Le §3.1 n'est **pas** vérifié
     sur cette forme.
+
+    **Suivi #65** : cette forme mixte est désormais **épinglée par des tests de
+    caractérisation** (`test_scrape_event_all_mixte_contest_zero_*`), qui figent
+    le comportement actuel — voie `!="0"` qualifiée, voie `"0"` corroborée ou
+    repliée sur le nom nu. Ils détecteront toute dérive future ; ils ne
+    **valident** rien, faute d'épreuve réelle.
 18. **Le critère du §3.1 est fondé sur 2 épreuves en `Contest="0"`** (409130,
     380823), soit toutes celles du panel — mais deux seulement. Le caractère
     « tout ou rien » est le comportement correct sur ces deux-là ; il n'est pas
@@ -709,3 +715,10 @@ regardé, ou l'a été trop peu pour fonder quoi que ce soit.
     déclarer qu'une. Signal à guetter si le cas se matérialise : un import dont
     le total de participants est nettement inférieur à la somme des lignes
     publiées, sans doublon apparent.
+
+    **Suivi #65** : ce signal est désormais **émis** — `scrape_event_all` loggue
+    un `warning` quand une clé de fusion écrase deux identités d'athlète
+    distinctes (`_identites_incompatibles`). L'angle mort est rendu **observable**,
+    pas fermé : le comportement de fusion reste inchangé (le compromis du §3.1
+    reste le bon). Muet sur tout le panel réel, le signal ne se déclenche que sur
+    la forme non observée décrite ici.
