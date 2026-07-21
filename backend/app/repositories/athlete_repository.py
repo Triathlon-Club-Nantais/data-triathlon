@@ -118,5 +118,6 @@ def delete_orphans(db: Session) -> int:
     orphan_ids = [r[0] for r in rows]
     if not orphan_ids:
         return 0
+    # "fetch" purge l'identity map pour que get() retombe à None après suppression
     db.query(Athlete).filter(Athlete.id.in_(orphan_ids)).delete(synchronize_session="fetch")
     return len(orphan_ids)
