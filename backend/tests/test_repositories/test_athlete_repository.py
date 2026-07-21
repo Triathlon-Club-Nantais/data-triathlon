@@ -54,3 +54,11 @@ def test_get_or_create_dedup_accents_casse_mixte(db_session):
     a1 = athlete_repository.get_or_create(db_session, nom="LEMÉE", prenom="Sébastien")
     a2 = athlete_repository.get_or_create(db_session, nom="lemée", prenom="sébastien")
     assert a2.id == a1.id
+
+
+def test_resolve_signale_creation_puis_reutilisation(db_session):
+    a1, cree1 = athlete_repository.resolve(db_session, nom="ROUX", prenom="Alexis")
+    assert cree1 is True
+    a2, cree2 = athlete_repository.resolve(db_session, nom="ROUX", prenom="Alexis")
+    assert cree2 is False
+    assert a2.id == a1.id

@@ -173,3 +173,15 @@ def test_get_or_create_course_aquathlons_meme_jour_restent_distincts(db_session)
         for categorie in ("Pupilles", "Benjamins", "Minimes", "Poussins et Mini-Poussins")
     ]
     assert len({c.id for c in courses}) == 4
+
+
+def test_resolve_athlete_reporte_le_drapeau_de_creation(db_session):
+    scraped = ScrapedResult(
+        source_url="http://d", provider="klikego",
+        athlete_name="LE BERRE", athlete_firstname="Audrey",
+        event_name="Tri", event_type="triathlon-m",
+    )
+    _, cree = mapping.resolve_athlete(db_session, scraped)
+    assert cree is True
+    _, cree2 = mapping.resolve_athlete(db_session, scraped)
+    assert cree2 is False
