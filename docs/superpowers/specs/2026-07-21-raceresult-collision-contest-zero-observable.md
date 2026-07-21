@@ -75,19 +75,21 @@ cle = (libelle, r.bib_number)
 ancien = fusion.get(cle)
 if ancien is not None and _identites_incompatibles(r, ancien):
     logger.warning(
-        "RaceResult %s : dossard %s en collision sous le qualifiant %r — "
-        "deux identités distinctes (%s / %s), une sera écrasée sans trace "
+        "RaceResult %s : dossard %s en collision sous le "
+        "qualifiant %r — deux identités distinctes "
+        "(%s %s / %s %s), une sera écrasée sans trace "
         "(cf. #65 §13.19)",
         event_id, r.bib_number, libelle or "(aucun)",
-        _identite_lisible(ancien), _identite_lisible(r),
+        ancien.athlete_name, ancien.athlete_firstname,
+        r.athlete_name, r.athlete_firstname,
     )
 if ancien is None or _prefer(r, ancien):
     fusion[cle] = r
 ```
 
 Le **comportement de fusion ne change pas** : on log, puis `_prefer` tranche
-comme aujourd'hui. `_identite_lisible` est un petit formateur `"NOM Prénom"` pour
-le message (peut être inline si trivial).
+comme aujourd'hui. Les deux identités sont formatées en clair dans le message
+par simple interpolation `nom prénom` (pas de formateur dédié).
 
 **Propriété voulue** — comme les autres gardes du module, **muette sur tout le
 panel réel** : une collision d'identités sur une même clé n'arrive pas dans les
