@@ -96,15 +96,21 @@ def get_or_create_course(db: Session, scraped: ScrapedResult, event_url: str) ->
     )
 
 
-def get_or_create_athlete(db: Session, scraped: ScrapedResult) -> Athlete:
-    """Athlète dédoublonné par nom + prénom (+ date de naissance si connue)."""
-    return athlete_repository.get_or_create(
+def resolve_athlete(db: Session, scraped: ScrapedResult) -> tuple[Athlete, bool]:
+    """Athlète dédoublonné + drapeau « créé » (True = renommage, False = fusion)."""
+    return athlete_repository.resolve(
         db,
         nom=scraped.athlete_name,
         prenom=scraped.athlete_firstname,
         gender=scraped.gender,
         club=scraped.club or None,
     )
+
+
+def get_or_create_athlete(db: Session, scraped: ScrapedResult) -> Athlete:
+    """Athlète dédoublonné par nom + prénom (+ date de naissance si connue)."""
+    athlete, _ = resolve_athlete(db, scraped)
+    return athlete
 
 
 def participation_fields(
