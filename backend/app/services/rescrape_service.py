@@ -5,13 +5,14 @@ la course. La table `course` en porte N par épreuve (heats Breizh Chrono,
 variantes individuel/relais) ; un seul scrape d'épreuve les réimporte toutes.
 Compteurs et `--limit` raisonnent donc en épreuves (cf. `_dedupe_par_url`).
 """
+from collections import Counter
 from dataclasses import dataclass, field
 
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.models.course import Course
-from app.repositories import course_repository
+from app.repositories import athlete_repository, course_repository
 from app.services import sheet_source
 from app.services.batch import BatchFailure, BatchItem, est_echec_total, run_batch
 from app.services.progress import ProgressReporter
@@ -59,6 +60,19 @@ def _items_depuis_urls(db: Session, urls: list[str]) -> list[BatchItem]:
     return items
 
 
+@dataclass(frozen=True)
+class IdentiteReconciliee:
+    """Une identité corrigée et son volume : « ancien -> nouveau (N participations) ».
+
+    Agrégée par paire (ancien, nouveau) : bornée aux seules réconciliations,
+    donc légère — comme `failures`. Reprise telle quelle dans `--json` via
+    `asdict()`.
+    """
+    ancien: str
+    nouveau: str
+    participations: int
+
+
 @dataclass
 class RescrapeOutcome:
     """Bilan d'un rescrape-db. `total` = nombre d'**épreuves** (URLs uniques).
@@ -78,6 +92,16 @@ class RescrapeOutcome:
     #: contrairement à la liste de toutes les épreuves. `asdict()` l'embarque
     #: dans `--json`, ce qui referme la boucle de rejeu sans fichier d'état.
     failures: list[BatchFailure] = field(default_factory=list)
+    #: Participations réconciliées (identité réassignée).
+    reconciled: int = 0
+    #: Athlètes fusionnés (cible corrigée préexistante — pas un simple renommage).
+    merged: int = 0
+    #: Athlètes orphelins supprimés en fin de batch (fiches vidées).
+    orphans_removed: int = 0
+    #: Dry-run : le batch a scrapé sans persister. Neutralise `echec_total`.
+    dry_run: bool = False
+    #: Détail des identités réconciliées (ancien -> nouveau, volume).
+    reconciliations: list[IdentiteReconciliee] = field(default_factory=list)
 
     @property
     def echec_total(self) -> bool:
@@ -86,9 +110,14 @@ class RescrapeOutcome:
         `total` est le nombre d'épreuves soumises au batch (URLs uniques, après
         `--limit`) : c'est à lui qu'`errors` se compare.
 
+        Un dry-run ne persiste rien : il ne peut jamais être un échec total, même
+        si des scrapes échouent (règle « un dry-run sort toujours en 0 »).
+
         Propriété (et non champ) : `asdict()` ne sérialise que les champs, la
         charge utile `--json` reste inchangée.
         """
+        if self.dry_run:
+            return False
         return est_echec_total(epreuves=self.total, errors=self.errors)
 
 
@@ -133,14 +162,15 @@ def run_rescrape_db(
     if limit is not None:
         items = items[:limit]
 
-    outcome = RescrapeOutcome(total=len(items))
+    outcome = RescrapeOutcome(total=len(items), dry_run=dry_run)
     if dry_run:
         # Charge utile réservée au dry-run : hors dry-run, embarquer l'URL de
         # chaque épreuve gonflerait la sortie --json de plusieurs dizaines de Ko.
         outcome.dry_run_urls = [item.url for item in items]
-        return outcome
 
-    totals = run_batch(db, items, settings, force=True, delay=delay, reporter=reporter)
+    totals = run_batch(
+        db, items, settings, force=True, persist=not dry_run, delay=delay, reporter=reporter
+    )
 
     outcome.imported = totals.imported
     outcome.skipped = totals.skipped
@@ -148,4 +178,19 @@ def run_rescrape_db(
     outcome.failures = totals.failures
     outcome.processed = totals.processed
     outcome.interrupted = totals.interrupted
+
+    outcome.reconciled = totals.reconciled
+    outcome.merged = len({r.ancien for r in totals.reassignments if r.fusion})
+    compteur = Counter((r.ancien, r.nouveau) for r in totals.reassignments)
+    outcome.reconciliations = [
+        IdentiteReconciliee(ancien=ancien, nouveau=nouveau, participations=n)
+        for (ancien, nouveau), n in compteur.items()
+    ]
+
+    # Nettoyage des orphelins : une seule fois, après tout le batch, et jamais en
+    # dry-run (rien n'a été persisté, donc aucune fiche n'a été vidée).
+    if not dry_run:
+        outcome.orphans_removed = athlete_repository.delete_orphans(db)
+        db.commit()
+
     return outcome
