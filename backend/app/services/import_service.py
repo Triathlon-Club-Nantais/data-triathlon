@@ -8,18 +8,38 @@ et un générateur de progression pour le streaming SSE.
 """
 import logging
 from collections.abc import Iterator
+from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.core.exceptions import InvalidUrlError, ProviderNotSupportedError, ScraperError
 from app.models.course import Course
+from app.models.participation import Participation
 from app.repositories import course_repository, participation_repository
 from app.scrapers import scrape_event_all as registry_scrape_event_all
 from app.scrapers.base import ScrapedResult
 from app.services import cache, mapping, quality
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class Reassignment:
+    """Une identité réconciliée : ancienne graphie → nouvelle, et sa nature.
+
+    `fusion` = True quand la cible corrigée préexistait (deux fiches en une),
+    False quand elle vient d'être créée (simple renommage). Labels figés à la
+    réassignation : ils survivent au rollback d'un dry-run.
+    """
+    ancien: str
+    nouveau: str
+    fusion: bool
+
+
+def _identite(athlete) -> str:
+    """Libellé d'identité pour le bilan : « NOM | Prénom »."""
+    return f"{athlete.nom} | {athlete.prenom}"
 
 
 def _validate_url(url: str) -> str:
@@ -71,13 +91,18 @@ class _Persister:
     def __init__(self, db: Session, event_url: str):
         self.db = db
         self.event_url = event_url
-        self._bibs: dict[int, set[str]] = {}
+        #: Snapshot pré-import (dossard → Participation), par course.
+        self._existing: dict[int, dict[str, Participation]] = {}
         self._added_bibs: dict[int, set[str]] = {}
+        #: Dossards préexistants déjà réconciliés dans cet import (anti double-comptage).
+        self._reconciled_bibs: dict[int, set[str]] = {}
         self._duplicate_bibs: dict[int, int] = {}
         self._athlete_credits: dict[int, dict[int, int]] = {}
         self._courses: dict[int, Course] = {}
         self.imported = 0
         self.skipped = 0
+        self.reconciled = 0
+        self.reassignments: list[Reassignment] = []
 
     def add(self, scraped: ScrapedResult) -> None:
         course = mapping.get_or_create_course(self.db, scraped, self.event_url)
@@ -85,17 +110,29 @@ class _Persister:
         bib = scraped.bib_number or None
 
         if bib is not None:
-            bibs = self._bibs.setdefault(
-                course.id, participation_repository.existing_bibs_for_course(self.db, course.id)
+            existing = self._existing.setdefault(
+                course.id,
+                participation_repository.existing_participations_for_course(
+                    self.db, course.id
+                ),
             )
             added = self._added_bibs.setdefault(course.id, set())
-            if bib in bibs:
+            seen = self._reconciled_bibs.setdefault(course.id, set())
+            if bib in existing:
+                # Dossard persisté avant cet import → repli de réconciliation.
+                if bib in seen:
+                    # 2e occurrence source d'un dossard préexistant : skip bénin,
+                    # comportement historique (pas une anomalie de fiabilité).
+                    self.skipped += 1
+                else:
+                    self._reconcile(scraped, existing[bib])
+                    seen.add(bib)
+                return
+            if bib in added:
+                # 2e occurrence d'un dossard NOUVEAU dans cet import : la source se
+                # contredit, la ligne est perdue (cf. services/quality.py).
                 self.skipped += 1
-                # Dossard déjà persisté avant cet import → doublon bénin (re-scrape).
-                # Déjà ajouté pendant cet import → la source se contredit, la ligne est
-                # perdue : c'est une anomalie de fiabilité (cf. services/quality.py).
-                if bib in added:
-                    self._duplicate_bibs[course.id] = self._duplicate_bibs.get(course.id, 0) + 1
+                self._duplicate_bibs[course.id] = self._duplicate_bibs.get(course.id, 0) + 1
                 return
 
         # Sans dossard, l'identité repose sur l'athlète : il faut le résoudre d'abord.
@@ -117,9 +154,32 @@ class _Persister:
             ),
         )
         if bib is not None:
-            bibs.add(bib)
-            added.add(bib)
+            self._added_bibs[course.id].add(bib)
         self.imported += 1
+
+    def _reconcile(self, scraped: ScrapedResult, participation: Participation) -> None:
+        """Réassigne l'athlète d'une participation existante si sa graphie a divergé.
+
+        Ne touche QUE `athlete_id` (via la relation, pour un déplacement propre
+        entre fiches sans déclencher le cascade delete-orphan). Compte
+        « réconciliée » quand l'athlète change, « skipped » sinon. Garde des
+        ambigus : jamais une correction qui viderait le prénom.
+        """
+        athlete, cree = mapping.resolve_athlete(self.db, scraped)
+        if athlete.id == participation.athlete_id:
+            self.skipped += 1
+            return
+        ancien = participation.athlete
+        if not (athlete.prenom or "").strip() and (ancien.prenom or "").strip():
+            # « BERGE | LOLA » → « LOLA BERGE |  » : refusé, on garde l'existant.
+            self.skipped += 1
+            return
+        reassignment = Reassignment(
+            ancien=_identite(ancien), nouveau=_identite(athlete), fusion=not cree
+        )
+        participation.athlete = athlete
+        self.reconciled += 1
+        self.reassignments.append(reassignment)
 
     def finalize(self) -> None:
         for course_id, course in self._courses.items():
@@ -173,7 +233,11 @@ def import_event(db: Session, url: str, settings: Settings, force: bool = False)
         logger.exception("Rollback de l'import %s", url)
         raise ScraperError("Erreur lors de l'enregistrement des résultats.") from None
 
-    return {"imported": persister.imported, "skipped": persister.skipped}
+    return {
+        "imported": persister.imported,
+        "skipped": persister.skipped,
+        "reconciled": persister.reconciled,
+    }
 
 
 def iter_import_event(
@@ -235,5 +299,7 @@ def iter_import_event(
         "phase": "done",
         "imported": persister.imported,
         "skipped": persister.skipped,
+        "reconciled": persister.reconciled,
+        "reassignments": persister.reassignments,
         "total": total,
     }
