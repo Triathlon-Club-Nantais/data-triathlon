@@ -1063,6 +1063,38 @@ def _prefer(nouveau: ScrapedResult, ancien: ScrapedResult) -> bool:
     return _richness(nouveau) > _richness(ancien)
 
 
+def _identite_pliee(r: ScrapedResult) -> tuple[str, str]:
+    """(nom, prénom) plié en minuscules et accents neutralisés, pour comparaison.
+
+    Réutilise `_ACCENTS` afin qu'une divergence de seule casse ou de seul accent
+    (« José » / « JOSE ») ne compte pas comme deux identités.
+    """
+    def plie(s: str) -> str:
+        return (s or "").translate(_ACCENTS).strip().lower()
+
+    return plie(r.athlete_name), plie(r.athlete_firstname)
+
+
+def _identites_incompatibles(a: ScrapedResult, b: ScrapedResult) -> bool:
+    """Vrai si `a` et `b` nomment deux athlètes **distincts**.
+
+    Sert de garde à l'instrumentation de la collision de dossard du repli
+    `Contest="0"` (issue #65, §13.19 du sondage) : sur une même clé de fusion,
+    deux identités pleines et différentes signalent que `_prefer` s'apprête à
+    écraser une personne au profit d'une autre — le « signal à guetter » que le
+    sondage réclame.
+
+    Rend **False** dès qu'un côté est anonyme (nom et prénom vides) : c'est le cas
+    nominal d'une fusion d'enrichissement, où une liste sans patronyme complète
+    une liste qui en porte un. Alerter là serait du bruit. La comparaison est
+    tolérante à la casse et aux accents (cf. `_identite_pliee`).
+    """
+    ida, idb = _identite_pliee(a), _identite_pliee(b)
+    if not any(ida) or not any(idb):
+        return False
+    return ida != idb
+
+
 def scrape_event_all(url: str) -> list[ScrapedResult]:
     """Importe tous les participants d'une épreuve RaceResult.
 
