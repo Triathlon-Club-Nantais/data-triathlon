@@ -43,10 +43,33 @@ def _brancher_tube_ferme(monkeypatch) -> _EchoTubeFerme:
     return faux_echo
 
 
+class _RequeteOrphelinsVide:
+    """Chaînage `query().outerjoin().filter()` inerte : zéro orphelin trouvé."""
+
+    def outerjoin(self, *args, **kwargs):
+        return self
+
+    def filter(self, *args, **kwargs):
+        return self
+
+    def all(self):
+        return []
+
+
 class _SessionFactice:
-    """Session inerte : `run_batch` ne fait que la rollback entre deux épreuves."""
+    """Session inerte : `run_batch` ne fait que la rollback entre deux épreuves.
+
+    `query`/`commit` tolèrent le nettoyage des orphelins que `run_rescrape_db`
+    déclenche désormais en fin de batch (hors dry-run) — zéro orphelin ici.
+    """
 
     def rollback(self) -> None:
+        pass
+
+    def query(self, *args, **kwargs):
+        return _RequeteOrphelinsVide()
+
+    def commit(self) -> None:
         pass
 
 
