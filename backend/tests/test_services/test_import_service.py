@@ -373,3 +373,35 @@ def test_reconciliation_ne_vide_jamais_le_prenom(db_session, patch_scraper):
     assert out["skipped"] == 1
     parts = participation_repository.list_participations(db_session, page_size=100)
     assert (parts[0].athlete.nom, parts[0].athlete.prenom) == ("BERGE", "LOLA")
+
+
+def test_reconciliation_dossard_en_double_ne_compte_qu_une_fois(db_session, patch_scraper):
+    """Anti double-comptage : 2 lignes source pour un dossard préexistant réconcilié
+    → 1 réconciliation, la 2e occurrence est un skip bénin (comportement historique)."""
+    patch_scraper([_result("1", "BERRE", "Audrey LE")])
+    import_service.import_event(db_session, URL, _settings())
+
+    # Re-scrape : la graphie corrigée apparaît deux fois pour le même dossard.
+    patch_scraper([_result("1", "LE BERRE", "Audrey"), _result("1", "LE BERRE", "Audrey")])
+    out = import_service.import_event(db_session, URL, _settings(), force=True)
+
+    assert out["reconciled"] == 1
+    assert out["skipped"] == 1
+    parts = participation_repository.list_participations(db_session, page_size=100)
+    assert len(parts) == 1
+    assert (parts[0].athlete.nom, parts[0].athlete.prenom) == ("LE BERRE", "Audrey")
+
+
+def test_reconciliation_renommage_a_le_flag_fusion_false(db_session, patch_scraper):
+    """Renommage (cible corrigée créée, pas préexistante) → fusion is False."""
+    patch_scraper([_result("1", "BERRE", "Audrey LE")])
+    import_service.import_event(db_session, URL, _settings())
+
+    patch_scraper([_result("1", "LE BERRE", "Audrey")])
+    phases = list(import_service.iter_import_event(db_session, URL, _settings(), force=True))
+    done = phases[-1]
+
+    assert done["reconciled"] == 1
+    assert done["reassignments"][0].fusion is False
+    assert done["reassignments"][0].ancien == "BERRE | Audrey LE"
+    assert done["reassignments"][0].nouveau == "LE BERRE | Audrey"
