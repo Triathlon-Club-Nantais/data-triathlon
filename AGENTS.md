@@ -193,6 +193,12 @@ délibéré (idempotence contre additivité : une autre question, une autre issu
 Garde structurante : une correction qui **viderait le prénom** n'est jamais
 appliquée (cas « JP ROUX » / prénoms stockés en majuscules).
 
+Le nettoyage des orphelins (`delete_orphans`) ne tourne **que** dans
+`rescrape-db`, en fin de batch : le chemin web (`import_event`/SSE, une épreuve
+à la fois) réassigne et commite mais **ne** balaie **pas** l'ancienne fiche
+vidée — elle reste orpheline jusqu'au prochain `rescrape-db`, qui seul peut
+constater qu'aucune autre épreuve du batch ne l'a entre-temps réutilisée.
+
 `--dry-run` a changé de nature : il **scrape désormais** (le prix d'un aperçu
 véritable) et **ne persiste rien** (rollback au lieu de commit). Il rend le détail
 `avant -> après` sans écrire. `--limit` / `--url` le bornent. Un dry-run sort
