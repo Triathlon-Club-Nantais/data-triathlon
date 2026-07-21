@@ -206,10 +206,14 @@ def _cached_result(db: Session, url: str, settings: Settings) -> dict | None:
     return None
 
 
-def import_event(db: Session, url: str, settings: Settings, force: bool = False) -> dict:
+def import_event(
+    db: Session, url: str, settings: Settings, force: bool = False, persist: bool = True
+) -> dict:
     """Import complet (bloquant). Renvoie {imported, skipped, [cached]}.
 
     force=True saute le cache TTL (`_cached_result`) → le scraping a toujours lieu.
+    persist=False traverse tout le chemin de persistance (scrape, add, finalize)
+    puis annule la transaction (dry-run) : rien n'est écrit.
     """
     url = _validate_url(url)
 
@@ -227,7 +231,10 @@ def import_event(db: Session, url: str, settings: Settings, force: bool = False)
         for scraped in results:
             persister.add(scraped)
         persister.finalize()
-        db.commit()
+        if persist:
+            db.commit()
+        else:
+            db.rollback()  # dry-run : traverser la persistance, ne rien écrire
     except Exception:
         db.rollback()
         logger.exception("Rollback de l'import %s", url)
@@ -241,7 +248,7 @@ def import_event(db: Session, url: str, settings: Settings, force: bool = False)
 
 
 def iter_import_event(
-    db: Session, url: str, settings: Settings, force: bool = False
+    db: Session, url: str, settings: Settings, force: bool = False, persist: bool = True
 ) -> Iterator[dict]:
     """
     Générateur de progression pour le SSE. Émet des dicts de phase :
@@ -249,6 +256,8 @@ def iter_import_event(
       → {phase: done, …}   (ou {phase: error, message})
 
     force=True saute le cache TTL (`_cached_result`).
+    persist=False traverse tout le chemin de persistance (scrape, add, finalize)
+    puis annule la transaction (dry-run) : rien n'est écrit.
     """
     try:
         url = _validate_url(url)
@@ -288,7 +297,10 @@ def iter_import_event(
                     "progress": i + 1,
                 }
         persister.finalize()
-        db.commit()
+        if persist:
+            db.commit()
+        else:
+            db.rollback()  # dry-run : traverser la persistance, ne rien écrire
     except Exception:
         db.rollback()
         logger.exception("Rollback de l'import streaming %s", url)
