@@ -202,14 +202,18 @@ def _cached_result(db: Session, url: str, settings: Settings) -> dict | None:
     if existing and cache.is_fresh(db, existing, settings):
         count = len(participation_repository.existing_bibs_for_course(db, existing.id))
         logger.info("Cache TTL frais pour %s — re-scraping court-circuité", url)
-        return {"imported": 0, "skipped": count, "cached": True}
+        return {"imported": 0, "skipped": count, "reconciled": 0, "cached": True}
     return None
 
 
 def import_event(
     db: Session, url: str, settings: Settings, force: bool = False, persist: bool = True
 ) -> dict:
-    """Import complet (bloquant). Renvoie {imported, skipped, [cached]}.
+    """Import complet (bloquant). Renvoie {imported, skipped, reconciled, [cached]}.
+
+    Contrat stable : `reconciled` (et `cached` à sa valeur par défaut) est présent
+    sur **tous** les chemins de retour — cache TTL frais et « aucun résultat »
+    compris — pour éviter à l'appelant un accès conditionnel.
 
     force=True saute le cache TTL (`_cached_result`) → le scraping a toujours lieu.
     persist=False traverse tout le chemin de persistance (scrape, add, finalize)
@@ -224,7 +228,7 @@ def import_event(
 
     results = _scrape_all(url)
     if not results:
-        return {"imported": 0, "skipped": 0}
+        return {"imported": 0, "skipped": 0, "reconciled": 0}
 
     persister = _Persister(db, url)
     try:
@@ -255,6 +259,11 @@ def iter_import_event(
       {phase: scraping} → {phase: saving, progress, total, imported, skipped}
       → {phase: done, …}   (ou {phase: error, message})
 
+    La phase `done` porte un contrat stable — `imported`, `skipped`,
+    `reconciled`, `reassignments`, `total` — sur **tous** les chemins, y compris
+    les court-circuits (cache TTL frais, aucun résultat), pour que le consommateur
+    SSE / batch n'ait aucun champ conditionnel à gérer.
+
     force=True saute le cache TTL (`_cached_result`).
     persist=False traverse tout le chemin de persistance (scrape, add, finalize)
     puis annule la transaction (dry-run) : rien n'est écrit.
@@ -268,7 +277,7 @@ def iter_import_event(
     if not force:
         cached = _cached_result(db, url, settings)
         if cached is not None:
-            yield {"phase": "done", "total": cached["skipped"], **cached}
+            yield {"phase": "done", "total": cached["skipped"], "reassignments": [], **cached}
             return
 
     yield {"phase": "scraping", "message": "Récupération des participants…"}
@@ -280,7 +289,14 @@ def iter_import_event(
 
     total = len(results)
     if total == 0:
-        yield {"phase": "done", "imported": 0, "skipped": 0, "total": 0}
+        yield {
+            "phase": "done",
+            "imported": 0,
+            "skipped": 0,
+            "reconciled": 0,
+            "reassignments": [],
+            "total": 0,
+        }
         return
 
     persister = _Persister(db, url)
