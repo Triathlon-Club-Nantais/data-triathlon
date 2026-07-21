@@ -1088,6 +1088,13 @@ def _identites_incompatibles(a: ScrapedResult, b: ScrapedResult) -> bool:
     nominal d'une fusion d'enrichissement, où une liste sans patronyme complète
     une liste qui en porte un. Alerter là serait du bruit. La comparaison est
     tolérante à la casse et aux accents (cf. `_identite_pliee`).
+
+    Au-delà de la casse et des accents, une divergence de **tokenisation** entre
+    deux listes (« Jean-Pierre » vs « Jean Pierre », ordre nom/prénom permuté par
+    une expression `AfficherNom` différente) déclencherait l'alerte. Non observé
+    sur le panel — les deux listes partagent la même cellule « nom » et le même
+    `split_athlete_name` — et sans conséquence (on ne fait que loguer), une telle
+    divergence mérite d'ailleurs d'être signalée. Garde volontairement stricte.
     """
     ida, idb = _identite_pliee(a), _identite_pliee(b)
     if not any(ida) or not any(idb):
