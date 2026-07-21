@@ -1,5 +1,6 @@
 """Routers de scraping : import épreuve (sync + SSE), détection de provider."""
 import json
+from dataclasses import asdict, is_dataclass
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
@@ -13,6 +14,20 @@ from app.scrapers import detect_provider
 from app.services import import_service
 
 router = APIRouter(tags=["scrape"])
+
+
+def _json_default(o):
+    """Filet de sérialisation JSON pour les phases du SSE.
+
+    `iter_import_event` peut émettre des dataclasses (ex. `Reassignment`,
+    frozen, non sérialisable nativement) dans le champ `reassignments` de la
+    phase `done`. `batch` consomme le même générateur et a besoin des objets
+    Python — la conversion se fait donc ici, au point de sérialisation SSE,
+    jamais dans le générateur.
+    """
+    if is_dataclass(o) and not isinstance(o, type):
+        return asdict(o)
+    return str(o)
 
 
 @router.post("/scrape/event", response_model=ImportResult)
@@ -34,7 +49,7 @@ def scrape_event_stream(body: ScrapeRequest, settings: Settings = Depends(settin
         db = SessionLocal()
         try:
             for event in import_service.iter_import_event(db, body.url, settings):
-                yield f"data: {json.dumps(event)}\n\n"
+                yield f"data: {json.dumps(event, default=_json_default)}\n\n"
         finally:
             db.close()
 
