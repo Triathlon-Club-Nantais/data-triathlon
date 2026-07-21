@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.club import club_keyword_filter
 from app.models.athlete import Athlete
+from app.models.participation import Participation
 
 
 def get(db: Session, athlete_id: int) -> Athlete | None:
@@ -96,3 +97,26 @@ def search(
         q = q.filter(clause)
     offset = (page - 1) * page_size
     return q.order_by(Athlete.nom, Athlete.prenom).offset(offset).limit(page_size).all()
+
+
+def delete_orphans(db: Session) -> int:
+    """Supprime les athlètes sans aucune participation. Renvoie le nombre supprimé.
+
+    `Participation.athlete_id` est la **seule** FK vers `Athlete` : un athlète
+    sans participation n'est plus référencé nulle part. La base compte 0 orphelin
+    en régime normal, donc la règle est un no-op sur l'existant — elle ne peut
+    emporter que ce que la réconciliation vient de libérer. Appelée **une fois**
+    en fin de batch (jamais par épreuve : un orphelin après l'épreuve A peut être
+    ré-attaché par l'épreuve B).
+    """
+    rows = (
+        db.query(Athlete.id)
+        .outerjoin(Participation, Participation.athlete_id == Athlete.id)
+        .filter(Participation.id.is_(None))
+        .all()
+    )
+    orphan_ids = [r[0] for r in rows]
+    if not orphan_ids:
+        return 0
+    db.query(Athlete).filter(Athlete.id.in_(orphan_ids)).delete(synchronize_session="fetch")
+    return len(orphan_ids)
