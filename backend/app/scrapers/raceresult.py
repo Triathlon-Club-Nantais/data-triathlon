@@ -1080,9 +1080,11 @@ def _identites_incompatibles(a: ScrapedResult, b: ScrapedResult) -> bool:
 
     Sert de garde à l'instrumentation de la collision de dossard du repli
     `Contest="0"` (issue #65, §13.19 du sondage) : sur une même clé de fusion,
-    deux identités pleines et différentes signalent que `_prefer` s'apprête à
-    écraser une personne au profit d'une autre — le « signal à guetter » que le
-    sondage réclame.
+    deux identités renseignées et différentes signalent que `_prefer` s'apprête
+    à écraser une personne au profit d'une autre — le « signal à guetter » que le
+    sondage réclame. « Renseignée » vaut dès qu'un champ (nom **ou** prénom) est
+    présent : un patronyme seul (« JP ROUX » → prénom vide, cf.
+    `split_athlete_name`) reste comparé, à dessein (voir la garde stricte infra).
 
     Rend **False** dès qu'un côté est anonyme (nom et prénom vides) : c'est le cas
     nominal d'une fusion d'enrichissement, où une liste sans patronyme complète
