@@ -1933,6 +1933,52 @@ def test_scrape_event_all_fusion_denrichissement_ne_declenche_aucune_alerte(monk
     assert [rec for rec in caplog.records if "collision" in rec.message.lower()] == []
 
 
+def test_scrape_event_all_mixte_contest_zero_corrobore_et_explicite(monkeypatch):
+    """§13.17 — forme mixte non rencontrée au panel, comportement épinglé.
+
+    Une liste `Contest="2"` (explicite → `Distance M`) coexiste avec une liste
+    `Contest="0"` dont le groupe `Distance S` est corroboré par `contests`. Les
+    deux voies qualifient : deux `Course` distinctes, dossards non mêlés.
+    """
+    specs = [("Explicite", "2"), ("Général", "0")]
+    payloads = {
+        ("Explicite", "2"): _payload({"#1_Distance M": {"#1_": [["8", "2", "Luc MARTIN", "TCN", "02:00:00"]]}}),
+        ("Général", "0"): _payload({"#1_Distance S": {"#1_": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]}}),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads)
+
+    res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert {r.event_name for r in res} == {"Épreuve - Distance S", "Épreuve - Distance M"}
+
+
+def test_scrape_event_all_mixte_contest_zero_etranger_se_replie(monkeypatch, caplog):
+    """§13.17 / §13.19 — forme mixte avec libellé `Contest="0"` **étranger**.
+
+    La voie `Contest="1"` reste qualifiée (`Distance S`). La voie `Contest="0"`,
+    dont le groupe `Découverte` est absent de `contests`, se replie sur le nom
+    d'épreuve nu. Un dossard partagé entre les deux voies produit donc **deux
+    `Course` distinctes** (clés de fusion `("Distance S", …)` et `("", …)`),
+    sans collision : comportement épinglé **tel quel**, c'est l'état non vérifié
+    que #65 documente.
+    """
+    specs = [("Explicite", "1"), ("Général", "0")]
+    payloads = {
+        ("Explicite", "1"): _payload({"#1_Distance S": {"#1_": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]}}),
+        ("Général", "0"): _payload({"#1_Découverte": {"#1_": [["7", "9", "Jean DUPONT", "TCN", "00:30:00"]]}}),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads)
+
+    with caplog.at_level("WARNING", logger="app.scrapers.raceresult"):
+        res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    # Deux Course : le dossard partagé ne collisionne pas (qualifiants distincts).
+    assert len(res) == 2
+    assert {r.event_name for r in res} == {"Épreuve - Distance S", "Épreuve"}
+    # Même personne des deux côtés : aucune alerte de collision d'identité.
+    assert [rec for rec in caplog.records if "collision" in rec.message.lower()] == []
+
+
 def test_scrape_event_all_contest_absent_de_la_table_reste_separateur(monkeypatch):
     """Un contest explicite mais absent de `contests` garde un qualifiant propre
     et **injectif** — jamais le nom de liste. Sans quoi deux contests
