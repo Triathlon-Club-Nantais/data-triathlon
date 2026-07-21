@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.services import import_service
+from app.services.import_service import Reassignment
 from app.services.progress import NullReporter, ProgressReporter
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,21 @@ class BatchTotals:
     #: Détail des épreuves en échec (une entrée par `errors`), dans l'ordre du
     #: batch : le compteur `errors` dit combien, celui-ci dit lesquelles et pourquoi.
     failures: list[BatchFailure] = field(default_factory=list)
+    #: Participations réconciliées (identité réassignée) sur l'ensemble du batch.
+    reconciled: int = 0
+    #: Détail des réassignations, cumulé dans l'ordre du batch (léger : ~1 par
+    #: participation réconciliée, pas une ligne par participation traitée).
+    reassignments: list[Reassignment] = field(default_factory=list)
+
+
+@dataclass
+class _ItemResult:
+    """Ce qu'une épreuve rapporte au batch. `error` non nul = épreuve fautive."""
+    imported: int = 0
+    skipped: int = 0
+    error: str | None = None
+    reconciled: int = 0
+    reassignments: list[Reassignment] = field(default_factory=list)
 
 
 def est_echec_total(*, epreuves: int, errors: int) -> bool:
@@ -128,17 +144,20 @@ def _import_one(
     settings: Settings,
     *,
     force: bool,
+    persist: bool,
     reporter: ProgressReporter,
-) -> tuple[int, int, str | None]:
-    """Consomme les phases d'une épreuve. Renvoie (imported, skipped, error).
+) -> _ItemResult:
+    """Consomme les phases d'une épreuve et en fait un `_ItemResult`.
 
     `iter_import_event` *yield* une phase `error` au lieu de lever : c'est cette
-    phase qui porte l'échec, pas une exception.
+    phase qui porte l'échec, pas une exception. `persist=False` (dry-run) fait
+    scraper l'épreuve sans rien écrire.
     """
-    imported = skipped = 0
-    error: str | None = None
+    result = _ItemResult()
 
-    for phase in import_service.iter_import_event(db, url, settings, force=force):
+    for phase in import_service.iter_import_event(
+        db, url, settings, force=force, persist=persist
+    ):
         nom = phase.get("phase")
         if nom == "saving":
             _notify(
@@ -149,12 +168,14 @@ def _import_one(
                 )
             )
         elif nom == "done":
-            imported = phase.get("imported", 0)
-            skipped = phase.get("skipped", 0)
+            result.imported = phase.get("imported", 0)
+            result.skipped = phase.get("skipped", 0)
+            result.reconciled = phase.get("reconciled", 0)
+            result.reassignments = phase.get("reassignments", [])
         elif nom == "error":
-            error = phase.get("message", "erreur inconnue")
+            result.error = phase.get("message", "erreur inconnue")
 
-    return imported, skipped, error
+    return result
 
 
 def run_batch(
@@ -163,6 +184,7 @@ def run_batch(
     settings: Settings,
     *,
     force: bool,
+    persist: bool = True,
     delay: float = 1.0,
     reporter: ProgressReporter | None = None,
 ) -> BatchTotals:
@@ -178,24 +200,25 @@ def run_batch(
         for i, item in enumerate(items):
             _notify(partial(reporter.item_start, i, item.label))
             try:
-                imported, skipped, error = _import_one(
-                    db, item.url, settings, force=force, reporter=reporter
+                result = _import_one(
+                    db, item.url, settings, force=force, persist=persist, reporter=reporter
                 )
             except Exception as exc:  # filet : un bug ne doit pas tuer le batch
                 logger.warning("Échec import %s : %s", item.url, exc)
-                imported = skipped = 0
-                error = str(exc)
+                result = _ItemResult(error=str(exc))
 
-            if error:
+            if result.error:
                 totals.errors += 1
                 totals.failures.append(
-                    BatchFailure(url=item.url, label=item.label, message=error)
+                    BatchFailure(url=item.url, label=item.label, message=result.error)
                 )
             else:
-                totals.imported += imported
-                totals.skipped += skipped
+                totals.imported += result.imported
+                totals.skipped += result.skipped
+                totals.reconciled += result.reconciled
+                totals.reassignments.extend(result.reassignments)
             totals.processed += 1  # tentée et allée au bout, réussie ou non
-            _notify(partial(reporter.item_done, imported, skipped, error))
+            _notify(partial(reporter.item_done, result.imported, result.skipped, result.error))
             _liberer_session(db)
 
             if delay and i < len(items) - 1:
