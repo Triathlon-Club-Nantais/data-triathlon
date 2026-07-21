@@ -5,6 +5,7 @@ Fixtures réduites à la main, provenance et date en tête de chaque fichier.
 Les appels HTTP passent par un faux client httpx (pattern test_sportinnovation.py)
 ou par monkeypatch des helpers `_fetch_*` (pattern test_wiclax.py).
 """
+import contextlib
 import json
 import logging
 from datetime import date
@@ -17,6 +18,51 @@ from app.scrapers import raceresult, registry
 from app.scrapers.base import STATUS_DNF, STATUS_DNS, ScrapedResult
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+
+class _CollecteurLogs(logging.Handler):
+    """Handler de test qui accumule les enregistrements reçus."""
+
+    def __init__(self):
+        super().__init__()
+        self.records: list[logging.LogRecord] = []
+
+    def emit(self, record):
+        self.records.append(record)
+
+
+@contextlib.contextmanager
+def _capture_logs(nom_logger: str, niveau: int = logging.WARNING):
+    """Capture les logs d'un logger nommé, insensible à la pollution de la suite.
+
+    Deux pièges d'ordre d'exécution rendent `caplog` non fiable ici, tous deux
+    hors périmètre de ce correctif (cf. le motif déjà employé par
+    `test_peel_borne_par_peel_max_iterations_au_dela_du_point_fixe`) :
+
+    - `caplog` s'accroche au **root logger** par propagation, or
+      `app.core.logging.setup_logging` (déclenché par tout test important
+      `app.main`) fait `root.handlers.clear()` — la capture devient vide.
+    - `test_migrations.py` déclenche `alembic/env.py`, dont le `fileConfig()`
+      met `.disabled = True` sur les loggers déjà enregistrés
+      (`disable_existing_loggers=True` par défaut) : le logger n'émet plus rien.
+
+    On attache donc un handler dédié **directement sur le logger visé** et on
+    force `.disabled = False`, en restaurant les deux états en sortie pour ne
+    pas polluer le reste de la suite à notre tour.
+    """
+    logger = logging.getLogger(nom_logger)
+    collecteur = _CollecteurLogs()
+    ancien_niveau = logger.level
+    ancien_disabled = logger.disabled
+    logger.addHandler(collecteur)
+    logger.setLevel(niveau)
+    logger.disabled = False
+    try:
+        yield collecteur
+    finally:
+        logger.setLevel(ancien_niveau)
+        logger.disabled = ancien_disabled
+        logger.removeHandler(collecteur)
 
 
 def _fixture(nom: str) -> str:
@@ -1886,7 +1932,7 @@ def test_scrape_event_all_groupe_zero_corrobore_qualifie_toujours(monkeypatch):
     assert {r.event_name for r in res} == {"Épreuve - Distance S", "Épreuve - Distance M"}
 
 
-def test_scrape_event_all_collision_didentite_dans_le_repli_alerte(monkeypatch, caplog):
+def test_scrape_event_all_collision_didentite_dans_le_repli_alerte(monkeypatch):
     """§13.19 : repli `Contest="0"` non corroboré → une `Course` unique. Deux
     personnes distinctes au même dossard entrent en collision sur la clé
     `("", dossard)` ; `_prefer` en écrasera une. On veut un warning explicite —
@@ -1902,21 +1948,21 @@ def test_scrape_event_all_collision_didentite_dans_le_repli_alerte(monkeypatch, 
     })}
     _monte_pipeline(monkeypatch, specs, payloads)
 
-    with caplog.at_level("WARNING", logger="app.scrapers.raceresult"):
+    with _capture_logs("app.scrapers.raceresult") as logs:
         res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
 
     # Comportement inchangé : repli → une seule Course, un seul dossard retenu.
     assert len(res) == 1
     assert {r.event_name for r in res} == {"Épreuve"}
     # Signal émis, mentionnant le dossard et les deux identités.
-    collisions = [rec for rec in caplog.records if "collision" in rec.message.lower()]
+    collisions = [rec for rec in logs.records if "collision" in rec.getMessage().lower()]
     assert len(collisions) == 1
     msg = collisions[0].getMessage()
     assert "7" in msg
     assert "DUPONT" in msg and "MARTIN" in msg
 
 
-def test_scrape_event_all_fusion_denrichissement_ne_declenche_aucune_alerte(monkeypatch, caplog):
+def test_scrape_event_all_fusion_denrichissement_ne_declenche_aucune_alerte(monkeypatch):
     """Deux listes d'un même contest décrivant la **même** personne, l'une sans
     club : fusion d'enrichissement nominale. Aucun warning ne doit être émis."""
     specs = [("Maigre", "1"), ("Riche", "1")]
@@ -1926,11 +1972,11 @@ def test_scrape_event_all_fusion_denrichissement_ne_declenche_aucune_alerte(monk
     }
     _monte_pipeline(monkeypatch, specs, payloads)
 
-    with caplog.at_level("WARNING", logger="app.scrapers.raceresult"):
+    with _capture_logs("app.scrapers.raceresult") as logs:
         res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
 
     assert len(res) == 1 and res[0].club == "TCN"
-    assert [rec for rec in caplog.records if "collision" in rec.message.lower()] == []
+    assert [rec for rec in logs.records if "collision" in rec.getMessage().lower()] == []
 
 
 def test_scrape_event_all_mixte_contest_zero_corrobore_et_explicite(monkeypatch):
@@ -1952,7 +1998,7 @@ def test_scrape_event_all_mixte_contest_zero_corrobore_et_explicite(monkeypatch)
     assert {r.event_name for r in res} == {"Épreuve - Distance S", "Épreuve - Distance M"}
 
 
-def test_scrape_event_all_mixte_contest_zero_etranger_se_replie(monkeypatch, caplog):
+def test_scrape_event_all_mixte_contest_zero_etranger_se_replie(monkeypatch):
     """§13.17 / §13.19 — forme mixte avec libellé `Contest="0"` **étranger**.
 
     La voie `Contest="1"` reste qualifiée (`Distance S`). La voie `Contest="0"`,
@@ -1969,14 +2015,14 @@ def test_scrape_event_all_mixte_contest_zero_etranger_se_replie(monkeypatch, cap
     }
     _monte_pipeline(monkeypatch, specs, payloads)
 
-    with caplog.at_level("WARNING", logger="app.scrapers.raceresult"):
+    with _capture_logs("app.scrapers.raceresult") as logs:
         res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
 
     # Deux Course : le dossard partagé ne collisionne pas (qualifiants distincts).
     assert len(res) == 2
     assert {r.event_name for r in res} == {"Épreuve - Distance S", "Épreuve"}
     # Même personne des deux côtés : aucune alerte de collision d'identité.
-    assert [rec for rec in caplog.records if "collision" in rec.message.lower()] == []
+    assert [rec for rec in logs.records if "collision" in rec.getMessage().lower()] == []
 
 
 def test_scrape_event_all_contest_absent_de_la_table_reste_separateur(monkeypatch):
