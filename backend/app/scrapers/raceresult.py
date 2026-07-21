@@ -1180,6 +1180,23 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                         continue
                     cle = (libelle, r.bib_number)
                     ancien = fusion.get(cle)
+                    # §13.19 (issue #65) : sur le repli `Contest="0"` non
+                    # corroboré, toutes les lignes partagent le qualifiant vide.
+                    # Deux personnes distinctes au même dossard s'y écrasent alors
+                    # sans trace via `_prefer`. On ne change pas l'arbitrage — le
+                    # sondage établit que le compromis est le bon — mais on rend
+                    # la collision **bruyante** : muette sur tout le panel réel,
+                    # elle ne se déclenche que sur une forme non observée.
+                    if ancien is not None and _identites_incompatibles(r, ancien):
+                        logger.warning(
+                            "RaceResult %s : dossard %s en collision sous le "
+                            "qualifiant %r — deux identités distinctes "
+                            "(%s %s / %s %s), une sera écrasée sans trace "
+                            "(cf. #65 §13.19)",
+                            event_id, r.bib_number, libelle or "(aucun)",
+                            ancien.athlete_name, ancien.athlete_firstname,
+                            r.athlete_name, r.athlete_firstname,
+                        )
                     if ancien is None or _prefer(r, ancien):
                         fusion[cle] = r
 
