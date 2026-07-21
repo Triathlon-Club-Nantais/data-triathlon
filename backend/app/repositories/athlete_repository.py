@@ -27,7 +27,7 @@ def get_by_identity(
     )
 
 
-def get_or_create(
+def resolve(
     db: Session,
     *,
     nom: str,
@@ -35,14 +35,19 @@ def get_or_create(
     gender: str = "",
     birth_date: date | None = None,
     club: str | None = None,
-) -> Athlete:
-    """Retourne l'athlète existant (dédoublonné) ou en crée un nouveau (flush pour l'id)."""
+) -> tuple[Athlete, bool]:
+    """Retourne (athlète, créé) : `créé` est True si la ligne vient d'être créée.
+
+    Le repli de réconciliation distingue un **renommage** (cible créée) d'une
+    **fusion** (cible préexistante) ; ce drapeau est la seule information qui les
+    sépare. `get_or_create` reste le point d'entrée quand le drapeau n'importe pas.
+    """
     existing = get_by_identity(db, nom, prenom, birth_date)
     if existing:
         # Met à jour le club courant si l'info est plus récente
         if club and existing.club != club:
             existing.club = club
-        return existing
+        return existing, False
 
     athlete = Athlete(
         nom=(nom or "").strip(),
@@ -53,6 +58,22 @@ def get_or_create(
     )
     db.add(athlete)
     db.flush()  # peuple athlete.id sans commit (la transaction est gérée par le service)
+    return athlete, True
+
+
+def get_or_create(
+    db: Session,
+    *,
+    nom: str,
+    prenom: str = "",
+    gender: str = "",
+    birth_date: date | None = None,
+    club: str | None = None,
+) -> Athlete:
+    """Retourne l'athlète existant (dédoublonné) ou en crée un nouveau (flush pour l'id)."""
+    athlete, _ = resolve(
+        db, nom=nom, prenom=prenom, gender=gender, birth_date=birth_date, club=club
+    )
     return athlete
 
 
