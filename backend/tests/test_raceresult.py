@@ -1284,6 +1284,41 @@ def test_iter_groups_supporte_un_seul_niveau():
     assert raceresult._iter_groups(data) == [("Distance S", "", [["1", "2", "1.", "1"]])]
 
 
+def test_iter_groups_niveau_0_statut_absent_des_contests_devient_statut():
+    """Issue #64 : un groupe de niveau 0 qui est en réalité un statut
+    (`#2_Abandons`) ne doit pas fabriquer un contest « Abandons » à statut vide —
+    ce qui ferait passer les abandons pour des finishers. Reconnu par la table
+    fermée de `derive_status_from_label` et absent de `contests`, il porte le
+    statut, pas le contest (qui reste hérité, vide)."""
+    data = {"#2_Abandons": [["7", "1", "x"]]}
+
+    assert raceresult._iter_groups(
+        data, contests_connus=frozenset({"distance m"})
+    ) == [("", "Abandons", [["7", "1", "x"]])]
+
+
+def test_iter_groups_niveau_0_statut_present_dans_contests_reste_contest():
+    """Issue #64, risque symétrique : un contest légitimement nommé d'après un
+    jeton de statut figure dans `contests` — il reste alors un contest, jamais
+    reclassé en statut. C'est le croisement avec `contests` qui l'établit."""
+    data = {"#1_Abandons": [["7", "1", "x"]]}
+
+    assert raceresult._iter_groups(
+        data, contests_connus=frozenset({"abandons"})
+    ) == [("Abandons", "", [["7", "1", "x"]])]
+
+
+def test_iter_groups_niveau_0_libelle_neutre_reste_contest():
+    """Un libellé de niveau 0 non reconnu comme statut reste un contest, avec ou
+    sans `contests_connus` : la garde ne touche que le vocabulaire de statut."""
+    data = {"#1_Distance M": [["7", "1", "x"]]}
+
+    assert raceresult._iter_groups(data) == [("Distance M", "", [["7", "1", "x"]])]
+    assert raceresult._iter_groups(
+        data, contests_connus=frozenset({"distance m"})
+    ) == [("Distance M", "", [["7", "1", "x"]])]
+
+
 # ── Construction d'un ScrapedResult ─────────────────────────────────────────
 
 def _construire(ligne, contest="Distance M", statut=""):
@@ -1766,6 +1801,28 @@ def test_scrape_event_all_qualifie_par_contest(monkeypatch):
     assert {r.event_name for r in res} == {
         "Épreuve - Distance S", "Épreuve - Distance M"
     }
+
+
+def test_scrape_event_all_statut_de_niveau_0_conserve_le_statut(monkeypatch):
+    """Issue #64 : sur une liste `Contest != "0"`, un groupe de niveau 0 qui est
+    un statut (`#2_Abandons`) fabriquait `contest="Abandons", statut=""`. Le
+    contest « Abandons » était ensuite écrasé par le contest explicite, mais le
+    statut vide faisait passer les abandons pour des finishers. Désormais le
+    participant reste qualifié par son contest explicite ET garde son statut."""
+    specs = [("Classement", "1")]
+    payloads = {
+        ("Classement", "1"): _payload(
+            {"#2_Abandons": [["7", "1", "Jean DUPONT", "TCN"]]},
+            avec_temps=False,
+        ),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads)
+
+    res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert len(res) == 1
+    assert res[0].event_name == "Épreuve - Distance S"
+    assert res[0].status == STATUS_DNF
 
 
 def test_scrape_event_all_fusionne_deux_listes_du_meme_contest(monkeypatch):
