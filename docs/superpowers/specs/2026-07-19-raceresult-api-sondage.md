@@ -667,10 +667,17 @@ regardé, ou l'a été trop peu pour fonder quoi que ce soit.
     *Portée réduite par le §3.1* : la moitié « `Course` fantôme » du défaut est
     désormais fermée par construction — à `Contest != "0"` le libellé de groupe
     n'est plus consulté, et à `Contest == "0"` un `Abandons` absent de `contests`
-    disqualifie le groupement. Il ne reste que la perte du statut. Non corrigé :
-    poser une garde de vocabulaire à la profondeur 0 rejouerait exactement le
-    mode de défaillance de cette branche — une règle calibrée sur ce qui n'a
-    jamais été observé.
+    disqualifie le groupement. Il ne reste que la perte du statut.
+
+    **Corrigé (issue #64)** : la garde de vocabulaire à la profondeur 0 est bien
+    posée, mais **croisée avec `contests`** — un libellé n'est reclassé en statut
+    que s'il est reconnu par `derive_status_from_label` **et** absent de
+    `contests`. Ce croisement lève précisément l'objection ci-dessus : un contest
+    légitimement nommé d'après un jeton de statut figure dans `contests`, il reste
+    un contest ; seul un statut étranger aux contests (jamais un vrai contest) est
+    reclassé. La reclassification ne peut pas dégrader `_groupes_zero_fiables` : un
+    libellé absent de `contests` disqualifiait déjà `fiable_zero`. Design :
+    `2026-07-22-raceresult-statut-niveau-0-design.md`.
 16. **`split_athlete_name` (`utils.py:96-125`) est partagé et sa sémantique a
     changé** en tâche 1 : « Jean DE LA TOUR » passe de `("TOUR", "Jean DE LA")` à
     `("DE LA TOUR", "Jean")`. **Wiclax et TimePulse l'appellent aussi.** Un
