@@ -941,7 +941,7 @@ def _build_result(
     # `sexe`/`categorie` passent par `_split_rank_category`, qui fait de même
     # avec la regex permissive (vocabulaire fermé, pas d'ambiguïté possible).
     # Nom d'équipe (issue #63) : `split_athlete_name` le mutilerait
-    # (« GUILLAUME & ANTHONY » → nom='GUILLAUME', prenom='& ANTHONY »). On garde
+    # (« GUILLAUME & ANTHONY » → nom='GUILLAUME', prenom='& ANTHONY'). On garde
     # alors la cellule entière comme `nom`, `prenom` vide. Cf. `_est_nom_equipe`.
     nom_cell = _strip_rank_suffix(cellule("nom"))
     if _est_nom_equipe(nom_col_expr, nom_cell):
