@@ -111,15 +111,27 @@ Pour une identité d'équipe : `athlete_name = <nom d'équipe entier>`,
 avec `"COLLER AU PARQUET"` qui rend déjà ce résultat aujourd'hui. Modéliser une
 entité « équipe » distincte d'`Athlete` est hors périmètre de cette issue.
 
-## 4. Angle mort assumé
+## 4. Angle mort assumé — documenté, accepté, **loggé**
 
 Un nom d'équipe **sans `&`** servi par une colonne **conditionnelle**
 (`if([Relais]=1;ucase([NomRelais]);[AfficherNom])` rendant p. ex. `"Les Bleus"`)
 échappe aux deux gardes : la garde 1 ne voit pas de `&`, la garde 2 exclut le
 conditionnel. Non observé au panel. Le fermer exigerait le champ `[Relais]` par
-ligne, non exposé de façon fiable. Consigné, non traité — même arbitrage
-« bruyant et réversible » que le §12.2 du sondage : une valeur brute visible
-plutôt qu'une garde qui casserait des individus d'une colonne mixte.
+ligne, non exposé de façon fiable. Non traité — même arbitrage « bruyant et
+réversible » que le §12.2 du sondage : une valeur brute visible plutôt qu'une
+garde qui casserait des individus d'une colonne mixte.
+
+**On le rend bruyant.** Le seul signal loggable de façon fiable est
+**structurel**, pas par ligne : une colonne `nom` **conditionnelle** dont
+`_peel` résout vers un champ d'équipe est précisément la colonne mixte
+équipe/individu où l'angle mort peut mordre. `scrape_event_all` émet alors un
+`logger.warning` **une fois par liste concernée** (au moment du calcul de
+`nom_col_expr`), signalant que des noms d'équipe sans `&` de cette liste peuvent
+être découpés (renvoi #63). Même esprit « collision rendue bruyante » que le
+§13.19. La condition — `(";" in expr or _RE_COMPARAISON.search(expr))` **et**
+`_peel(expr) ∈ _CHAMPS_NOM_EQUIPE` — ne fire que sur les colonnes conditionnelles
+**capables** de rendre une équipe : `if([STATUS]<>2;[AfficherNom])` pèle vers
+`"affichernom"` (hors ensemble) et **ne logge pas**.
 
 ## 5. Tests
 
@@ -135,6 +147,11 @@ plutôt qu'une garde qui casserait des individus d'une colonne mixte.
     → `True` (garde 1).
   - `("LFNAME", "DUPONT Jean")` → `False`.
 - **Unitaire `_nom_expression`** : sur la fixture 401699, rend `"NomRelais"`.
+- **Log de l'angle mort (§4)** : sur une liste dont la colonne `nom` vaut
+  `if([Relais]=1;ucase([NomRelais]);[AfficherNom])`, `scrape_event_all` émet un
+  `warning` (via `caplog`) ; sur une colonne conditionnelle **non** d'équipe
+  (`if([STATUS]<>2;[AfficherNom])`) et sur une colonne `NomRelais` **non**
+  conditionnelle, **aucun** warning.
 - **Bout-en-bout `_build_result`** (avec `nom_col_expr` threadé) :
   - Fixture relais type 401699 mais `NomRelais = "Les Inconnus Associés"` →
     `nom == "Les Inconnus Associés"`, `prenom == ""`.
