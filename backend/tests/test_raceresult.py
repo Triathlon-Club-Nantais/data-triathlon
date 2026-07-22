@@ -2184,3 +2184,100 @@ def test_nom_expression_vide_sans_colonne_nom():
 ])
 def test_colonne_nom_conditionnelle_equipe(expr, attendu):
     assert raceresult._colonne_nom_conditionnelle_equipe(expr) is attendu
+
+
+def _payload_nom_affichernoms():
+    """Liste où la colonne « nom » est AfficherNoms (duo SwimRun, forme 403144)."""
+    return {
+        "DataFields": ["BIB", "ID", "AfficherNoms", "OuStatut([TIME])"],
+        "list": {"Fields": [
+            {"Expression": "BIB", "Label": "Dos."},
+            {"Expression": "AfficherNoms", "Label": "Équipe"},
+            {"Expression": "OuStatut([TIME])", "Label": "Temps"},
+        ]},
+        "data": {"#1_SwimRun L": [["12", "34", "GUILLAUME & ANTHONY", "1:20:00"]]},
+    }
+
+
+def _payload_nom_affichernom_individuel():
+    """Liste individuelle standard : la colonne « nom » est AfficherNom."""
+    return {
+        "DataFields": ["BIB", "ID", "AfficherNom", "OuStatut([TIME])"],
+        "list": {"Fields": [
+            {"Expression": "BIB", "Label": "Dos."},
+            {"Expression": "AfficherNom", "Label": "Nom"},
+            {"Expression": "OuStatut([TIME])", "Label": "Temps"},
+        ]},
+        "data": {"#1_Individuel": [["7", "8", "Florian VIDAL", "1:00:00"]]},
+    }
+
+
+def _construire_avec_expr(payload, ligne, contest):
+    """Construit un résultat en threadant l'expression de la colonne « nom »."""
+    roles, segments, extras = raceresult._map_columns(payload)
+    return raceresult._build_result(
+        ligne, roles, segments, extras,
+        source_url="https://my.raceresult.com/1/results",
+        event_name="Épreuve",
+        event_date=date(2026, 6, 21),
+        contest_label=contest,
+        status_label="",
+        nom_col_expr=raceresult._nom_expression(payload, roles),
+    )
+
+
+def test_build_result_ne_decoupe_pas_un_nom_relais():
+    """Un nom d'équipe non majuscule (colonne NomRelais) reste entier."""
+    payload = _payload_401699_relais()
+    ligne = list(payload["data"]["#1_Relais"][0])
+    ligne[3] = "Les Inconnus Associés"  # colonne NomRelais (index 3 de DataFields)
+
+    r = _construire_avec_expr(payload, ligne, "Relais")
+
+    assert r.athlete_name == "Les Inconnus Associés"
+    assert r.athlete_firstname == ""
+
+
+def test_build_result_ne_decoupe_pas_un_nom_affichernoms():
+    """« GUILLAUME & ANTHONY » (colonne AfficherNoms) reste entier."""
+    payload = _payload_nom_affichernoms()
+    ligne = payload["data"]["#1_SwimRun L"][0]
+
+    r = _construire_avec_expr(payload, ligne, "SwimRun L")
+
+    assert r.athlete_name == "GUILLAUME & ANTHONY"
+    assert r.athlete_firstname == ""
+
+
+def test_build_result_decoupe_toujours_un_individu():
+    """Non-régression : un individu (colonne AfficherNom) est toujours découpé."""
+    payload = _payload_nom_affichernom_individuel()
+    ligne = payload["data"]["#1_Individuel"][0]
+
+    r = _construire_avec_expr(payload, ligne, "Individuel")
+
+    assert r.athlete_name == "VIDAL"
+    assert r.athlete_firstname == "Florian"
+
+
+def test_scrape_event_all_signale_la_colonne_nom_conditionnelle(monkeypatch):
+    """Angle mort #63 : une colonne nom conditionnelle (mixte équipe/individu)
+    est signalée — un nom d'équipe sans « & » y échappe aux deux gardes."""
+    nom_expr = "if([Relais]=1;ucase([NomRelais]);[AfficherNom])"
+    payload = {
+        "DataFields": ["BIB", "ID", nom_expr, "TIME"],
+        "list": {"Fields": [
+            {"Expression": nom_expr, "Label": "Nom"},
+            {"Expression": "TIME", "Label": "Temps"},
+        ]},
+        "data": {"#1_Distance S": {"#1_": [["7", "1", "Les Bleus", "01:00:00"]]}},
+    }
+    specs = [("Classement", "1")]
+    _monte_pipeline(monkeypatch, specs, {("Classement", "1"): payload})
+
+    with _capture_logs("app.scrapers.raceresult") as logs:
+        raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    signaux = [rec for rec in logs.records if "angle mort #63" in rec.getMessage()]
+    assert len(signaux) == 1
+    assert nom_expr in signaux[0].getMessage()

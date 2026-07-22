@@ -912,6 +912,7 @@ def _build_result(
     event_date,
     contest_label: str,
     status_label: str,
+    nom_col_expr: str = "",
 ) -> ScrapedResult:
     """Construit un `ScrapedResult` depuis une ligne de données RaceResult."""
 
@@ -939,7 +940,14 @@ def _build_result(
     # champs de texte libre où une parenthèse finale peut être légitime.
     # `sexe`/`categorie` passent par `_split_rank_category`, qui fait de même
     # avec la regex permissive (vocabulaire fermé, pas d'ambiguïté possible).
-    nom, prenom = split_athlete_name(_strip_rank_suffix(cellule("nom")))
+    # Nom d'équipe (issue #63) : `split_athlete_name` le mutilerait
+    # (« GUILLAUME & ANTHONY » → nom='GUILLAUME', prenom='& ANTHONY »). On garde
+    # alors la cellule entière comme `nom`, `prenom` vide. Cf. `_est_nom_equipe`.
+    nom_cell = _strip_rank_suffix(cellule("nom"))
+    if _est_nom_equipe(nom_col_expr, nom_cell):
+        nom, prenom = nom_cell, ""
+    else:
+        nom, prenom = split_athlete_name(nom_cell)
     r.athlete_name, r.athlete_firstname = nom, prenom
     r.club = _strip_rank_suffix(cellule("club"))
     # `ucase([SEX]) & iif(…)` sérialise « M (1.) » : le rang de sexe voyage dans
@@ -1256,6 +1264,14 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         # Phase 2 : qualifier et fusionner.
         for contest, payload, groupes in recuperees:
             roles, segments, extras = _map_columns(payload)
+            nom_col_expr = _nom_expression(payload, roles)
+            if _colonne_nom_conditionnelle_equipe(nom_col_expr):
+                logger.warning(
+                    "RaceResult %s : colonne nom conditionnelle (%r) mêlant "
+                    "équipes et individus — un nom d'équipe sans '&' peut être "
+                    "découpé sans trace (angle mort #63)",
+                    event_id, nom_col_expr,
+                )
             for contest_label, status_label, lignes in groupes:
                 # Le contest est **explicite** dans `TabConfig.Lists` (§3 du
                 # sondage) : quand il est renseigné, il fait autorité et le
@@ -1289,6 +1305,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                         event_date=jour,
                         contest_label=libelle,
                         status_label=status_label,
+                        nom_col_expr=nom_col_expr,
                     )
                     if not r.bib_number:
                         continue
