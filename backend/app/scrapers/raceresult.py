@@ -768,7 +768,12 @@ def _strip_group_prefix(cle: str) -> str:
 
 
 def _iter_groups(
-    data, *, contest: str = "", statut: str = "", profondeur: int = 0
+    data,
+    *,
+    contest: str = "",
+    statut: str = "",
+    profondeur: int = 0,
+    contests_connus: frozenset[str] = frozenset(),
 ) -> list[tuple[str, str, list]]:
     """[(libellé contest, libellé statut, lignes), …] depuis l'arbre `data`.
 
@@ -776,13 +781,21 @@ def _iter_groups(
     parfois au sein d'une même épreuve. On descend donc récursivement jusqu'aux
     feuilles au lieu de présumer une forme fixe.
 
-    Le niveau 1 nomme le **contest** (`#1_Distance M`, qui recoupe exactement
-    `config["contests"]`). Les niveaux suivants nomment le statut — mais pas
-    toujours : sur l'event 406212 ils portent `#1_Masculin` / `#1_Féminin`, un
-    groupement par **sexe**. Le libellé n'est donc retenu comme statut que s'il
-    est reconnu par la table de `derive_status_from_label` ; tout libellé inconnu
-    est un groupement neutre qui laisse le statut hérité intact. Traiter
-    l'inconnu comme un abandon marquerait DNF les 175 finishers de ce contest.
+    Le niveau 0 nomme le **contest** (`#1_Distance M`, qui recoupe exactement
+    `config["contests"]`) — **sauf** s'il est en réalité un statut. Un groupe de
+    niveau 0 `#2_Abandons` produisait `contest="Abandons", statut=""`, perdant le
+    statut des abandons (issue #64). Un libellé de niveau 0 n'est donc reclassé
+    en statut que s'il est reconnu par la table **fermée** de
+    `derive_status_from_label` **et** absent de `contests_connus` : ce croisement
+    lève le risque symétrique — un contest légitimement nommé d'après un jeton de
+    statut figure dans `contests`, il reste un contest.
+
+    Les niveaux suivants nomment le statut — mais pas toujours : sur l'event
+    406212 ils portent `#1_Masculin` / `#1_Féminin`, un groupement par **sexe**.
+    Le libellé n'est donc retenu comme statut que s'il est reconnu par la même
+    table ; tout libellé inconnu est un groupement neutre qui laisse le statut
+    hérité intact. Traiter l'inconnu comme un abandon marquerait DNF les 175
+    finishers de ce contest.
     """
     if isinstance(data, list):
         return [(contest, statut, data)] if data else []
@@ -796,14 +809,28 @@ def _iter_groups(
     groupes: list[tuple[str, str, list]] = []
     for cle, contenu in data.items():
         libelle = _strip_group_prefix(cle)
+        statut_reconnu = derive_status_from_label(libelle)
         if profondeur == 0:
-            groupes += _iter_groups(
-                contenu, contest=libelle, statut=statut, profondeur=1
-            )
+            # À la racine, un libellé reconnu comme statut et absent des contests
+            # est un groupe de statut (`Abandons`), pas un contest : il porte le
+            # statut et laisse le contest hérité (vide) intact.
+            if statut_reconnu and libelle.strip().lower() not in contests_connus:
+                # On propage le libellé **brut** (comme à la profondeur ≥ 1) :
+                # `_build_result` re-dérive la constante STATUS_* en aval.
+                groupes += _iter_groups(
+                    contenu, contest=contest, statut=libelle,
+                    profondeur=1, contests_connus=contests_connus,
+                )
+            else:
+                groupes += _iter_groups(
+                    contenu, contest=libelle, statut=statut,
+                    profondeur=1, contests_connus=contests_connus,
+                )
         else:
-            reconnu = libelle if derive_status_from_label(libelle) else statut
+            reconnu = libelle if statut_reconnu else statut
             groupes += _iter_groups(
-                contenu, contest=contest, statut=reconnu, profondeur=profondeur + 1
+                contenu, contest=contest, statut=reconnu,
+                profondeur=profondeur + 1, contests_connus=contests_connus,
             )
     return groupes
 
@@ -998,6 +1025,18 @@ def _richness(r: ScrapedResult) -> int:
     )
 
 
+def _contests_normalises(contests: dict) -> frozenset[str]:
+    """Valeurs de `contests` normalisées (`strip().lower()`) pour comparaison.
+
+    Une seule normalisation partagée entre le croisement de niveau 0 de
+    `_iter_groups` (issue #64) et `_groupes_zero_fiables`, qui comparent tous
+    deux un libellé de groupe aux contests déclarés.
+    """
+    return frozenset(
+        str(v).strip().lower() for v in (contests or {}).values() if str(v).strip()
+    )
+
+
 def _groupes_zero_fiables(labels: set[str], contests: dict) -> bool:
     """Les libellés de groupe des listes `Contest="0"` recoupent-ils `contests` ?
 
@@ -1032,7 +1071,7 @@ def _groupes_zero_fiables(labels: set[str], contests: dict) -> bool:
     """
     if not labels:
         return False
-    connus = {str(v).strip().lower() for v in (contests or {}).values() if str(v).strip()}
+    connus = _contests_normalises(contests)
     return bool(connus) and all(lab.strip().lower() in connus for lab in labels)
 
 
@@ -1122,6 +1161,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         config = _fetch_config(event_id, client)
         key = str(config.get("key") or "")
         contests = config.get("contests") or {}
+        contests_connus = _contests_normalises(contests)
         nom_meta, jour, _ville = _fetch_meta(event_id, client)
         event_name = nom_meta or str(config.get("eventname") or "")
 
@@ -1141,7 +1181,9 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
             payload = _fetch_list(event_id, key, listname, contest, client)
             if payload is None:
                 continue
-            groupes = _iter_groups(payload.get("data"))
+            groupes = _iter_groups(
+                payload.get("data"), contests_connus=contests_connus
+            )
             recuperees.append((contest, payload, groupes))
             if contest == "0":
                 labels_zero.update(cl for cl, _st, _lg in groupes)
