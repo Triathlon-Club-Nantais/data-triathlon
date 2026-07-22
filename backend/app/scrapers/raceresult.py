@@ -838,6 +838,69 @@ def _iter_groups(
 _NON_FINISHERS = (STATUS_DNF, STATUS_DNS, STATUS_DSQ)
 
 
+# ── Noms d'équipe : ne pas les découper en (nom, prénom) (issue #63) ─────────
+#
+# `split_athlete_name` (partagé, `scrapers/utils.py`) est calibré pour un nom de
+# personne. Sur un nom d'équipe (« GUILLAUME & ANTHONY », « Les Inconnus
+# Associés »), il mutile l'identité. On ne le corrige pas là — d'autres scrapers
+# en dépendent, et des noms de personne portent `/` ou `-` — mais on garde son
+# appel dans `_build_result`, à partir de deux signaux propres à RaceResult.
+_CHAMPS_NOM_EQUIPE = ("nomrelais", "nomequipe", "affichernoms")
+
+
+def _est_nom_equipe(nom_col_expr: str, valeur: str) -> bool:
+    """Vrai si la cellule « nom » porte un nom d'équipe, à ne pas découper.
+
+    Deux gardes :
+
+    1. **Par valeur** : `&` sépare deux personnes (« GUILLAUME & ANTHONY »). Il
+       n'apparaît jamais dans un nom de personne, contrairement à `/` ou `-`
+       (que `split_athlete_name` doit continuer de couper) : garde sûre, valable
+       même sur une colonne mixte. La virgule est écartée — `LFNAME` rend
+       « NOM, Prénom » pour un individu.
+    2. **Par colonne** : `NomRelais` / `NomEquipe` / `AfficherNoms` (pluriel :
+       les équipiers) sert une colonne **entièrement** d'équipe. La
+       conditionnelle `if([Relais]=1;[NomRelais];[AfficherNom])` en est exclue :
+       elle mêle équipes et individus ligne à ligne, et `_peel` la réduit à
+       `nomrelais` — traiter alors toute la colonne en équipe cesserait de
+       découper ses individus. Ses lignes d'équipe retombent sur la garde 1.
+    """
+    if "&" in valeur:
+        return True
+    if ";" in nom_col_expr or _RE_COMPARAISON.search(nom_col_expr):
+        return False
+    return _peel(nom_col_expr) in _CHAMPS_NOM_EQUIPE
+
+
+def _colonne_nom_conditionnelle_equipe(nom_col_expr: str) -> bool:
+    """Colonne « nom » conditionnelle capable de rendre une équipe (angle mort #63).
+
+    Une conditionnelle `if([Relais]=1;ucase([NomRelais]);[AfficherNom])` mêle
+    équipes et individus : un nom d'équipe **sans `&`** y échappe aux deux gardes
+    de `_est_nom_equipe`. On ne peut pas le détecter ligne à ligne (le champ
+    `[Relais]` par ligne n'est pas exposé de façon fiable), mais on repère la
+    colonne — conditionnelle **et** pelant vers un champ d'équipe — pour la
+    signaler. `if([STATUS]<>2;[AfficherNom])` pèle vers `affichernom` → False.
+    """
+    if ";" not in nom_col_expr and not _RE_COMPARAISON.search(nom_col_expr):
+        return False
+    return _peel(nom_col_expr) in _CHAMPS_NOM_EQUIPE
+
+
+def _nom_expression(payload: dict, roles: dict[str, int]) -> str:
+    """Expression source de la colonne ayant gagné le rôle « nom » (issue #63).
+
+    `_map_columns` ne retient que l'index de colonne ; on re-dérive l'expression
+    depuis `DataFields` pour que les gardes ci-dessus puissent juger la colonne.
+    `""` si l'épreuve n'expose pas de colonne « nom ».
+    """
+    col = roles.get("nom")
+    if col is None:
+        return ""
+    data_fields = [str(e) for e in payload.get("DataFields") or []]
+    return data_fields[col] if col < len(data_fields) else ""
+
+
 def _build_result(
     ligne: list,
     roles: dict[str, int],

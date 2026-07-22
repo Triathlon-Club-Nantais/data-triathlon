@@ -2140,3 +2140,47 @@ def test_scrape_event_all_ouvre_le_client_avec_follow_redirects(monkeypatch):
     raceresult.scrape_event_all("https://my.raceresult.com/1/results")
 
     assert vus.get("follow_redirects") is True
+
+
+# ── Noms d'équipe : ne pas découper (issue #63) ─────────────────────────────
+@pytest.mark.parametrize("expr,valeur,attendu", [
+    # Garde par colonne : expression d'équipe inconditionnelle.
+    ("NomRelais", "Les Inconnus Associés", True),
+    ("ucase([NomRelais])", "les bleus", True),
+    ("AfficherNoms", "Dupont Jean, Martin Paul", True),
+    # Garde par valeur : `&` sépare deux personnes, quelle que soit la colonne.
+    ("AfficherNom", "GUILLAUME & ANTHONY", True),
+    ("if([Relais]=1;ucase([NomRelais]);[AfficherNom])", "GUILLAUME & ANTHONY", True),
+    # Individus : à découper (aucune garde ne fire).
+    ("AfficherNom", "Florian VIDAL", False),
+    ("LFNAME", "DUPONT Jean", False),
+    # Colonne conditionnelle sans `&` : individu, à découper (garde 2 exclut le
+    # conditionnel — sinon `_peel` la réduirait à `nomrelais` et casserait les
+    # individus de cette colonne mixte).
+    ("if([Relais]=1;ucase([NomRelais]);[AfficherNom])", "Florian VIDAL", False),
+])
+def test_est_nom_equipe(expr, valeur, attendu):
+    assert raceresult._est_nom_equipe(expr, valeur) is attendu
+
+
+def test_nom_expression_rend_l_expression_de_la_colonne_nom():
+    payload = _payload_401699_relais()
+    roles, _segments, _extras = raceresult._map_columns(payload)
+    assert raceresult._nom_expression(payload, roles) == "NomRelais"
+
+
+def test_nom_expression_vide_sans_colonne_nom():
+    assert raceresult._nom_expression({"DataFields": ["BIB"]}, {"bib": 0}) == ""
+
+
+@pytest.mark.parametrize("expr,attendu", [
+    # Conditionnelle capable de rendre une équipe → à signaler.
+    ("if([Relais]=1;ucase([NomRelais]);[AfficherNom])", True),
+    # Conditionnelle non d'équipe (pèle vers affichernom) → pas de signal.
+    ("if([STATUS]<>2;[AfficherNom])", False),
+    # Colonne d'équipe inconditionnelle → gérée par la garde 2, pas d'angle mort.
+    ("NomRelais", False),
+    ("AfficherNoms", False),
+])
+def test_colonne_nom_conditionnelle_equipe(expr, attendu):
+    assert raceresult._colonne_nom_conditionnelle_equipe(expr) is attendu
