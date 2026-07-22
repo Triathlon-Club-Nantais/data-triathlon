@@ -572,6 +572,15 @@ Non trivial, d'où le ticket plutôt que le correctif : `split_athlete_name` est
 partagé par tous les scrapers, et des noms de personnes légitimes portent `/`
 ou `-`.
 
+**Corrigé (#63).** `_build_result` ne découpe plus une cellule « nom » reconnue
+comme nom d'équipe : garde par valeur (`&`) + garde par colonne (expression
+source `NomRelais`/`NomEquipe`/`AfficherNoms` non conditionnelle). Le nom entier
+va dans `nom`, `prenom` vide. `split_athlete_name` (partagé) reste intact.
+Détail : `2026-07-22-raceresult-noms-equipe-design.md`. Angle mort assumé et
+**loggé** : un nom d'équipe sans `&` servi par une colonne conditionnelle
+(`if([Relais]=1;ucase([NomRelais]);[AfficherNom])`) échappe aux deux gardes ;
+`scrape_event_all` le signale (`logger.warning`, « angle mort #63 »).
+
 ### 12.4 `is_relay` n'est **pas** la cause des `Athlete` d'équipe
 
 L'hypothèse « `is_relay` mal détecté ⇒ `Athlete` fantômes via
@@ -585,7 +594,8 @@ fondement est la **lecture du chemin de code**, pas une expérience :
   `Course.is_relay`.
 
 Même avec une détection de relais parfaite, le nom d'équipe serait découpé à
-l'identique. La mutilation (§12.3) est un défaut distinct, et il reste ouvert.
+l'identique. La mutilation (§12.3) est un défaut distinct, désormais corrigé
+(#63, cf. §12.3).
 
 **Ne pas refonder ce verdict sur l'expérience du panel réimporté avec
 `is_relay` forcé à `True`** : elle est dégénérée. `is_relay` entre dans
