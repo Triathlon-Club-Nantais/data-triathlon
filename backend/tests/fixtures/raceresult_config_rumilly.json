@@ -1,0 +1,63 @@
+{
+  "eventname": "Triathlon de Rumilly",
+  "key": "0149954ef060e08fce32a6ea646cf880",
+  "contests": {
+    "1": "Distance XS",
+    "2": "Distance Jeunes - Poussin, Pupille",
+    "3": "Half Iron du Semnoz",
+    "4": "Distance M"
+  },
+  "lists": null,
+  "TabConfig": {
+    "Lists": [
+      {
+        "Name": "04 - Classements|Classement général",
+        "Mode": "",
+        "Contest": "3",
+        "ShowAs": "Classement général",
+        "Format": "VP",
+        "Live": 0,
+        "Sortable": 0,
+        "Leader": 0,
+        "Details": "details0",
+        "ID": "1FECBC"
+      },
+      {
+        "Name": "04 - Classements|Classement général",
+        "Mode": "",
+        "Contest": "4",
+        "ShowAs": "Classement général",
+        "Format": "P",
+        "Live": 0,
+        "Sortable": 0,
+        "Leader": 0,
+        "Details": "details0",
+        "ID": "E83AED"
+      },
+      {
+        "Name": "04 - Classements|Classement général",
+        "Mode": "",
+        "Contest": "1",
+        "ShowAs": "Classement général",
+        "Format": "VP",
+        "Live": 0,
+        "Sortable": 1,
+        "Leader": 0,
+        "Details": "details0",
+        "ID": "0E2DB3"
+      },
+      {
+        "Name": "04 - Classements|Classement général Jeunes",
+        "Mode": "",
+        "Contest": "2",
+        "ShowAs": "Classement général",
+        "Format": "VP",
+        "Live": 0,
+        "Sortable": 1,
+        "Leader": 0,
+        "Details": "details0",
+        "ID": "5EF834"
+      }
+    ]
+  }
+}

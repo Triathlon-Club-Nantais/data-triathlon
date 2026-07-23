@@ -20,6 +20,7 @@ from .utils import (
     normalize_rank,
     normalize_time,
     parse_fr_date,
+    qualify_event_name,
     split_athlete_name,
 )
 
@@ -144,14 +145,10 @@ def _parse_competitor(comp, url: str, event_name: str, event_type: str) -> Scrap
 def _qualify_event_name(event_name: str, parcours: str) -> str:
     """Qualifie le nom d'épreuve par le parcours ChronoSmetron.
 
-    « Triathlon de Vertou 2026 » + « S-Open Femmes » →
-    « Triathlon de Vertou 2026 - S-Open Femmes ». Le parcours déjà présent dans
-    le nom (ex. libellé identique) n'est pas ré-ajouté.
+    Logique factorisée dans `utils.qualify_event_name`, partagée avec RaceResult
+    (qui qualifie par contest). Alias conservé : il est importé par les tests.
     """
-    parcours = (parcours or "").strip()
-    if not parcours or parcours.lower() in (event_name or "").lower():
-        return event_name
-    return f"{event_name} - {parcours}"
+    return qualify_event_name(event_name, parcours)
 
 
 # Sauts max dans la chaîne « page épreuve → coquille → iframe G-Live ».

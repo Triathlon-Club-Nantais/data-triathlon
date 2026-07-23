@@ -55,6 +55,25 @@ def existing_bibs_for_course(db: Session, course_id: int) -> set[str]:
     return {r[0] for r in rows}
 
 
+def existing_participations_for_course(
+    db: Session, course_id: int
+) -> dict[str, Participation]:
+    """Participations à dossard déjà en base pour une course, indexées par dossard.
+
+    Le repli de réconciliation (`import_service._Persister`) a besoin de la
+    **participation** (pour réassigner son `athlete_id`), pas seulement de son
+    dossard : `existing_bibs_for_course` ne suffit plus. L'athlète est joint
+    d'emblée — la garde des ambigus lit son prénom sans requête supplémentaire.
+    """
+    rows = (
+        db.query(Participation)
+        .options(joinedload(Participation.athlete))
+        .filter(Participation.course_id == course_id, Participation.bib_number.isnot(None))
+        .all()
+    )
+    return {p.bib_number: p for p in rows}
+
+
 def athlete_counts_without_bib(db: Session, course_id: int) -> dict[int, int]:
     """Nombre de participations **sans dossard** déjà importées, par athlète.
 

@@ -215,3 +215,26 @@ def test_athlete_counts_without_bib_ignore_les_autres_courses(db_session):
         db_session, athlete_id=athlete.id, course_id=autre_course.id, bib_number=None
     )
     assert participation_repository.athlete_counts_without_bib(db_session, course.id) == {}
+
+
+def test_existing_participations_for_course_indexe_par_dossard(db_session):
+    from app.repositories import athlete_repository, course_repository, participation_repository
+
+    course = course_repository.get_or_create(
+        db_session, name="Tri", event_date=None, event_type="triathlon-m",
+        source_url="https://k/1", provider="klikego",
+    )
+    athlete = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean")
+    db_session.flush()
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="42",
+    )
+    # Une participation sans dossard ne doit pas figurer dans l'index.
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number=None,
+    )
+    db_session.flush()
+
+    index = participation_repository.existing_participations_for_course(db_session, course.id)
+    assert set(index) == {"42"}
+    assert index["42"].athlete.nom == "DUPONT"

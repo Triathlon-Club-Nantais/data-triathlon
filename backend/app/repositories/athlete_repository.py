@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.club import club_keyword_filter
 from app.models.athlete import Athlete
+from app.models.participation import Participation
 
 
 def get(db: Session, athlete_id: int) -> Athlete | None:
@@ -27,7 +28,7 @@ def get_by_identity(
     )
 
 
-def get_or_create(
+def resolve(
     db: Session,
     *,
     nom: str,
@@ -35,14 +36,19 @@ def get_or_create(
     gender: str = "",
     birth_date: date | None = None,
     club: str | None = None,
-) -> Athlete:
-    """Retourne l'athlète existant (dédoublonné) ou en crée un nouveau (flush pour l'id)."""
+) -> tuple[Athlete, bool]:
+    """Retourne (athlète, créé) : `créé` est True si la ligne vient d'être créée.
+
+    Le repli de réconciliation distingue un **renommage** (cible créée) d'une
+    **fusion** (cible préexistante) ; ce drapeau est la seule information qui les
+    sépare. `get_or_create` reste le point d'entrée quand le drapeau n'importe pas.
+    """
     existing = get_by_identity(db, nom, prenom, birth_date)
     if existing:
         # Met à jour le club courant si l'info est plus récente
         if club and existing.club != club:
             existing.club = club
-        return existing
+        return existing, False
 
     athlete = Athlete(
         nom=(nom or "").strip(),
@@ -53,6 +59,22 @@ def get_or_create(
     )
     db.add(athlete)
     db.flush()  # peuple athlete.id sans commit (la transaction est gérée par le service)
+    return athlete, True
+
+
+def get_or_create(
+    db: Session,
+    *,
+    nom: str,
+    prenom: str = "",
+    gender: str = "",
+    birth_date: date | None = None,
+    club: str | None = None,
+) -> Athlete:
+    """Retourne l'athlète existant (dédoublonné) ou en crée un nouveau (flush pour l'id)."""
+    athlete, _ = resolve(
+        db, nom=nom, prenom=prenom, gender=gender, birth_date=birth_date, club=club
+    )
     return athlete
 
 
@@ -75,3 +97,27 @@ def search(
         q = q.filter(clause)
     offset = (page - 1) * page_size
     return q.order_by(Athlete.nom, Athlete.prenom).offset(offset).limit(page_size).all()
+
+
+def delete_orphans(db: Session) -> int:
+    """Supprime les athlètes sans aucune participation. Renvoie le nombre supprimé.
+
+    `Participation.athlete_id` est la **seule** FK vers `Athlete` : un athlète
+    sans participation n'est plus référencé nulle part. La base compte 0 orphelin
+    en régime normal, donc la règle est un no-op sur l'existant — elle ne peut
+    emporter que ce que la réconciliation vient de libérer. Appelée **une fois**
+    en fin de batch (jamais par épreuve : un orphelin après l'épreuve A peut être
+    ré-attaché par l'épreuve B).
+    """
+    rows = (
+        db.query(Athlete.id)
+        .outerjoin(Participation, Participation.athlete_id == Athlete.id)
+        .filter(Participation.id.is_(None))
+        .all()
+    )
+    orphan_ids = [r[0] for r in rows]
+    if not orphan_ids:
+        return 0
+    # "fetch" purge l'identity map pour que get() retombe à None après suppression
+    db.query(Athlete).filter(Athlete.id.in_(orphan_ids)).delete(synchronize_session="fetch")
+    return len(orphan_ids)
