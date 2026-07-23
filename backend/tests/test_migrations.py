@@ -56,11 +56,13 @@ def test_upgrade_ne_desactive_pas_les_loggers_existants(sqlite_url):
     dans la même suite coupe silencieusement les loggers applicatifs (`app.*`).
     """
     logger = logging.getLogger("app.services.import_service")
+    original_disabled = logger.disabled
     logger.disabled = False
-
-    command.upgrade(_alembic_config(), "head")
-
-    assert not logging.getLogger("app.services.import_service").disabled
+    try:
+        command.upgrade(_alembic_config(), "head")
+        assert not logging.getLogger("app.services.import_service").disabled
+    finally:
+        logger.disabled = original_disabled
 
 
 def test_downgrade_puis_upgrade_de_l_indice_de_fiabilite(sqlite_url):
