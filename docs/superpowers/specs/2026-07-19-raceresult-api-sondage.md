@@ -250,6 +250,15 @@ un test de non-régression. L'élargissement du verrou C (traiter le suffixe de 
 absent selon le statut) est renvoyé à un **ticket dédié**, hors #60.
 Design : `2026-07-23-raceresult-listes-hidden-design.md`.
 
+**(amendement 2026-07-23, issue #84 — verrou C fermé pour les segments)** : le
+pipeline segment décolle désormais le rang suffixé **même sans point**
+(`_strip_rank_suffix_segment`, variante permissive de §12.2), cantonné aux
+cellules de segment car `_RE_DUREE` les garde en aval. Mesuré sur 410891 : les
+**111 splits réels** (110 finishers décorés `'2:05:29 (2)'` + le DNF nu 804) sont
+récupérés, l'incohérence « le DNF porte plus de données que les finishers »
+disparaît par récupération. `_strip_rank_suffix` (strict) reste inchangé pour
+`nom`/`club`/`temps`. Design : `2026-07-23-raceresult-verrou-c-segments-design.md`.
+
 ## 5. Mapping des colonnes : l'algorithme du plan est **correct**
 
 Seul son emplacement était faux. `DataFields` est à la **racine du payload**
@@ -582,6 +591,14 @@ n'est plus hypothétique.
 
 La règle permissive reste employée pour `sexe` et `categorie`, dont les
 vocabulaires sont fermés.
+
+**(amendement 2026-07-23, issue #84)** : la règle permissive s'étend aussi aux
+cellules de **segment** (`_strip_rank_suffix_segment`). Non par relâchement de
+l'arbitrage, mais par délimitation de sa portée : le point n'est exigé que sur
+le **texte libre** (`nom`/`club`/`temps`), où `'TCN (1)'` doit survivre. Sur une
+**durée**, une parenthèse finale ne peut être qu'un rang, et `_RE_DUREE` garde
+la valeur décollée — le faux positif redouté (`'TCN'`) est rejeté sans dégât.
+Stricte pour le texte libre, permissive pour les durées gardées.
 
 ### 12.3 Découpage des noms d'équipe
 
