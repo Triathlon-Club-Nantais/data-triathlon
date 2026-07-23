@@ -852,6 +852,35 @@ def test_build_result_une_colonne_horloge_traverse_sans_garde_de_duree():
     assert r.total_time == "01:23:45"
 
 
+@pytest.mark.parametrize("cellule", ["DNF", "DSQ", "DNS", "Abandon", "--"])
+def test_build_result_un_statut_dans_le_role_temps_ne_devient_pas_un_total_time(cellule):
+    """Issue #62 : le rôle `temps` traverse sans garde de durée.
+
+    Le rôle `temps` est plus large que les seules horloges `chip`/`gun` : la
+    table d'égalités exactes de `_role` y range `tempsoustatut`, et `OuStatut(…)`
+    étant un enrobage pelé, `OuStatut([Temps])` obtient ce rôle. Une telle
+    cellule porte « le rang **ou le statut** » — un libellé de statut pouvait
+    donc partir en `total_time` comme un chrono, puis la ligne être marquée
+    `finisher`. La garde est « `normalize_time` a reconnu la valeur », non
+    `_RE_DUREE` (cf. le test voisin : ce dernier rejette `1h23'45`).
+    """
+    payload = {
+        "DataFields": ["BIB", "ID", "OuStatut([Temps])"],
+        "list": {"Fields": [{"Expression": "OuStatut([Temps])", "Label": "Temps"}]},
+    }
+    roles, segments, extras = raceresult._map_columns(payload)
+    assert roles["temps"] == 2, "prémisse : la colonne obtient bien le rôle temps"
+
+    r = raceresult._build_result(
+        ["222", "1", cellule], roles, segments, extras,
+        source_url="u", event_name="E", event_date=None,
+        contest_label="C", status_label="",
+    )
+
+    assert r.total_time == "", f"{cellule!r} ne doit pas devenir un chrono"
+    assert r.status != "finisher", "une ligne sans durée n'est pas un finisher"
+
+
 def test_map_columns_un_chip_prime_sur_finishresult_text():
     """L'autre sens du balancier : l'élargissement de C1 ne doit pas évincer un
     temps mieux qualifié. `FinishResult.TEXT` reçoit `temps_texte`, le rôle le

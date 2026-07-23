@@ -239,6 +239,13 @@ _RE_TOKEN_SIMPLE = re.compile(r"^[a-z0-9_]+$")
 # laisse passer `107` (un nombre de tours) ou `447.795` (des kilomètres) : sans
 # ce filtre, une colonne « Tours » ou « Distance » atterrissait dans `splits`.
 _RE_DUREE = re.compile(r"^\d{1,3}:\d{2}(:\d{2})?([.,]\d+)?$")
+# Forme canonique rendue par `normalize_time` quand elle **reconnaît** une durée
+# (`HH:MM:SS`, heures sur 2 chiffres ou plus) ; elle rend son entrée inchangée
+# sinon. Tester la sortie contre ce motif est donc « `normalize_time` a reconnu
+# la valeur » — garde plus large que `_RE_DUREE`, qui rejette `1h23'45` alors
+# que `normalize_time` le lit. C'est la garde du rôle `temps` (issue #62), dont
+# une cellule peut porter un statut (`OuStatut([Temps])`) et non une durée.
+_RE_DUREE_NORMALISEE = re.compile(r"^\d{2,}:\d{2}:\d{2}$")
 # Décorations de cellule : `[img:https://…]` en préfixe, `#` de `"#" & [BIB]`.
 _RE_IMG = re.compile(r"\[img:[^\]]*\]")
 # Un terme qui compare n'est pas la valeur affichée mais la condition qui la
@@ -958,17 +965,17 @@ def _build_result(
     # renvoie son entrée **telle quelle** quand elle ne la reconnaît pas, si
     # bien qu'un libellé partirait en base comme chrono.
     #
-    # La colonne du rôle `temps` traverse néanmoins sans condition, pour ne pas
-    # perdre les formats que `_RE_DUREE` ne couvre pas mais que
-    # `normalize_time` sait lire (`1h23'45`). Ce n'est sûr que des champs
-    # d'horloge `.chip`/`.gun`, qui rendent une durée ou rien. Le rôle `temps`
-    # est plus large : la table d'égalités exactes de `_role` y range
-    # `tempsoustatut`, et `OuStatut(…)` étant un enrobage pelé,
-    # `OuStatut([Temps])` obtient ce rôle et pourrait donc rendre un statut.
-    # Trou **pré-existant à C1**, mesuré latent (aucune valeur non-durée sur
-    # les 12 épreuves du panel) ; le fermer proprement suppose une garde
-    # « `normalize_time` a reconnu la valeur » plutôt que `_RE_DUREE`, ce qui
-    # déborde le périmètre de ce correctif → à traiter séparément.
+    # La colonne du rôle `temps` est **gardée par la reconnaissance de
+    # `normalize_time`**, non par `_RE_DUREE` : ce dernier est plus étroit (il
+    # rejette `1h23'45`, que `normalize_time` sait lire), donc l'employer ici
+    # perdrait des formats légitimes rendus par une horloge `.chip`/`.gun`. Le
+    # rôle `temps` est en effet plus large que ces horloges : la table
+    # d'égalités exactes de `_role` y range `tempsoustatut`, et `OuStatut(…)`
+    # étant un enrobage pelé, `OuStatut([Temps])` obtient ce rôle et peut donc
+    # rendre un statut. Sans cette garde, un libellé (`"DNF"`, `"Abandon"`)
+    # partait en `total_time` comme un chrono, puis la ligne était marquée
+    # `finisher` par la clôture ci-dessous (trou pré-existant à C1, mesuré
+    # latent — aucune valeur non-durée sur les 12 épreuves du panel ; issue #62).
     #
     # La colonne `.text`, elle, rend le *texte affiché* : le chrono sur une
     # ligne terminée, mais `"DNF"`/`"DSQ"` sur un non-finisher. Elle n'est donc
@@ -978,13 +985,17 @@ def _build_result(
     # signal. Sans cette garde, un `"DNF"` deviendrait un `total_time` et la
     # ligne serait ensuite marquée `finisher` par la clôture ci-dessous.
     #
-    # Ce repli étant évalué **ligne à ligne**, il couvre deux cas et non un
-    # seul : l'épreuve qui ne publie aucun chip ni gun (406211), mais aussi la
-    # ligne où une colonne d'horloge existe et rend une cellule vide — que la
-    # résolution en amont, dans `_map_columns`, abandonnait définitivement au
-    # profit d'une colonne muette. Élargissement latéral assumé, et inerte sur
-    # le panel : aucune épreuve n'y gagne ni n'y perd de temps.
+    # Ce repli étant évalué **ligne à ligne**, il couvre trois cas et non un
+    # seul : l'épreuve qui ne publie aucun chip ni gun (406211), la ligne où une
+    # colonne d'horloge existe et rend une cellule vide — que la résolution en
+    # amont, dans `_map_columns`, abandonnait définitivement au profit d'une
+    # colonne muette — et, depuis #62, la ligne dont la colonne `temps` rend un
+    # statut plutôt qu'une durée. Le repli restant borné par `_RE_DUREE`, il ne
+    # peut injecter qu'une vraie durée, jamais un statut. Élargissement latéral
+    # assumé, et inerte sur le panel : aucune épreuve n'y gagne ni n'y perd de temps.
     temps = _strip_rank_suffix(cellule("temps"))
+    if not _RE_DUREE_NORMALISEE.match(normalize_time(temps)):
+        temps = ""
     if not temps:
         candidat = _strip_rank_suffix(cellule("temps_texte"))
         if _RE_DUREE.match(candidat):
