@@ -1394,6 +1394,55 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                     if ancien is None or _prefer(r, ancien):
                         fusion[cle] = r
 
+        # Phase 3 : enrichissement par les listes `hidden` (#60).
+        # Les listes publiées font autorité pour `dossard → contest` : on indexe
+        # les clés de fusion par dossard, puis on rattache chaque ligne `hidden`
+        # par ce dossard. Le libellé de groupe des lignes `hidden` n'est jamais
+        # consulté (§4.2 du design) — `_iter_groups` n'est réutilisé que pour
+        # aplatir l'arbre `data` de profondeur variable en lignes.
+        cles_par_dossard: dict[str, list[tuple[str, str]]] = {}
+        for cle in fusion:
+            cles_par_dossard.setdefault(cle[1], []).append(cle)
+
+        for listname, contest in _iter_hidden_list_specs(config):
+            payload = _fetch_list(event_id, key, listname, contest, client)
+            if payload is None:
+                continue
+            roles, segments, extras = _map_columns(payload)
+            nom_col_expr = _nom_expression(payload, roles)
+            for _contest_label, _status_label, lignes in _iter_groups(
+                payload.get("data"), contests_connus=contests_connus
+            ):
+                for ligne in lignes:
+                    apport = _build_result(
+                        ligne, roles, segments, extras,
+                        source_url=url,
+                        event_name=event_name,
+                        event_date=jour,
+                        contest_label="",
+                        status_label="",
+                        nom_col_expr=nom_col_expr,
+                    )
+                    if not apport.bib_number:
+                        continue
+                    cles = cles_par_dossard.get(apport.bib_number)
+                    if not cles:
+                        logger.debug(
+                            "RaceResult %s : dossard hidden %s absent des listes "
+                            "publiées, ignoré (jamais de participant fantôme, #60)",
+                            event_id, apport.bib_number,
+                        )
+                        continue
+                    if len(cles) > 1:
+                        logger.warning(
+                            "RaceResult %s : dossard %s ambigu (contests %s) — "
+                            "enrichissement hidden ignoré, jointure non résoluble "
+                            "(verrou #21, #60)",
+                            event_id, apport.bib_number, [c[0] for c in cles],
+                        )
+                        continue
+                    _enrichir(fusion[cles[0]], apport)
+
     if not fusion:
         essayees = ", ".join(nom for nom, _ in specs) or "aucune liste publiée"
         raise ValueError(
