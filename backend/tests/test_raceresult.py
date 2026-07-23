@@ -462,6 +462,28 @@ def test_strip_rank_suffix(brut, attendu):
     assert raceresult._strip_rank_suffix(brut) == attendu
 
 
+@pytest.mark.parametrize("brut,attendu", [
+    ("2:05:29 (2)", "2:05:29"),    # rang SANS point (InterSemi finisher, 410891)
+    ("33:18 (10)", "33:18"),       # rang à deux chiffres, sans point
+    ("2:08:00 (1.)", "2:08:00"),   # le point reste toléré
+    ("2:04:40", "2:04:40"),        # durée nue (DNF) : inchangée
+    ("", ""),
+])
+def test_strip_rank_suffix_segment(brut, attendu):
+    """#84 — variante permissive pour les cellules de segment : décolle le rang
+    même sans point (`(2)`). Sûr car le pipeline segment qualifie ensuite par
+    `_RE_DUREE`, filet qui n'existe pas pour le texte libre (§12.2)."""
+    assert raceresult._strip_rank_suffix_segment(brut) == attendu
+
+
+def test_strip_rank_suffix_segment_ne_contamine_pas_le_strict():
+    """Les deux variantes restent distinctes : `_strip_rank_suffix` (nom/club/
+    temps) garde sa règle stricte — un numéro d'équipe sans point survit
+    (§12.2), là où la variante segment le décollerait."""
+    assert raceresult._strip_rank_suffix("TCN (1)") == "TCN (1)"
+    assert raceresult._strip_rank_suffix_segment("TCN (1)") == "TCN"
+
+
 @pytest.mark.parametrize("label,attendu", [
     ("{DE:Startnr|EN:Bib|FR:Dos.}", "Dos."),
     ("{DE:Zeit|EN:Time}", "Time"),

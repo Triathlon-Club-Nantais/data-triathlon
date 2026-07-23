@@ -553,6 +553,12 @@ def _split_rank_category(cell: str) -> tuple[int | None, str]:
     return None, cell
 
 
+def _decoller_rang(valeur: str, motif: re.Pattern[str]) -> str:
+    """Retire le rang parenthésé reconnu par `motif`, ou rend `valeur` intacte."""
+    trouve = motif.match(valeur)
+    return trouve.group(1).strip() if trouve else valeur
+
+
 def _strip_rank_suffix(valeur: str) -> str:
     """Décolle un rang suffixé (`"2:08:00 (1.)"` → `"2:08:00"`) d'une cellule.
 
@@ -572,9 +578,29 @@ def _strip_rank_suffix(valeur: str) -> str:
     finale sans point est un contenu légitime (code départemental, numéro
     d'équipe de relais), à la différence de `sexe`/`categorie` (vocabulaire
     fermé, traités par `_split_rank_category`) où l'ambiguïté n'existe pas.
+    Les cellules de segment relèvent, elles, de `_strip_rank_suffix_segment`.
     """
-    trouve = _RE_RANG_SUFFIXE_STRICT.match(valeur)
-    return trouve.group(1).strip() if trouve else valeur
+    return _decoller_rang(valeur, _RE_RANG_SUFFIXE_STRICT)
+
+
+def _strip_rank_suffix_segment(valeur: str) -> str:
+    """Variante permissive (point facultatif) pour les cellules de SEGMENT.
+
+    RaceResult suffixe le rang intermédiaire aux seuls finishers et **sans
+    point** (`iif([STATUS]=0 …;" (" & [InterSemi.OVERALL] & ")")`). La variante
+    stricte laisse alors passer `"2:05:29 (2)"`, que `_RE_DUREE` rejette
+    ensuite : le split du finisher est perdu, tandis qu'un non-finisher (durée
+    nue) fuit — incohérence documentée en verrou C (issue #84, §4.2 du sondage).
+
+    Le permissif est sûr *ici seulement* parce que le pipeline segment garde la
+    valeur décollée par `_RE_DUREE`. L'ambiguïté qui interdit le permissif sur
+    `nom`/`club`/`temps` (§12.2 : `"TCN (1)"` fusionnerait deux équipes)
+    n'existe pas pour une durée — `"TCN (1)"` décollé donne `"TCN"`, que
+    `_RE_DUREE` rejette. Aucune durée légitime ne finit par une parenthèse qui
+    ne soit pas un rang : stricte pour le texte libre, permissive pour les
+    durées gardées.
+    """
+    return _decoller_rang(valeur, _RE_RANG_SUFFIXE)
 
 
 # Vocabulaire temps franco-anglais (C4) : un préfixe d'arrivée
