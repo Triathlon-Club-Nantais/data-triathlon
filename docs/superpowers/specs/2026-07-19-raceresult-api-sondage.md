@@ -227,6 +227,29 @@ listes `hidden` existent mais sont **entièrement vides** (0 valeur sur 172 et
 contiennent parfois de la donnée, parfois des colonnes préparées et jamais
 alimentées ; rien dans le panel ne permet de dire laquelle est la règle.
 
+**(amendement 2026-07-23, issue #60 résolue pour (A)+(B))** : la mesure d'origine
+présentait l'écart comme `'PTS5 Men'` ↔ `'PTS5 M'` (graphie). Re-mesuré sur 406211,
+l'écart est de **partition** : `PTS2 Men` + `PTS3 Men` (hidden) → `PTS2-3 M`
+(publié), `PTVI Men` → éclaté en `PTVI1 M`/`PTVI2-3 M`. Aucun appariement de
+libellés ne réconcilie une fusion ni un éclatement. La réconciliation retenue est
+donc une **jointure par dossard** : les listes publiées font autorité pour
+`dossard → contest`, les lignes `hidden` s'y rattachent par dossard, en
+**enrichissement seul** (jamais de participant ni de contest créé). Mesuré : 42
+dossards publiés uniques, 33 dossards hidden tous résolus vers un seul contest ;
+406211 gagne 5 splits × 33.
+
+Le **verrou C** (410891, `'2:05:29 (2)'`, rang sans point) reste ouvert et s'avère
+**plus large que la mesure d'origine** ne le laissait croire. Re-mesuré une fois
+l'élargissement en place : sur les **finishers**, `_RE_DUREE` rejette bien la
+cellule suffixée (`'2:05:29 (2)'`), comportement voulu. Mais l'expression
+RaceResult n'appose le suffixe de rang qu'aux finishers (`iif([STATUS]=0 AND …)`) :
+un **non-finisher** (DNF/DNS/DSQ) laisse alors fuiter sa durée intermédiaire **nue**,
+qui passe `_RE_DUREE` et devient un split. Mesuré sur 410891 : dossard 804 (DNF) →
+un unique split `('10KMS', '2:04:40')`, seule fuite sur les 122 lignes, figée par
+un test de non-régression. L'élargissement du verrou C (traiter le suffixe de rang
+absent selon le statut) est renvoyé à un **ticket dédié**, hors #60.
+Design : `2026-07-23-raceresult-listes-hidden-design.md`.
+
 ## 5. Mapping des colonnes : l'algorithme du plan est **correct**
 
 Seul son emplacement était faux. `DataFields` est à la **racine du payload**
