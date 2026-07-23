@@ -165,13 +165,15 @@ class _Persister:
         « réconciliée » quand l'athlète change, « skipped » sinon. Garde des
         ambigus : jamais une correction qui viderait le prénom.
         """
-        athlete, cree = mapping.resolve_athlete(self.db, scraped)
-        if athlete.id == participation.athlete_id:
+        ancien = participation.athlete
+        if not (scraped.athlete_firstname or "").strip() and (ancien.prenom or "").strip():
+            # « BERGE | LOLA » → « LOLA BERGE |  » : refusé *avant* de résoudre
+            # l'athlète corrigé, sinon `resolve` créait une fiche orpheline que
+            # le chemin web/SSE commite sans jamais la nettoyer (cf. #66).
             self.skipped += 1
             return
-        ancien = participation.athlete
-        if not (athlete.prenom or "").strip() and (ancien.prenom or "").strip():
-            # « BERGE | LOLA » → « LOLA BERGE |  » : refusé, on garde l'existant.
+        athlete, cree = mapping.resolve_athlete(self.db, scraped)
+        if athlete.id == participation.athlete_id:
             self.skipped += 1
             return
         reassignment = Reassignment(

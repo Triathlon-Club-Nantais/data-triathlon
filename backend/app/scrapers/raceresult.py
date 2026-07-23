@@ -832,7 +832,6 @@ def _map_columns(
     # donc être promu ici, sans regarder les lignes.
     if "temps_pistolet" in roles:
         roles.setdefault("temps", roles.pop("temps_pistolet"))
-        roles.pop("temps_pistolet", None)
     # `temps_texte` n'est **pas** promu ici, à la différence du pistolet : une
     # colonne `.text` porte le *texte affiché*, qui vaut le chrono sur une
     # ligne terminée mais un libellé de statut (`"DNF"`, `"DSQ"`) sur les

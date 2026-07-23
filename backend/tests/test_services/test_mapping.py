@@ -60,6 +60,22 @@ def test_build_splits_segments_skip_empty():
     assert mapping.build_splits(s) == {"a": "00:01:00", "c": "00:03:00"}
 
 
+def test_build_splits_segments_desambiguent_les_libelles_en_collision():
+    # Deux colonnes réduites au même libellé (ex. deux « Course à pied » une fois
+    # l'i18n retirée) ne doivent pas se collapser : le second est désambiguïsé,
+    # aucun temps n'est perdu (promesse « pas de plafond » de l'AGENTS.md).
+    s = _scraped(segments=[
+        ("Course à pied", "00:20:00"),
+        ("bike", "01:00:00"),
+        ("Course à pied", "00:25:00"),
+    ])
+    assert mapping.build_splits(s) == {
+        "Course à pied": "00:20:00",
+        "bike": "01:00:00",
+        "Course à pied (2)": "00:25:00",
+    }
+
+
 def test_build_splits_segments_uncapped():
     # Plus de 5 segments (ex. swimrun multi-legs) : aucun plafond sur le chemin générique.
     segs = [(f"leg{i}", f"00:0{i}:00") for i in range(1, 8)]

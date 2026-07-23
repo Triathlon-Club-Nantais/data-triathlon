@@ -60,9 +60,22 @@ def build_splits(scraped: ScrapedResult) -> dict[str, str]:
     Si le scraper fournit `segments` (chemin générique, déplafonné, étiquettes
     libres), il prime sur les 5 slots positionnels. Sinon, on ré-étiquette les
     slots selon le sport.
+
+    Les libellés de `segments` ne sont pas garantis uniques (deux colonnes
+    peuvent se réduire au même libellé après i18n) : on désambiguïse par un
+    suffixe ` (N)` plutôt que d'écraser silencieusement un temps.
     """
     if scraped.segments:
-        return {label: time for label, time in scraped.segments if time}
+        splits: dict[str, str] = {}
+        for label, time in scraped.segments:
+            if not time:
+                continue
+            key, n = label, 2
+            while key in splits:
+                key = f"{label} ({n})"
+                n += 1
+            splits[key] = time
+        return splits
     template = _SPLIT_KEYS_BY_SPORT.get(_sport_base(scraped.event_type), _DEFAULT_SPLIT_KEYS)
     return {
         key: getattr(scraped, field)

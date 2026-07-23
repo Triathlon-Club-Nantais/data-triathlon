@@ -375,6 +375,29 @@ def test_reconciliation_ne_vide_jamais_le_prenom(db_session, patch_scraper):
     assert (parts[0].athlete.nom, parts[0].athlete.prenom) == ("BERGE", "LOLA")
 
 
+def test_reconciliation_refusee_ne_cree_pas_d_orphelin(db_session, patch_scraper):
+    """Garde des ambigus : une réconciliation refusée (prénom vidé) ne crée
+    aucune fiche d'athlète orpheline.
+
+    Sur le chemin web/SSE (`persist=True`), rien ne balaie les orphelins avant
+    le prochain `rescrape-db` : résoudre l'athlète corrigé *avant* la garde
+    laissait donc une fiche « LOLA BERGE |  » commitée et vide en base.
+    """
+    from app.repositories import athlete_repository
+
+    patch_scraper([_result("1", "BERGE", "LOLA")])
+    import_service.import_event(db_session, URL, _settings())
+    nb_athletes = len(athlete_repository.search(db_session, page_size=500))
+
+    # Le re-scrape produirait ("LOLA BERGE", "") — correction refusée.
+    patch_scraper([_result("1", "LOLA BERGE", "")])
+    out = import_service.import_event(db_session, URL, _settings(), force=True)
+
+    assert out["reconciled"] == 0
+    assert len(athlete_repository.search(db_session, page_size=500)) == nb_athletes
+    assert athlete_repository.get_by_identity(db_session, "LOLA BERGE", "", None) is None
+
+
 def test_reconciliation_dossard_en_double_ne_compte_qu_une_fois(db_session, patch_scraper):
     """Anti double-comptage : 2 lignes source pour un dossard préexistant réconcilié
     → 1 réconciliation, la 2e occurrence est un skip bénin (comportement historique)."""
