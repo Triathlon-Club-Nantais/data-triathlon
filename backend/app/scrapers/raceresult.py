@@ -185,6 +185,28 @@ def _lists_or_raise(config: dict) -> list[dict]:
     return [item for item in lists if isinstance(item, dict) and item.get("Name")]
 
 
+def _dedup_ordonnee(specs: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """Retire les couples (listname, contest) répétés, en gardant le premier.
+
+    `TabConfig.Lists` répète des couples identiques sur les données réelles —
+    mesuré sur le panel côté `hidden` : 411749 porte 4 fois
+    `('Classements|Classement général', '0')` et 410891 3 fois. Chaque
+    répétition déclencherait un `_fetch_list` au payload **identique** (jusqu'à
+    77 Ko pour rien), coûteux sur un `rescrape-db` de masse. Un couple identique
+    désigne la même liste sur le même contest : le dédupliquer est sans effet
+    fonctionnel (payload identique, fusion et enrichissement idempotents). Les
+    listes publiées n'en portent aucun sur le panel ; la garde y est défensive
+    et symétrique.
+    """
+    vus: set[tuple[str, str]] = set()
+    ordonnee: list[tuple[str, str]] = []
+    for spec in specs:
+        if spec not in vus:
+            vus.add(spec)
+            ordonnee.append(spec)
+    return ordonnee
+
+
 def _iter_list_specs(config: dict) -> list[tuple[str, str]]:
     """Listes publiées : [(listname, contest), …].
 
@@ -222,12 +244,14 @@ def _iter_list_specs(config: dict) -> list[tuple[str, str]]:
     épreuve, où il coïncidait. Sur l'event 405100 les 10 listes portent `Live=1`,
     y compris les 3 vrais classements — le filtre y vide l'épreuve entière.
     `Format` ne discrimine pas davantage.
+
+    Les couples (Name, Contest) répétés sont dédupliqués (cf. `_dedup_ordonnee`).
     """
-    return [
+    return _dedup_ordonnee([
         (str(item.get("Name")), str(item.get("Contest") or "0"))
         for item in _lists_or_raise(config)
         if item.get("Mode") != "hidden"
-    ]
+    ])
 
 
 def _iter_hidden_list_specs(config: dict) -> list[tuple[str, str]]:
@@ -240,12 +264,16 @@ def _iter_hidden_list_specs(config: dict) -> list[tuple[str, str]]:
     tri du grain (splits) et de l'ivraie (inscrits, colonnes vides, classement
     redondant) se fait à l'exécution, par la valeur des cellules. Une liste sans
     apport reste inerte.
+
+    Les couples (Name, Contest) répétés sont dédupliqués (cf. `_dedup_ordonnee`) :
+    RaceResult les répète (411749 : 4× le classement général) et chacun
+    déclencherait un fetch redondant du même payload.
     """
-    return [
+    return _dedup_ordonnee([
         (str(item.get("Name")), str(item.get("Contest") or "0"))
         for item in _lists_or_raise(config)
         if item.get("Mode") == "hidden"
-    ]
+    ])
 
 
 _ACCENTS = str.maketrans("àâäéèêëîïôöùûüçÀÂÄÉÈÊËÎÏÔÖÙÛÜÇ", "aaaeeeeiioouuucAAAEEEEIIOOUUUC")
@@ -1397,9 +1425,14 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         # Phase 3 : enrichissement par les listes `hidden` (#60).
         # Les listes publiées font autorité pour `dossard → contest` : on indexe
         # les clés de fusion par dossard, puis on rattache chaque ligne `hidden`
-        # par ce dossard. Le libellé de groupe des lignes `hidden` n'est jamais
-        # consulté (§4.2 du design) — `_iter_groups` n'est réutilisé que pour
-        # aplatir l'arbre `data` de profondeur variable en lignes.
+        # par ce dossard. Le **libellé de contest** du groupe `hidden` n'est
+        # jamais consulté — la jointure passe par le dossard, pas par lui, d'où
+        # `contest_label=""`. Le **statut** de groupe (`Abandons`…), lui, est
+        # transmis (§4.2 du design) : il qualifie la ligne dans `_build_result`,
+        # ce qui vide le `total_time` d'un non-finisher. Sans cela, une durée
+        # intermédiaire nue (verrou C : RaceResult n'appose son suffixe de rang
+        # qu'aux finishers) serait promue `finisher` puis propagée à `_enrichir`
+        # comme un faux temps d'arrivée sur le publié.
         cles_par_dossard: dict[str, list[tuple[str, str]]] = {}
         for cle in fusion:
             cles_par_dossard.setdefault(cle[1], []).append(cle)
@@ -1410,7 +1443,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                 continue
             roles, segments, extras = _map_columns(payload)
             nom_col_expr = _nom_expression(payload, roles)
-            for _contest_label, _status_label, lignes in _iter_groups(
+            for _contest_label, status_label, lignes in _iter_groups(
                 payload.get("data"), contests_connus=contests_connus
             ):
                 for ligne in lignes:
@@ -1420,7 +1453,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                         event_name=event_name,
                         event_date=jour,
                         contest_label="",
-                        status_label="",
+                        status_label=status_label,
                         nom_col_expr=nom_col_expr,
                     )
                     if not apport.bib_number:
