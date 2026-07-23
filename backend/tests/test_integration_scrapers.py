@@ -371,3 +371,18 @@ def test_raceresult_contests_et_non_finishers():
 
     # Segments étiquetés plutôt que les 5 slots positionnels.
     assert any(r.segments for r in results), "raceresult : aucun segment"
+
+
+@pytest.mark.integration
+def test_raceresult_406211_enrichit_les_splits_en_reel():
+    """#60 réseau réel : le classement hidden du 406211 doit apporter les splits
+    aux finishers. Assertions souples (données vivantes) : au moins une dizaine
+    de participants portent 5 segments Swim/T1/Bike/T2/Run."""
+    from app.scrapers import raceresult
+
+    res = raceresult.scrape_event_all("https://my.raceresult.com/406211/results")
+
+    avec_splits = [r for r in res if r.segments]
+    assert len(avec_splits) >= 10
+    ref = next(r for r in avec_splits if len(r.segments) == 5)
+    assert {lab for lab, _ in ref.segments} == {"Swim", "T1", "Bike", "T2", "Run"}
