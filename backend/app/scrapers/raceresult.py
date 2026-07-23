@@ -1441,7 +1441,21 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                             event_id, apport.bib_number, [c[0] for c in cles],
                         )
                         continue
-                    _enrichir(fusion[cles[0]], apport)
+                    publie = fusion[cles[0]]
+                    if _identites_incompatibles(apport, publie):
+                        logger.warning(
+                            "RaceResult %s : dossard %s — identité divergente "
+                            "entre le hidden (%s %s) et le publié (%s %s) : "
+                            "dossard réutilisé entre contests dont un seul est "
+                            "publié, la garde d'ambiguïté ne le voit pas — "
+                            "enrichissement refusé faute de jointure fiable "
+                            "(cf. #60, symétrie avec la garde #65)",
+                            event_id, apport.bib_number,
+                            apport.athlete_name, apport.athlete_firstname,
+                            publie.athlete_name, publie.athlete_firstname,
+                        )
+                        continue
+                    _enrichir(publie, apport)
 
     if not fusion:
         essayees = ", ".join(nom for nom, _ in specs) or "aucune liste publiée"

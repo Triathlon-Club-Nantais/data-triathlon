@@ -384,5 +384,7 @@ def test_raceresult_406211_enrichit_les_splits_en_reel():
 
     avec_splits = [r for r in res if r.segments]
     assert len(avec_splits) >= 10
-    ref = next(r for r in avec_splits if len(r.segments) == 5)
+    cinq = [r for r in avec_splits if len(r.segments) == 5]
+    assert cinq, "aucune ligne live ne porte 5 segments"
+    ref = cinq[0]
     assert {lab for lab, _ in ref.segments} == {"Swim", "T1", "Bike", "T2", "Run"}
