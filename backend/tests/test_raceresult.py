@@ -1698,41 +1698,96 @@ def test_prefer_un_non_finisher_arrivant_en_second_ecrase_une_ligne_muette():
     assert raceresult._prefer(dnf_muet, avec_temps) is False
 
 
-def _res(nom: str = "", prenom: str = "") -> raceresult.ScrapedResult:
-    """ScrapedResult minimal pour éprouver la comparaison d'identités."""
-    return raceresult.ScrapedResult(
-        source_url="u", provider="raceresult", bib_number="7",
-        athlete_name=nom, athlete_firstname=prenom,
-    )
+def _res(**kw):
+    """ScrapedResult minimal pour les tests d'enrichissement."""
+    base = dict(source_url="u", provider="raceresult", bib_number="7")
+    base.update(kw)
+    return ScrapedResult(**base)
 
 
 def test_identites_incompatibles_deux_noms_pleins_distincts():
     assert raceresult._identites_incompatibles(
-        _res("DUPONT", "Jean"), _res("MARTIN", "Luc")
+        _res(athlete_name="DUPONT", athlete_firstname="Jean"),
+        _res(athlete_name="MARTIN", athlete_firstname="Luc"),
     ) is True
 
 
 def test_identites_incompatibles_un_cote_anonyme_est_un_enrichissement():
     # Une liste sans patronyme : fusion d'enrichissement légitime, pas collision.
     assert raceresult._identites_incompatibles(
-        _res("DUPONT", "Jean"), _res("", "")
+        _res(athlete_name="DUPONT", athlete_firstname="Jean"),
+        _res(athlete_name="", athlete_firstname=""),
     ) is False
     assert raceresult._identites_incompatibles(
-        _res("", ""), _res("MARTIN", "Luc")
+        _res(athlete_name="", athlete_firstname=""),
+        _res(athlete_name="MARTIN", athlete_firstname="Luc"),
     ) is False
 
 
 def test_identites_incompatibles_tolere_casse_et_accents():
     # « José » / « JOSE » : même personne, divergence de casse/accent seulement.
     assert raceresult._identites_incompatibles(
-        _res("DUPONT", "José"), _res("dupont", "JOSE")
+        _res(athlete_name="DUPONT", athlete_firstname="José"),
+        _res(athlete_name="dupont", athlete_firstname="JOSE"),
     ) is False
 
 
 def test_identites_incompatibles_meme_identite_pleine():
     assert raceresult._identites_incompatibles(
-        _res("DUPONT", "Jean"), _res("DUPONT", "Jean")
+        _res(athlete_name="DUPONT", athlete_firstname="Jean"),
+        _res(athlete_name="DUPONT", athlete_firstname="Jean"),
     ) is False
+
+
+# ── Enrichissement d'un résultat publié par une ligne hidden ────────────────
+
+def test_enrichir_ajoute_les_splits_si_absents():
+    existant = _res(athlete_name="DUPONT", total_time="01:00:00", segments=None)
+    apport = _res(segments=[("Swim", "10:00"), ("Run", "20:00")])
+    raceresult._enrichir(existant, apport)
+    assert existant.segments == [("Swim", "10:00"), ("Run", "20:00")]
+    assert existant.athlete_name == "DUPONT", "l'identité du publié est intouchée"
+
+
+def test_enrichir_ne_fusionne_pas_deux_listes_de_splits():
+    existant = _res(segments=[("Swim", "10:00")])
+    apport = _res(segments=[("Bike", "30:00")])
+    raceresult._enrichir(existant, apport)
+    assert existant.segments == [("Swim", "10:00")], "les splits existants priment"
+
+
+def test_enrichir_remplit_les_scalaires_vides():
+    existant = _res(total_time="", club="", category="", gender="")
+    apport = _res(total_time="01:23:45", club="TCN", category="V1", gender="M")
+    raceresult._enrichir(existant, apport)
+    assert (existant.total_time, existant.club, existant.category, existant.gender) == (
+        "01:23:45", "TCN", "V1", "M",
+    )
+
+
+def test_enrichir_n_ecrase_jamais_un_scalaire_renseigne():
+    existant = _res(total_time="01:00:00", club="ASPTT")
+    apport = _res(total_time="09:99:99", club="AUTRE")
+    raceresult._enrichir(existant, apport)
+    assert existant.total_time == "01:00:00"
+    assert existant.club == "ASPTT"
+
+
+def test_enrichir_ne_touche_ni_identite_ni_rang_ni_statut():
+    existant = _res(
+        athlete_name="DUPONT", athlete_firstname="Jean",
+        rank_overall=3, status="finisher",
+    )
+    apport = _res(
+        athlete_name="AUTRE", athlete_firstname="Paul",
+        rank_overall=99, status="DNF", segments=[("Swim", "10:00")],
+    )
+    raceresult._enrichir(existant, apport)
+    assert existant.athlete_name == "DUPONT"
+    assert existant.athlete_firstname == "Jean"
+    assert existant.rank_overall == 3
+    assert existant.status == "finisher"
+    assert existant.segments == [("Swim", "10:00")]
 
 
 # ── Pipeline complet : listes explicites, fusion, erreurs ───────────────────
