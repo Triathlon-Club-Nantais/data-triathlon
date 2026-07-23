@@ -295,6 +295,23 @@ def test_iter_hidden_list_specs_ne_rend_que_les_hidden():
     ]
 
 
+def test_iter_hidden_list_specs_deduplique_les_couples_repetes():
+    """#60 : `TabConfig.Lists` répète des couples (Name, Contest) `hidden`
+    identiques sur les données réelles (411749 : 4× le classement général). Un
+    couple identique désigne la même liste sur le même contest — même requête,
+    même payload : on le rend une seule fois, en gardant l'ordre d'apparition."""
+    config = {"TabConfig": {"Lists": [
+        {"Name": "Classement général", "Contest": "0", "Mode": "hidden"},
+        {"Name": "Liste des Inscrits", "Contest": "0", "Mode": "hidden"},
+        {"Name": "Classement général", "Contest": "0", "Mode": "hidden"},
+        {"Name": "Classement général", "Contest": "0", "Mode": "hidden"},
+    ]}}
+    assert raceresult._iter_hidden_list_specs(config) == [
+        ("Classement général", "0"),
+        ("Liste des Inscrits", "0"),
+    ]
+
+
 def test_iter_hidden_list_specs_leve_sur_une_forme_inattendue():
     """Même garde que `_iter_list_specs` : une `TabConfig.Lists` absente trahit
     la route héritée."""
@@ -2537,6 +2554,65 @@ def test_scrape_event_all_hidden_sans_split_est_inerte(monkeypatch):
     assert len(res) == 1
     assert res[0].segments is None
     assert res[0].club == "TCN"
+
+
+def test_scrape_event_all_hidden_dnf_ne_propage_pas_son_temps_intermediaire(monkeypatch):
+    """#60, garde du §4.2 du design : le **statut** de groupe d'une ligne `hidden`
+    la qualifie avant enrichissement. Une ligne `hidden` sous un groupe
+    « Abandons » porte parfois une durée intermédiaire nue (verrou C, forme du
+    410891). Si le statut de groupe n'était pas consulté, `_build_result`
+    marquerait la ligne `finisher` et `_enrichir` propagerait cette durée comme
+    faux `total_time` au publié — dont le temps est vide, précisément parce que
+    c'est un abandon. Le statut de groupe vide le `total_time` de l'apport : il
+    n'y a plus rien à propager."""
+    specs = [("LIVE", "1")]
+    hidden = [("Classement", "0")]
+    payloads = {
+        # Publié : dossard 42 dans le groupe « Abandons », sans colonne temps.
+        ("LIVE", "1"): _payload(
+            {"#1_Distance S": {"#2_Abandons": [["42", "1", "Jean DUPONT", "TCN"]]}},
+            avec_temps=False,
+        ),
+        # Hidden : même dossard, sous « Abandons », avec une durée intermédiaire nue.
+        ("Classement", "0"): _payload(
+            {"#2_Abandons": [["42", "1", "Jean DUPONT", "TCN", "01:30:00"]]},
+        ),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads, hidden=hidden)
+
+    res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert len(res) == 1
+    r = res[0]
+    assert r.status == STATUS_DNF
+    assert r.total_time == "", (
+        "l'abandon ne doit pas récupérer la durée intermédiaire de la ligne hidden"
+    )
+
+
+def test_scrape_event_all_hidden_deduplique_les_fetch(monkeypatch):
+    """#60 : `TabConfig.Lists` répète des couples (Name, Contest) `hidden`
+    identiques sur les données réelles (411749 : 4× le classement général,
+    410891 : 3×). Chaque répétition déclencherait un `_fetch_list` au payload
+    identique — jusqu'à 77 Ko pour rien, coûteux sur un `rescrape-db` de masse.
+    On ne fetch chaque couple qu'une fois."""
+    specs = [("LIVE", "1")]
+    hidden = [("Classement", "0"), ("Classement", "0"), ("Classement", "0")]
+    payloads = {
+        ("LIVE", "1"): _payload({"#1_Distance S": {"#1_": [
+            ["525", "1", "Martin SCHULZ", "TCN", "1:03:01"],
+        ]}}),
+        ("Classement", "0"): _payload_splits({"#6_PTS5 Men": [
+            ["525", "1", "Martin SCHULZ", "10:27", "18:57", "1:03:01"],
+        ]}),
+    }
+    appels = _monte_pipeline(monkeypatch, specs, payloads, hidden=hidden)
+
+    raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert appels.count(("Classement", "0")) == 1, (
+        "un seul fetch malgré 3 entrées hidden répétées dans TabConfig.Lists"
+    )
 
 
 # ── Fixtures réelles #60 : 406211 (enrichissement) + 410891 (non-régression) ─
