@@ -103,6 +103,9 @@ class _FauxClient:
     "https://my3.raceresult.com/393893/",
     "https://www.espace-competition.com/index.php?page=resultats&comp_uid=3178",
     "https://www.chronoconsult.fr/result/triathlon-de-roanne-villerest/",
+    # Port explicite : le host doit être extrait sans lui, sinon `netloc`
+    # (`my.raceresult.com:443`) ne matche plus aucune façade.
+    "https://my.raceresult.com:443/399938/results",
 ])
 def test_routage_vers_raceresult(url):
     assert registry.detect_provider(url) == "raceresult"

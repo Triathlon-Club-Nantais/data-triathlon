@@ -160,7 +160,9 @@ class RaceResultProvider:
     _HOSTS = ("raceresult.com", "espace-competition.com", "chronoconsult.fr")
 
     def matches(self, url: str) -> bool:
-        host = (urlparse(url).netloc or "").lower()
+        # `hostname` (et non `netloc`) : sans lui, un port explicite
+        # (`my.raceresult.com:443`) ou des credentials feraient rater le match.
+        host = (urlparse(url).hostname or "").lower()
         # Domaine exact ou vrai sous-domaine : un suffixe brut suivrait aussi un
         # host sosie du type `evilraceresult.com`.
         return any(host == h or host.endswith(f".{h}") for h in self._HOSTS)
