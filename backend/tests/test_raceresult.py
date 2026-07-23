@@ -2484,6 +2484,39 @@ def test_scrape_event_all_hidden_dossard_ambigu_est_ignore_et_loggue(monkeypatch
     assert any("ambigu" in rec.getMessage() for rec in logs.records)
 
 
+def test_scrape_event_all_hidden_identite_divergente_refuse_l_enrichissement(monkeypatch):
+    """#60 : un dossard réutilisé entre contests dont un seul est publié échappe
+    à la garde d'ambiguïté (`len(cles) == 1` côté publié) mais le `hidden` nomme
+    un **autre** athlète que le publié sous ce même dossard. Comme pour la garde
+    #65, on refuse l'enrichissement plutôt que de rattacher un split étranger :
+    le publié reste autorité et intact."""
+    specs = [("LIVE", "1")]
+    hidden = [("Classement", "0")]
+    payloads = {
+        ("LIVE", "1"): _payload({"#1_Distance S": {"#1_": [
+            ["525", "1", "Jean DUPONT", "TCN", "1:03:01"],
+        ]}}),
+        # Même dossard « 525 », mais un athlète différent : contest non publié
+        # dont le dossard a été réattribué.
+        ("Classement", "0"): _payload_splits({"#6_PTS5 Men": [
+            ["525", "1", "Paul MARTIN", "10:27", "18:57", "1:03:01"],
+        ]}),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads, hidden=hidden)
+
+    with _capture_logs("app.scrapers.raceresult") as logs:
+        res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert len(res) == 1
+    r = res[0]
+    assert r.segments is None, "identité divergente : aucun split enrichi"
+    assert r.athlete_name == "DUPONT", "le publié reste autorité et intact"
+    assert any(
+        "identité" in rec.getMessage() or "divergent" in rec.getMessage()
+        for rec in logs.records
+    )
+
+
 def test_scrape_event_all_hidden_sans_split_est_inerte(monkeypatch):
     """Une liste `hidden` redondante (mêmes colonnes que le publié, sans split :
     forme du classement Contest=0 du 410891) n'ajoute rien et ne casse rien."""
