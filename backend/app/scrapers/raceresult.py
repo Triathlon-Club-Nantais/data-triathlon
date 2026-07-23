@@ -169,6 +169,22 @@ def _fetch_config(event_id: str, client: httpx.Client) -> dict:
     return resp.json()
 
 
+def _lists_or_raise(config: dict) -> list[dict]:
+    """Entrées bien formées de `TabConfig.Lists`, ou `ValueError`.
+
+    Une `TabConfig.Lists` absente ou de mauvaise forme trahit l'interrogation
+    de la route héritée `/{id}/RRPublish/data/…` (cf. en-tête du module). Garde
+    partagée par la sélection publiée et la sélection `hidden` (#60).
+    """
+    lists = (config.get("TabConfig") or {}).get("Lists")
+    if not isinstance(lists, list):
+        raise ValueError(
+            f"TabConfig.Lists de forme inattendue : {type(lists)!r} "
+            "(route héritée interrogée par erreur ?)"
+        )
+    return [item for item in lists if isinstance(item, dict) and item.get("Name")]
+
+
 def _iter_list_specs(config: dict) -> list[tuple[str, str]]:
     """Listes publiées : [(listname, contest), …].
 
@@ -207,18 +223,28 @@ def _iter_list_specs(config: dict) -> list[tuple[str, str]]:
     y compris les 3 vrais classements — le filtre y vide l'épreuve entière.
     `Format` ne discrimine pas davantage.
     """
-    lists = (config.get("TabConfig") or {}).get("Lists")
-    if not isinstance(lists, list):
-        raise ValueError(
-            f"TabConfig.Lists de forme inattendue : {type(lists)!r} "
-            "(route héritée interrogée par erreur ?)"
-        )
     return [
-        (str(item.get("Name") or ""), str(item.get("Contest") or "0"))
-        for item in lists
-        if isinstance(item, dict)
-        and item.get("Name")
-        and item.get("Mode") != "hidden"
+        (str(item.get("Name")), str(item.get("Contest") or "0"))
+        for item in _lists_or_raise(config)
+        if item.get("Mode") != "hidden"
+    ]
+
+
+def _iter_hidden_list_specs(config: dict) -> list[tuple[str, str]]:
+    """Listes `hidden` : [(listname, contest), …], matière de l'enrichissement (#60).
+
+    Symétrique de `_iter_list_specs`. Ces listes n'introduisent ni participant
+    ni contest (cf. design #60) : elles ne font qu'enrichir, par dossard, un
+    participant déjà établi par une liste publiée. On les prend **toutes**,
+    indépendamment du `Name` (banni comme qualifiant, §3) et du `Contest` — le
+    tri du grain (splits) et de l'ivraie (inscrits, colonnes vides, classement
+    redondant) se fait à l'exécution, par la valeur des cellules. Une liste sans
+    apport reste inerte.
+    """
+    return [
+        (str(item.get("Name")), str(item.get("Contest") or "0"))
+        for item in _lists_or_raise(config)
+        if item.get("Mode") == "hidden"
     ]
 
 
