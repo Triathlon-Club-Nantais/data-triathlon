@@ -278,6 +278,30 @@ def test_iter_list_specs_leve_sur_une_forme_inattendue():
         raceresult._iter_list_specs({"lists": [{"Name": "X", "Contest": "0"}]})
 
 
+def test_iter_hidden_list_specs_ne_rend_que_les_hidden():
+    """#60 : symétrique de `_iter_list_specs`. Les listes `hidden` sont la
+    matière de l'enrichissement ; on les prend toutes (le tri par la valeur se
+    fait à l'exécution), indépendamment du Name et du Contest."""
+    config = {"TabConfig": {"Lists": [
+        {"Name": "Classement", "Contest": "1", "Mode": ""},
+        {"Name": "Classement général", "Contest": "0", "Mode": "hidden"},
+        {"Name": "Liste des Inscrits", "Contest": "0", "Mode": "hidden"},
+        {"Name": "Sans nom", "Contest": "2", "Mode": "hidden"},  # écartée : pas de Name
+    ]}}
+    del config["TabConfig"]["Lists"][3]["Name"]
+    assert raceresult._iter_hidden_list_specs(config) == [
+        ("Classement général", "0"),
+        ("Liste des Inscrits", "0"),
+    ]
+
+
+def test_iter_hidden_list_specs_leve_sur_une_forme_inattendue():
+    """Même garde que `_iter_list_specs` : une `TabConfig.Lists` absente trahit
+    la route héritée."""
+    with pytest.raises(ValueError, match="TabConfig.Lists"):
+        raceresult._iter_hidden_list_specs({"lists": []})
+
+
 # ── Mapping des colonnes ─────────────────────────────────────────────────────
 
 def _payload_rumilly() -> dict:
