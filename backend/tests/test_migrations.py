@@ -6,6 +6,7 @@ ce test, une migration qui dépend du modèle ORM courant peut casser
 `alembic upgrade head` (et donc `scripts/reset_db.py`, la CI, tout nouveau
 déploiement) sans qu'aucun test ne s'en aperçoive.
 """
+import logging
 from pathlib import Path
 
 import pytest
@@ -45,6 +46,21 @@ def _columns(url: str, table: str) -> set[str]:
 def test_upgrade_head_sur_base_vierge(sqlite_url):
     command.upgrade(_alembic_config(), "head")
     assert {"is_reliable", "quality_issues"} <= _columns(sqlite_url, "courses")
+
+
+def test_upgrade_ne_desactive_pas_les_loggers_existants(sqlite_url):
+    """`alembic/env.py` ne doit pas éteindre les loggers déjà enregistrés.
+
+    `fileConfig()` désactive par défaut tout logger absent de `alembic.ini`
+    (`disable_existing_loggers=True`). Sans garde-fou, exécuter une migration
+    dans la même suite coupe silencieusement les loggers applicatifs (`app.*`).
+    """
+    logger = logging.getLogger("app.services.import_service")
+    logger.disabled = False
+
+    command.upgrade(_alembic_config(), "head")
+
+    assert not logging.getLogger("app.services.import_service").disabled
 
 
 def test_downgrade_puis_upgrade_de_l_indice_de_fiabilite(sqlite_url):
