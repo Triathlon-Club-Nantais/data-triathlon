@@ -1101,14 +1101,19 @@ def _build_result(
     # Une colonne candidate ne devient un segment que si sa valeur est bien une
     # durée : c'est ce qui écarte les colonnes « Tours » ou « Distance », dont
     # l'expression est un token simple indiscernable de celle d'un split. Le
-    # rang suffixé (`"33:18 (10.)"`) est décollé AVANT cette qualification :
-    # `_RE_DUREE` le rejetterait tel quel et ferait perdre le split entier.
+    # rang suffixé est décollé AVANT cette qualification (`_RE_DUREE` le
+    # rejetterait tel quel et ferait perdre le split entier), avec la variante
+    # PERMISSIVE (`_strip_rank_suffix_segment`, point facultatif) : RaceResult
+    # suffixe l'intermédiaire des finishers sans point (`"2:05:29 (2)"`) et
+    # laisse la durée nue aux non-finishers — sans le permissif, seul le
+    # non-finisher fuyait (verrou C, #84). Le permissif est sûr ici, car
+    # `_RE_DUREE` en aval rejette tout ce qui n'est pas une durée.
     r.segments = [
         (label, normalize_time(valeur))
         for label, col in segments
         if col < len(ligne)
         and (cellule_brute := _clean_cell(ligne[col]))
-        and (valeur := _strip_rank_suffix(cellule_brute))
+        and (valeur := _strip_rank_suffix_segment(cellule_brute))
         and _RE_DUREE.match(valeur)
     ] or None
 

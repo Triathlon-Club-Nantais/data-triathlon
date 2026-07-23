@@ -1276,6 +1276,48 @@ def test_build_result_decolle_le_rang_suffixe_dune_valeur_de_segment():
     assert r.segments == [("Vélo", "02:08:00")]
 
 
+def test_build_result_recupere_un_segment_au_rang_suffixe_sans_point():
+    """#84, cœur du correctif : une cellule de segment portant un rang SANS
+    point (`'2:05:29 (2)'`, forme InterSemi des finishers 410891) est décollée
+    par la variante permissive puis qualifiée par `_RE_DUREE` — le split est
+    récupéré, là où la variante stricte le laissait rejeter."""
+    expr = '[Vélo] & " (" & [Vélo.OVERALL.P] & ")"'
+    payload = {
+        "DataFields": ["BIB", "ID", expr],
+        "list": {"Fields": [{"Expression": expr, "Label": "Vélo"}]},
+    }
+    roles, segments, extras = raceresult._map_columns(payload)
+
+    r = raceresult._build_result(
+        ["810", "494", "2:05:29 (2)"], roles, segments, extras,
+        source_url="u", event_name="E", event_date=None,
+        contest_label="C", status_label="",
+    )
+
+    assert r.segments == [("Vélo", "02:05:29")]
+
+
+def test_build_result_permissif_segment_reste_garde_par_re_duree():
+    """Filet de sûreté du permissif : décoller `(2)` d'un contenu non-durée
+    (`'TCN (2)'`) donne `'TCN'`, rejeté par `_RE_DUREE` — aucun faux split.
+    C'est ce qui rend le permissif sans danger sur les segments, à la
+    différence du texte libre (§12.2)."""
+    expr = '[Vélo] & " (" & [Vélo.OVERALL.P] & ")"'
+    payload = {
+        "DataFields": ["BIB", "ID", expr],
+        "list": {"Fields": [{"Expression": expr, "Label": "Vélo"}]},
+    }
+    roles, segments, extras = raceresult._map_columns(payload)
+
+    r = raceresult._build_result(
+        ["1", "1", "TCN (2)"], roles, segments, extras,
+        source_url="u", event_name="E", event_date=None,
+        contest_label="C", status_label="",
+    )
+
+    assert r.segments is None
+
+
 # ── Important 1 (revue du correctif C2+C3) : C2 élargit les rôles reconnus,
 # une colonne temps/nom/club peut donc désormais provenir d'une concaténation
 # composée `[X] & " (" & [X.OVERALL.P] & ")"` — exactement le motif qui polluait
