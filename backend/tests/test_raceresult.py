@@ -2741,18 +2741,13 @@ def test_scrape_event_all_406211_recupere_les_splits_du_classement_hidden(monkey
     }
 
 
-def test_scrape_event_all_410891_hidden_fuite_un_split_pour_un_dnf(monkeypatch):
-    """#60, données réelles : le classement hidden Contest=0 est redondant (pas
-    de split) et, pour les **finishers**, les splits `inter` sont au format
-    `'2:05:29 (2)'` (rang sans point, verrou C hors périmètre) — rejetés par
-    `_RE_DUREE`, donc inertes.
-
-    Mais RaceResult n'appose ce suffixe de rang que si `STATUS=0` (finisher) :
-    pour un DNF, la même colonne rend sa durée intermédiaire **nue**, sans
-    aucun suffixe, qui passe `_RE_DUREE` sans encombre. C'est un angle mort du
-    verrou C (documenté hors périmètre, élargissement renvoyé à un ticket
-    dédié), pas une régression des Tasks 1-3 : mesuré ici, une seule ligne du
-    hidden 410891 en profite — le dossard 804 (PRAUD Samuel, DNF)."""
+def test_scrape_event_all_410891_hidden_recupere_les_splits_intermediaires(monkeypatch):
+    """#84 : la colonne de split intermédiaire (`InterSemi`) suffixe le rang aux
+    finishers SANS point (`'2:05:29 (2)'`) et laisse la durée nue aux
+    non-finishers (`'2:04:40'`). Le pipeline segment décolle désormais le rang
+    même sans point (variante permissive, gardée par `_RE_DUREE`) : les 111
+    splits réels sont récupérés — 110 finishers + le DNF 804 — là où seul le
+    DNF nu fuyait (verrou C, différé par #60, fermé pour les segments ici)."""
     def routeur(listname, contest):
         table = {
             ("Classements|Classement général", "1"): "410891_pub_c1.json",
@@ -2769,10 +2764,11 @@ def test_scrape_event_all_410891_hidden_fuite_un_split_pour_un_dnf(monkeypatch):
     assert res, "les listes publiées produisent des participants"
     assert len(res) == 122, "aucun participant ajouté par le hidden (inscrits ignorés)"
     avec_splits = [r for r in res if r.segments]
-    # Verrou C (hors #60) : le suffixe de rang '(N)' n'est apposé qu'aux
-    # finishers ; un DNF laisse fuiter sa durée intermédiaire nue, seule ligne
-    # du hidden 410891 à passer `_RE_DUREE`. Élargissement -> ticket dédié.
-    assert len(avec_splits) == 1, "seule la ligne DNF fuit un split (verrou C)"
-    fuite = avec_splits[0]
-    assert fuite.bib_number == "804"  # PRAUD Samuel, DNF
-    assert fuite.segments == [("10KMS", "02:04:40")]
+    assert len(avec_splits) == 111, "110 finishers décorés + le DNF nu"
+    # Le DNF conserve son intermédiaire (franchi avant l'abandon) : le nettoyage
+    # #60 vide temps/rangs des non-finishers, jamais les segments.
+    dnf = next(r for r in res if r.bib_number == "804")  # PRAUD Samuel, DNF
+    assert dnf.segments == [("10KMS", "02:04:40")]
+    # Un finisher récupère aussi son split, ex-rejeté par le verrou C.
+    finisher = next(r for r in res if r.bib_number == "810")  # RONDEAU David
+    assert finisher.segments == [("10KMS", "02:05:29")]
