@@ -1210,6 +1210,32 @@ def _prefer(nouveau: ScrapedResult, ancien: ScrapedResult) -> bool:
     return _richness(nouveau) > _richness(ancien)
 
 
+# Champs scalaires qu'une ligne `hidden` peut combler côté publié (#60). Le
+# publié fait autorité : l'enrichissement ne remplit qu'un trou, jamais n'écrase.
+# Volontairement restreint — nom/prénom, rangs, statut et dossard n'y figurent
+# pas : ils sont l'identité et le classement établis par le publié.
+_CHAMPS_SCALAIRES_ENRICHISSABLES = ("total_time", "club", "category", "gender")
+
+
+def _enrichir(existant: ScrapedResult, apport: ScrapedResult) -> None:
+    """Complète `existant` (ligne publiée) avec une ligne `hidden` appariée par
+    dossard (#60). Mute `existant` en place ; comble les trous, n'écrase rien.
+
+    - **Splits** : pris seulement si `existant` n'en avait **aucun**. On ne
+      fusionne pas deux listes partielles de segments (cas non observé au panel ;
+      inférence évitée) — cf. §7 du design.
+    - **Scalaires** (`_CHAMPS_SCALAIRES_ENRICHISSABLES`) : remplis s'ils sont
+      vides côté publié.
+    - **Rien d'autre** : identité, rangs, statut, dossard et event_* restent ceux
+      du publié. Un enrichissement ne peut pas dégrader ce qui est déjà établi.
+    """
+    if not existant.segments and apport.segments:
+        existant.segments = apport.segments
+    for champ in _CHAMPS_SCALAIRES_ENRICHISSABLES:
+        if not getattr(existant, champ) and getattr(apport, champ):
+            setattr(existant, champ, getattr(apport, champ))
+
+
 def _identite_pliee(r: ScrapedResult) -> tuple[str, str]:
     """(nom, prénom) plié en minuscules et accents neutralisés, pour comparaison.
 
