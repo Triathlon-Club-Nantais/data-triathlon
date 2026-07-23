@@ -1846,20 +1846,22 @@ def _payload(lignes_par_groupe: dict, *, avec_temps: bool = True) -> dict:
     }
 
 
-def _monte_pipeline(monkeypatch, specs, payloads):
+def _monte_pipeline(monkeypatch, specs, payloads, *, hidden=()):
     """Câble `scrape_event_all` sur des payloads en mémoire.
 
-    `payloads` mappe (listname, contest) → payload ou None. Les appels sont
-    enregistrés pour vérifier qu'aucun balayage à l'aveugle ne subsiste.
+    `payloads` mappe (listname, contest) → payload ou None. `specs` sont les
+    listes publiées, `hidden` les listes `Mode == "hidden"` (#60). Les appels
+    sont enregistrés pour vérifier qu'aucun balayage à l'aveugle ne subsiste.
     """
     appels: list[tuple[str, str]] = []
     config = {
         "key": "k",
         "eventname": "Épreuve",
         "contests": {"1": "Distance S", "2": "Distance M"},
-        "TabConfig": {"Lists": [
-            {"Name": n, "Contest": c, "Mode": ""} for n, c in specs
-        ]},
+        "TabConfig": {"Lists":
+            [{"Name": n, "Contest": c, "Mode": ""} for n, c in specs]
+            + [{"Name": n, "Contest": c, "Mode": "hidden"} for n, c in hidden]
+        },
     }
     monkeypatch.setattr(raceresult, "_resolve_event_id", lambda url, client: "1")
     monkeypatch.setattr(raceresult, "_fetch_config", lambda ev, client: config)
@@ -2389,3 +2391,116 @@ def test_scrape_event_all_signale_la_colonne_nom_conditionnelle(monkeypatch):
     signaux = [rec for rec in logs.records if "angle mort #63" in rec.getMessage()]
     assert len(signaux) == 1
     assert nom_expr in signaux[0].getMessage()
+
+
+def _payload_splits(lignes_par_groupe: dict) -> dict:
+    """Payload d'un classement `hidden` portant nom + temps + 2 splits.
+
+    Reproduit la forme réelle du 406211 : les segments sont enveloppés d'une
+    conditionnelle `if([STATUS]=2;"";[X])` que `_peel` réduit à `[X]`.
+    """
+    champs = [
+        {"Expression": "AfficherNom", "Label": "Nom"},
+        {"Expression": 'if([STATUS]=2;"";[Natation])', "Label": "Swim"},
+        {"Expression": 'if([STATUS]=2;"";[Course])', "Label": "Run"},
+        {"Expression": "TIME", "Label": "Total"},
+    ]
+    data_fields = ["BIB", "ID", "AfficherNom",
+                   'if([STATUS]=2;"";[Natation])', 'if([STATUS]=2;"";[Course])', "TIME"]
+    return {"DataFields": data_fields, "list": {"Fields": champs},
+            "data": lignes_par_groupe}
+
+
+def test_scrape_event_all_hidden_enrichit_les_splits_par_dossard(monkeypatch):
+    """#60 cas nominal (forme du 406211) : le publié porte identité + temps mais
+    aucun split ; le classement `hidden` en Contest=0, groupé sous un libellé
+    étranger, apporte les splits — rattachés par **dossard**, pas par libellé."""
+    specs = [("LIVE", "1")]
+    hidden = [("Classement", "0")]
+    payloads = {
+        ("LIVE", "1"): _payload({"#1_Distance S": {"#1_": [
+            ["525", "1", "Martin SCHULZ", "TCN", "1:03:01"],
+        ]}}),
+        # Libellé de groupe volontairement DIFFÉRENT du contest publié :
+        # « PTS5 Men » vs « Distance S ». La jointure ignore le libellé.
+        ("Classement", "0"): _payload_splits({"#6_PTS5 Men": [
+            ["525", "1", "Martin SCHULZ", "10:27", "18:57", "1:03:01"],
+        ]}),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads, hidden=hidden)
+
+    res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert len(res) == 1, "aucun participant ajouté par le hidden"
+    r = res[0]
+    assert r.event_name == "Épreuve - Distance S", "le contest reste celui du publié"
+    # `normalize_time` pade en hh:mm:ss : "10:27" -> "00:10:27".
+    assert r.segments == [("Swim", "00:10:27"), ("Run", "00:18:57")]
+
+
+def test_scrape_event_all_hidden_ne_cree_jamais_de_participant(monkeypatch):
+    """Un dossard présent seulement dans une liste `hidden` (inscrit, DNS…) n'est
+    pas rattachable : il est ignoré, jamais promu en participant fantôme."""
+    specs = [("LIVE", "1")]
+    hidden = [("Classement", "0")]
+    payloads = {
+        ("LIVE", "1"): _payload({"#1_Distance S": {"#1_": [
+            ["525", "1", "Martin SCHULZ", "TCN", "1:03:01"],
+        ]}}),
+        ("Classement", "0"): _payload_splits({"#1_G": [
+            ["525", "1", "Martin SCHULZ", "10:27", "18:57", "1:03:01"],
+            ["999", "2", "Fantome INSCRIT", "05:00", "06:00", "12:00"],
+        ]}),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads, hidden=hidden)
+
+    res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert {r.bib_number for r in res} == {"525"}
+
+
+def test_scrape_event_all_hidden_dossard_ambigu_est_ignore_et_loggue(monkeypatch):
+    """Verrou #21 : un dossard réutilisé entre deux contests publiés rend la
+    jointure ambiguë. On n'enrichit pas (on ne devine pas) et on loggue."""
+    specs = [("LIVE", "1"), ("LIVE", "2")]
+    hidden = [("Classement", "0")]
+    payloads = {
+        ("LIVE", "1"): _payload({"#1_Distance S": {"#1_": [
+            ["7", "1", "Jean DUPONT", "TCN", "01:00:00"],
+        ]}}),
+        ("LIVE", "2"): _payload({"#1_Distance M": {"#1_": [
+            ["7", "2", "Luc MARTIN", "TCN", "02:00:00"],
+        ]}}),
+        ("Classement", "0"): _payload_splits({"#1_G": [
+            ["7", "1", "Jean DUPONT", "10:00", "20:00", "01:00:00"],
+        ]}),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads, hidden=hidden)
+
+    with _capture_logs("app.scrapers.raceresult") as logs:
+        res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert all(r.segments is None for r in res), "dossard ambigu : aucun split enrichi"
+    assert any("ambigu" in rec.getMessage() for rec in logs.records)
+
+
+def test_scrape_event_all_hidden_sans_split_est_inerte(monkeypatch):
+    """Une liste `hidden` redondante (mêmes colonnes que le publié, sans split :
+    forme du classement Contest=0 du 410891) n'ajoute rien et ne casse rien."""
+    specs = [("LIVE", "1")]
+    hidden = [("Redondant", "0")]
+    payloads = {
+        ("LIVE", "1"): _payload({"#1_Distance S": {"#1_": [
+            ["7", "1", "Jean DUPONT", "TCN", "01:00:00"],
+        ]}}),
+        ("Redondant", "0"): _payload({"#1_G": {"#1_": [
+            ["7", "1", "Jean DUPONT", "TCN", "01:00:00"],
+        ]}}),  # _payload : pas de colonne de split
+    }
+    _monte_pipeline(monkeypatch, specs, payloads, hidden=hidden)
+
+    res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert len(res) == 1
+    assert res[0].segments is None
+    assert res[0].club == "TCN"
