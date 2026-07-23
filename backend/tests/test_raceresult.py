@@ -2504,3 +2504,102 @@ def test_scrape_event_all_hidden_sans_split_est_inerte(monkeypatch):
     assert len(res) == 1
     assert res[0].segments is None
     assert res[0].club == "TCN"
+
+
+# ── Fixtures réelles #60 : 406211 (enrichissement) + 410891 (non-régression) ─
+
+RR_FIXTURES = FIXTURES / "raceresult"
+
+
+def _monte_pipeline_fixtures(monkeypatch, event_id, routeur):
+    """Câble `scrape_event_all` sur les payloads réels capturés.
+
+    `routeur(listname, contest)` rend le nom de fichier fixture, ou None si la
+    liste n'a pas été capturée (le code de prod traite alors None comme un 404).
+    """
+    config = json.loads((RR_FIXTURES / f"{event_id}_config.json").read_text("utf-8"))
+    monkeypatch.setattr(raceresult, "_resolve_event_id", lambda url, client: event_id)
+    monkeypatch.setattr(raceresult, "_fetch_config", lambda ev, client: config)
+    monkeypatch.setattr(
+        raceresult, "_fetch_meta",
+        lambda ev, client: (config.get("eventname", ""), date(2026, 6, 1), ""),
+    )
+
+    def faux_fetch(ev, key, listname, contest, client):
+        nom = routeur(listname, contest)
+        if nom is None:
+            return None
+        payload = json.loads((RR_FIXTURES / nom).read_text("utf-8"))
+        return payload if payload.get("data") else None
+
+    monkeypatch.setattr(raceresult, "_fetch_list", faux_fetch)
+
+
+def test_scrape_event_all_406211_recupere_les_splits_du_classement_hidden(monkeypatch):
+    """#60, données réelles (World Triathlon Para Cup, 2026-07-23) : les 13
+    listes publiées portent identité + temps mais 0 split ; le classement
+    `hidden` Contest=0 apporte Swim/T1/Bike/T2/Run. La jointure par dossard
+    résout la granularité (PTS2 Men + PTS3 Men → PTS2-3 M, PTVI Men → PTVI2-3 M)
+    que l'appariement de libellés ne pouvait pas."""
+    def routeur(listname, contest):
+        if listname == "01-Résultats en ligne|LIVE":
+            return f"406211_pub_contest{contest}.json"
+        if listname == "01-Classements|Classement général" and contest == "0":
+            return "406211_hidden_classement.json"
+        return None  # « Concurrents » non capturé → traité comme 404
+
+    _monte_pipeline_fixtures(monkeypatch, "406211", routeur)
+
+    res = raceresult.scrape_event_all("https://my.raceresult.com/406211/results")
+
+    assert len(res) == 42, "42 dossards publiés, aucun ajouté par le hidden"
+    avec_splits = [r for r in res if r.segments]
+    assert len(avec_splits) == 33, "les 33 lignes du classement hidden enrichies"
+    labels = {lab for r in avec_splits for lab, _ in r.segments}
+    assert labels == {"Swim", "T1", "Bike", "T2", "Run"}
+    # Contrôle ponctuel : Martin SCHULZ (dossard 525, contest PTS5 M) porte ses 5
+    # splits, et son contest reste celui du publié — pas « PTS5 Men » du hidden.
+    schulz = next(r for r in res if r.bib_number == "525")
+    assert schulz.event_name.endswith("PTS5 M")
+    # `normalize_time` pade en hh:mm:ss.
+    assert dict(schulz.segments) == {
+        "Swim": "00:10:27", "T1": "00:00:50", "Bike": "00:32:13",
+        "T2": "00:00:34", "Run": "00:18:57",
+    }
+
+
+def test_scrape_event_all_410891_hidden_fuite_un_split_pour_un_dnf(monkeypatch):
+    """#60, données réelles : le classement hidden Contest=0 est redondant (pas
+    de split) et, pour les **finishers**, les splits `inter` sont au format
+    `'2:05:29 (2)'` (rang sans point, verrou C hors périmètre) — rejetés par
+    `_RE_DUREE`, donc inertes.
+
+    Mais RaceResult n'appose ce suffixe de rang que si `STATUS=0` (finisher) :
+    pour un DNF, la même colonne rend sa durée intermédiaire **nue**, sans
+    aucun suffixe, qui passe `_RE_DUREE` sans encombre. C'est un angle mort du
+    verrou C (documenté hors périmètre, élargissement renvoyé à un ticket
+    dédié), pas une régression des Tasks 1-3 : mesuré ici, une seule ligne du
+    hidden 410891 en profite — le dossard 804 (PRAUD Samuel, DNF)."""
+    def routeur(listname, contest):
+        table = {
+            ("Classements|Classement général", "1"): "410891_pub_c1.json",
+            ("Classements|Classement général", "0"): "410891_hidden_c0.json",
+            ("Classements|Classement général inter 2", "1"): "410891_inter_c1.json",
+            ("Concurrents|Liste des Inscrits", "1"): "410891_inscrits_c1.json",
+        }
+        return table.get((listname, contest))
+
+    _monte_pipeline_fixtures(monkeypatch, "410891", routeur)
+
+    res = raceresult.scrape_event_all("https://my.raceresult.com/410891/results")
+
+    assert res, "les listes publiées produisent des participants"
+    assert len(res) == 122, "aucun participant ajouté par le hidden (inscrits ignorés)"
+    avec_splits = [r for r in res if r.segments]
+    # Verrou C (hors #60) : le suffixe de rang '(N)' n'est apposé qu'aux
+    # finishers ; un DNF laisse fuiter sa durée intermédiaire nue, seule ligne
+    # du hidden 410891 à passer `_RE_DUREE`. Élargissement -> ticket dédié.
+    assert len(avec_splits) == 1, "seule la ligne DNF fuit un split (verrou C)"
+    fuite = avec_splits[0]
+    assert fuite.bib_number == "804"  # PRAUD Samuel, DNF
+    assert fuite.segments == [("10KMS", "02:04:40")]
