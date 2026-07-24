@@ -63,11 +63,13 @@ def _items_depuis_urls(db: Session, urls: list[str]) -> list[BatchItem]:
 class RescrapeOutcome:
     """Bilan d'un rescrape-db. `total` = nombre d'**épreuves** (URLs uniques).
 
-    `total`, `processed` et `errors` comptent des **épreuves** ; `imported` et
-    `skipped`, des **participants**. Le rapport texte nomme ces unités.
+    `total`, `processed` et `errors` comptent des **épreuves** ; `imported`,
+    `updated` et `skipped`, des **participants**. Le rapport texte nomme ces
+    unités.
     """
     total: int = 0
     imported: int = 0
+    updated: int = 0
     skipped: int = 0
     errors: int = 0
     #: Épreuves réellement traitées — égal à `total`, sauf sous Ctrl-C.
@@ -143,6 +145,7 @@ def run_rescrape_db(
     totals = run_batch(db, items, settings, force=True, delay=delay, reporter=reporter)
 
     outcome.imported = totals.imported
+    outcome.updated = totals.updated
     outcome.skipped = totals.skipped
     outcome.errors = totals.errors
     outcome.failures = totals.failures
