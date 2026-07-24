@@ -45,9 +45,10 @@ class BatchTotals:
     """Compteurs cumulés d'un batch. `interrupted` = arrêté par Ctrl-C.
 
     Deux unités cohabitent, et le bilan doit les nommer : `processed`/`errors`
-    comptent des **épreuves**, `imported`/`skipped` des **participants**.
+    comptent des **épreuves**, `imported`/`updated`/`skipped` des **participants**.
     """
     imported: int = 0
+    updated: int = 0
     skipped: int = 0
     errors: int = 0
     #: Épreuves allées au bout (succès **ou** échec). Sous Ctrl-C, celle qui a
@@ -129,13 +130,13 @@ def _import_one(
     *,
     force: bool,
     reporter: ProgressReporter,
-) -> tuple[int, int, str | None]:
-    """Consomme les phases d'une épreuve. Renvoie (imported, skipped, error).
+) -> tuple[int, int, int, str | None]:
+    """Consomme les phases d'une épreuve. Renvoie (imported, updated, skipped, error).
 
     `iter_import_event` *yield* une phase `error` au lieu de lever : c'est cette
     phase qui porte l'échec, pas une exception.
     """
-    imported = skipped = 0
+    imported = updated = skipped = 0
     error: str | None = None
 
     for phase in import_service.iter_import_event(db, url, settings, force=force):
@@ -150,11 +151,12 @@ def _import_one(
             )
         elif nom == "done":
             imported = phase.get("imported", 0)
+            updated = phase.get("updated", 0)
             skipped = phase.get("skipped", 0)
         elif nom == "error":
             error = phase.get("message", "erreur inconnue")
 
-    return imported, skipped, error
+    return imported, updated, skipped, error
 
 
 def run_batch(
@@ -178,12 +180,12 @@ def run_batch(
         for i, item in enumerate(items):
             _notify(partial(reporter.item_start, i, item.label))
             try:
-                imported, skipped, error = _import_one(
+                imported, updated, skipped, error = _import_one(
                     db, item.url, settings, force=force, reporter=reporter
                 )
             except Exception as exc:  # filet : un bug ne doit pas tuer le batch
                 logger.warning("Échec import %s : %s", item.url, exc)
-                imported = skipped = 0
+                imported = updated = skipped = 0
                 error = str(exc)
 
             if error:
@@ -193,6 +195,7 @@ def run_batch(
                 )
             else:
                 totals.imported += imported
+                totals.updated += updated
                 totals.skipped += skipped
             totals.processed += 1  # tentée et allée au bout, réussie ou non
             _notify(partial(reporter.item_done, imported, skipped, error))

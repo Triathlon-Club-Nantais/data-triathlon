@@ -157,3 +157,17 @@ def test_rapport_sheet_interrompu_dit_combien_d_epreuves_ont_ete_traitees():
     assert "Liens supportés uniques   : 300" in texte
     assert "Épreuves traitées         : 12" in texte
     assert "Participants déjà en base : 900" in texte
+
+
+def test_rescrape_report_affiche_les_participants_mis_a_jour():
+    out = RescrapeOutcome(total=3, imported=1, updated=7, skipped=900, processed=3)
+    texte = render_rescrape_report(out, dry_run=False)
+    assert "Participants mis à jour   : 7" in texte
+    # Ordre : ajoutés → mis à jour → déjà en base.
+    assert texte.index("ajoutés") < texte.index("mis à jour") < texte.index("déjà en base")
+
+
+def test_sheet_report_affiche_les_participants_mis_a_jour():
+    out = SheetOutcome(unique_supported=2, imported=3, updated=4, skipped=5, processed=2)
+    texte = render_sheet_report(out, dry_run=False)
+    assert "Participants mis à jour   : 4" in texte

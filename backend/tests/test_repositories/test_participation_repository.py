@@ -1,5 +1,7 @@
 from datetime import date
 
+from app.models.athlete import Athlete
+from app.models.course import Course
 from app.repositories import athlete_repository, course_repository, participation_repository
 
 
@@ -23,6 +25,21 @@ def test_create_and_dedup_by_bib(db_session):
     )
     assert participation_repository.exists_for_bib(db_session, course.id, "42") is True
     assert participation_repository.exists_for_bib(db_session, course.id, "99") is False
+    assert participation_repository.existing_bibs_for_course(db_session, course.id) == {"42"}
+
+
+def test_count_for_course_inclut_les_participations_sans_dossard(db_session):
+    athlete, course = _setup(db_session)
+    other = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul", club="TCN")
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="42", club="TCN"
+    )
+    participation_repository.create(
+        db_session, athlete_id=other.id, course_id=course.id, bib_number=None, club="TCN"
+    )
+    db_session.flush()
+
+    assert participation_repository.count_for_course(db_session, course.id) == 2
     assert participation_repository.existing_bibs_for_course(db_session, course.id) == {"42"}
 
 
@@ -185,33 +202,24 @@ def test_distinct_seasons_compte_et_exclut_epreuves_sans_date(db_session):
     assert by_year[2025]["participation_count"] == 1
 
 
-def test_athlete_counts_without_bib(db_session):
-    """Compte les participations sans dossard par athlète, en ignorant celles qui en ont un."""
-    athlete, course = _setup(db_session)
-    autre = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Anne")
-
-    # Deux participations sans dossard pour le même athlète, une avec dossard.
-    for _ in range(2):
-        participation_repository.create(
-            db_session, athlete_id=athlete.id, course_id=course.id, bib_number=None
-        )
-    participation_repository.create(
-        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="42"
-    )
-    participation_repository.create(
-        db_session, athlete_id=autre.id, course_id=course.id, bib_number=None
-    )
-
-    counts = participation_repository.athlete_counts_without_bib(db_session, course.id)
-    assert counts == {athlete.id: 2, autre.id: 1}
+def _athlete_course(db):
+    athlete = Athlete(nom="DUPONT", prenom="Jean")
+    course = Course(name="Triathlon de Nantes", event_type="triathlon-m", source_url="http://x")
+    db.add_all([athlete, course])
+    db.flush()
+    return athlete, course
 
 
-def test_athlete_counts_without_bib_ignore_les_autres_courses(db_session):
-    athlete, course = _setup(db_session)
-    autre_course = course_repository.get_or_create(
-        db_session, name="Tri Y", event_date=date(2026, 6, 1), event_type="triathlon-s"
+def test_update_ecrit_les_champs_fournis(db_session):
+    athlete, course = _athlete_course(db_session)
+    p = participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id,
+        bib_number="1", total_time="01:00:00", status="finisher",
     )
-    participation_repository.create(
-        db_session, athlete_id=athlete.id, course_id=autre_course.id, bib_number=None
-    )
-    assert participation_repository.athlete_counts_without_bib(db_session, course.id) == {}
+
+    participation_repository.update(db_session, p, total_time="00:59:00", rank_overall=3)
+
+    refreshed = participation_repository.get(db_session, p.id)
+    assert refreshed.total_time == "00:59:00"
+    assert refreshed.rank_overall == 3
+    assert refreshed.bib_number == "1"  # champ non fourni → inchangé

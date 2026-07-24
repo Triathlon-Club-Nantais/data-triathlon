@@ -14,9 +14,10 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.core.exceptions import InvalidUrlError, ProviderNotSupportedError, ScraperError
 from app.models.course import Course
+from app.models.participation import Participation
 from app.repositories import course_repository, participation_repository
 from app.scrapers import scrape_event_all as registry_scrape_event_all
-from app.scrapers.base import ScrapedResult
+from app.scrapers.base import STATUS_DNF, STATUS_FINISHER, ScrapedResult
 from app.services import cache, mapping, quality
 
 logger = logging.getLogger(__name__)
@@ -56,70 +57,170 @@ def _require_event_name(url: str, results: list[ScrapedResult]) -> None:
         )
 
 
-class _Persister:
-    """Persiste les résultats scrapés avec déduplication et caches en mémoire.
+#: Clés d'appariement / d'identité : jamais réécrites par la fusion prudente.
+#: `athlete_id` en fait partie — la réconciliation d'identité est le périmètre
+#: séparé de #66/#67, pas celui de ce rafraîchissement de valeurs.
+_CLES_APPARIEMENT = frozenset({"athlete_id", "course_id", "bib_number"})
 
-    Deux clés de déduplication, par course :
+
+def _is_empty(value: object) -> bool:
+    """Vide au sens de la fusion prudente : `None`, chaîne vide, dict vide.
+
+    `False` et `0` n'en sont **pas** : un `is_relay=False` est une affirmation du
+    scraper, pas une absence, et doit pouvoir corriger un `True` erroné. Un test
+    de vérité pythonien (`if value:`) confondrait les deux — d'où l'égalité
+    explicite, qui distingue `False`/`0` de `""`/`{}` (`False == {}` est faux).
+    """
+    return value is None or value == "" or value == {}
+
+
+def _merge_fields(existing, fields: dict) -> dict:
+    """Champs à écrire : source non vide ET différente de la base.
+
+    `status` est exclu ici (traité par `_resolve_status`, car jamais vide) ; les
+    clés d'appariement aussi. Comparer avant d'écrire évite des `UPDATE` inutiles
+    sur des milliers de lignes inchangées et distingue `updated` de `skipped`.
+    """
+    changes = {}
+    for key, value in fields.items():
+        if key in _CLES_APPARIEMENT or key == "status":
+            continue
+        if _is_empty(value):
+            continue
+        if getattr(existing, key) != value:
+            changes[key] = value
+    return changes
+
+
+def _resolve_status(existing, scraped: ScrapedResult, changes: dict) -> str:
+    """Statut fusionné. Un statut explicite du scraper écrase ; sinon on le
+    re-dérive du `total_time` **fusionné** (base + écrasement éventuel), jamais du
+    scrapé seul : une source ayant perdu le temps ne doit pas basculer un
+    finisher en DNF alors que le temps, lui, survit (vide n'écrase pas).
+    """
+    if scraped.status:
+        return scraped.status
+    merged_total = changes.get("total_time", existing.total_time)
+    return STATUS_FINISHER if merged_total else STATUS_DNF
+
+
+class _Persister:
+    """Persiste les résultats scrapés en **upsert**, avec déduplication.
+
+    Point de persistance unique des trois entrées (rescrape-db, import-sheet, web
+    SSE). Deux clés d'appariement, par course :
       - le dossard, quand il existe (`uq_participation_bib`) ;
-      - sinon l'athlète, en **multiset**. Certains chronométreurs n'attribuent
-        pas de dossard ; la même personne peut alors figurer plusieurs fois dans
-        les résultats source, et ces occurrences doivent survivre au réimport
-        sans être dupliquées. On décompte donc les participations sans dossard
-        déjà en base au lieu de tester leur simple présence.
+      - sinon l'athlète, en **multiset** — mais la mise à jour ne s'applique que
+        si l'athlète n'a qu'une seule participation sur la course (cf. `add`).
+
+    Une ligne appariée est **fusionnée prudemment** (`_merge_fields`) : la source
+    ne réécrit que ses valeurs non vides. `athlete_id` n'est jamais réécrit.
     """
 
     def __init__(self, db: Session, event_url: str):
         self.db = db
         self.event_url = event_url
-        self._bibs: dict[int, set[str]] = {}
+        self._by_bib: dict[int, dict[str, Participation]] = {}
         self._added_bibs: dict[int, set[str]] = {}
         self._duplicate_bibs: dict[int, int] = {}
-        self._athlete_credits: dict[int, dict[int, int]] = {}
+        self._without_bib: dict[int, dict[int, list[Participation]]] = {}
+        self._credits: dict[int, dict[int, int]] = {}
+        self._updated_single: dict[int, set[int]] = {}
         self._courses: dict[int, Course] = {}
         self.imported = 0
+        self.updated = 0
         self.skipped = 0
+
+    def _index_course(self, course_id: int) -> None:
+        """Charge et indexe une fois les participations de la course (une requête)."""
+        if course_id in self._by_bib:
+            return
+        rows = participation_repository.list_for_course(self.db, course_id)
+        by_bib: dict[str, Participation] = {}
+        without: dict[int, list[Participation]] = {}
+        for row in rows:
+            if row.bib_number:
+                by_bib[row.bib_number] = row
+            else:
+                without.setdefault(row.athlete_id, []).append(row)
+        self._by_bib[course_id] = by_bib
+        self._added_bibs[course_id] = set()
+        self._without_bib[course_id] = without
+        self._credits[course_id] = {aid: len(rs) for aid, rs in without.items()}
+        self._updated_single[course_id] = set()
+
+    def _upsert(self, existing: Participation, scraped: ScrapedResult) -> None:
+        """Fusionne prudemment une ligne appariée. Compte `updated` ou `skipped`."""
+        fields = mapping.participation_fields(
+            scraped, athlete_id=existing.athlete_id, course_id=existing.course_id
+        )
+        changes = _merge_fields(existing, fields)
+        status = _resolve_status(existing, scraped, changes)
+        if status != existing.status:
+            changes["status"] = status
+        if changes:
+            participation_repository.update(self.db, existing, **changes)
+            self.updated += 1
+        else:
+            self.skipped += 1
 
     def add(self, scraped: ScrapedResult) -> None:
         course = mapping.get_or_create_course(self.db, scraped, self.event_url)
         self._courses[course.id] = course
+        self._index_course(course.id)
         bib = scraped.bib_number or None
 
         if bib is not None:
-            bibs = self._bibs.setdefault(
-                course.id, participation_repository.existing_bibs_for_course(self.db, course.id)
-            )
-            added = self._added_bibs.setdefault(course.id, set())
-            if bib in bibs:
+            added = self._added_bibs[course.id]
+            if bib in added:
+                # La source se contredit dans ce scrape : deux lignes, même
+                # dossard. La 2e est perdue — anomalie de fiabilité.
                 self.skipped += 1
-                # Dossard déjà persisté avant cet import → doublon bénin (re-scrape).
-                # Déjà ajouté pendant cet import → la source se contredit, la ligne est
-                # perdue : c'est une anomalie de fiabilité (cf. services/quality.py).
-                if bib in added:
-                    self._duplicate_bibs[course.id] = self._duplicate_bibs.get(course.id, 0) + 1
+                self._duplicate_bibs[course.id] = self._duplicate_bibs.get(course.id, 0) + 1
                 return
+            existing = self._by_bib[course.id].get(bib)
+            if existing is not None:
+                added.add(bib)
+                self._upsert(existing, scraped)
+                return
+            # Dossard neuf : on tombe sur la création commune plus bas.
 
-        # Sans dossard, l'identité repose sur l'athlète : il faut le résoudre d'abord.
         athlete = mapping.get_or_create_athlete(self.db, scraped)
+
         if bib is None:
-            credits = self._athlete_credits.setdefault(
-                course.id,
-                participation_repository.athlete_counts_without_bib(self.db, course.id),
-            )
-            if credits.get(athlete.id, 0) > 0:
-                credits[athlete.id] -= 1
+            existing = self._match_without_bib(course.id, athlete.id)
+            if existing is not None:
+                self._upsert(existing, scraped)
+                return
+            if self._credits[course.id].get(athlete.id, 0) > 0:
+                self._credits[course.id][athlete.id] -= 1
                 self.skipped += 1
                 return
 
-        participation_repository.create(
+        created = participation_repository.create(
             self.db,
             **mapping.participation_fields(
                 scraped, athlete_id=athlete.id, course_id=course.id
             ),
         )
         if bib is not None:
-            bibs.add(bib)
-            added.add(bib)
+            self._added_bibs[course.id].add(bib)
+            self._by_bib[course.id][bib] = created
         self.imported += 1
+
+    def _match_without_bib(self, course_id: int, athlete_id: int) -> Participation | None:
+        """Ligne sans dossard à mettre à jour : seulement si l'athlète n'a qu'**une**
+        participation sur la course, et pas déjà mise à jour dans ce scrape.
+
+        Deux occurrences ou plus : on ne devine pas quelle ligne source correspond
+        à quelle ligne en base, on conserve le skip multiset (cf. `add`).
+        """
+        rows = self._without_bib[course_id].get(athlete_id, [])
+        if len(rows) != 1 or athlete_id in self._updated_single[course_id]:
+            return None
+        self._updated_single[course_id].add(athlete_id)
+        self._credits[course_id][athlete_id] -= 1
+        return rows[0]
 
     def finalize(self) -> None:
         for course_id, course in self._courses.items():
@@ -140,14 +241,14 @@ def _cached_result(db: Session, url: str, settings: Settings) -> dict | None:
     """Si une course fraîche existe pour cette URL, renvoie le résultat sans re-scraper."""
     existing = course_repository.get_latest_by_source_url(db, url)
     if existing and cache.is_fresh(db, existing, settings):
-        count = len(participation_repository.existing_bibs_for_course(db, existing.id))
+        count = participation_repository.count_for_course(db, existing.id)
         logger.info("Cache TTL frais pour %s — re-scraping court-circuité", url)
-        return {"imported": 0, "skipped": count, "cached": True}
+        return {"imported": 0, "updated": 0, "skipped": count, "cached": True}
     return None
 
 
 def import_event(db: Session, url: str, settings: Settings, force: bool = False) -> dict:
-    """Import complet (bloquant). Renvoie {imported, skipped, [cached]}.
+    """Import complet (bloquant). Renvoie {imported, updated, skipped, [cached]}.
 
     force=True saute le cache TTL (`_cached_result`) → le scraping a toujours lieu.
     """
@@ -160,7 +261,7 @@ def import_event(db: Session, url: str, settings: Settings, force: bool = False)
 
     results = _scrape_all(url)
     if not results:
-        return {"imported": 0, "skipped": 0}
+        return {"imported": 0, "updated": 0, "skipped": 0}
 
     persister = _Persister(db, url)
     try:
@@ -173,7 +274,11 @@ def import_event(db: Session, url: str, settings: Settings, force: bool = False)
         logger.exception("Rollback de l'import %s", url)
         raise ScraperError("Erreur lors de l'enregistrement des résultats.") from None
 
-    return {"imported": persister.imported, "skipped": persister.skipped}
+    return {
+        "imported": persister.imported,
+        "updated": persister.updated,
+        "skipped": persister.skipped,
+    }
 
 
 def iter_import_event(
@@ -207,11 +312,11 @@ def iter_import_event(
 
     total = len(results)
     if total == 0:
-        yield {"phase": "done", "imported": 0, "skipped": 0, "total": 0}
+        yield {"phase": "done", "imported": 0, "updated": 0, "skipped": 0, "total": 0}
         return
 
     persister = _Persister(db, url)
-    yield {"phase": "saving", "total": total, "imported": 0, "skipped": 0, "progress": 0}
+    yield {"phase": "saving", "total": total, "imported": 0, "updated": 0, "skipped": 0, "progress": 0}
     try:
         for i, scraped in enumerate(results):
             persister.add(scraped)
@@ -220,6 +325,7 @@ def iter_import_event(
                     "phase": "saving",
                     "total": total,
                     "imported": persister.imported,
+                    "updated": persister.updated,
                     "skipped": persister.skipped,
                     "progress": i + 1,
                 }
@@ -234,6 +340,7 @@ def iter_import_event(
     yield {
         "phase": "done",
         "imported": persister.imported,
+        "updated": persister.updated,
         "skipped": persister.skipped,
         "total": total,
     }

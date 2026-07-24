@@ -351,6 +351,21 @@ def test_mode_urls_vide_cible_zero_epreuve(db_session, monkeypatch):
     assert out.echec_total is False
 
 
+def test_rescrape_outcome_porte_updated(db_session, monkeypatch):
+    """`updated` (Task 5) doit remonter du `BatchTotals` jusqu'à l'`Outcome`."""
+    from app.services.batch import BatchTotals
+
+    monkeypatch.setattr(
+        rescrape_service, "run_batch",
+        lambda *a, **k: BatchTotals(imported=1, updated=3, skipped=5, processed=1),
+    )
+    # Une épreuve ciblée explicitement (court-circuite la base).
+    out = rescrape_service.run_rescrape_db(
+        db_session, _settings(), urls=["http://a"], delay=0,
+    )
+    assert out.updated == 3
+
+
 def test_mode_urls_respecte_limit(db_session, monkeypatch):
     vus: list[str] = []
 
