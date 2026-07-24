@@ -31,4 +31,20 @@ def test_import_event(client, monkeypatch):
     )
     resp = client.post("/api/v1/scrape/event", json={"url": "https://www.klikego.com/x"})
     assert resp.status_code == 200
-    assert resp.json() == {"imported": 2, "skipped": 0, "cached": False}
+    assert resp.json() == {"imported": 2, "updated": 0, "skipped": 0, "cached": False}
+
+
+def test_import_event_expose_updated_counter(client, monkeypatch):
+    """Le compteur `updated` (upsert) doit être exposé dans la réponse — pas seulement
+    calculé en interne : `ImportResult` doit le déclarer, sinon Pydantic le tait."""
+    from app.services import import_service
+
+    monkeypatch.setattr(
+        import_service, "registry_scrape_event_all",
+        lambda url: [_result("1", "DUPONT")],
+    )
+    resp = client.post("/api/v1/scrape/event", json={"url": "https://www.klikego.com/x"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "updated" in body
+    assert body == {"imported": 1, "updated": 0, "skipped": 0, "cached": False}
