@@ -154,11 +154,14 @@ deux : il borne la liste finale, il ne sélectionne rien.
 
 **Deux unités dans un bilan**, et chaque libellé doit le dire : « Épreuves
 ciblées / traitées / en erreur » comptent des **épreuves** ; « Participants
-ajoutés / déjà en base » comptent des **participants**. Ne pas revenir à des
-libellés muets sur l'unité (« Importées / Ignorées ») : lus sous « Épreuves
-ciblées : 42 », ils se comprennent en épreuves, et « Ignorées : 5820 » devient un
-non-sens. « Épreuves traitées » n'apparaît que sur un bilan interrompu, où elle
-situe le Ctrl-C (7 des 42).
+ajoutés / mis à jour / déjà en base » comptent des **participants** (ce
+troisième compteur distingue l'upsert d'un simple `skipped` : une
+participation déjà en base dont un champ a changé est mise à jour, pas
+seulement conservée). Ne pas revenir à des libellés muets sur l'unité
+(« Importées / Ignorées ») : lus sous « Épreuves ciblées : 42 », ils se
+comprennent en épreuves, et « Ignorées : 5820 » devient un non-sens.
+« Épreuves traitées » n'apparaît que sur un bilan interrompu, où elle situe le
+Ctrl-C (7 des 42).
 
 **Détail des épreuves en erreur** : le compteur « Épreuves en erreur : N » dit
 *combien*, pas *lesquelles*. **Les deux commandes** listent donc les échecs
