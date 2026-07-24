@@ -19,9 +19,11 @@ class SheetOutcome:
     """Bilan d'un import-sheet.
 
     `unique_supported`, `processed` et `errors` comptent des **épreuves** ;
-    `imported` et `skipped`, des **participants**. Le rapport nomme ces unités.
+    `imported`, `updated` et `skipped`, des **participants**. Le rapport nomme
+    ces unités.
     """
     imported: int = 0
+    updated: int = 0
     skipped: int = 0
     errors: int = 0
     #: Épreuves réellement traitées — égal à `unique_supported`, sauf sous Ctrl-C.
@@ -101,6 +103,7 @@ def run_import_sheet(
     )
 
     outcome.imported = totals.imported
+    outcome.updated = totals.updated
     outcome.skipped = totals.skipped
     outcome.errors = totals.errors
     outcome.processed = totals.processed
