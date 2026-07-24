@@ -212,6 +212,44 @@ def test_reimport_melange_avec_et_sans_dossard(db_session, patch_scraper):
     assert len(participation_repository.list_participations(db_session, page_size=100)) == 4
 
 
+def test_reimport_sans_dossard_unique_met_a_jour(db_session, patch_scraper):
+    """Un athlète sans dossard en un seul exemplaire est mis à jour."""
+    patch_scraper([_result("", "CASROUGE", "Patrice", total_time="01:10:00")])
+    import_service.import_event(db_session, URL, _settings())
+    _expire_cache(db_session)
+
+    patch_scraper([_result("", "CASROUGE", "Patrice", total_time="01:09:30")])
+    out = import_service.import_event(db_session, URL, _settings(), force=True)
+    assert out == {"imported": 0, "updated": 1, "skipped": 0}
+
+    parts = participation_repository.list_participations(db_session, page_size=100)
+    assert len(parts) == 1
+    assert parts[0].total_time == "01:09:30"
+
+
+def test_reimport_sans_dossard_ambigu_ne_met_pas_a_jour(db_session, patch_scraper):
+    """Deux exemplaires du même athlète sans dossard : appariement impossible → skip,
+    aucune valeur réécrite (comportement multiset conservé)."""
+    patch_scraper([
+        _result("", "LACOTTE", "Anais", total_time="01:20:00"),
+        _result("", "LACOTTE", "Anais", total_time="01:20:00"),
+    ])
+    import_service.import_event(db_session, URL, _settings())
+    _expire_cache(db_session)
+
+    patch_scraper([
+        _result("", "LACOTTE", "Anais", total_time="01:19:00"),
+        _result("", "LACOTTE", "Anais", total_time="01:18:00"),
+    ])
+    out = import_service.import_event(db_session, URL, _settings(), force=True)
+    assert out == {"imported": 0, "updated": 0, "skipped": 2}
+
+    times = sorted(
+        p.total_time for p in participation_repository.list_participations(db_session, page_size=100)
+    )
+    assert times == ["01:20:00", "01:20:00"]  # inchangés : on ne devine pas l'appariement
+
+
 def test_unsupported_provider_raises(db_session, monkeypatch):
     def _raise(url):
         raise ValueError("Import non supporté")
