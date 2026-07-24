@@ -48,6 +48,7 @@ def _lignes_compteurs(outcome: Outcome) -> list[str]:
         lignes.append(_ligne("Épreuves traitées", outcome.processed))
     lignes.append(_ligne("Épreuves en erreur", outcome.errors))
     lignes.append(_ligne("Participants ajoutés", outcome.imported))
+    lignes.append(_ligne("Participants mis à jour", outcome.updated))
     lignes.append(_ligne("Participants déjà en base", outcome.skipped))
     if outcome.echec_total:
         lignes.append(_LIGNE_ECHEC_TOTAL)
