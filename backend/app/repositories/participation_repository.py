@@ -45,6 +45,16 @@ def exists_for_bib(db: Session, course_id: int, bib_number: str | None) -> bool:
     )
 
 
+def count_for_course(db: Session, course_id: int) -> int:
+    """Nombre de participations d'une course — avec ou sans dossard."""
+    return (
+        db.query(func.count(Participation.id))
+        .filter(Participation.course_id == course_id)
+        .scalar()
+        or 0
+    )
+
+
 def existing_bibs_for_course(db: Session, course_id: int) -> set[str]:
     """Dossards déjà importés pour une course — pour dédoublonner un import en masse."""
     rows = (

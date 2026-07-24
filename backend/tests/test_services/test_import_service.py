@@ -458,3 +458,15 @@ def test_cached_return_porte_updated_zero(db_session, patch_scraper):
     out = import_service.import_event(db_session, URL, _settings())
     assert out["cached"] is True
     assert out["updated"] == 0
+
+
+def test_cached_skipped_compte_les_participations_sans_dossard(db_session, patch_scraper):
+    """Le `skipped` du cache TTL compte **toutes** les participations, avec ou
+    sans dossard — pas seulement celles portant un bib."""
+    patch_scraper([_result("1", "DUPONT"), _result(None, "SANSBIB")])
+    first = import_service.import_event(db_session, URL, _settings())
+    assert first["imported"] == 2
+
+    out = import_service.import_event(db_session, URL, _settings())
+    assert out["cached"] is True
+    assert out["skipped"] == 2
