@@ -243,7 +243,7 @@ def _cached_result(db: Session, url: str, settings: Settings) -> dict | None:
     if existing and cache.is_fresh(db, existing, settings):
         count = len(participation_repository.existing_bibs_for_course(db, existing.id))
         logger.info("Cache TTL frais pour %s — re-scraping court-circuité", url)
-        return {"imported": 0, "skipped": count, "cached": True}
+        return {"imported": 0, "updated": 0, "skipped": count, "cached": True}
     return None
 
 
@@ -261,7 +261,7 @@ def import_event(db: Session, url: str, settings: Settings, force: bool = False)
 
     results = _scrape_all(url)
     if not results:
-        return {"imported": 0, "skipped": 0}
+        return {"imported": 0, "updated": 0, "skipped": 0}
 
     persister = _Persister(db, url)
     try:
@@ -312,11 +312,11 @@ def iter_import_event(
 
     total = len(results)
     if total == 0:
-        yield {"phase": "done", "imported": 0, "skipped": 0, "total": 0}
+        yield {"phase": "done", "imported": 0, "updated": 0, "skipped": 0, "total": 0}
         return
 
     persister = _Persister(db, url)
-    yield {"phase": "saving", "total": total, "imported": 0, "skipped": 0, "progress": 0}
+    yield {"phase": "saving", "total": total, "imported": 0, "updated": 0, "skipped": 0, "progress": 0}
     try:
         for i, scraped in enumerate(results):
             persister.add(scraped)
@@ -325,6 +325,7 @@ def iter_import_event(
                     "phase": "saving",
                     "total": total,
                     "imported": persister.imported,
+                    "updated": persister.updated,
                     "skipped": persister.skipped,
                     "progress": i + 1,
                 }
@@ -339,6 +340,7 @@ def iter_import_event(
     yield {
         "phase": "done",
         "imported": persister.imported,
+        "updated": persister.updated,
         "skipped": persister.skipped,
         "total": total,
     }

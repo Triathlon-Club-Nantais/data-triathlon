@@ -432,3 +432,29 @@ def test_reimport_ajoute_un_nouveau_dossard_et_met_a_jour_l_ancien(db_session, p
     ])
     out = import_service.import_event(db_session, URL, _settings(), force=True)
     assert out == {"imported": 1, "updated": 1, "skipped": 0}
+
+
+def test_iter_import_event_expose_updated(db_session, patch_scraper):
+    """Les phases `saving` et `done` du générateur SSE portent `updated`."""
+    patch_scraper([_result("1", "DUPONT", total_time="01:59:00")])
+    import_service.import_event(db_session, URL, _settings())
+    _expire_cache(db_session)
+
+    patch_scraper([_result("1", "DUPONT", total_time="01:58:00")])
+    phases = list(import_service.iter_import_event(db_session, URL, _settings(), force=True))
+
+    saving = [p for p in phases if p["phase"] == "saving"]
+    assert saving and all("updated" in p for p in saving)
+    done = phases[-1]
+    assert done["phase"] == "done"
+    assert (done["imported"], done["updated"], done["skipped"]) == (0, 1, 0)
+
+
+def test_cached_return_porte_updated_zero(db_session, patch_scraper):
+    """Le retour court-circuité par le cache TTL porte `updated: 0`."""
+    patch_scraper([_result("1", "DUPONT")])
+    import_service.import_event(db_session, URL, _settings())
+
+    out = import_service.import_event(db_session, URL, _settings())
+    assert out["cached"] is True
+    assert out["updated"] == 0
