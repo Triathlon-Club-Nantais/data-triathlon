@@ -28,6 +28,21 @@ def test_create_and_dedup_by_bib(db_session):
     assert participation_repository.existing_bibs_for_course(db_session, course.id) == {"42"}
 
 
+def test_count_for_course_inclut_les_participations_sans_dossard(db_session):
+    athlete, course = _setup(db_session)
+    other = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul", club="TCN")
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="42", club="TCN"
+    )
+    participation_repository.create(
+        db_session, athlete_id=other.id, course_id=course.id, bib_number=None, club="TCN"
+    )
+    db_session.flush()
+
+    assert participation_repository.count_for_course(db_session, course.id) == 2
+    assert participation_repository.existing_bibs_for_course(db_session, course.id) == {"42"}
+
+
 def test_list_filters_by_name_and_club(db_session):
     athlete, course = _setup(db_session)
     other = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul", club="ASPTT")

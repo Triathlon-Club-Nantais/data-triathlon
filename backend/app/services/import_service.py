@@ -241,7 +241,7 @@ def _cached_result(db: Session, url: str, settings: Settings) -> dict | None:
     """Si une course fraîche existe pour cette URL, renvoie le résultat sans re-scraper."""
     existing = course_repository.get_latest_by_source_url(db, url)
     if existing and cache.is_fresh(db, existing, settings):
-        count = len(participation_repository.existing_bibs_for_course(db, existing.id))
+        count = participation_repository.count_for_course(db, existing.id)
         logger.info("Cache TTL frais pour %s — re-scraping court-circuité", url)
         return {"imported": 0, "updated": 0, "skipped": count, "cached": True}
     return None
