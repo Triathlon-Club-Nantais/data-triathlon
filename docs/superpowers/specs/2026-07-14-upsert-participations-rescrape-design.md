@@ -1,7 +1,7 @@
 # Rafraîchir les participations au ré-import (upsert)
 
 **Date** : 2026-07-14
-**Statut** : validé, prêt pour plan d'implémentation
+**Statut** : implémenté (#68) — voir le plan `docs/superpowers/plans/2026-07-24-upsert-participations-rescrape.md`
 
 ## Problème
 
