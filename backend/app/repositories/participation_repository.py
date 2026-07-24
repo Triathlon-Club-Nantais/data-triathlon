@@ -79,6 +79,18 @@ def create(db: Session, **fields) -> Participation:
     return participation
 
 
+def update(db: Session, participation: Participation, **fields) -> Participation:
+    """Écrit les `fields` fournis sur une participation existante.
+
+    Ne touche que les colonnes passées : le persister a déjà décidé, champ par
+    champ, lesquelles la source a le droit de réécrire (fusion prudente).
+    """
+    for key, value in fields.items():
+        setattr(participation, key, value)
+    db.flush()
+    return participation
+
+
 def _season_clause(seasons: list[int]):
     """OU de plages de dates pour les saisons demandées (event_date NULL exclu)."""
     bounds = [season_bounds(y) for y in seasons]
