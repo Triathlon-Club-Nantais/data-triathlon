@@ -149,7 +149,7 @@ class _Persister:
         self._credits[course_id] = {aid: len(rs) for aid, rs in without.items()}
         self._updated_single[course_id] = set()
 
-    def _upsert(self, existing: "Participation", scraped: ScrapedResult) -> None:
+    def _upsert(self, existing: Participation, scraped: ScrapedResult) -> None:
         """Fusionne prudemment une ligne appariée. Compte `updated` ou `skipped`."""
         fields = mapping.participation_fields(
             scraped, athlete_id=existing.athlete_id, course_id=existing.course_id
@@ -208,7 +208,7 @@ class _Persister:
             self._by_bib[course.id][bib] = created
         self.imported += 1
 
-    def _match_without_bib(self, course_id: int, athlete_id: int) -> "Participation | None":
+    def _match_without_bib(self, course_id: int, athlete_id: int) -> Participation | None:
         """Ligne sans dossard à mettre à jour : seulement si l'athlète n'a qu'**une**
         participation sur la course, et pas déjà mise à jour dans ce scrape.
 
