@@ -127,6 +127,7 @@ export interface ScrapedPreview {
 
 export interface ImportResult {
   imported: number;
+  updated: number;
   skipped: number;
   cached?: boolean;
 }
