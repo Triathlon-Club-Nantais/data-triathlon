@@ -1,5 +1,7 @@
 from datetime import date
 
+from app.models.athlete import Athlete
+from app.models.course import Course
 from app.repositories import athlete_repository, course_repository, participation_repository
 
 
@@ -215,3 +217,26 @@ def test_athlete_counts_without_bib_ignore_les_autres_courses(db_session):
         db_session, athlete_id=athlete.id, course_id=autre_course.id, bib_number=None
     )
     assert participation_repository.athlete_counts_without_bib(db_session, course.id) == {}
+
+
+def _athlete_course(db):
+    athlete = Athlete(nom="DUPONT", prenom="Jean")
+    course = Course(name="Triathlon de Nantes", event_type="triathlon-m", source_url="http://x")
+    db.add_all([athlete, course])
+    db.flush()
+    return athlete, course
+
+
+def test_update_ecrit_les_champs_fournis(db_session):
+    athlete, course = _athlete_course(db_session)
+    p = participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id,
+        bib_number="1", total_time="01:00:00", status="finisher",
+    )
+
+    participation_repository.update(db_session, p, total_time="00:59:00", rank_overall=3)
+
+    refreshed = participation_repository.get(db_session, p.id)
+    assert refreshed.total_time == "00:59:00"
+    assert refreshed.rank_overall == 3
+    assert refreshed.bib_number == "1"  # champ non fourni → inchangé
