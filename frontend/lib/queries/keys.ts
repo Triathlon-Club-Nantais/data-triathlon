@@ -4,8 +4,8 @@ export const queryKeys = {
   participations: (filters: ParticipationFilters = {}) =>
     ["participations", filters] as const,
   events: (filters: ParticipationFilters = {}) => ["events", filters] as const,
-  courseParticipations: (courseId: number, club?: string, name?: string) =>
-    ["course-participations", courseId, club ?? null, name ?? null] as const,
-  stats: (club?: string) => ["stats", club ?? null] as const,
+  courseParticipations: (courseId: number, scope?: string, name?: string) =>
+    ["course-participations", courseId, scope ?? null, name ?? null] as const,
+  stats: (scope?: string) => ["stats", scope ?? null] as const,
   pendingProviders: () => ["pending-providers"] as const,
 };

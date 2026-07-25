@@ -1,5 +1,5 @@
 import { apiServer } from "@/lib/api/server";
-import { clubFromScope } from "@/lib/scope";
+import { scopeFromParam } from "@/lib/scope";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { ScopeToggle } from "@/components/layout/ScopeToggle";
@@ -21,7 +21,7 @@ export default async function ResultatsPage({
     event_name: sp.event_name,
     date_from: sp.date_from,
     date_to: sp.date_to,
-    club: clubFromScope(sp.scope),
+    scope: scopeFromParam(sp.scope),
     sort: sp.sort,
   };
 

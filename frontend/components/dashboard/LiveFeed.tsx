@@ -3,8 +3,8 @@ import { useLiveFeed } from "@/lib/queries/stats";
 import { ResultCard } from "@/components/results/ResultCard";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export function LiveFeed({ club }: { club?: string }) {
-  const { data, isLoading } = useLiveFeed(club);
+export function LiveFeed({ scope }: { scope?: "club" }) {
+  const { data, isLoading } = useLiveFeed(scope);
 
   if (isLoading) return <Skeleton className="h-40 w-full" />;
   if (!data || data.length === 0) {
