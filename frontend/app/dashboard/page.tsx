@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { apiServer } from "@/lib/api/server";
-import { SCOPE_CLUB } from "@/lib/scope";
+import { SCOPE_CLUB, federalOnlyFromParam } from "@/lib/scope";
+import { DisciplineToggle } from "@/components/layout/DisciplineToggle";
 import { SeasonSelector } from "@/components/dashboard/SeasonSelector";
 import { currentSeason, parseSeasonsParam, seasonSelectionLabel } from "@/lib/utils/season";
 import { StatCard, Card, Eyebrow, FormatChip } from "@/components/tcn";
@@ -31,12 +32,13 @@ export default async function DashboardPage({
   // Calcul de la sélection de saisons depuis l'URL, avec fallback sur la saison en cours
   const fromUrl = parseSeasonsParam(sp.seasons);
   const selected = fromUrl.length > 0 ? fromUrl : [currentSeason()];
+  const federal_only = federalOnlyFromParam(sp.sports);
 
   const [stats, eventsPage, participations, seasons] = await Promise.all([
-    apiServer.getStats({ scope: SCOPE_CLUB, seasons: selected }),
-    apiServer.listEvents({ scope: SCOPE_CLUB, seasons: selected, page_size: 200 }),
-    apiServer.listParticipations({ scope: SCOPE_CLUB, seasons: selected, page_size: 5000 }),
-    apiServer.listSeasons({ scope: SCOPE_CLUB }),
+    apiServer.getStats({ scope: SCOPE_CLUB, seasons: selected, federal_only }),
+    apiServer.listEvents({ scope: SCOPE_CLUB, seasons: selected, federal_only, page_size: 200 }),
+    apiServer.listParticipations({ scope: SCOPE_CLUB, seasons: selected, federal_only, page_size: 5000 }),
+    apiServer.listSeasons({ scope: SCOPE_CLUB, federal_only }),
   ]);
 
   const victoires = participations.filter((p) => p.rank_overall === 1).length;
@@ -55,6 +57,7 @@ export default async function DashboardPage({
           <div style={{ fontSize: 15, color: "var(--tcn-text-muted)", marginTop: 8, fontWeight: 500 }}>Vue d&apos;ensemble des performances des athlètes du club</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <DisciplineToggle />
           <SeasonSelector seasons={seasons} />
         </div>
       </div>

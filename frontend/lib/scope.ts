@@ -19,3 +19,21 @@ export function scopeFromParam(scope?: string | null): typeof SCOPE_CLUB | undef
 export function isClubScope(scope?: string | null): boolean {
   return scope === SCOPE_CLUB;
 }
+
+/** Nom du paramètre d'URL ouvrant les compteurs aux disciplines hors fédération. */
+export const SPORTS_PARAM = "sports";
+
+/** Valeur du paramètre quand toutes les disciplines sont affichées. */
+export const SPORTS_ALL = "all";
+
+/**
+ * Traduit le paramètre d'URL en filtre pour l'API.
+ *
+ * L'URL est en positif (`?sports=all` = tout montrer), l'API en négatif
+ * (`federal_only=true` = retirer trail, course à pied et cyclisme) : l'URL dit
+ * ce qu'on voit, l'API ce qu'elle enlève. Le défaut — filtrer — est un défaut
+ * d'écran, pas d'API ; c'est ici qu'il est décidé.
+ */
+export function federalOnlyFromParam(sports?: string | null): true | undefined {
+  return sports === SPORTS_ALL ? undefined : true;
+}
