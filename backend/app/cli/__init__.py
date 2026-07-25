@@ -15,11 +15,13 @@ import sys
 
 import typer
 
+from app.cli.commands.club_labels import club_labels
 from app.cli.commands.import_sheet import import_sheet
 from app.cli.commands.rescrape_db import rescrape_db
 from app.core.logging import setup_logging
 
 app = typer.Typer(help="Outillage d'import de masse et de rescrape.")
+app.command("club-labels")(club_labels)
 app.command("import-sheet")(import_sheet)
 app.command("rescrape-db")(rescrape_db)
 
