@@ -62,3 +62,8 @@ export function aggregateDisciplines(
 export function pctFr(pct: number, decimals = 1): string {
   return pct.toFixed(decimals).replace(".", ",");
 }
+
+/** Ordinal français d'un classement : 1 → « 1er », 42 → « 42e ». */
+export function ordinalFr(n: number): string {
+  return n === 1 ? "1er" : `${n}e`;
+}
