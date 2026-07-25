@@ -16,6 +16,7 @@ import { eventTypeLabel } from "@/lib/constants";
 import { formatToken } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
 import { formatEventName } from "@/lib/utils/event";
+import { gridColumns, gridMinWidth, type Track } from "@/lib/utils/table";
 import type { EventPage, ParticipationFilters } from "@/lib/types";
 
 const SORT_OPTIONS = [
@@ -25,7 +26,11 @@ const SORT_OPTIONS = [
 ];
 
 // Date | Épreuve | Type | Format | Résultats | TCN | →
-const COLS = "120px 1fr 150px 90px 110px 90px 28px";
+const TRACKS: Track[] = [120, { flexMin: 200 }, 150, 90, 110, 90, 28];
+const GAP = 18;
+const PADDING_X = 26;
+const COLS = gridColumns(TRACKS);
+const MIN_WIDTH = gridMinWidth(TRACKS, { gap: GAP, paddingX: PADDING_X });
 
 export function EventList({
   filters,
@@ -107,13 +112,13 @@ export function EventList({
       </div>
 
       <div style={{ overflowX: "auto" }}>
-        <div style={{ minWidth: 640 }}>
+        <div style={{ minWidth: MIN_WIDTH }}>
           <div
             style={{
               display: "grid",
               gridTemplateColumns: COLS,
-              gap: "0 18px",
-              padding: "0 26px 12px",
+              columnGap: GAP,
+              padding: `0 ${PADDING_X}px 12px`,
               fontSize: 12,
               fontWeight: 700,
               textTransform: "uppercase",
@@ -139,9 +144,9 @@ export function EventList({
               style={{
                 display: "grid",
                 gridTemplateColumns: COLS,
-                gap: "0 18px",
+                columnGap: GAP,
                 alignItems: "center",
-                padding: "15px 26px",
+                padding: `15px ${PADDING_X}px`,
                 borderBottom: "1px solid var(--tcn-border-faint)",
               }}
             >
