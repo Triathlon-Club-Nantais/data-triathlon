@@ -264,9 +264,10 @@ def _fetch_tcn_fine_splits(
     Les splits fins TCN priment sur les splits inter pré-remplis : on remet à
     zéro les slots avant de reparser le détail. Muté en place sur `results`.
     """
-    from app.scrapers.klikego import _TCN_KEYWORDS, _parse_detail
+    from app.core.club import is_tcn
+    from app.scrapers.klikego import _parse_detail
     for r in results:
-        if r.club and any(k in r.club.lower() for k in _TCN_KEYWORDS):
+        if is_tcn(r.club):
             h = r.raw_data.get("heat_slug", default_heat)
             dr = client.get(
                 f"{base}/v8/evenement/resultat-participant.jsp"

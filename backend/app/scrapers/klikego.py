@@ -299,10 +299,6 @@ def _parse_search_row(
     return result
 
 
-# Mots-clés d'appartenance TCN, réutilisés par le scraper Breizh Chrono.
-_TCN_KEYWORDS = ("nantais", "tcn", "tri club nant", "triathlon club nant")
-
-
 def scrape_event_all(
     event_id: str, heat: str, event_name: str, slug: str
 ) -> list["ScrapedResult"]:
