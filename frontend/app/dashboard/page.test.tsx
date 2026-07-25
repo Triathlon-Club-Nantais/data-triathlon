@@ -15,9 +15,11 @@ vi.mock("@/lib/api/server", () => ({
   },
 }));
 
-// SeasonSelector est un composant client (useRouter/useSearchParams).
+// SeasonSelector et DisciplineToggle sont des composants client
+// (useRouter/usePathname/useSearchParams).
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => "/dashboard",
   useSearchParams: () => new URLSearchParams(),
 }));
 
@@ -83,5 +85,23 @@ describe("DashboardPage", () => {
 
     expect(listSeasons).toHaveBeenCalledWith(expect.objectContaining({ scope: "club" }));
     expect(screen.getByLabelText("Choisir les saisons")).toBeTruthy();
+  });
+
+  it("exclut les autres disciplines par défaut et les inclut sur demande", async () => {
+    await renderDashboard({});
+    expect(getStats).toHaveBeenCalledWith(
+      expect.objectContaining({ federal_only: true }),
+    );
+
+    vi.clearAllMocks();
+    getStats.mockResolvedValue(STATS);
+    listEvents.mockResolvedValue(EVENTS_PAGE);
+    listParticipations.mockResolvedValue(PARTICIPATIONS);
+    listSeasons.mockResolvedValue(SEASONS);
+
+    await renderDashboard({ sports: "all" });
+    expect(getStats).toHaveBeenCalledWith(
+      expect.objectContaining({ federal_only: undefined }),
+    );
   });
 });
