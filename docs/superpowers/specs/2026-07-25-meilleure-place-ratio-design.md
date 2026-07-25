@@ -32,7 +32,11 @@ au rang 42 dans une course où seuls 20 finishers sont en base. Dans ce cas —
 `rank_overall > total` — on **masque le ratio et le percentile**, la ligne
 retombe sur la place seule, comme aujourd'hui. Un « Top 210 % » est pire que pas
 de ratio, et ces courses ressortent déjà comme non fiables côté admin
-(`Course.is_reliable`).
+(`Course.is_reliable`). Ce même signal sert aussi de garde explicite côté
+ratio : une course dont `is_reliable` vaut `false` voit son ratio masqué,
+même quand `rank_overall ≤ total` (repli implémenté dans `rankRatio`) ;
+`is_reliable` absent ou `null` (course jamais évaluée) continue de produire
+un ratio normalement.
 
 Même repli quand `total < 2` : un « 1er / 1 — Top 100 % » ne signale rien
 d'autre qu'un import incomplet.

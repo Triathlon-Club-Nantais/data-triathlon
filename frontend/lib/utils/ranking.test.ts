@@ -64,6 +64,23 @@ describe("rankRatio", () => {
   it("renvoie null sous deux classés : un « 1er sur 1 » ne dit rien", () => {
     expect(rankRatio(part({ id: 1, rank_overall: 1, course_finishers: 1 }))).toBeNull();
   });
+
+  it("renvoie null quand la course est explicitement marquée non fiable", () => {
+    const p = part({ id: 1, rank_overall: 3, course_finishers: 300 });
+    p.course = { ...p.course, is_reliable: false };
+    expect(rankRatio(p)).toBeNull();
+  });
+
+  it("produit un ratio quand la course est explicitement fiable", () => {
+    const p = part({ id: 1, rank_overall: 3, course_finishers: 300 });
+    p.course = { ...p.course, is_reliable: true };
+    expect(rankRatio(p)).not.toBeNull();
+  });
+
+  it("produit un ratio quand `is_reliable` est absent (non-régression)", () => {
+    const p = part({ id: 1, rank_overall: 3, course_finishers: 300 });
+    expect(rankRatio(p)).not.toBeNull();
+  });
 });
 
 describe("bestRatio", () => {
