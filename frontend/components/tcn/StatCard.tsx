@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 
-/** Tuile KPI TCN. `hero` utilise le dégradé orange, `hint` ajoute une sous-ligne. */
+/** Tuile KPI TCN. `hero` utilise le dégradé orange ; `hint` ajoute une sous-ligne, variant `default` uniquement (silencieusement ignoré en `hero`). */
 export function StatCard({
   label,
   value,

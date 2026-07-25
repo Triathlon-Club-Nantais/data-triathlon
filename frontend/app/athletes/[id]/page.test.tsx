@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import type { Participation } from "@/lib/types";
 
 const getAthlete = vi.fn();
@@ -62,9 +62,14 @@ describe("AthletePage", () => {
     expect(screen.getByText("Meilleur ratio")).toBeInTheDocument();
     expect(screen.getByText("Top 14%")).toBeInTheDocument();
     expect(screen.getByText("42e sur 300")).toBeInTheDocument();
-    // La tuile « Meilleure place » garde le rang absolu minimum. `getAllByText`
-    // car « 20 » apparaît aussi dans la pastille de la ligne correspondante.
-    expect(screen.getAllByText("20").length).toBeGreaterThan(0);
+    // La tuile « Meilleure place » garde le rang absolu minimum. On cible la
+    // tuile elle-même (via son libellé) plutôt que la page entière, sans quoi
+    // le test resterait vert même si la tuile disparaissait — « 20 » apparaît
+    // aussi dans la pastille de la ligne correspondante du tableau.
+    const label = screen.getByText("Meilleure place");
+    const tile = label.parentElement?.parentElement;
+    expect(tile).not.toBeNull();
+    expect(within(tile as HTMLElement).getByText("20")).toBeInTheDocument();
   });
 
   it("affiche le nombre de classés à côté de la place, dans le tableau", async () => {
