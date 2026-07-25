@@ -42,10 +42,10 @@ export const apiServer = {
   getCourse: (id: number) => serverFetch<CourseDetail>(`/courses/${id}`),
   listEvents: (filters: ParticipationFilters = {}) =>
     serverFetch<EventPage>(`/courses/events${toQuery(filters as Record<string, unknown>)}`),
-  getStats: (club?: string, seasons?: number[]) =>
-    serverFetch<Stats>(`/stats${toQuery({ club, seasons })}`),
-  listSeasons: (club?: string) =>
-    serverFetch<Season[]>(`/stats/seasons${toQuery({ club })}`),
+  getStats: (opts: { scope?: string; seasons?: number[]; federal_only?: boolean } = {}) =>
+    serverFetch<Stats>(`/stats${toQuery(opts)}`),
+  listSeasons: (opts: { scope?: string; federal_only?: boolean } = {}) =>
+    serverFetch<Season[]>(`/stats/seasons${toQuery(opts)}`),
   listPendingProviders: () =>
     serverFetch<PendingProvider[]>("/admin/pending-providers"),
 };

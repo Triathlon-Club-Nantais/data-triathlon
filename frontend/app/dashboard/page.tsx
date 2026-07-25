@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { apiServer } from "@/lib/api/server";
-import { TCN_CLUB_FILTER } from "@/lib/club-constants";
+import { SCOPE_CLUB } from "@/lib/scope";
 import { SeasonSelector } from "@/components/dashboard/SeasonSelector";
 import { currentSeason, parseSeasonsParam, seasonSelectionLabel } from "@/lib/utils/season";
 import { StatCard, Card, Eyebrow, FormatChip } from "@/components/tcn";
@@ -27,17 +27,16 @@ export default async function DashboardPage({
   // (validé par Vincent, issue #6). Le paramètre `?scope` est volontairement
   // ignoré, mais on lit `?seasons` pour le sélecteur de saison (issue #7).
   const sp = await searchParams;
-  const club = TCN_CLUB_FILTER;
 
   // Calcul de la sélection de saisons depuis l'URL, avec fallback sur la saison en cours
   const fromUrl = parseSeasonsParam(sp.seasons);
   const selected = fromUrl.length > 0 ? fromUrl : [currentSeason()];
 
   const [stats, eventsPage, participations, seasons] = await Promise.all([
-    apiServer.getStats(club, selected),
-    apiServer.listEvents({ club, seasons: selected, page_size: 200 }),
-    apiServer.listParticipations({ club, seasons: selected, page_size: 5000 }),
-    apiServer.listSeasons(club),
+    apiServer.getStats({ scope: SCOPE_CLUB, seasons: selected }),
+    apiServer.listEvents({ scope: SCOPE_CLUB, seasons: selected, page_size: 200 }),
+    apiServer.listParticipations({ scope: SCOPE_CLUB, seasons: selected, page_size: 5000 }),
+    apiServer.listSeasons({ scope: SCOPE_CLUB }),
   ]);
 
   // Les trois compteurs partagent le même périmètre (général, genre ou catégorie)

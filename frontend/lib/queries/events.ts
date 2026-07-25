@@ -28,18 +28,18 @@ export function useInfiniteEvents(
 
 /**
  * Participants d'une épreuve, chargés à la demande.
- * On rejoue les filtres club + nom pour rester cohérent avec les compteurs.
+ * On rejoue les filtres scope + nom pour rester cohérent avec les compteurs.
  */
 export function useCourseParticipations(
   courseId: number,
-  filters: Pick<ParticipationFilters, "club" | "name"> = {},
+  filters: Pick<ParticipationFilters, "scope" | "name"> = {},
 ) {
   return useQuery({
-    queryKey: queryKeys.courseParticipations(courseId, filters.club, filters.name),
+    queryKey: queryKeys.courseParticipations(courseId, filters.scope, filters.name),
     queryFn: () =>
       apiClient.listParticipations({
         course_id: courseId,
-        club: filters.club,
+        scope: filters.scope,
         name: filters.name,
         page_size: 1000,
       }),

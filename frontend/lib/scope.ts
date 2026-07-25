@@ -1,5 +1,3 @@
-import { TCN_CLUB_FILTER } from "./club-constants";
-
 /** Nom du paramètre d'URL pilotant la portée club (par page). */
 export const SCOPE_PARAM = "scope";
 
@@ -7,11 +5,14 @@ export const SCOPE_PARAM = "scope";
 export const SCOPE_CLUB = "club";
 
 /**
- * Convertit le paramètre de portée d'URL en filtre `club` pour l'API.
- * `?scope=club` → filtre TCN ; sinon `undefined` (tous les athlètes).
+ * Convertit le paramètre d'URL en valeur de `scope` pour l'API.
+ * `?scope=club` → `"club"` ; sinon `undefined` (aucun filtre, tous les athlètes).
+ *
+ * Le front n'a plus d'opinion sur ce qu'est un membre du club : il transmet une
+ * portée, le backend tranche (cf. `app/core/club.py`, issue #76).
  */
-export function clubFromScope(scope?: string | null): string | undefined {
-  return scope === SCOPE_CLUB ? TCN_CLUB_FILTER : undefined;
+export function scopeFromParam(scope?: string | null): typeof SCOPE_CLUB | undefined {
+  return scope === SCOPE_CLUB ? SCOPE_CLUB : undefined;
 }
 
 /** true si la portée club est active. */

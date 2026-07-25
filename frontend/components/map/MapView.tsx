@@ -25,7 +25,7 @@ function FitBounds({ events }: { events: GeoEvent[] }) {
   return null;
 }
 
-export function MapView({ club }: { club?: string }) {
+export function MapView({ scope }: { scope?: string }) {
   const [events, setEvents] = useState<GeoEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -35,11 +35,11 @@ export function MapView({ club }: { club?: string }) {
     setLoading(true);
     setError("");
     apiClient
-      .getEventsGeo(club)
+      .getEventsGeo({ scope })
       .then(setEvents)
       .catch(() => setError("Impossible de charger la carte"))
       .finally(() => setLoading(false));
-  }, [club]);
+  }, [scope]);
 
   if (loading) return <p className="py-10 text-center text-muted-foreground">Géolocalisation des courses…</p>;
   if (error) return <p className="py-10 text-center text-destructive">{error}</p>;

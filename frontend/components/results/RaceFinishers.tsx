@@ -2,7 +2,6 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Card, SegmentedControl, PlaceBadge } from "@/components/tcn";
-import { isTCN } from "@/lib/utils/club";
 import { StatusBadge } from "@/components/results/StatusBadge";
 import { orderParticipations, isNonFinisher, countOutcomes } from "@/lib/utils/raceOrder";
 import { splitSchema } from "@/lib/utils/splits";
@@ -23,7 +22,7 @@ export function RaceFinishers({
 }) {
   const router = useRouter();
   const [filter, setFilter] = useState("all");
-  const filtered = filter === "tcn" ? participations.filter((p) => isTCN(p.club)) : participations;
+  const filtered = filter === "tcn" ? participations.filter((p) => p.is_tcn) : participations;
   const rows = orderParticipations(filtered);
   // Décompte ventilé sur l'ensemble complet (indépendant du filtre TCN) pour un
   // pied de tableau honnête : « partants » ≠ « finishers » (cf. issue #23).
@@ -60,7 +59,7 @@ export function RaceFinishers({
             <div>Club</div>
           </div>
           {rows.map((p) => {
-            const own = isTCN(p.club);
+            const own = p.is_tcn;
             const nf = isNonFinisher(p.status);
             const name = [p.athlete?.nom, p.athlete?.prenom].filter(Boolean).join(" ");
             const splits = p.splits ?? {};

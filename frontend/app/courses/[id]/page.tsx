@@ -6,7 +6,6 @@ import { RaceFinishers } from "@/components/results/RaceFinishers";
 import { eventTypeLabel, providerLabel } from "@/lib/constants";
 import { formatToken } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
-import { isTCN } from "@/lib/utils/club";
 import { formatEventName } from "@/lib/utils/event";
 import { countOutcomes } from "@/lib/utils/raceOrder";
 
@@ -35,7 +34,7 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
   // d'en-tête ne doit plus étiqueter « Finishers » un total qui inclut les
   // DNF/DNS/DSQ (cf. issue #23).
   const { total, finishers, nonFinishers, unknown } = countOutcomes(participations);
-  const tcnCount = participations.filter((p) => isTCN(p.club)).length;
+  const tcnCount = participations.filter((p) => p.is_tcn).length;
 
   // ── Répartition genre ──
   let male = 0;
@@ -63,12 +62,19 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
     .map(([name, count], i) => ({ name, pct: catTotal ? (count / catTotal) * 100 : 0, color: CAT_COLORS[i % CAT_COLORS.length] }));
 
   // ── Top clubs ──
-  const clubMap = new Map<string, number>();
+  // Le drapeau TCN vient du backend : il est fonction du seul libellé, donc
+  // identique pour toutes les participations d'un même groupe (issue #76).
+  const clubMap = new Map<string, { count: number; isTcn: boolean }>();
   for (const p of participations) {
     const club = p.club?.trim();
-    if (club) clubMap.set(club, (clubMap.get(club) ?? 0) + 1);
+    if (!club) continue;
+    const entry = clubMap.get(club) ?? { count: 0, isTcn: p.is_tcn };
+    entry.count += 1;
+    clubMap.set(club, entry);
   }
-  const clubs = [...clubMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 9);
+  const clubs = [...clubMap.entries()]
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 9);
 
   // ── Histogramme des temps (5 min) ──
   const secs = participations.map((p) => parseSeconds(p.total_time)).filter((s): s is number => s != null);
@@ -139,8 +145,7 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
           {clubs.length === 0 ? (
             <div style={{ color: "var(--tcn-text-faint)", fontSize: 13, paddingTop: 8 }}>Clubs non renseignés.</div>
           ) : (
-            clubs.map(([name, count]) => {
-              const own = isTCN(name);
+            clubs.map(([name, { count, isTcn: own }]) => {
               return (
                 <div key={name} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, padding: "7px 0", borderBottom: "1px solid var(--tcn-border-faint2)" }}>
                   <div style={{ fontSize: 13, fontWeight: own ? 700 : 600, color: own ? "var(--tcn-orange)" : "var(--tcn-ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
