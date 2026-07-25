@@ -327,3 +327,51 @@ def _epreuve_results(
         )
         for row in _parse_table(html)
     ]
+
+
+def _resolve_epreuve_id(client: httpx.Client, slug: str) -> str:
+    """Id de la première épreuve d'un événement, pour une URL sans `/epreuve/<id>`.
+
+    Le site redirige bien `/classement/<slug>` vers cette épreuve, mais la
+    redirection **perd la query string** : suivre le 302 avec `?perPage=all`
+    rendrait les 50 premières lignes seulement. On résout donc l'id d'abord.
+    """
+    html = _fetch(client, f"/classement/{slug}")
+    epreuve_id = str(_parse_snapshot(html).get("epreuveId") or "")
+    if not epreuve_id:
+        raise ValueError(f"Aucune épreuve trouvée pour l'événement chronoplace « {slug} ».")
+    return epreuve_id
+
+
+def scrape_event_all(url: str) -> list[ScrapedResult]:
+    """Tous les participants de **toutes** les épreuves de l'événement.
+
+    Une URL pointe une épreuve, mais la page liste ses sœurs (onglets) : on les
+    importe toutes, comme les heats Breizh Chrono. Coût : une requête par épreuve.
+    """
+    slug, epreuve_id = _parse_url(url)
+    with httpx.Client(follow_redirects=True, timeout=30, headers=HEADERS) as client:
+        if not epreuve_id:
+            epreuve_id = _resolve_epreuve_id(client, slug)
+        html = _fetch(client, _epreuve_path(slug, epreuve_id))
+
+        # La date vaut pour l'événement entier : une seule requête d'annuaire.
+        analytics = _parse_snapshot(html).get("analyticsContext") or {}
+        event_date = _fetch_event_date(
+            client, slug, analytics.get("event_year", ""), analytics.get("event_type", "")
+        )
+
+        results = _epreuve_results(html, url, slug, event_date)
+        done = {epreuve_id}
+        for sibling in _list_epreuves(html, slug):
+            if sibling in done:
+                continue
+            done.add(sibling)
+            try:
+                page = _fetch(client, _epreuve_path(slug, sibling))
+            except (ValueError, httpx.HTTPError) as exc:
+                # Une sœur en échec ne doit pas emporter l'épreuve demandée.
+                logger.warning("Épreuve sœur %s ignorée : %s", sibling, exc)
+                continue
+            results.extend(_epreuve_results(page, url, slug, event_date))
+    return results

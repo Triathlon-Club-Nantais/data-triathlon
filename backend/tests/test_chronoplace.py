@@ -432,3 +432,101 @@ def test_build_result_sans_colonne_dossard():
     assert resultat.club == ""
     assert resultat.rank_overall == 1
     assert resultat.is_relay is True
+
+
+URL_494 = "https://www.chronoplace.fr/classement/spaycific-races-2025/epreuve/494"
+
+# L'ordre compte : « /classement/spaycific-races-2025 » est aussi un préfixe des URLs
+# d'épreuve, il doit donc rester en dernier (FakeClient prend le premier motif qui matche).
+PAGES_SPAYCIFIC = {
+    "/epreuve/494": EPREUVE_494,
+    "/epreuve/566": EPREUVE_566,
+    "/recherche": RECHERCHE_2025,
+    "/classement/spaycific-races-2025": EPREUVE_494,  # forme sans /epreuve/<id>
+}
+
+
+def _client_factice(monkeypatch, pages=None, defaut=None):
+    client = FakeClient(pages if pages is not None else dict(PAGES_SPAYCIFIC), defaut)
+    monkeypatch.setattr(chronoplace.httpx, "Client", lambda *a, **k: client)
+    return client
+
+
+def test_scrape_event_all_importe_toutes_les_epreuves_de_levenement(monkeypatch):
+    """Un seul lien du Sheet couvre le triathlon ET le swimrun de Spay'cific."""
+    client = _client_factice(monkeypatch)
+
+    resultats = chronoplace.scrape_event_all(URL_494)
+
+    assert len(resultats) == 6  # 3 lignes de fixture par épreuve
+    assert {r.event_type for r in resultats} == {"triathlon-s", "swimrun"}
+    assert client.calls == [
+        "https://www.chronoplace.fr/classement/spaycific-races-2025/epreuve/494?perPage=all",
+        "https://www.chronoplace.fr/recherche?module=classement&annee=2025&categorie=12",
+        "https://www.chronoplace.fr/classement/spaycific-races-2025/epreuve/566?perPage=all",
+    ]
+
+
+def test_scrape_event_all_date_cherchee_une_seule_fois(monkeypatch):
+    """La date est celle de l'événement : une requête d'annuaire, pas une par épreuve."""
+    from datetime import date
+
+    client = _client_factice(monkeypatch)
+
+    resultats = chronoplace.scrape_event_all(URL_494)
+
+    assert len([c for c in client.calls if "/recherche" in c]) == 1
+    assert all(r.event_date == date(2025, 9, 21) for r in resultats)
+
+
+def test_scrape_event_all_source_url_est_lurl_demandee(monkeypatch):
+    """`source_url` sert de clé de cache TTL : toutes les Course partagent celle du Sheet."""
+    _client_factice(monkeypatch)
+
+    resultats = chronoplace.scrape_event_all(URL_494)
+
+    assert {r.source_url for r in resultats} == {URL_494}
+
+
+def test_scrape_event_all_url_sans_epreuve_resout_lid_dabord(monkeypatch):
+    """La redirection du site perd la query string : `?perPage=all` serait ignoré."""
+    client = _client_factice(monkeypatch)
+
+    resultats = chronoplace.scrape_event_all(
+        "https://www.chronoplace.fr/classement/spaycific-races-2025"
+    )
+
+    assert len(resultats) == 6
+    assert client.calls[0] == "https://www.chronoplace.fr/classement/spaycific-races-2025"
+    assert client.calls[1] == (
+        "https://www.chronoplace.fr/classement/spaycific-races-2025/epreuve/494?perPage=all"
+    )
+
+
+def test_scrape_event_all_slug_obsolete_leve(monkeypatch):
+    """Lien mort du Sheet (`spay-swimrun-2025`) : erreur explicite, pas de silence."""
+    _client_factice(monkeypatch, pages={})
+
+    with pytest.raises(ValueError, match="slug obsolète ou épreuve retirée"):
+        chronoplace.scrape_event_all(
+            "https://www.chronoplace.fr/classement/spay-swimrun-2025/epreuve/566"
+        )
+
+
+def test_scrape_event_all_epreuve_soeur_en_echec_est_ignoree(monkeypatch):
+    """Une sœur qui tombe ne doit pas emporter l'épreuve demandée."""
+    pages = dict(PAGES_SPAYCIFIC)
+    pages["/epreuve/566"] = FakeResponse("", 500)
+    _client_factice(monkeypatch, pages=pages)
+
+    resultats = chronoplace.scrape_event_all(URL_494)
+
+    assert len(resultats) == 3
+    assert {r.event_type for r in resultats} == {"triathlon-s"}
+
+
+def test_resolve_epreuve_id_sans_composant(monkeypatch):
+    client = FakeClient({"/classement/": "<html><body>vide</body></html>"})
+
+    with pytest.raises(ValueError, match="Aucune épreuve"):
+        chronoplace._resolve_epreuve_id(client, "spaycific-races-2025")
