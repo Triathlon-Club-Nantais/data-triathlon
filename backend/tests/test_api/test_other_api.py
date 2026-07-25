@@ -150,3 +150,23 @@ def test_admin_pending_providers_flow(client):
 
     assert client.delete(f"/api/v1/admin/pending-providers/{created['id']}").status_code == 204
     assert client.get("/api/v1/admin/pending-providers").json() == []
+
+
+def test_athlete_detail_expose_le_nombre_de_finishers_classes(client):
+    client.post("/api/v1/participations", json={**_payload(bib="1"), "rank_overall": 1})
+    client.post(
+        "/api/v1/participations",
+        json={**_payload(bib="2", nom="MARTIN"), "rank_overall": 2},
+    )
+    client.post(
+        "/api/v1/participations",
+        json={**_payload(bib="3", nom="DURAND"), "rank_overall": None},
+    )
+
+    athletes = client.get("/api/v1/athletes", params={"name": "dupont"}).json()
+    detail = client.get(f"/api/v1/athletes/{athletes[0]['id']}").json()
+
+    participation = detail["participations"][0]
+    assert participation["rank_overall"] == 1
+    # DURAND a un temps mais pas de rang : hors du classement.
+    assert participation["course_finishers"] == 2
