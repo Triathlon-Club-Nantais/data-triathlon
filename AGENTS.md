@@ -47,6 +47,7 @@ uv run python -m app.cli rescrape-db --urls-from echecs.txt     # ou « - » pou
 # rejeu des échecs, sans fichier intermédiaire ni état persistant :
 uv run python -m app.cli import-sheet --json | jq -r '.failures[].url' \
   | uv run python -m app.cli rescrape-db --urls-from -
+uv run python -m app.cli club-labels --like nant   # libellés club vus en base, marqués TCN ou non
 
 # Frontend (depuis frontend/)
 npm run dev        # Next.js sur :3000, rewrites /api → :8001
@@ -66,7 +67,9 @@ Archi en couches, le flux ne traverse qu'une direction
 
 - `app/main.py` — usine `create_app()` : CORS, handlers d'erreurs, montage routers.
 - `app/core/` — `config.py` (pydantic-settings), `logging.py`, `database.py`,
-  `exceptions.py`, `time.py`, `club.py`.
+  `exceptions.py`, `time.py`, `club.py` (appartenance au TCN : **liste blanche**
+  de libellés, match à l'égalité — cf. #76), `discipline.py` (disciplines
+  fédérales vs trail / course à pied / cyclisme).
 - `app/models/` — SQLAlchemy **normalisé** : `Athlete`, `Course`, `Participation`,
   `PendingProvider` (voir « Modèle normalisé » plus bas).
 - `app/schemas/` — DTO Pydantic v2 (entrée/sortie).
@@ -110,6 +113,20 @@ Archi en couches, le flux ne traverse qu'une direction
 participation sans `total_time`), sinon 30 j. `scrape_service` court-circuite le
 re-scraping si frais. Réglable via `CACHE_TTL_IN_PROGRESS_SECONDS` /
 `CACHE_TTL_FINISHED_SECONDS`.
+
+### Portée club et disciplines
+
+Deux paramètres traversent l'API de lecture, sur le même patron que `seasons` :
+
+- `scope=club` — restreint aux membres du TCN. Remplace l'ancien `club`, un
+  texte libre cherché en sous-chaîne : c'est lui qui laissait la définition du
+  club chez l'appelant, et un `%nantais%` comptait les clubs d'athlétisme
+  nantais (#76).
+- `federal_only=true` — retire les disciplines hors fédération triathlon
+  (`trail`, `course-a-pied*`, `cyclisme*`). **Défaut à `false` : l'API reste
+  neutre.** Ce sont le dashboard et la page club qui l'activent, via le toggle
+  « Inclure les autres disciplines ». Un défaut à `true` amputerait
+  silencieusement tout futur appelant.
 
 ### Sorties de la CLI (stdout parsable)
 
@@ -182,8 +199,10 @@ comptent ni en succès ni en échec.
   dans `scrapers/registry.py` (registre Protocol). Provider inconnu → `playwright`.
 - **Breizh Chrono réutilise la logique Klikego** (`klikego._parse_detail`,
   `_detect_event_type`) — ne pas dupliquer, factoriser dans `klikego.py`.
-- Identification club lors d'un import épreuve : filtre `city=nantais` de l'API
-  (plus fiable que le nom de club, qui varie : « TCN », « TRIATHLON CLUB NANTAIS »…).
+- Identification club : **une seule définition**, `app/core/club.py`
+  (`is_tcn` / `tcn_clause`). Ne jamais la réimplémenter ailleurs — front et
+  scraper l'avaient fait, les trois listes ont divergé et tout libellé contenant
+  « nantais » a été compté comme TCN (#76). Le front lit le champ `is_tcn` du DTO.
 - Les temps restent des **strings** (`"01:23:45"`), normalisés via `utils.py`.
   Splits adaptés au sport : dans `splits` (JSON) + `raw_data` (JSON).
 
