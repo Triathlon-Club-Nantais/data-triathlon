@@ -1,8 +1,9 @@
 """Schémas Pydantic pour Participation (sortie imbriquée et création manuelle)."""
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, computed_field
 
+from app.core.club import is_tcn as _is_tcn
 from app.schemas.athlete import AthleteBrief
 from app.schemas.course import CourseBrief
 
@@ -26,6 +27,17 @@ class ParticipationOut(BaseModel):
     is_relay: bool = False
     splits: dict[str, str] | None = None
     created_at: datetime | None = None
+
+    @computed_field
+    @property
+    def is_tcn(self) -> bool:
+        """Appartenance au club, tranchée par le backend.
+
+        Exposée pour que le front n'ait pas à réimplémenter le prédicat : c'est
+        cette duplication qui avait divergé et laissé passer les faux positifs
+        de l'issue #76.
+        """
+        return _is_tcn(self.club)
 
 
 class AthleteParticipationOut(ParticipationOut):
