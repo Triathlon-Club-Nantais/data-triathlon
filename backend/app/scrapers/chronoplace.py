@@ -24,12 +24,14 @@ Flux (cf. docs/superpowers/specs/2026-07-25-chronoplace-scraper-design.md) :
 import json
 import logging
 import re
+from datetime import date
 from urllib.parse import urlparse
 
+import httpx
 from bs4 import BeautifulSoup
 
 from .classify import classify_event_type
-from .utils import normalize_time
+from .utils import normalize_time, parse_fr_date
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +54,17 @@ _TIME_RE = re.compile(r"^\d{1,3}:\d{2}:\d{2}$")
 # (« Relais Mixte », « Duo Masculin »…), comparés sans accents ni casse.
 _ACCENTS = str.maketrans("àâäéèêëîïôöùûüç", "aaaeeeeiioouuuc")
 _RELAY_HINTS = ("relais", "duo", "equipe")
+
+# Ids de catégorie de l'annuaire /recherche, relevés dans le `<select name="categorie">`
+# de /classements. Table statique : 17 entrées, changement improbable, et la date
+# n'est qu'un bonus (catégorie inconnue → pas de recherche, pas de date).
+_CATEGORY_IDS = {
+    "caisse à savon": 10, "canicross": 14, "course à pied": 2,
+    "courses de tracteurs tondeuses": 19, "cyclisme": 4, "cyclo-cross": 3,
+    "duathlon": 18, "fauteuils roulants": 17, "gravel": 13, "hyrox": 16,
+    "moto cross": 11, "multiple": 9, "trail": 1, "triathlon": 12,
+    "voiture à pédales": 15, "vtt": 5, "xco": 7,
+}
 
 
 def _parse_url(url: str) -> tuple[str, str]:
@@ -188,3 +201,57 @@ def _is_relay_category(category: str) -> bool:
     """Vrai si la catégorie désigne une équipe (« Relais Mixte », « Duo Masculin »)."""
     normalized = (category or "").strip().lower().translate(_ACCENTS)
     return any(hint in normalized for hint in _RELAY_HINTS)
+
+
+def _fetch(client: httpx.Client, path: str) -> str:
+    """GET sur le site. 404 → `ValueError` explicite (le site exige slug + id exacts)."""
+    response = client.get(f"{BASE_URL}{path}")
+    if response.status_code == 404:
+        raise ValueError(
+            f"Épreuve chronoplace introuvable ({path}) : slug obsolète ou épreuve retirée."
+        )
+    response.raise_for_status()
+    return response.text
+
+
+def _parse_event_date(html: str, slug: str) -> date | None:
+    """Date lue sur la carte de l'annuaire qui pointe vers ce slug.
+
+    La carte porte `<time datetime="2025-09-21 00:00:00">21 septembre 2025</time>`
+    dans un ancêtre du lien : on remonte les parents jusqu'à le trouver. Repli sur
+    le texte français si l'attribut manque.
+    """
+    for a in BeautifulSoup(html, "lxml").find_all("a", href=True):
+        if f"/classement/{slug}/" not in a["href"]:
+            continue
+        node = a
+        for _ in range(6):
+            node = node.parent
+            if node is None:
+                break
+            time_el = node.find("time")
+            if not time_el:
+                continue
+            try:
+                return date.fromisoformat((time_el.get("datetime") or "")[:10])
+            except ValueError:
+                return parse_fr_date(time_el.get_text(" ", strip=True))
+    return None
+
+
+def _fetch_event_date(client: httpx.Client, slug: str, year: str, category_label: str) -> date | None:
+    """Date de l'événement via l'annuaire filtré (1 requête). `None` en cas de doute.
+
+    La page de classement ne porte aucune date. Filtrer par année + catégorie
+    ramène l'annuaire à une seule page, donc pas de pagination à parcourir.
+    """
+    category_id = _CATEGORY_IDS.get((category_label or "").strip().lower())
+    if not category_id or not year:
+        logger.info("Date non cherchée pour %s (catégorie %r inconnue)", slug, category_label)
+        return None
+    try:
+        html = _fetch(client, f"/recherche?module=classement&annee={year}&categorie={category_id}")
+    except (ValueError, httpx.HTTPError) as exc:
+        logger.warning("Annuaire /recherche indisponible pour %s : %s", slug, exc)
+        return None
+    return _parse_event_date(html, slug)

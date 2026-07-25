@@ -6,6 +6,7 @@ lignes : structure conditionnelle Livewire et `wire:snapshot` conservés tels qu
 """
 from pathlib import Path
 
+import httpx
 import pytest
 
 from app.scrapers import chronoplace
@@ -20,6 +21,7 @@ def _fixture(name: str) -> str:
 EPREUVE_494 = _fixture("chronoplace_epreuve_494.html")   # triathlon S, splits
 EPREUVE_566 = _fixture("chronoplace_epreuve_566.html")   # swimrun, catégories relais
 EPREUVE_493 = _fixture("chronoplace_epreuve_493.html")   # 24h VTT, isTeam
+RECHERCHE_2025 = _fixture("chronoplace_recherche_2025.html")  # annuaire, porteur des dates
 
 
 def test_parse_url_avec_epreuve():
@@ -225,3 +227,103 @@ def test_event_type_repli_sur_le_contexte_puis_le_nom():
 )
 def test_is_relay_category(categorie, attendu):
     assert chronoplace._is_relay_category(categorie) is attendu
+
+
+class FakeResponse:
+    def __init__(self, text: str, status_code: int = 200):
+        self.text, self.status_code = text, status_code
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise httpx.HTTPError(f"HTTP {self.status_code}")
+
+
+class FakeClient:
+    """Client HTTP factice : sert les fixtures et enregistre les URLs demandées."""
+
+    def __init__(self, pages: dict[str, str] | None = None, defaut: FakeResponse | None = None):
+        self.pages = pages or {}
+        self.defaut = defaut or FakeResponse("<html>404</html>", 404)
+        self.calls: list[str] = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def get(self, url: str):
+        self.calls.append(url)
+        for motif, page in self.pages.items():
+            if motif in url:
+                return page if isinstance(page, FakeResponse) else FakeResponse(page)
+        return self.defaut
+
+
+def test_fetch_renvoie_le_html():
+    client = FakeClient({"/classement/": EPREUVE_494})
+    assert chronoplace._fetch(client, "/classement/x/epreuve/1") == EPREUVE_494
+    assert client.calls == ["https://www.chronoplace.fr/classement/x/epreuve/1"]
+
+
+def test_fetch_404_leve_une_erreur_explicite():
+    """Le site exige la paire slug + id exacte : un slug obsolète renvoie 404."""
+    client = FakeClient()
+    with pytest.raises(ValueError, match="slug obsolète ou épreuve retirée"):
+        chronoplace._fetch(client, "/classement/spay-swimrun-2025/epreuve/566")
+
+
+def test_fetch_erreur_serveur_remonte():
+    client = FakeClient(defaut=FakeResponse("", 500))
+    with pytest.raises(httpx.HTTPError):
+        chronoplace._fetch(client, "/classement/x/epreuve/1")
+
+
+def test_parse_event_date_depuis_la_carte_de_levenement():
+    from datetime import date
+
+    assert chronoplace._parse_event_date(RECHERCHE_2025, "spaycific-races-2025") == date(2025, 9, 21)
+    assert chronoplace._parse_event_date(RECHERCHE_2025, "sitrans-bike-run-de-leves-2025") == (
+        date(2025, 12, 14)
+    )
+
+
+def test_parse_event_date_slug_absent():
+    assert chronoplace._parse_event_date(RECHERCHE_2025, "un-evenement-inconnu-2025") is None
+
+
+def test_parse_event_date_repli_texte_francais():
+    """Si l'attribut `datetime` manque ou est illisible, on parse le texte affiché."""
+    from datetime import date
+
+    html = """
+    <article><div>
+      <time datetime="">21 septembre 2025</time>
+      <a href="/classement/spaycific-races-2025/epreuve/494">Voir</a>
+    </div></article>
+    """
+    assert chronoplace._parse_event_date(html, "spaycific-races-2025") == date(2025, 9, 21)
+
+
+def test_fetch_event_date_interroge_lannuaire_filtre():
+    from datetime import date
+
+    client = FakeClient({"/recherche": RECHERCHE_2025})
+    resultat = chronoplace._fetch_event_date(client, "spaycific-races-2025", "2025", "Triathlon")
+
+    assert resultat == date(2025, 9, 21)
+    assert client.calls == [
+        "https://www.chronoplace.fr/recherche?module=classement&annee=2025&categorie=12"
+    ]
+
+
+def test_fetch_event_date_categorie_inconnue_ne_requete_pas():
+    """La date est un bonus : une catégorie hors table ne coûte pas une requête."""
+    client = FakeClient({"/recherche": RECHERCHE_2025})
+    assert chronoplace._fetch_event_date(client, "x-2025", "2025", "Pétanque") is None
+    assert client.calls == []
+
+
+def test_fetch_event_date_annuaire_en_erreur():
+    client = FakeClient(defaut=FakeResponse("", 500))
+    assert chronoplace._fetch_event_date(client, "x-2025", "2025", "Triathlon") is None
