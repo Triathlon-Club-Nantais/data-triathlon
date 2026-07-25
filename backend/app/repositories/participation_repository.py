@@ -4,7 +4,7 @@ from datetime import date
 from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.club import TCN_KEYWORDS, club_keyword_filter
+from app.core.club import tcn_clause
 from app.core.season import season_bounds, season_of
 from app.models.athlete import Athlete
 from app.models.course import Course
@@ -99,7 +99,7 @@ def _apply_filters(
     name,
     event_type,
     event_name,
-    club,
+    club_only,
     date_from,
     date_to,
     course_id=None,
@@ -114,9 +114,8 @@ def _apply_filters(
     if name:
         pattern = f"%{name}%"
         q = q.filter(or_(Athlete.nom.ilike(pattern), Athlete.prenom.ilike(pattern)))
-    clause = club_keyword_filter(Participation.club, club)
-    if clause is not None:
-        q = q.filter(clause)
+    if club_only:
+        q = q.filter(tcn_clause(Participation.club))
     if event_type:
         q = q.filter(Course.event_type == event_type)
     if event_name:
@@ -136,7 +135,7 @@ def list_participations(
     name: str | None = None,
     event_type: str | None = None,
     event_name: str | None = None,
-    club: str | None = None,
+    club_only: bool = False,
     date_from: date | None = None,
     date_to: date | None = None,
     course_id: int | None = None,
@@ -153,7 +152,7 @@ def list_participations(
         name=name,
         event_type=event_type,
         event_name=event_name,
-        club=club,
+        club_only=club_only,
         date_from=date_from,
         date_to=date_to,
         course_id=course_id,
@@ -189,21 +188,15 @@ def list_for_course(db: Session, course_id: int) -> list[Participation]:
     )
 
 
-def tcn_filter():
-    """Clause SQLAlchemy : la participation appartient au TCN (mots-clés club)."""
-    return club_keyword_filter(Participation.club, "|".join(TCN_KEYWORDS))
-
-
 def for_stats(
-    db: Session, club: str | None = None, seasons: list[int] | None = None
+    db: Session, *, club_only: bool = False, seasons: list[int] | None = None
 ) -> list[Participation]:
     """Charge les participations (avec course + athlète) pour les agrégations stats."""
     q = db.query(Participation).options(
         joinedload(Participation.course), joinedload(Participation.athlete)
     )
-    clause = club_keyword_filter(Participation.club, club)
-    if clause is not None:
-        q = q.filter(clause)
+    if club_only:
+        q = q.filter(tcn_clause(Participation.club))
     if seasons:
         q = q.join(Course, Participation.course_id == Course.id).filter(_season_clause(seasons))
     return q.all()
@@ -215,7 +208,7 @@ def _grouped_events_query(
     name=None,
     event_type=None,
     event_name=None,
-    club=None,
+    club_only=False,
     date_from=None,
     date_to=None,
     seasons=None,
@@ -229,7 +222,7 @@ def _grouped_events_query(
         Course.is_relay.label("is_relay"),
         Course.distance_km.label("distance_km"),
         func.count(Participation.id).label("total"),
-        func.sum(case((tcn_filter(), 1), else_=0)).label("tcn_count"),
+        func.sum(case((tcn_clause(Participation.club), 1), else_=0)).label("tcn_count"),
     )
     q = _apply_filters(
         q,
@@ -237,7 +230,7 @@ def _grouped_events_query(
         name=name,
         event_type=event_type,
         event_name=event_name,
-        club=club,
+        club_only=club_only,
         date_from=date_from,
         date_to=date_to,
         seasons=seasons,
@@ -258,7 +251,7 @@ def events_with_counts(
     name: str | None = None,
     event_type: str | None = None,
     event_name: str | None = None,
-    club: str | None = None,
+    club_only: bool = False,
     date_from: date | None = None,
     date_to: date | None = None,
     seasons: list[int] | None = None,
@@ -270,7 +263,7 @@ def events_with_counts(
             name=name,
             event_type=event_type,
             event_name=event_name,
-            club=club,
+            club_only=club_only,
             date_from=date_from,
             date_to=date_to,
             seasons=seasons,
@@ -301,7 +294,7 @@ def events_page(
     name: str | None = None,
     event_type: str | None = None,
     event_name: str | None = None,
-    club: str | None = None,
+    club_only: bool = False,
     date_from: date | None = None,
     date_to: date | None = None,
     seasons: list[int] | None = None,
@@ -315,7 +308,7 @@ def events_page(
         name=name,
         event_type=event_type,
         event_name=event_name,
-        club=club,
+        club_only=club_only,
         date_from=date_from,
         date_to=date_to,
         seasons=seasons,
@@ -330,7 +323,7 @@ def events_page(
         name=name,
         event_type=event_type,
         event_name=event_name,
-        club=club,
+        club_only=club_only,
         date_from=date_from,
         date_to=date_to,
         seasons=seasons,
@@ -351,7 +344,7 @@ def events_page(
     }
 
 
-def distinct_seasons(db: Session, club: str | None = None) -> list[dict]:
+def distinct_seasons(db: Session, *, club_only: bool = False) -> list[dict]:
     """Saisons présentes (≥ 1 participation sur une épreuve datée), repliées en Python.
 
     Repli Python plutôt que SQL pour rester portable SQLite/Postgres sans
@@ -365,9 +358,8 @@ def distinct_seasons(db: Session, club: str | None = None) -> list[dict]:
         .join(Participation, Participation.course_id == Course.id)
         .filter(Course.event_date.isnot(None))
     )
-    clause = club_keyword_filter(Participation.club, club)
-    if clause is not None:
-        q = q.filter(clause)
+    if club_only:
+        q = q.filter(tcn_clause(Participation.club))
     rows = q.group_by(Course.id, Course.event_date).all()
 
     agg: dict[int, dict] = {}

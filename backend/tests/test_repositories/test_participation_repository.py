@@ -58,7 +58,7 @@ def test_list_filters_by_name_and_club(db_session):
     assert len(by_name) == 1
     assert by_name[0].athlete.nom == "DUPONT"
 
-    by_club = participation_repository.list_participations(db_session, club="nantais|tcn")
+    by_club = participation_repository.list_participations(db_session, club_only=True)
     assert len(by_club) == 1
     assert by_club[0].club == "TCN"
 

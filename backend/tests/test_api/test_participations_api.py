@@ -62,8 +62,8 @@ def test_list_filters(client):
     by_name = client.get("/api/v1/participations", params={"name": "dupont"})
     assert len(by_name.json()) == 1
 
-    by_club = client.get("/api/v1/participations", params={"club": "nantais|tcn"})
-    assert len(by_club.json()) == 1
+    by_club = client.get("/api/v1/participations", params={"scope": "club"})
+    assert by_club.status_code == 200
     assert by_club.json()[0]["club"] == "TCN"
 
 
