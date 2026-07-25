@@ -34,6 +34,10 @@ def list_events(
     date_from: str | None = Query(None),
     date_to: str | None = Query(None),
     seasons: str | None = Query(None),
+    federal_only: bool = Query(
+        False,
+        description="Exclut les disciplines hors fédération triathlon (trail, course à pied, cyclisme).",
+    ),
     sort: str = Query("date_desc"),
     page: int = Query(1, ge=1),
     page_size: int = Query(30, ge=1, le=200),
@@ -49,6 +53,7 @@ def list_events(
         date_from=_parse_date(date_from),
         date_to=_parse_date(date_to),
         seasons=parse_seasons(seasons),
+        federal_only=federal_only,
         sort=sort,
         page=page,
         page_size=page_size,

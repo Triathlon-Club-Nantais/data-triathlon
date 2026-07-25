@@ -6,6 +6,7 @@ from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.club import tcn_clause
+from app.core.discipline import federal_clause
 from app.core.season import season_bounds, season_of
 from app.models.athlete import Athlete
 from app.models.course import Course
@@ -137,6 +138,7 @@ def _apply_filters(
     date_to,
     course_id=None,
     seasons=None,
+    federal_only=False,
 ):
     """Joint Athlete + Course et applique les filtres communs (liste + épreuves)."""
     q = q.join(Athlete, Participation.athlete_id == Athlete.id).join(
@@ -159,6 +161,8 @@ def _apply_filters(
         q = q.filter(Course.event_date <= date_to)
     if seasons:
         q = q.filter(_season_clause(seasons))
+    if federal_only:
+        q = q.filter(federal_clause(Course.event_type))
     return q
 
 
@@ -173,6 +177,7 @@ def list_participations(
     date_to: date | None = None,
     course_id: int | None = None,
     seasons: list[int] | None = None,
+    federal_only: bool = False,
     page: int = 1,
     page_size: int = 20,
 ) -> list[Participation]:
@@ -190,6 +195,7 @@ def list_participations(
         date_to=date_to,
         course_id=course_id,
         seasons=seasons,
+        federal_only=federal_only,
     )
     offset = (page - 1) * page_size
     # Pour le détail d'une épreuve, trier par classement ; sinon par date d'import.
@@ -222,7 +228,11 @@ def list_for_course(db: Session, course_id: int) -> list[Participation]:
 
 
 def for_stats(
-    db: Session, *, club_only: bool = False, seasons: list[int] | None = None
+    db: Session,
+    *,
+    club_only: bool = False,
+    seasons: list[int] | None = None,
+    federal_only: bool = False,
 ) -> list[Participation]:
     """Charge les participations (avec course + athlète) pour les agrégations stats."""
     q = db.query(Participation).options(
@@ -230,8 +240,12 @@ def for_stats(
     )
     if club_only:
         q = q.filter(tcn_clause(Participation.club))
+    if seasons or federal_only:
+        q = q.join(Course, Participation.course_id == Course.id)
     if seasons:
-        q = q.join(Course, Participation.course_id == Course.id).filter(_season_clause(seasons))
+        q = q.filter(_season_clause(seasons))
+    if federal_only:
+        q = q.filter(federal_clause(Course.event_type))
     return q.all()
 
 
@@ -245,6 +259,7 @@ def _grouped_events_query(
     date_from=None,
     date_to=None,
     seasons=None,
+    federal_only=False,
 ):
     """Requête de base : une ligne par épreuve (course) avec compteurs total + TCN."""
     q = db.query(
@@ -267,6 +282,7 @@ def _grouped_events_query(
         date_from=date_from,
         date_to=date_to,
         seasons=seasons,
+        federal_only=federal_only,
     )
     return q.group_by(
         Course.id,
@@ -288,6 +304,7 @@ def events_with_counts(
     date_from: date | None = None,
     date_to: date | None = None,
     seasons: list[int] | None = None,
+    federal_only: bool = False,
 ) -> list:
     """Épreuves distinctes avec total participants et compte TCN (non paginé — carte/stats)."""
     return (
@@ -300,6 +317,7 @@ def events_with_counts(
             date_from=date_from,
             date_to=date_to,
             seasons=seasons,
+            federal_only=federal_only,
         )
         .order_by(Course.event_date.desc().nullslast(), Course.name)
         .all()
@@ -331,6 +349,7 @@ def events_page(
     date_from: date | None = None,
     date_to: date | None = None,
     seasons: list[int] | None = None,
+    federal_only: bool = False,
     sort: str = "date_desc",
     page: int = 1,
     page_size: int = 30,
@@ -345,6 +364,7 @@ def events_page(
         date_from=date_from,
         date_to=date_to,
         seasons=seasons,
+        federal_only=federal_only,
     )
 
     total_events = db.query(func.count()).select_from(grouped.subquery()).scalar() or 0
@@ -360,6 +380,7 @@ def events_page(
         date_from=date_from,
         date_to=date_to,
         seasons=seasons,
+        federal_only=federal_only,
     )
     total_participations = parts.scalar() or 0
 
@@ -377,7 +398,9 @@ def events_page(
     }
 
 
-def distinct_seasons(db: Session, *, club_only: bool = False) -> list[dict]:
+def distinct_seasons(
+    db: Session, *, club_only: bool = False, federal_only: bool = False
+) -> list[dict]:
     """Saisons présentes (≥ 1 participation sur une épreuve datée), repliées en Python.
 
     Repli Python plutôt que SQL pour rester portable SQLite/Postgres sans
@@ -393,6 +416,8 @@ def distinct_seasons(db: Session, *, club_only: bool = False) -> list[dict]:
     )
     if club_only:
         q = q.filter(tcn_clause(Participation.club))
+    if federal_only:
+        q = q.filter(federal_clause(Course.event_type))
     rows = q.group_by(Course.id, Course.event_date).all()
 
     agg: dict[int, dict] = {}
