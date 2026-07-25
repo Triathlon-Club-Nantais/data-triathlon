@@ -1,11 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
   bestPodiumRank,
+  bestRank,
+  isTopN,
   isPodium,
   listPodiums,
   buildRoster,
   recentParticipations,
   clubSummary,
+  rankCounters,
 } from "./club-aggregate";
 import type { Participation } from "@/lib/types";
 
@@ -53,6 +56,55 @@ describe("bestPodiumRank", () => {
   it("isPodium reflète bestPodiumRank", () => {
     expect(isPodium(part({ id: 1, rank_gender: 3 }))).toBe(true);
     expect(isPodium(part({ id: 1, rank_overall: 50 }))).toBe(false);
+  });
+});
+
+describe("bestRank", () => {
+  it("retient le meilleur rang hors top-3", () => {
+    const p = part({ id: 1, rank_overall: 40, rank_category: 7 });
+    expect(bestRank(p)).toEqual({ rank: 7, scope: "category" });
+  });
+  it("privilégie le général à rang égal", () => {
+    const p = part({ id: 1, rank_overall: 5, rank_gender: 5 });
+    expect(bestRank(p)).toEqual({ rank: 5, scope: "overall" });
+  });
+  it("renvoie null sans aucun classement", () => {
+    expect(bestRank(part({ id: 1 }))).toBeNull();
+  });
+});
+
+describe("isTopN", () => {
+  it("compte un top-10 décroché sur le classement de catégorie", () => {
+    expect(isTopN(part({ id: 1, rank_overall: 180, rank_category: 7 }), 10)).toBe(true);
+  });
+  it("exclut au-delà du seuil sur les trois classements", () => {
+    expect(isTopN(part({ id: 1, rank_overall: 180, rank_category: 40 }), 10)).toBe(false);
+  });
+});
+
+describe("rankCounters", () => {
+  it("compte victoires, podiums et top 10 sur les trois classements", () => {
+    const parts = [
+      part({ id: 1, rank_overall: 1 }), // victoire scratch
+      part({ id: 2, rank_overall: 25, rank_category: 1 }), // victoire de catégorie
+      part({ id: 3, rank_overall: 60, rank_gender: 3 }), // podium genre
+      part({ id: 4, rank_overall: 180, rank_category: 7 }), // top 10 catégorie
+      part({ id: 5, rank_overall: 200, rank_category: 40 }), // rien
+    ];
+    expect(rankCounters(parts)).toEqual({ victories: 2, podiums: 3, top10: 4 });
+  });
+
+  it("garantit victoires ≤ podiums ≤ top 10", () => {
+    const parts = [
+      part({ id: 1, rank_overall: 1, rank_category: 1, rank_gender: 1 }),
+      part({ id: 2, rank_overall: 150, rank_category: 3 }),
+      part({ id: 3, rank_overall: 9 }),
+      part({ id: 4, rank_overall: 300 }),
+      part({ id: 5 }),
+    ];
+    const c = rankCounters(parts);
+    expect(c.victories).toBeLessThanOrEqual(c.podiums);
+    expect(c.podiums).toBeLessThanOrEqual(c.top10);
   });
 });
 
