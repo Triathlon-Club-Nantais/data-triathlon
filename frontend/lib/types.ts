@@ -40,6 +40,9 @@ export interface Participation {
   is_relay: boolean;
   splits: Splits | null;
   created_at: string | null;
+  // Nombre de finishers classés de la course (même groupe solo/relais).
+  // Servi par la seule route /athletes/{id} — d'où l'optionnalité.
+  course_finishers?: number | null;
 }
 
 export interface EventOut {
