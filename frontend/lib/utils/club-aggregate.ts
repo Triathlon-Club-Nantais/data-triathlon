@@ -9,8 +9,8 @@ export interface BestRank {
   scope: PodiumScope;
 }
 
-/** Meilleur classement top-3 d'une participation (général > genre > catégorie). */
-export function bestPodiumRank(p: Participation): BestRank | null {
+/** Meilleur classement d'une participation, tous scopes confondus (général > genre > catégorie à rang égal). */
+export function bestRank(p: Participation): BestRank | null {
   const candidates: [number | null, PodiumScope][] = [
     [p.rank_overall, "overall"],
     [p.rank_gender, "gender"],
@@ -18,16 +18,50 @@ export function bestPodiumRank(p: Participation): BestRank | null {
   ];
   let best: BestRank | null = null;
   for (const [rank, scope] of candidates) {
-    if (rank != null && rank >= 1 && rank <= 3) {
+    if (rank != null && rank >= 1) {
       if (!best || rank < best.rank) best = { rank, scope };
     }
   }
   return best;
 }
 
+/** true si la participation est dans le top N sur l'un des trois classements. */
+export function isTopN(p: Participation, n: number): boolean {
+  const best = bestRank(p);
+  return best !== null && best.rank <= n;
+}
+
+/** Meilleur classement top-3 d'une participation (général > genre > catégorie). */
+export function bestPodiumRank(p: Participation): BestRank | null {
+  const best = bestRank(p);
+  return best && best.rank <= 3 ? best : null;
+}
+
 /** true si la participation a décroché un podium (top-3 sur l'un des classements). */
 export function isPodium(p: Participation): boolean {
   return bestPodiumRank(p) !== null;
+}
+
+export interface RankCounters {
+  victories: number;
+  podiums: number;
+  top10: number;
+}
+
+/**
+ * Compteurs du dashboard, tous mesurés sur le même périmètre (général, genre ou
+ * catégorie) pour rester emboîtés : victoires ≤ podiums ≤ top 10 (issue #77).
+ */
+export function rankCounters(parts: Participation[]): RankCounters {
+  const counters: RankCounters = { victories: 0, podiums: 0, top10: 0 };
+  for (const p of parts) {
+    const best = bestRank(p);
+    if (!best) continue;
+    if (best.rank <= 1) counters.victories += 1;
+    if (best.rank <= 3) counters.podiums += 1;
+    if (best.rank <= 10) counters.top10 += 1;
+  }
+  return counters;
 }
 
 export interface PodiumEntry {
