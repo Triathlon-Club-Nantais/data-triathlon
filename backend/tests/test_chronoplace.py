@@ -153,3 +153,75 @@ def test_parse_table_ignore_une_ligne_desalignee():
 )
 def test_time_or_empty(brut, attendu):
     assert chronoplace._time_or_empty(brut) == attendu
+
+
+def test_event_name_depuis_le_h1():
+    """Le nom de l'épreuve doit figurer dans le nom de Course : `uq_course_identity`
+    porte sur (name, event_date, event_type, is_relay), donc deux épreuves d'un même
+    événement classées dans le même type fusionneraient sous le seul nom d'événement."""
+    assert chronoplace._event_name(EPREUVE_494, "spaycific-races-2025") == (
+        "Spay'cific Races 2025 - Spay'cific Triathlon S"
+    )
+    assert chronoplace._event_name(EPREUVE_566, "spaycific-races-2025") == (
+        "Spay'cific Races 2025 - SwimRun"
+    )
+
+
+def test_event_name_repli_meta_description():
+    html = (
+        '<html><head><meta name="description" '
+        'content="Résultats Spay\'cific Races 2025 - SwimRun"></head><body></body></html>'
+    )
+    assert chronoplace._event_name(html, "spaycific-races-2025") == (
+        "Spay'cific Races 2025 - SwimRun"
+    )
+
+
+def test_event_name_repli_slug():
+    assert chronoplace._event_name("<html><body></body></html>", "spaycific-races-2025") == (
+        "Spaycific Races 2025"
+    )
+
+
+def test_list_epreuves_donne_les_onglets_de_levenement():
+    assert chronoplace._list_epreuves(EPREUVE_494, "spaycific-races-2025") == ["494", "566"]
+    assert chronoplace._list_epreuves(EPREUVE_493, "24h-vtt-de-cergy-2025") == ["492", "493"]
+
+
+def test_list_epreuves_ignore_les_autres_evenements():
+    html = """
+    <a href="/classement/spaycific-races-2025/epreuve/494">A</a>
+    <a href="/classement/un-autre-evenement-2025/epreuve/777">B</a>
+    <a href="/classement/spaycific-races-2025">C</a>
+    """
+    assert chronoplace._list_epreuves(html, "spaycific-races-2025") == ["494"]
+
+
+def test_event_type_par_epreuve():
+    """Le type se déduit du nom d'épreuve, pas de celui de l'événement : le swimrun
+    de Spay'cific vit dans un événement typé « Triathlon » côté chronoplace."""
+    analytics_tri = chronoplace._parse_snapshot(EPREUVE_494)["analyticsContext"]
+    analytics_swimrun = chronoplace._parse_snapshot(EPREUVE_566)["analyticsContext"]
+
+    assert chronoplace._event_type(analytics_tri, "") == "triathlon-s"
+    assert analytics_swimrun["event_type"] == "Triathlon"
+    assert chronoplace._event_type(analytics_swimrun, "") == "swimrun"
+
+
+def test_event_type_repli_sur_le_contexte_puis_le_nom():
+    assert chronoplace._event_type({"event_type": "Duathlon"}, "") == "duathlon"
+    assert chronoplace._event_type({}, "Aquathlon de Spay") == "aquathlon"
+
+
+@pytest.mark.parametrize(
+    "categorie, attendu",
+    [
+        ("Relais Mixte", True),
+        ("Duo Masculin", True),
+        ("Équipe entreprise", True),
+        ("Solo Homme", False),
+        ("", False),
+    ],
+)
+def test_is_relay_category(categorie, attendu):
+    assert chronoplace._is_relay_category(categorie) is attendu

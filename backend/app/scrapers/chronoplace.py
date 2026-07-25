@@ -28,6 +28,7 @@ from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
 
+from .classify import classify_event_type
 from .utils import normalize_time
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,11 @@ _SORT_RE = re.compile(r"sortBy\('([^']+)'\)")
 # rend « — » sur un split vide et « -- » / « +5:16 » dans la colonne d'écart :
 # `normalize_time` les laisse passer tels quels, il faut donc filtrer ici.
 _TIME_RE = re.compile(r"^\d{1,3}:\d{2}:\d{2}$")
+
+# Marqueurs d'une participation en équipe dans la colonne `categorie`
+# (« Relais Mixte », « Duo Masculin »…), comparés sans accents ni casse.
+_ACCENTS = str.maketrans("àâäéèêëîïôöùûüç", "aaaeeeeiioouuuc")
+_RELAY_HINTS = ("relais", "duo", "equipe")
 
 
 def _parse_url(url: str) -> tuple[str, str]:
@@ -131,3 +137,54 @@ def _time_or_empty(raw: str) -> str:
     """Temps normalisé, ou "" si la valeur n'en est pas un."""
     normalized = normalize_time((raw or "").strip())
     return normalized if _TIME_RE.match(normalized) else ""
+
+
+def _event_name(html: str, slug: str) -> str:
+    """Nom de la Course : « <événement> - <épreuve> », depuis le `<h1>`.
+
+    Le nom de l'épreuve **doit** y figurer, sinon deux épreuves d'un même
+    événement partageant date et type fusionneraient (`uq_course_identity`).
+    Replis : meta `description` privée de son préfixe « Résultats », puis slug.
+    """
+    soup = BeautifulSoup(html, "lxml")
+    h1 = soup.find("h1")
+    if h1:
+        text = re.sub(r"\s+", " ", h1.get_text(" ", strip=True)).strip()
+        if text:
+            return text
+    meta = soup.find("meta", attrs={"name": "description"})
+    if meta and meta.get("content"):
+        return re.sub(r"^Résultats\s+", "", meta["content"].strip())
+    return slug.replace("-", " ").title()
+
+
+def _list_epreuves(html: str, slug: str) -> list[str]:
+    """Ids des épreuves sœurs, lus dans les onglets de la page (ordre du document).
+
+    Filtre sur le slug de l'événement courant : un lien vers un autre événement
+    n'a rien à faire dans l'import.
+    """
+    pattern = re.compile(rf"^/classement/{re.escape(slug)}/epreuve/(\d+)/?$")
+    ids: list[str] = []
+    for a in BeautifulSoup(html, "lxml").find_all("a", href=True):
+        m = pattern.match(a["href"].strip())
+        if m and m.group(1) not in ids:
+            ids.append(m.group(1))
+    return ids
+
+
+def _event_type(analytics: dict, event_name: str) -> str:
+    """Type d'épreuve, classé sur le **nom d'épreuve**.
+
+    `analyticsContext.event_type` décrit l'**événement**, pas l'épreuve : celui de
+    Spay'cific est typé « Triathlon » alors qu'il porte aussi un swimrun. Il ne
+    sert donc que de repli.
+    """
+    label = analytics.get("epreuve_name") or analytics.get("event_type") or event_name
+    return classify_event_type(label)
+
+
+def _is_relay_category(category: str) -> bool:
+    """Vrai si la catégorie désigne une équipe (« Relais Mixte », « Duo Masculin »)."""
+    normalized = (category or "").strip().lower().translate(_ACCENTS)
+    return any(hint in normalized for hint in _RELAY_HINTS)
