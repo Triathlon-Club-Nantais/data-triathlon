@@ -429,3 +429,18 @@ def distinct_seasons(
         entry["event_count"] += 1
         entry["participation_count"] += int(part_count or 0)
     return list(agg.values())
+
+
+def club_label_counts(db: Session, *, like: str | None = None) -> list[tuple[str, int]]:
+    """Libellés de club distincts et leur nombre de participations, décroissant.
+
+    Alimente `python -m app.cli club-labels`. Les libellés vides sont écartés :
+    ils ne disent rien de l'appartenance à un club.
+    """
+    q = db.query(Participation.club, func.count(Participation.id)).filter(
+        Participation.club.isnot(None), Participation.club != ""
+    )
+    if like:
+        q = q.filter(Participation.club.ilike(f"%{like}%"))
+    rows = q.group_by(Participation.club).all()
+    return sorted(((club, int(count)) for club, count in rows), key=lambda r: (-r[1], r[0]))
