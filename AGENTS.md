@@ -90,7 +90,7 @@ Archi en couches, le flux ne traverse qu'une direction
   `utils.py` = helpers de normalisation.
 - `alembic/` — migrations (révision initiale = schéma complet).
 - `tests/` — `test_repositories/`, `test_services/`, `test_api/`, `test_cli/`,
-  `test_klikego.py`, `test_timepulse.py` (≈510 tests).
+  `test_klikego.py`, `test_timepulse.py` (≈745 tests).
 
 ### Modèle normalisé
 

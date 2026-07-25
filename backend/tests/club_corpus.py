@@ -17,6 +17,12 @@ CORPUS: list[tuple[str | None, bool]] = [
     # Bords et espaces internes : la normalisation les aplatit.
     ("  TRI CLUB NANTAIS  ", True),
     ("TRI  CLUB   NANTAIS", True),
+    # Blancs non-ASCII : le HTML français en glisse (espace insécable, tabulation,
+    # saut de ligne) et `\s`/`str.strip()` les couvrent côté Python — le miroir
+    # SQL doit en faire autant.
+    ("TRI CLUB NANTAIS", True),
+    ("TRI\tCLUB NANTAIS", True),
+    ("TRI CLUB NANTAIS\n", True),
     # Les faux positifs de #76 : des clubs nantais, mais pas le nôtre.
     ("ASSOCIATION SPORTIVE  MARATHONIENS NANTAIS", False),
     ("S/L STADE NANTAIS AC", False),

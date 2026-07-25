@@ -209,7 +209,7 @@ def scrape_event_all(
     Fetch all participants for a Breizh Chrono event.
     If no specific heat is given, auto-discovers all heats from the event root page
     and imports each one with the correct event_type and is_relay per discipline.
-    Full splits are fetched only for TCN/Nantais athletes.
+    Les splits complets ne sont récupérés que pour les athlètes du club.
     """
     slug_id = f"{slug}-{event_id}"
     results: list[ScrapedResult] = []
@@ -259,7 +259,7 @@ def _fetch_tcn_fine_splits(
     base: str, event_id: str, default_heat: str,
     results: list[ScrapedResult], client: httpx.Client,
 ) -> None:
-    """Repeuple les splits fins des athlètes TCN/Nantais via resultat-participant.jsp.
+    """Repeuple les splits fins des athlètes TCN via resultat-participant.jsp.
 
     Les splits fins TCN priment sur les splits inter pré-remplis : on remet à
     zéro les slots avant de reparser le détail. Muté en place sur `results`.

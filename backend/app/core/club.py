@@ -48,14 +48,27 @@ def is_club_scope(scope: str | None) -> bool:
     return scope == SCOPE_CLUB
 
 
+_BLANCS_SQL = ("\t", "\n", "\r", "\xa0")
+
+
 def _normalise_sql(column):
     """Miroir SQL de `normalize_club`, portable SQLite (dev) et Postgres (prod).
 
-    Trois `replace` imbriqués aplatissent jusqu'à huit espaces consécutifs. Au
-    delà, le libellé sort du filtre : le pire cas est un oubli, jamais un faux
-    positif — et `club-labels` le rendra visible.
+    `\\s` et `str.strip()` couvrent, côté Python, la tabulation, les sauts de
+    ligne et l'espace insécable — le HTML français en glisse via
+    `get_text(strip=True)`. `trim`/`replace` SQL ne voient que l'espace 0x20 :
+    ces blancs non-ASCII sont donc ramenés à l'espace ordinaire **avant** le
+    `trim`, sans quoi le miroir diverge du Python (issue #76 inversée : un
+    libellé compté TCN en Python mais exclu du filtre SQL).
+
+    Trois `replace` imbriqués aplatissent ensuite jusqu'à huit espaces
+    consécutifs. Au delà, le libellé sort du filtre : le pire cas est un
+    oubli, jamais un faux positif — et `club-labels` le rendra visible.
     """
-    expr = func.lower(func.trim(column))
+    expr = column
+    for blanc in _BLANCS_SQL:
+        expr = func.replace(expr, blanc, " ")
+    expr = func.lower(func.trim(expr))
     for _ in range(3):
         expr = func.replace(expr, "  ", " ")
     return expr
