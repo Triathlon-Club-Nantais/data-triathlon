@@ -4,6 +4,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.core.club import is_club_scope
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.core.season import parse_seasons
@@ -64,7 +65,7 @@ def list_participations(
     name: str | None = Query(None),
     event_type: str | None = Query(None),
     event_name: str | None = Query(None),
-    club: str | None = Query(None),
+    scope: str | None = Query(None, description="« club » restreint aux membres du TCN."),
     date_from: str | None = Query(None),
     date_to: str | None = Query(None),
     seasons: str | None = Query(None),
@@ -78,7 +79,7 @@ def list_participations(
         name=name,
         event_type=event_type,
         event_name=event_name,
-        club=club,
+        club_only=is_club_scope(scope),
         date_from=_parse_date(date_from),
         date_to=_parse_date(date_to),
         seasons=parse_seasons(seasons),

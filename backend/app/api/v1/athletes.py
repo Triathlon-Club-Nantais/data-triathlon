@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.core.club import is_club_scope
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.repositories import athlete_repository, participation_repository
@@ -14,12 +15,14 @@ router = APIRouter(tags=["athletes"])
 @router.get("/athletes", response_model=list[AthleteBrief])
 def list_athletes(
     name: str | None = Query(None),
-    club: str | None = Query(None),
+    scope: str | None = Query(None, description="« club » restreint aux membres du TCN."),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
 ):
-    return athlete_repository.search(db, name=name, club=club, page=page, page_size=page_size)
+    return athlete_repository.search(
+        db, name=name, club_only=is_club_scope(scope), page=page, page_size=page_size
+    )
 
 
 @router.get("/athletes/{athlete_id}")

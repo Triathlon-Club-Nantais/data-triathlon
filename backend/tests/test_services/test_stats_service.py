@@ -28,7 +28,7 @@ def test_get_stats_global(db_session):
 
 def test_get_stats_filtered_by_club(db_session):
     _seed(db_session)
-    stats = stats_service.get_stats(db_session, club="nantais|tcn")
+    stats = stats_service.get_stats(db_session, club_only=True)
     assert stats["total"] == 1
     assert stats["athletes"] == 1
 
