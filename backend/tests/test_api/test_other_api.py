@@ -170,3 +170,50 @@ def test_athlete_detail_expose_le_nombre_de_finishers_classes(client):
     assert participation["rank_overall"] == 1
     # DURAND a un temps mais pas de rang : hors du classement.
     assert participation["course_finishers"] == 2
+
+
+def test_athlete_detail_le_relais_ne_recoit_pas_le_compte_des_solos(client, db_session):
+    """Le groupe (course_id, is_relay) est bien celui de la *participation*, pas de la course."""
+    from datetime import date
+
+    from app.repositories import athlete_repository, course_repository, participation_repository
+
+    course = course_repository.get_or_create(
+        db_session, name="Tri Relais", event_date=date(2026, 5, 16), event_type="triathlon-m"
+    )
+    solo1 = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean", club="TCN")
+    solo2 = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul", club="TCN")
+    relayeur = athlete_repository.get_or_create(db_session, nom="DURAND", prenom="Luc", club="TCN")
+
+    participation_repository.create(
+        db_session, athlete_id=solo1.id, course_id=course.id, bib_number="1",
+        status="finisher", rank_overall=1, is_relay=False,
+    )
+    participation_repository.create(
+        db_session, athlete_id=solo2.id, course_id=course.id, bib_number="2",
+        status="finisher", rank_overall=2, is_relay=False,
+    )
+    participation_repository.create(
+        db_session, athlete_id=relayeur.id, course_id=course.id, bib_number="3",
+        status="finisher", rank_overall=1, is_relay=True,
+    )
+    db_session.commit()
+
+    detail_relayeur = client.get(f"/api/v1/athletes/{relayeur.id}").json()
+    assert detail_relayeur["participations"][0]["course_finishers"] == 1
+
+    detail_solo = client.get(f"/api/v1/athletes/{solo1.id}").json()
+    assert detail_solo["participations"][0]["course_finishers"] == 2
+
+
+def test_athlete_detail_course_finishers_null_sans_finisher_classe(client):
+    """Aucun finisher classé dans la course : `course_finishers` est `null` dans le JSON."""
+    client.post(
+        "/api/v1/participations",
+        json={**_payload(bib="1"), "rank_overall": None, "total_time": ""},
+    )
+
+    athletes = client.get("/api/v1/athletes", params={"name": "dupont"}).json()
+    detail = client.get(f"/api/v1/athletes/{athletes[0]['id']}").json()
+
+    assert detail["participations"][0]["course_finishers"] is None

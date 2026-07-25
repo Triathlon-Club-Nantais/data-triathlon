@@ -313,5 +313,5 @@ def test_finishers_count_by_group_sans_finisher_classe_ne_produit_pas_de_cle(db_
     assert participation_repository.finishers_count_by_group(db_session, [course.id]) == {}
 
 
-def test_finishers_count_by_group_sans_ids_ne_requete_pas(db_session):
+def test_finishers_count_by_group_sans_ids_renvoie_un_dict_vide(db_session):
     assert participation_repository.finishers_count_by_group(db_session, []) == {}
