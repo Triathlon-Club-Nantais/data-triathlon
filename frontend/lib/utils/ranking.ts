@@ -42,8 +42,10 @@ export function bestRatio(parts: Participation[]): RatioEntry | null {
       best = { participation, ratio };
       continue;
     }
-    const candidate = ratio.rank / ratio.total;
-    const incumbent = best.ratio.rank / best.ratio.total;
+    // Produits croisés plutôt que deux divisions : les totaux sont > 0, donc
+    // l'ordre est préservé, et la comparaison reste exacte (entiers).
+    const candidate = ratio.rank * best.ratio.total;
+    const incumbent = best.ratio.rank * ratio.total;
     if (candidate < incumbent || (candidate === incumbent && ratio.rank < best.ratio.rank)) {
       best = { participation, ratio };
     }

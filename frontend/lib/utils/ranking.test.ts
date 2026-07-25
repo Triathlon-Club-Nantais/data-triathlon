@@ -101,6 +101,14 @@ describe("bestRatio", () => {
     expect(best?.participation.id).toBe(2);
   });
 
+  it("départage aussi deux ratios égaux non représentables en binaire (1/3)", () => {
+    const best = bestRatio([
+      part({ id: 1, rank_overall: 2, course_finishers: 6 }),
+      part({ id: 2, rank_overall: 1, course_finishers: 3 }),
+    ]);
+    expect(best?.participation.id).toBe(2);
+  });
+
   it("ignore les participations sans ratio exploitable", () => {
     expect(bestRatio([part({ id: 1, rank_overall: 42, course_finishers: 20 })])).toBeNull();
     expect(bestRatio([])).toBeNull();
