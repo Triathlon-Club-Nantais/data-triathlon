@@ -127,6 +127,7 @@ export interface ScrapedPreview {
 
 export interface ImportResult {
   imported: number;
+  updated: number;
   skipped: number;
   cached?: boolean;
 }
@@ -134,8 +135,8 @@ export interface ImportResult {
 // Événements du flux SSE d'import.
 export type ImportProgressEvent =
   | { phase: "scraping"; message: string }
-  | { phase: "saving"; total: number; imported: number; skipped: number; progress: number }
-  | { phase: "done"; imported: number; skipped: number; total: number; cached?: boolean }
+  | { phase: "saving"; total: number; imported: number; updated: number; skipped: number; progress: number }
+  | { phase: "done"; imported: number; updated: number; skipped: number; total: number; cached?: boolean }
   | { phase: "error"; message: string };
 
 export interface PendingProvider {

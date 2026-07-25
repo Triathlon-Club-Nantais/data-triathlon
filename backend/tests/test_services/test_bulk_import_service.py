@@ -214,6 +214,22 @@ def test_run_import_sheet_rien_de_neuf_n_est_pas_un_echec(db_session, monkeypatc
     assert out.echec_total is False
 
 
+def test_sheet_outcome_porte_updated(db_session, monkeypatch):
+    """`updated` (Task 5) doit remonter du `BatchTotals` jusqu'à l'`Outcome`."""
+    from app.services.batch import BatchTotals
+
+    monkeypatch.setattr(
+        bulk_import_service, "run_batch",
+        lambda *a, **k: BatchTotals(imported=2, updated=4, skipped=1, processed=1),
+    )
+    csv_text = (
+        "a,Donne-nous un lien pour accéder aux résultats.\n"
+        "x,https://www.klikego.com/e/1\n"
+    )
+    out = bulk_import_service.run_import_sheet(db_session, csv_text, _settings(), delay=0)
+    assert out.updated == 4
+
+
 def test_run_import_sheet_liens_non_supportes_ne_font_pas_un_echec(db_session, monkeypatch):
     """Aucun lien supporté dans le Sheet : rien n'a été tenté, donc rien n'a échoué."""
     csv_text = (

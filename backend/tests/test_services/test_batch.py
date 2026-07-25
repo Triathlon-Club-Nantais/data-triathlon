@@ -397,6 +397,28 @@ def test_run_batch_cumule_les_reconciliations(db_session, monkeypatch):
     ]
 
 
+def test_run_batch_cumule_updated(db_session, monkeypatch):
+    from app.services import batch, import_service
+
+    def _fake_iter(db, url, settings, force, persist=True):
+        yield {"phase": "saving", "total": 1, "imported": 0, "updated": 1, "skipped": 0, "progress": 1}
+        yield {"phase": "done", "imported": 0, "updated": 1, "skipped": 2, "total": 1}
+
+    monkeypatch.setattr(import_service, "iter_import_event", _fake_iter)
+
+    totals = batch.run_batch(
+        db_session,
+        [batch.BatchItem(url="http://a", label="a"), batch.BatchItem(url="http://b", label="b")],
+        _settings(),
+        force=True,
+        delay=0,
+    )
+    assert totals.updated == 2
+    assert totals.imported == 0
+    assert totals.skipped == 4
+    assert totals.errors == 0
+
+
 # --- règle « échec total » ----------------------------------------------------
 
 

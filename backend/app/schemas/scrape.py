@@ -8,5 +8,6 @@ class ScrapeRequest(BaseModel):
 
 class ImportResult(BaseModel):
     imported: int
+    updated: int = 0
     skipped: int
     cached: bool = False

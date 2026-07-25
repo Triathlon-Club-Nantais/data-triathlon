@@ -10,6 +10,7 @@ export interface ImportState {
   total: number;
   progress: number;
   imported: number;
+  updated: number;
   skipped: number;
   cached: boolean;
   error: string | null;
@@ -22,6 +23,7 @@ const INITIAL: ImportState = {
   total: 0,
   progress: 0,
   imported: 0,
+  updated: 0,
   skipped: 0,
   cached: false,
   error: null,
@@ -46,6 +48,7 @@ export function useImportStream() {
             total: ev.total,
             progress: ev.progress,
             imported: ev.imported,
+            updated: ev.updated,
             skipped: ev.skipped,
           }));
         } else if (ev.phase === "done") {
@@ -56,6 +59,7 @@ export function useImportStream() {
             total: ev.total,
             progress: ev.total,
             imported: ev.imported,
+            updated: ev.updated,
             skipped: ev.skipped,
             cached: Boolean(ev.cached),
           }));

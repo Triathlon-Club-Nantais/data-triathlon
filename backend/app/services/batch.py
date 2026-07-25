@@ -46,9 +46,10 @@ class BatchTotals:
     """Compteurs cumulés d'un batch. `interrupted` = arrêté par Ctrl-C.
 
     Deux unités cohabitent, et le bilan doit les nommer : `processed`/`errors`
-    comptent des **épreuves**, `imported`/`skipped` des **participants**.
+    comptent des **épreuves**, `imported`/`updated`/`skipped` des **participants**.
     """
     imported: int = 0
+    updated: int = 0
     skipped: int = 0
     errors: int = 0
     #: Épreuves allées au bout (succès **ou** échec). Sous Ctrl-C, celle qui a
@@ -69,6 +70,7 @@ class BatchTotals:
 class _ItemResult:
     """Ce qu'une épreuve rapporte au batch. `error` non nul = épreuve fautive."""
     imported: int = 0
+    updated: int = 0
     skipped: int = 0
     error: str | None = None
     reconciled: int = 0
@@ -169,6 +171,7 @@ def _import_one(
             )
         elif nom == "done":
             result.imported = phase.get("imported", 0)
+            result.updated = phase.get("updated", 0)
             result.skipped = phase.get("skipped", 0)
             result.reconciled = phase.get("reconciled", 0)
             result.reassignments = phase.get("reassignments", [])
@@ -214,6 +217,7 @@ def run_batch(
                 )
             else:
                 totals.imported += result.imported
+                totals.updated += result.updated
                 totals.skipped += result.skipped
                 totals.reconciled += result.reconciled
                 totals.reassignments.extend(result.reassignments)

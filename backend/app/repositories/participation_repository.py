@@ -45,6 +45,16 @@ def exists_for_bib(db: Session, course_id: int, bib_number: str | None) -> bool:
     )
 
 
+def count_for_course(db: Session, course_id: int) -> int:
+    """Nombre de participations d'une course — avec ou sans dossard."""
+    return (
+        db.query(func.count(Participation.id))
+        .filter(Participation.course_id == course_id)
+        .scalar()
+        or 0
+    )
+
+
 def existing_bibs_for_course(db: Session, course_id: int) -> set[str]:
     """Dossards déjà importés pour une course — pour dédoublonner un import en masse."""
     rows = (
@@ -55,45 +65,21 @@ def existing_bibs_for_course(db: Session, course_id: int) -> set[str]:
     return {r[0] for r in rows}
 
 
-def existing_participations_for_course(
-    db: Session, course_id: int
-) -> dict[str, Participation]:
-    """Participations à dossard déjà en base pour une course, indexées par dossard.
-
-    Le repli de réconciliation (`import_service._Persister`) a besoin de la
-    **participation** (pour réassigner son `athlete_id`), pas seulement de son
-    dossard : `existing_bibs_for_course` ne suffit plus. L'athlète est joint
-    d'emblée — la garde des ambigus lit son prénom sans requête supplémentaire.
-    """
-    rows = (
-        db.query(Participation)
-        .options(joinedload(Participation.athlete))
-        .filter(Participation.course_id == course_id, Participation.bib_number.isnot(None))
-        .all()
-    )
-    return {p.bib_number: p for p in rows}
-
-
-def athlete_counts_without_bib(db: Session, course_id: int) -> dict[int, int]:
-    """Nombre de participations **sans dossard** déjà importées, par athlète.
-
-    Repli de déduplication quand le chronométreur n'attribue pas de dossard : la
-    clé `(course, dossard)` ne discrimine plus rien. On compte au lieu de tester
-    la présence, car une même personne peut légitimement figurer plusieurs fois
-    dans les résultats source.
-    """
-    rows = (
-        db.query(Participation.athlete_id, func.count(Participation.id))
-        .filter(Participation.course_id == course_id, Participation.bib_number.is_(None))
-        .group_by(Participation.athlete_id)
-        .all()
-    )
-    return {athlete_id: int(count) for athlete_id, count in rows}
-
-
 def create(db: Session, **fields) -> Participation:
     participation = Participation(**fields)
     db.add(participation)
+    db.flush()
+    return participation
+
+
+def update(db: Session, participation: Participation, **fields) -> Participation:
+    """Écrit les `fields` fournis sur une participation existante.
+
+    Ne touche que les colonnes passées : le persister a déjà décidé, champ par
+    champ, lesquelles la source a le droit de réécrire (fusion prudente).
+    """
+    for key, value in fields.items():
+        setattr(participation, key, value)
     db.flush()
     return participation
 
