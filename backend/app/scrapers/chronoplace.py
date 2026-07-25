@@ -30,8 +30,9 @@ from urllib.parse import urlparse
 import httpx
 from bs4 import BeautifulSoup
 
+from .base import ScrapedResult
 from .classify import classify_event_type
-from .utils import normalize_time, parse_fr_date
+from .utils import normalize_rank, normalize_time, parse_fr_date, split_athlete_name
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,17 @@ _CATEGORY_IDS = {
     "duathlon": 18, "fauteuils roulants": 17, "gravel": 13, "hyrox": 16,
     "moto cross": 11, "multiple": 9, "trail": 1, "triathlon": 12,
     "voiture à pédales": 15, "vtt": 5, "xco": 7,
+}
+
+# Colonne source → slot positionnel de ScrapedResult. Les slots portent des noms
+# triathlon par convention ; services/mapping.build_splits les ré-étiquette selon
+# `event_type` (duathlon → course1/course2, swimrun → swim/run…).
+_SPLIT_FIELDS = {
+    "T_natation": "swim_time",
+    "T1": "t1_time",
+    "T_velo": "bike_time",
+    "T2": "t2_time",
+    "T_course_a_pied": "run_time",
 }
 
 
@@ -255,3 +267,63 @@ def _fetch_event_date(client: httpx.Client, slug: str, year: str, category_label
         logger.warning("Annuaire /recherche indisponible pour %s : %s", slug, exc)
         return None
     return _parse_event_date(html, slug)
+
+
+def _build_result(
+    row: dict[str, str],
+    *,
+    url: str,
+    event_name: str,
+    event_type: str,
+    event_date: date | None,
+    is_team: bool,
+) -> ScrapedResult:
+    """Une ligne de classement → un participant.
+
+    `status` reste vide : aucun label DNF/DNS/DSQ n'a été observé sur les épreuves
+    sondées, et `services/mapping.derive_status` applique alors son heuristique.
+    """
+    surname, firstname = split_athlete_name(row.get("nom", ""))
+    category = (row.get("categorie") or "").strip()
+
+    result = ScrapedResult(source_url=url, provider="chronoplace")
+    result.event_name = event_name
+    result.event_type = event_type
+    result.event_date = event_date
+    result.athlete_name = surname
+    result.athlete_firstname = firstname
+    result.bib_number = (row.get("dossard") or "").strip()
+    result.club = (row.get("club") or "").strip()
+    result.category = category
+    result.gender = (row.get("genre") or "").strip()
+    result.rank_overall = normalize_rank(row.get("position"))
+    result.rank_gender = normalize_rank(row.get("clasmt_genre"))
+    result.total_time = _time_or_empty(row.get("temps", ""))
+    for column, field in _SPLIT_FIELDS.items():
+        setattr(result, field, _time_or_empty(row.get(column, "")))
+    result.is_relay = bool(is_team) or _is_relay_category(category)
+    # Tout le brut est conservé : `nb_tours` et `ecart` ne vivent que là.
+    result.raw_data = dict(row)
+    return result
+
+
+def _epreuve_results(
+    html: str, url: str, slug: str, event_date: date | None
+) -> list[ScrapedResult]:
+    """HTML d'une page de classement → participants. Pur : aucune requête."""
+    snapshot = _parse_snapshot(html)
+    analytics = snapshot.get("analyticsContext") or {}
+    event_name = _event_name(html, slug)
+    event_type = _event_type(analytics, event_name)
+    is_team = bool(snapshot.get("isTeam"))
+    return [
+        _build_result(
+            row,
+            url=url,
+            event_name=event_name,
+            event_type=event_type,
+            event_date=event_date,
+            is_team=is_team,
+        )
+        for row in _parse_table(html)
+    ]

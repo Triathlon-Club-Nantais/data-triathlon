@@ -327,3 +327,108 @@ def test_fetch_event_date_categorie_inconnue_ne_requete_pas():
 def test_fetch_event_date_annuaire_en_erreur():
     client = FakeClient(defaut=FakeResponse("", 500))
     assert chronoplace._fetch_event_date(client, "x-2025", "2025", "Triathlon") is None
+
+
+def _resultats(html: str, slug: str, event_date=None):
+    return chronoplace._epreuve_results(html, "https://exemple/url-demandee", slug, event_date)
+
+
+def test_epreuve_results_triathlon():
+    from datetime import date
+
+    resultats = _resultats(EPREUVE_494, "spaycific-races-2025", date(2025, 9, 21))
+
+    assert len(resultats) == 3
+    tcn = resultats[1]
+    assert tcn.provider == "chronoplace"
+    assert tcn.source_url == "https://exemple/url-demandee"
+    assert (tcn.athlete_name, tcn.athlete_firstname) == ("MASHAYEKHI", "Sherwin")
+    assert tcn.bib_number == "49"
+    assert tcn.club == "TRIATHLON CLUB NANTAIS"
+    assert tcn.gender == "M"
+    assert tcn.rank_overall == 8
+    assert tcn.total_time == "01:06:55"
+    assert tcn.event_name == "Spay'cific Races 2025 - Spay'cific Triathlon S"
+    assert tcn.event_type == "triathlon-s"
+    assert tcn.event_date == date(2025, 9, 21)
+    assert tcn.is_relay is False
+
+
+def test_epreuve_results_splits_dans_les_slots_positionnels():
+    """Les 5 slots triathlon sont ré-étiquetés par sport dans services/mapping."""
+    premier = _resultats(EPREUVE_494, "spaycific-races-2025")[0]
+
+    assert premier.swim_time == "00:10:53"
+    assert premier.t1_time == "00:00:48"
+    assert premier.bike_time == "00:31:01"
+    assert premier.t2_time == "00:00:52"
+    assert premier.run_time == "00:04:33"
+
+
+def test_epreuve_results_splits_absents_rendus_en_tiret():
+    """Ligne réelle : splits non chronométrés (« — »), temps total présent."""
+    sans_splits = _resultats(EPREUVE_494, "spaycific-races-2025")[2]
+
+    assert sans_splits.total_time == "01:30:44"
+    assert (sans_splits.swim_time, sans_splits.bike_time, sans_splits.run_time) == ("", "", "")
+
+
+def test_epreuve_results_le_scraper_ne_se_prononce_pas_sur_le_statut():
+    """Aucun label DNF/DNS/DSQ observé : on laisse mapping.derive_status décider."""
+    assert all(r.status == "" for r in _resultats(EPREUVE_494, "spaycific-races-2025"))
+
+
+def test_epreuve_results_relais_detecte_par_la_categorie():
+    resultats = _resultats(EPREUVE_566, "spaycific-races-2025")
+
+    assert [r.is_relay for r in resultats] == [False, True, True]
+    assert resultats[1].category == "Relais Mixte"
+    assert resultats[0].event_type == "swimrun"
+
+
+def test_epreuve_results_nom_dequipe_limite_connue():
+    """`split_athlete_name` coupe un nom d'équipe au premier jeton non capitalisé.
+
+    Comportement hérité de TimePulse, verrouillé ici volontairement : on reste
+    cohérent avec les autres providers plutôt que d'inventer une règle locale.
+    """
+    relais = _resultats(EPREUVE_566, "spaycific-races-2025")[1]
+
+    assert relais.athlete_name == "MENARDAIS FERDINAND"
+    assert relais.athlete_firstname == "/ COMPAIN LENA"
+
+
+def test_epreuve_results_is_team_du_snapshot():
+    """24 h VTT : `isTeam:true`, aucune colonne catégorie — le relais vient du snapshot."""
+    resultats = _resultats(EPREUVE_493, "24h-vtt-de-cergy-2025")
+
+    assert all(r.is_relay for r in resultats)
+    assert resultats[0].athlete_name == "CREPHAISSON"
+    assert resultats[0].category == ""
+    assert resultats[0].gender == ""
+
+
+def test_epreuve_results_duree_superieure_a_24h():
+    assert _resultats(EPREUVE_493, "24h-vtt-de-cergy-2025")[1].total_time == "24:00:13"
+
+
+def test_epreuve_results_raw_data_conserve_toutes_les_cellules():
+    """`nb_tours` et `ecart` ne sont ni temps ni split : ils ne vivent que là."""
+    relais = _resultats(EPREUVE_566, "spaycific-races-2025")[1]
+
+    assert relais.raw_data["nb_tours"] == "15"
+    assert relais.raw_data["ecart"] == "+5:16"
+    assert relais.raw_data["temps"] == "02:05:37"
+
+
+def test_build_result_sans_colonne_dossard():
+    """Certaines épreuves n'affichent pas le dossard : pas de KeyError, champ vide."""
+    resultat = chronoplace._build_result(
+        {"position": "1", "nom": "ONICOACH", "temps": "05:54:28"},
+        url="u", event_name="E", event_type="triathlon", event_date=None, is_team=True,
+    )
+
+    assert resultat.bib_number == ""
+    assert resultat.club == ""
+    assert resultat.rank_overall == 1
+    assert resultat.is_relay is True
