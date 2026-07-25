@@ -31,5 +31,6 @@ export function gridMinWidth(
   { gap, paddingX }: { gap: number; paddingX: number },
 ): number {
   const total = tracks.reduce<number>((sum, t) => sum + trackMin(t), 0);
-  return total + gap * (tracks.length - 1) + paddingX * 2;
+  const gutters = Math.max(0, tracks.length - 1);
+  return total + gap * gutters + paddingX * 2;
 }

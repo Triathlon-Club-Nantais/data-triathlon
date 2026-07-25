@@ -171,6 +171,9 @@ describe("EventList", () => {
     const style = getComputedStyle(row);
     // Une valeur px par piste : sa largeur fixe, ou la borne basse de son minmax.
     const tracks = [...style.gridTemplateColumns.matchAll(/(\d+)px/g)].map((m) => Number(m[1]));
+    // Sans cette assertion, un `gridTemplateColumns` illisible passerait pour
+    // une grille sans colonne — et le test réussirait sans rien contraindre.
+    expect(tracks).toHaveLength(7); // Date | Épreuve | Type | Format | Résultats | TCN | →
     const required =
       tracks.reduce((a, b) => a + b, 0) +
       parseFloat(style.columnGap) * (tracks.length - 1) +
