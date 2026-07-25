@@ -16,7 +16,7 @@ from app.services import import_service
 router = APIRouter(tags=["scrape"])
 
 
-def _json_default(o):
+def _json_default(value: object) -> object:
     """Filet de sérialisation JSON pour les phases du SSE.
 
     `iter_import_event` peut émettre des dataclasses (ex. `Reassignment`,
@@ -25,9 +25,9 @@ def _json_default(o):
     Python — la conversion se fait donc ici, au point de sérialisation SSE,
     jamais dans le générateur.
     """
-    if is_dataclass(o) and not isinstance(o, type):
-        return asdict(o)
-    return str(o)
+    if is_dataclass(value) and not isinstance(value, type):
+        return asdict(value)
+    return str(value)
 
 
 @router.post("/scrape/event", response_model=ImportResult)
