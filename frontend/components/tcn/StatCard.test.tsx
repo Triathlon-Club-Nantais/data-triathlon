@@ -13,6 +13,6 @@ describe("StatCard", () => {
   it("n'affiche aucune sous-ligne sans hint", () => {
     render(<StatCard label="Top 10" value={3} />);
 
-    expect(screen.queryByText("42e sur 300")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("statcard-hint")).not.toBeInTheDocument();
   });
 });

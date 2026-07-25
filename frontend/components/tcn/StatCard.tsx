@@ -80,7 +80,7 @@ export function StatCard({
         <div style={{ height: 4, width: 48, background: "var(--tcn-orange)", borderRadius: 999, marginTop: 8 }} />
       ) : null}
       {hint ? (
-        <div style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: "var(--tcn-text-faint)" }}>
+        <div data-testid="statcard-hint" style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: "var(--tcn-text-faint)" }}>
           {hint}
         </div>
       ) : null}
