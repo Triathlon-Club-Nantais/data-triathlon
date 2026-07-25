@@ -77,3 +77,79 @@ def test_parse_snapshot_page_sans_composant():
 
 def test_parse_snapshot_json_illisible():
     assert chronoplace._parse_snapshot('<div wire:snapshot="{pas du json">x</div>') == {}
+
+
+def test_parse_table_lit_les_colonnes_par_cle():
+    """Le `temps` est la dernière colonne, après les splits : lire par position casserait."""
+    rows = chronoplace._parse_table(EPREUVE_494)
+
+    assert len(rows) == 3
+    assert rows[0] == {
+        "position": "1",
+        "dossard": "90",
+        "nom": "MARTIN Malo",
+        "genre": "M",
+        "club": "ENTENTE HAUTE BRETAGNE TRIATHLON",
+        "T_natation": "00:10:53",
+        "T1": "00:00:48",
+        "T_velo": "00:31:01",
+        "T2": "00:00:52",
+        "T_course_a_pied": "00:04:33",
+        "temps": "01:01:26",
+    }
+
+
+def test_parse_table_colonnes_differentes_selon_lepreuve():
+    """Le swimrun n'a ni genre ni club, mais une catégorie, un nb de tours et un écart."""
+    rows = chronoplace._parse_table(EPREUVE_566)
+
+    assert len(rows) == 3
+    assert set(rows[0]) == {"position", "dossard", "nom", "categorie", "nb_tours", "temps", "ecart"}
+    assert rows[1]["categorie"] == "Relais Mixte"
+    assert rows[1]["ecart"] == "+5:16"
+
+
+def test_parse_table_epreuve_sans_dossard_ni_categorie():
+    rows = chronoplace._parse_table(EPREUVE_493)
+
+    assert [r["nom"] for r in rows] == ["CREPHAISSON", "LA ROUE LA VRAIE"]
+    assert "categorie" not in rows[0]
+
+
+def test_parse_table_page_sans_tableau():
+    assert chronoplace._parse_table("<html><body>rien</body></html>") == []
+
+
+def test_parse_table_ignore_une_ligne_desalignee():
+    """Anomalie jamais observée sur les 4 épreuves sondées, mais on ne décale rien."""
+    html = """
+    <table>
+      <thead><tr>
+        <th wire:click="sortBy('position')">P</th>
+        <th wire:click="sortBy('nom')">N</th>
+      </tr></thead>
+      <tbody>
+        <tr><td>1</td><td>MARTIN Malo</td></tr>
+        <tr><td colspan="2">Aucun résultat</td></tr>
+      </tbody>
+    </table>
+    """
+    rows = chronoplace._parse_table(html)
+
+    assert rows == [{"position": "1", "nom": "MARTIN Malo"}]
+
+
+@pytest.mark.parametrize(
+    "brut, attendu",
+    [
+        ("00:10:53", "00:10:53"),
+        ("5:16", "00:05:16"),        # MM:SS → HH:MM:SS
+        ("24:00:13", "24:00:13"),    # 24h VTT : durée > 24 h conservée telle quelle
+        ("—", ""),                   # cellule de split vide (tiret cadratin)
+        ("--", ""),                  # écart nul
+        ("+5:16", ""),               # écart : ni temps ni split
+        ("", ""),
+    ],
+)
+def test_time_or_empty(brut, attendu):
+    assert chronoplace._time_or_empty(brut) == attendu
