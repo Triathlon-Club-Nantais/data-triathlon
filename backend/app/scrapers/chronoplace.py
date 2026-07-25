@@ -46,6 +46,8 @@ HEADERS = {
 
 _URL_RE = re.compile(r"^/classement/(?P<slug>[^/]+)(?:/epreuve/(?P<id>\d+))?/?$")
 _SORT_RE = re.compile(r"sortBy\('([^']+)'\)")
+# Utilisé par `_parse_event_date` pour compter les liens /classement/ d'un ancêtre.
+_CLASSEMENT_HREF_RE = re.compile(r"/classement/")
 # Ce à quoi doit ressembler une valeur pour être prise pour un temps. Le site
 # rend « — » sur un split vide et « -- » / « +5:16 » dans la colonne d'écart :
 # `normalize_time` les laisse passer tels quels, il faut donc filtrer ici.
@@ -116,7 +118,13 @@ def _parse_snapshot(html: str) -> dict:
     except (json.JSONDecodeError, TypeError):
         logger.warning("wire:snapshot illisible")
         return {}
-    return {key: _unwrap(value) for key, value in data.items()}
+    unwrapped = {key: _unwrap(value) for key, value in data.items()}
+    # Garde-fou : si Livewire changeait sa sérialisation, `analyticsContext`
+    # pourrait rester une liste après déballage. Les appelants font tous
+    # `.get(...)` dessus ; un dict vide évite un `AttributeError` cryptique.
+    if not isinstance(unwrapped.get("analyticsContext"), dict):
+        unwrapped["analyticsContext"] = {}
+    return unwrapped
 
 
 def _column_keys(table) -> list[str]:
@@ -134,6 +142,20 @@ def _column_keys(table) -> list[str]:
     return keys
 
 
+def _find_table(soup: BeautifulSoup):
+    """La `<table>` du composant `classement-table`, repérée via `wire:snapshot`.
+
+    Scoper à cet élément porteur évite de prendre « la première table de la
+    page » si une autre `<table>` (bandeau, pub…) précède le composant. Repli
+    sur le document entier si l'élément est absent : les HTML de test réduits
+    (`test_parse_table_ignore_une_ligne_desalignee`) sont une `<table>` nue,
+    sans `wire:snapshot` — un ciblage strict casserait ce cas légitime.
+    """
+    container = soup.find(attrs={"wire:snapshot": True})
+    table = container.find("table") if container else None
+    return table if table is not None else soup.find("table")
+
+
 def _parse_table(html: str) -> list[dict[str, str]]:
     """Lignes du classement : une ligne = {clé de colonne → texte de la cellule}.
 
@@ -141,12 +163,23 @@ def _parse_table(html: str) -> list[dict[str, str]]:
     (`<!--[if BLOCK]-->`), donc l'alignement en-tête ↔ cellule est garanti ; une
     ligne au compte divergent est une anomalie, journalisée et sautée plutôt
     que décalée.
+
+    Deux anomalies structurelles sont journalisées (`<table>` absente, ou
+    aucune clé `sortBy` dans le `thead` : le markup a changé) car un import
+    silencieux à 0 participant ne se distinguerait pas d'un succès. À
+    l'inverse, un `<tbody>` vide (épreuve créée mais pas encore chronométrée)
+    est un cas légitime : `[]` sans un mot.
     """
-    table = BeautifulSoup(html, "lxml").find("table")
+    table = _find_table(BeautifulSoup(html, "lxml"))
     if table is None:
+        logger.warning("Page de classement sans <table> : markup chronoplace inattendu.")
         return []
     keys = _column_keys(table)
     if not any(keys):
+        logger.warning(
+            "Aucune clé de colonne (wire:click=\"sortBy(...)\") dans le <thead> : "
+            "markup chronoplace inattendu."
+        )
         return []
     rows = []
     for tr in table.select("tbody tr"):
@@ -162,6 +195,48 @@ def _time_or_empty(raw: str) -> str:
     """Temps normalisé, ou "" si la valeur n'en est pas un."""
     normalized = normalize_time((raw or "").strip())
     return normalized if _TIME_RE.match(normalized) else ""
+
+
+# Marqueurs connus d'une cellule de temps vide de sens (case vide, tiret cadratin
+# de split non chronométré, écart nul ou signé) : leur rejet par `_time_or_empty`
+# est normal et ne doit rien journaliser.
+_KNOWN_NON_TIME_VALUES = ("", "—", "--")
+
+
+def _is_unknown_time_rejection(raw: str) -> bool:
+    """Vrai si `_time_or_empty` rejette `raw` sans que ce soit un marqueur connu.
+
+    Distingue le cas légitime (`""`, `—`, `--`, `+5:16`) d'un format de temps
+    réellement inattendu (ex. des dixièmes ajoutés par le site) : ce dernier ne
+    doit pas se noyer en DNF silencieux (Important 2 de la revue).
+    """
+    value = (raw or "").strip()
+    if value in _KNOWN_NON_TIME_VALUES or value.startswith("+"):
+        return False
+    return _time_or_empty(value) == ""
+
+
+# Colonnes passées à `_time_or_empty` dans `_build_result` : le temps total, plus
+# les 5 splits positionnels. `ecart` et `nb_tours` n'en font pas partie : ce ne
+# sont pas des temps (cf. `raw_data`).
+_TIME_COLUMNS = ("temps", *_SPLIT_FIELDS.keys())
+
+
+def _log_unknown_time_rejections(rows: list[dict[str, str]], slug: str) -> None:
+    """Signal agrégé (une fois par épreuve, pas une fois par cellule) des rejets
+    de temps au format inconnu. Pas d'état global : tout vit dans cet appel."""
+    inconnues = [
+        row[column]
+        for row in rows
+        for column in _TIME_COLUMNS
+        if column in row and _is_unknown_time_rejection(row[column])
+    ]
+    if inconnues:
+        logger.warning(
+            "Épreuve %s : %d cellule(s) de temps au format inattendu, "
+            "classées DNF (échantillon : %s)",
+            slug, len(inconnues), inconnues[:5],
+        )
 
 
 def _event_name(html: str, slug: str) -> str:
@@ -187,12 +262,15 @@ def _list_epreuves(html: str, slug: str) -> list[str]:
     """Ids des épreuves sœurs, lus dans les onglets de la page (ordre du document).
 
     Filtre sur le slug de l'événement courant : un lien vers un autre événement
-    n'a rien à faire dans l'import.
+    n'a rien à faire dans l'import. `urlparse(href).path` neutralise le cas d'un
+    href absolu (`https://www.chronoplace.fr/classement/...`) : sans lui, un
+    passage du site aux URLs absolues ferait disparaître les épreuves sœurs en
+    silence.
     """
     pattern = re.compile(rf"^/classement/{re.escape(slug)}/epreuve/(\d+)/?$")
     ids: list[str] = []
     for a in BeautifulSoup(html, "lxml").find_all("a", href=True):
-        m = pattern.match(a["href"].strip())
+        m = pattern.match(urlparse(a["href"].strip()).path)
         if m and m.group(1) not in ids:
             ids.append(m.group(1))
     return ids
@@ -215,12 +293,18 @@ def _is_relay_category(category: str) -> bool:
     return any(hint in normalized for hint in _RELAY_HINTS)
 
 
-def _fetch(client: httpx.Client, path: str) -> str:
-    """GET sur le site. 404 → `ValueError` explicite (le site exige slug + id exacts)."""
+def _fetch(client: httpx.Client, path: str, *, message_404: str | None = None) -> str:
+    """GET sur le site. 404 → `ValueError` explicite (le site exige slug + id exacts).
+
+    `message_404` permet aux appelants dont la page 404 n'est pas un classement
+    (l'annuaire /recherche, par ex.) de fournir un message adapté : le défaut
+    parle d'« épreuve », ce qui serait trompeur ailleurs.
+    """
     response = client.get(f"{BASE_URL}{path}")
     if response.status_code == 404:
         raise ValueError(
-            f"Épreuve chronoplace introuvable ({path}) : slug obsolète ou épreuve retirée."
+            message_404
+            or f"Épreuve chronoplace introuvable ({path}) : slug obsolète ou épreuve retirée."
         )
     response.raise_for_status()
     return response.text
@@ -232,6 +316,12 @@ def _parse_event_date(html: str, slug: str) -> date | None:
     La carte porte `<time datetime="2025-09-21 00:00:00">21 septembre 2025</time>`
     dans un ancêtre du lien : on remonte les parents jusqu'à le trouver. Repli sur
     le texte français si l'attribut manque.
+
+    Garde-fou : un ancêtre n'est retenu que s'il ne contient qu'un seul lien
+    `/classement/` — sur un markup aplati (cartes non isolées par un conteneur
+    propre), un ancêtre plus large engloberait plusieurs événements et son
+    premier `<time>` en document ne serait pas forcément le bon. Mieux vaut
+    `None` (contrat du design) qu'une date d'un autre événement.
     """
     for a in BeautifulSoup(html, "lxml").find_all("a", href=True):
         if f"/classement/{slug}/" not in a["href"]:
@@ -244,6 +334,8 @@ def _parse_event_date(html: str, slug: str) -> date | None:
             time_el = node.find("time")
             if not time_el:
                 continue
+            if len(node.find_all("a", href=_CLASSEMENT_HREF_RE)) > 1:
+                continue  # ancêtre trop large : plusieurs événements dedans
             try:
                 return date.fromisoformat((time_el.get("datetime") or "")[:10])
             except ValueError:
@@ -257,12 +349,20 @@ def _fetch_event_date(client: httpx.Client, slug: str, year: str, category_label
     La page de classement ne porte aucune date. Filtrer par année + catégorie
     ramène l'annuaire à une seule page, donc pas de pagination à parcourir.
     """
+    if not year:
+        logger.info("Date non cherchée pour %s : année d'événement inconnue.", slug)
+        return None
     category_id = _CATEGORY_IDS.get((category_label or "").strip().lower())
-    if not category_id or not year:
+    if not category_id:
         logger.info("Date non cherchée pour %s (catégorie %r inconnue)", slug, category_label)
         return None
+    path = f"/recherche?module=classement&annee={year}&categorie={category_id}"
     try:
-        html = _fetch(client, f"/recherche?module=classement&annee={year}&categorie={category_id}")
+        html = _fetch(
+            client,
+            path,
+            message_404=f"Annuaire chronoplace introuvable ({path}).",
+        )
     except (ValueError, httpx.HTTPError) as exc:
         logger.warning("Annuaire /recherche indisponible pour %s : %s", slug, exc)
         return None
@@ -298,6 +398,8 @@ def _build_result(
     result.gender = (row.get("genre") or "").strip()
     result.rank_overall = normalize_rank(row.get("position"))
     result.rank_gender = normalize_rank(row.get("clasmt_genre"))
+    # rank_category reste None : aucune colonne source ne le porte (contrairement
+    # à `status`, aucune classe cachée n'a été observée à corriger davantage).
     result.total_time = _time_or_empty(row.get("temps", ""))
     for column, field in _SPLIT_FIELDS.items():
         setattr(result, field, _time_or_empty(row.get(column, "")))
@@ -316,6 +418,8 @@ def _epreuve_results(
     event_name = _event_name(html, slug)
     event_type = _event_type(analytics, event_name)
     is_team = bool(snapshot.get("isTeam"))
+    rows = _parse_table(html)
+    _log_unknown_time_rejections(rows, slug)
     return [
         _build_result(
             row,
@@ -325,7 +429,7 @@ def _epreuve_results(
             event_date=event_date,
             is_team=is_team,
         )
-        for row in _parse_table(html)
+        for row in rows
     ]
 
 

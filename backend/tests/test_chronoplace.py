@@ -4,6 +4,7 @@ Tests unitaires pour scrapers/chronoplace.py (sans réseau).
 Les fixtures sont des extraits réels du site (2026-07-25), réduits à quelques
 lignes : structure conditionnelle Livewire et `wire:snapshot` conservés tels quels.
 """
+import logging
 from pathlib import Path
 
 import httpx
@@ -81,6 +82,13 @@ def test_parse_snapshot_json_illisible():
     assert chronoplace._parse_snapshot('<div wire:snapshot="{pas du json">x</div>') == {}
 
 
+def test_parse_snapshot_analytics_context_non_dict_devient_dict_vide():
+    """Minor 2 : si Livewire sérialisait `analyticsContext` autrement (liste), les
+    appelants (`.get(...)`) ne doivent pas lever d'AttributeError cryptique."""
+    html = '<div wire:snapshot=\'{"data": {"analyticsContext": [1, 2, 3]}}\'></div>'
+    assert chronoplace._parse_snapshot(html)["analyticsContext"] == {}
+
+
 def test_parse_table_lit_les_colonnes_par_cle():
     """Le `temps` est la dernière colonne, après les splits : lire par position casserait."""
     rows = chronoplace._parse_table(EPREUVE_494)
@@ -111,7 +119,9 @@ def test_parse_table_colonnes_differentes_selon_lepreuve():
     assert rows[1]["ecart"] == "+5:16"
 
 
-def test_parse_table_epreuve_sans_dossard_ni_categorie():
+def test_parse_table_epreuve_sans_categorie():
+    """La fixture 493 porte bien une colonne dossard (519, 618) : seule
+    `categorie` manque (24h VTT par équipe, sans genre/catégorie affichés)."""
     rows = chronoplace._parse_table(EPREUVE_493)
 
     assert [r["nom"] for r in rows] == ["CREPHAISSON", "LA ROUE LA VRAIE"]
@@ -120,6 +130,74 @@ def test_parse_table_epreuve_sans_dossard_ni_categorie():
 
 def test_parse_table_page_sans_tableau():
     assert chronoplace._parse_table("<html><body>rien</body></html>") == []
+
+
+def test_parse_table_page_sans_tableau_journalise_un_warning(caplog):
+    """Anomalie structurelle (Important 1) : sans <table>, un import « vert à 0
+    participant » ne doit pas passer inaperçu."""
+    with caplog.at_level(logging.WARNING):
+        rows = chronoplace._parse_table("<html><body>rien</body></html>")
+
+    assert rows == []
+    assert len(caplog.records) == 1
+    assert "table" in caplog.records[0].getMessage().lower()
+
+
+def test_parse_table_sans_cle_de_colonne_journalise_un_warning(caplog):
+    """Un <thead> sans `sortBy` (markup changé) est aussi une anomalie structurelle,
+    distincte d'un tbody vide légitime."""
+    html = """
+    <table>
+      <thead><tr><th>Position</th><th>Nom</th></tr></thead>
+      <tbody><tr><td>1</td><td>MARTIN Malo</td></tr></tbody>
+    </table>
+    """
+    with caplog.at_level(logging.WARNING):
+        rows = chronoplace._parse_table(html)
+
+    assert rows == []
+    assert len(caplog.records) == 1
+    assert "sortBy" in caplog.records[0].getMessage()
+
+
+def test_parse_table_tbody_vide_ne_journalise_rien(caplog):
+    """Cas légitime (fait n° 7 du plan) : épreuve créée mais pas encore
+    chronométrée → tbody vide, `[]` sans le moindre bruit."""
+    html = """
+    <table>
+      <thead><tr>
+        <th wire:click="sortBy('position')">P</th>
+        <th wire:click="sortBy('nom')">N</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+    """
+    with caplog.at_level(logging.WARNING):
+        rows = chronoplace._parse_table(html)
+
+    assert rows == []
+    assert caplog.records == []
+
+
+def test_parse_table_scope_au_composant_livewire():
+    """Une <table> décorative placée avant le composant `classement-table` ne
+    doit pas être prise pour « la première table de la page » (Important 1,
+    volet 2)."""
+    html = """
+    <table><tr><td>Table hors composant, ne pas lire</td></tr></table>
+    <div wire:snapshot="{}">
+      <table>
+        <thead><tr>
+          <th wire:click="sortBy('position')">P</th>
+          <th wire:click="sortBy('nom')">N</th>
+        </tr></thead>
+        <tbody>
+          <tr><td>1</td><td>MARTIN Malo</td></tr>
+        </tbody>
+      </table>
+    </div>
+    """
+    assert chronoplace._parse_table(html) == [{"position": "1", "nom": "MARTIN Malo"}]
 
 
 def test_parse_table_ignore_une_ligne_desalignee():
@@ -157,6 +235,44 @@ def test_time_or_empty(brut, attendu):
     assert chronoplace._time_or_empty(brut) == attendu
 
 
+@pytest.mark.parametrize("brut", ["", "—", "--", "+5:16", "+2:03:11"])
+def test_is_unknown_time_rejection_marqueurs_connus(brut):
+    """Les marqueurs légitimes ne sont jamais des rejets « inconnus » (anti-bruit)."""
+    assert chronoplace._is_unknown_time_rejection(brut) is False
+
+
+def test_is_unknown_time_rejection_format_inattendu():
+    """Un format jamais vu (dixièmes) est un rejet inconnu, à distinguer du silence
+    normal (Important 2)."""
+    assert chronoplace._is_unknown_time_rejection("01:06:55.3") is True
+    assert chronoplace._is_unknown_time_rejection("1:06:55,3") is True
+
+
+def test_log_unknown_time_rejections_agrege_en_un_seul_warning(caplog):
+    """Pas un warning par cellule : un signal agrégé par épreuve, avec un
+    échantillon (contrainte de forme du Important 2)."""
+    rows = [
+        {"temps": "01:06:55.3"},
+        {"temps": "01:10:00.1"},
+        {"temps": "—"},  # marqueur connu : ne doit pas compter
+    ]
+    with caplog.at_level(logging.WARNING):
+        chronoplace._log_unknown_time_rejections(rows, "spaycific-races-2025")
+
+    assert len(caplog.records) == 1
+    message = caplog.records[0].getMessage()
+    assert "spaycific-races-2025" in message
+    assert "2 cellule" in message
+
+
+def test_log_unknown_time_rejections_silence_si_rien_dinattendu(caplog):
+    """Pas de bruit quand tout est un marqueur connu."""
+    rows = [{"temps": "01:06:55"}, {"temps": "—"}, {"ecart": "+5:16"}]
+    with caplog.at_level(logging.WARNING):
+        chronoplace._log_unknown_time_rejections(rows, "x")
+    assert caplog.records == []
+
+
 def test_event_name_depuis_le_h1():
     """Le nom de l'épreuve doit figurer dans le nom de Course : `uq_course_identity`
     porte sur (name, event_date, event_type, is_relay), donc deux épreuves d'un même
@@ -188,6 +304,15 @@ def test_event_name_repli_slug():
 def test_list_epreuves_donne_les_onglets_de_levenement():
     assert chronoplace._list_epreuves(EPREUVE_494, "spaycific-races-2025") == ["494", "566"]
     assert chronoplace._list_epreuves(EPREUVE_493, "24h-vtt-de-cergy-2025") == ["492", "493"]
+
+
+def test_list_epreuves_href_absolu():
+    """Minor 3 : un href absolu ne doit pas faire disparaître une épreuve sœur."""
+    html = """
+    <a href="https://www.chronoplace.fr/classement/spaycific-races-2025/epreuve/494">A</a>
+    <a href="/classement/spaycific-races-2025/epreuve/566">B</a>
+    """
+    assert chronoplace._list_epreuves(html, "spaycific-races-2025") == ["494", "566"]
 
 
 def test_list_epreuves_ignore_les_autres_evenements():
@@ -292,6 +417,24 @@ def test_parse_event_date_slug_absent():
     assert chronoplace._parse_event_date(RECHERCHE_2025, "un-evenement-inconnu-2025") is None
 
 
+def test_parse_event_date_markup_plat_renvoie_none():
+    """Important 3 : sur un markup aplati (cartes non isolées), l'ancêtre porteur
+    du <time> le plus proche engloberait plusieurs événements — jamais la date
+    d'un autre événement, `None` en cas de doute (contrat du design)."""
+    html = """
+    <div class="grid">
+      <h3>Le Trophée Madiot</h3>
+      <time datetime="2026-07-19 00:00:00">19 juillet 2026</time>
+      <a href="/classement/le-trophee-madiot-2026/epreuve/721">Voir</a>
+
+      <h3>Spay'cific Races</h3>
+      <time datetime="2025-09-21 00:00:00">21 septembre 2025</time>
+      <a href="/classement/spaycific-races-2025/epreuve/494">Voir</a>
+    </div>
+    """
+    assert chronoplace._parse_event_date(html, "spaycific-races-2025") is None
+
+
 def test_parse_event_date_repli_texte_francais():
     """Si l'attribut `datetime` manque ou est illisible, on parse le texte affiché."""
     from datetime import date
@@ -327,6 +470,35 @@ def test_fetch_event_date_categorie_inconnue_ne_requete_pas():
 def test_fetch_event_date_annuaire_en_erreur():
     client = FakeClient(defaut=FakeResponse("", 500))
     assert chronoplace._fetch_event_date(client, "x-2025", "2025", "Triathlon") is None
+
+
+def test_fetch_event_date_annee_inconnue_message_dedie(caplog):
+    """Minor 1 : le message doit distinguer une année absente d'une catégorie
+    inconnue — sinon on lit « catégorie inconnue » alors que c'est l'année qui
+    manque, précisément le jour où le wire:snapshot change."""
+    client = FakeClient({"/recherche": RECHERCHE_2025})
+    with caplog.at_level(logging.INFO):
+        resultat = chronoplace._fetch_event_date(client, "x-2025", "", "Triathlon")
+
+    assert resultat is None
+    assert client.calls == []
+    assert "année" in caplog.text
+    assert "catégorie" not in caplog.text
+
+
+def test_fetch_event_date_annuaire_404_message_dedie(caplog):
+    """Minor 4 : le 404 de l'annuaire ne doit pas reprendre le vocabulaire du
+    classement (« Épreuve chronoplace introuvable… slug obsolète »), page
+    différente. Contrainte dure : cette chaîne reste inchangée pour le cas du
+    classement (voir test_fetch_404_leve_une_erreur_explicite)."""
+    client = FakeClient(defaut=FakeResponse("", 404))
+    with caplog.at_level(logging.WARNING):
+        resultat = chronoplace._fetch_event_date(client, "x-2025", "2025", "Triathlon")
+
+    assert resultat is None
+    assert "Épreuve chronoplace introuvable" not in caplog.text
+    assert "slug obsolète" not in caplog.text
+    assert "Annuaire" in caplog.text
 
 
 def _resultats(html: str, slug: str, event_date=None):
@@ -376,6 +548,49 @@ def test_epreuve_results_splits_absents_rendus_en_tiret():
 def test_epreuve_results_le_scraper_ne_se_prononce_pas_sur_le_statut():
     """Aucun label DNF/DNS/DSQ observé : on laisse mapping.derive_status décider."""
     assert all(r.status == "" for r in _resultats(EPREUVE_494, "spaycific-races-2025"))
+
+
+def test_epreuve_results_temps_format_inconnu_journalise_une_fois(caplog):
+    """Bout en bout (Important 2) : un format de temps jamais vu (dixièmes) ne
+    doit pas se noyer en DNF silencieux — un seul warning agrégé, pas un par
+    ligne, même si toutes les lignes sont touchées."""
+    html = """
+    <table>
+      <thead><tr>
+        <th wire:click="sortBy('position')">P</th>
+        <th wire:click="sortBy('nom')">N</th>
+        <th wire:click="sortBy('temps')">T</th>
+      </tr></thead>
+      <tbody>
+        <tr><td>1</td><td>MARTIN Malo</td><td>01:06:55.3</td></tr>
+        <tr><td>2</td><td>DUPONT Jean</td><td>01:10:00.1</td></tr>
+      </tbody>
+    </table>
+    """
+    with caplog.at_level(logging.WARNING):
+        resultats = chronoplace._epreuve_results(html, "https://exemple/url", "slug-x", None)
+
+    assert [r.total_time for r in resultats] == ["", ""]  # DNF côté mapping, sans surprise
+    assert len(caplog.records) == 1
+    assert "2 cellule" in caplog.records[0].getMessage()
+
+
+@pytest.mark.parametrize(
+    "html, slug",
+    [
+        (EPREUVE_494, "spaycific-races-2025"),
+        (EPREUVE_566, "spaycific-races-2025"),
+        (EPREUVE_493, "24h-vtt-de-cergy-2025"),
+    ],
+)
+def test_epreuve_results_aucun_warning_sur_les_fixtures_reelles(caplog, html, slug):
+    """Anti-bruit : les fixtures réelles portent des splits « — » et des écarts
+    « -- » / « +5:16 », tous légitimes — aucun warning ne doit s'en dégager. Un
+    warning qui se déclenche en fonctionnement normal apprend à ignorer les logs."""
+    with caplog.at_level(logging.WARNING):
+        chronoplace._epreuve_results(html, "https://exemple/url", slug, None)
+
+    assert caplog.records == []
 
 
 def test_epreuve_results_relais_detecte_par_la_categorie():
