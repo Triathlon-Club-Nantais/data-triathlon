@@ -53,7 +53,7 @@ def test_le_predicat_python_est_d_accord_avec_le_corpus():
 
 
 def test_la_liste_filtree_par_scope_club_ne_rend_que_le_club(db_session):
-    """Régression directe de #76 : 6 libellés « nantais », 3 seulement sont TCN."""
+    """Régression directe de #76 : 12 libellés « nantais », 9 seulement sont TCN."""
     _peupler(db_session)
 
     rows = participation_repository.list_participations(

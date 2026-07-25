@@ -26,7 +26,8 @@ export default async function DashboardPage({
 }) {
   // Page d'accueil = vitrine du club : portée TCN forcée, pas de choix « Tous »
   // (validé par Vincent, issue #6). Le paramètre `?scope` est volontairement
-  // ignoré, mais on lit `?seasons` pour le sélecteur de saison (issue #7).
+  // ignoré, mais on lit `?seasons` pour le sélecteur de saison (issue #7) et
+  // `?sports` pour le filtre fédéral/hors-fédération (issue #76).
   const sp = await searchParams;
 
   // Calcul de la sélection de saisons depuis l'URL, avec fallback sur la saison en cours

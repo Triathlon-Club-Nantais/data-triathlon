@@ -11,8 +11,11 @@ défaut, comme le repli du classifieur retombe déjà sur `triathlon`
 (`app/scrapers/classify.py`). Le contraire ferait disparaître des résultats sans
 que personne ne s'en aperçoive.
 
-Les slugs sont comparés **entiers** des deux côtés (Python et SQL), ce qui rend
-les deux implémentations incapables de diverger.
+Les slugs sont comparés **entiers** des deux côtés (Python et SQL) : sur ce
+terrain, les deux implémentations ne peuvent pas diverger. Cette garantie
+suppose toutefois un `event_type` non-`NULL` — `is_federal(None)` rend `True`
+alors qu'un `NULL NOT IN (...)` SQL rend `NULL` (donc une ligne écartée) — ce
+qu'assure la colonne `Course.event_type`, `NOT NULL` en base.
 """
 
 #: Slugs canoniques (cf. `classify.CANONICAL_TYPES`) hors fédération triathlon.
