@@ -29,6 +29,7 @@ LIVE_URLS = {
     "timepulse": "https://www.timepulse.fr/epreuves/resultats/live/3232",
     "prolivesport": "https://www.prolivesport.fr/result/1082/6",
     "sportinnovation": "https://sportinnovation.fr/Evenements/Resultats/7031",
+    "chronoplace": "https://www.chronoplace.fr/classement/spaycific-races-2025/epreuve/494",
 }
 
 
@@ -204,3 +205,26 @@ def test_chronowest_swimrun_nest_pas_un_triathlon():
     assert results
     types = {r.event_type for r in results}
     assert types <= {"swimrun", "swimrun-s", "swimrun-m", "swimrun-l"}, types
+
+
+@pytest.mark.integration
+def test_chronoplace_importe_les_epreuves_soeurs():
+    """Un seul lien couvre le triathlon et le swimrun de Spay'cific Races 2025."""
+    results = registry.scrape_event_all(LIVE_URLS["chronoplace"])
+
+    assert len(results) > 200, "le classement complet (perPage=all) n'a pas été rendu"
+    assert {"triathlon-s", "swimrun"} <= {r.event_type for r in results}
+    assert any(r.event_date == date(2025, 9, 21) for r in results)
+    # Splits triathlon peuplés, et le TCN est bien présent.
+    tri = [r for r in results if r.event_type == "triathlon-s"]
+    assert any(r.swim_time and r.bike_time and r.run_time for r in tri)
+    assert any("TRIATHLON CLUB NANTAIS" in (r.club or "") for r in tri)
+
+
+@pytest.mark.integration
+def test_chronoplace_slug_obsolete_leve():
+    """Lien mort du Sheet : le site exige la paire slug + id exacte."""
+    with pytest.raises(ValueError, match="slug obsolète ou épreuve retirée"):
+        registry.scrape_event_all(
+            "https://www.chronoplace.fr/classement/spay-swimrun-2025/epreuve/566"
+        )

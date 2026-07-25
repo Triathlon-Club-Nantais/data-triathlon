@@ -530,3 +530,25 @@ def test_resolve_epreuve_id_sans_composant(monkeypatch):
 
     with pytest.raises(ValueError, match="Aucune épreuve"):
         chronoplace._resolve_epreuve_id(client, "spaycific-races-2025")
+
+
+def test_registry_detecte_le_provider():
+    from app.scrapers import registry
+
+    assert registry.detect_provider(URL_494) == "chronoplace"
+    assert registry.detect_provider("https://chronoplace.fr/classement/x/epreuve/1") == (
+        "chronoplace"
+    )
+
+
+def test_registry_expose_chronoplace_comme_ciblable():
+    """`provider_names()` alimente la validation de `--provider` en CLI."""
+    from app.scrapers import registry
+
+    assert "chronoplace" in registry.provider_names()
+
+
+def test_registry_nattrape_pas_les_autres_hosts():
+    from app.scrapers import registry
+
+    assert registry.detect_provider("https://www.klikego.com/resultats/x/1") != "chronoplace"
