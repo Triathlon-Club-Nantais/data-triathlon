@@ -70,6 +70,10 @@ def list_participations(
     date_to: str | None = Query(None),
     seasons: str | None = Query(None),
     course_id: int | None = Query(None),
+    federal_only: bool = Query(
+        False,
+        description="Exclut les disciplines hors fédération triathlon (trail, course à pied, cyclisme).",
+    ),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=5000),
     db: Session = Depends(get_db),
@@ -84,6 +88,7 @@ def list_participations(
         date_to=_parse_date(date_to),
         seasons=parse_seasons(seasons),
         course_id=course_id,
+        federal_only=federal_only,
         page=page,
         page_size=page_size,
     )

@@ -16,30 +16,47 @@ router = APIRouter(tags=["stats"])
 def get_stats(
     scope: str | None = Query(None, description="« club » restreint aux membres du TCN."),
     seasons: str | None = Query(None),
+    federal_only: bool = Query(
+        False,
+        description="Exclut les disciplines hors fédération triathlon (trail, course à pied, cyclisme).",
+    ),
     db: Session = Depends(get_db),
 ):
     """Stats agrégées du club, filtrables par saison(s) (CSV d'années)."""
     return stats_service.get_stats(
-        db, club_only=is_club_scope(scope), seasons=parse_seasons(seasons)
+        db,
+        club_only=is_club_scope(scope),
+        seasons=parse_seasons(seasons),
+        federal_only=federal_only,
     )
 
 
 @router.get("/stats/seasons", response_model=list[SeasonOut])
 def list_seasons(
     scope: str | None = Query(None, description="« club » restreint aux membres du TCN."),
+    federal_only: bool = Query(
+        False,
+        description="Exclut les disciplines hors fédération triathlon (trail, course à pied, cyclisme).",
+    ),
     db: Session = Depends(get_db),
 ):
     """Saisons disponibles pour le sélecteur (avec saison en cours forcée)."""
-    return stats_service.list_seasons(db, club_only=is_club_scope(scope))
+    return stats_service.list_seasons(db, club_only=is_club_scope(scope), federal_only=federal_only)
 
 
 @router.get("/stats/events-geo")
 def get_events_geo(
     scope: str | None = Query(None, description="« club » restreint aux membres du TCN."),
+    federal_only: bool = Query(
+        False,
+        description="Exclut les disciplines hors fédération triathlon (trail, course à pied, cyclisme).",
+    ),
     db: Session = Depends(get_db),
 ):
     """Épreuves géocodées (lat/lon) pour la carte. Géocodage caché en mémoire."""
-    rows = participation_repository.events_with_counts(db, club_only=is_club_scope(scope))
+    rows = participation_repository.events_with_counts(
+        db, club_only=is_club_scope(scope), federal_only=federal_only
+    )
     geo_events = []
     for r in rows:
         if not r.event_name:
