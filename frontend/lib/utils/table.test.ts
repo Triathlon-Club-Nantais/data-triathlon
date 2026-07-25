@@ -21,4 +21,10 @@ describe("gridMinWidth", () => {
       gridMinWidth(sansSouple, { gap: 0, paddingX: 0 }) + 200,
     );
   });
+
+  it("ne décompte aucune gouttière en deçà de deux pistes", () => {
+    // Une grille d'une piste n'a pas de gouttière ; une grille vide non plus.
+    expect(gridMinWidth([120], { gap: 18, paddingX: 26 })).toBe(172);
+    expect(gridMinWidth([], { gap: 18, paddingX: 26 })).toBe(52);
+  });
 });
