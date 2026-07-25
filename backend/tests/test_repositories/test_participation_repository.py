@@ -223,3 +223,95 @@ def test_update_ecrit_les_champs_fournis(db_session):
     assert refreshed.total_time == "00:59:00"
     assert refreshed.rank_overall == 3
     assert refreshed.bib_number == "1"  # champ non fourni → inchangé
+
+
+def test_finishers_count_by_group_separe_solos_et_relais(db_session):
+    athlete, course = _setup(db_session)
+    relayeur = athlete_repository.get_or_create(
+        db_session, nom="MARTIN", prenom="Paul", club="TCN"
+    )
+    participation_repository.create(
+        db_session,
+        athlete_id=athlete.id,
+        course_id=course.id,
+        bib_number="1",
+        status="finisher",
+        rank_overall=1,
+        is_relay=False,
+    )
+    participation_repository.create(
+        db_session,
+        athlete_id=relayeur.id,
+        course_id=course.id,
+        bib_number="2",
+        status="finisher",
+        rank_overall=1,
+        is_relay=True,
+    )
+    db_session.flush()
+
+    counts = participation_repository.finishers_count_by_group(db_session, [course.id])
+
+    assert counts == {(course.id, False): 1, (course.id, True): 1}
+
+
+def test_finishers_count_by_group_exclut_non_finishers_et_non_classes(db_session):
+    athlete, course = _setup(db_session)
+    abandon = athlete_repository.get_or_create(
+        db_session, nom="MARTIN", prenom="Paul", club="TCN"
+    )
+    sans_rang = athlete_repository.get_or_create(
+        db_session, nom="DURAND", prenom="Luc", club="TCN"
+    )
+    participation_repository.create(
+        db_session,
+        athlete_id=athlete.id,
+        course_id=course.id,
+        bib_number="1",
+        status="finisher",
+        rank_overall=1,
+        is_relay=False,
+    )
+    participation_repository.create(
+        db_session,
+        athlete_id=abandon.id,
+        course_id=course.id,
+        bib_number="2",
+        status="DNF",
+        rank_overall=None,
+        is_relay=False,
+    )
+    participation_repository.create(
+        db_session,
+        athlete_id=sans_rang.id,
+        course_id=course.id,
+        bib_number="3",
+        status="finisher",
+        rank_overall=None,
+        is_relay=False,
+    )
+    db_session.flush()
+
+    counts = participation_repository.finishers_count_by_group(db_session, [course.id])
+
+    assert counts == {(course.id, False): 1}
+
+
+def test_finishers_count_by_group_sans_finisher_classe_ne_produit_pas_de_cle(db_session):
+    athlete, course = _setup(db_session)
+    participation_repository.create(
+        db_session,
+        athlete_id=athlete.id,
+        course_id=course.id,
+        bib_number="1",
+        status="DNS",
+        rank_overall=None,
+        is_relay=False,
+    )
+    db_session.flush()
+
+    assert participation_repository.finishers_count_by_group(db_session, [course.id]) == {}
+
+
+def test_finishers_count_by_group_sans_ids_ne_requete_pas(db_session):
+    assert participation_repository.finishers_count_by_group(db_session, []) == {}
