@@ -145,3 +145,7 @@ percentile trouve sa place dans la tuile.
 - Test de page athlète sur le modèle de `app/dashboard/page.test.tsx` : tuile
   « Meilleur ratio » rendue, colonne `/N` présente, repli sur la place seule
   quand les données sont incohérentes.
+
+## Statut
+
+Livré (issue #80).
