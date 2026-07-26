@@ -1,14 +1,17 @@
 """Accès données pour Participation, incluant les filtres de la liste publique."""
+from collections.abc import Iterable
 from datetime import date
 
 from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.club import TCN_KEYWORDS, club_keyword_filter
+from app.core.club import tcn_clause
+from app.core.discipline import federal_clause
 from app.core.season import season_bounds, season_of
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.participation import Participation
+from app.scrapers.base import STATUS_FINISHER
 
 
 def _is_postgres(db: Session) -> bool:
@@ -55,6 +58,37 @@ def count_for_course(db: Session, course_id: int) -> int:
     )
 
 
+def finishers_count_by_group(
+    db: Session, course_ids: Iterable[int]
+) -> dict[tuple[int, bool], int]:
+    """Nombre de finishers classés par (course, solo/relais).
+
+    Seule population comparable à `rank_overall` : les DNF/DNS/DSQ n'ont pas de
+    rang, et solos et relais sont classés séparément (deux « rang 1 » légitimes
+    dans une même course, cf. `services/quality.py`). Un groupe sans finisher
+    classé est absent du résultat — l'appelant distingue « zéro classé » de
+    « compte inconnu ».
+    """
+    ids = list(dict.fromkeys(course_ids))
+    if not ids:
+        return {}
+    rows = (
+        db.query(
+            Participation.course_id,
+            Participation.is_relay,
+            func.count(Participation.id),
+        )
+        .filter(
+            Participation.course_id.in_(ids),
+            func.lower(Participation.status) == STATUS_FINISHER,
+            Participation.rank_overall.isnot(None),
+        )
+        .group_by(Participation.course_id, Participation.is_relay)
+        .all()
+    )
+    return {(course_id, bool(is_relay)): count for course_id, is_relay, count in rows}
+
+
 def existing_bibs_for_course(db: Session, course_id: int) -> set[str]:
     """Dossards déjà importés pour une course — pour dédoublonner un import en masse."""
     rows = (
@@ -99,11 +133,12 @@ def _apply_filters(
     name,
     event_type,
     event_name,
-    club,
+    club_only,
     date_from,
     date_to,
     course_id=None,
     seasons=None,
+    federal_only=False,
 ):
     """Joint Athlete + Course et applique les filtres communs (liste + épreuves)."""
     q = q.join(Athlete, Participation.athlete_id == Athlete.id).join(
@@ -114,9 +149,8 @@ def _apply_filters(
     if name:
         pattern = f"%{name}%"
         q = q.filter(or_(Athlete.nom.ilike(pattern), Athlete.prenom.ilike(pattern)))
-    clause = club_keyword_filter(Participation.club, club)
-    if clause is not None:
-        q = q.filter(clause)
+    if club_only:
+        q = q.filter(tcn_clause(Participation.club))
     if event_type:
         q = q.filter(Course.event_type == event_type)
     if event_name:
@@ -127,6 +161,8 @@ def _apply_filters(
         q = q.filter(Course.event_date <= date_to)
     if seasons:
         q = q.filter(_season_clause(seasons))
+    if federal_only:
+        q = q.filter(federal_clause(Course.event_type))
     return q
 
 
@@ -136,11 +172,12 @@ def list_participations(
     name: str | None = None,
     event_type: str | None = None,
     event_name: str | None = None,
-    club: str | None = None,
+    club_only: bool = False,
     date_from: date | None = None,
     date_to: date | None = None,
     course_id: int | None = None,
     seasons: list[int] | None = None,
+    federal_only: bool = False,
     page: int = 1,
     page_size: int = 20,
 ) -> list[Participation]:
@@ -153,11 +190,12 @@ def list_participations(
         name=name,
         event_type=event_type,
         event_name=event_name,
-        club=club,
+        club_only=club_only,
         date_from=date_from,
         date_to=date_to,
         course_id=course_id,
         seasons=seasons,
+        federal_only=federal_only,
     )
     offset = (page - 1) * page_size
     # Pour le détail d'une épreuve, trier par classement ; sinon par date d'import.
@@ -189,23 +227,25 @@ def list_for_course(db: Session, course_id: int) -> list[Participation]:
     )
 
 
-def tcn_filter():
-    """Clause SQLAlchemy : la participation appartient au TCN (mots-clés club)."""
-    return club_keyword_filter(Participation.club, "|".join(TCN_KEYWORDS))
-
-
 def for_stats(
-    db: Session, club: str | None = None, seasons: list[int] | None = None
+    db: Session,
+    *,
+    club_only: bool = False,
+    seasons: list[int] | None = None,
+    federal_only: bool = False,
 ) -> list[Participation]:
     """Charge les participations (avec course + athlète) pour les agrégations stats."""
     q = db.query(Participation).options(
         joinedload(Participation.course), joinedload(Participation.athlete)
     )
-    clause = club_keyword_filter(Participation.club, club)
-    if clause is not None:
-        q = q.filter(clause)
+    if club_only:
+        q = q.filter(tcn_clause(Participation.club))
+    if seasons or federal_only:
+        q = q.join(Course, Participation.course_id == Course.id)
     if seasons:
-        q = q.join(Course, Participation.course_id == Course.id).filter(_season_clause(seasons))
+        q = q.filter(_season_clause(seasons))
+    if federal_only:
+        q = q.filter(federal_clause(Course.event_type))
     return q.all()
 
 
@@ -215,10 +255,11 @@ def _grouped_events_query(
     name=None,
     event_type=None,
     event_name=None,
-    club=None,
+    club_only=False,
     date_from=None,
     date_to=None,
     seasons=None,
+    federal_only=False,
 ):
     """Requête de base : une ligne par épreuve (course) avec compteurs total + TCN."""
     q = db.query(
@@ -229,7 +270,7 @@ def _grouped_events_query(
         Course.is_relay.label("is_relay"),
         Course.distance_km.label("distance_km"),
         func.count(Participation.id).label("total"),
-        func.sum(case((tcn_filter(), 1), else_=0)).label("tcn_count"),
+        func.sum(case((tcn_clause(Participation.club), 1), else_=0)).label("tcn_count"),
     )
     q = _apply_filters(
         q,
@@ -237,10 +278,11 @@ def _grouped_events_query(
         name=name,
         event_type=event_type,
         event_name=event_name,
-        club=club,
+        club_only=club_only,
         date_from=date_from,
         date_to=date_to,
         seasons=seasons,
+        federal_only=federal_only,
     )
     return q.group_by(
         Course.id,
@@ -258,10 +300,11 @@ def events_with_counts(
     name: str | None = None,
     event_type: str | None = None,
     event_name: str | None = None,
-    club: str | None = None,
+    club_only: bool = False,
     date_from: date | None = None,
     date_to: date | None = None,
     seasons: list[int] | None = None,
+    federal_only: bool = False,
 ) -> list:
     """Épreuves distinctes avec total participants et compte TCN (non paginé — carte/stats)."""
     return (
@@ -270,10 +313,11 @@ def events_with_counts(
             name=name,
             event_type=event_type,
             event_name=event_name,
-            club=club,
+            club_only=club_only,
             date_from=date_from,
             date_to=date_to,
             seasons=seasons,
+            federal_only=federal_only,
         )
         .order_by(Course.event_date.desc().nullslast(), Course.name)
         .all()
@@ -301,10 +345,11 @@ def events_page(
     name: str | None = None,
     event_type: str | None = None,
     event_name: str | None = None,
-    club: str | None = None,
+    club_only: bool = False,
     date_from: date | None = None,
     date_to: date | None = None,
     seasons: list[int] | None = None,
+    federal_only: bool = False,
     sort: str = "date_desc",
     page: int = 1,
     page_size: int = 30,
@@ -315,10 +360,11 @@ def events_page(
         name=name,
         event_type=event_type,
         event_name=event_name,
-        club=club,
+        club_only=club_only,
         date_from=date_from,
         date_to=date_to,
         seasons=seasons,
+        federal_only=federal_only,
     )
 
     total_events = db.query(func.count()).select_from(grouped.subquery()).scalar() or 0
@@ -330,10 +376,11 @@ def events_page(
         name=name,
         event_type=event_type,
         event_name=event_name,
-        club=club,
+        club_only=club_only,
         date_from=date_from,
         date_to=date_to,
         seasons=seasons,
+        federal_only=federal_only,
     )
     total_participations = parts.scalar() or 0
 
@@ -351,7 +398,9 @@ def events_page(
     }
 
 
-def distinct_seasons(db: Session, club: str | None = None) -> list[dict]:
+def distinct_seasons(
+    db: Session, *, club_only: bool = False, federal_only: bool = False
+) -> list[dict]:
     """Saisons présentes (≥ 1 participation sur une épreuve datée), repliées en Python.
 
     Repli Python plutôt que SQL pour rester portable SQLite/Postgres sans
@@ -365,9 +414,10 @@ def distinct_seasons(db: Session, club: str | None = None) -> list[dict]:
         .join(Participation, Participation.course_id == Course.id)
         .filter(Course.event_date.isnot(None))
     )
-    clause = club_keyword_filter(Participation.club, club)
-    if clause is not None:
-        q = q.filter(clause)
+    if club_only:
+        q = q.filter(tcn_clause(Participation.club))
+    if federal_only:
+        q = q.filter(federal_clause(Course.event_type))
     rows = q.group_by(Course.id, Course.event_date).all()
 
     agg: dict[int, dict] = {}
@@ -379,3 +429,18 @@ def distinct_seasons(db: Session, club: str | None = None) -> list[dict]:
         entry["event_count"] += 1
         entry["participation_count"] += int(part_count or 0)
     return list(agg.values())
+
+
+def club_label_counts(db: Session, *, like: str | None = None) -> list[tuple[str, int]]:
+    """Libellés de club distincts et leur nombre de participations, décroissant.
+
+    Alimente `python -m app.cli club-labels`. Les libellés vides sont écartés :
+    ils ne disent rien de l'appartenance à un club.
+    """
+    q = db.query(Participation.club, func.count(Participation.id)).filter(
+        Participation.club.isnot(None), Participation.club != ""
+    )
+    if like:
+        q = q.filter(Participation.club.ilike(f"%{like}%"))
+    rows = q.group_by(Participation.club).all()
+    return sorted(((club, int(count)) for club, count in rows), key=lambda r: (-r[1], r[0]))

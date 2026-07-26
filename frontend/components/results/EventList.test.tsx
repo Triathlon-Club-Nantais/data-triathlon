@@ -136,6 +136,54 @@ describe("EventList", () => {
     expect(screen.getByText("Triathlon de Nantes (Relais)")).toBeInTheDocument();
   });
 
+  // Issue #78 : sous cette largeur, la piste « Épreuve » était écrasée et son
+  // texte débordait sur la colonne « Type ».
+  it("réserve au conteneur scrollable la largeur exigée par ses colonnes", () => {
+    setEvents({
+      data: {
+        pages: [
+          {
+            items: [
+              {
+                id: 14,
+                event_name: "Triathlon Open Quiberon 2026 - Dimanche",
+                event_type: "triathlon-s",
+                event_date: "2026-06-21",
+                is_relay: false,
+                total: 462,
+                tcn_count: 3,
+              },
+            ],
+            total_events: 1,
+            total_participations: 462,
+          },
+        ],
+      },
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+    });
+
+    renderList();
+
+    const row = screen.getByRole("link", { name: /Quiberon/ });
+    const style = getComputedStyle(row);
+    // Une valeur px par piste : sa largeur fixe, ou la borne basse de son minmax.
+    const tracks = [...style.gridTemplateColumns.matchAll(/(\d+)px/g)].map((m) => Number(m[1]));
+    // Sans cette assertion, un `gridTemplateColumns` illisible passerait pour
+    // une grille sans colonne — et le test réussirait sans rien contraindre.
+    expect(tracks).toHaveLength(7); // Date | Épreuve | Type | Format | Résultats | TCN | →
+    const required =
+      tracks.reduce((a, b) => a + b, 0) +
+      parseFloat(style.columnGap) * (tracks.length - 1) +
+      parseFloat(style.paddingLeft) +
+      parseFloat(style.paddingRight);
+
+    const scrollBody = row.parentElement!;
+    expect(parseFloat(getComputedStyle(scrollBody).minWidth)).toBeGreaterThanOrEqual(required);
+  });
+
   it("affiche un état vide quand aucune épreuve", () => {
     setEvents({
       data: { pages: [{ items: [], total_events: 0, total_participations: 0 }] },

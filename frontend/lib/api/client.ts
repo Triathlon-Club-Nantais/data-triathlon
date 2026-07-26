@@ -69,12 +69,12 @@ export const apiClient = {
   listEvents: (filters: ParticipationFilters = {}) =>
     request<EventPage>(`/courses/events${toQuery(filters as Record<string, unknown>)}`),
 
-  getStats: (club?: string, seasons?: number[]) =>
-    request<Stats>(`/stats${toQuery({ club, seasons })}`),
-  listSeasons: (club?: string) =>
-    request<Season[]>(`/stats/seasons${toQuery({ club })}`),
-  getEventsGeo: (club?: string) =>
-    request<GeoEvent[]>(`/stats/events-geo${toQuery({ club })}`),
+  getStats: (opts: { scope?: string; seasons?: number[]; federal_only?: boolean } = {}) =>
+    request<Stats>(`/stats${toQuery(opts)}`),
+  listSeasons: (opts: { scope?: string; federal_only?: boolean } = {}) =>
+    request<Season[]>(`/stats/seasons${toQuery(opts)}`),
+  getEventsGeo: (opts: { scope?: string; federal_only?: boolean } = {}) =>
+    request<GeoEvent[]>(`/stats/events-geo${toQuery(opts)}`),
 
   listPendingProviders: () =>
     request<PendingProvider[]>("/admin/pending-providers"),

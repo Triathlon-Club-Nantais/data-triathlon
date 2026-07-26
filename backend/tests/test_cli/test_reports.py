@@ -109,6 +109,35 @@ def test_rescrape_report_sans_echec_n_affiche_pas_le_bloc():
     assert "détail" not in rapport
 
 
+def test_rapport_rescrape_affiche_le_bloc_de_reconciliation():
+    from app.services.rescrape_service import IdentiteReconciliee
+
+    out = RescrapeOutcome(
+        total=1, imported=0, skipped=3, processed=1,
+        reconciled=12, merged=1, orphans_removed=5,
+        reconciliations=[
+            IdentiteReconciliee(
+                ancien="BERRE | Audrey LE", nouveau="LE BERRE | Audrey", participations=12
+            )
+        ],
+    )
+    texte = render_rescrape_report(out, dry_run=False)
+
+    assert "Participations réconciliées" in texte
+    assert "Athlètes fusionnés" in texte
+    assert "Athlètes orphelins supprimés" in texte
+    assert "Identités réconciliées (détail) :" in texte
+    assert "  - BERRE | Audrey LE  ->  LE BERRE | Audrey   (12 participations)" in texte
+
+
+def test_rapport_rescrape_sans_reconciliation_masque_le_bloc():
+    out = RescrapeOutcome(total=1, imported=2, skipped=0, processed=1)
+    texte = render_rescrape_report(out, dry_run=False)
+
+    assert "réconciliées" not in texte
+    assert "orphelins" not in texte
+
+
 # --- unités des compteurs ----------------------------------------------------
 #
 # Le bilan croise deux unités : des **épreuves** (ciblées, traitées, en erreur)

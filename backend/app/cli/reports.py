@@ -78,6 +78,27 @@ def _lignes_echecs(outcome: Outcome) -> list[str]:
     return lignes
 
 
+def _lignes_reconciliation(outcome: RescrapeOutcome) -> list[str]:
+    """Le bilan de réconciliation d'identité (issue #66), borné aux réassignations.
+
+    Unités nommées : on compte des **participations** et des **athlètes**, jamais
+    des « lignes ». Masqué quand rien n'a été réconcilié.
+    """
+    if not outcome.reconciled:
+        return []
+    lignes = [
+        _ligne("Participations réconciliées", outcome.reconciled),
+        _ligne("Athlètes fusionnés", outcome.merged),
+        _ligne("Athlètes orphelins supprimés", outcome.orphans_removed),
+        "Identités réconciliées (détail) :",
+    ]
+    lignes.extend(
+        f"  - {r.ancien}  ->  {r.nouveau}   ({r.participations} participations)"
+        for r in outcome.reconciliations
+    )
+    return lignes
+
+
 def render_sheet_report(outcome: SheetOutcome, *, dry_run: bool) -> str:
     """Rapport texte lisible : compteurs + table des ignorés groupés par host."""
     lignes = [_titre("IMPORT SHEET", dry_run=dry_run, interrupted=outcome.interrupted)]
@@ -110,6 +131,36 @@ def render_rescrape_report(outcome: RescrapeOutcome, *, dry_run: bool) -> str:
     else:
         lignes.extend(_lignes_compteurs(outcome))
         lignes.extend(_lignes_echecs(outcome))
+    lignes.extend(_lignes_reconciliation(outcome))
+    return "\n".join(lignes)
+
+
+def render_club_labels_report(labels: list[dict]) -> str:
+    """Inventaire des libellés de club, marqués reconnus (✓) ou non (✗).
+
+    Le filtre club match à l'égalité sur une liste blanche : une variante non
+    répertoriée sort des compteurs **sans aucun signal**. Ce rapport est le
+    filet — il rend visible ce que le filtre ne voit pas.
+    """
+    lignes = ["=== LIBELLÉS CLUB ==="]
+    if not labels:
+        lignes.append("Aucun libellé de club en base.")
+        return "\n".join(lignes)
+
+    largeur = max(len(str(row["participations"])) for row in labels)
+    for row in labels:
+        marque = "✓" if row["is_tcn"] else "✗"
+        lignes.append(f"  {row['participations']:>{largeur}}  {marque}  {row['club']}")
+
+    lignes.append("")
+    lignes.append(_ligne("Libellés distincts", len(labels)))
+    lignes.append(_ligne("Libellés du club", sum(1 for row in labels if row["is_tcn"])))
+    lignes.append(
+        _ligne(
+            "Participations du club",
+            sum(row["participations"] for row in labels if row["is_tcn"]),
+        )
+    )
     return "\n".join(lignes)
 
 
@@ -198,3 +249,17 @@ def emit_outcome(outcome: Outcome, rapport: str, *, json_output: bool) -> None:
         raise typer.Exit(code=EXIT_INTERROMPU)
     if outcome.echec_total:
         raise typer.Exit(code=EXIT_ECHEC_TOTAL)
+
+
+def emit_report(rapport: str, payload: dict, *, json_output: bool) -> None:
+    """Émet un rapport d'inventaire, sans code de sortie à porter.
+
+    Pendant de `emit_outcome` pour les commandes qui ne pilotent pas de batch :
+    même règle sur stdout (`--json` le garde pur), mais rien à signaler par le
+    code de retour — un inventaire ne peut pas « échouer partiellement ».
+    """
+    emis = _echo(rapport, err=json_output)
+    if json_output:
+        _echo(json.dumps(payload, ensure_ascii=False))
+    elif not emis:
+        _echo(rapport, err=True)  # stdout coupé : le rapport se replie sur stderr

@@ -12,7 +12,6 @@ import { StatusBadge } from "./StatusBadge";
 import { Medal } from "@/components/ui/medal";
 import { InitialsAvatar } from "@/components/ui/initials-avatar";
 import { Card } from "@/components/ui/card";
-import { isTCN } from "@/lib/utils/club";
 import { cn } from "@/lib/utils";
 import type { Participation } from "@/lib/types";
 
@@ -46,7 +45,7 @@ export function Leaderboard({
             const name =
               [p.athlete?.prenom, p.athlete?.nom].filter(Boolean).join(" ") ||
               "Athlète";
-            const tcn = isTCN(p.club);
+            const tcn = p.is_tcn;
             const rank = p.rank_overall;
             return (
               <TableRow

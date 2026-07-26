@@ -3,7 +3,7 @@ from datetime import date, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.core.club import club_keyword_filter
+from app.core.club import tcn_clause
 from app.core.time import utcnow
 from app.models.course import Course
 
@@ -86,7 +86,7 @@ def list_all(
     db: Session,
     *,
     event_type: str | None = None,
-    club: str | None = None,
+    club_only: bool = False,
     page: int = 1,
     page_size: int = 50,
 ) -> list[Course]:
@@ -95,11 +95,10 @@ def list_all(
     q = db.query(Course)
     if event_type:
         q = q.filter(Course.event_type == event_type)
-    clause = club_keyword_filter(Participation.club, club)
-    if clause is not None:
+    if club_only:
         q = (
             q.join(Participation, Participation.course_id == Course.id)
-            .filter(clause)
+            .filter(tcn_clause(Participation.club))
             .distinct()
         )
     offset = (page - 1) * page_size

@@ -3,7 +3,7 @@ from datetime import date
 
 import pytest
 
-from app.scrapers.utils import derive_status_from_label, parse_fr_date
+from app.scrapers.utils import derive_status_from_label, parse_fr_date, split_athlete_name
 
 
 @pytest.mark.parametrize("label,expected", [
@@ -26,6 +26,9 @@ from app.scrapers.utils import derive_status_from_label, parse_fr_date
     # Finisher (label positif explicite)
     ("Finisher", "finisher"),
     ("Classé", "finisher"),
+    # Formes plurielles des groupes RaceResult
+    ("Abandons", "DNF"),
+    ("Non Partants", "DNS"),
 ])
 def test_derive_status_from_label_recognized(label, expected):
     assert derive_status_from_label(label) == expected
@@ -60,3 +63,24 @@ def test_parse_fr_date_ok(text, expected):
 @pytest.mark.parametrize("text", ["", "   ", "pas de date", "32 avr. 2026"])
 def test_parse_fr_date_none(text):
     assert parse_fr_date(text) is None
+
+
+@pytest.mark.parametrize("brut,attendu", [
+    # Convention RaceResult « Prénom NOM » — le nom est le bloc majuscule final.
+    ("Alexis ROUX", ("ROUX", "Alexis")),
+    ("Jean DE LA TOUR", ("DE LA TOUR", "Jean")),
+    ("Marie-Claire LE GALL", ("LE GALL", "Marie-Claire")),
+    # Convention Wiclax/TimePulse « NOM Prénom » — comportement inchangé.
+    ("ROUX Alexis", ("ROUX", "Alexis")),
+    ("LE GALL Marie-Claire", ("LE GALL", "Marie-Claire")),
+    # Aucun bloc majuscule : repli sur le dernier token (comportement inchangé).
+    ("Jean Dupont", ("Dupont", "Jean")),
+    # Cas dégénérés.
+    ("", ("", "")),
+    ("MARTIN", ("MARTIN", "")),
+    # Limite assumée : prénom entièrement en majuscules bascule à tort sur « NOM Prénom ».
+    ("JP ROUX", ("JP ROUX", "")),
+    ("JEAN MARTIN", ("JEAN MARTIN", "")),
+])
+def test_split_athlete_name(brut, attendu):
+    assert split_athlete_name(brut) == attendu

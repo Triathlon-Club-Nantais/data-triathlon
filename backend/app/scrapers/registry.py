@@ -21,6 +21,7 @@ from app.scrapers import (
     chronoplace,
     klikego,
     prolivesport,
+    raceresult,
     sportinnovation,
     timepulse,
     wiclax,
@@ -150,6 +151,27 @@ class SportInnovationProvider:
         return sportinnovation.scrape_event_all(url)
 
 
+class RaceResultProvider:
+    name = "raceresult"
+
+    # Trois façades d'un même produit RaceResult (issue #50). Allowlist
+    # **explicite**, comme Wiclax : détecter du RaceResult par le contenu
+    # obligerait à télécharger la page de toute URL inconnue avant de savoir la
+    # traiter. Un nouveau front RaceResult = une ligne ici.
+    _HOSTS = ("raceresult.com", "espace-competition.com", "chronoconsult.fr")
+
+    def matches(self, url: str) -> bool:
+        # `hostname` (et non `netloc`) : sans lui, un port explicite
+        # (`my.raceresult.com:443`) ou des credentials feraient rater le match.
+        host = (urlparse(url).hostname or "").lower()
+        # Domaine exact ou vrai sous-domaine : un suffixe brut suivrait aussi un
+        # host sosie du type `evilraceresult.com`.
+        return any(host == h or host.endswith(f".{h}") for h in self._HOSTS)
+
+    def scrape_event_all(self, url: str) -> list[ScrapedResult]:
+        return raceresult.scrape_event_all(url)
+
+
 class ChronoplaceProvider:
     name = "chronoplace"
 
@@ -183,6 +205,7 @@ PROVIDERS: list[ScraperProtocol] = [
     TimePulseProvider(),
     ProLiveSportProvider(),
     SportInnovationProvider(),
+    RaceResultProvider(),
     ChronoplaceProvider(),
 ]
 _FALLBACK: ScraperProtocol = PlaywrightProvider()

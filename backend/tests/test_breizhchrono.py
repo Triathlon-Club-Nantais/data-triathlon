@@ -394,3 +394,40 @@ def test_bc_classique_nomme_chaque_heat():
         r.event_name == "Triathlon Swimrun Dinard Cote Demeraude 2025 - Trail 11 KM"
         for r in results
     )
+
+
+def test_les_splits_fins_ne_sont_cherches_que_pour_le_club(monkeypatch):
+    """Un club nantais qui n'est pas le nôtre ne déclenche plus de requête (#76)."""
+    import httpx
+
+    from app.scrapers import breizhchrono
+    from app.scrapers.base import ScrapedResult
+
+    demandes: list[str] = []
+
+    class _Client:
+        def get(self, url: str):
+            demandes.append(url)
+            return httpx.Response(404, request=httpx.Request("GET", url))
+
+    # `source_url` et `provider` sont les deux champs sans valeur par défaut.
+    def _resultat(club: str, bib: str) -> ScrapedResult:
+        return ScrapedResult(
+            source_url="https://live.breizhchrono.com/evt",
+            provider="breizhchrono",
+            club=club,
+            bib_number=bib,
+        )
+
+    results = [
+        _resultat("TRI CLUB NANTAIS", "1"),
+        _resultat("RACING CLUB NANTAIS *", "2"),
+        _resultat("ASPTT RENNES", "3"),
+    ]
+
+    breizhchrono._fetch_tcn_fine_splits(
+        "https://live.breizhchrono.com", "evt", "heat", results, _Client()
+    )
+
+    assert len(demandes) == 1
+    assert "dossard=1" in demandes[0]

@@ -47,6 +47,7 @@ uv run python -m app.cli rescrape-db --urls-from echecs.txt     # ou « - » pou
 # rejeu des échecs, sans fichier intermédiaire ni état persistant :
 uv run python -m app.cli import-sheet --json | jq -r '.failures[].url' \
   | uv run python -m app.cli rescrape-db --urls-from -
+uv run python -m app.cli club-labels --like nant   # libellés club vus en base, marqués TCN ou non
 
 # Frontend (depuis frontend/)
 npm run dev        # Next.js sur :3000, rewrites /api → :8001
@@ -66,7 +67,9 @@ Archi en couches, le flux ne traverse qu'une direction
 
 - `app/main.py` — usine `create_app()` : CORS, handlers d'erreurs, montage routers.
 - `app/core/` — `config.py` (pydantic-settings), `logging.py`, `database.py`,
-  `exceptions.py`, `time.py`, `club.py`.
+  `exceptions.py`, `time.py`, `club.py` (appartenance au TCN : **liste blanche**
+  de libellés, match à l'égalité — cf. #76), `discipline.py` (disciplines
+  fédérales vs trail / course à pied / cyclisme).
 - `app/models/` — SQLAlchemy **normalisé** : `Athlete`, `Course`, `Participation`,
   `PendingProvider` (voir « Modèle normalisé » plus bas).
 - `app/schemas/` — DTO Pydantic v2 (entrée/sortie).
@@ -87,7 +90,7 @@ Archi en couches, le flux ne traverse qu'une direction
   `utils.py` = helpers de normalisation.
 - `alembic/` — migrations (révision initiale = schéma complet).
 - `tests/` — `test_repositories/`, `test_services/`, `test_api/`, `test_cli/`,
-  `test_klikego.py`, `test_timepulse.py` (≈510 tests).
+  `test_klikego.py`, `test_timepulse.py` (≈745 tests).
 
 ### Modèle normalisé
 
@@ -100,9 +103,15 @@ Archi en couches, le flux ne traverse qu'une direction
   (`swim/t1/bike/t2/run` de `ScrapedResult`) ; `services/mapping.build_splits`
   ré-étiquette ces slots selon `event_type` via le gabarit
   `_SPLIT_KEYS_BY_SPORT` (ex. duathlon → `course1`/`course2`) et omet les slots
-  non pertinents. *Limite* : plafonné à 5 segments — un swimrun multi-legs reste
-  collapsé. Évolution future si besoin : porter une **liste ordonnée de segments
-  étiquetés** dès `ScrapedResult` (touche les 7 scrapers).
+  non pertinents. *Limite levée pour les scrapers qui renseignent `segments`*
+  (RaceResult) : la liste ordonnée de segments étiquetés prime sur les 5 slots
+  et n'a pas de plafond côté code. **Ce déplafonnement n'est pas mesuré** : sur
+  le panel RaceResult, le maximum observé est de 5 segments, et les swimruns
+  sondés n'ont **aucune liste publiée portant une colonne de split** — ils
+  sortent donc à 0 segment, non par troncature. Ne pas en déduire qu'un swimrun
+  multi-legs « garde toutes ses étapes » : rien ne l'établit à ce jour. Panel et
+  chiffres : `docs/superpowers/specs/2026-07-19-raceresult-api-sondage.md`. Les
+  scrapers qui remplissent encore les 5 slots restent plafonnés à 5 segments.
 
 ### Cache TTL
 
@@ -110,6 +119,20 @@ Archi en couches, le flux ne traverse qu'une direction
 participation sans `total_time`), sinon 30 j. `scrape_service` court-circuite le
 re-scraping si frais. Réglable via `CACHE_TTL_IN_PROGRESS_SECONDS` /
 `CACHE_TTL_FINISHED_SECONDS`.
+
+### Portée club et disciplines
+
+Deux paramètres traversent l'API de lecture, sur le même patron que `seasons` :
+
+- `scope=club` — restreint aux membres du TCN. Remplace l'ancien `club`, un
+  texte libre cherché en sous-chaîne : c'est lui qui laissait la définition du
+  club chez l'appelant, et un `%nantais%` comptait les clubs d'athlétisme
+  nantais (#76).
+- `federal_only=true` — retire les disciplines hors fédération triathlon
+  (`trail`, `course-a-pied*`, `cyclisme*`). **Défaut à `false` : l'API reste
+  neutre.** Ce sont le dashboard et la page club qui l'activent, via le toggle
+  « Inclure les autres disciplines ». Un défaut à `true` amputerait
+  silencieusement tout futur appelant.
 
 ### Sorties de la CLI (stdout parsable)
 
@@ -175,6 +198,32 @@ fichier d'état. À distinguer des **liens non supportés** (`ignored_by_host`,
 suivis dans #33) : ces derniers ne sont **jamais** soumis au batch, ils ne
 comptent ni en succès ni en échec.
 
+**Réconciliation de l'identité d'athlète** (issue #66) : `rescrape-db` n'est plus
+purement additif. Sur un dossard déjà en base, il **résout l'athlète** et, si la
+graphie stockée a divergé de la graphie corrigée, **réassigne
+`participation.athlete_id`** — puis supprime en fin de batch les fiches d'athlète
+ainsi vidées (`athlete_repository.delete_orphans`, no-op sur une base sans
+orphelin). Le bilan compte, unités nommées : « Participations réconciliées »,
+« Athlètes fusionnés », « Athlètes orphelins supprimés », avec le détail
+`ancien -> nouveau (N participations)` — repris dans `--json`.
+
+Il ne réconcilie **que** l'identité : temps, rangs, statuts et splits d'une
+participation existante restent intouchés. Ce silence sur les valeurs est
+délibéré (idempotence contre additivité : une autre question, une autre issue).
+Garde structurante : une correction qui **viderait le prénom** n'est jamais
+appliquée (cas « JP ROUX » / prénoms stockés en majuscules).
+
+Le nettoyage des orphelins (`delete_orphans`) ne tourne **que** dans
+`rescrape-db`, en fin de batch : le chemin web (`import_event`/SSE, une épreuve
+à la fois) réassigne et commite mais **ne** balaie **pas** l'ancienne fiche
+vidée — elle reste orpheline jusqu'au prochain `rescrape-db`, qui seul peut
+constater qu'aucune autre épreuve du batch ne l'a entre-temps réutilisée.
+
+`--dry-run` a changé de nature : il **scrape désormais** (le prix d'un aperçu
+véritable) et **ne persiste rien** (rollback au lieu de commit). Il rend le détail
+`avant -> après` sans écrire. `--limit` / `--url` le bornent. Un dry-run sort
+toujours en code 0.
+
 ### Conventions scrapers
 
 - Tout nouveau fournisseur : créer `scrapers/<nom>.py`, exposer
@@ -183,8 +232,10 @@ comptent ni en succès ni en échec.
   (registre Protocol). Provider inconnu → `playwright`.
 - **Breizh Chrono réutilise la logique Klikego** (`klikego._parse_detail`,
   `_detect_event_type`) — ne pas dupliquer, factoriser dans `klikego.py`.
-- Identification club lors d'un import épreuve : filtre `city=nantais` de l'API
-  (plus fiable que le nom de club, qui varie : « TCN », « TRIATHLON CLUB NANTAIS »…).
+- Identification club : **une seule définition**, `app/core/club.py`
+  (`is_tcn` / `tcn_clause`). Ne jamais la réimplémenter ailleurs — front et
+  scraper l'avaient fait, les trois listes ont divergé et tout libellé contenant
+  « nantais » a été compté comme TCN (#76). Le front lit le champ `is_tcn` du DTO.
 - Les temps restent des **strings** (`"01:23:45"`), normalisés via `utils.py`.
   Splits adaptés au sport : dans `splits` (JSON) + `raw_data` (JSON).
 
@@ -214,11 +265,42 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 ## Fournisseurs supportés
 
 Klikego, Breizh Chrono, TimePulse, Wiclax/G-Live, ProLiveSport, Sportinnovation,
-Chronoplace — tous en **épreuve complète**. Chronoplace (Laravel + Livewire) se
-lit en `GET ?perPage=all` — pas de POST Livewire — et importe **toutes** les
-épreuves de l'événement pointé par l'URL.
+RaceResult, Chronoplace — tous en **épreuve complète**. Chronoplace (Laravel +
+Livewire) se lit en `GET ?perPage=all` — pas de POST Livewire — et importe
+**toutes** les épreuves de l'événement pointé par l'URL.
 Wiclax/G-Live couvre plusieurs déploiements : `wiclax-results.com`,
 `chronosmetron.com` et `chronowest.fr` (WordPress + iframe G-Live). Un nouveau
 déploiement tiers = un host dans `WiclaxProvider._HOSTS`.
+RaceResult couvre de même trois façades d'un même produit (`raceresult.com`,
+`espace-competition.com`, `chronoconsult.fr`, cf. `RaceResultProvider._HOSTS`),
+toutes servies par la même API JSON publique — sans Playwright, et toutes
+joignables via l'apex `my.raceresult.com` (aucune résolution de shard).
+Particularités du moteur : les listes retenues sont celles dont `Mode` n'est pas
+`"hidden"` dans `config["TabConfig"]["Lists"]` (qui porte le contest
+explicitement) — critère **nécessaire mais non suffisant** : sur 406211 les
+listes non-`hidden` sont des listes d'affichage et le seul vrai classement est
+`hidden`. L'élargissement aux listes `hidden` est **réalisé** (#60) : elles ne créent ni
+participant ni contest, elles **enrichissent** par **dossard** les participants
+établis par les listes publiées (splits, scalaires vides). Coût : une requête
+`list` par liste `hidden`. Le verrou C (410891, rang `(2)` sans point) reste
+ouvert : `_RE_DUREE` rejette bien la cellule suffixée d'un finisher, mais un
+non-finisher (DNF/DNS/DSQ), à qui RaceResult n'appose pas le suffixe, peut laisser
+fuiter une durée intermédiaire nue comme split (élargissement renvoyé à un ticket
+dédié). Design : `2026-07-23-raceresult-listes-hidden-design.md`.
+Plusieurs listes peuvent couvrir un même contest et doivent être fusionnées.
+La qualification de `Course` vient du **contest explicite** de `TabConfig.Lists` ;
+le libellé de groupe de niveau 0 n'est consulté qu'en `Contest="0"`, et
+seulement si tous ces libellés recoupent `contests` (ils sont sinon un axe
+d'affichage : catégorie, sélecteur de split). Le `Name` de liste n'est **jamais**
+un qualifiant — c'est un nom interne à pipe, et l'employer dupliquait
+silencieusement des participations (cf. §3 du sondage).
+La date d'épreuve n'existe que dans le JSON-LD schema.org de la page
+`/{eventId}/results`.
+Vérité d'API (15 épreuves au panel, 3 façades ; mesures détaillées sur 12/14/17) :
+`docs/superpowers/specs/2026-07-19-raceresult-api-sondage.md` — elle prime sur le
+design et sur le plan. Ne pas revenir à la route `/{id}/RRPublish/data/…` (alias
+hérité, 404 sur les épreuves récentes) ni au filtre `Live` (qui vide certaines
+épreuves) : les deux ont des tests de non-régression dédiés.
+Design : `docs/superpowers/specs/2026-07-19-raceresult-scraper-design.md`.
 Types : Triathlon XS/S/M/L/XL, Duathlon XS/S/M/L, SwimRun S/M/L, Aquathlon,
 Aquarun, Bike & Run.

@@ -1,14 +1,22 @@
 import { apiServer } from "@/lib/api/server";
-import { TCN_CLUB_FILTER } from "@/lib/club-constants";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
+import { DisciplineToggle } from "@/components/layout/DisciplineToggle";
 import { ClubDashboard } from "@/components/club/ClubDashboard";
+import { SCOPE_CLUB, federalOnlyFromParam } from "@/lib/scope";
 
 // La page Club est TOUJOURS filtrée sur le club, indépendamment de toute portée.
-export default async function ClubPage() {
+export default async function ClubPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
+  const sp = await searchParams;
+  const federal_only = federalOnlyFromParam(sp.sports);
+
   const [stats, participations] = await Promise.all([
-    apiServer.getStats(TCN_CLUB_FILTER),
-    apiServer.listParticipations({ club: TCN_CLUB_FILTER, page_size: 1000 }),
+    apiServer.getStats({ scope: SCOPE_CLUB, federal_only }),
+    apiServer.listParticipations({ scope: SCOPE_CLUB, federal_only, page_size: 1000 }),
   ]);
 
   return (
@@ -18,6 +26,7 @@ export default async function ClubPage() {
           eyebrow="Triathlon Club Nantais"
           title="Espace club"
           description="Synthèse, podiums et athlètes du Triathlon Club Nantais."
+          actions={<DisciplineToggle />}
         />
         <ClubDashboard stats={stats} participations={participations} />
       </div>

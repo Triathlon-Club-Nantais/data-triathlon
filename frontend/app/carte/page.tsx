@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { ScopeToggle } from "@/components/layout/ScopeToggle";
-import { clubFromScope } from "@/lib/scope";
+import { scopeFromParam } from "@/lib/scope";
 
 const MapView = dynamic(() => import("@/components/map/MapView").then((m) => m.MapView), {
   ssr: false,
@@ -16,7 +16,7 @@ const MapView = dynamic(() => import("@/components/map/MapView").then((m) => m.M
 
 function CarteContent() {
   const sp = useSearchParams();
-  const club = clubFromScope(sp.get("scope"));
+  const scope = scopeFromParam(sp.get("scope"));
   return (
     <PageShell>
       <div className="space-y-6">
@@ -26,7 +26,7 @@ function CarteContent() {
           description="Localisation des épreuves importées. La taille des cercles reflète le nombre de participants."
           actions={<ScopeToggle />}
         />
-        <MapView club={club} />
+        <MapView scope={scope} />
         <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
             <span className="inline-block size-3 rounded-full bg-[#E9530E]" />

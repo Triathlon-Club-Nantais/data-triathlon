@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { TCN_CLUB_FILTER } from "@/lib/club-constants";
 
 const getStats = vi.fn();
 const listEvents = vi.fn();
@@ -9,16 +8,18 @@ const listSeasons = vi.fn();
 
 vi.mock("@/lib/api/server", () => ({
   apiServer: {
-    getStats: (club?: string) => getStats(club),
+    getStats: (opts: unknown) => getStats(opts),
     listEvents: (filters: unknown) => listEvents(filters),
     listParticipations: (filters: unknown) => listParticipations(filters),
-    listSeasons: (club?: string) => listSeasons(club),
+    listSeasons: (opts: unknown) => listSeasons(opts),
   },
 }));
 
-// SeasonSelector est un composant client (useRouter/useSearchParams).
+// SeasonSelector et DisciplineToggle sont des composants client
+// (useRouter/usePathname/useSearchParams).
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => "/dashboard",
   useSearchParams: () => new URLSearchParams(),
 }));
 
@@ -56,19 +57,19 @@ describe("DashboardPage", () => {
   it("force la portée club sur tous les appels API, même sans ?scope=club", async () => {
     await renderDashboard({});
 
-    expect(getStats).toHaveBeenCalledWith(TCN_CLUB_FILTER);
+    expect(getStats).toHaveBeenCalledWith(expect.objectContaining({ scope: "club" }));
     expect(listEvents).toHaveBeenCalledWith(
-      expect.objectContaining({ club: TCN_CLUB_FILTER }),
+      expect.objectContaining({ scope: "club" }),
     );
     expect(listParticipations).toHaveBeenCalledWith(
-      expect.objectContaining({ club: TCN_CLUB_FILTER }),
+      expect.objectContaining({ scope: "club" }),
     );
   });
 
   it("ignore ?scope et reste sur le club même si l'URL demande « tous »", async () => {
     await renderDashboard({ scope: undefined }); // pas de scope = ancien mode « Tous »
 
-    expect(getStats).toHaveBeenCalledWith(TCN_CLUB_FILTER);
+    expect(getStats).toHaveBeenCalledWith(expect.objectContaining({ scope: "club" }));
   });
 
   it("ne rend plus le sélecteur de portée (Tous / Membres TCN)", async () => {
@@ -82,7 +83,25 @@ describe("DashboardPage", () => {
   it("rend le sélecteur de saison alimenté par les saisons du club", async () => {
     await renderDashboard({});
 
-    expect(listSeasons).toHaveBeenCalledWith(TCN_CLUB_FILTER);
+    expect(listSeasons).toHaveBeenCalledWith(expect.objectContaining({ scope: "club" }));
     expect(screen.getByLabelText("Choisir les saisons")).toBeTruthy();
+  });
+
+  it("exclut les autres disciplines par défaut et les inclut sur demande", async () => {
+    await renderDashboard({});
+    expect(getStats).toHaveBeenCalledWith(
+      expect.objectContaining({ federal_only: true }),
+    );
+
+    vi.clearAllMocks();
+    getStats.mockResolvedValue(STATS);
+    listEvents.mockResolvedValue(EVENTS_PAGE);
+    listParticipations.mockResolvedValue(PARTICIPATIONS);
+    listSeasons.mockResolvedValue(SEASONS);
+
+    await renderDashboard({ sports: "all" });
+    expect(getStats).toHaveBeenCalledWith(
+      expect.objectContaining({ federal_only: undefined }),
+    );
   });
 });

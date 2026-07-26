@@ -1,0 +1,134 @@
+{
+  "eventname": "LA FOULÉE AGÉSINATE",
+  "key": "09c674a1c5b6faaa5d4ea44428f9caee",
+  "contests": {
+    "1": "22KM - LP MECAN'AUTO",
+    "2": "16KM - AUTOMATION PLUS",
+    "3": "9KM - TECHNI FROID CUISINE"
+  },
+  "lists": null,
+  "TabConfig": {
+    "Lists": [
+      {
+        "Name": "Concurrents|Liste Alpha",
+        "Mode": "hidden",
+        "Contest": "1",
+        "ShowAs": "Liste des inscrits",
+        "Format": "VP",
+        "Live": 1,
+        "Sortable": 1,
+        "Leader": 0,
+        "Details": "details",
+        "ID": "1E3C84"
+      },
+      {
+        "Name": "Concurrents|Liste Alpha",
+        "Mode": "hidden",
+        "Contest": "2",
+        "ShowAs": "Liste des inscrits",
+        "Format": "VP",
+        "Live": 1,
+        "Sortable": 1,
+        "Leader": 0,
+        "Details": "details",
+        "ID": "34440E"
+      },
+      {
+        "Name": "Concurrents|Liste Alpha",
+        "Mode": "hidden",
+        "Contest": "3",
+        "ShowAs": "Liste des inscrits",
+        "Format": "VP",
+        "Live": 1,
+        "Sortable": 1,
+        "Leader": 0,
+        "Details": "details",
+        "ID": "9AEF6A"
+      },
+      {
+        "Name": "Concurrents|Liste_equipe",
+        "Mode": "hidden",
+        "Contest": "0",
+        "ShowAs": "Liste des inscrits",
+        "Format": "VP",
+        "Live": 1,
+        "Sortable": 1,
+        "Leader": 0,
+        "Details": "details",
+        "ID": "B04CFE"
+      },
+      {
+        "Name": "1-CHRONO|Class génél",
+        "Mode": "",
+        "Contest": "1",
+        "ShowAs": "Classement Géné",
+        "Format": "VP",
+        "Live": 1,
+        "Sortable": 1,
+        "Leader": 0,
+        "Details": "details",
+        "ID": "3C296C"
+      },
+      {
+        "Name": "1-CHRONO|Class génél",
+        "Mode": "",
+        "Contest": "2",
+        "ShowAs": "Classement Géné",
+        "Format": "VP",
+        "Live": 1,
+        "Sortable": 1,
+        "Leader": 0,
+        "Details": "details",
+        "ID": "0531D2"
+      },
+      {
+        "Name": "1-CHRONO|Class génél",
+        "Mode": "",
+        "Contest": "3",
+        "ShowAs": "Classement Géné",
+        "Format": "VP",
+        "Live": 1,
+        "Sortable": 1,
+        "Leader": 0,
+        "Details": "details",
+        "ID": "2433A9"
+      },
+      {
+        "Name": "1-CHRONO|Classement général_Equipe",
+        "Mode": "hidden",
+        "Contest": "0",
+        "ShowAs": "Classement Géné",
+        "Format": "VP",
+        "Live": 1,
+        "Sortable": 1,
+        "Leader": 0,
+        "Details": "details",
+        "ID": "52F5FF"
+      },
+      {
+        "Name": "1-CHRONO|Class génél avec Temps défi + tour Marathon",
+        "Mode": "hidden",
+        "Contest": "1",
+        "ShowAs": "Classement Géné avec Tour",
+        "Format": "VP",
+        "Live": 1,
+        "Sortable": 1,
+        "Leader": 0,
+        "Details": "details",
+        "ID": "41F33F"
+      },
+      {
+        "Name": "1-CHRONO|Classement général_Equipe avec temps Relais",
+        "Mode": "hidden",
+        "Contest": "0",
+        "ShowAs": "Classement Géné avec Relais",
+        "Format": "VP",
+        "Live": 1,
+        "Sortable": 1,
+        "Leader": 0,
+        "Details": "details",
+        "ID": "07DE16"
+      }
+    ]
+  }
+}

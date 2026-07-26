@@ -30,6 +30,8 @@ export interface Participation {
   athlete: AthleteBrief;
   course: CourseBrief;
   club: string | null;
+  /** Appartenance au club, tranchée par le backend (jamais recalculée ici). */
+  is_tcn: boolean;
   category: string | null;
   bib_number: string | null;
   rank_overall: number | null;
@@ -40,6 +42,9 @@ export interface Participation {
   is_relay: boolean;
   splits: Splits | null;
   created_at: string | null;
+  // Nombre de finishers classés de la course (même groupe solo/relais).
+  // Servi par la seule route /athletes/{id} — d'où l'optionnalité.
+  course_finishers?: number | null;
 }
 
 export interface EventOut {
@@ -160,7 +165,8 @@ export interface ParticipationFilters {
   name?: string;
   event_type?: string;
   event_name?: string;
-  club?: string;
+  scope?: "club";
+  federal_only?: boolean;
   date_from?: string;
   date_to?: string;
   seasons?: number[];

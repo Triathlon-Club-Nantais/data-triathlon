@@ -4,6 +4,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.core.club import is_club_scope
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.core.season import parse_seasons
@@ -29,10 +30,14 @@ def list_events(
     name: str | None = Query(None),
     event_type: str | None = Query(None),
     event_name: str | None = Query(None),
-    club: str | None = Query(None),
+    scope: str | None = Query(None, description="« club » restreint aux membres du TCN."),
     date_from: str | None = Query(None),
     date_to: str | None = Query(None),
     seasons: str | None = Query(None),
+    federal_only: bool = Query(
+        False,
+        description="Exclut les disciplines hors fédération triathlon (trail, course à pied, cyclisme).",
+    ),
     sort: str = Query("date_desc"),
     page: int = Query(1, ge=1),
     page_size: int = Query(30, ge=1, le=200),
@@ -44,10 +49,11 @@ def list_events(
         name=name,
         event_type=event_type,
         event_name=event_name,
-        club=club,
+        club_only=is_club_scope(scope),
         date_from=_parse_date(date_from),
         date_to=_parse_date(date_to),
         seasons=parse_seasons(seasons),
+        federal_only=federal_only,
         sort=sort,
         page=page,
         page_size=page_size,
@@ -57,13 +63,13 @@ def list_events(
 @router.get("/courses", response_model=list[CourseBrief])
 def list_courses(
     event_type: str | None = Query(None),
-    club: str | None = Query(None),
+    scope: str | None = Query(None, description="« club » restreint aux membres du TCN."),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
 ):
     return course_repository.list_all(
-        db, event_type=event_type, club=club, page=page, page_size=page_size
+        db, event_type=event_type, club_only=is_club_scope(scope), page=page, page_size=page_size
     )
 
 

@@ -10,7 +10,7 @@ def _phases(imported: int = 2, skipped: int = 1):
     """Fabrique un faux iter_import_event qui journalise les URLs vues."""
     vus: list[tuple[str, bool]] = []
 
-    def _iter(db, url, settings, force=False):
+    def _iter(db, url, settings, force=False, persist=True):
         vus.append((url, force))
         yield {"phase": "saving", "total": 3, "imported": 0, "skipped": 0, "progress": 0}
         yield {"phase": "done", "imported": imported, "skipped": skipped, "total": 3}
@@ -52,7 +52,7 @@ def test_run_import_sheet_un_echec_n_interrompt_pas_le_batch(db_session, monkeyp
 
     monkeypatch.setattr(registry, "detect_provider", lambda url: "klikego")
 
-    def _iter(db, url, settings, force=False):
+    def _iter(db, url, settings, force=False, persist=True):
         if "boom" in url:
             yield {"phase": "error", "message": "échec scrape"}
             return
@@ -156,7 +156,7 @@ def test_run_import_sheet_ctrl_c_remonte_le_drapeau(db_session, monkeypatch):
 
     monkeypatch.setattr(registry, "detect_provider", lambda url: "klikego")
 
-    def _iter(db, url, settings, force=False):
+    def _iter(db, url, settings, force=False, persist=True):
         raise KeyboardInterrupt
         yield  # pragma: no cover — fait de _iter un générateur
 
@@ -176,7 +176,7 @@ def test_run_import_sheet_echec_total_quand_tout_echoue(db_session, monkeypatch)
 
     monkeypatch.setattr(registry, "detect_provider", lambda url: "klikego")
 
-    def _iter(db, url, settings, force=False):
+    def _iter(db, url, settings, force=False, persist=True):
         yield {"phase": "error", "message": "503"}
 
     monkeypatch.setattr(import_service, "iter_import_event", _iter)
@@ -198,7 +198,7 @@ def test_run_import_sheet_rien_de_neuf_n_est_pas_un_echec(db_session, monkeypatc
 
     monkeypatch.setattr(registry, "detect_provider", lambda url: "klikego")
 
-    def _iter(db, url, settings, force=False):
+    def _iter(db, url, settings, force=False, persist=True):
         yield {"phase": "done", "imported": 0, "skipped": 42, "total": 42}
 
     monkeypatch.setattr(import_service, "iter_import_event", _iter)

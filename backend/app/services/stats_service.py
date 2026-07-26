@@ -10,9 +10,17 @@ def _athlete_key(part) -> int:
     return part.athlete_id
 
 
-def get_stats(db: Session, club: str | None = None, seasons: list[int] | None = None) -> dict:
+def get_stats(
+    db: Session,
+    *,
+    club_only: bool = False,
+    seasons: list[int] | None = None,
+    federal_only: bool = False,
+) -> dict:
     """Stats agrégées : total, athlètes, épreuves, répartition par type/mois, récents."""
-    parts = participation_repository.for_stats(db, club, seasons=seasons)
+    parts = participation_repository.for_stats(
+        db, club_only=club_only, seasons=seasons, federal_only=federal_only
+    )
     if not parts:
         return {"total": 0, "athletes": 0, "events": 0, "by_type": {}, "by_month": {}, "recent": []}
 
@@ -59,13 +67,17 @@ def get_stats(db: Session, club: str | None = None, seasons: list[int] | None = 
     }
 
 
-def list_seasons(db: Session, club: str | None = None) -> list[dict]:
+def list_seasons(
+    db: Session, *, club_only: bool = False, federal_only: bool = False
+) -> list[dict]:
     """Saisons disponibles pour le sélecteur.
 
     Saisons ayant ≥ 1 résultat daté + saison en cours toujours présente (à 0 si
     absente), enrichies de `label`/`is_current`, triées par année décroissante.
     """
-    rows = participation_repository.distinct_seasons(db, club)
+    rows = participation_repository.distinct_seasons(
+        db, club_only=club_only, federal_only=federal_only
+    )
     by_year = {r["start_year"]: r for r in rows}
 
     current = season_module.current_season()

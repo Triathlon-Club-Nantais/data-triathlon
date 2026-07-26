@@ -62,8 +62,8 @@ def test_list_filters(client):
     by_name = client.get("/api/v1/participations", params={"name": "dupont"})
     assert len(by_name.json()) == 1
 
-    by_club = client.get("/api/v1/participations", params={"club": "nantais|tcn"})
-    assert len(by_club.json()) == 1
+    by_club = client.get("/api/v1/participations", params={"scope": "club"})
+    assert by_club.status_code == 200
     assert by_club.json()[0]["club"] == "TCN"
 
 
@@ -75,3 +75,15 @@ def test_delete_participation(client):
 
 def test_get_missing_404(client):
     assert client.get("/api/v1/participations/9999").status_code == 404
+
+
+def test_is_tcn_expose_le_verdict_du_backend(client):
+    """Le front n'a plus à deviner : le backend tranche et le dit."""
+    client.post("/api/v1/participations", json=_payload(bib="1", nom="DUPONT", club="TRI CLUB NANTAIS"))
+    client.post("/api/v1/participations", json=_payload(bib="2", nom="MARTIN", club="RACING CLUB NANTAIS *"))
+
+    rows = client.get("/api/v1/participations").json()
+    par_club = {r["club"]: r["is_tcn"] for r in rows}
+
+    assert par_club["TRI CLUB NANTAIS"] is True
+    assert par_club["RACING CLUB NANTAIS *"] is False

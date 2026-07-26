@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 
-/** Tuile KPI TCN. `hero` utilise le dégradé orange. */
+/** Tuile KPI TCN. `hero` utilise le dégradé orange ; `hint` ajoute une sous-ligne, variant `default` uniquement (silencieusement ignoré en `hero`). */
 export function StatCard({
   label,
   value,
@@ -8,6 +8,7 @@ export function StatCard({
   accent = true,
   valueColor = "var(--tcn-ink)",
   delta = null,
+  hint = null,
   variant = "default",
   style,
 }: {
@@ -17,6 +18,7 @@ export function StatCard({
   accent?: boolean;
   valueColor?: string;
   delta?: ReactNode;
+  hint?: ReactNode;
   variant?: "default" | "hero";
   style?: CSSProperties;
 }) {
@@ -76,6 +78,16 @@ export function StatCard({
       </div>
       {accent ? (
         <div style={{ height: 4, width: 48, background: "var(--tcn-orange)", borderRadius: 999, marginTop: 8 }} />
+      ) : null}
+      {delta ? (
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--tcn-text-faint)", marginTop: 10 }}>
+          {delta}
+        </div>
+      ) : null}
+      {hint ? (
+        <div data-testid="statcard-hint" style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: "var(--tcn-text-faint)" }}>
+          {hint}
+        </div>
       ) : null}
     </div>
   );
