@@ -1,0 +1,118 @@
+{
+  "success": true,
+  "evenement_id": 48555,
+  "evenement_title": "Triathlon de Lacanau 2026 &#8211; Samedi 02 mai",
+  "count": 2,
+  "data": [
+    {
+      "title_course": "Triathlon L Individuel",
+      "epreuve_id": 59697,
+      "date_course": "02/05/2026",
+      "distance_course": "110,000",
+      "heuredebut_course": "08:00:00",
+      "reference_epreuve": "LAC-L-IND",
+      "status": "finish",
+      "runners": [
+        {
+          "nom": "Valentin ROUVIER",
+          "sexe": "M",
+          "dossard": 1217,
+          "club": "TRIATHLON CLUB NANTAIS",
+          "categorie": "Senior",
+          "categorie_abbrev": "SE",
+          "temps_finish": "03:31:57",
+          "temp-reel": null,
+          "classement_general": 1,
+          "classement_categorie": 1,
+          "classement_sexe": 1,
+          "rgpd": "O",
+          "abandon": "N",
+          "disqualifie": "N",
+          "pris_depart": "O",
+          "points_de_passage": [
+            {
+              "id": "11|1",
+              "nom": "NATATION",
+              "time": "00:23:56"
+            },
+            {
+              "id": "12|2",
+              "nom": "VELO",
+              "time": "02:20:10"
+            },
+            {
+              "id": "13|3",
+              "nom": "COURSE A PIED",
+              "time": "03:31:57"
+            }
+          ]
+        },
+        {
+          "nom": "AnaÃ¯s MOUSQUET",
+          "sexe": "F",
+          "dossard": 1042,
+          "club": "",
+          "categorie": "Senior",
+          "categorie_abbrev": "SE",
+          "temps_finish": "04:12:03",
+          "temp-reel": null,
+          "classement_general": 0,
+          "classement_categorie": 0,
+          "classement_sexe": 0,
+          "rgpd": "O",
+          "abandon": "N",
+          "disqualifie": "N",
+          "pris_depart": "O",
+          "points_de_passage": []
+        },
+        {
+          "nom": "T... B...",
+          "sexe": "M",
+          "dossard": 927,
+          "club": "",
+          "categorie": "Vétéran 1",
+          "categorie_abbrev": "V1",
+          "temps_finish": "00:00:00",
+          "temp-reel": null,
+          "classement_general": 0,
+          "classement_categorie": 0,
+          "classement_sexe": 0,
+          "rgpd": "N",
+          "abandon": "O",
+          "disqualifie": "N",
+          "pris_depart": "N",
+          "points_de_passage": []
+        }
+      ]
+    },
+    {
+      "title_course": "Relais L &#038; Duo",
+      "epreuve_id": 59698,
+      "date_course": "02/05/2026",
+      "distance_course": "110,000",
+      "heuredebut_course": "08:05:00",
+      "reference_epreuve": "LAC-L-REL",
+      "status": "finish",
+      "runners": [
+        {
+          "nom": "GUILLON RÉMI / CHARPENTIER EMMANUEL",
+          "sexe": "X",
+          "dossard": 2001,
+          "club": "TEAM TCC",
+          "categorie": "Relais",
+          "categorie_abbrev": "RE",
+          "temps_finish": "03:58:41",
+          "temp-reel": null,
+          "classement_general": 3,
+          "classement_categorie": 1,
+          "classement_sexe": 0,
+          "rgpd": "O",
+          "abandon": "N",
+          "disqualifie": "O",
+          "pris_depart": "O",
+          "points_de_passage": []
+        }
+      ]
+    }
+  ]
+}

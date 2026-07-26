@@ -21,15 +21,17 @@ Flux (cf. docs/superpowers/specs/2026-07-26-oktime-scraper-design.md) :
 L'API n'expose aucune route par épreuve : une URL pointant une épreuve rapporte
 toujours l'événement entier.
 """
+import html
 import logging
 import re
-from datetime import date
+from datetime import date, datetime
 from urllib.parse import urlparse
 
 import httpx
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER, ScrapedResult
-from .utils import normalize_rank, normalize_time, split_athlete_name
+from .classify import classify_event_type
+from .utils import normalize_rank, normalize_time, qualify_event_name, split_athlete_name
 
 logger = logging.getLogger(__name__)
 
@@ -382,3 +384,101 @@ def _build_result(
         "splits_cumules_conserves": cumuls_conserves,
     }
     return result
+
+
+# --------------------------------------------------------------------------- #
+# Niveau course
+# --------------------------------------------------------------------------- #
+
+def _parse_date(raw) -> date | None:
+    """`dd/mm/yyyy` — la forme de `date_course` sur les 99 courses du panel."""
+    try:
+        return datetime.strptime(str(raw or "").strip(), "%d/%m/%Y").date()
+    except ValueError:
+        return None
+
+
+def _parse_distance(raw) -> float | None:
+    """`distance_course` en km, virgule décimale (« 27,5 » → 27.5).
+
+    Renseignée sur tout le panel : la fournir évite le repli de
+    `mapping.get_or_create_course` sur l'extraction depuis le nom, qui lit
+    « Course chronométrée 9,5 km » comme un 5 km. Une distance nulle vaut absence.
+    """
+    valeur = str(raw or "").strip().replace(",", ".")
+    if not valeur:
+        return None
+    try:
+        km = float(valeur)
+    except ValueError:
+        return None
+    return km or None
+
+
+def _log_cumuls_conserves(resultats: list[ScrapedResult], title_course: str) -> None:
+    """Signal **agrégé** (une ligne par épreuve, pas une par participation) du
+    repli sur cumulés bruts. Pas d'état global : tout vit dans cet appel."""
+    n = sum(1 for r in resultats if r.raw_data.get("splits_cumules_conserves"))
+    if n:
+        logger.warning(
+            "Épreuve ok-time « %s » : %d participation(s) aux points de passage "
+            "décroissants — splits conservés en cumulés bruts plutôt qu'en durées.",
+            title_course, n,
+        )
+
+
+def _course_results(course: dict, *, url: str, evenement_title: str) -> list[ScrapedResult]:
+    """Une épreuve de la charge → ses participants. Pure : aucune requête.
+
+    `evenement_title` est reçu **déjà** décodé (`html.unescape`) par l'appelant :
+    la charge porte des entités brutes (`&#8211;`, `&#038;`) dans tous les titres
+    concernés, qui partiraient en base telles quelles.
+
+    Une course est **écartée** si `status != "finish"` **et** qu'aucun de ses
+    participants n'a de temps : ce sont les listes d'engagés (11 courses / 1 035
+    participations au panel), dont l'import créerait autant de participations
+    sans temps que l'heuristique du projet classerait DNF. La double condition
+    est délibérée — le comportement de `status` sur une course **en cours** n'a
+    pas été observé, et écarter sur ce seul critère risquerait de jeter des
+    résultats partiels.
+    """
+    title_course = html.unescape(str(course.get("title_course") or "").strip())
+    runners = course.get("runners") or []
+    statut_course = str(course.get("status") or "").strip()
+    non_chronometree = not any(_total_time(runner) for runner in runners)
+
+    if statut_course != "finish" and non_chronometree:
+        logger.info(
+            "Épreuve ok-time « %s » écartée : liste d'engagés (status=%r, "
+            "%d participant(s), aucun temps).",
+            title_course, statut_course, len(runners),
+        )
+        return []
+
+    epreuve_id = str(course.get("epreuve_id") or "")
+    # Type classé sur la **concaténation** des deux titres : le titre d'épreuve
+    # seul est trompeur (« Format M individuel » du SwimRun Côte Beauté sortirait
+    # en triathlon-m, « La Bourriquette » du Trail du Bourraid en triathlon). Sur
+    # les 99 courses du panel, la concaténation en corrige 5 et n'en dégrade aucune.
+    resultats = [
+        _build_result(
+            runner,
+            url=url,
+            event_name=qualify_event_name(evenement_title, title_course),
+            event_type=classify_event_type(f"{evenement_title} {title_course}"),
+            event_date=_parse_date(course.get("date_course")),
+            distance_km=_parse_distance(course.get("distance_course")),
+            is_relay=_is_relay_course(title_course, runners),
+            epreuve_id=epreuve_id,
+            course_non_chronometree=non_chronometree,
+            contexte={
+                "epreuve_id": epreuve_id,
+                "heuredebut_course": course.get("heuredebut_course"),
+                "reference_epreuve": course.get("reference_epreuve"),
+                "status_course": statut_course,
+            },
+        )
+        for runner in runners
+    ]
+    _log_cumuls_conserves(resultats, title_course)
+    return resultats

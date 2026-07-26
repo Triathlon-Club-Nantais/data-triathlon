@@ -5,7 +5,9 @@ Les fixtures sont des charges API réduites, calquées sur le schéma mesuré au
 panel du 2026-07-26 (cf. docs/superpowers/specs/2026-07-26-oktime-scraper-design.md).
 Le schéma réel est revérifié par le test `integration` sur l'événement 48555.
 """
+import html
 import json
+import logging
 from datetime import date
 from pathlib import Path
 
@@ -609,3 +611,173 @@ def test_build_result_course_non_chronometree_est_finisher():
 
     assert r.status == "finisher"
     assert r.total_time == ""
+
+
+# --------------------------------------------------------------------------- #
+# _course_results : niveau course
+# --------------------------------------------------------------------------- #
+
+LACANAU = json.loads((FIXTURES / "oktime_lacanau_48555.json").read_text(encoding="utf-8"))
+ENGAGES = json.loads((FIXTURES / "oktime_engages_48999.json").read_text(encoding="utf-8"))
+
+URL_48555 = "https://classement.ok-time.fr/48555"
+
+
+def _courses(charge, index):
+    """Les participants d'une course de la charge, titre d'événement déjà décodé."""
+    return oktime._course_results(
+        charge["data"][index],
+        url=URL_48555,
+        evenement_title=html.unescape(charge["evenement_title"]),
+    )
+
+
+@pytest.mark.parametrize("brut, attendu", [("02/05/2026", date(2026, 5, 2)), ("", None), (None, None)])
+def test_parse_date(brut, attendu):
+    assert oktime._parse_date(brut) == attendu
+
+
+def test_parse_date_format_inattendu():
+    assert oktime._parse_date("2026-05-02") is None
+
+
+@pytest.mark.parametrize(
+    "brut, attendu",
+    [("110,000", 110.0), ("27,5", 27.5), ("9,500", 9.5), ("", None), (None, None), ("0,000", None)],
+)
+def test_parse_distance(brut, attendu):
+    """Virgule décimale. Renseignée partout au panel : évite le repli sur
+    l'extraction depuis le nom, qui lit « Course chronométrée 9,5 km » comme 5 km."""
+    assert oktime._parse_distance(brut) == attendu
+
+
+def test_course_results_nom_qualifie_par_lepreuve():
+    """Sans le titre d'épreuve, les épreuves de Lacanau, qui partagent date et
+    type, fusionneraient sur `uq_course_identity` et leurs dossards entreraient
+    en collision (issue #21)."""
+    resultats = _courses(LACANAU, 0)
+
+    assert all(
+        r.event_name == "Triathlon de Lacanau 2026 – Samedi 02 mai - Triathlon L Individuel"
+        for r in resultats
+    )
+
+
+def test_course_results_entites_html_decodees_dans_le_nom():
+    """`&#038;` partirait en base tel quel sans `html.unescape`."""
+    resultats = _courses(LACANAU, 1)
+
+    assert resultats[0].event_name.endswith("Relais L & Duo")
+    assert "&#" not in resultats[0].event_name
+
+
+def test_course_results_classification_sur_la_concatenation():
+    """Le titre d'épreuve seul est trompeur : « Format M individuel » du SwimRun
+    Côte Beauté sortirait en triathlon-m. La concaténation corrige 5 courses du
+    panel et n'en dégrade aucune."""
+    course = {
+        "title_course": "Format M individuel",
+        "epreuve_id": 1,
+        "date_course": "01/06/2025",
+        "distance_course": "20,000",
+        "status": "finish",
+        "runners": [{"nom": "Paul MARTIN", "temps_finish": "01:00:00"}],
+    }
+
+    resultats = oktime._course_results(
+        course, url=URL_48555, evenement_title="SwimRun de la Côte de Beauté"
+    )
+
+    assert resultats[0].event_type == "swimrun-m"
+
+
+def test_course_results_concatenation_reste_correcte_si_les_titres_se_contredisent():
+    """« Aquathlon 10 13 ans » dans « Triathlon de Lacanau » sort bien en aquathlon."""
+    course = {
+        "title_course": "Aquathlon 10 13 ans",
+        "epreuve_id": 1,
+        "date_course": "02/05/2026",
+        "distance_course": "2,000",
+        "status": "finish",
+        "runners": [{"nom": "Lou BERNARD", "temps_finish": "00:12:00"}],
+    }
+
+    resultats = oktime._course_results(
+        course, url=URL_48555, evenement_title="Triathlon de Lacanau 2026"
+    )
+
+    assert resultats[0].event_type == "aquathlon"
+
+
+def test_course_results_date_et_distance():
+    resultats = _courses(LACANAU, 0)
+
+    assert all(r.event_date == date(2026, 5, 2) for r in resultats)
+    assert all(r.distance_km == 110.0 for r in resultats)
+
+
+def test_course_results_relais_uniforme_sur_la_course():
+    """Décider par course garantit que `Course.is_relay` et
+    `Participation.is_relay` ne divergent pas selon l'ordre des participants."""
+    assert all(r.is_relay for r in _courses(LACANAU, 1))
+    assert not any(r.is_relay for r in _courses(LACANAU, 0))
+
+
+def test_course_results_statuts_de_la_source():
+    individuel = _courses(LACANAU, 0)
+    relais = _courses(LACANAU, 1)
+
+    assert individuel[0].status == ""      # finisher laissé à l'heuristique
+    assert individuel[2].status == "DNS"   # pris_depart="N" ET abandon="O"
+    assert relais[0].status == "DSQ"
+
+
+def test_course_results_ecarte_une_liste_dengages(caplog):
+    """`status != "finish"` **et** aucun temps : épreuve inscrite mais pas courue.
+    Les importer créerait des participations sans temps, que l'heuristique du
+    projet classerait DNF."""
+    with caplog.at_level(logging.INFO, logger="app.scrapers.oktime"):
+        resultats = _courses(ENGAGES, 0)
+
+    assert resultats == []
+    assert "liste d'engagés" in caplog.text
+
+
+def test_course_results_course_enfants_non_chronometree_est_finisher():
+    """`status="finish"` sans aucun temps : courue et déclarée terminée. La double
+    condition l'épargne de l'écartement, et le statut explicite lui évite le DNF
+    collectif."""
+    resultats = _courses(ENGAGES, 1)
+
+    assert len(resultats) == 1
+    assert resultats[0].status == "finisher"
+    assert resultats[0].total_time == ""
+
+
+def test_course_results_log_agrege_des_cumuls_conserves(caplog):
+    """Une ligne par épreuve, pas une par participation."""
+    course = {
+        "title_course": "Triathlon M",
+        "epreuve_id": 1,
+        "date_course": "01/06/2025",
+        "distance_course": "51,500",
+        "status": "finish",
+        "runners": [
+            {
+                "nom": f"Paul MARTIN{i}",
+                "temps_finish": "02:00:00",
+                "points_de_passage": [
+                    {"id": "1|1", "nom": "VELO", "time": "01:30:46"},
+                    {"id": "2|2", "nom": "T2", "time": "01:30:19"},
+                ],
+            }
+            for i in range(3)
+        ],
+    }
+
+    with caplog.at_level(logging.WARNING, logger="app.scrapers.oktime"):
+        oktime._course_results(course, url=URL_48555, evenement_title="Triathlon de Mimizan")
+
+    messages = [r for r in caplog.records if "décroissants" in r.getMessage()]
+    assert len(messages) == 1
+    assert "3 participation" in messages[0].getMessage()

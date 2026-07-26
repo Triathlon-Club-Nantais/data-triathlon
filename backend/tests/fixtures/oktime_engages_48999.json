@@ -1,0 +1,66 @@
+{
+  "success": true,
+  "evenement_id": 48999,
+  "evenement_title": "Triathlon du Lac 2026",
+  "count": 2,
+  "data": [
+    {
+      "title_course": "Triathlon S Individuel",
+      "epreuve_id": 60101,
+      "date_course": "12/07/2026",
+      "distance_course": "25,750",
+      "heuredebut_course": "09:00:00",
+      "reference_epreuve": "LAC26-S",
+      "status": "",
+      "runners": [
+        {
+          "nom": "Paul MARTIN",
+          "sexe": "M",
+          "dossard": 12,
+          "club": "",
+          "categorie": "Senior",
+          "categorie_abbrev": "SE",
+          "temps_finish": "00:00:00",
+          "temp-reel": null,
+          "classement_general": 0,
+          "classement_categorie": 0,
+          "classement_sexe": 0,
+          "rgpd": "O",
+          "abandon": "N",
+          "disqualifie": "N",
+          "pris_depart": "O",
+          "points_de_passage": []
+        }
+      ]
+    },
+    {
+      "title_course": "Course des enfants UNICEF",
+      "epreuve_id": 60102,
+      "date_course": "12/07/2026",
+      "distance_course": "1,000",
+      "heuredebut_course": "14:00:00",
+      "reference_epreuve": "LAC26-KID",
+      "status": "finish",
+      "runners": [
+        {
+          "nom": "Lou BERNARD",
+          "sexe": "F",
+          "dossard": 501,
+          "club": "",
+          "categorie": "Poussin",
+          "categorie_abbrev": "PO",
+          "temps_finish": "00:00:00",
+          "temp-reel": null,
+          "classement_general": 0,
+          "classement_categorie": 0,
+          "classement_sexe": 0,
+          "rgpd": "O",
+          "abandon": "N",
+          "disqualifie": "N",
+          "pris_depart": "O",
+          "points_de_passage": []
+        }
+      ]
+    }
+  ]
+}
