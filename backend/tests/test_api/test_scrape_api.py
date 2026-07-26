@@ -25,6 +25,17 @@ def test_detect(client):
     assert resp.json() == {"provider": "klikego"}
 
 
+def test_detect_sur_host_ipv6_malforme_ne_leve_pas_500(client):
+    """Résidu du finding Important n°2 (revue #49) : `WiclaxProvider.matches`
+    faisait son propre `urlparse` non protégé, appelé avant tout garde-fou —
+    cet endpoint ne passe ni par `HttpUrl` ni par `_validate_url`. Une entrée
+    dégradée doit rester un non-match (fallback `playwright`), jamais une
+    exception qui remonte en 500."""
+    resp = client.get("/api/v1/scrape/detect", params={"url": "https://[oops/x"})
+    assert resp.status_code == 200
+    assert resp.json() == {"provider": "playwright"}
+
+
 def test_import_event(client, monkeypatch):
     from app.services import import_service
 

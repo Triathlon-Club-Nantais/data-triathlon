@@ -59,6 +59,21 @@ def _host_match(url: str, hosts: tuple[str, ...]) -> bool:
     return any(host == h or host.endswith(f".{h}") for h in hosts)
 
 
+def _url_path(url: str) -> str:
+    """Path de `url`, chaîne vide si `urlparse` échoue.
+
+    Extraction seule — aucune règle de host ici, elle reste entièrement dans
+    `_host_match`. `urlparse` lève `ValueError` sur un host IPv6 malformé (ex.
+    `https://[oops/x`) : un provider qui a besoin du path en plus du host
+    (`WiclaxProvider`) passe par ce helper plutôt que par un `urlparse` direct,
+    pour rester total comme `_host_match`.
+    """
+    try:
+        return urlparse(url).path or ""
+    except ValueError:
+        return ""
+
+
 @runtime_checkable
 class ScraperProtocol(Protocol):
     """Contrat que tout provider doit respecter."""
@@ -153,9 +168,10 @@ class WiclaxProvider(HostMatchedProvider):
         # `wiclax.com` est le site vitrine de l'éditeur : il n'est pas dans
         # `_HOSTS`, seuls ses chemins G-Live sont des pages de résultats. D'où
         # la composition sur `_host_match` — surtout pas une copie de la règle.
-        parsed = urlparse(url)
+        # `_url_path` (et non un `urlparse` direct) : un host IPv6 malformé ne
+        # doit pas faire lever `matches`, seulement produire un non-match.
         return super().matches(url) or (
-            _host_match(url, ("wiclax.com",)) and "G-Live" in (parsed.path or "")
+            _host_match(url, ("wiclax.com",)) and "G-Live" in _url_path(url)
         )
 
     def scrape_event_all(self, url: str) -> list[ScrapedResult]:
