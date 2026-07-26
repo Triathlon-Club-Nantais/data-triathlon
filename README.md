@@ -128,6 +128,12 @@ L'ordre de démarrage est libre : lancé en premier, le frontend attend le backe
 | `DEV_BACKEND_PORT` | force le port du backend et court-circuite le scan |
 | `DEV_BACKEND_PORT_BASE` | change le point de départ du scan (défaut : 8001) |
 | `BACKEND_URL` | impose la cible du frontend : aucune attente, aucune découverte |
+| `API_URL` | impose la seule cible des pages serveur (RSC), sans toucher aux rewrites |
+
+Le lanceur du frontend ne fait que **combler** ces deux dernières : une valeur déjà
+posée gagne, qu'elle vienne du shell ou de `frontend/.env.local` (lu avec le loader
+de Next). Dissocier `API_URL` de `BACKEND_URL` reste donc possible en dev, comme en
+prod.
 
 ---
 

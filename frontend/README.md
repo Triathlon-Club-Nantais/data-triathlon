@@ -16,7 +16,9 @@ Backend requis : `uv run python scripts/dev_server.py` depuis `backend/`.
 racine du worktree) et renseigne `BACKEND_URL` + `API_URL` — le frontend parle donc
 toujours au backend de **son** worktree. Lancé avant le backend, il l'attend.
 Pour viser un autre backend, définir `BACKEND_URL` (ou le poser dans `.env.local`,
-cf. `.env.local.example`) : la découverte est alors court-circuitée.
+cf. `.env.local.example`) : la découverte est alors court-circuitée. Le lanceur ne
+**comble** que les variables absentes — une `API_URL` fournie de son côté reste
+intacte, ce qui permet de viser une autre cible en RSC que dans les rewrites.
 
 ## Scripts
 

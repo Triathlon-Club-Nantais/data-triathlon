@@ -130,8 +130,9 @@ tasks:
     desc: 'frontend : serveur Next.js (:3000 ou suivant libre), branché sur le backend du worktree'
     dir: frontend
     cmds:
-      # Attend que le backend ait publié son port, puis lance next dev avec
-      # BACKEND_URL / API_URL renseignés. BACKEND_URL préexistante = pas d'attente.
+      # Attend que le backend ait publié son port, puis lance next dev en comblant
+      # BACKEND_URL / API_URL — une valeur déjà définie (shell ou .env.local) gagne.
+      # BACKEND_URL préexistante = pas d'attente.
       - npm run dev
 
   f:build:

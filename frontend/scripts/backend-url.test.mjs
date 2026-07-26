@@ -9,6 +9,7 @@ import {
   DEFAULT_BACKEND_URL,
   PORT_FILE_NAME,
   isPortAlive,
+  missingBackendEnv,
   readPublishedBackend,
   resolveBackendUrl,
 } from "./backend-url.mjs";
@@ -147,5 +148,34 @@ describe("resolveBackendUrl", () => {
     });
 
     expect(appels).toHaveLength(1);
+  });
+});
+
+describe("missingBackendEnv", () => {
+  it("renseigne les deux variables quand l'environnement est vide", () => {
+    expect(missingBackendEnv({}, "http://127.0.0.1:8042")).toEqual({
+      BACKEND_URL: "http://127.0.0.1:8042",
+      API_URL: "http://127.0.0.1:8042",
+    });
+  });
+
+  it("laisse intacte une API_URL fournie et ne comble que BACKEND_URL", () => {
+    // Dissocier la cible SSR de celle des rewrites doit rester possible.
+    expect(missingBackendEnv({ API_URL: "http://autre:9000" }, "http://127.0.0.1:8042")).toEqual({
+      BACKEND_URL: "http://127.0.0.1:8042",
+    });
+  });
+
+  it("n'injecte rien quand les deux variables sont déjà définies", () => {
+    const env = { BACKEND_URL: "http://a:1", API_URL: "http://b:2" };
+
+    expect(missingBackendEnv(env, "http://127.0.0.1:8042")).toEqual({});
+  });
+
+  it("traite une valeur vide ou blanche comme absente", () => {
+    expect(missingBackendEnv({ BACKEND_URL: "", API_URL: "   " }, "http://127.0.0.1:8042")).toEqual({
+      BACKEND_URL: "http://127.0.0.1:8042",
+      API_URL: "http://127.0.0.1:8042",
+    });
   });
 });
