@@ -15,6 +15,7 @@ from datetime import date
 
 import pytest
 
+from app.core.club import is_tcn
 from app.scrapers import breizhchrono, klikego, registry
 
 # URLs réelles fonctionnelles, une par provider.
@@ -434,3 +435,6 @@ def test_t2area_epreuve_complete():
     assert min(r.rank_overall for r in results if r.rank_overall) == 1
     assert any(r.club and "NANTAIS" in r.club.upper() for r in results)
     assert all(r.event_date == date(2022, 9, 18) for r in results)
+    # La promesse « splits des seuls TCN » : au moins un membre du club porte un
+    # temps de natation, chargé via la fiche individuelle.
+    assert any(is_tcn(r.club) and r.swim_time for r in results)

@@ -31,7 +31,7 @@ from bs4 import BeautifulSoup
 
 from app.core.club import is_tcn
 
-from .base import ScrapedResult
+from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
 from .classify import classify_event_type
 from .utils import derive_status_from_label, normalize_rank, normalize_time, split_athlete_name
 
@@ -313,6 +313,7 @@ def _construire(
         "cle_fiche": cle,
         "fiche_url": ligne.get("details_href", ""),
         "clt": clt,
+        "temps": ligne.get("temps", ""),
         "id_league": ligne.get("id_league", ""),
         "league": ligne.get("league", ""),
         "club_href": ligne.get("club_href", ""),
@@ -321,6 +322,12 @@ def _construire(
         "evenement": evenement,
         "epreuve": epreuve,
     }
+    # La FFTRI publie parfois un temps sur ses disqualifiés (ALLARD Pierre,
+    # `42:23:00` sur La Baule 2022 — une aberration de saisie côté source).
+    # Invariant du dépôt, partagé avec wiclax/sportinnovation/raceresult/timepulse :
+    # un non-finisher n'a pas de temps total.
+    if result.status in (STATUS_DNF, STATUS_DNS, STATUS_DSQ):
+        result.total_time = ""
     return result
 
 

@@ -221,6 +221,17 @@ def test_parse_edition_disqualifie():
     assert r.rank_overall is None
 
 
+def test_parse_edition_disqualifie_navance_pas_de_temps():
+    """La FFTRI publie parfois un temps sur un DSQ (`42:23:00`, ALLARD Pierre) :
+    invariant du dépôt, un non-finisher n'a pas de temps total. Le brut reste
+    diagnosticable dans `raw_data`."""
+    r = _par_nom(_labaule(), "ALLARD")
+
+    assert r.status == "DSQ"
+    assert r.total_time == ""
+    assert r.raw_data["temps"] == "42:23:00"
+
+
 def test_parse_edition_club_absent():
     assert _par_nom(_labaule(), "AGIS").club == ""
 
