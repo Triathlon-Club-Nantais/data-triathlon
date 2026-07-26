@@ -265,9 +265,9 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 ## Fournisseurs supportés
 
 Klikego, Breizh Chrono, TimePulse, Wiclax/G-Live, ProLiveSport, Sportinnovation,
-RaceResult, Chronoplace, T2Area (FFTRI) — tous en **épreuve complète**. Chronoplace (Laravel +
-Livewire) se lit en `GET ?perPage=all` — pas de POST Livewire — et importe
-**toutes** les épreuves de l'événement pointé par l'URL.
+RaceResult, Chronoplace, T2Area (FFTRI) — tous en **épreuve complète**.
+Chronoplace (Laravel + Livewire) se lit en `GET ?perPage=all` — pas de POST
+Livewire — et importe **toutes** les épreuves de l'événement pointé par l'URL.
 Wiclax/G-Live couvre plusieurs déploiements : `wiclax-results.com`,
 `chronosmetron.com` et `chronowest.fr` (WordPress + iframe G-Live). Un nouveau
 déploiement tiers = un host dans `WiclaxProvider._HOSTS`.
