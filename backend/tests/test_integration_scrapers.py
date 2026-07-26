@@ -214,7 +214,14 @@ def test_chronoplace_importe_les_epreuves_soeurs():
 
     assert len(results) > 200, "le classement complet (perPage=all) n'a pas été rendu"
     assert {"triathlon-s", "swimrun"} <= {r.event_type for r in results}
-    assert any(r.event_date == date(2025, 9, 21) for r in results)
+    # Assertion volontairement stricte : le scraper avale l'échec de l'annuaire
+    # (`_fetch_event_date` → None), donc c'est le seul garde-fou sur la date face
+    # au site réel. Conditionnelle, elle resterait verte après une rupture du
+    # markup de /recherche — exactement le jour où il faudrait le savoir.
+    assert any(r.event_date == date(2025, 9, 21) for r in results), (
+        "date absente ou fausse : annuaire /recherche indisponible, ou markup "
+        "des cartes changé (cf. _parse_event_date)"
+    )
     # Splits triathlon peuplés, et le TCN est bien présent.
     tri = [r for r in results if r.event_type == "triathlon-s"]
     assert any(r.swim_time and r.bike_time and r.run_time for r in tri)

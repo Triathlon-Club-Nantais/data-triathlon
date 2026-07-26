@@ -200,6 +200,25 @@ def test_parse_table_scope_au_composant_livewire():
     assert chronoplace._parse_table(html) == [{"position": "1", "nom": "MARTIN Malo"}]
 
 
+def test_parse_table_composant_livewire_vide_ne_retombe_pas_sur_la_page(caplog):
+    """Composant présent mais privé de sa `<table>` (markup chronoplace modifié) :
+    pas de repli sur la page entière, qui ferait lire une table décorative comme
+    un classement. L'anomalie est journalisée, les données douteuses écartées."""
+    html = """
+    <table>
+      <thead><tr><th wire:click="sortBy('position')">P</th></tr></thead>
+      <tbody><tr><td>Table décorative hors composant</td></tr></tbody>
+    </table>
+    <div wire:snapshot="{}"><p>Aucun résultat</p></div>
+    """
+    with caplog.at_level(logging.WARNING):
+        rows = chronoplace._parse_table(html)
+
+    assert rows == []
+    assert len(caplog.records) == 1
+    assert "table" in caplog.records[0].getMessage().lower()
+
+
 def test_parse_table_ignore_une_ligne_desalignee():
     """Anomalie jamais observée sur les 4 épreuves sondées, mais on ne décale rien."""
     html = """
@@ -262,6 +281,20 @@ def test_log_unknown_time_rejections_agrege_en_un_seul_warning(caplog):
     assert len(caplog.records) == 1
     message = caplog.records[0].getMessage()
     assert "spaycific-races-2025" in message
+    assert "2 cellule" in message
+
+
+def test_log_unknown_time_rejections_nomme_la_colonne_rejetee(caplog):
+    """La conséquence dépend de la colonne : seul un rejet sur `temps` prive la
+    participation de son temps total, donc la classe DNF (`mapping.derive_status`) ;
+    un split rejeté laisse juste ce segment vide. Le message ne peut pas parler de
+    DNF sans distinguer les deux, et l'échantillon doit nommer la colonne."""
+    rows = [{"T_natation": "00:10:53,4"}, {"temps": "01:06:55.3"}]
+    with caplog.at_level(logging.WARNING):
+        chronoplace._log_unknown_time_rejections(rows, "x")
+
+    message = caplog.records[0].getMessage()
+    assert "T_natation" in message and "temps" in message
     assert "2 cellule" in message
 
 

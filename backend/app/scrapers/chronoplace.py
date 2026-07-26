@@ -147,13 +147,17 @@ def _find_table(soup: BeautifulSoup):
 
     Scoper à cet élément porteur évite de prendre « la première table de la
     page » si une autre `<table>` (bandeau, pub…) précède le composant. Repli
-    sur le document entier si l'élément est absent : les HTML de test réduits
-    (`test_parse_table_ignore_une_ligne_desalignee`) sont une `<table>` nue,
-    sans `wire:snapshot` — un ciblage strict casserait ce cas légitime.
+    sur le document entier **seulement si l'élément est absent** : les HTML de
+    test réduits (`test_parse_table_ignore_une_ligne_desalignee`) sont une
+    `<table>` nue, sans `wire:snapshot` — un ciblage strict casserait ce cas
+    légitime. En revanche, un composant présent mais privé de sa `<table>` est
+    une anomalie de markup : `None` laisse `_parse_table` la journaliser, là où
+    un repli irait lire une table décorative hors composant.
     """
     container = soup.find(attrs={"wire:snapshot": True})
-    table = container.find("table") if container else None
-    return table if table is not None else soup.find("table")
+    if container is not None:
+        return container.find("table")
+    return soup.find("table")
 
 
 def _parse_table(html: str) -> list[dict[str, str]]:
@@ -224,17 +228,23 @@ _TIME_COLUMNS = ("temps", *_SPLIT_FIELDS.keys())
 
 def _log_unknown_time_rejections(rows: list[dict[str, str]], slug: str) -> None:
     """Signal agrégé (une fois par épreuve, pas une fois par cellule) des rejets
-    de temps au format inconnu. Pas d'état global : tout vit dans cet appel."""
+    de temps au format inconnu. Pas d'état global : tout vit dans cet appel.
+
+    L'échantillon nomme la colonne, car la conséquence en dépend : seul un rejet
+    sur `temps` prive la participation de temps total, donc la fait classer DNF
+    par `mapping.derive_status` ; un split rejeté laisse juste ce segment vide.
+    """
     inconnues = [
-        row[column]
+        f"{column}={row[column]!r}"
         for row in rows
         for column in _TIME_COLUMNS
         if column in row and _is_unknown_time_rejection(row[column])
     ]
     if inconnues:
         logger.warning(
-            "Épreuve %s : %d cellule(s) de temps au format inattendu, "
-            "classées DNF (échantillon : %s)",
+            "Épreuve %s : %d cellule(s) de temps au format inattendu — un rejet "
+            "sur « temps » fait classer la participation DNF, un rejet sur un "
+            "split laisse le segment vide (échantillon : %s)",
             slug, len(inconnues), inconnues[:5],
         )
 
