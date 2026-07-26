@@ -27,7 +27,8 @@ from urllib.parse import urlparse
 
 import httpx
 
-from .utils import split_athlete_name
+from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER
+from .utils import normalize_rank, normalize_time, split_athlete_name
 
 logger = logging.getLogger(__name__)
 
@@ -205,3 +206,60 @@ def _athlete_identity(runner: dict, *, is_relay: bool, epreuve_id: str) -> tuple
     if is_relay or _SEPARATEUR_EQUIPE in nom:
         return nom, ""
     return split_athlete_name(nom)
+
+
+# --------------------------------------------------------------------------- #
+# Scalaires du participant
+# --------------------------------------------------------------------------- #
+
+def _drapeau(runner: dict, champ: str) -> str:
+    """Un drapeau O/N de la source, normalisé en majuscule."""
+    return str(runner.get(champ) or "").strip().upper()
+
+
+def _status(runner: dict, *, course_non_chronometree: bool) -> str:
+    """Statut sportif, ou "" pour laisser l'heuristique du projet trancher.
+
+    Ordre de priorité : **DNS avant DNF** — 1 participation du panel porte
+    `abandon="O"` et `pris_depart="N"`, et ne pas être parti prime.
+
+    Le repli `finisher` est borné à une course **entièrement** non chronométrée
+    (les 3 courses enfants du panel, `status="finish"` sans aucun temps) : dans
+    une course par ailleurs chronométrée, un participant sans temps reste traité
+    par l'heuristique, faute de savoir le distinguer d'un abandon non saisi.
+    """
+    if _drapeau(runner, "pris_depart") == "N":
+        return STATUS_DNS
+    if _drapeau(runner, "abandon") == "O":
+        return STATUS_DNF
+    if _drapeau(runner, "disqualifie") == "O":
+        return STATUS_DSQ
+    if course_non_chronometree:
+        return STATUS_FINISHER
+    return ""
+
+
+def _rank(value) -> int | None:
+    """Rang, avec `0 → None` : la source dit « non classé » avec un zéro.
+
+    1 336 finishers valides du panel sur 11 816 sont dans ce cas.
+    `normalize_rank` rendrait 0, qui s'afficherait comme une place.
+    """
+    return normalize_rank(value) or None
+
+
+def _gender(raw) -> str:
+    """« M » / « F » tels quels ; tout le reste → "".
+
+    `X` (relais mixtes, 323 participations) n'est pas rendu par le front : mieux
+    vaut vide qu'une valeur qu'il ne sait pas afficher.
+    """
+    genre = str(raw or "").strip().upper()
+    return genre if genre in ("M", "F") else ""
+
+
+def _total_time(runner: dict) -> str:
+    """`temps_finish` normalisé, vide si `"00:00:00"` — la façon dont la source
+    dit « pas de temps » (`temps_finish` est toujours renseigné, 12 644/12 644)."""
+    brut = normalize_time(str(runner.get("temps_finish") or "").strip())
+    return "" if brut == "00:00:00" else brut
