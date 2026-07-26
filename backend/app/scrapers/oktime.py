@@ -25,6 +25,8 @@ import logging
 import re
 from urllib.parse import urlparse
 
+import httpx
+
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://ok-time.fr"
@@ -67,3 +69,58 @@ def _parse_url(url: str) -> tuple[str, str]:
             "/evenement/<slug>/. Lien à corriger à la source."
         )
     raise ValueError(f"URL ok-time.fr non reconnue : {url}")
+
+
+# Le lien de classement d'une page `/evenement/<slug>/`. Cherché à la regex sur
+# le HTML brut plutôt qu'au parseur : le lien peut vivre dans un attribut, un
+# bloc de script ou une iframe selon le thème, et un seul motif les couvre tous.
+_CLASSEMENT_ID_RE = re.compile(r"classement\.ok-time\.fr/(\d+)")
+
+
+def _resolve_event_id(client: httpx.Client, slug: str) -> str:
+    """Id d'événement lu sur la page éditoriale. 1 GET HTML, aucun autre usage.
+
+    Une page servie mais dépourvue de lien de classement est le cas des slugs
+    redirigés vers le listing générique (§2.1 du design) : il n'y a rien à en
+    tirer, l'erreur doit le dire.
+    """
+    url = f"{BASE_URL}/evenement/{slug}/"
+    response = client.get(url)
+    response.raise_for_status()
+    m = _CLASSEMENT_ID_RE.search(response.text)
+    if not m:
+        raise ValueError(
+            f"Page ok-time.fr « {slug} » sans aucun lien de classement : "
+            "événement sans résultats publiés, ou slug redirigé vers le listing."
+        )
+    return m.group(1)
+
+
+def _fetch_results(client: httpx.Client, event_id: str) -> dict:
+    """La charge JSON de l'événement entier. Erreurs de la source traduites.
+
+    L'API distingue ses deux échecs métier (§1.3 du design), on les garde
+    distincts : un 404 dit « cet id n'existe pas », un 400 dit « cet événement
+    existe mais n'a rien publié ». Toute autre erreur HTTP (5xx…) remonte telle
+    quelle : ce n'est pas un problème de lien, et la traduire en ValueError la
+    ferait passer pour tel dans le bilan CLI.
+    """
+    url = f"{BASE_URL}{API_PATH.format(event_id=event_id)}"
+    response = client.get(url)
+    if response.status_code == 404:
+        raise ValueError(
+            f"Événement ok-time introuvable (id {event_id}) : seul un id "
+            "d'événement est accepté, pas un id d'épreuve."
+        )
+    if response.status_code == 400:
+        raise ValueError(
+            f"Événement ok-time {event_id} : aucun résultat publié à ce jour."
+        )
+    response.raise_for_status()
+    charge = response.json()
+    if not isinstance(charge, dict) or "data" not in charge:
+        raise ValueError(
+            f"Charge ok-time inattendue pour l'événement {event_id} : "
+            "clé « data » absente."
+        )
+    return charge
