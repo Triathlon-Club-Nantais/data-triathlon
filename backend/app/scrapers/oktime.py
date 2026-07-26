@@ -27,6 +27,8 @@ from urllib.parse import urlparse
 
 import httpx
 
+from .utils import split_athlete_name
+
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://ok-time.fr"
@@ -124,3 +126,82 @@ def _fetch_results(client: httpx.Client, event_id: str) -> dict:
             "clé « data » absente."
         )
     return charge
+
+
+# --------------------------------------------------------------------------- #
+# Identité de l'athlète
+# --------------------------------------------------------------------------- #
+
+def _repair_mojibake(s: str) -> str:
+    """Répare un texte UTF-8 relu en cp1252 (« AnaÃ¯s » → « Anaïs »).
+
+    Mesuré sur `nom` **uniquement** (173 participations du panel, concentrées sur
+    les 4 événements les plus anciens) : `club` et `categorie` en sont indemnes,
+    on ne les touche donc pas.
+
+    La conversion n'est retenue que si elle **aboutit** : un nom déjà sain
+    échoue au décodage UTF-8 (« Anaïs » → b'Ana\\xefs', 0xEF sans continuation
+    valide) et ressort inchangé. Un caractère hors cp1252 (« Łukasz ») échoue à
+    l'encodage, même issue. Contrôle de non-régression : les 1 061 noms
+    accentués sains du panel traversent intacts.
+    """
+    try:
+        return s.encode("cp1252").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return s
+
+
+_ACCENTS = str.maketrans("àâäéèêëîïôöùûüç", "aaaeeeeiioouuuc")
+# Marqueurs d'une course d'équipes dans le titre, comparés sans accents ni casse.
+_RELAY_TITRE_RE = re.compile(r"relais|equipe|duo|team")
+# Séparateur de coéquipiers dans un nom (« GUILLON RÉMI / CHARPENTIER EMMANUEL »).
+# Testé sans les espaces qui l'entourent : une graphie collée resterait un binôme.
+_SEPARATEUR_EQUIPE = "/"
+
+
+def _is_relay_course(title: str, runners: list[dict]) -> bool:
+    """`is_relay` de **toute** la course : titre parlant, ou majorité de binômes.
+
+    Décidé au niveau de la course, jamais du participant : sinon
+    `Course.is_relay` et `Participation.is_relay` divergeraient selon l'ordre des
+    participants dans la charge.
+
+    Le titre seul ne suffit pas (les courses du Bike & Run de la pomme et de la
+    châtaigne sont des binômes muets), et « au moins un » ne convient pas non
+    plus (il basculerait « Format M individuel », 1 nom sur 57, en relais). D'où
+    la **majorité stricte**.
+    """
+    if _RELAY_TITRE_RE.search((title or "").lower().translate(_ACCENTS)):
+        return True
+    noms = [str(runner.get("nom") or "") for runner in runners]
+    if not noms:
+        return False
+    binomes = sum(1 for nom in noms if _SEPARATEUR_EQUIPE in nom)
+    return binomes * 2 > len(noms)
+
+
+def _athlete_identity(runner: dict, *, is_relay: bool, epreuve_id: str) -> tuple[str, str]:
+    """(nom, prénom) — un nom d'équipe n'est jamais découpé (précédent #63).
+
+    Trois régimes :
+
+    1. `rgpd:"N"` — la source ampute le nom (« T... B... ») mais publie temps et
+       rang. Identité synthétique « Anonyme <epreuve_id>-<dossard> », prénom
+       vide. La clé d'épreuve est **indispensable** : `Athlete` étant unique sur
+       (nom, prénom, date de naissance), un simple « Anonyme 927 » fusionnerait
+       les dossards 927 anonymes de deux courses en un athlète agrégeant les
+       résultats de deux personnes. `epreuve_id` et `dossard` étant stables,
+       l'identité l'est d'un re-scrape à l'autre. Si ok-time levait l'anonymat,
+       la réconciliation d'identité (#66) rattacherait les participations au nom
+       réel au prochain `rescrape-db`.
+    2. équipe (course de relais, ou nom porteur d'un « / ») — le nom entier va
+       dans `nom`, le prénom reste vide. Ne pas mutiler un nom d'équipe.
+    3. sinon — convention « Prénom NOM » de la source, déléguée à
+       `split_athlete_name`.
+    """
+    if str(runner.get("rgpd") or "").strip().upper() == "N":
+        return f"Anonyme {epreuve_id}-{runner.get('dossard')}", ""
+    nom = _repair_mojibake(str(runner.get("nom") or "").strip())
+    if is_relay or _SEPARATEUR_EQUIPE in nom:
+        return nom, ""
+    return split_athlete_name(nom)

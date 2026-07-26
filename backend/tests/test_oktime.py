@@ -168,3 +168,117 @@ def test_fetch_results_charge_sans_data_leve():
 
     with pytest.raises(ValueError, match="Charge ok-time inattendue"):
         oktime._fetch_results(client, "48555")
+
+
+# --------------------------------------------------------------------------- #
+# Identité : mojibake, équipes, RGPD
+# --------------------------------------------------------------------------- #
+
+def test_repair_mojibake_repare_un_nom_cp1252():
+    """173 participations du panel portent ce travers, sur les événements anciens."""
+    assert oktime._repair_mojibake("AnaÃ¯s MOUSQUET") == "Anaïs MOUSQUET"
+
+
+def test_repair_mojibake_laisse_intact_un_nom_accentue_sain():
+    """Non-régression mesurée : les 1 061 noms accentués sains du panel traversent
+    la réparation inchangés. Un faux positif scinderait un athlète en deux."""
+    assert oktime._repair_mojibake("Anaïs MOUSQUET") == "Anaïs MOUSQUET"
+
+
+@pytest.mark.parametrize("nom", ["", "Paul MARTIN", "Łukasz KOWALSKI", "T... B..."])
+def test_repair_mojibake_neutre_sur_les_autres_cas(nom):
+    """Chaîne vide, ASCII pur, caractère hors cp1252, nom anonymisé : inchangés."""
+    assert oktime._repair_mojibake(nom) == nom
+
+
+@pytest.mark.parametrize(
+    "titre",
+    ["Relais L", "Triathlon M Équipe", "Course Duo", "Team Challenge"],
+)
+def test_is_relay_course_par_le_titre(titre):
+    assert oktime._is_relay_course(titre, []) is True
+
+
+def test_is_relay_course_binome_non_titre():
+    """Bike & Run de la pomme et de la châtaigne : « Course S » est un binôme
+    qui ne le dit pas — 100 % de ses noms portent « / »."""
+    runners = [{"nom": "A DUPONT / B MARTIN"}, {"nom": "C DURAND / D PETIT"}]
+
+    assert oktime._is_relay_course("Course S", runners) is True
+
+
+def test_is_relay_course_binome_isole_ne_bascule_pas_la_course():
+    """« Format M individuel » : 1 nom sur 57 porte « / ». Un « au moins un »
+    ferait basculer la course entière en relais."""
+    runners = [{"nom": "A DUPONT / B MARTIN"}] + [{"nom": f"Paul MARTIN{i}"} for i in range(56)]
+
+    assert oktime._is_relay_course("Format M individuel", runners) is False
+
+
+def test_is_relay_course_sans_participant():
+    assert oktime._is_relay_course("Triathlon S", []) is False
+
+
+def test_athlete_identity_convention_prenom_nom():
+    nom, prenom = oktime._athlete_identity(
+        {"nom": "Valentin ROUVIER"}, is_relay=False, epreuve_id="59697"
+    )
+
+    assert (nom, prenom) == ("ROUVIER", "Valentin")
+
+
+def test_athlete_identity_repare_le_mojibake_avant_de_scinder():
+    nom, prenom = oktime._athlete_identity(
+        {"nom": "AnaÃ¯s MOUSQUET"}, is_relay=False, epreuve_id="59697"
+    )
+
+    assert (nom, prenom) == ("MOUSQUET", "Anaïs")
+
+
+def test_athlete_identity_nom_dequipe_non_mutile():
+    """Précédent RaceResult (#63) : un nom d'équipe entre entier dans `nom`."""
+    nom, prenom = oktime._athlete_identity(
+        {"nom": "GUILLON RÉMI / CHARPENTIER EMMANUEL"}, is_relay=True, epreuve_id="59698"
+    )
+
+    assert (nom, prenom) == ("GUILLON RÉMI / CHARPENTIER EMMANUEL", "")
+
+
+def test_athlete_identity_binome_isole_en_course_individuelle():
+    """Garde par valeur : « / » suffit, même hors course de relais."""
+    nom, prenom = oktime._athlete_identity(
+        {"nom": "A DUPONT / B MARTIN"}, is_relay=False, epreuve_id="59697"
+    )
+
+    assert (nom, prenom) == ("A DUPONT / B MARTIN", "")
+
+
+def test_athlete_identity_nom_dequipe_pur_en_course_relais():
+    nom, prenom = oktime._athlete_identity(
+        {"nom": "TEAM TCC"}, is_relay=True, epreuve_id="59698"
+    )
+
+    assert (nom, prenom) == ("TEAM TCC", "")
+
+
+def test_athlete_identity_rgpd_identite_synthetique():
+    """`rgpd:"N"` → nom amputé à la source (« T... B... ») : identité synthétique."""
+    nom, prenom = oktime._athlete_identity(
+        {"nom": "T... B...", "dossard": 927, "rgpd": "N"},
+        is_relay=False,
+        epreuve_id="59697",
+    )
+
+    assert (nom, prenom) == ("Anonyme 59697-927", "")
+
+
+def test_athlete_identity_rgpd_distincte_entre_deux_epreuves():
+    """`Athlete` est unique sur (nom, prénom, date de naissance) : sans la clé
+    d'épreuve, les dossards 927 anonymes de deux courses fusionneraient en un
+    athlète agrégeant deux personnes."""
+    commun = {"nom": "T... B...", "dossard": 927, "rgpd": "N"}
+
+    a = oktime._athlete_identity(commun, is_relay=False, epreuve_id="59697")
+    b = oktime._athlete_identity(commun, is_relay=False, epreuve_id="60101")
+
+    assert a != b
