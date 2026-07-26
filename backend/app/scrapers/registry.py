@@ -32,6 +32,22 @@ from app.scrapers.base import ScrapedResult
 logger = logging.getLogger(__name__)
 
 
+def _host_match(url: str, hosts: tuple[str, ...]) -> bool:
+    """Vrai si le host de `url` est l'un de `hosts`, ou un vrai sous-domaine.
+
+    `hostname` et non `netloc` : sans lui, un port explicite
+    (`my.raceresult.com:443`) ou des credentials feraient rater le match — et
+    `hostname` est déjà en minuscules, il isole aussi le host réel d'une URL
+    du type `https://timepulse.fr@169.254.169.254/`.
+
+    Le point compte : `endswith("timepulse.fr")` nu suivrait aussi
+    `evil-timepulse.fr`. Ne **jamais** revenir à un test de sous-chaîne sur
+    l'URL entière — c'était le SSRF de l'issue #49, le jeton suffisait en query.
+    """
+    host = (urlparse(url).hostname or "").lower()
+    return any(host == h or host.endswith(f".{h}") for h in hosts)
+
+
 @runtime_checkable
 class ScraperProtocol(Protocol):
     """Contrat que tout provider doit respecter."""
@@ -45,6 +61,25 @@ class ScraperProtocol(Protocol):
     def scrape_event_all(self, url: str) -> list[ScrapedResult]:
         """Scrape tous les participants de l'épreuve (peut lever ValueError si non supporté)."""
         ...
+
+
+class HostMatchedProvider:
+    """Détection par host, comportement par défaut de tout provider.
+
+    Un provider n'a plus qu'à déclarer `_HOSTS` : il n'y a pas de `matches` à
+    écrire, donc pas de `in url` à réintroduire au prochain fournisseur ajouté.
+    Un provider dont la condition ne se réduit pas à une liste de hosts
+    (cf. `WiclaxProvider`) surcharge `matches` et compose sur `_host_match` —
+    jamais sur une copie de la règle.
+    """
+
+    #: Hosts servis par ce provider. Allowlist explicite : détecter le moteur
+    #: par le contenu obligerait à télécharger la page de toute URL inconnue
+    #: avant de savoir la traiter.
+    _HOSTS: tuple[str, ...] = ()
+
+    def matches(self, url: str) -> bool:
+        return _host_match(url, self._HOSTS)
 
 
 class KlikegoProvider:
