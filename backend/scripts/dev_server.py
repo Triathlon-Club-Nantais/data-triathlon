@@ -67,6 +67,22 @@ def find_free_port(
     raise RuntimeError(f"aucun port libre entre {base} et {base + span - 1}")
 
 
+def should_retry_after_exit(
+    port: int, forced: int | None, tentative: int, host: str = HOST
+) -> bool:
+    """Une sortie `SystemExit` d'uvicorn vaut-elle une reprise sur un autre port ?
+
+    Uvicorn quitte par `sys.exit()` quand le bind échoue — le cas qu'on veut rattraper,
+    le port ayant été pris entre notre scan et le sien — mais **aussi** sur d'autres
+    pannes de démarrage (app introuvable, config invalide). Retenter à l'aveugle
+    masquerait la vraie cause derrière trois démarrages sur trois ports différents :
+    on ne repart donc que si le port est effectivement occupé.
+    """
+    if forced is not None or tentative >= BIND_ATTEMPTS - 1:
+        return False
+    return not _is_free(port, host)
+
+
 # ── Variables d'environnement ────────────────────────────────────────────────
 
 
@@ -153,9 +169,9 @@ def main() -> int:
             uvicorn.run("app.main:app", host=HOST, port=port, reload=True)
             return 0
         except SystemExit:
-            # uvicorn quitte par sys.exit() quand le bind échoue : le port a été pris
-            # entre notre scan et le sien. On repart après lui, sauf port imposé.
-            if forced is not None or tentative == BIND_ATTEMPTS - 1:
+            # Reprise réservée au port occupé (cf. should_retry_after_exit) : toute
+            # autre panne de démarrage doit remonter telle quelle, pas être masquée.
+            if not should_retry_after_exit(port, forced, tentative):
                 raise
             base = port + 1
         finally:

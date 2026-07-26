@@ -15,6 +15,11 @@ import { join } from "node:path";
 export const PORT_FILE_NAME = ".dev-backend.json";
 export const DEFAULT_BACKEND_URL = "http://127.0.0.1:8001";
 
+/** Les deux variables qui portent la cible du backend, lues à des endroits distincts :
+ *  `BACKEND_URL` par les rewrites de `next.config.ts`, `API_URL` par les fetch RSC de
+ *  `lib/api/server.ts`. En prod (Vercel) elles peuvent viser des cibles différentes. */
+export const BACKEND_ENV_KEYS = ["BACKEND_URL", "API_URL"];
+
 const HOST = "127.0.0.1";
 const PROBE_TIMEOUT_MS = 300;
 const DEFAULT_TIMEOUT_MS = 60_000;
@@ -89,4 +94,17 @@ export async function resolveBackendUrl({
   } while (Date.now() < echeance);
 
   return { url: DEFAULT_BACKEND_URL, source: "fallback" };
+}
+
+/**
+ * Variables à injecter dans `next dev` : **seulement** celles que personne n'a définies.
+ *
+ * Écraser une valeur fournie (shell ou `.env*`) retirerait la seule façon de dissocier
+ * la cible SSR (`API_URL`) de celle des rewrites (`BACKEND_URL`) — et rendrait muet un
+ * `.env.local`, que Next ne fait justement jamais primer sur l'environnement reçu.
+ */
+export function missingBackendEnv(env, url) {
+  return Object.fromEntries(
+    BACKEND_ENV_KEYS.filter((cle) => !env[cle]?.trim()).map((cle) => [cle, url]),
+  );
 }

@@ -75,11 +75,25 @@ première alimente les rewrites `/api/*` de `next.config.ts`, la seconde les fet
 de `lib/api/server.ts`. Sans elles, le front d'un worktree tapait `localhost:8001` en
 dur, donc la base d'un autre worktree, **sans erreur visible**.
 
+La découverte ne fait que **combler** : le lanceur n'injecte une variable que si
+personne ne l'a définie, et les `.env*` comptent autant que le shell — c'est le
+loader de Next lui-même (`@next/env`, épinglé sur la version de `next`) qui les lit
+dans `dev.mjs`. Écraser les deux variables aurait rendu `.env.local` muet (Next ne
+fait jamais primer un fichier `.env` sur l'environnement reçu) et supprimé la seule
+façon de dissocier la cible SSR (`API_URL`) de celle des rewrites (`BACKEND_URL`),
+qui diffèrent en prod.
+
 Le code applicatif garde partout sa sémantique `process.env.X || défaut` : la
 découverte vit dans les deux lanceurs de dev, jamais sur un chemin de production.
 L'ordre de démarrage est libre — lancé en premier, le front attend le back (60 s,
 puis repli signalé). Échappatoires : `DEV_BACKEND_PORT` (port imposé côté backend),
-`BACKEND_URL` (cible imposée côté frontend, aucune attente).
+`BACKEND_URL` (cible imposée côté frontend, aucune attente), `API_URL` (cible SSR
+seule) — au choix dans le shell ou dans `frontend/.env.local`.
+
+Côté backend, une sortie `SystemExit` d'uvicorn n'est retentée sur un autre port que
+si le port est **effectivement occupé** (`should_retry_after_exit`) : uvicorn quitte
+aussi par `sys.exit()` sur d'autres pannes de démarrage, et retenter à l'aveugle
+masquerait la vraie cause derrière trois démarrages sur trois ports.
 
 ## Architecture backend (`backend/`)
 

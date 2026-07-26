@@ -6,12 +6,14 @@ import socket
 import pytest
 
 from scripts.dev_server import (
+    BIND_ATTEMPTS,
     PORT_FILE_NAME,
     find_free_port,
     read_port_file,
     remove_port_file,
     resolve_base_port,
     resolve_forced_port,
+    should_retry_after_exit,
     worktree_root,
     write_port_file,
 )
@@ -50,6 +52,30 @@ def test_find_free_port_saute_un_port_deja_pris(port_occupe):
 def test_find_free_port_echoue_si_toute_la_plage_est_prise(port_occupe):
     with pytest.raises(RuntimeError, match="aucun port libre"):
         find_free_port(base=port_occupe, span=1)
+
+
+# ── Reprise après une sortie d'uvicorn ───────────────────────────────────────
+
+
+def test_reprise_si_le_port_a_ete_pris_entre_le_scan_et_le_bind(port_occupe):
+    assert should_retry_after_exit(port_occupe, forced=None, tentative=0) is True
+
+
+def test_pas_de_reprise_si_le_port_est_libre(port_libre):
+    """Port libre = la panne n'est pas un conflit de bind : la vraie cause doit remonter,
+    et non se cacher derrière trois démarrages sur trois ports."""
+    assert should_retry_after_exit(port_libre, forced=None, tentative=0) is False
+
+
+def test_pas_de_reprise_sur_un_port_impose(port_occupe):
+    assert should_retry_after_exit(port_occupe, forced=port_occupe, tentative=0) is False
+
+
+def test_pas_de_reprise_a_la_derniere_tentative(port_occupe):
+    assert (
+        should_retry_after_exit(port_occupe, forced=None, tentative=BIND_ATTEMPTS - 1)
+        is False
+    )
 
 
 # ── Variables d'environnement ────────────────────────────────────────────────
