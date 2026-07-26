@@ -28,7 +28,7 @@ Specs de refonte (historiques) : `docs/superpowers/specs/`.
 ```bash
 # Backend (depuis backend/ — aucun venv à activer, uv run s'en charge)
 uv sync                                            # installe les dépendances (dev incluses)
-uv run uvicorn app.main:app --reload --port 8001   # API + /docs (endpoints sous /api/v1)
+uv run python scripts/dev_server.py                # API + /docs, port libre publié (voir « Dev multi-worktree »)
 uv run alembic upgrade head                        # applique les migrations
 uv run alembic revision --autogenerate -m "..."    # nouvelle migration après modif d'un modèle
 uv run python scripts/reset_db.py                  # reset base dev SQLite (vide + migre + seed démo)
@@ -50,7 +50,7 @@ uv run python -m app.cli import-sheet --json | jq -r '.failures[].url' \
 uv run python -m app.cli club-labels --like nant   # libellés club vus en base, marqués TCN ou non
 
 # Frontend (depuis frontend/)
-npm run dev        # Next.js sur :3000, rewrites /api → :8001
+npm run dev        # Next.js sur :3000 (ou suivant libre), branché sur le backend du worktree
 npm run build      # build prod (strict TS + RSC)
 npm test           # vitest run
 npm run lint       # ESLint
@@ -59,6 +59,27 @@ npm run lint       # ESLint
 Variable requise : `backend/.env` avec `DATABASE_URL` (voir `.env.example`). Le
 schéma est géré par **Alembic** (`uv run alembic upgrade head`). Les dépendances et la
 config des outils vivent dans `backend/pyproject.toml` (lock : `backend/uv.lock`).
+
+### Dev multi-worktree
+
+Plusieurs worktrees tournent en parallèle sans configuration. Le backend
+(`backend/scripts/dev_server.py`) prend le **premier port libre à partir de 8001** —
+un `--port 8001` figé faisait échouer le second worktree sur « Address already in
+use » — et publie ce port dans `.dev-backend.json` à la racine du worktree
+(gitignoré, un par worktree).
+
+`npm run dev` (`frontend/scripts/dev.mjs`) lit ce fichier, **vérifie que le port
+répond** (un backend tué par `kill -9` laisse son fichier derrière lui), puis lance
+`next dev` avec `BACKEND_URL` **et** `API_URL` renseignés. Les deux comptent : la
+première alimente les rewrites `/api/*` de `next.config.ts`, la seconde les fetch RSC
+de `lib/api/server.ts`. Sans elles, le front d'un worktree tapait `localhost:8001` en
+dur, donc la base d'un autre worktree, **sans erreur visible**.
+
+Le code applicatif garde partout sa sémantique `process.env.X || défaut` : la
+découverte vit dans les deux lanceurs de dev, jamais sur un chemin de production.
+L'ordre de démarrage est libre — lancé en premier, le front attend le back (60 s,
+puis repli signalé). Échappatoires : `DEV_BACKEND_PORT` (port imposé côté backend),
+`BACKEND_URL` (cible imposée côté frontend, aucune attente).
 
 ## Architecture backend (`backend/`)
 

@@ -69,8 +69,14 @@ uv run python scripts/seed_demo.py           # (re)seed seul, sans toucher au sc
 ## Lancer l'API
 
 ```bash
-uv run uvicorn app.main:app --reload --port 8001  # API + /docs
+uv run python scripts/dev_server.py  # API + /docs, premier port libre à partir de 8001
 ```
+
+Le port est choisi au démarrage (8001 s'il est libre, sinon le suivant) et publié
+dans `.dev-backend.json` à la racine du worktree : c'est ainsi que `npm run dev`
+branche le frontend sur **ce** backend plutôt que sur celui d'un autre worktree.
+`DEV_BACKEND_PORT=8005` force un port ; `uvicorn app.main:app --reload --port 8001`
+reste utilisable pour un lancement brut, sans publication.
 
 **API versionnée** : tous les endpoints sont sous `/api/v1/*` (une future v2 vivra
 dans `app/api/v2/`). `GET /api/v1/health` vérifie l'API **et** la connexion DB.
