@@ -5,6 +5,7 @@ Les fixtures sont des extraits réels de fftri.t2area.com (2026-07-26), réduits
 quelques lignes ; les attributs purement décoratifs ont été retirés, la structure
 (`#resultList`, en-tête à 10 colonnes, accordéon des fiches) est intacte.
 """
+import logging
 from datetime import date
 from pathlib import Path
 
@@ -350,3 +351,61 @@ def test_entete_titre_illisible_garde_la_date():
 
     assert event_date == date(2022, 9, 18)
     assert nom == "Triathlon De La Baule Triathlon M"
+
+
+# Mention réelle de Vichy L 2024 : un chronométreur que nous savons lire.
+EDITION_RACERESULT = EDITION_LABAULE.replace(
+    '<a href="http://www.ipitos.com/">IPITOS </a>',
+    '<a href="http://my3.raceresult.com/">RaceResult </a>',
+)
+
+
+def test_chronometreur_lit_la_mention():
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(EDITION_LABAULE, "lxml")
+
+    assert t2area._chronometreur(soup) == ("IPITOS", "http://www.ipitos.com/")
+
+
+def test_chronometreur_absent():
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup("<html><body><p>rien</p></body></html>", "lxml")
+
+    assert t2area._chronometreur(soup) == ("", "")
+
+
+def test_chronometreur_dans_raw_data():
+    r = _par_nom(_labaule(), "ACCENT")
+
+    assert r.raw_data["chronometreur"] == "IPITOS"
+    assert r.raw_data["chronometreur_url"] == "http://www.ipitos.com/"
+
+
+def test_avertissement_quand_le_chronometreur_est_supporte(caplog):
+    """L'opérateur doit savoir qu'une meilleure source existe — lui seul peut la fournir."""
+    with caplog.at_level(logging.WARNING, logger="app.scrapers.t2area"):
+        t2area._parse_edition(
+            EDITION_RACERESULT, URL_EDITION, "triathlon-de-la-baule", "triathlon-m"
+        )
+
+    assert "raceresult" in caplog.text
+    assert "my3.raceresult.com" in caplog.text
+
+
+def test_pas_davertissement_pour_un_chronometreur_non_supporte(caplog):
+    """IPITOS est hors de notre périmètre : rien à signaler, le scraper fait le travail."""
+    with caplog.at_level(logging.WARNING, logger="app.scrapers.t2area"):
+        _labaule()
+
+    assert "IPITOS" not in caplog.text
+
+
+def test_pas_davertissement_sans_mention(caplog):
+    from bs4 import BeautifulSoup
+
+    with caplog.at_level(logging.WARNING, logger="app.scrapers.t2area"):
+        t2area._avertir_source_amont(*t2area._chronometreur(BeautifulSoup("", "lxml")), URL_EDITION)
+
+    assert caplog.text == ""

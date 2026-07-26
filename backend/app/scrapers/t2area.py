@@ -322,13 +322,49 @@ def _construire(
     return result
 
 
+_RE_CHRONO = re.compile(r"r[ée]sultats\s+produits\s+par", re.I)
+
+
 def _chronometreur(soup) -> tuple[str, str]:
-    """(nom, lien) du chronométreur amont. Remplacé en Task 4."""
+    """(nom, lien) du chronométreur amont : « Résultats produits par X »."""
+    for p in soup.find_all("p"):
+        texte = p.get_text(" ", strip=True)
+        if not _RE_CHRONO.search(texte):
+            continue
+        lien = p.find("a", href=True)
+        if lien:
+            return lien.get_text(" ", strip=True), lien["href"].strip()
+        return _RE_CHRONO.sub("", texte).strip(), ""
     return "", ""
 
 
 def _avertir_source_amont(nom: str, lien: str, url: str) -> None:
-    """Journalise si le chronométreur amont est supporté. Remplacé en Task 4."""
+    """Journalise quand le chronométreur amont est un provider **supporté**.
+
+    La FFTRI ne chronomètre pas, elle republie : à la source, on aurait les
+    dossards de tout le monde et les splits de tous les participants. Cette
+    délégation ne peut pas être automatisée — la mention ne lie que la page
+    d'accueil du chronométreur, jamais l'épreuve, et aucun identifiant d'épreuve
+    n'est récupérable (§1.1 du design). L'opérateur reste seul à pouvoir fournir
+    l'URL source.
+
+    Import local de `registry` : `registry` importe ce module au chargement,
+    l'inverse au niveau module créerait un cycle (même procédé que les helpers
+    Klikego appelés depuis `registry`).
+    """
+    if not lien:
+        return
+    from app.scrapers.registry import detect_provider
+
+    provider = detect_provider(lien)
+    if provider == "playwright":
+        return
+    logger.warning(
+        "%s : résultats produits par %s (%s) — le provider « %s » est supporté et "
+        "sa source est plus riche (dossards et splits de tous les participants). "
+        "L'URL d'épreuve n'est pas déductible de cette page : à fournir à la main.",
+        url, nom or provider, lien, provider,
+    )
 
 
 def _parse_edition(
