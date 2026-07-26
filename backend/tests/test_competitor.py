@@ -14,7 +14,7 @@ import httpx
 import pytest
 
 from app.scrapers import competitor, registry
-from app.scrapers.base import STATUS_DNF, STATUS_DNS, STATUS_FINISHER
+from app.scrapers.base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -280,6 +280,40 @@ def test_dns_reconnu(monkeypatch):
     assert dns.total_time == ""
 
 
+def test_statut_lu_sur_les_quatre_drapeaux_dans_lordre():
+    """`wtc_dq` prime, et n'apparaît sur **aucune** ligne du panel sondé (0 /
+    1585) : seul un test unitaire peut couvrir la disqualification."""
+    assert competitor._statut({"wtc_dq": True}) == STATUS_DSQ
+    assert competitor._statut({"wtc_dq": True, "wtc_finisher": True}) == STATUS_DSQ
+    assert competitor._statut({"wtc_dns": True}) == STATUS_DNS
+    assert competitor._statut({"wtc_dnf": True}) == STATUS_DNF
+    assert competitor._statut({"wtc_finisher": True}) == STATUS_FINISHER
+    # Mesuré : 3 lignes sur 1585 (Vichy 2024) n'ont aucun des quatre drapeaux.
+    assert competitor._statut({}) == ""
+
+
+def test_disqualifie_perd_temps_et_rangs():
+    """Un DSQ suit le même traitement qu'un DNF, drapeau non observé compris."""
+    dsq = competitor._build_result(
+        {
+            "wtc_dq": True,
+            "wtc_finishtimeformatted": "9:12:00",
+            "wtc_finishrankoverall": 12,
+            "wtc_swimtimeformatted": "1:02:11",
+        },
+        url=URL_IRONMAN,
+        event_name="2025 IRONMAN France Nice",
+        event_date=date(2025, 6, 29),
+        event_type="triathlon-xl",
+    )
+
+    assert dsq.status == STATUS_DSQ
+    assert dsq.total_time == ""
+    assert dsq.rank_overall is None
+    # Le nageur a bien nagé, ici aussi.
+    assert dsq.swim_time == "01:02:11"
+
+
 def test_aucun_club_publie_par_la_source(monkeypatch):
     """La source n'a pas de champ club : le rattachement TCN est impossible ici."""
     _client_factice(monkeypatch)
@@ -334,8 +368,12 @@ def test_pagination_suivie_via_le_proxy(monkeypatch):
     assert "wtc_results" not in appels[1]
 
 
-def test_pagination_bornee(monkeypatch):
-    """Un nextLink qui boucle ne fait pas tourner l'import indéfiniment."""
+def test_pagination_bornee_puis_en_echec(monkeypatch):
+    """Un nextLink qui boucle borne l'import — et le fait échouer, pas tronquer.
+
+    Rendre les pages déjà lues figerait un classement incomplet dans le cache
+    30 jours ; l'échec, lui, est rejouable (`rescrape-db --url`).
+    """
     boucle = json.dumps(
         {
             "value": json.loads(RESULTS_2025)["value"][:1],
@@ -345,7 +383,8 @@ def test_pagination_bornee(monkeypatch):
     # `results-proxy` en tête : toutes les pages de classement bouclent.
     client = _client_factice(monkeypatch, {"results-proxy": boucle, **PAGES})
 
-    competitor.scrape_event_all(URL_IRONMAN)
+    with pytest.raises(ValueError, match="Pagination Competitor interrompue"):
+        competitor.scrape_event_all(URL_IRONMAN)
 
     appels = [appel for appel in client.calls if "results-proxy" in appel]
     assert len(appels) == competitor._MAX_PAGES
@@ -400,6 +439,27 @@ def test_doublons_de_pagination_ecartes(monkeypatch):
     monkeypatch.setattr(competitor.httpx, "Client", lambda *a, **k: client)
 
     assert len(competitor.scrape_event_all(URL_IRONMAN)) == 2
+
+
+def test_edition_sans_identifiant_est_rejetee(monkeypatch):
+    """Sans uuid d'édition, le `$filter` OData partirait vide : 400 illisible."""
+    serie = (
+        '<html><script id="__NEXT_DATA__" type="application/json">'
+        + json.dumps(
+            {
+                "props": {
+                    "pageProps": {"subevents": [{"wtc_name": "2025 IRONMAN France Nice"}]}
+                }
+            }
+        )
+        + "</script></html>"
+    )
+    _client_factice(
+        monkeypatch, {"ironman.com": PAGE_IRONMAN, "/results/event/": serie}
+    )
+
+    with pytest.raises(ValueError, match="sans identifiant"):
+        competitor.scrape_event_all(URL_IRONMAN)
 
 
 def test_epreuve_sans_resultat_est_rejetee(monkeypatch):

@@ -23,12 +23,14 @@ dernière édition — sauf si l'uuid de l'URL désigne lui-même une édition d
 liste, auquel cas c'est celle-là. Cela donne une adressabilité par année que le
 site n'offre pas, sans requête supplémentaire.
 
-Deux pièges de la source qu'il ne faut pas réintroduire :
+Trois pièges de la source qu'il ne faut pas réintroduire :
 
 1. `api.competitor.com` n'est **pas** joignable en direct (401, clé d'abonnement
    APIM manquante). La seule porte est le proxy `labs-v2.competitor.com/api/
-   results-proxy?url=…`, qui n'accepte que `/web/results` et `/web/wtc_results`
-   (400 « Invalid results URL » sur toute autre entité).
+   results-proxy?url=…`, qui valide sa cible : seule l'entité `/web/results`
+   passe, toute autre sort en 400 « Invalid results URL ». Le `@odata.nextLink`
+   revient sous la forme `/web/wtc_results?`, que l'API rejette en 404 : il doit
+   être réécrit en `/web/results?`, exactement comme le fait le front.
 2. `athlete`, `bib` et `countryiso2` sont fabriqués **côté navigateur** : ils
    sont présents dans `latestResults` (rendu serveur) mais absents des pages
    servies par le proxy. Toute lecture doit repartir de `wtc_ContactId` /
@@ -63,9 +65,9 @@ from .utils import normalize_rank, normalize_time, split_athlete_name
 logger = logging.getLogger(__name__)
 
 LABS_BASE = "https://labs-v2.competitor.com"
-# Cible du proxy. Le front réécrit `/web/wtc_results?` en `/web/results?` avant
-# de la lui passer : on fait pareil, le proxy refuse l'autre forme sur certaines
-# épreuves.
+# Cible du proxy. Le `@odata.nextLink` de la source revient en
+# `/web/wtc_results?`, forme que l'API rejette en 404 : le front la réécrit en
+# `/web/results?` avant de la passer au proxy, on fait pareil.
 API_RESULTS = "https://api.competitor.com/web/results"
 
 HEADERS = {
@@ -221,10 +223,13 @@ def _lignes(client: httpx.Client, edition_id: str) -> list[dict]:
         suivante = payload.get("@odata.nextLink")
         pages += 1
     if suivante:
-        logger.warning(
-            "Pagination Competitor interrompue à %d pages pour l'édition %s",
-            _MAX_PAGES,
-            edition_id,
+        # Même raison que dans `_fetch_proxy` : rendre les pages déjà lues
+        # figerait un classement tronqué dans le cache 30 jours. Atteindre le
+        # garde-fou n'est pas une épreuve trop grosse (100 000 participants),
+        # c'est un `nextLink` qui boucle — donc une panne, pas une limite.
+        raise ValueError(
+            f"Pagination Competitor interrompue après {_MAX_PAGES} pages pour "
+            f"l'édition {edition_id} : le classement serait tronqué."
         )
 
     # Le front dédoublonne par `wtc_resultid` en recollant les pages ; on fait de
@@ -361,6 +366,13 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         props = _fetch_next_data(client, uuid)
         edition = _choisir_edition(props, uuid)
         edition_id = (edition.get("wtc_eventid") or "").lower()
+        if not edition_id:
+            # Sans identifiant, le `$filter` OData part vide : le proxy répond
+            # 400 sur une requête tronquée, illisible à froid.
+            raise ValueError(
+                f"Édition Competitor sans identifiant pour l'épreuve {uuid} : "
+                "impossible de demander son classement."
+            )
 
         event_name = (edition.get("wtc_name") or "").strip()
         if not event_name:
