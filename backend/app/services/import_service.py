@@ -52,9 +52,15 @@ def _validate_url(url: str) -> str:
     passer `httpfoo://` comme une URL sans host (#49).
 
     Ne réécrit rien au-delà du strip : `source_url` est la clé du cache TTL.
+
+    `urlparse` lève `ValueError` sur un host IPv6 malformé (ex. `https://[oops/x`) :
+    à traiter comme une URL invalide parmi d'autres, pas comme un crash.
     """
     url = (url or "").strip()
-    parsed = urlparse(url)
+    try:
+        parsed = urlparse(url)
+    except ValueError as exc:
+        raise InvalidUrlError() from exc
     if parsed.scheme not in ("http", "https") or not parsed.hostname:
         raise InvalidUrlError()
     return url

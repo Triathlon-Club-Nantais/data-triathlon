@@ -661,6 +661,7 @@ def test_validate_url_accepte_http_et_https(url):
     "pas-une-url",
     "",
     None,
+    "https://[oops/x",         # host IPv6 malformé : `urlparse` lève `ValueError`
 ])
 def test_validate_url_refuse_tout_le_reste(url):
     from app.core.exceptions import InvalidUrlError

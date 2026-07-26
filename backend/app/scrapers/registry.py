@@ -48,8 +48,14 @@ def _host_match(url: str, hosts: tuple[str, ...]) -> bool:
     Le point compte : `endswith("timepulse.fr")` nu suivrait aussi
     `evil-timepulse.fr`. Ne **jamais** revenir à un test de sous-chaîne sur
     l'URL entière — c'était le SSRF de l'issue #49, le jeton suffisait en query.
+
+    `urlparse` lève `ValueError` sur un host IPv6 malformé (ex. `https://[oops/x`) :
+    une entrée dégradée doit rester un non-match, jamais une exception.
     """
-    host = (urlparse(url).hostname or "").lower()
+    try:
+        host = (urlparse(url).hostname or "").lower()
+    except ValueError:
+        return False
     return any(host == h or host.endswith(f".{h}") for h in hosts)
 
 
