@@ -5,6 +5,7 @@ Les fixtures sont des extraits réels de fftri.t2area.com (2026-07-26), réduits
 quelques lignes ; les attributs purement décoratifs ont été retirés, la structure
 (`#resultList`, en-tête à 10 colonnes, accordéon des fiches) est intacte.
 """
+from datetime import date
 from pathlib import Path
 
 import httpx
@@ -20,6 +21,9 @@ def _fixture(name: str) -> str:
 
 
 EPREUVE_LABAULE = _fixture("t2area_epreuve_labaule_m.html")
+EDITION_LABAULE = _fixture("t2area_edition_labaule_2022.html")     # triathlon M, clés bib-
+EDITION_BOUCHET = _fixture("t2area_edition_bouchet_2025.html")     # clés licence FFTRI
+EDITION_NEVERS = _fixture("t2area_edition_nevers_duathlon_2022.html")  # duathlon
 
 URL_EDITION = (
     "https://fftri.t2area.com/calendrier/triathlon-de-la-baule/triathlon-m/2022.html"
@@ -133,3 +137,216 @@ def test_fetch_erreur_serveur_remonte():
     client = FakeClient(defaut=FakeResponse("", 500))
     with pytest.raises(httpx.HTTPError):
         t2area._fetch(client, URL_EDITION)
+
+
+def _labaule() -> list:
+    return t2area._parse_edition(
+        EDITION_LABAULE, URL_EDITION, "triathlon-de-la-baule", "triathlon-m"
+    )
+
+
+def _par_nom(resultats, nom):
+    return next(r for r in resultats if r.athlete_name.startswith(nom))
+
+
+def test_parse_edition_lit_toutes_les_lignes():
+    assert len(_labaule()) == 6
+
+
+def test_parse_edition_colonnes_dun_finisher():
+    r = _par_nom(_labaule(), "ACCENT")
+
+    assert (r.athlete_name, r.athlete_firstname) == ("ACCENT", "Baptiste")
+    assert r.club == "TRIATHLON CLUB NANTAIS"
+    assert r.category == "MS2"
+    assert r.gender == "M"
+    assert r.rank_overall == 453
+    assert r.rank_category == 89
+    assert r.rank_gender is None
+    assert r.total_time == "02:41:52"
+    assert r.bib_number == "566"
+    assert r.status == ""          # finisher : laissé à l'heuristique de mapping
+    assert r.is_relay is False
+    assert r.provider == "t2area"
+    assert r.source_url == URL_EDITION
+
+
+def test_parse_edition_entete_nom_et_date():
+    """Nom et date viennent du <h1> ; la date entre dans l'identité de la Course."""
+    r = _labaule()[0]
+
+    assert r.event_name == "Triathlon de La Baule - M"
+    assert r.event_date == date(2022, 9, 18)
+    assert r.event_type == "triathlon-m"
+
+
+def test_parse_edition_classement_feminin_rempli_pour_les_femmes():
+    """`Clt/F` n'est renseigné que sur les lignes féminines (125/125 sur l'épreuve réelle)."""
+    r = _par_nom(_labaule(), "ANTOINE")
+
+    assert r.gender == "F"
+    assert r.rank_gender == 80
+
+
+def test_parse_edition_dnf():
+    """Un DNF sort avec `00:00:00` dans la colonne Temps : c'est un temps absent."""
+    r = _par_nom(_labaule(), "EPP")
+
+    assert r.status == "DNF"
+    assert r.total_time == ""
+    assert r.rank_overall is None
+
+
+def test_parse_edition_disqualifie():
+    r = _par_nom(_labaule(), "ALLARD")
+
+    assert r.status == "DSQ"
+    assert r.rank_overall is None
+
+
+def test_parse_edition_club_absent():
+    assert _par_nom(_labaule(), "AGIS").club == ""
+
+
+def test_parse_edition_ligne_anonyme_du_site():
+    """« 907 Dossard » : une entrée sans identité, telle que la source la publie.
+
+    Aucune heuristique locale — le scraper ne devine pas d'identité. Test de
+    verrouillage : le jour où on voudra changer ça, ce sera un choix explicite.
+    """
+    r = _par_nom(_labaule(), "Dossard")
+
+    assert (r.athlete_name, r.athlete_firstname) == ("Dossard", "907")
+    assert r.bib_number == "907"
+
+
+def test_parse_edition_raw_data_conserve_le_contexte():
+    r = _par_nom(_labaule(), "ACCENT")
+
+    assert r.raw_data["cle_fiche"] == "bib-566"
+    assert r.raw_data["league"] == "PAYS DE LA LOIRE"
+    assert r.raw_data["id_league"] == "15"
+    assert r.raw_data["club_href"] == "/clubs/triathlon-club-nantais.html"
+    assert r.raw_data["clt"] == "453"
+    assert r.raw_data["fiche_url"].endswith("/2022/bib-566.html")
+
+
+def test_parse_edition_cle_licence_ne_remplit_pas_le_dossard():
+    """`bib_number` ne contient jamais autre chose qu'un vrai dossard (§2.3)."""
+    resultats = t2area._parse_edition(
+        EDITION_BOUCHET,
+        "https://fftri.t2area.com/calendrier/triathlon-du-lac-du-bouchet/triathlon-l/2025.html",
+        "triathlon-du-lac-du-bouchet",
+        "triathlon-l",
+    )
+    r = _par_nom(resultats, "ABRANTES")
+
+    assert r.bib_number == ""
+    assert r.raw_data["cle_fiche"] == "A44719"
+    assert r.event_name == "Triathlon du Lac du Bouchet (43) - L"
+    assert r.event_date == date(2025, 7, 13)
+    assert r.event_type == "triathlon-l"
+
+
+def test_parse_edition_duathlon():
+    resultats = t2area._parse_edition(
+        EDITION_NEVERS,
+        "https://fftri.t2area.com/calendrier/triathlon-de-nevers/duathlon-m/2022.html",
+        "triathlon-de-nevers",
+        "duathlon-m",
+    )
+
+    assert len(resultats) == 3
+    assert {r.event_type for r in resultats} == {"duathlon-m"}
+    assert _par_nom(resultats, "PANNIER").rank_gender == 14
+
+
+def test_parse_edition_sans_result_list_leve():
+    """Édition inexistante : le site répond 303 vers son accueil, donc 200."""
+    with pytest.raises(ValueError, match="Aucun classement"):
+        t2area._parse_edition(
+            "<html><body><h1>CALENDRIER DES ÉPREUVES FFTRI</h1></body></html>",
+            URL_EDITION,
+            "triathlon-de-la-baule",
+            "triathlon-m",
+        )
+
+
+def test_parse_edition_entete_ampute_leve():
+    """Markup changé : mieux vaut une erreur qu'un import silencieusement faux."""
+    html = (
+        "<html><body><h1>Résultats du X - 2022 - édition du 18-09-2022</h1>"
+        '<table id="resultList"><thead><tr><th>Nom</th><th>Club</th></tr></thead>'
+        "<tbody></tbody></table></body></html>"
+    )
+    with pytest.raises(ValueError, match="En-tête fftri inattendu"):
+        t2area._parse_edition(html, URL_EDITION, "x", "triathlon-m")
+
+
+def test_index_colonnes_place_details_apres_les_colonnes_de_ligue():
+    """L'en-tête réel porte 10 colonnes : `id_league`/`league` avant `Détails`.
+
+    C'est pour ça qu'on lit par libellé et non par position.
+    """
+    from bs4 import BeautifulSoup
+
+    table = BeautifulSoup(EDITION_LABAULE, "lxml").find(id="resultList")
+
+    assert t2area._index_colonnes(table) == {
+        "clt": 0, "clt_f": 1, "temps": 2, "nom": 3, "club": 4,
+        "cat": 5, "clt_cat": 6, "id_league": 7, "league": 8, "details": 9,
+    }
+
+
+@pytest.mark.parametrize("brut,attendu", [
+    ("02:41:52", "02:41:52"),
+    ("00:00:00", ""),      # DNF : temps absent, pas un temps nul
+    ("", ""),
+    ("   ", ""),
+])
+def test_temps_ou_vide(brut, attendu):
+    assert t2area._temps_ou_vide(brut) == attendu
+
+
+@pytest.mark.parametrize("categorie,attendu", [
+    ("MS2", "M"), ("FV1", "F"), ("MHAN", "M"), ("MT1", "M"), ("", ""), ("S3", ""),
+])
+def test_genre(categorie, attendu):
+    assert t2area._genre(categorie) == attendu
+
+
+@pytest.mark.parametrize("cle,attendu", [
+    ("bib-566", "566"),
+    ("A44719", ""),        # licence FFTRI
+    ("id-1153352", ""),    # identifiant interne
+    ("", ""),
+])
+def test_dossard(cle, attendu):
+    assert t2area._dossard(cle) == attendu
+
+
+@pytest.mark.parametrize("epreuve,attendu", [
+    ("swim-run-m-eq", True),
+    ("bike-run-s-open-eq", True),
+    ("triathlon-jeunes-1-eq", True),
+    ("triathlon-relais", True),
+    ("triathlon-m", False),
+    ("triathlon-s-open", False),
+    ("duathlon-l", False),
+])
+def test_est_relais(epreuve, attendu):
+    """Déduit du slug — non vérifié sur données réelles (§8.3 du design)."""
+    assert t2area._est_relais(epreuve) is attendu
+
+
+def test_entete_titre_illisible_garde_la_date():
+    """Deux regex indépendantes : un libellé inattendu ne fait pas perdre la date."""
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(
+        "<html><body><h1>Résultats — édition du 18-09-2022</h1></body></html>", "lxml"
+    )
+    nom, event_date = t2area._entete(soup, "triathlon-de-la-baule", "triathlon-m")
+
+    assert event_date == date(2022, 9, 18)
+    assert nom == "Triathlon De La Baule Triathlon M"
