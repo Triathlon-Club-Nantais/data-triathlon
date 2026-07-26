@@ -1,6 +1,8 @@
 import json
 from datetime import date
 
+import pytest
+
 from app.scrapers.base import ScrapedResult
 
 
@@ -92,3 +94,40 @@ def test_import_event_expose_updated_counter(client, monkeypatch):
     body = resp.json()
     assert "updated" in body
     assert body == {"imported": 1, "updated": 0, "skipped": 0, "cached": False}
+
+
+@pytest.mark.parametrize("url", [
+    "file:///etc/passwd",
+    "gopher://169.254.169.254/",
+    "javascript:alert(1)",
+    "pas-une-url",
+    "",
+])
+@pytest.mark.parametrize("route", ["/api/v1/scrape/event", "/api/v1/scrape/event/stream"])
+def test_schema_non_http_rejete_a_la_porte(client, route, url):
+    """422 de Pydantic, avant d'atteindre le service : le schéma d'entrée est
+    la première garde des deux endpoints d'import (#49)."""
+    resp = client.post(route, json={"url": url})
+    assert resp.status_code == 422
+
+
+def test_url_http_valide_toujours_acceptee(client, monkeypatch):
+    """Non-régression : `HttpUrl` ne doit refuser aucune URL de chronométrage réelle."""
+    from app.services import import_service
+
+    vues: list[str] = []
+
+    def fake_scrape(url):
+        vues.append(url)
+        return [_result("1", "DUPONT")]
+
+    monkeypatch.setattr(import_service, "registry_scrape_event_all", fake_scrape)
+
+    url = "https://www.prolivesport.fr/index.php?chap=event&eventId=979&race=Triathlon%20M"
+    resp = client.post("/api/v1/scrape/event", json={"url": url})
+
+    assert resp.status_code == 200
+    # Le service reçoit bien une `str`, pas un objet `HttpUrl`, et l'URL n'a pas
+    # été réécrite : `source_url` est la clé du cache TTL.
+    assert vues == [url]
+    assert isinstance(vues[0], str)
