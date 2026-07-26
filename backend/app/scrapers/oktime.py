@@ -23,11 +23,12 @@ toujours l'événement entier.
 """
 import logging
 import re
+from datetime import date
 from urllib.parse import urlparse
 
 import httpx
 
-from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER
+from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER, ScrapedResult
 from .utils import normalize_rank, normalize_time, split_athlete_name
 
 logger = logging.getLogger(__name__)
@@ -327,3 +328,57 @@ def _segments(points: list[dict] | None) -> tuple[list[tuple[str, str]], bool]:
         durees.append((label, _fmt_secs(courant - precedent)))
         precedent = courant
     return durees, False
+
+
+# --------------------------------------------------------------------------- #
+# Assemblage
+# --------------------------------------------------------------------------- #
+
+def _build_result(
+    runner: dict,
+    *,
+    url: str,
+    event_name: str,
+    event_type: str,
+    event_date: date | None,
+    distance_km: float | None,
+    is_relay: bool,
+    epreuve_id: str,
+    course_non_chronometree: bool,
+    contexte: dict,
+) -> ScrapedResult:
+    """Un participant de la charge API → un `ScrapedResult`.
+
+    `raw_data` conserve la charge brute du participant — donc les points de
+    passage **cumulés d'origine** — plus le contexte d'épreuve non porté par les
+    champs typés, de sorte qu'une erreur de différenciation reste diagnosticable
+    sans re-scraper.
+    """
+    nom, prenom = _athlete_identity(runner, is_relay=is_relay, epreuve_id=epreuve_id)
+    segments, cumuls_conserves = _segments(runner.get("points_de_passage"))
+
+    result = ScrapedResult(source_url=url, provider="oktime")
+    result.event_name = event_name
+    result.event_type = event_type
+    result.event_date = event_date
+    result.distance_km = distance_km
+    result.is_relay = is_relay
+    result.athlete_name = nom
+    result.athlete_firstname = prenom
+    result.club = str(runner.get("club") or "").strip()
+    result.category = str(runner.get("categorie") or "").strip()
+    result.gender = _gender(runner.get("sexe"))
+    dossard = runner.get("dossard")
+    result.bib_number = "" if dossard is None else str(dossard).strip()
+    result.rank_overall = _rank(runner.get("classement_general"))
+    result.rank_category = _rank(runner.get("classement_categorie"))
+    result.rank_gender = _rank(runner.get("classement_sexe"))
+    result.total_time = _total_time(runner)
+    result.segments = segments
+    result.status = _status(runner, course_non_chronometree=course_non_chronometree)
+    result.raw_data = {
+        **runner,
+        **contexte,
+        "splits_cumules_conserves": cumuls_conserves,
+    }
+    return result
