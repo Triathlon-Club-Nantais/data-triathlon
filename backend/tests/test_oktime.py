@@ -6,6 +6,7 @@ panel du 2026-07-26 (cf. docs/superpowers/specs/2026-07-26-oktime-scraper-design
 Le schéma réel est revérifié par le test `integration` sur l'événement 48555.
 """
 import json
+from datetime import date
 from pathlib import Path
 
 import httpx
@@ -448,3 +449,163 @@ def test_segments_un_seul_point():
     points = [{"id": "1|1", "nom": "NATATION", "time": "00:23:56"}]
 
     assert oktime._segments(points) == ([("NATATION", "00:23:56")], False)
+
+
+# --------------------------------------------------------------------------- #
+# _build_result
+# --------------------------------------------------------------------------- #
+
+RUNNER_NOMINAL = {
+    "nom": "Valentin ROUVIER", "sexe": "M", "dossard": 1217,
+    "club": "TRIATHLON CLUB NANTAIS", "categorie": "Senior", "categorie_abbrev": "SE",
+    "temps_finish": "03:31:57", "temp-reel": None,
+    "classement_general": 1, "classement_categorie": 1, "classement_sexe": 1,
+    "rgpd": "O", "abandon": "N", "disqualifie": "N", "pris_depart": "O",
+    "points_de_passage": POINTS_TRIATHLON,
+}
+
+CONTEXTE = {
+    "epreuve_id": "59697",
+    "heuredebut_course": "08:00:00",
+    "reference_epreuve": "LAC-L-IND",
+    "status_course": "finish",
+}
+
+
+def _resultat(runner, **surcharges):
+    kwargs = {
+        "url": "https://classement.ok-time.fr/48555",
+        "event_name": "Triathlon de Lacanau 2026 - Triathlon L Individuel",
+        "event_type": "triathlon-l",
+        "event_date": date(2026, 5, 2),
+        "distance_km": 110.0,
+        "is_relay": False,
+        "epreuve_id": "59697",
+        "course_non_chronometree": False,
+        "contexte": CONTEXTE,
+    }
+    kwargs.update(surcharges)
+    return oktime._build_result(runner, **kwargs)
+
+
+def test_build_result_champs_nominaux():
+    r = _resultat(RUNNER_NOMINAL)
+
+    assert r.provider == "oktime"
+    assert r.source_url == "https://classement.ok-time.fr/48555"
+    assert (r.athlete_name, r.athlete_firstname) == ("ROUVIER", "Valentin")
+    assert r.club == "TRIATHLON CLUB NANTAIS"
+    assert r.category == "Senior"
+    assert r.gender == "M"
+    assert r.bib_number == "1217"
+    assert r.event_name == "Triathlon de Lacanau 2026 - Triathlon L Individuel"
+    assert r.event_type == "triathlon-l"
+    assert r.event_date == date(2026, 5, 2)
+    assert r.distance_km == 110.0
+    assert r.is_relay is False
+    assert r.total_time == "03:31:57"
+    assert r.status == ""
+
+
+def test_build_result_range_les_splits_dans_segments():
+    """Chemin générique déplafonné, pas les 5 slots positionnels."""
+    r = _resultat(RUNNER_NOMINAL)
+
+    assert r.segments == [
+        ("NATATION", "00:23:56"),
+        ("VELO", "01:56:14"),
+        ("COURSE A PIED", "01:11:47"),
+    ]
+    assert (r.swim_time, r.t1_time, r.bike_time, r.t2_time, r.run_time) == ("", "", "", "", "")
+
+
+def test_build_result_total_time_ne_vient_jamais_du_dernier_point():
+    """392 participations ont un dernier point ≠ `temps_finish` (épreuves
+    finissant sur « Départ CAP2 »). `temps_finish` fait seul foi."""
+    runner = {
+        **RUNNER_NOMINAL,
+        "temps_finish": "01:12:00",
+        "points_de_passage": [
+            {"id": "1|1", "nom": "RUN1", "time": "00:20:00"},
+            {"id": "2|2", "nom": "DEPART CAP2", "time": "00:55:00"},
+        ],
+    }
+
+    r = _resultat(runner)
+
+    assert r.total_time == "01:12:00"
+    assert r.segments == [("RUN1", "00:20:00"), ("DEPART CAP2", "00:35:00")]
+
+
+def test_build_result_dossard_absent():
+    r = _resultat({**RUNNER_NOMINAL, "dossard": None})
+
+    assert r.bib_number == ""
+
+
+def test_build_result_bascule_le_drapeau_de_cumuls_conserves():
+    runner = {
+        **RUNNER_NOMINAL,
+        "points_de_passage": [
+            {"id": "1|1", "nom": "VELO", "time": "01:30:46"},
+            {"id": "2|2", "nom": "T2", "time": "01:30:19"},
+        ],
+    }
+
+    r = _resultat(runner)
+
+    assert r.raw_data["splits_cumules_conserves"] is True
+    assert r.segments == [("VELO", "01:30:46"), ("T2", "01:30:19")]
+
+
+def test_build_result_raw_data_conserve_le_brut_et_le_contexte():
+    """Une erreur de différenciation doit rester diagnosticable sans re-scraper :
+    les points de passage **cumulés** d'origine sont conservés tels quels."""
+    r = _resultat(RUNNER_NOMINAL)
+
+    assert r.raw_data["temp-reel"] is None
+    assert r.raw_data["categorie_abbrev"] == "SE"
+    assert r.raw_data["points_de_passage"] == POINTS_TRIATHLON
+    assert r.raw_data["heuredebut_course"] == "08:00:00"
+    assert r.raw_data["reference_epreuve"] == "LAC-L-IND"
+    assert r.raw_data["status_course"] == "finish"
+    assert r.raw_data["splits_cumules_conserves"] is False
+
+
+def test_build_result_rgpd_identite_synthetique_mais_resultat_publie():
+    """La source ampute le nom mais publie temps et rang : on importe les deux."""
+    runner = {
+        **RUNNER_NOMINAL, "nom": "T... B...", "dossard": 927, "rgpd": "N", "club": "",
+    }
+
+    r = _resultat(runner)
+
+    assert (r.athlete_name, r.athlete_firstname) == ("Anonyme 59697-927", "")
+    assert r.total_time == "03:31:57"
+    assert r.rank_overall == 1
+
+
+def test_build_result_genre_mixte_vide():
+    r = _resultat({**RUNNER_NOMINAL, "sexe": "X"})
+
+    assert r.gender == ""
+
+
+def test_build_result_rangs_zero_a_none():
+    runner = {
+        **RUNNER_NOMINAL,
+        "classement_general": 0, "classement_categorie": 0, "classement_sexe": 0,
+    }
+
+    r = _resultat(runner)
+
+    assert (r.rank_overall, r.rank_category, r.rank_gender) == (None, None, None)
+
+
+def test_build_result_course_non_chronometree_est_finisher():
+    runner = {**RUNNER_NOMINAL, "temps_finish": "00:00:00", "points_de_passage": []}
+
+    r = _resultat(runner, course_non_chronometree=True)
+
+    assert r.status == "finisher"
+    assert r.total_time == ""
