@@ -32,6 +32,7 @@ LIVE_URLS = {
     # Triathlon de Rumilly 2026 : 4 contests, dossards en collision d'un contest
     # à l'autre — l'épreuve qui a servi au sondage d'API initial.
     "raceresult": "https://my3.raceresult.com/393893/results",
+    "chronoplace": "https://www.chronoplace.fr/classement/spaycific-races-2025/epreuve/494",
 }
 
 
@@ -388,3 +389,33 @@ def test_raceresult_406211_enrichit_les_splits_en_reel():
     assert cinq, "aucune ligne live ne porte 5 segments"
     ref = cinq[0]
     assert {lab for lab, _ in ref.segments} == {"Swim", "T1", "Bike", "T2", "Run"}
+
+
+@pytest.mark.integration
+def test_chronoplace_importe_les_epreuves_soeurs():
+    """Un seul lien couvre le triathlon et le swimrun de Spay'cific Races 2025."""
+    results = registry.scrape_event_all(LIVE_URLS["chronoplace"])
+
+    assert len(results) > 200, "le classement complet (perPage=all) n'a pas été rendu"
+    assert {"triathlon-s", "swimrun"} <= {r.event_type for r in results}
+    # Assertion volontairement stricte : le scraper avale l'échec de l'annuaire
+    # (`_fetch_event_date` → None), donc c'est le seul garde-fou sur la date face
+    # au site réel. Conditionnelle, elle resterait verte après une rupture du
+    # markup de /recherche — exactement le jour où il faudrait le savoir.
+    assert any(r.event_date == date(2025, 9, 21) for r in results), (
+        "date absente ou fausse : annuaire /recherche indisponible, ou markup "
+        "des cartes changé (cf. _parse_event_date)"
+    )
+    # Splits triathlon peuplés, et le TCN est bien présent.
+    tri = [r for r in results if r.event_type == "triathlon-s"]
+    assert any(r.swim_time and r.bike_time and r.run_time for r in tri)
+    assert any("TRIATHLON CLUB NANTAIS" in (r.club or "") for r in tri)
+
+
+@pytest.mark.integration
+def test_chronoplace_slug_obsolete_leve():
+    """Lien mort du Sheet : le site exige la paire slug + id exacte."""
+    with pytest.raises(ValueError, match="slug obsolète ou épreuve retirée"):
+        registry.scrape_event_all(
+            "https://www.chronoplace.fr/classement/spay-swimrun-2025/epreuve/566"
+        )

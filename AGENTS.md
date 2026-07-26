@@ -226,9 +226,10 @@ toujours en code 0.
 
 ### Conventions scrapers
 
-- Tout nouveau fournisseur : créer `scrapers/<nom>.py`, exposer `scrape()` (et
-  `scrape_event_all()` si l'import de masse est possible), puis l'enregistrer
-  dans `scrapers/registry.py` (registre Protocol). Provider inconnu → `playwright`.
+- Tout nouveau fournisseur : créer `scrapers/<nom>.py`, exposer
+  `scrape_event_all()` — la **seule** voie d'import depuis la suppression du
+  scraping athlète-unique —, puis l'enregistrer dans `scrapers/registry.py`
+  (registre Protocol). Provider inconnu → `playwright`.
 - **Breizh Chrono réutilise la logique Klikego** (`klikego._parse_detail`,
   `_detect_event_type`) — ne pas dupliquer, factoriser dans `klikego.py`.
 - Identification club : **une seule définition**, `app/core/club.py`
@@ -263,8 +264,10 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 
 ## Fournisseurs supportés
 
-Klikego, Breizh Chrono, TimePulse, Wiclax/G-Live (individuel + épreuve complète),
-ProLiveSport, Sportinnovation, RaceResult.
+Klikego, Breizh Chrono, TimePulse, Wiclax/G-Live, ProLiveSport, Sportinnovation,
+RaceResult, Chronoplace — tous en **épreuve complète**. Chronoplace (Laravel +
+Livewire) se lit en `GET ?perPage=all` — pas de POST Livewire — et importe
+**toutes** les épreuves de l'événement pointé par l'URL.
 Wiclax/G-Live couvre plusieurs déploiements : `wiclax-results.com`,
 `chronosmetron.com` et `chronowest.fr` (WordPress + iframe G-Live). Un nouveau
 déploiement tiers = un host dans `WiclaxProvider._HOSTS`.

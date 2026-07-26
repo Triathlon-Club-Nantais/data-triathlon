@@ -18,6 +18,7 @@ from urllib.parse import parse_qs, urlparse
 
 from app.scrapers import (
     breizhchrono,
+    chronoplace,
     klikego,
     prolivesport,
     raceresult,
@@ -171,6 +172,17 @@ class RaceResultProvider:
         return raceresult.scrape_event_all(url)
 
 
+class ChronoplaceProvider:
+    name = "chronoplace"
+
+    def matches(self, url: str) -> bool:
+        host = (urlparse(url).netloc or "").lower()
+        return host == "chronoplace.fr" or host.endswith(".chronoplace.fr")
+
+    def scrape_event_all(self, url: str) -> list[ScrapedResult]:
+        return chronoplace.scrape_event_all(url)
+
+
 class PlaywrightProvider:
     """Fallback générique pour les sites JS-heavy non reconnus."""
 
@@ -194,6 +206,7 @@ PROVIDERS: list[ScraperProtocol] = [
     ProLiveSportProvider(),
     SportInnovationProvider(),
     RaceResultProvider(),
+    ChronoplaceProvider(),
 ]
 _FALLBACK: ScraperProtocol = PlaywrightProvider()
 
