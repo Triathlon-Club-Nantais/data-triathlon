@@ -23,9 +23,15 @@ Flux (cf. docs/superpowers/specs/2026-07-26-t2area-scraper-design.md) :
 """
 import logging
 import re
+from datetime import date
 from urllib.parse import urlparse
 
 import httpx
+from bs4 import BeautifulSoup
+
+from .base import ScrapedResult
+from .classify import classify_event_type
+from .utils import derive_status_from_label, normalize_rank, normalize_time, split_athlete_name
 
 logger = logging.getLogger(__name__)
 
@@ -116,3 +122,250 @@ def _resolve_annee(client: httpx.Client, evenement: str, epreuve: str) -> str:
     if not annees:
         raise ValueError(f"Aucune édition publiée pour l'épreuve fftri.t2area.com : {url}")
     return max(annees)
+
+
+# Libellé d'en-tête normalisé → clé logique de colonne. L'en-tête réel porte
+# **10** colonnes (`id_league` et `league` s'intercalent entre `Clt/CAT` et
+# `Détails`) : lire par position ferait prendre la ligue pour le lien de fiche.
+# Stable sur les 5 éditions sondées, de 2022 à 2026.
+_COLONNES = {
+    "clt": "clt",
+    "clt/f": "clt_f",
+    "temps": "temps",
+    "nom": "nom",
+    "club": "club",
+    "cat": "cat",
+    "clt/cat": "clt_cat",
+    "id_league": "id_league",
+    "league": "league",
+    "details": "details",
+}
+
+#: Colonnes sans lesquelles une ligne n'a pas de sens.
+_COLONNES_REQUISES = frozenset({"clt", "temps", "nom"})
+
+_BIB_RE = re.compile(r"^bib-(\d+)$", re.I)
+
+# Marqueurs d'équipe dans le **slug d'épreuve** (`swim-run-m-eq`, `triathlon-relais`).
+# Jetons isolés : le « eq » de « equipe » ne doit pas être capté par accident.
+_RELAIS_RE = re.compile(r"(?<![a-z0-9])(eq|relais|duo)(?![a-z0-9])")
+
+# Le <h1> porte tout l'en-tête :
+#   « Résultats du Triathlon de La Baule - M - 2022 - édition du 18-09-2022 »
+# Deux regex **indépendantes** : un libellé inattendu ne doit pas faire perdre la
+# date, qui entre dans l'identité de la Course (UNIQUE(name, event_date, event_type)).
+_RE_NOM = re.compile(r"r[ée]sultats\s+d[eu]s?\s+(.+?)\s+-\s+\d{4}\s+-\s+[ée]dition\b", re.I)
+_RE_DATE = re.compile(r"[ée]dition\s+du\s+(\d{2})-(\d{2})-(\d{4})", re.I)
+
+
+def _index_colonnes(table) -> dict[str, int]:
+    """Clé logique → position, lue dans les libellés du `<thead>`."""
+    index: dict[str, int] = {}
+    for position, th in enumerate(table.select("thead th")):
+        cle = _COLONNES.get(_norm(th.get_text(" ", strip=True)))
+        if cle and cle not in index:
+            index[cle] = position
+    return index
+
+
+def _href(cellule) -> str:
+    lien = cellule.find("a", href=True)
+    return lien["href"].strip() if lien else ""
+
+
+def _lignes(table, index: dict[str, int]) -> list[dict[str, str]]:
+    """Une ligne = {clé de colonne → texte}, plus les href de Détails et Club.
+
+    Une ligne trop courte est une anomalie de markup : journalisée et sautée
+    plutôt que lue de travers.
+    """
+    attendu = max(index.values()) + 1
+    lignes: list[dict[str, str]] = []
+    for tr in table.select("tbody tr"):
+        cellules = tr.find_all("td")
+        if len(cellules) < attendu:
+            logger.warning(
+                "Ligne fftri ignorée : %d cellules pour %d colonnes", len(cellules), attendu
+            )
+            continue
+        ligne = {
+            cle: cellules[position].get_text(" ", strip=True)
+            for cle, position in index.items()
+        }
+        ligne["details_href"] = _href(cellules[index["details"]]) if "details" in index else ""
+        ligne["club_href"] = _href(cellules[index["club"]]) if "club" in index else ""
+        lignes.append(ligne)
+    return lignes
+
+
+def _cle_fiche(href: str) -> str:
+    """Dernier segment du href de la colonne Détails, sans son « .html »."""
+    dernier = urlparse(href).path.rsplit("/", 1)[-1]
+    return dernier[:-len(".html")] if dernier.endswith(".html") else dernier
+
+
+def _dossard(cle: str) -> str:
+    """Dossard **seulement** si la clé de fiche en est un (`bib-566` → « 566 »).
+
+    La source n'affiche jamais de dossard ; la clé de fiche est tantôt un dossard,
+    tantôt une licence FFTRI (`A44719`), tantôt un identifiant interne
+    (`id-1153352`). Remplir `bib_number` avec les deux autres ferait mentir le
+    champ — le front afficherait « #A44719 ». Les éditions sans dossard retombent
+    sur l'appariement par athlète (`import_service._match_without_bib`).
+    """
+    trouve = _BIB_RE.match(cle)
+    return trouve.group(1) if trouve else ""
+
+
+def _temps_ou_vide(brut: str) -> str:
+    """Temps normalisé. **`00:00:00` vaut temps absent** — un DNF sort avec cette
+    valeur (La Baule 2022, EPP Arnaud) et la laisser ferait basculer
+    `mapping.derive_status` sur « finisher »."""
+    normalise = normalize_time((brut or "").strip())
+    return "" if normalise in ("", "00:00:00") else normalise
+
+
+def _genre(categorie: str) -> str:
+    """Préfixe M/F de la catégorie fédérale (`MS2`, `FV1`, `MHAN`, `MT1`)."""
+    initiale = (categorie or "").strip()[:1].upper()
+    return initiale if initiale in ("M", "F") else ""
+
+
+def _est_relais(epreuve: str) -> bool:
+    """Déduit du slug d'épreuve. Non vérifié sur données réelles (§8.3 du design) :
+    aucune épreuve équipe sondée n'a de classement publié."""
+    return _RELAIS_RE.search(epreuve.lower()) is not None
+
+
+def _titre(soup) -> str:
+    """Texte du `<h1>` de résultats (la page en porte d'autres, décoratifs)."""
+    for h1 in soup.find_all("h1"):
+        texte = h1.get_text(" ", strip=True)
+        if _norm(texte).startswith("resultats"):
+            return texte
+    return ""
+
+
+def _entete(soup, evenement: str, epreuve: str) -> tuple[str, date | None]:
+    """(nom d'épreuve, date), lus indépendamment dans le `<h1>`.
+
+    Le nom est déjà qualifié par l'épreuve (« - M ») : pas de `qualify_event_name`.
+    """
+    titre = _titre(soup)
+    trouve = _RE_NOM.search(titre)
+    if trouve:
+        nom = trouve.group(1)
+    else:
+        nom = f"{evenement} {epreuve}".replace("-", " ").title()
+        logger.warning(
+            "Titre fftri illisible (%r) : nom d'épreuve replié sur les slugs (%s)", titre, nom
+        )
+    event_date = None
+    jour = _RE_DATE.search(titre)
+    if jour:
+        try:
+            event_date = date(int(jour.group(3)), int(jour.group(2)), int(jour.group(1)))
+        except ValueError:
+            logger.warning("Date d'édition fftri illisible : %r", jour.group(0))
+    else:
+        logger.warning("Date d'édition absente du titre fftri : %r", titre)
+    return nom, event_date
+
+
+def _construire(
+    ligne: dict[str, str],
+    *,
+    source_url: str,
+    evenement: str,
+    epreuve: str,
+    event_name: str,
+    event_type: str,
+    event_date: date | None,
+    chrono: tuple[str, str],
+) -> ScrapedResult:
+    """Une ligne de classement → un participant."""
+    nom, prenom = split_athlete_name(ligne.get("nom", ""))
+    cle = _cle_fiche(ligne.get("details_href", ""))
+    categorie = ligne.get("cat", "")
+    clt = ligne.get("clt", "")
+
+    result = ScrapedResult(source_url=source_url, provider="t2area")
+    result.event_name = event_name
+    result.event_type = event_type
+    result.event_date = event_date
+    result.athlete_name = nom
+    result.athlete_firstname = prenom
+    result.club = ligne.get("club", "")
+    result.category = categorie
+    result.gender = _genre(categorie)
+    result.bib_number = _dossard(cle)
+    result.rank_overall = normalize_rank(clt)
+    result.rank_gender = normalize_rank(ligne.get("clt_f", ""))
+    result.rank_category = normalize_rank(ligne.get("clt_cat", ""))
+    result.total_time = _temps_ou_vide(ligne.get("temps", ""))
+    # La colonne Clt porte le statut quand elle ne porte pas de rang (DNF, DQ).
+    result.status = derive_status_from_label(clt)
+    result.is_relay = _est_relais(epreuve)
+    # De quoi diagnostiquer sans re-scraper : clé brute, ligue, lien club, chronométreur.
+    result.raw_data = {
+        "cle_fiche": cle,
+        "fiche_url": ligne.get("details_href", ""),
+        "clt": clt,
+        "id_league": ligne.get("id_league", ""),
+        "league": ligne.get("league", ""),
+        "club_href": ligne.get("club_href", ""),
+        "chronometreur": chrono[0],
+        "chronometreur_url": chrono[1],
+        "evenement": evenement,
+        "epreuve": epreuve,
+    }
+    return result
+
+
+def _chronometreur(soup) -> tuple[str, str]:
+    """(nom, lien) du chronométreur amont. Remplacé en Task 4."""
+    return "", ""
+
+
+def _avertir_source_amont(nom: str, lien: str, url: str) -> None:
+    """Journalise si le chronométreur amont est supporté. Remplacé en Task 4."""
+
+
+def _parse_edition(
+    html: str, source_url: str, evenement: str, epreuve: str
+) -> list[ScrapedResult]:
+    """HTML d'une édition → participants. **Pur** : aucune requête."""
+    soup = BeautifulSoup(html, "lxml")
+    table = soup.find(id="resultList")
+    if table is None:
+        raise ValueError(
+            f"Aucun classement (#resultList) sur {source_url} : édition inexistante "
+            "— le site redirige alors vers son accueil — ou markup fftri modifié."
+        )
+    index = _index_colonnes(table)
+    manquantes = _COLONNES_REQUISES - set(index)
+    if manquantes:
+        raise ValueError(
+            f"En-tête fftri inattendu sur {source_url} : "
+            f"colonnes manquantes {sorted(manquantes)}."
+        )
+    event_name, event_date = _entete(soup, evenement, epreuve)
+    # Le type vient du **slug d'épreuve**, vérifié sur les slugs réels :
+    # `swim-run-m` → swimrun-m, `triathlon-xs-jeunes` → triathlon-xs,
+    # `bike-run-s-open-eq` → bike-run.
+    event_type = classify_event_type(epreuve)
+    chrono = _chronometreur(soup)
+    _avertir_source_amont(chrono[0], chrono[1], source_url)
+    return [
+        _construire(
+            ligne,
+            source_url=source_url,
+            evenement=evenement,
+            epreuve=epreuve,
+            event_name=event_name,
+            event_type=event_type,
+            event_date=event_date,
+            chrono=chrono,
+        )
+        for ligne in _lignes(table, index)
+    ]
