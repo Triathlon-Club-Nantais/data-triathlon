@@ -42,8 +42,12 @@ function toQuery(filters: Record<string, unknown>): string {
 }
 
 export const apiClient = {
+  // `supported` vient du registre backend : le front ne tient aucune liste de
+  // providers (la sienne avait divergé, cf. ProviderDetector).
   detectProvider: (url: string) =>
-    request<{ provider: string }>(`/scrape/detect${toQuery({ url })}`),
+    request<{ provider: string; supported?: boolean }>(
+      `/scrape/detect${toQuery({ url })}`,
+    ),
 
   importEvent: (url: string) =>
     request<ImportResult>("/scrape/event", {

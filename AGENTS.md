@@ -350,6 +350,14 @@ toujours en code 0.
   détection entière, garde des autres comprise.
 - **Breizh Chrono réutilise la logique Klikego** (`klikego._parse_detail`,
   `_detect_event_type`) — ne pas dupliquer, factoriser dans `klikego.py`.
+- « Supporté ou non » : **une seule définition**, `registry.is_supported` (dérivée
+  de `PROVIDERS`), exposée par `GET /scrape/detect` (`{provider, supported}`). Le
+  front ne liste **jamais** les providers : la liste en dur qu'il portait est
+  restée figée à six noms et affichait « Non supporté (competitor) » sur une URL
+  ironman.com pourtant importable — RaceResult et Chronoplace étaient logés à la
+  même enseigne. `lib/constants.PROVIDER_LABELS` ne fait que traduire un slug en
+  nom commercial ; un slug absent s'affiche tel quel, sans jamais valoir « non
+  supporté ».
 - Identification club : **une seule définition**, `app/core/club.py`
   (`is_tcn` / `tcn_clause`). Ne jamais la réimplémenter ailleurs — front et
   scraper l'avaient fait, les trois listes ont divergé et tout libellé contenant

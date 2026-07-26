@@ -318,6 +318,18 @@ def detect_provider(url: str) -> str:
     return _find_provider(url).name
 
 
+def is_supported(url: str) -> bool:
+    """Vrai si un provider du registre reconnaît l'URL (fallback playwright exclu).
+
+    Source de vérité unique du « supporté ou non », partagée par l'import de
+    masse (`sheet_source`) et par l'API `/scrape/detect` — donc par le badge du
+    front. Ce dernier portait sa propre liste, figée à six providers : toute URL
+    Competitor, RaceResult ou Chronoplace s'affichait « Non supporté » alors que
+    l'import fonctionnait (même piège de définition dupliquée que #76).
+    """
+    return detect_provider(url) in provider_names()
+
+
 def scrape_event_all(url: str) -> list[ScrapedResult]:
     provider = _find_provider(url)
     logger.info("Import épreuve via %s : %s", provider.name, url)

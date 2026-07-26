@@ -69,8 +69,12 @@ def parse_sheet_csv(csv_text: str) -> tuple[list[str], int]:
 
 
 def is_supported(url: str) -> bool:
-    """Supporté pour l'import de masse ⇔ le provider détecté n'est pas playwright."""
-    return registry.detect_provider(url) != "playwright"
+    """Supporté pour l'import de masse ⇔ un provider du registre reconnaît l'URL.
+
+    Simple alias de `registry.is_supported` : la définition vit dans le registre,
+    partagée avec l'API `/scrape/detect`.
+    """
+    return registry.is_supported(url)
 
 
 def host_of(url: str) -> str:

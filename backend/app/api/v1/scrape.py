@@ -10,7 +10,7 @@ from app.api.deps import settings_dep
 from app.core.config import Settings
 from app.core.database import SessionLocal, get_db
 from app.schemas.scrape import ImportResult, ScrapeRequest
-from app.scrapers import detect_provider
+from app.scrapers import detect_provider, is_supported
 from app.services import import_service
 
 router = APIRouter(tags=["scrape"])
@@ -62,4 +62,10 @@ def scrape_event_stream(body: ScrapeRequest, settings: Settings = Depends(settin
 
 @router.get("/scrape/detect")
 def detect(url: str):
-    return {"provider": detect_provider(url)}
+    """Provider détecté + support réel, tous deux dérivés du registre.
+
+    `supported` est renvoyé pour que le front n'ait pas à tenir sa propre liste
+    de providers : la sienne avait divergé et affichait « Non supporté » sur
+    Competitor, RaceResult et Chronoplace.
+    """
+    return {"provider": detect_provider(url), "supported": is_supported(url)}

@@ -22,7 +22,32 @@ def _result(bib, nom):
 
 def test_detect(client):
     resp = client.get("/api/v1/scrape/detect", params={"url": "https://www.klikego.com/x"})
-    assert resp.json() == {"provider": "klikego"}
+    assert resp.json() == {"provider": "klikego", "supported": True}
+
+
+@pytest.mark.parametrize(
+    ("url", "provider"),
+    [
+        ("https://www.ironman.com/races/im703-vichy/results", "competitor"),
+        ("https://my.raceresult.com/406211/results", "raceresult"),
+        ("https://chronoplace.fr/evenement/x", "chronoplace"),
+    ],
+)
+def test_detect_expose_le_support_des_providers_recents(client, url, provider):
+    """`supported` est dérivé du registre, jamais d'une liste à tenir à jour.
+
+    Le front affichait « Non supporté (competitor) » sur une URL ironman.com :
+    il portait sa propre liste de providers, figée à six noms — Competitor,
+    RaceResult et Chronoplace en étaient absents (même piège de définition
+    dupliquée que #76). C'est l'API qui tranche désormais.
+    """
+    resp = client.get("/api/v1/scrape/detect", params={"url": url})
+    assert resp.json() == {"provider": provider, "supported": True}
+
+
+def test_detect_url_inconnue_reste_non_supportee(client):
+    resp = client.get("/api/v1/scrape/detect", params={"url": "https://chronopuce.test/x"})
+    assert resp.json() == {"provider": "playwright", "supported": False}
 
 
 def test_detect_sur_host_ipv6_malforme_ne_leve_pas_500(client):
@@ -33,7 +58,7 @@ def test_detect_sur_host_ipv6_malforme_ne_leve_pas_500(client):
     exception qui remonte en 500."""
     resp = client.get("/api/v1/scrape/detect", params={"url": "https://[oops/x"})
     assert resp.status_code == 200
-    assert resp.json() == {"provider": "playwright"}
+    assert resp.json() == {"provider": "playwright", "supported": False}
 
 
 def test_import_event(client, monkeypatch):

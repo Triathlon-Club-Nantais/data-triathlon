@@ -44,6 +44,11 @@ export const PROVIDER_LABELS: Record<string, string> = {
   wiclax: "Wiclax",
   prolivesport: "ProLiveSport",
   sportinnovation: "Sport Innovation",
+  raceresult: "RaceResult",
+  chronoplace: "Chronoplace",
+  // Competitor est le moteur réel derrière ironman.com (cf. #54) : c'est ce nom
+  // que le backend détecte, mais « IRONMAN » est ce que l'utilisateur a collé.
+  competitor: "IRONMAN (Competitor)",
 };
 
 /** Libellé d'un chronométreur ; le slug brut à défaut, « Source » si non renseigné. */

@@ -9,6 +9,9 @@ describe("providerLabel", () => {
     expect(providerLabel("wiclax")).toBe("Wiclax");
     expect(providerLabel("prolivesport")).toBe("ProLiveSport");
     expect(providerLabel("sportinnovation")).toBe("Sport Innovation");
+    expect(providerLabel("raceresult")).toBe("RaceResult");
+    expect(providerLabel("chronoplace")).toBe("Chronoplace");
+    expect(providerLabel("competitor")).toBe("IRONMAN (Competitor)");
   });
 
   it("laisse passer un provider inconnu plutôt que de l'effacer", () => {
