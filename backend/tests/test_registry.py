@@ -32,6 +32,33 @@ def test_provider_names_exclut_le_fallback_playwright():
     assert "playwright" not in registry.provider_names()
 
 
+def test_is_supported_vrai_des_quun_provider_reconnait_lurl():
+    assert registry.is_supported("https://www.ironman.com/races/im703-vichy/results") is True
+    assert registry.is_supported("https://www.klikego.com/resultats/event/1") is True
+
+
+def test_is_supported_faux_sur_le_fallback_playwright():
+    """Une URL que personne ne reconnaît tombe sur playwright, donc non supportée."""
+    assert registry.is_supported("https://chronopuce.test/x") is False
+
+
+def test_is_supported_derive_de_la_liste_des_providers(monkeypatch):
+    """Un provider ajouté à `PROVIDERS` est supporté sans toucher à `is_supported`."""
+
+    class _Faux:
+        name = "chronofictif"
+
+        def matches(self, url: str) -> bool:
+            return "chronofictif.test" in url
+
+        def scrape_event_all(self, url: str):  # pragma: no cover - jamais appelé
+            return []
+
+    monkeypatch.setattr(registry, "PROVIDERS", [*registry.PROVIDERS, _Faux()])
+
+    assert registry.is_supported("https://chronofictif.test/e/1") is True
+
+
 # ---------------------------------------------------------------------------
 # Détection par host — la règle unique (issue #49)
 # ---------------------------------------------------------------------------
@@ -128,6 +155,8 @@ _ROUTAGE_LEGITIME = [
     ("raceresult", "https://www.chronoconsult.fr/result/triathlon-de-roanne-villerest/"),
     ("raceresult", "https://www.espace-competition.com/result/x/"),
     ("chronoplace", "https://www.chronoplace.fr/classement/spaycific-races-2025/epreuve/494"),
+    ("competitor", "https://www.ironman.com/races/im-france/results"),
+    ("competitor", "https://labs-v2.competitor.com/results/event/x"),
 ]
 
 
@@ -153,6 +182,8 @@ _JETONS_PROVIDERS = [
     "chronosmetron.com",
     "chronowest.fr",
     "fftri.t2area.com",
+    "ironman.com",
+    "competitor.com",
 ]
 
 #: Les quatre familles de contournement de l'issue #49, plus la confusion userinfo.
