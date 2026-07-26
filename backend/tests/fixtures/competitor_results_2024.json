@@ -1,0 +1,109 @@
+{
+ "@odata.context": "…#wtc_results",
+ "value": [
+  {
+   "wtc_resultid": "de78cdb2-668b-4f8f-97fd-67b0af68a9db",
+   "wtc_bibnumber": 1273,
+   "wtc_bibnumber_v2": null,
+   "wtc_finishtimeformatted": "4:07:22",
+   "wtc_swimtimeformatted": "0:27:15",
+   "wtc_transition1timeformatted": "0:02:32",
+   "wtc_biketimeformatted": "2:19:08",
+   "wtc_transitiontime2formatted": "0:02:29",
+   "wtc_runtimeformatted": "1:15:58",
+   "wtc_finishrankoverall": 1,
+   "wtc_finishrankgroup": 1,
+   "wtc_finishrankgender": 1,
+   "wtc_finisher": true,
+   "wtc_dnf": false,
+   "wtc_dns": false,
+   "wtc_dq": false,
+   "_wtc_agegroupid_value_formatted": "M25-29",
+   "_wtc_eventid_value": "d0d11a9f-7ba1-4ae1-a308-556363546b25",
+   "_wtc_eventid_value_formatted": "2024 IRONMAN 70.3 Vichy",
+   "_wtc_teamresult_value": null,
+   "wtc_points": 3500,
+   "wtc_ContactId": {
+    "lastname": "Terrier",
+    "address1_stateorprovince": null,
+    "address1_country": "FR",
+    "address1_city": "Villeneuve Loubet",
+    "contactid": "7ba03e7a-c482-45a6-b324-5b5ca5b53381",
+    "wtc_image2": null,
+    "firstname": "Vincent",
+    "gendercode_formatted": "Female",
+    "gendercode": 2,
+    "fullname": "Vincent Terrier"
+   },
+   "wtc_AgeGroupId": {
+    "_wtc_brandid_value_formatted": "IRONMAN 70.3",
+    "_wtc_brandid_value": "86edcd32-f178-e111-b16a-005056956277",
+    "wtc_agegroupid": "4ec914a1-fdfc-e111-aa75-005056956277",
+    "wtc_gender_formatted": "Male",
+    "wtc_gender": 1,
+    "wtc_agegroupname": "M25-29",
+    "_wtc_agegroupfamilyid_value_formatted": "IRONMAN 70.3",
+    "_wtc_agegroupfamilyid_value": "21f5d681-1331-e811-941e-005056951bf1"
+   },
+   "wtc_CountryRepresentingId": {
+    "wtc_iso3": "FRA",
+    "wtc_countryid": "5086c411-ddbb-e111-80ae-005056956277",
+    "wtc_isonumeric_formatted": "250",
+    "wtc_isonumeric": 250,
+    "wtc_name": "France",
+    "wtc_iso2": "FR"
+   }
+  },
+  {
+   "wtc_resultid": "44ea3616-40d9-404f-af5b-08c42f623b4e",
+   "wtc_bibnumber": 149,
+   "wtc_bibnumber_v2": null,
+   "wtc_finishtimeformatted": "6:02:48",
+   "wtc_swimtimeformatted": "0:47:24",
+   "wtc_transition1timeformatted": "0:05:21",
+   "wtc_biketimeformatted": "3:14:37",
+   "wtc_transitiontime2formatted": "0:05:00",
+   "wtc_runtimeformatted": "1:50:28",
+   "wtc_finishrankoverall": 99999,
+   "wtc_finishrankgroup": 99999,
+   "wtc_finishrankgender": 99999,
+   "wtc_finisher": true,
+   "wtc_dnf": false,
+   "wtc_dns": false,
+   "wtc_dq": false,
+   "_wtc_agegroupid_value_formatted": "ODIV",
+   "_wtc_eventid_value": "d0d11a9f-7ba1-4ae1-a308-556363546b25",
+   "_wtc_eventid_value_formatted": "2024 IRONMAN 70.3 Vichy",
+   "_wtc_teamresult_value": null,
+   "wtc_points": 700,
+   "wtc_ContactId": {
+    "lastname": "Olivieri",
+    "address1_stateorprovince": "AB",
+    "address1_country": "FR",
+    "address1_city": "AIX EN PROVENCE",
+    "contactid": "fc13f23f-dbb9-43ca-a519-35cc57284647",
+    "wtc_image2": null,
+    "firstname": "Myriam",
+    "gendercode_formatted": "Female",
+    "gendercode": 2,
+    "fullname": "Myriam Olivieri"
+   },
+   "wtc_AgeGroupId": {
+    "_wtc_brandid_value_formatted": "IRONMAN 70.3",
+    "_wtc_brandid_value": "86edcd32-f178-e111-b16a-005056956277",
+    "wtc_agegroupid": "a35c3e73-a4a1-ed11-aad1-000d3a314be4",
+    "wtc_gender": null,
+    "wtc_agegroupname": "ODIV",
+    "_wtc_agegroupfamilyid_value": null
+   },
+   "wtc_CountryRepresentingId": {
+    "wtc_iso3": "FRA",
+    "wtc_countryid": "5086c411-ddbb-e111-80ae-005056956277",
+    "wtc_isonumeric_formatted": "250",
+    "wtc_isonumeric": 250,
+    "wtc_name": "France",
+    "wtc_iso2": "FR"
+   }
+  }
+ ]
+}

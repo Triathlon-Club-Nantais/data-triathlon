@@ -1,0 +1,112 @@
+{
+ "@odata.context": "…#wtc_results",
+ "value": [
+  {
+   "wtc_resultid": "65ffa400-ae39-4ade-94b1-6e0d98808614",
+   "wtc_bibnumber": 3544,
+   "wtc_bibnumber_v2": null,
+   "wtc_finishtimeformatted": "8:59:34",
+   "wtc_swimtimeformatted": "0:51:48",
+   "wtc_transition1timeformatted": "0:03:47",
+   "wtc_biketimeformatted": "4:59:44",
+   "wtc_transitiontime2formatted": "0:03:50",
+   "wtc_runtimeformatted": "3:00:25",
+   "wtc_finishrankoverall": 1,
+   "wtc_finishrankgroup": 1,
+   "wtc_finishrankgender": 1,
+   "wtc_finisher": true,
+   "wtc_dnf": false,
+   "wtc_dns": false,
+   "wtc_dq": false,
+   "_wtc_agegroupid_value_formatted": "M30-34",
+   "_wtc_eventid_value": "f3a6cf4c-e9d5-4c6f-a425-86b3b8ba0524",
+   "_wtc_eventid_value_formatted": "2025 IRONMAN France Nice",
+   "_wtc_teamresult_value": null,
+   "wtc_points": 5000,
+   "wtc_ContactId": {
+    "lastname": "Terrier",
+    "address1_stateorprovince": null,
+    "address1_country": "FR",
+    "address1_city": "Villeneuve Loubet",
+    "contactid": "7ba03e7a-c482-45a6-b324-5b5ca5b53381",
+    "wtc_image2": null,
+    "firstname": "Vincent",
+    "gendercode_formatted": "Female",
+    "gendercode": 2,
+    "fullname": "Vincent Terrier"
+   },
+   "wtc_AgeGroupId": {
+    "_wtc_brandid_value_formatted": "IRONMAN",
+    "_wtc_brandid_value": "84edcd32-f178-e111-b16a-005056956277",
+    "wtc_agegroupid": "84c914a1-fdfc-e111-aa75-005056956277",
+    "wtc_agegroupname": "M30-34",
+    "_wtc_agegroupfamilyid_value_formatted": "IRONMAN",
+    "_wtc_agegroupfamilyid_value": "20f5d681-1331-e811-941e-005056951bf1",
+    "wtc_gender_formatted": "Male",
+    "wtc_gender": 1
+   },
+   "wtc_CountryRepresentingId": {
+    "wtc_iso3": "FRA",
+    "wtc_countryid": "5086c411-ddbb-e111-80ae-005056956277",
+    "wtc_isonumeric_formatted": "250",
+    "wtc_isonumeric": 250,
+    "wtc_name": "France",
+    "wtc_iso2": "FR"
+   }
+  },
+  {
+   "wtc_resultid": "2e77b389-7bac-488d-84bb-014bb1c95b85",
+   "wtc_bibnumber": 4301,
+   "wtc_bibnumber_v2": null,
+   "wtc_finishtimeformatted": null,
+   "wtc_swimtimeformatted": "1:19:16",
+   "wtc_transition1timeformatted": "0:09:34",
+   "wtc_biketimeformatted": null,
+   "wtc_transitiontime2formatted": "0:00:00",
+   "wtc_runtimeformatted": null,
+   "wtc_finishrankoverall": 99999,
+   "wtc_finishrankgroup": 99999,
+   "wtc_finishrankgender": 99999,
+   "wtc_finisher": false,
+   "wtc_dnf": true,
+   "wtc_dns": false,
+   "wtc_dq": false,
+   "_wtc_agegroupid_value_formatted": "M40-44",
+   "_wtc_eventid_value": "f3a6cf4c-e9d5-4c6f-a425-86b3b8ba0524",
+   "_wtc_eventid_value_formatted": "2025 IRONMAN France Nice",
+   "_wtc_teamresult_value": null,
+   "wtc_points": 0,
+   "wtc_ContactId": {
+    "lastname": "Szypulski",
+    "address1_stateorprovince": null,
+    "address1_country": "PL",
+    "address1_city": "Gdańsk",
+    "contactid": "1a577274-be11-4638-bc75-0af7e80050a1",
+    "wtc_image2": "https://assets.competitor.com/profile-pics/1a577274-be11-4638-bc75-0af7e80050a1_CV.JPG",
+    "firstname": "Tomasz",
+    "gendercode_formatted": "Male",
+    "gendercode": 1,
+    "fullname": "Tomasz Szypulski"
+   },
+   "wtc_AgeGroupId": {
+    "_wtc_brandid_value_formatted": "IRONMAN",
+    "_wtc_brandid_value": "84edcd32-f178-e111-b16a-005056956277",
+    "wtc_agegroupid": "88c914a1-fdfc-e111-aa75-005056956277",
+    "wtc_agegroupname": "M40-44",
+    "_wtc_agegroupfamilyid_value_formatted": "IRONMAN",
+    "_wtc_agegroupfamilyid_value": "20f5d681-1331-e811-941e-005056951bf1",
+    "wtc_gender_formatted": "Male",
+    "wtc_gender": 1
+   },
+   "wtc_CountryRepresentingId": {
+    "wtc_iso3": "POL",
+    "wtc_countryid": "2287c411-ddbb-e111-80ae-005056956277",
+    "wtc_isonumeric_formatted": "616",
+    "wtc_isonumeric": 616,
+    "wtc_name": "Poland",
+    "wtc_iso2": "PL"
+   }
+  }
+ ],
+ "@odata.nextLink": "https://api.competitor.com/web/wtc_results?$filter=_wtc_eventid_value%20eq%20f3a6cf4c-e9d5-4c6f-a425-86b3b8ba0524&$orderby=wtc_finishrankoverall&$skiptoken=page2"
+}

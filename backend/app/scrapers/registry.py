@@ -24,6 +24,7 @@ from urllib.parse import parse_qs, urlparse
 from app.scrapers import (
     breizhchrono,
     chronoplace,
+    competitor,
     klikego,
     prolivesport,
     raceresult,
@@ -232,6 +233,18 @@ class ChronoplaceProvider(HostMatchedProvider):
         return chronoplace.scrape_event_all(url)
 
 
+class CompetitorProvider(HostMatchedProvider):
+    name = "competitor"
+
+    # `ironman.com` n'est qu'une vitrine : le moteur est Competitor/WTC, d'où le
+    # nom du provider (issue #54). `competitor.com` couvre par sous-domaine la
+    # façade réelle `labs-v2.competitor.com`, et les suivantes s'il y en a.
+    _HOSTS = ("ironman.com", "competitor.com")
+
+    def scrape_event_all(self, url: str) -> list[ScrapedResult]:
+        return competitor.scrape_event_all(url)
+
+
 class T2AreaProvider:
     name = "t2area"
 
@@ -273,6 +286,7 @@ PROVIDERS: list[ScraperProtocol] = [
     SportInnovationProvider(),
     RaceResultProvider(),
     ChronoplaceProvider(),
+    CompetitorProvider(),
     T2AreaProvider(),
 ]
 _FALLBACK: ScraperProtocol = PlaywrightProvider()

@@ -38,6 +38,9 @@ LIVE_URLS = {
     "t2area": (
         "https://fftri.t2area.com/calendrier/triathlon-de-la-baule/triathlon-m/2022.html"
     ),
+    # IRONMAN France : page « Results » d'ironman.com → iframe Competitor. Deux
+    # sauts (page → uuid → __NEXT_DATA__) et l'édition la plus récente publiée.
+    "competitor": "https://www.ironman.com/races/im-france/results",
 }
 
 
