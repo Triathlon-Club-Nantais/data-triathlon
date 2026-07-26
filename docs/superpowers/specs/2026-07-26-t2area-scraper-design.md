@@ -79,7 +79,10 @@ réimplémente pas : la règle de #76 est respectée.
 
 - fiche individuelle → **troncature** vers son édition (le cas réel du Sheet) ;
 - édition → traitée directement ;
-- épreuve sans année → 1 GET, on prend l'**année maximale** des liens `.edition` ;
+- épreuve sans année → 1 GET, on prend l'**année maximale** des liens d'édition,
+  repérés par la **forme de leur href** (`…/<événement>/<épreuve>/<AAAA>.html`)
+  et non par une classe CSS : les liens portent `class="btn-fx-1"`, un décor qui
+  peut changer, là où la forme de l'URL est structurelle ;
 - événement → `ValueError` explicite.
 
 L'événement est écarté sciemment : ses épreuves ont des dernières éditions
@@ -126,8 +129,10 @@ classement vide silencieux.
 
 ## 4. Lecture du classement
 
-En-tête stable sur les 7 éditions sondées (2019 → 2026), colonnes lues par
-position :
+En-tête stable sur les 7 éditions sondées (2019 → 2026), colonnes lues **par
+libellé d'en-tête** — pas par position : l'en-tête réel porte **10** colonnes,
+`id_league` et `league` s'intercalant entre `Clt/CAT` et `Détails`. Lire par
+position ferait prendre la ligue pour le lien de fiche.
 
 | Colonne | Champ | Note |
 | --- | --- | --- |
@@ -138,7 +143,12 @@ position :
 | Club | `club` | libellé fédéral |
 | CAT | `category`, `gender` | préfixe `M`/`F` (`MHAN`, `MT1` compris) |
 | Clt/CAT | `rank_category` | |
+| id_league, league | — | ignorées, mais présentes : c'est elles qui interdisent la lecture positionnelle |
 | Détails (href) | `bib_number` | cf. §2.3 |
+
+Un en-tête amputé d'une colonne facultative est toléré ; les colonnes sans
+lesquelles une ligne n'a pas de sens (`Clt`, `Temps`, `Nom`, `Détails`) sont
+exigées et leur absence lève.
 
 **`00:00:00` vaut temps absent**, et ce n'est pas cosmétique : un DNF sort avec
 `00:00:00` dans la colonne Temps (La Baule 2022, EPP Arnaud). Laissé tel quel, il
