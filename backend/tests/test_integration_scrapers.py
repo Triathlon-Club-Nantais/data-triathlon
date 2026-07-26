@@ -33,6 +33,10 @@ LIVE_URLS = {
     # à l'autre — l'épreuve qui a servi au sondage d'API initial.
     "raceresult": "https://my3.raceresult.com/393893/results",
     "chronoplace": "https://www.chronoplace.fr/classement/spaycific-races-2025/epreuve/494",
+    # fftri.t2area.com : plateforme officielle FFTRI, édition figée (901 lignes).
+    "t2area": (
+        "https://fftri.t2area.com/calendrier/triathlon-de-la-baule/triathlon-m/2022.html"
+    ),
 }
 
 
@@ -419,3 +423,14 @@ def test_chronoplace_slug_obsolete_leve():
         registry.scrape_event_all(
             "https://www.chronoplace.fr/classement/spay-swimrun-2025/epreuve/566"
         )
+
+
+@pytest.mark.integration
+def test_t2area_epreuve_complete():
+    """La Baule M 2022 : classement complet en une requête, splits des seuls TCN."""
+    results = registry.scrape_event_all(LIVE_URLS["t2area"])
+
+    assert len(results) > 800
+    assert min(r.rank_overall for r in results if r.rank_overall) == 1
+    assert any(r.club and "NANTAIS" in r.club.upper() for r in results)
+    assert all(r.event_date == date(2022, 9, 18) for r in results)

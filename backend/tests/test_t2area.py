@@ -494,3 +494,114 @@ def test_appliquer_splits_libelle_inconnu_bascule_sur_segments():
     assert r.segments == [("Natation 1", "00:10:00"), ("Trail 1", "00:20:00")]
     assert r.swim_time == ""
     assert r.bike_time == ""
+
+
+PAGES_LABAULE = {
+    "/triathlon-m/2022.html": EDITION_LABAULE,
+    "/triathlon-m.html": EPREUVE_LABAULE,
+    "/2022/bib-566.html": FICHE_TRIATHLON,
+    "/2022/bib-983.html": FICHE_TRIATHLON,
+}
+
+
+def _client_factice(monkeypatch, pages=None, defaut=None):
+    client = FakeClient(pages if pages is not None else dict(PAGES_LABAULE), defaut)
+    monkeypatch.setattr(t2area.httpx, "Client", lambda *a, **k: client)
+    return client
+
+
+def test_scrape_event_all_ne_charge_que_les_fiches_tcn(monkeypatch):
+    """25 requêtes sur les 901 lignes réelles : le coût est borné par l'effectif du club."""
+    client = _client_factice(monkeypatch)
+
+    resultats = t2area.scrape_event_all(URL_EDITION)
+
+    assert len(resultats) == 6
+    assert client.calls == [
+        URL_EDITION,
+        "https://fftri.t2area.com/calendrier/triathlon-de-la-baule/triathlon-m/2022/bib-566.html",
+        "https://fftri.t2area.com/calendrier/triathlon-de-la-baule/triathlon-m/2022/bib-983.html",
+    ]
+
+
+def test_scrape_event_all_applique_les_splits_aux_seuls_tcn(monkeypatch):
+    _client_factice(monkeypatch)
+
+    resultats = t2area.scrape_event_all(URL_EDITION)
+
+    assert _par_nom(resultats, "ACCENT").swim_time == "00:41:16"
+    assert _par_nom(resultats, "ANTOINE").swim_time == ""
+
+
+def test_scrape_event_all_tronque_une_url_de_fiche(monkeypatch):
+    """Le cas réel du Sheet : le lien pointe une fiche, on importe toute l'édition."""
+    client = _client_factice(monkeypatch)
+
+    resultats = t2area.scrape_event_all(URL_FICHE)
+
+    assert len(resultats) == 6
+    assert client.calls[0] == URL_EDITION
+
+
+def test_scrape_event_all_source_url_est_ledition_canonique(monkeypatch):
+    """Fiche et édition désignent le même classement : on stocke la forme canonique,
+    pour qu'un `rescrape-db` ne reparte pas d'une URL de fiche."""
+    _client_factice(monkeypatch)
+
+    resultats = t2area.scrape_event_all(URL_FICHE)
+
+    assert {r.source_url for r in resultats} == {URL_EDITION}
+
+
+def test_scrape_event_all_url_depreuve_resout_la_derniere_edition(monkeypatch):
+    client = _client_factice(monkeypatch)
+
+    resultats = t2area.scrape_event_all(URL_EPREUVE)
+
+    assert client.calls[0] == URL_EPREUVE
+    assert client.calls[1] == URL_EDITION
+    assert len(resultats) == 6
+
+
+def test_scrape_event_all_fiche_en_echec_nemporte_pas_lepreuve(monkeypatch, caplog):
+    pages = dict(PAGES_LABAULE)
+    pages["/2022/bib-983.html"] = FakeResponse("", 500)
+    _client_factice(monkeypatch, pages=pages)
+
+    with caplog.at_level(logging.WARNING, logger="app.scrapers.t2area"):
+        resultats = t2area.scrape_event_all(URL_EDITION)
+
+    assert len(resultats) == 6
+    assert _par_nom(resultats, "ACCENT").swim_time == "00:41:16"
+    assert "bib-983" in caplog.text
+
+
+def test_scrape_event_all_edition_inexistante_leve(monkeypatch):
+    """Le site répond 303 vers son accueil : pas de classement vide silencieux."""
+    _client_factice(monkeypatch, pages={}, defaut=FakeResponse(
+        "<html><body><h1>CALENDRIER DES ÉPREUVES FFTRI</h1></body></html>"
+    ))
+
+    with pytest.raises(ValueError, match="Aucun classement"):
+        t2area.scrape_event_all(URL_EDITION)
+
+
+def test_registry_detecte_le_provider():
+    from app.scrapers import registry
+
+    assert registry.detect_provider(URL_EDITION) == "t2area"
+    assert registry.detect_provider(URL_FICHE) == "t2area"
+
+
+def test_registry_nattrape_pas_les_autres_sous_domaines_t2area():
+    """Allowlist explicite : T2Area sert d'autres fédérations, hors périmètre."""
+    from app.scrapers import registry
+
+    assert registry.detect_provider("https://ffn.t2area.com/calendrier/x/y.html") != "t2area"
+
+
+def test_registry_expose_t2area_comme_ciblable():
+    """`provider_names()` alimente la validation de `--provider` en CLI."""
+    from app.scrapers import registry
+
+    assert "t2area" in registry.provider_names()
