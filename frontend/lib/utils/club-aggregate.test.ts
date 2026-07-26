@@ -29,6 +29,7 @@ function part(over: Partial<Participation> & { id: number }): Participation {
       is_relay: false,
     },
     club: over.club ?? "TCN",
+    is_tcn: over.is_tcn ?? true,
     category: over.category ?? "S4",
     bib_number: over.bib_number ?? "1",
     rank_overall: over.rank_overall ?? null,

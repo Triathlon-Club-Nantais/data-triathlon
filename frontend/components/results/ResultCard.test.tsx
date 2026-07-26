@@ -17,6 +17,7 @@ const base: Participation = {
     is_relay: false,
   },
   club: "TCN",
+  is_tcn: true,
   category: "S4",
   bib_number: "42",
   rank_overall: 12,
