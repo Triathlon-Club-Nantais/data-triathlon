@@ -13,6 +13,7 @@ import httpx
 import pytest
 
 from app.scrapers import t2area
+from app.scrapers.base import ScrapedResult
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -25,6 +26,21 @@ EPREUVE_LABAULE = _fixture("t2area_epreuve_labaule_m.html")
 EDITION_LABAULE = _fixture("t2area_edition_labaule_2022.html")     # triathlon M, clés bib-
 EDITION_BOUCHET = _fixture("t2area_edition_bouchet_2025.html")     # clés licence FFTRI
 EDITION_NEVERS = _fixture("t2area_edition_nevers_duathlon_2022.html")  # duathlon
+FICHE_TRIATHLON = _fixture("t2area_fiche_triathlon.html")
+FICHE_DUATHLON = _fixture("t2area_fiche_duathlon.html")
+
+# Fiche au découpage inattendu : `_appliquer_splits` doit basculer sur `segments`.
+FICHE_LIBELLE_INCONNU = """
+<html lang="fr"><body>
+<ul class="accordion"><li class="accordion__item"><button><span>
+<span class="title">Général</span><span class="title">01:00:00</span>
+</span></button></li><li class="accordion__item"><button><span>
+<span class="title">Natation 1</span><span class="title">00:10:00</span>
+</span></button></li><li class="accordion__item"><button><span>
+<span class="title">Trail 1</span><span class="title">00:20:00</span>
+</span></button></li></ul>
+</body></html>
+"""
 
 URL_EDITION = (
     "https://fftri.t2area.com/calendrier/triathlon-de-la-baule/triathlon-m/2022.html"
@@ -409,3 +425,72 @@ def test_pas_davertissement_sans_mention(caplog):
         t2area._avertir_source_amont(*t2area._chronometreur(BeautifulSoup("", "lxml")), URL_EDITION)
 
     assert caplog.text == ""
+
+
+def test_parse_fiche_triathlon_exclut_le_general():
+    """« Général » est le temps total, déjà lu dans le classement."""
+    segments = t2area._parse_fiche(FICHE_TRIATHLON)
+
+    assert [libelle for libelle, _ in segments] == [
+        "Natation", "Transition 1", "Vélo", "Transition 2", "Course à Pied",
+    ]
+
+
+def test_parse_fiche_transition_a_zero_est_absente():
+    """La Baule 2022 ne chronomètre pas les transitions : 0 s serait un faux."""
+    segments = dict(t2area._parse_fiche(FICHE_TRIATHLON))
+
+    assert segments["Transition 1"] == ""
+    assert segments["Natation"] == "00:41:16"
+
+
+def test_appliquer_splits_triathlon():
+    r = ScrapedResult(source_url=URL_EDITION, provider="t2area")
+
+    t2area._appliquer_splits(r, t2area._parse_fiche(FICHE_TRIATHLON))
+
+    assert r.swim_time == "00:41:16"
+    assert r.bike_time == "01:14:59"
+    assert r.run_time == "00:45:39"
+    assert r.t1_time == ""
+    assert r.t2_time == ""
+    assert r.segments is None
+
+
+def test_appliquer_splits_duathlon_par_libelle_et_non_par_position():
+    """« CàP 1 » va au slot natation, « CàP 2 » au slot course : c'est ce qu'attend
+    `_SPLIT_KEYS_BY_SPORT`, qui les ré-étiquette en course1/course2."""
+    r = ScrapedResult(source_url=URL_EDITION, provider="t2area")
+
+    t2area._appliquer_splits(r, t2area._parse_fiche(FICHE_DUATHLON))
+
+    assert r.swim_time == "00:22:47"
+    assert r.t1_time == "00:01:29"
+    assert r.bike_time == "01:24:14"
+    assert r.t2_time == "00:02:07"
+    assert r.run_time == "00:58:39"
+
+
+def test_appliquer_splits_duathlon_reetiquete_par_mapping():
+    """Bout à bout avec la couche service : les clés finales sont celles du sport."""
+    from app.services.mapping import build_splits
+
+    r = ScrapedResult(source_url=URL_EDITION, provider="t2area")
+    r.event_type = "duathlon-m"
+    t2area._appliquer_splits(r, t2area._parse_fiche(FICHE_DUATHLON))
+
+    assert build_splits(r) == {
+        "course1": "00:22:47", "t1": "00:01:29", "bike": "01:24:14",
+        "t2": "00:02:07", "course2": "00:58:39",
+    }
+
+
+def test_appliquer_splits_libelle_inconnu_bascule_sur_segments():
+    """Un seul libellé hors table suffit : rien n'est perdu silencieusement."""
+    r = ScrapedResult(source_url=URL_EDITION, provider="t2area")
+
+    t2area._appliquer_splits(r, t2area._parse_fiche(FICHE_LIBELLE_INCONNU))
+
+    assert r.segments == [("Natation 1", "00:10:00"), ("Trail 1", "00:20:00")]
+    assert r.swim_time == ""
+    assert r.bike_time == ""
