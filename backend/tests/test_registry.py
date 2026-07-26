@@ -184,6 +184,15 @@ def test_url_klikego_portant_un_jeton_timepulse_reste_klikego():
     assert registry.detect_provider(url) == "klikego"
 
 
+def test_wiclax_matches_reste_total_sur_un_host_ipv6_malforme():
+    """`WiclaxProvider.matches` fait son propre `urlparse` pour lire le chemin
+    G-Live, en plus de la composition sur `_host_match` — un host IPv6
+    malformé ne doit pas faire lever `detect_provider` (résidu du finding
+    Important n°2 de la revue #49 : `GET /scrape/detect` n'a aucune garde en
+    amont, contrairement aux chemins d'import)."""
+    assert registry.detect_provider("https://[oops/x") == "playwright"
+
+
 def test_wiclax_ne_capte_pas_le_site_vitrine_sans_chemin_g_live():
     """`wiclax.com` est le site de l'éditeur : seuls les chemins G-Live sont
     des pages de résultats. La condition de chemin doit survivre à la bascule."""
