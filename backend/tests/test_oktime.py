@@ -370,3 +370,81 @@ def test_total_time_normalise():
 def test_total_time_absent(brut):
     """`"00:00:00"` est la façon dont la source dit « pas de temps »."""
     assert oktime._total_time({"temps_finish": brut}) == ""
+
+
+# --------------------------------------------------------------------------- #
+# Splits : cumulés → durées de segment
+# --------------------------------------------------------------------------- #
+
+POINTS_TRIATHLON = [
+    {"id": "11|1", "nom": "NATATION", "time": "00:23:56"},
+    {"id": "12|2", "nom": "VELO", "time": "02:20:10"},
+    {"id": "13|3", "nom": "COURSE A PIED", "time": "03:31:57"},
+]
+
+
+def test_segments_differencie_les_cumules():
+    """4 512 des 4 522 participations à ≥ 2 points ont des cumulés croissants."""
+    segments, cumuls_conserves = oktime._segments(POINTS_TRIATHLON)
+
+    assert segments == [
+        ("NATATION", "00:23:56"),
+        ("VELO", "01:56:14"),
+        ("COURSE A PIED", "01:11:47"),
+    ]
+    assert cumuls_conserves is False
+
+
+def test_segments_conserve_les_libelles_de_la_source():
+    """Les `id` ne sont pas sémantiques (« 12|2 » vaut T2 ici, VELO là) et 55 des
+    99 courses sortent du motif triathlon : un remapping devinerait."""
+    points = [
+        {"id": "1|1", "nom": "CP1", "time": "00:15:00"},
+        {"id": "2|2", "nom": "CP2", "time": "00:40:00"},
+    ]
+
+    assert oktime._segments(points)[0] == [("CP1", "00:15:00"), ("CP2", "00:25:00")]
+
+
+def test_segments_delta_negatif_replie_sur_les_bruts():
+    """Mimizan : `Vélo 01:30:46` puis `T2 01:30:19` — ordre incohérent à la
+    source, 10 participations. Mieux vaut un cumulé qu'un temps absurde."""
+    points = [
+        {"id": "1|1", "nom": "NATATION", "time": "00:20:00"},
+        {"id": "2|2", "nom": "VELO", "time": "01:30:46"},
+        {"id": "3|3", "nom": "T2", "time": "01:30:19"},
+    ]
+
+    segments, cumuls_conserves = oktime._segments(points)
+
+    assert segments == [
+        ("NATATION", "00:20:00"),
+        ("VELO", "01:30:46"),
+        ("T2", "01:30:19"),
+    ]
+    assert cumuls_conserves is True
+
+
+def test_segments_sans_point():
+    assert oktime._segments([]) == ([], False)
+
+
+def test_segments_tolere_une_liste_absente():
+    assert oktime._segments(None) == ([], False)
+
+
+def test_segments_ignore_les_points_sans_temps():
+    """Un point à `"00:00:00"` ne porte aucune durée : le garder ferait sortir un
+    delta négatif au point suivant et déclencherait le repli à tort."""
+    points = [
+        {"id": "0|0", "nom": "DEPART", "time": "00:00:00"},
+        {"id": "1|1", "nom": "NATATION", "time": "00:23:56"},
+    ]
+
+    assert oktime._segments(points) == ([("NATATION", "00:23:56")], False)
+
+
+def test_segments_un_seul_point():
+    points = [{"id": "1|1", "nom": "NATATION", "time": "00:23:56"}]
+
+    assert oktime._segments(points) == ([("NATATION", "00:23:56")], False)

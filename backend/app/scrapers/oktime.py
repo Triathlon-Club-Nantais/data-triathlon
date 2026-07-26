@@ -263,3 +263,67 @@ def _total_time(runner: dict) -> str:
     dit « pas de temps » (`temps_finish` est toujours renseigné, 12 644/12 644)."""
     brut = normalize_time(str(runner.get("temps_finish") or "").strip())
     return "" if brut == "00:00:00" else brut
+
+
+# --------------------------------------------------------------------------- #
+# Splits
+# --------------------------------------------------------------------------- #
+# `_secs` / `_fmt_secs` sont des copies locales de celles de `timepulse` : leur
+# factorisation dans `utils.py` est un refacto à part (cf. la note d'en-tête de
+# `registry.py`), qu'on n'entame pas au fil d'un nouveau provider.
+
+def _secs(t: str) -> int:
+    if not t:
+        return 0
+    p = t.split(":")
+    try:
+        return int(p[0]) * 3600 + int(p[1]) * 60 + int(p[2])
+    except (IndexError, ValueError):
+        return 0
+
+
+def _fmt_secs(s: int) -> str:
+    return f"{s // 3600:02d}:{(s % 3600) // 60:02d}:{s % 60:02d}"
+
+
+def _segments(points: list[dict] | None) -> tuple[list[tuple[str, str]], bool]:
+    """Points de passage cumulés → durées de segment. (segments, cumuls_conservés).
+
+    Les points sont cumulés depuis le départ (4 512 des 4 522 participations à
+    ≥ 2 points le vérifient) ; le projet range des **durées**, convention déjà
+    appliquée par `klikego` et `timepulse`.
+
+    Les libellés sont ceux de la source, et les durées vont dans
+    `ScrapedResult.segments` — le chemin générique déplafonné — plutôt que dans
+    les 5 slots positionnels : les `id` de points ne sont pas sémantiques
+    (« 12|2 » vaut « T2 » sur une épreuve et « VELO » sur une autre) et 55 des 99
+    courses du panel sortent du motif triathlon. Un remapping devinerait.
+
+    **Garde sur les deltas négatifs** : si un delta sort négatif (les 10
+    participations de Mimizan à l'ordre incohérent), la participation conserve
+    ses valeurs **cumulées brutes** plutôt qu'un temps absurde, et le second
+    membre du tuple le signale à l'appelant, qui journalise par épreuve.
+
+    Le temps total ne vient **jamais** du dernier point : 392 participations ont
+    un dernier point différent de `temps_finish` (épreuves finissant sur
+    « Départ CAP2 »). `temps_finish` fait seul foi.
+    """
+    cumules = [
+        (str(point.get("nom") or "").strip(), normalize_time(str(point.get("time") or "").strip()))
+        for point in points or []
+    ]
+    # Un point à zéro ne porte aucune durée : le garder ferait sortir un delta
+    # négatif au point suivant et déclencherait le repli à tort.
+    cumules = [(label, temps) for label, temps in cumules if _secs(temps) > 0]
+    if not cumules:
+        return [], False
+
+    durees: list[tuple[str, str]] = []
+    precedent = 0
+    for label, temps in cumules:
+        courant = _secs(temps)
+        if courant < precedent:
+            return cumules, True
+        durees.append((label, _fmt_secs(courant - precedent)))
+        precedent = courant
+    return durees, False
