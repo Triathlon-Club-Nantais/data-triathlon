@@ -230,6 +230,14 @@ toujours en code 0.
   `scrape_event_all()` — la **seule** voie d'import depuis la suppression du
   scraping athlète-unique —, puis l'enregistrer dans `scrapers/registry.py`
   (registre Protocol). Provider inconnu → `playwright`.
+- **Détection par host, jamais par sous-chaîne d'URL.** Un provider déclare ses
+  `_HOSTS` et hérite de `HostMatchedProvider` : il n'a pas de `matches` à
+  écrire. La règle « host exact ou vrai sous-domaine » a une seule définition,
+  `registry._host_match`. Un `"exemple.fr" in url` route n'importe quelle URL
+  portant le jeton en query vers le scraper, qui la requête telle quelle —
+  c'était le SSRF de #49. Un provider dont la condition ne se réduit pas à une
+  liste de hosts (Wiclax : `wiclax.com` n'est une page de résultats que sur un
+  chemin G-Live) surcharge `matches` et **compose** sur `_host_match`.
 - **Breizh Chrono réutilise la logique Klikego** (`klikego._parse_detail`,
   `_detect_event_type`) — ne pas dupliquer, factoriser dans `klikego.py`.
 - Identification club : **une seule définition**, `app/core/club.py`

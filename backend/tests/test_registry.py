@@ -99,3 +99,101 @@ def test_host_matched_provider_sans_hosts_ne_matche_rien():
         name = "vide"
 
     assert _Vide().matches("https://exemple.fr/resultats") is False
+
+
+# ---------------------------------------------------------------------------
+# Routage : ce qui doit continuer à marcher, et ce qui ne doit plus passer
+# ---------------------------------------------------------------------------
+
+#: URLs légitimes, une ou plusieurs par façade réellement supportée.
+_ROUTAGE_LEGITIME = [
+    ("klikego", "https://www.klikego.com/resultats/triathlon-de-vierzon-2026/1674523163798-4"),
+    ("klikego", "https://klikego.com/resultats/x/1674523163798-4"),
+    ("breizhchrono",
+     "https://resultats.breizhchrono.com/resultats-courses/triathlon-x-129540519-19/triathlon-m"),
+    ("breizhchrono",
+     "https://live.breizhchrono.com/external/live5/index.jsp?reference=1488071608761-688"),
+    ("wiclax", "https://chronosmetron.wiclax-results.com/Triathlon%20de%20la%20Roche%202026/"),
+    ("wiclax", "https://www.chronosmetron.com/resultats/"),
+    ("wiclax", "https://chronowest.fr/trail-des-2-ponts-2026/"),
+    ("wiclax", "https://x.wiclax.com/G-Live/g-live.html?f=../E/e.clax"),
+    ("timepulse", "https://www.timepulse.fr/epreuves/resultats/3232"),
+    ("prolivesport", "https://www.prolivesport.fr/result/1082/6"),
+    ("sportinnovation", "https://sportinnovation.fr/Evenements/Resultats/7031"),
+    ("raceresult", "https://my3.raceresult.com/393893/results"),
+    ("raceresult", "https://my.raceresult.com:443/399938/results"),
+    ("raceresult", "https://www.chronoconsult.fr/result/triathlon-de-roanne-villerest/"),
+    ("raceresult", "https://www.espace-competition.com/result/x/"),
+    ("chronoplace", "https://www.chronoplace.fr/classement/spaycific-races-2025/epreuve/494"),
+]
+
+
+@pytest.mark.parametrize("provider, url", _ROUTAGE_LEGITIME)
+def test_routage_des_urls_legitimes_inchange(provider, url):
+    """Non-régression : le passage au host ne doit perdre aucune façade servie."""
+    assert registry.detect_provider(url) == provider
+
+
+#: Tous les jetons de host qu'un provider reconnaît, et le provider visé.
+_JETONS_PROVIDERS = [
+    "klikego.com",
+    "breizhchrono.com",
+    "timepulse.fr",
+    "prolivesport.fr",
+    "sportinnovation.fr",
+    "raceresult.com",
+    "espace-competition.com",
+    "chronoconsult.fr",
+    "chronoplace.fr",
+    "wiclax.com",
+    "wiclax-results.com",
+    "chronosmetron.com",
+    "chronowest.fr",
+]
+
+#: Les quatre familles de contournement de l'issue #49, plus la confusion userinfo.
+_GABARITS_CONTOURNEMENT = [
+    "https://169.254.169.254/latest/meta-data/?x={jeton}",   # sous-chaîne en query
+    "https://evil.example/{jeton}/resultats",                # sous-chaîne en path
+    "https://evil.example/resultats#{jeton}",                # sous-chaîne en fragment
+    "https://evil-{jeton}/resultats",                        # host sosie, suffixe sans point
+    "https://{jeton}.attaquant.net/resultats",               # jeton en sous-domaine hostile
+    "https://{jeton}@169.254.169.254/latest/meta-data/",     # confusion userinfo
+]
+
+
+@pytest.mark.parametrize("jeton", _JETONS_PROVIDERS)
+@pytest.mark.parametrize("gabarit", _GABARITS_CONTOURNEMENT)
+def test_aucun_contournement_ne_route_vers_un_provider(gabarit, jeton):
+    """SSRF #49 : une URL dont le host n'est pas servi tombe sur le fallback,
+    qui lève avant toute requête réseau — quelle que soit la sous-chaîne."""
+    url = gabarit.format(jeton=jeton)
+    assert registry.detect_provider(url) == "playwright", url
+
+
+def test_url_klikego_portant_un_jeton_timepulse_reste_klikego():
+    """Hors sécurité : le point 1 fiabilise aussi la détection (note de l'issue #49).
+    Aujourd'hui cette URL part chez TimePulse, qui n'en fera rien."""
+    url = (
+        "https://www.klikego.com/resultats/triathlon-x/1674523163798-4"
+        "?retour=https%3A%2F%2Fwww.timepulse.fr%2Fresultats%2F1"
+    )
+    assert registry.detect_provider(url) == "klikego"
+
+
+def test_wiclax_ne_capte_pas_le_site_vitrine_sans_chemin_g_live():
+    """`wiclax.com` est le site de l'éditeur : seuls les chemins G-Live sont
+    des pages de résultats. La condition de chemin doit survivre à la bascule."""
+    assert registry.detect_provider("https://www.wiclax.com/tarifs") == "playwright"
+
+
+@pytest.mark.parametrize("url", [
+    "https://evil-wiclax.com/G-Live/g-live.html?f=../E/e.clax",
+    "https://wiclax.com.attaquant.net/G-Live/g-live.html",
+])
+def test_wiclax_sosie_avec_chemin_g_live_non_capte(url):
+    """Le seul contournement Wiclax réellement ouvert : `endswith("wiclax.com")`
+    sans point suit `evil-wiclax.com`, et le chemin G-Live lève la seconde
+    condition. Les gabarits génériques ne l'atteignent pas — leur path n'a pas
+    de `G-Live` —, d'où ce cas dédié."""
+    assert registry.detect_provider(url) == "playwright"

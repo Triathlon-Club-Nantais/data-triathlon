@@ -7,6 +7,11 @@ provider = créer son adapter et l'ajouter à la liste, à un seul endroit.
 
 Provider inconnu → fallback Playwright.
 
+La détection se fait sur le **host** de l'URL, jamais sur une sous-chaîne de
+l'URL entière : un jeton en query suffisait à router n'importe quelle URL vers
+un scraper, qui la requêtait telle quelle (SSRF, issue #49). La règle est dans
+`_host_match`, appliquée par défaut via `HostMatchedProvider`.
+
 NOTE — La factorisation des helpers internes communs (`_detect_event_type`,
 mapping des splits) entre klikego/wiclax/timepulse reste un refacto à part : ces
 fonctions ont des signatures divergentes et wiclax n'a pas de tests, donc on évite
@@ -81,11 +86,9 @@ class HostMatchedProvider:
         return _host_match(url, self._HOSTS)
 
 
-class KlikegoProvider:
+class KlikegoProvider(HostMatchedProvider):
     name = "klikego"
-
-    def matches(self, url: str) -> bool:
-        return "klikego.com" in url
+    _HOSTS = ("klikego.com",)
 
     def scrape_event_all(self, url: str) -> list[ScrapedResult]:
         parsed = urlparse(url)
@@ -106,11 +109,9 @@ class KlikegoProvider:
         return klikego.scrape_event_all(event_id, heat, event_name, slug)
 
 
-class BreizhChronoProvider:
+class BreizhChronoProvider(HostMatchedProvider):
     name = "breizhchrono"
-
-    def matches(self, url: str) -> bool:
-        return "breizhchrono.com" in url.lower()
+    _HOSTS = ("breizhchrono.com",)
 
     def scrape_event_all(self, url: str) -> list[ScrapedResult]:
         from app.scrapers.breizhchrono import (
@@ -134,85 +135,64 @@ class BreizhChronoProvider:
         return breizhchrono.scrape_event_all(event_id, heat, event_name, slug)
 
 
-class WiclaxProvider:
+class WiclaxProvider(HostMatchedProvider):
     name = "wiclax"
 
-    # Hosts servant un moteur G-Live. Allowlist **explicite** : détecter du G-Live
-    # par le contenu obligerait à télécharger la page de toute URL inconnue avant
-    # de savoir la traiter. Un nouveau déploiement tiers = une ligne ici.
-    # `chronowest.fr` : WordPress + iframe G-Live (issue #35).
+    # Hosts servant un moteur G-Live. `chronowest.fr` : WordPress + iframe
+    # G-Live (issue #35).
     _HOSTS = ("wiclax-results.com", "chronosmetron.com", "chronowest.fr")
 
     def matches(self, url: str) -> bool:
+        # `wiclax.com` est le site vitrine de l'éditeur : il n'est pas dans
+        # `_HOSTS`, seuls ses chemins G-Live sont des pages de résultats. D'où
+        # la composition sur `_host_match` — surtout pas une copie de la règle.
         parsed = urlparse(url)
-        host = (parsed.netloc or "").lower()
-        path = parsed.path or ""
-        return (
-            any(host == h or host.endswith(f".{h}") for h in self._HOSTS)
-            or (host.endswith("wiclax.com") and "G-Live" in path)
+        return super().matches(url) or (
+            _host_match(url, ("wiclax.com",)) and "G-Live" in (parsed.path or "")
         )
 
     def scrape_event_all(self, url: str) -> list[ScrapedResult]:
         return wiclax.scrape_event_all(url)
 
 
-class TimePulseProvider:
+class TimePulseProvider(HostMatchedProvider):
     name = "timepulse"
-
-    def matches(self, url: str) -> bool:
-        return "timepulse.fr" in url
+    _HOSTS = ("timepulse.fr",)
 
     def scrape_event_all(self, url: str) -> list[ScrapedResult]:
         return timepulse.scrape_event_all(url)
 
 
-class ProLiveSportProvider:
+class ProLiveSportProvider(HostMatchedProvider):
     name = "prolivesport"
-
-    def matches(self, url: str) -> bool:
-        return "prolivesport.fr" in url
+    _HOSTS = ("prolivesport.fr",)
 
     def scrape_event_all(self, url: str) -> list[ScrapedResult]:
         return prolivesport.scrape_event_all(url)
 
 
-class SportInnovationProvider:
+class SportInnovationProvider(HostMatchedProvider):
     name = "sportinnovation"
-
-    def matches(self, url: str) -> bool:
-        return "sportinnovation.fr" in url
+    _HOSTS = ("sportinnovation.fr",)
 
     def scrape_event_all(self, url: str) -> list[ScrapedResult]:
         return sportinnovation.scrape_event_all(url)
 
 
-class RaceResultProvider:
+class RaceResultProvider(HostMatchedProvider):
     name = "raceresult"
 
-    # Trois façades d'un même produit RaceResult (issue #50). Allowlist
-    # **explicite**, comme Wiclax : détecter du RaceResult par le contenu
-    # obligerait à télécharger la page de toute URL inconnue avant de savoir la
-    # traiter. Un nouveau front RaceResult = une ligne ici.
+    # Trois façades d'un même produit RaceResult (issue #50), toutes servies
+    # par la même API JSON publique.
     _HOSTS = ("raceresult.com", "espace-competition.com", "chronoconsult.fr")
-
-    def matches(self, url: str) -> bool:
-        # `hostname` (et non `netloc`) : sans lui, un port explicite
-        # (`my.raceresult.com:443`) ou des credentials feraient rater le match.
-        host = (urlparse(url).hostname or "").lower()
-        # Domaine exact ou vrai sous-domaine : un suffixe brut suivrait aussi un
-        # host sosie du type `evilraceresult.com`.
-        return any(host == h or host.endswith(f".{h}") for h in self._HOSTS)
 
     def scrape_event_all(self, url: str) -> list[ScrapedResult]:
         return raceresult.scrape_event_all(url)
 
 
-class ChronoplaceProvider:
+class ChronoplaceProvider(HostMatchedProvider):
     name = "chronoplace"
-
-    def matches(self, url: str) -> bool:
-        host = (urlparse(url).netloc or "").lower()
-        return host == "chronoplace.fr" or host.endswith(".chronoplace.fr")
+    _HOSTS = ("chronoplace.fr",)
 
     def scrape_event_all(self, url: str) -> list[ScrapedResult]:
         return chronoplace.scrape_event_all(url)
