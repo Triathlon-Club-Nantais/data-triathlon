@@ -29,6 +29,9 @@ LIVE_URLS = {
     "timepulse": "https://www.timepulse.fr/epreuves/resultats/live/3232",
     "prolivesport": "https://www.prolivesport.fr/result/1082/6",
     "sportinnovation": "https://sportinnovation.fr/Evenements/Resultats/7031",
+    # Triathlon de Rumilly 2026 : 4 contests, dossards en collision d'un contest
+    # à l'autre — l'épreuve qui a servi au sondage d'API initial.
+    "raceresult": "https://my3.raceresult.com/393893/results",
 }
 
 
@@ -204,3 +207,184 @@ def test_chronowest_swimrun_nest_pas_un_triathlon():
     assert results
     types = {r.event_type for r in results}
     assert types <= {"swimrun", "swimrun-s", "swimrun-m", "swimrun-l"}, types
+
+
+# Panel RaceResult : la première version du moteur ne fonctionnait QUE sur
+# l'épreuve qui avait servi à la construire (revue de branche : 5 défauts
+# bloquants, tous invisibles sans trafic réel au-delà d'elle). Ces épreuves
+# couvrent les trois façades et les formes d'API qui l'avaient mise en défaut.
+# Cf. docs/superpowers/specs/2026-07-19-raceresult-api-sondage.md.
+RACERESULT_PANEL = {
+    # 13 contests, relais, libellés i18n.
+    "geneve": "https://my4.raceresult.com/405215/results",
+    # Les 10 listes portent `Live: 1`, dont les 3 vrais classements : filtrer
+    # sur `Live` plutôt que sur `Mode` y vide l'épreuve entière (C-C).
+    "foulee": "https://my2.raceresult.com/405100/results",
+    # Groupes de niveau 2 par SEXE (`#1_Masculin`), pas par statut (C-E).
+    "besancon": "https://my4.raceresult.com/406212/results",
+    # Façade espace-competition.com — identifiant nu dans `new RRPublish(...)`.
+    "espace_competition": (
+        "https://www.espace-competition.com/index.php"
+        "?module=sportif&action=resultat&comp_uid=3205"
+    ),
+    # Façade chronoconsult.fr — identifiant ENTRE GUILLEMETS (C-D).
+    "chronoconsult": "https://chronoconsult.fr/result/2026-24h-roller-le-mans/",
+    # Témoin C1 : liste d'affichage {Selector.Splits} non-`hidden` → 42/42 sans
+    # temps avant correctif. Aussi le témoin de K2 : les clés de groupe de niveau
+    # 0 y sont `Finish` / `Run - Start`, des sélecteurs de point de chrono.
+    "besancon_para": "https://my.raceresult.com/406211/results",
+    # Témoin C2+C3 : concaténation imbriquée dans `if(…)` et rang collé aux
+    # segments → 0 segment sur un half-ironman avant correctif.
+    "annecy": "https://my.raceresult.com/401699/results",
+    # Témoin C4 : `Finish.GUN`/`Finish.CHIP` → 58/58 sans temps avant correctif.
+    "pontcharra": "https://my.raceresult.com/380823/results",
+}
+
+# Épreuves dont un `total_time` est attendu sur la quasi-totalité des lignes.
+# Les autres publient des listes légitimement sans chrono (inscrits, qualifs),
+# cf. `test_raceresult_panel_multi_epreuves`.
+RACERESULT_ATTEND_TEMPS = {
+    "besancon_para": 1.0,   # C1 : 42/42 sans temps → 0
+    "annecy": 0.75,         # 145/587 DNS/DNF/DSQ légitimes
+    "pontcharra": 0.90,     # C4 : 58/58 sans temps → 3 (tous DNS)
+    "geneve": 0.90,
+}
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("cle, url", sorted(RACERESULT_PANEL.items()))
+def test_raceresult_panel_multi_epreuves(cle, url):
+    """Chaque épreuve du panel remonte des participants nommés, non dupliqués.
+
+    Le `total_time` n'est exigé que sur les épreuves de `RACERESULT_ATTEND_TEMPS` :
+    les autres publient des listes légitimement sans chrono (liste d'inscrits,
+    classement de qualification). Le nom, lui, est exigé partout — c'est ce qui
+    manquait à 506 lignes sur 507 avant l'élargissement du vocabulaire
+    d'expressions (C-E).
+
+    La garde anti-duplication est celle qui manquait pour attraper K1 : le
+    libellé de contest sert **à la fois** de qualifiant de `Course` et de clé de
+    fusion, si bien qu'un mauvais repli produit simultanément une `Course`
+    fantôme et une duplication de participations. `UNIQUE(course_id, bib_number)`
+    ne s'y oppose pas — les `Course` sont distinctes — donc la perte est
+    silencieuse. Mesuré sur 409130 : 302 dossards dans plusieurs `Course`.
+    """
+    results = registry.scrape_event_all(url)
+
+    assert results, f"{cle} : aucun participant renvoyé"
+    nommes = [r for r in results if r.athlete_name or r.athlete_firstname]
+    assert len(nommes) >= 0.95 * len(results), (
+        f"{cle} : {len(results) - len(nommes)}/{len(results)} lignes sans nom"
+    )
+    assert all(r.bib_number for r in results), f"{cle} : dossard manquant"
+
+    # K1 : aucun dossard ne doit apparaître sous deux `event_name`.
+    courses_par_dossard: dict[str, set[str]] = {}
+    for r in results:
+        courses_par_dossard.setdefault(r.bib_number, set()).add(r.event_name)
+    multi = {b: c for b, c in courses_par_dossard.items() if len(c) > 1}
+    assert not multi, (
+        f"{cle} : {len(multi)} dossard(s) présents dans plusieurs Course "
+        f"(duplication silencieuse) — ex. {dict(list(multi.items())[:2])}"
+    )
+
+    # Aucun `event_name` ne doit porter un nom interne de liste RaceResult : le
+    # `|` est un séparateur d'affichage, jamais un qualifiant de Course (K1).
+    assert all("|" not in r.event_name for r in results), (
+        f"{cle} : nom de liste employé comme qualifiant de Course"
+    )
+
+    seuil = RACERESULT_ATTEND_TEMPS.get(cle)
+    if seuil is not None:
+        avec = [r for r in results if r.total_time]
+        assert len(avec) >= seuil * len(results), (
+            f"{cle} : seulement {len(avec)}/{len(results)} lignes avec un temps"
+        )
+
+
+@pytest.mark.integration
+def test_raceresult_route_heritee_ne_couvre_pas_les_epreuves_recentes():
+    """C-A, garde vivante. La route `/{id}/RRPublish/data/config` employée par
+    la première version est un alias hérité : elle répond 404 sur les épreuves
+    de la saison en cours. Ce test échouera si RaceResult la généralise un
+    jour — auquel cas la note du sondage sera à revoir, mais jamais dans le
+    sens d'un retour à l'alias.
+    """
+    import httpx
+
+    from app.scrapers import raceresult
+
+    with httpx.Client(follow_redirects=True, timeout=30) as client:
+        heritee = client.get(
+            "https://my4.raceresult.com/405215/RRPublish/data/config",
+            params={"page": "results"}, headers=raceresult.HEADERS,
+        )
+        canonique = client.get(
+            f"{raceresult._API_BASE}/405215/results/config",
+            params={"page": "results"}, headers=raceresult.HEADERS,
+        )
+
+    assert heritee.status_code == 404, "l'alias hérité répondrait de nouveau ?"
+    assert canonique.status_code == 200
+    assert canonique.json()["TabConfig"]["Lists"], "les listes sont sous TabConfig"
+
+
+@pytest.mark.integration
+def test_raceresult_contests_et_non_finishers():
+    """RaceResult : une Course par contest, non-finishers statués et purgés.
+
+    Resserré après C1 (revue) : une liste d'affichage LIVE (`Live: 1`,
+    `03 - Affichages|LIVE EXTRA sans predictif`) écrasait le vrai classement
+    du contest « Distance Jeunes » et vidait 49 des 874 participants (temps,
+    rang, statut). L'ancienne version de ce test ne pouvait pas l'attraper :
+    la boucle exemptait explicitement le statut vide (`r.status not in ("",
+    "finisher")`) et n'exigeait aucun temps sur les finishers.
+    """
+    results = registry.scrape_event_all(LIVE_URLS["raceresult"])
+    assert results, "raceresult : aucun participant renvoyé"
+
+    # Plusieurs contests → plusieurs noms d'épreuve qualifiés.
+    assert len({r.event_name for r in results}) >= 2, (
+        f"raceresult : un seul contest vu ({ {r.event_name for r in results} })"
+    )
+    statuses = {r.status for r in results}
+    assert "finisher" in statuses, f"raceresult : aucun finisher (vus : {statuses})"
+
+    # Un finisher a TOUJOURS un temps (C1 : une liste d'affichage LIVE ne doit
+    # plus jamais écraser le vrai classement par une ligne vidée).
+    assert all(r.total_time for r in results if r.status == "finisher"), (
+        "raceresult : au moins un finisher sans temps total (régression C1)"
+    )
+    for r in results:
+        if r.status not in ("", "finisher"):
+            assert not r.total_time, f"{r.status} avec un temps total : {r.total_time}"
+            assert r.rank_overall is None, f"{r.status} avec un rang : {r.rank_overall}"
+
+    # Borne sur la proportion de lignes vidées (ni temps ni statut) : le bug
+    # C1 en produisait 49/874 (~5,6 %) via la liste d'affichage LIVE.
+    videes = [r for r in results if not r.total_time and not r.status]
+    taux = len(videes) / len(results)
+    assert taux < 0.02, (
+        f"raceresult : {len(videes)}/{len(results)} lignes sans temps ni statut "
+        f"({taux:.1%}) — régression C1 ?"
+    )
+
+    # Segments étiquetés plutôt que les 5 slots positionnels.
+    assert any(r.segments for r in results), "raceresult : aucun segment"
+
+
+@pytest.mark.integration
+def test_raceresult_406211_enrichit_les_splits_en_reel():
+    """#60 réseau réel : le classement hidden du 406211 doit apporter les splits
+    aux finishers. Assertions souples (données vivantes) : au moins une dizaine
+    de participants portent 5 segments Swim/T1/Bike/T2/Run."""
+    from app.scrapers import raceresult
+
+    res = raceresult.scrape_event_all("https://my.raceresult.com/406211/results")
+
+    avec_splits = [r for r in res if r.segments]
+    assert len(avec_splits) >= 10
+    cinq = [r for r in avec_splits if len(r.segments) == 5]
+    assert cinq, "aucune ligne live ne porte 5 segments"
+    ref = cinq[0]
+    assert {lab for lab, _ in ref.segments} == {"Swim", "T1", "Bike", "T2", "Run"}
