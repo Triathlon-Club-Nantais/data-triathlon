@@ -28,6 +28,18 @@ class ParticipationOut(BaseModel):
     created_at: datetime | None = None
 
 
+class AthleteParticipationOut(ParticipationOut):
+    """Participation vue depuis la fiche athlète : porte la taille du classement.
+
+    `course_finishers` = nombre de finishers classés de la course, dans le même
+    groupe solo/relais. `None` si le groupe n'a aucun classé. Champ réservé à la
+    fiche athlète : le mettre sur `ParticipationOut` ferait payer l'agrégat aux
+    routes de liste, qui n'en ont pas l'usage.
+    """
+
+    course_finishers: int | None = None
+
+
 class ParticipationCreate(BaseModel):
     """
     Création manuelle d'un résultat. Porte l'identité de l'athlète et de la course

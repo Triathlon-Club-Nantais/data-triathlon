@@ -1,4 +1,5 @@
 """Accès données pour Participation, incluant les filtres de la liste publique."""
+from collections.abc import Iterable
 from datetime import date
 
 from sqlalchemy import and_, case, func, or_
@@ -9,6 +10,7 @@ from app.core.season import season_bounds, season_of
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.participation import Participation
+from app.scrapers.base import STATUS_FINISHER
 
 
 def _is_postgres(db: Session) -> bool:
@@ -53,6 +55,37 @@ def count_for_course(db: Session, course_id: int) -> int:
         .scalar()
         or 0
     )
+
+
+def finishers_count_by_group(
+    db: Session, course_ids: Iterable[int]
+) -> dict[tuple[int, bool], int]:
+    """Nombre de finishers classés par (course, solo/relais).
+
+    Seule population comparable à `rank_overall` : les DNF/DNS/DSQ n'ont pas de
+    rang, et solos et relais sont classés séparément (deux « rang 1 » légitimes
+    dans une même course, cf. `services/quality.py`). Un groupe sans finisher
+    classé est absent du résultat — l'appelant distingue « zéro classé » de
+    « compte inconnu ».
+    """
+    ids = list(dict.fromkeys(course_ids))
+    if not ids:
+        return {}
+    rows = (
+        db.query(
+            Participation.course_id,
+            Participation.is_relay,
+            func.count(Participation.id),
+        )
+        .filter(
+            Participation.course_id.in_(ids),
+            func.lower(Participation.status) == STATUS_FINISHER,
+            Participation.rank_overall.isnot(None),
+        )
+        .group_by(Participation.course_id, Participation.is_relay)
+        .all()
+    )
+    return {(course_id, bool(is_relay)): count for course_id, is_relay, count in rows}
 
 
 def existing_bibs_for_course(db: Session, course_id: int) -> set[str]:

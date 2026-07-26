@@ -6,7 +6,7 @@ from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.repositories import athlete_repository, participation_repository
 from app.schemas.athlete import AthleteBrief
-from app.schemas.participation import ParticipationOut
+from app.schemas.participation import AthleteParticipationOut
 
 router = APIRouter(tags=["athletes"])
 
@@ -28,7 +28,12 @@ def get_athlete(athlete_id: int, db: Session = Depends(get_db)):
     if not athlete:
         raise NotFoundError("Athlète introuvable")
     participations = participation_repository.list_for_athlete(db, athlete_id)
-    return {
-        "athlete": AthleteBrief.model_validate(athlete),
-        "participations": [ParticipationOut.model_validate(p) for p in participations],
-    }
+    counts = participation_repository.finishers_count_by_group(
+        db, [p.course_id for p in participations]
+    )
+    items = []
+    for p in participations:
+        item = AthleteParticipationOut.model_validate(p)
+        item.course_finishers = counts.get((p.course_id, bool(p.is_relay)))
+        items.append(item)
+    return {"athlete": AthleteBrief.model_validate(athlete), "participations": items}
