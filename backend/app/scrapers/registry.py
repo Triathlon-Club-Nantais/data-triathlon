@@ -23,6 +23,7 @@ from app.scrapers import (
     prolivesport,
     raceresult,
     sportinnovation,
+    t2area,
     timepulse,
     wiclax,
 )
@@ -183,6 +184,20 @@ class ChronoplaceProvider:
         return chronoplace.scrape_event_all(url)
 
 
+class T2AreaProvider:
+    name = "t2area"
+
+    def matches(self, url: str) -> bool:
+        # Allowlist **explicite** du seul host FFTRI : T2Area sert d'autres
+        # fédérations sur d'autres sous-domaines, hors périmètre de #51.
+        # `hostname` (et non `netloc`) : un port explicite ou des credentials
+        # feraient rater le match.
+        return (urlparse(url).hostname or "").lower() == "fftri.t2area.com"
+
+    def scrape_event_all(self, url: str) -> list[ScrapedResult]:
+        return t2area.scrape_event_all(url)
+
+
 class PlaywrightProvider:
     """Fallback générique pour les sites JS-heavy non reconnus."""
 
@@ -207,6 +222,7 @@ PROVIDERS: list[ScraperProtocol] = [
     SportInnovationProvider(),
     RaceResultProvider(),
     ChronoplaceProvider(),
+    T2AreaProvider(),
 ]
 _FALLBACK: ScraperProtocol = PlaywrightProvider()
 

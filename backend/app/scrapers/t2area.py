@@ -29,6 +29,8 @@ from urllib.parse import urlparse
 import httpx
 from bs4 import BeautifulSoup
 
+from app.core.club import is_tcn
+
 from .base import ScrapedResult
 from .classify import classify_event_type
 from .utils import derive_status_from_label, normalize_rank, normalize_time, split_athlete_name
@@ -460,3 +462,45 @@ def _appliquer_splits(result: ScrapedResult, segments: list[tuple[str, str]]) ->
             ranges[slot] = temps
     for slot, temps in ranges.items():
         setattr(result, slot, temps)
+
+
+def scrape_event_all(url: str) -> list[ScrapedResult]:
+    """Tous les participants d'une **édition**. Un appel = une `Course`.
+
+    Les splits ne sont chargés que pour les lignes dont le club passe
+    `core.club.is_tcn` : ils vivent sur la fiche individuelle, soit une requête
+    par participant. Coût mesuré sur La Baule M 2022 : 25 requêtes (1 classement
+    + 24 membres TCN sur 901 lignes) — borné par l'effectif du club, pas par la
+    taille de l'épreuve. Le scraper devient conscient du club, mais **réutilise**
+    la définition unique de `core/club.py` (règle de #76).
+
+    `source_url` est l'URL **canonique** de l'édition, même si l'appel est parti
+    d'une fiche individuelle : les deux désignent le même classement, et la forme
+    canonique rend le `rescrape-db` suivant idempotent.
+    """
+    evenement, epreuve, annee = _parse_url(url)
+    with httpx.Client(follow_redirects=True, timeout=30, headers=HEADERS) as client:
+        if not annee:
+            annee = _resolve_annee(client, evenement, epreuve)
+        edition_url = _edition_url(evenement, epreuve, annee)
+        resultats = _parse_edition(_fetch(client, edition_url), edition_url, evenement, epreuve)
+        fiches = 0
+        for resultat in resultats:
+            if not is_tcn(resultat.club):
+                continue
+            fiche_url = resultat.raw_data.get("fiche_url") or ""
+            if not fiche_url:
+                continue
+            try:
+                html = _fetch(client, fiche_url)
+            except httpx.HTTPError as exc:
+                # Une fiche qui tombe ne doit pas emporter l'épreuve entière.
+                logger.warning("Fiche fftri %s ignorée : %s", fiche_url, exc)
+                continue
+            _appliquer_splits(resultat, _parse_fiche(html))
+            fiches += 1
+    logger.info(
+        "fftri.t2area.com : %d participants sur %s (%d fiche(s) TCN chargée(s))",
+        len(resultats), edition_url, fiches,
+    )
+    return resultats
