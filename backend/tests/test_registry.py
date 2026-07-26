@@ -65,6 +65,9 @@ def test_host_match_accepte_le_domaine_et_ses_sous_domaines(url):
     # Entrées dégradées : pas d'exception, pas de match.
     "pas-une-url",
     "",
+    # Host IPv6 malformé : `urlparse` lève `ValueError`, pas un non-match silencieux
+    # sans la garde — d'où le `try/except` dans `_host_match`.
+    "https://[oops/x",
 ])
 def test_host_match_rejette_les_contournements(url):
     assert registry._host_match(url, ("timepulse.fr",)) is False
