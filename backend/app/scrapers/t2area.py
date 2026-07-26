@@ -405,3 +405,58 @@ def _parse_edition(
         )
         for ligne in _lignes(table, index)
     ]
+
+
+# Libellé d'accordéon normalisé → slot positionnel de ScrapedResult. Les libellés
+# **changent selon le sport** (triathlon : Natation / … / Course à Pied ;
+# duathlon : CàP 1 / … / CàP 2), d'où un mapping par libellé et jamais par
+# position : un mapping positionnel rangerait le 3ᵉ segment d'un aquathlon
+# (Natation / T1 / CàP) dans le vélo.
+_SLOTS = {
+    "natation": "swim_time",
+    "cap 1": "swim_time",
+    "transition 1": "t1_time",
+    "velo": "bike_time",
+    "transition 2": "t2_time",
+    "course a pied": "run_time",
+    "cap 2": "run_time",
+}
+
+
+def _parse_fiche(html: str) -> list[tuple[str, str]]:
+    """Segments (libellé, temps) de l'accordéon d'une fiche individuelle.
+
+    « Général » est écarté : c'est le temps total, déjà lu dans le classement.
+    Un segment à `00:00:00` ressort à "" (cf. `_temps_ou_vide`).
+    """
+    soup = BeautifulSoup(html, "lxml")
+    segments: list[tuple[str, str]] = []
+    for item in soup.select("ul.accordion li.accordion__item"):
+        titres = [t.get_text(" ", strip=True) for t in item.select("button .title")]
+        if len(titres) < 2:
+            continue
+        libelle, temps = titres[0], titres[1]
+        if _norm(libelle) == "general":
+            continue
+        segments.append((libelle, _temps_ou_vide(temps)))
+    return segments
+
+
+def _appliquer_splits(result: ScrapedResult, segments: list[tuple[str, str]]) -> None:
+    """Range les segments dans les 5 slots, ou bascule **tout** sur `segments`.
+
+    Filet : un seul libellé hors table suffit à basculer sur la liste ordonnée
+    étiquetée, déplafonnée et prioritaire dans `mapping.build_splits`. Rien n'est
+    perdu silencieusement sur un sport au découpage inattendu, et le cas nominal
+    garde les clés canoniques que le front sait afficher.
+    """
+    ranges: dict[str, str] = {}
+    for libelle, temps in segments:
+        slot = _SLOTS.get(_norm(libelle))
+        if slot is None:
+            result.segments = [(lib, tps) for lib, tps in segments if tps]
+            return
+        if temps:
+            ranges[slot] = temps
+    for slot, temps in ranges.items():
+        setattr(result, slot, temps)
