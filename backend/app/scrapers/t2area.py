@@ -24,7 +24,7 @@ Flux (cf. docs/superpowers/specs/2026-07-26-t2area-scraper-design.md) :
 import logging
 import re
 from datetime import date
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import httpx
 from bs4 import BeautifulSoup
@@ -143,8 +143,16 @@ _COLONNES = {
     "details": "details",
 }
 
-#: Colonnes sans lesquelles une ligne n'a pas de sens.
-_COLONNES_REQUISES = frozenset({"clt", "temps", "nom"})
+#: Colonnes sans lesquelles une ligne n'a pas de sens. `details` y est : c'est
+#: elle qui porte le dossard (`_cle_fiche`/`_dossard`) et l'accès aux splits. Si
+#: son libellé change ou disparaît, `_lignes` mettrait `details_href = ""` sur
+#: **toutes** les lignes → `bib_number == ""` partout → en aval,
+#: `import_service._match_without_bib` ne recoupe aucune participation déjà en
+#: base (elles sont indexées par dossard) et recrée une participation en double
+#: pour chaque athlète, sans qu'aucun code ne lève ni n'échoue : un import
+#: silencieusement faux plutôt qu'un échec visible. Lever ici plutôt que
+#: laisser filer, dans l'esprit de `test_parse_edition_entete_ampute_leve`.
+_COLONNES_REQUISES = frozenset({"clt", "temps", "nom", "details"})
 
 _BIB_RE = re.compile(r"^bib-(\d+)$", re.I)
 
@@ -183,11 +191,15 @@ def _lignes(table, index: dict[str, int]) -> list[dict[str, str]]:
     """
     attendu = max(index.values()) + 1
     lignes: list[dict[str, str]] = []
-    for tr in table.select("tbody tr"):
+    for position_ligne, tr in enumerate(table.select("tbody tr")):
         cellules = tr.find_all("td")
         if len(cellules) < attendu:
+            # Index et extrait du texte : actionnable sans avoir à re-scraper
+            # pour retrouver la ligne fautive dans les centaines de la table.
+            extrait = tr.get_text(" ", strip=True)[:30]
             logger.warning(
-                "Ligne fftri ignorée : %d cellules pour %d colonnes", len(cellules), attendu
+                "Ligne fftri ignorée (position %d) : %d cellules pour %d colonnes — %r",
+                position_ligne, len(cellules), attendu, extrait,
             )
             continue
         ligne = {
@@ -323,11 +335,18 @@ def _construire(
         "epreuve": epreuve,
     }
     # La FFTRI publie parfois un temps sur ses disqualifiés (ALLARD Pierre,
-    # `42:23:00` sur La Baule 2022 — une aberration de saisie côté source).
-    # Invariant du dépôt, partagé avec wiclax/sportinnovation/raceresult/timepulse :
-    # un non-finisher n'a pas de temps total.
+    # `42:23:00` sur La Baule 2022 — une aberration de saisie côté source) ; et
+    # bien que `Clt` porte le statut plutôt qu'un rang sur ces lignes (donc
+    # `rank_overall` retombe déjà à None), `Clt/F` et `Clt/CAT` sont lues
+    # indépendamment et pourraient laisser fuiter un rang catégorie/genre sur le
+    # même genre d'aberration. Invariant du dépôt, partagé avec
+    # wiclax/sportinnovation/raceresult/timepulse : un non-finisher n'a ni temps
+    # total ni rang.
     if result.status in (STATUS_DNF, STATUS_DNS, STATUS_DSQ):
         result.total_time = ""
+        result.rank_overall = None
+        result.rank_category = None
+        result.rank_gender = None
     return result
 
 
@@ -481,9 +500,16 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     taille de l'épreuve. Le scraper devient conscient du club, mais **réutilise**
     la définition unique de `core/club.py` (règle de #76).
 
-    `source_url` est l'URL **canonique** de l'édition, même si l'appel est parti
-    d'une fiche individuelle : les deux désignent le même classement, et la forme
-    canonique rend le `rescrape-db` suivant idempotent.
+    Chaque `ScrapedResult` porte `source_url` = l'URL **canonique** de l'édition,
+    même si l'appel est parti d'une fiche individuelle : ça ne change que la
+    cohérence *interne* du scrape (toutes les lignes d'un même appel partagent la
+    même URL). Ça ne rend **pas** la clé persistée idempotente : c'est
+    `mapping.get_or_create_course` qui choisit `Course.source_url`, et elle
+    retient l'URL de l'**appelant** (`event_url`), jamais `scraped.source_url` —
+    ce champ n'a aucun consommateur en aval. Si le Sheet donne une URL de fiche,
+    `Course.source_url` sera cette URL de fiche, à chaque passage identiquement
+    tronquée par ce scraper ; l'idempotence tient à cette troncature répétée, pas
+    à une réécriture de la clé stockée.
     """
     evenement, epreuve, annee = _parse_url(url)
     with httpx.Client(follow_redirects=True, timeout=30, headers=HEADERS) as client:
@@ -491,12 +517,23 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
             annee = _resolve_annee(client, evenement, epreuve)
         edition_url = _edition_url(evenement, epreuve, annee)
         resultats = _parse_edition(_fetch(client, edition_url), edition_url, evenement, epreuve)
+        membres_tcn = 0
         fiches = 0
         for resultat in resultats:
             if not is_tcn(resultat.club):
                 continue
-            fiche_url = resultat.raw_data.get("fiche_url") or ""
-            if not fiche_url:
+            membres_tcn += 1
+            brut = resultat.raw_data.get("fiche_url") or ""
+            if not brut:
+                continue
+            # `urljoin` + contrôle de host : la colonne Détails porte un href
+            # absolu sur les pages sondées, mais la même table mélange les deux
+            # formes (le lien Club, lui, est relatif) — un basculement de
+            # Détails vers du relatif ne doit ni suivre un chemin résolu contre
+            # le mauvais host, ni lever une exception masquée par l'`except`
+            # ci-dessous (cf. wiclax.py pour la même convention).
+            fiche_url = urljoin(BASE_URL, brut)
+            if (urlparse(fiche_url).hostname or "").lower() != HOST:
                 continue
             try:
                 html = _fetch(client, fiche_url)
@@ -507,7 +544,8 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
             _appliquer_splits(resultat, _parse_fiche(html))
             fiches += 1
     logger.info(
-        "fftri.t2area.com : %d participants sur %s (%d fiche(s) TCN chargée(s))",
-        len(resultats), edition_url, fiches,
+        "fftri.t2area.com : %d participants sur %s (%d membre(s) TCN repéré(s), "
+        "%d fiche(s) chargée(s))",
+        len(resultats), edition_url, membres_tcn, fiches,
     )
     return resultats

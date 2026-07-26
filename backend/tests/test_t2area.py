@@ -229,7 +229,45 @@ def test_parse_edition_disqualifie_navance_pas_de_temps():
 
     assert r.status == "DSQ"
     assert r.total_time == ""
+    assert r.rank_gender is None
+    assert r.rank_category is None
     assert r.raw_data["temps"] == "42:23:00"
+
+
+def test_construire_disqualifie_vide_aussi_les_rangs_meme_si_publies():
+    """Sur la ligne ALLARD réelle, `Clt/F` et `Clt/CAT` sont vides — insuffisant
+    pour attester que le vidage est actif plutôt que fortuit. Ligne synthétique
+    avec des rangs catégorie/genre **renseignés** malgré un statut DSQ : ils
+    doivent être vidés au même titre que `total_time` (wiclax fait de même)."""
+    ligne = {
+        "clt": "DQ",
+        "clt_f": "3",
+        "temps": "42:23:00",
+        "nom": "ALLARD Pierre",
+        "club": "INDIV LIGUE PAYS DE LA LOIRE",
+        "cat": "MVE",
+        "clt_cat": "5",
+        "id_league": "28",
+        "league": "",
+        "details_href": "",
+        "club_href": "",
+    }
+
+    r = t2area._construire(
+        ligne,
+        source_url=URL_EDITION,
+        evenement="triathlon-de-la-baule",
+        epreuve="triathlon-m",
+        event_name="Triathlon de La Baule - M",
+        event_type="triathlon-m",
+        event_date=date(2022, 9, 18),
+        chrono=("", ""),
+    )
+
+    assert r.status == "DSQ"
+    assert r.total_time == ""
+    assert r.rank_gender is None
+    assert r.rank_category is None
 
 
 def test_parse_edition_club_absent():
@@ -306,6 +344,19 @@ def test_parse_edition_entete_ampute_leve():
         "<html><body><h1>Résultats du X - 2022 - édition du 18-09-2022</h1>"
         '<table id="resultList"><thead><tr><th>Nom</th><th>Club</th></tr></thead>'
         "<tbody></tbody></table></body></html>"
+    )
+    with pytest.raises(ValueError, match="En-tête fftri inattendu"):
+        t2area._parse_edition(html, URL_EDITION, "x", "triathlon-m")
+
+
+def test_parse_edition_sans_details_leve():
+    """`Détails` absente : sans lever, toutes les lignes sortiraient sans dossard
+    ni fiche, et dupliqueraient chaque participation déjà en base (cf. #51)."""
+    html = (
+        "<html><body><h1>Résultats du X - 2022 - édition du 18-09-2022</h1>"
+        '<table id="resultList"><thead><tr>'
+        "<th>Clt</th><th>Temps</th><th>Nom</th><th>Club</th>"
+        "</tr></thead><tbody></tbody></table></body></html>"
     )
     with pytest.raises(ValueError, match="En-tête fftri inattendu"):
         t2area._parse_edition(html, URL_EDITION, "x", "triathlon-m")
@@ -514,6 +565,22 @@ PAGES_LABAULE = {
     "/2022/bib-983.html": FICHE_TRIATHLON,
 }
 
+_HREF_FICHE_ACCENT = (
+    "https://fftri.t2area.com/calendrier/triathlon-de-la-baule/triathlon-m/2022/bib-566.html"
+)
+
+# Même édition, avec le href de la colonne Détails d'ACCENT Baptiste altéré :
+# la source mélange déjà les deux formes sur la même table (le lien Club est
+# relatif), donc un basculement de Détails vers du relatif est plausible.
+EDITION_LABAULE_HREF_RELATIF = EDITION_LABAULE.replace(
+    _HREF_FICHE_ACCENT,
+    "/calendrier/triathlon-de-la-baule/triathlon-m/2022/bib-566.html",
+)
+EDITION_LABAULE_HREF_AUTRE_HOST = EDITION_LABAULE.replace(
+    _HREF_FICHE_ACCENT,
+    "https://evil.example.com/calendrier/triathlon-de-la-baule/triathlon-m/2022/bib-566.html",
+)
+
 
 def _client_factice(monkeypatch, pages=None, defaut=None):
     client = FakeClient(pages if pages is not None else dict(PAGES_LABAULE), defaut)
@@ -585,6 +652,34 @@ def test_scrape_event_all_fiche_en_echec_nemporte_pas_lepreuve(monkeypatch, capl
     assert len(resultats) == 6
     assert _par_nom(resultats, "ACCENT").swim_time == "00:41:16"
     assert "bib-983" in caplog.text
+
+
+def test_scrape_event_all_resout_un_href_de_fiche_relatif(monkeypatch):
+    """La colonne Détails est absolue sur les pages sondées, mais si elle bascule
+    en relatif (comme le lien Club l'est déjà sur la même table), la fiche doit
+    rester joignable via `urljoin`."""
+    pages = dict(PAGES_LABAULE)
+    pages["/triathlon-m/2022.html"] = EDITION_LABAULE_HREF_RELATIF
+    client = _client_factice(monkeypatch, pages=pages)
+
+    resultats = t2area.scrape_event_all(URL_EDITION)
+
+    assert _par_nom(resultats, "ACCENT").swim_time == "00:41:16"
+    assert _HREF_FICHE_ACCENT in client.calls
+
+
+def test_scrape_event_all_ignore_un_href_de_fiche_hors_host(monkeypatch):
+    """Un href de fiche pointant un autre host est ignoré, sans requête : sinon
+    `httpx.UnsupportedProtocol`/une réponse d'un tiers serait rattrapée par
+    l'`except httpx.HTTPError` et disparaîtrait dans un simple warning."""
+    pages = dict(PAGES_LABAULE)
+    pages["/triathlon-m/2022.html"] = EDITION_LABAULE_HREF_AUTRE_HOST
+    client = _client_factice(monkeypatch, pages=pages)
+
+    resultats = t2area.scrape_event_all(URL_EDITION)
+
+    assert not any("evil.example.com" in call for call in client.calls)
+    assert _par_nom(resultats, "ACCENT").swim_time == ""
 
 
 def test_scrape_event_all_edition_inexistante_leve(monkeypatch):

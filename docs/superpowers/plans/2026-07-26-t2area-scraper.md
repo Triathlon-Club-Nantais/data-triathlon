@@ -63,10 +63,22 @@ Vichy L 2024) et **priment** sur le design.
    `_resolve_annee` fait donc une regex sur les `href` bruts
    (`…/<épreuve>/(\d{4})\.html`) et prend le maximum — insensible au décor.
 
-3. **`source_url` = l'URL canonique de l'édition**, pas l'URL demandée. Une
-   fiche individuelle et son édition désignent le même classement ; stocker la
-   forme canonique rend le `rescrape-db` suivant idempotent (il ne repartira pas
-   d'une URL de fiche). C'est la seule décision de ce plan qui n'est pas dans le
+3. **`source_url` = l'URL canonique de l'édition sur chaque `ScrapedResult`**,
+   pas l'URL demandée. Une fiche individuelle et son édition désignent le même
+   classement ; toutes les lignes d'un même appel partagent donc la même URL —
+   cohérence purement *interne* au scrape. **Correction (revue de branche) :**
+   la formulation initiale prétendait que ça rendait « le `rescrape-db` suivant
+   idempotent » — c'est factuellement faux. `mapping.get_or_create_course`
+   persiste `Course.source_url = event_url or scraped.source_url`, et
+   `event_url` est toujours l'URL de l'**appelant** (`import_service._Persister`
+   la reçoit déjà validée) : `scraped.source_url` n'a aucun consommateur en
+   aval. Si le Sheet donne une URL de fiche, `Course.source_url` **est** cette
+   URL de fiche — l'idempotence observée vient de ce que ce scraper la tronque
+   identiquement à chaque passage, pas d'une réécriture de la clé stockée. Si
+   l'idempotence de la clé elle-même était voulue (stocker la forme canonique
+   en base plutôt que l'URL de l'appelant), ce serait une modification de la
+   couche d'import (`mapping.get_or_create_course` / `import_service`), hors
+   périmètre de #51. C'est la seule décision de ce plan qui n'est pas dans le
    design.
 
 4. **Les tests de détection vivent dans `tests/test_t2area.py`**, pas dans

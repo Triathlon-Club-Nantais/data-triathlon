@@ -310,7 +310,12 @@ le cas nominal), fiche individuelle (**tronquée** vers son édition, la forme d
 Sheet) et épreuve sans année (1 GET de plus, on prend la dernière édition
 publiée). Une URL d'**événement** est refusée : ses épreuves ont des dernières
 éditions d'années différentes, un fan-out n'aurait pas d'année lisible. Un appel
-= une `Course`.
+= une `Course`. **Préférer l'URL d'édition dans le Sheet** : une URL d'épreuve
+sans année est stockée telle quelle en `Course.source_url` — après publication
+d'une nouvelle édition, un `import-sheet` (`force=False`) retombe alors sur la
+course de l'année précédente, la juge fraîche (TTL 30 j) et renvoie `cached` au
+lieu d'importer la nouvelle édition. Pas un bug : la conséquence d'accepter
+cette profondeur, à connaître avant de la choisir dans le Sheet.
 
 Deux particularités structurantes. **Les splits ne sont pas dans le classement** :
 ils vivent sur la fiche individuelle, soit une requête par participant — le
