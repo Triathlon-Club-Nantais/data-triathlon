@@ -90,6 +90,11 @@ puis repli signalé). Échappatoires : `DEV_BACKEND_PORT` (port imposé côté b
 `BACKEND_URL` (cible imposée côté frontend, aucune attente), `API_URL` (cible SSR
 seule) — au choix dans le shell ou dans `frontend/.env.local`.
 
+Le lanceur rend le sort de `next` : code propagé tel quel, et **128+n** quand l'enfant
+est tué (`pkill`, OOM-kill) — un « 1 » forfaitaire ferait passer un arrêt pour une
+panne applicative (`scripts/exit-code.mjs`). Ctrl-C ne passe pas par là : SIGINT frappe
+tout le groupe de processus, le lanceur meurt du signal et l'appelant voit déjà 130.
+
 Côté backend, une sortie `SystemExit` d'uvicorn n'est retentée sur un autre port que
 si le port est **effectivement occupé** (`should_retry_after_exit`) : uvicorn quitte
 aussi par `sys.exit()` sur d'autres pannes de démarrage, et retenter à l'aveugle

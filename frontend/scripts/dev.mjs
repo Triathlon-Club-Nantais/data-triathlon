@@ -24,6 +24,7 @@ import { fileURLToPath } from "node:url";
 import nextEnv from "@next/env";
 
 import { PORT_FILE_NAME, missingBackendEnv, resolveBackendUrl } from "./backend-url.mjs";
+import { wrapperExitCode } from "./exit-code.mjs";
 
 const frontendDir = dirname(dirname(fileURLToPath(import.meta.url)));
 const worktreeRoot = dirname(frontendDir);
@@ -70,6 +71,8 @@ const enfant = spawn(nextBin, ["dev", ...process.argv.slice(2)], {
 // (arrêt par un superviseur) pour ne pas laisser le serveur orphelin.
 process.on("SIGTERM", () => enfant.kill("SIGTERM"));
 
+// On rend le sort de l'enfant, signal compris (128+n) : un « 1 » forfaitaire ferait
+// passer un `pkill` ou un OOM-kill pour une panne applicative. Cf. exit-code.mjs.
 enfant.on("exit", (code, signal) => {
-  process.exit(signal ? 1 : (code ?? 0));
+  process.exit(wrapperExitCode(code, signal));
 });
