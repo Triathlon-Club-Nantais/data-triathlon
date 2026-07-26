@@ -140,6 +140,8 @@ _STATUS_TOKENS: dict[str, str] = {
     # Pluriel : groupe RaceResult « Disqualifiés ».
     "disqualifies": STATUS_DSQ,
     "disqualified": STATUS_DSQ,
+    # `DQ` : forme de fftri.t2area.com (colonne Clt), cf. #51.
+    "dq": STATUS_DSQ,
     # Abandon (Did Not Finish)
     "dnf": STATUS_DNF,
     "abd": STATUS_DNF,
