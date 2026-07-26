@@ -44,7 +44,9 @@ Design de référence : `docs/superpowers/specs/2026-07-26-t2area-scraper-design
 
 Trois points où ce plan diverge du design. Ils viennent d'un re-sondage des pages
 réelles (La Baule M 2022, Nevers Duathlon M 2022, Lac du Bouchet L 2025/2026,
-Vichy L 2024) et **priment** sur le design.
+Vichy L 2024) et **priment** sur le design. *Mise à jour (revue de branche) :*
+les points 1 et 2 ont depuis été **répercutés dans le design** — les deux
+documents ne se contredisent plus, cette section garde la trace du *pourquoi*.
 
 1. **Colonnes lues par libellé d'en-tête, pas par position.** Le §4 du design
    liste 8 colonnes ; l'en-tête réel en porte **10** — `id_league` et `league`

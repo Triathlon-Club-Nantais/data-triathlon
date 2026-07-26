@@ -64,7 +64,11 @@ class FakeResponse:
 class FakeClient:
     """Client HTTP factice : sert les fixtures et enregistre les URLs demandées."""
 
-    def __init__(self, pages: dict[str, str] | None = None, defaut: FakeResponse | None = None):
+    def __init__(
+        self,
+        pages: dict[str, str | FakeResponse] | None = None,
+        defaut: FakeResponse | None = None,
+    ):
         self.pages = pages or {}
         self.defaut = defaut or FakeResponse("<html>vide</html>")
         self.calls: list[str] = []
@@ -558,7 +562,7 @@ def test_appliquer_splits_libelle_inconnu_bascule_sur_segments():
     assert r.bike_time == ""
 
 
-PAGES_LABAULE = {
+PAGES_LABAULE: dict[str, str | FakeResponse] = {
     "/triathlon-m/2022.html": EDITION_LABAULE,
     "/triathlon-m.html": EPREUVE_LABAULE,
     "/2022/bib-566.html": FICHE_TRIATHLON,
