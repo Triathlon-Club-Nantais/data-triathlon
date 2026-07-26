@@ -282,3 +282,91 @@ def test_athlete_identity_rgpd_distincte_entre_deux_epreuves():
     b = oktime._athlete_identity(commun, is_relay=False, epreuve_id="60101")
 
     assert a != b
+
+
+# --------------------------------------------------------------------------- #
+# Statut, rangs, genre, temps
+# --------------------------------------------------------------------------- #
+
+def test_status_non_partant():
+    runner = {"pris_depart": "N", "abandon": "N", "disqualifie": "N"}
+
+    assert oktime._status(runner, course_non_chronometree=False) == "DNS"
+
+
+def test_status_abandon():
+    runner = {"pris_depart": "O", "abandon": "O", "disqualifie": "N"}
+
+    assert oktime._status(runner, course_non_chronometree=False) == "DNF"
+
+
+def test_status_disqualifie():
+    runner = {"pris_depart": "O", "abandon": "N", "disqualifie": "O"}
+
+    assert oktime._status(runner, course_non_chronometree=False) == "DSQ"
+
+
+def test_status_dns_prioritaire_sur_dnf():
+    """1 participation du panel cumule les deux : ne pas être parti prime."""
+    runner = {"pris_depart": "N", "abandon": "O", "disqualifie": "N"}
+
+    assert oktime._status(runner, course_non_chronometree=False) == "DNS"
+
+
+def test_status_course_non_chronometree_est_finisher():
+    """Les 3 courses enfants (UNICEF, 52 participations) : courues et déclarées
+    terminées, mais sans chronométrage individuel. Sans cette règle,
+    `mapping.derive_status` les classerait DNF en bloc et le front afficherait un
+    badge d'abandon sur une course entière d'enfants."""
+    runner = {"pris_depart": "O", "abandon": "N", "disqualifie": "N"}
+
+    assert oktime._status(runner, course_non_chronometree=True) == "finisher"
+
+
+def test_status_par_defaut_delegue_a_lheuristique():
+    """Un participant sans temps dans une course par ailleurs chronométrée reste
+    traité par l'heuristique du projet : rien ne le distingue d'un abandon non
+    saisi."""
+    runner = {"pris_depart": "O", "abandon": "N", "disqualifie": "N"}
+
+    assert oktime._status(runner, course_non_chronometree=False) == ""
+
+
+def test_status_abandon_prime_sur_course_non_chronometree():
+    """Un statut explicite de la source n'est jamais écrasé par le repli."""
+    runner = {"pris_depart": "O", "abandon": "O", "disqualifie": "N"}
+
+    assert oktime._status(runner, course_non_chronometree=True) == "DNF"
+
+
+def test_rank_zero_devient_none():
+    """1 336 finishers valides du panel portent `classement_general: 0` (= non
+    classé). `normalize_rank` rendrait 0, qui s'afficherait comme une place."""
+    assert oktime._rank(0) is None
+
+
+@pytest.mark.parametrize("valeur, attendu", [(1, 1), (42, 42), (None, None), ("", None)])
+def test_rank_cas_courants(valeur, attendu):
+    assert oktime._rank(valeur) == attendu
+
+
+@pytest.mark.parametrize("brut, attendu", [("M", "M"), ("F", "F"), ("m", "M")])
+def test_gender_conserve_m_et_f(brut, attendu):
+    assert oktime._gender(brut) == attendu
+
+
+@pytest.mark.parametrize("brut", ["X", "", None, "?"])
+def test_gender_vide_hors_m_et_f(brut):
+    """`X` (relais mixtes, 323 participations) : chaîne vide plutôt qu'une valeur
+    que le front ne sait pas rendre."""
+    assert oktime._gender(brut) == ""
+
+
+def test_total_time_normalise():
+    assert oktime._total_time({"temps_finish": "3:31:57"}) == "03:31:57"
+
+
+@pytest.mark.parametrize("brut", ["00:00:00", "", None])
+def test_total_time_absent(brut):
+    """`"00:00:00"` est la façon dont la source dit « pas de temps »."""
+    assert oktime._total_time({"temps_finish": brut}) == ""
