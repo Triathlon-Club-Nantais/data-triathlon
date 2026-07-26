@@ -28,6 +28,9 @@ dist/
 .env.local
 .env.production.local
 
+# Port du backend de dev, publié par backend/scripts/dev_server.py — propre à chaque worktree
+.dev-backend.json
+
 # OS
 .DS_Store
 Thumbs.db
