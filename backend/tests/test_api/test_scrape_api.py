@@ -131,3 +131,31 @@ def test_url_http_valide_toujours_acceptee(client, monkeypatch):
     # été réécrite : `source_url` est la clé du cache TTL.
     assert vues == [url]
     assert isinstance(vues[0], str)
+
+
+@pytest.mark.parametrize("url, attendu", [
+    # Port par défaut supprimé — cas réel, cf. `_ROUTAGE_LEGITIME` de test_registry.py.
+    (
+        "https://my.raceresult.com:443/399938/results",
+        "https://my.raceresult.com/399938/results",
+    ),
+    # Espaces du chemin percent-encodés.
+    (
+        "https://chronosmetron.wiclax-results.com/Triathlon de la Roche 2026/",
+        "https://chronosmetron.wiclax-results.com/Triathlon%20de%20la%20Roche%202026/",
+    ),
+    # Caractères non-ASCII percent-encodés.
+    (
+        "https://www.klikego.com/résultats/été",
+        "https://www.klikego.com/r%C3%A9sultats/%C3%A9t%C3%A9",
+    ),
+])
+def test_httpurl_normalise_la_cle_de_cache(url, attendu):
+    """Épingle la normalisation de `HttpUrl` (mesurée sur pydantic 2.13.4) :
+    `source_url` en dérive sur ces trois familles d'entrée. Pas un bug — le
+    commentaire de `ScrapeRequest.url` documente la conséquence exacte (cache
+    TTL inefficace sur ces URLs, mais pas de doublon de course) — mais si
+    pydantic change de comportement, ce test doit le signaler."""
+    from app.schemas.scrape import ScrapeRequest
+
+    assert str(ScrapeRequest(url=url).url) == attendu
