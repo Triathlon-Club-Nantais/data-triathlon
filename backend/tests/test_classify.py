@@ -24,6 +24,12 @@ from app.scrapers.classify import (
     ("Ironman France 2025", "triathlon-xl"),
     ("Triathlon XXL Embrunman", "triathlon-xl"),
     ("Triathlon 70.3 Aix-en-Provence", "triathlon-l"),
+    # Le format half explicite prime sur le jeton de marque « ironman », qui
+    # vaut sinon XL (issue #54 — noms d'édition rendus par Competitor).
+    ("2025 IRONMAN 70.3 Vichy", "triathlon-l"),
+    ("IRONMAN 70.3 Les Sables d'Olonne", "triathlon-l"),
+    ("Half Ironman de Gérardmer", "triathlon-l"),
+    ("2025 IRONMAN France Nice", "triathlon-xl"),      # sans marqueur half → XL
     ("Triathlon de Lacanau 2025", "triathlon"),
     ("Sprint de la Roche", "triathlon-s"),             # pas de sport explicite → triathlon + taille
     ("triathlon-xl frenchman-2026", "triathlon-xl"),   # heat+slug séparés par espace (régression seg())

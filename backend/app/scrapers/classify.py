@@ -52,9 +52,14 @@ def _detect_size(t: str) -> str:
         # d'une lettre). XS reste testé après S grâce à l'ordre de _detect_size.
         return re.search(rf"(?<![a-z0-9]){tag}(?![a-z0-9])", t) is not None
 
+    # Un format half explicite prime sur le jeton de marque « ironman », qui
+    # vaut sinon XL : « IRONMAN 70.3 Vichy » est un half, pas un format long
+    # (issue #54). « Ironman France », sans marqueur, reste XL.
+    if "70.3" in t or "half" in t:
+        return "l"
     if "xxl" in t or "ironman" in t or "embrunman" in t or seg("xl"):
         return "xl"
-    if "longue" in t or "half" in t or "70.3" in t or seg("l"):
+    if "longue" in t or seg("l"):
         return "l"
     if "olymp" in t or seg("m"):
         return "m"
