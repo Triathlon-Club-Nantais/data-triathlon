@@ -119,11 +119,24 @@ donc nécessaires, et ne font pas doublon :
   `import-sheet`, CLI `rescrape-db`) et donc la seule garde du batch, qui n'a
   aucun schéma Pydantic.
 
-`HttpUrl` a été mesuré sur nos URLs réelles avant d'être retenu : il ne réécrit
-que le host en minuscules et n'ajoute un `/` final qu'à un domaine nu — aucune
-URL de chronométrage n'est dans ce cas. La dérive de clé de cache (`source_url`)
-qu'on pouvait craindre ne se produit pas. Il rejette `file://`, `gopher://`,
-`ftp://`, `javascript:`.
+`HttpUrl` a été mesuré sur pydantic 2.13.4, pas seulement retenu sur documentation :
+il **normalise**, il ne se contente pas de valider. Sur nos URLs réelles, trois
+réécritures constatées : le port par défaut est supprimé (`my.raceresult.com:443`
+devient `my.raceresult.com`, cas réel — cette URL est dans `_ROUTAGE_LEGITIME` de
+`test_registry.py`), les espaces et caractères non-ASCII du chemin sont
+percent-encodés, et une URL de plus de 2083 caractères est rejetée en 422
+(`url_too_long`, limite non documentée par ailleurs). Il rejette aussi `file://`,
+`gopher://`, `ftp://`, `javascript:`.
+
+La dérive de clé de cache (`source_url`) qu'on pouvait craindre a donc bien lieu
+sur les URLs concernées — mais sa conséquence reste bornée :
+`course_repository.get_or_create` apparie par identité (`name`, `event_date`,
+`event_type`, `is_relay`), pas par `source_url`, donc **aucun doublon de course
+n'est créé**. En revanche `get_latest_by_source_url` rate le rapprochement, et
+`get_or_create` ne réécrivant pas le `source_url` d'une ligne existante, le
+cache TTL reste durablement inefficace pour ces URLs (re-scrape à chaque
+import). Assumé : la normalisation ferme le SSRF, ce coût résiduel est un
+compromis, pas un oubli.
 
 Il ne rejette **pas** `http://169.254.169.254/…` : c'est le point 1 qui ferme ce
 chemin, en refusant de router une IP littérale vers un provider.
