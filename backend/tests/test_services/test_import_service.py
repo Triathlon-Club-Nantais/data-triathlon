@@ -632,3 +632,47 @@ def test_cached_skipped_compte_les_participations_sans_dossard(db_session, patch
     out = import_service.import_event(db_session, URL, _settings())
     assert out["cached"] is True
     assert out["skipped"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Validation d'URL — seule garde du batch CLI, qui n'a pas de schéma Pydantic (#49)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("url", [
+    "https://www.klikego.com/resultats/x/1",
+    "http://www.timepulse.fr/resultats/3090",
+    "  https://www.klikego.com/resultats/x/1  ",   # espaces tolérés
+])
+def test_validate_url_accepte_http_et_https(url):
+    from app.services.import_service import _validate_url
+
+    assert _validate_url(url) == url.strip()
+
+
+@pytest.mark.parametrize("url", [
+    "file:///etc/passwd",
+    "gopher://169.254.169.254/",
+    "ftp://interne.local/",
+    "javascript:alert(1)",
+    "httpfoo://exemple.fr/",   # `startswith('http')` laissait passer ceci
+    "https:///resultats",      # schéma correct, host vide
+    "/resultats/x/1",          # relatif : aucun host
+    "pas-une-url",
+    "",
+    None,
+])
+def test_validate_url_refuse_tout_le_reste(url):
+    from app.core.exceptions import InvalidUrlError
+    from app.services.import_service import _validate_url
+
+    with pytest.raises(InvalidUrlError):
+        _validate_url(url)
+
+
+def test_validate_url_ne_reecrit_pas_l_url():
+    """`source_url` est la clé du cache TTL : une réécriture ici la ferait dériver."""
+    from app.services.import_service import _validate_url
+
+    url = "https://www.prolivesport.fr/index.php?chap=event&race=Triathlon%20M"
+    assert _validate_url(url) == url
