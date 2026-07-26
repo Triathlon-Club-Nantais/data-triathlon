@@ -197,3 +197,29 @@ def test_wiclax_sosie_avec_chemin_g_live_non_capte(url):
     condition. Les gabarits génériques ne l'atteignent pas — leur path n'a pas
     de `G-Live` —, d'où ce cas dédié."""
     assert registry.detect_provider(url) == "playwright"
+
+
+# ---------------------------------------------------------------------------
+# Verrou : le fallback refuse AVANT le réseau (tient lieu du point 3 de #49)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("url", [
+    "https://169.254.169.254/latest/meta-data/?x=timepulse.fr",
+    "https://127.0.0.1:8001/api/v1/admin?x=prolivesport.fr",
+    "https://evil.example/breizhchrono.com/resultats",
+])
+def test_host_non_reconnu_ne_declenche_aucune_requete(monkeypatch, url):
+    """Le fallback Playwright lève avant tout réseau : c'est ce qui rend une
+    whitelist explicite superflue. Si quelqu'un rebranche un scraper générique
+    sur le fallback, ce test tombe."""
+    import httpx
+
+    def _interdit(*args, **kwargs):
+        raise AssertionError(f"requête réseau émise pour un host non reconnu : {url}")
+
+    monkeypatch.setattr(httpx.Client, "request", _interdit)
+    monkeypatch.setattr(httpx.Client, "send", _interdit)
+
+    with pytest.raises(ValueError, match="playwright"):
+        registry.scrape_event_all(url)
