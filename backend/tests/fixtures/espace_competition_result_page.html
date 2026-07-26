@@ -1,0 +1,19 @@
+<!--
+  Fixture réduite à la main d'une page façade espace-competition.com.
+  Provenance : https://www.espace-competition.com/index.php?module=sportif&action=resultat&comp_uid=3205
+  Récupérée le 2026-07-19 (Mad'Trail 2026, eventId RaceResult 411749).
+  Cette façade sert l'identifiant NU, sans guillemets — chronoconsult.fr le sert
+  entre guillemets. Les deux formes doivent être reconnues ; cette fixture couvre
+  la première, chronoconsult_result_page.html la seconde.
+  `comp_uid` est un identifiant interne au front, sans rapport avec l'API.
+-->
+<html>
+<head><title>Résultats — MAD'TRAIL 2026</title></head>
+<body>
+  <div id="divRRPublish" class="RRPublish"></div>
+  <script type="text/javascript" src="//my.raceresult.com/RRPublish/load.js.php?lang=fr"></script>
+  <script type="text/javascript">
+    var rrp=new RRPublish(document.getElementById("divRRPublish"), 411749, "results");
+  </script>
+</body>
+</html>

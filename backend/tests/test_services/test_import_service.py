@@ -46,7 +46,7 @@ URL = "https://www.klikego.com/resultats/event/123"
 def test_import_creates_entities(db_session, patch_scraper):
     patch_scraper([_result("1", "DUPONT"), _result("2", "MARTIN")])
     out = import_service.import_event(db_session, URL, _settings())
-    assert out == {"imported": 2, "updated": 0, "skipped": 0}
+    assert out == {"imported": 2, "updated": 0, "skipped": 0, "reconciled": 0}
     assert len(participation_repository.list_participations(db_session, page_size=100)) == 2
 
 
@@ -72,7 +72,7 @@ def test_reimport_after_cache_dedups_by_bib(db_session, patch_scraper):
 
     patch_scraper([_result("1", "DUPONT"), _result("2", "MARTIN")])
     out = import_service.import_event(db_session, URL, _settings())
-    assert out == {"imported": 1, "updated": 0, "skipped": 1}
+    assert out == {"imported": 1, "updated": 0, "skipped": 1, "reconciled": 0}
 
 
 def test_import_calcule_l_indice_de_fiabilite(db_session, patch_scraper):
@@ -95,7 +95,7 @@ def test_import_signale_une_course_suspecte(db_session, patch_scraper):
         ]
     )
     out = import_service.import_event(db_session, URL, _settings())
-    assert out == {"imported": 2, "updated": 0, "skipped": 1}
+    assert out == {"imported": 2, "updated": 0, "skipped": 1, "reconciled": 0}
 
     course = course_repository.get_latest_by_source_url(db_session, URL)
     assert course.is_reliable is False
@@ -118,7 +118,7 @@ def test_reimport_apres_cache_ne_compte_pas_les_dossards_deja_en_base(
 
     patch_scraper([_result("1", "DUPONT", rank_overall=1), _result("2", "MARTIN", rank_overall=2)])
     out = import_service.import_event(db_session, URL, _settings())
-    assert out == {"imported": 1, "updated": 0, "skipped": 1}
+    assert out == {"imported": 1, "updated": 0, "skipped": 1, "reconciled": 0}
 
     db_session.refresh(course)
     assert course.is_reliable is True
@@ -149,7 +149,7 @@ def _expire_cache(db_session, url=URL):
 def test_import_sans_dossard_cree_les_participations(db_session, patch_scraper):
     patch_scraper([_result("", "CASROUGE", "Patrice"), _result("", "HOCHET", "Joséphine")])
     out = import_service.import_event(db_session, URL, _settings())
-    assert out == {"imported": 2, "updated": 0, "skipped": 0}
+    assert out == {"imported": 2, "updated": 0, "skipped": 0, "reconciled": 0}
 
 
 def test_reimport_sans_dossard_est_idempotent(db_session, patch_scraper):
@@ -160,7 +160,7 @@ def test_reimport_sans_dossard_est_idempotent(db_session, patch_scraper):
 
     patch_scraper([_result("", "CASROUGE", "Patrice"), _result("", "HOCHET", "Joséphine")])
     out = import_service.import_event(db_session, URL, _settings())
-    assert out == {"imported": 0, "updated": 0, "skipped": 2}
+    assert out == {"imported": 0, "updated": 0, "skipped": 2, "reconciled": 0}
     assert len(participation_repository.list_participations(db_session, page_size=100)) == 2
 
 
@@ -168,7 +168,7 @@ def test_import_sans_dossard_conserve_les_homonymes(db_session, patch_scraper):
     """Deux lignes pour le même athlète sans dossard → deux participations."""
     patch_scraper([_result("", "LACOTTE", "Anais"), _result("", "LACOTTE", "Anais")])
     out = import_service.import_event(db_session, URL, _settings())
-    assert out == {"imported": 2, "updated": 0, "skipped": 0}
+    assert out == {"imported": 2, "updated": 0, "skipped": 0, "reconciled": 0}
 
 
 def test_reimport_sans_dossard_conserve_le_nombre_d_homonymes(db_session, patch_scraper):
@@ -179,7 +179,7 @@ def test_reimport_sans_dossard_conserve_le_nombre_d_homonymes(db_session, patch_
 
     patch_scraper([_result("", "LACOTTE", "Anais"), _result("", "LACOTTE", "Anais")])
     out = import_service.import_event(db_session, URL, _settings())
-    assert out == {"imported": 0, "updated": 0, "skipped": 2}
+    assert out == {"imported": 0, "updated": 0, "skipped": 2, "reconciled": 0}
     assert len(participation_repository.list_participations(db_session, page_size=100)) == 2
 
 
@@ -191,7 +191,7 @@ def test_reimport_sans_dossard_ajoute_une_occurrence_supplementaire(db_session, 
 
     patch_scraper([_result("", "LACOTTE", "Anais")] * 3)
     out = import_service.import_event(db_session, URL, _settings())
-    assert out == {"imported": 1, "updated": 0, "skipped": 2}
+    assert out == {"imported": 1, "updated": 0, "skipped": 2, "reconciled": 0}
     assert len(participation_repository.list_participations(db_session, page_size=100)) == 3
 
 
@@ -208,7 +208,7 @@ def test_reimport_melange_avec_et_sans_dossard(db_session, patch_scraper):
         _result("", "HOCHET", "Joséphine"),      # nouveau, sans dossard
     ])
     out = import_service.import_event(db_session, URL, _settings())
-    assert out == {"imported": 2, "updated": 0, "skipped": 2}
+    assert out == {"imported": 2, "updated": 0, "skipped": 2, "reconciled": 0}
     assert len(participation_repository.list_participations(db_session, page_size=100)) == 4
 
 
@@ -220,7 +220,7 @@ def test_reimport_sans_dossard_unique_met_a_jour(db_session, patch_scraper):
 
     patch_scraper([_result("", "CASROUGE", "Patrice", total_time="01:09:30")])
     out = import_service.import_event(db_session, URL, _settings(), force=True)
-    assert out == {"imported": 0, "updated": 1, "skipped": 0}
+    assert out == {"imported": 0, "updated": 1, "skipped": 0, "reconciled": 0}
 
     parts = participation_repository.list_participations(db_session, page_size=100)
     assert len(parts) == 1
@@ -242,7 +242,7 @@ def test_reimport_sans_dossard_ambigu_ne_met_pas_a_jour(db_session, patch_scrape
         _result("", "LACOTTE", "Anais", total_time="01:18:00"),
     ])
     out = import_service.import_event(db_session, URL, _settings(), force=True)
-    assert out == {"imported": 0, "updated": 0, "skipped": 2}
+    assert out == {"imported": 0, "updated": 0, "skipped": 2, "reconciled": 0}
 
     times = sorted(
         p.total_time for p in participation_repository.list_participations(db_session, page_size=100)
@@ -271,7 +271,7 @@ def test_force_bypasse_le_cache_ttl(db_session, patch_scraper):
     # Avec force=True → re-scrape malgré la fraîcheur ; le dossard 2 est nouveau.
     patch_scraper([_result("1", "DUPONT"), _result("2", "MARTIN")])
     out = import_service.import_event(db_session, URL, _settings(), force=True)
-    assert out == {"imported": 1, "updated": 0, "skipped": 1}
+    assert out == {"imported": 1, "updated": 0, "skipped": 1, "reconciled": 0}
 
 
 def test_iter_import_event_force_bypasse_le_cache_ttl(db_session, patch_scraper):
@@ -340,6 +340,168 @@ def test_iter_import_refuses_event_without_name(db_session, patch_scraper):
 
 
 # ---------------------------------------------------------------------------
+# Réconciliation d'identité au re-scrape (issue #66)
+# ---------------------------------------------------------------------------
+
+def test_dossard_connu_athlete_divergent_est_reconcilie(db_session, patch_scraper):
+    """La graphie fautive stockée est réassignée vers la graphie corrigée."""
+    patch_scraper([_result("1", "BERRE", "Audrey LE")])
+    import_service.import_event(db_session, URL, _settings())
+
+    # Même dossard, identité corrigée. force=True : re-scrape malgré le cache frais.
+    patch_scraper([_result("1", "LE BERRE", "Audrey")])
+    out = import_service.import_event(db_session, URL, _settings(), force=True)
+
+    assert out["reconciled"] == 1
+    assert out["imported"] == 0
+    parts = participation_repository.list_participations(db_session, page_size=100)
+    assert len(parts) == 1
+    assert (parts[0].athlete.nom, parts[0].athlete.prenom) == ("LE BERRE", "Audrey")
+
+
+def test_dossard_connu_meme_athlete_reste_un_skip(db_session, patch_scraper):
+    """Identité inchangée : aucune réassignation, `skipped` comme aujourd'hui."""
+    patch_scraper([_result("1", "LE BERRE", "Audrey")])
+    import_service.import_event(db_session, URL, _settings())
+
+    patch_scraper([_result("1", "LE BERRE", "Audrey")])
+    out = import_service.import_event(db_session, URL, _settings(), force=True)
+
+    assert out["reconciled"] == 0
+    assert out["skipped"] == 1
+
+
+def test_reconciliation_fusionne_vers_un_athlete_existant(db_session, patch_scraper):
+    """La cible corrigée existe déjà (autre course) → fusion, pas de création."""
+    from app.repositories import athlete_repository
+
+    # La graphie fautive, sur l'épreuve à re-scraper.
+    patch_scraper([_result("1", "BERRE", "Audrey LE")])
+    import_service.import_event(db_session, URL, _settings())
+    # La graphie correcte existe déjà, portée par une autre épreuve.
+    url2 = "https://www.klikego.com/resultats/event/999"
+    patch_scraper([_result("7", "LE BERRE", "Audrey", event_name="Autre Tri")])
+    import_service.import_event(db_session, url2, _settings())
+
+    nb_athletes = len(athlete_repository.search(db_session, page_size=500))
+
+    # Re-scrape de la 1re épreuve : la graphie fautive fusionne vers l'existante.
+    patch_scraper([_result("1", "LE BERRE", "Audrey")])
+    phases = list(import_service.iter_import_event(db_session, URL, _settings(), force=True))
+    done = phases[-1]
+
+    assert done["reconciled"] == 1
+    assert done["reassignments"][0].fusion is True
+    assert done["reassignments"][0].ancien == "BERRE | Audrey LE"
+    assert done["reassignments"][0].nouveau == "LE BERRE | Audrey"
+    # Aucun athlète créé : fusion, pas renommage.
+    assert len(athlete_repository.search(db_session, page_size=500)) == nb_athletes
+
+
+def test_reconciliation_ne_vide_jamais_le_prenom(db_session, patch_scraper):
+    """Garde des ambigus : une correction qui viderait le prénom est refusée."""
+    # Prénom stocké en majuscules par un fournisseur à champs séparés.
+    patch_scraper([_result("1", "BERGE", "LOLA")])
+    import_service.import_event(db_session, URL, _settings())
+
+    # Le re-scrape produirait ("LOLA BERGE", "") — destruction du prénom.
+    patch_scraper([_result("1", "LOLA BERGE", "")])
+    out = import_service.import_event(db_session, URL, _settings(), force=True)
+
+    assert out["reconciled"] == 0
+    assert out["skipped"] == 1
+    parts = participation_repository.list_participations(db_session, page_size=100)
+    assert (parts[0].athlete.nom, parts[0].athlete.prenom) == ("BERGE", "LOLA")
+
+
+def test_reconciliation_refusee_ne_cree_pas_d_orphelin(db_session, patch_scraper):
+    """Garde des ambigus : une réconciliation refusée (prénom vidé) ne crée
+    aucune fiche d'athlète orpheline.
+
+    Sur le chemin web/SSE (`persist=True`), rien ne balaie les orphelins avant
+    le prochain `rescrape-db` : résoudre l'athlète corrigé *avant* la garde
+    laissait donc une fiche « LOLA BERGE |  » commitée et vide en base.
+    """
+    from app.repositories import athlete_repository
+
+    patch_scraper([_result("1", "BERGE", "LOLA")])
+    import_service.import_event(db_session, URL, _settings())
+    nb_athletes = len(athlete_repository.search(db_session, page_size=500))
+
+    # Le re-scrape produirait ("LOLA BERGE", "") — correction refusée.
+    patch_scraper([_result("1", "LOLA BERGE", "")])
+    out = import_service.import_event(db_session, URL, _settings(), force=True)
+
+    assert out["reconciled"] == 0
+    assert len(athlete_repository.search(db_session, page_size=500)) == nb_athletes
+    assert athlete_repository.get_by_identity(db_session, "LOLA BERGE", "", None) is None
+
+
+def test_reconciliation_dossard_en_double_ne_compte_qu_une_fois(db_session, patch_scraper):
+    """Anti double-comptage : 2 lignes source pour un dossard préexistant réconcilié
+    → 1 seule réconciliation, quoi qu'il arrive aux valeurs.
+
+    Les deux `skipped` sont sur l'autre axe (valeurs) : la 1re ligne n'a rien à
+    corriger, la 2e est une contradiction de la source — même dossard, deux
+    lignes dans un même scrape — donc perdue et comptée en anomalie de fiabilité.
+    """
+    patch_scraper([_result("1", "BERRE", "Audrey LE")])
+    import_service.import_event(db_session, URL, _settings())
+
+    # Re-scrape : la graphie corrigée apparaît deux fois pour le même dossard.
+    patch_scraper([_result("1", "LE BERRE", "Audrey"), _result("1", "LE BERRE", "Audrey")])
+    out = import_service.import_event(db_session, URL, _settings(), force=True)
+
+    assert out["reconciled"] == 1
+    assert out["skipped"] == 2
+    parts = participation_repository.list_participations(db_session, page_size=100)
+    assert len(parts) == 1
+    assert (parts[0].athlete.nom, parts[0].athlete.prenom) == ("LE BERRE", "Audrey")
+    course = course_repository.get_latest_by_source_url(db_session, URL)
+    assert course.quality_issues == {quality.ANOMALY_DUPLICATE_BIB: 1}
+
+
+def test_reconciliation_renommage_a_le_flag_fusion_false(db_session, patch_scraper):
+    """Renommage (cible corrigée créée, pas préexistante) → fusion is False."""
+    patch_scraper([_result("1", "BERRE", "Audrey LE")])
+    import_service.import_event(db_session, URL, _settings())
+
+    patch_scraper([_result("1", "LE BERRE", "Audrey")])
+    phases = list(import_service.iter_import_event(db_session, URL, _settings(), force=True))
+    done = phases[-1]
+
+    assert done["reconciled"] == 1
+    assert done["reassignments"][0].fusion is False
+    assert done["reassignments"][0].ancien == "BERRE | Audrey LE"
+    assert done["reassignments"][0].nouveau == "LE BERRE | Audrey"
+
+
+def test_persist_false_scrape_mais_n_ecrit_rien(db_session, patch_scraper):
+    """Dry-run : le scrape a lieu, les compteurs sont calculés, rien n'est persisté."""
+    patch_scraper([_result("1", "DUPONT"), _result("2", "MARTIN")])
+
+    out = import_service.import_event(db_session, URL, _settings(), persist=False)
+
+    assert out["imported"] == 2  # calculé
+    db_session.expire_all()
+    assert participation_repository.list_participations(db_session, page_size=100) == []
+    assert course_repository.list_all(db_session) == []
+
+
+def test_iter_persist_false_annule_la_transaction(db_session, patch_scraper):
+    patch_scraper([_result("1", "DUPONT")])
+
+    phases = list(
+        import_service.iter_import_event(db_session, URL, _settings(), persist=False)
+    )
+
+    assert phases[-1]["phase"] == "done"
+    assert phases[-1]["imported"] == 1
+    db_session.expire_all()
+    assert participation_repository.list_participations(db_session, page_size=100) == []
+
+
+# ---------------------------------------------------------------------------
 # Upsert prudent par dossard — un réimport corrige les lignes existantes au
 # lieu de les ignorer (fusion prudente : la source n'écrase que ses valeurs
 # non vides).
@@ -354,7 +516,7 @@ def test_reimport_rafraichit_un_temps_corrige(db_session, patch_scraper):
 
     patch_scraper([_result("1", "DUPONT", total_time="01:58:30", rank_overall=3)])
     out = import_service.import_event(db_session, URL, _settings(), force=True)
-    assert out == {"imported": 0, "updated": 1, "skipped": 0}
+    assert out == {"imported": 0, "updated": 1, "skipped": 0, "reconciled": 0}
 
     parts = participation_repository.list_participations(db_session, page_size=100)
     assert len(parts) == 1
@@ -371,7 +533,7 @@ def test_reimport_valeur_vide_n_ecrase_pas(db_session, patch_scraper):
     # Source temporairement amputée du temps total.
     patch_scraper([_result("1", "DUPONT", total_time="")])
     out = import_service.import_event(db_session, URL, _settings(), force=True)
-    assert out == {"imported": 0, "updated": 0, "skipped": 1}
+    assert out == {"imported": 0, "updated": 0, "skipped": 1, "reconciled": 0}
 
     parts = participation_repository.list_participations(db_session, page_size=100)
     assert parts[0].total_time == "01:59:00"  # survit
@@ -386,7 +548,7 @@ def test_reimport_ligne_identique_compte_en_skipped(db_session, patch_scraper):
 
     patch_scraper([_result("1", "DUPONT", total_time="01:59:00", rank_overall=2)])
     out = import_service.import_event(db_session, URL, _settings(), force=True)
-    assert out == {"imported": 0, "updated": 0, "skipped": 1}
+    assert out == {"imported": 0, "updated": 0, "skipped": 1, "reconciled": 0}
 
 
 def test_is_empty_distingue_false_et_zero_des_valeurs_vides():
@@ -416,7 +578,7 @@ def test_reimport_statut_explicite_ecrase(db_session, patch_scraper):
 
     patch_scraper([_result("1", "DUPONT", total_time="01:59:00", status="DSQ")])
     out = import_service.import_event(db_session, URL, _settings(), force=True)
-    assert out == {"imported": 0, "updated": 1, "skipped": 0}
+    assert out == {"imported": 0, "updated": 1, "skipped": 0, "reconciled": 0}
     assert participation_repository.list_participations(db_session, page_size=100)[0].status == "DSQ"
 
 
@@ -431,7 +593,7 @@ def test_reimport_ajoute_un_nouveau_dossard_et_met_a_jour_l_ancien(db_session, p
         _result("2", "MARTIN", total_time="02:05:00"),  # imported
     ])
     out = import_service.import_event(db_session, URL, _settings(), force=True)
-    assert out == {"imported": 1, "updated": 1, "skipped": 0}
+    assert out == {"imported": 1, "updated": 1, "skipped": 0, "reconciled": 0}
 
 
 def test_iter_import_event_expose_updated(db_session, patch_scraper):

@@ -94,25 +94,38 @@ def normalize_rank(val) -> int | None:
 
 
 def split_athlete_name(full: str) -> tuple[str, str]:
-    """
-    Wiclax / TimePulse convention: 'NOM Prénom' (surname first, uppercase).
-    Returns (surname, firstname).
+    """Scinde un nom complet en (nom, prénom), quelle que soit la convention.
+
+    Deux conventions coexistent chez les fournisseurs :
+      - « NOM Prénom » (Wiclax, TimePulse) : bloc majuscule **en tête** ;
+      - « Prénom NOM » (RaceResult) : bloc majuscule **en queue**.
+
+    Le bloc majuscule est pris dans son intégralité des deux côtés, sinon un nom
+    à particule (« Jean DE LA TOUR ») se réduirait à son dernier token. Sans
+    aucun bloc majuscule, on retombe sur la convention « prénom(s) puis nom ».
+
+    Limite assumée : un prénom entièrement en majuscules bascule à tort sur la
+    convention « NOM Prénom ». Ainsi « JP ROUX » donne (« JP ROUX », « »)
+    au lieu de (« ROUX », « JP »), et « JEAN MARTIN » donne (« JEAN MARTIN », « »).
+    C'est une ambiguïté irréductible sans information supplémentaire — les deux
+    lectures sont légitimes — et non un bug à corriger.
     """
     parts = full.strip().split("\n")[0].strip().split()
     if not parts:
         return "", ""
-    # Detect if first token is all-uppercase → surname
     if parts[0].isupper():
-        # Find where uppercase tokens end
+        # « NOM Prénom » : le nom est le préfixe majuscule.
         i = 0
         while i < len(parts) and parts[i].isupper():
             i += 1
-        surname = " ".join(parts[:i])
-        firstname = " ".join(parts[i:])
-    else:
-        surname = parts[-1]
-        firstname = " ".join(parts[:-1])
-    return surname, firstname
+        return " ".join(parts[:i]), " ".join(parts[i:])
+    if parts[-1].isupper():
+        # « Prénom NOM » : le nom est le suffixe majuscule, particules incluses.
+        i = len(parts)
+        while i > 0 and parts[i - 1].isupper():
+            i -= 1
+        return " ".join(parts[i:]), " ".join(parts[:i])
+    return parts[-1], " ".join(parts[:-1])
 
 
 # Jetons de statut bruts (FR/EN) → constante STATUS_*. Comparés sur le label
@@ -124,15 +137,21 @@ _STATUS_TOKENS: dict[str, str] = {
     "dsq": STATUS_DSQ,
     "disq": STATUS_DSQ,
     "disqualifie": STATUS_DSQ,
+    # Pluriel : groupe RaceResult « Disqualifiés ».
+    "disqualifies": STATUS_DSQ,
     "disqualified": STATUS_DSQ,
     # Abandon (Did Not Finish)
     "dnf": STATUS_DNF,
     "abd": STATUS_DNF,
     "abandon": STATUS_DNF,
+    # Pluriel : RaceResult nomme ses groupes de statut « Abandons ».
+    "abandons": STATUS_DNF,
     "ab": STATUS_DNF,
     # Non-partant (Did Not Start)
     "dns": STATUS_DNS,
     "nonpartant": STATUS_DNS,
+    # Pluriel : groupe RaceResult « Non Partants ».
+    "nonpartants": STATUS_DNS,
     "np": STATUS_DNS,
     "forfait": STATUS_DNS,
     "ff": STATUS_DNS,
@@ -166,3 +185,19 @@ def derive_status_from_label(label: str) -> str:
     if not label:
         return ""
     return _STATUS_TOKENS.get(_normalize_label(label), "")
+
+
+def qualify_event_name(event_name: str, qualifiant: str) -> str:
+    """Qualifie un nom d'épreuve par son parcours / contest.
+
+    « Triathlon de Rumilly » + « Distance M » → « Triathlon de Rumilly - Distance M ».
+    Chaque parcours est une épreuve distincte (classement propre, dossards
+    réutilisés d'un parcours à l'autre) : sans qualification, plusieurs parcours
+    de même type fusionnent en une seule Course et leurs dossards entrent en
+    collision (issue #21 : participants manquants, rangs dupliqués). Un
+    qualifiant déjà présent dans le nom n'est pas ré-ajouté.
+    """
+    qualifiant = (qualifiant or "").strip()
+    if not qualifiant or qualifiant.lower() in (event_name or "").lower():
+        return event_name
+    return f"{event_name} - {qualifiant}"

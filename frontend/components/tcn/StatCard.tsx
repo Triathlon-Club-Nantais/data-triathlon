@@ -79,6 +79,11 @@ export function StatCard({
       {accent ? (
         <div style={{ height: 4, width: 48, background: "var(--tcn-orange)", borderRadius: 999, marginTop: 8 }} />
       ) : null}
+      {delta ? (
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--tcn-text-faint)", marginTop: 10 }}>
+          {delta}
+        </div>
+      ) : null}
       {hint ? (
         <div data-testid="statcard-hint" style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: "var(--tcn-text-faint)" }}>
           {hint}
