@@ -482,3 +482,33 @@ def _course_results(course: dict, *, url: str, evenement_title: str) -> list[Scr
     ]
     _log_cumuls_conserves(resultats, title_course)
     return resultats
+
+
+# --------------------------------------------------------------------------- #
+# Point d'entrée
+# --------------------------------------------------------------------------- #
+
+def scrape_event_all(url: str) -> list[ScrapedResult]:
+    """Tous les participants de **toutes** les épreuves de l'événement.
+
+    L'API n'expose aucune route par épreuve : une URL pointant une épreuve
+    rapporte l'événement entier, et on l'importe entier — comme les heats Breizh
+    Chrono et les onglets chronoplace. Coût : un appel, deux si l'URL est de la
+    forme éditoriale `/evenement/<slug>/`.
+
+    `source_url` reste l'URL **demandée** : c'est la clé de cache TTL, elle doit
+    correspondre au lien du Sheet et non à une forme reconstruite.
+    """
+    event_id, slug = _parse_url(url)
+    with httpx.Client(follow_redirects=True, timeout=30, headers=HEADERS) as client:
+        if not event_id:
+            event_id = _resolve_event_id(client, slug)
+        charge = _fetch_results(client, event_id)
+
+    evenement_title = html.unescape(str(charge.get("evenement_title") or "").strip())
+    resultats: list[ScrapedResult] = []
+    for course in charge.get("data") or []:
+        resultats.extend(
+            _course_results(course, url=url, evenement_title=evenement_title)
+        )
+    return resultats
