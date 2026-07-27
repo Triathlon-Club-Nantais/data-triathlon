@@ -92,8 +92,13 @@ Aucun venv à activer : `uv run` synchronise l'environnement avant d'exécuter.
 > Les endpoints sont versionnés sous **`/api/v1`** et le schéma DB est géré par
 > **Alembic**. Voir [`backend/README.md`](backend/README.md) pour le détail.
 
-Le port retenu s'affiche au démarrage — `http://localhost:8001` tant qu'il est libre,
+Le port retenu s'affiche au démarrage — `http://127.0.0.1:8001` tant qu'il est libre,
 `/docs` pour la documentation interactive.
+
+L'écoute couvre toutes les interfaces (`0.0.0.0`), comme en production : le seul
+loopback rendrait l'API injoignable depuis l'extérieur d'un conteneur, ou depuis un
+autre appareil du réseau local. L'URL affichée et publiée reste en `127.0.0.1`, qui
+est une cible joignable — ce que `0.0.0.0` n'est pas.
 
 ### 4. Frontend (Next.js)
 

@@ -13,14 +13,20 @@ import { createConnection } from "node:net";
 import { join } from "node:path";
 
 export const PORT_FILE_NAME = ".dev-backend.json";
-export const DEFAULT_BACKEND_URL = "http://127.0.0.1:8001";
+
+/** Cible de **connexion** vers le backend, jamais une adresse d'écoute : ce module ne
+ *  bind rien (`next dev` écoute de son côté `0.0.0.0` par défaut). D'où le loopback et
+ *  non `0.0.0.0`, qui ne désigne aucune destination — seul Linux la tolère en `connect()`.
+ *  Backend hors de la machine (conteneur, autre hôte) : passer `BACKEND_URL`. */
+const CLIENT_HOST = "127.0.0.1";
+
+export const DEFAULT_BACKEND_URL = `http://${CLIENT_HOST}:8001`;
 
 /** Les deux variables qui portent la cible du backend, lues à des endroits distincts :
  *  `BACKEND_URL` par les rewrites de `next.config.ts`, `API_URL` par les fetch RSC de
  *  `lib/api/server.ts`. En prod (Vercel) elles peuvent viser des cibles différentes. */
 export const BACKEND_ENV_KEYS = ["BACKEND_URL", "API_URL"];
 
-const HOST = "127.0.0.1";
 const PROBE_TIMEOUT_MS = 300;
 const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_POLL_MS = 500;
@@ -31,7 +37,7 @@ export async function readPublishedBackend(root) {
     const brut = await readFile(join(root, PORT_FILE_NAME), "utf-8");
     const charge = JSON.parse(brut);
     if (typeof charge?.port !== "number") return null;
-    return { port: charge.port, url: charge.url ?? `http://${HOST}:${charge.port}` };
+    return { port: charge.port, url: charge.url ?? `http://${CLIENT_HOST}:${charge.port}` };
   } catch {
     return null;
   }
@@ -42,7 +48,7 @@ export async function readPublishedBackend(root) {
  * C'est ce test qui rend la découverte auto-corrigeante : un backend tué par
  * `kill -9` laisse son fichier derrière lui, et le suivre proxyfierait dans le vide.
  */
-export function isPortAlive(port, host = HOST, timeoutMs = PROBE_TIMEOUT_MS) {
+export function isPortAlive(port, host = CLIENT_HOST, timeoutMs = PROBE_TIMEOUT_MS) {
   return new Promise((resolve) => {
     const socket = createConnection({ port, host });
     const conclure = (vivant) => {

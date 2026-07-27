@@ -5,10 +5,15 @@ import socket
 
 import pytest
 
+import scripts.dev_server as dev_server
 from scripts.dev_server import (
     BIND_ATTEMPTS,
+    BIND_HOST,
+    CLIENT_HOST,
     PORT_FILE_NAME,
+    _is_free,
     find_free_port,
+    main,
     read_port_file,
     remove_port_file,
     resolve_base_port,
@@ -52,6 +57,44 @@ def test_find_free_port_saute_un_port_deja_pris(port_occupe):
 def test_find_free_port_echoue_si_toute_la_plage_est_prise(port_occupe):
     with pytest.raises(RuntimeError, match="aucun port libre"):
         find_free_port(base=port_occupe, span=1)
+
+
+# ── Adresse d'écoute ─────────────────────────────────────────────────────────
+
+
+def test_le_scan_voit_un_port_pris_sur_le_seul_loopback(port_occupe):
+    """Le scan bind l'adresse d'écoute d'uvicorn (`0.0.0.0`), pas le loopback.
+
+    Il faut donc qu'un port occupé sur le seul `127.0.0.1` soit tout de même vu pris :
+    sans cela, le scan déclarerait libre un port qu'uvicorn ne pourrait pas binder.
+    """
+    assert _is_free(port_occupe) is False
+
+
+def test_uvicorn_ecoute_toutes_les_interfaces(monkeypatch, tmp_path, port_libre):
+    """Écouter le seul loopback rendrait l'API injoignable depuis l'extérieur d'un
+    conteneur — c'est déjà `--host 0.0.0.0` en production (Dockerfile, render.yaml)."""
+    import uvicorn
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(dev_server, "worktree_root", lambda: tmp_path)
+    monkeypatch.setenv("DEV_BACKEND_PORT", str(port_libre))
+    appels = []
+    monkeypatch.setattr(uvicorn, "run", lambda *a, **kw: appels.append(kw))
+
+    assert main() == 0
+    assert appels == [{"host": "0.0.0.0", "port": port_libre, "reload": True}]
+
+
+def test_l_url_publiee_est_une_adresse_de_connexion(tmp_path):
+    """`0.0.0.0` désigne les interfaces d'écoute, jamais une cible joignable : le front
+    et le navigateur reçoivent donc le loopback, quelle que soit l'adresse d'écoute."""
+    assert BIND_HOST == "0.0.0.0"
+    assert CLIENT_HOST == "127.0.0.1"
+
+    chemin = write_port_file(tmp_path, 8042, pid=4242)
+
+    assert json.loads(chemin.read_text(encoding="utf-8"))["url"] == "http://127.0.0.1:8042"
 
 
 # ── Reprise après une sortie d'uvicorn ───────────────────────────────────────

@@ -10,6 +10,11 @@ backend de SON worktree. Sans lui, le front se rabattait sur `localhost:8001`
 en dur (`next.config.ts`, `lib/api/server.ts`) et lisait donc, en silence, la base
 du worktree d'à côté.
 
+L'écoute couvre toutes les interfaces (`0.0.0.0`), comme en production : sur le seul
+loopback, l'API serait injoignable depuis l'extérieur d'un conteneur. L'URL publiée,
+elle, reste en `127.0.0.1` — `0.0.0.0` désigne des interfaces d'écoute, pas une cible
+joignable (cf. BIND_HOST / CLIENT_HOST).
+
 Réservé au développement : en production, le port vient de `$PORT` (cf. Dockerfile).
 
 Variables d'environnement :
@@ -27,7 +32,20 @@ from pathlib import Path
 PORT_FILE_NAME = ".dev-backend.json"
 DEFAULT_BASE_PORT = 8001
 DEFAULT_SPAN = 50
-HOST = "127.0.0.1"
+
+# Deux adresses, deux rôles — les confondre casse un cas ou l'autre.
+#
+# BIND_HOST : où l'on écoute. Toutes les interfaces, comme en production
+# (`--host 0.0.0.0` dans le Dockerfile et render.yaml) : le seul loopback rendrait
+# l'API injoignable depuis l'extérieur d'un conteneur, ou depuis un autre appareil
+# du réseau local. C'est aussi l'adresse que le scan de ports bind, sans quoi il
+# déclarerait libre un port qu'uvicorn ne pourrait pas prendre (service écoutant
+# sur la seule IP de l'interface).
+#
+# CLIENT_HOST : ce qu'on publie comme cible joignable. `0.0.0.0` n'est pas une
+# adresse de destination — elle ne se résout pas hors de Linux — donc le loopback.
+BIND_HOST = "0.0.0.0"
+CLIENT_HOST = "127.0.0.1"
 
 # Nombre de reprises si le port choisi est pris entre le scan et le bind d'uvicorn
 # (deux worktrees démarrés au même instant). Le scan seul ne garantit pas l'exclusivité.
@@ -46,7 +64,7 @@ def backend_dir() -> Path:
 # ── Choix du port ────────────────────────────────────────────────────────────
 
 
-def _is_free(port: int, host: str = HOST) -> bool:
+def _is_free(port: int, host: str = BIND_HOST) -> bool:
     with socket.socket() as sock:
         # Sans SO_REUSEADDR, un port en TIME_WAIT passerait pour occupé.
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -58,7 +76,7 @@ def _is_free(port: int, host: str = HOST) -> bool:
 
 
 def find_free_port(
-    base: int = DEFAULT_BASE_PORT, span: int = DEFAULT_SPAN, host: str = HOST
+    base: int = DEFAULT_BASE_PORT, span: int = DEFAULT_SPAN, host: str = BIND_HOST
 ) -> int:
     """Premier port libre dans `[base, base + span)`."""
     for port in range(base, base + span):
@@ -68,7 +86,7 @@ def find_free_port(
 
 
 def should_retry_after_exit(
-    port: int, forced: int | None, tentative: int, host: str = HOST
+    port: int, forced: int | None, tentative: int, host: str = BIND_HOST
 ) -> bool:
     """Une sortie `SystemExit` d'uvicorn vaut-elle une reprise sur un autre port ?
 
@@ -116,7 +134,11 @@ def port_file_path(root: Path) -> Path:
 def write_port_file(root: Path, port: int, pid: int | None = None) -> Path:
     """Publie le port. Écriture atomique : un lecteur ne voit jamais un JSON tronqué."""
     chemin = port_file_path(root)
-    charge = {"port": port, "url": f"http://{HOST}:{port}", "pid": pid or os.getpid()}
+    charge = {
+        "port": port,
+        "url": f"http://{CLIENT_HOST}:{port}",
+        "pid": pid or os.getpid(),
+    }
     tmp = chemin.with_suffix(".tmp")
     tmp.write_text(json.dumps(charge), encoding="utf-8")
     os.replace(tmp, chemin)
@@ -164,9 +186,12 @@ def main() -> int:
     for tentative in range(BIND_ATTEMPTS):
         port = forced if forced is not None else find_free_port(base)
         write_port_file(root, port)
-        print(f"→ backend sur http://{HOST}:{port} (port publié dans {PORT_FILE_NAME})")
+        print(
+            f"→ backend sur http://{CLIENT_HOST}:{port} "
+            f"(écoute {BIND_HOST}, port publié dans {PORT_FILE_NAME})"
+        )
         try:
-            uvicorn.run("app.main:app", host=HOST, port=port, reload=True)
+            uvicorn.run("app.main:app", host=BIND_HOST, port=port, reload=True)
             return 0
         except SystemExit:
             # Reprise réservée au port occupé (cf. should_retry_after_exit) : toute
