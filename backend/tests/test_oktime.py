@@ -851,8 +851,14 @@ def test_course_results_invariants_de_course_calcules_une_seule_fois(monkeypatch
     """Cinq invariants par course, pas par participant.
 
     `_is_relay_course` parcourt tous les `runners` : le recalculer à chaque
-    participant rend `_course_results` **quadratique** (0,468 s pour 2 000
-    participants, dont 87 % en recalculs sur la plus grosse épreuve du panel).
+    participant rend `_course_results` **quadratique**. Mesuré en re-revue
+    (2026-07-27, la mesure la plus récente et la plus complète) à 500 / 1 000 /
+    2 000 participants : 0,060 / 0,196 / 0,706 s avant correction, contre
+    0,010 / 0,016 / 0,035 s après — la valeur absolue dépend de la machine, ce
+    qui compte est l'ordre de grandeur et le passage de quadratique à linéaire.
+    Le gros du coût tombait sur les plus grosses courses du panel, celles de
+    Mimizan, l'épreuve la plus fournie (1 336 participations toutes courses
+    confondues, cf. design §1.1).
     """
     appels: list[str] = []
     vrai_relais, vrai_type = oktime._is_relay_course, oktime.classify_event_type

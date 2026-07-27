@@ -197,6 +197,14 @@ stables, l'identité l'est aussi d'un re-scrape à l'autre.
 Si ok-time levait l'anonymat plus tard, la réconciliation d'identité (#66)
 rattacherait les participations au nom réel au prochain `rescrape-db`.
 
+> **Amendement (revue finale, 2026-07-27, #52).** Quand `dossard` est nul, le
+> code livré ne fabrique **pas** cette identité synthétique : sans dossard,
+> `« Anonyme <epreuve_id>-None »` serait identique pour tous les anonymes de
+> l'épreuve et les fusionnerait en un seul `Athlete`. Le nom amputé de la
+> source (`"T... B..."`) part alors par le chemin ordinaire, via
+> `split_athlete_name`. Ce cas relève des participants sans dossard, déjà hors
+> périmètre (§7).
+
 ### 4.4 Réparation du mojibake
 
 Sur `nom` uniquement — seul champ où il a été mesuré. On tente
