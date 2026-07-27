@@ -23,9 +23,26 @@ lancer les deux sur la même étape** — détail et arbre de décision :
   `[P]` de `tasks.md` en parallèle), avec `test-driven-development` dans chaque
   tâche.
 - **Speckit est canonique sur le cadrage et la planification** : un seul
-  `spec.md`, un seul `plan.md`. Ne pas produire de plan Superpowers concurrent.
-  `brainstorming` uniquement en amont si l'idée est encore floue — son résultat
-  est injecté dans `/speckit-specify`.
+  `spec.md`, un seul `plan.md`. Ne pas produire de spec ni de plan Superpowers
+  concurrent.
+- **Emplacement des artefacts Superpowers — préférence de projet, elle prime sur
+  les défauts de `brainstorming` et `writing-plans`** (les deux skills prévoient
+  cette surcharge : « User preferences for spec/plan location override this
+  default »). Sur une feature en cycle Speckit, `spec.md` et `plan.md` de
+  `specs/NNN-feature/` sont les **seuls** artefacts de cadrage et de plan :
+  n'écrire ni `docs/superpowers/specs/…-design.md`, ni `docs/superpowers/plans/…`.
+- **Ne pas lancer `brainstorming` sur une feature en cycle Speckit.** Ce n'est pas
+  une question de discipline : le skill écrit **et commite** son `-design.md`, puis
+  enchaîne obligatoirement sur `writing-plans` (« Do NOT invoke any other skill »),
+  donc il produit mécaniquement un design *et* un plan concurrents. Deux voies
+  propres, à trancher avant de commencer : **sonder** puis `/speckit-specify` (cycle
+  feature), ou `brainstorming` → `writing-plans` **sans** Speckit (workflow vibe).
+- **Un sondage n'est ni une spec ni un plan** : il consigne ce qui a été mesuré sur
+  le terrain. Il reste autorisé et attendu dans les deux workflows, sous
+  `docs/superpowers/specs/YYYY-MM-DD-<sujet>-{sondage,audit,report}.md`, et il
+  **prime** sur le design, la spec et le plan — toute divergence se tranche en
+  re-sondant. Forme à reproduire et cas de référence : `docs/WORKFLOW-IA.md`,
+  §La troisième catégorie : le sondage.
 - **Superpowers est canonique sur l'exécution** : ne pas lancer
   `/speckit-implement` **et** `subagent-driven-development`.
 - Fin de branche : `requesting-code-review` → `verification-before-completion` →
@@ -47,7 +64,11 @@ Une seule génération, en deux briques :
 - **Backend** (`backend/`) : FastAPI, archi en couches, modèle normalisé, Alembic.
 - **Frontend** (`frontend/`) : Next.js 16 (App Router), TypeScript, Tailwind, shadcn/ui.
 
-Specs de refonte (historiques) : `docs/superpowers/specs/`.
+`docs/superpowers/specs/` mêle deux natures : des **designs de features livrées**
+(valeur historique, dont les specs de refonte) et des **rapports de terrain encore
+normatifs** — sondages et audits, cités nominativement plus bas là où ils
+s'appliquent. Qui écrit quoi, et où : `docs/WORKFLOW-IA.md`, §Où atterrissent les
+artefacts.
 
 ## Stack
 - **Backend** (`backend/`) : Python 3.13, **uv** (`pyproject.toml` + `uv.lock`), FastAPI,
