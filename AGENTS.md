@@ -238,6 +238,12 @@ toujours en code 0.
   c'était le SSRF de #49. Un provider dont la condition ne se réduit pas à une
   liste de hosts (Wiclax : `wiclax.com` n'est une page de résultats que sur un
   chemin G-Live) surcharge `matches` et **compose** sur `_host_match`.
+  Aucun `matches` n'appelle `urlparse` directement : le host se lit par
+  `registry._url_host` (le path par `_url_path`), qui rendent `""` sur une URL
+  illisible. `urlparse` lève sur un host IPv6 malformé (`https://[oops/x`), et
+  `detect_provider` parcourt **tous** les providers : un seul `urlparse` nu —
+  fût-il dans le dernier de la liste, T2Area — suffit à faire lever la
+  détection entière, garde des autres comprise.
 - **Breizh Chrono réutilise la logique Klikego** (`klikego._parse_detail`,
   `_detect_event_type`) — ne pas dupliquer, factoriser dans `klikego.py`.
 - Identification club : **une seule définition**, `app/core/club.py`
