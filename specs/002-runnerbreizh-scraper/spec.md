@@ -291,3 +291,6 @@ Aucune entité nouvelle. Le fournisseur alimente le modèle existant :
   métier, messages d'erreur destinés à l'opérateur et textes utilisateur en
   français. Le module est le premier du dossier à suivre la convention cible ;
   aucun fichier existant n'est réécrit (règle de transition du principe I).
+  **L'écart avec `AGENTS.md` a depuis été résorbé en amont** : `483c2e4` (PR #120)
+  y remplace la règle « tout en français » par un renvoi au principe I. L'arbitrage
+  rendu ici est donc devenu la règle explicite du dépôt.

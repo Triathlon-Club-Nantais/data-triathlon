@@ -57,9 +57,10 @@ d'intégration. 10 liens du Sheet débloqués (4 épreuves distinctes).
 
 *GATE: passé avant Phase 0, re-vérifié après Phase 1.*
 
-Le template ne contient qu'un placeholder pour cette section (TODO connu du Sync
-Impact Report de la constitution). La grille est donc explicitée ici, principe par
-principe, comme l'exige la Gouvernance.
+Grille des 6 principes, comme l'exige la Gouvernance. Le template porte désormais
+cette grille (corrigée en amont par `483c2e4`, PR #120, qui a résorbé le
+TODO(plan-template) du Sync Impact Report) ; l'ordre et les intitulés ci-dessous
+la reprennent.
 
 | Principe | Verdict | Justification |
 | --- | --- | --- |
