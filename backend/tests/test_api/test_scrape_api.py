@@ -1,6 +1,8 @@
 import json
 from datetime import date
 
+import pytest
+
 from app.scrapers.base import ScrapedResult
 
 
@@ -21,6 +23,17 @@ def _result(bib, nom):
 def test_detect(client):
     resp = client.get("/api/v1/scrape/detect", params={"url": "https://www.klikego.com/x"})
     assert resp.json() == {"provider": "klikego"}
+
+
+def test_detect_sur_host_ipv6_malforme_ne_leve_pas_500(client):
+    """Résidu du finding Important n°2 (revue #49) : `WiclaxProvider.matches`
+    faisait son propre `urlparse` non protégé, appelé avant tout garde-fou —
+    cet endpoint ne passe ni par `HttpUrl` ni par `_validate_url`. Une entrée
+    dégradée doit rester un non-match (fallback `playwright`), jamais une
+    exception qui remonte en 500."""
+    resp = client.get("/api/v1/scrape/detect", params={"url": "https://[oops/x"})
+    assert resp.status_code == 200
+    assert resp.json() == {"provider": "playwright"}
 
 
 def test_import_event(client, monkeypatch):
@@ -92,3 +105,68 @@ def test_import_event_expose_updated_counter(client, monkeypatch):
     body = resp.json()
     assert "updated" in body
     assert body == {"imported": 1, "updated": 0, "skipped": 0, "cached": False}
+
+
+@pytest.mark.parametrize("url", [
+    "file:///etc/passwd",
+    "gopher://169.254.169.254/",
+    "javascript:alert(1)",
+    "pas-une-url",
+    "",
+])
+@pytest.mark.parametrize("route", ["/api/v1/scrape/event", "/api/v1/scrape/event/stream"])
+def test_schema_non_http_rejete_a_la_porte(client, route, url):
+    """422 de Pydantic, avant d'atteindre le service : le schéma d'entrée est
+    la première garde des deux endpoints d'import (#49)."""
+    resp = client.post(route, json={"url": url})
+    assert resp.status_code == 422
+
+
+def test_url_http_valide_toujours_acceptee(client, monkeypatch):
+    """Non-régression : `HttpUrl` ne doit refuser aucune URL de chronométrage réelle."""
+    from app.services import import_service
+
+    vues: list[str] = []
+
+    def fake_scrape(url):
+        vues.append(url)
+        return [_result("1", "DUPONT")]
+
+    monkeypatch.setattr(import_service, "registry_scrape_event_all", fake_scrape)
+
+    url = "https://www.prolivesport.fr/index.php?chap=event&eventId=979&race=Triathlon%20M"
+    resp = client.post("/api/v1/scrape/event", json={"url": url})
+
+    assert resp.status_code == 200
+    # Le service reçoit bien une `str`, pas un objet `HttpUrl`, et l'URL n'a pas
+    # été réécrite : `source_url` est la clé du cache TTL.
+    assert vues == [url]
+    assert isinstance(vues[0], str)
+
+
+@pytest.mark.parametrize("url, attendu", [
+    # Port par défaut supprimé — cas réel, cf. `_ROUTAGE_LEGITIME` de test_registry.py.
+    (
+        "https://my.raceresult.com:443/399938/results",
+        "https://my.raceresult.com/399938/results",
+    ),
+    # Espaces du chemin percent-encodés.
+    (
+        "https://chronosmetron.wiclax-results.com/Triathlon de la Roche 2026/",
+        "https://chronosmetron.wiclax-results.com/Triathlon%20de%20la%20Roche%202026/",
+    ),
+    # Caractères non-ASCII percent-encodés.
+    (
+        "https://www.klikego.com/résultats/été",
+        "https://www.klikego.com/r%C3%A9sultats/%C3%A9t%C3%A9",
+    ),
+])
+def test_httpurl_normalise_la_cle_de_cache(url, attendu):
+    """Épingle la normalisation de `HttpUrl` (mesurée sur pydantic 2.13.4) :
+    `source_url` en dérive sur ces trois familles d'entrée. Pas un bug — le
+    commentaire de `ScrapeRequest.url` documente la conséquence exacte (cache
+    TTL inefficace sur ces URLs, mais pas de doublon de course) — mais si
+    pydantic change de comportement, ce test doit le signaler."""
+    from app.schemas.scrape import ScrapeRequest
+
+    assert str(ScrapeRequest(url=url).url) == attendu

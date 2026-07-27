@@ -230,6 +230,20 @@ toujours en code 0.
   `scrape_event_all()` — la **seule** voie d'import depuis la suppression du
   scraping athlète-unique —, puis l'enregistrer dans `scrapers/registry.py`
   (registre Protocol). Provider inconnu → `playwright`.
+- **Détection par host, jamais par sous-chaîne d'URL.** Un provider déclare ses
+  `_HOSTS` et hérite de `HostMatchedProvider` : il n'a pas de `matches` à
+  écrire. La règle « host exact ou vrai sous-domaine » a une seule définition,
+  `registry._host_match`. Un `"exemple.fr" in url` route n'importe quelle URL
+  portant le jeton en query vers le scraper, qui la requête telle quelle —
+  c'était le SSRF de #49. Un provider dont la condition ne se réduit pas à une
+  liste de hosts (Wiclax : `wiclax.com` n'est une page de résultats que sur un
+  chemin G-Live) surcharge `matches` et **compose** sur `_host_match`.
+  Aucun `matches` n'appelle `urlparse` directement : le host se lit par
+  `registry._url_host` (le path par `_url_path`), qui rendent `""` sur une URL
+  illisible. `urlparse` lève sur un host IPv6 malformé (`https://[oops/x`), et
+  `detect_provider` parcourt **tous** les providers : un seul `urlparse` nu —
+  fût-il dans le dernier de la liste, T2Area — suffit à faire lever la
+  détection entière, garde des autres comprise.
 - **Breizh Chrono réutilise la logique Klikego** (`klikego._parse_detail`,
   `_detect_event_type`) — ne pas dupliquer, factoriser dans `klikego.py`.
 - Identification club : **une seule définition**, `app/core/club.py`
@@ -265,9 +279,9 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 ## Fournisseurs supportés
 
 Klikego, Breizh Chrono, TimePulse, Wiclax/G-Live, ProLiveSport, Sportinnovation,
-RaceResult, Chronoplace — tous en **épreuve complète**. Chronoplace (Laravel +
-Livewire) se lit en `GET ?perPage=all` — pas de POST Livewire — et importe
-**toutes** les épreuves de l'événement pointé par l'URL.
+RaceResult, Chronoplace, T2Area (FFTRI) — tous en **épreuve complète**.
+Chronoplace (Laravel + Livewire) se lit en `GET ?perPage=all` — pas de POST
+Livewire — et importe **toutes** les épreuves de l'événement pointé par l'URL.
 Wiclax/G-Live couvre plusieurs déploiements : `wiclax-results.com`,
 `chronosmetron.com` et `chronowest.fr` (WordPress + iframe G-Live). Un nouveau
 déploiement tiers = un host dans `WiclaxProvider._HOSTS`.
@@ -302,5 +316,40 @@ design et sur le plan. Ne pas revenir à la route `/{id}/RRPublish/data/…` (al
 hérité, 404 sur les épreuves récentes) ni au filtre `Live` (qui vide certaines
 épreuves) : les deux ont des tests de non-régression dédiés.
 Design : `docs/superpowers/specs/2026-07-19-raceresult-scraper-design.md`.
+
+`fftri.t2area.com` (T2Area) est la plateforme officielle de la FFTRI : Joomla
+server-rendered, classement complet en **une** requête, **aucune pagination**.
+L'URL accepte trois profondeurs — édition (`/calendrier/<événement>/<épreuve>/<année>.html`,
+le cas nominal), fiche individuelle (**tronquée** vers son édition, la forme du
+Sheet) et épreuve sans année (1 GET de plus, on prend la dernière édition
+publiée). Une URL d'**événement** est refusée : ses épreuves ont des dernières
+éditions d'années différentes, un fan-out n'aurait pas d'année lisible. Un appel
+= une `Course`. **Préférer l'URL d'édition dans le Sheet** : une URL d'épreuve
+sans année est stockée telle quelle en `Course.source_url` — après publication
+d'une nouvelle édition, un `import-sheet` (`force=False`) retombe alors sur la
+course de l'année précédente, la juge fraîche (TTL 30 j) et renvoie `cached` au
+lieu d'importer la nouvelle édition. Pas un bug : la conséquence d'accepter
+cette profondeur, à connaître avant de la choisir dans le Sheet.
+
+Deux particularités structurantes. **Les splits ne sont pas dans le classement** :
+ils vivent sur la fiche individuelle, soit une requête par participant — le
+scraper ne charge donc que les fiches des membres du TCN (25 requêtes sur les 901
+lignes de La Baule M 2022). C'est le seul scraper conscient du club ; il
+**réutilise** `core/club.py`, il ne le réimplémente pas (#76). Et **la FFTRI
+republie** : chaque page porte « Résultats produits par X ». Quand X est un
+provider supporté, un avertissement est journalisé — mais la mention ne lie que
+l'accueil du chronométreur, jamais l'épreuve, donc aucune URL source n'est
+constructible : seul l'opérateur peut la fournir.
+
+Détails de lecture : colonnes lues **par libellé d'en-tête** (l'en-tête réel en
+porte 10, `id_league` et `league` s'intercalant avant `Détails`) ; `00:00:00` vaut
+temps absent (un DNF sort avec cette valeur) ; `bib_number` n'est rempli que
+lorsque la clé de fiche est un vrai dossard (`bib-566`), jamais avec une licence
+(`A44719`) ni un identifiant interne (`id-1153352`) ; splits mappés **par
+libellé** (`CàP 1`/`CàP 2` en duathlon), un libellé inconnu faisant basculer
+toute la fiche sur `segments`. Design :
+`docs/superpowers/specs/2026-07-26-t2area-scraper-design.md`, plan :
+`docs/superpowers/plans/2026-07-26-t2area-scraper.md`.
+
 Types : Triathlon XS/S/M/L/XL, Duathlon XS/S/M/L, SwimRun S/M/L, Aquathlon,
 Aquarun, Bike & Run.
