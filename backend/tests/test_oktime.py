@@ -275,6 +275,36 @@ def test_athlete_identity_rgpd_identite_synthetique():
     assert (nom, prenom) == ("Anonyme 59697-927", "")
 
 
+def test_athlete_identity_rgpd_sans_dossard_garde_le_nom_ampute():
+    """Sans dossard, l'identité synthétique ne discrimine plus rien.
+
+    « Anonyme 59697-None » serait le même pour tous les participants `rgpd:"N"`
+    sans dossard d'une même épreuve : un seul `Athlete` agrégerait les résultats
+    de plusieurs personnes, et `UNIQUE(course_id, bib_number)` ne rattraperait
+    rien, `bib_number` étant vide. On s'en remet alors au nom amputé de la
+    source, qui discrimine au moins autant.
+    """
+    nom, prenom = oktime._athlete_identity(
+        {"nom": "T... B...", "dossard": None, "rgpd": "N"},
+        is_relay=False,
+        epreuve_id="59697",
+    )
+
+    assert (nom, prenom) == ("T... B...", "")
+
+
+def test_athlete_identity_rgpd_sans_dossard_ne_fusionne_pas_deux_personnes():
+    """Deux anonymes sans dossard de la même épreuve restent deux athlètes."""
+    a = oktime._athlete_identity(
+        {"nom": "T... B...", "dossard": None, "rgpd": "N"}, is_relay=False, epreuve_id="59697"
+    )
+    b = oktime._athlete_identity(
+        {"nom": "M... D...", "dossard": None, "rgpd": "N"}, is_relay=False, epreuve_id="59697"
+    )
+
+    assert a != b
+
+
 def test_athlete_identity_rgpd_distincte_entre_deux_epreuves():
     """`Athlete` est unique sur (nom, prénom, date de naissance) : sans la clé
     d'épreuve, les dossards 927 anonymes de deux courses fusionneraient en un
@@ -752,6 +782,106 @@ def test_course_results_course_enfants_non_chronometree_est_finisher():
     assert len(resultats) == 1
     assert resultats[0].status == "finisher"
     assert resultats[0].total_time == ""
+
+
+COURSE_EN_COURS = {
+    "title_course": "Triathlon M Individuel",
+    "epreuve_id": 60201,
+    "date_course": "12/07/2026",
+    "distance_course": "51,500",
+    "heuredebut_course": "09:00:00",
+    "reference_epreuve": "LAC26-M",
+    "status": "live",
+    "runners": [
+        {
+            "nom": "Paul MARTIN",
+            "sexe": "M",
+            "dossard": 12,
+            "club": "",
+            "categorie": "Senior",
+            "temps_finish": "00:00:00",
+            "classement_general": 0,
+            "classement_categorie": 0,
+            "classement_sexe": 0,
+            "rgpd": "O",
+            "abandon": "N",
+            "disqualifie": "N",
+            "pris_depart": "O",
+            "points_de_passage": [
+                {"id": "11|1", "nom": "NATATION", "time": "00:23:56"},
+                {"id": "12|2", "nom": "VELO", "time": "01:40:10"},
+            ],
+        }
+    ],
+}
+
+
+def test_course_results_course_en_cours_avec_points_de_passage_nest_pas_ecartee(caplog):
+    """Une course en cours n'est **pas** une liste d'engagés.
+
+    Ses participants n'ont pas encore de `temps_finish`, mais leurs
+    `points_de_passage` sont renseignés : les écarter rendrait un import vide et
+    **sans erreur**, et — aucune `Participation` n'étant créée — le TTL de cache
+    « course en cours » (10 min) ne pourrait jamais s'armer. La course resterait
+    absente jusqu'à ce que l'organisateur bascule `status` sur « finish ».
+    """
+    with caplog.at_level(logging.INFO, logger="app.scrapers.oktime"):
+        resultats = oktime._course_results(
+            COURSE_EN_COURS, url=URL_48555, evenement_title="Triathlon du Lac 2026"
+        )
+
+    assert len(resultats) == 1
+    assert "liste d'engagés" not in caplog.text
+    assert resultats[0].segments == [("NATATION", "00:23:56"), ("VELO", "01:16:14")]
+
+
+def test_course_results_course_en_cours_ne_sort_pas_en_finisher():
+    """Le repli `finisher` vise les courses **déclarées terminées** et non
+    chronométrées (les courses d'enfants). Une course encore en cours n'en est
+    pas une : ses partants ne sont pas arrivés, l'heuristique doit trancher."""
+    resultats = oktime._course_results(
+        COURSE_EN_COURS, url=URL_48555, evenement_title="Triathlon du Lac 2026"
+    )
+
+    assert resultats[0].status == ""
+    assert resultats[0].total_time == ""
+
+
+def test_course_results_invariants_de_course_calcules_une_seule_fois(monkeypatch):
+    """Cinq invariants par course, pas par participant.
+
+    `_is_relay_course` parcourt tous les `runners` : le recalculer à chaque
+    participant rend `_course_results` **quadratique** (0,468 s pour 2 000
+    participants, dont 87 % en recalculs sur la plus grosse épreuve du panel).
+    """
+    appels: list[str] = []
+    vrai_relais, vrai_type = oktime._is_relay_course, oktime.classify_event_type
+    monkeypatch.setattr(
+        oktime, "_is_relay_course",
+        lambda titre, runners: appels.append("relais") or vrai_relais(titre, runners),
+    )
+    monkeypatch.setattr(
+        oktime, "classify_event_type",
+        lambda texte: appels.append("type") or vrai_type(texte),
+    )
+    course = {
+        "title_course": "Triathlon M",
+        "epreuve_id": 1,
+        "date_course": "01/06/2025",
+        "distance_course": "51,500",
+        "status": "finish",
+        "runners": [
+            {"nom": f"Paul MARTIN{i}", "temps_finish": "02:00:00"} for i in range(5)
+        ],
+    }
+
+    resultats = oktime._course_results(
+        course, url=URL_48555, evenement_title="Triathlon de Mimizan"
+    )
+
+    assert len(resultats) == 5
+    assert appels.count("relais") == 1
+    assert appels.count("type") == 1
 
 
 def test_course_results_log_agrege_des_cumuls_conserves(caplog):

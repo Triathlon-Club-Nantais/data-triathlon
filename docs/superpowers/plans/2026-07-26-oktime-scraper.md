@@ -28,6 +28,23 @@ fallback `playwright`). Les comptes de tests annoncés à chaque tâche sont don
 des cibles réelles, pas des estimations. Seul le test `integration` (réseau
 réel) reste à confronter à la source.
 
+> **Amendement de revue finale (2026-07-27, #52).** Trois constats de la revue de
+> branche ont fait diverger le code livré de ce plan. Le plan a été amendé pour
+> ne plus le contredire — un plan qui contredit le code est un piège pour le
+> prochain lecteur. Chaque écart est signalé sur place par une note encadrée :
+>
+> | Constat | Où | En un mot |
+> | --- | --- | --- |
+> | **I1** — la garde « liste d'engagés » jetait les courses **en cours** | tâche 7 | deux prédicats séparés au lieu d'un seul `non_chronometree` (+ `_points_cumules`, tâche 5) |
+> | **I2** — cinq invariants de course recalculés par participant | tâche 7 | sortis de la compréhension ; le coût redevient linéaire |
+> | **M1** — l'identité anonyme fusionnait les participants **sans dossard** | tâche 3 | identité synthétique seulement quand le dossard la rend discriminante |
+>
+> Le module compte désormais 108 tests unitaires (103 + 5 ajoutés en revue). Les
+> comptes annoncés à chaque tâche ont été ajustés en conséquence. La spec
+> (`docs/superpowers/specs/2026-07-26-oktime-scraper-design.md`) reste inchangée
+> et prime toujours : ces corrections la servent, elles ne la contredisent pas —
+> I1 réalise enfin l'intention explicite de son §3.1.
+
 **Spec de référence :** `docs/superpowers/specs/2026-07-26-oktime-scraper-design.md`
 (design approuvé, chiffres mesurés sur un panel de 21 événements / 99 courses /
 12 644 participations le 2026-07-26). En cas de doute, la spec prime sur ce plan.
@@ -717,6 +734,29 @@ def test_athlete_identity_rgpd_distincte_entre_deux_epreuves():
     b = oktime._athlete_identity(commun, is_relay=False, epreuve_id="60101")
 
     assert a != b
+
+
+# Ajoutés en revue finale (cf. la note de fin de tâche) : sans dossard,
+# l'identité synthétique n'est plus discriminante.
+def test_athlete_identity_rgpd_sans_dossard_garde_le_nom_ampute():
+    nom, prenom = oktime._athlete_identity(
+        {"nom": "T... B...", "dossard": None, "rgpd": "N"},
+        is_relay=False,
+        epreuve_id="59697",
+    )
+
+    assert (nom, prenom) == ("T... B...", "")
+
+
+def test_athlete_identity_rgpd_sans_dossard_ne_fusionne_pas_deux_personnes():
+    a = oktime._athlete_identity(
+        {"nom": "T... B...", "dossard": None, "rgpd": "N"}, is_relay=False, epreuve_id="59697"
+    )
+    b = oktime._athlete_identity(
+        {"nom": "M... D...", "dossard": None, "rgpd": "N"}, is_relay=False, epreuve_id="59697"
+    )
+
+    assert a != b
 ```
 
 - [ ] **Étape 2 : lancer les tests et vérifier qu'ils échouent**
@@ -794,34 +834,56 @@ def _athlete_identity(runner: dict, *, is_relay: bool, epreuve_id: str) -> tuple
 
     Trois régimes :
 
-    1. `rgpd:"N"` — la source ampute le nom (« T... B... ») mais publie temps et
-       rang. Identité synthétique « Anonyme <epreuve_id>-<dossard> », prénom
-       vide. La clé d'épreuve est **indispensable** : `Athlete` étant unique sur
-       (nom, prénom, date de naissance), un simple « Anonyme 927 » fusionnerait
-       les dossards 927 anonymes de deux courses en un athlète agrégeant les
-       résultats de deux personnes. `epreuve_id` et `dossard` étant stables,
-       l'identité l'est d'un re-scrape à l'autre. Si ok-time levait l'anonymat,
-       la réconciliation d'identité (#66) rattacherait les participations au nom
-       réel au prochain `rescrape-db`.
+    1. `rgpd:"N"` **avec dossard** — la source ampute le nom (« T... B... ») mais
+       publie temps et rang. Identité synthétique « Anonyme <epreuve_id>-<dossard> »,
+       prénom vide. La clé d'épreuve est **indispensable** : `Athlete` étant
+       unique sur (nom, prénom, date de naissance), un simple « Anonyme 927 »
+       fusionnerait les dossards 927 anonymes de deux courses en un athlète
+       agrégeant les résultats de deux personnes. `epreuve_id` et `dossard` étant
+       stables, l'identité l'est d'un re-scrape à l'autre. Si ok-time levait
+       l'anonymat, la réconciliation d'identité (#66) rattacherait les
+       participations au nom réel au prochain `rescrape-db`.
     2. équipe (course de relais, ou nom porteur d'un « / ») — le nom entier va
        dans `nom`, le prénom reste vide. Ne pas mutiler un nom d'équipe.
     3. sinon — convention « Prénom NOM » de la source, déléguée à
-       `split_athlete_name`.
+       `split_athlete_name`. **Y compris un anonyme sans dossard** : sans dossard,
+       « Anonyme <epreuve_id>-None » serait identique pour tous les anonymes de
+       l'épreuve et les fusionnerait en un seul `Athlete` — exactement le défaut
+       que la clé d'épreuve sert à écarter, et que `UNIQUE(course_id, bib_number)`
+       ne rattraperait pas, `bib_number` étant vide lui aussi. Le nom amputé de
+       la source discrimine au moins autant qu'une identité synthétique
+       constante, et ne prétend rien qu'on ne sache : on le laisse passer par le
+       chemin ordinaire. Deux noms amputés identiques fusionneraient encore, mais
+       c'est l'ambiguïté de la source, pas une que le scraper introduit (les
+       participants sans dossard restent hors périmètre, §7 du design).
     """
-    if str(runner.get("rgpd") or "").strip().upper() == "N":
-        return f"Anonyme {epreuve_id}-{runner.get('dossard')}", ""
+    dossard = "" if runner.get("dossard") is None else str(runner.get("dossard")).strip()
+    if str(runner.get("rgpd") or "").strip().upper() == "N" and dossard:
+        return f"Anonyme {epreuve_id}-{dossard}", ""
     nom = _repair_mojibake(str(runner.get("nom") or "").strip())
     if is_relay or _SEPARATEUR_EQUIPE in nom:
         return nom, ""
     return split_athlete_name(nom)
 ```
 
+> **Note de revue finale (#52) — constat M1.** Le plan d'origine prenait la
+> branche synthétique dès `rgpd:"N"`, sans regarder le dossard :
+> `f"Anonyme {epreuve_id}-{runner.get('dossard')}"`. Deux anonymes **sans
+> dossard** d'une même épreuve produisaient alors la même identité
+> (« Anonyme 59697-None ») et se fondaient en un seul `Athlete` agrégeant deux
+> personnes — le défaut même que le raisonnement du §4.3 du design sert à
+> écarter, le garde-fou tombant dès que `dossard` est nul. La branche est donc
+> conditionnée au dossard, la seule chose qui la rende discriminante ; sinon on
+> retombe sur le chemin ordinaire. Le seuil est calé sur celui de `bib_number`
+> dans `_build_result` : identité synthétique **si et seulement si**
+> `UNIQUE(course_id, bib_number)` a de quoi mordre.
+
 - [ ] **Étape 4 : lancer les tests et vérifier qu'ils passent**
 
 ```bash
 uv run pytest tests/test_oktime.py -v && uv run ruff check .
 ```
-Attendu : 35 tests PASS.
+Attendu : 37 tests PASS (35 au plan d'origine + les 2 tests de revue finale).
 
 - [ ] **Étape 5 : commit**
 
@@ -1026,7 +1088,7 @@ def _total_time(runner: dict) -> str:
 ```bash
 uv run pytest tests/test_oktime.py -v && uv run ruff check .
 ```
-Attendu : 58 tests PASS.
+Attendu : 60 tests PASS (58 au plan d'origine + les 2 tests de revue finale de la tâche 3).
 
 - [ ] **Étape 5 : commit**
 
@@ -1052,6 +1114,8 @@ participations du panel dont les points sortent dans le désordre à la source.
 - Consomme : `normalize_time` (`scrapers/utils.py`).
 - Produit :
   - `_secs(t: str) -> int`, `_fmt_secs(s: int) -> str`
+  - `_points_cumules(points: list[dict] | None) -> list[tuple[str, str]]` (ajout de
+    revue finale, partagé avec `_course_results`)
   - `_segments(points: list[dict]) -> tuple[list[tuple[str, str]], bool]`
     → `(segments, cumuls_conserves)`. Le second membre vaut `True` quand un delta
     négatif a fait replier sur les valeurs cumulées brutes.
@@ -1172,6 +1236,23 @@ def _fmt_secs(s: int) -> str:
     return f"{s // 3600:02d}:{(s % 3600) // 60:02d}:{s % 60:02d}"
 
 
+def _points_cumules(points: list[dict] | None) -> list[tuple[str, str]]:
+    """(libellé, temps cumulé) des points **porteurs d'une durée**, dans l'ordre.
+
+    Un point à zéro ne porte aucune durée : le garder ferait sortir un delta
+    négatif au point suivant et déclencherait le repli à tort.
+
+    Extrait de `_segments` pour servir aussi à `_course_results`, qui doit savoir
+    si une course détient des données chronométriques **de quelque nature que ce
+    soit** avant de l'écarter comme liste d'engagés.
+    """
+    cumules = [
+        (str(point.get("nom") or "").strip(), normalize_time(str(point.get("time") or "").strip()))
+        for point in points or []
+    ]
+    return [(label, temps) for label, temps in cumules if _secs(temps) > 0]
+
+
 def _segments(points: list[dict] | None) -> tuple[list[tuple[str, str]], bool]:
     """Points de passage cumulés → durées de segment. (segments, cumuls_conservés).
 
@@ -1194,13 +1275,7 @@ def _segments(points: list[dict] | None) -> tuple[list[tuple[str, str]], bool]:
     un dernier point différent de `temps_finish` (épreuves finissant sur
     « Départ CAP2 »). `temps_finish` fait seul foi.
     """
-    cumules = [
-        (str(point.get("nom") or "").strip(), normalize_time(str(point.get("time") or "").strip()))
-        for point in points or []
-    ]
-    # Un point à zéro ne porte aucune durée : le garder ferait sortir un delta
-    # négatif au point suivant et déclencherait le repli à tort.
-    cumules = [(label, temps) for label, temps in cumules if _secs(temps) > 0]
+    cumules = _points_cumules(points)
     if not cumules:
         return [], False
 
@@ -1215,12 +1290,19 @@ def _segments(points: list[dict] | None) -> tuple[list[tuple[str, str]], bool]:
     return durees, False
 ```
 
+> **Note de revue finale (#52).** `_points_cumules` n'était pas dans le plan
+> d'origine : le filtrage des points à zéro vivait en ligne dans `_segments`. Il
+> en a été extrait parce que `_course_results` a besoin du **même** critère
+> « ce point porte-t-il une durée ? » pour décider si une course détient des
+> données chronométriques (cf. la note de la tâche 7). Aucun changement de
+> comportement de `_segments`.
+
 - [ ] **Étape 4 : lancer les tests et vérifier qu'ils passent**
 
 ```bash
 uv run pytest tests/test_oktime.py -v && uv run ruff check .
 ```
-Attendu : 65 tests PASS.
+Attendu : 67 tests PASS (65 au plan d'origine + les 2 tests de revue finale de la tâche 3).
 
 - [ ] **Étape 5 : commit**
 
@@ -1524,7 +1606,7 @@ def _build_result(
 ```bash
 uv run pytest tests/test_oktime.py -v && uv run ruff check .
 ```
-Attendu : 75 tests PASS.
+Attendu : 77 tests PASS (75 au plan d'origine + les 2 tests de revue finale de la tâche 3).
 
 - [ ] **Étape 5 : commit**
 
@@ -1548,7 +1630,7 @@ log agrégé (une ligne par épreuve, pas une par participation).
 - Créer : `backend/tests/fixtures/oktime_engages_48999.json`
 
 **Interfaces :**
-- Consomme : `_build_result`, `_is_relay_course`, `_total_time` ;
+- Consomme : `_build_result`, `_is_relay_course`, `_total_time`, `_points_cumules` ;
   `qualify_event_name` (`scrapers/utils.py`), `classify_event_type`
   (`scrapers/classify.py`).
 - Produit :
@@ -1881,9 +1963,9 @@ def test_course_results_statuts_de_la_source():
 
 
 def test_course_results_ecarte_une_liste_dengages(caplog):
-    """`status != "finish"` **et** aucun temps : épreuve inscrite mais pas courue.
-    Les importer créerait des participations sans temps, que l'heuristique du
-    projet classerait DNF."""
+    """`status != "finish"` **et** aucune donnée chronométrique : épreuve inscrite
+    mais pas courue. Les importer créerait des participations sans temps, que
+    l'heuristique du projet classerait DNF."""
     with caplog.at_level(logging.INFO, logger="app.scrapers.oktime"):
         resultats = _courses(ENGAGES, 0)
 
@@ -1900,6 +1982,80 @@ def test_course_results_course_enfants_non_chronometree_est_finisher():
     assert len(resultats) == 1
     assert resultats[0].status == "finisher"
     assert resultats[0].total_time == ""
+
+
+# Ajoutés en revue finale (cf. la note de fin de tâche) : une course **en cours**
+# n'est pas une liste d'engagés, et ses partants ne sont pas des finishers.
+COURSE_EN_COURS = {
+    "title_course": "Triathlon M Individuel",
+    "epreuve_id": 60201,
+    "date_course": "12/07/2026",
+    "distance_course": "51,500",
+    "heuredebut_course": "09:00:00",
+    "reference_epreuve": "LAC26-M",
+    "status": "live",
+    "runners": [
+        {
+            "nom": "Paul MARTIN", "sexe": "M", "dossard": 12, "club": "",
+            "categorie": "Senior", "temps_finish": "00:00:00",
+            "classement_general": 0, "classement_categorie": 0, "classement_sexe": 0,
+            "rgpd": "O", "abandon": "N", "disqualifie": "N", "pris_depart": "O",
+            "points_de_passage": [
+                {"id": "11|1", "nom": "NATATION", "time": "00:23:56"},
+                {"id": "12|2", "nom": "VELO", "time": "01:40:10"},
+            ],
+        }
+    ],
+}
+
+
+def test_course_results_course_en_cours_avec_points_de_passage_nest_pas_ecartee(caplog):
+    with caplog.at_level(logging.INFO, logger="app.scrapers.oktime"):
+        resultats = oktime._course_results(
+            COURSE_EN_COURS, url=URL_48555, evenement_title="Triathlon du Lac 2026"
+        )
+
+    assert len(resultats) == 1
+    assert "liste d'engagés" not in caplog.text
+    assert resultats[0].segments == [("NATATION", "00:23:56"), ("VELO", "01:16:14")]
+
+
+def test_course_results_course_en_cours_ne_sort_pas_en_finisher():
+    resultats = oktime._course_results(
+        COURSE_EN_COURS, url=URL_48555, evenement_title="Triathlon du Lac 2026"
+    )
+
+    assert resultats[0].status == ""
+    assert resultats[0].total_time == ""
+
+
+def test_course_results_invariants_de_course_calcules_une_seule_fois(monkeypatch):
+    """Cinq invariants par course, pas par participant."""
+    appels: list[str] = []
+    vrai_relais, vrai_type = oktime._is_relay_course, oktime.classify_event_type
+    monkeypatch.setattr(
+        oktime, "_is_relay_course",
+        lambda titre, runners: appels.append("relais") or vrai_relais(titre, runners),
+    )
+    monkeypatch.setattr(
+        oktime, "classify_event_type",
+        lambda texte: appels.append("type") or vrai_type(texte),
+    )
+    course = {
+        "title_course": "Triathlon M", "epreuve_id": 1, "date_course": "01/06/2025",
+        "distance_course": "51,500", "status": "finish",
+        "runners": [
+            {"nom": f"Paul MARTIN{i}", "temps_finish": "02:00:00"} for i in range(5)
+        ],
+    }
+
+    resultats = oktime._course_results(
+        course, url=URL_48555, evenement_title="Triathlon de Mimizan"
+    )
+
+    assert len(resultats) == 5
+    assert appels.count("relais") == 1
+    assert appels.count("type") == 1
 
 
 def test_course_results_log_agrege_des_cumuls_conserves(caplog):
@@ -2002,49 +2158,77 @@ def _course_results(course: dict, *, url: str, evenement_title: str) -> list[Scr
     la charge porte des entités brutes (`&#8211;`, `&#038;`) dans tous les titres
     concernés, qui partiraient en base telles quelles.
 
-    Une course est **écartée** si `status != "finish"` **et** qu'aucun de ses
-    participants n'a de temps : ce sont les listes d'engagés (11 courses / 1 035
-    participations au panel), dont l'import créerait autant de participations
-    sans temps que l'heuristique du projet classerait DNF. La double condition
-    est délibérée — le comportement de `status` sur une course **en cours** n'a
-    pas été observé, et écarter sur ce seul critère risquerait de jeter des
-    résultats partiels.
+    Deux prédicats distincts, à ne pas confondre en un seul (correction de revue
+    finale, cf. plus bas) :
+
+    - **écartement d'une liste d'engagés** — `status != "finish"` **et** aucune
+      donnée chronométrique d'aucune sorte, ni `temps_finish` ni point de passage
+      exploitable. Ce sont les 11 courses / 1 035 participations du panel
+      inscrites mais pas encore courues, dont l'import créerait autant de
+      participations sans temps que l'heuristique du projet classerait DNF. La
+      double condition est délibérée : le comportement de `status` sur une course
+      **en cours** n'a pas été observé au panel, et écarter sur ce seul critère
+      jetterait des résultats partiels — lesquels vivent dans
+      `points_de_passage`, d'où leur prise en compte ici. Une course en cours
+      écartée rendrait un import **vide et sans erreur** ; pire, aucune
+      `Participation` n'étant créée, le TTL de cache « course en cours » (10 min)
+      ne pourrait jamais s'armer et la course resterait absente jusqu'au passage
+      de `status` à « finish » par l'organisateur.
+    - **repli `finisher`** (`course_non_chronometree`) — aucun `temps_finish`
+      **et** `status == "finish"` : une course déclarée terminée mais non
+      chronométrée, c'est-à-dire les 3 courses d'enfants du panel. La condition
+      sur `status` est ce qui empêche des coureurs **encore en course** de sortir
+      en `finisher`.
     """
     title_course = html.unescape(str(course.get("title_course") or "").strip())
     runners = course.get("runners") or []
     statut_course = str(course.get("status") or "").strip()
-    non_chronometree = not any(_total_time(runner) for runner in runners)
+    terminee = statut_course == "finish"
+    aucun_temps_final = not any(_total_time(runner) for runner in runners)
 
-    if statut_course != "finish" and non_chronometree:
+    if not terminee and aucun_temps_final and not any(
+        _points_cumules(runner.get("points_de_passage")) for runner in runners
+    ):
         logger.info(
             "Épreuve ok-time « %s » écartée : liste d'engagés (status=%r, "
-            "%d participant(s), aucun temps).",
+            "%d participant(s), aucun temps ni point de passage).",
             title_course, statut_course, len(runners),
         )
         return []
 
     epreuve_id = str(course.get("epreuve_id") or "")
-    # Type classé sur la **concaténation** des deux titres : le titre d'épreuve
-    # seul est trompeur (« Format M individuel » du SwimRun Côte Beauté sortirait
-    # en triathlon-m, « La Bourriquette » du Trail du Bourraid en triathlon). Sur
-    # les 99 courses du panel, la concaténation en corrige 5 et n'en dégrade aucune.
+    # Invariants de la course, calculés **une fois** : les remonter dans la
+    # compréhension rendait `_course_results` quadratique, `_is_relay_course`
+    # parcourant tous les `runners` à chaque participant.
+    # Le type est classé sur la **concaténation** des deux titres : le titre
+    # d'épreuve seul est trompeur (« Format M individuel » du SwimRun Côte Beauté
+    # sortirait en triathlon-m, « La Bourriquette » du Trail du Bourraid en
+    # triathlon). Sur les 99 courses du panel, la concaténation en corrige 5 et
+    # n'en dégrade aucune.
+    event_name = qualify_event_name(evenement_title, title_course)
+    event_type = classify_event_type(f"{evenement_title} {title_course}")
+    event_date = _parse_date(course.get("date_course"))
+    distance_km = _parse_distance(course.get("distance_course"))
+    is_relay = _is_relay_course(title_course, runners)
+    contexte = {
+        "epreuve_id": epreuve_id,
+        "heuredebut_course": course.get("heuredebut_course"),
+        "reference_epreuve": course.get("reference_epreuve"),
+        "status_course": statut_course,
+    }
+
     resultats = [
         _build_result(
             runner,
             url=url,
-            event_name=qualify_event_name(evenement_title, title_course),
-            event_type=classify_event_type(f"{evenement_title} {title_course}"),
-            event_date=_parse_date(course.get("date_course")),
-            distance_km=_parse_distance(course.get("distance_course")),
-            is_relay=_is_relay_course(title_course, runners),
+            event_name=event_name,
+            event_type=event_type,
+            event_date=event_date,
+            distance_km=distance_km,
+            is_relay=is_relay,
             epreuve_id=epreuve_id,
-            course_non_chronometree=non_chronometree,
-            contexte={
-                "epreuve_id": epreuve_id,
-                "heuredebut_course": course.get("heuredebut_course"),
-                "reference_epreuve": course.get("reference_epreuve"),
-                "status_course": statut_course,
-            },
+            course_non_chronometree=aucun_temps_final and terminee,
+            contexte=contexte,
         )
         for runner in runners
     ]
@@ -2052,12 +2236,39 @@ def _course_results(course: dict, *, url: str, evenement_title: str) -> list[Scr
     return resultats
 ```
 
+> **Notes de revue finale (#52) — constats I1 et I2.** Le plan d'origine dictait
+> un seul prédicat, `non_chronometree = not any(_total_time(r) for r in runners)`,
+> servant **à la fois** l'écartement des listes d'engagés et le repli `finisher`,
+> et il recalculait les cinq invariants de course dans la compréhension.
+>
+> **I1** — `_total_time` ne lit que `temps_finish`, alors que les résultats
+> partiels d'une course **en cours** vivent dans `points_de_passage`. Une épreuve
+> `status="live"` aux participants chronométrés en passage mais à
+> `temps_finish="00:00:00"` était donc **entièrement écartée** : `scrape_event_all`
+> rendait une liste vide, `import_service` un import silencieusement vide et
+> **sans erreur**, et — faute de `Participation` — le TTL de cache « course en
+> cours » (10 min) ne pouvait jamais s'armer. Élargir naïvement le prédicat
+> unique aurait cassé son second usage et fait sortir en `finisher` des coureurs
+> encore en course : les deux décisions sont donc désormais **deux prédicats
+> distincts**, `aucun_temps_final and terminee` d'un côté, l'absence de toute
+> donnée chronométrique de l'autre. Cela reste conforme au §3.1 du design, dont
+> ce code réalise enfin l'intention (« ne pas jeter de résultats partiels »).
+>
+> **I2** — `_is_relay_course` parcourt tous les `runners` : le rappeler par
+> participant rendait `_course_results` **quadratique** (mesuré : 0,038 s à 500
+> participants, 0,108 s à 1 000, 0,313 s à 2 000 ; 87 % du temps de la fonction
+> sur la plus grosse épreuve du panel, 1 336 participations). Les cinq invariants
+> — relais, nom qualifié, type, date, distance — et le dictionnaire `contexte`
+> sont sortis de la compréhension. Changement mécanique, sans effet sur le
+> comportement : les valeurs sont identiques par construction (mesuré après :
+> 0,010 s / 0,009 s / 0,026 s, soit un coût redevenu linéaire).
+
 - [ ] **Étape 5 : lancer les tests et vérifier qu'ils passent**
 
 ```bash
 uv run pytest tests/test_oktime.py -v && uv run ruff check .
 ```
-Attendu : 95 tests PASS.
+Attendu : 100 tests PASS (95 au plan d'origine + les 5 tests de revue finale).
 
 - [ ] **Étape 6 : commit**
 
@@ -2237,7 +2448,8 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
 ```bash
 uv run pytest tests/test_oktime.py -v && uv run ruff check .
 ```
-Attendu : 103 tests PASS — le total du module, vérifié en exécutant l'ensemble
+Attendu : 108 tests PASS (103 au plan d'origine + les 5 tests de revue finale)
+— le total du module, vérifié en exécutant l'ensemble
 du plan avant sa publication.
 
 - [ ] **Étape 5 : commit**
