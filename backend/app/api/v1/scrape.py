@@ -37,7 +37,7 @@ def scrape_event(
     settings: Settings = Depends(settings_dep),
 ):
     """Importe tous les participants d'une épreuve (bloquant)."""
-    return import_service.import_event(db, body.url, settings)
+    return import_service.import_event(db, str(body.url), settings)
 
 
 @router.post("/scrape/event/stream")
@@ -48,7 +48,7 @@ def scrape_event_stream(body: ScrapeRequest, settings: Settings = Depends(settin
         # Session dédiée au générateur (cycle de vie isolé du streaming)
         db = SessionLocal()
         try:
-            for event in import_service.iter_import_event(db, body.url, settings):
+            for event in import_service.iter_import_event(db, str(body.url), settings):
                 yield f"data: {json.dumps(event, default=_json_default)}\n\n"
         finally:
             db.close()
