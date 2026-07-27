@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/Triathlon-Club-Nantais/data-triathlon/specs/001-onboard-skill/contracts/state-schema.json",
+  "title": "OnboardSkillState",
+  "description": "Format du fichier .claude/skills/onboard/state.json — état persistant du skill /onboard, permettant la reprise entre invocations. Fichier git-ignoré.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "last_updated", "answers", "steps"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Version du schéma. Un state avec une version différente de celle attendue par le skill est invalidé et regénéré."
+    },
+    "last_updated": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Horodatage ISO 8601 UTC de la dernière écriture du fichier."
+    },
+    "answers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile", "experience_level", "verbosity", "skip_ia_tooling"],
+      "properties": {
+        "profile": {
+          "type": "string",
+          "enum": ["fullstack", "backend", "frontend"],
+          "description": "Couche de contribution déclarée par le contributeur."
+        },
+        "experience_level": {
+          "type": "string",
+          "enum": ["nouveau", "retour"],
+          "description": "Contributeur nouveau vs qui revient après une pause."
+        },
+        "db_choice": {
+          "type": "string",
+          "enum": ["sqlite", "supabase"],
+          "description": "Base de données choisie. Absent si .env préexistant (skip de la question)."
+        },
+        "verbosity": {
+          "type": "string",
+          "enum": ["courte", "complete"],
+          "description": "Version courte (résumé + tour rapide) ou complète."
+        },
+        "skip_ia_tooling": {
+          "type": "boolean",
+          "description": "Le contributeur préfère sauter la présentation de Speckit/Superpowers."
+        }
+      }
+    },
+    "steps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "prerequisites",
+        "install",
+        "db",
+        "tests",
+        "dev",
+        "tour",
+        "ia_tooling",
+        "first_feature"
+      ],
+      "properties": {
+        "prerequisites":  { "$ref": "#/definitions/stepStatus" },
+        "install":        { "$ref": "#/definitions/stepStatus" },
+        "db":             { "$ref": "#/definitions/stepStatus" },
+        "tests":          { "$ref": "#/definitions/stepStatus" },
+        "dev":            { "$ref": "#/definitions/stepStatus" },
+        "tour":           { "$ref": "#/definitions/stepStatus" },
+        "ia_tooling":     { "$ref": "#/definitions/stepStatus" },
+        "first_feature":  { "$ref": "#/definitions/stepStatus" }
+      }
+    }
+  },
+  "definitions": {
+    "stepStatus": {
+      "type": "string",
+      "enum": ["pending", "done", "skipped", "failed"],
+      "description": "pending = pas commencée ; done = OK, artefacts vérifiés ; skipped = sautée sciemment ; failed = a échoué, bloque la progression jusqu'à retry."
+    }
+  }
+}
