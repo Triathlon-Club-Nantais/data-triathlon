@@ -29,6 +29,7 @@ from app.scrapers import (
     oktime,
     prolivesport,
     raceresult,
+    runnerbreizh,
     sportinnovation,
     t2area,
     timepulse,
@@ -261,6 +262,14 @@ class CompetitorProvider(HostMatchedProvider):
         return competitor.scrape_event_all(url)
 
 
+class RunnerBreizhProvider(HostMatchedProvider):
+    name = "runnerbreizh"
+    _HOSTS = ("runnerbreizh.fr",)
+
+    def scrape_event_all(self, url: str) -> list[ScrapedResult]:
+        return runnerbreizh.scrape_event_all(url)
+
+
 class T2AreaProvider:
     name = "t2area"
 
@@ -304,6 +313,7 @@ PROVIDERS: list[ScraperProtocol] = [
     ChronoplaceProvider(),
     OkTimeProvider(),
     CompetitorProvider(),
+    RunnerBreizhProvider(),
     T2AreaProvider(),
 ]
 _FALLBACK: ScraperProtocol = PlaywrightProvider()

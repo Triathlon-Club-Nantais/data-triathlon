@@ -44,6 +44,13 @@ LIVE_URLS = {
     # Triathlon de Lacanau 2026 : 5 épreuves partageant date et type — l'épreuve
     # qui a servi au sondage d'API. La forme `/race/<id>` est celle du Sheet.
     "oktime": "https://classement.ok-time.fr/48555/race/59697",
+    # runnerbreizh : épreuve du Sheet, 322 classés sur 7 pages. L'URL est donnée
+    # avec `&page=2`, la forme réellement collée par les contributeurs : le
+    # scraper doit repartir de la page 1.
+    "runnerbreizh": (
+        "https://www.runnerbreizh.fr/requetetriathlons.php"
+        "?CourseFichierGpsNom=2025-09-0749quiberon&page=2&tricourse=&Sexe="
+    ),
 }
 
 
@@ -444,3 +451,22 @@ def test_t2area_epreuve_complete():
     # La promesse « splits des seuls TCN » : au moins un membre du club porte un
     # temps de natation, chargé via la fiche individuelle.
     assert any(is_tcn(r.club) and r.swim_time for r in results)
+
+
+@pytest.mark.integration
+def test_runnerbreizh_importe_toute_lepreuve_depuis_une_page_intermediaire():
+    """322 classés sur 7 pages, alors que l'URL du Sheet pointe la page 2.
+
+    Vérifie sur le site réel les deux invariants qui ne se voient pas sur fixture :
+    le nombre de classés annoncé par le site est atteint, et le nom d'épreuve
+    enregistré ne porte pas le détail des distances (sans quoi la carte ne
+    localiserait pas l'épreuve).
+    """
+    results = registry.scrape_event_all(LIVE_URLS["runnerbreizh"])
+
+    annonces = {r.raw_data.get("field_size") for r in results}
+    assert annonces == {len(results)}, (
+        f"runnerbreizh : {len(results)} importés pour {annonces} annoncés"
+    )
+    assert all(r.event_name == "Triathlon de Quiberon M" for r in results)
+    assert all(not r.bib_number and not r.club for r in results)

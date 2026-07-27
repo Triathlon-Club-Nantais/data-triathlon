@@ -157,6 +157,13 @@ _ROUTAGE_LEGITIME = [
     ("chronoplace", "https://www.chronoplace.fr/classement/spaycific-races-2025/epreuve/494"),
     ("competitor", "https://www.ironman.com/races/im-france/results"),
     ("competitor", "https://labs-v2.competitor.com/results/event/x"),
+    ("runnerbreizh",
+     "https://www.runnerbreizh.fr/requetetriathlons.php?CourseFichierGpsNom=2025-09-0749quiberon"),
+    # Apex sans `www` : la forme qu'un contributeur peut coller à la main.
+    ("runnerbreizh", "https://runnerbreizh.fr/requetetriathlons.php?CourseFichierGpsNom=x"),
+    # Fiche coureur : même host, donc bien routée ici — c'est le scraper qui la
+    # refuse ensuite, avec un message nommant la forme attendue.
+    ("runnerbreizh", "https://www.runnerbreizh.fr/triathlons.php?CoureurNom=X&CoureurPrenom=Y"),
 ]
 
 
@@ -184,6 +191,7 @@ _JETONS_PROVIDERS = [
     "fftri.t2area.com",
     "ironman.com",
     "competitor.com",
+    "runnerbreizh.fr",
 ]
 
 #: Les quatre familles de contournement de l'issue #49, plus la confusion userinfo.
