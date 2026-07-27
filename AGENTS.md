@@ -30,9 +30,15 @@ lancer les deux sur la même étape** — détail et arbre de décision :
   `/speckit-implement` **et** `subagent-driven-development`.
 - Fin de branche : `requesting-code-review` → `verification-before-completion` →
   `finishing-a-development-branch`.
-- Branche et commits-gate sont à gérer **manuellement** : les hooks git de
-  `.specify/extensions.yml` appellent `/speckit-git-feature` et
-  `/speckit-git-commit`, absents de `.specify/integrations/claude.manifest.json`.
+- Branche et commits-gate sont à gérer **manuellement** : les hooks de
+  `.specify/extensions.yml` appellent `speckit.git.feature` et
+  `speckit.git.commit` (qu'un agent Claude invoquerait en `/speckit-git-feature`
+  / `/speckit-git-commit`), mais l'extension `git` n'enregistre ses commandes
+  que pour `agy` et `codex` — voir `registered_commands` dans
+  `.specify/extensions/.registry`. Ni pour `claude` (dont le manifest
+  `.specify/integrations/claude.manifest.json` ne liste que les neuf skills
+  `speckit-*`), ni pour `opencode`, l'intégration active
+  (`.specify/integration.json`). Ces hooks ne s'exécutent donc jamais.
 
 ## Pile applicative
 
