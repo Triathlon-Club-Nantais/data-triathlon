@@ -40,7 +40,22 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+Passage explicite des 6 principes de `.specify/memory/constitution.md` (v1.0.0).
+Statuts autorisés : ✅ conforme / ⚠️ justifié (ligne à créer dans Complexity
+Tracking) / N/A (le principe ne s'applique pas à cette feature).
+
+| # | Principe | Statut | Justification (si ⚠️ ou N/A) |
+|---|----------|--------|-------------------------------|
+| I | Langue métier français / technique English | ☐ | |
+| II | Architecture en couches (api → services → repositories → DB) | ☐ | |
+| III | TDD sans réseau (non-négociable) | ☐ | |
+| IV | Contrats API et CLI stables | ☐ | |
+| V | Neutralité par défaut des paramètres transverses | ☐ | |
+| VI | Simplicité / YAGNI | ☐ | |
+
+Un principe en ⚠️ doit être justifié dans « Complexity Tracking » ci-dessous
+avec l'alternative rejetée et la raison. Un principe violé sans justification
+bloque le passage à `/speckit-tasks`.
 
 ## Project Structure
 
