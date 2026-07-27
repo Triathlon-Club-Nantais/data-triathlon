@@ -152,6 +152,7 @@ _JETONS_PROVIDERS = [
     "wiclax-results.com",
     "chronosmetron.com",
     "chronowest.fr",
+    "fftri.t2area.com",
 ]
 
 #: Les quatre familles de contournement de l'issue #49, plus la confusion userinfo.
@@ -209,6 +210,27 @@ def test_wiclax_sosie_avec_chemin_g_live_non_capte(url):
     condition. Les gabarits génériques ne l'atteignent pas — leur path n'a pas
     de `G-Live` —, d'où ce cas dédié."""
     assert registry.detect_provider(url) == "playwright"
+
+
+def test_t2area_matches_reste_total_sur_un_host_ipv6_malforme():
+    """`T2AreaProvider` garde sa propre règle (égalité stricte, pas la règle
+    « host ou vrai sous-domaine »), donc son propre accès au host : elle doit
+    être aussi totale que `_host_match`.
+
+    Ce n'est pas un doublon de la garde Wiclax : dernier provider avant le
+    fallback, T2Area est traversé par **toute** URL non reconnue. Une garde
+    posée en amont seulement se fait contourner par ce maillon-là."""
+    assert registry.T2AreaProvider().matches("https://[oops/x") is False
+
+
+def test_t2area_n_accepte_que_le_host_fftri_exact():
+    """Verrou de l'égalité stricte : router T2Area via `_host_match`
+    l'élargirait aux sous-domaines de `fftri.t2area.com`, alors que
+    l'allowlist ne vise que le host FFTRI lui-même (périmètre de #51)."""
+    provider = registry.T2AreaProvider()
+
+    assert provider.matches("https://fftri.t2area.com/calendrier/x/y/2025.html") is True
+    assert provider.matches("https://x.fftri.t2area.com/calendrier/x/y/2025.html") is False
 
 
 # ---------------------------------------------------------------------------

@@ -37,36 +37,47 @@ from app.scrapers.base import ScrapedResult
 logger = logging.getLogger(__name__)
 
 
-def _host_match(url: str, hosts: tuple[str, ...]) -> bool:
-    """Vrai si le host de `url` est l'un de `hosts`, ou un vrai sous-domaine.
+def _url_host(url: str) -> str:
+    """Host de `url` en minuscules, chaîne vide si `urlparse` échoue.
 
     `hostname` et non `netloc` : sans lui, un port explicite
     (`my.raceresult.com:443`) ou des credentials feraient rater le match — et
     `hostname` est déjà en minuscules, il isole aussi le host réel d'une URL
     du type `https://timepulse.fr@169.254.169.254/`.
 
+    Extraction seule — aucune règle de comparaison ici, elle reste dans
+    `_host_match`. `urlparse` lève `ValueError` sur un host IPv6 malformé (ex.
+    `https://[oops/x`) : **tout** accès au host passe par ce helper, y compris
+    celui d'un provider dont la règle ne se réduit pas à `_host_match`
+    (`T2AreaProvider`, égalité stricte). Une garde posée provider par provider
+    laisse le maillon suivant lever, et `detect_provider` les parcourt tous.
+    """
+    try:
+        return (urlparse(url).hostname or "").lower()
+    except ValueError:
+        return ""
+
+
+def _host_match(url: str, hosts: tuple[str, ...]) -> bool:
+    """Vrai si le host de `url` est l'un de `hosts`, ou un vrai sous-domaine.
+
     Le point compte : `endswith("timepulse.fr")` nu suivrait aussi
     `evil-timepulse.fr`. Ne **jamais** revenir à un test de sous-chaîne sur
     l'URL entière — c'était le SSRF de l'issue #49, le jeton suffisait en query.
 
-    `urlparse` lève `ValueError` sur un host IPv6 malformé (ex. `https://[oops/x`) :
-    une entrée dégradée doit rester un non-match, jamais une exception.
+    Une entrée dégradée reste un non-match, jamais une exception : c'est
+    `_url_host` qui le garantit.
     """
-    try:
-        host = (urlparse(url).hostname or "").lower()
-    except ValueError:
-        return False
+    host = _url_host(url)
     return any(host == h or host.endswith(f".{h}") for h in hosts)
 
 
 def _url_path(url: str) -> str:
     """Path de `url`, chaîne vide si `urlparse` échoue.
 
-    Extraction seule — aucune règle de host ici, elle reste entièrement dans
-    `_host_match`. `urlparse` lève `ValueError` sur un host IPv6 malformé (ex.
-    `https://[oops/x`) : un provider qui a besoin du path en plus du host
+    Pendant de `_url_host` : un provider qui a besoin du path en plus du host
     (`WiclaxProvider`) passe par ce helper plutôt que par un `urlparse` direct,
-    pour rester total comme `_host_match`.
+    pour rester total lui aussi.
     """
     try:
         return urlparse(url).path or ""
@@ -226,10 +237,13 @@ class T2AreaProvider:
 
     def matches(self, url: str) -> bool:
         # Allowlist **explicite** du seul host FFTRI : T2Area sert d'autres
-        # fédérations sur d'autres sous-domaines, hors périmètre de #51.
-        # `hostname` (et non `netloc`) : un port explicite ou des credentials
-        # feraient rater le match.
-        return (urlparse(url).hostname or "").lower() == "fftri.t2area.com"
+        # fédérations sur d'autres sous-domaines, hors périmètre de #51. D'où
+        # l'égalité stricte, et non `_host_match`, qui accepterait aussi les
+        # sous-domaines de `fftri.t2area.com`.
+        # `_url_host` (et non un `urlparse` direct) : dernier provider avant le
+        # fallback, celui-ci est traversé par toute URL non reconnue — un host
+        # IPv6 malformé y ferait lever `detect_provider`.
+        return _url_host(url) == "fftri.t2area.com"
 
     def scrape_event_all(self, url: str) -> list[ScrapedResult]:
         return t2area.scrape_event_all(url)
