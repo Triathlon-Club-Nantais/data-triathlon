@@ -22,11 +22,13 @@ positionnels.
 
 **État de vérification :** le code et les tests de ce plan ont été assemblés et
 **exécutés** avant publication, contre le vrai paquet `app.scrapers` —
-103 tests verts, `ruff check` propre, et l'allowlist de host validée contre les
-providers existants (aucun conflit ; `ok-time.fr` tombe aujourd'hui sur le
-fallback `playwright`). Les comptes de tests annoncés à chaque tâche sont donc
-des cibles réelles, pas des estimations. Seul le test `integration` (réseau
-réel) reste à confronter à la source.
+103 tests verts à l'origine (108 aujourd'hui, après les correctifs de revue
+finale détaillés dans l'encadré ci-dessous), `ruff check` propre, et
+l'allowlist de host validée contre les providers existants (aucun conflit ;
+`ok-time.fr` tombe aujourd'hui sur le fallback `playwright`). Les comptes de
+tests annoncés à chaque tâche sont donc des cibles réelles, pas des
+estimations. Seul le test `integration` (réseau réel) reste à confronter à la
+source.
 
 > **Amendement de revue finale (2026-07-27, #52).** Trois constats de la revue de
 > branche ont fait diverger le code livré de ce plan. Le plan a été amendé pour
@@ -2255,13 +2257,19 @@ def _course_results(course: dict, *, url: str, evenement_title: str) -> list[Scr
 > ce code réalise enfin l'intention (« ne pas jeter de résultats partiels »).
 >
 > **I2** — `_is_relay_course` parcourt tous les `runners` : le rappeler par
-> participant rendait `_course_results` **quadratique** (mesuré : 0,038 s à 500
-> participants, 0,108 s à 1 000, 0,313 s à 2 000 ; 87 % du temps de la fonction
-> sur la plus grosse épreuve du panel, 1 336 participations). Les cinq invariants
-> — relais, nom qualifié, type, date, distance — et le dictionnaire `contexte`
-> sont sortis de la compréhension. Changement mécanique, sans effet sur le
-> comportement : les valeurs sont identiques par construction (mesuré après :
-> 0,010 s / 0,009 s / 0,026 s, soit un coût redevenu linéaire).
+> participant rendait `_course_results` **quadratique**. Mesuré en re-revue
+> (2026-07-27, la mesure la plus récente et la plus complète — d'anciennes
+> mesures sur d'autres machines avaient donné des valeurs différentes, sans
+> changer le constat) à 500 / 1 000 / 2 000 participants : 0,060 / 0,196 /
+> 0,706 s avant correction, contre 0,010 / 0,016 / 0,035 s après. La valeur
+> absolue dépend de la machine ; ce qui compte est le passage de quadratique à
+> linéaire. Le gros du coût tombait sur les plus grosses courses du panel,
+> celles de Mimizan, l'épreuve la plus fournie (1 336 participations toutes
+> courses confondues — un total d'épreuve, pas celui d'une course unique que
+> `_course_results` traite). Les cinq invariants — relais, nom qualifié, type,
+> date, distance — et le dictionnaire `contexte` sont sortis de la
+> compréhension. Changement mécanique, sans effet sur le comportement : les
+> valeurs sont identiques par construction.
 
 - [ ] **Étape 5 : lancer les tests et vérifier qu'ils passent**
 
