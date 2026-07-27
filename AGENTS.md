@@ -68,6 +68,15 @@ un `--port 8001` figé faisait échouer le second worktree sur « Address alread
 use » — et publie ce port dans `.dev-backend.json` à la racine du worktree
 (gitignoré, un par worktree).
 
+Deux adresses, deux rôles, à ne pas confondre (`BIND_HOST` / `CLIENT_HOST`) : on
+**écoute** sur `0.0.0.0` — comme en prod (`--host 0.0.0.0` du Dockerfile et de
+`render.yaml`), sans quoi l'API est injoignable depuis l'extérieur d'un conteneur —
+et le scan de ports bind cette même adresse, sinon il déclarerait libre un port
+qu'uvicorn ne pourrait pas prendre. Mais l'URL **publiée** (et celles du frontend)
+reste en `127.0.0.1` : `0.0.0.0` désigne des interfaces d'écoute, pas une
+destination, et seul Linux la tolère en connexion sortante. Le frontend ne bind
+rien de son côté — `next dev` écoute déjà `0.0.0.0` par défaut.
+
 `npm run dev` (`frontend/scripts/dev.mjs`) lit ce fichier, **vérifie que le port
 répond** (un backend tué par `kill -9` laisse son fichier derrière lui), puis lance
 `next dev` avec `BACKEND_URL` **et** `API_URL` renseignés. Les deux comptent : la

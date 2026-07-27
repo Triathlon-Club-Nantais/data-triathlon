@@ -75,6 +75,14 @@ describe("readPublishedBackend", () => {
   });
 });
 
+describe("DEFAULT_BACKEND_URL", () => {
+  it("vise le loopback et non l'adresse d'écoute du backend", () => {
+    // Le backend écoute `0.0.0.0` (conteneurs), mais cette URL est une **destination** :
+    // `0.0.0.0` n'en désigne aucune, et seul Linux la tolère en connexion sortante.
+    expect(DEFAULT_BACKEND_URL).toBe("http://127.0.0.1:8001");
+  });
+});
+
 describe("isPortAlive", () => {
   it("répond vrai quand un serveur écoute", async () => {
     expect(await isPortAlive(await serveurEcoutant())).toBe(true);
