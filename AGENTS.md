@@ -398,10 +398,10 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 ## Fournisseurs supportés
 
 Klikego, Breizh Chrono, TimePulse, Wiclax/G-Live, ProLiveSport, Sportinnovation,
-RaceResult, Chronoplace, T2Area (FFTRI), Competitor, ok-time — tous en **épreuve
-complète**. Chronoplace (Laravel + Livewire) se lit en `GET ?perPage=all` — pas
-de POST Livewire — et importe **toutes** les épreuves de l'événement pointé par
-l'URL.
+RaceResult, Chronoplace, T2Area (FFTRI), Competitor, ok-time, runnerbreizh — tous
+en **épreuve complète**. Chronoplace (Laravel + Livewire) se lit en
+`GET ?perPage=all` — pas de POST Livewire — et importe **toutes** les épreuves de
+l'événement pointé par l'URL.
 ok-time.fr (issue #52) se lit sur une API JSON WordPress publique
 (`/wp-json/gmcap/v1/evenements/{id}/results`) : **un seul appel** rend
 l'événement entier, toutes épreuves comprises — ni Playwright ni parsing HTML
@@ -530,6 +530,67 @@ sont fabriqués côté navigateur et absents des réponses du proxy.
 Sondage (source de vérité, 7 épreuves) :
 `docs/superpowers/specs/2026-07-26-competitor-ironman-sondage.md`.
 Design : `docs/superpowers/specs/2026-07-26-competitor-ironman-design.md`.
+
+`runnerbreizh.fr` est du **HTML statique paginé** : 50 lignes par page,
+`&page=N`, arrêt sur la première page dont `table.tableau-courses` n'a plus que
+son en-tête. Ne **jamais** borner la pagination sur le total annoncé en colonne
+« Classement » : en relais il compte des **équipes** (31) et non des lignes (62),
+la boucle s'arrêterait à la moitié de l'épreuve.
+
+L'URL d'entrée est **canonicalisée** (`runnerbreizh.canonical_url`) : on ne garde
+que `CourseFichierGpsNom` et on repart de la page 1. Ce n'est pas cosmétique —
+8 des 10 liens du Sheet portent `&page=2` ou `&page=3`, et `&Sexe=F` renvoie un
+**sous-ensemble** : partir de l'URL telle quelle amputerait silencieusement
+l'import de ses premières pages, donc de ses meilleurs classés. La
+canonicalisation est faite par **allowlist** (reconstruction depuis le seul
+paramètre d'épreuve), pas par soustraction des vues connues. Portée exacte : elle
+fixe le `source_url` des `ScrapedResult`, **pas** la clé du cache TTL —
+`Course.source_url` reçoit l'URL brute passée par `import_service`, donc deux
+graphies d'une même épreuve dans le Sheet la font re-scraper. Vérifié en base :
+une seule `Course`, aucune participation dupliquée.
+
+Trois manques structurants, tous assumés. **Aucun dossard** : rien à faire côté
+scraper, le repli anti-doublon par athlète de `import_service` (commit `b49e295`)
+est générique. **Aucun club** — ni dans le classement, ni sur la fiche coureur :
+`Participation.club` reste `NULL`, donc ces participations sont **hors du
+périmètre `scope=club`** (dashboard, page club, stats). C'est arbitré, pas un
+oubli ; et sans danger, `athlete_repository.resolve` ne mettant à jour
+`Athlete.club` que si un club est fourni. **Aucune date de naissance** : seule la
+catégorie situe l'âge, d'où le genre lu sur son suffixe (`S3M` → M) — sauf
+catégorie d'équipe (`M+F`), qui décrit la composition du duo et non la personne
+de la ligne.
+
+Les 8 colonnes sont **figées quelle que soit la discipline** et leurs libellés
+mentent : en duathlon « 1ère épreuve » est une course à pied, en aquathlon la
+cellule « Vélo » reste affichée mais vide. Elles se lisent donc **par position**
+(2/3/5 → slots `swim`/`bike`/`run`), `services/mapping.build_splits` les
+ré-étiquetant selon `event_type` — jamais par libellé d'en-tête, contrairement à
+T2Area. Les transitions ne sont pas publiées (pas de T1/T2). Métadonnées
+d'épreuve dans le `<title>`, seul porteur de la date en format français ; le nom
+y est nettoyé de son suffixe de distances (`Triathlon de Quiberon M`, pas
+`… M (1.5/38/10)`) faute de quoi l'extraction de commune de la carte échoue.
+
+Deux profondeurs d'URL refusées, avec un message qui nomme la forme attendue :
+la **fiche coureur** (`triathlons.php?CoureurNom=…`, présente dans le Sheet) —
+un palmarès multi-épreuves dont le fan-out coûterait ~130 requêtes pour une URL —
+et l'**identifiant d'épreuve inconnu**, que le site sert en 200 avec un `<title>`
+vide et qui passerait sinon pour une épreuve sans classement publié. Comme la
+FFTRI, le site **republie** (« Chronométrée par BREIZHCHRONO ») : un
+avertissement est journalisé quand le chronométreur est un provider supporté —
+sa page ne lie que son accueil, aucune URL d'épreuve n'est reconstructible.
+
+Deux particularités de données à connaître : les lignes que le site n'a pas
+appariées à un coureur portent le libellé `?DOSSARD #43637` (3 sur 322 à
+Quiberon) et sont **importées telles quelles** en nom, sans prénom — les écarter
+créerait autant de trous dans le classement, comptés en `rank_gap` par
+`services/quality.py`, ce qui masquerait le ratio de place de toute l'épreuve. Et
+un relais publie **une ligne par équipier**, temps et rang partagés : les deux
+participations sont importées, mais les rangs en doublon font sortir l'épreuve
+`is_reliable=false` — limite connue de `quality._rank_anomalies`, hors périmètre.
+
+Sondage du HTML réel (fait autorité) :
+`docs/superpowers/specs/2026-07-27-runnerbreizh-sondage.md`. Spec, plan et
+tâches : `specs/002-runnerbreizh-scraper/`.
 
 Types : Triathlon XS/S/M/L/XL, Duathlon XS/S/M/L, SwimRun S/M/L, Aquathlon,
 Aquarun, Bike & Run.
