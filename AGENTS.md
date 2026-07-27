@@ -62,7 +62,7 @@ Specs de refonte (historiques) : `docs/superpowers/specs/`.
 ```bash
 # Backend (depuis backend/ — aucun venv à activer, uv run s'en charge)
 uv sync                                            # installe les dépendances (dev incluses)
-uv run uvicorn app.main:app --reload --port 8001   # API + /docs (endpoints sous /api/v1)
+uv run python scripts/dev_server.py                # API + /docs, port libre publié (voir « Dev multi-worktree »)
 uv run alembic upgrade head                        # applique les migrations
 uv run alembic revision --autogenerate -m "..."    # nouvelle migration après modif d'un modèle
 uv run python scripts/reset_db.py                  # reset base dev SQLite (vide + migre + seed démo)
@@ -84,7 +84,7 @@ uv run python -m app.cli import-sheet --json | jq -r '.failures[].url' \
 uv run python -m app.cli club-labels --like nant   # libellés club vus en base, marqués TCN ou non
 
 # Frontend (depuis frontend/)
-npm run dev        # Next.js sur :3000, rewrites /api → :8001
+npm run dev        # Next.js sur :3000 (ou suivant libre), branché sur le backend du worktree
 npm run build      # build prod (strict TS + RSC)
 npm test           # vitest run
 npm run lint       # ESLint
@@ -93,6 +93,55 @@ npm run lint       # ESLint
 Variable requise : `backend/.env` avec `DATABASE_URL` (voir `.env.example`). Le
 schéma est géré par **Alembic** (`uv run alembic upgrade head`). Les dépendances et la
 config des outils vivent dans `backend/pyproject.toml` (lock : `backend/uv.lock`).
+
+### Dev multi-worktree
+
+Plusieurs worktrees tournent en parallèle sans configuration. Le backend
+(`backend/scripts/dev_server.py`) prend le **premier port libre à partir de 8001** —
+un `--port 8001` figé faisait échouer le second worktree sur « Address already in
+use » — et publie ce port dans `.dev-backend.json` à la racine du worktree
+(gitignoré, un par worktree).
+
+Deux adresses, deux rôles, à ne pas confondre (`BIND_HOST` / `CLIENT_HOST`) : on
+**écoute** sur `0.0.0.0` — comme en prod (`--host 0.0.0.0` du Dockerfile et de
+`render.yaml`), sans quoi l'API est injoignable depuis l'extérieur d'un conteneur —
+et le scan de ports bind cette même adresse, sinon il déclarerait libre un port
+qu'uvicorn ne pourrait pas prendre. Mais l'URL **publiée** (et celles du frontend)
+reste en `127.0.0.1` : `0.0.0.0` désigne des interfaces d'écoute, pas une
+destination, et seul Linux la tolère en connexion sortante. Le frontend ne bind
+rien de son côté — `next dev` écoute déjà `0.0.0.0` par défaut.
+
+`npm run dev` (`frontend/scripts/dev.mjs`) lit ce fichier, **vérifie que le port
+répond** (un backend tué par `kill -9` laisse son fichier derrière lui), puis lance
+`next dev` avec `BACKEND_URL` **et** `API_URL` renseignés. Les deux comptent : la
+première alimente les rewrites `/api/*` de `next.config.ts`, la seconde les fetch RSC
+de `lib/api/server.ts`. Sans elles, le front d'un worktree tapait `localhost:8001` en
+dur, donc la base d'un autre worktree, **sans erreur visible**.
+
+La découverte ne fait que **combler** : le lanceur n'injecte une variable que si
+personne ne l'a définie, et les `.env*` comptent autant que le shell — c'est le
+loader de Next lui-même (`@next/env`, épinglé sur la version de `next`) qui les lit
+dans `dev.mjs`. Écraser les deux variables aurait rendu `.env.local` muet (Next ne
+fait jamais primer un fichier `.env` sur l'environnement reçu) et supprimé la seule
+façon de dissocier la cible SSR (`API_URL`) de celle des rewrites (`BACKEND_URL`),
+qui diffèrent en prod.
+
+Le code applicatif garde partout sa sémantique `process.env.X || défaut` : la
+découverte vit dans les deux lanceurs de dev, jamais sur un chemin de production.
+L'ordre de démarrage est libre — lancé en premier, le front attend le back (60 s,
+puis repli signalé). Échappatoires : `DEV_BACKEND_PORT` (port imposé côté backend),
+`BACKEND_URL` (cible imposée côté frontend, aucune attente), `API_URL` (cible SSR
+seule) — au choix dans le shell ou dans `frontend/.env.local`.
+
+Le lanceur rend le sort de `next` : code propagé tel quel, et **128+n** quand l'enfant
+est tué (`pkill`, OOM-kill) — un « 1 » forfaitaire ferait passer un arrêt pour une
+panne applicative (`scripts/exit-code.mjs`). Ctrl-C ne passe pas par là : SIGINT frappe
+tout le groupe de processus, le lanceur meurt du signal et l'appelant voit déjà 130.
+
+Côté backend, une sortie `SystemExit` d'uvicorn n'est retentée sur un autre port que
+si le port est **effectivement occupé** (`should_retry_after_exit`) : uvicorn quitte
+aussi par `sys.exit()` sur d'autres pannes de démarrage, et retenter à l'aveugle
+masquerait la vraie cause derrière trois démarrages sur trois ports.
 
 ## Architecture backend (`backend/`)
 
@@ -264,6 +313,20 @@ toujours en code 0.
   `scrape_event_all()` — la **seule** voie d'import depuis la suppression du
   scraping athlète-unique —, puis l'enregistrer dans `scrapers/registry.py`
   (registre Protocol). Provider inconnu → `playwright`.
+- **Détection par host, jamais par sous-chaîne d'URL.** Un provider déclare ses
+  `_HOSTS` et hérite de `HostMatchedProvider` : il n'a pas de `matches` à
+  écrire. La règle « host exact ou vrai sous-domaine » a une seule définition,
+  `registry._host_match`. Un `"exemple.fr" in url` route n'importe quelle URL
+  portant le jeton en query vers le scraper, qui la requête telle quelle —
+  c'était le SSRF de #49. Un provider dont la condition ne se réduit pas à une
+  liste de hosts (Wiclax : `wiclax.com` n'est une page de résultats que sur un
+  chemin G-Live) surcharge `matches` et **compose** sur `_host_match`.
+  Aucun `matches` n'appelle `urlparse` directement : le host se lit par
+  `registry._url_host` (le path par `_url_path`), qui rendent `""` sur une URL
+  illisible. `urlparse` lève sur un host IPv6 malformé (`https://[oops/x`), et
+  `detect_provider` parcourt **tous** les providers : un seul `urlparse` nu —
+  fût-il dans le dernier de la liste, T2Area — suffit à faire lever la
+  détection entière, garde des autres comprise.
 - **Breizh Chrono réutilise la logique Klikego** (`klikego._parse_detail`,
   `_detect_event_type`) — ne pas dupliquer, factoriser dans `klikego.py`.
 - Identification club : **une seule définition**, `app/core/club.py`
@@ -299,9 +362,9 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 ## Fournisseurs supportés
 
 Klikego, Breizh Chrono, TimePulse, Wiclax/G-Live, ProLiveSport, Sportinnovation,
-RaceResult, Chronoplace — tous en **épreuve complète**. Chronoplace (Laravel +
-Livewire) se lit en `GET ?perPage=all` — pas de POST Livewire — et importe
-**toutes** les épreuves de l'événement pointé par l'URL.
+RaceResult, Chronoplace, T2Area (FFTRI) — tous en **épreuve complète**.
+Chronoplace (Laravel + Livewire) se lit en `GET ?perPage=all` — pas de POST
+Livewire — et importe **toutes** les épreuves de l'événement pointé par l'URL.
 Wiclax/G-Live couvre plusieurs déploiements : `wiclax-results.com`,
 `chronosmetron.com` et `chronowest.fr` (WordPress + iframe G-Live). Un nouveau
 déploiement tiers = un host dans `WiclaxProvider._HOSTS`.
@@ -336,5 +399,40 @@ design et sur le plan. Ne pas revenir à la route `/{id}/RRPublish/data/…` (al
 hérité, 404 sur les épreuves récentes) ni au filtre `Live` (qui vide certaines
 épreuves) : les deux ont des tests de non-régression dédiés.
 Design : `docs/superpowers/specs/2026-07-19-raceresult-scraper-design.md`.
+
+`fftri.t2area.com` (T2Area) est la plateforme officielle de la FFTRI : Joomla
+server-rendered, classement complet en **une** requête, **aucune pagination**.
+L'URL accepte trois profondeurs — édition (`/calendrier/<événement>/<épreuve>/<année>.html`,
+le cas nominal), fiche individuelle (**tronquée** vers son édition, la forme du
+Sheet) et épreuve sans année (1 GET de plus, on prend la dernière édition
+publiée). Une URL d'**événement** est refusée : ses épreuves ont des dernières
+éditions d'années différentes, un fan-out n'aurait pas d'année lisible. Un appel
+= une `Course`. **Préférer l'URL d'édition dans le Sheet** : une URL d'épreuve
+sans année est stockée telle quelle en `Course.source_url` — après publication
+d'une nouvelle édition, un `import-sheet` (`force=False`) retombe alors sur la
+course de l'année précédente, la juge fraîche (TTL 30 j) et renvoie `cached` au
+lieu d'importer la nouvelle édition. Pas un bug : la conséquence d'accepter
+cette profondeur, à connaître avant de la choisir dans le Sheet.
+
+Deux particularités structurantes. **Les splits ne sont pas dans le classement** :
+ils vivent sur la fiche individuelle, soit une requête par participant — le
+scraper ne charge donc que les fiches des membres du TCN (25 requêtes sur les 901
+lignes de La Baule M 2022). C'est le seul scraper conscient du club ; il
+**réutilise** `core/club.py`, il ne le réimplémente pas (#76). Et **la FFTRI
+republie** : chaque page porte « Résultats produits par X ». Quand X est un
+provider supporté, un avertissement est journalisé — mais la mention ne lie que
+l'accueil du chronométreur, jamais l'épreuve, donc aucune URL source n'est
+constructible : seul l'opérateur peut la fournir.
+
+Détails de lecture : colonnes lues **par libellé d'en-tête** (l'en-tête réel en
+porte 10, `id_league` et `league` s'intercalant avant `Détails`) ; `00:00:00` vaut
+temps absent (un DNF sort avec cette valeur) ; `bib_number` n'est rempli que
+lorsque la clé de fiche est un vrai dossard (`bib-566`), jamais avec une licence
+(`A44719`) ni un identifiant interne (`id-1153352`) ; splits mappés **par
+libellé** (`CàP 1`/`CàP 2` en duathlon), un libellé inconnu faisant basculer
+toute la fiche sur `segments`. Design :
+`docs/superpowers/specs/2026-07-26-t2area-scraper-design.md`, plan :
+`docs/superpowers/plans/2026-07-26-t2area-scraper.md`.
+
 Types : Triathlon XS/S/M/L/XL, Duathlon XS/S/M/L, SwimRun S/M/L, Aquathlon,
 Aquarun, Bike & Run.

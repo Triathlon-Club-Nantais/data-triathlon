@@ -31,7 +31,7 @@ tasks:
       - task: f:install
 
   dev:
-    desc: Lance backend (:8001) ET frontend (:3000) en parallèle
+    desc: Lance backend ET frontend en parallèle (ports libres, front branché sur ce worktree)
     deps: [b:dev, f:dev]
 
   test:
@@ -61,10 +61,13 @@ tasks:
       - uv sync
 
   b:dev:
-    desc: 'backend : serveur API + /docs sur :8001 (reload)'
+    desc: 'backend : serveur API + /docs, premier port libre à partir de 8001 (reload)'
     dir: backend
     cmds:
-      - uv run uvicorn app.main:app --reload --port 8001
+      # Le port retenu est publié dans .dev-backend.json (racine du worktree) : c'est
+      # ainsi que le frontend trouve LE backend de son worktree. DEV_BACKEND_PORT force
+      # un port précis.
+      - uv run python scripts/dev_server.py
 
   b:migrate:
     desc: 'backend : applique les migrations Alembic (upgrade head)'
@@ -124,9 +127,12 @@ tasks:
       - npm install
 
   f:dev:
-    desc: 'frontend : serveur Next.js sur :3000 (rewrites /api → :8001)'
+    desc: 'frontend : serveur Next.js (:3000 ou suivant libre), branché sur le backend du worktree'
     dir: frontend
     cmds:
+      # Attend que le backend ait publié son port, puis lance next dev en comblant
+      # BACKEND_URL / API_URL — une valeur déjà définie (shell ou .env.local) gagne.
+      # BACKEND_URL préexistante = pas d'attente.
       - npm run dev
 
   f:build:

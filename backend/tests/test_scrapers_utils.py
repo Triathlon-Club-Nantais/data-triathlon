@@ -12,6 +12,9 @@ from app.scrapers.utils import derive_status_from_label, parse_fr_date, split_at
     ("Disqualifié", "DSQ"),
     ("disqualified", "DSQ"),
     ("Disq.", "DSQ"),
+    # `DQ` : forme employée par fftri.t2area.com dans la colonne Clt (#51).
+    ("DQ", "DSQ"),
+    ("dq", "DSQ"),
     # Abandon
     ("DNF", "DNF"),
     ("Abandon", "DNF"),
