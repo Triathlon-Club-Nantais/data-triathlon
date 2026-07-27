@@ -288,3 +288,28 @@ def test_host_non_reconnu_ne_declenche_aucune_requete(monkeypatch, url):
 
     with pytest.raises(ValueError, match="playwright"):
         registry.scrape_event_all(url)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://classement.ok-time.fr/48555",
+        "https://classement.ok-time.fr/48555/race/59697",
+        "https://ok-time.fr/evenement/triathlon-de-lacanau-2026/",
+        "https://www.ok-time.fr/evenement/triathlon-de-lacanau-2026/",
+        "https://classement.ok-time.fr:443/48555",
+    ],
+)
+def test_detect_provider_oktime(url):
+    """Domaine exact, vrais sous-domaines, port explicite."""
+    assert registry.detect_provider(url) == "oktime"
+
+
+def test_detect_provider_rejette_un_host_sosie():
+    """`hostname` et non `netloc`, et suffixe précédé d'un point : sans cette
+    garde, `evilok-time.fr` matcherait (cf. la garde RaceResultProvider)."""
+    assert registry.detect_provider("https://evilok-time.fr/48555") != "oktime"
+
+
+def test_provider_names_contient_oktime():
+    assert "oktime" in registry.provider_names()
