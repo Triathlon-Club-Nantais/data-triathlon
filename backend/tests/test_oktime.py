@@ -781,3 +781,103 @@ def test_course_results_log_agrege_des_cumuls_conserves(caplog):
     messages = [r for r in caplog.records if "décroissants" in r.getMessage()]
     assert len(messages) == 1
     assert "3 participation" in messages[0].getMessage()
+
+
+# --------------------------------------------------------------------------- #
+# scrape_event_all
+# --------------------------------------------------------------------------- #
+
+def _client_factice(monkeypatch, pages=None, defaut=None):
+    client = FakeClient(pages if pages is not None else {"/results": LACANAU}, defaut)
+    monkeypatch.setattr(oktime.httpx, "Client", lambda *a, **k: client)
+    return client
+
+
+def test_scrape_event_all_un_seul_appel_pour_tout_levenement(monkeypatch):
+    """L'API n'a pas de route par épreuve : un GET rend l'événement entier."""
+    client = _client_factice(monkeypatch)
+
+    resultats = oktime.scrape_event_all(URL_48555)
+
+    assert client.calls == [
+        "https://ok-time.fr/wp-json/gmcap/v1/evenements/48555/results"
+    ]
+    assert len(resultats) == 4  # 3 participants + 1 relais
+
+
+def test_scrape_event_all_importe_toutes_les_epreuves(monkeypatch):
+    _client_factice(monkeypatch)
+
+    resultats = oktime.scrape_event_all(URL_48555)
+
+    assert {r.event_name for r in resultats} == {
+        "Triathlon de Lacanau 2026 – Samedi 02 mai - Triathlon L Individuel",
+        "Triathlon de Lacanau 2026 – Samedi 02 mai - Relais L & Duo",
+    }
+
+
+def test_scrape_event_all_ignore_le_segment_race(monkeypatch):
+    """L'URL du Sheet pointe une épreuve ; l'API rend quand même l'événement."""
+    client = _client_factice(monkeypatch)
+
+    resultats = oktime.scrape_event_all("https://classement.ok-time.fr/48555/race/59697")
+
+    assert len(client.calls) == 1
+    assert len(resultats) == 4
+
+
+def test_scrape_event_all_source_url_est_lurl_demandee(monkeypatch):
+    """`source_url` sert de clé de cache TTL : toutes les Course partagent celle
+    du Sheet, pas une URL reconstruite."""
+    _client_factice(monkeypatch)
+    url = "https://classement.ok-time.fr/48555/race/59697"
+
+    resultats = oktime.scrape_event_all(url)
+
+    assert {r.source_url for r in resultats} == {url}
+
+
+def test_scrape_event_all_resout_le_slug_avant_lapi(monkeypatch):
+    """Forme éditoriale : 1 GET HTML pour l'id, puis l'appel API."""
+    client = _client_factice(
+        monkeypatch, pages={"/evenement/": PAGE_EVENEMENT, "/results": LACANAU}
+    )
+
+    resultats = oktime.scrape_event_all(
+        "https://ok-time.fr/evenement/triathlon-de-lacanau-2026/"
+    )
+
+    assert client.calls == [
+        "https://ok-time.fr/evenement/triathlon-de-lacanau-2026/",
+        "https://ok-time.fr/wp-json/gmcap/v1/evenements/48555/results",
+    ]
+    assert len(resultats) == 4
+
+
+def test_scrape_event_all_ecarte_les_listes_dengages(monkeypatch):
+    """L'événement ne rend que la course enfants ; la liste d'engagés est écartée."""
+    _client_factice(monkeypatch, pages={"/results": ENGAGES})
+
+    resultats = oktime.scrape_event_all("https://classement.ok-time.fr/48999")
+
+    assert len(resultats) == 1
+    assert resultats[0].event_name.endswith("Course des enfants UNICEF")
+
+
+def test_scrape_event_all_url_obsolete_leve_avant_toute_requete(monkeypatch):
+    client = _client_factice(monkeypatch)
+
+    with pytest.raises(ValueError, match="obsolète"):
+        oktime.scrape_event_all("https://ok-time.fr/course/triathlon-l/")
+
+    assert client.calls == []
+
+
+def test_scrape_event_all_evenement_sans_epreuve(monkeypatch):
+    """Charge valide mais `data` vide : liste vide, sans exception."""
+    _client_factice(
+        monkeypatch,
+        pages={"/results": {"success": True, "evenement_title": "X", "count": 0, "data": []}},
+    )
+
+    assert oktime.scrape_event_all(URL_48555) == []
