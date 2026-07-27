@@ -49,3 +49,5 @@ docs/local/
 
 # Worktrees isolés (superpowers)
 .worktrees/
+# Ledger d'exécution de subagent-driven-development — jetable, un dossier par plan
+.superpowers/
