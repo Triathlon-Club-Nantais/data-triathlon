@@ -10,17 +10,39 @@ Drafting notes    :
   - Principle I raffiné pendant la rédaction initiale : séparation explicite
     entre couche technique (English) et couche métier / user-visible (français).
     Version conservée à 1.0.0 — l'amendement a eu lieu avant ratification en git.
+  - Corrections v1.0.0 suite à la review de la PR #107 (tjarrier) : Principe III
+    aligné sur la convention réelle (monkeypatch httpx, pas respx) ; dérogation
+    `create_all` recentrée sur les fixtures de test ; Principe II doté d'une
+    règle de transition nommant les deux exceptions actuelles (`cache.py`,
+    `reclassify.py`) ; Principe I complété d'une clause `DomainError`
+    (messages français, ré-affichés par le front). 3 templates repassés en ⚠.
 Templates alignés :
-  ✅ .specify/templates/plan-template.md   — la section "Constitution Check" est laissée
-     ouverte par le template ; les gates ci-dessous (§Governance) sont à cocher lors du /speckit-plan.
+  ⚠ .specify/templates/plan-template.md   — la section "Constitution Check" ne
+     contient qu'un placeholder `[Gates determined based on constitution file]`.
+     La Gouvernance impose une revue « principe par principe » : sans énumération
+     des 6 principes dans le template, la revue repose sur la mémoire de l'agent.
+     Follow-up : ajouter la grille des 6 principes dans le template (voir TODO ci-dessous).
   ✅ .specify/templates/spec-template.md   — pas d'ajustement nécessaire (les Success Criteria
      restent techno-agnostiques, conformes au principe I).
-  ✅ .specify/templates/tasks-template.md  — la mention "Tests are OPTIONAL" du template reste,
-     mais le principe III MUST override : les tâches doivent inclure les tests unitaires sans réseau.
-  ✅ AGENTS.md                              — source vérité opérationnelle ; la constitution en
-     extrait les invariants non-négociables. Existant en français conservé (voir Principle I,
-     règle de transition) ; aucune divergence de fond.
-Follow-up TODOs   : (aucun)
+  ⚠ .specify/templates/tasks-template.md  — la mention "Tests are OPTIONAL"
+     apparaît 4 fois (l. 12, 83, 109, 131). Comportement typique de `/speckit-tasks`
+     avec ce template : omettre les tâches de test « puisque non explicitement demandées ».
+     Principe III est NON-NÉGOCIABLE — pas d'override silencieux acceptable.
+     Follow-up : retirer les 4 mentions "OPTIONAL" (voir TODO ci-dessous).
+  ⚠ AGENTS.md                              — la règle « **Langue** : UI, commentaires
+     et messages en **français** (avec accents) » (AGENTS.md:258) contredit frontalement
+     le Principe I sur les docstrings techniques, `logger.*`, noms de tests et identifiants.
+     `AGENTS.md` est chargé à chaque session via `CLAUDE.md`, la constitution seulement
+     par `/speckit-*` — c'est la règle contradictoire qui est lue le plus souvent.
+     Follow-up : aligner AGENTS.md:258 sur Principe I (voir TODO ci-dessous).
+Follow-up TODOs   :
+  - TODO(plan-template) : énumérer les 6 principes dans « Constitution Check »
+    pour donner à `/speckit-plan` une grille à cocher, principe par principe.
+  - TODO(tasks-template) : retirer les 4 mentions "Tests are OPTIONAL" (l. 12,
+    83, 109, 131) pour aligner sur Principe III (non-négociable).
+  - TODO(AGENTS.md) : remplacer la règle langue générale (l. 258) par un renvoi
+    au Principe I de la constitution, avec la séparation « métier / user-visible
+    en français ; technique invisible en anglais ».
 -->
 
 # Constitution — data-triathlon
@@ -54,6 +76,16 @@ français selon qu'il décrit une intention technique ou métier), messages
 d'erreur d'exception interne (`raise ValueError("...")`), noms de branche,
 titres et corps de PR à visée technique.
 
+**Cas mixte — les `DomainError`** : les exceptions de
+`backend/app/core/exceptions.py` (`InvalidUrlError`,
+`ProviderNotSupportedError`, `ScraperError`, `NotFoundError`,
+`DuplicateError`) sont **à la fois** des exceptions internes **et** du texte
+utilisateur : leurs messages sont sérialisés dans `{"detail": ...}` par
+`register_exception_handlers` et ré-affichés verbatim par le front
+(`frontend/lib/api/client.ts`). Ces messages suivent la règle **« français
+utilisateur »**, pas la règle « English technique ». Un nouveau
+`raise ScraperError("...")` prend donc un message en français.
+
 **Règle de transition** : le code et la doc existants sont en français
 mélangé — `AGENTS.md`, docstrings, commits historiques. **On ne réécrit
 rien**. La règle s'applique aux **nouveaux** ajouts et à toute réécriture
@@ -79,6 +111,14 @@ toucher `Session` est `app/repositories/`. Une règle projet critique
 endroit : `app/core/club.py`. La réimplémenter ailleurs (front, scraper, autre
 service) est interdit.
 
+**Règle de transition** : deux services touchent aujourd'hui `Session` et
+sont **exemptés nommément** — `app/services/cache.py` (`db.query(Participation.id)`
+dans `is_fresh`) et `app/services/reclassify.py`
+(`db.query(Course).options(load_only(...))`). Toute **nouvelle** occurrence
+en dehors d'`app/repositories/` est interdite. La résorption de ces deux
+exceptions (déplacement vers un repository dédié) est un chantier hors PR
+courante, à ouvrir en ticket suiveur.
+
 **Rationale** : trois listes divergentes du critère club ont fait compter tout
 libellé « nantais » comme TCN (#76). La monogamie des responsabilités par
 couche est la seule garde qui tienne dans la durée.
@@ -86,11 +126,13 @@ couche est la seule garde qui tienne dans la durée.
 ### III. TDD sans réseau (NON-NÉGOCIABLE)
 
 Toute nouvelle logique métier est **précédée** d'un test qui échoue puis passe
-au vert. Les tests unitaires n'appellent **jamais** le réseau réel : httpx est
-mocké avec `respx`, les payloads capturés sont dans `tests/fixtures/`. Le
-réseau réel est isolé derrière le marker `integration` (déclaré dans
-`backend/pyproject.toml`), jamais lancé par défaut. Une PR n'entre pas sans
-`uv run pytest -m "not integration"` vert.
+au vert. Les tests unitaires n'appellent **jamais** le réseau réel : la
+convention actuelle est un monkeypatch de `httpx.Client` (cf.
+`backend/tests/test_klikego.py`) ou des helpers `_fetch_*`
+(`backend/tests/test_raceresult.py`), avec les payloads capturés sous
+`tests/fixtures/`. Le réseau réel est isolé derrière le marker `integration`
+(déclaré dans `backend/pyproject.toml`), jamais lancé par défaut. Une PR
+n'entre pas sans `uv run pytest -m "not integration"` vert.
 
 **Rationale** : les scrapers dépendent de sites tiers instables ; sans mocks,
 la suite devient un baromètre de disponibilité web plutôt qu'un filet de
@@ -147,8 +189,11 @@ faites *après* que les cas particuliers ont émergé, pas avant.
   shadcn/ui. Ne pas dévier sans justification explicite dans `plan.md`.
 - **Schéma DB** : toute modification de modèle passe par
   `uv run alembic revision --autogenerate` puis relecture manuelle de la
-  révision générée. Jamais de `Base.metadata.create_all()` en dehors de
-  `scripts/reset_db.py`.
+  révision générée. Jamais de `Base.metadata.create_all()` en dehors des
+  fixtures de test (`backend/tests/conftest.py`,
+  `backend/tests/test_cli/test_logging.py` ; cf. `tests/test_migrations.py`
+  qui documente pourquoi les fixtures contournent Alembic). Le reset dev
+  (`scripts/reset_db.py`) passe par `drop_all` puis `alembic upgrade head`.
 - **Temps** : toujours des strings normalisées (`"01:23:45"`) via
   `app/scrapers/utils.py`. Pas de `timedelta` en base ni dans les DTO.
 - **Modèle normalisé** : `Athlete` (unique par nom/prénom/DDN), `Course`
