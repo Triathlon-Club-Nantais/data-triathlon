@@ -6,11 +6,10 @@
 
 ## Note sur les tests
 
-Le template porte la mention « Tests are OPTIONAL ». **Elle ne s'applique pas
-ici** : le principe III de la constitution (TDD sans réseau) est déclaré
-NON-NÉGOCIABLE, et le Sync Impact Report de la constitution signale cette mention
-comme un défaut du template à corriger. Chaque tâche d'implémentation est donc
-précédée de sa tâche de test, qui doit **échouer** avant d'être rendue verte.
+Chaque tâche d'implémentation est précédée de sa tâche de test, qui doit
+**échouer** avant d'être rendue verte : le principe III de la constitution (TDD
+sans réseau) est déclaré NON-NÉGOCIABLE. La mention « Tests are OPTIONAL » que le
+template portait a été retirée en amont (`483c2e4`, PR #120).
 
 Tous les chemins sont relatifs à `backend/` sauf mention contraire.
 
