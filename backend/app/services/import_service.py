@@ -9,6 +9,7 @@ et un générateur de progression pour le streaming SSE.
 import logging
 from collections.abc import Iterator
 from dataclasses import dataclass
+from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session
 
@@ -43,8 +44,24 @@ def _identite(athlete) -> str:
 
 
 def _validate_url(url: str) -> str:
+    """Refuse tout ce qui n'est pas une URL http(s) nommant un host.
+
+    Passage obligé de **tous** les chemins d'import — API, SSE, CLI
+    `import-sheet` et `rescrape-db` — et donc la seule garde du batch, qui n'a
+    aucun schéma Pydantic devant lui. L'ancien `startswith("http")` laissait
+    passer `httpfoo://` comme une URL sans host (#49).
+
+    Ne réécrit rien au-delà du strip : `source_url` est la clé du cache TTL.
+
+    `urlparse` lève `ValueError` sur un host IPv6 malformé (ex. `https://[oops/x`) :
+    à traiter comme une URL invalide parmi d'autres, pas comme un crash.
+    """
     url = (url or "").strip()
-    if not url.startswith("http"):
+    try:
+        parsed = urlparse(url)
+    except ValueError as exc:
+        raise InvalidUrlError() from exc
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
         raise InvalidUrlError()
     return url
 
