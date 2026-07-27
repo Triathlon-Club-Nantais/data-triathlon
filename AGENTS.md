@@ -6,6 +6,34 @@ et importe en arrière-plan tous les participants de l'épreuve.
 
 Détails install/déploiement : voir `README.md`. Ce fichier cible les agents IA.
 
+## Workflow IA
+
+Deux outils d'assistance sont préconfigurés, Speckit et Superpowers. **Ne jamais
+lancer les deux sur la même étape** — détail et arbre de décision :
+`docs/WORKFLOW-IA.md`.
+
+- **Bugfix, typo, ajustement de 1-2 fichiers, petit refacto** → Superpowers
+  seul : `systematic-debugging` (bug) ou `test-driven-development` (ajout de
+  comportement), puis `verification-before-completion`. Pas de cycle Speckit,
+  pas de dossier `specs/`.
+- **Vraie feature** (nouveau scraper, nouvel écran, changement de schéma) →
+  Speckit pour le cadrage : `/speckit-specify` → `/speckit-clarify` → GATE →
+  `/speckit-plan` → GATE → `/speckit-tasks` → `/speckit-analyze`. Puis handoff
+  vers Superpowers pour l'exécution (`subagent-driven-development`, les tâches
+  `[P]` de `tasks.md` en parallèle), avec `test-driven-development` dans chaque
+  tâche.
+- **Speckit est canonique sur le cadrage et la planification** : un seul
+  `spec.md`, un seul `plan.md`. Ne pas produire de plan Superpowers concurrent.
+  `brainstorming` uniquement en amont si l'idée est encore floue — son résultat
+  est injecté dans `/speckit-specify`.
+- **Superpowers est canonique sur l'exécution** : ne pas lancer
+  `/speckit-implement` **et** `subagent-driven-development`.
+- Fin de branche : `requesting-code-review` → `verification-before-completion` →
+  `finishing-a-development-branch`.
+- Branche et commits-gate sont à gérer **manuellement** : les hooks git de
+  `.specify/extensions.yml` appellent `/speckit-git-feature` et
+  `/speckit-git-commit`, absents de `.specify/integrations/claude.manifest.json`.
+
 ## Pile applicative
 
 Une seule génération, en deux briques :
