@@ -189,22 +189,32 @@ def _athlete_identity(runner: dict, *, is_relay: bool, epreuve_id: str) -> tuple
 
     Trois régimes :
 
-    1. `rgpd:"N"` — la source ampute le nom (« T... B... ») mais publie temps et
-       rang. Identité synthétique « Anonyme <epreuve_id>-<dossard> », prénom
-       vide. La clé d'épreuve est **indispensable** : `Athlete` étant unique sur
-       (nom, prénom, date de naissance), un simple « Anonyme 927 » fusionnerait
-       les dossards 927 anonymes de deux courses en un athlète agrégeant les
-       résultats de deux personnes. `epreuve_id` et `dossard` étant stables,
-       l'identité l'est d'un re-scrape à l'autre. Si ok-time levait l'anonymat,
-       la réconciliation d'identité (#66) rattacherait les participations au nom
-       réel au prochain `rescrape-db`.
+    1. `rgpd:"N"` **avec dossard** — la source ampute le nom (« T... B... ») mais
+       publie temps et rang. Identité synthétique « Anonyme <epreuve_id>-<dossard> »,
+       prénom vide. La clé d'épreuve est **indispensable** : `Athlete` étant
+       unique sur (nom, prénom, date de naissance), un simple « Anonyme 927 »
+       fusionnerait les dossards 927 anonymes de deux courses en un athlète
+       agrégeant les résultats de deux personnes. `epreuve_id` et `dossard` étant
+       stables, l'identité l'est d'un re-scrape à l'autre. Si ok-time levait
+       l'anonymat, la réconciliation d'identité (#66) rattacherait les
+       participations au nom réel au prochain `rescrape-db`.
     2. équipe (course de relais, ou nom porteur d'un « / ») — le nom entier va
        dans `nom`, le prénom reste vide. Ne pas mutiler un nom d'équipe.
     3. sinon — convention « Prénom NOM » de la source, déléguée à
-       `split_athlete_name`.
+       `split_athlete_name`. **Y compris un anonyme sans dossard** : sans dossard,
+       « Anonyme <epreuve_id>-None » serait identique pour tous les anonymes de
+       l'épreuve et les fusionnerait en un seul `Athlete` — exactement le défaut
+       que la clé d'épreuve sert à écarter, et que `UNIQUE(course_id, bib_number)`
+       ne rattraperait pas, `bib_number` étant vide lui aussi. Le nom amputé de
+       la source discrimine au moins autant qu'une identité synthétique
+       constante, et ne prétend rien qu'on ne sache : on le laisse passer par le
+       chemin ordinaire. Deux noms amputés identiques fusionneraient encore, mais
+       c'est l'ambiguïté de la source, pas une que le scraper introduit (les
+       participants sans dossard restent hors périmètre, §7 du design).
     """
-    if str(runner.get("rgpd") or "").strip().upper() == "N":
-        return f"Anonyme {epreuve_id}-{runner.get('dossard')}", ""
+    dossard = "" if runner.get("dossard") is None else str(runner.get("dossard")).strip()
+    if str(runner.get("rgpd") or "").strip().upper() == "N" and dossard:
+        return f"Anonyme {epreuve_id}-{dossard}", ""
     nom = _repair_mojibake(str(runner.get("nom") or "").strip())
     if is_relay or _SEPARATEUR_EQUIPE in nom:
         return nom, ""
@@ -289,6 +299,23 @@ def _fmt_secs(s: int) -> str:
     return f"{s // 3600:02d}:{(s % 3600) // 60:02d}:{s % 60:02d}"
 
 
+def _points_cumules(points: list[dict] | None) -> list[tuple[str, str]]:
+    """(libellé, temps cumulé) des points **porteurs d'une durée**, dans l'ordre.
+
+    Un point à zéro ne porte aucune durée : le garder ferait sortir un delta
+    négatif au point suivant et déclencherait le repli à tort.
+
+    Extrait de `_segments` pour servir aussi à `_course_results`, qui doit savoir
+    si une course détient des données chronométriques **de quelque nature que ce
+    soit** avant de l'écarter comme liste d'engagés.
+    """
+    cumules = [
+        (str(point.get("nom") or "").strip(), normalize_time(str(point.get("time") or "").strip()))
+        for point in points or []
+    ]
+    return [(label, temps) for label, temps in cumules if _secs(temps) > 0]
+
+
 def _segments(points: list[dict] | None) -> tuple[list[tuple[str, str]], bool]:
     """Points de passage cumulés → durées de segment. (segments, cumuls_conservés).
 
@@ -311,13 +338,7 @@ def _segments(points: list[dict] | None) -> tuple[list[tuple[str, str]], bool]:
     un dernier point différent de `temps_finish` (épreuves finissant sur
     « Départ CAP2 »). `temps_finish` fait seul foi.
     """
-    cumules = [
-        (str(point.get("nom") or "").strip(), normalize_time(str(point.get("time") or "").strip()))
-        for point in points or []
-    ]
-    # Un point à zéro ne porte aucune durée : le garder ferait sortir un delta
-    # négatif au point suivant et déclencherait le repli à tort.
-    cumules = [(label, temps) for label, temps in cumules if _secs(temps) > 0]
+    cumules = _points_cumules(points)
     if not cumules:
         return [], False
 
@@ -434,49 +455,77 @@ def _course_results(course: dict, *, url: str, evenement_title: str) -> list[Scr
     la charge porte des entités brutes (`&#8211;`, `&#038;`) dans tous les titres
     concernés, qui partiraient en base telles quelles.
 
-    Une course est **écartée** si `status != "finish"` **et** qu'aucun de ses
-    participants n'a de temps : ce sont les listes d'engagés (11 courses / 1 035
-    participations au panel), dont l'import créerait autant de participations
-    sans temps que l'heuristique du projet classerait DNF. La double condition
-    est délibérée — le comportement de `status` sur une course **en cours** n'a
-    pas été observé, et écarter sur ce seul critère risquerait de jeter des
-    résultats partiels.
+    Deux prédicats distincts, à ne pas confondre en un seul (correction de revue
+    finale, cf. plus bas) :
+
+    - **écartement d'une liste d'engagés** — `status != "finish"` **et** aucune
+      donnée chronométrique d'aucune sorte, ni `temps_finish` ni point de passage
+      exploitable. Ce sont les 11 courses / 1 035 participations du panel
+      inscrites mais pas encore courues, dont l'import créerait autant de
+      participations sans temps que l'heuristique du projet classerait DNF. La
+      double condition est délibérée : le comportement de `status` sur une course
+      **en cours** n'a pas été observé au panel, et écarter sur ce seul critère
+      jetterait des résultats partiels — lesquels vivent dans
+      `points_de_passage`, d'où leur prise en compte ici. Une course en cours
+      écartée rendrait un import **vide et sans erreur** ; pire, aucune
+      `Participation` n'étant créée, le TTL de cache « course en cours » (10 min)
+      ne pourrait jamais s'armer et la course resterait absente jusqu'au passage
+      de `status` à « finish » par l'organisateur.
+    - **repli `finisher`** (`course_non_chronometree`) — aucun `temps_finish`
+      **et** `status == "finish"` : une course déclarée terminée mais non
+      chronométrée, c'est-à-dire les 3 courses d'enfants du panel. La condition
+      sur `status` est ce qui empêche des coureurs **encore en course** de sortir
+      en `finisher`.
     """
     title_course = html.unescape(str(course.get("title_course") or "").strip())
     runners = course.get("runners") or []
     statut_course = str(course.get("status") or "").strip()
-    non_chronometree = not any(_total_time(runner) for runner in runners)
+    terminee = statut_course == "finish"
+    aucun_temps_final = not any(_total_time(runner) for runner in runners)
 
-    if statut_course != "finish" and non_chronometree:
+    if not terminee and aucun_temps_final and not any(
+        _points_cumules(runner.get("points_de_passage")) for runner in runners
+    ):
         logger.info(
             "Épreuve ok-time « %s » écartée : liste d'engagés (status=%r, "
-            "%d participant(s), aucun temps).",
+            "%d participant(s), aucun temps ni point de passage).",
             title_course, statut_course, len(runners),
         )
         return []
 
     epreuve_id = str(course.get("epreuve_id") or "")
-    # Type classé sur la **concaténation** des deux titres : le titre d'épreuve
-    # seul est trompeur (« Format M individuel » du SwimRun Côte Beauté sortirait
-    # en triathlon-m, « La Bourriquette » du Trail du Bourraid en triathlon). Sur
-    # les 99 courses du panel, la concaténation en corrige 5 et n'en dégrade aucune.
+    # Invariants de la course, calculés **une fois** : les remonter dans la
+    # compréhension rendait `_course_results` quadratique, `_is_relay_course`
+    # parcourant tous les `runners` à chaque participant.
+    # Le type est classé sur la **concaténation** des deux titres : le titre
+    # d'épreuve seul est trompeur (« Format M individuel » du SwimRun Côte Beauté
+    # sortirait en triathlon-m, « La Bourriquette » du Trail du Bourraid en
+    # triathlon). Sur les 99 courses du panel, la concaténation en corrige 5 et
+    # n'en dégrade aucune.
+    event_name = qualify_event_name(evenement_title, title_course)
+    event_type = classify_event_type(f"{evenement_title} {title_course}")
+    event_date = _parse_date(course.get("date_course"))
+    distance_km = _parse_distance(course.get("distance_course"))
+    is_relay = _is_relay_course(title_course, runners)
+    contexte = {
+        "epreuve_id": epreuve_id,
+        "heuredebut_course": course.get("heuredebut_course"),
+        "reference_epreuve": course.get("reference_epreuve"),
+        "status_course": statut_course,
+    }
+
     resultats = [
         _build_result(
             runner,
             url=url,
-            event_name=qualify_event_name(evenement_title, title_course),
-            event_type=classify_event_type(f"{evenement_title} {title_course}"),
-            event_date=_parse_date(course.get("date_course")),
-            distance_km=_parse_distance(course.get("distance_course")),
-            is_relay=_is_relay_course(title_course, runners),
+            event_name=event_name,
+            event_type=event_type,
+            event_date=event_date,
+            distance_km=distance_km,
+            is_relay=is_relay,
             epreuve_id=epreuve_id,
-            course_non_chronometree=non_chronometree,
-            contexte={
-                "epreuve_id": epreuve_id,
-                "heuredebut_course": course.get("heuredebut_course"),
-                "reference_epreuve": course.get("reference_epreuve"),
-                "status_course": statut_course,
-            },
+            course_non_chronometree=aucun_temps_final and terminee,
+            contexte=contexte,
         )
         for runner in runners
     ]
