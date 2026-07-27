@@ -26,6 +26,7 @@ from app.scrapers import (
     chronoplace,
     competitor,
     klikego,
+    oktime,
     prolivesport,
     raceresult,
     sportinnovation,
@@ -233,6 +234,21 @@ class ChronoplaceProvider(HostMatchedProvider):
         return chronoplace.scrape_event_all(url)
 
 
+class OkTimeProvider(HostMatchedProvider):
+    name = "oktime"
+
+    # `ok-time.fr` et ses sous-domaines : `classement.ok-time.fr` (la SPA de
+    # classement) et l'apex (le site éditorial, qui sert l'API JSON). Allowlist
+    # explicite, comme Wiclax et RaceResult. `_HOSTS` seul : `_host_match`
+    # compare sur `hostname` — un port explicite ou des credentials ne font pas
+    # rater le match — et exige un point avant le suffixe, sans quoi un host
+    # sosie du type `evilok-time.fr` suivrait.
+    _HOSTS = ("ok-time.fr",)
+
+    def scrape_event_all(self, url: str) -> list[ScrapedResult]:
+        return oktime.scrape_event_all(url)
+
+
 class CompetitorProvider(HostMatchedProvider):
     name = "competitor"
 
@@ -286,6 +302,7 @@ PROVIDERS: list[ScraperProtocol] = [
     SportInnovationProvider(),
     RaceResultProvider(),
     ChronoplaceProvider(),
+    OkTimeProvider(),
     CompetitorProvider(),
     T2AreaProvider(),
 ]

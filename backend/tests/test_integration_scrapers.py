@@ -41,6 +41,9 @@ LIVE_URLS = {
     # IRONMAN France : page « Results » d'ironman.com → iframe Competitor. Deux
     # sauts (page → uuid → __NEXT_DATA__) et l'édition la plus récente publiée.
     "competitor": "https://www.ironman.com/races/im-france/results",
+    # Triathlon de Lacanau 2026 : 5 épreuves partageant date et type — l'épreuve
+    # qui a servi au sondage d'API. La forme `/race/<id>` est celle du Sheet.
+    "oktime": "https://classement.ok-time.fr/48555/race/59697",
 }
 
 

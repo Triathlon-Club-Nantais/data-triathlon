@@ -398,10 +398,26 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 ## Fournisseurs supportés
 
 Klikego, Breizh Chrono, TimePulse, Wiclax/G-Live, ProLiveSport, Sportinnovation,
-RaceResult, Chronoplace, T2Area (FFTRI), Competitor — tous en **épreuve
+RaceResult, Chronoplace, T2Area (FFTRI), Competitor, ok-time — tous en **épreuve
 complète**. Chronoplace (Laravel + Livewire) se lit en `GET ?perPage=all` — pas
 de POST Livewire — et importe **toutes** les épreuves de l'événement pointé par
 l'URL.
+ok-time.fr (issue #52) se lit sur une API JSON WordPress publique
+(`/wp-json/gmcap/v1/evenements/{id}/results`) : **un seul appel** rend
+l'événement entier, toutes épreuves comprises — ni Playwright ni parsing HTML
+sur le chemin nominal. Les points de passage sont **cumulés** et différenciés en
+durées de segment, rangées dans `segments` (chemin générique) avec les libellés
+de la source : les `id` de points ne sont pas sémantiques (`12|2` vaut « T2 »
+sur une épreuve, « VELO » sur une autre) et 55 des 99 courses du panel sortent
+du motif triathlon. Le type de course est classé sur la **concaténation**
+`evenement_title + title_course` (le titre d'épreuve seul est trompeur). Deux
+formes d'URL sont supportées, `classement.ok-time.fr/<id>[/race/<raceId>]` et
+`ok-time.fr/evenement/<slug>/` ; les préfixes `/course/` et `/competition/` sont
+**obsolètes** et rejetés avec un message qui le dit — trois URLs du Sheet en
+relèvent et deviennent, ok-time étant désormais supporté, des épreuves en erreur
+dans les bilans plutôt que des liens ignorés. Vérité d'API (panel de 21
+événements / 99 courses / 12 644 participations) :
+`docs/superpowers/specs/2026-07-26-oktime-scraper-design.md`.
 Wiclax/G-Live couvre plusieurs déploiements : `wiclax-results.com`,
 `chronosmetron.com` et `chronowest.fr` (WordPress + iframe G-Live). Un nouveau
 déploiement tiers = un host dans `WiclaxProvider._HOSTS`.
