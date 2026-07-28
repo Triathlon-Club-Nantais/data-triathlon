@@ -409,7 +409,16 @@ sur le chemin nominal. Les points de passage sont **cumulés** et différenciés
 durées de segment, rangées dans `segments` (chemin générique) avec les libellés
 de la source : les `id` de points ne sont pas sémantiques (`12|2` vaut « T2 »
 sur une épreuve, « VELO » sur une autre) et 55 des 99 courses du panel sortent
-du motif triathlon. Le type de course est classé sur `title_course`, le titre
+du motif triathlon. Ces libellés sont rendus **verbatim** par le front, via le
+chemin générique de `lib/utils/splits.ts` (`splitColumns` / `splitSegments`) : à
+défaut de clé canonique, les colonnes viennent des libellés publiés — sans lui, les
+splits d'ok-time, RaceResult et Chronoplace étaient stockés mais invisibles.
+Statuts : **DNS, puis DSQ, puis DNF** (la source cumule des drapeaux
+contradictoires, et la disqualification prime sur l'abandon), et le repli
+`finisher` d'une course non chronométrée se mesure **au seuil** — au plus
+`max(1, 10 %)` de participants chronométrés — jamais à l'égalité stricte à zéro,
+qu'un seul temps saisi à la main suffisait à désarmer, faisant classer toute une
+course d'enfants DNF. Le type de course est classé sur `title_course`, le titre
 d'événement servant d'**appoint** : `classify_event_type(texte, contexte=…)` ne
 consulte le contexte que si l'épreuve ne nomme aucun sport (« Format M
 individuel » d'un SwimRun), et la taille de l'épreuve prime toujours sur celle du

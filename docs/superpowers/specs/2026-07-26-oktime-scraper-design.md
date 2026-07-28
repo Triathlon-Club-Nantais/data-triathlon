@@ -154,7 +154,11 @@ Chrono et les onglets chronoplace.
   renseignée partout. Évite le repli sur l'extraction depuis le nom, qui lit
   « Course chronométrée 9,5 km » comme un 5 km.
 - **`html.unescape`** sur les deux titres avant tout usage — nom, classification
-  et détection de relais. Sans cela, `&#8211;` part en base tel quel.
+  et détection de relais. Sans cela, `&#8211;` part en base tel quel. Étendu aux
+  champs texte du participant (`nom`, `club`, `categorie`, via `_texte`) en
+  re-revue du 2026-07-28 : les entités sont une propriété de la sérialisation
+  WordPress de la charge entière, et un « D&#039;ANGELO » en base scinderait
+  l'athlète d'avec la fiche créée par un autre fournisseur.
 
 ### 3.1 Courses écartées : les listes d'engagés
 
@@ -239,9 +243,9 @@ réparation intacts (aucun faux positif).
 | Source | `status` |
 | --- | --- |
 | `pris_depart = "N"` | `DNS` |
-| `abandon = "O"` | `DNF` |
 | `disqualifie = "O"` | `DSQ` |
-| course entièrement non chronométrée (`status="finish"`, aucun temps) | `finisher` |
+| `abandon = "O"` | `DNF` |
+| course non chronométrée et déclarée terminée (`status="finish"`) | `finisher` |
 | sinon | `""` — l'heuristique du projet tranche |
 
 L'avant-dernière ligne vise les trois courses enfants (UNICEF, 52
@@ -252,8 +256,22 @@ condition est bornée à la course entière : un participant sans temps dans une
 course par ailleurs chronométrée reste traité par l'heuristique, faute de savoir
 le distinguer d'un abandon non saisi.
 
-Ordre de priorité : DNS avant DNF (1 participation du panel porte
-`abandon="O"` **et** `pris_depart="N"` — ne pas être parti prime).
+« Non chronométrée » se mesure **au seuil**, pas à l'égalité stricte à zéro
+(re-revue du 2026-07-28) : `_course_non_chronometree` demande au plus
+`max(1, 10 %)` de participants chronométrés. Sur l'égalité, un seul
+`temps_finish` saisi à la main parmi les 52 participations d'une course d'enfants
+désarmait le repli et faisait classer les 51 autres DNF en bloc — le défaut même
+que la règle existe pour éviter. Le seuil est calibré sur le panel : les 11 816
+participations chronométrées y sont exactement le complément des 828 statuts
+explicites (DNS/DNF/DSQ), donc un chronométrage couvre l'essentiel de son
+peloton et une poignée de temps isolés est une saisie manuelle.
+
+Ordre de priorité : **DNS, puis DSQ, puis DNF**. La source cumule des drapeaux
+contradictoires (1 participation du panel porte `abandon="O"` **et**
+`pris_depart="N"`) : ne pas être parti prime sur tout, et entre abandon et
+disqualification, la disqualification est l'information la plus forte — c'est la
+seule qui explique l'absence de classement. L'ordre inverse (DNF avant DSQ)
+masquait toute disqualification doublée d'un abandon.
 
 **Rangs** : `classement_general`, `_categorie`, `_sexe`, avec `0 → None` (1 336
 finishers valides non classés). `normalize_rank` rendrait `0`, qui s'afficherait
@@ -284,9 +302,25 @@ participations de Mimizan à l'ordre incohérent —, la participation conserve 
 **valeurs cumulées brutes** plutôt qu'un temps absurde, et un log agrégé par
 épreuve le signale (une ligne par épreuve, pas une par participation).
 
+**Garde sur les points illisibles** (re-revue du 2026-07-28) : un temps hors
+format (`01:23:45.6`, que `normalize_time` laisse passer) ne peut qu'être écarté,
+mais sa perte est journalisée par épreuve avec les libellés concernés —
+`_secs` rend `None` plutôt que `0`, ce qui distingue « point sans durée »
+(nominal) de « point illisible » (perte). Sans cela, une participation pouvait
+perdre un segment, voire tous ses splits, sans laisser de trace, là où le cas
+symétrique des cumuls décroissants était, lui, journalisé.
+
 **Le temps total ne vient jamais du dernier point** : 392 participations ont un
 dernier point différent de `temps_finish`, sur des épreuves dont le dernier
 point est « Départ CAP2 ». `temps_finish` fait seul foi.
+
+**Affichage** : les libellés de la source n'appartiennent à aucun schéma de sport
+du front, qui ne connaissait que `swim/t1/bike/t2/run` et `course1/course2` — les
+splits étaient donc stockés mais **invisibles** (constat de re-revue, partagé avec
+RaceResult et Chronoplace). `frontend/lib/utils/splits.ts` expose désormais un
+chemin générique (`splitSegments`, `splitColumns`) : à défaut de clé canonique,
+les colonnes sont dérivées des libellés publiés, rendus verbatim, la couleur seule
+étant devinée du mot (natation / vélo / course, neutre sinon).
 
 ### 4.7 `raw_data`
 

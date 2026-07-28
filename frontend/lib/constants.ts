@@ -49,6 +49,7 @@ export const PROVIDER_LABELS: Record<string, string> = {
   // Competitor est le moteur réel derrière ironman.com (cf. #54) : c'est ce nom
   // que le backend détecte, mais « IRONMAN » est ce que l'utilisateur a collé.
   competitor: "IRONMAN (Competitor)",
+  oktime: "OK TIME",
 };
 
 /** Libellé d'un chronométreur ; le slug brut à défaut, « Source » si non renseigné. */

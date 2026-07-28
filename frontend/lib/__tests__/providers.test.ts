@@ -12,6 +12,7 @@ describe("providerLabel", () => {
     expect(providerLabel("raceresult")).toBe("RaceResult");
     expect(providerLabel("chronoplace")).toBe("Chronoplace");
     expect(providerLabel("competitor")).toBe("IRONMAN (Competitor)");
+    expect(providerLabel("oktime")).toBe("OK TIME");
   });
 
   it("laisse passer un provider inconnu plutôt que de l'effacer", () => {

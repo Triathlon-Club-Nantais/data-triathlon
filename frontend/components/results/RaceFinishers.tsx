@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Card, SegmentedControl, PlaceBadge } from "@/components/tcn";
 import { StatusBadge } from "@/components/results/StatusBadge";
 import { orderParticipations, isNonFinisher, countOutcomes } from "@/lib/utils/raceOrder";
-import { splitSchema } from "@/lib/utils/splits";
+import { splitColumns } from "@/lib/utils/splits";
 import type { Participation } from "@/lib/types";
 
 // Colonnes fixes (rang, athlète, catég., sexe, temps total) + club en fin.
@@ -28,12 +28,13 @@ export function RaceFinishers({
   // pied de tableau honnête : « partants » ≠ « finishers » (cf. issue #23).
   const { total, finishers, nonFinishers, unknown } = countOutcomes(participations);
 
-  // Colonnes de splits adaptées au sport (clés/libellés alignés sur le backend),
-  // limitées aux segments renseignés pour au moins un participant. On se base sur
-  // l'ensemble complet (pas les lignes filtrées) pour que les colonnes restent
-  // stables quand on bascule le filtre TCN.
-  const segments = splitSchema(eventType ?? "").filter((s) =>
-    participations.some((p) => p.splits?.[s.key]),
+  // Colonnes de splits : schéma du sport quand les clés sont celles du projet,
+  // libellés de la source sinon (ok-time, RaceResult, Chronoplace). Limitées aux
+  // segments renseignés pour au moins un participant, et calculées sur l'ensemble
+  // complet (pas les lignes filtrées) pour rester stables au bascule du filtre TCN.
+  const segments = splitColumns(
+    eventType ?? "",
+    participations.map((p) => p.splits),
   );
   const fcols = [BASE_COLS, ...segments.map((s) => (s.small ? "64px" : "80px")), CLUB_COL].join(" ");
 

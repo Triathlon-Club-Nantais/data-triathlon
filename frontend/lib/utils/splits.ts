@@ -57,12 +57,54 @@ export function splitSchema(eventType: string): SchemaEntry[] {
   return SCHEMAS.triathlon;
 }
 
+/**
+ * Entrée pour un split étiqueté par la **source**, hors de tout schéma de sport.
+ *
+ * Les scrapers qui renseignent `segments` (ok-time, RaceResult, Chronoplace) clés
+ * leurs splits sur les libellés publiés — « NATATION », « COURSE A PIED » —, que
+ * `mapping.build_splits` conserve tels quels côté backend : aucune clé canonique
+ * à attendre, donc aucun libellé à réécrire. Seule la couleur est devinée du mot,
+ * et le neutre couvre ce qu'on ne reconnaît pas plutôt que de mentir.
+ */
+function sourceEntry(key: string): SchemaEntry {
+  const t = key.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (/^t\d+$/.test(t) || t.includes("transition")) return { key, label: key, color: TRANS, small: true };
+  if (t.includes("nat") || t.includes("swim")) return { key, label: key, color: SWIM };
+  if (t.includes("velo") || t.includes("bike") || t.includes("cycl")) return { key, label: key, color: BIKE };
+  if (t.includes("course") || t.includes("run") || t.includes("pied") || t.includes("cap"))
+    return { key, label: key, color: RUN };
+  return { key, label: key, color: TRANS };
+}
+
+/** Segments d'une participation : schéma du sport, ou libellés de la source. */
 export function splitSegments(
   eventType: string,
   splits: Splits | null | undefined,
 ): Segment[] {
   if (!splits) return [];
-  return splitSchema(eventType)
-    .filter((s) => splits[s.key])
-    .map((s) => ({ ...s, time: splits[s.key] }));
+  const attendus = splitSchema(eventType).filter((s) => splits[s.key]);
+  if (attendus.length) return attendus.map((s) => ({ ...s, time: splits[s.key] }));
+  return Object.entries(splits)
+    .filter(([, time]) => time)
+    .map(([key, time]) => ({ ...sourceEntry(key), time }));
+}
+
+/**
+ * Colonnes de splits d'une course : les segments renseignés chez **au moins un**
+ * participant. Se base sur l'ensemble complet des participations pour que les
+ * colonnes restent stables quand un filtre d'affichage change.
+ */
+export function splitColumns(
+  eventType: string,
+  splitsList: (Splits | null | undefined)[],
+): SchemaEntry[] {
+  const attendus = splitSchema(eventType).filter((s) => splitsList.some((sp) => sp?.[s.key]));
+  if (attendus.length) return attendus;
+  const vues = new Map<string, SchemaEntry>();
+  for (const splits of splitsList) {
+    for (const [key, time] of Object.entries(splits ?? {})) {
+      if (time && !vues.has(key)) vues.set(key, sourceEntry(key));
+    }
+  }
+  return [...vues.values()];
 }
