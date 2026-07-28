@@ -108,6 +108,33 @@ def test_classify_mono_sport(text, expected):
     assert classify_event_type(text) == expected
 
 
+# --- Contexte d'appoint (titre d'événement) : ne nomme le sport qu'à défaut ---
+@pytest.mark.parametrize("epreuve,evenement,expected", [
+    # Le contexte ne doit **jamais** écraser un sport nommé par l'épreuve : une
+    # course annexe d'un « Triathlon de X » garde sa discipline.
+    ("Trail 12 km", "Triathlon de Lacanau 2026", "trail"),
+    ("Course a pied 10 km", "Triathlon de Lacanau 2026", "course-a-pied-10k"),
+    ("Cyclosportive", "Triathlon de Lacanau 2026", "cyclisme-route"),
+    ("Aquathlon 10 13 ans", "Triathlon de Lacanau 2026", "aquathlon"),
+    # Épreuve muette sur le sport : le contexte le nomme (cas ok-time mesuré).
+    ("Format M individuel", "SwimRun de la Côte de Beauté", "swimrun-m"),
+    ("La Bourriquette", "Trail du Bourraid", "trail"),
+    ("Format S", "Triathlon L de Mimizan", "triathlon-s"),   # taille de l'épreuve
+    ("Individuel", "Triathlon M de Mimizan", "triathlon-m"),  # taille du contexte
+    # Sport nommé de part et d'autre : celui de l'épreuve fait foi.
+    ("Triathlon L Individuel", "Triathlon de Lacanau 2026", "triathlon-l"),
+    ("", "Triathlon de Lacanau 2025", "triathlon"),
+])
+def test_classify_contexte(epreuve, evenement, expected):
+    assert classify_event_type(epreuve, contexte=evenement) == expected
+
+
+def test_classify_contexte_absent_ne_change_rien():
+    """Le paramètre est optionnel : sans lui, le classement d'hier est intact."""
+    assert classify_event_type("Format M individuel") == "triathlon-m"
+    assert classify_event_type("Format M individuel", contexte="") == "triathlon-m"
+
+
 # --- Normalisation (idempotence + reprise de l'existant) ---
 @pytest.mark.parametrize("value,expected", [
     ("Triathlon M", "triathlon-m"),

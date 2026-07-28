@@ -102,6 +102,17 @@ Les 4 occurrences du Sheet ne se valent pas :
 | `ok-time.fr/competition/t24-ile-de-re-2025/` | **404** |
 | `ok-time.fr/course/triathlon-l/` | 200, mais redirigée vers le listing générique — aucun id |
 
+**Garde sur la page atterrie** (ajoutée en re-revue, 2026-07-28) : le client suit
+les redirections, et le listing générique porte les liens de classement de *tous*
+les événements. Retenir le premier id trouvé y importerait un événement étranger
+sous la `source_url` demandée — donc sous sa clé de cache TTL — **sans erreur**.
+`_resolve_event_id` vérifie donc que le chemin final est bien un
+`/evenement/<slug>/` ; un slug **différent** de celui demandé est en revanche
+accepté (permalien renommé, dont l'id est le bon). Une page portant plusieurs ids
+distincts (bloc « derniers classements » d'un thème) retient toujours le premier,
+mais le journalise en `warning` : le cas n'a pas été observé, et refuser
+l'import romprait la seule forme d'URL qui n'est pas couverte par un test réseau.
+
 Les préfixes `/course/` et `/competition/` sont des formes **obsolètes** du site,
 qui publie aujourd'hui sous `/evenement/<slug>/`. Elles ne sont pas supportées :
 il n'y a rien à en tirer, et les faire résoudre par recherche dans l'annuaire
@@ -124,13 +135,20 @@ Chrono et les onglets chronoplace.
   Sans le titre d'épreuve, les 5 épreuves de Lacanau, qui partagent date et
   type, fusionneraient sur `uq_course_identity` et leurs dossards entreraient en
   collision (issue #21).
-- **Type** — `classify_event_type(f"{evenement_title} {title_course}")`, sur la
-  **concaténation**. Le titre d'épreuve seul est trompeur : « Format M
+- **Type** — `classify_event_type(title_course, contexte=evenement_title)`. Le
+  titre d'épreuve seul est trompeur **quand il ne nomme aucun sport** : « Format M
   individuel » du SwimRun Côte Beauté sort en `triathlon-m`, « La Bourriquette »
-  du Trail du Bourraid en `triathlon`. Vérifié sur les 99 courses : la
-  concaténation corrige 5 courses et n'en dégrade aucune. Elle reste correcte
-  quand les deux titres se contredisent — « Aquathlon 10 13 ans » dans
-  « Triathlon de Lacanau » sort bien en `aquathlon`.
+  du Trail du Bourraid en `triathlon`. Le titre d'événement lui sert donc
+  d'**appoint** : il nomme le sport à défaut, et corrige ainsi 5 des 99 courses du
+  panel. Il n'est *que* cela — la première version classait sur la
+  **concaténation** des deux titres, ce qui dégradait l'inverse : le « Trail 12
+  km » ou la « Cyclosportive » d'un « Triathlon de X » sortait en `triathlon`,
+  s'affichait comme tel et **survivait** au filtre `federal_only=true` (constat de
+  re-revue, 2026-07-28 — motif absent du panel mais banal). La **taille** suit la
+  même règle de spécificité : celle de l'épreuve prime (le « Format S » d'un
+  « Triathlon L de Mimizan » est un S), celle du contexte ne sert qu'à défaut.
+  Deux titres qui se contredisent restent correctement classés — « Aquathlon 10 13
+  ans » dans « Triathlon de Lacanau » sort bien en `aquathlon`.
 - **Date** — `date_course`, `dd/mm/yyyy` sur les 99 courses.
 - **`distance_km`** — `distance_course`, virgule décimale (`"27,5"` → `27.5`),
   renseignée partout. Évite le repli sur l'extraction depuis le nom, qui lit

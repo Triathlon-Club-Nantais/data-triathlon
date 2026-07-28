@@ -70,11 +70,22 @@ def _detect_size(t: str) -> str:
     return ""
 
 
-def _triathlon(t: str) -> str:
+# Tailles admises par sport : hors de cette table, un sport n'est jamais suffixé
+# (« Trail du Mont Blanc L » reste `trail`, la distance vivant dans `distance_km`).
+_TAILLES_PAR_SPORT = {
+    "triathlon": ("xs", "s", "m", "l", "xl"),
+    "duathlon": ("xs", "s", "m", "l", "xl"),
+    "swimrun": ("s", "m", "l"),
+}
+
+
+def _avec_taille(base: str, t: str) -> str:
+    """Sport nu + taille détectée dans `t`, si ce sport en admet une."""
+    tailles = _TAILLES_PAR_SPORT.get(base)
+    if not tailles:
+        return base
     size = _detect_size(t)
-    if not size:
-        return "triathlon"
-    return f"triathlon-{size}"
+    return f"{base}-{size}" if size in tailles else base
 
 
 def _course_a_pied(t: str) -> str | None:
@@ -116,14 +127,16 @@ def _cyclisme(t: str) -> str | None:
     return "cyclisme"
 
 
-def classify_event_type(text: str) -> str:
-    """Texte libre (nom d'épreuve, heat+slug, parcours…) → slug canonique."""
-    t = _norm(text)
+def _sport_base(t: str) -> str | None:
+    """Sport **nommé** dans `t`, sans suffixe de taille. None si aucun ne l'est.
 
+    Le None est porteur : il distingue « ce texte nomme un sport » de « il faut se
+    replier », ce qui permet à `classify_event_type` de ne consulter son contexte
+    qu'à défaut.
+    """
     # 1. Multisports composites d'abord (sous-mots piégeux).
     if "swimrun" in t or "swim-run" in t or "swim run" in t or "swim&run" in t:
-        size = _detect_size(t)
-        return f"swimrun-{size}" if size in ("s", "m", "l") else "swimrun"
+        return "swimrun"
     if (
         (re.search(r"\bbike\b", t) and re.search(r"\brun\b", t))
         or "bikerun" in t or "bike-run" in t
@@ -134,26 +147,39 @@ def classify_event_type(text: str) -> str:
     if "aquarun" in t:
         return "aquarun"
     if "duathlon" in t:
-        size = _detect_size(t)
-        return f"duathlon-{size}" if size else "duathlon"
+        return "duathlon"
 
-    # 2. Triathlon explicite : logique de distance (avant les mono-sports, car
-    #    "half" est ambigu — half-marathon vs half-ironman).
+    # 2. Triathlon explicite, avant les mono-sports : « half » est ambigu
+    #    (half-marathon vs half-ironman).
     if "triathlon" in t:
-        return _triathlon(t)
+        return "triathlon"
 
-    # 3. Mono-sports nouveaux.
+    # 3. Mono-sports.
     if "trail" in t:
         return "trail"
-    cyc = _cyclisme(t)
-    if cyc:
-        return cyc
-    cap = _course_a_pied(t)
-    if cap:
-        return cap
+    return _cyclisme(t) or _course_a_pied(t)
 
-    # 4. Repli : triathlon nu (+ taille si déductible : « Sprint … », « Ironman … »).
-    return _triathlon(t)
+
+def classify_event_type(text: str, *, contexte: str = "") -> str:
+    """Texte libre (nom d'épreuve, heat+slug, parcours…) → slug canonique.
+
+    `contexte` — texte d'appoint, typiquement le titre de l'événement qui porte
+    l'épreuve. Il est consulté **seulement** si `text` ne nomme aucun sport, et ne
+    peut donc pas dégrader une épreuve annexe : le « Trail 12 km » d'un
+    « Triathlon de X » reste un trail — sur la concaténation des deux, il sortait
+    en triathlon, s'affichait comme tel et survivait au filtre `federal_only`.
+    La taille, elle, reste celle de `text` dès qu'il en porte une (le « Format S »
+    d'un « Triathlon L de Mimizan » est un S), le contexte ne la fournissant qu'à
+    défaut.
+    """
+    t = _norm(text)
+    base = _sport_base(t)
+    reference = t
+    if base is None and contexte:
+        reference = f"{_norm(contexte)} {t}".strip()
+        base = _sport_base(reference)
+    # Repli : triathlon nu (+ taille si déductible : « Sprint … », « Ironman … »).
+    return _avec_taille(base or "triathlon", t if _detect_size(t) else reference)
 
 
 def normalize_event_type(value: str) -> str:
