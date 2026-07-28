@@ -29,8 +29,13 @@ _SPLIT_KEYS_BY_SPORT: dict[str, dict[str, str]] = {
     },
     "aquathlon": {"swim_time": "swim", "t1_time": "t1", "run_time": "run"},
     "aquarun": {"swim_time": "swim", "t1_time": "t1", "run_time": "run"},
-    "bike-run": {"bike_time": "bike", "run_time": "run"},
-    "swimrun": {"swim_time": "swim", "run_time": "run"},
+    # Bike & Run et swimrun n'ont ni natation ni vélo à l'endroit où les slots
+    # positionnels les attendent. Le slot sans discipline lisible garde une clé
+    # **positionnelle** : lui donner un nom de sport mentirait, et l'omettre du
+    # gabarit jetait silencieusement le temps qui s'y trouve (runnerbreizh publie
+    # ses 3 colonnes de segment quelle que soit la discipline).
+    "bike-run": {"swim_time": "segment1", "bike_time": "bike", "run_time": "run"},
+    "swimrun": {"swim_time": "swim", "bike_time": "segment2", "run_time": "run"},
     # Mono-sports : un seul segment pertinent.
     "course-a-pied": {"run_time": "run"},
     "trail": {"run_time": "run"},

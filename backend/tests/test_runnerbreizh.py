@@ -195,6 +195,37 @@ def test_parse_row_reads_female_gender_from_the_category():
     assert result.gender == "F"
 
 
+def test_category_rank_is_read_when_the_cell_carries_no_bold_tag():
+    """« <span>29/SEF</span> » → 29. Le site enveloppe la cellule « Catégorie »
+    dans un `<span>` de couleur, **sans** `<b>`, sur les lignes féminines.
+
+    Lu par le premier `<b>` de la cellule, le rang de catégorie se perdait pour
+    toutes les coureuses, alors que le qualifiant de la même cellule, lui, était
+    bien lu depuis le texte.
+    """
+    rows = runnerbreizh._result_rows(ANOMALIES)
+    meta = runnerbreizh._parse_title(ANOMALIES)
+
+    result = runnerbreizh._parse_row(rows[2], meta, EVENT_URL, 1)
+
+    assert (result.rank_category, result.category) == (29, "SEF")
+
+
+def test_both_members_of_a_mixed_duo_get_the_same_category_rank():
+    """Un duo mixte a une seule ligne en `<span>` (l'équipière) et une en `<b>`.
+
+    Les deux lignes décrivent la **même** équipe : des rangs de catégorie
+    différents seraient une incohérence interne à l'épreuve, pas une donnée.
+    """
+    meta = runnerbreizh._parse_title(DUO)
+    rows = runnerbreizh._result_rows(DUO)
+
+    mixed = [runnerbreizh._parse_row(r, meta, EVENT_URL, 1) for r in rows[2:]]
+
+    assert [r.rank_category for r in mixed] == [1, 1]
+    assert [r.category for r in mixed] == ["M+F", "M+F"]
+
+
 def test_raw_data_keeps_what_the_model_has_no_column_for():
     """Rangs par segment, écarts, vitesses, rang avant la dernière CàP, évolutions
     et taille du plateau : rien de tout cela n'a de colonne, et rien n'est perdu."""
@@ -212,6 +243,21 @@ def test_raw_data_keeps_what_the_model_has_no_column_for():
         {"position": 2, "time": "00:49:06", "rank": 1, "gap": "0.31%", "speed": "46.43 km/h"},
         {"position": 3, "time": "00:30:43", "rank": 1, "gap": "0.31%", "speed": "19.53 km/h"},
     ]
+
+
+def test_raw_data_keeps_the_city_the_title_announces():
+    """La commune du titre est plus juste que celle dérivée du nom d'épreuve.
+
+    `ScrapedResult` n'a pas de champ ville et la carte déduit la commune du nom :
+    « Aquathlon du Val-André S » y donne « Val-André » quand le titre dit
+    « Pléneuf-Val-André ». La valeur exacte est donc conservée en `raw_data` au
+    lieu d'être parsée puis jetée ; la brancher sur le géocodage changerait un
+    contrat partagé par tous les fournisseurs.
+    """
+    result = _first_result(AQUATHLON)
+
+    assert result.raw_data["city"] == "Pléneuf-Val-André"
+    assert extract_city(result.event_name) == "Val-André"
 
 
 def test_raw_data_keeps_the_runner_id_when_the_site_links_the_athlete():
@@ -371,6 +417,69 @@ def _fake_client(monkeypatch, pages: dict[int, str], default: str | None = None)
     return client
 
 
+def _page_with_rows(count: int, field_size: int = 322) -> str:
+    """Page de `count` lignes, clonées de la première ligne réelle de Quiberon.
+
+    Fabriquer une page **pleine** (50 lignes) demanderait sinon une fixture de 50
+    lignes pour une seule propriété : la structure, le titre et le total annoncé
+    restent ceux du site, seule la répétition est artificielle.
+    """
+    row = str(runnerbreizh._result_rows(PAGE1_TRIATHLON)[0])
+    row = row.replace("</b>/322", f"</b>/{field_size}")
+    title = PAGE1_TRIATHLON.split("<title>")[1].split("</title>")[0]
+    return (
+        f"<html><head><title>{title}</title></head><body>"
+        f'<table class="tableau-courses"><tr><th>Classement</th></tr>{row * count}</table>'
+        "</body></html>"
+    )
+
+
+def test_a_ranking_cut_short_of_the_announced_total_is_refused(monkeypatch):
+    """Une page pleine, puis une page vide : 50 lignes lues sur 322 annoncées.
+
+    C'est le scénario d'une page intermédiaire servie vide ou en 200 sans table.
+    Les rangs lus étant contigus (1..50), l'indice de fiabilité n'y verrait aucune
+    anomalie et l'épreuve passerait pour complète : refuser est la seule façon de
+    le signaler. Un import refusé se rejoue, une épreuve tronquée et marquée fiable
+    ne se rattrape pas.
+    """
+    _fake_client(monkeypatch, {1: _page_with_rows(50)})
+
+    with pytest.raises(ValueError, match="incomplet"):
+        runnerbreizh.scrape_event_all(EVENT_URL)
+
+
+def test_a_full_page_reaching_the_announced_total_is_accepted(monkeypatch):
+    """Même forme — page pleine puis page vide — mais le total annoncé est atteint :
+    c'est une épreuve dont le nombre de classés est un multiple de la taille de page,
+    pas une troncature."""
+    _fake_client(monkeypatch, {1: _page_with_rows(50, field_size=50)})
+
+    assert len(runnerbreizh.scrape_event_all(EVENT_URL)) == 50
+
+
+def test_a_relay_announcing_fewer_teams_than_rows_is_not_a_truncation(monkeypatch):
+    """En relais le total annoncé compte des **équipes** (31) et les pages des
+    lignes (62) : la garde compare un plancher, jamais une égalité, sinon toute
+    épreuve par équipes serait refusée."""
+    _fake_client(monkeypatch, {1: DUO})
+
+    assert len(runnerbreizh.scrape_event_all(EVENT_URL)) == 4
+
+
+def test_the_pagination_cap_refuses_instead_of_returning_repeated_pages(monkeypatch):
+    """Atteindre le plafond signifie que l'invariant d'arrêt est faux — le site
+    répète sa dernière page. Rendre ces lignes créerait 50 participations par page
+    répétée : sans dossard publié, l'anti-doublon par athlète ne rattrape rien sur
+    une course fraîche.
+    """
+    monkeypatch.setattr(runnerbreizh, "_MAX_PAGES", 3)
+    _fake_client(monkeypatch, {}, default=_page_with_rows(50))
+
+    with pytest.raises(ValueError, match="plafond"):
+        runnerbreizh.scrape_event_all(EVENT_URL)
+
+
 def test_scrape_event_all_walks_every_page(monkeypatch):
     _fake_client(monkeypatch, {1: PAGE1_TRIATHLON, 2: PAGE_LAST})
 
@@ -517,6 +626,35 @@ def test_refusal_message_names_the_expected_url_shape():
     assert "requetetriathlons.php" in message
     assert "CourseFichierGpsNom" in message
     assert "fiche coureur" in message
+
+
+def test_a_title_missing_one_field_is_refused_rather_than_read_shifted(monkeypatch):
+    """Le titre est lu par position depuis la droite : amputé d'un champ, tout décale.
+
+    Mesuré sur le titre de Quiberon privé de son kilométrage : le nom sort vide, la
+    ville prend la place du nom et le type perd sa taille — avec une date correcte,
+    donc sans rien qui trahisse le décalage. `import_service` refuse déjà une épreuve
+    sans nom, mais après le scrape et sans pouvoir en nommer la cause : la page 1 est
+    le seul endroit où le titre fautif est lisible.
+    """
+    shifted = PAGE1_TRIATHLON.replace(" - 49.5KM - Type", " - Type")
+    _fake_client(monkeypatch, {1: shifted})
+
+    with pytest.raises(ValueError, match="titre"):
+        runnerbreizh.scrape_event_all(EVENT_URL)
+
+
+def test_a_shifted_title_would_otherwise_yield_a_nameless_course():
+    """La raison d'être de la garde ci-dessus, isolée sur `_parse_title` : sans elle
+    l'épreuve s'importe sous un nom vide, un type dégradé et la ville du titre
+    promue en nom."""
+    shifted = PAGE1_TRIATHLON.replace(" - 49.5KM - Type", " - Type")
+
+    meta = runnerbreizh._parse_title(shifted)
+
+    assert meta.name == ""
+    assert meta.city == "Triathlon de Quiberon M (1.5/38/10)"
+    assert meta.event_date == date(2025, 9, 7)
 
 
 def test_unknown_event_id_is_refused_rather_than_read_as_empty(monkeypatch):
