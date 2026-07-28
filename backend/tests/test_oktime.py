@@ -69,10 +69,16 @@ PAGE_EVENEMENT = (FIXTURES / "oktime_evenement_page.html").read_text(encoding="u
 
 
 class FakeResponse:
-    """Réponse HTTP factice, texte + JSON."""
+    """Réponse HTTP factice, texte + JSON.
 
-    def __init__(self, contenu, status_code: int = 200):
+    `url` est l'URL **finale** — celle que httpx expose après avoir suivi les
+    redirections. Laissée à None, `FakeClient` y met l'URL demandée : le cas sans
+    redirection.
+    """
+
+    def __init__(self, contenu, status_code: int = 200, url: str | None = None):
         self.status_code = status_code
+        self.url = url
         if isinstance(contenu, str):
             self.text, self._json = contenu, None
         else:
@@ -104,9 +110,12 @@ class FakeClient:
 
     def get(self, url: str):
         self.calls.append(url)
-        for motif, reponse in self.pages.items():
+        for motif, contenu in self.pages.items():
             if motif in url:
-                return reponse if isinstance(reponse, FakeResponse) else FakeResponse(reponse)
+                reponse = contenu if isinstance(contenu, FakeResponse) else FakeResponse(contenu)
+                reponse.url = reponse.url or url
+                return reponse
+        self.defaut.url = self.defaut.url or url
         return self.defaut
 
 
@@ -124,6 +133,56 @@ def test_resolve_event_id_sans_lien_leve():
 
     with pytest.raises(ValueError, match="aucun lien de classement"):
         oktime._resolve_event_id(client, "triathlon-l")
+
+
+PAGE_LISTING = """<!DOCTYPE html><html><body>
+  <h1>Tous les classements</h1>
+  <a href="https://classement.ok-time.fr/48222">Triathlon d'Hourtin 2026</a>
+  <a href="https://classement.ok-time.fr/48555">Triathlon de Lacanau 2026</a>
+</body></html>"""
+
+
+def test_resolve_event_id_refuse_une_page_redirigee_hors_evenement():
+    """Un slug retiré est redirigé vers le listing générique (§2.1 du design).
+
+    Ce listing porte les liens de **tous** les événements : en retenir le premier
+    importerait les résultats d'un événement étranger sous la `source_url`
+    demandée — donc sous sa clé de cache TTL — sans lever la moindre erreur.
+    """
+    client = FakeClient(
+        {"/evenement/": FakeResponse(PAGE_LISTING, url="https://ok-time.fr/classements/")}
+    )
+
+    with pytest.raises(ValueError, match="redirigée"):
+        oktime._resolve_event_id(client, "triathlon-l")
+
+
+def test_resolve_event_id_accepte_un_slug_renomme():
+    """Une page d'événement servie sous un autre slug est un permalien renommé,
+    pas un listing : son id est le bon, on le retient sans broncher."""
+    client = FakeClient({
+        "/evenement/": FakeResponse(
+            PAGE_EVENEMENT,
+            url="https://ok-time.fr/evenement/triathlon-de-lacanau-2026-2/",
+        )
+    })
+
+    assert oktime._resolve_event_id(client, "triathlon-de-lacanau-2026") == "48555"
+
+
+def test_resolve_event_id_signale_plusieurs_ids(caplog):
+    """Une page portant un bloc « derniers classements » rendrait plusieurs ids :
+    le premier reste retenu, mais l'ambiguïté doit se voir dans les logs."""
+    page = PAGE_EVENEMENT.replace(
+        "</article>",
+        '<a href="https://classement.ok-time.fr/48222">Hourtin</a></article>',
+    )
+    client = FakeClient({"/evenement/": page})
+
+    with caplog.at_level(logging.WARNING, logger="app.scrapers.oktime"):
+        assert oktime._resolve_event_id(client, "triathlon-de-lacanau-2026") == "48555"
+
+    assert "48222" in caplog.text
 
 
 def test_fetch_results_rend_la_charge():
@@ -701,24 +760,63 @@ def test_course_results_entites_html_decodees_dans_le_nom():
     assert "&#" not in resultats[0].event_name
 
 
-def test_course_results_classification_sur_la_concatenation():
-    """Le titre d'épreuve seul est trompeur : « Format M individuel » du SwimRun
-    Côte Beauté sortirait en triathlon-m. La concaténation corrige 5 courses du
-    panel et n'en dégrade aucune."""
-    course = {
-        "title_course": "Format M individuel",
+def _course_simple(title_course: str, **surcharges) -> dict:
+    """Une épreuve minimale, un participant fini : de quoi observer la seule
+    classification."""
+    return {
+        "title_course": title_course,
         "epreuve_id": 1,
-        "date_course": "01/06/2025",
-        "distance_course": "20,000",
+        "date_course": "02/05/2026",
+        "distance_course": "12,000",
         "status": "finish",
         "runners": [{"nom": "Paul MARTIN", "temps_finish": "01:00:00"}],
+        **surcharges,
     }
 
+
+def test_course_results_classification_repli_sur_le_titre_devenement():
+    """Le titre d'épreuve muet sur le sport se lit à la lumière de l'événement :
+    « Format M individuel » du SwimRun Côte Beauté sortirait sinon en triathlon-m.
+    Ce repli corrige 5 courses du panel et n'en dégrade aucune."""
     resultats = oktime._course_results(
-        course, url=URL_48555, evenement_title="SwimRun de la Côte de Beauté"
+        _course_simple("Format M individuel", distance_course="20,000"),
+        url=URL_48555,
+        evenement_title="SwimRun de la Côte de Beauté",
     )
 
     assert resultats[0].event_type == "swimrun-m"
+
+
+@pytest.mark.parametrize("title_course, attendu", [
+    ("Trail 12 km", "trail"),
+    ("Course a pied 10 km", "course-a-pied-10k"),
+    ("Cyclosportive", "cyclisme-route"),
+])
+def test_course_results_epreuve_annexe_garde_sa_discipline(title_course, attendu):
+    """Une épreuve annexe d'un « Triathlon de X » n'est pas un triathlon.
+
+    Classée sur la concaténation des deux titres, elle sortait en `triathlon` :
+    elle s'affichait « Triathlon » et **survivait** au filtre `federal_only=true`,
+    l'inverse du besoin de disciplines (#76). Le titre d'épreuve nomme ici un
+    sport : l'événement n'a pas à s'y substituer.
+    """
+    resultats = oktime._course_results(
+        _course_simple(title_course), url=URL_48555,
+        evenement_title="Triathlon de Lacanau 2026",
+    )
+
+    assert resultats[0].event_type == attendu
+
+
+def test_course_results_taille_de_lepreuve_prime_sur_celle_de_levenement():
+    """« Format S » dans un « Triathlon L de Mimizan » est un S : le titre
+    d'événement ne sert qu'à nommer le sport, jamais à dicter la taille."""
+    resultats = oktime._course_results(
+        _course_simple("Format S"), url=URL_48555,
+        evenement_title="Triathlon L de Mimizan",
+    )
+
+    assert resultats[0].event_type == "triathlon-s"
 
 
 def test_course_results_concatenation_reste_correcte_si_les_titres_se_contredisent():
@@ -868,7 +966,7 @@ def test_course_results_invariants_de_course_calcules_une_seule_fois(monkeypatch
     )
     monkeypatch.setattr(
         oktime, "classify_event_type",
-        lambda texte: appels.append("type") or vrai_type(texte),
+        lambda texte, **kw: appels.append("type") or vrai_type(texte, **kw),
     )
     course = {
         "title_course": "Triathlon M",

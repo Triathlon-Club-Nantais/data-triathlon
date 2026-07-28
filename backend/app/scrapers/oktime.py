@@ -89,17 +89,39 @@ def _resolve_event_id(client: httpx.Client, slug: str) -> str:
     Une page servie mais dépourvue de lien de classement est le cas des slugs
     redirigés vers le listing générique (§2.1 du design) : il n'y a rien à en
     tirer, l'erreur doit le dire.
+
+    **Garde sur la page atterrie** : le client suit les redirections, et le
+    listing générique, lui, porte les liens de classement de *tous* les
+    événements. Retenir le premier id trouvé y importerait un événement étranger
+    sous la `source_url` demandée — donc sous sa clé de cache TTL — sans lever
+    d'erreur. On vérifie donc d'avoir atterri sur une page d'événement. Le slug
+    peut en revanche **différer** de celui demandé sans que ce soit un problème :
+    c'est un permalien renommé, dont l'id est le bon.
     """
     url = f"{BASE_URL}/evenement/{slug}/"
     response = client.get(url)
     response.raise_for_status()
-    m = _CLASSEMENT_ID_RE.search(response.text)
-    if not m:
+    atterrissage = _SLUG_PATH_RE.match(urlparse(str(response.url)).path or "/")
+    if not atterrissage:
+        raise ValueError(
+            f"Page ok-time.fr « {slug} » redirigée hors de /evenement/ "
+            f"(vers {response.url}) : slug retiré du site, aucun id de classement "
+            "à en tirer sans risquer celui d'un autre événement. Utiliser l'URL "
+            "de classement directe."
+        )
+    ids = list(dict.fromkeys(_CLASSEMENT_ID_RE.findall(response.text)))
+    if not ids:
         raise ValueError(
             f"Page ok-time.fr « {slug} » sans aucun lien de classement : "
             "événement sans résultats publiés, ou slug redirigé vers le listing."
         )
-    return m.group(1)
+    if len(ids) > 1:
+        logger.warning(
+            "Page ok-time « %s » : %d ids de classement distincts (%s) — le "
+            "premier est retenu. Vérifier qu'il s'agit bien de cet événement.",
+            atterrissage.group("slug"), len(ids), ", ".join(ids),
+        )
+    return ids[0]
 
 
 def _fetch_results(client: httpx.Client, event_id: str) -> dict:
@@ -497,13 +519,14 @@ def _course_results(course: dict, *, url: str, evenement_title: str) -> list[Scr
     # Invariants de la course, calculés **une fois** : les remonter dans la
     # compréhension rendait `_course_results` quadratique, `_is_relay_course`
     # parcourant tous les `runners` à chaque participant.
-    # Le type est classé sur la **concaténation** des deux titres : le titre
-    # d'épreuve seul est trompeur (« Format M individuel » du SwimRun Côte Beauté
-    # sortirait en triathlon-m, « La Bourriquette » du Trail du Bourraid en
-    # triathlon). Sur les 99 courses du panel, la concaténation en corrige 5 et
-    # n'en dégrade aucune.
+    # Le titre d'épreuve seul est trompeur quand il ne nomme aucun sport
+    # (« Format M individuel » du SwimRun Côte Beauté sortirait en triathlon-m,
+    # « La Bourriquette » du Trail du Bourraid en triathlon) : le titre
+    # d'événement lui sert alors d'appoint, et corrige 5 des 99 courses du panel.
+    # Il n'est **que** cela : sur la concaténation des deux, le « Trail 12 km »
+    # d'un « Triathlon de X » sortait en triathlon et survivait à `federal_only`.
     event_name = qualify_event_name(evenement_title, title_course)
-    event_type = classify_event_type(f"{evenement_title} {title_course}")
+    event_type = classify_event_type(title_course, contexte=evenement_title)
     event_date = _parse_date(course.get("date_course"))
     distance_km = _parse_distance(course.get("distance_course"))
     is_relay = _is_relay_course(title_course, runners)
