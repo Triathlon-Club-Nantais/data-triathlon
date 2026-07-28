@@ -76,11 +76,16 @@ le plan », et deux tests de non-régression protègent ses conclusions. Il n'a 
 contrepartie Speckit — il précède l'adoption du cycle.
 
 La forme à reproduire, sondage **et** Speckit sur la même feature, est celle de
-runnerbreizh : sondage du HTML réel écrit **avant** tout cadrage, puis déclaré
-« source de vérité technique » par `specs/002-runnerbreizh-scraper/spec.md`,
+runnerbreizh (#122) : sondage du HTML réel écrit **avant** tout cadrage, puis
+déclaré « source de vérité technique » par `specs/002-runnerbreizh-scraper/spec.md`,
 `plan.md` et `tasks.md`, le `research.md` consignant les **décisions** que les
 mesures ont permis de prendre sans les recopier. Deux fichiers, deux rôles, zéro
 redondance.
+
+Ce `specs/002-runnerbreizh-scraper/` **arrive avec #122**, pas avec le présent
+document : sur une branche qui ne l'a pas mergée, les chemins ci-dessus n'existent
+pas encore. C'est pourquoi la règle, elle, s'ancre sur le sondage RaceResult — déjà
+sur `main`, et déjà donné pour primant par `AGENTS.md`.
 
 ---
 
@@ -202,9 +207,11 @@ pas à les faire respecter.
 
 ## Rappels projet (cohérence avec `AGENTS.md`)
 
-- **Tests unitaires** : sans réseau, httpx mocké avec respx. Le réseau réel est
-  derrière le marker `integration`. Lancer `pytest -m "not integration"` pour les
-  tests rapides.
+- **Tests unitaires** : sans réseau — httpx est neutralisé par `monkeypatch`, soit
+  sur `httpx.Client` lui-même, soit sur la fonction de fetch du scraper (par
+  exemple `app.scrapers.timepulse._fetch_xml`), avec des fixtures HTML/JSON en
+  dur. Le réseau réel est derrière le marker `integration`. Lancer
+  `pytest -m "not integration"` pour les tests rapides.
 - **Commits** : Conventional Commits (`feat:`, `fix:`, `refactor:`…).
 - **Langue** (Principe I de la constitution) : **français** pour ce qui est visible
   utilisateur ou métier — UI, messages d'erreur affichés, docs produit, commentaires
