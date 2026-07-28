@@ -323,6 +323,17 @@ def test_athlete_identity_nom_dequipe_pur_en_course_relais():
     assert (nom, prenom) == ("TEAM TCC", "")
 
 
+def test_athlete_identity_decode_les_entites_html():
+    """Les entités WordPress sont une propriété de **toute** la charge, pas des
+    seuls titres : « D&#039;ANGELO » entré tel quel en base scinderait l'athlète
+    d'avec la fiche créée par un autre fournisseur."""
+    nom, prenom = oktime._athlete_identity(
+        {"nom": "Marie D&#039;ANGELO"}, is_relay=False, epreuve_id="59697"
+    )
+
+    assert (nom, prenom) == ("D'ANGELO", "Marie")
+
+
 def test_athlete_identity_rgpd_identite_synthetique():
     """`rgpd:"N"` → nom amputé à la source (« T... B... ») : identité synthétique."""
     nom, prenom = oktime._athlete_identity(
@@ -403,6 +414,16 @@ def test_status_dns_prioritaire_sur_dnf():
     runner = {"pris_depart": "N", "abandon": "O", "disqualifie": "N"}
 
     assert oktime._status(runner, course_non_chronometree=False) == "DNS"
+
+
+def test_status_disqualification_prime_sur_labandon():
+    """La source cumule des drapeaux contradictoires (1 participation du panel
+    porte `abandon="O"` et `pris_depart="N"`) : entre abandon et disqualification,
+    la disqualification est l'information la plus forte, et la seule qui explique
+    l'absence de classement."""
+    runner = {"pris_depart": "O", "abandon": "O", "disqualifie": "O"}
+
+    assert oktime._status(runner, course_non_chronometree=False) == "DSQ"
 
 
 def test_status_course_non_chronometree_est_finisher():
@@ -626,6 +647,32 @@ def test_build_result_total_time_ne_vient_jamais_du_dernier_point():
 
     assert r.total_time == "01:12:00"
     assert r.segments == [("RUN1", "00:20:00"), ("DEPART CAP2", "00:35:00")]
+
+
+def test_build_result_decode_les_entites_du_club_et_de_la_categorie():
+    """Même raison que pour le nom : la sérialisation WordPress ne distingue pas
+    les champs. Un club « ASPTT &amp; CO » en base ne se rapprocherait d'aucun autre."""
+    r = _resultat({**RUNNER_NOMINAL, "club": "ASPTT &amp; CO", "categorie": "V1 &#8211; H"})
+
+    assert r.club == "ASPTT & CO"
+    assert r.category == "V1 – H"
+
+
+def test_build_result_signale_les_points_illisibles():
+    """Un point au format inattendu est écarté par `_secs` : la perte doit laisser
+    une trace, comme celle des cumuls décroissants."""
+    runner = {
+        **RUNNER_NOMINAL,
+        "points_de_passage": [
+            {"id": "1|1", "nom": "NATATION", "time": "00:23:56"},
+            {"id": "2|2", "nom": "VELO", "time": "01:23:45.6"},
+        ],
+    }
+
+    r = _resultat(runner)
+
+    assert r.segments == [("NATATION", "00:23:56")]
+    assert r.raw_data["splits_illisibles"] == ["VELO"]
 
 
 def test_build_result_dossard_absent():
@@ -986,6 +1033,64 @@ def test_course_results_invariants_de_course_calcules_une_seule_fois(monkeypatch
     assert len(resultats) == 5
     assert appels.count("relais") == 1
     assert appels.count("type") == 1
+
+
+def test_course_results_un_temps_isole_ne_rend_pas_la_course_chronometree():
+    """Un `temps_finish` saisi à la main ne fait pas basculer toute la course.
+
+    Sur l'égalité stricte à zéro, un seul temps parmi les 52 participations d'une
+    course d'enfants suffisait à désarmer le repli : les 51 autres retombaient sur
+    l'heuristique du projet, qui les classe **DNF en bloc** — le badge d'abandon
+    sur une course entière d'enfants que ce repli existe précisément pour éviter.
+    """
+    runners = [{"nom": f"Enfant {i}", "temps_finish": "00:00:00"} for i in range(51)]
+    runners.append({"nom": "Enfant 51", "temps_finish": "00:12:34"})
+
+    resultats = oktime._course_results(
+        _course_simple("Course des enfants UNICEF", runners=runners),
+        url=URL_48555, evenement_title="Triathlon de Lacanau 2026",
+    )
+
+    assert [r.status for r in resultats] == ["finisher"] * 52
+
+
+def test_course_results_course_chronometree_ne_bascule_pas_en_finisher():
+    """Contre-épreuve du seuil : sur une course bel et bien chronométrée, un
+    partant sans temps reste traité par l'heuristique — rien ne le distingue d'un
+    abandon non saisi."""
+    runners = [{"nom": f"Paul {i}", "temps_finish": "01:00:00"} for i in range(9)]
+    runners.append({"nom": "Sans temps", "temps_finish": "00:00:00"})
+
+    resultats = oktime._course_results(
+        _course_simple("Triathlon M", runners=runners),
+        url=URL_48555, evenement_title="Triathlon de Lacanau 2026",
+    )
+
+    assert all(r.status == "" for r in resultats)
+
+
+def test_course_results_log_agrege_des_points_illisibles(caplog):
+    """Une ligne par épreuve, avec les libellés perdus — le pendant du log des
+    cumuls décroissants, qui manquait au cas symétrique."""
+    course = _course_simple("Triathlon M", runners=[
+        {
+            "nom": f"Paul MARTIN{i}",
+            "temps_finish": "02:00:00",
+            "points_de_passage": [
+                {"id": "1|1", "nom": "NATATION", "time": "00:23:56"},
+                {"id": "2|2", "nom": "VELO", "time": "01:23:45.6"},
+            ],
+        }
+        for i in range(3)
+    ])
+
+    with caplog.at_level(logging.WARNING, logger="app.scrapers.oktime"):
+        oktime._course_results(course, url=URL_48555, evenement_title="Triathlon de Mimizan")
+
+    messages = [r for r in caplog.records if "illisible" in r.getMessage()]
+    assert len(messages) == 1
+    assert "3 participation" in messages[0].getMessage()
+    assert "VELO" in messages[0].getMessage()
 
 
 def test_course_results_log_agrege_des_cumuls_conserves(caplog):
