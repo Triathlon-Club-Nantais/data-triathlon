@@ -40,6 +40,36 @@ def test_build_splits_bike_run_omits_swim():
     assert mapping.build_splits(s) == {"bike": "00:20:00", "run": "00:10:00"}
 
 
+def test_build_splits_bike_run_keeps_a_filled_first_slot():
+    # Il n'y a pas de natation en bike & run : le slot 1 ne doit jamais sortir en
+    # « swim ». Mais rempli, il ne doit pas non plus être jeté — runnerbreizh
+    # publie 3 colonnes figées quelle que soit la discipline, et la première n'a
+    # là-bas aucune discipline lisible, d'où une clé positionnelle.
+    s = _scraped(
+        event_type="bike-run",
+        swim_time="00:10:00", bike_time="00:30:00", run_time="00:20:00",
+    )
+    assert mapping.build_splits(s) == {
+        "segment1": "00:10:00",
+        "bike": "00:30:00",
+        "run": "00:20:00",
+    }
+
+
+def test_build_splits_swimrun_keeps_a_filled_middle_slot():
+    # Même trou dans le gabarit swimrun : le slot vélo n'y a pas de sens, mais un
+    # temps qui s'y trouve est une donnée, pas un parasite.
+    s = _scraped(
+        event_type="swimrun-l",
+        swim_time="00:12:00", bike_time="00:25:00", run_time="00:40:00",
+    )
+    assert mapping.build_splits(s) == {
+        "swim": "00:12:00",
+        "segment2": "00:25:00",
+        "run": "00:40:00",
+    }
+
+
 def test_build_splits_uses_segments_when_provided():
     # Chemin générique : si `segments` est renseigné, il prime sur les 5 slots
     # et les étiquettes libres sont conservées (ordre inclus).

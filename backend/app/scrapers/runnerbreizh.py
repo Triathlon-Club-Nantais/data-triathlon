@@ -69,6 +69,9 @@ _RELAY_NAME_HINTS = ("duo", "relais", "relay", "equipe", "équipe")
 #: Every ranking row has 8 cells, whatever the sport (probed on 7 events).
 _EXPECTED_CELLS = 8
 
+#: Rows per page, fixed by the site. A page holding fewer is the last one.
+_PAGE_SIZE = 50
+
 #: 50 rows per page; the cap only guards against a site repeating its last page.
 #: The largest event probed (2704 ranked) needs 55, hence the margin.
 _MAX_PAGES = 200
@@ -163,11 +166,18 @@ def _parse_rank_pair(cell) -> tuple[int | None, str]:
     Serves both the overall ranking cell (`1/322`, qualifier = field size) and the
     category one (`1/SEM`, qualifier = category label). The qualifier is whatever
     follows the first slash, up to the end of the line.
+
+    The `<b>` is not guaranteed: on a female row the site wraps the whole category
+    cell in a colour `<span>` and drops the bold tag (`<span>29/SEF</span>`). Both
+    values are therefore read from the text, the bold tag being only a shortcut —
+    reading the rank from the first child alone lost it for every female row while
+    the qualifier of the same cell came through.
     """
-    rank = None
+    text = cell.get_text("\n", strip=True)
     if bold := cell.find("b"):
         rank = normalize_rank(bold.get_text(strip=True))
-    text = cell.get_text("\n", strip=True)
+    else:
+        rank = normalize_rank(text.split("/", 1)[0])
     qualifier = ""
     if m := _RANK_QUALIFIER.search(text):
         qualifier = m.group(1).strip()
@@ -285,6 +295,11 @@ def _parse_row(row, meta: EventMeta, source_url: str, page: int) -> "ScrapedResu
     )
     result.raw_data = {
         "page": page,
+        # La commune du titre, faute de champ ville dans `ScrapedResult` : elle est
+        # plus juste que celle que la carte déduit du nom d'épreuve
+        # (« Pléneuf-Val-André » contre « Val-André »), et la jeter serait perdre
+        # la meilleure valeur disponible.
+        "city": meta.city,
         "runner_id": _runner_id(cells[0]),
         "field_size": normalize_rank(field_size),
         "rank_trend": _trend(cells[6]),
@@ -398,6 +413,70 @@ def _warn_if_republished(html: str, url: str) -> str:
     return ""
 
 
+def _require_event_name(meta: EventMeta, rows: list, url: str) -> None:
+    """Refuse une page 1 dont le `<title>` n'a livré aucun nom d'épreuve.
+
+    Deux causes, deux messages, parce que l'opérateur n'y répond pas de la même
+    façon :
+
+    - **aucune ligne** : l'identifiant d'épreuve n'existe pas. Le site répond 200
+      avec un titre vide, ce qui passerait sinon pour une épreuve sans classement
+      publié — à lui de corriger l'URL ;
+    - **des lignes** : le titre existe mais son format a changé. Il est lu par
+      position depuis la droite, donc un champ manquant décale tout : le nom sort
+      vide, la ville prend sa place et le type perd sa taille, la date restant
+      juste. `import_service._require_event_name` rattrape bien le nom vide, mais
+      en aval, sans pouvoir dire lequel des deux cas s'est produit — et le type
+      dégradé, lui, ne serait rattrapé par personne.
+    """
+    if meta.name:
+        return
+    if rows:
+        raise ValueError(
+            f"Format de titre runnerbreizh.fr inattendu sur {url} : nom d'épreuve "
+            "illisible alors que le classement est publié — les champs du titre ont "
+            "changé de place."
+        )
+    raise ValueError(
+        f"Épreuve runnerbreizh.fr introuvable : {url} — "
+        "l'identifiant d'épreuve n'existe pas sur le site."
+    )
+
+
+def _require_complete_ranking(
+    rows_seen: int, last_page_was_full: bool, results: list[ScrapedResult], url: str
+) -> None:
+    """Refuse un classement qui s'arrête avant le total annoncé par le site.
+
+    La pagination s'arrête sur la première page sans ligne, ce qui confond deux
+    situations : la fin du classement, et une page intermédiaire servie vide ou en
+    200 sans table. Dans le second cas les rangs lus restent contigus (1..150), donc
+    l'indice de fiabilité ne voit aucune anomalie et l'épreuve tronquée passe pour
+    complète — un silence, pas une erreur.
+
+    Deux précautions contre le faux positif :
+
+    - on ne juge que si la dernière page lue était **pleine**. Une page incomplète
+      est la fin publiée, quel que soit le total annoncé ;
+    - on compare un **plancher**, pas une égalité : en relais le total compte des
+      équipes (31) alors que les pages portent une ligne par équipier (62).
+
+    On compte les lignes vues, pas les résultats retenus : une ligne hors format est
+    déjà signalée par ailleurs, et la déduire ici ferait échouer l'épreuve pour une
+    tout autre raison.
+    """
+    if not last_page_was_full:
+        return
+    announced = max((r.raw_data.get("field_size") or 0 for r in results), default=0)
+    if rows_seen >= announced:
+        return
+    raise ValueError(
+        f"Classement runnerbreizh.fr incomplet sur {url} : {rows_seen} lignes lues "
+        f"pour {announced} classés annoncés, et la pagination s'est arrêtée sur une "
+        "page pleine. Import refusé plutôt que tronqué — réessayez."
+    )
+
+
 def scrape_event_all(url: str) -> list[ScrapedResult]:
     """Scrape every ranked participant of one runnerbreizh event.
 
@@ -416,6 +495,8 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     # exists solely because the first iteration is guaranteed to assign it is one
     # loop reshuffle away from a NameError.
     timekeeper = ""
+    rows_seen = 0
+    last_page_was_full = False
 
     with httpx.Client(follow_redirects=True, timeout=30, headers=HEADERS) as client:
         for page in range(1, _MAX_PAGES + 1):
@@ -425,24 +506,24 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                 timekeeper = _warn_if_republished(html, event_url)
 
             rows = _result_rows(html)
+            if page == 1:
+                _require_event_name(meta, rows, event_url)
             if not rows:
-                if page == 1 and not meta.name:
-                    raise ValueError(
-                        f"Épreuve runnerbreizh.fr introuvable : {event_url} — "
-                        "l'identifiant d'épreuve n'existe pas sur le site."
-                    )
                 break
 
+            rows_seen += len(rows)
+            last_page_was_full = len(rows) == _PAGE_SIZE
             for row in rows:
                 if result := _parse_row(row, meta, event_url, page):
                     if timekeeper:
                         result.raw_data["timekeeper"] = timekeeper
                     results.append(result)
         else:
-            logger.warning(
-                "runnerbreizh: stopped at the %d-page safety cap on %s — "
-                "the site may be repeating its last page",
-                _MAX_PAGES, event_url,
+            raise ValueError(
+                f"Pagination runnerbreizh.fr au plafond de {_MAX_PAGES} pages sur "
+                f"{event_url} : le site répète probablement sa dernière page. Import "
+                "refusé — les lignes déjà lues sont vraisemblablement dupliquées."
             )
 
+    _require_complete_ranking(rows_seen, last_page_was_full, results, event_url)
     return results
