@@ -13,6 +13,8 @@ describe("providerLabel", () => {
     expect(providerLabel("chronoplace")).toBe("Chronoplace");
     expect(providerLabel("competitor")).toBe("IRONMAN (Competitor)");
     expect(providerLabel("oktime")).toBe("OK TIME");
+    expect(providerLabel("runnerbreizh")).toBe("Runner Breizh");
+    expect(providerLabel("t2area")).toBe("FFTRI (T2Area)");
   });
 
   it("laisse passer un provider inconnu plutôt que de l'effacer", () => {

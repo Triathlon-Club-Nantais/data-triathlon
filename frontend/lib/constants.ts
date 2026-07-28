@@ -50,6 +50,10 @@ export const PROVIDER_LABELS: Record<string, string> = {
   // que le backend détecte, mais « IRONMAN » est ce que l'utilisateur a collé.
   competitor: "IRONMAN (Competitor)",
   oktime: "OK TIME",
+  runnerbreizh: "Runner Breizh",
+  // T2Area édite la plateforme, mais c'est la FFTRI qui la sert (`fftri.t2area.com`)
+  // et sous ce nom que la fédération y renvoie ses licenciés (cf. #51).
+  t2area: "FFTRI (T2Area)",
 };
 
 /** Libellé d'un chronométreur ; le slug brut à défaut, « Source » si non renseigné. */
