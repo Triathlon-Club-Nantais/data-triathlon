@@ -140,6 +140,11 @@ posée gagne, qu'elle vienne du shell ou de `frontend/.env.local` (lu avec le lo
 de Next). Dissocier `API_URL` de `BACKEND_URL` reste donc possible en dev, comme en
 prod.
 
+Un worktree est en revanche une copie neuve : les fichiers gitignorés n'y sont pas.
+`.worktreeinclude` (racine, syntaxe `.gitignore`) liste ceux que **Claude Code**
+recopie à la création d'un worktree — `.env`, `.env.local` et la base de dev
+`backend/triathlon.db`. Avec `git worktree add`, la copie reste à votre charge.
+
 ---
 
 ## Providers supportés
