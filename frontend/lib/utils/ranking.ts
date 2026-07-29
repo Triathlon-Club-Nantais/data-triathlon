@@ -8,23 +8,37 @@ export interface RankRatio {
   percent: number;
 }
 
+/**
+ * Le refus d'un ratio a deux natures qu'on distingue à l'affichage :
+ * `unreliable` = la course est marquée `is_reliable=false` (données douteuses
+ * chez le chronométreur : dossards en doublon, trous dans le classement…) →
+ * signal explicite à l'utilisateur. `incomplete` = rang absent ou compte de
+ * classés absent/incohérent → cellule vide, cas neutre.
+ */
+export type RankRatioReason = "unreliable" | "incomplete";
+
+export interface RankRatioResult {
+  ratio: RankRatio | null;
+  reason?: RankRatioReason;
+}
+
 // Sous deux classés, le ratio ne signale qu'un import partiel.
 const MIN_CLASSES = 2;
 
-/** Ratio d'une participation, ou `null` si les données ne le permettent pas. */
-export function rankRatio(p: Participation): RankRatio | null {
+/** Ratio d'une participation, avec la raison motivant un `null`. */
+export function rankRatio(p: Participation): RankRatioResult {
   // Course explicitement marquée non fiable : mieux vaut ne rien afficher
   // qu'un ratio faux. `=== false` seulement : absent/null continue de produire un ratio.
-  if (p.course?.is_reliable === false) return null;
+  if (p.course?.is_reliable === false) return { ratio: null, reason: "unreliable" };
   const rank = p.rank_overall;
   const total = p.course_finishers ?? null;
-  if (rank == null || rank < 1) return null;
-  if (total == null || total < MIN_CLASSES) return null;
+  if (rank == null || rank < 1) return { ratio: null, reason: "incomplete" };
+  if (total == null || total < MIN_CLASSES) return { ratio: null, reason: "incomplete" };
   // Import partiel : plus de rangs que de classés en base. Un « Top 210 % »
   // serait pire que pas de ratio du tout.
-  if (rank > total) return null;
+  if (rank > total) return { ratio: null, reason: "incomplete" };
   // Multiplication avant division réduit les erreurs de précision flottante.
-  return { rank, total, percent: Math.ceil((rank * 100) / total) };
+  return { ratio: { rank, total, percent: Math.ceil((rank * 100) / total) } };
 }
 
 export interface RatioEntry {
@@ -36,7 +50,7 @@ export interface RatioEntry {
 export function bestRatio(parts: Participation[]): RatioEntry | null {
   let best: RatioEntry | null = null;
   for (const participation of parts) {
-    const ratio = rankRatio(participation);
+    const { ratio } = rankRatio(participation);
     if (!ratio) continue;
     if (!best) {
       best = { participation, ratio };

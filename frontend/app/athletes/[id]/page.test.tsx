@@ -26,8 +26,10 @@ function part(over: Partial<Participation> & { id: number }): Participation {
       provider: "manuel",
       source_url: "",
       is_relay: false,
+      ...(over.course ?? {}),
     },
     club: "TCN",
+    is_tcn: true,
     category: null,
     bib_number: null,
     rank_overall: over.rank_overall ?? null,
@@ -85,5 +87,63 @@ describe("AthletePage", () => {
     expect(screen.queryByText("/20")).not.toBeInTheDocument();
     expect(screen.queryByText(/^Top \d+%$/)).not.toBeInTheDocument();
     expect(screen.getByText("Meilleur ratio")).toBeInTheDocument();
+    // AC3 : « incomplete » ne déclenche PAS le signal `is_reliable=false`.
+    expect(screen.queryByTestId("unreliable-marker")).not.toBeInTheDocument();
+  });
+
+  it("signale visuellement une course non fiable (AC1) avec tooltip FR (AC2)", async () => {
+    await renderAthlete([
+      part({
+        id: 1,
+        rank_overall: 3,
+        course_finishers: 300,
+        course: {
+          id: 1,
+          name: "Course 1",
+          event_date: "2026-05-16",
+          event_type: "triathlon-m",
+          provider: "manuel",
+          source_url: "",
+          is_relay: false,
+          is_reliable: false,
+          quality_issues: { duplicate_bib: 2, rank_gap: 1 },
+        },
+      }),
+    ]);
+
+    const marker = screen.getByTestId("unreliable-marker");
+    expect(marker).toBeInTheDocument();
+    // AC2 : tooltip natif via `title`, en français.
+    const title = marker.getAttribute("title") ?? "";
+    expect(title).toContain("2 dossards en doublon");
+    expect(title).toContain("1 trou dans le classement");
+    // AC1 bis : le « /N » disparaît quand la course est non fiable.
+    expect(screen.queryByText("/300")).not.toBeInTheDocument();
+  });
+
+  it("rend un tooltip générique si `is_reliable=false` sans quality_issues détaillé", async () => {
+    // Cas plausible : ancien import où is_reliable a été mis à false sans
+    // détail (backfill, migration). L'utilisateur doit tout de même comprendre
+    // pourquoi le ratio manque.
+    await renderAthlete([
+      part({
+        id: 1,
+        rank_overall: 3,
+        course_finishers: 300,
+        course: {
+          id: 1,
+          name: "Course 1",
+          event_date: "2026-05-16",
+          event_type: "triathlon-m",
+          provider: "manuel",
+          source_url: "",
+          is_relay: false,
+          is_reliable: false,
+        },
+      }),
+    ]);
+
+    const marker = screen.getByTestId("unreliable-marker");
+    expect(marker.getAttribute("title") ?? "").toMatch(/fiabilité/i);
   });
 });
