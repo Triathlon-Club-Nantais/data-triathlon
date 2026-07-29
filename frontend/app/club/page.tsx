@@ -5,7 +5,6 @@ import { DisciplineToggle } from "@/components/layout/DisciplineToggle";
 import { RankTypeToggle } from "@/components/layout/RankTypeToggle";
 import { ClubDashboard } from "@/components/club/ClubDashboard";
 import { SCOPE_CLUB, federalOnlyFromParam } from "@/lib/scope";
-import { rankTypeFromParam } from "@/lib/rank";
 
 // La page Club est TOUJOURS filtrée sur le club, indépendamment de toute portée.
 export default async function ClubPage({
@@ -15,7 +14,6 @@ export default async function ClubPage({
 }) {
   const sp = await searchParams;
   const federal_only = federalOnlyFromParam(sp.sports);
-  const rankType = rankTypeFromParam(sp.rank);
 
   const [stats, participations] = await Promise.all([
     apiServer.getStats({ scope: SCOPE_CLUB, federal_only }),
@@ -36,7 +34,7 @@ export default async function ClubPage({
             </div>
           }
         />
-        <ClubDashboard stats={stats} participations={participations} rankType={rankType} />
+        <ClubDashboard stats={stats} participations={participations} />
       </div>
     </PageShell>
   );

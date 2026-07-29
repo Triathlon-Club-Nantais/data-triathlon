@@ -1,54 +1,14 @@
 import Link from "next/link";
 import { apiServer } from "@/lib/api/server";
 import { SCOPE_CLUB, federalOnlyFromParam } from "@/lib/scope";
-import { rankTypeFromParam, type RankType } from "@/lib/rank";
 import { DisciplineToggle } from "@/components/layout/DisciplineToggle";
 import { RankTypeToggle } from "@/components/layout/RankTypeToggle";
 import { SeasonSelector } from "@/components/dashboard/SeasonSelector";
+import { StatCardsRank } from "@/components/dashboard/StatCardsRank";
 import { currentSeason, parseSeasonsParam, seasonSelectionLabel } from "@/lib/utils/season";
 import { StatCard, Card, Eyebrow, FormatChip } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
 import { aggregateDisciplines, formatToken, pctFr } from "@/lib/utils/format";
-import { rankCounters } from "@/lib/utils/club-aggregate";
-import type { ReactNode } from "react";
-
-// Libellés secondaires des cartes selon le mode de rang courant (FR-008).
-// Le mode gender aura son propre rendu dédoublé F/H en Phase 5 ; en attendant
-// on prépare l'étiquette scalaire « genre ».
-const RANK_LABEL: Record<RankType, string> = {
-  scratch: "scratch",
-  category: "catégorie",
-  gender: "genre",
-  all: "scratch, genre ou catégorie",
-};
-
-const TrophyIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--tcn-orange)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4h12v3a6 6 0 0 1-12 0V4z" /><path d="M6 5H3v2a3 3 0 0 0 3 3" /><path d="M18 5h3v2a3 3 0 0 1-3 3" /><path d="M9 17h6" /><path d="M12 13v4" /><path d="M8 21h8" /></svg>
-);
-const PodiumIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--tcn-orange)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="4" width="6" height="17" /><rect x="2" y="10" width="6" height="11" /><rect x="16" y="8" width="6" height="13" /></svg>
-);
-const Top10Icon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--tcn-orange)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="9" r="6" /><path d="M12 6v3l2 1" /><path d="M9 14l-2 7 5-3 5 3-2-7" /></svg>
-);
-
-// Rendu dédoublé F / H pour le mode gender (#104 US3) : deux valeurs séparées
-// dans une même carte, chacune préfixée par son label. `<StatCard>` accepte un
-// `ReactNode` en `value`, on branche donc directement ce fragment.
-function GenderPair({ women, men }: { women: number; men: number }): ReactNode {
-  return (
-    <span style={{ display: "inline-flex", alignItems: "baseline", gap: 18, fontFamily: "var(--tcn-font-display)" }}>
-      <span style={{ display: "inline-flex", alignItems: "baseline", gap: 6 }}>
-        <span style={{ fontSize: 20, fontWeight: 700, color: "var(--tcn-text-muted)" }}>F</span>
-        <span>{women}</span>
-      </span>
-      <span style={{ display: "inline-flex", alignItems: "baseline", gap: 6 }}>
-        <span style={{ fontSize: 20, fontWeight: 700, color: "var(--tcn-text-muted)" }}>H</span>
-        <span>{men}</span>
-      </span>
-    </span>
-  );
-}
 
 export default async function DashboardPage({
   searchParams,
@@ -65,7 +25,6 @@ export default async function DashboardPage({
   const fromUrl = parseSeasonsParam(sp.seasons);
   const selected = fromUrl.length > 0 ? fromUrl : [currentSeason()];
   const federal_only = federalOnlyFromParam(sp.sports);
-  const rankType = rankTypeFromParam(sp.rank);
 
   const [stats, eventsPage, participations, seasons] = await Promise.all([
     apiServer.getStats({ scope: SCOPE_CLUB, seasons: selected, federal_only }),
@@ -73,9 +32,6 @@ export default async function DashboardPage({
     apiServer.listParticipations({ scope: SCOPE_CLUB, seasons: selected, federal_only, page_size: 5000 }),
     apiServer.listSeasons({ scope: SCOPE_CLUB, federal_only }),
   ]);
-
-  const counters = rankCounters(participations, rankType);
-  const rankLabel = RANK_LABEL[rankType];
 
   const disciplines = aggregateDisciplines(stats.by_type);
   const topEvents = [...eventsPage.items].sort((a, b) => b.total - a.total).slice(0, 6);
@@ -97,19 +53,7 @@ export default async function DashboardPage({
 
       <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard variant="hero" label="Dossards enregistrés" value={stats.total.toLocaleString("fr-FR")} delta={`${stats.athletes} athlètes · ${stats.events} épreuves`} />
-        {counters.kind === "scalar" ? (
-          <>
-            <StatCard label="Victoires" value={counters.victories} delta={rankLabel} icon={<TrophyIcon />} />
-            <StatCard label="Podiums" value={counters.podiums} delta={rankLabel} icon={<PodiumIcon />} />
-            <StatCard label="Top 10" value={counters.top10} delta={rankLabel} icon={<Top10Icon />} />
-          </>
-        ) : (
-          <>
-            <StatCard label="Victoires" value={<GenderPair women={counters.women.victories} men={counters.men.victories} />} delta={rankLabel} icon={<TrophyIcon />} />
-            <StatCard label="Podiums" value={<GenderPair women={counters.women.podiums} men={counters.men.podiums} />} delta={rankLabel} icon={<PodiumIcon />} />
-            <StatCard label="Top 10" value={<GenderPair women={counters.women.top10} men={counters.men.top10} />} delta={rankLabel} icon={<Top10Icon />} />
-          </>
-        )}
+        <StatCardsRank participations={participations} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2" style={{ gridTemplateColumns: undefined }}>

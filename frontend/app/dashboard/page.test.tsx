@@ -108,82 +108,17 @@ describe("DashboardPage", () => {
   });
 });
 
-// Sélecteur de type de rang (#104) — cases US1 : modes scalaires (scratch,
-// category, all) et défaut silencieux sur valeur inconnue.
+// Sélecteur de type de rang (#104) — le rendu détaillé des 3 cartes vit
+// désormais dans le composant client `StatCardsRank` (cf. issue #132) qui a
+// ses propres tests. Ici on vérifie que la page monte bien le composant, en
+// mode par défaut (les mocks `useSearchParams` renvoient une URL vide).
 describe("DashboardPage — sélecteur de type de rang", () => {
-  // Fixture divergente : rang scratch=100, rang catégorie=1. En mode Scratch,
-  // la victoire ne compte PAS. En mode Catégorie, elle compte. C'est ce qui
-  // permet de distinguer le mode actif au-delà du seul libellé.
-  const DIVERGENT = [
-    { rank_overall: 100, rank_category: 1, rank_gender: 50 },
-    { rank_overall: 2, rank_category: 30 },
-  ];
-
-  function tileTextByLabel(label: string): string {
-    // Structure StatCard : <div card> ── <div flex> ── <div>{label}</div>
-    //                              └─ <div>{value}</div>. Le label est à deux
-    // parents de profondeur de la carte, pas un seul.
-    const el = screen.getByText(label);
-    const tile = el.parentElement?.parentElement;
-    return tile?.textContent ?? "";
-  }
-
-  it("sans ?rank=, applique le défaut Scratch (libellé « scratch »)", async () => {
-    listParticipations.mockResolvedValue(DIVERGENT);
-    await renderDashboard({});
-    expect(screen.getAllByText("scratch").length).toBeGreaterThanOrEqual(3);
-    expect(screen.queryByText("scratch, genre ou catégorie")).not.toBeInTheDocument();
-  });
-
-  it("le défaut Scratch ne compte QUE rank_overall", async () => {
-    listParticipations.mockResolvedValue(DIVERGENT);
-    await renderDashboard({});
-    // rank_overall=2 → 1 podium scratch. La victoire cat (rank_category=1) est
-    // ignorée. Donc Victoires=0, Podiums=1.
-    expect(tileTextByLabel("Victoires")).toContain("0");
-    expect(tileTextByLabel("Podiums")).toContain("1");
-  });
-
-  it("?rank=category applique le mode Catégorie (libellé « catégorie »)", async () => {
-    listParticipations.mockResolvedValue(DIVERGENT);
-    await renderDashboard({ rank: "category" });
-    expect(screen.getAllByText("catégorie").length).toBeGreaterThanOrEqual(3);
-    // La victoire de catégorie compte maintenant.
-    expect(tileTextByLabel("Victoires")).toContain("1");
-  });
-
-  it("?rank=all conserve le libellé historique « scratch, genre ou catégorie »", async () => {
-    listParticipations.mockResolvedValue(DIVERGENT);
-    await renderDashboard({ rank: "all" });
-    expect(screen.getAllByText("scratch, genre ou catégorie").length).toBeGreaterThanOrEqual(3);
-    // Min(100, 1, 50)=1 → 1 victoire (via cat) + 1 podium (via scratch=2) → v=1, p=2
-    expect(tileTextByLabel("Victoires")).toContain("1");
-    expect(tileTextByLabel("Podiums")).toContain("2");
-  });
-
-  it("?rank=foo (valeur inconnue) retombe silencieusement sur Scratch", async () => {
-    listParticipations.mockResolvedValue(DIVERGENT);
-    await renderDashboard({ rank: "foo" });
-    expect(screen.getAllByText("scratch").length).toBeGreaterThanOrEqual(3);
-    expect(screen.queryByText("scratch, genre ou catégorie")).not.toBeInTheDocument();
-  });
-
-  it("?rank=gender dédouble chaque carte en compteur F et compteur H distincts", async () => {
-    // 2 femmes classées + 1 homme classé. Les cartes doivent exposer F et H
-    // séparément — pas une somme, pas un mélange.
-    const alice = { id: 10, nom: "Alice", prenom: "A", gender: "F", club: "TCN" };
-    const bob = { id: 20, nom: "Bob", prenom: "B", gender: "M", club: "TCN" };
+  it("monte le StatCardsRank avec le mode par défaut (libellé « scratch »)", async () => {
     listParticipations.mockResolvedValue([
-      { athlete: alice, rank_gender: 1 },
-      { athlete: alice, rank_gender: 3 },
-      { athlete: bob, rank_gender: 1 },
+      { rank_overall: 2, rank_category: 30 },
     ]);
-    await renderDashboard({ rank: "gender" });
-    // Étiquettes F et H présentes explicitement dans les cartes.
-    // On les cherche au moins une fois par carte (3 cartes × 2 étiquettes).
-    expect(screen.getAllByText(/^F$/).length).toBeGreaterThanOrEqual(3);
-    expect(screen.getAllByText(/^H$/).length).toBeGreaterThanOrEqual(3);
-    // Libellé mode courant (« genre ») présent au moins une fois.
-    expect(screen.getAllByText("genre").length).toBeGreaterThanOrEqual(3);
+    await renderDashboard({});
+    expect(screen.getAllByText("scratch").length).toBeGreaterThanOrEqual(3);
+    expect(screen.queryByText("scratch, genre ou catégorie")).not.toBeInTheDocument();
   });
 });

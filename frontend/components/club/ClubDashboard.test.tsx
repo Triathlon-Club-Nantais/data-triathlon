@@ -1,14 +1,16 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import type { Participation, Stats } from "@/lib/types";
 
-// Charts et badges internes se contentent d'un DOM inerte — on ne teste ici
-// que la liste des podiums selon le rankType passé en prop.
+// Charts et hooks Next.js : stubs neutres.
 vi.mock("@/components/charts/BarList", () => ({
   BarList: () => <div data-testid="barlist" />,
 }));
 vi.mock("@/components/charts/MonthlyTrend", () => ({
   MonthlyTrend: () => <div data-testid="monthly" />,
+}));
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 import { ClubDashboard } from "./ClubDashboard";
@@ -43,54 +45,26 @@ function part(over: Partial<Participation> & { id: number }): Participation {
   };
 }
 
-describe("ClubDashboard — filtrage podiums selon rankType (#104)", () => {
-  // `ClubDashboard` rend aussi la section « Résultats récents » qui contient
-  // ses propres badges de scope via `ResultCard`. On restreint donc chaque
-  // assertion à la carte « Podiums & performances » via son titre.
-  function podiumsSection(): HTMLElement {
-    const title = screen.getByText("Podiums & performances");
-    // Le titre vit dans le CardHeader, la liste dans le CardContent du même
-    // parent (Card). On remonte au container commun.
-    const card = title.closest("[data-slot='card']") as HTMLElement | null;
-    if (!card) throw new Error("Section podiums introuvable");
-    return card;
-  }
-
-  const PARTS = [
-    part({ id: 1, rank_overall: 30, rank_category: 1 }), // podium cat seul
-    part({ id: 2, rank_overall: 2 }), // podium scratch seul
-    part({ id: 3, rank_gender: 1 }), // podium genre seul
-  ];
-
-  it("mode scratch : n'affiche que les badges « Général » dans la liste des podiums", () => {
-    render(<ClubDashboard stats={STATS} participations={PARTS} rankType="scratch" />);
-    const section = within(podiumsSection());
-    expect(section.getAllByText("Général").length).toBeGreaterThanOrEqual(1);
-    expect(section.queryAllByText("Catégorie")).toHaveLength(0);
-    expect(section.queryAllByText("Genre")).toHaveLength(0);
+// Le filtrage détaillé par mode vit désormais dans PodiumsList.test.tsx : ce
+// composant client lit `?rank=…` et recalcule localement (issue #132).
+// Ce test se limite au smoke : la section podiums est bien montée et affiche
+// les KPI de synthèse.
+describe("ClubDashboard — smoke", () => {
+  it("rend les 4 KPI de synthèse (Résultats / Athlètes / Épreuves / Podiums)", () => {
+    render(
+      <ClubDashboard
+        stats={STATS}
+        participations={[part({ id: 1, rank_overall: 2 })]}
+      />,
+    );
+    expect(screen.getByText("Résultats")).toBeInTheDocument();
+    expect(screen.getByText("Athlètes")).toBeInTheDocument();
+    expect(screen.getByText("Épreuves")).toBeInTheDocument();
+    expect(screen.getByText("Podiums")).toBeInTheDocument();
   });
 
-  it("mode category : n'affiche que les badges « Catégorie » dans la liste des podiums", () => {
-    render(<ClubDashboard stats={STATS} participations={PARTS} rankType="category" />);
-    const section = within(podiumsSection());
-    expect(section.getAllByText("Catégorie").length).toBeGreaterThanOrEqual(1);
-    expect(section.queryAllByText("Général")).toHaveLength(0);
-    expect(section.queryAllByText("Genre")).toHaveLength(0);
-  });
-
-  it("mode all : montre le mélange des trois scopes dans la liste des podiums (comportement historique)", () => {
-    render(<ClubDashboard stats={STATS} participations={PARTS} rankType="all" />);
-    const section = within(podiumsSection());
-    expect(section.getAllByText("Général").length).toBeGreaterThanOrEqual(1);
-    expect(section.getAllByText("Catégorie").length).toBeGreaterThanOrEqual(1);
-    expect(section.getAllByText("Genre").length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("mode gender : ne montre que les podiums genre (F et H mélangés)", () => {
-    render(<ClubDashboard stats={STATS} participations={PARTS} rankType="gender" />);
-    const section = within(podiumsSection());
-    expect(section.getAllByText("Genre").length).toBeGreaterThanOrEqual(1);
-    expect(section.queryAllByText("Général")).toHaveLength(0);
-    expect(section.queryAllByText("Catégorie")).toHaveLength(0);
+  it("empty state quand aucune participation", () => {
+    render(<ClubDashboard stats={STATS} participations={[]} />);
+    expect(screen.getByText("Aucun résultat de club")).toBeInTheDocument();
   });
 });
