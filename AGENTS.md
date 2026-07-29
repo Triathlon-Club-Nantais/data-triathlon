@@ -8,43 +8,46 @@ Détails install/déploiement : voir `README.md`. Ce fichier cible les agents IA
 
 ## Workflow IA
 
-Deux outils d'assistance sont préconfigurés, Speckit et Superpowers. **Ne jamais
-lancer les deux sur la même étape** — détail et arbre de décision :
-`docs/WORKFLOW-IA.md`.
+Deux outils d'assistance sont préconfigurés, **Spec Kit** et **Superpowers**. Le
+principe : **Spec Kit possède les artefacts** (`spec.md`, `plan.md`, `tasks.md`
+dans `specs/NNN-feature/`), **Superpowers possède l'exécution** (worktree, TDD
+red-green-refactor, sous-agents, revue, fin de branche). Le point de jonction est
+`tasks.md`. Détail, mise en place et pièges : `docs/WORKFLOW-IA.md`.
 
-- **Bugfix, typo, ajustement de 1-2 fichiers, petit refacto** → Superpowers
-  seul : `systematic-debugging` (bug) ou `test-driven-development` (ajout de
-  comportement), puis `verification-before-completion`. Pas de cycle Speckit,
-  pas de dossier `specs/`.
-- **Vraie feature** (nouveau scraper, nouvel écran, changement de schéma) →
-  Speckit pour le cadrage : `/speckit-specify` → `/speckit-clarify` → GATE →
-  `/speckit-plan` → GATE → `/speckit-tasks` → `/speckit-analyze`. Puis handoff
-  vers Superpowers pour l'exécution (`subagent-driven-development`, les tâches
-  `[P]` de `tasks.md` en parallèle), avec `test-driven-development` dans chaque
-  tâche.
-- **Speckit est canonique sur le cadrage et la planification** : un seul
-  `spec.md`, un seul `plan.md`. Ne pas produire de spec ni de plan Superpowers
-  concurrent.
-- **Emplacement des artefacts Superpowers — préférence de projet, elle prime sur
-  les défauts de `brainstorming` et `writing-plans`** (les deux skills prévoient
-  cette surcharge : « User preferences for spec/plan location override this
-  default »). Sur une feature en cycle Speckit, `spec.md` et `plan.md` de
-  `specs/NNN-feature/` sont les **seuls** artefacts de cadrage et de plan :
-  n'écrire ni `docs/superpowers/specs/…-design.md`, ni `docs/superpowers/plans/…`.
-- **Ne pas lancer `brainstorming` sur une feature en cycle Speckit.** Ce n'est pas
-  une question de discipline : le skill écrit **et commite** son `-design.md`, puis
-  enchaîne obligatoirement sur `writing-plans` (« Do NOT invoke any other skill »),
-  donc il produit mécaniquement un design *et* un plan concurrents. Deux voies
-  propres, à trancher avant de commencer : **sonder** puis `/speckit-specify` (cycle
-  feature), ou `brainstorming` → `writing-plans` **sans** Speckit (workflow vibe).
+Les deux se chevauchent sur la **planification** — c'est là que naissent les
+conflits. Spec Kit est explicite et déterministe (on tape `/speckit-plan`) ; les
+skills Superpowers se déclenchent **automatiquement** quand leur description
+correspond à la situation. D'où la règle d'or : **Spec Kit cadre et planifie
+jusqu'à `tasks.md`, Superpowers exécute.**
+
+- **Bugfix, typo, ajustement de 1-2 fichiers, petit refacto** → Superpowers seul :
+  `systematic-debugging` (bug) ou `test-driven-development` (ajout de comportement),
+  puis `verification-before-completion`. Pas de cycle Spec Kit, pas de dossier
+  `specs/`. Sauter la boucle entièrement : les skills ne s'activent que sur le
+  déclencheur de `brainstorming`.
+- **Vraie feature** (nouveau scraper, nouvel écran, changement de schéma) :
+  - Cadrage flou → laisser tourner le skill `brainstorming` de Superpowers.
+  - `/speckit-specify` → `/speckit-plan` → `/speckit-tasks`.
+  - `/speckit-analyze` **avant tout code** : il vérifie, en lecture seule, les
+    incohérences, ambiguïtés et trous de couverture entre les artefacts.
+  - Handoff : pointer `subagent-driven-development` sur `plan.md` / `tasks.md` de
+    Spec Kit (tâches `[P]` en parallèle) ; Superpowers gère TDD + revue en deux
+    passes, `test-driven-development` dans chaque tâche.
+- **Piège nº1, le doublon de planification** : dire explicitement à l'agent que le
+  plan existe déjà dans `specs/<id>/plan.md` et qu'il **ne doit pas le réécrire**,
+  sinon `writing-plans` régénère un plan parallèle. Idem pour la spec : `spec.md`
+  est canonique, pas un `-design.md` concurrent.
+- **Piège nº2, le sur-outillage** : pour un correctif d'une ligne, sauter la boucle
+  entièrement. Compter **~20-40 % de tokens en plus** par feature quand on lance la
+  boucle complète.
+- **Superpowers est canonique sur l'exécution** : ne pas lancer
+  `/speckit-implement` **et** `subagent-driven-development`.
 - **Un sondage n'est ni une spec ni un plan** : il consigne ce qui a été mesuré sur
   le terrain. Il reste autorisé et attendu dans les deux workflows, sous
   `docs/superpowers/specs/YYYY-MM-DD-<sujet>-{sondage,audit,report}.md`, et il
   **prime** sur le design, la spec et le plan — toute divergence se tranche en
   re-sondant. Forme à reproduire et cas de référence : `docs/WORKFLOW-IA.md`,
   §La troisième catégorie : le sondage.
-- **Superpowers est canonique sur l'exécution** : ne pas lancer
-  `/speckit-implement` **et** `subagent-driven-development`.
 - Fin de branche : `requesting-code-review` → `verification-before-completion` →
   `finishing-a-development-branch`.
 - Branche et commits-gate sont à gérer **manuellement** : les hooks de

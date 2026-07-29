@@ -1,225 +1,161 @@
-# Workflow IA — Superpowers + Speckit
+# Workflow IA — Spec Kit + Superpowers
 
 Ce document s'adresse aux collaborateurs qui utilisent **Claude Code** (ou tout
-agent IA compatible) sur ce projet. Deux outils d'assistance sont préconfigurés
-et leurs périmètres se chevauchent : sans règle claire, un agent peut lancer
-les deux pour la même tâche, ce qui duplique le travail et crée des artefacts
-concurrents. Ce document fixe **qui fait quoi et quand**.
+agent IA compatible) sur ce projet. Deux outils d'assistance sont préconfigurés,
+**Spec Kit** et **Superpowers**, et leurs périmètres se chevauchent sur la
+planification. Sans règle claire, un agent lance les deux pour la même tâche et
+produit des artefacts concurrents. Ce document fixe **qui fait quoi et quand**.
 
 ---
 
-## Les deux outils en une phrase
+## Le principe
+
+**Spec Kit possède les artefacts. Superpowers possède l'exécution.** Le point de
+jonction est `tasks.md`.
 
 | Outil | Rôle |
-|-------|------|
-| **Speckit** | Produit les artefacts documentaires d'une feature : `spec.md`, `plan.md`, `tasks.md` dans `specs/NNN-feature/`. La branche git et les commits-gate, en revanche, restent **manuels** — voir le tableau anti-collision. |
-| **Superpowers** | Applique la discipline d'artisanat pendant qu'on code : TDD, debug systématique, sous-agents parallèles, revue de code, vérification finale. Certains de ses skills **écrivent aussi des artefacts** — voir §Où atterrissent les artefacts. |
+|---|---|
+| **Spec Kit** | Produit les artefacts documentaires d'une feature : `spec.md`, `plan.md`, `tasks.md` dans `specs/NNN-feature/`. Explicite et **déterministe** : on tape `/speckit-plan`. |
+| **Superpowers** | Applique la discipline d'artisanat pendant qu'on code : worktree, TDD red-green-refactor, sous-agents, revue de code, fin de branche. Ses skills se déclenchent **automatiquement** quand leur description correspond à la situation. |
 
-> **Règle d'or** : Speckit cadre et planifie (jusqu'à `tasks.md`). Superpowers
+Les deux se recouvrent sur la phase **planification** — c'est là que naissent les
+conflits. La différence de nature aide à les répartir : Spec Kit est explicite et
+déterministe (une commande `/speckit-*`), tandis que les skills Superpowers
+s'activent seuls sur correspondance de description.
+
+> **Règle d'or** : Spec Kit cadre et planifie jusqu'à `tasks.md` ; Superpowers
 > exécute et garantit la qualité.
+
+> **Notation** : sous Claude Code les commandes Spec Kit s'invoquent avec un tiret
+> (`/speckit-specify`, `/speckit-plan`…). L'intégration `opencode` de ce repo
+> utilise le point (`speckit.specify`). Même skill, séparateur différent.
 
 ---
 
-## Arbre de décision — par où commencer ?
+## Mise en place (une fois par repo)
 
-```
-Ma tâche, c'est quoi ?
-│
-├── Un bugfix, une typo, un ajustement de 1-2 fichiers, un petit refacto
-│   └── → Workflow VIBE (superpowers seul) — voir §Workflow vibe
-│
-└── Une vraie feature (nouveau scraper, nouvel écran, changement de schéma,
-    fonctionnalité avec plusieurs composants…)
-    └── → Workflow FEATURE COMPLÈTE (speckit + superpowers) — voir §Workflow feature
-```
+1. Installer Superpowers : `/plugin marketplace add obra/superpowers-marketplace`
+   puis `/plugin install superpowers@superpowers-marketplace`.
+2. Initialiser Spec Kit : `specify init --integration claude-code` (Spec Kit v0.10+
+   a remplacé les anciens flags `--ai` par `--integration`).
+3. `/speckit-constitution`, en y ajoutant une **ligne-pont** du type : « toute
+   implémentation d'une task list doit suivre le workflow Superpowers : worktree →
+   TDD red-green-refactor → sous-agents → code review → finish-branch ».
+4. Committer `.specify/` ; `.claude/` selon la politique de l'équipe.
+
+**État de ce repo** : la mise en place est déjà faite. La constitution est
+**ratifiée en v1.0.0** (`.specify/memory/constitution.md`) — ne pas relancer
+`/speckit-constitution` pour « la remplir ». L'intégration active est `opencode`
+(`.specify/integration.json`) ; les neuf skills `speckit-*` sont présents pour
+Claude.
+
+---
+
+## La boucle par feature
+
+Une **vraie feature** = nouveau scraper, nouvel écran, changement de schéma,
+fonctionnalité à plusieurs composants.
+
+1. **Cadrage flou** → laisser tourner le skill `brainstorming` de Superpowers.
+2. `/speckit-specify` → `/speckit-plan` → `/speckit-tasks`.
+3. `/speckit-analyze` **avant tout code** : il vérifie, en lecture seule, les
+   incohérences, ambiguïtés et trous de couverture entre `spec.md`, `plan.md` et
+   `tasks.md`.
+4. **Handoff** vers Superpowers : pointer `subagent-driven-development` sur le
+   `plan.md` / `tasks.md` de Spec Kit. Les tâches marquées `[P]` sont distribuées
+   sur des sous-agents en parallèle. Superpowers gère alors **TDD + revue en deux
+   passes**, avec `test-driven-development` dans chaque tâche.
+5. Fin de branche : `requesting-code-review` → `verification-before-completion` →
+   `finishing-a-development-branch`.
+
+La branche git et les commits-gate restent **manuels** : les hooks de
+`.specify/extensions.yml` ne s'enregistrent que pour `agy` et `codex`, jamais pour
+`claude` ni pour `opencode` (l'intégration active) — ils ne s'exécutent donc jamais.
+Créer la branche soi-même.
+
+---
+
+## Deux pièges concrets
+
+- **Le doublon de planification.** Dire explicitement à l'agent que le plan existe
+  déjà dans `specs/<id>/plan.md` et qu'il **ne doit pas le réécrire** — sinon le
+  skill `writing-plans` régénère un plan parallèle. Même principe pour la spec :
+  `spec.md` est canonique, pas un `-design.md` concurrent.
+- **Le sur-outillage.** Pour un correctif d'une ligne, **sauter la boucle
+  entièrement** : les skills Superpowers ne s'activent que sur le déclencheur de
+  `brainstorming`, donc un petit changement n'entraîne aucun cycle. Compter
+  **~20-40 % de tokens en plus** par feature quand on lance la boucle complète.
+
+---
+
+## Quand sauter la boucle : le workflow vibe
+
+Bugfix, typo, ajustement de 1-2 fichiers, petit refacto → **Superpowers seul**, pas
+de cycle Spec Kit, pas de dossier `specs/` :
+
+1. (facultatif) `brainstorming` si l'approche n'est pas évidente.
+2. `systematic-debugging` (bug) **ou** `test-driven-development` (ajout de
+   comportement).
+3. `verification-before-completion`.
+4. `finishing-a-development-branch` si ça mérite une PR.
 
 ---
 
 ## Où atterrissent les artefacts
 
-Speckit n'est pas le seul à écrire des fichiers : `brainstorming` et
-`writing-plans` en produisent aussi, et **au même endroit d'une fois sur l'autre**.
-Savoir qui écrit quoi et où est ce qui distingue un artefact légitime d'un doublon.
+Spec Kit n'est pas le seul à écrire des fichiers : `brainstorming` et
+`writing-plans` en produisent aussi. Savoir qui écrit quoi distingue un artefact
+légitime d'un doublon.
 
 | Emplacement | Écrit par | Statut |
 |---|---|---|
-| `specs/NNN-feature/` — `spec.md`, `plan.md`, `tasks.md`, plus `research.md`, `data-model.md`, `quickstart.md` | Speckit | **Canonique** sur le cadrage et la planification. Un seul de chaque, par feature. |
-| `docs/superpowers/specs/YYYY-MM-DD-<sujet>-design.md` | `brainstorming`, qui l'écrit **et le commite** | Design Superpowers. **Interdit sur une feature en cycle Speckit** : ce serait le concurrent de `spec.md`. |
-| `docs/superpowers/specs/YYYY-MM-DD-<sujet>-{sondage,audit,report}.md` | l'agent, à la main | **Rapport de terrain** : ce qui a été mesuré sur le site ou le code réels. Légitime dans les deux workflows, et **prime** sur le design, la spec et le plan. Toute divergence se tranche en re-sondant, pas en raisonnant. |
-| `docs/superpowers/plans/YYYY-MM-DD-<feature>.md` | `writing-plans` | Plan Superpowers. **Interdit sur une feature en cycle Speckit** : concurrent de `plan.md`. |
+| `specs/NNN-feature/` — `spec.md`, `plan.md`, `tasks.md`, `research.md`, `data-model.md`, `quickstart.md` | Spec Kit | **Canonique** sur le cadrage et la planification. Un seul de chaque, par feature. |
+| `docs/superpowers/specs/…-design.md` | `brainstorming` (l'écrit **et le commite**) | Design Superpowers. Sur une feature Spec Kit, `spec.md` reste canonique — ne pas laisser ce design en devenir le concurrent (voir le piège du doublon). |
+| `docs/superpowers/plans/…` | `writing-plans` | Plan Superpowers. Sur une feature Spec Kit, `plan.md` reste canonique. |
+| `docs/superpowers/specs/YYYY-MM-DD-<sujet>-{sondage,audit,report}.md` | l'agent, à la main | **Rapport de terrain** — voir ci-dessous. |
 | `.superpowers/sdd/<nom-du-plan>/` | `subagent-driven-development` | Ledger d'exécution (`progress.md`, briefs, rapports). Jetable, jamais commité. |
 
-Les deux chemins `docs/superpowers/` sont des **défauts amont du plugin**
-(`brainstorming/SKILL.md`, section « After the Design » ; `writing-plans/SKILL.md`,
-« Save plans to »), pas une convention de ce dépôt : le dossier porte le nom de
-**l'outil**, pas celui du contenu. C'est ce qui fait lire un rapport de sondage
-comme « une spec Superpowers » concurrente d'un `spec.md` Speckit. Les deux skills
-prévoient la surcharge — « User preferences for spec/plan location override this
-default » —, et ce projet l'exerce : voir la règle d'emplacement dans `AGENTS.md`.
-
-Les fichiers déjà présents dans `docs/superpowers/` **restent où ils sont**. Ils
-mêlent deux natures : des designs de features livrées (valeur historique) et des
-rapports de terrain **encore normatifs**, cités nominativement par `AGENTS.md` là
-où ils s'appliquent — le sondage RaceResult (« elle prime sur le design et sur le
-plan »), le sondage T2Area, l'audit d'architecture backend référencé par
-`backend/README.md`.
+Les chemins `docs/superpowers/` sont les **défauts amont du plugin**
+(`brainstorming/SKILL.md`, `writing-plans/SKILL.md`), pas une convention de ce
+dépôt : le dossier porte le nom de **l'outil**, pas celui du contenu. Les fichiers
+déjà présents **restent où ils sont** ; ils mêlent des designs de features livrées
+(valeur historique) et des rapports de terrain encore normatifs, cités nominativement
+par `AGENTS.md` là où ils s'appliquent.
 
 ### La troisième catégorie : le sondage
 
-Un sondage n'est ni une spec ni un plan : il consigne des **observations**, pas des
-intentions. Il a donc sa place dans les deux workflows, et il n'entre en collision
-avec rien.
+Un sondage n'est ni une spec ni un plan : il consigne des **observations** (ce qui a
+été mesuré sur le site ou le code réels), pas des intentions. Il a donc sa place dans
+les deux workflows et n'entre en collision avec rien. Il est écrit sous
+`docs/superpowers/specs/YYYY-MM-DD-<sujet>-{sondage,audit,report}.md`, et il **prime**
+sur le design, la spec et le plan — toute divergence se tranche en re-sondant, pas en
+raisonnant.
 
-Le cas déjà en place est `docs/superpowers/specs/2026-07-19-raceresult-api-sondage.md`
-(15 épreuves, 3 façades) : `AGENTS.md` le donne pour primant « sur le design et sur
-le plan », et deux tests de non-régression protègent ses conclusions. Il n'a pas de
-contrepartie Speckit — il précède l'adoption du cycle.
+Deux cas de référence :
 
-La forme à reproduire, sondage **et** Speckit sur la même feature, est celle de
-runnerbreizh (#122) : sondage du HTML réel écrit **avant** tout cadrage, puis
-déclaré « source de vérité technique » par `specs/002-runnerbreizh-scraper/spec.md`,
-`plan.md` et `tasks.md`, le `research.md` consignant les **décisions** que les
-mesures ont permis de prendre sans les recopier. Deux fichiers, deux rôles, zéro
-redondance.
-
-Ce `specs/002-runnerbreizh-scraper/` **arrive avec #122**, pas avec le présent
-document : sur une branche qui ne l'a pas mergée, les chemins ci-dessus n'existent
-pas encore. C'est pourquoi la règle, elle, s'ancre sur le sondage RaceResult — déjà
-sur `main`, et déjà donné pour primant par `AGENTS.md`.
+- `docs/superpowers/specs/2026-07-19-raceresult-api-sondage.md` (15 épreuves, 3
+  façades) — donné pour primant « sur le design et sur le plan » par `AGENTS.md`, avec
+  deux tests de non-régression qui protègent ses conclusions. Il n'a pas de contrepartie
+  Spec Kit : il précède l'adoption du cycle.
+- Le couple sondage + Spec Kit de runnerbreizh (`specs/002-runnerbreizh-scraper/`) :
+  sondage du HTML réel écrit **avant** tout cadrage, puis déclaré source de vérité
+  technique par la spec, le plan et les tâches. Deux fichiers, deux rôles, zéro
+  redondance.
 
 ---
 
-## Tableau anti-collision
+## La constitution Spec Kit (`.specify/memory/constitution.md`)
 
-Les paires suivantes couvrent la **même étape** — ne jamais en lancer deux en
-parallèle pour la même tâche :
-
-| Étape | Skill speckit | Skill superpowers | Règle |
-|-------|---------------|-------------------|-------|
-| Cadrage du besoin | `/speckit-specify` + `/speckit-clarify` | `brainstorming` | **Speckit est canonique.** Ne pas lancer `brainstorming` sur une feature déjà en cycle Speckit — voir ci-dessous, la raison n'est pas une question de discipline. |
-| Planification | `/speckit-plan` | `writing-plans` | **Speckit est canonique.** Un seul `plan.md` dans `specs/`. Ne pas créer un plan superpowers concurrent. |
-| Exécution | `/speckit-implement` | `subagent-driven-development` + `dispatching-parallel-agents` | **Superpowers par défaut** (voir §Exécution). Ne pas lancer les deux. |
-| Branche / commits | — (les hooks `extensions.yml` ne s'exécutent jamais pour Claude) | `using-git-worktrees` | **Manuel.** Créer la branche soi-même. Détail de la cause : `AGENTS.md`, §Workflow IA. Ne pas ouvrir un worktree concurrent sur la même feature. |
-| Fin de branche | — | `finishing-a-development-branch` | Superpowers pour le merge / PR. |
-
-### Pourquoi `brainstorming` ne se « combine » pas avec Speckit
-
-La consigne longtemps affichée ici — « `brainstorming` en amont, puis injecter le
-résultat dans `/speckit-specify` » — **n'est pas exécutable**. Le skill ne rend pas
-un résultat à réutiliser : il écrit **et commite** son
-`docs/superpowers/specs/…-design.md`, puis enchaîne sur `writing-plans`, seule
-transition qu'il s'autorise (« The terminal state is invoking writing-plans »,
-« Do NOT invoke any other skill »). Lancé sur une feature Speckit, il produit donc
-mécaniquement **un design et un plan concurrents** de `spec.md` et `plan.md`.
-
-Deux voies propres, à choisir **avant** de commencer :
-
-1. **Sondage puis Speckit** — la voie du cycle feature complète. On mesure le
-   terrain, on écrit le sondage, et `/speckit-specify` le déclare source de vérité.
-   Pas de `brainstorming`.
-2. **`brainstorming` assumé, sans Speckit** — le workflow vibe. Son `-design.md`
-   *remplace* `/speckit-specify` ; la chaîne `brainstorming` → `writing-plans` va
-   jusqu'au bout et il n'y a pas de dossier `specs/`.
-
----
-
-## Workflow feature complète (vraie feature)
-
-```
-[0] Créer la branche à la main (aucun hook ne le fera)
-
-[1] Terrain inconnu ? (nouveau moteur de chrono, HTML jamais lu, API non documentée)
-    └── SONDER : lire le site / le code réels, écrire
-        docs/superpowers/specs/YYYY-MM-DD-<sujet>-sondage.md
-        → ce sondage devient la source de vérité de la spec.
-        Pas de brainstorming ici — voir §Pourquoi brainstorming ne se combine pas.
-
-[2] /speckit-specify  ← crée spec.md
-    └── y déclarer le sondage « source de vérité technique », s'il y en a un
-
-[3] /speckit-clarify  ← affine spec.md avec des questions ciblées
-
-[4] GATE — relire spec.md, approuver ou rejeter
-
-[5] /speckit-plan     ← crée plan.md, research.md, data-model.md, quickstart.md
-    └── research.md consigne les DÉCISIONS, il ne recopie pas les mesures
-        du sondage
-
-[6] GATE — relire plan.md, approuver ou rejeter
-
-[7] /speckit-tasks    ← génère tasks.md (tâches [P] = parallélisables)
-
-[8] /speckit-analyze  ← vérifie cohérence spec / plan / tasks
-
-[9] HANDOFF vers superpowers — exécution
-    ├── Par défaut : subagent-driven-development
-    │   (les tâches [P] sont distribuées sur des sous-agents en parallèle)
-    ├── Repli linéaire : /speckit-implement
-    │   (convenable pour les features simples ; il coche tasks.md et gère les gates)
-    └── Dans chaque tâche : test-driven-development + systematic-debugging
-
-[10] requesting-code-review (superpowers)
-
-[11] verification-before-completion (superpowers)
-
-[12] finishing-a-development-branch (superpowers) → PR / merge
-```
-
-> **Note sous-agents** : les tâches marquées `[P]` dans `tasks.md` sont pensées
-> pour être exécutées en parallèle. `dispatching-parallel-agents` en tire parti.
-> C'est l'agent principal qui coche les cases dans `tasks.md` au fil de
-> l'avancement.
-
----
-
-## Workflow vibe (bugfix / petit changement)
-
-Pas de cycle speckit, pas de dossier `specs/`. Superpowers seul :
-
-```
-[1] (facultatif) brainstorming si l'approche n'est pas évidente
-
-[2] systematic-debugging  ← si c'est un bug
-    OU
-    test-driven-development  ← si c'est un ajout de comportement
-
-[3] verification-before-completion
-
-[4] finishing-a-development-branch  ← si ça mérite une PR
-```
-
----
-
-## La constitution Speckit (`.specify/memory/constitution.md`)
-
-La constitution est le **document de référence absolu** de Speckit : elle cadre
-les principes du projet (stack, TDD, langue, conventions) et est injectée dans
-chaque commande speckit. Pour ce projet, elle est **ratifiée en v1.0.0** — ne pas
-relancer `/speckit-constitution` pour « la remplir ».
+La constitution est le document de référence de Spec Kit : elle cadre les principes du
+projet (stack, TDD, langue, conventions) et est injectée dans chaque commande
+`/speckit-*`. Pour ce projet, elle est **ratifiée en v1.0.0** — ne pas relancer
+`/speckit-constitution` pour la remplir.
 
 Attention à sa portée réelle : la constitution n'est chargée que par les commandes
-`/speckit-*`, alors qu'`AGENTS.md` l'est **à chaque session** via `CLAUDE.md`. En
-cas de divergence entre les deux, c'est la règle d'`AGENTS.md` qui sera lue le plus
+`/speckit-*`, alors qu'`AGENTS.md` l'est **à chaque session** via `CLAUDE.md`. En cas
+de divergence entre les deux, c'est la règle d'`AGENTS.md` qui sera lue le plus
 souvent — donc c'est là que les garde-fous doivent vivre, la constitution ne suffit
 pas à les faire respecter.
-
----
-
-## Rappels projet (cohérence avec `AGENTS.md`)
-
-- **Tests unitaires** : sans réseau — httpx est neutralisé par `monkeypatch`, soit
-  sur `httpx.Client` lui-même, soit sur la fonction de fetch du scraper (par
-  exemple `app.scrapers.timepulse._fetch_xml`), avec des fixtures HTML/JSON en
-  dur. Le réseau réel est derrière le marker `integration`. Lancer
-  `pytest -m "not integration"` pour les tests rapides.
-- **Commits** : Conventional Commits (`feat:`, `fix:`, `refactor:`…).
-- **Langue** (Principe I de la constitution) : **français** pour ce qui est visible
-  utilisateur ou métier — UI, messages d'erreur affichés, docs produit, commentaires
-  de règle métier ; **anglais** pour la couche technique invisible — identifiants,
-  tests, docstrings techniques, logs, préfixes Conventional Commits. On ne réécrit
-  pas l'existant : la règle vaut pour les nouveaux ajouts.
-- **Temps** : toujours des strings (`"01:23:45"`), normalisés via
-  `backend/scrapers/utils.py`.
 
 ---
 
