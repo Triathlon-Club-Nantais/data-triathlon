@@ -9,6 +9,7 @@ import { bestRatio, rankRatio } from "@/lib/utils/ranking";
 import { describeQualityIssues } from "@/lib/quality";
 import { formatDate } from "@/lib/utils/date";
 import { recentParticipations } from "@/lib/utils/club-aggregate";
+import { isNonFinisher } from "@/lib/utils/raceOrder";
 import { gridColumns, gridMinWidth, type Track } from "@/lib/utils/table";
 
 // Date | Épreuve | Type | Format | Temps final | Place | →
@@ -88,9 +89,16 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
                 <div>Date</div><div>Épreuve</div><div>Type</div><div>Format</div><div>Temps final</div><div>Place</div><div></div>
               </div>
               {ordered.map((p) => {
-                const { ratio, reason } = rankRatio(p);
+                const { ratio } = rankRatio(p);
+                // AC5 : le marqueur ⚠ dépend de la fiabilité de la course, pas
+                // du rang ni du statut. Il doit apparaître à côté d'un DNF non
+                // fiable comme à côté d'un finisher classé.
                 const unreliableTitle =
-                  reason === "unreliable" ? unreliableTooltip(p.course?.quality_issues) : null;
+                  p.course?.is_reliable === false
+                    ? unreliableTooltip(p.course?.quality_issues)
+                    : null;
+                const nonFinisher = isNonFinisher(p.status);
+                const sigle = (p.status ?? "").toUpperCase();
                 return (
                   <Link key={p.id} href={`/courses/${p.course?.id}`} className="tcn-rowlink" style={{ display: "grid", gridTemplateColumns: COLS, columnGap: GAP, alignItems: "center", padding: `15px ${PADDING_X}px`, borderBottom: "1px solid var(--tcn-border-faint)" }}>
                     <div style={{ fontSize: 14, color: "var(--tcn-text-muted)", fontWeight: 600 }}>{formatDate(p.course?.event_date)}</div>
@@ -99,7 +107,17 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
                     <div><FormatChip>{formatToken(p.course?.event_type, p.course?.distance_km)}</FormatChip></div>
                     <div style={{ fontSize: 15, color: "var(--tcn-ink)", fontFamily: "var(--tcn-font-cond)", fontWeight: 700 }}>{p.total_time ?? "—"}</div>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                      {p.rank_overall != null ? (
+                      {nonFinisher ? (
+                        // Non-finisher : sigle sobre. DSQ garde le rang entre
+                        // parenthèses quand le chronométreur en a fourni un ;
+                        // le /N n'est ajouté que si la course est fiable.
+                        <span style={{ fontSize: 14, fontWeight: 700, color: "var(--tcn-text-muted)" }}>
+                          {sigle}
+                          {p.rank_overall != null ? (
+                            <>({p.rank_overall}{ratio ? `/${ratio.total}` : ""})</>
+                          ) : null}
+                        </span>
+                      ) : p.rank_overall != null ? (
                         <>
                           <PlaceBadge place={p.rank_overall} />
                           {ratio ? (
@@ -107,22 +125,22 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
                               /{ratio.total}
                             </span>
                           ) : null}
-                          {unreliableTitle ? (
-                            <span
-                              data-testid="unreliable-marker"
-                              title={unreliableTitle}
-                              aria-label={unreliableTitle}
-                              // `role="img"` : le texte est purement informatif, pas un contrôle.
-                              role="img"
-                              style={{ fontSize: 13, color: "var(--tcn-text-faint)", cursor: "help", userSelect: "none" }}
-                            >
-                              ⚠
-                            </span>
-                          ) : null}
                         </>
                       ) : (
                         <span style={{ color: "var(--tcn-text-faint)" }}>—</span>
                       )}
+                      {unreliableTitle ? (
+                        <span
+                          data-testid="unreliable-marker"
+                          title={unreliableTitle}
+                          aria-label={unreliableTitle}
+                          // `role="img"` : le texte est purement informatif, pas un contrôle.
+                          role="img"
+                          style={{ fontSize: 13, color: "var(--tcn-text-faint)", cursor: "help", userSelect: "none" }}
+                        >
+                          ⚠
+                        </span>
+                      ) : null}
                     </div>
                     <div style={{ textAlign: "right", color: "var(--tcn-text-disabled)", fontSize: 16 }}>→</div>
                   </Link>
