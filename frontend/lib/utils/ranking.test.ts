@@ -16,6 +16,7 @@ function part(over: Partial<Participation> & { id: number }): Participation {
       is_relay: false,
     },
     club: "TCN",
+    is_tcn: true,
     category: null,
     bib_number: null,
     rank_overall: over.rank_overall ?? null,
@@ -33,53 +34,66 @@ function part(over: Partial<Participation> & { id: number }): Participation {
 describe("rankRatio", () => {
   it("rapporte la place au nombre de classés", () => {
     expect(rankRatio(part({ id: 1, rank_overall: 42, course_finishers: 300 }))).toEqual({
-      rank: 42,
-      total: 300,
-      percent: 14,
+      ratio: { rank: 42, total: 300, percent: 14 },
     });
     expect(rankRatio(part({ id: 2, rank_overall: 20, course_finishers: 80 }))).toEqual({
-      rank: 20,
-      total: 80,
-      percent: 25,
+      ratio: { rank: 20, total: 80, percent: 25 },
     });
   });
 
   it("arrondit au supérieur : jamais de « Top 0 % »", () => {
-    expect(rankRatio(part({ id: 1, rank_overall: 1, course_finishers: 300 }))?.percent).toBe(1);
+    expect(rankRatio(part({ id: 1, rank_overall: 1, course_finishers: 300 })).ratio?.percent).toBe(1);
   });
 
-  it("renvoie null sans place", () => {
-    expect(rankRatio(part({ id: 1, rank_overall: null, course_finishers: 300 }))).toBeNull();
+  it("renvoie ratio=null sans reason quand la place manque", () => {
+    expect(rankRatio(part({ id: 1, rank_overall: null, course_finishers: 300 }))).toEqual({
+      ratio: null,
+      reason: "incomplete",
+    });
   });
 
-  it("renvoie null sans compte de classés", () => {
-    expect(rankRatio(part({ id: 1, rank_overall: 42, course_finishers: null }))).toBeNull();
-    expect(rankRatio(part({ id: 2, rank_overall: 42 }))).toBeNull();
+  it("renvoie ratio=null reason=incomplete sans compte de classés", () => {
+    expect(rankRatio(part({ id: 1, rank_overall: 42, course_finishers: null }))).toEqual({
+      ratio: null,
+      reason: "incomplete",
+    });
+    expect(rankRatio(part({ id: 2, rank_overall: 42 }))).toEqual({
+      ratio: null,
+      reason: "incomplete",
+    });
   });
 
-  it("renvoie null quand la place dépasse le compte (import partiel)", () => {
-    expect(rankRatio(part({ id: 1, rank_overall: 42, course_finishers: 20 }))).toBeNull();
+  it("renvoie ratio=null reason=incomplete quand la place dépasse le compte", () => {
+    expect(rankRatio(part({ id: 1, rank_overall: 42, course_finishers: 20 }))).toEqual({
+      ratio: null,
+      reason: "incomplete",
+    });
   });
 
-  it("renvoie null sous deux classés : un « 1er sur 1 » ne dit rien", () => {
-    expect(rankRatio(part({ id: 1, rank_overall: 1, course_finishers: 1 }))).toBeNull();
+  it("renvoie ratio=null reason=incomplete sous deux classés", () => {
+    expect(rankRatio(part({ id: 1, rank_overall: 1, course_finishers: 1 }))).toEqual({
+      ratio: null,
+      reason: "incomplete",
+    });
   });
 
-  it("renvoie null quand la course est explicitement marquée non fiable", () => {
+  it("renvoie ratio=null reason=unreliable quand la course est marquée non fiable", () => {
+    // Même avec des données par ailleurs complètes, on distingue le refus
+    // volontaire (`is_reliable=false`) d'un simple manque de données.
     const p = part({ id: 1, rank_overall: 3, course_finishers: 300 });
     p.course = { ...p.course, is_reliable: false };
-    expect(rankRatio(p)).toBeNull();
+    expect(rankRatio(p)).toEqual({ ratio: null, reason: "unreliable" });
   });
 
   it("produit un ratio quand la course est explicitement fiable", () => {
     const p = part({ id: 1, rank_overall: 3, course_finishers: 300 });
     p.course = { ...p.course, is_reliable: true };
-    expect(rankRatio(p)).not.toBeNull();
+    expect(rankRatio(p).ratio).not.toBeNull();
   });
 
   it("produit un ratio quand `is_reliable` est absent (non-régression)", () => {
     const p = part({ id: 1, rank_overall: 3, course_finishers: 300 });
-    expect(rankRatio(p)).not.toBeNull();
+    expect(rankRatio(p).ratio).not.toBeNull();
   });
 });
 
@@ -112,5 +126,11 @@ describe("bestRatio", () => {
   it("ignore les participations sans ratio exploitable", () => {
     expect(bestRatio([part({ id: 1, rank_overall: 42, course_finishers: 20 })])).toBeNull();
     expect(bestRatio([])).toBeNull();
+  });
+
+  it("ignore les participations dont la course est non fiable", () => {
+    const p = part({ id: 1, rank_overall: 3, course_finishers: 300 });
+    p.course = { ...p.course, is_reliable: false };
+    expect(bestRatio([p])).toBeNull();
   });
 });

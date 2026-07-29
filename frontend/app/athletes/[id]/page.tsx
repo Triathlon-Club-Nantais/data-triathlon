@@ -6,6 +6,7 @@ import { PageShell } from "@/components/layout/PageShell";
 import { eventTypeLabel } from "@/lib/constants";
 import { formatToken, ordinalFr } from "@/lib/utils/format";
 import { bestRatio, rankRatio } from "@/lib/utils/ranking";
+import { describeQualityIssues } from "@/lib/quality";
 import { formatDate } from "@/lib/utils/date";
 import { recentParticipations } from "@/lib/utils/club-aggregate";
 import { gridColumns, gridMinWidth, type Track } from "@/lib/utils/table";
@@ -13,6 +14,14 @@ import { gridColumns, gridMinWidth, type Track } from "@/lib/utils/table";
 // Date | Épreuve | Type | Format | Temps final | Place | →
 // La colonne Place loge la pastille *et* le « /N » de classés (issue #80).
 const TRACKS: Track[] = [120, { flexMin: 200 }, 150, 90, 120, 120, 28];
+
+// Tooltip d'une course non fiable : détail des anomalies quand connues, repli
+// générique sinon (ancien import backfillé sans quality_issues).
+function unreliableTooltip(issues: Record<string, number> | null | undefined): string {
+  const details = describeQualityIssues(issues);
+  if (details.length === 0) return "Fiabilité des données incertaine chez le chronométreur — le classement complet ne peut pas être affiché.";
+  return `Fiabilité incertaine : ${details.join(" ; ")}.`;
+}
 const GAP = 18;
 const PADDING_X = 26;
 const COLS = gridColumns(TRACKS);
@@ -79,7 +88,9 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
                 <div>Date</div><div>Épreuve</div><div>Type</div><div>Format</div><div>Temps final</div><div>Place</div><div></div>
               </div>
               {ordered.map((p) => {
-                const ratio = rankRatio(p);
+                const { ratio, reason } = rankRatio(p);
+                const unreliableTitle =
+                  reason === "unreliable" ? unreliableTooltip(p.course?.quality_issues) : null;
                 return (
                   <Link key={p.id} href={`/courses/${p.course?.id}`} className="tcn-rowlink" style={{ display: "grid", gridTemplateColumns: COLS, columnGap: GAP, alignItems: "center", padding: `15px ${PADDING_X}px`, borderBottom: "1px solid var(--tcn-border-faint)" }}>
                     <div style={{ fontSize: 14, color: "var(--tcn-text-muted)", fontWeight: 600 }}>{formatDate(p.course?.event_date)}</div>
@@ -94,6 +105,18 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
                           {ratio ? (
                             <span style={{ fontSize: 13, fontWeight: 600, color: "var(--tcn-text-faint)" }}>
                               /{ratio.total}
+                            </span>
+                          ) : null}
+                          {unreliableTitle ? (
+                            <span
+                              data-testid="unreliable-marker"
+                              title={unreliableTitle}
+                              aria-label={unreliableTitle}
+                              // `role="img"` : le texte est purement informatif, pas un contrôle.
+                              role="img"
+                              style={{ fontSize: 13, color: "var(--tcn-text-faint)", cursor: "help", userSelect: "none" }}
+                            >
+                              ⚠
                             </span>
                           ) : null}
                         </>
