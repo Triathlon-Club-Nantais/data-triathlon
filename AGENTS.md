@@ -164,6 +164,18 @@ si le port est **effectivement occupé** (`should_retry_after_exit`) : uvicorn q
 aussi par `sys.exit()` sur d'autres pannes de démarrage, et retenter à l'aveugle
 masquerait la vraie cause derrière trois démarrages sur trois ports.
 
+Un worktree reste une copie **neuve** : rien de gitignoré ne l'accompagne. Pour les
+worktrees créés par Claude Code (`claude --worktree`, sous-agents
+`isolation: worktree`), `.worktreeinclude` à la racine liste ce qui doit suivre —
+syntaxe `.gitignore`, et un fichier n'est copié que s'il est à la fois matché **et**
+gitignoré. Aujourd'hui : `.env` (donc `backend/.env`, porteur de `DATABASE_URL`),
+`.env.local` et la base de dev `backend/triathlon.db`. Deux fichiers en sont exclus
+**exprès**, chacun pour la même raison — ils désignent un worktree en particulier :
+`.dev-backend.json`, que chaque `dev_server.py` republie, et tout `BACKEND_URL` /
+`API_URL` figé dans `frontend/.env.local`, qui brancherait le front d'un worktree
+sur la base d'un autre. Un worktree créé à la main (`git worktree add`) ne passe
+pas par ce mécanisme : les fichiers sont à copier soi-même.
+
 ## Architecture backend (`backend/`)
 
 Archi en couches, le flux ne traverse qu'une direction

@@ -1,0 +1,38 @@
+# .worktreeinclude — fichiers gitignorés recopiés dans chaque worktree que crée
+# Claude Code : `claude --worktree`, sous-agents `isolation: worktree`, sessions
+# parallèles de l'app desktop.
+#
+# Syntaxe .gitignore. Un fichier n'est copié que s'il est **à la fois** matché ici
+# **et** gitignoré — rien de suivi par git n'est jamais dupliqué. Un motif sans
+# slash matche à toutes les profondeurs (`.env` couvre `/.env` comme
+# `backend/.env`), un motif avec slash est ancré à la racine du dépôt.
+#
+# Sans ce fichier, un worktree est une copie neuve : ni `.env`, ni base de dev.
+# Doc : https://code.claude.com/docs/en/worktrees#copy-gitignored-files-into-worktrees
+
+# ── Configuration d'environnement ────────────────────────────────────────────
+# `backend/.env` porte `DATABASE_URL` (cf. AGENTS.md, §Commandes) ; sans lui, un
+# worktree neuf retombe silencieusement sur les défauts de `app/core/config.py`.
+.env
+
+# Config locale du frontend. Attention : n'y figez pas `BACKEND_URL` / `API_URL`.
+# Recopiées telles quelles dans un worktree, elles y brancheraient le front sur le
+# backend — donc la base — d'un AUTRE worktree, sans erreur visible. En dev,
+# laissez `npm run dev` les découvrir via `.dev-backend.json`
+# (AGENTS.md, §Dev multi-worktree).
+.env.local
+
+# ── Base SQLite de dev ───────────────────────────────────────────────────────
+# ~38 Mo copiés par worktree : on y démarre sur les données réelles plutôt que sur
+# un schéma vide. Pour repartir de zéro dans un worktree : `task b:reset-db`.
+backend/triathlon.db
+
+# ── Volontairement absents ───────────────────────────────────────────────────
+# `.dev-backend.json`         → publié par le `dev_server.py` de CHAQUE worktree ;
+#                               le copier pointerait le front sur le backend d'un
+#                               autre worktree (AGENTS.md, §Dev multi-worktree).
+# `.venv/`, `node_modules/`   → chemins absolus et binaires liés à l'emplacement ;
+#                               les recréer avec `task install`.
+# `.claude/settings.local.json` → déjà partagé : depuis Claude Code 2.1.211, une
+#                               approbation donnée dans un worktree est écrite dans
+#                               le dépôt principal et vaut pour tous les worktrees.
