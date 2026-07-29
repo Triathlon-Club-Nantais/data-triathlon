@@ -16,6 +16,7 @@ import {
 } from "@/lib/utils/club-aggregate";
 import type { Participation, Stats } from "@/lib/types";
 import { PodiumsList } from "./PodiumsList";
+import { ClubPodiumKpi } from "./ClubPodiumKpi";
 
 export function ClubDashboard({
   stats,
@@ -47,12 +48,13 @@ export function ClubDashboard({
 
   return (
     <div className="space-y-8">
-      {/* Synthèse */}
+      {/* Synthèse — les 3 premiers KPI ne dépendent pas du rank et restent SSR.
+          Le KPI Podiums, lui, suit `?rank=…` via un composant client (#132). */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard label="Résultats" value={summary.results} accent />
         <KpiCard label="Athlètes" value={summary.athletes} />
         <KpiCard label="Épreuves" value={summary.events} />
-        <KpiCard label="Podiums" value={summary.podiums} />
+        <ClubPodiumKpi participations={participations} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
