@@ -19,6 +19,7 @@ import {
   recentParticipations,
   type PodiumScope,
 } from "@/lib/utils/club-aggregate";
+import type { RankType } from "@/lib/rank";
 import type { Participation, Stats } from "@/lib/types";
 
 const SCOPE_LABEL: Record<PodiumScope, string> = {
@@ -30,12 +31,14 @@ const SCOPE_LABEL: Record<PodiumScope, string> = {
 export function ClubDashboard({
   stats,
   participations,
+  rankType,
 }: {
   stats: Stats;
   participations: Participation[];
+  rankType?: RankType;
 }) {
   const summary = clubSummary(participations);
-  const podiums = listPodiums(participations).slice(0, 6);
+  const podiums = listPodiums(participations, rankType).slice(0, 6);
   const roster = buildRoster(participations);
   const recent = recentParticipations(participations, 6);
 
