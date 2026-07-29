@@ -2,6 +2,7 @@ import { apiServer } from "@/lib/api/server";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { DisciplineToggle } from "@/components/layout/DisciplineToggle";
+import { RankTypeToggle } from "@/components/layout/RankTypeToggle";
 import { ClubDashboard } from "@/components/club/ClubDashboard";
 import { SCOPE_CLUB, federalOnlyFromParam } from "@/lib/scope";
 
@@ -26,7 +27,12 @@ export default async function ClubPage({
           eyebrow="Triathlon Club Nantais"
           title="Espace club"
           description="Synthèse, podiums et athlètes du Triathlon Club Nantais."
-          actions={<DisciplineToggle />}
+          actions={
+            <div className="flex flex-wrap items-center gap-3">
+              <RankTypeToggle />
+              <DisciplineToggle />
+            </div>
+          }
         />
         <ClubDashboard stats={stats} participations={participations} />
       </div>

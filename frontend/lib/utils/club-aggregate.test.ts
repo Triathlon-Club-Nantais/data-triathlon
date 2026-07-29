@@ -72,6 +72,44 @@ describe("bestRank", () => {
   it("renvoie null sans aucun classement", () => {
     expect(bestRank(part({ id: 1 }))).toBeNull();
   });
+
+  it("mode scratch : ne regarde que rank_overall", () => {
+    // rank_category=1 (victoire cat) mais mode scratch → uniquement rank_overall
+    const p = part({ id: 1, rank_overall: 25, rank_category: 1, rank_gender: 3 });
+    expect(bestRank(p, "scratch")).toEqual({ rank: 25, scope: "overall" });
+  });
+  it("mode scratch : null si rank_overall absent, même avec les autres rangs présents", () => {
+    const p = part({ id: 1, rank_category: 1, rank_gender: 1 });
+    expect(bestRank(p, "scratch")).toBeNull();
+  });
+
+  it("mode category : ne regarde que rank_category", () => {
+    const p = part({ id: 1, rank_overall: 1, rank_category: 12, rank_gender: 1 });
+    expect(bestRank(p, "category")).toEqual({ rank: 12, scope: "category" });
+  });
+  it("mode category : null si rank_category absent", () => {
+    const p = part({ id: 1, rank_overall: 3, rank_gender: 1 });
+    expect(bestRank(p, "category")).toBeNull();
+  });
+
+  it("mode gender : ne regarde que rank_gender", () => {
+    const p = part({ id: 1, rank_overall: 42, rank_category: 5, rank_gender: 2 });
+    expect(bestRank(p, "gender")).toEqual({ rank: 2, scope: "gender" });
+  });
+  it("mode gender : null si rank_gender absent", () => {
+    const p = part({ id: 1, rank_overall: 1, rank_category: 1 });
+    expect(bestRank(p, "gender")).toBeNull();
+  });
+
+  it("mode all : préserve exactement le comportement du défaut (min des trois)", () => {
+    const p = part({ id: 1, rank_overall: 40, rank_category: 7, rank_gender: 15 });
+    expect(bestRank(p, "all")).toEqual(bestRank(p));
+    expect(bestRank(p, "all")).toEqual({ rank: 7, scope: "category" });
+  });
+  it("mode all : privilégie 'overall' > 'gender' > 'category' à rang égal", () => {
+    const p = part({ id: 1, rank_overall: 5, rank_gender: 5, rank_category: 5 });
+    expect(bestRank(p, "all")).toEqual({ rank: 5, scope: "overall" });
+  });
 });
 
 describe("isTopN", () => {
@@ -92,7 +130,12 @@ describe("rankCounters", () => {
       part({ id: 4, rank_overall: 180, rank_category: 7 }), // top 10 catégorie
       part({ id: 5, rank_overall: 200, rank_category: 40 }), // rien
     ];
-    expect(rankCounters(parts)).toEqual({ victories: 2, podiums: 3, top10: 4 });
+    expect(rankCounters(parts)).toEqual({
+      kind: "scalar",
+      victories: 2,
+      podiums: 3,
+      top10: 4,
+    });
   });
 
   it("garantit victoires ≤ podiums ≤ top 10", () => {
@@ -104,8 +147,86 @@ describe("rankCounters", () => {
       part({ id: 5 }),
     ];
     const c = rankCounters(parts);
+    if (c.kind !== "scalar") throw new Error("scalar attendu");
     expect(c.victories).toBeLessThanOrEqual(c.podiums);
     expect(c.podiums).toBeLessThanOrEqual(c.top10);
+  });
+
+  it("mode scratch : compte sur rank_overall uniquement (kind scalar)", () => {
+    const parts = [
+      part({ id: 1, rank_overall: 1, rank_category: 40, rank_gender: 20 }), // victoire scratch
+      part({ id: 2, rank_overall: 25, rank_category: 1 }), // victoire cat mais mode scratch → ni victoire ni podium
+      part({ id: 3, rank_overall: 3 }), // podium scratch
+      part({ id: 4, rank_overall: 10 }), // top 10
+    ];
+    expect(rankCounters(parts, "scratch")).toEqual({
+      kind: "scalar",
+      victories: 1,
+      podiums: 2,
+      top10: 3,
+    });
+  });
+
+  it("mode category : compte sur rank_category uniquement", () => {
+    const parts = [
+      part({ id: 1, rank_overall: 1, rank_category: 25 }), // victoire scratch, rien en cat
+      part({ id: 2, rank_category: 1 }), // victoire cat
+      part({ id: 3, rank_category: 3 }), // podium cat
+      part({ id: 4, rank_category: 10 }), // top 10 cat
+    ];
+    expect(rankCounters(parts, "category")).toEqual({
+      kind: "scalar",
+      victories: 1,
+      podiums: 2,
+      top10: 3,
+    });
+  });
+
+  it("mode all : identique au défaut sans paramètre", () => {
+    const parts = [
+      part({ id: 1, rank_overall: 1 }),
+      part({ id: 2, rank_overall: 25, rank_category: 1 }),
+      part({ id: 3, rank_overall: 60, rank_gender: 3 }),
+    ];
+    expect(rankCounters(parts, "all")).toEqual(rankCounters(parts));
+  });
+
+  it("mode gender : ventile F et H, jamais confondus", () => {
+    const alice = { id: 10, nom: "Alice", prenom: "A", gender: "F", club: "TCN" };
+    const bob = { id: 20, nom: "Bob", prenom: "B", gender: "M", club: "TCN" };
+    const parts = [
+      part({ id: 1, athlete: alice, rank_gender: 1 }), // victoire F
+      part({ id: 2, athlete: alice, rank_gender: 3 }), // podium F
+      part({ id: 3, athlete: alice, rank_gender: 10 }), // top10 F
+      part({ id: 4, athlete: bob, rank_gender: 1 }), // victoire H
+      part({ id: 5, athlete: bob, rank_gender: 5 }), // top10 H
+    ];
+    const c = rankCounters(parts, "gender");
+    expect(c.kind).toBe("gender");
+    if (c.kind !== "gender") throw new Error("gender attendu");
+    expect(c.women).toEqual({ victories: 1, podiums: 2, top10: 3 });
+    expect(c.men).toEqual({ victories: 1, podiums: 1, top10: 2 });
+  });
+
+  it("mode gender : n'inclut pas les athlètes sans genre renseigné", () => {
+    const anon = { id: 30, nom: "X", prenom: "X", gender: "", club: "TCN" };
+    const parts = [
+      part({ id: 1, athlete: anon, rank_gender: 1 }), // exclu (pas de genre)
+    ];
+    const c = rankCounters(parts, "gender");
+    if (c.kind !== "gender") throw new Error("gender attendu");
+    expect(c.women).toEqual({ victories: 0, podiums: 0, top10: 0 });
+    expect(c.men).toEqual({ victories: 0, podiums: 0, top10: 0 });
+  });
+
+  it("mode gender : n'inclut pas les participations sans rank_gender", () => {
+    const alice = { id: 10, nom: "Alice", prenom: "A", gender: "F", club: "TCN" };
+    const parts = [
+      part({ id: 1, athlete: alice, rank_overall: 1 }), // pas de rank_gender → exclu
+    ];
+    const c = rankCounters(parts, "gender");
+    if (c.kind !== "gender") throw new Error("gender attendu");
+    expect(c.women.victories).toBe(0);
   });
 });
 
@@ -118,6 +239,60 @@ describe("listPodiums", () => {
     ];
     const result = listPodiums(parts);
     expect(result.map((e) => e.participation.id)).toEqual([2, 1]);
+  });
+
+  it("mode scratch : ne montre que les podiums où rank_overall ≤ 3", () => {
+    const parts = [
+      part({ id: 1, rank_overall: 30, rank_category: 1 }), // podium cat → exclu
+      part({ id: 2, rank_overall: 2 }), // podium scratch → inclus
+      part({ id: 3, rank_gender: 1 }), // podium genre → exclu
+    ];
+    const result = listPodiums(parts, "scratch");
+    expect(result.map((e) => e.participation.id)).toEqual([2]);
+    expect(result.every((e) => e.best.scope === "overall")).toBe(true);
+  });
+
+  it("mode category : ne montre que les podiums où rank_category ≤ 3", () => {
+    const parts = [
+      part({ id: 1, rank_overall: 1 }), // podium scratch → exclu
+      part({ id: 2, rank_category: 3 }), // podium cat → inclus
+      part({ id: 3, rank_gender: 2 }), // podium genre → exclu
+    ];
+    const result = listPodiums(parts, "category");
+    expect(result.map((e) => e.participation.id)).toEqual([2]);
+    expect(result.every((e) => e.best.scope === "category")).toBe(true);
+  });
+
+  it("mode all : préserve le mélange des trois scopes (comportement actuel)", () => {
+    const parts = [
+      part({ id: 1, rank_overall: 1 }),
+      part({ id: 2, rank_category: 2 }),
+      part({ id: 3, rank_gender: 3 }),
+      part({ id: 4, rank_overall: 20 }),
+    ];
+    expect(listPodiums(parts, "all")).toEqual(listPodiums(parts));
+    expect(listPodiums(parts, "all")).toHaveLength(3);
+  });
+});
+
+describe("isPodium / isTopN — paramètre rankType", () => {
+  it("mode scratch : ignore les podiums non-scratch", () => {
+    // Podium catégorie mais pas scratch → false en mode scratch.
+    const p = part({ id: 1, rank_overall: 100, rank_category: 1 });
+    expect(isPodium(p, "scratch")).toBe(false);
+    expect(isPodium(p, "category")).toBe(true);
+  });
+
+  it("mode category : compte un top 10 catégorie", () => {
+    const p = part({ id: 1, rank_overall: 200, rank_category: 8 });
+    expect(isTopN(p, 10, "category")).toBe(true);
+    expect(isTopN(p, 10, "scratch")).toBe(false);
+  });
+
+  it("défaut sans rankType : comportement historique inchangé", () => {
+    const p = part({ id: 1, rank_overall: 200, rank_category: 3 });
+    expect(isPodium(p)).toBe(true);
+    expect(isTopN(p, 10)).toBe(true);
   });
 });
 

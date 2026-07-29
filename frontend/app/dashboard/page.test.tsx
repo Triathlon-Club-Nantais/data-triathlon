@@ -75,9 +75,11 @@ describe("DashboardPage", () => {
   it("ne rend plus le sélecteur de portée (Tous / Membres TCN)", async () => {
     await renderDashboard({});
 
-    expect(screen.queryByText("Tous")).toBeNull();
+    // Note : « Tous » existe désormais dans le RankTypeToggle (#104), on ne
+    // peut plus faire d'assertion sur ce mot seul. On cible le radiogroup de
+    // portée par son aria-label, qui est ce qui disparaît vraiment.
     expect(screen.queryByText("Membres TCN")).toBeNull();
-    expect(screen.queryByRole("group", { name: "Portée" })).toBeNull();
+    expect(screen.queryByRole("radiogroup", { name: "Portée" })).toBeNull();
   });
 
   it("rend le sélecteur de saison alimenté par les saisons du club", async () => {
@@ -103,5 +105,20 @@ describe("DashboardPage", () => {
     expect(getStats).toHaveBeenCalledWith(
       expect.objectContaining({ federal_only: undefined }),
     );
+  });
+});
+
+// Sélecteur de type de rang (#104) — le rendu détaillé des 3 cartes vit
+// désormais dans le composant client `StatCardsRank` (cf. issue #132) qui a
+// ses propres tests. Ici on vérifie que la page monte bien le composant, en
+// mode par défaut (les mocks `useSearchParams` renvoient une URL vide).
+describe("DashboardPage — sélecteur de type de rang", () => {
+  it("monte le StatCardsRank avec le mode par défaut (libellé « scratch »)", async () => {
+    listParticipations.mockResolvedValue([
+      { rank_overall: 2, rank_category: 30 },
+    ]);
+    await renderDashboard({});
+    expect(screen.getAllByText("scratch").length).toBeGreaterThanOrEqual(3);
+    expect(screen.queryByText("scratch, genre ou catégorie")).not.toBeInTheDocument();
   });
 });

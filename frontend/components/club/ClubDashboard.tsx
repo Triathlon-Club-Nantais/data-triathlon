@@ -2,30 +2,21 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Stat } from "@/components/ui/stat";
-import { Medal } from "@/components/ui/medal";
 import { InitialsAvatar } from "@/components/ui/initials-avatar";
 import { EmptyState } from "@/components/ui/empty-state";
-import { SportBadge } from "@/components/results/SportBadge";
 import { ResultCard } from "@/components/results/ResultCard";
 import { BarList } from "@/components/charts/BarList";
 import { MonthlyTrend } from "@/components/charts/MonthlyTrend";
 import { eventTypeLabel } from "@/lib/constants";
-import { formatEventName } from "@/lib/utils/event";
 import { eventTypeColor } from "@/lib/sport-colors";
 import {
   buildRoster,
   clubSummary,
-  listPodiums,
   recentParticipations,
-  type PodiumScope,
 } from "@/lib/utils/club-aggregate";
 import type { Participation, Stats } from "@/lib/types";
-
-const SCOPE_LABEL: Record<PodiumScope, string> = {
-  overall: "Général",
-  gender: "Genre",
-  category: "Catégorie",
-};
+import { PodiumsList } from "./PodiumsList";
+import { ClubPodiumKpi } from "./ClubPodiumKpi";
 
 export function ClubDashboard({
   stats,
@@ -35,7 +26,6 @@ export function ClubDashboard({
   participations: Participation[];
 }) {
   const summary = clubSummary(participations);
-  const podiums = listPodiums(participations).slice(0, 6);
   const roster = buildRoster(participations);
   const recent = recentParticipations(participations, 6);
 
@@ -58,12 +48,13 @@ export function ClubDashboard({
 
   return (
     <div className="space-y-8">
-      {/* Synthèse */}
+      {/* Synthèse — les 3 premiers KPI ne dépendent pas du rank et restent SSR.
+          Le KPI Podiums, lui, suit `?rank=…` via un composant client (#132). */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard label="Résultats" value={summary.results} accent />
         <KpiCard label="Athlètes" value={summary.athletes} />
         <KpiCard label="Épreuves" value={summary.events} />
-        <KpiCard label="Podiums" value={summary.podiums} />
+        <ClubPodiumKpi participations={participations} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -73,42 +64,7 @@ export function ClubDashboard({
             <CardTitle>Podiums & performances</CardTitle>
           </CardHeader>
           <CardContent>
-            {podiums.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">
-                Pas encore de podium enregistré.
-              </p>
-            ) : (
-              <ul className="divide-y">
-                {podiums.map(({ participation: p, best }) => {
-                  const name =
-                    [p.athlete?.prenom, p.athlete?.nom].filter(Boolean).join(" ") ||
-                    "Athlète";
-                  return (
-                    <li key={p.id} className="flex items-center gap-3 py-2.5">
-                      <Medal rank={best.rank} size={28} />
-                      <div className="min-w-0 flex-1">
-                        <Link
-                          href={`/athletes/${p.athlete?.id}`}
-                          className="font-semibold hover:underline"
-                        >
-                          {name}
-                        </Link>
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                          <span className="truncate">{formatEventName(p.course.name, p.course.is_relay)}</span>
-                          <SportBadge type={p.course.event_type} />
-                          <span className="micro-label text-[9px]">
-                            {SCOPE_LABEL[best.scope]}
-                          </span>
-                        </div>
-                      </div>
-                      {p.total_time && (
-                        <span className="num text-sm font-bold">{p.total_time}</span>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+            <PodiumsList participations={participations} />
           </CardContent>
         </Card>
 

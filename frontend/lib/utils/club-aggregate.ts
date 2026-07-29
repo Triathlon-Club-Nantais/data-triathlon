@@ -1,6 +1,7 @@
 // Agrégations club calculées côté client à partir des participations
 // (filtrées sur le club). Fonctions pures et testables.
 import type { Participation } from "@/lib/types";
+import type { RankType } from "@/lib/rank";
 
 export type PodiumScope = "overall" | "category" | "gender";
 
@@ -9,15 +10,32 @@ export interface BestRank {
   scope: PodiumScope;
 }
 
-/** Meilleur classement d'une participation, tous scopes confondus (général > genre > catégorie à rang égal). */
-export function bestRank(p: Participation): BestRank | null {
-  const candidates: [number | null, PodiumScope][] = [
-    [p.rank_overall, "overall"],
-    [p.rank_gender, "gender"],
-    [p.rank_category, "category"],
-  ];
+const ALL_CANDIDATES: readonly [PodiumScope, keyof Participation][] = [
+  ["overall", "rank_overall"],
+  ["gender", "rank_gender"],
+  ["category", "rank_category"],
+];
+
+function candidatesFor(rankType: RankType | undefined): readonly [PodiumScope, keyof Participation][] {
+  switch (rankType) {
+    case "scratch": return [["overall", "rank_overall"]];
+    case "category": return [["category", "rank_category"]];
+    case "gender": return [["gender", "rank_gender"]];
+    default: return ALL_CANDIDATES;
+  }
+}
+
+/**
+ * Meilleur classement d'une participation.
+ *
+ * En mode `"scratch"` / `"category"` / `"gender"`, ne regarde qu'un seul rang.
+ * En mode `"all"` (défaut sans paramètre), prend le min des trois — ordre de
+ * départage à rang égal : général > genre > catégorie.
+ */
+export function bestRank(p: Participation, rankType?: RankType): BestRank | null {
   let best: BestRank | null = null;
-  for (const [rank, scope] of candidates) {
+  for (const [scope, key] of candidatesFor(rankType)) {
+    const rank = p[key] as number | null | undefined;
     if (rank != null && rank >= 1) {
       if (!best || rank < best.rank) best = { rank, scope };
     }
@@ -25,21 +43,21 @@ export function bestRank(p: Participation): BestRank | null {
   return best;
 }
 
-/** true si la participation est dans le top N sur l'un des trois classements. */
-export function isTopN(p: Participation, n: number): boolean {
-  const best = bestRank(p);
+/** true si la participation est dans le top N sur le rang du mode courant. */
+export function isTopN(p: Participation, n: number, rankType?: RankType): boolean {
+  const best = bestRank(p, rankType);
   return best !== null && best.rank <= n;
 }
 
-/** Meilleur classement top-3 d'une participation (général > genre > catégorie). */
-export function bestPodiumRank(p: Participation): BestRank | null {
-  const best = bestRank(p);
+/** Meilleur classement top-3 sur le rang du mode courant. */
+export function bestPodiumRank(p: Participation, rankType?: RankType): BestRank | null {
+  const best = bestRank(p, rankType);
   return best && best.rank <= 3 ? best : null;
 }
 
-/** true si la participation a décroché un podium (top-3 sur l'un des classements). */
-export function isPodium(p: Participation): boolean {
-  return bestPodiumRank(p) !== null;
+/** true si la participation a décroché un podium (top-3 sur le rang du mode). */
+export function isPodium(p: Participation, rankType?: RankType): boolean {
+  return bestPodiumRank(p, rankType) !== null;
 }
 
 export interface RankCounters {
@@ -48,20 +66,56 @@ export interface RankCounters {
   top10: number;
 }
 
+/** Compteurs scalaires : modes scratch / category / all. */
+export interface RankCountersScalar extends RankCounters {
+  kind: "scalar";
+}
+
+/** Compteurs dédoublés F/H : mode gender uniquement. */
+export interface RankCountersGender {
+  kind: "gender";
+  women: RankCounters;
+  men: RankCounters;
+}
+
+/** Type discriminé retourné par `rankCounters` selon le mode. */
+export type RankCountersResult = RankCountersScalar | RankCountersGender;
+
 /**
- * Compteurs du dashboard, tous mesurés sur le même périmètre (général, genre ou
- * catégorie) pour rester emboîtés : victoires ≤ podiums ≤ top 10 (issue #77).
+ * Compteurs du dashboard, tous mesurés sur le même périmètre pour rester
+ * emboîtés : victoires ≤ podiums ≤ top 10 (issue #77).
+ *
+ * `rankType` :
+ * - `"scratch"` / `"category"` : compte sur le seul rang correspondant.
+ * - `"all"` ou `undefined` : min-des-trois (comportement historique).
+ * - `"gender"` : ventile F/H via `athlete.gender` ; renvoie `{kind: "gender", women, men}`.
+ *   Les athlètes sans genre renseigné ne sont comptés dans aucun des deux.
  */
-export function rankCounters(parts: Participation[]): RankCounters {
+export function rankCounters(parts: Participation[], rankType?: RankType): RankCountersResult {
+  if (rankType === "gender") {
+    const women: RankCounters = { victories: 0, podiums: 0, top10: 0 };
+    const men: RankCounters = { victories: 0, podiums: 0, top10: 0 };
+    for (const p of parts) {
+      const g = (p.athlete?.gender ?? "").toUpperCase();
+      if (g !== "F" && g !== "M") continue;
+      const rank = p.rank_gender;
+      if (rank == null || rank < 1) continue;
+      const bucket = g === "F" ? women : men;
+      if (rank <= 1) bucket.victories += 1;
+      if (rank <= 3) bucket.podiums += 1;
+      if (rank <= 10) bucket.top10 += 1;
+    }
+    return { kind: "gender", women, men };
+  }
   const counters: RankCounters = { victories: 0, podiums: 0, top10: 0 };
   for (const p of parts) {
-    const best = bestRank(p);
+    const best = bestRank(p, rankType);
     if (!best) continue;
     if (best.rank <= 1) counters.victories += 1;
     if (best.rank <= 3) counters.podiums += 1;
     if (best.rank <= 10) counters.top10 += 1;
   }
-  return counters;
+  return { kind: "scalar", ...counters };
 }
 
 export interface PodiumEntry {
@@ -69,10 +123,10 @@ export interface PodiumEntry {
   best: BestRank;
 }
 
-/** Liste des performances de podium, triées (rang asc puis date desc). */
-export function listPodiums(parts: Participation[]): PodiumEntry[] {
+/** Liste des performances de podium selon le mode, triées (rang asc puis date desc). */
+export function listPodiums(parts: Participation[], rankType?: RankType): PodiumEntry[] {
   return parts
-    .map((p) => ({ participation: p, best: bestPodiumRank(p) }))
+    .map((p) => ({ participation: p, best: bestPodiumRank(p, rankType) }))
     .filter((e): e is PodiumEntry => e.best !== null)
     .sort((a, b) => {
       if (a.best.rank !== b.best.rank) return a.best.rank - b.best.rank;
