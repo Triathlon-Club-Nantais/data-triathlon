@@ -36,7 +36,7 @@ function part(over: Partial<Participation> & { id: number }): Participation {
     rank_category: null,
     rank_gender: null,
     total_time: "01:59:00",
-    status: "finisher",
+    status: over.status ?? "finisher",
     is_relay: false,
     splits: null,
     created_at: null,
@@ -145,5 +145,107 @@ describe("AthletePage", () => {
 
     const marker = screen.getByTestId("unreliable-marker");
     expect(marker.getAttribute("title") ?? "").toMatch(/fiabilité/i);
+  });
+
+  // Cellule « Place » d'un non-finisher (issue #125) : plutôt qu'un tiret muet,
+  // on rend le sigle du statut. Texte sobre (pas de badge rouge alarmant : les
+  // non-finishers sont un état normal, cf. non-goals). DSQ garde son rang entre
+  // parenthèses si le chronométreur l'a fourni.
+  it("affiche « DNF » à la place du tiret pour un abandon sans rang (AC1)", async () => {
+    // Ciblage sur la ligne du tableau (par son lien) : « — » apparaît aussi
+    // dans les StatCards vides du haut de page, hors périmètre de cette cellule.
+    const { container } = await renderAthlete([part({ id: 1, status: "DNF" })]);
+    const row = container.querySelector<HTMLElement>("a[href='/courses/1']");
+    expect(row).not.toBeNull();
+    expect(within(row as HTMLElement).getByText("DNF")).toBeInTheDocument();
+    expect(within(row as HTMLElement).queryByText("—")).not.toBeInTheDocument();
+  });
+
+  it("affiche « DNS » pour un non-partant sans rang (AC2)", async () => {
+    await renderAthlete([part({ id: 1, status: "DNS" })]);
+    expect(screen.getByText("DNS")).toBeInTheDocument();
+  });
+
+  it("affiche « DSQ » pour une disqualification sans rang (AC2)", async () => {
+    await renderAthlete([part({ id: 1, status: "DSQ" })]);
+    expect(screen.getByText("DSQ")).toBeInTheDocument();
+  });
+
+  it("affiche « DSQ(42/300) » quand un rang provisoire subsiste sur une course fiable", async () => {
+    // Le chronométreur a laissé un rang malgré la disqualification. On rend le
+    // rang entre parenthèses, avec le /N habituel des finishers classés.
+    const { container } = await renderAthlete([
+      part({ id: 1, status: "DSQ", rank_overall: 42, course_finishers: 300 }),
+    ]);
+    expect(screen.getByText("DSQ(42/300)")).toBeInTheDocument();
+    // Aucune pastille orange de finisher dans la ligne : le rang est
+    // descriptif, pas glorieux. La StatCard « Meilleure place » du haut de
+    // page peut encore afficher « 42 », hors périmètre.
+    const row = container.querySelector<HTMLElement>("a[href='/courses/1']");
+    expect(row).not.toBeNull();
+    expect(within(row as HTMLElement).queryByText(/^42$/)).not.toBeInTheDocument();
+  });
+
+  it("masque le /N sur un DSQ classé si la course est non fiable", async () => {
+    // Cohérent avec le comportement finisher : sur is_reliable=false, le
+    // dénominateur disparaît (il serait faux), mais on garde le rang brut
+    // fourni par le chronométreur. Le marker ⚠ signale la limite.
+    await renderAthlete([
+      part({
+        id: 1,
+        status: "DSQ",
+        rank_overall: 42,
+        course_finishers: 300,
+        course: {
+          id: 1,
+          name: "Course 1",
+          event_date: "2026-05-16",
+          event_type: "triathlon-m",
+          provider: "manuel",
+          source_url: "",
+          is_relay: false,
+          is_reliable: false,
+        },
+      }),
+    ]);
+    expect(screen.getByText("DSQ(42)")).toBeInTheDocument();
+    expect(screen.queryByText("DSQ(42/300)")).not.toBeInTheDocument();
+    expect(screen.getByTestId("unreliable-marker")).toBeInTheDocument();
+  });
+
+  it("garde le marker ⚠ à côté d'un statut de non-finisher (AC5)", async () => {
+    // AC5 : le signal is_reliable=false est indépendant du rang et du statut.
+    // Il doit apparaître sur un DNF non fiable, alors qu'aujourd'hui le marker
+    // n'est rendu que dans la branche « rang présent ».
+    await renderAthlete([
+      part({
+        id: 1,
+        status: "DNF",
+        course: {
+          id: 1,
+          name: "Course 1",
+          event_date: "2026-05-16",
+          event_type: "triathlon-m",
+          provider: "manuel",
+          source_url: "",
+          is_relay: false,
+          is_reliable: false,
+        },
+      }),
+    ]);
+    expect(screen.getByText("DNF")).toBeInTheDocument();
+    expect(screen.getByTestId("unreliable-marker")).toBeInTheDocument();
+  });
+
+  it("garde le tiret muet pour un finisher sans rang (AC3)", async () => {
+    // Statut « finisher » sans rang connu (course en cours, données
+    // incomplètes) : on ne change pas le comportement existant. On cible la
+    // ligne du tableau (via son lien) parce que d'autres cellules de la page
+    // affichent aussi un « — » quand une stat manque.
+    const { container } = await renderAthlete([part({ id: 1, status: "finisher" })]);
+    const row = container.querySelector<HTMLElement>("a[href='/courses/1']");
+    expect(row).not.toBeNull();
+    expect(within(row as HTMLElement).getByText("—")).toBeInTheDocument();
+    expect(within(row as HTMLElement).queryByText("DNF")).not.toBeInTheDocument();
   });
 });
