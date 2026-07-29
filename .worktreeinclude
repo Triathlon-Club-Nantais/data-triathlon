@@ -1,53 +1,19 @@
-# .worktreeinclude — fichiers gitignorés recopiés dans chaque worktree que crée
-# Claude Code : `claude --worktree`, sous-agents `isolation: worktree`, sessions
-# parallèles de l'app desktop.
-#
-# Syntaxe .gitignore. Un fichier n'est copié que s'il est **à la fois** matché ici
-# **et** gitignoré — rien de suivi par git n'est jamais dupliqué. Un motif sans
-# slash matche à toutes les profondeurs (`.env` couvre `/.env` comme
-# `backend/.env`), un motif avec slash est ancré à la racine du dépôt.
-#
-# Sans ce fichier, un worktree est une copie neuve : ni `.env`, ni base de dev.
-# Doc : https://code.claude.com/docs/en/worktrees#copy-gitignored-files-into-worktrees
+# Fichiers gitignorés recopiés dans chaque worktree créé par Claude Code.
+# Syntaxe .gitignore ; un fichier n'est copié que s'il est matché ici ET gitignoré.
+# Justifications et mesures : AGENTS.md, §Dev multi-worktree.
 
-# ── Configuration d'environnement ────────────────────────────────────────────
-# `backend/.env` porte `DATABASE_URL` (cf. AGENTS.md, §Commandes) ; sans lui, un
-# worktree neuf retombe silencieusement sur les défauts de `app/core/config.py`.
+# Couvre aussi backend/.env, porteur de DATABASE_URL.
 .env
 
-# Config locale du frontend. Attention : n'y figez pas `BACKEND_URL` / `API_URL`.
-# Recopiées telles quelles dans un worktree, elles y brancheraient le front sur le
-# backend — donc la base — d'un AUTRE worktree, sans erreur visible. En dev,
-# laissez `npm run dev` les découvrir via `.dev-backend.json`
-# (AGENTS.md, §Dev multi-worktree).
+# N'y figez pas BACKEND_URL / API_URL : ils visent un worktree précis.
 .env.local
 
-# ── Base SQLite de dev ───────────────────────────────────────────────────────
-# On démarre un worktree sur les données déjà importées plutôt que sur un schéma
-# vide. Le poids suit ce que chacun a importé en local (aucune taille de référence
-# à en attendre). Pour repartir de zéro dans un worktree : `task b:reset-db`.
+# Démarrer sur les données déjà importées plutôt que sur un schéma vide.
 backend/triathlon.db
 
-# ── Dépendances du frontend ──────────────────────────────────────────────────
-# Copier est ~2,7× plus rapide que réinstaller : 12,8 s contre 34,3 s de `npm ci`
-# à cache npm chaud (mesuré sur 688 Mo / 41 342 fichiers). La copie est fidèle —
-# les liens de `.bin/` sont relatifs, et les binaires natifs (`@next/swc-*`,
-# `sharp`) dépendent de la plateforme, pas du chemin.
-# Deux conséquences à connaître : chaque worktree, y compris ceux des sous-agents
-# `isolation: worktree`, prend cette empreinte disque ; et une branche qui touche
-# `package-lock.json` hérite d'un arbre périmé jusqu'au prochain `npm ci`.
+# Copie 12,8 s contre 34,3 s de `npm ci` ; périmé si package-lock.json change.
 frontend/node_modules/
 
-# ── Volontairement absents ───────────────────────────────────────────────────
-# `backend/.venv/`  → copier COÛTE du temps au lieu d'en gagner : 2,0 s de copie
-#                     contre 0,21 s d'`uv sync` à cache uv chaud, qui reconstruit
-#                     l'environnement par liens durs depuis `~/.cache/uv`. Et un
-#                     venv n'est pas déplaçable : les shebangs de `.venv/bin/*`
-#                     portent le chemin absolu du dépôt principal. Mesures et
-#                     protocole : PR #136.
-# `.dev-backend.json` → publié par le `dev_server.py` de CHAQUE worktree ; le
-#                     copier pointerait le front sur le backend d'un autre
-#                     worktree (AGENTS.md, §Dev multi-worktree).
-# `.claude/settings.local.json` → déjà partagé : depuis Claude Code 2.1.211, une
-#                     approbation donnée dans un worktree est écrite dans le dépôt
-#                     principal et vaut pour tous les worktrees.
+# Exclus exprès : backend/.venv (`uv sync` le refait en 0,21 s, et un venv n'est pas
+# déplaçable), .dev-backend.json (propre à chaque worktree), et
+# .claude/settings.local.json (déjà partagé avec le dépôt principal).
