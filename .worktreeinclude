@@ -23,16 +23,31 @@
 .env.local
 
 # ── Base SQLite de dev ───────────────────────────────────────────────────────
-# ~38 Mo copiés par worktree : on y démarre sur les données réelles plutôt que sur
-# un schéma vide. Pour repartir de zéro dans un worktree : `task b:reset-db`.
+# On démarre un worktree sur les données déjà importées plutôt que sur un schéma
+# vide. Le poids suit ce que chacun a importé en local (aucune taille de référence
+# à en attendre). Pour repartir de zéro dans un worktree : `task b:reset-db`.
 backend/triathlon.db
 
+# ── Dépendances du frontend ──────────────────────────────────────────────────
+# Copier est ~2,7× plus rapide que réinstaller : 12,8 s contre 34,3 s de `npm ci`
+# à cache npm chaud (mesuré sur 688 Mo / 41 342 fichiers). La copie est fidèle —
+# les liens de `.bin/` sont relatifs, et les binaires natifs (`@next/swc-*`,
+# `sharp`) dépendent de la plateforme, pas du chemin.
+# Deux conséquences à connaître : chaque worktree, y compris ceux des sous-agents
+# `isolation: worktree`, prend cette empreinte disque ; et une branche qui touche
+# `package-lock.json` hérite d'un arbre périmé jusqu'au prochain `npm ci`.
+frontend/node_modules/
+
 # ── Volontairement absents ───────────────────────────────────────────────────
-# `.dev-backend.json`         → publié par le `dev_server.py` de CHAQUE worktree ;
-#                               le copier pointerait le front sur le backend d'un
-#                               autre worktree (AGENTS.md, §Dev multi-worktree).
-# `.venv/`, `node_modules/`   → chemins absolus et binaires liés à l'emplacement ;
-#                               les recréer avec `task install`.
+# `backend/.venv/`  → copier COÛTE du temps au lieu d'en gagner : 2,0 s de copie
+#                     contre 0,21 s d'`uv sync` à cache uv chaud, qui reconstruit
+#                     l'environnement par liens durs depuis `~/.cache/uv`. Et un
+#                     venv n'est pas déplaçable : les shebangs de `.venv/bin/*`
+#                     portent le chemin absolu du dépôt principal. Mesures et
+#                     protocole : PR #136.
+# `.dev-backend.json` → publié par le `dev_server.py` de CHAQUE worktree ; le
+#                     copier pointerait le front sur le backend d'un autre
+#                     worktree (AGENTS.md, §Dev multi-worktree).
 # `.claude/settings.local.json` → déjà partagé : depuis Claude Code 2.1.211, une
-#                               approbation donnée dans un worktree est écrite dans
-#                               le dépôt principal et vaut pour tous les worktrees.
+#                     approbation donnée dans un worktree est écrite dans le dépôt
+#                     principal et vaut pour tous les worktrees.
