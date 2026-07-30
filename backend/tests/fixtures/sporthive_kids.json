@@ -1,0 +1,67 @@
+{
+  "content": [
+    {
+      "name": "Nolan PICARD",
+      "bib": "12",
+      "overallPosition": 1,
+      "categoryPosition": 1,
+      "genderPosition": 1,
+      "gender": "M",
+      "raceCategory": "PUM",
+      "chipTimeOfParticipant": "00:15:38",
+      "gunTimeOfParticipant": "00:15:40",
+      "teamName": "TRI CLUB NANTAIS",
+      "teamId": "7242234087144998003",
+      "country": "FRA",
+      "validity": null,
+      "dns": false,
+      "dsq": false,
+      "activeLocation": {"latitude": 0.0, "longitude": 0.0},
+      "tags": [
+        {"tag": "12", "tp": "b"},
+        {"tag": "nolan picard", "tp": "n"}
+      ],
+      "legs": [
+        {"sportName": "SWIM", "type": "Swimming", "legDuration": "00:03:12", "totalDuration": "00:03:12", "distanceInMeters": 50, "rank": 1, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:00:48", "totalDuration": "00:04:00", "distanceInMeters": 0, "rank": 2, "participantSplits": []},
+        {"sportName": "BIKE", "type": "Cycling", "legDuration": "00:07:05", "totalDuration": "00:11:05", "distanceInMeters": 2000, "rank": 1, "participantSplits": []},
+        {"sportName": "RUN", "type": "Running", "legDuration": "00:04:33", "totalDuration": "00:15:38", "distanceInMeters": 1000, "rank": 1, "participantSplits": []}
+      ]
+    },
+    {
+      "name": "Lina ROUSSEAU",
+      "bib": "27",
+      "overallPosition": 2,
+      "categoryPosition": 1,
+      "genderPosition": 1,
+      "gender": "F",
+      "raceCategory": "PUF",
+      "chipTimeOfParticipant": "00:16:24",
+      "gunTimeOfParticipant": "00:16:26",
+      "teamName": null,
+      "teamId": null,
+      "country": "FRA",
+      "validity": null,
+      "dns": false,
+      "dsq": false,
+      "activeLocation": {"latitude": 0.0, "longitude": 0.0},
+      "tags": [
+        {"tag": "27", "tp": "b"},
+        {"tag": "lina rousseau", "tp": "n"}
+      ],
+      "legs": [
+        {"sportName": "SWIM", "type": "Swimming", "legDuration": "00:03:30", "totalDuration": "00:03:30", "distanceInMeters": 50, "rank": 3, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:00:55", "totalDuration": "00:04:25", "distanceInMeters": 0, "rank": 4, "participantSplits": []},
+        {"sportName": "BIKE", "type": "Cycling", "legDuration": "00:07:22", "totalDuration": "00:11:47", "distanceInMeters": 2000, "rank": 2, "participantSplits": []},
+        {"sportName": "RUN", "type": "Running", "legDuration": "00:04:37", "totalDuration": "00:16:24", "distanceInMeters": 1000, "rank": 2, "participantSplits": []}
+      ]
+    }
+  ],
+  "number": 0,
+  "size": 10,
+  "totalElements": 2,
+  "totalPages": 1,
+  "first": true,
+  "last": true,
+  "numberOfElements": 2
+}

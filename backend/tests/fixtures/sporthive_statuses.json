@@ -1,0 +1,92 @@
+{
+  "content": [
+    {
+      "name": "Antoine VIDAL",
+      "bib": "501",
+      "overallPosition": 0,
+      "categoryPosition": 0,
+      "genderPosition": 0,
+      "gender": "M",
+      "raceCategory": "S3M",
+      "chipTimeOfParticipant": "00:00:00",
+      "gunTimeOfParticipant": "00:00:00",
+      "teamName": "TRI CLUB NANTAIS",
+      "teamId": "7242234087144998003",
+      "country": "FRA",
+      "validity": "DNF",
+      "dns": false,
+      "dsq": false,
+      "activeLocation": {"latitude": 0.0, "longitude": 0.0},
+      "tags": [
+        {"tag": "501", "tp": "b"},
+        {"tag": "antoine vidal", "tp": "n"}
+      ],
+      "legs": [
+        {"sportName": "RUN", "type": "Running", "legDuration": "00:00:00", "totalDuration": "00:00:00", "distanceInMeters": 0, "rank": 0, "participantSplits": [
+          {"splitName": "Start", "splitDuration": "00:00:00", "splitSpeed": 0.0}
+        ]}
+      ]
+    },
+    {
+      "name": "Nadia BENALI",
+      "bib": "502",
+      "overallPosition": 0,
+      "categoryPosition": 0,
+      "genderPosition": 0,
+      "gender": "F",
+      "raceCategory": "V1F",
+      "chipTimeOfParticipant": "00:00:00",
+      "gunTimeOfParticipant": null,
+      "teamName": null,
+      "teamId": null,
+      "country": "FRA",
+      "validity": "DNS",
+      "dns": false,
+      "dsq": false,
+      "activeLocation": {"latitude": 0.0, "longitude": 0.0},
+      "tags": [
+        {"tag": "502", "tp": "b"},
+        {"tag": "nadia benali", "tp": "n"}
+      ],
+      "legs": [
+        {"sportName": "RUN", "type": "Running", "legDuration": "00:00:00", "totalDuration": "00:00:00", "distanceInMeters": 0, "rank": 0, "participantSplits": [
+          {"splitName": "Start", "splitDuration": "00:00:00", "splitSpeed": 0.0}
+        ]}
+      ]
+    },
+    {
+      "name": "Baptiste ROLLAND",
+      "bib": "503",
+      "overallPosition": 0,
+      "categoryPosition": 0,
+      "genderPosition": 0,
+      "gender": "M",
+      "raceCategory": "S4M",
+      "chipTimeOfParticipant": "00:00:00",
+      "gunTimeOfParticipant": "00:00:00",
+      "teamName": null,
+      "teamId": null,
+      "country": "FRA",
+      "validity": "DQ",
+      "dns": false,
+      "dsq": false,
+      "activeLocation": {"latitude": 0.0, "longitude": 0.0},
+      "tags": [
+        {"tag": "503", "tp": "b"},
+        {"tag": "baptiste rolland", "tp": "n"}
+      ],
+      "legs": [
+        {"sportName": "RUN", "type": "Running", "legDuration": "00:00:00", "totalDuration": "00:00:00", "distanceInMeters": 0, "rank": 0, "participantSplits": [
+          {"splitName": "Start", "splitDuration": "00:00:00", "splitSpeed": 0.0}
+        ]}
+      ]
+    }
+  ],
+  "number": 0,
+  "size": 10,
+  "totalElements": 3,
+  "totalPages": 1,
+  "first": true,
+  "last": true,
+  "numberOfElements": 3
+}

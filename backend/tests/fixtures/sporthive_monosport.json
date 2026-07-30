@@ -1,0 +1,68 @@
+{
+  "content": [
+    {
+      "name": "Jack Hutchens",
+      "bib": "1041",
+      "overallPosition": 1,
+      "categoryPosition": 1,
+      "genderPosition": null,
+      "gender": "U",
+      "raceCategory": null,
+      "chipTimeOfParticipant": null,
+      "gunTimeOfParticipant": "00:38:12",
+      "teamName": "YORKSHIRE",
+      "teamId": "7242234087144999001",
+      "country": "UK",
+      "validity": null,
+      "dns": false,
+      "dsq": false,
+      "teamRank": 1,
+      "teamScore": 44,
+      "activeLocation": {"latitude": 0.0, "longitude": 0.0},
+      "tags": [
+        {"tag": "1041", "tp": "b"},
+        {"tag": "jack hutchens", "tp": "n"}
+      ],
+      "legs": [
+        {"sportName": null, "type": "Running", "legDuration": "00:38:12", "totalDuration": "00:38:12", "distanceInMeters": 12000, "rank": 1, "participantSplits": [
+          {"splitName": "Start", "splitDuration": "00:00:00", "splitSpeed": 0.0},
+          {"splitName": "Finish", "splitDuration": "00:38:12", "splitSpeed": 5.23}
+        ]}
+      ]
+    },
+    {
+      "name": "Ewan Mackay",
+      "bib": "1078",
+      "overallPosition": 2,
+      "categoryPosition": 2,
+      "genderPosition": null,
+      "gender": "U",
+      "raceCategory": null,
+      "chipTimeOfParticipant": null,
+      "gunTimeOfParticipant": "00:38:47",
+      "teamName": "KENT",
+      "teamId": "7242234087144999002",
+      "country": "UK",
+      "validity": null,
+      "dns": false,
+      "dsq": false,
+      "teamRank": 2,
+      "teamScore": 61,
+      "activeLocation": {"latitude": 0.0, "longitude": 0.0},
+      "tags": [
+        {"tag": "1078", "tp": "b"},
+        {"tag": "ewan mackay", "tp": "n"}
+      ],
+      "legs": [
+        {"sportName": null, "type": "Running", "legDuration": "00:38:47", "totalDuration": "00:38:47", "distanceInMeters": 12000, "rank": 2, "participantSplits": []}
+      ]
+    }
+  ],
+  "number": 0,
+  "size": 10,
+  "totalElements": 2,
+  "totalPages": 1,
+  "first": true,
+  "last": true,
+  "numberOfElements": 2
+}

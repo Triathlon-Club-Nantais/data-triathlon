@@ -1,0 +1,98 @@
+{
+  "content": [
+    {
+      "name": "Pierre GARNIER",
+      "bib": "708",
+      "overallPosition": 11,
+      "categoryPosition": 2,
+      "genderPosition": 6,
+      "gender": "M",
+      "raceCategory": "V1M",
+      "chipTimeOfParticipant": "01:06:40",
+      "gunTimeOfParticipant": "01:06:48",
+      "teamName": null,
+      "teamId": null,
+      "country": "FRA",
+      "validity": null,
+      "dns": false,
+      "dsq": false,
+      "activeLocation": {"latitude": 0.0, "longitude": 0.0},
+      "tags": [
+        {"tag": "708", "tp": "b"},
+        {"tag": "pierre garnier", "tp": "n"}
+      ],
+      "legs": [
+        {"sportName": "SWIM", "type": "Swimming", "legDuration": "00:12:40", "totalDuration": "00:12:40", "distanceInMeters": 750, "rank": 39, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:02:20", "totalDuration": "00:15:00", "distanceInMeters": 0, "rank": 37, "participantSplits": []},
+        {"sportName": "BIKE", "type": "Cycling", "legDuration": "00:31:35", "totalDuration": "00:46:35", "distanceInMeters": 20000, "rank": 31, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:02:02", "totalDuration": "00:48:37", "distanceInMeters": 0, "rank": 35, "participantSplits": []},
+        {"sportName": "RUN", "type": "Running", "legDuration": "00:18:03", "totalDuration": "01:06:40", "distanceInMeters": 5000, "rank": 11, "participantSplits": []}
+      ]
+    },
+    {
+      "name": "Julie CHEVALIER",
+      "bib": "833",
+      "overallPosition": 12,
+      "categoryPosition": 2,
+      "genderPosition": 5,
+      "gender": "F",
+      "raceCategory": "S2F",
+      "chipTimeOfParticipant": "01:08:05",
+      "gunTimeOfParticipant": "01:08:12",
+      "teamName": "LES SABLES VENDEE TRI",
+      "teamId": "7242234087144998002",
+      "country": "FRA",
+      "validity": null,
+      "dns": false,
+      "dsq": false,
+      "activeLocation": {"latitude": 0.0, "longitude": 0.0},
+      "tags": [
+        {"tag": "833", "tp": "b"},
+        {"tag": "julie chevalier", "tp": "n"}
+      ],
+      "legs": [
+        {"sportName": "SWIM", "type": "Swimming", "legDuration": "00:13:05", "totalDuration": "00:13:05", "distanceInMeters": 750, "rank": 42, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:02:28", "totalDuration": "00:15:33", "distanceInMeters": 0, "rank": 40, "participantSplits": []},
+        {"sportName": "BIKE", "type": "Cycling", "legDuration": "00:32:10", "totalDuration": "00:47:43", "distanceInMeters": 20000, "rank": 35, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:02:08", "totalDuration": "00:49:51", "distanceInMeters": 0, "rank": 38, "participantSplits": []},
+        {"sportName": "RUN", "type": "Running", "legDuration": "00:18:14", "totalDuration": "01:08:05", "distanceInMeters": 5000, "rank": 13, "participantSplits": []}
+      ]
+    },
+    {
+      "name": "Hugo FONTAINE",
+      "bib": "915",
+      "overallPosition": 13,
+      "categoryPosition": 3,
+      "genderPosition": 7,
+      "gender": "M",
+      "raceCategory": "V2M",
+      "chipTimeOfParticipant": "01:09:44",
+      "gunTimeOfParticipant": "01:09:52",
+      "teamName": null,
+      "teamId": null,
+      "country": "FRA",
+      "validity": null,
+      "dns": false,
+      "dsq": false,
+      "activeLocation": {"latitude": 0.0, "longitude": 0.0},
+      "tags": [
+        {"tag": "915", "tp": "b"},
+        {"tag": "hugo fontaine", "tp": "n"}
+      ],
+      "legs": [
+        {"sportName": "SWIM", "type": "Swimming", "legDuration": "00:13:30", "totalDuration": "00:13:30", "distanceInMeters": 750, "rank": 45, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:02:35", "totalDuration": "00:16:05", "distanceInMeters": 0, "rank": 43, "participantSplits": []},
+        {"sportName": "BIKE", "type": "Cycling", "legDuration": "00:32:48", "totalDuration": "00:48:53", "distanceInMeters": 20000, "rank": 39, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:02:15", "totalDuration": "00:51:08", "distanceInMeters": 0, "rank": 41, "participantSplits": []},
+        {"sportName": "RUN", "type": "Running", "legDuration": "00:18:36", "totalDuration": "01:09:44", "distanceInMeters": 5000, "rank": 15, "participantSplits": []}
+      ]
+    }
+  ],
+  "number": 1,
+  "size": 10,
+  "totalElements": 13,
+  "totalPages": 2,
+  "first": false,
+  "last": true,
+  "numberOfElements": 3
+}
