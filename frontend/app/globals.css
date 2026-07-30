@@ -115,6 +115,15 @@
   --tcn-grey-400:      #b0aaa0;
   --tcn-grey-300:      #d6d1c8;
 
+  /* Échelle disciplines — alias sémantiques consommés par lib/sport-colors.
+     Doublés du bloc @theme (qui n'expose que --color-*, utilitaires Tailwind)
+     parce que `var(--tri)` etc. ne résout rien sans définition sur :root. */
+  --tri:    var(--tcn-orange);
+  --bike:   var(--tcn-orange-300);
+  --swim:   var(--tcn-ink);
+  --run:    var(--tcn-orange);
+  --violet: var(--tcn-ink-3);
+
   /* ── Sémantique — succès ──────────────────────────────────────── */
   --tcn-success:       #1f8a4d;
   --tcn-success-bg:    #f0fdf5;
