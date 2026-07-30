@@ -75,6 +75,11 @@ export const apiClient = {
 
   getStats: (opts: { scope?: string; seasons?: number[]; federal_only?: boolean } = {}) =>
     request<Stats>(`/stats${toQuery(opts)}`),
+
+  // Version courante du backend — sert au footer du layout (#134) qui compare
+  // avec `process.env.NEXT_PUBLIC_APP_VERSION` pour détecter les mismatches.
+  getVersion: () => request<{ version: string }>("/version"),
+
   listSeasons: (opts: { scope?: string; federal_only?: boolean } = {}) =>
     request<Season[]>(`/stats/seasons${toQuery(opts)}`),
   getEventsGeo: (opts: { scope?: string; federal_only?: boolean } = {}) =>
