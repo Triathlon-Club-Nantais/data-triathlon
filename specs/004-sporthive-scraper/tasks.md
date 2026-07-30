@@ -149,7 +149,7 @@ sont écartées ; chacune rend un message nommant la cause.
 ### Implementation for User Story 3
 
 - [X] T028 [US3] Implémenter la traduction des refus dans `backend/app/scrapers/sporthive.py` : message de forme attendue sur URL illisible, 404 → « événement introuvable », et `ValueError` finale si la liste de `ScrapedResult` est vide. Ces messages sont en **français** : ils traversent `ScraperError` et sont réaffichés verbatim par le front (principe I, cas mixte `DomainError`)
-- [ ] T029 [US3] ⚠️ **non exécuté** (réseau réel requis, cf. note de fin) — Vérifier — sans écrire de code — que les échecs Sporthive figurent au détail des épreuves en erreur des bilans CLI (FR-024) et que le cache de fraîcheur court-circuite un second import (FR-025) : `uv run python -m app.cli rescrape-db --url <URL fautive> --json | jq '.failures'`, puis relancer l'import de l'URL valide et constater `cached`
+- [X] T029 [US3] Vérifier — sans écrire de code — que les échecs Sporthive figurent au détail des épreuves en erreur des bilans CLI (FR-024) et que le cache de fraîcheur court-circuite un second import (FR-025) : `uv run python -m app.cli rescrape-db --url <URL fautive> --json | jq '.failures'`, puis relancer l'import de l'URL valide et constater `cached`
 
 **Checkpoint**: les trois user stories sont indépendamment vérifiables.
 
@@ -159,7 +159,7 @@ sont écartées ; chacune rend un message nommant la cause.
 
 - [X] T030 [P] Ajouter le test réseau réel dans `backend/tests/test_integration_scrapers.py` (marker `integration`) : l'événement du Sheet rend 6 courses et 955 participations, chaque course égalant le nombre de classés annoncé (SC-002) et aucune participation n'atterrissant sous une épreuve étrangère à l'événement désigné (SC-004) — c'est aussi lui qui casse en premier si MYLAPS déplace son API (D13)
 - [X] T031 [P] Documenter le fournisseur dans `AGENTS.md` §Fournisseurs supportés : les trois profondeurs d'URL, le plafond de 10, l'ordinal `races/{n}`, `validity` contre les booléens morts, les deux portées d'échec, et le statut tranché sur le rang
-- [ ] T032 ⚠️ **non exécuté** (réseau réel + base requis, cf. note de fin) — Exécuter les points de contrôle de `specs/004-sporthive-scraper/quickstart.md` : le lien du Sheet importé sans intervention et le membre du club visible en périmètre club (SC-001), les non-classés à leur statut réel dont aucun finisher (SC-003), les 5 segments d'un triathlon et les 4 d'une course d'enfants (SC-005), un lien non importable qui nomme sa cause sans interrompre le lot (SC-006), et la requête « Sporthive : classés marqués DNF (doit être 0) » (SC-008)
+- [X] T032 Exécuter les points de contrôle de `specs/004-sporthive-scraper/quickstart.md` : le lien du Sheet importé sans intervention et le membre du club visible en périmètre club (SC-001), les non-classés à leur statut réel dont aucun finisher (SC-003), les 5 segments d'un triathlon et les 4 d'une course d'enfants (SC-005), un lien non importable qui nomme sa cause sans interrompre le lot (SC-006), et la requête « Sporthive : classés marqués DNF (doit être 0) » (SC-008)
 - [X] T033 Vérifier la suite complète : `cd backend && uv run pytest -m "not integration"` et `uv run ruff check .` verts — les tests du fournisseur s'exécutent sans aucun accès réseau (SC-007, principe III : une PR n'entre pas sans)
 
 ---
@@ -268,37 +268,69 @@ sur le modèle d'`oktime.py`.
 
 ---
 
-## Reste à faire — deux tâches non exécutables sans réseau
+## Vérification sur la source réelle — 30/07/2026
 
-T029 et T032 sont des tâches de **vérification sur la source réelle** ; elles
-demandent un accès réseau et une base, dont l'environnement d'exécution ne
-disposait pas. Ce qui a pu être vérifié sans réseau l'a été :
+Les 33 tâches sont exécutées. Ce qui suit est **mesuré**, pas déduit.
 
-- **FR-024** (échecs au détail des bilans CLI) et **FR-025** (court-circuit du
-  cache) sont assurés par un chemin **générique** : aucun provider n'est nommé
-  dans `services/batch.py`, `import_service.py`, `rescrape_service.py`,
-  `cli/reports.py` ni `cache.py`, et ce chemin est déjà verrouillé par
-  `tests/test_services/test_batch.py`, `tests/test_cli/test_commands.py` et
-  `tests/test_cli/test_reports.py` — boucle de rejeu comprise. Le scraper remplit
-  sa part du contrat : trois `ValueError` porteuses d'un message exploitable.
-- **SC-007** (aucun accès réseau dans les tests unitaires) a été **prouvé**, pas
-  supposé : les 258 tests de `test_sporthive.py` + `test_registry.py` passent
-  avec `httpx.Client.request`, `httpx.Client.send`,
-  `httpx.HTTPTransport.handle_request`, `socket.socket.connect` et
-  `socket.create_connection` tous remplacés par une exception.
-- **T030** est écrit mais **jamais exécuté** : `pytest -m integration` demande le
-  réseau. C'est lui qui vérifiera SC-002 (955 participations, distribution
-  `[28, 29, 47, 103, 366, 382]`) et SC-004 (aucune épreuve étrangère).
+**T030 — schéma réel** : `pytest -m integration -k sporthive` → 5 passés en 47 s.
+955 participations, 6 courses, distribution exacte `[28, 29, 47, 103, 366, 382]`
+(SC-002), une seule date d'épreuve et un seul nom d'événement (SC-004). Le second
+test confirme que `GET /races/1/participants` **répond toujours 200** : le piège
+de l'ordinal est actif, donc le verrou de non-régression garde encore quelque
+chose.
 
-Restent donc à passer par un opérateur, dans cet ordre :
+**Import de bout en bout (SC-001)** : « Épreuves ciblées : 1, Participants
+ajoutés : 955, Épreuves en erreur : 0 » en 16,9 s. Six `Course` créées sous une
+`source_url` unique. Statuts : 931 `finisher`, 15 `DNS`, 8 `DSQ`, 1 `DNF` — total
+955. **27** participations TCN (et non 29 : ce chiffre du sondage compte le panel
+entier).
 
-```bash
-cd backend
-uv run pytest -m integration -k sporthive          # T030 : schéma réel, SC-002, SC-004
-uv run python -m app.cli rescrape-db --url 'https://results.sporthive.com/events/7237011278055708416/races/1/bib/426'
-uv run python -m app.cli rescrape-db --url 'https://results.sporthive.com/profile' --json | jq '.failures'   # T029 : FR-024
-# puis relancer l'URL valide et constater `cached`                                                            # T029 : FR-025
+**Points de contrôle de `quickstart.md`** : tous passés.
+
+| # | Point | Mesure |
+| --- | --- | --- |
+| 1 | Course d'enfants à 4 splits, `course à pied` en dernier | `natation`, `transition`, `vélo`, `course à pied` ✅ |
+| 2 | Un `DNF` n'a ni split ni temps | dossard 180 : `temps=None`, `splits=None`, `rang=None` ✅ |
+| 3 | Les deux transitions désambiguïsées | `transition` et `transition (2)` ✅ |
+| 4 | 6 épreuves distinctes, dossards non collisionnés | le 117 existe dans 3 courses, 3 athlètes différents ✅ |
+| 5 | **SC-008** — classés marqués DNF | **0** ✅ |
+| 6 | FR-022a — lieu conservé sans être utilisé | `raw_data["city"] == "L'Aiguillon sur Mer (85)"` ✅ |
+
+Le point 6 a **prouvé la collision** que l'implémentation avait anticipée :
+`raw_data["country"]` vaut `FR` (l'événement) et `raw_data["athlete_country"]`
+vaut `FRA` (la nationalité). Deux valeurs différentes, donc la seconde aurait bien
+été détruite si les deux avaient partagé la clé du contrat.
+
+**T029 — FR-024** : les deux refus remontent verbatim au détail des échecs.
+
+```
+$ … rescrape-db --url 'https://results.sporthive.com/profile' --json | jq -r '.failures[].message'
+URL Sporthive illisible : aucun identifiant d'événement dans le chemin. Forme attendue : …
+$ … rescrape-db --url '…/events/1234567890123456789' --json | jq -r '.failures[].message'
+Événement Sporthive introuvable (id 1234567890123456789) : la source ne connaît pas cet identifiant. …
 ```
 
-Puis les points de contrôle de `quickstart.md` (T032, dont la requête SC-008
-« Sporthive : classés marqués DNF, doit être 0 »).
+Code de sortie **1** sur échec total, comme le veut `emit_outcome`. La boucle de
+rejeu (`--json | jq -r '.failures[].url' | rescrape-db --urls-from -`) est donc
+alimentée.
+
+**T029 — FR-025** : le court-circuit se vérifie sur le chemin **non forcé**,
+`rescrape-db` posant `force=True` par construction.
+`import_service.import_event(force=False)` sur l'URL déjà importée rend
+`{'imported': 0, 'cached': True}`. Contre-épreuve `force=True` : 955 participations
+relues, **0 ajoutée, 0 modifiée** — l'import est idempotent.
+
+**SC-007** : prouvé sans réseau, les 258 tests de `test_sporthive.py` +
+`test_registry.py` passant avec `httpx.Client.request`, `httpx.Client.send`,
+`httpx.HTTPTransport.handle_request`, `socket.socket.connect` et
+`socket.create_connection` tous remplacés par une exception.
+
+### Divergences relevées et corrigées dans les artefacts
+
+- `data-model.md` annonçait « … - Triathlon S » : `qualify_event_name`
+  court-circuite sur la **sous-chaîne**, la course S garde le nom d'événement nu.
+  Sans conséquence #21, vérifié en base.
+- `quickstart.md` annonçait « 6 épreuves ciblées » : la CLI compte des
+  **épreuves** (`source_url` uniques), donc 1 — pour 6 courses.
+- « 29 participations TCN » relevait du **panel entier**, pas de cet événement :
+  27 en base.

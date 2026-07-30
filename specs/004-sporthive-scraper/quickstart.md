@@ -29,7 +29,10 @@ uv run python -m app.cli rescrape-db \
   --url "https://results.sporthive.com/events/7237011278055708416/races/1/bib/426"
 ```
 
-Attendu : **6 épreuves ciblées, 955 participants ajoutés**, aucune erreur.
+Attendu — **mesuré le 30/07/2026** : « Épreuves ciblées : 1, Participants
+ajoutés : 955, Épreuves en erreur : 0 », et **6 courses** créées en base.
+*Une* épreuve, pas six : la CLI compte des `source_url` uniques (cf.
+`AGENTS.md`, §Vocabulaire), et une URL Sporthive en désigne une seule.
 Compter ≈ 100 requêtes HTTP, soit une trentaine de secondes.
 
 Vérifier la détection seule, sans importer :
@@ -43,7 +46,9 @@ Vérifier que les membres du club sont bien reconnus :
 
 ```bash
 cd backend && uv run python -m app.cli club-labels --like nantais
-# « TRI CLUB NANTAIS » doit apparaître marqué TCN (29 participations)
+# « TRI CLUB NANTAIS » doit apparaître marqué TCN — **27** participations,
+# mesuré en base le 30/07/2026. Les « 29 » du sondage comptent le **panel
+# entier** (7 événements) et non cet événement seul.
 ```
 
 ## Sonder l'API à la main
