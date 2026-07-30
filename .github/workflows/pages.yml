@@ -1,0 +1,54 @@
+name: Pages
+
+# Remplace le workflow implicite « pages build and deployment » que GitHub
+# générait en mode legacy (source = branche main, dossier /docs). Le mode
+# workflow rend le build versionné, relisible en PR, et permet de le valider
+# AVANT merge — ce qui manquait quand un bloc JSX d'un plan Superpowers a
+# cassé le rendu Liquid directement sur main.
+
+on:
+  push:
+    branches: [main]
+    paths: ["docs/**", ".github/workflows/pages.yml"]
+  pull_request:
+    paths: ["docs/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Un seul déploiement Pages à la fois. Pas d'annulation en vol : un déploiement
+# interrompu laisserait le site sur un état intermédiaire.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Même moteur que le service Pages (gem github-pages / Jekyll 3.10) :
+      # ce que ce job accepte est exactement ce que la production accepte.
+      - uses: actions/jekyll-build-pages@v1
+        with:
+          source: ./docs
+          destination: ./_site
+
+      # Inutile sur une PR : rien ne sera déployé. Le build seul suffit à la valider.
+      - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
+
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

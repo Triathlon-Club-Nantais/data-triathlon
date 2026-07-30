@@ -19,6 +19,12 @@ Toute PR déclenche la CI seule (aucun déploiement).
 - **`.github/workflows/deploy.yml`** — déclenché sur `push` (branche `main` et
   tags `v*`). Appelle `ci.yml` puis, **seulement si la CI passe** (`needs: ci`),
   lance `deploy-preview` (sur `main`) ou `deploy-production` (sur tag `v*`).
+- **`.github/workflows/pages.yml`** — publie ce site de documentation
+  (`docs/`) sur GitHub Pages. Sur `pull_request`, le job `build` seul valide que
+  le site compile ; sur `main`, `deploy` publie. Il remplace le workflow
+  implicite « pages build and deployment » du mode *legacy*, qui ne se
+  déclenchait qu'après merge : un bloc JSX dans un plan `docs/superpowers/`
+  avait ainsi cassé le rendu Liquid directement sur `main`.
 
 Le gating repose sur `needs: ci` : si un job CI échoue, le job de déploiement
 n'est jamais exécuté. Côté Render, `autoDeploy: false` (dans `render.yaml` **et**
@@ -86,6 +92,31 @@ Settings → Secrets and variables → Actions :
 | `VERCEL_TOKEN` | Token CLI Vercel |
 | `VERCEL_ORG_ID` | ID de l'organisation Vercel |
 | `VERCEL_PROJECT_ID` | ID du projet Vercel |
+
+### GitHub Pages (documentation) — une seule bascule
+
+Le dépôt était en mode *legacy* (Settings → Pages → « Deploy from a branch »,
+`main` + `/docs`). Après merge de `pages.yml`, basculer la source **une fois** :
+
+```bash
+gh api --method PUT repos/Triathlon-Club-Nantais/data-triathlon/pages \
+  -f build_type=workflow
+```
+
+ou Settings → Pages → Source → *GitHub Actions*. Tant que la bascule n'est pas
+faite, `deploy-pages` échoue : le service refuse un déploiement par workflow
+quand la source est encore une branche. Aucun secret à créer — le
+`GITHUB_TOKEN` du workflow suffit, avec les `permissions:` déclarées dedans
+(`pages: write`, `id-token: write`), le défaut du dépôt étant `read`.
+
+Le site publie `docs/` moins ce que `docs/_config.yml` exclut : `superpowers/`
+et `test/` sont des documents de travail, ils restent lisibles dans le dépôt.
+Pages est figé sur **Jekyll 3.10**, sans `render_with_liquid` — un fichier
+publié qui ouvre une variable Liquid (deux accolades ouvrantes, courant dans les
+blocs JSX) casse le build, y compris à l'intérieur d'un bloc de code : Liquid
+passe avant Markdown. L'exclusion est ce qui met les plans à l'abri ; dans une
+page **publiée**, il faut entourer le passage des balises Liquid `raw` /
+`endraw`.
 
 ### Optionnel (recommandé) — garde-fou production
 
