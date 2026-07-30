@@ -172,6 +172,18 @@ class _Persister:
         self.reconciled = 0
         self.reassignments: list[Reassignment] = []
 
+    def courses_summary(self) -> list[dict]:
+        """Résumé des courses touchées, dans l'ordre où elles ont été rencontrées
+        (Python 3.7+ : ordre d'insertion du dict).
+
+        Alimente le SSE `done` : le front en tire des liens « Voir les
+        résultats » (#135). Ordre stable → boutons stables entre deux imports.
+        """
+        return [
+            {"id": c.id, "name": c.name, "event_type": c.event_type}
+            for c in self._courses.values()
+        ]
+
     def _index_course(self, course_id: int) -> None:
         """Charge et indexe une fois les participations de la course (une requête)."""
         if course_id in self._by_bib:
@@ -309,19 +321,32 @@ class _Persister:
 
 
 def _cached_result(db: Session, url: str, settings: Settings) -> dict | None:
-    """Si une course fraîche existe pour cette URL, renvoie le résultat sans re-scraper."""
-    existing = course_repository.get_latest_by_source_url(db, url)
-    if existing and cache.is_fresh(db, existing, settings):
-        count = participation_repository.count_for_course(db, existing.id)
-        logger.info("Cache TTL frais pour %s — re-scraping court-circuité", url)
-        return {
-            "imported": 0,
-            "updated": 0,
-            "skipped": count,
-            "reconciled": 0,
-            "cached": True,
-        }
-    return None
+    """Si une course fraîche existe pour cette URL, renvoie le résultat sans re-scraper.
+
+    Une URL peut porter plusieurs `Course` (heats Klikego, catégories Wiclax…) :
+    la fraîcheur est jugée sur la plus récente (`get_latest_by_source_url`) —
+    dans une même URL toutes sont scrapées ensemble, donc leur `scraped_at`
+    diverge de peu et la garde `is_fresh` reste homogène. En revanche `skipped`
+    et `courses` doivent porter **toutes** les heats : sans quoi le compteur
+    du bandeau doublon mentirait (6 heats × 250 participants → 250) et le
+    sélecteur du front (#135) n'offrirait qu'une des courses accessibles.
+    """
+    latest = course_repository.get_latest_by_source_url(db, url)
+    if not (latest and cache.is_fresh(db, latest, settings)):
+        return None
+    heats = course_repository.list_by_source_url(db, url)
+    total = sum(participation_repository.count_for_course(db, c.id) for c in heats)
+    logger.info("Cache TTL frais pour %s — re-scraping court-circuité", url)
+    return {
+        "imported": 0,
+        "updated": 0,
+        "skipped": total,
+        "reconciled": 0,
+        "cached": True,
+        "courses": [
+            {"id": c.id, "name": c.name, "event_type": c.event_type} for c in heats
+        ],
+    }
 
 
 def import_event(
@@ -346,7 +371,7 @@ def import_event(
 
     results = _scrape_all(url)
     if not results:
-        return {"imported": 0, "updated": 0, "skipped": 0, "reconciled": 0}
+        return {"imported": 0, "updated": 0, "skipped": 0, "reconciled": 0, "courses": []}
 
     persister = _Persister(db, url)
     try:
@@ -367,6 +392,7 @@ def import_event(
         "updated": persister.updated,
         "skipped": persister.skipped,
         "reconciled": persister.reconciled,
+        "courses": persister.courses_summary(),
     }
 
 
@@ -379,9 +405,10 @@ def iter_import_event(
       → {phase: done, …}   (ou {phase: error, message})
 
     La phase `done` porte un contrat stable — `imported`, `updated`, `skipped`,
-    `reconciled`, `reassignments`, `total` — sur **tous** les chemins, y compris
-    les court-circuits (cache TTL frais, aucun résultat), pour que le consommateur
-    SSE / batch n'ait aucun champ conditionnel à gérer.
+    `reconciled`, `reassignments`, `total`, `courses` — sur **tous** les chemins, y
+    compris les court-circuits (cache TTL frais, aucun résultat), pour que le
+    consommateur SSE / batch n'ait aucun champ conditionnel à gérer. `courses`
+    reste **vide** si aucun résultat n'a été scrapé (aucune `Course` touchée).
 
     force=True saute le cache TTL (`_cached_result`).
     persist=False traverse tout le chemin de persistance (scrape, add, finalize)
@@ -416,6 +443,7 @@ def iter_import_event(
             "reconciled": 0,
             "reassignments": [],
             "total": 0,
+            "courses": [],
         }
         return
 
@@ -452,4 +480,5 @@ def iter_import_event(
         "reconciled": persister.reconciled,
         "reassignments": persister.reassignments,
         "total": total,
+        "courses": persister.courses_summary(),
     }
