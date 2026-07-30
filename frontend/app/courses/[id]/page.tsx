@@ -8,6 +8,7 @@ import { formatToken } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
 import { formatEventName } from "@/lib/utils/event";
 import { countOutcomes } from "@/lib/utils/raceOrder";
+import { buildTicks, formatTickLabel } from "@/lib/utils/histogram-ticks";
 
 const CAT_COLORS = [
   "var(--tcn-orange)", "var(--tcn-orange-300)", "var(--tcn-ink)", "var(--tcn-ink-2)",
@@ -161,7 +162,7 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
         <Card padding={28} style={{ marginBottom: 18 }}>
           <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)", marginBottom: 4 }}>Distribution des temps des finishers</div>
           <div style={{ fontSize: 13, color: "var(--tcn-text-muted)", marginBottom: 18 }}>Nombre d&apos;athlètes par tranche de 5 minutes</div>
-          <Histogram bars={hist.bars} max={hist.max} />
+          <Histogram bars={hist.bars} max={hist.max} startSec={hist.startSec} bucketSec={hist.bucketSec} />
         </Card>
       )}
 
@@ -180,35 +181,69 @@ function Legend({ color, label, value }: { color: string; label: string; value: 
   );
 }
 
-function buildHistogram(secs: number[]): { bars: number[]; max: number } {
-  if (secs.length === 0) return { bars: [], max: 0 };
-  const BUCKET = 300;
-  const minB = Math.floor(Math.min(...secs) / BUCKET);
-  const maxB = Math.floor(Math.max(...secs) / BUCKET);
+const HISTOGRAM_BUCKET_SEC = 300;
+
+function buildHistogram(secs: number[]): {
+  bars: number[];
+  max: number;
+  startSec: number;
+  bucketSec: number;
+} {
+  if (secs.length === 0) {
+    return { bars: [], max: 0, startSec: 0, bucketSec: HISTOGRAM_BUCKET_SEC };
+  }
+  const minB = Math.floor(Math.min(...secs) / HISTOGRAM_BUCKET_SEC);
+  const maxB = Math.floor(Math.max(...secs) / HISTOGRAM_BUCKET_SEC);
   const n = Math.min(maxB - minB + 1, 60);
   const bars = new Array(n).fill(0);
   for (const s of secs) {
-    const idx = Math.min(Math.floor(s / BUCKET) - minB, n - 1);
+    const idx = Math.min(Math.floor(s / HISTOGRAM_BUCKET_SEC) - minB, n - 1);
     bars[idx] += 1;
   }
-  return { bars, max: Math.max(...bars) };
+  return {
+    bars,
+    max: Math.max(...bars),
+    // `startSec` : temps du **début** du 1er bucket (bord gauche visuel).
+    // Publie l'ancrage temporel de l'histogramme pour que l'axe X puisse
+    // aligner ses ticks sur des heures rondes (#129).
+    startSec: minB * HISTOGRAM_BUCKET_SEC,
+    bucketSec: HISTOGRAM_BUCKET_SEC,
+  };
 }
 
-function Histogram({ bars, max }: { bars: number[]; max: number }) {
+function Histogram({
+  bars,
+  max,
+  startSec,
+  bucketSec,
+}: {
+  bars: number[];
+  max: number;
+  startSec: number;
+  bucketSec: number;
+}) {
   const W = 900;
-  const H = 220;
+  const H = 240; // +20px par rapport à l'ancien 220 pour loger les labels X
   const top = 20;
   const bottom = 190;
   const left = 46;
   const usableW = W - left - 10;
   const barGap = usableW / bars.length;
   const barW = Math.max(4, barGap * 0.72);
-  const ticks = 5;
+  const yTicks = 5;
+
+  // Fin de la fenêtre temporelle = bord droit du dernier bucket. Les ticks X
+  // sont calculés en secondes, puis projetés sur X via barGap / bucketSec.
+  const endSec = startSec + bars.length * bucketSec;
+  const xTicks = bars.length > 0 ? buildTicks(startSec, endSec) : [];
+  const secToX = (sec: number) => left + ((sec - startSec) / bucketSec) * barGap;
+
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
-      {Array.from({ length: ticks + 1 }, (_, i) => {
-        const v = Math.round((max / ticks) * i);
-        const y = bottom - (i / ticks) * (bottom - top);
+      {/* Axe Y — ticks horizontaux + labels de comptage. */}
+      {Array.from({ length: yTicks + 1 }, (_, i) => {
+        const v = Math.round((max / yTicks) * i);
+        const y = bottom - (i / yTicks) * (bottom - top);
         return (
           <g key={i}>
             <line x1={left - 6} y1={y} x2={W - 10} y2={y} stroke="var(--tcn-border-faint)" />
@@ -216,9 +251,21 @@ function Histogram({ bars, max }: { bars: number[]; max: number }) {
           </g>
         );
       })}
+      {/* Barres. */}
       {bars.map((c, i) => {
         const h = max ? (c / max) * (bottom - top) : 0;
         return <rect key={i} x={left + i * barGap} y={bottom - h} width={barW} height={h} rx="2" fill="var(--tcn-orange)" />;
+      })}
+      {/* Axe X — lignes verticales (fines, comme les horizontales de l'axe Y)
+          + labels d'heure `H:MM` alignés sur des multiples ronds du pas (#129). */}
+      {xTicks.map((tickSec) => {
+        const x = secToX(tickSec);
+        return (
+          <g key={tickSec}>
+            <line x1={x} y1={top} x2={x} y2={bottom} stroke="var(--tcn-border-faint)" />
+            <text x={x} y={bottom + 16} textAnchor="middle" fontSize="11" fill="var(--tcn-text-faint)" fontFamily="Barlow">{formatTickLabel(tickSec)}</text>
+          </g>
+        );
       })}
     </svg>
   );
