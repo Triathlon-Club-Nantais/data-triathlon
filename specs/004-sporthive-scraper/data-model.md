@@ -52,6 +52,7 @@ Event  1 ── n  Race  1 ── n  Participant  1 ── n  Leg  1 ── n  P
 | `raw_data` | la charge du participant + contexte de course | diagnostic sans re-scrape |
 | `raw_data["city"]` | `event.location` | verbatim (`L'Aiguillon sur Mer (85)`), même clé que runnerbreizh — non branché sur le géocodage (D15) |
 | `raw_data["country"]` | `event.countryCode` | tel quel, codes non homogènes assumés (D15) |
+| `raw_data["athlete_country"]` | `country` du participant | **collision résolue** : la charge participant porte son propre `country` (la nationalité) que celui de l'événement écrasait. Mesuré sur l'épreuve du Sheet : `FR` côté événement, `FRA` côté athlète — deux faits distincts, deux clés |
 
 **Champs de la source volontairement non lus** : `dns` et `dsq` (toujours
 `false`, D5), `tags` (index de recherche, D11), `participantSplits` (D7),
@@ -84,19 +85,28 @@ Pour l'URL du Sheet
 
 | `Course` créée | `event_type` | `distance_km` | Participations |
 | --- | --- | --- | ---: |
-| Triathlon Sud Vendee Dimanche - Triathlon S | `triathlon-s` | 25.75 | 366 |
+| Triathlon Sud Vendee Dimanche | `triathlon-s` | 25.75 | 366 |
 | Triathlon Sud Vendee Dimanche - Relais Triathlon S | `triathlon-s` | 25.75 | 29 |
 | Triathlon Sud Vendee Dimanche - 6-9 Ans | `triathlon` | 3.1 | 47 |
 | Triathlon Sud Vendee Dimanche - 10-13 Ans | `triathlon` | 6.2 | 103 |
 | Triathlon Sud Vendee Dimanche - Triathlon M | `triathlon-m` | 42.7 | 382 |
 | Triathlon Sud Vendee Dimanche - Relais Triathlon M | `triathlon-m` | 42.7 | 28 |
 
+**La première ligne ne porte pas de qualifiant, et c'est mesuré** (import réel
+du 30/07/2026) : `qualify_event_name` court-circuite quand le qualifiant est déjà
+une **sous-chaîne** du nom, et « triathlon s » est contenu dans « triathlon
+**s**ud vendee dimanche ». Sans conséquence #21 — les 6 noms restent distincts,
+vérifié en base : le dossard 117 existe dans trois courses, sur trois athlètes
+différents. Corriger le court-circuit toucherait un helper partagé par douze
+providers et renommerait des courses déjà en base.
+
 Valeurs vérifiées en exécutant `classify_event_type` et la conversion de
 distance sur les métadonnées réelles des 6 courses. `distanceInMeter` est
 renseigné sur toutes : le repli de `mapping.get_or_create_course` sur
 l'extraction depuis le nom n'a jamais à s'appliquer.
 
-Dont **29 participations « TRI CLUB NANTAIS »**, reconnues par `core.club.is_tcn`
+Dont **27 participations « TRI CLUB NANTAIS »** (mesuré en base le 30/07/2026 ;
+les « 29 » du sondage comptent le panel entier), reconnues par `core.club.is_tcn`
 sans ajout de libellé.
 
 Splits d'un participant de « Triathlon S » :
