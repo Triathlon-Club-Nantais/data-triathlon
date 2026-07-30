@@ -143,7 +143,7 @@ plus périphérique. `/speckit-tasks` le détaillera.
 | Le site change de markup | Le sondage est daté et versionné ; les fixtures sont verbatim, donc un test qui casse pointe le changement réel. |
 | Un motif de points hors des 5 connus | Repli sur segments étiquetés — aucune perte de données, aucun crash (research R2). |
 | Page de 4,5 Mo en mémoire sur Render | Mesuré à 144 Mo de RSS au pic, une seule page à la fois. |
-| Classifieur d'épreuves imprécis sur 3 épreuves du panel | Hors périmètre et sans effet sur les splits, qui suivent le motif observé et non le type classé. |
+| Classifieur d'épreuves imprécis sur 3 épreuves du panel | Hors périmètre pour le **remplissage** des slots, qui suit le motif observé et non le type classé. Mais l'**étiquetage** aval, lui, dépend du type : `mapping.build_splits` filtre les slots par gabarit de sport (`mapping.py:83-88`), donc un motif `N→V→C` sur une épreuve mal classée `aquathlon` perdrait `bike` et `t2` — le mode d'échec que le dépôt a déjà payé une fois (un slot omis du gabarit jette sans bruit le temps qui s'y trouve). Vérifié sain sur les 89 épreuves du panel (research R2, § Vérifié) : chaque couple (motif, type classé) produit un jeu de clés cohérent, cas dégradés compris. Le risque résiduel se réalise donc au premier motif inédit **combiné** à un classement faux — il se traiterait dans le ticket dédié au classifieur, pas ici. |
 
 ## Complexity Tracking
 

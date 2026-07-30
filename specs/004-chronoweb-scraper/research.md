@@ -45,7 +45,7 @@ Mesuré sur les 89 épreuves du panel :
 | `Natation → Course` | 10 | slots `swim` / `t1`* / `run` |
 | `Course → Vélo → Course` | 4 | slots `swim` / `t1`* / `bike` / `t2`* / `run` (le gabarit duathlon les renomme `course1` / `course2`) |
 | `Vélo` seul | 2 | slot `bike` |
-| `N→C→N→C→N→C→N→C` | 1 | **liste de segments étiquetés** avec les libellés publiés, transitions* intercalées |
+| `N→C→N→C→N→C→N→C` | 1 | **liste de segments étiquetés** avec les libellés publiés, transitions* intercalées (nulles sur cette épreuve, donc absentes) |
 
 \* transitions calculées, cf. R3 — sur tous les motifs, y compris le dernier.
 
@@ -83,7 +83,10 @@ Deux destinations selon le chemin de sortie (R2) :
 Sur le chemin `segments`, la répétition d'un libellé n'écrase rien :
 `mapping.build_splits` suffixe les collisions en ` (N)` (`mapping.py:78-82`), et
 le front colore un libellé libre via `sourceEntry` (`lib/utils/splits.ts`).
-L'aquathlon relais à 8 points sort donc à **15** segments.
+L'aquathlon relais à 8 points sort à **8** segments : re-sondé le 2026-07-30, ses
+7 écarts sont **nuls** sur les 14 équipes (points contigus), et un temps mort nul
+n'est pas enregistré. La règle d'intercalage vaut toujours — faute de motif non
+reconnu à temps mort dans le panel, elle est couverte par un cas construit.
 
 **Rationale** : vérifié sur 17 497 écarts — jamais négatif ; et égal au
 caractère près au « Changement » que publie la fiche individuelle (contrôles sur
@@ -112,8 +115,10 @@ juste que celle déduite du nom d'épreuve.
 **Pas de mémoïsation** (clarification du 2026-07-30) : la requête est refaite à
 chaque import d'événement, le fournisseur reste sans état. `PROVIDERS` tient des
 instances singleton de module (`registry.py:305`), donc un cache d'instance
-serait un cache de processus, y compris entre tests — pour ~850 Ko économisés sur
-les 5 événements chronoweb du Sheet. Même arbitrage que R1 : YAGNI (principe VI).
+serait un cache de processus, y compris entre tests — pour ~340 Ko économisés au
+plus : le Sheet porte 5 URLs chronoweb distinctes, mais **2 événements**
+seulement (323 et 347, cf. sondage § Les URLs réellement présentes dans le
+Sheet). Même arbitrage que R1 : YAGNI (principe VI).
 
 ## R5 — Canonicalisation et refus d'URL
 
@@ -200,7 +205,7 @@ perdrait.
 | --- | --- | --- |
 | `event_triathlon.html` | Oléron 2024 (`event=323`) | 3 épreuves, motif `N→V→C`, un non-finisher, un participant à point intermédiaire manquant |
 | `event_duathlon.html` | Toulouse 2024 (`event=296`) | motif `C→V→C`, épreuve relais, classements dérivés à point unique |
-| `event_aquathlon_relais.html` | La Verrerie 2025 (`event=334`) | motif à 8 points → segments étiquetés, 15 entrées transitions comprises, libellés répétés |
+| `event_aquathlon_relais.html` | La Verrerie 2025 (`event=334`) | motif à 8 points → segments étiquetés, 8 entrées (temps morts nuls), libellés répétés |
 | `event_mono_point.html` | ALEFPA Trail 2025 (`event=356`) | motif `C` seul, sans transition possible |
 | `event_sans_classement.html` | Chalain 2015 (`event=146`) | nom présent, aucun tableau |
 | `event_inconnu.html` | `event=99999` | « Aucun évènement trouvé avec cet ID » |

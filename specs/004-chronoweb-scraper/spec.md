@@ -91,14 +91,18 @@ et 2 428 participants**.
   canoniques ; sur un motif non reconnu elles s'intercalent sous le libellé de la
   source (« Changement »). Un temps mort de relais est du temps de course réel, et
   rien en aval ne le rattraperait — le dépôt a déjà payé la leçon inverse (un slot
-  omis du gabarit jetait sans bruit le temps qui s'y trouvait). L'aquathlon relais
-  à 8 points du panel sort donc à 15 segments, la répétition d'un libellé étant
-  déjà désambiguïsée en aval.
+  omis du gabarit jetait sans bruit le temps qui s'y trouvait). Une valeur nulle
+  reste non enregistrée. *Re-sondé le 2026-07-30* : sur l'aquathlon relais à
+  8 points du panel, les 7 écarts sont **tous nuls** pour les 14 équipes — ses
+  points sont contigus. Il sort donc à **8** segments, la répétition d'un libellé
+  étant déjà désambiguïsée en aval.
 - Q: En import de masse, la requête d'appoint pour la commune est-elle
   mutualisée entre les événements d'un même batch ? → A: **Non, une par
-  événement, sans état partagé.** 5 événements chronoweb distincts dans le
-  Sheet, soit ~850 Ko face à des pages de classement de plusieurs mégaoctets :
-  le gain est du même ordre que celui déjà écarté au nom de la simplicité. Un
+  événement, sans état partagé.** Le Sheet porte 5 URLs chronoweb distinctes,
+  mais **2 événements seulement** (Oléron 2024, Altriman 2025) : au plus
+  ~340 Ko de catalogue par campagne, face à des pages de classement de plusieurs
+  mégaoctets. Le gain est du même ordre que celui déjà écarté au nom de la
+  simplicité — plus faible encore, en réalité. Un
   cache mutualisé survivrait par ailleurs à l'import qui l'a rempli, rendant le
   comportement dépendant de l'ordre des imports — ce qu'aucun fournisseur du
   projet ne fait.
@@ -243,7 +247,8 @@ Tous constatés lors du sondage, avec leur traitement attendu :
   l'épreuve n'est pas dégradé.
 - **Épreuve à plus de cinq segments** — un aquathlon relais du panel alterne 8
   points (natation/course × 4). Les segments doivent tous être conservés, sans
-  troncature à cinq, transitions intercalées comprises — soit 15 segments. Un
+  troncature à cinq, transitions déductibles comprises — soit **8** sur cette
+  épreuve, dont les temps morts mesurés sont nuls (donc non enregistrés). Un
   libellé qui se répète (« Natation » quatre fois) ne doit écraser aucun temps.
 - **Événement sans classement publié** — le site répond en succès, avec le nom et
   la date de l'événement mais aucun tableau. C'est un import vide, pas une
@@ -356,9 +361,11 @@ Tous constatés lors du sondage, avec leur traitement attendu :
   segments enregistrés d'un participant égale son temps total.
 - **SC-006**: Aucune régression : la suite de tests unitaires passe sans réseau,
   et les fournisseurs existants restent détectés comme avant.
-- **SC-007**: L'aquathlon relais à 8 points du panel est importé avec ses **15**
-  temps intermédiaires — 8 étapes et 7 temps morts —, aucun n'étant écrasé par la
-  répétition d'un libellé.
+- **SC-007**: L'aquathlon relais à 8 points du panel est importé avec ses **8**
+  temps intermédiaires, aucun n'étant écrasé par la répétition d'un libellé
+  (« Natation » y apparaît quatre fois). Le chiffre est **mesuré** : re-sondé le
+  2026-07-30, les 7 temps morts de cette épreuve sont nuls sur ses 14 équipes —
+  un temps mort nul n'est pas enregistré (FR-008), d'où 8 et non 15.
 
 ## Assumptions
 
