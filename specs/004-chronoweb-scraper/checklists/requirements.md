@@ -38,6 +38,13 @@
 - Session `/speckit-clarify` du 2026-07-29 : 2 questions supplémentaires posées
   et intégrées (forme des temps intermédiaires, identité d'une ligne d'équipe).
   Aucun item de cette checklist n'a changé d'état — 16/16 avant et après.
+- Session `/speckit-clarify` du 2026-07-30, **postérieure au plan** : 3 questions
+  posées, toutes nées de divergences **entre artefacts** plutôt que de trous de
+  la spec (rang d'un non-finisher, transitions sur le chemin des libellés
+  source, mémoïsation de la requête catalogue). `research.md` R3/R4,
+  `data-model.md` et `contracts/provider.md` ont été réalignés dans le même
+  mouvement. 16/16 avant et après ; SC-003 précisée et SC-007 ajoutée pour rendre
+  les deux premiers arbitrages mesurables.
 - La spec cite des sélecteurs et des volumes HTML **uniquement** dans les cas
   limites, là où le comportement attendu ne se comprend pas sans le fait mesuré
   (rang superposé, ligne = passage). Le détail structurel vit dans le sondage,

@@ -45,9 +45,9 @@ Mesuré sur les 89 épreuves du panel :
 | `Natation → Course` | 10 | slots `swim` / `t1`* / `run` |
 | `Course → Vélo → Course` | 4 | slots `swim` / `t1`* / `bike` / `t2`* / `run` (le gabarit duathlon les renomme `course1` / `course2`) |
 | `Vélo` seul | 2 | slot `bike` |
-| `N→C→N→C→N→C→N→C` | 1 | **liste de segments étiquetés** avec les libellés publiés |
+| `N→C→N→C→N→C→N→C` | 1 | **liste de segments étiquetés** avec les libellés publiés, transitions* intercalées |
 
-\* transitions calculées, cf. R3.
+\* transitions calculées, cf. R3 — sur tous les motifs, y compris le dernier.
 
 **Rationale** : les slots positionnels sont ré-étiquetés par discipline en aval
 (`services/mapping.build_splits`), ce qui donne un affichage identique à celui
@@ -69,9 +69,21 @@ plutôt que du motif. Elle casse dès que le classifieur se trompe (mesuré : 3
 ## R3 — Transitions calculées
 
 **Décision** : `transition[i] = cumul[i] − intervalle[i] − cumul[i−1]`, calculée
-uniquement quand les deux points encadrants existent pour le participant, et
-uniquement pour les motifs à slots (R2). Une valeur nulle n'est pas enregistrée
+dès que les deux points encadrants existent pour le participant, **quel que soit
+le motif** (clarification du 2026-07-30). Une valeur nulle n'est pas enregistrée
 (le slot reste vide), une valeur négative ne peut pas se produire.
+
+Deux destinations selon le chemin de sortie (R2) :
+
+| Chemin | Destination de la transition |
+| --- | --- |
+| motif reconnu → slots | `t1_time` / `t2_time`, ré-étiquetés par `build_splits` |
+| motif non reconnu → `segments` | entrée intercalée `("Changement", durée)` — le libellé de la fiche individuelle du site |
+
+Sur le chemin `segments`, la répétition d'un libellé n'écrase rien :
+`mapping.build_splits` suffixe les collisions en ` (N)` (`mapping.py:78-82`), et
+le front colore un libellé libre via `sourceEntry` (`lib/utils/splits.ts`).
+L'aquathlon relais à 8 points sort donc à **15** segments.
 
 **Rationale** : vérifié sur 17 497 écarts — jamais négatif ; et égal au
 caractère près au « Changement » que publie la fiche individuelle (contrôles sur
@@ -96,6 +108,12 @@ catalogue pèse 170 Ko (4 % du poids d'un gros événement) et son paramètre
 `annee` est ignoré côté serveur : une seule requête donne les 222 événements.
 Même usage que `raw_data["city"]` chez runnerbreizh, dont la commune est plus
 juste que celle déduite du nom d'épreuve.
+
+**Pas de mémoïsation** (clarification du 2026-07-30) : la requête est refaite à
+chaque import d'événement, le fournisseur reste sans état. `PROVIDERS` tient des
+instances singleton de module (`registry.py:305`), donc un cache d'instance
+serait un cache de processus, y compris entre tests — pour ~850 Ko économisés sur
+les 5 événements chronoweb du Sheet. Même arbitrage que R1 : YAGNI (principe VI).
 
 ## R5 — Canonicalisation et refus d'URL
 
@@ -182,7 +200,7 @@ perdrait.
 | --- | --- | --- |
 | `event_triathlon.html` | Oléron 2024 (`event=323`) | 3 épreuves, motif `N→V→C`, un non-finisher, un participant à point intermédiaire manquant |
 | `event_duathlon.html` | Toulouse 2024 (`event=296`) | motif `C→V→C`, épreuve relais, classements dérivés à point unique |
-| `event_aquathlon_relais.html` | La Verrerie 2025 (`event=334`) | motif à 8 points → segments étiquetés |
+| `event_aquathlon_relais.html` | La Verrerie 2025 (`event=334`) | motif à 8 points → segments étiquetés, 15 entrées transitions comprises, libellés répétés |
 | `event_mono_point.html` | ALEFPA Trail 2025 (`event=356`) | motif `C` seul, sans transition possible |
 | `event_sans_classement.html` | Chalain 2015 (`event=146`) | nom présent, aucun tableau |
 | `event_inconnu.html` | `event=99999` | « Aucun évènement trouvé avec cet ID » |
