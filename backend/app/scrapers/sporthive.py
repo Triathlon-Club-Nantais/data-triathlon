@@ -38,16 +38,41 @@ mapping, segments, metadata, then assembly.
 """
 import logging
 import re
+import unicodedata
 from collections.abc import Iterator
+from dataclasses import dataclass
+from datetime import date, datetime
 from urllib.parse import urlparse
 
 import httpx
 
-from .base import ScrapedResult
+from .base import STATUS_DNF, STATUS_FINISHER, ScrapedResult
+from .classify import classify_event_type
+from .utils import (
+    derive_status_from_label,
+    normalize_rank,
+    normalize_time,
+    qualify_event_name,
+    split_athlete_name,
+)
 
 logger = logging.getLogger(__name__)
 
+#: Must stay equal to `registry.SporthiveProvider.name`: it is what
+#: `rescrape-db --provider sporthive` filters on, and a drift would make the
+#: option select nothing without saying so. A test pins the two together.
+_PROVIDER = "sporthive"
+
 _API_BASE = "https://eventresults-api.speedhive.com/sporthive"
+# The API is public: no key, no cookie, no `Origin` required. A browser
+# User-Agent all the same, like every other scraper of the project.
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+    ),
+    "Accept": "application/json",
+}
 # size=50 gets a 400 ("The size value cannot be greater than 10") server-side.
 _PAGE_SIZE = 10
 # Hard cap: the worst case measured on the panel needs 269 requests for one race.
@@ -162,5 +187,365 @@ def _iter_participants(client: httpx.Client, race_id: str) -> Iterator[dict]:
     )
 
 
+class _IncompleteRanking(Exception):
+    """A race whose ranking could not be read in full — **race** scope.
+
+    A private type, not a `ValueError` filtered on its message: sorting
+    failures by text breaks at the first rephrasing, and the infrastructure
+    already wraps the scraper's `ValueError`s (`import_service._scrape_all`).
+    The triage in `scrape_event_all` is therefore on the **type**.
+
+    Carries the numbers the log line needs rather than a formatted message: the
+    decision to drop the race belongs to the loop, so the wording does too.
+    """
+
+    def __init__(self, race_name: str, active_race_id, lus: int, annonces: int):
+        super().__init__(f"{race_name}: read {lus} of {annonces}")
+        self.race_name = race_name
+        self.active_race_id = active_race_id
+        self.lus = lus
+        self.annonces = annonces
+
+
+# ---------------------------------------------------------------------------
+# Scalars
+# ---------------------------------------------------------------------------
+
+
+def _time(raw) -> str:
+    """A duration, fraction truncated, `00:00:00` read as absent (D6).
+
+    The truncation must happen **before** `normalize_time`, whose `HH:MM:SS`
+    pattern is anchored on the end of the string: `00:57:33.2510000` would come
+    back verbatim, fraction included, and land in the database. The source
+    publishes `HH:MM:SS`, `HH:MM:SS.fffffff` (totals) and `HH:MM:SS.fff`
+    (`legDuration`) depending on the race.
+
+    `00:00:00` is what non-finishers carry — same convention as T2Area. Reading
+    it as empty is what keeps `mapping.derive_status` from calling an abandon a
+    finisher.
+    """
+    if not raw:
+        return ""
+    normalise = normalize_time(str(raw).strip().split(".")[0])
+    return "" if normalise == "00:00:00" else normalise
+
+
+def _rank(raw) -> int | None:
+    """A rank, `0` read as absent (D12).
+
+    `overallPosition == 0` means "not ranked" — 172 rows of the panel, all
+    non-finishers. `normalize_rank` alone returns `0`, which the front displays
+    as a place.
+    """
+    return normalize_rank(raw) or None
+
+
+def _status(participant: dict, total_time: str, rank_overall: int | None) -> str:
+    """The sporting status, from `validity` alone (D5, trap n°3).
+
+    `dns` and `dsq` are `false` on 10 360 rows out of 10 360, including the 35
+    whose `validity` is `"DNS"`: they are dead fields, and trusting them misses
+    every status. `derive_status_from_label` already translates the three real
+    tokens, `DQ` included.
+
+    When the source says nothing **and** no time could be kept, the scraper
+    takes a side rather than leaving it to `mapping.derive_status`, whose
+    fallback ("finisher if a total time, else DNF") would show the 73 timeless
+    but **ranked** rows of the panel as abandons (FR-014a). `""` remains the
+    answer whenever a time exists: the scraper only speaks when it knows more
+    than the heuristic.
+    """
+    status = derive_status_from_label(participant.get("validity") or "")
+    if not status and not total_time:
+        status = STATUS_FINISHER if rank_overall is not None else STATUS_DNF
+    return status
+
+
+# ---------------------------------------------------------------------------
+# Segments
+# ---------------------------------------------------------------------------
+
+#: `legs[].type` → label stored, a closed vocabulary (D7). `sportName` is
+#: **never** read: entered by the timekeeper, unnormalised (`SWIM` / `Swim` /
+#: `T1`), and `null` on 5 635 of the 24 042 legs of the panel. `type` is present
+#: 24 042 times out of 24 042.
+#: Labels in French because they become column headers in the front
+#: (`lib/utils/splits.ts`, generic path) and the source vocabulary is closed, so
+#: the translation is safe — unlike a free-form label, which ok-time renders
+#: verbatim.
+_LEG_LABELS = {
+    "swimming": "natation",
+    "transition": "transition",
+    "cycling": "vélo",
+    "running": "course à pied",
+}
+
+
+def _segments(legs) -> list[tuple[str, str]]:
+    """One segment per leg, in published order, empty durations dropped.
+
+    The generic `segments` path rather than the five positional slots: kids'
+    races publish 4 legs (a single transition), and a positional mapping would
+    land their run in the `t2` slot.
+
+    A leg with an empty duration is dropped (D8): a non-finisher publishes a
+    single `Running` leg at `00:00:00` whose only split is `Start`. Filtering on
+    the duration rather than the status also covers an untimed leg on a
+    finisher, with no special case. An unknown `type` — never observed — is
+    rendered verbatim rather than losing the time.
+    """
+    segments: list[tuple[str, str]] = []
+    for leg in legs or []:
+        duree = _time(leg.get("legDuration"))
+        if not duree:
+            continue
+        brut = (leg.get("type") or "").strip()
+        segments.append((_LEG_LABELS.get(brut.lower(), brut), duree))
+    return segments
+
+
+# ---------------------------------------------------------------------------
+# Event metadata
+# ---------------------------------------------------------------------------
+
+#: An event is a relay if its **race** name says so (D10). Decided per race and
+#: not per participant, otherwise `Course.is_relay` and `Participation.is_relay`
+#: diverge with the read order (ok-time precedent). Word-start match on the
+#: accent-stripped name, so plurals follow (`Équipes`, `Relays`).
+_RELAY_RE = re.compile(r"\b(relais|relay|equipe|team|duo)")
+
+
+def _sans_accents(texte: str) -> str:
+    decompose = unicodedata.normalize("NFKD", texte)
+    return "".join(c for c in decompose if not unicodedata.combining(c))
+
+
+def _is_relay(race_name: str) -> bool:
+    return bool(_RELAY_RE.search(_sans_accents(race_name).lower()))
+
+
+def _event_date(raw) -> date | None:
+    """The event date, from the ISO string — no French parsing (FR-020)."""
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(str(raw)).date()
+    except ValueError:
+        logger.warning("Sporthive: unreadable event date %r", raw)
+        return None
+
+
+@dataclass(frozen=True)
+class _RaceContext:
+    """The `ScrapedResult` fields shared by every participation of one race.
+
+    Computed once per race rather than per participant: `classify_event_type`
+    and the relay pattern would otherwise run on every one of the 955 rows for
+    an answer that cannot vary within a race.
+    """
+
+    source_url: str
+    event_name: str
+    event_date: date | None
+    event_type: str
+    distance_km: float | None
+    is_relay: bool
+    city: str
+    country: str
+
+
+def _race_context(url: str, event: dict, race: dict) -> _RaceContext:
+    """Qualify one race of `event` into the fields its participations share.
+
+    `qualify_event_name` is what makes each race a distinct `Course` (FR-006):
+    without it the six races of an event merge into one and their bibs collide
+    (#21).
+
+    `eventType` goes into the classifier's **context**, and this is the
+    counter-intuitive part of the design (D9). The classifier only consults its
+    context when the race name names no sport — which foreign names often do
+    not: `Senior Men` alone falls back on `triathlon`, so the 2 852 rows of the
+    UK cross would enter as triathlons, display as such and **survive**
+    `federal_only=true`, the filter that exists to exclude them. Never
+    concatenate the two titles instead: that classified the "Trail 12 km" of a
+    "Triathlon de X" as a triathlon.
+    """
+    event_name = (event.get("eventName") or "").strip()
+    race_name = (race.get("raceName") or "").strip()
+    event_type = (event.get("eventType") or "").strip()
+    distance = race.get("distanceInMeter") or 0
+    return _RaceContext(
+        # The **requested** URL, never rebuilt: it is the TTL cache key.
+        source_url=url,
+        event_name=qualify_event_name(event_name, race_name),
+        event_date=_event_date(event.get("date")),
+        event_type=classify_event_type(
+            race_name, contexte=f"{event_name} {event_type}".strip()
+        ),
+        # `0` left as absent so `mapping.get_or_create_course` can still fall
+        # back on extracting the distance from the name.
+        distance_km=distance / 1000 if distance else None,
+        is_relay=_is_relay(race_name),
+        city=event.get("location") or "",
+        country=event.get("countryCode") or "",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Assembly
+# ---------------------------------------------------------------------------
+
+
+def _to_result(participant: dict, ctx: _RaceContext) -> ScrapedResult:
+    """One row of the ranking → one `ScrapedResult`.
+
+    On a relay the whole name goes to `athlete_name` and the first name stays
+    empty (D11): the source publishes one row per **team**, with a free-form
+    name (`LA COUSINADE`) and no teammate separator, so splitting it would
+    fabricate an athlete "COUSINADE, LA". The `tags` array, which looks like a
+    ready-made split, is a tokenised search index (trap n°4) and yields the same
+    shape for a team as for a person.
+
+    The club is `teamName` read as-is — `core/club.py` stays the only judge of
+    TCN membership (#76). Unlike t2area, this scraper has no reason to know the
+    club at all.
+    """
+    nom = (participant.get("name") or "").strip()
+    athlete_name, athlete_firstname = (nom, "") if ctx.is_relay else split_athlete_name(nom)
+    # Chip first, gun as fallback: the athlete's real time (D6). Reversing the
+    # priority changes 7 435 rows of the panel, and neither column is usable
+    # alone — 2 925 rows have no chip, 2 092 no gun.
+    total_time = _time(participant.get("chipTimeOfParticipant")) or _time(
+        participant.get("gunTimeOfParticipant")
+    )
+    rank_overall = _rank(participant.get("overallPosition"))
+    genre = (participant.get("gender") or "").strip().upper()
+    return ScrapedResult(
+        source_url=ctx.source_url,
+        provider=_PROVIDER,
+        athlete_name=athlete_name,
+        athlete_firstname=athlete_firstname,
+        club=participant.get("teamName") or "",
+        category=participant.get("raceCategory") or "",
+        # `U` covers 4 243 rows (41 %) and the front doesn't render it: better
+        # empty than a value it cannot display (D12).
+        gender=genre if genre in ("M", "F") else "",
+        bib_number=str(participant.get("bib") or "").strip(),
+        event_name=ctx.event_name,
+        event_date=ctx.event_date,
+        event_type=ctx.event_type,
+        rank_overall=rank_overall,
+        rank_category=_rank(participant.get("categoryPosition")),
+        rank_gender=_rank(participant.get("genderPosition")),
+        total_time=total_time,
+        segments=_segments(participant.get("legs")),
+        distance_km=ctx.distance_km,
+        is_relay=ctx.is_relay,
+        status=_status(participant, total_time, rank_overall),
+        raw_data=_raw_data(participant, ctx),
+    )
+
+
+def _raw_data(participant: dict, ctx: _RaceContext) -> dict:
+    """The participant payload plus the race context, diagnosable without a
+    re-scrape.
+
+    `city` and `country` come from the **event** (D15, FR-022a): `location`
+    beats what the map deduces from the event name (`geocode_service` renders
+    "Sud Vendee Dimanche" where the source publishes "L'Aiguillon sur Mer
+    (85)"), and the country code is the only datum that lets one **know** a
+    British or Algerian event is not geocodable, rather than watch a silent
+    failure. Neither is wired to the geocoder: `ScrapedResult` has no city
+    field, and adding one would touch a contract shared by twelve providers.
+    `city` is the key runnerbreizh already uses, for exactly this reason.
+
+    The participant carries a `country` of its own — the athlete's, present on
+    3 639 rows of the panel — which the event's would overwrite. It is moved to
+    `athlete_country` rather than lost: two different facts, two keys.
+    """
+    brut = dict(participant)
+    athlete_country = brut.pop("country", None)
+    return {
+        **brut,
+        "athlete_country": athlete_country,
+        "city": ctx.city,
+        "country": ctx.country,
+    }
+
+
+def _scrape_race(
+    client: httpx.Client, url: str, event: dict, race: dict
+) -> list[ScrapedResult]:
+    """One race's whole ranking, or `_IncompleteRanking`.
+
+    The completeness check is a **floor** (`read < announced`), never an
+    equality: a live race can gain ranked entrants between `/races` and the end
+    of pagination, and the surplus is logged rather than refused (D4). On 32
+    races out of 32 of the panel, the equality held.
+
+    Without this check, an intermediate page served empty would stop the loop
+    cleanly, the ranks read would stay contiguous, `quality.analyze` would see
+    **no** anomaly, and the event would come out `is_reliable=true` missing half
+    its ranking.
+    """
+    race_id = str(race.get("id") or "")
+    annonces = race.get("classificationsCount") or 0
+    participants = list(_iter_participants(client, race_id))
+    if len(participants) < annonces:
+        raise _IncompleteRanking(
+            race.get("raceName") or "", race.get("activeRaceId"), len(participants), annonces
+        )
+    if len(participants) > annonces:
+        logger.info(
+            "Sporthive race %r (ordinal %s): read %d participants for %d announced — "
+            "surplus accepted, the race is likely live.",
+            race.get("raceName"), race.get("activeRaceId"), len(participants), annonces,
+        )
+    ctx = _race_context(url, event, race)
+    return [_to_result(participant, ctx) for participant in participants]
+
+
 def scrape_event_all(url: str) -> list[ScrapedResult]:
-    raise NotImplementedError
+    """Every race of the event the URL points into (FR-005).
+
+    A URL designates a race, the import goes up to the event: the Sheet carries
+    one link per event, and a TCN member entered in another format would
+    otherwise be invisible. Cost accepted at framing: ≈ 100 requests for the
+    Sheet's event.
+
+    Two failure scopes, and that is the structuring choice of this module. A
+    truncated race is **dropped** (`_IncompleteRanking`, caught here) — refusing
+    the whole event made it permanently unimportable, the five healthy races
+    included. The event is **refused** (`ValueError`, propagated) when the stop
+    invariant is false.
+    """
+    event_id = _parse_url(url)
+    resultats: list[ScrapedResult] = []
+    with httpx.Client(follow_redirects=True, timeout=20, headers=_HEADERS) as client:
+        event = _fetch_event(client, event_id)
+        for race in _fetch_races(client, event_id):
+            # Skipped **before** any request (FR-008b, D14). Not cosmetic: an
+            # empty `Course` has no participation without `total_time`, so
+            # `cache.is_in_progress` calls it finished and — the six races of an
+            # event sharing one `source_url` — it can become the course that
+            # answers for the whole event, freezing its re-scrape for 30 days.
+            if not (race.get("classificationsCount") or 0) > 0:
+                logger.info(
+                    "Sporthive race %r (ordinal %s): no ranked entrant announced, "
+                    "skipped without a request.",
+                    race.get("raceName"), race.get("activeRaceId"),
+                )
+                continue
+            try:
+                resultats.extend(_scrape_race(client, url, event, race))
+            except _IncompleteRanking as ecart:
+                # The only trace of this race: the CLI report counts events, so
+                # the event comes back a success with 5 races out of 6. Hence
+                # the line must be usable on its own (FR-008a).
+                logger.warning(
+                    "Sporthive race %r (ordinal %s) dropped: %d participants read for "
+                    "%d announced, ranking truncated at the source.",
+                    ecart.race_name, ecart.active_race_id, ecart.lus, ecart.annonces,
+                )
+    return resultats
