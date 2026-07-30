@@ -1,0 +1,19 @@
+# Fichiers gitignorés recopiés dans chaque worktree créé par Claude Code.
+# Syntaxe .gitignore ; un fichier n'est copié que s'il est matché ici ET gitignoré.
+# Justifications et mesures : AGENTS.md, §Dev multi-worktree.
+
+# Couvre aussi backend/.env, porteur de DATABASE_URL.
+.env
+
+# N'y figez pas BACKEND_URL / API_URL : ils visent un worktree précis.
+.env.local
+
+# Démarrer sur les données déjà importées plutôt que sur un schéma vide.
+backend/triathlon.db
+
+# Copie 12,8 s contre 34,3 s de `npm ci` ; périmé si package-lock.json change.
+frontend/node_modules/
+
+# Exclus exprès : backend/.venv (`uv sync` le refait en 0,21 s, et un venv n'est pas
+# déplaçable), .dev-backend.json (propre à chaque worktree), et
+# .claude/settings.local.json (déjà partagé avec le dépôt principal).

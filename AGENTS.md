@@ -167,6 +167,27 @@ si le port est **effectivement occupé** (`should_retry_after_exit`) : uvicorn q
 aussi par `sys.exit()` sur d'autres pannes de démarrage, et retenter à l'aveugle
 masquerait la vraie cause derrière trois démarrages sur trois ports.
 
+Un worktree reste une copie **neuve** : rien de gitignoré ne l'accompagne. Pour les
+worktrees créés par Claude Code (`claude --worktree`, sous-agents
+`isolation: worktree`), `.worktreeinclude` à la racine liste ce qui doit suivre —
+syntaxe `.gitignore`, et un fichier n'est copié que s'il est à la fois matché **et**
+gitignoré. Aujourd'hui : `.env` (donc `backend/.env`, porteur de `DATABASE_URL`),
+`.env.local`, la base de dev `backend/triathlon.db` et `frontend/node_modules/`.
+
+Ce dernier est là parce que **la copie bat la réinstallation** : 12,8 s contre
+34,3 s de `npm ci` à cache npm chaud. `backend/.venv/` en est absent pour la raison
+**inverse**, mesurée de même : 2,0 s de copie contre **0,21 s** d'`uv sync`, qui
+reconstruit l'environnement par liens durs depuis `~/.cache/uv` — et un venv n'est
+pas déplaçable, les shebangs de `.venv/bin/*` portant le chemin absolu du dépôt
+principal. Ne pas l'ajouter « par symétrie ».
+
+Deux fichiers en sont exclus pour une troisième raison, la même pour les deux : ils
+désignent un worktree **en particulier**. `.dev-backend.json`, que chaque
+`dev_server.py` republie, et tout `BACKEND_URL` / `API_URL` figé dans
+`frontend/.env.local`, qui brancherait le front d'un worktree sur la base d'un
+autre. Un worktree créé à la main (`git worktree add`) ne passe pas par ce
+mécanisme : les fichiers sont à copier soi-même.
+
 ## Architecture backend (`backend/`)
 
 Archi en couches, le flux ne traverse qu'une direction
