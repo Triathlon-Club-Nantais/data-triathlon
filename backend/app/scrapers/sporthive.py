@@ -30,11 +30,11 @@ Endpoints consumed (cf. specs/004-sporthive-scraper/contracts/provider-contract.
     GET /events/{eventId}/races
     GET /races/{raceId}/participants?page=N&size=10
 
-This module only lays down its skeleton here (T001, Phase 1 of
-specs/004-sporthive-scraper/tasks.md): `scrape_event_all` raises
-`NotImplementedError`. The next batches implement it one brick at a time — URL
-parsing, registry detection, paginated client, completeness guard, scalar
-mapping, segments, metadata, then assembly.
+Two failure scopes, and that is the structuring choice of the module. A race
+whose ranking is incomplete is **dropped** (`_IncompleteRanking`, a private type
+caught by the loop) so the event's other races still import; the **event** is
+refused (`ValueError`, propagated) on an unreadable URL, an unknown event, a
+pagination cap hit, or when no race could be read at all.
 """
 import logging
 import re
@@ -119,21 +119,41 @@ def _parse_url(url: str) -> str:
     return lu.group("event_id")
 
 
-def _fetch_json(client: httpx.Client, path: str, params: dict | None = None):
-    """A `GET` on the API, HTTP errors left untranslated.
+def _fetch_json(
+    client: httpx.Client, path: str, params: dict | None = None, *, introuvable: str = ""
+):
+    """A `GET` on the API. Only a 404 is translated, and only where asked.
 
     A 5xx is not a link problem: turning it into `ValueError` would make it read
-    as one in the CLI failure detail. Business refusals (a 404 on an unknown
-    event) are translated by the caller that knows what the id meant.
+    as one in the CLI failure detail, so it goes through untouched.
+
+    `introuvable` is opt-in per route on purpose. A 404 does not mean the same
+    thing everywhere: on `/events/{id}` it says "this link points at nothing",
+    which the operator can act on; on a ranking page it would be an anomaly of
+    the source, not of the link.
     """
     response = client.get(f"{_API_BASE}{path}", params=params)
+    if introuvable and response.status_code == 404:
+        raise ValueError(introuvable)
     response.raise_for_status()
     return response.json()
 
 
 def _fetch_event(client: httpx.Client, event_id: str) -> dict:
-    """Event metadata: name, ISO date, type, location, country code."""
-    return _fetch_json(client, f"/events/{event_id}")
+    """Event metadata: name, ISO date, type, location, country code.
+
+    The message is in French: it travels through `ScraperError` and the front
+    shows it verbatim (mixed `DomainError` case of principle I).
+    """
+    return _fetch_json(
+        client,
+        f"/events/{event_id}",
+        introuvable=(
+            f"Événement Sporthive introuvable (id {event_id}) : la source ne "
+            "connaît pas cet identifiant. Vérifier le lien — un identifiant "
+            "d'événement est attendu, pas un identifiant de course."
+        ),
+    )
 
 
 def _fetch_races(client: httpx.Client, event_id: str) -> list[dict]:
@@ -517,14 +537,23 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     Two failure scopes, and that is the structuring choice of this module. A
     truncated race is **dropped** (`_IncompleteRanking`, caught here) — refusing
     the whole event made it permanently unimportable, the five healthy races
-    included. The event is **refused** (`ValueError`, propagated) when the stop
-    invariant is false.
+    included. The event is **refused** (`ValueError`, propagated) when the URL
+    is unreadable, when the event is unknown, when the stop invariant is false,
+    or when **no** race could be read at all.
+
+    That last guard is what closes the hole the per-race drop opens:
+    `import_service._require_event_name` does not raise on an empty list, and
+    `batch` counts "no result" as a legitimate short-circuit — so without it a
+    wholly truncated event would be indistinguishable, in the report, from a
+    successful import.
     """
     event_id = _parse_url(url)
     resultats: list[ScrapedResult] = []
+    courses = 0
     with httpx.Client(follow_redirects=True, timeout=20, headers=_HEADERS) as client:
         event = _fetch_event(client, event_id)
         for race in _fetch_races(client, event_id):
+            courses += 1
             # Skipped **before** any request (FR-008b, D14). Not cosmetic: an
             # empty `Course` has no participation without `total_time`, so
             # `cache.is_in_progress` calls it finished and — the six races of an
@@ -548,4 +577,12 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                     "%d announced, ranking truncated at the source.",
                     ecart.race_name, ecart.active_race_id, ecart.lus, ecart.annonces,
                 )
+    if not resultats:
+        raise ValueError(
+            f"Événement Sporthive {event_id} : aucune course importable. "
+            f"{courses} course(s) publiée(s), aucune n'a rendu de classement "
+            "exploitable — classement absent ou tronqué à la source. L'import "
+            "est refusé plutôt que compté comme un succès à zéro participant ; "
+            "il est rejouable dès que la source publie."
+        )
     return resultats

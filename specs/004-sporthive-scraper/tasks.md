@@ -142,13 +142,13 @@ sont écartées ; chacune rend un message nommant la cause.
 
 ### Tests for User Story 3
 
-- [ ] T025 [US3] Test rouge des refus de lecture dans `backend/tests/test_sporthive.py` : URL sans identifiant → `ValueError` **nommant la forme attendue** (FR-003), et `GET /events/{id}` en 404 → `ValueError` « événement introuvable », rien de persisté
-- [ ] T026 [US3] Test rouge du refus à zéro course dans `backend/tests/test_sporthive.py` : toutes les courses tronquées, toutes à `classificationsCount: 0`, et un événement sans aucune course → `ValueError` en **français** dans les trois cas ; jamais une liste vide rendue (D14, FR-008c)
-- [ ] T027 [US3] Test rouge de non-régression sur l'ordinal de course dans `backend/tests/test_sporthive.py` : verrouiller qu'aucune requête n'est émise vers `/races/1` — sur la source réelle, cet appel répond 200 et rend une épreuve de 2015, c'est le risque d'import silencieux d'une épreuve étrangère (D1, FR-004)
+- [X] T025 [US3] Test rouge des refus de lecture dans `backend/tests/test_sporthive.py` : URL sans identifiant → `ValueError` **nommant la forme attendue** (FR-003), et `GET /events/{id}` en 404 → `ValueError` « événement introuvable », rien de persisté
+- [X] T026 [US3] Test rouge du refus à zéro course dans `backend/tests/test_sporthive.py` : toutes les courses tronquées, toutes à `classificationsCount: 0`, et un événement sans aucune course → `ValueError` en **français** dans les trois cas ; jamais une liste vide rendue (D14, FR-008c)
+- [X] T027 [US3] Test rouge de non-régression sur l'ordinal de course dans `backend/tests/test_sporthive.py` : verrouiller qu'aucune requête n'est émise vers `/races/1` — sur la source réelle, cet appel répond 200 et rend une épreuve de 2015, c'est le risque d'import silencieux d'une épreuve étrangère (D1, FR-004)
 
 ### Implementation for User Story 3
 
-- [ ] T028 [US3] Implémenter la traduction des refus dans `backend/app/scrapers/sporthive.py` : message de forme attendue sur URL illisible, 404 → « événement introuvable », et `ValueError` finale si la liste de `ScrapedResult` est vide. Ces messages sont en **français** : ils traversent `ScraperError` et sont réaffichés verbatim par le front (principe I, cas mixte `DomainError`)
+- [X] T028 [US3] Implémenter la traduction des refus dans `backend/app/scrapers/sporthive.py` : message de forme attendue sur URL illisible, 404 → « événement introuvable », et `ValueError` finale si la liste de `ScrapedResult` est vide. Ces messages sont en **français** : ils traversent `ScraperError` et sont réaffichés verbatim par le front (principe I, cas mixte `DomainError`)
 - [ ] T029 [US3] Vérifier — sans écrire de code — que les échecs Sporthive figurent au détail des épreuves en erreur des bilans CLI (FR-024) et que le cache de fraîcheur court-circuite un second import (FR-025) : `uv run python -m app.cli rescrape-db --url <URL fautive> --json | jq '.failures'`, puis relancer l'import de l'URL valide et constater `cached`
 
 **Checkpoint**: les trois user stories sont indépendamment vérifiables.
