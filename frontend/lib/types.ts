@@ -130,18 +130,36 @@ export interface ScrapedPreview {
   raw_data: Record<string, unknown>;
 }
 
+// Une course touchée par un import (heat, épreuve d'un multi-événement…).
+// Émis par le SSE `done` et par `POST /scrape/event` — sert à câbler
+// « Voir les résultats » sur /ajouter (#135).
+export interface ImportedCourse {
+  id: number;
+  name: string;
+  event_type: string;
+}
+
 export interface ImportResult {
   imported: number;
   updated: number;
   skipped: number;
   cached?: boolean;
+  courses: ImportedCourse[];
 }
 
 // Événements du flux SSE d'import.
 export type ImportProgressEvent =
   | { phase: "scraping"; message: string }
   | { phase: "saving"; total: number; imported: number; updated: number; skipped: number; progress: number }
-  | { phase: "done"; imported: number; updated: number; skipped: number; total: number; cached?: boolean }
+  | {
+      phase: "done";
+      imported: number;
+      updated: number;
+      skipped: number;
+      total: number;
+      cached?: boolean;
+      courses: ImportedCourse[];
+    }
   | { phase: "error"; message: string };
 
 export interface PendingProvider {

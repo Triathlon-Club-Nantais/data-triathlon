@@ -70,7 +70,15 @@ def test_import_event(client, monkeypatch):
     )
     resp = client.post("/api/v1/scrape/event", json={"url": "https://www.klikego.com/x"})
     assert resp.status_code == 200
-    assert resp.json() == {"imported": 2, "updated": 0, "skipped": 0, "cached": False}
+    body = resp.json()
+    assert body["imported"] == 2
+    assert body["updated"] == 0
+    assert body["skipped"] == 0
+    assert body["cached"] is False
+    # Une seule Course pour deux participants au même triathlon.
+    assert len(body["courses"]) == 1
+    assert body["courses"][0]["name"] == "Triathlon de Nantes"
+    assert body["courses"][0]["event_type"] == "triathlon-m"
 
 
 def test_import_event_stream_serializes_reassignments(client, monkeypatch):
@@ -116,6 +124,56 @@ def test_import_event_stream_serializes_reassignments(client, monkeypatch):
     ]
 
 
+def test_import_event_stream_expose_les_courses_touchees(client, monkeypatch):
+    """Le SSE `done` porte `courses: [{id, name, event_type}]` — le front en
+    tire des boutons « Voir les résultats » (#135). Contrat stable : présent
+    aussi bien sur l'import réel que sur le court-circuit cache.
+
+    On monkeypatche `iter_import_event` (comme `…serializes_reassignments`
+    juste au-dessus) plutôt que le scraper : le SSE utilise `SessionLocal()`
+    en dur, hors du `Depends(get_db)`, donc l'override de conftest ne s'y
+    applique pas — laisser `_cached_result` tourner ferait taper la vraie
+    base (« no such table: courses » en CI). La sérialisation par
+    `json.dumps(default=…)` est déjà couverte par ce voisin.
+    """
+    from app.services import import_service
+
+    def fake_iter_import_event(db, url, settings, force=False, persist=True):
+        yield {"phase": "scraping", "message": "Récupération des participants…"}
+        yield {
+            "phase": "done",
+            "imported": 2,
+            "updated": 0,
+            "skipped": 0,
+            "reconciled": 0,
+            "reassignments": [],
+            "total": 2,
+            "courses": [
+                {"id": 42, "name": "Triathlon de Nantes", "event_type": "triathlon-m"},
+            ],
+        }
+
+    monkeypatch.setattr(import_service, "iter_import_event", fake_iter_import_event)
+
+    with client.stream(
+        "POST", "/api/v1/scrape/event/stream", json={"url": "https://www.klikego.com/x"}
+    ) as resp:
+        assert resp.status_code == 200
+        body = "".join(resp.iter_text())
+
+    frames = [
+        json.loads(line[len("data: "):])
+        for line in body.splitlines()
+        if line.startswith("data: ")
+    ]
+    done = next(f for f in frames if f["phase"] == "done")
+    assert len(done["courses"]) == 1
+    course = done["courses"][0]
+    assert set(course) == {"id", "name", "event_type"}
+    assert course["name"] == "Triathlon de Nantes"
+    assert course["event_type"] == "triathlon-m"
+
+
 def test_import_event_expose_updated_counter(client, monkeypatch):
     """Le compteur `updated` (upsert) doit être exposé dans la réponse — pas seulement
     calculé en interne : `ImportResult` doit le déclarer, sinon Pydantic le tait."""
@@ -129,7 +187,10 @@ def test_import_event_expose_updated_counter(client, monkeypatch):
     assert resp.status_code == 200
     body = resp.json()
     assert "updated" in body
-    assert body == {"imported": 1, "updated": 0, "skipped": 0, "cached": False}
+    assert body["imported"] == 1
+    assert body["updated"] == 0
+    assert body["skipped"] == 0
+    assert body["cached"] is False
 
 
 @pytest.mark.parametrize("url", [

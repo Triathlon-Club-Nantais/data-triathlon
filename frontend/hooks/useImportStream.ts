@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useRef, useState } from "react";
 import { importEventStream } from "@/lib/api/sse";
-import type { ImportProgressEvent } from "@/lib/types";
+import type { ImportProgressEvent, ImportedCourse } from "@/lib/types";
 
 export interface ImportState {
   running: boolean;
@@ -13,6 +13,9 @@ export interface ImportState {
   updated: number;
   skipped: number;
   cached: boolean;
+  // Courses touchées par le dernier import : câble « Voir les résultats » (#135).
+  // Multi (heats, listes) → autant d'entrées. Vide en dehors de la phase `done`.
+  courses: ImportedCourse[];
   error: string | null;
 }
 
@@ -26,6 +29,7 @@ const INITIAL: ImportState = {
   updated: 0,
   skipped: 0,
   cached: false,
+  courses: [],
   error: null,
 };
 
@@ -62,6 +66,7 @@ export function useImportStream() {
             updated: ev.updated,
             skipped: ev.skipped,
             cached: Boolean(ev.cached),
+            courses: ev.courses ?? [],
           }));
         } else if (ev.phase === "error") {
           setState((s) => ({ ...s, running: false, phase: "error", error: ev.message }));

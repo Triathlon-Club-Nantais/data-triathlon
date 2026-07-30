@@ -69,6 +69,27 @@ def get_latest_by_source_url(db: Session, source_url: str) -> Course | None:
     )
 
 
+def list_by_source_url(db: Session, source_url: str) -> list[Course]:
+    """Toutes les `Course` publiées sous cette URL d'import — les heats.
+
+    Une URL peut porter N courses (Klikego heats, Wiclax multi-catégories,
+    RaceResult multi-listes, Chronoplace multi-épreuves). Alimente le SSE
+    `done` sur le chemin cache TTL pour que le sélecteur de course du front
+    (#135) rende **toutes** les courses touchées, pas la seule représentative
+    de `get_latest_by_source_url`.
+
+    Ordre stable, sur la même clé de tri que le repli latest : `scraped_at`
+    décroissant → la plus récente en tête (comportement de la première course
+    pré-sélectionnée du sélecteur).
+    """
+    return (
+        db.query(Course)
+        .filter(Course.source_url == source_url)
+        .order_by(Course.scraped_at.desc())
+        .all()
+    )
+
+
 def touch_scraped_at(db: Session, course: Course) -> None:
     """Met à jour l'horodatage de scraping (clé du cache TTL)."""
     course.scraped_at = utcnow()

@@ -20,8 +20,18 @@ class ScrapeRequest(BaseModel):
     url: HttpUrl
 
 
+class ImportedCourse(BaseModel):
+    """Course touchée par un import — sert à câbler « Voir les résultats » (#135)."""
+    id: int
+    name: str
+    event_type: str
+
+
 class ImportResult(BaseModel):
     imported: int
     updated: int = 0
     skipped: int
     cached: bool = False
+    #: Épreuve unique = 1 entrée. Multi (heats Klikego, listes RaceResult,
+    #: événements Chronoplace) : autant d'entrées que de `Course` touchées.
+    courses: list[ImportedCourse] = []

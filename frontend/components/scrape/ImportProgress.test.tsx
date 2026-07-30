@@ -6,7 +6,7 @@ import type { ImportState } from "@/hooks/useImportStream";
 function state(overrides: Partial<ImportState>): ImportState {
   return {
     running: false, phase: "idle", message: "", total: 0, progress: 0,
-    imported: 0, updated: 0, skipped: 0, cached: false, error: null,
+    imported: 0, updated: 0, skipped: 0, cached: false, courses: [], error: null,
     ...overrides,
   };
 }
