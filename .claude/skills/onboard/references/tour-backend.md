@@ -188,9 +188,10 @@ rouge, pas par du code.
 
 ## 15. Pour attaquer ta première contribution
 
-Lis `docs/WORKFLOW-IA.md` (court) pour savoir quand utiliser le cycle
-**Speckit** (features réelles) vs. le workflow **vibe** (bugfix ou 1-2
-fichiers). Suggestion de première tâche : un endpoint de lecture simple
+Lis `docs/WORKFLOW-IA.md` (court) pour choisir ta voie : **Speckit** ou
+**Superpowers** pour une vraie feature (les deux mènent au même résultat,
+on ne les croise jamais), ou **sans plan** pour un bugfix ou 1-2
+fichiers. Suggestion de première tâche : un endpoint de lecture simple
 (un compteur, un filtre supplémentaire sur `stats`, un tri sur les
 courses). Lance `/speckit-specify`, laisse-toi guider par
 `/speckit-clarify` puis `/speckit-plan`. Tu toucheras dans l'ordre : un

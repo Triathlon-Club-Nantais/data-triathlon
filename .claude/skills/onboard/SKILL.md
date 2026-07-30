@@ -375,18 +375,26 @@ utiliser, où trouver le workflow.
 
 **Sinon**, présenter en trois blocs courts :
 
-1. **Speckit** (skills `speckit-*` dans `.claude/skills/`) — cadre et
-   planifie une **vraie feature** : `/speckit-specify` → `/speckit-clarify`
-   → gate → `/speckit-plan` → gate → `/speckit-tasks` →
-   `/speckit-analyze` → `/speckit-implement`. Produit `specs/NNN-.../`
-   avec `spec.md`, `plan.md`, `tasks.md`. Gère la branche git via hooks.
+1. **Speckit** (skills `speckit-*` dans `.claude/skills/`) — **une voie
+   complète** pour une vraie feature, du cadrage à l'exécution :
+   `/speckit-specify` → `/speckit-clarify` → gate → `/speckit-plan` →
+   gate → `/speckit-tasks` → `/speckit-analyze` → `/speckit-implement`.
+   Produit `specs/NNN-.../` avec `spec.md`, `plan.md`, `tasks.md`,
+   `checklists/`. La branche git est à créer **à la main** : les hooks
+   git de `.specify/extensions.yml` échouent sans effet côté Claude.
 
-2. **Superpowers** — discipline d'exécution : `test-driven-development`,
-   `systematic-debugging`, `subagent-driven-development` (parallélise les
-   tâches `[P]` de `tasks.md`), `requesting-code-review`,
+2. **Superpowers** — **l'autre voie complète** (`brainstorming` →
+   `writing-plans` → `executing-plans` ou `subagent-driven-development`),
+   plus la discipline transverse : `test-driven-development`,
+   `systematic-debugging`, `requesting-code-review`,
    `verification-before-completion`, `finishing-a-development-branch`.
    Le harness Claude Code livre aussi `/code-review`,
    `/security-review`, `/simplify`, `/review` (pour un PR GitHub).
+
+   **On ne croise jamais les deux voies** : l'exécution suit l'outil qui a
+   produit le plan. Pas de `subagent-driven-development` sur un `tasks.md`
+   Speckit — c'est un handoff retiré pour son coût (~117 exécutions
+   d'agent sur les 39 tâches de `003-dashboard-rank-selector`).
 
 3. **La constitution v1.0.0** — `.specify/memory/constitution.md`, 6
    principes non-négociables (langue métier vs technique, architecture
@@ -394,14 +402,21 @@ utiliser, où trouver le workflow.
    paramètres transverses, YAGNI). Injectée automatiquement dans chaque
    `/speckit-*`.
 
-**Où lire la règle « quel outil quand »** : `docs/WORKFLOW-IA.md` (arbre
-de décision, tableau anti-collision, workflows vibe vs feature complète).
+**Où lire la règle « quel outil quand »** : `docs/WORKFLOW-IA.md` (les
+trois voies, la fin de branche commune, les garde-fous de
+`/speckit-implement`, où atterrissent les artefacts).
 
-**Résumer en 2 phrases** :
-- **Bugfix / typo / 1-2 fichiers** → workflow vibe : test rouge →
-  correctif → verification-before-completion → PR.
-- **Vraie feature (nouvel endpoint, nouveau composant, nouveau scraper)**
-  → cycle Speckit complet.
+**Résumer en 3 phrases** :
+- **Bugfix / typo / 1-2 fichiers** → voie « sans plan » : test rouge →
+  correctif → `verification-before-completion` → PR.
+- **Vraie feature** → voie Speckit **ou** voie Superpowers, au choix du
+  contributeur : les deux mènent au même résultat, la question est celle
+  de la traçabilité souhaitée. Aucun critère mécanique par nature de
+  travail (`002-runnerbreizh-scraper` est passé par Speckit, les 34 autres
+  plans de scraper par Superpowers).
+- **Fin de branche identique dans les trois cas** :
+  `requesting-code-review` → `verification-before-completion` →
+  `finishing-a-development-branch`.
 
 Marquer `state.steps.ia_tooling = "done"`.
 

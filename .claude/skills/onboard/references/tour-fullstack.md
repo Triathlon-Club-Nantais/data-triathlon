@@ -148,9 +148,10 @@ Regarde `tests/conftest.py` pour les fixtures pytest de session/DB. Le front a s
 
 ## Pour attaquer une première feature
 
-Deux workflows coexistent, à choisir consciemment :
+Trois voies coexistent, à choisir consciemment :
 
-- **Speckit** (`/speckit-specify` → `/speckit-plan` → `/speckit-tasks`) pour toute vraie feature. Le cycle est décrit dans `.specify/memory/constitution.md` §Development Workflow.
-- **Vibe coding** pour bugfix / typo / 1-2 fichiers, sans dossier `specs/`.
+- **Speckit** (`/speckit-specify` → `/speckit-plan` → `/speckit-tasks` → `/speckit-implement`) pour une vraie feature. Le cycle est décrit dans `.specify/memory/constitution.md` §Development Workflow.
+- **Superpowers** (`brainstorming` → `writing-plans` → exécution) pour une vraie feature aussi — l'autre voie complète. On ne croise jamais les deux : l'exécution suit l'outil qui a produit le plan.
+- **Sans plan** pour bugfix / typo / 1-2 fichiers, sans dossier `specs/`.
 
 Le guide de choix est dans `docs/WORKFLOW-IA.md` — ouvre-le avant ton premier PR pour savoir dans quel mode tu es. Bonne route.
