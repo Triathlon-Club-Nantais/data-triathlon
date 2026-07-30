@@ -38,6 +38,10 @@ Runner           bib: str, name: str, category: str
 - au premier passage, `segment == cumulative` — 8 884 / 8 884.
 - un `Runner` a au moins un `Passage` ; il peut lui manquer un point
   intermédiaire tout en ayant le point final.
+- le **point final** d'une épreuve est le plus grand `point_id` observé sur
+  l'ensemble de ses lignes — la source ne le déclare pas autrement. C'est lui qui
+  décide du temps total et des rangs (un `Runner` sans passage à ce point n'a ni
+  l'un ni les autres).
 
 ## Correspondance `Runner` → `ScrapedResult`
 
@@ -54,10 +58,10 @@ Runner           bib: str, name: str, category: str
 | `event_date` | `EventMeta.event_date` | identique pour toutes les épreuves |
 | `event_type` | `RaceMeta.label`, contexte `EventMeta.name` | `classify_event_type` |
 | `is_relay` | `RaceMeta.is_relay` | R6 |
-| `rank_overall` / `rank_category` | dernier `Passage` | jamais un rang intermédiaire |
+| `rank_overall` / `rank_category` | `Passage` du **point final** | `None` si le point final n'a pas été franchi — jamais un rang intermédiaire promu en rang de classement (il resterait dans `raw_data["points"]`) |
 | `total_time` | `cumulative` du dernier `Passage` | `normalize_time` |
 | `swim/t1/bike/t2/run_time` | motif reconnu | R2 + transitions R3 |
-| `segments` | motif non reconnu | `[(point_name, segment), …]`, transitions incluses sous « Changement » |
+| `segments` | motif non reconnu | `[(point_name, segment), …]`, transitions intercalées sous « Changement » (R3) ; les libellés répétés sont suffixés ` (N)` par `build_splits`, aucun temps n'est écrasé |
 | `distance_km` | — | `None` : le site ne publie aucune distance exploitable |
 | `status` | — | `""` : l'heuristique aval classe DNF l'absence de temps total |
 | `raw_data` | voir ci-dessous | |

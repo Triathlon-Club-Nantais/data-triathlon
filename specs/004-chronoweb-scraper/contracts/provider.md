@@ -40,7 +40,12 @@ l'événement désigné.
    (le classement, puis le catalogue pour la commune).
 4. **Temps** — chaînes `HH:MM:SS` normalisées ; `total_time` vide pour un
    non-finisher.
-5. **Nom d'épreuve** — toujours non vide (sinon `import_service` refuse
+5. **Rangs** — `rank_overall` / `rank_category` renseignés **uniquement** pour
+   qui a franchi le point final de l'épreuve ; `None` sinon. Aucun rang
+   intermédiaire n'est promu en rang de classement (il reste dans
+   `raw_data["points"]`) : il doublonnerait celui d'un finisher et ferait
+   ressortir l'épreuve en `is_reliable=false`.
+6. **Nom d'épreuve** — toujours non vide (sinon `import_service` refuse
    l'import) et qualifié du libellé d'épreuve.
 
 ### Erreurs

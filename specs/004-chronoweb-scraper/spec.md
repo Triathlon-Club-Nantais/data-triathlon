@@ -75,6 +75,34 @@ et 2 428 participants**.
   même club sous une seule identité. Même traitement que les lignes non
   identifiées de runnerbreizh.
 
+### Session 2026-07-30
+
+- Q: Qu'enregistre-t-on comme rangs pour un participant absent du point final
+  (1,42 % du panel, ~23 lignes sur Dijon 2026) ? → A: **Aucun rang.** Un rang
+  intermédiaire est un vrai rang de la source, mais issu d'une autre population
+  que le classement : il entre en collision avec les rangs des finishers, que
+  l'indice de fiabilité compte comme rangs dupliqués — l'épreuve ressortirait
+  peu fiable alors que l'import est juste, exactement la limite subie par
+  runnerbreizh sur ses relais. Les rangs de chaque point restent conservés dans
+  les données brutes, rien n'est jeté.
+- Q: Les transitions calculées valent-elles aussi pour une épreuve au motif de
+  points non reconnu, rendue en libellés de la source ? → A: **Oui, partout où
+  elles sont déductibles.** Sur un motif reconnu elles occupent les slots
+  canoniques ; sur un motif non reconnu elles s'intercalent sous le libellé de la
+  source (« Changement »). Un temps mort de relais est du temps de course réel, et
+  rien en aval ne le rattraperait — le dépôt a déjà payé la leçon inverse (un slot
+  omis du gabarit jetait sans bruit le temps qui s'y trouvait). L'aquathlon relais
+  à 8 points du panel sort donc à 15 segments, la répétition d'un libellé étant
+  déjà désambiguïsée en aval.
+- Q: En import de masse, la requête d'appoint pour la commune est-elle
+  mutualisée entre les événements d'un même batch ? → A: **Non, une par
+  événement, sans état partagé.** 5 événements chronoweb distincts dans le
+  Sheet, soit ~850 Ko face à des pages de classement de plusieurs mégaoctets :
+  le gain est du même ordre que celui déjà écarté au nom de la simplicité. Un
+  cache mutualisé survivrait par ailleurs à l'import qui l'a rempli, rendant le
+  comportement dépendant de l'ordre des imports — ce qu'aucun fournisseur du
+  projet ne fait.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Importer un événement chronoweb depuis un lien collé (Priority: P1)
@@ -100,11 +128,11 @@ est une course distincte.
 2. **Given** un événement de 8 épreuves et 1 622 participants, **When** l'import
    s'exécute, **Then** l'ensemble est importé sans qu'aucune page supplémentaire
    ne soit demandée au site pour le classement.
-3. **Given** un participant ayant franchi trois points de chronométrage,
-   **When** l'utilisateur consulte sa participation, **Then** son temps total est
-   celui du dernier point, ses rangs (général et catégorie) sont ceux du dernier
-   point, et ses segments sont les durées publiées pour chaque point, complétées
-   des deux transitions.
+3. **Given** un participant ayant franchi les trois points d'une épreuve qui en
+   compte trois, **When** l'utilisateur consulte sa participation, **Then** son
+   temps total est celui du point final, ses rangs (général et catégorie) sont
+   ceux du point final, et ses segments sont les durées publiées pour chaque
+   point, complétées des deux transitions.
 4. **Given** un participant d'un duathlon dont les points sont
    course / vélo / course, **When** l'utilisateur consulte sa participation,
    **Then** les segments sont affichés sous les libellés de la discipline, sans
@@ -112,6 +140,10 @@ est une course distincte.
 5. **Given** une épreuve déjà importée et un second import lancé après expiration
    du cache, **When** l'import s'exécute, **Then** aucun participant n'est
    dupliqué.
+6. **Given** un participant présent au point vélo mais absent du point final,
+   **When** l'utilisateur consulte sa participation, **Then** elle apparaît en
+   abandon, sans temps total et **sans rang**, et le rang qu'il occupait au vélo
+   n'apparaît dans aucun classement.
 
 ---
 
@@ -186,8 +218,11 @@ Tous constatés lors du sondage, avec leur traitement attendu :
   l'effectif de chaque épreuve.
 - **Non-finishers sans libellé** — la source ne publie aucun `DNF`/`DNS`/`DSQ`.
   Les 1,42 % de concurrents absents du point final n'ont ni temps total ni rang
-  final : ils sont importés comme abandons par l'heuristique existante. **DNS et
-  DSQ sont indistinguables** — limite de la source, pas du fournisseur.
+  final : ils sont importés comme abandons par l'heuristique existante, **sans
+  rang** — leur rang au dernier point franchi n'est pas promu en rang de
+  classement, sous peine de doublonner celui d'un finisher et de faire ressortir
+  toute l'épreuve comme peu fiable. **DNS et DSQ sont indistinguables** — limite
+  de la source, pas du fournisseur.
 - **Point intermédiaire manquant chez un finisher** — mesuré : 439 passages au
   vélo pour 445 à l'arrivée sur une même épreuve. Le segment concerné reste vide,
   ce n'est ni un abandon ni une erreur de lecture.
@@ -208,7 +243,8 @@ Tous constatés lors du sondage, avec leur traitement attendu :
   l'épreuve n'est pas dégradé.
 - **Épreuve à plus de cinq segments** — un aquathlon relais du panel alterne 8
   points (natation/course × 4). Les segments doivent tous être conservés, sans
-  troncature à cinq.
+  troncature à cinq, transitions intercalées comprises — soit 15 segments. Un
+  libellé qui se répète (« Natation » quatre fois) ne doit écraser aucun temps.
 - **Événement sans classement publié** — le site répond en succès, avec le nom et
   la date de l'événement mais aucun tableau. C'est un import vide, pas une
   erreur ; un identifiant inconnu, lui, ne rend aucun nom d'événement et doit
@@ -239,8 +275,9 @@ Tous constatés lors du sondage, avec leur traitement attendu :
 - **FR-004**: Le système MUST regrouper les lignes d'un même dossard au sein
   d'une épreuve en un seul participant.
 - **FR-005**: Le système MUST retenir, comme temps total et comme rangs (général
-  et catégorie) d'un participant, ceux de son dernier point de chronométrage
-  franchi.
+  et catégorie) d'un participant, ceux du **point final** de l'épreuve, et
+  MUST NOT lui attribuer de rang lorsqu'il ne l'a pas franchi : un rang
+  intermédiaire appartient à une autre population que celle du classement.
 - **FR-006**: Le système MUST enregistrer, pour chaque participant : nom, prénom,
   dossard, catégorie, genre, temps total, rang général, rang de catégorie et
   temps de segment.
@@ -248,8 +285,10 @@ Tous constatés lors du sondage, avec leur traitement attendu :
   franchi, en utilisant la durée de segment publiée par le site et non le temps
   cumulé.
 - **FR-008**: Le système MUST enregistrer les transitions comme segments
-  supplémentaires lorsqu'elles sont déductibles des temps publiés, et MUST NOT en
-  enregistrer lorsqu'un des points encadrants manque.
+  supplémentaires partout où elles sont déductibles des temps publiés — motif de
+  points reconnu ou non —, et MUST NOT en enregistrer lorsqu'un des points
+  encadrants manque. Sur un motif non reconnu, la transition porte le libellé
+  publié par la source pour ce temps mort.
 - **FR-009**: Le système MUST conserver tous les segments d'une épreuve qui en
   compte plus de cinq, sans troncature.
 - **FR-010**: Le système MUST rattacher les segments à la discipline de
@@ -270,7 +309,8 @@ Tous constatés lors du sondage, avec leur traitement attendu :
   publiée, pour toutes les épreuves de cet événement.
 - **FR-015**: Le système MUST conserver la commune publiée par le catalogue du
   site lorsqu'elle est disponible, et MUST poursuivre l'import sans erreur
-  lorsqu'elle ne l'est pas.
+  lorsqu'elle ne l'est pas. Cette recherche MUST être refaite à chaque import
+  d'événement, sans état conservé entre deux imports.
 - **FR-016**: Le système MUST accepter les URLs de fiche individuelle en les
   ramenant à leur événement.
 - **FR-017**: Le système MUST refuser, avec un message nommant la forme d'URL
@@ -308,13 +348,17 @@ Tous constatés lors du sondage, avec leur traitement attendu :
   par le nombre de points de chronométrage.
 - **SC-003**: Sur les épreuves du panel de sondage, 100 % des participants ayant
   franchi le point final ont un temps total et un rang général, et 100 % de ceux
-  ne l'ayant pas franchi sont marqués comme non-finishers.
+  ne l'ayant pas franchi sont marqués comme non-finishers, **sans aucun rang** —
+  aucun rang général n'apparaît donc deux fois dans une épreuve individuelle.
 - **SC-004**: Un événement de 1 600 participants et 8 épreuves est importé sans
   qu'aucun participant ne soit dupliqué ni omis.
 - **SC-005**: Pour un triathlon dont les trois points sont publiés, la somme des
   segments enregistrés d'un participant égale son temps total.
 - **SC-006**: Aucune régression : la suite de tests unitaires passe sans réseau,
   et les fournisseurs existants restent détectés comme avant.
+- **SC-007**: L'aquathlon relais à 8 points du panel est importé avec ses **15**
+  temps intermédiaires — 8 étapes et 7 temps morts —, aucun n'étant écrasé par la
+  répétition d'un libellé.
 
 ## Assumptions
 
