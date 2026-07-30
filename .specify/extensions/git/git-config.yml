@@ -2,7 +2,10 @@
 # Copied to .specify/extensions/git/git-config.yml on install
 
 # Branch numbering strategy: "sequential" (001, 002, ...) or "timestamp" (YYYYMMDD-HHMMSS)
-branch_numbering: sequential
+# Doit rester aligné sur `feature_numbering` de .specify/init-options.json : le core
+# nomme le dossier de spec, cette clé nomme la branche. Deux valeurs divergentes
+# donnent une branche `004-x` pour un dossier `20260730-143022-x`.
+branch_numbering: timestamp
 
 # Commit message used by `git commit` during repository initialization
 init_commit_message: "[Spec Kit] Initial commit"

@@ -30,6 +30,9 @@ refactos) sont passés par Superpowers.
   `/speckit-analyze` **avant tout code** (lecture seule : incohérences,
   ambiguïtés, trous de couverture entre artefacts) → `/speckit-implement`.
   Cadrage flou : laisser tourner `brainstorming` **avant** `/speckit-specify`.
+  Les artefacts vivent dans `specs/<id>-feature/` — `id` **horodaté**
+  `YYYYMMDD-HHMMSS` depuis Spec Kit 0.15.0, séquentiel `NNN` sur les trois
+  features déjà en place, qu'on ne renomme pas.
 - **Voie Superpowers** — `brainstorming` → `writing-plans` → exécution.
   L'exécuteur **n'a pas de défaut** : l'utilisateur nomme `executing-plans`
   (session courante, checkpoints de revue, pas de fan-out) ou
@@ -75,23 +78,28 @@ refactos) sont passés par Superpowers.
   §La troisième catégorie : le sondage.
 - Fin de branche : `requesting-code-review` → `verification-before-completion` →
   `finishing-a-development-branch`.
-- Branche et commits-gate sont à gérer **manuellement** : les hooks de
-  `.specify/extensions.yml` appellent `speckit.git.feature` et
-  `speckit.git.commit` (qu'un agent Claude invoquerait en `/speckit-git-feature`
-  / `/speckit-git-commit`), mais l'extension `git` n'enregistre ses commandes
-  que pour `agy` et `codex` — voir `registered_commands` dans
-  `.specify/extensions/.registry`. Ni pour `claude` (dont le manifest
-  `.specify/integrations/claude.manifest.json` ne liste que les neuf skills
-  `speckit-*`), ni pour `opencode`, l'intégration active
-  (`.specify/integration.json`). Ces hooks **échouent donc sans effet** — ce
-  n'est pas la même promesse que « ne s'exécutent jamais » : le corps des skills
-  `speckit-*` lit `extensions.yml` de lui-même et, pour un hook `optional: false`,
-  s'instruit d'émettre `EXECUTE_COMMAND`. `before_specify` →
-  `speckit.git.feature` est précisément dans ce cas, donc `/speckit-specify`
-  **tente** la commande inexistante. Les hooks de commit
-  (`before_*` / `after_*` → `speckit.git.commit`) sont tous `optional: true` :
-  affichés seulement, jamais d'auto-commit — malgré `auto_execute_hooks: true`
-  dans `settings`.
+- **Les hooks git s'exécutent désormais** (Spec Kit 0.15.0, intégration active
+  `claude` dans `.specify/integration.json`) : l'extension `git` enregistre ses
+  cinq commandes **pour `claude`** — `registered_commands` et `registered_skills`
+  dans `.specify/extensions/.registry` — et `auto_execute_hooks: true` dans
+  `.specify/extensions.yml`. `/speckit-specify` déclenche donc réellement
+  `before_specify` → `/speckit-git-feature`, qui crée la branche. C'est un
+  renversement : en 0.9.2 l'extension ne s'enregistrait que pour `agy` et
+  `codex`, et ces hooks ne partaient jamais. Les SKILL.md 0.15.0 l'écrivent
+  noir sur blanc — annoncer le hook ne l'exécute pas, il faut l'invoquer.
+- **La branche ne porte plus l'identité de la feature** : le
+  `create-new-feature.sh` du core ne touche plus à git du tout (ni `fetch`, ni
+  `checkout -b`) et numérote d'après `specs/` seul. La feature courante se lit
+  dans `.specify/feature.json` (clé `feature_directory`, fichier **suivi**) ou
+  dans `SPECIFY_FEATURE_DIRECTORY` ; `check-prerequisites.sh` ne valide plus le
+  nom de branche. Conséquence utile ici : un worktree Superpowers dont la
+  branche ne suit aucune convention Spec Kit ne bloque plus `/speckit-plan`.
+  La création de branche, elle, vit dans l'extension (`/speckit-git-feature`).
+- **Les commits-gate, eux, restent inertes** : dans
+  `.specify/extensions/git/git-config.yml`, `auto_commit.default` vaut `false`
+  et chaque événement est à `false`. Les hooks `speckit.git.commit` partent,
+  lisent cette configuration et passent. Ne pas les activer à la légère : ils
+  committent via `git add .`, donc tout le worktree, sans égard au périmètre.
 
 ## Pile applicative
 
