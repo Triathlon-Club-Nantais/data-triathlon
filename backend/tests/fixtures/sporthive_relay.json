@@ -1,0 +1,100 @@
+{
+  "content": [
+    {
+      "name": "LA COUSINADE",
+      "bib": "438",
+      "overallPosition": 1,
+      "categoryPosition": 1,
+      "genderPosition": null,
+      "gender": "U",
+      "raceCategory": null,
+      "chipTimeOfParticipant": "01:01:50",
+      "gunTimeOfParticipant": "01:01:55",
+      "teamName": null,
+      "teamId": null,
+      "country": "FRA",
+      "validity": null,
+      "dns": false,
+      "dsq": false,
+      "activeLocation": {"latitude": 0.0, "longitude": 0.0},
+      "tags": [
+        {"tag": "438", "tp": "b"},
+        {"tag": "la cousinade", "tp": "n"},
+        {"tag": "la", "tp": "n"},
+        {"tag": "cousinade", "tp": "n"}
+      ],
+      "legs": [
+        {"sportName": "SWIM", "type": "Swimming", "legDuration": "00:09:58", "totalDuration": "00:09:58", "distanceInMeters": 750, "rank": 1, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:01:40", "totalDuration": "00:11:38", "distanceInMeters": 0, "rank": 1, "participantSplits": []},
+        {"sportName": "BIKE", "type": "Cycling", "legDuration": "00:30:22", "totalDuration": "00:42:00", "distanceInMeters": 20000, "rank": 1, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:01:25", "totalDuration": "00:43:25", "distanceInMeters": 0, "rank": 1, "participantSplits": []},
+        {"sportName": "RUN", "type": "Running", "legDuration": "00:18:25", "totalDuration": "01:01:50", "distanceInMeters": 5000, "rank": 1, "participantSplits": []}
+      ]
+    },
+    {
+      "name": "LES TRIATHLETES DE ST GILLES",
+      "bib": "441",
+      "overallPosition": 2,
+      "categoryPosition": 2,
+      "genderPosition": null,
+      "gender": "U",
+      "raceCategory": null,
+      "chipTimeOfParticipant": "01:04:12",
+      "gunTimeOfParticipant": "01:04:18",
+      "teamName": null,
+      "teamId": null,
+      "country": "FRA",
+      "validity": null,
+      "dns": false,
+      "dsq": false,
+      "activeLocation": {"latitude": 0.0, "longitude": 0.0},
+      "tags": [
+        {"tag": "441", "tp": "b"},
+        {"tag": "les triathletes de st gilles", "tp": "n"}
+      ],
+      "legs": [
+        {"sportName": "SWIM", "type": "Swimming", "legDuration": "00:10:30", "totalDuration": "00:10:30", "distanceInMeters": 750, "rank": 2, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:01:52", "totalDuration": "00:12:22", "distanceInMeters": 0, "rank": 2, "participantSplits": []},
+        {"sportName": "BIKE", "type": "Cycling", "legDuration": "00:31:15", "totalDuration": "00:43:37", "distanceInMeters": 20000, "rank": 2, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:01:33", "totalDuration": "00:45:10", "distanceInMeters": 0, "rank": 2, "participantSplits": []},
+        {"sportName": "RUN", "type": "Running", "legDuration": "00:19:02", "totalDuration": "01:04:12", "distanceInMeters": 5000, "rank": 2, "participantSplits": []}
+      ]
+    },
+    {
+      "name": "EQUIPE 460",
+      "bib": "460",
+      "overallPosition": 3,
+      "categoryPosition": 3,
+      "genderPosition": null,
+      "gender": "U",
+      "raceCategory": null,
+      "chipTimeOfParticipant": "01:07:35",
+      "gunTimeOfParticipant": "01:07:41",
+      "teamName": null,
+      "teamId": null,
+      "country": "FRA",
+      "validity": null,
+      "dns": false,
+      "dsq": false,
+      "activeLocation": {"latitude": 0.0, "longitude": 0.0},
+      "tags": [
+        {"tag": "460", "tp": "b"},
+        {"tag": "equipe 460", "tp": "n"}
+      ],
+      "legs": [
+        {"sportName": "SWIM", "type": "Swimming", "legDuration": "00:11:05", "totalDuration": "00:11:05", "distanceInMeters": 750, "rank": 3, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:02:03", "totalDuration": "00:13:08", "distanceInMeters": 0, "rank": 3, "participantSplits": []},
+        {"sportName": "BIKE", "type": "Cycling", "legDuration": "00:32:40", "totalDuration": "00:45:48", "distanceInMeters": 20000, "rank": 3, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:01:47", "totalDuration": "00:47:35", "distanceInMeters": 0, "rank": 3, "participantSplits": []},
+        {"sportName": "RUN", "type": "Running", "legDuration": "00:20:00", "totalDuration": "01:07:35", "distanceInMeters": 5000, "rank": 3, "participantSplits": []}
+      ]
+    }
+  ],
+  "number": 0,
+  "size": 10,
+  "totalElements": 3,
+  "totalPages": 1,
+  "first": true,
+  "last": true,
+  "numberOfElements": 3
+}

@@ -1,0 +1,16 @@
+[
+  {
+    "id": "7242234087144997120",
+    "activeRaceId": 1,
+    "raceName": "Triathlon S",
+    "classificationsCount": 13,
+    "distanceInMeter": 25750
+  },
+  {
+    "id": "7242234087144997199",
+    "activeRaceId": 9,
+    "raceName": "Triathlon Decouverte",
+    "classificationsCount": 0,
+    "distanceInMeter": 12000
+  }
+]

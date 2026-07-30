@@ -1,0 +1,314 @@
+{
+  "content": [
+    {
+      "name": "Eliott JOUSSEMET",
+      "bib": "117",
+      "overallPosition": 1,
+      "categoryPosition": 1,
+      "genderPosition": 1,
+      "gender": "M",
+      "raceCategory": "S2M",
+      "chipTimeOfParticipant": "00:54:12.1230000",
+      "gunTimeOfParticipant": "00:54:20",
+      "teamName": "TRI VELOCE SAINT SEBASTIEN",
+      "teamId": "7242234087144998001",
+      "country": "FRA",
+      "validity": null,
+      "dns": false,
+      "dsq": false,
+      "activeLocation": {"latitude": 0.0, "longitude": 0.0},
+      "tags": [
+        {"tag": "117", "tp": "b"},
+        {"tag": "eliott joussemet", "tp": "n"},
+        {"tag": "eliott", "tp": "n"},
+        {"tag": "joussemet", "tp": "n"}
+      ],
+      "legs": [
+        {"sportName": "SWIM", "type": "Swimming", "legDuration": "00:08:51", "totalDuration": "00:08:51", "distanceInMeters": 750, "rank": 1, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:01:20", "totalDuration": "00:10:11", "distanceInMeters": 0, "rank": 2, "participantSplits": []},
+        {"sportName": "BIKE", "type": "Cycling", "legDuration": "00:26:38", "totalDuration": "00:36:49", "distanceInMeters": 20000, "rank": 1, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:01:05", "totalDuration": "00:37:54", "distanceInMeters": 0, "rank": 1, "participantSplits": []},
+        {"sportName": "RUN", "type": "Running", "legDuration": "00:16:18", "totalDuration": "00:54:12", "distanceInMeters": 5000, "rank": 1, "participantSplits": []}
+      ]
+    },
+    {
+      "name": "Victor LE MAUFF",
+      "bib": "203",
+      "overallPosition": 2,
+      "categoryPosition": 1,
+      "genderPosition": 2,
+      "gender": "M",
+      "raceCategory": "S3M",
+      "chipTimeOfParticipant": "00:56:01",
+      "gunTimeOfParticipant": "00:56:10",
+      "teamName": "LES SABLES VENDEE TRI",
+      "teamId": "7242234087144998002",
+      "country": "FRA",
+      "validity": null,
+      "dns": false,
+      "dsq": false,
+      "activeLocation": {"latitude": 0.0, "longitude": 0.0},
+      "tags": [
+        {"tag": "203", "tp": "b"},
+        {"tag": "victor le mauff", "tp": "n"},
+        {"tag": "victor", "tp": "n"},
+        {"tag": "le", "tp": "n"},
+        {"tag": "mauff", "tp": "n"}
+      ],
+      "legs": [
+        {"sportName": "SWIM", "type": "Swimming", "legDuration": "00:09:12", "totalDuration": "00:09:12", "distanceInMeters": 750, "rank": 3, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:01:28", "totalDuration": "00:10:40", "distanceInMeters": 0, "rank": 4, "participantSplits": []},
+        {"sportName": "BIKE", "type": "Cycling", "legDuration": "00:27:05", "totalDuration": "00:37:45", "distanceInMeters": 20000, "rank": 2, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:01:11", "totalDuration": "00:38:56", "distanceInMeters": 0, "rank": 2, "participantSplits": []},
+        {"sportName": "RUN", "type": "Running", "legDuration": "00:17:05", "totalDuration": "00:56:01", "distanceInMeters": 5000, "rank": 2, "participantSplits": []}
+      ]
+    },
+    {
+      "name": "Thomas RENAUD",
+      "bib": "426",
+      "overallPosition": 3,
+      "categoryPosition": 1,
+      "genderPosition": 3,
+      "gender": "M",
+      "raceCategory": "V1M",
+      "chipTimeOfParticipant": "00:57:33.2510000",
+      "gunTimeOfParticipant": "00:57:41",
+      "teamName": "TRI CLUB NANTAIS",
+      "teamId": "7242234087144998003",
+      "country": "FRA",
+      "validity": null,
+      "dns": false,
+      "dsq": false,
+      "activeLocation": {"latitude": 0.0, "longitude": 0.0},
+      "tags": [
+        {"tag": "426", "tp": "b"},
+        {"tag": "thomas renaud", "tp": "n"},
+        {"tag": "thomas", "tp": "n"},
+        {"tag": "renaud", "tp": "n"},
+        {"tag": "tri club nantais", "tp": "t"}
+      ],
+      "legs": [
+        {"sportName": "SWIM", "type": "Swimming", "legDuration": "00:09:46", "totalDuration": "00:09:46", "distanceInMeters": 750, "rank": 8, "participantSplits": [
+          {"splitName": ".75 km", "splitDuration": "00:09:45.551", "splitSpeed": 1.28}
+        ]},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:01:32", "totalDuration": "00:11:18", "distanceInMeters": 0, "rank": 12, "participantSplits": []},
+        {"sportName": "BIKE", "type": "Cycling", "legDuration": "00:27:43", "totalDuration": "00:39:01", "distanceInMeters": 20000, "rank": 5, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:01:14", "totalDuration": "00:40:15", "distanceInMeters": 0, "rank": 6, "participantSplits": []},
+        {"sportName": "RUN", "type": "Running", "legDuration": "00:17:21", "totalDuration": "00:57:36", "distanceInMeters": 5000, "rank": 4, "participantSplits": []}
+      ]
+    },
+    {
+      "name": "Camille BERTIN",
+      "bib": "312",
+      "overallPosition": 4,
+      "categoryPosition": 1,
+      "genderPosition": 1,
+      "gender": "F",
+      "raceCategory": "S4F",
+      "chipTimeOfParticipant": "00:58:47",
+      "gunTimeOfParticipant": "00:58:55",
+      "teamName": "ASPTT NANTES TRI",
+      "teamId": "7242234087144998004",
+      "country": "FRA",
+      "validity": null,
+      "dns": false,
+      "dsq": false,
+      "activeLocation": {"latitude": 0.0, "longitude": 0.0},
+      "tags": [
+        {"tag": "312", "tp": "b"},
+        {"tag": "camille bertin", "tp": "n"}
+      ],
+      "legs": [
+        {"sportName": "SWIM", "type": "Swimming", "legDuration": "00:10:02", "totalDuration": "00:10:02", "distanceInMeters": 750, "rank": 14, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:01:41", "totalDuration": "00:11:43", "distanceInMeters": 0, "rank": 20, "participantSplits": []},
+        {"sportName": "BIKE", "type": "Cycling", "legDuration": "00:28:30", "totalDuration": "00:40:13", "distanceInMeters": 20000, "rank": 9, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:01:19", "totalDuration": "00:41:32", "distanceInMeters": 0, "rank": 11, "participantSplits": []},
+        {"sportName": "RUN", "type": "Running", "legDuration": "00:17:15", "totalDuration": "00:58:47", "distanceInMeters": 5000, "rank": 3, "participantSplits": []}
+      ]
+    },
+    {
+      "name": "Oliver Scott",
+      "bib": "521",
+      "overallPosition": 5,
+      "categoryPosition": 2,
+      "genderPosition": 4,
+      "gender": "M",
+      "raceCategory": "O45-49",
+      "chipTimeOfParticipant": "00:59:02",
+      "gunTimeOfParticipant": null,
+      "teamName": null,
+      "teamId": null,
+      "country": "UK",
+      "validity": null,
+      "dns": false,
+      "dsq": false,
+      "activeLocation": {"latitude": 0.0, "longitude": 0.0},
+      "tags": [
+        {"tag": "521", "tp": "b"},
+        {"tag": "oliver scott", "tp": "n"}
+      ],
+      "legs": [
+        {"sportName": "SWIM", "type": "Swimming", "legDuration": "00:10:20", "totalDuration": "00:10:20", "distanceInMeters": 750, "rank": 18, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:01:35", "totalDuration": "00:11:55", "distanceInMeters": 0, "rank": 15, "participantSplits": []},
+        {"sportName": "BIKE", "type": "Cycling", "legDuration": "00:28:11", "totalDuration": "00:40:06", "distanceInMeters": 20000, "rank": 7, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:01:22", "totalDuration": "00:41:28", "distanceInMeters": 0, "rank": 13, "participantSplits": []},
+        {"sportName": "RUN", "type": "Running", "legDuration": "00:17:34", "totalDuration": "00:59:02", "distanceInMeters": 5000, "rank": 6, "participantSplits": []}
+      ]
+    },
+    {
+      "name": "Marie DUPONT",
+      "bib": "144",
+      "overallPosition": 6,
+      "categoryPosition": 1,
+      "genderPosition": 2,
+      "gender": "F",
+      "raceCategory": "S1F",
+      "chipTimeOfParticipant": "01:00:15",
+      "gunTimeOfParticipant": "01:00:22",
+      "teamName": "TRI CLUB NANTAIS",
+      "teamId": "7242234087144998003",
+      "country": "FRA",
+      "validity": null,
+      "dns": false,
+      "dsq": false,
+      "activeLocation": {"latitude": 0.0, "longitude": 0.0},
+      "tags": [
+        {"tag": "144", "tp": "b"},
+        {"tag": "marie dupont", "tp": "n"},
+        {"tag": "tri club nantais", "tp": "t"}
+      ],
+      "legs": [
+        {"sportName": "SWIM", "type": "Swimming", "legDuration": "00:10:44", "totalDuration": "00:10:44", "distanceInMeters": 750, "rank": 22, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:01:50", "totalDuration": "00:12:34", "distanceInMeters": 0, "rank": 25, "participantSplits": []},
+        {"sportName": "BIKE", "type": "Cycling", "legDuration": "00:29:02", "totalDuration": "00:41:36", "distanceInMeters": 20000, "rank": 12, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:01:28", "totalDuration": "00:43:04", "distanceInMeters": 0, "rank": 18, "participantSplits": []},
+        {"sportName": "RUN", "type": "Running", "legDuration": "00:17:11", "totalDuration": "01:00:15", "distanceInMeters": 5000, "rank": 2, "participantSplits": []}
+      ]
+    },
+    {
+      "name": "Lucas MOREAU",
+      "bib": "289",
+      "overallPosition": 7,
+      "categoryPosition": 1,
+      "genderPosition": 5,
+      "gender": "M",
+      "raceCategory": "JUM",
+      "chipTimeOfParticipant": "01:01:30",
+      "gunTimeOfParticipant": "01:01:38",
+      "teamName": null,
+      "teamId": null,
+      "country": "FRA",
+      "validity": null,
+      "dns": false,
+      "dsq": false,
+      "activeLocation": {"latitude": 0.0, "longitude": 0.0},
+      "tags": [
+        {"tag": "289", "tp": "b"},
+        {"tag": "lucas moreau", "tp": "n"}
+      ],
+      "legs": [
+        {"sportName": "SWIM", "type": "Swimming", "legDuration": "00:11:02", "totalDuration": "00:11:02", "distanceInMeters": 750, "rank": 27, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:01:44", "totalDuration": "00:12:46", "distanceInMeters": 0, "rank": 21, "participantSplits": []},
+        {"sportName": "BIKE", "type": "Cycling", "legDuration": "00:29:38", "totalDuration": "00:42:24", "distanceInMeters": 20000, "rank": 16, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:01:33", "totalDuration": "00:43:57", "distanceInMeters": 0, "rank": 22, "participantSplits": []},
+        {"sportName": "RUN", "type": "Running", "legDuration": "00:17:33", "totalDuration": "01:01:30", "distanceInMeters": 5000, "rank": 5, "participantSplits": []}
+      ]
+    },
+    {
+      "name": "Sophie LEROY",
+      "bib": "377",
+      "overallPosition": 8,
+      "categoryPosition": 1,
+      "genderPosition": 3,
+      "gender": "F",
+      "raceCategory": "V2F",
+      "chipTimeOfParticipant": "01:02:44",
+      "gunTimeOfParticipant": "01:02:51",
+      "teamName": "TRI VELOCE SAINT SEBASTIEN",
+      "teamId": "7242234087144998001",
+      "country": "FRA",
+      "validity": null,
+      "dns": false,
+      "dsq": false,
+      "activeLocation": {"latitude": 0.0, "longitude": 0.0},
+      "tags": [
+        {"tag": "377", "tp": "b"},
+        {"tag": "sophie leroy", "tp": "n"}
+      ],
+      "legs": [
+        {"sportName": "SWIM", "type": "Swimming", "legDuration": "00:11:20", "totalDuration": "00:11:20", "distanceInMeters": 750, "rank": 30, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:01:58", "totalDuration": "00:13:18", "distanceInMeters": 0, "rank": 28, "participantSplits": []},
+        {"sportName": "BIKE", "type": "Cycling", "legDuration": "00:30:11", "totalDuration": "00:43:29", "distanceInMeters": 20000, "rank": 19, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:01:41", "totalDuration": "00:45:10", "distanceInMeters": 0, "rank": 26, "participantSplits": []},
+        {"sportName": "RUN", "type": "Running", "legDuration": "00:17:34", "totalDuration": "01:02:44", "distanceInMeters": 5000, "rank": 7, "participantSplits": []}
+      ]
+    },
+    {
+      "name": "ABDELHAMID MOUSSAOUI",
+      "bib": "455",
+      "overallPosition": 9,
+      "categoryPosition": null,
+      "genderPosition": null,
+      "gender": "U",
+      "raceCategory": null,
+      "chipTimeOfParticipant": null,
+      "gunTimeOfParticipant": "01:03:58",
+      "teamName": null,
+      "teamId": null,
+      "country": null,
+      "validity": null,
+      "dns": false,
+      "dsq": false,
+      "activeLocation": {"latitude": 0.0, "longitude": 0.0},
+      "tags": [
+        {"tag": "455", "tp": "b"},
+        {"tag": "abdelhamid moussaoui", "tp": "n"}
+      ],
+      "legs": [
+        {"sportName": "SWIM", "type": "Swimming", "legDuration": "00:11:48", "totalDuration": "00:11:48", "distanceInMeters": 750, "rank": 33, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:02:05", "totalDuration": "00:13:53", "distanceInMeters": 0, "rank": 31, "participantSplits": []},
+        {"sportName": "BIKE", "type": "Cycling", "legDuration": "00:30:44", "totalDuration": "00:44:37", "distanceInMeters": 20000, "rank": 23, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:01:47", "totalDuration": "00:46:24", "distanceInMeters": 0, "rank": 29, "participantSplits": []},
+        {"sportName": "RUN", "type": "Running", "legDuration": "00:17:34", "totalDuration": "01:03:58", "distanceInMeters": 5000, "rank": 8, "participantSplits": []}
+      ]
+    },
+    {
+      "name": "Gemma  Cox",
+      "bib": "612",
+      "overallPosition": 10,
+      "categoryPosition": 1,
+      "genderPosition": 4,
+      "gender": "F",
+      "raceCategory": "Female Vet 70",
+      "chipTimeOfParticipant": "01:05:12",
+      "gunTimeOfParticipant": "01:05:19",
+      "teamName": null,
+      "teamId": null,
+      "country": "UK",
+      "validity": null,
+      "dns": false,
+      "dsq": false,
+      "activeLocation": {"latitude": 0.0, "longitude": 0.0},
+      "tags": [
+        {"tag": "612", "tp": "b"},
+        {"tag": "gemma", "tp": "n"},
+        {"tag": "", "tp": "n"},
+        {"tag": "cox", "tp": "n"}
+      ],
+      "legs": [
+        {"sportName": "SWIM", "type": "Swimming", "legDuration": "00:12:15", "totalDuration": "00:12:15", "distanceInMeters": 750, "rank": 36, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:02:12", "totalDuration": "00:14:27", "distanceInMeters": 0, "rank": 34, "participantSplits": []},
+        {"sportName": "BIKE", "type": "Cycling", "legDuration": "00:31:02", "totalDuration": "00:45:29", "distanceInMeters": 20000, "rank": 27, "participantSplits": []},
+        {"sportName": "TRANSITION", "type": "Transition", "legDuration": "00:01:55", "totalDuration": "00:47:24", "distanceInMeters": 0, "rank": 32, "participantSplits": []},
+        {"sportName": "RUN", "type": "Running", "legDuration": "00:17:48", "totalDuration": "01:05:12", "distanceInMeters": 5000, "rank": 9, "participantSplits": []}
+      ]
+    }
+  ],
+  "number": 0,
+  "size": 10,
+  "totalElements": 13,
+  "totalPages": 2,
+  "first": true,
+  "last": false,
+  "numberOfElements": 10
+}

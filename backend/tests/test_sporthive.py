@@ -21,7 +21,11 @@ from app.scrapers import sporthive
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
-def _fixture(nom: str) -> dict:
+def _fixture(nom: str) -> dict | list:
+    """`dict | list` : `/events/{id}/races` rend un **tableau nu**, non paginé.
+
+    Les autres routes rendent un objet (métadonnées, ou page Spring).
+    """
     return json.loads((FIXTURES / nom).read_text(encoding="utf-8"))
 
 

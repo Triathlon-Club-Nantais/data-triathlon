@@ -1,0 +1,61 @@
+{
+  "content": [
+    {
+      "name": "Erin Whitfield",
+      "bib": "2204",
+      "overallPosition": 42,
+      "categoryPosition": 7,
+      "genderPosition": null,
+      "gender": "U",
+      "raceCategory": null,
+      "chipTimeOfParticipant": null,
+      "gunTimeOfParticipant": null,
+      "teamName": "SURREY",
+      "teamId": "7242234087144999003",
+      "country": "UK",
+      "validity": null,
+      "dns": false,
+      "dsq": false,
+      "activeLocation": {"latitude": 0.0, "longitude": 0.0},
+      "tags": [
+        {"tag": "2204", "tp": "b"},
+        {"tag": "erin whitfield", "tp": "n"}
+      ],
+      "legs": [
+        {"sportName": null, "type": "Running", "legDuration": null, "totalDuration": null, "distanceInMeters": 6000, "rank": 42, "participantSplits": []}
+      ]
+    },
+    {
+      "name": "Owen Pritchard",
+      "bib": "2251",
+      "overallPosition": 0,
+      "categoryPosition": 0,
+      "genderPosition": null,
+      "gender": "U",
+      "raceCategory": null,
+      "chipTimeOfParticipant": null,
+      "gunTimeOfParticipant": null,
+      "teamName": "GWENT",
+      "teamId": "7242234087144999004",
+      "country": "UK",
+      "validity": null,
+      "dns": false,
+      "dsq": false,
+      "activeLocation": {"latitude": 0.0, "longitude": 0.0},
+      "tags": [
+        {"tag": "2251", "tp": "b"},
+        {"tag": "owen pritchard", "tp": "n"}
+      ],
+      "legs": [
+        {"sportName": null, "type": "Running", "legDuration": null, "totalDuration": null, "distanceInMeters": 6000, "rank": 0, "participantSplits": []}
+      ]
+    }
+  ],
+  "number": 0,
+  "size": 10,
+  "totalElements": 2,
+  "totalPages": 1,
+  "first": true,
+  "last": true,
+  "numberOfElements": 2
+}

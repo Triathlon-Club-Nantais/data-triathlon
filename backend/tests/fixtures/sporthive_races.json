@@ -1,0 +1,44 @@
+[
+  {
+    "id": "7242234087144997120",
+    "activeRaceId": 1,
+    "raceName": "Triathlon S",
+    "classificationsCount": 366,
+    "distanceInMeter": 25750
+  },
+  {
+    "id": "7242234087144997121",
+    "activeRaceId": 2,
+    "raceName": "Relais Triathlon S",
+    "classificationsCount": 29,
+    "distanceInMeter": 25750
+  },
+  {
+    "id": "7242234087144997122",
+    "activeRaceId": 3,
+    "raceName": "6-9 Ans",
+    "classificationsCount": 47,
+    "distanceInMeter": 3100
+  },
+  {
+    "id": "7242234087144997123",
+    "activeRaceId": 4,
+    "raceName": "10-13 Ans",
+    "classificationsCount": 103,
+    "distanceInMeter": 6200
+  },
+  {
+    "id": "7242234087144997124",
+    "activeRaceId": 5,
+    "raceName": "Triathlon M",
+    "classificationsCount": 382,
+    "distanceInMeter": 42700
+  },
+  {
+    "id": "7242234087144997125",
+    "activeRaceId": 6,
+    "raceName": "Relais Triathlon M",
+    "classificationsCount": 28,
+    "distanceInMeter": 42700
+  }
+]
