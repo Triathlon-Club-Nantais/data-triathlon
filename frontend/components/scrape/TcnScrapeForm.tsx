@@ -1,13 +1,16 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Card, Input, Button, Alert } from "@/components/tcn";
 import { apiClient } from "@/lib/api/client";
+import { eventTypeLabel } from "@/lib/constants";
+import { eventTypeColor } from "@/lib/sport-colors";
 import { useSaveParticipation } from "@/lib/queries/participations";
 import { useImportStream } from "@/hooks/useImportStream";
 import { ProviderDetector } from "./ProviderDetector";
 import { ManualResultForm } from "./ManualResultForm";
-import type { ScrapedPreview } from "@/lib/types";
+import type { ImportedCourse, ScrapedPreview } from "@/lib/types";
 
 export function TcnScrapeForm() {
   const [url, setUrl] = useState("");
@@ -16,7 +19,7 @@ export function TcnScrapeForm() {
 
   const save = useSaveParticipation();
   const importStream = useImportStream();
-  const { phase, error, running, imported, skipped, total, progress, cached, message } = importStream.state;
+  const { phase, error, running, imported, skipped, total, progress, cached, message, courses } = importStream.state;
 
   const submit = useCallback(() => {
     const v = url.trim();
@@ -89,6 +92,7 @@ export function TcnScrapeForm() {
             <Alert status="success" title="Résultats enregistrés avec succès !">
               {imported} résultat{imported > 1 ? "s" : ""} ajouté{imported > 1 ? "s" : ""}
               {skipped > 0 ? ` · ${skipped} déjà présent${skipped > 1 ? "s" : ""}` : ""}. Les statistiques du club ont été mises à jour.
+              <CourseNavigator courses={courses} />
             </Alert>
           </div>
         )}
@@ -96,6 +100,7 @@ export function TcnScrapeForm() {
           <div style={{ marginTop: 14 }}>
             <Alert status="error" title="Résultats déjà enregistrés">
               Ces résultats ont déjà été ajoutés. Les statistiques sont à jour ({skipped} participants en base).
+              <CourseNavigator courses={courses} />
             </Alert>
           </div>
         )}
@@ -120,6 +125,217 @@ export function TcnScrapeForm() {
         </Card>
       )}
     </>
+  );
+}
+
+/** Bouton d'action TCN rendu en `<a>` : mêmes styles que `Button variant="primary"`,
+ *  mais navigable au clavier et par les crawlers. Utilisé pour aller vers /courses/{id}
+ *  depuis les alertes de fin d'import (#135).
+ */
+function PrimaryLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "12px 20px",
+        fontSize: 14,
+        fontFamily: "var(--tcn-font-body)",
+        fontWeight: 800,
+        lineHeight: 1,
+        color: "#fff",
+        background: "var(--tcn-orange)",
+        borderRadius: "var(--tcn-radius-lg)",
+        boxShadow: "var(--tcn-shadow-orange)",
+        textDecoration: "none",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {children}
+    </Link>
+  );
+}
+
+/** Point d'entrée vers les résultats d'un import.
+ *
+ *  - 0 course : rien (import vide ou en erreur).
+ *  - 1 course : un unique bouton primary, filant droit vers `/courses/{id}`.
+ *  - N courses (heats Klikego, Wiclax, RaceResult multi-listes) : un sélecteur
+ *    pour choisir la course + un bouton `Voir les résultats` — plus lisible
+ *    qu'une grille de N boutons quand N dépasse 3-4.
+ */
+function CourseNavigator({ courses }: { courses: ImportedCourse[] }) {
+  // Sélection brute : ce que l'utilisateur a cliqué (vide au premier rendu).
+  // La valeur d'affichage est **dérivée** ci-dessous — pas d'`useEffect`
+  // pour la synchroniser à `courses`, car un setState dans effect cascade
+  // le rendu et déclenche l'erreur `react-hooks/set-state-in-effect`.
+  const [selectedId, setSelectedId] = useState<string>("");
+
+  if (courses.length === 0) return null;
+
+  // Fallback à la 1re course tant que l'utilisateur n'a rien choisi, **et**
+  // si sa sélection ne fait plus partie des courses (scénario improbable :
+  // le SSE re-yield une phase `done` sur une nouvelle épreuve).
+  const stillPresent = courses.some((c) => String(c.id) === selectedId);
+  const effectiveId = stillPresent ? selectedId : String(courses[0].id);
+
+  if (courses.length === 1) {
+    const c = courses[0];
+    return (
+      <div style={{ marginTop: 12 }}>
+        <PrimaryLink href={`/courses/${c.id}`}>
+          Voir les résultats de « {c.name} » <span aria-hidden="true">→</span>
+        </PrimaryLink>
+      </div>
+    );
+  }
+
+  const selectedCourse = courses.find((c) => String(c.id) === effectiveId) ?? courses[0];
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div
+        style={{
+          fontFamily: "var(--tcn-font-cond)",
+          fontSize: 12,
+          fontWeight: 700,
+          letterSpacing: "var(--tcn-eyebrow-tracking)",
+          textTransform: "uppercase",
+          color: "var(--tcn-orange)",
+          marginBottom: 8,
+        }}
+      >
+        {courses.length} courses importées
+      </div>
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          gap: 10,
+        }}
+      >
+        <CourseSelectField
+          courses={courses}
+          selectedId={effectiveId}
+          selectedCourse={selectedCourse}
+          onChange={setSelectedId}
+        />
+        <PrimaryLink href={`/courses/${effectiveId}`}>
+          Voir les résultats <span aria-hidden="true">→</span>
+        </PrimaryLink>
+      </div>
+    </div>
+  );
+}
+
+/** `<select>` natif restylé TCN : bord épais, pastille de discipline colorée
+ *  à gauche, chevron custom, focus visible orange. Prend la variante
+ *  « Input » (bg `--tcn-fill`, radius XL, transition sur `border-color`) pour
+ *  rester cohérent avec le champ URL juste au-dessus.
+ */
+function CourseSelectField({
+  courses,
+  selectedId,
+  selectedCourse,
+  onChange,
+}: {
+  courses: ImportedCourse[];
+  selectedId: string;
+  selectedCourse: ImportedCourse;
+  onChange: (id: string) => void;
+}) {
+  const [focused, setFocused] = useState(false);
+  const dotColor = eventTypeColor(selectedCourse.event_type);
+  return (
+    <label
+      style={{
+        position: "relative",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 10,
+        minWidth: 320,
+        flex: "1 1 320px",
+        padding: "12px 42px 12px 16px",
+        background: "var(--tcn-fill)",
+        border: `1.5px solid ${focused ? "var(--tcn-orange)" : "var(--tcn-border)"}`,
+        borderRadius: "var(--tcn-radius-xl)",
+        transition: "border-color var(--tcn-dur-fast)",
+        cursor: "pointer",
+      }}
+    >
+      <span
+        aria-hidden="true"
+        style={{
+          flex: "none",
+          width: 10,
+          height: 10,
+          borderRadius: 999,
+          background: dotColor,
+          boxShadow: "0 0 0 3px color-mix(in oklch, " + dotColor + " 15%, transparent)",
+        }}
+      />
+      <span
+        style={{
+          flex: 1,
+          minWidth: 0,
+          fontFamily: "var(--tcn-font-body)",
+          fontSize: 15,
+          fontWeight: 600,
+          color: "var(--tcn-ink)",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        {selectedCourse.name}
+        <span style={{ color: "var(--tcn-text-muted)", fontWeight: 500 }}>
+          {" · "}
+          {eventTypeLabel(selectedCourse.event_type)}
+        </span>
+      </span>
+      <span
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          right: 16,
+          top: "50%",
+          transform: "translateY(-50%)",
+          color: "var(--tcn-text-muted)",
+          fontSize: 12,
+          fontWeight: 800,
+          pointerEvents: "none",
+        }}
+      >
+        ▾
+      </span>
+      <select
+        aria-label="Choisir la course à consulter"
+        value={selectedId}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          opacity: 0,
+          cursor: "pointer",
+          border: "none",
+          background: "transparent",
+          appearance: "none",
+        }}
+      >
+        {courses.map((c) => (
+          <option key={c.id} value={String(c.id)}>
+            {c.name} · {eventTypeLabel(c.event_type)}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
