@@ -31,6 +31,11 @@ jobs:
         run: curl -fsSL -X POST --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 "${{ secrets.RENDER_DEPLOY_HOOK_PREVIEW }}"
 
       - uses: actions/checkout@v4
+        with:
+          # `fetch-depth: 0` : `git describe --tags` a besoin de l'historique
+          # complet pour trouver le tag le plus récent (le shallow clone par
+          # défaut de checkout@v4 n'inclut ni tags ni commits antérieurs).
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -38,14 +43,22 @@ jobs:
 
       - run: npm i -g vercel@54 # major épinglé : évite qu'une release Vercel casse le pipeline
 
+      - name: Compute app version
+        id: version
+        # Ref courante en priorité (branche PR sur workflow_dispatch, ou main),
+        # sinon `git describe` sur main. `--always` fallback sur SHA court.
+        run: echo "value=$(git describe --tags --always 2>/dev/null || echo dev)" >> "$GITHUB_OUTPUT"
+
       - name: Vercel (frontend) — preview
         # Pas de working-directory : le Root Directory (frontend) est déjà configuré côté projet Vercel.
+        # `NEXT_PUBLIC_APP_VERSION` est lu par `VersionFooter` (#134) et embarqué au build.
         run: |
           vercel pull --yes --environment=preview --token="$VERCEL_TOKEN"
           vercel build --token="$VERCEL_TOKEN"
           vercel deploy --prebuilt --token="$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          NEXT_PUBLIC_APP_VERSION: ${{ steps.version.outputs.value }}
 
   # ---- PRODUCTION : tag v* ----
   deploy-production:
@@ -61,6 +74,8 @@ jobs:
         run: curl -fsSL -X POST --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 "${{ secrets.RENDER_DEPLOY_HOOK_PROD }}"
 
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # `git describe` a besoin des tags (cf. job preview)
 
       - uses: actions/setup-node@v4
         with:
@@ -68,11 +83,19 @@ jobs:
 
       - run: npm i -g vercel@54 # major épinglé : évite qu'une release Vercel casse le pipeline
 
+      - name: Compute app version
+        id: version
+        # Sur un push de tag, `github.ref_name` est directement le tag (`v0.1.3`).
+        # `git describe` marche aussi mais on privilégie la source explicite.
+        run: echo "value=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+
       - name: Vercel (frontend) — production
         # Pas de working-directory : le Root Directory (frontend) est déjà configuré côté projet Vercel.
+        # `NEXT_PUBLIC_APP_VERSION` est lu par `VersionFooter` (#134) et embarqué au build.
         run: |
           vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
           vercel build --prod --token="$VERCEL_TOKEN"
           vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          NEXT_PUBLIC_APP_VERSION: ${{ steps.version.outputs.value }}
