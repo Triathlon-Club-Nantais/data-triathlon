@@ -11,6 +11,7 @@ Les URLs (événements passés/stables) sont documentées dans
 Assertions volontairement souples (les données d'épreuve évoluent) : le scraper
 doit renvoyer ≥1 participant avec au moins un nom et un temps total peuplés.
 """
+from collections import Counter
 from datetime import date
 
 import pytest
@@ -50,6 +51,12 @@ LIVE_URLS = {
     "runnerbreizh": (
         "https://www.runnerbreizh.fr/requetetriathlons.php"
         "?CourseFichierGpsNom=2025-09-0749quiberon&page=2&tricourse=&Sexe="
+    ),
+    # Sporthive : l'unique lien du Sheet, dossard 426 du Triathlon S de Sud
+    # Vendée 2024 — un membre du TCN. La forme `/races/1/bib/{b}` est celle du
+    # Sheet, et son `1` est un **ordinal local** : cf. le test dédié.
+    "sporthive": (
+        "https://results.sporthive.com/events/7237011278055708416/races/1/bib/426"
     ),
 }
 
@@ -470,3 +477,74 @@ def test_runnerbreizh_importe_toute_lepreuve_depuis_une_page_intermediaire():
     )
     assert all(r.event_name == "Triathlon de Quiberon M" for r in results)
     assert all(not r.bib_number and not r.club for r in results)
+
+
+#: Classés annoncés par `/events/{id}/races` pour les 6 courses de l'événement du
+#: Sheet, mesurés au sondage du 29/07/2026 (32 courses, égalité vérifiée 32/32).
+_SPORTHIVE_CLASSES = [28, 29, 47, 103, 366, 382]
+
+
+@pytest.mark.integration
+def test_sporthive_importe_tout_levenement_sans_epreuve_etrangere():
+    """Triathlon Sud Vendée 2024 : 6 courses, 955 participations, ≈ 100 requêtes.
+
+    C'est le test qui casse **en premier** si MYLAPS redéplace son API (D13) —
+    c'est déjà arrivé une fois, l'hôte annoncé par l'issue #53 ne présente plus
+    qu'un certificat `*.azurewebsites.net`. L'adresse fait alors autorité dans
+    `GET sporthive.com/api/clientSettings`, pas dans le code du scraper.
+
+    Deux invariants ne se voient pas sur fixture :
+
+    - **SC-002** : chaque course atteint le nombre de classés annoncé. La garde
+      de complétude écartant toute course tronquée, obtenir les 6 prouve
+      qu'aucune ne l'a été ; la distribution exacte le prouve course par course.
+    - **SC-004** : aucune participation n'atterrit sous une épreuve étrangère.
+      L'URL porte `/races/1`, et sur la source réelle `GET /races/1` répond
+      **200** en rendant une épreuve de 2015 (1 173 classés) : si l'ordinal
+      était pris pour un identifiant de course, ce test verrait une autre date
+      et un autre nom, sans qu'aucune erreur ne soit levée.
+    """
+    results = registry.scrape_event_all(LIVE_URLS["sporthive"])
+
+    assert len(results) == 955
+    par_course = Counter(r.event_name for r in results)
+    assert len(par_course) == 6
+    assert sorted(par_course.values()) == _SPORTHIVE_CLASSES
+
+    # SC-004 : un seul événement, une seule date — celle de Sud Vendée 2024.
+    assert all(r.event_date == date(2024, 9, 22) for r in results)
+    assert all(r.event_name.startswith("Triathlon Sud Vendee Dimanche") for r in results)
+    # Les deux courses de relais, et elles seules, sortent en `is_relay`.
+    assert {r.event_name for r in results if r.is_relay} == {
+        nom for nom in par_course if "Relais" in nom
+    }
+
+    # SC-001 : le membre du TCN du lien est bien là, avec ses splits en français.
+    tcn = [r for r in results if is_tcn(r.club)]
+    assert tcn, "aucune participation TCN sur l'épreuve du Sheet"
+    assert any(r.bib_number == "426" for r in tcn)
+    assert any(dict(r.segments or []).get("natation") for r in tcn)
+
+
+@pytest.mark.integration
+def test_sporthive_nappelle_jamais_lordinal_de_course_de_lurl():
+    """Le pendant réseau du verrou de non-régression sur fixture (D1, FR-004).
+
+    `GET /races/1/participants` répond 200 sur la source réelle. On le vérifie
+    ici plutôt que de le supposer : si la route cessait de répondre, le test sur
+    fixture continuerait de passer sans que le piège ait disparu.
+    """
+    import httpx
+
+    from app.scrapers import sporthive
+
+    with httpx.Client(timeout=20, headers=sporthive._HEADERS) as client:
+        reponse = client.get(
+            f"{sporthive._API_BASE}/races/1/participants", params={"page": 0, "size": 10}
+        )
+
+    assert reponse.status_code == 200, (
+        "la route piège ne répond plus : le verrou de non-régression perd son objet"
+    )
+    etranger = reponse.json().get("content") or []
+    assert etranger, "l'ordinal /races/1 rend un classement — c'est bien un piège actif"
