@@ -1,22 +1,34 @@
 """
-Test harness for scrapers/sporthive.py (network-free) — T002.
+Tests for scrapers/sporthive.py — **network-free** (constitution, principle III).
 
-No scraper behaviour test here: at this stage `scrape_event_all` raises
-`NotImplementedError` (T001), there is nothing to expect from it yet. This
-file lays down the tool the next batches will rely on — fake HTTP client +
-per-route call counter — and a single test exercising the harness itself, so a
-broken harness doesn't surface later as a fake implementation failure.
-
-JSON fixtures expected under `fixtures/sporthive_*.json` (dropped in batch 2):
+`httpx.Client` is monkeypatched by `FakeClient`, and every payload comes from a
+JSON fixture under `fixtures/sporthive_*.json`, captured from the panel of the
+sondage (`docs/superpowers/specs/2026-07-29-sporthive-sondage.md`, ground truth:
+it outranks the design and the plan on any factual disagreement). Fixtures are
 loaded via `_fixture`, never read by hand.
+
+`FakeClient.calls` is not merely a counter: several tests here assert the
+**absence** of a request — none to a race announcing zero entrants, none to the
+`/races/1` ordinal — and an absence cannot be shown with a payload.
 """
+import copy
 import json
+import logging
+from datetime import date
 from pathlib import Path
 
 import httpx
 import pytest
 
 from app.scrapers import sporthive
+from app.scrapers.base import (
+    STATUS_DNF,
+    STATUS_DNS,
+    STATUS_DSQ,
+    STATUS_FINISHER,
+)
+from app.scrapers.classify import classify_event_type
+from app.services.mapping import build_splits
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -278,3 +290,514 @@ def test_fetch_json_lets_a_server_error_through_untranslated():
 
     with pytest.raises(httpx.HTTPError):
         sporthive._fetch_races(client, _EVENT_ID)
+
+
+# ---------------------------------------------------------------------------
+# Event scraping (T012–T021) — shared scaffolding
+# ---------------------------------------------------------------------------
+
+URL_SHEET = f"https://results.sporthive.com/events/{_EVENT_ID}/races/1/bib/426"
+
+
+def _page(participants: list[dict], *, last: bool = True) -> dict:
+    """A Spring page around `participants`.
+
+    `totalElements` / `totalPages` are filled in for realism only: the scraper
+    must never read them (D4). A test that started depending on them would be
+    testing the wrong thing.
+    """
+    return {
+        "content": participants,
+        "number": 0,
+        "size": 10,
+        "totalElements": len(participants),
+        "totalPages": 1,
+        "first": True,
+        "last": last,
+        "numberOfElements": len(participants),
+    }
+
+
+def _course(ordinal: int, *, annonces: int = 1, nom: str = "", distance: int = 25750) -> dict:
+    """One race of `/events/{id}/races`.
+
+    `id` (snowflake) and `activeRaceId` (local ordinal) are deliberately kept
+    disjoint, as they are on all 32 races of the panel: a test whose two
+    identifiers happened to coincide would let trap n°1 through.
+    """
+    return {
+        "id": f"72422340871449971{ordinal:02d}",
+        "activeRaceId": ordinal,
+        "raceName": nom or f"Triathlon {ordinal}",
+        "classificationsCount": annonces,
+        "distanceInMeter": distance,
+    }
+
+
+def _participant(bib: str, **surcharges) -> dict:
+    """A finisher of the Sheet's Triathlon S (bib 426), bib overridden."""
+    base = copy.deepcopy(_fixture("sporthive_participants_p0.json")["content"][2])
+    base["bib"] = bib
+    base.update(surcharges)
+    return base
+
+
+def _routes(courses: list[dict], pages: dict[int, list[list[dict]]]) -> dict:
+    """Routes of a whole event. `pages` is keyed by `activeRaceId`, for
+    readability — the scraper still has to go through `id` to reach them.
+
+    `/races` is inserted **before** `/events/{id}`: the latter is a prefix of
+    the former, and `FakeClient` matches fragments in insertion order.
+    """
+    routes: dict = {
+        f"/events/{_EVENT_ID}/races": FakeResponse(courses),
+        f"/events/{_EVENT_ID}": FakeResponse(_fixture("sporthive_event.json")),
+    }
+    for course in courses:
+        lots = pages.get(course["activeRaceId"], [])
+        for numero, lot in enumerate(lots):
+            routes[f"/races/{course['id']}/participants?page={numero}"] = FakeResponse(
+                _page(lot, last=numero == len(lots) - 1)
+            )
+    return routes
+
+
+def _client_factice(monkeypatch, routes: dict, defaut: FakeResponse | None = None) -> FakeClient:
+    client = FakeClient(routes, defaut)
+    monkeypatch.setattr(sporthive.httpx, "Client", lambda *a, **k: client)
+    return client
+
+
+# ---------------------------------------------------------------------------
+# T012 — completeness guard: race scope, never event scope
+# ---------------------------------------------------------------------------
+
+
+def test_scrape_event_all_drops_only_the_truncated_race(monkeypatch, caplog):
+    """FR-008 / FR-008a: one race short of its announced count is dropped, the
+    five others are imported, and **nothing** propagates. Refusing the whole
+    event made it permanently unimportable — including the TCN members of the
+    five healthy races (alternative rejected in D4).
+    """
+    courses = [_course(n) for n in range(1, 7)]
+    courses[2]["classificationsCount"] = 2  # announces 2, only one will be served
+    pages = {n: [[_participant(f"{n}01")]] for n in range(1, 7)}
+    client = _client_factice(monkeypatch, _routes(courses, pages))
+
+    with caplog.at_level(logging.WARNING, logger=sporthive.__name__):
+        resultats = sporthive.scrape_event_all(URL_SHEET)
+
+    assert len(resultats) == 5
+    assert "301" not in {r.bib_number for r in resultats}
+    # The warning is the **only** trace: the CLI report counts events, so this
+    # one comes back a success with 5 races out of 6. Hence it must be usable
+    # on its own — race name, ordinal, and both counts.
+    journal = "\n".join(caplog.messages)
+    assert "Triathlon 3" in journal
+    assert "3" in journal and "1" in journal and "2" in journal
+    # The dropped race was really paginated, it wasn't skipped upstream.
+    assert client.calls_containing(f"/races/{courses[2]['id']}/participants")
+
+
+def test_scrape_event_all_accepts_a_race_that_gained_entrants(monkeypatch, caplog):
+    """The comparison is a **floor**, never an equality: a live race can gain
+    ranked entrants between `/races` and the end of pagination. The surplus is
+    logged, not refused (D4).
+    """
+    courses = [_course(1, annonces=1)]
+    pages = {1: [[_participant("101"), _participant("102")]]}
+    _client_factice(monkeypatch, _routes(courses, pages))
+
+    with caplog.at_level(logging.INFO, logger=sporthive.__name__):
+        resultats = sporthive.scrape_event_all(URL_SHEET)
+
+    assert len(resultats) == 2
+    assert any("2" in message and "1" in message for message in caplog.messages)
+
+
+# ---------------------------------------------------------------------------
+# T013 — a race with no ranked entrants costs no request
+# ---------------------------------------------------------------------------
+
+
+def test_scrape_event_all_skips_a_race_without_entrants_and_never_calls_it(monkeypatch, caplog):
+    """FR-008b / D14. The skip is not cosmetic: an empty `Course` has no
+    participation without `total_time`, so `cache.is_in_progress` calls it
+    finished and freezes the **whole event**'s re-scrape for 30 days — the six
+    races share one `source_url`.
+    """
+    courses = _fixture("sporthive_races_empty.json")
+    routes = {
+        f"/events/{_EVENT_ID}/races": FakeResponse(courses),
+        f"/events/{_EVENT_ID}": FakeResponse(_fixture("sporthive_event.json")),
+        f"/races/{courses[0]['id']}/participants?page=0": FakeResponse(
+            _fixture("sporthive_participants_p0.json")
+        ),
+        f"/races/{courses[0]['id']}/participants?page=1": FakeResponse(
+            _fixture("sporthive_participants_p1.json")
+        ),
+    }
+    client = _client_factice(monkeypatch, routes)
+
+    with caplog.at_level(logging.INFO, logger=sporthive.__name__):
+        resultats = sporthive.scrape_event_all(URL_SHEET)
+
+    assert len(resultats) == 13
+    # Bare event name, not "… - Triathlon S": cf.
+    # `test_the_sheets_s_race_keeps_the_bare_event_name_and_that_is_measured`.
+    assert {r.event_name for r in resultats} == {"Triathlon Sud Vendee Dimanche"}
+    # The point of the task: not just "absent from the result", but **no
+    # request emitted** for it.
+    assert client.calls_containing(f"/races/{courses[1]['id']}") == []
+    assert any("Triathlon Decouverte" in message for message in caplog.messages)
+
+
+# ---------------------------------------------------------------------------
+# T014 — scalars: times, ranks, gender, status
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("brut, attendu", [
+    ("00:57:33.2510000", "00:57:33"),   # 7-decimal fraction, the Sheet's form
+    ("00:09:45.551", "00:09:45"),       # 3-decimal fraction, `legDuration` form
+    ("00:57:33", "00:57:33"),
+    ("00:00:00", ""),                   # non-finisher: zero means absent
+    ("", ""),
+    (None, ""),
+])
+def test_time_truncates_the_fraction_and_reads_zero_as_absent(brut, attendu):
+    """D6. The truncation must come **before** `normalize_time`, whose
+    `HH:MM:SS` pattern is anchored on the end of the string: it would return
+    `00:57:33.2510000` verbatim and that value would land in the database.
+    """
+    assert sporthive._time(brut) == attendu
+
+
+def test_total_time_prefers_the_chip_then_falls_back_on_the_gun():
+    """The athlete's real time. Reversing the priority changes 7 435 rows of the
+    panel; 2 925 have no chip and 2 092 no gun, so neither column is usable
+    alone (D6).
+    """
+    ctx = sporthive._race_context(URL_SHEET, _fixture("sporthive_event.json"), _course(1))
+
+    les_deux = sporthive._to_result(_participant("1"), ctx)
+    gun_seul = sporthive._to_result(
+        _participant("2", chipTimeOfParticipant=None, gunTimeOfParticipant="01:02:03"), ctx
+    )
+    aucun = sporthive._to_result(
+        _participant("3", chipTimeOfParticipant=None, gunTimeOfParticipant=None), ctx
+    )
+
+    assert les_deux.total_time == "00:57:33"
+    assert gun_seul.total_time == "01:02:03"
+    assert aucun.total_time == ""
+
+
+@pytest.mark.parametrize("brut, attendu", [(0, None), (None, None), (42, 42), ("7", 7)])
+def test_rank_reads_zero_as_absent(brut, attendu):
+    """D12: `overallPosition == 0` means "not ranked" (172 rows of the panel,
+    all non-finishers). `normalize_rank` alone would return `0`, which the front
+    displays as a place.
+    """
+    assert sporthive._rank(brut) == attendu
+
+
+def test_gender_keeps_only_m_and_f():
+    """`U` covers 4 243 rows (41 %) and the front doesn't render it: better
+    empty than a value it can't display (D12, same as ok-time's `X`)."""
+    ctx = sporthive._race_context(URL_SHEET, _fixture("sporthive_event.json"), _course(1))
+
+    assert sporthive._to_result(_participant("1", gender="M"), ctx).gender == "M"
+    assert sporthive._to_result(_participant("2", gender="F"), ctx).gender == "F"
+    assert sporthive._to_result(_participant("3", gender="U"), ctx).gender == ""
+
+
+@pytest.mark.parametrize("validity, attendu", [
+    ("DNF", STATUS_DNF),
+    ("DNS", STATUS_DNS),
+    ("DQ", STATUS_DSQ),   # `DQ`, not `DSQ` — the source's spelling
+])
+def test_status_comes_from_validity_and_never_from_the_dead_booleans(validity, attendu):
+    """Trap n°3: `dns` and `dsq` are `false` on 10 360 rows out of 10 360,
+    including the 35 whose `validity` is `DNS`. Trusting them misses **100 %**
+    of statuses. The fixture pins them to `false` on purpose.
+    """
+    ctx = sporthive._race_context(URL_SHEET, _fixture("sporthive_event.json"), _course(1))
+    lignes = _fixture("sporthive_statuses.json")["content"]
+    ligne = next(p for p in lignes if p["validity"] == validity)
+    assert ligne["dns"] is False and ligne["dsq"] is False
+
+    resultat = sporthive._to_result(ligne, ctx)
+
+    assert resultat.status == attendu
+    assert resultat.total_time == ""
+    assert resultat.rank_overall is None
+
+
+def test_status_falls_back_on_the_rank_when_the_source_is_silent(monkeypatch):
+    """FR-014a / D5. 73 rows of the panel have neither `chipTime` nor `gunTime`
+    while being **ranked**. Left to `mapping.derive_status` — "finisher if a
+    total time, else DNF" — they would show up as abandons in the front's Place
+    column. That is the ok-time trap, and the scraper speaks explicitly instead.
+    """
+    ctx = sporthive._race_context(URL_SHEET, _fixture("sporthive_event.json"), _course(1))
+    classe, non_classe = _fixture("sporthive_no_time_ranked.json")["content"]
+
+    resultat_classe = sporthive._to_result(classe, ctx)
+    resultat_non_classe = sporthive._to_result(non_classe, ctx)
+
+    assert (classe["chipTimeOfParticipant"], classe["gunTimeOfParticipant"]) == (None, None)
+    assert classe["validity"] is None
+    assert resultat_classe.status == STATUS_FINISHER
+    assert resultat_classe.rank_overall == 42
+    # Ranked at 0 and no time: nothing says finisher, DNF stands.
+    assert resultat_non_classe.status == STATUS_DNF
+
+
+def test_status_stays_empty_when_a_time_lets_the_infra_decide():
+    """`""` means "the scraper doesn't take a side" (contract of
+    `ScrapedResult`): a finisher with a time needs no explicit status, and
+    posing one would duplicate `mapping.derive_status`."""
+    ctx = sporthive._race_context(URL_SHEET, _fixture("sporthive_event.json"), _course(1))
+
+    assert sporthive._to_result(_participant("1"), ctx).status == ""
+
+
+def test_identity_is_split_except_on_a_relay(monkeypatch):
+    """D11: splitting `LA COUSINADE` would create an athlete "COUSINADE, LA".
+    The `tags` array, which looks like a ready-made split, is a search index
+    (trap n°4) and yields the same shape for a team as for a person.
+    """
+    event = _fixture("sporthive_event.json")
+    ctx_individuel = sporthive._race_context(URL_SHEET, event, _course(1, nom="Triathlon S"))
+    ctx_relais = sporthive._race_context(URL_SHEET, event, _course(2, nom="Relais Triathlon S"))
+    equipe = _fixture("sporthive_relay.json")["content"][0]
+
+    personne = sporthive._to_result(_participant("426"), ctx_individuel)
+    relais = sporthive._to_result(equipe, ctx_relais)
+
+    assert (personne.athlete_name, personne.athlete_firstname) == ("RENAUD", "Thomas")
+    assert (relais.athlete_name, relais.athlete_firstname) == ("LA COUSINADE", "")
+
+
+# ---------------------------------------------------------------------------
+# T015 — segments come from `type`, never from `sportName`
+# ---------------------------------------------------------------------------
+
+
+def test_segments_label_a_five_leg_triathlon_in_order():
+    legs = _fixture("sporthive_participants_p0.json")["content"][2]["legs"]
+
+    assert sporthive._segments(legs) == [
+        ("natation", "00:09:46"),
+        ("transition", "00:01:32"),
+        ("vélo", "00:27:43"),
+        ("transition", "00:01:14"),
+        ("course à pied", "00:17:21"),
+    ]
+
+
+def test_segments_put_the_kids_run_last_and_never_in_a_t2_slot():
+    """The 4-leg sequence (one single transition) is what forbids a positional
+    mapping to swim/t1/bike/t2/run: the run would land in the `t2` slot."""
+    legs = _fixture("sporthive_kids.json")["content"][0]["legs"]
+
+    segments = sporthive._segments(legs)
+
+    assert segments == [
+        ("natation", "00:03:12"),
+        ("transition", "00:00:48"),
+        ("vélo", "00:07:05"),
+        ("course à pied", "00:04:33"),
+    ]
+    assert segments[-1][0] == "course à pied"
+
+
+def test_segments_read_type_when_sportname_is_null():
+    """`sportName` is `null` on 5 635 of the 24 042 legs of the panel (23 %) and
+    isn't normalised where present (`SWIM` / `Swim` / `T1`). `type` is present
+    24 042 times out of 24 042 (D7).
+    """
+    legs = _fixture("sporthive_monosport.json")["content"][0]["legs"]
+    assert legs[0]["sportName"] is None
+
+    assert sporthive._segments(legs) == [("course à pied", "00:38:12")]
+
+
+def test_segments_drop_the_phantom_leg_of_a_non_finisher():
+    """D8: a non-finisher publishes a single `Running` leg at `00:00:00` whose
+    only split is `Start`. Filtering on the **duration** rather than the status
+    also covers an untimed leg on a finisher, with no special case.
+    """
+    legs = _fixture("sporthive_statuses.json")["content"][0]["legs"]
+    assert legs[0]["participantSplits"][0]["splitName"] == "Start"
+
+    assert sporthive._segments(legs) == []
+
+
+def test_segments_render_an_unknown_type_verbatim():
+    """Never observed. Rendering it verbatim beats losing the time (D7)."""
+    assert sporthive._segments(
+        [{"type": "Kayaking", "sportName": "PADDLE", "legDuration": "00:12:00"}]
+    ) == [("Kayaking", "00:12:00")]
+
+
+def test_two_transitions_are_disambiguated_by_build_splits_not_overwritten():
+    """The two transitions of a triathlon carry the same label on purpose:
+    `mapping.build_splits` suffixes the second rather than silently overwriting
+    a time. Verified here so the French labels are checked end to end.
+    """
+    ctx = sporthive._race_context(URL_SHEET, _fixture("sporthive_event.json"), _course(1))
+    resultat = sporthive._to_result(_participant("426"), ctx)
+
+    assert build_splits(resultat) == {
+        "natation": "00:09:46",
+        "transition": "00:01:32",
+        "vélo": "00:27:43",
+        "transition (2)": "00:01:14",
+        "course à pied": "00:17:21",
+    }
+
+
+# ---------------------------------------------------------------------------
+# T016 — event metadata
+# ---------------------------------------------------------------------------
+
+
+#: The five rows of the "Classification" table of the contract.
+_CLASSIFICATION = [
+    ("Triathlon S", "Triathlon Sud Vendee Dimanche", "Triathlon", "triathlon-s"),
+    ("Triathlon M", "Triathlon Sud Vendee Dimanche", "Triathlon", "triathlon-m"),
+    ("6-9 Ans", "Triathlon Sud Vendee Dimanche", "Triathlon", "triathlon"),
+    ("Senior Men", "UK CAU Inter Counties Cross Country Championships", "Running",
+     "course-a-pied"),
+    ("Trail 10K", "Oeiras Trail", "Running", "trail"),
+]
+
+
+@pytest.mark.parametrize("race_name, event_name, event_type, attendu", _CLASSIFICATION)
+def test_event_type_uses_the_source_event_type_as_context(
+    race_name, event_name, event_type, attendu
+):
+    """D9, the most counter-intuitive point of the plan, and a measured one.
+    `Senior Men` names no sport, so the classifier consults its context — and
+    without `eventType` in it, the 2 852 rows of the UK cross would enter the
+    database as `triathlon`, display as such and **survive**
+    `federal_only=true`, the filter that exists to exclude them.
+    """
+    event = {"eventName": event_name, "eventType": event_type, "date": "2024-09-22T00:00:00"}
+    race = {"id": "1", "activeRaceId": 1, "raceName": race_name, "distanceInMeter": 0}
+
+    assert sporthive._race_context(URL_SHEET, event, race).event_type == attendu
+
+
+def test_event_type_regression_lock_on_the_context_without_the_event_type():
+    """The guard for the test above: dropping `eventType` from the context is a
+    silent regression, `Senior Men` falling back on the classifier's default.
+    """
+    assert classify_event_type(
+        "Senior Men", contexte="UK CAU Inter Counties Cross Country Championships"
+    ) == "triathlon"
+
+
+def test_race_context_qualifies_the_name_dates_and_measures():
+    """One distinct `Course` per race (FR-006): without qualification the six
+    races of an event merge into one and their bibs collide (#21). The date is
+    read from the ISO string — no French parsing here (FR-020).
+    """
+    ctx = sporthive._race_context(
+        URL_SHEET, _fixture("sporthive_event.json"), _course(5, nom="Triathlon M")
+    )
+
+    assert ctx.event_name == "Triathlon Sud Vendee Dimanche - Triathlon M"
+    assert ctx.event_date == date(2024, 9, 22)
+    assert ctx.distance_km == 25.75
+    assert ctx.source_url == URL_SHEET
+
+
+def test_the_sheets_s_race_keeps_the_bare_event_name_and_that_is_measured():
+    """Divergence with the expected-name column of `data-model.md`, and it is
+    the helper's behaviour that is authoritative.
+
+    `qualify_event_name` skips the qualifier when it is already **a substring**
+    of the name, and "triathlon s" is one of "triathlon **s**ud vendee
+    dimanche". So the S race keeps the bare event name where `data-model.md`
+    announced "… - Triathlon S". That column was written by hand — the document
+    only claims to have run `classify_event_type` and the distance conversion.
+
+    Not #21 for all that, and this test pins the reason: the six names stay
+    **distinct**, so no two races merge and no bib collides. Fixing the
+    shortcut would mean touching a helper shared by twelve providers and
+    renaming courses already in the database — out of scope here (principle VI).
+    """
+    event = _fixture("sporthive_event.json")
+    noms = {
+        sporthive._race_context(URL_SHEET, event, _course(n, nom=nom)).event_name
+        for n, nom in enumerate(
+            [c["raceName"] for c in _fixture("sporthive_races.json")], start=1
+        )
+    }
+
+    assert "Triathlon Sud Vendee Dimanche" in noms
+    assert len(noms) == 6
+
+
+@pytest.mark.parametrize("nom, attendu", [
+    ("Relais Triathlon S", True),
+    ("Olympic Team Relay", True),
+    ("Sprint Team Relay", True),
+    ("Équipes mixtes", True),
+    ("Duo découverte", True),
+    ("Triathlon S", False),
+    ("6-9 Ans", False),
+    ("Trail 10K", False),
+    ("Senior Men", False),
+])
+def test_is_relay_is_decided_per_race_on_its_name(nom, attendu):
+    """D10: decided per race, not per participant — otherwise `Course.is_relay`
+    and `Participation.is_relay` diverge with the read order (ok-time
+    precedent). No fallback on the shape of names is possible: the source
+    publishes one row per team, with a free-form name and no teammate separator.
+    """
+    event = _fixture("sporthive_event.json")
+    assert sporthive._race_context(URL_SHEET, event, _course(1, nom=nom)).is_relay is attendu
+
+
+def test_distance_zero_is_absent_so_mapping_can_extract_it_from_the_name():
+    ctx = sporthive._race_context(
+        URL_SHEET, _fixture("sporthive_event.json"), _course(1, distance=0)
+    )
+    assert ctx.distance_km is None
+
+
+def test_city_and_country_are_kept_verbatim_in_raw_data():
+    """FR-022a / D15. `ScrapedResult` has no city field, and adding one would
+    touch a contract shared by twelve providers for one of them. The `city` key
+    is the one runnerbreizh already uses, for exactly this reason. `location`
+    beats what the map would deduce from the event name — `geocode_service`
+    renders "Sud Vendee Dimanche" there.
+    """
+    ctx = sporthive._race_context(URL_SHEET, _fixture("sporthive_event.json"), _course(1))
+    resultat = sporthive._to_result(_participant("426"), ctx)
+
+    assert resultat.raw_data["city"] == "L'Aiguillon sur Mer (85)"
+    assert resultat.raw_data["country"] == "FRA"
+
+
+def test_the_provider_slug_matches_the_registry_entry():
+    """`--provider sporthive` filters on the registry name and the CLI compares
+    it to `Course.provider`, filled from this module: a drift would make the
+    option select nothing, silently.
+    """
+    from app.scrapers import registry
+
+    assert sporthive._PROVIDER == registry.SporthiveProvider.name
+    assert {
+        r.provider
+        for r in [
+            sporthive._to_result(
+                _participant("1"),
+                sporthive._race_context(URL_SHEET, _fixture("sporthive_event.json"), _course(1)),
+            )
+        ]
+    } == {"sporthive"}
