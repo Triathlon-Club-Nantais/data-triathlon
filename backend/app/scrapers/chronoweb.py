@@ -116,7 +116,6 @@ _DATE = re.compile(r"(\d{1,2})/(\d{1,2})/(\d{4})")
 # peut pas : `MASC`, `FEM` et `MIXT` servent aussi de catégories « toutes classes »
 # sur des épreuves individuelles (research R6).
 _RELAY_TOKENS = ("relais", "duo", "team")
-_ACCENTS = str.maketrans("àâäéèêëîïôöùûüç", "aaaeeeeiioouuuc")
 
 
 def _soup(html: str) -> BeautifulSoup:
@@ -169,7 +168,7 @@ def canonical_url(url: str) -> str:
 
 
 def _is_relay(label: str) -> bool:
-    normalized = label.lower().translate(_ACCENTS)
+    normalized = label.lower()
     return any(token in normalized for token in _RELAY_TOKENS)
 
 
@@ -187,8 +186,14 @@ def _parse_passages(soup: BeautifulSoup, race_id: str) -> list[Row]:
     The rank is **never** read from the text of the first cell: it stacks the
     overall rank over a hidden category rank, so `get_text()` returns "11" for a
     competitor first overall and first in category, and "11837" for 118th/37th.
+
+    The race is matched on its `data-race` attribute rather than interpolated
+    into a CSS selector: `race_id` comes from the page, and a value carrying a
+    quote or a space would raise a selector syntax error instead of returning no
+    row — the same totality the registry buys with `_url_host`.
     """
-    block = soup.select_one(f"div.results_epreuve.epreuve_{race_id}")
+    block = next((b for b in soup.select("div.results_epreuve[data-race]")
+                  if b.get("data-race") == race_id), None)
     if block is None:
         return []
 
@@ -197,7 +202,7 @@ def _parse_passages(soup: BeautifulSoup, race_id: str) -> list[Row]:
         cells = element.select("div.table-cell")
         if len(cells) != _CELL_COUNT:
             logger.warning(
-                "chronoweb: ligne ignorée (%d cellules au lieu de %d) sur l'épreuve %s",
+                "chronoweb: skipping row with %d cells instead of %d in race %s",
                 len(cells), _CELL_COUNT, race_id,
             )
             continue
