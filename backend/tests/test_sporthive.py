@@ -11,7 +11,9 @@ loaded via `_fixture`, never read by hand.
 **absence** of a request — none to a race announcing zero entrants, none to the
 `/races/1` ordinal — and an absence cannot be shown with a payload.
 """
+import ast
 import copy
+import inspect
 import json
 import logging
 from datetime import date
@@ -20,6 +22,7 @@ from pathlib import Path
 import httpx
 import pytest
 
+from app.core.club import TCN_CLUB_LABELS, is_tcn
 from app.scrapers import sporthive
 from app.scrapers.base import (
     STATUS_DNF,
@@ -801,3 +804,115 @@ def test_the_provider_slug_matches_the_registry_entry():
             )
         ]
     } == {"sporthive"}
+
+
+# ---------------------------------------------------------------------------
+# T022 / T024 — the club (US2): filled in, and judged elsewhere
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("team_name, attendu_club, attendu_tcn", [
+    ("TRI CLUB NANTAIS", "TRI CLUB NANTAIS", True),
+    ("TRIATHLON CLUB NANTAIS", "TRIATHLON CLUB NANTAIS", True),
+    # A neighbouring label: a Nantes club, not ours. This is the #76 false
+    # positive — a substring match on "nantais" counted it in.
+    ("ASPTT NANTES TRI", "ASPTT NANTES TRI", False),
+    ("S/L STADE NANTAIS AC", "S/L STADE NANTAIS AC", False),
+    (None, "", False),
+    ("", "", False),
+])
+def test_club_is_carried_verbatim_and_judged_by_core_club(team_name, attendu_club, attendu_tcn):
+    """FR-019. `teamName` is the club on individual races (44 % of the panel's
+    rows, 686 distinct labels). The scraper carries it **as is**: whether it is
+    the TCN is `core/club.py`'s call, and its alone.
+    """
+    ctx = sporthive._race_context(URL_SHEET, _fixture("sporthive_event.json"), _course(1))
+
+    resultat = sporthive._to_result(_participant("426", teamName=team_name), ctx)
+
+    assert resultat.club == attendu_club
+    assert is_tcn(resultat.club) is attendu_tcn
+
+
+def test_the_sheets_tcn_member_is_recognised_without_adding_a_label():
+    """The one Sporthive link of the Sheet points at bib 426 of the S race — a
+    "TRI CLUB NANTAIS", a label already in `core/club.py`'s allowlist. The
+    event carries 29 of these participations.
+    """
+    lignes = _fixture("sporthive_participants_p0.json")["content"]
+
+    assert [p["teamName"] for p in lignes if is_tcn(p["teamName"])] == [
+        "TRI CLUB NANTAIS", "TRI CLUB NANTAIS"
+    ]
+    assert next(p for p in lignes if p["bib"] == "426")["teamName"] == "TRI CLUB NANTAIS"
+
+
+def _litteraux_de_code(module) -> list[str]:
+    """The module's string literals, **docstrings excluded**.
+
+    Excluding prose is what makes the guard below meaningful rather than
+    annoying: a docstring saying "`core/club.py` stays the only judge of TCN
+    membership" is precisely the documentation we want, and a raw `grep` for
+    "TCN" would forbid writing it. A hard-coded label, on the other hand, lives
+    in a code literal — which this keeps.
+    """
+    arbre = ast.parse(inspect.getsource(module))
+    porteurs = (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+    docstrings = {
+        id(noeud.body[0].value)
+        for noeud in ast.walk(arbre)
+        if isinstance(noeud, porteurs)
+        and noeud.body
+        and isinstance(noeud.body[0], ast.Expr)
+        and isinstance(noeud.body[0].value, ast.Constant)
+        and isinstance(noeud.body[0].value.value, str)
+    }
+    return [
+        noeud.value
+        for noeud in ast.walk(arbre)
+        if isinstance(noeud, ast.Constant)
+        and isinstance(noeud.value, str)
+        and id(noeud) not in docstrings
+    ]
+
+
+def _identifiants_de_code(module) -> set[str]:
+    """Names, attributes and imports the module actually references."""
+    arbre = ast.parse(inspect.getsource(module))
+    noms: set[str] = set()
+    for noeud in ast.walk(arbre):
+        if isinstance(noeud, ast.Name):
+            noms.add(noeud.id)
+        elif isinstance(noeud, ast.Attribute):
+            noms.add(noeud.attr)
+        elif isinstance(noeud, ast.alias):
+            noms.update(noeud.name.split("."))
+            if noeud.asname:
+                noms.add(noeud.asname)
+        elif isinstance(noeud, ast.ImportFrom) and noeud.module:
+            noms.update(noeud.module.split("."))
+    return noms
+
+
+def test_the_module_never_reimplements_club_membership():
+    """The guard of #76, where the predicate existed in three diverging copies
+    and the most permissive won on the counters: every label containing
+    "nantais" was counted as TCN, athletics clubs included.
+
+    Unlike `t2area.py` — which must filter to spare itself 876 requests, and
+    **reuses** `core/club.py` for that — this scraper has no reason to know the
+    TCN at all: it fills `club` and stops there. So what is forbidden here is
+    not "a second implementation" but any mention **in the code**: no label, no
+    predicate, not even an import of the module that owns them.
+
+    Derived from `TCN_CLUB_LABELS`, so adding a variant there extends this guard
+    on its own.
+    """
+    litteraux = " | ".join(_litteraux_de_code(sporthive)).lower()
+    identifiants = _identifiants_de_code(sporthive)
+
+    for libelle in TCN_CLUB_LABELS:
+        assert libelle.lower() not in litteraux, libelle
+    assert "nantais" not in litteraux
+    # Neither the predicate, nor its SQL twin, nor the module holding them.
+    assert not identifiants & {"is_tcn", "tcn_clause", "normalize_club", "TCN_CLUB_LABELS", "club"}
