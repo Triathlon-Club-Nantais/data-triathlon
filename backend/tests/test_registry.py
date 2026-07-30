@@ -164,6 +164,11 @@ _ROUTAGE_LEGITIME = [
     # Fiche coureur : même host, donc bien routée ici — c'est le scraper qui la
     # refuse ensuite, avec un message nommant la forme attendue.
     ("runnerbreizh", "https://www.runnerbreizh.fr/triathlons.php?CoureurNom=X&CoureurPrenom=Y"),
+    # Sporthive (#53) : la forme du Sheet (sous-domaine `results`), la cible de
+    # la redirection 307 (apex + segment `s/`), et le préfixe de langue.
+    ("sporthive", "https://results.sporthive.com/events/7237011278055708416/races/1/bib/426"),
+    ("sporthive", "https://sporthive.com/events/s/7237011278055708416/races/1"),
+    ("sporthive", "https://results.sporthive.com/en/events/7237011278055708416/races/1"),
 ]
 
 
@@ -192,6 +197,7 @@ _JETONS_PROVIDERS = [
     "ironman.com",
     "competitor.com",
     "runnerbreizh.fr",
+    "sporthive.com",
 ]
 
 #: Les quatre familles de contournement de l'issue #49, plus la confusion userinfo.
@@ -321,3 +327,38 @@ def test_detect_provider_rejette_un_host_sosie():
 
 def test_provider_names_contient_oktime():
     assert "oktime" in registry.provider_names()
+
+
+# ---------------------------------------------------------------------------
+# Sporthive (#53) — un host, et surtout pas celui de l'API
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("url", [
+    "https://sporthive.com/events/s/7237011278055708416",
+    "https://results.sporthive.com/events/7237011278055708416",
+    "https://results.sporthive.com:443/events/7237011278055708416",
+    "https://timepulse.fr@results.sporthive.com/events/1",
+])
+def test_detect_provider_sporthive(url):
+    """Hôte exact, vrai sous-domaine, port explicite, et host réel derrière des
+    credentials : l'entrée unique `sporthive.com` suffit (D2)."""
+    assert registry.detect_provider(url) == "sporthive"
+
+
+def test_detect_provider_ne_capte_pas_lhote_dapi_speedhive():
+    """`eventresults-api.speedhive.com` est l'hôte que le scraper **appelle**,
+    pas un hôte de résultats : une URL Speedhive collée par un utilisateur n'est
+    pas une page Sporthive et ne doit pas router ici (note de D2)."""
+    url = "https://eventresults-api.speedhive.com/sporthive/events/1"
+
+    assert registry.detect_provider(url) == "playwright"
+
+
+def test_detect_provider_sporthive_rejette_un_host_sosie():
+    """Non-régression SSRF #49 : le point avant le suffixe compte."""
+    assert registry.detect_provider("https://evil-sporthive.com/events/1") != "sporthive"
+
+
+def test_provider_names_contient_sporthive():
+    assert "sporthive" in registry.provider_names()
