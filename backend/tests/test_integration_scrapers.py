@@ -11,6 +11,7 @@ Les URLs (événements passés/stables) sont documentées dans
 Assertions volontairement souples (les données d'épreuve évoluent) : le scraper
 doit renvoyer ≥1 participant avec au moins un nom et un temps total peuplés.
 """
+import time
 from collections import Counter
 from datetime import date
 
@@ -58,7 +59,15 @@ LIVE_URLS = {
     "sporthive": (
         "https://results.sporthive.com/events/7237011278055708416/races/1/bib/426"
     ),
+    # Triathlon d'Oléron 2024 : 3 épreuves, 854 participants publiés. L'URL est
+    # donnée avec son paramètre d'épreuve, la forme réellement collée par les
+    # contributeurs : le scraper doit importer l'événement entier.
+    "chronoweb": "https://chronoweb.com/resultats_evenement.php?event=323&epreuve=1147",
 }
+
+#: Hors de `LIVE_URLS`, qui est indexé **par provider** — une seconde entrée
+#: chronoweb y écraserait la première et ferait disparaître ce contrôle.
+CHRONOWEB_DIJON = "https://chronoweb.com/resultats_evenement.php?event=371"
 
 
 @pytest.mark.integration
@@ -578,3 +587,49 @@ def test_sporthive_nappelle_jamais_lordinal_de_course_de_lurl():
     )
     etranger = reponse.json().get("content") or []
     assert etranger, "l'ordinal /races/1 rend un classement — c'est bien un piège actif"
+
+
+@pytest.mark.integration
+def test_chronoweb_evenement_entier_en_une_requete():
+    """Oléron 2024 : 3 épreuves et 854 participants publiés, en une requête.
+
+    Vérifie sur le site réel ce qu'aucune fixture ne peut montrer : les effectifs
+    annoncés sont atteints (une ligne du tableau étant un **passage**, les compter
+    donnerait 2 517), et l'événement entier sort de l'URL d'une seule épreuve.
+    """
+    results = registry.scrape_event_all(LIVE_URLS["chronoweb"])
+
+    assert len(results) == 854
+    assert len({r.event_name for r in results}) == 3
+    assert all(r.event_date == date(2024, 10, 6) for r in results)
+    assert all(r.raw_data.get("city") == "St Georges d'Oléron" for r in results)
+
+    winner = next(r for r in results if r.bib_number == "360")
+    assert winner.total_time == "02:13:26"
+    assert (winner.rank_overall, winner.rank_category) == (1, 1)
+    assert (winner.swim_time, winner.t1_time, winner.bike_time,
+            winner.t2_time, winner.run_time) == (
+        "00:24:24", "00:07:01", "01:00:09", "00:02:26", "00:39:26")
+
+
+@pytest.mark.integration
+def test_chronoweb_dijon_2026_le_plus_gros_evenement_du_panel():
+    """8 épreuves, 1 622 participants, page de 4,5 Mo : la charge relevée au
+    cadrage, et le seul contrôle réel qu'aucun participant n'est dupliqué ni omis.
+
+    Volontairement hors de `LIVE_URLS` : ce dictionnaire est indexé par provider
+    (`test_detection` y asserte `detect_provider(url) == provider`), donc une
+    seconde entrée chronoweb écraserait la première.
+    """
+    start = time.monotonic()
+    results = registry.scrape_event_all(CHRONOWEB_DIJON)
+    duree = time.monotonic() - start
+
+    assert len(results) == 1622, f"chronoweb Dijon : {len(results)} participants"
+    assert len({r.event_name for r in results}) == 8
+    cles = [(r.event_name, r.bib_number) for r in results]
+    assert len(cles) == len(set(cles)), "chronoweb : dossard dupliqué au sein d'une épreuve"
+    # ~3 s mesurées en local (research R1) : le seul environnement où la tenue en
+    # mémoire ait été vérifiée. Journalisé, pas asserté — le réseau n'est pas un
+    # critère de correction.
+    print(f"\nchronoweb Dijon 2026 : {len(results)} participants en {duree:.1f} s")
