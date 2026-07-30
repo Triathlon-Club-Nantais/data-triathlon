@@ -377,3 +377,56 @@ spec les reprend et fait foi sur leur formulation.
    convention usuelle du projet). Les 73 lignes qui n'ont ni l'un ni l'autre
    sortent sans temps total, donc en `DNF` par l'heuristique de `derive_status`
    si `validity` ne dit rien.
+
+---
+
+## Addendum du 30/07/2026 — re-sondage sur un panel élargi
+
+Sondage complémentaire de **11 événements / 6 pays**, mené indépendamment (le
+détail des mesures est en tête de ce document pour le panel du 29 ; celui du 30
+portait sur 1 746 participations échantillonnées et 678 lues intégralement). Il
+**confirme** tout ce qui précède, sauf deux points, tranchés ici en re-sondant
+comme le veut la règle du dépôt.
+
+### 1. Deux familles d'identifiants d'événement, pas une
+
+Le panel du 29 (7 événements) ne portait que des identifiants **snowflake** à
+19 chiffres, d'où la lecture d'URL en `\d+`. Le fonds **récent** est identifié
+par **GUID** :
+
+| Événement | Identifiant | Servi par |
+| --- | --- | --- |
+| Triathlon Sud Vendee Dimanche | `7237011278055708416` | `/events/{id}`, `/events/{id}/races`, `/races/{id}/participants` |
+| 2026 Europe Triathlon Junior Cup Izvorani | `bdea2f10-1510-481c-b5ef-ef7f1926a06f` | **les mêmes routes** |
+
+Les deux familles cohabitent sans distinction côté API, et la page d'accueil de
+`sporthive.com` publie les deux formes. Un motif `\d+` refusait donc tout le
+fonds récent **en amont de tout appel**, avec un message affirmant que l'URL
+était illisible alors que le site la sert. La lecture d'URL accepte désormais
+les deux, la branche GUID restant strictement formée (8-4-4-4-12) : élargir à
+`[^/]+` laisserait passer `/events/abc` et déclencherait une requête qui ne peut
+que 400 — c'est le refus qui nomme la forme attendue.
+
+### 2. `type` peut valoir `Other` — et alors il ne discrimine rien
+
+Le panel du 29 concluait « `type` est pris dans un vocabulaire fermé
+(`Swimming`, `Cycling`, `Running`, `Transition`) ». Le vocabulaire est plus
+large : `Other` existe, et le panel élargi le trouve à deux endroits.
+
+| Épreuve | Legs concernés | `type` | `sportName` |
+| --- | --- | --- | --- |
+| ACCURO Jersey Triathlon, course « Standard » (177 classés) | **les cinq**, natation comprise | `Other` | `Swim`, `Transition 1`, `Bike`, `Transition 2`, `Run` |
+| 2026 Europe Triathlon Junior Cup Izvorani (93 classés) | les deux transitions | `Other` | `transition`, `transition2` |
+
+Rendre ce `type` verbatim publiait cinq disciplines sous le libellé `Other` —
+puis `Other (2)` … `Other (5)` après désambiguïsation par `build_splits` : cinq
+fois le même non-mot là où la source nomme correctement ses legs.
+
+La règle du 29 **tient** et reste première : `type` est le champ normalisé,
+présent sur 24 042 legs sur 24 042, là où `sportName` est nul sur 23 % d'entre
+eux et jamais normalisé. Elle est seulement complétée d'un repli : quand `type`
+ne dit rien (`Other`, vide) et que `sportName` dit quelque chose, c'est le
+libellé publié qui gagne, normalisé par la même table (casse et suffixes
+positionnels `transition2`, `T1`, `Transition 1` tous mesurés). Quand ni l'un ni
+l'autre ne dit rien, le `type` brut est conservé — mieux vaut un libellé pauvre
+qu'un temps perdu.

@@ -527,6 +527,36 @@ def test_sporthive_importe_tout_levenement_sans_epreuve_etrangere():
 
 
 @pytest.mark.integration
+def test_sporthive_importe_un_evenement_identifie_par_guid():
+    """Le fonds **récent** est identifié par GUID, pas par snowflake.
+
+    Les deux familles cohabitent sur les mêmes routes ; c'est la seule chose
+    que ce test ajoute au précédent, et elle ne se voit pas sur fixture — un
+    motif d'URL `\\d+` refuse ici en amont de tout appel réseau, en affirmant
+    que l'URL est illisible alors que le site la sert.
+
+    2026 Europe Triathlon Junior Cup Izvorani : 3 courses, 93 classés, et des
+    transitions dont le `type` vaut `Other` — leur libellé vient alors de
+    `sportName`, sinon les deux sortent en « Other » / « Other (2) ».
+    """
+    url = (
+        "https://sporthive.com/events/s/bdea2f10-1510-481c-b5ef-ef7f1926a06f"
+        "/race/9c945c48-95ea-4680-bc98-cc5ea4e040c3"
+    )
+
+    results = registry.scrape_event_all(url)
+
+    assert len(results) == 93
+    assert len({r.event_name for r in results}) == 3
+    assert all(r.event_date == date(2026, 7, 18) for r in results)
+
+    coureur = next(r for r in results if r.segments)
+    assert [label for label, _ in coureur.segments] == [
+        "natation", "transition", "vélo", "transition", "course à pied",
+    ]
+
+
+@pytest.mark.integration
 def test_sporthive_nappelle_jamais_lordinal_de_course_de_lurl():
     """Le pendant réseau du verrou de non-régression sur fixture (D1, FR-004).
 

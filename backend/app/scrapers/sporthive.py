@@ -85,14 +85,26 @@ _MAX_PAGES = 1000
 # Everything after the id is absorbed and **dropped**: `/races/{n}` is a local
 # ordinal, `/bib/{b}` and `/bib/{b}/split` name a single row. None of the three
 # is an API identifier, so none has a way out of this function (trap n°1).
+# Two families of event id share those façades, and the same API routes serve
+# both: the 19-digit snowflake of the historical stock, and the GUID the source
+# now mints for recent events (measured 30/07/2026 — e.g. `2026 Europe Triathlon
+# Junior Cup Izvorani`). A `\d+`-only pattern rejected every recent event with a
+# message claiming the URL was unreadable, which it was not.
+#
+# The GUID branch stays **strictly** shaped (8-4-4-4-12): widening it to `[^/]+`
+# would let `/events/abc` through and fire a request that can only 400 — the
+# refusal is what names the expected form.
+_ID_RE = r"\d+|[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}"
 _PATH_RE = re.compile(
-    r"^/(?:[a-z]{2}(?:-[a-zA-Z]{2})?/)?events/(?:s/)?(?P<event_id>\d+)(?:/.*)?$"
+    r"^/(?:[a-z]{2}(?:-[a-zA-Z]{2})?/)?events/(?:s/)?"
+    rf"(?P<event_id>{_ID_RE})(?:/.*)?$"
 )
 
 _FORME_ATTENDUE = (
     "URL Sporthive illisible : aucun identifiant d'événement dans le chemin. "
     "Forme attendue : https://results.sporthive.com/events/<id>[/races/<n>] "
-    "(ou https://sporthive.com/events/s/<id>), où <id> est numérique."
+    "(ou https://sporthive.com/events/s/<id>), où <id> est numérique "
+    "(fonds historique) ou un GUID (événements récents)."
 )
 
 
@@ -299,7 +311,43 @@ _LEG_LABELS = {
     "transition": "transition",
     "cycling": "vélo",
     "running": "course à pied",
+    # The same table also normalises a `sportName`, consulted only when `type`
+    # is uninformative (see `_leg_label`). Every casing measured on 30/07/2026,
+    # positional suffixes included.
+    "swim": "natation",
+    "bike": "vélo",
+    "run": "course à pied",
+    "t1": "transition",
+    "t2": "transition",
+    "transition1": "transition",
+    "transition2": "transition",
+    "transition 1": "transition",
+    "transition 2": "transition",
 }
+
+#: `type` values that answer nothing. `Other` is published on **all five** legs
+#: of ACCURO Jersey Triathlon's « Standard » race (177 entrants), swim included,
+#: and on both transitions at Izvorani 2026 — cases the 29/07 panel did not hold.
+_TYPES_MUETS = {"", "other", "unknown", "none"}
+
+
+def _leg_label(leg: dict) -> str:
+    """The label of a leg: `type` first, `sportName` only as a fallback.
+
+    D7 stands — `type` is the normalised field, present on all 24 042 legs of
+    the panel, where `sportName` is null on 23 % of them and never normalised.
+    But a `type` of `Other` names nothing, and rendering it verbatim turned five
+    published disciplines into `Other`, `Other (2)` … `Other (5)` once
+    `build_splits` disambiguated them. Where `type` says nothing and `sportName`
+    does, the published label wins; where neither does, the raw `type` is kept
+    rather than the time dropped.
+    """
+    brut = (leg.get("type") or "").strip()
+    if brut.lower() in _TYPES_MUETS:
+        repli = (leg.get("sportName") or "").strip()
+        if repli:
+            return _LEG_LABELS.get(repli.lower(), repli)
+    return _LEG_LABELS.get(brut.lower(), brut)
 
 
 def _segments(legs) -> list[tuple[str, str]]:
@@ -312,16 +360,14 @@ def _segments(legs) -> list[tuple[str, str]]:
     A leg with an empty duration is dropped (D8): a non-finisher publishes a
     single `Running` leg at `00:00:00` whose only split is `Start`. Filtering on
     the duration rather than the status also covers an untimed leg on a
-    finisher, with no special case. An unknown `type` — never observed — is
-    rendered verbatim rather than losing the time.
+    finisher, with no special case. Labelling is `_leg_label`'s job.
     """
     segments: list[tuple[str, str]] = []
     for leg in legs or []:
         duree = _time(leg.get("legDuration"))
         if not duree:
             continue
-        brut = (leg.get("type") or "").strip()
-        segments.append((_LEG_LABELS.get(brut.lower(), brut), duree))
+        segments.append((_leg_label(leg), duree))
     return segments
 
 

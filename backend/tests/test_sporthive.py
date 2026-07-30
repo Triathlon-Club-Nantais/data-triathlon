@@ -176,11 +176,40 @@ def test_parse_url_reads_the_event_id_at_every_depth(url):
     assert sporthive._parse_url(url) == _EVENT_ID
 
 
+#: Two families of event ids coexist on the very same routes: the 19-digit
+#: snowflake above (the historical stock) and this GUID, which is what the
+#: source now mints for **recent** events. Measured on 30/07/2026 — both are
+#: served by `/events/{id}`, `/events/{id}/races` and `/races/{id}/participants`
+#: alike. A `\d+`-only pattern turns every recent event into an unreadable URL.
+_EVENT_GUID = "bdea2f10-1510-481c-b5ef-ef7f1926a06f"
+
+_URLS_GUID = [
+    f"https://sporthive.com/events/s/{_EVENT_GUID}",
+    f"https://sporthive.com/events/s/{_EVENT_GUID}/race/9c945c48-95ea-4680-bc98-cc5ea4e040c3",
+    f"https://results.sporthive.com/events/{_EVENT_GUID}",
+    f"https://results.sporthive.com/en/events/{_EVENT_GUID}/races/1",
+]
+
+
+@pytest.mark.parametrize("url", _URLS_GUID)
+def test_parse_url_reads_a_guid_event_id(url):
+    """The recent stock is GUID-identified, at every depth and façade.
+
+    `2026 Europe Triathlon Junior Cup Izvorani` (3 races, 93 entrants) is one of
+    them, and the deep form here is what the site itself puts in the address bar.
+    """
+    assert sporthive._parse_url(url) == _EVENT_GUID
+
+
 @pytest.mark.parametrize("url", [
     "https://results.sporthive.com/events/abc",
     "https://results.sporthive.com/",
     "https://results.sporthive.com/profile",
     "https://sporthive.com/events/s/abc/races/1",
+    # Accepting GUIDs must stay a **strict** widening: a truncated or
+    # malformed GUID is still an unreadable URL, not a request to fire blind.
+    "https://sporthive.com/events/s/bdea2f10-1510-481c-b5ef",
+    "https://sporthive.com/events/s/bdea2f10151048...1c5ef-ef7f1926a06f",
 ])
 def test_parse_url_refuses_a_path_without_an_event_id(url):
     """FR-003: the refusal names the expected form, it doesn't just say "no"."""
@@ -584,7 +613,7 @@ def test_identity_is_split_except_on_a_relay(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# T015 — segments come from `type`, never from `sportName`
+# T015 — segments come from `type`; `sportName` only rescues an `Other`
 # ---------------------------------------------------------------------------
 
 
@@ -643,6 +672,60 @@ def test_segments_render_an_unknown_type_verbatim():
     assert sporthive._segments(
         [{"type": "Kayaking", "sportName": "PADDLE", "legDuration": "00:12:00"}]
     ) == [("Kayaking", "00:12:00")]
+
+
+def test_segments_fall_back_to_sportname_when_type_says_other():
+    """`Other` is a **non**-answer, and the panel of 30/07/2026 has it.
+
+    ACCURO Jersey Triathlon publishes `type: "Other"` on all five legs of its
+    « Standard » race (177 entrants), swim included, while `sportName` names
+    them correctly. Reading `type` alone rendered that whole race as `Other`,
+    `Other (2)` … `Other (5)` once `build_splits` disambiguated — five times
+    the same non-word where the source published five disciplines.
+
+    `type` still comes first (D7 holds: it is the normalised field, present on
+    all 24 042 legs of the earlier panel); `sportName` is only consulted when
+    `type` carries no information.
+    """
+    legs = [
+        {"sportName": "Swim", "type": "Other", "legDuration": "00:29:35"},
+        {"sportName": "Transition 1", "type": "Other", "legDuration": "00:02:41"},
+        {"sportName": "Bike", "type": "Other", "legDuration": "01:16:04"},
+        {"sportName": "Transition 2", "type": "Other", "legDuration": "00:01:22"},
+        {"sportName": "Run", "type": "Other", "legDuration": "00:48:19"},
+    ]
+
+    assert sporthive._segments(legs) == [
+        ("natation", "00:29:35"),
+        ("transition", "00:02:41"),
+        ("vélo", "01:16:04"),
+        ("transition", "00:01:22"),
+        ("course à pied", "00:48:19"),
+    ]
+
+
+def test_segments_fall_back_on_the_lowercase_transitions_of_an_international_race():
+    """2026 Europe Triathlon Junior Cup Izvorani: `type` is right on the three
+    disciplines but `Other` on both transitions, which `sportName` names.
+    """
+    legs = [
+        {"sportName": "swim", "type": "Swimming", "legDuration": "00:05:41"},
+        {"sportName": "transition", "type": "Other", "legDuration": "00:01:16"},
+        {"sportName": "bike", "type": "Cycling", "legDuration": "00:16:23"},
+        {"sportName": "transition2", "type": "Other", "legDuration": "00:00:21"},
+        {"sportName": "run", "type": "Running", "legDuration": "00:07:37"},
+    ]
+
+    assert [label for label, _ in sporthive._segments(legs)] == [
+        "natation", "transition", "vélo", "transition", "course à pied",
+    ]
+
+
+def test_segments_keep_an_uninformative_type_when_sportname_is_null_too():
+    """Nothing to fall back on: the time is kept rather than dropped (D7)."""
+    assert sporthive._segments(
+        [{"type": "Other", "sportName": None, "legDuration": "00:12:00"}]
+    ) == [("Other", "00:12:00")]
 
 
 def test_two_transitions_are_disambiguated_by_build_splits_not_overwritten():

@@ -675,6 +675,15 @@ Trois profondeurs d'URL désignent le même événement et sont toutes acceptée
 l'**événement entier** : le Sheet ne porte qu'un lien par épreuve, et un membre
 inscrit sur un autre format y serait invisible.
 
+**Deux familles d'identifiants** cohabitent sur ces mêmes routes : le
+**snowflake** à 19 chiffres du fonds historique, et le **GUID** des événements
+récents (`bdea2f10-1510-481c-b5ef-ef7f1926a06f`). L'API ne les distingue pas et
+la page d'accueil publie les deux. Un motif `\d+` refusait donc tout le fonds
+récent **avant tout appel**, en affirmant l'URL illisible alors que le site la
+sert. La branche GUID reste **strictement** formée (8-4-4-4-12) : l'élargir à
+`[^/]+` laisserait passer `/events/abc` et déclencherait une requête qui ne peut
+que 400 — c'est le refus qui nomme la forme attendue.
+
 Quatre pièges, tous mesurés, à ne jamais réintroduire :
 
 - **`races/{n}` n'est pas un `raceId`** mais un ordinal *local* (`activeRaceId`).
@@ -698,11 +707,18 @@ Quatre pièges, tous mesurés, à ne jamais réintroduire :
   booléens `dns`/`dsq` sont **morts** : `false` sur 10 360 lignes sur 10 360, y
   compris les 35 en `DNS`. S'y fier rate 100 % des statuts.
 - **`legs[].sportName` ment** : saisi par le chronométreur, non normalisé
-  (`SWIM`/`Swim`/`T1`) et `null` sur 23 % des legs. Seul `legs[].type` est fiable
-  (24 042/24 042, vocabulaire fermé) — d'où les libellés `natation`/`transition`/
-  `vélo`/`course à pied`, rangés dans `segments` (chemin générique) et non dans
-  les 5 slots positionnels : une course d'enfants publie **4** legs et un mapping
-  positionnel ferait atterrir sa course à pied en `t2`.
+  (`SWIM`/`Swim`/`T1`) et `null` sur 23 % des legs. `legs[].type` prime donc
+  (24 042/24 042) — d'où les libellés `natation`/`transition`/`vélo`/`course à
+  pied`, rangés dans `segments` (chemin générique) et non dans les 5 slots
+  positionnels : une course d'enfants publie **4** legs et un mapping positionnel
+  ferait atterrir sa course à pied en `t2`. Mais `type` **peut valoir `Other`**,
+  et il ne discrimine alors rien : sur les cinq legs de la course « Standard »
+  de Jersey (177 classés), natation comprise, et sur les deux transitions
+  d'Izvorani 2026. Rendu verbatim, cela publiait `Other`, `Other (2)` …
+  `Other (5)` après désambiguïsation par `build_splits` — cinq fois le même
+  non-mot là où `sportName` nomme correctement. D'où le **repli** : `type`
+  d'abord, `sportName` quand `type` se tait, le `type` brut si les deux se
+  taisent (mieux vaut un libellé pauvre qu'un temps perdu).
 
 **Deux portées d'échec**, et c'est le choix structurant du module. Une course au
 classement incomplet est **écartée** (`_IncompleteRanking`, type privé rattrapé
@@ -755,8 +771,10 @@ course de relais dont l'intitulé ne le dirait pas sortirait en individuel.
 
 Sondage de l'API réelle (fait autorité — 7 événements, 32 courses, 10 360
 participations, 1 063 requêtes) :
-`docs/superpowers/specs/2026-07-29-sporthive-sondage.md`. Spec, plan et tâches :
-`specs/004-sporthive-scraper/`.
+`docs/superpowers/specs/2026-07-29-sporthive-sondage.md`, **addendum du
+30/07/2026** compris — re-sondage sur 11 événements / 6 pays d'où viennent les
+deux corrections ci-dessus (familles d'identifiants, `type: "Other"`). Spec,
+plan et tâches : `specs/004-sporthive-scraper/`.
 
 Types : Triathlon XS/S/M/L/XL, Duathlon XS/S/M/L, SwimRun S/M/L, Aquathlon,
 Aquarun, Bike & Run.
