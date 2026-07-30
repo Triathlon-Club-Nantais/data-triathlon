@@ -54,6 +54,9 @@ export const PROVIDER_LABELS: Record<string, string> = {
   // T2Area édite la plateforme, mais c'est la FFTRI qui la sert (`fftri.t2area.com`)
   // et sous ce nom que la fédération y renvoie ses licenciés (cf. #51).
   t2area: "FFTRI (T2Area)",
+  // Sporthive est la marque endurance de MYLAPS (cf. #53) — le site s'annonce
+  // lui-même « MYLAPS Sporthive ».
+  sporthive: "MYLAPS Sporthive",
 };
 
 /** Libellé d'un chronométreur ; le slug brut à défaut, « Source » si non renseigné. */

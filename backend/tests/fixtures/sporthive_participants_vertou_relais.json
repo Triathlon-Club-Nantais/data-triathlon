@@ -1,0 +1,519 @@
+{
+ "content": [
+  {
+   "pk": "7191895923677191680_5_7195685540963502848",
+   "name": "LES BESTIOLES",
+   "teamContribute": false,
+   "raceCategory": "REX",
+   "country": "FRA",
+   "categoryPosition": 1,
+   "numberOfParticipantsInCategory": 2,
+   "overallPosition": 1,
+   "genderPosition": 1,
+   "genderPositionCount": 7,
+   "gender": "M",
+   "bib": "387",
+   "gunTimeOfParticipant": "01:11:28.6130000",
+   "chipTimeOfParticipant": "01:11:28.6130000",
+   "dns": false,
+   "dsq": false,
+   "legs": [
+    {
+     "sportName": "SWIM",
+     "type": "Swimming",
+     "legDuration": "00:14:00",
+     "totalDuration": "00:14:00",
+     "distanceInMeters": 750,
+     "participantSplits": [
+      {
+       "distanceInMeters": 750,
+       "splitDuration": "00:13:59.263",
+       "totalSplitDuration": "00:00:00",
+       "splitName": ".75 km",
+       "personalSplitSpeed": 3.21710825,
+       "averageSplitSpeed": 3.21710825
+      }
+     ],
+     "kmh": 3.21428561,
+     "rank": 2,
+     "totalPosition": 2
+    },
+    {
+     "sportName": "TRANSITION",
+     "type": "Transition",
+     "legDuration": "00:01:12",
+     "totalDuration": "00:15:11",
+     "distanceInMeters": 0,
+     "participantSplits": [
+      {
+       "distanceInMeters": 0,
+       "splitDuration": "00:01:11.400",
+       "totalSplitDuration": "00:00:00",
+       "splitName": ".0 ",
+       "personalSplitSpeed": 0.0,
+       "averageSplitSpeed": 0.0
+      }
+     ],
+     "kmh": 0.0,
+     "rank": 6,
+     "totalPosition": 2
+    },
+    {
+     "sportName": "BIKE",
+     "type": "Cycling",
+     "legDuration": "00:32:27",
+     "totalDuration": "00:47:38",
+     "distanceInMeters": 19500,
+     "participantSplits": [
+      {
+       "distanceInMeters": 19500,
+       "splitDuration": "00:32:26.350",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "19.5 km",
+       "personalSplitSpeed": 36.0675125,
+       "averageSplitSpeed": 36.0675125
+      }
+     ],
+     "kmh": 36.05547,
+     "rank": 3,
+     "totalPosition": 1
+    },
+    {
+     "sportName": "TRANSITION",
+     "type": "Transition",
+     "legDuration": "00:00:44",
+     "totalDuration": "00:48:21",
+     "distanceInMeters": 0,
+     "participantSplits": [
+      {
+       "distanceInMeters": 0,
+       "splitDuration": "00:00:43.350",
+       "totalSplitDuration": "00:00:00",
+       "splitName": ".0 ",
+       "personalSplitSpeed": 0.0,
+       "averageSplitSpeed": 0.0
+      }
+     ],
+     "kmh": 0.0,
+     "rank": 1,
+     "totalPosition": 1
+    },
+    {
+     "sportName": "RUN",
+     "type": "Running",
+     "legDuration": "00:23:09",
+     "totalDuration": "01:11:29",
+     "distanceInMeters": 2500,
+     "participantSplits": [
+      {
+       "distanceInMeters": 2500,
+       "splitDuration": "00:23:08.250",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "2.5 km",
+       "personalSplitSpeed": 6.482982,
+       "averageSplitSpeed": 6.482982
+      }
+     ],
+     "kmh": 6.4794817,
+     "rank": 3,
+     "totalPosition": 1
+    }
+   ],
+   "apid": 0,
+   "activeEventId": "7191895923677191680",
+   "activeRaceId": "5",
+   "distanceInMeter": 22750,
+   "date": "2024-05-05T00:00:00",
+   "id": "7195685540963503104",
+   "vid": "7195685540963502848"
+  },
+  {
+   "pk": "7191895923677191680_5_7195685540963502848",
+   "name": "N GO SHOES",
+   "teamContribute": false,
+   "raceCategory": "REM",
+   "country": "FRA",
+   "categoryPosition": 1,
+   "numberOfParticipantsInCategory": 5,
+   "overallPosition": 2,
+   "genderPosition": 2,
+   "genderPositionCount": 7,
+   "gender": "M",
+   "bib": "389",
+   "gunTimeOfParticipant": "01:13:22.7130000",
+   "chipTimeOfParticipant": "01:13:22.7130000",
+   "dns": false,
+   "dsq": false,
+   "legs": [
+    {
+     "sportName": "SWIM",
+     "type": "Swimming",
+     "legDuration": "00:22:00",
+     "totalDuration": "00:22:00",
+     "distanceInMeters": 750,
+     "participantSplits": [
+      {
+       "distanceInMeters": 750,
+       "splitDuration": "00:21:59.713",
+       "totalSplitDuration": "00:00:00",
+       "splitName": ".75 km",
+       "personalSplitSpeed": 2.04589939,
+       "averageSplitSpeed": 2.04589939
+      }
+     ],
+     "kmh": 2.0454545,
+     "rank": 6,
+     "totalPosition": 7
+    },
+    {
+     "sportName": "TRANSITION",
+     "type": "Transition",
+     "legDuration": "00:01:14",
+     "totalDuration": "00:23:13",
+     "distanceInMeters": 0,
+     "participantSplits": [
+      {
+       "distanceInMeters": 0,
+       "splitDuration": "00:01:13.100",
+       "totalSplitDuration": "00:00:00",
+       "splitName": ".0 ",
+       "personalSplitSpeed": 0.0,
+       "averageSplitSpeed": 0.0
+      }
+     ],
+     "kmh": 0.0,
+     "rank": 8,
+     "totalPosition": 7
+    },
+    {
+     "sportName": "BIKE",
+     "type": "Cycling",
+     "legDuration": "00:30:07",
+     "totalDuration": "00:53:20",
+     "distanceInMeters": 19500,
+     "participantSplits": [
+      {
+       "distanceInMeters": 19500,
+       "splitDuration": "00:30:06.550",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "19.5 km",
+       "personalSplitSpeed": 38.8585968,
+       "averageSplitSpeed": 38.8585968
+      }
+     ],
+     "kmh": 38.8489227,
+     "rank": 2,
+     "totalPosition": 4
+    },
+    {
+     "sportName": "TRANSITION",
+     "type": "Transition",
+     "legDuration": "00:00:50",
+     "totalDuration": "00:54:10",
+     "distanceInMeters": 0,
+     "participantSplits": [
+      {
+       "distanceInMeters": 0,
+       "splitDuration": "00:00:49.850",
+       "totalSplitDuration": "00:00:00",
+       "splitName": ".0 ",
+       "personalSplitSpeed": 0.0,
+       "averageSplitSpeed": 0.0
+      }
+     ],
+     "kmh": 0.0,
+     "rank": 3,
+     "totalPosition": 4
+    },
+    {
+     "sportName": "RUN",
+     "type": "Running",
+     "legDuration": "00:19:14",
+     "totalDuration": "01:13:23",
+     "distanceInMeters": 2500,
+     "participantSplits": [
+      {
+       "distanceInMeters": 2500,
+       "splitDuration": "00:19:13.500",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "2.5 km",
+       "personalSplitSpeed": 7.80234051,
+       "averageSplitSpeed": 7.80234051
+      }
+     ],
+     "kmh": 7.79896,
+     "rank": 1,
+     "totalPosition": 2
+    }
+   ],
+   "apid": 0,
+   "activeEventId": "7191895923677191680",
+   "activeRaceId": "5",
+   "distanceInMeter": 22750,
+   "date": "2024-05-05T00:00:00",
+   "id": "7195685540963503360",
+   "vid": "7195685540963502848"
+  },
+  {
+   "pk": "7191895923677191680_5_7195685540963502848",
+   "name": "LES CHATARDS",
+   "teamContribute": false,
+   "raceCategory": "REM",
+   "country": "FRA",
+   "categoryPosition": 2,
+   "numberOfParticipantsInCategory": 5,
+   "overallPosition": 3,
+   "genderPosition": 3,
+   "genderPositionCount": 7,
+   "gender": "M",
+   "bib": "382",
+   "gunTimeOfParticipant": "01:18:14.0630000",
+   "chipTimeOfParticipant": "01:18:14.0630000",
+   "dns": false,
+   "dsq": false,
+   "legs": [
+    {
+     "sportName": "SWIM",
+     "type": "Swimming",
+     "legDuration": "00:18:25",
+     "totalDuration": "00:18:25",
+     "distanceInMeters": 750,
+     "participantSplits": [
+      {
+       "distanceInMeters": 750,
+       "splitDuration": "00:18:24.113",
+       "totalSplitDuration": "00:00:00",
+       "splitName": ".75 km",
+       "personalSplitSpeed": 2.445402,
+       "averageSplitSpeed": 2.445402
+      }
+     ],
+     "kmh": 2.443439,
+     "rank": 3,
+     "totalPosition": 4
+    },
+    {
+     "sportName": "TRANSITION",
+     "type": "Transition",
+     "legDuration": "00:01:00",
+     "totalDuration": "00:19:24",
+     "distanceInMeters": 0,
+     "participantSplits": [
+      {
+       "distanceInMeters": 0,
+       "splitDuration": "00:00:59.300",
+       "totalSplitDuration": "00:00:00",
+       "splitName": ".0 ",
+       "personalSplitSpeed": 0.0,
+       "averageSplitSpeed": 0.0
+      }
+     ],
+     "kmh": 0.0,
+     "rank": 2,
+     "totalPosition": 4
+    },
+    {
+     "sportName": "BIKE",
+     "type": "Cycling",
+     "legDuration": "00:33:53",
+     "totalDuration": "00:53:16",
+     "distanceInMeters": 19500,
+     "participantSplits": [
+      {
+       "distanceInMeters": 19500,
+       "splitDuration": "00:33:52.050",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "19.5 km",
+       "personalSplitSpeed": 34.5463943,
+       "averageSplitSpeed": 34.5463943
+      }
+     ],
+     "kmh": 34.53025,
+     "rank": 4,
+     "totalPosition": 3
+    },
+    {
+     "sportName": "TRANSITION",
+     "type": "Transition",
+     "legDuration": "00:00:52",
+     "totalDuration": "00:54:07",
+     "distanceInMeters": 0,
+     "participantSplits": [
+      {
+       "distanceInMeters": 0,
+       "splitDuration": "00:00:51.450",
+       "totalSplitDuration": "00:00:00",
+       "splitName": ".0 ",
+       "personalSplitSpeed": 0.0,
+       "averageSplitSpeed": 0.0
+      }
+     ],
+     "kmh": 0.0,
+     "rank": 4,
+     "totalPosition": 3
+    },
+    {
+     "sportName": "RUN",
+     "type": "Running",
+     "legDuration": "00:24:08",
+     "totalDuration": "01:18:15",
+     "distanceInMeters": 2500,
+     "participantSplits": [
+      {
+       "distanceInMeters": 2500,
+       "splitDuration": "00:24:07.150",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "2.5 km",
+       "personalSplitSpeed": 6.2191205,
+       "averageSplitSpeed": 6.2191205
+      }
+     ],
+     "kmh": 6.21547,
+     "rank": 6,
+     "totalPosition": 4
+    }
+   ],
+   "apid": 0,
+   "activeEventId": "7191895923677191680",
+   "activeRaceId": "5",
+   "distanceInMeter": 22750,
+   "date": "2024-05-05T00:00:00",
+   "id": "7195685540963503616",
+   "vid": "7195685540963502848"
+  },
+  {
+   "pk": "7191895923677191680_5_7195685540963502848",
+   "name": "TRI M",
+   "teamContribute": false,
+   "raceCategory": "REF",
+   "country": "FRA",
+   "categoryPosition": 1,
+   "numberOfParticipantsInCategory": 2,
+   "overallPosition": 4,
+   "genderPosition": 1,
+   "genderPositionCount": 2,
+   "gender": "F",
+   "bib": "386",
+   "gunTimeOfParticipant": "01:21:24.5630000",
+   "chipTimeOfParticipant": "01:21:24.5630000",
+   "dns": false,
+   "dsq": false,
+   "legs": [
+    {
+     "sportName": "SWIM",
+     "type": "Swimming",
+     "legDuration": "00:20:30",
+     "totalDuration": "00:20:30",
+     "distanceInMeters": 750,
+     "participantSplits": [
+      {
+       "distanceInMeters": 750,
+       "splitDuration": "00:20:29.313",
+       "totalSplitDuration": "00:00:00",
+       "splitName": ".75 km",
+       "personalSplitSpeed": 2.19634867,
+       "averageSplitSpeed": 2.19634867
+      }
+     ],
+     "kmh": 2.195122,
+     "rank": 4,
+     "totalPosition": 5
+    },
+    {
+     "sportName": "TRANSITION",
+     "type": "Transition",
+     "legDuration": "00:01:12",
+     "totalDuration": "00:21:41",
+     "distanceInMeters": 0,
+     "participantSplits": [
+      {
+       "distanceInMeters": 0,
+       "splitDuration": "00:01:11.200",
+       "totalSplitDuration": "00:00:00",
+       "splitName": ".0 ",
+       "personalSplitSpeed": 0.0,
+       "averageSplitSpeed": 0.0
+      }
+     ],
+     "kmh": 0.0,
+     "rank": 5,
+     "totalPosition": 5
+    },
+    {
+     "sportName": "BIKE",
+     "type": "Cycling",
+     "legDuration": "00:35:20",
+     "totalDuration": "00:57:01",
+     "distanceInMeters": 19500,
+     "participantSplits": [
+      {
+       "distanceInMeters": 19500,
+       "splitDuration": "00:35:19.800",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "19.5 km",
+       "personalSplitSpeed": 33.116333,
+       "averageSplitSpeed": 33.116333
+      }
+     ],
+     "kmh": 33.11321,
+     "rank": 5,
+     "totalPosition": 6
+    },
+    {
+     "sportName": "TRANSITION",
+     "type": "Transition",
+     "legDuration": "00:00:47",
+     "totalDuration": "00:57:47",
+     "distanceInMeters": 0,
+     "participantSplits": [
+      {
+       "distanceInMeters": 0,
+       "splitDuration": "00:00:46.150",
+       "totalSplitDuration": "00:00:00",
+       "splitName": ".0 ",
+       "personalSplitSpeed": 0.0,
+       "averageSplitSpeed": 0.0
+      }
+     ],
+     "kmh": 0.0,
+     "rank": 2,
+     "totalPosition": 6
+    },
+    {
+     "sportName": "RUN",
+     "type": "Running",
+     "legDuration": "00:23:39",
+     "totalDuration": "01:21:25",
+     "distanceInMeters": 2500,
+     "participantSplits": [
+      {
+       "distanceInMeters": 2500,
+       "splitDuration": "00:23:38.100",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "2.5 km",
+       "personalSplitSpeed": 6.34652,
+       "averageSplitSpeed": 6.34652
+      }
+     ],
+     "kmh": 6.34249449,
+     "rank": 5,
+     "totalPosition": 5
+    }
+   ],
+   "apid": 0,
+   "activeEventId": "7191895923677191680",
+   "activeRaceId": "5",
+   "distanceInMeter": 22750,
+   "date": "2024-05-05T00:00:00",
+   "id": "7195685540963503872",
+   "vid": "7195685540963502848"
+  }
+ ],
+ "number": 0,
+ "size": 10,
+ "totalElements": 10,
+ "totalPages": 1,
+ "first": true,
+ "last": true,
+ "numberOfElements": 4
+}

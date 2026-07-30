@@ -51,6 +51,13 @@ LIVE_URLS = {
         "https://www.runnerbreizh.fr/requetetriathlons.php"
         "?CourseFichierGpsNom=2025-09-0749quiberon&page=2&tricourse=&Sexe="
     ),
+    # MYLAPS Sporthive : Triathlon de Vertou 2024, 5 courses / 504 classés dont
+    # 37 participations TCN. Édition figée (l'épreuve est passée chez Chronos
+    # Metron en 2025). La forme `/race/<id>` est celle qu'on colle depuis le site.
+    "sporthive": (
+        "https://sporthive.com/events/s/7191895923677191680"
+        "/race/7192778311832786688"
+    ),
 }
 
 
@@ -470,3 +477,44 @@ def test_runnerbreizh_importe_toute_lepreuve_depuis_une_page_intermediaire():
     )
     assert all(r.event_name == "Triathlon de Quiberon M" for r in results)
     assert all(not r.bib_number and not r.club for r in results)
+
+
+@pytest.mark.integration
+def test_sporthive_importe_tout_levenement_et_marque_le_tcn():
+    """Une URL de course rapporte l'événement **entier** (les 5 courses).
+
+    Vertou 2024 est le cas de référence du sondage : 504 classés, dont 37
+    participations « TRI CLUB NANTAIS » — la liste blanche de `core.club` doit
+    les reconnaître sans que le scraper n'ait sa propre définition (#76).
+    """
+    results = registry.scrape_event_all(LIVE_URLS["sporthive"])
+
+    assert len(results) == 504
+    assert len({r.event_name for r in results}) == 5
+    assert sum(1 for r in results if is_tcn(r.club)) == 37
+    assert {r.event_date for r in results} == {date(2024, 5, 5)}
+
+
+@pytest.mark.integration
+def test_sporthive_statuts_et_splits():
+    """`validity` porte les statuts (11 DQ + 1 DNF sur le Triathlon S), et les
+    5 legs multisports alimentent les slots positionnels."""
+    results = registry.scrape_event_all(LIVE_URLS["sporthive"])
+    # Égalité stricte : « Relais - Triathlon S » est une **autre** course, avec
+    # son propre DQ — un `endswith` les mélangerait.
+    course_s = [
+        r for r in results if r.event_name == "Triathlon de Vertou 2024 - Triathlon S"
+    ]
+    assert len(course_s) == 285
+
+    non_finishers = [r for r in course_s if r.status != "finisher"]
+    assert len(non_finishers) == 12
+    assert {r.status for r in non_finishers} == {"DSQ", "DNF"}
+    for r in non_finishers:
+        assert not r.total_time
+        assert r.rank_overall is None
+
+    finisher = next(r for r in course_s if r.status == "finisher")
+    assert finisher.swim_time and finisher.bike_time and finisher.run_time
+    # Fraction de seconde tronquée : jamais `01:01:15.5130000` en base.
+    assert all(len(t) == 8 for t in (finisher.total_time, finisher.swim_time))

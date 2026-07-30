@@ -1,0 +1,47 @@
+[
+ {
+  "id": "7192778311832786176",
+  "raceName": "Triathlon XS",
+  "date": "2024-05-05T00:00:00",
+  "distanceInMeter": 12850,
+  "classificationsCount": 146,
+  "teamsCount": null,
+  "raceImportType": 1
+ },
+ {
+  "id": "7192778311832786688",
+  "raceName": "Triathlon S",
+  "date": "2024-05-05T00:00:00",
+  "distanceInMeter": 22750,
+  "classificationsCount": 285,
+  "teamsCount": null,
+  "raceImportType": 1
+ },
+ {
+  "id": "7192778311832787200",
+  "raceName": "Relais - Triathlon S",
+  "date": "2024-05-05T00:00:00",
+  "distanceInMeter": 22750,
+  "classificationsCount": 10,
+  "teamsCount": null,
+  "raceImportType": 1
+ },
+ {
+  "id": "7192821317418056192",
+  "raceName": "Duathlon Jeunes 10-13 Ans",
+  "date": "2024-05-05T00:00:00",
+  "distanceInMeter": 4800,
+  "classificationsCount": 26,
+  "teamsCount": null,
+  "raceImportType": 1
+ },
+ {
+  "id": "7192826209308791808",
+  "raceName": "Duathlon Jeunes 6-9 Ans",
+  "date": "2024-05-05T00:00:00",
+  "distanceInMeter": 1500,
+  "classificationsCount": 37,
+  "teamsCount": null,
+  "raceImportType": 1
+ }
+]

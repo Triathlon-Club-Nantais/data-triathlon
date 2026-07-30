@@ -426,8 +426,8 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 ## Fournisseurs supportés
 
 Klikego, Breizh Chrono, TimePulse, Wiclax/G-Live, ProLiveSport, Sportinnovation,
-RaceResult, Chronoplace, T2Area (FFTRI), Competitor, ok-time, runnerbreizh — tous
-en **épreuve complète**. Chronoplace (Laravel + Livewire) se lit en
+RaceResult, Chronoplace, T2Area (FFTRI), Competitor, ok-time, runnerbreizh,
+MYLAPS Sporthive — tous en **épreuve complète**. Chronoplace (Laravel + Livewire) se lit en
 `GET ?perPage=all` — pas de POST Livewire — et importe **toutes** les épreuves de
 l'événement pointé par l'URL.
 ok-time.fr (issue #52) se lit sur une API JSON WordPress publique
@@ -656,6 +656,51 @@ participations sont importées, mais les rangs en doublon font sortir l'épreuve
 Sondage du HTML réel (fait autorité) :
 `docs/superpowers/specs/2026-07-27-runnerbreizh-sondage.md`. Spec, plan et
 tâches : `specs/002-runnerbreizh-scraper/`.
+
+**MYLAPS Sporthive** (#53) est la plateforme d'endurance de MYLAPS. La page est
+une SPA Vue au HTML vide, mais l'API est publique, sans clé ni Playwright —
+`eventresults-api.speedhive.com/sporthive` : `events/{id}`, `events/{id}/races`,
+`races/{id}/participants`. L'URL annoncée par l'issue (`eventresults-api.
+sporthive.com/…/classifications/search?count=50&offset=0`) **n'existe plus**,
+son host est en NXDOMAIN — ne pas y revenir.
+
+Six points structurants, tous mesurés :
+
+- **Deux familles d'identifiants** cohabitent sur les mêmes routes : snowflake
+  (`7191895923677191680`, le fonds historique) et **GUID** (les événements
+  récents). Exiger `\d+` refuserait tout le fonds récent.
+- **Le `s` de `/events/s/<id>` sépare l'endurance du motorisé.** Sans lui,
+  `sporthive.com/events/<id>` est une épreuve **Speedhive** (moto), servie par
+  une autre API : elle est routée vers ce provider — la détection ne regarde que
+  le host — puis refusée avec un message qui nomme la forme attendue.
+  `results.sporthive.com/events/<id>` est l'ancienne façade (307), et son
+  `/races/3` porte un **index**, pas un identifiant : on l'ignore.
+- **`size` est plafonné à 10** (400 explicite au-delà, aucun export en masse) :
+  une requête par tranche de 10 participants. Vertou 2024 = 54 requêtes pour
+  504 classés ; un marathon de 43 000 classés en coûterait 4 328.
+- **Les statuts sont dans `validity`** (`DQ` — et non `DSQ` —, `DNF`, `DNS`),
+  **jamais** dans les booléens `dns`/`dsq`, à `false` sur les 1 746 participants
+  sondés, disqualifiés compris. S'y fier classait finisher *tous* les
+  non-finishers.
+- **Les splits multisports se lisent par position**, pas par libellé : la casse
+  varie (`SWIM`/`Swim`/`swim`), les deux transitions portent parfois le **même**
+  libellé, et `type` vaut `Other` jusque sur une natation. L'ordre, lui, est
+  constant (natation, T1, vélo, T2, course, tronqué à droite) — donc les 5 slots
+  positionnels, que `mapping.build_splits` ré-étiquette par sport. À l'inverse,
+  une course **mono-sport** n'a qu'un leg dont le `legDuration` est faux
+  (`00:06:33` pour un marathon) : les points de passage sont dans son
+  `participantSplits`, aux libellés signifiants (`5k`, `21.1k`) → `segments`.
+- **Une ligne de relais est une équipe**, pas un équipier (`name` = nom
+  d'équipe, `teamName` nul) : contrairement à runnerbreizh, aucun rang dupliqué,
+  donc rien qui fasse sortir l'épreuve `is_reliable=false`.
+
+Une URL rapporte l'**événement entier** (comme ok-time et Chronoplace) : les
+segments `/race/…`, `/bib/…`, `/team/…` sont ignorés. `teamName` porte le club en
+France mais la **sélection nationale** sur une épreuve internationale — la source
+ne distingue pas les deux. Ni date de naissance, ni âge : seule la catégorie
+situe la classe d'âge. Vérité d'API (panel de 11 événements, 6 pays,
+678 participants lus intégralement) :
+`docs/superpowers/specs/2026-07-30-sporthive-api-sondage.md`.
 
 Types : Triathlon XS/S/M/L/XL, Duathlon XS/S/M/L, SwimRun S/M/L, Aquathlon,
 Aquarun, Bike & Run.

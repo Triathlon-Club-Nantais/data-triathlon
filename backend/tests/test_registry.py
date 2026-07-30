@@ -164,6 +164,12 @@ _ROUTAGE_LEGITIME = [
     # Fiche coureur : même host, donc bien routée ici — c'est le scraper qui la
     # refuse ensuite, avec un message nommant la forme attendue.
     ("runnerbreizh", "https://www.runnerbreizh.fr/triathlons.php?CoureurNom=X&CoureurPrenom=Y"),
+    ("sporthive", "https://sporthive.com/events/s/7191895923677191680"),
+    # L'ancienne façade, qui répond 307 vers la précédente.
+    ("sporthive", "https://results.sporthive.com/events/7191895923677191680"),
+    # Épreuve motorisée (Speedhive) : même host, donc routée ici — c'est le
+    # scraper qui la refuse, en nommant la forme endurance attendue.
+    ("sporthive", "https://sporthive.com/events/3632319"),
 ]
 
 
@@ -192,6 +198,7 @@ _JETONS_PROVIDERS = [
     "ironman.com",
     "competitor.com",
     "runnerbreizh.fr",
+    "sporthive.com",
 ]
 
 #: Les quatre familles de contournement de l'issue #49, plus la confusion userinfo.
@@ -321,3 +328,26 @@ def test_detect_provider_rejette_un_host_sosie():
 
 def test_provider_names_contient_oktime():
     assert "oktime" in registry.provider_names()
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://sporthive.com/events/s/7191895923677191680",
+        "https://www.sporthive.com/events/s/7191895923677191680",
+        "https://sporthive.com/events/s/bdea2f10-1510-481c-b5ef-ef7f1926a06f/race/9c945c48-95ea-4680-bc98-cc5ea4e040c3",
+        "https://results.sporthive.com/events/7191895923677191680/races/3",
+        "https://sporthive.com:443/events/s/7191895923677191680",
+    ],
+)
+def test_detect_provider_sporthive(url):
+    """Apex, `www`, l'ancienne façade `results`, GUID et port explicite."""
+    assert registry.detect_provider(url) == "sporthive"
+
+
+def test_detect_provider_sporthive_rejette_un_host_sosie():
+    assert registry.detect_provider("https://evilsporthive.com/events/s/1") != "sporthive"
+
+
+def test_provider_names_contient_sporthive():
+    assert "sporthive" in registry.provider_names()

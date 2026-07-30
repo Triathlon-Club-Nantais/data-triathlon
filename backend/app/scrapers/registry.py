@@ -30,6 +30,7 @@ from app.scrapers import (
     prolivesport,
     raceresult,
     runnerbreizh,
+    sporthive,
     sportinnovation,
     t2area,
     timepulse,
@@ -270,6 +271,26 @@ class RunnerBreizhProvider(HostMatchedProvider):
         return runnerbreizh.scrape_event_all(url)
 
 
+class SporthiveProvider(HostMatchedProvider):
+    name = "sporthive"
+
+    # MYLAPS Sporthive (issue #53). `results.sporthive.com` est l'ancienne
+    # façade : elle répond 307 vers `sporthive.com/events/s/<id>`, et les deux
+    # sont couvertes par le même host apex. L'API, elle, vit ailleurs
+    # (`eventresults-api.speedhive.com/sporthive`) : c'est une cible d'appel,
+    # jamais une URL d'entrée, donc elle n'a rien à faire ici.
+    #
+    # `sporthive.com` sert aussi les épreuves **motorisées** de Speedhive sous
+    # `/events/<id>` (sans le `s`) : elles sont routées ici — la détection ne
+    # regarde que le host — puis refusées par le scraper, qui nomme la forme
+    # endurance attendue. Discriminer sur le path dans `matches` les ferait
+    # tomber en fallback playwright, dont le message ne dit rien.
+    _HOSTS = ("sporthive.com",)
+
+    def scrape_event_all(self, url: str) -> list[ScrapedResult]:
+        return sporthive.scrape_event_all(url)
+
+
 class T2AreaProvider:
     name = "t2area"
 
@@ -314,6 +335,7 @@ PROVIDERS: list[ScraperProtocol] = [
     OkTimeProvider(),
     CompetitorProvider(),
     RunnerBreizhProvider(),
+    SporthiveProvider(),
     T2AreaProvider(),
 ]
 _FALLBACK: ScraperProtocol = PlaywrightProvider()

@@ -1,0 +1,371 @@
+{
+ "content": [
+  {
+   "pk": "7183110323454187008_489067_7285299427866984704",
+   "name": "Abdi Nageeye",
+   "teamContribute": false,
+   "raceCategory": "MSR",
+   "country": "NL",
+   "categoryPosition": 1,
+   "numberOfParticipantsInCategory": 6066,
+   "overallPosition": 1,
+   "genderPosition": 1,
+   "genderPositionCount": 13095,
+   "gender": "M",
+   "bib": "4",
+   "gunTimeOfParticipant": "02:04:45",
+   "chipTimeOfParticipant": "02:04:45",
+   "dns": false,
+   "dsq": false,
+   "legs": [
+    {
+     "type": "Running",
+     "legDuration": "00:06:33",
+     "totalDuration": "00:00:00",
+     "distanceInMeters": 0,
+     "participantSplits": [
+      {
+       "distanceInMeters": 5000,
+       "splitDuration": "00:14:34",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "5k",
+       "personalSplitSpeed": 20.594965,
+       "averageSplitSpeed": 20.594965
+      },
+      {
+       "distanceInMeters": 10000,
+       "splitDuration": "00:14:33",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "10k",
+       "personalSplitSpeed": 20.618557,
+       "averageSplitSpeed": 20.6067543
+      },
+      {
+       "distanceInMeters": 15000,
+       "splitDuration": "00:14:42",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "15k",
+       "personalSplitSpeed": 20.4081631,
+       "averageSplitSpeed": 20.5401287
+      },
+      {
+       "distanceInMeters": 20000,
+       "splitDuration": "00:14:43",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "20k",
+       "personalSplitSpeed": 20.3850517,
+       "averageSplitSpeed": 20.5011387
+      },
+      {
+       "distanceInMeters": 21097,
+       "splitDuration": "00:03:15",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "21.1k",
+       "personalSplitSpeed": 20.2523079,
+       "averageSplitSpeed": 20.48805
+      },
+      {
+       "distanceInMeters": 25000,
+       "splitDuration": "00:11:28",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "25k",
+       "personalSplitSpeed": 20.4226742,
+       "averageSplitSpeed": 20.4778156
+      },
+      {
+       "distanceInMeters": 30000,
+       "splitDuration": "00:14:56",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "30k",
+       "personalSplitSpeed": 20.0892849,
+       "averageSplitSpeed": 20.41202
+      },
+      {
+       "distanceInMeters": 35000,
+       "splitDuration": "00:14:43",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "35k",
+       "personalSplitSpeed": 20.3850517,
+       "averageSplitSpeed": 20.4081631
+      },
+      {
+       "distanceInMeters": 40000,
+       "splitDuration": "00:15:18",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "40k",
+       "personalSplitSpeed": 19.6078434,
+       "averageSplitSpeed": 20.30457
+      },
+      {
+       "distanceInMeters": 42195,
+       "splitDuration": "00:06:33",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "Finish",
+       "personalSplitSpeed": 20.10687,
+       "averageSplitSpeed": 20.2941875
+      }
+     ],
+     "kmh": 0.0
+    }
+   ],
+   "apid": 0,
+   "activeEventId": "7183110323454187008",
+   "activeRaceId": "489067",
+   "distanceInMeter": 42195,
+   "date": "2024-04-13T13:30:00",
+   "id": "7285299427866984960",
+   "vid": "7285299427866984704",
+   "customValues": [
+    "AV Cifla",
+    "1"
+   ]
+  },
+  {
+   "pk": "7183110323454187008_489067_7285299427866984704",
+   "name": "Amedework Walelegn",
+   "teamContribute": false,
+   "raceCategory": "MSR",
+   "country": "ET",
+   "categoryPosition": 2,
+   "numberOfParticipantsInCategory": 6066,
+   "overallPosition": 2,
+   "genderPosition": 2,
+   "genderPositionCount": 13095,
+   "gender": "M",
+   "bib": "5",
+   "gunTimeOfParticipant": "02:04:50",
+   "chipTimeOfParticipant": "02:04:48",
+   "dns": false,
+   "dsq": false,
+   "legs": [
+    {
+     "type": "Running",
+     "legDuration": "00:06:38",
+     "totalDuration": "00:00:00",
+     "distanceInMeters": 0,
+     "participantSplits": [
+      {
+       "distanceInMeters": 5000,
+       "splitDuration": "00:14:32",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "5k",
+       "personalSplitSpeed": 20.6422024,
+       "averageSplitSpeed": 20.6422024
+      },
+      {
+       "distanceInMeters": 10000,
+       "splitDuration": "00:14:33",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "10k",
+       "personalSplitSpeed": 20.618557,
+       "averageSplitSpeed": 20.630373
+      },
+      {
+       "distanceInMeters": 15000,
+       "splitDuration": "00:14:43",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "15k",
+       "personalSplitSpeed": 20.3850517,
+       "averageSplitSpeed": 20.547945
+      },
+      {
+       "distanceInMeters": 20000,
+       "splitDuration": "00:14:42",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "20k",
+       "personalSplitSpeed": 20.4081631,
+       "averageSplitSpeed": 20.5128212
+      },
+      {
+       "distanceInMeters": 21097,
+       "splitDuration": "00:03:15",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "21.1k",
+       "personalSplitSpeed": 20.2523079,
+       "averageSplitSpeed": 20.49911
+      },
+      {
+       "distanceInMeters": 25000,
+       "splitDuration": "00:11:28",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "25k",
+       "personalSplitSpeed": 20.4226742,
+       "averageSplitSpeed": 20.4871387
+      },
+      {
+       "distanceInMeters": 30000,
+       "splitDuration": "00:14:57",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "30k",
+       "personalSplitSpeed": 20.0668888,
+       "averageSplitSpeed": 20.4158783
+      },
+      {
+       "distanceInMeters": 35000,
+       "splitDuration": "00:14:42",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "35k",
+       "personalSplitSpeed": 20.4081631,
+       "averageSplitSpeed": 20.4147758
+      },
+      {
+       "distanceInMeters": 40000,
+       "splitDuration": "00:15:18",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "40k",
+       "personalSplitSpeed": 19.6078434,
+       "averageSplitSpeed": 20.310297
+      },
+      {
+       "distanceInMeters": 42195,
+       "splitDuration": "00:06:38",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "Finish",
+       "personalSplitSpeed": 19.85427,
+       "averageSplitSpeed": 20.2860584
+      }
+     ],
+     "kmh": 0.0
+    }
+   ],
+   "apid": 0,
+   "activeEventId": "7183110323454187008",
+   "activeRaceId": "489067",
+   "distanceInMeter": 42195,
+   "date": "2024-04-13T13:30:00",
+   "id": "7285299427866985216",
+   "vid": "7285299427866984704",
+   "customValues": [
+    "",
+    "2"
+   ]
+  },
+  {
+   "pk": "7183110323454187008_489067_7285299427866984704",
+   "name": "Birhanu Legese",
+   "teamContribute": false,
+   "raceCategory": "MSR",
+   "country": "ET",
+   "categoryPosition": 3,
+   "numberOfParticipantsInCategory": 6066,
+   "overallPosition": 3,
+   "genderPosition": 3,
+   "genderPositionCount": 13095,
+   "gender": "M",
+   "bib": "2",
+   "gunTimeOfParticipant": "02:05:16",
+   "chipTimeOfParticipant": "02:05:16",
+   "dns": false,
+   "dsq": false,
+   "legs": [
+    {
+     "type": "Running",
+     "legDuration": "00:07:02",
+     "totalDuration": "00:00:00",
+     "distanceInMeters": 0,
+     "participantSplits": [
+      {
+       "distanceInMeters": 5000,
+       "splitDuration": "00:14:33",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "5k",
+       "personalSplitSpeed": 20.618557,
+       "averageSplitSpeed": 20.618557
+      },
+      {
+       "distanceInMeters": 10000,
+       "splitDuration": "00:14:33",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "10k",
+       "personalSplitSpeed": 20.618557,
+       "averageSplitSpeed": 20.618557
+      },
+      {
+       "distanceInMeters": 15000,
+       "splitDuration": "00:14:43",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "15k",
+       "personalSplitSpeed": 20.3850517,
+       "averageSplitSpeed": 20.5401287
+      },
+      {
+       "distanceInMeters": 20000,
+       "splitDuration": "00:14:43",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "20k",
+       "personalSplitSpeed": 20.3850517,
+       "averageSplitSpeed": 20.5011387
+      },
+      {
+       "distanceInMeters": 21097,
+       "splitDuration": "00:03:15",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "21.1k",
+       "personalSplitSpeed": 20.2523079,
+       "averageSplitSpeed": 20.48805
+      },
+      {
+       "distanceInMeters": 25000,
+       "splitDuration": "00:11:28",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "25k",
+       "personalSplitSpeed": 20.4226742,
+       "averageSplitSpeed": 20.4778156
+      },
+      {
+       "distanceInMeters": 30000,
+       "splitDuration": "00:14:57",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "30k",
+       "personalSplitSpeed": 20.0668888,
+       "averageSplitSpeed": 20.4081631
+      },
+      {
+       "distanceInMeters": 35000,
+       "splitDuration": "00:14:42",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "35k",
+       "personalSplitSpeed": 20.4081631,
+       "averageSplitSpeed": 20.4081631
+      },
+      {
+       "distanceInMeters": 40000,
+       "splitDuration": "00:15:20",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "40k",
+       "personalSplitSpeed": 19.565218,
+       "averageSplitSpeed": 20.2988434
+      },
+      {
+       "distanceInMeters": 42195,
+       "splitDuration": "00:07:02",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "Finish",
+       "personalSplitSpeed": 18.7251186,
+       "averageSplitSpeed": 20.2104836
+      }
+     ],
+     "kmh": 0.0
+    }
+   ],
+   "apid": 0,
+   "activeEventId": "7183110323454187008",
+   "activeRaceId": "489067",
+   "distanceInMeter": 42195,
+   "date": "2024-04-13T13:30:00",
+   "id": "7285299427866985472",
+   "vid": "7285299427866984704",
+   "customValues": [
+    "",
+    "3"
+   ]
+  }
+ ],
+ "number": 0,
+ "size": 3,
+ "totalElements": 17088,
+ "totalPages": 5696,
+ "first": true,
+ "last": false,
+ "numberOfElements": 3
+}

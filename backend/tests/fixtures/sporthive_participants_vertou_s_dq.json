@@ -1,0 +1,493 @@
+{
+ "content": [
+  {
+   "pk": "7191895923677191680_4_7195685540963419136",
+   "name": "Xavier SEGUETTE",
+   "teamContribute": false,
+   "raceCategory": "V2M",
+   "country": "FRA",
+   "categoryPosition": 26,
+   "numberOfParticipantsInCategory": 26,
+   "overallPosition": 271,
+   "genderPosition": 221,
+   "genderPositionCount": 222,
+   "gender": "M",
+   "bib": "271",
+   "gunTimeOfParticipant": "02:09:44.6630000",
+   "chipTimeOfParticipant": "02:09:44.6630000",
+   "dns": false,
+   "dsq": false,
+   "legs": [
+    {
+     "sportName": "SWIM",
+     "type": "Swimming",
+     "legDuration": "00:44:49",
+     "totalDuration": "00:44:49",
+     "distanceInMeters": 750,
+     "participantSplits": [
+      {
+       "distanceInMeters": 750,
+       "splitDuration": "00:44:48.763",
+       "totalSplitDuration": "00:00:00",
+       "splitName": ".75 km",
+       "personalSplitSpeed": 1.00417924,
+       "averageSplitSpeed": 1.00417924
+      }
+     ],
+     "kmh": 1.00409079,
+     "rank": 275,
+     "totalPosition": 287
+    },
+    {
+     "sportName": "TRANSITION",
+     "type": "Transition",
+     "legDuration": "00:04:23",
+     "totalDuration": "00:49:12",
+     "distanceInMeters": 0,
+     "participantSplits": [
+      {
+       "distanceInMeters": 0,
+       "splitDuration": "00:04:23",
+       "totalSplitDuration": "00:00:00",
+       "splitName": ".0 ",
+       "personalSplitSpeed": 0.0,
+       "averageSplitSpeed": 0.0
+      }
+     ],
+     "kmh": 0.0,
+     "rank": 261,
+     "totalPosition": 287
+    },
+    {
+     "sportName": "BIKE",
+     "type": "Cycling",
+     "legDuration": "00:45:32",
+     "totalDuration": "01:34:44",
+     "distanceInMeters": 19500,
+     "participantSplits": [
+      {
+       "distanceInMeters": 19500,
+       "splitDuration": "00:45:31.850",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "19.5 km",
+       "personalSplitSpeed": 25.6968727,
+       "averageSplitSpeed": 25.6968727
+      }
+     ],
+     "kmh": 25.6954613,
+     "rank": 252,
+     "totalPosition": 281
+    },
+    {
+     "sportName": "TRANSITION",
+     "type": "Transition",
+     "legDuration": "00:00:53",
+     "totalDuration": "01:35:36",
+     "distanceInMeters": 0,
+     "participantSplits": [
+      {
+       "distanceInMeters": 0,
+       "splitDuration": "00:00:52.100",
+       "totalSplitDuration": "00:00:00",
+       "splitName": ".0 ",
+       "personalSplitSpeed": 0.0,
+       "averageSplitSpeed": 0.0
+      }
+     ],
+     "kmh": 0.0,
+     "rank": 45,
+     "totalPosition": 280
+    },
+    {
+     "sportName": "RUN",
+     "type": "Running",
+     "legDuration": "00:34:09",
+     "totalDuration": "02:09:45",
+     "distanceInMeters": 2500,
+     "participantSplits": [
+      {
+       "distanceInMeters": 2500,
+       "splitDuration": "00:34:08.950",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "2.5 km",
+       "personalSplitSpeed": 4.39249372,
+       "averageSplitSpeed": 4.39249372
+      }
+     ],
+     "kmh": 4.39238644,
+     "rank": 255,
+     "totalPosition": 281
+    }
+   ],
+   "apid": 0,
+   "activeEventId": "7191895923677191680",
+   "activeRaceId": "4",
+   "distanceInMeter": 22750,
+   "date": "2024-05-05T00:00:00",
+   "id": "7195685540963499008",
+   "vid": "7195685540963419136"
+  },
+  {
+   "pk": "7191895923677191680_4_7195685540963419136",
+   "name": "Julie FLEURISSON",
+   "teamContribute": false,
+   "raceCategory": "S1F",
+   "country": "FRA",
+   "categoryPosition": 8,
+   "numberOfParticipantsInCategory": 8,
+   "overallPosition": 272,
+   "genderPosition": 51,
+   "genderPositionCount": 51,
+   "gender": "F",
+   "bib": "250",
+   "gunTimeOfParticipant": "02:10:15.5630000",
+   "chipTimeOfParticipant": "02:10:15.5630000",
+   "dns": false,
+   "dsq": false,
+   "legs": [
+    {
+     "sportName": "SWIM",
+     "type": "Swimming",
+     "legDuration": "00:33:15",
+     "totalDuration": "00:33:15",
+     "distanceInMeters": 750,
+     "participantSplits": [
+      {
+       "distanceInMeters": 750,
+       "splitDuration": "00:33:14.213",
+       "totalSplitDuration": "00:00:00",
+       "splitName": ".75 km",
+       "personalSplitSpeed": 1.3539176,
+       "averageSplitSpeed": 1.3539176
+      }
+     ],
+     "kmh": 1.35338342,
+     "rank": 259,
+     "totalPosition": 268
+    },
+    {
+     "sportName": "TRANSITION",
+     "type": "Transition",
+     "legDuration": "00:02:27",
+     "totalDuration": "00:35:41",
+     "distanceInMeters": 0,
+     "participantSplits": [
+      {
+       "distanceInMeters": 0,
+       "splitDuration": "00:02:26.500",
+       "totalSplitDuration": "00:00:00",
+       "splitName": ".0 ",
+       "personalSplitSpeed": 0.0,
+       "averageSplitSpeed": 0.0
+      }
+     ],
+     "kmh": 0.0,
+     "rank": 161,
+     "totalPosition": 258
+    },
+    {
+     "sportName": "BIKE",
+     "type": "Cycling",
+     "legDuration": "00:56:40",
+     "totalDuration": "01:32:21",
+     "distanceInMeters": 19500,
+     "participantSplits": [
+      {
+       "distanceInMeters": 19500,
+       "splitDuration": "00:56:39.750",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "19.5 km",
+       "personalSplitSpeed": 20.6485767,
+       "averageSplitSpeed": 20.6485767
+      }
+     ],
+     "kmh": 20.6470585,
+     "rank": 271,
+     "totalPosition": 279
+    },
+    {
+     "sportName": "TRANSITION",
+     "type": "Transition",
+     "legDuration": "00:00:58",
+     "totalDuration": "01:33:18",
+     "distanceInMeters": 0,
+     "participantSplits": [
+      {
+       "distanceInMeters": 0,
+       "splitDuration": "00:00:57.100",
+       "totalSplitDuration": "00:00:00",
+       "splitName": ".0 ",
+       "personalSplitSpeed": 0.0,
+       "averageSplitSpeed": 0.0
+      }
+     ],
+     "kmh": 0.0,
+     "rank": 71,
+     "totalPosition": 277
+    },
+    {
+     "sportName": "RUN",
+     "type": "Running",
+     "legDuration": "00:36:58",
+     "totalDuration": "02:10:16",
+     "distanceInMeters": 2500,
+     "participantSplits": [
+      {
+       "distanceInMeters": 2500,
+       "splitDuration": "00:36:58",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "2.5 km",
+       "personalSplitSpeed": 4.05770969,
+       "averageSplitSpeed": 4.05770969
+      }
+     ],
+     "kmh": 4.05770969,
+     "rank": 264,
+     "totalPosition": 282
+    }
+   ],
+   "apid": 0,
+   "activeEventId": "7191895923677191680",
+   "activeRaceId": "4",
+   "distanceInMeter": 22750,
+   "date": "2024-05-05T00:00:00",
+   "id": "7195685540963499264",
+   "vid": "7195685540963419136"
+  },
+  {
+   "pk": "7191895923677191680_4_7195685540963419136",
+   "name": "Eric LABRUX",
+   "teamName": "BRENNE TRIATHLON",
+   "teamId": "7195685540963429376",
+   "teamContribute": false,
+   "raceCategory": "V4M",
+   "country": "FRA",
+   "overallPosition": 0,
+   "gender": "M",
+   "bib": "94",
+   "validity": "DQ",
+   "dns": false,
+   "dsq": false,
+   "legs": [
+    {
+     "sportName": "SWIM",
+     "type": "Swimming",
+     "legDuration": "00:00:00",
+     "totalDuration": "00:17:29",
+     "distanceInMeters": 750,
+     "participantSplits": [
+      {
+       "distanceInMeters": 750,
+       "splitDuration": "00:00:00",
+       "totalSplitDuration": "00:00:00",
+       "splitName": ".75 km",
+       "personalSplitSpeed": 0.0,
+       "averageSplitSpeed": 0.0
+      }
+     ],
+     "kmh": 0.0
+    },
+    {
+     "sportName": "TRANSITION",
+     "type": "Transition",
+     "legDuration": "00:00:00",
+     "totalDuration": "00:21:47",
+     "distanceInMeters": 0,
+     "participantSplits": [
+      {
+       "distanceInMeters": 0,
+       "splitDuration": "00:00:00",
+       "totalSplitDuration": "00:00:00",
+       "splitName": ".0 ",
+       "personalSplitSpeed": 0.0,
+       "averageSplitSpeed": 0.0
+      }
+     ],
+     "kmh": 0.0
+    },
+    {
+     "sportName": "BIKE",
+     "type": "Cycling",
+     "legDuration": "00:00:00",
+     "totalDuration": "01:03:55",
+     "distanceInMeters": 19500,
+     "participantSplits": [
+      {
+       "distanceInMeters": 19500,
+       "splitDuration": "00:00:00",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "19.5 km",
+       "personalSplitSpeed": 0.0,
+       "averageSplitSpeed": 0.0
+      }
+     ],
+     "kmh": 0.0
+    },
+    {
+     "sportName": "TRANSITION",
+     "type": "Transition",
+     "legDuration": "00:00:00",
+     "totalDuration": "01:06:19",
+     "distanceInMeters": 0,
+     "participantSplits": [
+      {
+       "distanceInMeters": 0,
+       "splitDuration": "00:00:00",
+       "totalSplitDuration": "00:00:00",
+       "splitName": ".0 ",
+       "personalSplitSpeed": 0.0,
+       "averageSplitSpeed": 0.0
+      }
+     ],
+     "kmh": 0.0
+    },
+    {
+     "sportName": "RUN",
+     "type": "Running",
+     "legDuration": "00:00:00",
+     "totalDuration": "01:34:20",
+     "distanceInMeters": 2500,
+     "participantSplits": [
+      {
+       "distanceInMeters": 2500,
+       "splitDuration": "00:00:00",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "2.5 km",
+       "personalSplitSpeed": 0.0,
+       "averageSplitSpeed": 0.0
+      }
+     ],
+     "kmh": 0.0
+    }
+   ],
+   "apid": 0,
+   "activeEventId": "7191895923677191680",
+   "activeRaceId": "4",
+   "distanceInMeter": 22750,
+   "date": "2024-05-05T00:00:00",
+   "id": "7195685540963499776",
+   "vid": "7195685540963419136"
+  },
+  {
+   "pk": "7191895923677191680_4_7195685540963419136",
+   "name": "Damien DUHAUT",
+   "teamName": "ATHLETIC RETZ SUD LAC",
+   "teamId": "7195685540963424768",
+   "teamContribute": false,
+   "raceCategory": "S4M",
+   "country": "FRA",
+   "overallPosition": 0,
+   "gender": "M",
+   "bib": "170",
+   "validity": "DQ",
+   "dns": false,
+   "dsq": false,
+   "legs": [
+    {
+     "sportName": "SWIM",
+     "type": "Swimming",
+     "legDuration": "00:00:00",
+     "totalDuration": "00:17:56",
+     "distanceInMeters": 750,
+     "participantSplits": [
+      {
+       "distanceInMeters": 750,
+       "splitDuration": "00:00:00",
+       "totalSplitDuration": "00:00:00",
+       "splitName": ".75 km",
+       "personalSplitSpeed": 0.0,
+       "averageSplitSpeed": 0.0
+      }
+     ],
+     "kmh": 0.0
+    },
+    {
+     "sportName": "TRANSITION",
+     "type": "Transition",
+     "legDuration": "00:00:00",
+     "totalDuration": "00:21:25",
+     "distanceInMeters": 0,
+     "participantSplits": [
+      {
+       "distanceInMeters": 0,
+       "splitDuration": "00:00:00",
+       "totalSplitDuration": "00:00:00",
+       "splitName": ".0 ",
+       "personalSplitSpeed": 0.0,
+       "averageSplitSpeed": 0.0
+      }
+     ],
+     "kmh": 0.0
+    },
+    {
+     "sportName": "BIKE",
+     "type": "Cycling",
+     "legDuration": "00:00:00",
+     "totalDuration": "01:03:40",
+     "distanceInMeters": 19500,
+     "participantSplits": [
+      {
+       "distanceInMeters": 19500,
+       "splitDuration": "00:00:00",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "19.5 km",
+       "personalSplitSpeed": 0.0,
+       "averageSplitSpeed": 0.0
+      }
+     ],
+     "kmh": 0.0
+    },
+    {
+     "sportName": "TRANSITION",
+     "type": "Transition",
+     "legDuration": "00:00:00",
+     "totalDuration": "01:04:56",
+     "distanceInMeters": 0,
+     "participantSplits": [
+      {
+       "distanceInMeters": 0,
+       "splitDuration": "00:00:00",
+       "totalSplitDuration": "00:00:00",
+       "splitName": ".0 ",
+       "personalSplitSpeed": 0.0,
+       "averageSplitSpeed": 0.0
+      }
+     ],
+     "kmh": 0.0
+    },
+    {
+     "sportName": "RUN",
+     "type": "Running",
+     "legDuration": "00:00:00",
+     "totalDuration": "01:35:54",
+     "distanceInMeters": 2500,
+     "participantSplits": [
+      {
+       "distanceInMeters": 2500,
+       "splitDuration": "00:00:00",
+       "totalSplitDuration": "00:00:00",
+       "splitName": "2.5 km",
+       "personalSplitSpeed": 0.0,
+       "averageSplitSpeed": 0.0
+      }
+     ],
+     "kmh": 0.0
+    }
+   ],
+   "apid": 0,
+   "activeEventId": "7191895923677191680",
+   "activeRaceId": "4",
+   "distanceInMeter": 22750,
+   "date": "2024-05-05T00:00:00",
+   "id": "7195685540963500032",
+   "vid": "7195685540963419136"
+  }
+ ],
+ "number": 27,
+ "size": 10,
+ "totalElements": 285,
+ "totalPages": 29,
+ "first": false,
+ "last": false,
+ "numberOfElements": 4
+}
