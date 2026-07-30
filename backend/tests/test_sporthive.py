@@ -916,3 +916,100 @@ def test_the_module_never_reimplements_club_membership():
     assert "nantais" not in litteraux
     # Neither the predicate, nor its SQL twin, nor the module holding them.
     assert not identifiants & {"is_tcn", "tcn_clause", "normalize_club", "TCN_CLUB_LABELS", "club"}
+
+
+# ---------------------------------------------------------------------------
+# T025–T028 (US3) — a link that can't be imported names its cause
+# ---------------------------------------------------------------------------
+
+
+def test_an_unreadable_url_is_refused_before_any_request(monkeypatch):
+    """FR-003. The refusal names the expected form, and costs nothing: no
+    request goes out, so a bad link in a batch doesn't spend a round trip.
+    """
+    client = _client_factice(monkeypatch, {})
+
+    with pytest.raises(ValueError, match=r"events/<id>"):
+        sporthive.scrape_event_all("https://results.sporthive.com/profile")
+
+    assert client.calls == []
+
+
+def test_an_unknown_event_is_refused_by_name_not_by_http_error(monkeypatch):
+    """A 404 says "this id doesn't exist" — a link problem, so a `ValueError`
+    that `import_service` wraps into `ScraperError` and the front shows verbatim.
+    A raw `httpx.HTTPError` would read as an outage in the CLI report.
+    """
+    client = _client_factice(
+        monkeypatch,
+        {f"/events/{_EVENT_ID}": FakeResponse({"message": "Event with id X is not found"}, 404)},
+    )
+
+    with pytest.raises(ValueError, match=r"introuvable"):
+        sporthive.scrape_event_all(URL_SHEET)
+
+    # Refused on the metadata call: no ranking was ever requested.
+    assert client.calls_containing("/participants") == []
+
+
+@pytest.mark.parametrize("courses, pages, cas", [
+    # Every race truncated: each announces 2, only one is served.
+    ([_course(n, annonces=2) for n in range(1, 4)],
+     {n: [[_participant(f"{n}01")]] for n in range(1, 4)},
+     "toutes tronquées"),
+    # Every race announcing zero ranked entrants.
+    ([_course(n, annonces=0) for n in range(1, 4)], {}, "toutes à zéro classé"),
+    # An event publishing no race at all.
+    ([], {}, "aucune course publiée"),
+])
+def test_an_event_yielding_no_race_is_refused_in_french(monkeypatch, courses, pages, cas):
+    """FR-008c / D14. This is the guard that closes the hole opened by dropping
+    races one at a time: `import_service._require_event_name` does **not** raise
+    on an empty list (`any()` of an empty list is false) and `batch` counts "no
+    result" as a legitimate short-circuit. Without it, a wholly truncated event
+    would be indistinguishable from a successful import in the report — the
+    exact opposite of what `est_echec_total` guarantees at the batch level.
+
+    The message is in **French**: it travels through `ScraperError`, which
+    `register_exception_handlers` serialises to `{"detail": …}` and the front
+    shows verbatim (mixed `DomainError` case of principle I).
+    """
+    _client_factice(monkeypatch, _routes(courses, pages))
+
+    with pytest.raises(ValueError, match=r"aucune course importable") as leve:
+        sporthive.scrape_event_all(URL_SHEET)
+
+    # French, and it says why rather than just "empty".
+    assert "Événement Sporthive" in str(leve.value), cas
+
+
+def test_no_request_is_ever_made_to_the_race_ordinal_of_the_url(monkeypatch):
+    """Trap n°1, locked as a regression test (D1, FR-004). On the real source
+    `GET /races/1/participants` answers **200** and returns a 2015 event with
+    1 173 finishers: reading the URL's ordinal as a race id would import a
+    foreign event under the requested `source_url`, with no error at all.
+
+    The URL under test carries `/races/1`, and the event's real race ids are
+    19-digit snowflakes — `id == URL segment` held 0 times out of 32 on the
+    panel, `activeRaceId == URL segment` 32 times out of 32.
+    """
+    courses = _fixture("sporthive_races.json")
+    ordinaux = {str(course["activeRaceId"]) for course in courses}
+    identifiants = {course["id"] for course in courses}
+    assert ordinaux & identifiants == set()
+
+    pages = {course["activeRaceId"]: [[_participant("1")]] for course in courses}
+    # `classificationsCount` lowered to 1 so one page per race is enough; the
+    # real counts (366, 29, …) belong to the completeness-guard tests.
+    for course in courses:
+        course["classificationsCount"] = 1
+    client = _client_factice(monkeypatch, _routes(courses, pages))
+
+    resultats = sporthive.scrape_event_all(URL_SHEET)
+
+    assert len(resultats) == 6
+    for ordinal in ordinaux:
+        assert client.calls_containing(f"/races/{ordinal}/participants") == []
+    # Symmetrical assertion: every ranking call went to a snowflake.
+    for appel in client.calls_containing("/participants"):
+        assert any(f"/races/{identifiant}/participants" in appel for identifiant in identifiants)
