@@ -193,8 +193,10 @@ Le front tourne sur Vercel. Deux variables d'environnement à connaître :
 
 Deux ressources pour enchaîner :
 
-- `docs/WORKFLOW-IA.md` — quand utiliser Speckit (`/speckit-specify` pour une
-  vraie feature) vs. le workflow « vibe » (bugfix, typo, un ou deux fichiers).
+- `docs/WORKFLOW-IA.md` — les trois voies : Speckit (`/speckit-specify` …
+  `/speckit-implement`), Superpowers (`brainstorming` → `writing-plans` →
+  exécution), ou « sans plan » (bugfix, typo, un ou deux fichiers). Les deux
+  premières ne se croisent jamais.
 - Une première contribution accessible : ajouter un filtre à
   `app/resultats/page.tsx` (par sport, par saison), ou un composant graphique
   dans `frontend/components/charts/` (ex : répartition par distance).
