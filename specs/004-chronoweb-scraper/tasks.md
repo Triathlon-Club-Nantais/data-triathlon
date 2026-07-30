@@ -79,13 +79,17 @@ correspond ligne à ligne au site (02:13:26, rangs 1/1, 5 segments).
 - [ ] T028 [US1] Implémenter le chemin `segments` : libellés de la source, transitions intercalées sous « Changement », aucun plafond de 5 (FR-009) — rendre T027 vert
 - [ ] T029 [US1] Test rouge de `_gender_from_category` : les 5 règles de research R7 sur un échantillon représentatif des 81 codes du panel — `MSE`/`FV1`/`MCA`/`FPU` par **préfixe**, `SEM`/`V1F`/`M0F`/`M1M`/`JUF` par **suffixe** (`M0F` doit sortir `F`, pas `M`), `MASC` → `M`, `FEM` → `F`, `MIXT`/`DUOX`/`DUOM`/`DUOF` → `""`, code inconnu ou vide → `""`
 - [ ] T030 [US1] Implémenter `_gender_from_category` — rendre T029 vert
-- [ ] T031 [US1] Test rouge de la sortie `ScrapedResult` (`_build_result`) : `event_name` composé par `utils.qualify_event_name` (« Triathlon d'Oléron 2024 - Triathlon M »), `event_date` identique sur les 3 épreuves (FR-014), `event_type` de la `RaceMeta`, `athlete_name` / `athlete_firstname` par `utils.split_athlete_name` sur les trois casses du sondage (`MARIN Thomas`, `PRIOUX EMMANUEL`, `fayet pascaline`), `bib_number`, `category`, `gender`, `provider == "chronoweb"`, `source_url` canonique, et — vides par construction — `club == ""`, `status == ""`, `distance_km is None`, `rank_gender is None` ; `raw_data` porte `event_id`, `race_id`, `race_label` et `points[]` (un dict par passage : `point_id`, `name`, `cumulative`, `segment`, `rank_overall`, `rank_category`, `speed`, `rank_gain`). Sur l'épreuve « S Relais » de `event_duathlon.html` : `is_relay` vrai, `athlete_name == "TRIPOTES TEAM GOLFECH RELAIS1"` **entier** et `athlete_firstname == ""` (FR-012)
+- [ ] T031 [US1] Test rouge de la sortie `ScrapedResult` (`_build_result`) : `event_name` composé par `utils.qualify_event_name` (« Triathlon d'Oléron 2024 - Triathlon M »), `event_date` identique sur les 3 épreuves (FR-014), `event_type` de la `RaceMeta`, `athlete_name` / `athlete_firstname` par `utils.split_athlete_name` sur les trois casses du sondage (`MARIN Thomas`, `PRIOUX EMMANUEL`, `fayet pascaline`), `bib_number`, `category`, `gender`, `provider == "chronoweb"`, `source_url` canonique, et — vides par construction — `club == ""`, `status == ""`, `distance_km is None`, `rank_gender is None` ; `raw_data` porte `event_id`, `race_id`, `race_label` et `points[]` (un dict par passage : `point_id`, `name`, `cumulative`, `segment`, `rank_overall`, `rank_category`, `speed`, `rank_gain`). Sur l'épreuve « S Relais » de `event_duathlon.html` : `is_relay` vrai, `athlete_name == "TRIPOTES TEAM GOLFECH RELAIS1"` **entier** et `athlete_firstname == ""` (FR-012). **Contre-épreuve du même FR** : sur la ligne du dossard 422 d'`event_triathlon.html` — « Triathlon M » **individuel**, catégorie `MASC` — `is_relay` est **faux**, `gender == "M"` et le nom est découpé normalement en nom/prénom : une catégorie d'équipe ne marque jamais l'épreuve, seul son libellé le fait (research R6 ; `MASC`/`FEM`/`MIXT` apparaissent sur 50/45/64 lignes hors relais)
 - [ ] T032 [US1] Implémenter `_build_result` — rendre T031 vert
 - [ ] T033 [US1] Test rouge de `scrape_event_all` avec le `FakeClient` de T009 : une entrée par participant **et par épreuve**, jamais deux entrées de même `(event_name, bib_number)`, `source_url` canonique sur toutes, **exactement 2 appels HTTP** (classement puis catalogue) et **aucun** appel à `resultats_participant.php` (FR-019, FR-020) ; `raw_data["city"] == "St Georges d'Oléron"` ; catalogue en échec (HTTP 500, puis ligne `event=` absente) → import complet **sans** `city`, un `logger.warning`, et toujours 2 appels au plus (FR-015) ; deux invocations successives refont la requête catalogue — aucune mémoïsation, le fournisseur reste sans état (research R4)
 - [ ] T034 [US1] Implémenter `scrape_event_all` et `_fetch_city` (lecture de la ligne `resultats_evenement.php?event=<id>` du catalogue puis de sa cellule `div.table-cell.location`, tout échec journalisé et ignoré) — rendre T033 vert
 
 **Checkpoint** : un événement chronoweb s'importe entièrement depuis l'URL d'une
-de ses épreuves. MVP livrable — il couvre 3 des 5 URLs distinctes du Sheet.
+de ses épreuves. MVP livrable — il couvre les **2** URLs `resultats_evenement.php`
+du Sheet, soit **4 de ses 7 liens** (celle portant `epreuve=1148&cat=all&point=10`
+y figure 3 fois). Les deux pointent le même événement 323 : **1 événement,
+3 épreuves, 854 participants**. L'événement 347 (Altriman 2025) reste hors de
+portée à ce stade — ses 2 URLs sont des fiches individuelles, traitées en US2.
 
 ---
 
@@ -103,7 +107,9 @@ identique.
 - [ ] T036 [US2] Test rouge de bout en bout : `scrape_event_all(<url de fiche individuelle>)` interroge la page d'**événement** et jamais `resultats_participant.php` (assertion sur les URLs vues par le `FakeClient`), et rend l'événement entier ; deux invocations sur deux graphies du même événement rendent des listes identiques champ à champ (FR-002, US2 §3)
 - [ ] T037 [US2] Étendre `canonical_url` à `resultats_participant.php` (troncature vers son événement) — le corps de `scrape_event_all` ne change pas, il consomme déjà l'URL canonique — rendre T035 et T036 verts
 
-**Checkpoint** : les 4 URLs exploitables du Sheet aboutissent.
+**Checkpoint** : les **4** URLs distinctes exploitables du Sheet — soit **6 de ses
+7 liens** — aboutissent, sur les **2** événements réellement pointés : 7 épreuves
+et 2 428 participants.
 
 ---
 
@@ -121,13 +127,15 @@ inconnu produisent deux messages distincts, visibles dans « Épreuves en erreur
 - [ ] T039 [US3] Test rouge de la distinction introuvable / vide : `event_inconnu.html` (aucun `h2.name`) → `ValueError` « événement introuvable » ; `event_sans_classement.html` (`h2.name` présent, zéro ligne) → liste vide **sans** exception (FR-018)
 - [ ] T040 [US3] Implémenter les deux gardes dans `app/scrapers/chronoweb.py` : absence de paramètre `event` rejetée **avant** tout appel réseau, absence de `h2.name` rejetée après le premier appel — rendre T038 et T039 verts
 
-**Checkpoint** : les 5 URLs du Sheet sont traitées — 4 importées, 1 en erreur actionnable (SC-001).
+**Checkpoint** : les **5** URLs distinctes du Sheet sont traitées — 4 importées,
+1 refusée avec un message actionnable. Comptées en **liens**, unité de SC-001 :
+6 des 7 aboutissent, le 7ᵉ (l'archive ZIP) est signalé en erreur.
 
 ---
 
 ## Phase 6 — Polish & vérifications transverses
 
-- [ ] T041 [P] Ajouter l'entrée `chronoweb` à `LIVE_URLS` de `tests/test_integration_scrapers.py` (URL stable d'Oléron 2024, effectifs publiés : 3 épreuves / 854 participants) et vérifier `uv run pytest -m integration -k chronoweb`
+- [ ] T041 [P] Ajouter **deux** entrées chronoweb à `LIVE_URLS` de `tests/test_integration_scrapers.py` et vérifier `uv run pytest -m integration -k chronoweb` : (a) Oléron 2024, effectifs publiés 3 épreuves / 854 participants (SC-002) ; (b) **Triathlon de Dijon 2026**, 8 épreuves / 1 622 participants sur une page de 4,5 Mo — c'est le seul contrôle de SC-004 (aucun participant dupliqué ni omis sur le plus gros événement du panel) et de la charge relevée au cadrage. Y assortir une assertion de non-duplication `(event_name, bib_number)` sur l'ensemble des 8 épreuves, et journaliser la durée observée pour la confronter aux ~3 s mesurées en local (research R1) — le seul environnement où la tenue en mémoire ait été vérifiée
 - [ ] T042 [P] Ajouter `chronoweb: "ChronoWeb"` à `PROVIDER_LABELS` dans `frontend/lib/constants.ts` et vérifier `npm test` — le front ne liste jamais les providers, cette entrée n'est qu'un libellé commercial (son absence ne vaut pas « non supporté »)
 - [ ] T043 [P] Documenter le fournisseur dans `AGENTS.md`, section « Fournisseurs supportés » : une ligne = un **passage** et non un participant, événement entier en une requête sans JS, temps total et rangs du **seul point final** (aucun rang intermédiaire promu), transitions **calculées** et non publiées, motif de points reconnu → slots / sinon libellés de la source, plafond de **2 requêtes** par import, absence de club (donc hors `scope=club`), de date de naissance et de distinction DNS/DSQ, canonicalisation par allowlist du seul `event`, refus de l'archive ZIP, distinction événement introuvable / sans classement, limites du classifieur partagé laissées hors périmètre, et renvoi au sondage
 - [ ] T044 Lancer `uv run ruff check .` depuis `backend/` et corriger les écarts du nouveau module et des fichiers touchés
@@ -177,11 +185,14 @@ Phase 1 (fixtures, T001-T008)  ──┐
 ## Implementation strategy
 
 1. **MVP = Phase 1 + Phase 2 + Phase 3 (US1)** : un événement chronoweb s'importe
-   entièrement depuis l'URL d'une de ses épreuves. Livrable tel quel — cela
-   couvre 3 des 5 URLs distinctes du Sheet (les `resultats_evenement.php`) et les
-   2 événements réellement pointés, soit 7 épreuves et 2 428 participants.
-2. **Incrément 2 = US2** : les 2 fiches individuelles du Sheet (40 % des liens)
-   aboutissent, et les graphies multiples cessent de compter double.
+   entièrement depuis l'URL d'une de ses épreuves. Livrable tel quel — cela couvre
+   les **2** URLs `resultats_evenement.php` du Sheet (4 de ses 7 liens), donc **un
+   seul** des 2 événements pointés : Oléron 2024, 3 épreuves, 854 participants.
+2. **Incrément 2 = US2** : les **2** fiches individuelles du Sheet — 40 % de ses
+   URLs distinctes — aboutissent, et les graphies multiples cessent de compter
+   double. C'est cet incrément qui débloque le **second** événement (Altriman
+   2025, `event=347`), soit 4 épreuves et 1 574 participants de plus : le Sheet
+   passe alors à 7 épreuves et 2 428 participants importés.
 3. **Incrément 3 = US3** : l'URL d'archive ZIP devient une erreur actionnable au
    lieu d'un échec muet, et un événement sans classement publié cesse de
    ressembler à une panne.
