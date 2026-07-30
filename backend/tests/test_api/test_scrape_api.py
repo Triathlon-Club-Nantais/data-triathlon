@@ -128,13 +128,32 @@ def test_import_event_stream_expose_les_courses_touchees(client, monkeypatch):
     """Le SSE `done` porte `courses: [{id, name, event_type}]` — le front en
     tire des boutons « Voir les résultats » (#135). Contrat stable : présent
     aussi bien sur l'import réel que sur le court-circuit cache.
+
+    On monkeypatche `iter_import_event` (comme `…serializes_reassignments`
+    juste au-dessus) plutôt que le scraper : le SSE utilise `SessionLocal()`
+    en dur, hors du `Depends(get_db)`, donc l'override de conftest ne s'y
+    applique pas — laisser `_cached_result` tourner ferait taper la vraie
+    base (« no such table: courses » en CI). La sérialisation par
+    `json.dumps(default=…)` est déjà couverte par ce voisin.
     """
     from app.services import import_service
 
-    monkeypatch.setattr(
-        import_service, "registry_scrape_event_all",
-        lambda url: [_result("1", "DUPONT"), _result("2", "MARTIN")],
-    )
+    def fake_iter_import_event(db, url, settings, force=False, persist=True):
+        yield {"phase": "scraping", "message": "Récupération des participants…"}
+        yield {
+            "phase": "done",
+            "imported": 2,
+            "updated": 0,
+            "skipped": 0,
+            "reconciled": 0,
+            "reassignments": [],
+            "total": 2,
+            "courses": [
+                {"id": 42, "name": "Triathlon de Nantes", "event_type": "triathlon-m"},
+            ],
+        }
+
+    monkeypatch.setattr(import_service, "iter_import_event", fake_iter_import_event)
 
     with client.stream(
         "POST", "/api/v1/scrape/event/stream", json={"url": "https://www.klikego.com/x"}
