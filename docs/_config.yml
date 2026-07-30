@@ -1,0 +1,22 @@
+# Configuration du site de documentation publié sur GitHub Pages.
+# Jusqu'ici il n'y en avait aucune : le build tournait sur les défauts implicites
+# du service Pages (« Configuration file: none » dans les logs).
+
+title: data-triathlon
+description: Résultats de compétition des membres du Triathlon Club Nantais
+
+# Appliqué par défaut par la gem github-pages en l'absence de config ; on le fige
+# pour que le rendu ne dépende plus d'un défaut susceptible de changer.
+theme: jekyll-theme-primer
+
+# Site de projet, servi sous un sous-chemin : sans baseurl, liens et CSS cassent.
+url: https://triathlon-club-nantais.github.io
+baseurl: /data-triathlon
+
+# Specs, plans et notes de test sont des documents de travail internes : ils ne
+# sont pas destinés au site, et Jekyll les faisait échouer au build. Leurs blocs
+# de code JSX (`style={{ ... }}`) sont lus comme des variables Liquid non
+# terminées — Pages est figé sur Jekyll 3.10, qui n'a pas `render_with_liquid`.
+exclude:
+  - superpowers
+  - test

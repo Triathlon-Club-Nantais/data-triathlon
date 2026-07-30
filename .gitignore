@@ -31,6 +31,12 @@ dist/
 # Port du backend de dev, publié par backend/scripts/dev_server.py — propre à chaque worktree
 .dev-backend.json
 
+# Site de documentation généré par Jekyll (docs/) — jamais commité, le workflow
+# Pages le reconstruit à chaque déploiement
+_site/
+.jekyll-cache/
+.jekyll-metadata
+
 # OS
 .DS_Store
 Thumbs.db
