@@ -47,9 +47,11 @@ Event  1 ── n  Race  1 ── n  Participant  1 ── n  Leg  1 ── n  P
 | `rank_overall` | `overallPosition` | `_rank()` : `0` → `None` (D12) |
 | `rank_category` | `categoryPosition` | `_rank()` |
 | `rank_gender` | `genderPosition` | `_rank()` |
-| `status` | `validity` | `derive_status_from_label` — `DNF`/`DNS`/`DQ`, absent → `""` (D5) |
+| `status` | `validity` | `derive_status_from_label` — `DNF`/`DNS`/`DQ`. Absent **et** sans temps : tranché sur le rang, `finisher` si classé, `DNF` sinon (D5) |
 | `segments` | `legs[].type` + `legs[].legDuration` | table fermée de libellés, segments vides écartés (D7, D8) |
 | `raw_data` | la charge du participant + contexte de course | diagnostic sans re-scrape |
+| `raw_data["city"]` | `event.location` | verbatim (`L'Aiguillon sur Mer (85)`), même clé que runnerbreizh — non branché sur le géocodage (D15) |
+| `raw_data["country"]` | `event.countryCode` | tel quel, codes non homogènes assumés (D15) |
 
 **Champs de la source volontairement non lus** : `dns` et `dsq` (toujours
 `false`, D5), `tags` (index de recherche, D11), `participantSplits` (D7),
@@ -63,10 +65,17 @@ les vitesses. Tous restent accessibles dans `raw_data`.
 | --- | --- | --- |
 | L'URL livre un identifiant d'événement | avant toute requête | `ValueError` nommant la forme attendue (FR-003) |
 | L'événement existe | `GET /events/{id}` → 404 | `ValueError` « événement introuvable » (FR-003) |
-| Le classement est complet | `lus >= race.classificationsCount` | `ValueError`, la course n'est pas importée (FR-008) |
-| La pagination termine | `page < _MAX_PAGES` | `ValueError` (FR-009) |
+| Le classement est complet | `lus >= race.classificationsCount` | **cette course seule** est écartée et journalisée (`logger.warning` : intitulé, `activeRaceId`, les deux décomptes) ; les autres courses de l'événement sont importées (FR-008, FR-008a) |
+| La course a des classés | `race.classificationsCount` non nul | course ignorée **sans requête de participants**, `logger.info` ; aucune `Course` vide créée (FR-008b) |
+| Au moins une course importée | `results` non vide en fin de `scrape_event_all` | `ValueError` en français : un import à zéro course n'est jamais un succès (FR-008c) |
+| La pagination termine | `page < _MAX_PAGES` | `ValueError` — portée **événement**, l'invariant d'arrêt étant faux (FR-009) |
 | Une durée nulle vaut absence | `_time()` | `""`, jamais `"00:00:00"` (FR-013) |
 | Un rang nul vaut absence | `_rank()` | `None`, jamais `0` (FR-015) |
+
+**Deux portées d'échec, pas une** : l'écart d'une course (`_IncompleteRanking`,
+type privé du module, rattrapé par la boucle) et le refus de l'événement
+(`ValueError`, propagée jusqu'à `import_service`). Le tri se fait sur le **type**
+d'exception, jamais sur son message — cf. D4.
 
 ## Ce que produit un import
 

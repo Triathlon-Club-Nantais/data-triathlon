@@ -1,11 +1,18 @@
 # Implementation Plan: Support de MYLAPS Sporthive comme fournisseur de résultats
 
-**Branch**: `feat-scrapers-supporter-results.sporthive.com-my` | **Date**: 2026-07-29 | **Spec**: [spec.md](./spec.md)
+**Branch**: `feat-scrapers-supporter-results.sporthive.com-my` | **Date**: 2026-07-29, révisé le 2026-07-30 | **Spec**: [spec.md](./spec.md)
 
 **Input**: Feature specification from `/specs/004-sporthive-scraper/spec.md`
 
 **Source de vérité technique**: `docs/superpowers/specs/2026-07-29-sporthive-sondage.md`
 — il prime sur ce plan en cas de divergence factuelle.
+
+**Révision du 30/07/2026** : la session de clarification `### Session 2026-07-30`
+de la spec a tranché cinq points (granularité de l'échec, statut sans temps,
+lieu / pays, course sans classé, import à zéro course). Ils ont produit FR-008a,
+FR-008b, FR-008c, FR-014a, FR-022a et SC-008, révisé D4/D5/D6 et ajouté D14/D15
+au `research.md`. Ce plan est réaligné sur eux ; aucun ne change la stack, le
+périmètre ni le nombre de fichiers touchés.
 
 ## Summary
 
@@ -21,6 +28,15 @@ la pagination est **plafonnée à 10** par requête (≈ 100 requêtes pour l'é
 du Sheet) ; le segment `races/{n}` de l'URL est un **ordinal local** dont l'usage
 naïf importerait une épreuve étrangère sans erreur ; et le statut sportif vit
 dans `validity`, les deux booléens `dns`/`dsq` étant morts.
+
+S'y ajoute une contrainte de **structure**, issue du cadrage : une URL Sporthive
+vaut une épreuve pour l'infra d'import, mais N courses pour la source. Le module
+porte donc **deux portées d'échec** — une course fautive est écartée
+(`_IncompleteRanking`, type privé, rattrapé par la boucle), l'événement est refusé
+(`ValueError` propagée) quand l'invariant d'arrêt tombe ou qu'**aucune** course
+n'a pu être lue. C'est ce dernier garde-fou qui empêche un import à zéro course
+de passer pour un succès, `import_service` traitant « aucun résultat » comme un
+court-circuit légitime.
 
 Aucune migration, aucun changement de contrat API ou CLI, aucun toucher au front.
 
@@ -52,7 +68,7 @@ plutôt que d'enregistrer un classement tronqué
 
 **Scale/Scope**: 1 lien dans le Sheet aujourd'hui ; panel de validation de
 7 événements / 32 courses / 10 360 participations. 1 nouveau module scraper,
-1 entrée de registre, 1 module de tests, ~8 fixtures.
+1 entrée de registre, 1 module de tests, ~10 fixtures.
 
 ## Constitution Check
 
@@ -72,6 +88,22 @@ Tracking) / N/A (le principe ne s'applique pas à cette feature).
 | VI | Simplicité / YAGNI | ✅ | Aucune abstraction nouvelle : le module suit le patron d'`oktime.py`. Les helpers partagés (`normalize_time`, `split_athlete_name`, `derive_status_from_label`, `qualify_event_name`, `classify_event_type`) sont réutilisés, pas réécrits. Aucune factorisation opportuniste des scrapers existants (cf. la note d'en-tête de `registry.py`). |
 
 Aucun principe en ⚠️ : la section « Complexity Tracking » reste vide.
+
+### Re-check post-design — 30/07/2026
+
+Les cinq arbitrages du 30/07 repassent la grille. Aucun ne dégrade un statut ;
+trois demandaient une vérification dans le code, faite avant de trancher.
+
+| # | Principe | Statut | Ce que la révision change |
+|---|----------|--------|----------------------------|
+| I | Langue | ✅ | Deux natures de texte cohabitent et restent séparées : les journaux d'écart de course (FR-008a, FR-008b) sont des `logger.*` **techniques en anglais** (destinés à Sentry, jamais affichés) ; le message de refus à zéro course (FR-008c) est en **français**, parce qu'il traverse `ScraperError` et est réaffiché verbatim par le front — cas mixte `DomainError` du principe I. |
+| II | Architecture en couches | ✅ | Point vérifié : poser `status` explicitement (FR-014a) n'introduit **aucun** couplage `scrapers → services`. `STATUS_FINISHER` / `STATUS_DNF` vivent dans `scrapers/base.py`, la couche la plus basse, importée par les scrapers **et** par `services/mapping` ; le contrat de `ScrapedResult` prévoit déjà qu'un scraper qui sait se prononce (précédent prolivesport). Le club reste jugé par `core/club.py` seul. |
+| III | TDD sans réseau | ✅ | Trois cas de test s'ajoutent, tous fabriqués à la main faute d'occurrence au panel : course à `classificationsCount: 0`, événement intégralement écarté, participant sans temps ni `validity` mais classé (D13). Toujours aucun accès réseau hors marker `integration`. |
+| IV | Contrats API et CLI stables | ✅ | Inchangé, et c'est précisément l'argument de FR-008c : le contrat de sortie de la CLI (`0` succès, `1` échec total) n'est **pas** modifié — on évite au contraire de lui faire dire « succès » sur un import à zéro participation. Aucun champ de bilan ajouté (l'escalade est explicitement renvoyée à un ticket suiveur). |
+| V | Neutralité par défaut | N/A | Toujours aucun paramètre transverse d'API de lecture touché. |
+| VI | Simplicité / YAGNI | ✅ | Deux tentations écartées nommément : ajouter un canal d'avertissement par épreuve traversant `ScrapedResult` → `import_service` → `batch` (pour remonter une course écartée au bilan), et ajouter `city` / `country` à `ScrapedResult` pour brancher le géocodage. Les deux toucheraient un contrat partagé par douze fournisseurs pour un cas sans occurrence mesurée ; les deux sont documentés en alternatives rejetées (D4, D15) avec la condition qui les rouvrirait. |
+
+Toujours aucune violation : « Complexity Tracking » reste vide.
 
 ## Project Structure
 
@@ -111,7 +143,9 @@ backend/
         ├── sporthive_kids.json             # NOUVEAU — course à 4 legs
         ├── sporthive_monosport.json        # NOUVEAU — 1 leg, sportName null
         ├── sporthive_statuses.json         # NOUVEAU — DNF / DNS / DQ + leg fantôme
-        └── sporthive_relay.json            # NOUVEAU — lignes d'équipe
+        ├── sporthive_relay.json            # NOUVEAU — lignes d'équipe
+        ├── sporthive_races_empty.json      # NOUVEAU — course à classificationsCount 0
+        └── sporthive_no_time_ranked.json   # NOUVEAU — ni chip, ni gun, ni validity, mais classé
 
 docs/superpowers/specs/
 └── 2026-07-29-sporthive-sondage.md   # DÉJÀ ÉCRIT — vérité de terrain
@@ -136,13 +170,18 @@ l'étape 2 posée.
 | --- | --- | --- |
 | 1 | Lecture d'URL : `_parse_url`, formes acceptées et refusées | FR-001..FR-004, D1, D3 |
 | 2 | Client API : `_fetch_event`, `_fetch_races`, `_fetch_participants` + pagination, plafond, traduction des 404 | FR-007, FR-009, D4 |
-| 3 | Garde de complétude sur `classificationsCount` | FR-008, D4 |
-| 4 | Mapping des scalaires : temps, rangs, genre, statut, club, identité | FR-010..FR-015, FR-019, D5, D6, D11, D12 |
+| 3 | Garde de complétude sur `classificationsCount` : `_IncompleteRanking` (portée course) + journal, courses à zéro classé ignorées sans requête | FR-008, FR-008a, FR-008b, D4, D14 |
+| 4 | Mapping des scalaires : temps, rangs, genre, statut (dont le repli sur le rang quand ni temps ni `validity`), club, identité | FR-010..FR-015, **FR-014a**, FR-019, D5, D6, D11, D12 |
 | 5 | Segments depuis `legs`, leg fantôme écarté | FR-016, FR-017, D7, D8 |
-| 6 | Métadonnées d'épreuve : nom qualifié, date, classification, distance, `is_relay` | FR-006, FR-018, FR-020..FR-022, D9, D10 |
-| 7 | Assemblage `scrape_event_all` + enregistrement au registre | FR-005, FR-023 |
+| 6 | Métadonnées d'épreuve : nom qualifié, date, classification, distance, `is_relay`, lieu / pays en `raw_data` | FR-006, FR-018, FR-020..FR-022, **FR-022a**, D9, D10, D15 |
+| 7 | Assemblage `scrape_event_all` : boucle sur les courses, écart des fautives, refus si zéro course rendue, puis enregistrement au registre | FR-005, **FR-008c**, FR-023, D14 |
 | 8 | Test `integration` sur l'événement du Sheet | SC-002, D13 |
 | 9 | Documentation : `AGENTS.md` §Fournisseurs supportés | — |
+
+Les arbitrages du 30/07 n'ajoutent aucune étape : ils épaississent 3, 4, 6 et 7.
+L'étape 7 cesse d'être un simple assemblage — c'est elle qui porte la boucle et
+les deux portées d'échec, donc elle **dépend** de 3 et n'est plus parallélisable
+avec elle. Les étapes 4, 5 et 6 restent indépendantes entre elles (`[P]`).
 
 FR-024 (échecs au bilan CLI) et FR-025 (cache TTL) ne demandent **aucun code** :
 ils sont satisfaits par l'infrastructure existante dès lors que le scraper lève
@@ -157,6 +196,8 @@ couvre, pas une tâche d'implémentation.
 | Le plafond de 10 baisse encore, ou un throttling apparaît | faible | La pagination est déjà séquentielle et lente ; un 429 remonterait comme erreur HTTP, l'import se rejoue |
 | Un événement très gros rend l'import long (2 685 classés = 269 requêtes) | avérée au panel | Accepté : import de fond, protégé par le cache TTL. Le plafond `_MAX_PAGES` borne le pire cas |
 | Sous-classements dupliquant des participations | avérée au panel | Accepté au cadrage, documenté en Assumptions de la spec |
+| Une course écartée passe inaperçue : le bilan CLI comptant des épreuves, l'épreuve ressort en succès à 5 courses sur 6 | faible (0 cas au panel) | Conséquence assumée de l'écart par course (FR-008a). Mitigation : le `logger.warning` porte intitulé, `activeRaceId` et les deux décomptes, donc il est exploitable seul. Escalade prévue si le cas se produit : remonter l'avertissement jusqu'au bilan, ce qui suppose un canal par épreuve dans `import_service` et `batch` (écarté aujourd'hui par principe VI) |
+| Une course annoncée à zéro classé alors que son classement existe est ignorée sans requête | faible (0 cas au panel) | `classificationsCount` est la seule vérité annoncée par la source ; le `logger.info` d'omission rend le cas diagnosticable, et un re-scrape le rattrape dès que le compteur passe à non nul |
 
 ## Complexity Tracking
 

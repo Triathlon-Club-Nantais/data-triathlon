@@ -67,6 +67,48 @@ JavaScript de 2 Ko.
   anglais ; vocabulaire métier, messages d'erreur destinés à l'opérateur et
   textes utilisateur en français.
 
+### Session 2026-07-30
+
+- Q: Quand une seule course d'un événement a un classement tronqué (participants
+  lus < classés annoncés), que fait l'import ? → A: **Seule la course tronquée
+  est écartée**, les autres courses de l'événement sont importées normalement.
+  L'écart est journalisé (identité de la course et les deux décomptes) parce que
+  le bilan de la CLI compte des **épreuves** : l'épreuve ressortira en succès, et
+  le journal est alors la seule trace de la course manquante. La granularité de
+  l'écart s'arrête là : un plafond de pagination atteint (FR-009) reste un refus
+  **global**, l'invariant d'arrêt étant alors faux pour tout l'événement.
+- Q: Quel statut pour un participant sans aucun temps publié et sans champ de
+  statut renseigné (73 lignes du panel n'ont ni temps réel ni temps officiel) ?
+  → A: **Finisher si la source le classe** — le statut se déduit alors de la
+  présence d'un rang au classement : rang présent → finisher sans temps ; ni
+  temps ni rang → abandon. Motif : la source distingue déjà le classé du non
+  classé (rang nul et champ de statut renseigné se recouvrent 172 fois sur 172),
+  donc s'appuyer sur le rang n'est pas deviner. Le repli générique « pas de temps
+  → abandon » afficherait « DNF » en colonne Place pour un athlète que la source
+  classe, travers déjà payé sur ok-time.
+- Q: Que fait-on du lieu et du pays que la source publie pour l'événement ? → A:
+  **Conservés dans les données brutes de la participation**, sans être branchés
+  sur le géocodage. Motif : le lieu publié (`L'Aiguillon sur Mer (85)`) est
+  meilleur que la commune déduite du nom d'épreuve, mais brancher la carte
+  dessus ajouterait un champ au contrat partagé par tous les fournisseurs — hors
+  périmètre. Le conserver évite de devoir re-scraper le panel le jour où la carte
+  saura s'en servir, et le code pays est la seule donnée qui dise qu'une épreuve
+  est étrangère (le géocodage actuel ne cherche qu'en France).
+- Q: Que fait l'import d'une course de l'événement dont la source n'annonce aucun
+  classé (classement pas encore publié, épreuve annulée) ? → A: **La course est
+  ignorée**, aucune épreuve n'est créée, l'omission est journalisée. Motif : une
+  épreuve à zéro participation apparaîtrait dans les listes et les statistiques
+  sans rien apporter, et — n'ayant aucune participation sans temps — elle serait
+  jugée terminée par le cache de fraîcheur, dont le délai long figerait le
+  re-scrape de **tout** l'événement, qui partage la même URL d'import. Un import
+  ultérieur créera la course dès que son classement sera publié.
+- Q: Et si **aucune** course de l'événement n'a pu être importée (toutes
+  tronquées, toutes sans classé) ? → A: **L'import de l'épreuve échoue**, avec un
+  message nommant la cause, et l'URL figure au détail des épreuves en erreur du
+  bilan. Motif : à ce stade la perte n'est plus partielle, et un succès à zéro
+  course serait indiscernable d'un import réussi — même principe que l'échec
+  total d'un lot, qui sort en erreur plutôt que de laisser un cron muet.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Importer une épreuve Sporthive depuis un lien collé (Priority: P1)
@@ -167,6 +209,10 @@ chacune rend un message nommant la cause.
    l'opérateur lance l'import de masse, **Then** l'URL et sa cause figurent au
    détail des épreuves en erreur du bilan, et les autres épreuves du lot sont
    importées normalement.
+4. **Given** un événement dont aucune course n'est importable (classements tous
+   tronqués ou aucun classé annoncé), **When** l'import s'exécute, **Then** il
+   échoue avec un message nommant la cause plutôt que de rendre un succès à zéro
+   course.
 
 ---
 
@@ -182,11 +228,13 @@ chacune rend un message nommant la cause.
   toute tranche plus large et ignore silencieusement les paramètres de
   pagination annoncés par l'issue. Que se passe-t-il si une tranche intermédiaire
   revient vide alors que le classement n'est pas terminé ?
-- **Une course annonce un nombre de classés différent du nombre lu** : l'import
-  doit-il valider ce total et refuser un classement tronqué plutôt que
-  d'enregistrer une épreuve incomplète marquée fiable ?
+- **Une course annonce un nombre de classés différent du nombre lu** : le total
+  est validé après lecture, et la course tronquée est écartée — jamais
+  enregistrée incomplète et marquée fiable. Les autres courses de l'événement
+  passent (FR-008, FR-008a).
 - **Un participant n'a ni temps réel ni temps officiel** (73 lignes mesurées) :
-  quel statut lui est attribué ?
+  il est enregistré sans temps, et son statut se lit sur son rang — finisher si
+  la source le classe, abandon sinon (FR-014a).
 - **Un participant est non-partant, abandonné ou disqualifié** : la source le
   signale par un champ dédié, et publie pour lui un segment fantôme de durée
   nulle qui ne doit produire ni temps ni segment.
@@ -198,6 +246,12 @@ chacune rend un message nommant la cause.
 - **Un événement ne publie qu'une seule course** (cas mesuré à 2 685
   participants) : l'import de « tout l'événement » se réduit alors à cette
   course.
+- **Une course de l'événement n'annonce aucun classé** : elle est ignorée et
+  journalisée, aucune épreuve vide n'est créée (FR-008b) — une épreuve sans
+  participation serait jugée terminée par le cache de fraîcheur et figerait le
+  re-scrape de tout l'événement.
+- **Aucune course de l'événement n'est importable** : l'import échoue au lieu de
+  rendre un succès à zéro course, indiscernable d'un import réussi (FR-008c).
 - **Deux courses du même événement réutilisent les mêmes dossards** : chaque
   course doit rester une épreuve distincte, sinon les dossards entrent en
   collision.
@@ -232,10 +286,21 @@ chacune rend un message nommant la cause.
   course, en respectant la taille de tranche maximale imposée par la source.
 - **FR-008**: Le système MUST vérifier, après lecture, que le nombre de
   participants lus pour une course correspond au nombre de classés annoncé par
-  la source, et MUST refuser l'import de cette course plutôt que d'enregistrer un
-  classement tronqué.
-- **FR-009**: Le système MUST refuser l'import plutôt que de poursuivre
-  indéfiniment si le critère d'arrêt de la pagination ne se vérifie pas.
+  la source, et MUST écarter cette seule course plutôt que d'enregistrer un
+  classement tronqué — les autres courses de l'événement étant importées
+  normalement.
+- **FR-008a**: Le système MUST journaliser toute course ainsi écartée, avec son
+  intitulé et les deux décomptes, l'épreuve ressortant par ailleurs en succès au
+  bilan de la CLI (qui compte des épreuves, non des courses).
+- **FR-008b**: Le système MUST ignorer, en le journalisant, toute course dont la
+  source n'annonce aucun classé, et MUST NOT enregistrer d'épreuve sans
+  participation.
+- **FR-008c**: Le système MUST faire échouer l'import, avec un message nommant la
+  cause, quand aucune course de l'événement n'a pu être importée, et MUST NOT
+  rendre un import à zéro course comme un succès.
+- **FR-009**: Le système MUST refuser l'import de l'événement entier plutôt que
+  de poursuivre indéfiniment si le critère d'arrêt de la pagination ne se vérifie
+  pas.
 
 **Données de participation**
 
@@ -252,6 +317,11 @@ chacune rend un message nommant la cause.
   effectivement renseigné par la source, en couvrant les trois valeurs observées
   (abandon, non-partant, disqualification), et MUST NOT se fier aux champs
   booléens de statut, mesurés toujours faux.
+- **FR-014a**: Le système MUST, lorsque la source ne renseigne aucun statut et ne
+  publie aucun temps, déduire le statut de la présence d'un rang au classement :
+  un participant classé est enregistré comme finisher sans temps, un participant
+  sans rang comme abandon. Le repli générique « pas de temps donc abandon » MUST
+  NOT s'appliquer à un participant que la source classe.
 - **FR-015**: Le système MUST traiter un rang nul comme une absence de rang.
 - **FR-016**: Le système MUST enregistrer les segments de chaque participant
   dans l'ordre publié, libellés depuis la discipline normalisée de chaque
@@ -275,6 +345,10 @@ chacune rend un message nommant la cause.
   l'événement que comme appoint quand l'intitulé ne nomme aucun sport.
 - **FR-022**: Le système MUST renseigner le kilométrage de l'épreuve à partir de
   la distance publiée par la source.
+- **FR-022a**: Le système MUST conserver le lieu et le pays publiés par la source
+  dans les données brutes gardées avec chaque participation, et MUST NOT s'en
+  servir pour le géocodage de l'épreuve — qui reste déduit du nom d'épreuve,
+  comme pour tous les autres fournisseurs.
 
 **Intégration**
 
@@ -289,8 +363,8 @@ chacune rend un message nommant la cause.
 ### Key Entities
 
 - **Événement** : la manifestation désignée par l'URL. Porte le nom, la date, le
-  lieu et le pays. N'est pas enregistré en tant que tel : il se décompose en
-  épreuves.
+  lieu et le pays — ces deux derniers conservés en données brutes seulement
+  (FR-022a). N'est pas enregistré en tant que tel : il se décompose en épreuves.
 - **Course** : une épreuve au sein de l'événement, avec son propre classement,
   son intitulé, son nombre de classés et sa distance. Correspond à une épreuve du
   modèle du projet.
@@ -322,6 +396,9 @@ chacune rend un message nommant la cause.
   cause, et l'import de masse poursuit le reste du lot.
 - **SC-007**: Les tests unitaires du fournisseur s'exécutent sans aucun accès
   réseau, et la suite unitaire du projet reste verte.
+- **SC-008**: Aucune participation que la source classe n'est enregistrée en
+  abandon au seul motif qu'elle n'a pas de temps publié (73 lignes du panel sans
+  temps réel ni temps officiel).
 
 ## Assumptions
 

@@ -73,9 +73,13 @@ rapport.
 | Événement à 6 courses | 6 `Course` distinctes, chacune qualifiée par son intitulé |
 | Course de 366 classés | 366 `ScrapedResult`, en 37 requêtes |
 | Dernière page partielle (`last: true`) | aucune requête au-delà |
-| Page intermédiaire servie vide alors que `classificationsCount` n'est pas atteint | `ValueError` — l'épreuve n'est pas importée tronquée |
+| Page intermédiaire servie vide alors que `classificationsCount` n'est pas atteint | **cette course seule** est absente du résultat, journalisée ; les autres courses de l'événement sont rendues normalement (FR-008) |
+| Une course tronquée sur 6 | 5 courses rendues, **aucune** exception propagée |
+| `classificationsCount: 0` | course absente du résultat, **aucune** requête `participants` émise pour elle (FR-008b) |
+| Toutes les courses tronquées ou à zéro classé | `ValueError` en français — jamais une liste vide rendue comme un succès (FR-008c) |
+| Événement sans aucune course | `ValueError` (même chemin que ci-dessus) |
 | `classificationsCount` dépassé (course en cours) | import accepté, surplus journalisé |
-| `_MAX_PAGES` atteint | `ValueError` |
+| `_MAX_PAGES` atteint | `ValueError` — portée événement, pas course |
 | Événement inconnu (404) | `ValueError` « événement introuvable » |
 | Erreur 5xx de la source | remonte telle quelle (ce n'est pas un problème de lien) |
 
@@ -85,6 +89,8 @@ rapport.
 | --- | --- |
 | `validity: "DNF"` / `"DNS"` / `"DQ"` | `status` = `DNF` / `DNS` / `DSQ` |
 | `validity` absent, temps présent | `status` = `""` → `finisher` par l'heuristique |
+| `validity` absent, aucun temps, `overallPosition: 42` | `status` = `finisher` **explicite** — jamais `DNF` (FR-014a) |
+| `validity` absent, aucun temps, `overallPosition: 0` | `status` = `DNF` |
 | `dns: false, dsq: false` avec `validity: "DNS"` | `status` = `DNS` — les booléens ne sont jamais lus |
 | `chipTimeOfParticipant: "00:57:33.2510000"` | `total_time` = `"00:57:33"` |
 | `chipTimeOfParticipant: "00:00:00"` | `total_time` = `""` |
@@ -99,6 +105,7 @@ rapport.
 | Course « Relais Triathlon S » | `is_relay=True`, nom d'équipe entier en `athlete_name`, prénom vide |
 | `teamName: "TRI CLUB NANTAIS"` | `club` renseigné, reconnu par `core.club.is_tcn` |
 | `teamName: null` | `club` = `""` |
+| `event.location` / `event.countryCode` | `raw_data["city"]` / `raw_data["country"]`, verbatim — aucun autre champ touché (FR-022a) |
 
 ### Classification
 
