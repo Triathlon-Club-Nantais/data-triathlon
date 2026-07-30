@@ -68,6 +68,9 @@ LIVE_URLS = {
 #: Hors de `LIVE_URLS`, qui est indexé **par provider** — une seconde entrée
 #: chronoweb y écraserait la première et ferait disparaître ce contrôle.
 CHRONOWEB_DIJON = "https://chronoweb.com/resultats_evenement.php?event=371"
+#: Altriman 2025, le second événement du Sheet — atteint par ses seules fiches
+#: individuelles, et le seul du panel aux transitions réellement longues.
+CHRONOWEB_ALTRIMAN = "https://chronoweb.com/resultats_participant.php?event=347&epreuve=1234&bib=599"
 
 
 @pytest.mark.integration
@@ -633,3 +636,30 @@ def test_chronoweb_dijon_2026_le_plus_gros_evenement_du_panel():
     # mémoire ait été vérifiée. Journalisé, pas asserté — le réseau n'est pas un
     # critère de correction.
     print(f"\nchronoweb Dijon 2026 : {len(results)} participants en {duree:.1f} s")
+
+
+@pytest.mark.integration
+def test_chronoweb_altriman_2025_transitions_longues():
+    """Le second événement du Sheet, et le seul contrôle réel des transitions.
+
+    Ses 4 épreuves sont les seules du panel dont les temps morts se comptent en
+    dizaines de minutes (sondage : les 1 440 écarts > 10 min sont concentrés sur
+    Oléron et Altriman) — ailleurs, une transition juste et une transition nulle
+    se ressemblent.
+
+    Vérifie aussi que le libellé « Altriman », **sous-chaîne du nom
+    d'événement**, ne fait pas fusionner deux courses : `qualify_event_name` ne
+    le ré-ajoute pas, l'épreuve garde le nom nu de l'événement et les 4 épreuves
+    restent 4 clés `(nom, date, type)` distinctes.
+    """
+    results = registry.scrape_event_all(CHRONOWEB_ALTRIMAN)
+
+    assert len(results) == 1574
+    assert len({r.event_name for r in results}) == 4
+    cles = {(r.event_name, r.event_date, r.event_type) for r in results}
+    assert len(cles) == 4, f"chronoweb Altriman : {len(cles)} clés pour 4 épreuves"
+
+    longues = [r for r in results if r.t1_time and r.t1_time >= "00:10:00"]
+    assert longues, "chronoweb : aucune transition longue, le calcul est suspect"
+    for r in longues[:20]:
+        assert r.t1_time < r.total_time

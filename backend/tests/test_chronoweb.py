@@ -202,7 +202,7 @@ def test_parse_passages_skips_a_row_whose_cell_count_is_off(caplog):
     rows = _rows(html, "9")
 
     assert [r.bib for r in rows] == ["7"]
-    assert "chronoweb" in caplog.text.lower() or caplog.records
+    assert any("2 cells instead of 9" in r.getMessage() for r in caplog.records)
 
 
 def test_group_runners_counts_bibs_not_rows():
@@ -251,6 +251,23 @@ def test_final_passage_carries_the_total_time_and_both_ranks():
 
     assert (passage.cumulative, passage.rank_overall, passage.rank_category) == (
         "02:13:26", 1, 1)
+
+
+def test_final_passage_takes_the_ranks_of_a_runner_whose_ranks_move():
+    """Contre-épreuve du dossard 360, 1ᵉʳ partout : celui-ci passe 205ᵉ → 93ᵉ → 45ᵉ.
+
+    Sans lui, une implémentation qui lirait les **rangs** au premier passage tout
+    en lisant le **temps** au dernier resterait verte — or c'est exactement ce que
+    FR-005 interdit.
+    """
+    runners, final = _runners(TRIATHLON, "1147")
+
+    assert [(p.rank_overall, p.rank_category) for p in runners["347"].passages] == [
+        (205, 99), (93, 51), (45, 27)]
+
+    passage = chronoweb._final_passage(runners["347"], final)
+    assert (passage.cumulative, passage.rank_overall, passage.rank_category) == (
+        "02:40:34", 45, 27)
 
 
 def test_final_passage_is_none_for_a_runner_absent_from_the_final_point():
@@ -354,6 +371,41 @@ def test_split_times_on_a_derived_single_point_ranking():
 
     assert list(slots) == ["bike_time"]
     assert segments is None
+
+
+#: Les 6 couples (motif de points, `event_type` classé) réellement observés sur
+#: les 89 épreuves du panel — cas dégradés du classifieur compris (« Les
+#: Géraldines », un point `Course`, classé `triathlon` ; « Challenge 1er Tour »,
+#: un point `Vélo`, classé `duathlon`).
+_PANEL_COMBINATIONS = [
+    (("Natation", "Vélo", "Course"), "triathlon-m"),
+    (("Natation", "Vélo", "Course"), "triathlon-s"),
+    (("Course", "Vélo", "Course"), "duathlon-s"),
+    (("Natation", "Course"), "aquathlon"),
+    (("Course",), "course-a-pied"),
+    (("Course",), "triathlon"),
+    (("Vélo",), "duathlon"),
+]
+
+
+@pytest.mark.parametrize("pattern, event_type", _PANEL_COMBINATIONS)
+def test_no_filled_slot_is_dropped_by_the_sport_template(pattern, event_type):
+    """Garde de non-régression sur le couple (motif observé, type classé).
+
+    Le remplissage suit le motif, mais l'étiquetage aval suit le **type**, et
+    `build_splits` omet les slots absents du gabarit de la discipline. Un motif
+    `N→V→C` sur une épreuve classée `aquathlon` perdrait donc `bike` et `t2` — le
+    mode d'échec que le dépôt a déjà payé une fois. Aucun couple du panel n'est
+    dans ce cas ; ce test tombe le jour où l'un le devient.
+    """
+    slots = dict.fromkeys(chronoweb._POINT_PATTERNS[pattern], "00:01:00")
+    scraped = ScrapedResult(source_url=EVENT_URL, provider="chronoweb",
+                            event_type=event_type, **slots)
+
+    assert len(build_splits(scraped)) == len(slots), (
+        f"{event_type} : {len(slots) - len(build_splits(scraped))} segment(s) "
+        f"rempli(s) par le motif {pattern} sont jetés par le gabarit"
+    )
 
 
 def test_split_times_falls_back_to_source_labels_beyond_five_points():
@@ -579,7 +631,7 @@ def test_scrape_event_all_survives_a_failing_catalogue(monkeypatch, caplog):
     assert len(results) == 8
     assert all("city" not in r.raw_data for r in results)
     assert len(client.calls) == 2
-    assert caplog.records
+    assert any("catalogue unreachable" in r.getMessage() for r in caplog.records)
 
 
 def test_scrape_event_all_survives_an_event_absent_from_the_catalogue(monkeypatch):

@@ -278,6 +278,16 @@ L'« Aquathlon Team Relais » de la Verrerie 2025 pousse le modèle plus loin :
 14 équipes. Les 5 slots positionnels n'y suffisent pas — c'est le cas d'usage du
 chemin générique `ScrapedResult.segments`.
 
+**Complément mesuré le 30/07/2026** (à l'implémentation, cf. #55) : sur cette
+épreuve, les temps morts sont **tous nuls**. Les 98 écarts
+`cumul − intervalle − cumul précédent` (14 équipes × 7 inter-points) valent
+**0 seconde**, sans exception : ses points de chronométrage sont contigus. Elle
+sort donc à **8** segments — 8 étapes, aucun « Changement » — et non 15 comme le
+laissait attendre un raisonnement par analogie avec les transitions d'Oléron.
+C'est cohérent avec les 714 écarts nuls déjà comptés plus haut sur l'ensemble du
+panel : un temps mort nul n'est pas un temps mort. À ne pas relire comme une
+troncature du chemin générique, qui n'a pas de plafond.
+
 ## Classification des épreuves
 
 `classify_event_type(libellé, contexte=nom_événement)` a été passé sur les 89
