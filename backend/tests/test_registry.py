@@ -169,6 +169,10 @@ _ROUTAGE_LEGITIME = [
     ("sporthive", "https://results.sporthive.com/events/7237011278055708416/races/1/bib/426"),
     ("sporthive", "https://sporthive.com/events/s/7237011278055708416/races/1"),
     ("sporthive", "https://results.sporthive.com/en/events/7237011278055708416/races/1"),
+    ("chronoweb", "https://chronoweb.com/resultats_evenement.php?event=323&epreuve=1147"),
+    ("chronoweb", "https://www.chronoweb.com/resultats_evenement.php?event=323"),
+    # Fiche individuelle : même host, tronquée vers son événement par le scraper.
+    ("chronoweb", "https://chronoweb.com/resultats_participant.php?event=347&epreuve=1234&bib=599"),
 ]
 
 
@@ -198,6 +202,7 @@ _JETONS_PROVIDERS = [
     "competitor.com",
     "runnerbreizh.fr",
     "sporthive.com",
+    "chronoweb.com",
 ]
 
 #: Les quatre familles de contournement de l'issue #49, plus la confusion userinfo.
@@ -362,3 +367,28 @@ def test_detect_provider_sporthive_rejette_un_host_sosie():
 
 def test_provider_names_contient_sporthive():
     assert "sporthive" in registry.provider_names()
+
+
+# ---------------------------------------------------------------------------
+# ChronoWeb (#55)
+# ---------------------------------------------------------------------------
+
+
+def test_chronoweb_est_supporte():
+    """`is_supported` est la **seule** définition de « supporté » : le front la lit,
+    il ne tient aucune liste de son côté."""
+    assert registry.is_supported("https://chronoweb.com/resultats_evenement.php?event=323")
+    assert "chronoweb" in registry.provider_names()
+
+
+def test_chronoweb_capte_le_host_reel_derriere_un_userinfo():
+    """Contre-épreuve des gabarits de contournement : ici le host **est**
+    `chronoweb.com`, le jeton avant le `@` n'étant que du userinfo. `_url_host`
+    lit `hostname` et non `netloc`, donc l'URL est légitimement routée chez
+    chronoweb — à ne pas confondre avec `chronoweb.com@169.254.169.254`, que le
+    gabarit générique vérifie et qui, lui, part au fallback."""
+    assert registry.detect_provider("https://timepulse.fr@chronoweb.com/x") == "chronoweb"
+
+
+def test_chronoweb_rejette_un_host_sosie():
+    assert registry.detect_provider("https://evil-chronoweb.com/resultats") == "playwright"

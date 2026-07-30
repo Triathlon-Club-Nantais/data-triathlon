@@ -24,6 +24,7 @@ from urllib.parse import parse_qs, urlparse
 from app.scrapers import (
     breizhchrono,
     chronoplace,
+    chronoweb,
     competitor,
     klikego,
     oktime,
@@ -287,6 +288,14 @@ class SporthiveProvider(HostMatchedProvider):
         return sporthive.scrape_event_all(url)
 
 
+class ChronoWebProvider(HostMatchedProvider):
+    name = "chronoweb"
+    _HOSTS = ("chronoweb.com",)
+
+    def scrape_event_all(self, url: str) -> list[ScrapedResult]:
+        return chronoweb.scrape_event_all(url)
+
+
 class T2AreaProvider:
     name = "t2area"
 
@@ -346,6 +355,7 @@ PROVIDERS: list[ScraperProtocol] = [
     CompetitorProvider(),
     RunnerBreizhProvider(),
     SporthiveProvider(),
+    ChronoWebProvider(),
     T2AreaProvider(),
 ]
 _FALLBACK: ScraperProtocol = PlaywrightProvider()

@@ -58,6 +58,7 @@ export const PROVIDER_LABELS: Record<string, string> = {
   // lui-même « MYLAPS Sporthive ». Sans cette entrée le badge affiche le slug
   // brut : la table ne dit rien du support, elle ne fait que traduire un nom.
   sporthive: "MYLAPS Sporthive",
+  chronoweb: "ChronoWeb",
 };
 
 /** Libellé d'un chronométreur ; le slug brut à défaut, « Source » si non renseigné. */
