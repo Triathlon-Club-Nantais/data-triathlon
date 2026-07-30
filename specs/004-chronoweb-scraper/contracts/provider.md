@@ -53,7 +53,7 @@ l'événement désigné.
 | Cas | Exception | Message (français, vu par l'opérateur) |
 | --- | --- | --- |
 | URL sans paramètre `event` | `ValueError` | nomme la forme attendue `resultats_evenement.php?event=<id>` |
-| Identifiant d'événement inconnu | `ValueError` | « épreuve introuvable », distinct du cas suivant |
+| Identifiant d'événement inconnu | `ValueError` | « événement introuvable », distinct du cas suivant — le mot compte : une **épreuve** est l'unité de bilan de la CLI (une `source_url`), un **événement** en porte plusieurs |
 | Événement sans classement publié | *aucune* | renvoie `[]` |
 
 `import_service._scrape_all` convertit toute `ValueError` en
