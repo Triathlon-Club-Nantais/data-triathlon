@@ -30,6 +30,7 @@ from app.scrapers import (
     prolivesport,
     raceresult,
     runnerbreizh,
+    sporthive,
     sportinnovation,
     t2area,
     timepulse,
@@ -270,6 +271,22 @@ class RunnerBreizhProvider(HostMatchedProvider):
         return runnerbreizh.scrape_event_all(url)
 
 
+class SporthiveProvider(HostMatchedProvider):
+    name = "sporthive"
+
+    # `sporthive.com` seul (issue #53) : `_host_match` accepte l'hôte exact
+    # **et** tout vrai sous-domaine, donc cette entrée couvre à la fois
+    # `results.sporthive.com` (la forme du Sheet) et l'apex, cible de la
+    # redirection 307 — donc la forme qu'un membre copie depuis son navigateur.
+    # L'hôte de l'API, `eventresults-api.speedhive.com`, n'est délibérément
+    # **pas** listé : c'est celui que le scraper appelle, pas une page de
+    # résultats à reconnaître.
+    _HOSTS = ("sporthive.com",)
+
+    def scrape_event_all(self, url: str) -> list[ScrapedResult]:
+        return sporthive.scrape_event_all(url)
+
+
 class T2AreaProvider:
     name = "t2area"
 
@@ -314,6 +331,7 @@ PROVIDERS: list[ScraperProtocol] = [
     OkTimeProvider(),
     CompetitorProvider(),
     RunnerBreizhProvider(),
+    SporthiveProvider(),
     T2AreaProvider(),
 ]
 _FALLBACK: ScraperProtocol = PlaywrightProvider()
