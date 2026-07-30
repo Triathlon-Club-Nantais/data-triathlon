@@ -122,9 +122,9 @@ filtrage) est déjà porté par `core/club.py` et l'API de lecture. Ses tâches 
 donc un test de bout en bout et une **garde** contre la réimplémentation — c'est
 précisément la faute de #76.
 
-- [ ] T022 [US2] Test rouge du club dans `backend/tests/test_sporthive.py` : `teamName: "TRI CLUB NANTAIS"` → `club` renseigné et reconnu par `core.club.is_tcn`, `teamName: null` → `club = ""`, et un libellé voisin (`ASPTT NANTES TRI`) **non** reconnu (FR-019)
-- [ ] T023 [US2] Renseigner `club` depuis `teamName` dans le mapping de `backend/app/scrapers/sporthive.py` (`None` → `""`) — à compléter si T018 ne l'a pas déjà couvert
-- [ ] T024 [US2] Test de non-réimplémentation dans `backend/tests/test_sporthive.py` : le module `sporthive.py` ne contient **aucun** libellé de club en dur ni aucune logique d'appartenance — assertion sur le source du module, sur le modèle de la garde de #76. Contrairement à `t2area.py`, ce scraper n'a **aucune** raison de connaître le TCN
+- [X] T022 [US2] Test rouge du club dans `backend/tests/test_sporthive.py` : `teamName: "TRI CLUB NANTAIS"` → `club` renseigné et reconnu par `core.club.is_tcn`, `teamName: null` → `club = ""`, et un libellé voisin (`ASPTT NANTES TRI`) **non** reconnu (FR-019)
+- [X] T023 [US2] Renseigner `club` depuis `teamName` dans le mapping de `backend/app/scrapers/sporthive.py` (`None` → `""`) — à compléter si T018 ne l'a pas déjà couvert
+- [X] T024 [US2] Test de non-réimplémentation dans `backend/tests/test_sporthive.py` : le module `sporthive.py` ne contient **aucun** libellé de club en dur ni aucune logique d'appartenance — assertion sur le source du module, sur le modèle de la garde de #76. Contrairement à `t2area.py`, ce scraper n'a **aucune** raison de connaître le TCN
 
 **Checkpoint**: US1 et US2 fonctionnent, chacune vérifiable seule.
 
