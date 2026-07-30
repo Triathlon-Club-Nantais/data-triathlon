@@ -78,3 +78,41 @@ curl -s https://sporthive.com/api/clientSettings | jq .eventResultApiUrl
    `transition (2)`.
 4. Les 6 courses de l'événement sont des épreuves distinctes, et le dossard 117
    de « Triathlon S » ne collisionne pas avec le 117 de « Triathlon M ».
+5. Aucune participation classée n'affiche « DNF » en colonne Place faute de temps
+   publié (FR-014a) — à vérifier sur une épreuve du cross UK, où `chipTime` est
+   absent de bout en bout :
+
+   ```bash
+   cd backend && uv run python -c "
+   from app.core.database import SessionLocal
+   from app.models.course import Course
+   from app.models.participation import Participation
+   db = SessionLocal()
+   q = (db.query(Participation).join(Course)
+        .filter(Course.provider == 'sporthive',
+                Participation.status == 'DNF',
+                Participation.rank_overall.isnot(None)))
+   print('Sporthive : classés marqués DNF (doit être 0) :', q.count())"
+   ```
+
+6. Le lieu publié est bien conservé sans être utilisé (FR-022a) :
+   `raw_data["city"]` vaut `L'Aiguillon sur Mer (85)`, et la carte continue de
+   géocoder depuis le nom d'épreuve.
+
+## Vérifier les deux portées d'échec
+
+Sans réseau, sur les fixtures — c'est le comportement le plus facile à casser
+par inadvertance :
+
+```bash
+cd backend
+uv run pytest tests/test_sporthive.py -k "incomplete or empty_race or no_course" -v
+```
+
+Attendu :
+
+- une course tronquée sur six → **5** `ScrapedResult` rendus, aucune exception,
+  un `logger.warning` portant l'intitulé et les deux décomptes ;
+- une course à `classificationsCount: 0` → ignorée **sans** requête
+  `participants` (le client monkeypatché doit constater l'absence d'appel) ;
+- toutes les courses écartées → `ValueError` en français, jamais une liste vide.

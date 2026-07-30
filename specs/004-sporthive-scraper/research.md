@@ -7,6 +7,11 @@ Toutes les mesures citées viennent du sondage
 32 courses, 10 360 participations). Aucune question de la Technical Context n'est
 restée en `NEEDS CLARIFICATION`.
 
+**Révision du 30/07/2026** — la session de clarification `### Session 2026-07-30`
+de la spec a tranché cinq points qui touchent D4, D5 et D6, et en ajoute deux
+(D14, D15). Les décisions ci-dessous intègrent ces arbitrages ; l'ancienne
+version de D4 (refus global sur classement incomplet) est **caduque**.
+
 ---
 
 ## D1 — Le segment `races/{n}` de l'URL est purement ignoré
@@ -71,12 +76,13 @@ le motif de sous-chaîne interdit par le registre (SSRF #49).
 
 ---
 
-## D4 — Pagination : arrêt sur `last`, plafond dur, complétude vérifiée
+## D4 — Pagination : arrêt sur `last`, plafond dur, complétude vérifiée par course
 
 **Décision**: boucler sur `page` avec `size=10`, s'arrêter quand la réponse porte
-`last: true` ou un `content` vide ; lever si le plafond `_MAX_PAGES` est atteint ;
-puis **vérifier** que le nombre de participants lus est au moins égal au
-`classificationsCount` annoncé par `/events/{id}/races`.
+`last: true` ou un `content` vide ; **lever** si le plafond `_MAX_PAGES` est
+atteint ; puis **vérifier** que le nombre de participants lus est au moins égal au
+`classificationsCount` annoncé par `/events/{id}/races` — et, si la vérification
+échoue, **écarter cette seule course** plutôt que l'événement entier (FR-008).
 
 **Rationale**: trois gardes distinctes pour trois défaillances distinctes, sur le
 modèle de `runnerbreizh._require_complete_ranking` :
@@ -99,30 +105,85 @@ vérifiée 32 fois sur 32.
 (Algiers Urban Trail, 2 685 classés), et un marathon de 10 000 arrivants reste
 sous le plafond.
 
+**Granularité — deux portées, pas une** (arbitrage du 30/07, FR-008 / FR-009) :
+
+| Défaillance | Portée | Mise en œuvre |
+| --- | --- | --- |
+| Classement incomplet (garde 3) | la **course** seule | exception interne `_IncompleteRanking`, rattrapée par la boucle de `scrape_event_all`, journalisée, course suivante |
+| `_MAX_PAGES` atteint (garde 2) | l'**événement** | `ValueError` propagée : l'invariant d'arrêt est faux, rien ne dit qu'il le serait moins sur la course suivante |
+
+L'exception interne est un type **privé** du module, pas une `ValueError` filtrée
+sur son message : trier des défaillances au motif d'un texte se casse à la
+première reformulation, et l'infra emballe déjà les `ValueError` du scraper
+(`import_service._scrape_all`).
+
+La course écartée est journalisée en `logger.warning` avec son intitulé, son
+`activeRaceId` et les deux décomptes (FR-008a). Ce journal est la **seule** trace :
+le bilan de la CLI compte des épreuves (une par `source_url`), donc l'épreuve
+ressort en succès avec 5 courses sur 6. C'est le prix accepté de l'écart par
+course, et la raison pour laquelle le message de log doit être exploitable seul.
+
 **Alternatives rejetées**:
 - *Borner la boucle sur `totalPages`* : c'est borner sur un total annoncé, la
   faute que runnerbreizh a payée. Le total sert à **vérifier**, pas à cadencer.
 - *Se fier à `count`/`offset`* (l'énoncé de l'issue) : silencieusement ignorés
   par le serveur, la boucle relirait les 10 mêmes lignes indéfiniment.
 - *Demander `size=50`* : rejeté en 400 par le serveur.
+- *Refuser l'événement entier sur une course tronquée* (version précédente de
+  cette décision) : écarté au cadrage du 30/07. Une course durablement tronquée
+  côté source rendait l'événement définitivement non importable, membres du TCN
+  des cinq autres courses compris.
+- *Remonter la course écartée jusqu'au bilan de la CLI* : demanderait un canal
+  d'avertissement par épreuve dans `ScrapedResult` puis dans `import_service` et
+  `batch` — un contrat traversé pour un cas non observé au panel (principe VI).
 
 ---
 
-## D5 — Statut : `validity` seul
+## D5 — Statut : `validity` seul, complété par le rang quand aucun temps n'est publié
 
 **Décision**: `status = derive_status_from_label(participant["validity"])`. Les
-booléens `dns` et `dsq` ne sont **jamais** lus.
+booléens `dns` et `dsq` ne sont **jamais** lus. Quand `validity` ne dit rien
+**et** qu'aucun temps n'a pu être retenu, le scraper **tranche lui-même** sur le
+rang (FR-014a) :
+
+```python
+status = derive_status_from_label(raw.get("validity", ""))
+if not status and not total_time:
+    status = STATUS_FINISHER if rank_overall is not None else STATUS_DNF
+```
 
 **Rationale**: sur les 10 360 lignes du panel, `dns` et `dsq` valent `false`
 10 360 fois, y compris sur les 35 lignes dont `validity == "DNS"`. `validity`
 porte les trois valeurs réelles (`DNF` 129, `DNS` 35, `DQ` 8), et
 `utils.derive_status_from_label` les traduit déjà toutes les trois — `dq` y
-figure depuis T2Area. Un `validity` absent rend `""`, ce qui laisse
-`mapping.derive_status` appliquer son heuristique (finisher si temps total).
+figure depuis T2Area.
 
-**Alternatives rejetées**: croiser `validity` avec `overallPosition == 0` — la
-corrélation est parfaite (172/172) mais redondante ; deux sources pour une même
-information finissent par diverger.
+Un `validity` absent rendrait `""`, et `mapping.derive_status` appliquerait alors
+son heuristique — « finisher si temps total, **sinon DNF** ». Or 73 lignes du
+panel n'ont ni `chipTime` ni `gunTime` (D6) tout en étant **classées** par la
+source : l'heuristique générique les afficherait en abandon dans la colonne Place
+du front. C'est le travers déjà payé sur ok-time (`AGENTS.md` : « un seul temps
+saisi à la main suffisait à désarmer le repli, faisant classer toute une course
+d'enfants DNF »). Le scraper renseigne donc `status` explicitement — ce que le
+contrat de `ScrapedResult` prévoit (`""` = « le scraper ne se prononce pas » ;
+prolivesport le renseigne déjà) — au lieu de déléguer à un repli conçu pour les
+sources muettes.
+
+S'appuyer sur le rang n'est pas deviner : `overallPosition == 0` et `validity`
+renseigné se recouvrent 172 fois sur 172 (D12), donc la source **dit** qui elle
+classe. Et le couplage reste propre : `STATUS_FINISHER` / `STATUS_DNF` vivent
+dans `scrapers/base.py`, la couche la plus basse — aucun import de `services/`
+depuis un scraper (principe II).
+
+**Alternatives rejetées**:
+- *Croiser `validity` avec `overallPosition == 0` pour **déduire** le statut* :
+  redondant, deux sources pour une même information finissent par diverger. La
+  décision ci-dessus n'en fait rien de tel : le rang ne sert qu'à trancher le cas
+  où la source est muette **et** sans temps.
+- *Laisser l'heuristique générique s'appliquer* : version précédente de cette
+  décision, écartée au cadrage du 30/07 (73 lignes classées en abandon).
+- *Modifier `mapping.derive_status`* : partagé par les douze fournisseurs ;
+  changer son repli au fil d'un nouveau provider est hors périmètre (principe VI).
 
 ---
 
@@ -146,7 +207,8 @@ Priorité `chipTimeOfParticipant` puis `gunTimeOfParticipant` : le temps réel e
 celui de l'athlète. La priorité inverse changerait le temps de 7 435 lignes du
 panel. 2 925 lignes n'ont pas de chip (tout le cross UK) et 2 092 pas de gun
 (tout Windsor) : aucune des deux colonnes n'est utilisable seule. 73 lignes n'ont
-ni l'une ni l'autre et sortent sans temps.
+ni l'une ni l'autre et sortent **sans temps mais classées finisher** dès lors que
+la source leur donne un rang — le statut est tranché en D5, pas ici.
 
 ---
 
@@ -305,3 +367,90 @@ panel a rendus nécessaires : un triathlon à 5 legs, une course d'enfants à
 4 legs, un mono-sport sans `sportName`, un non-finisher de chaque type
 (`DNF`/`DNS`/`DQ`), une course de relais, une pagination multi-pages, et une
 pagination tronquée pour la garde de complétude.
+
+Les arbitrages du 30/07 ajoutent trois cas de test, tous construits à la main
+depuis les fixtures existantes plutôt que capturés (aucun n'est présent au
+panel) : une course à `classificationsCount: 0` (D14), un événement dont toutes
+les courses sont écartées (D14), et un participant sans `chipTime` ni `gunTime`
+ni `validity` mais avec un `overallPosition` non nul (D5).
+
+---
+
+## D14 — Course sans classé ignorée ; aucune course importable = échec
+
+**Décision**: deux règles complémentaires, décidées au cadrage du 30/07
+(FR-008b, FR-008c) :
+
+1. Une course dont `classificationsCount` est nul ou absent est **ignorée sans
+   requête de participants**, avec un `logger.info`. Aucune `Course` n'est créée.
+2. Si, une fois toutes les courses traitées, la liste de `ScrapedResult` est
+   **vide**, `scrape_event_all` lève une `ValueError` en français nommant la
+   cause. Un import qui n'importe rien n'est jamais un succès.
+
+**Rationale**: la règle 1 tient à un enchaînement mesurable dans le code
+existant. Une `Course` sans aucune participation n'a jamais de participation sans
+`total_time`, donc `cache.is_in_progress` la déclare terminée et
+`cache.ttl_seconds` lui applique `CACHE_TTL_FINISHED_SECONDS` (30 j). Comme
+`course_repository.get_latest_by_source_url` sélectionne **une** course par
+`source_url` et que les six courses d'un événement Sporthive partagent la même,
+une course vide peut devenir celle qui répond pour tout l'événement — et geler
+son re-scrape un mois. Le coût d'une épreuve fantôme n'est donc pas seulement
+cosmétique (listes, stats, carte) : elle bloque le rattrapage.
+
+La règle 2 ferme le trou ouvert par l'écart au niveau de la course (D4) :
+`import_service._require_event_name` ne lève **pas** sur une liste vide
+(`any()` sur une liste vide est faux) et « aucun résultat » est un court-circuit
+que `batch` compte en **succès**. Sans la règle 2, un événement intégralement
+tronqué serait indiscernable au bilan d'un import réussi — l'inverse exact de ce
+que `est_echec_total` garantit au niveau du lot.
+
+Le message est en **français** : il traverse `ScraperError` (`import_service`),
+que `register_exception_handlers` sérialise en `{"detail": …}` et que le front
+réaffiche verbatim — cas mixte explicitement traité par le principe I.
+
+**Alternatives rejetées**:
+- *Paginer quand même une course annoncée à zéro classé pour vérifier* : une
+  requête par course vide pour un cas non observé, et le plancher de D4 rattrape
+  déjà l'incohérence inverse (count > 0, zéro ligne lue → course écartée). La
+  clause « jamais d'épreuve sans participation » reste donc garantie deux fois.
+- *Créer l'épreuve vide pour tracer que la course existe* : décrit ci-dessus, elle
+  gèle le cache de l'événement entier.
+- *Compter la course vide comme un échec de l'épreuve* : un événement dont une
+  seule course n'est pas encore publiée deviendrait non importable — c'est le cas
+  nominal d'un événement en cours de publication.
+
+---
+
+## D15 — Lieu et pays conservés en `raw_data`, non branchés sur le géocodage
+
+**Décision**: `raw_data["city"] = event["location"]` (verbatim) et
+`raw_data["country"] = event["countryCode"]`. Aucun autre usage (FR-022a).
+
+**Rationale**: `location` vaut mieux que ce que la carte déduira du nom
+d'épreuve — vérifié en exécutant `geocode_service.extract_city` sur le cas du
+Sheet, qui rend `« Sud Vendee Dimanche »` là où la source publie
+`« L'Aiguillon sur Mer (85) »`. Mais `ScrapedResult` **n'a pas** de champ ville :
+lui en ajouter un toucherait un contrat partagé par les douze fournisseurs pour
+le bénéfice d'un seul (principe VI). La clé `city` est celle que runnerbreizh
+utilise déjà pour exactement cette raison — un futur branchement du géocodage
+n'aura donc qu'une clé à lire, pas deux conventions à réconcilier.
+
+Le `country` a son propre intérêt : `_nominatim_search` interroge Nominatim avec
+`countrycodes=fr` et une requête `f"{city}, France"`, donc les épreuves
+britanniques, allemandes et algériennes du panel ne sont pas géocodables — le
+code pays est la seule donnée qui permette de le **savoir** plutôt que de
+constater un échec de géocodage muet. Il est conservé tel que publié, sans
+homogénéisation : le sondage relève des codes à 2 et 3 lettres (`FRA`, `UK`,
+`DE`), et normaliser à l'aveugle ferait perdre l'information brute.
+
+**Limite assumée**: le verbatim porte parfois un numéro de département
+(`(85)`), donc il n'est pas directement injectable dans une requête Nominatim.
+Le nettoyage appartiendra au futur consommateur, qui seul saura ce qu'il exige.
+
+**Alternatives rejetées**:
+- *Ajouter `city` / `country` à `ScrapedResult` et brancher le géocodage* : hors
+  périmètre d'un nouveau provider, et changerait le comportement de la carte pour
+  tous les autres.
+- *Ne rien conserver* : le jour où la carte saura s'en servir, il faudrait
+  re-scraper le panel (≈ 1 000 requêtes) pour une donnée déjà passée sous les
+  yeux du scraper.
