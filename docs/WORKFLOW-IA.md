@@ -19,7 +19,7 @@ croise jamais.**
 
 | Outil | Ce qu'il apporte | Ce qu'il coûte |
 |---|---|---|
-| **Spec Kit** | Artefacts documentaires traçables (`spec.md`, `plan.md`, `tasks.md`, `checklists/` dans `specs/NNN-feature/`), gates explicites (`/speckit-clarify`, `/speckit-analyze`, gate checklists). Explicite et **déterministe** : on tape la commande. | Le cycle complet. Six fichiers plus un dossier `checklists/` pour une feature d'un écran. |
+| **Spec Kit** | Artefacts documentaires traçables (`spec.md`, `plan.md`, `tasks.md`, `checklists/` dans `specs/<id>-feature/`), gates explicites (`/speckit-clarify`, `/speckit-analyze`, gate checklists). Explicite et **déterministe** : on tape la commande. | Le cycle complet. Six fichiers plus un dossier `checklists/` pour une feature d'un écran. |
 | **Superpowers** | Discipline d'artisanat : worktree, TDD red-green-refactor, revue de code, fin de branche. Ses skills se déclenchent **automatiquement** quand leur description correspond à la situation. | Le fan-out par sous-agents, si on choisit cet exécuteur (voir plus bas). |
 
 **Le choix de la voie appartient à l'utilisateur.** L'agent ne le tranche pas
@@ -30,8 +30,11 @@ refactos — sont passés par Superpowers. Les deux voies mènent au même résu
 la question est celle de la traçabilité souhaitée et du budget.
 
 > **Notation** : sous Claude Code les commandes Spec Kit s'invoquent avec un tiret
-> (`/speckit-specify`, `/speckit-plan`…). L'intégration `opencode` de ce repo
-> utilise le point (`speckit.specify`). Même skill, séparateur différent.
+> (`/speckit-specify`, `/speckit-plan`…) — c'est l'`invoke_separator` de
+> l'intégration active, `claude` (`.specify/integration.json`). Les identifiants
+> internes de Spec Kit, eux, gardent le point : le hook `speckit.git.commit` de
+> `.specify/extensions.yml` désigne le skill `/speckit-git-commit`. Même skill,
+> séparateur différent.
 
 ---
 
@@ -43,7 +46,7 @@ d'artefact de planification, et c'est le cas courant.
 | Voie | Pour quoi | Artefacts | Exécution |
 |---|---|---|---|
 | **Sans plan** | bugfix, typo, ajustement de 1-2 fichiers, petit refacto | aucun | `systematic-debugging` ou `test-driven-development` directement |
-| **Spec Kit** | vraie feature, quand on veut la traçabilité et les gates | `specs/NNN-feature/` | `/speckit-implement` |
+| **Spec Kit** | vraie feature, quand on veut la traçabilité et les gates | `specs/<id>-feature/` | `/speckit-implement` |
 | **Superpowers** | vraie feature, quand le design et le plan suffisent | `docs/superpowers/specs/…-design.md` + `docs/superpowers/plans/…` | l'exécuteur **nommé par l'utilisateur** |
 
 ### Voie « sans plan »
@@ -95,8 +98,10 @@ ne peuvent donc pas créer de doublon avec quoi que ce soit de Spec Kit. Et Spec
 Kit n'offre aucun équivalent de revue de code : sans elles, une feature de la
 voie Spec Kit se terminerait sans revue du tout.
 
-La branche git et les commits-gate restent **manuels** — voir §Les hooks git dans
-les garde-fous ci-dessous. Créer la branche soi-même.
+La branche git, elle, n'est plus à créer soi-même sur la voie Spec Kit : depuis
+0.15.0 le hook `before_specify` de `/speckit-specify` l'ouvre pour de vrai. Les
+commits-gate, en revanche, restent inertes — voir §Les hooks git dans les
+garde-fous ci-dessous.
 
 ---
 
@@ -158,25 +163,32 @@ ne recopie un fichier dans un worktree que s'il est **à la fois** matché **et*
 gitignoré. Y ajouter des motifs change donc ce qu'un worktree reçoit — un effet à
 distance qu'aucun diff de feature ne laisse deviner. Sauter cette étape.
 
-### 2. Les hooks git : du bruit, pas une action
+### 2. Les hooks git : ils s'exécutent depuis 0.15.0
 
-`AGENTS.md` disait que les hooks de `.specify/extensions.yml` « ne s'exécutent
-jamais ». La formulation exacte est **« échouent sans effet »**, et la nuance
-compte.
+C'est un renversement par rapport à ce que ce document et `AGENTS.md` disaient en
+0.9.2 (« échouent sans effet »). L'extension `git` enregistre désormais ses cinq
+commandes **pour `claude`** — `registered_commands` et `registered_skills` dans
+`.specify/extensions/.registry` — et `.specify/extensions.yml` porte
+`auto_execute_hooks: true`. `/speckit-specify` déclenche donc réellement
+`before_specify` → `/speckit-git-feature`, qui fait le `git checkout -b`. Les
+SKILL.md 0.15.0 l'écrivent noir sur blanc : annoncer le hook ne l'exécute pas,
+il faut l'invoquer.
 
-L'extension `git` n'enregistre ses commandes que pour `agy` et `codex`
-(`registered_commands` dans `.specify/extensions/.registry`) — ni pour `claude`,
-ni pour `opencode`, l'intégration active. Mais le **corps** des skills
-`speckit-*` lit `extensions.yml` de lui-même et, pour un hook `optional: false`,
-s'instruit d'émettre `EXECUTE_COMMAND`. Or `before_specify` →
-`speckit.git.feature` est précisément `optional: false` : `/speckit-specify`
-**tentera** un `/speckit-git-feature` qui n'existe pas côté Claude. La branche
-n'est pas créée pour autant — la commande est introuvable — mais l'agent ne doit
-pas prendre ce `EXECUTE_COMMAND` pour une instruction à honorer autrement.
+Le core, lui, a **coupé le lien entre la feature et la branche** :
+`create-new-feature.sh` ne fait plus aucun appel git (ni `fetch`, ni
+`checkout -b`) et numérote d'après `specs/` seul ; la feature courante se lit
+dans `.specify/feature.json` (clé `feature_directory`, fichier **suivi**) ou dans
+`SPECIFY_FEATURE_DIRECTORY` ; `check-prerequisites.sh` ne valide plus le nom de
+branche. Un worktree Superpowers dont la branche ne suit aucune convention Spec
+Kit ne bloque donc plus `/speckit-plan` — c'était la friction nº1 entre les deux
+outils.
 
-Les hooks de commit (`before_*` / `after_*` → `speckit.git.commit`) sont tous
-`optional: true` : ils sont **affichés**, jamais exécutés. Donc pas d'auto-commit
-par `/speckit-implement`, malgré `auto_execute_hooks: true` dans `settings`.
+Les **commits-gate** restent en revanche inertes, et c'est voulu :
+`auto_commit.default: false` dans `.specify/extensions/git/git-config.yml`, tous
+les événements à `false`. Les hooks `speckit.git.commit` partent, lisent la
+config et passent — donc pas d'auto-commit par `/speckit-implement`. Ne pas les
+activer à la légère : ils committent via `git add .`, donc tout le worktree, sans
+égard au périmètre.
 
 ### 3. Le gate `checklists/` est réel, et gratuit
 
@@ -229,13 +241,26 @@ implémentation d'une task list doit suivre le workflow Superpowers » : c'est
 exactement le croisement que la règle d'or interdit. (Ce document l'a recommandé
 par le passé ; la ligne n'est jamais entrée dans la constitution de ce repo.)
 
-**État de ce repo** : la mise en place est déjà faite. La constitution est
-**ratifiée en v1.0.0** — ne pas relancer `/speckit-constitution` pour « la
-remplir ». Elle ne nomme aucun exécuteur (sa section « Development Workflow » dit
-`… → /speckit-analyze → exécution`), donc la règle de provenance **ne demande
-aucun amendement**. L'intégration active est `opencode`
-(`.specify/integration.json`) ; les neuf skills `speckit-*` sont présents pour
-Claude.
+**État de ce repo** : la mise en place est déjà faite, en **Spec Kit 0.15.0**
+(`.specify/init-options.json`). La constitution est **ratifiée en v1.0.0**
+(`.specify/memory/constitution.md`) — ne pas relancer `/speckit-constitution`
+pour « la remplir ». Elle ne nomme aucun exécuteur (sa section « Development
+Workflow » dit `… → /speckit-analyze → exécution`), donc la règle de provenance
+**ne demande aucun amendement**. L'intégration active est `claude`
+(`.specify/integration.json`) : dix skills de cœur (`speckit-specify`,
+`speckit-plan`, `speckit-tasks`, `speckit-analyze`, `speckit-clarify`,
+`speckit-checklist`, `speckit-implement`, `speckit-converge`,
+`speckit-constitution`, `speckit-taskstoissues`) et six skills d'extension
+(`speckit-git-{feature,validate,remote,initialize,commit}`,
+`speckit-agent-context-update`).
+
+Deux personnalisations locales vivent dans `.specify/templates/` et sont
+**réappliquées à chaque mise à jour de Spec Kit**, qui les écrase : la table de
+passage des 6 principes dans `plan-template.md` (l'amont y remet
+`[Gates determined based on constitution file]`) et l'exigence TDD du
+`tasks-template.md` (l'amont y remet « Tests are OPTIONAL »). Vérifier ces deux
+fichiers dans le diff d'une montée de version — le Principe III est
+non-négociable, un template qui dit l'inverse contredit la constitution.
 
 ---
 
@@ -247,13 +272,13 @@ légitime d'un doublon.
 
 | Emplacement | Écrit par | Statut |
 |---|---|---|
-| `specs/NNN-feature/` — `spec.md`, `plan.md`, `tasks.md`, `checklists/`, `research.md`, `data-model.md`, `quickstart.md` | Spec Kit | **Canonique** sur la voie Spec Kit. Un seul de chaque, par feature. |
+| `specs/<id>-feature/` — `spec.md`, `plan.md`, `tasks.md`, `checklists/`, `research.md`, `data-model.md`, `quickstart.md` | Spec Kit | **Canonique** sur la voie Spec Kit. Un seul de chaque, par feature. `id` **horodaté** (`YYYYMMDD-HHMMSS`) depuis 0.15.0 : `feature_numbering: timestamp` dans `.specify/init-options.json`, doublé de `branch_numbering: timestamp` dans `.specify/extensions/git/git-config.yml` pour que la branche et le dossier portent le même préfixe. Les trois features déjà en place gardent leur `NNN` séquentiel. |
 | `docs/superpowers/specs/…-design.md` | `brainstorming` (l'écrit **et le commite**) | **Canonique** sur la voie Superpowers. |
 | `docs/superpowers/plans/…` | `writing-plans` | **Canonique** sur la voie Superpowers. |
 | `docs/superpowers/specs/YYYY-MM-DD-<sujet>-{sondage,audit,report}.md` | l'agent, à la main | **Rapport de terrain** — voir ci-dessous. |
 | `.superpowers/sdd/<nom-du-plan>/` | `subagent-driven-development` | Ledger d'exécution (`progress.md`, briefs, rapports). Jetable, jamais commité. |
 
-Une feature relève d'une voie **ou** de l'autre : la ligne `specs/NNN-feature/` et
+Une feature relève d'une voie **ou** de l'autre : la ligne `specs/<id>-feature/` et
 les deux lignes `docs/superpowers/` qui la suivent ne se remplissent **jamais**
 ensemble. Les deux dernières lignes du tableau, elles, sont transverses.
 

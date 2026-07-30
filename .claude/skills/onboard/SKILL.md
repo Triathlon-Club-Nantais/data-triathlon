@@ -379,9 +379,9 @@ utiliser, où trouver le workflow.
    complète** pour une vraie feature, du cadrage à l'exécution :
    `/speckit-specify` → `/speckit-clarify` → gate → `/speckit-plan` →
    gate → `/speckit-tasks` → `/speckit-analyze` → `/speckit-implement`.
-   Produit `specs/NNN-.../` avec `spec.md`, `plan.md`, `tasks.md`,
-   `checklists/`. La branche git est à créer **à la main** : les hooks
-   git de `.specify/extensions.yml` échouent sans effet côté Claude.
+   Produit `specs/<horodatage>-.../` avec `spec.md`, `plan.md`,
+   `tasks.md`, `checklists/`. La branche git est créée par le hook
+   `before_specify` → `/speckit-git-feature` (Spec Kit 0.15.0).
 
 2. **Superpowers** — **l'autre voie complète** (`brainstorming` →
    `writing-plans` → `executing-plans` ou `subagent-driven-development`),
