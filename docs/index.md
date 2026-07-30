@@ -6,8 +6,8 @@ stocke, et importe tous les participants de l'épreuve.
 
 ## Sommaire
 
-- [Workflow IA](WORKFLOW-IA.md) — Speckit et Superpowers : lequel lancer, quand,
-  et pourquoi jamais les deux sur la même étape.
+- [Workflow IA](WORKFLOW-IA.md) — Speckit et Superpowers : deux voies complètes,
+  laquelle lancer, et pourquoi jamais les deux sur la même feature.
 - [CI/CD](ci-cd.md) — pipelines GitHub Actions, déploiements Render et Vercel.
 - [Modèle de données](modele-donnees.md) — schéma normalisé (athlète, course,
   participation) et migrations Alembic.

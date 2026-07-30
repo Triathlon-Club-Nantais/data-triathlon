@@ -8,40 +8,65 @@ Détails install/déploiement : voir `README.md`. Ce fichier cible les agents IA
 
 ## Workflow IA
 
-Deux outils d'assistance sont préconfigurés, **Spec Kit** et **Superpowers**. Le
-principe : **Spec Kit possède les artefacts** (`spec.md`, `plan.md`, `tasks.md`
-dans `specs/NNN-feature/`), **Superpowers possède l'exécution** (worktree, TDD
-red-green-refactor, sous-agents, revue, fin de branche). Le point de jonction est
-`tasks.md`. Détail, mise en place et pièges : `docs/WORKFLOW-IA.md`.
+Deux outils d'assistance sont préconfigurés, **Spec Kit** et **Superpowers**.
+Règle d'or : **ce sont deux voies complètes et parallèles, on ne les croise
+jamais.** L'exécution suit l'outil qui a produit le plan — un `tasks.md` Spec Kit
+s'exécute avec `/speckit-implement`, un plan sous `docs/superpowers/plans/`
+s'exécute avec un exécuteur Superpowers. Détail, garde-fous et mise en place :
+`docs/WORKFLOW-IA.md`.
 
-Les deux se chevauchent sur la **planification** — c'est là que naissent les
-conflits. Spec Kit est explicite et déterministe (on tape `/speckit-plan`) ; les
-skills Superpowers se déclenchent **automatiquement** quand leur description
-correspond à la situation. D'où la règle d'or : **Spec Kit cadre et planifie
-jusqu'à `tasks.md`, Superpowers exécute.**
+**Le choix de la voie appartient à l'utilisateur** : l'agent ne le tranche pas
+seul et ne bascule pas de l'une à l'autre en cours de route. Il n'existe pas de
+critère mécanique par nature de travail — `002-runnerbreizh-scraper` est passé
+par Spec Kit là où les 34 plans de `docs/superpowers/plans/` (scrapers, CLI,
+refactos) sont passés par Superpowers.
 
-- **Bugfix, typo, ajustement de 1-2 fichiers, petit refacto** → Superpowers seul :
-  `systematic-debugging` (bug) ou `test-driven-development` (ajout de comportement),
-  puis `verification-before-completion`. Pas de cycle Spec Kit, pas de dossier
-  `specs/`. Sauter la boucle entièrement : les skills ne s'activent que sur le
-  déclencheur de `brainstorming`.
-- **Vraie feature** (nouveau scraper, nouvel écran, changement de schéma) :
-  - Cadrage flou → laisser tourner le skill `brainstorming` de Superpowers.
-  - `/speckit-specify` → `/speckit-plan` → `/speckit-tasks`.
-  - `/speckit-analyze` **avant tout code** : il vérifie, en lecture seule, les
-    incohérences, ambiguïtés et trous de couverture entre les artefacts.
-  - Handoff : pointer `subagent-driven-development` sur `plan.md` / `tasks.md` de
-    Spec Kit (tâches `[P]` en parallèle) ; Superpowers gère TDD + revue en deux
-    passes, `test-driven-development` dans chaque tâche.
-- **Piège nº1, le doublon de planification** : dire explicitement à l'agent que le
-  plan existe déjà dans `specs/<id>/plan.md` et qu'il **ne doit pas le réécrire**,
-  sinon `writing-plans` régénère un plan parallèle. Idem pour la spec : `spec.md`
-  est canonique, pas un `-design.md` concurrent.
-- **Piège nº2, le sur-outillage** : pour un correctif d'une ligne, sauter la boucle
-  entièrement. Compter **~20-40 % de tokens en plus** par feature quand on lance la
-  boucle complète.
-- **Superpowers est canonique sur l'exécution** : ne pas lancer
-  `/speckit-implement` **et** `subagent-driven-development`.
+- **Voie « sans plan »** — bugfix, typo, ajustement de 1-2 fichiers, petit
+  refacto : `systematic-debugging` (bug) ou `test-driven-development` (ajout de
+  comportement), puis `verification-before-completion`. Pas de dossier `specs/`,
+  pas de plan. Les skills ne s'activant que sur le déclencheur de
+  `brainstorming`, sauter la boucle ne demande aucune précaution.
+- **Voie Spec Kit** — `/speckit-specify` → `/speckit-plan` → `/speckit-tasks` →
+  `/speckit-analyze` **avant tout code** (lecture seule : incohérences,
+  ambiguïtés, trous de couverture entre artefacts) → `/speckit-implement`.
+  Cadrage flou : laisser tourner `brainstorming` **avant** `/speckit-specify`.
+- **Voie Superpowers** — `brainstorming` → `writing-plans` → exécution.
+  L'exécuteur **n'a pas de défaut** : l'utilisateur nomme `executing-plans`
+  (session courante, checkpoints de revue, pas de fan-out) ou
+  `subagent-driven-development` (un sous-agent **et** une revue en deux passes
+  **par tâche**). L'agent ne déclenche de lui-même ni le fan-out ni les commits
+  par tâche.
+- **Fin de branche, commune aux trois voies** : `requesting-code-review` →
+  `verification-before-completion` → `finishing-a-development-branch`. Ce sont
+  des procédures, pas des artefacts : elles ne peuvent pas produire de doublon,
+  et Spec Kit n'offre aucun équivalent de revue de code.
+- **Le garant du TDD change d'endroit selon la voie**, le Principe III de la
+  constitution restant non-négociable dans les deux cas. Voie Superpowers : le
+  skill `test-driven-development`. Voie Spec Kit : `tasks.md` lui-même —
+  `/speckit-tasks` produit les tâches de test **avant** leurs tâches
+  d'implémentation (cf. `specs/003-dashboard-rank-selector/tasks.md`, T002/T003
+  avant T004/T005, « ces tests doivent échouer avant T007 ») et
+  `/speckit-implement` s'instruit de les exécuter dans cet ordre. Corollaire : un
+  `tasks.md` sans tâches de test viole le Principe III et se **régénère**, il ne
+  s'exécute pas.
+- **Pourquoi le handoff `tasks.md` → `subagent-driven-development` a été retiré** :
+  un sous-agent et deux passes de revue par tâche, soit de l'ordre de **117
+  exécutions d'agent** pour les 39 tâches (dont 22 `[P]`) de
+  `003-dashboard-rank-selector`. C'est une décision de coût, assumée. Elle
+  referme au passage le **doublon de planification**, qui ne naissait que du
+  croisement des deux voies : plus de handoff, donc plus de `writing-plans`
+  régénérant un plan parallèle à `specs/<id>/plan.md`.
+- **Le sur-outillage reste le seul piège** : pour un correctif d'une ligne, ne
+  rien lancer. Compter **~20-40 % de tokens en plus** par feature dès qu'on ouvre
+  un cycle complet, quelle que soit la voie.
+- **`/speckit-implement` a trois traits à connaître** : son étape 4 « Project
+  Setup Verification » est à **ne pas dérouler** (elle *ajoute* des motifs
+  génériques aux fichiers d'ignore existants — les deux `.dockerignore`, les trois
+  `.gitignore`, le `globalIgnores` délibéré de `frontend/eslint.config.mjs` — hors
+  périmètre de toute feature, contraire au Principe VI, et toucher au `.gitignore`
+  de la racine change ce que `.worktreeinclude` recopie), ses hooks git sont à
+  ignorer, et son gate `checklists/` est à respecter. Détail :
+  `docs/WORKFLOW-IA.md`, §Garde-fous de `/speckit-implement`.
 - **Un sondage n'est ni une spec ni un plan** : il consigne ce qui a été mesuré sur
   le terrain. Il reste autorisé et attendu dans les deux workflows, sous
   `docs/superpowers/specs/YYYY-MM-DD-<sujet>-{sondage,audit,report}.md`, et il
@@ -58,7 +83,15 @@ jusqu'à `tasks.md`, Superpowers exécute.**
   `.specify/extensions/.registry`. Ni pour `claude` (dont le manifest
   `.specify/integrations/claude.manifest.json` ne liste que les neuf skills
   `speckit-*`), ni pour `opencode`, l'intégration active
-  (`.specify/integration.json`). Ces hooks ne s'exécutent donc jamais.
+  (`.specify/integration.json`). Ces hooks **échouent donc sans effet** — ce
+  n'est pas la même promesse que « ne s'exécutent jamais » : le corps des skills
+  `speckit-*` lit `extensions.yml` de lui-même et, pour un hook `optional: false`,
+  s'instruit d'émettre `EXECUTE_COMMAND`. `before_specify` →
+  `speckit.git.feature` est précisément dans ce cas, donc `/speckit-specify`
+  **tente** la commande inexistante. Les hooks de commit
+  (`before_*` / `after_*` → `speckit.git.commit`) sont tous `optional: true` :
+  affichés seulement, jamais d'auto-commit — malgré `auto_execute_hooks: true`
+  dans `settings`.
 
 ## Pile applicative
 

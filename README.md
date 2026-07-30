@@ -266,6 +266,7 @@ data-triathlon/
 
 ## Contribuer avec les outils IA (Superpowers + Speckit)
 
-Ce projet embarque deux outils d'assistance IA préconfigurés pour le vibe coding.
-Pour savoir quel outil utiliser (bugfix vs vraie feature, quand lancer les
-sous-agents…) : voir [`docs/WORKFLOW-IA.md`](docs/WORKFLOW-IA.md).
+Ce projet embarque deux outils d'assistance IA préconfigurés. Ils forment **deux
+voies complètes qu'on ne croise jamais** : l'exécution suit l'outil qui a produit
+le plan. Quelle voie choisir, et quand se passer de plan : voir
+[`docs/WORKFLOW-IA.md`](docs/WORKFLOW-IA.md).
