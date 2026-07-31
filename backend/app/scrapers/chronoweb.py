@@ -30,9 +30,9 @@ from datetime import date as date_t
 from datetime import datetime
 from urllib.parse import parse_qs, urlparse
 
-import httpx
 from bs4 import BeautifulSoup
 
+from app.core import http
 from app.scrapers.base import ScrapedResult
 from app.scrapers.classify import classify_event_type
 from app.scrapers.utils import (
@@ -503,7 +503,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     event_id = (parse_qs(urlparse(event_url).query).get("event") or [""])[0]
 
     results: list[ScrapedResult] = []
-    with httpx.Client(follow_redirects=True, timeout=60, headers=HEADERS) as client:
+    with http.client(timeout=60, headers=HEADERS) as client:
         soup = _soup(_fetch(client, event_url))
         meta = _parse_event_meta(soup)
         if not meta.name:
