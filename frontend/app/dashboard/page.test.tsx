@@ -113,12 +113,12 @@ describe("DashboardPage", () => {
 // ses propres tests. Ici on vérifie que la page monte bien le composant, en
 // mode par défaut (les mocks `useSearchParams` renvoient une URL vide).
 describe("DashboardPage — sélecteur de type de rang", () => {
-  it("monte le StatCardsRank avec le mode par défaut (libellé « scratch »)", async () => {
+  it("monte le StatCardsRank avec le mode par défaut (libellé « général »)", async () => {
     listParticipations.mockResolvedValue([
       { rank_overall: 2, rank_category: 30 },
     ]);
     await renderDashboard({});
-    expect(screen.getAllByText("scratch").length).toBeGreaterThanOrEqual(3);
-    expect(screen.queryByText("scratch, genre ou catégorie")).not.toBeInTheDocument();
+    expect(screen.getAllByText("général").length).toBeGreaterThanOrEqual(3);
+    expect(screen.queryByText("général, genre ou catégorie")).not.toBeInTheDocument();
   });
 });

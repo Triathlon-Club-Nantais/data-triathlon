@@ -5,15 +5,10 @@ import { useSearchParams } from "next/navigation";
 import { Medal } from "@/components/ui/medal";
 import { SportBadge } from "@/components/results/SportBadge";
 import { formatEventName } from "@/lib/utils/event";
-import { listPodiums, type PodiumScope } from "@/lib/utils/club-aggregate";
+import { listPodiums } from "@/lib/utils/club-aggregate";
 import { RANK_PARAM, rankTypeFromParam } from "@/lib/rank";
+import { podiumScopeLabel } from "@/lib/labels";
 import type { Participation } from "@/lib/types";
-
-const SCOPE_LABEL: Record<PodiumScope, string> = {
-  overall: "Général",
-  gender: "Genre",
-  category: "Catégorie",
-};
 
 /**
  * Liste des podiums récents côté client — lit `?rank=…` et recalcule
@@ -53,7 +48,7 @@ export function PodiumsList({ participations }: { participations: Participation[
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <span className="truncate">{formatEventName(p.course.name, p.course.is_relay)}</span>
                 <SportBadge type={p.course.event_type} />
-                <span className="micro-label text-[9px]">{SCOPE_LABEL[best.scope]}</span>
+                <span className="micro-label text-[9px]">{podiumScopeLabel(best.scope)}</span>
               </div>
             </div>
             {p.total_time && (

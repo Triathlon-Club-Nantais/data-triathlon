@@ -4,16 +4,9 @@ import { useSearchParams } from "next/navigation";
 import { useMemo } from "react";
 import { StatCard } from "@/components/tcn";
 import { rankCounters } from "@/lib/utils/club-aggregate";
-import { RANK_PARAM, rankTypeFromParam, type RankType } from "@/lib/rank";
+import { RANK_PARAM, rankTypeFromParam } from "@/lib/rank";
+import { rankTypeLabel } from "@/lib/labels";
 import type { Participation } from "@/lib/types";
-
-// Libellés secondaires des cartes selon le mode courant (FR-008).
-const RANK_LABEL: Record<RankType, string> = {
-  scratch: "scratch",
-  category: "catégorie",
-  gender: "genre",
-  all: "scratch, genre ou catégorie",
-};
 
 const TrophyIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--tcn-orange)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4h12v3a6 6 0 0 1-12 0V4z" /><path d="M6 5H3v2a3 3 0 0 0 3 3" /><path d="M18 5h3v2a3 3 0 0 1-3 3" /><path d="M9 17h6" /><path d="M12 13v4" /><path d="M8 21h8" /></svg>
@@ -54,7 +47,7 @@ export function StatCardsRank({ participations }: { participations: Participatio
   const sp = useSearchParams();
   const rankType = rankTypeFromParam(sp.get(RANK_PARAM) ?? undefined);
   const counters = useMemo(() => rankCounters(participations, rankType), [participations, rankType]);
-  const rankLabel = RANK_LABEL[rankType];
+  const rankLabel = rankTypeLabel(rankType, { form: "long" });
 
   if (counters.kind === "scalar") {
     return (
