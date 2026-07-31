@@ -46,6 +46,11 @@ class DuplicateError(DomainError):
     message = "Cette ressource existe déjà"
 
 
+class AuthConfigurationError(DomainError):
+    status_code = 503
+    message = "Authentification non configurée."
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Branche les handlers d'exceptions domaine sur l'application FastAPI."""
 

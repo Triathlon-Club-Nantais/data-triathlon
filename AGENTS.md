@@ -442,6 +442,61 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 - `lib/types.ts` — types TypeScript partagés.
 - Déploiement : Vercel, variables `BACKEND_URL` + `API_URL`.
 
+## Authentification (issue #114, socle du back-office admin)
+
+Socle d'authentification pour le futur back-office admin. **Le site public
+reste 100 % accessible sans connexion** — aucune route existante n'a été
+protégée par cette sous-issue. La suite (#115 RBAC → #116 UI → #117-#119 actions)
+s'appuie dessus.
+
+- **Provider unique** : GitHub OAuth. Pas de fallback login/password local, pas
+  de Google Workspace. Si un second provider arrive, il faudra un ticket
+  dédié — la table `users` porte un simple `github_id` (String), pas de
+  `provider` prématuré (Principe VI).
+- **Endpoints** (contract complet : `specs/006-auth-backend-github/contracts/auth-api.md`)
+  - `GET /api/v1/auth/github/authorize` — 302 vers GitHub, pose `tcn_oauth_state`.
+  - `GET /api/v1/auth/github/callback` — vérifie l'état, échange le code, pose `tcn_session`, redirige vers `FRONTEND_POST_LOGIN_URL`.
+  - `POST /api/v1/auth/logout` — 204, invalide `tcn_session` (idempotent, marche sans cookie).
+  - `GET /api/v1/auth/me` — 200 `UserRead` ou 401.
+- **Cookie de session** : `tcn_session`, HttpOnly, `SameSite=Lax`, `Secure` en
+  prod. Payload signé et horodaté (`itsdangerous.URLSafeTimedSerializer`) :
+  `{"uid": <int>, "v": 1}`. Durée 7 jours par défaut. **Rotation de
+  `SESSION_SECRET_KEY` = kill-switch global** — toutes les sessions en cours
+  sont invalidées.
+- **Token GitHub jamais persisté** — l'access token GitHub sert à lire
+  `/user` puis `/user/emails` et il est oublié (variable locale). Aucune
+  colonne `access_token` ni équivalent dans `users` ; un test le vérifie.
+- **Email vérifié requis** — l'email de `/user` peut être `null` (adresse
+  masquée), on retombe sur `/user/emails` (premier `verified=true, primary=true`,
+  sinon premier `verified=true`). Sans email vérifié, la fiche est refusée
+  avec un message français explicite.
+- **Deux dépendances FastAPI** dans `app/api/deps.py` : `current_user` (401
+  sinon) et `current_user_optional` (accepte anonyme, renvoie `User | None`).
+  **Toute nouvelle route admin** de #115+ passera par `current_user` + le
+  décorateur `require_role` à venir. Toute route publique qui *pourrait* tirer
+  parti d'un utilisateur connu (rien aujourd'hui) utilisera `current_user_optional`.
+- **Modèle** : table `users` (`id`, `github_id` UNIQUE, `github_login`, `email`,
+  `is_active`, `created_at`, `athlete_id` FK optionnelle `ON DELETE SET NULL`
+  vers `athletes`). `github_id` en `String` pour éviter le débordement 32 bits
+  côté Postgres. **Pas de rôle** ici — #115 ajoutera la colonne.
+- **Variables d'environnement** (`backend/.env`) :
+  - `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET` — vides ⇒ auth
+    indisponible (503 sur `/auth/github/*`), publics restent ouverts.
+  - `SESSION_SECRET_KEY` — HMAC signature session + state. Vide ⇒ idem.
+    Générer : `python -c "import secrets; print(secrets.token_urlsafe(64))"`.
+  - `SESSION_MAX_AGE_SECONDS` (défaut 604800), `SESSION_COOKIE_SECURE`
+    (défaut `true` ; **passer à `false` en dev sur `http://localhost`** sinon
+    le navigateur ignore le cookie).
+  - `FRONTEND_POST_LOGIN_URL` — chaîne fixe (open redirect sinon).
+  - `GITHUB_OAUTH_REDIRECT_URL` — facultatif, à forcer derrière proxy TLS.
+- **Créer une app OAuth GitHub en local** — voir
+  `specs/006-auth-backend-github/quickstart.md` §2 (5 minutes, gratuit, dépôt
+  perso, callback `http://localhost:8001/api/v1/auth/github/callback`).
+- **Ce que #114 ne fait pas** — reporté à d'autres sous-issues :
+  - #115 : rôles, RBAC, `require_role`, commande CLI `create-admin`.
+  - #116 : UI `/login`, bouton « Se connecter » dans le header, gestion de session côté Next.js.
+  - #117-#119 : actions admin CRUD, re-scrape, revalidation qualité.
+
 ## Conventions générales
 
 - **Langue** : suit le Principe I de la constitution v1.0.0

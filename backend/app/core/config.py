@@ -48,6 +48,26 @@ class Settings(BaseSettings):
     geocode_user_agent: str = "TriathlonClubResults/1.0 contact@triclunantais.fr"
     geocode_min_interval_seconds: float = 1.1  # rate limit Nominatim : max 1 req/s
 
+    # ── Authentification GitHub OAuth (issue #114) ────────────────────────────
+    # Client OAuth GitHub — laisser vides désactive l'auth sans casser l'API publique
+    # (les endpoints /api/v1/auth/github/* renvoient alors 503, cf. FR-020).
+    github_oauth_client_id: str = ""
+    github_oauth_client_secret: str = ""
+    # Cible du callback GitHub. Défaut None → l'endpoint construit
+    # request.url_for("github_callback") au runtime. À forcer explicitement en
+    # prod (Render derrière proxy TLS, où request.url_for peut sortir en http).
+    github_oauth_redirect_url: str | None = None
+    # Clé HMAC de signature des cookies de session et du cookie de state OAuth.
+    # Sa rotation invalide toutes les sessions en cours (kill-switch).
+    session_secret_key: str = ""
+    session_max_age_seconds: int = 7 * 24 * 60 * 60  # 7 jours
+    # False en dev sur http://localhost (sinon le navigateur ignore le cookie).
+    # Doit rester True en prod (Render, Vercel = TLS).
+    session_cookie_secure: bool = True
+    # Où le callback redirige après avoir posé le cookie. Une chaîne fixe côté
+    # config, jamais un paramètre d'entrée du callback (open redirect sinon).
+    frontend_post_login_url: str = "/"
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_cors(cls, v):

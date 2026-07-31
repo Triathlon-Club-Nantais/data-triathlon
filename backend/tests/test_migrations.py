@@ -69,7 +69,9 @@ def test_downgrade_puis_upgrade_de_l_indice_de_fiabilite(sqlite_url):
     cfg = _alembic_config()
     command.upgrade(cfg, "head")
 
-    command.downgrade(cfg, "-1")
+    # Cible la révision **avant** l'indice de fiabilité, pas un simple `-1` :
+    # toute nouvelle révision poussée après casserait un offset relatif.
+    command.downgrade(cfg, "b2c3d4e5f6a7")
     assert not {"is_reliable", "quality_issues"} & _columns(sqlite_url, "courses")
 
     command.upgrade(cfg, "head")

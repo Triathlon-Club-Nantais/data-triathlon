@@ -17,6 +17,7 @@ dependencies = [
     "lxml>=5.3.0",
     "typer>=0.26.7",
     "rich>=15.0.0",
+    "itsdangerous>=2.2.0",
 ]
 
 # PEP 735 : installé par `uv sync`, écarté par `uv sync --no-dev` (Render, Docker).
