@@ -51,7 +51,7 @@ class QueryStats:
     label: str
     count: int = 0
     total_ms: float = 0.0
-    by_sql: Counter = field(default_factory=Counter)
+    by_sql: Counter[str] = field(default_factory=Counter)
 
 
 # Propre à la tâche asyncio ou au thread : deux requêtes HTTP simultanées ont
@@ -170,11 +170,15 @@ def _emit(stats: QueryStats) -> None:
     """
     if stats.count == 0:
         return
+    # Normalise le label : remplace les retours à la ligne par des espaces.
+    # `stats.label` vient de l'appelant et peut contenir des données de la base
+    # (nom d'épreuve, libellé de club). La garde s'applique une fois ici.
+    normalized_label = " ".join(stats.label.split())
     logger.info(
         "Bilan SQL | %s | %d requêtes | %.0f ms",
-        stats.label,
+        normalized_label,
         stats.count,
         stats.total_ms,
     )
     for sql, occurrences in stats.by_sql.most_common(_TOP_N):
-        logger.info("Bilan SQL | %s | x%d | %s", stats.label, occurrences, sql)
+        logger.info("Bilan SQL | %s | x%d | %s", normalized_label, occurrences, sql)
