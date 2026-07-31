@@ -36,6 +36,20 @@ class ScraperError(DomainError):
     message = "Erreur lors du scraping"
 
 
+class BlockedTargetError(DomainError):
+    """Destination réseau refusée par le garde de `core/http` (SSRF, #101).
+
+    Ne dérive **pas** de `ValueError` : `import_service._scrape_all` attrape
+    `ValueError` pour dire « fournisseur non supporté », et une destination
+    refusée s'y afficherait comme un problème de fournisseur. Elle tombe donc
+    dans le `except Exception` qui suit, et ressort en `ScraperError` avec sa
+    cause — visible dans le détail des épreuves en erreur des bilans CLI.
+    """
+
+    status_code = 422
+    message = "Destination réseau refusée"
+
+
 class NotFoundError(DomainError):
     status_code = 404
     message = "Ressource introuvable"
