@@ -250,3 +250,60 @@ def test_engine_applicatif_est_instrumente():
     from app.core.sql_observability import is_installed
 
     assert is_installed(engine) is True
+
+
+def test_middleware_compte_les_requetes_d_un_appel_http(monkeypatch, caplog):
+    """Le seul point du design qui ne se tranche pas au raisonnement : le
+    `ContextVar` doit traverser le middleware ASGI jusqu'à l'endpoint, que
+    FastAPI exécute dans un threadpool quand il est déclaré `def`.
+
+    On instrumente ici l'engine **de test** : `install()` prend son engine en
+    argument précisément pour ça.
+    """
+    from fastapi.testclient import TestClient
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
+
+    import app.models  # noqa: F401 — enregistre les tables sur Base.metadata
+    from app.core import sql_observability
+    from app.core.config import get_settings
+    from app.core.database import Base, get_db
+
+    # `create_app()` lit `sql_query_stats` pour décider de monter le middleware,
+    # et `get_settings()` est en lru_cache : forcer le réglage *avant* l'appel,
+    # et vider le cache en sortie pour ne pas le laisser pollué.
+    monkeypatch.setenv("SQL_QUERY_STATS", "true")
+    get_settings.cache_clear()
+
+    eng = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    try:
+        Base.metadata.create_all(bind=eng)
+        sql_observability.install(eng, slow_query_ms=0, collect_stats=True)
+        Session = sessionmaker(autocommit=False, autoflush=False, bind=eng)
+
+        from app.main import create_app
+
+        application = create_app()
+
+        def _override_get_db():
+            db = Session()
+            try:
+                yield db
+            finally:
+                db.close()
+
+        application.dependency_overrides[get_db] = _override_get_db
+
+        with caplog.at_level(logging.INFO, logger="app.sql"):
+            with TestClient(application) as client:
+                reponse = client.get("/api/v1/athletes?page_size=1")
+
+        assert reponse.status_code == 200
+        messages = [r.getMessage() for r in caplog.records]
+        assert any("GET /api/v1/athletes" in m and "Bilan SQL" in m for m in messages)
+    finally:
+        Base.metadata.drop_all(bind=eng)
+        eng.dispose()
+        get_settings.cache_clear()

@@ -30,6 +30,13 @@ def create_app() -> FastAPI:
 
     register_exception_handlers(app)
 
+    # Bilan SQL par requête HTTP (#89). Monté seulement si le bilan est activé :
+    # éteint, l'application n'a pas même un middleware de plus dans sa pile.
+    if settings.sql_query_stats:
+        from app.core.sql_observability import SqlStatsMiddleware
+
+        app.add_middleware(SqlStatsMiddleware)
+
     # API versionnée : tous les endpoints v1 sont montés sous /api/v1.
     from app.api.v1.router import api_router as v1_router
 
