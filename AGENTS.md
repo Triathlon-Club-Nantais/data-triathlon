@@ -764,7 +764,7 @@ Quatre pièges, tous mesurés, à ne jamais réintroduire :
   taisent (mieux vaut un libellé pauvre qu'un temps perdu).
 
 **Deux portées d'échec**, et c'est le choix structurant du module. Une course au
-classement incomplet est **écartée** (`_IncompleteRanking`, type privé rattrapé
+classement incomplet est **écartée** (`_IncompleteRankingError`, type privé rattrapé
 par la boucle, journalisé avec intitulé, ordinal et les deux décomptes) : les
 autres courses de l'événement s'importent. Refuser l'événement entier rendait
 une course durablement tronquée côté source définitivement non importable,

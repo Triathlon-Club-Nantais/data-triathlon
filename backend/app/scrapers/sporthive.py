@@ -31,7 +31,7 @@ Endpoints consumed (cf. specs/004-sporthive-scraper/contracts/provider-contract.
     GET /races/{raceId}/participants?page=N&size=10
 
 Two failure scopes, and that is the structuring choice of the module. A race
-whose ranking is incomplete is **dropped** (`_IncompleteRanking`, a private type
+whose ranking is incomplete is **dropped** (`_IncompleteRankingError`, a private type
 caught by the loop) so the event's other races still import; the **event** is
 refused (`ValueError`, propagated) on an unreadable URL, an unknown event, a
 pagination cap hit, or when no race could be read at all.
@@ -219,7 +219,7 @@ def _iter_participants(client: httpx.Client, race_id: str) -> Iterator[dict]:
     )
 
 
-class _IncompleteRanking(Exception):
+class _IncompleteRankingError(Exception):
     """A race whose ranking could not be read in full — **race** scope.
 
     A private type, not a `ValueError` filtered on its message: sorting
@@ -543,7 +543,7 @@ def _raw_data(participant: dict, ctx: _RaceContext) -> dict:
 def _scrape_race(
     client: httpx.Client, url: str, event: dict, race: dict
 ) -> list[ScrapedResult]:
-    """One race's whole ranking, or `_IncompleteRanking`.
+    """One race's whole ranking, or `_IncompleteRankingError`.
 
     The completeness check is a **floor** (`read < announced`), never an
     equality: a live race can gain ranked entrants between `/races` and the end
@@ -559,7 +559,7 @@ def _scrape_race(
     annonces = race.get("classificationsCount") or 0
     participants = list(_iter_participants(client, race_id))
     if len(participants) < annonces:
-        raise _IncompleteRanking(
+        raise _IncompleteRankingError(
             race.get("raceName") or "", race.get("activeRaceId"), len(participants), annonces
         )
     if len(participants) > annonces:
@@ -581,7 +581,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     Sheet's event.
 
     Two failure scopes, and that is the structuring choice of this module. A
-    truncated race is **dropped** (`_IncompleteRanking`, caught here) — refusing
+    truncated race is **dropped** (`_IncompleteRankingError`, caught here) — refusing
     the whole event made it permanently unimportable, the five healthy races
     included. The event is **refused** (`ValueError`, propagated) when the URL
     is unreadable, when the event is unknown, when the stop invariant is false,
@@ -614,7 +614,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                 continue
             try:
                 resultats.extend(_scrape_race(client, url, event, race))
-            except _IncompleteRanking as ecart:
+            except _IncompleteRankingError as ecart:
                 # The only trace of this race: the CLI report counts events, so
                 # the event comes back a success with 5 races out of 6. Hence
                 # the line must be usable on its own (FR-008a).
