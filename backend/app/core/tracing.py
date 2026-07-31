@@ -21,6 +21,14 @@ import sys
 logger = logging.getLogger(__name__)
 
 _provider = None
+# Ce que `setup_tracing` a effectivement instrumenté — nécessaire pour
+# désinstrumenter symétriquement dans `shutdown_tracing`. Les instrumentations
+# OTel sont des singletons par classe (`BaseInstrumentor`) : tant qu'on ne
+# rappelle pas `uninstrument()`, un second `instrument()` est un no-op muet
+# (simple avertissement journalisé), et un second cycle `setup_tracing` perd
+# tous ses spans sans le dire.
+_instrumented_engine = None
+_instrumented_app = None
 
 
 def current_provider():
@@ -57,7 +65,7 @@ def setup_tracing(*, enabled: bool, app=None, engine=None) -> None:
     No-op si `enabled` est faux, et idempotent : un second appel ne reconstruit
     rien. `app` et `engine` sont facultatifs — la CLI n'a pas d'app.
     """
-    global _provider
+    global _provider, _instrumented_engine, _instrumented_app
     if not enabled or _provider is not None:
         return
 
@@ -75,22 +83,39 @@ def setup_tracing(*, enabled: bool, app=None, engine=None) -> None:
         from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 
         SQLAlchemyInstrumentor().instrument(engine=engine, tracer_provider=provider)
+        _instrumented_engine = engine
     if app is not None:
         from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
         FastAPIInstrumentor.instrument_app(app, tracer_provider=provider)
+        _instrumented_app = app
 
     logger.info("Traçage OpenTelemetry actif (exporter=%s)", exporter or "none")
 
 
 def shutdown_tracing() -> None:
-    """Vide les spans en attente.
+    """Vide les spans en attente et désinstrumente ce qui l'a été.
 
     Indispensable en CLI : un batch est un process court et le
     `BatchSpanProcessor` exporte de façon différée — sans cet appel, les spans
     du dernier import sont perdus.
+
+    La désinstrumentation est **symétrique** à `setup_tracing` : sans elle, les
+    instrumentations OTel — des singletons par classe — resteraient armées, et
+    un `setup_tracing` ultérieur (nouvel engine, nouvelle app) redeviendrait un
+    no-op muet plutôt que de reproduire l'instrumentation.
     """
-    global _provider
+    global _provider, _instrumented_engine, _instrumented_app
+    if _instrumented_engine is not None:
+        from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+
+        SQLAlchemyInstrumentor().uninstrument()
+        _instrumented_engine = None
+    if _instrumented_app is not None:
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
+        FastAPIInstrumentor.uninstrument_app(_instrumented_app)
+        _instrumented_app = None
     if _provider is not None:
         _provider.shutdown()
         _provider = None

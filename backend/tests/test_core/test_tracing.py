@@ -60,12 +60,51 @@ def test_allume_produit_un_span_sql(monkeypatch):
 
         assert exporter.get_finished_spans(), "aucun span SQL produit"
     finally:
-        from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
-
-        # Les instrumentations OTel sont globales et rémanentes : sans ce
-        # désarmement, ce test contamine toute la suite.
-        SQLAlchemyInstrumentor().uninstrument()
+        # Le désarmement de l'instrumentation SQLAlchemy est désormais à la
+        # charge de `shutdown_tracing`, rappelé par la fixture `_etat_propre`
+        # en teardown — plus besoin de le faire à la main ici.
         eng.dispose()
+
+
+def test_cycle_complet_reinstrumente_apres_shutdown(monkeypatch):
+    """`shutdown_tracing` doit désinstrumenter, pas seulement fermer le provider.
+
+    `BaseInstrumentor` est un singleton par classe : sans désinstrumentation
+    symétrique, un second `setup_tracing` (nouvel engine) redevient un no-op
+    muet et perd tous ses spans, en silence — c'est exactement le cas d'un
+    process CLI qui enchaînerait deux batches.
+    """
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+        InMemorySpanExporter,
+    )
+
+    from app.core import tracing
+
+    monkeypatch.setenv("OTEL_TRACES_EXPORTER", "none")
+
+    eng1 = create_engine("sqlite://")
+    tracing.setup_tracing(enabled=True, engine=eng1)
+    try:
+        exporter1 = InMemorySpanExporter()
+        tracing.current_provider().add_span_processor(SimpleSpanProcessor(exporter1))
+        with eng1.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        assert exporter1.get_finished_spans(), "aucun span SQL produit (premier cycle)"
+    finally:
+        tracing.shutdown_tracing()
+        eng1.dispose()
+
+    eng2 = create_engine("sqlite://")
+    tracing.setup_tracing(enabled=True, engine=eng2)
+    try:
+        exporter2 = InMemorySpanExporter()
+        tracing.current_provider().add_span_processor(SimpleSpanProcessor(exporter2))
+        with eng2.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        assert exporter2.get_finished_spans(), "aucun span SQL produit (second cycle)"
+    finally:
+        eng2.dispose()
 
 
 def test_exporter_console_ecrit_sur_stderr():
