@@ -89,14 +89,25 @@ et non `rang`, `total_time` et non `temps`, `category`, `club`, `event_name` /
 
 La seule exception est **structurelle, pas lexicale** : un identifiant **gelé
 par un contrat public** — colonne SQLAlchemy, champ de DTO Pydantic, clé JSON
-d'une réponse d'API, paramètre de query — reste tel quel tant que le contrat
-n'est pas migré. Aujourd'hui cela vise exactement un champ, à trois endroits :
+d'une réponse d'API, clé de la charge `--json` de la CLI (`emit_outcome`),
+paramètre de query — reste tel quel tant que le contrat n'est pas migré.
+Aujourd'hui cela vise deux familles, non une seule. La première :
 `athletes.nom` / `athletes.prenom` (`backend/app/models/athlete.py`), leur
 écho DTO (`backend/app/schemas/athlete.py`) et le paramètre de repository
 (`backend/app/repositories/athlete_repository.py`) — ces noms traversent la
-DB, l'API et `frontend/lib/types.ts`. Les renommer est un chantier cross-stack
+DB, l'API et `frontend/lib/types.ts` ; les renommer est un chantier cross-stack
 (migration Alembic **plus** le front), sans commune mesure avec le renommage
-d'un symbole privé, et hors de ce principe.
+d'un symbole privé. La seconde : les champs `ancien` / `nouveau` / `fusion` de
+la dataclass `Reassignment` (`backend/app/services/import_service.py`),
+sérialisés verbatim dans la phase `done` de la réponse SSE de
+`POST /api/v1/scrape/event/stream` et verrouillés par
+`backend/tests/test_api/test_scrape_api.py` ; et les champs `ancien` /
+`nouveau` / `participations` de la dataclass `IdentiteReconciliee`
+(`backend/app/services/rescrape_service.py`), sérialisés dans la charge
+`--json` de `rescrape-db` et documentés comme contractuels par `AGENTS.md`.
+Ces deux familles sont hors de ce principe au même titre : les renommer casse
+un contrat verrouillé par test ou documenté comme stable, tout comme les
+renommer casserait la DB et le front pour la première famille.
 
 **Cas mixte — les `DomainError`** : les exceptions de
 `backend/app/core/exceptions.py` (`InvalidUrlError`,
@@ -115,15 +126,20 @@ substantielle d'un fichier. Un fichier français touché pour un fix ciblé
 reste français dans le patch.
 
 **Dérogation bornée — campagne #88** : par dérogation à l'alinéa précédent, le
-renommage des identifiants français de `backend/app` est autorisé sur la
-**liste close** de lots ci-dessous, sous quatre critères **cumulatifs** :
-symboles **privés, locaux ou paramètres** uniquement (jamais un symbole gelé
-par contrat public) ; **zéro changement de comportement** ; les tests suivent
-dans la **même PR** que le module qu'ils couvrent ; **un lot par PR**.
+renommage des identifiants français de `backend/app` est autorisé sur les lots
+ci-dessous, sous cinq critères **cumulatifs** : **tout symbole interne au
+backend**, à l'exclusion de ceux gelés par un contrat public au sens de la
+clause (b) — la visibilité Python (`_` initial ou non) n'a jamais été le
+critère, seule compte la traversée d'une frontière (DB, HTTP, `--json`) ;
+**zéro changement de comportement** ; les tests suivent dans la **même PR**
+que le module qu'ils couvrent ; **un lot par PR** ; et **les mentions de
+symboles renommés dans `AGENTS.md` suivent dans la même PR** — `specs/00*/`,
+lui, ne suit jamais : ce sont des artefacts historiques de features livrées,
+qu'on ne réécrit pas après coup.
 
 | Lot | Périmètre |
 | --- | --- |
-| A | transversal `echec_total` — `services/{batch,rescrape_service,bulk_import_service,import_service}.py` + les constantes homonymes de `cli/reports.py` |
+| A | transversal — **deux familles** : `echec_total` (`services/{batch,bulk_import_service,rescrape_service}.py` et les constantes homonymes de `cli/reports.py`) et l'identité réconciliée (`_CLES_APPARIEMENT` / `_identite` et les variables locales de `_reconcile` dans `services/import_service.py`, plus les symboles homologues de `services/rescrape_service.py` et `cli/reports.py`) — **jamais** les champs `ancien` / `nouveau` / `fusion` / `participations` des dataclasses `Reassignment` et `IdentiteReconciliee`, gelés par (b) |
 | B | `app/cli/` — `reports`, `url_sources`, `progress`, `validators` |
 | C | `app/scrapers/raceresult.py` |
 | D | `app/scrapers/t2area.py` |
@@ -131,13 +147,19 @@ dans la **même PR** que le module qu'ils couvrent ; **un lot par PR**.
 | F | `app/scrapers/competitor.py` |
 | G | `app/scrapers/{chronoweb,chronoplace,sporthive}.py` |
 | H | `app/scrapers/{classify,wiclax,timepulse,klikego,klikego_platform}.py` |
+| I | `app/core/club.py`, `app/scrapers/utils.py`, `app/services/sheet_source.py` — angle mort du relevé initial, dont le lexique français ne couvrait ni « espace », ni « blanc », ni « normalise », ni « qualifiant », ni « sans_lien » (~7 symboles) |
 
 Le lot **A passe avant B**, et ce n'est pas un détail d'ordonnancement :
 `echec_total` traverse quatre modules d'`app` et cinq fichiers de test, dont
 `cli/reports.py`. Pris après B, deux PRs se marcheraient dessus sur ce fichier.
 
-Quand ces huit lots sont faits, la dérogation **s'éteint** et l'alinéa
-précédent reprend pleinement. Design et relevé chiffré :
+Cette table est un **plan de découpage**, pas la définition de la fin : la
+dérogation s'éteint quand `backend/app` ne porte plus d'identifiant français
+hors clause (b) — un critère **vérifiable par re-scan**, et non « quand ces
+lots sont faits », qui est cochable mais aveugle à un module oublié au relevé
+ou ajouté entre-temps. C'est cet angle mort du relevé initial qui a produit le
+lot I. Une fois éteinte, l'alinéa précédent reprend pleinement. Design et
+relevé chiffré :
 `docs/superpowers/specs/2026-07-31-convention-nommage-identifiants-design.md`.
 
 **Rationale** : le projet sert un club francophone (le métier est en
