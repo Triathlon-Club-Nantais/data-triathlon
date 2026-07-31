@@ -230,6 +230,15 @@ accord explicite du mainteneur en session de brainstorming ; bump **MINOR** car
 « élargissement substantiel d'une règle existante » ; propagation = tâche 3 ;
 Sync Impact Report = Step 3 ci-dessous.
 
+**Note de lecture, ajoutée après coup.** Les blocs « texte à insérer » des
+Steps 1 et 2 ci-dessous ont été amendés par la revue finale de la campagne
+(commits `2b9532a` puis celui-ci) : le texte que porte désormais ce plan est
+celui **effectivement livré** dans la constitution v1.1.0, pas le brouillon
+d'avant revue. Ce plan ne prétend pas que les tâches ont été ré-exécutées —
+elles ne l'ont pas été, la constitution n'a plus bougé depuis ; c'est ce
+document de planification qui a été mis à jour pour cesser de décrire un état
+révolu.
+
 - [ ] **Step 1: Insérer les deux clauses de règle dans le Principe I**
 
 Après le paragraphe `**English** — …` (qui se termine l. 77 par « titres et corps
@@ -260,14 +269,25 @@ et non `rang`, `total_time` et non `temps`, `category`, `club`, `event_name` /
 
 La seule exception est **structurelle, pas lexicale** : un identifiant **gelé
 par un contrat public** — colonne SQLAlchemy, champ de DTO Pydantic, clé JSON
-d'une réponse d'API, paramètre de query — reste tel quel tant que le contrat
-n'est pas migré. Aujourd'hui cela vise exactement un champ, à trois endroits :
+d'une réponse d'API, clé de la charge `--json` de la CLI (`emit_outcome`),
+paramètre de query — reste tel quel tant que le contrat n'est pas migré.
+Aujourd'hui cela vise deux familles, non une seule. La première :
 `athletes.nom` / `athletes.prenom` (`backend/app/models/athlete.py`), leur
 écho DTO (`backend/app/schemas/athlete.py`) et le paramètre de repository
 (`backend/app/repositories/athlete_repository.py`) — ces noms traversent la
-DB, l'API et `frontend/lib/types.ts`. Les renommer est un chantier cross-stack
+DB, l'API et `frontend/lib/types.ts` ; les renommer est un chantier cross-stack
 (migration Alembic **plus** le front), sans commune mesure avec le renommage
-d'un symbole privé, et hors de ce principe.
+d'un symbole privé. La seconde : les champs `ancien` / `nouveau` / `fusion` de
+la dataclass `Reassignment` (`backend/app/services/import_service.py`),
+sérialisés verbatim dans la phase `done` de la réponse SSE de
+`POST /api/v1/scrape/event/stream` et verrouillés par
+`backend/tests/test_api/test_scrape_api.py` ; et les champs `ancien` /
+`nouveau` / `participations` de la dataclass `IdentiteReconciliee`
+(`backend/app/services/rescrape_service.py`), sérialisés dans la charge
+`--json` de `rescrape-db` et documentés comme contractuels par `AGENTS.md`.
+Ces deux familles sont hors de ce principe au même titre : les renommer casse
+un contrat verrouillé par test ou documenté comme stable, tout comme les
+renommer casserait la DB et le front pour la première famille.
 ```
 
 - [ ] **Step 2: Ajouter la dérogation bornée et compléter le Rationale**
@@ -282,15 +302,21 @@ substantielle d'un fichier. Un fichier français touché pour un fix ciblé
 reste français dans le patch.
 
 **Dérogation bornée — campagne #88** : par dérogation à l'alinéa précédent, le
-renommage des identifiants français de `backend/app` est autorisé sur la
-**liste close** de lots ci-dessous, sous quatre critères **cumulatifs** :
-symboles **privés, locaux ou paramètres** uniquement (jamais un symbole gelé
-par contrat public) ; **zéro changement de comportement** ; les tests suivent
-dans la **même PR** que le module qu'ils couvrent ; **un lot par PR**.
+renommage des identifiants français de `backend/app` est autorisé sur les lots
+ci-dessous, sous cinq critères **cumulatifs** : **tout symbole interne au
+backend**, à l'exclusion de ceux gelés par un contrat public au sens de la
+clause **Pas d'exception de vocabulaire métier** ci-dessus — la visibilité
+Python (`_` initial ou non) n'a jamais été le critère, seule compte la
+traversée d'une frontière (DB, HTTP, `--json`) ; **zéro changement de
+comportement** ; les tests suivent dans la **même PR** que le module qu'ils
+couvrent ; **un lot par PR** ; et **les mentions de symboles renommés dans
+`AGENTS.md` suivent dans la même PR** — `specs/00*/`, lui, ne suit jamais : ce
+sont des artefacts historiques de features livrées, qu'on ne réécrit pas après
+coup.
 
 | Lot | Périmètre |
 | --- | --- |
-| A | transversal — deux familles : `echec_total` (`batch`, `bulk_import_service`, `rescrape_service`, `cli/reports`) et l'identité réconciliée `ancien`/`nouveau`/`fusion` (`import_service`, `rescrape_service`, `cli/reports`), **hors** les champs de dataclass gelés par (b) |
+| A | transversal — **deux familles** : `echec_total` (`services/{batch,bulk_import_service,rescrape_service}.py` et les constantes homonymes de `cli/reports.py`) et l'identité réconciliée (`_CLES_APPARIEMENT` / `_identite` et les variables locales de `_reconcile` dans `services/import_service.py`, plus les symboles homologues de `services/rescrape_service.py` et `cli/reports.py`) — **jamais** les champs `ancien` / `nouveau` / `fusion` / `participations` des dataclasses `Reassignment` et `IdentiteReconciliee`, gelés par la clause **Pas d'exception de vocabulaire métier** |
 | B | `app/cli/` — `reports`, `url_sources`, `progress`, `validators` |
 | C | `app/scrapers/raceresult.py` |
 | D | `app/scrapers/t2area.py` |
@@ -298,13 +324,19 @@ dans la **même PR** que le module qu'ils couvrent ; **un lot par PR**.
 | F | `app/scrapers/competitor.py` |
 | G | `app/scrapers/{chronoweb,chronoplace,sporthive}.py` |
 | H | `app/scrapers/{classify,wiclax,timepulse,klikego,klikego_platform}.py` |
+| I | `app/core/club.py`, `app/scrapers/utils.py`, `app/services/sheet_source.py` — angle mort du relevé initial, dont le lexique français ne couvrait ni « espace », ni « blanc », ni « normalise », ni « qualifiant », ni « sans_lien » (~7 symboles) |
 
 Le lot **A passe avant B**, et ce n'est pas un détail d'ordonnancement :
 `echec_total` traverse quatre modules d'`app` et cinq fichiers de test, dont
 `cli/reports.py`. Pris après B, deux PRs se marcheraient dessus sur ce fichier.
 
-Quand ces huit lots sont faits, la dérogation **s'éteint** et l'alinéa
-précédent reprend pleinement. Design et relevé chiffré :
+Cette table est un **plan de découpage**, pas la définition de la fin : la
+dérogation s'éteint quand `backend/app` ne porte plus d'identifiant français
+hors de la clause **Pas d'exception de vocabulaire métier** — un critère
+**vérifiable par re-scan**, et non « quand ces lots sont faits », qui est
+cochable mais aveugle à un module oublié au relevé ou ajouté entre-temps.
+C'est cet angle mort du relevé initial qui a produit le lot I. Une fois
+éteinte, l'alinéa précédent reprend pleinement. Design et relevé chiffré :
 `docs/superpowers/specs/2026-07-31-convention-nommage-identifiants-design.md`.
 
 **Rationale** : le projet sert un club francophone (le métier est en
@@ -390,6 +422,12 @@ la dérogation ne doit pas en avoir créé une troisième.
 
 - [ ] **Step 6: Commit**
 
+Message tel qu'effectivement commité le 2026-07-31 (`8159c8c`) — reproduit
+**verbatim** ci-dessous, y compris son décompte de « huit lots » depuis
+corrigé en neuf par la revue finale (`2b9532a` puis celui-ci) : c'est un
+historique de commit, pas une description de l'état courant, et il ne se
+réécrit pas après coup.
+
 ```bash
 git add .specify/memory/constitution.md
 git commit -m "docs(constitution): amende le Principe I en v1.1.0 (#88)
@@ -462,8 +500,10 @@ réécrit pas l'existant » devient fausse telle quelle. Remplacer l. 455-462 pa
   liaisons dont la portée tient sous les yeux (compréhension, boucle,
   lambda, `db`). Règle de transition : on ne réécrit pas l'existant, la
   règle s'applique aux nouveaux ajouts — **à une dérogation près**, la
-  campagne de renommage de l'issue #88, bornée à une liste close de huit
-  lots énumérée dans le Principe I.
+  campagne de renommage de l'issue #88, bornée aux lots énumérés dans le
+  Principe I (plan de découpage, pas définition de la fin : la dérogation
+  s'éteint quand `backend/app` ne porte plus d'identifiant français hors de
+  la clause « Pas d'exception de vocabulaire métier » du Principe I).
 ```
 
 - [ ] **Step 3: Les cinq renvois de version restants**
@@ -571,12 +611,35 @@ la tâche 1.
 
 ## Suites — hors de cette branche
 
-- **Les huit lots de la campagne** (A → H, dans cet ordre pour A et B), un par
-  PR, sous les quatre critères de la dérogation. Le lot A demande une vigilance
-  particulière : `est_echec_total(*, epreuves, errors)` devient
-  `is_total_failure(*, events, errors)`, et la frontière épreuve / course est un
-  point de vocabulaire que `AGENTS.md` documente longuement. À vérifier lot par
-  lot, jamais à présumer.
+- **Les neuf lots de la campagne** (A → I, dans cet ordre pour A et B — le
+  lot I s'est ajouté après coup, angle mort du relevé initial), un par PR,
+  sous les cinq critères de la dérogation (le cinquième : les mentions de
+  symboles renommés dans `AGENTS.md` suivent dans la même PR).
+  **Le lot A couvre deux familles, pas une** : `echec_total` (`batch`,
+  `bulk_import_service`, `rescrape_service`, `cli/reports`) **et**
+  l'identité réconciliée (`_CLES_APPARIEMENT` / `_identite` et les variables
+  locales de `_reconcile` dans `import_service.py`, plus leurs homologues de
+  `rescrape_service.py` et `cli/reports.py`) — un exécutant qui ne
+  chercherait que `echec_total` dans `import_service.py` ne l'y trouverait
+  pas, et manquerait la seconde famille.
+  **Piège à ne pas retomber dedans** : `import_service.py` et
+  `rescrape_service.py` sont dans le lot A pour leurs symboles internes,
+  **jamais** pour les champs `ancien` / `nouveau` / `fusion` de la dataclass
+  `Reassignment` (sérialisés verbatim dans la phase `done` du SSE de
+  `POST /api/v1/scrape/event/stream`, verrouillés par
+  `tests/test_api/test_scrape_api.py`) ni pour les champs `ancien` /
+  `nouveau` / `participations` de `IdentiteReconciliee` (sérialisés dans la
+  charge `--json` de `rescrape-db`) : ces champs sont gelés par la clause
+  « Pas d'exception de vocabulaire métier » du Principe I et ne se
+  renomment pas, quand bien même leurs modules sont dans le lot A. Les
+  renommer par réflexe casserait à la fois le critère « zéro changement de
+  comportement » et le Principe IV (contrats API et CLI stables).
+  Le lot A demande en outre une vigilance de vocabulaire :
+  `est_echec_total(*, epreuves, errors)` devient
+  `is_total_failure(*, events, errors)`, et la frontière épreuve / course
+  suit le glossaire fixé par le design (§5.2 : `épreuve` → `event`,
+  `course` → `race`) — à vérifier lot par lot contre ce glossaire, jamais à
+  présumer.
 - **Cocher la case n°1 de l'issue #88** (« trancher la liste des termes métier »)
   et y résumer la réponse : liste vide, exception structurelle. Action
   sortante — à faire valider avant émission.

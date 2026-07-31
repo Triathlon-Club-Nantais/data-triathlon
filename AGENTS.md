@@ -465,8 +465,8 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   règle s'applique aux nouveaux ajouts — **à une dérogation près**, la
   campagne de renommage de l'issue #88, bornée aux lots énumérés dans le
   Principe I (plan de découpage, pas définition de la fin : la dérogation
-  s'éteint quand `backend/app` ne porte plus d'identifiant français hors
-  clause (b)).
+  s'éteint quand `backend/app` ne porte plus d'identifiant français hors de
+  la clause « Pas d'exception de vocabulaire métier » du Principe I).
 - Commits : Conventional Commits (`feat:`, `fix:`…), déjà en place dans l'historique.
 - Schéma DB : migrations **Alembic** (`uv run alembic revision --autogenerate`
   après modif d'un modèle, puis `uv run alembic upgrade head`).

@@ -31,7 +31,10 @@ Templates alignés :
      ont été retirées (follow-up v1.0.0 résolu) ; renvoi de version à bumper.
   ✅ AGENTS.md                              — la règle langue renvoie déjà au
      Principe I (follow-up v1.0.0 résolu). Renvoi de version à bumper, et la
-     phrase de transition doit désormais nommer la dérogation.
+     phrase de transition doit désormais nommer la dérogation. Le 5ᵉ critère
+     de la dérogation crée en outre une obligation nouvelle **sur ce fichier
+     lui-même** : chaque lot de la campagne #88 devra faire suivre, dans la
+     même PR, les mentions de ses symboles renommés dans AGENTS.md.
 Follow-up TODOs   : (aucun — les trois follow-ups de la v1.0.0 sont résolus)
 -->
 
@@ -129,8 +132,9 @@ reste français dans le patch.
 renommage des identifiants français de `backend/app` est autorisé sur les lots
 ci-dessous, sous cinq critères **cumulatifs** : **tout symbole interne au
 backend**, à l'exclusion de ceux gelés par un contrat public au sens de la
-clause (b) — la visibilité Python (`_` initial ou non) n'a jamais été le
-critère, seule compte la traversée d'une frontière (DB, HTTP, `--json`) ;
+clause **Pas d'exception de vocabulaire métier** ci-dessus — la visibilité
+Python (`_` initial ou non) n'a jamais été le critère, seule compte la
+traversée d'une frontière (DB, HTTP, `--json`) ;
 **zéro changement de comportement** ; les tests suivent dans la **même PR**
 que le module qu'ils couvrent ; **un lot par PR** ; et **les mentions de
 symboles renommés dans `AGENTS.md` suivent dans la même PR** — `specs/00*/`,
@@ -139,7 +143,7 @@ qu'on ne réécrit pas après coup.
 
 | Lot | Périmètre |
 | --- | --- |
-| A | transversal — **deux familles** : `echec_total` (`services/{batch,bulk_import_service,rescrape_service}.py` et les constantes homonymes de `cli/reports.py`) et l'identité réconciliée (`_CLES_APPARIEMENT` / `_identite` et les variables locales de `_reconcile` dans `services/import_service.py`, plus les symboles homologues de `services/rescrape_service.py` et `cli/reports.py`) — **jamais** les champs `ancien` / `nouveau` / `fusion` / `participations` des dataclasses `Reassignment` et `IdentiteReconciliee`, gelés par (b) |
+| A | transversal — **deux familles** : `echec_total` (`services/{batch,bulk_import_service,rescrape_service}.py` et les constantes homonymes de `cli/reports.py`) et l'identité réconciliée (`_CLES_APPARIEMENT` / `_identite` et les variables locales de `_reconcile` dans `services/import_service.py`, plus les symboles homologues de `services/rescrape_service.py` et `cli/reports.py`) — **jamais** les champs `ancien` / `nouveau` / `fusion` / `participations` des dataclasses `Reassignment` et `IdentiteReconciliee`, gelés par la clause **Pas d'exception de vocabulaire métier** |
 | B | `app/cli/` — `reports`, `url_sources`, `progress`, `validators` |
 | C | `app/scrapers/raceresult.py` |
 | D | `app/scrapers/t2area.py` |
@@ -155,8 +159,9 @@ Le lot **A passe avant B**, et ce n'est pas un détail d'ordonnancement :
 
 Cette table est un **plan de découpage**, pas la définition de la fin : la
 dérogation s'éteint quand `backend/app` ne porte plus d'identifiant français
-hors clause (b) — un critère **vérifiable par re-scan**, et non « quand ces
-lots sont faits », qui est cochable mais aveugle à un module oublié au relevé
+hors de la clause **Pas d'exception de vocabulaire métier** — un critère
+**vérifiable par re-scan**, et non « quand ces lots sont faits », qui est
+cochable mais aveugle à un module oublié au relevé
 ou ajouté entre-temps. C'est cet angle mort du relevé initial qui a produit le
 lot I. Une fois éteinte, l'alinéa précédent reprend pleinement. Design et
 relevé chiffré :
