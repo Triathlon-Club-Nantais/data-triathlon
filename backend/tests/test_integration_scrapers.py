@@ -190,8 +190,12 @@ def test_bc_live_dinard_swimrun():
     assert all(r.event_date == date(2025, 9, 14) for r in results)
     # Le nom porte le libellé du heat, sans quoi les heats d'une même épreuve
     # fusionnent sur l'identité de course (nom, date, type, relais).
+    # Séparateur : tiret **ASCII**, posé par `breizhchrono._build_event_name`
+    # pour rester tapable au clavier (82f5302). Ce test attendait encore un
+    # cadratin — 82f5302 avait mis à jour `test_breizhchrono.py` mais pas
+    # celui-ci, qui ne tourne pas dans la CI par défaut (marker `integration`).
     assert all(
-        r.event_name.endswith("— Triathlon Distance Olympique") for r in results
+        r.event_name.endswith("- Triathlon Distance Olympique") for r in results
     )
     # Statut cohérent : un non-finisher n'a pas de temps total.
     for r in results:
