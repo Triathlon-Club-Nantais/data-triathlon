@@ -283,6 +283,19 @@ def test_middleware_compte_les_requetes_d_un_appel_http(monkeypatch, caplog):
         sql_observability.install(eng, slow_query_ms=0, collect_stats=True)
         Session = sessionmaker(autocommit=False, autoflush=False, bind=eng)
 
+        # `create_app()` appelle `setup_logging()`, qui — la toute première fois
+        # dans le process — fait `root.handlers.clear()` et emporte avec lui le
+        # handler que la fixture `caplog` a déjà posé sur le root logger avant ce
+        # test (elle l'installe pour tout le test, pas seulement dans le `with
+        # caplog.at_level(...)` plus bas). Sans cette ligne, le test ne passe que
+        # si un *autre* fichier a déjà appelé `create_app()` avant lui dans le
+        # même process (`_CONFIGURED` déjà à `True`) — un test qui dépend de
+        # l'ordre d'exécution des autres fichiers n'est pas un test fiable. On
+        # court-circuite donc `setup_logging()` sur son propre garde-fou
+        # d'idempotence, sans toucher à `app/core/logging.py` : le comportement
+        # de production (clear + reconfigure une fois) n'est pas en cause ici.
+        monkeypatch.setattr("app.core.logging._CONFIGURED", True)
+
         from app.main import create_app
 
         application = create_app()
