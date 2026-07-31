@@ -43,7 +43,10 @@ def _nominatim_search(query: str) -> tuple[float, float] | None:
     """Un appel Nominatim ; renvoie (lat, lon) du résultat le plus pertinent, ou None."""
     settings = get_settings()
     try:
-        with http.client(timeout=5) as client:
+        # L'appel d'origine était un httpx.get nu (follow_redirects=False par
+        # défaut en httpx) : surcharge du défaut de la fabrique pour ne rien
+        # changer d'observable à ce site.
+        with http.client(timeout=5, follow_redirects=False) as client:
             r = client.get(
                 "https://nominatim.openstreetmap.org/search",
                 params={"q": query, "format": "json", "limit": 5, "countrycodes": "fr"},
