@@ -88,7 +88,7 @@ clause (a) que ce plan installe :
    `testing_session_local` est une translittération qui ne nomme pas ce que la
    variable porte — exactement ce que la clause (a) proscrit.
 
-- [ ] **Step 1: Constater les 3 violations (le « test qui échoue »)**
+- [x] **Step 1: Constater les 3 violations (le « test qui échoue »)**
 
 ```bash
 cd backend && uv run ruff check --select N .
@@ -102,7 +102,7 @@ Attendu : **3 erreurs**, et exactement celles-ci —
 Si le compte diffère, **arrêter** : le dépôt a bougé depuis le relevé, et la
 liste des corrections ci-dessous n'est plus exhaustive.
 
-- [ ] **Step 2: Établir la baseline verte de la suite**
+- [x] **Step 2: Établir la baseline verte de la suite**
 
 ```bash
 cd backend && uv run pytest -m "not integration" -q
@@ -111,7 +111,7 @@ cd backend && uv run pytest -m "not integration" -q
 Attendu : vert. C'est la référence contre laquelle les renommages se vérifient ;
 sans elle, un échec en Step 8 serait indiscernable d'un échec préexistant.
 
-- [ ] **Step 3: N818 — renommer `_IncompleteRanking`**
+- [x] **Step 3: N818 — renommer `_IncompleteRanking`**
 
 Le nom apparaît 6 fois dans `sporthive.py` (une définition, une levée, un
 `except`, trois mentions en docstring/commentaire) et une fois dans `AGENTS.md`.
@@ -129,17 +129,24 @@ grep -rn "_IncompleteRanking" backend/app backend/tests AGENTS.md
 Attendu du `grep` : 7 lignes, **toutes** en `_IncompleteRankingError`, aucune en
 `_IncompleteRanking` nu.
 
-- [ ] **Step 4: N806 — promouvoir `PAGE_SIZE` en constante de module**
+- [x] **Step 4: N806 — promouvoir `PAGE_SIZE` en constante de module**
 
 Dans `backend/app/scrapers/sportinnovation.py`, ajouter la constante sous
 `API_BASE` (l. 43) :
 
 ```python
 API_BASE = "https://sportinnovation.fr/api"
-# Taille de page du format HTML. Motif partagé avec les autres scrapers paginés
-# (sporthive, runnerbreizh, klikego_platform) : constante de module, pas locale.
+# Page size of the HTML format. Same pattern as the other paginated scrapers
+# (sporthive, runnerbreizh, klikego_platform): a module constant, not a local.
 _PAGE_SIZE = 250
 ```
+
+> **Bloc corrigé après exécution.** Ce plan dictait d'abord ce commentaire en
+> **français**. La revue finale l'a relevé (constat M1) : le contenu est purement
+> technique, donc « couche technique invisible » au sens du Principe I, donc
+> anglais — comme ses homologues de `sporthive.py:76` et `runnerbreizh.py:72`.
+> Le bloc ci-dessus reproduit ce qui est réellement livré. Piquant, et à retenir
+> pour la campagne : c'est la branche qui installe la règle qui l'a frisée.
 
 Puis retirer la déclaration locale (l. 318) et pointer la constante (l. 327) :
 
@@ -159,7 +166,7 @@ Puis retirer la déclaration locale (l. 318) et pointer la constante (l. 327) :
             break  # last page
 ```
 
-- [ ] **Step 5: N806 — renommer `TestingSessionLocal`**
+- [x] **Step 5: N806 — renommer `TestingSessionLocal`**
 
 Dans `backend/tests/conftest.py`, l. 26-27 :
 
@@ -168,7 +175,7 @@ Dans `backend/tests/conftest.py`, l. 26-27 :
     session = session_factory()
 ```
 
-- [ ] **Step 6: Activer `N` dans ruff**
+- [x] **Step 6: Activer `N` dans ruff**
 
 Dans `backend/pyproject.toml`, l. 50 :
 
@@ -176,7 +183,7 @@ Dans `backend/pyproject.toml`, l. 50 :
 select = ["E", "F", "I", "W", "UP", "B", "N"]
 ```
 
-- [ ] **Step 7: Vérifier que le lint passe (le « test qui passe »)**
+- [x] **Step 7: Vérifier que le lint passe (le « test qui passe »)**
 
 ```bash
 cd backend && uv run ruff check .
@@ -184,7 +191,7 @@ cd backend && uv run ruff check .
 
 Attendu : `All checks passed!`
 
-- [ ] **Step 8: Vérifier que la suite est toujours verte**
+- [x] **Step 8: Vérifier que la suite est toujours verte**
 
 ```bash
 cd backend && uv run pytest -m "not integration" -q
@@ -193,7 +200,7 @@ cd backend && uv run pytest -m "not integration" -q
 Attendu : vert, **avec le même décompte de tests qu'au Step 2**. Un décompte qui
 change signale une collecte cassée, pas un renommage réussi.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 cd /home/thomas_jarrier/Workspace/TCN/data-triathlon/.claude/worktrees/chore-backend-convention-de-nommage-identifiants
@@ -239,7 +246,7 @@ elles ne l'ont pas été, la constitution n'a plus bougé depuis ; c'est ce
 document de planification qui a été mis à jour pour cesser de décrire un état
 révolu.
 
-- [ ] **Step 1: Insérer les deux clauses de règle dans le Principe I**
+- [x] **Step 1: Insérer les deux clauses de règle dans le Principe I**
 
 Après le paragraphe `**English** — …` (qui se termine l. 77 par « titres et corps
 de PR à visée technique. ») et **avant** `**Cas mixte — les \`DomainError\`**`,
@@ -290,7 +297,7 @@ un contrat verrouillé par test ou documenté comme stable, tout comme les
 renommer casserait la DB et le front pour la première famille.
 ```
 
-- [ ] **Step 2: Ajouter la dérogation bornée et compléter le Rationale**
+- [x] **Step 2: Ajouter la dérogation bornée et compléter le Rationale**
 
 Remplacer le bloc `**Règle de transition**` + `**Rationale**` (l. 89-101) par :
 
@@ -352,7 +359,7 @@ vérifie sur la suite de tests existante, sans modification d'assertion de
 comportement.
 ```
 
-- [ ] **Step 3: Réécrire le Sync Impact Report**
+- [x] **Step 3: Réécrire le Sync Impact Report**
 
 Remplacer intégralement le bloc HTML commenté en tête de fichier (l. 1-46) par :
 
@@ -395,7 +402,7 @@ Follow-up TODOs   : (aucun — les trois follow-ups de la v1.0.0 sont résolus)
 -->
 ```
 
-- [ ] **Step 4: Mettre à jour le footer de version**
+- [x] **Step 4: Mettre à jour le footer de version**
 
 Dernière ligne du fichier :
 
@@ -406,7 +413,7 @@ Dernière ligne du fichier :
 `Ratified` **ne change pas** : c'est la date de première ratification, pas celle
 du dernier amendement.
 
-- [ ] **Step 5: Vérifier la cohérence interne du fichier**
+- [x] **Step 5: Vérifier la cohérence interne du fichier**
 
 ```bash
 cd /home/thomas_jarrier/Workspace/TCN/data-triathlon/.claude/worktrees/chore-backend-convention-de-nommage-identifiants
@@ -420,7 +427,7 @@ que dans le Sync Impact Report **en tant qu'historique** (« Version change :
 Attendu du second : **2** — le Principe I et le Principe II en ont chacun une ;
 la dérogation ne doit pas en avoir créé une troisième.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Message tel qu'effectivement commité le 2026-07-31 (`8159c8c`) — reproduit
 **verbatim** ci-dessous, y compris son décompte de « huit lots » depuis
@@ -466,7 +473,7 @@ historiques de features livrées** : ils enregistrent la version contre laquelle
 la feature a été planifiée. Les réécrire falsifierait le dossier. Cette règle est
 la même que celle qui interdit de renuméroter une feature après coup.
 
-- [ ] **Step 1: Recenser les sites à corriger**
+- [x] **Step 1: Recenser les sites à corriger**
 
 ```bash
 cd /home/thomas_jarrier/Workspace/TCN/data-triathlon/.claude/worktrees/chore-backend-convention-de-nommage-identifiants
@@ -483,7 +490,7 @@ Vérifié au moment d'écrire ce plan : `v1.0.0` est **la seule** chaîne de ver
 sémantique présente dans ces six fichiers, à raison d'une occurrence chacun. Le
 `sed` global du Step 3 est donc sans risque de dégât collatéral.
 
-- [ ] **Step 2: `AGENTS.md` — version ET phrase de transition**
+- [x] **Step 2: `AGENTS.md` — version ET phrase de transition**
 
 C'est le seul site où le changement n'est pas qu'un numéro : la phrase « on ne
 réécrit pas l'existant » devient fausse telle quelle. Remplacer l. 455-462 par :
@@ -506,7 +513,7 @@ réécrit pas l'existant » devient fausse telle quelle. Remplacer l. 455-462 pa
   la clause « Pas d'exception de vocabulaire métier » du Principe I).
 ```
 
-- [ ] **Step 3: Les cinq renvois de version restants**
+- [x] **Step 3: Les cinq renvois de version restants**
 
 Un seul passage, sur les seuls fichiers listés — jamais `specs/` :
 
@@ -519,26 +526,40 @@ sed -i 's/v1\.0\.0/v1.1.0/g' \
     .claude/skills/onboard/references/tour-fullstack.md
 ```
 
-- [ ] **Step 4: Vérifier qu'il ne reste aucun renvoi actif en v1.0.0**
+- [x] **Step 4: Vérifier qu'il ne reste aucun renvoi actif en v1.0.0**
 
 ```bash
 grep -rn "v1\.0\.0" --include='*.md' AGENTS.md .specify .claude/skills
 ```
 
-Attendu : **une seule ligne**, celle du Sync Impact Report de la constitution
-(« Version change : 1.0.0 → 1.1.0 »), qui est de l'historique et doit rester.
+Attendu : **5 lignes**, toutes dans le bloc Sync Impact Report de la
+constitution (l. 19, 28, 31, 33, 38) — des notes historiques (« follow-up
+v1.0.0 résolu »), qui doivent rester. Aucune règle active ne doit rester en
+v1.0.0.
 
-- [ ] **Step 5: Vérifier qu'aucune contradiction ne subsiste**
+> **Attendu corrigé après exécution.** Ce plan annonçait d'abord « une seule
+> ligne, celle de `Version change : 1.0.0 → 1.1.0` ». C'était faux à deux
+> titres : cette ligne-là ne contient même pas la chaîne `v1.0.0` (pas de
+> préfixe `v`), et le Sync Impact Report écrit en tâche 2 en cite cinq autres.
+> L'attendu avait été rédigé **avant** que la tâche 2 ne produise ce bloc.
+
+- [x] **Step 5: Vérifier qu'aucune contradiction ne subsiste**
 
 ```bash
 grep -rn "on ne réécrit pas l'existant\|On ne réécrit" AGENTS.md .specify/memory/constitution.md
 ```
 
-Attendu : **2 lignes**, l'une dans `AGENTS.md` et l'autre dans la constitution,
-et **chacune** doit être suivie de la mention de la dérogation. Une occurrence
-nue est la contradiction que ce plan existe pour fermer.
+Attendu : **3 lignes** — `AGENTS.md:464` et `constitution.md:126`, les deux
+règles normatives, chacune suivie de la mention de la dérogation ; plus
+`constitution.md:16`, une citation au passé dans les Drafting notes du Sync
+Impact Report, qui documente sa propre résolution dans la même phrase. Une
+occurrence **nue** serait la contradiction que ce plan existe pour fermer.
 
-- [ ] **Step 6: Commit**
+> **Attendu corrigé après exécution.** Ce plan annonçait « 2 lignes » : la
+> troisième vient du Sync Impact Report écrit en tâche 2, postérieur à la
+> rédaction de cet attendu. Ce n'est pas une occurrence nue.
+
+- [x] **Step 6: Commit**
 
 ```bash
 git add AGENTS.md .specify/templates .claude/skills
@@ -563,7 +584,7 @@ laquelle leur feature a été planifiée."
 - Consumes: l'état final des tâches 1 à 3.
 - Produces: rien.
 
-- [ ] **Step 1: Lint et tests**
+- [x] **Step 1: Lint et tests**
 
 ```bash
 cd backend && uv run ruff check . && uv run pytest -m "not integration" -q
@@ -572,7 +593,7 @@ cd backend && uv run ruff check . && uv run pytest -m "not integration" -q
 Attendu : `All checks passed!` puis suite verte, au même décompte qu'au Step 2 de
 la tâche 1.
 
-- [ ] **Step 2: Vérifier qu'aucun identifiant français n'a été renommé**
+- [x] **Step 2: Vérifier qu'aucun identifiant français n'a été renommé**
 
 C'est la contrainte globale n°1 ; elle se vérifie, elle ne se suppose pas.
 
@@ -586,7 +607,7 @@ Attendu : **trois fichiers seulement** — `app/scrapers/sporthive.py`,
 `backend/app` ou `backend/tests` dans ce diff signale qu'un lot de la campagne a
 fuité dans cette branche.
 
-- [ ] **Step 3: Vérifier que les trois clauses sont bien dans la constitution**
+- [x] **Step 3: Vérifier que les trois clauses sont bien dans la constitution**
 
 ```bash
 grep -n "Explicitness des identifiants\|Pas d'exception de vocabulaire métier\|Dérogation bornée" \
@@ -595,17 +616,22 @@ grep -n "Explicitness des identifiants\|Pas d'exception de vocabulaire métier\|
 
 Attendu : **3 lignes**, une par clause.
 
-- [ ] **Step 4: Relire le diff complet**
+- [x] **Step 4: Relire le diff complet**
 
 ```bash
 git diff main --stat
 ```
 
-Attendu : **13 fichiers** — 4 de code/config (`pyproject.toml`, `sporthive.py`,
-`sportinnovation.py`, `conftest.py`), 7 de documentation (`AGENTS.md`,
+Attendu : **14 fichiers** — 4 de code/config (`pyproject.toml`, `sporthive.py`,
+`sportinnovation.py`, `conftest.py`), 8 de documentation (`AGENTS.md`,
 `constitution.md`, les deux templates Spec Kit, les trois fichiers du skill
-`onboard`), et les 2 fichiers `docs/superpowers/` (spec et plan) commités avant
-la tâche 1.
+`onboard`, `docs/WORKFLOW-IA.md`), et les 2 fichiers `docs/superpowers/` (spec
+et plan) commités avant la tâche 1.
+
+> **Attendu corrigé après exécution.** Ce plan annonçait 13 fichiers.
+> `docs/WORKFLOW-IA.md` s'est ajouté en revue finale (constat M2) : il porte
+> deux renvois de version que le recensement de la tâche 3 ne pouvait pas voir,
+> son `grep` étant borné à `AGENTS.md .specify .claude/skills` — jamais `docs/`.
 
 ---
 
