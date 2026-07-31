@@ -419,6 +419,17 @@ toujours en code 0.
   `detect_provider` parcourt **tous** les providers : un seul `urlparse` nu —
   fût-il dans le dernier de la liste, T2Area — suffit à faire lever la
   détection entière, garde des autres comprise.
+- **Toute sortie HTTP passe par `app/core/http.client()`**, jamais par
+  `httpx.Client(...)` ni `httpx.get(...)` nus. La fabrique enveloppe le
+  transport d'un garde qui refuse toute destination non publiquement routable
+  (`not ip.is_global`), sur la requête initiale **et sur chaque saut de
+  redirection** : #49 avait fermé le routage, un `302 → http://169.254.169.254/`
+  restait ouvert (#101). Un méta-test refuse tout `httpx` nu dans `app/`. Deux
+  conséquences à connaître : le refus lève `BlockedTargetError`, qui ne dérive
+  pas de `ValueError` (sinon `import_service` la classerait en « fournisseur non
+  supporté ») ; et une redirection vers un **autre domaine** reste autorisée —
+  l'export CSV du Google Sheet en dépend. Design :
+  `docs/superpowers/specs/2026-07-31-ssrf-redirection-design.md`.
 - **Breizh Chrono réutilise la logique Klikego** (`klikego._parse_detail`,
   `_detect_event_type`) — ne pas dupliquer, factoriser dans `klikego.py`.
 - « Supporté ou non » : **une seule définition**, `registry.is_supported` (dérivée
