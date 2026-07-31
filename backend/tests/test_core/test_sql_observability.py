@@ -212,3 +212,22 @@ def test_bilan_ne_contient_ni_valeur_liee_ni_retour_a_la_ligne(engine, caplog):
     assert caplog.records
     assert all("LEMÉE" not in r.getMessage() for r in caplog.records)
     assert all("\n" not in r.getMessage() for r in caplog.records)
+
+
+def test_label_avec_retour_a_la_ligne_normalise(engine, caplog):
+    """Le label, qui vient de la base, peut contenir un retour à la ligne.
+    Il est normalisé avant journalisation pour ne pas casser le JSON."""
+    from app.core import sql_observability
+
+    sql_observability.install(engine, slow_query_ms=0, collect_stats=True)
+
+    with caplog.at_level(logging.INFO, logger="app.sql"):
+        with sql_observability.measure_queries("TRIATHLON\nOléron 2024"):
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+
+    assert caplog.records
+    # Le label normalisé remplace le \n par un espace
+    assert any("TRIATHLON Oléron 2024" in r.getMessage() for r in caplog.records)
+    # Aucun \n dans aucun enregistrement
+    assert all("\n" not in r.getMessage() for r in caplog.records)
