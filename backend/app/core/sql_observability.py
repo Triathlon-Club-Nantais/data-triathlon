@@ -182,3 +182,24 @@ def _emit(stats: QueryStats) -> None:
     )
     for sql, occurrences in stats.by_sql.most_common(_TOP_N):
         logger.info("Bilan SQL | %s | x%d | %s", normalized_label, occurrences, sql)
+
+
+class SqlStatsMiddleware:
+    """Borne une unité de travail sur chaque requête HTTP.
+
+    Middleware **ASGI pur**, et non `BaseHTTPMiddleware` : ce dernier exécute la
+    suite dans une tâche anyio distincte, ce qui rend la propagation du
+    `ContextVar` subtile. Une classe ASGI n'importe ni FastAPI ni Starlette —
+    elle ne manipule que des dicts et des callables — donc elle n'introduit
+    aucun couplage web dans `app/core/`.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        with measure_queries(f"{scope['method']} {scope['path']}"):
+            await self.app(scope, receive, send)
