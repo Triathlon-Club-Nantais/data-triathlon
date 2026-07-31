@@ -22,7 +22,7 @@ def test_run_rescrape_force_et_compte(db_session, monkeypatch):
     _course(db_session, "A", "https://k/1")
     vus: list[tuple[str, bool]] = []
 
-    def _iter(db, url, settings, force=False, persist=True):
+    def _iter(db, url, settings, force=False, persist=True, **kwargs):
         vus.append((url, force))
         yield {"phase": "done", "imported": 3, "skipped": 0, "reconciled": 0, "reassignments": [], "total": 3}
 
@@ -41,7 +41,7 @@ def test_run_rescrape_dry_run_liste_les_urls_et_ne_persiste_pas(db_session, monk
     _course(db_session, "A", "https://k/1")
     persist_vus: list[bool] = []
 
-    def _iter(db, url, settings, force=False, persist=True):
+    def _iter(db, url, settings, force=False, persist=True, **kwargs):
         persist_vus.append(persist)
         yield {"phase": "done", "imported": 0, "skipped": 0, "reconciled": 0,
                "reassignments": [], "total": 0}
@@ -59,7 +59,7 @@ def test_run_rescrape_hors_dry_run_n_embarque_pas_les_urls(db_session, monkeypat
     `--json` n'a pas à trimbaler l'URL de chaque course (des dizaines de Ko)."""
     _course(db_session, "A", "https://k/1")
 
-    def _iter(db, url, settings, force=False, persist=True):
+    def _iter(db, url, settings, force=False, persist=True, **kwargs):
         yield {"phase": "done", "imported": 1, "skipped": 0, "reconciled": 0, "reassignments": [], "total": 1}
 
     monkeypatch.setattr(import_service, "iter_import_event", _iter)
@@ -73,7 +73,7 @@ def test_run_rescrape_ignore_les_courses_sans_url(db_session, monkeypatch):
     _course(db_session, "SansUrl", "")
     vus: list[str] = []
 
-    def _iter(db, url, settings, force=False, persist=True):
+    def _iter(db, url, settings, force=False, persist=True, **kwargs):
         vus.append(url)
         yield {"phase": "done", "imported": 0, "skipped": 0, "reconciled": 0, "reassignments": [], "total": 0}
 
@@ -88,7 +88,7 @@ def test_run_rescrape_un_echec_n_interrompt_pas_le_batch(db_session, monkeypatch
     _course(db_session, "Boom", "https://k/boom", jour=1)
     _course(db_session, "Ok", "https://k/ok", jour=2)
 
-    def _iter(db, url, settings, force=False, persist=True):
+    def _iter(db, url, settings, force=False, persist=True, **kwargs):
         if "boom" in url:
             yield {"phase": "error", "message": "échec"}
             return
@@ -113,7 +113,7 @@ def test_run_rescrape_dedoublonne_les_courses_partageant_une_url(db_session, mon
 
     vus: list[str] = []
 
-    def _iter(db, url, settings, force=False, persist=True):
+    def _iter(db, url, settings, force=False, persist=True, **kwargs):
         vus.append(url)
         yield {"phase": "done", "imported": 2, "skipped": 1, "reconciled": 0, "reassignments": [], "total": 3}
 
@@ -133,7 +133,7 @@ def test_run_rescrape_dry_run_liste_les_urls_uniques(db_session, monkeypatch):
     _course(db_session, "Heat 2", url, jour=2)
     _course(db_session, "Autre", "https://k/2", jour=3)
 
-    def _iter(db, url, settings, force=False, persist=True):
+    def _iter(db, url, settings, force=False, persist=True, **kwargs):
         yield {"phase": "done", "imported": 0, "skipped": 0, "reconciled": 0,
                "reassignments": [], "total": 0}
 
@@ -157,7 +157,7 @@ def test_run_rescrape_limit_borne_les_epreuves_pas_les_courses(db_session, monke
 
     vus: list[str] = []
 
-    def _iter(db, url, settings, force=False, persist=True):
+    def _iter(db, url, settings, force=False, persist=True, **kwargs):
         vus.append(url)
         yield {"phase": "done", "imported": 1, "skipped": 0, "reconciled": 0, "reassignments": [], "total": 1}
 
@@ -197,7 +197,7 @@ def test_rescrape_reconcilie_et_supprime_les_orphelins(db_session, monkeypatch):
 
     def _scraper(resultats):
         monkeypatch.setattr(
-            import_service, "registry_scrape_event_all", lambda _u: resultats
+            import_service, "registry_scrape_event_all", lambda _u, **kwargs: resultats
         )
 
     # Graphie fautive en base.
@@ -223,7 +223,7 @@ def test_rescrape_dry_run_scrape_mais_ne_persiste_rien(db_session, monkeypatch):
 
     def _scraper(resultats):
         monkeypatch.setattr(
-            import_service, "registry_scrape_event_all", lambda _u: resultats
+            import_service, "registry_scrape_event_all", lambda _u, **kwargs: resultats
         )
 
     _scraper([_scraped_nomme("1", "BERRE", "Audrey LE")])
@@ -254,7 +254,7 @@ def test_run_rescrape_traverse_le_vrai_generateur_et_bypasse_le_cache(db_session
 
     def _scraper(resultats: list[ScrapedResult]) -> None:
         monkeypatch.setattr(
-            import_service, "registry_scrape_event_all", lambda _u: resultats
+            import_service, "registry_scrape_event_all", lambda _u, **kwargs: resultats
         )
 
     # Une course fraîche en base (scraped_at = maintenant) : le cache TTL mord.
@@ -274,7 +274,7 @@ def test_run_rescrape_libelle_avec_le_nom_de_course(db_session, monkeypatch, fak
     """Ici le nom vient de la DB : contrairement à import-sheet, on l'a avant le scrape."""
     _course(db_session, "Triathlon de Nantes", "https://k/1")
 
-    def _iter(db, url, settings, force=False, persist=True):
+    def _iter(db, url, settings, force=False, persist=True, **kwargs):
         yield {"phase": "done", "imported": 1, "skipped": 0, "reconciled": 0, "reassignments": [], "total": 1}
 
     monkeypatch.setattr(import_service, "iter_import_event", _iter)
@@ -289,7 +289,7 @@ def test_run_rescrape_echec_total_quand_toutes_les_epreuves_echouent(db_session,
     _course(db_session, "A", "https://k/1")
     _course(db_session, "B", "https://k/2", jour=2)
 
-    def _iter(db, url, settings, force=False, persist=True):
+    def _iter(db, url, settings, force=False, persist=True, **kwargs):
         yield {"phase": "error", "message": "503"}
 
     monkeypatch.setattr(import_service, "iter_import_event", _iter)
@@ -303,7 +303,7 @@ def test_run_rescrape_echec_total_quand_toutes_les_epreuves_echouent(db_session,
 def test_run_rescrape_dry_run_n_est_jamais_un_echec_total(db_session, monkeypatch):
     _course(db_session, "A", "https://k/1")
 
-    def _iter(db, url, settings, force=False, persist=True):
+    def _iter(db, url, settings, force=False, persist=True, **kwargs):
         yield {"phase": "error", "message": "503"}
 
     monkeypatch.setattr(import_service, "iter_import_event", _iter)
@@ -321,7 +321,7 @@ def test_mode_urls_n_interroge_pas_iter_all(db_session, monkeypatch):
     def _iter_all_interdit(*args, **kwargs):
         raise AssertionError("iter_all ne doit pas être appelé en mode urls")
 
-    def _iter(db, url, settings, force=False, persist=True):
+    def _iter(db, url, settings, force=False, persist=True, **kwargs):
         appels.append(url)
         yield {"phase": "done", "imported": 1, "skipped": 0, "reconciled": 0, "reassignments": [], "total": 1}
 
@@ -360,7 +360,7 @@ def test_mode_urls_libelle_depuis_la_base_sinon_l_url(db_session, monkeypatch):
         def batch_end(self) -> None:
             pass
 
-    def _iter(db, url, settings, force=False, persist=True):
+    def _iter(db, url, settings, force=False, persist=True, **kwargs):
         yield {"phase": "done", "imported": 0, "skipped": 0, "reconciled": 0, "reassignments": [], "total": 0}
 
     monkeypatch.setattr(import_service, "iter_import_event", _iter)
@@ -378,7 +378,7 @@ def test_mode_urls_dedoublonne_les_formes_equivalentes(db_session, monkeypatch):
     """Casse d'hôte et slash final : une seule épreuve scrapée."""
     vus: list[str] = []
 
-    def _iter(db, url, settings, force=False, persist=True):
+    def _iter(db, url, settings, force=False, persist=True, **kwargs):
         vus.append(url)
         yield {"phase": "done", "imported": 0, "skipped": 0, "reconciled": 0, "reassignments": [], "total": 0}
 
@@ -396,7 +396,7 @@ def test_mode_urls_dedoublonne_les_formes_equivalentes(db_session, monkeypatch):
 def test_mode_urls_dry_run_scrape_sans_persister(db_session, monkeypatch):
     persist_vus: list[bool] = []
 
-    def _iter(db, url, settings, force=False, persist=True):
+    def _iter(db, url, settings, force=False, persist=True, **kwargs):
         persist_vus.append(persist)
         yield {"phase": "done", "imported": 0, "skipped": 0, "reconciled": 0,
                "reassignments": [], "total": 0}
@@ -442,7 +442,7 @@ def test_rescrape_outcome_porte_updated(db_session, monkeypatch):
 def test_mode_urls_respecte_limit(db_session, monkeypatch):
     vus: list[str] = []
 
-    def _iter(db, url, settings, force=False, persist=True):
+    def _iter(db, url, settings, force=False, persist=True, **kwargs):
         vus.append(url)
         yield {"phase": "done", "imported": 0, "skipped": 0, "reconciled": 0, "reassignments": [], "total": 0}
 

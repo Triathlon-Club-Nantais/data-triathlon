@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useRef, useState } from "react";
 import { importEventStream } from "@/lib/api/sse";
-import type { ImportProgressEvent, ImportedCourse } from "@/lib/types";
+import type { HeatFailure, ImportProgressEvent, ImportedCourse } from "@/lib/types";
 
 export interface ImportState {
   running: boolean;
@@ -16,6 +16,12 @@ export interface ImportState {
   // Courses touchées par le dernier import : câble « Voir les résultats » (#135).
   // Multi (heats, listes) → autant d'entrées. Vide en dehors de la phase `done`.
   courses: ImportedCourse[];
+  // Fan-out Klikego (#156) — 5 clés remplies en phase `done`.
+  heatsEnumerated: number;
+  heatsImported: number;
+  heatsCached: number;
+  heatsFailed: number;
+  failures: HeatFailure[];
   error: string | null;
 }
 
@@ -30,6 +36,11 @@ const INITIAL: ImportState = {
   skipped: 0,
   cached: false,
   courses: [],
+  heatsEnumerated: 0,
+  heatsImported: 0,
+  heatsCached: 0,
+  heatsFailed: 0,
+  failures: [],
   error: null,
 };
 
@@ -67,6 +78,11 @@ export function useImportStream() {
             skipped: ev.skipped,
             cached: Boolean(ev.cached),
             courses: ev.courses ?? [],
+            heatsEnumerated: ev.heats_enumerated ?? 0,
+            heatsImported: ev.heats_imported ?? 0,
+            heatsCached: ev.heats_cached ?? 0,
+            heatsFailed: ev.heats_failed ?? 0,
+            failures: ev.failures ?? [],
           }));
         } else if (ev.phase === "error") {
           setState((s) => ({ ...s, running: false, phase: "error", error: ev.message }));

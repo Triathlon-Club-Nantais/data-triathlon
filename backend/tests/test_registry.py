@@ -392,3 +392,157 @@ def test_chronoweb_capte_le_host_reel_derriere_un_userinfo():
 
 def test_chronoweb_rejette_un_host_sosie():
     assert registry.detect_provider("https://evil-chronoweb.com/resultats") == "playwright"
+
+
+# ---------------------------------------------------------------------------
+# get_provider — accès à l'instance provider (issue #156)
+# ---------------------------------------------------------------------------
+
+def test_get_provider_returns_instance_for_klikego():
+    from app.scrapers.registry import KlikegoProvider, get_provider
+    provider = get_provider("https://www.klikego.com/resultats/mesquer/1677015306084-12")
+    assert isinstance(provider, KlikegoProvider)
+
+
+def test_get_provider_returns_instance_for_breizhchrono():
+    from app.scrapers.registry import BreizhChronoProvider, get_provider
+    provider = get_provider("https://resultats.breizhchrono.com/resultats-courses/foo-1234")
+    assert isinstance(provider, BreizhChronoProvider)
+
+
+def test_get_provider_returns_instance_for_breizhchrono_live():
+    """live.breizhchrono.com est la même façade Klikego mais géré par BreizhChronoProvider."""
+    from app.scrapers.registry import BreizhChronoProvider, get_provider
+    url = "https://live.breizhchrono.com/external/live5/index.jsp?reference=1488071608761-688"
+    provider = get_provider(url)
+    assert isinstance(provider, BreizhChronoProvider)
+
+
+def test_get_provider_returns_none_for_unknown_url():
+    from app.scrapers.registry import get_provider
+    assert get_provider("https://github.com/foo/bar") is None
+
+
+def test_get_provider_returns_none_for_malformed_url():
+    """Une URL avec un host IPv6 non fermé ne doit pas lever."""
+    from app.scrapers.registry import get_provider
+    # Ne doit pas lever — retourne None si aucun provider ne matche
+    result = get_provider("https://[oops/x")
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# KlikegoProvider fan-out (issue #156)
+# ---------------------------------------------------------------------------
+
+
+def _patch_klikego_fanout(monkeypatch, results_by_heat: dict[str, list], failures: list[str] | None = None):
+    """Monkeypatch klikego.scrape_event_fanout pour retourner un couple prédéfini."""
+    from app.scrapers import klikego
+
+    failures = failures or []
+
+    def fake_fanout(event_id, event_name, slug, *, cache_probe=None):
+        all_results = []
+        trace = klikego.FanoutTrace()
+        trace.heats_enumerated = len(results_by_heat) + len(failures)
+        for heat_slug, rs in results_by_heat.items():
+            heat_url = klikego._heat_source_url(event_id, slug, heat_slug)
+            if cache_probe is not None and cache_probe(heat_url):
+                trace.heats_cached += 1
+                continue
+            all_results.extend(rs)
+        for slug_failed in failures:
+            trace.failures.append({"heat_slug": slug_failed, "reason": "boom"})
+        return all_results, trace
+
+    monkeypatch.setattr(klikego, "scrape_event_fanout", fake_fanout)
+
+
+def test_klikego_provider_ignores_query_heat(monkeypatch):
+    """Une URL portant ?heat=triathlon-s-indiv n'est PAS traitée en single-heat :
+    le fan-out énumère et scrape tous les heats de l'événement (arbitrage A1)."""
+    from app.scrapers.base import ScrapedResult
+    from app.scrapers.registry import KlikegoProvider
+
+    # 8 heats mockés, 1 ScrapedResult chacun
+    results_by_heat = {
+        f"heat-{i}": [ScrapedResult(source_url=f"u{i}", provider="klikego")]
+        for i in range(8)
+    }
+    _patch_klikego_fanout(monkeypatch, results_by_heat)
+
+    provider = KlikegoProvider()
+    url_with_heat = "https://www.klikego.com/resultats/mesquer/1677015306084-12?heat=triathlon-s-indiv"
+    results = provider.scrape_event_all(url_with_heat)
+
+    assert len(results) == 8, "?heat=… doit être ignoré (fan-out complet)"
+    assert provider.last_trace is not None
+    assert provider.last_trace.heats_enumerated == 8
+
+
+def test_klikego_provider_stores_last_trace(monkeypatch):
+    """last_trace remonte l'état complet après un appel — enumerated + failures."""
+    from app.scrapers.base import ScrapedResult
+    from app.scrapers.registry import KlikegoProvider
+
+    results_by_heat = {
+        f"heat-{i}": [ScrapedResult(source_url=f"u{i}", provider="klikego")]
+        for i in range(7)
+    }
+    _patch_klikego_fanout(monkeypatch, results_by_heat, failures=["heat-broken"])
+
+    provider = KlikegoProvider()
+    provider.scrape_event_all("https://www.klikego.com/resultats/foo/1234-5")
+
+    assert provider.last_trace is not None
+    assert provider.last_trace.heats_enumerated == 8  # 7 ok + 1 en échec
+    assert len(provider.last_trace.failures) == 1
+    assert provider.last_trace.failures[0]["heat_slug"] == "heat-broken"
+
+
+def test_klikego_provider_last_trace_resets_between_calls(monkeypatch):
+    """Deux appels successifs → trace du deuxième, pas cumul."""
+    from app.scrapers.base import ScrapedResult
+    from app.scrapers.registry import KlikegoProvider
+
+    provider = KlikegoProvider()
+
+    _patch_klikego_fanout(
+        monkeypatch,
+        {"heat-a": [ScrapedResult(source_url="ua", provider="klikego")]},
+        failures=["heat-broken"],
+    )
+    provider.scrape_event_all("https://www.klikego.com/resultats/foo/1")
+    assert provider.last_trace.heats_enumerated == 2
+    assert len(provider.last_trace.failures) == 1
+
+    _patch_klikego_fanout(
+        monkeypatch,
+        {"heat-b": [ScrapedResult(source_url="ub", provider="klikego")]},
+    )
+    provider.scrape_event_all("https://www.klikego.com/resultats/foo/2")
+    assert provider.last_trace.heats_enumerated == 1
+    assert provider.last_trace.failures == []
+
+
+def test_klikego_provider_forwards_cache_probe(monkeypatch):
+    """Le provider passe cache_probe à klikego.scrape_event_fanout, qui l'exploite."""
+    from app.scrapers.base import ScrapedResult
+    from app.scrapers.registry import KlikegoProvider
+
+    _patch_klikego_fanout(monkeypatch, {
+        "heat-a": [ScrapedResult(source_url="ua", provider="klikego")],
+        "heat-b": [ScrapedResult(source_url="ub", provider="klikego")],
+    })
+
+    provider = KlikegoProvider()
+    def probe(url: str) -> bool:  # heat-a cachée
+        return "heat-a" in url
+    results = provider.scrape_event_all(
+        "https://www.klikego.com/resultats/foo/1",
+        cache_probe=probe,
+    )
+    assert len(results) == 1  # seul heat-b scrapé
+    assert provider.last_trace.heats_cached == 1
+    assert provider.last_trace.heats_enumerated == 2

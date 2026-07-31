@@ -3,7 +3,7 @@ import typer
 
 from app.cli.progress import select_reporter
 from app.cli.reports import emit_outcome, render_rescrape_report
-from app.cli.url_sources import charger_urls, valider_ciblage_exclusif
+from app.cli.url_sources import charger_urls, valider_ciblage_exclusif, valider_single_heat
 from app.cli.validators import valider_provider
 from app.core.config import get_settings
 from app.core.database import session_scope
@@ -44,6 +44,13 @@ def rescrape_db(
     plain: bool = typer.Option(
         False, "--plain", help="Progression ligne à ligne même dans un terminal."
     ),
+    single_heat: bool = typer.Option(
+        False, "--single-heat",
+        help=(
+            "Klikego : n'importe que le heat désigné par le ?heat= de --url "
+            "(échappatoire, aucun fan-out). Exige --url avec ?heat=X."
+        ),
+    ),
 ) -> None:
     """Re-scrape des épreuves (toute la base, ou celles ciblées par `--url`).
 
@@ -60,6 +67,10 @@ def rescrape_db(
           | … rescrape-db --urls-from -
     """
     valider_ciblage_exclusif(url=url, urls_from=urls_from, provider=provider, older_than=older_than)
+    valider_single_heat(
+        single_heat=single_heat, url=url, urls_from=urls_from,
+        provider=provider, older_than=older_than,
+    )
     urls = charger_urls(url, urls_from)
 
     settings = get_settings()
@@ -70,6 +81,7 @@ def rescrape_db(
             db, settings,
             dry_run=dry_run, older_than=older_than, provider=provider,
             limit=limit, delay=delay, reporter=reporter, urls=urls,
+            single_heat=single_heat,
         )
 
     emit_outcome(

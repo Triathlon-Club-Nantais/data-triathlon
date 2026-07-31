@@ -139,12 +139,24 @@ export interface ImportedCourse {
   event_type: string;
 }
 
+// Un heat en échec pendant un fan-out Klikego (#156).
+export interface HeatFailure {
+  heat_slug: string;
+  reason: string;
+}
+
 export interface ImportResult {
   imported: number;
   updated: number;
   skipped: number;
   cached?: boolean;
   courses: ImportedCourse[];
+  // Compteurs fan-out (#156) — présents pour tous les providers ; 0/[] hors Klikego.
+  heats_enumerated?: number;
+  heats_imported?: number;
+  heats_cached?: number;
+  heats_failed?: number;
+  failures?: HeatFailure[];
 }
 
 // Événements du flux SSE d'import.
@@ -159,6 +171,12 @@ export type ImportProgressEvent =
       total: number;
       cached?: boolean;
       courses: ImportedCourse[];
+      // Fan-out (#156) — 5 clés rétro-compatibles.
+      heats_enumerated?: number;
+      heats_imported?: number;
+      heats_cached?: number;
+      heats_failed?: number;
+      failures?: HeatFailure[];
     }
   | { phase: "error"; message: string };
 

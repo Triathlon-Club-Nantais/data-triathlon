@@ -4,11 +4,24 @@ Fixtures partagées des tests.
 Base SQLite en mémoire isolée par test + TestClient FastAPI avec la dépendance
 `get_db` surchargée pour pointer sur cette base.
 """
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+
+_FIXTURES_DIR = Path(__file__).parent / "fixtures"
+
+
+def load_klikego_fixture(name: str) -> str:
+    """Charge un HTML de test Klikego depuis backend/tests/fixtures/klikego/.
+
+    Utilisé par les tests offline du scraper Klikego (fan-out, énumération de
+    heats) — Principe III, aucun accès réseau dans la suite unitaire.
+    """
+    return (_FIXTURES_DIR / "klikego" / name).read_text(encoding="utf-8")
 
 
 @pytest.fixture

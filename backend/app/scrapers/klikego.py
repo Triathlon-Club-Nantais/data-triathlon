@@ -8,7 +8,11 @@ Klikego API returns HTML (not JSON):
   Search: GET /v8/evenement/resultats-search.jsp?event={id}&heat={heat}&search={name}
   Detail: GET /v8/evenement/resultat-participant.jsp?embedded=1&e={id}&heat={heat}&dossard={bib}
 """
+import logging
 import re
+from collections.abc import Callable
+from dataclasses import dataclass
+from dataclasses import field as dc_field
 
 import httpx
 from bs4 import BeautifulSoup
@@ -17,6 +21,21 @@ from app.core import http
 
 from .base import ScrapedResult
 from .utils import derive_status_from_label, normalize_time, parse_fr_date
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class FanoutTrace:
+    """Compteurs de fan-out remontés par le scraper Klikego (issue #156).
+
+    `heats_imported` est laissé à 0 côté scraper ; `import_service` le dérive
+    via l'invariant `enumerated = imported + cached + len(failures)`.
+    """
+    heats_enumerated: int = 0
+    heats_cached: int = 0
+    heats_imported: int = 0
+    failures: list[dict] = dc_field(default_factory=list)
 
 BASE = "https://www.klikego.com"
 HEADERS = {
@@ -301,66 +320,130 @@ def _parse_search_row(
     return result
 
 
-def scrape_event_all(
-    event_id: str, heat: str, event_name: str, slug: str
-) -> list["ScrapedResult"]:
-    """Tous les participants d'un heat Klikego (finishers + DNF/DNS/DSQ) via le data block.
+def _heat_source_url(event_id: str, slug: str, heat: str) -> str:
+    """URL canonique d'un heat Klikego — clé de cache TTL et de dédup source_url."""
+    return (
+        f"{BASE}/resultats/{slug}/{event_id}?heat={heat}" if slug
+        else f"{BASE}/resultats/{event_id}?heat={heat}"
+    )
 
-    Phase A — meta (date) + HTML de la page heat (options inter).
+
+def _scrape_single_heat(
+    event_id: str, heat: str, event_name: str, slug: str,
+    event_date: object, client: httpx.Client,
+) -> list["ScrapedResult"]:
+    """Scrape un heat Klikego (finishers + DNF/DNS/DSQ) — extraction du corps original.
+
+    Phase A' — HTML de la page heat (options inter).
     Phase B — liste complète + splits inter pour tous (moteur partagé).
     Phase C — splits fins via page détail pour tous les participants (priment).
     """
     from app.scrapers import klikego_platform as plat
 
-    with http.client(timeout=30, headers=HEADERS) as client:
-        _, event_date = _fetch_event_meta(event_id, slug, client)
-        heat_page = client.get(
-            f"{BASE}/resultats/{slug}/{event_id}?heat={heat}" if slug
-            else f"{BASE}/resultats/{event_id}?heat={heat}"
-        )
-        heat_page_html = heat_page.text if heat_page.status_code == 200 else ""
+    heat_page = client.get(_heat_source_url(event_id, slug, heat))
+    heat_page_html = heat_page.text if heat_page.status_code == 200 else ""
+    source_url = _heat_source_url(event_id, slug, heat)
 
-        source_url = (
-            f"{BASE}/resultats/{slug}/{event_id}?heat={heat}" if slug
-            else f"{BASE}/resultats/{event_id}?heat={heat}"
-        )
-        results = plat.build_heat_results(
-            base=BASE,
-            provider="klikego",
-            event_id=event_id,
-            heat=heat,
-            heat_page_html=heat_page_html,
-            event_name=event_name,
-            slug=slug,
-            event_type=_detect_event_type(heat, slug),
-            source_url=source_url,
-            event_date=event_date,
-            client=client,
-        )
-        bib_to_result = {r.bib_number: r for r in results}
+    results = plat.build_heat_results(
+        base=BASE,
+        provider="klikego",
+        event_id=event_id,
+        heat=heat,
+        heat_page_html=heat_page_html,
+        event_name=event_name,
+        slug=slug,
+        event_type=_detect_event_type(heat, slug),
+        source_url=source_url,
+        event_date=event_date,
+        client=client,
+    )
+    bib_to_result = {r.bib_number: r for r in results}
 
-        # Phase C — splits fins via la page détail pour TOUS les participants.
-        # La page détail (natation/T1/vélo/T2/course) est la source fine ; elle
-        # prime sur les splits inter grossiers de la phase B quand elle en fournit.
-        # Coût mesuré ~0,03 s/participant ; l'import tourne en arrière-plan (SSE).
-        for bib, r in bib_to_result.items():
-            dr = client.get(
-                f"{BASE}/v8/evenement/resultat-participant.jsp"
-                f"?embedded=1&e={event_id}&heat={heat}&dossard={bib}"
-            )
-            if dr.status_code != 200:
-                continue
-            # Reset des slots pour que les splits fins priment sur les inter pré-remplis.
-            inter_backup = {s: getattr(r, f"{s}_time") for s in _SPLIT_SLOTS}
-            for s in _SPLIT_SLOTS:
-                setattr(r, f"{s}_time", "")
-            _parse_detail(dr.text, r, {})
-            # Page détail sans splits (ex. non-partant) : on restaure les inter.
-            if not any(getattr(r, f"{s}_time") for s in _SPLIT_SLOTS):
-                for s, t in inter_backup.items():
-                    setattr(r, f"{s}_time", t)
+    # Phase C — splits fins via la page détail pour TOUS les participants.
+    # La page détail (natation/T1/vélo/T2/course) est la source fine ; elle
+    # prime sur les splits inter grossiers de la phase B quand elle en fournit.
+    # Coût mesuré ~0,03 s/participant ; l'import tourne en arrière-plan (SSE).
+    for bib, r in bib_to_result.items():
+        dr = client.get(
+            f"{BASE}/v8/evenement/resultat-participant.jsp"
+            f"?embedded=1&e={event_id}&heat={heat}&dossard={bib}"
+        )
+        if dr.status_code != 200:
+            continue
+        # Reset des slots pour que les splits fins priment sur les inter pré-remplis.
+        inter_backup = {s: getattr(r, f"{s}_time") for s in _SPLIT_SLOTS}
+        for s in _SPLIT_SLOTS:
+            setattr(r, f"{s}_time", "")
+        _parse_detail(dr.text, r, {})
+        # Page détail sans splits (ex. non-partant) : on restaure les inter.
+        if not any(getattr(r, f"{s}_time") for s in _SPLIT_SLOTS):
+            for s, t in inter_backup.items():
+                setattr(r, f"{s}_time", t)
 
     return results
+
+
+def scrape_event_all(
+    event_id: str, heat: str, event_name: str, slug: str,
+) -> list["ScrapedResult"]:
+    """Scrape un seul heat Klikego — contrat historique.
+
+    Le fan-out sur tous les heats vit **au niveau du provider**
+    (`KlikegoProvider.scrape_event_all`) : il boucle sur cette fonction
+    heat par heat. Ici on préserve la signature originale pour tous les
+    appelants directs (tests, batch, `--single-heat`).
+    """
+    with http.client(timeout=30, headers=HEADERS) as client:
+        _, event_date = _fetch_event_meta(event_id, slug, client)
+        return _scrape_single_heat(
+            event_id, heat, event_name, slug, event_date, client,
+        )
+
+
+def scrape_event_fanout(
+    event_id: str, event_name: str, slug: str,
+    *, cache_probe: Callable[[str], bool] | None = None,
+) -> tuple[list["ScrapedResult"], FanoutTrace]:
+    """Scrape tous les heats publiés d'un événement Klikego (issue #156).
+
+    GET la page événement, énumère les heats via `_enumerate_heats`, boucle sur
+    chacun. Pour chaque heat, `cache_probe(heat_url)` (si fourni) permet de
+    sauter les heats déjà en cache TTL. Les exceptions par heat sont capturées
+    dans `trace.failures` et ne remontent pas — un heat en échec n'annule pas
+    les autres (FR-004).
+
+    Retour : `(results, trace)`. `trace.heats_imported` reste à 0 ici —
+    dérivé par `import_service` via l'invariant
+    `enumerated = imported + cached + len(failures)`.
+    """
+    trace = FanoutTrace()
+    all_results: list[ScrapedResult] = []
+
+    with http.client(timeout=30, headers=HEADERS) as client:
+        _, event_date = _fetch_event_meta(event_id, slug, client)
+
+        event_page = client.get(
+            f"{BASE}/resultats/{slug}/{event_id}" if slug
+            else f"{BASE}/resultats/{event_id}"
+        )
+        event_html = event_page.text if event_page.status_code == 200 else ""
+        heats = _enumerate_heats(event_html)
+        trace.heats_enumerated = len(heats)
+
+        for heat_slug, _heat_label in heats:
+            heat_url = _heat_source_url(event_id, slug, heat_slug)
+            if cache_probe is not None and cache_probe(heat_url):
+                trace.heats_cached += 1
+                continue
+            try:
+                all_results.extend(_scrape_single_heat(
+                    event_id, heat_slug, event_name, slug, event_date, client,
+                ))
+            except Exception as exc:
+                logger.warning("Heat %s de %s en échec : %s", heat_slug, event_id, exc)
+                trace.failures.append({"heat_slug": heat_slug, "reason": str(exc)})
+
+    return all_results, trace
 
 
 _SPLIT_SLOTS = ("swim", "t1", "bike", "t2", "run")
@@ -369,3 +452,30 @@ _SPLIT_SLOTS = ("swim", "t1", "bike", "t2", "run")
 def _detect_event_type(heat: str, slug: str = "") -> str:
     from app.scrapers.classify import classify_event_type
     return classify_event_type(heat, contexte=slug)
+
+
+# Énumération des heats d'un événement (issue #156).
+# Klikego rend la liste dans un <el-select name="heat">/<el-option value="..."><span>...</span></el-option>.
+# Une option value="" (placeholder « choisir un heat ») peut coexister avec les vrais heats — on la filtre.
+_RE_SELECT_HEAT = re.compile(
+    r'<el-select[^>]*name="heat"[^>]*>(.*?)</el-select>', re.DOTALL
+)
+_RE_HEAT_OPTION = re.compile(
+    r'<el-option\s+value="([^"]+)"[^>]*>\s*<span>([^<]*)</span>'
+)
+
+
+def _enumerate_heats(html: str) -> list[tuple[str, str]]:
+    """Extrait la liste (slug, label) de tous les heats publiés à la source.
+
+    Ordre du DOM préservé. Filtre les options `value=""` (placeholder Klikego).
+    Retourne [] si `<el-select name="heat">` est absent ou vide.
+    """
+    m = _RE_SELECT_HEAT.search(html)
+    if not m:
+        return []
+    return [
+        (slug, label.strip())
+        for slug, label in _RE_HEAT_OPTION.findall(m.group(1))
+        if slug
+    ]

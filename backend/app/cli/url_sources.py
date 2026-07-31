@@ -88,6 +88,42 @@ def charger_urls(urls: list[str] | None, urls_from: str | None) -> list[str] | N
     return sheet_source.dedupe_links(collectees)
 
 
+def valider_single_heat(
+    *, single_heat: bool, url: list[str], urls_from: str | None,
+    provider: str | None, older_than: int | None,
+) -> None:
+    """Refuse `--single-heat` sans `--url` ou avec des filtres de base (issue #156).
+
+    `--single-heat` est une **échappatoire** ciblée : elle ne s'applique qu'à des
+    URLs explicites (obligatoirement porteuses de `?heat=X` — la validation
+    d'URL individuelle est différée à l'import lui-même). Elle ne se combine
+    pas à `--provider` / `--older-than` (filtres de base), pour la même raison
+    que `valider_ciblage_exclusif` : ce sont deux modes disjoints.
+    """
+    if not single_heat:
+        return
+    if not url and urls_from is None:
+        raise typer.BadParameter(
+            "--single-heat exige --url (ou --urls-from) avec un paramètre ?heat= : "
+            "c'est une échappatoire ciblée, pas un mode de filtrage de la base."
+        )
+    incompatibles = [
+        f for f, cond in (("--provider", provider is not None),
+                          ("--older-than", older_than is not None))
+        if cond
+    ]
+    if incompatibles:
+        raise typer.BadParameter(
+            f"--single-heat est exclusif de {' et '.join(incompatibles)} : "
+            "l'échappatoire ne cible que des URLs explicites."
+        )
+    for u in url:
+        if "heat=" not in u:
+            raise typer.BadParameter(
+                f"--single-heat exige ?heat= dans chaque URL : « {u} » n'en porte pas."
+            )
+
+
 def valider_ciblage_exclusif(
     *, url: list[str], urls_from: str | None, provider: str | None, older_than: int | None
 ) -> None:

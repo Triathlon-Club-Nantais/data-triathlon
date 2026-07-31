@@ -18,6 +18,7 @@ from app.core.exceptions import InvalidUrlError, ProviderNotSupportedError, Scra
 from app.models.course import Course
 from app.models.participation import Participation
 from app.repositories import course_repository, participation_repository
+from app.scrapers import registry
 from app.scrapers import scrape_event_all as registry_scrape_event_all
 from app.scrapers.base import STATUS_DNF, STATUS_FINISHER, ScrapedResult
 from app.services import cache, mapping, quality
@@ -66,16 +67,87 @@ def _validate_url(url: str) -> str:
     return url
 
 
-def _scrape_all(url: str) -> list[ScrapedResult]:
+def _fanout_counters(trace) -> dict:
+    """Construit les 5 clés de FR-008 depuis la `FanoutTrace` du provider.
+
+    Invariant : `heats_enumerated = heats_imported + heats_cached + heats_failed`.
+    `heats_imported` est **dérivé** ici (le scraper ne le connaît pas).
+
+    Sur cache global frais (court-circuit `_cached_result`) ou résultat vide :
+    tous les compteurs valent 0 avec `failures=[]` — contrat sans branche
+    conditionnelle côté consommateur.
+    """
+    if trace is None:
+        return {
+            "heats_enumerated": 0, "heats_imported": 0,
+            "heats_cached": 0, "heats_failed": 0, "failures": [],
+        }
+    heats_failed = len(trace.failures)
+    heats_imported = trace.heats_enumerated - trace.heats_cached - heats_failed
+    return {
+        "heats_enumerated": trace.heats_enumerated,
+        "heats_imported": max(0, heats_imported),
+        "heats_cached": trace.heats_cached,
+        "heats_failed": heats_failed,
+        "failures": list(trace.failures),
+    }
+
+
+def _make_cache_probe(db: Session, settings: Settings):
+    """Construit un callback `cache_probe(heat_url) -> bool` — fan-out Klikego (#156).
+
+    Le scraper Klikego l'invoque **avant** de scraper chaque heat : True signifie
+    « déjà en base et frais côté cache TTL, à sauter ». Mirroir de la règle du
+    cache global (`_cached_result`) mais au niveau du heat individuel.
+    """
+    def probe(heat_url: str) -> bool:
+        course = course_repository.get_latest_by_source_url(db, heat_url)
+        return course is not None and cache.is_fresh(db, course, settings)
+
+    return probe
+
+
+def _scrape_all(
+    url: str, db: Session, settings: Settings, *, single_heat: bool = False,
+) -> tuple[list[ScrapedResult], "registry.klikego.FanoutTrace | None"]:
+    """Scrape l'URL et remonte optionnellement la `FanoutTrace` du provider.
+
+    Passe par le dispatcher `registry.scrape_event_all(url, **kwargs)` — les
+    kwargs sont propagés au provider matché (Klikego reçoit `cache_probe`, les
+    autres l'ignorent via `**kwargs` du dispatcher). Après l'appel, lit
+    `KlikegoProvider.last_trace` pour peupler les 5 compteurs de FR-008.
+
+    Retour : `(results, trace)`. `trace` peut être `None` pour un provider qui
+    n'expose pas de trace (comportement mono-heat implicite — `_fanout_counters`
+    rend alors les 5 clés à 0/[]).
+    """
+    from app.scrapers import klikego  # circular-safe import
+
+    cache_probe = _make_cache_probe(db, settings)
+    provider = registry.get_provider(url)
+
     try:
-        results = registry_scrape_event_all(url)
+        if isinstance(provider, registry.KlikegoProvider):
+            if single_heat:
+                # Échappatoire (--single-heat) : pas de fan-out, pas de cache_probe.
+                # Le provider lit le ?heat= de l'URL et scrape ce seul heat.
+                results = registry_scrape_event_all(url, single_heat=True)
+            else:
+                results = registry_scrape_event_all(url, cache_probe=cache_probe)
+            trace = provider.last_trace
+        else:
+            # Autres providers + fallback Playwright — pas de trace de fan-out.
+            # Trace synthétique 1-heat pour maintenir l'invariant `enumerated = imported`.
+            results = registry_scrape_event_all(url)
+            trace = klikego.FanoutTrace(heats_enumerated=1)
     except ValueError as exc:  # provider non supporté pour l'import en masse
         raise ProviderNotSupportedError(str(exc)) from exc
     except Exception as exc:
         logger.warning("Échec import %s : %s", url, exc)
         raise ScraperError(f"Erreur lors de l'import : {exc}") from exc
+
     _require_event_name(url, results)
-    return results
+    return results, trace
 
 
 def _require_event_name(url: str, results: list[ScrapedResult]) -> None:
@@ -350,7 +422,8 @@ def _cached_result(db: Session, url: str, settings: Settings) -> dict | None:
 
 
 def import_event(
-    db: Session, url: str, settings: Settings, force: bool = False, persist: bool = True
+    db: Session, url: str, settings: Settings, force: bool = False, persist: bool = True,
+    *, single_heat: bool = False,
 ) -> dict:
     """Import complet (bloquant). Renvoie {imported, updated, skipped, reconciled, [cached]}.
 
@@ -367,11 +440,14 @@ def import_event(
     if not force:
         cached = _cached_result(db, url, settings)
         if cached is not None:
-            return cached
+            return {**cached, **_fanout_counters(None)}
 
-    results = _scrape_all(url)
+    results, trace = _scrape_all(url, db, settings, single_heat=single_heat)
     if not results:
-        return {"imported": 0, "updated": 0, "skipped": 0, "reconciled": 0, "courses": []}
+        return {
+            "imported": 0, "updated": 0, "skipped": 0, "reconciled": 0, "courses": [],
+            **_fanout_counters(trace),
+        }
 
     persister = _Persister(db, url)
     try:
@@ -393,11 +469,13 @@ def import_event(
         "skipped": persister.skipped,
         "reconciled": persister.reconciled,
         "courses": persister.courses_summary(),
+        **_fanout_counters(trace),
     }
 
 
 def iter_import_event(
-    db: Session, url: str, settings: Settings, force: bool = False, persist: bool = True
+    db: Session, url: str, settings: Settings, force: bool = False, persist: bool = True,
+    *, single_heat: bool = False,
 ) -> Iterator[dict]:
     """
     Générateur de progression pour le SSE. Émet des dicts de phase :
@@ -423,12 +501,15 @@ def iter_import_event(
     if not force:
         cached = _cached_result(db, url, settings)
         if cached is not None:
-            yield {"phase": "done", "total": cached["skipped"], "reassignments": [], **cached}
+            yield {
+                "phase": "done", "total": cached["skipped"], "reassignments": [],
+                **cached, **_fanout_counters(None),
+            }
             return
 
     yield {"phase": "scraping", "message": "Récupération des participants…"}
     try:
-        results = _scrape_all(url)
+        results, trace = _scrape_all(url, db, settings, single_heat=single_heat)
     except (ProviderNotSupportedError, ScraperError) as exc:
         yield {"phase": "error", "message": exc.message}
         return
@@ -444,6 +525,7 @@ def iter_import_event(
             "reassignments": [],
             "total": 0,
             "courses": [],
+            **_fanout_counters(trace),
         }
         return
 
@@ -481,4 +563,5 @@ def iter_import_event(
         "reassignments": persister.reassignments,
         "total": total,
         "courses": persister.courses_summary(),
+        **_fanout_counters(trace),
     }
