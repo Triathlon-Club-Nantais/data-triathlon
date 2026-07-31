@@ -27,3 +27,27 @@ def test_cors_origins_csv_avec_espaces(monkeypatch):
 def test_cors_origins_defaut(monkeypatch):
     monkeypatch.delenv("CORS_ORIGINS", raising=False)
     assert "http://localhost:3000" in Settings().cors_origins
+
+
+def test_observabilite_sql_defauts(monkeypatch):
+    """Défauts : seuil à 100 ms, bilan et OTel éteints.
+
+    Le bilan et OTel sont éteints par défaut parce qu'ils coûtent ; le seuil,
+    lui, est le garde-fou permanent.
+    """
+    for var in ("SQL_SLOW_QUERY_MS", "SQL_QUERY_STATS", "OTEL_ENABLED"):
+        monkeypatch.delenv(var, raising=False)
+    settings = Settings()
+    assert settings.sql_slow_query_ms == 100
+    assert settings.sql_query_stats is False
+    assert settings.otel_enabled is False
+
+
+def test_observabilite_sql_depuis_env(monkeypatch):
+    monkeypatch.setenv("SQL_SLOW_QUERY_MS", "250")
+    monkeypatch.setenv("SQL_QUERY_STATS", "true")
+    monkeypatch.setenv("OTEL_ENABLED", "true")
+    settings = Settings()
+    assert settings.sql_slow_query_ms == 250
+    assert settings.sql_query_stats is True
+    assert settings.otel_enabled is True
