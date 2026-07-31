@@ -205,12 +205,12 @@ def test_requete_http_produit_un_span_fastapi(monkeypatch):
     )
     try:
         Base.metadata.create_all(bind=eng)
-        Session = sessionmaker(autocommit=False, autoflush=False, bind=eng)
+        session_factory = sessionmaker(autocommit=False, autoflush=False, bind=eng)
 
         application = create_app()
 
         def _override_get_db():
-            db = Session()
+            db = session_factory()
             try:
                 yield db
             finally:
