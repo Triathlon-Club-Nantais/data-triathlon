@@ -44,6 +44,18 @@ class Settings(BaseSettings):
     # Course terminée (tous les temps présents) → re-scrape rare.
     cache_ttl_finished_seconds: int = 30 * 24 * 60 * 60  # 30 jours
 
+    # ── Observabilité SQL (issue #89) ─────────────────────────────────────────
+    # Garde-fou permanent : toute requête au-delà du seuil sort en WARNING.
+    # 0 désactive ce log ; avec `sql_query_stats` à False, plus aucun listener
+    # n'est posé — coût strictement nul.
+    sql_slow_query_ms: int = 100
+    # Bilan agrégé par unité de travail (requête HTTP, épreuve importée) : c'est
+    # lui qui rend un N+1 visible. Verbeux, donc éteint par défaut.
+    sql_query_stats: bool = False
+    # Socle OpenTelemetry. Éteint = aucun paquet OTel n'est même chargé.
+    # L'exporter se règle par la variable standard OTEL_TRACES_EXPORTER.
+    otel_enabled: bool = False
+
     # ── Géocodage (Nominatim) ─────────────────────────────────────────────────
     geocode_user_agent: str = "TriathlonClubResults/1.0 contact@triclunantais.fr"
     geocode_min_interval_seconds: float = 1.1  # rate limit Nominatim : max 1 req/s
