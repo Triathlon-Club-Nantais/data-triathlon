@@ -23,7 +23,7 @@ Sections à lire en priorité, dans l'ordre :
 
 Reviens-y à chaque doute pendant la suite du tour.
 
-## 3. La constitution v1.0.0
+## 3. La constitution v1.1.0
 
 Ouvre `.specify/memory/constitution.md`. Six principes non-négociables ; ils sont courts, lis-les tous.
 
