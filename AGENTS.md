@@ -888,7 +888,7 @@ périmètre** : elles affectent tous les fournisseurs.
 
 Sondage du HTML réel (fait autorité) :
 `docs/superpowers/specs/2026-07-29-chronoweb-sondage.md`. Spec, plan et tâches :
-`specs/004-chronoweb-scraper/`.
+`specs/005-chronoweb-scraper/`.
 
 Types : Triathlon XS/S/M/L/XL, Duathlon XS/S/M/L, SwimRun S/M/L, Aquathlon,
 Aquarun, Bike & Run.
