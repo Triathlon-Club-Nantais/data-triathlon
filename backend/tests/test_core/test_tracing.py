@@ -125,3 +125,68 @@ def test_exporter_none_ne_rend_rien():
     from app.core import tracing
 
     assert tracing._build_exporter("none") is None
+
+
+def test_cli_expose_demarrage_et_arret_du_tracage():
+    """Un batch est un process court : sans arrêt explicite, les spans du
+    dernier import ne sont jamais exportés."""
+    from app import cli
+
+    assert callable(cli.configure_cli_tracing)
+    assert callable(cli.shutdown_cli_tracing)
+
+
+def test_cli_eteint_ne_pose_rien(monkeypatch):
+    from app import cli
+    from app.core import tracing
+    from app.core.config import get_settings
+
+    monkeypatch.setenv("OTEL_ENABLED", "false")
+    get_settings.cache_clear()
+    try:
+        cli.configure_cli_tracing()
+        assert tracing.current_provider() is None
+    finally:
+        get_settings.cache_clear()
+
+
+def test_requete_http_produit_un_span(monkeypatch):
+    """Vérifie la branche FastAPI, jusqu'ici jamais exercée : `instrument_app`
+    doit effectivement produire un span pour une requête HTTP réelle, contre
+    les versions de FastAPI et d'opentelemetry-instrumentation-fastapi
+    réellement installées.
+    """
+    from fastapi.testclient import TestClient
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+        InMemorySpanExporter,
+    )
+
+    from app.core import tracing
+
+    # `create_app()` appelle `setup_logging()`, qui vide les handlers du root
+    # logger — dont celui que `caplog` y a posé. Sans conséquence ici, ce test
+    # n'inspecte que des spans en mémoire, jamais `caplog` : la précaution de
+    # `test_middleware_compte_les_requetes_d_un_appel_http` ne s'applique pas.
+    monkeypatch.setenv("OTEL_ENABLED", "true")
+    monkeypatch.setenv("OTEL_TRACES_EXPORTER", "none")
+
+    from app.core.config import get_settings
+
+    get_settings.cache_clear()
+    try:
+        from app.main import create_app
+
+        application = create_app()
+
+        exporter = InMemorySpanExporter()
+        tracing.current_provider().add_span_processor(SimpleSpanProcessor(exporter))
+
+        with TestClient(application) as client:
+            reponse = client.get("/api/v1/athletes?page_size=1")
+
+        assert reponse.status_code == 200
+        assert exporter.get_finished_spans(), "aucun span HTTP produit"
+    finally:
+        tracing.shutdown_tracing()
+        get_settings.cache_clear()
