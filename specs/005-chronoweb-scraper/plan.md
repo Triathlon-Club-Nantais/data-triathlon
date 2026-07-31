@@ -2,7 +2,7 @@
 
 **Branch**: `feat-scrapers-supporter-chronoweb.com-html-stati` | **Date**: 2026-07-29 | **Spec**: [spec.md](./spec.md)
 
-**Input**: Feature specification from `/specs/004-chronoweb-scraper/spec.md`
+**Input**: Feature specification from `/specs/005-chronoweb-scraper/spec.md`
 
 ## Summary
 
@@ -72,7 +72,7 @@ ni couche, ni dépendance, ni contrat supplémentaire.
 ### Documentation (this feature)
 
 ```text
-specs/004-chronoweb-scraper/
+specs/005-chronoweb-scraper/
 ├── plan.md              # Ce fichier
 ├── spec.md              # Spécification (avec § Clarifications)
 ├── research.md          # Phase 0 — 9 décisions mesurées
