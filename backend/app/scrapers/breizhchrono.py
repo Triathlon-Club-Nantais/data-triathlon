@@ -31,6 +31,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from app.core import http
+from app.core.exceptions import DomainError
 
 from .base import ScrapedResult
 
@@ -106,6 +107,11 @@ def _fetch_all_heats(slug_id: str, client: httpx.Client) -> list[tuple[str, str]
         r = client.get(f"{BASE}/resultats-courses/{slug_id}")
         if r.status_code != 200:
             return []
+    # Une destination refusée par le garde SSRF (#101) doit ressortir : la
+    # dégrader en heat unique sans nom convertirait un refus de sécurité en
+    # perte silencieuse de données. Les autres pannes gardent leur repli.
+    except DomainError:
+        raise
     except Exception:
         return []
 
@@ -227,6 +233,10 @@ def scrape_event_all(
             page_resp = client.get(date_page_url)
             if page_resp.status_code == 200:
                 event_date = _parse_bc_date(page_resp.text)
+        # Idem : un refus du garde SSRF (#101) doit remonter en erreur d'épreuve
+        # plutôt que de laisser `event_date = None` sans la moindre trace.
+        except DomainError:
+            raise
         except Exception:
             pass
 
