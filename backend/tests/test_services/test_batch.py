@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from datetime import date
 
 from app.core.config import Settings
@@ -417,6 +418,64 @@ def test_run_batch_cumule_updated(db_session, monkeypatch):
     assert totals.imported == 0
     assert totals.skipped == 4
     assert totals.errors == 0
+
+
+def test_run_batch_borne_une_unite_de_travail_par_epreuve(db_session, monkeypatch):
+    """C'est le branchement qui rend un N+1 d'import visible : « 1812 requêtes
+    pour 1810 participants » ne se lit que si l'unité de mesure est l'épreuve."""
+    monkeypatch.setattr(import_service, "iter_import_event", _phases_ok)
+
+    unites: list[str] = []
+
+    @contextmanager
+    def _espion(label):
+        unites.append(label)
+        yield None
+
+    monkeypatch.setattr(batch, "measure_queries", _espion)
+
+    batch.run_batch(
+        db_session,
+        [
+            batch.BatchItem(url="https://k/1", label="klikego · A"),
+            batch.BatchItem(url="https://k/2", label="klikego · B"),
+        ],
+        _settings(),
+        force=False,
+        delay=0.0,
+    )
+
+    assert unites == ["klikego · A", "klikego · B"]
+
+
+def test_unite_de_travail_ouverte_meme_sur_une_epreuve_en_echec(db_session, monkeypatch):
+    """Le filet `try`/`except` vit *dans* l'unité de mesure : une épreuve qui
+    plante est justement celle qu'on veut mesurer."""
+    def _phases(db, url, settings, force=False, persist=True):
+        raise RuntimeError("bug inattendu")
+        yield  # inatteignable, mais fait de la fonction un générateur
+
+    monkeypatch.setattr(import_service, "iter_import_event", _phases)
+
+    unites: list[str] = []
+
+    @contextmanager
+    def _espion(label):
+        unites.append(label)
+        yield None
+
+    monkeypatch.setattr(batch, "measure_queries", _espion)
+
+    totals = batch.run_batch(
+        db_session,
+        [batch.BatchItem(url="https://k/crash", label="A")],
+        _settings(),
+        force=False,
+        delay=0.0,
+    )
+
+    assert totals.errors == 1
+    assert unites == ["A"]
 
 
 # --- règle « échec total » ----------------------------------------------------
