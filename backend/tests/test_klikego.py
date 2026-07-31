@@ -90,6 +90,8 @@ def fresh_result() -> tuple[ScrapedResult, dict]:
     ("triathlon-m", "", "triathlon-m"),
     # Domino : "triathlon-m---individuel"
     ("triathlon-m---individuel", "", "triathlon-m"),
+    # Mesquer (#153) : le slug d'événement mentionne « swimrun », le heat nomme déjà le sport → contexte ignoré
+    ("triathlon-s-indiv", "triathlon-et-swimrun-mesquer-quimiac-2026", "triathlon-s"),
     ("triathlon-l", "", "triathlon-l"),
     ("triathlon-xl", "", "triathlon-xl"),
     # Frenchman XXL
