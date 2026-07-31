@@ -27,19 +27,28 @@ INTERNES = [
 PUBLIQUES = ["8.8.8.8", "2001:4860:4860::8888"]
 
 
+class _Dns:
+    """Résolveur factice : une table de réponses **et** un journal d'appels.
+
+    Les deux sont des attributs distincts, jamais deux clés d'un même dict : un
+    host littéralement nommé `appels` aurait sinon résolu vers le journal.
+    """
+
+    def __init__(self) -> None:
+        self.table: dict[str, list[str]] = {}
+        self.appels: list[str] = []
+
+    def resolve(self, host: str, port: int) -> list[str]:
+        self.appels.append(host)
+        return self.table.get(host, ["93.184.216.34"])
+
+
 @pytest.fixture
 def dns(monkeypatch):
     """Table de résolution factice. Tout host inconnu résout en adresse publique."""
-    table: dict[str, list[str]] = {}
-    appels: list[str] = []
-
-    def faux_resolve(host: str, port: int) -> list[str]:
-        appels.append(host)
-        return table.get(host, ["93.184.216.34"])
-
-    monkeypatch.setattr(http, "_resolve", faux_resolve)
-    table["appels"] = appels  # exposé aux tests qui comptent les résolutions
-    return table
+    faux = _Dns()
+    monkeypatch.setattr(http, "_resolve", faux.resolve)
+    return faux
 
 
 def _client(handler, **kwargs) -> httpx.Client:
@@ -130,12 +139,12 @@ def test_une_ip_interne_demandee_directement_est_refusee(dns):
         with pytest.raises(BlockedTargetError):
             client.get("http://169.254.169.254/latest/meta-data/")
 
-    assert dns["appels"] == []
+    assert dns.appels == []
 
 
 def test_une_seule_adresse_interne_suffit_a_refuser(dns):
     """Un host hostile publie souvent une adresse publique *et* une interne."""
-    dns["piege.example"] = ["93.184.216.34", "10.0.0.5"]
+    dns.table["piege.example"] = ["93.184.216.34", "10.0.0.5"]
 
     def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover
         raise AssertionError("la requête ne devait pas partir")
@@ -171,7 +180,14 @@ def test_redirection_vers_file_refusee(dns):
 
 
 def test_dns_mort_nest_pas_un_refus(dns, monkeypatch):
-    """Une `gaierror` doit rester une panne réseau, pas une alerte de sécurité."""
+    """Une `gaierror` doit rester une panne réseau, pas une alerte de sécurité.
+
+    Ce que ce test prouve : le garde **laisse passer** une résolution vide, donc
+    aucun `BlockedTargetError` n'intercepte en amont et la requête atteint le
+    transport. La `ConnectError` levée par le handler n'est qu'un échafaudage —
+    c'est celle qu'httpx lèverait sur un vrai DNS mort ; l'assertion ne
+    prouverait rien du comportement d'httpx, seulement de celui du mock.
+    """
     monkeypatch.setattr(http, "_resolve", lambda host, port: [])
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -180,6 +196,61 @@ def test_dns_mort_nest_pas_un_refus(dns, monkeypatch):
     with _client(handler) as client:
         with pytest.raises(httpx.ConnectError):
             client.get("https://host-mort.example/x")
+
+
+def test_une_resolution_impossible_ne_leve_pas_dexception_nue():
+    """Un label de plus de 63 octets fait lever le codec `idna` de CPython.
+
+    Sans rattrapage, cet `UnicodeEncodeError` nu remontait jusqu'au
+    `except Exception` d'`import_service` et sortait en « Erreur lors de
+    l'import », sans cause lisible. Ici : liste vide, donc `ConnectError`
+    d'httpx en aval. Pas de fixture `dns` — c'est le vrai `_resolve` qu'on
+    éprouve, sans réseau (rien ne part, l'encodage échoue avant).
+    """
+    assert http._resolve("a" * 64 + ".example", 80) == []
+
+
+def test_url_sans_host_refusee(dns):
+    """Cohérence avec `_is_internal` : ce qu'on n'a pas su lire, on le refuse."""
+    with pytest.raises(BlockedTargetError):
+        http._check_target(httpx.URL("http:///x"), {})
+
+    assert dns.appels == []
+
+
+def test_le_message_de_refus_ne_divulgue_pas_les_adresses_internes(dns, caplog):
+    """Le host reste (bilans CLI) ; les adresses résolues vont au journal."""
+    import logging
+
+    dns.table["piege.example"] = ["10.0.0.5"]
+
+    with caplog.at_level(logging.WARNING, logger="app.core.http"):
+        with pytest.raises(BlockedTargetError) as excinfo:
+            http._check_target(httpx.URL("https://piege.example/x"), {})
+
+    assert "piege.example" in excinfo.value.message
+    assert "10.0.0.5" not in excinfo.value.message
+    assert "10.0.0.5" in caplog.text
+
+
+def test_le_garde_resout_le_nom_du_fil_pas_sa_forme_unicode(dns):
+    """Non-régression : contournement IDNA 2003 / IDNA 2008 (revue de #101).
+
+    `url.host` est l'Unicode ; `socket.getaddrinfo` le ré-encode avec le codec
+    `idna` de CPython, qui est IDNA **2003**. httpcore, lui, se connecte à
+    `url.raw_host`, qu'httpx produit avec la bibliothèque idna **2008**. Mesuré
+    ici : `faß.example` donne `fass.example` d'un côté, `xn--fa-hia.example` de
+    l'autre — deux domaines enregistrables distincts. Vérifier le premier et
+    joindre le second laissait le garde valider une adresse publique pendant que
+    la connexion partait ailleurs.
+    """
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200)
+
+    with _client(handler) as client:
+        client.get("http://faß.example/x")
+
+    assert dns.appels == ["xn--fa-hia.example"]
 
 
 def test_memo_une_seule_resolution_par_host(dns):
@@ -191,7 +262,7 @@ def test_memo_une_seule_resolution_par_host(dns):
         client.get("https://timepulse.fr/a")
         client.get("https://timepulse.fr/b")
 
-    assert dns["appels"] == ["timepulse.fr"]
+    assert dns.appels == ["timepulse.fr"]
 
 
 def test_blocked_target_error_nest_pas_une_value_error():
@@ -231,7 +302,9 @@ def test_meta_aucun_httpx_nu_dans_app():
     from pathlib import Path
 
     racine = Path(__file__).resolve().parent.parent / "app"
-    motif = re.compile(r"\bhttpx\.(Client|AsyncClient|get|post|put|delete|head|stream|request)\(")
+    motif = re.compile(
+        r"\bhttpx\.(Client|AsyncClient|get|post|put|patch|delete|head|options|stream|request)\("
+    )
 
     fautifs = [
         f"{chemin.relative_to(racine)}:{numero}"
