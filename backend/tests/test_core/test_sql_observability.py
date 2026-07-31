@@ -5,6 +5,17 @@ import pytest
 from sqlalchemy import create_engine, text
 
 
+@pytest.fixture(autouse=True)
+def _etat_propre():
+    """Le drapeau de bilan est un état de module : on le remet à zéro entre
+    deux tests, sinon l'ordre d'exécution devient significatif."""
+    from app.core import sql_observability
+
+    sql_observability.reset_for_tests()
+    yield
+    sql_observability.reset_for_tests()
+
+
 @pytest.fixture
 def engine():
     """Engine SQLite jetable — `install()` prend l'engine en argument, donc
@@ -111,3 +122,93 @@ def test_normalize_sql_compacte_et_tronque():
     long = "SELECT " + "x" * 500
     assert len(normalize_sql(long)) == 201  # 200 caractères + l'ellipse
     assert normalize_sql(long).endswith("…")
+
+
+def test_bilan_agrege_rend_un_n_plus_un_visible(engine, caplog):
+    """Le test qui vaut la feature : trois exécutions de la même requête
+    ressortent en une seule entrée « x3 »."""
+    from app.core import sql_observability
+
+    sql_observability.install(engine, slow_query_ms=0, collect_stats=True)
+
+    with caplog.at_level(logging.INFO, logger="app.sql"):
+        with sql_observability.measure_queries("import epreuve=Test"):
+            with engine.connect() as conn:
+                for _ in range(3):
+                    conn.execute(text("SELECT 1"))
+
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("import epreuve=Test" in m and "3 requêtes" in m for m in messages)
+    assert any("x3" in m and "SELECT 1" in m for m in messages)
+
+
+def test_bilan_emis_meme_si_le_bloc_leve(engine, caplog):
+    """Une épreuve qui plante est justement celle qu'on veut mesurer."""
+    from app.core import sql_observability
+
+    sql_observability.install(engine, slow_query_ms=0, collect_stats=True)
+
+    with caplog.at_level(logging.INFO, logger="app.sql"):
+        with pytest.raises(RuntimeError):
+            with sql_observability.measure_queries("import epreuve=Boom"):
+                with engine.connect() as conn:
+                    conn.execute(text("SELECT 1"))
+                raise RuntimeError("boom")
+
+    assert any("import epreuve=Boom" in r.getMessage() for r in caplog.records)
+
+
+def test_bilan_eteint_est_un_no_op(engine, caplog):
+    from app.core import sql_observability
+
+    sql_observability.install(engine, slow_query_ms=0, collect_stats=False)
+
+    with caplog.at_level(logging.DEBUG, logger="app.sql"):
+        with sql_observability.measure_queries("rien") as stats:
+            assert stats is None
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+
+    assert caplog.records == []
+
+
+def test_unite_sans_requete_n_emet_pas_de_bilan(engine, caplog):
+    """Une requête HTTP qui ne touche pas la base ne doit pas polluer les logs."""
+    from app.core import sql_observability
+
+    sql_observability.install(engine, slow_query_ms=0, collect_stats=True)
+
+    with caplog.at_level(logging.DEBUG, logger="app.sql"):
+        with sql_observability.measure_queries("GET /health"):
+            pass
+
+    assert caplog.records == []
+
+
+def test_imbrication_la_plus_proche_gagne(engine, caplog):
+    """Règle écrite plutôt que découverte : aucune sommation vers l'englobante."""
+    from app.core import sql_observability
+
+    sql_observability.install(engine, slow_query_ms=0, collect_stats=True)
+
+    with caplog.at_level(logging.INFO, logger="app.sql"):
+        with sql_observability.measure_queries("externe") as dehors:
+            with sql_observability.measure_queries("interne"):
+                with engine.connect() as conn:
+                    conn.execute(text("SELECT 1"))
+            assert dehors.count == 0
+
+
+def test_bilan_ne_contient_ni_valeur_liee_ni_retour_a_la_ligne(engine, caplog):
+    from app.core import sql_observability
+
+    sql_observability.install(engine, slow_query_ms=0, collect_stats=True)
+
+    with caplog.at_level(logging.INFO, logger="app.sql"):
+        with sql_observability.measure_queries("fuite"):
+            with engine.connect() as conn:
+                conn.execute(text("SELECT :valeur"), {"valeur": "LEMÉE"})
+
+    assert caplog.records
+    assert all("LEMÉE" not in r.getMessage() for r in caplog.records)
+    assert all("\n" not in r.getMessage() for r in caplog.records)

@@ -21,6 +21,11 @@ Les réglages sont **passés en arguments** plutôt que lus ici : le module rest
 testable sans toucher au cache de `get_settings()`.
 """
 import logging
+from collections import Counter
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass, field
 from time import perf_counter
 from weakref import WeakSet
 
@@ -39,9 +44,40 @@ _INFO_KEY = "tcn_query_start"
 _installed: WeakSet = WeakSet()
 
 
+@dataclass
+class QueryStats:
+    """Compteurs d'une unité de travail — une requête HTTP, une épreuve importée."""
+
+    label: str
+    count: int = 0
+    total_ms: float = 0.0
+    by_sql: Counter = field(default_factory=Counter)
+
+
+# Propre à la tâche asyncio ou au thread : deux requêtes HTTP simultanées ont
+# deux accumulateurs distincts.
+_current: ContextVar[QueryStats | None] = ContextVar("tcn_query_stats", default=None)
+
+# Drapeau de module posé par `install()` : sans lui, `measure_queries` ouvrirait
+# un accumulateur que rien n'alimente et rendrait un bilan « 0 requête ».
+_stats_enabled = False
+
+
 def is_installed(engine: Engine) -> bool:
     """L'engine porte-t-il les listeners de mesure ?"""
     return engine in _installed
+
+
+def reset_for_tests() -> None:
+    """Remet le drapeau de bilan et le `ContextVar` à zéro.
+
+    Les tests, et eux seuls, en ont besoin : sans cela l'ordre d'exécution
+    devient significatif. `_installed` n'est **pas** vidé — l'engine applicatif
+    y est inscrit une fois pour toutes au chargement de `database.py`.
+    """
+    global _stats_enabled
+    _stats_enabled = False
+    _current.set(None)
 
 
 def normalize_sql(statement: str) -> str:
@@ -68,6 +104,9 @@ def install(engine: Engine, *, slow_query_ms: float, collect_stats: bool) -> Non
 
     Idempotent : un second appel sur le même engine ne repose rien.
     """
+    global _stats_enabled
+    _stats_enabled = collect_stats
+
     if slow_query_ms <= 0 and not collect_stats:
         return
     if engine in _installed:
@@ -77,7 +116,9 @@ def install(engine: Engine, *, slow_query_ms: float, collect_stats: bool) -> Non
     @event.listens_for(engine, "before_cursor_execute")
     def _before(conn, cursor, statement, parameters, context, executemany):
         # Une pile, pas une valeur simple : elle tient la réentrance. `conn.info`
-        # est propre à la Connection, donc au thread qui l'utilise.
+        # survit au cycle connect()/close() via son `_ConnectionRecord` du pool,
+        # donc les requêtes qui lèvent laissent un `float` orphelin jusqu'au
+        # recyclage de la connexion — pattern nominal du Profiling cookbook.
         conn.info.setdefault(_INFO_KEY, []).append(perf_counter())
 
     @event.listens_for(engine, "after_cursor_execute")
@@ -90,3 +131,50 @@ def install(engine: Engine, *, slow_query_ms: float, collect_stats: bool) -> Non
 
         if 0 < slow_query_ms <= elapsed_ms:
             logger.warning("Requête lente | %.1f ms | %s", elapsed_ms, sql)
+
+        stats = _current.get()
+        if stats is not None:
+            stats.count += 1
+            stats.total_ms += elapsed_ms
+            stats.by_sql[sql] += 1
+
+
+@contextmanager
+def measure_queries(label: str) -> Iterator[QueryStats | None]:
+    """Borne une unité de travail et journalise son bilan à la sortie.
+
+    No-op quand le bilan est éteint (rend `None`). En cas d'imbrication, la plus
+    proche unité gagne : les requêtes ne sont pas sommées vers l'englobante.
+    Le bilan est émis dans un `finally` — une épreuve qui plante est justement
+    celle qu'on veut mesurer.
+    """
+    if not _stats_enabled:
+        yield None
+        return
+
+    stats = QueryStats(label=label)
+    token = _current.set(stats)
+    try:
+        yield stats
+    finally:
+        _current.reset(token)
+        _emit(stats)
+
+
+def _emit(stats: QueryStats) -> None:
+    """Bilan en **plusieurs** enregistrements — jamais un message multi-ligne,
+    qui casserait le format JSON d'`app.core.logging`.
+
+    Une unité sans aucune requête n'émet rien : une page qui ne touche pas la
+    base n'a pas à polluer les logs.
+    """
+    if stats.count == 0:
+        return
+    logger.info(
+        "Bilan SQL | %s | %d requêtes | %.0f ms",
+        stats.label,
+        stats.count,
+        stats.total_ms,
+    )
+    for sql, occurrences in stats.by_sql.most_common(_TOP_N):
+        logger.info("Bilan SQL | %s | x%d | %s", stats.label, occurrences, sql)
