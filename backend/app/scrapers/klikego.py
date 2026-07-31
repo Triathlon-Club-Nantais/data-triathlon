@@ -366,4 +366,4 @@ _SPLIT_SLOTS = ("swim", "t1", "bike", "t2", "run")
 
 def _detect_event_type(heat: str, slug: str = "") -> str:
     from app.scrapers.classify import classify_event_type
-    return classify_event_type(f"{heat} {slug}")
+    return classify_event_type(heat, contexte=slug)
