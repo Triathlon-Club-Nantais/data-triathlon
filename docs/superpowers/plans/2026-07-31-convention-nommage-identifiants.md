@@ -79,7 +79,10 @@ clause (a) que ce plan installe :
    constante de module** `_PAGE_SIZE`, parce que c'est le motif déjà en place
    dans les trois autres scrapers paginés — `sporthive.py:77`,
    `runnerbreizh.py:73`, `klikego_platform.py:27` portent tous `_PAGE_SIZE` au
-   niveau module. Même correction de N806, mais cohérente avec le dépôt.
+   niveau module. Le motif partagé est la **constante de module**, pas le
+   commentaire qui l'accompagne : seuls `sporthive.py` et `runnerbreizh.py` en
+   portent un, `klikego_platform.py:27` n'en a aucun — deux scrapers commentés
+   sur trois. Même correction de N806, mais cohérente avec le dépôt.
 2. le spec écrivait `TestingSessionLocal` → `testing_session_local`. Ce plan
    retient **`session_factory`** : `sessionmaker()` rend une fabrique, et
    `testing_session_local` est une translittération qui ne nomme pas ce que la
@@ -287,7 +290,7 @@ dans la **même PR** que le module qu'ils couvrent ; **un lot par PR**.
 
 | Lot | Périmètre |
 | --- | --- |
-| A | transversal `echec_total` — `services/{batch,rescrape_service,bulk_import_service,import_service}.py` + les constantes homonymes de `cli/reports.py` |
+| A | transversal — deux familles : `echec_total` (`batch`, `bulk_import_service`, `rescrape_service`, `cli/reports`) et l'identité réconciliée `ancien`/`nouveau`/`fusion` (`import_service`, `rescrape_service`, `cli/reports`), **hors** les champs de dataclass gelés par (b) |
 | B | `app/cli/` — `reports`, `url_sources`, `progress`, `validators` |
 | C | `app/scrapers/raceresult.py` |
 | D | `app/scrapers/t2area.py` |

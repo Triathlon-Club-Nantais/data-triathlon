@@ -41,8 +41,8 @@ HEADERS = {
     "Accept": "text/html,application/json,*/*",
 }
 API_BASE = "https://sportinnovation.fr/api"
-# Taille de page du format HTML. Motif partagé avec les autres scrapers paginés
-# (sporthive, runnerbreizh, klikego_platform) : constante de module, pas locale.
+# Page size of the HTML format. Same pattern as the other paginated scrapers
+# (sporthive, runnerbreizh, klikego_platform): a module constant, not a local.
 _PAGE_SIZE = 250
 
 

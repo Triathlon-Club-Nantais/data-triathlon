@@ -242,8 +242,9 @@ exactement le croisement que la règle d'or interdit. (Ce document l'a recommand
 par le passé ; la ligne n'est jamais entrée dans la constitution de ce repo.)
 
 **État de ce repo** : la mise en place est déjà faite, en **Spec Kit 0.15.0**
-(`.specify/init-options.json`). La constitution est **ratifiée en v1.0.0**
-(`.specify/memory/constitution.md`) — ne pas relancer `/speckit-constitution`
+(`.specify/init-options.json`). La constitution est **ratifiée le
+2026-07-27, amendée en v1.1.0** (`.specify/memory/constitution.md`) — ne pas
+relancer `/speckit-constitution`
 pour « la remplir ». Elle ne nomme aucun exécuteur (sa section « Development
 Workflow » dit `… → /speckit-analyze → exécution`), donc la règle de provenance
 **ne demande aucun amendement**. L'intégration active est `claude`
@@ -315,8 +316,8 @@ Deux cas de référence :
 
 La constitution est le document de référence de Spec Kit : elle cadre les principes du
 projet (stack, TDD, langue, conventions) et est injectée dans chaque commande
-`/speckit-*`. Pour ce projet, elle est **ratifiée en v1.0.0** — ne pas relancer
-`/speckit-constitution` pour la remplir.
+`/speckit-*`. Pour ce projet, elle est **ratifiée le 2026-07-27, amendée en
+v1.1.0** — ne pas relancer `/speckit-constitution` pour la remplir.
 
 Attention à sa portée réelle : la constitution n'est chargée que par les commandes
 `/speckit-*`, alors qu'`AGENTS.md` l'est **à chaque session** via `CLAUDE.md`. En cas
