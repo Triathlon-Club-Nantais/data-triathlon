@@ -29,6 +29,7 @@ from urllib.parse import urljoin, urlparse
 import httpx
 from bs4 import BeautifulSoup
 
+from app.core import http
 from app.core.club import is_tcn
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
@@ -512,7 +513,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     à une réécriture de la clé stockée.
     """
     evenement, epreuve, annee = _parse_url(url)
-    with httpx.Client(follow_redirects=True, timeout=30, headers=HEADERS) as client:
+    with http.client(timeout=30, headers=HEADERS) as client:
         if not annee:
             annee = _resolve_annee(client, evenement, epreuve)
         edition_url = _edition_url(evenement, epreuve, annee)

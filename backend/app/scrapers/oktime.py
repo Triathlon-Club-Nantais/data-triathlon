@@ -29,6 +29,8 @@ from urllib.parse import urlparse
 
 import httpx
 
+from app.core import http
+
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER, ScrapedResult
 from .classify import classify_event_type
 from .utils import normalize_rank, normalize_time, qualify_event_name, split_athlete_name
@@ -668,7 +670,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     correspondre au lien du Sheet et non à une forme reconstruite.
     """
     event_id, slug = _parse_url(url)
-    with httpx.Client(follow_redirects=True, timeout=30, headers=HEADERS) as client:
+    with http.client(timeout=30, headers=HEADERS) as client:
         if not event_id:
             event_id = _resolve_event_id(client, slug)
         charge = _fetch_results(client, event_id)

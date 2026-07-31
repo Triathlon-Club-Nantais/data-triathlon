@@ -19,6 +19,8 @@ from urllib.parse import parse_qs, urlparse
 
 import httpx
 
+from app.core import http
+
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
 from .utils import (
     derive_status_from_label,
@@ -73,26 +75,22 @@ def _extract_status(ea: dict[str, str], ra: dict[str, str]) -> str:
 # ---------------------------------------------------------------------------
 
 def _fetch_xml(id_event: str) -> str:
-    for tpl in _DATA_API_URLS:
-        try:
-            r = httpx.get(
-                tpl.format(id_event=id_event),
-                follow_redirects=True, timeout=20, headers=_HEADERS,
-            )
-            if r.status_code == 200 and "<Epreuve" in r.text:
-                return r.text
-        except httpx.HTTPError:
-            continue
+    with http.client(timeout=20, headers=_HEADERS) as client:
+        for tpl in _DATA_API_URLS:
+            try:
+                r = client.get(tpl.format(id_event=id_event))
+                if r.status_code == 200 and "<Epreuve" in r.text:
+                    return r.text
+            except httpx.HTTPError:
+                continue
     return ""
 
 
 def _fetch_event_page(id_event: str) -> str:
     """HTML de la page publique de l'épreuve (dernier recours pour la date)."""
     try:
-        r = httpx.get(
-            f"https://www.timepulse.fr/epreuves/resultats/{id_event}",
-            follow_redirects=True, timeout=20, headers=_HEADERS,
-        )
+        with http.client(timeout=20, headers=_HEADERS) as client:
+            r = client.get(f"https://www.timepulse.fr/epreuves/resultats/{id_event}")
         return r.text if r.status_code == 200 else ""
     except httpx.HTTPError:
         return ""

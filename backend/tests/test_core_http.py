@@ -216,3 +216,32 @@ def test_la_fabrique_pose_follow_redirects_par_defaut(monkeypatch):
 
     assert vus.get("follow_redirects") is True
     assert vus.get("timeout") == 30
+
+
+def test_meta_aucun_httpx_nu_dans_app():
+    """Aucune construction de client httpx hors de `app/core/http.py`.
+
+    Pendant de `HostMatchedProvider` en #49 : il ne suffit pas de corriger les
+    sites d'aujourd'hui, il faut que l'oubli du prochain fournisseur ajouté
+    soit une erreur de test. La parenthèse évite de mordre sur les annotations
+    de paramètre (`client: httpx.Client`), qui sont légitimes — ces fonctions
+    reçoivent leur client, elles n'en construisent pas.
+    """
+    import re
+    from pathlib import Path
+
+    racine = Path(__file__).resolve().parent.parent / "app"
+    motif = re.compile(r"\bhttpx\.(Client|AsyncClient|get|post|put|delete|head|stream|request)\(")
+
+    fautifs = [
+        f"{chemin.relative_to(racine)}:{numero}"
+        for chemin in sorted(racine.rglob("*.py"))
+        if chemin != racine / "core" / "http.py"
+        for numero, ligne in enumerate(chemin.read_text(encoding="utf-8").splitlines(), 1)
+        if motif.search(ligne)
+    ]
+
+    assert fautifs == [], (
+        "Passer par `app.core.http.client()` — sans quoi la destination n'est "
+        f"pas vérifiée (#101). Sites nus : {fautifs}"
+    )

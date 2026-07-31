@@ -14,6 +14,8 @@ from urllib.parse import parse_qs, quote, unquote, urlencode, urljoin, urlparse,
 import httpx
 from bs4 import BeautifulSoup
 
+from app.core import http
+
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
 from .utils import (
     derive_status_from_label,
@@ -270,7 +272,7 @@ def _fetch_clax(url: str) -> tuple[ET.Element, str, str, str, object]:
     Directory URLs (no f= param) are resolved via iframe extraction first.
     Returns (root, clax_url, event_name, event_type, event_date).
     """
-    with httpx.Client(follow_redirects=True, timeout=30) as client:
+    with http.client(timeout=30) as client:
         # Toute URL qui ne porte pas déjà le `f=` du moteur (page épreuve, coquille
         # WordPress, annuaire ChronoSmetron) est remontée jusqu'au `g-live.html`.
         if not parse_qs(urlparse(url).query).get("f"):

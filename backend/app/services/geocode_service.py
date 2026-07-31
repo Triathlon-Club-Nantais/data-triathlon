@@ -8,8 +8,7 @@ import logging
 import re
 import time
 
-import httpx
-
+from app.core import http
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -44,12 +43,12 @@ def _nominatim_search(query: str) -> tuple[float, float] | None:
     """Un appel Nominatim ; renvoie (lat, lon) du résultat le plus pertinent, ou None."""
     settings = get_settings()
     try:
-        r = httpx.get(
-            "https://nominatim.openstreetmap.org/search",
-            params={"q": query, "format": "json", "limit": 5, "countrycodes": "fr"},
-            headers={"User-Agent": settings.geocode_user_agent},
-            timeout=5,
-        )
+        with http.client(timeout=5) as client:
+            r = client.get(
+                "https://nominatim.openstreetmap.org/search",
+                params={"q": query, "format": "json", "limit": 5, "countrycodes": "fr"},
+                headers={"User-Agent": settings.geocode_user_agent},
+            )
         results = r.json()
         time.sleep(settings.geocode_min_interval_seconds)  # rate limit Nominatim
         places = [

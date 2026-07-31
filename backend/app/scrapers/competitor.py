@@ -52,6 +52,8 @@ from urllib.parse import quote, urlparse
 
 import httpx
 
+from app.core import http
+
 from .base import (
     STATUS_DNF,
     STATUS_DNS,
@@ -358,7 +360,7 @@ def _build_result(
 
 def scrape_event_all(url: str) -> list[ScrapedResult]:
     """Tous les participants de l'édition visée par l'URL."""
-    with httpx.Client(follow_redirects=True, timeout=30, headers=HEADERS) as client:
+    with http.client(timeout=30, headers=HEADERS) as client:
         uuid = _uuid_depuis_url(url)
         if uuid is None:
             uuid = _resoudre_uuid(client, url)

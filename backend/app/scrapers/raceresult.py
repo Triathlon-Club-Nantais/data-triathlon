@@ -40,6 +40,8 @@ from urllib.parse import urlparse
 import httpx
 from bs4 import BeautifulSoup
 
+from app.core import http
+
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
 from .classify import classify_event_type
 from .utils import (
@@ -1348,7 +1350,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     l'aveugle. Mesuré : 4 requêtes `list` sur Rumilly (contre 15, dont 11 en 404,
     dans la version qui interrogeait la route héritée).
     """
-    with httpx.Client(follow_redirects=True, timeout=30, headers=HEADERS) as client:
+    with http.client(timeout=30, headers=HEADERS) as client:
         event_id = _resolve_event_id(url, client)
         config = _fetch_config(event_id, client)
         key = str(config.get("key") or "")

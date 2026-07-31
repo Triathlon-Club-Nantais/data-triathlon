@@ -138,11 +138,10 @@ class KlikegoProvider(HostMatchedProvider):
         event_name = slug.replace("-", " ").title() if slug else ""
         if not heat:
             # Auto-détection du heat via le helper klikego
-            import httpx
-
+            from app.core import http
             from app.scrapers.klikego import HEADERS as KL_HEADERS
             from app.scrapers.klikego import _detect_heat
-            with httpx.Client(follow_redirects=True, timeout=20, headers=KL_HEADERS) as client:
+            with http.client(timeout=20, headers=KL_HEADERS) as client:
                 heat = _detect_heat(event_id, client)
         return klikego.scrape_event_all(event_id, heat, event_name, slug)
 
