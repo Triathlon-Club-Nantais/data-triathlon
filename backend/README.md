@@ -111,4 +111,3 @@ uv run ruff check .                  # lint
 
 - Factorisation des helpers internes des scrapers (`_detect_event_type`, mapping
   des splits) — différée car signatures divergentes et couverture de tests inégale.
-- Isolation de Playwright dans une image Docker dédiée.

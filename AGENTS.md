@@ -76,8 +76,10 @@ artefacts.
 ## Stack
 - **Backend** (`backend/`) : Python 3.13, **uv** (`pyproject.toml` + `uv.lock`), FastAPI,
   SQLAlchemy 2.0 (sync), Pydantic v2 + pydantic-settings, **Alembic** (migrations), PostgreSQL
-  (Supabase) / SQLite en dev. Scraping httpx + BeautifulSoup/lxml, fallback
-  Playwright. Tests pytest, ruff. API versionnée sous `/api/v1`.
+  (Supabase) / SQLite en dev. Scraping httpx + BeautifulSoup/lxml — **aucun
+  navigateur** : le fallback Playwright a été supprimé avec sa dépendance (#102),
+  voir `registry.PlaywrightProvider`. Tests pytest, ruff. API versionnée sous
+  `/api/v1`.
 - **Frontend** (`frontend/`) : Next.js 16 (App Router) + TypeScript + Tailwind + shadcn/ui.
 - **Déploiement** : backend → Render (`render.yaml`), front → Vercel, DB → Supabase.
 

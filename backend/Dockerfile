@@ -1,5 +1,5 @@
-# Image API (sans navigateurs Playwright). Le fallback Playwright pourra être isolé dans une
-# image dédiée ultérieurement (voir README — Suites).
+# Image API. Aucun navigateur à embarquer : le fallback Playwright a été supprimé
+# avec sa dépendance (#102), tous les scrapers lisent en HTTP.
 FROM python:3.13-slim
 
 # uv est copié depuis son image officielle : version épinglée, pas d'installation à la volée.

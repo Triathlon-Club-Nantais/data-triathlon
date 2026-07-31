@@ -288,7 +288,21 @@ class T2AreaProvider:
 
 
 class PlaywrightProvider:
-    """Fallback générique pour les sites JS-heavy non reconnus."""
+    """Sentinelle « aucun provider ne reconnaît cette URL » — pas un scraper.
+
+    Le nom est historique : il désignait un fallback générique pour les sites
+    JS-heavy. Ce module (`scrapers/playwright_fallback.py`) était du code mort et
+    a été supprimé avec la dépendance `playwright` (#102), car il restait **le
+    seul du dépôt capable de naviguer vers une URL arbitraire** : le rebrancher
+    ici rouvrirait le SSRF de #49, et sans qu'aucune détection de host ne
+    s'interpose, puisque ce fallback est précisément ce qui capte les hosts non
+    reconnus.
+
+    D'où le refus explicite ci-dessous, verrouillé par
+    `test_host_non_reconnu_ne_declenche_aucune_requete`. Un futur fallback
+    générique se **valide en amont sur une liste blanche de hosts** ; il ne
+    s'accroche pas à ce point d'entrée.
+    """
 
     name = "playwright"
 
