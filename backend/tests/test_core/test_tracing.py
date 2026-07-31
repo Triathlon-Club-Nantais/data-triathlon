@@ -150,34 +150,73 @@ def test_cli_eteint_ne_pose_rien(monkeypatch):
         get_settings.cache_clear()
 
 
-def test_requete_http_produit_un_span(monkeypatch):
+def test_requete_http_produit_un_span_fastapi(monkeypatch):
     """Vérifie la branche FastAPI, jusqu'ici jamais exercée : `instrument_app`
-    doit effectivement produire un span pour une requête HTTP réelle, contre
-    les versions de FastAPI et d'opentelemetry-instrumentation-fastapi
-    réellement installées.
+    doit effectivement produire un span **d'origine FastAPI** pour une requête
+    HTTP réelle, contre les versions de FastAPI et
+    d'opentelemetry-instrumentation-fastapi réellement installées.
+
+    L'assertion porte sur la provenance du span (`instrumentation_scope.name`),
+    pas seulement sur son existence : `setup_tracing(app=…, engine=…)`
+    instrumente aussi l'engine, et la route interrogée exécute toujours un
+    `SELECT` — un simple `get_finished_spans()` non vide resterait donc vert
+    même si `instrument_app` ne faisait plus rien.
+
+    L'application se branche sur un engine SQLite **en mémoire**, jamais sur
+    le fichier `triathlon.db` de développement (absent d'un checkout CI
+    propre) : même motif que
+    `test_sql_observability.test_middleware_compte_les_requetes_d_un_appel_http`.
+
+    `app.main` porte un `app = create_app()` **de module**, exécuté à son tout
+    premier import. `setup_tracing` est idempotent par process
+    (`_provider is not None` court-circuite tout appel suivant) : si cet
+    import survenait pendant la fenêtre où OTel est activé, il consommerait
+    l'unique cycle d'instrumentation au profit de l'`app` de module — invisible
+    ici — et notre `application` de test n'en recevrait aucune, sans qu'aucune
+    assertion ne le révèle autrement que par ce test lui-même échouant à tort.
+    D'où l'import de `create_app` **avant** d'activer `OTEL_ENABLED` : le tout
+    premier import (s'il a lieu ici) s'exécute donc à froid, et notre appel
+    explicite plus bas reste le seul consommateur du cycle.
     """
     from fastapi.testclient import TestClient
     from opentelemetry.sdk.trace.export import SimpleSpanProcessor
     from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
         InMemorySpanExporter,
     )
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
 
+    import app.models  # noqa: F401 — enregistre les tables sur Base.metadata
     from app.core import tracing
+    from app.core.config import get_settings
+    from app.core.database import Base, get_db
+    from app.main import create_app  # voir docstring : importé avant l'activation d'OTel
 
     # `create_app()` appelle `setup_logging()`, qui vide les handlers du root
-    # logger — dont celui que `caplog` y a posé. Sans conséquence ici, ce test
-    # n'inspecte que des spans en mémoire, jamais `caplog` : la précaution de
-    # `test_middleware_compte_les_requetes_d_un_appel_http` ne s'applique pas.
+    # logger. Sans conséquence ici : ce test n'inspecte que des spans en
+    # mémoire, jamais `caplog`.
     monkeypatch.setenv("OTEL_ENABLED", "true")
     monkeypatch.setenv("OTEL_TRACES_EXPORTER", "none")
-
-    from app.core.config import get_settings
-
     get_settings.cache_clear()
+
+    eng = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
     try:
-        from app.main import create_app
+        Base.metadata.create_all(bind=eng)
+        Session = sessionmaker(autocommit=False, autoflush=False, bind=eng)
 
         application = create_app()
+
+        def _override_get_db():
+            db = Session()
+            try:
+                yield db
+            finally:
+                db.close()
+
+        application.dependency_overrides[get_db] = _override_get_db
 
         exporter = InMemorySpanExporter()
         tracing.current_provider().add_span_processor(SimpleSpanProcessor(exporter))
@@ -186,7 +225,14 @@ def test_requete_http_produit_un_span(monkeypatch):
             reponse = client.get("/api/v1/athletes?page_size=1")
 
         assert reponse.status_code == 200
-        assert exporter.get_finished_spans(), "aucun span HTTP produit"
+        spans_fastapi = [
+            s
+            for s in exporter.get_finished_spans()
+            if s.instrumentation_scope.name == "opentelemetry.instrumentation.fastapi"
+        ]
+        assert spans_fastapi, "aucun span d'origine FastAPI produit"
     finally:
         tracing.shutdown_tracing()
+        Base.metadata.drop_all(bind=eng)
+        eng.dispose()
         get_settings.cache_clear()
