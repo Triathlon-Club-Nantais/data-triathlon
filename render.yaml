@@ -4,7 +4,12 @@ services:
     runtime: python
     autoDeploy: false # déploiement uniquement via deploy hook (gate CI)
     rootDir: backend
-    buildCommand: uv sync --frozen --no-dev
+    # Le fichier VERSION est lu par `app/version.py` (#134) : `git describe`
+    # remonte automatiquement à la racine du dépôt même si le buildCommand
+    # tourne depuis `backend/`. `--always` fallback sur le SHA court si aucun
+    # tag n'est atteignable — utile pour un déploiement de branche non taggée
+    # (preview). `|| echo dev` couvre le cas où git est indisponible au build.
+    buildCommand: (git describe --tags --always 2>/dev/null || echo dev) > VERSION && uv sync --frozen --no-dev
     startCommand: uv run --no-sync alembic upgrade head && uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL

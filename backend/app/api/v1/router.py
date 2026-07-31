@@ -12,9 +12,10 @@ from app.api.v1 import (
     participations,
     scrape,
     stats,
+    version,
 )
 
 api_router = APIRouter()
 
-for module in (health, scrape, athletes, courses, participations, stats, admin):
+for module in (health, version, scrape, athletes, courses, participations, stats, admin):
     api_router.include_router(module.router)

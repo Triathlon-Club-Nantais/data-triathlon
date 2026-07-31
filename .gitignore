@@ -31,6 +31,10 @@ dist/
 # Port du backend de dev, publié par backend/scripts/dev_server.py — propre à chaque worktree
 .dev-backend.json
 
+# Fichier de version écrit par le buildCommand Render (#134). Contient le tag
+# git courant, lu par `app/version.py`. Jamais commité — c'est un artefact de build.
+backend/VERSION
+
 # Site de documentation généré par Jekyll (docs/) — jamais commité, le workflow
 # Pages le reconstruit à chaque déploiement
 _site/

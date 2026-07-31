@@ -3,6 +3,7 @@ import { Anton, Barlow, Barlow_Semi_Condensed } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { TcnTopbar } from "@/components/layout/TcnTopbar";
+import { VersionFooter } from "@/components/layout/VersionFooter";
 import { Toaster } from "@/components/ui/sonner";
 
 // TCN Design System — Anton (titres/chiffres), Barlow (UI/corps),
@@ -46,6 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           <TcnTopbar />
           <main className="min-h-[calc(100vh-73px)]">{children}</main>
+          <VersionFooter />
           <Toaster richColors position="top-right" />
         </Providers>
       </body>
