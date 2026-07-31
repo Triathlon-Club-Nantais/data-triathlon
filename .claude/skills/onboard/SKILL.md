@@ -396,7 +396,7 @@ utiliser, où trouver le workflow.
    Speckit — c'est un handoff retiré pour son coût (~117 exécutions
    d'agent sur les 39 tâches de `003-dashboard-rank-selector`).
 
-3. **La constitution v1.0.0** — `.specify/memory/constitution.md`, 6
+3. **La constitution v1.1.0** — `.specify/memory/constitution.md`, 6
    principes non-négociables (langue métier vs technique, architecture
    en couches, TDD sans réseau, contrats API/CLI stables, neutralité des
    paramètres transverses, YAGNI). Injectée automatiquement dans chaque

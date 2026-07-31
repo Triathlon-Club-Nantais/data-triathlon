@@ -452,14 +452,19 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 
 ## Conventions générales
 
-- **Langue** : suit le Principe I de la constitution v1.0.0
+- **Langue** : suit le Principe I de la constitution v1.1.0
   (`.specify/memory/constitution.md`) — **français** pour ce qui est
   visible utilisateur ou métier (UI, messages d'erreur affichés, docs
   produit, commentaires de règle métier, messages `DomainError`
   sérialisés vers le front) ; **English** pour la couche technique
   invisible (identifiants, tests, docstrings techniques, logs
-  Sentry/Datadog, préfixes Conventional Commits). Règle de transition :
-  on ne réécrit pas l'existant, la règle s'applique aux nouveaux ajouts.
+  Sentry/Datadog, préfixes Conventional Commits). Un identifiant nomme
+  ce qu'il porte : les noms d'une ou deux lettres sont réservés aux
+  liaisons dont la portée tient sous les yeux (compréhension, boucle,
+  lambda, `db`). Règle de transition : on ne réécrit pas l'existant, la
+  règle s'applique aux nouveaux ajouts — **à une dérogation près**, la
+  campagne de renommage de l'issue #88, bornée à une liste close de huit
+  lots énumérée dans le Principe I.
 - Commits : Conventional Commits (`feat:`, `fix:`…), déjà en place dans l'historique.
 - Schéma DB : migrations **Alembic** (`uv run alembic revision --autogenerate`
   après modif d'un modèle, puis `uv run alembic upgrade head`).

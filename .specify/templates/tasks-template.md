@@ -9,7 +9,7 @@ description: "Task list template for feature implementation"
 
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
-**Tests**: Le Principe III de la constitution v1.0.0 (`.specify/memory/constitution.md`) est **non-négociable** — TDD sans réseau. Les tâches de test **doivent** être générées pour chaque user story. Toute dérogation (feature purement documentaire, template Markdown, etc.) est justifiée dans le `plan.md` §Complexity Tracking, pas dans le tasks-template.
+**Tests**: Le Principe III de la constitution v1.1.0 (`.specify/memory/constitution.md`) est **non-négociable** — TDD sans réseau. Les tâches de test **doivent** être générées pour chaque user story. Toute dérogation (feature purement documentaire, template Markdown, etc.) est justifiée dans le `plan.md` §Complexity Tracking, pas dans le tasks-template.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 

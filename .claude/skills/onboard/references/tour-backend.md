@@ -34,7 +34,7 @@ Pour un profil backend, lis dans cet ordre :
 
 Ces sections t'évitent 90 % des mauvais réflexes.
 
-## 3. La constitution v1.0.0
+## 3. La constitution v1.1.0
 
 Fichier : `.specify/memory/constitution.md`. Six principes non-négociables.
 Deux méritent un flag rouge : **Principe II — couches à sens unique**
