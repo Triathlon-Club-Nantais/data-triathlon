@@ -74,7 +74,8 @@ def setup_tracing(*, enabled: bool, app=None, engine=None) -> None:
     from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
     provider = TracerProvider(resource=Resource.create())
-    exporter = _build_exporter(os.getenv("OTEL_TRACES_EXPORTER", "none").strip().lower())
+    exporter_name = os.getenv("OTEL_TRACES_EXPORTER", "none").strip().lower()
+    exporter = _build_exporter(exporter_name)
     if exporter is not None:
         provider.add_span_processor(BatchSpanProcessor(exporter))
     _provider = provider
@@ -90,7 +91,7 @@ def setup_tracing(*, enabled: bool, app=None, engine=None) -> None:
         FastAPIInstrumentor.instrument_app(app, tracer_provider=provider)
         _instrumented_app = app
 
-    logger.info("Traçage OpenTelemetry actif (exporter=%s)", exporter or "none")
+    logger.info("Traçage OpenTelemetry actif (exporter=%s)", exporter_name)
 
 
 def shutdown_tracing() -> None:

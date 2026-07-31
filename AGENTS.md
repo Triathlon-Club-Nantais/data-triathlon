@@ -287,7 +287,13 @@ construit depuis des données scrapées (`rescrape_service.py` le compose avec
 `core/tracing.py` — socle OpenTelemetry, `OTEL_ENABLED` à `false` par défaut,
 imports paresseux : éteint, aucun paquet OTel n'est chargé. Aucun collecteur
 n'est hébergé ; le socle est là pour que le branchement tienne en deux variables
-(`OTEL_TRACES_EXPORTER=otlp`, `OTEL_EXPORTER_OTLP_ENDPOINT=…`). `OTEL_SERVICE_NAME`
+(`OTEL_TRACES_EXPORTER=otlp`, `OTEL_EXPORTER_OTLP_ENDPOINT=…`). **Mais ces deux
+variables suffisent aussi à fuiter des données personnelles** : `FastAPIInstrumentor`
+pose `http.url` (query string comprise, non masquée) et `net.peer.ip` sur chaque
+span HTTP — `name=LEMÉE+Jean` d'une recherche `/api/v1/athletes` part donc en clair
+vers le collecteur. Les spans SQL restent paramétrés. Ne pas allumer `OTEL_ENABLED`
+avant d'avoir un collecteur maîtrisé ou d'avoir posé un `server_request_hook` qui
+réécrit `http.url` sans la query. `OTEL_SERVICE_NAME`
 et l'endpoint sont lus par le SDK, mais **`OTEL_TRACES_EXPORTER` est lu par notre
 code** — elle n'est interprétée que par le lanceur `opentelemetry-instrument`,
 qu'on n'utilise pas. L'exporter `console` écrit sur **stderr** : sur stdout il
