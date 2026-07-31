@@ -81,9 +81,13 @@ interne ne voit **jamais** la seconde URL — la requête ne part pas.
 
 ```python
 def client(**kwargs) -> httpx.Client        # la fabrique
-class BlockedTargetError(DomainError)       # destination refusée
 class _GuardTransport(httpx.BaseTransport)  # privé
 ```
+
+`BlockedTargetError` vit avec la famille, dans `app/core/exceptions.py`, et non
+dans `core/http.py` : c'est là que sont toutes les `DomainError` et le
+`register_exception_handlers` qui les sert. Une seconde maison pour les erreurs
+métier serait exactement la duplication de définition que #76 a coûtée.
 
 La fabrique pose `follow_redirects=True` par défaut et **enveloppe** le
 transport :
@@ -115,7 +119,12 @@ with http.client(timeout=30, headers=HEADERS) as client:
 
 Pour chaque destination — requête initiale **et** chaque saut :
 
-1. **Schéma** hors `http`/`https` → `BlockedTargetError`.
+1. **Schéma** hors `http`/`https` → `BlockedTargetError`. Ce contrôle **porte**,
+   il n'est pas de la défense en profondeur : mesuré, dès lors qu'un `transport=`
+   explicite est fourni, httpx n'écarte plus les autres schémas avant d'appeler
+   le transport. `ftp://exemple.fr/x` y arrive tel quel, et un
+   `302 → file:///etc/passwd` y arrive réécrit en `file://<host>/etc/passwd`,
+   répété jusqu'à `TooManyRedirects` (20 passages au transport).
 2. **Host** : littéral d'IP, vérifié tel quel ; sinon `getaddrinfo(host, port)`,
    et **toutes** les adresses rendues doivent être publiques. Une seule adresse
    interne suffit à refuser — un host hostile publie souvent les deux.
@@ -187,7 +196,8 @@ Un fichier neuf, `tests/test_core_http.py` :
 - **Mémo** — deux requêtes vers le même host, un seul `getaddrinfo` (compteur
   monkeypatché).
 - **`not issubclass(BlockedTargetError, ValueError)`**.
-- **Schéma non-http** refusé.
+- **Schéma non-http** refusé, dans les deux formes mesurées : une URL `ftp://`
+  demandée directement, et une `302 → file:///etc/passwd`.
 
 Plus un **méta-test** : scan de `app/**/*.py` pour `httpx.Client(`, `httpx.get(`,
 `httpx.post(`, `httpx.stream(`, `httpx.request(` hors `app/core/http.py`. La
