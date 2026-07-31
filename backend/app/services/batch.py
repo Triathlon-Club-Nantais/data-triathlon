@@ -14,6 +14,7 @@ from functools import partial
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
+from app.core.sql_observability import measure_queries
 from app.services import import_service
 from app.services.import_service import Reassignment
 from app.services.progress import NullReporter, ProgressReporter
@@ -202,13 +203,14 @@ def run_batch(
     try:
         for i, item in enumerate(items):
             _notify(partial(reporter.item_start, i, item.label))
-            try:
-                result = _import_one(
-                    db, item.url, settings, force=force, persist=persist, reporter=reporter
-                )
-            except Exception as exc:  # filet : un bug ne doit pas tuer le batch
-                logger.warning("Échec import %s : %s", item.url, exc)
-                result = _ItemResult(error=str(exc))
+            with measure_queries(item.label):
+                try:
+                    result = _import_one(
+                        db, item.url, settings, force=force, persist=persist, reporter=reporter
+                    )
+                except Exception as exc:  # filet : un bug ne doit pas tuer le batch
+                    logger.warning("Échec import %s : %s", item.url, exc)
+                    result = _ItemResult(error=str(exc))
 
             if result.error:
                 totals.errors += 1
