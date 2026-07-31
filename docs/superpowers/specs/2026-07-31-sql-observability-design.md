@@ -75,9 +75,11 @@ Deux modules nouveaux dans `app/core/`, sans dépendance l'un envers l'autre.
   SQLite existant est posé sur la classe et le reste : on ne le touche pas.
   L'argument explicite est ce qui rend le module testable sur un engine SQLite
   jetable sans instrumenter la suite entière.
-- **Chronométrage** : `perf_counter()` au départ, stocké sur l'`ExecutionContext`
-  que SQLAlchemy passe aux deux listeners (patron officiel), delta à l'arrivée.
-  Aucun état global à nettoyer.
+- **Chronométrage** : `perf_counter()` au départ, empilé dans `conn.info` — le
+  patron officiel de la documentation SQLAlchemy. Une **pile** et non une valeur
+  simple, pour tenir la réentrance ; `conn.info` est propre à la `Connection`,
+  donc au thread qui l'utilise. L'`ExecutionContext` passé aux listeners serait
+  plus direct mais vaut `None` sur certaines exécutions.
 - **`QueryStats`** : accumulateur (`count`, `total_ms`, `Counter` de requêtes
   normalisées), porté par un `ContextVar`.
 - **`measure_queries(label)`** : context manager qui ouvre un accumulateur, le
@@ -98,6 +100,12 @@ faux, et les imports `opentelemetry.*` sont faits **à l'intérieur** : process
 Allumée, elle construit un `TracerProvider` (avec `Resource`), pose
 `FastAPIInstrumentor` quand une app est fournie et `SQLAlchemyInstrumentor` quand
 un engine l'est.
+
+Le provider est passé **explicitement** aux deux instrumentations, et le module
+l'expose par un accesseur. Les spans ne dépendent donc pas du provider global :
+`trace.set_tracer_provider()` n'accepte qu'un seul appel par process — un second
+est ignoré avec un simple avertissement — ce qui rendrait tout test allumant OTel
+dépendant de son ordre d'exécution.
 
 ### Points d'accrochage dans l'existant
 
@@ -132,10 +140,20 @@ Lus **au démarrage du process**, pas par requête — `get_settings()` est déj
 Si `sql_slow_query_ms <= 0` **et** `sql_query_stats` faux, `install()` ne pose
 aucun listener : l'échappatoire pour un coût strictement nul.
 
-**Rien de plus côté OTel.** L'exporter, l'endpoint et le nom de service se
-règlent par les variables **standard du SDK** (`OTEL_TRACES_EXPORTER`,
-`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`), que le SDK lit lui-même :
-les redéclarer dans `Settings` créerait deux sources de vérité.
+**Rien de plus côté OTel** : la configuration passe par les variables **standard**
+`OTEL_TRACES_EXPORTER`, `OTEL_EXPORTER_OTLP_ENDPOINT` et `OTEL_SERVICE_NAME`. Les
+redéclarer dans `Settings` créerait deux sources de vérité.
+
+Attention, elles ne sont pas toutes lues au même endroit. `OTEL_SERVICE_NAME` est
+lu par `Resource.create()` et `OTEL_EXPORTER_OTLP_ENDPOINT` par l'exporter OTLP
+lui-même : rien à écrire. `OTEL_TRACES_EXPORTER`, en revanche, n'est interprété
+que par le lanceur `opentelemetry-instrument`, que nous n'utilisons pas — c'est
+donc **`setup_tracing()` qui la lit** et choisit l'exporter (`none` par défaut,
+`console`, `otlp`), en respectant la sémantique standard.
+
+Conséquence à ne pas manquer : `ConsoleSpanExporter` écrit sur **stdout** par
+défaut, ce qui casserait `… --json | jq` sur la CLI. Il est donc construit avec
+`out=sys.stderr`.
 
 `OTEL_ENABLED` n'est **pas** une variable standard OTel — c'est notre
 interrupteur, et lui seul décide si `setup_tracing()` fait quoi que ce soit. Le
