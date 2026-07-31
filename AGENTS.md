@@ -488,10 +488,19 @@ s'appuie dessus.
     (défaut `true` ; **passer à `false` en dev sur `http://localhost`** sinon
     le navigateur ignore le cookie).
   - `FRONTEND_POST_LOGIN_URL` — chaîne fixe (open redirect sinon).
-  - `GITHUB_OAUTH_REDIRECT_URL` — facultatif, à forcer derrière proxy TLS.
+  - `GITHUB_OAUTH_REDIRECT_URL` — **obligatoire en prod**, sur le domaine
+    **Vercel** (`https://<front>.vercel.app/api/v1/auth/github/callback`).
+    Pas Render : le front proxifie `/api/*`, donc les cookies sont attribués
+    au domaine Vercel ; un callback pointant sur Render court-circuiterait le
+    proxy et le cookie `tcn_oauth_state` (host-only sur Vercel) ne serait pas
+    envoyé au retour d'autorisation → 400 systématique. Détail dans la
+    review B1 de la PR #159.
 - **Créer une app OAuth GitHub en local** — voir
-  `specs/006-auth-backend-github/quickstart.md` §2 (5 minutes, gratuit, dépôt
-  perso, callback `http://localhost:8001/api/v1/auth/github/callback`).
+  `specs/006-auth-backend-github/quickstart.md` §2. **En dev, callback sur
+  `http://127.0.0.1/api/v1/auth/github/callback` sans port** : les cookies
+  ignorent le port, `request.url_for` reconstruit avec le port réel du
+  worktree, et `GITHUB_OAUTH_REDIRECT_URL` reste vide en dev. Une seule app
+  OAuth pour tous les worktrees.
 - **Ce que #114 ne fait pas** — reporté à d'autres sous-issues :
   - #115 : rôles, RBAC, `require_role`, commande CLI `create-admin`.
   - #116 : UI `/login`, bouton « Se connecter » dans le header, gestion de session côté Next.js.

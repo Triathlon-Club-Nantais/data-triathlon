@@ -54,8 +54,14 @@ class Settings(BaseSettings):
     github_oauth_client_id: str = ""
     github_oauth_client_secret: str = ""
     # Cible du callback GitHub. Défaut None → l'endpoint construit
-    # request.url_for("github_callback") au runtime. À forcer explicitement en
-    # prod (Render derrière proxy TLS, où request.url_for peut sortir en http).
+    # request.url_for("github_callback") au runtime.
+    # **Obligatoire en prod**, et sur le domaine du FRONTEND (Vercel) — pas
+    # celui du backend (Render). Les cookies `tcn_oauth_state` et `tcn_session`
+    # sont posés par la réponse au navigateur, qui les attribue au domaine de
+    # l'origine appelée (Vercel via le rewrite `/api/*`). Si le callback pointe
+    # sur Render, GitHub renvoie le navigateur sur Render → cookie state
+    # host-only sur Vercel jamais envoyé → 400 « État CSRF invalide. »
+    # systématique. Cf. review B1 de la PR #159.
     github_oauth_redirect_url: str | None = None
     # Clé HMAC de signature des cookies de session et du cookie de state OAuth.
     # Sa rotation invalide toutes les sessions en cours (kill-switch).
@@ -67,13 +73,37 @@ class Settings(BaseSettings):
     # Où le callback redirige après avoir posé le cookie. Une chaîne fixe côté
     # config, jamais un paramètre d'entrée du callback (open redirect sinon).
     frontend_post_login_url: str = "/"
+    # Liste blanche de logins GitHub autorisés à ouvrir une session (CSV).
+    # Vide = **tout compte GitHub accepté** — mode explicite, à réserver au
+    # dev. En prod, renseigner les logins des contributeurs. Un login GitHub
+    # est stable (GitHub bloque la réutilisation à la suppression). Cf. review
+    # B2 de la PR #159 : sans allowlist, tout compte GitHub obtient une fiche
+    # `users`, ce qui pollue la table sur laquelle #115 posera `require_role`.
+    github_allowed_logins: Annotated[list[str], NoDecode] = []
 
-    @field_validator("cors_origins", mode="before")
+    @field_validator("cors_origins", "github_allowed_logins", mode="before")
     @classmethod
-    def _split_cors(cls, v):
+    def _split_csv(cls, v):
         """Accepte une chaîne CSV depuis l'environnement."""
         if isinstance(v, str):
             return [o.strip() for o in v.split(",") if o.strip()]
+        return v
+
+    @field_validator("session_secret_key")
+    @classmethod
+    def _reject_weak_session_secret(cls, v: str) -> str:
+        """Empty is ok (disables auth explicitly, FR-020); short is not.
+
+        A `dev` or `changeme` value would pass unnoticed and produce a HMAC
+        signature trivially forgeable — this is exactly what would break
+        after RBAC lands in #115.
+        """
+        if v and len(v) < 32:
+            raise ValueError(
+                "SESSION_SECRET_KEY must be at least 32 characters (or empty "
+                "to explicitly disable auth). Generate with: "
+                'python -c "import secrets; print(secrets.token_urlsafe(64))"'
+            )
         return v
 
     @property

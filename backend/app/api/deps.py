@@ -22,13 +22,17 @@ def _resolve_session_user(
     token = request.cookies.get(SESSION_COOKIE_NAME)
     if not token or not settings.session_secret_key:
         return None
-    user_id = auth_service.verify_session(
+    payload = auth_service.verify_session(
         settings.session_secret_key, token, max_age=settings.session_max_age_seconds
     )
-    if user_id is None:
+    if payload is None:
         return None
+    user_id, epoch = payload
     user = user_repository.get(db, user_id)
     if user is None or not user.is_active:
+        return None
+    # B4: a cookie issued before the last logout of this user is rejected.
+    if user.session_epoch != epoch:
         return None
     return user
 

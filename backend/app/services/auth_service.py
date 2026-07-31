@@ -3,6 +3,9 @@
 Never touches the SQLAlchemy Session (Principe II). The router wires this
 module to `user_repository` and to httpx.
 """
+import base64
+import hashlib
+import secrets as py_secrets
 from typing import Any
 from urllib.parse import urlencode
 
@@ -39,11 +42,20 @@ def _state_serializer(secret_key: str) -> URLSafeTimedSerializer:
     return URLSafeTimedSerializer(secret_key, salt=_STATE_SALT)
 
 
-def sign_session(secret_key: str, user_id: int) -> str:
-    return _session_serializer(secret_key).dumps({"uid": user_id, "v": _SESSION_VERSION})
+def sign_session(secret_key: str, user_id: int, epoch: int = 0) -> str:
+    return _session_serializer(secret_key).dumps(
+        {"uid": user_id, "epoch": epoch, "v": _SESSION_VERSION}
+    )
 
 
-def verify_session(secret_key: str, token: str, max_age: int) -> int | None:
+def verify_session(
+    secret_key: str, token: str, max_age: int
+) -> tuple[int, int] | None:
+    """Return `(user_id, epoch)` if the cookie is valid, else `None`.
+
+    The caller compares `epoch` against `User.session_epoch` to reject
+    cookies issued before the last logout of that user. Cf. review B4.
+    """
     try:
         payload = _session_serializer(secret_key).loads(token, max_age=max_age)
     except (BadSignature, SignatureExpired):
@@ -51,19 +63,57 @@ def verify_session(secret_key: str, token: str, max_age: int) -> int | None:
     if not isinstance(payload, dict) or payload.get("v") != _SESSION_VERSION:
         return None
     uid = payload.get("uid")
-    return uid if isinstance(uid, int) else None
+    if not isinstance(uid, int):
+        return None
+    epoch = payload.get("epoch", 0)
+    if not isinstance(epoch, int):
+        return None
+    return uid, epoch
 
 
-def sign_state(secret_key: str, state: str) -> str:
-    return _state_serializer(secret_key).dumps(state)
+def sign_state(secret_key: str, state: str, verifier: str | None = None) -> str:
+    """Sign the CSRF `state` together with the PKCE `verifier`.
+
+    Backwards-compatible: an older cookie carrying just a `str` is still
+    parseable via `verify_state`. When `verifier` is None, the signed value
+    is a plain string (legacy shape); otherwise it's `{"s": state, "v": verifier}`.
+    """
+    payload = {"s": state, "v": verifier} if verifier is not None else state
+    return _state_serializer(secret_key).dumps(payload)
 
 
-def verify_state(secret_key: str, token: str, max_age: int) -> str | None:
+def verify_state(
+    secret_key: str, token: str, max_age: int
+) -> tuple[str, str | None] | None:
+    """Return `(state, verifier|None)` if the cookie is valid, else `None`."""
     try:
         value = _state_serializer(secret_key).loads(token, max_age=max_age)
     except (BadSignature, SignatureExpired):
         return None
-    return value if isinstance(value, str) else None
+    if isinstance(value, str):
+        return value, None
+    if isinstance(value, dict) and isinstance(value.get("s"), str):
+        verifier = value.get("v")
+        if verifier is not None and not isinstance(verifier, str):
+            return None
+        return value["s"], verifier
+    return None
+
+
+# ---------------------------------------------------------------------------
+# PKCE (S256) — B5 of PR #159 review
+# ---------------------------------------------------------------------------
+
+
+def generate_pkce_verifier() -> str:
+    """43-char urlsafe verifier (RFC 7636 §4.1: min 43, max 128, unreserved chars)."""
+    return py_secrets.token_urlsafe(32)
+
+
+def pkce_challenge(verifier: str) -> str:
+    """S256 challenge = base64url(SHA-256(verifier)) without padding."""
+    digest = hashlib.sha256(verifier.encode("ascii")).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
 
 
 # ---------------------------------------------------------------------------
@@ -71,16 +121,22 @@ def verify_state(secret_key: str, token: str, max_age: int) -> str | None:
 # ---------------------------------------------------------------------------
 
 
-def build_authorize_url(client_id: str, redirect_uri: str, state: str) -> str:
-    query = urlencode(
-        {
-            "client_id": client_id,
-            "redirect_uri": redirect_uri,
-            "scope": "user:email",
-            "state": state,
-        }
-    )
-    return f"{_GITHUB_AUTHORIZE_URL}?{query}"
+def build_authorize_url(
+    client_id: str,
+    redirect_uri: str,
+    state: str,
+    code_challenge: str | None = None,
+) -> str:
+    params = {
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "scope": "user:email",
+        "state": state,
+    }
+    if code_challenge is not None:
+        params["code_challenge"] = code_challenge
+        params["code_challenge_method"] = "S256"
+    return f"{_GITHUB_AUTHORIZE_URL}?{urlencode(params)}"
 
 
 def exchange_code_for_token(
@@ -90,20 +146,24 @@ def exchange_code_for_token(
     client_id: str,
     client_secret: str,
     redirect_uri: str,
+    code_verifier: str | None = None,
 ) -> str:
     """Exchange the authorization code for an access token.
 
     Raises DomainError with a French, user-facing message on failure.
     """
+    body = {
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "code": code,
+        "redirect_uri": redirect_uri,
+    }
+    if code_verifier is not None:
+        body["code_verifier"] = code_verifier
     response = http.post(
         _GITHUB_TOKEN_URL,
         headers={"Accept": "application/json"},
-        data={
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "code": code,
-            "redirect_uri": redirect_uri,
-        },
+        data=body,
     )
     if not response.is_success:
         raise DomainError("Autorisation GitHub refusée.")

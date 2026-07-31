@@ -5,6 +5,24 @@ fois #114 mergé, ce contrat est **stable** au sens Principe IV : un changement
 d'incompatible (champ retiré, code de retour modifié, comportement inversé)
 motive une v2, pas une modification silencieuse.
 
+## Contrainte de topologie (B1 — critique)
+
+Le back TCN vit sur Render (domaine `.onrender.com`) et le front sur Vercel
+(domaine `.vercel.app`). Le front proxifie `/api/*` vers le back via un
+rewrite Next.js `next.config.ts`. Le navigateur voit **uniquement** l'origine
+Vercel : c'est elle qui reçoit les `Set-Cookie` et qui les renvoie.
+
+**`GITHUB_OAUTH_REDIRECT_URL` doit donc pointer sur le domaine Vercel**, pas
+sur Render — sinon GitHub renvoie le navigateur sur Render au retour
+d'autorisation, le cookie `tcn_oauth_state` (host-only sur Vercel) n'est pas
+envoyé, et le callback échoue en 400 systématique. Détail dans la Review B1
+de la PR #159.
+
+En prod, l'app OAuth GitHub est donc configurée avec :
+
+- Homepage URL : `https://<front>.vercel.app`
+- Authorization callback URL : `https://<front>.vercel.app/api/v1/auth/github/callback`
+
 ## Vue d'ensemble
 
 | Méthode | Chemin | Auth requise | Effet |

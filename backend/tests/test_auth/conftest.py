@@ -29,7 +29,7 @@ def auth_settings(monkeypatch):
         "GITHUB_OAUTH_REDIRECT_URL",
         "http://testserver/api/v1/auth/github/callback",
     )
-    monkeypatch.setenv("SESSION_SECRET_KEY", "test-session-secret")
+    monkeypatch.setenv("SESSION_SECRET_KEY", "test-session-secret-must-be-32-chars-min")
     monkeypatch.setenv("SESSION_COOKIE_SECURE", "false")
     monkeypatch.setenv("FRONTEND_POST_LOGIN_URL", "http://frontend.local/admin")
 

@@ -4,8 +4,15 @@
 def test_sign_then_verify_roundtrip():
     from app.services import auth_service
 
+    token = auth_service.sign_session("secret-key", user_id=42, epoch=3)
+    assert auth_service.verify_session("secret-key", token, max_age=60) == (42, 3)
+
+
+def test_sign_defaults_epoch_to_zero():
+    from app.services import auth_service
+
     token = auth_service.sign_session("secret-key", user_id=42)
-    assert auth_service.verify_session("secret-key", token, max_age=60) == 42
+    assert auth_service.verify_session("secret-key", token, max_age=60) == (42, 0)
 
 
 def test_tampered_signature_is_rejected():

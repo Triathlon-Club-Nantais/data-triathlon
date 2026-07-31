@@ -9,3 +9,30 @@ services:
     envVars:
       - key: DATABASE_URL
         sync: false
+      # ── Authentification GitHub OAuth (issue #114) ──────────────────────
+      # `sync: false` déclare la variable sans committer sa valeur — Render la
+      # réclame à la création du service. FR-020 : laisser vide neutralise
+      # l'auth sans casser l'API publique (503 sur /auth/github/*).
+      - key: GITHUB_OAUTH_CLIENT_ID
+        sync: false
+      - key: GITHUB_OAUTH_CLIENT_SECRET
+        sync: false
+      # Doit pointer sur le domaine du FRONTEND Vercel (cf. review B1).
+      # Format : https://<front>.vercel.app/api/v1/auth/github/callback
+      - key: GITHUB_OAUTH_REDIRECT_URL
+        sync: false
+      # Rotation = kill-switch global. `generateValue: true` fait générer une
+      # clé aléatoire par Render au provisioning.
+      - key: SESSION_SECRET_KEY
+        generateValue: true
+      - key: SESSION_MAX_AGE_SECONDS
+        value: "604800"
+      - key: SESSION_COOKIE_SECURE
+        value: "true"
+      # Chaîne fixe (open redirect sinon). Format : https://<front>.vercel.app/
+      - key: FRONTEND_POST_LOGIN_URL
+        sync: false
+      # Allowlist des logins GitHub (CSV). Vide = tout le monde. En prod,
+      # renseigner explicitement les logins autorisés. Cf. review B2.
+      - key: GITHUB_ALLOWED_LOGINS
+        sync: false

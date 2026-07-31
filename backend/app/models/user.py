@@ -24,12 +24,22 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=utcnow
     )
+    # Incremented at logout — comparing this against the epoch signed into a
+    # session token lets us invalidate all outstanding cookies of one user
+    # without rotating the global SESSION_SECRET_KEY (which would sign every
+    # other user out). Cf. review B4 of PR #159.
+    session_epoch: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     athlete_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("athletes.id", ondelete="SET NULL"),
         nullable=True,
     )
 
+    # `lazy="raise"` because nothing on this ticket reads `User.athlete` — the
+    # `UserRead` schema doesn't expose it. Any accidental access will raise
+    # loudly instead of silently issuing a `LEFT JOIN athletes` on every
+    # authenticated request. #117 will flip this back to `joined` (or eager
+    # load explicitly) when it actually consumes the relationship.
     athlete: Mapped["Athlete | None"] = relationship(  # noqa: F821
-        "Athlete", lazy="joined", passive_deletes=True
+        "Athlete", lazy="raise", passive_deletes=True
     )

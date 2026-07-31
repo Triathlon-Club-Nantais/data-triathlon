@@ -124,7 +124,7 @@ def test_session_signed_by_previous_key_is_rejected_after_rotation(
     )
 
     # rotate the key
-    monkeypatch.setenv("SESSION_SECRET_KEY", "rotated-key")
+    monkeypatch.setenv("SESSION_SECRET_KEY", "rotated-key-also-32-chars-min-long")
     config.get_settings.cache_clear()
 
     client, _ = _client(db_session, config.get_settings())
