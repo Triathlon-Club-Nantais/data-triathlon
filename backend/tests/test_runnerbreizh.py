@@ -412,8 +412,12 @@ def test_parse_row_carries_the_event_metadata():
 
 
 def _fake_client(monkeypatch, pages: dict[int, str], default: str | None = None):
+    # On remplace la fabrique du module, pas `httpx.Client` : depuis #101 le
+    # scraper n'ouvre plus de client httpx lui-même, il passe par
+    # `app.core.http.client()`. Patcher httpx obligeait `runnerbreizh` à garder
+    # un `import httpx` dont sa production n'a plus l'usage.
     client = FakeClient(pages, default)
-    monkeypatch.setattr(runnerbreizh.httpx, "Client", lambda *a, **k: client)
+    monkeypatch.setattr(runnerbreizh.http, "client", lambda *a, **k: client)
     return client
 
 

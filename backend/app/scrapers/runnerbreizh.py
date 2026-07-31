@@ -23,7 +23,6 @@ from dataclasses import dataclass
 from datetime import date
 from urllib.parse import parse_qs, urlencode, urlparse
 
-import httpx  # noqa: F401 — tests/test_runnerbreizh.py patche `runnerbreizh.httpx.Client`
 from bs4 import BeautifulSoup
 
 from app.core import http
