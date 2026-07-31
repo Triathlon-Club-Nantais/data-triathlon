@@ -241,6 +241,25 @@ rien n'empêchant le prochain scraper d'écrire `httpx.Client(...)` nu.
 
 ## Résidus connus
 
+**Le garde résout un nom, il ne contrôle pas la connexion.** C'est le résidu
+générique, dont les autres sont des instances : `_check_target` interroge *son*
+résolveur, httpcore ouvre *sa* socket, et rien n'oblige les deux à désigner la
+même machine. Toute divergence entre ces deux chemins — de nom ou d'adresse —
+est un contournement potentiel du garde. Il s'en connaît deux :
+
+- **la divergence de nom** (fermée). `url.host` est l'Unicode, ré-encodé par
+  `getaddrinfo` avec le codec `idna` de CPython, soit IDNA 2003 ; httpcore joint
+  `url.raw_host`, produit par httpx avec idna 2008. Sur ß, sigma final ou
+  ZWJ/ZWNJ ce sont deux domaines enregistrables distincts (`faß.example` →
+  `fass.example` contre `xn--fa-hia.example`). Le garde résout désormais
+  `raw_host`, le nom du fil ;
+- **la divergence d'adresse** (ouverte) : le TOCTOU / rebinding DNS ci-dessous.
+
+Le seul correctif qui referme la classe entière est l'épinglage de l'adresse
+validée jusqu'à la connexion — écarté plus haut. À défaut, tout changement
+touchant la façon dont le garde nomme ou résout sa cible se relit avec cette
+question : est-ce bien ce qu'httpcore joindra ?
+
 **TOCTOU / rebinding DNS.** httpx résout une seconde fois pour se connecter, et
 le mémo par client élargit la fenêtre. Un DNS hostile pourrait rendre une adresse
 publique à la vérification et une adresse interne à la connexion. Assumé : voir
