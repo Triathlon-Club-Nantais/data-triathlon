@@ -289,29 +289,97 @@ def test_la_fabrique_pose_follow_redirects_par_defaut(monkeypatch):
     assert vus.get("timeout") == 30
 
 
+#: Fonctions et classes d'`httpx` qui **ouvrent** une connexion. Une annotation
+#: de paramètre (`client: httpx.Client`) n'en fait pas partie : ces fonctions
+#: reçoivent leur client, elles n'en construisent pas — et l'AST les distingue
+#: nativement, une annotation étant un `Attribute` et non un `Call`.
+_VERBES_HTTPX = frozenset({
+    "Client", "AsyncClient",
+    "get", "post", "put", "patch", "delete", "head", "options",
+    "stream", "request",
+})
+
+
+def _httpx_nu(source: str) -> list[int]:
+    """Lignes de `source` qui ouvrent une connexion httpx sans passer par la fabrique.
+
+    Analyse l'AST plutôt que le texte : un motif textuel est aveugle aux alias
+    (`import httpx as h`, `from httpx import Client`), et il faut lui apprendre
+    à ne pas mordre sur les annotations. L'AST résout les deux d'un coup — il
+    sait à quel module un nom est lié, et un appel y est un nœud distinct d'une
+    annotation.
+    """
+    import ast
+
+    arbre = ast.parse(source)
+
+    modules: set[str] = set()   # noms liés au module httpx (`httpx`, `h`, …)
+    directs: set[str] = set()   # noms liés à un verbe d'httpx (`from httpx import Client`)
+    for noeud in ast.walk(arbre):
+        if isinstance(noeud, ast.Import):
+            modules |= {
+                alias.asname or alias.name
+                for alias in noeud.names
+                if alias.name == "httpx"
+            }
+        elif isinstance(noeud, ast.ImportFrom) and noeud.module == "httpx":
+            directs |= {
+                alias.asname or alias.name
+                for alias in noeud.names
+                if alias.name in _VERBES_HTTPX
+            }
+
+    fautives: list[int] = []
+    for noeud in ast.walk(arbre):
+        if not isinstance(noeud, ast.Call):
+            continue
+        cible = noeud.func
+        if (
+            isinstance(cible, ast.Attribute)
+            and isinstance(cible.value, ast.Name)
+            and cible.value.id in modules
+            and cible.attr in _VERBES_HTTPX
+        ) or (isinstance(cible, ast.Name) and cible.id in directs):
+            fautives.append(noeud.lineno)
+    return sorted(fautives)
+
+
+def test_le_detecteur_voit_les_formes_alias():
+    """Le détecteur suit les alias — c'est ce qu'un motif textuel ne savait pas faire."""
+    assert _httpx_nu("import httpx\nhttpx.Client(timeout=1)\n") == [2]
+    assert _httpx_nu("import httpx as h\nh.Client(timeout=1)\n") == [2]
+    assert _httpx_nu("from httpx import Client\nClient(timeout=1)\n") == [2]
+    assert _httpx_nu("from httpx import Client as C\nC(timeout=1)\n") == [2]
+    assert _httpx_nu("import httpx as h\nh.get('http://x')\n") == [2]
+
+
+def test_le_detecteur_ignore_ce_qui_nouvre_aucune_connexion():
+    """Annotations, clients reçus en paramètre, et fabrique maison restent légitimes."""
+    assert _httpx_nu("import httpx\ndef f(client: httpx.Client) -> None: ...\n") == []
+    assert _httpx_nu("import httpx\ndef f(c): return c.get('http://x')\n") == []
+    assert _httpx_nu("from app.core import http\nhttp.client(timeout=30)\n") == []
+    # Un `Client` homonyme venu d'ailleurs n'est pas celui d'httpx.
+    assert _httpx_nu("from ailleurs import Client\nClient()\n") == []
+    # `httpx.HTTPError` n'ouvre rien : c'est une exception, pas un verbe.
+    assert _httpx_nu("import httpx\ntry: ...\nexcept httpx.HTTPError: ...\n") == []
+
+
 def test_meta_aucun_httpx_nu_dans_app():
-    """Aucune construction de client httpx hors de `app/core/http.py`.
+    """Aucune ouverture de connexion httpx hors de `app/core/http.py`.
 
     Pendant de `HostMatchedProvider` en #49 : il ne suffit pas de corriger les
     sites d'aujourd'hui, il faut que l'oubli du prochain fournisseur ajouté
-    soit une erreur de test. La parenthèse évite de mordre sur les annotations
-    de paramètre (`client: httpx.Client`), qui sont légitimes — ces fonctions
-    reçoivent leur client, elles n'en construisent pas.
+    soit une erreur de test.
     """
-    import re
     from pathlib import Path
 
     racine = Path(__file__).resolve().parent.parent / "app"
-    motif = re.compile(
-        r"\bhttpx\.(Client|AsyncClient|get|post|put|patch|delete|head|options|stream|request)\("
-    )
 
     fautifs = [
-        f"{chemin.relative_to(racine)}:{numero}"
+        f"{chemin.relative_to(racine)}:{ligne}"
         for chemin in sorted(racine.rglob("*.py"))
         if chemin != racine / "core" / "http.py"
-        for numero, ligne in enumerate(chemin.read_text(encoding="utf-8").splitlines(), 1)
-        if motif.search(ligne)
+        for ligne in _httpx_nu(chemin.read_text(encoding="utf-8"))
     ]
 
     assert fautifs == [], (
