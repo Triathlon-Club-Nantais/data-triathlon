@@ -35,9 +35,12 @@ contrat public — `athletes.nom` / `athletes.prenom`, première famille de (§4
 de la seconde famille de (§4b) (`Reassignment.ancien/nouveau/fusion`,
 `IdentiteReconciliee.ancien/nouveau/participations`), identifiée après ce
 relevé : ils comptent dans les 184 mais n'en sont pas soustraits ici, `~172`
-est donc une **borne haute**, pas le compte net final. Les décomptes par module
-de la §5 sont donc des ordres de grandeur : **chaque PR établit sa liste
-exacte**, elle ne la présume pas.
+est donc une **borne haute**, pas le compte net final. Le lot I (§5) s'y
+**ajoute** plutôt que de la recouper — son lexique n'a été identifié qu'après
+ce relevé — donc `~172` n'en tient pas compte non plus. Le net final ne se lit
+pas dans ce document : il s'établit **lot par lot**, aucun total consolidé
+n'est promis ici. Les décomptes par module de la §5 sont donc des ordres de
+grandeur : **chaque PR établit sa liste exacte**, elle ne la présume pas.
 
 Le cas le plus net du constat de l'issue tient en une signature :
 
@@ -172,8 +175,10 @@ La liste des lots reste un **plan de découpage**, pas un périmètre ouvert :
 l'ordre et le regroupement par module sont écrits, pas laissés à
 l'appréciation de la prochaine session. Ce n'est en revanche plus elle qui
 définit la fin de la dérogation — un relevé lexical n'est jamais garanti
-exhaustif (§5, lot I) ; c'est pourquoi l'extinction se vérifie sur l'état du
-code, pas sur une liste cochée.
+exhaustif : le lexique du relevé initial (§2) ne contenait ni « espace », ni
+« blanc », ni « normalise », ni « qualifiant », ni « sans_lien », ce qui a
+laissé passer les ~7 symboles du lot I (§5) sous ce même relevé ; c'est
+pourquoi l'extinction se vérifie sur l'état du code, pas sur une liste cochée.
 
 ## 5. Les lots (plan de découpage)
 
@@ -190,9 +195,13 @@ code, pas sur une liste cochée.
 | I | `app/core/club.py`, `app/scrapers/utils.py`, `app/services/sheet_source.py` | ~7 |
 
 Les décomptes A à H reprennent le relevé **brut** de la §2, faux positifs
-compris : la somme vaut donc ~181 (les 184 relevés moins les 3 sites gelés de
-la première famille de (b)), non les ~172 nets. Les lots A et B se recoupent
-nominalement sur `cli/reports.py`, et la §5.1 dit comment ce recouvrement se
+compris : leur somme vaut **~184**, soit le relevé brut lui-même — pas ~181
+comme le calcul « 184 moins les 3 sites gelés de la première famille de (b) »
+le suggérerait : les décomptes par lot sont des ordres de grandeur, pas une
+partition exacte du relevé, et l'écart tient à cette imprécision plutôt qu'à
+une mesure supplémentaire. Ce n'est en tout cas pas les ~172 nets. Les lots A
+et B se recoupent nominalement sur `cli/reports.py`, et la §5.1 dit comment ce
+recouvrement se
 tranche. Le lot I n'est **pas** dans ces 184 : son lexique n'a été identifié
 qu'après coup (§4c), il s'ajoute au décompte plutôt que de le recouper — c'est
 la plus petite PR de la campagne, et la preuve que le relevé initial n'était
@@ -259,7 +268,7 @@ français — c'est le point 3 de l'issue, et il est déjà couvert par le Princ
 Le lot A ne touche que les **noms de symboles** qui les portent.
 
 **Glossaire de la campagne.** Le paragraphe précédent renvoie la frontière
-épreuve / course à une vérification « lot par lot » — trop faible pour huit PRs
+épreuve / course à une vérification « lot par lot » — trop faible pour neuf PRs
 successives, qui rejugeraient chacune la même question. La correspondance se
 fixe donc une fois, ici, plutôt que de se rouvrir à chaque lot :
 **`épreuve` → `event`**, **`course` → `race`**. `ScrapedResult.event_name` et
