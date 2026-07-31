@@ -18,6 +18,7 @@ fonctions ont des signatures divergentes et wiclax n'a pas de tests, donc on év
 de les fusionner ici au risque d'une régression silencieuse. Voir le design.
 """
 import logging
+from collections.abc import Callable
 from typing import Protocol, runtime_checkable
 from urllib.parse import parse_qs, urlparse
 
@@ -123,10 +124,24 @@ class HostMatchedProvider:
 
 
 class KlikegoProvider(HostMatchedProvider):
+    """Klikego — URL d'événement = tous les heats (fan-out, issue #156).
+
+    Le paramètre `?heat=X` **éventuellement présent** dans l'URL est **ignoré**
+    sur le chemin nominal. L'échappatoire pour cibler un heat unique est
+    l'option CLI `rescrape-db --single-heat` (chemin `single_heat=True`).
+
+    Le fan-out expose sa progression dans `self.last_trace` (compteurs
+    `heats_enumerated`, `heats_cached`, `heats_imported`, `failures`) — lue par
+    `import_service` pour peupler le SSE `done`.
+    """
     name = "klikego"
     _HOSTS = ("klikego.com",)
 
-    def scrape_event_all(self, url: str) -> list[ScrapedResult]:
+    def __init__(self) -> None:
+        self.last_trace: klikego.FanoutTrace | None = None
+
+    def _parse_url(self, url: str) -> tuple[str, str, str, str]:
+        """(event_id, heat_query, slug, event_name) — `heat_query` = ?heat= éventuel."""
         parsed = urlparse(url)
         params = parse_qs(parsed.query)
         path_parts = [p for p in parsed.path.strip("/").split("/") if p]
@@ -134,14 +149,35 @@ class KlikegoProvider(HostMatchedProvider):
         heat = params.get("heat", [""])[0]
         slug = path_parts[-2] if len(path_parts) >= 2 else ""
         event_name = slug.replace("-", " ").title() if slug else ""
-        if not heat:
-            # Auto-détection du heat via le helper klikego
-            from app.core import http
-            from app.scrapers.klikego import HEADERS as KL_HEADERS
-            from app.scrapers.klikego import _detect_heat
-            with http.client(timeout=20, headers=KL_HEADERS) as client:
-                heat = _detect_heat(event_id, client)
-        return klikego.scrape_event_all(event_id, heat, event_name, slug)
+        return event_id, heat, slug, event_name
+
+    def scrape_event_all(
+        self, url: str,
+        *,
+        cache_probe: Callable[[str], bool] | None = None,
+        single_heat: bool = False,
+    ) -> list[ScrapedResult]:
+        """Fan-out par défaut ; `single_heat=True` cible le `?heat=X` de l'URL."""
+        event_id, heat_query, slug, event_name = self._parse_url(url)
+
+        if single_heat:
+            # Chemin échappatoire (--single-heat) : nécessite ?heat=X dans l'URL.
+            # La validation CLI (validators) doit refuser une URL nue avant d'arriver ici.
+            self.last_trace = klikego.FanoutTrace(heats_enumerated=1)
+            try:
+                return klikego.scrape_event_all(event_id, heat_query, event_name, slug)
+            except Exception as exc:
+                self.last_trace.failures.append(
+                    {"heat_slug": heat_query, "reason": str(exc)}
+                )
+                raise
+
+        # Chemin nominal (fan-out) : ?heat=X ignoré, on énumère tous les heats.
+        results, trace = klikego.scrape_event_fanout(
+            event_id, event_name, slug, cache_probe=cache_probe,
+        )
+        self.last_trace = trace
+        return results
 
 
 class BreizhChronoProvider(HostMatchedProvider):
@@ -384,6 +420,20 @@ def detect_provider(url: str) -> str:
     return _find_provider(url).name
 
 
+def get_provider(url: str) -> ScraperProtocol | None:
+    """Retourne l'instance de provider qui reconnaît l'URL, ou None.
+
+    Distinct de `detect_provider` (qui rend le slug) : cette fonction expose
+    l'instance elle-même, nécessaire à `import_service.iter_import_event` pour
+    lire des attributs post-scrape comme `KlikegoProvider.last_trace`.
+    Ignore le fallback (Playwright) : une URL non reconnue → None.
+    """
+    for provider in PROVIDERS:
+        if provider.matches(url):
+            return provider
+    return None
+
+
 def is_supported(url: str) -> bool:
     """Vrai si un provider du registre reconnaît l'URL (fallback playwright exclu).
 
@@ -396,7 +446,15 @@ def is_supported(url: str) -> bool:
     return detect_provider(url) in provider_names()
 
 
-def scrape_event_all(url: str) -> list[ScrapedResult]:
+def scrape_event_all(url: str, **kwargs) -> list[ScrapedResult]:
+    """Dispatch vers le provider matché.
+
+    `**kwargs` propage les options optionnelles (`cache_probe`, `single_heat` pour
+    Klikego — issue #156). Les autres providers, qui ne les acceptent pas dans
+    leur signature, sont appelés sans kwargs pour rester rétro-compatibles.
+    """
     provider = _find_provider(url)
     logger.info("Import épreuve via %s : %s", provider.name, url)
+    if isinstance(provider, KlikegoProvider):
+        return provider.scrape_event_all(url, **kwargs)
     return provider.scrape_event_all(url)

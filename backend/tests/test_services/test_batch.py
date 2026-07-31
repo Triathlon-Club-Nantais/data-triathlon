@@ -11,7 +11,7 @@ def _settings() -> Settings:
     return Settings(cache_ttl_in_progress_seconds=600, cache_ttl_finished_seconds=2592000)
 
 
-def _phases_ok(db, url, settings, force=False, persist=True):
+def _phases_ok(db, url, settings, force=False, persist=True, **kwargs):
     """Simule iter_import_event pour une épreuve de 30 participants."""
     yield {"phase": "scraping", "message": "Récupération des participants…"}
     yield {"phase": "saving", "total": 30, "imported": 0, "skipped": 0, "progress": 0}
@@ -45,7 +45,7 @@ def test_run_batch_relaie_la_progression_intra_epreuve(db_session, monkeypatch, 
 def test_run_batch_phase_error_compte_une_erreur_sans_interrompre(
     db_session, monkeypatch, fake_reporter
 ):
-    def _phases(db, url, settings, force=False, persist=True):
+    def _phases(db, url, settings, force=False, persist=True, **kwargs):
         if "boom" in url:
             yield {"phase": "error", "message": "timeout scrape"}
             return
@@ -70,7 +70,7 @@ def test_run_batch_collecte_le_detail_des_echecs(db_session, monkeypatch):
     On veut pouvoir diagnostiquer (ou rescraper) les épreuves fautives sans
     rejouer le batch : chaque échec retient son URL et son message.
     """
-    def _phases(db, url, settings, force=False, persist=True):
+    def _phases(db, url, settings, force=False, persist=True, **kwargs):
         if "crash" in url:
             raise RuntimeError("bug inattendu")  # exception réelle → filet de run_batch
         yield {"phase": "error", "message": "timeout scrape"}  # phase error explicite
@@ -105,7 +105,7 @@ def test_run_batch_sans_echec_ne_collecte_rien(db_session, monkeypatch):
 
 
 def test_run_batch_une_exception_reelle_compte_aussi_une_erreur(db_session, monkeypatch):
-    def _phases(db, url, settings, force=False, persist=True):
+    def _phases(db, url, settings, force=False, persist=True, **kwargs):
         raise RuntimeError("bug inattendu")
         yield  # pragma: no cover — fait de _phases un générateur
 
@@ -121,7 +121,7 @@ def test_run_batch_une_exception_reelle_compte_aussi_une_erreur(db_session, monk
 
 
 def test_run_batch_ctrl_c_conserve_le_travail_deja_fait(db_session, monkeypatch, fake_reporter):
-    def _phases(db, url, settings, force=False, persist=True):
+    def _phases(db, url, settings, force=False, persist=True, **kwargs):
         if "stop" in url:
             raise KeyboardInterrupt
         yield from _phases_ok(db, url, settings, force)
@@ -166,7 +166,7 @@ def test_run_batch_ctrl_c_ne_compte_pas_l_epreuve_coupee_en_traitee(db_session, 
 
     Le Ctrl-C tombe pendant la 2e des trois épreuves ⇒ une seule est allée au bout.
     """
-    def _phases(db, url, settings, force=False, persist=True):
+    def _phases(db, url, settings, force=False, persist=True, **kwargs):
         if "stop" in url:
             raise KeyboardInterrupt
         yield from _phases_ok(db, url, settings, force)
@@ -186,7 +186,7 @@ def test_run_batch_ctrl_c_ne_compte_pas_l_epreuve_coupee_en_traitee(db_session, 
 
 def test_run_batch_une_epreuve_en_erreur_reste_une_epreuve_traitee(db_session, monkeypatch):
     """Tentée et échouée = traitée. Sinon `traitées` mentirait sur ce qui a été tenté."""
-    def _phases(db, url, settings, force=False, persist=True):
+    def _phases(db, url, settings, force=False, persist=True, **kwargs):
         yield {"phase": "error", "message": "timeout scrape"}
 
     monkeypatch.setattr(import_service, "iter_import_event", _phases)
@@ -203,7 +203,7 @@ def test_run_batch_une_epreuve_en_erreur_reste_une_epreuve_traitee(db_session, m
 def test_run_batch_transmet_force_au_generateur(db_session, monkeypatch):
     vus: list[bool] = []
 
-    def _phases(db, url, settings, force=False, persist=True):
+    def _phases(db, url, settings, force=False, persist=True, **kwargs):
         vus.append(force)
         yield {"phase": "done", "imported": 1, "skipped": 0, "total": 1}
 
@@ -237,7 +237,7 @@ def test_run_batch_assainit_la_session_apres_une_exception_brute(
     `PendingRollbackError`, même si elles n'ont rien à voir avec la 1re panne.
     """
 
-    def _phases(db, url, settings, force=False, persist=True):
+    def _phases(db, url, settings, force=False, persist=True, **kwargs):
         if "boom" in url:
             # Simule une coupure DB brute : IntegrityError qui remonte sans
             # rollback, comme le SELECT non protégé de `_cached_result`.
@@ -271,7 +271,7 @@ def test_run_batch_saving_puis_error_ne_credite_pas_les_compteurs(
     ces compteurs partiels ne doivent pas être crédités au batch.
     """
 
-    def _phases(db, url, settings, force=False, persist=True):
+    def _phases(db, url, settings, force=False, persist=True, **kwargs):
         yield {"phase": "saving", "total": 30, "imported": 10, "skipped": 1, "progress": 15}
         yield {"phase": "error", "message": "coupure réseau pendant l'enregistrement"}
 
@@ -343,7 +343,7 @@ def test_run_batch_referme_la_transaction_de_lecture_de_chaque_epreuve(db_sessio
     `idle in transaction` pendant tout le run.
     """
 
-    def _phases_cached(db, url, settings, force=False, persist=True):
+    def _phases_cached(db, url, settings, force=False, persist=True, **kwargs):
         db.query(Athlete).count()  # le SELECT de `_cached_result` : ouvre la transaction
         yield {"phase": "done", "imported": 0, "skipped": 3, "total": 3, "cached": True}
 
@@ -380,7 +380,7 @@ def test_run_batch_cumule_les_reconciliations(db_session, monkeypatch):
     from app.services import batch, import_service
     from app.services.import_service import Reassignment
 
-    def _iter(db, url, settings, force=False, persist=True):
+    def _iter(db, url, settings, force=False, persist=True, **kwargs):
         yield {
             "phase": "done", "imported": 0, "skipped": 0, "total": 1,
             "reconciled": 1,
@@ -401,7 +401,7 @@ def test_run_batch_cumule_les_reconciliations(db_session, monkeypatch):
 def test_run_batch_cumule_updated(db_session, monkeypatch):
     from app.services import batch, import_service
 
-    def _fake_iter(db, url, settings, force, persist=True):
+    def _fake_iter(db, url, settings, force, persist=True, **kwargs):
         yield {"phase": "saving", "total": 1, "imported": 0, "updated": 1, "skipped": 0, "progress": 1}
         yield {"phase": "done", "imported": 0, "updated": 1, "skipped": 2, "total": 1}
 

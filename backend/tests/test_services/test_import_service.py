@@ -34,8 +34,9 @@ def _result(bib, nom, prenom="Jean", **kw) -> ScrapedResult:
 @pytest.fixture
 def patch_scraper(monkeypatch):
     def _set(results):
+        # `**kwargs` accepte `cache_probe` (fan-out Klikego #156) sans le consulter.
         monkeypatch.setattr(
-            import_service, "registry_scrape_event_all", lambda url: results
+            import_service, "registry_scrape_event_all", lambda url, **kwargs: results
         )
     return _set
 
@@ -262,7 +263,7 @@ def test_reimport_sans_dossard_ambigu_ne_met_pas_a_jour(db_session, patch_scrape
 
 
 def test_unsupported_provider_raises(db_session, monkeypatch):
-    def _raise(url):
+    def _raise(url, **kwargs):
         raise ValueError("Import non supporté")
 
     monkeypatch.setattr(import_service, "registry_scrape_event_all", _raise)
@@ -740,3 +741,79 @@ def test_validate_url_ne_reecrit_pas_l_url():
 
     url = "https://www.prolivesport.fr/index.php?chap=event&race=Triathlon%20M"
     assert _validate_url(url) == url
+
+
+# ---------------------------------------------------------------------------
+# Fan-out counters — SSE `done` étendu (issue #156, FR-008)
+# ---------------------------------------------------------------------------
+
+
+def _fake_klikego_provider(monkeypatch, enumerated: int, cached: int, failures: list[dict]):
+    """Fait que `registry.get_provider(url)` rend un KlikegoProvider avec last_trace prédéfinie."""
+    from app.scrapers import klikego, registry
+
+    provider = registry.KlikegoProvider()
+    provider.last_trace = klikego.FanoutTrace(
+        heats_enumerated=enumerated,
+        heats_cached=cached,
+        failures=list(failures),
+    )
+    monkeypatch.setattr(import_service.registry, "get_provider", lambda url: provider)
+    return provider
+
+
+def test_iter_import_event_exposes_fanout_counters(db_session, patch_scraper, monkeypatch):
+    """SSE `done` porte les 5 clés FR-008 avec l'invariant enumerated = imported + cached + failed."""
+    # 8 heats à la source, 2 en cache TTL, 1 en échec → 5 imported (5 ScrapedResult)
+    patch_scraper([
+        _result(str(i), f"NOM{i}") for i in range(1, 6)
+    ])
+    _fake_klikego_provider(monkeypatch, enumerated=8, cached=2, failures=[
+        {"heat_slug": "triathlon-xs-relais", "reason": "boom"}
+    ])
+
+    phases = list(import_service.iter_import_event(db_session, URL, _settings()))
+    done = phases[-1]
+
+    assert done["phase"] == "done"
+    assert done["heats_enumerated"] == 8
+    assert done["heats_cached"] == 2
+    assert done["heats_failed"] == 1
+    assert done["heats_imported"] == 5
+    assert done["failures"] == [{"heat_slug": "triathlon-xs-relais", "reason": "boom"}]
+    # Invariant explicite
+    assert done["heats_enumerated"] == done["heats_imported"] + done["heats_cached"] + done["heats_failed"]
+
+
+def test_iter_import_event_zero_results_still_carries_counters(db_session, patch_scraper, monkeypatch):
+    """Un scrape qui rend 0 ScrapedResult (aucun heat OK) porte quand même les compteurs."""
+    patch_scraper([])
+    _fake_klikego_provider(monkeypatch, enumerated=3, cached=0, failures=[
+        {"heat_slug": "a", "reason": "boom-a"},
+        {"heat_slug": "b", "reason": "boom-b"},
+        {"heat_slug": "c", "reason": "boom-c"},
+    ])
+
+    phases = list(import_service.iter_import_event(db_session, URL, _settings()))
+    done = phases[-1]
+
+    assert done["phase"] == "done"
+    assert done["heats_enumerated"] == 3
+    assert done["heats_failed"] == 3
+    assert done["heats_imported"] == 0
+    assert done["heats_cached"] == 0
+    assert len(done["failures"]) == 3
+
+
+def test_import_event_returns_fanout_counters(db_session, patch_scraper, monkeypatch):
+    """Le retour sync de `import_event()` porte les mêmes 5 clés (parité avec SSE)."""
+    patch_scraper([_result("1", "DUPONT")])
+    _fake_klikego_provider(monkeypatch, enumerated=1, cached=0, failures=[])
+
+    out = import_service.import_event(db_session, URL, _settings())
+
+    assert out["heats_enumerated"] == 1
+    assert out["heats_imported"] == 1
+    assert out["heats_cached"] == 0
+    assert out["heats_failed"] == 0
+    assert out["failures"] == []

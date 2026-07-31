@@ -149,6 +149,7 @@ def _import_one(
     force: bool,
     persist: bool,
     reporter: ProgressReporter,
+    single_heat: bool = False,
 ) -> _ItemResult:
     """Consomme les phases d'une épreuve et en fait un `_ItemResult`.
 
@@ -159,7 +160,7 @@ def _import_one(
     result = _ItemResult()
 
     for phase in import_service.iter_import_event(
-        db, url, settings, force=force, persist=persist
+        db, url, settings, force=force, persist=persist, single_heat=single_heat,
     ):
         nom = phase.get("phase")
         if nom == "saving":
@@ -191,6 +192,7 @@ def run_batch(
     persist: bool = True,
     delay: float = 1.0,
     reporter: ProgressReporter | None = None,
+    single_heat: bool = False,
 ) -> BatchTotals:
     """Importe chaque épreuve en séquence, en rapportant la progression.
 
@@ -206,7 +208,8 @@ def run_batch(
             with measure_queries(item.label):
                 try:
                     result = _import_one(
-                        db, item.url, settings, force=force, persist=persist, reporter=reporter
+                        db, item.url, settings, force=force, persist=persist, reporter=reporter,
+                        single_heat=single_heat,
                     )
                 except Exception as exc:  # filet : un bug ne doit pas tuer le batch
                     logger.warning("Échec import %s : %s", item.url, exc)

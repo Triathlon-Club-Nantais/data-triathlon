@@ -66,7 +66,7 @@ def test_import_event(client, monkeypatch):
 
     monkeypatch.setattr(
         import_service, "registry_scrape_event_all",
-        lambda url: [_result("1", "DUPONT"), _result("2", "MARTIN")],
+        lambda url, **kwargs: [_result("1", "DUPONT"), _result("2", "MARTIN")],
     )
     resp = client.post("/api/v1/scrape/event", json={"url": "https://www.klikego.com/x"})
     assert resp.status_code == 200
@@ -181,7 +181,7 @@ def test_import_event_expose_updated_counter(client, monkeypatch):
 
     monkeypatch.setattr(
         import_service, "registry_scrape_event_all",
-        lambda url: [_result("1", "DUPONT")],
+        lambda url, **kwargs: [_result("1", "DUPONT")],
     )
     resp = client.post("/api/v1/scrape/event", json={"url": "https://www.klikego.com/x"})
     assert resp.status_code == 200
@@ -214,7 +214,7 @@ def test_url_http_valide_toujours_acceptee(client, monkeypatch):
 
     vues: list[str] = []
 
-    def fake_scrape(url):
+    def fake_scrape(url, **kwargs):
         vues.append(url)
         return [_result("1", "DUPONT")]
 

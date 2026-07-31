@@ -28,6 +28,8 @@ _parse_search_row = klikego._parse_search_row
 decode_data_block = plat.decode_data_block
 parse_data_row = plat.parse_data_row
 
+from tests.conftest import load_klikego_fixture
+
 FIXTURES = Path(__file__).parent / "fixtures"
 
 # ---------------------------------------------------------------------------
@@ -1296,3 +1298,179 @@ def test_scrape_event_all_fetches_detail_for_non_tcn(monkeypatch):
     assert r182.swim_time == "00:16:24"
     assert r182.bike_time == "00:31:00"
     assert r182.run_time == "00:08:55"
+
+
+# ---------------------------------------------------------------------------
+# _enumerate_heats — fan-out event (issue #156)
+# ---------------------------------------------------------------------------
+
+
+def test_enumerate_heats_mesquer():
+    """Cas nominal — page événement Mesquer 2026, 8 heats publiés."""
+    html = load_klikego_fixture("mesquer-2026-event.html")
+    heats = klikego._enumerate_heats(html)
+
+    assert len(heats) == 8, f"attendu 8 heats, obtenu {len(heats)}"
+    slugs = [slug for slug, _ in heats]
+    assert "triathlon-s-indiv" in slugs
+    assert "swim-run-m-duo" in slugs
+    # Ordre du DOM préservé
+    assert heats[0][0] == "swim-run-m-duo"
+    # Libellés lisibles (span)
+    labels_by_slug = dict(heats)
+    assert labels_by_slug["triathlon-s-indiv"] == "Triathlon S Indiv"
+    assert labels_by_slug["swim-run-m-duo"] == "Swim Run M Duo"
+
+
+def test_enumerate_heats_ignores_empty_value_placeholder():
+    """Nozéen — le <el-select> contient une option value="" (placeholder « choisir »)
+    en plus des 4 vrais heats. On ne doit pas la retourner."""
+    html = load_klikego_fixture("nozeen-2025-event.html")
+    heats = klikego._enumerate_heats(html)
+
+    slugs = [slug for slug, _ in heats]
+    assert "" not in slugs, "placeholder value=\"\" ne doit pas apparaître"
+    assert len(heats) == 4
+    assert "duathlon-s---en-individuel-open---non-selectif" in slugs
+
+
+def test_enumerate_heats_no_select():
+    """Page sans <el-select name="heat"> (inscription, challenge, événement non chronométré)."""
+    html = load_klikego_fixture("no-select.html")
+    assert klikego._enumerate_heats(html) == []
+
+
+def test_enumerate_heats_empty_string():
+    assert klikego._enumerate_heats("") == []
+
+
+def test_enumerate_heats_select_without_options():
+    """<el-select> présent mais aucune <el-option> à l'intérieur."""
+    html = '<html><body><el-select name="heat"></el-select></body></html>'
+    assert klikego._enumerate_heats(html) == []
+
+
+# ---------------------------------------------------------------------------
+# scrape_event_fanout — fan-out avec cache_probe et failures (issue #156)
+# ---------------------------------------------------------------------------
+
+
+def _make_fanout_fake_client(monkeypatch, event_html: str, heat_bibs: dict | None = None):
+    """Monkeypatch httpx.Client pour rendre l'événement + heats mockés.
+
+    heat_bibs : {heat_slug: list_of_bibs} — chaque bib retourne un ScrapedResult
+    minimal via une page heat vide et un data-block synthétique. Par défaut,
+    rend une liste vide de participants par heat.
+    """
+    heat_bibs = heat_bibs or {}
+    calls = {"event_page": 0, "heat_page": [], "detail": []}
+
+    class FakeResp:
+        def __init__(self, text: str, code: int = 200):
+            self.text = text
+            self.status_code = code
+
+    class FakeClient:
+        def __init__(self, *a, **k):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            pass
+
+        def get(self, url: str, *a, **k):
+            if "resultats" in url and "?heat=" not in url:
+                # Page événement
+                calls["event_page"] += 1
+                return FakeResp(event_html)
+            if "?heat=" in url and "resultat-participant" not in url:
+                # Page heat — on renvoie vide, la logique de parsing se contentera d'une liste vide
+                calls["heat_page"].append(url)
+                return FakeResp("<html></html>")
+            if "resultat-participant.jsp" in url:
+                calls["detail"].append(url)
+                return FakeResp("<html></html>")
+            return FakeResp("", 404)
+
+    monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
+    monkeypatch.setattr(klikego, "_fetch_event_meta", lambda *a, **k: ("", None))
+    return calls
+
+
+def test_scrape_event_fanout_nominal_returns_trace(monkeypatch):
+    """Fan-out sans cache_probe : les 8 heats énumérés remontent une trace complète."""
+    html = load_klikego_fixture("mesquer-2026-event.html")
+    calls = _make_fanout_fake_client(monkeypatch, html)
+
+    results, trace = klikego.scrape_event_fanout(
+        "1677015306084-12", "Mesquer 2026", "triathlon-et-swimrun-mesquer-quimiac-2026",
+    )
+
+    assert trace.heats_enumerated == 8
+    assert trace.heats_cached == 0
+    assert trace.heats_imported == 0  # dérivé côté import_service
+    assert trace.failures == []
+    # Les 8 pages de heat sont GET (chaque heat scrapé, même si résultats vides)
+    assert len(calls["heat_page"]) == 8
+
+
+def test_scrape_event_fanout_cache_probe_skips_heats(monkeypatch):
+    """cache_probe qui retourne True pour 3 heats → seuls 5 sont scrapés."""
+    html = load_klikego_fixture("mesquer-2026-event.html")
+    calls = _make_fanout_fake_client(monkeypatch, html)
+
+    cached_slugs = {"swim-run-m-duo", "triathlon-s-indiv", "triathlon-xs-relais"}
+    def probe(heat_url: str) -> bool:
+        return any(f"?heat={s}" in heat_url for s in cached_slugs)
+
+    results, trace = klikego.scrape_event_fanout(
+        "1677015306084-12", "Mesquer", "triathlon-et-swimrun-mesquer-quimiac-2026",
+        cache_probe=probe,
+    )
+
+    assert trace.heats_enumerated == 8
+    assert trace.heats_cached == 3
+    assert trace.failures == []
+    assert len(calls["heat_page"]) == 5  # seuls les 5 non-cachés sont GET
+
+
+def test_scrape_event_fanout_heat_failure_isolated(monkeypatch, caplog):
+    """Un heat qui lève ne casse pas les autres — sa cause est capturée dans trace.failures."""
+    html = load_klikego_fixture("mesquer-2026-event.html")
+    _make_fanout_fake_client(monkeypatch, html)
+
+    from app.scrapers import klikego as kli_mod
+    original = kli_mod._scrape_single_heat
+
+    def flaky(event_id, heat, event_name, slug, event_date, client):
+        if heat == "triathlon-xs-relais":
+            raise RuntimeError("boom on xs-relais")
+        return original(event_id, heat, event_name, slug, event_date, client)
+
+    monkeypatch.setattr(kli_mod, "_scrape_single_heat", flaky)
+
+    import logging as _log
+    with caplog.at_level(_log.WARNING, logger="app.scrapers.klikego"):
+        results, trace = klikego.scrape_event_fanout(
+            "1677015306084-12", "Mesquer", "triathlon-et-swimrun-mesquer-quimiac-2026",
+        )
+
+    assert trace.heats_enumerated == 8
+    assert len(trace.failures) == 1
+    assert trace.failures[0]["heat_slug"] == "triathlon-xs-relais"
+    assert "boom on xs-relais" in trace.failures[0]["reason"]
+    assert any("triathlon-xs-relais" in rec.message for rec in caplog.records)
+
+
+def test_scrape_event_fanout_no_heats_returns_empty(monkeypatch):
+    """Page sans <el-select> — retour ([], trace vide)."""
+    html = load_klikego_fixture("no-select.html")
+    _make_fanout_fake_client(monkeypatch, html)
+
+    results, trace = klikego.scrape_event_fanout("bogus-1", "Bogus", "bogus")
+
+    assert results == []
+    assert trace.heats_enumerated == 0
+    assert trace.failures == []

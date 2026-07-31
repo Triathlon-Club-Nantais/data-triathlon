@@ -168,3 +168,71 @@ def test_ciblage_exclusif_valide_avant_toute_lecture():
         )
 
     assert "--provider" in str(exc.value)
+
+
+# ---------------------------------------------------------------------------
+# valider_single_heat — échappatoire CLI Klikego (issue #156)
+# ---------------------------------------------------------------------------
+
+def test_single_heat_accepte_url_avec_heat_query():
+    """Cas nominal : --single-heat + --url portant ?heat=X."""
+    url_sources.valider_single_heat(
+        single_heat=True,
+        url=["https://www.klikego.com/resultats/foo/123?heat=triathlon-s"],
+        urls_from=None, provider=None, older_than=None,
+    )  # ne lève pas
+
+
+def test_single_heat_desactive_est_toujours_ok():
+    """Sans --single-heat, la fonction est un no-op."""
+    url_sources.valider_single_heat(
+        single_heat=False, url=[], urls_from=None, provider=None, older_than=None,
+    )
+    url_sources.valider_single_heat(
+        single_heat=False, url=["https://k/1"], urls_from=None, provider=None, older_than=None,
+    )
+
+
+def test_single_heat_refuse_sans_url():
+    with pytest.raises(typer.BadParameter) as exc:
+        url_sources.valider_single_heat(
+            single_heat=True, url=[], urls_from=None, provider=None, older_than=None,
+        )
+    assert "--single-heat" in str(exc.value)
+    assert "--url" in str(exc.value)
+
+
+def test_single_heat_refuse_avec_provider():
+    with pytest.raises(typer.BadParameter) as exc:
+        url_sources.valider_single_heat(
+            single_heat=True, url=["https://k/1?heat=x"], urls_from=None,
+            provider="klikego", older_than=None,
+        )
+    assert "--provider" in str(exc.value)
+
+
+def test_single_heat_refuse_avec_older_than():
+    with pytest.raises(typer.BadParameter) as exc:
+        url_sources.valider_single_heat(
+            single_heat=True, url=["https://k/1?heat=x"], urls_from=None,
+            provider=None, older_than=30,
+        )
+    assert "--older-than" in str(exc.value)
+
+
+def test_single_heat_refuse_url_nue():
+    with pytest.raises(typer.BadParameter) as exc:
+        url_sources.valider_single_heat(
+            single_heat=True, url=["https://www.klikego.com/resultats/foo/1"],
+            urls_from=None, provider=None, older_than=None,
+        )
+    assert "?heat=" in str(exc.value)
+
+
+def test_single_heat_accepte_plusieurs_urls_toutes_avec_heat():
+    """N URLs, chacune avec ?heat=X — chaque URL sera importée single-heat."""
+    url_sources.valider_single_heat(
+        single_heat=True,
+        url=["https://k/1?heat=x", "https://k/2?heat=y"],
+        urls_from=None, provider=None, older_than=None,
+    )
