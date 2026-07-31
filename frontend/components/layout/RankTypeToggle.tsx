@@ -3,13 +3,9 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useTransition } from "react";
 
 import { RANK_DEFAULT, RANK_PARAM, rankTypeFromParam, type RankType } from "@/lib/rank";
+import { rankTypeLabel } from "@/lib/labels";
 
-const OPTIONS: readonly { value: RankType; label: string }[] = [
-  { value: "scratch", label: "Scratch" },
-  { value: "category", label: "Catégorie" },
-  { value: "gender", label: "Genre" },
-  { value: "all", label: "Tous" },
-];
+const OPTION_VALUES: readonly RankType[] = ["scratch", "category", "gender", "all"];
 
 /**
  * Sélecteur de type de rang (#104). Radio-group horizontal, mono-choix,
@@ -48,11 +44,12 @@ export function RankTypeToggle() {
         background: "var(--tcn-surface, #fff)",
       }}
     >
-      {OPTIONS.map((opt) => {
-        const checked = opt.value === active;
+      {OPTION_VALUES.map((value) => {
+        const checked = value === active;
+        const label = rankTypeLabel(value);
         return (
           <label
-            key={opt.value}
+            key={value}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -69,13 +66,13 @@ export function RankTypeToggle() {
             <input
               type="radio"
               name="rank-type"
-              value={opt.value}
+              value={value}
               checked={checked}
-              onChange={() => apply(opt.value)}
+              onChange={() => apply(value)}
               style={{ position: "absolute", opacity: 0, pointerEvents: "none" }}
-              aria-label={opt.label}
+              aria-label={label}
             />
-            {opt.label}
+            {label}
           </label>
         );
       })}

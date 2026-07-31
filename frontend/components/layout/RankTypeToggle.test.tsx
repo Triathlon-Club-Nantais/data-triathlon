@@ -18,17 +18,17 @@ beforeEach(() => {
 });
 
 describe("RankTypeToggle", () => {
-  it("rend les 4 boutons canoniques (Scratch, Catégorie, Genre, Tous)", () => {
+  it("rend les 4 boutons canoniques (Général, Catégorie, Genre, Tous)", () => {
     render(<RankTypeToggle />);
-    expect(screen.getByRole("radio", { name: "Scratch" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Général" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Catégorie" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Genre" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Tous" })).toBeInTheDocument();
   });
 
-  it("sans paramètre URL, le bouton Scratch est actif (défaut)", () => {
+  it("sans paramètre URL, le bouton Général est actif (défaut)", () => {
     render(<RankTypeToggle />);
-    expect(screen.getByRole("radio", { name: "Scratch" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Général" })).toBeChecked();
     expect(screen.getByRole("radio", { name: "Catégorie" })).not.toBeChecked();
   });
 
@@ -36,13 +36,13 @@ describe("RankTypeToggle", () => {
     searchParams = new URLSearchParams("rank=category");
     render(<RankTypeToggle />);
     expect(screen.getByRole("radio", { name: "Catégorie" })).toBeChecked();
-    expect(screen.getByRole("radio", { name: "Scratch" })).not.toBeChecked();
+    expect(screen.getByRole("radio", { name: "Général" })).not.toBeChecked();
   });
 
-  it("?rank=foo (valeur inconnue) → Scratch actif (défaut silencieux)", () => {
+  it("?rank=foo (valeur inconnue) → Général actif (défaut silencieux)", () => {
     searchParams = new URLSearchParams("rank=foo");
     render(<RankTypeToggle />);
-    expect(screen.getByRole("radio", { name: "Scratch" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Général" })).toBeChecked();
   });
 
   it("clic sur Genre → push /dashboard?rank=gender", () => {
@@ -51,13 +51,13 @@ describe("RankTypeToggle", () => {
     expect(push).toHaveBeenCalledWith("/dashboard?rank=gender");
   });
 
-  it("clic sur Scratch depuis Catégorie → retire le paramètre (défaut implicite)", () => {
+  it("clic sur Général depuis Catégorie → retire le paramètre (défaut implicite)", () => {
     // On préfère nettoyer l'URL quand on retombe sur le défaut, plutôt que de
     // laisser un ?rank=scratch redondant traîner. Deux liens différents pour
     // une même vue nuisent au partage.
     searchParams = new URLSearchParams("rank=category");
     render(<RankTypeToggle />);
-    fireEvent.click(screen.getByRole("radio", { name: "Scratch" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Général" }));
     expect(push).toHaveBeenCalledWith("/dashboard");
   });
 

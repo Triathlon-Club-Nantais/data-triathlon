@@ -52,7 +52,7 @@ describe("StatCardsRank — lecture URL et recalcul local", () => {
     render(<StatCardsRank participations={PARTS} />);
     // Un podium scratch (rank_overall=2), aucune victoire.
     // Trois cartes portent chacune le libellé « scratch ».
-    expect(screen.getAllByText("scratch")).toHaveLength(3);
+    expect(screen.getAllByText("général")).toHaveLength(3);
     // La carte Victoires porte 0, Podiums 1, Top 10 1.
     expect(screen.getByText("Victoires")).toBeInTheDocument();
   });
@@ -76,13 +76,13 @@ describe("StatCardsRank — lecture URL et recalcul local", () => {
   it("?rank=all : mode agrégé", () => {
     searchParams = new URLSearchParams("rank=all");
     render(<StatCardsRank participations={PARTS} />);
-    expect(screen.getAllByText("scratch, genre ou catégorie")).toHaveLength(3);
+    expect(screen.getAllByText("général, genre ou catégorie")).toHaveLength(3);
   });
 
   it("?rank=foo : retombe silencieusement sur scratch", () => {
     searchParams = new URLSearchParams("rank=foo");
     render(<StatCardsRank participations={PARTS} />);
-    expect(screen.getAllByText("scratch")).toHaveLength(3);
+    expect(screen.getAllByText("général")).toHaveLength(3);
     expect(screen.queryByText("catégorie")).not.toBeInTheDocument();
   });
 });
