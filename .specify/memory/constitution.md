@@ -1,48 +1,38 @@
 <!--
-Sync Impact Report — Constitution v1.0.0
+Sync Impact Report — Constitution v1.1.0
 ========================================
-Version change    : (initial) → 1.0.0
-Rationale         : Première ratification. Aucune ancienne version à comparer.
-Modified principles : (aucun — création)
-Added sections    : Core Principles (I–VI), Additional Constraints, Development Workflow, Governance
+Version change    : 1.0.0 → 1.1.0
+Rationale         : MINOR — « élargissement substantiel d'une règle existante »
+  (Governance §3). Le Principe I gagne trois clauses : explicitness des
+  identifiants, absence d'exception de vocabulaire métier (l'exception est
+  structurelle — contrat public gelé), et une dérogation bornée à la règle de
+  transition autorisant la campagne de renommage de l'issue #88.
+  Proposition : issue #88 (tjarrier). Approbation : mainteneur, 2026-07-31.
+Modified principles : I. Langue — 3 clauses ajoutées, Rationale complété.
+Added sections    : (aucune)
 Removed sections  : (aucun)
-Drafting notes    :
-  - Principle I raffiné pendant la rédaction initiale : séparation explicite
-    entre couche technique (English) et couche métier / user-visible (français).
-    Version conservée à 1.0.0 — l'amendement a eu lieu avant ratification en git.
-  - Corrections v1.0.0 suite à la review de la PR #107 (tjarrier) : Principe III
-    aligné sur la convention réelle (monkeypatch httpx, pas respx) ; dérogation
-    `create_all` recentrée sur les fixtures de test ; Principe II doté d'une
-    règle de transition nommant les deux exceptions actuelles (`cache.py`,
-    `reclassify.py`) ; Principe I complété d'une clause `DomainError`
-    (messages français, ré-affichés par le front). 3 templates repassés en ⚠.
+Drafting notes :
+  - La campagne #88 était en contradiction frontale avec la règle de transition
+    du Principe I (« On ne réécrit rien »). Résolue par amendement de la
+    constitution plutôt que par une règle concurrente dans AGENTS.md : la
+    constitution prime, une règle concurrente aurait recréé la divergence que
+    le rapport v1.0.0 signalait déjà.
+  - La liste de « termes métier autorisés en français » demandée par #88 est
+    close sur l'ensemble **vide**. Ce n'est pas un refus de trancher : le code
+    a déjà tranché (bib_number, rank_overall, total_time, event_*).
+  - La clause d'explicitness est déclarée non automatisable, mesures à l'appui
+    (ruff n'a aucune règle de longueur ; 431 occurrences dans backend/app dont
+    une majorité légitimes). Écrire un lint ici aurait produit du bruit.
 Templates alignés :
-  ⚠ .specify/templates/plan-template.md   — la section "Constitution Check" ne
-     contient qu'un placeholder `[Gates determined based on constitution file]`.
-     La Gouvernance impose une revue « principe par principe » : sans énumération
-     des 6 principes dans le template, la revue repose sur la mémoire de l'agent.
-     Follow-up : ajouter la grille des 6 principes dans le template (voir TODO ci-dessous).
-  ✅ .specify/templates/spec-template.md   — pas d'ajustement nécessaire (les Success Criteria
-     restent techno-agnostiques, conformes au principe I).
-  ⚠ .specify/templates/tasks-template.md  — la mention "Tests are OPTIONAL"
-     apparaît 4 fois (l. 12, 83, 109, 131). Comportement typique de `/speckit-tasks`
-     avec ce template : omettre les tâches de test « puisque non explicitement demandées ».
-     Principe III est NON-NÉGOCIABLE — pas d'override silencieux acceptable.
-     Follow-up : retirer les 4 mentions "OPTIONAL" (voir TODO ci-dessous).
-  ⚠ AGENTS.md                              — la règle « **Langue** : UI, commentaires
-     et messages en **français** (avec accents) » (AGENTS.md:258) contredit frontalement
-     le Principe I sur les docstrings techniques, `logger.*`, noms de tests et identifiants.
-     `AGENTS.md` est chargé à chaque session via `CLAUDE.md`, la constitution seulement
-     par `/speckit-*` — c'est la règle contradictoire qui est lue le plus souvent.
-     Follow-up : aligner AGENTS.md:258 sur Principe I (voir TODO ci-dessous).
-Follow-up TODOs   :
-  - TODO(plan-template) : énumérer les 6 principes dans « Constitution Check »
-    pour donner à `/speckit-plan` une grille à cocher, principe par principe.
-  - TODO(tasks-template) : retirer les 4 mentions "Tests are OPTIONAL" (l. 12,
-    83, 109, 131) pour aligner sur Principe III (non-négociable).
-  - TODO(AGENTS.md) : remplacer la règle langue générale (l. 258) par un renvoi
-    au Principe I de la constitution, avec la séparation « métier / user-visible
-    en français ; technique invisible en anglais ».
+  ✅ .specify/templates/plan-template.md   — la grille des 6 principes est en
+     place (follow-up v1.0.0 résolu) ; seul le renvoi de version est à bumper.
+  ✅ .specify/templates/spec-template.md   — aucun ajustement nécessaire.
+  ✅ .specify/templates/tasks-template.md  — les 4 mentions "Tests are OPTIONAL"
+     ont été retirées (follow-up v1.0.0 résolu) ; renvoi de version à bumper.
+  ✅ AGENTS.md                              — la règle langue renvoie déjà au
+     Principe I (follow-up v1.0.0 résolu). Renvoi de version à bumper, et la
+     phrase de transition doit désormais nommer la dérogation.
+Follow-up TODOs   : (aucun — les trois follow-ups de la v1.0.0 sont résolus)
 -->
 
 # Constitution — data-triathlon
@@ -76,6 +66,38 @@ français selon qu'il décrit une intention technique ou métier), messages
 d'erreur d'exception interne (`raise ValueError("...")`), noms de branche,
 titres et corps de PR à visée technique.
 
+**Explicitness des identifiants** : un identifiant nomme ce qu'il porte. Les
+noms d'une ou deux lettres sont réservés aux liaisons dont la portée tient
+sous les yeux — variable de compréhension, variable de boucle, paramètre de
+lambda, et `db` (session SQLAlchemy, idiomatique dans tout le projet). Hors
+de là, le nom est un mot.
+
+Cette clause **n'est pas automatisable**, et le principe le dit plutôt que de
+laisser croire à un filet qui n'existe pas. ruff n'a aucune règle de longueur
+ou d'explicitness : `pep8-naming` (`N`, activé) ne contrôle que la **casse**,
+et `E741` ne couvre que `l`, `O`, `I`. Un lint maison sur la seule longueur
+marquerait **431 occurrences dans `backend/app`** (48 identifiants distincts,
+dont `db` 83 fois, `i` 18 fois) — une majorité de cas que la clause autorise
+explicitement. Elle s'applique donc **en revue de code**, et c'est assumé.
+
+**Pas d'exception de vocabulaire métier** : l'anglais est la règle, sans liste
+de termes français dérogatoires. Le domaine est déjà nommé en anglais partout
+où il compte — `bib_number` et non `dossard`, `rank_overall` / `rank_category`
+et non `rang`, `total_time` et non `temps`, `category`, `club`, `event_name` /
+`event_date` / `event_type`. Réintroduire un de ces mots en local reviendrait
+à défaire ce que le contrat public a déjà traduit.
+
+La seule exception est **structurelle, pas lexicale** : un identifiant **gelé
+par un contrat public** — colonne SQLAlchemy, champ de DTO Pydantic, clé JSON
+d'une réponse d'API, paramètre de query — reste tel quel tant que le contrat
+n'est pas migré. Aujourd'hui cela vise exactement un champ, à trois endroits :
+`athletes.nom` / `athletes.prenom` (`backend/app/models/athlete.py`), leur
+écho DTO (`backend/app/schemas/athlete.py`) et le paramètre de repository
+(`backend/app/repositories/athlete_repository.py`) — ces noms traversent la
+DB, l'API et `frontend/lib/types.ts`. Les renommer est un chantier cross-stack
+(migration Alembic **plus** le front), sans commune mesure avec le renommage
+d'un symbole privé, et hors de ce principe.
+
 **Cas mixte — les `DomainError`** : les exceptions de
 `backend/app/core/exceptions.py` (`InvalidUrlError`,
 `ProviderNotSupportedError`, `ScraperError`, `NotFoundError`,
@@ -92,13 +114,43 @@ rien**. La règle s'applique aux **nouveaux** ajouts et à toute réécriture
 substantielle d'un fichier. Un fichier français touché pour un fix ciblé
 reste français dans le patch.
 
+**Dérogation bornée — campagne #88** : par dérogation à l'alinéa précédent, le
+renommage des identifiants français de `backend/app` est autorisé sur la
+**liste close** de lots ci-dessous, sous quatre critères **cumulatifs** :
+symboles **privés, locaux ou paramètres** uniquement (jamais un symbole gelé
+par contrat public) ; **zéro changement de comportement** ; les tests suivent
+dans la **même PR** que le module qu'ils couvrent ; **un lot par PR**.
+
+| Lot | Périmètre |
+| --- | --- |
+| A | transversal `echec_total` — `services/{batch,rescrape_service,bulk_import_service,import_service}.py` + les constantes homonymes de `cli/reports.py` |
+| B | `app/cli/` — `reports`, `url_sources`, `progress`, `validators` |
+| C | `app/scrapers/raceresult.py` |
+| D | `app/scrapers/t2area.py` |
+| E | `app/scrapers/oktime.py` |
+| F | `app/scrapers/competitor.py` |
+| G | `app/scrapers/{chronoweb,chronoplace,sporthive}.py` |
+| H | `app/scrapers/{classify,wiclax,timepulse,klikego,klikego_platform}.py` |
+
+Le lot **A passe avant B**, et ce n'est pas un détail d'ordonnancement :
+`echec_total` traverse quatre modules d'`app` et cinq fichiers de test, dont
+`cli/reports.py`. Pris après B, deux PRs se marcheraient dessus sur ce fichier.
+
+Quand ces huit lots sont faits, la dérogation **s'éteint** et l'alinéa
+précédent reprend pleinement. Design et relevé chiffré :
+`docs/superpowers/specs/2026-07-31-convention-nommage-identifiants-design.md`.
+
 **Rationale** : le projet sert un club francophone (le métier est en
 français), mais son outillage est anglophone (framework docs, Sentry,
 Copilot, revue de code par un LLM). Séparer les deux évite la traduction
 implicite dans chaque commit et rend la recherche full-text (`grep`,
 Sentry queries) prévisible. Ne pas migrer l'existant : le coût de la
 réécriture massive dépasse le bénéfice, et le principe III (TDD) ne peut
-tolérer un patch de 200 fichiers non testés.
+tolérer un patch de 200 fichiers non testés. Le découpage en lots de la
+dérogation ci-dessus **répond** précisément à cette objection plutôt que de
+la contourner : aucun lot n'est un patch de 200 fichiers, et chacun se
+vérifie sur la suite de tests existante, sans modification d'assertion de
+comportement.
 
 ### II. Architecture en couches, sens unique du flux
 
@@ -250,4 +302,4 @@ référence (architecture détaillée, commandes, conventions de scraping). En c
 de divergence entre `AGENTS.md` et cette constitution, la constitution prime
 et `AGENTS.md` doit être aligné.
 
-**Version**: 1.0.0 | **Ratified**: 2026-07-27 | **Last Amended**: 2026-07-27
+**Version**: 1.1.0 | **Ratified**: 2026-07-27 | **Last Amended**: 2026-07-31
