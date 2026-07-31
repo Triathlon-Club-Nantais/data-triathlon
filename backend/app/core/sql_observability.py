@@ -137,9 +137,11 @@ def install(engine: Engine, *, slow_query_ms: float, collect_stats: bool) -> Non
         stats = _current.get()
         # `normalize_sql` coûte un `split()`/`join()` sur tout le statement : ne
         # la calculer que si une des deux branches ci-dessous la consomme
-        # réellement, et une seule fois si les deux sont actives.
-        if is_slow or stats is not None:
-            sql = normalize_sql(statement)
+        # réellement, et une seule fois si les deux sont actives. Expression
+        # conditionnelle plutôt que `if` : `sql` reste inconditionnellement liée
+        # (le "" n'est jamais lu), sans quoi l'analyse statique la signale comme
+        # possiblement non liée dans les deux usages ci-dessous.
+        sql = normalize_sql(statement) if (is_slow or stats is not None) else ""
 
         if is_slow:
             logger.warning("Requête lente | %.1f ms | %s", elapsed_ms, sql)
