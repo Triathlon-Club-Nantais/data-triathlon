@@ -46,6 +46,8 @@ from urllib.parse import urlparse
 
 import httpx
 
+from app.core import http
+
 from .base import STATUS_DNF, STATUS_FINISHER, ScrapedResult
 from .classify import classify_event_type
 from .utils import (
@@ -596,7 +598,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     event_id = _parse_url(url)
     resultats: list[ScrapedResult] = []
     courses = 0
-    with httpx.Client(follow_redirects=True, timeout=20, headers=_HEADERS) as client:
+    with http.client(timeout=20, headers=_HEADERS) as client:
         event = _fetch_event(client, event_id)
         for race in _fetch_races(client, event_id):
             courses += 1
