@@ -231,3 +231,22 @@ def test_label_avec_retour_a_la_ligne_normalise(engine, caplog):
     assert any("TRIATHLON Oléron 2024" in r.getMessage() for r in caplog.records)
     # Aucun \n dans aucun enregistrement
     assert all("\n" not in r.getMessage() for r in caplog.records)
+
+
+def test_engine_applicatif_est_instrumente():
+    """`database.py` doit appeler `install()` sur son engine : sans ce
+    branchement, tout le reste ne mesure rien en production.
+
+    On interroge `is_installed` et non le registre d'événements de SQLAlchemy :
+    `event.contains()` réclame la fonction écoutante exacte, qu'on n'expose pas,
+    et inspecter son registre interne serait se lier à un détail privé.
+
+    Le seuil par défaut étant de 100 ms, on ne peut pas vérifier le branchement
+    par un `SELECT 1` sur SQLite : il ne le franchira jamais. Et recharger
+    `database` avec un seuil forcé bas reconstruirait `Base`, laissant les
+    modèles liés à l'ancienne — ce qui casserait la suite entière.
+    """
+    from app.core.database import engine
+    from app.core.sql_observability import is_installed
+
+    assert is_installed(engine) is True

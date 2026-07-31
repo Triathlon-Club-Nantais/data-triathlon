@@ -11,6 +11,7 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
+from app.core import sql_observability
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -43,6 +44,15 @@ engine = create_engine(
     connect_args={"check_same_thread": False} if settings.is_sqlite else {},
     pool_pre_ping=True,
 )
+
+# Observabilité SQL (#89) : seuil de lenteur toujours actif, bilan agrégé
+# activable. Les deux réglages à zéro/False → aucun listener posé.
+sql_observability.install(
+    engine,
+    slow_query_ms=settings.sql_slow_query_ms,
+    collect_stats=settings.sql_query_stats,
+)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
