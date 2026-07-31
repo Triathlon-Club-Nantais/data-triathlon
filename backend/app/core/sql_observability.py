@@ -104,6 +104,11 @@ def install(engine: Engine, *, slow_query_ms: float, collect_stats: bool) -> Non
 
     Idempotent : un second appel sur le même engine ne repose rien.
     """
+    # Drapeau global bien que l'idempotence ci-dessous soit par engine : posé
+    # *avant* la garde, délibérément — sinon un second appel sur un engine déjà
+    # instrumenté ne pourrait jamais éteindre le bilan. Contrepartie assumée
+    # (aucun chemin actuel ne la déclenche, un seul engine applicatif) : avec
+    # deux engines, le dernier appel à `install()` fixe le bilan pour tous.
     global _stats_enabled
     _stats_enabled = collect_stats
 
@@ -127,12 +132,18 @@ def install(engine: Engine, *, slow_query_ms: float, collect_stats: bool) -> Non
         if not starts:
             return
         elapsed_ms = (perf_counter() - starts.pop()) * 1000
-        sql = normalize_sql(statement)
 
-        if 0 < slow_query_ms <= elapsed_ms:
+        is_slow = 0 < slow_query_ms <= elapsed_ms
+        stats = _current.get()
+        # `normalize_sql` coûte un `split()`/`join()` sur tout le statement : ne
+        # la calculer que si une des deux branches ci-dessous la consomme
+        # réellement, et une seule fois si les deux sont actives.
+        if is_slow or stats is not None:
+            sql = normalize_sql(statement)
+
+        if is_slow:
             logger.warning("Requête lente | %.1f ms | %s", elapsed_ms, sql)
 
-        stats = _current.get()
         if stats is not None:
             stats.count += 1
             stats.total_ms += elapsed_ms

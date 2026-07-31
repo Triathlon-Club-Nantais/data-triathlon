@@ -198,6 +198,15 @@ def test_imbrication_la_plus_proche_gagne(engine, caplog):
                     conn.execute(text("SELECT 1"))
             assert dehors.count == 0
 
+            # La reprise du comptage dans l'unité englobante, après la
+            # fermeture de l'imbrication : une requête de plus ici doit être
+            # comptée par « externe ». Ce qui distingue `_current.reset(token)`
+            # (rétablit l'accumulateur externe) de `_current.set(None)` (le
+            # perdrait) — les deux passent le seul `dehors.count == 0` ci-dessus.
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            assert dehors.count == 1
+
 
 def test_bilan_ne_contient_ni_valeur_liee_ni_retour_a_la_ligne(engine, caplog):
     from app.core import sql_observability

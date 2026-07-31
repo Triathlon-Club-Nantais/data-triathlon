@@ -216,6 +216,17 @@ et SQLAlchemy : la compatibilité se vérifie au moment du plan, avec `uv sync`.
 - **Batches CLI et spans OTel** : un batch est un process court et le
   `BatchSpanProcessor` exporte de façon différée. Sans `shutdown()` du provider
   en fin de commande, les spans du dernier import sont perdus.
+- **Les spans HTTP fuitent la query string, mesuré** : `FastAPIInstrumentor`
+  délègue à `opentelemetry-instrumentation-asgi`, qui recolle `http.url` en
+  `path + "?" + unquote(query_string)` et pose `net.peer.ip` — il ne masque que
+  les identifiants d'URL, pas les paramètres. Sur `GET /api/v1/athletes?name=…`,
+  le span porte donc le nom cherché en clair (`/api/v1/athletes` et
+  `/api/v1/participations` exposent tous deux `name`, le champ de recherche du
+  front). Les spans SQL, eux, restent paramétrés (`db.statement`, vérifié). Tant
+  qu'aucun collecteur maîtrisé n'est branché, ne pas allumer `OTEL_ENABLED` en
+  production. Deux voies de correction le jour venu : un `server_request_hook`
+  sur `instrument_app` qui réécrit `http.url` sans la query, ou n'instrumenter
+  que `engine=` tant qu'aucun collecteur n'est choisi.
 
 ## Tests
 
