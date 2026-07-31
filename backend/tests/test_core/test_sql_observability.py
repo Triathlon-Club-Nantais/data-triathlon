@@ -290,7 +290,7 @@ def test_middleware_compte_les_requetes_d_un_appel_http(monkeypatch, caplog):
     try:
         Base.metadata.create_all(bind=eng)
         sql_observability.install(eng, slow_query_ms=0, collect_stats=True)
-        Session = sessionmaker(autocommit=False, autoflush=False, bind=eng)
+        session_factory = sessionmaker(autocommit=False, autoflush=False, bind=eng)
 
         # `create_app()` appelle `setup_logging()`, qui — la toute première fois
         # dans le process — fait `root.handlers.clear()` et emporte avec lui le
@@ -310,7 +310,7 @@ def test_middleware_compte_les_requetes_d_un_appel_http(monkeypatch, caplog):
         application = create_app()
 
         def _override_get_db():
-            db = Session()
+            db = session_factory()
             try:
                 yield db
             finally:
