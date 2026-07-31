@@ -30,6 +30,8 @@ from urllib.parse import urlparse
 import httpx
 from bs4 import BeautifulSoup
 
+from app.core import http
+
 from .base import ScrapedResult
 from .classify import classify_event_type
 from .utils import normalize_rank, normalize_time, parse_fr_date, split_athlete_name
@@ -464,7 +466,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     importe toutes, comme les heats Breizh Chrono. Coût : une requête par épreuve.
     """
     slug, epreuve_id = _parse_url(url)
-    with httpx.Client(follow_redirects=True, timeout=30, headers=HEADERS) as client:
+    with http.client(timeout=30, headers=HEADERS) as client:
         if not epreuve_id:
             epreuve_id = _resolve_epreuve_id(client, slug)
         html = _fetch(client, _epreuve_path(slug, epreuve_id))

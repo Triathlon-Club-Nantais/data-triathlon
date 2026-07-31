@@ -30,6 +30,8 @@ from urllib.parse import parse_qs, urlparse
 import httpx
 from bs4 import BeautifulSoup
 
+from app.core import http
+
 from .base import ScrapedResult
 
 BASE = "https://resultats.breizhchrono.com"
@@ -214,7 +216,7 @@ def scrape_event_all(
     slug_id = f"{slug}-{event_id}"
     results: list[ScrapedResult] = []
 
-    with httpx.Client(follow_redirects=True, timeout=30, headers=HEADERS) as client:
+    with http.client(timeout=30, headers=HEADERS) as client:
         # Event date — fetch from first available heat page
         event_date = None
         date_page_url = (
@@ -381,7 +383,7 @@ def scrape_live_event_all(reference: str, heat: str = "") -> list[ScrapedResult]
     from app.scrapers.klikego import _detect_event_type
 
     results: list[ScrapedResult] = []
-    with httpx.Client(follow_redirects=True, timeout=30, headers=HEADERS) as client:
+    with http.client(timeout=30, headers=HEADERS) as client:
         root = client.get(
             f"{LIVE_BASE}/external/live5/classements.jsp?reference={reference}"
         )

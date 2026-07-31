@@ -28,6 +28,8 @@ from urllib.parse import urlparse
 import httpx
 from bs4 import BeautifulSoup
 
+from app.core import http
+
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
 from .utils import derive_status_from_label, normalize_rank, normalize_time
 
@@ -483,7 +485,7 @@ def _fetch_athlete_splits(athlete_ref: str | int) -> dict[str, str]:
     Crée son propre client httpx (thread-safe, pas de partage de connexion).
     """
     try:
-        with httpx.Client(follow_redirects=True, timeout=15, headers=HEADERS) as c:
+        with http.client(timeout=15, headers=HEADERS) as c:
             r = c.get(
                 f"{API_BASE}/results/{athlete_ref}",
                 params={"intermediates": "1"},
@@ -624,7 +626,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     """Fetch all participants for a Sportinnovation event."""
     parsed = urlparse(url)
 
-    with httpx.Client(follow_redirects=True, timeout=30, headers=HEADERS) as client:
+    with http.client(timeout=30, headers=HEADERS) as client:
         if "results.sportinnovation.fr" in parsed.netloc:
             kind, ident = _classify_results_url(url)
             if kind == "race":

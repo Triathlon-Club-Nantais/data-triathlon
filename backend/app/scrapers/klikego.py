@@ -13,6 +13,8 @@ import re
 import httpx
 from bs4 import BeautifulSoup
 
+from app.core import http
+
 from .base import ScrapedResult
 from .utils import derive_status_from_label, normalize_time, parse_fr_date
 
@@ -310,7 +312,7 @@ def scrape_event_all(
     """
     from app.scrapers import klikego_platform as plat
 
-    with httpx.Client(follow_redirects=True, timeout=30, headers=HEADERS) as client:
+    with http.client(timeout=30, headers=HEADERS) as client:
         _, event_date = _fetch_event_meta(event_id, slug, client)
         heat_page = client.get(
             f"{BASE}/resultats/{slug}/{event_id}?heat={heat}" if slug

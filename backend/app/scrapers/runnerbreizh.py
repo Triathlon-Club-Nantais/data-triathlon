@@ -23,9 +23,10 @@ from dataclasses import dataclass
 from datetime import date
 from urllib.parse import parse_qs, urlencode, urlparse
 
-import httpx
+import httpx  # noqa: F401 — tests/test_runnerbreizh.py patche `runnerbreizh.httpx.Client`
 from bs4 import BeautifulSoup
 
+from app.core import http
 from app.scrapers.base import ScrapedResult
 from app.scrapers.classify import classify_event_type
 from app.scrapers.utils import normalize_rank, normalize_time
@@ -498,7 +499,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     rows_seen = 0
     last_page_was_full = False
 
-    with httpx.Client(follow_redirects=True, timeout=30, headers=HEADERS) as client:
+    with http.client(timeout=30, headers=HEADERS) as client:
         for page in range(1, _MAX_PAGES + 1):
             html = _fetch(client, _page_url(event_url, page))
             if meta is None:

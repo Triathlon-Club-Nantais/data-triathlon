@@ -7,8 +7,7 @@ import csv
 import io
 from urllib.parse import urlparse, urlunparse
 
-import httpx
-
+from app.core import http
 from app.scrapers import registry
 
 DEFAULT_SHEET_URL = (
@@ -83,8 +82,13 @@ def host_of(url: str) -> str:
 
 
 def download_csv(url: str) -> str:
-    """Télécharge le CSV public du Sheet (httpx, sans auth)."""
-    with httpx.Client(follow_redirects=True, timeout=30) as client:
+    """Télécharge le CSV public du Sheet (sans auth).
+
+    L'export d'un Google Sheet redirige vers `googleusercontent.com`, un autre
+    domaine : c'est le cas qui a fait écarter l'allowlist de hosts par provider
+    au profit de la politique par classe d'IP (#101).
+    """
+    with http.client(timeout=30) as client:
         resp = client.get(url)
         resp.raise_for_status()
         return resp.text

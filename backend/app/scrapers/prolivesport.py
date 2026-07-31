@@ -22,6 +22,8 @@ from urllib.parse import parse_qs, urlparse
 
 import httpx
 
+from app.core import http
+
 from .base import (
     STATUS_DNF,
     STATUS_DNS,
@@ -234,7 +236,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     """Fetch all participants for a Prolivesport event/race."""
     event_id, race_token = _parse_url(url)
 
-    with httpx.Client(follow_redirects=True, timeout=30, headers=HEADERS) as client:
+    with http.client(timeout=30, headers=HEADERS) as client:
         event_name, event_date = _fetch_event_meta(event_id, client)
         r = client.get(f"{API_BASE}/result/raceList/{event_id}/", timeout=15)
         races = r.json().get("result", [])
