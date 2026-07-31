@@ -41,6 +41,9 @@ HEADERS = {
     "Accept": "text/html,application/json,*/*",
 }
 API_BASE = "https://sportinnovation.fr/api"
+# Taille de page du format HTML. Motif partagé avec les autres scrapers paginés
+# (sporthive, runnerbreizh, klikego_platform) : constante de module, pas locale.
+_PAGE_SIZE = 250
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -315,7 +318,6 @@ def _fetch_all_pages(event_id: str, client: httpx.Client) -> tuple[str, list[lis
     all_rows: list[list[str]] = []
     race_name = ""
     col: dict[str, int] = {}
-    PAGE_SIZE = 250
 
     for page in range(1, 20):  # safety cap at 20 pages = 5000 participants
         rn, rows, c = _fetch_html_results(event_id, client, search="", page=page)
@@ -324,7 +326,7 @@ def _fetch_all_pages(event_id: str, client: httpx.Client) -> tuple[str, list[lis
         if not rows:
             break
         all_rows.extend(rows)
-        if len(rows) < PAGE_SIZE:
+        if len(rows) < _PAGE_SIZE:
             break  # last page
 
     return race_name, all_rows, col

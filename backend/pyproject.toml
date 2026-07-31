@@ -47,7 +47,7 @@ target-version = "py313"
 exclude = ["alembic/versions"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "W", "UP", "B"]
+select = ["E", "F", "I", "W", "UP", "B", "N"]
 ignore = [
     "E501",  # longueur de ligne gérée par le formateur
     "B008",  # Depends(...) en argument par défaut = motif idiomatique FastAPI
