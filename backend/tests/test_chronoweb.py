@@ -577,8 +577,18 @@ def test_a_team_category_never_marks_an_individual_race_as_a_relay():
     assert (result.athlete_name, result.athlete_firstname) == ("JEAN BONNEAU", "")
 
 
+def _fake_client(monkeypatch, client: FakeClient) -> FakeClient:
+    # On remplace la fabrique du module, pas `httpx.Client` : depuis #101 le
+    # scraper n'ouvre plus de client httpx lui-même, il passe par
+    # `app.core.http.client()`, qui seule vérifie la destination. Patcher httpx
+    # obligerait `chronoweb` à garder un `import httpx` dont sa production n'a
+    # plus l'usage.
+    monkeypatch.setattr(chronoweb.http, "client", lambda *a, **k: client)
+    return client
+
+
 def _scrape(monkeypatch, client: FakeClient, url: str = EVENT_URL):
-    monkeypatch.setattr(httpx, "Client", lambda *a, **k: client)
+    _fake_client(monkeypatch, client)
     return chronoweb.scrape_event_all(url)
 
 
@@ -647,8 +657,7 @@ def test_scrape_event_all_survives_an_event_absent_from_the_catalogue(monkeypatc
 def test_scrape_event_all_keeps_no_state_between_two_imports(monkeypatch):
     """`PROVIDERS` tient des instances singleton : un cache d'instance serait un
     cache de processus, y compris entre tests, pour ~340 Ko économisés."""
-    client = FakeClient()
-    monkeypatch.setattr(httpx, "Client", lambda *a, **k: client)
+    client = _fake_client(monkeypatch, FakeClient())
 
     chronoweb.scrape_event_all(EVENT_URL)
     chronoweb.scrape_event_all(EVENT_URL)
@@ -723,8 +732,7 @@ def test_scrape_event_all_refuses_a_url_without_an_event_id(monkeypatch, url):
     """Refus **avant** tout réseau : le scraper ne doit jamais tenter de parser
     un binaire. Le message nomme la forme attendue, faute de quoi l'opérateur ne
     peut pas corriger la source."""
-    client = FakeClient()
-    monkeypatch.setattr(httpx, "Client", lambda *a, **k: client)
+    client = _fake_client(monkeypatch, FakeClient())
 
     with pytest.raises(ValueError) as excinfo:
         chronoweb.scrape_event_all(url)
@@ -749,7 +757,7 @@ def test_scrape_event_all_on_an_event_without_ranking_is_not_an_error(monkeypatc
 def test_the_two_failures_are_told_apart_by_their_message(monkeypatch):
     """« introuvable » et « sans classement » sont deux causes distinctes : c'est
     ce que l'opérateur lit dans « Épreuves en erreur (détail) » des bilans CLI."""
-    monkeypatch.setattr(httpx, "Client", lambda *a, **k: FakeClient(event=INCONNU))
+    _fake_client(monkeypatch, FakeClient(event=INCONNU))
     with pytest.raises(ValueError) as unknown:
         chronoweb.scrape_event_all(EVENT_URL)
 
