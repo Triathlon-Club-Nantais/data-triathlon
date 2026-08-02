@@ -63,18 +63,18 @@ def resolve(db: Session, token: str | None) -> User | None:
     if not token or len(token) < TOKEN_MIN_LENGTH:
         return None
 
-    ligne = session_repository.get_by_token_hash(db, hash_token(token))
-    if ligne is None or ligne.expires_at <= utcnow():
+    row = session_repository.get_by_token_hash(db, hash_token(token))
+    if row is None or row.expires_at <= utcnow():
         return None
-    if not ligne.user or not ligne.user.is_active:
+    if not row.user or not row.user.is_active:
         return None
-    return ligne.user
+    return row.user
 
 
 def close(db: Session, token: str | None) -> None:
     """Ferme **cette** session. Sans effet ni erreur si elle n'existe pas (FR-014)."""
     if not token:
         return
-    ligne = session_repository.get_by_token_hash(db, hash_token(token))
-    if ligne is not None:
-        session_repository.delete(db, ligne)
+    row = session_repository.get_by_token_hash(db, hash_token(token))
+    if row is not None:
+        session_repository.delete(db, row)

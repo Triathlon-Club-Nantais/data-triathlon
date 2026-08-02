@@ -42,10 +42,10 @@ def current_user(
     # recopier les valeurs — un 401 mis en cache empêcherait un connecté de voir
     # sa session (FR-018), et il sort du handler d'exception, hors de portée de
     # la dépendance de router.
-    from app.api.v1.auth import ENTETES_SANS_CACHE, session_cookie_name
+    from app.api.v1.auth import NO_STORE_HEADERS, session_cookie_name
 
-    jeton = request.cookies.get(session_cookie_name(settings))
-    user = session_service.resolve(db, jeton)
+    token = request.cookies.get(session_cookie_name(settings))
+    user = session_service.resolve(db, token)
     if user is None:
-        raise NotAuthenticatedError(headers=ENTETES_SANS_CACHE)
+        raise NotAuthenticatedError(headers=NO_STORE_HEADERS)
     return user

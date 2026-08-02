@@ -46,10 +46,10 @@ def delete_expired(db: Session, *, user_id: int) -> int:
     Bornée à **un** utilisateur : c'est celui qui vient de se connecter, et un
     balayage global ferait payer à sa connexion la taille de toute la table.
     """
-    supprimees = (
+    deleted = (
         db.query(UserSession)
         .filter(UserSession.user_id == user_id, UserSession.expires_at <= utcnow())
         .delete(synchronize_session="fetch")
     )
     db.flush()
-    return supprimees
+    return deleted

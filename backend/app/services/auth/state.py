@@ -37,15 +37,15 @@ def new_state() -> str:
 def sign(*, provider: str, state: str, round_trip: Mapping[str, str]) -> str:
     """Signe la preuve d'origine. `round_trip` est recopié **sans être lu**."""
     settings = get_settings()
-    maintenant = _now()
-    charge = {
+    now = _now()
+    claims = {
         "provider": provider,
         "state": state,
         "round_trip": dict(round_trip),
-        "iat": maintenant,
-        "exp": maintenant + settings.auth_state_ttl_seconds,
+        "iat": now,
+        "exp": now + settings.auth_state_ttl_seconds,
     }
-    return jwt.encode({"alg": ALGORITHM}, charge, _key(settings.auth_session_secret_key))
+    return jwt.encode({"alg": ALGORITHM}, claims, _key(settings.auth_session_secret_key))
 
 
 def read(token: str) -> StatePayload:
@@ -60,20 +60,20 @@ def read(token: str) -> StatePayload:
         raise LoginError("state_mismatch")
 
     try:
-        jeton = jwt.decode(token, _key(settings.auth_session_secret_key), algorithms=[ALGORITHM])
-        jwt.JWTClaimsRegistry(exp={"essential": True}).validate(jeton.claims)
-    except Exception as refus:
-        raise LoginError("state_mismatch") from refus
+        token = jwt.decode(token, _key(settings.auth_session_secret_key), algorithms=[ALGORITHM])
+        jwt.JWTClaimsRegistry(exp={"essential": True}).validate(token.claims)
+    except Exception as rejection:
+        raise LoginError("state_mismatch") from rejection
 
-    charge = jeton.claims
-    aller_retour = charge.get("round_trip")
-    if not isinstance(charge.get("provider"), str) or not isinstance(charge.get("state"), str):
+    claims = token.claims
+    round_trip = claims.get("round_trip")
+    if not isinstance(claims.get("provider"), str) or not isinstance(claims.get("state"), str):
         raise LoginError("state_mismatch")
 
     return StatePayload(
-        provider=charge["provider"],
-        state=charge["state"],
-        round_trip=aller_retour if isinstance(aller_retour, dict) else {},
+        provider=claims["provider"],
+        state=claims["state"],
+        round_trip=round_trip if isinstance(round_trip, dict) else {},
     )
 
 
