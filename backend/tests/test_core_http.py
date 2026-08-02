@@ -289,15 +289,51 @@ def test_la_fabrique_pose_follow_redirects_par_defaut(monkeypatch):
     assert vus.get("timeout") == 30
 
 
+def test_guarded_transport_garde_un_client_quon_ne_fabrique_pas(dns):
+    """Voie légale des clients tiers héritant de `httpx.Client` (Authlib, #114).
+
+    Le transport est ici passé à un `httpx.Client` nu — c'est exactement ce que
+    fait `OAuth2Client`, dont les `**kwargs` descendent au constructeur httpx.
+    """
+    def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover
+        raise AssertionError("la requête ne devait pas partir")
+
+    transport = http.guarded_transport(httpx.MockTransport(handler))
+    with httpx.Client(transport=transport) as client:
+        with pytest.raises(BlockedTargetError):
+            client.get("http://169.254.169.254/latest/meta-data/")
+
+
 #: Fonctions et classes d'`httpx` qui **ouvrent** une connexion. Une annotation
 #: de paramètre (`client: httpx.Client`) n'en fait pas partie : ces fonctions
 #: reçoivent leur client, elles n'en construisent pas — et l'AST les distingue
 #: nativement, une annotation étant un `Attribute` et non un `Call`.
+#:
+#: Les transports en font partie depuis #114 : `httpx.HTTPTransport()` construit
+#: la connexion que le garde doit envelopper, et un transport nu passé à un
+#: client Authlib rendrait le garde inopérant sans qu'aucun `Client` n'apparaisse
+#: dans le fichier.
 _VERBES_HTTPX = frozenset({
     "Client", "AsyncClient",
+    "HTTPTransport", "AsyncHTTPTransport",
     "get", "post", "put", "patch", "delete", "head", "options",
     "stream", "request",
 })
+
+#: Clients d'`authlib.integrations.httpx_client`. Ils **héritent de `httpx.Client`**
+#: et ouvrent de vraies connexions, mais ne sont liés ni au module httpx ni à un
+#: import venu de lui : sans cette seconde table, ils échappaient au détecteur
+#: (mesuré au sondage du 2026-08-01, §7).
+_VERBES_AUTHLIB = frozenset({
+    "OAuth2Client", "AsyncOAuth2Client",
+    "OAuth1Client", "AsyncOAuth1Client",
+})
+
+#: Module -> verbes qui y ouvrent une connexion.
+_VERBES_PAR_MODULE = {
+    "httpx": _VERBES_HTTPX,
+    "authlib.integrations.httpx_client": _VERBES_AUTHLIB,
+}
 
 
 def _httpx_nu(source: str) -> list[int]:
@@ -313,21 +349,33 @@ def _httpx_nu(source: str) -> list[int]:
 
     arbre = ast.parse(source)
 
-    modules: set[str] = set()   # noms liés au module httpx (`httpx`, `h`, …)
-    directs: set[str] = set()   # noms liés à un verbe d'httpx (`from httpx import Client`)
+    # Nom local -> verbes ouvrant une connexion (`httpx`, `h`, `httpx_client`, …).
+    modules: dict[str, frozenset[str]] = {}
+    directs: set[str] = set()   # noms liés à un verbe (`from httpx import Client`)
     for noeud in ast.walk(arbre):
         if isinstance(noeud, ast.Import):
-            modules |= {
-                alias.asname or alias.name
-                for alias in noeud.names
-                if alias.name == "httpx"
-            }
-        elif isinstance(noeud, ast.ImportFrom) and noeud.module == "httpx":
-            directs |= {
-                alias.asname or alias.name
-                for alias in noeud.names
-                if alias.name in _VERBES_HTTPX
-            }
+            for alias in noeud.names:
+                verbes = _VERBES_PAR_MODULE.get(alias.name)
+                if verbes and alias.asname:
+                    modules[alias.asname] = verbes
+                elif verbes and "." not in alias.name:
+                    modules[alias.name] = verbes
+        elif isinstance(noeud, ast.ImportFrom):
+            verbes = _VERBES_PAR_MODULE.get(noeud.module or "")
+            if verbes:
+                directs |= {
+                    alias.asname or alias.name
+                    for alias in noeud.names
+                    if alias.name in verbes
+                }
+                continue
+            # `from authlib.integrations import httpx_client` : c'est le **module**
+            # qui est lié, pas un verbe.
+            for alias in noeud.names:
+                complet = f"{noeud.module}.{alias.name}" if noeud.module else alias.name
+                verbes_module = _VERBES_PAR_MODULE.get(complet)
+                if verbes_module:
+                    modules[alias.asname or alias.name] = verbes_module
 
     fautives: list[int] = []
     for noeud in ast.walk(arbre):
@@ -337,8 +385,7 @@ def _httpx_nu(source: str) -> list[int]:
         if (
             isinstance(cible, ast.Attribute)
             and isinstance(cible.value, ast.Name)
-            and cible.value.id in modules
-            and cible.attr in _VERBES_HTTPX
+            and cible.attr in modules.get(cible.value.id, frozenset())
         ) or (isinstance(cible, ast.Name) and cible.id in directs):
             fautives.append(noeud.lineno)
     return sorted(fautives)
@@ -353,6 +400,39 @@ def test_le_detecteur_voit_les_formes_alias():
     assert _httpx_nu("import httpx as h\nh.get('http://x')\n") == [2]
 
 
+def test_le_detecteur_voit_les_clients_authlib():
+    """`OAuth2Client` hérite de `httpx.Client` et ouvre de vraies connexions (#114).
+
+    Angle mort mesuré au sondage du 2026-08-01 : le détecteur ne flaguait qu'un
+    nom lié **au module httpx**, or Authlib importe le sien depuis
+    `authlib.integrations.httpx_client`. Il aurait donc laissé passer la
+    **première** sortie HTTP invisible au filet de #101 — à l'endroit exact où
+    circulent un `client_secret` et un code d'autorisation.
+    """
+    assert _httpx_nu(
+        "from authlib.integrations.httpx_client import OAuth2Client\n"
+        "OAuth2Client(client_id='x')\n"
+    ) == [2]
+    assert _httpx_nu(
+        "from authlib.integrations.httpx_client import AsyncOAuth2Client\n"
+        "AsyncOAuth2Client(client_id='x')\n"
+    ) == [2]
+    assert _httpx_nu(
+        "from authlib.integrations import httpx_client\n"
+        "httpx_client.OAuth2Client(client_id='x')\n"
+    ) == [2]
+
+
+def test_le_detecteur_voit_les_transports_nus():
+    """`httpx.HTTPTransport()` construit la connexion que le garde doit envelopper.
+
+    Un transport nu passé à un client Authlib rendrait le garde inopérant sans
+    qu'aucun `httpx.Client` n'apparaisse dans le fichier.
+    """
+    assert _httpx_nu("import httpx\nhttpx.HTTPTransport()\n") == [2]
+    assert _httpx_nu("from httpx import AsyncHTTPTransport\nAsyncHTTPTransport()\n") == [2]
+
+
 def test_le_detecteur_ignore_ce_qui_nouvre_aucune_connexion():
     """Annotations, clients reçus en paramètre, et fabrique maison restent légitimes."""
     assert _httpx_nu("import httpx\ndef f(client: httpx.Client) -> None: ...\n") == []
@@ -364,8 +444,20 @@ def test_le_detecteur_ignore_ce_qui_nouvre_aucune_connexion():
     assert _httpx_nu("import httpx\ntry: ...\nexcept httpx.HTTPError: ...\n") == []
 
 
+#: Les deux seuls fichiers qui construisent un client. `core/http.py` est la
+#: fabrique elle-même ; `services/auth/idp/github.py` construit l'`OAuth2Client`
+#: d'Authlib, à qui il passe `guarded_transport()` — le détecteur lit l'AST, il
+#: ne peut pas juger *quel* transport est passé. Cette exemption est donc
+#: doublée d'un test **positif** côté authentification
+#: (`test_le_transport_par_defaut_est_le_transport_garde`), sans lequel elle
+#: serait un trou : le fichier pourrait cesser de garder sans que rien n'échoue.
+#: Nominative, jamais un motif de dossier — un second fichier ajouté dans `idp/`
+#: doit repasser par la fabrique.
+_FABRIQUES = ("core/http.py", "services/auth/idp/github.py")
+
+
 def test_meta_aucun_httpx_nu_dans_app():
-    """Aucune ouverture de connexion httpx hors de `app/core/http.py`.
+    """Aucune ouverture de connexion httpx hors des fabriques recensées.
 
     Pendant de `HostMatchedProvider` en #49 : il ne suffit pas de corriger les
     sites d'aujourd'hui, il faut que l'oubli du prochain fournisseur ajouté
@@ -378,7 +470,7 @@ def test_meta_aucun_httpx_nu_dans_app():
     fautifs = [
         f"{chemin.relative_to(racine)}:{ligne}"
         for chemin in sorted(racine.rglob("*.py"))
-        if chemin != racine / "core" / "http.py"
+        if chemin.relative_to(racine).as_posix() not in _FABRIQUES
         for ligne in _httpx_nu(chemin.read_text(encoding="utf-8"))
     ]
 

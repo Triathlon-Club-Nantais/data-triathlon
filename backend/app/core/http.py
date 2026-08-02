@@ -158,6 +158,22 @@ class _GuardTransport(httpx.BaseTransport):
         self._inner.close()
 
 
+def guarded_transport(inner: httpx.BaseTransport | None = None) -> httpx.BaseTransport:
+    """Transport gardé, à passer à un client que la fabrique ne construit pas.
+
+    `client()` rend un `httpx.Client` **déjà construit** : inutilisable pour un
+    client tiers qui hérite de `httpx.Client` sans être fabriqué ici — c'est le
+    cas d'`authlib.integrations.httpx_client.OAuth2Client` (#114), dont les
+    `**kwargs` descendent au constructeur httpx, `transport=` compris.
+
+    Sans cette fabrique il n'existerait **aucune voie légale** pour un tel
+    client, et la docstring de `client()` (« **Seule** voie de sortie ») serait
+    fausse. Il n'y a donc qu'une seule construction du garde, ici — pas de
+    second garde parallèle (règle « une seule définition », #33, #76).
+    """
+    return _GuardTransport(inner or httpx.HTTPTransport())
+
+
 def client(**kwargs) -> httpx.Client:
     """Client HTTP de l'application. **Seule** voie de sortie de `app/`.
 
@@ -183,5 +199,4 @@ def client(**kwargs) -> httpx.Client:
     il se configure sur le `httpx.HTTPTransport()` interne.
     """
     kwargs.setdefault("follow_redirects", True)
-    inner = kwargs.pop("transport", None) or httpx.HTTPTransport()
-    return httpx.Client(transport=_GuardTransport(inner), **kwargs)
+    return httpx.Client(transport=guarded_transport(kwargs.pop("transport", None)), **kwargs)
