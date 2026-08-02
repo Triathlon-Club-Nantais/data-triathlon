@@ -62,11 +62,11 @@ def test_un_code_interne_ne_franchit_jamais_la_frontiere():
     """`unknown_provider` et `not_configured` sont des états **internes** : les
     laisser sortir mettrait une valeur non contractuelle dans une URL publique,
     que l'interface ne saurait pas traduire."""
-    from app.api.v1.auth import _echec
+    from app.api.v1.auth import _failure_redirect
 
     settings = get_settings()
     for interne in INTERNAL_CODES:
-        destination = _echec(interne, settings).headers["location"]
+        destination = _failure_redirect(interne, settings).headers["location"]
         assert parse_qs(urlparse(destination).query)["error"][0] in ERROR_CODES
 
 

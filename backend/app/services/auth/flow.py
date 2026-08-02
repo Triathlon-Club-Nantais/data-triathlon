@@ -38,12 +38,12 @@ def start_login(provider_slug: str) -> tuple[str, str]:
     if not get_settings().auth_is_configured or not provider.is_configured():
         raise LoginError("not_configured")
 
-    valeur = state.new_state()
-    demande = provider.authorize(state=valeur)
-    jeton_etat = state.sign(
-        provider=provider.slug, state=valeur, round_trip=demande.round_trip
+    value = state.new_state()
+    request = provider.authorize(state=value)
+    state_token = state.sign(
+        provider=provider.slug, state=value, round_trip=request.round_trip
     )
-    return demande.url, jeton_etat
+    return request.url, state_token
 
 
 def complete_login(
@@ -64,8 +64,8 @@ def complete_login(
     if provider is None:
         raise LoginError("unknown_provider")
 
-    charge = state.read(state_token or "")
-    if charge.provider != provider_slug or not state_param or charge.state != state_param:
+    payload = state.read(state_token or "")
+    if payload.provider != provider_slug or not state_param or payload.state != state_param:
         # Un état émis pour A n'est pas recevable au retour de B : c'est la
         # confusion de fournisseur que ferme le `provider` dans la charge signée.
         raise LoginError("state_mismatch")
@@ -79,6 +79,6 @@ def complete_login(
     if not provider.is_configured():
         raise LoginError("not_configured")
 
-    identity = provider.fetch_identity(code=code, round_trip=charge.round_trip)
+    identity = provider.fetch_identity(code=code, round_trip=payload.round_trip)
     user = provisioning.resolve_user(db, identity)
     return session.open_for(db, user), user

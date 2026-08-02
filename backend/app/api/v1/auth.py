@@ -30,39 +30,39 @@ logger = logging.getLogger(__name__)
 #: FR-018 — une réponse portant une identité ne doit jamais être servie à un
 #: autre visiteur. Une seule table de valeurs, deux points d'application : la
 #: dépendance de router ci-dessous pour les réponses sérialisées, et
-#: `_redirection()` pour les redirections — mesuré, FastAPI **ne fusionne pas**
+#: `_redirect_to()` pour les redirections — mesuré, FastAPI **ne fusionne pas**
 #: les en-têtes d'une dépendance dans une `Response` retournée directement.
-ENTETES_SANS_CACHE = {"Cache-Control": "no-store", "Vary": "Cookie"}
+NO_STORE_HEADERS = {"Cache-Control": "no-store", "Vary": "Cookie"}
 
 SESSION_COOKIE = "tcn_session"
 STATE_COOKIE = "tcn_auth_state"
 #: Le préfixe `__Host-` **exige** `Secure` : le conserver sur un site en clair
 #: ferait rejeter le cookie par le navigateur, et la connexion échouerait sans
 #: message. Le nom est donc **dérivé** du réglage, jamais bricolé au cas par cas.
-PREFIXE_HOTE = "__Host-"
+HOST_PREFIX = "__Host-"
 
 
-def _sans_cache(response: Response) -> None:
-    for nom, valeur in ENTETES_SANS_CACHE.items():
-        response.headers[nom] = valeur
+def _no_store(response: Response) -> None:
+    for name, value in NO_STORE_HEADERS.items():
+        response.headers[name] = value
 
 
-router = APIRouter(tags=["auth"], dependencies=[Depends(_sans_cache)])
+router = APIRouter(tags=["auth"], dependencies=[Depends(_no_store)])
 
 
 def session_cookie_name(settings: Settings) -> str:
-    return _nom_de_cookie(SESSION_COOKIE, settings)
+    return _cookie_name(SESSION_COOKIE, settings)
 
 
 def state_cookie_name(settings: Settings) -> str:
-    return _nom_de_cookie(STATE_COOKIE, settings)
+    return _cookie_name(STATE_COOKIE, settings)
 
 
-def _nom_de_cookie(base: str, settings: Settings) -> str:
-    return f"{PREFIXE_HOTE}{base}" if settings.auth_cookie_secure else base
+def _cookie_name(base: str, settings: Settings) -> str:
+    return f"{HOST_PREFIX}{base}" if settings.auth_cookie_secure else base
 
 
-def _introuvable() -> NotFoundError:
+def _not_found() -> NotFoundError:
     """404 portant les mêmes en-têtes que le reste du préfixe.
 
     Une erreur sort par le handler global de `DomainError`, hors de portée de la
@@ -70,23 +70,23 @@ def _introuvable() -> NotFoundError:
     l'invariant `no-store` / `Vary: Cookie`.
     """
     return NotFoundError(
-        "Ce moyen de connexion n'existe pas.", headers=ENTETES_SANS_CACHE
+        "Ce moyen de connexion n'existe pas.", headers=NO_STORE_HEADERS
     )
 
 
-def _redirection(url: str) -> RedirectResponse:
-    return RedirectResponse(url, status_code=302, headers=ENTETES_SANS_CACHE)
+def _redirect_to(url: str) -> RedirectResponse:
+    return RedirectResponse(url, status_code=302, headers=NO_STORE_HEADERS)
 
 
-def _pose_cookie(
-    response: Response, *, nom: str, valeur: str, duree: int, settings: Settings
+def _set_auth_cookie(
+    response: Response, *, name: str, value: str, max_age: int, settings: Settings
 ) -> None:
     """Pose un cookie du socle. **Jamais** d'attribut `Domain` : `__Host-` l'interdit,
     et c'est la non-écrasabilité depuis un sous-domaine qui ferme la fixation."""
     response.set_cookie(
-        key=nom,
-        value=valeur,
-        max_age=duree,
+        key=name,
+        value=value,
+        max_age=max_age,
         httponly=True,
         secure=settings.auth_cookie_secure,
         samesite="lax",  # `strict` casserait le retour de navigation depuis le fournisseur
@@ -94,7 +94,7 @@ def _pose_cookie(
     )
 
 
-def _efface_cookie(response: Response, *, nom: str, settings: Settings) -> None:
+def _clear_auth_cookie(response: Response, *, name: str, settings: Settings) -> None:
     """Efface un cookie du socle, avec **les mêmes attributs** que la pose.
 
     `Response.delete_cookie` de Starlette pose `secure=False` par défaut. Or la
@@ -108,7 +108,7 @@ def _efface_cookie(response: Response, *, nom: str, settings: Settings) -> None:
     `AUTH_COOKIE_SECURE=false`, où le nom ne porte pas le préfixe.
     """
     response.delete_cookie(
-        key=nom,
+        key=name,
         path="/",
         httponly=True,
         secure=settings.auth_cookie_secure,
@@ -138,21 +138,21 @@ def authorize(provider: str, settings: Settings = Depends(settings_dep)):
     """Ouvre le parcours. Ne prend **aucun** paramètre, destination de retour
     comprise (FR-026) : la redirection ouverte est fermée par construction."""
     try:
-        url, jeton_etat = flow.start_login(provider)
-    except LoginError as refus:
-        if refus.code == "unknown_provider":
-            raise _introuvable() from refus
-        raise AuthUnavailableError(headers=ENTETES_SANS_CACHE) from refus
+        url, state_token = flow.start_login(provider)
+    except LoginError as rejection:
+        if rejection.code == "unknown_provider":
+            raise _not_found() from rejection
+        raise AuthUnavailableError(headers=NO_STORE_HEADERS) from rejection
 
-    reponse = _redirection(url)
-    _pose_cookie(
-        reponse,
-        nom=state_cookie_name(settings),
-        valeur=jeton_etat,
-        duree=settings.auth_state_ttl_seconds,
+    response = _redirect_to(url)
+    _set_auth_cookie(
+        response,
+        name=state_cookie_name(settings),
+        value=state_token,
+        max_age=settings.auth_state_ttl_seconds,
         settings=settings,
     )
-    return reponse
+    return response
 
 
 @router.get("/auth/{provider}/callback")
@@ -172,43 +172,43 @@ def callback(
     parcours coûteux un levier de déni de service **sur le site public**.
     """
     if registry.get(provider) is None:
-        raise _introuvable()
+        raise _not_found()
 
-    jeton_etat = request.cookies.get(state_cookie_name(settings))
+    state_token = request.cookies.get(state_cookie_name(settings))
     try:
-        jeton_session, _ = flow.complete_login(
+        session_token, _ = flow.complete_login(
             db,
             provider_slug=provider,
-            state_token=jeton_etat,
+            state_token=state_token,
             state_param=state,
             code=code,
             error=error,
         )
         db.commit()
-    except LoginError as refus:
+    except LoginError as rejection:
         db.rollback()
-        reponse = _echec(refus.code, settings)
+        response = _failure_redirect(rejection.code, settings)
     except Exception:
         db.rollback()
         logger.exception("Unexpected failure during the %s callback", provider)
-        reponse = _echec("provider_error", settings)
+        response = _failure_redirect("provider_error", settings)
     else:
-        reponse = _redirection(settings.auth_redirect_base_url)
-        _pose_cookie(
-            reponse,
-            nom=session_cookie_name(settings),
-            valeur=jeton_session,
-            duree=settings.auth_session_ttl_days * 24 * 60 * 60,
+        response = _redirect_to(settings.auth_redirect_base_url)
+        _set_auth_cookie(
+            response,
+            name=session_cookie_name(settings),
+            value=session_token,
+            max_age=settings.auth_session_ttl_days * 24 * 60 * 60,
             settings=settings,
         )
 
     # Effacé sur **tous** les chemins de sortie, succès compris (FR-023) : c'est
     # ce qui donne l'usage unique sans table ni verrou.
-    _efface_cookie(reponse, nom=state_cookie_name(settings), settings=settings)
-    return reponse
+    _clear_auth_cookie(response, name=state_cookie_name(settings), settings=settings)
+    return response
 
 
-def _echec(code: str, settings: Settings) -> RedirectResponse:
+def _failure_redirect(code: str, settings: Settings) -> RedirectResponse:
     """Ramène sur la page de connexion avec un code de l'**ensemble fermé**.
 
     Un code hors contrat (`unknown_provider`, `not_configured`) ne franchit
@@ -217,7 +217,7 @@ def _echec(code: str, settings: Settings) -> RedirectResponse:
     """
     if code not in ERROR_CODES:
         code = "provider_unavailable"
-    return _redirection(f"{settings.auth_redirect_base_url}/login?error={code}")
+    return _redirect_to(f"{settings.auth_redirect_base_url}/login?error={code}")
 
 
 @router.post("/auth/logout", status_code=204)
@@ -234,9 +234,9 @@ def logout(
     session_service.close(db, request.cookies.get(session_cookie_name(settings)))
     db.commit()
 
-    reponse = Response(status_code=204, headers=ENTETES_SANS_CACHE)
-    _efface_cookie(reponse, nom=session_cookie_name(settings), settings=settings)
-    return reponse
+    response = Response(status_code=204, headers=NO_STORE_HEADERS)
+    _clear_auth_cookie(response, name=session_cookie_name(settings), settings=settings)
+    return response
 
 
 @router.get("/auth/me", response_model=SessionUserRead)

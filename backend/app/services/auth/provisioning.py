@@ -34,11 +34,11 @@ def resolve_user(db: Session, identity: ExternalIdentity) -> User:
         logger.info("Login refused: address not in the allow-list (%s)", identity.provider)
         raise LoginError("account_not_allowed")
 
-    connue = identity_repository.get_by_subject(
+    known = identity_repository.get_by_subject(
         db, provider=identity.provider, subject=identity.subject
     )
-    if connue is not None:
-        user = user_repository.get(db, connue.user_id)
+    if known is not None:
+        user = user_repository.get(db, known.user_id)
         if user is None:
             # Identité pendante : la ligne `users` a disparu sans la sienne. La
             # FK est inerte en SQLite (`database.py` n'émet aucun
@@ -50,7 +50,7 @@ def resolve_user(db: Session, identity: ExternalIdentity) -> User:
                 "Dangling identity %s/%s points at missing user %s",
                 identity.provider,
                 identity.subject,
-                connue.user_id,
+                known.user_id,
             )
             raise LoginError("provider_error")
 
@@ -67,7 +67,7 @@ def resolve_user(db: Session, identity: ExternalIdentity) -> User:
         user_repository.refresh_profile(
             db, user, email=identity.email, display_name=identity.display_name
         )
-        identity_repository.refresh_email(db, connue, email=identity.email)
+        identity_repository.refresh_email(db, known, email=identity.email)
         return user
 
     # Identité inconnue → **nouvel** utilisateur, même si l'adresse est déjà en
@@ -97,5 +97,5 @@ def _is_allowed(email: str) -> bool:
     La comparaison ignore la casse et les espaces : ces adresses sont saisies à
     la main dans une variable d'environnement.
     """
-    autorisees = {a.strip().lower() for a in get_settings().auth_allowed_emails if a.strip()}
-    return email.strip().lower() in autorisees
+    allowed = {a.strip().lower() for a in get_settings().auth_allowed_emails if a.strip()}
+    return email.strip().lower() in allowed

@@ -27,7 +27,7 @@ TOKEN_URL = "https://github.com/login/oauth/access_token"
 USER_URL = "https://api.github.com/user"
 EMAILS_URL = "https://api.github.com/user/emails"
 
-#: `read:user` pour l'identité, `user:email` pour le repli sur les adresses —
+#: `read:user` pour l'identité, `user:email` pour le repli sur les addresses —
 #: GitHub masque l'adresse publique par défaut, c'est le cas majoritaire.
 SCOPE = "read:user user:email"
 
@@ -86,8 +86,8 @@ class GithubIdentityProvider:
         """Échange le code puis lit l'identité — **au plus deux** allers-retours."""
         with self._client() as client:
             self._fetch_token(client, code=code, verifier=round_trip.get("verifier", ""))
-            profil = self._get_json(client, USER_URL)
-            subject = profil.get("id")
+            profile = self._get_json(client, USER_URL)
+            subject = profile.get("id")
             if subject is None:
                 # Réponse 200 mais inexploitable : sans `id`, il n'y a pas
                 # d'identité — et surtout pas de clé de résolution.
@@ -106,14 +106,14 @@ class GithubIdentityProvider:
             # et il ne pèse rien face à une certification devinée.
             email, verified = self._certified_email(client)
             if not email:
-                email = (profil.get("email") or "").strip()
+                email = (profile.get("email") or "").strip()
 
             return ExternalIdentity(
                 provider=self.slug,
                 subject=str(subject),
                 email=email,
                 email_verified=verified,
-                display_name=profil.get("login") or profil.get("name") or "",
+                display_name=profile.get("login") or profile.get("name") or "",
             )
 
     def _fetch_token(self, client: OAuth2Client, *, code: str, verifier: str) -> None:
@@ -125,27 +125,27 @@ class GithubIdentityProvider:
                 grant_type="authorization_code",
                 headers={"Accept": "application/json"},
             )
-        except httpx.HTTPError as panne:
+        except httpx.HTTPError as failure:
             # Une redirection 307 non suivie ressort ici : `follow_redirects=False`
             # laisse Authlib échouer sur une réponse sans jeton plutôt que de
             # réémettre le `client_secret` vers la cible du `Location`.
-            logger.warning("GitHub token exchange failed: %s", type(panne).__name__)
-            raise LoginError("provider_unavailable") from panne
-        except Exception as refus:
-            logger.warning("GitHub rejected the authorization code: %s", type(refus).__name__)
-            raise LoginError("provider_error") from refus
+            logger.warning("GitHub token exchange failed: %s", type(failure).__name__)
+            raise LoginError("provider_unavailable") from failure
+        except Exception as rejection:
+            logger.warning("GitHub rejected the authorization code: %s", type(rejection).__name__)
+            raise LoginError("provider_error") from rejection
 
     def _get_json(self, client: OAuth2Client, url: str):
         try:
-            reponse = client.get(url, headers={"Accept": "application/vnd.github+json"})
-            reponse.raise_for_status()
-            return reponse.json()
-        except httpx.HTTPError as panne:
-            logger.warning("GitHub request failed: %s", type(panne).__name__)
-            raise LoginError("provider_unavailable") from panne
-        except ValueError as illisible:
+            response = client.get(url, headers={"Accept": "application/vnd.github+json"})
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError as failure:
+            logger.warning("GitHub request failed: %s", type(failure).__name__)
+            raise LoginError("provider_unavailable") from failure
+        except ValueError as unreadable:
             logger.warning("GitHub returned a non-JSON payload")
-            raise LoginError("provider_error") from illisible
+            raise LoginError("provider_error") from unreadable
 
     def _certified_email(self, client: OAuth2Client) -> tuple[str, bool]:
         """Adresse **certifiée** par le fournisseur, lue sur `/user/emails`.
@@ -156,16 +156,16 @@ class GithubIdentityProvider:
         aucune ne l'est, on rend ce que le fournisseur donne, non certifié, pour
         que le refus soit prononcé par la politique et non ici.
         """
-        adresses = self._get_json(client, EMAILS_URL)
-        if not isinstance(adresses, list):
+        addresses = self._get_json(client, EMAILS_URL)
+        if not isinstance(addresses, list):
             raise LoginError("provider_error")
 
-        verifiees = [a for a in adresses if isinstance(a, dict) and a.get("verified")]
-        for candidate in verifiees:
+        verified_addresses = [a for a in addresses if isinstance(a, dict) and a.get("verified")]
+        for candidate in verified_addresses:
             if candidate.get("primary"):
                 return str(candidate.get("email") or ""), True
-        if verifiees:
-            return str(verifiees[0].get("email") or ""), True
+        if verified_addresses:
+            return str(verified_addresses[0].get("email") or ""), True
 
-        premiere = adresses[0] if adresses and isinstance(adresses[0], dict) else {}
-        return str(premiere.get("email") or ""), False
+        first = addresses[0] if addresses and isinstance(addresses[0], dict) else {}
+        return str(first.get("email") or ""), False

@@ -29,7 +29,7 @@ class SessionUserRead(BaseModel):
     created_at: datetime
 
     @field_serializer("created_at")
-    def _en_utc(self, valeur: datetime) -> str:
+    def _serialize_utc(self, value: datetime) -> str:
         """Suffixe `Z` : les colonnes sont des datetimes **naïfs en UTC**, et un
         naïf sérialisé tel quel serait lu comme une heure locale par le client."""
-        return f"{valeur.isoformat()}Z"
+        return f"{value.isoformat()}Z"
