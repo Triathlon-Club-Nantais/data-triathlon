@@ -81,6 +81,42 @@ Réglages restants à faire **dans le dashboard** (non supportés par le MCP) :
    - env **Preview** : `BACKEND_URL` / `API_URL` → backend Render **preview**.
    - env **Production** : `BACKEND_URL` / `API_URL` → backend Render **prod**.
 
+### Authentification SSO (#114) — variables par environnement
+
+Les huit réglages `AUTH_*` sont déclarés dans `render.yaml` (`sync: false`, sauf
+`AUTH_SESSION_SECRET_KEY` en `generateValue: true`). Ils se renseignent **côté
+backend** — le frontend n'en porte aucun, il ne fait que proxifier `/api/*`.
+
+| Variable | PROD | PREVIEW | Local |
+|---|---|---|---|
+| `AUTH_SESSION_SECRET_KEY` | généré par Render | généré par Render | `python -c "import secrets; print(secrets.token_urlsafe(64))"` |
+| `AUTH_GITHUB_CLIENT_ID` / `_SECRET` | application OAuth « prod » | application OAuth « preview » | application OAuth « local » |
+| `AUTH_ALLOWED_EMAILS` | adresses des contributeurs, en CSV | idem, ou vide pour fermer | votre adresse GitHub vérifiée |
+| `AUTH_REDIRECT_BASE_URL` | URL Vercel **production** | URL Vercel du déploiement stable | `http://127.0.0.1:3000` |
+| `AUTH_COOKIE_SECURE` | `true` | `true` | `false` |
+| `AUTH_SESSION_TTL_DAYS` / `AUTH_STATE_TTL_SECONDS` | défauts (7 j / 600 s) | défauts | défauts |
+
+Quatre points qui coûtent cher s'ils sont découverts en production :
+
+- **une application OAuth GitHub n'accepte qu'une seule URL de retour**, port
+  compris. Il faut donc **une application par environnement** : prod, preview,
+  et une par développeur. Le retour vise l'**interface**
+  (`<origine>/api/v1/auth/github/callback`), jamais le backend Render — le
+  cookie d'état est posé sur l'origine de l'interface et ne serait pas renvoyé
+  autrement, faisant échouer **tout** retour de parcours en `state_mismatch` ;
+- **les déploiements de prévisualisation par PR sont hors périmètre** : leur URL
+  change à chaque exécution, donc aucune URL de retour stable ne peut être
+  enregistrée chez GitHub. La connexion n'y fonctionne pas, et c'est assumé —
+  seul le déploiement preview **stable** (celui que vise `AUTH_REDIRECT_BASE_URL`)
+  est utilisable. Le site public, lui, reste entier sur toutes les previews ;
+- `AUTH_ALLOWED_EMAILS` **vide interdit toute connexion** et fait rendre `[]` à
+  `/auth/methods`. Ce n'est pas un défaut permissif : une variable oubliée sur
+  Render ferme l'accès au lieu de l'ouvrir à n'importe quel compte GitHub ;
+- une **rotation de `AUTH_SESSION_SECRET_KEY` ne ferme aucune session** : le
+  jeton de session est opaque et vérifié en base, il n'est pas signé. Elle
+  n'invalide que les parcours de connexion en cours (le jeton d'état, lui, est
+  signé). Voir la procédure de fermeture en masse dans `AGENTS.md`.
+
 ### Secrets GitHub
 
 Settings → Secrets and variables → Actions :

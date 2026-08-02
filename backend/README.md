@@ -99,6 +99,18 @@ uv run ruff check .                  # lint
 | `LOG_JSON` | `false` | Logs JSON (ingestion Render/Datadog) |
 | `CACHE_TTL_IN_PROGRESS_SECONDS` | `600` | TTL cache course en cours (10 min) |
 | `CACHE_TTL_FINISHED_SECONDS` | `2592000` | TTL cache course terminée (30 j) |
+| `AUTH_SESSION_SECRET_KEY` | *(vide)* | Signe le jeton d'état du parcours. **≥ 32 caractères** ou le démarrage échoue ; vide = authentification non configurée |
+| `AUTH_GITHUB_CLIENT_ID` | *(vide)* | Application OAuth GitHub |
+| `AUTH_GITHUB_CLIENT_SECRET` | *(vide)* | Application OAuth GitHub |
+| `AUTH_ALLOWED_EMAILS` | *(vide)* | Adresses autorisées, en CSV. **Vide interdit toute connexion** — jamais « tout le monde » |
+| `AUTH_REDIRECT_BASE_URL` | `http://127.0.0.1:3000` | Origine de l'**interface** (jamais celle de l'API) : destination de retour et base de `/login?error=…` |
+| `AUTH_COOKIE_SECURE` | `true` | `false` en développement sans TLS — retire alors le préfixe `__Host-` du nom des cookies |
+| `AUTH_SESSION_TTL_DAYS` | `7` | Durée de session, sans prolongation glissante |
+| `AUTH_STATE_TTL_SECONDS` | `600` | Durée de vie du jeton d'état (10 min) |
+
+Une installation **sans** ces variables démarre normalement : le site public est
+intact et `GET /api/v1/auth/methods` rend `[]`. Mise en route locale complète
+(application OAuth comprise) : `specs/20260801-145428-auth-socle-sso/quickstart.md`.
 
 ## Points clés du modèle
 
