@@ -103,7 +103,7 @@ uv run ruff check .                  # lint
 | `AUTH_GITHUB_CLIENT_ID` | *(vide)* | Application OAuth GitHub |
 | `AUTH_GITHUB_CLIENT_SECRET` | *(vide)* | Application OAuth GitHub |
 | `AUTH_ALLOWED_EMAILS` | *(vide)* | Adresses autorisées, en CSV. **Vide interdit toute connexion** — jamais « tout le monde » |
-| `AUTH_REDIRECT_BASE_URL` | `http://127.0.0.1:3000` | Origine de l'**interface** (jamais celle de l'API) : destination de retour et base de `/login?error=…` |
+| `AUTH_REDIRECT_BASE_URL` | *(vide)* | Origine de l'**interface** (jamais celle de l'API) : destination de retour, base de `/login?error=…` et du `redirect_uri` envoyé au fournisseur. **Sans défaut** — un défaut localhost faisait passer pour configuré un déploiement qui l'oubliait, et l'échec tombait alors chez GitHub |
 | `AUTH_COOKIE_SECURE` | `true` | `false` en développement sans TLS — retire alors le préfixe `__Host-` du nom des cookies |
 | `AUTH_SESSION_TTL_DAYS` | `7` | Durée de session, sans prolongation glissante |
 | `AUTH_STATE_TTL_SECONDS` | `600` | Durée de vie du jeton d'état (10 min) |
