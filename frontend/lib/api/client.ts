@@ -1,5 +1,6 @@
 import type {
   AthleteDetail,
+  AuthMethod,
   CourseDetail,
   EventPage,
   GeoEvent,
@@ -9,10 +10,28 @@ import type {
   PendingProvider,
   ScrapedPreview,
   Season,
+  SessionUser,
   Stats,
 } from "@/lib/types";
 
 const BASE = "/api/v1";
+
+/**
+ * Erreur d'API porteuse de son statut HTTP.
+ *
+ * Sans lui, un 401 était indiscernable d'un 500 : les deux arrivaient en `Error`
+ * nu. La session en dépend — « pas connecté » est un état normal de la page, pas
+ * une panne à signaler. Reste une `Error`, donc rien de l'existant ne change.
+ */
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
@@ -21,7 +40,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || "Erreur réseau");
+    throw new ApiError(res.status, err.detail || "Erreur réseau");
   }
   if (res.status === 204) return null as T;
   return res.json() as Promise<T>;
@@ -84,6 +103,13 @@ export const apiClient = {
     request<Season[]>(`/stats/seasons${toQuery(opts)}`),
   getEventsGeo: (opts: { scope?: string; federal_only?: boolean } = {}) =>
     request<GeoEvent[]>(`/stats/events-geo${toQuery(opts)}`),
+
+  // ── Authentification (#114) ────────────────────────────────────────────────
+  // Aucune méthode de connexion n'est codée en dur ici : l'écran de connexion
+  // se construit à partir de ce que le backend déclare (FR-031).
+  listAuthMethods: () => request<AuthMethod[]>("/auth/methods"),
+  getSession: () => request<SessionUser>("/auth/me"),
+  logout: () => request<null>("/auth/logout", { method: "POST" }),
 
   listPendingProviders: () =>
     request<PendingProvider[]>("/admin/pending-providers"),
