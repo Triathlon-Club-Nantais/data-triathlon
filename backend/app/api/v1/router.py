@@ -7,6 +7,7 @@ from fastapi import APIRouter
 from app.api.v1 import (
     admin,
     athletes,
+    auth,
     courses,
     health,
     participations,
@@ -17,5 +18,5 @@ from app.api.v1 import (
 
 api_router = APIRouter()
 
-for module in (health, version, scrape, athletes, courses, participations, stats, admin):
+for module in (health, version, scrape, athletes, courses, participations, stats, admin, auth):
     api_router.include_router(module.router)

@@ -1,0 +1,133 @@
+"""Attributs des cookies — `__Host-`, `HttpOnly`, `SameSite`, absence de `Domain`.
+
+`SameSite` protège la **lecture** d'un cookie, jamais son **écriture**. Sans
+`__Host-`, tout contenu exécuté sur un domaine apparenté peut poser un cookie de
+session et provoquer une **fixation** — la victime navigue alors dans le compte
+de l'attaquant — ou injecter un cookie d'état et rouvrir le CSRF de connexion.
+`vercel.app` figurant sur la Public Suffix List, la production actuelle est
+protégée **par accident** : brancher un domaine propre ferait tomber cette
+protection. Le préfixe est en outre impossible à rétrofitter sans invalider
+toutes les sessions.
+"""
+import pytest
+
+from app.api.v1.auth import session_cookie_name, state_cookie_name
+from app.core.config import get_settings
+
+
+def _entetes_set_cookie(reponse) -> list[str]:
+    return reponse.headers.get_list("set-cookie")
+
+
+def _cookie(reponse, prefixe: str) -> str:
+    correspondants = [e for e in _entetes_set_cookie(reponse) if e.startswith(prefixe)]
+    assert correspondants, f"aucun Set-Cookie ne commence par {prefixe!r}"
+    return correspondants[0]
+
+
+@pytest.fixture
+def en_https(monkeypatch):
+    monkeypatch.setenv("AUTH_COOKIE_SECURE", "true")
+    get_settings.cache_clear()
+
+
+@pytest.fixture
+def client_https(db_session, en_https):
+    """Client dont l'URL de base est en HTTPS.
+
+    Indispensable dès que `AUTH_COOKIE_SECURE` est actif : un client sur
+    `http://testserver` **n'émet pas** un cookie `Secure` qu'il a pourtant reçu,
+    donc le retour de parcours n'aurait jamais son cookie d'état et échouerait
+    en `state_mismatch` — un artefact du bac à sable, pas un défaut du code.
+    """
+    from fastapi.testclient import TestClient
+
+    from app.core.database import get_db
+    from app.main import app
+
+    def _override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = _override_get_db
+    with TestClient(app, base_url="https://testserver") as c:
+        yield c
+    app.dependency_overrides.clear()
+
+
+def test_le_nom_porte_le_prefixe_host_en_production(en_https):
+    settings = get_settings()
+
+    assert session_cookie_name(settings) == "__Host-tcn_session"
+    assert state_cookie_name(settings) == "__Host-tcn_auth_state"
+
+
+def test_le_prefixe_est_retire_sans_tls():
+    """Le préfixe **exige** `Secure` : le conserver en clair ferait rejeter le
+    cookie par le navigateur, et la connexion échouerait sans rien dire."""
+    settings = get_settings()  # la fixture du paquet pose AUTH_COOKIE_SECURE=false
+
+    assert session_cookie_name(settings) == "tcn_session"
+    assert state_cookie_name(settings) == "tcn_auth_state"
+
+
+def test_le_nom_est_derive_jamais_bricole():
+    """Un seul point de dérivation, pour les deux cookies et les deux modes."""
+    import inspect
+
+    from app.api.v1 import auth
+
+    source = inspect.getsource(auth)
+    assert source.count('"__Host-') <= 1
+
+
+def test_le_cookie_d_etat_porte_les_bons_attributs(client_https, doublure):
+    reponse = client_https.get("/api/v1/auth/doublure/authorize", follow_redirects=False)
+
+    entete = _cookie(reponse, "__Host-tcn_auth_state=")
+    assert "HttpOnly" in entete
+    assert "Secure" in entete
+    assert "SameSite=lax" in entete.replace("SameSite=Lax", "SameSite=lax")
+    assert "Path=/" in entete
+    assert "Domain" not in entete
+
+
+def test_le_cookie_de_session_porte_les_bons_attributs(client_https, doublure):
+    from app.services.auth import state
+
+    client_https.get("/api/v1/auth/doublure/authorize", follow_redirects=False)
+    charge = state.read(client_https.cookies["__Host-tcn_auth_state"])
+    reponse = client_https.get(
+        f"/api/v1/auth/doublure/callback?code=c&state={charge.state}",
+        follow_redirects=False,
+    )
+
+    entete = _cookie(reponse, "__Host-tcn_session=")
+    assert "HttpOnly" in entete
+    assert "Secure" in entete
+    assert "SameSite=lax" in entete.replace("SameSite=Lax", "SameSite=lax")
+    assert "Path=/" in entete
+    assert "Domain" not in entete
+
+
+def test_aucun_cookie_ne_porte_d_attribut_domain(client, doublure):
+    """`__Host-` **interdit** `Domain` ; le vérifier aussi en clair garantit que
+    les deux modes se comportent pareil sur ce point."""
+    reponse = client.get("/api/v1/auth/doublure/authorize", follow_redirects=False)
+
+    for entete in _entetes_set_cookie(reponse):
+        assert "Domain" not in entete
+
+
+def test_le_cookie_de_session_survit_a_la_fermeture_de_l_onglet(client_https, doublure):
+    """Scénario 3 d'US1 : une session de navigateur ne suffirait pas."""
+    from app.services.auth import state
+
+    client_https.get("/api/v1/auth/doublure/authorize", follow_redirects=False)
+    charge = state.read(client_https.cookies["__Host-tcn_auth_state"])
+    reponse = client_https.get(
+        f"/api/v1/auth/doublure/callback?code=c&state={charge.state}",
+        follow_redirects=False,
+    )
+
+    entete = _cookie(reponse, "__Host-tcn_session=")
+    assert "Max-Age" in entete or "Expires" in entete
