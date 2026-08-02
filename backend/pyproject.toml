@@ -21,6 +21,12 @@ dependencies = [
     "opentelemetry-instrumentation-fastapi>=0.65b0",
     "opentelemetry-instrumentation-sqlalchemy>=0.65b0",
     "opentelemetry-exporter-otlp-proto-http>=1.44.0",
+    # Flux OAuth du socle d'authentification (#114). `httpx_client.OAuth2Client`
+    # hérite de `httpx.Client`, donc le transport gardé de `core/http` y descend
+    # nativement — c'est ce qui fait passer tout le trafic OAuth par le contrôle
+    # de destination (#101). Apporte `cryptography` et `joserfc` en transitif ;
+    # `joserfc` signe le jeton d'état. Sondage : docs/superpowers/specs/2026-08-01-auth-librairies-sondage.md
+    "authlib>=1.7.2",
 ]
 
 # PEP 735 : installé par `uv sync`, écarté par `uv sync --no-dev` (Render, Docker).

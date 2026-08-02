@@ -15,9 +15,13 @@ class DomainError(Exception):
     status_code: int = 400
     message: str = "Erreur"
 
-    def __init__(self, message: str | None = None):
+    def __init__(self, message: str | None = None, *, headers: dict[str, str] | None = None):
         if message:
             self.message = message
+        # Une erreur peut devoir porter des en-têtes de réponse : le 401 de
+        # `/auth/me` doit rester `no-store`, et il sort d'ici, pas du endpoint —
+        # donc hors de portée de la dépendance de router qui les pose (#114).
+        self.headers = headers or {}
         super().__init__(self.message)
 
 
@@ -50,6 +54,18 @@ class BlockedTargetError(DomainError):
     message = "Destination réseau refusée"
 
 
+class AuthUnavailableError(DomainError):
+    """L'authentification n'est pas configurée sur cette installation (#114).
+
+    503 et non 500 : ce n'est pas une panne, c'est une absence de configuration
+    — un déploiement sans secrets OAuth est un état légitime, où le site public
+    reste intégralement fonctionnel (FR-036).
+    """
+
+    status_code = 503
+    message = "L'authentification n'est pas configurée sur ce site."
+
+
 class NotFoundError(DomainError):
     status_code = 404
     message = "Ressource introuvable"
@@ -68,4 +84,5 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=exc.status_code,
             content={"detail": exc.message},
+            headers=exc.headers or None,
         )
