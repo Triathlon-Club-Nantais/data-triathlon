@@ -564,17 +564,32 @@ pas un garde de sécurité.
 légitime), `AUTH_GITHUB_CLIENT_ID` / `_SECRET`, `AUTH_ALLOWED_EMAILS` (CSV,
 **fail-closed** : vide interdit toute connexion et fait rendre `[]` à
 `/auth/methods`), `AUTH_REDIRECT_BASE_URL` (origine de l'**interface**, jamais
-celle de l'API), `AUTH_COOKIE_SECURE` (dont le nom des cookies est **dérivé** :
-`__Host-` exige `Secure`), `AUTH_SESSION_TTL_DAYS`, `AUTH_STATE_TTL_SECONDS`.
+celle de l'API, et **sans défaut**), `AUTH_COOKIE_SECURE` (dont le nom des
+cookies est **dérivé** : `__Host-` exige `Secure`), `AUTH_SESSION_TTL_DAYS`,
+`AUTH_STATE_TTL_SECONDS`.
 
-Deux de ces réglages seulement sont **transverses** — la clé de signature et la
-liste d'autorisation —, et c'est eux qu'éprouve `Settings.auth_is_configured` ;
-les secrets d'un fournisseur restent derrière son propre `is_configured()`. Les
-mêler masquerait un second fournisseur pourtant configuré et obligerait à
-modifier ce garde à chaque ajout, ce que FR-033 proscrit. Les **deux** gardes
-sont éprouvées à l'entrée du parcours, socle d'abord : sans la clé, `joserfc`
-levait un `ValueError` nu qui ressortait en **500** — une page technique dans un
-navigateur en pleine navigation, là où le contrat impose un 503 lisible.
+Trois de ces réglages sont **transverses** — la clé de signature, la liste
+d'autorisation et l'origine de retour —, et ce sont eux qu'éprouve
+`Settings.auth_is_configured` ; les secrets d'un fournisseur restent derrière son
+propre `is_configured()`. Les mêler masquerait un second fournisseur pourtant
+configuré et obligerait à modifier ce garde à chaque ajout, ce que FR-033
+proscrit. Les **deux** gardes sont éprouvées à l'entrée du parcours, socle
+d'abord : sans la clé, `joserfc` levait un `ValueError` nu qui ressortait en
+**500** — une page technique dans un navigateur en pleine navigation, là où le
+contrat impose un 503 lisible.
+
+`AUTH_REDIRECT_BASE_URL` est dans ce garde pour une raison mesurée : elle part
+dans le `redirect_uri` enregistré chez le fournisseur. Avec un défaut localhost,
+un déploiement qui l'oubliait paraissait **pleinement configuré** — la page de
+connexion affichait son bouton — pendant que GitHub répondait par sa propre page
+d'erreur. Le visiteur ne revenait jamais, aucun code de l'ensemble fermé ne se
+déclenchait, et rien n'était journalisé côté backend.
+
+**La garde `/admin` ne ferme que si une connexion est possible.** Sans les
+secrets, `/auth/me` rend 401 pour tout le monde : rediriger ferait de cet écran,
+ouvert jusqu'ici, une impasse pour **tous** — l'inverse de FR-036. Elle
+distingue donc « anonyme avéré » (401) de « on ne sait pas » (backend
+injoignable), et ne redirige que dans le premier cas, `/auth/methods` non vide.
 
 **Aucune route existante n'est protégée** — c'est le périmètre de #115 —, et la
 garde `frontend/app/admin/layout.tsx` est **d'interface seulement** : elle évite
