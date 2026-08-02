@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Menu } from "lucide-react";
 import { Button, Modal, Input, Avatar } from "@/components/tcn";
+import { UserMenu } from "@/components/auth/UserMenu";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { apiClient } from "@/lib/api/client";
 import type { AthleteBrief } from "@/lib/types";
@@ -108,6 +109,7 @@ export function TcnTopbar() {
         <Button onClick={() => router.push("/ajouter")} icon={<span style={{ fontSize: 18, lineHeight: 1 }}>+</span>}>
           Ajouter un triathlon
         </Button>
+        <UserMenu />
       </div>
 
       {/* Bouton hamburger mobile (caché sur sm+) */}
@@ -178,6 +180,11 @@ export function TcnTopbar() {
             >
               Ajouter un triathlon
             </Button>
+            {/* Toute action de cette barre est déclarée deux fois : ici et dans
+                le bloc desktop. Le clic referme le tiroir en remontant. */}
+            <div onClick={() => setDrawerOpen(false)}>
+              <UserMenu pleineLargeur />
+            </div>
           </div>
         </SheetContent>
       </Sheet>

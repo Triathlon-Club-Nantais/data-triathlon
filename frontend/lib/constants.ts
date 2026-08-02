@@ -78,3 +78,31 @@ export function disciplineLabel(course: {
   }
   return label;
 }
+
+/**
+ * Libellés **français** des codes d'échec du parcours de connexion (#114).
+ *
+ * Le backend n'émet qu'un code appartenant à un ensemble fermé — jamais un
+ * message du fournisseur, jamais une donnée d'entrée. La traduction vit donc
+ * ici, sur le modèle de PROVIDER_LABELS.
+ */
+export const AUTH_ERROR_LABELS: Record<string, string> = {
+  state_mismatch:
+    "Votre demande de connexion a expiré ou n'a pas pu être vérifiée. Merci de recommencer.",
+  email_unverified:
+    "Votre fournisseur ne certifie aucune adresse e-mail vérifiée pour ce compte.",
+  account_not_allowed:
+    "Cette adresse n'est pas autorisée à accéder à l'espace contributeur.",
+  provider_error: "La connexion a été refusée ou interrompue. Merci de réessayer.",
+  provider_unavailable:
+    "Le service de connexion est momentanément injoignable. Merci de réessayer plus tard.",
+};
+
+/**
+ * Un code inconnu retombe sur un message générique et n'est **jamais** rendu
+ * verbatim : la page de connexion ne doit pas devenir un point d'injection.
+ */
+export function authErrorLabel(code: string | null | undefined): string {
+  if (!code) return "";
+  return AUTH_ERROR_LABELS[code] ?? "La connexion a échoué. Merci de réessayer.";
+}

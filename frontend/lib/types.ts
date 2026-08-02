@@ -193,3 +193,19 @@ export interface ParticipationFilters {
   page?: number;
   page_size?: number;
 }
+
+// ── Authentification (#114) ──────────────────────────────────────────────────
+
+/** Un moyen de connexion proposé par le backend. Aucun n'est codé en dur ici. */
+export interface AuthMethod {
+  slug: string;
+  label: string;
+}
+
+/** Identité de la session courante, rendue par `GET /auth/me`. */
+export interface SessionUser {
+  id: number;
+  email: string;
+  display_name: string;
+  created_at: string;
+}

@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import type {
   AthleteDetail,
   CourseDetail,
@@ -6,6 +7,7 @@ import type {
   ParticipationFilters,
   PendingProvider,
   Season,
+  SessionUser,
   Stats,
 } from "@/lib/types";
 
@@ -14,6 +16,30 @@ const BASE = `${API_URL}/api/v1`;
 
 async function serverFetch<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { cache: "no-store" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || `Erreur API (${res.status})`);
+  }
+  return res.json() as Promise<T>;
+}
+
+/**
+ * Variante **authentifiée** de `serverFetch`, qui relaie les cookies entrants.
+ *
+ * Fonction séparée, et `serverFetch` volontairement **inchangé** : six pages
+ * publiques en rendu serveur l'utilisent, et lire les cookies les rendrait
+ * toutes dynamiques — on paierait le prérendu statique du site public pour
+ * afficher un avatar.
+ *
+ * Rend `null` sur 401 : anonyme est un état normal, pas une panne.
+ */
+async function serverFetchAuthed<T>(path: string): Promise<T | null> {
+  const jar = await cookies();
+  const res = await fetch(`${BASE}${path}`, {
+    cache: "no-store",
+    headers: { cookie: jar.toString() },
+  });
+  if (res.status === 401) return null;
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || `Erreur API (${res.status})`);
@@ -48,4 +74,7 @@ export const apiServer = {
     serverFetch<Season[]>(`/stats/seasons${toQuery(opts)}`),
   listPendingProviders: () =>
     serverFetch<PendingProvider[]>("/admin/pending-providers"),
+
+  /** Session du visiteur, ou `null` s'il est anonyme (#114). */
+  getSession: () => serverFetchAuthed<SessionUser>("/auth/me"),
 };
