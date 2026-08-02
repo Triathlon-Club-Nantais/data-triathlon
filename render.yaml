@@ -14,3 +14,20 @@ services:
     envVars:
       - key: DATABASE_URL
         sync: false
+      # ── Authentification SSO (#114) ────────────────────────────────────────
+      # Toutes en `sync: false` : ce sont des secrets, ou des valeurs propres à
+      # l'environnement. Une variable absente n'empêche **pas** le démarrage —
+      # le site public reste intact et aucun moyen de connexion n'est proposé
+      # (FR-036). Valeurs par environnement : docs/ci-cd.md.
+      - key: AUTH_SESSION_SECRET_KEY
+        generateValue: true # ≥ 32 caractères exigés, sinon le démarrage échoue
+      - key: AUTH_GITHUB_CLIENT_ID
+        sync: false
+      - key: AUTH_GITHUB_CLIENT_SECRET
+        sync: false
+      - key: AUTH_ALLOWED_EMAILS
+        sync: false # CSV ; **vide interdit toute connexion**, ce n'est pas « tout le monde »
+      - key: AUTH_REDIRECT_BASE_URL
+        sync: false # origine de l'**interface** (Vercel), jamais celle de l'API
+      - key: AUTH_COOKIE_SECURE
+        value: "true"

@@ -3,6 +3,10 @@
 # Justifications et mesures : AGENTS.md, §Dev multi-worktree.
 
 # Couvre aussi backend/.env, porteur de DATABASE_URL.
+# N'y figez pas AUTH_REDIRECT_BASE_URL ni les identifiants OAuth : une application
+# OAuth n'accepte **qu'une seule** URL de retour, port compris, et le front d'un
+# worktree n'atterrit pas sur :3000. Un retour figé renverrait donc ce worktree
+# vers l'interface — et la base — d'un autre, sans erreur visible.
 .env
 
 # N'y figez pas BACKEND_URL / API_URL : ils visent un worktree précis.
