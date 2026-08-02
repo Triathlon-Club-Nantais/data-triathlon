@@ -184,10 +184,9 @@ session et l'absence d'utilisateur créé.
 ## Phase 6: Polish & Cross-Cutting Concerns
 
 - [X] T060 [P] Ajouter la section « **Authentification** » à `AGENTS.md` (**AC7 de l'issue #114**) : les trois tables, l'invariant jeton opaque / empreinte, le registre `idp/` et la collision de vocabulaire avec « provider » (chronométreur), les 8 réglages `AUTH_*`, le fait qu'**aucune route existante n'est protégée** et que la garde `/admin` est **d'interface seulement**, l'obligation de passer par `core.http.guarded_transport()`, et le piège multi-worktree. **Trois points supplémentaires, chacun non devinable depuis le code** : (a) le rôle de #115 est relatif à une **organisation** et ne se pose donc **pas** en colonne sur `users` (FR-041) ; (b) la **fermeture en masse des sessions** est une procédure, pas un outil — désactiver le compte pour un utilisateur, supprimer toutes les sessions enregistrées pour la totalité (FR-016) ; (c) une **rotation de `AUTH_SESSION_SECRET_KEY` ne ferme aucune session**, le jeton étant opaque et vérifié en base plutôt que signé — croire l'inverse ferait tenir une fuite pour colmatée
-- [ ] T061 [P] Ajouter les 8 réglages `AUTH_*` à `backend/.env.example`, secrets laissés vides
-  — **bloquée** : l'accès aux fichiers `.env*` est refusé par les permissions de la
-  session d'implémentation. Le bloc à coller figure dans le rapport de `/speckit-implement` ;
-  contenu identique au tableau de `backend/README.md`.
+- [X] T061 [P] Ajouter les 8 réglages `AUTH_*` à `backend/.env.example`, secrets laissés vides
+  — posé **à la main par le mainteneur** : l'accès aux fichiers `.env*` était refusé par
+  les permissions de la session d'implémentation.
 - [X] T062 [P] Ajouter les `AUTH_*` à `render.yaml` en `sync: false`, avec `generateValue: true` pour `AUTH_SESSION_SECRET_KEY` ; documenter les valeurs par environnement dans `docs/ci-cd.md`, dont la décision sur les déploiements de prévisualisation (dont l'URL change à chaque exécution, donc sans URL de retour stable)
 - [X] T063 [P] Ajouter les 8 variables au tableau de `backend/README.md`
 - [X] T064 [P] Ajouter à `.worktreeinclude`, en face de la ligne `.env`, l'avertissement miroir de celui de `.env.local` : n'y figer ni `AUTH_REDIRECT_BASE_URL` ni les identifiants OAuth, qui visent un worktree précis
