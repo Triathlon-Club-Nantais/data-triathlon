@@ -135,9 +135,16 @@ en changer plus tard inverserait une sémantique — ce que le Principe IV prosc
 `display_name` vient du fournisseur et sert à l'affichage. Ni l'identifiant opaque chez le
 fournisseur, ni l'identifiant de session, ni aucun jeton ne sont exposés.
 
-**Ajouts non cassants prévus** : `role` (#115) et `athlete_id` (#117). Ajouter un champ ne rompt
-pas le contrat au sens du Principe IV, qui vise le champ retiré, la sémantique inversée et le code
-de retour modifié.
+**Ajouts non cassants prévus** : le ou les rôles (#115) et `athlete_id` (#117). Ajouter un champ ne
+rompt pas le contrat au sens du Principe IV, qui vise le champ retiré, la sémantique inversée et le
+code de retour modifié.
+
+Une réserve sur la **forme** de ce futur champ, qui découle de FR-041 : un rôle est relatif à une
+**organisation**, jamais global. Un scalaire `"role": "admin"` inverserait donc la sémantique le
+jour où un utilisateur porte des rôles différents dans deux organisations — précisément ce que le
+Principe IV proscrit de changer après coup. La forme à retenir en #115 est **portée par
+l'organisation** dès le premier jour (par exemple une liste de couples organisation/rôle), même
+tant qu'il n'y en a qu'une.
 
 ---
 

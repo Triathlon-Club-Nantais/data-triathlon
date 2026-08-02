@@ -87,6 +87,23 @@ n'étaient pas acquises au premier passage :
   (`current_user_optional`, sans consommateur) et la commande CLI de purge (le dépôt n'a aucun
   ordonnanceur). Rien n'a été ajouté au périmètre.
 
+### Reprise après la clarification du 2026-08-02 (FR-041, SC-014)
+
+La session de clarification a ajouté une contrainte **négative** sur le modèle : le rôle de #115
+sera relatif à une **organisation**, et ne doit donc pas être porté par `users`. Trois conséquences,
+toutes déjà répercutées :
+
+- `data-model.md` — la mention « accueille sans restructuration : `role` » est **remplacée** : la
+  table `users` reste au contraire *inchangée* par #115, le rôle vivant dans une association
+  `(user, organisation, role)`. C'est le raisonnement déjà tenu pour le futur mot de passe, placé
+  sur `identities` plutôt qu'en colonne sur `users`.
+- `contracts/auth-api.md` — la réserve porte désormais sur la **forme** du futur champ : un scalaire
+  `"role": "admin"` inverserait la sémantique le jour où un utilisateur a des rôles différents dans
+  deux organisations, ce que le Principe IV proscrit de changer après coup.
+- **Aucun changement de périmètre ni de code** : FR-041 n'ajoute ni table, ni colonne, ni endpoint,
+  ni dépendance. Elle interdit une forme future, elle ne construit rien — le Principe VI est donc
+  servi, pas mis à l'épreuve. Aucune tâche de `tasks.md` n'est invalidée.
+
 ## Project Structure
 
 ### Documentation (this feature)
