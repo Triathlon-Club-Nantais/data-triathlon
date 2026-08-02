@@ -28,7 +28,14 @@ contrainte serait inerte en SQLite et active en PostgreSQL (`research.md` §11).
 `Athlete` est déclarée `lazy="raise"` — rien dans cette feature ne la lit, et un accès accidentel
 doit échouer bruyamment plutôt que d'émettre une jointure sur chaque requête authentifiée.
 
-**Accueille sans restructuration** : `role` (#115).
+**N'accueillera PAS `role`** (FR-041, SC-014). Le rôle de #115 est relatif à une **organisation** —
+on est administrateur *d'un club*, pas administrateur tout court — et se portera donc par une
+association `(user, organisation, role)`, hors de cette table. C'est exactement le raisonnement
+appliqué plus bas au futur mot de passe, qui vit sur `identities` et non ici : ce qui est relatif à
+un tiers ne se met pas en colonne sur `users`, sous peine d'avoir à l'en défaire.
+
+Cette table reste donc **inchangée** par #115 : aucune colonne à ajouter, aucune à retirer. Elle
+accueille en revanche sans restructuration l'exploitation de `athlete_id` (#117), déjà présent.
 
 ---
 

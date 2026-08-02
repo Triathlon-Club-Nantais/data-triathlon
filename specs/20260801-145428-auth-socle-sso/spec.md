@@ -14,6 +14,16 @@ Il **prime** sur cette spec. Toute divergence se tranche en re-sondant.
 
 ---
 
+## Clarifications
+
+### Session 2026-08-02
+
+- Q: Le modèle de données livré ici doit-il garantir qu'un rôle **rattaché à une organisation** pourra être ajouté plus tard sans restructuration destructive ? → A: Oui, comme exigence de compatibilité seule (FR-041, SC-014) — aucune entité Organisation ni Rôle n'est créée dans cette livraison.
+- Q: Un refus de connexion peut-il indiquer explicitement que l'adresse n'est pas dans la liste des comptes autorisés ? → A: Oui. FR-030 est recentrée sur ce qu'elle protège réellement — ne pas révéler qu'une adresse est **déjà enregistrée** — l'énumération d'adresses tierces étant impossible en SSO, où seule l'adresse certifiée pour son propre compte peut être soumise. Le code `account_not_allowed` est conservé.
+- Q: Comment un administrateur doit-il pouvoir fermer d'un coup toutes les sessions d'un compte, ou toutes celles de tous les comptes ? → A: Par une **procédure documentée**, sans outil dédié (FR-016 reformulée) : désactivation du compte pour un utilisateur, suppression de toutes les sessions enregistrées pour la totalité. La documentation doit signaler qu'une rotation de la clé de signature ne ferme aucune session.
+
+---
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 — Un contributeur du club ouvre une session (Priority: P1)
@@ -169,8 +179,13 @@ session ouverte.
 - **FR-014**: La déconnexion DOIT mettre fin **à cette session seule** et DOIT être sans effet ni
   erreur si aucune session n'est présente.
 - **FR-015**: La désactivation d'un compte DOIT mettre fin immédiatement à toutes ses sessions.
-- **FR-016**: Le système DOIT offrir un moyen d'exploitation permettant de mettre fin en masse aux
-  sessions d'un compte ou de tous les comptes.
+- **FR-016**: La fermeture en masse des sessions DOIT être **documentée comme procédure
+  d'exploitation** ; aucun outil dédié n'est livré. Pour **un compte**, la désactivation (FR-015)
+  ferme déjà immédiatement toutes ses sessions. Pour **tous les comptes**, la procédure est la
+  suppression de toutes les sessions enregistrées. Cette documentation DOIT signaler qu'une
+  rotation de la clé de signature **ne ferme aucune session** : le jeton de session est opaque et
+  vérifié en base, il n'est pas signé — s'attendre à l'inverse serait croire une fuite colmatée
+  alors qu'elle ne l'est pas.
 - **FR-017**: La valeur de session NE DOIT PAS être exposée au code s'exécutant dans le navigateur.
 - **FR-018**: Les réponses portant une identité NE DOIVENT JAMAIS pouvoir être servies par un cache
   intermédiaire à un autre visiteur.
@@ -200,8 +215,13 @@ session ouverte.
 - **FR-028**: La cause DOIT être transmise sous forme d'un **code appartenant à un ensemble fermé**,
   jamais un message provenant du fournisseur ni une donnée d'entrée.
 - **FR-029**: L'interface DOIT traduire ces codes en messages **français**.
-- **FR-030**: Le système NE DOIT PAS révéler, dans ses refus, si une adresse est connue ou
-  autorisée.
+- **FR-030**: Le système NE DOIT PAS révéler, dans ses refus, qu'une adresse est **déjà
+  enregistrée** : aucun refus ne distingue une personne déjà connue du système d'une inconnue.
+  Un refus PEUT en revanche indiquer que l'adresse n'est **pas autorisée**. La protection contre
+  l'énumération de comptes, qui motive cette exigence, ne s'applique pas à ce second cas :
+  contrairement à un formulaire adresse/mot de passe, une personne ne peut soumettre que l'adresse
+  que le fournisseur **certifie pour son propre compte**, donc aucune adresse tierce n'est
+  testable.
 
 ### Exigences fonctionnelles — extensibilité
 
@@ -215,6 +235,12 @@ session ouverte.
   d'un fournisseur existant.
 - **FR-034**: **Un seul** fournisseur est livré en production : GitHub. Toute doublure de test NE
   DOIT PAS être atteignable en production, et cette inaccessibilité DOIT être vérifiée.
+- **FR-041**: Le rôle livré ultérieurement par #115 NE DOIT PAS être porté par l'entité
+  **Utilisateur** elle-même : il DOIT l'être par une **association entre un utilisateur et une
+  organisation**, le rôle étant relatif à un club et jamais global à l'application. Le modèle
+  livré ici DOIT permettre d'ajouter cette association **sans restructuration destructive** —
+  c'est-à-dire sans qu'aucune entité livrée ne doive être supprimée, ni aucun de ses attributs
+  réécrit ou déplacé. Aucune entité Organisation ni Rôle N'EST créée par cette livraison.
 
 ### Exigences fonctionnelles — non-régression et exploitation
 
@@ -237,8 +263,9 @@ session ouverte.
 ### Key Entities
 
 - **Utilisateur** : la personne côté application. Porte son adresse de contact, son état d'activité,
-  sa date de création, et un rattachement facultatif à une fiche d'athlète. Accueillera le rôle
-  (#115) sans restructuration.
+  sa date de création, et un rattachement facultatif à une fiche d'athlète. **Ne porte pas le
+  rôle** : celui-ci sera rattaché à un couple (utilisateur, organisation) par #115, hors de cette
+  entité, conformément à FR-041.
 - **Identité** : un moyen de se connecter à un utilisateur. Porte le moyen de connexion,
   l'identifiant opaque chez le fournisseur, l'adresse constatée, et — pour un futur mot de passe —
   un secret vérifiable. Unique par couple (moyen de connexion, identifiant). Plusieurs identités
@@ -278,6 +305,9 @@ session ouverte.
   registre chargé à froid.
 - **SC-013**: La suite de tests s'exécute **sans aucun accès réseau** et **sans dépendre** de la
   configuration locale du développeur.
+- **SC-014**: L'entité Utilisateur livrée ne porte **aucun** attribut de rôle, et l'ajout ultérieur
+  d'une association (utilisateur, organisation, rôle) n'exige la suppression ni la réécriture
+  d'**aucune** entité livrée — vérifié à la revue du modèle de données.
 
 ---
 
@@ -290,7 +320,11 @@ session ouverte.
   périmètre de #115 et #117.
 - **Les rôles ne sont pas livrés.** Tout utilisateur authentifié a exactement les mêmes droits, à
   savoir ceux d'un visiteur anonyme, puisque aucune ressource n'est protégée (FR-035). La garde
-  des écrans d'administration est cosmétique et documentée comme telle (FR-040).
+  des écrans d'administration est cosmétique et documentée comme telle (FR-040). Seule leur
+  **forme future** est contrainte, par FR-041 : le rôle sera relatif à une organisation.
+- **L'organisation n'existe pas encore comme entité**, et n'est pas créée ici. FR-041 ne pose
+  qu'une contrainte de non-régression sur le modèle : il interdit une forme de rôle qu'il faudrait
+  défaire, il n'anticipe aucune structure. Le multi-club reste un horizon, pas une livraison.
 - **L'interface parle au backend par le même domaine**, via la réindirection déjà en place. La
   destination du retour de parcours vise donc le domaine de l'interface, jamais celui de l'API —
   c'est la leçon retenue de la PR #159.
@@ -311,7 +345,8 @@ session ouverte.
 
 ## Hors périmètre
 
-- Les rôles et la protection des ressources d'administration (#115).
+- Les rôles et la protection des ressources d'administration (#115) — la **fonctionnalité** ; la
+  contrainte de forme sur le modèle, elle, est posée ici par FR-041.
 - Les écrans d'administration eux-mêmes (#117, #118, #119).
 - La connexion par adresse et mot de passe, et tout ce qu'elle entraîne : réinitialisation,
   vérification d'adresse, verrouillage après échecs. Le modèle l'accueille ; la fonctionnalité

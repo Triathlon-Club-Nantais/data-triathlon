@@ -61,7 +61,7 @@ user stories.
 - [ ] T009 [P] Capturer sous `backend/tests/test_auth/fixtures/` les charges utiles GitHub réelles : réponse d'échange de jeton, `/user` avec adresse publique, `/user` **sans** adresse publique, et `/user/emails` (dont une adresse non vérifiée)
 - [ ] T010 [P] Écrire `backend/tests/test_auth/test_models.py` : contraintes `uq_identity_provider_subject` et `uq_user_session_token`, `users.email` **non unique** (deux utilisateurs peuvent porter la même adresse — FR-003), `created_at` alimenté par `utcnow` **(rouge)**
 - [ ] T011 Créer `backend/app/models/user.py`, `identity.py`, `user_session.py` selon [data-model.md](./data-model.md), et **les enregistrer dans `backend/app/models/__init__.py`** — `backend/tests/conftest.py` fait `import app.models` puis `create_all`, sans quoi les tables n'existent pas en test
-- [ ] T012 Générer la révision Alembic (`uv run alembic revision --autogenerate`), la **relire à la main**, vérifier l'absence d'`ondelete` sur `users.athlete_id` et la présence des contraintes nommées ; étendre `backend/tests/test_migrations.py` au cycle `upgrade` → `downgrade` → `upgrade`
+- [ ] T012 Générer la révision Alembic (`uv run alembic revision --autogenerate`), la **relire à la main**, vérifier l'absence d'`ondelete` sur `users.athlete_id`, la présence des contraintes nommées, et l'**absence de toute colonne de rôle sur `users`** (FR-041, SC-014 : le rôle de #115 est relatif à une organisation et vivra dans une association, pas ici) ; étendre `backend/tests/test_migrations.py` au cycle `upgrade` → `downgrade` → `upgrade`
 - [ ] T013 [P] Écrire `backend/tests/test_auth/test_repositories.py` **(rouge)** : résolution par `(provider, subject)`, création d'un **nouvel** utilisateur sur adresse déjà connue, rafraîchissement de l'adresse, unicité de `token_hash`, suppression d'une session, suppression des sessions expirées
 - [ ] T014 Créer `backend/app/repositories/user_repository.py`, `identity_repository.py`, `session_repository.py` — **seule** couche à construire des requêtes ; les services portent la transaction, conformément à `import_service` et `scrape_service`
 
@@ -139,7 +139,7 @@ se déconnecter, vérifier que l'accès authentifié est refermé.
 - [ ] T044 [P] [US1] Étendre `frontend/components/layout/TcnTopbar.test.tsx` **(rouge)** : « Se connecter » si anonyme, menu utilisateur si connecté, **dans le bloc desktop et dans le tiroir mobile**
 - [ ] T045 [US1] Créer `frontend/components/auth/UserMenu.tsx` et le poser aux **deux** endroits de `frontend/components/layout/TcnTopbar.tsx` — toute action de cette barre y est déclarée deux fois
 - [ ] T046 [P] [US1] Écrire le test de garde de `frontend/app/admin/layout.tsx` **(rouge)** : redirection vers `/login` sans session, rendu des enfants avec session
-- [ ] T047 [US1] Ajouter `serverFetchAuthed()` à `frontend/lib/api/server.ts` — **sans modifier `serverFetch`**, que six pages publiques en rendu serveur utilisent
+- [ ] T047 [US1] Ajouter `serverFetchAuthed()` à `frontend/lib/api/server.ts` — **sans modifier `serverFetch`**, que six pages publiques en rendu serveur utilisent. Pas de test rouge propre : son unique consommateur est le layout de T048, dont T046 couvre les deux comportements (redirection sans session, rendu avec session). Si le helper gagne un second consommateur, il gagne son test
 - [ ] T048 [US1] Créer `frontend/app/admin/layout.tsx` (garde par validation réelle, pas un `middleware.ts`)
 
 **Checkpoint** : le parcours nominal est déroulable dans un navigateur (cf. [quickstart.md](./quickstart.md)
@@ -172,6 +172,10 @@ session et l'absence d'utilisateur créé.
 - [ ] T058 [US3] Définir l'ensemble fermé des codes d'erreur côté backend et lever `AuthUnavailableError` là où l'authentification n'est pas configurée
 - [ ] T059 [US3] Ajouter les libellés **français** des codes d'erreur à `frontend/lib/constants.ts`, sur le modèle de `PROVIDER_LABELS`, et les afficher dans `frontend/app/login/page.tsx`
 
+### Filet transverse (après T057-T059)
+
+- [ ] T067 [US3] `backend/tests/test_auth/test_no_secret_logged.py` (**FR-038**) : dérouler le callback nominal **et chacun** des chemins d'échec sous `caplog`, et vérifier qu'aucun enregistrement ne contient le `client_secret`, le jeton de session en clair, ni le paramètre `code`. **Pas de mention (rouge)** : c'est un filet de non-régression comme T015/T016, pas un comportement à faire advenir — il doit passer dès le premier jet et le rester. Placé après T057 parce qu'il déroule le callback, qui doit exister
+
 **Checkpoint** : les trois user stories sont vertes, `uv run pytest -m "not integration"` et
 `npm test` passent.
 
@@ -179,7 +183,7 @@ session et l'absence d'utilisateur créé.
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T060 [P] Ajouter la section « **Authentification** » à `AGENTS.md` (**AC7 de l'issue #114**) : les trois tables, l'invariant jeton opaque / empreinte, le registre `idp/` et la collision de vocabulaire avec « provider » (chronométreur), les 8 réglages `AUTH_*`, le fait qu'**aucune route existante n'est protégée** et que la garde `/admin` est **d'interface seulement**, l'obligation de passer par `core.http.guarded_transport()`, et le piège multi-worktree
+- [ ] T060 [P] Ajouter la section « **Authentification** » à `AGENTS.md` (**AC7 de l'issue #114**) : les trois tables, l'invariant jeton opaque / empreinte, le registre `idp/` et la collision de vocabulaire avec « provider » (chronométreur), les 8 réglages `AUTH_*`, le fait qu'**aucune route existante n'est protégée** et que la garde `/admin` est **d'interface seulement**, l'obligation de passer par `core.http.guarded_transport()`, et le piège multi-worktree. **Trois points supplémentaires, chacun non devinable depuis le code** : (a) le rôle de #115 est relatif à une **organisation** et ne se pose donc **pas** en colonne sur `users` (FR-041) ; (b) la **fermeture en masse des sessions** est une procédure, pas un outil — désactiver le compte pour un utilisateur, supprimer toutes les sessions enregistrées pour la totalité (FR-016) ; (c) une **rotation de `AUTH_SESSION_SECRET_KEY` ne ferme aucune session**, le jeton étant opaque et vérifié en base plutôt que signé — croire l'inverse ferait tenir une fuite pour colmatée
 - [ ] T061 [P] Ajouter les 8 réglages `AUTH_*` à `backend/.env.example`, secrets laissés vides
 - [ ] T062 [P] Ajouter les `AUTH_*` à `render.yaml` en `sync: false`, avec `generateValue: true` pour `AUTH_SESSION_SECRET_KEY` ; documenter les valeurs par environnement dans `docs/ci-cd.md`, dont la décision sur les déploiements de prévisualisation (dont l'URL change à chaque exécution, donc sans URL de retour stable)
 - [ ] T063 [P] Ajouter les 8 variables au tableau de `backend/README.md`
@@ -205,9 +209,15 @@ Phase 4 (US1, P1)        ──> dépend des phases 1 et 2
    T031, T032 → T033 → T034 → T036 → T037
    T039 → T041 → T043 → T045
 Phase 5 (US3, P2)        ──> dépend d'US1 (les endpoints doivent exister)
-   T049-T056 (rouges) → T057-T059
+   T049-T056 (rouges) → T057-T059 → T067 (filet, déroule le callback)
 Phase 6 (Polish)         ──> dépend de tout
 ```
+
+**T067 est numéroté hors séquence** : ajouté après la clarification du 2026-08-02, il appartient à
+la **Phase 5** et s'exécute après T059, malgré un identifiant supérieur à ceux de la Phase 6. Les
+identifiants existants n'ont pas été décalés — ils sont cités dans ce bloc de dépendances, dans les
+opportunités de parallélisation et dans l'historique de la branche. **L'ordre fait foi ici, pas le
+numéro.**
 
 **Ordre de livraison des stories** : US2 → US1 → US3. US2 précède parce qu'elle est le filet ;
 US3 suit US1 parce qu'un refus suppose un parcours.
@@ -220,7 +230,8 @@ US3 suit US1 parce qu'un refus suppose un parcours.
   T027 de même.
 - **Phase 4, implémentation** : T028, T031, T032 et T035 touchent des fichiers distincts.
 - **Phase 5, tests** : T049, T050, T051, T052, T055 et T056 sont parallélisables ; T053 et T054 ne
-  le sont pas, ils portent sur le router.
+  le sont pas, ils portent sur le router. **T067 non plus** : il déroule le callback, donc il vient
+  après T057-T059.
 - **Phase 6** : T060 à T064 sont cinq fichiers distincts, tous parallélisables.
 
 ## Implementation Strategy
