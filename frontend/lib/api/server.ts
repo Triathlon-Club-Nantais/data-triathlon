@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import type {
   AthleteDetail,
+  AuthMethod,
   CourseDetail,
   EventPage,
   Participation,
@@ -77,4 +78,12 @@ export const apiServer = {
 
   /** Session du visiteur, ou `null` s'il est anonyme (#114). */
   getSession: () => serverFetchAuthed<SessionUser>("/auth/me"),
+  /**
+   * Moyens de connexion disponibles, côté serveur.
+   *
+   * Public : passe par `serverFetch`, sans cookie. C'est ce qui permet à la
+   * garde `/admin` de distinguer « pas connecté » (liste non vide → rediriger)
+   * de « aucune connexion possible » (liste vide → laisser passer, FR-036).
+   */
+  listAuthMethods: () => serverFetch<AuthMethod[]>("/auth/methods"),
 };
