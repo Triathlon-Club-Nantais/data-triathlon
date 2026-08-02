@@ -78,7 +78,13 @@ class Settings(BaseSettings):
     # Origine de l'**interface**, jamais celle de l'API : c'est elle qui proxifie
     # `/api/*`, donc elle seule à qui les cookies sont attribués. La destination
     # de retour vient d'ici et n'est jamais acceptée en paramètre (FR-026).
-    auth_redirect_base_url: str = "http://127.0.0.1:3000"
+    #
+    # **Sans défaut**, et compté dans `auth_is_configured` : cette valeur part
+    # dans le `redirect_uri` enregistré chez le fournisseur. Un défaut localhost
+    # faisait passer pour « configuré » un déploiement qui l'avait oubliée, et
+    # l'échec tombait alors chez GitHub — page d'erreur du fournisseur, visiteur
+    # qui ne revient jamais, aucun code émis, rien dans les journaux.
+    auth_redirect_base_url: str = ""
     # En clair (développement), le préfixe `__Host-` est retiré du nom des
     # cookies : il exige `Secure`. Le nom est **dérivé** de ce réglage.
     auth_cookie_secure: bool = True
@@ -113,17 +119,22 @@ class Settings(BaseSettings):
     def auth_is_configured(self) -> bool:
         """Vrai si le **socle** est configuré, indépendamment de tout fournisseur.
 
-        Deux conditions seulement, et elles sont transverses : la clé qui signe
-        le jeton d'état, et une liste d'autorisation non vide — sans elle aucune
-        connexion ne peut aboutir, donc proposer un moyen de connexion mentirait
-        (FR-007).
+        Trois conditions, toutes transverses : la clé qui signe le jeton d'état,
+        une liste d'autorisation non vide — sans elle aucune connexion ne peut
+        aboutir, donc proposer un moyen de connexion mentirait (FR-007) — et
+        l'origine de retour, sans laquelle le `redirect_uri` envoyé au
+        fournisseur serait faux.
 
         Les secrets d'un fournisseur **ne sont pas ici** : chacun déclare sa
         propre configuration par `is_configured()`. Les exiger reviendrait à
         masquer un second fournisseur pourtant configuré, et à devoir modifier
         ce garde à chaque ajout — ce que FR-033 proscrit.
         """
-        return bool(self.auth_session_secret_key and self.auth_allowed_emails)
+        return bool(
+            self.auth_session_secret_key
+            and self.auth_allowed_emails
+            and self.auth_redirect_base_url
+        )
 
     @property
     def is_sqlite(self) -> bool:

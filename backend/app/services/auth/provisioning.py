@@ -39,6 +39,31 @@ def resolve_user(db: Session, identity: ExternalIdentity) -> User:
     )
     if connue is not None:
         user = user_repository.get(db, connue.user_id)
+        if user is None:
+            # Identité pendante : la ligne `users` a disparu sans la sienne. La
+            # FK est inerte en SQLite (`database.py` n'émet aucun
+            # `PRAGMA foreign_keys=ON`), donc l'état est atteignable. Refuser en
+            # le nommant dans le journal vaut mieux qu'un `AttributeError` sur
+            # `None` que le `except Exception` du router imputerait au
+            # fournisseur.
+            logger.error(
+                "Dangling identity %s/%s points at missing user %s",
+                identity.provider,
+                identity.subject,
+                connue.user_id,
+            )
+            raise LoginError("provider_error")
+
+        if not user.is_active:
+            # FR-015 : la désactivation ferme l'accès, **y compris** pour une
+            # nouvelle connexion. `session.resolve` le refusait déjà en lecture,
+            # mais laisser le parcours aboutir ici posait un cookie et
+            # redirigeait comme si la connexion avait réussi — une boucle de
+            # connexion qui paraît marcher, une session orpheline par tentative,
+            # et le profil du compte révoqué réécrit à chaque passage.
+            logger.info("Login refused: account is deactivated (%s)", identity.provider)
+            raise LoginError("account_not_allowed")
+
         user_repository.refresh_profile(
             db, user, email=identity.email, display_name=identity.display_name
         )

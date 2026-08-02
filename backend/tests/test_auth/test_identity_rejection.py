@@ -118,3 +118,83 @@ def test_un_refus_puis_un_parcours_legitime_aboutit(db_session, doublure):
 
     assert jeton and user.email == "contributeur@exemple.fr"
     assert db_session.query(User).count() == 1
+
+
+def test_un_compte_desactive_ne_peut_plus_ouvrir_de_session(db_session, doublure):
+    """FR-015 — la désactivation ferme l'accès, y compris pour une **nouvelle** connexion.
+
+    `session.resolve` refusait déjà un compte désactivé, mais `resolve_user` ne
+    l'éprouvait pas : le parcours aboutissait, posait un cookie et redirigeait
+    comme s'il avait réussi. L'utilisateur se retrouvait dans une boucle de
+    connexion qui paraît toujours marcher — et chaque tentative laissait une
+    session orpheline en base et réécrivait le profil du compte révoqué.
+    """
+    from app.models.user_session import UserSession
+
+    _, user = _parcours(db_session, doublure)
+    db_session.commit()
+
+    user.is_active = False
+    db_session.commit()
+    sessions_avant = db_session.query(UserSession).count()
+
+    with pytest.raises(LoginError) as refus:
+        _parcours(db_session, doublure)
+    db_session.rollback()
+
+    assert refus.value.code == "account_not_allowed"
+    assert db_session.query(UserSession).count() == sessions_avant
+
+
+def test_un_compte_desactive_ne_voit_pas_son_profil_reecrit(db_session, doublure):
+    """Le refus intervient **avant** `refresh_profile` : rien n'est touché."""
+    _, user = _parcours(db_session, doublure)
+    db_session.commit()
+    user.is_active = False
+    user.display_name = "nom figé"
+    db_session.commit()
+
+    doublure.identite = ExternalIdentity(
+        provider=doublure.slug, subject="doublure-1", email="contributeur@exemple.fr",
+        email_verified=True, display_name="nom venu du fournisseur",
+    )
+    with pytest.raises(LoginError):
+        _parcours(db_session, doublure)
+    db_session.rollback()
+
+    db_session.refresh(user)
+    assert user.display_name == "nom figé"
+
+
+def test_une_identite_pendante_est_refusee_lisiblement(db_session, doublure, caplog):
+    """Une ligne `identities` dont l'utilisateur a disparu ne doit pas lever nu.
+
+    L'état est atteignable : `database.py` n'émet aucun `PRAGMA
+    foreign_keys=ON`, donc la clé étrangère est **inerte** en SQLite. Sans
+    garde, `refresh_profile` levait un `AttributeError` sur `None` que le
+    `except Exception` du router imputait au fournisseur, sans rien nommer.
+
+    Écrit **après** le correctif, contrairement au reste du fichier : le cas est
+    adjacent au précédent et a été refermé dans le même geste.
+    """
+    import logging
+
+    from sqlalchemy import text
+
+    _, user = _parcours(db_session, doublure)
+    db_session.commit()
+    # En SQL brut : `db.delete(user)` passerait par la cascade ORM et emporterait
+    # l'identité avec lui, ce qui est justement le cas **sain**. C'est la
+    # suppression directe — celle qu'un opérateur fait en console — qui laisse
+    # l'identité derrière elle, la FK étant inerte en SQLite.
+    db_session.execute(text("DELETE FROM users WHERE id = :id"), {"id": user.id})
+    db_session.commit()
+    db_session.expunge_all()
+
+    with caplog.at_level(logging.ERROR):
+        with pytest.raises(LoginError) as refus:
+            _parcours(db_session, doublure)
+    db_session.rollback()
+
+    assert refus.value.code == "provider_error"
+    assert "Dangling identity" in caplog.text
