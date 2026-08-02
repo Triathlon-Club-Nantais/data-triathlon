@@ -131,3 +131,58 @@ def test_le_cookie_de_session_survit_a_la_fermeture_de_l_onglet(client_https, do
 
     entete = _cookie(reponse, "__Host-tcn_session=")
     assert "Max-Age" in entete or "Expires" in entete
+
+
+def _efface(reponse, nom: str) -> str:
+    entetes = [e for e in _entetes_set_cookie(reponse) if e.startswith(f"{nom}=")]
+    assert entetes, f"aucun Set-Cookie d'effacement pour {nom!r}"
+    entete = entetes[0]
+    assert "Max-Age=0" in entete or "1970" in entete, entete
+    return entete
+
+
+def test_l_effacement_de_l_etat_porte_secure_en_production(client_https, doublure):
+    """RFC 6265bis §4.1.3 : un `Set-Cookie` `__Host-` **sans** `Secure` est ignoré.
+
+    L'effacement était donc inopérant en production, et le jeton d'état
+    survivait ses 600 s dans le navigateur — l'usage unique de FR-023 tombait
+    précisément là où il compte. Invisible jusqu'ici : les tests d'effacement
+    tournent sous `AUTH_COOKIE_SECURE=false`, où le nom n'a pas de préfixe.
+    """
+    from app.services.auth import state
+
+    client_https.get("/api/v1/auth/doublure/authorize", follow_redirects=False)
+    charge = state.read(client_https.cookies["__Host-tcn_auth_state"])
+    reponse = client_https.get(
+        f"/api/v1/auth/doublure/callback?code=c&state={charge.state}",
+        follow_redirects=False,
+    )
+
+    assert "Secure" in _efface(reponse, "__Host-tcn_auth_state")
+
+
+def test_l_effacement_de_la_session_porte_secure_en_production(client_https, db_session):
+    from app.repositories import user_repository
+    from app.services.auth import session
+
+    user = user_repository.create(db_session, email="a@exemple.fr", display_name="a")
+    db_session.flush()
+    client_https.cookies.set("__Host-tcn_session", session.open_for(db_session, user))
+    db_session.commit()
+
+    reponse = client_https.post("/api/v1/auth/logout")
+
+    assert "Secure" in _efface(reponse, "__Host-tcn_session")
+
+
+def test_l_effacement_conserve_les_autres_attributs(client_https, doublure):
+    """`HttpOnly`, `Path=/` et l'absence de `Domain` doivent tenir aussi sur
+    l'effacement : un `Set-Cookie` qui ne correspond pas à celui posé ne
+    remplace rien."""
+    reponse = client_https.get("/api/v1/auth/doublure/callback?code=c&state=faux",
+                               follow_redirects=False)
+
+    entete = _efface(reponse, "__Host-tcn_auth_state")
+    assert "HttpOnly" in entete
+    assert "Path=/" in entete
+    assert "Domain" not in entete

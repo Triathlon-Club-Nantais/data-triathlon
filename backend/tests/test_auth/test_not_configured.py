@@ -106,3 +106,21 @@ def test_la_configuration_transverse_ne_depend_d_aucun_fournisseur(client, doubl
 
     assert slugs == ["doublure"]
     assert client.get("/api/v1/auth/doublure/authorize", follow_redirects=False).status_code == 302
+
+
+def test_une_url_de_retour_absente_vaut_non_configure(client, monkeypatch):
+    """Le `redirect_uri` envoyé au fournisseur ne doit jamais retomber sur un défaut.
+
+    Ce réglage part dans le `redirect_uri` enregistré chez GitHub. Avec un
+    défaut localhost et aucune garde, un déploiement qui l'oublie paraissait
+    **pleinement configuré** — `/auth/methods` listait GitHub, la page de
+    connexion affichait son bouton — pendant que GitHub répondait par sa propre
+    page « The redirect_uri is not associated with this application ». Le
+    visiteur ne revenait jamais, aucun code de l'ensemble fermé ne se
+    déclenchait, et rien n'était journalisé côté backend.
+    """
+    monkeypatch.setenv("AUTH_REDIRECT_BASE_URL", "")
+    get_settings.cache_clear()
+
+    assert client.get("/api/v1/auth/methods").json() == []
+    assert client.get("/api/v1/auth/github/authorize", follow_redirects=False).status_code == 503

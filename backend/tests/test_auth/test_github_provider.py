@@ -69,19 +69,24 @@ def test_deux_parcours_n_ont_pas_le_meme_verifieur():
     assert premier != second
 
 
-def test_l_identite_est_lue_sur_l_adresse_publique():
-    """Chemin nominal : `/user` suffit, aucun second appel n'est fait."""
-    vues: list[str] = []
-    provider = _provider(_handler_nominal(vues=vues))
+def test_l_identite_vient_du_profil_et_l_adresse_de_user_emails():
+    """Chemin nominal.
+
+    Ce test assertait auparavant qu'aucun appel à `/user/emails` n'était fait —
+    il figeait en fait le défaut : l'adresse de `/user` était tenue pour
+    certifiée par sa seule présence. Ce qui reste vrai, et que le test éprouve
+    désormais, c'est la répartition : l'**identité** (subject, nom affiché) vient
+    du profil, l'**adresse certifiée** vient de `/user/emails`.
+    """
+    provider = _provider(_handler_nominal())
 
     identite = provider.fetch_identity(code="code-1", round_trip={"verifier": "v" * 43})
 
     assert identite.provider == "github"
     assert identite.subject == "583231"
+    assert identite.display_name == "contributeur"
     assert identite.email == "contributeur@exemple.fr"
     assert identite.email_verified is True
-    assert identite.display_name == "contributeur"
-    assert not any("/user/emails" in url for url in vues)
 
 
 def test_le_subject_est_une_chaine():
@@ -211,3 +216,44 @@ def test_le_transport_par_defaut_est_le_transport_garde():
     from app.core import http
 
     assert GithubIdentityProvider()._transport_factory is http.guarded_transport
+
+
+def test_l_adresse_publique_n_est_pas_certifiee_par_sa_seule_presence():
+    """FR-005 : c'est le fournisseur qui certifie, pas la présence d'un champ.
+
+    `GET /user` publie l'adresse de profil même lorsqu'elle n'a **pas** été
+    confirmée. En déduire `email_verified=True` laissait quelqu'un enregistrer
+    un compte GitHub portant l'adresse d'un contributeur autorisé, sans jamais
+    la confirmer, franchir les deux portes de `resolve_user` et — FR-003 créant
+    délibérément un nouvel utilisateur pour un `(provider, subject)` inconnu —
+    obtenir une session.
+    """
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/login/oauth/access_token":
+            return httpx.Response(200, json=_charge("github_access_token.json"))
+        if request.url.path == "/user":
+            return httpx.Response(200, json=_charge("github_user_avec_email.json"))
+        # La même adresse, mais **non vérifiée** chez le fournisseur.
+        return httpx.Response(
+            200,
+            json=[{"email": "contributeur@exemple.fr", "primary": True, "verified": False}],
+        )
+
+    identite = _provider(handler).fetch_identity(
+        code="code-1", round_trip={"verifier": "v" * 43}
+    )
+
+    assert identite.email_verified is False
+
+
+def test_la_certification_vient_toujours_de_user_emails():
+    """Le drapeau `verified` est lu sur **chaque** parcours, pas seulement en repli."""
+    vues: list[str] = []
+
+    identite = _provider(_handler_nominal(vues=vues)).fetch_identity(
+        code="code-1", round_trip={"verifier": "v" * 43}
+    )
+
+    assert any(url.endswith("/user/emails") for url in vues)
+    assert identite.email_verified is True
+    assert identite.email == "contributeur@exemple.fr"

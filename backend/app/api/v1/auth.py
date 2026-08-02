@@ -94,6 +94,28 @@ def _pose_cookie(
     )
 
 
+def _efface_cookie(response: Response, *, nom: str, settings: Settings) -> None:
+    """Efface un cookie du socle, avec **les mêmes attributs** que la pose.
+
+    `Response.delete_cookie` de Starlette pose `secure=False` par défaut. Or la
+    RFC 6265bis §4.1.3 impose au navigateur d'ignorer **entièrement** tout
+    `Set-Cookie` dont le nom commence par `__Host-` si le drapeau secure-only
+    est absent : en production, l'effacement était donc purement décoratif — le
+    jeton d'état survivait ses 600 s (l'usage unique de FR-023 tombait) et une
+    déconnexion laissait le cookie de session dans le navigateur.
+
+    Le défaut était invisible parce que les tests d'effacement tournent sous
+    `AUTH_COOKIE_SECURE=false`, où le nom ne porte pas le préfixe.
+    """
+    response.delete_cookie(
+        key=nom,
+        path="/",
+        httponly=True,
+        secure=settings.auth_cookie_secure,
+        samesite="lax",
+    )
+
+
 @router.get("/auth/methods", response_model=list[AuthMethodRead])
 def list_methods():
     """Moyens de connexion **effectivement disponibles** (FR-031).
@@ -182,7 +204,7 @@ def callback(
 
     # Effacé sur **tous** les chemins de sortie, succès compris (FR-023) : c'est
     # ce qui donne l'usage unique sans table ni verrou.
-    reponse.delete_cookie(state_cookie_name(settings), path="/")
+    _efface_cookie(reponse, nom=state_cookie_name(settings), settings=settings)
     return reponse
 
 
@@ -213,7 +235,7 @@ def logout(
     db.commit()
 
     reponse = Response(status_code=204, headers=ENTETES_SANS_CACHE)
-    reponse.delete_cookie(session_cookie_name(settings), path="/")
+    _efface_cookie(reponse, nom=session_cookie_name(settings), settings=settings)
     return reponse
 
 

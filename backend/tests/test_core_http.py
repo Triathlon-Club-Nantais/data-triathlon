@@ -324,9 +324,14 @@ _VERBES_HTTPX = frozenset({
 #: et ouvrent de vraies connexions, mais ne sont liés ni au module httpx ni à un
 #: import venu de lui : sans cette seconde table, ils échappaient au détecteur
 #: (mesuré au sondage du 2026-08-01, §7).
+#: `AssertionClient` en fait partie : il est exporté par le même module et
+#: hérite lui aussi de `httpx.Client`. Un méta-test compare cette table aux
+#: exports **réels** du paquet, pour qu'une version d'Authlib qui en ajoute un
+#: ne rouvre pas le trou en silence.
 _VERBES_AUTHLIB = frozenset({
     "OAuth2Client", "AsyncOAuth2Client",
     "OAuth1Client", "AsyncOAuth1Client",
+    "AssertionClient", "AsyncAssertionClient",
 })
 
 #: Module -> verbes qui y ouvrent une connexion.
@@ -352,14 +357,32 @@ def _httpx_nu(source: str) -> list[int]:
     # Nom local -> verbes ouvrant une connexion (`httpx`, `h`, `httpx_client`, …).
     modules: dict[str, frozenset[str]] = {}
     directs: set[str] = set()   # noms liés à un verbe (`from httpx import Client`)
+    def chemin_pointe(cible) -> str | None:
+        """`a.b.c` pour un `Attribute` chaîné sur un `Name`, sinon `None`.
+
+        `import authlib.integrations.httpx_client` (sans alias) lie le nom
+        **complet** au site d'appel : la cible y est un `Attribute` imbriqué,
+        pas un `Name`. Sans reconstruction, ni la liaison ni l'appel ne
+        correspondaient — un fournisseur écrit sous cette forme aurait ouvert un
+        client sur le transport httpx par défaut, sans qu'aucun test n'échoue.
+        """
+        morceaux: list[str] = []
+        while isinstance(cible, ast.Attribute):
+            morceaux.append(cible.attr)
+            cible = cible.value
+        if not isinstance(cible, ast.Name):
+            return None
+        morceaux.append(cible.id)
+        return ".".join(reversed(morceaux))
+
     for noeud in ast.walk(arbre):
         if isinstance(noeud, ast.Import):
             for alias in noeud.names:
                 verbes = _VERBES_PAR_MODULE.get(alias.name)
-                if verbes and alias.asname:
-                    modules[alias.asname] = verbes
-                elif verbes and "." not in alias.name:
-                    modules[alias.name] = verbes
+                if verbes:
+                    # Sans alias, `import a.b.c` lie le chemin complet : c'est
+                    # sous cette forme qu'il faudra le reconnaître à l'appel.
+                    modules[alias.asname or alias.name] = verbes
         elif isinstance(noeud, ast.ImportFrom):
             verbes = _VERBES_PAR_MODULE.get(noeud.module or "")
             if verbes:
@@ -382,10 +405,13 @@ def _httpx_nu(source: str) -> list[int]:
         if not isinstance(noeud, ast.Call):
             continue
         cible = noeud.func
+        porteur = (
+            chemin_pointe(cible.value) if isinstance(cible, ast.Attribute) else None
+        )
         if (
-            isinstance(cible, ast.Attribute)
-            and isinstance(cible.value, ast.Name)
-            and cible.attr in modules.get(cible.value.id, frozenset())
+            porteur is not None
+            and isinstance(cible, ast.Attribute)
+            and cible.attr in modules.get(porteur, frozenset())
         ) or (isinstance(cible, ast.Name) and cible.id in directs):
             fautives.append(noeud.lineno)
     return sorted(fautives)
@@ -421,6 +447,60 @@ def test_le_detecteur_voit_les_clients_authlib():
         "from authlib.integrations import httpx_client\n"
         "httpx_client.OAuth2Client(client_id='x')\n"
     ) == [2]
+
+
+def test_le_detecteur_voit_un_import_pointe_sans_alias():
+    """`import authlib.integrations.httpx_client` puis appel sur le chemin pointé.
+
+    Forme parfaitement légale que le détecteur laissait passer deux fois : la
+    liaison était écartée (le nom contient des points) et la cible d'appel est
+    un `Attribute` imbriqué, non un `Name`. Un second fournisseur écrit ainsi
+    aurait ouvert un `OAuth2Client` sur le transport httpx par défaut — le
+    `client_secret` de l'échange de jeton hors du contrôle de destination — sans
+    qu'aucun test n'échoue.
+    """
+    assert _httpx_nu(
+        "import authlib.integrations.httpx_client\n"
+        "authlib.integrations.httpx_client.OAuth2Client(client_id='x')\n"
+    ) == [2]
+    assert _httpx_nu("import httpx\nhttpx.Client()\n") == [2]
+
+
+def test_le_detecteur_voit_les_clients_assertion():
+    """`AssertionClient` / `AsyncAssertionClient` sont exportés par le même module
+    et héritent aussi de `httpx.Client` — vérifié dans le paquet installé."""
+    assert _httpx_nu(
+        "from authlib.integrations.httpx_client import AssertionClient\n"
+        "AssertionClient(token_endpoint='x')\n"
+    ) == [2]
+    assert _httpx_nu(
+        "from authlib.integrations.httpx_client import AsyncAssertionClient\n"
+        "AsyncAssertionClient(token_endpoint='x')\n"
+    ) == [2]
+
+
+def test_la_table_du_detecteur_couvre_tous_les_clients_exportes():
+    """Garde du garde : la table est comparée aux exports **réels** du paquet.
+
+    Sans elle, une version d'Authlib qui ajoute un client ouvrirait un trou que
+    personne ne verrait — c'est exactement ce qui vient d'arriver avec
+    `AssertionClient`.
+    """
+    import httpx as _httpx
+    from authlib.integrations import httpx_client
+
+    clients_reels = {
+        nom
+        for nom in httpx_client.__all__
+        if isinstance(getattr(httpx_client, nom, None), type)
+        and issubclass(
+            getattr(httpx_client, nom), (_httpx.Client, _httpx.AsyncClient)
+        )
+    }
+
+    assert clients_reels <= _VERBES_AUTHLIB, (
+        f"clients Authlib absents de la table : {clients_reels - _VERBES_AUTHLIB}"
+    )
 
 
 def test_le_detecteur_voit_les_transports_nus():

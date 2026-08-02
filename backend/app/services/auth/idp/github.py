@@ -94,10 +94,19 @@ class GithubIdentityProvider:
                 logger.warning("GitHub returned a profile without an id")
                 raise LoginError("provider_error")
 
-            email = (profil.get("email") or "").strip()
-            verified = bool(email)
+            # La certification vient **toujours** de `/user/emails`, jamais de
+            # la présence du champ `email` sur `/user` : GitHub publie l'adresse
+            # de profil même lorsqu'elle n'a pas été confirmée. L'inférer
+            # laissait quelqu'un enregistrer un compte portant l'adresse d'un
+            # contributeur autorisé, sans jamais la confirmer, et obtenir une
+            # session (FR-005).
+            #
+            # Le prix est un troisième aller-retour, là où le plan en visait deux
+            # au plus. C'est un objectif de performance, pas un contrat public,
+            # et il ne pèse rien face à une certification devinée.
+            email, verified = self._certified_email(client)
             if not email:
-                email, verified = self._fallback_email(client)
+                email = (profil.get("email") or "").strip()
 
             return ExternalIdentity(
                 provider=self.slug,
@@ -138,8 +147,8 @@ class GithubIdentityProvider:
             logger.warning("GitHub returned a non-JSON payload")
             raise LoginError("provider_error") from illisible
 
-    def _fallback_email(self, client: OAuth2Client) -> tuple[str, bool]:
-        """Repli sur `/user/emails` — GitHub masque l'adresse publique par défaut.
+    def _certified_email(self, client: OAuth2Client) -> tuple[str, bool]:
+        """Adresse **certifiée** par le fournisseur, lue sur `/user/emails`.
 
         Le champ qui décide est `verified`, **jamais** `primary` seul : une
         adresse primaire non vérifiée ne certifie rien (FR-005). À défaut
