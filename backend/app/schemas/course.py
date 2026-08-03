@@ -39,3 +39,49 @@ class EventPage(BaseModel):
     items: list[EventOut]
     total_events: int
     total_participations: int
+
+
+class CategoryCount(BaseModel):
+    name: str
+    count: int
+
+
+class ClubCount(BaseModel):
+    name: str
+    count: int
+    is_tcn: bool
+
+
+class Histogram(BaseModel):
+    """Distribution des temps par tranches.
+
+    `start_sec` est le bord gauche de la première tranche : il publie l'ancrage
+    temporel pour que l'axe des abscisses s'aligne sur des heures rondes (#129).
+    """
+
+    bars: list[int]
+    start_sec: int
+    bucket_sec: int
+
+
+class CourseSummary(BaseModel):
+    """Synthèse d'une épreuve **entière** (#163).
+
+    Aucun de ses champs ne dépend de la recherche ni de la portée club en cours :
+    chercher un nom ne doit pas faire tomber l'histogramme à une barre. C'est
+    pour cela que la route qui la sert n'accepte aucun paramètre.
+    """
+
+    total: int
+    finishers: int
+    non_finishers: int
+    unknown: int
+    tcn_count: int
+    male: int
+    female: int
+    categories: list[CategoryCount]
+    #: Somme sur **toutes** les catégories, dénominateur des pourcentages.
+    categories_total: int
+    clubs: list[ClubCount]
+    histogram: Histogram | None = None
+    split_keys: list[str]

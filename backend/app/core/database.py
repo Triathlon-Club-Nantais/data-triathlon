@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 from app.core import sql_observability
 from app.core.config import get_settings
+from app.core.text import deaccent
 
 settings = get_settings()
 
@@ -38,6 +39,12 @@ def _register_sqlite_unicode_case(dbapi_connection, _connection_record) -> None:
     if isinstance(dbapi_connection, sqlite3.Connection):
         dbapi_connection.create_function("lower", 1, _unicode_lower, deterministic=True)
         dbapi_connection.create_function("upper", 1, _unicode_upper, deterministic=True)
+        # `unaccent` est une **extension** côté PostgreSQL, une fonction
+        # applicative ici : même nom des deux côtés pour que la requête de
+        # recherche soit unique (#163). Attention, `lower()` Unicode-aware et
+        # déaccentuation sont deux choses distinctes — `lower('LEMÉE')` rend
+        # `lemée`, jamais `lemee`.
+        dbapi_connection.create_function("unaccent", 1, deaccent, deterministic=True)
 
 engine = create_engine(
     settings.database_url,

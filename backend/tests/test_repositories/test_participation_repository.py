@@ -1,5 +1,7 @@
 from datetime import date
 
+import pytest
+
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.repositories import athlete_repository, course_repository, participation_repository
@@ -315,3 +317,233 @@ def test_finishers_count_by_group_sans_finisher_classe_ne_produit_pas_de_cle(db_
 
 def test_finishers_count_by_group_sans_ids_renvoie_un_dict_vide(db_session):
     assert participation_repository.finishers_count_by_group(db_session, []) == {}
+
+
+# ── Ordre d'affichage, tranche et recherche (issue #163) ──────────────────────
+#
+# L'ordre d'affichage vivait en JavaScript (`orderParticipations`) pendant que la
+# requête triait sur `rank_overall` seul. Invisible tant que le classement entier
+# arrivait d'un coup ; paginé, la tranche servie n'est plus celle attendue. Ces
+# tests figent l'ordre en base comme unique définition.
+
+
+def _classement(db_session):
+    """Épreuve couvrant les quatre groupes de statut et les temps absents."""
+    course = course_repository.get_or_create(
+        db_session, name="Tri Ordre", event_date=date(2026, 6, 1), event_type="triathlon-m"
+    )
+
+    def ajoute(nom, prenom, status, rank, temps, club="ASPTT", gender=""):
+        athlete = athlete_repository.get_or_create(
+            db_session, nom=nom, prenom=prenom, club=club, gender=gender
+        )
+        return participation_repository.create(
+            db_session,
+            athlete_id=athlete.id,
+            course_id=course.id,
+            bib_number=f"{nom}{prenom}",
+            club=club,
+            status=status,
+            rank_overall=rank,
+            total_time=temps,
+        )
+
+    lignes = {
+        "rang1": ajoute("BBB", "Un", "finisher", 1, "01:00:00", club="TCN"),
+        "rang2": ajoute("AAA", "Deux", "finisher", 2, "01:10:00"),
+        "sansrang_a": ajoute("AAA", "Trois", "finisher", None, None),
+        "sansrang_c": ajoute("CCC", "Quatre", "finisher", None, "01:20:00"),
+        "dnf_temps": ajoute("ZZZ", "Cinq", "DNF", None, "02:00:00"),
+        "dnf_sans": ajoute("AAA", "Six", "DNF", None, ""),
+        "dsq": ajoute("DDD", "Sept", "DSQ", None, "01:30:00"),
+        "dns": ajoute("EEE", "Huit", "DNS", None, "00:00:00"),
+    }
+    db_session.flush()
+    return course, lignes
+
+
+def test_ordre_affichage_groupes_puis_rang_puis_temps(db_session):
+    course, lignes = _classement(db_session)
+
+    rows, total = participation_repository.list_page_for_course(
+        db_session, course.id, page_size=None
+    )
+
+    assert total == 8
+    assert [p.id for p in rows] == [
+        lignes["rang1"].id,  # finisher rang 1
+        lignes["rang2"].id,  # finisher rang 2
+        lignes["sansrang_a"].id,  # finishers sans rang, départagés par nom
+        lignes["sansrang_c"].id,
+        lignes["dnf_temps"].id,  # DNF, temps renseigné d'abord
+        lignes["dnf_sans"].id,
+        lignes["dsq"].id,  # puis DSQ
+        lignes["dns"].id,  # puis DNS
+    ]
+
+
+def test_ordre_affichage_temps_absent_en_fin_de_groupe(db_session):
+    """`00:00:00` et la chaîne vide valent temps absent, comme `NULL`."""
+    course, lignes = _classement(db_session)
+
+    rows, _ = participation_repository.list_page_for_course(db_session, course.id, page_size=None)
+    ids = [p.id for p in rows]
+
+    assert ids.index(lignes["dnf_temps"].id) < ids.index(lignes["dnf_sans"].id)
+
+
+def test_ordre_affichage_non_classes_apres_les_classes_parmi_les_finishers(db_session):
+    """Garde-fou SQLite (`NULL` en tête) / PostgreSQL (`NULL` en queue).
+
+    La restriction aux finishers compte : un DNF sans rang passe, lui, **avant**
+    un finisher sans rang — c'est le groupe qui prime, pas le rang.
+    """
+    course, lignes = _classement(db_session)
+
+    rows, _ = participation_repository.list_page_for_course(db_session, course.id, page_size=None)
+    ids = [p.id for p in rows]
+
+    assert ids.index(lignes["rang2"].id) < ids.index(lignes["sansrang_a"].id)
+    assert ids.index(lignes["sansrang_a"].id) < ids.index(lignes["dnf_temps"].id)
+
+
+def _classement_accents(db_session):
+    course = course_repository.get_or_create(
+        db_session, name="Tri Accents", event_date=date(2026, 6, 2), event_type="triathlon-m"
+    )
+
+    def ajoute(nom, prenom, club, categorie, dossard):
+        athlete = athlete_repository.get_or_create(
+            db_session, nom=nom, prenom=prenom, club=club
+        )
+        return participation_repository.create(
+            db_session,
+            athlete_id=athlete.id,
+            course_id=course.id,
+            bib_number=dossard,
+            club=club,
+            category=categorie,
+            status="finisher",
+            rank_overall=None,
+            total_time="01:00:00",
+        )
+
+    lignes = {
+        "lemee": ajoute("LEMÉE", "Loïc", "ASPTT NANTES", "SEM", "101"),
+        "leguen": ajoute("Le Guen", "Anne", "Triathlon Club Nantais", "SEF", "202"),
+        "durand": ajoute("DURAND", "Hervé", "ASPTT NANTES", "V1H", "303"),
+    }
+    db_session.flush()
+    return course, lignes
+
+
+def test_recherche_par_nom_en_sous_chaine(db_session):
+    course, lignes = _classement_accents(db_session)
+
+    rows, total = participation_repository.list_page_for_course(
+        db_session, course.id, page_size=None, q="guen"
+    )
+
+    assert total == 1
+    assert [p.id for p in rows] == [lignes["leguen"].id]
+
+
+def test_recherche_insensible_aux_accents_et_a_la_casse(db_session):
+    """`lower('LEMÉE') LIKE '%lemee%'` est faux sur SQLite **et** PostgreSQL."""
+    course, lignes = _classement_accents(db_session)
+
+    sans_accent = participation_repository.list_page_for_course(
+        db_session, course.id, page_size=None, q="lemee"
+    )
+    avec_accent = participation_repository.list_page_for_course(
+        db_session, course.id, page_size=None, q="LEMÉE"
+    )
+
+    assert sans_accent[1] == avec_accent[1] == 1
+    assert [p.id for p in sans_accent[0]] == [lignes["lemee"].id]
+    assert [p.id for p in avec_accent[0]] == [lignes["lemee"].id]
+
+
+def test_recherche_porte_aussi_sur_le_prenom(db_session):
+    course, lignes = _classement_accents(db_session)
+
+    rows, total = participation_repository.list_page_for_course(
+        db_session, course.id, page_size=None, q="herve"
+    )
+
+    assert total == 1
+    assert [p.id for p in rows] == [lignes["durand"].id]
+
+
+@pytest.mark.parametrize("terme", ["asptt", "101", "SEM"])
+def test_recherche_ne_porte_ni_sur_le_club_ni_sur_le_dossard_ni_sur_la_categorie(
+    db_session, terme
+):
+    """FR-014, borne négative : une exigence non testée dérive au premier champ ajouté."""
+    course, _ = _classement_accents(db_session)
+
+    _, total = participation_repository.list_page_for_course(
+        db_session, course.id, page_size=None, q=terme
+    )
+
+    assert total == 0
+
+
+@pytest.mark.parametrize("terme", ["", "   ", None])
+def test_recherche_blanche_equivaut_a_pas_de_recherche(db_session, terme):
+    course, _ = _classement_accents(db_session)
+
+    _, total = participation_repository.list_page_for_course(
+        db_session, course.id, page_size=None, q=terme
+    )
+
+    assert total == 3
+
+
+def test_recherche_et_portee_club_se_composent(db_session):
+    course, lignes = _classement_accents(db_session)
+
+    _, tcn_seul = participation_repository.list_page_for_course(
+        db_session, course.id, page_size=None, club_only=True
+    )
+    _, les_deux = participation_repository.list_page_for_course(
+        db_session, course.id, page_size=None, club_only=True, q="lemee"
+    )
+
+    assert tcn_seul == 1  # seule « Le Guen » est au TCN
+    assert les_deux == 0  # LEMÉE n'y est pas : les deux filtres se cumulent
+
+
+def test_tranche_ne_perd_ni_ne_duplique_de_ligne(db_session):
+    course, _ = _classement_accents(db_session)
+
+    page1, total = participation_repository.list_page_for_course(
+        db_session, course.id, page=1, page_size=2
+    )
+    page2, _ = participation_repository.list_page_for_course(
+        db_session, course.id, page=2, page_size=2
+    )
+    hors_bornes, _ = participation_repository.list_page_for_course(
+        db_session, course.id, page=99, page_size=2
+    )
+    tout, _ = participation_repository.list_page_for_course(db_session, course.id, page_size=None)
+
+    assert total == 3
+    assert len(page1) == 2 and len(page2) == 1 and hors_bornes == []
+    assert [p.id for p in page1 + page2] == [p.id for p in tout]
+
+
+@pytest.mark.parametrize("joker", ["%", "_", "%%", "a%"])
+def test_recherche_echappe_les_jokers_like(db_session, joker):
+    """`q=%` rendait l'épreuve entière, `q=_` n'importe quel caractère.
+
+    Ce n'était pas une injection — le motif est passé en paramètre lié — mais
+    un visiteur pouvait contourner sa propre recherche sans le vouloir.
+    """
+    course, _ = _classement_accents(db_session)
+
+    _, total = participation_repository.list_page_for_course(
+        db_session, course.id, page_size=None, q=joker
+    )
+
+    assert total == 0

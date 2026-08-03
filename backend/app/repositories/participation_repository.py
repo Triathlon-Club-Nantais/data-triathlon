@@ -3,11 +3,12 @@ from collections.abc import Iterable
 from datetime import date
 
 from sqlalchemy import and_, case, func, or_
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, contains_eager, joinedload
 
 from app.core.club import tcn_clause
 from app.core.discipline import federal_clause
 from app.core.season import season_bounds, season_of
+from app.core.text import deaccent
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.participation import Participation
@@ -17,6 +18,31 @@ from app.scrapers.base import STATUS_FINISHER
 def _is_postgres(db: Session) -> bool:
     """Vrai si le moteur est PostgreSQL (prod) — sinon SQLite (dev)."""
     return db.bind is not None and db.bind.dialect.name == "postgresql"
+
+
+def _athlete_name_filter(term: str):
+    """Filtre nom **ou** prénom d'athlète, en sous-chaîne, sans casse ni accents.
+
+    `ilike` seul ne suffit pas : il ignore la casse, jamais les accents, et ce
+    sur les deux moteurs. Mesuré — `lower('LEMÉE') LIKE '%lemee%'` vaut faux, y
+    compris avec le listener Unicode de `core/database.py`, qui rend `lemée`.
+
+    `unaccent` désigne l'extension PostgreSQL en production et la fonction
+    applicative enregistrée sur la connexion SQLite en développement : même nom,
+    donc une seule expression ici. Aucun index n'est utilisable de ce fait, sans
+    conséquence — le filtre porte toujours sur une seule épreuve.
+    """
+    # Les jokers `LIKE` saisis par un visiteur sont échappés : ce n'est pas une
+    # injection (le motif est passé en paramètre lié), mais `q=%` rendait
+    # l'épreuve entière et `q=_` n'importe quel caractère.
+    terme = deaccent(term).lower()
+    for joker in ("\\", "%", "_"):
+        terme = terme.replace(joker, f"\\{joker}")
+    pattern = f"%{terme}%"
+    return or_(
+        func.unaccent(func.lower(Athlete.nom)).like(pattern, escape="\\"),
+        func.unaccent(func.lower(Athlete.prenom)).like(pattern, escape="\\"),
+    )
 
 
 def _course_name_filter(db: Session, term: str):
@@ -223,6 +249,122 @@ def list_for_course(db: Session, course_id: int) -> list[Participation]:
         .options(joinedload(Participation.athlete))
         .filter(Participation.course_id == course_id)
         .order_by(Participation.rank_overall.is_(None), Participation.rank_overall)
+        .all()
+    )
+
+
+# Groupes d'affichage : finishers, puis DNF, DSQ, DNS. Un statut vide ou inconnu
+# est un finisher potentiel et reste dans le groupe 0 (cf. `raceOrder.groupRank`).
+_GROUPE_AFFICHAGE = case(
+    (func.upper(func.coalesce(Participation.status, "")) == "DNF", 1),
+    (func.upper(func.coalesce(Participation.status, "")) == "DSQ", 2),
+    (func.upper(func.coalesce(Participation.status, "")) == "DNS", 3),
+    else_=0,
+)
+
+# Un temps vide ou `00:00:00` vaut temps absent — sémantique partagée avec le front.
+_TEMPS_ABSENT = or_(
+    Participation.total_time.is_(None),
+    Participation.total_time == "",
+    Participation.total_time == "00:00:00",
+)
+
+
+def _ordre_affichage():
+    """Ordre du classement d'une épreuve, **seule** définition du projet.
+
+    Il vivait en JavaScript (`orderParticipations`) tant que le classement
+    entier arrivait d'un coup ; paginé, un ordre de requête différent de l'ordre
+    d'écran fait que la tranche N servie n'est pas la tranche N affichée (#163).
+
+    Les clés « valeur absente » sont des booléens 0/1 et non un `NULLS LAST` :
+    SQLite place les `NULL` en tête en tri croissant, PostgreSQL en queue, et un
+    `ORDER BY` nu diverge donc entre le développement et la production.
+
+    La comparaison alphabétique des temps vaut comparaison chronologique : ils
+    sont normalisés en `HH:MM:SS` à deux chiffres d'heures à l'import.
+    """
+    return (
+        _GROUPE_AFFICHAGE,
+        # Finishers : rang croissant, les non classés en fin.
+        case((and_(_GROUPE_AFFICHAGE == 0, Participation.rank_overall.is_(None)), 1), else_=0),
+        case((_GROUPE_AFFICHAGE == 0, Participation.rank_overall), else_=None),
+        # Non-finishers : temps croissant, les temps absents en fin.
+        case((and_(_GROUPE_AFFICHAGE != 0, _TEMPS_ABSENT), 1), else_=0),
+        case(
+            (and_(_GROUPE_AFFICHAGE != 0, ~_TEMPS_ABSENT), Participation.total_time),
+            else_="",
+        ),
+        func.lower(Athlete.nom),
+        func.lower(Athlete.prenom),
+    )
+
+
+def list_page_for_course(
+    db: Session,
+    course_id: int,
+    *,
+    page: int = 1,
+    page_size: int | None = 20,
+    q: str | None = None,
+    club_only: bool = False,
+) -> tuple[list[Participation], int]:
+    """Tranche ordonnée du classement d'une épreuve, et total de la sélection.
+
+    `page_size=None` rend tout le classement en une page (`page_size=all` côté
+    API). Le total porte sur la sélection — recherche et portée club comprises —,
+    pas sur l'épreuve : les décomptes d'épreuve vivent dans la synthèse.
+    """
+    query = (
+        db.query(Participation)
+        .join(Athlete, Participation.athlete_id == Athlete.id)
+        # `contains_eager` et non `joinedload` : la jointure sur `Athlete` existe
+        # déjà (l'ordre et la recherche en dépendent), un `joinedload` en
+        # ajouterait une seconde vers la même table.
+        .options(contains_eager(Participation.athlete))
+        .filter(Participation.course_id == course_id)
+    )
+    if club_only:
+        query = query.filter(tcn_clause(Participation.club))
+    terme = (q or "").strip()
+    if terme:
+        query = query.filter(_athlete_name_filter(terme))
+
+    total = query.count()
+    query = query.order_by(*_ordre_affichage())
+    if page_size is not None:
+        query = query.offset((page - 1) * page_size).limit(page_size)
+    return query.all(), total
+
+
+def summary_rows_for_course(db: Session, course_id: int) -> list[tuple]:
+    """Colonnes nécessaires à la synthèse d'une épreuve, en **une** requête.
+
+    Rend des tuples, jamais des `Participation` : hydrater le modèle et joindre
+    l'athlète est précisément le coût que la pagination supprime (#163).
+
+    L'ordre **compte**, malgré l'agrégation : `split_keys` est construite dans
+    l'ordre d'apparition, et le contrat de la route en fait l'ordre des colonnes
+    du tableau. Sans `ORDER BY`, l'ordre du tas PostgreSQL n'est pas stable
+    (UPDATE, VACUUM) et les colonnes pourraient se réordonner entre deux pages.
+
+    `splits` est de loin la plus lourde des six colonnes, et la seule chargée
+    pour une raison indirecte : en déduire les clés de colonnes du tableau.
+    Aucun des deux moteurs n'offre d'extraction portable des clés d'un objet
+    JSON, donc on lit la colonne.
+    """
+    return (
+        db.query(
+            Participation.status,
+            Participation.club,
+            Participation.category,
+            Participation.total_time,
+            Participation.splits,
+            Athlete.gender,
+        )
+        .join(Athlete, Participation.athlete_id == Athlete.id)
+        .filter(Participation.course_id == course_id)
+        .order_by(Participation.id)
         .all()
     )
 
