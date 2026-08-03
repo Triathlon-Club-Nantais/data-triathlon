@@ -106,7 +106,7 @@ Vérifiez que l'interface écoute bien sur **3000** — sinon, relisez l'avertis
 | 2 | Ouvrir `/admin` **sans session** | Redirection vers `/login`. |
 | 3 | Cliquer sur **Se connecter** | La page `/login` affiche **un bouton GitHub**, rendu depuis `/auth/methods`. |
 | 4 | Cliquer sur **GitHub** | Redirection vers GitHub, écran de consentement. |
-| 5 | Autoriser | Retour sur le site, **connecté**. Le menu utilisateur affiche votre adresse. |
+| 5 | Autoriser | Retour sur `/admin`, **connecté**. Le menu utilisateur affiche votre adresse. |
 | 6 | Rafraîchir la page | Toujours connecté. |
 | 7 | Fermer l'onglet, rouvrir le site | Toujours connecté. |
 | 8 | Ouvrir `/admin` | La page s'affiche. |

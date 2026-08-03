@@ -193,7 +193,10 @@ def callback(
         logger.exception("Unexpected failure during the %s callback", provider)
         response = _failure_redirect("provider_error", settings)
     else:
-        response = _redirect_to(settings.auth_redirect_base_url)
+        # Le back-office, seul écran que la connexion ouvre aujourd'hui. La
+        # destination reste **fixée par la configuration** (FR-026) : aucun
+        # paramètre d'entrée n'y entre, la redirection ouverte reste fermée.
+        response = _redirect_to(f"{settings.auth_redirect_base_url}/admin")
         _set_auth_cookie(
             response,
             name=session_cookie_name(settings),

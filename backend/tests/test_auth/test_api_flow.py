@@ -72,7 +72,7 @@ def test_le_callback_nominal_ouvre_une_session(client, doublure, db_session):
     )
 
     assert reponse.status_code == 302
-    assert reponse.headers["location"] == get_settings().auth_redirect_base_url
+    assert reponse.headers["location"] == f"{get_settings().auth_redirect_base_url}/admin"
 
     settings = get_settings()
     jeton = client.cookies[session_cookie_name(settings)]
