@@ -11,6 +11,8 @@
 
 # N'y figez pas BACKEND_URL / API_URL : ils visent un worktree précis.
 .env.local
+backend/.env
+backend/.env.local
 
 # Démarrer sur les données déjà importées plutôt que sur un schéma vide.
 backend/triathlon.db
