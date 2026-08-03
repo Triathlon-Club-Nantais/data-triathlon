@@ -4,8 +4,17 @@ Pipeline gratuit où **rien ne se déploie sans CI verte**, avec deux flux :
 
 | Déclencheur | Environnement | Backend (Render) | Frontend (Vercel) |
 |---|---|---|---|
-| **Merge dans `main`** | preview / test | service Render preview (deploy hook) | `vercel deploy` (preview) |
-| **Tag `v*` sur `main`** | production | service Render prod (deploy hook) | `vercel deploy --prod` |
+| **Merge dans `main`** (ou `workflow_dispatch`) | preview / test | service Render preview (deploy hook) | `--prod` sur le projet `data-triathlon-preview` |
+| **Tag `v*` sur `main`** | production | service Render prod (deploy hook) | `--prod` sur le projet `data-triathlon` |
+
+**Les deux flux déploient en production — de deux projets Vercel différents.**
+Ce n'est pas une coquille : un *preview deployment* change d'URL à chaque
+exécution, alors que chaque projet a un domaine de production stable. Router la
+preview vers la production d'un second projet est ce qui lui donne une URL fixe,
+donc une URL de retour SSO enregistrable et une protection de déploiement qui
+tient (#172). Le ciblage ne passe par aucune variable dédiée : les deux jobs
+déclarent déjà un *environment* GitHub, et le `VERCEL_PROJECT_ID` défini sur
+l'environment `preview` surcharge celui du dépôt.
 
 Toute PR déclenche la CI seule (aucun déploiement).
 
@@ -64,22 +73,39 @@ Réglages restants à faire **dans le dashboard** (non supportés par le MCP) :
 > (rootDir vide + `DATABASE_URL` absent) : sans gravité, il sera correct après
 > ces réglages et le premier hook.
 
-### Vercel (offre Hobby) — 1 projet
+### Vercel (offre Hobby) — 2 projets
+
+| Rôle | Projet Vercel | Ciblé par |
+|---|---|---|
+| **PROD** | `data-triathlon` | environment GitHub `production` (secret de dépôt) |
+| **PREVIEW** | `data-triathlon-preview` | environment GitHub `preview` (secret d'environment) |
+
+À faire **sur chacun des deux projets**, team « Triathlon Club Nantais » :
 
 1. **Root Directory = `frontend`**.
 2. **Désactiver le déploiement Git automatique** pour que seul le pipeline
    déclenche les déploiements : Settings → Git → désactiver la connexion
    d'auto-deploy, ou définir un *Ignored Build Step* renvoyant `exit 0` sur les
    pushs Git.
-3. `VERCEL_ORG_ID` et `VERCEL_PROJECT_ID` (projet `data-triathlon` existant,
-   team « Triathlon Club Nantais ») — à récupérer (non committés, dépôt public) :
+3. Relever `VERCEL_ORG_ID` et `VERCEL_PROJECT_ID` (non committés, dépôt public) :
    - via la CLI : `vercel link` puis lire `.vercel/project.json`
      (`orgId` → `VERCEL_ORG_ID`, `projectId` → `VERCEL_PROJECT_ID`) ;
    - ou dans le dashboard : Project → Settings → General.
-4. Créer un **`VERCEL_TOKEN`** (Account Settings → Tokens).
-5. Variables d'environnement projet :
-   - env **Preview** : `BACKEND_URL` / `API_URL` → backend Render **preview**.
-   - env **Production** : `BACKEND_URL` / `API_URL` → backend Render **prod**.
+4. Variables d'environnement **Production** du projet — c'est celles-là que
+   lisent les deux jobs, chacun déployant en `--prod` de son propre projet :
+   - `data-triathlon` : `BACKEND_URL` / `API_URL` → backend Render **prod** ;
+   - `data-triathlon-preview` : `BACKEND_URL` / `API_URL` → backend Render
+     **preview**. Sans ça, la preview taperait la base de production.
+5. Sur `data-triathlon-preview` seul : configurer la protection de déploiement /
+   SSO sur son URL fixe, désormais stable.
+
+Puis, une fois pour le compte : créer un **`VERCEL_TOKEN`** (Account Settings →
+Tokens), commun aux deux projets.
+
+> L'ID du projet preview se pose sur l'**environment GitHub `preview`**, pas sur
+> le dépôt : un secret d'environment surcharge le secret de dépôt du même nom.
+> D'où l'absence d'un `VERCEL_PROJECT_ID_PREVIEW` et de toute ligne `env:`
+> dupliquée dans `deploy.yml`.
 
 ### Authentification SSO (#114) — variables par environnement
 
@@ -101,7 +127,7 @@ le frontend n'en porte aucun, il ne fait que proxifier `/api/*`.
 | `AUTH_SESSION_SECRET_KEY` | généré par Render (`generateValue`) | **à saisir à la main** (hors blueprint) | `python -c "import secrets; print(secrets.token_urlsafe(64))"` |
 | `AUTH_GITHUB_CLIENT_ID` / `_SECRET` | application OAuth « prod » | application OAuth « preview » | application OAuth « local » |
 | `AUTH_ALLOWED_EMAILS` | adresses des contributeurs, en CSV | idem, ou vide pour fermer | votre adresse GitHub vérifiée |
-| `AUTH_REDIRECT_BASE_URL` | URL Vercel **production** | URL Vercel du déploiement stable | `http://127.0.0.1:3000` |
+| `AUTH_REDIRECT_BASE_URL` | URL de production de `data-triathlon` | URL de production de `data-triathlon-preview` | `http://127.0.0.1:3000` |
 | `AUTH_COOKIE_SECURE` | `true` | `true` | `false` |
 | `AUTH_SESSION_TTL_DAYS` / `AUTH_STATE_TTL_SECONDS` | défauts (7 j / 600 s) | défauts | défauts |
 
@@ -125,11 +151,11 @@ Trois points qui coûtent cher s'ils sont découverts en production :
   (`<origine>/api/v1/auth/github/callback`), jamais le backend Render — le
   cookie d'état est posé sur l'origine de l'interface et ne serait pas renvoyé
   autrement, faisant échouer **tout** retour de parcours en `state_mismatch` ;
-- **les déploiements de prévisualisation par PR sont hors périmètre** : leur URL
-  change à chaque exécution, donc aucune URL de retour stable ne peut être
-  enregistrée chez GitHub. La connexion n'y fonctionne pas, et c'est assumé —
-  seul le déploiement preview **stable** (celui que vise `AUTH_REDIRECT_BASE_URL`)
-  est utilisable. Le site public, lui, reste entier sur toutes les previews ;
+- **les *preview deployments* de Vercel sont hors périmètre** : leur URL change à
+  chaque exécution, donc aucune URL de retour stable ne peut être enregistrée
+  chez GitHub. C'est précisément pourquoi le job `deploy-preview` déploie en
+  production du projet `data-triathlon-preview` (#172) : la connexion ne
+  fonctionne que sur cette URL fixe. Le site public, lui, reste entier partout ;
 - `AUTH_ALLOWED_EMAILS` **vide interdit toute connexion** et fait rendre `[]` à
   `/auth/methods`. Ce n'est pas un défaut permissif : une variable oubliée sur
   Render ferme l'accès au lieu de l'ouvrir à n'importe quel compte GitHub.
@@ -149,7 +175,12 @@ Settings → Secrets and variables → Actions :
 | `RENDER_DEPLOY_HOOK_PROD` | URL du deploy hook Render prod |
 | `VERCEL_TOKEN` | Token CLI Vercel |
 | `VERCEL_ORG_ID` | ID de l'organisation Vercel |
-| `VERCEL_PROJECT_ID` | ID du projet Vercel |
+| `VERCEL_PROJECT_ID` | ID du projet Vercel `data-triathlon` (**secret de dépôt**) |
+
+Un seul secret est défini ailleurs : `VERCEL_PROJECT_ID` sur l'**environment
+GitHub `preview`** (Settings → Environments → `preview` → Environment secrets),
+avec l'ID de `data-triathlon-preview`. Il surcharge le secret de dépôt pour le
+seul job `deploy-preview` ; `deploy-production` continue de lire celui du dépôt.
 
 ### GitHub Pages (documentation) — une seule bascule
 
@@ -176,11 +207,15 @@ passe avant Markdown. L'exclusion est ce qui met les plans à l'abri ; dans une
 page **publiée**, il faut entourer le passage des balises Liquid `raw` /
 `endraw`.
 
-### Optionnel (recommandé) — garde-fou production
+### Environments GitHub — requis, et un garde-fou optionnel
 
-Créer les *Environments* GitHub `preview` et `production`, puis ajouter une
-**required reviewer** sur `production` : un tag `v*` déclenchera la CI mais la
-mise en production attendra une validation manuelle.
+Les *Environments* `preview` et `production` sont **nécessaires** : les deux jobs
+les déclarent, et c'est `preview` qui porte le `VERCEL_PROJECT_ID` du projet
+preview (voir plus haut).
+
+Optionnel mais recommandé : ajouter une **required reviewer** sur `production` —
+un tag `v*` déclenchera la CI, mais la mise en production attendra une validation
+manuelle.
 
 ## Publier une version
 
@@ -196,9 +231,12 @@ git push origin v0.1.0
 ## Vérification
 
 1. Ouvrir une PR → les jobs `backend` et `frontend` passent.
-2. Merger dans `main` → `deploy.yml` enchaîne `ci` puis `deploy-preview`
-   (hook Render preview + Vercel preview).
-3. `git tag v0.1.0 && git push --tags` → `ci` puis `deploy-production`
-   (hook Render prod + `vercel --prod`).
-4. Sur une CI volontairement cassée (erreur ruff/test), confirmer que le job de
+2. Merger dans `main` (ou lancer un `workflow_dispatch`) → `deploy.yml` enchaîne
+   `ci` puis `deploy-preview` : hook Render preview + déploiement sur l'URL fixe
+   de `data-triathlon-preview`. Relancer une fois : **la même URL**.
+3. Sur cette preview, vérifier qu'on interroge bien le backend Render *preview*
+   (footer de version + une lecture API).
+4. `git tag v0.1.0 && git push --tags` → `ci` puis `deploy-production`
+   (hook Render prod + déploiement sur `data-triathlon`, inchangé).
+5. Sur une CI volontairement cassée (erreur ruff/test), confirmer que le job de
    déploiement **n'est pas exécuté**.

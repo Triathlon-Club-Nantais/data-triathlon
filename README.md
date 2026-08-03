@@ -256,11 +256,20 @@ data-triathlon/
 
 ### Frontend → Vercel
 
+Deux projets, chacun avec son domaine de production stable :
+`data-triathlon` (prod, déployé sur tag `v*`) et `data-triathlon-preview`
+(preview, déployé sur merge dans `main`).
+
 1. Importer le repo sur [vercel.com](https://vercel.com)
 2. **Root Directory** : `frontend`
-3. Variables d'environnement :
+3. Variables d'environnement (env **Production** de chaque projet — les deux
+   déploiements du pipeline sont des `--prod`, dans leur projet respectif) :
    - `BACKEND_URL` — URL interne du backend Render (rewrites client)
    - `API_URL` — URL du backend pour les Server Components
+
+> La preview vise la production de son propre projet plutôt qu'un *preview
+> deployment* : ce dernier change d'URL à chaque exécution, ce qui interdisait
+> d'y fixer l'accès SSO. Détail : [`docs/ci-cd.md`](docs/ci-cd.md).
 
 ---
 

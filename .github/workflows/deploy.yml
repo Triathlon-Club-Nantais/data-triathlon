@@ -52,10 +52,17 @@ jobs:
       - name: Vercel (frontend) — preview
         # Pas de working-directory : le Root Directory (frontend) est déjà configuré côté projet Vercel.
         # `NEXT_PUBLIC_APP_VERSION` est lu par `VersionFooter` (#134) et embarqué au build.
+        #
+        # `--prod` **et** `--environment=production` visent le projet Vercel
+        # `data-triathlon-preview` (#172) : le `VERCEL_PROJECT_ID` de l'environment
+        # GitHub `preview` surcharge celui du dépôt. C'est donc la production de ce
+        # second projet — son domaine stable —, dont les variables pointent vers le
+        # backend Render preview. Un preview deployment change d'URL à chaque
+        # exécution, ce qui interdit toute URL de retour SSO enregistrée.
         run: |
-          vercel pull --yes --environment=preview --token="$VERCEL_TOKEN"
-          vercel build --token="$VERCEL_TOKEN"
-          vercel deploy --prebuilt --token="$VERCEL_TOKEN"
+          vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+          vercel build --prod --token="$VERCEL_TOKEN"
+          vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           NEXT_PUBLIC_APP_VERSION: ${{ steps.version.outputs.value }}
