@@ -108,3 +108,18 @@ export function splitColumns(
   }
   return [...vues.values()];
 }
+
+/**
+ * Colonnes de splits à partir des seules **clés** publiées par l'épreuve.
+ *
+ * Même règle que `splitColumns`, mais alimentée par la synthèse d'épreuve
+ * plutôt que par les participations affichées (#163) : avec vingt lignes sous
+ * la main, déduire les colonnes des lignes les ferait changer d'une page à
+ * l'autre. Les clés arrivent dans leur ordre d'apparition, qui fixe celui des
+ * colonnes lorsqu'aucun schéma de sport ne s'applique.
+ */
+export function splitColumnsFromKeys(eventType: string, keys: string[]): SchemaEntry[] {
+  const attendus = splitSchema(eventType).filter((s) => keys.includes(s.key));
+  if (attendus.length) return attendus;
+  return keys.map((key) => sourceEntry(key));
+}

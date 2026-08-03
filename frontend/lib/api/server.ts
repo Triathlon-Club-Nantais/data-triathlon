@@ -1,8 +1,11 @@
 import { cookies } from "next/headers";
+import { ApiError } from "@/lib/api/client";
 import type {
   AthleteDetail,
   AuthMethod,
   CourseDetail,
+  CourseQuery,
+  CourseSummary,
   EventPage,
   Participation,
   ParticipationFilters,
@@ -19,7 +22,11 @@ async function serverFetch<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { cache: "no-store" });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || `Erreur API (${res.status})`);
+    // `ApiError` plutôt qu'un `Error` nu : sans le statut, un appelant ne peut
+    // pas distinguer une ressource absente d'un backend en panne, et finit par
+    // afficher « introuvable » sur les deux. Changement additif — le message
+    // reste identique, les appelants qui ne lisent pas `status` ne voient rien.
+    throw new ApiError(res.status, err.detail || `Erreur API (${res.status})`);
   }
   return res.json() as Promise<T>;
 }
@@ -66,7 +73,14 @@ export const apiServer = {
   listParticipations: (filters: ParticipationFilters = {}) =>
     serverFetch<Participation[]>(`/participations${toQuery(filters as Record<string, unknown>)}`),
   getAthlete: (id: number) => serverFetch<AthleteDetail>(`/athletes/${id}`),
-  getCourse: (id: number) => serverFetch<CourseDetail>(`/courses/${id}`),
+  getCourse: (id: number, opts: CourseQuery = {}) =>
+    serverFetch<CourseDetail>(`/courses/${id}${toQuery(opts as Record<string, unknown>)}`),
+  /**
+   * Synthèse d'épreuve entière : appel **séparé** du classement, et sans
+   * paramètre. C'est ce qui garantit que la recherche en cours ne la modifie
+   * pas (#163).
+   */
+  getCourseSummary: (id: number) => serverFetch<CourseSummary>(`/courses/${id}/summary`),
   listEvents: (filters: ParticipationFilters = {}) =>
     serverFetch<EventPage>(`/courses/events${toQuery(filters as Record<string, unknown>)}`),
   getStats: (opts: { scope?: string; seasons?: number[]; federal_only?: boolean } = {}) =>

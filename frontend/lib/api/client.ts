@@ -2,6 +2,8 @@ import type {
   AthleteDetail,
   AuthMethod,
   CourseDetail,
+  CourseQuery,
+  CourseSummary,
   EventPage,
   GeoEvent,
   ImportResult,
@@ -87,7 +89,9 @@ export const apiClient = {
     request<null>(`/participations/${id}`, { method: "DELETE" }),
 
   getAthlete: (id: number) => request<AthleteDetail>(`/athletes/${id}`),
-  getCourse: (id: number) => request<CourseDetail>(`/courses/${id}`),
+  getCourse: (id: number, opts: CourseQuery = {}) =>
+    request<CourseDetail>(`/courses/${id}${toQuery(opts as Record<string, unknown>)}`),
+  getCourseSummary: (id: number) => request<CourseSummary>(`/courses/${id}/summary`),
 
   listEvents: (filters: ParticipationFilters = {}) =>
     request<EventPage>(`/courses/events${toQuery(filters as Record<string, unknown>)}`),

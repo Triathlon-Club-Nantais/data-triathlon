@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { apiServer } from "@/lib/api/server";
+import { ApiError } from "@/lib/api/client";
 import { Card, Eyebrow, MetaPill } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
 import { RaceFinishers } from "@/components/results/RaceFinishers";
@@ -7,79 +8,81 @@ import { eventTypeLabel, providerLabel } from "@/lib/constants";
 import { formatToken } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
 import { formatEventName } from "@/lib/utils/event";
-import { countOutcomes } from "@/lib/utils/raceOrder";
 import { buildTicks, formatTickLabel } from "@/lib/utils/histogram-ticks";
+import { SCOPE_PARAM, scopeFromParam } from "@/lib/scope";
 
 const CAT_COLORS = [
   "var(--tcn-orange)", "var(--tcn-orange-300)", "var(--tcn-ink)", "var(--tcn-ink-2)",
   "var(--tcn-ink-3)", "var(--tcn-grey-400)", "var(--tcn-orange-200)", "var(--tcn-grey-300)",
 ];
 
-function parseSeconds(t: string | null | undefined): number | null {
-  if (!t) return null;
-  const m = String(t).match(/(?:(\d+):)?(\d{1,2}):(\d{2})$/);
-  if (!m) return null;
-  return (+(m[1] ?? 0)) * 3600 + +m[2] * 60 + +m[3];
-}
-
 function pctFr(pct: number): string {
   return pct.toFixed(1).replace(".", ",");
 }
 
-export default async function CoursePage({ params }: { params: Promise<{ id: string }> }) {
+/**
+ * Convertit une épreuve absente en `null`, et **laisse remonter le reste**.
+ *
+ * Avaler toute erreur ferait afficher « épreuve introuvable » sur un backend en
+ * panne ou injoignable : indiscernable d'un lien mort pour le visiteur, et
+ * invisible en supervision. Le risque a doublé avec la synthèse, qui est un
+ * second appel — une panne de cette seule route ferait disparaître en 404 des
+ * pages parfaitement valides.
+ */
+function rendreNullSi404(erreur: unknown): null {
+  if (erreur instanceof ApiError && erreur.status === 404) return null;
+  throw erreur;
+}
+
+/** Numéro de page lu dans l'URL : absent, illisible ou < 1 vaut 1, sans erreur. */
+function parsePage(raw: string | undefined): number {
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 1 ? n : 1;
+}
+
+export default async function CoursePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
   const { id } = await params;
-  const data = await apiServer.getCourse(Number(id)).catch(() => null);
-  if (!data) notFound();
+  const sp = await searchParams;
+  const page = parsePage(sp.page);
+  const q = sp.q?.trim() || undefined;
+  const scope = scopeFromParam(sp[SCOPE_PARAM]);
+
+  // Deux appels distincts, et c'est structurant : la synthèse porte sur
+  // l'épreuve entière, le classement sur la sélection courante. Chercher un nom
+  // ne doit pas faire tomber l'histogramme à une barre (#163).
+  const [data, summary] = await Promise.all([
+    apiServer.getCourse(Number(id), { page, q, scope }).catch(rendreNullSi404),
+    apiServer.getCourseSummary(Number(id)).catch(rendreNullSi404),
+  ]);
+  if (!data || !summary) notFound();
   const { course, participations } = data;
-  // Ventilation partants / finishers / abandons / indéterminés — la pastille
-  // d'en-tête ne doit plus étiqueter « Finishers » un total qui inclut les
-  // DNF/DNS/DSQ (cf. issue #23).
-  const { total, finishers, nonFinishers, unknown } = countOutcomes(participations);
-  const tcnCount = participations.filter((p) => p.is_tcn).length;
+
+  const { total, finishers, non_finishers: nonFinishers, unknown, tcn_count: tcnCount } = summary;
 
   // ── Répartition genre ──
-  let male = 0;
-  let female = 0;
-  for (const p of participations) {
-    const c = (p.athlete?.gender ?? "").trim().toLowerCase()[0];
-    if (c === "f" || c === "w") female += 1;
-    else if (c === "m" || c === "h") male += 1;
-  }
-  const genderTotal = male + female;
+  const genderTotal = summary.male + summary.female;
   const hasGender = genderTotal > 0;
-  const malePct = hasGender ? (male / genderTotal) * 100 : 0;
-  const femalePct = hasGender ? (female / genderTotal) * 100 : 0;
+  const malePct = hasGender ? (summary.male / genderTotal) * 100 : 0;
+  const femalePct = hasGender ? (summary.female / genderTotal) * 100 : 0;
 
   // ── Répartition par catégorie ──
-  const catMap = new Map<string, number>();
-  for (const p of participations) {
-    const cat = p.category?.trim();
-    if (cat) catMap.set(cat, (catMap.get(cat) ?? 0) + 1);
-  }
-  const catTotal = [...catMap.values()].reduce((a, b) => a + b, 0);
-  const categories = [...catMap.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 8)
-    .map(([name, count], i) => ({ name, pct: catTotal ? (count / catTotal) * 100 : 0, color: CAT_COLORS[i % CAT_COLORS.length] }));
+  // Dénominateur : toutes les catégories, pas les 8 affichées (cf. `categories_total`).
+  const catTotal = summary.categories_total;
+  const categories = summary.categories.map((c, i) => ({
+    name: c.name,
+    pct: catTotal ? (c.count / catTotal) * 100 : 0,
+    color: CAT_COLORS[i % CAT_COLORS.length],
+  }));
 
   // ── Top clubs ──
-  // Le drapeau TCN vient du backend : il est fonction du seul libellé, donc
-  // identique pour toutes les participations d'un même groupe (issue #76).
-  const clubMap = new Map<string, { count: number; isTcn: boolean }>();
-  for (const p of participations) {
-    const club = p.club?.trim();
-    if (!club) continue;
-    const entry = clubMap.get(club) ?? { count: 0, isTcn: p.is_tcn };
-    entry.count += 1;
-    clubMap.set(club, entry);
-  }
-  const clubs = [...clubMap.entries()]
-    .sort((a, b) => b[1].count - a[1].count)
-    .slice(0, 9);
-
-  // ── Histogramme des temps (5 min) ──
-  const secs = participations.map((p) => parseSeconds(p.total_time)).filter((s): s is number => s != null);
-  const hist = buildHistogram(secs);
+  // Le drapeau TCN vient du backend, seul dépositaire de la définition (#76).
+  const clubs = summary.clubs;
 
   return (
     <PageShell>
@@ -146,7 +149,7 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
           {clubs.length === 0 ? (
             <div style={{ color: "var(--tcn-text-faint)", fontSize: 13, paddingTop: 8 }}>Clubs non renseignés.</div>
           ) : (
-            clubs.map(([name, { count, isTcn: own }]) => {
+            clubs.map(({ name, count, is_tcn: own }) => {
               return (
                 <div key={name} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, padding: "7px 0", borderBottom: "1px solid var(--tcn-border-faint2)" }}>
                   <div style={{ fontSize: 13, fontWeight: own ? 700 : 600, color: own ? "var(--tcn-orange)" : "var(--tcn-ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
@@ -158,15 +161,27 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
         </Card>
       </div>
 
-      {hist.bars.length > 0 && (
+      {summary.histogram && (
         <Card padding={28} style={{ marginBottom: 18 }}>
           <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)", marginBottom: 4 }}>Distribution des temps des finishers</div>
           <div style={{ fontSize: 13, color: "var(--tcn-text-muted)", marginBottom: 18 }}>Nombre d&apos;athlètes par tranche de 5 minutes</div>
-          <Histogram bars={hist.bars} max={hist.max} startSec={hist.startSec} bucketSec={hist.bucketSec} />
+          <Histogram
+            bars={summary.histogram.bars}
+            max={Math.max(...summary.histogram.bars)}
+            startSec={summary.histogram.start_sec}
+            bucketSec={summary.histogram.bucket_sec}
+          />
         </Card>
       )}
 
-      <RaceFinishers participations={participations} tcnCount={tcnCount} eventType={course.event_type} />
+      <RaceFinishers
+        participations={participations}
+        summary={summary}
+        total={data.total}
+        page={data.page}
+        pageSize={data.page_size}
+        eventType={course.event_type}
+      />
     </PageShell>
   );
 }
@@ -179,36 +194,6 @@ function Legend({ color, label, value }: { color: string; label: string; value: 
       <b style={{ marginLeft: "auto", fontFamily: "var(--tcn-font-display)", color: "var(--tcn-ink)" }}>{value}</b>
     </div>
   );
-}
-
-const HISTOGRAM_BUCKET_SEC = 300;
-
-function buildHistogram(secs: number[]): {
-  bars: number[];
-  max: number;
-  startSec: number;
-  bucketSec: number;
-} {
-  if (secs.length === 0) {
-    return { bars: [], max: 0, startSec: 0, bucketSec: HISTOGRAM_BUCKET_SEC };
-  }
-  const minB = Math.floor(Math.min(...secs) / HISTOGRAM_BUCKET_SEC);
-  const maxB = Math.floor(Math.max(...secs) / HISTOGRAM_BUCKET_SEC);
-  const n = Math.min(maxB - minB + 1, 60);
-  const bars = new Array(n).fill(0);
-  for (const s of secs) {
-    const idx = Math.min(Math.floor(s / HISTOGRAM_BUCKET_SEC) - minB, n - 1);
-    bars[idx] += 1;
-  }
-  return {
-    bars,
-    max: Math.max(...bars),
-    // `startSec` : temps du **début** du 1er bucket (bord gauche visuel).
-    // Publie l'ancrage temporel de l'histogramme pour que l'axe X puisse
-    // aligner ses ticks sur des heures rondes (#129).
-    startSec: minB * HISTOGRAM_BUCKET_SEC,
-    bucketSec: HISTOGRAM_BUCKET_SEC,
-  };
 }
 
 function Histogram({
