@@ -115,6 +115,20 @@ class Settings(BaseSettings):
             )
         return v
 
+    @field_validator("auth_redirect_base_url")
+    @classmethod
+    def _strip_trailing_slash(cls, v: str) -> str:
+        """Normalise l'origine **une fois**, à la source.
+
+        Trois endroits la concatènent : la destination de succès (`/admin`), la
+        page d'erreur (`/login?error=…`) et le `redirect_uri` envoyé au
+        fournisseur. Le dernier est le fragile — `…//api/v1/auth/github/callback`
+        ne correspond plus à l'URL enregistrée chez GitHub et fait échouer le
+        parcours entier, là où `…//admin` reste navigable. La valeur est saisie
+        à la main (`sync: false` sur Render), donc le slash final est ordinaire.
+        """
+        return v.rstrip("/")
+
     @property
     def auth_is_configured(self) -> bool:
         """Vrai si le **socle** est configuré, indépendamment de tout fournisseur.

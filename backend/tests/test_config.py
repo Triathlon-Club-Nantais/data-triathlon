@@ -98,6 +98,24 @@ def test_une_cle_de_signature_de_32_caracteres_est_acceptee(monkeypatch):
     assert Settings().auth_session_secret_key == "x" * 32
 
 
+def test_l_origine_de_retour_perd_son_slash_final(monkeypatch):
+    """Trois sites concatènent cette origine ; le plus fragile n'est pas `/admin`.
+
+    `…//admin` reste navigable, mais le `redirect_uri` envoyé au fournisseur ne
+    correspondrait plus à celui enregistré chez lui : le parcours entier
+    échouerait chez GitHub. La valeur est saisie à la main sur Render
+    (`sync: false`), donc le slash final est un cas ordinaire.
+    """
+    monkeypatch.setenv("AUTH_REDIRECT_BASE_URL", "https://exemple.fr/")
+    assert Settings().auth_redirect_base_url == "https://exemple.fr"
+
+
+def test_une_origine_de_retour_vide_le_reste(monkeypatch):
+    """Vide vaut « non configuré » (FR-036) : la normalisation ne la ranime pas."""
+    monkeypatch.setenv("AUTH_REDIRECT_BASE_URL", "/")
+    assert Settings().auth_redirect_base_url == ""
+
+
 def test_une_cle_de_signature_vide_vaut_non_configure(monkeypatch):
     """Une installation sans authentification doit démarrer (FR-036).
 
