@@ -41,6 +41,15 @@ Notez le **Client ID**, puis générez un **Client secret**.
 
 ## 2. Renseigner `backend/.env`
 
+> **Le nom du fichier est `backend/.env`, exactement.** `pydantic-settings` ne lit
+> que celui-là (`core/config.py`, `env_file=".env"`). Un fichier nommé
+> `.env.local` — la convention du **frontend** — laisse le backend démarrer
+> normalement, avec toutes les valeurs vides : `/auth/methods` rend alors `[]` et
+> l'écran de connexion annonce « aucun moyen de connexion » sans autre indice.
+> Le démarrage journalise désormais un avertissement qui nomme les réglages
+> absents. Et `get_settings` étant en `lru_cache`, **redémarrez le backend** après
+> toute modification du fichier.
+
 ```bash
 AUTH_SESSION_SECRET_KEY=<au moins 32 caractères — voir ci-dessous>
 AUTH_GITHUB_CLIENT_ID=<Client ID>

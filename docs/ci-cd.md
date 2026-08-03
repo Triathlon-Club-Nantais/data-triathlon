@@ -83,20 +83,41 @@ Réglages restants à faire **dans le dashboard** (non supportés par le MCP) :
 
 ### Authentification SSO (#114) — variables par environnement
 
-Les huit réglages `AUTH_*` sont déclarés dans `render.yaml` (`sync: false`, sauf
-`AUTH_SESSION_SECRET_KEY` en `generateValue: true`). Ils se renseignent **côté
-backend** — le frontend n'en porte aucun, il ne fait que proxifier `/api/*`.
+**Six** des huit réglages `AUTH_*` sont déclarés dans `render.yaml` : en
+`sync: false`, à deux exceptions près — `AUTH_SESSION_SECRET_KEY` en
+`generateValue: true` et `AUTH_COOKIE_SECURE` en `value: "true"`. Les deux durées
+de vie (`AUTH_SESSION_TTL_DAYS`, `AUTH_STATE_TTL_SECONDS`) n'y figurent pas et
+restent aux défauts du code (7 j / 600 s). Tous se renseignent **côté backend** —
+le frontend n'en porte aucun, il ne fait que proxifier `/api/*`.
+
+> **`render.yaml` ne décrit que le service de production.** Le service
+> **preview** est créé à la main (voir plus haut), donc le blueprint ne s'y
+> applique pas : `generateValue` n'y joue pas et **aucun** réglage `AUTH_*` n'y
+> apparaît tout seul. Sur preview, la clé de session est à générer et à saisir
+> soi-même, comme en local.
 
 | Variable | PROD | PREVIEW | Local |
 |---|---|---|---|
-| `AUTH_SESSION_SECRET_KEY` | généré par Render | généré par Render | `python -c "import secrets; print(secrets.token_urlsafe(64))"` |
+| `AUTH_SESSION_SECRET_KEY` | généré par Render (`generateValue`) | **à saisir à la main** (hors blueprint) | `python -c "import secrets; print(secrets.token_urlsafe(64))"` |
 | `AUTH_GITHUB_CLIENT_ID` / `_SECRET` | application OAuth « prod » | application OAuth « preview » | application OAuth « local » |
 | `AUTH_ALLOWED_EMAILS` | adresses des contributeurs, en CSV | idem, ou vide pour fermer | votre adresse GitHub vérifiée |
 | `AUTH_REDIRECT_BASE_URL` | URL Vercel **production** | URL Vercel du déploiement stable | `http://127.0.0.1:3000` |
 | `AUTH_COOKIE_SECURE` | `true` | `true` | `false` |
 | `AUTH_SESSION_TTL_DAYS` / `AUTH_STATE_TTL_SECONDS` | défauts (7 j / 600 s) | défauts | défauts |
 
-Quatre points qui coûtent cher s'ils sont découverts en production :
+> **Régénérer `AUTH_SESSION_SECRET_KEY` ne ferme aucune session.** C'est
+> l'attente naturelle, et elle est fausse : le jeton de session est **opaque et
+> vérifié en base**, il n'est pas signé — cette clé ne signe que le jeton
+> d'état. Une rotation n'interrompt donc que les parcours de connexion en cours
+> (600 s de fenêtre), et croire l'inverse ferait tenir une fuite pour colmatée.
+> Pour fermer réellement les sessions : `is_active = False` sur un compte,
+> `DELETE FROM user_sessions` pour tous (procédure détaillée dans `AGENTS.md`).
+>
+> Corollaire : personne n'a besoin de connaître cette clé, d'où le
+> `generateValue` en production. La saisir à la main n'apporte aucun levier
+> qu'on n'ait déjà, et fait transiter un secret par un presse-papiers.
+
+Trois points qui coûtent cher s'ils sont découverts en production :
 
 - **une application OAuth GitHub n'accepte qu'une seule URL de retour**, port
   compris. Il faut donc **une application par environnement** : prod, preview,
@@ -111,11 +132,12 @@ Quatre points qui coûtent cher s'ils sont découverts en production :
   est utilisable. Le site public, lui, reste entier sur toutes les previews ;
 - `AUTH_ALLOWED_EMAILS` **vide interdit toute connexion** et fait rendre `[]` à
   `/auth/methods`. Ce n'est pas un défaut permissif : une variable oubliée sur
-  Render ferme l'accès au lieu de l'ouvrir à n'importe quel compte GitHub ;
-- une **rotation de `AUTH_SESSION_SECRET_KEY` ne ferme aucune session** : le
-  jeton de session est opaque et vérifié en base, il n'est pas signé. Elle
-  n'invalide que les parcours de connexion en cours (le jeton d'état, lui, est
-  signé). Voir la procédure de fermeture en masse dans `AGENTS.md`.
+  Render ferme l'accès au lieu de l'ouvrir à n'importe quel compte GitHub.
+  Deux conséquences d'exploitation : **ajouter un contributeur exige un
+  redéploiement** (`get_settings` est en `lru_cache`, la liste est lue au
+  démarrage du processus) ; et un refus se diagnostique **dans les journaux du
+  backend**, où l'adresse soumise est tracée — le code rendu au visiteur, lui,
+  reste muet sur la valeur (FR-030).
 
 ### Secrets GitHub
 
