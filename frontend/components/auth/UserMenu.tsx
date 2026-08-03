@@ -1,5 +1,4 @@
 "use client";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/tcn";
 import { useLogout, useSession } from "@/lib/queries/auth";
@@ -25,15 +24,19 @@ export function UserMenu({ pleineLargeur = false }: { pleineLargeur?: boolean })
   if (isPending) return null;
 
   if (!session) {
+    // Navigation par le **routeur**, jamais un `<Link>` enveloppant ce bouton :
+    // `Button` rend un `<button>`, et un `<a>` autour serait deux éléments
+    // interactifs imbriqués — HTML invalide, annoncé deux fois par les
+    // technologies d'assistance. C'est déjà la forme des deux autres actions de
+    // la topbar (« Ajouter un triathlon »).
     return (
-      <Link
-        href="/login"
-        style={{ textDecoration: "none", width: pleineLargeur ? "100%" : undefined }}
+      <Button
+        variant="secondary"
+        onClick={() => router.push("/login")}
+        style={{ width: pleineLargeur ? "100%" : undefined }}
       >
-        <Button variant="secondary" style={{ width: pleineLargeur ? "100%" : undefined }}>
-          Se connecter
-        </Button>
-      </Link>
+        Se connecter
+      </Button>
     );
   }
 

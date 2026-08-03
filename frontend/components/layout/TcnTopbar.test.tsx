@@ -5,14 +5,15 @@ import { describe, it, expect, vi } from "vitest";
 import { ApiError } from "@/lib/api/client";
 import type { SessionUser } from "@/lib/types";
 
-vi.mock("next/navigation", () => ({
-  usePathname: () => "/dashboard",
-  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
-}));
-
-const { getSession, logout } = vi.hoisted(() => ({
+const { push, getSession, logout } = vi.hoisted(() => ({
+  push: vi.fn(),
   getSession: vi.fn(),
   logout: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/dashboard",
+  useRouter: () => ({ push, refresh: vi.fn() }),
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
@@ -26,6 +27,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 import { TcnTopbar } from "./TcnTopbar";
 
 function afficher(session: SessionUser | null) {
+  push.mockClear();
   if (session) getSession.mockResolvedValue(session);
   else getSession.mockRejectedValue(new ApiError(401, "anonyme"));
 
@@ -67,6 +69,20 @@ describe("TcnTopbar — session (#114)", () => {
       expect(screen.getAllByRole("button", { name: "Se connecter" }).length).toBeGreaterThan(0),
     );
     expect(screen.queryByText("contributeur")).not.toBeInTheDocument();
+  });
+
+  it("mène à /login par le routeur, sans imbriquer le bouton dans un lien", async () => {
+    // Un `<a>` enveloppant un `<button>` est un HTML invalide — deux éléments
+    // interactifs imbriqués — que les technologies d'assistance annoncent deux
+    // fois. La navigation passe donc par le routeur, comme les deux autres
+    // actions de cette barre (« Ajouter un triathlon »).
+    afficher(null);
+    const [bouton] = await screen.findAllByRole("button", { name: "Se connecter" });
+
+    expect(bouton.closest("a")).toBeNull();
+
+    await userEvent.click(bouton);
+    expect(push).toHaveBeenCalledWith("/login");
   });
 
   it("affiche l'utilisateur et la déconnexion quand une session est ouverte", async () => {
