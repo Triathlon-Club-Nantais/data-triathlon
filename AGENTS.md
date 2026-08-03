@@ -585,6 +585,18 @@ connexion affichait son bouton — pendant que GitHub répondait par sa propre p
 d'erreur. Le visiteur ne revenait jamais, aucun code de l'ensemble fermé ne se
 déclenchait, et rien n'était journalisé côté backend.
 
+**Une installation non configurée le dit au démarrage, en développement.** Sur
+une base SQLite, `main._warn_if_auth_unconfigured` journalise les réglages
+transverses absents et les fournisseurs non configurés — sans rien changer au
+comportement, FR-036 restant intact. Le silence complet coûtait une session de
+diagnostic : un `backend/.env` nommé `.env.local` (la convention du **frontend**)
+n'est pas lu par `pydantic-settings`, et le seul symptôme était un
+`/auth/methods` à `[]`. Le discriminant est `is_sqlite`, déjà employé comme garde
+« environnement jetable » par `scripts/reset_db.py`, et **pas** un neuvième
+réglage ; en production le silence est délibéré. L'avertissement nomme les
+fournisseurs par leur **slug** seul : le contrat `IdentityProvider` n'énumère
+aucun mécanisme, et deviner `AUTH_<SLUG>_CLIENT_ID` le replacerait dans l'usine.
+
 **La garde `/admin` ne ferme que si une connexion est possible.** Sans les
 secrets, `/auth/me` rend 401 pour tout le monde : rediriger ferait de cet écran,
 ouvert jusqu'ici, une impasse pour **tous** — l'inverse de FR-036. Elle
@@ -627,6 +639,21 @@ Trois points que le code ne dit pas :
   ordonnanceur, et une commande que personne ne lance ferait croire à une
   hygiène qui n'existe pas. Les sessions expirées sont purgées **opportunément**,
   à l'ouverture d'une session, pour le seul utilisateur concerné.
+  **Cet argument ne couvre que l'hygiène**, pas la révocation d'urgence : en
+  incident, la procédure suppose d'ouvrir `psql` sur Supabase à la main. Les deux
+  besoins ont été fondus à tort ; le second est suivi en #169, hors périmètre.
+- **L'adresse refusée est journalisée, la table des tentatives est écartée.**
+  Un refus `account_not_allowed` trace l'adresse soumise dans les journaux du
+  backend : sans elle, aucun refus n'est diagnosticable et l'exploitant ne sait
+  pas quelle adresse ajouter. Une adresse n'est pas un secret au sens de FR-038,
+  dont le filet porte sur les clés, les jetons et le code de retour. Le refus
+  pour **adresse non certifiée** ne la journalise pas — le fournisseur ne la
+  prouve pas. Consigner ces tentatives **en base** a été demandé en revue et
+  écarté (suivi en #170, avec le passage de la liste d'autorisation en base) : ce
+  serait la seule écriture pilotée par un visiteur non authentifié, sans plafond,
+  sur de la donnée personnelle de tiers. Raisonnement complet :
+  `specs/20260801-145428-auth-socle-sso/data-model.md`, §Ce qu'aucune table
+  n'enregistre.
 - **Une rotation de `AUTH_SESSION_SECRET_KEY` ne ferme aucune session.** Le
   jeton de session est **opaque et vérifié en base**, il n'est pas signé : la clé
   ne signe que le jeton d'état, donc une rotation n'interrompt que les parcours

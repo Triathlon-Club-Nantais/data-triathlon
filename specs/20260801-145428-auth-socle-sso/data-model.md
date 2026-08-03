@@ -24,9 +24,19 @@ forcerait un appariement par adresse et rouvrirait la prise de contrôle par pr�
 (cf. `research.md` §4). Ne pas « corriger » cette absence.
 
 Pas d'`ondelete` sur `athlete_id` : `database.py` n'émet aucun `PRAGMA foreign_keys=ON`, la
-contrainte serait inerte en SQLite et active en PostgreSQL (`research.md` §11). La relation vers
-`Athlete` est déclarée `lazy="raise"` — rien dans cette feature ne la lit, et un accès accidentel
-doit échouer bruyamment plutôt que d'émettre une jointure sur chaque requête authentifiée.
+contrainte serait inerte en SQLite et active en PostgreSQL (`research.md` §11).
+
+**`athlete_id` est une colonne seule : aucune `relationship` vers `Athlete` n'est déclarée.** Rien
+ici ne lit l'athlète rattaché, et un attribut dont le seul comportement serait de lever
+(`lazy="raise"`, premier jet de cette feature) est un attribut qui existe pour ne pas servir. #117
+la posera quand quelque chose la lira : une `relationship` n'émet aucun DDL, l'ajouter ne coûtera
+pas de migration.
+
+**Cardinalité fixée par cette colonne : N utilisateurs → 1 athlète**, et l'absence d'`UNIQUE` est
+imposée par FR-003 au même titre que celle sur `email`. Puisqu'une identité externe inconnue crée
+**toujours** un nouvel utilisateur, une même personne en aura plusieurs — un `UNIQUE` ici
+interdirait de rattacher le second à l'athlète du premier. Un utilisateur, en revanche, ne se
+rattache qu'à un seul athlète : ce que le rattachement désigne, c'est *qui court*, jamais une liste.
 
 **N'accueillera PAS `role`** (FR-041, SC-014). Le rôle de #115 est relatif à une **organisation** —
 on est administrateur *d'un club*, pas administrateur tout court — et se portera donc par une
@@ -126,6 +136,44 @@ Désactivation d'un compte
   └─ is_active = False → toutes ses sessions cessent d'être acceptées (FR-015)
      et un moyen d'exploitation permet d'en supprimer les lignes (FR-016)
 ```
+
+---
+
+## Ce qu'aucune table n'enregistre : les tentatives refusées
+
+Une **quatrième table** consignant les connexions refusées — pour ajouter ensuite l'adresse depuis
+le back-office, avec `AUTH_ALLOWED_EMAILS` lui-même passé en base — a été demandée en revue et
+**écartée de cette feature**. Le besoin est réel ; la table est le mauvais outil pour y répondre
+ici, pour trois raisons qui ne dépendent pas du calendrier :
+
+- **ce serait la seule écriture en base pilotée par un visiteur non authentifié.** Tout porteur d'un
+  compte GitHub y insérerait une ligne, sans plafond ni limitation de débit — une croissance de
+  table commandée de l'extérieur, sur la base qui sert le site public ;
+- **ce sont des données personnelles de tiers non consentants**, conservées sans durée définie. Le
+  refusé n'est, par construction, pas un utilisateur : on n'a aucun titre à garder son adresse
+  indéfiniment ;
+- **un écran d'administration qui les affiche rend du texte d'origine externe.** Le nom
+  d'affichage et l'adresse viennent du fournisseur, pas de nous.
+
+Ce que cette feature fait à la place : **journaliser l'adresse refusée** côté backend
+(`provisioning.resolve_user`, refus `account_not_allowed` uniquement). Cela ferme le trou réel — sans
+cette trace, un refus n'était pas diagnosticable et l'exploitant ne savait pas quelle adresse
+ajouter — sans rien conserver, sans écriture pilotée de l'extérieur, et dans un support dont la
+rétention est déjà bornée par l'hébergeur. L'asymétrie est voulue : le refus pour **adresse non
+certifiée** ne journalise pas l'adresse, que le fournisseur ne prouve pas et sur laquelle
+l'exploitant n'a rien à faire.
+
+Une adresse n'est pas un secret au sens de FR-038, dont le filet
+(`tests/test_auth/test_no_secret_logged.py`) porte sur les clés, les jetons et le code de retour.
+
+Le frottement qui motive la demande reste entier et est **hors périmètre** (suivi en #170) :
+`get_settings` étant en `lru_cache`, ajouter un contributeur exige aujourd'hui un redéploiement. Le déplacement de la liste
+en base ne demande d'ailleurs **aucune restructuration** — `provisioning.py` est déjà l'endroit
+prévu pour cette évolution (l'en-tête du module le dit), `resolve_user` a la `Session` sous la main
+et `_is_allowed` n'a qu'un appelant. Un seul point d'architecture sera à trancher alors :
+`Settings.auth_is_configured` compte aujourd'hui `auth_allowed_emails` parmi les réglages
+transverses, et ce garde de **configuration** deviendrait une requête en **base** à chaque appel de
+`/auth/methods`.
 
 ---
 
