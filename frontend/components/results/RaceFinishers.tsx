@@ -1,11 +1,13 @@
 "use client";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useState, useTransition } from "react";
 import { Card, SegmentedControl, PlaceBadge } from "@/components/tcn";
 import { StatusBadge } from "@/components/results/StatusBadge";
-import { orderParticipations, isNonFinisher, countOutcomes } from "@/lib/utils/raceOrder";
-import { splitColumns } from "@/lib/utils/splits";
-import type { Participation } from "@/lib/types";
+import { isNonFinisher } from "@/lib/utils/raceOrder";
+import { splitColumnsFromKeys } from "@/lib/utils/splits";
+import { SCOPE_CLUB, SCOPE_PARAM } from "@/lib/scope";
+import type { CourseSummary, Participation } from "@/lib/types";
 
 // Colonnes fixes (rang, athlète, catég., sexe, temps total) + club en fin.
 const BASE_COLS = "54px 1fr 70px 56px 100px";
@@ -13,53 +15,121 @@ const CLUB_COL = "1.1fr";
 
 export function RaceFinishers({
   participations,
-  tcnCount,
+  summary,
+  total,
+  page,
+  pageSize,
   eventType,
 }: {
+  /** La tranche courante, **déjà ordonnée par le backend** — ne pas la retrier. */
   participations: Participation[];
-  tcnCount: number;
+  /** Synthèse de l'épreuve entière : indépendante de la recherche et du filtre. */
+  summary: CourseSummary;
+  /** Total de la sélection (recherche + filtre club), qui donne le nombre de pages. */
+  total: number;
+  page: number;
+  /** `null` quand tout le classement a été demandé. */
+  pageSize: number | null;
   eventType?: string | null;
 }) {
   const router = useRouter();
-  const [filter, setFilter] = useState("all");
-  const filtered = filter === "tcn" ? participations.filter((p) => p.is_tcn) : participations;
-  const rows = orderParticipations(filtered);
-  // Décompte ventilé sur l'ensemble complet (indépendant du filtre TCN) pour un
-  // pied de tableau honnête : « partants » ≠ « finishers » (cf. issue #23).
-  const { total, finishers, nonFinishers, unknown } = countOutcomes(participations);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [pending, startTransition] = useTransition();
+  const rechercheUrl = searchParams.get("q") ?? "";
+  const [recherche, setRecherche] = useState(rechercheUrl);
+  const [derniereUrl, setDerniereUrl] = useState(rechercheUrl);
 
-  // Colonnes de splits : schéma du sport quand les clés sont celles du projet,
-  // libellés de la source sinon (ok-time, RaceResult, Chronoplace). Limitées aux
-  // segments renseignés pour au moins un participant, et calculées sur l'ensemble
-  // complet (pas les lignes filtrées) pour rester stables au bascule du filtre TCN.
-  const segments = splitColumns(
-    eventType ?? "",
-    participations.map((p) => p.splits),
-  );
+  // L'URL est la vérité : après un « Précédent » du navigateur, le champ doit
+  // suivre. Ajustement pendant le rendu plutôt qu'en effet — React le
+  // recommande pour un état dérivé d'une valeur qui change.
+  if (rechercheUrl !== derniereUrl) {
+    setDerniereUrl(rechercheUrl);
+    setRecherche(rechercheUrl);
+  }
+
+  const filtreClub = searchParams.get(SCOPE_PARAM) === SCOPE_CLUB;
+
+  /** Construit une URL en repartant des paramètres courants. */
+  function lienVers(modifications: Record<string, string | null>): string {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [cle, valeur] of Object.entries(modifications)) {
+      if (valeur === null || valeur === "") params.delete(cle);
+      else params.set(cle, valeur);
+    }
+    const query = params.toString();
+    return `${pathname}${query ? `?${query}` : ""}`;
+  }
+
+  /**
+   * Toute modification de la recherche ou du filtre remet à la première page :
+   * une recherche à trois résultats atterrirait sinon sur une page vide.
+   */
+  function naviguer(modifications: Record<string, string | null>) {
+    startTransition(() => router.push(lienVers({ ...modifications, page: null })));
+  }
+
+  // Les colonnes viennent de la synthèse et non des lignes affichées : sur vingt
+  // lignes, elles changeraient d'une page à l'autre.
+  const segments = splitColumnsFromKeys(eventType ?? "", summary.split_keys);
   const fcols = [BASE_COLS, ...segments.map((s) => (s.small ? "64px" : "80px")), CLUB_COL].join(" ");
+
+  const nbPages = pageSize ? Math.max(1, Math.ceil(total / pageSize)) : 1;
 
   return (
     <Card padding={0} style={{ overflow: "hidden" }}>
       <div style={{ padding: "20px 26px", borderBottom: "1px solid var(--tcn-border)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
         <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)" }}>Classement</div>
-        <SegmentedControl
-          tone="ink"
-          value={filter}
-          onChange={setFilter}
-          options={[
-            { value: "all", label: `Tous les coureurs (${total})` },
-            { value: "tcn", label: `Triathlon Club Nantais (${tcnCount})`, dot: true },
-          ]}
-        />
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <form
+            role="search"
+            onSubmit={(e) => {
+              e.preventDefault();
+              naviguer({ q: recherche.trim() || null });
+            }}
+            style={{ display: "flex", gap: 6 }}
+          >
+            <label htmlFor="recherche-athlete" className="sr-only">
+              Rechercher un athlète
+            </label>
+            <input
+              id="recherche-athlete"
+              type="search"
+              value={recherche}
+              onChange={(e) => setRecherche(e.target.value)}
+              placeholder="Rechercher un athlète"
+              style={{ height: 34, minWidth: 190, padding: "0 10px", fontSize: 13, borderRadius: 8, border: "1px solid var(--tcn-border)", background: "var(--tcn-surface)", color: "var(--tcn-ink)" }}
+            />
+            <button
+              type="submit"
+              style={{ height: 34, padding: "0 12px", fontSize: 13, fontWeight: 700, borderRadius: 8, border: "1px solid var(--tcn-border)", background: "var(--tcn-fill)", color: "var(--tcn-ink)", cursor: "pointer" }}
+            >
+              Chercher
+            </button>
+          </form>
+          <SegmentedControl
+            tone="ink"
+            value={filtreClub ? "tcn" : "all"}
+            onChange={(v) => naviguer({ [SCOPE_PARAM]: v === "tcn" ? SCOPE_CLUB : null })}
+            options={[
+              { value: "all", label: `Tous les coureurs (${summary.total})` },
+              { value: "tcn", label: `Triathlon Club Nantais (${summary.tcn_count})`, dot: true },
+            ]}
+          />
+        </div>
       </div>
-      <div style={{ overflowX: "auto" }}>
+      <div
+        style={{ overflowX: "auto" }}
+        data-pending={pending || undefined}
+        className="transition-opacity data-pending:opacity-60"
+      >
         <div style={{ minWidth: 1080 }}>
           <div style={{ display: "grid", gridTemplateColumns: fcols, gap: "0 12px", padding: "12px 22px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--tcn-text-faint)", borderBottom: "1px solid var(--tcn-border)" }}>
             <div>Rang</div><div>Athlète</div><div>Catég.</div><div>Sexe</div><div>Temps total</div>
             {segments.map((s) => <div key={s.key}>{s.label}</div>)}
             <div>Club</div>
           </div>
-          {rows.map((p) => {
+          {participations.map((p) => {
             const own = p.is_tcn;
             const nf = isNonFinisher(p.status);
             const name = [p.athlete?.nom, p.athlete?.prenom].filter(Boolean).join(" ");
@@ -102,16 +172,103 @@ export function RaceFinishers({
               </div>
             );
           })}
-          {rows.length === 0 && <div style={{ padding: 30, textAlign: "center", color: "var(--tcn-text-faint)", fontSize: 14 }}>Aucun participant à afficher.</div>}
+          {participations.length === 0 && (
+            <div style={{ padding: 30, textAlign: "center", color: "var(--tcn-text-faint)", fontSize: 14 }}>
+              {page > nbPages ? (
+                <>
+                  Cette page n&apos;existe pas — le classement s&apos;arrête à la page {nbPages}.{" "}
+                  <Link href={lienVers({ page: null })} style={{ fontWeight: 700, color: "var(--tcn-ink)" }}>
+                    Revenir au début
+                  </Link>
+                </>
+              ) : rechercheUrl || filtreClub ? (
+                "Aucun athlète ne correspond à cette recherche."
+              ) : (
+                "Aucun participant à afficher."
+              )}
+            </div>
+          )}
         </div>
       </div>
+
+      {nbPages > 1 && <Pagination page={page} nbPages={nbPages} lienVers={lienVers} />}
+
       <div style={{ padding: "16px 24px", borderTop: "1px solid var(--tcn-border)", textAlign: "center", fontSize: 13, color: "var(--tcn-text-faint)" }}>
-        {filter === "tcn"
-          ? `${rows.length} athlète${rows.length > 1 ? "s" : ""} TCN affiché${rows.length > 1 ? "s" : ""} · ${total} au total`
-          : `${total} partant${total > 1 ? "s" : ""} · ${finishers} finisher${finishers > 1 ? "s" : ""}${nonFinishers > 0 ? ` · ${nonFinishers} abandon${nonFinishers > 1 ? "s" : ""}` : ""}${unknown > 0 ? ` · ${unknown} indéterminé${unknown > 1 ? "s" : ""}` : ""}`}
+        {resumeEpreuve(summary)}
       </div>
     </Card>
   );
+}
+
+/**
+ * Navigation par pages, en liens et non en boutons : ouvrables en nouvel onglet,
+ * utilisables au clavier et fonctionnels avant hydratation.
+ */
+function Pagination({
+  page,
+  nbPages,
+  lienVers,
+}: {
+  page: number;
+  nbPages: number;
+  lienVers: (modifications: Record<string, string | null>) => string;
+}) {
+  const style = {
+    padding: "6px 14px",
+    fontSize: 13,
+    fontWeight: 700,
+    borderRadius: 8,
+    border: "1px solid var(--tcn-border)",
+    color: "var(--tcn-ink)",
+  } as const;
+  const inactif = { ...style, color: "var(--tcn-text-faint)", opacity: 0.5 };
+  // Hors bornes, « Précédent » ramène à la dernière page réelle : reculer d'un
+  // cran depuis la page 99 999 ferait traverser 99 908 pages vides.
+  const precedente = Math.min(page - 1, nbPages);
+
+  return (
+    <nav
+      aria-label="Pagination du classement"
+      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, padding: "14px 24px", borderTop: "1px solid var(--tcn-border)" }}
+    >
+      {page > 1 ? (
+        <Link
+          href={lienVers({ page: precedente === 1 ? null : String(precedente) })}
+          style={style}
+          rel="prev"
+        >
+          ‹ Précédent
+        </Link>
+      ) : (
+        <span style={inactif} aria-disabled="true">‹ Précédent</span>
+      )}
+      <span style={{ fontSize: 13, color: "var(--tcn-text-muted)" }} aria-current="page">
+        Page {page} sur {nbPages}
+      </span>
+      {page < nbPages ? (
+        <Link href={lienVers({ page: String(page + 1) })} style={style} rel="next">
+          Suivant ›
+        </Link>
+      ) : (
+        <span style={inactif} aria-disabled="true">Suivant ›</span>
+      )}
+    </nav>
+  );
+}
+
+/**
+ * Décompte de l'épreuve **entière**, distinct du nombre de lignes affichées :
+ * « partants » n'est pas « finishers » (cf. issue #23).
+ */
+function resumeEpreuve(summary: CourseSummary): string {
+  const { total, finishers, non_finishers: abandons, unknown } = summary;
+  const parts = [
+    `${total} partant${total > 1 ? "s" : ""}`,
+    `${finishers} finisher${finishers > 1 ? "s" : ""}`,
+  ];
+  if (abandons > 0) parts.push(`${abandons} abandon${abandons > 1 ? "s" : ""}`);
+  if (unknown > 0) parts.push(`${unknown} indéterminé${unknown > 1 ? "s" : ""}`);
+  return parts.join(" · ");
 }
 
 function genderShort(g: string | null | undefined): string {

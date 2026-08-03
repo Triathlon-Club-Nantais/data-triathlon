@@ -355,6 +355,73 @@ Deux paramètres traversent l'API de lecture, sur le même patron que `seasons` 
   « Inclure les autres disciplines ». Un défaut à `true` amputerait
   silencieusement tout futur appelant.
 
+### Classement d'une épreuve : paginé, et l'ordre est en base (#163)
+
+`GET /courses/{id}` rendait **tout** le classement — 1811 participations, 1,15 Mo
+sur l'épreuve du ticket. Il est désormais **paginé par défaut** (20), avec
+`page`, `q` (nom ou prénom) et `scope`. Mesuré : 1178 Ko → 14,6 Ko, soit 81×.
+
+Trois choses à ne pas défaire :
+
+- **`page_size=all` est l'échappatoire, et elle est contractuelle.** C'est elle
+  qui rend le changement de défaut acceptable au regard du Principe IV : rien de
+  ce que la route rendait ne devient inatteignable. La retirer ferait de ce
+  changement la « modification silencieuse de v1 » que la constitution proscrit.
+  Toute autre valeur hors de 1–200 est une erreur d'usage (422), jamais une
+  interprétation silencieuse. La clé de réponse reste `participations`, pas
+  `items`.
+- **L'ordre d'affichage est une propriété de la requête**, plus du navigateur.
+  Il vivait dans `raceOrder.orderParticipations` pendant que le SQL triait sur
+  `rank_overall` seul : invisible tant que tout arrivait d'un coup, faux dès
+  qu'on découpe. `participation_repository._ordre_affichage` en est la **seule**
+  définition — finishers par rang (non classés en fin), puis DNF, DSQ, DNS par
+  temps (temps absents en fin), départage par nom. `orderParticipations` et
+  `countOutcomes` ont été **supprimées**, pas seulement débranchées : appelées
+  sur une tranche de vingt lignes, elles trieraient dans le vide et annonceraient
+  « 20 partants », sans erreur. Les clés « valeur absente » de l'`ORDER BY` sont
+  des booléens `0/1` et non un `NULLS LAST` — SQLite place les `NULL` en tête,
+  PostgreSQL en queue. `list_for_course` n'est **pas** touchée : elle sert le
+  chemin d'import (`import_service`, `quality.analyze`), pas l'affichage.
+- **`GET /courses/{id}/summary` n'accepte aucun paramètre.** La synthèse porte
+  sur l'épreuve entière — décomptes ventilés, genre, catégories (8), clubs (9),
+  histogramme, `split_keys` — et c'est ce qui garantit que chercher un nom ne
+  fait pas tomber l'histogramme à une barre. Elle fixe aussi les colonnes de
+  splits du tableau : les déduire des vingt lignes affichées les ferait changer
+  d'une page à l'autre. Une seule requête, six colonnes, aucun objet ORM
+  hydraté ; l'agrégation est en Python parce que l'histogramme n'a pas
+  d'expression SQL portable (les temps sont des chaînes `HH:MM:SS`) et que
+  `is_tcn` est une liste blanche Python. Les ex æquo de catégories et de clubs
+  sont départagés par libellé : `Counter.most_common` les ordonnait par ordre de
+  lecture en base, donc par ordre d'import.
+
+**La recherche par nom est la seule du projet insensible aux accents.** `ilike`
+ignore la casse, jamais les accents, sur les **deux** moteurs — mesuré,
+`lower('LEMÉE') LIKE '%lemee%'` vaut faux, y compris avec le listener Unicode de
+`core/database.py`, qui rend `lemée` et non `lemee` (ce sont deux choses
+distinctes, ne pas les confondre). D'où `core/text.deaccent`, enregistrée comme
+fonction SQLite `unaccent` à la connexion, et l'extension `unaccent` côté
+PostgreSQL (migration `d5e6f7a8b9c0`, sur le patron de celle de `pg_trgm`) :
+même nom des deux côtés, donc une seule expression dans le repository. Aucun
+index n'est utilisable de ce fait, sans conséquence — le filtre porte toujours
+sur une seule épreuve. **Deux implémentations, une seule testée** : la suite
+tourne sur SQLite, le chemin PostgreSQL ne l'est par aucun test — et sa
+**vérification en production reste à faire** (`quickstart.md` §10 de la feature,
+reportée sciemment). Si `unaccent` n'est pas résoluble depuis le `search_path`
+du rôle applicatif — les extensions vivant conventionnellement dans le schéma
+`extensions` sur Supabase —, seule la **recherche par nom** tombera ; la
+pagination, la synthèse et les six blocs n'en dépendent pas.
+`/athletes?name=` garde son comportement d'origine (casse seule) ; l'unifier est
+un autre sujet.
+
+Côté interface, l'état vit dans l'URL (`page`, `q`, `scope` — ce dernier via
+`lib/scope.SCOPE_PARAM`), la pagination est en `<Link>` (ouvrables en nouvel
+onglet, utilisables avant hydratation), et la recherche s'applique sur `Entrée`
+**sans debounce**, patron de `ResultsFilters`. Tout changement de `q` ou de
+`scope` remet à la page 1, sans quoi une recherche à trois résultats atterrit sur
+une page vide.
+
+Spec, plan et tâches : `specs/20260803-195212-course-pagination/`.
+
 ### Sorties de la CLI (stdout parsable)
 
 Règle structurante, pas un détail : **stdout reste parsable**. La progression sort

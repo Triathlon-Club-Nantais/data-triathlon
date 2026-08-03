@@ -176,7 +176,64 @@ export interface AthleteDetail {
 
 export interface CourseDetail {
   course: CourseBrief;
+  /** La tranche demandée, déjà dans l'ordre d'affichage — ne pas la retrier. */
   participations: Participation[];
+  /** Total de la **sélection** (recherche + portée club), pas de l'épreuve. */
+  total: number;
+  page: number;
+  /** `null` quand tout le classement a été demandé (`page_size=all`). */
+  page_size: number | null;
+}
+
+/** Paramètres de lecture d'un classement d'épreuve (#163). */
+export interface CourseQuery {
+  page?: number;
+  /** Entier, ou « all » pour le classement entier en une page. */
+  page_size?: number | "all";
+  /** Recherche sur le nom ou le prénom de l'athlète. */
+  q?: string;
+  scope?: "club";
+}
+
+export interface CategoryCount {
+  name: string;
+  count: number;
+}
+
+export interface ClubCount {
+  name: string;
+  count: number;
+  is_tcn: boolean;
+}
+
+export interface Histogram {
+  bars: number[];
+  start_sec: number;
+  bucket_sec: number;
+}
+
+/**
+ * Synthèse d'une épreuve **entière**, calculée par le backend (#163).
+ *
+ * Indépendante de la recherche et de la portée club en cours : c'est ce qui
+ * garantit que chercher un nom ne fait pas tomber l'histogramme à une barre.
+ */
+export interface CourseSummary {
+  total: number;
+  finishers: number;
+  non_finishers: number;
+  unknown: number;
+  tcn_count: number;
+  male: number;
+  female: number;
+  categories: CategoryCount[];
+  /** Somme sur **toutes** les catégories : dénominateur des pourcentages,
+   *  et non la somme des 8 rendues — qui gonflerait chaque barre. */
+  categories_total: number;
+  clubs: ClubCount[];
+  histogram: Histogram | null;
+  /** Colonnes de temps intermédiaires du tableau — stables d'une page à l'autre. */
+  split_keys: string[];
 }
 
 export interface ParticipationFilters {
