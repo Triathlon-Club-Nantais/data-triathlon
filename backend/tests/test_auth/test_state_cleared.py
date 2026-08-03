@@ -31,7 +31,11 @@ def _cas_de_sortie(client, doublure):
         ),
     )
 
-    valeur = _demarre(client)
+    # Sans affectation, à la différence des autres cas : ce chemin-ci présente
+    # exprès un `state` qui ne correspond pas. Seul l'effet de bord de `_demarre`
+    # compte — poser le cookie d'état, sans quoi il n'y aurait rien à effacer et
+    # le test passerait pour la mauvaise raison.
+    _demarre(client)
     yield (
         "state ne correspondant pas",
         client.get(

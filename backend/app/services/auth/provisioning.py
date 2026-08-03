@@ -31,7 +31,19 @@ def resolve_user(db: Session, identity: ExternalIdentity) -> User:
         raise LoginError("email_unverified")
 
     if not _is_allowed(identity.email):
-        logger.info("Login refused: address not in the allow-list (%s)", identity.provider)
+        # L'adresse **est** journalisée ici, et nulle part ailleurs dans le
+        # parcours. Le code rendu au visiteur est muet sur la valeur soumise
+        # (FR-030) ; sans cette trace, un refus n'est pas diagnosticable et
+        # l'exploitant ne sait pas quelle adresse ajouter à la liste. Une
+        # adresse n'est pas un secret au sens de FR-038, dont le filet
+        # (`test_no_secret_logged`) porte sur les jetons, les clés et le code de
+        # retour. Elle n'est pas journalisée sur le refus de certification, où
+        # le fournisseur ne la prouve pas et où l'exploitant n'a rien à faire.
+        logger.info(
+            "Login refused: address not in the allow-list (%s, %s)",
+            identity.provider,
+            identity.email,
+        )
         raise LoginError("account_not_allowed")
 
     known = identity_repository.get_by_subject(

@@ -37,14 +37,19 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     # Sans `ondelete` : `database.py` n'émet aucun `PRAGMA foreign_keys=ON`, la
     # contrainte serait inerte en SQLite (dev et tests) et active en PostgreSQL.
+    #
+    # **Colonne seule, sans `relationship`** : rien ici ne lit l'athlète
+    # rattaché, et un attribut dont le seul comportement serait de lever
+    # (`lazy="raise"`) est un attribut qui existe pour ne pas servir. #117 la
+    # posera quand quelque chose la lira — une `relationship` n'émet aucun DDL,
+    # l'ajouter ne coûtera pas de migration. Cardinalité que la colonne fixe :
+    # **N utilisateurs → 1 athlète**, sans `UNIQUE`, et c'est FR-003 qui
+    # l'impose — une identité externe inconnue créant toujours un nouvel
+    # utilisateur, une même personne en aura plusieurs.
     athlete_id: Mapped[int | None] = mapped_column(
         ForeignKey("athletes.id"), index=True, nullable=True
     )
 
-    # `lazy="raise"` : rien dans cette feature ne lit l'athlète rattaché, et un
-    # accès accidentel doit échouer bruyamment plutôt qu'émettre une jointure sur
-    # chaque requête authentifiée.
-    athlete: Mapped["Athlete | None"] = relationship(lazy="raise")  # noqa: F821
     identities: Mapped[list["Identity"]] = relationship(  # noqa: F821
         back_populates="user", cascade="all, delete-orphan"
     )

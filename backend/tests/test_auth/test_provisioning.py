@@ -1,4 +1,6 @@
 """Politique de provisionnement — certification, liste d'autorisation, résolution."""
+import logging
+
 import pytest
 
 from app.core.config import get_settings
@@ -128,6 +130,38 @@ def test_une_adresse_hors_liste_est_refusee(db_session):
         provisioning.resolve_user(db_session, _identite(email="inconnu@exemple.fr"))
 
     assert refus.value.code == "account_not_allowed"
+
+
+def test_un_refus_hors_liste_journalise_l_adresse(db_session, caplog):
+    """Sans elle, un refus n'est pas diagnosticable.
+
+    Le code d'erreur rendu au visiteur est volontairement muet (FR-030) : il ne
+    dit pas *quelle* adresse a été soumise. Côté exploitant, c'est la seule
+    information qui permette d'agir — ajouter l'adresse à la liste, ou constater
+    qu'elle n'a rien à y faire. Une adresse n'est pas un secret au sens de
+    FR-038, que `test_no_secret_logged` borne aux jetons et aux clés.
+    """
+    with caplog.at_level(logging.INFO):
+        with pytest.raises(LoginError):
+            provisioning.resolve_user(db_session, _identite(email="inconnu@exemple.fr"))
+
+    assert "inconnu@exemple.fr" in caplog.text
+
+
+def test_une_adresse_non_certifiee_n_est_pas_journalisee(db_session, caplog):
+    """L'asymétrie est voulue : le fournisseur ne certifie pas cette adresse.
+
+    Rien à faire pour l'exploitant — la vérification appartient au visiteur chez
+    son fournisseur — et journaliser une adresse non prouvée reviendrait à
+    inscrire dans nos traces une valeur que n'importe qui peut déclarer.
+    """
+    with caplog.at_level(logging.INFO):
+        with pytest.raises(LoginError):
+            provisioning.resolve_user(
+                db_session, _identite(email="usurpee@exemple.fr", email_verified=False)
+            )
+
+    assert "usurpee@exemple.fr" not in caplog.text
 
 
 def test_une_liste_vide_interdit_toute_connexion(db_session, monkeypatch):
