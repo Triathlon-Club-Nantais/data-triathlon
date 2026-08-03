@@ -85,24 +85,32 @@ describe("TcnTopbar — session (#114)", () => {
     expect(push).toHaveBeenCalledWith("/login");
   });
 
-  it("affiche l'utilisateur et la déconnexion quand une session est ouverte", async () => {
+  it("regroupe l'état connecté derrière un déclencheur unique (#176)", async () => {
+    // Connectée, la barre ne porte plus qu'**un** élément d'authentification :
+    // ni l'adresse ni la déconnexion n'y sont étalées, elles vivent dans le menu.
     afficher(SESSION);
 
-    await waitFor(() => expect(screen.getAllByText("contributeur").length).toBeGreaterThan(0));
-    expect(screen.getAllByRole("button", { name: "Se déconnecter" }).length).toBeGreaterThan(0);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: `Compte — ${SESSION.email}` })).toBeInTheDocument(),
+    );
+    expect(screen.queryByRole("button", { name: "Se déconnecter" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Se connecter" })).not.toBeInTheDocument();
   });
 
   it("pose l'action dans le tiroir mobile aussi", async () => {
     // Toute action de cette barre est déclarée **deux fois** : bloc desktop et
     // tiroir. N'en poser qu'une la rend invisible sur la moitié des appareils.
+    // Le tiroir déplie l'état connecté à plat, sans redoubler le déclencheur.
     afficher(SESSION);
-    await waitFor(() => expect(screen.getAllByText("contributeur").length).toBeGreaterThan(0));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: `Compte — ${SESSION.email}` })).toBeInTheDocument(),
+    );
 
     await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
 
     const tiroir = await screen.findByRole("dialog");
-    expect(within(tiroir).getByText("contributeur")).toBeInTheDocument();
+    expect(within(tiroir).getByText(SESSION.email)).toBeInTheDocument();
+    expect(within(tiroir).getByRole("link", { name: "Administration" })).toBeInTheDocument();
     expect(within(tiroir).getByRole("button", { name: "Se déconnecter" })).toBeInTheDocument();
   });
 
