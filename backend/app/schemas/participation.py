@@ -52,6 +52,29 @@ class AthleteParticipationOut(ParticipationOut):
     course_finishers: int | None = None
 
 
+class CourseParticipationPage(BaseModel):
+    """Réponse de `GET /courses/{id}` : l'épreuve et une tranche du classement.
+
+    Le champ s'appelle `participations` et non `items` : c'est la clé que la
+    route rend depuis toujours. La feature #163 change la **quantité** de lignes
+    rendues par défaut, pas leur nom.
+
+    `total` porte sur la sélection — recherche et portée club appliquées — et
+    non sur l'épreuve : c'est lui qui donne le nombre de pages. Les décomptes
+    d'épreuve entière vivent dans `CourseSummary`, et nulle part ailleurs.
+
+    Réside ici plutôt que dans `schemas/course.py` pour ne pas créer de cycle
+    d'import : ce module importe déjà `CourseBrief`.
+    """
+
+    course: CourseBrief
+    participations: list[ParticipationOut]
+    total: int
+    page: int
+    # `None` quand `page_size=all` a été demandé : il n'y a pas eu de découpage.
+    page_size: int | None = None
+
+
 class ParticipationCreate(BaseModel):
     """
     Création manuelle d'un résultat. Porte l'identité de l'athlète et de la course
