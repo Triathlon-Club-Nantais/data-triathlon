@@ -15,11 +15,20 @@ services:
       - key: DATABASE_URL
         sync: false
       # ── Authentification SSO (#114) ────────────────────────────────────────
-      # Toutes en `sync: false` : ce sont des secrets, ou des valeurs propres à
-      # l'environnement. Une variable absente n'empêche **pas** le démarrage —
-      # le site public reste intact et aucun moyen de connexion n'est proposé
-      # (FR-036). Valeurs par environnement : docs/ci-cd.md.
+      # En `sync: false` — secrets, ou valeurs propres à l'environnement — à
+      # **deux exceptions près**, chacune commentée ci-dessous : la clé de
+      # signature (`generateValue`) et le drapeau de cookie (`value`). Ces trois
+      # formes sont exclusives l'une de l'autre chez Render : une entrée porte
+      # `sync: false` **ou** une source de valeur, jamais les deux.
+      # Une variable absente n'empêche **pas** le démarrage — le site public
+      # reste intact et aucun moyen de connexion n'est proposé (FR-036).
+      # Valeurs par environnement : docs/ci-cd.md.
       - key: AUTH_SESSION_SECRET_KEY
+        # `generateValue` et non `sync: false` : personne n'a besoin de connaître
+        # cette clé, et la saisir à la main ferait transiter un secret par un
+        # presse-papiers sans rien apporter. Régénérer ne ferme **aucune**
+        # session — le jeton de session est opaque et vérifié en base, cette clé
+        # ne signe que le jeton d'état (docs/ci-cd.md).
         generateValue: true # ≥ 32 caractères exigés, sinon le démarrage échoue
       - key: AUTH_GITHUB_CLIENT_ID
         sync: false
@@ -30,4 +39,7 @@ services:
       - key: AUTH_REDIRECT_BASE_URL
         sync: false # origine de l'**interface** (Vercel), jamais celle de l'API
       - key: AUTH_COOKIE_SECURE
+        # Seconde exception : ni secret ni propre à l'instance. Le nom des
+        # cookies en **dérive** (`__Host-` exige `Secure`), donc la valeur est
+        # figée ici plutôt que laissée à une saisie.
         value: "true"

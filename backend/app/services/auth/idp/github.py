@@ -83,7 +83,13 @@ class GithubIdentityProvider:
     def fetch_identity(
         self, *, code: str, round_trip: Mapping[str, str]
     ) -> ExternalIdentity:
-        """Échange le code puis lit l'identité — **au plus deux** allers-retours."""
+        """Échange le code puis lit l'identité — **trois** allers-retours.
+
+        Jeton, profil, puis `/user/emails` — ce dernier **systématiquement** :
+        la certification de l'adresse ne s'infère pas du profil (voir plus bas).
+        Le plan en visait deux au plus ; c'est un objectif de performance, pas un
+        contrat public.
+        """
         with self._client() as client:
             self._fetch_token(client, code=code, verifier=round_trip.get("verifier", ""))
             profile = self._get_json(client, USER_URL)
