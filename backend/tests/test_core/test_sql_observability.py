@@ -148,12 +148,15 @@ def test_bilan_emis_meme_si_le_bloc_leve(engine, caplog):
 
     sql_observability.install(engine, slow_query_ms=0, collect_stats=True)
 
+    def failing_import() -> None:
+        with sql_observability.measure_queries("import epreuve=Boom"):
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            raise RuntimeError("boom")
+
     with caplog.at_level(logging.INFO, logger="app.sql"):
         with pytest.raises(RuntimeError):
-            with sql_observability.measure_queries("import epreuve=Boom"):
-                with engine.connect() as conn:
-                    conn.execute(text("SELECT 1"))
-                raise RuntimeError("boom")
+            failing_import()
 
     assert any("import epreuve=Boom" in r.getMessage() for r in caplog.records)
 
