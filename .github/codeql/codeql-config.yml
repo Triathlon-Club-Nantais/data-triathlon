@@ -1,0 +1,32 @@
+# Filtres de périmètre CodeQL, fusionnés avec la configuration que la default
+# setup génère elle-même. Ce fichier est désigné par la propriété de dépôt
+# `github-codeql-config-file` : il ne remplace pas la default setup et ne
+# demande pas de basculer en advanced setup.
+#
+# Ne rien ajouter ici qui touche aux requêtes (`queries`,
+# `disable-default-queries`) : la default setup passe `disable-default-queries:
+# true` et `queries: - uses: code-quality`, et une valeur concurrente dans ce
+# fichier changerait la suite analysée, donc le sens de la page Code quality.
+#
+# Motifs relatifs à la racine du dépôt. `?`, `+`, `[`, `]` et `!` ne sont pas
+# supportés ; `**` ne s'écrit qu'en début ou fin de motif, ou entouré de barres
+# obliques.
+name: "data-triathlon — filtres de périmètre"
+
+paths-ignore:
+  # En-têtes Alembic (`revision`, `down_revision`, `branch_labels`,
+  # `depends_on`) : lues par introspection d'Alembic, donc invisibles pour
+  # `py/unused-global-variable`. Les supprimer casse le graphe de migrations.
+  # Le signal est de surcroît instable — les migrations ont toutes la même
+  # forme, seules deux alertent (cf. §8 du sondage du 2026-08-04).
+  # Ne couvre volontairement pas `backend/alembic/env.py`, qui est du code.
+  - backend/alembic/versions
+
+  # Fixtures de scrapers : ce sont des captures **fidèles** du HTML réel des
+  # sources, messages d'erreur PHP et `<div id="">` compris. Les « corriger »
+  # ferait mentir les tests sur ce que publient les chronométreurs.
+  - backend/tests/fixtures
+
+# `backend/tests/` n'est **pas** filtré, à dessein : les deux
+# `py/side-effect-in-assert` du sondage y étaient de vrais défauts (le DELETE
+# était porté par l'assertion). Filtrer les tests en bloc les aurait masqués.

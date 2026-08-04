@@ -134,15 +134,63 @@ Même bundle, mêmes suites, arbre de travail corrigé :
 Les 7 alertes visées sont refermées, **aucune nouvelle n'apparaît**. Suite backend :
 2246 tests verts (`-m "not integration"`), `ruff check .` propre.
 
-## 7. Réduire le bruit sans toucher au code : reste à faire
+## 7. Réduire le bruit sans toucher au code : le mécanisme, sondé à mi-chemin
 
-Filtrer le périmètre ne demande **pas** de basculer en advanced setup : la default setup accepte
-un fichier de configuration CodeQL via la propriété de dépôt `github-codeql-config-file`, dont le
-`paths-ignore` est fusionné avec la configuration générée. Cibles évidentes :
-`backend/alembic/versions/` et `backend/tests/fixtures/`.
+Filtrer le périmètre ne demande **pas** de basculer en advanced setup : la propriété de dépôt
+`github-codeql-config-file` désigne un fichier de configuration CodeQL dont le contenu est
+**fusionné** avec la configuration générée. Cibles retenues : `backend/alembic/versions/` et
+`backend/tests/fixtures/`, portées par `.github/codeql/codeql-config.yml`.
 
-**Ce mécanisme n'a pas été testé ici** — il est documenté, pas mesuré. À sonder avant de s'y
-fier ; à défaut, les alertes se ferment dans l'UI (« Won't fix », « Used in tests »).
+Ce qui est **établi** :
+
+- **L'analyse qui tourne n'est pas la default setup de code scanning.**
+  `GET /repos/…/code-scanning/default-setup` répond `"state": "not-configured"` pendant que le
+  workflow géré `dynamic/github-code-scanning/codeql` s'exécute avec
+  `analysis-kinds: code-quality`. La rédaction initiale de ce §7 supposait l'inverse. Les deux
+  pages de documentation consultées décrivent la propriété pour la default setup et **ne disent
+  rien** de l'`analysis-kind` `code-quality` : c'est exactement le point qui reste à mesurer.
+- **Le point d'injection existe, et il est observable.** L'action `init` reçoit un input `config:`
+  porteur de YAML inline (`default-setup:` / `org:` / `model-packs: [ ]`), et le job publie le
+  groupe `Augmented user configuration file contents` — aujourd'hui `disable-default-queries:
+  true`, `queries: - uses: code-quality`, `query-filters: []`. Un `paths-ignore` fusionné y serait
+  **lisible dans les logs**. La vérification de ce mécanisme ne passe donc **pas** par l'UI,
+  contrairement à la lecture des alertes (§Méthode).
+- **La propriété doit d'abord être déclarée dans l'organisation**, et la déclaration exige le scope
+  `admin:org` (`gh auth refresh -h github.com -s admin:org`) : le schéma partait de `[]`.
+- **Les propriétés personnalisées sont bien disponibles sur un plan d'organisation `free`.** Mesuré :
+  `PUT /orgs/Triathlon-Club-Nantais/properties/schema/github-codeql-config-file` avec
+  `value_type: string` est accepté. Déclarée **sans `default_value`**, la propriété laisse tous les
+  dépôts de l'org à `value: null` — vérifié sur `/properties/values` — donc la déclaration seule ne
+  change aucun run. C'est ce qui permet de la poser avant de décider où l'activer.
+- **La propriété porte sur le dépôt, jamais sur la branche.** Un chemin local ne se résout donc que
+  sur les refs qui contiennent le fichier. D'où la forme retenue,
+  `remote=Triathlon-Club-Nantais/data-triathlon@main:.github/codeql/codeql-config.yml`, posée
+  **après** l'arrivée du fichier sur `main` : elle se résout alors identiquement sur toutes les
+  branches et n'ouvre aucune fenêtre pendant laquelle une PR en cours pointerait un fichier absent
+  de sa ref (au moment du sondage, #161 ne l'avait pas).
+
+Ce qui **reste à mesurer**, et ne doit pas être tenu pour acquis :
+
+- **que l'`analysis-kind` `code-quality` honore la propriété** — la seule inconnue qui décide de tout
+  le reste, et que rien dans la documentation ne tranche ;
+- l'effet réel sur le décompte : **9 alertes de moins sur 31** attendues (8 en-têtes Alembic + le
+  `js/malformed-html-id` de la fixture chronoweb).
+
+Reste à faire, dans cet ordre : le fichier arrive sur `main` avec la PR de ce sondage, puis
+`PATCH /repos/…/properties/values` pose la valeur
+`remote=Triathlon-Club-Nantais/data-triathlon@main:.github/codeql/codeql-config.yml`, puis le groupe
+`Augmented user configuration file contents` du run suivant tranche. Si la propriété s'avère ignorée
+par l'`analysis-kind` `code-quality`, le fichier est à retirer — il ne faut pas le laisser en place
+en laissant croire qu'il filtre quelque chose.
+
+Deux règles portées par le fichier de configuration lui-même. Il ne porte **que** `paths-ignore` :
+y ajouter `queries` ou `disable-default-queries` remplacerait la suite `code-quality` que la default
+setup passe, donc le sens de la page. Et `backend/tests/` n'est **pas** filtré — les deux
+`py/side-effect-in-assert` du §4 y étaient de vrais défauts, un filtre en bloc les aurait masqués.
+
+Les **3 gardes d'idempotence** de `app/core/` (§5) ne sont pas filtrables par chemin. Elles restent
+à fermer dans l'UI (« Won't fix »), comme les alertes de tests hors fixtures qu'on choisirait de ne
+pas traiter.
 
 ## 8. Points restés ouverts
 
