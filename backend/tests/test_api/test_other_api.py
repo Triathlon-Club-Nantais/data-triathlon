@@ -148,7 +148,10 @@ def test_admin_pending_providers_flow(client):
     listed = client.get("/api/v1/admin/pending-providers").json()
     assert len(listed) == 1
 
-    assert client.delete(f"/api/v1/admin/pending-providers/{created['id']}").status_code == 204
+    # Hors de l'`assert` : sous `python -O` la suppression ne partirait pas, et la
+    # liste vide attendue ensuite ne prouverait plus rien.
+    suppression = client.delete(f"/api/v1/admin/pending-providers/{created['id']}")
+    assert suppression.status_code == 204
     assert client.get("/api/v1/admin/pending-providers").json() == []
 
 

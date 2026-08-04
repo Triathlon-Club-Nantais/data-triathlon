@@ -186,6 +186,8 @@ def _museler_le_flux(*, err: bool) -> None:
         finally:
             os.close(fd)
     except (OSError, ValueError, AttributeError):
+        # Pas de descripteur (sortie capturée en mémoire) : il n'y a ni tube ni
+        # flush d'arrêt à protéger, cf. la docstring.
         pass
 
 
