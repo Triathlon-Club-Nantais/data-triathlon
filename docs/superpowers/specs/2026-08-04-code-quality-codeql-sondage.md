@@ -104,11 +104,11 @@ l'assertion suivante vérifiait son effet. Sous `python -O` la requête ne part 
 suivant mesure autre chose. pytest ne tourne jamais en `-O` — impact pratique nul — mais c'est le
 seul motif du lot où un effet de bord vit dans un `assert`. Extrait dans une variable.
 
-## 5. Les 31 alertes restantes : trois motifs structurels, à ne pas « corriger »
+## 5. Les 31 alertes restantes : les motifs structurels
 
 | Motif | Nb | Verdict, sur pièces |
 | --- | --- | --- |
-| `...` des méthodes de `Protocol` (`services/progress.py`, `services/auth/idp/base.py`, `scrapers/registry.py`) | 10 | Idiome typé standard. Les remplacer par `pass` ferait taire la règle **au prix de l'idiome** |
+| `...` des méthodes de `Protocol` (`services/progress.py`, `services/auth/idp/base.py`, `scrapers/registry.py`) | 10 | **Verdict révisé, cf. §9.** La rédaction initiale ne voyait que le remplacement par `pass` — qui aurait effectivement fait taire la règle au prix de l'idiome. La **suppression** du `...` ne coûte pas ce prix : ces méthodes ont toutes une docstring, qui tient déjà lieu de corps |
 | En-têtes Alembic (`revision`, `down_revision`, `branch_labels`, `depends_on`) | 8 | Lues par introspection d'Alembic. **Signal instable** : les 7 migrations ont la même forme, seules 2 alertent |
 | Gardes d'idempotence (`logging._CONFIGURED`, `tracing._instrumented_engine` / `_instrumented_app`) | 3 | Faux positif intra-procédural : la remise à `None` est relue au *cycle suivant* (`shutdown` → `setup` → `shutdown`), que l'analyse ne modélise pas |
 
@@ -133,6 +133,10 @@ Même bundle, mêmes suites, arbre de travail corrigé :
 
 Les 7 alertes visées sont refermées, **aucune nouvelle n'apparaît**. Suite backend :
 2246 tests verts (`-m "not integration"`), `ruff check .` propre.
+
+La seconde passe (§9) porte sur 10 alertes de plus, **sans re-mesure CodeQL** : le bundle
+n'était pas disponible localement lors de cette passe et le sandbox n'a pas de réseau pour le
+récupérer. Total attendu : **21**, à trancher au prochain run.
 
 ## 7. Réduire le bruit sans toucher au code : le mécanisme, sondé à mi-chemin
 
@@ -202,3 +206,35 @@ pas traiter.
   motif**, le signal n'étant pas stable.
 - **L'impact de la regex n'est pas quantifié sur les données de production** (base de dev vide,
   pas d'accès Supabase depuis la mesure).
+
+## 9. Les 10 `...` de `Protocol` : une troisième voie, mesurée après coup
+
+Le §5 opposait deux termes — garder le `...` ou le remplacer par `pass` — et concluait, à juste
+titre sur ces deux-là, qu'il n'y avait rien à gagner. Il en manquait un **troisième** : le
+**supprimer**. Les 10 méthodes ont toutes une docstring, et une docstring **est** une instruction :
+le corps reste valide, sans `pass`, sans perte d'idiome. C'est exactement ce que recommande la page
+de la règle — elle ne signale jamais une instruction réduite à une chaîne.
+
+Trois mesures, dans l'ordre où elles ont tranché :
+
+- **Ruff ne peut pas porter ce garde, et ce n'est pas un oubli.** `PIE790`
+  (« unnecessary-placeholder ») décrit précisément ce motif, mais **exempte délibérément les corps
+  de `Protocol`**. Mesuré sur ruff 0.15.21, une sonde portant les trois formes avec la même
+  docstring : la règle signale la classe ordinaire et la fonction libre, **jamais** la méthode de
+  `Protocol`. Les deux outils sont donc en désaccord assumé sur ce motif — activer `PIE` dans
+  `pyproject.toml` n'aurait fermé aucune des 10 alertes.
+- **Le motif est identifiable sans CodeQL.** Un détecteur AST de dix lignes
+  (`tests/test_meta_placeholders.py`) rend exactement les 10 sites de la page, aux mêmes lignes
+  (`registry.py:101,105` ; `base.py:58,62,68` ; `progress.py:17,21,25,29,33`). C'est ce qui permet
+  de verrouiller le motif sans dépendre du run GitHub. Le `...` **seul** dans un corps est épargné :
+  il en porte la syntaxe.
+- **Aucun changement de comportement n'est possible.** Aucune classe du dépôt n'hérite de
+  `ProgressReporter`, `IdentityProvider` ni `ScraperProtocol` — ils servent au typage structurel et
+  à trois `isinstance` (`runtime_checkable`). Et là où un corps de `Protocol` serait malgré tout
+  exécuté, docstring et `...` rendent l'un comme l'autre `None`. La CI ne lance ni mypy ni pyright
+  (ruff + pytest seuls) ; 2250 tests verts, `ruff check .` propre.
+
+Ce qui **n'est pas mesuré** : la fermeture effective des 10 alertes côté CodeQL. Le bundle n'était
+pas installé lors de cette passe et le sandbox n'a pas de réseau pour le récupérer — la
+reproduction du §Méthode n'était pas rejouable. La fermeture est **attendue par lecture de la
+règle**, pas constatée ; le prochain run tranche.
