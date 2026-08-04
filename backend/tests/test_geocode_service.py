@@ -157,10 +157,17 @@ def test_un_nom_sans_ville_exploitable_ne_declenche_aucune_requete(monkeypatch):
         ("Triathlon de Nantes 2025", "Nantes"),           # millésime retiré
         ("Duathlon du Val-André — 3e edition", "Val-André"),
         ("Triathlon de Saint-Brevin", "Brevin"),
+        ("Triathlon d'Oléron", "Oléron"),                 # apostrophe droite
+        ("Triathlon d’Oléron", "Oléron"),                 # apostrophe typographique
     ],
 )
 def test_extraction_de_la_ville(nom_epreuve, attendu):
-    """La ville est déduite du nom d'épreuve, seul champ dont on dispose partout."""
+    """La ville est déduite du nom d'épreuve, seul champ dont on dispose partout.
+
+    Les deux graphies de l'apostrophe comptent autant l'une que l'autre : un nom
+    saisi dans le Sheet y passe par l'autocorrection, qui produit U+2019, et
+    plusieurs chronométreurs publient déjà cette forme.
+    """
     assert geocode_service.extract_city(nom_epreuve) == attendu
 
 
@@ -168,6 +175,7 @@ def test_extraction_de_la_ville(nom_epreuve, attendu):
     ("nom_epreuve", "rendu"),
     [
         ("Swimrun de l'Île-Tudy", "l'Île-Tudy"),  # l'article élidé n'est pas retiré
+        ("Swimrun de l’Île-Tudy", "l’Île-Tudy"),  # … dans les deux graphies
         ("Trail des 3 Plages", "Trail des 3 Plages"),  # ne nomme aucune commune
         ("Bike and Run de Vertou", "Bike and Run de Vertou"),  # « and » ≠ « & »/« - »
     ],
