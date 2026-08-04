@@ -248,8 +248,14 @@ data-triathlon/
 ### Backend → Render.com
 
 1. Connecter le repo GitHub sur [render.com](https://render.com)
-2. `render.yaml` configure automatiquement le service Python (`rootDir: backend`)
+2. Créer un service web Python, **Root Directory = `backend`**, et y reporter le
+   `buildCommand` / `startCommand` de `render.yaml`
 3. Ajouter la variable d'environnement `DATABASE_URL` (Supabase Session Pooler)
+
+> **`render.yaml` ne configure rien tout seul.** Les services du projet ont été
+> créés à la main : Render ne lit ce fichier que pour un service issu d'un
+> *Blueprint*. Il sert ici de base de référence, à recopier dans le dashboard —
+> détail et conséquences dans [docs/ci-cd.md](docs/ci-cd.md).
 
 > Au démarrage, Render exécute `alembic upgrade head && uvicorn app.main:app …`
 > (migrations appliquées avant le lancement de l'API).

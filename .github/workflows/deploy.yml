@@ -27,9 +27,8 @@ jobs:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
-      - name: Render (backend) — deploy hook preview
-        run: curl -fsSL -X POST --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 "${{ secrets.RENDER_DEPLOY_HOOK_PREVIEW }}"
-
+      # Le checkout précède le hook Render : la version poussée au backend (#162)
+      # se calcule par `git describe`, elle a donc besoin de l'arbre.
       - uses: actions/checkout@v4
         with:
           # `fetch-depth: 0` : `git describe --tags` a besoin de l'historique
@@ -37,17 +36,74 @@ jobs:
           # défaut de checkout@v4 n'inclut ni tags ni commits antérieurs).
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - run: npm i -g vercel@54 # major épinglé : évite qu'une release Vercel casse le pipeline
-
       - name: Compute app version
         id: version
         # Ref courante en priorité (branche PR sur workflow_dispatch, ou main),
         # sinon `git describe` sur main. `--always` fallback sur SHA court.
         run: echo "value=$(git describe --tags --always 2>/dev/null || echo dev)" >> "$GITHUB_OUTPUT"
+
+      # Render déploie la **branche** `main` sur hook : il ne voit jamais le tag,
+      # et son `buildCommand` réel est celui du dashboard, pas celui de
+      # `render.yaml` — d'où le « dev » de #162. Ce workflow est le seul endroit
+      # qui connaisse la version ; il alimente déjà le front, il alimente
+      # désormais aussi le back, que `app/version.py` lit en priorité 1.
+      #
+      # Route **par clé** (`…/env-vars/APP_VERSION`) : le `PUT …/env-vars` nu
+      # remplace *toutes* les variables du service, donc effacerait `DATABASE_URL`
+      # et les secrets d'auth.
+      #
+      # L'ID de service est extrait du deploy hook (`…/deploy/srv-xxx?key=…`)
+      # plutôt que stocké en secret séparé : on vise ainsi par construction le
+      # service qu'on déploie, là où un second secret peut diverger. Le dépôt
+      # étant public, aucun `srv-…` n'est écrit en clair (cf. docs/ci-cd.md).
+      #
+      # `jq --arg` construit le JSON : la version vient d'un nom de ref, elle
+      # n'est jamais interpolée dans le shell ni concaténée à la main.
+      - name: Render (backend) — injecte APP_VERSION
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_PREVIEW }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          APP_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          set -euo pipefail
+          service_id=$(printf '%s' "$DEPLOY_HOOK" | sed -n 's#.*/deploy/\(srv-[^/?]*\).*#\1#p')
+          [ -n "$service_id" ] || { echo "::error::ID de service introuvable dans le deploy hook"; exit 1; }
+          # Le dépôt est public, donc ses logs Actions le sont. `service_id` est
+          # une *sous-chaîne* d'un secret : GitHub ne masque que la valeur exacte,
+          # pas ses fragments. Le garder hors du dépôt tout en l'imprimant ici
+          # serait une distinction sans différence.
+          echo "::add-mask::$service_id"
+          # `--fail-with-body` et non `-f` : sans lui, un 400 ne rend que
+          # « curl: (22) … error: 400 », sans le motif renvoyé par Render. Le
+          # corps n'est donc **pas** redirigé — c'est lui le diagnostic. En
+          # succès il ne rend que la variable écrite, sans secret.
+          jq -n --arg v "$APP_VERSION" '{value: $v}' | curl -sS --fail-with-body -X PUT \
+            -H "Authorization: Bearer $RENDER_API_KEY" \
+            -H "Content-Type: application/json" \
+            --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 \
+            --data @- "https://api.render.com/v1/services/$service_id/env-vars/APP_VERSION"
+          echo
+          echo "APP_VERSION=$APP_VERSION poussée"
+
+      # `&ref=` : même raison qu'en production (voir ce job) — le backend déployé
+      # doit être le commit dont `APP_VERSION` porte le `git describe`.
+      #
+      # Sur un `workflow_dispatch` depuis une branche de PR, l'**intention** est
+      # de déployer ce commit-là et non `main`, sur laquelle le service est
+      # épinglé. Non vérifié : Render documente `ref` pour un SHA, sans dire si
+      # un commit hors branche liée est résolvable. L'échec serait discret — le
+      # hook rend 200 quoi qu'il arrive, et la panne surviendrait côté Render,
+      # job vert. À confirmer par un dispatch manuel avant de s'y fier.
+      - name: Render (backend) — deploy hook preview
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_PREVIEW }}
+        run: curl -fsSL -X POST --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 "$DEPLOY_HOOK&ref=${{ github.sha }}"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - run: npm i -g vercel@54 # major épinglé : évite qu'une release Vercel casse le pipeline
 
       - name: Vercel (frontend) — preview
         # Pas de working-directory : le Root Directory (frontend) est déjà configuré côté projet Vercel.
@@ -77,8 +133,58 @@ jobs:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
+      - name: Compute app version
+        id: version
+        # Sur un push de tag, `github.ref_name` est directement le tag (`v0.1.3`).
+        # `git describe` marche aussi mais on privilégie la source explicite.
+        #
+        # Par `env:` et jamais interpolé dans le `run:` : un nom de ref git
+        # autorise `` ` ``, `$`, `;`, `&`, `|` — un tag `v1;curl …` exécuterait du
+        # shell dans ce job, qui porte `RENDER_API_KEY`, un accès en écriture à
+        # tout le workspace Render. `github.sha` reste interpolé tel quel, c'est
+        # de l'hexadécimal immuable.
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: echo "value=$REF_NAME" >> "$GITHUB_OUTPUT"
+
+      # Même injection qu'en preview (#162) — raisonnement complet dans ce job.
+      # Avant le hook : Render fige les variables au démarrage du déploiement.
+      - name: Render (backend) — injecte APP_VERSION
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_PROD }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          APP_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          set -euo pipefail
+          service_id=$(printf '%s' "$DEPLOY_HOOK" | sed -n 's#.*/deploy/\(srv-[^/?]*\).*#\1#p')
+          [ -n "$service_id" ] || { echo "::error::ID de service introuvable dans le deploy hook"; exit 1; }
+          # Le dépôt est public, donc ses logs Actions le sont. `service_id` est
+          # une *sous-chaîne* d'un secret : GitHub ne masque que la valeur exacte,
+          # pas ses fragments. Le garder hors du dépôt tout en l'imprimant ici
+          # serait une distinction sans différence.
+          echo "::add-mask::$service_id"
+          # `--fail-with-body` et non `-f` : sans lui, un 400 ne rend que
+          # « curl: (22) … error: 400 », sans le motif renvoyé par Render. Le
+          # corps n'est donc **pas** redirigé — c'est lui le diagnostic. En
+          # succès il ne rend que la variable écrite, sans secret.
+          jq -n --arg v "$APP_VERSION" '{value: $v}' | curl -sS --fail-with-body -X PUT \
+            -H "Authorization: Bearer $RENDER_API_KEY" \
+            -H "Content-Type: application/json" \
+            --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 \
+            --data @- "https://api.render.com/v1/services/$service_id/env-vars/APP_VERSION"
+          echo
+          echo "APP_VERSION=$APP_VERSION poussée"
+
+      # `&ref=` épingle le déploiement au **commit taggé**. Sans lui le hook
+      # déploie le HEAD de `main` (le service est épinglé sur cette branche) :
+      # `APP_VERSION` annoncerait `v0.1.4` sur du code qui n'est pas ce tag —
+      # un affichage faux, pire que le « dev » de #162. C'était l'état constaté,
+      # la prod tournant 63 commits après `v0.1.4`.
+      # Le hook porte déjà `?key=…`, d'où `&` et non `?`.
       - name: Render (backend) — deploy hook prod
-        run: curl -fsSL -X POST --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 "${{ secrets.RENDER_DEPLOY_HOOK_PROD }}"
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_PROD }}
+        run: curl -fsSL -X POST --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 "$DEPLOY_HOOK&ref=${{ github.sha }}"
 
       - uses: actions/checkout@v4
         with:
@@ -89,12 +195,6 @@ jobs:
           node-version: "20"
 
       - run: npm i -g vercel@54 # major épinglé : évite qu'une release Vercel casse le pipeline
-
-      - name: Compute app version
-        id: version
-        # Sur un push de tag, `github.ref_name` est directement le tag (`v0.1.3`).
-        # `git describe` marche aussi mais on privilégie la source explicite.
-        run: echo "value=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
 
       - name: Vercel (frontend) — production
         # Pas de working-directory : le Root Directory (frontend) est déjà configuré côté projet Vercel.

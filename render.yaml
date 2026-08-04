@@ -1,18 +1,54 @@
+# ┌────────────────────────────────────────────────────────────────────────────┐
+# │ CE FICHIER N'EST PAS APPLIQUÉ. C'est une base de référence, pas la config. │
+# └────────────────────────────────────────────────────────────────────────────┘
+#
+# Les deux services Render ont été créés **à la main**, pas depuis un Blueprint :
+# Render ne lit donc jamais ce fichier, et la configuration qui fait foi est
+# celle du dashboard (Settings de chaque service). Le décalage a un coût connu —
+# c'est #162 : le `buildCommand` écrit ici prétendait produire un fichier
+# `VERSION`, il n'a jamais tourné, et `GET /api/v1/version` répondait « dev » en
+# production.
+#
+# Deux conséquences pratiques :
+#
+# - **toute modification ici est sans effet** tant que les services ne sont pas
+#   rattachés à un Blueprint. La reporter dans le dashboard, sur les *deux*
+#   services (docs/ci-cd.md, §Mise en place côté plateformes) ;
+# - le contenu ci-dessous est tenu **aligné sur le réel là où c'est observable**,
+#   faute de quoi il redevient le piège qu'il a été. Une réserve : `generateValue`
+#   est une directive de Blueprint, pas un état de service — aucun n'ayant jamais
+#   tourné, cette ligne décrit une intention (la clé a été saisie à la main).
+#
+# Le dépôt est public : aucun ID de service (`srv-…`) ni URL d'instance ici.
 services:
+  # PROD. `name` porte le nom **réel** du service : c'est par lui qu'un Blueprint
+  # apparie un service existant, donc un nom approchant en créerait un troisième
+  # au lieu d'adopter celui-ci.
   - type: web
-    name: triathlon-backend
+    name: data-triathlon
     runtime: python
     autoDeploy: false # déploiement uniquement via deploy hook (gate CI)
     rootDir: backend
-    # Le fichier VERSION est lu par `app/version.py` (#134) : `git describe`
-    # remonte automatiquement à la racine du dépôt même si le buildCommand
-    # tourne depuis `backend/`. `--always` fallback sur le SHA court si aucun
-    # tag n'est atteignable — utile pour un déploiement de branche non taggée
-    # (preview). `|| echo dev` couvre le cas où git est indisponible au build.
-    buildCommand: (git describe --tags --always 2>/dev/null || echo dev) > VERSION && uv sync --frozen --no-dev
+    region: frankfurt
+    plan: free
+    # Pas de génération de fichier `VERSION` ici : la version ne se déduit pas
+    # côté Render. Le hook déploie la **branche** `main`, jamais le tag — un
+    # `git describe` y rendrait au mieux `v0.1.4-63-gxxxxxxx`, au pire un SHA nu
+    # si le clone Render n'embarque pas les tags. Elle est donc **poussée** par
+    # `.github/workflows/deploy.yml` en variable `APP_VERSION` (voir plus bas),
+    # depuis le seul endroit qui connaisse le tag.
+    buildCommand: uv sync --frozen --no-dev
     startCommand: uv run --no-sync alembic upgrade head && uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port $PORT
-    envVars:
+    envVars: &backend_env_vars
       - key: DATABASE_URL
+        sync: false
+      # ── Version applicative (#134, #162) ───────────────────────────────────
+      # Écrite **par le pipeline** avant chaque deploy hook, via l'API Render
+      # (`PUT /v1/services/{id}/env-vars/APP_VERSION`) : Render déploie une
+      # branche et ne connaît pas le tag, seul `deploy.yml` le connaît. Ne pas
+      # la saisir à la main, elle serait écrasée au déploiement suivant.
+      # Absente, `app/version.py` retombe sur le fichier `VERSION` puis « dev ».
+      - key: APP_VERSION
         sync: false
       # ── Authentification SSO (#114) ────────────────────────────────────────
       # En `sync: false` — secrets, ou valeurs propres à l'environnement — à
@@ -43,3 +79,20 @@ services:
         # cookies en **dérive** (`__Host-` exige `Secure`), donc la valeur est
         # figée ici plutôt que laissée à une saisie.
         value: "true"
+
+  # PREVIEW. Nom réel du service : `triathlon-backend-preview`. Même image, même
+  # pipeline ; seules diffèrent les valeurs `sync: false` (base Supabase preview,
+  # `AUTH_REDIRECT_BASE_URL` du projet Vercel preview). D'où l'ancre YAML sur les
+  # variables plutôt qu'un second bloc à maintenir en double.
+  - type: web
+    name: triathlon-backend-preview
+    runtime: python
+    autoDeploy: false
+    rootDir: backend
+    region: frankfurt
+    plan: free
+    buildCommand: uv sync --frozen --no-dev
+    startCommand: uv run --no-sync alembic upgrade head && uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    # `APP_VERSION` y reçoit un `git describe` (`v0.1.4-63-gxxxxxxx`) et non un
+    # tag : une preview n'en porte pas.
+    envVars: *backend_env_vars

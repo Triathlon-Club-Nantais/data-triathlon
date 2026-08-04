@@ -6,14 +6,20 @@ mismatch (rollback partiel, redéploiement dissocié) devient visible.
 
 Trois sources en cascade, la première non vide gagne :
 
-1. `APP_VERSION` env var — injectée par la plateforme de déploiement (Render
-   la propage si elle est configurée dans `render.yaml`).
-2. Fichier `VERSION` à la racine du dépôt — écrit par le `buildCommand`
-   Render (`git describe --tags --always > VERSION`). C'est le repli qui
-   fonctionne sans configuration de secret.
+1. `APP_VERSION` env var — **c'est le chemin réel en déploiement** (#162).
+   `.github/workflows/deploy.yml` la pousse sur le service Render, via l'API,
+   juste avant le deploy hook. Render déploie une *branche* et n'a donc aucune
+   connaissance du tag ; le pipeline est le seul à le connaître, et c'est déjà
+   lui qui alimente le front (`NEXT_PUBLIC_APP_VERSION`).
+2. Fichier `VERSION` à la racine de `backend/` — repli pour un déploiement
+   qui n'a pas de pipeline (conteneur auto-hébergé) et qui l'écrit lui-même,
+   par exemple `git describe --tags --always > VERSION` au build. **Rien dans
+   ce dépôt ne l'écrit** : ni le Dockerfile, ni Render, dont le `buildCommand`
+   effectif est celui du dashboard et non celui de `render.yaml`. C'est cette
+   croyance qui a fait répondre « dev » en production pendant #134.
 3. Fallback `"dev"` — chemin local, tests, dev conteneur non taggé.
 
-La lecture est **paresseuse et mise en cache** (fonctionne `@lru_cache`) :
+La lecture est **paresseuse et mise en cache** (`@lru_cache`) :
 l'endpoint est peu appelé mais un chemin certain « aucun I/O par appel »
 évite qu'un `open()` récurrent devienne une source de bruit en prod.
 """
@@ -25,8 +31,8 @@ from pathlib import Path
 
 FALLBACK = "dev"
 
-# Le fichier VERSION est écrit à la racine du dépôt par le buildCommand
-# Render. En dev il est absent et on retombe sur `FALLBACK`.
+# Repli hors pipeline (cf. docstring) : aucun build de ce dépôt n'écrit ce
+# fichier. En dev il est absent et on retombe sur `FALLBACK`.
 _VERSION_FILE = Path(__file__).resolve().parent.parent / "VERSION"
 
 
