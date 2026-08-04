@@ -738,7 +738,6 @@ Trois points que le code ne dit pas :
 ## Principes de conception
 
 Guidelines d'écriture de code, valables dans les trois voies du workflow IA.
-D'après l'AGENTS.md de Marcos Hernanz (`x.com/MarcosHernanz/status/2083954734487212511`).
 
 - **Ne pas préserver la compatibilité ascendante.** Supprimer les chemins
   obsolètes plutôt qu'ajouter des couches de compatibilité, des replis ou des
