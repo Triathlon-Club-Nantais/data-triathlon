@@ -17,6 +17,7 @@ Usage :
 from __future__ import annotations
 
 import argparse
+import importlib
 import sys
 from pathlib import Path
 
@@ -26,9 +27,15 @@ sys.path.insert(0, str(ROOT))
 
 from sqlalchemy import text  # noqa: E402
 
-import app.models  # noqa: E402,F401 — enregistre toutes les tables sur Base.metadata
 from app.core.config import get_settings  # noqa: E402
 from app.core.database import Base, engine  # noqa: E402
+
+# Chargement pour l'effet de bord seul : le package `app.models` enregistre toutes
+# les tables sur `Base.metadata`, sans quoi le `drop_all` ci-dessous ne verrait
+# aucune table à supprimer. Aucun symbole n'en est utilisé, d'où l'appel explicite
+# plutôt qu'un `import app.models` que tout détecteur d'import inutilisé
+# (ruff F401, CodeQL py/unused-import) signale.
+importlib.import_module("app.models")
 
 
 def _reset_schema() -> None:
