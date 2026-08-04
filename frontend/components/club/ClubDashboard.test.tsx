@@ -15,7 +15,7 @@ vi.mock("next/navigation", () => ({
 
 import { ClubDashboard } from "./ClubDashboard";
 
-const STATS: Stats = { total: 0, athletes: 0, events: 0, by_type: {}, by_month: {} };
+const STATS: Stats = { total: 0, athletes: 0, events: 0, by_type: {}, by_month: {}, recent: [] };
 
 function part(over: Partial<Participation> & { id: number }): Participation {
   return {
