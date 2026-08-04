@@ -735,6 +735,32 @@ Trois points que le code ne dit pas :
   d'état est posé sur l'origine de l'interface, et un retour pointant sur le port
   du backend ferait échouer **tout** parcours en `state_mismatch`.
 
+## Principes de conception
+
+Guidelines d'écriture de code, valables dans les trois voies du workflow IA.
+D'après l'AGENTS.md de Marcos Hernanz (`x.com/MarcosHernanz/status/2083954734487212511`).
+
+- **Ne pas préserver la compatibilité ascendante.** Supprimer les chemins
+  obsolètes plutôt qu'ajouter des couches de compatibilité, des replis ou des
+  migrations. *Une seule exception, et elle est contractuelle : l'API `/api/v1`
+  publiée, que le Principe IV de la constitution interdit de modifier
+  silencieusement (cf. `page_size=all`). Le code interne, lui, se supprime.*
+- **Choisir l'implémentation la plus simple qui satisfait pleinement le besoin
+  actuel.** Pas d'abstraction, de configuration ni d'indirection spéculatives.
+- **Faire croître le système par couches.** Partir de la plus petite version qui
+  marche de bout en bout, et poser chaque nouvelle capacité sur un produit qui
+  fonctionne déjà. Ne jamais échanger un produit qui marche contre une
+  complexité inachevée.
+- **Garder les composants modulaires et les responsabilités séparées.**
+- **Préférer les bibliothèques établies et maintenues** quand elles réduisent la
+  complexité globale ou améliorent la fiabilité. Ne pas réimplémenter une
+  fonctionnalité courante sans raison explicite.
+- **S'appuyer d'abord sur les dépendances déjà présentes** avant d'écrire sa
+  propre implémentation ou d'ajouter un paquet. Ne pas supposer qu'une
+  bibliothèque n'a pas une capacité sans avoir lu sa documentation et ses types.
+- **Décider l'architecture pour le long terme.** Ne pas accepter un pis-aller qui
+  ne tient que pour l'instant et qu'on prévoit de remplacer plus tard.
+
 ## Conventions générales
 
 - **Langue** : suit le Principe I de la constitution v1.1.0
