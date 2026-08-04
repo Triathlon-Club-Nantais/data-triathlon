@@ -7,6 +7,8 @@ et l'import d'un heat via le moteur data block partagé (klikego_platform).
 from datetime import date
 from pathlib import Path
 
+import httpx
+
 from app.scrapers import breizhchrono
 from app.scrapers.breizhchrono import (
     _course_name,
@@ -431,3 +433,35 @@ def test_les_splits_fins_ne_sont_cherches_que_pour_le_club(monkeypatch):
 
     assert len(demandes) == 1
     assert "dossard=1" in demandes[0]
+
+
+def test_une_date_d_epreuve_injoignable_est_journalisee(monkeypatch, caplog):
+    """Un échec sur la page de date ne doit pas être avalé en silence.
+
+    `event_date = None` change la clé `UNIQUE(name, event_date, event_type)` de
+    `Course` : sans trace, une épreuve importée sans date est indiscernable
+    d'une épreuve qui n'en publie pas.
+    """
+    class _Resp:
+        text, status_code = "<html></html>", 200
+
+    class _Client:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def get(self, url):
+            # Seule la page racine — celle qui porte la date — est injoignable.
+            if url.endswith("/resultats-courses/tri-test-42"):
+                raise httpx.ConnectError("breizhchrono injoignable")
+            return _Resp()
+
+    monkeypatch.setattr(breizhchrono.http, "client", lambda **k: _Client())
+
+    with caplog.at_level("WARNING"):
+        results = breizhchrono.scrape_event_all("42", "", "Triathlon de Test", "tri-test")
+
+    assert results == []
+    assert "breizhchrono injoignable" in caplog.text
