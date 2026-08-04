@@ -26,7 +26,7 @@ def extract_city(event_name: str) -> str:
     prefixes = (
         r"(triathlon|tri|duathlon|swimrun|swim[- ]?run|aquathlon|aquarun|bike[- ]?run"
         r"|run[- ]?bike|challenge|ironman|half|ultra|trail)\s+"
-        r"(de\s+la\s+|de\s+le\s+|des\s+|de\s+|du\s+|d['’]\s*|international\s+)?"
+        r"(de\s+la\s+|de\s+le\s+|des\s+|de\s+|du\s+|d'\s*|d’\s*|international\s+)?"
         r"(la\s+|le\s+|les\s+|saint[-\s]|sainte[-\s])?"
     )
     cleaned = re.sub(prefixes, "", name, flags=re.I).strip()
