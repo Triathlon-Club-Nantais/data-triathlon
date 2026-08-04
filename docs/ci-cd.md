@@ -36,8 +36,16 @@ Toute PR déclenche la CI seule (aucun déploiement).
   avait ainsi cassé le rendu Liquid directement sur `main`.
 
 Le gating repose sur `needs: ci` : si un job CI échoue, le job de déploiement
-n'est jamais exécuté. Côté Render, `autoDeploy: false` (dans `render.yaml` **et**
-dans les réglages du service) empêche tout déploiement automatique hors hook.
+n'est jamais exécuté. Côté Render, c'est **Auto-Deploy = No dans les réglages du
+service** qui empêche tout déploiement automatique hors hook.
+
+> **`render.yaml` n'est appliqué par personne.** Les deux services ont été créés
+> à la main, pas depuis un Blueprint : Render ne lit jamais ce fichier, et la
+> configuration qui fait foi est celle du dashboard. Le fichier est maintenu à
+> jour comme base de référence, mais toute modification y est **sans effet** —
+> la reporter dans le dashboard, sur les deux services. Ce décalage a un coût
+> mesuré : c'est #162, où le `buildCommand` du fichier prétendait écrire un
+> fichier `VERSION` qui n'a jamais existé.
 
 ## Mise en place côté plateformes (manuel)
 
@@ -102,29 +110,29 @@ Réglages restants à faire **dans le dashboard** (non supportés par le MCP) :
 Puis, une fois pour le compte : créer un **`VERCEL_TOKEN`** (Account Settings →
 Tokens), commun aux deux projets.
 
-> L'ID du projet preview se pose sur l'**environment GitHub `preview`**, pas sur
-> le dépôt : un secret d'environment surcharge le secret de dépôt du même nom.
-> D'où l'absence d'un `VERCEL_PROJECT_ID_PREVIEW` et de toute ligne `env:`
-> dupliquée dans `deploy.yml`.
+> `VERCEL_PROJECT_ID` porte le **même nom sur les deux environments GitHub**, avec
+> une valeur différente de part et d'autre : chaque job ne voit que celle de
+> l'environment qu'il déclare. D'où l'absence d'un `VERCEL_PROJECT_ID_PREVIEW` et
+> de toute ligne `env:` dupliquée dans `deploy.yml`.
 
 ### Authentification SSO (#114) — variables par environnement
 
-**Six** des huit réglages `AUTH_*` sont déclarés dans `render.yaml` : en
+**Six** des huit réglages `AUTH_*` sont **documentés** dans `render.yaml` : en
 `sync: false`, à deux exceptions près — `AUTH_SESSION_SECRET_KEY` en
 `generateValue: true` et `AUTH_COOKIE_SECURE` en `value: "true"`. Les deux durées
 de vie (`AUTH_SESSION_TTL_DAYS`, `AUTH_STATE_TTL_SECONDS`) n'y figurent pas et
 restent aux défauts du code (7 j / 600 s). Tous se renseignent **côté backend** —
 le frontend n'en porte aucun, il ne fait que proxifier `/api/*`.
 
-> **`render.yaml` ne décrit que le service de production.** Le service
-> **preview** est créé à la main (voir plus haut), donc le blueprint ne s'y
-> applique pas : `generateValue` n'y joue pas et **aucun** réglage `AUTH_*` n'y
-> apparaît tout seul. Sur preview, la clé de session est à générer et à saisir
-> soi-même, comme en local.
+> **Aucun de ces réglages ne s'applique tout seul, sur aucun des deux services.**
+> Ce fichier n'est lu par personne (voir plus haut) : `generateValue` n'a jamais
+> joué, et la clé de session a été **saisie à la main** en production comme en
+> preview. Les déclarations ci-dessus disent quelle valeur poser, pas qui la
+> pose.
 
 | Variable | PROD | PREVIEW | Local |
 |---|---|---|---|
-| `AUTH_SESSION_SECRET_KEY` | généré par Render (`generateValue`) | **à saisir à la main** (hors blueprint) | `python -c "import secrets; print(secrets.token_urlsafe(64))"` |
+| `AUTH_SESSION_SECRET_KEY` | **à saisir à la main** | **à saisir à la main** | `python -c "import secrets; print(secrets.token_urlsafe(64))"` |
 | `AUTH_GITHUB_CLIENT_ID` / `_SECRET` | application OAuth « prod » | application OAuth « preview » | application OAuth « local » |
 | `AUTH_ALLOWED_EMAILS` | adresses des contributeurs, en CSV | idem, ou vide pour fermer | votre adresse GitHub vérifiée |
 | `AUTH_REDIRECT_BASE_URL` | URL de production de `data-triathlon` | URL de production de `data-triathlon-preview` | `http://127.0.0.1:3000` |
@@ -167,20 +175,45 @@ Trois points qui coûtent cher s'ils sont découverts en production :
 
 ### Secrets GitHub
 
-Settings → Secrets and variables → Actions :
+Presque tous sont des **secrets d'environment** — Settings → Environments →
+`preview` / `production` → *Environment secrets* — et non des secrets de dépôt.
+Un job ne voit que ceux de l'environment qu'il déclare, plus ceux du dépôt.
 
-| Secret | Usage |
-|---|---|
-| `RENDER_DEPLOY_HOOK_PREVIEW` | URL du deploy hook Render preview |
-| `RENDER_DEPLOY_HOOK_PROD` | URL du deploy hook Render prod |
-| `VERCEL_TOKEN` | Token CLI Vercel |
-| `VERCEL_ORG_ID` | ID de l'organisation Vercel |
-| `VERCEL_PROJECT_ID` | ID du projet Vercel `data-triathlon` (**secret de dépôt**) |
+| Secret | Portée | Usage |
+|---|---|---|
+| `RENDER_DEPLOY_HOOK_PREVIEW` | environment `preview` | URL du deploy hook Render preview |
+| `RENDER_DEPLOY_HOOK_PROD` | environment `production` | URL du deploy hook Render prod |
+| `RENDER_API_KEY` | **dépôt** | Clé d'API Render — injecte `APP_VERSION` avant chaque hook (#162) |
+| `VERCEL_TOKEN` | les deux environments | Token CLI Vercel |
+| `VERCEL_ORG_ID` | les deux environments | ID de l'organisation Vercel |
+| `VERCEL_PROJECT_ID` | les deux environments | ID du projet Vercel — **valeurs différentes** (cf. plus bas) |
 
-Un seul secret est défini ailleurs : `VERCEL_PROJECT_ID` sur l'**environment
-GitHub `preview`** (Settings → Environments → `preview` → Environment secrets),
-avec l'ID de `data-triathlon-preview`. Il surcharge le secret de dépôt pour le
-seul job `deploy-preview` ; `deploy-production` continue de lire celui du dépôt.
+`RENDER_API_KEY` se crée dans le dashboard Render → *Account Settings* → **API
+Keys** ; sa valeur n'est affichée qu'à la création. Elle est portée par le compte
+et couvre les deux services, d'où une **saisie unique au niveau dépôt**.
+
+C'est le seul secret dans ce cas, et le compromis est à connaître : c'est aussi
+le plus puissant du lot — un deploy hook ne sait que déclencher un déploiement,
+cette clé écrit sur toute l'infrastructure Render du workspace. Un secret de
+dépôt est lisible par **tout workflow de n'importe quelle branche**, là où un
+secret d'environment `production` protégé par une *required reviewer* ne se
+délivre qu'après approbation. La déplacer sur les deux environments (même valeur,
+saisie deux fois) resserre cette portée sans rien changer au workflow.
+
+À ne pas confondre avec les `RENDER_DEPLOY_HOOK_*`, qui ne sont **pas** des
+jetons d'API : un deploy hook déclenche un déploiement et rien d'autre, il
+n'ouvre aucun accès à `api.render.com/v1`. D'où une clé distincte pour écrire
+`APP_VERSION`.
+
+Le service visé, lui, ne se saisit pas : il est **extrait du deploy hook**
+(`…/deploy/srv-…`), ce qui interdit par construction de pousser la version prod
+sur la preview. Sans la clé — ou avec une clé révoquée — le job échoue et rien
+n'est déployé : ce n'est pas un secret optionnel.
+
+`VERCEL_PROJECT_ID` est le seul dont la **valeur** diffère d'un environment à
+l'autre : l'ID de `data-triathlon-preview` sur `preview`, celui de
+`data-triathlon` sur `production`. C'est ce qui route la preview vers le second
+projet Vercel (#172) sans qu'aucun job n'ait à nommer sa cible.
 
 ### GitHub Pages (documentation) — une seule bascule
 
@@ -238,5 +271,13 @@ git push origin v0.1.0
    (footer de version + une lecture API).
 4. `git tag v0.1.0 && git push --tags` → `ci` puis `deploy-production`
    (hook Render prod + déploiement sur `data-triathlon`, inchangé).
+5. **Fermer la boucle de version** (#162), la seule vérification qui éprouve les
+   deux moitiés du correctif : `curl -s <URL prod>/api/v1/version` doit rendre le
+   tag — et non « dev », ni le tag précédent —, et le déploiement affiché dans le
+   dashboard Render doit porter le **commit taggé**, pas le HEAD de `main`. Le
+   premier valide l'écriture d'`APP_VERSION`, le second le `&ref=` du hook. Un
+   déploiement relancé à la main depuis le dashboard, lui, réutilise
+   l'`APP_VERSION` en place : il annoncerait le tag précédent sur du code plus
+   récent. Après une telle relance, retaguer ou corriger la variable à la main.
 5. Sur une CI volontairement cassée (erreur ruff/test), confirmer que le job de
    déploiement **n'est pas exécuté**.
