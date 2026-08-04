@@ -1,5 +1,6 @@
 // frontend/components/results/RaceFinishers.test.tsx
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { StrictMode } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { CourseSummary, Participation } from "@/lib/types";
@@ -187,9 +188,18 @@ describe("RaceFinishers", () => {
     );
   });
 
+  // Rendu sous StrictMode : l'ajustement d'état se fait pendant le rendu, et le
+  // double-rendu de StrictMode le rejouerait sans son garde d'égalité. Le test
+  // vérifie donc les deux à la fois — la resynchronisation, et le silence de
+  // React (une mise à jour pendant le rendu d'un *autre* composant, ou une
+  // boucle, sortirait en console.error).
   it("resynchronise le champ de recherche quand l'URL change (retour navigateur)", () => {
+    const erreurs = vi.spyOn(console, "error").mockImplementation(() => {});
     searchParams = new URLSearchParams("q=dupont");
-    const { rerender } = afficher();
+    const { rerender } = render(
+      <RaceFinishers participations={data} summary={synthese()} total={3} page={1} pageSize={20} />,
+      { wrapper: StrictMode },
+    );
     expect(screen.getByRole("searchbox")).toHaveValue("dupont");
 
     searchParams = new URLSearchParams();
@@ -197,6 +207,8 @@ describe("RaceFinishers", () => {
       <RaceFinishers participations={data} summary={synthese()} total={3} page={1} pageSize={20} />,
     );
     expect(screen.getByRole("searchbox")).toHaveValue("");
+    expect(erreurs).not.toHaveBeenCalled();
+    erreurs.mockRestore();
   });
 
   it("annonce l'absence de résultat de recherche distinctement d'une épreuve vide", () => {
