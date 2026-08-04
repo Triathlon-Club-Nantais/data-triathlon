@@ -1,12 +1,19 @@
 """Environnement Alembic — branché sur Settings et Base.metadata de l'application."""
+import importlib
 from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-import app.models  # noqa: F401 — enregistre toutes les tables sur Base.metadata
 from app.core.config import get_settings
 from app.core.database import Base
+
+# Chargement pour l'effet de bord seul : le package `app.models` enregistre toutes
+# les tables sur `Base.metadata`, dont `--autogenerate` se sert pour comparer le
+# modèle au schéma en base. Aucun symbole n'en est utilisé ici, d'où l'appel
+# explicite plutôt qu'un `import app.models` que tout détecteur d'import inutilisé
+# (ruff F401, CodeQL py/unused-import) signale.
+importlib.import_module("app.models")
 
 config = context.config
 config.set_main_option("sqlalchemy.url", get_settings().database_url)
