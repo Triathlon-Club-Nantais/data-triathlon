@@ -23,6 +23,7 @@ l'identité (nom, date, type, relais).
 The detail page HTML (p.text-sm meta line, ranking divs, result-row splits table)
 is byte-for-byte identical, so _parse_detail is shared from klikego.
 """
+import logging
 import re
 from datetime import date
 from urllib.parse import parse_qs, urlparse
@@ -34,6 +35,8 @@ from app.core import http
 from app.core.exceptions import DomainError
 
 from .base import ScrapedResult
+
+logger = logging.getLogger(__name__)
 
 BASE = "https://resultats.breizhchrono.com"
 HEADERS = {
@@ -237,8 +240,15 @@ def scrape_event_all(
         # plutôt que de laisser `event_date = None` sans la moindre trace.
         except DomainError:
             raise
-        except Exception:
-            pass
+        # Toute autre panne dégrade — l'épreuve s'importe sans date — mais laisse
+        # une trace : `event_date = None` change la clé d'identité de `Course`
+        # (`UNIQUE(name, event_date, event_type)`), et sans ce warning une épreuve
+        # importée sans date est indiscernable d'une épreuve qui n'en publie pas.
+        except Exception as exc:
+            logger.warning(
+                "breizhchrono: event date unreachable at %s (%s), importing without it",
+                date_page_url, exc,
+            )
 
         # Discover heats
         if heat:
