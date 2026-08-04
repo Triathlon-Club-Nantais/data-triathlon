@@ -74,7 +74,7 @@ def test_l_ensemble_des_codes_est_ferme_a_la_construction():
     """Un code hors contrat ne peut pas être levé : l'erreur est immédiate,
     plutôt qu'une valeur inconnue découverte en production dans une URL."""
     with pytest.raises(ValueError):
-        LoginError("code_invente")
+        raise LoginError("code_invente")
 
 
 def test_les_cinq_codes_du_contrat_sont_exactement_ceux_ci():
