@@ -17,18 +17,37 @@ donc `_build_exporter` qui la lit, en respectant la sémantique standard.
 import logging
 import os
 import sys
+from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
-_provider = None
-# Ce que `setup_tracing` a effectivement instrumenté — nécessaire pour
-# désinstrumenter symétriquement dans `shutdown_tracing`. Les instrumentations
-# OTel sont des singletons par classe (`BaseInstrumentor`) : tant qu'on ne
-# rappelle pas `uninstrument()`, un second `instrument()` est un no-op muet
-# (simple avertissement journalisé), et un second cycle `setup_tracing` perd
-# tous ses spans sans le dire.
-_instrumented_engine = None
-_instrumented_app = None
+
+@dataclass
+class _State:
+    """Ce que `setup_tracing` a allumé, donc ce que `shutdown_tracing` éteindra.
+
+    Les trois champs vivaient en variables de module, réaffectées par `global`.
+    Ils sont regroupés ici parce que l'état d'un module tient mieux dans un
+    objet nommé que dans trois scalaires : la remise à `None` de la fin de cycle
+    n'est relue qu'au **cycle suivant**, ce qu'aucune analyse statique
+    intra-procédurale ne voit — CodeQL déclarait ces écritures inutilisées
+    (`py/unused-global-variable`), et supprimer l'une d'elles aurait rendu
+    `shutdown_tracing` non réentrant.
+
+    Connaître ce qui a été instrumenté est nécessaire pour désinstrumenter
+    symétriquement, les instrumentations OTel étant des singletons par classe
+    (`BaseInstrumentor`) : tant qu'on ne rappelle pas `uninstrument()`, un
+    second `instrument()` est un no-op muet (simple avertissement journalisé),
+    et un second cycle `setup_tracing` perd tous ses spans sans le dire.
+    """
+
+    provider: Any = None
+    instrumented_engine: Any = None
+    instrumented_app: Any = None
+
+
+_state = _State()
 
 
 def current_provider():
@@ -38,7 +57,7 @@ def current_provider():
     donc jamais du provider global, dont `set_tracer_provider()` n'accepte
     qu'un seul réglage par process.
     """
-    return _provider
+    return _state.provider
 
 
 def _build_exporter(name: str):
@@ -65,8 +84,7 @@ def setup_tracing(*, enabled: bool, app=None, engine=None) -> None:
     No-op si `enabled` est faux, et idempotent : un second appel ne reconstruit
     rien. `app` et `engine` sont facultatifs — la CLI n'a pas d'app.
     """
-    global _provider, _instrumented_engine, _instrumented_app
-    if not enabled or _provider is not None:
+    if not enabled or _state.provider is not None:
         return
 
     from opentelemetry.sdk.resources import Resource
@@ -78,18 +96,18 @@ def setup_tracing(*, enabled: bool, app=None, engine=None) -> None:
     exporter = _build_exporter(exporter_name)
     if exporter is not None:
         provider.add_span_processor(BatchSpanProcessor(exporter))
-    _provider = provider
+    _state.provider = provider
 
     if engine is not None:
         from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 
         SQLAlchemyInstrumentor().instrument(engine=engine, tracer_provider=provider)
-        _instrumented_engine = engine
+        _state.instrumented_engine = engine
     if app is not None:
         from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
         FastAPIInstrumentor.instrument_app(app, tracer_provider=provider)
-        _instrumented_app = app
+        _state.instrumented_app = app
 
     logger.info("Traçage OpenTelemetry actif (exporter=%s)", exporter_name)
 
@@ -106,17 +124,16 @@ def shutdown_tracing() -> None:
     un `setup_tracing` ultérieur (nouvel engine, nouvelle app) redeviendrait un
     no-op muet plutôt que de reproduire l'instrumentation.
     """
-    global _provider, _instrumented_engine, _instrumented_app
-    if _instrumented_engine is not None:
+    if _state.instrumented_engine is not None:
         from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 
         SQLAlchemyInstrumentor().uninstrument()
-        _instrumented_engine = None
-    if _instrumented_app is not None:
+        _state.instrumented_engine = None
+    if _state.instrumented_app is not None:
         from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
-        FastAPIInstrumentor.uninstrument_app(_instrumented_app)
-        _instrumented_app = None
-    if _provider is not None:
-        _provider.shutdown()
-        _provider = None
+        FastAPIInstrumentor.uninstrument_app(_state.instrumented_app)
+        _state.instrumented_app = None
+    if _state.provider is not None:
+        _state.provider.shutdown()
+        _state.provider = None

@@ -14,6 +14,9 @@ down_revision: str | None = 'a1b2c3d4e5f6'
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
+# Contrat lu par réflexion par Alembic (cf. `script.py.mako`), jamais référencé ici.
+__all__ = ["revision", "down_revision", "branch_labels", "depends_on", "upgrade", "downgrade"]
+
 
 def upgrade() -> None:
     # Recrée la contrainte d'unicité en y ajoutant `is_relay`.
