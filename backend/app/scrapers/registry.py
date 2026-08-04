@@ -98,11 +98,9 @@ class ScraperProtocol(Protocol):
 
     def matches(self, url: str) -> bool:
         """Vrai si ce provider sait traiter l'URL."""
-        ...
 
     def scrape_event_all(self, url: str) -> list[ScrapedResult]:
         """Scrape tous les participants de l'épreuve (peut lever ValueError si non supporté)."""
-        ...
 
 
 class HostMatchedProvider:

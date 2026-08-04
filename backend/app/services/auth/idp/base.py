@@ -55,14 +55,11 @@ class IdentityProvider(Protocol):
 
     def is_configured(self) -> bool:
         """Vrai si ce moyen de connexion peut aboutir sur cette installation."""
-        ...
 
     def authorize(self, *, state: str) -> AuthorizationRequest:
         """Prépare le départ. Ne fait **aucune** sortie réseau."""
-        ...
 
     def fetch_identity(
         self, *, code: str, round_trip: Mapping[str, str]
     ) -> ExternalIdentity:
         """Échange le code contre une identité. Lève `LoginError` en cas d'échec."""
-        ...

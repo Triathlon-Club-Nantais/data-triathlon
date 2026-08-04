@@ -14,23 +14,18 @@ class ProgressReporter(Protocol):
 
     def batch_start(self, total: int) -> None:
         """Le batch démarre avec `total` épreuves à traiter."""
-        ...
 
     def item_start(self, index: int, label: str) -> None:
         """L'épreuve n° `index` (0-based) démarre, identifiée par `label`."""
-        ...
 
     def item_progress(self, done: int, total: int) -> None:
         """Progression *dans* l'épreuve courante : `done`/`total` participants."""
-        ...
 
     def item_done(self, imported: int, skipped: int, error: str | None) -> None:
         """L'épreuve courante est terminée — ou en échec si `error` est renseigné."""
-        ...
 
     def batch_end(self) -> None:
         """Le batch est terminé (y compris s'il a été interrompu)."""
-        ...
 
 
 class NullReporter:
