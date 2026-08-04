@@ -28,7 +28,7 @@ def logging_isole(monkeypatch):
     """Ces tests reconfigurent le root logger : ils doivent le rendre intact."""
     root = logging.getLogger()
     handlers, level = root.handlers[:], root.level
-    monkeypatch.setattr(app_logging, "_CONFIGURED", False)
+    monkeypatch.setattr(app_logging._state, "configured", False)
     yield
     root.handlers[:] = handlers
     root.setLevel(level)

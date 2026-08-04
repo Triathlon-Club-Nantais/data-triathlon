@@ -14,6 +14,9 @@ down_revision: str | None = 'b2c3d4e5f6a7'
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
+# Contrat lu par réflexion par Alembic (cf. `script.py.mako`), jamais référencé ici.
+__all__ = ["revision", "down_revision", "branch_labels", "depends_on", "upgrade", "downgrade"]
+
 
 def upgrade() -> None:
     # Nullable sans valeur par défaut : les courses déjà en base n'ont jamais été

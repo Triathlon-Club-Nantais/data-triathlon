@@ -169,7 +169,7 @@ def test_requete_http_produit_un_span_fastapi(monkeypatch):
 
     `app.main` porte un `app = create_app()` **de module**, exécuté à son tout
     premier import. `setup_tracing` est idempotent par process
-    (`_provider is not None` court-circuite tout appel suivant) : si cet
+    (`_state.provider is not None` court-circuite tout appel suivant) : si cet
     import survenait pendant la fenêtre où OTel est activé, il consommerait
     l'unique cycle d'instrumentation au profit de l'`app` de module — invisible
     ici — et notre `application` de test n'en recevrait aucune, sans qu'aucune

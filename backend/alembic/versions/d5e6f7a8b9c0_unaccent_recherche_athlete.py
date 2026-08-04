@@ -13,6 +13,9 @@ down_revision: str | None = "371ba3919468"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
+# Contrat lu par réflexion par Alembic (cf. `script.py.mako`), jamais référencé ici.
+__all__ = ["revision", "down_revision", "branch_labels", "depends_on", "upgrade", "downgrade"]
+
 
 def upgrade() -> None:
     # Recherche par nom sans accents (#163) : `ilike` ignore la casse mais jamais

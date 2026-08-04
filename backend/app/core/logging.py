@@ -11,11 +11,28 @@ réservé au rapport et à la ligne `--json`, qui doivent rester parsables (`| j
 """
 import logging
 import sys
+from dataclasses import dataclass
 from typing import TextIO
 
 from app.core.config import get_settings
 
-_CONFIGURED = False
+
+@dataclass
+class _State:
+    """Garde-fou d'idempotence de `setup_logging`.
+
+    Même parti pris que `core/tracing.py` : l'état d'un module tient dans un
+    objet nommé plutôt que dans un scalaire réaffecté par `global`. Ici, la
+    seule lecture du drapeau **précède** son écriture dans la même fonction,
+    motif qu'aucune analyse intra-procédurale ne relie — CodeQL tenait
+    l'écriture pour inutilisée (`py/unused-global-variable`) alors qu'elle est
+    tout le mécanisme.
+    """
+
+    configured: bool = False
+
+
+_state = _State()
 
 
 def setup_logging(stream: TextIO | None = None) -> None:
@@ -24,8 +41,7 @@ def setup_logging(stream: TextIO | None = None) -> None:
     `stream` : flux de sortie des logs (défaut `sys.stdout`, comportement
     historique de l'API web). La CLI passe `sys.stderr` — cf. `app/cli/__init__.py`.
     """
-    global _CONFIGURED
-    if _CONFIGURED:
+    if _state.configured:
         return
 
     settings = get_settings()
@@ -46,4 +62,4 @@ def setup_logging(stream: TextIO | None = None) -> None:
     root.addHandler(handler)
     root.setLevel(level)
 
-    _CONFIGURED = True
+    _state.configured = True
