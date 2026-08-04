@@ -69,7 +69,10 @@ def test_list_filters(client):
 
 def test_delete_participation(client):
     pid = client.post("/api/v1/participations", json=_payload()).json()["id"]
-    assert client.delete(f"/api/v1/participations/{pid}").status_code == 204
+    # La suppression est hors de l'`assert` : sous `python -O` elle ne partirait
+    # pas, et le 404 attendu ensuite ne prouverait plus rien.
+    suppression = client.delete(f"/api/v1/participations/{pid}")
+    assert suppression.status_code == 204
     assert client.get(f"/api/v1/participations/{pid}").status_code == 404
 
 

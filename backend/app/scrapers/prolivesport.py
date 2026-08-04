@@ -160,6 +160,7 @@ def _fetch_event_meta(event_id: str, client: httpx.Client) -> tuple[str, date | 
         try:
             event_date = date.fromisoformat(raw_date[:10])
         except ValueError:
+            # Date illisible : `event_date` reste `None`, l'épreuve s'importe sans.
             pass
     return name, event_date
 
