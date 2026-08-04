@@ -3,3 +3,22 @@
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
+
+# Architecture frontend
+
+Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
+`/api/v1` du backend. Tests Vitest + RTL verts. Build prod OK.
+
+- `app/` — App Router : `dashboard`, `resultats`, `athletes/[id]`, `courses/[id]`,
+  `club`, `carte`, `ajouter`, `admin`.
+- `components/` — `scrape/` (ScrapeForm, ProviderDetector, ImportProgress),
+  `results/` (ResultCard, ResultsList), `club/` (ClubView, AthleteDialog),
+  `map/` (MapView), `dashboard/` (StatsCards, RecentCourses), `ui/` (shadcn).
+- `lib/api/` — `client.ts` (appels `/api/v1`, `ApiError` porteur du statut HTTP),
+  `server.ts` (`serverFetch`, plus `serverFetchAuthed` qui relaie les cookies —
+  `serverFetch` reste **inchangé**, six pages publiques en rendu serveur
+  l'utilisent et lire les cookies les rendrait toutes dynamiques),
+  `sse.ts` (streaming import SSE).
+- `lib/types.ts` — types TypeScript partagés.
+- Déploiement : Vercel, variables `BACKEND_URL` + `API_URL`.
+
