@@ -1,4 +1,4 @@
-"""Modèle Course — une épreuve = nom + date + type (un « heat »), clé de cache par scraped_at."""
+"""Modèle Course — une épreuve = nom + date + type + relais (un « heat »), cache par scraped_at."""
 from datetime import date, datetime
 
 from sqlalchemy import JSON, Boolean, Date, DateTime, Float, String, UniqueConstraint

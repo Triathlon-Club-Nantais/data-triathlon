@@ -1,4 +1,19 @@
 <!--
+Sync Impact Report — Constitution v1.1.1
+========================================
+Version change    : 1.1.0 → 1.1.1
+Rationale         : PATCH — « correction » (Governance §3). La clé d'unicité de
+  `Course` annoncée en §Data Model était périmée : le modèle porte quatre
+  colonnes depuis la migration `b2c3d4e5f6a7` (`is_relay`, cf.
+  `backend/app/models/course.py`), pas trois. Aucun principe touché.
+Modified principles : (aucun) — §Data Model, puce « Modèle normalisé ».
+Propagation       : `AGENTS.md` §Modèle normalisé, docstring de
+  `backend/app/models/course.py`. `docs/modele-donnees.md` était déjà juste.
+Drafting notes :
+  - Correction motivée : trois analyses lancées en parallèle sur le dépôt ont
+    toutes recopié la version périmée sans ouvrir le modèle. Une doc fausse sur
+    un invariant de déduplication se propage à tout ce qui la lit.
+
 Sync Impact Report — Constitution v1.1.0
 ========================================
 Version change    : 1.0.0 → 1.1.0
@@ -276,8 +291,8 @@ faites *après* que les cas particuliers ont émergé, pas avant.
 - **Temps** : toujours des strings normalisées (`"01:23:45"`) via
   `app/scrapers/utils.py`. Pas de `timedelta` en base ni dans les DTO.
 - **Modèle normalisé** : `Athlete` (unique par nom/prénom/DDN), `Course`
-  (unique par name/event_date/event_type), `Participation` (unique par
-  course_id/bib_number). Les splits sont un JSON, pas des colonnes figées.
+  (unique par name/event_date/event_type/**is_relay**), `Participation` (unique
+  par course_id/bib_number). Les splits sont un JSON, pas des colonnes figées.
 - **Cache TTL** : jamais de re-scrape si `is_fresh(course)` renvoie `True`.
   Une commande qui court-circuite le cache doit le faire par `force=True`
   explicite, pas par contournement.
@@ -329,4 +344,4 @@ référence (architecture détaillée, commandes, conventions de scraping). En c
 de divergence entre `AGENTS.md` et cette constitution, la constitution prime
 et `AGENTS.md` doit être aligné.
 
-**Version**: 1.1.0 | **Ratified**: 2026-07-27 | **Last Amended**: 2026-07-31
+**Version**: 1.1.1 | **Ratified**: 2026-07-27 | **Last Amended**: 2026-08-05

@@ -312,7 +312,10 @@ Design : `docs/superpowers/specs/2026-07-31-sql-observability-design.md`.
 ### Modèle normalisé
 
 - **Athlete** — `UNIQUE(nom, prenom, birth_date)`.
-- **Course** — `UNIQUE(name, event_date, event_type)` ; `source_url` = clé de cache TTL.
+- **Course** — `UNIQUE(name, event_date, event_type, is_relay)`
+  (`uq_course_identity`) : le relais est un **heat distinct** du solo, sans quoi
+  les deux fusionnaient dans la même ligne. Quatre colonnes, pas trois — la
+  vérité est dans `backend/app/models/course.py`. `source_url` = clé de cache TTL.
 - **Participation** — `UNIQUE(course_id, bib_number)` → plus de doublons à l'import.
 - **splits** en **JSON** (remplace les colonnes figées swim/t1/bike/t2/run) →
   couvre tous les sports (duathlon course1/course2, swimrun…). Temps = strings.
