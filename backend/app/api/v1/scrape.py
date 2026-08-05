@@ -40,6 +40,17 @@ def scrape_event(
     return import_service.import_event(db, str(body.url), settings)
 
 
+# Padding initial de 2 KB : dépasse le seuil de buffering des navigateurs
+# (Chrome / Firefox retiennent ~1-2 KB avant de laisser `Response.body.getReader()`
+# rendre le premier chunk). Sans lui, un import Klikego fan-out (35 s de scraping)
+# reste figé sur « Récupération des participants… » côté UI alors que le backend
+# émet 8 events. Ligne SSE commençant par `:` = commentaire, ignoré par le parseur
+# de `useImportStream`. Pas un no-op côté proto : le socket reçoit ces octets
+# immédiatement, ce qui casse le tampon. `X-Accel-Buffering: no` ne suffit pas
+# (c'est un hint pour nginx, pas pour le navigateur).
+_SSE_INITIAL_PADDING = b":" + b" " * 2048 + b"\n\n"
+
+
 @router.post("/scrape/event/stream")
 def scrape_event_stream(body: ScrapeRequest, settings: Settings = Depends(settings_dep)):
     """Import épreuve avec progression temps réel (SSE)."""
@@ -48,6 +59,7 @@ def scrape_event_stream(body: ScrapeRequest, settings: Settings = Depends(settin
         # Session dédiée au générateur (cycle de vie isolé du streaming)
         db = SessionLocal()
         try:
+            yield _SSE_INITIAL_PADDING
             for event in import_service.iter_import_event(db, str(body.url), settings):
                 yield f"data: {json.dumps(event, default=_json_default)}\n\n"
         finally:

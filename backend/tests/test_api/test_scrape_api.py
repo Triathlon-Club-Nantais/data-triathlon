@@ -124,6 +124,40 @@ def test_import_event_stream_serializes_reassignments(client, monkeypatch):
     ]
 
 
+def test_import_event_stream_emet_un_padding_initial(client, monkeypatch):
+    """Le SSE ouvre par ~2 KB de padding pour casser le buffering navigateur.
+
+    Sans lui, Chrome/Firefox retiennent le body du `fetch()` jusqu'à ~1-2 KB
+    avant de rendre le premier chunk lisible via `Response.body.getReader()`.
+    Un import Klikego fan-out qui met 35 s à émettre son 1er événement
+    utile paraît alors bloqué côté UI (« Récupération des participants… »
+    figé). Contrat vérifié : la première ligne du body commence par `:`
+    (commentaire SSE, ignoré par le parseur) et pèse au moins 2 KB.
+    """
+    from app.services import import_service
+
+    def fake_iter_import_event(db, url, settings, force=False, persist=True):
+        yield {"phase": "done", "imported": 0, "updated": 0, "skipped": 0,
+               "reconciled": 0, "reassignments": [], "total": 0, "courses": []}
+
+    monkeypatch.setattr(import_service, "iter_import_event", fake_iter_import_event)
+
+    with client.stream(
+        "POST", "/api/v1/scrape/event/stream", json={"url": "https://www.klikego.com/x"}
+    ) as resp:
+        assert resp.status_code == 200
+        body = "".join(resp.iter_text())
+
+    # Le padding est la première frame (avant le premier `data: …`) et fait
+    # au moins 2 KB pour dépasser le seuil de flush des navigateurs.
+    first_frame = body.split("\n\n", 1)[0]
+    assert first_frame.startswith(":"), "premier chunk = commentaire SSE"
+    assert len(first_frame) >= 2048, (
+        f"padding trop court ({len(first_frame)} octets) — les navigateurs "
+        "retiennent ~1-2 KB avant de rendre le premier chunk lisible"
+    )
+
+
 def test_import_event_stream_expose_les_courses_touchees(client, monkeypatch):
     """Le SSE `done` porte `courses: [{id, name, event_type}]` — le front en
     tire des boutons « Voir les résultats » (#135). Contrat stable : présent
