@@ -6,6 +6,7 @@ from fastapi import APIRouter
 
 from app.api.v1 import (
     admin,
+    admin_roles,
     athletes,
     auth,
     courses,
@@ -18,5 +19,19 @@ from app.api.v1 import (
 
 api_router = APIRouter()
 
-for module in (health, version, scrape, athletes, courses, participations, stats, admin, auth):
+# **Aucun `dependencies=`** ici ni sur aucun router (FR-018) : la protection se
+# pose route par route. Montée sur `admin`, une garde supprimerait le
+# signalement anonyme du site public sans que rien ne la nomme.
+for module in (
+    health,
+    version,
+    scrape,
+    athletes,
+    courses,
+    participations,
+    stats,
+    admin,
+    admin_roles,
+    auth,
+):
     api_router.include_router(module.router)

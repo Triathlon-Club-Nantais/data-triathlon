@@ -4,6 +4,7 @@ La transaction reste portée par le service appelant (`services/auth/`), comme
 dans `import_service` et `scrape_service` : on `flush()` pour peupler l'id, on ne
 `commit()` jamais ici.
 """
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.user import User
@@ -11,6 +12,35 @@ from app.models.user import User
 
 def get(db: Session, user_id: int) -> User | None:
     return db.get(User, user_id)
+
+
+def list_all(db: Session) -> list[User]:
+    """Tous les utilisateurs, par adresse. **Sans pagination**, et c'est borné.
+
+    Le peuplement d'`users` l'est par `AUTH_ALLOWED_EMAILS` : une personne y naît
+    d'une connexion réussie *et autorisée*.
+    """
+    return list(db.scalars(select(User).order_by(User.email, User.id)))
+
+
+def find_by_email(db: Session, email: str) -> list[User]:
+    """Les utilisateurs portant cette adresse — une **liste**, jamais un scalaire.
+
+    `users.email` n'est pas unique, délibérément (#114, FR-003) : deux identités
+    externes portant la même adresse donnent deux utilisateurs distincts. Rendre
+    un scalaire rouvrirait le choix au hasard que `grant-role` doit refuser
+    (FR-030).
+
+    La casse est ignorée — une adresse ne la distingue pas côté domaine, et
+    `Prenom.Nom@` saisi à la main ne doit pas rester introuvable.
+    """
+    return list(
+        db.scalars(
+            select(User)
+            .where(func.lower(User.email) == email.strip().lower())
+            .order_by(User.id)
+        )
+    )
 
 
 def create(db: Session, *, email: str, display_name: str = "") -> User:

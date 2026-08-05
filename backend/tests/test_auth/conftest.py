@@ -93,3 +93,71 @@ def doublure(monkeypatch) -> DoublureProvider:
     faux = DoublureProvider()
     monkeypatch.setitem(registry.PROVIDERS, faux.slug, faux)
     return faux
+
+
+# --- Outillage RBAC (#115) --------------------------------------------------
+
+
+@pytest.fixture
+def organisation(db_session):
+    """Le club semé par la migration, rejoué à la main pour les tests d'API."""
+    from app.models.organisation import Organisation
+
+    ligne = Organisation(slug="tcn", name="Triathlon Club Nantais")
+    db_session.add(ligne)
+    db_session.flush()
+    return ligne
+
+
+@pytest.fixture
+def ouvrir_session(client, db_session, organisation):
+    """Fabrique une session portant **exactement** les pouvoirs demandés.
+
+    Un rôle distinct par appel : deux sessions d'un même test doivent pouvoir
+    porter des compositions différentes, faute de quoi la non-amplification ne
+    serait pas éprouvable.
+    """
+    from app.api.v1.auth import session_cookie_name
+    from app.core.config import get_settings
+    from app.models.role_permission import RolePermission
+    from app.repositories import role_repository, user_repository, user_role_repository
+    from app.services.auth import session as session_service
+
+    compteur = {"n": 0}
+
+    def _ouvrir(
+        *codes,
+        superutilisateur=False,
+        email=None,
+        nom="Prénom Nom",
+        pose_le_cookie=True,
+    ):
+        compteur["n"] += 1
+        rang = compteur["n"]
+        user = user_repository.create(
+            db_session, email=email or f"personne{rang}@exemple.fr", display_name=nom
+        )
+        db_session.flush()
+        if codes or superutilisateur:
+            role = role_repository.create(
+                db_session,
+                slug=f"role-{rang}",
+                name=f"Rôle {rang}",
+                is_superuser=superutilisateur,
+            )
+            for code in codes:
+                role.permissions.append(RolePermission(permission_code=str(code)))
+            db_session.flush()
+            user_role_repository.grant(
+                db_session,
+                user_id=user.id,
+                role_id=role.id,
+                organisation_id=organisation.id,
+            )
+        jeton = session_service.open_for(db_session, user)
+        db_session.commit()
+        if pose_le_cookie:
+            client.cookies.set(session_cookie_name(get_settings()), jeton)
+        return user
+
+    return _ouvrir

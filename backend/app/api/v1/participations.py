@@ -4,10 +4,13 @@ from datetime import date
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_permission
 from app.core.club import is_club_scope
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
+from app.core.permissions import P
 from app.core.season import parse_seasons
+from app.models.user import User
 from app.repositories import participation_repository
 from app.schemas.participation import ParticipationCreate, ParticipationOut
 from app.scrapers.base import ScrapedResult
@@ -54,8 +57,17 @@ def _to_scraped(body: ParticipationCreate) -> ScrapedResult:
 
 
 @router.post("/participations", response_model=ParticipationOut, status_code=201)
-def create_participation(body: ParticipationCreate, db: Session = Depends(get_db)):
-    """Crée manuellement un résultat (athlète + course + participation)."""
+def create_participation(
+    body: ParticipationCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission(P.PARTICIPATIONS_WRITE)),
+):
+    """Crée manuellement un résultat (athlète + course + participation).
+
+    **Ouverte à Internet jusqu'à #115** : n'importe qui pouvait injecter un
+    résultat dans la base du club. La garde referme l'anomalie ; la lecture
+    (`GET`) reste publique, c'est tout l'objet du site.
+    """
     participation = scrape_service.save_one(db, _to_scraped(body))
     return participation_repository.get(db, participation.id)
 
@@ -103,7 +115,17 @@ def get_participation(participation_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/participations/{participation_id}", status_code=204)
-def delete_participation(participation_id: int, db: Session = Depends(get_db)):
+def delete_participation(
+    participation_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission(P.PARTICIPATIONS_DELETE)),
+):
+    """Supprime définitivement un résultat.
+
+    **L'anomalie la plus nette de la base de code avant #115** : `db.delete()`
+    puis `db.commit()`, sans aucune authentification. Un pouvoir distinct de
+    l'écriture — créer et détruire ne sont pas le même geste.
+    """
     row = participation_repository.get(db, participation_id)
     if not row:
         raise NotFoundError("Résultat introuvable")

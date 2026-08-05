@@ -18,9 +18,10 @@ class User(Base):
     laxiste un compte à l'adresse d'un contributeur. Ne pas « corriger ».
 
     **Ne porte aucun rôle** (FR-041) : on est administrateur *d'un club*, pas
-    administrateur tout court. Le rôle de #115 vivra dans une association
+    administrateur tout court. Le rôle de #115 vit dans une association
     `(user, organisation, role)`, hors de cette table — le même raisonnement
-    qui place le futur mot de passe sur `identities`.
+    qui place le futur mot de passe sur `identities`. C'est `roles` ci-dessous,
+    une collection d'attributions, et **aucune colonne** n'a été ajoutée ici.
     """
 
     __tablename__ = "users"
@@ -54,5 +55,11 @@ class User(Base):
         back_populates="user", cascade="all, delete-orphan"
     )
     sessions: Mapped[list["UserSession"]] = relationship(  # noqa: F821
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    # Patron exact des deux précédentes (#114) : cascade ORM, **pas** d'`ondelete`.
+    # Supprimer un utilisateur emporte ses attributions et **jamais** les rôles
+    # eux-mêmes (FR-013).
+    roles: Mapped[list["UserRole"]] = relationship(  # noqa: F821
         back_populates="user", cascade="all, delete-orphan"
     )

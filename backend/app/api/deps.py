@@ -1,12 +1,19 @@
 """Dépendances FastAPI partagées."""
+import logging
+from collections.abc import Callable
+
 from fastapi import Depends, Request
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.core.exceptions import DomainError
+from app.core.permissions import Permission
 from app.models.user import User
+from app.services.auth import authorization
 from app.services.auth import session as session_service
+
+logger = logging.getLogger(__name__)
 
 
 def settings_dep() -> Settings:
@@ -19,6 +26,18 @@ class NotAuthenticatedError(DomainError):
 
     status_code = 401
     message = "Vous devez être connecté pour accéder à cette ressource."
+
+
+class InsufficientPermissionError(DomainError):
+    """Session valide, pouvoir absent.
+
+    Le message **ne nomme ni le pouvoir exigé, ni ceux portés** (FR-019) : un
+    refus n'a pas à dresser la carte des droits pour qui insiste. Le diagnostic
+    passe par le journal, côté serveur.
+    """
+
+    status_code = 403
+    message = "Vous n'avez pas les droits nécessaires pour cette action."
 
 
 def current_user(
@@ -49,3 +68,43 @@ def current_user(
     if user is None:
         raise NotAuthenticatedError(headers=NO_STORE_HEADERS)
     return user
+
+
+def require_permission(code: Permission | str) -> Callable[..., User]:
+    """Fabrique la garde d'une ressource. **Nomme un pouvoir, jamais un rôle** (FR-017).
+
+    Elle **compose `current_user`**, et c'est ce qui rend l'ordre 401-avant-403
+    structurel plutôt que défensif : une requête sans session n'atteint jamais le
+    contrôle de pouvoir, il n'y a donc aucun chemin où l'ordre pourrait
+    s'inverser par inadvertance.
+
+    Se pose **route par route** (FR-018). Jamais en `dependencies=` de router ni
+    d'application : `POST /admin/pending-providers` est le signalement anonyme du
+    site public, et une garde de préfixe le supprimerait sans que rien ne le
+    nomme.
+
+    Passer `P.X` plutôt qu'une chaîne n'est pas du confort :
+    `require_permission("pending_providres")` refuserait tout le monde, en
+    silence. `tests/test_permissions_catalogue.py` tient les deux bouts par AST.
+    """
+
+    def garde(
+        request: Request,
+        user: User = Depends(current_user),
+        db: Session = Depends(get_db),
+    ) -> User:
+        if authorization.has_permission(db, user, code):
+            return user
+        # FR-034 — sans cette trace, un refus n'est diagnosticable par personne :
+        # le message rendu, lui, tait délibérément le pouvoir exigé. En anglais
+        # (couche technique invisible), et sans jeton ni secret (FR-035).
+        logger.warning(
+            "Access denied: user %s lacks %s for %s %s",
+            user.id,
+            code,
+            request.method,
+            request.url.path,
+        )
+        raise InsufficientPermissionError()
+
+    return garde

@@ -81,6 +81,31 @@ reste utilisable pour un lancement brut, sans publication.
 **API versionnée** : tous les endpoints sont sous `/api/v1/*` (une future v2 vivra
 dans `app/api/v2/`). `GET /api/v1/health` vérifie l'API **et** la connexion DB.
 
+## Amorcer le premier administrateur
+
+Sur une installation neuve, personne ne porte de rôle et les ressources qui les
+distribuent en exigent un. La sortie de boucle est en ligne de commande, sur le
+serveur :
+
+```bash
+uv run python -m app.cli grant-role --email <adresse> --role admin
+```
+
+`--role` prend le **slug** d'un rôle existant — `admin`, `validator`,
+`moderator` sont semés par la migration. `--organisation` vaut par défaut le seul
+club en base.
+
+Elle **ne crée pas d'utilisateur** : demandez d'abord à la personne de se
+connecter une fois (son adresse doit figurer dans `AUTH_ALLOWED_EMAILS`). Elle
+**ne crée pas de rôle** non plus : composer un rôle est un geste d'administration
+qui passe par l'API.
+
+Deux contournements délibérés, écrits pour qu'on ne les prenne pas pour des
+oublis : elle **n'applique pas** la règle de non-amplification — sans session, il
+n'y a pas d'acteur dont comparer les pouvoirs, et l'accès au serveur *est* le
+privilège —, et elle **n'est pas soumise** à l'invariant du dernier
+administrateur, puisqu'elle ne fait qu'accorder.
+
 ## Tests & qualité
 
 ```bash
