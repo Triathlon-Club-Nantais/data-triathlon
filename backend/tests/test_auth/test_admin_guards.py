@@ -99,10 +99,9 @@ def test_lister_les_signalements_avec_le_pouvoir_rend_la_liste(
 
 
 def test_instruire_un_signalement_sans_session_rend_401(client, signalement):
-    assert (
-        client.delete(f"/api/v1/admin/pending-providers/{signalement.id}").status_code
-        == 401
-    )
+    reponse = client.delete(f"/api/v1/admin/pending-providers/{signalement.id}")
+
+    assert reponse.status_code == 401
 
 
 def test_instruire_un_signalement_sans_le_pouvoir_rend_403(
@@ -115,10 +114,9 @@ def test_instruire_un_signalement_sans_le_pouvoir_rend_403(
     """
     connecte(client, db_session, organisation, P.PENDING_PROVIDERS_READ.code)
 
-    assert (
-        client.delete(f"/api/v1/admin/pending-providers/{signalement.id}").status_code
-        == 403
-    )
+    reponse = client.delete(f"/api/v1/admin/pending-providers/{signalement.id}")
+
+    assert reponse.status_code == 403
 
 
 def test_instruire_un_signalement_avec_le_pouvoir_rend_204(
@@ -126,10 +124,9 @@ def test_instruire_un_signalement_avec_le_pouvoir_rend_204(
 ):
     connecte(client, db_session, organisation, P.PENDING_PROVIDERS_HANDLE.code)
 
-    assert (
-        client.delete(f"/api/v1/admin/pending-providers/{signalement.id}").status_code
-        == 204
-    )
+    reponse = client.delete(f"/api/v1/admin/pending-providers/{signalement.id}")
+
+    assert reponse.status_code == 204
 
 
 # --- POST /participations ---------------------------------------------------
@@ -170,9 +167,9 @@ def test_creer_un_resultat_avec_le_pouvoir_rend_201(client, db_session, organisa
 
 def test_supprimer_un_resultat_sans_session_rend_401(client, participation):
     """`db.delete(row)` puis `db.commit()`, sans la moindre garde — jusqu'ici."""
-    assert (
-        client.delete(f"/api/v1/participations/{participation.id}").status_code == 401
-    )
+    reponse = client.delete(f"/api/v1/participations/{participation.id}")
+
+    assert reponse.status_code == 401
 
 
 def test_supprimer_un_resultat_sans_le_pouvoir_rend_403(
@@ -180,9 +177,9 @@ def test_supprimer_un_resultat_sans_le_pouvoir_rend_403(
 ):
     connecte(client, db_session, organisation, P.PARTICIPATIONS_WRITE.code)
 
-    assert (
-        client.delete(f"/api/v1/participations/{participation.id}").status_code == 403
-    )
+    reponse = client.delete(f"/api/v1/participations/{participation.id}")
+
+    assert reponse.status_code == 403
 
 
 def test_supprimer_un_resultat_avec_le_pouvoir_rend_204(
@@ -190,9 +187,9 @@ def test_supprimer_un_resultat_avec_le_pouvoir_rend_204(
 ):
     connecte(client, db_session, organisation, P.PARTICIPATIONS_DELETE.code)
 
-    assert (
-        client.delete(f"/api/v1/participations/{participation.id}").status_code == 204
-    )
+    reponse = client.delete(f"/api/v1/participations/{participation.id}")
+
+    assert reponse.status_code == 204
 
 
 def test_un_refus_precede_toute_ecriture(client, db_session, organisation, participation):
