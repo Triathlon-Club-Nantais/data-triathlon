@@ -71,12 +71,16 @@ def scrape_event_stream(body: ScrapeRequest, settings: Settings = Depends(settin
         headers={
             "Cache-Control": "no-cache, no-transform",
             "X-Accel-Buffering": "no",
-            # `Content-Encoding: identity` bloque la compression par le proxy
-            # Next.js dev (Turbopack) qui, avec `Accept-Encoding: gzip` d'un
-            # navigateur, bufferisait le stream dans son compresseur gzip
-            # jusqu'à ~500 octets — la barre par heat (#156) apparaissait alors
-            # 4-5 s en retard, donnant l'impression que le SSE ne remontait rien.
-            # `no-transform` du Cache-Control est là comme second garde (RFC 7234).
+            # `Content-Encoding: identity` bloque la compression par tout
+            # intermédiaire HTTP — le proxy Turbopack de Next.js dev l'a
+            # rendue visible (avec `Accept-Encoding: gzip` d'un navigateur, il
+            # bufferisait le stream dans son compresseur jusqu'à ~500 octets,
+            # la barre par heat #156 apparaissait 4-5 s en retard), mais la
+            # même compression peut réapparaître en prod (edge Vercel, CDN,
+            # reverse-proxy) — d'où la garde côté application, pas côté env.
+            # Coût mesuré : ~5 KB de plus par import (SSE non compressé),
+            # négligeable devant le gain de latence perçue. `no-transform` du
+            # Cache-Control est le second garde de RFC 7234.
             "Content-Encoding": "identity",
         },
     )
