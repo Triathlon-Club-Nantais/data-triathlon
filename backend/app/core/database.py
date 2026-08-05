@@ -45,6 +45,12 @@ def _register_sqlite_unicode_case(dbapi_connection, _connection_record) -> None:
         # déaccentuation sont deux choses distinctes — `lower('LEMÉE')` rend
         # `lemée`, jamais `lemee`.
         dbapi_connection.create_function("unaccent", 1, deaccent, deterministic=True)
+        # Dev multi-onglets : sans WAL, une lecture longue (le dashboard) bloque
+        # tout `commit()` concurrent — le callback SSO échouait en
+        # « database is locked ». WAL laisse lecteurs et écrivain cohabiter, et
+        # le busy_timeout couvre le reste. Sans effet sur PostgreSQL (prod).
+        dbapi_connection.execute("PRAGMA journal_mode=WAL")
+        dbapi_connection.execute("PRAGMA busy_timeout=15000")
 
 engine = create_engine(
     settings.database_url,
