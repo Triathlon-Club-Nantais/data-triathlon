@@ -289,9 +289,28 @@ export interface AuthMethod {
 }
 
 /** Identité de la session courante, rendue par `GET /auth/me`. */
+export interface SessionRole {
+  id: number;
+  slug: string;
+  name: string;
+  organisation_id: number | null;
+}
+
 export interface SessionUser {
   id: number;
   email: string;
   display_name: string;
   created_at: string;
+  /**
+   * Codes des pouvoirs effectifs (#115) — « ai-je le droit d'afficher ce
+   * bouton ». Vide pour un connecté sans rôle, qui est un état légitime.
+   */
+  permissions: string[];
+  /**
+   * Rôles portés — « comment me présenter à moi-même ». Ne se déduit pas de
+   * `permissions` : sans lui, écrire « connecté en tant qu'administrateur »
+   * exigerait un appel de plus, que `GET /admin/roles` refuserait à qui n'a pas
+   * `roles:read`.
+   */
+  roles: SessionRole[];
 }

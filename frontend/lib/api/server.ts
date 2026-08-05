@@ -9,7 +9,6 @@ import type {
   EventPage,
   Participation,
   ParticipationFilters,
-  PendingProvider,
   Season,
   SessionUser,
   Stats,
@@ -87,9 +86,6 @@ export const apiServer = {
     serverFetch<Stats>(`/stats${toQuery(opts)}`),
   listSeasons: (opts: { scope?: string; federal_only?: boolean } = {}) =>
     serverFetch<Season[]>(`/stats/seasons${toQuery(opts)}`),
-  listPendingProviders: () =>
-    serverFetch<PendingProvider[]>("/admin/pending-providers"),
-
   /** Session du visiteur, ou `null` s'il est anonyme (#114). */
   getSession: () => serverFetchAuthed<SessionUser>("/auth/me"),
   /**

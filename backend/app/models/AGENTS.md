@@ -26,3 +26,40 @@
   chiffres : `docs/superpowers/specs/2026-07-19-raceresult-api-sondage.md`. Les
   scrapers qui remplissent encore les 5 slots restent plafonnés à 5 segments.
 
+## RBAC (#115) — quatre tables, deux colonnes
+
+- **Organisation** — le club. Une ligne (`tcn`). Elle existe pour rendre
+  `user_roles.organisation_id` **non nul**, ce qui supprime le piège des deux
+  index d'unicité qu'imposerait une colonne nullable. Ne portera jamais de donnée
+  sportive : `Course` est unique par `(name, event_date, event_type, is_relay)`,
+  deux clubs important la même épreuve obtiennent la **même** ligne.
+- **Role** — `UNIQUE(organisation_id, slug)` **et** un `Index` partiel unique sur
+  `slug` `WHERE organisation_id IS NULL`. Les deux, parce que SQLite comme
+  PostgreSQL tiennent deux `NULL` pour distincts : la contrainte seule laisse
+  passer deux rôles globaux `admin`. L'index porte `sqlite_where=` **et**
+  `postgresql_where=` — n'en donner qu'un produit un index *complet* sur l'autre
+  moteur, ce qui interdirait silencieusement un même slug dans deux
+  organisations. Et il vit dans `__table_args__`, pas seulement dans la
+  migration : `conftest.py` construit le schéma par `create_all`.
+- **RolePermission** — `permission_code` est une **chaîne sans clé étrangère**,
+  sur le patron de `Course.event_type`. La liste de référence des codes vit dans
+  `core/permissions.py` ; une table `permissions` serait un second inventaire, et
+  son sync effacerait des attributions en production le jour où un module ne
+  serait pas importé au démarrage.
+- **UserRole** — `UNIQUE(user_id, role_id, organisation_id)` : c'est **elle** qui
+  rend l'attribution idempotente sous concurrence, pas une lecture préalable, que
+  deux exploitants simultanés franchiraient tous deux. `role_id` et non `role`,
+  d'où un renommage gratuit. Pas d'`ondelete`, cascade ORM depuis `User.roles` —
+  même raison qu'en #114.
+- **`users` ne porte toujours aucune colonne de rôle**, et un test le vérifie sur
+  le schéma appliqué.
+
+**`Course.is_reliable` est une `hybrid_property`**, plus une colonne :
+`coalesce(reliability_override, is_reliable_computed)`, avec son `@expression`
+— sans lui elle serait illisible dans un `WHERE`. `is_reliable_computed` est
+écrite par l'import à chaque passage, `reliability_override` par le porteur de
+`quality:override`. Les deux chemins d'écriture **ne se croisent pas**, et c'est
+la forme qui l'assure, pas une garde. Lever l'avis humain (`NULL`) fait
+réapparaître le **dernier** verdict calculé, pas celui qui valait au moment de la
+décision. Le contrat public ne bouge pas : `from_attributes=True` lit une
+propriété comme une colonne.

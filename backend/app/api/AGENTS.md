@@ -14,7 +14,6 @@ Deux paramètres traversent l'API de lecture, sur le même patron que `seasons` 
   « Inclure les autres disciplines ». Un défaut à `true` amputerait
   silencieusement tout futur appelant.
 
-
 ## Classement d'une épreuve : paginé, et l'ordre est en base (#163)
 
 `GET /courses/{id}` rendait **tout** le classement — 1811 participations, 1,15 Mo
@@ -82,3 +81,37 @@ une page vide.
 
 Spec, plan et tâches : `specs/20260803-195212-course-pagination/`.
 
+## Protéger une ressource (#115)
+
+`api/deps.require_permission(P.X)` fabrique la garde d'**une** route. Elle nomme
+un **pouvoir**, jamais un rôle (FR-017), et se pose **route par route** (FR-018) :
+
+```python
+@router.get("/admin/pending-providers")
+def list_pending_providers(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission(P.PENDING_PROVIDERS_READ)),
+): ...
+```
+
+**Jamais en `dependencies=` de router ni d'application.** `admin.py` monte, sous
+le même `/admin/`, le signalement anonyme `POST /admin/pending-providers`, appelé
+par le formulaire du site public en `.catch(() => {})` : une garde de préfixe
+supprimerait la fonctionnalité sans que rien ne la nomme, invisible en
+développement et totale en production. Deux tests de #114 l'interdisent encore.
+
+**401 avant 403, structurellement** : la fabrique compose `current_user`, donc
+une requête sans session n'atteint jamais le contrôle de pouvoir. Le corps du 403
+ne nomme ni le pouvoir exigé ni ceux portés (FR-019) — le diagnostic passe par le
+journal, côté serveur, avec l'identifiant et la ressource visée.
+
+**Les routers délèguent, ils n'écrivent pas** `roles`, `role_permissions` ni
+`user_roles` : une route qui le ferait contournerait du même geste la
+non-amplification et l'invariant du dernier administrateur. Un méta-test AST le
+verrouille (FR-031) — c'est l'invariant qui se perd à la route suivante et ne se
+rattrape pas après coup.
+
+`GET /auth/me` rend en plus `permissions` et `roles`, **sans exiger de pouvoir** :
+elle ne porte que sur soi. C'est la contrepartie de `GET /admin/permissions`, qui
+exige `roles:read` — non par secret, les codes vivant dans un dépôt public, mais
+parce que son seul usage est de composer un rôle.
