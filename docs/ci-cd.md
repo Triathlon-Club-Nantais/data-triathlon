@@ -279,5 +279,5 @@ git push origin v0.1.0
    déploiement relancé à la main depuis le dashboard, lui, réutilise
    l'`APP_VERSION` en place : il annoncerait le tag précédent sur du code plus
    récent. Après une telle relance, retaguer ou corriger la variable à la main.
-5. Sur une CI volontairement cassée (erreur ruff/test), confirmer que le job de
+6. Sur une CI volontairement cassée (erreur ruff/test), confirmer que le job de
    déploiement **n'est pas exécuté**.
