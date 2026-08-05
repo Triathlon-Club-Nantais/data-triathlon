@@ -7,6 +7,8 @@ le calcul de l'indice de fiabilité de chaque course touchée (`services/quality
 et un générateur de progression pour le streaming SSE.
 """
 import logging
+import queue
+import threading
 from collections.abc import Iterator
 from dataclasses import dataclass
 from urllib.parse import urlparse
@@ -67,6 +69,36 @@ def _validate_url(url: str) -> str:
     return url
 
 
+def _merge_cached_courses(
+    db: Session, persister_courses: list[dict], trace,
+) -> list[dict]:
+    """Étoffe le `courses` du SSE `done` avec les heats sautés par cache_probe.
+
+    Sans ce complément, un ré-import Klikego où k heats sur N sont trouvés
+    frais retomberait sur un `done` listant seulement les N-k courses
+    effectivement re-scrapées : le sélecteur de fin d'import (front #135) ne
+    proposerait qu'une partie des heats de l'événement. C'est un vrai bug de
+    contrat SSE au regard de FR-008 (« le done reflète l'événement entier »).
+
+    Les Course des heats cachés sont chargées en un seul `IN` — un événement
+    à 20 heats cachés ne fait pas 20 requêtes. Dédup sur `id` : un heat qui
+    aurait à la fois été re-scrapé **et** listé cached (cas théorique) ne
+    remonte qu'une fois. Ordre : d'abord les re-scrapés (ordre de rencontre
+    dans `_Persister.add`), puis les cachés (ordre `scraped_at` desc).
+    """
+    if trace is None or not getattr(trace, "cached_urls", None):
+        return persister_courses
+    cached = course_repository.list_by_source_urls(db, trace.cached_urls)
+    seen: set[int] = {c["id"] for c in persister_courses}
+    merged = list(persister_courses)
+    for course in cached:
+        if course.id in seen:
+            continue
+        seen.add(course.id)
+        merged.append({"id": course.id, "name": course.name, "event_type": course.event_type})
+    return merged
+
+
 def _fanout_counters(trace) -> dict:
     """Construit les 5 clés de FR-008 depuis la `FanoutTrace` du provider.
 
@@ -120,6 +152,10 @@ def _scrape_all(
     Retour : `(results, trace)`. `trace` peut être `None` pour un provider qui
     n'expose pas de trace (comportement mono-heat implicite — `_fanout_counters`
     rend alors les 5 clés à 0/[]).
+
+    Pas de progression par heat ici — le chemin SSE l'obtient via
+    `_scrape_all_streaming`, qui est un générateur. Ce chemin non-streaming
+    reste utilisé par le CLI (`batch`) et le fallback `import_event`.
     """
     from app.scrapers import klikego  # circular-safe import
 
@@ -148,6 +184,90 @@ def _scrape_all(
 
     _require_event_name(url, results)
     return results, trace
+
+
+def _scrape_all_streaming(
+    url: str, db: Session, settings: Settings,
+) -> Iterator[dict]:
+    """Variante générateur de `_scrape_all`, pour le SSE.
+
+    Yield des phases `scraping` avec `heat_index/heats_total/heat_slug/heat_label`
+    au fur et à mesure que le fan-out Klikego (#156) attaque chaque heat.
+    Retour du générateur (StopIteration.value) : `(results, trace)`, sur le
+    même contrat que `_scrape_all`.
+
+    Le fan-out Klikego peut prendre 30-40 s : sans progression intermédiaire,
+    la phase `scraping` reste figée sur son message initial et l'opérateur croit
+    que la requête est bloquée. Sur un provider non-Klikego (mono-course), on
+    appelle directement `_scrape_all` — pas de yield intermédiaire.
+
+    Implémentation : le scrape tourne dans un thread pour permettre au
+    générateur de lire une file d'événements en parallèle. Le thread pousse
+    dans `queue.Queue` à chaque `on_heat_start`, plus un sentinel en fin de
+    scrape. Le générateur draine la file avec `get(timeout=…)` pour rester
+    responsive tout en ne bufférisant pas.
+    """
+    provider = registry.get_provider(url)
+
+    if not isinstance(provider, registry.KlikegoProvider):
+        # Chemin non-fan-out : bloquant unique, aucun yield intermédiaire.
+        results, trace = _scrape_all(url, db, settings)
+        return (results, trace)
+
+    cache_probe = _make_cache_probe(db, settings)
+    events: queue.Queue[dict | object] = queue.Queue()
+    sentinel = object()
+    holder: dict = {}
+
+    def on_heat_start(heat_slug: str, heat_label: str, index: int, total: int) -> None:
+        events.put({
+            "phase": "scraping",
+            "heat_slug": heat_slug,
+            "heat_label": heat_label,
+            "heat_index": index,
+            "heats_total": total,
+        })
+
+    def scrape_in_thread() -> None:
+        try:
+            results = registry_scrape_event_all(
+                url, cache_probe=cache_probe, on_heat_start=on_heat_start,
+            )
+            holder["results"] = results
+        except BaseException as exc:  # noqa: BLE001 — relayé au générateur
+            holder["error"] = exc
+        finally:
+            events.put(sentinel)
+
+    thread = threading.Thread(target=scrape_in_thread, daemon=True)
+    thread.start()
+
+    while True:
+        # 0,5 s = compromis entre réactivité de la coupure côté client et coût
+        # CPU. Le scrape émet un événement toutes les ~4 s, on ne va pas plus
+        # vite. Le timeout permet aussi de laisser le thread mourir sans bloquer
+        # le générateur si un heat n'appelle jamais le callback (cache_probe).
+        try:
+            item = events.get(timeout=0.5)
+        except queue.Empty:
+            continue
+        if item is sentinel:
+            break
+        yield item
+
+    thread.join()
+
+    if "error" in holder:
+        exc = holder["error"]
+        if isinstance(exc, ValueError):
+            raise ProviderNotSupportedError(str(exc)) from exc
+        logger.warning("Échec import %s : %s", url, exc)
+        raise ScraperError(f"Erreur lors de l'import : {exc}") from exc
+
+    results = holder["results"]
+    trace = provider.last_trace
+    _require_event_name(url, results)
+    return (results, trace)
 
 
 def _require_event_name(url: str, results: list[ScrapedResult]) -> None:
@@ -445,7 +565,8 @@ def import_event(
     results, trace = _scrape_all(url, db, settings, single_heat=single_heat)
     if not results:
         return {
-            "imported": 0, "updated": 0, "skipped": 0, "reconciled": 0, "courses": [],
+            "imported": 0, "updated": 0, "skipped": 0, "reconciled": 0,
+            "courses": _merge_cached_courses(db, [], trace),
             **_fanout_counters(trace),
         }
 
@@ -468,7 +589,7 @@ def import_event(
         "updated": persister.updated,
         "skipped": persister.skipped,
         "reconciled": persister.reconciled,
-        "courses": persister.courses_summary(),
+        "courses": _merge_cached_courses(db, persister.courses_summary(), trace),
         **_fanout_counters(trace),
     }
 
@@ -509,7 +630,13 @@ def iter_import_event(
 
     yield {"phase": "scraping", "message": "Récupération des participants…"}
     try:
-        results, trace = _scrape_all(url, db, settings, single_heat=single_heat)
+        if single_heat:
+            # Chemin échappatoire mono-heat : pas de streaming intermédiaire nécessaire.
+            results, trace = _scrape_all(url, db, settings, single_heat=True)
+        else:
+            # Chemin nominal : yield les événements intermédiaires du fan-out
+            # via `yield from`, récupère `(results, trace)` en fin de générateur.
+            results, trace = yield from _scrape_all_streaming(url, db, settings)
     except (ProviderNotSupportedError, ScraperError) as exc:
         yield {"phase": "error", "message": exc.message}
         return
@@ -524,7 +651,7 @@ def iter_import_event(
             "reconciled": 0,
             "reassignments": [],
             "total": 0,
-            "courses": [],
+            "courses": _merge_cached_courses(db, [], trace),
             **_fanout_counters(trace),
         }
         return
@@ -562,6 +689,6 @@ def iter_import_event(
         "reconciled": persister.reconciled,
         "reassignments": persister.reassignments,
         "total": total,
-        "courses": persister.courses_summary(),
+        "courses": _merge_cached_courses(db, persister.courses_summary(), trace),
         **_fanout_counters(trace),
     }

@@ -155,6 +155,7 @@ class KlikegoProvider(HostMatchedProvider):
         self, url: str,
         *,
         cache_probe: Callable[[str], bool] | None = None,
+        on_heat_start: Callable[[str, str, int, int], None] | None = None,
         single_heat: bool = False,
     ) -> list[ScrapedResult]:
         """Fan-out par défaut ; `single_heat=True` cible le `?heat=X` de l'URL."""
@@ -174,7 +175,8 @@ class KlikegoProvider(HostMatchedProvider):
 
         # Chemin nominal (fan-out) : ?heat=X ignoré, on énumère tous les heats.
         results, trace = klikego.scrape_event_fanout(
-            event_id, event_name, slug, cache_probe=cache_probe,
+            event_id, event_name, slug,
+            cache_probe=cache_probe, on_heat_start=on_heat_start,
         )
         self.last_trace = trace
         return results

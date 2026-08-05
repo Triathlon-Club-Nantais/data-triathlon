@@ -31,11 +31,18 @@ class FanoutTrace:
 
     `heats_imported` est laissé à 0 côté scraper ; `import_service` le dérive
     via l'invariant `enumerated = imported + cached + len(failures)`.
+
+    `cached_urls` liste les URLs de heats sautés parce que jugés frais par
+    `cache_probe`. `import_service` les résout en `Course` déjà en base pour
+    étoffer le sélecteur de fin d'import : sans elles, un ré-import sur un
+    événement partiellement caché n'exposerait dans le `done` que les courses
+    re-scrapées, et l'opérateur perdrait l'accès aux heats déjà en cache.
     """
     heats_enumerated: int = 0
     heats_cached: int = 0
     heats_imported: int = 0
     failures: list[dict] = dc_field(default_factory=list)
+    cached_urls: list[str] = dc_field(default_factory=list)
 
 BASE = "https://www.klikego.com"
 HEADERS = {
@@ -403,6 +410,7 @@ def scrape_event_all(
 def scrape_event_fanout(
     event_id: str, event_name: str, slug: str,
     *, cache_probe: Callable[[str], bool] | None = None,
+    on_heat_start: Callable[[str, str, int, int], None] | None = None,
 ) -> tuple[list["ScrapedResult"], FanoutTrace]:
     """Scrape tous les heats publiés d'un événement Klikego (issue #156).
 
@@ -411,6 +419,13 @@ def scrape_event_fanout(
     sauter les heats déjà en cache TTL. Les exceptions par heat sont capturées
     dans `trace.failures` et ne remontent pas — un heat en échec n'annule pas
     les autres (FR-004).
+
+    `on_heat_start(heat_slug, heat_label, index, total)` est notifié **avant** le
+    scrape d'un heat non caché — jamais pour un heat sauté (cache_probe → True) :
+    l'appelant compte sa propre progression sur les seuls heats effectivement
+    scrapés, sinon un événement à 6 heats sur 8 cachés paraîtrait progresser
+    de 1 à 8 en 4 secondes. `heat_label` est le libellé publié par Klikego
+    (« Triathlon S individuel », « SwimRun M duo »…), à afficher tel quel.
 
     Retour : `(results, trace)`. `trace.heats_imported` reste à 0 ici —
     dérivé par `import_service` via l'invariant
@@ -430,11 +445,21 @@ def scrape_event_fanout(
         heats = _enumerate_heats(event_html)
         trace.heats_enumerated = len(heats)
 
-        for heat_slug, _heat_label in heats:
+        # Pré-filtre les heats à scraper : `heats_a_scraper` fixe le total notifié
+        # à `on_heat_start`, sans quoi la progression sauterait des indices.
+        heats_a_scraper: list[tuple[str, str]] = []
+        for heat_slug, heat_label in heats:
             heat_url = _heat_source_url(event_id, slug, heat_slug)
             if cache_probe is not None and cache_probe(heat_url):
                 trace.heats_cached += 1
+                trace.cached_urls.append(heat_url)
                 continue
+            heats_a_scraper.append((heat_slug, heat_label))
+
+        total_a_scraper = len(heats_a_scraper)
+        for index, (heat_slug, heat_label) in enumerate(heats_a_scraper, start=1):
+            if on_heat_start is not None:
+                on_heat_start(heat_slug, heat_label, index, total_a_scraper)
             try:
                 all_results.extend(_scrape_single_heat(
                     event_id, heat_slug, event_name, slug, event_date, client,

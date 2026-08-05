@@ -1473,3 +1473,32 @@ def test_scrape_event_fanout_no_heats_returns_empty(monkeypatch):
     assert results == []
     assert trace.heats_enumerated == 0
     assert trace.failures == []
+
+
+def test_scrape_event_fanout_on_heat_start_notifie_par_heat_non_cache(monkeypatch):
+    """`on_heat_start` est appelé avant chaque heat effectivement scrapé.
+
+    Trois heats cachés → 5 notifications, index 1..5 sur un total 5, jamais
+    sur les 3 sautés. Sans quoi la progression côté front paraîtrait sauter
+    des indices (« épreuve 6/8 » alors qu'on scrape la 3e).
+    """
+    html = load_klikego_fixture("mesquer-2026-event.html")
+    _make_fanout_fake_client(monkeypatch, html)
+
+    cached_slugs = {"swim-run-m-duo", "triathlon-s-indiv", "triathlon-xs-relais"}
+    def probe(heat_url: str) -> bool:
+        return any(f"?heat={s}" in heat_url for s in cached_slugs)
+
+    notifications: list[tuple[str, str, int, int]] = []
+    def on_heat_start(heat_slug, heat_label, index, total):
+        notifications.append((heat_slug, heat_label, index, total))
+
+    klikego.scrape_event_fanout(
+        "1677015306084-12", "Mesquer", "triathlon-et-swimrun-mesquer-quimiac-2026",
+        cache_probe=probe, on_heat_start=on_heat_start,
+    )
+
+    assert len(notifications) == 5, "un appel par heat scrapé, pas par heat énuméré"
+    assert [n[2] for n in notifications] == [1, 2, 3, 4, 5]
+    assert all(n[3] == 5 for n in notifications)
+    assert not any(n[0] in cached_slugs for n in notifications)

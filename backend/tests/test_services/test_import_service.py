@@ -822,3 +822,112 @@ def test_import_event_returns_fanout_counters(db_session, patch_scraper, monkeyp
     assert out["heats_cached"] == 0
     assert out["heats_failed"] == 0
     assert out["failures"] == []
+
+
+def test_iter_import_event_done_liste_les_courses_cachees_du_fanout(
+    db_session, patch_scraper, monkeypatch,
+):
+    """Fan-out avec heats cachés : le SSE `done` remonte les courses des heats
+    re-scrapés **et** des heats sautés.
+
+    Sans ce complément, un ré-import sur un événement partiellement caché
+    ferait perdre au sélecteur de fin d'import (#135) l'accès aux heats déjà
+    en base — l'opérateur y verrait « 3 courses importées » alors que
+    l'événement en compte 5, et n'aurait aucun bouton vers les 2 heats cachés.
+    """
+    from app.scrapers import klikego
+    # 1er passage : 3 heats, tous scrapés → 3 courses en base.
+    patch_scraper([
+        _result("1", "A", event_name="Mesquer", event_type="triathlon-s",
+                source_url=URL + "?heat=triathlon-s-indiv"),
+        _result("2", "B", event_name="Mesquer", event_type="triathlon-xs",
+                source_url=URL + "?heat=triathlon-xs-indiv"),
+        _result("3", "C", event_name="Mesquer", event_type="swimrun-s",
+                source_url=URL + "?heat=swim-run-s-duo"),
+    ])
+    _fake_klikego_provider(monkeypatch, enumerated=3, cached=0, failures=[])
+    import_service.import_event(db_session, URL, _settings())
+
+    # 2e passage : cache_probe rend 2 heats frais → 1 seul re-scrapé, mais le
+    # `done` doit lister les 3 courses.
+    patch_scraper([
+        _result("2", "B", event_name="Mesquer", event_type="triathlon-xs",
+                source_url=URL + "?heat=triathlon-xs-indiv"),
+    ])
+    cached_trace = klikego.FanoutTrace(
+        heats_enumerated=3, heats_cached=2, failures=[],
+        cached_urls=[URL + "?heat=triathlon-s-indiv", URL + "?heat=swim-run-s-duo"],
+    )
+    provider = _fake_klikego_provider(monkeypatch, enumerated=3, cached=2, failures=[])
+    provider.last_trace = cached_trace
+
+    phases = list(import_service.iter_import_event(db_session, URL, _settings(), force=True))
+    done = phases[-1]
+
+    assert done["phase"] == "done"
+    assert len(done["courses"]) == 3, (
+        f"Attendu 3 courses (1 re-scrapée + 2 cachées), obtenu {done['courses']}"
+    )
+    event_types = {c["event_type"] for c in done["courses"]}
+    assert event_types == {"triathlon-s", "triathlon-xs", "swimrun-s"}
+
+
+def test_iter_import_event_streame_les_evenements_de_scraping_par_heat(
+    db_session, monkeypatch,
+):
+    """Fan-out Klikego : le SSE émet un `scraping` par heat avec heat_index/total.
+
+    Sans ces yields intermédiaires, la phase `scraping` reste figée 30-40 s sur
+    « Récupération des participants… » — l'opérateur croit que la requête est
+    bloquée. Le contrat vérifié ici : chaque heat non caché fait remonter un
+    event `scraping` avec heat_index 1..N et heats_total = N, dans l'ordre.
+    """
+    # 3 heats à scraper. `registry_scrape_event_all` invoque `on_heat_start`
+    # dans un ordre déterministe avant de retourner le résultat.
+    def fake_scrape(url, *, cache_probe=None, on_heat_start=None, **kwargs):
+        if on_heat_start is not None:
+            on_heat_start("triathlon-s-indiv", "Triathlon S", 1, 3)
+            on_heat_start("swim-run-m-duo", "SwimRun M duo", 2, 3)
+            on_heat_start("triathlon-xs-indiv", "Triathlon XS", 3, 3)
+        return [_result("1", "DUPONT")]
+
+    monkeypatch.setattr(import_service, "registry_scrape_event_all", fake_scrape)
+    _fake_klikego_provider(monkeypatch, enumerated=3, cached=0, failures=[])
+
+    phases = list(import_service.iter_import_event(db_session, URL, _settings()))
+
+    scraping = [p for p in phases if p["phase"] == "scraping"]
+    # 1 event d'ouverture (message initial) + 3 events par heat.
+    assert len(scraping) == 4
+    assert scraping[0].get("message"), "premier event = message générique"
+    per_heat = scraping[1:]
+    assert [p["heat_index"] for p in per_heat] == [1, 2, 3]
+    assert all(p["heats_total"] == 3 for p in per_heat)
+    assert [p["heat_slug"] for p in per_heat] == [
+        "triathlon-s-indiv", "swim-run-m-duo", "triathlon-xs-indiv",
+    ]
+    assert [p["heat_label"] for p in per_heat] == [
+        "Triathlon S", "SwimRun M duo", "Triathlon XS",
+    ]
+
+
+def test_iter_import_event_scraping_non_klikego_reste_un_seul_event(
+    db_session, patch_scraper, monkeypatch,
+):
+    """Provider non-fan-out : un seul event `scraping`, pas de progression par heat.
+
+    Un Wiclax, TimePulse, ou n'importe quel provider mono-course garde le
+    comportement historique — le streaming par heat est spécifique à Klikego.
+    """
+    patch_scraper([_result("1", "DUPONT")])
+    # `get_provider` retourne None pour une URL non-Klikego → chemin non-fan-out.
+    non_klikego_url = "https://www.timepulse.fr/course/42/classement"
+    monkeypatch.setattr(import_service.registry, "get_provider", lambda url: None)
+
+    phases = list(
+        import_service.iter_import_event(db_session, non_klikego_url, _settings())
+    )
+
+    scraping = [p for p in phases if p["phase"] == "scraping"]
+    assert len(scraping) == 1
+    assert "heat_index" not in scraping[0]
