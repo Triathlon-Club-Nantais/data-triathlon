@@ -1,12 +1,25 @@
-"""Router Admin : signalement des providers non supportés."""
+"""Router Admin : signalement des providers non supportés.
+
+**Trois routes, deux gardes, et c'est délibéré** (#115). Le signalement est
+public — il vient du formulaire du site, chez un visiteur anonyme — alors que le
+consulter et l'instruire exigent chacun leur pouvoir. C'est ce contraste qui
+interdit toute garde par préfixe (FR-018, FR-022) : posée sur `/admin`, elle
+supprimerait la fonctionnalité de signalement sans que rien ne la nomme.
+"""
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_permission
 from app.core.database import get_db
-from app.repositories import pending_provider_repository
+from app.core.exceptions import NotFoundError
+from app.core.permissions import P
+from app.models.user import User
+from app.repositories import course_repository, pending_provider_repository
+from app.schemas.admin import CourseReliabilityRead, CourseReliabilityUpdate
+from app.services import course_review
 
 router = APIRouter(tags=["admin"])
 
@@ -28,7 +41,10 @@ def report_pending_provider(body: PendingProviderCreate, db: Session = Depends(g
 
 
 @router.get("/admin/pending-providers")
-def list_pending_providers(db: Session = Depends(get_db)):
+def list_pending_providers(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission(P.PENDING_PROVIDERS_READ)),
+):
     rows = pending_provider_repository.list_unhandled(db)
     return [
         {
@@ -42,6 +58,36 @@ def list_pending_providers(db: Session = Depends(get_db)):
 
 
 @router.delete("/admin/pending-providers/{entry_id}", status_code=204)
-def mark_handled(entry_id: int, db: Session = Depends(get_db)):
+def mark_handled(
+    entry_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission(P.PENDING_PROVIDERS_HANDLE)),
+):
     pending_provider_repository.mark_handled(db, entry_id)
     db.commit()
+
+
+@router.patch(
+    "/admin/courses/{course_id}/reliability", response_model=CourseReliabilityRead
+)
+def set_course_reliability(
+    course_id: int,
+    body: CourseReliabilityUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission(P.QUALITY_OVERRIDE)),
+):
+    """Tranche à la main la fiabilité d'une épreuve, contre l'avis calculé.
+
+    `null` **lève** l'avis humain : l'épreuve reprend son verdict calculé, à jour
+    — le *dernier*, pas celui qui valait au moment de la décision (FR-039).
+
+    Rend les **trois** valeurs, et c'est délibéré : elles ne se déduisent pas
+    l'une de l'autre, et c'est ce qu'une interface de revue doit montrer.
+    """
+    course = course_repository.get(db, course_id)
+    if course is None:
+        raise NotFoundError("Épreuve introuvable")
+    course_review.set_override(db, course, verdict=body.reliability_override)
+    db.commit()
+    db.refresh(course)
+    return course

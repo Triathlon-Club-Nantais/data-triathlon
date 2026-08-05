@@ -507,7 +507,7 @@ class _Persister:
             course_repository.set_quality(
                 self.db,
                 course,
-                is_reliable=report.is_reliable,
+                is_reliable_computed=report.is_reliable,
                 quality_issues=report.anomalies,
             )
 

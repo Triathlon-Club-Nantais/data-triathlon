@@ -19,8 +19,8 @@ from app.core.config import Settings
 from app.core.database import get_db
 from app.core.exceptions import AuthUnavailableError, NotFoundError
 from app.models.user import User
-from app.schemas.auth import AuthMethodRead, SessionUserRead
-from app.services.auth import flow
+from app.schemas.auth import AuthMethodRead, SessionRoleRead, SessionUserRead
+from app.services.auth import authorization, flow
 from app.services.auth import session as session_service
 from app.services.auth.errors import ERROR_CODES, LoginError
 from app.services.auth.idp import registry
@@ -243,7 +243,30 @@ def logout(
 
 
 @router.get("/auth/me", response_model=SessionUserRead)
-def me(user: User = Depends(current_user)):
-    """Identité de la session. **401** pour un anonyme, jamais « 200 vide » —
-    point de contrat figé, en changer inverserait une sémantique."""
-    return user
+def me(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Identité de la session, ses pouvoirs et ses rôles.
+
+    **401** pour un anonyme, jamais « 200 vide » — point de contrat figé, en
+    changer inverserait une sémantique.
+
+    **Aucun pouvoir n'est exigé** : la lecture ne porte que sur soi. C'est la
+    contrepartie de FR-003, qui réserve l'inventaire **général** des pouvoirs à
+    `roles:read`. Un connecté sans rôle obtient deux listes vides, et c'est un
+    état légitime — celui de tout le monde sur une installation neuve.
+    """
+    return SessionUserRead(
+        id=user.id,
+        email=user.email,
+        display_name=user.display_name,
+        created_at=user.created_at,
+        permissions=sorted(authorization.effective_permissions(db, user)),
+        roles=[
+            SessionRoleRead(
+                id=attribution.role.id,
+                slug=attribution.role.slug,
+                name=attribution.role.name,
+                organisation_id=attribution.organisation_id,
+            )
+            for attribution in user.roles
+        ],
+    )

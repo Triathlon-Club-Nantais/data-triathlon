@@ -116,10 +116,19 @@ def touch_scraped_at(db: Session, course: Course) -> None:
 
 
 def set_quality(
-    db: Session, course: Course, *, is_reliable: bool, quality_issues: dict[str, int]
+    db: Session,
+    course: Course,
+    *,
+    is_reliable_computed: bool,
+    quality_issues: dict[str, int],
 ) -> None:
-    """Persiste l'indice de fiabilité calculé à l'import (cf. services/quality.py)."""
-    course.is_reliable = is_reliable
+    """Persiste l'indice de fiabilité **calculé** à l'import (cf. services/quality.py).
+
+    Écrit `is_reliable_computed`, jamais `reliability_override` : l'avis d'un
+    humain survit à tous les re-scrapes, et aucune garde n'est nécessaire pour
+    cela — les deux colonnes sont distinctes (FR-037).
+    """
+    course.is_reliable_computed = is_reliable_computed
     course.quality_issues = quality_issues
 
 

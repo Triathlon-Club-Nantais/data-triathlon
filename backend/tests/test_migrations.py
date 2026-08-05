@@ -45,7 +45,12 @@ def _columns(url: str, table: str) -> set[str]:
 
 def test_upgrade_head_sur_base_vierge(sqlite_url):
     command.upgrade(_alembic_config(), "head")
-    assert {"is_reliable", "quality_issues"} <= _columns(sqlite_url, "courses")
+    assert {"is_reliable_computed", "reliability_override", "quality_issues"} <= _columns(
+        sqlite_url, "courses"
+    )
+    # `is_reliable` est une **propriété** de l'ORM depuis #115, jamais une
+    # colonne : la voir reparaître ici signalerait un `add_column` de trop.
+    assert "is_reliable" not in _columns(sqlite_url, "courses")
 
 
 def test_upgrade_ne_desactive_pas_les_loggers_existants(sqlite_url):
@@ -114,7 +119,151 @@ def test_downgrade_puis_upgrade_de_l_indice_de_fiabilite(sqlite_url):
     # tête, mais toute migration ajoutée depuis le décale (le socle d'auth l'a
     # fait) — l'assertion se serait alors mise à éprouver autre chose.
     command.downgrade(cfg, "b2c3d4e5f6a7")
-    assert not {"is_reliable", "quality_issues"} & _columns(sqlite_url, "courses")
+    assert not {"is_reliable", "is_reliable_computed", "quality_issues"} & _columns(
+        sqlite_url, "courses"
+    )
 
     command.upgrade(cfg, "head")
-    assert {"is_reliable", "quality_issues"} <= _columns(sqlite_url, "courses")
+    assert {"is_reliable_computed", "reliability_override", "quality_issues"} <= _columns(
+        sqlite_url, "courses"
+    )
+
+
+def test_les_tables_du_rbac_sont_creees(sqlite_url):
+    command.upgrade(_alembic_config(), "head")
+    assert {
+        "organisations",
+        "roles",
+        "role_permissions",
+        "user_roles",
+    } <= _tables(sqlite_url)
+
+
+def _lignes(url: str, requete: str) -> list[tuple]:
+    engine = sa.create_engine(url)
+    try:
+        with engine.connect() as connexion:
+            return [tuple(ligne) for ligne in connexion.execute(sa.text(requete))]
+    finally:
+        engine.dispose()
+
+
+def test_la_migration_seme_exactement_trois_roles_systeme(sqlite_url):
+    """FR-041 — et ce semis ne se rejoue **jamais**.
+
+    Aucune migration ultérieure ne doit recomposer ces trois lignes : leur
+    composition devient une donnée d'exploitation dès la première édition à
+    chaud, et une migration qui la réécrirait effacerait une décision humaine
+    sans laisser de trace. Ce test verrouille le **seul** semis autorisé.
+    """
+    command.upgrade(_alembic_config(), "head")
+
+    roles = _lignes(
+        sqlite_url,
+        "SELECT slug, is_system, is_superuser, organisation_id FROM roles ORDER BY slug",
+    )
+
+    assert [ligne[0] for ligne in roles] == ["admin", "moderator", "validator"]
+    assert all(ligne[1] for ligne in roles), "un rôle semé n'est pas is_system"
+    assert all(ligne[3] is None for ligne in roles), "un rôle semé n'est pas global"
+
+
+def test_admin_est_le_seul_superutilisateur_et_ne_porte_aucun_code(sqlite_url):
+    """`is_superuser` franchit tout pouvoir, **y compris ceux pas encore écrits**.
+
+    Lui coller les neuf codes du jour le figerait au jour d'aujourd'hui — c'est
+    exactement ce que ce booléen évite (FR-014).
+    """
+    command.upgrade(_alembic_config(), "head")
+
+    superutilisateurs = _lignes(sqlite_url, "SELECT slug FROM roles WHERE is_superuser")
+    assert superutilisateurs == [("admin",)]
+
+    codes_admin = _lignes(
+        sqlite_url,
+        "SELECT permission_code FROM role_permissions"
+        " JOIN roles ON roles.id = role_permissions.role_id WHERE roles.slug = 'admin'",
+    )
+    assert codes_admin == []
+
+
+def test_moderator_porte_ses_deux_codes_couples(sqlite_url):
+    """Instruire un signalement sans pouvoir lire la liste n'a pas de sens.
+
+    C'est la raison d'être du semis de ce rôle : l'oubli du pouvoir de lecture
+    est le bug attendu d'une composition à la main.
+    """
+    command.upgrade(_alembic_config(), "head")
+
+    codes = _lignes(
+        sqlite_url,
+        "SELECT permission_code FROM role_permissions"
+        " JOIN roles ON roles.id = role_permissions.role_id"
+        " WHERE roles.slug = 'moderator' ORDER BY permission_code",
+    )
+
+    assert codes == [("pending_providers:handle",), ("pending_providers:read",)]
+
+
+def test_validator_porte_le_seul_pouvoir_de_qualite(sqlite_url):
+    command.upgrade(_alembic_config(), "head")
+
+    codes = _lignes(
+        sqlite_url,
+        "SELECT permission_code FROM role_permissions"
+        " JOIN roles ON roles.id = role_permissions.role_id WHERE roles.slug = 'validator'",
+    )
+
+    assert codes == [("quality:override",)]
+
+
+def test_l_organisation_du_club_est_semee(sqlite_url):
+    """`user_roles.organisation_id` est non nul : sans elle, aucune attribution."""
+    command.upgrade(_alembic_config(), "head")
+
+    assert _lignes(sqlite_url, "SELECT slug FROM organisations") == [("tcn",)]
+
+
+def test_le_renommage_de_is_reliable_conserve_les_donnees(sqlite_url):
+    """`alter_column`, pas `drop`/`add` — le verdict calculé survit à la montée.
+
+    C'est le seul point de cette révision qui porte des données en place, et
+    celui qu'un `drop_column`/`add_column` aurait perdu sans bruit.
+    """
+    cfg = _alembic_config()
+    command.upgrade(cfg, "d5e6f7a8b9c0")  # révision précédant le RBAC
+
+    engine = sa.create_engine(sqlite_url)
+    try:
+        with engine.begin() as connexion:
+            connexion.execute(
+                sa.text(
+                    "INSERT INTO courses (name, source_url, provider, event_type,"
+                    " is_relay, is_reliable, scraped_at, created_at)"
+                    " VALUES ('Épreuve', '', '', '', 0, 1, '2026-01-01', '2026-01-01')"
+                )
+            )
+    finally:
+        engine.dispose()
+
+    command.upgrade(cfg, "head")
+
+    assert _lignes(sqlite_url, "SELECT is_reliable_computed, reliability_override FROM courses") == [
+        (1, None)
+    ]
+
+
+def test_downgrade_puis_upgrade_du_rbac(sqlite_url):
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+
+    command.downgrade(cfg, "d5e6f7a8b9c0")
+    assert not {"organisations", "roles", "role_permissions", "user_roles"} & _tables(
+        sqlite_url
+    )
+    assert "is_reliable" in _columns(sqlite_url, "courses")
+
+    command.upgrade(cfg, "head")
+    assert {"organisations", "roles", "role_permissions", "user_roles"} <= _tables(
+        sqlite_url
+    )
