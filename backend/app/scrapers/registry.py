@@ -5,7 +5,8 @@ Chaque provider est une instance implémentant `ScraperProtocol`. La détection 
 fait en parcourant la liste `PROVIDERS` (plus de chaîne de `if/else`). Ajouter un
 provider = créer son adapter et l'ajouter à la liste, à un seul endroit.
 
-Provider inconnu → fallback Playwright.
+Provider inconnu → `PlaywrightProvider`, sentinelle de refus et non un scraper
+(voir sa docstring : le fallback navigateur a été supprimé avec sa dépendance).
 
 La détection se fait sur le **host** de l'URL, jamais sur une sous-chaîne de
 l'URL entière : un jeton en query suffisait à router n'importe quelle URL vers
