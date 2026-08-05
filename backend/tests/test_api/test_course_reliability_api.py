@@ -147,15 +147,16 @@ def test_deux_roles_ont_bien_deux_perimetres_differents(
     rien d'autre. Sans elle, « rôle » ne serait qu'un mot sur un écran."""
     _session_etroite(client, db_session, P.QUALITY_OVERRIDE)
 
-    assert (
-        client.patch(
-            f"/api/v1/admin/courses/{epreuve_douteuse.id}/reliability",
-            json={"reliability_override": True},
-        ).status_code
-        == 200
+    arbitrage = client.patch(
+        f"/api/v1/admin/courses/{epreuve_douteuse.id}/reliability",
+        json={"reliability_override": True},
     )
-    assert client.get("/api/v1/admin/users").status_code == 403
-    assert client.delete("/api/v1/admin/pending-providers/1").status_code == 403
+    utilisateurs = client.get("/api/v1/admin/users")
+    signalement = client.delete("/api/v1/admin/pending-providers/1")
+
+    assert arbitrage.status_code == 200
+    assert utilisateurs.status_code == 403
+    assert signalement.status_code == 403
 
 
 def test_un_reimport_n_ecrase_pas_l_avis_humain(client, db_session, epreuve_douteuse):

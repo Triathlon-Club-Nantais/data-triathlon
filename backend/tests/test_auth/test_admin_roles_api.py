@@ -74,7 +74,8 @@ def test_creer_lire_modifier_et_supprimer_un_role(client, ouvrir_session):
     assert modification.json()["name"] == "Archiviste en chef"
     assert modification.json()["permissions"] == []
 
-    assert client.delete(f"/api/v1/admin/roles/{role['id']}").status_code == 204
+    suppression = client.delete(f"/api/v1/admin/roles/{role['id']}")
+    assert suppression.status_code == 204
     assert client.get(f"/api/v1/admin/roles/{role['id']}").status_code == 404
 
 
@@ -132,10 +133,9 @@ def test_retirer_un_role_non_porte_est_un_succes(client, ouvrir_session):
         json={"slug": "archivist", "name": "Archiviste", "permissions": []},
     ).json()
 
-    assert (
-        client.delete(f"/api/v1/admin/users/{cible.id}/roles/{role['id']}").status_code
-        == 204
-    )
+    retrait = client.delete(f"/api/v1/admin/users/{cible.id}/roles/{role['id']}")
+
+    assert retrait.status_code == 204
 
 
 def test_renommer_un_role_ne_perd_aucune_attribution(
@@ -361,10 +361,14 @@ def test_toutes_les_ressources_de_roles_exigent_leur_pouvoir(client, ouvrir_sess
     """Chacune porte sa garde **individuellement** (FR-017, FR-018)."""
     ouvrir_session()
 
-    assert client.get("/api/v1/admin/roles").status_code == 403
-    assert client.post("/api/v1/admin/roles", json={"slug": "x", "name": "X"}).status_code == 403
-    assert client.patch("/api/v1/admin/roles/1", json={"name": "X"}).status_code == 403
-    assert client.delete("/api/v1/admin/roles/1").status_code == 403
-    assert client.get("/api/v1/admin/users").status_code == 403
-    assert client.post("/api/v1/admin/users/1/roles", json={"role_id": 1}).status_code == 403
-    assert client.delete("/api/v1/admin/users/1/roles/1").status_code == 403
+    refus = [
+        client.get("/api/v1/admin/roles"),
+        client.post("/api/v1/admin/roles", json={"slug": "x", "name": "X"}),
+        client.patch("/api/v1/admin/roles/1", json={"name": "X"}),
+        client.delete("/api/v1/admin/roles/1"),
+        client.get("/api/v1/admin/users"),
+        client.post("/api/v1/admin/users/1/roles", json={"role_id": 1}),
+        client.delete("/api/v1/admin/users/1/roles/1"),
+    ]
+
+    assert [reponse.status_code for reponse in refus] == [403] * 7

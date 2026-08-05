@@ -123,4 +123,6 @@ def test_un_role_portant_un_code_perime_reste_supprimable(
     ouvrir_session(P.ROLES_WRITE, P.QUALITY_OVERRIDE)
     role = _role_perime(db_session)
 
-    assert client.delete(f"/api/v1/admin/roles/{role.id}").status_code == 204
+    suppression = client.delete(f"/api/v1/admin/roles/{role.id}")
+
+    assert suppression.status_code == 204
