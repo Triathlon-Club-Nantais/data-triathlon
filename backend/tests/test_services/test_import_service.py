@@ -16,8 +16,13 @@ def _settings() -> Settings:
 
 
 def _result(bib, nom, prenom="Jean", **kw) -> ScrapedResult:
+    # `source_url` = URL de l'épreuve importée, comme le posent tous les
+    # scrapers réels sur chacun de leurs résultats. Depuis #156,
+    # `mapping.get_or_create_course` la retient en priorité pour `Course.source_url`
+    # (clé de cache TTL) — un placeholder distinct (l'ancien "http://detail")
+    # casserait le cache re-scrape de `_cached_result`.
     base = dict(
-        source_url="http://detail",
+        source_url=URL,
         provider="klikego",
         athlete_name=nom,
         athlete_firstname=prenom,
