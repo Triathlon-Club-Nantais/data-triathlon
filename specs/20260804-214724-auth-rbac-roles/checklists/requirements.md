@@ -1,7 +1,7 @@
 # Specification Quality Checklist: RBAC — rôles composables
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
-**Created**: 2026-08-04 · **Révisé**: 2026-08-04 (v2)
+**Created**: 2026-08-04 · **Révisé**: 2026-08-05 (v3)
 **Feature**: [spec.md](../spec.md)
 
 ## Content Quality
@@ -69,6 +69,56 @@ aurait produit exactement la divergence documentation/code que ce dépôt combat
   authentification, et le filet de #114 imposait qu'elles le restent. FR-023 les
   ferme. C'est hors du périmètre littéral de l'issue #115, et intégré sur
   arbitrage du 2026-08-04.
+
+### Ce que la v3 change — la revue humaine a trouvé ce que le fan-out n'a pas trouvé
+
+Cinq instructions parallèles avaient instruit cette feature ; une relecture
+humaine (PR #193, @MathieuHerrmann, 2026-08-05) a produit deux choses qu'aucune
+n'avait produites :
+
+- **un objet manquant** — les groupes d'appartenance. Les cinq instructions
+  cherchaient à modéliser des *droits* ; un groupe n'en est pas un, donc aucune
+  ne pouvait le voir. Écarté vers **#197**, avec le jalon qui rend le retard
+  sûr : « avant qu'un groupe porte un droit » ;
+- **une question mal posée** — le patron d'évolution des rôles semés, offert en
+  trois voies (organique / GitLab / Kubernetes). Aucune n'est retenue : la
+  question qui les précède n'avait pas été posée, et sa réponse (FR-041, une
+  migration ne recompose jamais un rôle) les rend sans objet. C'est la seule
+  décision de cette révision qui **retire** du travail.
+
+C'est la contre-épreuve exacte de la note « convergence de sous-agents = artefact »
+qui ouvre `research.md`. Un lecteur sans le corpus du dépôt en contexte voit ce
+que le corpus empêche de voir.
+
+**Six FR ajoutés ou modifiés** : FR-003 (portée de l'inventaire), FR-010
+(symétrie du retrait), FR-020 (rôles portés dans la session), FR-040 (convention
+de nommage), FR-041 (semis unique), FR-042 (pouvoir périmé en base). Un rôle
+système de plus (`moderator`), quatre lignes d'Out of Scope, deux edge cases.
+
+### Ce que `/speckit-analyze` a trouvé, et que ni la revue ni le fan-out n'avaient vu
+
+Deux anomalies **critiques**, même cause, deux sites — dans le contrat, pas dans
+le code, donc avant la première ligne écrite.
+
+`PATCH /admin/roles/{id}` remplace l'ensemble des pouvoirs : tout `PATCH` retire
+donc implicitement les codes **périmés** qu'un rôle traîne. Le contrat refusait
+en 403 le retrait d'un pouvoir que l'appelant ne porte pas — or un code absent du
+catalogue n'est porté par **personne**, superutilisateur compris, dont les
+pouvoirs effectifs *sont* le catalogue. Le rôle devenait immodifiable ; `is_system`
+(FR-006) ou attribué (FR-007), il devenait aussi indélébile. Même mécanisme à
+l'attribution : le rôle devenait inattribuable.
+
+Trois documents affirmaient pourtant l'inverse — « purgeable, jamais bloquante ».
+Un nettoyage de code ordinaire suffisait à les démentir.
+
+**FR-011 est donc borné à l'inventaire**, à l'octroi comme au retrait. La borne
+n'est pas une précaution : c'est la condition de réversibilité. Et la tâche de
+test T037, écrite avant l'implémentation, **encodait la règle fautive** — le TDD
+protège de l'implémentation fausse, jamais de la spécification fausse.
+
+Trois trous de couverture fermés au passage : FR-005 (renommer sans perdre ses
+attributions — la justification même de `role_id`), FR-006 dans sa moitié
+« reste modifiable », et FR-012 au niveau de la ressource et non du repository.
 
 ### Une limite que le filet ne couvre plus, et qui doit être écrite
 

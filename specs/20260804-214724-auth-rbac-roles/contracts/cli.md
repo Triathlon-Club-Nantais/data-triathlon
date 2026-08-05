@@ -1,6 +1,6 @@
 # Contrat CLI — `grant-role`
 
-**Feature** : RBAC — rôles composables · **Révisé** : 2026-08-04 (v2)
+**Feature** : RBAC — rôles composables · **Révisé** : 2026-08-05 (v3)
 
 ```bash
 uv run python -m app.cli grant-role --email <adresse> --role <slug> [--organisation <slug>]
@@ -14,8 +14,8 @@ contrôle pas.
 
 `--role` prend le **slug** d'un rôle existant, pas un nom d'affichage : c'est le
 seul identifiant de rôle immuable (`data-model.md`). Les rôles semés par la
-migration sont `admin` et `validator` ; tout rôle créé ensuite depuis l'API est
-également utilisable.
+migration sont `admin`, `validator` et `moderator` ; tout rôle créé ensuite depuis
+l'API est également utilisable.
 
 `--organisation` vaut par défaut l'unique organisation semée. L'option existe
 parce que le modèle porte l'organisation ; elle n'a qu'une valeur possible tant
