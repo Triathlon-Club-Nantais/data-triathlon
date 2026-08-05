@@ -7,6 +7,7 @@ function state(overrides: Partial<ImportState>): ImportState {
   return {
     running: false, phase: "idle", message: "", total: 0, progress: 0,
     imported: 0, updated: 0, skipped: 0, cached: false, courses: [],
+    heatIndex: 0, heatsScrapingTotal: 0, heatLabel: "", heatSlug: "",
     heatsEnumerated: 0, heatsImported: 0, heatsCached: 0, heatsFailed: 0, failures: [],
     error: null,
     ...overrides,
