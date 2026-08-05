@@ -146,6 +146,12 @@ def test_import_event_stream_emet_un_padding_initial(client, monkeypatch):
         "POST", "/api/v1/scrape/event/stream", json={"url": "https://www.klikego.com/x"}
     ) as resp:
         assert resp.status_code == 200
+        # `Content-Encoding: identity` bloque la compression gzip par le proxy
+        # Next.js dev — sinon les 8 events fan-out sortaient bufférisés dans
+        # le compresseur pendant 4 s. `no-transform` du Cache-Control est le
+        # second garde de RFC 7234.
+        assert resp.headers.get("content-encoding") == "identity"
+        assert "no-transform" in resp.headers.get("cache-control", "")
         body = "".join(resp.iter_text())
 
     # Le padding est la première frame (avant le premier `data: …`) et fait
