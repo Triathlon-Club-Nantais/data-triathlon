@@ -21,14 +21,13 @@ from bs4 import BeautifulSoup
 import app.scrapers.klikego as klikego
 import app.scrapers.klikego_platform as plat
 from app.scrapers.base import ScrapedResult
+from tests.conftest import load_klikego_fixture
 
 _detect_event_type = klikego._detect_event_type
 _parse_detail = klikego._parse_detail
 _parse_search_row = klikego._parse_search_row
 decode_data_block = plat.decode_data_block
 parse_data_row = plat.parse_data_row
-
-from tests.conftest import load_klikego_fixture
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
