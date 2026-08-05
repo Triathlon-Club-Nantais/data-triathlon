@@ -49,10 +49,20 @@ masquerait la vraie cause derrière trois démarrages sur trois ports.
 
 Un worktree reste une copie **neuve** : rien de gitignoré ne l'accompagne. Pour les
 worktrees créés par Claude Code (`claude --worktree`, sous-agents
-`isolation: worktree`), `.worktreeinclude` à la racine liste ce qui doit suivre —
-syntaxe `.gitignore`, et un fichier n'est copié que s'il est à la fois matché **et**
-gitignoré. Aujourd'hui : `.env` (donc `backend/.env`, porteur de `DATABASE_URL`),
-`.env.local`, la base de dev `backend/triathlon.db` et `frontend/node_modules/`.
+`isolation: worktree`) ou par Orca, `.worktreeinclude` à la racine liste ce qui doit
+suivre — un fichier n'est copié que s'il est à la fois listé **et** gitignoré.
+Aujourd'hui : `.env` **et** `backend/.env` (porteur de `DATABASE_URL`), les trois
+profondeurs de `.env.local` (racine, `backend/`, `frontend/` — aucune n'existe
+aujourd'hui, elles sont listées par avance), la base de dev `backend/triathlon.db`
+et `frontend/node_modules`.
+
+**Ce sont des chemins littéraux, pas des motifs `.gitignore`** : Orca ne fait aucune
+expansion (globs et négations sautés avec un avertissement), donc `.env` seul désigne
+le `.env` de la **racine** et rien d'autre. C'est ce qui a fait qu'un worktree Orca
+démarrait sans `backend/.env` alors que le fichier semblait couvert : le `.env` racine
+existant bel et bien, la copie réussissait — sur le mauvais fichier. Et un chemin
+absent est sauté **en silence**, ce qui rend l'entrée morte indiscernable de l'entrée
+qui fonctionne.
 
 Ce dernier est là parce que **la copie bat la réinstallation** : 12,8 s contre
 34,3 s de `npm ci` à cache npm chaud. `backend/.venv/` en est absent pour la raison
