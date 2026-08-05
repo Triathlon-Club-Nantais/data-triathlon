@@ -442,7 +442,7 @@ def _patch_klikego_fanout(monkeypatch, results_by_heat: dict[str, list], failure
 
     failures = failures or []
 
-    def fake_fanout(event_id, event_name, slug, *, cache_probe=None):
+    def fake_fanout(event_id, event_name, slug, *, cache_probe=None, on_heat_start=None):
         all_results = []
         trace = klikego.FanoutTrace()
         trace.heats_enumerated = len(results_by_heat) + len(failures)

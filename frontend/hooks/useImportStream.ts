@@ -13,6 +13,13 @@ export interface ImportState {
   updated: number;
   skipped: number;
   cached: boolean;
+  // Progression par heat en phase `scraping` (fan-out Klikego #156).
+  // Indice 1-based, `heatsScrapingTotal` = nombre de heats à scraper (hors cache
+  // TTL par heat). Non renseigné = pas de fan-out, affiche le message classique.
+  heatIndex: number;
+  heatsScrapingTotal: number;
+  heatLabel: string;
+  heatSlug: string;
   // Courses touchées par le dernier import : câble « Voir les résultats » (#135).
   // Multi (heats, listes) → autant d'entrées. Vide en dehors de la phase `done`.
   courses: ImportedCourse[];
@@ -35,6 +42,10 @@ const INITIAL: ImportState = {
   updated: 0,
   skipped: 0,
   cached: false,
+  heatIndex: 0,
+  heatsScrapingTotal: 0,
+  heatLabel: "",
+  heatSlug: "",
   courses: [],
   heatsEnumerated: 0,
   heatsImported: 0,
@@ -55,7 +66,15 @@ export function useImportStream() {
     try {
       for await (const ev of importEventStream(url)) {
         if (ev.phase === "scraping") {
-          setState((s) => ({ ...s, phase: "scraping", message: ev.message }));
+          setState((s) => ({
+            ...s,
+            phase: "scraping",
+            message: ev.message ?? s.message,
+            heatIndex: ev.heat_index ?? s.heatIndex,
+            heatsScrapingTotal: ev.heats_total ?? s.heatsScrapingTotal,
+            heatLabel: ev.heat_label ?? s.heatLabel,
+            heatSlug: ev.heat_slug ?? s.heatSlug,
+          }));
         } else if (ev.phase === "saving") {
           setState((s) => ({
             ...s,

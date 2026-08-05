@@ -90,6 +90,26 @@ def list_by_source_url(db: Session, source_url: str) -> list[Course]:
     )
 
 
+def list_by_source_urls(db: Session, source_urls: list[str]) -> list[Course]:
+    """Une seule requête IN pour un lot d'URLs — évite le N+1 sur les heats cachés.
+
+    Utilisé par le SSE `done` du fan-out Klikego (#156) : quand k heats sur N
+    sont sautés par le cache TTL, on récupère leurs `Course` déjà en base pour
+    étoffer le sélecteur de fin d'import. Sans lot, un import à 20 heats cachés
+    ferait 20 requêtes à la place d'une.
+
+    Liste vide → requête évitée, retour `[]`.
+    """
+    if not source_urls:
+        return []
+    return (
+        db.query(Course)
+        .filter(Course.source_url.in_(source_urls))
+        .order_by(Course.scraped_at.desc())
+        .all()
+    )
+
+
 def touch_scraped_at(db: Session, course: Course) -> None:
     """Met à jour l'horodatage de scraping (clé du cache TTL)."""
     course.scraped_at = utcnow()

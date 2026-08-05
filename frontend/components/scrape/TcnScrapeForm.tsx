@@ -19,7 +19,10 @@ export function TcnScrapeForm() {
 
   const save = useSaveParticipation();
   const importStream = useImportStream();
-  const { phase, error, running, imported, skipped, total, progress, cached, message, courses } = importStream.state;
+  const {
+    phase, error, running, imported, skipped, total, progress, cached, message, courses,
+    heatIndex, heatsScrapingTotal, heatLabel,
+  } = importStream.state;
 
   const submit = useCallback(() => {
     const v = url.trim();
@@ -83,7 +86,17 @@ export function TcnScrapeForm() {
 
         {(phase === "scraping" || phase === "saving") && (
           <div style={{ marginTop: 14 }}>
-            <ImportBar phase={phase} progress={progress} total={total} imported={imported} skipped={skipped} message={message} />
+            <ImportBar
+              phase={phase}
+              progress={progress}
+              total={total}
+              imported={imported}
+              skipped={skipped}
+              message={message}
+              heatIndex={heatIndex}
+              heatsScrapingTotal={heatsScrapingTotal}
+              heatLabel={heatLabel}
+            />
           </div>
         )}
 
@@ -346,6 +359,9 @@ function ImportBar({
   imported,
   skipped,
   message,
+  heatIndex,
+  heatsScrapingTotal,
+  heatLabel,
 }: {
   phase: string;
   progress: number;
@@ -353,12 +369,32 @@ function ImportBar({
   imported: number;
   skipped: number;
   message: string;
+  heatIndex: number;
+  heatsScrapingTotal: number;
+  heatLabel: string;
 }) {
   const pct = total > 0 ? Math.round((progress / total) * 100) : 0;
+  // Fan-out Klikego (#156) : le backend émet un événement `scraping` par heat
+  // avec `heat_index/heats_total/heat_label`. Sur un provider mono-course, ces
+  // clés restent à zéro et on retombe sur le message initial.
+  const fanoutProgress = heatsScrapingTotal > 0 && heatIndex > 0;
+  const heatPct = fanoutProgress ? Math.round((heatIndex / heatsScrapingTotal) * 100) : 0;
   return (
     <div style={{ padding: "14px 18px", background: "var(--tcn-fill)", border: "1px solid var(--tcn-border)", borderRadius: "var(--tcn-radius-xl)" }}>
       {phase === "scraping" ? (
-        <div style={{ fontSize: 14, color: "var(--tcn-text-body)", fontWeight: 600 }}>{message || "Récupération des participants…"}</div>
+        fanoutProgress ? (
+          <>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "var(--tcn-text-body)", marginBottom: 8 }}>
+              <span style={{ fontWeight: 600 }}>Récupération… épreuve {heatIndex}/{heatsScrapingTotal}</span>
+              <span style={{ color: "var(--tcn-text-muted)" }}>{heatLabel}</span>
+            </div>
+            <div style={{ height: 8, background: "var(--tcn-surface)", borderRadius: 999, overflow: "hidden" }}>
+              <div style={{ width: heatPct + "%", height: "100%", background: "var(--tcn-orange)", transition: "width var(--tcn-dur)" }} />
+            </div>
+          </>
+        ) : (
+          <div style={{ fontSize: 14, color: "var(--tcn-text-body)", fontWeight: 600 }}>{message || "Récupération des participants…"}</div>
+        )
       ) : (
         <>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "var(--tcn-text-body)", marginBottom: 8 }}>

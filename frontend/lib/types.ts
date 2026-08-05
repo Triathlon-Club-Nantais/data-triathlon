@@ -160,8 +160,19 @@ export interface ImportResult {
 }
 
 // Événements du flux SSE d'import.
+// Fan-out Klikego (#156) : la phase `scraping` peut porter une progression par
+// heat (`heat_index`/`heats_total`/`heat_slug`/`heat_label`). Ces clés sont
+// optionnelles — un provider mono-course émet le seul yield initial avec
+// `message`, sans elles.
 export type ImportProgressEvent =
-  | { phase: "scraping"; message: string }
+  | {
+      phase: "scraping";
+      message?: string;
+      heat_index?: number;
+      heats_total?: number;
+      heat_slug?: string;
+      heat_label?: string;
+    }
   | { phase: "saving"; total: number; imported: number; updated: number; skipped: number; progress: number }
   | {
       phase: "done";
