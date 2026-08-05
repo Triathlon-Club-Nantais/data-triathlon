@@ -2,11 +2,11 @@
 
 **Feature Branch**: `feat-auth-rbac-r-les-administrateur-validateur-e`
 
-**Created**: 2026-08-04 · **Révisée**: 2026-08-04 (v2)
+**Created**: 2026-08-04 · **Révisée**: 2026-08-05 (v3)
 
 **Status**: Draft
 
-**Input**: issue #115 (sous-issue de l'épique #81), son commentaire d'arbitrage du 2026-08-02, la discussion GitHub #143, et les arbitrages produit du 2026-08-04.
+**Input**: issue #115 (sous-issue de l'épique #81), son commentaire d'arbitrage du 2026-08-02, la discussion GitHub #143, les arbitrages produit du 2026-08-04, et la revue de @MathieuHerrmann sur la PR #193 avec les arbitrages du 2026-08-05.
 
 ---
 
@@ -38,6 +38,76 @@ modèle du verdict de fiabilité (deux colonnes, composées).
 
 ---
 
+## Ce que la revue du 2026-08-05 change, et ce qu'elle ne change pas
+
+La revue de @MathieuHerrmann sur la PR #193 approuve le modèle et lève sept
+points. Aucun ne remet en cause la v2 ; quatre la précisent, deux l'étendent, un
+est écarté par un raisonnement plutôt que par un choix.
+
+**Intégré sans discussion** — quatre trous de formulation, tous gratuits :
+la symétrique en retrait de la règle de pose du caractère d'administration
+(FR-010), le fait qu'un retrait de pouvoir n'invalide pas la session de son
+porteur (Edge Cases), la convention de nommage des codes de pouvoir (FR-040), et
+l'enrichissement de la session en cours par les **rôles** portés et non seulement
+les pouvoirs (FR-020) — sans quoi une interface ne peut pas afficher « connecté
+en tant qu'administrateur » sans un second appel.
+
+**Un troisième rôle est semé** : `moderator`, porteur des deux pouvoirs de
+signalement. Arbitrage du 2026-08-05, contre l'argument que FR-006 le rendra
+définitivement présent. Les deux pouvoirs sont couplés et décrivent une fonction
+organisationnelle entière ; les composer à la main le premier jour est un rite de
+passage sans valeur, et l'oubli du pouvoir de lecture est le bug attendu.
+
+**Les groupes d'appartenance sortent du périmètre**, vers l'issue **#197**.
+Un groupe dit à quoi on **appartient**, un rôle ce qu'on **peut faire** : ce sont
+deux objets, et aucune agrégation de rôles ne rend « liste-moi les membres du
+Codir ». Mais leur retard est **gratuit**, ce qui est l'exact inverse du
+raisonnement qui fait poser les rôles maintenant : tant qu'un groupe ne porte
+aucun droit, la table n'intersecte aucune décision d'accès, donc aucun test de
+garde n'est à défaire. #197 porte ce jalon — « avant qu'un groupe porte un
+droit » —, seul moment où le coût cesse d'être nul.
+
+**Trois limites sont nommées** plutôt que débattues dans six mois : pas de refus
+explicite, pas de compte machine, pas d'attribution qui expire (Out of Scope).
+
+### Le point écarté : le patron d'évolution des rôles semés
+
+La revue demande de trancher entre trois voies pour l'enrichissement futur de
+`validator` — organique, figé avec un `validator_v2`, ou agrégation par étiquette
+à la façon de Kubernetes. **La question se dissout** dès qu'on répond à celle qui
+la précède : *une migration a-t-elle le droit de recomposer un rôle existant ?*
+
+Non. À partir du moment où FR-004 rend un rôle éditable à chaud, sa composition
+est une **donnée d'exploitation**, pas un livrable. Une migration qui ajouterait
+un pouvoir à `validator` écraserait une décision d'exploitant, silencieusement.
+La règle est donc : **on sème une fois, on ne recompose jamais** (FR-041).
+
+Cela rend les trois voies sans objet. Un pouvoir nouvellement livré atteint
+l'administrateur **immédiatement** par `is_superuser` (FR-009) et atteint
+`validator` quand un exploitant l'y ajoute — en un appel, depuis l'interface.
+L'argument avancé contre la voie organique — « les définitions divergent entre
+installations semées à des dates différentes » — suppose un parc d'installations.
+Il y en a une. Et le patron GitLab (`validator_v2`) existe parce que GitLab doit
+à des millions d'installations un contrat de compatibilité que ce projet ne doit
+à personne.
+
+### Le point tranché autrement : la portée de l'inventaire des pouvoirs
+
+La revue propose « voie AWS » (inventaire réservé aux gestionnaires) contre
+« voie Kubernetes » (inventaire lisible par tout connecté, les codes vivant de
+toute façon dans un dépôt public). **L'argument du secret ne départage rien** :
+il n'y en a pas.
+
+Ce qui départage est ailleurs. La seconde voie créerait une classe de ressource
+qui n'existe nulle part ailleurs dans cette feature — « authentifié, mais aucun
+pouvoir exigé » — pour un consommateur qui n'existe pas : le seul lecteur de
+l'inventaire général est l'écran de composition des rôles, et il faut `roles:read`
+pour aller au bout du geste. L'auto-inspection, elle, est déjà servie par la
+session en cours (FR-020). L'inventaire reste donc derrière `roles:read`
+(FR-003), non par prudence mais par absence de besoin.
+
+---
+
 ## Contexte hérité
 
 Le socle d'authentification (#114, livré) ouvre une session par délégation à
@@ -59,6 +129,31 @@ supprime, l'une comme l'autre sans aucune authentification. Le filet de #114,
 écrit pour prouver l'absence de régression sur le site public, **impose
 aujourd'hui qu'elles le restent** — il verrouille l'anomalie au lieu de la
 signaler. Les fermer entre dans le périmètre de cette feature.
+
+---
+
+## Clarifications
+
+### Session 2026-08-05
+
+- Q: Veux-tu qu'une table `permissions` liste les codes en base, en plus des
+  lignes `role_permissions` qui y sont déjà ? → A: Non. Les codes de pouvoir
+  **sont** déjà des chaînes stockées en base — c'est le vocabulaire du modèle qui
+  laissait croire l'inverse, et c'est lui qui est corrigé.
+
+**Ce que ce point tranche, et qui se reprend facilement** : « les pouvoirs sont
+en base » et « la *liste* des pouvoirs possibles est en base » sont deux choses
+différentes.
+
+| | Où | Modifiable à chaud |
+| --- | --- | --- |
+| Le code porté par un rôle (`"quality:override"`) | **En base**, une ligne de `role_permissions` | **Oui** |
+| La liste des codes qui existent | **Dans l'application** (FR-002) | Non — un pouvoir naît de la ligne qui le vérifie |
+
+Une table listant les codes possibles n'ajouterait **aucune capacité** à
+l'exploitant : elle dupliquerait en base un inventaire que l'application détient
+déjà, avec un chemin d'écriture au démarrage dont la variante destructive efface
+des attributions en production sans bruit (`research.md` §D3).
 
 ---
 
@@ -141,7 +236,7 @@ ressources protégées.
 
 ### User Story 3 - Composer un rôle sans redéploiement (Priority: P1)
 
-Le président du club crée un rôle « Modérateur bénévolat », le nomme, coche ce
+Le président du club crée un rôle « Archiviste », le nomme, coche ce
 qu'il a le droit de faire dans une liste rangée par fonctionnalité, et l'attribue
 à deux membres. Aucun développeur n'intervient, aucune mise en production n'a
 lieu, et c'est effectif à la requête suivante des intéressés.
@@ -207,7 +302,12 @@ second administrateur, refaire les quatre, et constater qu'elles aboutissent.
    caractère d'administration, **Then** refus.
 4. **Given** deux administrateurs actifs, **When** l'un se retire, **Then**
    l'opération aboutit.
-5. **Given** une installation sans aucun administrateur (obtenue par un chemin
+5. **Given** deux administrateurs actifs, **When** l'un retire à l'autre son rôle
+   d'administration, **Then** l'opération aboutit. La règle de pose est
+   symétrique : qui porte le caractère d'administration peut aussi le retirer,
+   à autrui comme à soi. Seul l'invariant du dernier administrateur borne ce
+   geste.
+6. **Given** une installation sans aucun administrateur (obtenue par un chemin
    que l'application ne contrôle pas), **When** l'exploitant lance la commande
    d'amorçage, **Then** elle rétablit la situation sans session.
 
@@ -251,6 +351,11 @@ gestion des rôles.
 - **Un rôle est modifié pendant qu'une session l'utilise.** La décision étant
   prise à chaque requête, le changement s'applique à la requête suivante. Une
   requête déjà en vol s'achève.
+- **Un pouvoir est retiré à quelqu'un de connecté.** Sa **session n'est pas
+  invalidée** : il reste connecté, il garde son identité, et seul le pouvoir
+  tombe — à la requête suivante. Fermer la session serait une punition
+  disproportionnée et déconnecterait quelqu'un qui a peut-être encore d'autres
+  rôles. La fermeture de session reste le geste de #114 : désactiver le compte.
 - **Un pouvoir est retiré de l'application par une livraison.** Les rôles qui le
   référençaient conservent une ligne inerte : plus rien ne l'interroge. Elle est
   visible et purgeable, jamais bloquante.
@@ -273,11 +378,16 @@ gestion des rôles.
   l'application sait vérifier), le **rôle** (un nom donné à un ensemble de
   pouvoirs) et l'**attribution** (une personne porte un rôle dans une
   organisation).
-- **FR-002**: L'inventaire des pouvoirs DOIT être déterminé par l'application
+- **FR-002**: L'**inventaire** des pouvoirs DOIT être déterminé par l'application
   elle-même. Un pouvoir NE PEUT PAS être créé depuis l'interface : il n'existe
-  que parce qu'une ressource le vérifie.
+  que parce qu'une ressource le vérifie. Cela ne dit rien du **stockage** : le
+  code qu'un rôle porte est bien une donnée conservée en base et modifiable à
+  chaud (FR-004). Ce qui n'est pas en base, c'est la liste des codes qui
+  existent.
 - **FR-003**: Cet inventaire DOIT être consultable, en français, groupé par
-  fonctionnalité, et s'enrichir de lui-même à chaque livraison.
+  fonctionnalité, et s'enrichir de lui-même à chaque livraison. Sa consultation
+  DOIT exiger le pouvoir de lecture des rôles : son seul usage est de composer un
+  rôle. Connaître ses **propres** pouvoirs relève de FR-020, qui n'exige rien.
 - **FR-004**: Les rôles DOIVENT être créables, nommables, modifiables et
   supprimables **sans redéploiement**.
 - **FR-005**: Un rôle DOIT pouvoir être renommé sans perdre ses attributions.
@@ -291,13 +401,49 @@ gestion des rôles.
 - **FR-009**: Un rôle PEUT porter le caractère d'**administration**, qui lui
   accorde tout pouvoir, **y compris ceux ajoutés après sa création**. C'est ce
   qui garantit qu'une fonctionnalité livrée est administrable immédiatement.
-- **FR-010**: Le caractère d'administration NE DOIT être posable que par
-  quelqu'un qui le porte déjà.
-- **FR-011**: Nul NE DOIT accorder un pouvoir qu'il ne porte pas lui-même.
+- **FR-010**: Le caractère d'administration NE DOIT être posable **ni retirable**
+  que par quelqu'un qui le porte déjà. La règle est symétrique, et vaut envers
+  autrui comme envers soi-même : seul FR-032 borne le retrait.
+- **FR-011**: Nul NE DOIT accorder un pouvoir qu'il ne porte pas lui-même. La
+  règle s'applique **aux seuls pouvoirs de l'inventaire**, à l'octroi comme au
+  retrait. Un pouvoir **absent de l'inventaire** DOIT rester retirable et ne
+  DOIT jamais empêcher d'attribuer le rôle qui le porte : sans cette borne, un
+  rôle ayant survécu à la suppression d'une fonctionnalité deviendrait
+  immodifiable et inattribuable pour tout le monde, superutilisateur compris —
+  et, s'il est livré avec l'application (FR-006) ou déjà attribué (FR-007), il
+  serait aussi indélébile.
 - **FR-012**: Une attribution DOIT être unique et idempotente.
 - **FR-013**: La suppression d'un utilisateur DOIT emporter ses attributions.
 - **FR-014**: Ajouter un rôle ou un pouvoir NE DOIT exiger aucune migration des
   données existantes.
+- **FR-040**: Un code de pouvoir DOIT suivre la forme `<domaine>:<geste>`, où le
+  geste nomme **l'acte métier** et non l'opération technique quand les deux
+  diffèrent. `lecture` et `écriture` restent légitimes là où le geste n'a pas
+  d'autre nom ; `quality:override` n'est pas à réécrire en `courses:update`, qui
+  décrirait une écriture générique que personne ne détient.
+- **FR-041**: Le système DOIT être livré avec trois rôles : administration,
+  qualité et tri des signalements. Une migration ultérieure NE DOIT **jamais**
+  recomposer un rôle déjà semé : dès lors qu'un rôle est éditable à chaud
+  (FR-004), sa composition est une donnée d'exploitation, qu'une migration
+  écraserait sans que personne ne le voie. Un pouvoir livré plus tard atteint
+  l'administration d'office (FR-009) et les autres rôles par décision humaine.
+  **Cette règle a un coût récurrent et un seuil.** Le projet prévoit plus d'un
+  pouvoir nouveau par mois : chacun qui devrait revenir à un rôle
+  non-administrateur demande un geste manuel, avec un mode de panne silencieux —
+  personne ne constate l'oubli avant qu'un porteur se plaigne. Le coût reste nul
+  tant que les pouvoirs nouveaux ouvrent des **domaines nouveaux**, qui vont à
+  l'administration d'office ou justifient un rôle créé à chaud. **Le déclencheur
+  de réouverture est donc précis** : le jour où un domaine déjà couvert par un
+  rôle non-administrateur gagne un troisième pouvoir, cette règle est à
+  réexaminer — l'issue de rechange est l'absorption par domaine, une colonne dont
+  `is_superuser` serait le cas particulier « absorbe tout ».
+- **FR-042**: Un pouvoir référencé par un rôle mais absent de l'inventaire NE
+  DOIT rien accorder, NE DOIT PAS faire échouer la décision d'accès, NE DOIT
+  bloquer **ni la modification ni l'attribution** du rôle qui le porte (FR-011),
+  et DOIT être signalé comme périmé à la lecture du rôle. C'est l'unique cas où
+  la base et l'application peuvent diverger, et il se produit à chaque
+  suppression de fonctionnalité — c'est donc la seule dette permanente du choix
+  de tenir la politique en base plutôt qu'en code.
 
 ### Décision d'accès
 
@@ -315,8 +461,10 @@ gestion des rôles.
   français, sans divulguer quels pouvoirs existent ni lesquels le demandeur
   porte.
 - **FR-020**: La session en cours DOIT permettre de connaître les pouvoirs
-  effectifs de son porteur, afin qu'une interface n'ait pas à les deviner en
-  collectant des refus.
+  effectifs de son porteur **et les rôles qu'il porte**, afin qu'une interface
+  n'ait pas à les deviner en collectant des refus, ni à faire un second appel
+  pour écrire « connecté en tant qu'administrateur ». Cette lecture N'EXIGE aucun
+  pouvoir : elle ne porte que sur soi-même.
 
 ### Ressources protégées et ressources publiques
 
@@ -439,6 +587,17 @@ gestion des rôles.
 - **La liste d'adresses autorisées de #114 reste en amont.** Elle décide qui peut
   *se connecter* ; les rôles décident ce qu'on peut *faire*. Une adresse
   autorisée sans rôle est un état normal.
+- **Les rôles semés ne bougent plus après leur semis** (FR-041). Leur
+  composition initiale est un point de départ raisonnable, pas un contrat : un
+  exploitant peut la modifier dès le premier jour, et c'est cette version-là qui
+  fait foi ensuite. Corollaire assumé : deux installations semées à des dates
+  différentes peuvent diverger. Il y en a une.
+- **Les pouvoirs à venir ouvriront surtout des domaines nouveaux** (arbitrage du
+  2026-08-05). C'est ce qui rend FR-041 gratuit : un domaine neuf n'appartient à
+  aucun rôle existant, il revient à l'administration par `is_superuser` ou
+  justifie un rôle créé à chaud. Si cette hypothèse se dément — un domaine déjà
+  couvert gagnant un troisième pouvoir —, FR-041 est à rouvrir, et non à
+  contourner par des `PATCH` mensuels qu'on finira par oublier.
 
 ---
 
@@ -455,6 +614,10 @@ gestion des rôles.
   « Revalidation qualité » de l'épique #81.
 - **Prépare** : #170 (liste d'autorisation en base) et #95 (libellés club en
   base), qui deviendront des pouvoirs et des écrans du même back-office.
+- **Prérequis de #197** (groupes d'appartenance) : celle-ci en reprend le
+  catalogue de pouvoirs, le mécanisme de garde, le filet d'inventaire des routes
+  et le patron de table. #197 ne peut pas commencer avant, et ne doit pas
+  commencer après qu'un groupe ait besoin de porter un droit.
 
 ---
 
@@ -467,3 +630,15 @@ gestion des rôles.
 - Une table d'audit en base.
 - Le rapprochement de `scope=club` et des organisations (#95).
 - La liste d'autorisation en base (#170) et la révocation d'urgence (#169).
+- **Les groupes d'appartenance (#197)** — Codir, techniciens, arbitres. Un
+  groupe existe même vide de droits ; tant qu'il n'en porte aucun, il
+  n'intersecte pas la décision d'accès, et son retard ne coûte rien.
+- **Le refus explicite.** Aucun moyen d'interdire nommément un pouvoir à
+  quelqu'un qui le tiendrait d'un autre rôle : on retire le rôle. C'est le
+  modèle de Kubernetes, et l'inverse d'AWS IAM.
+- **Les comptes machine et les jetons personnels.** Tout accès passe par une
+  session ouverte par délégation à GitHub. Un webhook, un cron externe ou un
+  script d'intégration continue ne peuvent pas appeler les ressources
+  d'administration.
+- **Les attributions qui expirent.** Pas de « validateur pendant trente jours » :
+  une attribution dure jusqu'à son retrait.

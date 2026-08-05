@@ -1,6 +1,6 @@
 # Implementation Plan: RBAC — rôles composables et protection des ressources d'administration
 
-**Branch**: `feat-auth-rbac-r-les-administrateur-validateur-e` | **Date**: 2026-08-04 (v2) | **Spec**: [spec.md](spec.md)
+**Branch**: `feat-auth-rbac-r-les-administrateur-validateur-e` | **Date**: 2026-08-05 (v3) | **Spec**: [spec.md](spec.md)
 
 **Input**: `specs/20260804-214724-auth-rbac-roles/spec.md`
 
@@ -111,21 +111,40 @@ backend/
 │   │   ├── auth/authorization.py          # NOUVEAU — décision, CRUD, invariants
 │   │   ├── course_review.py               # NOUVEAU
 │   │   └── import_service.py              # 1 ligne : nom de la colonne écrite
-│   └── cli/commands/grant_role.py         # NOUVEAU
-└── tests/
+│   └── cli/
+│       ├── __init__.py                    # + app.command("grant-role")
+│       └── commands/grant_role.py         # NOUVEAU
+└── tests/                                 # 18 fichiers — 16 nouveaux, 2 modifiés
     ├── test_auth/
-    │   ├── test_public_routes_still_open.py   # change de nature (FR-025)
-    │   ├── test_require_permission.py · test_admin_roles_api.py
-    │   └── test_lockout_invariant.py · test_no_privilege_escalation.py
+    │   ├── test_public_routes_still_open.py   # MODIFIÉ — change de nature (FR-025)
+    │   ├── test_rbac_models.py                # contraintes, index partiel, cascade
+    │   ├── test_require_permission.py         # 401 avant 403
+    │   ├── test_admin_guards.py               # les 4 routes fermées + la publique
+    │   ├── test_admin_roles_api.py            # les 7 ressources, nominal et refus
+    │   ├── test_stale_permissions.py          # FR-042 + purge (C1/C2)
+    │   ├── test_no_privilege_escalation.py    # FR-011, borné à l'inventaire
+    │   ├── test_me_permissions.py             # FR-020 : permissions + roles
+    │   └── test_lockout_invariant.py          # FR-032, les 4 chemins
+    ├── test_core/test_permissions.py          # le catalogue, gelé
     ├── test_permissions_catalogue.py          # lecteur d'AST (FR-026)
-    ├── test_migrations.py                     # 3 assertions : nom de colonne
+    ├── test_migrations.py                     # MODIFIÉ — colonnes + semis
+    ├── test_repositories/
+    │   ├── test_role_repositories.py
+    │   └── test_course_reliability.py         # la propriété hybride
     ├── test_cli/test_grant_role.py
+    ├── test_api/test_course_reliability_api.py
     └── test_services/{test_authorization.py, test_course_review.py}
 
 frontend/
-├── components/admin/PendingProvidersTable.tsx   # affiche le refus 403
-└── lib/api/server.ts                            # − listPendingProviders (morte)
+├── components/admin/PendingProvidersTable.tsx        # affiche le refus 403
+├── components/admin/PendingProvidersTable.test.tsx   # NOUVEAU — 403 ≠ liste vide
+└── lib/api/server.ts                                 # − listPendingProviders (morte)
 ```
+
+L'arborescence de test est **exhaustive** : 18 fichiers pour 20 fichiers
+applicatifs, ce qui est le rapport attendu sous le Principe III. Une version
+abrégée ferait sous-estimer de moitié la surface à écrire — c'est ce que la v3
+de ce plan corrigeait.
 
 **Structure Decision**: application web existante. La feature est backend ;
 l'interface ne reçoit qu'un correctif d'affichage et une suppression de code
@@ -136,7 +155,8 @@ d'interface de #81 — une fois ce modèle en place, ce sont des PR front pures.
 
 ### Couche 1 — un porteur de rôle franchit une porte fermée
 
-Migration (4 tables + seed d'une organisation et de deux rôles système) →
+Migration (4 tables + seed d'une organisation et de **trois** rôles système :
+`admin`, `validator`, `moderator`) →
 `core/permissions.py` → repositories → `services/auth/authorization` →
 `require_permission` → gardes sur `GET`/`DELETE /admin/pending-providers`,
 `POST`/`DELETE /participations` → évolution du filet → test de catalogue →
@@ -153,9 +173,15 @@ s'attribue un rôle depuis le serveur. US1 et US2.
 ### Couche 2 — les rôles se composent sans redéploiement
 
 `admin_roles.py` (7 routes), `services/auth/authorization` (CRUD, invariant de
-verrouillage, non-amplification), `GET /auth/me` enrichi.
+verrouillage, non-amplification), `GET /auth/me` enrichi de `permissions`
+**et** de `roles`.
 
 **Livrée seule** : US3 et US4. C'est l'exigence produit qui a rouvert la spec.
+
+Une seule migration existe dans tout le plan, celle de la couche 1. **Aucune
+autre ne recompose un rôle** (FR-041) : si `/speckit-tasks` produit une tâche de
+migration qui écrit dans `role_permissions` pour un rôle déjà semé, c'est une
+tâche à supprimer, pas à exécuter.
 
 ### Couche 3 — le pouvoir de qualité
 

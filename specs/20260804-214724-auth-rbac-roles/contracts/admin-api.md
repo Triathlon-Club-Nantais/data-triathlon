@@ -1,6 +1,6 @@
 # Contrat HTTP — ressources d'administration
 
-**Feature** : RBAC — rôles composables · **Révisé** : 2026-08-04 (v2)
+**Feature** : RBAC — rôles composables · **Révisé** : 2026-08-05 (v3)
 **Base** : `/api/v1`
 
 Chaque ressource porte sa garde **individuellement** et nomme un **pouvoir**,
@@ -73,6 +73,17 @@ Groupé par fonctionnalité, ordonné pour l'affichage. Les `code` sont des
 identifiants techniques anglais et stables — ils traversent la base ; `feature`,
 `label` et `description` sont du français d'affichage.
 
+**Forme d'un `code` : `<domaine>:<geste>`** (FR-040). Le geste nomme l'acte
+métier quand il en a un — `quality:override`, `pending_providers:handle` —, et
+retombe sur `read` / `write` quand il n'en a pas d'autre. La forme CRUD n'est pas
+la norme : `courses:update` décrirait une écriture générique sur les épreuves que
+personne ne détient et que rien ne vérifie.
+
+**Cet inventaire exige `roles:read`**, et ce n'est pas une question de secret —
+les codes vivent dans un dépôt public. C'est qu'il n'a pas d'autre lecteur : son
+seul usage est de composer un rôle. Qui veut connaître **ses** pouvoirs lit
+`GET /auth/me`, qui n'exige rien.
+
 ---
 
 ## `GET /admin/roles` · `GET /admin/roles/{id}`
@@ -100,7 +111,11 @@ inertes, purgeables, jamais bloquants.
 
 ## `POST /admin/roles`
 
-**Requête** : `{"slug": "volunteer_moderator", "name": "Modérateur bénévolat", "description": "", "organisation_id": null, "permissions": []}`
+**Requête** : `{"slug": "archivist", "name": "Archiviste", "description": "", "organisation_id": null, "permissions": []}`
+
+Le slug d'exemple est volontairement **hors** des trois rôles semés (`admin`,
+`validator`, `moderator`) : cette ressource sert à composer ce que l'application
+ne livre pas.
 
 **201** — le rôle au format ci-dessus.
 
@@ -128,13 +143,26 @@ porte déjà tout, et c'est précisément ce qui rend la délégation possible.
 | Erreur | Statut |
 | --- | --- |
 | `slug` soumis à modification | `422` — le slug est immuable |
-| Pouvoir hors catalogue | `422` |
-| Pouvoir non porté par l'appelant (ajout **ou** retrait) | `403` |
+| Pouvoir **soumis** hors catalogue | `422` |
+| Pouvoir **du catalogue** non porté par l'appelant (ajout **ou** retrait) | `403` |
 | `is_superuser` modifié par un non-superutilisateur | `403` |
 | Retrait de `is_superuser` laissant l'organisation sans administrateur actif | `409` |
 
 **Le changement s'applique à la requête suivante de tous les porteurs**, sans
 reconnexion (FR-016).
+
+### Les pouvoirs périmés sortent de la comparaison — et ce n'est pas un détail
+
+`permissions` **remplace** l'ensemble : tout `PATCH` retire donc implicitement les
+codes périmés que le rôle traînait. Si la non-amplification les comparait, ces
+codes seraient **irretirables** — personne ne les porte, pas même un
+superutilisateur, dont les pouvoirs effectifs *sont* le catalogue. Le rôle
+deviendrait immodifiable, et `is_system` ou attribué, indélébile (FR-006,
+FR-007). Un nettoyage de code ordinaire suffirait à geler un rôle définitivement.
+
+La règle ne porte donc que sur les codes de l'inventaire (FR-011). Retirer un
+code périmé est toujours permis, et c'est **le** moyen de purge : il n'existe
+aucune ressource dédiée.
 
 ---
 
@@ -182,7 +210,11 @@ est un succès.
 | --- | --- |
 | Utilisateur ou rôle inconnu | `404` |
 | Rôle propre à une autre organisation | `422` |
-| L'appelant ne porte pas tous les pouvoirs du rôle attribué | `403` |
+| L'appelant ne porte pas tous les pouvoirs **du catalogue** portés par le rôle | `403` |
+
+Même borne qu'au `PATCH`, et pour la même raison : compter les codes périmés
+rendrait **inattribuable** tout rôle ayant survécu à la suppression d'une
+fonctionnalité, personne ne les portant (FR-011, FR-042).
 
 ---
 
@@ -236,11 +268,30 @@ route.
 | `POST /admin/pending-providers` | ouverte | **ouverte** |
 | `POST /participations` | **ouverte** | `participations:write` |
 | `DELETE /participations/{id}` | **ouverte** | `participations:delete` |
-| `GET /auth/me` | session + utilisateur | **+ `permissions`** (liste de codes) |
+| `GET /auth/me` | session + utilisateur | **+ `permissions`, + `roles`** |
 
 `GET /auth/me` est enrichi de façon **additive** (FR-020) : sans lui, une
 interface ne peut distinguer « connecté sans droit » d'« administrateur » qu'en
-collectant des 403. Aucun champ existant ne change.
+collectant des 403. Aucun champ existant ne change — la docstring de
+`SessionUserRead` (#114) annonce d'ailleurs cet ajout comme non cassant.
+
+```json
+{
+  "id": 3, "email": "…", "display_name": "…", "created_at": "…Z",
+  "permissions": ["quality:override"],
+  "roles": [{"id": 2, "slug": "validator", "name": "Validateur", "organisation_id": null}]
+}
+```
+
+**Les deux champs sont nécessaires, et ne se déduisent pas l'un de l'autre.**
+`permissions` répond à « ai-je le droit d'afficher ce bouton », `roles` à
+« comment me présenter à moi-même ». Sans le second, écrire « connecté en tant
+qu'administrateur » exige un second appel — que `GET /admin/roles` refuserait
+justement à qui n'a pas `roles:read`.
+
+Aucun pouvoir n'est exigé pour cette lecture : elle ne porte que sur soi. C'est
+la contrepartie de FR-003, qui réserve l'inventaire **général** des pouvoirs à
+`roles:read`.
 
 Aucune autre route n'est touchée : les six pages publiques en rendu serveur,
 l'import SSE, la détection de fournisseur, les statistiques et les classements

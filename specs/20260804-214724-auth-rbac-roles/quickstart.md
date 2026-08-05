@@ -1,6 +1,6 @@
 # Quickstart — vérifier le RBAC de bout en bout
 
-**Feature** : RBAC — rôles composables · **Révisé** : 2026-08-04 (v2)
+**Feature** : RBAC — rôles composables · **Révisé** : 2026-08-05 (v3)
 
 Guide de **validation**, pas d'implémentation. Contrats :
 [`contracts/admin-api.md`](contracts/admin-api.md) · [`contracts/cli.md`](contracts/cli.md).
@@ -52,6 +52,11 @@ echo $?   # 0 — idempotent, le rapport dit « rien à faire »
 uv run python -m app.cli grant-role --email <votre adresse> --role chef
 echo $?   # 2 — rôle inconnu, les rôles existants sont nommés
 ```
+
+Le dernier appel doit nommer **trois** rôles semés : `admin`, `validator` et
+`moderator`. Ce dernier porte les deux pouvoirs de signalement, couplés : les
+composer à la main le premier jour n'apprend rien et laisse oublier le pouvoir de
+lecture.
 
 ---
 
@@ -127,16 +132,16 @@ curl -s -b "<cookie admin>" "$API/permissions" | jq '.[].feature'
 
 # b. créer un rôle vide
 curl -s -X POST -b "<cookie admin>" -H 'Content-Type: application/json' \
-  -d '{"slug":"volunteer_moderator","name":"Modérateur bénévolat","permissions":[]}' \
+  -d '{"slug":"archivist","name":"Archiviste","permissions":[]}' \
   "$API/roles" | jq
 
 # c. lui donner un pouvoir
 curl -s -X PATCH -b "<cookie admin>" -H 'Content-Type: application/json' \
-  -d '{"permissions":["quality:override"]}' "$API/roles/3" | jq
+  -d '{"permissions":["quality:override"]}' "$API/roles/4" | jq
 
 # d. l'attribuer
 curl -s -X POST -b "<cookie admin>" -H 'Content-Type: application/json' \
-  -d '{"role_id":3,"organisation_id":1}' "$API/users/2/roles" | jq
+  -d '{"role_id":4,"organisation_id":1}' "$API/users/2/roles" | jq
 ```
 
 **Puis, avec la session de l'utilisateur 2 et sans qu'il se reconnecte** : il
@@ -151,10 +156,10 @@ Retirer le pouvoir du rôle (`PATCH … {"permissions": []}`) et refaire l'appel
 ```bash
 # pouvoir inexistant → 422
 curl -s -X PATCH -b "<cookie admin>" -H 'Content-Type: application/json' \
-  -d '{"permissions":["licorne:voler"]}' "$API/roles/3"
+  -d '{"permissions":["licorne:voler"]}' "$API/roles/4"
 
 # rôle encore attribué → 409, avec le nombre de porteurs
-curl -s -X DELETE -b "<cookie admin>" "$API/roles/3"
+curl -s -X DELETE -b "<cookie admin>" "$API/roles/4"
 
 # rôle livré avec l'application → 409
 curl -s -X DELETE -b "<cookie admin>" "$API/roles/1"
@@ -165,6 +170,34 @@ curl -s -X DELETE -b "<cookie admin>" "$API/roles/1"
 Avec une session portant `roles:write` **sans** `participations:delete` : tenter
 d'accorder `participations:delete` à un rôle doit rendre **403**. Sans cette
 règle, `roles:write` équivaut à `root`.
+
+### La session survit au retrait
+
+Le porteur du rôle vidé ci-dessus est **toujours connecté** : `GET /auth/me`
+répond 200 avec son identité, `permissions` vide et `roles` inchangé. Un 401
+ici serait une régression — retirer un pouvoir n'est pas déconnecter quelqu'un.
+Le seul geste qui ferme les sessions reste la désactivation du compte (#114).
+
+---
+
+## 7 bis. Ce que la session dit d'elle-même
+
+```bash
+curl -s -b "<cookie validateur>" "http://127.0.0.1:$PORT/api/v1/auth/me" | jq
+```
+
+Attendu : les champs de #114 **inchangés**, plus `permissions` (les codes
+effectifs) et `roles` (id, slug, name, organisation_id). Les deux sont
+nécessaires — `permissions` décide de l'affichage d'un bouton, `roles` permet
+d'écrire « connecté en tant que Validateur » sans second appel, et le second
+appel serait justement refusé à qui n'a pas `roles:read` :
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -b "<cookie validateur>" "$API/permissions"   # 403
+```
+
+Ce 403 est **voulu** (FR-003) : l'inventaire général sert à composer un rôle, pas
+à s'inspecter soi-même.
 
 ---
 
@@ -182,6 +215,12 @@ curl -s -X PATCH  -b "<cookie admin>" -H 'Content-Type: application/json' \
 
 Nommer un second administrateur, refaire le premier : `204`.
 
+**Et la symétrique, qui doit aboutir** : avec deux administrateurs, le premier
+retire à un rôle **porté par le second** son caractère d'administration → `200`.
+Poser et retirer sont la même règle (FR-010) ; seul le dernier administrateur est
+protégé. Un 403 ici serait un garde défensif de trop, et il enfermerait
+l'installation dans une composition qu'on ne pourrait plus défaire.
+
 ---
 
 ## 9. Une livraison future est administrable le jour même
@@ -190,6 +229,24 @@ Ajouter temporairement un membre au catalogue **et** une garde qui le cite, puis
 relancer le serveur : l'administrateur franchit la nouvelle ressource
 **immédiatement**, sans migration, sans recochage. C'est `is_superuser`, et c'est
 SC-006 — la vérification la plus facile à oublier de toute la feature.
+
+`validator` et `moderator`, eux, **ne l'obtiennent pas** : c'est voulu (FR-041).
+Une migration ne recompose jamais un rôle déjà semé, sous peine d'écraser sans
+trace une décision d'exploitant. Le pouvoir leur parvient par un `PATCH` humain.
+
+### Le chemin inverse : un pouvoir qui disparaît
+
+Retirer ce même membre du catalogue **sans** toucher aux rôles qui le citaient,
+puis relancer. Attendu, dans cet ordre (FR-042) :
+
+1. la décision d'accès ne lève pas — le code inconnu n'accorde simplement rien ;
+2. `GET /admin/roles/<id>` le liste dans `stale_permissions`, pas dans
+   `permissions` ;
+3. la suite reste verte : le filet de FR-026 juge le **catalogue** et les
+   **gardes**, jamais le contenu de la base.
+
+C'est le seul point où la base et l'application peuvent diverger, et il se
+produit à chaque suppression de fonctionnalité.
 
 ---
 
@@ -249,5 +306,8 @@ attribution et un retrait. Aucun jeton de session ne doit y figurer (FR-035).
 - **Le multi-club** : une seule organisation existe en donnée. Aucune ressource
   n'est cloisonnée par club, aucune ne peut l'être tant qu'aucune donnée
   n'appartient à un club.
+- **Les groupes d'appartenance** (#197) : hors périmètre. Rien à vérifier ici —
+  et c'est précisément l'énoncé à tenir : aucune décision d'accès ne doit
+  consulter un groupe tant que #197 n'a pas été faite.
 - **Les écrans d'administration des rôles** : différés à la sous-issue
   d'interface de #81. Tout se pilote ici par `curl` et par `grant-role`.

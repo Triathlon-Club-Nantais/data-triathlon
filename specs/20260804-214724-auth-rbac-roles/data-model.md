@@ -1,6 +1,6 @@
 # Phase 1 — Modèle de données
 
-**Feature** : RBAC — rôles composables · **Révisé** : 2026-08-04 (v2)
+**Feature** : RBAC — rôles composables · **Révisé** : 2026-08-05 (v3)
 
 Quatre tables nouvelles, deux colonnes sur `courses`. Aucune table de #114 n'est
 modifiée.
@@ -91,8 +91,8 @@ son pouvoir »*. Un rôle superutilisateur franchit **tout pouvoir, présent et 
 venir**. Une livraison n'exige donc ni migration de données, ni recochage, ni
 même que l'exploitant sache qu'elle a eu lieu.
 
-Corollaire non négociable (FR-010) : `is_superuser` n'est posable que par
-quelqu'un qui le porte déjà. C'est le seul attribut qui ne se compose pas.
+Corollaire non négociable (FR-010) : `is_superuser` n'est posable **ni retirable**
+que par quelqu'un qui le porte déjà. C'est le seul attribut qui ne se compose pas.
 
 ### Rôles semés par la migration
 
@@ -100,8 +100,25 @@ quelqu'un qui le porte déjà. C'est le seul attribut qui ne se compose pas.
 | --- | --- | --- | --- | --- |
 | `admin` | Administrateur | ✔ | ✔ | tous, par construction |
 | `validator` | Validateur | ✔ | ✖ | `quality:override` |
+| `moderator` | Modérateur | ✔ | ✖ | `pending_providers:read`, `pending_providers:handle` |
 
-`organisation_id` à `NULL` pour les deux : ce sont des rôles partagés.
+`organisation_id` à `NULL` pour les trois : ce sont des rôles partagés.
+
+`moderator` est semé parce que ses deux pouvoirs sont **couplés** — instruire un
+signalement sans pouvoir lire la liste n'a pas de sens — et que l'oubli du
+pouvoir de lecture est le bug attendu d'une composition à la main. Il porte le
+coût assumé de FR-006 : livré, donc non supprimable, même sans porteur.
+
+### Ce semis ne se rejoue jamais (FR-041)
+
+La migration initiale sème ces trois lignes. **Aucune migration ultérieure ne
+recompose un rôle existant** — ni pour lui ajouter un pouvoir nouvellement livré,
+ni pour « corriger » sa composition. Dès lors qu'un rôle est éditable à chaud, sa
+composition est une donnée d'exploitation ; une migration qui la réécrirait
+effacerait une décision humaine sans laisser de trace.
+
+Ajouter un rôle **nouveau** par migration reste possible et sans risque : il
+n'écrase rien. C'est la recomposition d'un rôle existant qui est proscrite.
 
 ---
 
@@ -116,12 +133,22 @@ quelqu'un qui le porte déjà. C'est le seul attribut qui ne se compose pas.
 `UNIQUE(role_id, permission_code)`. Relation `Role.permissions`,
 `cascade="all, delete-orphan"`.
 
-### `permission_code` est une chaîne nue, et il n'existe aucune table `permissions`
+### Les codes sont en base ; c'est leur **liste de référence** qui n'y est pas
 
-C'est la décision structurante du modèle. Elle suit le précédent explicite du
-dépôt — `Course.event_type` porte `triathlon-m` en `String` nu avec la
-nomenclature tenue en Python (`core/discipline.py`) — et elle est **moins
-chère et plus sûre** qu'une table :
+À lire avant le reste, parce que la formulation précédente — « chaîne nue » — se
+comprenait de travers et l'a été (clarification du 2026-08-05) :
+
+- **`permission_code` est bien une donnée en base**, une chaîne stockée dans une
+  ligne de `role_permissions` : `"quality:override"`, `"pending_providers:read"`.
+  Elle s'écrit et se lit en base, et se modifie à chaud par `PATCH`.
+- **« Nue » qualifie l'absence de clé étrangère**, pas l'absence de stockage. Le
+  précédent explicite du dépôt est `Course.event_type`, qui porte `triathlon-m`
+  en `String` avec la nomenclature tenue en Python (`core/discipline.py`).
+- **Ce qui n'existe pas, c'est une table `permissions`** qui listerait les codes
+  possibles — un second inventaire, en base, doublant celui de l'application.
+
+Cette absence est la décision structurante du modèle, et elle est **moins chère
+et plus sûre** qu'une table :
 
 | | Sans table (retenu) | Avec table + synchronisation |
 | --- | --- | --- |
@@ -136,7 +163,16 @@ chère et plus sûre** qu'une table :
 jamais « quels codes ce rôle porte-t-il ? » mais « porte-t-il *ce* code ? », et
 ce code est une constante de l'application. Un pouvoir retiré par une livraison
 n'est plus jamais interrogé. L'API les expose dans un bloc « pouvoirs obsolètes »
-avec une purge : hygiène, jamais correction.
+(`stale_permissions`) : hygiène, jamais correction.
+
+**La purge n'est pas une ressource**, c'est l'effet du `PATCH` : celui-ci
+remplace l'ensemble des pouvoirs, donc omettre un code périmé le supprime. Cela
+n'est vrai qu'à une condition, et elle est structurante : la règle de
+non-amplification ne compare **que les codes de l'inventaire** (FR-011). Si elle
+comptait les codes périmés, personne ne pourrait les retirer — pas même un
+superutilisateur, dont les pouvoirs effectifs *sont* l'inventaire — et le rôle
+serait gelé, `is_system` ou attribué donc indélébile. Une suppression de
+fonctionnalité ordinaire suffirait à le produire.
 
 ---
 
