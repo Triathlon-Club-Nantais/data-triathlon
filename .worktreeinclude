@@ -1,8 +1,8 @@
 # Fichiers gitignorés recopiés dans chaque worktree créé par Claude Code ou Orca.
 # Un fichier n'est copié que s'il est listé ici ET gitignoré.
 #
-# CHEMINS LITTÉRAUX UNIQUEMENT, depuis la racine du dépôt : Orca ne fait aucune
-# expansion de motif (globs et négations sont ignorés avec un avertissement).
+# Compat Orca : chemins littéraux uniquement depuis la racine (pas de globs/négations).
+# Claude Code accepte la syntaxe `.gitignore`, mais on reste en chemins explicites ici.
 # Écrire `.env` ne couvre donc PAS `backend/.env` — ce sont deux entrées.
 # Un chemin absent est sauté en silence : il ne se signale par aucune erreur.
 # Justifications et mesures : AGENTS.md, §Dev multi-worktree.
