@@ -501,16 +501,14 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     taille de l'épreuve. Le scraper devient conscient du club, mais **réutilise**
     la définition unique de `core/club.py` (règle de #76).
 
-    Chaque `ScrapedResult` porte `source_url` = l'URL **canonique** de l'édition,
-    même si l'appel est parti d'une fiche individuelle : ça ne change que la
-    cohérence *interne* du scrape (toutes les lignes d'un même appel partagent la
-    même URL). Ça ne rend **pas** la clé persistée idempotente : c'est
-    `mapping.get_or_create_course` qui choisit `Course.source_url`, et elle
-    retient l'URL de l'**appelant** (`event_url`), jamais `scraped.source_url` —
-    ce champ n'a aucun consommateur en aval. Si le Sheet donne une URL de fiche,
-    `Course.source_url` sera cette URL de fiche, à chaque passage identiquement
-    tronquée par ce scraper ; l'idempotence tient à cette troncature répétée, pas
-    à une réécriture de la clé stockée.
+    Chaque `ScrapedResult` porte `source_url` = l'URL **soumise** par l'appelant.
+    C'est cette URL qui devient `Course.source_url` (clé de cache TTL), pas
+    l'URL canonique de l'édition à laquelle elle est tronquée : si le Sheet
+    donne une URL de fiche, l'idempotence tient à cette troncature répétée
+    par ce scraper, pas à une réécriture de la clé stockée. `mapping.get_or_create_course`
+    retient désormais `scraped.source_url` en priorité (fan-out Klikego, #156)
+    et fallback sur `event_url` — la seule façon de garder cet invariant côté
+    T2Area est de poser l'URL soumise ici même.
     """
     evenement, epreuve, annee = _parse_url(url)
     with http.client(timeout=30, headers=HEADERS) as client:
@@ -518,6 +516,11 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
             annee = _resolve_annee(client, evenement, epreuve)
         edition_url = _edition_url(evenement, epreuve, annee)
         resultats = _parse_edition(_fetch(client, edition_url), edition_url, evenement, epreuve)
+        # `source_url` sur les résultats = URL soumise (pas l'édition canonique) :
+        # c'est elle qui pilote la clé de cache TTL via `mapping.get_or_create_course`,
+        # sur le patron partagé avec les autres scrapers (Wiclax, Prolivesport…).
+        for resultat in resultats:
+            resultat.source_url = url
         membres_tcn = 0
         fiches = 0
         for resultat in resultats:

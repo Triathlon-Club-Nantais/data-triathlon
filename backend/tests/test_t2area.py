@@ -625,14 +625,20 @@ def test_scrape_event_all_tronque_une_url_de_fiche(monkeypatch):
     assert client.calls[0] == URL_EDITION
 
 
-def test_scrape_event_all_source_url_est_ledition_canonique(monkeypatch):
-    """Fiche et édition désignent le même classement : on stocke la forme canonique,
-    pour qu'un `rescrape-db` ne reparte pas d'une URL de fiche."""
+def test_scrape_event_all_source_url_est_lurl_soumise(monkeypatch):
+    """`scraped.source_url` = URL **soumise**, pas la forme canonique interne.
+
+    Depuis #156, `mapping.get_or_create_course` retient `scraped.source_url` en
+    priorité. Poser l'URL canonique ferait dériver `Course.source_url` d'une URL
+    de fiche vers l'édition — `rescrape-db --url <fiche>` chercherait une clé
+    qu'aucune course ne porterait. On stocke donc l'URL soumise ; l'idempotence
+    tient à la troncature répétée de `_parse_url`, pas à une réécriture de la clé.
+    """
     _client_factice(monkeypatch)
 
     resultats = t2area.scrape_event_all(URL_FICHE)
 
-    assert {r.source_url for r in resultats} == {URL_EDITION}
+    assert {r.source_url for r in resultats} == {URL_FICHE}
 
 
 def test_scrape_event_all_url_depreuve_resout_la_derniere_edition(monkeypatch):

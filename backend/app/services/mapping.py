@@ -98,7 +98,17 @@ def derive_status(scraped: ScrapedResult) -> str:
 
 
 def get_or_create_course(db: Session, scraped: ScrapedResult, event_url: str) -> Course:
-    """Course identifiée par (nom, date, type) ; `source_url` = URL d'import (clé de cache)."""
+    """Course identifiée par (nom, date, type) ; `source_url` = URL d'import (clé de cache).
+
+    Priorité `scraped.source_url` puis `event_url` : un scraper qui a besoin
+    d'une clé plus fine que l'URL soumise le dit en la posant lui-même sur
+    chaque `ScrapedResult`. C'est le cas du fan-out Klikego (#156) — une URL
+    d'événement scrape N heats et chacun garde sa propre URL `…?heat=X`,
+    donc sa propre entrée de cache TTL. Les autres providers publient
+    `scraped.source_url = url` (l'URL passée au scraper), le comportement
+    est donc inchangé pour eux. `event_url` reste la voie de secours quand
+    la source ne fournit pas d'URL (chemin manuel `save_one`).
+    """
     distance_km = scraped.distance_km
     if distance_km is None:
         distance_km = extract_distance_km(scraped.event_name)
@@ -107,7 +117,7 @@ def get_or_create_course(db: Session, scraped: ScrapedResult, event_url: str) ->
         name=scraped.event_name,
         event_date=scraped.event_date,
         event_type=scraped.event_type,
-        source_url=event_url or scraped.source_url,
+        source_url=scraped.source_url or event_url,
         provider=scraped.provider,
         is_relay=scraped.is_relay,
         distance_km=distance_km,

@@ -150,9 +150,10 @@ def canonical_url(url: str) -> str:
     its event since that is precisely the import unit.
 
     Side effect worth keeping: the four Sheet spellings of Oléron 2024 collapse
-    into one `source_url`. Like runnerbreizh, this fixes the `ScrapedResult`
-    URL, **not** `Course.source_url` — `import_service` writes the submitted URL
-    there, so two spellings still re-scrape.
+    into one `source_url`. Since #156, `mapping.get_or_create_course` prefers
+    `scraped.source_url` over the submitted URL, so this dedup now reaches
+    `Course.source_url` too — a second import of the same event under a
+    different spelling is served from the TTL cache.
 
     Raises ValueError when the URL carries no `event`: a PDF/ZIP archive link
     (one is in the Sheet) or any other page of the site lands here, detection
