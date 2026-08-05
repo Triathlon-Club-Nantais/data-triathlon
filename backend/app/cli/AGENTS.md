@@ -95,3 +95,32 @@ véritable) et **ne persiste rien** (rollback au lieu de commit). Il rend le dé
 `avant -> après` sans écrire. `--limit` / `--url` le bornent. Un dry-run sort
 toujours en code 0.
 
+## `grant-role` — l'amorçage hors ligne (#115)
+
+```bash
+uv run python -m app.cli grant-role --email <adresse> --role admin [--organisation <slug>]
+```
+
+Sur une installation neuve, personne ne porte de rôle et les ressources qui les
+distribuent en exigent un. C'est la sortie de boucle, et le seul rattrapage si
+l'installation se retrouve sans administrateur par un chemin que l'application ne
+contrôle pas.
+
+Pas de `--json` : ce n'est pas un batch, il n'y a pas de bilan à piper. Rapport
+sur **stdout**, journaux sur stderr, comme le reste. Codes de sortie : `0` pour
+l'attribution **et** pour « rien à faire » (relancer par acquit de conscience ne
+doit pas ressembler à un échec), `2` pour toute erreur d'usage — adresse
+inconnue, adresse **ambiguë**, slug de rôle inconnu, rôle propre à une autre
+organisation.
+
+**Elle ne crée ni utilisateur ni rôle.** Un utilisateur naît d'une connexion
+réussie et autorisée ; composer un rôle est un geste d'administration qui passe
+par l'API. L'adresse ambiguë n'est pas un cas d'école : `users.email` n'est pas
+unique, délibérément (#114), et trancher au hasard rouvrirait ce que ce choix
+ferme — la commande rend donc la liste des candidats et refuse d'agir.
+
+**Deux contournements délibérés, à ne pas prendre pour des oublis** : elle
+n'applique pas la non-amplification (sans session, il n'y a pas d'acteur dont
+comparer les pouvoirs — l'accès au serveur *est* le privilège) et n'est pas
+soumise à l'invariant du dernier administrateur (elle ne fait qu'accorder, donc
+elle ne peut pas verrouiller).

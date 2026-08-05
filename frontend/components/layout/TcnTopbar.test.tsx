@@ -44,6 +44,8 @@ const SESSION: SessionUser = {
   email: "contributeur@exemple.fr",
   display_name: "contributeur",
   created_at: "2026-08-01T14:54:28Z",
+  permissions: [],
+  roles: [],
 };
 
 describe("TcnTopbar — visibilité des onglets (issues #10, #28)", () => {

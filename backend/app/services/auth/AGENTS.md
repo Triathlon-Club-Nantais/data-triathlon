@@ -154,3 +154,70 @@ Trois points que le code ne dit pas :
   d'état est posé sur l'origine de l'interface, et un retour pointant sur le port
   du backend ferait échouer **tout** parcours en `state_mismatch`.
 
+# Autorisation (#115)
+
+Le socle ci-dessus dit *qui* agit ; celui-ci dit *ce qu'il peut faire*. Spec,
+plan et tâches : `specs/20260804-214724-auth-rbac-roles/`.
+
+**Le pouvoir est dans le code, le rôle est en base.** `core/permissions.py` tient
+la **liste de référence** des neuf codes (`<domaine>:<geste>`) ; `roles`,
+`role_permissions` et `user_roles` tiennent la composition et l'attribution,
+éditables à chaud. Les deux se confondent facilement, et l'ont été : le code
+porté par un rôle *est* une donnée en base — ce qui n'existe pas, c'est une table
+`permissions` listant les codes possibles. Précédent du dépôt :
+`Course.event_type`, chaîne en base et nomenclature en Python. Ajouter un pouvoir
+est donc un membre de plus dans `P`, **jamais une migration**.
+
+**`roles.is_superuser` referme la seule objection sérieuse** à ce partage : « une
+fonctionnalité livrée mardi n'est administrable que si quelqu'un pense à cocher
+son pouvoir ». Un rôle superutilisateur franchit tout pouvoir, présent **et à
+venir** — le semis ne lui colle donc aucun code, lui donner les neuf du jour le
+figerait au jour d'aujourd'hui.
+
+Cinq choses à ne pas défaire :
+
+- **L'ordre 401-avant-403 est structurel.** `require_permission` compose
+  `current_user` : une requête sans session n'atteint jamais le contrôle de
+  pouvoir. Ce n'est pas un `if` défensif qu'on pourrait inverser par
+  inadvertance.
+- **La non-amplification est bornée à l'inventaire** (FR-011), à l'octroi comme
+  au retrait, et cette borne est la **condition de réversibilité**. Un code
+  périmé n'est porté par personne — pas même un superutilisateur, dont les
+  pouvoirs effectifs *sont* le catalogue : le comparer rendrait son rôle
+  immodifiable, et `is_system` ou attribué, indélébile. Un nettoyage de code
+  ordinaire suffirait à geler un rôle définitivement.
+- **Un code hors catalogue n'accorde rien et ne casse rien** (FR-042). La garde
+  demande « porte-t-il *ce* code ? », jamais « quels codes porte-t-il ? » : les
+  lignes orphelines sont inertes par construction. L'API les range dans
+  `stale_permissions` ; la purge est l'effet d'un `PATCH`, il n'existe aucune
+  ressource dédiée.
+- **L'invariant du dernier administrateur garde l'état, pas les chemins** — et il
+  garde la **perte** du dernier, pas l'absence. `administrateurs_preserves()`
+  compare avant et après : sur une installation neuve personne n'est encore
+  administrateur, et un invariant jugeant le seul état d'arrivée y refuserait
+  *toute* opération, y compris sans rapport avec les superutilisateurs.
+  409 et non 403 : l'appelant *est* administrateur, sa requête est bien formée,
+  c'est le résultat qui est interdit.
+- **Trois rôles sont semés, et ce semis ne se rejoue jamais** (FR-041) : `admin`
+  (superutilisateur, aucun code), `validator` (`quality:override`), `moderator`
+  (`pending_providers:read` **et** `:handle`, couplés — instruire sans pouvoir
+  lire n'a pas de sens). Dès lors qu'un rôle est éditable à chaud, sa composition
+  est une donnée d'exploitation : aucune migration ultérieure ne la réécrit.
+  Ajouter un rôle *nouveau* par migration reste sans risque.
+
+**Ce que le filet ne prouve plus.** `tests/test_auth/test_public_routes_still_open.py`
+a changé de nature : il exige que toute ressource sous `/api/v1/admin/` soit
+gardée ou **déclarée publique nommément**, et que les fermetures hors préfixe
+(`POST`/`DELETE /participations`) le soient aussi. Il établit qu'une ressource
+exige *un* pouvoir — jamais *qui* le porte : la composition est une donnée
+d'exploitation, et c'est le prix assumé de l'édition sans redéploiement.
+
+**`POST /admin/pending-providers` reste public**, et c'est ce qui interdit toute
+garde par préfixe : le formulaire du site l'appelle en `.catch(() => {})` chez un
+visiteur anonyme. Une garde de router supprimerait la fonctionnalité sans que
+rien ne la nomme.
+
+**`grant-role` contourne délibérément deux règles** : la non-amplification (sans
+session, il n'y a pas d'acteur dont comparer les pouvoirs — l'accès au serveur
+*est* le privilège) et l'invariant du dernier administrateur (elle ne fait
+qu'accorder). Voir `app/cli/AGENTS.md`.

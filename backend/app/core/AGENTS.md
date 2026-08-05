@@ -44,3 +44,23 @@ zéro span produit).
 outil, dont le livrable sera un sondage sous `docs/superpowers/specs/`.
 Design : `docs/superpowers/specs/2026-07-31-sql-observability-design.md`.
 
+# Le catalogue de pouvoirs (`permissions.py`, #115)
+
+**La liste de référence des pouvoirs est ici, et nulle part ailleurs.** Neuf
+codes de forme `<domaine>:<geste>`, dataclass gelée, aucun état, aucun accès base
+ni réseau — c'est ce qui autorise `core/` (Principe II), et un test le vérifie
+sur la **source** du module.
+
+Le geste nomme l'acte métier quand il en a un (`quality:override`,
+`pending_providers:handle`) et retombe sur `read`/`write` sinon. La forme CRUD
+n'est pas la norme : `courses:update` décrirait une écriture générique que
+personne ne détient et que rien ne vérifie.
+
+`P` est la façade d'appel — `require_permission(P.ROLES_READ)`. Passer par un
+membre plutôt que par une chaîne n'est pas du confort :
+`require_permission("pending_providres")` refuserait tout le monde, en silence.
+`tests/test_permissions_catalogue.py` tient les deux bouts par AST — aucun
+pouvoir du catalogue ne garde zéro ressource, aucune garde ne cite un code hors
+catalogue. **Ajouter un pouvoir, c'est ajouter un membre à `P` et lui poser une
+garde** ; il n'y a pas de migration, et le second test rougit tant que la garde
+manque.
