@@ -13,7 +13,12 @@ from pathlib import Path
 
 import pytest
 
-yaml = pytest.importorskip("yaml")
+# Import direct, et **jamais** `importorskip` : ce module tient un invariant de
+# sécurité, et un test qui se met en « skipped » de lui-même ne protège plus rien
+# tout en restant vert. PyYAML arrive en transitif par `fastapi[standard]` ; s'il
+# disparaissait, l'erreur de collecte est le signal voulu — la réponse est alors
+# de le déclarer en dépendance, pas de rendre ce test facultatif.
+import yaml
 
 WORKFLOW = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "batch.yml"
 
