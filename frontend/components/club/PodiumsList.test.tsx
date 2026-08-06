@@ -100,4 +100,21 @@ describe("PodiumsList — icône par scope (#128)", () => {
     expect(screen.queryByLabelText("Podium général")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Podium de genre")).not.toBeInTheDocument();
   });
+
+  it("chaque icône porte un tooltip natif (`title`) explicite au survol", () => {
+    searchParams = new URLSearchParams("rank=all");
+    render(<PodiumsList participations={PARTS} />);
+    expect(screen.getByLabelText("Podium général")).toHaveAttribute(
+      "title",
+      "Podium général (top 3 scratch)",
+    );
+    expect(screen.getByLabelText("Podium de catégorie")).toHaveAttribute(
+      "title",
+      "Podium de catégorie (top 3 dans sa catégorie d'âge)",
+    );
+    expect(screen.getByLabelText("Podium de genre")).toHaveAttribute(
+      "title",
+      "Podium de genre (top 3 dans son sexe)",
+    );
+  });
 });

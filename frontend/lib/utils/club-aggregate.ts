@@ -143,6 +143,12 @@ export interface RosterEntry {
   club: string | null;
   count: number;
   podiums: number;
+  /**
+   * Décompte de podiums ventilé par scope — un podium est compté **une fois**,
+   * dans son meilleur scope (départage général > genre > catégorie, cf.
+   * `bestPodiumRank`). La somme des trois vaut donc `podiums`.
+   */
+  podiumsByScope: Record<PodiumScope, number>;
   lastDate: string | null;
   lastEvent: string | null;
 }
@@ -167,13 +173,18 @@ export function buildRoster(parts: Participation[]): RosterEntry[] {
         club: p.club ?? p.athlete?.club ?? null,
         count: 0,
         podiums: 0,
+        podiumsByScope: { overall: 0, gender: 0, category: 0 },
         lastDate: null,
         lastEvent: null,
       };
       map.set(id, e);
     }
     e.count += 1;
-    if (isPodium(p)) e.podiums += 1;
+    const best = bestPodiumRank(p);
+    if (best) {
+      e.podiums += 1;
+      e.podiumsByScope[best.scope] += 1;
+    }
     const date = p.course?.event_date ?? null;
     if (date && (!e.lastDate || date > e.lastDate)) {
       e.lastDate = date;
