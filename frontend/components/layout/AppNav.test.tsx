@@ -45,16 +45,34 @@ const SESSION: SessionUser = {
   roles: [],
 };
 
-/** Déplie le rail : c'est là que les libellés des entrées apparaissent. */
+/**
+ * Déplie le rail — c'est là que les libellés des entrées apparaissent.
+ *
+ * Idempotent : la nav **persiste** son état déplié, donc un rendu qui suit un
+ * dépliage dans le même test démarre déjà ouvert.
+ */
 async function deplier() {
-  await userEvent.click(screen.getByRole("button", { name: "Déplier la navigation" }));
+  const bouton = screen.queryByRole("button", { name: "Déplier la navigation" });
+  if (bouton) await userEvent.click(bouton);
 }
 
 beforeEach(() => {
   push.mockClear();
   listParticipations.mockResolvedValue([]);
-  // `window.localStorage` est absent de l'environnement de test : la nav doit
-  // s'en passer sans casser, elle démarre alors repliée.
+
+  // Node 20 (la CI) fournit `window.localStorage` à jsdom, Node 26 non. Sans
+  // stock déterministe, la persistance de l'état déplié fuit d'un test à
+  // l'autre sur l'un des deux et pas sur l'autre.
+  const stock = new Map<string, string>();
+  Object.defineProperty(window, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (cle: string) => stock.get(cle) ?? null,
+      setItem: (cle: string, valeur: string) => void stock.set(cle, valeur),
+      removeItem: (cle: string) => void stock.delete(cle),
+      clear: () => stock.clear(),
+    },
+  });
 });
 
 describe("AppNav — actions primaires", () => {
