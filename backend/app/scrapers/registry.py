@@ -372,6 +372,18 @@ class ChronoplaceProvider(HostMatchedProvider):
 
 
 class OkTimeProvider(HostMatchedProvider):
+    """ok-time — un GET rend l'événement entier ; fan-out par **course** (#221).
+
+    Un seul appel API rapporte toutes les courses de l'événement (comme
+    Chronoweb) : le gain n'est pas la requête économisée, mais l'intégrité du
+    cache TTL — chaque course reçoit sa propre `source_url` canonique
+    `classement.ok-time.fr/<id>/race/<epreuveId>`, donc son propre TTL.
+
+    Le fan-out expose sa progression dans `self.last_trace` (compteurs
+    `heats_enumerated`, `heats_cached`, `heats_imported`, `failures`) — lue par
+    `import_service` pour peupler le SSE `done`.
+    """
+
     name = "oktime"
 
     # `ok-time.fr` et ses sous-domaines : `classement.ok-time.fr` (la SPA de
@@ -382,8 +394,38 @@ class OkTimeProvider(HostMatchedProvider):
     # sosie du type `evilok-time.fr` suivrait.
     _HOSTS = ("ok-time.fr",)
 
-    def scrape_event_all(self, url: str) -> list[ScrapedResult]:
-        return oktime.scrape_event_all(url)
+    def __init__(self) -> None:
+        self.last_trace: klikego.FanoutTrace | None = None
+
+    def scrape_event_all(
+        self, url: str,
+        *,
+        cache_probe: Callable[[str], bool] | None = None,
+        on_heat_start: Callable[[str, str, int, int], None] | None = None,
+        single_heat: bool = False,
+    ) -> list[ScrapedResult]:
+        """Fan-out par défaut ; `single_heat=True` conserve l'entrée mono-course.
+
+        `single_heat` sert d'échappatoire (`rescrape-db --single-heat`) et aux
+        tests unitaires du chemin historique : il appelle `scrape_event_all` du
+        module (une trace synthétique 1-heat est posée pour maintenir
+        l'invariant `enumerated = imported + cached + len(failures)`).
+        """
+        if single_heat:
+            self.last_trace = klikego.FanoutTrace(heats_enumerated=1)
+            try:
+                return oktime.scrape_event_all(url)
+            except Exception as exc:
+                self.last_trace.failures.append(
+                    {"heat_slug": "", "reason": str(exc)}
+                )
+                raise
+
+        results, trace = oktime.scrape_event_fanout(
+            url, cache_probe=cache_probe, on_heat_start=on_heat_start,
+        )
+        self.last_trace = trace
+        return results
 
 
 class CompetitorProvider(HostMatchedProvider):
@@ -626,6 +668,7 @@ _FANOUT_PROVIDERS: tuple[type, ...] = (
     RaceResultProvider,
     WiclaxProvider,
     ChronoWebProvider,
+    OkTimeProvider,
 )
 
 

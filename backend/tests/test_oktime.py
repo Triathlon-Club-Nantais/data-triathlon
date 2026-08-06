@@ -1220,3 +1220,133 @@ def test_scrape_event_all_evenement_sans_epreuve(monkeypatch):
     )
 
     assert oktime.scrape_event_all(URL_48555) == []
+
+
+# --------------------------------------------------------------------------- #
+# scrape_event_fanout — fan-out par course, cache TTL par sous-unité (#221)
+# --------------------------------------------------------------------------- #
+
+
+def test_scrape_event_fanout_nominal_returns_trace(monkeypatch):
+    """Fan-out sans cache_probe : les 2 courses de la charge sortent en trace complète."""
+    _client_factice(monkeypatch)
+
+    results, trace = oktime.scrape_event_fanout(URL_48555)
+
+    assert trace.heats_enumerated == 2
+    assert trace.heats_cached == 0
+    assert trace.heats_imported == 0  # dérivé côté import_service
+    assert trace.failures == []
+    assert trace.cached_urls == []
+    assert len(results) == 4  # 3 participants + 1 relais
+
+
+def test_scrape_event_fanout_source_url_par_course(monkeypatch):
+    """Chaque course reçoit sa `source_url` canonique — clé de cache TTL par sous-unité.
+
+    C'est **le** gain de cette migration : deux `Course` distinctes en base
+    (une par `epreuve_id`), donc deux TTL indépendants. Un ré-import ne
+    reconstruit pas toutes les courses de l'événement si l'une seule a évolué.
+    """
+    _client_factice(monkeypatch)
+
+    results, _trace = oktime.scrape_event_fanout(URL_48555)
+
+    urls = {r.source_url for r in results}
+    assert urls == {
+        "https://classement.ok-time.fr/48555/race/59697",
+        "https://classement.ok-time.fr/48555/race/59698",
+    }
+
+
+def test_scrape_event_fanout_cache_probe_skips_courses(monkeypatch):
+    """cache_probe qui retourne True pour 1 course → seule l'autre est traitée.
+
+    La course sautée est comptée dans `heats_cached`, son URL rangée dans
+    `cached_urls`. `import_service._merge_cached_courses` s'en sert pour
+    remonter les `Course` déjà en base dans le SSE `done`.
+    """
+    _client_factice(monkeypatch)
+    cached = "https://classement.ok-time.fr/48555/race/59697"
+
+    def probe(sub_url: str) -> bool:
+        return sub_url == cached
+
+    results, trace = oktime.scrape_event_fanout(URL_48555, cache_probe=probe)
+
+    assert trace.heats_enumerated == 2
+    assert trace.heats_cached == 1
+    assert trace.cached_urls == [cached]
+    assert trace.failures == []
+    # Seule la seconde course (Relais L & Duo, 1 participant) est bâtie.
+    assert len(results) == 1
+    assert results[0].source_url == "https://classement.ok-time.fr/48555/race/59698"
+
+
+def test_scrape_event_fanout_course_failure_isolated(monkeypatch, caplog):
+    """Une course qui lève ne casse pas les autres — sa cause est capturée dans `failures`."""
+    _client_factice(monkeypatch)
+
+    original = oktime._course_results
+
+    def flaky(course, *, url, evenement_title):
+        if str(course.get("epreuve_id")) == "59697":
+            raise RuntimeError("boom sur 59697")
+        return original(course, url=url, evenement_title=evenement_title)
+
+    monkeypatch.setattr(oktime, "_course_results", flaky)
+
+    with caplog.at_level(logging.WARNING, logger="app.scrapers.oktime"):
+        results, trace = oktime.scrape_event_fanout(URL_48555)
+
+    assert trace.heats_enumerated == 2
+    assert len(trace.failures) == 1
+    assert trace.failures[0]["heat_slug"] == "59697"
+    assert "boom sur 59697" in trace.failures[0]["reason"]
+    # L'autre course (59698) est passée : 1 participant du relais.
+    assert len(results) == 1
+    assert any("59697" in rec.message for rec in caplog.records)
+
+
+def test_scrape_event_fanout_no_courses_returns_empty(monkeypatch):
+    """Charge à `data` vide → `FanoutTrace(0, 0, 0, [], [])`, aucune erreur."""
+    _client_factice(
+        monkeypatch,
+        pages={"/results": {"success": True, "evenement_title": "X", "count": 0, "data": []}},
+    )
+
+    results, trace = oktime.scrape_event_fanout(URL_48555)
+
+    assert results == []
+    assert trace.heats_enumerated == 0
+    assert trace.heats_cached == 0
+    assert trace.failures == []
+    assert trace.cached_urls == []
+
+
+def test_scrape_event_fanout_on_heat_start_non_notifie_pour_les_cachees(monkeypatch):
+    """`on_heat_start` reçoit `total` = nombre à scraper, pas nombre énuméré.
+
+    Sur un ré-import où 1 course sur 2 est cachée, l'appelant compte 1/1 pour
+    la course scrapée — jamais 1/2 ou 2/2 — sinon la progression paraîtrait
+    sauter des indices côté front.
+    """
+    _client_factice(monkeypatch)
+    cached = "https://classement.ok-time.fr/48555/race/59697"
+
+    def probe(sub_url: str) -> bool:
+        return sub_url == cached
+
+    notifications: list[tuple[str, str, int, int]] = []
+
+    def on_heat_start(slug, label, index, total):
+        notifications.append((slug, label, index, total))
+
+    oktime.scrape_event_fanout(URL_48555, cache_probe=probe, on_heat_start=on_heat_start)
+
+    assert len(notifications) == 1, "un appel par course scrapée, pas par course énumérée"
+    assert notifications[0][2] == 1
+    assert notifications[0][3] == 1
+    # Le slug notifié n'est **jamais** celui d'une course cachée.
+    assert notifications[0][0] != "59697"
+    assert notifications[0][0] == "59698"

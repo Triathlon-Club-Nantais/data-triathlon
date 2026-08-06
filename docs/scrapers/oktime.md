@@ -34,3 +34,19 @@ relèvent et deviennent, ok-time étant désormais supporté, des épreuves en e
 dans les bilans plutôt que des liens ignorés. Vérité d'API (panel de 21
 événements / 99 courses / 12 644 participations) :
 `docs/superpowers/specs/2026-07-26-oktime-scraper-design.md`.
+
+**Fan-out par course** (#221) — comme Chronoweb, un seul GET rend l'événement
+entier ; le gain n'est pas la requête économisée, mais l'**intégrité du cache
+TTL**. Chaque course de la charge (`charge["data"]`, identifiée par
+`epreuve_id`) reçoit sa propre `source_url` canonique
+`classement.ok-time.fr/<eventId>/race/<epreuveId>` — donc son propre TTL,
+au lieu d'un TTL commun à l'événement entier qui reconstruisait toutes les
+courses à chaque re-scrape. Le contrat est celui du fan-out Klikego (#156) :
+`cache_probe(sub_url)` saute une course déjà fraîche (comptée dans
+`heats_cached` + `cached_urls`, jamais notifiée à `on_heat_start`), une course
+en échec est isolée dans `trace.failures` sans arrêter les autres, et
+`on_heat_start(slug, label, index, total)` reçoit `total` = nombre à scraper
+(pas nombre énuméré), sans quoi la progression sauterait des indices sur un
+ré-import majoritairement caché. `scrape_event_all(url)` (mono-course sur
+tout l'événement) reste disponible pour l'échappatoire `--single-heat` et les
+tests unitaires.
