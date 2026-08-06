@@ -210,11 +210,25 @@ class BreizhChronoProvider(HostMatchedProvider):
 
 
 class WiclaxProvider(HostMatchedProvider):
+    """Wiclax/G-Live — URL d'événement = tous les parcours (fan-out, issue #195).
+
+    Sous-unité = **parcours** (attribut `p` du XML `.clax`). Le `.clax` étant
+    partagé par tous les parcours, un seul GET couvre l'événement entier ;
+    `cache_probe` ne peut donc pas économiser la requête, il économise la
+    construction et la persistance des `ScrapedResult` du parcours frais.
+
+    Le fan-out expose sa progression dans `self.last_trace` (5 compteurs) — lue
+    par `import_service` pour peupler le SSE `done` et déduire `heats_imported`.
+    """
+
     name = "wiclax"
 
     # Hosts servant un moteur G-Live. `chronowest.fr` : WordPress + iframe
     # G-Live (issue #35).
     _HOSTS = ("wiclax-results.com", "chronosmetron.com", "chronowest.fr")
+
+    def __init__(self) -> None:
+        self.last_trace: wiclax.FanoutTrace | None = None
 
     def matches(self, url: str) -> bool:
         # `wiclax.com` est le site vitrine de l'éditeur : il n'est pas dans
@@ -226,8 +240,35 @@ class WiclaxProvider(HostMatchedProvider):
             _host_match(url, ("wiclax.com",)) and "G-Live" in _url_path(url)
         )
 
-    def scrape_event_all(self, url: str) -> list[ScrapedResult]:
-        return wiclax.scrape_event_all(url)
+    def scrape_event_all(
+        self, url: str,
+        *,
+        cache_probe: Callable[[str], bool] | None = None,
+        on_heat_start: Callable[[str, str, int, int], None] | None = None,
+        single_heat: bool = False,
+    ) -> list[ScrapedResult]:
+        """Fan-out par défaut ; `single_heat=True` retombe sur l'appel legacy.
+
+        Le mode `single_heat` du provider Wiclax renvoie l'événement entier
+        sans découpage par parcours : Wiclax n'expose pas de sélecteur d'URL
+        ciblant un parcours particulier, l'échappatoire vaut donc « ne pas
+        fan-outer » plutôt que « scraper un unique parcours ».
+        """
+        if single_heat:
+            self.last_trace = wiclax.FanoutTrace(heats_enumerated=1)
+            try:
+                return wiclax.scrape_event_all(url)
+            except Exception as exc:
+                self.last_trace.failures.append(
+                    {"heat_slug": "", "reason": str(exc)}
+                )
+                raise
+
+        results, trace = wiclax.scrape_event_fanout(
+            url, cache_probe=cache_probe, on_heat_start=on_heat_start,
+        )
+        self.last_trace = trace
+        return results
 
 
 class TimePulseProvider(HostMatchedProvider):
@@ -452,12 +493,13 @@ def is_supported(url: str) -> bool:
 def scrape_event_all(url: str, **kwargs) -> list[ScrapedResult]:
     """Dispatch vers le provider matché.
 
-    `**kwargs` propage les options optionnelles (`cache_probe`, `single_heat` pour
-    Klikego — issue #156). Les autres providers, qui ne les acceptent pas dans
-    leur signature, sont appelés sans kwargs pour rester rétro-compatibles.
+    `**kwargs` propage les options optionnelles (`cache_probe`, `on_heat_start`,
+    `single_heat` — issues #156/#195). Seuls les providers fan-outant les
+    reçoivent ; les autres sont appelés sans kwargs pour rester
+    rétro-compatibles.
     """
     provider = _find_provider(url)
     logger.info("Import épreuve via %s : %s", provider.name, url)
-    if isinstance(provider, KlikegoProvider):
+    if isinstance(provider, (KlikegoProvider, WiclaxProvider)):
         return provider.scrape_event_all(url, **kwargs)
     return provider.scrape_event_all(url)
