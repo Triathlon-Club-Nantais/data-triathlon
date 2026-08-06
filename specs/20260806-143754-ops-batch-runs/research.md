@@ -2,9 +2,11 @@
 
 **Feature** : `20260806-143754-ops-batch-runs` · **Issue** : #47
 
-Quatorze décisions. Les cinq premières fixent l'ossature, les suivantes règlent
+Quinze décisions. Les cinq premières fixent l'ossature, les suivantes règlent
 des pièges mesurables — deux d'entre eux (D3, D12) sont des impasses connues qui
-coûteraient une demi-journée chacune si on les découvrait à l'exécution.
+coûteraient une demi-journée chacune si on les découvrait à l'exécution. La
+dernière (D15) répond à la question qui se repose d'elle-même : pourquoi ne pas
+streamer, puisque le dépôt sait déjà le faire.
 
 ---
 
@@ -25,7 +27,7 @@ d'échec sont natifs ; la CLI tourne **inchangée**, contrats de sortie compris
 | Alternative | Motif |
 | --- | --- |
 | Render Cron Job | ~1 $/mois minimum, hors offre gratuite ; et nos services étant créés hors Blueprint, `render.yaml` ne le créerait pas (#162). |
-| Exécution dans le service web (tâche de fond) | `plan: free`, 0,1 CPU, un process : un batch de ~50 épreuves × ~30 s monopoliserait l'instance qui sert les visiteurs, sans reprise après redémarrage. |
+| Exécution dans le service web (tâche de fond ou flux SSE) | Contention sur `plan: free` (0,1 CPU), et surtout : un batch lié à une connexion ou à un process ne survit ni à la fermeture de l'onglet, ni à un redémarrage de l'instance, et ne donne ni planification ni alerte. Détail en **D15** — cette piste mérite plus qu'une ligne, le dépôt sachant déjà streamer un import. |
 | Cron du serveur Azure du club | Suppose d'y déployer le code et la `DATABASE_URL` : recrée la dépendance à une machine et à une personne, c'est-à-dire le problème d'origine. |
 
 ---
@@ -97,9 +99,11 @@ lancement n'est pas configuré, le reste de l'application est intact.
 
 **Décision** :
 
-1. dans le workflow, `concurrency: { group: batch, cancel-in-progress: false }` —
-   c'est le **verrou réel**, il tient même pour un lancement fait depuis l'onglet
-   Actions ou par la planification ;
+1. dans le workflow, `concurrency: { group: batch-<cible>, cancel-in-progress:
+   false }` — c'est le **verrou réel**, il tient même pour un lancement fait
+   depuis l'onglet Actions ou par la planification. Le groupe porte la cible :
+   preview et production sont deux bases, et faire attendre l'une pendant que
+   l'autre travaille n'aurait aucun sens ;
 2. dans l'API, refus **409** si une exécution `queued` ou `in_progress` existe —
    c'est ce qui donne à l'utilisateur un message immédiat (FR-004) au lieu d'un
    run qui reste en attente sans explication.
@@ -271,6 +275,51 @@ pour un envoi multipart, il empêcherait le navigateur d'écrire la frontière
 (`boundary`) et le serveur ne lirait aucun champ.
 
 ---
+
+## D15 — Pourquoi pas un flux SSE, alors que le dépôt en a déjà un
+
+**La question se repose naturellement**, et c'est pour cela qu'elle est écrite
+ici : `POST /scrape/event/stream` fait déjà exactement ce geste — import d'une
+épreuve, progression en direct, padding anti-buffering, `Content-Encoding:
+identity` pour survivre aux intermédiaires. Mieux : `iter_import_event` est
+consommé **à la fois** par ce SSE et par `services/batch.py`. Un
+`POST /admin/batches/stream` tiendrait en une trentaine de lignes, sans jeton,
+sans seconde plateforme, sans artefact à dézipper.
+
+**Décision : non — mais l'argument de la contention seule ne suffit pas.**
+
+Rectification d'abord, parce qu'elle a été énoncée trop fort ailleurs : un batch
+dans le service web ne « monopolise » pas l'instance. Les handlers sont `def` et
+non `async def`, donc FastAPI les exécute dans un threadpool ; le site continue
+d'être servi pendant le scraping. Le coût réel est une **dégradation** sur 0,1
+CPU, pas un blocage. Une justification fausse est une justification qui tombera.
+
+Ce qui tranche, ce sont quatre propriétés qu'un flux ne peut pas porter :
+
+1. **Le suivi vit dans la connexion.** Fermer l'onglet, c'est perdre le batch de
+   vue. Or la spec porte l'edge case inverse — « le traitement se poursuit, son
+   bilan reste consultable au retour ». Le rendre vrai demanderait de persister
+   l'état : exactement la table qu'on a évitée (Principe VI).
+2. **Un redémarrage de l'instance tue l'exécution en cours.** Déploiement,
+   rotation d'instance sur l'offre gratuite, OOM. Les épreuves déjà commitées
+   restent — chacune l'est séparément — mais plus personne ne sait où le batch
+   s'est arrêté.
+3. **FR-018 exige un ordonnanceur de toute façon.** Avec le SSE, il faudrait
+   *en plus* un cron externe appelant l'API : deux mécanismes au lieu d'un, et
+   celui qui planifie n'aurait aucun suivi.
+4. **Ni trace ni alerte** — soit les deux griefs qui ouvrent #47. Il faudrait
+   les construire, là où la plateforme d'exécution les donne.
+
+**Inconnue non levée** : le comportement du proxy Vercel sur un flux de 25
+minutes. Le SSE actuel tient ~35 s en usage réel ; rien ne dit qu'un rewrite
+externe reste ouvert à l'échelle d'un batch complet. Ne pas partir du principe
+que oui.
+
+**Le repli, si le bilan-à-la-fin se révèle insuffisant** : faire pousser la
+progression par le workflow vers un endpoint de l'API, qui la relaie en SSE à
+l'écran. On obtient alors le direct **et** la durabilité, sans que le service web
+porte le travail. Coût : un endpoint authentifié et un état à tenir. À faire le
+jour où le besoin se manifeste, pas d'avance.
 
 ## Ce que la recherche laisse ouvert
 
