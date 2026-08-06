@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { LayoutGrid, List, Map, Shield, SlidersHorizontal } from "lucide-react";
+import { Briefcase, LayoutGrid, List, Map, Users } from "lucide-react";
 
 /**
  * Table de configuration **unique** de la navigation (proto « Navigation TCN »).
@@ -58,7 +58,7 @@ export const NAV: NavSection[] = [
   {
     id: "club",
     label: "Club",
-    icon: Shield,
+    icon: Users,
     minRole: ROLE.ANON,
     items: [
       // `ClubDashboard.tsx` porte déjà la synthèse **et** les podiums (#128) :
@@ -70,7 +70,7 @@ export const NAV: NavSection[] = [
   {
     id: "admin",
     label: "Administration",
-    icon: SlidersHorizontal,
+    icon: Briefcase,
     minRole: ROLE.CONNECTED,
     items: [
       { id: "a-providers", label: "Fournisseurs en attente", href: "/admin" },

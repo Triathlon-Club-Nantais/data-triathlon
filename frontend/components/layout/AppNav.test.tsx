@@ -169,9 +169,11 @@ describe("AppNav — session (#114)", () => {
     expect(screen.queryByRole("button", { name: "Se connecter" })).not.toBeInTheDocument();
   });
 
-  it("pose l'action dans le tiroir mobile aussi", async () => {
+  it("pose l'action dans le tiroir mobile aussi, sans dupliquer l'entrée Administration", async () => {
     // Le tiroir déplie l'état connecté **à plat** : un menu déroulant y
-    // sortirait du piège de focus.
+    // sortirait du piège de focus. Le lien « Administration » a été **retiré**
+    // du menu compte (revue humaine PR #214) : la catégorie Administration de
+    // la nav rend l'entrée redondante.
     afficher(SESSION);
     await waitFor(() =>
       expect(screen.getByRole("button", { name: `Compte — ${SESSION.email}` })).toBeInTheDocument(),
@@ -181,7 +183,10 @@ describe("AppNav — session (#114)", () => {
 
     const tiroir = await screen.findByRole("dialog");
     expect(within(tiroir).getByText(SESSION.email)).toBeInTheDocument();
-    expect(within(tiroir).getByRole("link", { name: "Administration" })).toBeInTheDocument();
+    // Le tiroir de compte ne doit plus porter d'entrée « Administration » :
+    // seule la nav la porte désormais. `within(tiroir)` isole la portée : la
+    // catégorie « Administration » de la nav vit hors du tiroir.
+    expect(within(tiroir).queryByRole("link", { name: "Administration" })).not.toBeInTheDocument();
     expect(within(tiroir).getByRole("button", { name: "Se déconnecter" })).toBeInTheDocument();
   });
 });
