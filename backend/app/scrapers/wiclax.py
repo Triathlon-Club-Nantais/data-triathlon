@@ -569,6 +569,31 @@ def _sub_source_url(url: str, parcours: str) -> str:
     return urlunparse(parsed._replace(query=urlencode(flat)))
 
 
+def _drop_orphelins(
+    par_parcours: dict[str, list[ScrapedResult]], ordre: list[str], url: str,
+) -> None:
+    """Écarte les résultats sans attribut `p=` d'un événement multi-parcours.
+
+    Un E sans `p=` (« DOSSARD INCONNU ***** ») créait une `Course` avec
+    `source_url` = URL de l'événement, qui matchait au ré-import via
+    `_cached_result` et court-circuitait tout le fan-out (issue #195 sur
+    Vertou 2026 ; symptôme aussi documenté par le bug #79). L'écart n'a lieu
+    que sur un événement multi-parcours : un `.clax` mono-parcours où aucun E
+    ne porte `p=` (legacy) reste importé entier (rétro-compat).
+
+    Journalisation en WARNING : le cas reste rare et l'exploitant doit pouvoir
+    remonter les orphelins à la source.
+    """
+    if len(par_parcours) <= 1 or "" not in par_parcours:
+        return
+    orphelins = par_parcours.pop("")
+    ordre.remove("")
+    logger.warning(
+        "Wiclax %s : %d participant(s) orphelin(s) sans parcours écartés",
+        url, len(orphelins),
+    )
+
+
 def _iter_parcours_results(
     root: ET.Element, base_url: str, event_name: str, event_type: str,
     event_date: object, segments: list[ET.Element],
@@ -709,6 +734,7 @@ def scrape_event_fanout(
     par_parcours, ordre = _iter_parcours_results(
         root, base_url, event_name, event_type, event_date, segments,
     )
+    _drop_orphelins(par_parcours, ordre, url)
     trace.heats_enumerated = len(ordre)
 
     # Pré-filtre les parcours à traiter — `heats_a_scraper` fixe le total notifié

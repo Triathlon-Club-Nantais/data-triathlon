@@ -1115,3 +1115,82 @@ def test_wiclax_provider_single_heat_bypass_fanout(monkeypatch):
     assert len(results) == 6
     assert provider.last_trace is not None
     assert provider.last_trace.heats_enumerated == 1
+
+
+def _clax_multi_parcours_avec_orphelin() -> ET.Element:
+    """`.clax` à 3 parcours + un E sans `p=` (ligne fantôme, bug #79/#195).
+
+    Un participant sans attribut `p=` — dossard inconnu, cas rare mais documenté
+    par le bug #79. Sans fix, il crée une Course avec `source_url` = URL de
+    l'événement, qui court-circuite le ré-import via `_cached_result`.
+    """
+    xml = (
+        '<Root><Event Name="Triathlon Test 2026" dt1="2026-06-08"/>'
+        '<Competitors>'
+        '<E d="1001" n="Alice WIN" x="F" ca="S2F" v="1" p="S-Open Femmes"/>'
+        '<E d="2001" n="Bob RUN" x="M" ca="S3M" v="1" p="S-Open"/>'
+        '<E d="3001" n="EQUIPE A" x="X" ca="V4" v="10" p="Relais S"/>'
+        '<E d="9999" n="DOSSARD INCONNU *****" x="X" ca="" v=""/>'
+        '</Competitors>'
+        '<Results>'
+        '<R d="1001" t="01:05:00"/><R d="2001" t="00:58:00"/>'
+        '<R d="3001" t="01:45:00"/>'
+        '</Results></Root>'
+    )
+    return ET.fromstring(xml)
+
+
+def test_fanout_ecarte_les_participants_orphelins_dans_evenement_multi_parcours(
+    monkeypatch, caplog,
+):
+    """Un E sans `p=` dans un événement multi-parcours n'est PAS scrapé.
+
+    Sinon il crée une `Course` avec `source_url` = URL de l'événement, qui
+    matchera au ré-import via `_cached_result` et court-circuitera tout le
+    fan-out (issue #195, symptôme constaté sur Vertou 2026). L'orphelin est
+    journalisé — pas silencieux — pour que l'exploitant remonte le cas à la
+    source (bug #79).
+    """
+    from app.scrapers.wiclax import scrape_event_fanout
+
+    _stub_fetch_clax(monkeypatch, _clax_multi_parcours_avec_orphelin())
+    with caplog.at_level("WARNING"):
+        results, trace = scrape_event_fanout("http://x")
+
+    # 3 vrais parcours importés — l'orphelin est écarté.
+    assert trace.heats_enumerated == 3
+    urls = {r.source_url for r in results}
+    assert len(urls) == 3
+    # Aucun résultat ne porte l'URL nue de l'événement.
+    assert all("parcours=" in u for u in urls)
+    # Le nom "DOSSARD INCONNU" n'est pas dans les résultats.
+    assert not any("INCONNU" in (r.athlete_name or "") for r in results)
+    # Le cas orphelin est journalisé (WARNING) — pas silencieux.
+    assert any("orphelin" in rec.message.lower() or "sans parcours" in rec.message.lower()
+               for rec in caplog.records)
+
+
+def test_fanout_garde_mono_parcours_sans_p_attribute(monkeypatch):
+    """Un événement mono-parcours (tous les E sans `p=`) reste importé entier.
+
+    Rétro-compat pour les `.clax` historiques qui ne portaient pas d'attribut
+    `p=` — leur source_url reste l'URL de l'événement, comportement legacy.
+    """
+    xml = (
+        '<Root><Event Name="Mono Parcours 2026" dt1="2026-06-08"/>'
+        '<Competitors>'
+        '<E d="1" n="Alice" x="F" ca="S2F" v="1"/>'
+        '<E d="2" n="Bob" x="M" ca="S3M" v="2"/>'
+        '</Competitors>'
+        '<Results>'
+        '<R d="1" t="01:00:00"/><R d="2" t="01:05:00"/>'
+        '</Results></Root>'
+    )
+    from app.scrapers.wiclax import scrape_event_fanout
+
+    _stub_fetch_clax(monkeypatch, ET.fromstring(xml))
+    results, trace = scrape_event_fanout("http://x")
+
+    # Un seul parcours — celui vide, source_url = URL entrante (comportement legacy).
+    assert trace.heats_enumerated == 1
+    assert len(results) == 2
