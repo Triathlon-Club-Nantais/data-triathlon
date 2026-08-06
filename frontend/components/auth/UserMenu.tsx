@@ -15,12 +15,12 @@ import { useLogout, useSession } from "@/lib/queries/auth";
 /**
  * Bouton « Se connecter » si anonyme, menu utilisateur sinon.
  *
- * Posé **deux fois** dans la topbar — bloc desktop et tiroir mobile —, comme
- * toute action de cette barre. Les deux formes ne coexistent jamais à l'écran :
- * le bloc desktop est `hidden sm:flex`.
+ * Posé **deux fois** par `AppNav` — pied du rail et pied du tiroir mobile.
+ * Les deux formes ne coexistent jamais à l'écran : le rail est `hidden md:flex`,
+ * le tiroir `md:hidden`.
  *
  * Ne prend **aucun callback** : la fermeture du tiroir mobile se fait par
- * remontée du clic sur le conteneur, dans `TcnTopbar`. Une prop fonction ferait
+ * remontée du clic sur le conteneur, dans `AppNav`. Une prop fonction ferait
  * ici l'objet d'un avertissement de sérialisation de Next, ce composant étant
  * un point d'entrée « use client ».
  */
