@@ -5,7 +5,7 @@ from collections import Counter
 from sqlalchemy.orm import Session
 
 from app.core import season as season_module
-from app.core.club import is_tcn
+from app.core.club import TCN_CANONICAL_NAME, is_tcn
 from app.repositories import participation_repository
 from app.scrapers.base import STATUS_FINISHER
 
@@ -220,7 +220,14 @@ def course_summary(db: Session, course_id: int) -> dict:
         if category and category.strip():
             categories[category.strip()] += 1
         if club and club.strip():
-            clubs[club.strip()] += 1
+            # Les variantes de libellé TCN (« TRI CLUB NANTAIS », « TCN »,
+            # « Triathlon club nantais »… — verbatim du chronométreur) sont
+            # fusionnées sous le libellé canonique dans « Top clubs » (#200).
+            # Sans quoi le même club apparaissait sur deux à trois lignes selon
+            # les saisies du speaker. `is_tcn` reste la définition unique — la
+            # base garde le verbatim, seul l'agrégat d'affichage bascule.
+            libelle = TCN_CANONICAL_NAME if is_tcn(club) else club.strip()
+            clubs[libelle] += 1
         if is_tcn(club):
             tcn_count += 1
 

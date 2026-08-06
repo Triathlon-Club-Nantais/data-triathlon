@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/results/StatusBadge";
 import { isNonFinisher } from "@/lib/utils/raceOrder";
 import { splitColumnsFromKeys } from "@/lib/utils/splits";
 import { SCOPE_CLUB, SCOPE_PARAM } from "@/lib/scope";
+import { CLUB_NAME } from "@/lib/club";
 import type { CourseSummary, Participation } from "@/lib/types";
 
 // Colonnes fixes (rang, athlète, catég., sexe, temps total) + club en fin.
@@ -113,7 +114,7 @@ export function RaceFinishers({
             onChange={(v) => naviguer({ [SCOPE_PARAM]: v === "tcn" ? SCOPE_CLUB : null })}
             options={[
               { value: "all", label: `Tous les coureurs (${summary.total})` },
-              { value: "tcn", label: `Triathlon Club Nantais (${summary.tcn_count})`, dot: true },
+              { value: "tcn", label: `${CLUB_NAME} (${summary.tcn_count})`, dot: true },
             ]}
           />
         </div>
