@@ -125,6 +125,16 @@ def _fanout_counters(trace) -> dict:
     }
 
 
+#: Providers exposant le contrat fan-out complet (issue #195) — `cache_probe`,
+#: `on_heat_start`, `single_heat` en kwargs et `self.last_trace` peuplé après
+#: scrape. Le tuple centralise le test `isinstance`, sans quoi chaque nouveau
+#: fan-out (ok-time #221, chronoweb, …) obligerait à retrouver et rallonger la
+#: liste dans deux endroits (`_scrape_all`, `_scrape_all_streaming`).
+def _fanout_providers():
+    from app.scrapers import registry as _registry
+    return (_registry.KlikegoProvider, _registry.OkTimeProvider)
+
+
 def _make_cache_probe(db: Session, settings: Settings):
     """Construit un callback `cache_probe(heat_url) -> bool` — fan-out Klikego (#156).
 
@@ -163,7 +173,7 @@ def _scrape_all(
     provider = registry.get_provider(url)
 
     try:
-        if isinstance(provider, registry.KlikegoProvider):
+        if isinstance(provider, _fanout_providers()):
             if single_heat:
                 # Échappatoire (--single-heat) : pas de fan-out, pas de cache_probe.
                 # Le provider lit le ?heat= de l'URL et scrape ce seul heat.
@@ -209,7 +219,7 @@ def _scrape_all_streaming(
     """
     provider = registry.get_provider(url)
 
-    if not isinstance(provider, registry.KlikegoProvider):
+    if not isinstance(provider, _fanout_providers()):
         # Chemin non-fan-out : bloquant unique, aucun yield intermédiaire.
         results, trace = _scrape_all(url, db, settings)
         return (results, trace)

@@ -24,6 +24,7 @@ toujours l'événement entier.
 import html
 import logging
 import re
+from collections.abc import Callable
 from datetime import date, datetime
 from urllib.parse import urlparse
 
@@ -33,6 +34,7 @@ from app.core import http
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER, ScrapedResult
 from .classify import classify_event_type
+from .klikego import FanoutTrace
 from .utils import normalize_rank, normalize_time, qualify_event_name, split_athlete_name
 
 logger = logging.getLogger(__name__)
@@ -657,6 +659,98 @@ def _course_results(course: dict, *, url: str, evenement_title: str) -> list[Scr
 # --------------------------------------------------------------------------- #
 # Point d'entrée
 # --------------------------------------------------------------------------- #
+
+def _sub_source_url(event_id: str, epreuve_id: str) -> str:
+    """URL canonique d'une sous-unité ok-time — clé de cache TTL par course.
+
+    Forme `classement.ok-time.fr/<event_id>/race/<epreuve_id>` **déjà** acceptée
+    par `_ID_PATH_RE` (le segment `race` est ignoré côté `_parse_url`, l'API
+    n'exposant aucun filtre par épreuve). Employée simultanément comme :
+
+    - clé de cache TTL (`cache_probe` reçoit exactement cette URL),
+    - valeur de `ScrapedResult.source_url` (persistée en `Course.source_url`).
+
+    Sans cette clé par course, un ré-import mettait à jour indistinctement toutes
+    les courses de l'événement à chaque scrape, quelle que soit leur fraîcheur
+    individuelle : le TTL raisonnait par événement entier, l'inverse du besoin.
+    """
+    return f"https://classement.ok-time.fr/{event_id}/race/{epreuve_id}"
+
+
+def scrape_event_fanout(
+    url: str,
+    *,
+    cache_probe: Callable[[str], bool] | None = None,
+    on_heat_start: Callable[[str, str, int, int], None] | None = None,
+) -> tuple[list[ScrapedResult], FanoutTrace]:
+    """Fan-out par **course** de l'événement ok-time — un `Course` par sous-unité.
+
+    Comme Chronoweb, un seul GET rend l'événement entier : le gain n'est pas la
+    requête économisée, mais l'**intégrité du cache TTL**. Chaque course de la
+    charge (`charge["data"]`, identifiée par `epreuve_id`) reçoit une
+    `source_url` distincte (`_sub_source_url`), donc son propre TTL — plutôt
+    qu'un TTL commun à l'événement entier, qui reconstruisait toutes les courses
+    à chaque re-scrape.
+
+    Contrat identique au fan-out Klikego (issue #156) :
+
+    - `cache_probe(sub_url)` — invoqué avant construction d'une sous-unité ;
+      True → la course est sautée, `trace.heats_cached++`,
+      `trace.cached_urls.append(sub_url)`, `on_heat_start` **non-notifié**.
+    - `on_heat_start(slug, label, index, total)` — appelé avant chaque course
+      effectivement scrapée. `total` est le nombre de sous-unités **à scraper**,
+      pas le nombre énuméré — sans quoi la progression sauterait des indices
+      sur un ré-import majoritairement caché.
+    - échec par sous-unité isolé (`try/except` autour de `_course_results`),
+      journalisé et ajouté à `trace.failures` sans stopper les autres.
+
+    `trace.heats_imported` reste à 0 : dérivé par `import_service._fanout_counters`
+    via l'invariant `enumerated = imported + cached + len(failures)`.
+    """
+    trace = FanoutTrace()
+    all_results: list[ScrapedResult] = []
+
+    event_id, slug = _parse_url(url)
+    with http.client(timeout=30, headers=HEADERS) as client:
+        if not event_id:
+            event_id = _resolve_event_id(client, slug)
+        charge = _fetch_results(client, event_id)
+
+    evenement_title = html.unescape(str(charge.get("evenement_title") or "").strip())
+    courses = charge.get("data") or []
+    trace.heats_enumerated = len(courses)
+
+    # Pré-filtre : fixer le total notifié à `on_heat_start` à celui **à scraper**,
+    # sinon la progression sauterait des indices sur un ré-import majoritairement
+    # caché (« épreuve 6/8 » alors qu'on scrape la 3e).
+    a_scraper: list[tuple[str, str, dict]] = []
+    for course in courses:
+        epreuve_id = str(course.get("epreuve_id") or "")
+        sub_url = _sub_source_url(event_id, epreuve_id)
+        if cache_probe is not None and cache_probe(sub_url):
+            trace.heats_cached += 1
+            trace.cached_urls.append(sub_url)
+            continue
+        a_scraper.append((epreuve_id, sub_url, course))
+
+    total_a_scraper = len(a_scraper)
+    for index, (epreuve_id, sub_url, course) in enumerate(a_scraper, start=1):
+        title_course = html.unescape(str(course.get("title_course") or "").strip())
+        if on_heat_start is not None:
+            on_heat_start(epreuve_id, title_course, index, total_a_scraper)
+        try:
+            all_results.extend(
+                _course_results(course, url=sub_url, evenement_title=evenement_title)
+            )
+        except Exception as exc:
+            logger.warning(
+                "Course ok-time %s de l'événement %s en échec : %s",
+                epreuve_id, event_id, exc,
+            )
+            trace.failures.append({"heat_slug": epreuve_id, "reason": str(exc)})
+
+    return all_results, trace
+
 
 def scrape_event_all(url: str) -> list[ScrapedResult]:
     """Tous les participants de **toutes** les épreuves de l'événement.
