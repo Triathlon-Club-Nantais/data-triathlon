@@ -171,6 +171,12 @@ def _scrape_all(
             else:
                 results = registry_scrape_event_all(url, cache_probe=cache_probe)
             trace = provider.last_trace
+        elif isinstance(provider, registry.ChronoplaceProvider):
+            # Chronoplace expose le même fan-out que Klikego (épique #195) :
+            # cache TTL par épreuve. Pas de `--single-heat` de ce côté (pas de
+            # ?heat= dans l'URL).
+            results = registry_scrape_event_all(url, cache_probe=cache_probe)
+            trace = provider.last_trace
         else:
             # Autres providers + fallback Playwright — pas de trace de fan-out.
             # Trace synthétique 1-heat pour maintenir l'invariant `enumerated = imported`.
@@ -209,7 +215,7 @@ def _scrape_all_streaming(
     """
     provider = registry.get_provider(url)
 
-    if not isinstance(provider, registry.KlikegoProvider):
+    if not isinstance(provider, (registry.KlikegoProvider, registry.ChronoplaceProvider)):
         # Chemin non-fan-out : bloquant unique, aucun yield intermédiaire.
         results, trace = _scrape_all(url, db, settings)
         return (results, trace)
