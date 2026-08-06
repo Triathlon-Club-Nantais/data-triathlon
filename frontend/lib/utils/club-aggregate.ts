@@ -144,9 +144,10 @@ export interface RosterEntry {
   count: number;
   podiums: number;
   /**
-   * Décompte de podiums ventilé par scope — un podium est compté **une fois**,
-   * dans son meilleur scope (départage général > genre > catégorie, cf.
-   * `bestPodiumRank`). La somme des trois vaut donc `podiums`.
+   * Décompte de podiums ventilé par scope, **compteurs indépendants** : une
+   * même participation qui est podium sur plusieurs dimensions (2e scratch +
+   * 1er catégorie + 2e genre, cf. Hadrien à Mesquer) incrémente les trois
+   * compteurs. La somme des trois est donc ≥ `podiums`, jamais égale.
    */
   podiumsByScope: Record<PodiumScope, number>;
   lastDate: string | null;
@@ -180,11 +181,15 @@ export function buildRoster(parts: Participation[]): RosterEntry[] {
       map.set(id, e);
     }
     e.count += 1;
-    const best = bestPodiumRank(p);
-    if (best) {
-      e.podiums += 1;
-      e.podiumsByScope[best.scope] += 1;
+    let hasPodium = false;
+    for (const [scope, key] of ALL_CANDIDATES) {
+      const rank = p[key] as number | null | undefined;
+      if (rank != null && rank >= 1 && rank <= 3) {
+        e.podiumsByScope[scope] += 1;
+        hasPodium = true;
+      }
     }
+    if (hasPodium) e.podiums += 1;
     const date = p.course?.event_date ?? null;
     if (date && (!e.lastDate || date > e.lastDate)) {
       e.lastDate = date;

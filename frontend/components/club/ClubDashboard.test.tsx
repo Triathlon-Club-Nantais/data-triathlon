@@ -96,6 +96,19 @@ describe("ClubDashboard — smoke", () => {
     expect(screen.getByLabelText("1 podium de genre")).toBeInTheDocument();
   });
 
+  // Cas mesuré (Hadrien à Mesquer, athlète 8565) : une seule participation
+  // podium sur les trois dimensions à la fois — 2e scratch, 1er catégorie,
+  // 2e genre. Les trois compteurs de scope sont incrémentés indépendamment.
+  it("roster : une participation podium sur plusieurs scopes incrémente chaque compteur", () => {
+    const parts: Participation[] = [
+      part({ id: 1, rank_overall: 2, rank_category: 1, rank_gender: 2 }),
+    ];
+    render(<ClubDashboard stats={STATS} participations={parts} />);
+    expect(screen.getByLabelText("1 podium général")).toBeInTheDocument();
+    expect(screen.getByLabelText("1 podium de catégorie")).toBeInTheDocument();
+    expect(screen.getByLabelText("1 podium de genre")).toBeInTheDocument();
+  });
+
   it("roster : aucun badge scope pour un athlète sans podium", () => {
     const parts: Participation[] = [
       part({
