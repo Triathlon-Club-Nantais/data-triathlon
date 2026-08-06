@@ -53,6 +53,32 @@ def test_upgrade_head_sur_base_vierge(sqlite_url):
     assert "is_reliable" not in _columns(sqlite_url, "courses")
 
 
+def test_upgrade_head_creates_the_group_tables(sqlite_url):
+    """#197 — les deux tables, et surtout ce qu'elles **ne** portent pas.
+
+    Les absences sont assertées plutôt que supposées : un `is_superuser` sur
+    `groups` ferait entrer un groupe dans la décision d'accès (FR-017), et un
+    `organisation_id` sur `user_groups` rendrait représentable une appartenance
+    dont le club contredit celui du groupe.
+    """
+    command.upgrade(_alembic_config(), "head")
+
+    assert _columns(sqlite_url, "groups") == {
+        "id",
+        "organisation_id",
+        "slug",
+        "name",
+        "description",
+        "created_at",
+    }
+    assert _columns(sqlite_url, "user_groups") == {
+        "id",
+        "user_id",
+        "group_id",
+        "joined_at",
+    }
+
+
 def test_upgrade_ne_desactive_pas_les_loggers_existants(sqlite_url):
     """`alembic/env.py` ne doit pas éteindre les loggers déjà enregistrés.
 
