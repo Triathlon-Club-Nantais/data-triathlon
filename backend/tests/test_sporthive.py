@@ -1096,3 +1096,216 @@ def test_no_request_is_ever_made_to_the_race_ordinal_of_the_url(monkeypatch):
     # Symmetrical assertion: every ranking call went to a snowflake.
     for appel in client.calls_containing("/participants"):
         assert any(f"/races/{identifiant}/participants" in appel for identifiant in identifiants)
+
+
+# ---------------------------------------------------------------------------
+# Fan-out par race (issue #216) — patron Klikego répliqué : la sous-unité de
+# cache TTL n'est plus l'événement mais la **race**, identifiée par son
+# snowflake `race.id`. Cinq scénarios verrouillent le contrat :
+#   1. nominal — trace complète, une entrée `heat_enumerated` par race,
+#      `imported`/`cached`/`failures` cohérents ;
+#   2. `cache_probe` — une race fraîche est sautée **avant** toute requête
+#      réseau, `cached_urls` porte son URL canonique, `on_heat_start` n'est
+#      pas notifié pour elle ;
+#   3. isolation d'échec — une race qui lève reste dans `failures`, les
+#      autres continuent (le refus double du module est préservé) ;
+#   4. aucune race — l'événement à zéro course rend une trace vide, sans
+#      appel réseau au-delà des métadonnées ;
+#   5. `on_heat_start` — `total` = nombre à scraper, jamais le nombre
+#      énuméré, sinon la progression sauterait des indices.
+# ---------------------------------------------------------------------------
+
+
+def _race_url_for(race: dict) -> str:
+    """URL canonique attendue par le fan-out pour une race donnée."""
+    return f"https://results.sporthive.com/events/{_EVENT_ID}/races/{race['id']}"
+
+
+def test_scrape_event_fanout_nominal_returns_trace(monkeypatch):
+    """Fan-out sans `cache_probe` : les 3 races énumérées sont toutes scrapées,
+    la trace remonte les compteurs cohérents.
+
+    `heats_imported` reste à 0 côté scraper — dérivé par `import_service` via
+    l'invariant `enumerated = imported + cached + len(failures)`.
+    """
+    courses = [_course(n, annonces=1) for n in range(1, 4)]
+    pages = {n: [[_participant(f"{n}01")]] for n in range(1, 4)}
+    client = _client_factice(monkeypatch, _routes(courses, pages))
+
+    resultats, trace = sporthive.scrape_event_fanout(URL_SHEET)
+
+    assert len(resultats) == 3
+    assert trace.heats_enumerated == 3
+    assert trace.heats_cached == 0
+    assert trace.heats_imported == 0  # dérivé par import_service
+    assert trace.failures == []
+    assert trace.cached_urls == []
+    # Toutes les races ont été paginées : 3 appels de classement.
+    assert len(client.calls_containing("/participants")) == 3
+    # Chaque participation porte l'URL canonique par-race, pas l'URL de l'event.
+    urls = {r.source_url for r in resultats}
+    assert urls == {_race_url_for(c) for c in courses}
+
+
+def test_scrape_event_fanout_cache_probe_skips_races(monkeypatch):
+    """`cache_probe(race_url) == True` → la race est sautée **avant** toute
+    requête réseau, comptée dans `heats_cached` et `cached_urls`.
+
+    C'est le point du fan-out : sur un ré-import où k races sur N sont fraîches,
+    on économise k × ~100 requêtes de pagination.
+    """
+    courses = [_course(n, annonces=1) for n in range(1, 4)]
+    pages = {n: [[_participant(f"{n}01")]] for n in range(1, 4)}
+    client = _client_factice(monkeypatch, _routes(courses, pages))
+
+    cached_urls = {_race_url_for(courses[0]), _race_url_for(courses[2])}
+
+    def probe(race_url: str) -> bool:
+        return race_url in cached_urls
+
+    resultats, trace = sporthive.scrape_event_fanout(URL_SHEET, cache_probe=probe)
+
+    assert len(resultats) == 1
+    assert trace.heats_enumerated == 3
+    assert trace.heats_cached == 2
+    assert set(trace.cached_urls) == cached_urls
+    assert trace.failures == []
+    # Seule la race non cachée a paginé son classement.
+    assert len(client.calls_containing("/participants")) == 1
+    assert client.calls_containing(f"/races/{courses[0]['id']}/participants") == []
+    assert client.calls_containing(f"/races/{courses[2]['id']}/participants") == []
+
+
+def test_scrape_event_fanout_race_failure_isolated(monkeypatch, caplog):
+    """Une race qui lève est capturée dans `trace.failures` ; les autres passent.
+
+    Le refus double du module est préservé : une race incomplète est droppée
+    (comptée en `failure`), les autres continuent. Un `ValueError` d'une race
+    n'annule pas l'événement.
+    """
+    courses = [_course(n, annonces=1) for n in range(1, 4)]
+    # La 2e race annonce 3 classés mais la source n'en publie qu'un → drop.
+    courses[1]["classificationsCount"] = 3
+    pages = {
+        1: [[_participant("101")]],
+        2: [[_participant("201")]],
+        3: [[_participant("301")]],
+    }
+    _client_factice(monkeypatch, _routes(courses, pages))
+
+    with caplog.at_level(logging.WARNING, logger=sporthive.__name__):
+        resultats, trace = sporthive.scrape_event_fanout(URL_SHEET)
+
+    assert len(resultats) == 2  # races 1 et 3, la 2 est droppée
+    assert trace.heats_enumerated == 3
+    assert trace.heats_cached == 0
+    assert len(trace.failures) == 1
+    assert trace.failures[0]["heat_slug"] == str(courses[1]["id"])
+    assert "tronqué" in trace.failures[0]["reason"]
+    # La cause est journalisée en clair — même contrat que Klikego.
+    assert any(courses[1]["raceName"] in message for message in caplog.messages)
+
+
+def test_scrape_event_fanout_no_races_returns_empty(monkeypatch):
+    """Événement sans race publiée : trace vide, aucune erreur levée.
+
+    C'est le fan-out qui remonte l'événement vide au caller (via
+    `heats_enumerated=0`) — le refus event-scoped (`ValueError` « aucune course
+    importable ») ne s'applique qu'à `scrape_event_all`. Le fan-out laisse la
+    décision à `import_service`, qui compte l'événement en cache/succès selon
+    la présence de courses en base.
+    """
+    _client_factice(monkeypatch, _routes([], {}))
+
+    resultats, trace = sporthive.scrape_event_fanout(URL_SHEET)
+
+    assert resultats == []
+    assert trace.heats_enumerated == 0
+    assert trace.heats_cached == 0
+    assert trace.failures == []
+    assert trace.cached_urls == []
+
+
+def test_scrape_event_fanout_on_heat_start_notifie_par_race_non_cache(monkeypatch):
+    """`on_heat_start` est appelé avant chaque race effectivement scrapée.
+
+    Deux races cachées sur cinq → 3 notifications, index 1..3 sur un total de 3,
+    jamais sur les 2 sautées. Sans quoi la progression côté front paraîtrait
+    sauter des indices (« 5/5 » alors qu'on n'en scrape que 3).
+    """
+    courses = [_course(n, annonces=1) for n in range(1, 6)]
+    pages = {n: [[_participant(f"{n}01")]] for n in range(1, 6)}
+    _client_factice(monkeypatch, _routes(courses, pages))
+
+    # Deux races cachées, trois à scraper.
+    cached_urls = {_race_url_for(courses[1]), _race_url_for(courses[3])}
+
+    def probe(race_url: str) -> bool:
+        return race_url in cached_urls
+
+    notifications: list[tuple[str, str, int, int]] = []
+
+    def on_heat_start(race_slug, race_label, index, total):
+        notifications.append((race_slug, race_label, index, total))
+
+    sporthive.scrape_event_fanout(
+        URL_SHEET, cache_probe=probe, on_heat_start=on_heat_start,
+    )
+
+    assert len(notifications) == 3, "un appel par race scrapée, pas par race énumérée"
+    assert [n[2] for n in notifications] == [1, 2, 3]
+    assert all(n[3] == 3 for n in notifications), "total = nombre à scraper, jamais énuméré"
+    # Aucune notification pour les slugs des races cachées.
+    cached_slugs = {str(courses[1]["id"]), str(courses[3]["id"])}
+    assert not any(n[0] in cached_slugs for n in notifications)
+
+
+# ---------------------------------------------------------------------------
+# Intégration Provider — le fan-out est bien routé par le registre (issue #216)
+# ---------------------------------------------------------------------------
+
+
+def test_sporthive_provider_exposes_last_trace_after_fanout(monkeypatch):
+    """`SporthiveProvider.scrape_event_all` en mode nominal délègue au fan-out
+    et pose `self.last_trace` — c'est ce que `import_service` lit pour peupler
+    les 5 compteurs du SSE `done`.
+    """
+    from app.scrapers.registry import SporthiveProvider
+
+    courses = [_course(n, annonces=1) for n in range(1, 3)]
+    pages = {n: [[_participant(f"{n}01")]] for n in range(1, 3)}
+    _client_factice(monkeypatch, _routes(courses, pages))
+
+    provider = SporthiveProvider()
+    resultats = provider.scrape_event_all(URL_SHEET)
+
+    assert len(resultats) == 2
+    assert provider.last_trace is not None
+    assert provider.last_trace.heats_enumerated == 2
+    assert provider.last_trace.heats_cached == 0
+    assert provider.last_trace.failures == []
+
+
+def test_sporthive_provider_single_heat_falls_back_to_event_scoped(monkeypatch):
+    """`single_heat=True` retombe sur `scrape_event_all` du module — event-scoped.
+
+    Sporthive n'a pas de `?heat=` dans l'URL, donc l'échappatoire ne cible
+    pas une race unique : elle sert de retour au contrat historique, sans
+    fan-out ni cache par-race. `last_trace` porte une trace synthétique
+    1-heat pour maintenir l'invariant côté `import_service`.
+    """
+    from app.scrapers.registry import SporthiveProvider
+
+    courses = [_course(n, annonces=1) for n in range(1, 3)]
+    pages = {n: [[_participant(f"{n}01")]] for n in range(1, 3)}
+    _client_factice(monkeypatch, _routes(courses, pages))
+
+    provider = SporthiveProvider()
+    resultats = provider.scrape_event_all(URL_SHEET, single_heat=True)
+
+    assert len(resultats) == 2
+    # Contrat event-scoped : les participations portent l'URL d'entrée, pas
+    # l'URL canonique par-race.
+    assert {r.source_url for r in resultats} == {URL_SHEET}
+    assert provider.last_trace is not None
+    assert provider.last_trace.heats_enumerated == 1
