@@ -53,14 +53,36 @@ def test_no_input_interpolated_into_a_script(workflow):
     )
 
 
-def test_concurrency_forbids_two_batches_at_once(workflow):
+def test_concurrency_forbids_two_batches_on_the_same_database(workflow):
     """Le verrou réel de FR-004 — le refus 409 de l'API ne le remplace pas.
 
     Ce dernier ne voit ni un lancement fait depuis l'onglet Actions, ni une
     occurrence planifiée.
+
+    Le groupe **porte la cible** : preview et production sont deux bases, et
+    faire attendre l'une pendant que l'autre travaille n'aurait aucun sens.
     """
-    assert workflow["concurrency"]["group"] == "batch"
+    groupe = workflow["concurrency"]["group"]
+    assert "inputs.target" in groupe, "le verrou doit être par base, pas global"
     assert workflow["concurrency"]["cancel-in-progress"] is False
+
+
+def test_an_input_less_run_targets_production(workflow):
+    """Une exécution planifiée ne porte aucune entrée : elle doit viser la prod.
+
+    Le défaut de l'entrée `target` est `preview` — un lancement manuel distrait
+    ne doit pas écrire chez les adhérents. Mais `schedule` ne passe aucune
+    entrée : sans repli explicite, le cron nocturne hériterait de ce défaut et
+    ne rafraîchirait jamais la base réelle. Panne silencieuse, découverte des
+    semaines plus tard.
+
+    Vérification textuelle faute de mieux : l'expression n'est évaluée que par
+    la plateforme. C'est l'invariant qui compte, pas sa graphie.
+    """
+    repli = "inputs.target || 'production'"
+    assert repli in workflow["concurrency"]["group"]
+    for job in workflow["jobs"].values():
+        assert repli in job["environment"]
 
 
 def test_job_cannot_hang_forever(workflow):
