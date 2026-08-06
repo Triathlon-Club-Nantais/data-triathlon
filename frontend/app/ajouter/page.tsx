@@ -9,7 +9,10 @@ import { formatDate } from "@/lib/utils/date";
 const RCOLS = "140px 1fr 90px 130px";
 
 export default async function AjouterPage() {
-  const events = await apiServer.listEvents({ page_size: 6, sort: "date_desc" }).catch(() => null);
+  // « Derniers résultats enregistrés » (#201) : tri par date d'import, pas par
+  // date d'épreuve, sans quoi une épreuve ancienne qu'on vient d'importer
+  // resterait invisible sous 6 épreuves à venir déjà en base.
+  const events = await apiServer.listEvents({ page_size: 6, sort: "imported_desc" }).catch(() => null);
   const recent = events?.items ?? [];
 
   return (
