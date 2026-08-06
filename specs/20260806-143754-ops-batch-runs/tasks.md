@@ -37,7 +37,7 @@ branche par défaut. La **PR 1** livre le workflow seul et le rend exécutable ;
 
 ## Phase 2: Le workflow d'exécution
 
-- [X] T003 Créer `.github/workflows/batch.yml` — `workflow_dispatch` avec les huit entrées de `contracts/workflow.md` (dont `target`, qui choisit la base), `concurrency: { group: batch, cancel-in-progress: false }`, `run-name` portant `correlation_id`, checkout + `astral-sh/setup-uv` + `uv sync --locked` alignés sur `ci.yml`
+- [X] T003 Créer `.github/workflows/batch.yml` — `workflow_dispatch` avec les huit entrées de `contracts/workflow.md` (dont `target`, qui choisit la base), `concurrency: { group: batch-<cible>, cancel-in-progress: false }` — un verrou par base, pas un verrou global, `run-name` portant `correlation_id`, checkout + `astral-sh/setup-uv` + `uv sync --locked` alignés sur `ci.yml`
 - [X] T004 Poser `timeout-minutes: 120` sur le job de `.github/workflows/batch.yml` — sans cette borne, une exécution coincée gèle tout nouveau lancement pendant six heures (défaut de la plateforme), ce que l'edge case « traitement qui n'aboutit jamais » proscrit
 - [X] T005 Écrire l'étape d'exécution de `.github/workflows/batch.yml` — **aucune interpolation `${{ inputs.… }}` dans un `run:`** (D3) : chaque valeur passe par `env:` et n'est lue que citée. Redirection : stdout (`--json`) vers le fichier d'artefact, stderr vers le journal
 - [X] T006 Ajouter à `.github/workflows/batch.yml` le rendu du rapport texte dans `$GITHUB_STEP_SUMMARY` et le dépôt de l'artefact `bilan-<correlation_id>.json` via `actions/upload-artifact`

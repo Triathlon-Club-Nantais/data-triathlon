@@ -1,9 +1,13 @@
 # Contrat HTTP — lancement et suivi des batches
 
-Cinq routes sous `/api/v1`, toutes gardées **route par route** (FR-018), jamais
-par préfixe : `/admin/` porte déjà le signalement anonyme
-`POST /admin/pending-providers`, qu'une garde de router supprimerait sans que
-rien ne le nomme.
+Cinq routes sous `/api/v1`, chacune exigeant son pouvoir (FR-005) et gardée
+**route par route**, jamais par préfixe : `/admin/` porte déjà le signalement
+anonyme `POST /admin/pending-providers`, qu'une garde de router supprimerait sans
+que rien ne le nomme.
+
+*(La règle « route par route » vient du socle de pouvoirs livré par #115 — elle y
+porte un numéro d'exigence qui n'a rien à voir avec la numérotation de cette
+feature, d'où l'absence de renvoi chiffré ici.)*
 
 | Route | Pouvoir | Rôle |
 | --- | --- | --- |

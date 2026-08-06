@@ -362,9 +362,11 @@ Deux propriétés du workflow à connaître avant d'y toucher :
   humain, et un `run:` la substituerait avant le shell, sur une machine qui
   détient la base de production. `backend/tests/test_workflows.py` tient la
   règle ;
-- **un seul batch à la fois** (`concurrency: batch`), et un job borné à deux
-  heures : une exécution coincée rendrait sinon tout lancement impossible six
-  heures durant.
+- **un seul batch à la fois par base** (`concurrency: batch-<cible>`), et un job
+  borné à deux heures. Le groupe porte la cible : un batch de preview
+  n'empêche pas un batch de production, ce sont deux bases. Sans la borne de
+  durée, une exécution coincée rendrait tout lancement impossible six heures
+  durant.
 
 Le bilan sort en deux formes : le rapport texte dans le résumé de l'exécution, et
 la charge `--json` en artefact `bilan-<id>.json` (90 jours). Un batch dont
