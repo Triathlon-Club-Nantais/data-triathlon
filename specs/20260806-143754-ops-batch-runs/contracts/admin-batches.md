@@ -54,7 +54,7 @@ L'interface le dit alors explicitement plutôt que de présélectionner au hasar
 { "mode": "rescrape", "provider": "klikego", "older_than": 30, "limit": 50, "dry_run": true }
 ```
 
-Tous les champs sauf `mode` sont facultatifs. `provider` est validé contre le
+Tous les champs sauf `mode` sont facultatifs. **La base visée n'est pas dans le corps** : elle vient du réglage `GITHUB_BATCH_TARGET` de l'instance (cf. `contracts/workflow.md`). L'accepter du client permettrait à l'administration de la preview d'écrire en production. `provider` est validé contre le
 registre des scrapers ; `older_than` ∈ `1..3650` ; `limit` ∈ `1..500`.
 
 **202**

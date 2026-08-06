@@ -37,7 +37,7 @@ branche par défaut. La **PR 1** livre le workflow seul et le rend exécutable ;
 
 ## Phase 2: Le workflow d'exécution
 
-- [X] T003 Créer `.github/workflows/batch.yml` — `workflow_dispatch` avec les sept entrées de `contracts/workflow.md`, `concurrency: { group: batch, cancel-in-progress: false }`, `run-name` portant `correlation_id`, checkout + `astral-sh/setup-uv` + `uv sync --locked` alignés sur `ci.yml`
+- [X] T003 Créer `.github/workflows/batch.yml` — `workflow_dispatch` avec les huit entrées de `contracts/workflow.md` (dont `target`, qui choisit la base), `concurrency: { group: batch, cancel-in-progress: false }`, `run-name` portant `correlation_id`, checkout + `astral-sh/setup-uv` + `uv sync --locked` alignés sur `ci.yml`
 - [X] T004 Poser `timeout-minutes: 120` sur le job de `.github/workflows/batch.yml` — sans cette borne, une exécution coincée gèle tout nouveau lancement pendant six heures (défaut de la plateforme), ce que l'edge case « traitement qui n'aboutit jamais » proscrit
 - [X] T005 Écrire l'étape d'exécution de `.github/workflows/batch.yml` — **aucune interpolation `${{ inputs.… }}` dans un `run:`** (D3) : chaque valeur passe par `env:` et n'est lue que citée. Redirection : stdout (`--json`) vers le fichier d'artefact, stderr vers le journal
 - [X] T006 Ajouter à `.github/workflows/batch.yml` le rendu du rapport texte dans `$GITHUB_STEP_SUMMARY` et le dépôt de l'artefact `bilan-<correlation_id>.json` via `actions/upload-artifact`
@@ -57,7 +57,7 @@ d'utilisable seul, mais les trois stories s'y appuient.
 
 **⚠️ À terminer avant toute story.**
 
-- [ ] T011 Écrire `backend/tests/test_services/test_batch_runs.py` — cas du **dispatch** : corps envoyé (`ref: "main"`, `inputs` exactement les sept entrées du contrat), en-têtes (`Authorization: Bearer`, `Accept: application/vnd.github+json`, `X-GitHub-Api-Version`), URL construite depuis les réglages, `correlation_id` de huit caractères hexadécimaux ; `MockTransport`, aucun réseau
+- [ ] T011 Écrire `backend/tests/test_services/test_batch_runs.py` — cas du **dispatch** : corps envoyé (`ref: "main"`, `inputs` exactement les huit entrées du contrat, `target` valant le réglage `GITHUB_BATCH_TARGET` de l'instance et jamais une valeur reçue du client), en-têtes (`Authorization: Bearer`, `Accept: application/vnd.github+json`, `X-GitHub-Api-Version`), URL construite depuis les réglages, `correlation_id` de huit caractères hexadécimaux ; `MockTransport`, aucun réseau
 - [ ] T012 Implémenter `dispatch_batch()` dans `backend/app/services/batch_runs.py` — passe par `core/http.client()` (jamais `httpx` nu : un méta-test l'interdit dans `app/`), produit le `correlation_id` par `uuid4().hex[:8]` et le rend
 - [ ] T013 Compléter `backend/tests/test_services/test_batch_runs.py` — **liste des exécutions** : correspondance statut/conclusion de la plateforme → `state` (`pending`/`running`/`completed`), `outcome` (`success`/`failure`/`cancelled`) et `triggered_by` (`ui`/`schedule`/`manual`) ; tri décroissant, borne `limit` ; plateforme injoignable → erreur dédiée, jamais une liste vide
 - [ ] T014 Implémenter `list_runs()` dans `backend/app/services/batch_runs.py` — valeurs d'énumération **en anglais** (Principe I) ; la traduction d'affichage appartient au front

@@ -19,11 +19,19 @@
 # Contrat complet : specs/20260806-143754-ops-batch-runs/contracts/workflow.md
 name: Batch
 
-run-name: "batch · ${{ inputs.mode }} · ${{ inputs.correlation_id }}"
+run-name: "batch · ${{ inputs.target || 'production' }} · ${{ inputs.mode }} · ${{ inputs.correlation_id }}"
 
 on:
   workflow_dispatch:
     inputs:
+      target:
+        description: "Base visée"
+        type: choice
+        options: [preview, production]
+        # Défaut **preview**, et c'est délibéré : un lancement manuel distrait
+        # ne doit pas écrire dans la base des adhérents. La production se
+        # demande, elle ne s'obtient pas par inattention.
+        default: preview
       mode:
         description: "Sélection des épreuves : filtres sur la base, ou liste d'URL"
         type: choice
@@ -54,11 +62,19 @@ on:
         type: string
         default: ""
 
-# Le verrou réel : deux batches concurrents sur la même base sont un incident,
-# pas une file d'attente. Il vaut aussi pour un lancement fait depuis l'onglet
-# Actions ou par la planification, que le refus 409 de l'API ne voit pas.
+# Le verrou réel : deux batches concurrents sur la **même base** sont un
+# incident, pas une file d'attente. Il vaut aussi pour un lancement fait depuis
+# l'onglet Actions ou par la planification, que le refus 409 de l'API ne voit pas.
+#
+# Le groupe porte la cible : preview et production sont deux bases distinctes,
+# et faire attendre l'une pendant que l'autre travaille n'aurait aucun sens.
+#
+# `|| 'production'` : une exécution **planifiée** ne porte aucune entrée, et son
+# `inputs.target` est vide. Sans ce repli, le cron nocturne hériterait du défaut
+# `preview` et ne rafraîchirait jamais la base réelle — une panne silencieuse,
+# du genre qu'on ne découvre qu'en cherchant pourquoi les résultats datent.
 concurrency:
-  group: batch
+  group: batch-${{ inputs.target || 'production' }}
   cancel-in-progress: false
 
 jobs:
@@ -68,11 +84,19 @@ jobs:
     # six heures durant (défaut de la plateforme). Une reprise complète tient
     # très largement dans deux heures.
     timeout-minutes: 120
-    # Environment dédié, et non `production` : ce dernier peut porter une
-    # *required reviewer*, qui laisserait chaque lancement demandé depuis
-    # l'interface en attente d'approbation. Le contrôle d'accès est le pouvoir
-    # `batch:run`, côté API.
-    environment: batch-production
+    # Un environment par base — `batch-preview` ou `batch-production` —, chacun
+    # portant son `DATABASE_URL`. C'est lui, et lui seul, qui décide de la base
+    # écrite : rien dans le script ne la nomme.
+    #
+    # Environments **dédiés**, et non `Preview`/`Production` : ces derniers ne
+    # portent aucune `DATABASE_URL` (l'URL vit côté Render), et `Production`
+    # porte une *required reviewer* qui laisserait chaque batch en attente d'une
+    # approbation humaine. Le contrôle d'accès est le pouvoir `batch:run`, côté
+    # API. Cf. docs/ci-cd.md.
+    #
+    # Même repli que la concurrence : sans entrée (planification), c'est la
+    # production.
+    environment: batch-${{ inputs.target || 'production' }}
     defaults:
       run:
         working-directory: backend
