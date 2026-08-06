@@ -46,10 +46,11 @@ Design : `docs/superpowers/specs/2026-07-31-sql-observability-design.md`.
 
 # Le catalogue de pouvoirs (`permissions.py`, #115)
 
-**La liste de référence des pouvoirs est ici, et nulle part ailleurs.** Treize
-codes de forme `<domaine>:<geste>`, dataclass gelée, aucun état, aucun accès base
-ni réseau — c'est ce qui autorise `core/` (Principe II), et un test le vérifie
-sur la **source** du module.
+**La liste de référence des pouvoirs est ici, et nulle part ailleurs.**
+Dix-huit codes de forme `<domaine>:<geste>` — neuf de #115, trois de #197, un de
+#170 et cinq de #117 —, dataclass gelée, aucun état, aucun accès base ni réseau :
+c'est ce qui autorise `core/` (Principe II), et un test le vérifie sur la
+**source** du module.
 
 Le geste nomme l'acte métier quand il en a un (`quality:override`,
 `pending_providers:handle`) et retombe sur `read`/`write` sinon. La forme CRUD

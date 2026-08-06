@@ -123,3 +123,40 @@ classent d'elles-mêmes dans le filet d'inventaire par la règle du préfixe —
 `test_public_routes_still_open.py` ni `test_permissions_catalogue.py` n'ont eu à
 bouger. Un groupe **n'accorde rien** : la garde ne les lit jamais, et
 `tests/test_auth/test_groups_grant_nothing.py` l'établit par AST.
+
+## Administration des données (#117)
+
+`admin_data.py` porte six ressources : quatre gestes correctifs et deux lectures
+réservées. Elles vivent sous `/admin/`, et **chacune porte sa garde** — jamais le
+préfixe, pour la raison rappelée ci-dessus.
+
+| Ressource | Pouvoir |
+| --- | --- |
+| `GET /admin/courses/{id}/deletion-impact` | `courses:delete` |
+| `DELETE /admin/courses/{id}` | `courses:delete` |
+| `PATCH /admin/courses/{id}` | `courses:write` |
+| `GET /admin/athletes` (recherche) et `GET /admin/athletes/{id}` | `athletes:read` |
+| `PATCH /admin/athletes/{id}` | `athletes:write` |
+| `POST /admin/participations/{id}/reassign` | `participations:reassign` |
+
+Quatre points à ne pas défaire :
+
+- **L'ampleur annoncée est l'ampleur réelle.** Supprimer une épreuve emporte ses
+  résultats *et* les fiches coureur qui n'ont couru qu'elle. `deletion-impact` et
+  la purge appellent la **même** fonction (`athlete_repository.only_on_course`) :
+  c'est ce qui rend l'égalité structurelle plutôt que surveillée. Un test la
+  vérifie sur une même épreuve.
+- **La cascade est ORM, pas DB.** `Course.participations` porte
+  `cascade="all, delete-orphan"` ; aucun `ondelete` n'a été ajouté, et c'est
+  délibéré — `database.py` n'émet pas `PRAGMA foreign_keys=ON`, la contrainte
+  serait inerte en SQLite (dev et tests) et active en PostgreSQL.
+- **`birth_date` ne sort que par `athletes:read`.** C'est la seule donnée
+  personnelle fermée du site, et l'unique raison d'être de ce pouvoir. Ajouter le
+  champ à `AthleteBrief` (lecture publique) le viderait de son objet ; un test de
+  `test_athletes_api.py` l'interdit.
+- **Le journal ne consigne que ce qui a changé.** Rattacher un résultat au
+  coureur qui le porte déjà réussit sans écrire d'entrée : une demande sans effet
+  n'est pas un geste. Un refus, lui, n'écrit rien **et** ne modifie rien — le
+  service `flush`, la route `commit`.
+
+Spec, plan et tâches : `specs/20260806-180938-admin-crud-actions/`.
