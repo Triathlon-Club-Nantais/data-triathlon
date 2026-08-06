@@ -111,7 +111,15 @@ non-amplification et l'invariant du dernier administrateur. Un méta-test AST le
 verrouille (FR-031) — c'est l'invariant qui se perd à la route suivante et ne se
 rattrape pas après coup.
 
-`GET /auth/me` rend en plus `permissions` et `roles`, **sans exiger de pouvoir** :
-elle ne porte que sur soi. C'est la contrepartie de `GET /admin/permissions`, qui
-exige `roles:read` — non par secret, les codes vivant dans un dépôt public, mais
-parce que son seul usage est de composer un rôle.
+`GET /auth/me` rend en plus `permissions`, `roles` et `groups` (#197), **sans
+exiger de pouvoir** : elle ne porte que sur soi. C'est la contrepartie de
+`GET /admin/permissions`, qui exige `roles:read` — non par secret, les codes
+vivant dans un dépôt public, mais parce que son seul usage est de composer un
+rôle.
+
+**Les sept ressources de `/admin/groups` (#197) n'ajoutent aucun mécanisme.**
+Elles reprennent `require_permission` à l'identique, route par route, et se
+classent d'elles-mêmes dans le filet d'inventaire par la règle du préfixe — ni
+`test_public_routes_still_open.py` ni `test_permissions_catalogue.py` n'ont eu à
+bouger. Un groupe **n'accorde rien** : la garde ne les lit jamais, et
+`tests/test_auth/test_groups_grant_nothing.py` l'établit par AST.
