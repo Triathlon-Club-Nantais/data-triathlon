@@ -11,10 +11,16 @@ export type PickedAthlete = { id: number; name: string };
 
 const STORE = "tcn-athlete";
 
+/**
+ * Le stock est éditable par l'utilisateur : une valeur JSON-valide mais de
+ * mauvaise forme ferait planter l'affichage (`name.split`) ou router vers
+ * `/athletes/undefined`. On la traite comme une absence de choix.
+ */
 export function readAthlete(): PickedAthlete | null {
   try {
-    const brut = window.localStorage.getItem(STORE);
-    return brut ? (JSON.parse(brut) as PickedAthlete) : null;
+    const valeur: unknown = JSON.parse(window.localStorage.getItem(STORE) ?? "null");
+    const candidat = valeur as PickedAthlete | null;
+    return typeof candidat?.id === "number" && typeof candidat?.name === "string" ? candidat : null;
   } catch {
     return null;
   }

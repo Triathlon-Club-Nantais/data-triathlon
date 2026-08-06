@@ -23,6 +23,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 });
 
 import { AppNav } from "./AppNav";
+import { readAthlete } from "./AthletePicker";
 
 function afficher(session: SessionUser | null) {
   if (session) getSession.mockResolvedValue(session);
@@ -72,6 +73,21 @@ beforeEach(() => {
       removeItem: (cle: string) => void stock.delete(cle),
       clear: () => stock.clear(),
     },
+  });
+});
+
+describe("readAthlete — stock corrompu", () => {
+  it("traite une valeur illisible ou de mauvaise forme comme une absence de choix", () => {
+    // Le stock est éditable : sans garde, `{ id: "1" }` passerait le
+    // `JSON.parse` puis planterait à l'affichage (`name.split`).
+    window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: "1" }));
+    expect(readAthlete()).toBeNull();
+
+    window.localStorage.setItem("tcn-athlete", "pas du json");
+    expect(readAthlete()).toBeNull();
+
+    window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 7, name: "Marie Gaudin" }));
+    expect(readAthlete()).toEqual({ id: 7, name: "Marie Gaudin" });
   });
 });
 
