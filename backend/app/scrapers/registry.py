@@ -325,11 +325,43 @@ class SporthiveProvider(HostMatchedProvider):
 
 
 class ChronoWebProvider(HostMatchedProvider):
+    """Chronoweb — une URL désigne un événement, fan-out par race (issue #220).
+
+    Une seule requête HTML rend l'événement entier ; l'énumération des races
+    se fait en mémoire. Le gain du fan-out n'est **pas** la requête économisée
+    mais l'intégrité du cache TTL, par race — voir `chronoweb.FanoutTrace`.
+
+    L'échappatoire `--single-heat` n'a pas de sens ici (impossible de cibler
+    une race à la source, la vue publie l'événement entier). Le mode nominal
+    délègue à `scrape_event_fanout` ; sans `cache_probe` c'est équivalent à
+    l'ancien `scrape_event_all`, sauf que `source_url` porte désormais le
+    `&race=<race_id>` de la sous-unité.
+    """
+
     name = "chronoweb"
     _HOSTS = ("chronoweb.com",)
 
-    def scrape_event_all(self, url: str) -> list[ScrapedResult]:
-        return chronoweb.scrape_event_all(url)
+    def __init__(self) -> None:
+        self.last_trace: chronoweb.FanoutTrace | None = None
+
+    def scrape_event_all(
+        self, url: str,
+        *,
+        cache_probe: Callable[[str], bool] | None = None,
+        on_heat_start: Callable[[str, str, int, int], None] | None = None,
+        single_heat: bool = False,
+    ) -> list[ScrapedResult]:
+        """Fan-out par race — l'échappatoire `single_heat` retombe sur le fan-out."""
+        if single_heat:
+            # Pas de vraie sémantique --single-heat côté source : on rend le
+            # chemin non-fanout historique (multi-race, source_url par race).
+            self.last_trace = chronoweb.FanoutTrace()
+            return chronoweb.scrape_event_all(url)
+        results, trace = chronoweb.scrape_event_fanout(
+            url, cache_probe=cache_probe, on_heat_start=on_heat_start,
+        )
+        self.last_trace = trace
+        return results
 
 
 class T2AreaProvider:
