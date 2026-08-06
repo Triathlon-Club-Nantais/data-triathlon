@@ -117,6 +117,98 @@ class AdminUserRead(BaseModel):
         return f"{value.isoformat()}Z"
 
 
+class GroupRead(BaseModel):
+    """Un groupe tel qu'il apparaît dans la liste (#197).
+
+    `member_count` évite un aller-retour par groupe pour afficher une liste ; il
+    ne remplace pas le détail, qui seul nomme les membres.
+
+    **Ni `is_superuser`, ni `is_system`, ni `permissions`** : un groupe n'accorde
+    rien, et aucun n'est livré avec l'application. C'est ce qui le distingue d'un
+    `RoleRead`, dont il partage par ailleurs la forme.
+    """
+
+    id: int
+    organisation_id: int
+    slug: str
+    name: str
+    description: str
+    member_count: int
+    created_at: datetime
+
+    @field_serializer("created_at")
+    def _serialize_utc(self, value: datetime) -> str:
+        return f"{value.isoformat()}Z"
+
+
+class GroupMemberRead(BaseModel):
+    """Un membre d'un groupe.
+
+    `is_active` est rendu délibérément : un compte désactivé **reste membre** —
+    rien de ce que porte un groupe ne dépend de son activité —, et un écran qui
+    l'ignorerait afficherait un Codir faux.
+    """
+
+    user_id: int
+    email: str
+    display_name: str
+    is_active: bool
+    joined_at: datetime
+
+    @field_serializer("joined_at")
+    def _serialize_utc(self, value: datetime) -> str:
+        return f"{value.isoformat()}Z"
+
+
+class GroupDetailRead(GroupRead):
+    """Un groupe et sa composition — la ressource qui justifie l'objet entier.
+
+    « Liste-moi les membres du Codir » n'est rendu proprement par aucune
+    agrégation de rôles : c'est la raison pour laquelle un groupe est un objet et
+    non une convention de nommage.
+    """
+
+    members: list[GroupMemberRead]
+
+
+class GroupCreate(BaseModel):
+    """Création d'un groupe. Le `slug` est fixé ici **une fois pour toutes**.
+
+    `organisation_id` vaut par défaut le seul club en base, comme pour
+    l'attribution d'un rôle. La colonne, elle, est **non nulle** : un groupe
+    global n'existe pas.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    slug: str = Field(min_length=1, pattern=r"^[a-z][a-z0-9-]*$")
+    name: str = Field(min_length=1)
+    description: str = ""
+    organisation_id: int | None = None
+
+
+class GroupUpdate(BaseModel):
+    """Modification d'un groupe. Les deux champs sont facultatifs et indépendants.
+
+    `slug` et `organisation_id` sont **absents** : `extra="forbid"` en fait un
+    422 plutôt qu'un silence. Renommer le slug d'un groupe serait un changement
+    d'identité déguisé en modification de libellé.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, min_length=1)
+    description: str | None = None
+
+
+class GroupMemberAdd(BaseModel):
+    """Ajout d'un membre. Idempotent : réajouter est un succès."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    user_id: int
+
+
 class CourseReliabilityUpdate(BaseModel):
     """L'avis humain sur la fiabilité d'une épreuve. `null` **lève** l'avis."""
 

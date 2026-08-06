@@ -6,6 +6,7 @@ from fastapi import APIRouter
 
 from app.api.v1 import (
     admin,
+    admin_groups,
     admin_roles,
     athletes,
     auth,
@@ -32,6 +33,7 @@ for module in (
     stats,
     admin,
     admin_roles,
+    admin_groups,
     auth,
 ):
     api_router.include_router(module.router)
