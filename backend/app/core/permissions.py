@@ -22,6 +22,11 @@ from dataclasses import dataclass
 
 #: Fonctionnalités, dans l'ordre d'affichage de `GET /admin/permissions`.
 FEATURE_ROLES = "Rôles et accès"
+#: Distincte de « Rôles et accès », et c'est ce qui rend l'écran de composition
+#: lisible : mêler « attribuer les rôles » et « attribuer les groupes » dans le
+#: même bloc est exactement le geste que ce regroupement existe pour éviter. Un
+#: groupe dit à quoi on **appartient**, un rôle ce qu'on **peut faire** (#197).
+FEATURE_GROUPS = "Groupes d'appartenance"
 FEATURE_PENDING_PROVIDERS = "Chronométreurs signalés"
 FEATURE_QUALITY = "Qualité des données"
 FEATURE_PARTICIPATIONS = "Résultats"
@@ -78,6 +83,24 @@ class P:
         "Voir la liste des personnes connectées au moins une fois et leurs rôles.",
         FEATURE_ROLES,
     )
+    GROUPS_READ = Permission(
+        "groups:read",
+        "Consulter les groupes",
+        "Voir la liste des groupes d'appartenance et la composition de chacun.",
+        FEATURE_GROUPS,
+    )
+    GROUPS_WRITE = Permission(
+        "groups:write",
+        "Composer les groupes",
+        "Créer, renommer et supprimer des groupes d'appartenance.",
+        FEATURE_GROUPS,
+    )
+    GROUPS_ASSIGN = Permission(
+        "groups:assign",
+        "Gérer les membres",
+        "Ajouter et retirer une personne d'un groupe d'appartenance.",
+        FEATURE_GROUPS,
+    )
     PENDING_PROVIDERS_READ = Permission(
         "pending_providers:read",
         "Consulter les signalements",
@@ -117,6 +140,9 @@ ALL: tuple[Permission, ...] = (
     P.ROLES_WRITE,
     P.ROLES_ASSIGN,
     P.USERS_READ,
+    P.GROUPS_READ,
+    P.GROUPS_WRITE,
+    P.GROUPS_ASSIGN,
     P.PENDING_PROVIDERS_READ,
     P.PENDING_PROVIDERS_HANDLE,
     P.QUALITY_OVERRIDE,
