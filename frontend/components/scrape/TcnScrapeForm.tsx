@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Card, Input, Button, Alert } from "@/components/tcn";
 import { apiClient } from "@/lib/api/client";
@@ -16,6 +17,8 @@ export function TcnScrapeForm() {
   const [url, setUrl] = useState("");
   const [manual, setManual] = useState(false);
   const reportedRef = useRef<string | null>(null);
+  const refreshedRef = useRef<string | null>(null);
+  const router = useRouter();
 
   const save = useSaveParticipation();
   const importStream = useImportStream();
@@ -24,10 +27,13 @@ export function TcnScrapeForm() {
     heatIndex, heatsScrapingTotal, heatLabel,
   } = importStream.state;
 
+  const isDuplicate = phase === "done" && (cached || (imported === 0 && skipped > 0));
+
   const submit = useCallback(() => {
     const v = url.trim();
     if (!v || running) return;
     reportedRef.current = null;
+    refreshedRef.current = null;
     setManual(false);
     importStream.start(v);
   }, [url, running, importStream]);
@@ -40,6 +46,18 @@ export function TcnScrapeForm() {
     apiClient.reportPendingProvider(url).catch(() => {});
     setManual(true);
   }, [phase, error, url]);
+
+  // Après un import réel, invalider le cache RSC de la page pour que la carte
+  // « Derniers résultats enregistrés » (rendue côté serveur dans /ajouter) reflète
+  // la nouvelle épreuve sans F5 manuel. Sur doublon (cache TTL frais), rien à
+  // rafraîchir. Le ref garde l'URL déjà rafraîchie, réinitialisé au submit
+  // suivant — sinon un re-render sur `phase === "done"` rappellerait refresh.
+  useEffect(() => {
+    if (phase !== "done" || isDuplicate) return;
+    if (refreshedRef.current === url) return;
+    refreshedRef.current = url;
+    router.refresh();
+  }, [phase, isDuplicate, url, router]);
 
   const persist = useCallback(
     async (data: Partial<ScrapedPreview>) => {
@@ -54,7 +72,6 @@ export function TcnScrapeForm() {
     [save],
   );
 
-  const isDuplicate = phase === "done" && (cached || (imported === 0 && skipped > 0));
   const inputStatus = isDuplicate ? "error" : phase === "error" ? "warning" : running ? "active" : "default";
 
   return (

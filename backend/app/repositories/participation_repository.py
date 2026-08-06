@@ -477,6 +477,13 @@ def _events_order(db: Session, sort: str, event_name: str | None):
         return (Course.event_date.asc().nullslast(), Course.name)
     if sort == "name":
         return (Course.name.asc(), Course.event_date.desc())
+    if sort == "imported_desc":
+        # « Derniers résultats enregistrés » de /ajouter (#201) : trier par date
+        # d'entrée en base, pas par date d'épreuve — une épreuve ancienne qu'on
+        # vient d'importer doit apparaître en tête, sans quoi la carte semble ne
+        # rien avoir enregistré. `created_at` est figé au premier import (un
+        # re-scrape ne le bouge pas, cf. modèle `Course`).
+        return (Course.created_at.desc(), Course.name)
     # date_desc par défaut : dates nulles en dernier.
     return (Course.event_date.desc().nullslast(), Course.name)
 

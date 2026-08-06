@@ -125,6 +125,44 @@ def test_events_page_pagination_and_sort(db_session):
     assert [r.event_name for r in by_name["items"]] == ["Alpha", "Beta"]
 
 
+def test_events_page_sort_imported_desc_ordonne_par_date_import(db_session):
+    """« Derniers résultats enregistrés » (#201) : la plus récemment importée en tête.
+
+    L'épreuve ancienne (event_date passé) doit remonter au-dessus d'une épreuve
+    à venir déjà en base si elle a été enregistrée plus récemment — c'est le
+    point qui distingue ce tri de `date_desc`.
+    """
+    from datetime import timedelta
+
+    from app.core.time import utcnow
+
+    athlete = athlete_repository.get_or_create(db_session, nom="X", prenom="Y", club="TCN")
+    ancien = course_repository.get_or_create(
+        db_session, name="Ancien Tri", event_date=date(2020, 6, 1), event_type="triathlon-s"
+    )
+    futur = course_repository.get_or_create(
+        db_session, name="Futur Tri", event_date=date(2027, 6, 1), event_type="triathlon-s"
+    )
+    # Le futur a été importé AVANT l'ancien : c'est l'ancien qu'on veut voir en tête.
+    now = utcnow()
+    futur.created_at = now - timedelta(days=10)
+    ancien.created_at = now
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=ancien.id, bib_number="1", club="TCN"
+    )
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=futur.id, bib_number="1", club="TCN"
+    )
+    db_session.flush()
+
+    by_import = participation_repository.events_page(db_session, sort="imported_desc")
+    assert [r.event_name for r in by_import["items"]] == ["Ancien Tri", "Futur Tri"]
+
+    # Contrôle : le tri date_desc rend l'inverse (comportement inchangé pour /resultats).
+    by_date = participation_repository.events_page(db_session, sort="date_desc")
+    assert [r.event_name for r in by_date["items"]] == ["Futur Tri", "Ancien Tri"]
+
+
 def test_for_stats_filtre_par_saison_unique(db_session):
     athlete, course_2025 = _setup(db_session)  # course "Tri Z" le 2026-05-16 → saison 2025
     c_autre = course_repository.get_or_create(

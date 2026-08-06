@@ -39,6 +39,11 @@ vi.mock("@/hooks/useImportStream", () => ({
   }),
 }));
 
+const refreshMock = vi.hoisted(() => vi.fn());
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: refreshMock, push: vi.fn() }),
+}));
+
 vi.mock("@/lib/api/client", () => ({
   apiClient: {
     detectProvider: vi.fn().mockResolvedValue({ provider: "klikego" }),
@@ -162,5 +167,42 @@ describe("TcnScrapeForm — navigation vers les courses importées (#135)", () =
     });
     renderForm();
     expect(screen.queryByRole("link", { name: /Voir les résultats/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("TcnScrapeForm — rafraîchissement de la liste après import (#201)", () => {
+  it("appelle router.refresh() quand le SSE émet phase=done avec un import réel", () => {
+    importMock.set({
+      phase: "done",
+      cached: false,
+      imported: 12,
+      skipped: 0,
+      courses: [{ id: 42, name: "Triathlon de Nantes 2026", event_type: "triathlon-m" }],
+    });
+    renderForm();
+    expect(refreshMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("n'appelle pas router.refresh() sur un doublon (cache TTL frais)", () => {
+    importMock.set({
+      phase: "done",
+      cached: true,
+      imported: 0,
+      skipped: 250,
+      courses: [{ id: 7, name: "Duathlon de La Baule 2026", event_type: "duathlon-s" }],
+    });
+    renderForm();
+    expect(refreshMock).not.toHaveBeenCalled();
+  });
+
+  it("n'appelle pas router.refresh() tant que la phase n'est pas `done`", () => {
+    importMock.set({
+      phase: "scraping",
+      imported: 0,
+      skipped: 0,
+      courses: [],
+    });
+    renderForm();
+    expect(refreshMock).not.toHaveBeenCalled();
   });
 });
