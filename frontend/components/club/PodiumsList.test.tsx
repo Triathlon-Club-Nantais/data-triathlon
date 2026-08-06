@@ -83,3 +83,38 @@ describe("PodiumsList — filtrage selon ?rank= (#104, #132)", () => {
     expect(screen.getByText("Pas encore de podium enregistré.")).toBeInTheDocument();
   });
 });
+
+describe("PodiumsList — icône par scope (#128)", () => {
+  it("?rank=all : chaque scope porte une icône avec aria-label distinct", () => {
+    searchParams = new URLSearchParams("rank=all");
+    render(<PodiumsList participations={PARTS} />);
+    expect(screen.getByLabelText("Podium général")).toBeInTheDocument();
+    expect(screen.getByLabelText("Podium de catégorie")).toBeInTheDocument();
+    expect(screen.getByLabelText("Podium de genre")).toBeInTheDocument();
+  });
+
+  it("?rank=category (mode unique) : seule l'icône de catégorie apparaît", () => {
+    searchParams = new URLSearchParams("rank=category");
+    render(<PodiumsList participations={PARTS} />);
+    expect(screen.getByLabelText("Podium de catégorie")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Podium général")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Podium de genre")).not.toBeInTheDocument();
+  });
+
+  it("chaque icône porte un tooltip natif (`title`) explicite au survol", () => {
+    searchParams = new URLSearchParams("rank=all");
+    render(<PodiumsList participations={PARTS} />);
+    expect(screen.getByLabelText("Podium général")).toHaveAttribute(
+      "title",
+      "Podium général (top 3 scratch)",
+    );
+    expect(screen.getByLabelText("Podium de catégorie")).toHaveAttribute(
+      "title",
+      "Podium de catégorie (top 3 dans sa catégorie d'âge)",
+    );
+    expect(screen.getByLabelText("Podium de genre")).toHaveAttribute(
+      "title",
+      "Podium de genre (top 3 dans son sexe)",
+    );
+  });
+});

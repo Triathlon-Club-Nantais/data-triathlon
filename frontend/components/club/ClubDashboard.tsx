@@ -13,7 +13,10 @@ import {
   buildRoster,
   clubSummary,
   recentParticipations,
+  type PodiumScope,
+  type RosterEntry,
 } from "@/lib/utils/club-aggregate";
+import { PODIUM_SCOPE_META } from "@/lib/podium-scope";
 import type { Participation, Stats } from "@/lib/types";
 import { PodiumsList } from "./PodiumsList";
 import { ClubPodiumKpi } from "./ClubPodiumKpi";
@@ -116,11 +119,7 @@ export function ClubDashboard({
                   {r.podiums > 0 && ` · ${r.podiums} podium${r.podiums > 1 ? "s" : ""}`}
                 </div>
               </div>
-              {r.podiums > 0 && (
-                <span className="num text-sm font-bold text-accent-ink">
-                  🏅{r.podiums}
-                </span>
-              )}
+              {r.podiums > 0 && <RosterPodiumBadges roster={r} />}
             </Link>
           ))}
         </div>
@@ -144,6 +143,36 @@ export function ClubDashboard({
         </div>
       </section>
     </div>
+  );
+}
+
+/**
+ * Podiums d'un athlète du roster, ventilés par scope (#128). Une icône +
+ * décompte par scope non nul, chacun avec le tooltip natif partagé — permet
+ * de distinguer « 3 podiums scratch » de « 3 podiums de catégorie » là où
+ * l'ancien `🏅3` amalgamait tout.
+ */
+function RosterPodiumBadges({ roster }: { roster: RosterEntry }) {
+  const scopes: PodiumScope[] = ["overall", "gender", "category"];
+  return (
+    <span className="flex shrink-0 items-center gap-1.5">
+      {scopes.map((scope) => {
+        const n = roster.podiumsByScope[scope];
+        if (n === 0) return null;
+        const { Icon, label, title } = PODIUM_SCOPE_META[scope];
+        return (
+          <span
+            key={scope}
+            className="num inline-flex items-center gap-0.5 text-sm font-bold text-accent-ink"
+            title={`${n} ${title.toLowerCase()}`}
+            aria-label={`${n} ${label.toLowerCase()}`}
+          >
+            <Icon size={14} strokeWidth={2.5} aria-hidden="true" />
+            {n}
+          </span>
+        );
+      })}
+    </span>
   );
 }
 

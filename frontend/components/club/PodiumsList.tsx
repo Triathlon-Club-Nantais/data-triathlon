@@ -8,6 +8,7 @@ import { formatEventName } from "@/lib/utils/event";
 import { listPodiums } from "@/lib/utils/club-aggregate";
 import { RANK_PARAM, rankTypeFromParam } from "@/lib/rank";
 import { podiumScopeLabel } from "@/lib/labels";
+import { PODIUM_SCOPE_META } from "@/lib/podium-scope";
 import type { Participation } from "@/lib/types";
 
 /**
@@ -35,9 +36,20 @@ export function PodiumsList({ participations }: { participations: Participation[
       {podiums.map(({ participation: p, best }) => {
         const name =
           [p.athlete?.prenom, p.athlete?.nom].filter(Boolean).join(" ") || "Athlète";
+        const { Icon, label, title } = PODIUM_SCOPE_META[best.scope];
         return (
           <li key={p.id} className="flex items-center gap-3 py-2.5">
-            <Medal rank={best.rank} size={28} />
+            <span className="relative inline-block">
+              <Medal rank={best.rank} size={28} />
+              <span
+                role="img"
+                aria-label={label}
+                title={title}
+                className="absolute -right-1 -bottom-1 inline-grid place-content-center rounded-full bg-background p-[1px] text-foreground"
+              >
+                <Icon size={12} strokeWidth={2.5} aria-hidden="true" />
+              </span>
+            </span>
             <div className="min-w-0 flex-1">
               <Link
                 href={`/athletes/${p.athlete?.id}`}
