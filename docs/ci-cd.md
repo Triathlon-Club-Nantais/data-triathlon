@@ -302,10 +302,22 @@ Actions, qui lance la CLI.
 |---|---|---|
 | `DATABASE_URL` | environment `batch-production` | Base de production, écrite par le batch |
 
-**Environment dédié, et non `production`** : ce dernier peut porter une *required
-reviewer* (voir plus haut), qui laisserait chaque batch demandé depuis
-l'interface en attente d'approbation. Ce qui contrôle l'accès ici, c'est le
-pouvoir `batch:run` côté application.
+**Environment dédié, et non `Production`** — deux raisons, toutes deux
+constatées sur le dépôt :
+
+- `Production` **ne porte pas** de `DATABASE_URL` : ses secrets sont les jetons
+  de déploiement (Render, Vercel). L'URL de la base vit côté Render, en variable
+  de service. Il n'y a donc rien à réutiliser ;
+- `Production` porte une **`required_reviewers` active**. Un job qui la déclare
+  ne démarre qu'après approbation humaine — excellent pour un déploiement,
+  rédhibitoire pour une action déclenchée depuis un écran : le batch resterait
+  en attente pendant que l'interface annonce « en cours ».
+
+Et pas un **secret de dépôt** non plus : il serait lisible par tout workflow de
+n'importe quelle branche (cf. le compromis assumé de `RENDER_API_KEY` plus
+haut), ce qui est la pire portée pour la base de production.
+
+Ce qui contrôle l'accès ici, c'est le pouvoir `batch:run` côté application.
 
 ### L'hôte de la base : viser le **pooler**, pas la connexion directe
 
