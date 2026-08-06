@@ -250,6 +250,67 @@ Optionnel mais recommandé : ajouter une **required reviewer** sur `production` 
 un tag `v*` déclenchera la CI, mais la mise en production attendra une validation
 manuelle.
 
+## Batches de production — `batch.yml` (#47)
+
+Les batches de mise à jour des résultats (`rescrape-db`, import d'une liste
+d'URL) ne tournent **pas** dans le service web : celui-ci est sur l'offre
+gratuite, un seul process, et un batch de plusieurs dizaines de minutes y
+priverait le site public de sa ressource. Ils tournent sur un runner GitHub
+Actions, qui lance la CLI.
+
+### Un troisième environment : `batch-production`
+
+À créer (Settings → Environments), avec **un seul secret** :
+
+| Secret | Portée | Usage |
+|---|---|---|
+| `DATABASE_URL` | environment `batch-production` | Base de production, écrite par le batch |
+
+**Environment dédié, et non `production`** : ce dernier peut porter une *required
+reviewer* (voir plus haut), qui laisserait chaque batch demandé depuis
+l'interface en attente d'approbation. Ce qui contrôle l'accès ici, c'est le
+pouvoir `batch:run` côté application.
+
+### L'hôte de la base : viser le **pooler**, pas la connexion directe
+
+C'est le piège de cette configuration, et il ne se devine pas.
+
+Les runners GitHub hébergés **n'ont pas d'IPv6**, alors que l'hôte de connexion
+directe de Supabase (`db.<ref>.supabase.co`) résout en IPv6 seule sur les projets
+récents. Une `DATABASE_URL` pointant dessus donne un **échec de connexion
+réseau** au démarrage du batch, sans le moindre rapport apparent avec le code.
+
+Le secret doit donc porter l'hôte du **pooler** (`…pooler.supabase.com`),
+joignable en IPv4. En cas de doute, préférer le mode *session* au mode
+*transaction* : ce dernier ne supporte pas les instructions préparées côté
+serveur, et un batch ouvre une connexion longue.
+
+Vérification, à faire **avant** tout batch réel : lancer `batch.yml` en
+`mode: rescrape`, `limit: 1`, `dry_run: true`. Vert en moins d'une minute.
+
+### Lancer un batch sans l'interface
+
+C'est le repli quand l'interface d'administration est indisponible, et c'est
+aussi la seule voie tant que la partie applicative n'est pas déployée : onglet
+**Actions** → *Batch* → **Run workflow**, puis renseigner le mode et ses options.
+Les entrées y sont les mêmes que celles envoyées par l'interface.
+
+Deux propriétés du workflow à connaître avant d'y toucher :
+
+- **aucune entrée n'est interpolée dans un script** — elles transitent par `env:`
+  et sont lues citées. Une valeur d'entrée vient d'un fichier téléversé par un
+  humain, et un `run:` la substituerait avant le shell, sur une machine qui
+  détient la base de production. `backend/tests/test_workflows.py` tient la
+  règle ;
+- **un seul batch à la fois** (`concurrency: batch`), et un job borné à deux
+  heures : une exécution coincée rendrait sinon tout lancement impossible six
+  heures durant.
+
+Le bilan sort en deux formes : le rapport texte dans le résumé de l'exécution, et
+la charge `--json` en artefact `bilan-<id>.json` (90 jours). Un batch dont
+**toutes** les épreuves échouent sort en code 1 et rend l'exécution rouge ; un
+échec partiel reste vert, avec le détail des épreuves fautives dans le bilan.
+
 ## Publier une version
 
 ```bash

@@ -27,6 +27,9 @@ dependencies = [
     # de destination (#101). Apporte `cryptography` et `joserfc` en transitif ;
     # `joserfc` signe le jeton d'état. Sondage : docs/superpowers/specs/2026-08-01-auth-librairies-sondage.md
     "authlib>=1.7.2",
+    # Lecture des classeurs `.xlsx` téléversés dans l'écran d'administration
+    # (#47). Le `.csv` reste à la stdlib ; c'est la seule brique qui manquait.
+    "openpyxl>=3.1.5",
 ]
 
 # PEP 735 : installé par `uv sync`, écarté par `uv sync --no-dev` (Render, Docker).
