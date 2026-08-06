@@ -1,0 +1,151 @@
+# Batches de production — re-scrape de la base, ou import d'une liste d'URL.
+#
+# Ce workflow n'est pas de l'intégration continue : il détient la base de
+# **production** et exécute ce que l'interface d'administration lui demande
+# (#47). Il se relit comme du code de production.
+#
+# Deux règles à ne jamais relâcher :
+#
+#   1. **Aucune entrée n'est interpolée dans un `run:`.** `${{ inputs.x }}` est
+#      substitué *avant* le shell : une valeur contenant `"; curl … | sh #`
+#      s'exécuterait avec l'accès à la base. Chaque valeur transite par `env:` et
+#      n'est lue que citée (`"$X"`). Vérification : aucun `inputs.` ne doit
+#      apparaître dans un bloc `run:` de ce fichier.
+#   2. **La séparation stdout/stderr de la CLI est le contrat** dont dépendent
+#      les deux sorties : avec `--json`, stdout ne porte *que* la ligne JSON
+#      (elle devient l'artefact), le rapport texte passe sur stderr (il devient
+#      le résumé). Capturer les deux flux ensemble casserait l'artefact.
+#
+# Contrat complet : specs/20260806-143754-ops-batch-runs/contracts/workflow.md
+name: Batch
+
+run-name: "batch · ${{ inputs.mode }} · ${{ inputs.correlation_id }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Sélection des épreuves : filtres sur la base, ou liste d'URL"
+        type: choice
+        options: [rescrape, urls]
+        default: rescrape
+      provider:
+        description: "Chronométreur (mode rescrape) — vide = tous"
+        type: string
+        default: ""
+      older_than:
+        description: "Épreuves non rafraîchies depuis N jours (mode rescrape)"
+        type: string
+        default: ""
+      limit:
+        description: "Nombre maximum d'épreuves"
+        type: string
+        default: ""
+      urls:
+        description: "Une URL par ligne (mode urls)"
+        type: string
+        default: ""
+      dry_run:
+        description: "Simulation : ne scrape rien, ne persiste rien"
+        type: boolean
+        default: false
+      correlation_id:
+        description: "Identifiant de corrélation posé par l'appelant"
+        type: string
+        default: ""
+
+# Le verrou réel : deux batches concurrents sur la même base sont un incident,
+# pas une file d'attente. Il vaut aussi pour un lancement fait depuis l'onglet
+# Actions ou par la planification, que le refus 409 de l'API ne voit pas.
+concurrency:
+  group: batch
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    # Sans cette borne, une exécution coincée gèlerait tout nouveau lancement
+    # six heures durant (défaut de la plateforme). Une reprise complète tient
+    # très largement dans deux heures.
+    timeout-minutes: 120
+    # Environment dédié, et non `production` : ce dernier peut porter une
+    # *required reviewer*, qui laisserait chaque lancement demandé depuis
+    # l'interface en attente d'approbation. Le contrôle d'accès est le pouvoir
+    # `batch:run`, côté API.
+    environment: batch-production
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v8.3.2
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Run batch
+        id: batch
+        env:
+          # `DATABASE_URL` doit viser le **pooler** Supabase : les runners
+          # GitHub n'ont pas d'IPv6, et l'hôte de connexion directe résout en
+          # IPv6 seule. Symptôme d'un mauvais hôte : échec de connexion réseau,
+          # sans rapport apparent avec le code. Cf. docs/ci-cd.md.
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MODE: ${{ inputs.mode }}
+          PROVIDER: ${{ inputs.provider }}
+          OLDER_THAN: ${{ inputs.older_than }}
+          LIMIT: ${{ inputs.limit }}
+          URLS: ${{ inputs.urls }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -uo pipefail
+
+          args=(--json --no-progress)
+          if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+          if [ -n "$LIMIT" ]; then args+=(--limit "$LIMIT"); fi
+
+          # `--no-progress` et non `--plain` : la progression et le rapport
+          # partagent stderr, et le résumé ne doit porter que le rapport. Le
+          # suivi pas-à-pas se fait dans l'écran d'administration, pas ici.
+          set +e
+          if [ "$MODE" = "urls" ]; then
+            printf '%s\n' "$URLS" \
+              | uv run python -m app.cli rescrape-db "${args[@]}" --urls-from - \
+                  > bilan.json 2> rapport.txt
+          else
+            if [ -n "$PROVIDER" ]; then args+=(--provider "$PROVIDER"); fi
+            if [ -n "$OLDER_THAN" ]; then args+=(--older-than "$OLDER_THAN"); fi
+            uv run python -m app.cli rescrape-db "${args[@]}" \
+              > bilan.json 2> rapport.txt
+          fi
+          code=$?
+          set -e
+
+          cat rapport.txt
+          exit $code
+
+      # `always()` : un échec total (code 1) est un résultat, pas une panne — son
+      # bilan est précisément ce qu'on vient lire.
+      - name: Write summary
+        if: always()
+        run: |
+          {
+            echo '## Bilan'
+            echo '```'
+            cat rapport.txt 2>/dev/null || echo '(aucun rapport : la CLI ne s’est pas exécutée)'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bilan-${{ inputs.correlation_id || github.run_id }}
+          path: backend/bilan.json
+          if-no-files-found: warn
+          retention-days: 90
