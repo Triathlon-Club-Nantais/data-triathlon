@@ -137,6 +137,7 @@ export interface ImportedCourse {
   id: number;
   name: string;
   event_type: string;
+  is_relay?: boolean;
 }
 
 // Un heat en échec pendant un fan-out Klikego (#156).

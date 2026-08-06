@@ -5,6 +5,7 @@ import { PageShell } from "@/components/layout/PageShell";
 import { TcnScrapeForm } from "@/components/scrape/TcnScrapeForm";
 import { formatToken } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
+import { formatEventName } from "@/lib/utils/event";
 
 const RCOLS = "140px 1fr 90px 130px";
 
@@ -38,7 +39,7 @@ export default async function AjouterPage() {
               recent.map((e) => (
                 <Link key={e.id} href={`/courses/${e.id}`} className="tcn-rowlink" style={{ display: "grid", gridTemplateColumns: RCOLS, gap: "0 14px", alignItems: "center", padding: "13px 24px", borderBottom: "1px solid var(--tcn-border-faint)" }}>
                   <div style={{ fontSize: 14, color: "var(--tcn-text-muted)", fontWeight: 600 }}>{formatDate(e.event_date)}</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: "var(--tcn-ink)" }}>{e.event_name}</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "var(--tcn-ink)" }}>{formatEventName(e.event_name, e.is_relay)}</div>
                   <div><FormatChip>{formatToken(e.event_type, e.distance_km)}</FormatChip></div>
                   <div>{e.tcn_count > 0 ? <Badge count>{e.tcn_count}</Badge> : <span style={{ color: "var(--tcn-text-faint)", fontSize: 13 }}>—</span>}</div>
                 </Link>

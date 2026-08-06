@@ -25,6 +25,7 @@ of each point is the published interval — never the cumulative time.
 """
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date as date_t
 from datetime import datetime
@@ -55,6 +56,34 @@ HEADERS = {
         "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
     ),
 }
+
+
+@dataclass
+class FanoutTrace:
+    """Compteurs de fan-out par **race** (issue #220 / épique #195).
+
+    Sur chronoweb, une seule requête HTML rend toutes les races de l'événement
+    — le gain du fan-out n'est **pas** la requête économisée, mais l'intégrité
+    du cache TTL : une race fraîche ne réécrit pas sa `Course`, une race
+    disparue ne se fait pas silencieusement retirer. La sous-unité de cache
+    est la race (`race.race_id`), et sa clé de source URL est
+    `<canonical_url>&race=<race_id>` — cohérente avec Klikego (`?heat=…`) et
+    lisible telle quelle dans `Course.source_url`.
+
+    Champs alignés sur `klikego.FanoutTrace` — le patron est commun, les noms
+    aussi : « heats » ici désigne les races au sens fan-out, pour rester
+    homogène côté `import_service._fanout_counters`.
+
+    `heats_imported` reste à 0 côté scraper : dérivé par
+    `import_service._fanout_counters` via l'invariant
+    `enumerated = imported + cached + len(failures)`.
+    """
+
+    heats_enumerated: int = 0
+    heats_cached: int = 0
+    heats_imported: int = 0
+    failures: list[dict] = field(default_factory=list)
+    cached_urls: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -489,21 +518,52 @@ def _fetch_city(client, event_id: str) -> str:
     return ""
 
 
-def scrape_event_all(url: str) -> list[ScrapedResult]:
-    """Scrape every participant of every race of one chronoweb event.
+def _race_source_url(event_url: str, race_id: str) -> str:
+    """URL canonique d'une race chronoweb — clé de cache TTL et de dédup source_url.
 
-    One request brings the whole event; a second, optional and non-blocking, goes
-    for the town. Never a third, and never the participant page.
+    Query `&race=<race_id>` sur l'URL canonique de l'événement : envoyée mais
+    non consommée par la source (chronoweb rend l'événement entier quel que
+    soit le paramètre). Choix aligné sur Klikego (`?heat=…`), et lisible tel
+    quel dans `Course.source_url` sans mécanisme spécial.
+    """
+    return f"{event_url}&race={race_id}"
 
-    Raises ValueError when the URL carries no event id, and when the id is
-    unknown to the site — the latter answers 200 without `h2.name`, which would
-    otherwise pass for an event whose ranking is not published yet. That second
-    case is a legitimate, empty, error-free import (Chalain 2015).
+
+def _build_race_results(
+    race: "RaceMeta",
+    soup: BeautifulSoup,
+    meta: EventMeta,
+    event_url: str,
+    event_id: str,
+) -> list[ScrapedResult]:
+    """Construit les `ScrapedResult` d'une seule race — pur, aucun I/O.
+
+    Extrait à part pour être appelé simultanément depuis `scrape_event_all`
+    (chemin historique, monolithique) et `scrape_event_fanout` (une race à la
+    fois, avec `source_url` par sous-unité).
+    """
+    rows = _parse_passages(soup, race.race_id)
+    if not rows:
+        return []
+    points, final_point = _race_points(rows), _final_point(rows)
+    race_url = _race_source_url(event_url, race.race_id)
+    return [
+        _build_result(runner, race, meta, points, final_point, race_url, event_id)
+        for runner in _group_runners(rows)
+    ]
+
+
+def _load_event(url: str) -> tuple[BeautifulSoup, EventMeta, str, str]:
+    """Une requête : renvoie `(soup, meta, event_url, event_id)`.
+
+    Facteur commun de `scrape_event_all` et `scrape_event_fanout` — la source
+    rend l'événement entier en un GET, chaque race est ensuite lue dans le
+    même DOM. Effet de bord : ouvre le client HTTP le temps de la requête et
+    du fetch du catalogue (ville) ; les scrapes de race sont purs après.
     """
     event_url = canonical_url(url)
     event_id = (parse_qs(urlparse(event_url).query).get("event") or [""])[0]
 
-    results: list[ScrapedResult] = []
     with http.client(timeout=60, headers=HEADERS) as client:
         soup = _soup(_fetch(client, event_url))
         meta = _parse_event_meta(soup)
@@ -514,16 +574,92 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
             )
         meta.city = _fetch_city(client, event_id)
 
-        for race in _parse_races(soup, meta):
-            rows = _parse_passages(soup, race.race_id)
-            if not rows:
-                continue
-            points, final_point = _race_points(rows), _final_point(rows)
-            results.extend(
-                _build_result(runner, race, meta, points, final_point, event_url, event_id)
-                for runner in _group_runners(rows)
-            )
+    return soup, meta, event_url, event_id
+
+
+def scrape_event_all(url: str) -> list[ScrapedResult]:
+    """Scrape every participant of every race of one chronoweb event.
+
+    One request brings the whole event; a second, optional and non-blocking, goes
+    for the town. Never a third, and never the participant page.
+
+    Raises ValueError when the URL carries no event id, and when the id is
+    unknown to the site — the latter answers 200 without `h2.name`, which would
+    otherwise pass for an event whose ranking is not published yet. That second
+    case is a legitimate, empty, error-free import (Chalain 2015).
+
+    Contrat historique préservé (échappatoire `--single-heat`, tests unitaires
+    directs). Le chemin nominal du fan-out est `scrape_event_fanout`, appelé
+    par le `Provider` du registry.
+    """
+    soup, meta, event_url, event_id = _load_event(url)
+
+    results: list[ScrapedResult] = []
+    for race in _parse_races(soup, meta):
+        results.extend(_build_race_results(race, soup, meta, event_url, event_id))
     return results
+
+
+def scrape_event_fanout(
+    url: str,
+    *,
+    cache_probe: Callable[[str], bool] | None = None,
+    on_heat_start: Callable[[str, str, int, int], None] | None = None,
+) -> tuple[list[ScrapedResult], FanoutTrace]:
+    """Scrape chaque race publiée d'un événement chronoweb (issue #220).
+
+    Une seule requête HTML rend l'événement entier ; l'énumération des races
+    se fait ensuite en mémoire sur le même DOM. `cache_probe(race_url)` (si
+    fourni) permet de sauter les races déjà en cache TTL — le gain n'est pas
+    la requête économisée (déjà unique) mais **l'intégrité du cache TTL** :
+    une race fraîche ne réécrit pas sa `Course`, une race disparue ne se fait
+    pas silencieusement retirer.
+
+    `on_heat_start(race_slug, race_label, index, total)` est notifié **avant**
+    la construction des `ScrapedResult` d'une race non cachée. `total` = nombre
+    de races à scraper, pas nombre énuméré : sur un ré-import majoritairement
+    caché, la progression ne saute plus d'indices.
+
+    Les exceptions par race sont capturées dans `trace.failures` et ne
+    remontent pas — une race en échec n'annule pas les autres. Sur chronoweb,
+    l'unique cause plausible côté race est un bug de parseur (le HTML étant
+    déjà chargé) ; on isole quand même pour rester homogène avec le patron
+    Klikego, sans avoir à raisonner au cas par cas.
+
+    Retour : `(results, trace)`. `trace.heats_imported` reste à 0 ici —
+    dérivé par `import_service` via l'invariant
+    `enumerated = imported + cached + len(failures)`.
+    """
+    trace = FanoutTrace()
+    all_results: list[ScrapedResult] = []
+
+    soup, meta, event_url, event_id = _load_event(url)
+    races = _parse_races(soup, meta)
+    trace.heats_enumerated = len(races)
+
+    # Pré-filtre les races à scraper : fixe le `total` notifié à `on_heat_start`,
+    # sans quoi la progression sauterait des indices sur un ré-import caché.
+    races_to_scrape: list[RaceMeta] = []
+    for race in races:
+        race_url = _race_source_url(event_url, race.race_id)
+        if cache_probe is not None and cache_probe(race_url):
+            trace.heats_cached += 1
+            trace.cached_urls.append(race_url)
+            continue
+        races_to_scrape.append(race)
+
+    total_to_scrape = len(races_to_scrape)
+    for index, race in enumerate(races_to_scrape, start=1):
+        if on_heat_start is not None:
+            on_heat_start(race.race_id, race.label, index, total_to_scrape)
+        try:
+            all_results.extend(_build_race_results(race, soup, meta, event_url, event_id))
+        except Exception as exc:  # noqa: BLE001 — isolation par race, cf. FR-004 Klikego
+            logger.warning("Race %s de l'événement %s en échec : %s",
+                           race.race_id, event_id, exc)
+            trace.failures.append({"heat_slug": race.race_id, "reason": str(exc)})
+
+    return all_results, trace
 
 
 def _parse_races(soup: BeautifulSoup, meta: EventMeta) -> list[RaceMeta]:

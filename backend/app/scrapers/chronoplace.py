@@ -24,6 +24,9 @@ Flux (cf. docs/superpowers/specs/2026-07-25-chronoplace-scraper-design.md) :
 import json
 import logging
 import re
+from collections.abc import Callable
+from dataclasses import dataclass
+from dataclasses import field as dc_field
 from datetime import date
 from urllib.parse import urlparse
 
@@ -37,6 +40,24 @@ from .classify import classify_event_type
 from .utils import normalize_rank, normalize_time, parse_fr_date, split_athlete_name
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class FanoutTrace:
+    """Compteurs de fan-out remontés par le scraper Chronoplace (épique #195).
+
+    Même contrat que la trace Klikego : `heats_imported` est laissé à 0 côté
+    scraper ; `import_service` le dérive via l'invariant
+    `enumerated = imported + cached + len(failures)`. Le vocabulaire « heat »
+    est conservé pour rester homogène avec le patron — ici une sous-unité est
+    une **épreuve** de l'événement (`epreuve_id`).
+    """
+    heats_enumerated: int = 0
+    heats_cached: int = 0
+    heats_imported: int = 0
+    failures: list[dict] = dc_field(default_factory=list)
+    cached_urls: list[str] = dc_field(default_factory=list)
+
 
 BASE_URL = "https://www.chronoplace.fr"
 HEADERS = {
@@ -94,6 +115,16 @@ def _parse_url(url: str) -> tuple[str, str]:
 def _epreuve_path(slug: str, epreuve_id: str) -> str:
     """Chemin du classement **complet** d'une épreuve."""
     return f"/classement/{slug}/epreuve/{epreuve_id}?perPage=all"
+
+
+def _epreuve_source_url(slug: str, epreuve_id: str) -> str:
+    """URL canonique d'une épreuve — clé de cache TTL et `source_url` du résultat.
+
+    Une seule fonction pour les deux rôles : sans quoi le `cache_probe` recevrait
+    une graphie et la `Course` en persisterait une autre, le cache ne pourrait
+    pas raccrocher au ré-import (patron fan-out #195).
+    """
+    return f"{BASE_URL}{_epreuve_path(slug, epreuve_id)}"
 
 
 def _unwrap(value):
@@ -279,13 +310,29 @@ def _list_epreuves(html: str, slug: str) -> list[str]:
     passage du site aux URLs absolues ferait disparaître les épreuves sœurs en
     silence.
     """
+    return [epreuve_id for epreuve_id, _ in _enumerate_epreuves(html, slug)]
+
+
+def _enumerate_epreuves(html: str, slug: str) -> list[tuple[str, str]]:
+    """Tabs d'épreuves : `(id, label)` dans l'ordre du document, dédupliqués.
+
+    Le libellé est le texte du lien (« Spay'cific Triathlon S »), servi tel quel
+    à `on_heat_start`. Filtre sur le slug de l'événement courant.
+    """
     pattern = re.compile(rf"^/classement/{re.escape(slug)}/epreuve/(\d+)/?$")
-    ids: list[str] = []
+    seen: set[str] = set()
+    out: list[tuple[str, str]] = []
     for a in BeautifulSoup(html, "lxml").find_all("a", href=True):
         m = pattern.match(urlparse(a["href"].strip()).path)
-        if m and m.group(1) not in ids:
-            ids.append(m.group(1))
-    return ids
+        if not m:
+            continue
+        epreuve_id = m.group(1)
+        if epreuve_id in seen:
+            continue
+        seen.add(epreuve_id)
+        label = re.sub(r"\s+", " ", a.get_text(" ", strip=True)).strip()
+        out.append((epreuve_id, label))
+    return out
 
 
 def _event_type(analytics: dict, event_name: str) -> str:
@@ -462,32 +509,87 @@ def _resolve_epreuve_id(client: httpx.Client, slug: str) -> str:
 def scrape_event_all(url: str) -> list[ScrapedResult]:
     """Tous les participants de **toutes** les épreuves de l'événement.
 
-    Une URL pointe une épreuve, mais la page liste ses sœurs (onglets) : on les
-    importe toutes, comme les heats Breizh Chrono. Coût : une requête par épreuve.
+    Contrat historique conservé pour les tests et les appelants directs :
+    délègue au fan-out (`scrape_event_fanout`) sans `cache_probe` ni
+    `on_heat_start`. Coût : une requête par épreuve (+ 1 pour la date).
     """
+    results, _trace = scrape_event_fanout(url)
+    return results
+
+
+def scrape_event_fanout(
+    url: str,
+    *,
+    cache_probe: Callable[[str], bool] | None = None,
+    on_heat_start: Callable[[str, str, int, int], None] | None = None,
+) -> tuple[list[ScrapedResult], FanoutTrace]:
+    """Fan-out par épreuve — patron cache TTL par sous-unité (épique #195).
+
+    La page pointée par l'URL liste les épreuves sœurs (onglets) : chacune est
+    une sous-unité, avec sa propre `source_url` (`_epreuve_source_url`), et
+    donc son propre horizon de cache TTL. `cache_probe(sub_url)` permet de
+    sauter une épreuve fraîche **avant** sa requête. `on_heat_start` est
+    notifié une fois par épreuve **effectivement scrapée**, avec `total = len(à
+    scraper)` — la progression ne saute plus d'indices sur un ré-import
+    majoritairement caché.
+
+    La date d'événement (une requête d'annuaire) reste en amont : elle vaut
+    pour l'événement entier — la déplacer dans la boucle irait la re-chercher
+    autant de fois qu'il y a d'épreuves.
+    """
+    trace = FanoutTrace()
+    all_results: list[ScrapedResult] = []
     slug, epreuve_id = _parse_url(url)
+
     with http.client(timeout=30, headers=HEADERS) as client:
         if not epreuve_id:
             epreuve_id = _resolve_epreuve_id(client, slug)
         html = _fetch(client, _epreuve_path(slug, epreuve_id))
 
-        # La date vaut pour l'événement entier : une seule requête d'annuaire.
         analytics = _parse_snapshot(html).get("analyticsContext") or {}
         event_date = _fetch_event_date(
             client, slug, analytics.get("event_year", ""), analytics.get("event_type", "")
         )
 
-        results = _epreuve_results(html, url, slug, event_date)
-        done = {epreuve_id}
-        for sibling in _list_epreuves(html, slug):
-            if sibling in done:
+        # Énumération : ordre des onglets. L'épreuve demandée y figure en
+        # règle générale — on la préfixe sinon (redirection vers une épreuve
+        # non listée), avec le libellé du `<h1>` comme repli.
+        enumerated = _enumerate_epreuves(html, slug)
+        if not any(eid == epreuve_id for eid, _ in enumerated):
+            enumerated = [(epreuve_id, _event_name(html, slug))] + enumerated
+
+        trace.heats_enumerated = len(enumerated)
+
+        # Pré-filtre : le total notifié à `on_heat_start` doit être le nombre
+        # d'épreuves effectivement scrapées, pas le nombre énuméré, sinon un
+        # ré-import majoritairement caché paraîtrait sauter des indices.
+        a_scraper: list[tuple[str, str, str]] = []
+        for sub_id, sub_label in enumerated:
+            sub_url = _epreuve_source_url(slug, sub_id)
+            if cache_probe is not None and cache_probe(sub_url):
+                trace.heats_cached += 1
+                trace.cached_urls.append(sub_url)
                 continue
-            done.add(sibling)
+            a_scraper.append((sub_id, sub_label, sub_url))
+
+        # L'épreuve en tête a déjà été GETée pour lire les onglets et
+        # l'analyticsContext. Si elle est à scraper, on réutilise ce HTML —
+        # sinon (cache_probe True dessus), elle est sautée comme les autres.
+        total = len(a_scraper)
+        for index, (sub_id, sub_label, sub_url) in enumerate(a_scraper, start=1):
+            if on_heat_start is not None:
+                on_heat_start(sub_id, sub_label, index, total)
             try:
-                page = _fetch(client, _epreuve_path(slug, sibling))
-            except (ValueError, httpx.HTTPError) as exc:
-                # Une sœur en échec ne doit pas emporter l'épreuve demandée.
-                logger.warning("Épreuve sœur %s ignorée : %s", sibling, exc)
-                continue
-            results.extend(_epreuve_results(page, url, slug, event_date))
-    return results
+                if sub_id == epreuve_id:
+                    page = html
+                else:
+                    page = _fetch(client, _epreuve_path(slug, sub_id))
+                all_results.extend(
+                    _epreuve_results(page, sub_url, slug, event_date)
+                )
+            except Exception as exc:
+                # Isolation d'échec par épreuve : les autres continuent.
+                logger.warning("Épreuve %s ignorée : %s", sub_id, exc)
+                trace.failures.append({"heat_slug": sub_id, "reason": str(exc)})
+
+    return all_results, trace

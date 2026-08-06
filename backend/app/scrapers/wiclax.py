@@ -7,8 +7,13 @@ URL example:
 The .clax file is an XML file containing all results.
 We fetch it and find the competitor by bib number (B param).
 """
+import logging
 import re
+import unicodedata
 import xml.etree.ElementTree as ET
+from collections.abc import Callable
+from dataclasses import dataclass
+from dataclasses import field as dc_field
 from urllib.parse import parse_qs, quote, unquote, urlencode, urljoin, urlparse, urlunparse
 
 import httpx
@@ -25,6 +30,29 @@ from .utils import (
     qualify_event_name,
     split_athlete_name,
 )
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class FanoutTrace:
+    """Compteurs de fan-out remontés par le scraper Wiclax (issue #195).
+
+    Mêmes 5 champs que la trace Klikego (contrat partagé pour `import_service`).
+    Ici la sous-unité est un **parcours** (attribut `p` d'un `<E>` ou d'un
+    `<Competitor>`) : le `.clax` XML étant partagé, une seule requête réseau
+    suffit à l'événement entier. Le gain du fan-out n'est donc pas la requête
+    économisée mais l'intégrité du cache TTL au niveau parcours (un parcours
+    frais n'est ni reconstruit ni persisté).
+
+    `heats_imported` est laissé à 0 côté scraper ; `import_service` le dérive
+    via l'invariant `enumerated = imported + cached + len(failures)`.
+    """
+    heats_enumerated: int = 0
+    heats_cached: int = 0
+    heats_imported: int = 0
+    failures: list[dict] = dc_field(default_factory=list)
+    cached_urls: list[str] = dc_field(default_factory=list)
 
 HEADERS = {
     "User-Agent": (
@@ -499,20 +527,92 @@ def _fill_er_splits(
         r.run_time  = normalize_time(result_elem.get("s10", ""))
 
 
-def scrape_event_all(url: str) -> list[ScrapedResult]:
+def _parcours_slug(parcours: str) -> str:
+    """Slug canonique d'un parcours Wiclax (fan-out #195).
+
+    Contraintes : stable (mémoïsable), ASCII, URL-safe, distinct pour deux
+    parcours distincts. Un parcours vide (rare — `.clax` très anciens) rend
+    la chaîne vide, à traiter en amont.
     """
-    Fetch ALL participants from a Wiclax .clax event file.
-    Uses a single HTTP request — the .clax XML contains all competitors.
-    Handles both Competitor/Runner format and ChronoSmetron E/R format.
+    # NFKD + drop combining marks : « S-Open Femmes » → « S-Open Femmes »,
+    # « 6-9 Ans » → « 6-9-ans » (compatible avec ASCII de sortie).
+    normalized = unicodedata.normalize("NFKD", parcours or "")
+    stripped = "".join(c for c in normalized if not unicodedata.combining(c))
+    # Tout ce qui n'est pas [a-z0-9-] → tiret. Lower ensuite. On collapse les tirets.
+    lowered = stripped.lower()
+    slug = re.sub(r"[^a-z0-9]+", "-", lowered).strip("-")
+    return slug
+
+
+def _sub_source_url(url: str, parcours: str) -> str:
+    """URL canonique d'un parcours Wiclax — clé de cache TTL et de dédup source_url.
+
+    Convention : URL débarrassée de `B=` (dossard sélecteur), avec un paramètre
+    neuf `parcours=<slug>` ajouté. `p=` n'est PAS employé : la source Wiclax
+    l'utilise déjà en query sur certains flux, on ne veut pas rentrer en collision.
+    Un parcours vide → URL sans qualification (compat rétro `.clax` monoparcours).
     """
-    root, _, event_name, event_type, event_date = _fetch_clax(url)
-    segs_elem = root.find(".//Segments")
-    segments = list(segs_elem) if segs_elem is not None else []
-    # Mapping des splits calculé une fois par parcours (mémoïsé).
-    split_cache: dict[str, tuple[dict[str, int], str | None]] = {}
-    # Strip the B= athlete-selector so each result links to the event, not a random athlete
-    base_url = _strip_athlete_param(url)
-    results: list[ScrapedResult] = []
+    parsed = urlparse(_strip_athlete_param(url))
+    params = [(k, v) for k, v in parse_qs(parsed.query, keep_blank_values=True).items()]
+    # parse_qs rend {clé: [valeurs]} → aplatir en liste de paires pour préserver
+    # l'unicité (pas de reconstruction de liste sur des paramètres non répétés).
+    flat: list[tuple[str, str]] = []
+    for key, values in params:
+        for value in values:
+            flat.append((key, value))
+    slug = _parcours_slug(parcours)
+    if slug:
+        # Écrase toute valeur `parcours=` préexistante — l'URL entrante ne doit pas
+        # trancher à la place du fan-out.
+        flat = [(k, v) for k, v in flat if k != "parcours"]
+        flat.append(("parcours", slug))
+    return urlunparse(parsed._replace(query=urlencode(flat)))
+
+
+def _drop_orphelins(
+    par_parcours: dict[str, list[ScrapedResult]], ordre: list[str], url: str,
+) -> None:
+    """Écarte les résultats sans attribut `p=` d'un événement multi-parcours.
+
+    Un E sans `p=` (« DOSSARD INCONNU ***** ») créait une `Course` avec
+    `source_url` = URL de l'événement, qui matchait au ré-import via
+    `_cached_result` et court-circuitait tout le fan-out (issue #195 sur
+    Vertou 2026 ; symptôme aussi documenté par le bug #79). L'écart n'a lieu
+    que sur un événement multi-parcours : un `.clax` mono-parcours où aucun E
+    ne porte `p=` (legacy) reste importé entier (rétro-compat).
+
+    Journalisation en WARNING : le cas reste rare et l'exploitant doit pouvoir
+    remonter les orphelins à la source.
+    """
+    if len(par_parcours) <= 1 or "" not in par_parcours:
+        return
+    orphelins = par_parcours.pop("")
+    ordre.remove("")
+    logger.warning(
+        "Wiclax %s : %d participant(s) orphelin(s) sans parcours écartés",
+        url, len(orphelins),
+    )
+
+
+def _iter_parcours_results(
+    root: ET.Element, base_url: str, event_name: str, event_type: str,
+    event_date: object, segments: list[ET.Element],
+) -> tuple[dict[str, list[ScrapedResult]], list[str]]:
+    """Construit les `ScrapedResult` groupés par parcours.
+
+    Retour : `(par_parcours, ordre)` où `par_parcours[parcours]` liste les
+    résultats du parcours et `ordre` préserve l'ordre d'apparition des parcours
+    dans le `.clax` — critique pour reproduire fidèlement le rendu source dans
+    le fan-out (index de progression, ordre des `Course` remontées).
+    """
+    par_parcours: dict[str, list[ScrapedResult]] = {}
+    ordre: list[str] = []
+
+    def _ajouter(parcours: str, r: ScrapedResult) -> None:
+        if parcours not in par_parcours:
+            par_parcours[parcours] = []
+            ordre.append(parcours)
+        par_parcours[parcours].append(r)
 
     # Format 1: Competitor / Runner / Participant elements
     for tag in ("Competitor", "COMPETITOR", "Runner", "RUNNER", "Participant"):
@@ -524,55 +624,163 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                     continue
                 r = _parse_competitor(comp, base_url, event_name, event_type)
                 r.event_date = event_date
-                results.append(r)
-            break
+                parcours = comp.get("p") or comp.get("P") or ""
+                _ajouter(parcours, r)
+            return par_parcours, ordre
 
     # Format 2: ChronoSmetron E/R elements (E = competitor, R = timing keyed by d=bib)
-    if not results:
-        r_by_bib: dict[str, ET.Element] = {
-            elem.get("d", ""): elem
-            for elem in root.iter("R")
-            if elem.get("d")
-        }
-        # Rangs calculés au tri (le .clax ne les stocke pas), indexés par clé `d`.
-        ranks_by_d = _compute_er_ranks(root, r_by_bib)
-        for comp in root.iter("E"):
-            join_key = _get_competitor_bib(comp)  # clé de jointure E↔R = `d`
-            if not join_key:
-                continue
-            r = _parse_competitor(comp, base_url, event_name, event_type)
-            # Mapping des splits propre au parcours (segments scopés par `pcs`) :
-            # une course jeune run-bike-run lit ses propres sN et est reclassée duathlon.
-            parcours = comp.get("p") or comp.get("P") or ""
-            if parcours not in split_cache:
-                split_cache[parcours] = _parcours_split_map(segments, parcours)
-            split_map, event_type_override = split_cache[parcours]
-            if event_type_override:
-                r.event_type = event_type_override
-            # Timing from sibling R element
-            result_elem = r_by_bib.get(join_key)
-            if result_elem is not None:
-                raw_t = result_elem.get("t", "")
-                # Le statut peut venir d'un attribut nommé du <R>, ou d'un libellé
-                # logé dans l'attribut temps (ex. t="Abandon"/"Disqualifié").
-                if not r.status:
-                    r.status = _competitor_status(result_elem) or derive_status_from_label(raw_t)
-                if r.status in (STATUS_DNF, STATUS_DNS, STATUS_DSQ):
-                    r.total_time = ""
-                elif not r.total_time:
-                    r.total_time = normalize_time(raw_t)
-                    _fill_er_splits(result_elem, r, split_map)
-            # Rang calculé au tri pour les finishers ; None sinon (hygiène).
+    split_cache: dict[str, tuple[dict[str, int], str | None]] = {}
+    r_by_bib: dict[str, ET.Element] = {
+        elem.get("d", ""): elem
+        for elem in root.iter("R")
+        if elem.get("d")
+    }
+    ranks_by_d = _compute_er_ranks(root, r_by_bib)
+    for comp in root.iter("E"):
+        join_key = _get_competitor_bib(comp)
+        if not join_key:
+            continue
+        r = _parse_competitor(comp, base_url, event_name, event_type)
+        parcours = comp.get("p") or comp.get("P") or ""
+        if parcours not in split_cache:
+            split_cache[parcours] = _parcours_split_map(segments, parcours)
+        split_map, event_type_override = split_cache[parcours]
+        if event_type_override:
+            r.event_type = event_type_override
+        result_elem = r_by_bib.get(join_key)
+        if result_elem is not None:
+            raw_t = result_elem.get("t", "")
+            if not r.status:
+                r.status = _competitor_status(result_elem) or derive_status_from_label(raw_t)
             if r.status in (STATUS_DNF, STATUS_DNS, STATUS_DSQ):
-                r.rank_overall = r.rank_category = r.rank_gender = None
-            else:
-                rg = ranks_by_d.get(join_key)
-                if rg is not None:
-                    r.rank_overall, r.rank_gender, r.rank_category = rg
-            r.event_date = event_date
-            results.append(r)
+                r.total_time = ""
+            elif not r.total_time:
+                r.total_time = normalize_time(raw_t)
+                _fill_er_splits(result_elem, r, split_map)
+        if r.status in (STATUS_DNF, STATUS_DNS, STATUS_DSQ):
+            r.rank_overall = r.rank_category = r.rank_gender = None
+        else:
+            rg = ranks_by_d.get(join_key)
+            if rg is not None:
+                r.rank_overall, r.rank_gender, r.rank_category = rg
+        r.event_date = event_date
+        _ajouter(parcours, r)
 
+    return par_parcours, ordre
+
+
+def scrape_event_all(url: str) -> list[ScrapedResult]:
+    """
+    Fetch ALL participants from a Wiclax .clax event file.
+
+    Contrat historique conservé (utilisé par les tests unitaires et
+    l'échappatoire du `Provider`) : une seule requête sur le `.clax`, tous les
+    parcours confondus, aucun découpage `Course.source_url` par parcours.
+
+    Le chemin nominal passe désormais par `scrape_event_fanout` (voir #195).
+    """
+    root, _, event_name, event_type, event_date = _fetch_clax(url)
+    segs_elem = root.find(".//Segments")
+    segments = list(segs_elem) if segs_elem is not None else []
+    base_url = _strip_athlete_param(url)
+    par_parcours, ordre = _iter_parcours_results(
+        root, base_url, event_name, event_type, event_date, segments,
+    )
+    results: list[ScrapedResult] = []
+    for parcours in ordre:
+        results.extend(par_parcours[parcours])
     return results
+
+
+def scrape_event_fanout(
+    url: str,
+    *, cache_probe: Callable[[str], bool] | None = None,
+    on_heat_start: Callable[[str, str, int, int], None] | None = None,
+) -> tuple[list[ScrapedResult], FanoutTrace]:
+    """Fan-out par parcours d'un événement Wiclax (issue #195).
+
+    Le `.clax` XML est **partagé** par tous les parcours de l'événement — une
+    seule requête réseau suffit. Le fan-out logique est en aval du fetch, il
+    n'économise donc aucun trafic : le gain est l'**intégrité du cache TTL au
+    niveau parcours**. Un parcours frais côté cache TTL n'est ni reconstruit ni
+    persisté (sa `Course` en base garde son `scraped_at`, son `source_url` et
+    ses participations inchangés) ; un parcours disparu d'un ré-import n'est pas
+    silencieusement retiré (aucune reconstruction implicite).
+
+    URL canonique d'un parcours : `<url sans B=>&parcours=<slug>`. Le paramètre
+    `parcours=` est neuf : Wiclax emploie déjà `p=` en query sur certains flux,
+    on n'y rentre pas en collision. `_sub_source_url` est la SEULE définition
+    de cette URL — elle sert simultanément de clé au `cache_probe` et de
+    `ScrapedResult.source_url` de tous les résultats du parcours (persistée en
+    `Course.source_url`).
+
+    `on_heat_start(slug, label, index, total)` est notifié **avant** le
+    traitement d'un parcours non caché — jamais pour un parcours sauté
+    (cache_probe → True). `total` = nombre de parcours à traiter, pas nombre
+    énuméré, sinon la progression sauterait des indices sur un ré-import
+    majoritairement caché.
+
+    Retour : `(results, trace)`. `trace.heats_imported` reste à 0 ici — dérivé
+    par `import_service` via l'invariant.
+    """
+    trace = FanoutTrace()
+    all_results: list[ScrapedResult] = []
+
+    root, _, event_name, event_type, event_date = _fetch_clax(url)
+    segs_elem = root.find(".//Segments")
+    segments = list(segs_elem) if segs_elem is not None else []
+    base_url = _strip_athlete_param(url)
+
+    par_parcours, ordre = _iter_parcours_results(
+        root, base_url, event_name, event_type, event_date, segments,
+    )
+    _drop_orphelins(par_parcours, ordre, url)
+    trace.heats_enumerated = len(ordre)
+
+    # Pré-filtre les parcours à traiter — `heats_a_scraper` fixe le total notifié
+    # à `on_heat_start`, sans quoi la progression sauterait des indices.
+    heats_a_scraper: list[tuple[str, str]] = []
+    for parcours in ordre:
+        sub_url = _sub_source_url(url, parcours)
+        if cache_probe is not None and cache_probe(sub_url):
+            trace.heats_cached += 1
+            trace.cached_urls.append(sub_url)
+            continue
+        heats_a_scraper.append((parcours, sub_url))
+
+    total_a_scraper = len(heats_a_scraper)
+    for index, (parcours, sub_url) in enumerate(heats_a_scraper, start=1):
+        slug = _parcours_slug(parcours)
+        label = parcours or slug
+        if on_heat_start is not None:
+            on_heat_start(slug, label, index, total_a_scraper)
+        try:
+            all_results.extend(_finalize_parcours(par_parcours, parcours, sub_url))
+        except Exception as exc:
+            logger.warning(
+                "Parcours %s de %s en échec : %s", parcours or "(sans nom)", url, exc,
+            )
+            trace.failures.append({"heat_slug": slug, "reason": str(exc)})
+
+    return all_results, trace
+
+
+def _finalize_parcours(
+    par_parcours: dict[str, list[ScrapedResult]], parcours: str, sub_url: str,
+) -> list[ScrapedResult]:
+    """Finalise les résultats d'un parcours pour le fan-out.
+
+    Fixe leur `source_url` à l'URL canonique du parcours — c'est la clé du
+    cache TTL, elle doit se retrouver en `Course.source_url` pour que le
+    prochain `cache_probe` la reconnaisse.
+
+    Isolé en helper pour rendre les échecs par parcours testables sans
+    fabriquer un `.clax` corrompu (les tests monkeypatchent ce helper).
+    """
+    resultats = par_parcours[parcours]
+    for r in resultats:
+        r.source_url = sub_url
+    return resultats
 
 
 def _strip_athlete_param(url: str) -> str:

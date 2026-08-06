@@ -39,7 +39,7 @@ pagination cap hit, or when no race could be read at all.
 import logging
 import re
 import unicodedata
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import date, datetime
 from urllib.parse import urlparse
@@ -50,6 +50,7 @@ from app.core import http
 
 from .base import STATUS_DNF, STATUS_FINISHER, ScrapedResult
 from .classify import classify_event_type
+from .klikego import FanoutTrace
 from .utils import (
     derive_status_from_label,
     normalize_rank,
@@ -574,6 +575,37 @@ def _scrape_race(
     return [_to_result(participant, ctx) for participant in participants]
 
 
+def _race_source_url(event_id: str, race: dict) -> str:
+    """URL canonique d'une race Sporthive — clé de cache TTL et de dédup `source_url`.
+
+    On préfère le **snowflake** `race.id` (19 chiffres) à l'ordinal
+    `activeRaceId` : le path `/races/{n}` du navigateur est un piège documenté
+    (trap n°1) — `GET /races/1` répond 200 sur un événement de 2015 sans rapport.
+    Le snowflake, lui, identifie sans ambiguïté la course sur toutes les
+    façades. Une seule fonction pour deux emplois :
+      - clé de `cache_probe` (invoquée avant tout appel réseau) ;
+      - valeur de `ScrapedResult.source_url` sur toutes les participations de
+        cette race, donc de `Course.source_url` en base.
+    Sans cette identité, deux races d'un même événement partageraient une clé
+    de cache — le piège que le fan-out ferme structurellement.
+    """
+    return f"https://results.sporthive.com/events/{event_id}/races/{race['id']}"
+
+
+def _race_slug(race: dict) -> str:
+    """Slug court d'une race : le snowflake `id` (19 chiffres).
+
+    L'ordinal `activeRaceId` serait plus court mais n'est pas un identifiant
+    stable — le snowflake est la seule clé publique du produit.
+    """
+    return str(race.get("id") or "")
+
+
+def _race_label(race: dict) -> str:
+    """Libellé publié de la race — affiché tel quel par le SSE (`heat_label`)."""
+    return (race.get("raceName") or "").strip()
+
+
 def scrape_event_all(url: str) -> list[ScrapedResult]:
     """Every race of the event the URL points into (FR-005).
 
@@ -594,6 +626,11 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     `batch` counts "no result" as a legitimate short-circuit — so without it a
     wholly truncated event would be indistinguishable, in the report, from a
     successful import.
+
+    Contract préservé pour l'échappatoire mono-race (`--single-heat`) et les
+    tests unitaires : cette fonction reste **event-scoped** et route les
+    `source_url` de chaque participation sur l'URL demandée, jamais sur l'URL
+    canonique par-race. La clé de cache par-race vit dans `scrape_event_fanout`.
     """
     event_id = _parse_url(url)
     resultats: list[ScrapedResult] = []
@@ -634,3 +671,103 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
             "il est rejouable dès que la source publie."
         )
     return resultats
+
+
+def scrape_event_fanout(
+    url: str,
+    *, cache_probe: Callable[[str], bool] | None = None,
+    on_heat_start: Callable[[str, str, int, int], None] | None = None,
+) -> tuple[list[ScrapedResult], FanoutTrace]:
+    """Scrape toutes les races publiées d'un événement Sporthive (issue #216).
+
+    Réplique le patron fan-out Klikego. Rôle du « heat » ici : une **race** de
+    l'event, identifiée par son `race.id` snowflake — **pas** l'ordinal
+    `activeRaceId` du path (piège n°1 du sondage, `GET /races/1` répond 200 sur
+    un événement de 2015 sans rapport).
+
+    Pour chaque race, `cache_probe(race_url)` (si fourni) permet de sauter les
+    races déjà fraîches en cache TTL **avant** d'attaquer la pagination du
+    classement (≈ 100 requêtes économisées par race sur le panel).
+    `on_heat_start(race_slug, race_label, index, total)` est notifié **avant** le
+    scrape d'une race non cachée — jamais pour une race sautée. `total` = nombre
+    à scraper (pas le nombre énuméré), sans quoi la progression sauterait des
+    indices sur un ré-import majoritairement caché.
+
+    Isolation d'échec par race : une race qui lève (incomplète = drop, ou
+    exception réseau) est capturée dans `trace.failures` et journalisée, les
+    autres continuent. Le refus double du module est préservé — une race
+    incomplète est droppée sans casser l'événement, l'événement est refusé
+    (`ValueError`) **seulement** si rien n'a été énuméré ni scrapé au final.
+
+    URL canonique par-race : `.../events/{eventId}/races/{raceId}` (snowflake,
+    pas l'ordinal). C'est cette URL qui reçoit `cache_probe`, et c'est elle qui
+    remonte en `ScrapedResult.source_url` — donc en `Course.source_url` en base
+    — pour que la clé de cache raisonne par race et non par événement.
+
+    Retour : `(results, trace)`. `trace.heats_imported` reste à 0 côté scraper —
+    dérivé par `import_service` via l'invariant
+    `enumerated = imported + cached + len(failures)`.
+    """
+    event_id = _parse_url(url)
+    trace = FanoutTrace()
+    resultats: list[ScrapedResult] = []
+
+    with http.client(timeout=20, headers=_HEADERS) as client:
+        event = _fetch_event(client, event_id)
+        races = _fetch_races(client, event_id)
+        trace.heats_enumerated = len(races)
+
+        # Pré-filtre : les races cachées ne sont ni notifiées à `on_heat_start`
+        # ni comptées dans `total`, sinon la progression sauterait des indices.
+        a_scraper: list[dict] = []
+        for race in races:
+            race_url = _race_source_url(event_id, race)
+            if cache_probe is not None and cache_probe(race_url):
+                trace.heats_cached += 1
+                trace.cached_urls.append(race_url)
+                continue
+            a_scraper.append(race)
+
+        total_a_scraper = len(a_scraper)
+        for index, race in enumerate(a_scraper, start=1):
+            race_slug = _race_slug(race)
+            race_label = _race_label(race)
+            race_url = _race_source_url(event_id, race)
+            if on_heat_start is not None:
+                on_heat_start(race_slug, race_label, index, total_a_scraper)
+            # Race sans classement publié : sautée sans requête (contrat
+            # historique de `scrape_event_all`, D14). Sans classement, il n'y a
+            # rien à mettre en cache — donc rien à faire remonter en failure
+            # non plus. Reste comptée dans `heats_enumerated`, comme les autres.
+            if not (race.get("classificationsCount") or 0) > 0:
+                logger.info(
+                    "Sporthive race %r (ordinal %s): no ranked entrant announced, "
+                    "skipped without a request.",
+                    race.get("raceName"), race.get("activeRaceId"),
+                )
+                continue
+            try:
+                # `race_url` (pas `url`) : la source_url par-race est la clé de
+                # cache TTL, et c'est ce que le fan-out apporte au cache.
+                resultats.extend(_scrape_race(client, race_url, event, race))
+            except _IncompleteRankingError as ecart:
+                logger.warning(
+                    "Sporthive race %r (ordinal %s) dropped: %d participants read for "
+                    "%d announced, ranking truncated at the source.",
+                    ecart.race_name, ecart.active_race_id, ecart.lus, ecart.annonces,
+                )
+                trace.failures.append({
+                    "heat_slug": race_slug,
+                    "reason": (
+                        f"classement tronqué à la source : {ecart.lus} lues sur "
+                        f"{ecart.annonces} annoncées"
+                    ),
+                })
+            except Exception as exc:
+                logger.warning(
+                    "Sporthive race %r (ordinal %s) en échec : %s",
+                    race.get("raceName"), race.get("activeRaceId"), exc,
+                )
+                trace.failures.append({"heat_slug": race_slug, "reason": str(exc)})
+
+    return resultats, trace

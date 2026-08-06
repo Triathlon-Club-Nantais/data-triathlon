@@ -640,16 +640,18 @@ def test_cached_return_porte_updated_zero(db_session, patch_scraper):
 
 
 def test_import_event_expose_les_courses_touchees(db_session, patch_scraper):
-    """`import_event` renvoie `courses: [{id, name, event_type}]` pour câbler
-    les boutons « Voir les résultats » du front (#135).
+    """`import_event` renvoie `courses: [{id, name, event_type, is_relay}]` pour
+    câbler les boutons « Voir les résultats » du front (#135), avec `is_relay`
+    ajouté (#195) pour distinguer indiv et relais dans le sélecteur.
     """
     patch_scraper([_result("1", "DUPONT")])
     out = import_service.import_event(db_session, URL, _settings())
 
     assert len(out["courses"]) == 1
     course = out["courses"][0]
-    assert set(course) == {"id", "name", "event_type"}
+    assert set(course) == {"id", "name", "event_type", "is_relay"}
     assert course["event_type"] == "triathlon-m"
+    assert course["is_relay"] is False
     assert isinstance(course["id"], int) and course["id"] > 0
 
 

@@ -95,7 +95,10 @@ def _merge_cached_courses(
         if course.id in seen:
             continue
         seen.add(course.id)
-        merged.append({"id": course.id, "name": course.name, "event_type": course.event_type})
+        merged.append({
+            "id": course.id, "name": course.name,
+            "event_type": course.event_type, "is_relay": bool(course.is_relay),
+        })
     return merged
 
 
@@ -145,9 +148,10 @@ def _scrape_all(
     """Scrape l'URL et remonte optionnellement la `FanoutTrace` du provider.
 
     Passe par le dispatcher `registry.scrape_event_all(url, **kwargs)` — les
-    kwargs sont propagés au provider matché (Klikego reçoit `cache_probe`, les
-    autres l'ignorent via `**kwargs` du dispatcher). Après l'appel, lit
-    `KlikegoProvider.last_trace` pour peupler les 5 compteurs de FR-008.
+    kwargs sont propagés aux providers fan-out matchés (Klikego #156,
+    RaceResult #217 reçoivent `cache_probe`, les autres l'ignorent via
+    `**kwargs` du dispatcher). Après l'appel, lit `provider.last_trace` pour
+    peupler les 5 compteurs de FR-008.
 
     Retour : `(results, trace)`. `trace` peut être `None` pour un provider qui
     n'expose pas de trace (comportement mono-heat implicite — `_fanout_counters`
@@ -163,10 +167,12 @@ def _scrape_all(
     provider = registry.get_provider(url)
 
     try:
-        if isinstance(provider, registry.KlikegoProvider):
+        if isinstance(provider, registry._FANOUT_PROVIDERS):
+            # Providers fan-out (patron #156/#195) : cache TTL par sous-unité.
+            # `single_heat` n'a de sens que pour ceux dont l'URL le porte
+            # (Klikego avec ?heat=…). Les autres retombent sur leur contrat
+            # historique (événement entier en pot commun).
             if single_heat:
-                # Échappatoire (--single-heat) : pas de fan-out, pas de cache_probe.
-                # Le provider lit le ?heat= de l'URL et scrape ce seul heat.
                 results = registry_scrape_event_all(url, single_heat=True)
             else:
                 results = registry_scrape_event_all(url, cache_probe=cache_probe)
@@ -209,7 +215,7 @@ def _scrape_all_streaming(
     """
     provider = registry.get_provider(url)
 
-    if not isinstance(provider, registry.KlikegoProvider):
+    if not isinstance(provider, registry._FANOUT_PROVIDERS):
         # Chemin non-fan-out : bloquant unique, aucun yield intermédiaire.
         results, trace = _scrape_all(url, db, settings)
         return (results, trace)
@@ -372,7 +378,10 @@ class _Persister:
         résultats » (#135). Ordre stable → boutons stables entre deux imports.
         """
         return [
-            {"id": c.id, "name": c.name, "event_type": c.event_type}
+            {
+                "id": c.id, "name": c.name,
+                "event_type": c.event_type, "is_relay": bool(c.is_relay),
+            }
             for c in self._courses.values()
         ]
 
@@ -536,7 +545,11 @@ def _cached_result(db: Session, url: str, settings: Settings) -> dict | None:
         "reconciled": 0,
         "cached": True,
         "courses": [
-            {"id": c.id, "name": c.name, "event_type": c.event_type} for c in heats
+            {
+                "id": c.id, "name": c.name,
+                "event_type": c.event_type, "is_relay": bool(c.is_relay),
+            }
+            for c in heats
         ],
     }
 
