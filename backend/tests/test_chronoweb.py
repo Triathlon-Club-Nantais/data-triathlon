@@ -594,7 +594,12 @@ def _scrape(monkeypatch, client: FakeClient, url: str = EVENT_URL):
 
 def test_scrape_event_all_imports_every_race_of_the_event(monkeypatch):
     """Une URL désigne un événement : les 3 épreuves d'Oléron 2024 sortent
-    ensemble, chacune sous son propre nom de course."""
+    ensemble, chacune sous son propre nom de course.
+
+    Depuis #220 (fan-out cache TTL par race), `source_url` porte la race —
+    `<event_url>&race=<race_id>` — pour que le cache TTL raisonne par
+    sous-unité au lieu d'écraser une race fraîche par une autre.
+    """
     results = _scrape(monkeypatch, FakeClient())
 
     assert len(results) == 8
@@ -603,7 +608,9 @@ def test_scrape_event_all_imports_every_race_of_the_event(monkeypatch):
         "Triathlon d'Oléron 2024 - Triathlon S",
         "Triathlon d'Oléron 2024 - Triathlon XS",
     ]
-    assert {r.source_url for r in results} == {EVENT_URL}
+    assert {r.source_url for r in results} == {
+        f"{EVENT_URL}&race=1147", f"{EVENT_URL}&race=1148", f"{EVENT_URL}&race=1149",
+    }
 
 
 def test_scrape_event_all_never_repeats_a_bib_within_a_race(monkeypatch):
@@ -773,3 +780,166 @@ def test_parse_races_tolerates_an_event_without_any_ranking():
     races = chronoweb._parse_races(soup, chronoweb._parse_event_meta(soup))
 
     assert [r.label for r in races] == ["M"]
+
+
+# ---------------------------------------------------------------------------
+# scrape_event_fanout — fan-out par race, cache TTL par sous-unité (issue #220)
+# ---------------------------------------------------------------------------
+#
+# Sur chronoweb, une seule requête HTML rend l'événement entier — le gain du
+# fan-out n'est pas la requête économisée mais **l'intégrité du cache TTL** :
+# une race fraîche ne réécrit pas sa `Course`, une race disparue ne se fait
+# pas silencieusement retirer. Les 5 scénarios répliquent le patron Klikego
+# (test_klikego.py), au niveau de la race au lieu du heat.
+
+
+def _fanout(monkeypatch, client: FakeClient, *,
+            cache_probe=None, on_heat_start=None, url: str = EVENT_URL):
+    _fake_client(monkeypatch, client)
+    return chronoweb.scrape_event_fanout(
+        url, cache_probe=cache_probe, on_heat_start=on_heat_start,
+    )
+
+
+def test_scrape_event_fanout_nominal_returns_trace(monkeypatch):
+    """Fan-out sans cache_probe : les 3 races d'Oléron 2024 remontent une trace complète."""
+    results, trace = _fanout(monkeypatch, FakeClient())
+
+    assert trace.heats_enumerated == 3
+    assert trace.heats_cached == 0
+    assert trace.heats_imported == 0  # dérivé côté import_service
+    assert trace.failures == []
+    assert trace.cached_urls == []
+    # Toutes les races sont sortiess ; source_url porte la race pour chacune.
+    assert len(results) == 8
+    assert {r.source_url for r in results} == {
+        f"{EVENT_URL}&race=1147", f"{EVENT_URL}&race=1148", f"{EVENT_URL}&race=1149",
+    }
+
+
+def test_scrape_event_fanout_cache_probe_skips_races(monkeypatch):
+    """cache_probe qui retourne True pour 2 races → seule 1 est scrapée.
+
+    Les URLs sautées sont conservées dans `trace.cached_urls` — sans quoi le
+    `done` SSE ne pourrait pas ré-hydrater les courses cachées côté front.
+    """
+    cached_ids = {"1148", "1149"}
+
+    def probe(race_url: str) -> bool:
+        return any(f"&race={rid}" in race_url for rid in cached_ids)
+
+    results, trace = _fanout(monkeypatch, FakeClient(), cache_probe=probe)
+
+    assert trace.heats_enumerated == 3
+    assert trace.heats_cached == 2
+    assert trace.failures == []
+    assert set(trace.cached_urls) == {f"{EVENT_URL}&race=1148", f"{EVENT_URL}&race=1149"}
+    # Seule la 1147 (Triathlon M) a été effectivement scrapée.
+    assert {r.source_url for r in results} == {f"{EVENT_URL}&race=1147"}
+
+
+def test_scrape_event_fanout_race_failure_isolated(monkeypatch, caplog):
+    """Une race dont la construction lève ne casse pas les autres — sa cause est
+    capturée dans `trace.failures`."""
+    original = chronoweb._build_race_results
+
+    def flaky(race, soup, meta, event_url, event_id):
+        if race.race_id == "1148":
+            raise RuntimeError("boom on 1148")
+        return original(race, soup, meta, event_url, event_id)
+
+    monkeypatch.setattr(chronoweb, "_build_race_results", flaky)
+
+    import logging as _log
+    with caplog.at_level(_log.WARNING, logger="app.scrapers.chronoweb"):
+        results, trace = _fanout(monkeypatch, FakeClient())
+
+    assert trace.heats_enumerated == 3
+    assert len(trace.failures) == 1
+    assert trace.failures[0]["heat_slug"] == "1148"
+    assert "boom on 1148" in trace.failures[0]["reason"]
+    # Les deux autres races sont bien remontées.
+    assert {r.source_url for r in results} == {
+        f"{EVENT_URL}&race=1147", f"{EVENT_URL}&race=1149",
+    }
+    assert any("1148" in rec.message for rec in caplog.records)
+
+
+def test_scrape_event_fanout_no_races_returns_empty(monkeypatch):
+    """Chalain 2015 : `<h2 class="name">` présent mais aucun tableau ni option
+    exploitable (le sondage documente 1 option `M`, sans passages) → import vide."""
+    # Un événement dont le selector est vide : on synthétise la page attendue.
+    empty_selector = SANS_CLASSEMENT.replace(
+        '<option value="1149">M</option>', "").replace(
+        '<option value="1149" >M</option>', "")
+
+    results, trace = _fanout(monkeypatch, FakeClient(event=empty_selector))
+
+    # Selon la fixture, il peut rester 0 ou 1 race sans passages : dans les
+    # deux cas, aucun résultat, aucune erreur. La garde structurante est celle
+    # de FR-004 (isolation par race) : on **ne lève pas**.
+    assert results == []
+    assert trace.failures == []
+    # Toute race énumérée mais sans passage sort en 0 résultat, jamais en échec.
+    assert trace.heats_imported == 0
+
+
+def test_scrape_event_fanout_on_heat_start_not_notified_for_cached(monkeypatch):
+    """`on_heat_start` est appelé avant chaque race effectivement scrapée.
+
+    Deux races cachées → 1 notification, index 1 sur un total 1, jamais sur
+    les 2 sautées. Sans quoi la progression côté front paraîtrait sauter des
+    indices (« race 3/3 » alors qu'on scrape la 1re).
+    """
+    cached_ids = {"1148", "1149"}
+
+    def probe(race_url: str) -> bool:
+        return any(f"&race={rid}" in race_url for rid in cached_ids)
+
+    notifications: list[tuple[str, str, int, int]] = []
+
+    def on_heat_start(race_slug, race_label, index, total):
+        notifications.append((race_slug, race_label, index, total))
+
+    _fanout(monkeypatch, FakeClient(), cache_probe=probe, on_heat_start=on_heat_start)
+
+    assert len(notifications) == 1, "une notification par race scrapée, pas par race énumérée"
+    assert notifications[0][2] == 1
+    assert notifications[0][3] == 1
+    assert notifications[0][0] not in cached_ids
+
+
+def test_chronoweb_provider_delegates_to_fanout_and_stores_trace(monkeypatch):
+    """Le `ChronoWebProvider` du registry expose `last_trace` — c'est ce que lit
+    `import_service._scrape_all` pour peupler les 5 compteurs de FR-008.
+    """
+    from app.scrapers import registry
+
+    _fake_client(monkeypatch, FakeClient())
+
+    provider = registry.ChronoWebProvider()
+    results = provider.scrape_event_all(EVENT_URL)
+
+    assert provider.last_trace is not None
+    assert provider.last_trace.heats_enumerated == 3
+    assert provider.last_trace.heats_cached == 0
+    assert len(results) == 8
+
+
+def test_chronoweb_provider_forwards_cache_probe(monkeypatch):
+    """Le provider propage `cache_probe` au fan-out, comme Klikego."""
+    from app.scrapers import registry
+
+    _fake_client(monkeypatch, FakeClient())
+
+    provider = registry.ChronoWebProvider()
+    results = provider.scrape_event_all(
+        EVENT_URL, cache_probe=lambda url: "&race=1148" in url,
+    )
+
+    assert provider.last_trace.heats_cached == 1
+    assert provider.last_trace.cached_urls == [f"{EVENT_URL}&race=1148"]
+    # 2 races scrapées (1147 + 1149) → 5 + 1 = 6 résultats sur les fixtures.
+    assert {r.source_url for r in results} == {
+        f"{EVENT_URL}&race=1147", f"{EVENT_URL}&race=1149",
+    }
