@@ -194,6 +194,7 @@ def test_aucune_dependance_globale_sur_les_routers_existants():
     """
     from app.api.v1 import (
         admin,
+        admin_data,
         admin_roles,
         athletes,
         courses,
@@ -213,6 +214,7 @@ def test_aucune_dependance_globale_sur_les_routers_existants():
         participations,
         stats,
         admin,
+        admin_data,
         admin_roles,
     ):
         assert module.router.dependencies == [], (

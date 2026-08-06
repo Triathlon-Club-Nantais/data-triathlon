@@ -29,6 +29,8 @@ FEATURE_ROLES = "Rôles et accès"
 FEATURE_GROUPS = "Groupes d'appartenance"
 FEATURE_PENDING_PROVIDERS = "Chronométreurs signalés"
 FEATURE_QUALITY = "Qualité des données"
+FEATURE_COURSES = "Épreuves"
+FEATURE_ATHLETES = "Coureurs"
 FEATURE_PARTICIPATIONS = "Résultats"
 
 
@@ -125,6 +127,33 @@ class P:
         "Déclarer à la main qu'une épreuve est fiable ou douteuse, contre l'avis calculé.",
         FEATURE_QUALITY,
     )
+    COURSES_DELETE = Permission(
+        "courses:delete",
+        "Supprimer une épreuve",
+        "Retirer définitivement une épreuve, tous ses résultats, et les fiches "
+        "coureur qui n'en auraient plus aucun.",
+        FEATURE_COURSES,
+    )
+    COURSES_WRITE = Permission(
+        "courses:write",
+        "Corriger une épreuve",
+        "Rectifier le nom, la date, le type ou le caractère relais d'une épreuve — "
+        "les quatre champs qui la distinguent d'une autre.",
+        FEATURE_COURSES,
+    )
+    ATHLETES_READ = Permission(
+        "athletes:read",
+        "Consulter les fiches coureur",
+        "Rechercher un coureur et voir son identité complète, date de naissance "
+        "comprise — la seule donnée personnelle que le site garde fermée.",
+        FEATURE_ATHLETES,
+    )
+    ATHLETES_WRITE = Permission(
+        "athletes:write",
+        "Corriger un coureur",
+        "Rectifier le nom, le prénom ou la date de naissance d'une fiche coureur.",
+        FEATURE_ATHLETES,
+    )
     PARTICIPATIONS_WRITE = Permission(
         "participations:write",
         "Créer un résultat",
@@ -135,6 +164,13 @@ class P:
         "participations:delete",
         "Supprimer un résultat",
         "Retirer définitivement un résultat d'une épreuve.",
+        FEATURE_PARTICIPATIONS,
+    )
+    PARTICIPATIONS_REASSIGN = Permission(
+        "participations:reassign",
+        "Rattacher un résultat",
+        "Associer un résultat au bon coureur, quand un scraper a créé un doublon "
+        "d'identité.",
         FEATURE_PARTICIPATIONS,
     )
 
@@ -153,8 +189,13 @@ ALL: tuple[Permission, ...] = (
     P.PENDING_PROVIDERS_READ,
     P.PENDING_PROVIDERS_HANDLE,
     P.QUALITY_OVERRIDE,
+    P.COURSES_WRITE,
+    P.COURSES_DELETE,
+    P.ATHLETES_READ,
+    P.ATHLETES_WRITE,
     P.PARTICIPATIONS_WRITE,
     P.PARTICIPATIONS_DELETE,
+    P.PARTICIPATIONS_REASSIGN,
 )
 
 _BY_CODE: dict[str, Permission] = {pouvoir.code: pouvoir for pouvoir in ALL}

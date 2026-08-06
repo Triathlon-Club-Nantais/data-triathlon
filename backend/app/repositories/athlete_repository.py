@@ -98,25 +98,112 @@ def search(
     return q.order_by(Athlete.nom, Athlete.prenom).offset(offset).limit(page_size).all()
 
 
-def delete_orphans(db: Session) -> int:
-    """Supprime les athlètes sans aucune participation. Renvoie le nombre supprimé.
+def search_admin(
+    db: Session,
+    *,
+    search: str | None = None,
+    page: int = 1,
+    page_size: int = 20,
+) -> list[tuple[Athlete, int]]:
+    """Recherche **réservée** : identité complète et nombre de résultats (#117, FR-024).
+
+    Ce que `search()` ne rend pas et qui manque ici : la **date de naissance** et
+    le compte de participations. Sur nom + prénom + club seuls, deux vrais
+    homonymes du même club sont indiscernables — et le geste censé résorber un
+    doublon fusionnerait deux personnes distinctes, sans annulation possible.
+
+    La date de naissance est une donnée personnelle : cette fonction n'a qu'un
+    appelant, une route gardée par `athletes:read` (FR-025). La lecture publique
+    (`search`) ne l'expose pas et ne doit pas l'exposer.
+    """
+    compte = func.count(Participation.id)
+    requete = (
+        db.query(Athlete, compte)
+        .outerjoin(Participation, Participation.athlete_id == Athlete.id)
+        .group_by(Athlete.id)
+    )
+    if search:
+        motif = f"%{search}%"
+        requete = requete.filter(
+            or_(Athlete.nom.ilike(motif), Athlete.prenom.ilike(motif))
+        )
+    offset = (page - 1) * page_size
+    lignes = (
+        requete.order_by(Athlete.nom, Athlete.prenom).offset(offset).limit(page_size).all()
+    )
+    return [(athlete, nombre) for athlete, nombre in lignes]
+
+
+def only_on_course(db: Session, course_id: int) -> list[int]:
+    """Les athlètes dont **toutes** les participations sont sur cette épreuve (#117).
+
+    Autrement dit : ceux que sa suppression laisserait sans aucun résultat, et
+    que la purge de FR-022 emportera. Un coureur présent aussi ailleurs n'est pas
+    de la liste — « inscrit à cette épreuve » et « n'a que cette épreuve » sont
+    deux ensembles différents, et c'est le second que la modale annonce.
+
+    **Lecture pure** : elle chiffre l'impact avant le geste, elle ne prépare rien.
+
+    ponytail: deux ensembles d'ids remontés en mémoire Python puis soustraits —
+    ~40 000 tuples sur la plus grosse base envisagée, pour une modale ouverte
+    quelques fois par an. Si le volume change de nature, la sortie est un
+    `NOT EXISTS` corrélé, qui garde le résultat en base.
+    """
+    inscrits = db.query(Participation.athlete_id).filter(
+        Participation.course_id == course_id
+    )
+    ailleurs = db.query(Participation.athlete_id).filter(
+        Participation.course_id != course_id
+    )
+    return sorted({identifiant for (identifiant,) in inscrits} - {identifiant for (identifiant,) in ailleurs})
+
+
+def delete_orphans_among(db: Session, athlete_ids: list[int] | None = None) -> list[int]:
+    """Supprime les athlètes sans participation, **parmi** `athlete_ids`. Rend les ids supprimés.
 
     `Participation.athlete_id` est la **seule** FK vers `Athlete` : un athlète
-    sans participation n'est plus référencé nulle part. La base compte 0 orphelin
-    en régime normal, donc la règle est un no-op sur l'existant — elle ne peut
-    emporter que ce que la réconciliation vient de libérer. Appelée **une fois**
-    en fin de batch (jamais par épreuve : un orphelin après l'épreuve A peut être
-    ré-attaché par l'épreuve B).
+    sans participation n'est plus référencé nulle part.
+
+    **`None` et `[]` ne veulent pas dire la même chose**, et la nuance porte tout
+    l'intérêt de la fonction : `None` ne restreint rien (le balayage complet
+    qu'appelle `delete_orphans`), `[]` désigne un ensemble vide de candidats et
+    n'emporte donc personne. Les confondre ferait qu'une suppression d'épreuve
+    sans orphelin purgerait tous les orphelins préexistants de la base — hors du
+    périmètre du geste, et invisible au journal (#117, FR-013).
     """
-    rows = (
+    if athlete_ids is not None and not athlete_ids:
+        return []
+    requete = (
         db.query(Athlete.id)
         .outerjoin(Participation, Participation.athlete_id == Athlete.id)
         .filter(Participation.id.is_(None))
-        .all()
     )
-    orphan_ids = [r[0] for r in rows]
+    if athlete_ids is not None:
+        requete = requete.filter(Athlete.id.in_(athlete_ids))
+    orphan_ids = [identifiant for (identifiant,) in requete.all()]
     if not orphan_ids:
-        return 0
+        return []
     # "fetch" purge l'identity map pour que get() retombe à None après suppression
     db.query(Athlete).filter(Athlete.id.in_(orphan_ids)).delete(synchronize_session="fetch")
-    return len(orphan_ids)
+    return orphan_ids
+
+
+def delete_orphans(db: Session) -> int:
+    """Balaie **toute** la base et rend le nombre d'athlètes supprimés.
+
+    Contrat inchangé pour son appelant historique : `rescrape_service` l'appelle
+    **une fois** en fin de batch (jamais par épreuve — un orphelin après
+    l'épreuve A peut être ré-attaché par l'épreuve B) et sérialise son entier
+    dans `orphans_removed`.
+    """
+    return len(delete_orphans_among(db))
+
+
+def update_identity(db: Session, athlete: Athlete, **champs) -> Athlete:
+    """Écrit les champs d'identité fournis. **Ne vérifie pas l'unicité** — c'est
+    le service qui la contrôle par lecture préalable, pour pouvoir nommer la
+    fiche en conflit (#117, FR-005)."""
+    for nom_champ, valeur in champs.items():
+        setattr(athlete, nom_champ, valeur)
+    db.flush()
+    return athlete

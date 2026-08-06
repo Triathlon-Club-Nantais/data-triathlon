@@ -115,6 +115,23 @@ def touch_scraped_at(db: Session, course: Course) -> None:
     course.scraped_at = utcnow()
 
 
+def delete(db: Session, course: Course) -> None:
+    """Supprime l'épreuve **et tous ses résultats** (#117, FR-002).
+
+    La cascade est portée par la relation (`cascade="all, delete-orphan"`), donc
+    par l'**ORM** et non par la base. C'est délibéré : `database.py` n'émet aucun
+    `PRAGMA foreign_keys=ON`, un `ondelete="CASCADE"` serait inerte en SQLite
+    (développement et tests) et actif en PostgreSQL — un comportement que la
+    suite de tests ne verrait jamais.
+
+    ponytail: la cascade ORM charge les participations et émet un DELETE par
+    ligne — quelques secondes pour une épreuve de 3 000 finishers, sur un geste
+    d'administration ponctuel. Si le volume change de nature, la sortie est un
+    delete en masse plus un `ondelete` en base, avec le PRAGMA qui va avec.
+    """
+    db.delete(course)
+
+
 def set_quality(
     db: Session,
     course: Course,
@@ -177,3 +194,13 @@ def iter_all(
         cutoff = utcnow() - timedelta(days=older_than_days)
         q = q.filter(Course.scraped_at < cutoff)
     return q.order_by(Course.event_date.desc().nullslast(), Course.name).all()
+
+
+def update_identity(db: Session, course: Course, **champs) -> Course:
+    """Écrit les champs d'identité fournis. **Ne vérifie pas l'unicité** — c'est
+    le service qui la contrôle par lecture préalable, pour pouvoir nommer
+    l'épreuve en conflit (#117, FR-021)."""
+    for nom_champ, valeur in champs.items():
+        setattr(course, nom_champ, valeur)
+    db.flush()
+    return course

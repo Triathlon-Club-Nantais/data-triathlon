@@ -95,3 +95,53 @@ def test_iter_all_filtre_par_provider_et_anciennete(db_session):
 
     anciens = course_repository.iter_all(db_session, older_than_days=30)
     assert {c.name for c in anciens} == {"Vieux"}
+
+
+def _epreuve_peuplee(db_session, nom, nb_participations):
+    """Une épreuve et ses N résultats, chacun sur un athlète distinct."""
+    from app.repositories import athlete_repository, participation_repository
+
+    course = course_repository.get_or_create(
+        db_session, name=nom, event_date=date(2026, 5, 17),
+        event_type="triathlon-m", source_url=f"https://k/{nom}", provider="klikego",
+    )
+    db_session.flush()
+    for indice in range(nb_participations):
+        athlete = athlete_repository.get_or_create(
+            db_session, nom=f"{nom}-{indice}", prenom="Coureur"
+        )
+        db_session.flush()
+        participation_repository.create(
+            db_session, athlete_id=athlete.id, course_id=course.id, bib_number=str(indice)
+        )
+    db_session.flush()
+    return course
+
+
+def test_delete_emporte_les_participations_de_l_epreuve(db_session):
+    """AC1 — la cascade est portée par l'ORM (`delete-orphan`), pas par la DB."""
+    from app.models.participation import Participation
+
+    course = _epreuve_peuplee(db_session, "Supprimee", 3)
+    course_id = course.id
+
+    course_repository.delete(db_session, course)
+    db_session.flush()
+
+    assert course_repository.get(db_session, course_id) is None
+    restantes = db_session.query(Participation).filter_by(course_id=course_id).count()
+    assert restantes == 0
+
+
+def test_delete_ne_touche_pas_les_epreuves_voisines(db_session):
+    from app.models.participation import Participation
+
+    cible = _epreuve_peuplee(db_session, "Cible", 2)
+    voisine = _epreuve_peuplee(db_session, "Voisine", 2)
+    voisine_id = voisine.id
+
+    course_repository.delete(db_session, cible)
+    db_session.flush()
+
+    assert course_repository.get(db_session, voisine_id) is not None
+    assert db_session.query(Participation).filter_by(course_id=voisine_id).count() == 2

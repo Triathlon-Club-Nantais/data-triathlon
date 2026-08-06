@@ -585,3 +585,52 @@ def test_recherche_echappe_les_jokers_like(db_session, joker):
     )
 
     assert total == 0
+
+
+def _duo_epreuve_athletes(db_session):
+    """Une épreuve, deux coureurs, un seul inscrit."""
+    from app.repositories import athlete_repository, course_repository
+
+    course = course_repository.get_or_create(
+        db_session, name="Tri reassign", event_date=None, event_type="triathlon-m",
+        source_url="https://k/reassign", provider="klikego",
+    )
+    source = athlete_repository.get_or_create(db_session, nom="SOURCE", prenom="S")
+    cible = athlete_repository.get_or_create(db_session, nom="CIBLE", prenom="C")
+    db_session.flush()
+    ligne = participation_repository.create(
+        db_session, athlete_id=source.id, course_id=course.id, bib_number="1"
+    )
+    db_session.flush()
+    return course, source, cible, ligne
+
+
+def test_exists_for_athlete_on_course_voit_un_deja_classe(db_session):
+    """FR-006 — `uq_participation_bib` ne protège pas ce cas : elle porte sur
+    (course_id, bib_number), pas sur l'athlète."""
+    course, source, cible, _ = _duo_epreuve_athletes(db_session)
+
+    assert participation_repository.exists_for_athlete_on_course(
+        db_session, athlete_id=source.id, course_id=course.id
+    )
+    assert not participation_repository.exists_for_athlete_on_course(
+        db_session, athlete_id=cible.id, course_id=course.id
+    )
+
+
+def test_reassign_change_le_rattachement_et_rien_d_autre(db_session):
+    course, source, cible, ligne = _duo_epreuve_athletes(db_session)
+    ligne.total_time = "01:23:45"
+    ligne.rank_overall = 7
+    ligne.status = "finisher"
+    db_session.flush()
+
+    participation_repository.reassign(db_session, ligne, athlete_id=cible.id)
+    db_session.flush()
+
+    relue = participation_repository.get(db_session, ligne.id)
+    assert relue.athlete_id == cible.id
+    assert relue.course_id == course.id
+    assert relue.total_time == "01:23:45"
+    assert relue.rank_overall == 7
+    assert relue.status == "finisher"

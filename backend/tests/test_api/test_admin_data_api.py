@@ -1,0 +1,547 @@
+"""Les ressources d'administration des données (#117) — quatre gestes, deux lectures.
+
+Ce fichier vit sous `tests/test_api/`, donc sous la session **superutilisateur**
+du `conftest` local. Les tests de refus ouvrent leur propre session, plus
+étroite, et écrasent le cookie posé par la fixture.
+
+Les trois issues de chaque ressource — 401 anonyme, 403 connecté sans le
+pouvoir, succès avec — suivent le patron de `test_course_reliability_api.py`.
+"""
+from datetime import date
+
+import pytest
+
+from app.api.v1.auth import session_cookie_name
+from app.core.config import get_settings
+from app.core.permissions import P
+from app.models.organisation import Organisation
+from app.models.role_permission import RolePermission
+from app.repositories import (
+    athlete_repository,
+    course_repository,
+    participation_repository,
+    role_repository,
+    user_repository,
+    user_role_repository,
+)
+from app.services.auth import session as session_service
+
+
+def _session_etroite(client, db_session, *codes, email="etroit@exemple.fr"):
+    """Remplace la session large du conftest par une session à pouvoirs comptés."""
+    organisation = db_session.query(Organisation).first()
+    user = user_repository.create(db_session, email=email)
+    db_session.flush()
+    if codes:
+        role = role_repository.create(db_session, slug="etroit", name="Étroit")
+        for code in codes:
+            role.permissions.append(RolePermission(permission_code=str(code)))
+        db_session.flush()
+        user_role_repository.grant(
+            db_session, user_id=user.id, role_id=role.id, organisation_id=organisation.id
+        )
+    jeton = session_service.open_for(db_session, user)
+    db_session.commit()
+    client.cookies.set(session_cookie_name(get_settings()), jeton)
+    return user
+
+
+@pytest.fixture
+def epreuve(db_session):
+    """Une épreuve, deux résultats : un coureur exclusif, un coureur présent ailleurs."""
+    cible = course_repository.get_or_create(
+        db_session, name="Triathlon de Nantes", event_date=date(2026, 5, 17),
+        event_type="triathlon-m", source_url="https://k/nantes", provider="klikego",
+    )
+    autre = course_repository.get_or_create(
+        db_session, name="Autre épreuve", event_date=date(2026, 6, 1),
+        event_type="triathlon-m", source_url="https://k/autre", provider="klikego",
+    )
+    db_session.flush()
+    exclusif = athlete_repository.get_or_create(db_session, nom="EXCLUSIF", prenom="Eva")
+    partage = athlete_repository.get_or_create(db_session, nom="PARTAGE", prenom="Paul")
+    db_session.flush()
+    participation_repository.create(
+        db_session, athlete_id=exclusif.id, course_id=cible.id, bib_number="1"
+    )
+    participation_repository.create(
+        db_session, athlete_id=partage.id, course_id=cible.id, bib_number="2"
+    )
+    participation_repository.create(
+        db_session, athlete_id=partage.id, course_id=autre.id, bib_number="2"
+    )
+    db_session.commit()
+    return cible
+
+
+# --- GET /admin/courses/{id}/deletion-impact --------------------------------
+
+
+def test_l_impact_chiffre_les_deux_destructions(client, epreuve):
+    reponse = client.get(f"/api/v1/admin/courses/{epreuve.id}/deletion-impact")
+
+    assert reponse.status_code == 200
+    charge = reponse.json()
+    assert charge["name"] == "Triathlon de Nantes"
+    assert charge["participations"] == 2
+    assert charge["athletes"] == 1
+
+
+def test_l_impact_ne_modifie_rien(client, epreuve, db_session):
+    client.get(f"/api/v1/admin/courses/{epreuve.id}/deletion-impact")
+
+    assert course_repository.get(db_session, epreuve.id) is not None
+    assert participation_repository.count_for_course(db_session, epreuve.id) == 2
+
+
+def test_l_impact_sur_epreuve_inconnue_rend_404(client):
+    reponse = client.get("/api/v1/admin/courses/4242/deletion-impact")
+
+    assert reponse.status_code == 404
+    assert reponse.json()["detail"] == "Épreuve introuvable."
+
+
+def test_l_impact_sans_session_rend_401(client, epreuve):
+    client.cookies.clear()
+
+    assert client.get(f"/api/v1/admin/courses/{epreuve.id}/deletion-impact").status_code == 401
+
+
+def test_l_impact_sans_le_pouvoir_rend_403(client, db_session, epreuve):
+    _session_etroite(client, db_session)
+
+    assert client.get(f"/api/v1/admin/courses/{epreuve.id}/deletion-impact").status_code == 403
+
+
+# --- DELETE /admin/courses/{id} ---------------------------------------------
+
+
+def test_supprimer_une_epreuve_rend_204_et_emporte_ses_resultats(client, db_session, epreuve):
+    course_id = epreuve.id
+
+    reponse = client.delete(f"/api/v1/admin/courses/{course_id}")
+
+    assert reponse.status_code == 204
+    assert reponse.content == b""
+    assert course_repository.get(db_session, course_id) is None
+    assert participation_repository.count_for_course(db_session, course_id) == 0
+
+
+def test_supprimer_une_epreuve_purge_les_fiches_devenues_vides(client, db_session, epreuve):
+    exclusif = athlete_repository.get_by_identity(
+        db_session, nom="EXCLUSIF", prenom="Eva", birth_date=None
+    )
+    partage = athlete_repository.get_by_identity(
+        db_session, nom="PARTAGE", prenom="Paul", birth_date=None
+    )
+    exclusif_id, partage_id = exclusif.id, partage.id
+
+    client.delete(f"/api/v1/admin/courses/{epreuve.id}")
+
+    assert athlete_repository.get(db_session, exclusif_id) is None
+    assert athlete_repository.get(db_session, partage_id) is not None
+
+
+def test_supprimer_une_epreuve_consigne_le_geste(client, db_session, epreuve):
+    from app.repositories import admin_action_log_repository
+
+    course_id = epreuve.id
+
+    client.delete(f"/api/v1/admin/courses/{course_id}")
+
+    entrees = admin_action_log_repository.list_for_entity(
+        db_session, entity_type="course", entity_id=course_id
+    )
+    assert [e.action for e in entrees] == ["course.delete"]
+    assert entrees[0].payload["participations_deleted"] == 2
+
+
+def test_supprimer_une_epreuve_inconnue_rend_404(client):
+    reponse = client.delete("/api/v1/admin/courses/4242")
+
+    assert reponse.status_code == 404
+    assert reponse.json()["detail"] == "Épreuve introuvable."
+
+
+def test_supprimer_une_epreuve_sans_session_rend_401(client, epreuve):
+    client.cookies.clear()
+
+    assert client.delete(f"/api/v1/admin/courses/{epreuve.id}").status_code == 401
+
+
+def test_supprimer_une_epreuve_sans_le_pouvoir_rend_403(client, db_session, epreuve):
+    _session_etroite(client, db_session)
+
+    assert client.delete(f"/api/v1/admin/courses/{epreuve.id}").status_code == 403
+
+
+def test_supprimer_une_epreuve_avec_le_seul_pouvoir_utile_reussit(client, db_session, epreuve):
+    """La garde nomme un pouvoir, pas un rôle : celui-ci suffit, et lui seul."""
+    _session_etroite(client, db_session, P.COURSES_DELETE)
+
+    assert client.delete(f"/api/v1/admin/courses/{epreuve.id}").status_code == 204
+
+
+def test_un_refus_de_pouvoir_ne_supprime_rien(client, db_session, epreuve):
+    """FR-015 — un 403 laisse la base strictement inchangée."""
+    _session_etroite(client, db_session)
+    course_id = epreuve.id
+
+    client.delete(f"/api/v1/admin/courses/{course_id}")
+
+    assert course_repository.get(db_session, course_id) is not None
+    assert participation_repository.count_for_course(db_session, course_id) == 2
+
+
+# --- L'inventaire des pouvoirs ----------------------------------------------
+
+
+def test_le_pouvoir_de_suppression_est_offert_a_la_composition_des_roles(client):
+    """FR-010 — un pouvoir qui garde une ressource sans figurer à l'inventaire
+    serait inattribuable, donc mort."""
+    groupes = client.get("/api/v1/admin/permissions").json()
+
+    epreuves = next(g for g in groupes if g["feature"] == "Épreuves")
+    codes = {p["code"] for p in epreuves["permissions"]}
+    assert "courses:delete" in codes
+    libelle = next(p for p in epreuves["permissions"] if p["code"] == "courses:delete")
+    assert libelle["label"] == "Supprimer une épreuve"
+
+
+# --- POST /admin/participations/{id}/reassign -------------------------------
+
+
+@pytest.fixture
+def rattachement(db_session):
+    """Un résultat sur un coureur « source », un coureur « cible » libre."""
+    course = course_repository.get_or_create(
+        db_session, name="Course rattachement", event_date=date(2026, 4, 5),
+        event_type="triathlon-m", source_url="https://k/rat", provider="klikego",
+    )
+    db_session.flush()
+    source = athlete_repository.get_or_create(db_session, nom="SOURCE", prenom="Sam")
+    cible = athlete_repository.get_or_create(db_session, nom="CIBLE", prenom="Cam")
+    db_session.flush()
+    ligne = participation_repository.create(
+        db_session, athlete_id=source.id, course_id=course.id, bib_number="1"
+    )
+    db_session.commit()
+    return {"course": course, "source": source, "cible": cible, "participation": ligne}
+
+
+def test_rattacher_un_resultat_change_de_coureur(client, db_session, rattachement):
+    ligne = rattachement["participation"]
+    cible_id = rattachement["cible"].id
+
+    reponse = client.post(
+        f"/api/v1/admin/participations/{ligne.id}/reassign", json={"athlete_id": cible_id}
+    )
+
+    assert reponse.status_code == 200
+    assert reponse.json()["athlete"]["id"] == cible_id
+    assert participation_repository.get(db_session, ligne.id).athlete_id == cible_id
+
+
+def test_rattacher_vers_un_coureur_deja_classe_rend_409(client, db_session, rattachement):
+    ligne = rattachement["participation"]
+    participation_repository.create(
+        db_session,
+        athlete_id=rattachement["cible"].id,
+        course_id=rattachement["course"].id,
+        bib_number="2",
+    )
+    db_session.commit()
+
+    reponse = client.post(
+        f"/api/v1/admin/participations/{ligne.id}/reassign",
+        json={"athlete_id": rattachement["cible"].id},
+    )
+
+    assert reponse.status_code == 409
+    assert reponse.json()["detail"] == "Ce coureur a déjà un résultat sur cette épreuve."
+
+
+def test_rattacher_vers_un_coureur_inconnu_rend_404(client, rattachement):
+    ligne = rattachement["participation"]
+
+    reponse = client.post(
+        f"/api/v1/admin/participations/{ligne.id}/reassign", json={"athlete_id": 4242}
+    )
+
+    assert reponse.status_code == 404
+    assert reponse.json()["detail"] == "Coureur introuvable."
+
+
+def test_rattacher_un_resultat_inconnu_rend_404(client, rattachement):
+    reponse = client.post(
+        "/api/v1/admin/participations/4242/reassign",
+        json={"athlete_id": rattachement["cible"].id},
+    )
+
+    assert reponse.status_code == 404
+    assert reponse.json()["detail"] == "Résultat introuvable."
+
+
+def test_rattacher_sans_session_rend_401(client, rattachement):
+    client.cookies.clear()
+
+    reponse = client.post(
+        f"/api/v1/admin/participations/{rattachement['participation'].id}/reassign",
+        json={"athlete_id": rattachement["cible"].id},
+    )
+
+    assert reponse.status_code == 401
+
+
+def test_rattacher_sans_le_pouvoir_rend_403(client, db_session, rattachement):
+    _session_etroite(client, db_session)
+
+    reponse = client.post(
+        f"/api/v1/admin/participations/{rattachement['participation'].id}/reassign",
+        json={"athlete_id": rattachement["cible"].id},
+    )
+
+    assert reponse.status_code == 403
+
+
+# --- GET /admin/athletes ----------------------------------------------------
+
+
+def test_la_recherche_admin_rend_l_identite_complete(client, db_session, rattachement):
+    reponse = client.get("/api/v1/admin/athletes", params={"search": "source"})
+
+    assert reponse.status_code == 200
+    fiches = reponse.json()
+    assert len(fiches) == 1
+    assert fiches[0]["nom"] == "SOURCE"
+    assert "birth_date" in fiches[0]
+    assert fiches[0]["participations"] == 1
+
+
+def test_une_recherche_sans_resultat_rend_une_liste_vide(client, rattachement):
+    reponse = client.get("/api/v1/admin/athletes", params={"search": "zzzz"})
+
+    assert reponse.status_code == 200
+    assert reponse.json() == []
+
+
+def test_la_recherche_admin_sans_session_rend_401(client):
+    client.cookies.clear()
+
+    assert client.get("/api/v1/admin/athletes").status_code == 401
+
+
+def test_la_recherche_admin_sans_le_pouvoir_rend_403(client, db_session):
+    _session_etroite(client, db_session)
+
+    assert client.get("/api/v1/admin/athletes").status_code == 403
+
+
+def test_les_pouvoirs_de_us2_sont_offerts_a_la_composition_des_roles(client):
+    groupes = client.get("/api/v1/admin/permissions").json()
+    codes = {p["code"] for groupe in groupes for p in groupe["permissions"]}
+
+    assert {"athletes:read", "participations:reassign"} <= codes
+
+
+# --- PATCH /admin/athletes/{id} et /admin/courses/{id} ----------------------
+
+
+@pytest.fixture
+def coureur(db_session):
+    athlete = athlete_repository.get_or_create(
+        db_session, nom="DUPOND", prenom="Jean", birth_date=date(1988, 3, 2)
+    )
+    db_session.commit()
+    return athlete
+
+
+def test_corriger_un_coureur_rend_sa_fiche_complete(client, coureur):
+    reponse = client.patch(
+        f"/api/v1/admin/athletes/{coureur.id}", json={"nom": "DUPONT"}
+    )
+
+    assert reponse.status_code == 200
+    assert reponse.json()["nom"] == "DUPONT"
+    assert reponse.json()["birth_date"] == "1988-03-02"
+
+
+def test_corriger_un_coureur_vers_une_identite_prise_rend_409(client, db_session, coureur):
+    athlete_repository.get_or_create(
+        db_session, nom="DUPONT", prenom="Jean", birth_date=date(1988, 3, 2)
+    )
+    db_session.commit()
+
+    reponse = client.patch(
+        f"/api/v1/admin/athletes/{coureur.id}", json={"nom": "DUPONT"}
+    )
+
+    assert reponse.status_code == 409
+    assert "identité" in reponse.json()["detail"]
+
+
+def test_corriger_un_coureur_sans_champ_rend_422(client, coureur):
+    assert client.patch(f"/api/v1/admin/athletes/{coureur.id}", json={}).status_code == 422
+
+
+@pytest.mark.parametrize("corps", [{"nom": ""}, {"nom": "   "}, {"prenom": "  "}])
+def test_corriger_un_coureur_au_nom_blanc_rend_422(client, coureur, corps):
+    """`min_length=1` compte les caractères, pas les non-blancs : sans
+    `str_strip_whitespace`, « ␣␣␣ » passait jusqu'en base (spec §Edge Cases)."""
+    assert client.patch(f"/api/v1/admin/athletes/{coureur.id}", json=corps).status_code == 422
+
+
+@pytest.mark.parametrize("corps", [{"nom": None}, {"prenom": None}])
+def test_vider_un_champ_obligatoire_d_un_coureur_rend_422(client, coureur, corps):
+    """Le `null` de ces champs voulait dire « absent » côté schéma, et
+    ressortait en **500** (`IntegrityError`) au lieu du 422 du contrat."""
+    assert client.patch(f"/api/v1/admin/athletes/{coureur.id}", json=corps).status_code == 422
+
+
+@pytest.mark.parametrize("corps", [{"name": None}, {"event_type": None}, {"is_relay": None}])
+def test_vider_un_champ_obligatoire_d_une_epreuve_rend_422(client, epreuve, corps):
+    assert client.patch(f"/api/v1/admin/courses/{epreuve.id}", json=corps).status_code == 422
+
+
+def test_un_type_d_epreuve_hors_nomenclature_rend_422(client, epreuve):
+    """`event_type` pilote le partage fédéral, les stats et les splits : une
+    faute de frappe retirerait l'épreuve des filtres **en silence**."""
+    reponse = client.patch(
+        f"/api/v1/admin/courses/{epreuve.id}", json={"event_type": "triathlon_m"}
+    )
+
+    assert reponse.status_code == 422
+
+
+def test_un_type_d_epreuve_de_la_nomenclature_est_accepte(client, epreuve):
+    reponse = client.patch(
+        f"/api/v1/admin/courses/{epreuve.id}", json={"event_type": "duathlon-s"}
+    )
+
+    assert reponse.status_code == 200
+    assert reponse.json()["event_type"] == "duathlon-s"
+
+
+def test_un_conflit_d_epreuve_n_ecrit_rien_au_journal(client, db_session, epreuve):
+    """FR-015 à l'étage HTTP : un 409 ne laisse ni donnée ni trace."""
+    from app.models.admin_action_log import AdminActionLog
+
+    avant = db_session.query(AdminActionLog).count()
+
+    client.patch(
+        f"/api/v1/admin/courses/{epreuve.id}",
+        json={"name": "Autre épreuve", "event_date": "2026-06-01"},
+    )
+
+    assert db_session.query(AdminActionLog).count() == avant
+
+
+def test_corriger_un_coureur_inconnu_rend_404(client):
+    reponse = client.patch("/api/v1/admin/athletes/4242", json={"nom": "X"})
+
+    assert reponse.status_code == 404
+    assert reponse.json()["detail"] == "Coureur introuvable."
+
+
+def test_corriger_un_coureur_sans_session_rend_401(client, coureur):
+    client.cookies.clear()
+
+    assert client.patch(
+        f"/api/v1/admin/athletes/{coureur.id}", json={"nom": "X"}
+    ).status_code == 401
+
+
+def test_corriger_un_coureur_sans_le_pouvoir_rend_403(client, db_session, coureur):
+    _session_etroite(client, db_session)
+
+    assert client.patch(
+        f"/api/v1/admin/athletes/{coureur.id}", json={"nom": "X"}
+    ).status_code == 403
+
+
+def test_corriger_une_epreuve_rend_le_libelle_a_jour(client, epreuve):
+    reponse = client.patch(
+        f"/api/v1/admin/courses/{epreuve.id}", json={"name": "Triathlon de Nantes 2026"}
+    )
+
+    assert reponse.status_code == 200
+    assert reponse.json()["name"] == "Triathlon de Nantes 2026"
+
+
+def test_corriger_une_epreuve_ne_touche_aucun_resultat(client, db_session, epreuve):
+    """FR-023 — le nombre de résultats et leur rattachement sont inchangés."""
+    avant = participation_repository.count_for_course(db_session, epreuve.id)
+
+    client.patch(f"/api/v1/admin/courses/{epreuve.id}", json={"event_type": "triathlon-s"})
+
+    assert participation_repository.count_for_course(db_session, epreuve.id) == avant
+
+
+def test_corriger_une_epreuve_vers_une_identite_prise_rend_409(client, db_session, epreuve):
+    reponse = client.patch(
+        f"/api/v1/admin/courses/{epreuve.id}",
+        json={"name": "Autre épreuve", "event_date": "2026-06-01"},
+    )
+
+    assert reponse.status_code == 409
+    assert "épreuve" in reponse.json()["detail"].lower()
+
+
+def test_corriger_une_epreuve_accepte_une_date_mise_a_null(client, epreuve):
+    """`event_date: null` est une valeur, pas une absence — et le PATCH la distingue."""
+    reponse = client.patch(
+        f"/api/v1/admin/courses/{epreuve.id}", json={"event_date": None}
+    )
+
+    assert reponse.status_code == 200
+    assert reponse.json()["event_date"] is None
+
+
+def test_corriger_une_epreuve_sans_champ_rend_422(client, epreuve):
+    assert client.patch(f"/api/v1/admin/courses/{epreuve.id}", json={}).status_code == 422
+
+
+def test_corriger_une_epreuve_inconnue_rend_404(client):
+    assert client.patch("/api/v1/admin/courses/4242", json={"name": "X"}).status_code == 404
+
+
+def test_corriger_une_epreuve_sans_session_rend_401(client, epreuve):
+    client.cookies.clear()
+
+    assert client.patch(
+        f"/api/v1/admin/courses/{epreuve.id}", json={"name": "X"}
+    ).status_code == 401
+
+
+def test_corriger_une_epreuve_sans_le_pouvoir_rend_403(client, db_session, epreuve):
+    _session_etroite(client, db_session)
+
+    assert client.patch(
+        f"/api/v1/admin/courses/{epreuve.id}", json={"name": "X"}
+    ).status_code == 403
+
+
+def test_les_pouvoirs_de_correction_sont_offerts_a_la_composition_des_roles(client):
+    groupes = client.get("/api/v1/admin/permissions").json()
+    codes = {p["code"] for groupe in groupes for p in groupe["permissions"]}
+
+    assert {"courses:write", "athletes:write"} <= codes
+
+
+def test_lire_une_fiche_coureur_rend_sa_date_de_naissance(client, coureur):
+    """Sans cette route, l'écran d'édition ouvert depuis un résultat n'aurait
+    pas la date de naissance — et l'enregistrement l'effacerait."""
+    reponse = client.get(f"/api/v1/admin/athletes/{coureur.id}")
+
+    assert reponse.status_code == 200
+    assert reponse.json()["birth_date"] == "1988-03-02"
+
+
+def test_lire_une_fiche_coureur_inconnue_rend_404(client):
+    assert client.get("/api/v1/admin/athletes/4242").status_code == 404
+
+
+def test_lire_une_fiche_coureur_sans_le_pouvoir_rend_403(client, db_session, coureur):
+    _session_etroite(client, db_session)
+
+    assert client.get(f"/api/v1/admin/athletes/{coureur.id}").status_code == 403
