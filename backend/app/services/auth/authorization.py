@@ -294,23 +294,30 @@ def create_role(
     ) is not None:
         raise SlugTakenError()
 
-    role = role_repository.create(
-        db,
-        slug=slug,
-        name=name,
-        description=description,
-        organisation_id=organisation_id,
-        is_superuser=superuser,
-    )
+    try:
+        # **Le point de reprise entoure l'écriture**, et non un `flush`
+        # d'après-coup : `role_repository.create` flushe lui-même, donc
+        # l'`IntegrityError` était levée *avant* d'entrer dans ce `try` et
+        # remontait nue — 500 au lieu du 409 promis. C'est l'index partiel
+        # `WHERE organisation_id IS NULL` qui tranche ce que la lecture préalable
+        # laisse passer sous concurrence, et il faut donc l'attraper là où il
+        # parle. Le `SAVEPOINT` rattrape sans perdre la transaction, là où le
+        # `db.rollback()` d'avant aurait emporté tout ce qui précédait.
+        with db.begin_nested():
+            role = role_repository.create(
+                db,
+                slug=slug,
+                name=name,
+                description=description,
+                organisation_id=organisation_id,
+                is_superuser=superuser,
+            )
+    except IntegrityError as collision:
+        raise SlugTakenError() from collision
+
     for code in dict.fromkeys(codes):
         role.permissions.append(RolePermission(permission_code=code))
-    try:
-        db.flush()
-    except IntegrityError as collision:
-        # L'index partiel `WHERE organisation_id IS NULL` tranche ce que la
-        # lecture préalable laisse passer sous concurrence.
-        db.rollback()
-        raise SlugTakenError() from collision
+    db.flush()
 
     logger.info(
         "Role created: actor=%s role=%s codes=%s superuser=%s",
