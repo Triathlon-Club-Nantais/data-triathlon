@@ -34,6 +34,7 @@ réintroduire :
 import json
 import logging
 import re
+from collections.abc import Callable
 from datetime import date as date_t
 from urllib.parse import urlparse
 
@@ -1337,6 +1338,43 @@ def _identites_incompatibles(a: ScrapedResult, b: ScrapedResult) -> bool:
     return ida != idb
 
 
+# ── Fan-out par contest (issue #217) ─────────────────────────────────────────
+#
+# Sous-unité = **contest** de `config["contests"]`, indexé par contest_id
+# numérique. Un contest peut être couvert par plusieurs listes RaceResult
+# (fusion `(contest_label, bib)` déjà en place ci-dessous). Les listes `hidden`
+# restent liées à leur contest et suivent son cache.
+#
+# `Contest="0"` (« toutes catégories ») est un cas particulier : il croise les
+# contests et n'est **pas** cache-able en propre. Il est explicitement écarté du
+# fan-out — les listes qui l'utilisent sont scrapées comme avant, sans clé de
+# cache dédiée (une URL de contest "0" n'a pas de sens de « sous-unité »).
+
+# Reprend `FanoutTrace` de Klikego : contrat unique côté `import_service`
+# (`_fanout_counters`, `_merge_cached_courses`).
+from app.scrapers.klikego import FanoutTrace  # noqa: E402 — patron partagé #195
+
+
+def _sub_source_url(event_id: str, contest_id: str) -> str:
+    """URL canonique d'une sous-unité RaceResult (issue #217).
+
+    Employée **simultanément** comme clé de cache TTL (`cache_probe` la reçoit
+    telle quelle) et comme valeur de `ScrapedResult.source_url` — donc de
+    `Course.source_url` en base. Utiliser deux formes distinctes ferait diverger
+    la clé de cache de l'identité de la course scrapée.
+    """
+    return f"{_API_BASE}/{event_id}/results?contest={contest_id}"
+
+
+def _est_contest_zero(contest_id: str) -> bool:
+    """`Contest="0"` désigne « toutes catégories » — pas une sous-unité cache-able.
+
+    Réservé : jamais énuméré comme heat, jamais soumis à `cache_probe`. Toute
+    liste qui l'emploie est scrapée dans le pot commun de l'événement.
+    """
+    return str(contest_id).strip() == "0"
+
+
 def scrape_event_all(url: str) -> list[ScrapedResult]:
     """Importe tous les participants d'une épreuve RaceResult.
 
@@ -1349,7 +1387,54 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     une `results` — le contest étant explicite, il n'y a plus de balayage à
     l'aveugle. Mesuré : 4 requêtes `list` sur Rumilly (contre 15, dont 11 en 404,
     dans la version qui interrogeait la route héritée).
+
+    Contrat historique préservé : signature d'origine, aucun fan-out, aucun
+    cache par contest. Employé par les tests unitaires et par l'échappatoire
+    CLI `--single-heat`. Le fan-out par contest (issue #217) vit dans
+    `scrape_event_fanout`.
     """
+    results, _trace = _run_pipeline(url, cache_probe=None, on_heat_start=None)
+    return results
+
+
+def scrape_event_fanout(
+    url: str,
+    *,
+    cache_probe: Callable[[str], bool] | None = None,
+    on_heat_start: Callable[[str, str, int, int], None] | None = None,
+) -> tuple[list[ScrapedResult], FanoutTrace]:
+    """Scrape une épreuve RaceResult contest par contest — patron fan-out (#217).
+
+    Chaque contest annoncé dans `config["contests"]` devient une sous-unité de
+    cache. `cache_probe(sub_url)` est invoqué **avant** toute requête réseau
+    pour ce contest : True → sous-unité sautée (comptée dans
+    `trace.cached_urls`, pas de `on_heat_start`).
+
+    `Contest="0"` (« toutes catégories ») est **exclu** du fan-out : ses listes
+    sont scrapées sans clé de cache dédiée. Elles restent conservées dans la
+    même fusion que les listes explicites (comportement historique de la voie
+    de repli `_groupes_zero_fiables`).
+
+    Retour : `(results, trace)`. `trace.heats_imported` reste à 0 —
+    `import_service._fanout_counters` le dérive.
+    """
+    return _run_pipeline(url, cache_probe=cache_probe, on_heat_start=on_heat_start)
+
+
+def _run_pipeline(
+    url: str,
+    *,
+    cache_probe: Callable[[str], bool] | None,
+    on_heat_start: Callable[[str, str, int, int], None] | None,
+) -> tuple[list[ScrapedResult], FanoutTrace]:
+    """Pipeline commun aux deux entrées `scrape_event_all` / `scrape_event_fanout`.
+
+    Fait tout le travail « historique » (fetch config, fetch meta, fetch listes,
+    fusion, enrichissement `hidden`) et en profite pour appliquer le fan-out par
+    contest quand `cache_probe`/`on_heat_start` sont fournis.
+    """
+    trace = FanoutTrace()
+
     with http.client(timeout=30, headers=HEADERS) as client:
         event_id = _resolve_event_id(url, client)
         config = _fetch_config(event_id, client)
@@ -1360,6 +1445,43 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         event_name = nom_meta or str(config.get("eventname") or "")
 
         specs = _iter_list_specs(config)
+
+        # Fan-out par contest — énumération des sous-unités (issue #217).
+        # `Contest="0"` est réservé : il traverse le pipeline mais ne compte
+        # ni comme sous-unité énumérée ni comme cible de `cache_probe`.
+        contests_specs: dict[str, list[tuple[str, str]]] = {}
+        for listname, contest in specs:
+            contests_specs.setdefault(contest, []).append((listname, contest))
+
+        # Contests cache-ables (hors "0"), dans l'ordre d'apparition dans specs.
+        contests_ordonnes: list[str] = []
+        vus_c: set[str] = set()
+        for _n, c in specs:
+            if not _est_contest_zero(c) and c not in vus_c:
+                vus_c.add(c)
+                contests_ordonnes.append(c)
+
+        trace.heats_enumerated = len(contests_ordonnes)
+
+        # Pré-filtre par cache_probe pour figer `total` à la seule liste des
+        # contests réellement à scraper (miroir de klikego : la progression
+        # notifiée ne saute pas d'indice sur un ré-import majoritairement caché).
+        contests_a_scraper: list[str] = []
+        contests_caches: set[str] = set()
+        for contest in contests_ordonnes:
+            sub_url = _sub_source_url(event_id, contest)
+            if cache_probe is not None and cache_probe(sub_url):
+                trace.heats_cached += 1
+                trace.cached_urls.append(sub_url)
+                contests_caches.add(contest)
+                continue
+            contests_a_scraper.append(contest)
+
+        # Le persister source_url : c'est la sous-unité, pas l'URL d'événement.
+        # Ainsi `Course.source_url` = clé de cache. Pour un scrape mono-URL
+        # (`scrape_event_all` classique, pas de fan-out), on garde l'URL entrée
+        # comme source_url — rétrocompatibilité stricte des tests existants.
+        use_sub_url = cache_probe is not None or on_heat_start is not None
         # Clé de fusion (libellé de contest, dossard) : deux contests peuvent
         # porter le même dossard — c'est précisément le cas que la qualification
         # par contest règle (issue #21).
@@ -1369,18 +1491,60 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         # décider des libellés. La fiabilité du groupement `Contest="0"` est une
         # propriété de l'épreuve entière (cf. `_groupes_zero_fiables`) : elle ne
         # peut pas être tranchée liste par liste.
+        #
+        # Fan-out (#217) — les listes d'un contest jugé frais par `cache_probe`
+        # sont sautées ici : elles ne participent ni à la fusion ni au repli
+        # `Contest="0"`. Les listes en `Contest="0"` traversent inchangées (pas
+        # de clé de cache par sous-unité, cas réservé).
+        #
+        # Chaque contest à scraper est encapsulé dans un try/except : un contest
+        # en échec (5xx isolé, payload corrompu…) alimente `trace.failures` et
+        # n'emporte pas les autres. Contest="0" reste hors du filet — c'est le
+        # cas historique, à ne pas rendre isolé pour ne pas transformer une perte
+        # d'événement entier en fan-out silencieux.
         recuperees: list[tuple[str, dict, list]] = []
         labels_zero: set[str] = set()
+
+        # Regroupe les listes publiées par contest, ordre d'apparition préservé.
+        specs_par_contest: dict[str, list[str]] = {}
         for listname, contest in specs:
-            payload = _fetch_list(event_id, key, listname, contest, client)
-            if payload is None:
-                continue
-            groupes = _iter_groups(
-                payload.get("data"), contests_connus=contests_connus
-            )
-            recuperees.append((contest, payload, groupes))
-            if contest == "0":
-                labels_zero.update(cl for cl, _st, _lg in groupes)
+            specs_par_contest.setdefault(contest, []).append(listname)
+
+        # Notification `on_heat_start` : total = nombre de sous-unités à scraper
+        # (pas d'énumérées). Sur un ré-import majoritairement caché, la
+        # progression ne saute pas d'indice.
+        total_a_scraper = len(contests_a_scraper)
+
+        def _traite_contest(contest: str) -> None:
+            """Fetch + enregistrement des payloads d'un contest, dans `recuperees`."""
+            for listname in specs_par_contest.get(contest, []):
+                payload = _fetch_list(event_id, key, listname, contest, client)
+                if payload is None:
+                    continue
+                groupes = _iter_groups(
+                    payload.get("data"), contests_connus=contests_connus
+                )
+                recuperees.append((contest, payload, groupes))
+                if contest == "0":
+                    labels_zero.update(cl for cl, _st, _lg in groupes)
+
+        # 1a — Contests explicites à scraper, sous-unité par sous-unité.
+        for index, contest in enumerate(contests_a_scraper, start=1):
+            if on_heat_start is not None:
+                libelle_notif = str(contests.get(contest) or "") or f"Contest {contest}"
+                on_heat_start(contest, libelle_notif, index, total_a_scraper)
+            try:
+                _traite_contest(contest)
+            except Exception as exc:  # noqa: BLE001 — isolation par sous-unité
+                logger.warning(
+                    "RaceResult %s : contest %s en échec — %s",
+                    event_id, contest, exc,
+                )
+                trace.failures.append({"heat_slug": contest, "reason": str(exc)})
+
+        # 1b — Contest="0" : hors fan-out, traversé sans isolation ni cache_probe.
+        if "0" in specs_par_contest:
+            _traite_contest("0")
 
         fiable_zero = _groupes_zero_fiables(labels_zero, contests)
 
@@ -1420,10 +1584,17 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                     libelle = contest_label
                 else:
                     libelle = ""
+                # Fan-out (#217) — source_url par sous-unité pour que
+                # `Course.source_url` == clé de cache TTL. Contest="0" reste
+                # sur l'URL d'événement : il n'a pas de sous-unité propre.
+                if use_sub_url and contest != "0":
+                    source_url_ligne = _sub_source_url(event_id, contest)
+                else:
+                    source_url_ligne = url
                 for ligne in lignes:
                     r = _build_result(
                         ligne, roles, segments, extras,
-                        source_url=url,
+                        source_url=source_url_ligne,
                         event_name=event_name,
                         event_date=jour,
                         contest_label=libelle,
@@ -1470,7 +1641,26 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
             cles_par_dossard.setdefault(cle[1], []).append(cle)
 
         for listname, contest in _iter_hidden_list_specs(config):
-            payload = _fetch_list(event_id, key, listname, contest, client)
+            # Fan-out (#217) — les listes `hidden` restent liées à leur contest
+            # et suivent son cache : un contest sauté par `cache_probe` voit
+            # ses listes `hidden` sautées aussi. Cette symétrie est indispensable
+            # à la cohérence de l'enrichissement : les `hidden` n'apportent que
+            # si les publiées ont peuplé la fusion pour le même contest.
+            if contest in contests_caches:
+                continue
+            try:
+                payload = _fetch_list(event_id, key, listname, contest, client)
+            except Exception as exc:  # noqa: BLE001 — même filet fan-out
+                if not _est_contest_zero(contest):
+                    logger.warning(
+                        "RaceResult %s : liste hidden %r (contest %s) en échec — %s",
+                        event_id, listname, contest, exc,
+                    )
+                    # Comptée une seule fois par contest (déjà en échec en publié).
+                    if all(f.get("heat_slug") != contest for f in trace.failures):
+                        trace.failures.append({"heat_slug": contest, "reason": str(exc)})
+                    continue
+                raise
             if payload is None:
                 continue
             roles, segments, extras = _map_columns(payload)
@@ -1479,9 +1669,13 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                 payload.get("data"), contests_connus=contests_connus
             ):
                 for ligne in lignes:
+                    if use_sub_url and contest != "0":
+                        source_url_ligne = _sub_source_url(event_id, contest)
+                    else:
+                        source_url_ligne = url
                     apport = _build_result(
                         ligne, roles, segments, extras,
-                        source_url=url,
+                        source_url=source_url_ligne,
                         event_name=event_name,
                         event_date=jour,
                         contest_label="",
@@ -1522,10 +1716,14 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                         continue
                     _enrichir(publie, apport)
 
-    if not fusion:
+    # Fan-out : un événement dont **tous** les contests sont cachés (ou dont le
+    # seul contenu à scraper l'est) renvoie légitimement une fusion vide — la
+    # trace y témoigne du travail sauté. On n'échoue que si **rien** n'a été ni
+    # scrapé ni caché : c'est l'ancien contrat de `scrape_event_all`.
+    if not fusion and not trace.cached_urls and not trace.failures:
         essayees = ", ".join(nom for nom, _ in specs) or "aucune liste publiée"
         raise ValueError(
             f"Épreuve RaceResult {event_id} : aucune liste exploitable "
             f"(listes essayées : {essayees})."
         )
-    return list(fusion.values())
+    return list(fusion.values()), trace
