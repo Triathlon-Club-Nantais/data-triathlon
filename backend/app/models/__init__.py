@@ -1,4 +1,5 @@
 """Modèles SQLAlchemy. Importer ce package enregistre toutes les tables sur Base.metadata."""
+from app.models.admin_action_log import AdminActionLog
 from app.models.allowed_email import AllowedEmail
 from app.models.athlete import Athlete
 from app.models.course import Course
@@ -15,6 +16,7 @@ from app.models.user_role import UserRole
 from app.models.user_session import UserSession
 
 __all__ = [
+    "AdminActionLog",
     "AllowedEmail",
     "Athlete",
     "Course",
