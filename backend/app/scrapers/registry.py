@@ -266,11 +266,29 @@ class RaceResultProvider(HostMatchedProvider):
 
 
 class ChronoplaceProvider(HostMatchedProvider):
+    """Chronoplace — fan-out par épreuve (cache TTL par sous-unité, épique #195).
+
+    Une URL pointe une épreuve, mais la page liste ses sœurs (onglets) : chaque
+    onglet est une sous-unité, avec sa propre `source_url` canonique. Le
+    fan-out expose sa progression dans `self.last_trace`.
+    """
     name = "chronoplace"
     _HOSTS = ("chronoplace.fr",)
 
-    def scrape_event_all(self, url: str) -> list[ScrapedResult]:
-        return chronoplace.scrape_event_all(url)
+    def __init__(self) -> None:
+        self.last_trace: chronoplace.FanoutTrace | None = None
+
+    def scrape_event_all(
+        self, url: str,
+        *,
+        cache_probe: Callable[[str], bool] | None = None,
+        on_heat_start: Callable[[str, str, int, int], None] | None = None,
+    ) -> list[ScrapedResult]:
+        results, trace = chronoplace.scrape_event_fanout(
+            url, cache_probe=cache_probe, on_heat_start=on_heat_start,
+        )
+        self.last_trace = trace
+        return results
 
 
 class OkTimeProvider(HostMatchedProvider):
@@ -449,15 +467,21 @@ def is_supported(url: str) -> bool:
     return detect_provider(url) in provider_names()
 
 
+#: Providers qui exposent le fan-out (patron #195/#156) : ils acceptent
+#: `cache_probe` et `on_heat_start` en kwargs. Les autres sont appelés sans
+#: kwargs pour rester rétro-compatibles.
+_FANOUT_PROVIDERS: tuple[type, ...] = (KlikegoProvider, ChronoplaceProvider)
+
+
 def scrape_event_all(url: str, **kwargs) -> list[ScrapedResult]:
     """Dispatch vers le provider matché.
 
-    `**kwargs` propage les options optionnelles (`cache_probe`, `single_heat` pour
-    Klikego — issue #156). Les autres providers, qui ne les acceptent pas dans
-    leur signature, sont appelés sans kwargs pour rester rétro-compatibles.
+    `**kwargs` propage les options optionnelles (`cache_probe`, `on_heat_start`,
+    `single_heat`) aux providers qui les acceptent — les autres, qui ne les
+    connaissent pas dans leur signature, sont appelés sans kwargs.
     """
     provider = _find_provider(url)
     logger.info("Import épreuve via %s : %s", provider.name, url)
-    if isinstance(provider, KlikegoProvider):
+    if isinstance(provider, _FANOUT_PROVIDERS):
         return provider.scrape_event_all(url, **kwargs)
     return provider.scrape_event_all(url)

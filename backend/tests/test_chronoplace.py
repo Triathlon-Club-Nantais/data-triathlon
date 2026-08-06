@@ -727,13 +727,17 @@ def test_scrape_event_all_date_cherchee_une_seule_fois(monkeypatch):
     assert all(r.event_date == date(2025, 9, 21) for r in resultats)
 
 
-def test_scrape_event_all_source_url_est_lurl_demandee(monkeypatch):
-    """`source_url` sert de clé de cache TTL : toutes les Course partagent celle du Sheet."""
+def test_scrape_event_all_source_url_est_canonique_par_epreuve(monkeypatch):
+    """`source_url` = URL canonique de l'épreuve — clé de cache TTL par sous-unité (#195)."""
     _client_factice(monkeypatch)
 
     resultats = chronoplace.scrape_event_all(URL_494)
 
-    assert {r.source_url for r in resultats} == {URL_494}
+    urls = {r.source_url for r in resultats}
+    assert urls == {
+        "https://www.chronoplace.fr/classement/spaycific-races-2025/epreuve/494?perPage=all",
+        "https://www.chronoplace.fr/classement/spaycific-races-2025/epreuve/566?perPage=all",
+    }
 
 
 def test_scrape_event_all_url_sans_epreuve_resout_lid_dabord(monkeypatch):
@@ -800,3 +804,134 @@ def test_registry_nattrape_pas_les_autres_hosts():
     from app.scrapers import registry
 
     assert registry.detect_provider("https://www.klikego.com/resultats/x/1") != "chronoplace"
+
+
+# ---------------------------------------------------------------------------
+# scrape_event_fanout — cache TTL par épreuve (épique #195)
+# ---------------------------------------------------------------------------
+
+
+URL_494_CANONICAL = (
+    "https://www.chronoplace.fr/classement/spaycific-races-2025/epreuve/494?perPage=all"
+)
+URL_566_CANONICAL = (
+    "https://www.chronoplace.fr/classement/spaycific-races-2025/epreuve/566?perPage=all"
+)
+
+
+def test_epreuve_source_url_est_absolue_et_porte_perpage_all():
+    """La clé de cache TTL et le `source_url` du ScrapedResult doivent être identiques."""
+    assert chronoplace._epreuve_source_url("spaycific-races-2025", "494") == URL_494_CANONICAL
+
+
+def test_scrape_event_fanout_nominal_returns_trace(monkeypatch):
+    """Fan-out sans cache_probe : 2 épreuves énumérées, 2 scrapées, trace pleine."""
+    _client_factice(monkeypatch)
+
+    resultats, trace = chronoplace.scrape_event_fanout(URL_494)
+
+    assert trace.heats_enumerated == 2
+    assert trace.heats_cached == 0
+    assert trace.heats_imported == 0  # dérivé côté import_service
+    assert trace.failures == []
+    assert trace.cached_urls == []
+    assert len(resultats) == 6  # 3 lignes de fixture par épreuve
+
+
+def test_scrape_event_fanout_cache_probe_skips_epreuves(monkeypatch):
+    """`cache_probe` renvoyant True pour 566 → seul 494 est scrapé, 566 est comptée cachée."""
+    client = _client_factice(monkeypatch)
+
+    def probe(sub_url: str) -> bool:
+        return "/epreuve/566" in sub_url
+
+    resultats, trace = chronoplace.scrape_event_fanout(URL_494, cache_probe=probe)
+
+    assert trace.heats_enumerated == 2
+    assert trace.heats_cached == 1
+    assert trace.cached_urls == [URL_566_CANONICAL]
+    assert trace.failures == []
+    # Seule l'épreuve 494 a été GETée (plus l'annuaire pour la date).
+    assert not any("/epreuve/566" in c for c in client.calls)
+    # Toutes les lignes viennent de l'épreuve 494 (triathlon-s), 566 étant sautée.
+    assert {r.event_type for r in resultats} == {"triathlon-s"}
+
+
+def test_scrape_event_fanout_epreuve_failure_est_isolee(monkeypatch, caplog):
+    """Une épreuve qui lève ne casse pas les autres — la cause est dans trace.failures."""
+    pages = dict(PAGES_SPAYCIFIC)
+    pages["/epreuve/566"] = FakeResponse("", 500)
+    _client_factice(monkeypatch, pages=pages)
+
+    with caplog.at_level(logging.WARNING, logger="app.scrapers.chronoplace"):
+        resultats, trace = chronoplace.scrape_event_fanout(URL_494)
+
+    assert trace.heats_enumerated == 2
+    assert len(trace.failures) == 1
+    assert trace.failures[0]["heat_slug"] == "566"
+    assert "500" in trace.failures[0]["reason"]
+    # L'autre épreuve reste importée (3 lignes de fixture 494).
+    assert len(resultats) == 3
+    assert any("566" in rec.message for rec in caplog.records)
+
+
+def test_scrape_event_fanout_aucune_epreuve_soeur(monkeypatch):
+    """Une page sans onglets sœurs : une seule épreuve énumérée, aucune erreur."""
+    # Le HTML de l'épreuve demandée n'expose aucun lien vers une sœur (le
+    # `<div class="flex flex-wrap">` est stripé) — seule 494 est vue.
+    html_sans_soeurs = EPREUVE_494.replace(
+        '<a href="/classement/spaycific-races-2025/epreuve/566">SwimRun</a>', ""
+    )
+    pages = {
+        "/epreuve/494": html_sans_soeurs,
+        "/recherche": RECHERCHE_2025,
+    }
+    _client_factice(monkeypatch, pages=pages)
+
+    resultats, trace = chronoplace.scrape_event_fanout(URL_494)
+
+    assert trace.heats_enumerated == 1
+    assert trace.heats_cached == 0
+    assert trace.failures == []
+    assert len(resultats) == 3
+
+
+def test_scrape_event_fanout_on_heat_start_non_notifie_pour_les_cachees(monkeypatch):
+    """`on_heat_start` : une notification par épreuve **effectivement scrapée**.
+
+    Sans quoi la progression côté front sauterait des indices sur un ré-import
+    majoritairement caché (« épreuve 2/2 » alors qu'on scrape la 1ère).
+    """
+    _client_factice(monkeypatch)
+
+    def probe(sub_url: str) -> bool:
+        return "/epreuve/566" in sub_url
+
+    notifications: list[tuple[str, str, int, int]] = []
+
+    def on_heat_start(sub_id: str, sub_label: str, index: int, total: int) -> None:
+        notifications.append((sub_id, sub_label, index, total))
+
+    chronoplace.scrape_event_fanout(URL_494, cache_probe=probe, on_heat_start=on_heat_start)
+
+    # 1 épreuve à scraper (494), pas 2 : le total est celui des à-scraper.
+    assert len(notifications) == 1
+    sub_id, _label, index, total = notifications[0]
+    assert sub_id == "494"
+    assert index == 1
+    assert total == 1
+
+
+def test_registry_expose_last_trace_apres_scrape(monkeypatch):
+    """`ChronoplaceProvider.last_trace` alimente les 5 compteurs de `_fanout_counters`."""
+    from app.scrapers import registry
+
+    _client_factice(monkeypatch)
+    provider = registry.get_provider(URL_494)
+    assert isinstance(provider, registry.ChronoplaceProvider)
+
+    provider.scrape_event_all(URL_494)
+
+    assert provider.last_trace is not None
+    assert provider.last_trace.heats_enumerated == 2
+    assert provider.last_trace.failures == []
