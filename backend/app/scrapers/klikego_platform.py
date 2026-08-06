@@ -281,6 +281,15 @@ def build_heat_results(
     # casse, esperluette) ; le slug reste le repli quand la page n'en donne pas.
     event_name = parse_event_name(heat_page_html, heat) or event_name
 
+    # Un heat de la plateforme Klikego est mono-discipline et mono-format :
+    # le drapeau relais est une propriété du heat, propagée à tous ses résultats.
+    # Le manquer collapse deux heats homonymes (`triathlon-s-indiv` +
+    # `triathlon-s-relais`) sur la même `Course` via l'UNIQUE
+    # (name, event_date, event_type, is_relay) — cf. #203. Breizh Chrono
+    # surécrit cette valeur avec `_detect_relay(heat_label, heat_slug)` (libellé
+    # + slug), le patron reste correct : la deuxième écriture prime.
+    heat_is_relay = "relais" in (heat or "").lower()
+
     results: list[ScrapedResult] = []
     for raw in rows:
         d = parse_data_row(raw)
@@ -288,6 +297,7 @@ def build_heat_results(
         r.event_name = event_name
         r.event_type = event_type
         r.event_date = event_date
+        r.is_relay = heat_is_relay
         r.bib_number = d["bib_number"]
         r.athlete_name = d["athlete_name"]
         r.athlete_firstname = d["athlete_firstname"]

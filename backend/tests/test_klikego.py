@@ -961,6 +961,45 @@ def test_build_heat_results_falls_back_to_url_name_without_title():
     assert all(r.event_name == "Triathlon De Vierzon 2026" for r in results)
 
 
+def test_build_heat_results_sets_is_relay_on_relay_heats():
+    """Un heat dont le slug contient « relais » marque **tous** ses résultats.
+
+    Sans ça, `triathlon-s-indiv` et `triathlon-s-relais` d'un même événement
+    (Vierzon 2026, #203) fusionnent en une seule Course via l'UNIQUE
+    (name, event_date, event_type, is_relay) — le heat relais est aspiré dans
+    l'individuel.
+    """
+    from app.scrapers.klikego_platform import build_heat_results
+
+    page0 = (FIXTURES / "klikego_datablock_page0.html").read_text()
+
+    class FakeResp:
+        status_code = 200
+        def __init__(self, t): self.text = t
+
+    class FakeClient:
+        def get(self, url):
+            return FakeResp(page0 if "inter=&page=0" in url else "<html></html>")
+
+    relais = build_heat_results(
+        base="https://x", provider="klikego", event_id="1",
+        heat="triathlon-s-relais",
+        heat_page_html="<html></html>",
+        event_name="Tri", slug="tri", event_type="triathlon-s",
+        source_url="https://x", event_date=None, client=FakeClient(),
+    )
+    indiv = build_heat_results(
+        base="https://x", provider="klikego", event_id="1",
+        heat="triathlon-s-indiv",
+        heat_page_html="<html></html>",
+        event_name="Tri", slug="tri", event_type="triathlon-s",
+        source_url="https://x", event_date=None, client=FakeClient(),
+    )
+    assert relais and indiv
+    assert all(r.is_relay is True for r in relais)
+    assert all(r.is_relay is False for r in indiv)
+
+
 # ---------------------------------------------------------------------------
 # discover_inter_options et inter_label_to_slot — découverte des checkpoints
 # ---------------------------------------------------------------------------
