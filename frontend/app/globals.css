@@ -180,6 +180,8 @@
   --tcn-space-10: 40px; --tcn-space-12: 64px;
   --tcn-content-max:  1320px;
   --tcn-content-form: 1120px;
+  --tcn-nav-rail:  76px;   /* navigation repliée — icônes seules */
+  --tcn-nav-panel: 288px;  /* navigation dépliée — libellés */
 
   /* ── Rayons ───────────────────────────────────────────────────── */
   --tcn-radius-sm:   6px;
