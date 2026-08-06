@@ -93,6 +93,19 @@ class Settings(BaseSettings):
     auth_session_ttl_days: int = 7      # sans prolongation glissante
     auth_state_ttl_seconds: int = 600   # durée de vie du jeton d'état
 
+    # ── Lancement des batches (#47) ───────────────────────────────────────────
+    # Les batches ne tournent pas dans ce service : l'API ne fait que demander
+    # leur exécution à GitHub Actions, qui lance la CLI sur un runner. Le service
+    # web (offre gratuite, un process) reste au site public.
+    #
+    # Jeton *fine-grained*, restreint à ce dépôt, permission `actions: write`.
+    # **Vide est un état légitime** — même politique que les réglages `AUTH_*` :
+    # le lancement est alors annoncé comme non configuré, et rien d'autre ne
+    # change. Un jeton expire (un an au plus) ; l'erreur rendue le nomme.
+    github_batch_token: str = ""
+    github_repository: str = "Triathlon-Club-Nantais/data-triathlon"
+    github_workflow_file: str = "batch.yml"
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_csv(cls, v):
