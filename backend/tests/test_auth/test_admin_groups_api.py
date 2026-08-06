@@ -94,7 +94,9 @@ def test_two_groups_with_the_same_slug_in_one_club_are_refused(
 def test_a_malformed_slug_is_refused(client, ouvrir_session):
     ouvrir_session(P.GROUPS_WRITE)
 
-    assert client.post(BASE, json={"slug": "Codir!", "name": "Codir"}).status_code == 422
+    response = client.post(BASE, json={"slug": "Codir!", "name": "Codir"})
+
+    assert response.status_code == 422
 
 
 def test_renaming_loses_no_membership(client, ouvrir_session, group):
@@ -121,8 +123,11 @@ def test_the_slug_cannot_be_renamed(client, ouvrir_session, group):
 
 
 def test_deleting_an_empty_group_succeeds(client, group):
-    assert client.delete(f"{BASE}/{group['id']}").status_code == 204
-    assert client.get(f"{BASE}/{group['id']}").status_code == 404
+    deletion = client.delete(f"{BASE}/{group['id']}")
+    reread = client.get(f"{BASE}/{group['id']}")
+
+    assert deletion.status_code == 204
+    assert reread.status_code == 404
 
 
 def test_deleting_a_populated_group_is_refused_and_names_the_count(
@@ -162,8 +167,11 @@ def test_emptying_a_group_then_deleting_it_succeeds(client, ouvrir_session, grou
     ouvrir_session(superutilisateur=True)
     client.post(f"{BASE}/{group['id']}/members", json={"user_id": member.id})
 
-    assert client.delete(f"{BASE}/{group['id']}/members/{member.id}").status_code == 204
-    assert client.delete(f"{BASE}/{group['id']}").status_code == 204
+    emptying = client.delete(f"{BASE}/{group['id']}/members/{member.id}")
+    deletion = client.delete(f"{BASE}/{group['id']}")
+
+    assert emptying.status_code == 204
+    assert deletion.status_code == 204
 
 
 def test_creation_and_deletion_are_logged(
@@ -363,7 +371,9 @@ def test_groups_write_does_not_pass_assignment(client, ouvrir_session, group):
 def test_groups_assign_does_not_pass_composition(client, ouvrir_session):
     ouvrir_session(P.GROUPS_ASSIGN)
 
-    assert client.post(BASE, json={"slug": "x", "name": "X"}).status_code == 403
+    response = client.post(BASE, json={"slug": "x", "name": "X"})
+
+    assert response.status_code == 403
 
 
 # --- US2, volet lecture ------------------------------------------------------
