@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "./keys";
+import type { AdminAthleteUpdate, AdminCourseUpdate } from "@/lib/types";
 
 export function usePendingProviders() {
   return useQuery({
@@ -37,5 +38,106 @@ export function useRemoveAllowedEmail() {
   return useMutation({
     mutationFn: (id: number) => apiClient.removeAllowedEmail(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.allowedEmails() }),
+  });
+}
+
+// ── Administration des données (#117) ────────────────────────────────────────
+
+/** Le catalogue d'épreuves, tel que le sert la lecture publique. */
+export const TAILLE_PAGE_ADMIN = 50;
+
+export function useAdminCourses(page = 1) {
+  return useQuery({
+    queryKey: queryKeys.adminCourses(page),
+    queryFn: () =>
+      apiClient.listCourses({ page, page_size: TAILLE_PAGE_ADMIN }),
+    placeholderData: (precedent) => precedent,
+  });
+}
+
+/**
+ * Ce que la suppression détruirait — chargé **à l'ouverture de la modale**.
+ *
+ * `enabled` plutôt qu'un appel au montage : une liste de cinquante épreuves ne
+ * doit pas déclencher cinquante chiffrages d'impact pour un geste qui n'aura
+ * peut-être pas lieu.
+ */
+export function useCourseDeletionImpact(courseId: number | null) {
+  return useQuery({
+    queryKey: queryKeys.courseDeletionImpact(courseId ?? 0),
+    queryFn: () => apiClient.getCourseDeletionImpact(courseId as number),
+    enabled: courseId !== null,
+    retry: false,
+  });
+}
+
+export function useDeleteCourse() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiClient.deleteCourse(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-courses"] }),
+  });
+}
+
+/**
+ * Recherche de coureurs réservée — la seule lecture qui rend une date de naissance.
+ *
+ * `enabled` sur une saisie non vide : sans lui, l'ouverture d'une modale
+ * déclencherait une recherche à blanc qui ramènerait les vingt premiers
+ * coureurs de la base, sans rapport avec ce que l'administrateur cherche.
+ */
+export function useAdminAthleteSearch(search: string) {
+  return useQuery({
+    queryKey: queryKeys.adminAthletes(search),
+    queryFn: () => apiClient.searchAthletesAdmin(search),
+    enabled: search.trim().length > 0,
+  });
+}
+
+/**
+ * La fiche **complète** d'un coureur, chargée avant d'ouvrir son édition.
+ *
+ * Un résultat ne porte qu'un `AthleteBrief`, sans date de naissance. Ouvrir
+ * l'édition avec cette fiche tronquée puis enregistrer effacerait une date que
+ * l'écran n'a jamais lue — une perte de données silencieuse.
+ */
+export function useAdminAthlete(id: number | null) {
+  return useQuery({
+    queryKey: queryKeys.adminAthlete(id ?? 0),
+    queryFn: () => apiClient.getAthleteAdmin(id as number),
+    enabled: id !== null,
+  });
+}
+
+export function useReassignParticipation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ participationId, athleteId }: { participationId: number; athleteId: number }) =>
+      apiClient.reassignParticipation(participationId, athleteId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["course-participations"] });
+      qc.invalidateQueries({ queryKey: ["admin-athletes"] });
+    },
+  });
+}
+
+export function useUpdateCourse() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, champs }: { id: number; champs: Partial<AdminCourseUpdate> }) =>
+      apiClient.updateCourse(id, champs),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-courses"] }),
+  });
+}
+
+export function useUpdateAthlete() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, champs }: { id: number; champs: Partial<AdminAthleteUpdate> }) =>
+      apiClient.updateAthlete(id, champs),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-athletes"] });
+      qc.invalidateQueries({ queryKey: ["course-participations"] });
+    },
   });
 }

@@ -328,3 +328,56 @@ export interface SessionUser {
    */
   roles: SessionRole[];
 }
+
+/**
+ * Ce qu'une suppression d'épreuve détruirait, chiffré **avant** le geste (#117).
+ *
+ * `athletes` n'est pas le nombre d'inscrits : c'est celui des coureurs dont
+ * toutes les participations sont sur cette épreuve, donc ceux qui
+ * disparaîtront avec elle. La confirmation annonce ce nombre-là, sans quoi
+ * elle sous-déclarerait un geste sans retour en arrière.
+ */
+export interface CourseDeletionImpact {
+  course_id: number;
+  name: string;
+  participations: number;
+  athletes: number;
+}
+
+/**
+ * Une fiche coureur **complète**, servie derrière le pouvoir `athletes:read` (#117).
+ *
+ * Deux champs de plus que `AthleteBrief`, et ce sont les deux qui permettent de
+ * départager deux homonymes avant un rattachement sans retour en arrière : la
+ * date de naissance — seule donnée personnelle fermée du site — et le nombre de
+ * résultats portés par la fiche.
+ */
+export interface AdminAthlete {
+  id: number;
+  nom: string;
+  prenom: string;
+  birth_date: string | null;
+  gender: string;
+  club: string | null;
+  participations: number;
+}
+
+/**
+ * Corrections partielles (#117) — seuls les champs **présents** sont écrits.
+ *
+ * `event_date: null` est une mise à vide légitime et se distingue d'un champ
+ * absent : c'est pourquoi ces types sont manipulés en `Partial<>`, jamais en
+ * objets complets.
+ */
+export interface AdminCourseUpdate {
+  name: string;
+  event_date: string | null;
+  event_type: string;
+  is_relay: boolean;
+}
+
+export interface AdminAthleteUpdate {
+  nom: string;
+  prenom: string;
+  birth_date: string | null;
+}

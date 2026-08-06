@@ -1,6 +1,11 @@
 import type {
+  AdminAthlete,
+  AdminAthleteUpdate,
+  AdminCourseUpdate,
   AthleteDetail,
   AuthMethod,
+  CourseBrief,
+  CourseDeletionImpact,
   CourseDetail,
   CourseQuery,
   CourseSummary,
@@ -139,6 +144,34 @@ export const apiClient = {
   listAuthMethods: () => request<AuthMethod[]>("/auth/methods"),
   getSession: () => request<SessionUser>("/auth/me"),
   logout: () => request<null>("/auth/logout", { method: "POST" }),
+
+  // ── Administration des données (#117) ──────────────────────────────────────
+  // Six ressources, six pouvoirs distincts côté serveur : l'écran ne fait que
+  // cacher ce qu'il ne peut pas faire, il n'autorise rien.
+  listCourses: (opts: { page?: number; page_size?: number } = {}) =>
+    request<CourseBrief[]>(`/courses${toQuery(opts)}`),
+  getCourseDeletionImpact: (id: number) =>
+    request<CourseDeletionImpact>(`/admin/courses/${id}/deletion-impact`),
+  deleteCourse: (id: number) =>
+    request<null>(`/admin/courses/${id}`, { method: "DELETE" }),
+  updateCourse: (id: number, champs: Partial<AdminCourseUpdate>) =>
+    request<CourseBrief>(`/admin/courses/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(champs),
+    }),
+  updateAthlete: (id: number, champs: Partial<AdminAthleteUpdate>) =>
+    request<AdminAthlete>(`/admin/athletes/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(champs),
+    }),
+  getAthleteAdmin: (id: number) => request<AdminAthlete>(`/admin/athletes/${id}`),
+  searchAthletesAdmin: (search: string) =>
+    request<AdminAthlete[]>(`/admin/athletes${toQuery({ search })}`),
+  reassignParticipation: (participationId: number, athleteId: number) =>
+    request<Participation>(`/admin/participations/${participationId}/reassign`, {
+      method: "POST",
+      body: JSON.stringify({ athlete_id: athleteId }),
+    }),
 
   listPendingProviders: () =>
     request<PendingProvider[]>("/admin/pending-providers"),
