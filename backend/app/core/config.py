@@ -6,7 +6,7 @@ Toutes les variables d'environnement passent par cet objet `Settings` typé
 """
 
 from functools import lru_cache
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -103,6 +103,13 @@ class Settings(BaseSettings):
     github_batch_token: str = ""
     github_repository: str = "Triathlon-Club-Nantais/data-triathlon"
     github_workflow_file: str = "batch.yml"
+    # Base que les batches lancés depuis **cette** instance doivent écrire.
+    # Ce n'est pas un choix offert à l'utilisateur : l'administration de la
+    # preview parle à la base de preview, celle de la production à la sienne.
+    # Un champ dans le formulaire permettrait à l'une d'écrire chez l'autre.
+    # Défaut `preview` — la production se déclare, elle ne s'obtient pas par
+    # omission.
+    github_batch_target: Literal["preview", "production"] = "preview"
 
     @field_validator("cors_origins", "auth_allowed_emails", mode="before")
     @classmethod

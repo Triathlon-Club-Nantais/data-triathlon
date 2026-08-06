@@ -8,6 +8,7 @@ demande. Il se relit comme tel.
 
 | Entrée | Type | Contrainte |
 | --- | --- | --- |
+| `target` | choix | `preview` ou `production` — **défaut `preview`** |
 | `mode` | choix | `rescrape` ou `urls` |
 | `provider` | texte | vide, ou un fournisseur du registre |
 | `older_than` | texte | vide, ou un entier |
@@ -16,10 +17,27 @@ demande. Il se relit comme tel.
 | `dry_run` | booléen | défaut `false` |
 | `correlation_id` | texte | identifiant fourni par l'appelant, repris dans `run-name` |
 
-Sept entrées, sous la limite de 25 propriétés de premier niveau. Les valeurs
+Huit entrées, sous la limite de 25 propriétés de premier niveau. Les valeurs
 arrivent déjà validées par l'API (D11) — la validation côté workflow serait un
 second inventaire à tenir aligné, et le lancement manuel depuis l'onglet Actions
 reste réservé à qui a déjà les droits d'écriture sur le dépôt.
+
+**`target` n'est pas un choix offert dans l'écran.** L'API l'envoie depuis son
+propre réglage `GITHUB_BATCH_TARGET` : l'administration de la preview écrit dans
+la base de preview, celle de la production dans la sienne. Un champ dans le
+formulaire permettrait à l'une d'écrire chez l'autre. Le choix n'existe que pour
+un lancement manuel depuis l'onglet Actions, où il est explicite.
+
+**Son défaut est `preview`, et son repli est `production`** — les deux ne se
+contredisent pas, ils couvrent deux situations :
+
+- un lancement **manuel** porte toujours une valeur : le défaut `preview` évite
+  qu'une inattention écrive chez les adhérents ;
+- une exécution **planifiée** ne porte aucune entrée. `inputs.target` y est vide,
+  d'où le `|| 'production'` dans `environment` et `concurrency`. Sans lui, le
+  cron nocturne hériterait de `preview` et ne rafraîchirait jamais la base
+  réelle — une panne qu'on ne découvre qu'en cherchant pourquoi les résultats
+  datent.
 
 ## Règle non négociable — aucune interpolation dans un `run:`
 
@@ -40,13 +58,16 @@ relecture de PR, au même titre que « pas de secret en clair ».
 
 ```yaml
 concurrency:
-  group: batch
+  group: batch-${{ inputs.target || 'production' }}
   cancel-in-progress: false
 ```
 
 Le verrou réel de FR-004. La garde `409` côté API ne le remplace pas : elle donne
 un message immédiat, lui empêche deux batches d'écrire en même temps — y compris
 quand le second vient de l'onglet Actions ou de la planification.
+
+Le groupe **porte la cible** : preview et production sont deux bases distinctes,
+et faire attendre l'une pendant que l'autre travaille n'aurait aucun sens.
 
 ## Nom d'exécution
 
@@ -89,11 +110,18 @@ batch tourne, ce qui est le comportement voulu.
 
 | Nom | Portée | Rôle |
 | --- | --- | --- |
-| `DATABASE_URL` | environment `batch-production` | Base de production. **Doit viser le pooler Supabase**, joignable en IPv4 (D12). |
+| `DATABASE_URL` | environment `batch-preview` | Base de preview |
+| `DATABASE_URL` | environment `batch-production` | Base de production |
 
-L'environnement est dédié plutôt que `production` : ce dernier peut porter une
-*required reviewer*, qui laisserait chaque lancement demandé depuis l'interface
-en attente d'approbation. Le contrôle d'accès est ici le pouvoir `batch:run`.
+Dans les deux cas, la valeur **doit viser le pooler Supabase**, joignable en IPv4
+(D12). C'est l'environment, et lui seul, qui décide de la base écrite : rien dans
+le script ne la nomme.
+
+Environments **dédiés** plutôt que `Preview` / `Production` — deux raisons
+constatées sur le dépôt : ces derniers ne portent aucune `DATABASE_URL` (l'URL
+vit côté Render), et `Production` porte une *required reviewer* active qui
+laisserait chaque lancement demandé depuis l'interface en attente d'approbation
+humaine. Le contrôle d'accès est ici le pouvoir `batch:run`.
 
 ## Étapes
 

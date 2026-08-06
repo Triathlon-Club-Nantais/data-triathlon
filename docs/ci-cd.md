@@ -258,13 +258,25 @@ gratuite, un seul process, et un batch de plusieurs dizaines de minutes y
 priverait le site public de sa ressource. Ils tournent sur un runner GitHub
 Actions, qui lance la CLI.
 
-### Un troisième environment : `batch-production`
+### Deux environments dédiés : `batch-preview` et `batch-production`
 
-À créer (Settings → Environments), avec **un seul secret** :
+Un par base, chacun portant **un seul secret** :
 
 | Secret | Portée | Usage |
 |---|---|---|
-| `DATABASE_URL` | environment `batch-production` | Base de production, écrite par le batch |
+| `DATABASE_URL` | environment `batch-preview` | Base de preview |
+| `DATABASE_URL` | environment `batch-production` | Base de production |
+
+C'est l'environment, et lui seul, qui décide de la base écrite : rien dans le
+script du workflow ne la nomme. La cible est choisie par l'entrée `target`, avec
+un défaut `preview` — un lancement manuel distrait ne doit pas écrire chez les
+adhérents — et un repli sur `production` quand aucune entrée n'est fournie,
+c'est-à-dire pour les exécutions **planifiées**.
+
+Côté application, la cible n'est **pas** un choix offert dans l'écran : elle vient
+du réglage `GITHUB_BATCH_TARGET` de l'instance. L'administration de la preview
+écrit dans la base de preview, celle de la production dans la sienne ; un champ
+dans le formulaire permettrait à l'une d'écrire chez l'autre.
 
 **Environment dédié, et non `Production`** — deux raisons, toutes deux
 constatées sur le dépôt :
