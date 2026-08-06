@@ -95,7 +95,10 @@ def _merge_cached_courses(
         if course.id in seen:
             continue
         seen.add(course.id)
-        merged.append({"id": course.id, "name": course.name, "event_type": course.event_type})
+        merged.append({
+            "id": course.id, "name": course.name,
+            "event_type": course.event_type, "is_relay": bool(course.is_relay),
+        })
     return merged
 
 
@@ -375,7 +378,10 @@ class _Persister:
         résultats » (#135). Ordre stable → boutons stables entre deux imports.
         """
         return [
-            {"id": c.id, "name": c.name, "event_type": c.event_type}
+            {
+                "id": c.id, "name": c.name,
+                "event_type": c.event_type, "is_relay": bool(c.is_relay),
+            }
             for c in self._courses.values()
         ]
 
@@ -539,7 +545,11 @@ def _cached_result(db: Session, url: str, settings: Settings) -> dict | None:
         "reconciled": 0,
         "cached": True,
         "courses": [
-            {"id": c.id, "name": c.name, "event_type": c.event_type} for c in heats
+            {
+                "id": c.id, "name": c.name,
+                "event_type": c.event_type, "is_relay": bool(c.is_relay),
+            }
+            for c in heats
         ],
     }
 

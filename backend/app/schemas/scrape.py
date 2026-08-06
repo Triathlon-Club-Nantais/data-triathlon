@@ -21,10 +21,17 @@ class ScrapeRequest(BaseModel):
 
 
 class ImportedCourse(BaseModel):
-    """Course touchée par un import — sert à câbler « Voir les résultats » (#135)."""
+    """Course touchée par un import — sert à câbler « Voir les résultats » (#135).
+
+    `is_relay` sert au sélecteur de fin d'import à distinguer deux Course de
+    même nom et même discipline qui ne différeraient que par le drapeau relais
+    (issue #195/#203 : Chronoplace publie parfois indiv + relais dans la même
+    sous-unité, Klikego les publie sur deux heats homonymes).
+    """
     id: int
     name: str
     event_type: str
+    is_relay: bool = False
 
 
 class ImportResult(BaseModel):

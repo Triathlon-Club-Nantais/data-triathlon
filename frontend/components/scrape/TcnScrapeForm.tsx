@@ -7,6 +7,7 @@ import { Card, Input, Button, Alert } from "@/components/tcn";
 import { apiClient } from "@/lib/api/client";
 import { eventTypeLabel } from "@/lib/constants";
 import { eventTypeColor } from "@/lib/sport-colors";
+import { formatEventName } from "@/lib/utils/event";
 import { useSaveParticipation } from "@/lib/queries/participations";
 import { useImportStream } from "@/hooks/useImportStream";
 import { ProviderDetector } from "./ProviderDetector";
@@ -216,7 +217,7 @@ function CourseNavigator({ courses }: { courses: ImportedCourse[] }) {
     return (
       <div style={{ marginTop: 12 }}>
         <PrimaryLink href={`/courses/${c.id}`}>
-          Voir les résultats de « {c.name} » <span aria-hidden="true">→</span>
+          Voir les résultats de « {formatEventName(c.name, Boolean(c.is_relay))} » <span aria-hidden="true">→</span>
         </PrimaryLink>
       </div>
     );
@@ -320,7 +321,7 @@ function CourseSelectField({
           textOverflow: "ellipsis",
         }}
       >
-        {selectedCourse.name}
+        {formatEventName(selectedCourse.name, Boolean(selectedCourse.is_relay))}
         <span style={{ color: "var(--tcn-text-muted)", fontWeight: 500 }}>
           {" · "}
           {eventTypeLabel(selectedCourse.event_type)}
@@ -361,7 +362,7 @@ function CourseSelectField({
       >
         {courses.map((c) => (
           <option key={c.id} value={String(c.id)}>
-            {c.name} · {eventTypeLabel(c.event_type)}
+            {formatEventName(c.name, Boolean(c.is_relay))} · {eventTypeLabel(c.event_type)}
           </option>
         ))}
       </select>
