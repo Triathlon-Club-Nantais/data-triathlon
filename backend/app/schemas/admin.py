@@ -1,7 +1,15 @@
 """DTO des ressources d'administration (#115) — formes de `contracts/admin-api.md`."""
-from datetime import datetime
+from datetime import date, datetime
+from typing import ClassVar
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
 
 class PermissionRead(BaseModel):
@@ -207,6 +215,134 @@ class GroupMemberAdd(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     user_id: int
+
+
+class AdminAthleteRead(BaseModel):
+    """Une fiche coureur **complète**, servie derrière `athletes:read` (#117).
+
+    Diffère d'`AthleteBrief` par deux champs, et ce sont les deux qui comptent
+    pour départager des homonymes : `birth_date` — le tiers de l'identité, et la
+    seule donnée personnelle que le site garde fermée (FR-025) — et
+    `participations`, le poids de la fiche.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nom: str
+    prenom: str = ""
+    birth_date: date | None = None
+    gender: str = ""
+    club: str | None = None
+    participations: int = 0
+
+
+class ParticipationReassign(BaseModel):
+    """Le coureur vers qui déplacer un résultat."""
+
+    athlete_id: int
+
+
+class _PatchNonVide(BaseModel):
+    """Socle des corrections partielles : un corps sans aucun champ est un 422.
+
+    Sans ce contrôle, `PATCH {}` répondrait 200 sans rien faire — une réussite
+    qui n'a rien réussi. Le **champ présent** est ce qui compte, pas sa valeur :
+    `event_date: null` est une mise à `NULL` légitime, et `model_fields_set` est
+    la seule chose qui la distingue d'une absence.
+
+    `str_strip_whitespace` n'est pas du confort : `min_length=1` compte les
+    **caractères**, pas les non-blancs, et laissait donc passer `"   "` jusqu'à
+    la base — un nom d'affichage vide, que la spec proscrit nommément.
+
+    **Le `None` de ces champs veut dire « absent », pas « NULL ».** Les colonnes
+    visées sont `NOT NULL` : sans le garde ci-dessous, un `{"nom": null}` était
+    accepté par le schéma, transmis au service, et ressortait en **500**
+    (`IntegrityError`) au lieu du 422 annoncé par le contrat. Chaque modèle
+    déclare donc les champs où `null` est réellement une valeur.
+    """
+
+    #: Les champs dont `null` est une valeur légitime, et non une absence.
+    _NULLABLES: ClassVar[frozenset[str]] = frozenset()
+
+    @model_validator(mode="after")
+    def _au_moins_un_champ(self):
+        if not self.model_fields_set:
+            raise ValueError("Aucune modification demandée.")
+        return self
+
+    @model_validator(mode="after")
+    def _pas_de_null_sur_un_champ_obligatoire(self):
+        for champ in self.model_fields_set:
+            if champ not in self._NULLABLES and getattr(self, champ) is None:
+                raise ValueError(f"« {champ} » ne peut pas être vidé.")
+        return self
+
+
+class AdminAthleteUpdate(_PatchNonVide):
+    """Correction d'identité d'un coureur (#117, FR-004).
+
+    `nom` et `prenom` restent en français : gelés par un contrat public
+    (Principe I) — ils traversent la base, l'API et `frontend/lib/types.ts`.
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    _NULLABLES: ClassVar[frozenset[str]] = frozenset({"birth_date"})
+
+    nom: str | None = Field(default=None, min_length=1)
+    prenom: str | None = Field(default=None, min_length=1)
+    birth_date: date | None = None
+
+
+class AdminCourseUpdate(_PatchNonVide):
+    """Correction du libellé d'une épreuve (#117, FR-020).
+
+    Exactement les quatre colonnes de `uq_course_identity` — les toucher, c'est
+    toucher ce qui distingue deux épreuves l'une de l'autre.
+
+    **`event_type` est validé contre la nomenclature**, pas seulement contre le
+    vide : ce slug pilote le partage fédéral/non-fédéral (`core/discipline.py`),
+    les statistiques et le gabarit de splits. Un `triathlon_m` au lieu de
+    `triathlon-m` retirerait l'épreuve des filtres et des agrégats **en
+    silence** — le classifieur d'import, lui, ne produit que des slugs canoniques.
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    _NULLABLES: ClassVar[frozenset[str]] = frozenset({"event_date"})
+
+    name: str | None = Field(default=None, min_length=1)
+    event_date: date | None = None
+    event_type: str | None = Field(default=None, min_length=1)
+    is_relay: bool | None = None
+
+    @field_validator("event_type")
+    @classmethod
+    def _slug_connu(cls, valeur: str | None) -> str | None:
+        from app.scrapers.classify import CANONICAL_TYPES
+
+        if valeur is not None and valeur not in CANONICAL_TYPES:
+            raise ValueError(
+                f"Type d'épreuve inconnu. Valeurs acceptées : "
+                f"{', '.join(sorted(CANONICAL_TYPES))}."
+            )
+        return valeur
+
+
+class CourseDeletionImpact(BaseModel):
+    """Ce qu'une suppression d'épreuve détruirait, chiffré avant le geste (#117).
+
+    `athletes` n'est pas le nombre d'inscrits : c'est celui des coureurs dont
+    **toutes** les participations sont sur cette épreuve, donc ceux qui
+    disparaîtront par ricochet (FR-022). C'est ce nombre que la confirmation
+    annonce, et il vient de la même fonction que celle qui purge (SC-007).
+    """
+
+    course_id: int
+    name: str
+    participations: int
+    athletes: int
 
 
 class CourseReliabilityUpdate(BaseModel):

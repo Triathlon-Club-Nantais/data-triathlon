@@ -13,12 +13,12 @@ import pytest
 from app.core import permissions
 from app.core.permissions import P, Permission
 
-#: Les treize codes des contrats : les neuf de `contracts/admin-api.md` (#115),
-#: les trois de `contracts/admin-groups-api.md` (#197) et celui de la liste
-#: d'autorisation (#170). Écrits **à la main** ici, et c'est délibéré : un test
-#: qui dériverait la liste du catalogue ne prouverait rien. C'est ce qui fait
-#: qu'ajouter un pouvoir est un geste conscient — cette liste est le seul endroit
-#: du dépôt qui s'y oppose.
+#: Les dix-huit codes des contrats : les neuf de `contracts/admin-api.md` (#115),
+#: les trois de `contracts/admin-groups-api.md` (#197), celui de la liste
+#: d'autorisation (#170) et les cinq des gestes correctifs (#117). Écrits **à la
+#: main** ici, et c'est délibéré : un test qui dériverait la liste du catalogue
+#: ne prouverait rien. C'est ce qui fait qu'ajouter un pouvoir est un geste
+#: conscient — cette liste est le seul endroit du dépôt qui s'y oppose.
 CODES_ATTENDUS = {
     "roles:read",
     "roles:write",
@@ -31,8 +31,13 @@ CODES_ATTENDUS = {
     "pending_providers:read",
     "pending_providers:handle",
     "quality:override",
+    "courses:write",
+    "courses:delete",
+    "athletes:read",
+    "athletes:write",
     "participations:write",
     "participations:delete",
+    "participations:reassign",
 }
 
 
@@ -97,7 +102,9 @@ def test_l_acces_par_code_rend_le_pouvoir_ou_rien():
     assert permissions.get("quality:override") is P.QUALITY_OVERRIDE
     assert permissions.get("pending_providres") is None  # la coquille du contrat
     assert permissions.is_known("quality:override") is True
-    assert permissions.is_known("courses:delete") is False
+    # Un code plausible mais absent du catalogue. Ce n'était pas `courses:delete`
+    # par hasard : #117 l'a rendu réel, et l'exemple a dû changer de code.
+    assert permissions.is_known("courses:archive") is False
 
 
 def test_le_catalogue_est_groupe_par_fonctionnalite_pour_l_affichage():

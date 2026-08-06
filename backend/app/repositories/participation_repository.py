@@ -74,6 +74,37 @@ def exists_for_bib(db: Session, course_id: int, bib_number: str | None) -> bool:
     )
 
 
+def exists_for_athlete_on_course(db: Session, *, athlete_id: int, course_id: int) -> bool:
+    """Ce coureur a-t-il déjà un résultat sur cette épreuve ? (#117, FR-006)
+
+    **Aucune contrainte de base ne couvre ce cas** : `uq_participation_bib` porte
+    sur `(course_id, bib_number)`, pas sur l'athlète. Sans cette vérification, un
+    rattachement peut classer deux fois la même personne sur une même course —
+    une incohérence visible publiquement, dans les classements.
+    """
+    return (
+        db.query(Participation.id)
+        .filter(
+            Participation.course_id == course_id,
+            Participation.athlete_id == athlete_id,
+        )
+        .first()
+        is not None
+    )
+
+
+def reassign(db: Session, participation: Participation, *, athlete_id: int) -> Participation:
+    """Rattache ce résultat à un autre coureur. **Ne touche rien d'autre** (#117).
+
+    Ni les temps, ni les rangs, ni le statut, ni `course_id` : déplacer un
+    résultat vers une autre *épreuve* n'est pas dans le périmètre de #117, et le
+    silence sur les valeurs mesurées est délibéré.
+    """
+    participation.athlete_id = athlete_id
+    db.flush()
+    return participation
+
+
 def count_for_course(db: Session, course_id: int) -> int:
     """Nombre de participations d'une course — avec ou sans dossard."""
     return (
