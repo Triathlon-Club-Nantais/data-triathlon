@@ -2775,3 +2775,337 @@ def test_scrape_event_all_410891_hidden_recupere_les_splits_intermediaires(monke
     # Un finisher récupère aussi son split, ex-rejeté par le verrou C.
     finisher = next(r for r in res if r.bib_number == "810")  # RONDEAU David
     assert finisher.segments == [("10KMS", "02:05:29")]
+
+
+# ---------------------------------------------------------------------------
+# scrape_event_fanout — fan-out par contest, cache_probe et failures (issue #217)
+# ---------------------------------------------------------------------------
+#
+# Répliquent les 5 scénarios de test_klikego.py, plus un cas spécifique #217 :
+# Contest="0" est **réservé** et ne doit pas être fan-outé.
+
+
+def test_scrape_event_fanout_nominal_returns_trace(monkeypatch):
+    """3 contests énumérés, 3 scrapés, trace complète — sans cache_probe."""
+    specs = [("Classement", "1"), ("Classement", "2"), ("Classement", "3")]
+    contests = {"1": "Distance S", "2": "Distance M", "3": "Distance L"}
+    payloads = {
+        ("Classement", "1"): _payload(
+            {"#1_Distance S": {"#1_": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]}}
+        ),
+        ("Classement", "2"): _payload(
+            {"#1_Distance M": {"#1_": [["8", "2", "Luc MARTIN", "TCN", "02:00:00"]]}}
+        ),
+        ("Classement", "3"): _payload(
+            {"#1_Distance L": {"#1_": [["9", "3", "Anne DURAND", "TCN", "03:00:00"]]}}
+        ),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads)
+    # `_monte_pipeline` fixe `contests` à {"1", "2"} — on l'étend ici pour
+    # que les 3 contests aient un libellé.
+    monkeypatch.setattr(
+        raceresult, "_fetch_config",
+        lambda ev, client: {
+            "key": "k", "eventname": "Épreuve", "contests": contests,
+            "TabConfig": {"Lists": [
+                {"Name": n, "Contest": c, "Mode": ""} for n, c in specs
+            ]},
+        },
+    )
+
+    results, trace = raceresult.scrape_event_fanout(
+        "https://my.raceresult.com/1/results",
+    )
+
+    assert trace.heats_enumerated == 3
+    assert trace.heats_cached == 0
+    assert trace.heats_imported == 0  # dérivé côté import_service
+    assert trace.failures == []
+    assert trace.cached_urls == []
+    assert len(results) == 3
+
+
+def test_scrape_event_fanout_cache_probe_skips_heats(monkeypatch):
+    """1 sous-unité fraîche → 1 sautée, 2 autres scrapées."""
+    specs = [("Classement", "1"), ("Classement", "2"), ("Classement", "3")]
+    contests = {"1": "Distance S", "2": "Distance M", "3": "Distance L"}
+    payloads = {
+        ("Classement", "1"): _payload(
+            {"#1_Distance S": {"#1_": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]}}
+        ),
+        ("Classement", "2"): _payload(
+            {"#1_Distance M": {"#1_": [["8", "2", "Luc MARTIN", "TCN", "02:00:00"]]}}
+        ),
+        ("Classement", "3"): _payload(
+            {"#1_Distance L": {"#1_": [["9", "3", "Anne DURAND", "TCN", "03:00:00"]]}}
+        ),
+    }
+    appels = _monte_pipeline(monkeypatch, specs, payloads)
+    monkeypatch.setattr(
+        raceresult, "_fetch_config",
+        lambda ev, client: {
+            "key": "k", "eventname": "Épreuve", "contests": contests,
+            "TabConfig": {"Lists": [
+                {"Name": n, "Contest": c, "Mode": ""} for n, c in specs
+            ]},
+        },
+    )
+
+    # Cache le contest 2.
+    cache_url = raceresult._sub_source_url("1", "2")
+    probe_calls: list[str] = []
+
+    def probe(sub_url: str) -> bool:
+        probe_calls.append(sub_url)
+        return sub_url == cache_url
+
+    results, trace = raceresult.scrape_event_fanout(
+        "https://my.raceresult.com/1/results",
+        cache_probe=probe,
+    )
+
+    assert trace.heats_enumerated == 3
+    assert trace.heats_cached == 1
+    assert trace.cached_urls == [cache_url]
+    assert trace.failures == []
+    # Seuls les contests 1 et 3 sont fetchés (le contest 2 caché est sauté).
+    assert ("Classement", "2") not in appels
+    assert ("Classement", "1") in appels
+    assert ("Classement", "3") in appels
+    assert len(results) == 2
+
+
+def test_scrape_event_fanout_heat_failure_isolated(monkeypatch, caplog):
+    """Un contest qui lève ne casse pas les autres — cause dans trace.failures."""
+    specs = [("Classement", "1"), ("Classement", "2"), ("Classement", "3")]
+    contests = {"1": "Distance S", "2": "Distance M", "3": "Distance L"}
+    payloads = {
+        ("Classement", "1"): _payload(
+            {"#1_Distance S": {"#1_": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]}}
+        ),
+        ("Classement", "3"): _payload(
+            {"#1_Distance L": {"#1_": [["9", "3", "Anne DURAND", "TCN", "03:00:00"]]}}
+        ),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads)
+    monkeypatch.setattr(
+        raceresult, "_fetch_config",
+        lambda ev, client: {
+            "key": "k", "eventname": "Épreuve", "contests": contests,
+            "TabConfig": {"Lists": [
+                {"Name": n, "Contest": c, "Mode": ""} for n, c in specs
+            ]},
+        },
+    )
+
+    # Un `_fetch_list` qui lève sur le contest 2, laisse passer les autres.
+    original_fetch = raceresult._fetch_list
+
+    def flaky_fetch(event_id, key, listname, contest, client):
+        if contest == "2":
+            raise RuntimeError("boom on contest 2")
+        return payloads.get((listname, contest))
+
+    monkeypatch.setattr(raceresult, "_fetch_list", flaky_fetch)
+    # Neutralise le http.client — `_run_pipeline` ouvre un client puis n'appelle
+    # que les helpers monkeypatchés.
+    del original_fetch
+
+    with _capture_logs("app.scrapers.raceresult") as logs:
+        results, trace = raceresult.scrape_event_fanout(
+            "https://my.raceresult.com/1/results",
+        )
+
+    assert trace.heats_enumerated == 3
+    assert len(trace.failures) == 1
+    assert trace.failures[0]["heat_slug"] == "2"
+    assert "boom on contest 2" in trace.failures[0]["reason"]
+    assert len(results) == 2  # contests 1 et 3 passés
+    assert any("contest 2" in rec.getMessage() for rec in logs.records)
+
+
+def test_scrape_event_fanout_no_sub_units_returns_empty(monkeypatch):
+    """Aucun contest cache-able (que du `Contest="0"`) → fan-out à zéro heat.
+
+    Le pipeline avale néanmoins la voie `Contest="0"` (cas réservé, hors
+    fan-out), donc `results` peut contenir des lignes — mais la trace reste
+    « vide » côté sous-unités (0 énumérée, 0 cachée, 0 failure).
+    """
+    specs = [("Général", "0")]
+    payloads = {
+        ("Général", "0"): _payload(
+            {"#1_Distance S": {"#1_": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]}}
+        ),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads)
+
+    results, trace = raceresult.scrape_event_fanout(
+        "https://my.raceresult.com/1/results",
+    )
+
+    assert trace.heats_enumerated == 0
+    assert trace.heats_cached == 0
+    assert trace.failures == []
+    assert trace.cached_urls == []
+    # Contest="0" corroboré (Distance S ∈ contests) → 1 ligne, hors fan-out.
+    assert len(results) == 1
+
+
+def test_scrape_event_fanout_on_heat_start_notifie_par_heat_non_cache(monkeypatch):
+    """`on_heat_start` n'est jamais appelé pour un contest caché.
+
+    Total notifié = nombre de contests à scraper, pas le nombre énuméré. Sans
+    quoi la progression paraîtrait sauter des indices sur un ré-import
+    majoritairement caché.
+    """
+    specs = [("Classement", "1"), ("Classement", "2"), ("Classement", "3")]
+    contests = {"1": "Distance S", "2": "Distance M", "3": "Distance L"}
+    payloads = {
+        ("Classement", "1"): _payload(
+            {"#1_Distance S": {"#1_": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]}}
+        ),
+        ("Classement", "3"): _payload(
+            {"#1_Distance L": {"#1_": [["9", "3", "Anne DURAND", "TCN", "03:00:00"]]}}
+        ),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads)
+    monkeypatch.setattr(
+        raceresult, "_fetch_config",
+        lambda ev, client: {
+            "key": "k", "eventname": "Épreuve", "contests": contests,
+            "TabConfig": {"Lists": [
+                {"Name": n, "Contest": c, "Mode": ""} for n, c in specs
+            ]},
+        },
+    )
+
+    cache_url = raceresult._sub_source_url("1", "2")
+    def probe(sub_url: str) -> bool:
+        return sub_url == cache_url
+
+    notifications: list[tuple[str, str, int, int]] = []
+    def on_heat_start(contest_slug, contest_label, index, total):
+        notifications.append((contest_slug, contest_label, index, total))
+
+    raceresult.scrape_event_fanout(
+        "https://my.raceresult.com/1/results",
+        cache_probe=probe, on_heat_start=on_heat_start,
+    )
+
+    assert len(notifications) == 2, "un appel par contest scrapé, pas par contest énuméré"
+    assert [n[0] for n in notifications] == ["1", "3"]
+    assert [n[2] for n in notifications] == [1, 2]
+    assert all(n[3] == 2 for n in notifications)
+    # Le contest caché (`"2"`) n'est jamais notifié.
+    assert not any(n[0] == "2" for n in notifications)
+
+
+def test_scrape_event_fanout_contest_zero_reserve_pas_fan_oute(monkeypatch):
+    """Contest="0" est **exclu** du fan-out et jamais soumis à `cache_probe`.
+
+    Une liste `Contest="0"` avec un groupement corroboré par `contests` reste
+    scrapée dans le pot commun de l'événement, et n'apparaît **jamais** dans
+    `trace.cached_urls` — sa clé ne serait pas un `sub_source_url` cache-able.
+    """
+    specs = [("Explicite", "1"), ("Général", "0")]
+    contests = {"1": "Distance S", "2": "Distance M"}
+    payloads = {
+        ("Explicite", "1"): _payload(
+            {"#1_Distance S": {"#1_": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]}}
+        ),
+        ("Général", "0"): _payload(
+            {"#1_Distance M": {"#1_": [["8", "2", "Luc MARTIN", "TCN", "02:00:00"]]}}
+        ),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads)
+    monkeypatch.setattr(
+        raceresult, "_fetch_config",
+        lambda ev, client: {
+            "key": "k", "eventname": "Épreuve", "contests": contests,
+            "TabConfig": {"Lists": [
+                {"Name": n, "Contest": c, "Mode": ""} for n, c in specs
+            ]},
+        },
+    )
+
+    probe_calls: list[str] = []
+
+    def probe(sub_url: str) -> bool:
+        probe_calls.append(sub_url)
+        return False  # rien de caché
+
+    results, trace = raceresult.scrape_event_fanout(
+        "https://my.raceresult.com/1/results",
+        cache_probe=probe,
+    )
+
+    # Une seule sous-unité énumérée : le contest "1". "0" est réservé.
+    assert trace.heats_enumerated == 1
+    # `cache_probe` n'a jamais été appelé avec l'URL "?contest=0".
+    assert all("contest=0" not in u for u in probe_calls), probe_calls
+    # Les deux lignes sont importées (Contest="1" via fan-out, Contest="0" via
+    # le pot commun réservé).
+    assert len(results) == 2
+
+
+def test_provider_raceresult_expose_fanout_par_defaut(monkeypatch):
+    """Le `RaceResultProvider` du registre fait du fan-out par défaut.
+
+    Sans kwargs, l'appel doit peupler `provider.last_trace` avec la trace
+    produite par `scrape_event_fanout`. Contrat symétrique à `KlikegoProvider`.
+    """
+    specs = [("Classement", "1"), ("Classement", "2")]
+    payloads = {
+        ("Classement", "1"): _payload(
+            {"#1_Distance S": {"#1_": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]}}
+        ),
+        ("Classement", "2"): _payload(
+            {"#1_Distance M": {"#1_": [["8", "2", "Luc MARTIN", "TCN", "02:00:00"]]}}
+        ),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads)
+
+    provider = registry.RaceResultProvider()
+    results = provider.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert provider.last_trace is not None
+    assert provider.last_trace.heats_enumerated == 2
+    assert provider.last_trace.heats_cached == 0
+    assert provider.last_trace.failures == []
+    assert len(results) == 2
+
+
+def test_provider_raceresult_single_heat_court_circuite_le_fan_out(monkeypatch):
+    """`single_heat=True` sur `RaceResultProvider` : pas de fan-out, pas de trace fine.
+
+    Contrat historique de `scrape_event_all` préservé : l'échappatoire
+    `--single-heat` retombe sur le comportement mono-event (pot commun).
+    """
+    specs = [("Classement", "1")]
+    payloads = {
+        ("Classement", "1"): _payload(
+            {"#1_Distance S": {"#1_": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]}}
+        ),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads)
+
+    probe_appele = False
+    def probe(_sub_url: str) -> bool:
+        nonlocal probe_appele
+        probe_appele = True
+        return True
+
+    provider = registry.RaceResultProvider()
+    results = provider.scrape_event_all(
+        "https://my.raceresult.com/1/results",
+        cache_probe=probe, single_heat=True,
+    )
+
+    # Pas de fan-out : `cache_probe` reçu mais jamais consulté.
+    assert probe_appele is False
+    assert provider.last_trace is not None
+    assert provider.last_trace.heats_enumerated == 1
+    assert provider.last_trace.heats_cached == 0
+    # Le contrat historique renvoie les résultats du pot commun.
+    assert len(results) == 1
+

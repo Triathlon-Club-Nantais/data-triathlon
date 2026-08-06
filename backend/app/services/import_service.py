@@ -145,9 +145,10 @@ def _scrape_all(
     """Scrape l'URL et remonte optionnellement la `FanoutTrace` du provider.
 
     Passe par le dispatcher `registry.scrape_event_all(url, **kwargs)` — les
-    kwargs sont propagés au provider matché (Klikego reçoit `cache_probe`, les
-    autres l'ignorent via `**kwargs` du dispatcher). Après l'appel, lit
-    `KlikegoProvider.last_trace` pour peupler les 5 compteurs de FR-008.
+    kwargs sont propagés aux providers fan-out matchés (Klikego #156,
+    RaceResult #217 reçoivent `cache_probe`, les autres l'ignorent via
+    `**kwargs` du dispatcher). Après l'appel, lit `provider.last_trace` pour
+    peupler les 5 compteurs de FR-008.
 
     Retour : `(results, trace)`. `trace` peut être `None` pour un provider qui
     n'expose pas de trace (comportement mono-heat implicite — `_fanout_counters`
@@ -163,10 +164,11 @@ def _scrape_all(
     provider = registry.get_provider(url)
 
     try:
-        if isinstance(provider, registry.KlikegoProvider):
+        if isinstance(provider, (registry.KlikegoProvider, registry.RaceResultProvider)):
             if single_heat:
                 # Échappatoire (--single-heat) : pas de fan-out, pas de cache_probe.
-                # Le provider lit le ?heat= de l'URL et scrape ce seul heat.
+                # Klikego lit le ?heat= de l'URL, RaceResult retombe sur le
+                # contrat historique (événement entier en pot commun).
                 results = registry_scrape_event_all(url, single_heat=True)
             else:
                 results = registry_scrape_event_all(url, cache_probe=cache_probe)
@@ -209,7 +211,7 @@ def _scrape_all_streaming(
     """
     provider = registry.get_provider(url)
 
-    if not isinstance(provider, registry.KlikegoProvider):
+    if not isinstance(provider, (registry.KlikegoProvider, registry.RaceResultProvider)):
         # Chemin non-fan-out : bloquant unique, aucun yield intermédiaire.
         results, trace = _scrape_all(url, db, settings)
         return (results, trace)

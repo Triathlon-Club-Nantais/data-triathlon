@@ -255,14 +255,53 @@ class SportInnovationProvider(HostMatchedProvider):
 
 
 class RaceResultProvider(HostMatchedProvider):
+    """RaceResult — URL d'événement = tous les contests (fan-out, issue #217).
+
+    Sous-unité = **contest** de `config["contests"]`. Le fan-out expose sa
+    progression dans `self.last_trace` (compteurs `heats_enumerated`,
+    `heats_cached`, `heats_imported`, `failures`, `cached_urls`) — lue par
+    `import_service` pour peupler le SSE `done`.
+
+    `Contest="0"` (« toutes catégories ») est réservé et exclu du fan-out :
+    ses listes sont scrapées comme dans le contrat historique. L'échappatoire
+    `--single-heat` (chemin `single_heat=True`) court-circuite le fan-out et
+    n'appelle **aucun** `cache_probe`.
+    """
+
     name = "raceresult"
 
     # Trois façades d'un même produit RaceResult (issue #50), toutes servies
     # par la même API JSON publique.
     _HOSTS = ("raceresult.com", "espace-competition.com", "chronoconsult.fr")
 
-    def scrape_event_all(self, url: str) -> list[ScrapedResult]:
-        return raceresult.scrape_event_all(url)
+    def __init__(self) -> None:
+        self.last_trace: raceresult.FanoutTrace | None = None
+
+    def scrape_event_all(
+        self, url: str,
+        *,
+        cache_probe: Callable[[str], bool] | None = None,
+        on_heat_start: Callable[[str, str, int, int], None] | None = None,
+        single_heat: bool = False,
+    ) -> list[ScrapedResult]:
+        """Fan-out par contest ; `single_heat=True` cible l'URL sans fan-out."""
+        if single_heat:
+            # Chemin échappatoire (--single-heat) : aucun fan-out, pas de trace.
+            # Utile aux tests et à un rescrape d'événement en pot commun.
+            self.last_trace = raceresult.FanoutTrace(heats_enumerated=1)
+            try:
+                return raceresult.scrape_event_all(url)
+            except Exception as exc:
+                self.last_trace.failures.append(
+                    {"heat_slug": url, "reason": str(exc)}
+                )
+                raise
+
+        results, trace = raceresult.scrape_event_fanout(
+            url, cache_probe=cache_probe, on_heat_start=on_heat_start,
+        )
+        self.last_trace = trace
+        return results
 
 
 class ChronoplaceProvider(HostMatchedProvider):
@@ -452,12 +491,13 @@ def is_supported(url: str) -> bool:
 def scrape_event_all(url: str, **kwargs) -> list[ScrapedResult]:
     """Dispatch vers le provider matché.
 
-    `**kwargs` propage les options optionnelles (`cache_probe`, `single_heat` pour
-    Klikego — issue #156). Les autres providers, qui ne les acceptent pas dans
-    leur signature, sont appelés sans kwargs pour rester rétro-compatibles.
+    `**kwargs` propage les options optionnelles (`cache_probe`, `on_heat_start`,
+    `single_heat`) aux providers qui les acceptent (Klikego #156,
+    RaceResult #217). Les autres providers, qui ne les acceptent pas dans leur
+    signature, sont appelés sans kwargs pour rester rétro-compatibles.
     """
     provider = _find_provider(url)
     logger.info("Import épreuve via %s : %s", provider.name, url)
-    if isinstance(provider, KlikegoProvider):
+    if isinstance(provider, (KlikegoProvider, RaceResultProvider)):
         return provider.scrape_event_all(url, **kwargs)
     return provider.scrape_event_all(url)
