@@ -5,6 +5,7 @@ import { DisciplineToggle } from "@/components/layout/DisciplineToggle";
 import { RankTypeToggle } from "@/components/layout/RankTypeToggle";
 import { ClubDashboard } from "@/components/club/ClubDashboard";
 import { SCOPE_CLUB, federalOnlyFromParam } from "@/lib/scope";
+import { CLUB_NAME } from "@/lib/club";
 
 // La page Club est TOUJOURS filtrée sur le club, indépendamment de toute portée.
 export default async function ClubPage({
@@ -24,9 +25,9 @@ export default async function ClubPage({
     <PageShell>
       <div className="space-y-8">
         <PageHeader
-          eyebrow="Triathlon Club Nantais"
+          eyebrow={CLUB_NAME}
           title="Espace club"
-          description="Synthèse, podiums et athlètes du Triathlon Club Nantais."
+          description={`Synthèse, podiums et athlètes du ${CLUB_NAME}.`}
           actions={
             <div className="flex flex-wrap items-center gap-3">
               <RankTypeToggle />

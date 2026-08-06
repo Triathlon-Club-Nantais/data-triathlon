@@ -13,6 +13,7 @@ import { Medal } from "@/components/ui/medal";
 import { InitialsAvatar } from "@/components/ui/initials-avatar";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
 import type { Participation } from "@/lib/types";
 
 /** Tableau de classement d'une épreuve (rang général), membres TCN mis en avant. */
@@ -74,7 +75,9 @@ export function Leaderboard({
                         {name}
                       </Link>
                       {tcn && (
-                        <Badge className="ml-2 align-middle">TCN</Badge>
+                        <Badge className="ml-2 align-middle" title={CLUB_NAME}>
+                          {CLUB_NAME_SHORT}
+                        </Badge>
                       )}
                       {p.club && !tcn && (
                         <span className="ml-2 text-xs text-muted-foreground">

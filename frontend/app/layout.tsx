@@ -5,6 +5,7 @@ import { Providers } from "./providers";
 import { AppNav } from "@/components/layout/AppNav";
 import { VersionFooter } from "@/components/layout/VersionFooter";
 import { Toaster } from "@/components/ui/sonner";
+import { CLUB_NAME } from "@/lib/club";
 
 // TCN Design System — Anton (titres/chiffres), Barlow (UI/corps),
 // Barlow Semi Condensed (eyebrows, temps, tabulaires).
@@ -31,7 +32,7 @@ const barlowCond = Barlow_Semi_Condensed({
 
 export const metadata: Metadata = {
   title: "TCN — Résultats triathlon",
-  description: "Résultats de compétition des membres du Triathlon Club Nantais",
+  description: `Résultats de compétition des membres du ${CLUB_NAME}`,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

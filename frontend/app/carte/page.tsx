@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { ScopeToggle } from "@/components/layout/ScopeToggle";
 import { scopeFromParam } from "@/lib/scope";
+import { CLUB_NAME_SHORT } from "@/lib/club";
 
 const MapView = dynamic(() => import("@/components/map/MapView").then((m) => m.MapView), {
   ssr: false,
@@ -30,11 +31,11 @@ function CarteContent() {
         <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
             <span className="inline-block size-3 rounded-full bg-[#E9530E]" />
-            Épreuve avec des membres TCN
+            Épreuve avec des membres {CLUB_NAME_SHORT}
           </span>
           <span className="inline-flex items-center gap-1.5">
             <span className="inline-block size-3 rounded-full bg-[#b0aaa0]" />
-            Épreuve sans membre TCN
+            Épreuve sans membre {CLUB_NAME_SHORT}
           </span>
         </div>
       </div>

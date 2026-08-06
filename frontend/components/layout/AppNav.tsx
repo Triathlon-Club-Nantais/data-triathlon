@@ -9,6 +9,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useSession } from "@/lib/queries/auth";
 import { AthletePicker, readAthlete, writeAthlete, type PickedAthlete } from "./AthletePicker";
 import { NAV, ROLE, type NavItem, type NavSection } from "./nav.config";
+import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
 
 /**
  * Navigation de l'application — rail compact ↔ panneau déplié (proto
@@ -144,9 +145,9 @@ export function AppNav() {
             {expanded ? <PanelLeft size={20} /> : <Menu size={20} />}
           </button>
           {expanded && (
-            <Link href="/dashboard" aria-label="TCN — Accueil" style={{ display: "inline-flex" }}>
+            <Link href="/dashboard" aria-label={`${CLUB_NAME_SHORT} — Accueil`} style={{ display: "inline-flex" }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo-tcn.png" alt="Triathlon Club Nantais" style={{ height: 26, display: "block" }} />
+              <img src="/logo-tcn.png" alt={CLUB_NAME} style={{ height: 26, display: "block" }} />
             </Link>
           )}
         </div>
@@ -213,9 +214,9 @@ export function AppNav() {
         >
           <Menu size={21} />
         </button>
-        <Link href="/dashboard" aria-label="TCN — Accueil" style={{ display: "inline-flex", marginRight: "auto" }}>
+        <Link href="/dashboard" aria-label={`${CLUB_NAME_SHORT} — Accueil`} style={{ display: "inline-flex", marginRight: "auto" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-tcn.png" alt="Triathlon Club Nantais" style={{ height: 24, display: "block" }} />
+          <img src="/logo-tcn.png" alt={CLUB_NAME} style={{ height: 24, display: "block" }} />
         </Link>
         <button type="button" aria-label="Rechercher un athlète" onClick={() => setPickerOpen(true)} style={carreSecondaire}>
           <Search size={18} />
@@ -240,7 +241,7 @@ export function AppNav() {
           >
             <SheetTitle style={{ fontSize: 0 }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo-tcn.png" alt="Navigation — Triathlon Club Nantais" style={{ height: 22, display: "block" }} />
+              <img src="/logo-tcn.png" alt={`Navigation — ${CLUB_NAME}`} style={{ height: 22, display: "block" }} />
             </SheetTitle>
           </div>
 

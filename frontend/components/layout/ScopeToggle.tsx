@@ -4,6 +4,7 @@ import { useTransition } from "react";
 import { Users, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SCOPE_PARAM, SCOPE_CLUB } from "@/lib/scope";
+import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
 
 /**
  * Contrôle de portée par page : « Tous » ↔ « Membres TCN ».
@@ -34,8 +35,8 @@ export function ScopeToggle() {
       <Segment active={!clubActive} onClick={() => setScope(false)}>
         <Globe className="size-3.5" /> Tous
       </Segment>
-      <Segment active={clubActive} onClick={() => setScope(true)}>
-        <Users className="size-3.5" /> Membres TCN
+      <Segment active={clubActive} onClick={() => setScope(true)} title={`Membres ${CLUB_NAME}`}>
+        <Users className="size-3.5" /> Membres {CLUB_NAME_SHORT}
       </Segment>
     </div>
   );
@@ -45,15 +46,18 @@ function Segment({
   active,
   onClick,
   children,
+  title,
 }: {
   active: boolean;
   onClick: () => void;
   children: React.ReactNode;
+  title?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      title={title}
       aria-pressed={active}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",

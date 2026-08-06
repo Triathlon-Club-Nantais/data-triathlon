@@ -14,6 +14,12 @@ import re
 
 from sqlalchemy import func
 
+#: Libellé canonique affiché quand on parle du club — utilisé côté serveur pour
+#: fusionner les variantes scrapées dans « Top clubs » (issue #200). Le front
+#: garde sa propre constante pour ne pas dépendre d'un round-trip API sur les
+#: labels statiques (aria-label, meta, filtre) : deux définitions, même valeur.
+TCN_CANONICAL_NAME = "Triathlon Club Nantais"
+
 #: Libellés du club, sous leur forme normalisée (cf. `normalize_club`).
 #: Ajouter une variante ici est le geste prévu — `python -m app.cli club-labels`
 #: sert justement à repérer celles qui manquent.

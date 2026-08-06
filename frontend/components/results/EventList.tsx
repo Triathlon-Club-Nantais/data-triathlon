@@ -17,6 +17,7 @@ import { formatToken } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
 import { formatEventName } from "@/lib/utils/event";
 import { gridColumns, gridMinWidth, type Track } from "@/lib/utils/table";
+import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
 import type { EventPage, ParticipationFilters } from "@/lib/types";
 
 const SORT_OPTIONS = [
@@ -132,7 +133,7 @@ export function EventList({
             <div>Type</div>
             <div>Format</div>
             <div>Résultats</div>
-            <div>TCN</div>
+            <div title={CLUB_NAME}>{CLUB_NAME_SHORT}</div>
             <div></div>
           </div>
 

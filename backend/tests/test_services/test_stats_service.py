@@ -167,25 +167,35 @@ def test_course_summary_genre_ignore_les_lignes_sans_genre_lisible(db_session):
 
 
 def test_course_summary_club_et_compteur_tcn(db_session):
+    """Les variantes de libellé TCN (issue #200) sont fusionnées sous un nom canonique.
+
+    Les chronométreurs saisissent le club en verbatim : `TRI CLUB NANTAIS`,
+    `Triathlon club nantais`, `TCN` cohabitent en base (146/38/1 fois mesurés
+    sur la prod). Les compter séparément dans « Top clubs » produit deux à
+    trois lignes pour le même club — ce que corrige la fusion.
+    """
     course = _epreuve(
         db_session,
         [
             ("A", "Un", "M", "Triathlon Club Nantais", None, "finisher", None, None),
             ("B", "Deux", "M", "TCN", None, "finisher", None, None),
-            ("C", "Trois", "M", "ASPTT", None, "finisher", None, None),
-            ("D", "Quatre", "M", None, None, "finisher", None, None),
+            ("C", "Trois", "M", "TRI CLUB NANTAIS", None, "finisher", None, None),
+            ("D", "Quatre", "M", "ASPTT", None, "finisher", None, None),
+            ("E", "Cinq", "M", None, None, "finisher", None, None),
         ],
     )
 
     synthese = stats_service.course_summary(db_session, course.id)
 
-    assert synthese["tcn_count"] == 2
-    clubs = {c["name"]: c["is_tcn"] for c in synthese["clubs"]}
+    assert synthese["tcn_count"] == 3
+    clubs_par_nom = {c["name"]: c for c in synthese["clubs"]}
     # Un club vide n'entre pas dans le classement des clubs.
-    assert set(clubs) == {"Triathlon Club Nantais", "TCN", "ASPTT"}
-    assert clubs["Triathlon Club Nantais"] is True
-    assert clubs["TCN"] is True
-    assert clubs["ASPTT"] is False
+    assert set(clubs_par_nom) == {"Triathlon Club Nantais", "ASPTT"}
+    # Les 3 lignes TCN sont fusionnées sous le libellé canonique.
+    assert clubs_par_nom["Triathlon Club Nantais"]["is_tcn"] is True
+    assert clubs_par_nom["Triathlon Club Nantais"]["count"] == 3
+    assert clubs_par_nom["ASPTT"]["is_tcn"] is False
+    assert clubs_par_nom["ASPTT"]["count"] == 1
 
 
 def test_course_summary_borne_categories_a_8_et_clubs_a_9(db_session):
