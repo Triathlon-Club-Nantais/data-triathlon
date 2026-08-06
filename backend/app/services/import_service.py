@@ -163,10 +163,10 @@ def _scrape_all(
     provider = registry.get_provider(url)
 
     try:
-        if isinstance(provider, registry.KlikegoProvider):
+        if isinstance(provider, (registry.KlikegoProvider, registry.SporthiveProvider)):
             if single_heat:
                 # Échappatoire (--single-heat) : pas de fan-out, pas de cache_probe.
-                # Le provider lit le ?heat= de l'URL et scrape ce seul heat.
+                # Le provider gère lui-même sa sémantique mono-sous-unité.
                 results = registry_scrape_event_all(url, single_heat=True)
             else:
                 results = registry_scrape_event_all(url, cache_probe=cache_probe)
@@ -209,7 +209,7 @@ def _scrape_all_streaming(
     """
     provider = registry.get_provider(url)
 
-    if not isinstance(provider, registry.KlikegoProvider):
+    if not isinstance(provider, (registry.KlikegoProvider, registry.SporthiveProvider)):
         # Chemin non-fan-out : bloquant unique, aucun yield intermédiaire.
         results, trace = _scrape_all(url, db, settings)
         return (results, trace)

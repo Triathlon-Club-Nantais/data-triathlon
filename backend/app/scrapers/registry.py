@@ -309,6 +309,16 @@ class RunnerBreizhProvider(HostMatchedProvider):
 
 
 class SporthiveProvider(HostMatchedProvider):
+    """Sporthive — URL d'événement = toutes les races (fan-out, issue #216).
+
+    Une race est identifiée par son `race.id` snowflake (pas l'ordinal du path,
+    trap n°1 du sondage). Le fan-out expose sa progression dans
+    `self.last_trace` (compteurs `heats_enumerated`, `heats_cached`,
+    `heats_imported`, `failures`) — lue par `import_service` pour peupler le
+    SSE `done`. `single_heat=True` n'a pas d'échappatoire par-race documentée
+    ici : Sporthive n'a pas de `?heat=` dans l'URL, on retombe sur le contrat
+    historique event-scoped de `scrape_event_all`.
+    """
     name = "sporthive"
 
     # `sporthive.com` seul (issue #53) : `_host_match` accepte l'hôte exact
@@ -320,8 +330,35 @@ class SporthiveProvider(HostMatchedProvider):
     # résultats à reconnaître.
     _HOSTS = ("sporthive.com",)
 
-    def scrape_event_all(self, url: str) -> list[ScrapedResult]:
-        return sporthive.scrape_event_all(url)
+    def __init__(self) -> None:
+        self.last_trace: klikego.FanoutTrace | None = None
+
+    def scrape_event_all(
+        self, url: str,
+        *,
+        cache_probe: Callable[[str], bool] | None = None,
+        on_heat_start: Callable[[str, str, int, int], None] | None = None,
+        single_heat: bool = False,
+    ) -> list[ScrapedResult]:
+        """Fan-out par défaut ; `single_heat=True` retombe sur le chemin event-scoped.
+
+        Sporthive n'a pas de sous-unité identifiée dans l'URL (pas de `?heat=`
+        comme Klikego), donc l'échappatoire `--single-heat` retombe sur
+        `scrape_event_all` du module — l'événement entier, sans cache par-race.
+        """
+        if single_heat:
+            self.last_trace = klikego.FanoutTrace(heats_enumerated=1)
+            try:
+                return sporthive.scrape_event_all(url)
+            except Exception as exc:
+                self.last_trace.failures.append({"heat_slug": "", "reason": str(exc)})
+                raise
+
+        results, trace = sporthive.scrape_event_fanout(
+            url, cache_probe=cache_probe, on_heat_start=on_heat_start,
+        )
+        self.last_trace = trace
+        return results
 
 
 class ChronoWebProvider(HostMatchedProvider):
@@ -458,6 +495,6 @@ def scrape_event_all(url: str, **kwargs) -> list[ScrapedResult]:
     """
     provider = _find_provider(url)
     logger.info("Import épreuve via %s : %s", provider.name, url)
-    if isinstance(provider, KlikegoProvider):
+    if isinstance(provider, (KlikegoProvider, SporthiveProvider)):
         return provider.scrape_event_all(url, **kwargs)
     return provider.scrape_event_all(url)
