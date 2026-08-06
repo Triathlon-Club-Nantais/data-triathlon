@@ -1,5 +1,4 @@
 "use client";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/tcn";
 import { InitialsAvatar } from "@/components/ui/initials-avatar";
@@ -56,7 +55,8 @@ export function UserMenu({ pleineLargeur = false }: { pleineLargeur?: boolean })
 
   // Tiroir mobile : l'état connecté se déplie **à plat**. Un menu déroulant
   // dans un tiroir serait un menu dans un menu, et son popup sortirait du
-  // piège de focus du tiroir.
+  // piège de focus du tiroir. Le lien « Administration » a été retiré (revue
+  // humaine PR #214) : la catégorie Administration de la nav le rend redondant.
   if (pleineLargeur) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
@@ -64,19 +64,6 @@ export function UserMenu({ pleineLargeur = false }: { pleineLargeur?: boolean })
           <InitialsAvatar name={nom} size={34} />
           <Identite session={session} />
         </div>
-        <Link
-          href="/admin"
-          style={{
-            padding: "11px 14px",
-            borderRadius: "var(--tcn-radius-lg)",
-            fontSize: 15,
-            fontWeight: 600,
-            color: "var(--tcn-text-muted)",
-            textDecoration: "none",
-          }}
-        >
-          Administration
-        </Link>
         <Button variant="secondary" disabled={logout.isPending} onClick={seDeconnecter}>
           Se déconnecter
         </Button>
@@ -104,15 +91,9 @@ export function UserMenu({ pleineLargeur = false }: { pleineLargeur?: boolean })
           <Identite session={session} />
         </div>
         <DropdownMenuSeparator />
-        {/* `render` plutôt qu'un `<Link>` enveloppant : l'entrée **est** le
-            lien, donc un seul élément interactif porteur de `role="menuitem"`. */}
-        <DropdownMenuItem
-          render={<Link href="/admin" />}
-          className="px-2 py-2 text-[14px] font-semibold"
-        >
-          Administration
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
+        {/* Entrée « Administration » retirée (revue humaine PR #214) : la
+            catégorie Administration de la nav la porte déjà, et un doublon
+            dans le menu compte alourdit l'interface sans rien apporter. */}
         <DropdownMenuItem
           variant="destructive"
           disabled={logout.isPending}

@@ -97,12 +97,15 @@ describe("UserMenu — connecté (AC1, AC2, AC3, AC4, AC6)", () => {
     expect(menu).toHaveTextContent(SESSION.email);
   });
 
-  it("mène à /admin par un vrai lien (AC3)", async () => {
+  it("ne porte plus d'entrée « Administration » dans le menu compte (revue PR #214)", async () => {
+    // La catégorie Administration de la nav rend l'entrée redondante. Ce test
+    // remplace l'ancien AC3 « mène à /admin par un vrai lien », qui gardait un
+    // doublon retiré à la revue.
     afficher(SESSION);
-    await ouvrirLeMenu();
+    const { menu } = await ouvrirLeMenu();
 
-    const lien = screen.getByRole("menuitem", { name: "Administration" });
-    expect(lien).toHaveAttribute("href", "/admin");
+    expect(menu.querySelector('[role="menuitem"][href="/admin"]')).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Administration" })).not.toBeInTheDocument();
   });
 
   it("déconnecte depuis le menu et revient à l'accueil (AC4)", async () => {
@@ -125,11 +128,13 @@ describe("UserMenu — connecté (AC1, AC2, AC3, AC4, AC6)", () => {
 });
 
 describe("UserMenu — tiroir mobile (AC7)", () => {
-  it("déplie l'état connecté à plat, sans second déclencheur", async () => {
+  it("déplie l'état connecté à plat, sans second déclencheur ni entrée Administration", async () => {
     afficher(SESSION, { pleineLargeur: true });
 
     expect(await screen.findByText(SESSION.email)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Administration" })).toHaveAttribute("href", "/admin");
+    // Le lien « Administration » a été retiré du menu compte (revue PR #214),
+    // au tiroir comme au dropdown desktop — la catégorie de la nav le porte.
+    expect(screen.queryByRole("link", { name: "Administration" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Se déconnecter" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Compte/ })).not.toBeInTheDocument();
   });
