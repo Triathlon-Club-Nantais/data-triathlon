@@ -63,3 +63,11 @@ class User(Base):
     roles: Mapped[list["UserRole"]] = relationship(  # noqa: F821
         back_populates="user", cascade="all, delete-orphan"
     )
+    # Même patron, et pour la même raison (#197) : supprimer un utilisateur
+    # emporte ses appartenances et **jamais** les groupes eux-mêmes. La
+    # dissymétrie avec `Group.members`, qui ne cascade pas, est voulue : une
+    # personne supprimée n'a plus d'appartenance possible, là où un groupe
+    # supprimé effacerait la composition d'une commission.
+    groups: Mapped[list["UserGroup"]] = relationship(  # noqa: F821
+        back_populates="user", cascade="all, delete-orphan"
+    )
