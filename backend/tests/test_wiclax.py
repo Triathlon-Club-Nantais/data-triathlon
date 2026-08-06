@@ -861,3 +861,257 @@ def test_qualify_event_name_factorise_dans_utils():
     # Qualifiant déjà présent : pas de doublon.
     assert _qualify_event_name("Triathlon M", "Triathlon M") == "Triathlon M"
     assert qualify_event_name("Triathlon M", "") == "Triathlon M"
+
+
+# ---------------------------------------------------------------------------
+# Fan-out par parcours — cache_probe, on_heat_start, isolation d'échec (#195)
+# ---------------------------------------------------------------------------
+
+
+def _clax_multi_parcours() -> ET.Element:
+    """`.clax` synthétique à 3 parcours (S-Open Femmes / S-Open / Relais S).
+
+    Format ChronoSmetron E/R ; deux finishers par parcours, pas de non-partant.
+    """
+    xml = (
+        '<Root><Event Name="Triathlon Test 2026" dt1="2026-06-08"/>'
+        '<Competitors>'
+        '<E d="1001" n="Alice WIN" x="F" ca="S2F" v="1" p="S-Open Femmes"/>'
+        '<E d="1002" n="Berthe TWO" x="F" ca="S3F" v="2" p="S-Open Femmes"/>'
+        '<E d="2001" n="Bob RUN" x="M" ca="S3M" v="1" p="S-Open"/>'
+        '<E d="2002" n="Marc TWO" x="M" ca="V1M" v="3" p="S-Open"/>'
+        '<E d="3001" n="EQUIPE A" x="X" ca="V4" v="10" p="Relais S"/>'
+        '<E d="3002" n="EQUIPE B" x="X" ca="V4" v="11" p="Relais S"/>'
+        '</Competitors>'
+        '<Results>'
+        '<R d="1001" t="01:05:00"/><R d="1002" t="01:12:00"/>'
+        '<R d="2001" t="00:58:00"/><R d="2002" t="01:03:00"/>'
+        '<R d="3001" t="01:45:00"/><R d="3002" t="01:55:00"/>'
+        '</Results></Root>'
+    )
+    return ET.fromstring(xml)
+
+
+def _stub_fetch_clax(monkeypatch, root: ET.Element) -> None:
+    monkeypatch.setattr(
+        "app.scrapers.wiclax._fetch_clax",
+        lambda _url: (root, "http://x", "Triathlon Test 2026", "triathlon", None),
+    )
+
+
+def test_parcours_slug_ascii_urlsafe():
+    """Le slug d'un parcours est stable, ASCII et URL-safe."""
+    from app.scrapers.wiclax import _parcours_slug
+
+    assert _parcours_slug("S-Open Femmes") == "s-open-femmes"
+    assert _parcours_slug("6-9 Ans") == "6-9-ans"
+    assert _parcours_slug("Triathlon M — Individuel") == "triathlon-m-individuel"
+    assert _parcours_slug("") == ""
+
+
+def test_sub_source_url_ajoute_parcours_et_strip_selecteur_dossard():
+    """L'URL canonique dépouille `B=` et ajoute `parcours=<slug>`.
+
+    `p=` reste intact — c'est `parcours=` qui porte le fan-out, choisi neuf
+    pour éviter toute collision avec le paramètre source `p=`.
+    """
+    from app.scrapers.wiclax import _sub_source_url
+
+    url = "https://chronosmetron.wiclax-results.com/G-Live/g-live.html?f=../E/e.clax&B=42"
+    assert _sub_source_url(url, "S-Open Femmes") == (
+        "https://chronosmetron.wiclax-results.com/G-Live/g-live.html"
+        "?f=..%2FE%2Fe.clax&parcours=s-open-femmes"
+    )
+    # `p=` en query source n'est pas écrasé, seul `parcours=` est ajouté.
+    url_with_p = "https://x.wiclax-results.com/g.html?f=e.clax&p=SOURCE_KEEP"
+    result = _sub_source_url(url_with_p, "M Duo")
+    assert "p=SOURCE_KEEP" in result
+    assert "parcours=m-duo" in result
+
+
+def test_sub_source_url_parcours_vide_pas_de_qualif():
+    """Parcours vide → pas de suffixe `parcours=` (compat mono-parcours)."""
+    from app.scrapers.wiclax import _sub_source_url
+
+    url = "https://x.wiclax-results.com/g.html?f=e.clax"
+    assert "parcours=" not in _sub_source_url(url, "")
+
+
+def test_scrape_event_fanout_nominal_returns_trace(monkeypatch):
+    """Fan-out sans cache_probe : 3 parcours énumérés, tous scrapés, trace complète."""
+    from app.scrapers.wiclax import FanoutTrace, scrape_event_fanout
+
+    _stub_fetch_clax(monkeypatch, _clax_multi_parcours())
+    results, trace = scrape_event_fanout("http://x")
+
+    assert isinstance(trace, FanoutTrace)
+    assert trace.heats_enumerated == 3
+    assert trace.heats_cached == 0
+    assert trace.heats_imported == 0  # dérivé côté import_service
+    assert trace.failures == []
+    assert trace.cached_urls == []
+    # 6 participants sur 3 parcours (2 chacun).
+    assert len(results) == 6
+
+
+def test_scrape_event_fanout_cache_probe_skips_parcours(monkeypatch):
+    """cache_probe True pour 1 parcours → 2 scrapés, 1 caché, cached_urls peuplé.
+
+    Un parcours frais n'a AUCUN `ScrapedResult` construit (le sous-produit du
+    fan-out par parcours, aval du fetch réseau partagé).
+    """
+    from app.scrapers.wiclax import scrape_event_fanout
+
+    _stub_fetch_clax(monkeypatch, _clax_multi_parcours())
+
+    def probe(sub_url: str) -> bool:
+        return "parcours=s-open-femmes" in sub_url
+
+    results, trace = scrape_event_fanout("http://x", cache_probe=probe)
+
+    assert trace.heats_enumerated == 3
+    assert trace.heats_cached == 1
+    assert trace.failures == []
+    assert len(trace.cached_urls) == 1
+    assert "parcours=s-open-femmes" in trace.cached_urls[0]
+    # 4 participants (2 parcours × 2), le parcours féminin est absent.
+    assert len(results) == 4
+    assert all("Alice" not in (r.athlete_firstname or "") for r in results)
+
+
+def test_scrape_event_fanout_parcours_failure_isolated(monkeypatch, caplog):
+    """Un parcours qui lève ne casse pas les autres — sa cause va dans trace.failures."""
+    import logging as _log
+
+    from app.scrapers import wiclax as wiclax_mod
+    from app.scrapers.wiclax import scrape_event_fanout
+
+    _stub_fetch_clax(monkeypatch, _clax_multi_parcours())
+    original = wiclax_mod._finalize_parcours
+
+    def flaky(par_parcours, parcours, sub_url):
+        if parcours == "Relais S":
+            raise RuntimeError("boom on relais-s")
+        return original(par_parcours, parcours, sub_url)
+
+    monkeypatch.setattr(wiclax_mod, "_finalize_parcours", flaky)
+
+    with caplog.at_level(_log.WARNING, logger="app.scrapers.wiclax"):
+        results, trace = scrape_event_fanout("http://x")
+
+    assert trace.heats_enumerated == 3
+    assert len(trace.failures) == 1
+    assert trace.failures[0]["heat_slug"] == "relais-s"
+    assert "boom on relais-s" in trace.failures[0]["reason"]
+    assert any("Relais S" in rec.message for rec in caplog.records)
+    # Les deux autres parcours ont produit leurs 4 résultats.
+    assert len(results) == 4
+
+
+def test_scrape_event_fanout_no_parcours_returns_empty(monkeypatch):
+    """`.clax` sans aucun `<E>`/`<Competitor>` — retour ([], trace vide, pas d'erreur)."""
+    from app.scrapers.wiclax import scrape_event_fanout
+
+    empty = ET.fromstring(
+        '<Root><Event Name="Vide" dt1="2026-01-01"/>'
+        '<Competitors></Competitors><Results></Results></Root>'
+    )
+    _stub_fetch_clax(monkeypatch, empty)
+    results, trace = scrape_event_fanout("http://x")
+
+    assert results == []
+    assert trace.heats_enumerated == 0
+    assert trace.heats_cached == 0
+    assert trace.failures == []
+    assert trace.cached_urls == []
+
+
+def test_scrape_event_fanout_on_heat_start_notifie_par_parcours_non_cache(monkeypatch):
+    """`on_heat_start` : un appel par parcours scrapé, `total` = nombre à scraper.
+
+    Un parcours caché (cache_probe → True) n'est PAS notifié. Sans ce filtre,
+    la progression sauterait des indices sur un ré-import majoritairement caché
+    (« parcours 3/3 » alors qu'on en scrape 1 seul).
+    """
+    from app.scrapers.wiclax import scrape_event_fanout
+
+    _stub_fetch_clax(monkeypatch, _clax_multi_parcours())
+
+    cached = {"parcours=s-open-femmes", "parcours=relais-s"}
+    def probe(sub_url: str) -> bool:
+        return any(token in sub_url for token in cached)
+
+    notifications: list[tuple[str, str, int, int]] = []
+    def on_heat_start(slug, label, index, total):
+        notifications.append((slug, label, index, total))
+
+    scrape_event_fanout("http://x", cache_probe=probe, on_heat_start=on_heat_start)
+
+    # 3 énumérés, 2 cachés → 1 seul scrapé notifié.
+    assert len(notifications) == 1
+    assert notifications[0][2] == 1              # index
+    assert notifications[0][3] == 1              # total = nombre à scraper
+    assert notifications[0][0] == "s-open"       # slug du parcours restant
+    assert notifications[0][1] == "S-Open"       # label = parcours d'origine
+
+
+def test_scrape_event_fanout_source_url_canonique_par_parcours(monkeypatch):
+    """Le `source_url` des résultats d'un parcours = URL canonique du parcours.
+
+    C'est la clé du cache TTL et la valeur qui atterrira en `Course.source_url`
+    : sans ce recouvrement, `cache_probe` reconnaîtrait une clé qui ne serait
+    persistée nulle part.
+    """
+    from app.scrapers.wiclax import scrape_event_fanout
+
+    _stub_fetch_clax(monkeypatch, _clax_multi_parcours())
+    results, _ = scrape_event_fanout("http://x?B=1")
+
+    # Un source_url distinct par parcours, mais UN seul par parcours — tous les
+    # résultats d'un parcours partagent la même clé de cache TTL.
+    urls = {r.source_url for r in results}
+    assert len(urls) == 3
+    slugs_attendus = {"s-open-femmes", "s-open", "relais-s"}
+    slugs_vus = {u.rsplit("parcours=", 1)[-1] for u in urls}
+    assert slugs_vus == slugs_attendus
+    # Et `B=` a bien été dépouillé partout.
+    assert all("B=" not in url for url in urls)
+
+
+def test_wiclax_provider_expose_last_trace(monkeypatch):
+    """Le `WiclaxProvider` stocke sa `FanoutTrace` — comme `KlikegoProvider`.
+
+    `import_service._scrape_all` en dépend pour peupler les 5 compteurs
+    remontés par le SSE.
+    """
+    _stub_fetch_clax(monkeypatch, _clax_multi_parcours())
+    provider = registry.WiclaxProvider()
+    assert provider.last_trace is None
+
+    results = provider.scrape_event_all(
+        "https://chronosmetron.wiclax-results.com/E/e.clax",
+    )
+    assert len(results) == 6
+    assert provider.last_trace is not None
+    assert provider.last_trace.heats_enumerated == 3
+    assert provider.last_trace.failures == []
+
+
+def test_wiclax_provider_single_heat_bypass_fanout(monkeypatch):
+    """Échappatoire `single_heat=True` : appel legacy, trace synthétique 1-parcours.
+
+    Pas de découpage par parcours (Wiclax n'expose pas de sélecteur d'URL
+    ciblant un parcours ; l'échappatoire vaut « ne pas fan-outer »).
+    """
+    _stub_fetch_clax(monkeypatch, _clax_multi_parcours())
+    provider = registry.WiclaxProvider()
+
+    results = provider.scrape_event_all(
+        "https://chronosmetron.wiclax-results.com/E/e.clax",
+        single_heat=True,
+    )
+
+    # Legacy scrape_event_all → 6 résultats bruts (aucun découpage source_url).
+    assert len(results) == 6
+    assert provider.last_trace is not None
+    assert provider.last_trace.heats_enumerated == 1
