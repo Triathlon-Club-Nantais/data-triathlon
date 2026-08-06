@@ -19,7 +19,12 @@ from app.core.config import Settings
 from app.core.database import get_db
 from app.core.exceptions import AuthUnavailableError, NotFoundError
 from app.models.user import User
-from app.schemas.auth import AuthMethodRead, SessionRoleRead, SessionUserRead
+from app.schemas.auth import (
+    AuthMethodRead,
+    SessionGroupRead,
+    SessionRoleRead,
+    SessionUserRead,
+)
 from app.services.auth import authorization, flow
 from app.services.auth import session as session_service
 from app.services.auth.errors import ERROR_CODES, LoginError
@@ -268,5 +273,14 @@ def me(user: User = Depends(current_user), db: Session = Depends(get_db)):
                 organisation_id=attribution.organisation_id,
             )
             for attribution in user.roles
+        ],
+        groups=[
+            SessionGroupRead(
+                id=appartenance.group.id,
+                slug=appartenance.group.slug,
+                name=appartenance.group.name,
+                organisation_id=appartenance.group.organisation_id,
+            )
+            for appartenance in user.groups
         ],
     )

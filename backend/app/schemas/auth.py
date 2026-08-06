@@ -20,6 +20,21 @@ class SessionRoleRead(BaseModel):
     organisation_id: int | None
 
 
+class SessionGroupRead(BaseModel):
+    """Un groupe tel que son membre se le voit (#197).
+
+    **Ne dit rien des droits.** Il sert à écrire « membre du Codir » ; c'est
+    `permissions` qui répond à « ai-je le droit d'afficher ce bouton ». Les
+    confondre ferait entrer les groupes dans la décision d'accès côté interface,
+    ce que le serveur refuse par construction (AC6).
+    """
+
+    id: int
+    slug: str
+    name: str
+    organisation_id: int
+
+
 class SessionUserRead(BaseModel):
     """Identité rendue par `GET /auth/me`.
 
@@ -44,6 +59,9 @@ class SessionUserRead(BaseModel):
     created_at: datetime
     permissions: list[str] = []
     roles: list[SessionRoleRead] = []
+    #: #197, ajouté exactement comme les deux précédents et pour la même raison :
+    #: à quoi j'appartiens ne se déduit pas de ce que je peux faire.
+    groups: list[SessionGroupRead] = []
 
     @field_serializer("created_at")
     def _serialize_utc(self, value: datetime) -> str:
