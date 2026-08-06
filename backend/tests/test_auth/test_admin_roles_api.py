@@ -228,6 +228,31 @@ def test_un_slug_deja_pris_dans_la_meme_portee_rend_409(client, ouvrir_session):
     assert client.post("/api/v1/admin/roles", json=corps).status_code == 409
 
 
+def test_une_collision_de_slug_sous_concurrence_rend_409_et_non_500(
+    client, ouvrir_session, monkeypatch
+):
+    """Le chemin que la lecture préalable **ne** couvre pas, et qu'elle masquait.
+
+    `create_role` enveloppait un `db.flush()` d'après-coup, alors que
+    `role_repository.create` flushe lui-même : l'`IntegrityError` était levée
+    **avant** d'entrer dans le `try`, et remontait nue — 500, transaction
+    invalidée, là où le contrat promet 409. Le test précédent ne pouvait pas le
+    voir : il passe par la lecture préalable, jamais par la contrainte.
+
+    Défaut trouvé en revue de #197, dont le service jumeau portait le même
+    (`services/auth/groups.py`). La lecture est ici neutralisée pour simuler la
+    course, ce qu'aucun test concurrent ne saurait rendre déterministe.
+    """
+    from app.repositories import role_repository
+
+    ouvrir_session(superutilisateur=True)
+    corps = {"slug": "archivist", "name": "Archiviste", "permissions": []}
+    client.post("/api/v1/admin/roles", json=corps)
+    monkeypatch.setattr(role_repository, "find_in_scope", lambda *a, **k: None)
+
+    assert client.post("/api/v1/admin/roles", json=corps).status_code == 409
+
+
 def test_supprimer_un_role_systeme_rend_409(client, ouvrir_session, db_session):
     ouvrir_session(superutilisateur=True)
     livre = Role(slug="validator", name="Validateur", is_system=True)
