@@ -7,6 +7,8 @@
 >
 > Périmètre : sur-ingénierie et complexité seulement. Ni bugs, ni sécurité, ni
 > performance — ces axes relèvent d'une revue normale.
+>
+> Pendant côté frontend : [`2026-08-06-frontend-surengineering-audit.md`](2026-08-06-frontend-surengineering-audit.md).
 
 ## Comment lire
 
