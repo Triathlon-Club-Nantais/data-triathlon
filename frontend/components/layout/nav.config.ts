@@ -84,10 +84,11 @@ export const NAV: NavSection[] = [
     icon: Briefcase,
     minRole: ROLE.CONNECTED,
     items: [
-      // Le libellé est celui de l'écran : `/admin` ne traite plus que ce sujet
-      // depuis que les accès ont leur propre destination.
-      { id: "a-providers", label: "Chronométreurs signalés", href: "/admin" },
-      { id: "a-courses", label: "Gestion des courses", soon: true },
+      // Aucune entrée ne pointe `/admin` : la racine est le futur tableau de
+      // bord global, et un `href` préfixe de tous les autres (`isActive` teste
+      // `startsWith`) allumerait cette entrée sur chaque écran d'administration.
+      { id: "a-providers", label: "Fournisseurs en attente", href: "/admin/fournisseurs" },
+      { id: "a-courses", label: "Gestion des courses", href: "/admin/courses" },
       { id: "a-scrape", label: "Re-scrape à la demande", soon: true },
       { id: "a-quality", label: "Revalidation qualité", soon: true },
       { id: "a-benevolat", label: "Bénévolat", soon: true },

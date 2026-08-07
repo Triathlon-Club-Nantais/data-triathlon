@@ -5,11 +5,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
 import type { SessionUser } from "@/lib/types";
 
-const { push, getSession, logout, listParticipations } = vi.hoisted(() => ({
+const { push, getSession, logout, listParticipations, route } = vi.hoisted(() => ({
   push: vi.fn(),
   getSession: vi.fn(),
   logout: vi.fn(),
   listParticipations: vi.fn(),
+  route: { pathname: "/dashboard" },
 }));
 
 /** Mutable : le surlignage se teste depuis plusieurs écrans. */
@@ -150,9 +151,34 @@ describe("AppNav — arborescence", () => {
     afficher(SESSION);
     await deplier();
     await waitFor(() => expect(screen.getByText("Administration")).toBeInTheDocument());
-    expect(screen.getByRole("link", { name: "Chronométreurs signalés" })).toHaveAttribute("href", "/admin");
+    expect(screen.getByRole("link", { name: "Fournisseurs en attente" })).toHaveAttribute(
+      "href",
+      "/admin/fournisseurs",
+    );
+    expect(screen.getByRole("link", { name: "Gestion des courses" })).toHaveAttribute(
+      "href",
+      "/admin/courses",
+    );
     // Les entrées d'échelon administrateur attendent #115 : rien ne l'attribue.
     expect(screen.queryByText("Feature flags")).not.toBeInTheDocument();
+  });
+
+  it("n'allume qu'une entrée d'administration à la fois", async () => {
+    chemin.courant = "/admin/courses";
+    afficher(SESSION);
+    await deplier();
+
+    // `isActive` teste `startsWith` : une entrée branchée sur `/admin` serait
+    // allumée sur **tous** les écrans d'administration.
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "Gestion des courses" })).toHaveAttribute(
+        "aria-current",
+        "page",
+      ),
+    );
+    expect(
+      screen.getByRole("link", { name: "Fournisseurs en attente" }),
+    ).not.toHaveAttribute("aria-current");
   });
 });
 

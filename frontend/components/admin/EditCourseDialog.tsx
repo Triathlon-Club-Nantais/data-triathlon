@@ -12,6 +12,14 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { EVENT_TYPE_OPTIONS, eventTypeLabel } from "@/lib/constants";
 import { useUpdateCourse } from "@/lib/queries/admin";
 import type { CourseBrief } from "@/lib/types";
 
@@ -37,6 +45,15 @@ export function EditCourseDialog({
   const [type, setType] = useState(course.event_type);
   const [relais, setRelais] = useState(course.is_relay);
   const correction = useUpdateCourse();
+
+  // Un type absent de la table de libellés (slug d'un scraper en avance sur
+  // elle) reste proposé, sous son slug brut : sans cette entrée, ouvrir le
+  // dialogue pour corriger la *date* retyperait l'épreuve au passage.
+  const inconnu =
+    course.event_type && !EVENT_TYPE_OPTIONS.some((o) => o.value === course.event_type);
+  const options = inconnu
+    ? [{ value: course.event_type, label: course.event_type }, ...EVENT_TYPE_OPTIONS]
+    : EVENT_TYPE_OPTIONS;
 
   async function enregistrer() {
     try {
@@ -83,7 +100,20 @@ export function EditCourseDialog({
           </div>
           <div className="space-y-1">
             <Label htmlFor="course-type">Type</Label>
-            <Input id="course-type" value={type} onChange={(e) => setType(e.target.value)} />
+            <Select value={type} onValueChange={(v) => setType(v as string)}>
+              <SelectTrigger id="course-type" className="w-full">
+                <SelectValue placeholder="Choisir une discipline">
+                  {(v) => eventTypeLabel(v as string)}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {options.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex items-center gap-2">
             <input

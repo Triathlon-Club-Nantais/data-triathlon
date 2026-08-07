@@ -63,6 +63,9 @@ describe("CoursesAdminTable", () => {
     afficher();
 
     expect(await screen.findByText("Triathlon de Nantes")).toBeInTheDocument();
+    // La colonne Type porte un libellé, pas le slug de base.
+    expect(screen.getByText("Triathlon M")).toBeInTheDocument();
+    expect(screen.queryByText("triathlon-m")).not.toBeInTheDocument();
   });
 
   it("cache le bouton de suppression sans le pouvoir (FR-011)", async () => {
@@ -82,6 +85,22 @@ describe("CoursesAdminTable", () => {
     afficher();
 
     expect(await screen.findByRole("button", { name: /supprimer/i })).toBeInTheDocument();
+  });
+
+  it("nomme chaque geste par son épreuve — les icônes seules sont muettes", async () => {
+    listCourses.mockResolvedValue([EPREUVE, { ...EPREUVE, id: 13, name: "Triathlon de Vertou" }]);
+    getSession.mockResolvedValue(session(["courses:delete", "courses:write"]));
+
+    afficher();
+
+    // Sans le nom dans le libellé, une page en aligne cinquante « Supprimer »
+    // que rien ne distingue à la lecture d'écran.
+    expect(
+      await screen.findByRole("button", { name: "Supprimer — Triathlon de Vertou" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Corriger — Triathlon de Nantes" }),
+    ).toBeInTheDocument();
   });
 
   it("distingue une panne d'une liste vide", async () => {

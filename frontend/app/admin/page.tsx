@@ -1,33 +1,24 @@
-import Link from "next/link";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
-import { PendingProvidersTable } from "@/components/admin/PendingProvidersTable";
-import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 
 /**
- * Un écran, un sujet. Les accès au back-office ont leur propre destination
- * (`/admin/acces`), sous la section « Gestion des utilisateurs » de la nav :
- * les empiler ici mêlait l'administration des personnes à celle des données.
+ * Racine de l'administration — le futur tableau de bord global.
+ *
+ * Vide et sans entrée de navigation tant qu'il n'a rien à montrer : les écrans
+ * d'administration vivent chacun sous `/admin/<écran>`, et c'est la nav qui y
+ * mène. Cette page tient l'URL, elle ne redirige pas — un `/admin` qui saute
+ * ailleurs ferait croire que l'écran d'arrivée *est* la racine.
  */
 export default function AdminPage() {
   return (
     <PageShell>
-      <div className="space-y-10">
-        <PageHeader
-          eyebrow="Maintenance"
-          title="Chronométreurs signalés"
-          description="Fournisseurs non reconnus, signalés automatiquement lors d'un import en échec."
+      <div className="space-y-6">
+        <PageHeader eyebrow="Maintenance" title="Administration" />
+        <EmptyState
+          title="Tableau de bord à venir"
+          description="Choisissez un écran d'administration dans la navigation."
         />
-        {/* Sans ce lien, l'écran des épreuves n'existe que pour qui connaît son URL. */}
-        <Card className="p-4">
-          <Link href="/admin/courses" className="font-medium hover:underline">
-            Administrer les épreuves →
-          </Link>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Corriger ou retirer une épreuve, rattacher un résultat au bon coureur.
-          </p>
-        </Card>
-        <PendingProvidersTable />
       </div>
     </PageShell>
   );
