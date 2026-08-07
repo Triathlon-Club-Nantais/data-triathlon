@@ -200,10 +200,15 @@ export const apiClient = {
   // Les trois gestes exigent le pouvoir `allowed_emails:manage` ; un anonyme
   // obtient 401 et jamais la liste.
   listAllowedEmails: () => request<AllowedEmail[]>("/admin/allowed-emails"),
-  addAllowedEmail: (email: string, roleId: number | null) =>
+  // `roleId` omis (`undefined`) ≠ `null` : le premier laisse le rôle posé
+  // intact, le second le **lève**. Le backend ne les distingue que par la
+  // présence de la clé, et le second exige `roles:assign`.
+  addAllowedEmail: (email: string, roleId?: number | null) =>
     request<AllowedEmail>("/admin/allowed-emails", {
       method: "POST",
-      body: JSON.stringify({ email, role_id: roleId }),
+      body: JSON.stringify(
+        roleId === undefined ? { email } : { email, role_id: roleId },
+      ),
     }),
   removeAllowedEmail: (id: number) =>
     request<null>(`/admin/allowed-emails/${id}`, { method: "DELETE" }),

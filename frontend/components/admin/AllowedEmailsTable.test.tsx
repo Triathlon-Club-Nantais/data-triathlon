@@ -2,8 +2,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
 import type { AllowedEmail, Role, SessionUser } from "@/lib/types";
+
+// Même raison qu'en face : sans doublure, « le message du serveur est réaffiché »
+// ne s'observe nulle part, la liste étant servie par le cache.
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 const {
   listAllowedEmails,
@@ -53,7 +58,7 @@ const MOI: SessionUser = {
   email: "moi@exemple.fr",
   display_name: "Moi",
   created_at: "2026-01-01T00:00:00Z",
-  permissions: ["allowed_emails:manage", "roles:read"],
+  permissions: ["allowed_emails:manage", "roles:read", "roles:assign"],
   roles: [],
 };
 
@@ -171,6 +176,36 @@ describe("AllowedEmailsTable", () => {
     );
   });
 
+  it("n'offre pas de rôle à l'inscription à qui ne peut pas en attribuer", async () => {
+    // Donner un rôle est `roles:assign`, quel que soit le guichet — le backend
+    // le refuse désormais ici aussi. Un sélecteur qui rendrait 403 à chaque
+    // envoi est le mensonge qu'on vient de retirer du rail de navigation.
+    getSession.mockResolvedValue({
+      ...MOI,
+      permissions: ["allowed_emails:manage"],
+    });
+    listAllowedEmails.mockResolvedValue([]);
+    addAllowedEmail.mockResolvedValue(ADRESSE);
+
+    afficher();
+    await screen.findByText(/aucune adresse autorisée/i);
+    await userEvent.type(
+      screen.getByLabelText(/adresse/i),
+      "contributeur@exemple.fr",
+    );
+    await userEvent.click(screen.getByRole("button", { name: /ajouter/i }));
+
+    expect(screen.queryByLabelText(/rôle à l'inscription/i)).not.toBeInTheDocument();
+    // `undefined` et non `null` : le champ est **absent** de la requête, ce que
+    // le backend distingue de « aucun rôle » — lequel exige `roles:assign`.
+    await waitFor(() =>
+      expect(addAllowedEmail).toHaveBeenCalledWith(
+        "contributeur@exemple.fr",
+        undefined,
+      ),
+    );
+  });
+
   it("affiche le rôle initial de chaque adresse", async () => {
     listAllowedEmails.mockResolvedValue([{ ...ADRESSE, role: BENEVOLE }]);
 
@@ -239,7 +274,11 @@ describe("AllowedEmailsTable", () => {
     await screen.findByText(ADRESSE.email);
     await userEvent.click(screen.getByRole("button", { name: /retirer/i }));
 
-    await waitFor(() => expect(removeAllowedEmail).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "Cette organisation perdrait son dernier administrateur.",
+      ),
+    );
     expect(await screen.findByText(ADRESSE.email)).toBeInTheDocument();
   });
 

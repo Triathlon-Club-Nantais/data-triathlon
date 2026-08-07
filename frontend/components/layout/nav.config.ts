@@ -104,6 +104,11 @@ export const NAV: NavSection[] = [
         permission: "pending_providers:read",
       },
       { id: "a-courses", label: "Gestion des courses", href: "/admin/courses" },
+      // Les entrées `soon` ci-dessous n'ont pas de pouvoir nommé : le catalogue
+      // n'en porte pas d'évident, et en deviner un serait poser une règle à
+      // rectifier le jour où l'écran sort. Sans conséquence — depuis #242 une
+      // entrée `soon` n'est plus rendue du tout. La revalidation qualité, elle,
+      // a le sien depuis #115.
       { id: "a-scrape", label: "Re-scrape à la demande", soon: true },
       { id: "a-quality", label: "Revalidation qualité", permission: "quality:override", soon: true },
       { id: "a-benevolat", label: "Bénévolat", soon: true },

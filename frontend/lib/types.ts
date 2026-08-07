@@ -229,7 +229,8 @@ export interface AllowedEmail {
  *
  * `stale_permissions` liste les codes présents en base mais absents de
  * l'inventaire de l'application : inertes, purgeables, jamais bloquants.
- * `is_system` marque un rôle livré avec l'application, que rien ne modifie.
+ * `is_system` marque un rôle livré avec l'application : sa composition se
+ * modifie comme celle des autres (FR-006), seule sa **suppression** est refusée.
  */
 export interface Role {
   id: number;

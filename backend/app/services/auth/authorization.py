@@ -227,6 +227,25 @@ def assert_may_set_superuser(db: Session, actor: User, *, organisation_id=None) 
         )
 
 
+def assert_may_assign_roles(db: Session, actor: User) -> None:
+    """`roles:assign` — **donner ou lever** un rôle, quel que soit le guichet.
+
+    La non-amplification borne ce qu'on donne ; elle ne dit jamais qu'on a le
+    droit de donner. Les deux ressources de #115 posaient la question par leur
+    garde de route ; le choix d'un rôle initial (#239) se fait sur une route
+    gardée par `allowed_emails:manage`, et sans ceci ce pouvoir unique — dont le
+    plafond assumé était « fermer n'importe quel compte » — vaudrait aussi
+    « distribuer des rôles à tout compte à naître ».
+
+    Posée **avant** de résoudre le rôle : un identifiant inconnu doit rendre 403
+    à qui n'attribue pas, jamais 404. Le couple 404/201 balaie sinon le
+    catalogue des rôles pour qui n'a même pas `roles:read`.
+    """
+    if not has_permission(db, actor, permissions.P.ROLES_ASSIGN):
+        logger.warning("Role assignment refused: user %s lacks roles:assign", actor.id)
+        raise PrivilegeEscalationError("Vous ne pouvez pas attribuer de rôle.")
+
+
 def assert_may_hand_over(db: Session, actor: User, role: Role) -> None:
     """Les deux contrôles que **tout** changement de mains d'un rôle doit passer.
 
@@ -262,13 +281,22 @@ def assert_may_distribute_superuser(db: Session, actor: User, role: Role) -> Non
         assert_may_set_superuser(db, actor)
 
 
-def assert_role_assignable_in(db: Session, role: Role, organisation_id: int) -> None:
+def role_assignable_in(role: Role, organisation_id: int) -> bool:
     """FR-008 — un rôle propre à A n'est pas attribuable dans B.
 
-    Contrôle de **service** : la règle croise deux tables, aucun SQL portable ne
-    l'exprime. Dit ici plutôt que de laisser croire à une contrainte.
+    Prédicat **et** garde, parce que les deux appelants n'ont pas le même
+    recours : l'attribution refuse en 422, l'application du rôle initial
+    journalise et passe (personne, à la connexion, à qui rendre une erreur).
+    Deux formulations de la règle divergeraient au premier ajustement.
     """
-    if role.organisation_id is not None and role.organisation_id != organisation_id:
+    return role.organisation_id is None or role.organisation_id == organisation_id
+
+
+def assert_role_assignable_in(db: Session, role: Role, organisation_id: int) -> None:
+    """FR-008, levée. Contrôle de **service** : la règle croise deux tables,
+    aucun SQL portable ne l'exprime. Dit ici plutôt que de laisser croire à une
+    contrainte."""
+    if not role_assignable_in(role, organisation_id):
         raise RoleOutOfScopeError()
 
 

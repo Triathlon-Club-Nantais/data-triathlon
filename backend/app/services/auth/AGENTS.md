@@ -272,19 +272,41 @@ Cinq points à ne pas défaire :
   #239). Sans lui, le geste d'administration était coupé en deux par un
   événement que l'administrateur ne contrôle pas — la première connexion de la
   personne : autoriser, *attendre*, puis attribuer depuis un autre écran ; entre
-  les deux, un connecté sans aucun rôle. Trois propriétés le tiennent :
-  - **Il s'applique à la création du compte, une fois.** Ni à une reconnexion,
-    ni à une réactivation — sinon un retrait de rôle serait défait par la
-    prochaine connexion de l'intéressé, sans que rien ne le dise.
+  les deux, un connecté sans aucun rôle. Quatre propriétés le tiennent, et la
+  première a demandé une correction — elle était affirmée avant d'être vraie :
+  - **Il se consomme.** `provisioning` le lève de l'entrée après l'avoir posé.
+    Laissé en place, « une fois » n'était vrai que *par compte* : toute identité
+    externe inconnue en crée un nouveau **même si l'adresse est déjà en base**
+    (FR-003), donc chaque identité suivante portant l'adresse serait repartie
+    avec le rôle — y compris après une révocation, et longtemps après que celui
+    qui l'a choisi a perdu le droit de le donner. C'est très exactement
+    l'appariement par adresse que #114 refuse, sur le chemin qui accorde du
+    pouvoir. Le corollaire opérationnel était pire que le cas d'attaque : un
+    administrateur pouvait *garer* un rôle sur une adresse à lui, être destitué,
+    puis renaître administrateur.
+  - **Il ne s'applique qu'à la création du compte.** Ni à une reconnexion, ni à
+    une réactivation — sinon un retrait de rôle serait défait par la prochaine
+    connexion de l'intéressé, sans que rien ne le dise.
   - **Le contrôle porte sur le choix, jamais sur l'application.** C'est
-    `allowed_emails.add` qui appelle `assert_may_hand_over`, là où il y a un
-    acteur ; `provisioning` n'en a aucun. Même asymétrie que `grant-role`.
+    `allowed_emails._assert_may_choose` qui porte les **trois** gardes de
+    `grant_role` — `roles:assign`, la remise du rôle, la portée d'organisation —
+    là où il y a un acteur ; `provisioning` n'en a aucun. Même asymétrie que
+    `grant-role`. Le troisième écrivain de `user_roles` avait été ajouté avec
+    une seule des trois, et c'est ainsi que ces règles se perdent.
   - **Rien de ce qui échoue à l'application ne refuse la connexion** : un rôle
-    disparu ou une base sans organisation journalisent et passent. Un visiteur
-    légitime laissé dehors par un code d'erreur qui n'explique rien serait pire
-    que l'absence de rôle qu'on cherchait justement à éviter.
+    disparu, une base sans organisation ou un rôle devenu hors portée
+    journalisent et passent. Un visiteur légitime laissé dehors par un code
+    d'erreur qui n'explique rien serait pire que l'absence de rôle qu'on
+    cherchait justement à éviter.
   Il ne contredit pas « cette table autorise, elle n'identifie pas » : il ne
-  désigne aucun titulaire, il dit avec quoi celui qui viendra commencera.
+  désigne aucun titulaire, il dit avec quoi celui qui viendra commencera — et
+  parce qu'il se consomme, il ne le dit qu'une fois.
+- **`null` lève le rôle, un champ absent n'y touche pas** (`UNCHANGED`). Les
+  distinguer n'est pas une subtilité d'API : sans le premier, « Aucun » était
+  indicible, le rôle se collait à l'adresse pour toujours, et le 409 de
+  `delete_role` — « retirez-le d'abord de ces adresses » — réclamait un geste
+  inexistant, rendant le rôle indélébile. Sans le second, `allow-email`, qui ne
+  se prononce pas sur le rôle, effacerait en silence un choix fait à l'écran.
 - **`has_account` dit « quelqu'un est venu », pas « qui »** (`AllowedEmailRead`).
   Un booléen, calculé par rapprochement d'adresses en une requête pour toute la
   liste — c'est le retour qui manquait sur le rôle ci-dessus : « déjà appliqué »
@@ -315,6 +337,14 @@ Cinq points à ne pas défaire :
   c'est le prix assumé d'un pouvoir unique : le scinder en `read`/`write` ne le
   changerait pas, seule une garde de non-amplification sur la désactivation le
   ferait, ce qu'aucun besoin exprimé ne réclame aujourd'hui.
+  **Et il ne vaut pas « distribuer des rôles ».** Nommer un rôle initial sur une
+  adresse exige `roles:assign` **en plus** (`_assert_may_choose`), bien que la
+  route ne soit gardée que par `allowed_emails:manage` : donner un rôle est un
+  geste d'attribution, qu'il porte sur un compte existant ou sur un compte à
+  naître. Sans cette garde, ce pouvoir unique aurait absorbé le second en
+  silence — la non-amplification borne ce qu'on donne, elle ne dit jamais qu'on
+  a le droit de donner. Elle se pose **avant** la résolution du rôle : sinon le
+  couple 404/201 balaie le catalogue pour qui n'a même pas `roles:read`.
 - **L'invariant du dernier administrateur est celui de #115, réutilisé.**
   `remove()` s'exécute dans `authorization.administrateurs_preserves(db)`, sans
   argument d'organisation. La règle qui vient à l'esprit — « on ne retire pas sa
