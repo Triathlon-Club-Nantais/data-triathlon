@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@/lib/api/client";
 
 const { getSession, listAuthMethods, redirect } = vi.hoisted(() => ({
   getSession: vi.fn(),
@@ -23,15 +24,28 @@ const SESSION = {
   email: "contributeur@exemple.fr",
   display_name: "contributeur",
   created_at: "2026-08-01T14:54:28Z",
+  permissions: ["courses:delete"],
+  roles: [],
 };
+
+/** Connecté, mais ne portant aucun pouvoir du catalogue (#115). */
+const SANS_POUVOIR = { ...SESSION, permissions: [] };
 
 const GITHUB = [{ slug: "github", label: "GitHub" }];
 
 describe("Garde des écrans d'administration (FR-040)", () => {
   // Sans cela, `expect(redirect).not.toHaveBeenCalled()` mesurerait les appels
   // des tests précédents — et passerait, ou échouerait, pour la mauvaise raison.
+  let journal: ReturnType<typeof vi.spyOn>;
   beforeEach(() => {
     vi.clearAllMocks();
+    // Les cas de panne journalisent volontairement : capturé plutôt qu'affiché,
+    // sinon la sortie des tests ressemble à une suite en échec.
+    journal = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    journal.mockRestore();
   });
 
   it("redirige vers /login sans session, quand la connexion est possible", async () => {
@@ -49,6 +63,17 @@ describe("Garde des écrans d'administration (FR-040)", () => {
     render(await AdminLayout({ children: <p>contenu réservé</p> }));
 
     expect(screen.getByText("contenu réservé")).toBeInTheDocument();
+  });
+
+  it("renvoie au tableau de bord une session sans le moindre pouvoir", async () => {
+    // Le catalogue de #115 ne contient que des pouvoirs d'administration : n'en
+    // porter aucun, c'est n'avoir rien à faire ici. Vers `/dashboard` et non
+    // `/login`, qui serait une boucle pour quelqu'un de déjà connecté.
+    getSession.mockResolvedValue(SANS_POUVOIR);
+    listAuthMethods.mockResolvedValue(GITHUB);
+
+    await expect(AdminLayout({ children: <p>secret</p> })).rejects.toThrow("NEXT_REDIRECT");
+    expect(redirect).toHaveBeenCalledWith("/dashboard");
   });
 
   it("valide réellement la session, plutôt que de constater un cookie", async () => {
@@ -80,13 +105,38 @@ describe("Garde des écrans d'administration (FR-040)", () => {
     // Un démarrage à froid de Render ne doit pas remplacer l'écran par la page
     // d'erreur globale : avant cette garde, `/admin` s'affichait et c'est le
     // tableau client qui signalait la panne dans la page.
-    getSession.mockRejectedValue(new Error("Erreur API (502)"));
+    getSession.mockRejectedValue(new ApiError(502, "Erreur API (502)"));
     listAuthMethods.mockResolvedValue(GITHUB);
 
     render(await AdminLayout({ children: <p>contenu réservé</p> }));
 
     expect(screen.getByText("contenu réservé")).toBeInTheDocument();
     expect(redirect).not.toHaveBeenCalled();
+  });
+
+  it("nomme la panne au journal, statut compris", async () => {
+    // Les deux pannes appellent la même conduite mais pas le même diagnostic :
+    // un 502 est un backend injoignable, un 500 sur `/auth/me` est notre propre
+    // route qui plante. Sans la trace, la garde se dégrade en silence.
+    getSession.mockRejectedValue(new ApiError(500, "Boum"));
+    listAuthMethods.mockResolvedValue(GITHUB);
+
+    render(await AdminLayout({ children: <p>contenu réservé</p> }));
+
+    expect(journal).toHaveBeenCalledWith(expect.stringContaining("session indisponible (500)"));
+  });
+
+  it("dit « sans réponse » quand l'échec ne porte aucun statut", async () => {
+    // Une coupure réseau ne produit pas d'`ApiError` : le journal doit le dire
+    // plutôt qu'inventer un code HTTP.
+    getSession.mockRejectedValue(new TypeError("fetch failed"));
+    listAuthMethods.mockResolvedValue(GITHUB);
+
+    render(await AdminLayout({ children: <p>contenu réservé</p> }));
+
+    expect(journal).toHaveBeenCalledWith(
+      expect.stringContaining("session indisponible (sans réponse)"),
+    );
   });
 
   it("laisse passer quand la liste des méthodes est elle-même injoignable", async () => {

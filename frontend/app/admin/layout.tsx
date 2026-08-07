@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
+import { ApiError } from "@/lib/api/client";
 import { apiServer } from "@/lib/api/server";
 
 /**
@@ -28,20 +29,55 @@ import { apiServer } from "@/lib/api/server";
  *   page d'erreur globale. Avant cette garde, la page s'affichait et c'est le
  *   tableau client qui signalait la panne, en place.
  *
+ * **Elle referme en revanche sur une session sans pouvoir.** Être connecté ne
+ * suffit pas : le catalogue de #115 ne contient que des pouvoirs
+ * d'administration, donc n'en porter aucun signifie n'avoir rien à faire ici.
+ *
  * Contrepartie assumée : `/admin`, jusqu'ici prérendue statiquement, devient
  * dynamique. C'est l'effet recherché.
  */
 /** Le backend n'a pas répondu : « anonyme » n'est pas établi pour autant. */
 const INDISPONIBLE = Symbol("session indisponible");
 
+/**
+ * Le sentinelle, en journalisant d'abord ce qui a échoué.
+ *
+ * Les deux pannes appellent la même conduite — laisser passer plutôt que
+ * transformer un incident en impasse — mais pas le même diagnostic : un 502 est
+ * un backend injoignable (démarrage à froid de Render), un 5xx sur `/auth/me`
+ * est **notre** route qui plante, et un échec sans statut est le réseau. Sans
+ * cette trace, la garde se dégrade en silence et rien nulle part ne le dit.
+ */
+// Le type de retour est annoté : sans lui l'inférence élargit le sentinelle en
+// `symbol`, et `!== INDISPONIBLE` ne restreint plus rien.
+function panne(quoi: string): (erreur: unknown) => typeof INDISPONIBLE {
+  return (erreur: unknown) => {
+    const statut = erreur instanceof ApiError ? erreur.status : "sans réponse";
+    console.error(`[admin] ${quoi} indisponible (${statut}) : ${erreur}`);
+    return INDISPONIBLE;
+  };
+}
+
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const [session, methodes] = await Promise.all([
-    apiServer.getSession().catch(() => INDISPONIBLE),
-    apiServer.listAuthMethods().catch(() => []),
+    apiServer.getSession().catch(panne("session")),
+    apiServer.listAuthMethods().catch(panne("méthodes de connexion")),
   ]);
 
   // `=== null` et non `!session` : seul un 401 **avéré** dit que le visiteur est
   // anonyme. Une panne rend le sentinelle, et ne doit pas être lue comme un refus.
-  if (session === null && methodes.length > 0) redirect("/login");
+  if (session === null && methodes !== INDISPONIBLE && methodes.length > 0) {
+    redirect("/login");
+  }
+
+  // Une session sans le moindre pouvoir n'a rien à administrer : **tout** code du
+  // catalogue (#115) en est un — consulter des résultats n'en demande aucun. Vers
+  // `/dashboard` et non `/login` : ce visiteur est connecté, l'y renvoyer serait
+  // une boucle. La branche ne peut pas fermer un déploiement sans `AUTH_*` : sans
+  // ces secrets, personne n'obtient de session et `session` vaut `null` (FR-036).
+  if (session !== null && session !== INDISPONIBLE && session.permissions.length === 0) {
+    redirect("/dashboard");
+  }
+
   return <>{children}</>;
 }
