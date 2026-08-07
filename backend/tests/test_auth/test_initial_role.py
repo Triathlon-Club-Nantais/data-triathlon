@@ -248,14 +248,45 @@ def test_le_role_disparu_ne_bloque_pas_la_connexion(
     assert _roles_de(db_session, user, organisation) == []
 
 
-def test_le_service_expose_le_choix_a_la_cli_sans_acteur(db_session, benevole):
-    """`allow-email` n'a pas d'acteur : le service doit rester appelable."""
-    entree, creee, _ = allowed_emails.add(
-        db_session, None, email="cli@exemple.fr", role_id=benevole.id
-    )
+def test_le_service_reste_appelable_sans_acteur(db_session):
+    """`allow-email` n'a pas d'acteur : autoriser doit rester possible.
+
+    Sans se prononcer sur le rôle — c'est ce que la sentinelle permet, et le
+    test voisin vérifie qu'il ne peut pas en nommer un.
+    """
+    entree, creee, _ = allowed_emails.add(db_session, None, email="cli@exemple.fr")
 
     assert creee is True
-    assert entree.role_id == benevole.id
+    assert entree.role_id is None
+
+
+def test_le_role_se_reclame_une_seule_fois(db_session, benevole, autoriser):
+    """La consommation est une **réclamation**, pas une lecture puis une écriture.
+
+    Deux premières connexions simultanées sur la même adresse — deux identités
+    distinctes, donc deux comptes (FR-003) — lisaient toutes deux `role_id`
+    avant que l'une l'ait levé, et repartaient toutes deux avec le rôle. Sous le
+    modèle de menace du dépôt, ces deux identités ne sont pas la même personne :
+    c'est l'hypothèse même qui justifie qu'on n'apparie jamais sur l'adresse.
+
+    Pire, la consommation avait rendu la course **silencieuse** : `role_id` vaut
+    `NULL` que le rôle ait été donné une fois ou deux, et le seul témoin devient
+    `/admin/users`, qu'il faut penser à relire.
+
+    Un `UPDATE … WHERE role_id = <lu>` est atomique sur les deux moteurs et
+    supprime la fenêtre — sans verrou explicite ni niveau d'isolation, dont l'un
+    serait inerte en SQLite et actif en PostgreSQL.
+    """
+    autoriser("course@exemple.fr")
+    entree = allowed_email_repository.get_by_email(db_session, "course@exemple.fr")
+    allowed_email_repository.set_initial_role(db_session, entree, role_id=benevole.id)
+    db_session.commit()
+
+    premier = allowed_email_repository.claim_initial_role(db_session, entree)
+    second = allowed_email_repository.claim_initial_role(db_session, entree)
+
+    assert premier == benevole.id
+    assert second is None
 
 
 # --- Lever un rôle posé -----------------------------------------------------
@@ -289,13 +320,148 @@ def test_reinscrire_sans_role_leve_celui_qui_etait_pose(
     )
 
 
+def test_lever_un_role_superutilisateur_exige_de_l_etre(
+    client, ouvrir_session, db_session, autoriser
+):
+    """**Lever un rôle est un geste d'attribution, pas un non-geste.**
+
+    `revoke_role` le sait depuis #239 : « destituer un administrateur est un
+    geste d'administrateur ». Le troisième guichet l'avait rouvert dans la
+    direction du retrait — non pas une escalade, mais un sabotage de nomination
+    par le pouvoir le plus courant du back-office : effacer le rôle garé sur
+    l'adresse d'un futur administrateur, qui naîtrait alors sans rien.
+    """
+    from app.models.role import Role as RoleModel
+
+    ouvrir_session(P.ALLOWED_EMAILS_MANAGE, P.ROLES_ASSIGN)
+    root = RoleModel(slug="root", name="Administrateur", is_superuser=True)
+    db_session.add(root)
+    db_session.flush()
+    autoriser("dsi@exemple.fr")
+    entree = allowed_email_repository.get_by_email(db_session, "dsi@exemple.fr")
+    allowed_email_repository.set_initial_role(db_session, entree, role_id=root.id)
+    db_session.commit()
+
+    reponse = client.post(
+        "/api/v1/admin/allowed-emails",
+        json={"email": "dsi@exemple.fr", "role_id": None},
+    )
+
+    assert reponse.status_code == 403
+    assert (
+        allowed_email_repository.get_by_email(db_session, "dsi@exemple.fr").role_id
+        == root.id
+    )
+
+
+def test_remplacer_un_role_superutilisateur_exige_de_l_etre(
+    client, ouvrir_session, db_session, autoriser, benevole
+):
+    """Substituer est un retrait suivi d'un octroi : les deux se gardent.
+
+    Garder le seul rôle **entrant** laisserait diminuer une nomination sans
+    trace — la colonne montrerait le nouveau rôle, et `created_by` n'est pas
+    réécrit à la réinscription.
+    """
+    from app.models.role import Role as RoleModel
+
+    ouvrir_session(P.ALLOWED_EMAILS_MANAGE, P.ROLES_ASSIGN)
+    root = RoleModel(slug="root", name="Administrateur", is_superuser=True)
+    db_session.add(root)
+    db_session.flush()
+    autoriser("dsi@exemple.fr")
+    entree = allowed_email_repository.get_by_email(db_session, "dsi@exemple.fr")
+    allowed_email_repository.set_initial_role(db_session, entree, role_id=root.id)
+    db_session.commit()
+
+    reponse = client.post(
+        "/api/v1/admin/allowed-emails",
+        json={"email": "dsi@exemple.fr", "role_id": benevole.id},
+    )
+
+    assert reponse.status_code == 403
+
+
+def test_lever_un_role_qu_on_pourrait_donner_aboutit(
+    client, ouvrir_session, db_session, autoriser, benevole
+):
+    """La garde du retrait n'est pas un refus général : elle est **symétrique**
+    de celle de l'octroi, et rien de plus."""
+    ouvrir_session(P.ALLOWED_EMAILS_MANAGE, P.ROLES_ASSIGN)
+    autoriser("dsi@exemple.fr")
+    entree = allowed_email_repository.get_by_email(db_session, "dsi@exemple.fr")
+    allowed_email_repository.set_initial_role(db_session, entree, role_id=benevole.id)
+    db_session.commit()
+
+    reponse = client.post(
+        "/api/v1/admin/allowed-emails",
+        json={"email": "dsi@exemple.fr", "role_id": None},
+    )
+
+    assert reponse.status_code == 201
+    assert reponse.json()["role"] is None
+
+
+def test_un_null_qui_ne_change_rien_n_exige_aucun_pouvoir_de_plus(
+    client, ouvrir_session
+):
+    """Régression de contrat évitée : `{email, role_id: null}` était accepté
+    avant #239, et beaucoup de clients sérialisent le formulaire entier.
+
+    Ce qui se garde est le **changement**, jamais la forme du corps : sur une
+    adresse sans rôle, ce corps ne demande rien.
+    """
+    ouvrir_session(P.ALLOWED_EMAILS_MANAGE)
+
+    reponse = client.post(
+        "/api/v1/admin/allowed-emails",
+        json={"email": "nouveau@exemple.fr", "role_id": None},
+    )
+
+    assert reponse.status_code == 201
+
+
+def test_redonner_le_meme_role_ne_redemande_rien(
+    client, ouvrir_session, db_session, autoriser, benevole
+):
+    """Idempotence : réinscrire à l'identique n'est pas un changement de mains."""
+    ouvrir_session(P.ALLOWED_EMAILS_MANAGE)
+    autoriser("dsi@exemple.fr")
+    entree = allowed_email_repository.get_by_email(db_session, "dsi@exemple.fr")
+    allowed_email_repository.set_initial_role(db_session, entree, role_id=benevole.id)
+    db_session.commit()
+
+    reponse = client.post(
+        "/api/v1/admin/allowed-emails",
+        json={"email": "dsi@exemple.fr", "role_id": benevole.id},
+    )
+
+    assert reponse.status_code == 201
+
+
+def test_nommer_un_role_sans_acteur_est_refuse(db_session, benevole):
+    """`actor is None` **désactivait** les trois gardes, l'écriture restant, elle,
+    inconditionnelle.
+
+    Aucun appelant livré ne le fait — mais c'est la forme exacte qui a produit
+    le défaut d'origine : un chemin d'écriture ajouté sans les gardes du
+    premier. Une garde qui s'annule en silence pour qui ne passe pas d'acteur
+    n'est pas une garde.
+    """
+    with pytest.raises(ValueError):
+        allowed_emails.add(
+            db_session, None, email="cli@exemple.fr", role_id=benevole.id
+        )
+
+
 def test_la_cli_qui_ne_nomme_aucun_role_ne_leve_rien(db_session, benevole):
     """`allow-email` réautorise une adresse ; elle ne se prononce pas sur le rôle.
 
     Sans cette distinction, rouvrir un accès depuis le serveur effacerait en
     silence un choix fait à l'écran — « je n'en parle pas » n'est pas « aucun ».
     """
-    allowed_emails.add(db_session, None, email="cli@exemple.fr", role_id=benevole.id)
+    pose, _, _ = allowed_emails.add(db_session, None, email="cli@exemple.fr")
+    allowed_email_repository.set_initial_role(db_session, pose, role_id=benevole.id)
 
     entree, _, _ = allowed_emails.add(db_session, None, email="cli@exemple.fr")
 
@@ -323,6 +489,24 @@ def test_choisir_un_role_exige_le_pouvoir_de_les_attribuer(
     )
 
     assert reponse.status_code == 403
+
+
+def test_un_booleen_n_est_pas_un_identifiant_de_role(client, ouvrir_session):
+    """Pydantic en mode permissif coerce `true` en `1` — et le rôle `1` est
+    celui que le semis pose : l'administrateur.
+
+    Ce n'est pas une voie d'escalade, les trois gardes s'exécutant ensuite. Mais
+    un client qui sérialise mal une case à cocher garerait l'administration sur
+    une adresse sans que rien ne le signale, et un 422 coûte un mot.
+    """
+    ouvrir_session(P.ALLOWED_EMAILS_MANAGE, P.ROLES_ASSIGN, superutilisateur=True)
+
+    reponse = client.post(
+        "/api/v1/admin/allowed-emails",
+        json={"email": "nouveau@exemple.fr", "role_id": True},
+    )
+
+    assert reponse.status_code == 422
 
 
 def test_un_role_inconnu_rend_403_a_qui_n_attribue_pas(client, ouvrir_session):

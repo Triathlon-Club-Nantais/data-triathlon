@@ -274,7 +274,15 @@ Cinq points à ne pas défaire :
   personne : autoriser, *attendre*, puis attribuer depuis un autre écran ; entre
   les deux, un connecté sans aucun rôle. Quatre propriétés le tiennent, et la
   première a demandé une correction — elle était affirmée avant d'être vraie :
-  - **Il se consomme.** `provisioning` le lève de l'entrée après l'avoir posé.
+  - **Il se réclame.** `claim_initial_role` le rend **et** le lève d'un seul
+    `UPDATE … WHERE role_id = <lu>`, et `provisioning` ne donne le rôle que s'il
+    l'a obtenu. Lire puis lever laissait une fenêtre de quelques millisecondes
+    où deux premières connexions simultanées sur la même adresse repartaient
+    toutes deux avec le rôle — et sous le modèle de menace du dépôt, ces deux
+    identités ne sont pas la même personne. La consommation avait de surcroît
+    rendu cette course **silencieuse** : `role_id` vaut `NULL` que le rôle ait
+    été donné une fois ou deux. Une condition dans le `WHERE` plutôt qu'un
+    verrou : celui-ci serait inerte en SQLite et actif en PostgreSQL.
     Laissé en place, « une fois » n'était vrai que *par compte* : toute identité
     externe inconnue en crée un nouveau **même si l'adresse est déjà en base**
     (FR-003), donc chaque identité suivante portant l'adresse serait repartie
@@ -288,11 +296,30 @@ Cinq points à ne pas défaire :
     une réactivation — sinon un retrait de rôle serait défait par la prochaine
     connexion de l'intéressé, sans que rien ne le dise.
   - **Le contrôle porte sur le choix, jamais sur l'application.** C'est
-    `allowed_emails._assert_may_choose` qui porte les **trois** gardes de
-    `grant_role` — `roles:assign`, la remise du rôle, la portée d'organisation —
-    là où il y a un acteur ; `provisioning` n'en a aucun. Même asymétrie que
-    `grant-role`. Le troisième écrivain de `user_roles` avait été ajouté avec
-    une seule des trois, et c'est ainsi que ces règles se perdent.
+    `allowed_emails._assert_may_choose` qui porte les gardes de `grant_role` —
+    `roles:assign`, la remise du rôle, la portée d'organisation — là où il y a
+    un acteur ; `provisioning` n'en a aucun. Même asymétrie que `grant-role`. Le
+    troisième écrivain de `user_roles` avait été ajouté avec une seule d'entre
+    elles, et c'est ainsi que ces règles se perdent. **Un acteur absent ne
+    désactive plus rien** : nommer un rôle sans acteur lève `ValueError` au lieu
+    de sauter les gardes en silence, l'écriture, elle, ayant toujours été
+    inconditionnelle.
+  - **Les deux côtés du changement se gardent, et ce qui se garde est le
+    changement.** Lever un rôle avait d'abord été traité comme un non-geste,
+    sous prétexte qu'il « ne donne rien à comparer » — c'est vrai
+    d'`assert_may_grant`, qui compare des codes, et faux
+    d'`assert_may_distribute_superuser`, qui demande « êtes-vous
+    superutilisateur ? » et que `revoke_role` porte déjà : destituer un
+    administrateur est un geste d'administrateur. Sans la symétrie ici, un
+    porteur de `roles:assign` effaçait — ou remplaçait par un rôle faible — le
+    rôle garé sur l'adresse d'un futur administrateur, qui naissait alors
+    diminué : pas une escalade, un sabotage de nomination par le pouvoir le plus
+    courant du back-office, et sans trace (`created_by` n'est pas réécrit à la
+    réinscription). Symétriquement, un `role_id` qui **redit** ce qui est déjà
+    posé ne fait rien changer de mains et n'exige donc rien : sans quoi
+    `{email, role_id: null}` — corps que beaucoup de clients envoient par
+    défaut, et que l'API acceptait avant #239 — deviendrait un refus
+    d'autoriser.
   - **Rien de ce qui échoue à l'application ne refuse la connexion** : un rôle
     disparu, une base sans organisation ou un rôle devenu hors portée
     journalisent et passent. Un visiteur légitime laissé dehors par un code
@@ -300,7 +327,14 @@ Cinq points à ne pas défaire :
     cherchait justement à éviter.
   Il ne contredit pas « cette table autorise, elle n'identifie pas » : il ne
   désigne aucun titulaire, il dit avec quoi celui qui viendra commencera — et
-  parce qu'il se consomme, il ne le dit qu'une fois.
+  parce qu'il se réclame, il ne le dit qu'une fois.
+  **Limite connue, non fermée** : le contrôle portant sur le choix et l'effet
+  étant différé, un administrateur peut garer un rôle sur une adresse à lui,
+  être destitué, puis renaître avec ce rôle à sa prochaine connexion. La
+  réclamation ramène ce rejeu d'« indéfini » à « une fois », elle ne le supprime
+  pas. Ce qui manque n'est pas une garde mais une **revue** : rien ne balaie les
+  rôles garés au départ d'un administrateur, et `AllowedEmailRead` ne porte ni la
+  date ni l'auteur du *choix du rôle*, seulement ceux de l'inscription.
 - **`null` lève le rôle, un champ absent n'y touche pas** (`UNCHANGED`). Les
   distinguer n'est pas une subtilité d'API : sans le premier, « Aucun » était
   indicible, le rôle se collait à l'adresse pour toujours, et le 409 de

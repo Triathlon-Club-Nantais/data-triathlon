@@ -8,7 +8,7 @@ point de passage unique de cette table, et c'est elle qui rend le `UNIQUE`
 suffisant. La disperser chez les trois appelants — l'écran, la CLI, la
 connexion — la ferait diverger au premier oubli.
 """
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
@@ -62,9 +62,41 @@ def get_by_email(db: Session, email: str) -> AllowedEmail | None:
 
 
 def set_initial_role(db: Session, entry: AllowedEmail, *, role_id: int | None) -> None:
-    """Pose (ou lève) le rôle donné au compte à sa création (#239)."""
+    """Pose (ou lève) le rôle donné au compte à sa création (#239).
+
+    `expire` sur la relation : sans lui, une entrée déjà chargée garde en mémoire
+    l'objet `Role` d'avant, et la ressource rend un rôle qui vient d'être levé.
+    """
     entry.role_id = role_id
     db.flush()
+    db.expire(entry, ["role"])
+
+
+def claim_initial_role(db: Session, entry: AllowedEmail) -> int | None:
+    """**Réclame** le rôle du premier jour : le rend et le lève, d'un seul geste.
+
+    Rend `None` si l'entrée n'en portait pas, ou si quelqu'un d'autre vient de le
+    réclamer. L'appelant ne donne le rôle que s'il l'a obtenu ici.
+
+    Un `UPDATE … WHERE role_id = <lu>` et non une lecture puis une écriture :
+    deux premières connexions simultanées sur la même adresse — deux identités
+    distinctes, donc deux comptes (FR-003), et sous le modèle de menace du dépôt
+    **pas la même personne** — lisaient toutes deux la même valeur et repartaient
+    toutes deux avec le rôle. La condition dans le `WHERE` est atomique sur les
+    deux moteurs, là où un verrou explicite serait inerte en SQLite et actif en
+    PostgreSQL.
+    """
+    reclame = entry.role_id
+    if reclame is None:
+        return None
+    change = db.execute(
+        update(AllowedEmail)
+        .where(AllowedEmail.id == entry.id, AllowedEmail.role_id == reclame)
+        .values(role_id=None)
+    ).rowcount
+    db.flush()
+    db.refresh(entry)
+    return reclame if change else None
 
 
 def count_by_role(db: Session, role_id: int) -> int:

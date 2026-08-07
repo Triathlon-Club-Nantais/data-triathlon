@@ -65,6 +65,11 @@ export function AllowedEmailsTable() {
   // Chaîne et non nombre : c'est la valeur d'un `<option>`, et « aucun » a
   // besoin d'être représentable.
   const [role, setRole] = useState("");
+  // « Aucun » choisi **lève** le rôle posé ; sélecteur jamais touché ne se
+  // prononce pas. Sans cette distinction, ré-autoriser une adresse — le geste
+  // documenté pour rouvrir un compte fermé — effacerait en silence le rôle qui
+  // l'attendait. C'est la sentinelle du service, côté écran.
+  const [roleTouche, setRoleTouche] = useState(false);
 
   async function soumettre(evenement: React.SyntheticEvent) {
     evenement.preventDefault();
@@ -76,10 +81,12 @@ export function AllowedEmailsTable() {
         // `undefined` **omet** le champ, ce que le backend distingue de `null` :
         // le premier ne se prononce pas sur le rôle, le second lève celui qui
         // était posé — et lever est un geste d'attribution comme un autre.
-        roleId: peutAttribuer ? (role ? Number(role) : null) : undefined,
+        roleId:
+          peutAttribuer && roleTouche ? (role ? Number(role) : null) : undefined,
       });
       setSaisie("");
       setRole("");
+      setRoleTouche(false);
       toast.success("Adresse autorisée.");
     } catch (e) {
       toast.error((e as Error).message);
@@ -131,7 +138,10 @@ export function AllowedEmailsTable() {
               id="role-initial"
               className="border-input h-9 w-48 rounded-md border bg-transparent px-2 text-sm"
               value={role}
-              onChange={(e) => setRole(e.target.value)}
+              onChange={(e) => {
+                setRole(e.target.value);
+                setRoleTouche(true);
+              }}
             >
               <option value="">Aucun</option>
               {roles.map((disponible) => (
