@@ -144,6 +144,33 @@ describe("AllowedEmailsTable", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: /ajouter/i }));
 
+    // `undefined` : le sélecteur n'a pas été touché, la demande ne se prononce
+    // pas. Envoyer `null` ferait de « ré-autoriser une adresse » — le geste
+    // documenté pour rouvrir un compte fermé — un effacement silencieux du rôle
+    // qui l'attendait.
+    await waitFor(() =>
+      expect(addAllowedEmail).toHaveBeenCalledWith(
+        "contributeur@exemple.fr",
+        undefined,
+      ),
+    );
+  });
+
+  it("lève le rôle quand on choisit « Aucun » explicitement", async () => {
+    listAllowedEmails.mockResolvedValue([]);
+    addAllowedEmail.mockResolvedValue(ADRESSE);
+
+    afficher();
+    await screen.findByText(/aucune adresse autorisée/i);
+    await userEvent.type(
+      screen.getByLabelText(/adresse/i),
+      "contributeur@exemple.fr",
+    );
+    const selecteur = await screen.findByLabelText(/rôle à l'inscription/i);
+    await userEvent.selectOptions(selecteur, String(BENEVOLE.id));
+    await userEvent.selectOptions(selecteur, "");
+    await userEvent.click(screen.getByRole("button", { name: /ajouter/i }));
+
     await waitFor(() =>
       expect(addAllowedEmail).toHaveBeenCalledWith("contributeur@exemple.fr", null),
     );

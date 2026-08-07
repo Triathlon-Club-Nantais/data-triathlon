@@ -105,11 +105,16 @@ def add(
     geste par lequel on corrige un choix, et le seul — la ligne n'a pas d'autre
     éditeur. Omettre le paramètre (`UNCHANGED`) ne se prononce pas.
     """
-    if role_id is not UNCHANGED and actor is not None:
-        _assert_may_choose(db, actor, role_id)
+    adresse = validate_email(email)
+    if role_id is not UNCHANGED:
+        if actor is None:
+            # Une garde qui s'annule pour qui ne passe pas d'acteur n'est pas une
+            # garde — et c'est la forme exacte qui a produit le défaut d'origine.
+            raise ValueError("Nommer un rôle initial exige un acteur.")
+        _assert_may_choose(db, actor, adresse, role_id)
 
     entree, creee = allowed_email_repository.add(
-        db, email=validate_email(email), created_by_user_id=actor.id if actor else None
+        db, email=adresse, created_by_user_id=actor.id if actor else None
     )
     if role_id is not UNCHANGED:
         allowed_email_repository.set_initial_role(db, entree, role_id=role_id)
@@ -126,21 +131,47 @@ def add(
     return entree, creee, reactives
 
 
-def _assert_may_choose(db: Session, actor: User, role_id: int | None) -> None:
-    """Les trois gardes de `grant_role`, portées par le troisième guichet.
+def _assert_may_choose(
+    db: Session, actor: User, email: str, role_id: int | None
+) -> None:
+    """Les gardes de `grant_role` **et** de `revoke_role`, portées par le
+    troisième guichet.
 
     C'est exactement ce qui manquait : le chemin du rôle initial est le
     **troisième** écrivain de `user_roles`, et il avait été ajouté avec une seule
-    des trois. Poser un rôle est un geste d'attribution, pas un réglage de la
-    liste d'autorisation — qu'il porte sur un compte qui n'existe pas encore n'y
-    change rien.
+    des gardes du premier. Poser un rôle est un geste d'attribution, pas un
+    réglage de la liste d'autorisation — qu'il porte sur un compte qui n'existe
+    pas encore n'y change rien.
+
+    **Ce qui se garde est le changement, jamais la forme du corps.** Un
+    `role_id` qui redit ce qui est déjà posé ne fait changer aucun rôle de
+    mains ; l'exiger ferait de `{email, role_id: null}` — corps que beaucoup de
+    clients envoient par défaut, et que l'API acceptait avant #239 — un refus
+    d'autoriser.
+
+    **Les deux côtés du changement se gardent**, et c'est l'erreur que la revue
+    a trouvée : lever un rôle avait été traité comme un non-geste, sous prétexte
+    qu'il ne donne rien à comparer. `assert_may_grant` compare des codes, en
+    effet ; `assert_may_distribute_superuser`, elle, demande « êtes-vous
+    superutilisateur ? », et `revoke_role` la porte déjà — destituer un
+    administrateur est un geste d'administrateur. Sans la symétrie ici, un
+    porteur de `roles:assign` effaçait le rôle garé sur l'adresse d'un futur
+    administrateur, qui naissait alors sans rien : pas une escalade, un sabotage
+    de nomination par le pouvoir le plus courant du back-office.
 
     L'ordre compte : le pouvoir d'attribuer se juge **avant** que le rôle soit
     résolu, sinon un identifiant inconnu rend 404 à qui n'attribue pas et le
     catalogue se balaie par le couple 404/201.
     """
+    existante = allowed_email_repository.get_by_email(db, email)
+    ancien = existante.role if existante else None
+    if (ancien.id if ancien else None) == role_id:
+        return  # rien ne change de mains
+
     authorization.assert_may_assign_roles(db, actor)
-    if role_id is None:  # lever un rôle ne donne rien à comparer
+    if ancien is not None:
+        authorization.assert_may_hand_over(db, actor, ancien)
+    if role_id is None:
         return
 
     role = authorization.get_role_or_404(db, role_id)

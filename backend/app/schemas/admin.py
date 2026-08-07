@@ -6,6 +6,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    StrictInt,
     field_serializer,
     field_validator,
     model_validator,
@@ -418,5 +419,10 @@ class AllowedEmailCreate(BaseModel):
 
     email: str
     #: Rôle donné au compte à sa **création** (#239). Facultatif : autoriser sans
-    #: rien donner reste le cas ordinaire.
-    role_id: int | None = None
+    #: rien donner reste le cas ordinaire. **`null` lève le rôle posé, le champ
+    #: absent n'y touche pas** — le service distingue les deux.
+    #:
+    #: `StrictInt` : en mode permissif, Pydantic coerce `true` en `1`, et le rôle
+    #: `1` est celui que le semis pose — l'administrateur. Une case à cocher mal
+    #: sérialisée garerait l'administration sur une adresse.
+    role_id: StrictInt | None = None

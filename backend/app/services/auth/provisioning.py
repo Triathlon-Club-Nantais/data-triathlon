@@ -134,6 +134,8 @@ def _grant_initial_role(db: Session, user: User, email: str) -> None:
 
     organisation = role_repository.default_organisation(db)
     role = role_repository.get(db, entree.role_id)
+    #: Les trois sorties ci-dessous **précèdent** la réclamation : rien ne doit
+    #: lever le choix d'un administrateur sans que le compte l'ait reçu.
     # `role_assignable_in` et non une relecture de la règle : c'est le
     # **troisième** écrivain de `user_roles`, et un chemin qui écrit sans porter
     # les gardes du premier est exactement la façon dont ces règles se perdent.
@@ -150,10 +152,14 @@ def _grant_initial_role(db: Session, user: User, email: str) -> None:
         )
         return
 
+    # Réclamer **avant** de donner : le perdant d'une course ne donne rien, et
+    # celui qui donne est celui qui a levé.
+    if allowed_email_repository.claim_initial_role(db, entree) is None:
+        return
+
     user_role_repository.grant(
         db, user_id=user.id, role_id=role.id, organisation_id=organisation.id
     )
-    allowed_email_repository.set_initial_role(db, entree, role_id=None)
     logger.info(
         "Initial role granted: user=%s role=%s organisation=%s",
         user.id,
