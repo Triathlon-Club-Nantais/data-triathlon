@@ -149,25 +149,59 @@ def set_quality(
     course.quality_issues = quality_issues
 
 
-def list_all(
+def _filtered(
     db: Session,
     *,
-    event_type: str | None = None,
-    club_only: bool = False,
-    page: int = 1,
-    page_size: int = 50,
-) -> list[Course]:
+    name: str | None,
+    event_type: str | None,
+    club_only: bool,
+    date_from: date | None,
+    date_to: date | None,
+):
+    """Les filtres du catalogue, en un seul endroit — `list_all` et `count_all`.
+
+    Deux chaînes de filtres jumelles dériveraient l'une de l'autre au premier
+    filtre ajouté, et la dérive se lirait comme « page 4 sur 7 » sans page 4.
+    """
     from app.models.participation import Participation
 
     q = db.query(Course)
+    if name:
+        q = q.filter(Course.name.ilike(f"%{name}%"))
     if event_type:
         q = q.filter(Course.event_type == event_type)
+    if date_from:
+        q = q.filter(Course.event_date >= date_from)
+    if date_to:
+        q = q.filter(Course.event_date <= date_to)
     if club_only:
         q = (
             q.join(Participation, Participation.course_id == Course.id)
             .filter(tcn_clause(Participation.club))
             .distinct()
         )
+    return q
+
+
+def list_all(
+    db: Session,
+    *,
+    name: str | None = None,
+    event_type: str | None = None,
+    club_only: bool = False,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    page: int = 1,
+    page_size: int = 50,
+) -> list[Course]:
+    q = _filtered(
+        db,
+        name=name,
+        event_type=event_type,
+        club_only=club_only,
+        date_from=date_from,
+        date_to=date_to,
+    )
     offset = (page - 1) * page_size
     return (
         q.order_by(Course.event_date.desc().nullslast(), Course.name)
@@ -175,6 +209,26 @@ def list_all(
         .limit(page_size)
         .all()
     )
+
+
+def count_all(
+    db: Session,
+    *,
+    name: str | None = None,
+    event_type: str | None = None,
+    club_only: bool = False,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> int:
+    """Combien d'épreuves la liste rendrait sans pagination — le « sur 7 »."""
+    return _filtered(
+        db,
+        name=name,
+        event_type=event_type,
+        club_only=club_only,
+        date_from=date_from,
+        date_to=date_to,
+    ).count()
 
 
 def iter_all(
