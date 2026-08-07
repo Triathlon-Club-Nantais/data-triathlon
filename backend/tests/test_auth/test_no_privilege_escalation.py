@@ -201,3 +201,85 @@ def test_modifier_is_superuser_sans_le_porter_rend_403(
     )
 
     assert reponse.status_code == 403
+
+
+# --- Le rôle superutilisateur ne se distribue pas non plus (#239) ------------
+#
+# Les deux tests ci-dessus gardent le **champ**. Ils ne suffisaient pas : la
+# non-amplification compare les codes du rôle, et le rôle `admin` semé n'en
+# porte **aucun** — il atteint tout par `is_superuser` (migration
+# `f6a7b8c9d0e1`). Un porteur de `roles:assign` accordait donc l'administration
+# entière, à quiconque et à lui-même, en franchissant un contrôle qui n'avait
+# rien à comparer.
+
+
+def _role_superutilisateur(db_session, *porteurs, organisation):
+    """Un rôle superutilisateur **sans aucun code**, tel que le sème la migration."""
+    from app.repositories import role_repository, user_role_repository
+
+    role = role_repository.create(
+        db_session, slug="root", name="Administrateur", is_superuser=True
+    )
+    db_session.flush()
+    for porteur in porteurs:
+        user_role_repository.grant(
+            db_session,
+            user_id=porteur.id,
+            role_id=role.id,
+            organisation_id=organisation.id,
+        )
+    db_session.commit()
+    return role
+
+
+def test_attribuer_un_role_superutilisateur_sans_l_etre_rend_403(
+    client, ouvrir_session, db_session, organisation
+):
+    """FR-010 au moment de l'**attribution**, et non seulement de la composition."""
+    ouvrir_session(P.ROLES_ASSIGN)
+    cible = ouvrir_session(pose_le_cookie=False)
+    role = _role_superutilisateur(db_session, organisation=organisation)
+
+    reponse = client.post(
+        f"/api/v1/admin/users/{cible.id}/roles",
+        json={"role_id": role.id, "organisation_id": organisation.id},
+    )
+
+    assert reponse.status_code == 403
+
+
+def test_retirer_un_role_superutilisateur_sans_l_etre_rend_403(
+    client, ouvrir_session, db_session, organisation
+):
+    """Symétrique, et pour la même raison : destituer un administrateur est un
+    geste d'administrateur. Deux porteurs, pour que le refus vienne de FR-010 et
+    non de l'invariant du dernier administrateur, qui rendrait 409."""
+    ouvrir_session(P.ROLES_ASSIGN)
+    cible = ouvrir_session(pose_le_cookie=False)
+    second = ouvrir_session(pose_le_cookie=False)
+    role = _role_superutilisateur(db_session, cible, second, organisation=organisation)
+
+    reponse = client.delete(f"/api/v1/admin/users/{cible.id}/roles/{role.id}")
+
+    assert reponse.status_code == 403
+
+
+def test_un_superutilisateur_distribue_le_role_superutilisateur(
+    client, ouvrir_session, db_session, organisation
+):
+    """La contrepartie, sans quoi plus personne ne pourrait déléguer."""
+    ouvrir_session(superutilisateur=True)
+    cible = ouvrir_session(pose_le_cookie=False)
+    role = _role_superutilisateur(db_session, organisation=organisation)
+
+    assert (
+        client.post(
+            f"/api/v1/admin/users/{cible.id}/roles",
+            json={"role_id": role.id, "organisation_id": organisation.id},
+        ).status_code
+        == 201
+    )
+    assert (
+        client.delete(f"/api/v1/admin/users/{cible.id}/roles/{role.id}").status_code
+        == 204
+    )

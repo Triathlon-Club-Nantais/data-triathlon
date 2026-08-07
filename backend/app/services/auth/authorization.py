@@ -17,7 +17,12 @@ from app.core.permissions import Permission
 from app.models.role import Role
 from app.models.role_permission import RolePermission
 from app.models.user import User
-from app.repositories import role_repository, user_repository, user_role_repository
+from app.repositories import (
+    allowed_email_repository,
+    role_repository,
+    user_repository,
+    user_role_repository,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -222,6 +227,41 @@ def assert_may_set_superuser(db: Session, actor: User, *, organisation_id=None) 
         )
 
 
+def assert_may_hand_over(db: Session, actor: User, role: Role) -> None:
+    """Les deux contrôles que **tout** changement de mains d'un rôle doit passer.
+
+    Un seul point d'entrée, et c'est le but : `grant_role`, `revoke_role` et le
+    choix d'un rôle initial (#239) les portaient séparément, et le troisième
+    chemin a été ajouté sans le second — la façon exacte dont ces règles se
+    perdent. La prochaine façon de faire changer un rôle de mains appellera
+    ceci, ou n'appellera rien du tout de visible.
+    """
+    connus, _ = _codes(role)
+    assert_may_grant(db, actor, set(connus))
+    assert_may_distribute_superuser(db, actor, role)
+
+
+def assert_may_distribute_superuser(db: Session, actor: User, role: Role) -> None:
+    """FR-010 au moment où le rôle **change de mains**, et pas seulement d'attributs.
+
+    `assert_may_grant` ne compare que des codes, et le rôle `admin` semé n'en
+    porte **aucun** : il atteint tout par `is_superuser` (migration
+    `f6a7b8c9d0e1`). Un porteur de `roles:assign` franchissait donc un contrôle
+    qui n'avait rien à comparer, et distribuait l'administration entière — à
+    quiconque et à lui-même.
+
+    Le retrait passe par la même garde : destituer un administrateur est un
+    geste d'administrateur. L'invariant du dernier administrateur ne le
+    couvrait pas — il garde le *dernier*, pas l'avant-dernier.
+
+    Comme les deux appels de `assert_may_set_superuser` qu'elle prolonge, elle
+    ne restreint pas la question à une organisation : le caractère
+    superutilisateur y est déjà jugé sur l'ensemble des rôles portés.
+    """
+    if role.is_superuser:
+        assert_may_set_superuser(db, actor)
+
+
 def assert_role_assignable_in(db: Session, role: Role, organisation_id: int) -> None:
     """FR-008 — un rôle propre à A n'est pas attribuable dans B.
 
@@ -387,6 +427,16 @@ def delete_role(db: Session, actor: User, role: Role) -> None:
             f"Ce rôle est porté par {porteurs} utilisateur"
             f"{'s' if porteurs > 1 else ''}. Retirez-le d'abord."
         )
+    # Même refus pour les adresses qui le posent à l'inscription (#239) : sans
+    # lui, la clé étrangère céderait en PostgreSQL et serait **inerte** en
+    # SQLite — un même geste, deux comportements.
+    adresses = allowed_email_repository.count_by_role(db, role.id)
+    if adresses:
+        raise RoleInUseError(
+            f"Ce rôle est donné à l'inscription de {adresses} adresse"
+            f"{'s' if adresses > 1 else ''} autorisée"
+            f"{'s' if adresses > 1 else ''}. Retirez-le d'abord de ces adresses."
+        )
     with administrateurs_preserves(db, role.organisation_id):
         logger.info("Role deleted: actor=%s role=%s", actor.id, role.slug)
         role_repository.delete(db, role)
@@ -397,8 +447,7 @@ def grant_role(
 ) -> None:
     """Attribue un rôle. Idempotent (FR-012)."""
     assert_role_assignable_in(db, role, organisation_id)
-    connus, _ = _codes(role)
-    assert_may_grant(db, actor, set(connus))
+    assert_may_hand_over(db, actor, role)
 
     _, cree = user_role_repository.grant(
         db, user_id=user.id, role_id=role.id, organisation_id=organisation_id
@@ -417,8 +466,7 @@ def revoke_role(
     db: Session, actor: User, *, user: User, role: Role, organisation_id: int
 ) -> None:
     """Retire un rôle. Idempotent, et **soumis à l'invariant** (FR-032)."""
-    connus, _ = _codes(role)
-    assert_may_grant(db, actor, set(connus))
+    assert_may_hand_over(db, actor, role)
 
     with administrateurs_preserves(db, organisation_id):
         user_role_repository.revoke(
