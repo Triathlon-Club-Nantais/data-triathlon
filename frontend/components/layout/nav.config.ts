@@ -19,7 +19,7 @@ export const ROLE = { ANON: 0, CONNECTED: 1, ADMIN: 2 } as const;
 export type NavItem = {
   id: string;
   label: string;
-  /** Absent quand `soon` : l'entrée est portée, pas cliquable. */
+  /** Absent quand `soon` : rien à atteindre, donc rien à rendre. */
   href?: string;
   icon?: LucideIcon;
   minRole?: number;
@@ -34,7 +34,12 @@ export type NavItem = {
    * menu, jamais une donnée.
    */
   permission?: string;
-  /** Écran pas encore livré : porté désactivé plutôt qu'inventé. */
+  /**
+   * Écran pas encore livré : l'entrée reste déclarée ici — cette table **est**
+   * la feuille de route de la navigation — mais `AppNav` ne la rend pas (#242).
+   * Livrer l'écran tient alors en une ligne : poser le `href`, retirer le
+   * `soon`.
+   */
   soon?: boolean;
 };
 

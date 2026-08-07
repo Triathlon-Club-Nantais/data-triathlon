@@ -120,18 +120,29 @@ describe("AppNav — actions primaires", () => {
 });
 
 describe("AppNav — arborescence", () => {
-  it("mène aux écrans livrés et porte les autres désactivés", async () => {
+  it("ne rend que les écrans livrés (#242)", async () => {
     afficher(null);
     await deplier();
 
     expect(screen.getByRole("link", { name: "Tableau de bord" })).toHaveAttribute("href", "/dashboard");
     expect(screen.getByRole("link", { name: "Résultats" })).toHaveAttribute("href", "/resultats");
 
-    // Sans écran livré : l'entrée est portée, annoncée « À VENIR », mais
-    // n'est pas un lien.
-    expect(screen.queryByRole("link", { name: "Carte" })).not.toBeInTheDocument();
-    expect(screen.getByText("Carte")).toBeInTheDocument();
-    expect(screen.getAllByText("À VENIR").length).toBeGreaterThan(0);
+    // Une entrée `soon` reste déclarée dans `nav.config.ts` — feuille de route
+    // de la navigation — mais n'est plus rendue nulle part.
+    expect(screen.queryByText("Carte")).not.toBeInTheDocument();
+    expect(screen.queryByText("À VENIR")).not.toBeInTheDocument();
+  });
+
+  it("retire la section dont toutes les entrées sont à venir, rail replié compris", async () => {
+    // « Club » n'a que des entrées `soon` : ni intitulé dans le panneau, ni
+    // tuile qui déplierait sur du vide dans le rail.
+    afficher(null);
+    expect(screen.queryByRole("button", { name: "Club" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Carte")).not.toBeInTheDocument();
+
+    await deplier();
+    expect(screen.queryByText("Club")).not.toBeInTheDocument();
+    expect(screen.queryByText("Espace club")).not.toBeInTheDocument();
   });
 
   it("marque l'entrée courante avec aria-current=\"page\"", async () => {
@@ -227,24 +238,24 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
 
   it("ne porte que les entrées dont le pouvoir est détenu", async () => {
     // Composer les droits d'un rôle et autoriser une adresse sont deux pouvoirs
-    // distincts : porter l'un ne doit pas annoncer l'écran de l'autre.
+    // distincts : porter l'un ne doit pas annoncer l'écran de l'autre. Le seul
+    // écran livré de la section étant celui des accès, `roles:write` seul ne
+    // laisse rien à annoncer — la section entière disparaît.
     afficher(habilite("roles:write"));
     await deplier();
-    await waitFor(() => expect(screen.getByText("Gestion des utilisateurs")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Administration")).toBeInTheDocument());
 
-    expect(screen.getByText("Droits des rôles")).toBeInTheDocument();
+    expect(screen.queryByText("Gestion des utilisateurs")).not.toBeInTheDocument();
     expect(screen.queryByText("Accès au back-office")).not.toBeInTheDocument();
-    expect(screen.queryByText("Groupes d'appartenance")).not.toBeInTheDocument();
   });
 
-  it("porte les écrans non livrés désactivés plutôt que de les inventer", async () => {
-    afficher(habilite("roles:assign", "groups:assign"));
+  it("ne rend pas les écrans non livrés, même à qui en porte le pouvoir (#242)", async () => {
+    afficher(habilite("allowed_emails:manage", "roles:assign", "groups:assign"));
     await deplier();
     await waitFor(() => expect(screen.getByText("Gestion des utilisateurs")).toBeInTheDocument());
 
     for (const libelle of ["Rôles des utilisateurs", "Groupes d'appartenance"]) {
-      expect(screen.getByText(libelle)).toBeInTheDocument();
-      expect(screen.queryByRole("link", { name: libelle })).not.toBeInTheDocument();
+      expect(screen.queryByText(libelle)).not.toBeInTheDocument();
     }
   });
 });
