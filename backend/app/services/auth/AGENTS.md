@@ -185,6 +185,15 @@ Cinq choses à ne pas défaire :
   pouvoirs effectifs *sont* le catalogue : le comparer rendrait son rôle
   immodifiable, et `is_system` ou attribué, indélébile. Un nettoyage de code
   ordinaire suffirait à geler un rôle définitivement.
+- **Comparer des codes ne suffit pas à garder le rôle superutilisateur** (#239).
+  `admin` ne porte **aucun** code : la non-amplification n'avait rien à comparer
+  et laissait un simple porteur de `roles:assign` distribuer l'administration
+  entière — à quiconque et à lui-même. `assert_may_distribute_superuser` ferme
+  l'attribution **et** le retrait : destituer un administrateur est un geste
+  d'administrateur, et l'invariant du dernier ne garde que le *dernier*, pas
+  l'avant-dernier. Toute nouvelle façon de faire changer un rôle de mains doit
+  la rappeler — la garde des *attributs* (`assert_may_set_superuser`, FR-010) ne
+  la couvre pas.
 - **Un code hors catalogue n'accorde rien et ne casse rien** (FR-042). La garde
   demande « porte-t-il *ce* code ? », jamais « quels codes porte-t-il ? » : les
   lignes orphelines sont inertes par construction. L'API les range dans
@@ -259,6 +268,31 @@ Cinq points à ne pas défaire :
   `read` regarderait un écran où tous les gestes échouent. Le rôle `admin` étant
   superutilisateur, il le franchit sans migration ni semis — c'est ce qui répond
   à « réservé aux administrateurs » **sans** nommer un rôle dans une garde.
+- **L'autorisation porte le rôle du premier jour** (`allowed_emails.role_id`,
+  #239). Sans lui, le geste d'administration était coupé en deux par un
+  événement que l'administrateur ne contrôle pas — la première connexion de la
+  personne : autoriser, *attendre*, puis attribuer depuis un autre écran ; entre
+  les deux, un connecté sans aucun rôle. Trois propriétés le tiennent :
+  - **Il s'applique à la création du compte, une fois.** Ni à une reconnexion,
+    ni à une réactivation — sinon un retrait de rôle serait défait par la
+    prochaine connexion de l'intéressé, sans que rien ne le dise.
+  - **Le contrôle porte sur le choix, jamais sur l'application.** C'est
+    `allowed_emails.add` qui appelle `assert_may_hand_over`, là où il y a un
+    acteur ; `provisioning` n'en a aucun. Même asymétrie que `grant-role`.
+  - **Rien de ce qui échoue à l'application ne refuse la connexion** : un rôle
+    disparu ou une base sans organisation journalisent et passent. Un visiteur
+    légitime laissé dehors par un code d'erreur qui n'explique rien serait pire
+    que l'absence de rôle qu'on cherchait justement à éviter.
+  Il ne contredit pas « cette table autorise, elle n'identifie pas » : il ne
+  désigne aucun titulaire, il dit avec quoi celui qui viendra commencera.
+- **`has_account` dit « quelqu'un est venu », pas « qui »** (`AllowedEmailRead`).
+  Un booléen, calculé par rapprochement d'adresses en une requête pour toute la
+  liste — c'est le retour qui manquait sur le rôle ci-dessus : « déjà appliqué »
+  et « attend toujours » se ressemblent sans lui. **Ne pas en faire un lien vers
+  le compte** : `users.email` n'est pas unique (FR-003), une adresse peut en
+  porter plusieurs, et choisir lequel serait exactement l'appariement par adresse
+  que #114 interdit. Le rapprochement ignore la casse — `users.email` garde celle
+  du fournisseur, `allowed_emails` la normalise.
 - **Le retrait désactive, l'ajout réactive.** Retirer une adresse passe
   `is_active = False` sur les comptes qui la portent, ce qui fait tomber leurs
   sessions **immédiatement** (l'invariant de `session.resolve` est une jointure).
