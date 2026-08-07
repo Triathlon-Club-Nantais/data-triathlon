@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { ListOrdered, Pencil, Trash2 } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -12,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
+import { eventTypeLabel } from "@/lib/constants";
 import { useAdminCourses, TAILLE_PAGE_ADMIN } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
 import { formatDate } from "@/lib/utils/date";
@@ -85,25 +87,55 @@ export function CoursesAdminTable() {
               <TableRow key={course.id}>
                 <TableCell className="max-w-xs truncate">{course.name}</TableCell>
                 <TableCell>{formatDate(course.event_date)}</TableCell>
-                <TableCell>{course.event_type}</TableCell>
-                <TableCell className="space-x-2 text-right">
-                  <Button size="sm" variant="ghost" onClick={() => setADetailler(course)}>
-                    Résultats
-                  </Button>
-                  {peutCorriger && (
-                    <Button size="sm" variant="outline" onClick={() => setACorriger(course)}>
-                      Corriger
-                    </Button>
-                  )}
-                  {peutSupprimer && (
+                {/* Le slug reste affiché tel quel s'il est inconnu de la table :
+                    une administration qui masque « triathlon-xxl » derrière un
+                    tiret cache justement l'épreuve à corriger. */}
+                <TableCell>{eventTypeLabel(course.event_type)}</TableCell>
+                <TableCell className="text-right">
+                  {/* Trois pastilles **bordées et colorées au repos** : sans
+                      contour un bouton-icône ne se lit pas comme un contrôle,
+                      et sans couleur rien ne dit lequel détruit. Le survol
+                      ajoute l'aplat. Le libellé porte le nom de l'épreuve,
+                      sans quoi la page aligne cinquante « Supprimer »
+                      indiscernables à la lecture d'écran ; `title` suffit à
+                      l'infobulle, plutôt qu'installer @radix-ui/react-tooltip
+                      pour trois boutons. */}
+                  <div className="flex justify-end gap-1.5">
                     <Button
-                      size="sm"
+                      size="icon-sm"
                       variant="outline"
-                      onClick={() => setASupprimer(course)}
+                      className="text-muted-foreground hover:bg-muted hover:text-foreground"
+                      title="Voir les résultats"
+                      aria-label={`Résultats — ${course.name}`}
+                      onClick={() => setADetailler(course)}
                     >
-                      Supprimer
+                      <ListOrdered />
                     </Button>
-                  )}
+                    {peutCorriger && (
+                      <Button
+                        size="icon-sm"
+                        variant="outline"
+                        className="border-primary/25 text-primary hover:border-primary/50 hover:bg-primary/10 hover:text-primary"
+                        title="Corriger l'épreuve"
+                        aria-label={`Corriger — ${course.name}`}
+                        onClick={() => setACorriger(course)}
+                      >
+                        <Pencil />
+                      </Button>
+                    )}
+                    {peutSupprimer && (
+                      <Button
+                        size="icon-sm"
+                        variant="outline"
+                        className="border-destructive/25 text-destructive hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive"
+                        title="Supprimer l'épreuve"
+                        aria-label={`Supprimer — ${course.name}`}
+                        onClick={() => setASupprimer(course)}
+                      >
+                        <Trash2 />
+                      </Button>
+                    )}
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

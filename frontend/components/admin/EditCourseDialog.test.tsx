@@ -50,8 +50,27 @@ describe("EditCourseDialog", () => {
 
     expect(screen.getByLabelText(/nom/i)).toHaveValue("Tri de Nates");
     expect(screen.getByLabelText(/date/i)).toHaveValue("2026-05-17");
-    expect(screen.getByLabelText(/type/i)).toHaveValue("triathlon-m");
+    // Le type se lit en clair : « triathlon-m » est un slug de base, pas un
+    // libellé d'écran.
+    expect(screen.getByRole("combobox")).toHaveTextContent("Triathlon M");
     expect(screen.getByLabelText(/relais/i)).toBeInTheDocument();
+  });
+
+  it("change de discipline par son libellé et enregistre le slug", async () => {
+    updateCourse.mockResolvedValue(EPREUVE);
+
+    afficher();
+    await userEvent.click(screen.getByRole("combobox"));
+    await userEvent.click(await screen.findByRole("option", { name: "Duathlon S" }));
+    await userEvent.click(screen.getByRole("button", { name: /enregistrer/i }));
+
+    // L'utilisateur choisit « Duathlon S », le serveur reçoit « duathlon-s ».
+    await waitFor(() =>
+      expect(updateCourse).toHaveBeenCalledWith(
+        12,
+        expect.objectContaining({ event_type: "duathlon-s" }),
+      ),
+    );
   });
 
   it("enregistre la correction", async () => {
