@@ -82,12 +82,20 @@ dispatch ne rend aucun identifiant.
 
 | Sortie | Destination | Usage |
 | --- | --- | --- |
-| Rapport texte | `$GITHUB_STEP_SUMMARY` | Lecture humaine sur la page de l'exécution |
+| Rapport texte, **200 derniers Ko** | `$GITHUB_STEP_SUMMARY` | Lecture humaine sur la page de l'exécution |
+| Rapport texte entier | artefact `rapport-<correlation_id>` | Diagnostic humain |
 | Charge `--json` | artefact `bilan-<correlation_id>.json` | Lecture par l'API (`GET …/report`) |
 | Progression et journaux | journal du job (stderr) | Diagnostic |
 | Code de sortie | conclusion de l'exécution | Alerte : `1` ⇒ exécution rouge |
 
-La séparation stdout/stderr de la CLI est ce qui rend ces quatre sorties
+Le résumé est **borné** : au-delà de 1 Mo, la plateforme le refuse en entier —
+il ne tronque pas, il perd tout. Le journal de scraping d'une seule épreuve
+suffit à l'atteindre (run 31202351491, 1029 Ko). Le rapport entier reste donc
+lisible dans son propre artefact. Il est **séparé** du bilan : le lecteur du
+bilan tient de ce contrat que le zip ne porte qu'une entrée, et qu'elle est le
+JSON.
+
+La séparation stdout/stderr de la CLI est ce qui rend ces sorties
 possibles sans post-traitement : `--json` laisse **uniquement** la ligne JSON sur
 stdout, que le workflow redirige vers le fichier d'artefact, pendant que le
 rapport texte et la progression partent sur stderr (Principe IV,
