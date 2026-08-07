@@ -113,6 +113,30 @@ describe("CourseParticipationsDialog", () => {
     expect(await screen.findByLabelText(/naissance/i)).toHaveValue("1988-03-02");
   });
 
+  it("garde la liste affichée le temps que la fiche charge", async () => {
+    let livrer: (fiche: unknown) => void = () => {};
+    getAthleteAdmin.mockReturnValue(new Promise((resolve) => (livrer = resolve)));
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /corriger le coureur/i }));
+
+    // Fermer la liste dès le clic laisserait l'écran sans aucune modale tant
+    // que la fiche n'est pas arrivée : un trou visible, et définitif si elle
+    // n'arrive jamais.
+    expect(screen.getByText(/J\. DUPONT/)).toBeInTheDocument();
+
+    livrer({
+      id: 1,
+      nom: "J. DUPONT",
+      prenom: "",
+      birth_date: "1988-03-02",
+      gender: "M",
+      club: "TCN",
+      participations: 3,
+    });
+    expect(await screen.findByLabelText(/naissance/i)).toBeInTheDocument();
+  });
+
   it("ne laisse pas l'écran dans un cul-de-sac si la fiche est refusée", async () => {
     // Composition de rôle légale : `athletes:write` sans `athletes:read`.
     getSession.mockResolvedValue(session(["athletes:write"]));

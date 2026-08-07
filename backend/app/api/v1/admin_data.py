@@ -18,7 +18,7 @@ from app.api.deps import require_permission
 from app.core.database import get_db
 from app.core.permissions import P
 from app.models.user import User
-from app.repositories import athlete_repository
+from app.repositories import athlete_repository, participation_repository
 from app.schemas.admin import (
     AdminAthleteRead,
     AdminAthleteUpdate,
@@ -33,8 +33,13 @@ from app.services import admin_actions
 router = APIRouter(tags=["admin"])
 
 
-def _fiche(athlete, participations: int | None = None) -> AdminAthleteRead:
-    """Une fiche coureur prête à servir. Trois routes la construisent."""
+def _fiche(athlete, participations: int) -> AdminAthleteRead:
+    """Une fiche coureur prête à servir. Trois routes la construisent.
+
+    Le compte est **fourni**, jamais déduit d'`athlete.participations` : lire la
+    longueur de la relation hydraterait toute la collection pour n'en garder que
+    la taille.
+    """
     return AdminAthleteRead(
         id=athlete.id,
         nom=athlete.nom,
@@ -42,7 +47,7 @@ def _fiche(athlete, participations: int | None = None) -> AdminAthleteRead:
         birth_date=athlete.birth_date,
         gender=athlete.gender,
         club=athlete.club,
-        participations=len(athlete.participations) if participations is None else participations,
+        participations=participations,
     )
 
 
@@ -80,7 +85,8 @@ def get_athlete(
     l'`AthleteBrief` de la participation — **sans `birth_date`** — et
     l'enregistrement effacerait une date de naissance qu'il n'a jamais lue.
     """
-    return _fiche(admin_actions.get_athlete(db, athlete_id=athlete_id))
+    athlete = admin_actions.get_athlete(db, athlete_id=athlete_id)
+    return _fiche(athlete, participation_repository.count_for_athlete(db, athlete_id))
 
 
 @router.post(
@@ -153,7 +159,7 @@ def update_athlete(
         user_id=user.id,
     )
     db.commit()
-    return _fiche(athlete)
+    return _fiche(athlete, participation_repository.count_for_athlete(db, athlete_id))
 
 
 @router.patch("/admin/courses/{course_id}", response_model=CourseBrief)
