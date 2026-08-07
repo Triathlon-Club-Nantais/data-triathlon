@@ -31,21 +31,17 @@ def _journal(caplog) -> str:
     )
 
 
-def test_un_socle_non_configure_nomme_les_trois_reglages_manquants(caplog, monkeypatch):
-    _sans(
-        monkeypatch,
-        "AUTH_SESSION_SECRET_KEY",
-        "AUTH_ALLOWED_EMAILS",
-        "AUTH_REDIRECT_BASE_URL",
-    )
+def test_un_socle_non_configure_nomme_les_deux_reglages_manquants(caplog, monkeypatch):
+    """Deux, et non plus trois : la liste d'autorisation a quitté la configuration (#170)."""
+    _sans(monkeypatch, "AUTH_SESSION_SECRET_KEY", "AUTH_REDIRECT_BASE_URL")
 
     with caplog.at_level(logging.WARNING):
         _warn_if_auth_unconfigured()
 
     journal = _journal(caplog)
     assert "AUTH_SESSION_SECRET_KEY" in journal
-    assert "AUTH_ALLOWED_EMAILS" in journal
     assert "AUTH_REDIRECT_BASE_URL" in journal
+    assert "AUTH_ALLOWED_EMAILS" not in journal
 
 
 def test_seul_le_reglage_reellement_absent_est_nomme(caplog, monkeypatch):
@@ -58,7 +54,6 @@ def test_seul_le_reglage_reellement_absent_est_nomme(caplog, monkeypatch):
     journal = _journal(caplog)
     assert "AUTH_REDIRECT_BASE_URL" in journal
     assert "AUTH_SESSION_SECRET_KEY" not in journal
-    assert "AUTH_ALLOWED_EMAILS" not in journal
 
 
 def test_un_fournisseur_non_configure_est_nomme_par_son_slug(caplog, monkeypatch):
@@ -93,12 +88,7 @@ def test_un_socle_complet_et_un_fournisseur_configure_ne_disent_rien(caplog):
 def test_une_base_de_production_reste_silencieuse(caplog, monkeypatch):
     """Le silence en production est un choix : pas de bruit dans Sentry pour une
     installation qui n'utilise délibérément pas l'authentification."""
-    _sans(
-        monkeypatch,
-        "AUTH_SESSION_SECRET_KEY",
-        "AUTH_ALLOWED_EMAILS",
-        "AUTH_REDIRECT_BASE_URL",
-    )
+    _sans(monkeypatch, "AUTH_SESSION_SECRET_KEY", "AUTH_REDIRECT_BASE_URL")
     monkeypatch.setenv("DATABASE_URL", "postgresql://user@host/db")
     get_settings.cache_clear()
 

@@ -18,7 +18,6 @@ REGLAGES = {
     "AUTH_SESSION_SECRET_KEY": "k" * 48,
     "AUTH_GITHUB_CLIENT_ID": "Iv1.test-client-id",
     "AUTH_GITHUB_CLIENT_SECRET": "test-client-secret",
-    "AUTH_ALLOWED_EMAILS": "contributeur@exemple.fr",
     "AUTH_REDIRECT_BASE_URL": "http://127.0.0.1:3000",
     "AUTH_COOKIE_SECURE": "false",
     "AUTH_SESSION_TTL_DAYS": "7",
@@ -45,6 +44,51 @@ def reglages_auth(monkeypatch):
 def settings(reglages_auth):
     """Réglages effectifs du test courant, après d'éventuelles surcharges."""
     return get_settings()
+
+
+#: L'adresse du cas nominal, celle que rend la doublure de fournisseur.
+ADRESSE_AUTORISEE = "contributeur@exemple.fr"
+
+
+@pytest.fixture
+def autoriser(db_session):
+    """Inscrit une adresse dans la liste d'autorisation, en base (#170).
+
+    Depuis que la liste a quitté l'environnement, autoriser quelqu'un est une
+    **écriture**, pas un réglage : la fixture remplace les
+    `monkeypatch.setenv("AUTH_ALLOWED_EMAILS", …)` d'avant.
+    """
+    from app.repositories import allowed_email_repository
+
+    def _autoriser(*adresses: str) -> None:
+        for adresse in adresses:
+            allowed_email_repository.add(db_session, email=adresse)
+        db_session.commit()
+
+    return _autoriser
+
+
+@pytest.fixture(autouse=True)
+def liste_autorisation(autoriser):
+    """Le cas nominal : l'adresse de la doublure est autorisée.
+
+    Autouse, au même titre que `reglages_auth` et pour la même raison — c'est le
+    cas nominal qui doit être le défaut, un test qui éprouve le refus retirant ce
+    qu'il lui faut (`vider_la_liste_autorisation`) plutôt que l'inverse.
+    """
+    autoriser(ADRESSE_AUTORISEE)
+
+
+@pytest.fixture
+def vider_la_liste_autorisation(db_session):
+    """Ramène la liste à vide — l'état fail-closed (FR-004)."""
+    from app.models.allowed_email import AllowedEmail
+
+    def _vider() -> None:
+        db_session.query(AllowedEmail).delete()
+        db_session.commit()
+
+    return _vider
 
 
 class DoublureProvider:

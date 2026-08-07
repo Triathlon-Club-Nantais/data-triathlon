@@ -1,7 +1,6 @@
 """SC-003 — un refus d'identité ne laisse **jamais** d'utilisateur enregistré."""
 import pytest
 
-from app.core.config import get_settings
 from app.models.identity import Identity
 from app.models.user import User
 from app.models.user_session import UserSession
@@ -63,22 +62,25 @@ def test_adresse_hors_liste(db_session, doublure):
     assert _base_vide(db_session)
 
 
-def test_liste_vide(db_session, doublure, monkeypatch):
-    """Fail-closed **en amont** : une liste vide ferme l'entrée du parcours.
+def test_liste_vide(db_session, doublure, vider_la_liste_autorisation):
+    """Fail-closed **au retour**, et non plus à l'entrée du parcours (#170).
 
-    Le refus tombe donc en `not_configured` (503 côté HTTP) et non en
-    `account_not_allowed` : il n'y a plus de parcours à achever. Le refus par
-    liste au **retour** — le cas d'une liste garnie qui ne contient pas cette
-    adresse — reste couvert par `test_adresse_hors_liste` et par
-    `test_provisioning.py`. Dans les deux cas, rien n'est enregistré.
+    C'est le changement de comportement assumé par le passage de la liste en
+    base : le garde de configuration ne la pèse plus, donc une liste vide
+    n'interdit plus d'ouvrir le parcours — elle refuse à l'arrivée, en
+    `account_not_allowed`. Le prix est un aller-retour chez le fournisseur pour
+    rien ; ce qu'on gagne est de ne pas faire porter une requête base à
+    `/auth/methods`, route **publique** appelée par la page de connexion.
+
+    Ce qui n'a pas bougé, et c'est l'essentiel : rien n'est enregistré, et une
+    liste vide n'a jamais valu « tout le monde ».
     """
-    monkeypatch.setenv("AUTH_ALLOWED_EMAILS", "")
-    get_settings.cache_clear()
+    vider_la_liste_autorisation()
 
     with pytest.raises(LoginError) as refus:
         _parcours(db_session, doublure)
 
-    assert refus.value.code == "not_configured"
+    assert refus.value.code == "account_not_allowed"
     assert _base_vide(db_session)
 
 

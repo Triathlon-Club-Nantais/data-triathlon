@@ -67,7 +67,8 @@ def grant_role(
                 f"Aucun utilisateur ne porte l'adresse « {email} ».\n"
                 "Un utilisateur naît d'une **connexion** réussie, jamais d'une "
                 "commande : demandez à la personne de se connecter une première "
-                "fois. Son adresse doit d'abord figurer dans AUTH_ALLOWED_EMAILS."
+                "fois. Si son adresse n'est pas encore autorisée : "
+                f"« allow-email --email {email} »."
             )
         if len(candidats) > 1:
             # `users.email` n'est pas unique, délibérément (#114, FR-003) :

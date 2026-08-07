@@ -98,7 +98,7 @@ def test_une_adresse_inconnue_sort_en_2_et_explique(monkeypatch, db_session):
     assert resultat.exit_code == 2
     sortie = resultat.stdout + (resultat.stderr or "")
     assert "connexion" in sortie
-    assert "AUTH_ALLOWED_EMAILS" in sortie
+    assert "allow-email" in sortie
     assert user_repository.list_all(db_session) == []
 
 

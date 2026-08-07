@@ -8,6 +8,7 @@ export const queryKeys = {
     ["course-participations", courseId, scope ?? null, name ?? null] as const,
   stats: (scope?: string) => ["stats", scope ?? null] as const,
   pendingProviders: () => ["pending-providers"] as const,
+  allowedEmails: () => ["allowed-emails"] as const,
   session: () => ["session"] as const,
   authMethods: () => ["auth-methods"] as const,
 };

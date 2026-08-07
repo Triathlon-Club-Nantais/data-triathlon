@@ -293,3 +293,59 @@ def test_downgrade_puis_upgrade_du_rbac(sqlite_url):
     assert {"organisations", "roles", "role_permissions", "user_roles"} <= _tables(
         sqlite_url
     )
+
+
+# --- Liste d'autorisation en base (#170) ------------------------------------
+
+
+def test_la_table_des_adresses_autorisees_est_creee(sqlite_url):
+    command.upgrade(_alembic_config(), "head")
+    assert "allowed_emails" in _tables(sqlite_url)
+
+
+def test_la_reprise_importe_les_adresses_de_l_environnement(sqlite_url, monkeypatch):
+    """FR-013 : la production ne doit pas se retrouver liste vide au déploiement.
+
+    Le `startCommand` de Render exécute `alembic upgrade head` avant `uvicorn` :
+    la reprise a donc lieu **avant** la première requête, sans fenêtre pendant
+    laquelle un contributeur autorisé se verrait refuser la connexion (SC-005).
+
+    La migration lit `os.environ` et non `Settings` : le réglage a disparu de la
+    configuration dans la même livraison. L'exception est bornée à ce fichier.
+    """
+    monkeypatch.setenv(
+        "AUTH_ALLOWED_EMAILS", " A@Exemple.FR ,b@exemple.fr,a@exemple.fr "
+    )
+
+    command.upgrade(_alembic_config(), "head")
+
+    assert _lignes(sqlite_url, "SELECT email FROM allowed_emails ORDER BY email") == [
+        ("a@exemple.fr",),
+        ("b@exemple.fr",),
+    ]
+
+
+def test_la_reprise_n_ecrit_rien_sans_variable(sqlite_url, monkeypatch):
+    """Base neuve : la variable est absente, et c'est le cas nominal."""
+    monkeypatch.delenv("AUTH_ALLOWED_EMAILS", raising=False)
+
+    command.upgrade(_alembic_config(), "head")
+
+    assert _lignes(sqlite_url, "SELECT email FROM allowed_emails") == []
+
+
+def test_downgrade_puis_upgrade_des_adresses_autorisees(sqlite_url, monkeypatch):
+    monkeypatch.delenv("AUTH_ALLOWED_EMAILS", raising=False)
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+
+    # Cible **nommée**, et c'est la révision qui précède immédiatement celle des
+    # adresses autorisées — `7f53922f6c73` depuis le rebasage sur #197. Un `-1`
+    # se serait décalé à la première migration insérée entre-temps, et
+    # descendrait alors autre chose sans que l'assertion cesse de passer.
+    command.downgrade(cfg, "7f53922f6c73")
+    assert "allowed_emails" not in _tables(sqlite_url)
+    assert "groups" in _tables(sqlite_url), "la descente ne doit pas emporter #197"
+
+    command.upgrade(cfg, "head")
+    assert "allowed_emails" in _tables(sqlite_url)

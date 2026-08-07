@@ -9,6 +9,7 @@ import type {
   ImportResult,
   Participation,
   ParticipationFilters,
+  AllowedEmail,
   PendingProvider,
   ScrapedPreview,
   Season,
@@ -35,6 +36,30 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Le `detail` d'une réponse d'erreur, ramené à une chaîne affichable.
+ *
+ * Les `DomainError` du backend rendent `{"detail": "<français>"}` et se
+ * réaffichent verbatim. Mais la validation Pydantic, elle, rend une **liste**
+ * d'objets `{loc, msg, …}` : passée telle quelle à `new Error(message)`, elle
+ * s'affichait « [object Object] » dans un toast. Le cas est atteignable sur
+ * toute route à contrainte de champ ou `extra="forbid"`.
+ */
+function messageDErreur(detail: unknown, repli: string): string {
+  if (typeof detail === "string" && detail) return detail;
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) =>
+        typeof item === "object" && item !== null && "msg" in item
+          ? String((item as { msg: unknown }).msg)
+          : null,
+      )
+      .filter(Boolean);
+    if (messages.length) return messages.join(" · ");
+  }
+  return repli || "Erreur réseau";
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { "Content-Type": "application/json", ...(options.headers ?? {}) },
@@ -42,7 +67,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new ApiError(res.status, err.detail || "Erreur réseau");
+    throw new ApiError(res.status, messageDErreur(err.detail, res.statusText));
   }
   if (res.status === 204) return null as T;
   return res.json() as Promise<T>;
@@ -124,4 +149,16 @@ export const apiClient = {
     }),
   markProviderHandled: (id: number) =>
     request<null>(`/admin/pending-providers/${id}`, { method: "DELETE" }),
+
+  // ── Accès au back-office (#170) ────────────────────────────────────────────
+  // Les trois gestes exigent le pouvoir `allowed_emails:manage` ; un anonyme
+  // obtient 401 et jamais la liste.
+  listAllowedEmails: () => request<AllowedEmail[]>("/admin/allowed-emails"),
+  addAllowedEmail: (email: string) =>
+    request<AllowedEmail>("/admin/allowed-emails", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+  removeAllowedEmail: (id: number) =>
+    request<null>(`/admin/allowed-emails/${id}`, { method: "DELETE" }),
 };

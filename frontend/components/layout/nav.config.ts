@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Briefcase, LayoutGrid, List, Map, Users } from "lucide-react";
+import { Briefcase, LayoutGrid, List, Map, UserCog, Users } from "lucide-react";
 
 /**
  * Table de configuration **unique** de la navigation (proto « Navigation TCN »).
@@ -23,6 +23,17 @@ export type NavItem = {
   href?: string;
   icon?: LucideIcon;
   minRole?: number;
+  /**
+   * Code du pouvoir (`core/permissions.py`) sans lequel l'entrée n'est pas
+   * portée. **Préférer ceci à `minRole: ROLE.ADMIN`** : `rank` ne vaut jamais
+   * `ADMIN`, l'échelon reste inerte, tandis que `session.permissions` est
+   * renseigné par `/auth/me` depuis #115.
+   *
+   * Confort d'affichage seul — n'annoncer que ce qui est faisable. Chaque
+   * ressource de l'API porte sa propre garde ; retirer ce champ ouvrirait un
+   * menu, jamais une donnée.
+   */
+  permission?: string;
   /** Écran pas encore livré : porté désactivé plutôt qu'inventé. */
   soon?: boolean;
 };
@@ -73,14 +84,49 @@ export const NAV: NavSection[] = [
     icon: Briefcase,
     minRole: ROLE.CONNECTED,
     items: [
-      { id: "a-providers", label: "Fournisseurs en attente", href: "/admin" },
+      // Le libellé est celui de l'écran : `/admin` ne traite plus que ce sujet
+      // depuis que les accès ont leur propre destination.
+      { id: "a-providers", label: "Chronométreurs signalés", href: "/admin" },
       { id: "a-courses", label: "Gestion des courses", soon: true },
       { id: "a-scrape", label: "Re-scrape à la demande", soon: true },
       { id: "a-quality", label: "Revalidation qualité", soon: true },
       { id: "a-benevolat", label: "Bénévolat", soon: true },
-      { id: "a-users", label: "Utilisateurs & droits", minRole: ROLE.ADMIN, soon: true },
       { id: "a-sessions", label: "Sessions", minRole: ROLE.ADMIN, soon: true },
       { id: "a-flags", label: "Feature flags", minRole: ROLE.ADMIN, soon: true },
+    ],
+  },
+  {
+    // Ce qui touche aux **personnes** et à ce qu'elles peuvent faire, en un
+    // seul endroit : qui entre (#170), ce que chacun porte et ce que porte un
+    // rôle (#115), à quoi l'on appartient (#197). C'était éclaté entre la page
+    // `/admin` et une entrée « Utilisateurs & droits » que son échelon rendait
+    // invisible.
+    //
+    // La section entière disparaît pour qui ne porte aucun de ces pouvoirs :
+    // `AppNav` retire les sections que le filtrage vide.
+    id: "utilisateurs",
+    label: "Gestion des utilisateurs",
+    icon: UserCog,
+    minRole: ROLE.CONNECTED,
+    items: [
+      {
+        id: "u-acces",
+        label: "Accès au back-office",
+        href: "/admin/acces",
+        permission: "allowed_emails:manage",
+      },
+      // Les trois écrans manquants, leurs API étant livrées : attribuer un rôle
+      // (`/admin/users`, #239), composer un rôle (`/admin/roles`, #240), gérer
+      // un groupe (`/admin/groups`, #241). Chacun tient en un `href` posé ici
+      // et le `soon` retiré.
+      { id: "u-roles", label: "Rôles des utilisateurs", permission: "roles:assign", soon: true },
+      { id: "u-droits", label: "Droits des rôles", permission: "roles:write", soon: true },
+      {
+        id: "u-groupes",
+        label: "Groupes d'appartenance",
+        permission: "groups:assign",
+        soon: true,
+      },
     ],
   },
 ];

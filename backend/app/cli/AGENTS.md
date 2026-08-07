@@ -124,3 +124,40 @@ n'applique pas la non-amplification (sans session, il n'y a pas d'acteur dont
 comparer les pouvoirs — l'accès au serveur *est* le privilège) et n'est pas
 soumise à l'invariant du dernier administrateur (elle ne fait qu'accorder, donc
 elle ne peut pas verrouiller).
+
+## `allow-email` — autoriser une adresse (#170)
+
+```bash
+uv run python -m app.cli allow-email --email <adresse>
+```
+
+La liste des adresses autorisées à ouvrir une session vit en base et s'édite
+depuis `/admin/acces`. Cette commande est la **voie d'amorçage**, jumelle de
+`grant-role` : sur une base neuve la liste est vide, donc personne ne peut se
+connecter, donc personne ne peut ouvrir l'écran qui inscrirait la première
+adresse.
+
+Idempotente. Codes de sortie : `0` (inscrite **ou** déjà présente), `2` sur une
+adresse mal formée — rien n'est alors écrit. Pas de `--json` : ce n'est pas un
+batch. La validation passe par le **même service** que la ressource HTTP
+(`services/auth/allowed_emails.validate_email`), deux notions de « adresse
+valide » divergeant au premier ajustement. Et par le service, **pas** par le DTO
+`AllowedEmailCreate`, qui reste en `str` délibérément : une contrainte Pydantic
+sur le champ ferait rendre à FastAPI son 422 par défaut, dont le `detail` est une
+liste d'objets et le message anglais — soit FR-010 et la forme
+`{"detail": "<chaîne>"}` rompues d'un coup.
+
+Elle mentionne les comptes qu'elle **rouvre** (« 2 compte(s) réactivé(s) ») :
+retirer une adresse désactive les comptes qui la portent, et la réinscrire les
+réactive. Sans ce compte rendu, « rien à faire » ne se distinguerait pas de
+« j'ai rouvert deux accès ».
+
+**Elle ne retire pas**, et ce n'est pas un oubli : le retrait vit dans l'écran,
+où il est gardé par l'invariant du dernier administrateur. Une commande de
+retrait sans cet invariant serait un verrou à distribuer, et l'erreur qu'elle
+rendrait possible — se fermer soi-même l'accès — n'a pas de rattrapage plus
+simple que celui qu'elle prétendrait offrir.
+
+**Elle ne crée pas d'utilisateur.** L'amorçage complet tient en trois gestes :
+`allow-email`, une **connexion** par le navigateur (c'est elle qui crée le
+compte), puis `grant-role --role admin`.

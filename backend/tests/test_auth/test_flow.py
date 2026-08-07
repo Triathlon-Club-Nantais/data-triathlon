@@ -126,11 +126,11 @@ def test_une_reconnexion_ne_cree_pas_de_second_utilisateur(db_session, doublure)
     assert second.id == premier.id
 
 
-def test_un_refus_de_provisionnement_ne_laisse_aucune_session(db_session, doublure, monkeypatch):
-    from app.core.config import get_settings
-
-    monkeypatch.setenv("AUTH_ALLOWED_EMAILS", "quelquun-dautre@exemple.fr")
-    get_settings.cache_clear()
+def test_un_refus_de_provisionnement_ne_laisse_aucune_session(
+    db_session, doublure, vider_la_liste_autorisation, autoriser
+):
+    vider_la_liste_autorisation()
+    autoriser("quelquun-dautre@exemple.fr")
 
     with pytest.raises(LoginError) as refus:
         _parcours(db_session, doublure)

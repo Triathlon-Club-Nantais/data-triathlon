@@ -96,9 +96,28 @@ uv run python -m app.cli grant-role --email <adresse> --role admin
 club en base.
 
 Elle **ne crée pas d'utilisateur** : demandez d'abord à la personne de se
-connecter une fois (son adresse doit figurer dans `AUTH_ALLOWED_EMAILS`). Elle
-**ne crée pas de rôle** non plus : composer un rôle est un geste d'administration
-qui passe par l'API.
+connecter une fois, son adresse ayant été autorisée au préalable
+(`allow-email`, ci-dessous). Elle **ne crée pas de rôle** non plus : composer un
+rôle est un geste d'administration qui passe par l'API.
+
+### Autoriser une adresse (`allow-email`, #170)
+
+```bash
+uv run python -m app.cli allow-email --email <adresse>
+```
+
+La liste des adresses autorisées à ouvrir une session vit **en base**, éditable
+depuis `/admin/acces` sans redéploiement. Cette commande est la voie d'amorçage : sur
+une base neuve la liste est vide, donc personne ne peut se connecter, donc
+personne ne peut ouvrir l'écran qui inscrirait la première adresse.
+
+Idempotente, elle sort en `0` (inscrite ou déjà présente) et en `2` sur une
+adresse mal formée. Elle **ne retire pas** — le retrait vit dans l'écran, où il
+est gardé par l'invariant du dernier administrateur.
+
+L'amorçage complet d'une installation tient donc en trois gestes :
+`allow-email`, **une connexion par le navigateur** (c'est elle qui crée
+l'utilisateur), puis `grant-role --role admin`.
 
 Deux contournements délibérés, écrits pour qu'on ne les prenne pas pour des
 oublis : elle **n'applique pas** la règle de non-amplification — sans session, il
@@ -127,7 +146,6 @@ uv run ruff check .                  # lint
 | `AUTH_SESSION_SECRET_KEY` | *(vide)* | Signe le jeton d'état du parcours. **≥ 32 caractères** ou le démarrage échoue ; vide = authentification non configurée |
 | `AUTH_GITHUB_CLIENT_ID` | *(vide)* | Application OAuth GitHub |
 | `AUTH_GITHUB_CLIENT_SECRET` | *(vide)* | Application OAuth GitHub |
-| `AUTH_ALLOWED_EMAILS` | *(vide)* | Adresses autorisées, en CSV. **Vide interdit toute connexion** — jamais « tout le monde » |
 | `AUTH_REDIRECT_BASE_URL` | *(vide)* | Origine de l'**interface** (jamais celle de l'API) : destination de retour, base de `/login?error=…` et du `redirect_uri` envoyé au fournisseur. **Sans défaut** — un défaut localhost faisait passer pour configuré un déploiement qui l'oubliait, et l'échec tombait alors chez GitHub |
 | `AUTH_COOKIE_SECURE` | `true` | `false` en développement sans TLS — retire alors le préfixe `__Host-` du nom des cookies |
 | `AUTH_SESSION_TTL_DAYS` | `7` | Durée de session, sans prolongation glissante |

@@ -32,6 +32,23 @@ describe("ApiError", () => {
     );
   });
 
+  it("aplatit le `detail` liste d'une validation Pydantic", async () => {
+    // Sans quoi `new Error(detail)` affichait « [object Object] » dans un toast.
+    repond(422, {
+      detail: [{ loc: ["body", "email"], msg: "adresse invalide", type: "value_error" }],
+    });
+
+    const erreur = await apiClient.getSession().catch((e) => e);
+    expect(erreur.message).toBe("adresse invalide");
+  });
+
+  it("retombe sur un message lisible quand `detail` est inexploitable", async () => {
+    repond(500, { detail: [] });
+
+    const erreur = await apiClient.getSession().catch((e) => e);
+    expect(erreur.message).not.toContain("object Object");
+  });
+
   it("distingue un 401 d'un 500", async () => {
     repond(500, { detail: "Boum" });
 

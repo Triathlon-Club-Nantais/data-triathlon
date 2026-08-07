@@ -16,3 +16,26 @@ export function useMarkProviderHandled() {
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.pendingProviders() }),
   });
 }
+
+export function useAllowedEmails() {
+  return useQuery({
+    queryKey: queryKeys.allowedEmails(),
+    queryFn: () => apiClient.listAllowedEmails(),
+  });
+}
+
+export function useAddAllowedEmail() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (email: string) => apiClient.addAllowedEmail(email),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.allowedEmails() }),
+  });
+}
+
+export function useRemoveAllowedEmail() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiClient.removeAllowedEmail(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.allowedEmails() }),
+  });
+}

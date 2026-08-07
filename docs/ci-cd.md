@@ -134,7 +134,6 @@ le frontend n'en porte aucun, il ne fait que proxifier `/api/*`.
 |---|---|---|---|
 | `AUTH_SESSION_SECRET_KEY` | **à saisir à la main** | **à saisir à la main** | `python -c "import secrets; print(secrets.token_urlsafe(64))"` |
 | `AUTH_GITHUB_CLIENT_ID` / `_SECRET` | application OAuth « prod » | application OAuth « preview » | application OAuth « local » |
-| `AUTH_ALLOWED_EMAILS` | adresses des contributeurs, en CSV | idem, ou vide pour fermer | votre adresse GitHub vérifiée |
 | `AUTH_REDIRECT_BASE_URL` | URL de production de `data-triathlon` | URL de production de `data-triathlon-preview` | `http://127.0.0.1:3000` |
 | `AUTH_COOKIE_SECURE` | `true` | `true` | `false` |
 | `AUTH_SESSION_TTL_DAYS` / `AUTH_STATE_TTL_SECONDS` | défauts (7 j / 600 s) | défauts | défauts |
@@ -164,14 +163,51 @@ Trois points qui coûtent cher s'ils sont découverts en production :
   chez GitHub. C'est précisément pourquoi le job `deploy-preview` déploie en
   production du projet `data-triathlon-preview` (#172) : la connexion ne
   fonctionne que sur cette URL fixe. Le site public, lui, reste entier partout ;
-- `AUTH_ALLOWED_EMAILS` **vide interdit toute connexion** et fait rendre `[]` à
-  `/auth/methods`. Ce n'est pas un défaut permissif : une variable oubliée sur
-  Render ferme l'accès au lieu de l'ouvrir à n'importe quel compte GitHub.
-  Deux conséquences d'exploitation : **ajouter un contributeur exige un
-  redéploiement** (`get_settings` est en `lru_cache`, la liste est lue au
-  démarrage du processus) ; et un refus se diagnostique **dans les journaux du
-  backend**, où l'adresse soumise est tracée — le code rendu au visiteur, lui,
-  reste muet sur la valeur (FR-030).
+- **la liste d'autorisation n'est plus une variable d'environnement** (#170) :
+  elle vit dans la table `allowed_emails`, éditable depuis `/admin/acces` sans
+  redéploiement. Une liste vide interdit toujours toute connexion — le refus
+  tombe désormais au **retour** du parcours (`account_not_allowed`) et non plus à
+  son entrée, `/auth/methods` n'interrogeant aucune table. Un refus se
+  diagnostique **dans les journaux du backend**, où l'adresse soumise est tracée ;
+  le code rendu au visiteur, lui, reste muet sur la valeur (FR-030). L'amorçage
+  d'une installation neuve passe par
+  `uv run python -m app.cli allow-email --email <adresse>`.
+
+### Mettre en production la liste d'autorisation en base (#170)
+
+**L'ordre compte, et l'inverser ferme l'accès à tout le monde.** La migration qui
+crée `allowed_emails` reprend, au moment du `alembic upgrade head` du
+`startCommand`, ce que porte encore `AUTH_ALLOWED_EMAILS` dans l'environnement du
+processus. Elle s'exécute donc **avant** la première requête : il n'y a pas de
+fenêtre pendant laquelle un contributeur autorisé se verrait refuser la connexion.
+
+1. **Déployer.** La table est créée et remplie depuis la variable.
+2. **Vérifier** dans `/admin/acces` (« Gestion des utilisateurs » → « Accès au
+   back-office ») que les adresses attendues y sont.
+3. **Seulement ensuite**, et dans une PR de suivi, retirer l'entrée de
+   `render.yaml` puis la variable du tableau de bord Render. Elle y est
+   volontairement **conservée** par la livraison qui pose la table : c'est elle
+   que lit la reprise, et la retirer d'un même geste ferait dépendre la
+   production d'un comportement non vérifié — Render supprime-t-il une valeur
+   `sync: false` quand la clé disparaît du blueprint ? Une variable qui traîne
+   est **inoffensive** (`Settings` porte `extra="ignore"`) ; une variable
+   supprimée trop tôt ferme l'accès à tout le monde.
+
+**Si l'étape 2 montre une liste vide** — reprise manquée, variable absente au
+moment de la migration —, le rattrapage **n'est pas** `allow-email` : les deux
+services backend tournent en `plan: free`, qui n'ouvre aucun shell. Il faut
+passer par la console SQL de Supabase :
+
+```sql
+INSERT INTO allowed_emails (email, created_at)
+VALUES ('votre.adresse@exemple.fr', now())
+ON CONFLICT (email) DO NOTHING;
+```
+
+L'adresse doit être écrite **en minuscules et sans espaces** : c'est la forme
+normalisée que le code compare, et une majuscule y serait invisible et
+silencieuse. Une connexion suffit ensuite à créer le compte, puis `grant-role`
+depuis un environnement qui a un shell.
 
 ### Secrets GitHub
 
