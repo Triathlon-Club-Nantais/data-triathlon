@@ -8,6 +8,7 @@ import { apiClient } from "@/lib/api/client";
 import { eventTypeLabel } from "@/lib/constants";
 import { eventTypeColor } from "@/lib/sport-colors";
 import { formatEventName } from "@/lib/utils/event";
+import { isHttpUrl } from "@/lib/utils/url";
 import { useSaveParticipation } from "@/lib/queries/participations";
 import { useImportStream } from "@/hooks/useImportStream";
 import { ProviderDetector } from "./ProviderDetector";
@@ -30,9 +31,19 @@ export function TcnScrapeForm() {
 
   const isDuplicate = phase === "done" && (cached || (imported === 0 && skipped > 0));
 
+  // Défense en profondeur alignée sur le backend (`ScrapeRequest.url: HttpUrl`,
+  // 422 dès la porte, cf. `schemas/scrape.py`) : on filtre côté UI pour ne pas
+  // envoyer une requête qu'on sait invalide, et pour rendre la contrainte
+  // visible avant clic. `isHttpUrl` accepte `http(s)` et rejette `javascript:`,
+  // `data:`, `ftp:`, chaînes vides et non-URL.
+  const trimmed = url.trim();
+  const urlIsValid = isHttpUrl(trimmed);
+  const showUrlError = trimmed.length > 0 && !urlIsValid;
+
   const submit = useCallback(() => {
     const v = url.trim();
     if (!v || running) return;
+    if (!isHttpUrl(v)) return;
     reportedRef.current = null;
     refreshedRef.current = null;
     setManual(false);
@@ -73,7 +84,15 @@ export function TcnScrapeForm() {
     [save],
   );
 
-  const inputStatus = isDuplicate ? "error" : phase === "error" ? "warning" : running ? "active" : "default";
+  const inputStatus = showUrlError
+    ? "error"
+    : isDuplicate
+      ? "error"
+      : phase === "error"
+        ? "warning"
+        : running
+          ? "active"
+          : "default";
 
   return (
     <>
@@ -92,12 +111,25 @@ export function TcnScrapeForm() {
               onChange={(e) => setUrl(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && submit()}
               placeholder="https://résultats-chrono.fr/triathlon-vertou-2026"
+              type="url"
+              inputMode="url"
+              aria-invalid={showUrlError || undefined}
+              aria-describedby={showUrlError ? "scrape-url-error" : undefined}
             />
+            {showUrlError && (
+              <div
+                id="scrape-url-error"
+                role="alert"
+                style={{ marginTop: 6, fontSize: 13, color: "var(--tcn-danger-text, var(--tcn-danger-border))", fontWeight: 500 }}
+              >
+                Cette adresse n&apos;est pas une URL valide (elle doit commencer par http:// ou https://).
+              </div>
+            )}
             <div style={{ marginTop: 8 }}>
               <ProviderDetector url={url} />
             </div>
           </div>
-          <Button size="lg" onClick={submit} disabled={running} iconRight={<span>→</span>} style={{ borderRadius: "var(--tcn-radius-xl)" }}>
+          <Button size="lg" onClick={submit} disabled={running || !urlIsValid} iconRight={<span>→</span>} style={{ borderRadius: "var(--tcn-radius-xl)" }}>
             {running ? "Import en cours…" : "Enregistrer les résultats"}
           </Button>
         </div>
