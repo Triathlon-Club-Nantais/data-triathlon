@@ -32,6 +32,7 @@ n'accueille que ce qu'on voudrait relire à chaque session.
 | Architecture frontend | `frontend/AGENTS.md` |
 | Dev multi-worktree : ports, `.worktreeinclude` | `docs/dev-multi-worktree.md` |
 | CI/CD, déploiements, variables par environnement | `docs/ci-cd.md` |
+| Infrastructure Azure (base de production PostgreSQL) | `docs/infra-azure.md` |
 
 ## Workflow IA
 

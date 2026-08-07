@@ -260,18 +260,33 @@ Actions, qui lance la CLI.
 
 ### Deux environments dédiés : `batch-preview` et `batch-production`
 
-Un par base, chacun portant **un seul secret** :
+Un par base. Les deux environments ne portent **pas les mêmes secrets** parce
+qu'ils ne visent pas la même infrastructure : la preview vit sur Supabase, la
+production sur Azure PostgreSQL Flexible Server (voir `docs/infra-azure.md`).
 
 | Secret | Portée | Usage |
 |---|---|---|
-| `DATABASE_URL` | environment `batch-preview` | Base de preview |
-| `DATABASE_URL` | environment `batch-production` | Base de production |
+| `DATABASE_URL` | environment `batch-preview` | Base de preview (Supabase, hôte pooler) |
+| `DATABASE_URL` | environment `batch-production` | Base de production (Azure PG Flexible) |
+| `AZURE_CLIENT_ID` | environment `batch-production` | Fédération OIDC — service principal `gh-batch-data-triathlon` |
+| `AZURE_TENANT_ID` | environment `batch-production` | Tenant du service principal |
+| `AZURE_SUBSCRIPTION_ID` | environment `batch-production` | Souscription contenant le serveur PG |
+| `AZURE_RESOURCE_GROUP` | environment `batch-production` | RG du serveur PG (`TCN_Data_BDD`) |
+| `AZURE_POSTGRES_SERVER` | environment `batch-production` | Nom du serveur (`tcndatabdd`) |
 
 C'est l'environment, et lui seul, qui décide de la base écrite : rien dans le
 script du workflow ne la nomme. La cible est choisie par l'entrée `target`, avec
 un défaut `preview` — un lancement manuel distrait ne doit pas écrire chez les
 adhérents — et un repli sur `production` quand aucune entrée n'est fournie,
 c'est-à-dire pour les exécutions **planifiées**.
+
+Les cinq secrets `AZURE_*` ne sont ni sensibles au sens strict (ce sont des
+identifiants publics de la souscription) ni des jetons long-lived. Ils sont
+posés en secrets pour que rien de l'infrastructure Azure ne fuite dans les
+logs GHA. Le seul secret à vrai dire *puissant* est l'accès Azure lui-même, et
+il n'existe que sous forme de jeton OIDC éphémère, émis par GitHub à ce job
+précis et accepté par Azure via le federated credential dont le `subject`
+mentionne l'environment nominativement.
 
 Côté application, la cible n'est **pas** un choix offert dans l'écran : elle vient
 du réglage `GITHUB_BATCH_TARGET` de l'instance. L'administration de la preview
@@ -297,7 +312,7 @@ Ce qui contrôle l'accès ici, c'est le pouvoir `batch:run` côté application.
 
 ### L'hôte de la base : viser le **pooler**, pas la connexion directe
 
-C'est le piège de cette configuration, et il ne se devine pas.
+C'est le piège de cette configuration côté Supabase, et il ne se devine pas.
 
 Les runners GitHub hébergés **n'ont pas d'IPv6**, alors que l'hôte de connexion
 directe de Supabase (`db.<ref>.supabase.co`) résout en IPv6 seule sur les projets
@@ -311,6 +326,45 @@ serveur, et un batch ouvre une connexion longue.
 
 Vérification, à faire **avant** tout batch réel : lancer `batch.yml` en
 `mode: rescrape`, `limit: 1`, `dry_run: true`. Vert en moins d'une minute.
+
+### L'hôte Azure : ouvrir le pare-feu au run (#243)
+
+Le serveur PostgreSQL de production est un Azure Flexible Server protégé par
+liste d'IP (voir `docs/infra-azure.md` pour l'inventaire). Les runners GHA
+hébergés n'ont ni IP fixe, ni range assez étroit pour un allowlist statique :
+`api.github.com/meta` publie plusieurs milliers d'adresses. Deux options
+écartées, chacune pour une bonne raison :
+
+- **« Allow public access from any Azure service »** — trop large sur une base
+  d'adhérents, exposerait à toute VM Azure tierce.
+- **Self-hosted runner** — sur-dimensionné pour quelques exécutions par jour et
+  réintroduit la dépendance à une machine.
+
+La voie retenue est une **ouverture *just-in-time*** : un step ajoute l'IP du
+runner en règle firewall nommée `gh-batch-<run_id>`, un dernier step la
+supprime en `if: always()`. La règle est donc imputable à une exécution
+précise, et refermée même en cas d'échec du batch.
+
+**Authentification Azure par OIDC**, sans secret long-lived. Le service
+principal `gh-batch-data-triathlon` porte un rôle custom scopé au serveur —
+`PG Firewall Rule Writer (tcndatabdd)`, actions `firewallRules/{read,write,delete}`
+et rien de plus — et un federated credential dont le `subject` mentionne
+`batch-production` : le jeton n'est délivré qu'à ce job. Toute la mise en
+place tient dans quatre commandes `az`, décrites dans l'issue #243.
+
+Diagnostic si le batch échoue au step `Open Azure firewall` :
+
+- `azure/login` KO → `subject` du federated credential ne correspond pas
+  exactement à `repo:Triathlon-Club-Nantais/data-triathlon:environment:batch-production`,
+  ou `AZURE_CLIENT_ID` / `AZURE_TENANT_ID` erronés.
+- `az … firewall-rule create` KO → l'assignation de rôle n'est pas visible
+  (propagation courte, mais réelle), ou le scope ne cible pas le serveur.
+
+Vérification, à faire **avant** tout batch réel : lancer `batch.yml` en
+`target: production`, `mode: rescrape`, `limit: 1`, `dry_run: true`. Vert en
+moins d'une minute. Pendant l'exécution, la règle `gh-batch-<run_id>` est
+visible via `az postgres flexible-server firewall-rule list -g TCN_Data_BDD -s tcndatabdd` ;
+après, elle a disparu.
 
 ### Lancer un batch sans l'interface
 
