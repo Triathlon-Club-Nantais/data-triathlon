@@ -1,31 +1,69 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
-import type { AllowedEmail } from "@/lib/types";
+import type { AllowedEmail, Role, SessionUser } from "@/lib/types";
 
-const { listAllowedEmails, addAllowedEmail, removeAllowedEmail } = vi.hoisted(() => ({
+const {
+  listAllowedEmails,
+  addAllowedEmail,
+  removeAllowedEmail,
+  listRoles,
+  getSession,
+} = vi.hoisted(() => ({
   listAllowedEmails: vi.fn(),
   addAllowedEmail: vi.fn(),
   removeAllowedEmail: vi.fn(),
+  listRoles: vi.fn(),
+  getSession: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
   return {
     ...original,
-    apiClient: { listAllowedEmails, addAllowedEmail, removeAllowedEmail },
+    apiClient: {
+      listAllowedEmails,
+      addAllowedEmail,
+      removeAllowedEmail,
+      listRoles,
+      getSession,
+    },
   };
 });
 
 import { AllowedEmailsTable } from "./AllowedEmailsTable";
+
+const BENEVOLE: Role = {
+  id: 2,
+  organisation_id: 1,
+  slug: "benevole",
+  name: "Bénévole",
+  description: "",
+  is_system: false,
+  is_superuser: false,
+  permissions: [],
+  stale_permissions: [],
+  holders: 0,
+};
+
+const MOI: SessionUser = {
+  id: 1,
+  email: "moi@exemple.fr",
+  display_name: "Moi",
+  created_at: "2026-01-01T00:00:00Z",
+  permissions: ["allowed_emails:manage", "roles:read"],
+  roles: [],
+};
 
 const ADRESSE: AllowedEmail = {
   id: 1,
   email: "contributeur@exemple.fr",
   created_at: "2026-08-01T14:54:28Z",
   created_by_name: "Camille Durand",
+  role: null,
+  has_account: false,
 };
 
 function afficher() {
@@ -44,6 +82,10 @@ describe("AllowedEmailsTable", () => {
     listAllowedEmails.mockReset();
     addAllowedEmail.mockReset();
     removeAllowedEmail.mockReset();
+    listRoles.mockReset();
+    getSession.mockReset();
+    listRoles.mockResolvedValue([BENEVOLE]);
+    getSession.mockResolvedValue(MOI);
     vi.spyOn(window, "confirm").mockReturnValue(true);
   });
 
@@ -98,8 +140,67 @@ describe("AllowedEmailsTable", () => {
     await userEvent.click(screen.getByRole("button", { name: /ajouter/i }));
 
     await waitFor(() =>
-      expect(addAllowedEmail).toHaveBeenCalledWith("contributeur@exemple.fr"),
+      expect(addAllowedEmail).toHaveBeenCalledWith("contributeur@exemple.fr", null),
     );
+  });
+
+  it("inscrit une adresse avec le rôle qu'elle portera à sa première connexion", async () => {
+    // Le geste d'administration tenait en deux temps séparés par un événement
+    // qu'on ne contrôle pas — la connexion de la personne. Il tient désormais
+    // en un seul.
+    listAllowedEmails.mockResolvedValue([]);
+    addAllowedEmail.mockResolvedValue({ ...ADRESSE, role: BENEVOLE });
+
+    afficher();
+    await screen.findByText(/aucune adresse autorisée/i);
+    await userEvent.type(
+      screen.getByLabelText(/adresse/i),
+      "contributeur@exemple.fr",
+    );
+    await userEvent.selectOptions(
+      await screen.findByLabelText(/rôle à l'inscription/i),
+      String(BENEVOLE.id),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /ajouter/i }));
+
+    await waitFor(() =>
+      expect(addAllowedEmail).toHaveBeenCalledWith(
+        "contributeur@exemple.fr",
+        BENEVOLE.id,
+      ),
+    );
+  });
+
+  it("affiche le rôle initial de chaque adresse", async () => {
+    listAllowedEmails.mockResolvedValue([{ ...ADRESSE, role: BENEVOLE }]);
+
+    afficher();
+
+    // Dans la **ligne**, pas dans le sélecteur du formulaire — qui porte le même
+    // libellé.
+    const ligne = await screen.findByRole("row", { name: new RegExp(ADRESSE.email) });
+    expect(within(ligne).getByText(BENEVOLE.name)).toBeInTheDocument();
+  });
+
+  it("signale une adresse autorisée dont personne n'est encore venu", async () => {
+    // C'est le seul retour qu'on ait sur le rôle à l'inscription : « déjà
+    // appliqué » et « attend toujours » se ressemblent sans lui.
+    listAllowedEmails.mockResolvedValue([{ ...ADRESSE, has_account: false }]);
+
+    afficher();
+
+    const ligne = await screen.findByRole("row", { name: new RegExp(ADRESSE.email) });
+    expect(within(ligne).getByText(/jamais connecté/i)).toBeInTheDocument();
+  });
+
+  it("marque comme actif un compte déjà ouvert", async () => {
+    listAllowedEmails.mockResolvedValue([{ ...ADRESSE, has_account: true }]);
+
+    afficher();
+
+    const ligne = await screen.findByRole("row", { name: new RegExp(ADRESSE.email) });
+    expect(within(ligne).getByText(/compte actif/i)).toBeInTheDocument();
+    expect(within(ligne).queryByText(/jamais connecté/i)).not.toBeInTheDocument();
   });
 
   it("retire une adresse", async () => {

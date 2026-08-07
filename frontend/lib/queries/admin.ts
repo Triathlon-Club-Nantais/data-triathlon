@@ -28,7 +28,8 @@ export function useAllowedEmails() {
 export function useAddAllowedEmail() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (email: string) => apiClient.addAllowedEmail(email),
+    mutationFn: ({ email, roleId }: { email: string; roleId: number | null }) =>
+      apiClient.addAllowedEmail(email, roleId),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.allowedEmails() }),
   });
 }
@@ -184,6 +185,50 @@ export function useUpdateAthlete() {
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.ficheCoureur });
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.detailEpreuve });
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.resultatsPublics });
+    },
+  });
+}
+
+// ── Rôles des utilisateurs (#239) ────────────────────────────────────────────
+
+export function useAdminUsers() {
+  return useQuery({
+    queryKey: queryKeys.adminUsers(),
+    queryFn: () => apiClient.listAdminUsers(),
+  });
+}
+
+export function useRoles() {
+  return useQuery({
+    queryKey: queryKeys.roles(),
+    queryFn: () => apiClient.listRoles(),
+  });
+}
+
+/**
+ * Les deux écritures invalident **aussi** `roles()` : `RoleRead.holders` compte
+ * les porteurs, et l'écran voisin (#240) l'affiche.
+ */
+export function useGrantRole() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, roleId }: { userId: number; roleId: number }) =>
+      apiClient.grantRole(userId, roleId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.adminUsers() });
+      qc.invalidateQueries({ queryKey: queryKeys.roles() });
+    },
+  });
+}
+
+export function useRevokeRole() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, roleId }: { userId: number; roleId: number }) =>
+      apiClient.revokeRole(userId, roleId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.adminUsers() });
+      qc.invalidateQueries({ queryKey: queryKeys.roles() });
     },
   });
 }

@@ -382,6 +382,18 @@ class AllowedEmailRead(BaseModel):
     email: str
     created_at: datetime
     created_by_name: str | None = None
+    #: Le rôle que portera le compte **à sa création** (#239). `null` = aucun,
+    #: qui reste le cas ordinaire. Objet et non identifiant : l'écran affiche un
+    #: nom, et un `role_id` nu l'obligerait à recouper une seconde liste.
+    role: RoleBrief | None = None
+    #: Cette adresse porte-t-elle au moins un compte ? `False` = autorisée, jamais
+    #: venue. C'est le seul retour que l'écran ait sur le rôle à l'inscription :
+    #: sans lui, « déjà appliqué » et « attend toujours » se ressemblent.
+    #:
+    #: **Un booléen, et non le compte lui-même** : `users.email` n'est pas unique
+    #: (FR-003), une adresse peut en porter plusieurs, et l'entrée ne désigne
+    #: aucun titulaire — elle autorise, elle n'identifie pas.
+    has_account: bool = False
 
     @field_serializer("created_at")
     def _serialize_utc(self, value: datetime) -> str:
@@ -405,3 +417,6 @@ class AllowedEmailCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     email: str
+    #: Rôle donné au compte à sa **création** (#239). Facultatif : autoriser sans
+    #: rien donner reste le cas ordinaire.
+    role_id: int | None = None

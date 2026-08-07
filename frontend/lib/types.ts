@@ -210,6 +210,54 @@ export interface AllowedEmail {
   email: string;
   created_at: string;
   created_by_name: string | null;
+  /**
+   * Le rôle que portera le compte **à sa création** (#239) — `null` quand
+   * l'adresse n'en donne aucun, ce qui reste le cas ordinaire. Sans lui,
+   * autoriser et attribuer étaient deux gestes séparés par la première
+   * connexion de la personne, qu'un administrateur ne contrôle pas.
+   */
+  role: SessionRole | null;
+  /**
+   * Cette adresse porte-t-elle au moins un compte ? `false` = autorisée, jamais
+   * venue — et le rôle ci-dessus attend donc toujours d'être appliqué.
+   */
+  has_account: boolean;
+}
+
+/**
+ * Un rôle et sa composition (#115).
+ *
+ * `stale_permissions` liste les codes présents en base mais absents de
+ * l'inventaire de l'application : inertes, purgeables, jamais bloquants.
+ * `is_system` marque un rôle livré avec l'application, que rien ne modifie.
+ */
+export interface Role {
+  id: number;
+  organisation_id: number | null;
+  slug: string;
+  name: string;
+  description: string;
+  is_system: boolean;
+  is_superuser: boolean;
+  permissions: string[];
+  stale_permissions: string[];
+  holders: number;
+}
+
+/**
+ * Un utilisateur vu depuis l'administration (#115).
+ *
+ * `is_active: false` est l'effet d'un retrait de la liste d'autorisation
+ * (#170) : le compte survit, ses rôles aussi, mais il n'ouvre plus de session.
+ * `roles` porte le même DTO que `SessionRole` — `RoleBrief` côté API.
+ */
+export interface AdminUser {
+  id: number;
+  email: string;
+  display_name: string;
+  is_active: boolean;
+  roles: SessionRole[];
+  created_at: string;
 }
 
 export interface AthleteDetail {

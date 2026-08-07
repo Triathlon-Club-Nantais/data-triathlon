@@ -2,6 +2,7 @@ import type {
   AdminAthlete,
   AdminAthleteUpdate,
   AdminCourseUpdate,
+  AdminUser,
   AthleteDetail,
   AuthMethod,
   CourseBrief,
@@ -16,6 +17,7 @@ import type {
   ParticipationFilters,
   AllowedEmail,
   PendingProvider,
+  Role,
   ScrapedPreview,
   Season,
   SessionUser,
@@ -198,11 +200,25 @@ export const apiClient = {
   // Les trois gestes exigent le pouvoir `allowed_emails:manage` ; un anonyme
   // obtient 401 et jamais la liste.
   listAllowedEmails: () => request<AllowedEmail[]>("/admin/allowed-emails"),
-  addAllowedEmail: (email: string) =>
+  addAllowedEmail: (email: string, roleId: number | null) =>
     request<AllowedEmail>("/admin/allowed-emails", {
       method: "POST",
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, role_id: roleId }),
     }),
   removeAllowedEmail: (id: number) =>
     request<null>(`/admin/allowed-emails/${id}`, { method: "DELETE" }),
+
+  // ── Rôles des utilisateurs (#115) ──────────────────────────────────────────
+  // Trois pouvoirs distincts : `users:read` pour la liste, `roles:read` pour
+  // l'inventaire, `roles:assign` pour les deux écritures. `organisation_id` est
+  // omis : le backend retombe sur le seul club en base.
+  listAdminUsers: () => request<AdminUser[]>("/admin/users"),
+  listRoles: () => request<Role[]>("/admin/roles"),
+  grantRole: (userId: number, roleId: number) =>
+    request<AdminUser>(`/admin/users/${userId}/roles`, {
+      method: "POST",
+      body: JSON.stringify({ role_id: roleId }),
+    }),
+  revokeRole: (userId: number, roleId: number) =>
+    request<null>(`/admin/users/${userId}/roles/${roleId}`, { method: "DELETE" }),
 };

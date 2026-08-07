@@ -64,7 +64,7 @@ def list_all(db: Session) -> list[AllowedEmail]:
 
 
 def add(
-    db: Session, actor: User | None, *, email: str
+    db: Session, actor: User | None, *, email: str, role_id: int | None = None
 ) -> tuple[AllowedEmail, bool, int]:
     """Inscrit l'adresse et **rouvre** les comptes qui la portent.
 
@@ -73,10 +73,26 @@ def add(
     réactivé(s) ») : sans lui, « rien à faire » ne se distinguerait pas de « j'ai
     rouvert deux accès ». `actor` est `None` quand l'appel vient de la CLI
     d'amorçage, qui n'a pas de session.
+
+    `role_id` est le rôle que portera le compte **à sa création** (#239). Il est
+    gardé **ici**, où il y a un acteur dont comparer les pouvoirs, et non à
+    l'application — qui se produit pendant une connexion, sans acteur. C'est la
+    même asymétrie que `grant-role`, et elle est ce qui empêche la voie
+    d'escalade fermée sur l'attribution de rouvrir par ce chemin.
+
+    **Réinscrire une adresse repose son rôle initial** : c'est le geste par
+    lequel on corrige un choix, et le seul — la ligne n'a pas d'autre éditeur.
     """
+    if role_id is not None and actor is not None:
+        authorization.assert_may_hand_over(
+            db, actor, authorization.get_role_or_404(db, role_id)
+        )
+
     entree, creee = allowed_email_repository.add(
         db, email=validate_email(email), created_by_user_id=actor.id if actor else None
     )
+    if role_id is not None:
+        allowed_email_repository.set_initial_role(db, entree, role_id=role_id)
     reactives = user_repository.set_active(
         db, user_repository.find_by_email(db, entree.email), active=True
     )

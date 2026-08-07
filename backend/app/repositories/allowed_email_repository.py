@@ -8,7 +8,7 @@ point de passage unique de cette table, et c'est elle qui rend le `UNIQUE`
 suffisant. La disperser chez les trois appelants — l'écran, la CLI, la
 connexion — la ferait diverger au premier oubli.
 """
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
@@ -44,7 +44,9 @@ def list_all(db: Session) -> list[AllowedEmail]:
     return list(
         db.scalars(
             select(AllowedEmail)
-            .options(joinedload(AllowedEmail.created_by))
+            .options(
+                joinedload(AllowedEmail.created_by), joinedload(AllowedEmail.role)
+            )
             .order_by(AllowedEmail.email)
         )
     )
@@ -52,6 +54,26 @@ def list_all(db: Session) -> list[AllowedEmail]:
 
 def get(db: Session, entry_id: int) -> AllowedEmail | None:
     return db.get(AllowedEmail, entry_id)
+
+
+def get_by_email(db: Session, email: str) -> AllowedEmail | None:
+    """L'entrée d'une adresse. Normalisée ici, comme partout dans ce module."""
+    return db.scalar(select(AllowedEmail).where(AllowedEmail.email == normalize(email)))
+
+
+def set_initial_role(db: Session, entry: AllowedEmail, *, role_id: int | None) -> None:
+    """Pose (ou lève) le rôle donné au compte à sa création (#239)."""
+    entry.role_id = role_id
+    db.flush()
+
+
+def count_by_role(db: Session, role_id: int) -> int:
+    """Combien d'adresses posent ce rôle — le nombre que le 409 doit nommer."""
+    return db.scalar(
+        select(func.count()).select_from(AllowedEmail).where(
+            AllowedEmail.role_id == role_id
+        )
+    )
 
 
 def add(

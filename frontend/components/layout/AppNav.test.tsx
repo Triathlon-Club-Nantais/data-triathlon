@@ -158,7 +158,7 @@ describe("AppNav — arborescence", () => {
     expect(screen.queryByText("Administration")).not.toBeInTheDocument();
     unmount();
 
-    afficher(SESSION);
+    afficher(habilite("pending_providers:read"));
     await deplier();
     await waitFor(() => expect(screen.getByText("Administration")).toBeInTheDocument());
     expect(screen.getByRole("link", { name: "Fournisseurs en attente" })).toHaveAttribute(
@@ -175,7 +175,7 @@ describe("AppNav — arborescence", () => {
 
   it("n'allume qu'une entrée d'administration à la fois", async () => {
     chemin.courant = "/admin/courses";
-    afficher(SESSION);
+    afficher(habilite("pending_providers:read"));
     await deplier();
 
     // `isActive` teste `startsWith` : une entrée branchée sur `/admin` serait
@@ -189,6 +189,19 @@ describe("AppNav — arborescence", () => {
     expect(
       screen.getByRole("link", { name: "Fournisseurs en attente" }),
     ).not.toHaveAttribute("aria-current");
+  });
+
+  it("n'annonce pas les fournisseurs à un connecté sans le pouvoir (#239)", async () => {
+    // Ce que vit quelqu'un qui vient de se connecter et n'a pas encore de rôle :
+    // le rail lui proposait un lien dont l'API rend 403. Annoncer un écran
+    // refusé est le seul travail de `permission`.
+    afficher(SESSION);
+    await deplier();
+
+    await waitFor(() => expect(screen.getByText("Résultats")).toBeInTheDocument());
+    expect(
+      screen.queryByRole("link", { name: "Fournisseurs en attente" }),
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -226,7 +239,7 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
     // des accès. Un href de la nav désigne **un** écran, pas une famille : les
     // écrans à venir vivront eux aussi sous `/admin/`.
     chemin.courant = "/admin/acces";
-    afficher(habilite("allowed_emails:manage"));
+    afficher(habilite("allowed_emails:manage", "pending_providers:read"));
     await deplier();
 
     const courant = await screen.findByRole("link", { name: "Accès au back-office" });
@@ -254,9 +267,13 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
     await deplier();
     await waitFor(() => expect(screen.getByText("Gestion des utilisateurs")).toBeInTheDocument());
 
-    for (const libelle of ["Rôles des utilisateurs", "Groupes d'appartenance"]) {
-      expect(screen.queryByText(libelle)).not.toBeInTheDocument();
-    }
+    // « Rôles des utilisateurs » est livré depuis #239 : il mène quelque part.
+    expect(
+      screen.getByRole("link", { name: "Rôles des utilisateurs" }),
+    ).toHaveAttribute("href", "/admin/utilisateurs");
+
+    // « Groupes d'appartenance » reste `soon`, donc n'est plus rendue (#242).
+    expect(screen.queryByText("Groupes d'appartenance")).not.toBeInTheDocument();
   });
 });
 

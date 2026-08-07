@@ -49,6 +49,21 @@ class AllowedEmail(Base):
         ForeignKey("users.id"), nullable=True
     )
 
+    # Le rôle posé à la **naissance** du compte (#239), et rien de plus.
+    #
+    # Il ne contredit pas « cette table autorise, elle n'identifie pas » : il ne
+    # désigne toujours aucun titulaire, il dit avec quoi celui qui viendra
+    # commencera. Sans lui, le geste d'administration était coupé en deux par un
+    # événement que l'administrateur ne contrôle pas — la première connexion.
+    #
+    # **Sans `ondelete`**, comme `created_by_user_id` et pour la même raison : la
+    # contrainte serait inerte en SQLite et active en PostgreSQL. C'est
+    # `authorization.delete_role` qui garde le cas, par un 409 qui nomme les
+    # adresses concernées — comme il le fait déjà pour les porteurs.
+    role_id: Mapped[int | None] = mapped_column(ForeignKey("roles.id"), nullable=True)
+
+    role: Mapped["Role | None"] = relationship()  # noqa: F821
+
     # Sens unique : aucune collection n'est ajoutée sur `User`. L'écran affiche
     # « ajoutée le … par … », donc quelque chose la lit — c'est le critère que
     # `User.athlete_id` pose déjà pour rester colonne seule faute de lecteur.
