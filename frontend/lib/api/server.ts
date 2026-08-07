@@ -39,6 +39,11 @@ async function serverFetch<T>(path: string): Promise<T> {
  * afficher un avatar.
  *
  * Rend `null` sur 401 : anonyme est un état normal, pas une panne.
+ *
+ * Toute autre réponse non-OK lève une `ApiError`, comme `serverFetch` : un
+ * `Error` nu jetterait le statut, et l'appelant ne pourrait plus distinguer un
+ * backend injoignable (502, démarrage à froid) d'une de nos routes qui plante
+ * (500). La garde `/admin` lit précisément cette différence.
  */
 async function serverFetchAuthed<T>(path: string): Promise<T | null> {
   const jar = await cookies();
@@ -49,7 +54,7 @@ async function serverFetchAuthed<T>(path: string): Promise<T | null> {
   if (res.status === 401) return null;
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || `Erreur API (${res.status})`);
+    throw new ApiError(res.status, err.detail || `Erreur API (${res.status})`);
   }
   return res.json() as Promise<T>;
 }
