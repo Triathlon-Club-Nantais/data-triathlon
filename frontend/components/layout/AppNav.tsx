@@ -22,9 +22,14 @@ import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
  * - **les deux actions primaires** (« Ajouter une course », « Rechercher un
  *   athlète ») gardent le même ancrage, sous le logo, dans les trois formats ;
  *   la liste des catégories scrolle, ce bloc ne cède jamais (`flex:none`) ;
- * - **les entrées sans écran** sont portées désactivées (« À VENIR ») plutôt
- *   qu'inventées.
+ * - **les entrées sans écran livré** (`soon`) restent déclarées dans
+ *   `nav.config.ts` — c'est la feuille de route — mais ne sont pas rendues
+ *   (#242) : la nav n'annonce que ce qui existe.
  */
+
+/** Entrée rendue : une destination livrée, donc porteuse d'un `href`. */
+type Destination = NavItem & { href: string };
+type SectionRendue = Omit<NavSection, "items"> & { items: Destination[] };
 
 const STORE_NAV = "tcn-nav-expanded";
 
@@ -90,11 +95,16 @@ export function AppNav() {
     .map((s) => ({
       ...s,
       items: s.items.filter(
-        (i) => rank >= (i.minRole ?? ROLE.ANON) && (!i.permission || pouvoirs.has(i.permission)),
+        (i): i is Destination =>
+          !!i.href &&
+          !i.soon &&
+          rank >= (i.minRole ?? ROLE.ANON) &&
+          (!i.permission || pouvoirs.has(i.permission)),
       ),
     }))
     // Une section vidée par le filtrage n'a plus qu'un intitulé à afficher —
-    // et, sur le rail replié, une tuile qui déplie sur rien.
+    // et, sur le rail replié, une tuile qui déplie sur rien. C'est le cas de
+    // « Club », dont les deux entrées sont à venir (#242).
     .filter((s) => s.items.length > 0);
 
   /**
@@ -299,7 +309,7 @@ function NavContent({
   onExpand,
 }: {
   expanded: boolean;
-  sections: NavSection[];
+  sections: SectionRendue[];
   isActive: (href: string) => boolean;
   athlete: PickedAthlete | null;
   kbd: string;
@@ -457,7 +467,7 @@ function NavContent({
         }}
       >
         {sections.map((sec) => {
-          const actifIci = sec.items.some((i) => i.href && isActive(i.href));
+          const actifIci = sec.items.some((i) => isActive(i.href));
           return (
             <div key={sec.id} style={{ position: "relative" }}>
               {expanded && !sec.root && <div style={{ ...eyebrow, paddingBottom: 8 }}>{sec.label}</div>}
@@ -466,9 +476,7 @@ function NavContent({
                   racine, une tuile par catégorie sinon — elle déplie. */}
               {!expanded &&
                 (sec.root ? (
-                  sec.items.map((it) => (
-                    <Tuile key={it.id} item={it} actif={!!it.href && isActive(it.href)} onExpand={onExpand} />
-                  ))
+                  sec.items.map((it) => <Tuile key={it.id} item={it} actif={isActive(it.href)} />)
                 ) : (
                   <button type="button" onClick={onExpand} title={sec.label} aria-label={sec.label} style={tuile(actifIci)}>
                     <sec.icon size={20} />
@@ -479,7 +487,7 @@ function NavContent({
               {expanded && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                   {sec.items.map((it) => (
-                    <Entree key={it.id} item={it} actif={!!it.href && isActive(it.href)} onNavigate={onNavigate} />
+                    <Entree key={it.id} item={it} actif={isActive(it.href)} onNavigate={onNavigate} />
                   ))}
                 </div>
               )}
@@ -492,22 +500,8 @@ function NavContent({
 }
 
 /** Tuile du rail compact — icône seule, libellé en infobulle native. */
-function Tuile({ item, actif, onExpand }: { item: NavItem; actif: boolean; onExpand: () => void }) {
+function Tuile({ item, actif }: { item: Destination; actif: boolean }) {
   const Icon = item.icon;
-  const corps = (
-    <>
-      {Icon && <Icon size={20} />}
-      {actif && <span style={barreActive(9)} />}
-    </>
-  );
-  // Sans écran livré : la tuile déplie le panneau, où l'entrée s'annonce « À VENIR ».
-  if (!item.href) {
-    return (
-      <button type="button" onClick={onExpand} title={item.label} aria-label={item.label} style={tuile(false)}>
-        {corps}
-      </button>
-    );
-  }
   return (
     <Link
       href={item.href}
@@ -516,13 +510,14 @@ function Tuile({ item, actif, onExpand }: { item: NavItem; actif: boolean; onExp
       aria-current={actif ? "page" : undefined}
       style={tuile(actif)}
     >
-      {corps}
+      {Icon && <Icon size={20} />}
+      {actif && <span style={barreActive(9)} />}
     </Link>
   );
 }
 
-/** Entrée du panneau déplié. Sans `href`, elle est portée mais inerte. */
-function Entree({ item, actif, onNavigate }: { item: NavItem; actif: boolean; onNavigate?: () => void }) {
+/** Entrée du panneau déplié — une destination livrée, donc toujours un lien. */
+function Entree({ item, actif, onNavigate }: { item: Destination; actif: boolean; onNavigate?: () => void }) {
   const base: CSSProperties = {
     position: "relative",
     display: "flex",
@@ -547,21 +542,9 @@ function Entree({ item, actif, onNavigate }: { item: NavItem; actif: boolean; on
         }}
       />
       <span style={{ flex: 1 }}>{item.label}</span>
-      {item.soon && (
-        <span style={{ flex: "none", fontFamily: "var(--tcn-font-cond)", fontWeight: 700, fontSize: 10, letterSpacing: "0.06em", color: "var(--tcn-text-disabled)" }}>
-          À VENIR
-        </span>
-      )}
     </>
   );
 
-  if (!item.href) {
-    return (
-      <span aria-disabled="true" style={{ ...base, fontWeight: 500, color: "var(--tcn-text-faint)" }}>
-        {corps}
-      </span>
-    );
-  }
   return (
     <Link
       href={item.href}
