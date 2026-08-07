@@ -106,6 +106,13 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    # Le contexte `secrets` n'existe **pas** dans un `if:` de step : l'y écrire
+    # rend le fichier illisible par la plateforme, et l'exécution échoue au
+    # démarrage, avant le moindre step (constaté sur les runs 31162084006,
+    # 31162684474 et 31163082539). Recopié ici, il devient lisible par le
+    # contexte `env`, lui autorisé dans un `if:`.
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
 
     steps:
       - uses: actions/checkout@v4
@@ -125,7 +132,7 @@ jobs:
       # (`Open Azure firewall`) ne tourne que si celui-ci a réussi.
       - name: Azure login (production only)
         id: azure_login
-        if: ${{ secrets.AZURE_CLIENT_ID != '' }}
+        if: env.AZURE_CLIENT_ID != ''
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}

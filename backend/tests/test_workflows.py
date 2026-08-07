@@ -90,6 +90,27 @@ def test_an_input_less_run_targets_production(workflow):
         assert repli in job["environment"]
 
 
+def test_no_secret_read_from_a_condition(workflow):
+    """`secrets` n'existe pas dans un `if:` — l'y écrire casse tout le fichier.
+
+    La plateforme refuse alors le workflow **entier** au démarrage, avant le
+    moindre step : plus de batch du tout, et un échec en 0 s qui ne dit pas ce
+    qu'il reproche (runs 31162084006, 31162684474, 31163082539). Recopier le
+    secret dans le `env:` du job le rend lisible par le contexte `env`, lui
+    autorisé dans un `if:`.
+    """
+    fautifs = [
+        step.get("name", f"{job_name}[{index}]")
+        for job_name, job in workflow["jobs"].items()
+        for index, step in enumerate(job.get("steps", []))
+        if "secrets." in str(step.get("if", ""))
+    ]
+    assert not fautifs, (
+        f"Secret lu depuis une condition : {fautifs}. "
+        "Le recopier dans le `env:` du job et tester `env.NOM != ''`."
+    )
+
+
 def test_job_cannot_hang_forever(workflow):
     """Sans borne, une exécution coincée gèle tout lancement six heures durant."""
     for job in workflow["jobs"].values():
