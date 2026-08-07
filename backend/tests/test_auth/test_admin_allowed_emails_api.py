@@ -19,7 +19,73 @@ def test_lister_les_adresses_autorisees(client, ouvrir_session, autoriser):
     assert adresses == sorted(adresses)
     assert "zoe@exemple.fr" in adresses
     premiere = reponse.json()[0]
-    assert {"id", "email", "created_at", "created_by_name"} == set(premiere)
+    # `role` s'y ajoute depuis #239 : le rôle donné au compte à sa création,
+    # `null` quand l'adresse n'en porte pas — le cas de cette entrée.
+    assert {
+        "id",
+        "email",
+        "created_at",
+        "created_by_name",
+        "role",
+        "has_account",
+    } == set(premiere)
+    assert premiere["role"] is None
+
+
+def test_une_adresse_sans_compte_se_voit(client, ouvrir_session, autoriser):
+    """Autorisée, jamais venue : c'est ce que `has_account` rend visible.
+
+    Sans lui, l'écran ne distingue pas une personne déjà installée d'une invitation
+    restée sans réponse — et le rôle à l'inscription (#239) n'a alors aucun retour :
+    on ne sait pas s'il a été appliqué ou s'il attend encore.
+    """
+    ouvrir_session(P.ALLOWED_EMAILS_MANAGE)
+    autoriser("jamais-venue@exemple.fr")
+
+    ligne = next(
+        entree
+        for entree in client.get(URL).json()
+        if entree["email"] == "jamais-venue@exemple.fr"
+    )
+
+    assert ligne["has_account"] is False
+
+
+def test_une_adresse_dont_le_titulaire_s_est_connecte(
+    client, ouvrir_session, autoriser
+):
+    ouvrir_session(email="venue@exemple.fr", pose_le_cookie=False)
+    ouvrir_session(P.ALLOWED_EMAILS_MANAGE)
+    autoriser("venue@exemple.fr")
+
+    ligne = next(
+        entree
+        for entree in client.get(URL).json()
+        if entree["email"] == "venue@exemple.fr"
+    )
+
+    assert ligne["has_account"] is True
+
+
+def test_le_compte_est_reconnu_quelle_que_soit_la_casse(
+    client, ouvrir_session, autoriser
+):
+    """`users.email` garde la casse du fournisseur, `allowed_emails` la normalise.
+
+    Rapprocher les deux par égalité stricte rendrait « jamais connecté » sur un
+    compte bien vivant — le pire des deux mensonges possibles ici.
+    """
+    ouvrir_session(email="Prenom.Nom@Exemple.FR", pose_le_cookie=False)
+    ouvrir_session(P.ALLOWED_EMAILS_MANAGE)
+    autoriser("prenom.nom@exemple.fr")
+
+    ligne = next(
+        entree
+        for entree in client.get(URL).json()
+        if entree["email"] == "prenom.nom@exemple.fr"
+    )
+
+    assert ligne["has_account"] is True
 
 
 def test_une_liste_vide_est_une_reponse_valide(

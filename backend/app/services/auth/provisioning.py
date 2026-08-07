@@ -15,7 +15,9 @@ from app.models.user import User
 from app.repositories import (
     allowed_email_repository,
     identity_repository,
+    role_repository,
     user_repository,
+    user_role_repository,
 )
 from app.services.auth.errors import LoginError
 from app.services.auth.idp.base import ExternalIdentity
@@ -99,7 +101,51 @@ def resolve_user(db: Session, identity: ExternalIdentity) -> User:
         subject=identity.subject,
         email=identity.email,
     )
+    _poser_le_role_initial(db, user, identity.email)
     return user
+
+
+def _poser_le_role_initial(db: Session, user: User, email: str) -> None:
+    """Le rôle que l'autorisation portait, donné **une fois**, à la naissance (#239).
+
+    Ici et pas ailleurs : une reconnexion ne le repose pas, une réactivation non
+    plus. Reposer le rôle à chaque passage ferait défaire par la personne
+    elle-même tout retrait décidé entre-temps, sans que rien ne le dise.
+
+    **Aucune garde de non-amplification** : il n'y a pas d'acteur à cet instant,
+    l'administrateur ayant choisi le rôle bien avant, sous les gardes de
+    `allowed_emails.add`. Même asymétrie que `grant-role` — le contrôle porte sur
+    le choix, jamais sur l'application.
+
+    Rien de ce qui échoue ici ne doit refuser la connexion : un rôle disparu
+    (la clé étrangère est inerte en SQLite) ou une base sans organisation
+    laisseraient un visiteur légitime dehors, avec un code d'erreur qui
+    n'expliquerait rien.
+    """
+    entree = allowed_email_repository.get_by_email(db, email)
+    if entree is None or entree.role_id is None:
+        return
+
+    organisation = role_repository.default_organisation(db)
+    role = role_repository.get(db, entree.role_id)
+    if organisation is None or role is None:
+        logger.warning(
+            "Initial role skipped: role=%s organisation=%s (user %s)",
+            entree.role_id,
+            organisation.id if organisation else None,
+            user.id,
+        )
+        return
+
+    user_role_repository.grant(
+        db, user_id=user.id, role_id=role.id, organisation_id=organisation.id
+    )
+    logger.info(
+        "Initial role granted: user=%s role=%s organisation=%s",
+        user.id,
+        role.slug,
+        organisation.slug,
+    )
 
 
 def _is_allowed(db: Session, email: str) -> bool:

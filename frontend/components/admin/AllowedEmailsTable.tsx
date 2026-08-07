@@ -9,6 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,7 @@ import {
   useAddAllowedEmail,
   useRemoveAllowedEmail,
 } from "@/lib/queries/admin";
+import { useRolesAttribuables } from "@/lib/roles";
 import { ApiError } from "@/lib/api/client";
 import { formatDate } from "@/lib/utils/date";
 import type { AllowedEmail } from "@/lib/types";
@@ -58,15 +60,23 @@ export function AllowedEmailsTable() {
   const { data, isLoading, error } = useAllowedEmails();
   const ajouter = useAddAllowedEmail();
   const retirer = useRemoveAllowedEmail();
+  const { roles, accordable } = useRolesAttribuables();
   const [saisie, setSaisie] = useState("");
+  // Chaîne et non nombre : c'est la valeur d'un `<option>`, et « aucun » a
+  // besoin d'être représentable.
+  const [role, setRole] = useState("");
 
   async function soumettre(evenement: React.SyntheticEvent) {
     evenement.preventDefault();
     const adresse = saisie.trim();
     if (!adresse) return;
     try {
-      await ajouter.mutateAsync(adresse);
+      await ajouter.mutateAsync({
+        email: adresse,
+        roleId: role ? Number(role) : null,
+      });
       setSaisie("");
+      setRole("");
       toast.success("Adresse autorisée.");
     } catch (e) {
       toast.error((e as Error).message);
@@ -107,6 +117,30 @@ export function AllowedEmailsTable() {
             onChange={(e) => setSaisie(e.target.value)}
           />
         </div>
+        {/* Le rôle vit sur l'autorisation, pas sur la personne : il dit avec
+            quoi le compte naîtra à sa **première** connexion (#239). Sans lui,
+            le geste d'administration était coupé en deux par un événement que
+            l'administrateur ne contrôle pas. */}
+        <div className="space-y-1.5">
+          <Label htmlFor="role-initial">Rôle à l&apos;inscription</Label>
+          <select
+            id="role-initial"
+            className="border-input h-9 w-48 rounded-md border bg-transparent px-2 text-sm"
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+          >
+            <option value="">Aucun</option>
+            {roles.map((disponible) => (
+              <option
+                key={disponible.id}
+                value={disponible.id}
+                disabled={!accordable(disponible)}
+              >
+                {disponible.name}
+              </option>
+            ))}
+          </select>
+        </div>
         <Button type="submit" disabled={ajouter.isPending}>
           Ajouter
         </Button>
@@ -127,6 +161,8 @@ export function AllowedEmailsTable() {
             <TableHeader>
               <TableRow>
                 <TableHead>Adresse</TableHead>
+                <TableHead>Statut</TableHead>
+                <TableHead>Rôle à l&apos;inscription</TableHead>
                 <TableHead>Ajoutée le</TableHead>
                 <TableHead>Par</TableHead>
                 <TableHead className="sr-only">Actions</TableHead>
@@ -136,6 +172,24 @@ export function AllowedEmailsTable() {
               {data.map((acces) => (
                 <TableRow key={acces.id}>
                   <TableCell>{acces.email}</TableCell>
+                  {/* Autorisée ≠ venue : tant que la personne ne s'est pas
+                      connectée, aucun compte n'existe (#114, FR-003) et le rôle
+                      ci-contre n'est pas encore appliqué. C'est le seul retour
+                      qu'on ait dessus. */}
+                  <TableCell>
+                    {acces.has_account ? (
+                      <Badge variant="secondary">Compte actif</Badge>
+                    ) : (
+                      <Badge variant="outline">Jamais connecté</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {acces.role ? (
+                      <Badge variant="secondary">{acces.role.name}</Badge>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   <TableCell>{formatDate(acces.created_at)}</TableCell>
                   <TableCell>{acces.created_by_name ?? "—"}</TableCell>
                   <TableCell className="text-right">

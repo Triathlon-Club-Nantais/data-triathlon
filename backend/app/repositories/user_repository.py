@@ -43,6 +43,28 @@ def find_by_email(db: Session, email: str) -> list[User]:
     )
 
 
+def emails_with_account(db: Session, emails: list[str]) -> set[str]:
+    """Parmi ces adresses, celles que porte au moins un compte — **en minuscules**.
+
+    Une seule requête pour toute la liste : l'écran des accès (#170) l'appelle
+    pour un tableau entier, et `find_by_email` par ligne y serait un N+1.
+
+    La casse est ignorée, comme dans `find_by_email` et pour la même raison :
+    `users.email` garde celle du fournisseur, `allowed_emails` la normalise.
+    Comparer à l'égalité stricte rendrait « jamais connecté » sur un compte bien
+    vivant.
+    """
+    if not emails:
+        return set()
+    return set(
+        db.scalars(
+            select(func.lower(User.email)).where(
+                func.lower(User.email).in_({email.strip().lower() for email in emails})
+            )
+        )
+    )
+
+
 def create(db: Session, *, email: str, display_name: str = "") -> User:
     """Crée un utilisateur. **Aucune recherche par adresse** au préalable (FR-003).
 

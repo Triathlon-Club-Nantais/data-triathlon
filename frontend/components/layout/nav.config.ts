@@ -92,10 +92,20 @@ export const NAV: NavSection[] = [
       // Aucune entrée ne pointe `/admin` : la racine est le futur tableau de
       // bord global, et un `href` préfixe de tous les autres (`isActive` teste
       // `startsWith`) allumerait cette entrée sur chaque écran d'administration.
-      { id: "a-providers", label: "Fournisseurs en attente", href: "/admin/fournisseurs" },
+      //
+      // `permission` posé depuis #239 : sans lui, quelqu'un qui vient de se
+      // connecter et n'a pas encore de rôle se voyait proposer un lien
+      // cliquable dont l'API rend 403. C'est exactement ce que `permission`
+      // sert à éviter.
+      {
+        id: "a-providers",
+        label: "Fournisseurs en attente",
+        href: "/admin/fournisseurs",
+        permission: "pending_providers:read",
+      },
       { id: "a-courses", label: "Gestion des courses", href: "/admin/courses" },
       { id: "a-scrape", label: "Re-scrape à la demande", soon: true },
-      { id: "a-quality", label: "Revalidation qualité", soon: true },
+      { id: "a-quality", label: "Revalidation qualité", permission: "quality:override", soon: true },
       { id: "a-benevolat", label: "Bénévolat", soon: true },
       { id: "a-sessions", label: "Sessions", minRole: ROLE.ADMIN, soon: true },
       { id: "a-flags", label: "Feature flags", minRole: ROLE.ADMIN, soon: true },
@@ -121,11 +131,20 @@ export const NAV: NavSection[] = [
         href: "/admin/acces",
         permission: "allowed_emails:manage",
       },
-      // Les trois écrans manquants, leurs API étant livrées : attribuer un rôle
-      // (`/admin/users`, #239), composer un rôle (`/admin/roles`, #240), gérer
-      // un groupe (`/admin/groups`, #241). Chacun tient en un `href` posé ici
-      // et le `soon` retiré.
-      { id: "u-roles", label: "Rôles des utilisateurs", permission: "roles:assign", soon: true },
+      // Les deux écrans manquants, leurs API étant livrées : composer un rôle
+      // (`/admin/roles`, #240), gérer un groupe (`/admin/groups`, #241). Chacun
+      // tient en un `href` posé ici et le `soon` retiré.
+      //
+      // `roles:assign` seul, alors que l'écran lit aussi `users:read` et
+      // `roles:read` : `permission` reste un code unique, faute d'un rôle
+      // réaliste qui porterait l'écriture sans les deux lectures. Et l'écran
+      // dirait « accès refusé » plutôt que « aucun utilisateur » s'il arrivait.
+      {
+        id: "u-roles",
+        label: "Rôles des utilisateurs",
+        href: "/admin/utilisateurs",
+        permission: "roles:assign",
+      },
       { id: "u-droits", label: "Droits des rôles", permission: "roles:write", soon: true },
       {
         id: "u-groupes",

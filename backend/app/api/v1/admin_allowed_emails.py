@@ -17,19 +17,23 @@ from app.core.database import get_db
 from app.core.permissions import P
 from app.models.allowed_email import AllowedEmail
 from app.models.user import User
-from app.repositories import allowed_email_repository
-from app.schemas.admin import AllowedEmailCreate, AllowedEmailRead
+from app.repositories import allowed_email_repository, user_repository
+from app.schemas.admin import AllowedEmailCreate, AllowedEmailRead, RoleBrief
 from app.services.auth import allowed_emails
 
 router = APIRouter(tags=["admin"])
 
 
-def _vue(entree: AllowedEmail) -> AllowedEmailRead:
+def _vue(entree: AllowedEmail, *, has_account: bool) -> AllowedEmailRead:
     return AllowedEmailRead(
         id=entree.id,
         email=entree.email,
         created_at=entree.created_at,
         created_by_name=entree.created_by.display_name if entree.created_by else None,
+        role=RoleBrief.model_validate(entree.role, from_attributes=True)
+        if entree.role
+        else None,
+        has_account=has_account,
     )
 
 
@@ -43,8 +47,15 @@ def list_allowed_emails(
     Une liste vide est une réponse **valide** — elle dit « personne n'est
     autorisé », et l'interface l'affiche comme telle. Elle ne se confond pas avec
     un refus : c'est la distinction que `PendingProvidersTable` a dû apprendre.
+
+    `has_account` est résolu en **une** requête pour toute la liste, jamais une
+    par ligne.
     """
-    return [_vue(entree) for entree in allowed_emails.list_all(db)]
+    entrees = allowed_emails.list_all(db)
+    avec_compte = user_repository.emails_with_account(
+        db, [entree.email for entree in entrees]
+    )
+    return [_vue(entree, has_account=entree.email in avec_compte) for entree in entrees]
 
 
 @router.post("/admin/allowed-emails", response_model=AllowedEmailRead, status_code=201)
@@ -58,8 +69,10 @@ def add_allowed_email(
     Effet de bord contractuel : les comptes portant cette adresse repassent à
     `is_active = True`. Sans quoi une réinscription n'ouvrirait rien.
     """
-    entree, _, _ = allowed_emails.add(db, actor, email=body.email)
-    vue = _vue(entree)
+    entree, _, _ = allowed_emails.add(
+        db, actor, email=body.email, role_id=body.role_id
+    )
+    vue = _vue(entree, has_account=bool(user_repository.find_by_email(db, entree.email)))
     db.commit()
     return vue
 

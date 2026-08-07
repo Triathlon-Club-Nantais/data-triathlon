@@ -24,6 +24,8 @@ export const queryKeys = {
     ["admin-course-detail", courseId, q] as const,
   courseDeletionImpact: (courseId: number) =>
     ["course-deletion-impact", courseId] as const,
+  adminUsers: () => ["admin-users"] as const,
+  roles: () => ["roles"] as const,
   session: () => ["session"] as const,
   authMethods: () => ["auth-methods"] as const,
 };
