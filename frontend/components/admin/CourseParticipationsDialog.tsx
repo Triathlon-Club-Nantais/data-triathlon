@@ -74,7 +74,7 @@ export function CourseParticipationsDialog({
         open={open && aRattacher === null && !editionOuverte}
         onOpenChange={onOpenChange}
       >
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="flex max-h-[85dvh] flex-col sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Résultats — {course.name}</DialogTitle>
             <DialogDescription>
@@ -111,13 +111,13 @@ export function CourseParticipationsDialog({
           )}
 
           {data && data.participations.length > 0 && (
-            <ul className="max-h-96 space-y-1 overflow-y-auto">
+            <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto">
               {data.participations.map((participation) => (
                 <li
                   key={participation.id}
-                  className="flex items-center justify-between gap-2 border-b py-2 text-sm"
+                  className="flex flex-wrap items-center justify-between gap-2 border-b py-2 text-sm"
                 >
-                  <span>
+                  <span className="min-w-0 flex-1">
                     <span className="font-medium">
                       {participation.athlete.nom} {participation.athlete.prenom}
                     </span>
