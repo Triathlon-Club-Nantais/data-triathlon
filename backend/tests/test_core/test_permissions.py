@@ -13,16 +13,18 @@ import pytest
 from app.core import permissions
 from app.core.permissions import P, Permission
 
-#: Les douze codes des contrats : les neuf de `contracts/admin-api.md` (#115) et
-#: les trois de `contracts/admin-groups-api.md` (#197). Écrits **à la main** ici,
-#: et c'est délibéré : un test qui dériverait la liste du catalogue ne prouverait
-#: rien. C'est ce qui fait qu'ajouter un pouvoir est un geste conscient — cette
-#: liste est le seul endroit du dépôt qui s'y oppose.
+#: Les treize codes des contrats : les neuf de `contracts/admin-api.md` (#115),
+#: les trois de `contracts/admin-groups-api.md` (#197) et celui de la liste
+#: d'autorisation (#170). Écrits **à la main** ici, et c'est délibéré : un test
+#: qui dériverait la liste du catalogue ne prouverait rien. C'est ce qui fait
+#: qu'ajouter un pouvoir est un geste conscient — cette liste est le seul endroit
+#: du dépôt qui s'y oppose.
 CODES_ATTENDUS = {
     "roles:read",
     "roles:write",
     "roles:assign",
     "users:read",
+    "allowed_emails:manage",
     "groups:read",
     "groups:write",
     "groups:assign",

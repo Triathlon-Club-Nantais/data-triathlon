@@ -11,9 +11,12 @@ import logging
 
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
 from app.models.user import User
-from app.repositories import identity_repository, user_repository
+from app.repositories import (
+    allowed_email_repository,
+    identity_repository,
+    user_repository,
+)
 from app.services.auth.errors import LoginError
 from app.services.auth.idp.base import ExternalIdentity
 
@@ -30,7 +33,7 @@ def resolve_user(db: Session, identity: ExternalIdentity) -> User:
         logger.info("Login refused: provider certifies no address (%s)", identity.provider)
         raise LoginError("email_unverified")
 
-    if not _is_allowed(identity.email):
+    if not _is_allowed(db, identity.email):
         # L'adresse **est** journalisée ici, et nulle part ailleurs dans le
         # parcours. Le code rendu au visiteur est muet sur la valeur soumise
         # (FR-030) ; sans cette trace, un refus n'est pas diagnosticable et
@@ -99,15 +102,22 @@ def resolve_user(db: Session, identity: ExternalIdentity) -> User:
     return user
 
 
-def _is_allowed(email: str) -> bool:
+def _is_allowed(db: Session, email: str) -> bool:
     """Liste d'autorisation, **fail-closed** et réévaluée à chaque connexion.
 
-    Vide = aucune connexion (FR-007) : une variable absente sur Render est un
-    incident ordinaire, et « liste vide = tout le monde » le transformerait en
-    ouverture de l'administration à n'importe quel compte GitHub.
+    Vide = aucune connexion (FR-004 de #170) : une base neuve est un état
+    ordinaire, et « liste vide = tout le monde » la transformerait en ouverture
+    de l'administration à n'importe quel compte GitHub. C'est **ici**, et nulle
+    part ailleurs, que le fail-closed se joue : depuis #170 le garde de
+    configuration ne pèse plus la liste, et `/auth/methods` n'interroge aucune
+    table.
 
-    La comparaison ignore la casse et les espaces : ces adresses sont saisies à
-    la main dans une variable d'environnement.
+    **En base, et sans cache.** La liste vivait dans un réglage lu par un
+    `Settings` en `lru_cache` — c'est ce cache qui faisait de l'ajout d'un
+    contributeur un redéploiement. Un ajout est désormais effectif à la
+    tentative suivante, un retrait aussi.
+
+    La comparaison ignore la casse et les espaces ; la normalisation est portée
+    par le repository, seul point de passage de cette table.
     """
-    allowed = {a.strip().lower() for a in get_settings().auth_allowed_emails if a.strip()}
-    return email.strip().lower() in allowed
+    return allowed_email_repository.exists(db, email)

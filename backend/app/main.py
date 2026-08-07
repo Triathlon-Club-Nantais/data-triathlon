@@ -38,7 +38,6 @@ def _warn_if_auth_unconfigured() -> None:
         name
         for name, value in (
             ("AUTH_SESSION_SECRET_KEY", settings.auth_session_secret_key),
-            ("AUTH_ALLOWED_EMAILS", settings.auth_allowed_emails),
             ("AUTH_REDIRECT_BASE_URL", settings.auth_redirect_base_url),
         )
         if not value

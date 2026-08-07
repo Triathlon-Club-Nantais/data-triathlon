@@ -17,8 +17,8 @@ def get(db: Session, user_id: int) -> User | None:
 def list_all(db: Session) -> list[User]:
     """Tous les utilisateurs, par adresse. **Sans pagination**, et c'est borné.
 
-    Le peuplement d'`users` l'est par `AUTH_ALLOWED_EMAILS` : une personne y naît
-    d'une connexion réussie *et autorisée*.
+    Le peuplement d'`users` l'est par la liste d'autorisation (`allowed_emails`,
+    #170) : une personne y naît d'une connexion réussie *et autorisée*.
     """
     return list(db.scalars(select(User).order_by(User.email, User.id)))
 
@@ -68,3 +68,21 @@ def refresh_profile(db: Session, user: User, *, email: str, display_name: str) -
         user.display_name = display_name
     db.flush()
     return user
+
+
+def set_active(db: Session, users: list[User], *, active: bool) -> int:
+    """Ouvre ou ferme des comptes. Rend le nombre de comptes **réellement changés**.
+
+    Fermer un compte fait tomber ses sessions **immédiatement** : l'invariant de
+    `session.resolve` est une jointure, jamais un cache (#114). C'est ce qui rend
+    le retrait d'une adresse effectif au geste (#170, FR-016), sans avoir à
+    parcourir `user_sessions`.
+
+    Le compte rendu n'est pas décoratif : la CLI en fait un « 2 compte(s)
+    réactivé(s) », et « rien à faire » se distingue ainsi d'un geste sans effet.
+    """
+    changes = [user for user in users if user.is_active != active]
+    for user in changes:
+        user.is_active = active
+    db.flush()
+    return len(changes)

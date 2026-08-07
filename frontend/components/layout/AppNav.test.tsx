@@ -12,8 +12,11 @@ const { push, getSession, logout, listParticipations } = vi.hoisted(() => ({
   listParticipations: vi.fn(),
 }));
 
+/** Mutable : le surlignage se teste depuis plusieurs écrans. */
+const chemin = vi.hoisted(() => ({ courant: "/dashboard" }));
+
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/dashboard",
+  usePathname: () => chemin.courant,
   useRouter: () => ({ push, refresh: vi.fn() }),
 }));
 
@@ -46,6 +49,11 @@ const SESSION: SessionUser = {
   roles: [],
 };
 
+/** La même session, habilitée. `permissions` est l'unique source (#115). */
+function habilite(...pouvoirs: string[]): SessionUser {
+  return { ...SESSION, permissions: pouvoirs };
+}
+
 /**
  * Déplie le rail — c'est là que les libellés des entrées apparaissent.
  *
@@ -59,6 +67,7 @@ async function deplier() {
 
 beforeEach(() => {
   push.mockClear();
+  chemin.courant = "/dashboard";
   listParticipations.mockResolvedValue([]);
 
   // Node 20 (la CI) fournit `window.localStorage` à jsdom, Node 26 non. Sans
@@ -141,9 +150,77 @@ describe("AppNav — arborescence", () => {
     afficher(SESSION);
     await deplier();
     await waitFor(() => expect(screen.getByText("Administration")).toBeInTheDocument());
-    expect(screen.getByRole("link", { name: "Fournisseurs en attente" })).toHaveAttribute("href", "/admin");
+    expect(screen.getByRole("link", { name: "Chronométreurs signalés" })).toHaveAttribute("href", "/admin");
     // Les entrées d'échelon administrateur attendent #115 : rien ne l'attribue.
     expect(screen.queryByText("Feature flags")).not.toBeInTheDocument();
+  });
+});
+
+describe("AppNav — Gestion des utilisateurs (#170)", () => {
+  /**
+   * La section se règle sur les **pouvoirs**, pas sur `ROLE.ADMIN`.
+   *
+   * `rank` ne vaut jamais `ROLE.ADMIN` (rien ne le calcule) : une entrée à cet
+   * échelon est invisible pour tout le monde, ce qui rendrait l'écran des accès
+   * inatteignable depuis la nav. `session.permissions` est, lui, renseigné par
+   * `/auth/me` depuis #115.
+   *
+   * Ce filtre est un confort d'affichage, jamais une garde : l'API refuse
+   * elle-même sans `allowed_emails:manage`.
+   */
+  it("cache la section à un connecté sans pouvoir", async () => {
+    afficher(SESSION);
+    await deplier();
+    await waitFor(() => expect(screen.getByText("Administration")).toBeInTheDocument());
+    expect(screen.queryByText("Gestion des utilisateurs")).not.toBeInTheDocument();
+  });
+
+  it("ouvre « Accès au back-office » à qui porte allowed_emails:manage", async () => {
+    afficher(habilite("allowed_emails:manage"));
+    await deplier();
+    await waitFor(() => expect(screen.getByText("Gestion des utilisateurs")).toBeInTheDocument());
+    expect(screen.getByRole("link", { name: "Accès au back-office" })).toHaveAttribute(
+      "href",
+      "/admin/acces",
+    );
+  });
+
+  it("ne surligne que la destination courante, jamais son préfixe", async () => {
+    // `startsWith` allumait « Chronométreurs signalés » (href `/admin`) en même
+    // temps que l'écran des accès. Un href de la nav désigne **un** écran, pas
+    // une famille : les trois écrans à venir vivront eux aussi sous `/admin/`.
+    chemin.courant = "/admin/acces";
+    afficher(habilite("allowed_emails:manage"));
+    await deplier();
+
+    const courant = await screen.findByRole("link", { name: "Accès au back-office" });
+    expect(courant).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Chronométreurs signalés" })).not.toHaveAttribute(
+      "aria-current",
+    );
+  });
+
+  it("ne porte que les entrées dont le pouvoir est détenu", async () => {
+    // Composer les droits d'un rôle et autoriser une adresse sont deux pouvoirs
+    // distincts : porter l'un ne doit pas annoncer l'écran de l'autre.
+    afficher(habilite("roles:write"));
+    await deplier();
+    await waitFor(() => expect(screen.getByText("Gestion des utilisateurs")).toBeInTheDocument());
+
+    expect(screen.getByText("Droits des rôles")).toBeInTheDocument();
+    expect(screen.queryByText("Accès au back-office")).not.toBeInTheDocument();
+    expect(screen.queryByText("Groupes d'appartenance")).not.toBeInTheDocument();
+  });
+
+  it("porte les écrans non livrés désactivés plutôt que de les inventer", async () => {
+    afficher(habilite("roles:assign", "groups:assign"));
+    await deplier();
+    await waitFor(() => expect(screen.getByText("Gestion des utilisateurs")).toBeInTheDocument());
+
+    for (const libelle of ["Rôles des utilisateurs", "Groupes d'appartenance"]) {
+      expect(screen.getByText(libelle)).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: libelle })).not.toBeInTheDocument();
+    }
   });
 });
 

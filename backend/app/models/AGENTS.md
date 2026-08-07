@@ -63,3 +63,29 @@ la forme qui l'assure, pas une garde. Lever l'avis humain (`NULL`) fait
 réapparaître le **dernier** verdict calculé, pas celui qui valait au moment de la
 décision. Le contrat public ne bouge pas : `from_attributes=True` lit une
 propriété comme une colonne.
+
+## Liste d'autorisation (#170) — une table, trois invariants
+
+`allowed_emails` (`id`, `email` **UNIQUE**, `created_at`, `created_by_user_id`)
+dit qui a le droit d'ouvrir une session. Elle remplace `AUTH_ALLOWED_EMAILS`,
+dont la lecture par un `Settings` en `lru_cache` faisait de l'ajout d'un
+contributeur un redéploiement.
+
+- **L'adresse est rangée normalisée** — minuscules, espaces retirés — par
+  `allowed_email_repository`, seul point de passage de la table. C'est ce qui
+  rend le `UNIQUE` suffisant et évite un index fonctionnel `lower(email)` côté
+  PostgreSQL.
+- **Elle autorise, elle n'identifie pas.** Aucune colonne ne désigne le
+  titulaire et aucune ne le désignera : une identité externe inconnue crée
+  **toujours** un nouvel utilisateur (#114, FR-003), et apparier sur l'adresse
+  rouvrirait la prise de contrôle par pré-inscription. `created_by_user_id` nomme
+  celui qui **accorde**, jamais celui qui reçoit — d'où le champ d'API
+  `created_by_name`, un nom d'affichage et non un identifiant.
+- **Elle n'est pas rattachée à une organisation.** Elle répond « cette adresse
+  peut-elle ouvrir une session ? », pas « dans quel club ? » — c'est le rôle qui
+  porte l'organisation. Une liste par club supposerait de savoir à quel club
+  rattacher quelqu'un *avant* qu'il existe.
+
+**Pas d'`ondelete`**, comme les trois tables de #114 : supprimer l'utilisateur
+qui a inscrit une adresse ne doit jamais retirer l'adresse — ce serait une
+révocation d'accès par effet de bord.

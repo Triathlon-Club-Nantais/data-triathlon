@@ -6,6 +6,7 @@ from fastapi import APIRouter
 
 from app.api.v1 import (
     admin,
+    admin_allowed_emails,
     admin_groups,
     admin_roles,
     athletes,
@@ -32,6 +33,7 @@ for module in (
     participations,
     stats,
     admin,
+    admin_allowed_emails,
     admin_roles,
     admin_groups,
     auth,

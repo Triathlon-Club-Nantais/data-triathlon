@@ -44,20 +44,19 @@ Une doublure de test ne s'enregistre **jamais** au niveau module — elle
 existerait en production, et `is_configured()` est un garde de configuration,
 pas un garde de sécurité.
 
-**Huit réglages `AUTH_*`** (`backend/README.md` pour le tableau,
+**Sept réglages `AUTH_*`** (`backend/README.md` pour le tableau,
 `docs/ci-cd.md` pour les valeurs par environnement) : `AUTH_SESSION_SECRET_KEY`
 (≥ 32 caractères ou le démarrage échoue ; **vide = non configuré**, état
-légitime), `AUTH_GITHUB_CLIENT_ID` / `_SECRET`, `AUTH_ALLOWED_EMAILS` (CSV,
-**fail-closed** : vide interdit toute connexion et fait rendre `[]` à
-`/auth/methods`), `AUTH_REDIRECT_BASE_URL` (origine de l'**interface**, jamais
-celle de l'API, et **sans défaut**), `AUTH_COOKIE_SECURE` (dont le nom des
-cookies est **dérivé** : `__Host-` exige `Secure`), `AUTH_SESSION_TTL_DAYS`,
-`AUTH_STATE_TTL_SECONDS`.
+légitime), `AUTH_GITHUB_CLIENT_ID` / `_SECRET`, `AUTH_REDIRECT_BASE_URL`
+(origine de l'**interface**, jamais celle de l'API, et **sans défaut**),
+`AUTH_COOKIE_SECURE` (dont le nom des cookies est **dérivé** : `__Host-` exige
+`Secure`), `AUTH_SESSION_TTL_DAYS`, `AUTH_STATE_TTL_SECONDS`. Ils étaient huit :
+`AUTH_ALLOWED_EMAILS` est passée en base (#170, section dédiée plus bas).
 
-Trois de ces réglages sont **transverses** — la clé de signature, la liste
-d'autorisation et l'origine de retour —, et ce sont eux qu'éprouve
-`Settings.auth_is_configured` ; les secrets d'un fournisseur restent derrière son
-propre `is_configured()`. Les mêler masquerait un second fournisseur pourtant
+**Deux** de ces réglages sont **transverses** — la clé de signature et l'origine
+de retour —, et ce sont eux qu'éprouve `Settings.auth_is_configured` ; les
+secrets d'un fournisseur restent derrière son propre `is_configured()`. Les
+mêler masquerait un second fournisseur pourtant
 configuré et obligerait à modifier ce garde à chaque ajout, ce que FR-033
 proscrit. Les **deux** gardes sont éprouvées à l'entrée du parcours, socle
 d'abord : sans la clé, `joserfc` levait un `ValueError` nu qui ressortait en
@@ -160,7 +159,7 @@ Le socle ci-dessus dit *qui* agit ; celui-ci dit *ce qu'il peut faire*. Spec,
 plan et tâches : `specs/20260804-214724-auth-rbac-roles/`.
 
 **Le pouvoir est dans le code, le rôle est en base.** `core/permissions.py` tient
-la **liste de référence** des neuf codes (`<domaine>:<geste>`) ; `roles`,
+la **liste de référence** des treize codes (`<domaine>:<geste>`) ; `roles`,
 `role_permissions` et `user_roles` tiennent la composition et l'attribution,
 éditables à chaud. Les deux se confondent facilement, et l'ont été : le code
 porté par un rôle *est* une donnée en base — ce qui n'existe pas, c'est une table
@@ -171,7 +170,7 @@ est donc un membre de plus dans `P`, **jamais une migration**.
 **`roles.is_superuser` referme la seule objection sérieuse** à ce partage : « une
 fonctionnalité livrée mardi n'est administrable que si quelqu'un pense à cocher
 son pouvoir ». Un rôle superutilisateur franchit tout pouvoir, présent **et à
-venir** — le semis ne lui colle donc aucun code, lui donner les neuf du jour le
+venir** — le semis ne lui colle donc aucun code, lui donner ceux du jour le
 figerait au jour d'aujourd'hui.
 
 Cinq choses à ne pas défaire :
@@ -232,6 +231,71 @@ session, il n'y a pas d'acteur dont comparer les pouvoirs — l'accès au serveu
 *est* le privilège) et l'invariant du dernier administrateur (elle ne fait
 qu'accorder). Voir `app/cli/AGENTS.md`.
 
+# Liste d'autorisation en base (#170)
+
+**Qui a le droit d'exister comme utilisateur est une donnée, plus un réglage.**
+La table `allowed_emails` remplace `AUTH_ALLOWED_EMAILS` : ajouter un
+contributeur était le geste d'administration le plus fréquent du club et le plus
+coûteux — `get_settings` étant en `lru_cache`, il valait un redéploiement Render.
+Spec, plan et tâches : `specs/20260806-174652-auth-liste-autorisation-base/`.
+
+**Deux modules, deux responsabilités.** `provisioning.py` **lit** la liste au
+passage d'une connexion (`_is_allowed(db, email)` → `allowed_email_repository`,
+sans cache, à chaque tentative) ; `allowed_emails.py` l'**écrit**, depuis l'écran
+ou depuis la CLI. Les fondre ferait rentrer `authorization` dans le chemin de
+connexion, qui n'a rien à en savoir.
+
+Cinq points à ne pas défaire :
+
+- **`auth_is_configured` ne pèse plus la liste**, et c'est le seul écart au
+  Principe IV de cette feature. `GET /auth/methods` annonce donc GitHub même
+  avec une liste vide, là où il rendait `[]`. La faire peser là transformerait
+  une route **publique et non authentifiée**, appelée par la page de connexion,
+  en requête base — le levier de charge que #114 a fermé sur le retour de
+  parcours (limiteur AnyIO mesuré à 40, toutes les routes en `def`). Le
+  fail-closed n'est pas perdu : il tombe au **retour**, en `account_not_allowed`.
+- **Un seul pouvoir, `allowed_emails:manage`**, et non une paire `read`/`write` :
+  la liste n'a aucun lecteur autre que l'écran qui la modifie, un porteur du seul
+  `read` regarderait un écran où tous les gestes échouent. Le rôle `admin` étant
+  superutilisateur, il le franchit sans migration ni semis — c'est ce qui répond
+  à « réservé aux administrateurs » **sans** nommer un rôle dans une garde.
+- **Le retrait désactive, l'ajout réactive.** Retirer une adresse passe
+  `is_active = False` sur les comptes qui la portent, ce qui fait tomber leurs
+  sessions **immédiatement** (l'invariant de `session.resolve` est une jointure).
+  La réactivation à l'ajout n'est pas un raffinement : sans elle, réinscrire
+  quelqu'un ne rouvrirait rien — un compte désactivé est refusé *avant* que la
+  liste ne soit consultée, et l'exploitant verrait l'adresse au tableau pendant
+  que la personne reste dehors. **Échéance connue** : `is_active` acquiert ici son
+  premier producteur applicatif ; le second sera #169 (révocation d'urgence), à
+  qui il reviendra de distinguer « fermé parce que retiré » de « fermé parce que
+  révoqué ». **Corollaire à ne pas découvrir en incident** : le retrait ne
+  supprime aucune ligne de `user_sessions` — c'est la jointure qui refuse. Une
+  réinscription dans la fenêtre de TTL (7 jours) **ressuscite donc les jetons
+  exacts** que le retrait avait coupés, appareil oublié compris. L'écran dit
+  « fermé immédiatement », et c'est vrai *tant que l'adresse reste absente* ;
+  fermer pour de bon relève de #169.
+- **`allowed_emails:manage` vaut en pratique « fermer n'importe quel compte ».**
+  Un porteur non superutilisateur peut désactiver tout le monde sauf le dernier
+  administrateur — un chemin qui ne traverse pas `assert_may_grant`, donc **hors
+  de la non-amplification de #115**. Le plafond est l'invariant ci-dessous, et
+  c'est le prix assumé d'un pouvoir unique : le scinder en `read`/`write` ne le
+  changerait pas, seule une garde de non-amplification sur la désactivation le
+  ferait, ce qu'aucun besoin exprimé ne réclame aujourd'hui.
+- **L'invariant du dernier administrateur est celui de #115, réutilisé.**
+  `remove()` s'exécute dans `authorization.administrateurs_preserves(db)`, sans
+  argument d'organisation. La règle qui vient à l'esprit — « on ne retire pas sa
+  propre adresse » — est trop stricte (un administrateur qui part, alors qu'un
+  autre reste, en a le droit) et trop laxiste (retirer *l'autre* verrouille tout
+  autant). 409, pas 403 : c'est le résultat qui est interdit.
+- **La migration `a107b77b53e8` reprend `AUTH_ALLOWED_EMAILS` depuis
+  `os.environ`**, une fois, au `alembic upgrade head` du `startCommand`. Sans
+  elle, le déploiement mettait dehors toute la production, administrateurs
+  compris. Ordre d'exploitation dans `docs/ci-cd.md` : déployer → vérifier →
+  supprimer la variable. L'inverser vide la source de la reprise.
+
+L'amorçage d'une base neuve passe par `python -m app.cli allow-email`
+(`app/cli/AGENTS.md`) : liste vide → personne ne se connecte → personne n'ouvre
+l'écran qui inscrirait la première adresse.
 # Groupes d'appartenance (#197)
 
 Un **groupe** dit à quoi on **appartient** — Codir, arbitres, commission

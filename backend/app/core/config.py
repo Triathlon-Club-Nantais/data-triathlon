@@ -70,11 +70,13 @@ class Settings(BaseSettings):
     auth_session_secret_key: str = ""
     auth_github_client_id: str = ""
     auth_github_client_secret: str = ""
-    # Liste blanche des adresses autorisées à ouvrir une session, en CSV comme
-    # CORS_ORIGINS. **Fail-closed** : vide interdit toute connexion (FR-007) —
-    # une variable absente sur Render est un incident ordinaire, et « vide =
-    # tout le monde » l'aurait transformé en ouverture à n'importe quel compte.
-    auth_allowed_emails: Annotated[list[str], NoDecode] = []
+    # La liste des adresses autorisées **n'est plus ici** (#170) : elle vit dans
+    # la table `allowed_emails`, éditable depuis le back-office. Elle était le
+    # geste d'administration le plus fréquent du club, et le plus coûteux — ce
+    # cache `lru_cache` en faisait un redéploiement. Le fail-closed n'a pas
+    # bougé de place, il a changé d'étage : c'est `services/auth/provisioning`
+    # qui refuse en `account_not_allowed`, liste vide comprise.
+    #
     # Origine de l'**interface**, jamais celle de l'API : c'est elle qui proxifie
     # `/api/*`, donc elle seule à qui les cookies sont attribués. La destination
     # de retour vient d'ici et n'est jamais acceptée en paramètre (FR-026).
@@ -91,7 +93,7 @@ class Settings(BaseSettings):
     auth_session_ttl_days: int = 7      # sans prolongation glissante
     auth_state_ttl_seconds: int = 600   # durée de vie du jeton d'état
 
-    @field_validator("cors_origins", "auth_allowed_emails", mode="before")
+    @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_csv(cls, v):
         """Accepte une chaîne CSV depuis l'environnement."""
@@ -133,22 +135,25 @@ class Settings(BaseSettings):
     def auth_is_configured(self) -> bool:
         """Vrai si le **socle** est configuré, indépendamment de tout fournisseur.
 
-        Trois conditions, toutes transverses : la clé qui signe le jeton d'état,
-        une liste d'autorisation non vide — sans elle aucune connexion ne peut
-        aboutir, donc proposer un moyen de connexion mentirait (FR-007) — et
-        l'origine de retour, sans laquelle le `redirect_uri` envoyé au
+        Deux conditions, toutes deux transverses : la clé qui signe le jeton
+        d'état, et l'origine de retour, sans laquelle le `redirect_uri` envoyé au
         fournisseur serait faux.
+
+        **Elles étaient trois** : la liste d'autorisation en faisait partie tant
+        qu'elle était un réglage. Depuis #170 elle vit en base, et la peser ici
+        transformerait ce garde — lu par `/auth/methods`, route **publique**
+        appelée par la page de connexion — en requête base. Le fail-closed n'est
+        pas perdu : `services/auth/provisioning` refuse en
+        `account_not_allowed`, liste vide comprise. Ce qu'on paie est un
+        aller-retour chez le fournisseur pour rien sur une installation neuve ;
+        ce qu'on évite est un levier de charge sur le site public.
 
         Les secrets d'un fournisseur **ne sont pas ici** : chacun déclare sa
         propre configuration par `is_configured()`. Les exiger reviendrait à
         masquer un second fournisseur pourtant configuré, et à devoir modifier
         ce garde à chaque ajout — ce que FR-033 proscrit.
         """
-        return bool(
-            self.auth_session_secret_key
-            and self.auth_allowed_emails
-            and self.auth_redirect_base_url
-        )
+        return bool(self.auth_session_secret_key and self.auth_redirect_base_url)
 
     @property
     def is_sqlite(self) -> bool:

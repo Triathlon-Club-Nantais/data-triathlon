@@ -83,6 +83,12 @@ class P:
         "Voir la liste des personnes connectées au moins une fois et leurs rôles.",
         FEATURE_ROLES,
     )
+    ALLOWED_EMAILS_MANAGE = Permission(
+        "allowed_emails:manage",
+        "Gérer les accès",
+        "Consulter, ajouter et retirer les adresses autorisées à ouvrir une session.",
+        FEATURE_ROLES,
+    )
     GROUPS_READ = Permission(
         "groups:read",
         "Consulter les groupes",
@@ -140,6 +146,7 @@ ALL: tuple[Permission, ...] = (
     P.ROLES_WRITE,
     P.ROLES_ASSIGN,
     P.USERS_READ,
+    P.ALLOWED_EMAILS_MANAGE,
     P.GROUPS_READ,
     P.GROUPS_WRITE,
     P.GROUPS_ASSIGN,
@@ -178,7 +185,7 @@ class FeatureGroup:
 def grouped_by_feature() -> list[FeatureGroup]:
     """L'inventaire rangé par fonctionnalité, dans l'ordre de déclaration.
 
-    Composer un rôle en cochant dans une liste plate de neuf codes techniques
+    Composer un rôle en cochant dans une liste plate de treize codes techniques
     est le geste qu'on veut éviter — c'est ce regroupement qui rend l'écran
     lisible, et il n'a pas d'autre lecteur.
     """

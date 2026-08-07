@@ -10,7 +10,16 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 `/api/v1` du backend. Tests Vitest + RTL verts. Build prod OK.
 
 - `app/` — App Router : `dashboard`, `resultats`, `athletes/[id]`, `courses/[id]`,
-  `club`, `carte`, `ajouter`, `admin`.
+  `club`, `carte`, `ajouter`, `admin`, `admin/acces`.
+- **Navigation** — `components/layout/nav.config.ts` en est la description
+  **unique** ; ajouter une destination y tient en une ligne. Deux échelons de
+  visibilité, à ne pas confondre : `minRole` ne distingue qu'anonyme et
+  connecté — `ROLE.ADMIN` est déclaré mais **inerte**, `rank` ne le vaut jamais,
+  donc une entrée à cet échelon est invisible pour tout le monde. La finesse
+  au-delà passe par `permission`, un code de `core/permissions.py` confronté à
+  `session.permissions` (#115). Une section que le filtrage vide disparaît. Rien
+  de tout cela ne garde une donnée : chaque ressource de l'API porte sa propre
+  garde, et le rail ne fait qu'éviter d'annoncer un écran qui rendrait 403.
 - `components/` — `scrape/` (ScrapeForm, ProviderDetector, ImportProgress),
   `results/` (ResultCard, ResultsList), `club/` (ClubView, AthleteDialog),
   `map/` (MapView), `dashboard/` (StatsCards, RecentCourses), `ui/` (shadcn).

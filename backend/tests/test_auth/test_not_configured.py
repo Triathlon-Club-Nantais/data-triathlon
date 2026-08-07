@@ -82,13 +82,19 @@ def test_une_cle_absente_rend_503_et_non_une_page_technique(client, monkeypatch)
     assert "authentification" in reponse.json()["detail"].lower()
 
 
-def test_une_liste_d_autorisation_vide_ferme_le_parcours(client, monkeypatch):
-    """Fail-closed jusqu'au bout : ne pas proposer de méthode ne suffit pas, il
-    faut aussi refuser l'entrée du parcours à qui en connaîtrait l'URL."""
-    monkeypatch.setenv("AUTH_ALLOWED_EMAILS", "")
-    get_settings.cache_clear()
+def test_une_liste_d_autorisation_vide_n_est_plus_un_garde_de_configuration(
+    client, vider_la_liste_autorisation
+):
+    """#170 : la liste a quitté la configuration, elle ne ferme plus l'entrée.
 
-    assert client.get("/api/v1/auth/github/authorize", follow_redirects=False).status_code == 503
+    Le parcours s'ouvre (302 vers le fournisseur) et c'est au **retour** qu'il
+    est refusé, en `account_not_allowed`. Ce qui reste gardé ici, ce sont les
+    deux réglages réellement transverses : la clé de signature et l'origine de
+    retour, tous deux éprouvés par les tests ci-dessus.
+    """
+    vider_la_liste_autorisation()
+
+    assert client.get("/api/v1/auth/github/authorize", follow_redirects=False).status_code == 302
 
 
 def test_la_configuration_transverse_ne_depend_d_aucun_fournisseur(client, doublure, monkeypatch):

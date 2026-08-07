@@ -199,6 +199,19 @@ export interface PendingProvider {
   reported_at: string | null;
 }
 
+/**
+ * Une adresse autorisée à ouvrir une session (#170).
+ *
+ * `created_by_name` est un nom d'affichage, pas un identifiant : il est `null`
+ * quand l'inscription vient de la CLI d'amorçage ou de la reprise de production.
+ */
+export interface AllowedEmail {
+  id: number;
+  email: string;
+  created_at: string;
+  created_by_name: string | null;
+}
+
 export interface AthleteDetail {
   athlete: AthleteBrief;
   participations: Participation[];

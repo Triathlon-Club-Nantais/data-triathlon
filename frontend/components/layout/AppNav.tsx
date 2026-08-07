@@ -82,17 +82,31 @@ export function AppNav() {
   }
 
   // La nav ne distingue qu'anonyme et connecté : c'est le seul échelon que la
-  // production attribue aujourd'hui (cf. ROLE dans nav.config.ts).
+  // production attribue aujourd'hui (cf. ROLE dans nav.config.ts). La finesse
+  // au-delà vient des **pouvoirs**, seuls réellement renseignés (#115).
   const rank: number = session ? ROLE.CONNECTED : ROLE.ANON;
-  const sections = NAV.filter((s) => rank >= s.minRole).map((s) => ({
-    ...s,
-    items: s.items.filter((i) => rank >= (i.minRole ?? ROLE.ANON)),
-  }));
+  const pouvoirs = new Set(session?.permissions ?? []);
+  const sections = NAV.filter((s) => rank >= s.minRole)
+    .map((s) => ({
+      ...s,
+      items: s.items.filter(
+        (i) => rank >= (i.minRole ?? ROLE.ANON) && (!i.permission || pouvoirs.has(i.permission)),
+      ),
+    }))
+    // Une section vidée par le filtrage n'a plus qu'un intitulé à afficher —
+    // et, sur le rail replié, une tuile qui déplie sur rien.
+    .filter((s) => s.items.length > 0);
 
+  /**
+   * Un `href` de la nav désigne **un** écran, pas une famille : c'est pourquoi
+   * la comparaison est une égalité et non un préfixe. `startsWith` allumait
+   * « Chronométreurs signalés » (`/admin`) en même temps que `/admin/acces`, et
+   * l'aurait fait pour les trois écrans à venir, tous sous `/admin/`.
+   *
+   * `/dashboard` garde son cas propre : il répond aussi à la racine.
+   */
   function isActive(href: string) {
-    return href === "/dashboard"
-      ? pathname === "/" || pathname.startsWith("/dashboard")
-      : pathname.startsWith(href);
+    return pathname === href || (href === "/dashboard" && pathname === "/");
   }
 
   const contenu = (deplie: boolean, fermer?: () => void) => (

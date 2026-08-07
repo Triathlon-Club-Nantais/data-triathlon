@@ -97,9 +97,9 @@ class RoleAssign(BaseModel):
 class AdminUserRead(BaseModel):
     """Un utilisateur vu depuis l'administration.
 
-    Sans pagination : le peuplement d'`users` est borné par
-    `AUTH_ALLOWED_EMAILS` — une personne y naît d'une connexion réussie **et
-    autorisée**.
+    Sans pagination : le peuplement d'`users` est borné par la liste
+    d'autorisation (`allowed_emails`, #170) — une personne y naît d'une
+    connexion réussie **et autorisée**.
     """
 
     id: int
@@ -231,3 +231,41 @@ class CourseReliabilityRead(BaseModel):
     is_reliable_computed: bool | None
     reliability_override: bool | None
     quality_issues: dict | None
+
+
+class AllowedEmailRead(BaseModel):
+    """Une adresse autorisée à ouvrir une session (#170).
+
+    `created_by_name` — et non `created_by` : la colonne s'appelle
+    `created_by_user_id`, un champ nu se lirait comme l'identifiant qu'il n'est
+    pas. C'est un nom d'affichage, que l'écran rend et que rien ne suit ; il est
+    `null` quand l'inscription vient de la CLI ou de la reprise de production.
+    """
+
+    id: int
+    email: str
+    created_at: datetime
+    created_by_name: str | None = None
+
+    @field_serializer("created_at")
+    def _serialize_utc(self, value: datetime) -> str:
+        return f"{value.isoformat()}Z"
+
+
+class AllowedEmailCreate(BaseModel):
+    """Inscription d'une adresse.
+
+    **`str` et non `EmailStr`, délibérément.** Une contrainte Pydantic sur le DTO
+    fait rendre par FastAPI son 422 par défaut : `detail` y est une **liste**
+    d'objets et le message vient d'`email-validator`, donc en **anglais**. Deux
+    contrats y passaient à la trappe — FR-010 (« message en français ») et la
+    forme `{"detail": "<chaîne>"}` que le front réaffiche verbatim.
+
+    La validation vit donc dans `services/auth/allowed_emails`, où elle lève un
+    `DomainError` français. Les deux appelants — la ressource HTTP et la CLI
+    d'amorçage — en héritent, au lieu de valider chacun à sa façon.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: str

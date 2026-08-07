@@ -1,9 +1,14 @@
-"""Politique de provisionnement — certification, liste d'autorisation, résolution."""
+"""Politique de provisionnement — certification, liste d'autorisation, résolution.
+
+Depuis #170 la liste d'autorisation vit **en base** : les tests l'alimentent par
+la fixture `autoriser`, jamais par une variable d'environnement. C'est ce qui
+rend le portail réévaluable sans redémarrage, et c'est éprouvé ici même
+(`test_une_adresse_ajoutee_est_effective_sans_redemarrage`).
+"""
 import logging
 
 import pytest
 
-from app.core.config import get_settings
 from app.models.identity import Identity
 from app.models.user import User
 from app.repositories import identity_repository, user_repository
@@ -48,14 +53,13 @@ def test_une_identite_connue_ne_cree_rien(db_session):
     assert db_session.query(Identity).count() == 1
 
 
-def test_la_resolution_se_fait_par_le_couple_seul(db_session, monkeypatch):
+def test_la_resolution_se_fait_par_le_couple_seul(db_session, autoriser):
     """FR-002 : ni l'adresse, ni le login — le `subject` chez ce fournisseur.
 
     Les deux adresses sont autorisées : la liste est réévaluée à **chaque**
     connexion, et ce test-ci porte sur la résolution, pas sur le portail.
     """
-    monkeypatch.setenv("AUTH_ALLOWED_EMAILS", "contributeur@exemple.fr,autre@exemple.fr")
-    get_settings.cache_clear()
+    autoriser("autre@exemple.fr")
 
     premier = provisioning.resolve_user(db_session, _identite())
     db_session.commit()
@@ -68,7 +72,7 @@ def test_la_resolution_se_fait_par_le_couple_seul(db_session, monkeypatch):
     assert revenu.id == premier.id
 
 
-def test_une_adresse_deja_connue_donne_un_nouvel_utilisateur(db_session, monkeypatch):
+def test_une_adresse_deja_connue_donne_un_nouvel_utilisateur(db_session):
     """FR-003 : c'est ce qui ferme la prise de contrôle par pré-inscription.
 
     Un attaquant ouvrant chez un fournisseur laxiste un compte portant l'adresse
@@ -87,10 +91,9 @@ def test_une_adresse_deja_connue_donne_un_nouvel_utilisateur(db_session, monkeyp
     assert db_session.query(Identity).count() == 2
 
 
-def test_l_adresse_est_rafraichie_a_la_reconnexion(db_session, monkeypatch):
+def test_l_adresse_est_rafraichie_a_la_reconnexion(db_session, autoriser):
     """FR-008 : les attributs mutables suivent le fournisseur, sans doublon."""
-    monkeypatch.setenv("AUTH_ALLOWED_EMAILS", "contributeur@exemple.fr,nouvelle@exemple.fr")
-    get_settings.cache_clear()
+    autoriser("nouvelle@exemple.fr")
 
     user = provisioning.resolve_user(db_session, _identite())
     db_session.commit()
@@ -114,11 +117,8 @@ def test_une_adresse_non_certifiee_est_refusee(db_session):
     assert refus.value.code == "email_unverified"
 
 
-def test_une_adresse_non_certifiee_est_refusee_meme_si_autorisee(db_session, monkeypatch):
+def test_une_adresse_non_certifiee_est_refusee_meme_si_autorisee(db_session):
     """L'ordre compte : certification d'abord, liste ensuite (FR-005)."""
-    monkeypatch.setenv("AUTH_ALLOWED_EMAILS", "contributeur@exemple.fr")
-    get_settings.cache_clear()
-
     with pytest.raises(LoginError) as refus:
         provisioning.resolve_user(db_session, _identite(email_verified=False))
 
@@ -164,10 +164,13 @@ def test_une_adresse_non_certifiee_n_est_pas_journalisee(db_session, caplog):
     assert "usurpee@exemple.fr" not in caplog.text
 
 
-def test_une_liste_vide_interdit_toute_connexion(db_session, monkeypatch):
-    """FR-007, fail-closed : vide n'a jamais valu « tout le monde »."""
-    monkeypatch.setenv("AUTH_ALLOWED_EMAILS", "")
-    get_settings.cache_clear()
+def test_une_liste_vide_interdit_toute_connexion(db_session, vider_la_liste_autorisation):
+    """FR-004, fail-closed : vide n'a jamais valu « tout le monde ».
+
+    Le garde de configuration ne pèse plus la liste depuis #170 : c'est **ici**,
+    et nulle part ailleurs, que le fail-closed se joue.
+    """
+    vider_la_liste_autorisation()
 
     with pytest.raises(LoginError) as refus:
         provisioning.resolve_user(db_session, _identite())
@@ -175,14 +178,16 @@ def test_une_liste_vide_interdit_toute_connexion(db_session, monkeypatch):
     assert refus.value.code == "account_not_allowed"
 
 
-def test_la_liste_ignore_la_casse_et_les_espaces(db_session, monkeypatch):
-    """Une adresse saisie à la main dans une variable d'environnement.
+def test_la_liste_ignore_la_casse_et_les_espaces(
+    db_session, vider_la_liste_autorisation, autoriser
+):
+    """Une adresse saisie à la main dans un formulaire d'administration.
 
     Refuser `Contributeur@Exemple.fr` là où la liste porte l'adresse en
     minuscules serait un piège d'exploitation, pas une garantie.
     """
-    monkeypatch.setenv("AUTH_ALLOWED_EMAILS", " Contributeur@Exemple.FR ")
-    get_settings.cache_clear()
+    vider_la_liste_autorisation()
+    autoriser(" Contributeur@Exemple.FR ")
 
     user = provisioning.resolve_user(db_session, _identite())
     db_session.commit()
@@ -200,10 +205,8 @@ def test_un_refus_ne_laisse_ni_utilisateur_ni_identite(db_session):
     assert db_session.query(Identity).count() == 0
 
 
-def test_aucune_liaison_implicite_entre_deux_identites(db_session, monkeypatch):
+def test_aucune_liaison_implicite_entre_deux_identites(db_session):
     """FR-004 : aucune identité n'est créée à partir d'une autre."""
-    monkeypatch.setenv("AUTH_ALLOWED_EMAILS", "contributeur@exemple.fr")
-    get_settings.cache_clear()
     user = user_repository.create(db_session, email="contributeur@exemple.fr", display_name="x")
     identity_repository.create(
         db_session,
@@ -219,3 +222,40 @@ def test_aucune_liaison_implicite_entre_deux_identites(db_session, monkeypatch):
 
     assert nouveau.id != user.id
     assert db_session.query(Identity).filter_by(user_id=user.id).count() == 1
+
+
+def test_une_adresse_ajoutee_est_effective_sans_redemarrage(
+    db_session, vider_la_liste_autorisation, autoriser
+):
+    """FR-002 : la liste est relue à **chaque** tentative, sans cache.
+
+    C'est la propriété qui *est* la feature. Le défaut que #170 corrige était un
+    `lru_cache` sur `Settings` : la liste n'était lue qu'au démarrage, et ajouter
+    un contributeur exigeait un redéploiement. Le test refuse, inscrit, puis
+    retente **dans le même processus**, sans rien réinitialiser — ni cache vidé,
+    ni session rouverte.
+    """
+    vider_la_liste_autorisation()
+    with pytest.raises(LoginError) as refus:
+        provisioning.resolve_user(db_session, _identite())
+    assert refus.value.code == "account_not_allowed"
+
+    autoriser("contributeur@exemple.fr")
+
+    user = provisioning.resolve_user(db_session, _identite())
+    db_session.commit()
+    assert user.email == "contributeur@exemple.fr"
+
+
+def test_un_retrait_est_effectif_a_la_tentative_suivante(
+    db_session, vider_la_liste_autorisation
+):
+    """Le pendant du précédent : retirer ferme la connexion suivante."""
+    provisioning.resolve_user(db_session, _identite())
+    db_session.commit()
+
+    vider_la_liste_autorisation()
+
+    with pytest.raises(LoginError) as refus:
+        provisioning.resolve_user(db_session, _identite())
+    assert refus.value.code == "account_not_allowed"

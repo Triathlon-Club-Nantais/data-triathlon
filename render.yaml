@@ -70,8 +70,18 @@ services:
         sync: false
       - key: AUTH_GITHUB_CLIENT_SECRET
         sync: false
+      # **Plus lue par l'application** (#170) : la liste d'autorisation vit dans
+      # la table `allowed_emails`. Cette entrée survit **une** livraison parce
+      # qu'elle est le carburant de la reprise — la migration `a107b77b53e8` la
+      # lit dans `os.environ` au `alembic upgrade head` du `startCommand`, donc
+      # avant la première requête. La retirer du blueprint dans la même PR
+      # ferait dépendre la production d'un comportement non vérifié (Render
+      # supprime-t-il une valeur `sync: false` quand la clé disparaît ?), et le
+      # rattrapage n'existe pas : `plan: free` n'ouvre aucun shell, il faudrait
+      # un INSERT dans la console Supabase. À retirer dans une PR de suivi, une
+      # fois la reprise constatée dans /admin.
       - key: AUTH_ALLOWED_EMAILS
-        sync: false # CSV ; **vide interdit toute connexion**, ce n'est pas « tout le monde »
+        sync: false
       - key: AUTH_REDIRECT_BASE_URL
         sync: false # origine de l'**interface** (Vercel), jamais celle de l'API
       - key: AUTH_COOKIE_SECURE

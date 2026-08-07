@@ -63,27 +63,8 @@ def test_observabilite_sql_depuis_env(monkeypatch):
 # pour la mauvaise raison.
 
 
-def test_auth_allowed_emails_csv_depuis_env(monkeypatch):
-    """Même format que CORS_ORIGINS : CSV, seul format que Render sait poser."""
-    monkeypatch.setenv("AUTH_ALLOWED_EMAILS", "a@exemple.fr,b@exemple.fr")
-    assert Settings().auth_allowed_emails == ["a@exemple.fr", "b@exemple.fr"]
 
 
-def test_auth_allowed_emails_csv_avec_espaces(monkeypatch):
-    monkeypatch.setenv("AUTH_ALLOWED_EMAILS", " a@exemple.fr , b@exemple.fr ")
-    assert Settings().auth_allowed_emails == ["a@exemple.fr", "b@exemple.fr"]
-
-
-def test_auth_allowed_emails_vide_est_une_liste_vide(monkeypatch):
-    """Fail-closed : vide n'a jamais valu « tout le monde » (FR-007)."""
-    monkeypatch.setenv("AUTH_ALLOWED_EMAILS", "")
-    assert Settings().auth_allowed_emails == []
-
-
-def test_auth_allowed_emails_defaut_est_vide(monkeypatch):
-    """`_env_file=None` : c'est le défaut du code qu'on éprouve, pas le `.env` local."""
-    monkeypatch.delenv("AUTH_ALLOWED_EMAILS", raising=False)
-    assert Settings(_env_file=None).auth_allowed_emails == []
 
 
 def test_une_cle_de_signature_trop_courte_est_refusee(monkeypatch):
