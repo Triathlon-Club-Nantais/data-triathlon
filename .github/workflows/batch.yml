@@ -216,7 +216,12 @@ jobs:
           {
             echo '## Bilan'
             echo '```'
-            cat rapport.txt 2>/dev/null || echo '(aucun rapport : la CLI ne s’est pas exécutée)'
+            # `$GITHUB_STEP_SUMMARY` est refusé **en entier** au-delà de 1 Mo :
+            # le rapport n'est pas tronqué, il disparaît (constaté sur le run
+            # 31202351491, 1029 Ko — le journal de scraping d'une seule épreuve
+            # suffit). On n'en garde donc que la fin, celle qui porte le bilan ;
+            # le rapport entier part dans l'artefact, à côté du bilan JSON.
+            tail -c 200000 rapport.txt 2>/dev/null || echo '(aucun rapport : la CLI ne s’est pas exécutée)'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -226,6 +231,20 @@ jobs:
         with:
           name: bilan-${{ inputs.correlation_id || github.run_id }}
           path: backend/bilan.json
+          if-no-files-found: warn
+          retention-days: 90
+
+      # Artefact **séparé**, et non un second fichier dans le précédent : le
+      # contrat de lecture du bilan est « le zip ne porte qu'une entrée, elle est
+      # le JSON » (`contracts/workflow.md`). Le rapport texte n'a de lecteur
+      # qu'humain, et c'est le seul endroit où il survit entier depuis que le
+      # résumé n'en montre que la fin.
+      - name: Upload log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapport-${{ inputs.correlation_id || github.run_id }}
+          path: backend/rapport.txt
           if-no-files-found: warn
           retention-days: 90
 
