@@ -43,6 +43,22 @@ export function useRemoveAllowedEmail() {
 
 // ── Administration des données (#117) ────────────────────────────────────────
 
+/**
+ * Les caches qu'un geste correctif périme, par leur préfixe de clé.
+ *
+ * `admin-course-detail` est le plus facile à oublier et le plus visible : c'est
+ * lui que lit la liste des résultats d'une épreuve, et une correction de coureur
+ * ou un rattachement y laisserait l'ancien nom affiché jusqu'à ce qu'on ferme la
+ * modale. Invalider large est ici moins coûteux qu'une liste qui ment.
+ */
+const CACHES_ADMIN = {
+  courses: ["admin-courses"] as const,
+  detailEpreuve: ["admin-course-detail"] as const,
+  coureurs: ["admin-athletes"] as const,
+  ficheCoureur: ["admin-athlete"] as const,
+  resultatsPublics: ["course-participations"] as const,
+};
+
 /** Le catalogue d'épreuves, tel que le sert la lecture publique. */
 export const TAILLE_PAGE_ADMIN = 50;
 
@@ -75,7 +91,10 @@ export function useDeleteCourse() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => apiClient.deleteCourse(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-courses"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.courses });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.detailEpreuve });
+    },
   });
 }
 
@@ -115,8 +134,9 @@ export function useReassignParticipation() {
     mutationFn: ({ participationId, athleteId }: { participationId: number; athleteId: number }) =>
       apiClient.reassignParticipation(participationId, athleteId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["course-participations"] });
-      qc.invalidateQueries({ queryKey: ["admin-athletes"] });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.resultatsPublics });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.detailEpreuve });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.coureurs });
     },
   });
 }
@@ -126,7 +146,10 @@ export function useUpdateCourse() {
   return useMutation({
     mutationFn: ({ id, champs }: { id: number; champs: Partial<AdminCourseUpdate> }) =>
       apiClient.updateCourse(id, champs),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-courses"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.courses });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.detailEpreuve });
+    },
   });
 }
 
@@ -136,8 +159,10 @@ export function useUpdateAthlete() {
     mutationFn: ({ id, champs }: { id: number; champs: Partial<AdminAthleteUpdate> }) =>
       apiClient.updateAthlete(id, champs),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin-athletes"] });
-      qc.invalidateQueries({ queryKey: ["course-participations"] });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.coureurs });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.ficheCoureur });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.detailEpreuve });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.resultatsPublics });
     },
   });
 }

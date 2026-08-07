@@ -115,6 +115,21 @@ def count_for_course(db: Session, course_id: int) -> int:
     )
 
 
+def count_for_athlete(db: Session, athlete_id: int) -> int:
+    """Nombre de résultats portés par un coureur — le poids de sa fiche.
+
+    Un `COUNT()` et non `len(athlete.participations)` : ce dernier hydrate la
+    collection entière pour n'en garder que la taille, et un coureur prolifique
+    en porte des dizaines.
+    """
+    return (
+        db.query(func.count(Participation.id))
+        .filter(Participation.athlete_id == athlete_id)
+        .scalar()
+        or 0
+    )
+
+
 def finishers_count_by_group(
     db: Session, course_ids: Iterable[int]
 ) -> dict[tuple[int, bool], int]:

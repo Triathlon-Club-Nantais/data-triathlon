@@ -45,6 +45,26 @@ def test_count_for_course_inclut_les_participations_sans_dossard(db_session):
     assert participation_repository.existing_bibs_for_course(db_session, course.id) == {"42"}
 
 
+def test_count_for_athlete_compte_sur_toutes_les_epreuves(db_session):
+    """Le poids d'une fiche coureur, sans hydrater sa collection de résultats."""
+    athlete, course = _setup(db_session)
+    autre_epreuve = course_repository.get_or_create(
+        db_session, name="Tri Y", event_date=date(2026, 6, 20), event_type="triathlon-s"
+    )
+    voisin = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul", club="TCN")
+    for epreuve in (course, autre_epreuve):
+        participation_repository.create(
+            db_session, athlete_id=athlete.id, course_id=epreuve.id, bib_number="42", club="TCN"
+        )
+    participation_repository.create(
+        db_session, athlete_id=voisin.id, course_id=course.id, bib_number="43", club="TCN"
+    )
+    db_session.flush()
+
+    assert participation_repository.count_for_athlete(db_session, athlete.id) == 2
+    assert participation_repository.count_for_athlete(db_session, voisin.id) == 1
+
+
 def test_list_filters_by_name_and_club(db_session):
     athlete, course = _setup(db_session)
     other = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul", club="ASPTT")

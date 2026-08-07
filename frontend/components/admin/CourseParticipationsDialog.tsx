@@ -60,12 +60,13 @@ export function CourseParticipationsDialog({
     enabled: open,
   });
 
-  // Un rôle portant `athletes:write` sans `athletes:read` est une composition
-  // légale. Sans cette dérivation, la fiche ne chargeait jamais, la modale
-  // d'édition ne s'ouvrait pas, et celle des résultats restait fermée derrière
-  // elle : cul-de-sac silencieux. L'état se **déduit**, il ne se corrige pas
-  // dans un effet — un `setState` en effet déclenche des rendus en cascade.
-  const editionOuverte = coureurACorriger !== null && !fiche.isError;
+  // L'édition est ouverte quand sa fiche est **là**, pas quand elle est
+  // demandée : fermer celle-ci sur un simple clic laisserait l'écran sans
+  // aucune modale le temps du chargement, et pour toujours si la fiche échoue
+  // (un rôle portant `athletes:write` sans `athletes:read` est une composition
+  // légale). L'état se **déduit**, il ne se corrige pas dans un effet — un
+  // `setState` en effet déclenche des rendus en cascade.
+  const editionOuverte = coureurACorriger !== null && fiche.data !== undefined;
 
   return (
     <>
@@ -150,7 +151,7 @@ export function CourseParticipationsDialog({
         </DialogContent>
       </Dialog>
 
-      {fiche.data && (
+      {editionOuverte && fiche.data && (
         <EditAthleteDialog
           athlete={fiche.data}
           open
