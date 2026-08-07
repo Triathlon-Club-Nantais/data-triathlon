@@ -11,7 +11,7 @@ from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.core.season import parse_seasons
 from app.repositories import course_repository, participation_repository
-from app.schemas.course import CourseBrief, CourseSummary, EventPage
+from app.schemas.course import CourseBrief, CourseCount, CourseSummary, EventPage
 from app.schemas.participation import CourseParticipationPage, ParticipationOut
 from app.services import stats_service
 
@@ -64,14 +64,53 @@ def list_events(
 
 @router.get("/courses", response_model=list[CourseBrief])
 def list_courses(
+    name: str | None = Query(None, description="Recherche partielle sur le nom de l'épreuve."),
     event_type: str | None = Query(None),
     scope: str | None = Query(None, description="« club » restreint aux membres du TCN."),
+    date_from: str | None = Query(None),
+    date_to: str | None = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
 ):
     return course_repository.list_all(
-        db, event_type=event_type, club_only=is_club_scope(scope), page=page, page_size=page_size
+        db,
+        name=name,
+        event_type=event_type,
+        club_only=is_club_scope(scope),
+        date_from=_parse_date(date_from),
+        date_to=_parse_date(date_to),
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.get("/courses/count", response_model=CourseCount)
+def count_courses(
+    name: str | None = Query(None, description="Recherche partielle sur le nom de l'épreuve."),
+    event_type: str | None = Query(None),
+    scope: str | None = Query(None, description="« club » restreint aux membres du TCN."),
+    date_from: str | None = Query(None),
+    date_to: str | None = Query(None),
+    db: Session = Depends(get_db),
+):
+    """Combien d'épreuves `GET /courses` rendrait aux mêmes filtres.
+
+    Une route à part plutôt qu'un `total` ajouté à `GET /courses` : cette
+    dernière rend une **liste**, l'envelopper serait un changement de contrat de
+    v1 que le Principe IV réserve à une v2. Comptée séparément, la donnée est
+    aussi mieux cachée côté front — elle ne dépend pas de `page`, donc feuilleter
+    ne la recalcule pas.
+    """
+    return CourseCount(
+        total=course_repository.count_all(
+            db,
+            name=name,
+            event_type=event_type,
+            club_only=is_club_scope(scope),
+            date_from=_parse_date(date_from),
+            date_to=_parse_date(date_to),
+        )
     )
 
 

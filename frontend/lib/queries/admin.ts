@@ -60,13 +60,34 @@ const CACHES_ADMIN = {
 };
 
 /** Le catalogue d'épreuves, tel que le sert la lecture publique. */
-export const TAILLE_PAGE_ADMIN = 50;
+export const TAILLE_PAGE_ADMIN = 20;
 
-export function useAdminCourses(page = 1) {
+/** Les filtres du catalogue, tels que `GET /courses` les accepte. */
+export type FiltresCourses = {
+  name?: string;
+  event_type?: string;
+  date_from?: string;
+  date_to?: string;
+};
+
+export function useAdminCourses(page = 1, filtres: FiltresCourses = {}) {
   return useQuery({
-    queryKey: queryKeys.adminCourses(page),
+    queryKey: queryKeys.adminCourses(page, filtres as Record<string, string>),
     queryFn: () =>
-      apiClient.listCourses({ page, page_size: TAILLE_PAGE_ADMIN }),
+      apiClient.listCourses({ ...filtres, page, page_size: TAILLE_PAGE_ADMIN }),
+    placeholderData: (precedent) => precedent,
+  });
+}
+
+/**
+ * Le total du catalogue aux mêmes filtres — le « sur 7 » de la pagination.
+ *
+ * Clé **sans la page** : feuilleter ne redemande pas un total qui ne bouge pas.
+ */
+export function useAdminCoursesCount(filtres: FiltresCourses = {}) {
+  return useQuery({
+    queryKey: queryKeys.adminCoursesCount(filtres as Record<string, string>),
+    queryFn: () => apiClient.countCourses(filtres),
     placeholderData: (precedent) => precedent,
   });
 }

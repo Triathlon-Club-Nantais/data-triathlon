@@ -117,3 +117,68 @@ def test_synthese_ne_depend_ni_de_la_recherche_ni_de_la_portee(client, epreuve):
 
 def test_synthese_epreuve_inconnue(client):
     assert client.get("/api/v1/courses/999999/summary").status_code == 404
+
+
+# ── GET /courses — filtres du catalogue (administration) ─────────────────────
+
+
+@pytest.fixture
+def catalogue(db_session):
+    """Trois épreuves, trois dates, deux types — de quoi croiser les filtres."""
+    for nom, jour, type_epreuve in (
+        ("Triathlon de Nantes", date(2026, 5, 1), "triathlon-m"),
+        ("Triathlon de Vierzon", date(2026, 6, 1), "triathlon-s"),
+        ("Duathlon de Nantes", date(2026, 7, 1), "duathlon"),
+    ):
+        course_repository.get_or_create(
+            db_session, name=nom, event_date=jour, event_type=type_epreuve
+        )
+    db_session.commit()
+
+
+def test_catalogue_filtre_par_nom_partiel(client, catalogue):
+    noms = [c["name"] for c in client.get("/api/v1/courses?name=nantes").json()]
+
+    assert sorted(noms) == ["Duathlon de Nantes", "Triathlon de Nantes"]
+
+
+def test_catalogue_filtre_par_intervalle_de_dates(client, catalogue):
+    noms = [
+        c["name"]
+        for c in client.get("/api/v1/courses?date_from=2026-06-01&date_to=2026-06-30").json()
+    ]
+
+    assert noms == ["Triathlon de Vierzon"]
+
+
+def test_catalogue_croise_nom_type_et_dates(client, catalogue):
+    url = "/api/v1/courses?name=nantes&event_type=duathlon&date_from=2026-01-01"
+    noms = [c["name"] for c in client.get(url).json()]
+
+    assert noms == ["Duathlon de Nantes"]
+
+
+def test_catalogue_date_illisible_est_ignoree(client, catalogue):
+    """`_parse_date` rend `None` sur une saisie invalide : le filtre disparaît."""
+    assert len(client.get("/api/v1/courses?date_from=hier").json()) == 3
+
+
+# ── GET /courses/count — le total qui rend « page 1 sur 7 » ──────────────────
+
+
+def test_compte_le_catalogue_entier(client, catalogue):
+    """Passe aussi parce que `/courses/count` est déclarée avant `/courses/{id}` :
+    dans l'autre ordre, « count » se lirait comme un identifiant et rendrait 422."""
+    assert client.get("/api/v1/courses/count").json() == {"total": 3}
+
+
+def test_compte_aux_memes_filtres_que_la_liste(client, catalogue):
+    """Un total qui ignorerait les filtres annoncerait des pages vides."""
+    for query in ("?name=nantes", "?event_type=triathlon-m", "?date_to=2026-05-31"):
+        liste = client.get(f"/api/v1/courses{query}").json()
+        assert client.get(f"/api/v1/courses/count{query}").json()["total"] == len(liste)
+
+
+def test_compte_ignore_la_pagination(client, catalogue):
+    """`count` n'est pas paginé : c'est ce qui permet de feuilleter sans le refaire."""
+    assert client.get("/api/v1/courses/count?page=2&page_size=1").json() == {"total": 3}

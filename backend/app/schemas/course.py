@@ -33,6 +33,12 @@ class EventOut(BaseModel):
     tcn_count: int
 
 
+class CourseCount(BaseModel):
+    """Le total du catalogue aux filtres courants — le « sur 7 » d'une pagination."""
+
+    total: int
+
+
 class EventPage(BaseModel):
     """Page d'épreuves pour le scroll infini + compteurs globaux du filtre."""
 

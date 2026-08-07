@@ -148,8 +148,19 @@ export const apiClient = {
   // ── Administration des données (#117) ──────────────────────────────────────
   // Six ressources, six pouvoirs distincts côté serveur : l'écran ne fait que
   // cacher ce qu'il ne peut pas faire, il n'autorise rien.
-  listCourses: (opts: { page?: number; page_size?: number } = {}) =>
-    request<CourseBrief[]>(`/courses${toQuery(opts)}`),
+  listCourses: (
+    opts: {
+      name?: string;
+      event_type?: string;
+      date_from?: string;
+      date_to?: string;
+      page?: number;
+      page_size?: number;
+    } = {},
+  ) => request<CourseBrief[]>(`/courses${toQuery(opts)}`),
+  countCourses: (
+    opts: { name?: string; event_type?: string; date_from?: string; date_to?: string } = {},
+  ) => request<{ total: number }>(`/courses/count${toQuery(opts)}`),
   getCourseDeletionImpact: (id: number) =>
     request<CourseDeletionImpact>(`/admin/courses/${id}/deletion-impact`),
   deleteCourse: (id: number) =>
