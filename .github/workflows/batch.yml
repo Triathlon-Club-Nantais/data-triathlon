@@ -80,6 +80,12 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
+    # `id-token: write` est requis pour l'échange OIDC vers Azure (#243). Sans
+    # cette ligne, `azure/login@v2` échoue à récupérer le jeton fédéré et le
+    # batch n'atteint jamais son premier `run:`.
+    permissions:
+      id-token: write
+      contents: read
     # Sans cette borne, une exécution coincée gèlerait tout nouveau lancement
     # six heures durant (défaut de la plateforme). Une reprise complète tient
     # très largement dans deux heures.
@@ -112,13 +118,55 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked
 
+      # Authentification Azure par OIDC (#243) — aucun secret long-lived. Le
+      # federated credential côté Azure lie ce jeton à l'environment déclaré
+      # par le job. La cible `preview`, qui n'écrit pas sur Azure, ne fournit
+      # pas ce secret : le step est conditionné à sa présence, et le suivant
+      # (`Open Azure firewall`) ne tourne que si celui-ci a réussi.
+      - name: Azure login (production only)
+        id: azure_login
+        if: ${{ secrets.AZURE_CLIENT_ID != '' }}
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Ouverture *just-in-time* du pare-feu Azure : les runners GHA hébergés
+      # n'ont pas d'IP stable, et le range publié par GitHub couvre plusieurs
+      # milliers d'adresses — trop large pour un allowlist statique. La règle
+      # porte le `run_id`, ce qui la rend imputable à une exécution précise ;
+      # elle est retirée par le step de fin de job en `if: always()`, y compris
+      # sur échec du batch. Cf. `docs/infra-azure.md` pour la convention de
+      # nommage.
+      - name: Open Azure firewall (production only)
+        id: firewall
+        if: steps.azure_login.outcome == 'success'
+        env:
+          RG: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          SERVER: ${{ secrets.AZURE_POSTGRES_SERVER }}
+        run: |
+          set -euo pipefail
+          RUNNER_IP=$(curl -sSf https://api.ipify.org)
+          RULE_NAME="gh-batch-${GITHUB_RUN_ID}"
+          echo "rule_name=$RULE_NAME" >> "$GITHUB_OUTPUT"
+          az postgres flexible-server firewall-rule create \
+            --resource-group "$RG" --server-name "$SERVER" \
+            --name "$RULE_NAME" \
+            --start-ip-address "$RUNNER_IP" --end-ip-address "$RUNNER_IP" \
+            --only-show-errors --output none
+
       - name: Run batch
         id: batch
         env:
-          # `DATABASE_URL` doit viser le **pooler** Supabase : les runners
-          # GitHub n'ont pas d'IPv6, et l'hôte de connexion directe résout en
-          # IPv6 seule. Symptôme d'un mauvais hôte : échec de connexion réseau,
-          # sans rapport apparent avec le code. Cf. docs/ci-cd.md.
+          # `DATABASE_URL` doit viser un hôte IPv4 : les runners GitHub n'ont
+          # pas d'IPv6. Sur Supabase (preview), c'est le pooler
+          # (`…pooler.supabase.com`), pas `db.<ref>.supabase.co` qui résout en
+          # IPv6 seule. Sur Azure PostgreSQL Flexible (production), le FQDN
+          # résout déjà en IPv4 — mais l'accès nécessite qu'une règle firewall
+          # autorise l'IP du runner, posée par le step précédent. Symptôme d'un
+          # mauvais hôte : échec de connexion réseau, sans rapport apparent
+          # avec le code. Cf. docs/ci-cd.md.
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           MODE: ${{ inputs.mode }}
           PROVIDER: ${{ inputs.provider }}
@@ -173,3 +221,21 @@ jobs:
           path: backend/bilan.json
           if-no-files-found: warn
           retention-days: 90
+
+      # Retirer la règle firewall même quand le batch a échoué — sinon on laisse
+      # une IP dans l'allowlist. Le garde sur `steps.firewall.outputs.rule_name`
+      # évite d'appeler `az` quand le step d'ouverture n'a pas produit de sortie
+      # (login KO, run en preview, etc.). `|| true` sur `delete` : une règle
+      # déjà supprimée manuellement n'est pas un incident.
+      - name: Close Azure firewall
+        if: always() && steps.firewall.outputs.rule_name != ''
+        env:
+          RG: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          SERVER: ${{ secrets.AZURE_POSTGRES_SERVER }}
+          RULE_NAME: ${{ steps.firewall.outputs.rule_name }}
+        run: |
+          set -uo pipefail
+          az postgres flexible-server firewall-rule delete \
+            --resource-group "$RG" --server-name "$SERVER" \
+            --name "$RULE_NAME" --yes \
+            --only-show-errors --output none || true
