@@ -31,6 +31,11 @@ export function useRolesAttribuables() {
 
   return {
     roles: roles ?? [],
+    // Donner un rôle est `roles:assign`, quel que soit le guichet — y compris
+    // celui de l'inscription, dont la route n'exige pourtant que
+    // `allowed_emails:manage`. Un écran qui proposerait le geste sans ce pouvoir
+    // récolterait un 403 à chaque envoi.
+    peutAttribuer: pouvoirs.has("roles:assign"),
     accordable: (role: Role) =>
       (!role.is_superuser || suisSuperutilisateur) &&
       role.permissions.every((code) => pouvoirs.has(code)),

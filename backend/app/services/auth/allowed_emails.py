@@ -12,6 +12,7 @@ refus tomberait en `account_not_allowed` sur un compte pourtant listé à l'écr
 et rien ne l'expliquerait.
 """
 import logging
+from enum import Enum, auto
 
 from pydantic import EmailStr, TypeAdapter, ValidationError
 from sqlalchemy.orm import Session
@@ -19,10 +20,26 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import DomainError
 from app.models.allowed_email import AllowedEmail
 from app.models.user import User
-from app.repositories import allowed_email_repository, user_repository
+from app.repositories import allowed_email_repository, role_repository, user_repository
 from app.services.auth import authorization
 
 logger = logging.getLogger(__name__)
+
+class _Sentinelle(Enum):
+    """Porteuse d'`UNCHANGED`. `Enum` et non `object()` pour que le typage
+    resserre bien `role_id` après un `is not UNCHANGED`."""
+
+    UNCHANGED = auto()
+
+
+#: « Cette demande ne se prononce pas sur le rôle ». **Distincte de `None`**, qui
+#: lève celui qui était posé. Sans les deux, « Aucun » serait indicible : le rôle
+#: se collerait à l'adresse, plus rien ne l'en retirerait, et le 409 de
+#: `delete_role` réclamerait un geste qui n'existe pas.
+#:
+#: C'est aussi ce qui distingue la CLI de l'écran : `allow-email` réautorise une
+#: adresse sans se prononcer sur son rôle, là où le formulaire l'énonce toujours.
+UNCHANGED = _Sentinelle.UNCHANGED
 
 #: `EmailStr` s'appuie sur `email-validator`, déjà installé par
 #: `fastapi[standard]`. Employé ici plutôt que sur le DTO : posé sur le champ, il
@@ -64,7 +81,11 @@ def list_all(db: Session) -> list[AllowedEmail]:
 
 
 def add(
-    db: Session, actor: User | None, *, email: str, role_id: int | None = None
+    db: Session,
+    actor: User | None,
+    *,
+    email: str,
+    role_id: int | None | _Sentinelle = UNCHANGED,
 ) -> tuple[AllowedEmail, bool, int]:
     """Inscrit l'adresse et **rouvre** les comptes qui la portent.
 
@@ -80,18 +101,17 @@ def add(
     même asymétrie que `grant-role`, et elle est ce qui empêche la voie
     d'escalade fermée sur l'attribution de rouvrir par ce chemin.
 
-    **Réinscrire une adresse repose son rôle initial** : c'est le geste par
-    lequel on corrige un choix, et le seul — la ligne n'a pas d'autre éditeur.
+    **Réinscrire une adresse repose son rôle initial**, `None` compris : c'est le
+    geste par lequel on corrige un choix, et le seul — la ligne n'a pas d'autre
+    éditeur. Omettre le paramètre (`UNCHANGED`) ne se prononce pas.
     """
-    if role_id is not None and actor is not None:
-        authorization.assert_may_hand_over(
-            db, actor, authorization.get_role_or_404(db, role_id)
-        )
+    if role_id is not UNCHANGED and actor is not None:
+        _assert_may_choose(db, actor, role_id)
 
     entree, creee = allowed_email_repository.add(
         db, email=validate_email(email), created_by_user_id=actor.id if actor else None
     )
-    if role_id is not None:
+    if role_id is not UNCHANGED:
         allowed_email_repository.set_initial_role(db, entree, role_id=role_id)
     reactives = user_repository.set_active(
         db, user_repository.find_by_email(db, entree.email), active=True
@@ -104,6 +124,33 @@ def add(
             reactives,
         )
     return entree, creee, reactives
+
+
+def _assert_may_choose(db: Session, actor: User, role_id: int | None) -> None:
+    """Les trois gardes de `grant_role`, portées par le troisième guichet.
+
+    C'est exactement ce qui manquait : le chemin du rôle initial est le
+    **troisième** écrivain de `user_roles`, et il avait été ajouté avec une seule
+    des trois. Poser un rôle est un geste d'attribution, pas un réglage de la
+    liste d'autorisation — qu'il porte sur un compte qui n'existe pas encore n'y
+    change rien.
+
+    L'ordre compte : le pouvoir d'attribuer se juge **avant** que le rôle soit
+    résolu, sinon un identifiant inconnu rend 404 à qui n'attribue pas et le
+    catalogue se balaie par le couple 404/201.
+    """
+    authorization.assert_may_assign_roles(db, actor)
+    if role_id is None:  # lever un rôle ne donne rien à comparer
+        return
+
+    role = authorization.get_role_or_404(db, role_id)
+    authorization.assert_may_hand_over(db, actor, role)
+    organisation = role_repository.default_organisation(db)
+    if organisation is not None:
+        # FR-008 — refusé là où il se choisit. Le laisser passer ici pour le
+        # rattraper à l'application ne rattraperait rien : à la connexion, il n'y
+        # a plus personne à qui rendre 422.
+        authorization.assert_role_assignable_in(db, role, organisation.id)
 
 
 def remove(db: Session, actor: User, entry: AllowedEmail) -> int:

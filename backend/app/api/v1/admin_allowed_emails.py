@@ -68,9 +68,21 @@ def add_allowed_email(
 
     Effet de bord contractuel : les comptes portant cette adresse repassent à
     `is_active = True`. Sans quoi une réinscription n'ouvrirait rien.
+
+    **`role_id: null` lève le rôle posé, `role_id` absent n'y touche pas.**
+    `model_fields_set` est le seul moyen de distinguer les deux, le DTO donnant
+    la même valeur aux deux cas — et sans la distinction, « Aucun » serait
+    indicible : un rôle posé le resterait pour toujours.
     """
     entree, _, _ = allowed_emails.add(
-        db, actor, email=body.email, role_id=body.role_id
+        db,
+        actor,
+        email=body.email,
+        role_id=(
+            body.role_id
+            if "role_id" in body.model_fields_set
+            else allowed_emails.UNCHANGED
+        ),
     )
     vue = _vue(entree, has_account=bool(user_repository.find_by_email(db, entree.email)))
     db.commit()

@@ -2,8 +2,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
 import type { AdminUser, Role, SessionUser } from "@/lib/types";
+
+// Sans cette doublure, « le message du serveur est réaffiché » n'était vérifié
+// par rien : le badge que le test regardait vient du cache react-query, que rien
+// n'invalide sur un échec — le test passait aussi avec tout le `catch` supprimé.
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 const { listAdminUsers, listRoles, grantRole, revokeRole, getSession } = vi.hoisted(
   () => ({
@@ -281,7 +287,11 @@ describe("UserRolesTable", () => {
       screen.getByRole("button", { name: /retirer le rôle administrateur/i }),
     );
 
-    await waitFor(() => expect(revokeRole).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "Cette organisation perdrait son dernier administrateur.",
+      ),
+    );
     expect(screen.getByText(ADMINISTRATEUR.name)).toBeInTheDocument();
   });
 });

@@ -60,7 +60,7 @@ export function AllowedEmailsTable() {
   const { data, isLoading, error } = useAllowedEmails();
   const ajouter = useAddAllowedEmail();
   const retirer = useRemoveAllowedEmail();
-  const { roles, accordable } = useRolesAttribuables();
+  const { roles, accordable, peutAttribuer } = useRolesAttribuables();
   const [saisie, setSaisie] = useState("");
   // Chaîne et non nombre : c'est la valeur d'un `<option>`, et « aucun » a
   // besoin d'être représentable.
@@ -73,7 +73,10 @@ export function AllowedEmailsTable() {
     try {
       await ajouter.mutateAsync({
         email: adresse,
-        roleId: role ? Number(role) : null,
+        // `undefined` **omet** le champ, ce que le backend distingue de `null` :
+        // le premier ne se prononce pas sur le rôle, le second lève celui qui
+        // était posé — et lever est un geste d'attribution comme un autre.
+        roleId: peutAttribuer ? (role ? Number(role) : null) : undefined,
       });
       setSaisie("");
       setRole("");
@@ -121,26 +124,28 @@ export function AllowedEmailsTable() {
             quoi le compte naîtra à sa **première** connexion (#239). Sans lui,
             le geste d'administration était coupé en deux par un événement que
             l'administrateur ne contrôle pas. */}
-        <div className="space-y-1.5">
-          <Label htmlFor="role-initial">Rôle à l&apos;inscription</Label>
-          <select
-            id="role-initial"
-            className="border-input h-9 w-48 rounded-md border bg-transparent px-2 text-sm"
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-          >
-            <option value="">Aucun</option>
-            {roles.map((disponible) => (
-              <option
-                key={disponible.id}
-                value={disponible.id}
-                disabled={!accordable(disponible)}
-              >
-                {disponible.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {peutAttribuer && (
+          <div className="space-y-1.5">
+            <Label htmlFor="role-initial">Rôle à l&apos;inscription</Label>
+            <select
+              id="role-initial"
+              className="border-input h-9 w-48 rounded-md border bg-transparent px-2 text-sm"
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+            >
+              <option value="">Aucun</option>
+              {roles.map((disponible) => (
+                <option
+                  key={disponible.id}
+                  value={disponible.id}
+                  disabled={!accordable(disponible)}
+                >
+                  {disponible.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <Button type="submit" disabled={ajouter.isPending}>
           Ajouter
         </Button>

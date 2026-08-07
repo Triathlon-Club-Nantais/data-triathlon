@@ -66,8 +66,8 @@ propriété comme une colonne.
 
 ## Liste d'autorisation (#170) — une table, trois invariants
 
-`allowed_emails` (`id`, `email` **UNIQUE**, `created_at`, `created_by_user_id`)
-dit qui a le droit d'ouvrir une session. Elle remplace `AUTH_ALLOWED_EMAILS`,
+`allowed_emails` (`id`, `email` **UNIQUE**, `created_at`, `created_by_user_id`,
+`role_id`) dit qui a le droit d'ouvrir une session. Elle remplace `AUTH_ALLOWED_EMAILS`,
 dont la lecture par un `Settings` en `lru_cache` faisait de l'ajout d'un
 contributeur un redéploiement.
 
@@ -80,7 +80,13 @@ contributeur un redéploiement.
   **toujours** un nouvel utilisateur (#114, FR-003), et apparier sur l'adresse
   rouvrirait la prise de contrôle par pré-inscription. `created_by_user_id` nomme
   celui qui **accorde**, jamais celui qui reçoit — d'où le champ d'API
-  `created_by_name`, un nom d'affichage et non un identifiant.
+  `created_by_name`, un nom d'affichage et non un identifiant. **`role_id` ne
+  fait pas exception, et il a fallu une correction pour que ce soit vrai** :
+  laissé posé après usage, il armait *chaque* identité suivante portant
+  l'adresse — l'appariement par adresse, sur le chemin qui accorde du pouvoir.
+  Il est **consommé** à l'application (`provisioning`), donc il ne dit jamais
+  « cette adresse est administratrice », seulement « le prochain compte à naître
+  ici commencera avec ceci ».
 - **Elle n'est pas rattachée à une organisation.** Elle répond « cette adresse
   peut-elle ouvrir une session ? », pas « dans quel club ? » — c'est le rôle qui
   porte l'organisation. Une liste par club supposerait de savoir à quel club

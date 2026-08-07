@@ -28,7 +28,7 @@ export function useAllowedEmails() {
 export function useAddAllowedEmail() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ email, roleId }: { email: string; roleId: number | null }) =>
+    mutationFn: ({ email, roleId }: { email: string; roleId?: number | null }) =>
       apiClient.addAllowedEmail(email, roleId),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.allowedEmails() }),
   });
@@ -202,6 +202,10 @@ export function useRoles() {
   return useQuery({
     queryKey: queryKeys.roles(),
     queryFn: () => apiClient.listRoles(),
+    // `/admin/acces` lit l'inventaire pour son sélecteur alors que sa propre
+    // garde est `allowed_emails:manage` : un porteur de ce seul pouvoir prend un
+    // 403 ici. Le réessayer trois fois n'y changera rien.
+    retry: false,
   });
 }
 
