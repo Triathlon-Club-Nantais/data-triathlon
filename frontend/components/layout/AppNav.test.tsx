@@ -5,12 +5,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
 import type { SessionUser } from "@/lib/types";
 
-const { push, getSession, logout, listParticipations, route } = vi.hoisted(() => ({
+const { push, getSession, logout, listParticipations } = vi.hoisted(() => ({
   push: vi.fn(),
   getSession: vi.fn(),
   logout: vi.fn(),
   listParticipations: vi.fn(),
-  route: { pathname: "/dashboard" },
 }));
 
 /** Mutable : le surlignage se teste depuis plusieurs écrans. */
@@ -212,16 +211,16 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
   });
 
   it("ne surligne que la destination courante, jamais son préfixe", async () => {
-    // `startsWith` allumait « Chronométreurs signalés » (href `/admin`) en même
-    // temps que l'écran des accès. Un href de la nav désigne **un** écran, pas
-    // une famille : les trois écrans à venir vivront eux aussi sous `/admin/`.
+    // `startsWith` allumait l'entrée des fournisseurs en même temps que l'écran
+    // des accès. Un href de la nav désigne **un** écran, pas une famille : les
+    // écrans à venir vivront eux aussi sous `/admin/`.
     chemin.courant = "/admin/acces";
     afficher(habilite("allowed_emails:manage"));
     await deplier();
 
     const courant = await screen.findByRole("link", { name: "Accès au back-office" });
     expect(courant).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "Chronométreurs signalés" })).not.toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Fournisseurs en attente" })).not.toHaveAttribute(
       "aria-current",
     );
   });
