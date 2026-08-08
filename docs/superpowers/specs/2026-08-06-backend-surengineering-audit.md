@@ -328,20 +328,20 @@ Appliqué en quatre commits, dans l'ordre suggéré ci-dessus.
 
 | # | Objet | État |
 |---|---|---|
-| 1 | socle OpenTelemetry | ✅ supprimé — `7eea9ed` |
-| 2 | scan de ports `dev_server` | ✅ port éphémère — `829447b` |
-| 3 | sous-classes `HostMatchedProvider` | ⚠️ appliqué sur **5**, pas 11 — `42afcfd` |
-| 4 | 6 copies de `HH:MM:SS` → secondes | ✅ `utils.to_seconds` / `fmt_seconds` — `829447b` |
-| 5 | `PlaywrightProvider` + `_FALLBACK` + `_find_provider` | ✅ supprimés — `42afcfd` |
-| 6 | recopie de `BatchTotals` | ✅ `batch.reporter_totals` — `829447b` |
-| 7 | 5 `_detect_event_type` | ✅ `dbd73b8` |
-| 8 | dédoublonnage ordonné | ⚠️ partiel — `829447b` |
-| 9 | `sheet_source.is_supported` | ✅ `dbd73b8` |
-| 10 | repli fichier `VERSION` | ✅ `dbd73b8` |
-| 11 | `app/api/v1/version.py` | ✅ fusionné dans `health.py` — `dbd73b8` |
+| 1 | socle OpenTelemetry | ✅ supprimé — `940e6e7` |
+| 2 | scan de ports `dev_server` | ✅ port éphémère — `4b55a8f` |
+| 3 | sous-classes `HostMatchedProvider` | ⚠️ appliqué sur **5**, pas 11 — `b39c88d` |
+| 4 | 6 copies de `HH:MM:SS` → secondes | ✅ `utils.to_seconds` / `fmt_seconds` — `4b55a8f` |
+| 5 | `PlaywrightProvider` + `_FALLBACK` + `_find_provider` | ✅ supprimés — `b39c88d` |
+| 6 | recopie de `BatchTotals` | ✅ `batch.reporter_totals` — `4b55a8f` |
+| 7 | 5 `_detect_event_type` | ✅ `0c7b62a` |
+| 8 | dédoublonnage ordonné | ⚠️ partiel — `4b55a8f` |
+| 9 | `sheet_source.is_supported` | ✅ `0c7b62a` |
+| 10 | repli fichier `VERSION` | ✅ `0c7b62a` |
+| 11 | `app/api/v1/version.py` | ✅ fusionné dans `health.py` — `0c7b62a` |
 | 12 | 6 `CLAUDE.md` d'une ligne | ❌ **refusé** (voir ci-dessous) |
-| 13 | 4 × `d[k] = d.get(k, 0) + 1` | ✅ `collections.Counter` — `dbd73b8` |
-| 14 | `python-dotenv` | ✅ `dbd73b8` |
+| 13 | 4 × `d[k] = d.get(k, 0) + 1` | ✅ `collections.Counter` — `0c7b62a` |
+| 14 | `python-dotenv` | ✅ `0c7b62a` |
 
 **Trois écarts, et leurs raisons.**
 
