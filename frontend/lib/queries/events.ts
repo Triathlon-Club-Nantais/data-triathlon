@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "./keys";
 import type { EventPage, ParticipationFilters } from "@/lib/types";
@@ -23,25 +23,5 @@ export function useInfiniteEvents(
     initialData: initialData
       ? { pages: [initialData], pageParams: [1] }
       : undefined,
-  });
-}
-
-/**
- * Participants d'une épreuve, chargés à la demande.
- * On rejoue les filtres scope + nom pour rester cohérent avec les compteurs.
- */
-export function useCourseParticipations(
-  courseId: number,
-  filters: Pick<ParticipationFilters, "scope" | "name"> = {},
-) {
-  return useQuery({
-    queryKey: queryKeys.courseParticipations(courseId, filters.scope, filters.name),
-    queryFn: () =>
-      apiClient.listParticipations({
-        course_id: courseId,
-        scope: filters.scope,
-        name: filters.name,
-        page_size: 1000,
-      }),
   });
 }
