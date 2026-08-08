@@ -2,13 +2,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Trash2 } from "lucide-react";
+import { Avatar } from "@/components/tcn";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SportBadge } from "./SportBadge";
 import { StatusBadge } from "./StatusBadge";
 import { Medal } from "@/components/ui/medal";
-import { InitialsAvatar } from "@/components/ui/initials-avatar";
 import { splitSegments } from "@/lib/utils/splits";
 import { formatDate, timeAgo } from "@/lib/utils/date";
 import { formatEventName } from "@/lib/utils/event";
@@ -43,7 +43,7 @@ export function ResultCard({
       <CardContent className="space-y-3 p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
-            <InitialsAvatar name={fullName} size={38} className="mt-0.5" />
+            <Avatar name={fullName} size={38} style={{ marginTop: 2 }} />
             <div>
               <Link href={`/athletes/${a.id}`} className="text-lg font-bold hover:underline">
                 {fullName}

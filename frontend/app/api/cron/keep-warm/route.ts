@@ -28,17 +28,15 @@ export async function GET(request: Request): Promise<Response> {
     }
   }
 
-  // 2. Ping du backend avec timeout via AbortController (ne pas laisser la fonction pendre).
+  // 2. Ping du backend avec timeout natif (ne pas laisser la fonction pendre).
   const backendUrl = process.env.BACKEND_URL ?? "http://localhost:8001";
   const url = `${backendUrl}${HEALTH_PATH}`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   const start = Date.now();
 
   try {
     // `cache: "no-store"` : chaque ping doit réellement toucher Render (jamais le
     // Data Cache de Next), sinon le keep-warm ne réveille rien. Cf. lib/api/server.ts.
-    const res = await fetch(url, { signal: controller.signal, cache: "no-store" });
+    const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS), cache: "no-store" });
     const durationMs = Date.now() - start;
 
     if (!res.ok) {
@@ -54,13 +52,13 @@ export async function GET(request: Request): Promise<Response> {
     const durationMs = Date.now() - start;
     const error =
       err instanceof Error
-        ? err.name === "AbortError"
+        // `AbortSignal.timeout` rejette avec un `TimeoutError`, là où un
+        // `AbortController.abort()` rejetait avec un `AbortError`.
+        ? err.name === "TimeoutError"
           ? "délai dépassé"
           : err.message
         : "erreur inconnue";
     console.error(`[keep-warm] échec du ping backend après ${durationMs}ms : ${error}`);
     return NextResponse.json({ ok: false, error, durationMs }, { status: 502 });
-  } finally {
-    clearTimeout(timer);
   }
 }

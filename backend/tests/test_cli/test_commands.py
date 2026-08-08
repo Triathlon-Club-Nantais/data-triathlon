@@ -523,8 +523,8 @@ def test_rescrape_db_sans_provider_passe(monkeypatch):
     assert espion.kwargs["provider"] is None
 
 
-def test_playwright_n_est_pas_un_provider_ciblable(monkeypatch):
-    """Le fallback des URLs non reconnues n'est pas une valeur qu'on peut cibler."""
+def test_un_provider_inconnu_n_est_pas_ciblable(monkeypatch):
+    """`--provider` n'accepte que les noms dérivés de `PROVIDERS`."""
     _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
 
     result = runner.invoke(app, ["rescrape-db", "--provider", "playwright"])

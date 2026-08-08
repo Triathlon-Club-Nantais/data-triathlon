@@ -3,7 +3,13 @@ from datetime import date
 
 import pytest
 
-from app.scrapers.utils import derive_status_from_label, parse_fr_date, split_athlete_name
+from app.scrapers.utils import (
+    derive_status_from_label,
+    fmt_seconds,
+    parse_fr_date,
+    split_athlete_name,
+    to_seconds,
+)
 
 
 @pytest.mark.parametrize("label,expected", [
@@ -87,3 +93,40 @@ def test_parse_fr_date_none(text):
 ])
 def test_split_athlete_name(brut, attendu):
     assert split_athlete_name(brut) == attendu
+
+
+# ── to_seconds / fmt_seconds ─────────────────────────────────────────────────
+# Définition unique des six copies qu'en portaient klikego, timepulse, wiclax,
+# chronoweb, oktime et stats_service (audit de sur-ingénierie, entrée n° 4).
+
+
+@pytest.mark.parametrize(
+    ("brut", "attendu"),
+    [
+        ("01:23:45", 5025),
+        ("00:00:00", 0),
+        ("23:45", 1425),      # MM:SS — ce dont `stats_service` a besoin
+        ("100:00:00", 360000),  # au-delà de 99 h, pas de troncature
+    ],
+)
+def test_to_seconds_lit_les_formes_valides(brut, attendu):
+    assert to_seconds(brut) == attendu
+    assert to_seconds(brut, strict=True) == attendu
+
+
+@pytest.mark.parametrize("brut", ["", None, "01:23:45.6", "pas un temps"])
+def test_to_seconds_sur_l_illisible(brut):
+    """Le zéro convient à un cumul ; `strict` sépare « pas de durée » de « illisible ».
+
+    C'est la distinction qu'`oktime` porte volontairement : `00:00:00` vaut 0 des
+    deux côtés, mais `01:23:45.6` — que `normalize_time` laisse passer — est une
+    perte de donnée qui doit se journaliser, pas un zéro silencieux.
+    """
+    assert to_seconds(brut) == 0
+    assert to_seconds(brut, strict=True) is None
+
+
+def test_fmt_seconds_est_l_inverse_de_to_seconds():
+    assert fmt_seconds(5025) == "01:23:45"
+    assert fmt_seconds(0) == "00:00:00"
+    assert to_seconds(fmt_seconds(9999)) == 9999

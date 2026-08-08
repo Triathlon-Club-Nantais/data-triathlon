@@ -3,6 +3,7 @@
 Sélectionne les liens supportés de la source, puis délègue la boucle à
 `batch.run_batch`. Les liens non supportés vont au rapport, jamais aux erreurs.
 """
+from collections import Counter
 from dataclasses import dataclass, field
 
 from sqlalchemy.orm import Session
@@ -10,7 +11,13 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.scrapers import registry
 from app.services import sheet_source
-from app.services.batch import BatchFailure, BatchItem, est_echec_total, run_batch
+from app.services.batch import (
+    BatchFailure,
+    BatchItem,
+    est_echec_total,
+    reporter_totals,
+    run_batch,
+)
 from app.services.progress import ProgressReporter
 
 
@@ -72,15 +79,15 @@ def run_import_sheet(
     unique = sheet_source.dedupe_links(links)
 
     supported: list[str] = []
-    ignored_by_host: dict[str, int] = {}
+    ignored_by_host: Counter[str] = Counter()
     for url in unique:
-        if sheet_source.is_supported(url):
+        if registry.is_supported(url):
             if only_provider and registry.detect_provider(url) != only_provider:
                 continue
             supported.append(url)
         else:
             host = sheet_source.host_of(url)
-            ignored_by_host[host] = ignored_by_host.get(host, 0) + 1
+            ignored_by_host[host] += 1
 
     if limit is not None:
         supported = supported[:limit]
@@ -102,11 +109,5 @@ def run_import_sheet(
         db, items, settings, force=False, delay=delay, reporter=reporter
     )
 
-    outcome.imported = totals.imported
-    outcome.updated = totals.updated
-    outcome.skipped = totals.skipped
-    outcome.errors = totals.errors
-    outcome.processed = totals.processed
-    outcome.interrupted = totals.interrupted
-    outcome.failures = totals.failures
+    reporter_totals(outcome, totals)
     return outcome

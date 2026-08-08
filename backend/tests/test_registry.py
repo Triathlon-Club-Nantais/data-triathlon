@@ -2,6 +2,7 @@
 import pytest
 
 from app.scrapers import registry
+from app.scrapers.base import FanoutTrace
 
 
 def test_provider_names_derive_de_la_liste_des_providers(monkeypatch):
@@ -27,9 +28,17 @@ def test_provider_names_couvre_les_providers_reels():
     assert {"klikego", "breizhchrono", "timepulse", "wiclax"} <= set(noms)
 
 
-def test_provider_names_exclut_le_fallback_playwright():
-    """`playwright` est le fallback des URLs non reconnues, pas une valeur ciblable."""
-    assert "playwright" not in registry.provider_names()
+def test_provider_names_ne_porte_aucun_nom_fantome():
+    """La liste dérive de `PROVIDERS` : elle ne contient que des providers réels.
+
+    `playwright` y figurait tant qu'une sentinelle attrape-tout existait — un
+    slug ciblable en CLI qui ne désignait aucun scraper.
+    """
+    noms = registry.provider_names()
+
+    assert "playwright" not in noms
+    assert all(noms), "un provider sans nom n'est pas ciblable en CLI"
+    assert len(noms) == len(set(noms)), "deux providers portent le même nom"
 
 
 def test_is_supported_vrai_des_quun_provider_reconnait_lurl():
@@ -37,8 +46,8 @@ def test_is_supported_vrai_des_quun_provider_reconnait_lurl():
     assert registry.is_supported("https://www.klikego.com/resultats/event/1") is True
 
 
-def test_is_supported_faux_sur_le_fallback_playwright():
-    """Une URL que personne ne reconnaît tombe sur playwright, donc non supportée."""
+def test_is_supported_faux_si_personne_ne_reconnait_lurl():
+    """Aucun provider ne matche → non supportée, et `detect_provider` rend `""`."""
     assert registry.is_supported("https://chronopuce.test/x") is False
 
 
@@ -219,10 +228,11 @@ _GABARITS_CONTOURNEMENT = [
 @pytest.mark.parametrize("jeton", _JETONS_PROVIDERS)
 @pytest.mark.parametrize("gabarit", _GABARITS_CONTOURNEMENT)
 def test_aucun_contournement_ne_route_vers_un_provider(gabarit, jeton):
-    """SSRF #49 : une URL dont le host n'est pas servi tombe sur le fallback,
-    qui lève avant toute requête réseau — quelle que soit la sous-chaîne."""
+    """SSRF #49 : une URL dont le host n'est pas servi n'est reconnue par aucun
+    provider, et le dispatcher lève avant toute requête réseau — quelle que soit
+    la sous-chaîne."""
     url = gabarit.format(jeton=jeton)
-    assert registry.detect_provider(url) == "playwright", url
+    assert registry.detect_provider(url) == "", url
 
 
 def test_url_klikego_portant_un_jeton_timepulse_reste_klikego():
@@ -241,13 +251,13 @@ def test_wiclax_matches_reste_total_sur_un_host_ipv6_malforme():
     malformé ne doit pas faire lever `detect_provider` (résidu du finding
     Important n°2 de la revue #49 : `GET /scrape/detect` n'a aucune garde en
     amont, contrairement aux chemins d'import)."""
-    assert registry.detect_provider("https://[oops/x") == "playwright"
+    assert registry.detect_provider("https://[oops/x") == ""
 
 
 def test_wiclax_ne_capte_pas_le_site_vitrine_sans_chemin_g_live():
     """`wiclax.com` est le site de l'éditeur : seuls les chemins G-Live sont
     des pages de résultats. La condition de chemin doit survivre à la bascule."""
-    assert registry.detect_provider("https://www.wiclax.com/tarifs") == "playwright"
+    assert registry.detect_provider("https://www.wiclax.com/tarifs") == ""
 
 
 @pytest.mark.parametrize("url", [
@@ -259,7 +269,7 @@ def test_wiclax_sosie_avec_chemin_g_live_non_capte(url):
     sans point suit `evil-wiclax.com`, et le chemin G-Live lève la seconde
     condition. Les gabarits génériques ne l'atteignent pas — leur path n'a pas
     de `G-Live` —, d'où ce cas dédié."""
-    assert registry.detect_provider(url) == "playwright"
+    assert registry.detect_provider(url) == ""
 
 
 def test_t2area_matches_reste_total_sur_un_host_ipv6_malforme():
@@ -294,9 +304,9 @@ def test_t2area_n_accepte_que_le_host_fftri_exact():
     "https://evil.example/breizhchrono.com/resultats",
 ])
 def test_host_non_reconnu_ne_declenche_aucune_requete(monkeypatch, url):
-    """Le fallback Playwright lève avant tout réseau : c'est ce qui rend une
-    whitelist explicite superflue. Si quelqu'un rebranche un scraper générique
-    sur le fallback, ce test tombe."""
+    """Le dispatcher lève avant tout réseau sur une URL que personne ne reconnaît :
+    c'est ce qui rend une whitelist explicite superflue. Si quelqu'un rebranche un
+    scraper générique en attrape-tout, ce test tombe."""
     import httpx
 
     def _interdit(*args, **kwargs):
@@ -305,7 +315,7 @@ def test_host_non_reconnu_ne_declenche_aucune_requete(monkeypatch, url):
     monkeypatch.setattr(httpx.Client, "request", _interdit)
     monkeypatch.setattr(httpx.Client, "send", _interdit)
 
-    with pytest.raises(ValueError, match="playwright"):
+    with pytest.raises(ValueError, match="Aucun provider"):
         registry.scrape_event_all(url)
 
 
@@ -357,7 +367,7 @@ def test_detect_provider_ne_capte_pas_lhote_dapi_speedhive():
     pas une page Sporthive et ne doit pas router ici (note de D2)."""
     url = "https://eventresults-api.speedhive.com/sporthive/events/1"
 
-    assert registry.detect_provider(url) == "playwright"
+    assert registry.detect_provider(url) == ""
 
 
 def test_detect_provider_sporthive_rejette_un_host_sosie():
@@ -386,12 +396,12 @@ def test_chronoweb_capte_le_host_reel_derriere_un_userinfo():
     `chronoweb.com`, le jeton avant le `@` n'étant que du userinfo. `_url_host`
     lit `hostname` et non `netloc`, donc l'URL est légitimement routée chez
     chronoweb — à ne pas confondre avec `chronoweb.com@169.254.169.254`, que le
-    gabarit générique vérifie et qui, lui, part au fallback."""
+    gabarit générique vérifie et qui, lui, n'est reconnu par personne."""
     assert registry.detect_provider("https://timepulse.fr@chronoweb.com/x") == "chronoweb"
 
 
 def test_chronoweb_rejette_un_host_sosie():
-    assert registry.detect_provider("https://evil-chronoweb.com/resultats") == "playwright"
+    assert registry.detect_provider("https://evil-chronoweb.com/resultats") == ""
 
 
 # ---------------------------------------------------------------------------
@@ -444,7 +454,7 @@ def _patch_klikego_fanout(monkeypatch, results_by_heat: dict[str, list], failure
 
     def fake_fanout(event_id, event_name, slug, *, cache_probe=None, on_heat_start=None):
         all_results = []
-        trace = klikego.FanoutTrace()
+        trace = FanoutTrace()
         trace.heats_enumerated = len(results_by_heat) + len(failures)
         for heat_slug, rs in results_by_heat.items():
             heat_url = klikego._heat_source_url(event_id, slug, heat_slug)

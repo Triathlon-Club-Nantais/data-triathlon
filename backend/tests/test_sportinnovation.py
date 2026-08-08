@@ -11,11 +11,11 @@ from pathlib import Path
 
 import pytest
 
+from app.scrapers.classify import classify_event_type
 from app.scrapers.sportinnovation import (
     _classify_results_url,
     _col_indices,
     _compose_course_name,
-    _detect_event_type,
     _parse_api_athlete,
     _parse_html_row,
     _parse_name_cell,
@@ -48,13 +48,13 @@ def test_parse_name_cell_composed_lastname_known_limitation():
     assert cat == "V1F"
 
 
-def test_detect_event_type():
-    assert _detect_event_type("Triathlon M") == "triathlon-m"
-    assert _detect_event_type("Triathlon S") == "triathlon-s"
-    assert _detect_event_type("Aquathlon du RC Doué") == "aquathlon"
-    assert _detect_event_type("Bike & Run d'Halloween") == "bike-run"
-    assert _detect_event_type("SwimRun des Îles") == "swimrun"
-    assert _detect_event_type("Duathlon Sprint") == "duathlon-s"
+def testclassify_event_type():
+    assert classify_event_type("Triathlon M") == "triathlon-m"
+    assert classify_event_type("Triathlon S") == "triathlon-s"
+    assert classify_event_type("Aquathlon du RC Doué") == "aquathlon"
+    assert classify_event_type("Bike & Run d'Halloween") == "bike-run"
+    assert classify_event_type("SwimRun des Îles") == "swimrun"
+    assert classify_event_type("Duathlon Sprint") == "duathlon-s"
 
 
 HEADERS = ["Place", "Dossard", "Nom", "Club", "Tps Off.", "Nat", "T1", "Vélo", "T2", "CAP"]

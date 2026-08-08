@@ -12,8 +12,6 @@ import re
 import unicodedata
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
-from dataclasses import dataclass
-from dataclasses import field as dc_field
 from urllib.parse import parse_qs, quote, unquote, urlencode, urljoin, urlparse, urlunparse
 
 import httpx
@@ -21,46 +19,24 @@ from bs4 import BeautifulSoup
 
 from app.core import http
 
-from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
+from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, FanoutTrace, ScrapedResult
+from .classify import classify_event_type
 from .utils import (
+    DEFAULT_HEADERS,
     derive_status_from_label,
     normalize_rank,
     normalize_time,
     parse_fr_date,
     qualify_event_name,
     split_athlete_name,
+    to_seconds,
 )
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class FanoutTrace:
-    """Compteurs de fan-out remontés par le scraper Wiclax (issue #195).
 
-    Mêmes 5 champs que la trace Klikego (contrat partagé pour `import_service`).
-    Ici la sous-unité est un **parcours** (attribut `p` d'un `<E>` ou d'un
-    `<Competitor>`) : le `.clax` XML étant partagé, une seule requête réseau
-    suffit à l'événement entier. Le gain du fan-out n'est donc pas la requête
-    économisée mais l'intégrité du cache TTL au niveau parcours (un parcours
-    frais n'est ni reconstruit ni persisté).
-
-    `heats_imported` est laissé à 0 côté scraper ; `import_service` le dérive
-    via l'invariant `enumerated = imported + cached + len(failures)`.
-    """
-    heats_enumerated: int = 0
-    heats_cached: int = 0
-    heats_imported: int = 0
-    failures: list[dict] = dc_field(default_factory=list)
-    cached_urls: list[str] = dc_field(default_factory=list)
-
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0 Safari/537.36"
-    )
-}
+HEADERS = DEFAULT_HEADERS
 
 
 # Attributs candidats (forward-compat) ; le vrai signal Wiclax est le flag np.
@@ -108,7 +84,7 @@ def _parse_competitor(comp, url: str, event_name: str, event_type: str) -> Scrap
         # en triathlon-s. Le sport vient du nom d'épreuve, la taille du parcours ; un
         # parcours qui nomme explicitement une autre discipline (« Duathlon jeunes »)
         # reste prioritaire, les multisports étant testés avant le triathlon.
-        event_type = _detect_event_type(event_name)
+        event_type = classify_event_type(event_name)
 
     result.event_name = event_name
     result.event_type = event_type
@@ -320,7 +296,7 @@ def _fetch_clax(url: str) -> tuple[ET.Element, str, str, str, object]:
         or event_elem.get("name", "")
         or unquote(f_param).split("/")[-1].replace(".clax", "")
     )
-    event_type = _detect_event_type(event_name)
+    event_type = classify_event_type(event_name)
 
     return root, clax_url, event_name, event_type, _clax_event_date(event_elem)
 
@@ -359,15 +335,6 @@ def _display_bib(comp) -> str:
             comp.get("d") or comp.get("D") or "")
 
 
-def _time_to_secs(t: str) -> int:
-    """Convertit un temps normalisé "HH:MM:SS" en secondes (0 si invalide)."""
-    parts = (t or "").split(":")
-    try:
-        return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
-    except (IndexError, ValueError):
-        return 0
-
-
 def _compute_er_ranks(
     root: ET.Element, r_by_bib: dict[str, ET.Element]
 ) -> dict[str, tuple[int, int, int]]:
@@ -393,7 +360,7 @@ def _compute_er_ranks(
                   or derive_status_from_label(raw_t))
         if status in (STATUS_DNF, STATUS_DNS, STATUS_DSQ):
             continue
-        secs = _time_to_secs(normalize_time(raw_t))
+        secs = to_seconds(normalize_time(raw_t))
         if not secs:
             continue
         parcours = comp.get("p") or comp.get("P") or ""
@@ -790,7 +757,3 @@ def _strip_athlete_param(url: str) -> str:
     return urlunparse(parsed._replace(query=urlencode(params)))
 
 
-
-def _detect_event_type(name: str) -> str:
-    from app.scrapers.classify import classify_event_type
-    return classify_event_type(name)

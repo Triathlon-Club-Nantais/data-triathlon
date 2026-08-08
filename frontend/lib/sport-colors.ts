@@ -1,8 +1,9 @@
-// SPLIT — échelle catégorielle des disciplines. Renvoie un token CSS (`var(--…)`)
+// Échelle catégorielle des disciplines (TCN Design System — l'en-tête nommait
+// encore « SPLIT », le design system qu'il a remplacé). Renvoie un token CSS (`var(--…)`)
 // pour colorer tags, avatars, segments de splits et data-viz de façon cohérente.
 
 /** Couleur fixe d'une discipline (référence une variable de `globals.css`). */
-export const DISCIPLINE_COLORS = {
+const DISCIPLINE_COLORS = {
   swim: "var(--swim)",
   bike: "var(--bike)",
   run: "var(--run)",
@@ -24,22 +25,8 @@ export function eventTypeColor(type: string | null | undefined): string {
   return "var(--muted-foreground)";
 }
 
-const AVATAR_COLORS = [
-  DISCIPLINE_COLORS.swim,
-  DISCIPLINE_COLORS.bike,
-  DISCIPLINE_COLORS.run,
-  DISCIPLINE_COLORS.accent,
-  DISCIPLINE_COLORS.violet,
-];
-
-/** Couleur d'avatar déterministe, hashée sur le nom (échelle catégorielle). */
-export function avatarColor(name: string): string {
-  const hash = name.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
-}
-
 /**
- * Règle d'or SPLIT : **aplat = couleur pleine, texte = `…-ink`**.
+ * Règle d'or : **aplat = couleur pleine, texte = `…-ink`**.
  * Fond teinté à 14 %, libellé mixé vers `--foreground` de `--ink-mix`.
  */
 export function tintedStyle(color: string): React.CSSProperties {

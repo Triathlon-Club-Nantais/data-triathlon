@@ -35,15 +35,14 @@ from app.core import http
 from app.core.exceptions import DomainError
 
 from .base import ScrapedResult
+from .classify import classify_event_type
+from .utils import DEFAULT_HEADERS
 
 logger = logging.getLogger(__name__)
 
 BASE = "https://resultats.breizhchrono.com"
 HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-    ),
+    **DEFAULT_HEADERS,
     "Referer": "https://resultats.breizhchrono.com/",
     "Accept": "text/html,*/*",
 }
@@ -184,15 +183,13 @@ def _import_one_heat(
     différents). Par défaut : comportement resultats.breizhchrono.com.
     """
     from app.scrapers import klikego_platform as plat
-    from app.scrapers.klikego import _detect_event_type
-
     is_relay = _detect_relay(heat_label, heat_slug)
     if source_url is None:
         source_url = f"{base}/resultats-courses/{slug}-{event_id}/{heat_slug}"
     heat_page = client.get(source_url)
     heat_page_html = heat_page.text if heat_page.status_code == 200 else ""
     if event_type is None:
-        event_type = _detect_event_type(heat_slug, slug)
+        event_type = classify_event_type(heat_slug, contexte=slug)
 
     results = plat.build_heat_results(
         base=base,
@@ -400,8 +397,6 @@ def scrape_live_event_all(reference: str, heat: str = "") -> list[ScrapedResult]
     l'événement mentionne souvent une seule discipline vedette et fausserait le
     type des autres heats.
     """
-    from app.scrapers.klikego import _detect_event_type
-
     results: list[ScrapedResult] = []
     with http.client(timeout=30, headers=HEADERS) as client:
         root = client.get(
@@ -437,7 +432,7 @@ def scrape_live_event_all(reference: str, heat: str = "") -> list[ScrapedResult]
                     reference, heat_slug, heat_label, event_name, slug,
                     dates_by_heat.get(_norm_label(heat_label), default_date), client,
                     base=LIVE_BASE, source_url=source_url,
-                    event_type=_detect_event_type(heat_slug),
+                    event_type=classify_event_type(heat_slug),
                 )
             )
 

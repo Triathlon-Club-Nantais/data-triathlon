@@ -10,7 +10,8 @@ Usage :
     cd backend
     python scripts/audit_scrapers.py [--provider <nom|all>] [--out FICHIER] [--json]
 
-Les URLs de référence sont dans FIXTURE_URLS (événements passés/stables).
+Les URLs de référence viennent de `tests.test_integration_scrapers.LIVE_URLS`
+(événements passés/stables) — une seule table pour le dépôt.
 """
 from __future__ import annotations
 
@@ -31,17 +32,10 @@ from app.scrapers import registry  # noqa: E402
 from app.scrapers.base import ScrapedResult  # noqa: E402
 
 # ── URLs de référence : 1 épreuve réelle par provider ────────────────────────
-FIXTURE_URLS: dict[str, str] = {
-    "klikego": "https://www.klikego.com/resultats/triathlon-de-vierzon-2026/1674523163798-4",
-    "breizhchrono": (
-        "https://resultats.breizhchrono.com/resultats-courses/"
-        "triathlon-de-la-cote-de-granit-rose-tregastel-2026-1295405190290-19/triathlon-m"
-    ),
-    "wiclax": "https://chronosmetron.wiclax-results.com/Triathlon%20de%20la%20Roche%202026/",
-    "timepulse": "https://www.timepulse.fr/epreuves/resultats/live/3232",
-    "prolivesport": "https://www.prolivesport.fr/result/1082/6",
-    "sportinnovation": "https://sportinnovation.fr/Evenements/Resultats/7031",
-}
+# **Une seule table pour le dépôt**, celle des tests d'intégration. La copie qui
+# vivait ici était restée à 6 des 14 fournisseurs : le rapport se taisait sur les
+# 8 autres, sans le dire. Même piège de définition dupliquée que #76.
+from tests.test_integration_scrapers import LIVE_URLS  # noqa: E402
 
 
 def _pct(n: int, total: int) -> int:
@@ -129,12 +123,12 @@ def main() -> int:
     args = ap.parse_args()
 
     if args.provider != "all":
-        if args.provider not in FIXTURE_URLS:
-            print(f"Provider inconnu : {args.provider}. Choix : {', '.join(FIXTURE_URLS)}")
+        if args.provider not in LIVE_URLS:
+            print(f"Provider inconnu : {args.provider}. Choix : {', '.join(LIVE_URLS)}")
             return 2
-        targets = {args.provider: FIXTURE_URLS[args.provider]}
+        targets = {args.provider: LIVE_URLS[args.provider]}
     else:
-        targets = FIXTURE_URLS
+        targets = LIVE_URLS
 
     entries = []
     for name, url in targets.items():

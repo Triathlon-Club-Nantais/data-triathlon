@@ -17,7 +17,6 @@ from app.api.v1 import (
     participations,
     scrape,
     stats,
-    version,
 )
 
 api_router = APIRouter()
@@ -27,7 +26,6 @@ api_router = APIRouter()
 # signalement anonyme du site public sans que rien ne la nomme.
 for module in (
     health,
-    version,
     scrape,
     athletes,
     courses,

@@ -9,10 +9,13 @@ provider ; `base.py` = `ScrapedResult` ; `utils.py` = helpers de normalisation.
 - Tout nouveau fournisseur : créer `scrapers/<nom>.py`, exposer
   `scrape_event_all()` — la **seule** voie d'import depuis la suppression du
   scraping athlète-unique —, puis l'enregistrer dans `scrapers/registry.py`
-  (registre Protocol). Provider inconnu → `registry.PlaywrightProvider`, qui
-  n'est **pas** un scraper : c'est la sentinelle qui refuse explicitement l'URL,
-  nom historique d'un fallback navigateur supprimé avec sa dépendance (#102) —
-  le rebrancher rouvrirait le SSRF de #49.
+  (registre Protocol). Un provider **sans particularité** est une ligne
+  `ModuleProvider("<nom>", ("<host>",), <module>)` dans `PROVIDERS`, pas une
+  classe : seuls le fan-out, une double façade ou une règle de match composée
+  en justifient une. Provider inconnu → `get_provider` rend `None` et le
+  dispatcher lève : il n'y a **pas** de sentinelle attrape-tout, et un futur
+  fallback générique se valide en amont sur une liste blanche de hosts, sans
+  quoi il rouvrirait le SSRF de #49.
 - **Détection par host, jamais par sous-chaîne d'URL.** Un provider déclare ses
   `_HOSTS` et hérite de `HostMatchedProvider` : il n'a pas de `matches` à
   écrire. La règle « host exact ou vrai sous-domaine » a une seule définition,
@@ -38,8 +41,9 @@ provider ; `base.py` = `ScrapedResult` ; `utils.py` = helpers de normalisation.
   supporté ») ; et une redirection vers un **autre domaine** reste autorisée —
   l'export CSV du Google Sheet en dépend. Design :
   `docs/superpowers/specs/2026-07-31-ssrf-redirection-design.md`.
-- **Breizh Chrono réutilise la logique Klikego** (`klikego._parse_detail`,
-  `_detect_event_type`) — ne pas dupliquer, factoriser dans `klikego.py`.
+- **Breizh Chrono réutilise la logique Klikego** (`klikego._parse_detail`) — ne
+  pas dupliquer, factoriser dans `klikego.py`. Le type d'épreuve, lui, vient de
+  `classify.classify_event_type`, appelé directement par chaque scraper.
 - « Supporté ou non » : **une seule définition**, `registry.is_supported` (dérivée
   de `PROVIDERS`), exposée par `GET /scrape/detect` (`{provider, supported}`). Le
   front ne liste **jamais** les providers : la liste en dur qu'il portait est
@@ -63,7 +67,7 @@ fournisseur — à lire **avant** de toucher au module correspondant.
 
 | Fournisseur | En bref | Détail |
 | --- | --- | --- |
-| Klikego, Breizh Chrono | Breizh Chrono **réutilise** `klikego._parse_detail` / `_detect_event_type` — factoriser dans `klikego.py`, ne jamais dupliquer. | — |
+| Klikego, Breizh Chrono | Breizh Chrono **réutilise** `klikego._parse_detail` — factoriser dans `klikego.py`, ne jamais dupliquer. | — |
 | TimePulse, ProLiveSport, Sportinnovation | rien au-delà des conventions ci-dessus. | — |
 | Chronoplace | Laravel + Livewire, lu en `GET ?perPage=all` — pas de POST Livewire — et importe **toutes** les épreuves de l'événement pointé par l'URL. | — |
 | Wiclax/G-Live | plusieurs déploiements : `wiclax-results.com`, `chronosmetron.com`, `chronowest.fr` (WordPress + iframe G-Live). Un déploiement tiers de plus = un host dans `WiclaxProvider._HOSTS`. | — |

@@ -22,11 +22,14 @@ import httpx
 from app.core import http
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
+from .classify import classify_event_type
 from .utils import (
     derive_status_from_label,
+    fmt_seconds,
     normalize_time,
     parse_fr_date,
     split_athlete_name,
+    to_seconds,
 )
 
 _HEADERS = {
@@ -196,20 +199,6 @@ def _parse_series(xml: str) -> dict[str, str]:
 # Rankings computation
 # ---------------------------------------------------------------------------
 
-def _secs(t: str) -> int:
-    if not t:
-        return 0
-    p = t.split(":")
-    try:
-        return int(p[0]) * 3600 + int(p[1]) * 60 + int(p[2])
-    except (IndexError, ValueError):
-        return 0
-
-
-def _fmt_secs(s: int) -> str:
-    return f"{s // 3600:02d}:{(s % 3600) // 60:02d}:{s % 60:02d}"
-
-
 def _derive_late_splits(result: ScrapedResult, ra: dict[str, str]) -> None:
     """Reconstitue T2 + course depuis les points de passage cumulés (`pN`).
 
@@ -223,19 +212,19 @@ def _derive_late_splits(result: ScrapedResult, ra: dict[str, str]) -> None:
     Sans aucun passage après le vélo, tout le reliquat est rangé en course.
     """
     approx_bike_end = (
-        _secs(result.swim_time) + _secs(result.t1_time) + _secs(result.bike_time)
+        to_seconds(result.swim_time) + to_seconds(result.t1_time) + to_seconds(result.bike_time)
     )
-    total = _secs(result.total_time)
+    total = to_seconds(result.total_time)
     if not approx_bike_end or total <= approx_bike_end:
         return
 
     points = sorted(
         c
         for k, v in ra.items()
-        if re.fullmatch(r"p\d+", k) and (c := _secs(normalize_time(v))) > 0
+        if re.fullmatch(r"p\d+", k) and (c := to_seconds(normalize_time(v))) > 0
     )
     if not points:
-        result.run_time = _fmt_secs(total - approx_bike_end)
+        result.run_time = fmt_seconds(total - approx_bike_end)
         return
 
     bike_pt = min(points, key=lambda p: abs(p - approx_bike_end))
@@ -243,10 +232,10 @@ def _derive_late_splits(result: ScrapedResult, ra: dict[str, str]) -> None:
     if after:
         t2_out = min(after)
         if not result.t2_time:
-            result.t2_time = _fmt_secs(t2_out - bike_pt)
-        result.run_time = _fmt_secs(total - t2_out)
+            result.t2_time = fmt_seconds(t2_out - bike_pt)
+        result.run_time = fmt_seconds(total - t2_out)
     else:
-        result.run_time = _fmt_secs(total - bike_pt)
+        result.run_time = fmt_seconds(total - bike_pt)
 
 
 def _compute_ranks(
@@ -276,7 +265,7 @@ def _compute_ranks(
         b = a.get("d", "")
         if b in parcours_bibs:
             t = normalize_time(a.get("t", ""))
-            s = _secs(t)
+            s = to_seconds(t)
             if s:
                 results.append((s, b))
 
@@ -378,7 +367,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     if event_date_val is None:
         event_date_val = _parse_event_page_date(_fetch_event_page(id_event))
     # Repli si un participant n'a pas de parcours (`p` vide).
-    event_type_fallback = _detect_event_type(event_name)
+    event_type_fallback = classify_event_type(event_name)
 
     results: list[ScrapedResult] = []
 
@@ -395,7 +384,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         # le nom global de l'épreuve (ex. « LE NORTH MAY » → Triathlon S/M/L SOLO).
         parcours = ea.get("p", "")
         result.event_type = (
-            _detect_event_type(parcours) if parcours else event_type_fallback
+            classify_event_type(parcours) if parcours else event_type_fallback
         )
 
         full_name = ea.get("n", "")
@@ -453,7 +442,3 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
 # ---------------------------------------------------------------------------
 # Event type detection
 # ---------------------------------------------------------------------------
-
-def _detect_event_type(name: str) -> str:
-    from app.scrapers.classify import classify_event_type
-    return classify_event_type(name)

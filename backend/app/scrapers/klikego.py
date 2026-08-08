@@ -11,45 +11,29 @@ Klikego API returns HTML (not JSON):
 import logging
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
-from dataclasses import field as dc_field
 
 import httpx
 from bs4 import BeautifulSoup
 
 from app.core import http
 
-from .base import ScrapedResult
-from .utils import derive_status_from_label, normalize_time, parse_fr_date
+from .base import FanoutTrace, ScrapedResult
+from .classify import classify_event_type
+from .utils import (
+    DEFAULT_HEADERS,
+    derive_status_from_label,
+    normalize_time,
+    parse_fr_date,
+    to_seconds,
+)
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class FanoutTrace:
-    """Compteurs de fan-out remontés par le scraper Klikego (issue #156).
-
-    `heats_imported` est laissé à 0 côté scraper ; `import_service` le dérive
-    via l'invariant `enumerated = imported + cached + len(failures)`.
-
-    `cached_urls` liste les URLs de heats sautés parce que jugés frais par
-    `cache_probe`. `import_service` les résout en `Course` déjà en base pour
-    étoffer le sélecteur de fin d'import : sans elles, un ré-import sur un
-    événement partiellement caché n'exposerait dans le `done` que les courses
-    re-scrapées, et l'opérateur perdrait l'accès aux heats déjà en cache.
-    """
-    heats_enumerated: int = 0
-    heats_cached: int = 0
-    heats_imported: int = 0
-    failures: list[dict] = dc_field(default_factory=list)
-    cached_urls: list[str] = dc_field(default_factory=list)
 
 BASE = "https://www.klikego.com"
 HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-    ),
+    **DEFAULT_HEADERS,
     "Referer": "https://www.klikego.com/",
     "Accept": "text/html,*/*",
 }
@@ -204,16 +188,7 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
     # --- Detect cumulative times ---
     # If times for mapped stages are strictly increasing → they are cumulative
     # (checkpoints like KM42 are skipped for this check)
-    def _secs(t: str) -> int:
-        if not t:
-            return 0
-        p = t.split(":")
-        try:
-            return int(p[0]) * 3600 + int(p[1]) * 60 + int(p[2])
-        except (IndexError, ValueError):
-            return 0
-
-    mapped_secs = [_secs(t) for _, t, f in splits_raw if f and t]
+    mapped_secs = [to_seconds(t) for _, t, f in splits_raw if f and t]
     is_cumulative = (
         len(mapped_secs) >= 2
         and all(mapped_secs[i] < mapped_secs[i + 1] for i in range(len(mapped_secs) - 1))
@@ -224,7 +199,7 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
     prev_secs = 0
     last_mapped_secs = 0
     for stage, time_norm, field in splits_raw:
-        secs = _secs(time_norm)
+        secs = to_seconds(time_norm)
 
         if is_cumulative and secs > 0:
             if field is not None:
@@ -268,7 +243,7 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
 
     # If cumulative and run is absent, derive from total − last mapped stage end
     if is_cumulative and not result.run_time and result.total_time:
-        total_s = _secs(result.total_time)
+        total_s = to_seconds(result.total_time)
         if total_s > last_mapped_secs > 0:
             run_s = total_s - last_mapped_secs
             h, rem = divmod(run_s, 3600)
@@ -287,7 +262,7 @@ def _parse_search_row(
         provider="klikego",
     )
     result.event_name = event_name
-    result.event_type = _detect_event_type(heat, slug)
+    result.event_type = classify_event_type(heat, contexte=slug)
     result.rank_overall = rank
     # Un heat Klikego est mono-discipline → drapeau relais uniforme sur ses résultats.
     # Le « s » final de « relais » n'est pas un token de taille → classification intacte.
@@ -359,7 +334,7 @@ def _scrape_single_heat(
         heat_page_html=heat_page_html,
         event_name=event_name,
         slug=slug,
-        event_type=_detect_event_type(heat, slug),
+        event_type=classify_event_type(heat, contexte=slug),
         source_url=source_url,
         event_date=event_date,
         client=client,
@@ -473,10 +448,6 @@ def scrape_event_fanout(
 
 _SPLIT_SLOTS = ("swim", "t1", "bike", "t2", "run")
 
-
-def _detect_event_type(heat: str, slug: str = "") -> str:
-    from app.scrapers.classify import classify_event_type
-    return classify_event_type(heat, contexte=slug)
 
 
 # Énumération des heats d'un événement (issue #156).

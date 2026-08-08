@@ -2,8 +2,8 @@
 
 Pourquoi ce script plutôt qu'un `uvicorn --port 8001` en dur : plusieurs worktrees
 du dépôt tournent en parallèle, et un port figé fait échouer le second démarrage
-sur « Address already in use ». On prend donc le premier port libre à partir de
-8001, et on le publie dans `.dev-backend.json` à la racine du worktree.
+sur « Address already in use ». On laisse donc l'OS attribuer un port éphémère,
+et on le publie dans `.dev-backend.json` à la racine du worktree.
 
 C'est ce fichier que lit `frontend/scripts/dev.mjs` pour brancher le front sur le
 backend de SON worktree. Sans lui, le front se rabattait sur `localhost:8001`
@@ -17,9 +17,8 @@ joignable (cf. BIND_HOST / CLIENT_HOST).
 
 Réservé au développement : en production, le port vient de `$PORT` (cf. Dockerfile).
 
-Variables d'environnement :
-    DEV_BACKEND_PORT       force un port précis et court-circuite le scan
-    DEV_BACKEND_PORT_BASE  point de départ du scan (défaut : 8001)
+Variable d'environnement :
+    DEV_BACKEND_PORT  force un port précis, pour un dev qui veut une URL stable
 """
 
 import json
@@ -30,26 +29,20 @@ from collections.abc import Mapping
 from pathlib import Path
 
 PORT_FILE_NAME = ".dev-backend.json"
-DEFAULT_BASE_PORT = 8001
-DEFAULT_SPAN = 50
 
 # Deux adresses, deux rôles — les confondre casse un cas ou l'autre.
 #
 # BIND_HOST : où l'on écoute. Toutes les interfaces, comme en production
 # (`--host 0.0.0.0` dans le Dockerfile et render.yaml) : le seul loopback rendrait
 # l'API injoignable depuis l'extérieur d'un conteneur, ou depuis un autre appareil
-# du réseau local. C'est aussi l'adresse que le scan de ports bind, sans quoi il
-# déclarerait libre un port qu'uvicorn ne pourrait pas prendre (service écoutant
-# sur la seule IP de l'interface).
+# du réseau local. C'est aussi l'adresse sur laquelle on tire le port éphémère,
+# sans quoi on obtiendrait un port libre sur le loopback qu'uvicorn ne pourrait
+# pas prendre sur toutes les interfaces.
 #
 # CLIENT_HOST : ce qu'on publie comme cible joignable. `0.0.0.0` n'est pas une
 # adresse de destination — elle ne se résout pas hors de Linux — donc le loopback.
 BIND_HOST = "0.0.0.0"
 CLIENT_HOST = "127.0.0.1"
-
-# Nombre de reprises si le port choisi est pris entre le scan et le bind d'uvicorn
-# (deux worktrees démarrés au même instant). Le scan seul ne garantit pas l'exclusivité.
-BIND_ATTEMPTS = 3
 
 
 def worktree_root() -> Path:
@@ -64,64 +57,34 @@ def backend_dir() -> Path:
 # ── Choix du port ────────────────────────────────────────────────────────────
 
 
-def _is_free(port: int, host: str = BIND_HOST) -> bool:
-    with socket.socket() as sock:
-        # Sans SO_REUSEADDR, un port en TIME_WAIT passerait pour occupé.
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            sock.bind((host, port))
-        except OSError:
-            return False
-    return True
+def find_free_port(host: str = BIND_HOST) -> int:
+    """Port libre attribué par l'OS (bind sur le port 0).
 
-
-def find_free_port(
-    base: int = DEFAULT_BASE_PORT, span: int = DEFAULT_SPAN, host: str = BIND_HOST
-) -> int:
-    """Premier port libre dans `[base, base + span)`."""
-    for port in range(base, base + span):
-        if _is_free(port, host):
-            return port
-    raise RuntimeError(f"aucun port libre entre {base} et {base + span - 1}")
-
-
-def should_retry_after_exit(
-    port: int, forced: int | None, tentative: int, host: str = BIND_HOST
-) -> bool:
-    """Une sortie `SystemExit` d'uvicorn vaut-elle une reprise sur un autre port ?
-
-    Uvicorn quitte par `sys.exit()` quand le bind échoue — le cas qu'on veut rattraper,
-    le port ayant été pris entre notre scan et le sien — mais **aussi** sur d'autres
-    pannes de démarrage (app introuvable, config invalide). Retenter à l'aveugle
-    masquerait la vraie cause derrière trois démarrages sur trois ports différents :
-    on ne repart donc que si le port est effectivement occupé.
+    Remplace un scan à partir de 8001 : c'est ce **point de départ déterministe**
+    qui faisait entrer en collision deux worktrees démarrés au même instant (deux
+    scans concurrents trouvent le même premier port libre), et qui imposait une
+    boucle de reprise à trois essais. Un port éphémère supprime la cause, donc le
+    rattrapage.
     """
-    if forced is not None or tentative >= BIND_ATTEMPTS - 1:
-        return False
-    return not _is_free(port, host)
+    with socket.socket() as sock:
+        sock.bind((host, 0))
+        return sock.getsockname()[1]
 
 
 # ── Variables d'environnement ────────────────────────────────────────────────
 
 
-def _as_port(env: Mapping[str, str], key: str, defaut: int | None) -> int | None:
-    brut = env.get(key, "").strip()
+def resolve_forced_port(env: Mapping[str, str]) -> int | None:
+    """Port imposé par `DEV_BACKEND_PORT`, ou None. Une valeur illisible est une
+    erreur explicite : la retomber en silence sur un port éphémère donnerait une
+    URL différente de celle demandée, sans le dire."""
+    brut = env.get("DEV_BACKEND_PORT", "").strip()
     if not brut:
-        return defaut
+        return None
     try:
         return int(brut)
     except ValueError as exc:
-        raise ValueError(f"{key} doit être un entier, reçu : {brut!r}") from exc
-
-
-def resolve_forced_port(env: Mapping[str, str]) -> int | None:
-    return _as_port(env, "DEV_BACKEND_PORT", None)
-
-
-def resolve_base_port(env: Mapping[str, str]) -> int:
-    port = _as_port(env, "DEV_BACKEND_PORT_BASE", DEFAULT_BASE_PORT)
-    assert port is not None  # le défaut n'est jamais None
-    return port
+        raise ValueError(f"DEV_BACKEND_PORT doit être un entier, reçu : {brut!r}") from exc
 
 
 # ── Publication du port ──────────────────────────────────────────────────────
@@ -180,29 +143,17 @@ def main() -> int:
     sys.path.insert(0, str(backend_dir()))
 
     root = worktree_root()
-    forced = resolve_forced_port(os.environ)
-    base = resolve_base_port(os.environ)
-
-    for tentative in range(BIND_ATTEMPTS):
-        port = forced if forced is not None else find_free_port(base)
-        write_port_file(root, port)
-        print(
-            f"→ backend sur http://{CLIENT_HOST}:{port} "
-            f"(écoute {BIND_HOST}, port publié dans {PORT_FILE_NAME})"
-        )
-        try:
-            uvicorn.run("app.main:app", host=BIND_HOST, port=port, reload=True)
-            return 0
-        except SystemExit:
-            # Reprise réservée au port occupé (cf. should_retry_after_exit) : toute
-            # autre panne de démarrage doit remonter telle quelle, pas être masquée.
-            if not should_retry_after_exit(port, forced, tentative):
-                raise
-            base = port + 1
-        finally:
-            remove_port_file(root)
-
-    return 1
+    port = resolve_forced_port(os.environ) or find_free_port()
+    write_port_file(root, port)
+    print(
+        f"→ backend sur http://{CLIENT_HOST}:{port} "
+        f"(écoute {BIND_HOST}, port publié dans {PORT_FILE_NAME})"
+    )
+    try:
+        uvicorn.run("app.main:app", host=BIND_HOST, port=port, reload=True)
+        return 0
+    finally:
+        remove_port_file(root)
 
 
 if __name__ == "__main__":

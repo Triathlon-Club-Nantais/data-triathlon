@@ -1,7 +1,7 @@
 // Ratio place / nombre de classés d'une participation. Fonctions pures et testables.
 import type { Participation } from "@/lib/types";
 
-export interface RankRatio {
+interface RankRatio {
   rank: number;
   total: number;
   /** Percentile arrondi au supérieur : 42e sur 300 → 14 (« Top 14 % »). */
@@ -15,9 +15,9 @@ export interface RankRatio {
  * signal explicite à l'utilisateur. `incomplete` = rang absent ou compte de
  * classés absent/incohérent → cellule vide, cas neutre.
  */
-export type RankRatioReason = "unreliable" | "incomplete";
+type RankRatioReason = "unreliable" | "incomplete";
 
-export interface RankRatioResult {
+interface RankRatioResult {
   ratio: RankRatio | null;
   reason?: RankRatioReason;
 }
@@ -41,7 +41,7 @@ export function rankRatio(p: Participation): RankRatioResult {
   return { ratio: { rank, total, percent: Math.ceil((rank * 100) / total) } };
 }
 
-export interface RatioEntry {
+interface RatioEntry {
   participation: Participation;
   ratio: RankRatio;
 }

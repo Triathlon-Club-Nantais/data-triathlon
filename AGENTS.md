@@ -27,7 +27,7 @@ n'accueille que ce qu'on voudrait relire à chaque session.
 | Sorties de la CLI : stdout parsable, codes de sortie, bilans | `backend/app/cli/AGENTS.md` |
 | API de lecture : `scope`, `federal_only`, pagination du classement | `backend/app/api/AGENTS.md` |
 | Modèle normalisé et splits | `backend/app/models/AGENTS.md` |
-| Observabilité SQL et tracing OTel | `backend/app/core/AGENTS.md` |
+| Observabilité SQL | `backend/app/core/AGENTS.md` |
 | Authentification SSO (#114) | `backend/app/services/auth/AGENTS.md` |
 | Architecture frontend | `frontend/AGENTS.md` |
 | Dev multi-worktree : ports, `.worktreeinclude` | `docs/dev-multi-worktree.md` |

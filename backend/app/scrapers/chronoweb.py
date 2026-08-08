@@ -34,13 +34,14 @@ from urllib.parse import parse_qs, urlparse
 from bs4 import BeautifulSoup
 
 from app.core import http
-from app.scrapers.base import ScrapedResult
+from app.scrapers.base import FanoutTrace, ScrapedResult
 from app.scrapers.classify import classify_event_type
 from app.scrapers.utils import (
     normalize_rank,
     normalize_time,
     qualify_event_name,
     split_athlete_name,
+    to_seconds,
 )
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,10 @@ BASE_URL = "https://chronoweb.com"
 EVENT_PATH = "/resultats_evenement.php"
 CATALOGUE_PATH = "/resultats.php"
 
+# ponytail: User-Agent figé à Chrome/120.0, là où `utils.DEFAULT_HEADERS` porte
+# Chrome/124.0. Écart non expliqué — probablement un copier-coller plus ancien,
+# mais il tape un vrai site : à converger une fois `pytest -m integration`
+# passé sur ce fournisseur, pas avant.
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -58,32 +63,6 @@ HEADERS = {
 }
 
 
-@dataclass
-class FanoutTrace:
-    """Compteurs de fan-out par **race** (issue #220 / épique #195).
-
-    Sur chronoweb, une seule requête HTML rend toutes les races de l'événement
-    — le gain du fan-out n'est **pas** la requête économisée, mais l'intégrité
-    du cache TTL : une race fraîche ne réécrit pas sa `Course`, une race
-    disparue ne se fait pas silencieusement retirer. La sous-unité de cache
-    est la race (`race.race_id`), et sa clé de source URL est
-    `<canonical_url>&race=<race_id>` — cohérente avec Klikego (`?heat=…`) et
-    lisible telle quelle dans `Course.source_url`.
-
-    Champs alignés sur `klikego.FanoutTrace` — le patron est commun, les noms
-    aussi : « heats » ici désigne les races au sens fan-out, pour rester
-    homogène côté `import_service._fanout_counters`.
-
-    `heats_imported` reste à 0 côté scraper : dérivé par
-    `import_service._fanout_counters` via l'invariant
-    `enumerated = imported + cached + len(failures)`.
-    """
-
-    heats_enumerated: int = 0
-    heats_cached: int = 0
-    heats_imported: int = 0
-    failures: list[dict] = field(default_factory=list)
-    cached_urls: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -319,18 +298,6 @@ _POINT_PATTERNS: dict[tuple[str, ...], tuple[str, ...]] = {
 _TRANSITION_LABEL = "Changement"
 
 
-def _seconds(time: str) -> int:
-    """`"01:31:34"` → 5494. Returns 0 on anything unreadable."""
-    parts = time.split(":")
-    if len(parts) != 3:
-        return 0
-    try:
-        hours, minutes, secs = (int(p) for p in parts)
-    except ValueError:
-        return 0
-    return hours * 3600 + minutes * 60 + secs
-
-
 def _format(total: int) -> str:
     return f"{total // 3600:02d}:{total % 3600 // 60:02d}:{total % 60:02d}"
 
@@ -350,7 +317,7 @@ def _transition(previous: Passage | None, current: Passage | None) -> str:
     """
     if previous is None or current is None:
         return ""
-    gap = _seconds(current.cumulative) - _seconds(current.segment) - _seconds(previous.cumulative)
+    gap = to_seconds(current.cumulative) - to_seconds(current.segment) - to_seconds(previous.cumulative)
     return _format(gap) if gap > 0 else ""
 
 

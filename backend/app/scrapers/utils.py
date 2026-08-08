@@ -6,6 +6,18 @@ from datetime import date as date_t
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER
 
+#: En-têtes par défaut de toute sortie HTTP d'un scraper. Neuf modules en
+#: portaient une copie identique au caractère près ; changer l'User-Agent
+#: voulait dire neuf éditions, et rien ne signalait celle qu'on oubliait.
+#: Un fournisseur qui a besoin d'un `Referer` ou d'un `Accept` propre compose :
+#: `{**DEFAULT_HEADERS, "Referer": …}`.
+DEFAULT_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+    ),
+}
+
 _FR_MONTHS = {
     "janvier": 1, "fevrier": 2, "mars": 3, "avril": 4,
     "mai": 5, "juin": 6, "juillet": 7, "aout": 8,
@@ -82,6 +94,34 @@ def normalize_time(raw: str) -> str:
         return f"{int(m.group(1)):02d}:{int(m.group(2)):02d}:00"
 
     return s  # return as-is if unrecognized
+
+
+#: `HH:MM:SS` ou `MM:SS`, ancré en fin de chaîne — un suffixe non lu (`01:23:45.6`)
+#: ne doit pas être tronqué en silence, il doit sortir du motif.
+_TIME_RE = re.compile(r"(?:(\d+):)?(\d{1,2}):(\d{2})$")
+
+
+def to_seconds(t: str | None, *, strict: bool = False) -> int | None:
+    """Secondes d'un temps `HH:MM:SS` (ou `MM:SS`).
+
+    Une seule définition pour les six copies qu'en portaient klikego, timepulse,
+    wiclax, chronoweb, oktime et `stats_service`.
+
+    `strict` porte la seule distinction réelle entre elles : à `False`, l'illisible
+    vaut `0` — ce que veut un calcul de cumul, où l'absence de durée est un zéro ;
+    à `True`, il vaut `None`, ce qui sépare « ce point ne porte pas de durée »
+    (`00:00:00` → `0`) de « ce point est illisible » (`01:23:45.6` → `None`), une
+    perte de donnée qui doit se journaliser.
+    """
+    match = _TIME_RE.search(t or "")
+    if not match:
+        return None if strict else 0
+    return int(match.group(1) or 0) * 3600 + int(match.group(2)) * 60 + int(match.group(3))
+
+
+def fmt_seconds(s: int) -> str:
+    """Secondes → `HH:MM:SS`."""
+    return f"{s // 3600:02d}:{(s % 3600) // 60:02d}:{s % 60:02d}"
 
 
 def normalize_rank(val) -> int | None:

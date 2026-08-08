@@ -34,18 +34,19 @@ from app.core.club import is_tcn
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
 from .classify import classify_event_type
-from .utils import derive_status_from_label, normalize_rank, normalize_time, split_athlete_name
+from .utils import (
+    DEFAULT_HEADERS,
+    derive_status_from_label,
+    normalize_rank,
+    normalize_time,
+    split_athlete_name,
+)
 
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://fftri.t2area.com"
 HOST = "fftri.t2area.com"
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-    )
-}
+HEADERS = DEFAULT_HEADERS
 
 _PREFIXE = "/calendrier/"
 _ANNEE_RE = re.compile(r"^\d{4}$")
@@ -386,7 +387,7 @@ def _avertir_source_amont(nom: str, lien: str, url: str) -> None:
     from app.scrapers.registry import detect_provider
 
     provider = detect_provider(lien)
-    if provider == "playwright":
+    if not provider:
         return
     logger.warning(
         "%s : résultats produits par %s (%s) — le provider « %s » est supporté et "

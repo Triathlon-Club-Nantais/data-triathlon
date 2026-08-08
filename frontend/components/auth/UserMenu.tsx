@@ -1,7 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/tcn";
-import { InitialsAvatar } from "@/components/ui/initials-avatar";
+import { Avatar, Button } from "@/components/tcn";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,7 +60,7 @@ export function UserMenu({ pleineLargeur = false }: { pleineLargeur?: boolean })
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-          <InitialsAvatar name={nom} size={34} />
+          <Avatar name={nom} size={34} />
           <Identite session={session} />
         </div>
         <Button variant="secondary" disabled={logout.isPending} onClick={seDeconnecter}>
@@ -84,7 +83,7 @@ export function UserMenu({ pleineLargeur = false }: { pleineLargeur?: boolean })
           cursor: "pointer",
         }}
       >
-        <InitialsAvatar name={nom} size={34} />
+        <Avatar name={nom} size={34} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-auto min-w-60 p-1.5">
         <div style={{ padding: "6px 8px 10px", minWidth: 0 }}>

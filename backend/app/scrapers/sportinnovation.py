@@ -31,15 +31,13 @@ from bs4 import BeautifulSoup
 from app.core import http
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
-from .utils import derive_status_from_label, normalize_rank, normalize_time
+from .classify import classify_event_type
+from .utils import DEFAULT_HEADERS, derive_status_from_label, normalize_rank, normalize_time
 
 logger = logging.getLogger(__name__)
 
 HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-    ),
+    **DEFAULT_HEADERS,
     "Accept": "text/html,application/json,*/*",
 }
 API_BASE = "https://sportinnovation.fr/api"
@@ -91,10 +89,6 @@ def _parse_name_cell(raw: str) -> tuple[str, str, str, str]:
         cat = ""
     return lastname, firstname, gender, cat
 
-
-def _detect_event_type(race_name: str) -> str:
-    from app.scrapers.classify import classify_event_type
-    return classify_event_type(race_name)
 
 
 _H6_RE = re.compile(r"^(?P<race>.+?)\s*\((?P<date>\d{2}/\d{2}/\d{4})\)\s*$", re.S)
@@ -212,7 +206,7 @@ def _parse_html_row(
     """
     result = ScrapedResult(source_url=url, provider="sportinnovation")
     result.event_name = course_name or race_name
-    result.event_type = _detect_event_type(race_name)
+    result.event_type = classify_event_type(race_name)
     result.event_date = event_date
 
     def get(key: str) -> str:
@@ -550,7 +544,7 @@ def _race_results_api(
     Carnac 2025 - Aquathlon Pupilles » est un aquathlon).
     """
     course_name = _compose_course_name(event_name, race_title)
-    event_type = _detect_event_type(race_title)
+    event_type = classify_event_type(race_title)
     athletes = client.get(f"{API_BASE}/races/{race_slug}/results", timeout=20).json()
     if not isinstance(athletes, list):
         # L'API répond 500 avec un objet d'erreur sur certaines courses.

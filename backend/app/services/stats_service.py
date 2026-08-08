@@ -1,5 +1,4 @@
 """Agrégations statistiques (club / tableau de bord / synthèse d'épreuve)."""
-import re
 from collections import Counter
 
 from sqlalchemy.orm import Session
@@ -8,6 +7,7 @@ from app.core import season as season_module
 from app.core.club import TCN_CANONICAL_NAME, is_tcn
 from app.repositories import participation_repository
 from app.scrapers.base import STATUS_FINISHER
+from app.scrapers.utils import to_seconds
 
 
 def _athlete_key(part) -> int:
@@ -31,15 +31,14 @@ def get_stats(
 
     athlete_set = {p.athlete_id for p in parts}
     event_set = {p.course_id for p in parts}
-    by_type: dict[str, int] = {}
-    by_month: dict[str, int] = {}
+    by_type: Counter[str] = Counter()
+    by_month: Counter[str] = Counter()
     for p in parts:
         course = p.course
         if course and course.event_type:
-            by_type[course.event_type] = by_type.get(course.event_type, 0) + 1
+            by_type[course.event_type] += 1
         if course and course.event_date:
-            key = str(course.event_date)[:7]  # YYYY-MM
-            by_month[key] = by_month.get(key, 0) + 1
+            by_month[str(course.event_date)[:7]] += 1  # YYYY-MM
 
     recent = sorted(
         (p for p in parts if p.created_at),
@@ -156,16 +155,6 @@ def _plus_frequents(compteur: Counter[str], limite: int) -> list[tuple[str, int]
     return sorted(compteur.items(), key=lambda item: (-item[1], item[0]))[:limite]
 
 
-def _seconds(temps: str | None) -> int | None:
-    """Secondes d'un temps `HH:MM:SS`, ou `None` s'il est absent ou illisible."""
-    if not temps:
-        return None
-    match = re.search(r"(?:(\d+):)?(\d{1,2}):(\d{2})$", temps)
-    if not match:
-        return None
-    return int(match.group(1) or 0) * 3600 + int(match.group(2)) * 60 + int(match.group(3))
-
-
 def _histogram(secondes: list[int]) -> dict | None:
     if not secondes:
         return None
@@ -237,7 +226,7 @@ def course_summary(db: Session, course_id: int) -> dict:
             if valeur:
                 split_keys.setdefault(cle, None)
 
-        seconde = _seconds(total_time)
+        seconde = to_seconds(total_time, strict=True)
         if seconde is not None and total_time != "00:00:00":
             secondes.append(seconde)
 

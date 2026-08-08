@@ -1,4 +1,4 @@
-export const EVENT_TYPE_LABELS: Record<string, string> = {
+const EVENT_TYPE_LABELS: Record<string, string> = {
   triathlon: "Triathlon",
   "triathlon-xs": "Triathlon XS",
   "triathlon-s": "Triathlon S",
@@ -37,7 +37,7 @@ export function eventTypeLabel(type: string | null | undefined): string {
 }
 
 /** Nom commercial des chronométreurs, dont le slug technique sert de clé en base. */
-export const PROVIDER_LABELS: Record<string, string> = {
+const PROVIDER_LABELS: Record<string, string> = {
   klikego: "Klikego",
   breizhchrono: "Breizh Chrono",
   timepulse: "TimePulse",
@@ -86,7 +86,7 @@ export function disciplineLabel(course: {
  * message du fournisseur, jamais une donnée d'entrée. La traduction vit donc
  * ici, sur le modèle de PROVIDER_LABELS.
  */
-export const AUTH_ERROR_LABELS: Record<string, string> = {
+const AUTH_ERROR_LABELS: Record<string, string> = {
   state_mismatch:
     "Votre demande de connexion a expiré ou n'a pas pu être vérifiée. Merci de recommencer.",
   email_unverified:

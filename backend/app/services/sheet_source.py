@@ -8,7 +8,6 @@ import io
 from urllib.parse import urlparse, urlunparse
 
 from app.core import http
-from app.scrapers import registry
 
 DEFAULT_SHEET_URL = (
     "https://docs.google.com/spreadsheets/d/"
@@ -29,15 +28,16 @@ def normalize_url(url: str) -> str:
 
 
 def dedupe_links(links: list[str]) -> list[str]:
-    """Dédoublonne par URL normalisée en conservant l'ordre et la forme d'origine."""
-    seen: set[str] = set()
-    out: list[str] = []
+    """Dédoublonne par URL normalisée en conservant l'ordre et la forme d'origine.
+
+    `setdefault` garde la **première** forme rencontrée, pas la dernière : c'est
+    ce qui interdit un simple `dict.fromkeys`, qui garderait la clé normalisée.
+    Même motif que `rescrape_service._dedupe_par_url`.
+    """
+    uniques: dict[str, str] = {}
     for url in links:
-        key = normalize_url(url)
-        if key not in seen:
-            seen.add(key)
-            out.append(url)
-    return out
+        uniques.setdefault(normalize_url(url), url)
+    return list(uniques.values())
 
 
 def parse_sheet_csv(csv_text: str) -> tuple[list[str], int]:
@@ -65,15 +65,6 @@ def parse_sheet_csv(csv_text: str) -> tuple[list[str], int]:
         elif any(cell.strip() for cell in row):
             sans_lien += 1
     return links, sans_lien
-
-
-def is_supported(url: str) -> bool:
-    """Supporté pour l'import de masse ⇔ un provider du registre reconnaît l'URL.
-
-    Simple alias de `registry.is_supported` : la définition vit dans le registre,
-    partagée avec l'API `/scrape/detect`.
-    """
-    return registry.is_supported(url)
 
 
 def host_of(url: str) -> str:

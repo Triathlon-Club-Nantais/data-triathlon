@@ -35,18 +35,21 @@ from app.core import http
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER, ScrapedResult
 from .classify import classify_event_type
 from .klikego import FanoutTrace
-from .utils import normalize_rank, normalize_time, qualify_event_name, split_athlete_name
+from .utils import (
+    DEFAULT_HEADERS,
+    fmt_seconds,
+    normalize_rank,
+    normalize_time,
+    qualify_event_name,
+    split_athlete_name,
+    to_seconds,
+)
 
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://ok-time.fr"
 API_PATH = "/wp-json/gmcap/v1/evenements/{event_id}/results"
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-    )
-}
+HEADERS = DEFAULT_HEADERS
 
 # `classement.ok-time.fr/<id>` ou `.../<id>/race/<raceId>`. Le segment `race`
 # est **ignoré** : l'API ne sait pas filtrer par épreuve, elle rend l'événement.
@@ -322,31 +325,6 @@ def _total_time(runner: dict) -> str:
 # --------------------------------------------------------------------------- #
 # Splits
 # --------------------------------------------------------------------------- #
-# `_secs` / `_fmt_secs` sont des copies locales de celles de `timepulse` : leur
-# factorisation dans `utils.py` est un refacto à part (cf. la note d'en-tête de
-# `registry.py`), qu'on n'entame pas au fil d'un nouveau provider.
-
-def _secs(t: str) -> int | None:
-    """Secondes d'un `hh:mm:ss`, ou **None** si le format échappe à la lecture.
-
-    Le None porte une distinction que le zéro effaçait : « ce point ne porte pas
-    de durée » (`00:00:00`, cas nominal) contre « ce point est illisible »
-    (`01:23:45.6` — que `normalize_time` laisse passer). La seconde est une perte
-    de donnée, elle doit se journaliser.
-    """
-    if not t:
-        return None
-    p = t.split(":")
-    try:
-        return int(p[0]) * 3600 + int(p[1]) * 60 + int(p[2])
-    except (IndexError, ValueError):
-        return None
-
-
-def _fmt_secs(s: int) -> str:
-    return f"{s // 3600:02d}:{(s % 3600) // 60:02d}:{s % 60:02d}"
-
-
 def _points_lus(points: list[dict] | None) -> tuple[list[tuple[str, str, int]], list[str]]:
     """Points de passage en deux tas, en un seul passage de lecture.
 
@@ -361,7 +339,7 @@ def _points_lus(points: list[dict] | None) -> tuple[list[tuple[str, str, int]], 
     for point in points or []:
         label = str(point.get("nom") or "").strip()
         brut = str(point.get("time") or "").strip()
-        secondes = _secs(normalize_time(brut))
+        secondes = to_seconds(normalize_time(brut), strict=True)
         if secondes is None:
             if brut:
                 illisibles.append(label)
@@ -416,7 +394,7 @@ def _segments(points: list[dict] | None) -> tuple[list[tuple[str, str]], bool]:
     for label, _temps, courant in porteurs:
         if courant < precedent:
             return [(lib, tps) for lib, tps, _ in porteurs], True
-        durees.append((label, _fmt_secs(courant - precedent)))
+        durees.append((label, fmt_seconds(courant - precedent)))
         precedent = courant
     return durees, False
 
@@ -522,7 +500,7 @@ def _log_points_illisibles(resultats: list[ScrapedResult], title_course: str) ->
     """Signal **agrégé** des points de passage perdus faute d'être lisibles.
 
     Pendant du log ci-dessus, qui manquait au cas symétrique : un point écarté par
-    `_secs` faisait disparaître un segment — voire tous les splits d'une
+    `to_seconds(strict=True)` faisait disparaître un segment — voire tous les splits d'une
     participation — sans laisser de trace.
     """
     concernes = [r for r in resultats if r.raw_data.get("splits_illisibles")]

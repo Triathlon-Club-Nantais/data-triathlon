@@ -1,3 +1,4 @@
+import { toQuery } from "@/lib/api/query";
 import type {
   AdminAthlete,
   AdminAthleteUpdate,
@@ -80,25 +81,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-function toQuery(filters: Record<string, unknown>): string {
-  const params = new URLSearchParams();
-  Object.entries(filters).forEach(([k, v]) => {
-    if (v === undefined || v === null || v === "") return;
-    if (Array.isArray(v)) {
-      if (v.length > 0) params.set(k, v.join(","));
-      return;
-    }
-    params.set(k, String(v));
-  });
-  const qs = params.toString();
-  return qs ? `?${qs}` : "";
-}
-
 export const apiClient = {
   // `supported` vient du registre backend : le front ne tient aucune liste de
   // providers (la sienne avait divergé, cf. ProviderDetector).
   detectProvider: (url: string) =>
-    request<{ provider: string; supported?: boolean }>(
+    request<{ provider: string; supported: boolean }>(
       `/scrape/detect${toQuery({ url })}`,
     ),
 

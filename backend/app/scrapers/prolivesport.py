@@ -31,15 +31,13 @@ from .base import (
     STATUS_FINISHER,
     ScrapedResult,
 )
-from .utils import normalize_rank, normalize_time
+from .classify import classify_event_type
+from .utils import DEFAULT_HEADERS, normalize_rank, normalize_time
 
 API_BASE = "https://api.prolivesport.fr/apiws"
 TOKEN = "AUTH_PLSWS_V2"
 HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-    ),
+    **DEFAULT_HEADERS,
     "access-token": TOKEN,
     "Accept": "application/json",
 }
@@ -165,10 +163,6 @@ def _fetch_event_meta(event_id: str, client: httpx.Client) -> tuple[str, date | 
     return name, event_date
 
 
-def _detect_event_type(race: str) -> str:
-    from app.scrapers.classify import classify_event_type
-    return classify_event_type(race)
-
 
 def _parse_url(url: str) -> tuple[str, str]:
     """
@@ -247,7 +241,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                 f"Aucune épreuve trouvée pour l'événement prolivesport {event_id}."
             )
 
-        event_type = _detect_event_type(race)
+        event_type = classify_event_type(race)
         athletes = _fetch_indiv(event_id, race, client)
         split_map = _fetch_split_map(event_id, race, client)
 

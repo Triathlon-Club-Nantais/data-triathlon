@@ -23,7 +23,7 @@ def test_run_import_sheet_compteurs_et_rapport(db_session, monkeypatch):
 
     monkeypatch.setattr(
         registry, "detect_provider",
-        lambda url: "klikego" if "klikego" in url else "playwright",
+        lambda url: "klikego" if "klikego" in url else "",
     )
     _iter, vus = _phases(imported=2, skipped=1)
     monkeypatch.setattr(import_service, "iter_import_event", _iter)

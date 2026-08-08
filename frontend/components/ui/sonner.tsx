@@ -1,15 +1,17 @@
 "use client"
 
-import { useTheme } from "next-themes"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
 
+// `theme="light"` en dur : aucun `<ThemeProvider>` n'est monté dans l'arbre et
+// `globals.css` le dit — « Mode sombre opt-in via la classe `.dark` (jamais
+// posée) ». `useTheme` rendait donc systématiquement son défaut. Le jour où le
+// mode sombre est branché pour de vrai, `next-themes` revient : ce qu'on retire
+// est un provider absent, pas la capacité.
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
-
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
+      theme="light"
       className="toaster group"
       icons={{
         success: (
