@@ -38,6 +38,10 @@ BASE_URL = "https://www.runnerbreizh.fr"
 RESULTS_PATH = "/requetetriathlons.php"
 EVENT_PARAM = "CourseFichierGpsNom"
 
+# ponytail: User-Agent figé à Chrome/120.0, là où `utils.DEFAULT_HEADERS` porte
+# Chrome/124.0. Écart non expliqué — probablement un copier-coller plus ancien,
+# mais il tape un vrai site : à converger une fois `pytest -m integration`
+# passé sur ce fournisseur, pas avant.
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "

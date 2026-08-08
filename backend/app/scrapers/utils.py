@@ -6,6 +6,18 @@ from datetime import date as date_t
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER
 
+#: En-têtes par défaut de toute sortie HTTP d'un scraper. Neuf modules en
+#: portaient une copie identique au caractère près ; changer l'User-Agent
+#: voulait dire neuf éditions, et rien ne signalait celle qu'on oubliait.
+#: Un fournisseur qui a besoin d'un `Referer` ou d'un `Accept` propre compose :
+#: `{**DEFAULT_HEADERS, "Referer": …}`.
+DEFAULT_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+    ),
+}
+
 _FR_MONTHS = {
     "janvier": 1, "fevrier": 2, "mars": 3, "avril": 4,
     "mai": 5, "juin": 6, "juillet": 7, "aout": 8,
