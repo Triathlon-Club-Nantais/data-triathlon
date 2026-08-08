@@ -627,3 +627,15 @@ export interface RoleUpdate {
   permissions?: string[];
   is_superuser?: boolean;
 }
+
+/**
+ * Bilan d'une révocation d'urgence (#169).
+ *
+ * Deux unités, et chaque nom le dit : `sessions` compte des jetons coupés,
+ * `accounts` les comptes qui en portaient au moins un — jamais tous ceux de la
+ * base, sans quoi un geste dans le vide aurait l'air d'un geste utile.
+ */
+export interface SessionRevocation {
+  sessions: number;
+  accounts: number;
+}
