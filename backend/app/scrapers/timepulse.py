@@ -22,6 +22,7 @@ import httpx
 from app.core import http
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
+from .classify import classify_event_type
 from .utils import (
     derive_status_from_label,
     normalize_time,
@@ -378,7 +379,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     if event_date_val is None:
         event_date_val = _parse_event_page_date(_fetch_event_page(id_event))
     # Repli si un participant n'a pas de parcours (`p` vide).
-    event_type_fallback = _detect_event_type(event_name)
+    event_type_fallback = classify_event_type(event_name)
 
     results: list[ScrapedResult] = []
 
@@ -395,7 +396,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         # le nom global de l'épreuve (ex. « LE NORTH MAY » → Triathlon S/M/L SOLO).
         parcours = ea.get("p", "")
         result.event_type = (
-            _detect_event_type(parcours) if parcours else event_type_fallback
+            classify_event_type(parcours) if parcours else event_type_fallback
         )
 
         full_name = ea.get("n", "")
@@ -453,7 +454,3 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
 # ---------------------------------------------------------------------------
 # Event type detection
 # ---------------------------------------------------------------------------
-
-def _detect_event_type(name: str) -> str:
-    from app.scrapers.classify import classify_event_type
-    return classify_event_type(name)

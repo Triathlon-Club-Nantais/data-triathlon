@@ -20,6 +20,7 @@ from bs4 import BeautifulSoup
 from app.core import http
 
 from .base import ScrapedResult
+from .classify import classify_event_type
 from .utils import derive_status_from_label, normalize_time, parse_fr_date
 
 logger = logging.getLogger(__name__)
@@ -287,7 +288,7 @@ def _parse_search_row(
         provider="klikego",
     )
     result.event_name = event_name
-    result.event_type = _detect_event_type(heat, slug)
+    result.event_type = classify_event_type(heat, contexte=slug)
     result.rank_overall = rank
     # Un heat Klikego est mono-discipline → drapeau relais uniforme sur ses résultats.
     # Le « s » final de « relais » n'est pas un token de taille → classification intacte.
@@ -359,7 +360,7 @@ def _scrape_single_heat(
         heat_page_html=heat_page_html,
         event_name=event_name,
         slug=slug,
-        event_type=_detect_event_type(heat, slug),
+        event_type=classify_event_type(heat, contexte=slug),
         source_url=source_url,
         event_date=event_date,
         client=client,
@@ -473,10 +474,6 @@ def scrape_event_fanout(
 
 _SPLIT_SLOTS = ("swim", "t1", "bike", "t2", "run")
 
-
-def _detect_event_type(heat: str, slug: str = "") -> str:
-    from app.scrapers.classify import classify_event_type
-    return classify_event_type(heat, contexte=slug)
 
 
 # Énumération des heats d'un événement (issue #156).

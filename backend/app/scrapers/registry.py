@@ -13,10 +13,9 @@ l'URL entière : un jeton en query suffisait à router n'importe quelle URL vers
 un scraper, qui la requêtait telle quelle (SSRF, issue #49). La règle est dans
 `_host_match`, appliquée par défaut via `HostMatchedProvider`.
 
-NOTE — La factorisation des helpers internes communs (`_detect_event_type`,
-mapping des splits) entre klikego/wiclax/timepulse reste un refacto à part : ces
-fonctions ont des signatures divergentes et wiclax n'a pas de tests, donc on évite
-de les fusionner ici au risque d'une régression silencieuse. Voir le design.
+NOTE — La classification du type d'épreuve est centralisée dans
+`scrapers/classify.py` (seule source de vérité) ; les scrapers l'appellent
+directement. Le mapping des splits, lui, reste propre à chaque provider.
 """
 import logging
 from collections.abc import Callable

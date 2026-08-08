@@ -22,6 +22,7 @@ from bs4 import BeautifulSoup
 from app.core import http
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
+from .classify import classify_event_type
 from .utils import (
     derive_status_from_label,
     normalize_rank,
@@ -108,7 +109,7 @@ def _parse_competitor(comp, url: str, event_name: str, event_type: str) -> Scrap
         # en triathlon-s. Le sport vient du nom d'épreuve, la taille du parcours ; un
         # parcours qui nomme explicitement une autre discipline (« Duathlon jeunes »)
         # reste prioritaire, les multisports étant testés avant le triathlon.
-        event_type = _detect_event_type(event_name)
+        event_type = classify_event_type(event_name)
 
     result.event_name = event_name
     result.event_type = event_type
@@ -320,7 +321,7 @@ def _fetch_clax(url: str) -> tuple[ET.Element, str, str, str, object]:
         or event_elem.get("name", "")
         or unquote(f_param).split("/")[-1].replace(".clax", "")
     )
-    event_type = _detect_event_type(event_name)
+    event_type = classify_event_type(event_name)
 
     return root, clax_url, event_name, event_type, _clax_event_date(event_elem)
 
@@ -790,7 +791,3 @@ def _strip_athlete_param(url: str) -> str:
     return urlunparse(parsed._replace(query=urlencode(params)))
 
 
-
-def _detect_event_type(name: str) -> str:
-    from app.scrapers.classify import classify_event_type
-    return classify_event_type(name)

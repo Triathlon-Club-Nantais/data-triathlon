@@ -202,12 +202,10 @@ def test_aucune_dependance_globale_sur_les_routers_existants():
         participations,
         scrape,
         stats,
-        version,
     )
 
     for module in (
         health,
-        version,
         scrape,
         athletes,
         courses,

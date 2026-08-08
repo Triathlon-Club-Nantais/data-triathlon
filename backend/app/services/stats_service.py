@@ -31,15 +31,14 @@ def get_stats(
 
     athlete_set = {p.athlete_id for p in parts}
     event_set = {p.course_id for p in parts}
-    by_type: dict[str, int] = {}
-    by_month: dict[str, int] = {}
+    by_type: Counter[str] = Counter()
+    by_month: Counter[str] = Counter()
     for p in parts:
         course = p.course
         if course and course.event_type:
-            by_type[course.event_type] = by_type.get(course.event_type, 0) + 1
+            by_type[course.event_type] += 1
         if course and course.event_date:
-            key = str(course.event_date)[:7]  # YYYY-MM
-            by_month[key] = by_month.get(key, 0) + 1
+            by_month[str(course.event_date)[:7]] += 1  # YYYY-MM
 
     recent = sorted(
         (p for p in parts if p.created_at),
