@@ -144,10 +144,6 @@ export const NAV: NavSection[] = [
         href: "/admin/acces",
         permission: "allowed_emails:manage",
       },
-      // L'écran manquant, son API étant livrée : composer un rôle
-      // (`/admin/roles`, #240). Il tient en un `href` posé ici et le `soon`
-      // retiré.
-      //
       // `roles:assign` seul, alors que l'écran lit aussi `users:read` et
       // `roles:read` : `permission` reste un code unique, faute d'un rôle
       // réaliste qui porterait l'écriture sans les deux lectures. Et l'écran
@@ -158,7 +154,16 @@ export const NAV: NavSection[] = [
         href: "/admin/utilisateurs",
         permission: "roles:assign",
       },
-      { id: "u-droits", label: "Droits des rôles", permission: "roles:write", soon: true },
+      // Composer un rôle (#240). Le pouvoir annoncé est celui d'écriture, mais
+      // l'écran ne demande que `roles:read` pour s'afficher : qui porte la
+      // lecture sans l'écriture y arrive par l'URL et le trouve en consultation,
+      // sans aucun geste offert. La navigation n'est pas une garde.
+      {
+        id: "u-droits",
+        label: "Droits des rôles",
+        href: "/admin/droits",
+        permission: "roles:write",
+      },
       // `groups:assign` plutôt que `groups:read` : l'écran se **consulte** avec
       // la seule lecture, mais annoncer une destination où l'on ne pourrait
       // rien faire n'a pas d'intérêt, et `permission` reste un code unique.

@@ -25,12 +25,18 @@ export const queryKeys = {
   courseDeletionImpact: (courseId: number) =>
     ["course-deletion-impact", courseId] as const,
   adminUsers: () => ["admin-users"] as const,
+  // Une seule clé pour `GET /admin/roles`, partagée par l'attribution (#239) et
+  // la composition (#240) : deux clés donneraient deux caches de la même liste,
+  // dont l'un afficherait un `holders` ou un nom que l'autre vient de changer.
   roles: () => ["roles"] as const,
   groups: () => ["admin-groups"] as const,
   // Clé distincte de la liste : celle-ci stocke un `GroupDetail`, l'autre un
   // `Group[]`. Une écriture sur la composition périme **les deux** — le nombre
   // de membres vit sur la liste.
   group: (id: number) => ["admin-group", id] as const,
+  // L'inventaire des pouvoirs est servi depuis le code Python : il ne change
+  // qu'au déploiement, d'où le `staleTime: Infinity` de son hook.
+  adminPermissions: () => ["admin-permissions"] as const,
   session: () => ["session"] as const,
   authMethods: () => ["auth-methods"] as const,
   providers: () => ["providers"] as const,

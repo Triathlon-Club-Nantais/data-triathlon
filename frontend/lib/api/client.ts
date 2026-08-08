@@ -23,7 +23,10 @@ import type {
   RescrapeLaunch,
   AllowedEmail,
   PendingProvider,
+  PermissionGroup,
   Role,
+  RoleCreate,
+  RoleUpdate,
   ScrapedPreview,
   Season,
   SheetColumns,
@@ -310,4 +313,20 @@ export const apiClient = {
     }),
   removeGroupMember: (groupId: number, userId: number) =>
     request<null>(`/admin/groups/${groupId}/members/${userId}`, { method: "DELETE" }),
+  // ── Composition des rôles (#115, écran #240) ───────────────────────────────
+  // Lecture sous `roles:read`, écriture sous `roles:write`. `listRoles` est
+  // celle de l'attribution ci-dessus — même ressource, même cache.
+  // `GET /admin/roles/{id}` n'est pas exposée : la liste rend déjà des rôles
+  // complets, la demander par rôle ne rendrait rien de neuf.
+  listPermissions: () => request<PermissionGroup[]>("/admin/permissions"),
+  createRole: (body: RoleCreate) =>
+    request<Role>("/admin/roles", { method: "POST", body: JSON.stringify(body) }),
+  // `champs` est partiel **par contrat** : `permissions` remplace l'ensemble,
+  // donc l'envoyer sans qu'il ait changé purgerait les codes périmés du rôle.
+  updateRole: (id: number, champs: RoleUpdate) =>
+    request<Role>(`/admin/roles/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(champs),
+    }),
+  deleteRole: (id: number) => request<null>(`/admin/roles/${id}`, { method: "DELETE" }),
 };

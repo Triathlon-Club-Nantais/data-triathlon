@@ -1,7 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "./keys";
-import type { AdminAthleteUpdate, AdminCourseUpdate } from "@/lib/types";
+import type {
+  AdminAthleteUpdate,
+  AdminCourseUpdate,
+  RoleCreate,
+  RoleUpdate,
+} from "@/lib/types";
 
 export function usePendingProviders() {
   return useQuery({
@@ -203,6 +208,11 @@ export function useAdminUsers() {
   });
 }
 
+/**
+ * La liste des rôles, **partagée** par l'attribution (#239) et la composition
+ * (#240). Une seconde clé donnerait deux caches de la même ressource, dont l'un
+ * afficherait un nom ou un `holders` que l'autre vient de changer.
+ */
 export function useRoles() {
   return useQuery({
     queryKey: queryKeys.roles(),
@@ -335,4 +345,67 @@ export function useRemoveGroupMember() {
       qc.invalidateQueries({ queryKey: queryKeys.session() });
     },
   });
+}
+
+// ── Composition des rôles (#115, écran #240) ─────────────────────────────────
+
+/**
+ * L'inventaire des pouvoirs, **déjà regroupé par fonctionnalité** par le serveur.
+ *
+ * `staleTime: Infinity` : il est servi depuis le code Python
+ * (`core/permissions.py`), sans table ni migration — il ne peut changer qu'au
+ * déploiement, et le redemander pendant une session ne rendrait jamais rien de
+ * neuf.
+ *
+ * `retry: false`, comme `useRoles` : un 403 est une réponse, pas une panne. Le
+ * réessayer trois fois retarde d'autant le message d'accès refusé.
+ */
+export function useAdminPermissions() {
+  return useQuery({
+    queryKey: queryKeys.adminPermissions(),
+    queryFn: () => apiClient.listPermissions(),
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
+/**
+ * Les trois gestes de composition périment **les rôles, la session et les
+ * utilisateurs**.
+ *
+ * La session, parce que recomposer un rôle qu'on porte soi-même est le cas
+ * nominal — c'est le seul rôle qu'un administrateur ait toujours sous la main.
+ * Sans elle, `session.permissions` reste sur l'ancien état et la grille continue
+ * de figer des cases que l'on porte désormais.
+ *
+ * Les utilisateurs, parce que `UserRolesTable` (#239) affiche le **nom** des
+ * rôles attribués : c'est le symétrique exact de ce que font `useGrantRole` et
+ * `useRevokeRole` sur `roles()` pour le compte de porteurs.
+ */
+function useRoleMutation<TVariables, TData>(
+  mutationFn: (variables: TVariables) => Promise<TData>,
+) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.roles() });
+      qc.invalidateQueries({ queryKey: queryKeys.session() });
+      qc.invalidateQueries({ queryKey: queryKeys.adminUsers() });
+    },
+  });
+}
+
+export function useCreateRole() {
+  return useRoleMutation((body: RoleCreate) => apiClient.createRole(body));
+}
+
+export function useUpdateRole() {
+  return useRoleMutation(({ id, champs }: { id: number; champs: RoleUpdate }) =>
+    apiClient.updateRole(id, champs),
+  );
+}
+
+export function useDeleteRole() {
+  return useRoleMutation((id: number) => apiClient.deleteRole(id));
 }
