@@ -61,6 +61,21 @@ def test_detect_sur_host_ipv6_malforme_ne_leve_pas_500(client):
     assert resp.json() == {"provider": "playwright", "supported": False}
 
 
+def test_providers_derive_du_registre(client):
+    """Le sélecteur de fournisseur du batch lit cette route, pas une liste en dur.
+
+    Même source que la validation de `--provider` : `playwright` en est donc
+    absent (fallback, pas cible), et un provider ajouté au registre y apparaît
+    sans toucher au front.
+    """
+    from app.scrapers import provider_names
+
+    noms = client.get("/api/v1/scrape/providers").json()["providers"]
+    assert noms == provider_names()
+    assert "klikego" in noms
+    assert "playwright" not in noms
+
+
 def test_import_event(client, monkeypatch):
     from app.services import import_service
 

@@ -5,9 +5,20 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useBatchRuns, useLaunchBatch } from "@/lib/queries/batches";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { providerLabel } from "@/lib/constants";
+import { useBatchRuns, useLaunchBatch, useProviders } from "@/lib/queries/batches";
 import { useSession } from "@/lib/queries/auth";
 import type { RescrapeLaunch } from "@/lib/types";
+
+/** Valeur du choix « tous les fournisseurs » : `""` n'est pas une valeur de Select. */
+const TOUS = "all";
 
 /**
  * Lancement d'une reprise filtrée (#47).
@@ -16,9 +27,12 @@ import type { RescrapeLaunch } from "@/lib/types";
  * champ ici permettrait à l'administration de la preview d'écrire chez les
  * adhérents, et le backend refuse d'ailleurs un `target` reçu du client.
  *
- * **Aucune liste de fournisseurs non plus.** Le registre vit côté backend, et
- * la copie qu'avait le front avait divergé (cf. `ProviderDetector`). Une saisie
- * libre, validée en amont : le 422 nomme le fautif et énumère les connus.
+ * **Le fournisseur se choisit dans une liste, mais le front n'en tient aucune.**
+ * Elle vient de `GET /scrape/providers`, donc du même registre que la
+ * validation du lancement : impossible de proposer un nom que le batch
+ * refuserait, ou d'ignorer un provider ajouté depuis (la copie en dur qu'avait
+ * le front avait divergé, cf. `ProviderDetector`). Le 422 reste utile : il
+ * nomme le fautif si l'API refuse malgré tout.
  */
 export function BatchLauncher() {
   const { data: session } = useSession();
@@ -26,9 +40,10 @@ export function BatchLauncher() {
   // N'interroger la liste que si la session sait la lire : sinon l'écran
   // afficherait un bloc en 403 à la place de l'état courant.
   const { data: runs } = useBatchRuns(peutLire);
+  const { data: providers } = useProviders();
   const lancer = useLaunchBatch();
 
-  const [provider, setProvider] = useState("");
+  const [provider, setProvider] = useState(TOUS);
   const [olderThan, setOlderThan] = useState("");
   const [limit, setLimit] = useState("");
   const [dryRun, setDryRun] = useState(false);
@@ -40,9 +55,9 @@ export function BatchLauncher() {
   const soumettre = (evenement: React.FormEvent) => {
     evenement.preventDefault();
     // Les champs vides ne partent pas : `older_than: 0` serait refusé par la
-    // borne, et `provider: ""` sélectionnerait un fournisseur nommé « ».
+    // borne, et « Tous » n'est pas un fournisseur.
     const options: RescrapeLaunch = { mode: "rescrape", dry_run: dryRun };
-    if (provider.trim()) options.provider = provider.trim();
+    if (provider !== TOUS) options.provider = provider;
     if (olderThan.trim()) options.older_than = Number(olderThan);
     if (limit.trim()) options.limit = Number(limit);
 
@@ -62,12 +77,21 @@ export function BatchLauncher() {
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="space-y-2">
             <Label htmlFor="batch-provider">Fournisseur</Label>
-            <Input
-              id="batch-provider"
-              value={provider}
-              onChange={(e) => setProvider(e.target.value)}
-              placeholder="Tous"
-            />
+            <Select value={provider} onValueChange={(v) => setProvider(v as string)}>
+              <SelectTrigger id="batch-provider" className="w-full">
+                <SelectValue>
+                  {(v) => (v === TOUS ? "Tous" : providerLabel(v as string))}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={TOUS}>Tous</SelectItem>
+                {(providers ?? []).map((nom) => (
+                  <SelectItem key={nom} value={nom}>
+                    {providerLabel(nom)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2">
             <Label htmlFor="batch-older-than">Ancienneté (jours)</Label>

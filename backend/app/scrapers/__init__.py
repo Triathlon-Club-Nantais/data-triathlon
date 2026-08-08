@@ -7,11 +7,17 @@ un Protocol, sans chaîne de `if/else`. Seule voie de scraping : l'import d'épr
 complète (`scrape_event_all`).
 """
 from app.scrapers.base import ScrapedResult
-from app.scrapers.registry import detect_provider, is_supported, scrape_event_all
+from app.scrapers.registry import (
+    detect_provider,
+    is_supported,
+    provider_names,
+    scrape_event_all,
+)
 
 __all__ = [
     "ScrapedResult",
     "detect_provider",
     "is_supported",
+    "provider_names",
     "scrape_event_all",
 ]
