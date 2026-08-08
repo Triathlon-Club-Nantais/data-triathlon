@@ -42,28 +42,4 @@ def configure_cli_logging() -> None:
     setup_logging(stream=sys.stderr)
 
 
-def configure_cli_tracing() -> None:
-    """Démarre le traçage OTel pour un batch, s'il est activé.
-
-    Comme pour le logging, c'est le rôle du process (`__main__.py`), pas d'un
-    module importé.
-    """
-    from app.core.config import get_settings
-    from app.core.database import engine
-    from app.core.tracing import setup_tracing
-
-    setup_tracing(enabled=get_settings().otel_enabled, engine=engine)
-
-
-def shutdown_cli_tracing() -> None:
-    """Vide les spans en attente avant la fin du process.
-
-    Un batch est court et le BatchSpanProcessor exporte de façon différée :
-    sans cet appel, les spans du dernier import sont perdus.
-    """
-    from app.core.tracing import shutdown_tracing
-
-    shutdown_tracing()
-
-
-__all__ = ["app", "configure_cli_logging", "configure_cli_tracing", "shutdown_cli_tracing"]
+__all__ = ["app", "configure_cli_logging"]

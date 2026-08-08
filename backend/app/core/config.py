@@ -52,9 +52,6 @@ class Settings(BaseSettings):
     # Bilan agrégé par unité de travail (requête HTTP, épreuve importée) : c'est
     # lui qui rend un N+1 visible. Verbeux, donc éteint par défaut.
     sql_query_stats: bool = False
-    # Socle OpenTelemetry. Éteint = aucun paquet OTel n'est même chargé.
-    # L'exporter se règle par la variable standard OTEL_TRACES_EXPORTER.
-    otel_enabled: bool = False
 
     # ── Géocodage (Nominatim) ─────────────────────────────────────────────────
     geocode_user_agent: str = "TriathlonClubResults/1.0 contact@triclunantais.fr"
