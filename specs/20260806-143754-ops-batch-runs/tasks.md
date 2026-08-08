@@ -76,16 +76,16 @@ bilan sans terminal.
 
 ### Pouvoirs et gardes
 
-- [ ] T019 [US1] Ajouter `P.BATCH_RUN` (`batch:run`, « Lancer un batch ») et `P.BATCH_READ` (`batch:read`, « Consulter les batches ») sous `FEATURE_BATCH = "Batches"` dans `backend/app/core/permissions.py`, et les inscrire dans `ALL` — **le méta-test `tests/test_permissions_catalogue.py` devient rouge ici** : un pouvoir qui ne garde aucune ressource est un défaut, et T023 le referme
-- [ ] T020 [US1] Écrire `backend/tests/test_api/test_admin_batches.py` — refus : 401 sans session, 403 sans le pouvoir, 409 quand une exécution est `pending`/`running`, 422 sur fournisseur inconnu et bornes dépassées, 503 sans jeton
-- [ ] T021 [US1] Écrire les cas nominaux dans `backend/tests/test_api/test_admin_batches.py` — 202 avec `correlation_id`, liste rendue par `GET /admin/batches`, bilan rendu **tel quel** par `GET /admin/batches/{id}/report`
+- [X] T019 [US1] Ajouter `P.BATCH_RUN` (`batch:run`, « Lancer un batch ») et `P.BATCH_READ` (`batch:read`, « Consulter les batches ») sous `FEATURE_BATCH = "Batches"` dans `backend/app/core/permissions.py`, et les inscrire dans `ALL` — **le méta-test `tests/test_permissions_catalogue.py` devient rouge ici** : un pouvoir qui ne garde aucune ressource est un défaut, et T023 le referme
+- [X] T020 [US1] Écrire `backend/tests/test_api/test_admin_batches.py` — refus : 401 sans session, 403 sans le pouvoir, 409 quand une exécution est `pending`/`running`, 422 sur fournisseur inconnu et bornes dépassées, 503 sans jeton
+- [X] T021 [US1] Écrire les cas nominaux dans `backend/tests/test_api/test_admin_batches.py` — 202 avec `correlation_id`, liste rendue par `GET /admin/batches`, bilan rendu **tel quel** par `GET /admin/batches/{id}/report`
 
 ### Contrat et routes
 
-- [ ] T022 [US1] Créer `backend/app/schemas/batch_run.py` — `RescrapeLaunch` (union discriminée sur `mode`), `BatchRun`, bornes `older_than ∈ 1..3650`, `limit ∈ 1..500`, `provider` validé contre le registre des scrapers
-- [ ] T023 [US1] Créer `backend/app/api/v1/admin_batches.py` — `POST /admin/batches`, `GET /admin/batches`, `GET /admin/batches/{run_id}/report`, chacune gardée **route par route** par `require_permission(P.BATCH_RUN|P.BATCH_READ)` ; routers fins, toute logique dans `services/batch_runs.py`
-- [ ] T024 [US1] Monter le router dans `backend/app/api/v1/router.py` — jamais de garde en `dependencies=` de router (le signalement anonyme `POST /admin/pending-providers` vit sous le même préfixe)
-- [ ] T025 [US1] Vérifier que `tests/test_permissions_catalogue.py` et `tests/test_api/test_admin_batches.py` passent, et que `uv run pytest -m "not integration"` est vert
+- [X] T022 [US1] Créer `backend/app/schemas/batch_run.py` — `RescrapeLaunch` (union discriminée sur `mode`), `BatchRun`, bornes `older_than ∈ 1..3650`, `limit ∈ 1..500`, `provider` validé contre le registre des scrapers
+- [X] T023 [US1] Créer `backend/app/api/v1/admin_batches.py` — `POST /admin/batches`, `GET /admin/batches`, `GET /admin/batches/{run_id}/report`, chacune gardée **route par route** par `require_permission(P.BATCH_RUN|P.BATCH_READ)` ; routers fins, toute logique dans `services/batch_runs.py`
+- [X] T024 [US1] Monter le router dans `backend/app/api/v1/router.py` — jamais de garde en `dependencies=` de router (le signalement anonyme `POST /admin/pending-providers` vit sous le même préfixe)
+- [X] T025 [US1] Vérifier que `tests/test_permissions_catalogue.py` et `tests/test_api/test_admin_batches.py` passent, et que `uv run pytest -m "not integration"` est vert
 
 ### Interface
 

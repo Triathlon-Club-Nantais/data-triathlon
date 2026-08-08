@@ -178,6 +178,26 @@ def _horodatage(valeur: str) -> datetime:
     return datetime.fromisoformat(valeur)
 
 
+def ensure_idle(settings: Settings, *, transport=None) -> None:
+    """Refuse un second batch pendant qu'un autre travaille (FR-004).
+
+    Cette garde **ne remplace pas** le verrou de concurrence du workflow : elle
+    donne un message immédiat, lui empêche réellement deux batches d'écrire en
+    même temps — y compris quand le second vient de l'onglet Actions ou de la
+    planification, que l'API ne voit pas passer.
+    """
+    en_cours = [
+        run
+        for run in list_runs(settings, limit=10, transport=transport)
+        if run.state in ("pending", "running")
+    ]
+    if en_cours:
+        raise BatchAlreadyRunningError(
+            f"Un batch est déjà en cours : « {en_cours[0].label} ». "
+            "Attendre sa fin, ou l'annuler depuis sa page d'exécution."
+        )
+
+
 def fetch_report(settings: Settings, run_id: int, *, transport=None) -> dict:
     """Le bilan d'une exécution — la charge `--json` de la CLI, **telle quelle**.
 
@@ -274,6 +294,11 @@ class BatchTokenRejectedError(DomainError):
         "Le jeton d'accès à la plateforme d'exécution a été refusé : "
         "il est expiré ou révoqué."
     )
+
+
+class BatchAlreadyRunningError(DomainError):
+    status_code = 409
+    message = "Un batch est déjà en cours."
 
 
 class BatchReportNotFoundError(DomainError):
