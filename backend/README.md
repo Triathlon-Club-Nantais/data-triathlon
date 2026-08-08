@@ -125,6 +125,26 @@ n'y a pas d'acteur dont comparer les pouvoirs, et l'accès au serveur *est* le
 privilège —, et elle **n'est pas soumise** à l'invariant du dernier
 administrateur, puisqu'elle ne fait qu'accorder.
 
+### Révoquer les sessions en urgence (`revoke-sessions`, #169)
+
+```bash
+uv run python -m app.cli revoke-sessions --all [--yes]     # tous les comptes
+uv run python -m app.cli revoke-sessions --email <adresse> # une adresse
+```
+
+Après une fuite de jetons, un poste perdu ou un doute sur la base. Les deux
+cibles sont **exclusives** et aucune n'est le défaut (code `2` sinon) ; `--yes`
+ne dispense de confirmation que sur `--all`, le seul des deux gestes qui
+déconnecte aussi celui qui le lance. Un refus interactif sort en `0`.
+
+**Elle ne désactive aucun compte** : elle coupe des jetons, chacun se reconnecte.
+C'est ce qui la distingue du retrait d'une adresse, qui ferme les comptes sans
+effacer les sessions — une réinscription dans la fenêtre de TTL ressusciterait
+les jetons. Les deux gestes existent aussi dans le back-office (pouvoir
+`sessions:revoke`) : `/admin/sessions` pour tous, « Fermer les sessions » par
+ligne dans `/admin/utilisateurs` pour un compte. La CLI reste là pour le jour où
+c'est justement du back-office qu'on se méfie.
+
 ## Tests & qualité
 
 ```bash
