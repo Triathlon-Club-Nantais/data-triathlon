@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.time import utcnow
 from app.models.user import User
-from app.repositories import session_repository
+from app.repositories import session_repository, user_repository
 
 #: `secrets.token_urlsafe(32)` rend 43 caractères pour 256 bits uniformes.
 #: C'est cette garde de longueur — et non l'algorithme — qui rend SHA-256 nu
@@ -69,6 +69,47 @@ def resolve(db: Session, token: str | None) -> User | None:
     if not row.user or not row.user.is_active:
         return None
     return row.user
+
+
+def revoke_all(db: Session) -> tuple[int, int]:
+    """Ferme **toutes** les sessions ouvertes. Rend (sessions, comptes) (#169).
+
+    La révocation d'urgence — après une fuite de jetons, une base exposée, un
+    poste perdu. Elle **supprime** les lignes, là où retirer une adresse de la
+    liste d'autorisation (#170) se contente de fermer les comptes par la
+    jointure : cette dernière laisse les jetons intacts, et une réinscription
+    dans la fenêtre de TTL les ressuscite. Ici il n'y a plus rien à ressusciter.
+
+    Corollaire assumé : **aucun compte n'est désactivé**. Les intéressés se
+    reconnectent, ce qui est précisément l'objet — on coupe des jetons, on ne
+    met personne dehors.
+    """
+    return session_repository.delete_all(db)
+
+
+def revoke_for_user(db: Session, user: User) -> tuple[int, int]:
+    """Ferme les sessions de **ce compte**, et de lui seul.
+
+    Le geste de l'écran, là où `revoke_for_email` est celui de la CLI :
+    `users.email` n'est pas unique, et un tableau qui liste des comptes doit
+    frapper celui qu'on a désigné, pas ses homonymes d'adresse. Le compte reste
+    actif — c'est ce qui la distingue du retrait d'adresse (#170), lequel ferme
+    par la jointure sans effacer une ligne, donc réversiblement.
+    """
+    return session_repository.delete_for_users(db, [user.id])
+
+
+def revoke_for_email(db: Session, email: str) -> tuple[int, int]:
+    """Ferme les sessions de **tous** les comptes portant cette adresse.
+
+    `users.email` n'est pas unique (FR-003), et là où `grant-role` refuse de
+    trancher entre les candidats, on les prend tous : sous incident, en épargner
+    un serait l'erreur coûteuse. La casse est ignorée, comme partout où le dépôt
+    cherche une adresse.
+    """
+    return session_repository.delete_for_users(
+        db, [user.id for user in user_repository.find_by_email(db, email)]
+    )
 
 
 def close(db: Session, token: str | None) -> None:
