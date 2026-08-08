@@ -77,8 +77,13 @@ CHAMPS_COMMUNS = (
 )
 
 
-def reporter_totals(outcome, totals: BatchTotals) -> None:
-    """Reporte les compteurs communs du batch sur le bilan de la commande."""
+def copy_totals(outcome, totals: BatchTotals) -> None:
+    """Reporte les compteurs communs du batch sur le bilan de la commande.
+
+    `outcome` est un `SheetOutcome` ou un `RescrapeOutcome` — pas de `Protocol`
+    à inventer pour deux dataclasses, `CHAMPS_COMMUNS` est le contrat, et
+    `test_batch` épingle les deux.
+    """
     for champ in CHAMPS_COMMUNS:
         setattr(outcome, champ, getattr(totals, champ))
 

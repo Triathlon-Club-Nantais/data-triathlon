@@ -21,8 +21,8 @@ from app.core.config import get_settings
 class _State:
     """Garde-fou d'idempotence de `setup_logging`.
 
-    Même parti pris que `core/tracing.py` : l'état d'un module tient dans un
-    objet nommé plutôt que dans un scalaire réaffecté par `global`. Ici, la
+    Parti pris : l'état d'un module tient dans un objet nommé plutôt que dans
+    un scalaire réaffecté par `global`. Ici, la
     seule lecture du drapeau **précède** son écriture dans la même fonction,
     motif qu'aucune analyse intra-procédurale ne relie — CodeQL tenait
     l'écriture pour inutilisée (`py/unused-global-variable`) alors qu'elle est

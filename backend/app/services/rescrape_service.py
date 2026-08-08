@@ -17,8 +17,8 @@ from app.services import sheet_source
 from app.services.batch import (
     BatchFailure,
     BatchItem,
+    copy_totals,
     est_echec_total,
-    reporter_totals,
     run_batch,
 )
 from app.services.progress import ProgressReporter
@@ -182,7 +182,7 @@ def run_rescrape_db(
         single_heat=single_heat,
     )
 
-    reporter_totals(outcome, totals)
+    copy_totals(outcome, totals)
 
     outcome.reconciled = totals.reconciled
     outcome.merged = len({r.ancien for r in totals.reassignments if r.fusion})

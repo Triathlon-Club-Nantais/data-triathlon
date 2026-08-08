@@ -33,10 +33,10 @@ def test_cors_origins_defaut(monkeypatch):
 
 
 def test_observabilite_sql_defauts(monkeypatch):
-    """Défauts : seuil à 100 ms, bilan et OTel éteints.
+    """Défauts : seuil à 100 ms, bilan éteint.
 
-    Le bilan et OTel sont éteints par défaut parce qu'ils coûtent ; le seuil,
-    lui, est le garde-fou permanent.
+    Le bilan est éteint par défaut parce qu'il coûte ; le seuil, lui, est le
+    garde-fou permanent.
     """
     for var in ("SQL_SLOW_QUERY_MS", "SQL_QUERY_STATS"):
         monkeypatch.delenv(var, raising=False)
