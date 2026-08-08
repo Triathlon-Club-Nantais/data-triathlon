@@ -335,13 +335,13 @@ export const apiClient = {
   // `sessions:revoke`. Sans corps : la ressource est **globale**, fermer les
   // sessions d'un seul compte se fait en retirant son adresse (#170). Elle ferme
   // aussi celle de l'appelant — la requête suivante rendra 401, par construction.
-  revokeAllSessions: () =>
-    request<SessionRevocation>("/admin/sessions/revoke", { method: "POST" }),
-  // Par **identifiant de compte**, jamais par adresse : `users.email` n'est pas
-  // unique, et l'écran qui appelle ceci liste des comptes. Un identifiant
-  // inconnu est un succès sans effet.
-  revokeUserSessions: (userId: number) =>
-    request<SessionRevocation>(`/admin/users/${userId}/sessions/revoke`, {
+  // Une ressource, deux portées : sans adresse elle ferme **tout** (la session
+  // de l'appelant comprise), avec une adresse elle ferme **tous** les comptes
+  // qui la portent — `users.email` n'est pas unique, et l'écran des accès liste
+  // des adresses, pas des comptes. Même cible que la CLI.
+  revokeSessions: (email?: string) =>
+    request<SessionRevocation>("/admin/sessions/revoke", {
       method: "POST",
+      body: JSON.stringify(email === undefined ? {} : { email }),
     }),
 };

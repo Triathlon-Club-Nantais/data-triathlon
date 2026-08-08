@@ -13,13 +13,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ApiError } from "@/lib/api/client";
-import { useRevokeAllSessions } from "@/lib/queries/admin";
+import { useRevokeSessions } from "@/lib/queries/admin";
 
 /**
  * Le geste d'incident (#169) : fermer d'un coup toutes les sessions ouvertes.
  *
- * **Globale, et uniquement globale.** Fermer les sessions d'un compte a déjà son
- * geste — retirer son adresse dans « Accès au back-office » (#170).
+ * Vit au bas de « Accès au back-office », sous la liste : c'est le même écran
+ * qui porte la révocation **par adresse**, ligne par ligne. Les séparer aurait
+ * demandé une entrée de navigation pour un unique bouton.
  *
  * La session de l'opérateur tombe avec les autres, et le dialogue le dit avant :
  * sous fuite, son jeton est suspect comme les autres. D'où la redirection vers
@@ -29,11 +30,12 @@ import { useRevokeAllSessions } from "@/lib/queries/admin";
 export function RevokeSessionsCard() {
   const [ouvert, setOuvert] = useState(false);
   const router = useRouter();
-  const revoquer = useRevokeAllSessions();
+  const revoquer = useRevokeSessions();
 
   async function confirmer() {
     try {
-      const bilan = await revoquer.mutateAsync();
+      // Sans adresse : la portée est globale.
+      const bilan = await revoquer.mutateAsync(undefined);
       toast.success(
         `${bilan.sessions} session(s) fermée(s) sur ${bilan.accounts} compte(s).`,
       );

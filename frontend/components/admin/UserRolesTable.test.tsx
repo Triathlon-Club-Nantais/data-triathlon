@@ -17,14 +17,12 @@ const {
   grantRole,
   revokeRole,
   getSession,
-  revokeUserSessions,
 } = vi.hoisted(() => ({
   listAdminUsers: vi.fn(),
   listRoles: vi.fn(),
   grantRole: vi.fn(),
   revokeRole: vi.fn(),
   getSession: vi.fn(),
-  revokeUserSessions: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
@@ -37,7 +35,6 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
       grantRole,
       revokeRole,
       getSession,
-      revokeUserSessions,
     },
   };
 });
@@ -310,60 +307,3 @@ describe("UserRolesTable", () => {
   });
 });
 
-describe("UserRolesTable — révocation des sessions (#169)", () => {
-  /** La même session, plus le pouvoir de révoquer. */
-  const MOI_REVOCATRICE: SessionUser = {
-    ...MOI,
-    permissions: [...MOI.permissions, "sessions:revoke"],
-  };
-
-  beforeEach(() => {
-    listAdminUsers.mockReset();
-    listRoles.mockReset();
-    getSession.mockReset();
-    revokeUserSessions.mockReset();
-    listRoles.mockResolvedValue([ADMINISTRATEUR, BENEVOLE]);
-    listAdminUsers.mockResolvedValue([CAMILLE]);
-  });
-
-  it("ferme les sessions du compte désigné, pas de son adresse", async () => {
-    // `users.email` n'est pas unique : la cible est l'**identifiant**, jamais
-    // l'adresse, sinon un homonyme que rien n'a nommé tomberait avec.
-    getSession.mockResolvedValue(MOI_REVOCATRICE);
-    revokeUserSessions.mockResolvedValue({ sessions: 3, accounts: 1 });
-    afficher();
-    await screen.findByText(CAMILLE.email);
-
-    await userEvent.click(
-      screen.getByRole("button", { name: /fermer les sessions de camille durand/i }),
-    );
-
-    await waitFor(() => expect(revokeUserSessions).toHaveBeenCalledWith(CAMILLE.id));
-    expect(toast.success).toHaveBeenCalledWith(expect.stringContaining("3"));
-  });
-
-  it("n'offre pas le geste à qui n'a pas le pouvoir", async () => {
-    // L'écran est atteignable avec `roles:assign` seul : un bouton qui rendrait
-    // 403 à chaque clic est pire que pas de bouton.
-    getSession.mockResolvedValue(MOI);
-    afficher();
-    await screen.findByText(CAMILLE.email);
-
-    expect(
-      screen.queryByRole("button", { name: /fermer les sessions/i }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("dit ce que l'API refuse, sans inventer de second message", async () => {
-    getSession.mockResolvedValue(MOI_REVOCATRICE);
-    revokeUserSessions.mockRejectedValue(new ApiError(403, "Accès refusé."));
-    afficher();
-    await screen.findByText(CAMILLE.email);
-
-    await userEvent.click(
-      screen.getByRole("button", { name: /fermer les sessions de camille durand/i }),
-    );
-
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Accès refusé."));
-  });
-});

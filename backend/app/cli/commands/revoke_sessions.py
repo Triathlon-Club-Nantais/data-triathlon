@@ -9,8 +9,9 @@ besoins distincts, et les avoir fondus est ce que cette commande corrige.
 Elle contourne délibérément la garde de pouvoir, comme `allow-email` et
 `grant-role` : sans session, il n'y a pas d'acteur dont comparer les pouvoirs, et
 l'accès au serveur *est* le privilège. C'est aussi ce qui la rend utilisable
-quand le back-office jumeau (`/admin/sessions`) est justement ce dont on se
-méfie.
+quand le back-office jumeau (`/admin/acces`) est justement ce dont on se méfie.
+C'est aussi le seul chemin pour fermer les sessions d'une adresse **déjà
+retirée** de la liste d'autorisation, que l'écran ne montre plus.
 
 **Elle ne désactive aucun compte** : elle coupe des jetons, elle ne met personne
 dehors. Fermer *un* compte pour de bon reste le retrait de son adresse (#170).

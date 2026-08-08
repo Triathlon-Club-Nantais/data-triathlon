@@ -4,8 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
 
-const { revokeAllSessions, toastError, toastSuccess, push } = vi.hoisted(() => ({
-  revokeAllSessions: vi.fn(),
+const { revokeSessions, toastError, toastSuccess, push } = vi.hoisted(() => ({
+  revokeSessions: vi.fn(),
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
   push: vi.fn(),
@@ -19,7 +19,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { revokeAllSessions } };
+  return { ...original, apiClient: { revokeSessions } };
 });
 
 import { RevokeSessionsCard } from "./RevokeSessionsCard";
@@ -37,7 +37,7 @@ function afficher() {
 
 describe("RevokeSessionsCard (#169)", () => {
   beforeEach(() => {
-    revokeAllSessions.mockReset();
+    revokeSessions.mockReset();
     toastError.mockReset();
     toastSuccess.mockReset();
     push.mockReset();
@@ -48,7 +48,7 @@ describe("RevokeSessionsCard (#169)", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /fermer toutes les sessions/i }));
 
-    expect(revokeAllSessions).not.toHaveBeenCalled();
+    expect(revokeSessions).not.toHaveBeenCalled();
   });
 
   it("prévient que la session de l'opérateur tombera aussi", async () => {
@@ -65,22 +65,22 @@ describe("RevokeSessionsCard (#169)", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: /renoncer/i }));
 
-    expect(revokeAllSessions).not.toHaveBeenCalled();
+    expect(revokeSessions).not.toHaveBeenCalled();
   });
 
   it("confirmé, révoque et annonce les deux unités du bilan", async () => {
-    revokeAllSessions.mockResolvedValue({ sessions: 14, accounts: 3 });
+    revokeSessions.mockResolvedValue({ sessions: 14, accounts: 3 });
     afficher();
     await userEvent.click(screen.getByRole("button", { name: /fermer toutes les sessions/i }));
 
     await userEvent.click(await screen.findByRole("button", { name: /révoquer/i }));
 
-    await waitFor(() => expect(revokeAllSessions).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(revokeSessions).toHaveBeenCalledWith(undefined));
     expect(toastSuccess).toHaveBeenCalledWith(expect.stringMatching(/14.*3/));
   });
 
   it("renvoie vers la connexion, la session de l'opérateur venant de tomber", async () => {
-    revokeAllSessions.mockResolvedValue({ sessions: 1, accounts: 1 });
+    revokeSessions.mockResolvedValue({ sessions: 1, accounts: 1 });
     afficher();
     await userEvent.click(screen.getByRole("button", { name: /fermer toutes les sessions/i }));
 
@@ -90,7 +90,7 @@ describe("RevokeSessionsCard (#169)", () => {
   });
 
   it("un refus de l'API laisse l'écran en place et le dit", async () => {
-    revokeAllSessions.mockRejectedValue(new ApiError(403, "Accès refusé"));
+    revokeSessions.mockRejectedValue(new ApiError(403, "Accès refusé"));
     afficher();
     await userEvent.click(screen.getByRole("button", { name: /fermer toutes les sessions/i }));
 
@@ -107,7 +107,7 @@ describe("RevokeSessionsCard (#169)", () => {
     // d'administration — l'écran d'apparence connectée que ce composant existe
     // pour éviter. `useSession` rend `null` sur 401, jamais une erreur : le
     // refetch donne l'état anonyme correct, comme pour `useLogout`.
-    revokeAllSessions.mockResolvedValue({ sessions: 2, accounts: 2 });
+    revokeSessions.mockResolvedValue({ sessions: 2, accounts: 2 });
     afficher();
     const invalider = vi.spyOn(client, "invalidateQueries");
     await userEvent.click(screen.getByRole("button", { name: /fermer toutes les sessions/i }));
@@ -125,7 +125,7 @@ describe("RevokeSessionsCard (#169)", () => {
     // est mort — tout réessai rendra 401, jamais « déjà fait ». Rester sur un
     // écran d'apparence connectée en disant « échec » serait le pire des deux
     // mensonges.
-    revokeAllSessions.mockRejectedValue(new ApiError(401, "Session expirée"));
+    revokeSessions.mockRejectedValue(new ApiError(401, "Session expirée"));
     afficher();
     await userEvent.click(screen.getByRole("button", { name: /fermer toutes les sessions/i }));
 
