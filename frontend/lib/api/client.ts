@@ -1,3 +1,4 @@
+import { toQuery } from "@/lib/api/query";
 import type {
   AdminAthlete,
   AdminAthleteUpdate,
@@ -78,20 +79,6 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
   if (res.status === 204) return null as T;
   return res.json() as Promise<T>;
-}
-
-function toQuery(filters: Record<string, unknown>): string {
-  const params = new URLSearchParams();
-  Object.entries(filters).forEach(([k, v]) => {
-    if (v === undefined || v === null || v === "") return;
-    if (Array.isArray(v)) {
-      if (v.length > 0) params.set(k, v.join(","));
-      return;
-    }
-    params.set(k, String(v));
-  });
-  const qs = params.toString();
-  return qs ? `?${qs}` : "";
 }
 
 export const apiClient = {

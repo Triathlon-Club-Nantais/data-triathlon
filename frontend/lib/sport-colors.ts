@@ -1,8 +1,9 @@
-// SPLIT — échelle catégorielle des disciplines. Renvoie un token CSS (`var(--…)`)
+// Échelle catégorielle des disciplines (TCN Design System — l'en-tête nommait
+// encore « SPLIT », le design system qu'il a remplacé). Renvoie un token CSS (`var(--…)`)
 // pour colorer tags, avatars, segments de splits et data-viz de façon cohérente.
 
 /** Couleur fixe d'une discipline (référence une variable de `globals.css`). */
-export const DISCIPLINE_COLORS = {
+const DISCIPLINE_COLORS = {
   swim: "var(--swim)",
   bike: "var(--bike)",
   run: "var(--run)",
@@ -39,7 +40,7 @@ export function avatarColor(name: string): string {
 }
 
 /**
- * Règle d'or SPLIT : **aplat = couleur pleine, texte = `…-ink`**.
+ * Règle d'or : **aplat = couleur pleine, texte = `…-ink`**.
  * Fond teinté à 14 %, libellé mixé vers `--foreground` de `--ink-mix`.
  */
 export function tintedStyle(color: string): React.CSSProperties {

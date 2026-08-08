@@ -5,7 +5,7 @@ import type { RankType } from "@/lib/rank";
 
 export type PodiumScope = "overall" | "category" | "gender";
 
-export interface BestRank {
+interface BestRank {
   rank: number;
   scope: PodiumScope;
 }
@@ -60,26 +60,26 @@ export function isPodium(p: Participation, rankType?: RankType): boolean {
   return bestPodiumRank(p, rankType) !== null;
 }
 
-export interface RankCounters {
+interface RankCounters {
   victories: number;
   podiums: number;
   top10: number;
 }
 
 /** Compteurs scalaires : modes scratch / category / all. */
-export interface RankCountersScalar extends RankCounters {
+interface RankCountersScalar extends RankCounters {
   kind: "scalar";
 }
 
 /** Compteurs dédoublés F/H : mode gender uniquement. */
-export interface RankCountersGender {
+interface RankCountersGender {
   kind: "gender";
   women: RankCounters;
   men: RankCounters;
 }
 
 /** Type discriminé retourné par `rankCounters` selon le mode. */
-export type RankCountersResult = RankCountersScalar | RankCountersGender;
+type RankCountersResult = RankCountersScalar | RankCountersGender;
 
 /**
  * Compteurs du dashboard, tous mesurés sur le même périmètre pour rester
@@ -118,7 +118,7 @@ export function rankCounters(parts: Participation[], rankType?: RankType): RankC
   return { kind: "scalar", ...counters };
 }
 
-export interface PodiumEntry {
+interface PodiumEntry {
   participation: Participation;
   best: BestRank;
 }
@@ -217,7 +217,7 @@ export function recentParticipations(
     .slice(0, limit);
 }
 
-export interface ClubSummary {
+interface ClubSummary {
   results: number;
   athletes: number;
   events: number;

@@ -8,7 +8,6 @@ export { MetaPill } from "./MetaPill";
 export { PlaceBadge } from "./PlaceBadge";
 export { StatCard } from "./StatCard";
 export { Button } from "./Button";
-export { IconButton } from "./IconButton";
 export { Input } from "./Input";
 export { SegmentedControl } from "./SegmentedControl";
 export { Alert } from "./Alert";
