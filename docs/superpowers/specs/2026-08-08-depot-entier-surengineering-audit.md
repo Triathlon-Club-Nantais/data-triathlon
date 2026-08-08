@@ -106,8 +106,10 @@ plus être oublié dedans — le type le dit.
 
 ### 7. `shrink` — un seul User-Agent
 
-Douze modules de `app/scrapers/` déclaraient leur `HEADERS` ; **neuf y
-répétaient le même User-Agent au caractère près**. `utils.DEFAULT_HEADERS` le
+Douze modules de `app/scrapers/` déclaraient leur `HEADERS` ; **onze y
+répétaient le même User-Agent au caractère près** (le relevé en comptait neuf :
+`timepulse` et `sporthive` le nomment `_HEADERS`, le balayage cherchait
+`HEADERS = {`. Les deux ont été convergés à la relecture du 2026-08-08). `utils.DEFAULT_HEADERS` le
 porte ; les modules qui n'avaient que lui l'importent tel quel, ceux qui ajoutent
 un `Referer`, un `Accept` ou un `access-token` composent `{**DEFAULT_HEADERS, …}`.
 
@@ -120,7 +122,7 @@ de levée — `pytest -m integration` vert sur le fournisseur.
 
 Bilan honnête : −36 lignes de `HEADERS`, +12 pour la constante, +12 pour les
 marqueurs, soit **≈ +10 lignes nettes**. Le gain n'est pas là : changer
-l'User-Agent est passé de neuf éditions à une, et les trois écarts sont écrits au
+l'User-Agent est passé de onze éditions à une, et les trois écarts sont écrits au
 lieu d'être subis.
 
 ### 10. `yagni` — `docker-compose.yml`
@@ -274,3 +276,13 @@ pas des coupes :
    conservées, dont on a mesuré qu'une partie cite du code supprimé. Ce n'est pas
    une coupe à faire, c'est une propriété à connaître : ne jamais lire un plan de
    `docs/superpowers/plans/` comme une description de l'état du code.
+
+**Relecture du 2026-08-08** (`requesting-code-review`, trois relecteurs sur des
+périmètres disjoints) : aucun point critique. Trois écarts d'application relevés
+et corrigés dans la foulée — les deux `_HEADERS` du n° 7 ci-dessus ; trois
+providers (`oktime`, `sporthive`, `raceresult`) qui importaient encore
+`FanoutTrace` **chez klikego** alors que le n° 6+8 lui avait donné un domicile
+dans `base.py` ; et l'absence de tout lien vérifié entre le `name` d'une entrée
+`PROVIDERS` et le module auquel elle délègue — depuis que la paire est une
+donnée et non deux écritures, un croisement passerait toute la suite unitaire
+(`test_chaque_provider_delegue_au_module_de_son_nom` le referme).
