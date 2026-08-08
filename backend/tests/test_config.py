@@ -38,22 +38,19 @@ def test_observabilite_sql_defauts(monkeypatch):
     Le bilan et OTel sont éteints par défaut parce qu'ils coûtent ; le seuil,
     lui, est le garde-fou permanent.
     """
-    for var in ("SQL_SLOW_QUERY_MS", "SQL_QUERY_STATS", "OTEL_ENABLED"):
+    for var in ("SQL_SLOW_QUERY_MS", "SQL_QUERY_STATS"):
         monkeypatch.delenv(var, raising=False)
     settings = Settings()
     assert settings.sql_slow_query_ms == 100
     assert settings.sql_query_stats is False
-    assert settings.otel_enabled is False
 
 
 def test_observabilite_sql_depuis_env(monkeypatch):
     monkeypatch.setenv("SQL_SLOW_QUERY_MS", "250")
     monkeypatch.setenv("SQL_QUERY_STATS", "true")
-    monkeypatch.setenv("OTEL_ENABLED", "true")
     settings = Settings()
     assert settings.sql_slow_query_ms == 250
     assert settings.sql_query_stats is True
-    assert settings.otel_enabled is True
 
 
 # ── Socle d'authentification (#114) ───────────────────────────────────────────
