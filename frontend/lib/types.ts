@@ -430,3 +430,77 @@ export interface AdminAthleteUpdate {
   prenom: string;
   birth_date: string | null;
 }
+
+/**
+ * Composition des rôles (#115, écran #240).
+ *
+ * `code` est un identifiant technique **stable** — il traverse la base, un
+ * renommage y laisserait des lignes inertes. `label` et `description` sont du
+ * français d'affichage, écrits une seule fois, côté serveur
+ * (`backend/app/core/permissions.py`) : les retraduire ici en ferait un second
+ * lieu où le vocabulaire se décide.
+ */
+export interface Permission {
+  code: string;
+  label: string;
+  description: string;
+}
+
+/**
+ * Les pouvoirs d'une fonctionnalité, **dans l'ordre d'affichage du serveur**.
+ *
+ * Composer un rôle en cochant dans une liste plate de dix-huit codes techniques
+ * est le geste qu'on veut éviter : ce regroupement est la feature. Ne pas le
+ * ré-aplatir, ne pas le retrier.
+ */
+export interface PermissionGroup {
+  feature: string;
+  permissions: Permission[];
+}
+
+/**
+ * Un rôle, sa composition et son nombre de porteurs.
+ *
+ * `stale_permissions` liste les codes présents en base mais absents de
+ * l'inventaire — inertes, purgeables, jamais bloquants. Les séparer de
+ * `permissions` est ce qui rend l'écran honnête : « ce rôle porte un code que
+ * l'application ne connaît plus » se lit, « ce rôle porte 4 pouvoirs dont un
+ * fantôme » ne se lit pas.
+ */
+export interface Role {
+  id: number;
+  organisation_id: number | null;
+  slug: string;
+  name: string;
+  description: string;
+  is_system: boolean;
+  is_superuser: boolean;
+  permissions: string[];
+  stale_permissions: string[];
+  holders: number;
+}
+
+/** Création d'un rôle. Le `slug` est fixé **une fois pour toutes**. */
+export interface RoleCreate {
+  slug: string;
+  name: string;
+  description?: string;
+  permissions?: string[];
+  is_superuser?: boolean;
+}
+
+/**
+ * Modification d'un rôle. Tout est facultatif, et `permissions` **remplace**
+ * l'ensemble — l'envoyer sans que la composition ait changé purgerait les codes
+ * périmés en silence.
+ *
+ * **Ni `slug`, ni `is_system`, ni `holders`** : le schéma serveur est
+ * `extra="forbid"`, un champ de trop rend 422 plutôt que d'être ignoré. Le type
+ * l'interdit donc à la compilation, où l'erreur coûte le moins cher.
+ */
+export interface RoleUpdate {
+  name?: string;
+  description?: string;
+  permissions?: string[];
+  is_superuser?: boolean;
+}

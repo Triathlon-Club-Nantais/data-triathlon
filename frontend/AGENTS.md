@@ -10,7 +10,35 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 `/api/v1` du backend. Tests Vitest + RTL verts. Build prod OK.
 
 - `app/` — App Router : `dashboard`, `resultats`, `athletes/[id]`, `courses/[id]`,
-  `club`, `carte`, `ajouter`, `admin`, `admin/acces`, `admin/utilisateurs`.
+  `club`, `carte`, `ajouter`, `admin`, `admin/acces`, `admin/utilisateurs`,
+  `admin/droits`.
+- **Composition des rôles** (`admin/droits`, #240) — l'écran **n'invente aucun
+  regroupement** : `GET /admin/permissions` rend l'inventaire déjà rangé par
+  fonctionnalité, dans son ordre d'affichage, et `PermissionGrid` le reproduit
+  tel quel (`<fieldset>`/`<legend>`, cases natives). Cinq pièges à ne pas
+  rouvrir :
+  - `PATCH` n'envoie que les champs modifiés — `permissions` remplace
+    l'ensemble, donc l'envoyer sur un simple renommage purge les codes périmés
+    en silence.
+  - Un rôle `is_system` est **modifiable**, seule sa suppression est refusée.
+  - La non-amplification vaut **aussi dans la modale de création**, et plus
+    durement : `create_role` soumet à `assert_may_grant` l'ensemble complet des
+    codes, `update_role` seulement la différence symétrique. D'où un `figes`
+    calculé une fois pour l'écran et passé aux **deux** grilles.
+  - `roles:read` et `roles:write` sont deux pouvoirs distincts. Le rail de
+    navigation filtre sur le second mais n'est pas une garde : sans le test
+    explicite, un porteur du premier obtient un éditeur d'apparence complète
+    dont chaque geste finit en 403.
+  - Le panneau compare et affiche `base`, l'état serveur sur lequel il a été
+    ouvert — pas la prop. `roles` se rafraîchit sous un panneau resté
+    ouvert, et se fier à la prop renvoie l'ensemble figé à l'ouverture, effaçant
+    la recomposition d'un autre administrateur.
+
+  Le caractère superutilisateur de l'utilisateur connecté se déduit du
+  croisement `session.roles` × liste des rôles, jamais de « il porte tous les
+  codes », qui est faux. Et une session **illisible** n'est pas une session sans
+  pouvoirs : `useSession` ne réessaie pas, donc son erreur entre dans la garde de
+  l'écran plutôt que de figer les cases en affirmant qu'on ne porte rien.
 - **Navigation** — `components/layout/nav.config.ts` en est la description
   **unique** ; ajouter une destination y tient en une ligne. Deux échelons de
   visibilité, à ne pas confondre : `minRole` ne distingue qu'anonyme et
