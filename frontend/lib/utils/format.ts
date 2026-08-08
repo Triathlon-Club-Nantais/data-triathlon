@@ -27,7 +27,7 @@ export interface Discipline {
   color: string;
 }
 
-export function disciplineFamily(eventType: string | null | undefined): Discipline {
+function disciplineFamily(eventType: string | null | undefined): Discipline {
   const t = (eventType ?? "").toLowerCase();
   if (t.startsWith("triathlon")) return { name: "Triathlon", color: "var(--tcn-orange)" };
   if (t.startsWith("swimrun")) return { name: "Swim & Run", color: "var(--tcn-ink)" };

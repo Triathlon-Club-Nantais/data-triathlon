@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { ApiError } from "@/lib/api/client";
+import { detailDErreur, toQuery } from "@/lib/api/query";
 import type {
   AthleteDetail,
   AuthMethod,
@@ -20,12 +21,10 @@ const BASE = `${API_URL}/api/v1`;
 async function serverFetch<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { cache: "no-store" });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
     // `ApiError` plutôt qu'un `Error` nu : sans le statut, un appelant ne peut
     // pas distinguer une ressource absente d'un backend en panne, et finit par
-    // afficher « introuvable » sur les deux. Changement additif — le message
-    // reste identique, les appelants qui ne lisent pas `status` ne voient rien.
-    throw new ApiError(res.status, err.detail || `Erreur API (${res.status})`);
+    // afficher « introuvable » sur les deux.
+    throw new ApiError(res.status, await detailDErreur(res));
   }
   return res.json() as Promise<T>;
 }
@@ -53,24 +52,9 @@ async function serverFetchAuthed<T>(path: string): Promise<T | null> {
   });
   if (res.status === 401) return null;
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new ApiError(res.status, err.detail || `Erreur API (${res.status})`);
+    throw new ApiError(res.status, await detailDErreur(res));
   }
   return res.json() as Promise<T>;
-}
-
-function toQuery(filters: Record<string, unknown>): string {
-  const params = new URLSearchParams();
-  Object.entries(filters).forEach(([k, v]) => {
-    if (v === undefined || v === null || v === "") return;
-    if (Array.isArray(v)) {
-      if (v.length > 0) params.set(k, v.join(","));
-      return;
-    }
-    params.set(k, String(v));
-  });
-  const qs = params.toString();
-  return qs ? `?${qs}` : "";
 }
 
 export const apiServer = {

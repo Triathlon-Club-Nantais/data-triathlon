@@ -47,7 +47,7 @@ export interface Participation {
   course_finishers?: number | null;
 }
 
-export interface EventOut {
+interface EventOut {
   id: number; // course_id — sert à charger les participants au dépliage
   event_name: string;
   event_date: string | null;
@@ -74,7 +74,7 @@ export interface GeoEvent {
   lon: number;
 }
 
-export interface RecentItem {
+interface RecentItem {
   id: number;
   athlete_name: string;
   athlete_firstname: string;
@@ -323,12 +323,12 @@ export interface CourseQuery {
   scope?: "club";
 }
 
-export interface CategoryCount {
+interface CategoryCount {
   name: string;
   count: number;
 }
 
-export interface ClubCount {
+interface ClubCount {
   name: string;
   count: number;
   is_tcn: boolean;
@@ -388,7 +388,7 @@ export interface AuthMethod {
 }
 
 /** Identité de la session courante, rendue par `GET /auth/me`. */
-export interface SessionRole {
+interface SessionRole {
   id: number;
   slug: string;
   name: string;

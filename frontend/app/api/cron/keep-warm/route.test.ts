@@ -89,12 +89,14 @@ describe("GET /api/cron/keep-warm", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("répond 502 avec un message français quand le fetch expire (AbortError)", async () => {
+  it("répond 502 avec un message français quand le fetch expire (TimeoutError)", async () => {
+    // `AbortSignal.timeout` rejette avec un `TimeoutError` — c'est le nom que le
+    // `catch` doit reconnaître depuis l'abandon de l'`AbortController` manuel.
     vi.stubEnv("CRON_SECRET", "s3cr3t");
-    const abortErr = Object.assign(new Error("This operation was aborted"), {
-      name: "AbortError",
+    const timeoutErr = Object.assign(new Error("The operation was aborted due to timeout"), {
+      name: "TimeoutError",
     });
-    const fetchMock = vi.fn().mockRejectedValue(abortErr);
+    const fetchMock = vi.fn().mockRejectedValue(timeoutErr);
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await GET(makeRequest({ authorization: "Bearer s3cr3t" }));
