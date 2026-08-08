@@ -112,7 +112,12 @@ export const NAV: NavSection[] = [
       { id: "a-scrape", label: "Re-scrape à la demande", soon: true },
       { id: "a-quality", label: "Revalidation qualité", permission: "quality:override", soon: true },
       { id: "a-benevolat", label: "Bénévolat", soon: true },
-      { id: "a-sessions", label: "Sessions", minRole: ROLE.ADMIN, soon: true },
+      // Livrée depuis #169, et sortie du lot `soon` ci-dessus : elle a son
+      // pouvoir, `sessions:revoke`. Elle reste dans cette section plutôt que
+      // dans « Gestion des utilisateurs » — le geste porte sur l'exploitation,
+      // pas sur les personnes, même si le pouvoir est catalogué sous
+      // « Rôles et accès ».
+      { id: "a-sessions", label: "Sessions", href: "/admin/sessions", permission: "sessions:revoke" },
       { id: "a-flags", label: "Feature flags", minRole: ROLE.ADMIN, soon: true },
     ],
   },

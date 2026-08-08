@@ -20,6 +20,7 @@ import type {
   Role,
   ScrapedPreview,
   Season,
+  SessionRevocation,
   SessionUser,
   Stats,
 } from "@/lib/types";
@@ -226,4 +227,18 @@ export const apiClient = {
     }),
   revokeRole: (userId: number, roleId: number) =>
     request<null>(`/admin/users/${userId}/roles/${roleId}`, { method: "DELETE" }),
+
+  // ── Révocation d'urgence des sessions (#169) ───────────────────────────────
+  // `sessions:revoke`. Sans corps : la ressource est **globale**, fermer les
+  // sessions d'un seul compte se fait en retirant son adresse (#170). Elle ferme
+  // aussi celle de l'appelant — la requête suivante rendra 401, par construction.
+  revokeAllSessions: () =>
+    request<SessionRevocation>("/admin/sessions/revoke", { method: "POST" }),
+  // Par **identifiant de compte**, jamais par adresse : `users.email` n'est pas
+  // unique, et l'écran qui appelle ceci liste des comptes. Un identifiant
+  // inconnu est un succès sans effet.
+  revokeUserSessions: (userId: number) =>
+    request<SessionRevocation>(`/admin/users/${userId}/sessions/revoke`, {
+      method: "POST",
+    }),
 };
