@@ -84,7 +84,7 @@ cd backend
 uv sync                                # crée .venv (Python 3.13) et installe depuis uv.lock
 
 uv run alembic upgrade head            # crée / met à jour le schéma
-uv run python scripts/dev_server.py    # API + /docs, premier port libre à partir de 8001
+uv run python scripts/dev_server.py    # API + /docs, port libre attribué par l'OS
 ```
 
 Aucun venv à activer : `uv run` synchronise l'environnement avant d'exécuter.
@@ -92,8 +92,7 @@ Aucun venv à activer : `uv run` synchronise l'environnement avant d'exécuter.
 > Les endpoints sont versionnés sous **`/api/v1`** et le schéma DB est géré par
 > **Alembic**. Voir [`backend/README.md`](backend/README.md) pour le détail.
 
-Le port retenu s'affiche au démarrage — `http://127.0.0.1:8001` tant qu'il est libre,
-`/docs` pour la documentation interactive.
+Le port retenu s'affiche au démarrage, avec `/docs` pour la documentation interactive.
 
 L'écoute couvre toutes les interfaces (`0.0.0.0`), comme en production : le seul
 loopback rendrait l'API injoignable depuis l'extérieur d'un conteneur, ou depuis un
@@ -119,19 +118,20 @@ Frontend : `http://localhost:3000` (ou le port libre suivant).
 Rien à configurer : chaque worktree prend les ports libres qu'il trouve, et son
 frontend parle au backend **de son propre worktree**.
 
-Le mécanisme tient en un fichier. `backend/scripts/dev_server.py` prend le premier
-port libre à partir de 8001 et le publie dans `.dev-backend.json` à la racine du
+Le mécanisme tient en un fichier. `backend/scripts/dev_server.py` prend un port
+libre attribué par l'OS et le publie dans `.dev-backend.json` à la racine du
 worktree (gitignoré) ; `npm run dev` lit ce fichier — en vérifiant que le port
 répond, pour ignorer un fichier laissé par un backend tué — puis lance `next dev`
 avec `BACKEND_URL` et `API_URL` renseignés.
 
 L'ordre de démarrage est libre : lancé en premier, le frontend attend le backend
-(60 s au plus, puis repli sur `:8001` avec un avertissement).
+(60 s au plus, puis repli sur `:8001` avec un avertissement — depuis le passage
+au port éphémère, ce repli est un **signal d'échec**, plus une chance de tomber
+juste : c'est `DEV_BACKEND_PORT` qui donne une URL stable).
 
 | Variable | Effet |
 |---|---|
-| `DEV_BACKEND_PORT` | force le port du backend et court-circuite le scan |
-| `DEV_BACKEND_PORT_BASE` | change le point de départ du scan (défaut : 8001) |
+| `DEV_BACKEND_PORT` | force le port du backend au lieu du port éphémère tiré par l'OS |
 | `BACKEND_URL` | impose la cible du frontend : aucune attente, aucune découverte |
 | `API_URL` | impose la seule cible des pages serveur (RSC), sans toucher aux rewrites |
 

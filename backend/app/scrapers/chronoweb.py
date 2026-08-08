@@ -41,6 +41,7 @@ from app.scrapers.utils import (
     normalize_time,
     qualify_event_name,
     split_athlete_name,
+    to_seconds,
 )
 
 logger = logging.getLogger(__name__)
@@ -319,18 +320,6 @@ _POINT_PATTERNS: dict[tuple[str, ...], tuple[str, ...]] = {
 _TRANSITION_LABEL = "Changement"
 
 
-def _seconds(time: str) -> int:
-    """`"01:31:34"` → 5494. Returns 0 on anything unreadable."""
-    parts = time.split(":")
-    if len(parts) != 3:
-        return 0
-    try:
-        hours, minutes, secs = (int(p) for p in parts)
-    except ValueError:
-        return 0
-    return hours * 3600 + minutes * 60 + secs
-
-
 def _format(total: int) -> str:
     return f"{total // 3600:02d}:{total % 3600 // 60:02d}:{total % 60:02d}"
 
@@ -350,7 +339,7 @@ def _transition(previous: Passage | None, current: Passage | None) -> str:
     """
     if previous is None or current is None:
         return ""
-    gap = _seconds(current.cumulative) - _seconds(current.segment) - _seconds(previous.cumulative)
+    gap = to_seconds(current.cumulative) - to_seconds(current.segment) - to_seconds(previous.cumulative)
     return _format(gap) if gap > 0 else ""
 
 
