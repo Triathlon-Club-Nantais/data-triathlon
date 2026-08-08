@@ -23,7 +23,7 @@ from app.models.participation import Participation
 from app.repositories import course_repository, participation_repository
 from app.scrapers import registry
 from app.scrapers import scrape_event_all as registry_scrape_event_all
-from app.scrapers.base import STATUS_DNF, STATUS_FINISHER, ScrapedResult
+from app.scrapers.base import STATUS_DNF, STATUS_FINISHER, FanoutTrace, ScrapedResult
 from app.services import cache, mapping, quality
 
 logger = logging.getLogger(__name__)
@@ -145,7 +145,7 @@ def _make_cache_probe(db: Session, settings: Settings):
 
 def _scrape_all(
     url: str, db: Session, settings: Settings, *, single_heat: bool = False,
-) -> tuple[list[ScrapedResult], "registry.klikego.FanoutTrace | None"]:
+) -> tuple[list[ScrapedResult], FanoutTrace | None]:
     """Scrape l'URL et remonte optionnellement la `FanoutTrace` du provider.
 
     Passe par le dispatcher `registry.scrape_event_all(url, **kwargs)` — les
@@ -162,13 +162,12 @@ def _scrape_all(
     `_scrape_all_streaming`, qui est un générateur. Ce chemin non-streaming
     reste utilisé par le CLI (`batch`) et le fallback `import_event`.
     """
-    from app.scrapers import klikego  # circular-safe import
 
     cache_probe = _make_cache_probe(db, settings)
     provider = registry.get_provider(url)
 
     try:
-        if isinstance(provider, registry._FANOUT_PROVIDERS):
+        if isinstance(provider, registry.FanoutProvider):
             # Providers fan-out (patron #156/#195) : cache TTL par sous-unité.
             # `single_heat` n'a de sens que pour ceux dont l'URL le porte
             # (Klikego avec ?heat=…). Les autres retombent sur leur contrat
@@ -183,7 +182,7 @@ def _scrape_all(
             # dispatcher lève) — pas de trace de fan-out.
             # Trace synthétique 1-heat pour maintenir l'invariant `enumerated = imported`.
             results = registry_scrape_event_all(url)
-            trace = klikego.FanoutTrace(heats_enumerated=1)
+            trace = FanoutTrace(heats_enumerated=1)
     except ValueError as exc:  # provider non supporté pour l'import en masse
         raise ProviderNotSupportedError(str(exc)) from exc
     except Exception as exc:
@@ -217,7 +216,7 @@ def _scrape_all_streaming(
     """
     provider = registry.get_provider(url)
 
-    if not isinstance(provider, registry._FANOUT_PROVIDERS):
+    if not isinstance(provider, registry.FanoutProvider):
         # Chemin non-fan-out : bloquant unique, aucun yield intermédiaire.
         results, trace = _scrape_all(url, db, settings)
         return (results, trace)
