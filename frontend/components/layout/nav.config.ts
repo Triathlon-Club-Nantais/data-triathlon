@@ -144,9 +144,9 @@ export const NAV: NavSection[] = [
         href: "/admin/acces",
         permission: "allowed_emails:manage",
       },
-      // Les deux écrans manquants, leurs API étant livrées : composer un rôle
-      // (`/admin/roles`, #240), gérer un groupe (`/admin/groups`, #241). Chacun
-      // tient en un `href` posé ici et le `soon` retiré.
+      // L'écran manquant, son API étant livrée : composer un rôle
+      // (`/admin/roles`, #240). Il tient en un `href` posé ici et le `soon`
+      // retiré.
       //
       // `roles:assign` seul, alors que l'écran lit aussi `users:read` et
       // `roles:read` : `permission` reste un code unique, faute d'un rôle
@@ -159,11 +159,14 @@ export const NAV: NavSection[] = [
         permission: "roles:assign",
       },
       { id: "u-droits", label: "Droits des rôles", permission: "roles:write", soon: true },
+      // `groups:assign` plutôt que `groups:read` : l'écran se **consulte** avec
+      // la seule lecture, mais annoncer une destination où l'on ne pourrait
+      // rien faire n'a pas d'intérêt, et `permission` reste un code unique.
       {
         id: "u-groupes",
         label: "Groupes d'appartenance",
+        href: "/admin/groupes",
         permission: "groups:assign",
-        soon: true,
       },
     ],
   },

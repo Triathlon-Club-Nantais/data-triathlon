@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useLogout, useSession } from "@/lib/queries/auth";
+import type { SessionUser } from "@/lib/types";
 
 /**
  * Bouton « Se connecter » si anonyme, menu utilisateur sinon.
@@ -107,8 +108,17 @@ export function UserMenu({ pleineLargeur = false }: { pleineLargeur?: boolean })
   );
 }
 
-/** Nom affiché puis adresse — l'adresse est toujours lisible, sans survol. */
-function Identite({ session }: { session: { email: string; display_name?: string | null } }) {
+/**
+ * Nom affiché, adresse, puis appartenances — l'adresse est toujours lisible,
+ * sans survol.
+ *
+ * Les groupes viennent de `GET /auth/me`, qui les rend **à tout connecté** : à
+ * quoi j'appartiens ne demande aucun pouvoir, contrairement à voir les
+ * appartenances des autres (`/admin/groupes`). Ils sont posés ici, sous
+ * l'identité, et nulle part près d'un rôle : un groupe n'accorde rien, et
+ * l'écrire à côté des droits le laisserait croire.
+ */
+function Identite({ session }: { session: SessionUser }) {
   const tronque = {
     whiteSpace: "nowrap",
     overflow: "hidden",
@@ -124,6 +134,11 @@ function Identite({ session }: { session: { email: string; display_name?: string
       <div style={{ fontSize: 13, color: "var(--tcn-text-muted)", ...tronque }}>
         {session.email}
       </div>
+      {session.groups.length > 0 && (
+        <div style={{ fontSize: 12, color: "var(--tcn-text-muted)", marginTop: 4 }}>
+          Membre de {session.groups.map((groupe) => groupe.name).join(" · ")}
+        </div>
+      )}
     </div>
   );
 }
