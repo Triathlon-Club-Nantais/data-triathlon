@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it, afterEach } from "vitest";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createServer as createHttpServer } from "node:http";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -27,11 +28,31 @@ async function racineTemporaire() {
   return dir;
 }
 
-/** Démarre un vrai serveur TCP et rend son port — pas de simulation de socket. */
+/** Démarre un vrai backend de dev (celui qui répond `/api/v1/health`) et rend son port. */
 async function serveurEcoutant() {
-  const server = createServer();
+  const server = createHttpServer((req, res) => {
+    res.writeHead(req.url === "/api/v1/health" ? 200 : 404).end();
+  });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   aNettoyer.push(() => new Promise((resolve) => server.close(resolve)));
+  return server.address().port;
+}
+
+/** Un port occupé par **autre chose** que notre backend — le cas que le port
+ *  éphémère a rendu plausible : `dev_server.py` ne scanne plus 8001-8050, il
+ *  tire dans la plage où atterrit tout autre processus local. */
+async function serveurEtranger() {
+  const server = createServer();
+  // Les sockets acceptées ne sont jamais fermées côté serveur (c'est le cas
+  // qu'on simule : ça accepte, ça ne répond pas) — d'où la fermeture forcée au
+  // nettoyage, sans quoi `server.close()` attendrait la fin des connexions.
+  const sockets = new Set();
+  server.on("connection", (socket) => sockets.add(socket));
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  aNettoyer.push(() => {
+    sockets.forEach((socket) => socket.destroy());
+    return new Promise((resolve) => server.close(resolve));
+  });
   return server.address().port;
 }
 
@@ -84,12 +105,18 @@ describe("DEFAULT_BACKEND_URL", () => {
 });
 
 describe("isPortAlive", () => {
-  it("répond vrai quand un serveur écoute", async () => {
+  it("répond vrai quand notre backend répond", async () => {
     expect(await isPortAlive(await serveurEcoutant())).toBe(true);
   });
 
   it("répond faux sur un port que plus personne n'écoute", async () => {
     expect(await isPortAlive(await portMort())).toBe(false);
+  });
+
+  it("répond faux sur un port hérité par un service étranger", async () => {
+    // Un `connect()` nu conclurait « vivant » ici, et le front proxyfierait
+    // `/api/*` vers un processus sans rapport, sans la moindre erreur.
+    expect(await isPortAlive(await serveurEtranger())).toBe(false);
   });
 });
 

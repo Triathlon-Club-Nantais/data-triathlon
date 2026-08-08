@@ -19,5 +19,7 @@ export function ClubPodiumKpi({ participations }: { participations: Participatio
     () => participations.reduce((n, p) => n + (isPodium(p, rankType) ? 1 : 0), 0),
     [participations, rankType],
   );
-  return <StatCard label="Podiums" value={count} />;
+  // `accent={false}` comme les trois KPI SSR de `ClubDashboard` : le trait
+  // orange reste à la seule tuile mise en avant (« Résultats »).
+  return <StatCard label="Podiums" value={count} accent={false} />;
 }

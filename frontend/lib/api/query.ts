@@ -22,8 +22,12 @@ export function toQuery(filters: Record<string, unknown>): string {
   return qs ? `?${qs}` : "";
 }
 
-/** Le `detail` d'une réponse non-OK, ou son `statusText` à défaut de corps JSON. */
-export async function detailDErreur(res: Response): Promise<string> {
+/** Le `detail` d'une réponse non-OK, ou son `statusText` à défaut de corps JSON.
+ *
+ * À ne pas confondre avec `client.messageDErreur`, qui n'est **pas** la même
+ * fonction : celle-là déplie en plus les listes `{loc, msg}` de la validation
+ * Pydantic (422), que seul le navigateur affiche en toast. */
+export async function errorDetail(res: Response): Promise<string> {
   const corps = await res.json().catch(() => ({ detail: res.statusText }));
   return corps.detail || `Erreur API (${res.status})`;
 }

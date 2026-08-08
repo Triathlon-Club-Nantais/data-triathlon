@@ -1,5 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+/* `shadcn` est en devDependencies (c'est d'abord un CLI de scaffolding), mais
+   cet import en fait aussi un actif de **build** : un `npm ci --omit=dev` casserait
+   la compilation CSS. Vercel et `npm ci` installent les devDeps, d'où le choix. */
 @import "shadcn/tailwind.css";
 
 /* Mode sombre opt-in via la classe `.dark` (jamais posée → DS clair only).
