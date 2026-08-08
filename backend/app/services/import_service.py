@@ -179,7 +179,8 @@ def _scrape_all(
                 results = registry_scrape_event_all(url, cache_probe=cache_probe)
             trace = provider.last_trace
         else:
-            # Autres providers + fallback Playwright — pas de trace de fan-out.
+            # Autres providers, et URL non reconnue (`get_provider` → None, le
+            # dispatcher lève) — pas de trace de fan-out.
             # Trace synthétique 1-heat pour maintenir l'invariant `enumerated = imported`.
             results = registry_scrape_event_all(url)
             trace = klikego.FanoutTrace(heats_enumerated=1)

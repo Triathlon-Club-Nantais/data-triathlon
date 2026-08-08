@@ -606,9 +606,9 @@ def test_registry_hosts_wiclax_existants_inchanges():
         assert registry.detect_provider(url) == "wiclax", url
 
 
-def test_registry_host_inconnu_reste_playwright():
+def test_registry_host_inconnu_n_est_reconnu_par_personne():
     """L'allowlist reste explicite : pas de sniffing de contenu."""
-    assert registry.detect_provider("https://exemple-inconnu.fr/resultats/") == "playwright"
+    assert registry.detect_provider("https://exemple-inconnu.fr/resultats/") == ""
 
 
 # ---------------------------------------------------------------------------

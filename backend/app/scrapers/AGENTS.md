@@ -9,10 +9,13 @@ provider ; `base.py` = `ScrapedResult` ; `utils.py` = helpers de normalisation.
 - Tout nouveau fournisseur : créer `scrapers/<nom>.py`, exposer
   `scrape_event_all()` — la **seule** voie d'import depuis la suppression du
   scraping athlète-unique —, puis l'enregistrer dans `scrapers/registry.py`
-  (registre Protocol). Provider inconnu → `registry.PlaywrightProvider`, qui
-  n'est **pas** un scraper : c'est la sentinelle qui refuse explicitement l'URL,
-  nom historique d'un fallback navigateur supprimé avec sa dépendance (#102) —
-  le rebrancher rouvrirait le SSRF de #49.
+  (registre Protocol). Un provider **sans particularité** est une ligne
+  `ModuleProvider("<nom>", ("<host>",), <module>)` dans `PROVIDERS`, pas une
+  classe : seuls le fan-out, une double façade ou une règle de match composée
+  en justifient une. Provider inconnu → `get_provider` rend `None` et le
+  dispatcher lève : il n'y a **pas** de sentinelle attrape-tout, et un futur
+  fallback générique se valide en amont sur une liste blanche de hosts, sans
+  quoi il rouvrirait le SSRF de #49.
 - **Détection par host, jamais par sous-chaîne d'URL.** Un provider déclare ses
   `_HOSTS` et hérite de `HostMatchedProvider` : il n'a pas de `matches` à
   écrire. La règle « host exact ou vrai sous-domaine » a une seule définition,
