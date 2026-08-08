@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { ApiError } from "@/lib/api/client";
-import { detailDErreur, toQuery } from "@/lib/api/query";
+import { errorDetail, toQuery } from "@/lib/api/query";
 import type {
   AthleteDetail,
   AuthMethod,
@@ -24,7 +24,7 @@ async function serverFetch<T>(path: string): Promise<T> {
     // `ApiError` plutôt qu'un `Error` nu : sans le statut, un appelant ne peut
     // pas distinguer une ressource absente d'un backend en panne, et finit par
     // afficher « introuvable » sur les deux.
-    throw new ApiError(res.status, await detailDErreur(res));
+    throw new ApiError(res.status, await errorDetail(res));
   }
   return res.json() as Promise<T>;
 }
@@ -52,7 +52,7 @@ async function serverFetchAuthed<T>(path: string): Promise<T | null> {
   });
   if (res.status === 401) return null;
   if (!res.ok) {
-    throw new ApiError(res.status, await detailDErreur(res));
+    throw new ApiError(res.status, await errorDetail(res));
   }
   return res.json() as Promise<T>;
 }

@@ -9,7 +9,6 @@
 // racine du worktree ; on le lit ici pour alimenter BACKEND_URL et API_URL.
 
 import { readFile } from "node:fs/promises";
-import { createConnection } from "node:net";
 import { join } from "node:path";
 
 export const PORT_FILE_NAME = ".dev-backend.json";
@@ -43,23 +42,27 @@ export async function readPublishedBackend(root) {
   }
 }
 
-/** Vrai si quelque chose écoute sur ce port.
+/** Vrai si **notre backend** répond sur ce port.
  *
  * C'est ce test qui rend la découverte auto-corrigeante : un backend tué par
  * `kill -9` laisse son fichier derrière lui, et le suivre proxyfierait dans le vide.
+ *
+ * La sonde interroge `/api/v1/health` et non le seul TCP : depuis que
+ * `dev_server.py` tire un port **éphémère** (32768-60999 sous Linux) au lieu de
+ * scanner 8001-8050, le port publié vit dans la plage où atterrit tout autre
+ * processus local. Un `connect()` nu conclurait « vivant » sur le service qui a
+ * hérité du port — et `next dev` proxyfierait `/api/*` dedans, exactement le
+ * mode de panne muet que le fichier de port existe pour supprimer.
  */
-export function isPortAlive(port, host = CLIENT_HOST, timeoutMs = PROBE_TIMEOUT_MS) {
-  return new Promise((resolve) => {
-    const socket = createConnection({ port, host });
-    const conclure = (vivant) => {
-      socket.destroy();
-      resolve(vivant);
-    };
-    socket.setTimeout(timeoutMs);
-    socket.once("connect", () => conclure(true));
-    socket.once("timeout", () => conclure(false));
-    socket.once("error", () => conclure(false));
-  });
+export async function isPortAlive(port, host = CLIENT_HOST, timeoutMs = PROBE_TIMEOUT_MS) {
+  try {
+    const reponse = await fetch(`http://${host}:${port}/api/v1/health`, {
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    return reponse.ok;
+  } catch {
+    return false;
+  }
 }
 
 const attendre = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

@@ -1,11 +1,8 @@
 "use client";
-import { useState } from "react";
 import Link from "next/link";
-import { Trash2 } from "lucide-react";
 import { Avatar } from "@/components/tcn";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { SportBadge } from "./SportBadge";
 import { StatusBadge } from "./StatusBadge";
 import { Medal } from "@/components/ui/medal";
@@ -15,28 +12,11 @@ import { formatEventName } from "@/lib/utils/event";
 import { isHttpUrl } from "@/lib/utils/url";
 import type { Participation } from "@/lib/types";
 
-export function ResultCard({
-  result,
-  onDelete,
-}: {
-  result: Participation;
-  onDelete?: (id: number) => void;
-}) {
-  const [confirming, setConfirming] = useState(false);
+export function ResultCard({ result }: { result: Participation }) {
   const a = result.athlete;
   const c = result.course;
   const fullName = [a?.prenom, a?.nom].filter(Boolean).join(" ") || "Athlète inconnu";
   const segments = splitSegments(c?.event_type ?? "", result.splits);
-
-  function handleDelete() {
-    if (!onDelete) return;
-    if (confirming) {
-      onDelete(result.id);
-    } else {
-      setConfirming(true);
-      setTimeout(() => setConfirming(false), 3000);
-    }
-  }
 
   return (
     <Card>
@@ -60,16 +40,6 @@ export function ResultCard({
               <span className="num text-xl font-extrabold">{result.total_time}</span>
             ) : (
               <StatusBadge status={result.status} />
-            )}
-            {onDelete && (
-              <Button
-                variant={confirming ? "destructive" : "ghost"}
-                size={confirming ? "sm" : "icon-sm"}
-                onClick={handleDelete}
-                aria-label={confirming ? "Confirmer la suppression" : "Supprimer"}
-              >
-                {confirming ? "Confirmer ?" : <Trash2 className="size-4" />}
-              </Button>
             )}
           </div>
         </div>

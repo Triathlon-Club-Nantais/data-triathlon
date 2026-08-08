@@ -40,15 +40,4 @@ describe("ProviderDetector", () => {
       expect(screen.getByText("Non supporté — saisie manuelle")).toBeInTheDocument(),
     );
   });
-
-  it("nomme le fournisseur quand il est reconnu mais non supporté", async () => {
-    detectProvider.mockResolvedValue({ provider: "chronoplace", supported: false });
-    render(<ProviderDetector url="https://chronoplace.fr/evenement/x" />);
-
-    await waitFor(() =>
-      expect(
-        screen.getByText("Non supporté (Chronoplace) — saisie manuelle"),
-      ).toBeInTheDocument(),
-    );
-  });
 });

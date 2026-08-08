@@ -186,6 +186,8 @@ function KpiCard({
 }) {
   // `StatCard` **est** la carte : pas de `Card`/`CardContent` autour, ils
   // doubleraient le chrome. `accent` y désigne le trait orange sous la valeur,
-  // là où l'`ui/Stat` qu'il remplace colorait la valeur elle-même.
-  return <StatCard label={label} value={value} accent={accent} />;
+  // là où l'`ui/Stat` qu'il remplace colorait la valeur elle-même. Le `?? false`
+  // n'est pas décoratif : `StatCard` a `accent = true` par défaut, l'omettre
+  // mettrait le trait sur les quatre tuiles et rendrait ce paramètre inerte.
+  return <StatCard label={label} value={value} accent={accent ?? false} />;
 }

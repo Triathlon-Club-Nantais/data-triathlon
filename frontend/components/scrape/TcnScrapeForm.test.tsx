@@ -1,12 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ImportedCourse } from "@/lib/types";
 
 // Ces tests contrôlent l'état du hook d'import de bout en bout pour n'observer
-// que le rendu — l'objectif est de câbler la phase `done` sur /courses/{id} (#135),
-// le reste du flux est déjà couvert par ScrapeForm.test.
+// que le rendu — l'objectif est de câbler la phase `done` sur /courses/{id} (#135)
+// et le rafraîchissement RSC (#201). Le repli « échec → saisie manuelle », lui,
+// vivait dans `ScrapeForm.test` : ce fichier a été supprimé avec le composant
+// qu'il testait, le repli est resté, son test l'a suivi ici.
 const importMock = vi.hoisted(() => {
   let state = {
     running: false,
@@ -55,16 +57,26 @@ vi.mock("@/lib/api/client", () => ({
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 import { TcnScrapeForm } from "./TcnScrapeForm";
+import { apiClient } from "@/lib/api/client";
 
 function renderForm() {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(
+  const utils = render(
     <QueryClientProvider client={qc}>
       <TcnScrapeForm />
     </QueryClientProvider>,
   );
+  return {
+    ...utils,
+    rerenderForm: () =>
+      utils.rerender(
+        <QueryClientProvider client={qc}>
+          <TcnScrapeForm />
+        </QueryClientProvider>,
+      ),
+  };
 }
 
 beforeEach(() => {
@@ -243,5 +255,24 @@ describe("TcnScrapeForm — rafraîchissement de la liste après import (#201)",
     });
     renderForm();
     expect(refreshMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("TcnScrapeForm — repli sur échec d'import", () => {
+  it("signale le fournisseur et bascule en saisie manuelle", async () => {
+    const { rerenderForm } = renderForm();
+    await userEvent.type(
+      screen.getByPlaceholderText("https://résultats-chrono.fr/triathlon-vertou-2026"),
+      "http://x.test/ev",
+    );
+    importMock.set({ phase: "error", error: "boom" });
+    rerenderForm();
+
+    await waitFor(() =>
+      expect(apiClient.reportPendingProvider).toHaveBeenCalledWith("http://x.test/ev"),
+    );
+    expect(
+      screen.getByRole("button", { name: "Enregistrer le résultat" }),
+    ).toBeInTheDocument();
   });
 });

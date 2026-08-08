@@ -1,6 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { ResultCard } from "./ResultCard";
 import type { Participation } from "@/lib/types";
 
@@ -80,14 +79,5 @@ describe("ResultCard", () => {
     );
     expect(screen.getByText("DNS")).toBeInTheDocument();
     expect(screen.queryByText("02:15:30")).not.toBeInTheDocument();
-  });
-
-  it("appelle onDelete après confirmation", async () => {
-    const onDelete = vi.fn();
-    render(<ResultCard result={base} onDelete={onDelete} />);
-    const btn = screen.getByRole("button", { name: /supprimer/i });
-    await userEvent.click(btn);
-    await userEvent.click(screen.getByRole("button", { name: /confirmer/i }));
-    expect(onDelete).toHaveBeenCalledWith(1);
   });
 });

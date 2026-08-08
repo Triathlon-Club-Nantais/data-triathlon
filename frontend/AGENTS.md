@@ -60,10 +60,15 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   visuelle (tokens `--tcn-*`, Anton/Barlow, dégradé orange) ; `components/ui/`
   porte les primitives complexes bâties sur `@base-ui/react` — `dialog`,
   `select`, `dropdown-menu`, `popover`, `sheet`, `table` — et le back-office,
-  qui a besoin de leur densité. **Un écran public prend `tcn/` ; une primitive
-  accessible sans équivalent TCN se prend dans `ui/`, y compris depuis un écran
-  public** (`AppNav` compose `ui/sheet` avec `tcn/Avatar`, `EventList` compose
-  `ui/select` avec `tcn/Card` — c'est la composition attendue, pas un mélange).
+  qui a besoin de leur densité. **Tout nouvel écran public prend `tcn/` ; une
+  primitive accessible sans équivalent TCN se prend dans `ui/`, y compris depuis
+  un écran public** (`AppNav` compose `ui/sheet` avec `tcn/Avatar`, `EventList`
+  compose `ui/select` avec `tcn/Card` — c'est la composition attendue, pas un
+  mélange). La règle vaut pour les **ajouts** : sept écrans publics existants
+  tirent encore `ui/{card,button,badge,input}` — `app/error.tsx`, `ClubDashboard`,
+  `ResultCard`, `ResultsFilters`, `StatusBadge`, `ManualResultForm`,
+  `ProviderDetector`. Dette assumée, pas une exception à arbitrer au cas par cas :
+  les basculer coûte 485 lignes de rendu à re-vérifier pour zéro gain fonctionnel.
   Cinq primitives existent des deux côtés (`card`, `button`, `badge`, `input`,
   `dialog`) : ce n'est **pas** un doublon à résorber, elles servent de part et
   d'autre de cette ligne. Les deux qui étaient **100 % publiques** ont été

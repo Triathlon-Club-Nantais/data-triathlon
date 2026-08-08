@@ -4,7 +4,6 @@ import type {
   AdminAthleteUpdate,
   AdminCourseUpdate,
   AdminUser,
-  AthleteDetail,
   AuthMethod,
   BatchLaunched,
   BatchReport,
@@ -18,7 +17,6 @@ import type {
   GeoEvent,
   Group,
   GroupDetail,
-  ImportResult,
   Participation,
   ParticipationFilters,
   RescrapeLaunch,
@@ -33,7 +31,6 @@ import type {
   SessionRevocation,
   SessionUser,
   SheetColumns,
-  Stats,
 } from "@/lib/types";
 
 const BASE = "/api/v1";
@@ -123,12 +120,6 @@ export const apiClient = {
   listProviders: () =>
     request<{ providers: string[] }>("/scrape/providers").then((r) => r.providers),
 
-  importEvent: (url: string) =>
-    request<ImportResult>("/scrape/event", {
-      method: "POST",
-      body: JSON.stringify({ url }),
-    }),
-
   saveParticipation: (data: Partial<ScrapedPreview>) =>
     request<Participation>("/participations", {
       method: "POST",
@@ -138,19 +129,12 @@ export const apiClient = {
   listParticipations: (filters: ParticipationFilters = {}) =>
     request<Participation[]>(`/participations${toQuery(filters as Record<string, unknown>)}`),
 
-  deleteParticipation: (id: number) =>
-    request<null>(`/participations/${id}`, { method: "DELETE" }),
-
-  getAthlete: (id: number) => request<AthleteDetail>(`/athletes/${id}`),
   getCourse: (id: number, opts: CourseQuery = {}) =>
     request<CourseDetail>(`/courses/${id}${toQuery(opts as Record<string, unknown>)}`),
   getCourseSummary: (id: number) => request<CourseSummary>(`/courses/${id}/summary`),
 
   listEvents: (filters: ParticipationFilters = {}) =>
     request<EventPage>(`/courses/events${toQuery(filters as Record<string, unknown>)}`),
-
-  getStats: (opts: { scope?: string; seasons?: number[]; federal_only?: boolean } = {}) =>
-    request<Stats>(`/stats${toQuery(opts)}`),
 
   // Version courante du backend — sert au footer du layout (#134) qui compare
   // avec `process.env.NEXT_PUBLIC_APP_VERSION` pour détecter les mismatches.

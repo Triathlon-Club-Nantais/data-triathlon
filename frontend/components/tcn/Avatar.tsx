@@ -19,7 +19,11 @@ export function Avatar({
   }
   const large = size >= 64;
   return (
+    // `aria-hidden` : l'avatar est décoratif partout où il sert, le nom est
+    // toujours en clair juste à côté. Sans lui, un lecteur d'écran annonce
+    // « M D Marie Dupont ». Hérité d'`ui/initials-avatar`, qu'il remplace.
     <div
+      aria-hidden
       style={{
         flex: "none",
         width: size,

@@ -7,13 +7,7 @@ import { providerLabel } from "@/lib/constants";
 
 type Detected = { provider: string; supported: boolean };
 
-export function ProviderDetector({
-  url,
-  onDetected,
-}: {
-  url: string;
-  onDetected?: (provider: string) => void;
-}) {
+export function ProviderDetector({ url }: { url: string }) {
   const debounced = useDebounce(url, 400);
   const [detected, setDetected] = useState<Detected | null>(null);
 
@@ -32,26 +26,22 @@ export function ProviderDetector({
         // tenue ici : la précédente avait divergé et affichait « Non supporté »
         // sur Competitor, RaceResult et Chronoplace, pourtant importables.
         setDetected(r);
-        onDetected?.(r.provider);
       })
       .catch(() => !cancelled && setDetected(null));
     return () => {
       cancelled = true;
     };
-  }, [debounced, onDetected]);
+  }, [debounced]);
 
   if (!detected) return null;
   const { provider, supported } = detected;
-  if (!supported) {
-    // `provider` est vide quand aucun chronométreur ne reconnaît l'URL : le
-    // nommer donnerait « Non supporté (Source) », le repli de `providerLabel`.
-    return (
-      <Badge variant="destructive">
-        {provider
-          ? `Non supporté (${providerLabel(provider)}) — saisie manuelle`
-          : "Non supporté — saisie manuelle"}
-      </Badge>
-    );
-  }
-  return <Badge variant="default">{`Fournisseur : ${providerLabel(provider)}`}</Badge>;
+  // Deux états, pas trois : `is_supported` et `detect_provider` sont adossés au
+  // même `get_provider(url)` côté registre, donc `supported` ⟺ `provider !== ""`.
+  // Nommer un fournisseur non supporté donnerait « Non supporté (Source) », le
+  // repli de `providerLabel` — un faux nom pour un état que l'API ne rend pas.
+  return supported ? (
+    <Badge variant="default">{`Fournisseur : ${providerLabel(provider)}`}</Badge>
+  ) : (
+    <Badge variant="destructive">Non supporté — saisie manuelle</Badge>
+  );
 }
