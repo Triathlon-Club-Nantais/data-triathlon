@@ -24,6 +24,7 @@ import type {
   Role,
   ScrapedPreview,
   Season,
+  SheetColumns,
   SessionUser,
   Stats,
 } from "@/lib/types";
@@ -81,6 +82,24 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw new ApiError(res.status, messageDErreur(err.detail, res.statusText));
   }
   if (res.status === 204) return null as T;
+  return res.json() as Promise<T>;
+}
+
+/**
+ * Envoi multipart — **distinct** de `request()`, et il doit le rester.
+ *
+ * `request()` pose `Content-Type: application/json` sur toutes ses requêtes.
+ * Sur un `FormData`, cet en-tête empêche le navigateur d'écrire la frontière
+ * (`boundary=…`) qu'il génère, et le serveur ne sait plus découper le corps :
+ * le fichier arrive vide, sans qu'aucune erreur ne le dise. On ne pose donc
+ * **aucun** `Content-Type` ici — c'est au navigateur de le composer.
+ */
+async function upload<T>(path: string, form: FormData): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, { method: "POST", body: form });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new ApiError(res.status, messageDErreur(err.detail, res.statusText));
+  }
   return res.json() as Promise<T>;
 }
 
@@ -244,4 +263,18 @@ export const apiClient = {
     request<BatchRun[]>(`/admin/batches${toQuery({ limit })}`),
   getBatchReport: (runId: number) =>
     request<BatchReport>(`/admin/batches/${runId}/report`),
+  // Le fichier fait **deux** allers : le navigateur le garde entre les deux, il
+  // n'est jamais stocké côté serveur (FR-011).
+  readSheetColumns: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return upload<SheetColumns>("/admin/sheets/columns", form);
+  },
+  launchBatchFromFile: (file: File, urlColumn: number, dryRun: boolean) => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("url_column", String(urlColumn));
+    form.append("dry_run", String(dryRun));
+    return upload<BatchLaunched>("/admin/batches/from-file", form);
+  },
 };

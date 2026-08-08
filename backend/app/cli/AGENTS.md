@@ -32,6 +32,23 @@ avant** la sortie :
 Un tube fermé (`… | head -2`) ne fausse aucun de ces codes : le `BrokenPipeError`
 est rattrapé, et le bilan bascule sur stderr plutôt que d'être perdu.
 
+**Où ces batches tournent désormais** (#47) : plus sur un poste de développement,
+mais sur un runner GitHub Actions (`.github/workflows/batch.yml`), déclenché
+depuis `/admin/batches` ou par une planification hebdomadaire. Rien n'a changé
+dans la CLI — c'est bien elle qui s'exécute — mais le workflow **dépend** de deux
+propriétés décrites ci-dessus, et les casser casserait l'écran d'administration
+sans qu'aucun test de la CLI ne bouge :
+
+- **la séparation stdout/stderr** : avec `--json`, stdout est redirigé vers
+  l'artefact du bilan et stderr vers le rapport. Capturer les deux ensemble
+  rendrait l'artefact invalide, et le bilan illisible par `GET …/report` ;
+- **le code de sortie** : c'est lui qui rend l'exécution rouge ou verte, donc
+  lui seul qui alerte. Le `1` d'échec total est la seule alerte du dispositif —
+  il n'y a **aucun** autre canal.
+
+Le workflow n'invente aucune option : il compose la même ligne de commande que
+celle documentée ici, à partir d'un catalogue fermé d'entrées.
+
 **Vocabulaire** : la CLI compte des **épreuves** (une `source_url` unique), jamais
 des courses. Une épreuve porte N `Course` en base (heats Breizh Chrono, variantes
 individuel/relais) : `rescrape-db` dédoublonne par `source_url` avant le batch,

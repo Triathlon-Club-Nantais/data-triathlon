@@ -171,6 +171,26 @@ Lors de l'import d'une épreuve, les co-membres sont identifiés par filtre sur 
 
 ---
 
+## Lancer un batch en production
+
+Les batches (reprise du scraping, import d'une liste d'épreuves) ne tournent **pas** dans le service web : celui-ci est sur une offre gratuite à un seul process, et il sert le site public. Ils s'exécutent sur un runner GitHub Actions, qui lance la même CLI que ci-dessus.
+
+Trois voies, une seule exécution en aval :
+
+| Voie | Où | Pour qui |
+|------|----|----------|
+| Écran `/admin/batches` | back-office | pouvoir `batch:run` |
+| Onglet **Actions** → *Batch* → **Run workflow** | GitHub | droits d'écriture sur le dépôt |
+| Planification hebdomadaire (lundi 3 h UTC) | automatique | — |
+
+Depuis l'écran, deux façons de composer la liste d'épreuves : un **filtre** sur la base (fournisseur, ancienneté, nombre maximum), ou le **téléversement d'un fichier** `.csv`/`.xlsx` dont on désigne la colonne portant les liens de résultats — ce qui remplace l'import du Google Sheet. Le fichier n'est jamais stocké côté serveur.
+
+La base écrite n'est jamais choisie dans le formulaire : elle vient du réglage `GITHUB_BATCH_TARGET` de l'instance. L'administration de la preview écrit dans la base de preview, celle de la production dans la sienne.
+
+Détail complet — jeton, environments, secrets, pièges de connexion : [`docs/ci-cd.md`](docs/ci-cd.md).
+
+---
+
 ## Tests
 
 ### Tests unitaires (sans réseau)

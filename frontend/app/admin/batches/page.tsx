@@ -2,6 +2,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { BatchLauncher } from "@/components/admin/BatchLauncher";
 import { BatchRunList } from "@/components/admin/BatchRunList";
+import { SheetUpload } from "@/components/admin/SheetUpload";
 
 /**
  * Lancer et suivre les batches (#47).
@@ -20,10 +21,20 @@ export default function AdminBatchesPage() {
         <PageHeader
           eyebrow="Exploitation"
           title="Batches"
-          description="Relancer le scraping des épreuves déjà en base, et relire le bilan des lancements précédents."
+          description="Relancer le scraping des épreuves déjà en base, importer une liste d'épreuves depuis un fichier, et relire le bilan des lancements précédents."
         />
-        <BatchLauncher />
-        <BatchRunList />
+        <section className="space-y-4">
+          <h2 className="text-lg font-bold">Reprise de la base</h2>
+          <BatchLauncher />
+        </section>
+        <section className="space-y-4">
+          <h2 className="text-lg font-bold">Import d&apos;un fichier</h2>
+          <SheetUpload />
+        </section>
+        <section className="space-y-4">
+          <h2 className="text-lg font-bold">Lancements récents</h2>
+          <BatchRunList />
+        </section>
       </div>
     </PageShell>
   );

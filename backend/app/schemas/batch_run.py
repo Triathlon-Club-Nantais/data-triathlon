@@ -44,6 +44,27 @@ class RescrapeLaunch(BaseModel):
         return v
 
 
+class ColumnPreview(BaseModel):
+    """Une colonne du fichier, telle que l'écran la présente."""
+
+    index: int
+    header: str
+    #: Valeurs commençant par `http`. C'est ce compte qui rend visible une
+    #: colonne d'hyperliens sans texte — elle en affiche zéro (D8).
+    link_count: int
+    #: Trois premières valeurs non vides, tronquées : de quoi reconnaître la
+    #: colonne sans télécharger le fichier deux fois.
+    samples: list[str]
+
+
+class SheetColumns(BaseModel):
+    row_count: int
+    #: `None` quand aucune colonne ne porte de lien. L'écran le dit alors
+    #: explicitement plutôt que de présélectionner au hasard (D8).
+    suggested_index: int | None
+    columns: list[ColumnPreview]
+
+
 class BatchLaunched(BaseModel):
     """La réponse à un lancement — **sans** identifiant d'exécution.
 
@@ -54,6 +75,10 @@ class BatchLaunched(BaseModel):
 
     correlation_id: str
     state: Literal["pending"] = "pending"
+    #: Renseignés par le lancement depuis un fichier : ce qui a été retenu, et
+    #: ce qui ne sera jamais soumis. L'utilisateur voit ce qu'il vient de lancer.
+    epreuves: int | None = None
+    ignored_by_host: dict[str, int] | None = None
 
 
 class BatchRunRead(BaseModel):
