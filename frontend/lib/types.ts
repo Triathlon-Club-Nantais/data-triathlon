@@ -430,3 +430,76 @@ export interface AdminAthleteUpdate {
   prenom: string;
   birth_date: string | null;
 }
+
+/**
+ * Un lancement de batch, vu de l'interface (#47).
+ *
+ * Les énumérations sont **en anglais**, comme le contrat : ce sont des valeurs
+ * techniques, et le français d'affichage est produit par les composants. Les
+ * traduire côté serveur figerait une traduction dans un contrat d'API.
+ */
+export interface BatchRun {
+  id: number;
+  label: string;
+  state: "pending" | "running" | "completed";
+  outcome: "success" | "failure" | "cancelled" | null;
+  started_at: string;
+  duration_s: number | null;
+  triggered_by: "ui" | "schedule" | "manual";
+  report_available: boolean;
+  external_url: string;
+}
+
+/**
+ * Le bilan — la charge `--json` de la CLI, telle quelle.
+ *
+ * Deux unités s'y côtoient, et l'affichage doit les nommer comme le fait le
+ * rapport texte : `unique_supported`, `processed` et `errors` comptent des
+ * **épreuves** ; `imported`, `updated` et `skipped` des **participants**.
+ */
+export interface BatchReport {
+  unique_supported: number;
+  processed: number;
+  errors: number;
+  imported: number;
+  updated: number;
+  skipped: number;
+  rows_without_link?: number;
+  ignored_by_host?: Record<string, number>;
+  interrupted: boolean;
+  failures: { url: string; label: string; message: string }[];
+}
+
+/** Les options d'une reprise filtrée. La base visée n'en fait pas partie. */
+export interface RescrapeLaunch {
+  mode: "rescrape";
+  provider?: string;
+  older_than?: number;
+  limit?: number;
+  dry_run?: boolean;
+}
+
+/** La réponse au lancement — sans identifiant d'exécution : le dispatch n'en rend aucun. */
+export interface BatchLaunched {
+  correlation_id: string;
+  state: "pending";
+  /** Renseignés au lancement depuis un fichier seulement. */
+  epreuves?: number;
+  ignored_by_host?: Record<string, number>;
+}
+
+/** Une colonne du fichier téléversé, telle que l'écran la présente. */
+export interface ColumnPreview {
+  index: number;
+  header: string;
+  /** Zéro sur une colonne d'hyperliens sans texte — c'est ce qui la rend visible. */
+  link_count: number;
+  samples: string[];
+}
+
+export interface SheetColumns {
+  row_count: number;
+  /** `null` quand aucune colonne ne porte de lien : l'écran le dit, il ne devine pas. */
+  suggested_index: number | null;
+  columns: ColumnPreview[];
+}
