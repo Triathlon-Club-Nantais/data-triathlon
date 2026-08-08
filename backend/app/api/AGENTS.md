@@ -126,25 +126,22 @@ bouger. Un groupe **n'accorde rien** : la garde ne les lit jamais, et
 
 ## Révocation d'urgence des sessions (#169)
 
-Deux ressources, un seul pouvoir, `sessions:revoke` :
-`POST /admin/sessions/revoke` (toutes) et
-`POST /admin/users/{user_id}/sessions/revoke` (un compte). Toutes deux rendent
+`POST /admin/sessions/revoke` (`sessions:revoke`), corps facultatif, rend
 `{"sessions": N, "accounts": M}` — deux chiffres qui ne comptent
 que ce qui était **vivant** (non expiré, compte actif), alors que la suppression,
 elle, emporte tout. L'écart est délibéré : supprimer une ligne morte est de
 l'hygiène gratuite, l'annoncer comme « fermée » serait un mensonge, et faute
 d'ordonnanceur une base réelle en est pleine. Trois points :
 
-- **Deux ressources, même pouvoir**, et la seconde n'est pas un doublon du
-  retrait d'adresse. `POST /admin/users/{user_id}/sessions/revoke` cible **un
-  compte** : retirer une adresse (#170) ferme par la jointure mais **n'efface
-  aucune ligne**, donc une réinscription dans la fenêtre de TTL ressuscite les
-  jetons ; ici les lignes partent et le compte reste actif. Elle cible un
-  **identifiant**, jamais une adresse — `users.email` n'est pas unique (FR-003),
-  et l'écran qui l'appelle liste des comptes : frapper par adresse y toucherait
-  des homonymes que rien n'aurait nommés. La CLI, elle, prend l'adresse faute
-  d'écran pour choisir. Un identifiant inconnu est un **succès sans effet**,
-  même parti pris que le retrait d'une adresse et d'un rôle.
+- **Une ressource, deux portées**, et la seconde n'est pas un doublon du
+  retrait d'adresse. Corps absent → tout ; `{"email": …}` → les comptes portant
+  cette adresse, **tous** (`users.email` n'est pas unique, FR-003 — en épargner
+  un sous incident serait l'erreur coûteuse). Retirer une adresse (#170) ferme
+  par la jointure mais **n'efface aucune ligne**, donc une réinscription dans la
+  fenêtre de TTL ressuscite les jetons ; ici les lignes partent et le compte
+  reste actif. Une adresse inconnue est un **succès sans effet** : l'écran ne
+  propose que des adresses de sa propre liste, il n'y a pas de faute de frappe
+  possible, là où la CLI la refuse.
 - **Elle ferme la session de l'appelant**, et ce n'est pas un effet de bord à
   corriger : sous fuite, son jeton est suspect comme les autres. L'écran
   l'annonce avant le geste et renvoie vers `/login`.

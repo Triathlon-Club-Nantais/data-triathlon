@@ -87,18 +87,6 @@ def revoke_all(db: Session) -> tuple[int, int]:
     return session_repository.delete_all(db)
 
 
-def revoke_for_user(db: Session, user: User) -> tuple[int, int]:
-    """Ferme les sessions de **ce compte**, et de lui seul.
-
-    Le geste de l'écran, là où `revoke_for_email` est celui de la CLI :
-    `users.email` n'est pas unique, et un tableau qui liste des comptes doit
-    frapper celui qu'on a désigné, pas ses homonymes d'adresse. Le compte reste
-    actif — c'est ce qui la distingue du retrait d'adresse (#170), lequel ferme
-    par la jointure sans effacer une ligne, donc réversiblement.
-    """
-    return session_repository.delete_for_users(db, [user.id])
-
-
 def revoke_for_email(db: Session, email: str) -> tuple[int, int]:
     """Ferme les sessions de **tous** les comptes portant cette adresse.
 
@@ -106,6 +94,11 @@ def revoke_for_email(db: Session, email: str) -> tuple[int, int]:
     trancher entre les candidats, on les prend tous : sous incident, en épargner
     un serait l'erreur coûteuse. La casse est ignorée, comme partout où le dépôt
     cherche une adresse.
+
+    C'est la cible des **deux** appelants, la CLI comme l'écran des accès : ce
+    dernier liste des adresses, pas des comptes. Le compte, lui, reste actif —
+    ce qui distingue ce geste du retrait d'adresse (#170), lequel ferme par la
+    jointure sans effacer une ligne, donc réversiblement.
     """
     return session_repository.delete_for_users(
         db, [user.id for user in user_repository.find_by_email(db, email)]

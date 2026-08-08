@@ -20,7 +20,9 @@ import {
   useAllowedEmails,
   useAddAllowedEmail,
   useRemoveAllowedEmail,
+  useRevokeSessions,
 } from "@/lib/queries/admin";
+import { useSession } from "@/lib/queries/auth";
 import { useRolesAttribuables } from "@/lib/roles";
 import { messageDeRefus } from "@/lib/api/refus";
 import { formatDate } from "@/lib/utils/date";
@@ -37,6 +39,11 @@ export function AllowedEmailsTable() {
   const { data, isLoading, error } = useAllowedEmails();
   const ajouter = useAddAllowedEmail();
   const retirer = useRemoveAllowedEmail();
+  const revoquer = useRevokeSessions();
+  const session = useSession();
+  // L'écran s'ouvre avec `allowed_emails:manage` seul : un bouton qui rendrait
+  // 403 à chaque clic est pire que pas de bouton. Patron de `CoursesAdminTable`.
+  const peutRevoquer = session.data?.permissions.includes("sessions:revoke") ?? false;
   const { roles, accordable, peutAttribuer } = useRolesAttribuables();
   const [saisie, setSaisie] = useState("");
   // Chaîne et non nombre : c'est la valeur d'un `<option>`, et « aucun » a
@@ -87,6 +94,17 @@ export function AllowedEmailsTable() {
     } catch (e) {
       // Le 409 du dernier administrateur porte son message côté serveur ; le
       // front le rend tel quel plutôt que d'en inventer un second.
+      toast.error((e as Error).message);
+    }
+  }
+
+  async function fermerLesSessions(acces: AllowedEmail) {
+    try {
+      const bilan = await revoquer.mutateAsync(acces.email);
+      toast.success(
+        `${bilan.sessions} session(s) fermée(s) sur ${bilan.accounts} compte(s).`,
+      );
+    } catch (e) {
       toast.error((e as Error).message);
     }
   }
@@ -184,7 +202,26 @@ export function AllowedEmailsTable() {
                   </TableCell>
                   <TableCell>{formatDate(acces.created_at)}</TableCell>
                   <TableCell>{acces.created_by_name ?? "—"}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="space-x-2 text-right">
+                    {/* Sans confirmation, à l'inverse du retrait : le geste se
+                        répare par une reconnexion. Il **supprime** les jetons,
+                        là où retirer l'adresse se contente de les faire refuser
+                        — réversiblement, dans la fenêtre de TTL. Offert sur les
+                        seules adresses venues : sans compte, il n'y a rien à
+                        fermer. */}
+                    {peutRevoquer && acces.has_account && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        aria-label={`Fermer les sessions de ${acces.email}`}
+                        onClick={() => fermerLesSessions(acces)}
+                        disabled={
+                          revoquer.isPending && revoquer.variables === acces.email
+                        }
+                      >
+                        Fermer les sessions
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       variant="outline"

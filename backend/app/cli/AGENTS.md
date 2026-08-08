@@ -235,10 +235,14 @@ jetons, on ne met personne dehors, et les intéressés se reconnectent.
 **Elle a un jumeau dans le back-office** (pouvoir `sessions:revoke`), et la
 redondance est le but : le back-office est ergonomique là où l'exploitant est
 déjà connecté, la CLI reste praticable le jour où c'est justement du back-office
-qu'on se méfie. Le jumeau porte les **deux** gestes — `/admin/sessions` pour
-tous, « Fermer les sessions » par ligne dans `/admin/utilisateurs` pour un
-compte. Une différence à ne pas prendre pour une inconséquence : l'écran cible
-un **identifiant**, la CLI une **adresse**. L'écran liste des comptes et peut
-donc désigner ; `users.email` n'étant pas unique, y frapper par adresse
-emporterait des homonymes que rien n'aurait nommés. La CLI n'a pas d'écran pour
-départager, d'où son parti pris inverse — les prendre tous.
+qu'on se méfie. Le jumeau porte les **deux** portées, et les deux vivent dans
+`/admin/acces` : « Fermer les sessions » par ligne pour une adresse, une carte
+en bas de page pour tout le club. Même cible que la CLI — l'écran liste des
+**adresses**, pas des comptes, et frappe donc tous ceux qui la portent. Un
+second écran pour un unique bouton aurait coûté une entrée de navigation de
+plus.
+
+**Ordre d'exploitation à connaître** : une adresse retirée disparaît de la
+liste, donc ses sessions ne sont plus fermables depuis l'écran. Fermer d'abord,
+retirer ensuite — ou passer par la CLI, qui n'a pas besoin que l'adresse soit
+encore autorisée.

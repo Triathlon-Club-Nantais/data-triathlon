@@ -447,3 +447,17 @@ class SessionRevocation(BaseModel):
 
     sessions: int
     accounts: int
+
+
+class SessionRevocationRequest(BaseModel):
+    """Portée d'une révocation (#169). Corps **facultatif**.
+
+    Absent ou `email: null` → toutes les sessions. Une adresse → les comptes qui
+    la portent, **tous** : `users.email` n'est pas unique (FR-003), et l'écran
+    qui appelle cette route liste des *adresses*, pas des comptes. En épargner un
+    sous incident serait l'erreur coûteuse.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: str | None = None
