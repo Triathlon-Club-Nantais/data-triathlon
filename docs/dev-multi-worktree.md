@@ -1,7 +1,7 @@
 # Dev multi-worktree
 
 Plusieurs worktrees tournent en parallèle sans configuration. Le backend
-(`backend/scripts/dev_server.py`) prend le **premier port libre à partir de 8001** —
+(`backend/scripts/dev_server.py`) laisse l'OS lui attribuer un **port éphémère** —
 un `--port 8001` figé faisait échouer le second worktree sur « Address already in
 use » — et publie ce port dans `.dev-backend.json` à la racine du worktree
 (gitignoré, un par worktree).
@@ -42,10 +42,11 @@ est tué (`pkill`, OOM-kill) — un « 1 » forfaitaire ferait passer un arrêt 
 panne applicative (`scripts/exit-code.mjs`). Ctrl-C ne passe pas par là : SIGINT frappe
 tout le groupe de processus, le lanceur meurt du signal et l'appelant voit déjà 130.
 
-Côté backend, une sortie `SystemExit` d'uvicorn n'est retentée sur un autre port que
-si le port est **effectivement occupé** (`should_retry_after_exit`) : uvicorn quitte
-aussi par `sys.exit()` sur d'autres pannes de démarrage, et retenter à l'aveugle
-masquerait la vraie cause derrière trois démarrages sur trois ports.
+Côté backend, le port vient de l'OS (`bind` sur le port 0), pas d'un scan à partir
+de 8001. Le scan avait un **point de départ déterministe** : deux worktrees démarrés
+au même instant trouvaient le même « premier port libre », d'où une boucle de reprise
+à trois essais pour rattraper la collision. Un port éphémère supprime la cause, donc
+le rattrapage.
 
 Un worktree reste une copie **neuve** : rien de gitignoré ne l'accompagne. Pour les
 worktrees créés par Claude Code (`claude --worktree`, sous-agents

@@ -21,7 +21,7 @@ from app.core import http
 
 from .base import ScrapedResult
 from .classify import classify_event_type
-from .utils import derive_status_from_label, normalize_time, parse_fr_date
+from .utils import derive_status_from_label, normalize_time, parse_fr_date, to_seconds
 
 logger = logging.getLogger(__name__)
 
@@ -205,16 +205,7 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
     # --- Detect cumulative times ---
     # If times for mapped stages are strictly increasing → they are cumulative
     # (checkpoints like KM42 are skipped for this check)
-    def _secs(t: str) -> int:
-        if not t:
-            return 0
-        p = t.split(":")
-        try:
-            return int(p[0]) * 3600 + int(p[1]) * 60 + int(p[2])
-        except (IndexError, ValueError):
-            return 0
-
-    mapped_secs = [_secs(t) for _, t, f in splits_raw if f and t]
+    mapped_secs = [to_seconds(t) for _, t, f in splits_raw if f and t]
     is_cumulative = (
         len(mapped_secs) >= 2
         and all(mapped_secs[i] < mapped_secs[i + 1] for i in range(len(mapped_secs) - 1))
@@ -225,7 +216,7 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
     prev_secs = 0
     last_mapped_secs = 0
     for stage, time_norm, field in splits_raw:
-        secs = _secs(time_norm)
+        secs = to_seconds(time_norm)
 
         if is_cumulative and secs > 0:
             if field is not None:
@@ -269,7 +260,7 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
 
     # If cumulative and run is absent, derive from total − last mapped stage end
     if is_cumulative and not result.run_time and result.total_time:
-        total_s = _secs(result.total_time)
+        total_s = to_seconds(result.total_time)
         if total_s > last_mapped_secs > 0:
             run_s = total_s - last_mapped_secs
             h, rem = divmod(run_s, 3600)

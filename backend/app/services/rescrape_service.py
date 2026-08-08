@@ -14,7 +14,13 @@ from app.core.config import Settings
 from app.models.course import Course
 from app.repositories import athlete_repository, course_repository
 from app.services import sheet_source
-from app.services.batch import BatchFailure, BatchItem, est_echec_total, run_batch
+from app.services.batch import (
+    BatchFailure,
+    BatchItem,
+    est_echec_total,
+    reporter_totals,
+    run_batch,
+)
 from app.services.progress import ProgressReporter
 
 
@@ -176,13 +182,7 @@ def run_rescrape_db(
         single_heat=single_heat,
     )
 
-    outcome.imported = totals.imported
-    outcome.updated = totals.updated
-    outcome.skipped = totals.skipped
-    outcome.errors = totals.errors
-    outcome.failures = totals.failures
-    outcome.processed = totals.processed
-    outcome.interrupted = totals.interrupted
+    reporter_totals(outcome, totals)
 
     outcome.reconciled = totals.reconciled
     outcome.merged = len({r.ancien for r in totals.reassignments if r.fusion})

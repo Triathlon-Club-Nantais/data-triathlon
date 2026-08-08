@@ -7,32 +7,17 @@ import pytest
 
 import scripts.dev_server as dev_server
 from scripts.dev_server import (
-    BIND_ATTEMPTS,
     BIND_HOST,
     CLIENT_HOST,
     PORT_FILE_NAME,
-    _is_free,
     find_free_port,
     main,
     read_port_file,
     remove_port_file,
-    resolve_base_port,
     resolve_forced_port,
-    should_retry_after_exit,
     worktree_root,
     write_port_file,
 )
-
-
-@pytest.fixture
-def port_occupe():
-    """Occupe réellement un port et le rend, pour éprouver le scan sans le simuler."""
-    sock = socket.socket()
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(("127.0.0.1", 0))
-    sock.listen(1)
-    yield sock.getsockname()[1]
-    sock.close()
 
 
 @pytest.fixture
@@ -46,29 +31,28 @@ def port_libre():
 # ── Choix du port ────────────────────────────────────────────────────────────
 
 
-def test_find_free_port_rend_le_port_de_base_quand_il_est_libre(port_libre):
-    assert find_free_port(base=port_libre, span=1) == port_libre
+def test_find_free_port_rend_un_port_reellement_bindable():
+    """Un port éphémère tiré par l'OS : il doit être libre juste après le tirage."""
+    port = find_free_port()
+
+    assert 1024 < port < 65536
+    with socket.socket() as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind((BIND_HOST, port))  # ne lève pas : le port est bien libre
 
 
-def test_find_free_port_saute_un_port_deja_pris(port_occupe):
-    assert find_free_port(base=port_occupe, span=5) == port_occupe + 1
-
-
-def test_find_free_port_echoue_si_toute_la_plage_est_prise(port_occupe):
-    with pytest.raises(RuntimeError, match="aucun port libre"):
-        find_free_port(base=port_occupe, span=1)
+def test_deux_tirages_consecutifs_ne_collisionnent_pas():
+    """La raison d'être de la bascule sur le port 0 : deux worktrees démarrés au
+    même instant tombaient sur le même « premier port libre à partir de 8001 ».
+    L'OS, lui, ne rend pas deux fois le même port éphémère tant que le premier
+    socket est ouvert.
+    """
+    with socket.socket() as premier:
+        premier.bind((BIND_HOST, 0))
+        assert find_free_port() != premier.getsockname()[1]
 
 
 # ── Adresse d'écoute ─────────────────────────────────────────────────────────
-
-
-def test_le_scan_voit_un_port_pris_sur_le_seul_loopback(port_occupe):
-    """Le scan bind l'adresse d'écoute d'uvicorn (`0.0.0.0`), pas le loopback.
-
-    Il faut donc qu'un port occupé sur le seul `127.0.0.1` soit tout de même vu pris :
-    sans cela, le scan déclarerait libre un port qu'uvicorn ne pourrait pas binder.
-    """
-    assert _is_free(port_occupe) is False
 
 
 def test_uvicorn_ecoute_toutes_les_interfaces(monkeypatch, tmp_path, port_libre):
@@ -97,30 +81,6 @@ def test_l_url_publiee_est_une_adresse_de_connexion(tmp_path):
     assert json.loads(chemin.read_text(encoding="utf-8"))["url"] == "http://127.0.0.1:8042"
 
 
-# ── Reprise après une sortie d'uvicorn ───────────────────────────────────────
-
-
-def test_reprise_si_le_port_a_ete_pris_entre_le_scan_et_le_bind(port_occupe):
-    assert should_retry_after_exit(port_occupe, forced=None, tentative=0) is True
-
-
-def test_pas_de_reprise_si_le_port_est_libre(port_libre):
-    """Port libre = la panne n'est pas un conflit de bind : la vraie cause doit remonter,
-    et non se cacher derrière trois démarrages sur trois ports."""
-    assert should_retry_after_exit(port_libre, forced=None, tentative=0) is False
-
-
-def test_pas_de_reprise_sur_un_port_impose(port_occupe):
-    assert should_retry_after_exit(port_occupe, forced=port_occupe, tentative=0) is False
-
-
-def test_pas_de_reprise_a_la_derniere_tentative(port_occupe):
-    assert (
-        should_retry_after_exit(port_occupe, forced=None, tentative=BIND_ATTEMPTS - 1)
-        is False
-    )
-
-
 # ── Variables d'environnement ────────────────────────────────────────────────
 
 
@@ -130,14 +90,6 @@ def test_resolve_forced_port_absent_par_defaut():
 
 def test_resolve_forced_port_lit_dev_backend_port():
     assert resolve_forced_port({"DEV_BACKEND_PORT": "9123"}) == 9123
-
-
-def test_resolve_base_port_vaut_8001_par_defaut():
-    assert resolve_base_port({}) == 8001
-
-
-def test_resolve_base_port_lit_dev_backend_port_base():
-    assert resolve_base_port({"DEV_BACKEND_PORT_BASE": "9000"}) == 9000
 
 
 def test_une_valeur_de_port_non_numerique_est_rejetee_explicitement():

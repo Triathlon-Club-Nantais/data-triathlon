@@ -19,6 +19,7 @@ import pytest
 
 from app.scrapers import chronoweb
 from app.scrapers.base import ScrapedResult
+from app.scrapers.utils import to_seconds
 from app.services.mapping import build_splits
 
 FIXTURES = Path(__file__).parent / "fixtures" / "chronoweb"
@@ -312,7 +313,7 @@ def test_split_times_sum_equals_the_total_time():
     """SC-005 : les 5 segments d'un triathlon complet reconstituent le temps total."""
     slots, _ = _splits(TRIATHLON, "1147", "360")
 
-    assert sum(chronoweb._seconds(t) for t in slots.values()) == chronoweb._seconds("02:13:26")
+    assert sum(to_seconds(t) for t in slots.values()) == to_seconds("02:13:26")
 
 
 def test_split_times_computes_the_two_transitions_of_bib_347():

@@ -1,10 +1,13 @@
 from contextlib import contextmanager
+from dataclasses import fields
 from datetime import date
 
 from app.core.config import Settings
 from app.models.athlete import Athlete
 from app.services import batch, import_service
-from app.services.batch import BatchItem
+from app.services.batch import CHAMPS_COMMUNS, BatchItem, BatchTotals
+from app.services.bulk_import_service import SheetOutcome
+from app.services.rescrape_service import RescrapeOutcome
 
 
 def _settings() -> Settings:
@@ -493,3 +496,19 @@ def test_est_echec_total_faux_sur_un_succes_partiel():
 def test_est_echec_total_faux_quand_il_n_y_avait_rien_a_traiter():
     """Sheet vide, `--limit 0`, filtre sans résultat : rien à faire n'est pas un échec."""
     assert batch.est_echec_total(epreuves=0, errors=0) is False
+
+
+def test_les_champs_communs_existent_des_deux_cotes():
+    """Garde-fou de `reporter_totals` : il recopie par `setattr`.
+
+    Un champ renommé d'un seul côté ne lèverait pas — il **créerait** un attribut
+    parasite sur l'Outcome et laisserait le compteur d'origine à zéro, sans que
+    rien ne rougisse. Ce test est ce qui rend la recopie factorisée sûre.
+
+    Ces sept champs sont aussi la forme **plate** de la sortie `--json` : le
+    pipeline `import-sheet --json | jq -r '.failures[].url' | rescrape-db
+    --urls-from -` en dépend.
+    """
+    for classe in (BatchTotals, SheetOutcome, RescrapeOutcome):
+        champs = {f.name for f in fields(classe)}
+        assert set(CHAMPS_COMMUNS) <= champs, f"{classe.__name__} : {set(CHAMPS_COMMUNS) - champs}"

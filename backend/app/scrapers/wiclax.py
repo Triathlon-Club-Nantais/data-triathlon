@@ -30,6 +30,7 @@ from .utils import (
     parse_fr_date,
     qualify_event_name,
     split_athlete_name,
+    to_seconds,
 )
 
 logger = logging.getLogger(__name__)
@@ -360,15 +361,6 @@ def _display_bib(comp) -> str:
             comp.get("d") or comp.get("D") or "")
 
 
-def _time_to_secs(t: str) -> int:
-    """Convertit un temps normalisé "HH:MM:SS" en secondes (0 si invalide)."""
-    parts = (t or "").split(":")
-    try:
-        return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
-    except (IndexError, ValueError):
-        return 0
-
-
 def _compute_er_ranks(
     root: ET.Element, r_by_bib: dict[str, ET.Element]
 ) -> dict[str, tuple[int, int, int]]:
@@ -394,7 +386,7 @@ def _compute_er_ranks(
                   or derive_status_from_label(raw_t))
         if status in (STATUS_DNF, STATUS_DNS, STATUS_DSQ):
             continue
-        secs = _time_to_secs(normalize_time(raw_t))
+        secs = to_seconds(normalize_time(raw_t))
         if not secs:
             continue
         parcours = comp.get("p") or comp.get("P") or ""
