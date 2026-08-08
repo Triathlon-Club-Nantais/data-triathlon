@@ -67,6 +67,22 @@ class BatchTotals:
     reassignments: list[Reassignment] = field(default_factory=list)
 
 
+#: Les compteurs que `BatchTotals` et les deux `*Outcome` portent à l'identique.
+#: Ils restent **plats** sur l'Outcome : `asdict()` alimente la sortie `--json` de
+#: la CLI, dont la forme est un contrat (le pipeline `import-sheet --json |
+#: jq -r '.failures[].url' | rescrape-db --urls-from -`). Une imbrication
+#: `totals: {…}` la casserait.
+CHAMPS_COMMUNS = (
+    "imported", "updated", "skipped", "errors", "processed", "interrupted", "failures",
+)
+
+
+def reporter_totals(outcome, totals: BatchTotals) -> None:
+    """Reporte les compteurs communs du batch sur le bilan de la commande."""
+    for champ in CHAMPS_COMMUNS:
+        setattr(outcome, champ, getattr(totals, champ))
+
+
 @dataclass
 class _ItemResult:
     """Ce qu'une épreuve rapporte au batch. `error` non nul = épreuve fautive."""

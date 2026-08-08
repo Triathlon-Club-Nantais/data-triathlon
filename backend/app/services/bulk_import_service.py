@@ -11,7 +11,13 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.scrapers import registry
 from app.services import sheet_source
-from app.services.batch import BatchFailure, BatchItem, est_echec_total, run_batch
+from app.services.batch import (
+    BatchFailure,
+    BatchItem,
+    est_echec_total,
+    reporter_totals,
+    run_batch,
+)
 from app.services.progress import ProgressReporter
 
 
@@ -103,11 +109,5 @@ def run_import_sheet(
         db, items, settings, force=False, delay=delay, reporter=reporter
     )
 
-    outcome.imported = totals.imported
-    outcome.updated = totals.updated
-    outcome.skipped = totals.skipped
-    outcome.errors = totals.errors
-    outcome.processed = totals.processed
-    outcome.interrupted = totals.interrupted
-    outcome.failures = totals.failures
+    reporter_totals(outcome, totals)
     return outcome

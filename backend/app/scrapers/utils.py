@@ -84,6 +84,34 @@ def normalize_time(raw: str) -> str:
     return s  # return as-is if unrecognized
 
 
+#: `HH:MM:SS` ou `MM:SS`, ancré en fin de chaîne — un suffixe non lu (`01:23:45.6`)
+#: ne doit pas être tronqué en silence, il doit sortir du motif.
+_TIME_RE = re.compile(r"(?:(\d+):)?(\d{1,2}):(\d{2})$")
+
+
+def to_seconds(t: str | None, *, strict: bool = False) -> int | None:
+    """Secondes d'un temps `HH:MM:SS` (ou `MM:SS`).
+
+    Une seule définition pour les six copies qu'en portaient klikego, timepulse,
+    wiclax, chronoweb, oktime et `stats_service`.
+
+    `strict` porte la seule distinction réelle entre elles : à `False`, l'illisible
+    vaut `0` — ce que veut un calcul de cumul, où l'absence de durée est un zéro ;
+    à `True`, il vaut `None`, ce qui sépare « ce point ne porte pas de durée »
+    (`00:00:00` → `0`) de « ce point est illisible » (`01:23:45.6` → `None`), une
+    perte de donnée qui doit se journaliser.
+    """
+    match = _TIME_RE.search(t or "")
+    if not match:
+        return None if strict else 0
+    return int(match.group(1) or 0) * 3600 + int(match.group(2)) * 60 + int(match.group(3))
+
+
+def fmt_seconds(s: int) -> str:
+    """Secondes → `HH:MM:SS`."""
+    return f"{s // 3600:02d}:{(s % 3600) // 60:02d}:{s % 60:02d}"
+
+
 def normalize_rank(val) -> int | None:
     if val is None:
         return None
