@@ -61,7 +61,11 @@ export function PermissionGrid({
                 <input
                   id={id}
                   type="checkbox"
-                  className="mt-1"
+                  // Une case figée doit **se voir** figée : `disabled` seul ne
+                  // change rien au rendu d'une case native, et une case inerte
+                  // était indistinguable d'une case cliquable. `opacity-50` est
+                  // l'atténuation déjà employée par `Button` pour cet état.
+                  className="mt-1 disabled:cursor-not-allowed disabled:opacity-50"
                   checked={coches.has(pouvoir.code)}
                   disabled={fige}
                   aria-describedby={
@@ -71,7 +75,7 @@ export function PermissionGrid({
                   }
                   onChange={(e) => onToggle?.(pouvoir.code, e.target.checked)}
                 />
-                <div className="space-y-0.5">
+                <div className={`space-y-0.5${fige ? " opacity-60" : ""}`}>
                   <Label htmlFor={id} className="font-medium">
                     {pouvoir.label}
                   </Label>
