@@ -32,6 +32,7 @@ FEATURE_QUALITY = "Qualité des données"
 FEATURE_COURSES = "Épreuves"
 FEATURE_ATHLETES = "Coureurs"
 FEATURE_PARTICIPATIONS = "Résultats"
+FEATURE_BATCH = "Batches"
 
 
 @dataclass(frozen=True, slots=True)
@@ -173,6 +174,21 @@ class P:
         "d'identité.",
         FEATURE_PARTICIPATIONS,
     )
+    # Deux pouvoirs et non un : lancer une reprise réécrit les résultats de
+    # centaines d'épreuves, en relire le bilan ne touche à rien. Les confondre
+    # obligerait à donner le premier pour obtenir le second.
+    BATCH_RUN = Permission(
+        "batch:run",
+        "Lancer un batch",
+        "Lancer une reprise de la base ou l'import d'un fichier de résultats.",
+        FEATURE_BATCH,
+    )
+    BATCH_READ = Permission(
+        "batch:read",
+        "Consulter les batches",
+        "Suivre les lancements en cours et relire leurs bilans.",
+        FEATURE_BATCH,
+    )
 
 
 #: L'inventaire, dans l'ordre d'affichage. `P` en est la façade d'appel ; un
@@ -196,6 +212,8 @@ ALL: tuple[Permission, ...] = (
     P.PARTICIPATIONS_WRITE,
     P.PARTICIPATIONS_DELETE,
     P.PARTICIPATIONS_REASSIGN,
+    P.BATCH_RUN,
+    P.BATCH_READ,
 )
 
 _BY_CODE: dict[str, Permission] = {pouvoir.code: pouvoir for pouvoir in ALL}
