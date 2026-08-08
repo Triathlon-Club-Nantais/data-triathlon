@@ -13,7 +13,13 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { useAdminUsers, useGrantRole, useRevokeRole } from "@/lib/queries/admin";
+import {
+  useAdminUsers,
+  useGrantRole,
+  useRevokeRole,
+  useRevokeUserSessions,
+} from "@/lib/queries/admin";
+import { useSession } from "@/lib/queries/auth";
 import { useRolesAttribuables } from "@/lib/roles";
 import { messageDeRefus } from "@/lib/api/refus";
 import { formatDate } from "@/lib/utils/date";
@@ -30,6 +36,11 @@ export function UserRolesTable() {
   const { roles, accordable } = useRolesAttribuables();
   const attribuer = useGrantRole();
   const retirer = useRevokeRole();
+  const session = useSession();
+  const revoquer = useRevokeUserSessions();
+  // L'écran est atteignable avec `roles:assign` seul : un bouton qui rendrait
+  // 403 à chaque clic est pire que pas de bouton. Patron de `CoursesAdminTable`.
+  const peutRevoquer = session.data?.permissions.includes("sessions:revoke") ?? false;
 
   async function poser(utilisateur: AdminUser, roleId: number) {
     try {
@@ -48,6 +59,17 @@ export function UserRolesTable() {
       // Le 409 du dernier administrateur porte son message côté serveur, déjà
       // en français ; le front le rend tel quel plutôt que d'en inventer un
       // second, et la liste reste inchangée.
+      toast.error((e as Error).message);
+    }
+  }
+
+  async function fermerLesSessions(utilisateur: AdminUser) {
+    try {
+      const bilan = await revoquer.mutateAsync(utilisateur.id);
+      toast.success(
+        `${bilan.sessions} session(s) fermée(s) pour ${utilisateur.display_name}.`,
+      );
+    } catch (e) {
       toast.error((e as Error).message);
     }
   }
@@ -72,6 +94,7 @@ export function UserRolesTable() {
             <TableHead>Rôles</TableHead>
             <TableHead>Attribuer</TableHead>
             <TableHead>Inscrit le</TableHead>
+            {peutRevoquer && <TableHead>Sessions</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -144,6 +167,24 @@ export function UserRolesTable() {
                   </select>
                 </TableCell>
                 <TableCell>{formatDate(utilisateur.created_at)}</TableCell>
+                {peutRevoquer && (
+                  <TableCell>
+                    {/* Sans dialogue de confirmation, comme la CLI sur
+                        `--email` : le geste se répare par une reconnexion, à
+                        l'inverse de la révocation globale. Il **supprime** les
+                        jetons, là où retirer l'adresse (#170) se contente de
+                        les faire refuser — réversiblement. */}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={revoquer.isPending}
+                      aria-label={`Fermer les sessions de ${utilisateur.display_name}`}
+                      onClick={() => fermerLesSessions(utilisateur)}
+                    >
+                      Fermer les sessions
+                    </Button>
+                  </TableCell>
+                )}
               </TableRow>
             );
           })}

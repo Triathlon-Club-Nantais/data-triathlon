@@ -11,7 +11,7 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 
 - `app/` — App Router : `dashboard`, `resultats`, `athletes/[id]`, `courses/[id]`,
   `club`, `carte`, `ajouter`, `admin`, `admin/acces`, `admin/utilisateurs`,
-  `admin/groupes`, `admin/droits`.
+  `admin/groupes`, `admin/droits`, `admin/sessions`.
 - **Composition des rôles** (`admin/droits`, #240) — l'écran **n'invente aucun
   regroupement** : `GET /admin/permissions` rend l'inventaire déjà rangé par
   fonctionnalité, dans son ordre d'affichage, et `PermissionGrid` le reproduit
@@ -39,6 +39,10 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   codes », qui est faux. Et une session **illisible** n'est pas une session sans
   pouvoirs : `useSession` ne réessaie pas, donc son erreur entre dans la garde de
   l'écran plutôt que de figer les cases en affirmant qu'on ne porte rien.
+- **Révocation d'urgence des sessions** (`admin/sessions`, #169 — jumelle de la
+  CLI, la redondance étant le but : le back-office suppose une session, la CLI
+  non). Le geste **par compte** du même #169 vit dans `admin/utilisateurs`, et
+  cible un identifiant, jamais une adresse (`users.email` n'est pas unique).
 - **Navigation** — `components/layout/nav.config.ts` en est la description
   **unique** ; ajouter une destination y tient en une ligne. Deux échelons de
   visibilité, à ne pas confondre : `minRole` ne distingue qu'anonyme et

@@ -117,16 +117,44 @@ l'interface — jamais un message du fournisseur ni une donnée d'entrée.
 
 Trois points que le code ne dit pas :
 
-- **La fermeture en masse des sessions est une procédure, pas un outil.** Pour
-  **un compte** : `is_active = False` ferme immédiatement toutes ses sessions,
-  l'invariant étant une jointure. Pour **tous** : supprimer toutes les lignes de
-  `user_sessions`. Aucune commande CLI n'est livrée — le dépôt n'a aucun
-  ordonnanceur, et une commande que personne ne lance ferait croire à une
-  hygiène qui n'existe pas. Les sessions expirées sont purgées **opportunément**,
-  à l'ouverture d'une session, pour le seul utilisateur concerné.
-  **Cet argument ne couvre que l'hygiène**, pas la révocation d'urgence : en
-  incident, la procédure suppose d'ouvrir `psql` sur Supabase à la main. Les deux
-  besoins ont été fondus à tort ; le second est suivi en #169, hors périmètre.
+- **L'hygiène est une procédure, la révocation d'urgence est un outil** (#169).
+  Les deux avaient été fondus, et l'argument « le dépôt n'a aucun ordonnanceur,
+  une commande que personne ne lance ferait croire à une hygiène qui n'existe
+  pas » ne couvrait que le premier. Il tient toujours pour lui : les sessions
+  **expirées** sont purgées opportunément, à l'ouverture d'une session, pour le
+  seul utilisateur concerné, et un cron y serait du théâtre. Le second n'arrive
+  jamais, sauf le jour où — et la procédure supposait alors d'ouvrir `psql` sur
+  Supabase à la main, sous stress, en production. `session.revoke_all` /
+  `revoke_for_email` sont désormais livrés par **deux** chemins, délibérément
+  redondants : `python -m app.cli revoke-sessions` (`app/cli/AGENTS.md`) et
+  `POST /admin/sessions/revoke` (pouvoir `sessions:revoke`), ce dernier ne
+  faisant que le geste global. Le back-office est ergonomique là où l'exploitant
+  est déjà connecté ; la CLI reste praticable le jour où c'est justement du
+  back-office qu'on se méfie.
+  **Révoquer et retirer ne sont pas le même geste**, et c'est ce que #170
+  attendait : retirer une adresse pose `is_active = False` et ferme par la
+  **jointure**, sans effacer une ligne — une réinscription dans la fenêtre de TTL
+  ressuscite les jetons exacts. Révoquer **supprime** les lignes et ne désactive
+  personne : on coupe des jetons, les comptes restent ouverts, chacun se
+  reconnecte. Fermer *un* compte durablement se fait des deux côtés :
+  `revoke-sessions --email` en CLI, « Fermer les sessions » par ligne dans
+  `/admin/utilisateurs`. **La cible diffère, et ce n'est pas une inconséquence** :
+  l'écran vise un *identifiant* — il liste des comptes, et `users.email` n'étant
+  pas unique, frapper par adresse y emporterait des homonymes que rien n'a
+  nommés —, la CLI vise l'*adresse*, faute d'écran pour départager.
+  **`sessions:revoke` n'a aucun plafond, et c'est le seul pouvoir du dépôt dans
+  ce cas.** `allowed_emails:manage` vaut « fermer n'importe quel compte » mais
+  bute sur `administrateurs_preserves` ; ici rien n'est retiré, aucun code ne
+  change de mains, donc ni la non-amplification, ni l'invariant du dernier
+  administrateur, ni `assert_may_distribute_superuser` ne sont sur le chemin. Un
+  porteur non superutilisateur qui répète le geste tient tout le monde dehors, y
+  compris le dernier administrateur, et **aucune CLI ne retire rien**
+  (`grant-role` n'accorde, `allow-email` n'inscrit) : reprendre la main
+  passerait par la base. Le plafond réel est qu'une révocation *unique* est
+  auto-réparatrice — les comptes restent actifs, chacun se reconnecte. Le reste
+  suppose un porteur de confiance, ce qui est le modèle de menace du dépôt ;
+  scinder le pouvoir n'y changerait rien, seule une garde de non-amplification
+  sur la révocation le ferait, qu'aucun besoin exprimé ne réclame.
 - **L'adresse refusée est journalisée, la table des tentatives est écartée.**
   Un refus `account_not_allowed` trace l'adresse soumise dans les journaux du
   backend : sans elle, aucun refus n'est diagnosticable et l'exploitant ne sait
@@ -355,15 +383,17 @@ Cinq points à ne pas défaire :
   La réactivation à l'ajout n'est pas un raffinement : sans elle, réinscrire
   quelqu'un ne rouvrirait rien — un compte désactivé est refusé *avant* que la
   liste ne soit consultée, et l'exploitant verrait l'adresse au tableau pendant
-  que la personne reste dehors. **Échéance connue** : `is_active` acquiert ici son
-  premier producteur applicatif ; le second sera #169 (révocation d'urgence), à
-  qui il reviendra de distinguer « fermé parce que retiré » de « fermé parce que
-  révoqué ». **Corollaire à ne pas découvrir en incident** : le retrait ne
+  que la personne reste dehors. **Échéance tenue** (#169) : `is_active` reste le
+  seul producteur applicatif de ce chemin — la révocation d'urgence n'y touche
+  **pas**, et c'est ainsi que « fermé parce que retiré » se distingue de « fermé
+  parce que révoqué » : le premier ferme par la jointure et laisse les lignes, le
+  second supprime les lignes et laisse le compte actif.
+  **Corollaire à ne pas découvrir en incident** : le retrait ne
   supprime aucune ligne de `user_sessions` — c'est la jointure qui refuse. Une
   réinscription dans la fenêtre de TTL (7 jours) **ressuscite donc les jetons
   exacts** que le retrait avait coupés, appareil oublié compris. L'écran dit
   « fermé immédiatement », et c'est vrai *tant que l'adresse reste absente* ;
-  fermer pour de bon relève de #169.
+  fermer pour de bon est un `revoke-sessions --email <adresse>`.
 - **`allowed_emails:manage` vaut en pratique « fermer n'importe quel compte ».**
   Un porteur non superutilisateur peut désactiver tout le monde sauf le dernier
   administrateur — un chemin qui ne traverse pas `assert_may_grant`, donc **hors

@@ -124,6 +124,36 @@ classent d'elles-mêmes dans le filet d'inventaire par la règle du préfixe —
 bouger. Un groupe **n'accorde rien** : la garde ne les lit jamais, et
 `tests/test_auth/test_groups_grant_nothing.py` l'établit par AST.
 
+## Révocation d'urgence des sessions (#169)
+
+Deux ressources, un seul pouvoir, `sessions:revoke` :
+`POST /admin/sessions/revoke` (toutes) et
+`POST /admin/users/{user_id}/sessions/revoke` (un compte). Toutes deux rendent
+`{"sessions": N, "accounts": M}` — deux chiffres qui ne comptent
+que ce qui était **vivant** (non expiré, compte actif), alors que la suppression,
+elle, emporte tout. L'écart est délibéré : supprimer une ligne morte est de
+l'hygiène gratuite, l'annoncer comme « fermée » serait un mensonge, et faute
+d'ordonnanceur une base réelle en est pleine. Trois points :
+
+- **Deux ressources, même pouvoir**, et la seconde n'est pas un doublon du
+  retrait d'adresse. `POST /admin/users/{user_id}/sessions/revoke` cible **un
+  compte** : retirer une adresse (#170) ferme par la jointure mais **n'efface
+  aucune ligne**, donc une réinscription dans la fenêtre de TTL ressuscite les
+  jetons ; ici les lignes partent et le compte reste actif. Elle cible un
+  **identifiant**, jamais une adresse — `users.email` n'est pas unique (FR-003),
+  et l'écran qui l'appelle liste des comptes : frapper par adresse y toucherait
+  des homonymes que rien n'aurait nommés. La CLI, elle, prend l'adresse faute
+  d'écran pour choisir. Un identifiant inconnu est un **succès sans effet**,
+  même parti pris que le retrait d'une adresse et d'un rôle.
+- **Elle ferme la session de l'appelant**, et ce n'est pas un effet de bord à
+  corriger : sous fuite, son jeton est suspect comme les autres. L'écran
+  l'annonce avant le geste et renvoie vers `/login`.
+- **Idempotente** : « 0 session fermée » est un succès. Distinguer un geste utile
+  d'un geste dans le vide appartient au compte rendu, pas au code de statut.
+
+Le jumeau hors ligne est `python -m app.cli revoke-sessions`, et la redondance
+est le but — voir `app/cli/AGENTS.md`.
+
 ## Administration des données (#117)
 
 `admin_data.py` porte six ressources : quatre gestes correctifs et deux lectures

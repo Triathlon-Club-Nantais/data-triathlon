@@ -252,6 +252,27 @@ export function useRevokeRole() {
   });
 }
 
+// ── Révocation d'urgence des sessions (#169) ─────────────────────────────────
+
+/**
+ * Invalide la **session**, comme `useLogout` — le geste ferme aussi celle de
+ * l'appelant.
+ *
+ * On avait d'abord cru qu'il ne fallait rien invalider, « tout refetch rendant
+ * 401 ». C'est faux là où ça compte : `useSession` traduit un 401 en `null`,
+ * par contrat, et le refetch donne donc l'état anonyme correct. Sans lui, la
+ * navigation client vers `/login` laisse `AppNav` et `UserMenu` montés dans le
+ * layout racine, avec le nom, l'avatar et tout le menu d'administration — un
+ * écran d'apparence connectée, exactement ce que le composant dit éviter.
+ */
+export function useRevokeAllSessions() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiClient.revokeAllSessions(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.session() }),
+  });
+}
+
 // ── Groupes d'appartenance (#241) ────────────────────────────────────────────
 
 export function useGroups() {
@@ -408,4 +429,22 @@ export function useUpdateRole() {
 
 export function useDeleteRole() {
   return useRoleMutation((id: number) => apiClient.deleteRole(id));
+}
+
+/**
+ * Révocation durable d'**un** compte (#169).
+ *
+ * Invalide aussi la session : le geste est permis sur soi-même — c'est celui de
+ * « j'ai perdu mon téléphone » —, et sans cette ligne la topbar resterait
+ * connectée alors que la requête suivante rendrait 401.
+ */
+export function useRevokeUserSessions() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: number) => apiClient.revokeUserSessions(userId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.adminUsers() });
+      qc.invalidateQueries({ queryKey: queryKeys.session() });
+    },
+  });
 }
