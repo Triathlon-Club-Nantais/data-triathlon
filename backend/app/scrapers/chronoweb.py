@@ -37,6 +37,7 @@ from app.core import http
 from app.scrapers.base import FanoutTrace, ScrapedResult
 from app.scrapers.classify import classify_event_type
 from app.scrapers.utils import (
+    fmt_seconds,
     normalize_rank,
     normalize_time,
     qualify_event_name,
@@ -298,10 +299,6 @@ _POINT_PATTERNS: dict[tuple[str, ...], tuple[str, ...]] = {
 _TRANSITION_LABEL = "Changement"
 
 
-def _format(total: int) -> str:
-    return f"{total // 3600:02d}:{total % 3600 // 60:02d}:{total % 60:02d}"
-
-
 def _race_points(rows: list[Row]) -> list[tuple[int, str]]:
     """Ordered timing points of one race: `[(1, "Natation"), (8, "Vélo"), …]`."""
     points = {row.passage.point_id: row.passage.point_name for row in rows}
@@ -318,7 +315,7 @@ def _transition(previous: Passage | None, current: Passage | None) -> str:
     if previous is None or current is None:
         return ""
     gap = to_seconds(current.cumulative) - to_seconds(current.segment) - to_seconds(previous.cumulative)
-    return _format(gap) if gap > 0 else ""
+    return fmt_seconds(gap) if gap > 0 else ""
 
 
 def _split_times(

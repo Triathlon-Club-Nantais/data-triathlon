@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 
-HEADERS = DEFAULT_HEADERS
+HEADERS = {**DEFAULT_HEADERS}
 
 
 # Attributs candidats (forward-compat) ; le vrai signal Wiclax est le flag np.

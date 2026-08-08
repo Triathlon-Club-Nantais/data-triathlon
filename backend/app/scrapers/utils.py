@@ -6,9 +6,9 @@ from datetime import date as date_t
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER
 
-#: En-têtes par défaut de toute sortie HTTP d'un scraper. Neuf modules en
+#: En-têtes par défaut de toute sortie HTTP d'un scraper. Onze modules en
 #: portaient une copie identique au caractère près ; changer l'User-Agent
-#: voulait dire neuf éditions, et rien ne signalait celle qu'on oubliait.
+#: voulait dire onze éditions, et rien ne signalait celle qu'on oubliait.
 #: Un fournisseur qui a besoin d'un `Referer` ou d'un `Accept` propre compose :
 #: `{**DEFAULT_HEADERS, "Referer": …}`.
 DEFAULT_HEADERS = {
@@ -96,8 +96,11 @@ def normalize_time(raw: str) -> str:
     return s  # return as-is if unrecognized
 
 
-#: `HH:MM:SS` ou `MM:SS`, ancré en fin de chaîne — un suffixe non lu (`01:23:45.6`)
-#: ne doit pas être tronqué en silence, il doit sortir du motif.
+#: `HH:MM:SS` ou `MM:SS`, ancré **en fin** de chaîne — un suffixe non lu
+#: (`01:23:45.6`) ne doit pas être tronqué en silence, il doit sortir du motif.
+#: L'ancrage n'est que final, et la lecture se fait au `search` : un *préfixe*
+#: est avalé (`"total 01:23:45"` → 5025), comme le faisait `stats_service`.
+#: Sans conséquence, tous les appelants normalisant en amont par `normalize_time`.
 _TIME_RE = re.compile(r"(?:(\d+):)?(\d{1,2}):(\d{2})$")
 
 

@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://fftri.t2area.com"
 HOST = "fftri.t2area.com"
-HEADERS = DEFAULT_HEADERS
+HEADERS = {**DEFAULT_HEADERS}
 
 _PREFIXE = "/calendrier/"
 _ANNEE_RE = re.compile(r"^\d{4}$")

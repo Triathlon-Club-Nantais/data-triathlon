@@ -1348,9 +1348,9 @@ def _identites_incompatibles(a: ScrapedResult, b: ScrapedResult) -> bool:
 # fan-out — les listes qui l'utilisent sont scrapées comme avant, sans clé de
 # cache dédiée (une URL de contest "0" n'a pas de sens de « sous-unité »).
 
-# Reprend `FanoutTrace` de Klikego : contrat unique côté `import_service`
+# `FanoutTrace` vient de `base` : contrat unique côté `import_service`
 # (`_fanout_counters`, `_merge_cached_courses`).
-from app.scrapers.klikego import FanoutTrace  # noqa: E402 — patron partagé #195
+from app.scrapers.base import FanoutTrace  # noqa: E402 — patron partagé #195
 
 
 def _sub_source_url(event_id: str, contest_id: str) -> str:

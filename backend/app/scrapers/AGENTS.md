@@ -1,7 +1,9 @@
 # Scrapers
 
 `registry.py` = le registre **Protocol** (fin des `if-else`) + un module par
-provider ; `base.py` = `ScrapedResult` ; `utils.py` = helpers de normalisation.
+provider ; `base.py` = le contrat partagé (`ScrapedResult`, `FanoutTrace`, les
+constantes `STATUS_*`) ; `utils.py` = helpers de normalisation (dont
+`DEFAULT_HEADERS`, `to_seconds`/`fmt_seconds`).
 
 ## Conventions
 

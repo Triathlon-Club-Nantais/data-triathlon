@@ -48,10 +48,10 @@ import httpx
 
 from app.core import http
 
-from .base import STATUS_DNF, STATUS_FINISHER, ScrapedResult
+from .base import STATUS_DNF, STATUS_FINISHER, FanoutTrace, ScrapedResult
 from .classify import classify_event_type
-from .klikego import FanoutTrace
 from .utils import (
+    DEFAULT_HEADERS,
     derive_status_from_label,
     normalize_rank,
     normalize_time,
@@ -68,14 +68,9 @@ _PROVIDER = "sporthive"
 
 _API_BASE = "https://eventresults-api.speedhive.com/sporthive"
 # The API is public: no key, no cookie, no `Origin` required. A browser
-# User-Agent all the same, like every other scraper of the project.
-_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-    ),
-    "Accept": "application/json",
-}
+# User-Agent all the same, like every other scraper of the project — hence the
+# shared default, composed here with the `Accept` this API needs.
+_HEADERS = {**DEFAULT_HEADERS, "Accept": "application/json"}
 # size=50 gets a 400 ("The size value cannot be greater than 10") server-side.
 _PAGE_SIZE = 10
 # Hard cap: the worst case measured on the panel needs 269 requests for one race.

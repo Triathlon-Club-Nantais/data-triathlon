@@ -47,7 +47,7 @@ def _segments(s_elems: str) -> list[ET.Element]:
     return list(ET.fromstring(f"<Segments>{s_elems}</Segments>"))
 
 
-def testclassify_event_type():
+def test_classify_event_type():
     assert classify_event_type("Triathlon L") == "triathlon-l"
     assert classify_event_type("Triathlon M") == "triathlon-m"
     assert classify_event_type("Sprint de la Roche") == "triathlon-s"
@@ -939,7 +939,8 @@ def test_sub_source_url_parcours_vide_pas_de_qualif():
 
 def test_scrape_event_fanout_nominal_returns_trace(monkeypatch):
     """Fan-out sans cache_probe : 3 parcours énumérés, tous scrapés, trace complète."""
-    from app.scrapers.wiclax import FanoutTrace, scrape_event_fanout
+    from app.scrapers.base import FanoutTrace
+    from app.scrapers.wiclax import scrape_event_fanout
 
     _stub_fetch_clax(monkeypatch, _clax_multi_parcours())
     results, trace = scrape_event_fanout("http://x")
