@@ -24,7 +24,7 @@ directement. Le mapping des splits, lui, reste propre à chaque provider.
 """
 import logging
 from collections.abc import Callable
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 from urllib.parse import parse_qs, urlparse
 
 from app.scrapers import (
@@ -43,7 +43,7 @@ from app.scrapers import (
     timepulse,
     wiclax,
 )
-from app.scrapers.base import ScrapedResult
+from app.scrapers.base import FanoutTrace, ScrapedResult
 
 logger = logging.getLogger(__name__)
 
@@ -128,6 +128,59 @@ class HostMatchedProvider:
         return _host_match(url, self._HOSTS)
 
 
+class FanoutProvider(HostMatchedProvider):
+    """Provider à fan-out : détection par host, sous-unités scrapées une à une.
+
+    Le patron #156/#195, écrit une fois. Un provider n'a plus qu'à déclarer son
+    `_module` — qui expose `scrape_event_fanout` pour le chemin nominal et
+    `scrape_event_all` pour l'échappatoire — et ses `_HOSTS`. Ce qui lui est
+    propre se surcharge, comme avant : la règle de match composée de Wiclax, le
+    parsing d'URL de Klikego, la sémantique `single_heat` de ChronoWeb.
+
+    `last_trace` est lue par `import_service` après le scrape pour peupler les
+    5 compteurs de FR-008. C'est aussi ce type qui décide du dispatch :
+    `isinstance(provider, FanoutProvider)` a remplacé un tuple de sept classes
+    tenu à la main, qu'un huitième provider aurait pu ne jamais rejoindre.
+    """
+
+    #: Module du scraper (`scrape_event_fanout` + `scrape_event_all`).
+    _module: Any = None
+    #: Ce que porte `heat_slug` quand l'échappatoire échoue. RaceResult y met
+    #: l'URL — c'est sa sous-unité —, les autres n'ont rien à nommer.
+    _echec_slug_est_url = False
+
+    def __init__(self) -> None:
+        self.last_trace: FanoutTrace | None = None
+
+    def scrape_event_all(
+        self, url: str,
+        *,
+        cache_probe: Callable[[str], bool] | None = None,
+        on_heat_start: Callable[[str, str, int, int], None] | None = None,
+        single_heat: bool = False,
+    ) -> list[ScrapedResult]:
+        """Fan-out par défaut ; `single_heat=True` court-circuite sans cache_probe."""
+        if single_heat:
+            # Échappatoire `--single-heat` : aucun fan-out, mais une trace
+            # synthétique 1-heat pour maintenir l'invariant
+            # `enumerated = imported + cached + len(failures)`.
+            self.last_trace = FanoutTrace(heats_enumerated=1)
+            try:
+                return self._module.scrape_event_all(url)
+            except Exception as exc:
+                self.last_trace.failures.append({
+                    "heat_slug": url if self._echec_slug_est_url else "",
+                    "reason": str(exc),
+                })
+                raise
+
+        results, trace = self._module.scrape_event_fanout(
+            url, cache_probe=cache_probe, on_heat_start=on_heat_start,
+        )
+        self.last_trace = trace
+        return results
+
+
 class ModuleProvider(HostMatchedProvider):
     """Provider sans particularité : détection par host, délégation au module.
 
@@ -148,7 +201,7 @@ class ModuleProvider(HostMatchedProvider):
         return self._module.scrape_event_all(url)
 
 
-class KlikegoProvider(HostMatchedProvider):
+class KlikegoProvider(FanoutProvider):
     """Klikego — URL d'événement = tous les heats (fan-out, issue #156).
 
     Le paramètre `?heat=X` **éventuellement présent** dans l'URL est **ignoré**
@@ -162,8 +215,7 @@ class KlikegoProvider(HostMatchedProvider):
     name = "klikego"
     _HOSTS = ("klikego.com",)
 
-    def __init__(self) -> None:
-        self.last_trace: klikego.FanoutTrace | None = None
+    _module = klikego
 
     def _parse_url(self, url: str) -> tuple[str, str, str, str]:
         """(event_id, heat_query, slug, event_name) — `heat_query` = ?heat= éventuel."""
@@ -189,7 +241,7 @@ class KlikegoProvider(HostMatchedProvider):
         if single_heat:
             # Chemin échappatoire (--single-heat) : nécessite ?heat=X dans l'URL.
             # La validation CLI (validators) doit refuser une URL nue avant d'arriver ici.
-            self.last_trace = klikego.FanoutTrace(heats_enumerated=1)
+            self.last_trace = FanoutTrace(heats_enumerated=1)
             try:
                 return klikego.scrape_event_all(event_id, heat_query, event_name, slug)
             except Exception as exc:
@@ -233,7 +285,7 @@ class BreizhChronoProvider(HostMatchedProvider):
         return breizhchrono.scrape_event_all(event_id, heat, event_name, slug)
 
 
-class WiclaxProvider(HostMatchedProvider):
+class WiclaxProvider(FanoutProvider):
     """Wiclax/G-Live — URL d'événement = tous les parcours (fan-out, issue #195).
 
     Sous-unité = **parcours** (attribut `p` du XML `.clax`). Le `.clax` étant
@@ -251,8 +303,7 @@ class WiclaxProvider(HostMatchedProvider):
     # G-Live (issue #35).
     _HOSTS = ("wiclax-results.com", "chronosmetron.com", "chronowest.fr")
 
-    def __init__(self) -> None:
-        self.last_trace: wiclax.FanoutTrace | None = None
+    _module = wiclax
 
     def matches(self, url: str) -> bool:
         # `wiclax.com` est le site vitrine de l'éditeur : il n'est pas dans
@@ -264,38 +315,8 @@ class WiclaxProvider(HostMatchedProvider):
             _host_match(url, ("wiclax.com",)) and "G-Live" in _url_path(url)
         )
 
-    def scrape_event_all(
-        self, url: str,
-        *,
-        cache_probe: Callable[[str], bool] | None = None,
-        on_heat_start: Callable[[str, str, int, int], None] | None = None,
-        single_heat: bool = False,
-    ) -> list[ScrapedResult]:
-        """Fan-out par défaut ; `single_heat=True` retombe sur l'appel legacy.
 
-        Le mode `single_heat` du provider Wiclax renvoie l'événement entier
-        sans découpage par parcours : Wiclax n'expose pas de sélecteur d'URL
-        ciblant un parcours particulier, l'échappatoire vaut donc « ne pas
-        fan-outer » plutôt que « scraper un unique parcours ».
-        """
-        if single_heat:
-            self.last_trace = wiclax.FanoutTrace(heats_enumerated=1)
-            try:
-                return wiclax.scrape_event_all(url)
-            except Exception as exc:
-                self.last_trace.failures.append(
-                    {"heat_slug": "", "reason": str(exc)}
-                )
-                raise
-
-        results, trace = wiclax.scrape_event_fanout(
-            url, cache_probe=cache_probe, on_heat_start=on_heat_start,
-        )
-        self.last_trace = trace
-        return results
-
-
-class RaceResultProvider(HostMatchedProvider):
+class RaceResultProvider(FanoutProvider):
     """RaceResult — URL d'événement = tous les contests (fan-out, issue #217).
 
     Sous-unité = **contest** de `config["contests"]`. Le fan-out expose sa
@@ -315,37 +336,12 @@ class RaceResultProvider(HostMatchedProvider):
     # par la même API JSON publique.
     _HOSTS = ("raceresult.com", "espace-competition.com", "chronoconsult.fr")
 
-    def __init__(self) -> None:
-        self.last_trace: raceresult.FanoutTrace | None = None
-
-    def scrape_event_all(
-        self, url: str,
-        *,
-        cache_probe: Callable[[str], bool] | None = None,
-        on_heat_start: Callable[[str, str, int, int], None] | None = None,
-        single_heat: bool = False,
-    ) -> list[ScrapedResult]:
-        """Fan-out par contest ; `single_heat=True` cible l'URL sans fan-out."""
-        if single_heat:
-            # Chemin échappatoire (--single-heat) : aucun fan-out, pas de trace.
-            # Utile aux tests et à un rescrape d'événement en pot commun.
-            self.last_trace = raceresult.FanoutTrace(heats_enumerated=1)
-            try:
-                return raceresult.scrape_event_all(url)
-            except Exception as exc:
-                self.last_trace.failures.append(
-                    {"heat_slug": url, "reason": str(exc)}
-                )
-                raise
-
-        results, trace = raceresult.scrape_event_fanout(
-            url, cache_probe=cache_probe, on_heat_start=on_heat_start,
-        )
-        self.last_trace = trace
-        return results
+    _module = raceresult
+    #: Sa sous-unité est le contest, désigné par l'URL.
+    _echec_slug_est_url = True
 
 
-class ChronoplaceProvider(HostMatchedProvider):
+class ChronoplaceProvider(FanoutProvider):
     """Chronoplace — fan-out par épreuve (cache TTL par sous-unité, épique #195).
 
     Une URL pointe une épreuve, mais la page liste ses sœurs (onglets) : chaque
@@ -355,9 +351,10 @@ class ChronoplaceProvider(HostMatchedProvider):
     name = "chronoplace"
     _HOSTS = ("chronoplace.fr",)
 
-    def __init__(self) -> None:
-        self.last_trace: chronoplace.FanoutTrace | None = None
+    _module = chronoplace
 
+    # Pas d'échappatoire `single_heat` : la signature ne l'accepte pas, une URL
+    # Chronoplace désigne toujours l'événement entier.
     def scrape_event_all(
         self, url: str,
         *,
@@ -371,7 +368,7 @@ class ChronoplaceProvider(HostMatchedProvider):
         return results
 
 
-class OkTimeProvider(HostMatchedProvider):
+class OkTimeProvider(FanoutProvider):
     """ok-time — un GET rend l'événement entier ; fan-out par **course** (#221).
 
     Un seul appel API rapporte toutes les courses de l'événement (comme
@@ -394,41 +391,10 @@ class OkTimeProvider(HostMatchedProvider):
     # sosie du type `evilok-time.fr` suivrait.
     _HOSTS = ("ok-time.fr",)
 
-    def __init__(self) -> None:
-        self.last_trace: klikego.FanoutTrace | None = None
-
-    def scrape_event_all(
-        self, url: str,
-        *,
-        cache_probe: Callable[[str], bool] | None = None,
-        on_heat_start: Callable[[str, str, int, int], None] | None = None,
-        single_heat: bool = False,
-    ) -> list[ScrapedResult]:
-        """Fan-out par défaut ; `single_heat=True` conserve l'entrée mono-course.
-
-        `single_heat` sert d'échappatoire (`rescrape-db --single-heat`) et aux
-        tests unitaires du chemin historique : il appelle `scrape_event_all` du
-        module (une trace synthétique 1-heat est posée pour maintenir
-        l'invariant `enumerated = imported + cached + len(failures)`).
-        """
-        if single_heat:
-            self.last_trace = klikego.FanoutTrace(heats_enumerated=1)
-            try:
-                return oktime.scrape_event_all(url)
-            except Exception as exc:
-                self.last_trace.failures.append(
-                    {"heat_slug": "", "reason": str(exc)}
-                )
-                raise
-
-        results, trace = oktime.scrape_event_fanout(
-            url, cache_probe=cache_probe, on_heat_start=on_heat_start,
-        )
-        self.last_trace = trace
-        return results
+    _module = oktime
 
 
-class SporthiveProvider(HostMatchedProvider):
+class SporthiveProvider(FanoutProvider):
     """Sporthive — URL d'événement = toutes les races (fan-out, issue #216).
 
     Une race est identifiée par son `race.id` snowflake (pas l'ordinal du path,
@@ -450,43 +416,15 @@ class SporthiveProvider(HostMatchedProvider):
     # résultats à reconnaître.
     _HOSTS = ("sporthive.com",)
 
-    def __init__(self) -> None:
-        self.last_trace: klikego.FanoutTrace | None = None
-
-    def scrape_event_all(
-        self, url: str,
-        *,
-        cache_probe: Callable[[str], bool] | None = None,
-        on_heat_start: Callable[[str, str, int, int], None] | None = None,
-        single_heat: bool = False,
-    ) -> list[ScrapedResult]:
-        """Fan-out par défaut ; `single_heat=True` retombe sur le chemin event-scoped.
-
-        Sporthive n'a pas de sous-unité identifiée dans l'URL (pas de `?heat=`
-        comme Klikego), donc l'échappatoire `--single-heat` retombe sur
-        `scrape_event_all` du module — l'événement entier, sans cache par-race.
-        """
-        if single_heat:
-            self.last_trace = klikego.FanoutTrace(heats_enumerated=1)
-            try:
-                return sporthive.scrape_event_all(url)
-            except Exception as exc:
-                self.last_trace.failures.append({"heat_slug": "", "reason": str(exc)})
-                raise
-
-        results, trace = sporthive.scrape_event_fanout(
-            url, cache_probe=cache_probe, on_heat_start=on_heat_start,
-        )
-        self.last_trace = trace
-        return results
+    _module = sporthive
 
 
-class ChronoWebProvider(HostMatchedProvider):
+class ChronoWebProvider(FanoutProvider):
     """Chronoweb — une URL désigne un événement, fan-out par race (issue #220).
 
     Une seule requête HTML rend l'événement entier ; l'énumération des races
     se fait en mémoire. Le gain du fan-out n'est **pas** la requête économisée
-    mais l'intégrité du cache TTL, par race — voir `chronoweb.FanoutTrace`.
+    mais l'intégrité du cache TTL, par race — voir `base.FanoutTrace`.
 
     L'échappatoire `--single-heat` n'a pas de sens ici (impossible de cibler
     une race à la source, la vue publie l'événement entier). Le mode nominal
@@ -498,8 +436,7 @@ class ChronoWebProvider(HostMatchedProvider):
     name = "chronoweb"
     _HOSTS = ("chronoweb.com",)
 
-    def __init__(self) -> None:
-        self.last_trace: chronoweb.FanoutTrace | None = None
+    _module = chronoweb
 
     def scrape_event_all(
         self, url: str,
@@ -512,7 +449,7 @@ class ChronoWebProvider(HostMatchedProvider):
         if single_heat:
             # Pas de vraie sémantique --single-heat côté source : on rend le
             # chemin non-fanout historique (multi-race, source_url par race).
-            self.last_trace = chronoweb.FanoutTrace()
+            self.last_trace = FanoutTrace()
             return chronoweb.scrape_event_all(url)
         results, trace = chronoweb.scrape_event_fanout(
             url, cache_probe=cache_probe, on_heat_start=on_heat_start,
@@ -603,20 +540,6 @@ def is_supported(url: str) -> bool:
     return get_provider(url) is not None
 
 
-#: Providers qui exposent le fan-out (patron #195/#156) : ils acceptent
-#: `cache_probe` et `on_heat_start` en kwargs. Les autres sont appelés sans
-#: kwargs pour rester rétro-compatibles.
-_FANOUT_PROVIDERS: tuple[type, ...] = (
-    KlikegoProvider,
-    ChronoplaceProvider,
-    SporthiveProvider,
-    RaceResultProvider,
-    WiclaxProvider,
-    ChronoWebProvider,
-    OkTimeProvider,
-)
-
-
 def scrape_event_all(url: str, **kwargs) -> list[ScrapedResult]:
     """Dispatch vers le provider matché.
 
@@ -628,6 +551,6 @@ def scrape_event_all(url: str, **kwargs) -> list[ScrapedResult]:
     if provider is None:
         raise ValueError(f"Aucun provider ne reconnaît cette URL : {url}")
     logger.info("Import épreuve via %s : %s", provider.name, url)
-    if isinstance(provider, _FANOUT_PROVIDERS):
+    if isinstance(provider, FanoutProvider):
         return provider.scrape_event_all(url, **kwargs)
     return provider.scrape_event_all(url)

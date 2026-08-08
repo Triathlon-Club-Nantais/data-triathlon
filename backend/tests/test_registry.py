@@ -2,6 +2,7 @@
 import pytest
 
 from app.scrapers import registry
+from app.scrapers.base import FanoutTrace
 
 
 def test_provider_names_derive_de_la_liste_des_providers(monkeypatch):
@@ -453,7 +454,7 @@ def _patch_klikego_fanout(monkeypatch, results_by_heat: dict[str, list], failure
 
     def fake_fanout(event_id, event_name, slug, *, cache_probe=None, on_heat_start=None):
         all_results = []
-        trace = klikego.FanoutTrace()
+        trace = FanoutTrace()
         trace.heats_enumerated = len(results_by_heat) + len(failures)
         for heat_slug, rs in results_by_heat.items():
             heat_url = klikego._heat_source_url(event_id, slug, heat_slug)

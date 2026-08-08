@@ -25,8 +25,6 @@ import json
 import logging
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
-from dataclasses import field as dc_field
 from datetime import date
 from urllib.parse import urlparse
 
@@ -35,28 +33,13 @@ from bs4 import BeautifulSoup
 
 from app.core import http
 
-from .base import ScrapedResult
+from .base import FanoutTrace, ScrapedResult
 from .classify import classify_event_type
 from .utils import normalize_rank, normalize_time, parse_fr_date, split_athlete_name
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class FanoutTrace:
-    """Compteurs de fan-out remontés par le scraper Chronoplace (épique #195).
-
-    Même contrat que la trace Klikego : `heats_imported` est laissé à 0 côté
-    scraper ; `import_service` le dérive via l'invariant
-    `enumerated = imported + cached + len(failures)`. Le vocabulaire « heat »
-    est conservé pour rester homogène avec le patron — ici une sous-unité est
-    une **épreuve** de l'événement (`epreuve_id`).
-    """
-    heats_enumerated: int = 0
-    heats_cached: int = 0
-    heats_imported: int = 0
-    failures: list[dict] = dc_field(default_factory=list)
-    cached_urls: list[str] = dc_field(default_factory=list)
 
 
 BASE_URL = "https://www.chronoplace.fr"
