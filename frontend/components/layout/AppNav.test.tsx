@@ -251,15 +251,34 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
 
   it("ne porte que les entrées dont le pouvoir est détenu", async () => {
     // Composer les droits d'un rôle et autoriser une adresse sont deux pouvoirs
-    // distincts : porter l'un ne doit pas annoncer l'écran de l'autre. Le seul
-    // écran livré de la section étant celui des accès, `roles:write` seul ne
-    // laisse rien à annoncer — la section entière disparaît.
+    // distincts : porter l'un ne doit pas annoncer l'écran de l'autre.
     afficher(habilite("roles:write"));
+    await deplier();
+    await waitFor(() => expect(screen.getByText("Gestion des utilisateurs")).toBeInTheDocument());
+
+    expect(screen.getByRole("link", { name: "Droits des rôles" })).toBeInTheDocument();
+    expect(screen.queryByText("Accès au back-office")).not.toBeInTheDocument();
+  });
+
+  it("ouvre « Droits des rôles » à qui porte roles:write (#240)", async () => {
+    afficher(habilite("roles:write"));
+    await deplier();
+    await waitFor(() => expect(screen.getByText("Gestion des utilisateurs")).toBeInTheDocument());
+
+    expect(screen.getByRole("link", { name: "Droits des rôles" })).toHaveAttribute(
+      "href",
+      "/admin/droits",
+    );
+  });
+
+  it("garde la section fermée à qui ne porte aucun de ses pouvoirs", async () => {
+    // La section entière disparaît quand le filtrage la vide — c'est `AppNav`
+    // qui retire les sections vides, pas `nav.config.ts`.
+    afficher(habilite("courses:write"));
     await deplier();
     await waitFor(() => expect(screen.getByText("Administration")).toBeInTheDocument());
 
     expect(screen.queryByText("Gestion des utilisateurs")).not.toBeInTheDocument();
-    expect(screen.queryByText("Accès au back-office")).not.toBeInTheDocument();
   });
 
   it("ne rend pas les écrans non livrés, même à qui en porte le pouvoir (#242)", async () => {
