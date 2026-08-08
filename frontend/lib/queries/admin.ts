@@ -195,6 +195,11 @@ export function useAdminUsers() {
   return useQuery({
     queryKey: queryKeys.adminUsers(),
     queryFn: () => apiClient.listAdminUsers(),
+    // Même raison que `useRoles` : l'écran des groupes (#241) lit cette liste
+    // pour choisir qui ajouter, alors que sa propre garde est `groups:assign`.
+    // Un porteur de ce seul pouvoir prend un 403 ici, que trois essais ne
+    // changeront pas.
+    retry: false,
   });
 }
 
@@ -233,6 +238,101 @@ export function useRevokeRole() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.adminUsers() });
       qc.invalidateQueries({ queryKey: queryKeys.roles() });
+    },
+  });
+}
+
+// ── Groupes d'appartenance (#241) ────────────────────────────────────────────
+
+export function useGroups() {
+  return useQuery({
+    queryKey: queryKeys.groups(),
+    queryFn: () => apiClient.listGroups(),
+  });
+}
+
+/**
+ * La composition d'un groupe, chargée **à l'ouverture** de son détail.
+ *
+ * `enabled` plutôt qu'un appel au montage, comme pour l'impact d'une
+ * suppression : une liste de dix groupes ne doit pas demander dix compositions
+ * que personne ne regardera.
+ */
+export function useGroup(groupId: number | null) {
+  return useQuery({
+    queryKey: queryKeys.group(groupId ?? 0),
+    queryFn: () => apiClient.getGroup(groupId as number),
+    enabled: groupId !== null,
+  });
+}
+
+/**
+ * Les cinq écritures invalident la **liste**, et celles qui portent sur un
+ * groupe précis invalident aussi son détail : `member_count` vit sur la liste,
+ * `members` sur le détail, et un ajout déplace les deux.
+ */
+export function useCreateGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (groupe: { slug: string; name: string; description: string }) =>
+      apiClient.createGroup(groupe),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.groups() }),
+  });
+}
+
+export function useUpdateGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      champs,
+    }: {
+      id: number;
+      champs: { name?: string; description?: string };
+    }) => apiClient.updateGroup(id, champs),
+    onSuccess: (_donnees, { id }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.groups() });
+      qc.invalidateQueries({ queryKey: queryKeys.group(id) });
+    },
+  });
+}
+
+export function useDeleteGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiClient.deleteGroup(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.groups() }),
+  });
+}
+
+export function useAddGroupMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ groupId, userId }: { groupId: number; userId: number }) =>
+      apiClient.addGroupMember(groupId, userId),
+    onSuccess: (_donnees, { groupId }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.groups() });
+      qc.invalidateQueries({ queryKey: queryKeys.group(groupId) });
+      // Et sa **propre** session : `GET /auth/me` rend `groups`, que le menu
+      // utilisateur affiche. S'ajouter à un groupe sans la périmer laisserait
+      // son propre menu mentir sur soi jusqu'au prochain rechargement.
+      qc.invalidateQueries({ queryKey: queryKeys.session() });
+    },
+  });
+}
+
+export function useRemoveGroupMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ groupId, userId }: { groupId: number; userId: number }) =>
+      apiClient.removeGroupMember(groupId, userId),
+    onSuccess: (_donnees, { groupId }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.groups() });
+      qc.invalidateQueries({ queryKey: queryKeys.group(groupId) });
+      // Et sa **propre** session : `GET /auth/me` rend `groups`, que le menu
+      // utilisateur affiche. S'ajouter à un groupe sans la périmer laisserait
+      // son propre menu mentir sur soi jusqu'au prochain rechargement.
+      qc.invalidateQueries({ queryKey: queryKeys.session() });
     },
   });
 }

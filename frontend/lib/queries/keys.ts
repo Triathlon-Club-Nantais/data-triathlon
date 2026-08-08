@@ -26,6 +26,11 @@ export const queryKeys = {
     ["course-deletion-impact", courseId] as const,
   adminUsers: () => ["admin-users"] as const,
   roles: () => ["roles"] as const,
+  groups: () => ["admin-groups"] as const,
+  // Clé distincte de la liste : celle-ci stocke un `GroupDetail`, l'autre un
+  // `Group[]`. Une écriture sur la composition périme **les deux** — le nombre
+  // de membres vit sur la liste.
+  group: (id: number) => ["admin-group", id] as const,
   session: () => ["session"] as const,
   authMethods: () => ["auth-methods"] as const,
 };

@@ -246,6 +246,42 @@ export interface Role {
 }
 
 /**
+ * Un groupe d'appartenance (#197).
+ *
+ * **Ni `permissions`, ni `is_superuser`** — et ce n'est pas une omission : un
+ * groupe dit à quoi on appartient, un rôle ce qu'on peut faire. La garde
+ * d'autorisation ne lit jamais un groupe.
+ */
+export interface Group {
+  id: number;
+  organisation_id: number;
+  slug: string;
+  name: string;
+  description: string;
+  member_count: number;
+  created_at: string;
+}
+
+/**
+ * Un membre d'un groupe.
+ *
+ * `is_active: false` est un compte désactivé (#170) : il **reste** membre, rien
+ * de ce que porte un groupe ne dépendant de son activité.
+ */
+export interface GroupMember {
+  user_id: number;
+  email: string;
+  display_name: string;
+  is_active: boolean;
+  joined_at: string;
+}
+
+/** Un groupe **et sa composition** — ce que rendent les cinq gestes ciblés. */
+export interface GroupDetail extends Group {
+  members: GroupMember[];
+}
+
+/**
  * Un utilisateur vu depuis l'administration (#115).
  *
  * `is_active: false` est l'effet d'un retrait de la liste d'autorisation
@@ -376,6 +412,20 @@ export interface SessionUser {
    * `roles:read`.
    */
   roles: SessionRole[];
+  /**
+   * Groupes dont on est membre (#197) — « membre du Codir ». Rendu à tout
+   * connecté, **sans exiger `groups:read`** : la question ne porte que sur soi.
+   * Ne dit rien des droits, qui se lisent dans `permissions` seul.
+   */
+  groups: SessionGroup[];
+}
+
+/** Un groupe tel que son membre se le voit — sans membres ni pouvoirs (#197). */
+export interface SessionGroup {
+  id: number;
+  slug: string;
+  name: string;
+  organisation_id: number;
 }
 
 /**
