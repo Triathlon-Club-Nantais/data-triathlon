@@ -6,10 +6,10 @@ depuis le dict JSON de l'API, et détection du type d'épreuve.
 """
 import pytest
 
+from app.scrapers.classify import classify_event_type
 from app.scrapers.prolivesport import (
     _build_split_map,
     _derive_status,
-    _detect_event_type,
     _is_relay,
     _parse_athlete,
     _parse_url,
@@ -158,12 +158,12 @@ def test_parse_athlete_solo_not_relay():
     assert r.is_relay is False
 
 
-def test_detect_event_type():
-    assert _detect_event_type("Triathlon M") == "triathlon-m"
-    assert _detect_event_type("Triathlon S") == "triathlon-s"
-    assert _detect_event_type("Duathlon Sprint") == "duathlon-s"
-    assert _detect_event_type("Aquathlon") == "aquathlon"
-    assert _detect_event_type("Triathlon") == "triathlon"
+def testclassify_event_type():
+    assert classify_event_type("Triathlon M") == "triathlon-m"
+    assert classify_event_type("Triathlon S") == "triathlon-s"
+    assert classify_event_type("Duathlon Sprint") == "duathlon-s"
+    assert classify_event_type("Aquathlon") == "aquathlon"
+    assert classify_event_type("Triathlon") == "triathlon"
 
 
 # ---------------------------------------------------------------------------
