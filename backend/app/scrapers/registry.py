@@ -5,8 +5,13 @@ Chaque provider est une instance implémentant `ScraperProtocol`. La détection 
 fait en parcourant la liste `PROVIDERS` (plus de chaîne de `if/else`). Ajouter un
 provider = créer son adapter et l'ajouter à la liste, à un seul endroit.
 
-Provider inconnu → `PlaywrightProvider`, sentinelle de refus et non un scraper
-(voir sa docstring : le fallback navigateur a été supprimé avec sa dépendance).
+Provider inconnu → `get_provider` rend `None`, et `scrape_event_all` lève. Il n'y
+a **pas** de sentinelle attrape-tout : elle n'existait que pour qu'une fonction
+rende toujours un objet, et son slug `playwright` mentait — la dépendance a été
+supprimée en #102. Un futur fallback générique se **valide en amont sur une liste
+blanche de hosts** ; il ne s'accroche pas à ce point d'entrée, sans quoi il
+rouvrirait le SSRF de #49 en captant précisément les hosts non reconnus
+(verrouillé par `test_host_non_reconnu_ne_declenche_aucune_requete`).
 
 La détection se fait sur le **host** de l'URL, jamais sur une sous-chaîne de
 l'URL entière : un jeton en query suffisait à router n'importe quelle URL vers
@@ -121,6 +126,26 @@ class HostMatchedProvider:
 
     def matches(self, url: str) -> bool:
         return _host_match(url, self._HOSTS)
+
+
+class ModuleProvider(HostMatchedProvider):
+    """Provider sans particularité : détection par host, délégation au module.
+
+    Cinq classes se réduisaient à ce squelette — `name`, `_HOSTS`, et un
+    `scrape_event_all` qui appelle `<module>.scrape_event_all(url)`. Ajouter un
+    chronométreur sans fan-out est désormais une ligne de `PROVIDERS`, pas une
+    sixième recopie. Ce qui **n'entre pas** dans cette table reste une classe :
+    le fan-out et sa `last_trace`, la double façade de Breizh Chrono, la règle de
+    match composée de Wiclax, l'égalité stricte de T2Area.
+    """
+
+    def __init__(self, name: str, hosts: tuple[str, ...], module) -> None:
+        self.name = name
+        self._HOSTS = hosts
+        self._module = module
+
+    def scrape_event_all(self, url: str) -> list[ScrapedResult]:
+        return self._module.scrape_event_all(url)
 
 
 class KlikegoProvider(HostMatchedProvider):
@@ -270,30 +295,6 @@ class WiclaxProvider(HostMatchedProvider):
         return results
 
 
-class TimePulseProvider(HostMatchedProvider):
-    name = "timepulse"
-    _HOSTS = ("timepulse.fr",)
-
-    def scrape_event_all(self, url: str) -> list[ScrapedResult]:
-        return timepulse.scrape_event_all(url)
-
-
-class ProLiveSportProvider(HostMatchedProvider):
-    name = "prolivesport"
-    _HOSTS = ("prolivesport.fr",)
-
-    def scrape_event_all(self, url: str) -> list[ScrapedResult]:
-        return prolivesport.scrape_event_all(url)
-
-
-class SportInnovationProvider(HostMatchedProvider):
-    name = "sportinnovation"
-    _HOSTS = ("sportinnovation.fr",)
-
-    def scrape_event_all(self, url: str) -> list[ScrapedResult]:
-        return sportinnovation.scrape_event_all(url)
-
-
 class RaceResultProvider(HostMatchedProvider):
     """RaceResult — URL d'événement = tous les contests (fan-out, issue #217).
 
@@ -427,26 +428,6 @@ class OkTimeProvider(HostMatchedProvider):
         return results
 
 
-class CompetitorProvider(HostMatchedProvider):
-    name = "competitor"
-
-    # `ironman.com` n'est qu'une vitrine : le moteur est Competitor/WTC, d'où le
-    # nom du provider (issue #54). `competitor.com` couvre par sous-domaine la
-    # façade réelle `labs-v2.competitor.com`, et les suivantes s'il y en a.
-    _HOSTS = ("ironman.com", "competitor.com")
-
-    def scrape_event_all(self, url: str) -> list[ScrapedResult]:
-        return competitor.scrape_event_all(url)
-
-
-class RunnerBreizhProvider(HostMatchedProvider):
-    name = "runnerbreizh"
-    _HOSTS = ("runnerbreizh.fr",)
-
-    def scrape_event_all(self, url: str) -> list[ScrapedResult]:
-        return runnerbreizh.scrape_event_all(url)
-
-
 class SporthiveProvider(HostMatchedProvider):
     """Sporthive — URL d'événement = toutes les races (fan-out, issue #216).
 
@@ -557,60 +538,26 @@ class T2AreaProvider:
         return t2area.scrape_event_all(url)
 
 
-class PlaywrightProvider:
-    """Sentinelle « aucun provider ne reconnaît cette URL » — pas un scraper.
-
-    Le nom est historique : il désignait un fallback générique pour les sites
-    JS-heavy. Ce module (`scrapers/playwright_fallback.py`) était du code mort et
-    a été supprimé avec la dépendance `playwright` (#102), car il restait **le
-    seul du dépôt capable de naviguer vers une URL arbitraire** : le rebrancher
-    ici rouvrirait le SSRF de #49, et sans qu'aucune détection de host ne
-    s'interpose, puisque ce fallback est précisément ce qui capte les hosts non
-    reconnus.
-
-    D'où le refus explicite ci-dessous, verrouillé par
-    `test_host_non_reconnu_ne_declenche_aucune_requete`. Un futur fallback
-    générique se **valide en amont sur une liste blanche de hosts** ; il ne
-    s'accroche pas à ce point d'entrée.
-    """
-
-    name = "playwright"
-
-    def matches(self, url: str) -> bool:
-        return True  # capte tout ce qui n'a pas été reconnu avant
-
-    def scrape_event_all(self, url: str) -> list[ScrapedResult]:
-        raise ValueError(
-            "Import de tous les participants non supporté pour ce provider : playwright"
-        )
-
-
 # Ordre important : breizhchrono et wiclax avant klikego (conditions plus spécifiques).
 PROVIDERS: list[ScraperProtocol] = [
     BreizhChronoProvider(),
     WiclaxProvider(),
     KlikegoProvider(),
-    TimePulseProvider(),
-    ProLiveSportProvider(),
-    SportInnovationProvider(),
+    ModuleProvider("timepulse", ("timepulse.fr",), timepulse),
+    ModuleProvider("prolivesport", ("prolivesport.fr",), prolivesport),
+    ModuleProvider("sportinnovation", ("sportinnovation.fr",), sportinnovation),
     RaceResultProvider(),
     ChronoplaceProvider(),
     OkTimeProvider(),
-    CompetitorProvider(),
-    RunnerBreizhProvider(),
+    # `ironman.com` n'est qu'une vitrine : le moteur est Competitor/WTC, d'où le
+    # nom du provider (issue #54). `competitor.com` couvre par sous-domaine la
+    # façade réelle `labs-v2.competitor.com`, et les suivantes s'il y en a.
+    ModuleProvider("competitor", ("ironman.com", "competitor.com"), competitor),
+    ModuleProvider("runnerbreizh", ("runnerbreizh.fr",), runnerbreizh),
     SporthiveProvider(),
     ChronoWebProvider(),
     T2AreaProvider(),
 ]
-_FALLBACK: ScraperProtocol = PlaywrightProvider()
-
-
-def _find_provider(url: str) -> ScraperProtocol:
-    for provider in PROVIDERS:
-        if provider.matches(url):
-            return provider
-    return _FALLBACK
-
 
 def provider_names() -> list[str]:
     """Noms des providers **ciblables**, dans l'ordre de détection.
@@ -618,17 +565,16 @@ def provider_names() -> list[str]:
     Source de vérité unique pour valider un `--provider` / `--only-provider` :
     dérivée de `PROVIDERS`, elle ne peut pas se désynchroniser au prochain
     provider ajouté.
-
-    `playwright` en est absent volontairement : c'est le fallback des URLs non
-    reconnues, pas un provider qu'on peut cibler. `sheet_source.is_supported`
-    l'exclut déjà de l'import de masse, et aucune course en base ne peut porter
-    ce nom (son `scrape_event_all` lève).
     """
     return [provider.name for provider in PROVIDERS]
 
 
 def detect_provider(url: str) -> str:
-    return _find_provider(url).name
+    """Slug du provider qui reconnaît l'URL, **chaîne vide** si aucun ne la
+    reconnaît. Rendait `"playwright"` avant #102 — un slug qui désignait une
+    dépendance disparue et un scraper qui n'a jamais existé."""
+    provider = get_provider(url)
+    return provider.name if provider else ""
 
 
 def get_provider(url: str) -> ScraperProtocol | None:
@@ -637,7 +583,7 @@ def get_provider(url: str) -> ScraperProtocol | None:
     Distinct de `detect_provider` (qui rend le slug) : cette fonction expose
     l'instance elle-même, nécessaire à `import_service.iter_import_event` pour
     lire des attributs post-scrape comme `KlikegoProvider.last_trace`.
-    Ignore le fallback (Playwright) : une URL non reconnue → None.
+    Une URL non reconnue → None.
     """
     for provider in PROVIDERS:
         if provider.matches(url):
@@ -646,15 +592,15 @@ def get_provider(url: str) -> ScraperProtocol | None:
 
 
 def is_supported(url: str) -> bool:
-    """Vrai si un provider du registre reconnaît l'URL (fallback playwright exclu).
+    """Vrai si un provider du registre reconnaît l'URL.
 
     Source de vérité unique du « supporté ou non », partagée par l'import de
-    masse (`sheet_source`) et par l'API `/scrape/detect` — donc par le badge du
-    front. Ce dernier portait sa propre liste, figée à six providers : toute URL
-    Competitor, RaceResult ou Chronoplace s'affichait « Non supporté » alors que
-    l'import fonctionnait (même piège de définition dupliquée que #76).
+    masse (`bulk_import_service`) et par l'API `/scrape/detect` — donc par le
+    badge du front. Ce dernier portait sa propre liste, figée à six providers :
+    toute URL Competitor, RaceResult ou Chronoplace s'affichait « Non supporté »
+    alors que l'import fonctionnait (même piège de définition dupliquée que #76).
     """
-    return detect_provider(url) in provider_names()
+    return get_provider(url) is not None
 
 
 #: Providers qui exposent le fan-out (patron #195/#156) : ils acceptent
@@ -678,7 +624,9 @@ def scrape_event_all(url: str, **kwargs) -> list[ScrapedResult]:
     `single_heat`) aux providers qui les acceptent — les autres, qui ne les
     connaissent pas dans leur signature, sont appelés sans kwargs.
     """
-    provider = _find_provider(url)
+    provider = get_provider(url)
+    if provider is None:
+        raise ValueError(f"Aucun provider ne reconnaît cette URL : {url}")
     logger.info("Import épreuve via %s : %s", provider.name, url)
     if isinstance(provider, _FANOUT_PROVIDERS):
         return provider.scrape_event_all(url, **kwargs)

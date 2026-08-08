@@ -386,7 +386,7 @@ def _avertir_source_amont(nom: str, lien: str, url: str) -> None:
     from app.scrapers.registry import detect_provider
 
     provider = detect_provider(lien)
-    if provider == "playwright":
+    if not provider:
         return
     logger.warning(
         "%s : résultats produits par %s (%s) — le provider « %s » est supporté et "

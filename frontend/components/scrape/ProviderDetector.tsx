@@ -31,11 +31,7 @@ export function ProviderDetector({
         // Le support est tranché par le registre backend, jamais par une liste
         // tenue ici : la précédente avait divergé et affichait « Non supporté »
         // sur Competitor, RaceResult et Chronoplace, pourtant importables.
-        // Le repli couvre un front déployé avant son backend.
-        setDetected({
-          provider: r.provider,
-          supported: r.supported ?? r.provider !== "playwright",
-        });
+        setDetected(r);
         onDetected?.(r.provider);
       })
       .catch(() => !cancelled && setDetected(null));
@@ -46,10 +42,16 @@ export function ProviderDetector({
 
   if (!detected) return null;
   const { provider, supported } = detected;
-  const label = providerLabel(provider);
-  return (
-    <Badge variant={supported ? "default" : "destructive"}>
-      {supported ? `Fournisseur : ${label}` : `Non supporté (${label}) — saisie manuelle`}
-    </Badge>
-  );
+  if (!supported) {
+    // `provider` est vide quand aucun chronométreur ne reconnaît l'URL : le
+    // nommer donnerait « Non supporté (Source) », le repli de `providerLabel`.
+    return (
+      <Badge variant="destructive">
+        {provider
+          ? `Non supporté (${providerLabel(provider)}) — saisie manuelle`
+          : "Non supporté — saisie manuelle"}
+      </Badge>
+    );
+  }
+  return <Badge variant="default">{`Fournisseur : ${providerLabel(provider)}`}</Badge>;
 }
