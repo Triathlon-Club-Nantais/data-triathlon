@@ -343,11 +343,19 @@ Appliqué en deux commits, dans l'ordre suggéré ci-dessus.
   plutôt qu'ils ne l'enfreignent, et les fusionner churnerait huit sites
   d'import et deux fichiers de test pour −1 fichier et zéro ligne de logique.
   Le commentaire nécrologique de `raceOrder.ts` reste où il est.
-- **n° 13 — 22 dé-exportés, pas 28.** `CourseBrief` a 22 consommateurs externes
+- **n° 13 — 21 dé-exportés, pas 28.** `CourseBrief` a 22 consommateurs externes
   (l'audit le rangeait à tort parmi les internes), `PodiumScope` et
   `RosterEntry` en ont aussi. Seule mort réelle du lot : la ré-exportation
   d'`IconButton` par le barrel `components/tcn/index.ts` — le composant, lui,
   sert à `Modal`.
+
+  **`SessionRole` a dû être ré-exporté**, et l'erreur mérite d'être écrite : le
+  relevé comme sa vérification ont été faits sur le worktree seul, pas sur la
+  **cible de fusion**. `main` avait entre-temps reçu #239, dont
+  `components/admin/UserRolesTable.tsx` importe ce type — la CI, qui compile le
+  merge, l'a vu ; le `tsc` local, non. Un grep sur une copie ne dit rien de ce
+  qu'une branche parallèle consomme : la seule vérification qui vaille pour un
+  dé-exportage est le compilateur, lancé **après** fusion de la base.
 
 **n° 2 — la mesure a requalifié le constat.** L'audit décrivait « une migration
 inachevée » et posait un choix binaire (`tcn/` absorbe les primitives complexes,

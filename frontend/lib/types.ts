@@ -388,7 +388,7 @@ export interface AuthMethod {
 }
 
 /** Identité de la session courante, rendue par `GET /auth/me`. */
-interface SessionRole {
+export interface SessionRole {
   id: number;
   slug: string;
   name: string;
