@@ -5,6 +5,9 @@ import type {
   AdminUser,
   AthleteDetail,
   AuthMethod,
+  BatchLaunched,
+  BatchReport,
+  BatchRun,
   CourseBrief,
   CourseDeletionImpact,
   CourseDetail,
@@ -15,6 +18,7 @@ import type {
   ImportResult,
   Participation,
   ParticipationFilters,
+  RescrapeLaunch,
   AllowedEmail,
   PendingProvider,
   Role,
@@ -226,4 +230,18 @@ export const apiClient = {
     }),
   revokeRole: (userId: number, roleId: number) =>
     request<null>(`/admin/users/${userId}/roles/${roleId}`, { method: "DELETE" }),
+
+  // ── Batches (#47) ──────────────────────────────────────────────────────────
+  // Deux pouvoirs : `batch:run` pour le lancement, `batch:read` pour le suivi.
+  // La base visée n'est **jamais** envoyée — elle vient du réglage de
+  // l'instance, et le backend refuse en 422 un `target` reçu du client.
+  launchBatch: (options: RescrapeLaunch) =>
+    request<BatchLaunched>("/admin/batches", {
+      method: "POST",
+      body: JSON.stringify(options),
+    }),
+  listBatchRuns: (limit = 20) =>
+    request<BatchRun[]>(`/admin/batches${toQuery({ limit })}`),
+  getBatchReport: (runId: number) =>
+    request<BatchReport>(`/admin/batches/${runId}/report`),
 };

@@ -109,7 +109,15 @@ export const NAV: NavSection[] = [
       // rectifier le jour où l'écran sort. Sans conséquence — depuis #242 une
       // entrée `soon` n'est plus rendue du tout. La revalidation qualité, elle,
       // a le sien depuis #115.
-      { id: "a-scrape", label: "Re-scrape à la demande", soon: true },
+      // L'écran promis par cette entrée existe depuis #47. `batch:run` et non
+      // `batch:read` : `permission` ne porte qu'un code, et c'est le lancement
+      // qui donne son nom à l'écran — même arbitrage que `u-roles`.
+      {
+        id: "a-scrape",
+        label: "Re-scrape à la demande",
+        href: "/admin/batches",
+        permission: "batch:run",
+      },
       { id: "a-quality", label: "Revalidation qualité", permission: "quality:override", soon: true },
       { id: "a-benevolat", label: "Bénévolat", soon: true },
       { id: "a-sessions", label: "Sessions", minRole: ROLE.ADMIN, soon: true },
