@@ -16,12 +16,14 @@ const {
   removeAllowedEmail,
   listRoles,
   getSession,
+  revokeSessions,
 } = vi.hoisted(() => ({
   listAllowedEmails: vi.fn(),
   addAllowedEmail: vi.fn(),
   removeAllowedEmail: vi.fn(),
   listRoles: vi.fn(),
   getSession: vi.fn(),
+  revokeSessions: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
@@ -34,6 +36,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
       removeAllowedEmail,
       listRoles,
       getSession,
+      revokeSessions,
     },
   };
 });
@@ -317,5 +320,76 @@ describe("AllowedEmailsTable", () => {
     await userEvent.click(screen.getByRole("button", { name: /ajouter/i }));
 
     expect(addAllowedEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe("AllowedEmailsTable — révocation des sessions (#169)", () => {
+  /** Une adresse dont quelqu'un s'est déjà servi : elle seule a des sessions. */
+  const VENUE: AllowedEmail = { ...ADRESSE, has_account: true };
+
+  const MOI_REVOCATRICE: SessionUser = {
+    ...MOI,
+    permissions: [...MOI.permissions, "sessions:revoke"],
+  };
+
+  beforeEach(() => {
+    listAllowedEmails.mockReset();
+    listRoles.mockReset();
+    getSession.mockReset();
+    revokeSessions.mockReset();
+    listRoles.mockResolvedValue([BENEVOLE]);
+    getSession.mockResolvedValue(MOI_REVOCATRICE);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+  });
+
+  it("ferme les sessions de l'adresse de la ligne", async () => {
+    listAllowedEmails.mockResolvedValue([VENUE]);
+    revokeSessions.mockResolvedValue({ sessions: 2, accounts: 1 });
+    afficher();
+    await screen.findByText(VENUE.email);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /fermer les sessions de contributeur/i }),
+    );
+
+    await waitFor(() => expect(revokeSessions).toHaveBeenCalledWith(VENUE.email));
+    expect(toast.success).toHaveBeenCalledWith(expect.stringContaining("2"));
+  });
+
+  it("n'offre pas le geste sur une adresse jamais venue", async () => {
+    // Aucun compte, donc aucune session : un bouton y serait un geste sans objet.
+    listAllowedEmails.mockResolvedValue([ADRESSE]);
+    afficher();
+    await screen.findByText(ADRESSE.email);
+
+    expect(
+      screen.queryByRole("button", { name: /fermer les sessions/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("n'offre pas le geste à qui n'a pas le pouvoir", async () => {
+    // L'écran s'ouvre avec `allowed_emails:manage` seul : un bouton qui rendrait
+    // 403 à chaque clic est pire que pas de bouton.
+    getSession.mockResolvedValue(MOI);
+    listAllowedEmails.mockResolvedValue([VENUE]);
+    afficher();
+    await screen.findByText(VENUE.email);
+
+    expect(
+      screen.queryByRole("button", { name: /fermer les sessions/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("dit ce que l'API refuse, sans inventer de second message", async () => {
+    listAllowedEmails.mockResolvedValue([VENUE]);
+    revokeSessions.mockRejectedValue(new ApiError(403, "Accès refusé."));
+    afficher();
+    await screen.findByText(VENUE.email);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /fermer les sessions de contributeur/i }),
+    );
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Accès refusé."));
   });
 });

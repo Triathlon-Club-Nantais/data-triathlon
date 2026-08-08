@@ -140,10 +140,11 @@ déconnecte aussi celui qui le lance. Un refus interactif sort en `0`.
 **Elle ne désactive aucun compte** : elle coupe des jetons, chacun se reconnecte.
 C'est ce qui la distingue du retrait d'une adresse, qui ferme les comptes sans
 effacer les sessions — une réinscription dans la fenêtre de TTL ressusciterait
-les jetons. Les deux gestes existent aussi dans le back-office (pouvoir
-`sessions:revoke`) : `/admin/sessions` pour tous, « Fermer les sessions » par
-ligne dans `/admin/utilisateurs` pour un compte. La CLI reste là pour le jour où
-c'est justement du back-office qu'on se méfie.
+les jetons. Les deux portées existent aussi dans `/admin/acces` (pouvoir
+`sessions:revoke`) : « Fermer les sessions » par ligne pour une adresse, une
+carte en bas de page pour tout le club. La CLI reste là pour le jour où c'est
+justement du back-office qu'on se méfie — et pour fermer les sessions d'une
+adresse **déjà retirée** de la liste, que l'écran ne montre plus.
 
 ## Tests & qualité
 

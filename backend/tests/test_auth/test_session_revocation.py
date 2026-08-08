@@ -64,39 +64,6 @@ def test_revoquer_une_adresse_ferme_tous_les_comptes_qui_la_portent(db_session):
     assert session_service.resolve(db_session, second[0]) is None
 
 
-def test_revoquer_un_compte_epargne_les_homonymes_d_adresse(db_session):
-    """Le geste de l'écran cible **un compte**, jamais une adresse.
-
-    `users.email` n'est pas unique (FR-003) : révoquer par adresse depuis un
-    tableau qui liste des comptes en frapperait plusieurs sans le dire. La CLI
-    prend l'adresse parce qu'elle n'a pas d'écran pour choisir ; ici on choisit.
-    """
-    cible, jetons_cible = _compte(db_session, "double@exemple.fr", sessions=2)
-    _, jeton_homonyme = _compte(db_session, "double@exemple.fr")
-
-    sessions, comptes = session_service.revoke_for_user(db_session, cible)
-
-    assert (sessions, comptes) == (2, 1)
-    assert session_service.resolve(db_session, jetons_cible[0]) is None
-    assert session_service.resolve(db_session, jeton_homonyme[0]) is not None
-
-
-def test_revoquer_un_compte_ne_le_desactive_pas(db_session):
-    """Même invariant que la révocation globale : on coupe des jetons."""
-    user, _ = _compte(db_session, "revoque@exemple.fr")
-
-    session_service.revoke_for_user(db_session, user)
-
-    assert user.is_active is True
-
-
-def test_revoquer_un_compte_sans_session_ouverte_ne_ferme_rien(db_session):
-    user = user_repository.create(db_session, email="dort@exemple.fr")
-    db_session.flush()
-
-    assert session_service.revoke_for_user(db_session, user) == (0, 0)
-
-
 def test_revoquer_une_adresse_inconnue_ne_ferme_rien(db_session):
     _, epargne = _compte(db_session, "connue@exemple.fr")
 

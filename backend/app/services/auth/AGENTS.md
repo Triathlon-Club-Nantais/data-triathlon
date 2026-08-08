@@ -127,8 +127,8 @@ Trois points que le code ne dit pas :
   Supabase à la main, sous stress, en production. `session.revoke_all` /
   `revoke_for_email` sont désormais livrés par **deux** chemins, délibérément
   redondants : `python -m app.cli revoke-sessions` (`app/cli/AGENTS.md`) et
-  `POST /admin/sessions/revoke` (pouvoir `sessions:revoke`), ce dernier ne
-  faisant que le geste global. Le back-office est ergonomique là où l'exploitant
+  `POST /admin/sessions/revoke` (pouvoir `sessions:revoke`), tous deux à deux
+  portées — tout, ou une adresse. Le back-office est ergonomique là où l'exploitant
   est déjà connecté ; la CLI reste praticable le jour où c'est justement du
   back-office qu'on se méfie.
   **Révoquer et retirer ne sont pas le même geste**, et c'est ce que #170
@@ -136,12 +136,14 @@ Trois points que le code ne dit pas :
   **jointure**, sans effacer une ligne — une réinscription dans la fenêtre de TTL
   ressuscite les jetons exacts. Révoquer **supprime** les lignes et ne désactive
   personne : on coupe des jetons, les comptes restent ouverts, chacun se
-  reconnecte. Fermer *un* compte durablement se fait des deux côtés :
+  reconnecte. Fermer *une adresse* durablement se fait des deux côtés :
   `revoke-sessions --email` en CLI, « Fermer les sessions » par ligne dans
-  `/admin/utilisateurs`. **La cible diffère, et ce n'est pas une inconséquence** :
-  l'écran vise un *identifiant* — il liste des comptes, et `users.email` n'étant
-  pas unique, frapper par adresse y emporterait des homonymes que rien n'a
-  nommés —, la CLI vise l'*adresse*, faute d'écran pour départager.
+  `/admin/acces`. **Même cible des deux côtés, l'adresse** : cet écran liste des
+  autorisations, pas des comptes, et `users.email` n'étant pas unique, le geste
+  frappe tous ceux qui la portent. **Corollaire d'exploitation** : une adresse
+  retirée quitte la liste, donc ses sessions ne sont plus fermables depuis
+  l'écran — fermer d'abord, retirer ensuite, ou passer par la CLI, à qui
+  l'autorisation est indifférente.
   **`sessions:revoke` n'a aucun plafond, et c'est le seul pouvoir du dépôt dans
   ce cas.** `allowed_emails:manage` vaut « fermer n'importe quel compte » mais
   bute sur `administrateurs_preserves` ; ici rien n'est retiré, aucun code ne
