@@ -188,9 +188,13 @@ capacité.
 
 ## 8. `native` — `shadcn` en `dependencies`
 
-`package.json`. C'est le CLI de scaffolding (`shadcn add button`), pas du code
-exécuté par l'application — et il est déclaré en dépendance **de production**,
-donc installé sur Vercel à chaque build.
+`package.json`. C'est d'abord le CLI de scaffolding (`shadcn add button`), et il
+est déclaré en dépendance **de production**, donc installé sur Vercel à chaque
+build. Nuance relevée à la relecture : `app/globals.css` fait
+`@import "shadcn/tailwind.css"`, donc le paquet est aussi un **actif de build** —
+le déplacement reste juste (Vercel et `npm ci` installent les devDeps), mais un
+`npm ci --omit=dev` casserait désormais la compilation CSS. L'import porte le
+commentaire qui le dit.
 
 **Remplacement** : `npx shadcn@latest add …` à la demande. Au minimum, le
 déplacer en `devDependencies`. `components.json` (la config du CLI) reste, il ne
@@ -399,3 +403,28 @@ que l'audit envisageait.
 Note d'application : la suppression de la sentinelle `playwright` côté backend
 (entrée n° 5 de l'audit backend) a aussi touché `ProviderDetector.tsx`, qui
 déduisait le support de `provider !== "playwright"`. C'est dans `b39c88d`.
+
+**Relecture du 2026-08-08** (`requesting-code-review`). Aucun point critique :
+les suppressions sont vérifiées mortes **sur la base de fusion**, `toQuery` est
+extrait sans dérive, `AbortSignal.timeout` correctement traité. Cinq correctifs
+de suivi, appliqués :
+
+- **régression visuelle sur `/club`** : `ui/Stat` avait `accent = false` par
+  défaut, `tcn/StatCard` a `accent = true` — `accent={undefined}` réveillait donc
+  le défaut inverse, mettant le trait orange sur les quatre KPI et rendant le
+  paramètre inerte. `accent={accent ?? false}` restaure le rendu d'avant ;
+- **couverture perdue au n° 4** : le repli « échec d'import → signale le
+  fournisseur → saisie manuelle » est vivant dans `TcnScrapeForm`, son seul test
+  vivait dans le `ScrapeForm.test` supprimé. Le test l'a suivi ;
+- **la frontière du n° 2 était écrite au présent prescriptif** alors que sept
+  écrans publics tirent encore `ui/{card,button,badge,input}` : elle est
+  reformulée en règle pour les **ajouts**, la dette étant nommée ;
+- **balayage post-coupe** : `apiClient.deleteParticipation`, `getStats` et
+  `getAthlete` ont perdu leur dernier appelant *avec* les hooks du n° 5 et
+  `AthleteDialog` du n° 3 (`importEvent` était mort avant). Un audit dont le
+  critère est « ce que rien n'importe » doit repasser une fois après la coupe.
+  Même chose pour deux props de souplesse jamais fournies (`ResultCard.onDelete`,
+  `ProviderDetector.onDetected`) ;
+- **`aria-hidden` perdu** en basculant `ui/initials-avatar` → `tcn/Avatar` : les
+  initiales étaient annoncées avant le nom qu'elles abrègent (« M D Marie
+  Dupont »). Reposé sur `tcn/Avatar`, ce qui couvre aussi ses usages antérieurs.

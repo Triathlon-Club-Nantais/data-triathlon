@@ -336,7 +336,7 @@ Appliqué en quatre commits, dans l'ordre suggéré ci-dessus.
 | 3 | sous-classes `HostMatchedProvider` | ⚠️ appliqué sur **5**, pas 11 — `b39c88d` |
 | 4 | 6 copies de `HH:MM:SS` → secondes | ✅ `utils.to_seconds` / `fmt_seconds` — `4b55a8f` |
 | 5 | `PlaywrightProvider` + `_FALLBACK` + `_find_provider` | ✅ supprimés — `b39c88d` |
-| 6 | recopie de `BatchTotals` | ✅ `batch.reporter_totals` — `4b55a8f` |
+| 6 | recopie de `BatchTotals` | ✅ `batch.copy_totals` — `4b55a8f` |
 | 7 | 5 `_detect_event_type` | ✅ `0c7b62a` |
 | 8 | dédoublonnage ordonné | ⚠️ partiel — `4b55a8f` |
 | 9 | `sheet_source.is_supported` | ✅ `0c7b62a` |
@@ -369,6 +369,24 @@ Appliqué en quatre commits, dans l'ordre suggéré ci-dessus.
   rendrait invisible à Claude Code tout le contexte de dossier — conventions
   scrapers, sorties CLI, API de lecture, modèle, observabilité, SSO. C'est
   l'entrée où l'audit s'est trompé de cible.
+
+**Relecture du 2026-08-08 (`requesting-code-review`, trois relecteurs).** Aucun
+point critique : hosts, ordre de détection, ensemble fan-out et sémantique de
+parsing sont préservés, et `GET /api/v1/version` n'a pas été supprimé mais
+déplacé dans `health.py` (même chemin, mêmes consommateurs — Principe IV
+intact). Quatre correctifs de suivi, appliqués depuis :
+
+- le quintette fan-out du n° 3 **a** été factorisé entre-temps
+  (`registry.FanoutProvider`, commit `1a09845`) — l'écart consigné ci-dessus est
+  donc résorbé, mais trois docstrings de méthode ont été perdues au passage
+  (`single_heat` de Wiclax et d'OkTime, le commentaire de RaceResult) : elles
+  sont restaurées dans les docstrings de classe ;
+- `render.yaml` décrivait encore le repli fichier `VERSION` du n° 10 — c'est la
+  croyance à l'origine de #134/#162, corrigée ;
+- `core/logging.py` renvoyait à `core/tracing.py`, supprimé au n° 1 ;
+- `reporter_totals` est renommée `copy_totals` : lue en anglais, elle désignait
+  « les totaux du reporter », l'inverse de ce qu'elle fait, dans un module qui
+  porte par ailleurs un vrai `reporter: ProgressReporter`.
 
 Reste **hors** de cet audit, et le demeure : les quatre bases SQLite
 résiduelles à la racine de `backend/` (gitignorées) et les 38 Mo de
