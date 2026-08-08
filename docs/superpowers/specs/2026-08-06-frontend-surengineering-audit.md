@@ -315,20 +315,20 @@ Appliqué en deux commits, dans l'ordre suggéré ci-dessus.
 
 | # | Objet | État |
 |---|---|---|
-| 1 | cascade `command` → `input-group` → `textarea` | ✅ supprimée, `cmdk` avec — `84b7ee0` |
+| 1 | cascade `command` → `input-group` → `textarea` | ✅ supprimée, `cmdk` avec — `9aa2466` |
 | 2 | deux design systems | ⚠️ **requalifié** — frontière écrite, 2 paires basculées |
-| 3 | 6 composants orphelins | ✅ `84b7ee0` |
-| 4 | `ScrapeForm.tsx` + son test | ✅ `84b7ee0` |
-| 5 | 5 hooks react-query | ✅ `84b7ee0`, plus 3 clés `queryKeys` orphelines |
-| 6 | `next-themes` | ✅ `df42070` |
-| 7 | `@tanstack/react-query-devtools` | ✅ `84b7ee0` |
-| 8 | `shadcn` en `dependencies` | ✅ passé en `devDependencies` — `df42070` |
-| 9 | `toQuery` recopié | ✅ `lib/api/query.ts` — `df42070` |
-| 10 | `AbortController` du keep-warm | ✅ `AbortSignal.timeout` — `df42070` |
+| 3 | 6 composants orphelins | ✅ `9aa2466` |
+| 4 | `ScrapeForm.tsx` + son test | ✅ `9aa2466` |
+| 5 | 5 hooks react-query | ✅ `9aa2466`, plus 3 clés `queryKeys` orphelines |
+| 6 | `next-themes` | ✅ `21eaa4c` |
+| 7 | `@tanstack/react-query-devtools` | ✅ `9aa2466` |
+| 8 | `shadcn` en `dependencies` | ✅ passé en `devDependencies` — `21eaa4c` |
+| 9 | `toQuery` recopié | ✅ `lib/api/query.ts` — `21eaa4c` |
+| 10 | `AbortController` du keep-warm | ✅ `AbortSignal.timeout` — `21eaa4c` |
 | 11 | `scripts/exit-code.mjs` | ❌ **refusé** (voir ci-dessous) |
 | 12 | `lib/utils/event.ts` + `raceOrder.ts` | ❌ **refusé** (voir ci-dessous) |
-| 13 | 28 symboles exportés sans consommateur | ✅ 22 dé-exportés — `df42070` |
-| 14 | docstring dupliquée | ✅ `df42070` |
+| 13 | 28 symboles exportés sans consommateur | ✅ 22 dé-exportés — `21eaa4c` |
+| 14 | docstring dupliquée | ✅ `21eaa4c` |
 
 **Trois écarts, et leurs raisons.**
 
@@ -395,4 +395,4 @@ que l'audit envisageait.
 
 Note d'application : la suppression de la sentinelle `playwright` côté backend
 (entrée n° 5 de l'audit backend) a aussi touché `ProviderDetector.tsx`, qui
-déduisait le support de `provider !== "playwright"`. C'est dans `42afcfd`.
+déduisait le support de `provider !== "playwright"`. C'est dans `b39c88d`.
