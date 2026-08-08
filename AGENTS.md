@@ -111,6 +111,8 @@ uv run python -m app.cli import-sheet --json | jq -r '.failures[].url' \
 uv run python -m app.cli club-labels --like nant   # libellés club vus en base, marqués TCN ou non
 uv run python -m app.cli allow-email --email <adresse>              # autorise une adresse à se connecter (#170)
 uv run python -m app.cli grant-role --email <adresse> --role admin   # amorce le 1er administrateur (#115)
+uv run python -m app.cli revoke-sessions --all --yes                 # révocation d'urgence : ferme toutes les sessions (#169)
+uv run python -m app.cli revoke-sessions --email <adresse>           # ou celles d'une adresse seulement
 
 # Frontend (depuis frontend/)
 npm run dev        # Next.js sur :3000 (ou suivant libre), branché sur le backend du worktree

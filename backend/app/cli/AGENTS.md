@@ -178,3 +178,67 @@ simple que celui qu'elle prétendrait offrir.
 **Elle ne crée pas d'utilisateur.** L'amorçage complet tient en trois gestes :
 `allow-email`, une **connexion** par le navigateur (c'est elle qui crée le
 compte), puis `grant-role --role admin`.
+
+## `revoke-sessions` — la révocation d'urgence (#169)
+
+```bash
+uv run python -m app.cli revoke-sessions --all [--yes]
+uv run python -m app.cli revoke-sessions --email <adresse>
+```
+
+**Deux besoins avaient été fondus, et c'est ce que cette commande sépare.**
+Purger les sessions *expirées* reste opportuniste (`session.open_for`), et un
+ordonnanceur y serait du théâtre — le dépôt n'en a aucun. Révoquer *en urgence*
+n'arrive jamais, sauf le jour où : la procédure d'avant supposait d'ouvrir `psql`
+sur Supabase à la main, sous stress, en production.
+
+Deux cibles **exclusives** l'une de l'autre — deux modes, pas des filtres à
+composer, même parti pris que `rescrape-db` —, et **aucune n'est le défaut** : un
+`revoke-sessions` nu qui déconnecterait tout le club serait le pire des défauts
+imaginables (code 2). `--yes` ne garde que `--all` : fermer les sessions d'une
+personne se répare par une reconnexion, celles de tout le club non, et c'est le
+seul des deux gestes qui déconnecte aussi celui qui le lance. Un refus interactif
+sort en **0** avec « Annulé. » — annuler n'est pas une panne, précédent
+`reset_db.py`. Sans terminal (cron, CI, `< /dev/null`), `--all` sans `--yes`
+sort en **1** sur l'`Abort` de Click : rien n'est écrit, et un batch qui ne
+confirme pas doit s'entendre dire qu'il n'a rien fait.
+
+Pas de `--json` : ce n'est pas un batch. Le bilan compte **deux unités**, et
+chaque nom le dit : « N session(s) fermée(s) sur M compte(s) ». Les deux ne
+comptent que le **vivant** — session non expirée, compte actif, soit le filtre
+exact de `session.resolve` —, alors que la suppression, elle, emporte aussi les
+lignes mortes. L'écart est délibéré : les effacer est de l'hygiène gratuite, les
+annoncer serait un mensonge. Faute d'ordonnanceur, une base réelle est pleine de
+lignes expirées, et « 5 sessions fermées » quand une seule était vivante
+empêcherait de répondre à la seule question qu'on se pose en incident.
+
+**Une adresse qu'aucun compte ne porte est une erreur d'usage** (code 2), et une
+adresse mal formée aussi — par `allowed_emails.validate_email`, le **même**
+service que l'écran et qu'`allow-email`. « 0 session fermée » reste un compte
+rendu juste pour `--all` et pour une adresse connue sans session ouverte ; sur
+une faute de frappe, il confondrait « rien à fermer » et « vous avez mal tapé »,
+au moment exact où l'exploitant a besoin de croire ce qu'il lit. Même refus que
+`grant-role`, sur la même liste rendue par `find_by_email`.
+
+**Sur `--email`, elle prend tous les comptes portant l'adresse.** `users.email`
+n'est pas unique (#114, FR-003) : là où `grant-role` refuse de trancher entre les
+candidats et rend la liste, la révocation les prend tous — sous incident, en
+épargner un serait l'erreur coûteuse.
+
+**Elle ne désactive aucun compte**, et c'est ce qui la distingue du retrait d'une
+adresse autorisée (#170). Le retrait ferme par la **jointure** (`is_active =
+False`) et laisse les lignes de `user_sessions` : une réinscription dans la
+fenêtre de TTL ressuscite les jetons exacts, appareil oublié compris. La
+révocation **supprime** les lignes et laisse les comptes ouverts — on coupe des
+jetons, on ne met personne dehors, et les intéressés se reconnectent.
+
+**Elle a un jumeau dans le back-office** (pouvoir `sessions:revoke`), et la
+redondance est le but : le back-office est ergonomique là où l'exploitant est
+déjà connecté, la CLI reste praticable le jour où c'est justement du back-office
+qu'on se méfie. Le jumeau porte les **deux** gestes — `/admin/sessions` pour
+tous, « Fermer les sessions » par ligne dans `/admin/utilisateurs` pour un
+compte. Une différence à ne pas prendre pour une inconséquence : l'écran cible
+un **identifiant**, la CLI une **adresse**. L'écran liste des comptes et peut
+donc désigner ; `users.email` n'étant pas unique, y frapper par adresse
+emporterait des homonymes que rien n'aurait nommés. La CLI n'a pas d'écran pour
+départager, d'où son parti pris inverse — les prendre tous.
