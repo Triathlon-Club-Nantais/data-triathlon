@@ -152,7 +152,21 @@ porteur, le supprimer.
 - [X] T034 [P] Vérifier que `frontend/app/admin/layout.test.tsx` et `frontend/components/layout/AppNav.test.tsx` restent verts : l'entrée cesse d'être `soon`, elle ne devient pas une exception au test « une entrée `soon` n'est pas rendue » (#242)
 - [X] T035 Relire l'accessibilité de `frontend/components/admin/PermissionGrid.tsx` et `frontend/components/admin/RolePermissionsEditor.tsx` : chaque case liée à son étiquette (`htmlFor`/`id`), description et raison de désactivation liées par `aria-describedby`, `<legend>` non masqué — une raison qui n'existe que pour l'œil n'existe pas
 - [X] T036 Lancer la vérification complète depuis `frontend/` : `npm test`, `npm run lint`, `npm run build` ; puis depuis `backend/` : `uv run pytest -m "not integration"` (doit rester vert — aucun fichier backend touché)
-- [ ] T037 Dérouler `quickstart.md` de bout en bout sur une base fraîche (`uv run python scripts/reset_db.py`), §2 à §9 — dont §5 (codes périmés, fabriqués en SQL) et §7 (non-amplification, second compte)
+- [~] T037 Dérouler `quickstart.md` de bout en bout sur une base fraîche
+      (`uv run python scripts/reset_db.py`). **Partiellement fait** — 21 des 34
+      points, à la main, sur base réelle :
+  - [X] §2 navigation, §3 lecture, §4 recomposition, §5 codes périmés (fabriqués
+        en SQL), §6 création et suppression, §8 refus de lecture, §9 dernier
+        administrateur.
+  - [ ] §7 non-amplification, §7 bis consultation seule, §7 ter écriture
+        concurrente — les trois demandent une seconde session aux pouvoirs
+        distincts, que le fournisseur d'identité unique (GitHub) ne donne pas
+        sans second compte. `scripts/dev_login.py` lève l'obstacle, mais il n'est
+        pas encore versé.
+
+  Le déroulé a rapporté un défaut que les tests ne pouvaient pas voir : une case
+  à cocher `disabled` ne change pas d'apparence, donc une case figée était
+  indistinguable d'une case cliquable (corrigé, commit suivant).
 
 ---
 
