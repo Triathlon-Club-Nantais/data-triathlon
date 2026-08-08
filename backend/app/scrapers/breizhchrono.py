@@ -36,15 +36,13 @@ from app.core.exceptions import DomainError
 
 from .base import ScrapedResult
 from .classify import classify_event_type
+from .utils import DEFAULT_HEADERS
 
 logger = logging.getLogger(__name__)
 
 BASE = "https://resultats.breizhchrono.com"
 HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-    ),
+    **DEFAULT_HEADERS,
     "Referer": "https://resultats.breizhchrono.com/",
     "Accept": "text/html,*/*",
 }

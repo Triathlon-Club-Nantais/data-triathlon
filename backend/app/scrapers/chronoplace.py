@@ -35,7 +35,13 @@ from app.core import http
 
 from .base import FanoutTrace, ScrapedResult
 from .classify import classify_event_type
-from .utils import normalize_rank, normalize_time, parse_fr_date, split_athlete_name
+from .utils import (
+    DEFAULT_HEADERS,
+    normalize_rank,
+    normalize_time,
+    parse_fr_date,
+    split_athlete_name,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,12 +49,7 @@ logger = logging.getLogger(__name__)
 
 
 BASE_URL = "https://www.chronoplace.fr"
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-    )
-}
+HEADERS = DEFAULT_HEADERS
 
 _URL_RE = re.compile(r"^/classement/(?P<slug>[^/]+)(?:/epreuve/(?P<id>\d+))?/?$")
 _SORT_RE = re.compile(r"sortBy\('([^']+)'\)")

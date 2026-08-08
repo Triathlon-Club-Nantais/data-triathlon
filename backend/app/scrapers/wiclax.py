@@ -22,6 +22,7 @@ from app.core import http
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, FanoutTrace, ScrapedResult
 from .classify import classify_event_type
 from .utils import (
+    DEFAULT_HEADERS,
     derive_status_from_label,
     normalize_rank,
     normalize_time,
@@ -35,13 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0 Safari/537.36"
-    )
-}
+HEADERS = DEFAULT_HEADERS
 
 
 # Attributs candidats (forward-compat) ; le vrai signal Wiclax est le flag np.

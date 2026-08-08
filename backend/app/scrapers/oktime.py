@@ -36,6 +36,7 @@ from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER, ScrapedRe
 from .classify import classify_event_type
 from .klikego import FanoutTrace
 from .utils import (
+    DEFAULT_HEADERS,
     fmt_seconds,
     normalize_rank,
     normalize_time,
@@ -48,12 +49,7 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://ok-time.fr"
 API_PATH = "/wp-json/gmcap/v1/evenements/{event_id}/results"
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-    )
-}
+HEADERS = DEFAULT_HEADERS
 
 # `classement.ok-time.fr/<id>` ou `.../<id>/race/<raceId>`. Le segment `race`
 # est **ignoré** : l'API ne sait pas filtrer par épreuve, elle rend l'événement.
