@@ -3,8 +3,8 @@
 > Relevé fait à froid sur l'arbre complet de `frontend/` (14 918 lignes de
 > `.ts`/`.tsx`/`.mjs`/`.css` hors `node_modules` et `.next`, 40 dépendances),
 > branche `ponytail-analyse`. **Appliqué le 2026-08-08** — voir « État
-> d'application » en fin de document : 11 entrées sur 14 sont dans le code, deux
-> sont refusées avec leur raison, une reste un chantier à trancher.
+> d'application » en fin de document : 12 entrées sur 14 sont dans le code, deux
+> sont refusées avec leur raison.
 >
 > Périmètre : sur-ingénierie et complexité seulement. Ni bugs, ni sécurité, ni
 > performance — ces axes relèvent d'une revue normale.
@@ -316,7 +316,7 @@ Appliqué en deux commits, dans l'ordre suggéré ci-dessus.
 | # | Objet | État |
 |---|---|---|
 | 1 | cascade `command` → `input-group` → `textarea` | ✅ supprimée, `cmdk` avec — `84b7ee0` |
-| 2 | deux design systems | ⏸️ **chantier**, décision non prise |
+| 2 | deux design systems | ⚠️ **requalifié** — frontière écrite, 2 paires basculées |
 | 3 | 6 composants orphelins | ✅ `84b7ee0` |
 | 4 | `ScrapeForm.tsx` + son test | ✅ `84b7ee0` |
 | 5 | 5 hooks react-query | ✅ `84b7ee0`, plus 3 clés `queryKeys` orphelines |
@@ -349,12 +349,41 @@ Appliqué en deux commits, dans l'ordre suggéré ci-dessus.
   d'`IconButton` par le barrel `components/tcn/index.ts` — le composant, lui,
   sert à `Modal`.
 
-**Ce qui reste à trancher.** L'entrée n° 2 — sept primitives en double entre
-`components/ui/` et `components/tcn/`, les deux versions activement utilisées.
-La question posée par l'audit tient toujours : est-ce que `tcn/` absorbe les
-primitives complexes (`dropdown-menu`, `select`), ou est-ce que `ui/` reçoit les
-tokens `--tcn-*` ? Tant qu'elle n'a pas de réponse, chaque nouveau composant
-repose l'arbitrage.
+**n° 2 — la mesure a requalifié le constat.** L'audit décrivait « une migration
+inachevée » et posait un choix binaire (`tcn/` absorbe les primitives complexes,
+ou `ui/` reçoit les tokens `--tcn-*`). Le comptage des sites d'appel dit autre
+chose : le partage est **par zone**, et il est cohérent.
+
+- `ui/dialog` : 5 fichiers, **tous** `admin/`. Idem pour l'essentiel de
+  `ui/input` (6 sur 8), `ui/button` (9 sur 13), `ui/card` (4 sur 8).
+- `ui/select`, `dropdown-menu`, `popover`, `sheet`, `table` : primitives
+  `@base-ui/react` **sans équivalent** dans `tcn/`, et l'audit les avait
+  lui-même rangées dans « vérifié et écarté ».
+- **Quatre fichiers seulement** importent les deux bibliothèques, et à chaque
+  fois pour l'une de ces primitives complexes : `UserMenu` (`dropdown-menu`),
+  `SeasonSelector` (`popover`), `AppNav` (`sheet`), `EventList` (`select` +
+  `empty-state`). C'est de la composition, pas un mélange.
+
+Il n'y avait donc pas d'arbitrage à trancher mais une **frontière non écrite** —
+et deux vrais outliers, qui eux ont été corrigés :
+
+- **`ui/initials-avatar` → `tcn/Avatar`** (3 sites, aucun dans `admin/`).
+  `tcn/Avatar` était déjà l'avatar d'athlète de la fiche coureur, d'`AppNav` et
+  d'`AthletePicker` : le même athlète s'affichait en dégradé orange sur sa
+  fiche et en pastille pastel hachée sur sa carte de résultat. La couleur hachée
+  par nom (`avatarColor`, devenue morte, supprimée) n'était plus la convention.
+- **`ui/stat` → `tcn/StatCard`** (2 sites, `ClubDashboard` et `ClubPodiumKpi`).
+  `/dashboard` et `/athletes/[id]` utilisaient déjà `StatCard` pour le même
+  travail ; `/club` était l'exception. La docstring de `ClubPodiumKpi` se disait
+  même « miroir du couple `StatCardsRank` + `PodiumsList` » — le miroir était
+  cassé, l'un tirant `StatCard` et l'autre `Stat`. `StatCard` **étant** la
+  carte, le couple `Card`/`CardContent` qui l'enveloppait disparaît.
+
+Restent cinq paires (`card`, `button`, `badge`, `input`, `dialog`) qui servent
+réellement de part et d'autre de la ligne. La frontière est désormais écrite
+dans `frontend/AGENTS.md` : c'est elle qui empêche l'arbitrage d'être reposé à
+chaque nouveau composant, et elle coûte moins que la migration de 485 lignes
+que l'audit envisageait.
 
 Note d'application : la suppression de la sentinelle `playwright` côté backend
 (entrée n° 5 de l'audit backend) a aussi touché `ProviderDetector.tsx`, qui
