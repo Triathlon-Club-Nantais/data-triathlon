@@ -2,8 +2,10 @@
 
 > Relevé fait à froid sur l'arbre complet de `backend/` (18 998 lignes `app/`,
 > 29 378 lignes `tests/`, 802 `scripts/`, 757 `alembic/`), branche
-> `ponytail-analyse`. **Aucune modification appliquée** : ce document est un
-> constat à traiter après les sujets en cours.
+> `ponytail-analyse`. **Appliqué le 2026-08-08** — voir « État d'application »
+> en fin de document : 13 entrées sur 14 sont dans le code, la 14ᵉ est refusée
+> avec sa raison. Le relevé ci-dessous est conservé **tel qu'il a été écrit**,
+> y compris une erreur de comptage relevée à l'application (entrée n° 3).
 >
 > Périmètre : sur-ingénierie et complexité seulement. Ni bugs, ni sécurité, ni
 > performance — ces axes relèvent d'une revue normale.
@@ -320,14 +322,51 @@ Pour éviter de rejuger ces points au prochain passage :
 - **`app/core/time.py`** (7 lignes pour `utcnow()`) — point d'injection unique
   des tests et garde contre `datetime.utcnow()` déprécié.
 
-## Suite
+## État d'application (2026-08-08)
 
-Rien n'est appliqué. Ordre suggéré si le sujet est repris :
+Appliqué en quatre commits, dans l'ordre suggéré ci-dessus.
 
-1. **Coupes sans risque, en un lot** : 7, 9, 10, 11, 13, 14 (≈ −45 lignes, aucun
-   changement de comportement). Un seul commit, tests existants suffisants.
-2. **Décision produit** : 1 (OTel — un collecteur est-il prévu ?) et 12 (les
-   `CLAUDE.md`).
-3. **Coupes à tester** : 2, 4, 6, 8.
-4. **En dernier, seul et revu** : 3 et 5 — ils touchent le routage des scrapers,
-   et 5 change une valeur exposée par l'API.
+| # | Objet | État |
+|---|---|---|
+| 1 | socle OpenTelemetry | ✅ supprimé — `7eea9ed` |
+| 2 | scan de ports `dev_server` | ✅ port éphémère — `829447b` |
+| 3 | sous-classes `HostMatchedProvider` | ⚠️ appliqué sur **5**, pas 11 — `42afcfd` |
+| 4 | 6 copies de `HH:MM:SS` → secondes | ✅ `utils.to_seconds` / `fmt_seconds` — `829447b` |
+| 5 | `PlaywrightProvider` + `_FALLBACK` + `_find_provider` | ✅ supprimés — `42afcfd` |
+| 6 | recopie de `BatchTotals` | ✅ `batch.reporter_totals` — `829447b` |
+| 7 | 5 `_detect_event_type` | ✅ `dbd73b8` |
+| 8 | dédoublonnage ordonné | ⚠️ partiel — `829447b` |
+| 9 | `sheet_source.is_supported` | ✅ `dbd73b8` |
+| 10 | repli fichier `VERSION` | ✅ `dbd73b8` |
+| 11 | `app/api/v1/version.py` | ✅ fusionné dans `health.py` — `dbd73b8` |
+| 12 | 6 `CLAUDE.md` d'une ligne | ❌ **refusé** (voir ci-dessous) |
+| 13 | 4 × `d[k] = d.get(k, 0) + 1` | ✅ `collections.Counter` — `dbd73b8` |
+| 14 | `python-dotenv` | ✅ `dbd73b8` |
+
+**Trois écarts, et leurs raisons.**
+
+- **n° 3 — l'audit a compté onze classes triviales, il y en avait cinq.** Il a
+  rangé parmi elles `RaceResultProvider`, `ChronoplaceProvider`,
+  `OkTimeProvider`, `SporthiveProvider` et `ChronoWebProvider`, qui portent tous
+  un fan-out et une `last_trace` : leur `scrape_event_all` n'est pas une
+  délégation d'une ligne. Seules `TimePulse`, `ProLiveSport`, `SportInnovation`,
+  `Competitor` et `RunnerBreizh` sont devenues des entrées `ModuleProvider`.
+  Le quintette fan-out partage bien, lui aussi, un motif (`__init__` posant
+  `last_trace`, puis la bascule `single_heat` / `scrape_event_fanout`) : c'est
+  une factorisation **distincte**, à instruire à part, sur le code le plus
+  sensible du dépôt.
+- **n° 8 — pas de `dedupe_by` partagé.** Le troisième site,
+  `import_service._merge_cached_courses`, n'est pas un dédoublonnage mais une
+  fusion à `seen` pré-amorcé, qui transforme ses éléments au passage. Restaient
+  deux appelants, et `dict.setdefault` — que `_dedupe_par_url` employait déjà —
+  répond au besoin sans nouvel helper. `dedupe_links` s'y aligne.
+- **n° 12 — les `CLAUDE.md` d'une ligne ne sont pas de l'indirection, ils sont
+  le mécanisme.** L'`AGENTS.md` racine le documente : « Claude Code ne lit que
+  `CLAUDE.md`, les autres agents ne lisent qu'`AGENTS.md` ». Supprimer les six
+  rendrait invisible à Claude Code tout le contexte de dossier — conventions
+  scrapers, sorties CLI, API de lecture, modèle, observabilité, SSO. C'est
+  l'entrée où l'audit s'est trompé de cible.
+
+Reste **hors** de cet audit, et le demeure : les quatre bases SQLite
+résiduelles à la racine de `backend/` (gitignorées) et les 38 Mo de
+`triathlon.db` en développement.
