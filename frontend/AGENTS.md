@@ -10,7 +10,11 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 `/api/v1` du backend. Tests Vitest + RTL verts. Build prod OK.
 
 - `app/` — App Router : `dashboard`, `resultats`, `athletes/[id]`, `courses/[id]`,
-  `club`, `carte`, `ajouter`, `admin`, `admin/acces`, `admin/utilisateurs`.
+  `club`, `carte`, `ajouter`, `admin`, `admin/acces`, `admin/utilisateurs`,
+  la révocation d'urgence (#169) vivant **dans** `admin/acces` : par adresse
+  ligne à ligne, globale en carte de bas de page. Pas d'écran ni d'entrée de
+  navigation dédiés — un unique bouton ne les justifiait pas. Jumelle de la CLI,
+  la redondance étant le but : le back-office suppose une session, la CLI non.
 - **Navigation** — `components/layout/nav.config.ts` en est la description
   **unique** ; ajouter une destination y tient en une ligne. Deux échelons de
   visibilité, à ne pas confondre : `minRole` ne distingue qu'anonyme et

@@ -124,6 +124,33 @@ classent d'elles-mêmes dans le filet d'inventaire par la règle du préfixe —
 bouger. Un groupe **n'accorde rien** : la garde ne les lit jamais, et
 `tests/test_auth/test_groups_grant_nothing.py` l'établit par AST.
 
+## Révocation d'urgence des sessions (#169)
+
+`POST /admin/sessions/revoke` (`sessions:revoke`), corps facultatif, rend
+`{"sessions": N, "accounts": M}` — deux chiffres qui ne comptent
+que ce qui était **vivant** (non expiré, compte actif), alors que la suppression,
+elle, emporte tout. L'écart est délibéré : supprimer une ligne morte est de
+l'hygiène gratuite, l'annoncer comme « fermée » serait un mensonge, et faute
+d'ordonnanceur une base réelle en est pleine. Trois points :
+
+- **Une ressource, deux portées**, et la seconde n'est pas un doublon du
+  retrait d'adresse. Corps absent → tout ; `{"email": …}` → les comptes portant
+  cette adresse, **tous** (`users.email` n'est pas unique, FR-003 — en épargner
+  un sous incident serait l'erreur coûteuse). Retirer une adresse (#170) ferme
+  par la jointure mais **n'efface aucune ligne**, donc une réinscription dans la
+  fenêtre de TTL ressuscite les jetons ; ici les lignes partent et le compte
+  reste actif. Une adresse inconnue est un **succès sans effet** : l'écran ne
+  propose que des adresses de sa propre liste, il n'y a pas de faute de frappe
+  possible, là où la CLI la refuse.
+- **Elle ferme la session de l'appelant**, et ce n'est pas un effet de bord à
+  corriger : sous fuite, son jeton est suspect comme les autres. L'écran
+  l'annonce avant le geste et renvoie vers `/login`.
+- **Idempotente** : « 0 session fermée » est un succès. Distinguer un geste utile
+  d'un geste dans le vide appartient au compte rendu, pas au code de statut.
+
+Le jumeau hors ligne est `python -m app.cli revoke-sessions`, et la redondance
+est le but — voir `app/cli/AGENTS.md`.
+
 ## Administration des données (#117)
 
 `admin_data.py` porte six ressources : quatre gestes correctifs et deux lectures

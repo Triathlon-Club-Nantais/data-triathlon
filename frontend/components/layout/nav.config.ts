@@ -112,7 +112,10 @@ export const NAV: NavSection[] = [
       { id: "a-scrape", label: "Re-scrape à la demande", soon: true },
       { id: "a-quality", label: "Revalidation qualité", permission: "quality:override", soon: true },
       { id: "a-benevolat", label: "Bénévolat", soon: true },
-      { id: "a-sessions", label: "Sessions", minRole: ROLE.ADMIN, soon: true },
+      // Pas d'entrée « Sessions » : #169 a livré la révocation **dans**
+      // « Accès au back-office » — par adresse ligne à ligne, globale en bas de
+      // page. Un second écran pour un unique bouton aurait coûté une entrée de
+      // navigation de plus, sur un rail déjà long.
       { id: "a-flags", label: "Feature flags", minRole: ROLE.ADMIN, soon: true },
     ],
   },

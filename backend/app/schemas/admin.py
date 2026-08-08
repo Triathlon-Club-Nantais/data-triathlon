@@ -426,3 +426,38 @@ class AllowedEmailCreate(BaseModel):
     #: `1` est celui que le semis pose — l'administrateur. Une case à cocher mal
     #: sérialisée garerait l'administration sur une adresse.
     role_id: StrictInt | None = None
+
+
+class SessionRevocation(BaseModel):
+    """Bilan d'une révocation d'urgence (#169).
+
+    **Deux unités, et chaque nom le dit** — même règle que les bilans de la CLI :
+    `sessions` compte des jetons coupés, `accounts` les comptes qui en portaient
+    au moins un. Un seul des deux chiffres ne dirait rien à l'exploitant, qui
+    veut savoir *combien de monde* il vient de déconnecter, pas seulement
+    combien d'appareils.
+
+    Les deux chiffres ne comptent que le **vivant** — session non expirée, compte
+    actif, soit le filtre exact de `session.resolve` —, alors que la suppression
+    emporte aussi les lignes mortes. Dire « 12 comptes » quand onze dormaient
+    donnerait à un geste dans le vide l'air d'un geste utile ; annoncer des
+    sessions expirées comme « fermées » ferait le même effet, en pire, puisque
+    faute d'ordonnanceur une base réelle en est pleine.
+    """
+
+    sessions: int
+    accounts: int
+
+
+class SessionRevocationRequest(BaseModel):
+    """Portée d'une révocation (#169). Corps **facultatif**.
+
+    Absent ou `email: null` → toutes les sessions. Une adresse → les comptes qui
+    la portent, **tous** : `users.email` n'est pas unique (FR-003), et l'écran
+    qui appelle cette route liste des *adresses*, pas des comptes. En épargner un
+    sous incident serait l'erreur coûteuse.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: str | None = None

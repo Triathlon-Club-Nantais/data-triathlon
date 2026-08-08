@@ -11,21 +11,31 @@ import type { AdminUser, Role, SessionUser } from "@/lib/types";
 // n'invalide sur un échec — le test passait aussi avec tout le `catch` supprimé.
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-const { listAdminUsers, listRoles, grantRole, revokeRole, getSession } = vi.hoisted(
-  () => ({
-    listAdminUsers: vi.fn(),
-    listRoles: vi.fn(),
-    grantRole: vi.fn(),
-    revokeRole: vi.fn(),
-    getSession: vi.fn(),
-  }),
-);
+const {
+  listAdminUsers,
+  listRoles,
+  grantRole,
+  revokeRole,
+  getSession,
+} = vi.hoisted(() => ({
+  listAdminUsers: vi.fn(),
+  listRoles: vi.fn(),
+  grantRole: vi.fn(),
+  revokeRole: vi.fn(),
+  getSession: vi.fn(),
+}));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
   return {
     ...original,
-    apiClient: { listAdminUsers, listRoles, grantRole, revokeRole, getSession },
+    apiClient: {
+      listAdminUsers,
+      listRoles,
+      grantRole,
+      revokeRole,
+      getSession,
+    },
   };
 });
 
@@ -295,3 +305,4 @@ describe("UserRolesTable", () => {
     expect(screen.getByText(ADMINISTRATEUR.name)).toBeInTheDocument();
   });
 });
+

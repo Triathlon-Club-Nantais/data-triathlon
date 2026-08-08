@@ -91,6 +91,13 @@ class P:
         "Consulter, ajouter et retirer les adresses autorisées à ouvrir une session.",
         FEATURE_ROLES,
     )
+    SESSIONS_REVOKE = Permission(
+        "sessions:revoke",
+        "Révoquer les sessions",
+        "Fermer les sessions ouvertes d'un compte, ou de tous d'un coup — la "
+        "sienne comprise. Le geste d'incident, après une fuite de jetons.",
+        FEATURE_ROLES,
+    )
     GROUPS_READ = Permission(
         "groups:read",
         "Consulter les groupes",
@@ -183,6 +190,7 @@ ALL: tuple[Permission, ...] = (
     P.ROLES_ASSIGN,
     P.USERS_READ,
     P.ALLOWED_EMAILS_MANAGE,
+    P.SESSIONS_REVOKE,
     P.GROUPS_READ,
     P.GROUPS_WRITE,
     P.GROUPS_ASSIGN,

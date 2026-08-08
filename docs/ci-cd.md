@@ -143,8 +143,13 @@ le frontend n'en porte aucun, il ne fait que proxifier `/api/*`.
 > vérifié en base**, il n'est pas signé — cette clé ne signe que le jeton
 > d'état. Une rotation n'interrompt donc que les parcours de connexion en cours
 > (600 s de fenêtre), et croire l'inverse ferait tenir une fuite pour colmatée.
-> Pour fermer réellement les sessions : `is_active = False` sur un compte,
-> `DELETE FROM user_sessions` pour tous (procédure détaillée dans `AGENTS.md`).
+> Pour fermer réellement les sessions, il y a désormais un outil et non une
+> procédure (#169) : `/admin/acces` depuis le back-office — par adresse ligne à
+> ligne, globale en bas de page —, ou `uv run python -m app.cli revoke-sessions
+> --all` sur le serveur, ce second chemin restant praticable le jour où c'est du
+> back-office qu'on se méfie. Pour une seule personne :
+> `revoke-sessions --email <adresse>`. Ne plus passer par `psql` : c'est ce que
+> #169 a retiré.
 >
 > Corollaire : personne n'a besoin de connaître cette clé, d'où le
 > `generateValue` en production. La saisir à la main n'apporte aucun levier

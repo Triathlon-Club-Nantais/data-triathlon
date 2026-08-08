@@ -10,6 +10,7 @@ from app.api.v1 import (
     admin_data,
     admin_groups,
     admin_roles,
+    admin_sessions,
     athletes,
     auth,
     courses,
@@ -38,6 +39,7 @@ for module in (
     admin_data,
     admin_roles,
     admin_groups,
+    admin_sessions,
     auth,
 ):
     api_router.include_router(module.router)
