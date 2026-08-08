@@ -14,10 +14,10 @@ import pytest
 
 from app.scrapers import registry
 from app.scrapers.base import ScrapedResult
+from app.scrapers.classify import classify_event_type
 from app.scrapers.wiclax import (
     _clax_url,
     _competitor_status,
-    _detect_event_type,
     _fill_er_splits,
     _find_glive_url,
     _find_wiclax_link,
@@ -47,12 +47,12 @@ def _segments(s_elems: str) -> list[ET.Element]:
     return list(ET.fromstring(f"<Segments>{s_elems}</Segments>"))
 
 
-def test_detect_event_type():
-    assert _detect_event_type("Triathlon L") == "triathlon-l"
-    assert _detect_event_type("Triathlon M") == "triathlon-m"
-    assert _detect_event_type("Sprint de la Roche") == "triathlon-s"
-    assert _detect_event_type("Ironman France") == "triathlon-xl"
-    assert _detect_event_type("Duathlon") == "duathlon"
+def testclassify_event_type():
+    assert classify_event_type("Triathlon L") == "triathlon-l"
+    assert classify_event_type("Triathlon M") == "triathlon-m"
+    assert classify_event_type("Sprint de la Roche") == "triathlon-s"
+    assert classify_event_type("Ironman France") == "triathlon-xl"
+    assert classify_event_type("Duathlon") == "duathlon"
 
 
 def test_get_competitor_bib():

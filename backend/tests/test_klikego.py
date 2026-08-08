@@ -21,9 +21,9 @@ from bs4 import BeautifulSoup
 import app.scrapers.klikego as klikego
 import app.scrapers.klikego_platform as plat
 from app.scrapers.base import ScrapedResult
+from app.scrapers.classify import classify_event_type
 from tests.conftest import load_klikego_fixture
 
-_detect_event_type = klikego._detect_event_type
 _parse_detail = klikego._parse_detail
 _parse_search_row = klikego._parse_search_row
 decode_data_block = plat.decode_data_block
@@ -126,7 +126,7 @@ def fresh_result() -> tuple[ScrapedResult, dict]:
     ("", "", "triathlon"),
 ])
 def test_event_type_detection(heat, slug, expected):
-    assert _detect_event_type(heat, slug) == expected
+    assert classify_event_type(heat, contexte=slug) == expected
 
 
 # ---------------------------------------------------------------------------

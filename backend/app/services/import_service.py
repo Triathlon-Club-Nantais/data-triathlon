@@ -9,6 +9,7 @@ et un générateur de progression pour le streaming SSE.
 import logging
 import queue
 import threading
+from collections import Counter
 from collections.abc import Iterator
 from dataclasses import dataclass
 from urllib.parse import urlparse
@@ -359,7 +360,7 @@ class _Persister:
         self.event_url = event_url
         self._by_bib: dict[int, dict[str, Participation]] = {}
         self._added_bibs: dict[int, set[str]] = {}
-        self._duplicate_bibs: dict[int, int] = {}
+        self._duplicate_bibs: Counter[int] = Counter()
         self._without_bib: dict[int, dict[int, list[Participation]]] = {}
         self._credits: dict[int, dict[int, int]] = {}
         self._updated_single: dict[int, set[int]] = {}
@@ -430,7 +431,7 @@ class _Persister:
                 # La source se contredit dans ce scrape : deux lignes, même
                 # dossard. La 2e est perdue — anomalie de fiabilité.
                 self.skipped += 1
-                self._duplicate_bibs[course.id] = self._duplicate_bibs.get(course.id, 0) + 1
+                self._duplicate_bibs[course.id] += 1
                 return
             existing = self._by_bib[course.id].get(bib)
             if existing is not None:
@@ -511,7 +512,7 @@ class _Persister:
             course_repository.touch_scraped_at(self.db, course)
             report = quality.analyze(
                 participation_repository.list_for_course(self.db, course_id),
-                duplicate_bibs=self._duplicate_bibs.get(course_id, 0),
+                duplicate_bibs=self._duplicate_bibs[course_id],
             )
             course_repository.set_quality(
                 self.db,

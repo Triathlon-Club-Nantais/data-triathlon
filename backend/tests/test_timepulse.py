@@ -10,10 +10,10 @@ Cas couverts :
 """
 import pytest
 
+from app.scrapers.classify import classify_event_type
 from app.scrapers.timepulse import (
     _attrs,
     _compute_ranks,
-    _detect_event_type,
     _find_tag,
     _parse_event_date,
     _parse_series,
@@ -213,7 +213,7 @@ def test_compute_ranks_no_result_for_bib():
     ("SWIMRUN DE MAYENNE",                   "swimrun"),
 ])
 def test_detect_event_type_timepulse(name, expected):
-    assert _detect_event_type(name) == expected
+    assert classify_event_type(name) == expected
 
 
 # ---------------------------------------------------------------------------

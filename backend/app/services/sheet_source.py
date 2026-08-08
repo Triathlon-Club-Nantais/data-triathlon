@@ -8,7 +8,6 @@ import io
 from urllib.parse import urlparse, urlunparse
 
 from app.core import http
-from app.scrapers import registry
 
 DEFAULT_SHEET_URL = (
     "https://docs.google.com/spreadsheets/d/"
@@ -65,15 +64,6 @@ def parse_sheet_csv(csv_text: str) -> tuple[list[str], int]:
         elif any(cell.strip() for cell in row):
             sans_lien += 1
     return links, sans_lien
-
-
-def is_supported(url: str) -> bool:
-    """Supporté pour l'import de masse ⇔ un provider du registre reconnaît l'URL.
-
-    Simple alias de `registry.is_supported` : la définition vit dans le registre,
-    partagée avec l'API `/scrape/detect`.
-    """
-    return registry.is_supported(url)
 
 
 def host_of(url: str) -> str:

@@ -48,16 +48,6 @@ def test_parse_sheet_csv_repli_sur_index_9_si_en_tete_absent():
     assert links == ["https://www.timepulse.fr/e/1"]
 
 
-def test_is_supported_playwright_est_faux(monkeypatch):
-    from app.scrapers import registry
-
-    monkeypatch.setattr(registry, "detect_provider", lambda url: "playwright")
-    assert sheet_source.is_supported("http://x") is False
-
-    monkeypatch.setattr(registry, "detect_provider", lambda url: "klikego")
-    assert sheet_source.is_supported("http://x") is True
-
-
 def test_host_of_minuscule_et_repli():
     assert sheet_source.host_of("https://WWW.Example.COM/a") == "www.example.com"
     assert sheet_source.host_of("pas-une-url") == "(inconnu)"

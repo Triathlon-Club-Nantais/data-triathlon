@@ -38,8 +38,9 @@ provider ; `base.py` = `ScrapedResult` ; `utils.py` = helpers de normalisation.
   supporté ») ; et une redirection vers un **autre domaine** reste autorisée —
   l'export CSV du Google Sheet en dépend. Design :
   `docs/superpowers/specs/2026-07-31-ssrf-redirection-design.md`.
-- **Breizh Chrono réutilise la logique Klikego** (`klikego._parse_detail`,
-  `_detect_event_type`) — ne pas dupliquer, factoriser dans `klikego.py`.
+- **Breizh Chrono réutilise la logique Klikego** (`klikego._parse_detail`) — ne
+  pas dupliquer, factoriser dans `klikego.py`. Le type d'épreuve, lui, vient de
+  `classify.classify_event_type`, appelé directement par chaque scraper.
 - « Supporté ou non » : **une seule définition**, `registry.is_supported` (dérivée
   de `PROVIDERS`), exposée par `GET /scrape/detect` (`{provider, supported}`). Le
   front ne liste **jamais** les providers : la liste en dur qu'il portait est
@@ -63,7 +64,7 @@ fournisseur — à lire **avant** de toucher au module correspondant.
 
 | Fournisseur | En bref | Détail |
 | --- | --- | --- |
-| Klikego, Breizh Chrono | Breizh Chrono **réutilise** `klikego._parse_detail` / `_detect_event_type` — factoriser dans `klikego.py`, ne jamais dupliquer. | — |
+| Klikego, Breizh Chrono | Breizh Chrono **réutilise** `klikego._parse_detail` — factoriser dans `klikego.py`, ne jamais dupliquer. | — |
 | TimePulse, ProLiveSport, Sportinnovation | rien au-delà des conventions ci-dessus. | — |
 | Chronoplace | Laravel + Livewire, lu en `GET ?perPage=all` — pas de POST Livewire — et importe **toutes** les épreuves de l'événement pointé par l'URL. | — |
 | Wiclax/G-Live | plusieurs déploiements : `wiclax-results.com`, `chronosmetron.com`, `chronowest.fr` (WordPress + iframe G-Live). Un déploiement tiers de plus = un host dans `WiclaxProvider._HOSTS`. | — |
