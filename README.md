@@ -48,7 +48,7 @@ task test            # tests unitaires backend + frontend
 task lint            # lint des deux
 ```
 
-Préfixes : `b:*` (backend), `f:*` (frontend), `docker:*` (docker-compose). Ex. :
+Préfixes : `b:*` (backend), `f:*` (frontend). Ex. :
 `task b:migrate`, `task b:migration -- "mon message"`, `task f:build`.
 Les sections ci-dessous documentent les commandes brutes équivalentes.
 
@@ -256,8 +256,7 @@ data-triathlon/
 │   ├── modele-donnees.md       # MCD : diagramme Mermaid + contraintes (entités & migrations)
 │   ├── WORKFLOW-IA.md
 │   └── superpowers/            # specs & plans de refonte
-├── docker-compose.yml           # pile full-stack locale (backend :8000 + frontend :3000)
-├── Taskfile.yml                 # raccourcis go-task (b:* / f:* / docker:*)
+├── Taskfile.yml                 # raccourcis go-task (b:* / f:*)
 └── render.yaml                  # config déploiement Render (backend)
 ```
 

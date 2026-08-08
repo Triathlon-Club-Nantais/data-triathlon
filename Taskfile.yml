@@ -6,7 +6,6 @@
 # Convention de nommage :
 #   b:*  → backend/   (FastAPI + SQLAlchemy + Alembic)
 #   f:*  → frontend/  (Next.js + TypeScript + Tailwind)
-#   docker:* → docker-compose (pile full-stack locale)
 # Les tâches sans préfixe sont des raccourcis qui agissent sur l'ensemble de la pile.
 #
 # Prérequis backend : uv (https://docs.astral.sh/uv/). Aucun venv à activer :
@@ -158,16 +157,3 @@ tasks:
     dir: frontend
     cmds:
       - npm run lint
-
-  # ──────────────────────────────────────────────────────────────────────────
-  # Docker Compose (pile full-stack : backend :8000 + frontend :3000)
-  # ──────────────────────────────────────────────────────────────────────────
-  docker:up:
-    desc: 'docker : build + lance la pile (backend :8000, frontend :3000)'
-    cmds:
-      - docker compose up --build
-
-  docker:down:
-    desc: 'docker : arrête et supprime les conteneurs'
-    cmds:
-      - docker compose down
