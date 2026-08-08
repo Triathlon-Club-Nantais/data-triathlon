@@ -10,7 +10,7 @@ from app.api.deps import settings_dep
 from app.core.config import Settings
 from app.core.database import SessionLocal, get_db
 from app.schemas.scrape import ImportResult, ScrapeRequest
-from app.scrapers import detect_provider, is_supported
+from app.scrapers import detect_provider, is_supported, provider_names
 from app.services import import_service
 
 router = APIRouter(tags=["scrape"])
@@ -95,3 +95,14 @@ def detect(url: str):
     Competitor, RaceResult et Chronoplace.
     """
     return {"provider": detect_provider(url), "supported": is_supported(url)}
+
+
+@router.get("/scrape/providers")
+def providers():
+    """Fournisseurs ciblables, dans l'ordre de détection.
+
+    Même registre que la validation de `--provider` côté batch : le sélecteur du
+    front ne peut donc pas proposer un nom que le lancement refuserait, ni
+    manquer un provider ajouté depuis.
+    """
+    return {"providers": provider_names()}

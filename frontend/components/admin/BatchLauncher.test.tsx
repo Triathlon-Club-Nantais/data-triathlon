@@ -8,17 +8,18 @@ import type { BatchRun, SessionUser } from "@/lib/types";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-const { launchBatch, listBatchRuns, getSession } = vi.hoisted(() => ({
+const { launchBatch, listBatchRuns, getSession, listProviders } = vi.hoisted(() => ({
   launchBatch: vi.fn(),
   listBatchRuns: vi.fn(),
   getSession: vi.fn(),
+  listProviders: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
   return {
     ...original,
-    apiClient: { launchBatch, listBatchRuns, getSession },
+    apiClient: { launchBatch, listBatchRuns, getSession, listProviders },
   };
 });
 
@@ -61,6 +62,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   getSession.mockResolvedValue(SESSION(["batch:run", "batch:read"]));
   listBatchRuns.mockResolvedValue([]);
+  listProviders.mockResolvedValue(["klikego", "chronoplace", "oktime"]);
   launchBatch.mockResolvedValue({ correlation_id: "b7c1f2e4", state: "pending" });
 });
 
@@ -69,7 +71,10 @@ describe("BatchLauncher", () => {
     const user = userEvent.setup();
     afficher();
 
-    await user.type(await screen.findByLabelText(/fournisseur/i), "klikego");
+    // Le fournisseur se choisit dans la liste du registre backend, affichée
+    // sous son nom commercial ; c'est le slug qui part au lancement.
+    await user.click(await screen.findByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "Klikego" }));
     await user.type(screen.getByLabelText(/nombre maximum/i), "50");
     await user.click(screen.getByLabelText(/simulation/i));
     await user.click(screen.getByRole("button", { name: /lancer/i }));

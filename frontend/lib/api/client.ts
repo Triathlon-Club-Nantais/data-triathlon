@@ -125,6 +125,11 @@ export const apiClient = {
       `/scrape/detect${toQuery({ url })}`,
     ),
 
+  // Même registre, même ordre de détection : le sélecteur de fournisseur du
+  // batch ne peut donc proposer que des noms que le lancement accepte.
+  listProviders: () =>
+    request<{ providers: string[] }>("/scrape/providers").then((r) => r.providers),
+
   importEvent: (url: string) =>
     request<ImportResult>("/scrape/event", {
       method: "POST",

@@ -31,6 +31,20 @@ export function useBatchRuns(enabled = true) {
   });
 }
 
+/**
+ * Les fournisseurs ciblables, tels que le registre backend les énumère.
+ *
+ * `staleTime: Infinity` : la liste ne bouge qu'au déploiement d'un nouveau
+ * provider, un rechargement d'onglet suffit à la reprendre.
+ */
+export function useProviders() {
+  return useQuery({
+    queryKey: queryKeys.providers(),
+    queryFn: () => apiClient.listProviders(),
+    staleTime: Infinity,
+  });
+}
+
 export function useLaunchBatch() {
   const qc = useQueryClient();
   return useMutation({
