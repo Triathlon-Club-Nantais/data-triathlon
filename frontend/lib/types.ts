@@ -483,4 +483,23 @@ export interface RescrapeLaunch {
 export interface BatchLaunched {
   correlation_id: string;
   state: "pending";
+  /** Renseignés au lancement depuis un fichier seulement. */
+  epreuves?: number;
+  ignored_by_host?: Record<string, number>;
+}
+
+/** Une colonne du fichier téléversé, telle que l'écran la présente. */
+export interface ColumnPreview {
+  index: number;
+  header: string;
+  /** Zéro sur une colonne d'hyperliens sans texte — c'est ce qui la rend visible. */
+  link_count: number;
+  samples: string[];
+}
+
+export interface SheetColumns {
+  row_count: number;
+  /** `null` quand aucune colonne ne porte de lien : l'écran le dit, il ne devine pas. */
+  suggested_index: number | null;
+  columns: ColumnPreview[];
 }

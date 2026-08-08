@@ -422,10 +422,74 @@ Deux propriétés du workflow à connaître avant d'y toucher :
   durée, une exécution coincée rendrait tout lancement impossible six heures
   durant.
 
-Le bilan sort en deux formes : le rapport texte dans le résumé de l'exécution, et
-la charge `--json` en artefact `bilan-<id>.json` (90 jours). Un batch dont
+Le bilan sort en **trois** formes : les 200 derniers Ko du rapport texte dans le
+résumé de l'exécution, le rapport entier en artefact `rapport-<id>`, et la charge
+`--json` en artefact `bilan-<id>.json` (90 jours chacun). Un batch dont
 **toutes** les épreuves échouent sort en code 1 et rend l'exécution rouge ; un
 échec partiel reste vert, avec le détail des épreuves fautives dans le bilan.
+
+Le résumé est borné parce que la plateforme refuse **en entier** un
+`$GITHUB_STEP_SUMMARY` de plus d'1 Mo : il ne tronque pas, il perd tout. Le
+journal de scraping d'une seule épreuve suffit à l'atteindre (mesuré à 1029 Ko
+sur le run 31202351491), d'où l'artefact séparé.
+
+### Le jeton d'accès à la plateforme
+
+Le réglage `GITHUB_BATCH_TOKEN` de l'instance porte un jeton **fine-grained**,
+restreint à ce dépôt, avec la seule permission `actions: write` — de quoi
+déclencher un `workflow_dispatch` et lire les exécutions, rien d'autre.
+
+**Vide est un état légitime**, même politique que les réglages `AUTH_*` : le
+lancement s'annonce alors non configuré et le reste du site est intact. Les deux
+refus possibles portent des messages **distincts**, et c'est ce qui rend le
+diagnostic possible sans accès aux journaux :
+
+| Message rendu | Cause |
+|---|---|
+| « Le lancement de batches n'est pas configuré sur ce site. » | réglage absent |
+| « Le jeton d'accès … est expiré ou révoqué. » | 401/403 de la plateforme |
+
+Un jeton fine-grained expire — un an au plus. Le régénérer se fait dans
+*Settings → Developer settings → Fine-grained tokens*, puis mise à jour du
+réglage sur Render. Aucune autre action n'est requise : le workflow, lui, ne
+connaît pas ce jeton.
+
+### Reprise périodique — `schedule` (#47)
+
+```yaml
+schedule:
+  - cron: "0 3 * * 1"   # lundi 3 h UTC
+```
+
+Le lundi ramasse les épreuves du week-end, à une heure creuse. Une occurrence
+planifiée ne porte **aucune entrée** : c'est le mode `rescrape` sans filtre qui
+s'exécute, et c'est la raison du repli `|| 'production'` sur `environment` et
+`concurrency`. Sans lui, le cron hériterait du défaut `preview` et ne
+rafraîchirait jamais la base réelle — une panne qu'on ne découvre qu'en
+cherchant pourquoi les résultats datent.
+
+Une occurrence planifiée est soumise au même verrou de concurrence qu'un
+lancement manuel : elle est ignorée si un batch tourne déjà. C'est voulu.
+
+**Deux pièges, tous deux silencieux :**
+
+1. **GitHub désactive les workflows planifiés d'un dépôt sans activité depuis
+   60 jours** (D13). Rien ne casse, rien n'est notifié : le cron cesse
+   simplement de se déclencher. Un dépôt actif ne le rencontre pas, mais une
+   période creuse suffit. La seule parade est de le constater — d'où le rappel
+   de suivi à J+30 et le contrôle de SC-007 (quatre échéances consécutives sans
+   intervention).
+2. **La durée.** Le job est borné à 120 minutes, et l'import paie aujourd'hui
+   deux requêtes par participant contre une base distante (issue #258) : une
+   reprise complète peut atteindre la borne. Elle sort alors **rouge**, ce qui
+   est bruyant et donc acceptable — mais tant que #258 n'est pas traité, la
+   reprise hebdomadaire est à surveiller, voire à borner par un `limit`.
+
+**Destinataire de la notification d'échec** : la plateforme notifie l'auteur de
+la dernière modification du fichier de cron, pas l'équipe. À constater sur la
+première occurrence rouge (quickstart §12) ; si ce n'est pas la bonne personne,
+c'est l'hypothèse « aucun canal d'alerte nouveau » de la spec qu'il faut
+rouvrir, pas une situation avec laquelle vivre.
 
 ## Publier une version
 

@@ -230,6 +230,206 @@ def test_un_lancement_sans_bilan_rend_404(client, ouvrir_session, monkeypatch):
     assert client.get(f"{URL}/1284/report").status_code == 404
 
 
+# ── Téléversement d'un fichier (US2) ─────────────────────────────────────────
+
+
+COLONNES_URL = "/api/v1/admin/sheets/columns"
+FROM_FILE_URL = f"{URL}/from-file"
+LIEN = "https://www.klikego.com/resultats/une-course"
+AUTRE = "https://www.breizhchrono.com/resultats/course"
+
+
+def _csv(texte: str) -> bytes:
+    return texte.encode("utf-8")
+
+
+def _envoi(contenu: bytes, nom="epreuves.csv"):
+    return {"file": (nom, contenu, "text/csv")}
+
+
+def test_les_colonnes_sont_rendues_avec_leur_compte_de_liens(
+    client, ouvrir_session
+):
+    ouvrir_session(P.BATCH_RUN)
+    contenu = _csv(f"Nom,Lien\nCourse A,{LIEN}\nCourse B,{AUTRE}\n")
+
+    reponse = client.post(COLONNES_URL, files=_envoi(contenu))
+
+    assert reponse.status_code == 200
+    corps = reponse.json()
+    assert corps["row_count"] == 2
+    assert corps["suggested_index"] == 1
+    lien = corps["columns"][1]
+    assert lien["header"] == "Lien"
+    assert lien["link_count"] == 2
+    assert lien["samples"] == [LIEN, AUTRE]
+    assert corps["columns"][0]["link_count"] == 0
+
+
+def test_la_colonne_presuggeree_est_la_plus_fournie(client, ouvrir_session):
+    ouvrir_session(P.BATCH_RUN)
+    contenu = _csv(f"Note,Lien\n{LIEN},{LIEN}\n,{AUTRE}\n")
+
+    corps = client.post(COLONNES_URL, files=_envoi(contenu)).json()
+
+    assert corps["suggested_index"] == 1
+
+
+def test_aucune_colonne_n_est_presuggeree_sans_lien(client, ouvrir_session):
+    """Le cas d'un classeur dont les liens sont des hyperliens sans texte (D8) :
+    l'écran doit le dire, pas présélectionner au hasard."""
+    ouvrir_session(P.BATCH_RUN)
+
+    corps = client.post(COLONNES_URL, files=_envoi(_csv("Nom,Date\nA,2026\n"))).json()
+
+    assert corps["suggested_index"] is None
+
+
+def test_la_lecture_des_colonnes_exige_le_pouvoir_de_lancer(
+    client, ouvrir_session
+):
+    """`batch:run` et non `batch:read` : ce n'est pas une consultation, c'est
+    la première moitié d'un lancement."""
+    ouvrir_session(P.BATCH_READ)
+
+    assert client.post(COLONNES_URL, files=_envoi(_csv("a\n"))).status_code == 403
+
+
+def test_une_extension_inconnue_est_refusee(client, ouvrir_session):
+    ouvrir_session(P.BATCH_RUN)
+
+    reponse = client.post(COLONNES_URL, files=_envoi(_csv("x"), "epreuves.pdf"))
+
+    assert reponse.status_code == 422
+    assert ".csv" in reponse.json()["detail"]
+
+
+def test_un_fichier_trop_volumineux_est_refuse(client, ouvrir_session):
+    """Compté **à la lecture**, jamais d'après `Content-Length` : un en-tête
+    déclaré par le client ne garde rien (D9)."""
+    ouvrir_session(P.BATCH_RUN)
+    enorme = _csv("Nom,Lien\n" + ("a" * 1024 + "\n") * 2100)
+
+    assert client.post(COLONNES_URL, files=_envoi(enorme)).status_code == 413
+
+
+def test_lancer_depuis_un_fichier_et_une_colonne(client, ouvrir_session, plateforme):
+    ouvrir_session(P.BATCH_RUN)
+    contenu = _csv(f"Nom,Lien\nA,{LIEN}\nB,{AUTRE}\n")
+
+    reponse = client.post(
+        FROM_FILE_URL, files=_envoi(contenu), data={"url_column": 1, "dry_run": "true"}
+    )
+
+    assert reponse.status_code == 202
+    corps = reponse.json()
+    assert corps["correlation_id"] == "b7c1f2e4"
+    assert corps["epreuves"] == 2
+    assert plateforme["dispatches"] == [
+        {"mode": "urls", "urls": [LIEN, AUTRE], "dry_run": True}
+    ]
+
+
+def test_les_liens_non_supportes_sont_annonces_et_jamais_soumis(
+    client, ouvrir_session, plateforme
+):
+    """Ni un succès ni un échec : ils ne partent pas. Les taire ferait chercher
+    des épreuves manquantes dans le bilan."""
+    ouvrir_session(P.BATCH_RUN)
+    inconnu = "https://chrono-maison.example/r/42"
+    contenu = _csv(f"Nom,Lien\nA,{LIEN}\nB,{inconnu}\n")
+
+    corps = client.post(
+        FROM_FILE_URL, files=_envoi(contenu), data={"url_column": 1}
+    ).json()
+
+    assert corps["epreuves"] == 1
+    assert corps["ignored_by_host"] == {"chrono-maison.example": 1}
+    assert plateforme["dispatches"][0]["urls"] == [LIEN]
+
+
+def test_une_colonne_hors_bornes_est_refusee(client, ouvrir_session, plateforme):
+    ouvrir_session(P.BATCH_RUN)
+    contenu = _csv(f"Nom,Lien\nA,{LIEN}\n")
+
+    reponse = client.post(
+        FROM_FILE_URL, files=_envoi(contenu), data={"url_column": 7}
+    )
+
+    assert reponse.status_code == 422
+    assert "colonne" in reponse.json()["detail"].lower()
+    assert not plateforme["dispatches"]
+
+
+def test_une_colonne_sans_lien_exploitable_est_refusee(
+    client, ouvrir_session, plateforme
+):
+    ouvrir_session(P.BATCH_RUN)
+    contenu = _csv("Nom,Lien\nA,à venir\n")
+
+    reponse = client.post(
+        FROM_FILE_URL, files=_envoi(contenu), data={"url_column": 0}
+    )
+
+    assert reponse.status_code == 422
+    assert not plateforme["dispatches"]
+
+
+def test_plus_de_cinq_cents_urls_sont_refusees_sans_troncature(
+    client, ouvrir_session, plateforme
+):
+    """Refus explicite plutôt que troncature silencieuse : un lot tronqué se
+    termine en vert, et les épreuves manquantes ne se voient nulle part."""
+    ouvrir_session(P.BATCH_RUN)
+    lignes = "\n".join(f"C{n},https://www.klikego.com/resultats/c{n}" for n in range(501))
+    contenu = _csv(f"Nom,Lien\n{lignes}\n")
+
+    reponse = client.post(
+        FROM_FILE_URL, files=_envoi(contenu), data={"url_column": 1}
+    )
+
+    assert reponse.status_code == 422
+    assert "500" in reponse.json()["detail"]
+    assert not plateforme["dispatches"]
+
+
+def test_le_fichier_televerse_n_est_jamais_ecrit_sur_disque(
+    client, ouvrir_session, plateforme, monkeypatch
+):
+    """SC-005 / FR-011 — la seule preuve vérifiable : la plateforme n'offre pas
+    de shell pour aller regarder. On surveille donc `open()` lui-même.
+
+    Le tampon de `starlette` est un `SpooledTemporaryFile` et reste en mémoire
+    sous son seuil ; ce qui est proscrit ici est une écriture **applicative**.
+    """
+    import os
+
+    # `os.open` et non `builtins.open` : c'est le point de passage **commun**.
+    # Une sonde posée sur `builtins.open` laisse filer `tempfile`, qui descend
+    # directement à `os.open` — vérifié en injectant un `NamedTemporaryFile`
+    # dans la route, que la première version de ce test n'a pas vu.
+    ouvertures: list[tuple[str, int]] = []
+    vrai_open = os.open
+
+    def _open_surveille(chemin, flags, *args, **kwargs):
+        ouvertures.append((str(chemin), flags))
+        return vrai_open(chemin, flags, *args, **kwargs)
+
+    ouvrir_session(P.BATCH_RUN)
+    contenu = _csv(f"Nom,Lien\nA,{LIEN}\n")
+
+    monkeypatch.setattr(os, "open", _open_surveille)
+    client.post(FROM_FILE_URL, files=_envoi(contenu), data={"url_column": 1})
+    monkeypatch.undo()
+
+    ecritures = [
+        chemin
+        for chemin, flags in ouvertures
+        if flags & (os.O_WRONLY | os.O_RDWR | os.O_CREAT)
+    ]
+    assert not ecritures, f"le téléversement a écrit sur disque : {ecritures}"
+
+
 def test_un_bilan_expire_rend_410(client, ouvrir_session, monkeypatch):
     """410 et non 404 : « plus jamais », et non « pas encore »."""
     ouvrir_session(P.BATCH_READ)

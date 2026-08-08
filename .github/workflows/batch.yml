@@ -22,6 +22,19 @@ name: Batch
 run-name: "batch · ${{ inputs.target || 'production' }} · ${{ inputs.mode }} · ${{ inputs.correlation_id }}"
 
 on:
+  # Reprise hebdomadaire, lundi 3 h UTC — creux de trafic, et le lundi ramasse
+  # les épreuves du week-end. Aucune entrée n'accompagne un `schedule` : c'est
+  # ce qui rend le repli `|| 'production'` indispensable plus bas, et c'est le
+  # mode `rescrape` sans filtre qui s'exécute alors, par les défauts ci-dessous.
+  #
+  # **Une planification muette est une panne invisible** : GitHub désactive les
+  # workflows planifiés d'un dépôt sans activité depuis 60 jours (D13), sans
+  # rien casser ni rien dire. Voir `docs/ci-cd.md`.
+  #
+  # Une occurrence planifiée est soumise au même verrou de concurrence qu'un
+  # lancement manuel : elle est ignorée si un batch tourne déjà — voulu.
+  schedule:
+    - cron: "0 3 * * 1"
   workflow_dispatch:
     inputs:
       target:
