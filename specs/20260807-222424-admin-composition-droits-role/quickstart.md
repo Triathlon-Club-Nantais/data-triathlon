@@ -166,20 +166,20 @@ pose sur **le front** (`localhost:3000`), pas sur le port du backend : le
 navigateur appelle `/api/v1` en même origine et `next.config.ts` réécrit.
 
 - [x] `/admin/droits` s'ouvre et liste les rôles.
-- [ ] Sur n'importe quel rôle, les cases de « Chronométreurs signalés »,
+- [x] Sur n'importe quel rôle, les cases de « Chronométreurs signalés »,
 
   « Qualité des données », « Épreuves », « Coureurs », « Résultats » sont
   **désactivées dans leur état courant** — ni masquées, ni décochées — avec
   la raison affichée.
-- [ ] Les deux cases de `roles:read` / `roles:write` sont, elles, basculables.
-- [ ] **Ouvrir « Créer un rôle » et vérifier la même chose dans la modale** : les
+- [x] Les deux cases de `roles:read` / `roles:write` sont, elles, basculables.
+- [x] **Ouvrir « Créer un rôle » et vérifier la même chose dans la modale** : les
 
   cases hors des deux pouvoirs portés y sont désactivées, exactement comme
   dans un panneau. C'est le chemin le plus contraint des deux —
   `create_role` soumet l'ensemble complet à la non-amplification, une
   modification n'en soumet que la différence.
-- [ ] Aucune bascule du statut de superutilisateur n'est proposée à ce compte.
-- [ ] Un code périmé reste retirable par ce compte (FR-016).
+- [x] Aucune bascule du statut de superutilisateur n'est proposée à ce compte.
+- [x] Un code périmé reste retirable par ce compte (FR-016).
 
 **Attendu global** : aucun geste offert par l'écran ne rend 403 ou 409 pour
 cause de rôle livré, de rôle porté, ou de pouvoir non détenu.
@@ -188,13 +188,13 @@ cause de rôle livré, de rôle porté, ou de pouvoir non détenu.
 
 Troisième compte : un rôle portant **uniquement** « Consulter les rôles ».
 
-- [ ] `/admin/droits` atteint par l'URL s'ouvre et liste les rôles — la
+- [x] `/admin/droits` atteint par l'URL s'ouvre et liste les rôles — la
 
   navigation ne l'y mène pas, mais elle n'est pas une garde.
-- [ ] Aucun bouton « Créer un rôle », « Enregistrer », « Supprimer » ni bascule
+- [x] Aucun bouton « Créer un rôle », « Enregistrer », « Supprimer » ni bascule
 
   de statut n'est rendu ; la phrase « Cet écran est en consultation » le dit.
-- [ ] Toutes les cases sont désactivées, et les champs nom/description aussi.
+- [x] Toutes les cases sont désactivées, et les champs nom/description aussi.
 
 ## 7 ter. Écriture concurrente (FR-020c)
 
