@@ -2,8 +2,9 @@
 
 > Relevé fait à froid sur l'arbre complet de `frontend/` (14 918 lignes de
 > `.ts`/`.tsx`/`.mjs`/`.css` hors `node_modules` et `.next`, 40 dépendances),
-> branche `ponytail-analyse`. **Aucune modification appliquée** : ce document est
-> un constat à traiter après les sujets en cours.
+> branche `ponytail-analyse`. **Appliqué le 2026-08-08** — voir « État
+> d'application » en fin de document : 11 entrées sur 14 sont dans le code, deux
+> sont refusées avec leur raison, une reste un chantier à trancher.
 >
 > Périmètre : sur-ingénierie et complexité seulement. Ni bugs, ni sécurité, ni
 > performance — ces axes relèvent d'une revue normale.
@@ -308,15 +309,53 @@ Pour éviter de rejuger ces points au prochain passage :
   system remplacé ; le code, lui, est vivant (`eventTypeColor` × 3,
   `tintedStyle` × 3, `avatarColor` × 1). Seul le commentaire est périmé.
 
-## Suite
+## État d'application (2026-08-08)
 
-Rien n'est appliqué. Ordre suggéré si le sujet est repris :
+Appliqué en deux commits, dans l'ordre suggéré ci-dessus.
 
-1. **Le gros lot sans risque** : n° 1, 3, 4, 5, 7 — ≈ −950 lignes, une
-   dépendance, et **aucun changement de rendu** puisque rien de tout cela n'est
-   monté. Un seul commit ; la suite Vitest existante doit rester verte à
-   l'exception des tests supprimés avec leur composant (`ScrapeForm.test.tsx`).
-2. **Coupes rapides** : n° 6, 8, 9, 10, 11, 12, 13, 14 — ≈ −50 lignes, deux
-   dépendances.
-3. **Chantier à part, après décision** : n° 2 (convergence des deux design
-   systems). À ne pas mélanger avec les lots ci-dessus.
+| # | Objet | État |
+|---|---|---|
+| 1 | cascade `command` → `input-group` → `textarea` | ✅ supprimée, `cmdk` avec — `84b7ee0` |
+| 2 | deux design systems | ⏸️ **chantier**, décision non prise |
+| 3 | 6 composants orphelins | ✅ `84b7ee0` |
+| 4 | `ScrapeForm.tsx` + son test | ✅ `84b7ee0` |
+| 5 | 5 hooks react-query | ✅ `84b7ee0`, plus 3 clés `queryKeys` orphelines |
+| 6 | `next-themes` | ✅ `df42070` |
+| 7 | `@tanstack/react-query-devtools` | ✅ `84b7ee0` |
+| 8 | `shadcn` en `dependencies` | ✅ passé en `devDependencies` — `df42070` |
+| 9 | `toQuery` recopié | ✅ `lib/api/query.ts` — `df42070` |
+| 10 | `AbortController` du keep-warm | ✅ `AbortSignal.timeout` — `df42070` |
+| 11 | `scripts/exit-code.mjs` | ❌ **refusé** (voir ci-dessous) |
+| 12 | `lib/utils/event.ts` + `raceOrder.ts` | ❌ **refusé** (voir ci-dessous) |
+| 13 | 28 symboles exportés sans consommateur | ✅ 22 dé-exportés — `df42070` |
+| 14 | docstring dupliquée | ✅ `df42070` |
+
+**Trois écarts, et leurs raisons.**
+
+- **n° 11 — `exit-code.mjs` a un test.** L'audit le dit « sans test » ;
+  `scripts/exit-code.test.mjs` couvre la convention 128+n (SIGTERM → 143,
+  SIGKILL → 137, code propagé, `null` → 0). Inliner `wrapperExitCode` dans
+  `dev.mjs`, qui spawne un process, la rendrait intestable : on échangerait
+  13 lignes contre une régression silencieuse possible sur un code de sortie.
+- **n° 12 — la fusion coûte plus qu'elle ne rend.** `lib/utils/` compte douze
+  modules mono-sujet (`date`, `season`, `splits`, `table`, `url`,
+  `histogram-ticks`…). `event.ts` et `raceOrder.ts` suivent cette convention
+  plutôt qu'ils ne l'enfreignent, et les fusionner churnerait huit sites
+  d'import et deux fichiers de test pour −1 fichier et zéro ligne de logique.
+  Le commentaire nécrologique de `raceOrder.ts` reste où il est.
+- **n° 13 — 22 dé-exportés, pas 28.** `CourseBrief` a 22 consommateurs externes
+  (l'audit le rangeait à tort parmi les internes), `PodiumScope` et
+  `RosterEntry` en ont aussi. Seule mort réelle du lot : la ré-exportation
+  d'`IconButton` par le barrel `components/tcn/index.ts` — le composant, lui,
+  sert à `Modal`.
+
+**Ce qui reste à trancher.** L'entrée n° 2 — sept primitives en double entre
+`components/ui/` et `components/tcn/`, les deux versions activement utilisées.
+La question posée par l'audit tient toujours : est-ce que `tcn/` absorbe les
+primitives complexes (`dropdown-menu`, `select`), ou est-ce que `ui/` reçoit les
+tokens `--tcn-*` ? Tant qu'elle n'a pas de réponse, chaque nouveau composant
+repose l'arbitrage.
+
+Note d'application : la suppression de la sentinelle `playwright` côté backend
+(entrée n° 5 de l'audit backend) a aussi touché `ProviderDetector.tsx`, qui
+déduisait le support de `provider !== "playwright"`. C'est dans `42afcfd`.
