@@ -61,12 +61,12 @@ tasks:
       - uv sync
 
   b:dev:
-    desc: 'backend : serveur API + /docs, premier port libre à partir de 8001 (reload)'
+    desc: 'backend : serveur API + /docs, port libre attribué par l''OS (reload)'
     dir: backend
     cmds:
-      # Le port retenu est publié dans .dev-backend.json (racine du worktree) : c'est
-      # ainsi que le frontend trouve LE backend de son worktree. DEV_BACKEND_PORT force
-      # un port précis.
+      # Le port vient de l'OS (bind sur le port 0) et est publié dans
+      # .dev-backend.json (racine du worktree) : c'est ainsi que le frontend trouve LE
+      # backend de son worktree. DEV_BACKEND_PORT force un port précis.
       - uv run python scripts/dev_server.py
 
   b:migrate:

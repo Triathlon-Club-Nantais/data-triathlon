@@ -12,8 +12,6 @@ import re
 import unicodedata
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
-from dataclasses import dataclass
-from dataclasses import field as dc_field
 from urllib.parse import parse_qs, quote, unquote, urlencode, urljoin, urlparse, urlunparse
 
 import httpx
@@ -21,7 +19,7 @@ from bs4 import BeautifulSoup
 
 from app.core import http
 
-from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
+from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, FanoutTrace, ScrapedResult
 from .classify import classify_event_type
 from .utils import (
     derive_status_from_label,
@@ -36,25 +34,6 @@ from .utils import (
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class FanoutTrace:
-    """Compteurs de fan-out remontés par le scraper Wiclax (issue #195).
-
-    Mêmes 5 champs que la trace Klikego (contrat partagé pour `import_service`).
-    Ici la sous-unité est un **parcours** (attribut `p` d'un `<E>` ou d'un
-    `<Competitor>`) : le `.clax` XML étant partagé, une seule requête réseau
-    suffit à l'événement entier. Le gain du fan-out n'est donc pas la requête
-    économisée mais l'intégrité du cache TTL au niveau parcours (un parcours
-    frais n'est ni reconstruit ni persisté).
-
-    `heats_imported` est laissé à 0 côté scraper ; `import_service` le dérive
-    via l'invariant `enumerated = imported + cached + len(failures)`.
-    """
-    heats_enumerated: int = 0
-    heats_cached: int = 0
-    heats_imported: int = 0
-    failures: list[dict] = dc_field(default_factory=list)
-    cached_urls: list[str] = dc_field(default_factory=list)
 
 HEADERS = {
     "User-Agent": (

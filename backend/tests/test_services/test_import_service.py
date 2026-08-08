@@ -7,7 +7,7 @@ from app.core.config import Settings
 from app.core.exceptions import ProviderNotSupportedError
 from app.core.time import utcnow
 from app.repositories import course_repository, participation_repository
-from app.scrapers.base import ScrapedResult
+from app.scrapers.base import FanoutTrace, ScrapedResult
 from app.services import import_service, quality
 
 
@@ -757,10 +757,10 @@ def test_validate_url_ne_reecrit_pas_l_url():
 
 def _fake_klikego_provider(monkeypatch, enumerated: int, cached: int, failures: list[dict]):
     """Fait que `registry.get_provider(url)` rend un KlikegoProvider avec last_trace prédéfinie."""
-    from app.scrapers import klikego, registry
+    from app.scrapers import registry
 
     provider = registry.KlikegoProvider()
-    provider.last_trace = klikego.FanoutTrace(
+    provider.last_trace = FanoutTrace(
         heats_enumerated=enumerated,
         heats_cached=cached,
         failures=list(failures),
@@ -837,7 +837,6 @@ def test_iter_import_event_done_liste_les_courses_cachees_du_fanout(
     en base — l'opérateur y verrait « 3 courses importées » alors que
     l'événement en compte 5, et n'aurait aucun bouton vers les 2 heats cachés.
     """
-    from app.scrapers import klikego
     # 1er passage : 3 heats, tous scrapés → 3 courses en base.
     patch_scraper([
         _result("1", "A", event_name="Mesquer", event_type="triathlon-s",
@@ -856,7 +855,7 @@ def test_iter_import_event_done_liste_les_courses_cachees_du_fanout(
         _result("2", "B", event_name="Mesquer", event_type="triathlon-xs",
                 source_url=URL + "?heat=triathlon-xs-indiv"),
     ])
-    cached_trace = klikego.FanoutTrace(
+    cached_trace = FanoutTrace(
         heats_enumerated=3, heats_cached=2, failures=[],
         cached_urls=[URL + "?heat=triathlon-s-indiv", URL + "?heat=swim-run-s-duo"],
     )
