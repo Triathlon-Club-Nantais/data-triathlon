@@ -170,6 +170,45 @@ describe("TcnScrapeForm — navigation vers les courses importées (#135)", () =
   });
 });
 
+describe("TcnScrapeForm — validation de l'URL avant appel backend (#249)", () => {
+  it("bouton désactivé et pas d'appel `start` sur entrée non-URL", async () => {
+    renderForm();
+    const bouton = screen.getByRole("button", { name: /Enregistrer les résultats/ });
+    // À vide, le bouton est déjà désactivé (rien à envoyer).
+    expect(bouton).toBeDisabled();
+
+    const input = screen.getByPlaceholderText(/résultats-chrono/);
+    await userEvent.type(input, "pas une url");
+    expect(bouton).toBeDisabled();
+    // Message d'erreur affiché en français.
+    expect(screen.getByRole("alert")).toHaveTextContent(/URL valide/i);
+
+    // Un clic quand-même ne doit rien envoyer au backend.
+    await userEvent.click(bouton);
+    expect(importMock.start).not.toHaveBeenCalled();
+  });
+
+  it("touche Entrée n'envoie rien sur entrée invalide", async () => {
+    renderForm();
+    const input = screen.getByPlaceholderText(/résultats-chrono/);
+    await userEvent.type(input, "javascript:alert(1){enter}");
+    expect(importMock.start).not.toHaveBeenCalled();
+    // Champ marqué invalide pour les lecteurs d'écran.
+    expect(input).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("URL http(s) valide : bouton actif, pas d'erreur, `start` appelé", async () => {
+    renderForm();
+    const input = screen.getByPlaceholderText(/résultats-chrono/);
+    await userEvent.type(input, "https://www.klikego.com/resultats/x");
+    const bouton = screen.getByRole("button", { name: /Enregistrer les résultats/ });
+    expect(bouton).not.toBeDisabled();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await userEvent.click(bouton);
+    expect(importMock.start).toHaveBeenCalledWith("https://www.klikego.com/resultats/x");
+  });
+});
+
 describe("TcnScrapeForm — rafraîchissement de la liste après import (#201)", () => {
   it("appelle router.refresh() quand le SSE émet phase=done avec un import réel", () => {
     importMock.set({
