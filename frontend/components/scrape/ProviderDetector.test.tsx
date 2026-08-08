@@ -30,27 +30,25 @@ describe("ProviderDetector", () => {
   });
 
   it("bascule sur la saisie manuelle quand l'API déclare l'URL non supportée", async () => {
-    detectProvider.mockResolvedValue({ provider: "playwright", supported: false });
+    // Aucun chronométreur ne reconnaît l'URL : l'API rend `provider: ""`. Le
+    // badge ne doit pas nommer de fournisseur — « Non supporté (Source) », le
+    // repli de `providerLabel`, serait un faux nom.
+    detectProvider.mockResolvedValue({ provider: "", supported: false });
     render(<ProviderDetector url="https://chronopuce.test/x" />);
 
     await waitFor(() =>
-      expect(
-        screen.getByText("Non supporté (playwright) — saisie manuelle"),
-      ).toBeInTheDocument(),
+      expect(screen.getByText("Non supporté — saisie manuelle")).toBeInTheDocument(),
     );
   });
 
-  it("déduit le support du provider si l'API ne le renseigne pas", async () => {
-    // Le front peut être déployé avant le backend : sans champ `supported`,
-    // seul `playwright` doit passer pour non supporté.
-    detectProvider.mockResolvedValue({ provider: "chronoplace" } as {
-      provider: string;
-      supported?: boolean;
-    });
+  it("nomme le fournisseur quand il est reconnu mais non supporté", async () => {
+    detectProvider.mockResolvedValue({ provider: "chronoplace", supported: false });
     render(<ProviderDetector url="https://chronoplace.fr/evenement/x" />);
 
     await waitFor(() =>
-      expect(screen.getByText("Fournisseur : Chronoplace")).toBeInTheDocument(),
+      expect(
+        screen.getByText("Non supporté (Chronoplace) — saisie manuelle"),
+      ).toBeInTheDocument(),
     );
   });
 });
