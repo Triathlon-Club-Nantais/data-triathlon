@@ -72,6 +72,10 @@ LABS_BASE = "https://labs-v2.competitor.com"
 # `/web/results?` avant de la passer au proxy, on fait pareil.
 API_RESULTS = "https://api.competitor.com/web/results"
 
+# ponytail: User-Agent figé à Chrome/124.0.0.0, là où `utils.DEFAULT_HEADERS` porte
+# Chrome/124.0. Écart non expliqué — probablement un copier-coller plus ancien,
+# mais il tape un vrai site : à converger une fois `pytest -m integration`
+# passé sur ce fournisseur, pas avant.
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "

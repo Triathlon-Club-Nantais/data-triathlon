@@ -32,15 +32,12 @@ from .base import (
     ScrapedResult,
 )
 from .classify import classify_event_type
-from .utils import normalize_rank, normalize_time
+from .utils import DEFAULT_HEADERS, normalize_rank, normalize_time
 
 API_BASE = "https://api.prolivesport.fr/apiws"
 TOKEN = "AUTH_PLSWS_V2"
 HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-    ),
+    **DEFAULT_HEADERS,
     "access-token": TOKEN,
     "Accept": "application/json",
 }

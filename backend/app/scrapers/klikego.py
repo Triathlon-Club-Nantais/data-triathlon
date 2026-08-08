@@ -19,7 +19,13 @@ from app.core import http
 
 from .base import FanoutTrace, ScrapedResult
 from .classify import classify_event_type
-from .utils import derive_status_from_label, normalize_time, parse_fr_date, to_seconds
+from .utils import (
+    DEFAULT_HEADERS,
+    derive_status_from_label,
+    normalize_time,
+    parse_fr_date,
+    to_seconds,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,10 +33,7 @@ logger = logging.getLogger(__name__)
 
 BASE = "https://www.klikego.com"
 HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-    ),
+    **DEFAULT_HEADERS,
     "Referer": "https://www.klikego.com/",
     "Accept": "text/html,*/*",
 }
