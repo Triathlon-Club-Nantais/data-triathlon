@@ -1,8 +1,7 @@
 import Link from "next/link";
+import { Avatar, StatCard } from "@/components/tcn";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Stat } from "@/components/ui/stat";
-import { InitialsAvatar } from "@/components/ui/initials-avatar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ResultCard } from "@/components/results/ResultCard";
 import { BarList } from "@/components/charts/BarList";
@@ -111,7 +110,7 @@ export function ClubDashboard({
               href={`/athletes/${r.athleteId}`}
               className="flex items-center gap-3 rounded-xl bg-card p-3 ring-1 ring-foreground/10 transition-colors hover:bg-muted/50"
             >
-              <InitialsAvatar name={r.name} size={40} />
+              <Avatar name={r.name} size={40} />
               <div className="min-w-0 flex-1">
                 <div className="truncate font-semibold">{r.name}</div>
                 <div className="text-xs text-muted-foreground">
@@ -185,11 +184,8 @@ function KpiCard({
   value: number;
   accent?: boolean;
 }) {
-  return (
-    <Card>
-      <CardContent>
-        <Stat value={value} label={label} accent={accent} />
-      </CardContent>
-    </Card>
-  );
+  // `StatCard` **est** la carte : pas de `Card`/`CardContent` autour, ils
+  // doubleraient le chrome. `accent` y désigne le trait orange sous la valeur,
+  // là où l'`ui/Stat` qu'il remplace colorait la valeur elle-même.
+  return <StatCard label={label} value={value} accent={accent} />;
 }

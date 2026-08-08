@@ -1,8 +1,7 @@
 "use client";
 import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
-import { Card, CardContent } from "@/components/ui/card";
-import { Stat } from "@/components/ui/stat";
+import { StatCard } from "@/components/tcn";
 import { isPodium } from "@/lib/utils/club-aggregate";
 import { RANK_PARAM, rankTypeFromParam } from "@/lib/rank";
 import type { Participation } from "@/lib/types";
@@ -20,11 +19,5 @@ export function ClubPodiumKpi({ participations }: { participations: Participatio
     () => participations.reduce((n, p) => n + (isPodium(p, rankType) ? 1 : 0), 0),
     [participations, rankType],
   );
-  return (
-    <Card>
-      <CardContent>
-        <Stat value={count} label="Podiums" />
-      </CardContent>
-    </Card>
-  );
+  return <StatCard label="Podiums" value={count} />;
 }
