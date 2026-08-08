@@ -89,15 +89,15 @@ bilan sans terminal.
 
 ### Interface
 
-- [ ] T026 [P] [US1] Ajouter les types `BatchRun`, `BatchReport`, `RescrapeLaunch` à `frontend/lib/types.ts` — états et issues en anglais, comme le contrat
-- [ ] T027 [US1] Ajouter à `frontend/lib/api/client.ts` — `launchBatch`, `listBatchRuns`, `getBatchReport`
-- [ ] T028 [P] [US1] Créer `frontend/lib/queries/batches.ts` — `useBatchRuns` (rafraîchissement pendant qu'une exécution est en cours), `useLaunchBatch`, `useBatchReport` ; clés dans `frontend/lib/queries/keys.ts`
-- [ ] T029 [US1] Écrire `frontend/components/admin/BatchLauncher.test.tsx` — formulaire de filtres, lancement désactivé pendant une exécution en cours, message d'erreur de l'API affiché **tel qu'il est rendu**, jamais réécrit côté interface
-- [ ] T030 [US1] Créer `frontend/components/admin/BatchLauncher.tsx` — n'interroge la liste des exécutions **que si la session porte `batch:read`** (connu par `/auth/me`) : un porteur de `batch:run` seul voit le formulaire, jamais un bloc en erreur 403 à la place de l'état courant
-- [ ] T031 [US1] Écrire `frontend/components/admin/BatchRunList.test.tsx` — états `pending` / `running` / `completed` traduits à l'affichage, issue `failure` renvoyant au bilan sans en affirmer la cause (`data-model.md`), bilan indisponible distingué de bilan vide, exécution `running` depuis plus de deux heures signalée avec le lien pour l'annuler sur sa page
-- [ ] T032 [US1] Créer `frontend/components/admin/BatchRunList.tsx` — compteurs du bilan avec leurs **unités nommées** : « épreuves » pour `unique_supported`/`processed`/`errors`, « participants » pour `imported`/`updated`/`skipped`
-- [ ] T033 [US1] Créer `frontend/app/admin/batches/page.tsx` — assemble les deux composants sous `PageShell` / `PageHeader`, comme `app/admin/page.tsx`
-- [ ] T034 [US1] Vérifier `npm test`, `npm run lint` et `npm run build` verts depuis `frontend/`
+- [X] T026 [P] [US1] Ajouter les types `BatchRun`, `BatchReport`, `RescrapeLaunch` à `frontend/lib/types.ts` — états et issues en anglais, comme le contrat
+- [X] T027 [US1] Ajouter à `frontend/lib/api/client.ts` — `launchBatch`, `listBatchRuns`, `getBatchReport`
+- [X] T028 [P] [US1] Créer `frontend/lib/queries/batches.ts` — `useBatchRuns` (rafraîchissement pendant qu'une exécution est en cours), `useLaunchBatch`, `useBatchReport` ; clés dans `frontend/lib/queries/keys.ts`
+- [X] T029 [US1] Écrire `frontend/components/admin/BatchLauncher.test.tsx` — formulaire de filtres, lancement désactivé pendant une exécution en cours, message d'erreur de l'API affiché **tel qu'il est rendu**, jamais réécrit côté interface
+- [X] T030 [US1] Créer `frontend/components/admin/BatchLauncher.tsx` — n'interroge la liste des exécutions **que si la session porte `batch:read`** (connu par `/auth/me`) : un porteur de `batch:run` seul voit le formulaire, jamais un bloc en erreur 403 à la place de l'état courant
+- [X] T031 [US1] Écrire `frontend/components/admin/BatchRunList.test.tsx` — états `pending` / `running` / `completed` traduits à l'affichage, issue `failure` renvoyant au bilan sans en affirmer la cause (`data-model.md`), bilan indisponible distingué de bilan vide, exécution `running` depuis plus de deux heures signalée avec le lien pour l'annuler sur sa page
+- [X] T032 [US1] Créer `frontend/components/admin/BatchRunList.tsx` — compteurs du bilan avec leurs **unités nommées** : « épreuves » pour `unique_supported`/`processed`/`errors`, « participants » pour `imported`/`updated`/`skipped`
+- [X] T033 [US1] Créer `frontend/app/admin/batches/page.tsx` — assemble les deux composants sous `PageShell` / `PageHeader`, comme `app/admin/page.tsx`
+- [X] T034 [US1] Vérifier `npm test`, `npm run lint` et `npm run build` verts depuis `frontend/`
 
 **Checkpoint**: US1 livrable — la dépendance au poste de développement est levée.
 

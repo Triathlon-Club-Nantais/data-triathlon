@@ -28,4 +28,6 @@ export const queryKeys = {
   roles: () => ["roles"] as const,
   session: () => ["session"] as const,
   authMethods: () => ["auth-methods"] as const,
+  batchRuns: () => ["batch-runs"] as const,
+  batchReport: (runId: number) => ["batch-report", runId] as const,
 };
