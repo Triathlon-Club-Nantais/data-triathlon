@@ -111,6 +111,18 @@ def test_no_secret_read_from_a_condition(workflow):
     )
 
 
+def test_the_periodic_rescrape_is_still_scheduled(workflow):
+    """US3 tient à une seule ligne de YAML, et rien d'autre ne la nomme.
+
+    La retirer ne casse aucun test, ne rougit aucune CI, et ne se remarque
+    qu'en constatant des semaines plus tard que les résultats datent. C'est
+    précisément la panne que ce test existe pour rendre bruyante.
+    """
+    # PyYAML lit `on:` comme le booléen `True` (norme YAML 1.1) — d'où la clé.
+    declencheurs = workflow.get("on") or workflow[True]
+    assert declencheurs["schedule"], "la reprise périodique a disparu"
+
+
 def test_job_cannot_hang_forever(workflow):
     """Sans borne, une exécution coincée gèle tout lancement six heures durant."""
     for job in workflow["jobs"].values():

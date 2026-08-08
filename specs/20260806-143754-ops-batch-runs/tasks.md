@@ -110,26 +110,26 @@ bilan sans terminal.
 
 ### Extraction
 
-- [ ] T035 [US2] Écrire `backend/tests/test_services/test_sheet_source_upload.py` — `read_table` sur un `.csv` **et** sur un `.xlsx` fabriqué en mémoire par `openpyxl` ; en-tête vide remplacé par « Colonne N » ; première ligne absente ; classeur illisible → erreur nommée
-- [ ] T036 [US2] Écrire les cas de `links_in_column` dans le même fichier — comptage des liens par colonne, valeurs non-URL ignorées et comptées, doublons ramenés à une épreuve, partage `supported` / `ignored_by_host`
-- [ ] T037 [US2] Implémenter `read_table(content: bytes, filename: str)` et `links_in_column(rows, index)` dans `backend/app/services/sheet_source.py` — identifiants en anglais (Principe I) ; `openpyxl` en `read_only=True, data_only=True`
-- [ ] T038 [US2] Réécrire `parse_sheet_csv` comme appelant de ces deux fonctions, en conservant `LINK_HEADER` et l'index 9 comme **défauts de la commande CLI** — `uv run pytest tests/test_services -q` et `tests/test_cli` restent verts, la CLI ne change pas de comportement
+- [X] T035 [US2] Écrire `backend/tests/test_services/test_sheet_source_upload.py` — `read_table` sur un `.csv` **et** sur un `.xlsx` fabriqué en mémoire par `openpyxl` ; en-tête vide remplacé par « Colonne N » ; première ligne absente ; classeur illisible → erreur nommée
+- [X] T036 [US2] Écrire les cas de `links_in_column` dans le même fichier — comptage des liens par colonne, valeurs non-URL ignorées et comptées, doublons ramenés à une épreuve, partage `supported` / `ignored_by_host`
+- [X] T037 [US2] Implémenter `read_table(content: bytes, filename: str)` et `links_in_column(rows, index)` dans `backend/app/services/sheet_source.py` — identifiants en anglais (Principe I) ; `openpyxl` en `read_only=True, data_only=True`
+- [X] T038 [US2] Réécrire `parse_sheet_csv` comme appelant de ces deux fonctions, en conservant `LINK_HEADER` et l'index 9 comme **défauts de la commande CLI** — `uv run pytest tests/test_services -q` et `tests/test_cli` restent verts, la CLI ne change pas de comportement
 
 ### Routes
 
-- [ ] T039 [US2] Écrire dans `backend/tests/test_api/test_admin_batches.py` les cas de `POST /admin/sheets/columns` — colonnes rendues avec `link_count` et trois échantillons, `suggested_index` sur la colonne la plus fournie, `null` quand aucune ne porte de lien
-- [ ] T040 [US2] Écrire les cinq refus de `POST /admin/batches/from-file` — extension inconnue (422), > 2 Mo (413), colonne hors bornes (422), colonne sans lien exploitable (422), > 500 URL après dédoublonnage (422) ; chacun avec **son** message
-- [ ] T041 [US2] Écrire dans `backend/tests/test_api/test_admin_batches.py` le test de **non-écriture disque** du chemin de téléversement (SC-005) — aucune ouverture de fichier applicative pendant le traitement d'un envoi ; c'est la seule preuve vérifiable de FR-011, la plateforme n'offrant pas de shell
-- [ ] T042 [US2] Ajouter `SheetColumns` et `ColumnPreview` à `backend/app/schemas/batch_run.py`
-- [ ] T043 [US2] Implémenter `POST /admin/sheets/columns` et `POST /admin/batches/from-file` dans `backend/app/api/v1/admin_batches.py` — taille comptée **à la lecture par morceaux**, jamais d'après `Content-Length` (D9)
-- [ ] T044 [US2] Ajouter l'entrée `urls` au `workflow_dispatch` de `.github/workflows/batch.yml` et la branche `mode: urls` qui la tube dans `rescrape-db --urls-from -` — via `env:`, jamais interpolée dans le `run:` ; re-vérifier T007
+- [X] T039 [US2] Écrire dans `backend/tests/test_api/test_admin_batches.py` les cas de `POST /admin/sheets/columns` — colonnes rendues avec `link_count` et trois échantillons, `suggested_index` sur la colonne la plus fournie, `null` quand aucune ne porte de lien
+- [X] T040 [US2] Écrire les cinq refus de `POST /admin/batches/from-file` — extension inconnue (422), > 2 Mo (413), colonne hors bornes (422), colonne sans lien exploitable (422), > 500 URL après dédoublonnage (422) ; chacun avec **son** message
+- [X] T041 [US2] Écrire dans `backend/tests/test_api/test_admin_batches.py` le test de **non-écriture disque** du chemin de téléversement (SC-005) — aucune ouverture de fichier applicative pendant le traitement d'un envoi ; c'est la seule preuve vérifiable de FR-011, la plateforme n'offrant pas de shell
+- [X] T042 [US2] Ajouter `SheetColumns` et `ColumnPreview` à `backend/app/schemas/batch_run.py`
+- [X] T043 [US2] Implémenter `POST /admin/sheets/columns` et `POST /admin/batches/from-file` dans `backend/app/api/v1/admin_batches.py` — taille comptée **à la lecture par morceaux**, jamais d'après `Content-Length` (D9)
+- [X] T044 [US2] Ajouter l'entrée `urls` au `workflow_dispatch` de `.github/workflows/batch.yml` et la branche `mode: urls` qui la tube dans `rescrape-db --urls-from -` — via `env:`, jamais interpolée dans le `run:` ; re-vérifier T007
 
 ### Interface
 
-- [ ] T045 [US2] Ajouter à `frontend/lib/api/client.ts` un envoi **multipart** distinct de `request()` — ce dernier pose `Content-Type: application/json` sur toutes les requêtes et empêcherait le navigateur d'écrire la frontière (D14) — puis `readSheetColumns` et `launchBatchFromFile`
-- [ ] T046 [US2] Écrire `frontend/components/admin/SheetUpload.test.tsx` — deux temps (téléverser → désigner), colonne présélectionnée, lancement désactivé tant qu'aucune colonne n'est retenue, épreuves et liens écartés annoncés avant lancement, refus affichés avec leur motif
-- [ ] T047 [US2] Créer `frontend/components/admin/SheetUpload.tsx` — le fichier reste dans le navigateur entre les deux appels (FR-011)
-- [ ] T048 [US2] Brancher `SheetUpload` dans `frontend/app/admin/batches/page.tsx`, puis vérifier `npm test` et `npm run build` depuis `frontend/`
+- [X] T045 [US2] Ajouter à `frontend/lib/api/client.ts` un envoi **multipart** distinct de `request()` — ce dernier pose `Content-Type: application/json` sur toutes les requêtes et empêcherait le navigateur d'écrire la frontière (D14) — puis `readSheetColumns` et `launchBatchFromFile`
+- [X] T046 [US2] Écrire `frontend/components/admin/SheetUpload.test.tsx` — deux temps (téléverser → désigner), colonne présélectionnée, lancement désactivé tant qu'aucune colonne n'est retenue, épreuves et liens écartés annoncés avant lancement, refus affichés avec leur motif
+- [X] T047 [US2] Créer `frontend/components/admin/SheetUpload.tsx` — le fichier reste dans le navigateur entre les deux appels (FR-011)
+- [X] T048 [US2] Brancher `SheetUpload` dans `frontend/app/admin/batches/page.tsx`, puis vérifier `npm test` et `npm run build` depuis `frontend/`
 
 **Checkpoint**: US2 livrable — le Google Sheet cesse d'être une source côté interface.
 
@@ -139,15 +139,15 @@ bilan sans terminal.
 
 **Independent Test**: quickstart §12, puis SC-007 en suivi différé.
 
-- [ ] T049 [US3] Ajouter le déclencheur `schedule` à `.github/workflows/batch.yml` (hebdomadaire de nuit) et le rendre compatible avec les entrées par défaut du mode `rescrape`
-- [ ] T050 [US3] Documenter dans `docs/ci-cd.md` la cadence retenue, **et** que GitHub désactive les workflows planifiés d'un dépôt inactif depuis 60 jours (D13) — une planification muette est une panne invisible
+- [X] T049 [US3] Ajouter le déclencheur `schedule` à `.github/workflows/batch.yml` (hebdomadaire de nuit) et le rendre compatible avec les entrées par défaut du mode `rescrape`
+- [X] T050 [US3] Documenter dans `docs/ci-cd.md` la cadence retenue, **et** que GitHub désactive les workflows planifiés d'un dépôt inactif depuis 60 jours (D13) — une planification muette est une panne invisible
 - [ ] T051 [US3] Constater le **destinataire réel** de la notification d'échec d'une exécution planifiée et l'écrire dans `docs/ci-cd.md` (quickstart §12) — la plateforme notifie par défaut l'auteur de la dernière modification du cron, pas l'équipe ; si ce n'est pas la bonne personne, rouvrir l'hypothèse « aucun canal d'alerte nouveau » de la spec plutôt que de vivre avec
 
 ## Phase 7: Polish & Cross-Cutting
 
-- [ ] T052 [P] Compléter `docs/ci-cd.md` — le jeton fine-grained (portée `actions: write`, dépôt seul), son expiration et sa régénération, et le **repli sans interface** (onglet Actions → « Run workflow ») exigé par FR-020
-- [ ] T053 [P] Mettre à jour `backend/app/cli/AGENTS.md` — où tournent désormais les batches, et ce que le workflow attend des codes de sortie
-- [ ] T054 [P] Mettre à jour `README.md` — la voie de lancement en production
+- [X] T052 [P] Compléter `docs/ci-cd.md` — le jeton fine-grained (portée `actions: write`, dépôt seul), son expiration et sa régénération, et le **repli sans interface** (onglet Actions → « Run workflow ») exigé par FR-020
+- [X] T053 [P] Mettre à jour `backend/app/cli/AGENTS.md` — où tournent désormais les batches, et ce que le workflow attend des codes de sortie
+- [X] T054 [P] Mettre à jour `README.md` — la voie de lancement en production
 - [ ] T055 Exécuter `specs/20260806-143754-ops-batch-runs/quickstart.md` §8 à §12 — lancement depuis l'interface, refus du second lancement, import réel d'un fichier du club, absence de dégradation du site public pendant le batch (SC-004), et les deux faces de l'alerte (échec total rouge, échec partiel vert)
 - [ ] T056 Ouvrir la **PR 2** avec `Closes #47` — mot-clé anglais, seul reconnu par GitHub (AGENTS.md)
 - [ ] T057 Poser un rappel de suivi à J+30 après activation de la planification pour SC-007 (quatre échéances consécutives sans intervention) — hors critère de fusion, mais c'est ce qui révélerait une planification silencieusement désactivée
