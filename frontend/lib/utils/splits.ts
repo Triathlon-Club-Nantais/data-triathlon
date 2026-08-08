@@ -8,7 +8,7 @@ export interface Segment {
   small?: boolean;
 }
 
-export type SchemaEntry = { key: string; label: string; color: string; small?: boolean };
+type SchemaEntry = { key: string; label: string; color: string; small?: boolean };
 
 // Échelle catégorielle SPLIT (cf. lib/sport-colors).
 const SWIM = "var(--swim)";
@@ -48,7 +48,7 @@ const SCHEMAS: Record<string, SchemaEntry[]> = {
 };
 
 /** Schéma de segments (clés/libellés/couleurs) adapté au sport. */
-export function splitSchema(eventType: string): SchemaEntry[] {
+function splitSchema(eventType: string): SchemaEntry[] {
   const type = eventType || "";
   if (type.startsWith("duathlon")) return SCHEMAS.duathlon;
   if (type === "bike-run") return SCHEMAS["bike-run"];

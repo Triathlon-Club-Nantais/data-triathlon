@@ -1,5 +1,4 @@
 /** Convertit "HH:MM:SS" ou "MM:SS" en secondes ; null si invalide. */
-/** Convertit "HH:MM:SS" ou "MM:SS" en secondes ; null si invalide. */
 export function secondsFromHms(value: string | null | undefined): number | null {
   if (!value) return null;
 
