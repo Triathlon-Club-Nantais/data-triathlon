@@ -22,39 +22,16 @@ import {
   useRemoveAllowedEmail,
 } from "@/lib/queries/admin";
 import { useRolesAttribuables } from "@/lib/roles";
-import { ApiError } from "@/lib/api/client";
+import { messageDeRefus } from "@/lib/api/refus";
 import { formatDate } from "@/lib/utils/date";
 import type { AllowedEmail } from "@/lib/types";
 
 /**
- * Ce qu'un refus doit dire, et qu'une liste vide ne doit pas dire.
- *
- * Même défaut que celui fermé sur `PendingProvidersTable` : sur un 403, `data`
- * est `undefined`. Ici l'écran mentirait sur *qui a accès au back-office* — on
- * en conclurait que personne n'est autorisé, ce qui est la lecture la plus
- * alarmante possible d'un simple manque de droit.
+ * Ce que dit un refus ici : sans distinction, l'écran mentirait sur *qui a accès
+ * au back-office* — on en conclurait que personne n'est autorisé, la lecture la
+ * plus alarmante possible d'un simple manque de droit.
  */
-function messageDErreur(erreur: Error): { title: string; description: string } {
-  const statut = erreur instanceof ApiError ? erreur.status : 0;
-  if (statut === 401) {
-    return {
-      title: "Session expirée",
-      description: "Reconnectez-vous pour consulter les accès.",
-    };
-  }
-  if (statut === 403) {
-    return {
-      title: "Accès refusé",
-      description:
-        "Votre rôle ne permet pas de gérer les accès au back-office. " +
-        "Demandez le pouvoir correspondant à un administrateur.",
-    };
-  }
-  return {
-    title: "Liste indisponible",
-    description: "Les accès n'ont pas pu être chargés. Réessayez plus tard.",
-  };
-}
+const REFUS = { sujet: "accès", action: "gérer les accès au back-office" };
 
 export function AllowedEmailsTable() {
   const { data, isLoading, error } = useAllowedEmails();
@@ -164,7 +141,7 @@ export function AllowedEmailsTable() {
       {isLoading ? (
         <Skeleton className="h-40 w-full" />
       ) : error ? (
-        <EmptyState {...messageDErreur(error)} />
+        <EmptyState {...messageDeRefus(error, REFUS)} />
       ) : !data || data.length === 0 ? (
         <EmptyState
           title="Aucune adresse autorisée"

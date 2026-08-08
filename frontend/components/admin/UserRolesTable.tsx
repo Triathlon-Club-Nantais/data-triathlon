@@ -15,38 +15,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useAdminUsers, useGrantRole, useRevokeRole } from "@/lib/queries/admin";
 import { useRolesAttribuables } from "@/lib/roles";
-import { ApiError } from "@/lib/api/client";
+import { messageDeRefus } from "@/lib/api/refus";
 import { formatDate } from "@/lib/utils/date";
 import type { AdminUser, SessionRole } from "@/lib/types";
 
 /**
- * Ce qu'un refus doit dire, et qu'une liste vide ne doit pas dire.
- *
- * Même défaut que celui fermé sur `AllowedEmailsTable` : sur un 403, `data` est
- * `undefined`. Ici l'écran laisserait croire que **personne** n'a de compte,
- * c'est-à-dire que le club n'a aucun administrateur.
+ * Ce que dit un refus ici : sans distinction, l'écran laisserait croire que
+ * **personne** n'a de compte, c'est-à-dire que le club n'a aucun administrateur.
  */
-function messageDErreur(erreur: Error): { title: string; description: string } {
-  const statut = erreur instanceof ApiError ? erreur.status : 0;
-  if (statut === 401) {
-    return {
-      title: "Session expirée",
-      description: "Reconnectez-vous pour consulter les utilisateurs.",
-    };
-  }
-  if (statut === 403) {
-    return {
-      title: "Accès refusé",
-      description:
-        "Votre rôle ne permet pas de consulter les utilisateurs. " +
-        "Demandez le pouvoir correspondant à un administrateur.",
-    };
-  }
-  return {
-    title: "Liste indisponible",
-    description: "Les utilisateurs n'ont pas pu être chargés. Réessayez plus tard.",
-  };
-}
+const REFUS = { sujet: "utilisateurs", action: "consulter les utilisateurs" };
 
 export function UserRolesTable() {
   const { data, isLoading, error } = useAdminUsers();
@@ -76,7 +53,7 @@ export function UserRolesTable() {
   }
 
   if (isLoading) return <Skeleton className="h-40 w-full" />;
-  if (error) return <EmptyState {...messageDErreur(error)} />;
+  if (error) return <EmptyState {...messageDeRefus(error, REFUS)} />;
   if (!data || data.length === 0) {
     return (
       <EmptyState
