@@ -43,8 +43,8 @@ branche par défaut. La **PR 1** livre le workflow seul et le rend exécutable ;
 - [X] T006 Ajouter à `.github/workflows/batch.yml` le rendu du rapport texte dans `$GITHUB_STEP_SUMMARY` et le dépôt de l'artefact `bilan-<correlation_id>.json` via `actions/upload-artifact`
 - [X] T007 Écrire `backend/tests/test_workflows.py` — méta-test des invariants du workflow : aucune entrée interpolée dans un `run:` (D3), verrou de concurrence, borne de durée. Remplace le `grep` initialement prévu, qui marquait en faute le bloc `env:`, c'est-à-dire la forme correcte
 - [ ] T008 Créer l'environment GitHub `batch-production` et son secret `DATABASE_URL` **visant le pooler Supabase** (D12) — *action manuelle, dans le dashboard GitHub ; la documentation correspondante est écrite dans `docs/ci-cd.md` (hôte, motif, symptôme d'erreur)*
-- [ ] T009 Ouvrir et faire fusionner la **PR 1** avec `Refs #47` — le workflow doit être sur `main` pour devenir déclenchable
-- [ ] T010 Exécuter `specs/20260806-143754-ops-batch-runs/quickstart.md` §7 — `mode: rescrape`, `limit: 1`, `dry_run: true` depuis l'onglet Actions. **Aucune tâche de la PR 2 ne commence avant que celle-ci soit verte** : c'est elle qui révèle D12, et le repli de FR-020 est acquis dès ici
+- [X] T009 Ouvrir et faire fusionner la **PR 1** avec `Refs #47` — le workflow doit être sur `main` pour devenir déclenchable
+- [X] T010 Exécuter `specs/20260806-143754-ops-batch-runs/quickstart.md` §7 — `mode: rescrape`, `limit: 1`, `dry_run: true` depuis l'onglet Actions. **Aucune tâche de la PR 2 ne commence avant que celle-ci soit verte** : c'est elle qui révèle D12, et le repli de FR-020 est acquis dès ici
 
 ---
 
@@ -57,14 +57,14 @@ d'utilisable seul, mais les trois stories s'y appuient.
 
 **⚠️ À terminer avant toute story.**
 
-- [ ] T011 Écrire `backend/tests/test_services/test_batch_runs.py` — cas du **dispatch** : corps envoyé (`ref: "main"`, `inputs` exactement les huit entrées du contrat, `target` valant le réglage `GITHUB_BATCH_TARGET` de l'instance et jamais une valeur reçue du client), en-têtes (`Authorization: Bearer`, `Accept: application/vnd.github+json`, `X-GitHub-Api-Version`), URL construite depuis les réglages, `correlation_id` de huit caractères hexadécimaux ; `MockTransport`, aucun réseau
-- [ ] T012 Implémenter `dispatch_batch()` dans `backend/app/services/batch_runs.py` — passe par `core/http.client()` (jamais `httpx` nu : un méta-test l'interdit dans `app/`), produit le `correlation_id` par `uuid4().hex[:8]` et le rend
-- [ ] T013 Compléter `backend/tests/test_services/test_batch_runs.py` — **liste des exécutions** : correspondance statut/conclusion de la plateforme → `state` (`pending`/`running`/`completed`), `outcome` (`success`/`failure`/`cancelled`) et `triggered_by` (`ui`/`schedule`/`manual`) ; tri décroissant, borne `limit` ; plateforme injoignable → erreur dédiée, jamais une liste vide
-- [ ] T014 Implémenter `list_runs()` dans `backend/app/services/batch_runs.py` — valeurs d'énumération **en anglais** (Principe I) ; la traduction d'affichage appartient au front
-- [ ] T015 Compléter `backend/tests/test_services/test_batch_runs.py` — **bilan** : l'artefact est un zip, son unique entrée JSON est rendue telle quelle ; artefact absent → erreur « pas de bilan », artefact expiré (410 amont) → erreur distincte
-- [ ] T016 Implémenter `fetch_report()` dans `backend/app/services/batch_runs.py` — `zipfile.ZipFile(io.BytesIO(...))`, aucune écriture disque
-- [ ] T017 Compléter `backend/tests/test_services/test_batch_runs.py` — **configuration et jeton** : jeton absent → erreur « lancement non configuré » ; jeton refusé par la plateforme (401) → erreur « jeton expiré ou révoqué ». Les deux messages sont distincts, c'est ce qui rend le diagnostic possible sans accès aux logs
-- [ ] T018 Implémenter la garde de configuration et la traduction des erreurs amont dans `backend/app/services/batch_runs.py`
+- [X] T011 Écrire `backend/tests/test_services/test_batch_runs.py` — cas du **dispatch** : corps envoyé (`ref: "main"`, `inputs` exactement les huit entrées du contrat, `target` valant le réglage `GITHUB_BATCH_TARGET` de l'instance et jamais une valeur reçue du client), en-têtes (`Authorization: Bearer`, `Accept: application/vnd.github+json`, `X-GitHub-Api-Version`), URL construite depuis les réglages, `correlation_id` de huit caractères hexadécimaux ; `MockTransport`, aucun réseau
+- [X] T012 Implémenter `dispatch_batch()` dans `backend/app/services/batch_runs.py` — passe par `core/http.client()` (jamais `httpx` nu : un méta-test l'interdit dans `app/`), produit le `correlation_id` par `uuid4().hex[:8]` et le rend
+- [X] T013 Compléter `backend/tests/test_services/test_batch_runs.py` — **liste des exécutions** : correspondance statut/conclusion de la plateforme → `state` (`pending`/`running`/`completed`), `outcome` (`success`/`failure`/`cancelled`) et `triggered_by` (`ui`/`schedule`/`manual`) ; tri décroissant, borne `limit` ; plateforme injoignable → erreur dédiée, jamais une liste vide
+- [X] T014 Implémenter `list_runs()` dans `backend/app/services/batch_runs.py` — valeurs d'énumération **en anglais** (Principe I) ; la traduction d'affichage appartient au front
+- [X] T015 Compléter `backend/tests/test_services/test_batch_runs.py` — **bilan** : l'artefact est un zip, son unique entrée JSON est rendue telle quelle ; artefact absent → erreur « pas de bilan », artefact expiré (410 amont) → erreur distincte
+- [X] T016 Implémenter `fetch_report()` dans `backend/app/services/batch_runs.py` — `zipfile.ZipFile(io.BytesIO(...))`, aucune écriture disque
+- [X] T017 Compléter `backend/tests/test_services/test_batch_runs.py` — **configuration et jeton** : jeton absent → erreur « lancement non configuré » ; jeton refusé par la plateforme (401) → erreur « jeton expiré ou révoqué ». Les deux messages sont distincts, c'est ce qui rend le diagnostic possible sans accès aux logs
+- [X] T018 Implémenter la garde de configuration et la traduction des erreurs amont dans `backend/app/services/batch_runs.py`
 
 ## Phase 4: User Story 1 — Reprise filtrée (P1) 🎯 MVP
 
