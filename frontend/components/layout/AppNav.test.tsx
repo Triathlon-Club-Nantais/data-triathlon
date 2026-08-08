@@ -47,6 +47,7 @@ const SESSION: SessionUser = {
   created_at: "2026-08-01T14:54:28Z",
   permissions: [],
   roles: [],
+  groups: [],
 };
 
 /** La même session, habilitée. `permissions` est l'unique source (#115). */
@@ -263,17 +264,23 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
   });
 
   it("ne rend pas les écrans non livrés, même à qui en porte le pouvoir (#242)", async () => {
-    afficher(habilite("allowed_emails:manage", "roles:assign", "groups:assign"));
+    afficher(
+      habilite("allowed_emails:manage", "roles:assign", "roles:write", "groups:assign"),
+    );
     await deplier();
     await waitFor(() => expect(screen.getByText("Gestion des utilisateurs")).toBeInTheDocument());
 
-    // « Rôles des utilisateurs » est livré depuis #239 : il mène quelque part.
+    // « Rôles des utilisateurs » (#239) et « Groupes d'appartenance » (#241)
+    // sont livrés : ils mènent quelque part.
     expect(
       screen.getByRole("link", { name: "Rôles des utilisateurs" }),
     ).toHaveAttribute("href", "/admin/utilisateurs");
+    expect(
+      screen.getByRole("link", { name: "Groupes d'appartenance" }),
+    ).toHaveAttribute("href", "/admin/groupes");
 
-    // « Groupes d'appartenance » reste `soon`, donc n'est plus rendue (#242).
-    expect(screen.queryByText("Groupes d'appartenance")).not.toBeInTheDocument();
+    // « Droits des rôles » reste `soon`, donc n'est plus rendue (#242).
+    expect(screen.queryByText("Droits des rôles")).not.toBeInTheDocument();
   });
 });
 
