@@ -24,6 +24,7 @@ from app.core import http
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
 from .classify import classify_event_type
 from .utils import (
+    DEFAULT_HEADERS,
     derive_status_from_label,
     fmt_seconds,
     normalize_time,
@@ -32,12 +33,7 @@ from .utils import (
     to_seconds,
 )
 
-_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-    )
-}
+_HEADERS = {**DEFAULT_HEADERS}
 
 _DATA_API_URLS = [
     "https://www.timepulse.fr/resultats/api/data.php?id_event={id_event}",

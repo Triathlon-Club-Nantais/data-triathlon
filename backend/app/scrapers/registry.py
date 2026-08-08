@@ -295,6 +295,11 @@ class WiclaxProvider(FanoutProvider):
 
     Le fan-out expose sa progression dans `self.last_trace` (5 compteurs) — lue
     par `import_service` pour peupler le SSE `done` et déduire `heats_imported`.
+
+    `single_heat=True` renvoie ici l'**événement entier**, sans découpage par
+    parcours : Wiclax n'expose pas de sélecteur d'URL ciblant un parcours
+    particulier, l'échappatoire vaut donc « ne pas fan-outer » plutôt que
+    « scraper un unique parcours ».
     """
 
     name = "wiclax"
@@ -327,7 +332,8 @@ class RaceResultProvider(FanoutProvider):
     `Contest="0"` (« toutes catégories ») est réservé et exclu du fan-out :
     ses listes sont scrapées comme dans le contrat historique. L'échappatoire
     `--single-heat` (chemin `single_heat=True`) court-circuite le fan-out et
-    n'appelle **aucun** `cache_probe`.
+    n'appelle **aucun** `cache_probe` — utile aux tests et à un rescrape
+    d'événement en pot commun.
     """
 
     name = "raceresult"
@@ -379,6 +385,9 @@ class OkTimeProvider(FanoutProvider):
     Le fan-out expose sa progression dans `self.last_trace` (compteurs
     `heats_enumerated`, `heats_cached`, `heats_imported`, `failures`) — lue par
     `import_service` pour peupler le SSE `done`.
+
+    `single_heat=True` conserve l'entrée mono-course : il sert d'échappatoire
+    (`rescrape-db --single-heat`) et aux tests unitaires du chemin historique.
     """
 
     name = "oktime"

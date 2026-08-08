@@ -41,6 +41,21 @@ def test_provider_names_ne_porte_aucun_nom_fantome():
     assert len(noms) == len(set(noms)), "deux providers portent le même nom"
 
 
+def test_chaque_provider_delegue_au_module_de_son_nom():
+    """`_module` et `name` viennent désormais de la même table de données.
+
+    Tant que la paire était écrite deux fois — nom de classe **et**
+    `<module>.scrape_event_all` —, la relecture attrapait un croisement.
+    Depuis `PROVIDERS`, une entrée fautive (`ModuleProvider("timepulse", …,
+    prolivesport)`) passerait toute la suite unitaire : les tests de routage
+    assertent sur `provider.name`, qui vient de la même ligne.
+    """
+    for provider in registry.PROVIDERS:
+        module = getattr(provider, "_module", None)
+        if module is not None:
+            assert module.__name__ == f"app.scrapers.{provider.name}"
+
+
 def test_is_supported_vrai_des_quun_provider_reconnait_lurl():
     assert registry.is_supported("https://www.ironman.com/races/im703-vichy/results") is True
     assert registry.is_supported("https://www.klikego.com/resultats/event/1") is True

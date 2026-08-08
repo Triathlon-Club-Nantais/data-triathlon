@@ -158,7 +158,7 @@ def test_parse_athlete_solo_not_relay():
     assert r.is_relay is False
 
 
-def testclassify_event_type():
+def test_classify_event_type():
     assert classify_event_type("Triathlon M") == "triathlon-m"
     assert classify_event_type("Triathlon S") == "triathlon-s"
     assert classify_event_type("Duathlon Sprint") == "duathlon-s"

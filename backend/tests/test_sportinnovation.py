@@ -48,7 +48,7 @@ def test_parse_name_cell_composed_lastname_known_limitation():
     assert cat == "V1F"
 
 
-def testclassify_event_type():
+def test_classify_event_type():
     assert classify_event_type("Triathlon M") == "triathlon-m"
     assert classify_event_type("Triathlon S") == "triathlon-s"
     assert classify_event_type("Aquathlon du RC Doué") == "aquathlon"

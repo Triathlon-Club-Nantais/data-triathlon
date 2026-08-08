@@ -49,7 +49,7 @@ logger = logging.getLogger(__name__)
 
 
 BASE_URL = "https://www.chronoplace.fr"
-HEADERS = DEFAULT_HEADERS
+HEADERS = {**DEFAULT_HEADERS}
 
 _URL_RE = re.compile(r"^/classement/(?P<slug>[^/]+)(?:/epreuve/(?P<id>\d+))?/?$")
 _SORT_RE = re.compile(r"sortBy\('([^']+)'\)")
