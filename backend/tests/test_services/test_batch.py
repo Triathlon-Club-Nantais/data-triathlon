@@ -499,7 +499,7 @@ def test_est_echec_total_faux_quand_il_n_y_avait_rien_a_traiter():
 
 
 def test_les_champs_communs_existent_des_deux_cotes():
-    """Garde-fou de `reporter_totals` : il recopie par `setattr`.
+    """Garde-fou de `copy_totals` : il recopie par `setattr`.
 
     Un champ renommé d'un seul côté ne lèverait pas — il **créerait** un attribut
     parasite sur l'Outcome et laisserait le compteur d'origine à zéro, sans que

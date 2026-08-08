@@ -14,8 +14,8 @@ from app.services import sheet_source
 from app.services.batch import (
     BatchFailure,
     BatchItem,
+    copy_totals,
     est_echec_total,
-    reporter_totals,
     run_batch,
 )
 from app.services.progress import ProgressReporter
@@ -109,5 +109,5 @@ def run_import_sheet(
         db, items, settings, force=False, delay=delay, reporter=reporter
     )
 
-    reporter_totals(outcome, totals)
+    copy_totals(outcome, totals)
     return outcome

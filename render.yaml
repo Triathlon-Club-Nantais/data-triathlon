@@ -47,7 +47,8 @@ services:
       # (`PUT /v1/services/{id}/env-vars/APP_VERSION`) : Render déploie une
       # branche et ne connaît pas le tag, seul `deploy.yml` le connaît. Ne pas
       # la saisir à la main, elle serait écrasée au déploiement suivant.
-      # Absente, `app/version.py` retombe sur le fichier `VERSION` puis « dev ».
+      # Absente, `app/version.py` rend « dev » : le repli fichier `VERSION` a
+      # été supprimé, il n'a jamais tourné (cf. l'en-tête de ce fichier).
       - key: APP_VERSION
         sync: false
       # ── Authentification SSO (#114) ────────────────────────────────────────
