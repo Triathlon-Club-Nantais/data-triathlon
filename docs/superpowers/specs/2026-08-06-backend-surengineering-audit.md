@@ -11,6 +11,9 @@
 > performance — ces axes relèvent d'une revue normale.
 >
 > Pendant côté frontend : [`2026-08-06-frontend-surengineering-audit.md`](2026-08-06-frontend-surengineering-audit.md).
+>
+> Troisième passage, sur l'arbre entier (racine, CI, `scripts/`, `docs/`) :
+> [`2026-08-08-depot-entier-surengineering-audit.md`](2026-08-08-depot-entier-surengineering-audit.md).
 
 ## Comment lire
 
