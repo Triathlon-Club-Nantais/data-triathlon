@@ -30,6 +30,7 @@ const SESSION: SessionUser = {
   created_at: "2026-08-01T14:54:28Z",
   permissions: [],
   roles: [],
+  groups: [],
 };
 
 function afficher(session: SessionUser | null, props: { pleineLargeur?: boolean } = {}) {
@@ -116,6 +117,31 @@ describe("UserMenu — connecté (AC1, AC2, AC3, AC4, AC6)", () => {
 
     await waitFor(() => expect(logout).toHaveBeenCalled());
     await waitFor(() => expect(push).toHaveBeenCalledWith("/"));
+  });
+
+  it("montre ses propres appartenances, sans exiger le moindre pouvoir (#197)", async () => {
+    // `GET /auth/me` rend `groups` à tout connecté : chacun voit à quoi il
+    // appartient sans `groups:read`, qui ne sert qu'à voir celles des autres.
+    // Un groupe n'accorde rien — rien ici ne se lit comme un droit.
+    afficher({
+      ...SESSION,
+      groups: [
+        { id: 3, slug: "codir", name: "Codir", organisation_id: 1 },
+        { id: 4, slug: "officiels", name: "Officiels", organisation_id: 1 },
+      ],
+    });
+    const { menu } = await ouvrirLeMenu();
+
+    expect(menu).toHaveTextContent(/membre de/i);
+    expect(menu).toHaveTextContent("Codir");
+    expect(menu).toHaveTextContent("Officiels");
+  });
+
+  it("ne dit rien de l'appartenance quand il n'y en a aucune", async () => {
+    afficher(SESSION);
+    const { menu } = await ouvrirLeMenu();
+
+    expect(menu).not.toHaveTextContent(/membre de/i);
   });
 
   it("se ferme à la touche Échap (AC6)", async () => {

@@ -12,6 +12,8 @@ import type {
   CourseSummary,
   EventPage,
   GeoEvent,
+  Group,
+  GroupDetail,
   ImportResult,
   Participation,
   ParticipationFilters,
@@ -226,4 +228,31 @@ export const apiClient = {
     }),
   revokeRole: (userId: number, roleId: number) =>
     request<null>(`/admin/users/${userId}/roles/${roleId}`, { method: "DELETE" }),
+
+  // ── Groupes d'appartenance (#197) ──────────────────────────────────────────
+  // Trois pouvoirs : `groups:read` pour les deux lectures, `groups:write` pour
+  // le cycle de vie du groupe, `groups:assign` pour sa composition. `slug` n'est
+  // pas modifiable — le soumettre à `PATCH` rend 422, jamais un renommage
+  // silencieux.
+  listGroups: () => request<Group[]>("/admin/groups"),
+  getGroup: (id: number) => request<GroupDetail>(`/admin/groups/${id}`),
+  createGroup: (body: { slug: string; name: string; description: string }) =>
+    request<GroupDetail>("/admin/groups", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateGroup: (id: number, champs: { name?: string; description?: string }) =>
+    request<GroupDetail>(`/admin/groups/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(champs),
+    }),
+  deleteGroup: (id: number) =>
+    request<null>(`/admin/groups/${id}`, { method: "DELETE" }),
+  addGroupMember: (groupId: number, userId: number) =>
+    request<GroupDetail>(`/admin/groups/${groupId}/members`, {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId }),
+    }),
+  removeGroupMember: (groupId: number, userId: number) =>
+    request<null>(`/admin/groups/${groupId}/members/${userId}`, { method: "DELETE" }),
 };
