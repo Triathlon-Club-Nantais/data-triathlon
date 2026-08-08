@@ -95,12 +95,6 @@ def create_app() -> FastAPI:
 
     logger.info("Application initialisée (CORS: %s)", settings.cors_origins)
 
-    # Socle OpenTelemetry (#89) : éteint par défaut, aucun paquet OTel chargé.
-    from app.core.database import engine
-    from app.core.tracing import setup_tracing
-
-    setup_tracing(enabled=settings.otel_enabled, app=app, engine=engine)
-
     _warn_if_auth_unconfigured()
     return app
 

@@ -16,10 +16,6 @@ dependencies = [
     "lxml>=5.3.0",
     "typer>=0.26.7",
     "rich>=15.0.0",
-    "opentelemetry-sdk>=1.44.0",
-    "opentelemetry-instrumentation-fastapi>=0.65b0",
-    "opentelemetry-instrumentation-sqlalchemy>=0.65b0",
-    "opentelemetry-exporter-otlp-proto-http>=1.44.0",
     # Flux OAuth du socle d'authentification (#114). `httpx_client.OAuth2Client`
     # hérite de `httpx.Client`, donc le transport gardé de `core/http` y descend
     # nativement — c'est ce qui fait passer tout le trafic OAuth par le contrôle
