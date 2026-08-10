@@ -40,6 +40,7 @@ from .utils import (
     normalize_rank,
     normalize_time,
     split_athlete_name,
+    strip_accents,
 )
 
 logger = logging.getLogger(__name__)
@@ -51,12 +52,9 @@ HEADERS = {**DEFAULT_HEADERS}
 _PREFIXE = "/calendrier/"
 _ANNEE_RE = re.compile(r"^\d{4}$")
 
-_ACCENTS = str.maketrans("àâäéèêëîïôöùûüç", "aaaeeeeiioouuuc")
-
-
 def _norm(text: str) -> str:
     """Minuscule, sans accents, espaces aplatis. « Détails » → « details »."""
-    sans_accents = (text or "").strip().lower().translate(_ACCENTS)
+    sans_accents = strip_accents((text or "").strip().lower())
     return re.sub(r"\s+", " ", sans_accents)
 
 

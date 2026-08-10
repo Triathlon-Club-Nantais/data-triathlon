@@ -1,5 +1,4 @@
 """Router Courses : liste, détail paginé avec participants, épreuves agrégées."""
-from datetime import date
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
@@ -9,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.club import is_club_scope
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
+from app.core.season import parse_date as _parse_date
 from app.core.season import parse_seasons
 from app.repositories import course_repository, participation_repository
 from app.schemas.course import CourseBrief, CourseCount, CourseSummary, EventPage
@@ -16,15 +16,6 @@ from app.schemas.participation import CourseParticipationPage, ParticipationOut
 from app.services import stats_service
 
 router = APIRouter(tags=["courses"])
-
-
-def _parse_date(value: str | None) -> date | None:
-    if not value:
-        return None
-    try:
-        return date.fromisoformat(value)
-    except ValueError:
-        return None
 
 
 @router.get("/courses/events", response_model=EventPage)

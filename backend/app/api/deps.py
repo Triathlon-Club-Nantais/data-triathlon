@@ -16,11 +16,6 @@ from app.services.auth import session as session_service
 logger = logging.getLogger(__name__)
 
 
-def settings_dep() -> Settings:
-    """Injecte les réglages applicatifs dans les routers."""
-    return get_settings()
-
-
 class NotAuthenticatedError(DomainError):
     """Aucune session valide n'accompagne cette requête."""
 
@@ -43,7 +38,7 @@ class InsufficientPermissionError(DomainError):
 def current_user(
     request: Request,
     db: Session = Depends(get_db),
-    settings: Settings = Depends(settings_dep),
+    settings: Settings = Depends(get_settings),
 ) -> User:
     """Utilisateur de la session portée par le cookie, ou 401.
 

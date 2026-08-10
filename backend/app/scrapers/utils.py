@@ -2,6 +2,7 @@
 Shared utilities for all scrapers.
 """
 import re
+import unicodedata
 from datetime import date as date_t
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER
@@ -17,6 +18,15 @@ DEFAULT_HEADERS = {
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
     ),
 }
+
+
+def strip_accents(text: str) -> str:
+    """Aplatit les accents : 'Été' → 'Ete'. Sept providers en portaient chacun
+    une copie (table `str.maketrans` minuscules-only, ou ce même NFKD) ; une
+    seule définition, casse préservée pour rester composable avec `.lower()`.
+    """
+    decomposed = unicodedata.normalize("NFKD", text or "")
+    return "".join(c for c in decomposed if not unicodedata.combining(c))
 
 _FR_MONTHS = {
     "janvier": 1, "fevrier": 2, "mars": 3, "avril": 4,
@@ -207,15 +217,12 @@ _STATUS_TOKENS: dict[str, str] = {
     "ok": STATUS_FINISHER,
 }
 
-_STATUS_ACCENTS = str.maketrans("àâäéèêëîïôöùûüç", "aaaeeeeiioouuuc")
-
-
 def _normalize_label(label: str) -> str:
     """Minuscule, sans accents, ne garde que les caractères alphanumériques.
 
     'Non partant' → 'nonpartant' ; 'Disqualifié' → 'disqualifie'.
     """
-    s = label.strip().lower().translate(_STATUS_ACCENTS)
+    s = strip_accents(label.strip().lower())
     return re.sub(r"[^a-z0-9]", "", s)
 
 

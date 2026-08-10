@@ -8,26 +8,22 @@ Toute saisie invalide est rejetée par `typer.BadParameter` : message + usage su
 stderr, code de sortie 2 (convention Click), arrêt **avant** l'ouverture de la
 Session. Même raisonnement que `valider_provider`.
 """
-import sys
-from pathlib import Path
-
+import click
 import typer
 
 from app.services import sheet_source
 
 
 def _lignes_du_fichier(chemin: str) -> list[str]:
-    """Lit `chemin`, ou **stdin** si `chemin` vaut `-` (pas de fichier temporaire)."""
-    if chemin == "-":
-        # Même BOM (export Notepad/Excel Windows) que sur le chemin fichier :
-        # `sys.stdin` ne le retire pas tout seul (contrairement à `utf-8-sig`
-        # côté fichier), il faut donc le faire explicitement ici aussi. Le BOM
-        # est écrit en échappement : un caractère littéral serait invisible.
-        return sys.stdin.read().removeprefix("\ufeff").splitlines()
+    """Lit `chemin`, ou **stdin** si `chemin` vaut `-`.
+
+    `click.open_file` gère nativement le tiret = stdin et, avec
+    `encoding="utf-8-sig"`, retire un BOM en tête (export Notepad/Excel
+    Windows) — fichier comme stdin —, sans rien changer sur une entrée sans BOM.
+    """
     try:
-        # utf-8-sig : retire un BOM en tête (export Notepad/Excel Windows) sans
-        # rien changer pour un fichier UTF-8 sans BOM.
-        return Path(chemin).read_text(encoding="utf-8-sig").splitlines()
+        with click.open_file(chemin, encoding="utf-8-sig") as f:
+            return f.read().splitlines()
     except UnicodeDecodeError as exc:
         # Hérite de ValueError, pas de OSError (pas de `strerror`) : bloc à part,
         # avec un message qui pointe l'encodage plutôt que de laisser filer une

@@ -166,8 +166,8 @@ def test_parse_competitor_event_type_relais_chronosmetron_non_regression():
     (« Triathlon de la Roche - Relais S ») porte l'information « triathlon ».
     C'est justement le genre de cas visé par le changement de classification
     sur le nom qualifié (issue #21 / RED OUF) : si `classify.py` ou
-    `_qualify_event_name` régresse, ce parcours dériverait silencieusement en
-    production sans qu'aucun autre test ne le détecte.
+    `utils.qualify_event_name` régresse, ce parcours dériverait silencieusement
+    en production sans qu'aucun autre test ne le détecte.
     """
     comp = _el('<E d="10" p="Relais S"/>')
     r = _parse_competitor(comp, "http://x", "Triathlon de la Roche", "triathlon")
@@ -853,13 +853,12 @@ def test_scrape_event_all_clax_chronowest(monkeypatch):
 
 def test_qualify_event_name_factorise_dans_utils():
     from app.scrapers.utils import qualify_event_name
-    from app.scrapers.wiclax import _qualify_event_name
 
-    assert _qualify_event_name("Triathlon de Vertou 2026", "S-Open Femmes") == (
+    assert qualify_event_name("Triathlon de Vertou 2026", "S-Open Femmes") == (
         "Triathlon de Vertou 2026 - S-Open Femmes"
     )
     # Qualifiant déjà présent : pas de doublon.
-    assert _qualify_event_name("Triathlon M", "Triathlon M") == "Triathlon M"
+    assert qualify_event_name("Triathlon M", "Triathlon M") == "Triathlon M"
     assert qualify_event_name("Triathlon M", "") == "Triathlon M"
 
 

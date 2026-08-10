@@ -1,6 +1,4 @@
 """Router Participations : création manuelle, liste filtrée, détail, suppression."""
-from datetime import date
-
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
@@ -9,6 +7,7 @@ from app.core.club import is_club_scope
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.core.permissions import P
+from app.core.season import parse_date as _parse_date
 from app.core.season import parse_seasons
 from app.models.user import User
 from app.repositories import participation_repository
@@ -17,15 +16,6 @@ from app.scrapers.base import ScrapedResult
 from app.services import scrape_service
 
 router = APIRouter(tags=["participations"])
-
-
-def _parse_date(value: str | None) -> date | None:
-    if not value:
-        return None
-    try:
-        return date.fromisoformat(value)
-    except ValueError:
-        return None
 
 
 def _to_scraped(body: ParticipationCreate) -> ScrapedResult:

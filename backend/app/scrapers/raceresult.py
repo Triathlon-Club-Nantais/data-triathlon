@@ -52,6 +52,7 @@ from .utils import (
     normalize_time,
     qualify_event_name,
     split_athlete_name,
+    strip_accents,
 )
 
 logger = logging.getLogger(__name__)
@@ -277,8 +278,6 @@ def _iter_hidden_list_specs(config: dict) -> list[tuple[str, str]]:
     ])
 
 
-_ACCENTS = str.maketrans("àâäéèêëîïôöùûüçÀÂÄÉÈÊËÎÏÔÖÙÛÜÇ", "aaaeeeeiioouuucAAAEEEEIIOOUUUC")
-
 # Enrobages d'affichage posés par RaceResult autour de l'expression réelle.
 _RE_ENROBAGE = re.compile(
     r"^(ucase|lcase|trim|format|OuStatut|Statut|iif|if|switch)\s*\(", re.IGNORECASE
@@ -410,7 +409,7 @@ def _peel(expr: str) -> str:
         )
 
     s = s.replace("#", "").replace("[", "").replace("]", "")
-    return s.translate(_ACCENTS).lower().strip()
+    return strip_accents(s).lower().strip()
 
 
 # Enrobage i18n complet, **sans accolade interne** : `{DE:Startnr|EN:Bib}`.
@@ -1298,11 +1297,11 @@ def _enrichir(existant: ScrapedResult, apport: ScrapedResult) -> None:
 def _identite_pliee(r: ScrapedResult) -> tuple[str, str]:
     """(nom, prénom) plié en minuscules et accents neutralisés, pour comparaison.
 
-    Réutilise `_ACCENTS` afin qu'une divergence de seule casse ou de seul accent
-    (« José » / « JOSE ») ne compte pas comme deux identités.
+    Réutilise `strip_accents` afin qu'une divergence de seule casse ou de seul
+    accent (« José » / « JOSE ») ne compte pas comme deux identités.
     """
     def plie(s: str) -> str:
-        return (s or "").translate(_ACCENTS).strip().lower()
+        return strip_accents(s or "").strip().lower()
 
     return plie(r.athlete_name), plie(r.athlete_firstname)
 

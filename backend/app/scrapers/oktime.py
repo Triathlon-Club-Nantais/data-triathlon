@@ -48,6 +48,7 @@ from .utils import (
     normalize_time,
     qualify_event_name,
     split_athlete_name,
+    strip_accents,
     to_seconds,
 )
 
@@ -202,7 +203,6 @@ def _repair_mojibake(s: str) -> str:
         return s
 
 
-_ACCENTS = str.maketrans("àâäéèêëîïôöùûüç", "aaaeeeeiioouuuc")
 # Marqueurs d'une course d'équipes dans le titre, comparés sans accents ni casse.
 _RELAY_TITRE_RE = re.compile(r"relais|equipe|duo|team")
 # Séparateur de coéquipiers dans un nom (« GUILLON RÉMI / CHARPENTIER EMMANUEL »).
@@ -222,7 +222,7 @@ def _is_relay_course(title: str, runners: list[dict]) -> bool:
     plus (il basculerait « Format M individuel », 1 nom sur 57, en relais). D'où
     la **majorité stricte**.
     """
-    if _RELAY_TITRE_RE.search((title or "").lower().translate(_ACCENTS)):
+    if _RELAY_TITRE_RE.search(strip_accents((title or "").lower())):
         return True
     noms = [str(runner.get("nom") or "") for runner in runners]
     if not noms:

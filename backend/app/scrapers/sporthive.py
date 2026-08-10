@@ -38,7 +38,6 @@ pagination cap hit, or when no race could be read at all.
 """
 import logging
 import re
-import unicodedata
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -57,6 +56,7 @@ from .utils import (
     normalize_time,
     qualify_event_name,
     split_athlete_name,
+    strip_accents,
 )
 
 logger = logging.getLogger(__name__)
@@ -380,13 +380,8 @@ def _segments(legs) -> list[tuple[str, str]]:
 _RELAY_RE = re.compile(r"\b(relais|relay|equipe|team|duo)")
 
 
-def _sans_accents(texte: str) -> str:
-    decompose = unicodedata.normalize("NFKD", texte)
-    return "".join(c for c in decompose if not unicodedata.combining(c))
-
-
 def _is_relay(race_name: str) -> bool:
-    return bool(_RELAY_RE.search(_sans_accents(race_name).lower()))
+    return bool(_RELAY_RE.search(strip_accents(race_name).lower()))
 
 
 def _event_date(raw) -> date | None:

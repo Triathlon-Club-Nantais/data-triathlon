@@ -12,9 +12,7 @@ import pytest
 
 from app.scrapers.classify import classify_event_type
 from app.scrapers.timepulse import (
-    _attrs,
     _compute_ranks,
-    _find_tag,
     _parse_event_date,
     _parse_series,
     scrape_event_all,
@@ -270,26 +268,6 @@ def test_parse_series_aquathlon():
     assert mapping == {"s0": "swim", "s1": "run"}
 
 
-# ---------------------------------------------------------------------------
-# _attrs et _find_tag
-# ---------------------------------------------------------------------------
-
-def test_attrs_extracts_all():
-    tag = '<E d="41" n="GOUBAUD Manon" c="Club" x="F" ca="SEF" p="p1"/>'
-    a = _attrs(tag)
-    assert a["d"] == "41"
-    assert a["n"] == "GOUBAUD Manon"
-    assert a["x"] == "F"
-    assert a["ca"] == "SEF"
-
-
-def test_find_tag_found():
-    xml = make_xml(athletes=[("42", "MARTIN Paul", "SEH", "M", "p1")])
-    tag = _find_tag(xml, "E", "d", "42")
-    assert tag is not None
-    assert 'n="MARTIN Paul"' in tag
-
-
 def test_parse_event_date_iso():
     """Format ISO YYYY-MM-DD."""
     from datetime import date
@@ -306,11 +284,6 @@ def test_parse_event_date_invalid():
     """Chaîne non parseable → None."""
     assert _parse_event_date("juin 2025") is None
     assert _parse_event_date("") is None
-
-
-def test_find_tag_not_found():
-    xml = make_xml(athletes=[("10", "DUPONT Jean", "SEH", "M", "p1")])
-    assert _find_tag(xml, "E", "d", "999") is None
 
 
 # ---------------------------------------------------------------------------
