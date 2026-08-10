@@ -590,3 +590,31 @@ def test_scrape_event_all_does_not_fetch_page_when_xml_has_date(monkeypatch):
 
     results = scrape_event_all("https://www.timepulse.fr/epreuves/resultats/2943")
     assert results[0].event_date == date(2025, 6, 8)
+
+
+def test_scrape_event_all_racine_epreuve_sans_wrapper(monkeypatch):
+    """Régression — la racine du XML réel est `<Epreuve>`, pas `<Triathlon>`.
+
+    Toutes les autres fixtures du fichier enveloppent `<Epreuve>` dans un
+    `<Triathlon>` via `make_xml()` ; la production (épreuve 3232, vérifié en
+    direct sur `timepulse.fr/resultats/api/data.php`) ne le fait pas — `E`/`R`/
+    `S` sont en plus nichés sous `<Etapes><Etape>`, jamais enfants directs de
+    la racine.
+    """
+    xml = (
+        '<?xml version="1.0" encoding="utf-8"?>'
+        '<Epreuve nom="LE NORTH MAY" dates="" dt1="2026-06-07" dt2="2026-06-07">'
+        "<Etapes><Etape>"
+        '<Segments><S id="0" nom="Natation"/><S id="1" nom="T1"/>'
+        '<S id="2" nom="Vélo"/><S id="3" nom="T2"/><S id="4" nom="Course à pied"/></Segments>'
+        '<Engages><E d="10" n="ALPHA Jean" c="Club" x="M" ca="SEH" p="Triathlon S SOLO"/></Engages>'
+        '<Resultats><R d="10" t="01:00:00" s0="00:20:00"/></Resultats>'
+        "</Etape></Etapes>"
+        "</Epreuve>"
+    )
+    monkeypatch.setattr("app.scrapers.timepulse._fetch_xml", lambda _id: xml)
+
+    results = scrape_event_all("https://www.timepulse.fr/epreuves/resultats/3232")
+
+    assert results[0].event_name == "LE NORTH MAY"
+    assert results[0].total_time == "01:00:00"
