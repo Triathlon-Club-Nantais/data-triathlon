@@ -14,8 +14,8 @@ from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import current_user, settings_dep
-from app.core.config import Settings
+from app.api.deps import current_user
+from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.core.exceptions import AuthUnavailableError, NotFoundError
 from app.models.user import User
@@ -129,7 +129,7 @@ def list_methods():
     possible » — l'interface l'affiche comme telle, elle ne la traite pas en
     erreur.
     """
-    settings = settings_dep()
+    settings = get_settings()
     if not settings.auth_is_configured:
         return []
     return [
@@ -139,7 +139,7 @@ def list_methods():
 
 
 @router.get("/auth/{provider}/authorize")
-def authorize(provider: str, settings: Settings = Depends(settings_dep)):
+def authorize(provider: str, settings: Settings = Depends(get_settings)):
     """Ouvre le parcours. Ne prend **aucun** paramètre, destination de retour
     comprise (FR-026) : la redirection ouverte est fermée par construction."""
     try:
@@ -168,7 +168,7 @@ def callback(
     state: str | None = None,
     error: str | None = None,
     db: Session = Depends(get_db),
-    settings: Settings = Depends(settings_dep),
+    settings: Settings = Depends(get_settings),
 ):
     """Retour du fournisseur. **Toujours** une redirection.
 
@@ -232,7 +232,7 @@ def _failure_redirect(code: str, settings: Settings) -> RedirectResponse:
 def logout(
     request: Request,
     db: Session = Depends(get_db),
-    settings: Settings = Depends(settings_dep),
+    settings: Settings = Depends(get_settings),
 ):
     """Ferme **cette** session. Idempotent : 204 même sans cookie (FR-014).
 

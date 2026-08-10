@@ -52,3 +52,17 @@ def parse_seasons(raw: str | None) -> list[int]:
         if year not in out:
             out.append(year)
     return out
+
+
+def parse_date(value: str | None) -> date | None:
+    """Parse une date ISO en query param ; `None` si absente ou invalide.
+
+    Dupliquée à l'identique dans les routers courses et participations —
+    seule définition désormais.
+    """
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        return None

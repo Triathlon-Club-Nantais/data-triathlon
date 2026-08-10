@@ -13,7 +13,6 @@ Format d'une ligne (séparateur `|`), 12 champs :
 """
 import base64
 import re
-import unicodedata
 from datetime import date as _date
 from urllib.parse import urlencode
 
@@ -21,7 +20,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
-from .utils import normalize_time
+from .utils import normalize_time, strip_accents
 
 _XOR_KEY = ord("K")
 _PAGE_SIZE = 50
@@ -54,7 +53,7 @@ def decode_data_block(html: str) -> list[list[str]]:
 
 def _slugify(text: str) -> str:
     """« Triathlon M individuel » → « triathlon-m-individuel » (forme des heats)."""
-    plain = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
+    plain = strip_accents(text)
     return re.sub(r"[^a-z0-9]+", "-", plain.lower()).strip("-")
 
 

@@ -24,7 +24,7 @@ directement. Le mapping des splits, lui, reste propre à chaque provider.
 """
 import logging
 from collections.abc import Callable
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol
 from urllib.parse import parse_qs, urlparse
 
 from app.scrapers import (
@@ -96,7 +96,6 @@ def _url_path(url: str) -> str:
         return ""
 
 
-@runtime_checkable
 class ScraperProtocol(Protocol):
     """Contrat que tout provider doit respecter."""
 

@@ -41,6 +41,7 @@ from .utils import (
     normalize_time,
     parse_fr_date,
     split_athlete_name,
+    strip_accents,
 )
 
 logger = logging.getLogger(__name__)
@@ -62,7 +63,6 @@ _TIME_RE = re.compile(r"^\d{1,3}:\d{2}:\d{2}$")
 
 # Marqueurs d'une participation en équipe dans la colonne `categorie`
 # (« Relais Mixte », « Duo Masculin »…), comparés sans accents ni casse.
-_ACCENTS = str.maketrans("àâäéèêëîïôöùûüç", "aaaeeeeiioouuuc")
 _RELAY_HINTS = ("relais", "duo", "equipe")
 
 # Ids de catégorie de l'annuaire /recherche, relevés dans le `<select name="categorie">`
@@ -332,7 +332,7 @@ def _event_type(analytics: dict, event_name: str) -> str:
 
 def _is_relay_category(category: str) -> bool:
     """Vrai si la catégorie désigne une équipe (« Relais Mixte », « Duo Masculin »)."""
-    normalized = (category or "").strip().lower().translate(_ACCENTS)
+    normalized = strip_accents((category or "").strip().lower())
     return any(hint in normalized for hint in _RELAY_HINTS)
 
 

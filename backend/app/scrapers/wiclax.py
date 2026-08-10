@@ -9,7 +9,6 @@ We fetch it and find the competitor by bib number (B param).
 """
 import logging
 import re
-import unicodedata
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from urllib.parse import parse_qs, quote, unquote, urlencode, urljoin, urlparse, urlunparse
@@ -29,6 +28,7 @@ from .utils import (
     parse_fr_date,
     qualify_event_name,
     split_athlete_name,
+    strip_accents,
     to_seconds,
 )
 
@@ -77,7 +77,7 @@ def _parse_competitor(comp, url: str, event_name: str, event_type: str) -> Scrap
         # nom de course par le parcours pour éviter que plusieurs parcours de même
         # type ne fusionnent en une seule Course (issue #21 : collisions de
         # dossards → participants manquants, rangs dupliqués).
-        event_name = _qualify_event_name(event_name, p_attr)
+        event_name = qualify_event_name(event_name, p_attr)
         # On classe le nom *qualifié*, pas le parcours nu : beaucoup de parcours ne
         # nomment pas le sport (« S Duo », « M Solo » chez ChronoWest) et le
         # classifieur retombe alors sur son défaut `triathlon` — un swimrun finissait
@@ -146,15 +146,6 @@ def _parse_competitor(comp, url: str, event_name: str, event_type: str) -> Scrap
 
     result.raw_data = raw
     return result
-
-
-def _qualify_event_name(event_name: str, parcours: str) -> str:
-    """Qualifie le nom d'épreuve par le parcours ChronoSmetron.
-
-    Logique factorisée dans `utils.qualify_event_name`, partagée avec RaceResult
-    (qui qualifie par contest). Alias conservé : il est importé par les tests.
-    """
-    return qualify_event_name(event_name, parcours)
 
 
 # Sauts max dans la chaîne « page épreuve → coquille → iframe G-Live ».
@@ -503,8 +494,7 @@ def _parcours_slug(parcours: str) -> str:
     """
     # NFKD + drop combining marks : « S-Open Femmes » → « S-Open Femmes »,
     # « 6-9 Ans » → « 6-9-ans » (compatible avec ASCII de sortie).
-    normalized = unicodedata.normalize("NFKD", parcours or "")
-    stripped = "".join(c for c in normalized if not unicodedata.combining(c))
+    stripped = strip_accents(parcours or "")
     # Tout ce qui n'est pas [a-z0-9-] → tiret. Lower ensuite. On collapse les tirets.
     lowered = stripped.lower()
     slug = re.sub(r"[^a-z0-9]+", "-", lowered).strip("-")

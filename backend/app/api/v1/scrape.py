@@ -6,8 +6,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import settings_dep
-from app.core.config import Settings
+from app.core.config import Settings, get_settings
 from app.core.database import SessionLocal, get_db
 from app.schemas.scrape import ImportResult, ScrapeRequest
 from app.scrapers import detect_provider, is_supported, provider_names
@@ -34,7 +33,7 @@ def _json_default(value: object) -> object:
 def scrape_event(
     body: ScrapeRequest,
     db: Session = Depends(get_db),
-    settings: Settings = Depends(settings_dep),
+    settings: Settings = Depends(get_settings),
 ):
     """Importe tous les participants d'une épreuve (bloquant)."""
     return import_service.import_event(db, str(body.url), settings)
@@ -52,7 +51,7 @@ _SSE_INITIAL_PADDING = b":" + b" " * 2048 + b"\n\n"
 
 
 @router.post("/scrape/event/stream")
-def scrape_event_stream(body: ScrapeRequest, settings: Settings = Depends(settings_dep)):
+def scrape_event_stream(body: ScrapeRequest, settings: Settings = Depends(get_settings)):
     """Import épreuve avec progression temps réel (SSE)."""
 
     def generate():

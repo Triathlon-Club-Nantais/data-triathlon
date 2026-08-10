@@ -44,11 +44,18 @@ def test_urls_from_tiret_lit_stdin(monkeypatch):
 
 
 def test_urls_from_tiret_bom_n_altere_pas_la_premiere_url(monkeypatch):
-    """Même bug que le fichier (BOM Notepad/Excel), côté stdin : `cat … | --urls-from -`."""
+    """Même bug que le fichier (BOM Notepad/Excel), côté stdin : `cat … | --urls-from -`.
+
+    `io.TextIOWrapper` sur un `BytesIO`, pas `io.StringIO` : c'est un flux
+    *bufferisé* comme le vrai `sys.stdin`, seul cas où `click.open_file` peut
+    le rouvrir en `utf-8-sig` pour retirer le BOM (un `StringIO` texte pur n'a
+    pas de lecteur binaire sous-jacent à rouvrir).
+    """
     import io
     import sys
 
-    monkeypatch.setattr(sys, "stdin", io.StringIO("﻿https://k/1\nhttps://k/2\n"))
+    brut = "﻿https://k/1\nhttps://k/2\n".encode()
+    monkeypatch.setattr(sys, "stdin", io.TextIOWrapper(io.BytesIO(brut), encoding="utf-8"))
 
     assert url_sources.charger_urls([], "-") == ["https://k/1", "https://k/2"]
 

@@ -14,6 +14,7 @@ When a search name matches multiple athletes a ValueError is raised listing
 all matches so the user can refine their query.
 """
 import re
+import xml.etree.ElementTree as ET
 from datetime import date as date_t
 from urllib.parse import parse_qs, urlparse
 
@@ -110,20 +111,6 @@ def _parse_event_page_date(html: str) -> date_t | None:
         return None
 
 
-def _attrs(tag: str) -> dict[str, str]:
-    """Extract all key="value" attributes from an XML tag string."""
-    return dict(re.findall(r'(\w+)="([^"]*)"', tag))
-
-
-def _find_tag(xml: str, tag: str, attr: str, value: str) -> str | None:
-    """Return the first <tag …attr="value"…/> or None."""
-    m = re.search(
-        r"<" + tag + r"\s[^>]*\b" + attr + r'="' + re.escape(value) + r'"[^>]*/?>',
-        xml,
-    )
-    return m.group() if m else None
-
-
 # ---------------------------------------------------------------------------
 # Series → split field mapping
 # ---------------------------------------------------------------------------
@@ -164,11 +151,11 @@ def _parse_series(xml: str) -> dict[str, str]:
     Special case — duathlon: both stages are "Course à pied" (no swim).
     The first run is mapped to the "swim" slot so both runs have distinct slots.
     """
+    root = ET.fromstring(xml)
     entries: list[tuple[str, str]] = []
-    for m in re.finditer(r"<S\s[^>]+/>", xml):
-        a = _attrs(m.group())
-        idx = a.get("id", "")
-        nom = a.get("nom", a.get("lb", ""))
+    for s in root.iter("S"):
+        idx = s.get("id", "")
+        nom = s.get("nom", s.get("lb", ""))
         field = _series_field(nom)
         if idx and field:
             entries.append((idx, field))
@@ -241,26 +228,23 @@ def _compute_ranks(
     Compute (rank_overall, rank_gender, rank_category) within the athlete's
     parcours by sorting all R entries by total time.
     """
-    # Gather bibs for the same parcours
-    parcours_bibs: set[str] = set()
-    for m in re.finditer(r"<E\s[^>]+/>", xml):
-        a = _attrs(m.group())
-        if a.get("p", "") == parcours:
-            parcours_bibs.add(a.get("d", ""))
+    root = ET.fromstring(xml)
 
-    # Gather E attrs indexed by bib for gender/category filtering
+    # Gather bibs for the same parcours, and E attrs indexed by bib for
+    # gender/category filtering
+    parcours_bibs: set[str] = set()
     e_by_bib: dict[str, dict] = {}
-    for m in re.finditer(r"<E\s[^>]+/>", xml):
-        a = _attrs(m.group())
-        e_by_bib[a.get("d", "")] = a
+    for e in root.iter("E"):
+        e_by_bib[e.get("d", "")] = e.attrib
+        if e.get("p", "") == parcours:
+            parcours_bibs.add(e.get("d", ""))
 
     # Gather R entries for same parcours, keyed by bib with time in seconds
     results: list[tuple[int, str]] = []  # (secs, bib)
-    for m in re.finditer(r"<R\s[^>]+/>", xml):
-        a = _attrs(m.group())
-        b = a.get("d", "")
+    for r in root.iter("R"):
+        b = r.get("d", "")
         if b in parcours_bibs:
-            t = normalize_time(a.get("t", ""))
+            t = normalize_time(r.get("t", ""))
             s = to_seconds(t)
             if s:
                 results.append((s, b))
@@ -344,17 +328,21 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         raise ValueError(f"Impossible de récupérer les données de l'événement {id_event}.")
 
     series_map = _parse_series(xml)
+    root = ET.fromstring(xml)
 
     # Event metadata
     event_name = ""
     event_date_val = None
-    epreuve_m = re.search(r"<Epreuve\s[^>]+>", xml)
-    if epreuve_m:
-        ea = _attrs(epreuve_m.group())
-        event_name = ea.get("nom", "")
+    epreuve_elem = root.find(".//Epreuve")
+    if epreuve_elem is not None:
+        event_name = epreuve_elem.get("nom", "")
         # `dates` (libellé libre) est parfois vide ; on replie alors sur les
         # dates ISO de début/fin `dt1`/`dt2` (cas réel 3232 « LE NORTH MAY »).
-        date_str = ea.get("dates", "") or ea.get("dt1", "") or ea.get("dt2", "")
+        date_str = (
+            epreuve_elem.get("dates", "")
+            or epreuve_elem.get("dt1", "")
+            or epreuve_elem.get("dt2", "")
+        )
         if date_str:
             event_date_val = _parse_event_date(date_str)
     # XML muet sur la date (cas réel 2679 « COUËRON DUATHLON ») : la page
@@ -365,10 +353,13 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     # Repli si un participant n'a pas de parcours (`p` vide).
     event_type_fallback = classify_event_type(event_name)
 
+    # Résultats <R> indexés par dossard, pour un lookup direct par athlète.
+    r_by_bib = {r.get("d", ""): r.attrib for r in root.iter("R")}
+
     results: list[ScrapedResult] = []
 
-    for e_m in re.finditer(r"<E\s[^>]+/>", xml):
-        ea = _attrs(e_m.group())
+    for e in root.iter("E"):
+        ea = e.attrib
         bib = ea.get("d", "")
         if not bib:
             continue
@@ -392,8 +383,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         result.category = ea.get("ca", "")
         result.is_relay = _is_relay(parcours, result.category)
 
-        r_tag = _find_tag(xml, "R", "d", bib)
-        ra = _attrs(r_tag) if r_tag else {}
+        ra = r_by_bib.get(bib, {})
 
         # Statut explicite éventuel (E puis R) ; "" → heuristique de l'infra.
         result.status = _extract_status(ea, ra)
@@ -401,7 +391,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
 
         # Sans <R> (non-partant/abandon) OU statut non-finisher explicite : on
         # conserve l'athlète mais on laisse total_time="", splits vides, rangs None.
-        if r_tag and not is_non_finisher:
+        if bib in r_by_bib and not is_non_finisher:
             result.total_time = normalize_time(ra.get("t", ""))
             for key, field in series_map.items():
                 t = normalize_time(ra.get(key, ""))
