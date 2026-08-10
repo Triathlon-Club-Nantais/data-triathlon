@@ -111,6 +111,7 @@ const SESSION: SessionUser = {
   created_at: "2026-08-01T14:54:28Z",
   permissions: ["roles:read", "roles:write", "quality:override"],
   roles: [{ id: ADMIN.id, slug: "admin", name: "Administrateur", organisation_id: null }],
+  groups: [],
 };
 
 /** `null` = visiteur anonyme (401, qui n'est pas une panne) ; une `Error` = panne réelle. */
