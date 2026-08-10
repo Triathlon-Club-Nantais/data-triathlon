@@ -333,7 +333,11 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     # Event metadata
     event_name = ""
     event_date_val = None
-    epreuve_elem = root.find(".//Epreuve")
+    # `.//Epreuve` (recherche XPath) exclut le nœud courant : en production la
+    # racine du document EST `<Epreuve>` (vérifié en direct sur l'épreuve
+    # 3232), jamais un `<Triathlon>` l'enveloppant comme le supposaient les
+    # fixtures de test. `root.iter()` inclut la racine, contrairement à `find`.
+    epreuve_elem = next(root.iter("Epreuve"), None)
     if epreuve_elem is not None:
         event_name = epreuve_elem.get("nom", "")
         # `dates` (libellé libre) est parfois vide ; on replie alors sur les
