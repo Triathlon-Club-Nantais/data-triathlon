@@ -284,22 +284,31 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
 
   it("ne rend pas les écrans non livrés, même à qui en porte le pouvoir (#242)", async () => {
     afficher(
-      habilite("allowed_emails:manage", "roles:assign", "roles:write", "groups:assign"),
+      habilite(
+        "allowed_emails:manage",
+        "roles:assign",
+        "roles:write",
+        "groups:assign",
+        "quality:override",
+      ),
     );
     await deplier();
     await waitFor(() => expect(screen.getByText("Gestion des utilisateurs")).toBeInTheDocument());
 
-    // « Rôles des utilisateurs » (#239) et « Groupes d'appartenance » (#241)
-    // sont livrés : ils mènent quelque part.
+    // « Rôles des utilisateurs » (#239), « Droits des rôles » (#240) et
+    // « Groupes d'appartenance » (#241) sont livrés : ils mènent quelque part.
     expect(
       screen.getByRole("link", { name: "Rôles des utilisateurs" }),
     ).toHaveAttribute("href", "/admin/utilisateurs");
     expect(
+      screen.getByRole("link", { name: "Droits des rôles" }),
+    ).toHaveAttribute("href", "/admin/droits");
+    expect(
       screen.getByRole("link", { name: "Groupes d'appartenance" }),
     ).toHaveAttribute("href", "/admin/groupes");
 
-    // « Droits des rôles » reste `soon`, donc n'est plus rendue (#242).
-    expect(screen.queryByText("Droits des rôles")).not.toBeInTheDocument();
+    // « Revalidation qualité » reste `soon`, donc n'est pas rendue (#242).
+    expect(screen.queryByText("Revalidation qualité")).not.toBeInTheDocument();
   });
 });
 
