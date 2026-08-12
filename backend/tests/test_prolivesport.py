@@ -21,8 +21,13 @@ from app.scrapers.prolivesport import (
     _parse_athlete,
     _parse_url,
     _resolve_race,
+    _SplitPlan,
     _sub_source_url,
 )
+
+#: Plan de split vide (aucun rôle résolu, sans ambiguïté) — pour les tests qui
+#: ne portent pas sur les splits eux-mêmes.
+_PLAN_VIDE = _SplitPlan(resolved={}, ambigu=False, tous_les_champs=[])
 
 # Liste de courses telle que renvoyée par result/raceList/{eventId}/
 RACES = [
@@ -31,7 +36,7 @@ RACES = [
 ]
 
 
-def test_build_split_map_filters_by_race():
+def test_build_split_map_un_seul_candidat_par_role():
     splits = [
         {"race": "S", "field": "Nat", "label": "Natation"},
         {"race": "S", "field": "Tr1", "label": "T1"},
@@ -40,14 +45,59 @@ def test_build_split_map_filters_by_race():
         {"race": "S", "field": "Cap", "label": "Course à pied"},
         {"race": "M", "field": "AutreNat", "label": "Natation"},  # autre course → ignoré
     ]
-    mapping = _build_split_map(splits, race="S")
-    assert mapping == {
-        "Nat": "swim",
-        "Tr1": "t1",
-        "Velo": "bike",
-        "Tr2": "t2",
-        "Cap": "run",
+    plan = _build_split_map(splits, race="S")
+    assert plan.resolved == {
+        "swim": "Nat", "t1": "Tr1", "bike": "Velo", "t2": "Tr2", "run": "Cap",
     }
+    assert plan.ambigu is False
+
+
+def test_build_split_map_ambiguite_carte_979():
+    """Carte exacte citée par l'issue #280 : bike a 3 candidats (T3/T6/T7),
+    run en a 2 (T5/T8)."""
+    splits = [
+        {"race": "M", "field": "T1", "label": "Swim"},
+        {"race": "M", "field": "T2", "label": "#1"},
+        {"race": "M", "field": "T3", "label": "Bike"},
+        {"race": "M", "field": "T4", "label": "#2"},
+        {"race": "M", "field": "T5", "label": "Run"},
+        {"race": "M", "field": "T6", "label": "BikeStart"},
+        {"race": "M", "field": "T7", "label": "BikeEnd"},
+        {"race": "M", "field": "T8", "label": "RunStart"},
+    ]
+    plan = _build_split_map(splits, race="M")
+    assert plan.resolved == {"swim": "T1", "t1": "T2", "t2": "T4"}  # bike/run absents : ambigus
+    assert plan.ambigu is True
+    assert plan.tous_les_champs == [
+        ("T1", "Swim"), ("T2", "#1"), ("T3", "Bike"), ("T4", "#2"),
+        ("T5", "Run"), ("T6", "BikeStart"), ("T7", "BikeEnd"), ("T8", "RunStart"),
+    ]
+
+
+def test_build_split_map_libelle_non_reconnu_reste_dans_tous_les_champs():
+    """`Split1` (event 1082/1079) ne matche aucun rôle : absent de `resolved`,
+    présent dans `tous_les_champs` — nécessaire pour ne rien perdre si la
+    course bascule en `segments` pour une autre raison."""
+    splits = [
+        {"race": "M", "field": "T1", "label": "Bike"},
+        {"race": "M", "field": "T9", "label": "Split1"},
+    ]
+    plan = _build_split_map(splits, race="M")
+    assert plan.resolved == {"bike": "T1"}
+    assert plan.ambigu is False
+    assert plan.tous_les_champs == [("T1", "Bike"), ("T9", "Split1")]
+
+
+def test_build_split_map_tri_par_suffixe_numerique_du_champ():
+    """L'ordre de la réponse API est mélangé (mesuré) : `tous_les_champs` est
+    trié sur le suffixe numérique, pas sur l'ordre d'arrivée."""
+    splits = [
+        {"race": "M", "field": "T9", "label": "Split1"},
+        {"race": "M", "field": "T3", "label": "Bike"},
+        {"race": "M", "field": "T1", "label": "Swim"},
+    ]
+    plan = _build_split_map(splits, race="M")
+    assert [f for f, _ in plan.tous_les_champs] == ["T1", "T3", "T9"]
 
 
 def test_parse_athlete_fields_and_splits():
@@ -68,8 +118,12 @@ def test_parse_athlete_fields_and_splits():
         "timeTr2": "00:00:50",
         "timeCap": "00:41:10",
     }
-    split_map = {"Nat": "swim", "Tr1": "t1", "Velo": "bike", "Tr2": "t2", "Cap": "run"}
-    r = _parse_athlete(athlete, split_map, "http://x", "Triathlon Test", "triathlon-s", None)
+    plan = _SplitPlan(
+        resolved={"swim": "Nat", "t1": "Tr1", "bike": "Velo", "t2": "Tr2", "run": "Cap"},
+        ambigu=False,
+        tous_les_champs=[],  # non utilisé hors ambiguïté
+    )
+    r = _parse_athlete(athlete, plan, "http://x", "Triathlon Test", "triathlon-s", None)
 
     assert r.athlete_name == "DUPONT"          # lastname en majuscules
     assert r.athlete_firstname == "Jean"
@@ -86,12 +140,56 @@ def test_parse_athlete_fields_and_splits():
     assert r.bike_time == "01:05:00"
     assert r.t2_time == "00:00:50"
     assert r.run_time == "00:41:10"
+    assert r.segments is None  # pas d'ambiguïté → pas de segments
+
+
+def test_parse_athlete_ambiguite_route_tout_vers_segments():
+    """Non-régression de l'issue #280, carte exacte de l'événement 979."""
+    athlete = {
+        "lastname": "Dupont", "number": "245", "time": "01:45:17",
+        "timeT1": "00:20:42", "timeT2": "00:01:29", "timeT3": "00:51:31",
+        "timeT4": "00:01:12", "timeT5": "00:30:25", "timeT6": "00:22:11",
+        "timeT7": "01:13:41", "timeT8": "01:14:53",
+    }
+    plan = _SplitPlan(
+        resolved={"swim": "T1", "t1": "T2", "t2": "T4"},  # bike/run ambigus → absents
+        ambigu=True,
+        tous_les_champs=[
+            ("T1", "Swim"), ("T2", "#1"), ("T3", "Bike"), ("T4", "#2"),
+            ("T5", "Run"), ("T6", "BikeStart"), ("T7", "BikeEnd"), ("T8", "RunStart"),
+        ],
+    )
+    r = _parse_athlete(athlete, plan, "http://x", "E", "triathlon-m", None)
+
+    assert r.bike_time == ""
+    assert r.run_time == ""
+    assert r.swim_time == ""  # tout ou rien : même un rôle non ambigu part en segments
+    assert r.t1_time == ""
+    assert r.t2_time == ""
+    assert r.segments == [
+        ("Swim", "00:20:42"), ("#1", "00:01:29"), ("Bike", "00:51:31"),
+        ("#2", "00:01:12"), ("Run", "00:30:25"), ("BikeStart", "00:22:11"),
+        ("BikeEnd", "01:13:41"), ("RunStart", "01:14:53"),
+    ]
+
+
+def test_parse_athlete_ambiguite_ignore_les_champs_vides_dans_segments():
+    athlete = {
+        "lastname": "Test", "number": "1", "time": "01:00:00",
+        "timeT3": "00:30:00", "timeT6": "",
+    }
+    plan = _SplitPlan(resolved={}, ambigu=True, tous_les_champs=[("T3", "Bike"), ("T6", "BikeStart")])
+
+    r = _parse_athlete(athlete, plan, "http://x", "E", "triathlon-m", None)
+
+    assert r.segments == [("Bike", "00:30:00")]  # BikeStart vide → écarté, comme les slots aujourd'hui
 
 
 def test_parse_athlete_skips_zero_splits():
     """Un split à 00:00:00 ne doit pas être enregistré."""
     athlete = {"lastname": "Test", "number": "1", "time": "01:00:00", "timeNat": "00:00:00"}
-    r = _parse_athlete(athlete, {"Nat": "swim"}, "http://x", "E", "triathlon-s", None)
+    plan = _SplitPlan(resolved={"swim": "Nat"}, ambigu=False, tous_les_champs=[])
+    r = _parse_athlete(athlete, plan, "http://x", "E", "triathlon-s", None)
     assert r.swim_time == ""
 
 
@@ -100,7 +198,7 @@ def test_parse_athlete_finisher_keeps_time_and_ranks_and_status():
         "lastname": "Dupont", "firstname": "Jean", "number": "42",
         "rank": "5", "rankSex": "4", "rankCat": "1", "time": "01:59:00",
     }
-    r = _parse_athlete(athlete, {}, "http://x", "E", "triathlon-s", None)
+    r = _parse_athlete(athlete, _PLAN_VIDE, "http://x", "E", "triathlon-s", None)
     assert r.status == "finisher"
     assert r.total_time == "01:59:00"
     assert r.rank_overall == 5
@@ -114,7 +212,7 @@ def test_parse_athlete_dns_clears_time_and_ranks():
         "lastname": "Martin", "number": "7",
         "rank": "99991", "rankSex": "99992", "rankCat": "99991", "time": "",
     }
-    r = _parse_athlete(athlete, {}, "http://x", "E", "triathlon-s", None)
+    r = _parse_athlete(athlete, _PLAN_VIDE, "http://x", "E", "triathlon-s", None)
     assert r.status == "DNS"
     assert r.total_time == ""
     assert r.rank_overall is None
@@ -127,7 +225,7 @@ def test_parse_athlete_dnf_clears_time_and_ranks():
         "lastname": "Durand", "number": "8",
         "dnf": "O", "rank": "99991", "time": "00:00:00",
     }
-    r = _parse_athlete(athlete, {}, "http://x", "E", "triathlon-s", None)
+    r = _parse_athlete(athlete, _PLAN_VIDE, "http://x", "E", "triathlon-s", None)
     assert r.status == "DNF"
     assert r.total_time == ""
     assert r.rank_overall is None
@@ -156,13 +254,13 @@ def test_parse_athlete_detects_relay():
         "category": "Relay", "categoryRef": "R", "sex": "X",
         "rank": "1", "time": "00:54:47",
     }
-    r = _parse_athlete(athlete, {}, "http://x", "Triathlon Audencia", "triathlon", None)
+    r = _parse_athlete(athlete, _PLAN_VIDE, "http://x", "Triathlon Audencia", "triathlon", None)
     assert r.is_relay is True
 
 
 def test_parse_athlete_solo_not_relay():
     athlete = {"lastname": "Dupont", "number": "1", "categoryRef": "SE", "time": "01:00:00"}
-    r = _parse_athlete(athlete, {}, "http://x", "E", "triathlon-s", None)
+    r = _parse_athlete(athlete, _PLAN_VIDE, "http://x", "E", "triathlon-s", None)
     assert r.is_relay is False
 
 
@@ -595,6 +693,25 @@ def test_fanout_split_map_par_course_en_un_seul_appel(monkeypatch):
     assert par_course["Triathlon M"].bike_time == ""      # timeVelo absent
     assert par_course["Triathlon S"].swim_time == "00:11:00"
     assert par_course["Triathlon XS"].swim_time == ""     # aucun split publié
+
+
+def test_fanout_ambiguite_de_role_route_vers_segments(monkeypatch):
+    """Non-régression #280 en conditions de fan-out : la course Triathlon M a
+    ses rôles bike/run ambigus (Bike/BikeStart/BikeEnd, Run/RunStart) → aucun
+    des deux slots n'est renseigné, tout part dans `segments`."""
+    splits_avec_ambiguite = SPLITS_979 + [
+        {"race": "Triathlon M", "field": "T6", "label": "BikeStart"},
+        {"race": "Triathlon M", "field": "T7", "label": "BikeEnd"},
+        {"race": "Triathlon M", "field": "T5", "label": "Run"},
+        {"race": "Triathlon M", "field": "T8", "label": "RunStart"},
+    ]
+    _api(monkeypatch, splits=splits_avec_ambiguite)
+
+    resultats, _trace = prolivesport.scrape_event_fanout(URL_979)
+
+    m = [r for r in resultats if r.raw_data["race"] == "Triathlon M"]
+    assert all(r.bike_time == "" and r.run_time == "" for r in m)
+    assert all(r.segments for r in m)
 
 
 def test_fanout_event_date_partagee_par_les_courses(monkeypatch):

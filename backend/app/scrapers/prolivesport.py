@@ -31,6 +31,7 @@ import logging
 import re
 from collections.abc import Callable
 from datetime import date
+from typing import NamedTuple
 from urllib.parse import parse_qs, quote, urlparse
 
 import httpx
@@ -82,28 +83,60 @@ _T2_LABELS   = {"#2", "t2", "trans2", "transition2"}
 _RUN_LABELS  = {"run", "cap", "course", "courseapied", "c.a.p"}
 
 
-def _build_split_map(splits: list, race: str) -> dict[str, str]:
+class _SplitPlan(NamedTuple):
+    """Résolution des rôles de split pour une course (#280).
+
+    `resolved` ne porte que les rôles à candidat **unique** : un rôle à
+    ≥ 2 candidats (mesuré sur l'événement 979 : bike ← Bike/BikeStart/BikeEnd)
+    ne peut pas être tranché sans deviner lequel des champs est la vraie durée
+    de section — il est donc exclu, et `ambigu` le signale à l'appelant.
+    `tous_les_champs` porte l'intégralité des champs de la course, triés par
+    suffixe numérique (`T3` → 3) : nécessaire pour reconstruire `segments`
+    sans rien perdre quand `ambigu` est vrai (cf. design, "tout ou rien").
     """
-    Build {field_name: split_role} from the splitDetail API response.
-    split_role in: swim, t1, bike, t2, run
+
+    resolved: dict[str, str]
+    ambigu: bool
+    tous_les_champs: list[tuple[str, str]]
+
+
+def _numero_champ(field: str) -> int:
+    """Suffixe numérique d'un champ (`"T3"` → `3`), 0 si illisible."""
+    m = re.search(r"\d+", field)
+    return int(m.group()) if m else 0
+
+
+def _build_split_map(splits: list, race: str) -> _SplitPlan:
+    """Construit la résolution des rôles de split pour une course (#280).
+
+    Un rôle avec un seul champ candidat est résolu ; à partir de deux, aucun
+    des deux n'est retenu (cf. sondage/design : rien ne permet de trancher
+    lequel est la durée de section plutôt qu'un point cumulé redondant).
     """
-    mapping: dict[str, str] = {}
+    candidats: dict[str, list[str]] = {}
+    champs_de_la_course: list[tuple[str, str]] = []
     for s in splits:
         if s.get("race", "").lower() != race.lower():
             continue
         field = s.get("field", "")
-        label = re.sub(r"\s+", "", (s.get("label") or s.get("displayTitle") or "")).lower()
+        label_brut = s.get("label") or s.get("displayTitle") or ""
+        champs_de_la_course.append((field, label_brut))
+        label = re.sub(r"\s+", "", label_brut).lower()
         if any(lbl in label for lbl in _SWIM_LABELS):
-            mapping[field] = "swim"
+            candidats.setdefault("swim", []).append(field)
         elif any(lbl == label for lbl in _T1_LABELS):
-            mapping[field] = "t1"
+            candidats.setdefault("t1", []).append(field)
         elif any(lbl in label for lbl in _BIKE_LABELS):
-            mapping[field] = "bike"
+            candidats.setdefault("bike", []).append(field)
         elif any(lbl == label for lbl in _T2_LABELS):
-            mapping[field] = "t2"
+            candidats.setdefault("t2", []).append(field)
         elif any(lbl in label for lbl in _RUN_LABELS):
-            mapping[field] = "run"
-    return mapping
+            candidats.setdefault("run", []).append(field)
+
+    resolved = {role: fields[0] for role, fields in candidats.items() if len(fields) == 1}
+    ambigu = any(len(fields) > 1 for fields in candidats.values())
+    champs_de_la_course.sort(key=lambda fc: _numero_champ(fc[0]))
+    return _SplitPlan(resolved=resolved, ambigu=ambigu, tous_les_champs=champs_de_la_course)
 
 
 def _is_relay(athlete: dict) -> bool:
@@ -119,7 +152,7 @@ def _is_relay(athlete: dict) -> bool:
     )
 
 
-def _parse_athlete(athlete: dict, split_map: dict, url: str, event_name: str, event_type: str, event_date) -> ScrapedResult:
+def _parse_athlete(athlete: dict, plan: _SplitPlan, url: str, event_name: str, event_type: str, event_date) -> ScrapedResult:
     result = ScrapedResult(source_url=url, provider="prolivesport")
     result.event_name = event_name
     result.event_type = event_type
@@ -141,21 +174,24 @@ def _parse_athlete(athlete: dict, split_map: dict, url: str, event_name: str, ev
     # Non-finisher : on laisse total_time="" et les rangs à None (défauts de la
     # dataclass) — l'API renvoie des sentinelles (99991/99992) pour les non-classés.
 
-    # Extract splits using the field→role mapping
-    for field, role in split_map.items():
-        t = normalize_time(athlete.get(f"time{field}", ""))
-        if not t or t == "00:00:00":
-            continue
-        if role == "swim" and not result.swim_time:
-            result.swim_time = t
-        elif role == "t1" and not result.t1_time:
-            result.t1_time = t
-        elif role == "bike" and not result.bike_time:
-            result.bike_time = t
-        elif role == "t2" and not result.t2_time:
-            result.t2_time = t
-        elif role == "run" and not result.run_time:
-            result.run_time = t
+    if plan.ambigu:
+        # Au moins un rôle a ≥ 2 candidats (#280) : impossible de trancher lequel
+        # est la durée de section plutôt qu'un point cumulé redondant. Toute la
+        # course part dans `segments` — y compris les rôles non ambigus, car
+        # `mapping.build_splits` fait primer `segments` en entier sur les 5 slots
+        # positionnels (aucune fusion) : les laisser dans les slots les ferait
+        # disparaître silencieusement de `Participation.splits`.
+        result.segments = [
+            (label, t)
+            for field, label in plan.tous_les_champs
+            if (t := normalize_time(athlete.get(f"time{field}", ""))) and t != "00:00:00"
+        ]
+    else:
+        for role, field in plan.resolved.items():
+            t = normalize_time(athlete.get(f"time{field}", ""))
+            if not t or t == "00:00:00":
+                continue
+            setattr(result, f"{role}_time", t)
 
     result.raw_data = {k: v for k, v in athlete.items() if not k.isdigit()}
     return result
@@ -453,11 +489,11 @@ def scrape_event_fanout(
 
     resultats: list[ScrapedResult] = []
     for race, sub_url in a_scraper:
-        split_map = _build_split_map(splits, race)
+        plan = _build_split_map(splits, race)
         event_type = classify_event_type(race)
         nom = qualify_event_name(event_name, race)
         resultats.extend(
-            _parse_athlete(ligne, split_map, sub_url, nom, event_type, event_date)
+            _parse_athlete(ligne, plan, sub_url, nom, event_type, event_date)
             for ligne in lignes.get(race, [])
         )
     return resultats, trace
@@ -483,12 +519,12 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
             )
 
         athletes = _fetch_indiv(event_id, race, client)
-        split_map = _build_split_map(_fetch_splits(event_id, client), race)
+        plan = _build_split_map(_fetch_splits(event_id, client), race)
 
     event_type = classify_event_type(race)
     nom = qualify_event_name(event_name, race)
     return [
-        _parse_athlete(a, split_map, url, nom, event_type, event_date)
+        _parse_athlete(a, plan, url, nom, event_type, event_date)
         for a in athletes
         if (a.get("race") or "").strip() == race
     ]
