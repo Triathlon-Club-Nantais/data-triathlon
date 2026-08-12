@@ -216,8 +216,13 @@ class KlikegoProvider(FanoutProvider):
 
     _module = klikego
 
-    def _parse_url(self, url: str) -> tuple[str, str, str, str]:
-        """(event_id, heat_query, slug, event_name) — `heat_query` = ?heat= éventuel."""
+    @staticmethod
+    def _parse_url(url: str) -> tuple[str, str, str, str]:
+        """(event_id, heat_query, slug, event_name) — `heat_query` = ?heat= éventuel.
+
+        `@staticmethod`, et pas seulement pour cette classe : `course_reconciliation`
+        (#289) l'appelle sans instance, sur une simple `source_url` déjà en base.
+        """
         parsed = urlparse(url)
         params = parse_qs(parsed.query)
         path_parts = [p for p in parsed.path.strip("/").split("/") if p]
