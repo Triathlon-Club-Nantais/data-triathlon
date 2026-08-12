@@ -126,6 +126,21 @@ export function useDeleteCourse() {
 }
 
 /**
+ * Bascule de la source active d'une épreuve (#285, #291).
+ *
+ * Bloquante côté backend — pas de SSE ici, décision tranchée par l'epic #275
+ * (« le SSE d'administration appartient à #118 »). Aucune invalidation de
+ * cache : la page publique n'est pas lue via React Query, l'appelant réaffiche
+ * la liste de sources renvoyée par la réponse elle-même.
+ */
+export function useSwitchCourseSource() {
+  return useMutation({
+    mutationFn: ({ courseId, sourceId }: { courseId: number; sourceId: number }) =>
+      apiClient.switchCourseSource(courseId, sourceId),
+  });
+}
+
+/**
  * Recherche de coureurs réservée — la seule lecture qui rend une date de naissance.
  *
  * `enabled` sur une saisie non vide : sans lui, l'ouverture d'une modale

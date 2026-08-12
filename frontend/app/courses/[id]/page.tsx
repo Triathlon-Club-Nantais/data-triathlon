@@ -4,7 +4,8 @@ import { ApiError } from "@/lib/api/client";
 import { Card, Eyebrow, MetaPill } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
 import { RaceFinishers } from "@/components/results/RaceFinishers";
-import { eventTypeLabel, providerLabel } from "@/lib/constants";
+import { CourseSourcesPanel } from "@/components/courses/CourseSourcesPanel";
+import { eventTypeLabel } from "@/lib/constants";
 import { formatToken } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
 import { formatEventName } from "@/lib/utils/event";
@@ -101,25 +102,7 @@ export default async function CoursePage({
           {nonFinishers > 0 && <MetaPill label="Abandons">{nonFinishers}</MetaPill>}
           {unknown > 0 && <MetaPill label="Indéterminés">{unknown}</MetaPill>}
           {tcnCount > 0 && <MetaPill accent dot>{tcnCount} athlète{tcnCount > 1 ? "s" : ""} TCN</MetaPill>}
-          {sources.length === 1 && (
-            <MetaPill label="Source" href={sources[0].url} title="Ouvrir les résultats du chronométreur dans un nouvel onglet">
-              {providerLabel(sources[0].provider)}
-              <span aria-hidden="true">↗</span>
-            </MetaPill>
-          )}
-          {sources.length > 1 &&
-            sources.map((source) => (
-              <MetaPill
-                key={source.id}
-                label={source.is_active ? "Source active" : "Autre source"}
-                href={source.url}
-                accent={source.is_active}
-                title="Ouvrir les résultats du chronométreur dans un nouvel onglet"
-              >
-                {providerLabel(source.provider)}
-                <span aria-hidden="true">↗</span>
-              </MetaPill>
-            ))}
+          <CourseSourcesPanel courseId={course.id} initialSources={sources} />
         </div>
       </div>
 
