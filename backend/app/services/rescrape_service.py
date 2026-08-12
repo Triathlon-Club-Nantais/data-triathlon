@@ -1,18 +1,26 @@
 """Re-scrape en masse des épreuves déjà en base (force=True, bypass du cache TTL).
 
-Unité de travail : l'**épreuve**, c'est-à-dire une `source_url` unique — et non
-la course. La table `course` en porte N par épreuve (heats Breizh Chrono,
+Unité de travail : l'**épreuve**, c'est-à-dire une **source active** unique — et
+non la course. La table `course` en porte N par épreuve (heats Breizh Chrono,
 variantes individuel/relais) ; un seul scrape d'épreuve les réimporte toutes.
 Compteurs et `--limit` raisonnent donc en épreuves (cf. `_dedupe_par_url`).
+
+**Les sources passives ne sont jamais scrapées** (#282), ni par la sélection en
+base, ni par un ciblage explicite qui les refuse. C'est la fin des doublons que
+`rescrape-db` fabriquait : deux publications d'une même course réelle étaient
+deux lignes `Course` sans lien, donc deux scrapes, donc deux classements
+concurrents. Contrepartie assumée : une source passive vieillit indéfiniment —
+elle ne sert qu'à documenter l'autre publication et à permettre la bascule
+(#285), qui re-scrape sur son point de bascule.
 """
-from collections import Counter
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.models.course import Course
-from app.repositories import athlete_repository, course_repository
+from app.repositories import athlete_repository, course_repository, course_source_repository
 from app.services import sheet_source
 from app.services.batch import (
     BatchFailure,
@@ -25,7 +33,11 @@ from app.services.progress import ProgressReporter
 
 
 def _dedupe_par_url(courses: list[Course]) -> list[Course]:
-    """Une épreuve par `source_url`, en conservant la première course rencontrée.
+    """Une épreuve par URL de source **active**, en gardant la première course vue.
+
+    `course.source_url` est l'URL de la source active (#279), et `iter_all` ne rend
+    plus que des courses qui en ont une (#282) : la clé de dédup est donc l'URL
+    qu'on va effectivement interroger, jamais une passive.
 
     Une même URL porte souvent **plusieurs** courses : heats auto-découverts de
     Breizh Chrono, variantes individuel/relais de wiclax/timepulse… Or un seul
@@ -64,6 +76,74 @@ def _items_depuis_urls(db: Session, urls: list[str]) -> list[BatchItem]:
         label = f"{course.provider} · {course.name}" if course else url
         items.append(BatchItem(url=url, label=label))
     return items
+
+
+@dataclass(frozen=True)
+class PassiveTarget:
+    """Une URL ciblée qui n'est qu'une source **passive** : à refuser (#282).
+
+    Porte de quoi écrire le refus, et rien de plus — c'est la CLI qui le formule
+    (`cli/commands/rescrape_db`), seule à connaître le canal et le code de sortie.
+
+    `active_url` peut être vide, et ce n'est pas un cas dégradé : une épreuve
+    saisie à la main n'a aucune source active, et rattacher une URL à celle-ci
+    (#283) produit exactement une passive orpheline. Le refus tient toujours, il
+    n'a simplement rien à proposer en remplacement.
+    """
+    #: L'URL telle que l'opérateur l'a écrite — c'est celle-là qu'il doit retrouver.
+    url: str
+    course_name: str
+    active_url: str
+
+
+def find_passive_targets(db: Session, urls: list[str]) -> list[PassiveTarget]:
+    """Parmi ces URLs ciblées, celles qu'aucune épreuve ne tient pour active (#282).
+
+    Le ciblage explicite (`--url`, `--urls-from`) court-circuite la base : c'est
+    ce qui permet de rejouer un échec d'import, dont l'épreuve n'a rien persisté.
+    Ce court-circuit a un angle mort — une URL **connue mais passive** serait
+    scrapée « à côté », et importerait le classement d'un autre chronométreur
+    dans l'épreuve, soit le doublon que la table des sources existe pour
+    supprimer. On le refuse donc, en amont du batch.
+
+    Trois réponses, et la distinction est tout l'objet de la fonction :
+
+    - URL **absente** de `course_sources` → laissée passer. Cas nominal du rejeu.
+    - URL **active** sur au moins une épreuve → laissée passer, et l'épreuve où
+      elle est active est celle qui sera réimportée. Rien n'interdit qu'une même
+      URL soit l'active de l'une et la passive d'une autre : une URL porte
+      légitimement N épreuves (heats Klikego, catégories Wiclax).
+    - URL **connue et passive partout** → refusée, en nommant la première épreuve
+      qui la porte et l'URL active de celle-ci.
+
+    Comparaison sur `sheet_source.normalize_url`, comme partout ailleurs : un
+    slash final ou une casse d'hôte vient d'un copier-coller, pas d'une intention,
+    et comparer les formes brutes ferait passer la passive au travers du garde-fou.
+    D'où le `IN` élargi à la forme normalisée de chaque cible — les URLs stockées
+    viennent des scrapers, donc sont déjà quasi normalisées, et c'est ce qui rend
+    ce doublement suffisant.
+
+    Ordre d'entrée conservé : c'est l'ordre du fichier de l'opérateur, donc celui
+    dans lequel il corrigera.
+    """
+    if not urls:
+        return []
+
+    recherchees = {forme for url in urls for forme in (url, sheet_source.normalize_url(url))}
+    par_url: dict[str, list] = defaultdict(list)
+    for source in course_source_repository.list_by_urls(db, sorted(recherchees)):
+        par_url[sheet_source.normalize_url(source.url)].append(source)
+
+    refuses: list[PassiveTarget] = []
+    for url in urls:
+        portees = par_url.get(sheet_source.normalize_url(url), [])
+        if not portees or any(source.is_active for source in portees):
+            continue
+        course = portees[0].course
+        refuses.append(
+            PassiveTarget(url=url, course_name=course.name, active_url=course.source_url)
+        )
+    return refuses
 
 
 @dataclass(frozen=True)
@@ -144,10 +224,11 @@ def run_rescrape_db(
 ) -> RescrapeOutcome:
     """Re-scrape toutes les épreuves en DB avec force=True (bypass du cache TTL).
 
-    Ne retient que les courses ayant une source_url (clé de re-scraping), puis
-    dédoublonne par URL : on raisonne en **épreuves à scraper**, pas en courses.
-    `limit` borne donc les épreuves, et s'applique **après** la dédup.
-    En dry-run : liste les URLs sans scraper ni persister.
+    Ne retient que les courses ayant une source **active** — la jointure d'
+    `iter_all` s'en charge (#282) —, puis dédoublonne par URL : on raisonne en
+    **épreuves à scraper**, pas en courses. `limit` borne donc les épreuves, et
+    s'applique **après** la dédup. En dry-run : liste les URLs sans scraper ni
+    persister.
 
     Deux modes de sélection, un seul batch en aval. `urls=None` : les épreuves
     viennent de la base (`provider`, `older_than`, dédup par URL). `urls`
@@ -159,10 +240,12 @@ def run_rescrape_db(
     if urls is not None:
         items = _items_depuis_urls(db, urls)
     else:
+        # Pas de second filtre sur `source_url` : `iter_all` joint la source
+        # active, donc chaque course rendue en a une par construction (#282).
         courses = course_repository.iter_all(
             db, provider=provider, older_than_days=older_than
         )
-        epreuves = _dedupe_par_url([c for c in courses if c.source_url])
+        epreuves = _dedupe_par_url(courses)
         # Le nom de la course vient de la DB : on peut libeller proprement.
         items = [
             BatchItem(url=c.source_url, label=f"{c.provider} · {c.name}")

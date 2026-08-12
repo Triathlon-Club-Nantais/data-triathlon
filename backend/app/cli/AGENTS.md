@@ -51,7 +51,7 @@ avant** la sortie :
 | --- | --- |
 | `0` | Succès, y compris **partiel** (quelques épreuves en échec sur N) ou « rien à faire » (zéro épreuve ciblée). Un dry-run sort toujours en 0. |
 | `1` | **Échec total** : aucune des épreuves ciblées n'a abouti (`batch.est_echec_total` : `errors >= épreuves > 0`). Sinon un cron dont les 53 épreuves échouent n'alerterait jamais. |
-| `2` | **Erreur d'usage** (convention Click) : option invalide — notamment `--provider` / `--only-provider` inconnu, rejeté avant tout travail par `cli/validators`. |
+| `2` | **Erreur d'usage** (convention Click) : option invalide — notamment `--provider` / `--only-provider` inconnu, rejeté avant tout travail par `cli/validators`, ou `--url` désignant une **source passive** (#282, voir plus bas). |
 | `130` | Ctrl-C. **Prioritaire sur 1** : une interruption est une action de l'opérateur, pas une panne. |
 
 Un tube fermé (`… | head -2`) ne fausse aucun de ces codes : le `BrokenPipeError`
@@ -74,10 +74,11 @@ sans qu'aucun test de la CLI ne bouge :
 Le workflow n'invente aucune option : il compose la même ligne de commande que
 celle documentée ici, à partir d'un catalogue fermé d'entrées.
 
-**Vocabulaire** : la CLI compte des **épreuves** (une `source_url` unique), jamais
-des courses. Une épreuve porte N `Course` en base (heats Breizh Chrono, variantes
-individuel/relais) : `rescrape-db` dédoublonne par `source_url` avant le batch,
-donc « Épreuves ciblées : 12 » sur une table de 53 courses n'est pas une perte.
+**Vocabulaire** : la CLI compte des **épreuves** (une source **active** unique),
+jamais des courses. Une épreuve porte N `Course` en base (heats Breizh Chrono,
+variantes individuel/relais) : `rescrape-db` dédoublonne par URL de source active
+avant le batch, donc « Épreuves ciblées : 12 » sur une table de 53 courses n'est
+pas une perte.
 
 **Deux modes de sélection pour `rescrape-db`**, exclusifs l'un de l'autre :
 par filtre sur la base (`--provider`, `--older-than`), ou par URL explicite
@@ -87,6 +88,22 @@ avertissement — c'est le cas nominal du rejeu d'un échec d'import, dont
 l'épreuve n'a rien persisté. Les combiner est une erreur d'usage (code 2) : ce
 sont deux modes, pas des filtres à composer. `--limit` reste compatible avec les
 deux : il borne la liste finale, il ne sélectionne rien.
+
+**Ce que le rescrape ne touche jamais : les sources passives** (#282). Une épreuve
+publiée par deux chronométreurs porte N sources dont une seule active, et le batch
+ne scrape que celle-là — `--provider` nomme donc le provider de l'**active**, et
+une épreuve sans source active (saisie manuelle, ou passives seules) n'est pas
+ciblée du tout. Sans ce filtre, `rescrape-db` recréait les doublons que la table
+des sources existe pour supprimer.
+
+Corollaire côté ciblage explicite, seule exception au « URL inconnue = scrapée
+sans avertissement » : une URL **connue mais passive** est **refusée**, en nommant
+l'épreuve et sa source active, en **code 2** et sur **stderr** (stdout reste le
+canal `--json`). Le refus est **global** — aucune URL du lot n'est scrapée : un
+bilan partiel doublé d'un code 2 ne se lirait ni comme un succès ni comme un
+refus. Ce `2` s'appuie sur le même précédent que `revoke-sessions --email
+<inconnue>` : une erreur d'usage se constate parfois en base, et « rejeté avant
+tout travail » veut dire avant le premier scrape, pas avant la Session.
 
 **Deux unités dans un bilan**, et chaque libellé doit le dire : « Épreuves
 ciblées / traitées / en erreur » comptent des **épreuves** ; « Participants

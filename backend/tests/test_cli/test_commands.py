@@ -11,7 +11,7 @@ from app.repositories import course_repository
 from app.services import import_service
 from app.services.bulk_import_service import SheetOutcome
 from app.services.progress import NullReporter
-from app.services.rescrape_service import RescrapeOutcome
+from app.services.rescrape_service import PassiveTarget, RescrapeOutcome
 
 runner = CliRunner()
 
@@ -114,7 +114,20 @@ def _brancher_rescrape(monkeypatch, outcome: RescrapeOutcome) -> _ServiceEspion:
     espion = _ServiceEspion(outcome)
     monkeypatch.setattr(cmd_rescrape, "session_scope", _fausse_session)
     monkeypatch.setattr(cmd_rescrape.rescrape_service, "run_rescrape_db", espion)
+    # Le garde-fou des sources passives (#282) interroge la base : muet par
+    # défaut ici. La **règle** est testée sur une vraie session dans
+    # `test_services/test_rescrape_active_source.py` ; ce fichier-ci ne juge que
+    # ce qui est du ressort de la CLI — code de sortie, flux, message.
+    monkeypatch.setattr(
+        cmd_rescrape.rescrape_service, "find_passive_targets", lambda db, urls: []
+    )
     return espion
+
+
+def _brancher_sources_passives(monkeypatch, cibles) -> None:
+    monkeypatch.setattr(
+        cmd_rescrape.rescrape_service, "find_passive_targets", lambda db, urls: cibles
+    )
 
 
 # --- import-sheet ------------------------------------------------------------
@@ -541,6 +554,81 @@ def test_rescrape_db_url_transmise_au_service(monkeypatch):
 
     assert result.exit_code == 0
     assert espion.kwargs["urls"] == ["https://k/1", "https://k/2"]
+
+
+def test_rescrape_db_refuse_une_url_passive(monkeypatch):
+    """AC2 de #282 — code 2, et surtout : aucun scrape « à côté ».
+
+    Une URL passive existe en base, mais son épreuve est publiée ailleurs. La
+    scraper importerait le classement de l'autre chronométreur dans la même
+    épreuve : c'est le doublon que la table des sources existe pour supprimer.
+    Code 2 comme toute erreur d'usage — même précédent qu'une adresse inconnue
+    passée à `revoke-sessions`, qui se constate aussi en base.
+    """
+    espion = _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
+    _brancher_sources_passives(monkeypatch, [
+        PassiveTarget(
+            url="https://b/nozeen", course_name="Nozeen 2026",
+            active_url="https://k/nozeen",
+        )
+    ])
+
+    result = runner.invoke(app, ["rescrape-db", "--url", "https://b/nozeen"])
+
+    assert result.exit_code == 2
+    assert espion.kwargs == {}  # refusé avant tout travail : rien n'a été scrapé
+    assert "Nozeen 2026" in result.stderr
+    assert "https://k/nozeen" in result.stderr
+    assert result.stdout == ""  # contrat stdout : le canal --json reste propre
+
+
+def test_rescrape_db_refus_de_source_passive_ne_pollue_pas_le_json(monkeypatch):
+    """`… --json | jq` ne doit pas recevoir une phrase française à parser."""
+    _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
+    _brancher_sources_passives(monkeypatch, [
+        PassiveTarget(url="https://b/x", course_name="Nozeen", active_url="https://k/x")
+    ])
+
+    result = runner.invoke(app, ["rescrape-db", "--url", "https://b/x", "--json"])
+
+    assert result.exit_code == 2
+    assert result.stdout == ""
+
+
+def test_rescrape_db_refus_liste_toutes_les_urls_passives(monkeypatch):
+    """Un fichier de 40 URLs se corrige en une passe, pas en quarante."""
+    _brancher_rescrape(monkeypatch, RescrapeOutcome(total=2))
+    _brancher_sources_passives(monkeypatch, [
+        PassiveTarget(url="https://b/1", course_name="Une", active_url="https://k/1"),
+        PassiveTarget(url="https://b/2", course_name="Deux", active_url="https://k/2"),
+    ])
+
+    result = runner.invoke(
+        app, ["rescrape-db", "--url", "https://b/1", "--url", "https://b/2"]
+    )
+
+    assert result.exit_code == 2
+    assert "Une" in result.stderr
+    assert "Deux" in result.stderr
+
+
+def test_rescrape_db_refus_sans_source_active_ne_nomme_aucune_url(monkeypatch):
+    """Rien à proposer : le message ne doit pas afficher une URL vide.
+
+    « sa source active est «  » » serait pire que muet — l'opérateur croirait à
+    un bug d'affichage au lieu de comprendre que l'épreuve n'a aucune source
+    active.
+    """
+    _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
+    _brancher_sources_passives(monkeypatch, [
+        PassiveTarget(url="https://b/x", course_name="Manuelle", active_url="")
+    ])
+
+    result = runner.invoke(app, ["rescrape-db", "--url", "https://b/x"])
+
+    assert result.exit_code == 2
+    assert "Manuelle" in result.stderr
+    assert "aucune source active" in result.stderr
 
 
 def test_rescrape_db_urls_from_fichier(monkeypatch, tmp_path):
