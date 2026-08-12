@@ -1,6 +1,7 @@
 """Accès données pour Course."""
 from datetime import date, timedelta
 
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.club import tcn_clause
@@ -321,6 +322,58 @@ def iter_all(
         cutoff = utcnow() - timedelta(days=older_than_days)
         q = q.filter(Course.scraped_at < cutoff)
     return q.order_by(Course.event_date.desc().nullslast(), Course.name).all()
+
+
+def list_identities_with_counts(db: Session) -> list:
+    """Toute la base en **une** ligne par épreuve : identité, source active, compteurs.
+
+    La détection de doublons (#288) compare les épreuves entre elles : elle a
+    besoin de la base entière, et de rien d'autre que ces neuf colonnes. Trois
+    raisons de la servir en une requête agrégée plutôt qu'en entités :
+
+    - lire `course.participations` par épreuve donnerait la même réponse en une
+      requête par ligne — le N+1 que `core/sql_observability` a été écrit pour
+      rendre visible (« 1812 requêtes pour 1810 participants ») ;
+    - `Course.source_url` et `Course.provider` sont des sous-requêtes scalaires
+      corrélées (#279), donc **deux évaluations par ligne** de plus dans un
+      `SELECT` ; la jointure sur la source active les rend en une passe (#281) ;
+    - aucune entité n'a besoin d'être suivie par la Session : rien n'est écrit
+      ici, et l'appelant n'a que des comparaisons à faire.
+
+    `outerjoin` sur les deux tables, et les deux cas existent : une épreuve
+    saisie à la main n'a aucune source, une épreuve fraîchement créée par un
+    scraper qui n'a rien trouvé n'a aucun résultat. Les écarter serait cacher
+    précisément les épreuves dont l'import a dérapé.
+    """
+    from app.models.participation import Participation
+
+    return (
+        db.query(
+            Course.id.label("id"),
+            Course.name.label("name"),
+            Course.event_date.label("event_date"),
+            Course.event_type.label("event_type"),
+            Course.is_relay.label("is_relay"),
+            func.coalesce(CourseSource.provider, "").label("provider"),
+            func.coalesce(CourseSource.url, "").label("source_url"),
+            func.count(Participation.id).label("total"),
+            # `coalesce` autour du `sum` : sur une épreuve sans résultat, le
+            # `outerjoin` ne donne aucune ligne à sommer et `SUM` rend `NULL`,
+            # là où `COUNT` rend `0`. Deux compteurs affichés côte à côte ne
+            # peuvent pas dire l'un « 0 » et l'autre « aucune idée ».
+            func.coalesce(
+                func.sum(case((tcn_clause(Participation.club), 1), else_=0)), 0
+            ).label("tcn_count"),
+        )
+        .outerjoin(
+            CourseSource,
+            (CourseSource.course_id == Course.id) & CourseSource.is_active,
+        )
+        .outerjoin(Participation, Participation.course_id == Course.id)
+        .group_by(Course.id, CourseSource.provider, CourseSource.url)
+        .order_by(Course.event_date.desc().nullslast(), Course.name, Course.id)
+        .all()
+    )
 
 
 def update_identity(db: Session, course: Course, **champs) -> Course:

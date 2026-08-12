@@ -17,7 +17,8 @@ from app.core.permissions import P, Permission
 #: (#115), les trois de `contracts/admin-groups-api.md` (#197), celui de la
 #: liste d'autorisation (#170), les cinq des gestes correctifs (#117), les deux
 #: du lancement de batches (#47), celui de la révocation d'urgence des
-#: sessions (#169) et celui de l'arbitrage des sources d'une épreuve (#275).
+#: sessions (#169) et celui de l'arbitrage des sources d'une épreuve (#275 — la
+#: bascule de #285, l'aperçu de fusion de #286, les doublons suspects de #288).
 #: Écrits **à la main** ici, et c'est délibéré : un test qui
 #: dériverait la liste du catalogue ne prouverait rien. C'est ce qui fait
 #: qu'ajouter un pouvoir est un geste conscient — cette liste est le seul

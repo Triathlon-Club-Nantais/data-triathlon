@@ -287,3 +287,19 @@ Quatre points à ne pas défaire :
   service `flush`, la route `commit`.
 
 Spec, plan et tâches : `specs/20260806-180938-admin-crud-actions/`.
+
+## Doublons suspects (#288)
+
+`admin_course_duplicates.py` — une seule ressource,
+`GET /admin/courses/duplicates`, gardée par `courses:sources` : la liste est la
+porte d'entrée de la fusion (#289) et de l'arbitrage entre chronométreurs
+(#285), pas une correction d'identité. Ni pagination ni filtre.
+
+Le router est mince à l'extrême ; **tout le jugement est dans
+`services/course_duplicates.py`**, et c'est là qu'il faut lire avant de toucher
+au réglage : les **deux seuils** y sont documentés côte à côte — celui de #277,
+qui rapproche **automatiquement** à l'import, et celui d'ici, délibérément plus
+large parce qu'un humain relit. Les motifs sont un ensemble **fermé** de trois,
+chacun rattaché à un cas de terrain mesuré ; les élargir se tranche en
+re-sondant, pas en ajoutant une tolérance
+(`docs/superpowers/specs/2026-08-12-sources-multiples-epreuve-sondage.md`).
