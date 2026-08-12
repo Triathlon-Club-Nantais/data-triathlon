@@ -70,10 +70,24 @@ describe("palette de texte TCN", () => {
    * `--tcn-orange` lui-même est intact ; il n'est donc pas dans cette liste,
    * puisqu'il ne porte plus de texte nulle part.
    */
-  const FONDS_A_TEXTE_BLANC = ["--tcn-orange-deep", "--tcn-orange-deep-bright"];
+  const FONDS_A_TEXTE_BLANC = ["--tcn-orange-deep", "--tcn-orange-deeper"];
 
   it.each(FONDS_A_TEXTE_BLANC)("%s porte du blanc à 4,5:1", (nom) => {
     expect(contrast("#ffffff", token(nom))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("garde `-deep` au plus près de l'orange de marque, saturation pleine", () => {
+    // Le premier fond assombri (#c04008) a été refusé au rendu comme trop terne.
+    // Ce test borne la correction des deux côtés : au-dessus du seuil (assuré
+    // ci-dessus) mais aussi **le plus vif possible** — un canal vert ou bleu qui
+    // remonterait dépenserait de la luminance sans gagner en éclat, la saturation
+    // étant ce qu'on voit. Bleu à zéro, vert au maximum que le seuil autorise.
+    const deep = token("--tcn-orange-deep").replace("#", "");
+    const [rouge, vert, bleu] = [0, 2, 4].map((i) => parseInt(deep.slice(i, i + 2), 16));
+    expect(bleu).toBe(0);
+    expect(rouge).toBeGreaterThanOrEqual(0xd0);
+    expect(contrast("#ffffff", token("--tcn-orange-deep"))).toBeLessThan(4.75);
+    expect(vert).toBeGreaterThan(0);
   });
 
   it("porte du blanc aux deux extrémités du dégradé, libellé de 13px compris", () => {
@@ -109,7 +123,7 @@ describe("couleurs de la carte", () => {
   // copie (#299). Ce test est le joint.
   it.each([
     ["avecTcn", "remplissage", "--tcn-orange"],
-    ["avecTcn", "trait", "--tcn-orange-deep"],
+    ["avecTcn", "trait", "--tcn-orange-deeper"],
     ["sansTcn", "remplissage", "--tcn-text-muted"],
     ["sansTcn", "trait", "--tcn-text-body"],
   ] as const)("%s.%s reste égal à %s", (categorie, role, nom) => {

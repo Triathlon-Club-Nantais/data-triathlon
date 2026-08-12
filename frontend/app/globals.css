@@ -88,14 +88,18 @@
   --tcn-orange-bright: #ff6620;
   /* Le couple porteur de texte blanc. `--tcn-orange` reste l'orange de marque et
      ne bouge pas, mais du blanc n'y tient que 3,68:1 : partout où du texte se
-     pose **sur** de l'orange, c'est cette paire plus profonde qui sert, où le
-     blanc atteint 5,28:1 et 4,61:1 (#299). `-deep-bright` est au `-deep` ce que
-     `-bright` est à l'orange : la valeur de survol. */
-  --tcn-orange-deep:        #c04008;
-  --tcn-orange-deep-bright: #cf4708;
+     pose **sur** de l'orange, c'est cette paire qui sert (#299).
+     `-deep` est le **plus vif** des oranges qui portent du blanc à 4,5:1 sans
+     quitter la teinte de marque : 18°, saturation 100 %, 4,57:1. Il n'y a pas de
+     cran plus clair à prendre — le seuil est une borne de luminance, et la
+     vivacité qu'on pouvait encore regagner l'a été sur la saturation, la
+     luminance pesant le vert à 0,7152 contre 0,2126 pour le rouge. D'où aussi le
+     sens du survol, qui **fonce** (5,76:1) faute de pouvoir monter. */
+  --tcn-orange-deep:   #d64000;
+  --tcn-orange-deeper: #b83a00;
   /* Dégradé des surfaces qui portent du texte — tuile hero, avatar, carte hero.
      Il descendait de #ff6620 à #E9530E, où le blanc tombait à 2,93 et 3,68:1. */
-  --tcn-orange-grad:   linear-gradient(150deg, #cf4708, #c04008);
+  --tcn-orange-grad:   linear-gradient(150deg, #d64000, #b83a00);
   --tcn-orange-12:     rgba(233, 83, 14, 0.12);
   --tcn-orange-10:     rgba(233, 83, 14, 0.10);
   --tcn-orange-08:     rgba(233, 83, 14, 0.08);
@@ -250,7 +254,7 @@
 
      `--primary` sert aussi aux voiles (`bg-primary/5`, `border-primary/40`), aux
      barres de `MonthlyTrend` et au `text-primary` de `CoursesAdminTable` — ce
-     dernier y gagne, passant de 3,32:1 à 5,28:1 sur blanc. */
+     dernier y gagne, passant de 3,32:1 à 4,57:1 sur blanc. */
   --primary: var(--tcn-orange-deep);
   --primary-foreground: #fff;
   --secondary: var(--tcn-fill);
@@ -353,8 +357,9 @@
   /* Variants. Le texte reste **blanc** — arbitrage produit de #299, l'encre sur
      orange ayant été essayée puis écartée au rendu — et c'est le fond qui
      descend d'un cran, de `--tcn-orange` à `--tcn-orange-deep` : le blanc y passe
-     de 3,68:1 à 5,28:1, et à 4,61:1 au survol. `--tcn-orange` lui-même est
-     intact, il ne portait de texte que sur ces boutons. */
+     de 3,68:1 à 4,57:1, et à 5,76:1 au survol, qui fonce au lieu d'éclaircir
+     (voir le token). `--tcn-orange` lui-même est intact, il ne portait de texte
+     que sur ces boutons. */
   .tcn-btn--primary {
     background: var(--tcn-orange-deep);
     color: #fff;
@@ -362,7 +367,7 @@
     font-weight: 800;
   }
   .tcn-btn--primary:hover:not(:disabled) {
-    background: var(--tcn-orange-deep-bright);
+    background: var(--tcn-orange-deeper);
   }
   .tcn-btn--secondary {
     background: var(--tcn-surface);
