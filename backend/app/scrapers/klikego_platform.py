@@ -30,6 +30,47 @@ _PAGE_SIZE = 50
 # (« Triathlon d'Angers - Entre Loire et Maine 2026 »).
 _TITLE_LOCATION_RE = re.compile(r"\s-\s\d{5}\s-\s")
 
+# Formes d'équipe **constatées** dans les heats de la plateforme, chacune vue
+# sur un événement réel :
+#   relais  — `triathlon-s-relais`, `duathlon-s---en-relais`
+#   duo     — `swim-run-m-duo` (Mesquer 2026), `swimrun-court-duo` (Dinard 2025)
+#   binome  — `format-s---en-binome` (RE SwimRun 2025), face à `format-m---en-solo`
+#   equipe  — `duathlon-liffre-cormier-clm-par-equipe` (CLM par équipes)
+# Toutes désignent une épreuve courue à plusieurs, donc un relais au sens du
+# modèle. Cette liste ne s'élargit **que** sur constat : « team », « paire »,
+# « trio » n'ont jamais été observés dans un heat, les ajouter au ressenti
+# reclasserait des épreuves sur une hypothèse.
+_TEAM_HEAT_WORDS = frozenset({"relais", "duo", "binome", "equipe"})
+
+# Le slug est tokenisé par tirets, le libellé affiché par espaces : on découpe
+# sur tout ce qui n'est ni lettre ni chiffre pour comparer des mots entiers.
+# Les accents tombent d'abord — le slug les aplatit (`en-binome`) mais pas le
+# libellé (« En Binôme », « CLM par Équipe »), et « ô » couperait le mot en deux.
+_WORD_SPLIT_RE = re.compile(r"[^a-z0-9]+")
+
+
+def heat_is_relay(*signals: str) -> bool:
+    """Le heat désigne-t-il une épreuve d'équipe ? (`is_relay` du modèle)
+
+    Un heat de la plateforme est mono-discipline et mono-format : le drapeau est
+    une propriété du heat, pas du participant. Les signaux acceptés sont son
+    slug et son libellé affiché, dans n'importe quel ordre — l'un ou l'autre
+    manque selon le chemin d'import (un heat ciblé directement n'a pas de
+    libellé).
+
+    Le mot compte comme mot et non comme sous-chaîne : « arduo » n'est pas un
+    duo. Se tromper ne se voit pas à l'affichage, mais `is_relay` entre dans
+    l'identité de la `Course` (UNIQUE `name, event_date, event_type, is_relay`) :
+    deux heats homonymes fusionnent, et le classement mélange équipes et solos
+    (#203, #295).
+    """
+    for signal in signals:
+        words = set(_WORD_SPLIT_RE.split(strip_accents(signal or "").lower()))
+        if words & _TEAM_HEAT_WORDS:
+            return True
+    return False
+
+
 def decode_data_block(html: str) -> list[list[str]]:
     """Décode le `<script id="data">` d'une page course-result.jsp.
 
@@ -280,14 +321,11 @@ def build_heat_results(
     # casse, esperluette) ; le slug reste le repli quand la page n'en donne pas.
     event_name = parse_event_name(heat_page_html, heat) or event_name
 
-    # Un heat de la plateforme Klikego est mono-discipline et mono-format :
-    # le drapeau relais est une propriété du heat, propagée à tous ses résultats.
-    # Le manquer collapse deux heats homonymes (`triathlon-s-indiv` +
-    # `triathlon-s-relais`) sur la même `Course` via l'UNIQUE
-    # (name, event_date, event_type, is_relay) — cf. #203. Breizh Chrono
-    # surécrit cette valeur avec `_detect_relay(heat_label, heat_slug)` (libellé
-    # + slug), le patron reste correct : la deuxième écriture prime.
-    heat_is_relay = "relais" in (heat or "").lower()
+    # Le drapeau relais est une propriété du heat, propagée à tous ses résultats
+    # (cf. `heat_is_relay`). Ici seul le slug est connu ; Breizh Chrono surécrit
+    # ensuite la valeur en y ajoutant le libellé (`_detect_relay`), le patron
+    # reste correct : la deuxième écriture prime.
+    relay_heat = heat_is_relay(heat)
 
     results: list[ScrapedResult] = []
     for raw in rows:
@@ -296,7 +334,7 @@ def build_heat_results(
         r.event_name = event_name
         r.event_type = event_type
         r.event_date = event_date
-        r.is_relay = heat_is_relay
+        r.is_relay = relay_heat
         r.bib_number = d["bib_number"]
         r.athlete_name = d["athlete_name"]
         r.athlete_firstname = d["athlete_firstname"]

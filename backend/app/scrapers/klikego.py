@@ -19,6 +19,7 @@ from app.core import http
 
 from .base import FanoutTrace, ScrapedResult
 from .classify import classify_event_type
+from .klikego_platform import heat_is_relay
 from .utils import (
     DEFAULT_HEADERS,
     derive_status_from_label,
@@ -265,8 +266,7 @@ def _parse_search_row(
     result.event_type = classify_event_type(heat, contexte=slug)
     result.rank_overall = rank
     # Un heat Klikego est mono-discipline → drapeau relais uniforme sur ses résultats.
-    # Le « s » final de « relais » n'est pas un token de taille → classification intacte.
-    result.is_relay = "relais" in (heat or "").lower()
+    result.is_relay = heat_is_relay(heat)
 
     dossard = row.get("data-dossard", "")
     result.bib_number = dossard
