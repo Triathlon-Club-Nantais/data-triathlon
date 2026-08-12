@@ -7,7 +7,7 @@ import { Avatar } from "@/components/tcn";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useSession } from "@/lib/queries/auth";
-import { AthletePicker, readAthlete, writeAthlete, type PickedAthlete } from "./AthletePicker";
+import { AthletePicker, nomComplet, readAthlete, writeAthlete, type PickedAthlete } from "./AthletePicker";
 import { NAV, ROLE, type NavItem, type NavSection } from "./nav.config";
 import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
 
@@ -379,10 +379,10 @@ function NavContent({
             <Link
               href={`/athletes/${athlete.id}`}
               onClick={onNavigate}
-              aria-label={`Mon profil — ${athlete.name}`}
+              aria-label={`Mon profil — ${nomComplet(athlete)}`}
               title={expanded ? undefined : "Mon profil"}
             >
-              <Avatar name={athlete.name} size={30} style={{ boxShadow: "var(--tcn-shadow-orange)" }} />
+              <Avatar name={nomComplet(athlete)} size={30} style={{ boxShadow: "var(--tcn-shadow-orange)" }} />
             </Link>
             {expanded && (
               <>
@@ -391,7 +391,12 @@ function NavContent({
                   onClick={onNavigate}
                   style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 14, color: "var(--tcn-orange-deep)", textDecoration: "none", ...tronque }}
                 >
-                  {athlete.name.split(" ")[0]}
+                  {/* Le prénom vient de l'API, jamais d'un découpage du nom
+                      complet : « Jean Gael » est **un** prénom, et
+                      `split(" ")[0]` n'en rendait que la moitié (#264). Repli
+                      sur le nom, faute de quoi la tuile n'aurait pas de
+                      libellé pour un athlète sans prénom renseigné. */}
+                  {athlete.prenom || athlete.nom}
                 </Link>
                 <button
                   type="button"
