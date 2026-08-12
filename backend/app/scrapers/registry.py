@@ -466,6 +466,31 @@ class ChronoWebProvider(FanoutProvider):
         return results
 
 
+class ProLiveSportProvider(FanoutProvider):
+    """ProLiveSport — URL d'événement = toutes ses courses (fan-out, issue #269).
+
+    Le `&race=` de l'URL est **ignoré** sur le chemin nominal : le fan-out énumère
+    `result/raceList/`. Chaque course reçoit sa `source_url` canonique, donc son
+    propre TTL et sa propre `Course`.
+
+    Le gain n'est pas d'abord les 17 courses jamais importées : c'est
+    l'**intégrité**. `result/indiv/{eventId}/{race}/` ignore son filtre sur une
+    partie des événements et rend l'événement entier, que le scraper mono-course
+    versait tel quel dans une `Course` unique — ~4 000 participations aux rangs,
+    temps et types d'épreuve faux, et l'événement stocké autant de fois qu'il
+    avait de lignes dans le Sheet. Sans regroupement côté client, le fan-out
+    **multiplierait** ce défaut au lieu de le corriger.
+
+    `single_heat=True` retombe sur `scrape_event_all`, qui cible la course de
+    l'URL — et la filtre, elle aussi.
+    """
+
+    name = "prolivesport"
+    _HOSTS = ("prolivesport.fr",)
+
+    _module = prolivesport
+
+
 class T2AreaProvider:
     name = "t2area"
 
@@ -489,7 +514,7 @@ PROVIDERS: list[ScraperProtocol] = [
     WiclaxProvider(),
     KlikegoProvider(),
     ModuleProvider("timepulse", ("timepulse.fr",), timepulse),
-    ModuleProvider("prolivesport", ("prolivesport.fr",), prolivesport),
+    ProLiveSportProvider(),
     ModuleProvider("sportinnovation", ("sportinnovation.fr",), sportinnovation),
     RaceResultProvider(),
     ChronoplaceProvider(),

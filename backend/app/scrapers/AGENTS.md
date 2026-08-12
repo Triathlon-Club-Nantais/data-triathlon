@@ -70,7 +70,8 @@ fournisseur — à lire **avant** de toucher au module correspondant.
 | Fournisseur | En bref | Détail |
 | --- | --- | --- |
 | Klikego, Breizh Chrono | Breizh Chrono **réutilise** `klikego._parse_detail` — factoriser dans `klikego.py`, ne jamais dupliquer. | — |
-| TimePulse, ProLiveSport, Sportinnovation | rien au-delà des conventions ci-dessus. | — |
+| TimePulse, Sportinnovation | rien au-delà des conventions ci-dessus. | — |
+| ProLiveSport | API JSON publique, mais `result/indiv/{event}/{race}/` **ignore son filtre** sur une partie des événements et rend l'événement entier : le regroupement par course se fait **toujours** côté client, sur le champ `race` de chaque ligne. | `docs/scrapers/prolivesport.md` |
 | Chronoplace | Laravel + Livewire, lu en `GET ?perPage=all` — pas de POST Livewire — et importe **toutes** les épreuves de l'événement pointé par l'URL. | — |
 | Wiclax/G-Live | plusieurs déploiements : `wiclax-results.com`, `chronosmetron.com`, `chronowest.fr` (WordPress + iframe G-Live). Un déploiement tiers de plus = un host dans `WiclaxProvider._HOSTS`. | — |
 | RaceResult | trois façades d'un même produit, une API JSON publique, listes `hidden` qui enrichissent par dossard (#60). | `docs/scrapers/raceresult.md` |
