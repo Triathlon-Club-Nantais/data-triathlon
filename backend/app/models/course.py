@@ -10,7 +10,6 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     func,
-    select,
 )
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -39,25 +38,6 @@ def _from_active_source(course: "Course", champ: str) -> str:
         if source.is_active:
             return getattr(source, champ)
     return _SANS_SOURCE
-
-
-def _active_source_subquery(course_cls: type["Course"], colonne):
-    """Sous-requête scalaire corrélée sur la source active, repliée sur `""`.
-
-    `correlate_except` plutôt que `correlate` : c'est la forme qui survit à un
-    alias — le jour où une requête joint `courses` deux fois (fusion de #287), la
-    corrélation explicite sur la classe se serait figée sur la mauvaise moitié.
-    """
-    return func.coalesce(
-        select(colonne)
-        .where(
-            CourseSource.course_id == course_cls.id,
-            CourseSource.is_active,
-        )
-        .correlate_except(CourseSource)
-        .scalar_subquery(),
-        _SANS_SOURCE,
-    )
 
 
 class Course(Base):
@@ -106,20 +86,16 @@ class Course(Base):
         saisie manuelle, pas une erreur. Aucun `@setter` n'accompagne la
         propriété, et c'est délibéré — la table est la seule vérité, et c'est la
         **forme** qui l'assure plutôt qu'un grep à refaire à chaque relecture.
+
+        **Aucun `@expression`** (#306) : ses quatre anciens appelants — les trois
+        recherches par URL et `iter_all(provider=…)` — joignent `course_sources`
+        depuis #281/#282, plus rapide qu'une sous-requête corrélée par ligne.
+        #288 et #289 (détection de doublons, rapprochement automatique) sont
+        arrivés depuis sans en créer de nouveau : la jointure est la bonne
+        écriture, pas une étape de transition. Un futur `filter(Course.provider
+        == …)` lève désormais — intentionnel, pas un oubli.
         """
         return _from_active_source(self, "url")
-
-    @source_url.expression
-    @classmethod
-    def source_url(cls):
-        """Sans ce pendant SQL, la propriété serait **illisible dans un `WHERE`**.
-
-        Et ici la moitié SQL porte du travail réel :
-        `course_repository.get_latest_by_source_url`, `list_by_source_url` et
-        `list_by_source_urls` filtrent tous les trois sur ce champ — le cache TTL
-        et le sélecteur de heats du front en dépendent.
-        """
-        return _active_source_subquery(cls, CourseSource.url)
 
     @hybrid_property
     def provider(self) -> str:
@@ -129,14 +105,10 @@ class Course(Base):
         fournisseur suit donc l'active, exactement comme l'URL, et basculer l'une
         bascule l'autre. Les tenir dans deux endroits différents les aurait fait
         diverger au premier arbitrage.
+
+        **Aucun `@expression`**, même décision que `source_url` ci-dessus (#306).
         """
         return _from_active_source(self, "provider")
-
-    @provider.expression
-    @classmethod
-    def provider(cls):
-        """Le pendant SQL qu'exige `course_repository.iter_all(provider=…)`."""
-        return _active_source_subquery(cls, CourseSource.provider)
 
     @hybrid_property
     def is_reliable(self) -> bool | None:
