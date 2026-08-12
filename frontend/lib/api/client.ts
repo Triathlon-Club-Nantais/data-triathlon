@@ -12,6 +12,7 @@ import type {
   CourseDeletionImpact,
   CourseDetail,
   CourseQuery,
+  CourseSource,
   CourseSummary,
   EventPage,
   GeoEvent,
@@ -176,6 +177,12 @@ export const apiClient = {
     request<CourseBrief>(`/admin/courses/${id}`, {
       method: "PATCH",
       body: JSON.stringify(champs),
+    }),
+  /** Bascule de la source active (#285) : bloquant, re-scrape et remplace les résultats. */
+  switchCourseSource: (courseId: number, sourceId: number) =>
+    request<CourseSource[]>(`/admin/courses/${courseId}/sources/${sourceId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ is_active: true }),
     }),
   updateAthlete: (id: number, champs: Partial<AdminAthleteUpdate>) =>
     request<AdminAthlete>(`/admin/athletes/${id}`, {

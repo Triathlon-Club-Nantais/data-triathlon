@@ -25,6 +25,17 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
+// `CourseSourcesPanel` est testé pour lui-même dans son propre fichier
+// (permissions, bascule, confirmation), avec un vrai `QueryClientProvider`.
+// Ici, un visiteur anonyme systématique et une mutation neutre suffisent à
+// vérifier que la page affiche bien la liste de sources reçue.
+vi.mock("@/lib/queries/auth", () => ({
+  useSession: () => ({ data: null }),
+}));
+vi.mock("@/lib/queries/admin", () => ({
+  useSwitchCourseSource: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+
 import CoursePage from "./page";
 
 const COURSE = {
