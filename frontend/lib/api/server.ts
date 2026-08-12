@@ -6,6 +6,7 @@ import type {
   AuthMethod,
   CourseDetail,
   CourseQuery,
+  CourseSource,
   CourseSummary,
   EventPage,
   Participation,
@@ -69,6 +70,8 @@ export const apiServer = {
    * pas (#163).
    */
   getCourseSummary: (id: number) => serverFetch<CourseSummary>(`/courses/${id}/summary`),
+  /** Sources connues de l'épreuve, active en tête (#284) — lecture publique (D4). */
+  getCourseSources: (id: number) => serverFetch<CourseSource[]>(`/courses/${id}/sources`),
   listEvents: (filters: ParticipationFilters = {}) =>
     serverFetch<EventPage>(`/courses/events${toQuery(filters as Record<string, unknown>)}`),
   getStats: (opts: { scope?: string; seasons?: number[]; federal_only?: boolean } = {}) =>
