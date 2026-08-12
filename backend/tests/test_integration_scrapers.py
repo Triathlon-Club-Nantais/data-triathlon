@@ -174,6 +174,25 @@ def test_bc_audencia_la_baule_exhaustif():
 
 
 @pytest.mark.integration
+def test_bc_mesquer_racine_302_fanoute_tous_les_heats():
+    """La racine d'événement répond 302 (#296) : le fan-out doit couvrir les 8
+    heats de Mesquer 2026, SwimRun compris — ce sont eux que le bug avalait
+    (aucun `swim-run-s-indiv` / `swim-run-s-duo` importé avant correctif).
+    """
+    results = breizhchrono.scrape_event_all(
+        "1677015306084-12", "",
+        "Triathlon et SwimRun Mesquer Quimiac",
+        "triathlon-et-swimrun-mesquer-quimiac-2026",
+    )
+    assert results, "Mesquer : aucun participant renvoyé"
+    heat_slugs = {r.raw_data.get("heat_slug") for r in results}
+    assert "swim-run-s-indiv" in heat_slugs, heat_slugs
+    assert "swim-run-s-duo" in heat_slugs, heat_slugs
+    # Le SwimRun M Duo (cible de la redirection observée) doit rester couvert.
+    assert "swim-run-m-duo" in heat_slugs, heat_slugs
+
+
+@pytest.mark.integration
 def test_bc_live_dinard_swimrun():
     """live.breizhchrono.com routé vers le moteur Klikego (issue #34).
 

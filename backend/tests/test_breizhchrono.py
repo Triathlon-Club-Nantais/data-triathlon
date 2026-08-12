@@ -8,6 +8,7 @@ from datetime import date
 from pathlib import Path
 
 import httpx
+import pytest
 
 from app.scrapers import breizhchrono
 from app.scrapers.breizhchrono import (
@@ -114,6 +115,112 @@ def test_bc_import_one_heat_returns_dnf(monkeypatch):
     assert any(r.status == "DNF" for r in results)
     assert all(r.provider == "breizhchrono" for r in results)
     assert all(r.is_relay is False for r in results)  # heat non-relais
+
+
+def test_fetch_all_heats_suit_la_redirection_302():
+    """La racine d'événement répond 302 vers un heat (#296).
+
+    `_fetch_all_heats` ne doit pas se contenter du suivi implicite
+    (`follow_redirects=True` du client par défaut) : elle lit le 302
+    explicitement, refait un GET sur sa cible (`location`), et découvre les
+    heats dans le corps de CETTE page — qui embarque la même nav inter-heats
+    que la racine aurait portée. Reproduit la mesure faite sur Mesquer 2026.
+    """
+    heat_page = """
+    <html><body>
+      <a href="/resultats-courses/tri-mesquer-42/swim-run-m-duo">Swim Run M Duo</a>
+      <a href="/resultats-courses/tri-mesquer-42/swim-run-s-indiv">Swim Run S Indiv</a>
+      <a href="/resultats-courses/tri-mesquer-42/swim-run-s-duo">Swim Run S Duo</a>
+      <a href="/resultats-courses/tri-mesquer-42/swim-run-m-duo/export">export</a>
+    </body></html>
+    """
+
+    class _RedirectResp:
+        status_code = 302
+        is_redirect = True
+        headers = {"location": "/resultats-courses/tri-mesquer-42/swim-run-m-duo"}
+        text = ""
+
+    class _HeatResp:
+        status_code = 200
+        is_redirect = False
+        headers: dict = {}
+        text = heat_page
+
+    demandes: list[tuple[str, bool]] = []
+
+    class _Client:
+        def get(self, url, follow_redirects=True):
+            demandes.append((url, follow_redirects))
+            if follow_redirects is False:
+                return _RedirectResp()
+            return _HeatResp()
+
+    heats = breizhchrono._fetch_all_heats("tri-mesquer-42", _Client())
+
+    assert demandes[0] == (
+        "https://resultats.breizhchrono.com/resultats-courses/tri-mesquer-42",
+        False,
+    )
+    assert demandes[1][0] == (
+        "https://resultats.breizhchrono.com/resultats-courses/"
+        "tri-mesquer-42/swim-run-m-duo"
+    )
+    assert heats == [
+        ("swim-run-m-duo", "Swim Run M Duo"),
+        ("swim-run-s-indiv", "Swim Run S Indiv"),
+        ("swim-run-s-duo", "Swim Run S Duo"),
+    ]
+
+
+def test_fetch_all_heats_redirection_vers_ip_interne_refusee(monkeypatch):
+    """Le suivi explicite du 302 ne doit pas contourner le garde SSRF (#101).
+
+    Traiter la redirection comme un signal plutôt que la suivre en silence ne
+    doit pas rouvrir la voie fermée par #101 : la cible reste vérifiée par le
+    même garde que n'importe quel autre appel — un client réel (transport
+    `MockTransport`), pas un FakeClient, pour engager le vrai `_GuardTransport`.
+    """
+    from app.core import http
+    from app.core.exceptions import BlockedTargetError
+
+    monkeypatch.setattr(http, "_resolve", lambda host, port: ["93.184.216.34"])
+
+    vues: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        vues.append(str(request.url))
+        if request.url.path == "/resultats-courses/evt-1":
+            return httpx.Response(
+                302, headers={"Location": "http://169.254.169.254/interne"}
+            )
+        return httpx.Response(200, text="ne doit jamais être atteint")
+
+    with http.client(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(BlockedTargetError):
+            breizhchrono._fetch_all_heats("evt-1", client)
+
+    # La cible interne n'a jamais été jointe : le refus part AVANT la requête.
+    assert vues == ["https://resultats.breizhchrono.com/resultats-courses/evt-1"]
+
+
+def test_fetch_all_heats_sans_redirection_reste_couvert():
+    """Repli : si la racine répond 200 directement, le parsing d'origine tient."""
+
+    class _Resp:
+        status_code = 200
+        is_redirect = False
+        headers: dict = {}
+        text = (
+            '<a href="/resultats-courses/evt-1/triathlon-m">Triathlon M</a>'
+        )
+
+    class _Client:
+        def get(self, url, follow_redirects=True):
+            return _Resp()
+
+    heats = breizhchrono._fetch_all_heats("evt-1", _Client())
+    assert heats == [("triathlon-m", "Triathlon M")]
 
 
 # --------------------------------------------------------------------------- #
@@ -486,7 +593,7 @@ def test_une_date_d_epreuve_injoignable_est_journalisee(monkeypatch, caplog):
         def __exit__(self, *a):
             return False
 
-        def get(self, url):
+        def get(self, url, follow_redirects=True):
             # Seule la page racine — celle qui porte la date — est injoignable.
             if url.endswith("/resultats-courses/tri-test-42"):
                 raise httpx.ConnectError("breizhchrono injoignable")
