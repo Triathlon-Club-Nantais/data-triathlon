@@ -143,6 +143,44 @@ La purge des fiches coureur devenues vides relève ses candidats **avant** la
 suppression et ne tranche qu'**après** le réimport — même primitive et même piège
 que `DELETE /admin/courses/{id}`.
 
+## Aperçu d'impact avant fusion : `GET /admin/courses/{id}/merge-impact` (#286)
+
+`?absorbed_id={id}`, gardé par **`courses:sources`** — le pouvoir qui *arbitre*,
+pas un pouvoir de lecture : même raison que `deletion-impact` sous
+`courses:delete`, qui peut trancher peut mesurer. `courses:write` ne conviendrait
+pas, sa description est bornée aux quatre champs d'identité. Le module est
+`admin_course_merge.py`, distinct d'`admin_data.py` : la fusion appartient à
+l'epic #275, pas aux quatre gestes correctifs de #117, et #287 (la fusion) s'y
+ajoutera.
+
+Quatre points à ne pas défaire :
+
+- **Deux épreuves qui diffèrent sur `name`, `event_date` et `event_type` sont le
+  cas nominal**, pas une erreur : deux chronométreurs ne nomment ni ne classent
+  la même épreuve de la même façon. Les deux côtés sortent tels quels.
+- **Le rapprochement se fait par dossard** (`uq_participation_bib`), et un
+  dossard absent ou vide **n'a pas d'équivalent** — rien ne permet de le
+  rapprocher, et le compter comme sauvé annoncerait des résultats qui
+  disparaîtraient. `NOT EXISTS` corrélé et non `NOT IN` : un seul partant sans
+  dossard côté cible rendrait un `NOT IN` toujours faux, donc l'aperçu
+  annoncerait « aucune perte ».
+- **`tcn_participations_without_match` est le chiffre qui décide** ; il sort de
+  la même agrégation que le total, en une requête à deux colonnes. Le nombre de
+  requêtes est constant (10 mesurées), et un test de
+  `tests/test_services/test_course_merge.py` le vérifie en comparant deux
+  tailles de jeu — rapprocher les classements en Python coûterait 1811 lignes
+  sur la plus chargée des épreuves.
+- **`same_source_url` regarde *toutes* les sources de la cible, l'active comme
+  les passives** : `UNIQUE(course_id, url)` ignore `is_active`, donc une URL déjà
+  connue de la cible ne peut pas y être repointée — la fusion n'ajoute alors
+  aucune source, elle supprime un doublon (cas Mesquer, ids 38 et 50 en base de
+  dev). `athletes_orphaned` vient de `athlete_repository.only_on_course`, la
+  **même** fonction que la purge de #117 : l'annonce et l'acte de #287 ne peuvent
+  pas diverger à base constante.
+
+Fusionner une épreuve avec elle-même est un **400** (message français) : le geste
+n'a rien à absorber, et #287 supprimerait la cible qu'on croit garder.
+
 ## Protéger une ressource (#115)
 
 `api/deps.require_permission(P.X)` fabrique la garde d'**une** route. Elle nomme

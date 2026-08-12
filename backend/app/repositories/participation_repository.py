@@ -3,7 +3,7 @@ from collections.abc import Iterable
 from datetime import date
 
 from sqlalchemy import and_, case, func, or_
-from sqlalchemy.orm import Session, contains_eager, joinedload
+from sqlalchemy.orm import Session, aliased, contains_eager, joinedload
 
 from app.core.club import tcn_clause
 from app.core.discipline import federal_clause
@@ -136,6 +136,57 @@ def delete_for_course(db: Session, course: Course) -> int:
     db.expire(course, ["participations"])
     db.flush()
     return efface
+
+
+def count_bibs_absent_from(
+    db: Session, *, course_id: int, other_course_id: int
+) -> tuple[int, int]:
+    """Participations de `course_id` sans jumeau de dossard dans `other_course_id`.
+
+    Rend `(total, tcn)` : ce que la fusion de #287 perdrait, et **combien
+    concernent des membres du club** — le second chiffre est celui qui décide en
+    pratique, deux chronométreurs ne publiant pas les mêmes partants (#261).
+
+    Le rapprochement se fait par **dossard**, la clé de `uq_participation_bib` :
+    c'est la seule identité qu'un même partant garde d'un chronométreur à
+    l'autre, l'orthographe des noms, elle, variant d'une source à l'autre.
+
+    **Un dossard absent ou vide n'a pas d'équivalent, par construction** — il n'y
+    a rien pour le rapprocher, et deux chaînes vides ne sont pas le même coureur.
+    Les compter comme rapprochés annoncerait des résultats sauvés qui
+    disparaîtraient.
+
+    `NOT EXISTS` corrélé, et non `NOT IN` : un `NULL` dans la sous-requête rend
+    un `NOT IN` **toujours faux**, donc l'aperçu annoncerait « aucune perte » dès
+    qu'un seul partant de la cible n'a pas de dossard. Une seule requête
+    agrégée, deux colonnes : compter en Python supposerait de charger les deux
+    classements, soit 1811 lignes sur la plus chargée des épreuves en base.
+    """
+    twin = aliased(Participation)
+    has_twin = (
+        db.query(twin.id)
+        .filter(
+            twin.course_id == other_course_id,
+            twin.bib_number == Participation.bib_number,
+        )
+        .exists()
+    )
+    total, tcn = (
+        db.query(
+            func.count(Participation.id),
+            func.sum(case((tcn_clause(Participation.club), 1), else_=0)),
+        )
+        .filter(
+            Participation.course_id == course_id,
+            or_(
+                Participation.bib_number.is_(None),
+                Participation.bib_number == "",
+                ~has_twin,
+            ),
+        )
+        .one()
+    )
+    return int(total or 0), int(tcn or 0)
 
 
 def count_for_athlete(db: Session, athlete_id: int) -> int:
