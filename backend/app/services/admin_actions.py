@@ -1,6 +1,6 @@
-"""Les gestes correctifs d'un administrateur sur les données (#117).
+"""Les gestes correctifs d'un administrateur sur les données (#117, #285).
 
-**Contrat commun aux quatre gestes**, et il tient en trois règles :
+**Contrat commun à tous les gestes**, et il tient en trois règles :
 
 1. *Aucune `Session` touchée directement* — tout passe par `repositories/`
    (Principe II).
@@ -21,16 +21,20 @@ import logging
 
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import DuplicateError, NotFoundError
+from app.core.config import Settings
+from app.core.exceptions import DuplicateError, NotFoundError, ScraperError
 from app.models.athlete import Athlete
 from app.models.course import Course
+from app.models.course_source import CourseSource
 from app.models.participation import Participation
 from app.repositories import (
     admin_action_log_repository,
     athlete_repository,
     course_repository,
+    course_source_repository,
     participation_repository,
 )
+from app.services import import_service
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +124,127 @@ def delete_course(db: Session, *, course_id: int, user_id: int) -> dict:
         len(resume["athletes_purged"]),
     )
     return resume
+
+
+def switch_course_source(
+    db: Session, *, course_id: int, source_id: int, user_id: int, settings: Settings
+) -> list[CourseSource]:
+    """Fait d'une source passive l'active de son épreuve, et **réécrit le classement**.
+
+    Décision D2 de #275 : le remplacement est **total**. Les participations de
+    l'épreuve sont supprimées puis réimportées depuis le nouveau chronométreur, là
+    où un upsert par dossard laisserait survivre les lignes de l'ancienne source
+    absentes de la nouvelle — le classement resterait le mélange de deux
+    chronométreurs que l'epic existe pour supprimer.
+
+    **L'ordre des quatre étapes est le contrat, pas un détail d'écriture.**
+    On scrape, on valide, on détruit, on réimporte. Rien de destructeur n'est
+    écrit avant qu'on tienne un classement utilisable, et c'est ce qui rend
+    impossible l'accident que cette route pourrait provoquer : une épreuve vidée
+    par un geste d'administration qui échoue ensuite à la remplir. Aucun rollback
+    n'est aussi solide que de n'avoir rien écrit — et le refus, lui, lève avant le
+    `commit` de la route, donc n'écrit ni donnée ni entrée de journal (FR-015).
+
+    Deux refus qu'aucun scraper ne signalerait, et qui coûteraient un classement :
+
+    - **Zéro résultat.** Sur le chemin d'import ordinaire c'est un succès à zéro
+      compteur ; ici ce serait un classement effacé. Le cas est banal — une page
+      de résultats retirée, une URL qui répond encore sans plus rien publier.
+    - **Une autre épreuve.** `mapping.get_or_create_course` apparie sur
+      `(nom, date, type, relais)` à l'égalité stricte : un libellé différent chez
+      le second chronométreur ferait naître une **nouvelle** épreuve et laisserait
+      celle qu'on vient de vider à zéro résultat, sans qu'aucune exception ne
+      passe. Faire converger deux identités est le travail de #289, les rapprocher
+      celui de #287 ; ici on refuse.
+
+    La purge des fiches coureur devenues vides relève les candidats **avant** la
+    suppression et ne tranche qu'**après** le réimport : avant, il n'y aurait plus
+    de participation pour les désigner ; après, les coureurs republiés par le
+    nouveau chronométreur en portent une et survivent d'eux-mêmes.
+    """
+    course = _course_or_404(db, course_id)
+    source = course_source_repository.find_on_course(
+        db, course_id=course_id, source_id=source_id
+    )
+    if source is None:
+        raise NotFoundError("Source introuvable pour cette épreuve.")
+    if source.is_active:
+        # Un double-clic, un écran rechargé : l'état voulu est l'état atteint.
+        # Re-scraper par acquit de conscience détruirait un classement pour rien,
+        # et le journal se remplirait de non-événements (FR-012).
+        return course_source_repository.list_for_course(db, course_id)
+
+    sortante = course_source_repository.get_active(db, course_id)
+    attendue = _instantane(course, _CHAMPS_COURSE)
+
+    results, _trace = import_service.scrape_for_replacement(source.url, db, settings)
+    _require_same_event(results, attendue)
+
+    candidats = athlete_repository.only_on_course(db, course_id)
+    supprimees = participation_repository.delete_for_course(db, course)
+    course_source_repository.set_active(db, source)
+    outcome = import_service.persist_results(db, source.url, results)
+    purges = athlete_repository.delete_orphans_among(db, candidats)
+
+    admin_action_log_repository.create(
+        db,
+        user_id=user_id,
+        action="course.source.switch",
+        entity_type="course",
+        entity_id=course_id,
+        payload={
+            "name": course.name,
+            # Les deux URLs, sans quoi l'entrée dirait « la source a changé » sans
+            # dire depuis quoi — donc sans permettre de défaire le geste de tête.
+            "previous_url": sortante.url if sortante is not None else None,
+            "new_url": source.url,
+            "participations_deleted": supprimees,
+            "participations_imported": outcome["imported"],
+            "athletes_purged": len(purges),
+        },
+    )
+    logger.info(
+        "Admin %s switched course %s source to %s (%s deleted, %s imported)",
+        user_id,
+        course_id,
+        source.url,
+        supprimees,
+        outcome["imported"],
+    )
+    return course_source_repository.list_for_course(db, course_id)
+
+
+def _require_same_event(results: list, attendue: dict) -> None:
+    """Refuse un scrape qui n'alimenterait pas **cette** épreuve.
+
+    Lit l'identité sur les résultats en mémoire, avec `_CHAMPS_COURSE` — la même
+    définition que celle de la correction d'identité, et la même que celle sur
+    laquelle `course_repository.get_by_identity` apparie. Un seul résultat à la
+    bonne identité suffit : une URL fan-out publie légitimement plusieurs
+    épreuves, les autres suivent leur chemin habituel.
+    """
+    if not results:
+        raise ScraperError(
+            "Le chronométreur n'a publié aucun résultat à cette adresse. "
+            "Les résultats affichés n'ont pas été touchés."
+        )
+    for scraped in results:
+        identite = {
+            "name": scraped.event_name,
+            "event_date": (
+                scraped.event_date.isoformat() if scraped.event_date else None
+            ),
+            "event_type": scraped.event_type,
+            "is_relay": scraped.is_relay,
+        }
+        if identite == attendue:
+            return
+    publiee = results[0]
+    raise ScraperError(
+        f"Cette adresse publie une autre épreuve (« {publiee.event_name} »), "
+        f"pas « {attendue['name']} ». Rapprochez d'abord les deux épreuves : "
+        "une bascule laisserait celle-ci sans aucun résultat."
+    )
 
 
 def reassign_participation(

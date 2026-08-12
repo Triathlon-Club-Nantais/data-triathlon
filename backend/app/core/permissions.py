@@ -149,6 +149,13 @@ class P:
         "les quatre champs qui la distinguent d'une autre.",
         FEATURE_COURSES,
     )
+    COURSES_SOURCES = Permission(
+        "courses:sources",
+        "Arbitrer les sources d'une épreuve",
+        "Choisir lequel des chronométreurs fait foi pour une épreuve publiée "
+        "plusieurs fois — la bascule réécrit les résultats affichés.",
+        FEATURE_COURSES,
+    )
     ATHLETES_READ = Permission(
         "athletes:read",
         "Consulter les fiches coureur",
@@ -214,6 +221,7 @@ ALL: tuple[Permission, ...] = (
     P.PENDING_PROVIDERS_HANDLE,
     P.QUALITY_OVERRIDE,
     P.COURSES_WRITE,
+    P.COURSES_SOURCES,
     P.COURSES_DELETE,
     P.ATHLETES_READ,
     P.ATHLETES_WRITE,

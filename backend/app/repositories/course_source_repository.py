@@ -50,6 +50,23 @@ def find_by_url(db: Session, *, course_id: int, url: str) -> CourseSource | None
     )
 
 
+def find_on_course(db: Session, *, course_id: int, source_id: int) -> CourseSource | None:
+    """La source **de cette épreuve** portant cet identifiant, ou `None` (#285).
+
+    Portée à l'épreuve pour la même raison que `find_by_url`, mais l'enjeu est
+    ici plus grave : une lecture par `db.get(CourseSource, source_id)` rendrait la
+    source d'une **autre** épreuve, et la bascule réécrirait le classement de
+    celle-là. L'identifiant d'une source n'a de sens que rapporté à l'épreuve de
+    l'URL qui le porte — un `source_id` étranger n'est pas un refus, c'est une
+    adresse qui ne désigne rien.
+    """
+    return (
+        db.query(CourseSource)
+        .filter(CourseSource.course_id == course_id, CourseSource.id == source_id)
+        .first()
+    )
+
+
 def list_by_urls(db: Session, urls: list[str]) -> list[CourseSource]:
     """Les sources portant l'une de ces URLs, **toutes épreuves confondues** (#282).
 

@@ -115,6 +115,29 @@ def count_for_course(db: Session, course_id: int) -> int:
     )
 
 
+def delete_for_course(db: Session, course: Course) -> int:
+    """Supprime **toutes** les participations de l'épreuve. Rend le nombre effacé (#285).
+
+    Un `DELETE` d'ensemble et non une boucle sur la collection : une bascule de
+    source réécrit des classements de 1811 lignes, et les hydrater une à une pour
+    les jeter est un aller-retour par ligne.
+
+    Prend l'entité et non un `course_id`, parce qu'il faut la **périmer** après
+    coup : `synchronize_session=False` est le seul mode qui n'ait pas de coût, mais
+    il laisse `course.participations` sur son contenu d'avant. Or l'appelant
+    ré-importe juste derrière, et le persister lit cette collection — il y verrait
+    les lignes qu'on vient d'effacer, et les compterait comme déjà en base.
+    """
+    efface = (
+        db.query(Participation)
+        .filter(Participation.course_id == course.id)
+        .delete(synchronize_session=False)
+    )
+    db.expire(course, ["participations"])
+    db.flush()
+    return efface
+
+
 def count_for_athlete(db: Session, athlete_id: int) -> int:
     """Nombre de résultats portés par un coureur — le poids de sa fiche.
 

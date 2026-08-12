@@ -39,9 +39,9 @@ Design : `docs/superpowers/specs/2026-07-31-sql-observability-design.md`.
 # Le catalogue de pouvoirs (`permissions.py`, #115)
 
 **La liste de référence des pouvoirs est ici, et nulle part ailleurs.**
-Dix-neuf codes de forme `<domaine>:<geste>` — neuf de #115, trois de #197, un de
-#170, cinq de #117 et un de #169 —, dataclass gelée, aucun état, aucun accès base
-ni réseau :
+Vingt-deux codes de forme `<domaine>:<geste>` — neuf de #115, trois de #197, un
+de #170, cinq de #117, deux de #47, un de #169 et un de #275 —, dataclass gelée,
+aucun état, aucun accès base ni réseau :
 c'est ce qui autorise `core/` (Principe II), et un test le vérifie sur la
 **source** du module.
 

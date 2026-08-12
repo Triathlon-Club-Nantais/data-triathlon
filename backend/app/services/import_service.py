@@ -163,6 +163,7 @@ def _make_cache_probe(db: Session, settings: Settings):
 
 def _scrape_all(
     url: str, db: Session, settings: Settings, *, single_heat: bool = False,
+    use_cache_probe: bool = True,
 ) -> tuple[list[ScrapedResult], FanoutTrace | None]:
     """Scrape l'URL et remonte optionnellement la `FanoutTrace` du provider.
 
@@ -179,9 +180,15 @@ def _scrape_all(
     Pas de progression par heat ici — le chemin SSE l'obtient via
     `_scrape_all_streaming`, qui est un générateur. Ce chemin non-streaming
     reste utilisé par le CLI (`batch`) et le fallback `import_event`.
+
+    `use_cache_probe=False` retire le cache TTL **par heat** (#285) : sans probe,
+    un provider fan-out scrape toutes ses sous-unités. C'est ce que demande un
+    remplacement total, où sauter un heat jugé frais laisserait l'épreuve vide
+    de la moitié de son classement — l'épreuve visée par une bascule est
+    précisément celle qu'on vient de scraper, donc la plus fraîche de la base.
     """
 
-    cache_probe = _make_cache_probe(db, settings)
+    cache_probe = _make_cache_probe(db, settings) if use_cache_probe else None
     provider = registry.get_provider(url)
 
     try:
@@ -608,6 +615,52 @@ def _cached_result(db: Session, url: str, settings: Settings) -> dict | None:
     }
 
 
+def scrape_for_replacement(
+    url: str, db: Session, settings: Settings
+) -> tuple[list[ScrapedResult], FanoutTrace | None]:
+    """Scrape une URL **sans aucun cache**, pour un remplacement total (#285).
+
+    Les deux moitiés du cache TTL sont écartées, et il faut les deux : le
+    court-circuit global (`_cached_result`, propre à `import_event`) n'est pas
+    traversé du tout, et le probe par heat est désarmé. Un `force=True` sur le
+    chemin d'import ordinaire ne lève que le premier — la bascule d'une épreuve
+    fan-out y perdrait tous les heats jugés frais, c'est-à-dire tous.
+
+    Ne persiste rien : c'est `persist_results` qui écrit, et l'appelant décide
+    entre les deux s'il veut de ces résultats. Cet ordre est ce qui rend la
+    bascule sûre — rien de destructeur n'est écrit avant qu'on tienne un
+    classement utilisable.
+    """
+    return _scrape_all(_validate_url(url), db, settings, use_cache_probe=False)
+
+
+def persist_results(db: Session, url: str, results: list[ScrapedResult]) -> dict:
+    """Écrit des résultats déjà scrapés. **Ne clôt pas la transaction.**
+
+    Le cœur d'`import_event`, extrait pour qu'un appelant qui gère lui-même sa
+    transaction puisse l'utiliser (#285) : ni `commit`, ni `rollback`, ni
+    `try/except` — l'appelant a des écritures à lui dans la même transaction, et
+    c'est à lui de la clore, sur le patron « le service `flush`, la route
+    `commit` » du reste du dépôt.
+
+    `courses` est le résumé **brut** du persister : le repli sur les heats
+    cachés (`_merge_cached_courses`) appartient au compte rendu d'import, pas à
+    l'écriture.
+    """
+    persister = _Persister(db, url)
+    for scraped in results:
+        persister.add(scraped)
+    persister.finalize()
+    return {
+        "imported": persister.imported,
+        "updated": persister.updated,
+        "skipped": persister.skipped,
+        "reconciled": persister.reconciled,
+        "passive_sources": persister.passive_sources,
+        "courses": persister.courses_summary(),
+    }
+
+
 def import_event(
     db: Session, url: str, settings: Settings, force: bool = False, persist: bool = True,
     *, single_heat: bool = False,
@@ -640,11 +693,8 @@ def import_event(
             **_fanout_counters(trace),
         }
 
-    persister = _Persister(db, url)
     try:
-        for scraped in results:
-            persister.add(scraped)
-        persister.finalize()
+        outcome = persist_results(db, url, results)
         if persist:
             db.commit()
         else:
@@ -655,12 +705,8 @@ def import_event(
         raise ScraperError("Erreur lors de l'enregistrement des résultats.") from None
 
     return {
-        "imported": persister.imported,
-        "updated": persister.updated,
-        "skipped": persister.skipped,
-        "reconciled": persister.reconciled,
-        "passive_sources": persister.passive_sources,
-        "courses": _merge_cached_courses(db, persister.courses_summary(), trace),
+        **outcome,
+        "courses": _merge_cached_courses(db, outcome["courses"], trace),
         **_fanout_counters(trace),
     }
 

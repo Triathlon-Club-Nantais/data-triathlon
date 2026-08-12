@@ -31,6 +31,19 @@ class CourseSourceOut(BaseModel):
     last_scraped_at: datetime | None = None
 
 
+class CourseSourceSwitch(BaseModel):
+    """Le corps de la bascule d'une source active (#285). Un seul champ, obligatoire.
+
+    `is_active` et non un corps vide, parce que l'écran (#291) est une liste de
+    sources dont on coche celle qui fait foi : la requête dit l'état voulu.
+    **`false` n'est pas un geste** — le refus vit dans la route, pas dans une
+    contrainte Pydantic, dont le 422 rendrait un `detail` en liste d'objets et un
+    message anglais (même parti pris qu'`AllowedEmailCreate`, cf. FR-010).
+    """
+
+    is_active: bool
+
+
 class CourseBrief(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
