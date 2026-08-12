@@ -15,6 +15,7 @@ from app.models.course_source import CourseSource
 from app.repositories import athlete_repository, course_repository, course_source_repository
 from app.scrapers.base import STATUS_DNF, STATUS_FINISHER, ScrapedResult
 from app.scrapers.classify import extract_distance_km
+from app.services import course_reconciliation
 
 # Les scrapers rangent toujours les segments dans 5 slots positionnels triathlon
 # (swim/t1/bike/t2/run). Selon le sport, on ré-étiquette ces slots avec des clés
@@ -130,12 +131,28 @@ def get_or_create_course(db: Session, scraped: ScrapedResult, event_url: str) ->
     source que sur l'épreuve qu'il *crée*, celle qu'il apparie garde les siennes
     — c'est là que la seconde publication se perdait. `attach` étant idempotent,
     on l'appelle sans regarder lequel des deux cas on vient de traverser.
+
+    **L'appariement tente d'abord la règle R** (#289) : Klikego et Breizh
+    Chrono partagent un identifiant de plateforme dans leur `source_url`, que
+    `course_reconciliation.find_reconcilable_course` compare à égalité stricte
+    avec ceux déjà en base. Elle passe **avant** l'identité stricte, jamais en
+    repli : les deux s'accordent déjà sur les cas où l'identité collide (même
+    back-office, même nom au caractère près), donc l'ordre ne change rien pour
+    eux ; c'est l'inter-façade Breizh Chrono (`live.` ↔ `resultats.`, qui
+    diverge sur le nom et la date) que seule la règle R rapproche.
     """
     distance_km = scraped.distance_km
     if distance_km is None:
         distance_km = extract_distance_km(scraped.event_name)
     url = scraped.source_url or event_url
-    course = course_repository.get_or_create(
+    reconciled = (
+        course_reconciliation.find_reconcilable_course(
+            db, provider=scraped.provider, source_url=url
+        )
+        if url
+        else None
+    )
+    course = reconciled or course_repository.get_or_create(
         db,
         name=scraped.event_name,
         event_date=scraped.event_date,

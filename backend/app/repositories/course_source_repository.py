@@ -98,6 +98,24 @@ def list_by_urls(db: Session, urls: list[str]) -> list[CourseSource]:
     )
 
 
+def list_by_providers(db: Session, providers: tuple[str, ...]) -> list[CourseSource]:
+    """Les sources de ces fournisseurs, toutes épreuves confondues (#289).
+
+    Le rapprochement automatique ne compare un identifiant de plateforme
+    qu'entre les deux fournisseurs qui le partagent (Klikego, Breizh Chrono,
+    cf. sondage #277) — balayer les sources des douze autres pour rien n'aurait
+    aucun candidat à trouver.
+    """
+    if not providers:
+        return []
+    return (
+        db.query(CourseSource)
+        .options(selectinload(CourseSource.course))
+        .filter(CourseSource.provider.in_(providers))
+        .all()
+    )
+
+
 def add(
     db: Session,
     *,
