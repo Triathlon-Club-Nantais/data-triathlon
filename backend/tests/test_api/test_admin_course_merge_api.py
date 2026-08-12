@@ -168,6 +168,27 @@ def test_the_tcn_count_is_exact_when_only_some_bibs_differ(client, pair):
     assert payload["tcn_participations_without_match"] == 2
 
 
+def test_a_bibless_result_on_the_target_side_does_not_hide_the_losses(
+    client, db_session, pair
+):
+    """Le piège du `NOT IN`, du **côté cible** — celui qu'aucune fixture n'exerce.
+
+    Un `NULL` dans la sous-requête rend un `NOT IN` toujours faux : il suffirait
+    d'un seul partant sans dossard **dans la cible** pour que l'aperçu annonce
+    « aucune perte » sur une fusion qui en cause quatre. Le sans-dossard de la
+    fixture est du côté absorbé, où il compte parmi les perdus — l'autre moitié de
+    la règle, et la raison pour laquelle le repository écrit un `NOT EXISTS`
+    corrélé. Sans ce test, un retour au `NOT IN` passerait la suite entière.
+    """
+    _result(db_session, pair["target"], nom="CIBLE-SANS-DOSSARD", bib=None, club="")
+    db_session.commit()
+
+    payload = _impact(client, pair).json()
+
+    assert payload["participations_without_match"] == 4
+    assert payload["tcn_participations_without_match"] == 2
+
+
 def test_the_orphaned_athletes_are_those_the_merge_would_leave_empty(client, pair):
     """Les fiches coureur que la pair viderait — celles du seul absorbé.
 
