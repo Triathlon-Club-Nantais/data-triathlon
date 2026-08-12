@@ -16,7 +16,7 @@ Ouvre `AGENTS.md` à la racine. C'est la source de vérité opérationnelle du p
 
 Sections à lire en priorité, dans l'ordre :
 
-- **§Architecture backend** — le sens du flux `api → services → repositories → DB`, non négociable.
+- **§Architecture** — le sens du flux `api → services → repositories → DB`, non négociable ; le détail module par module est dans `backend/AGENTS.md`.
 - **§Modèle normalisé** — les 4 entités et leurs contraintes d'unicité.
 - **§Sorties de la CLI (stdout parsable)** — le contrat de sortie qui gouverne toute la CLI batch.
 - **§Portée club et disciplines** — comment `scope=club` et `federal_only` traversent l'API.

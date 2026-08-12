@@ -104,7 +104,7 @@ consomme via un `AsyncGenerator<ImportProgressEvent>`. Regarde le fichier —
 il fait 35 lignes, le pattern est court.
 
 Côté serveur, la logique est dans `import_service.iter_import_event()` (cité
-dans `AGENTS.md` § Architecture backend) — tu n'ouvres pas ce fichier, mais
+dans `backend/app/cli/AGENTS.md`) — tu n'ouvres pas ce fichier, mais
 tu sais qu'un nouveau champ dans le stream demande une coordination avec un
 contributeur backend.
 
