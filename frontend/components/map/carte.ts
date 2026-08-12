@@ -20,7 +20,9 @@
 export const COULEURS_CARTE = {
   avecTcn: {
     remplissage: "#E9530E", // --tcn-orange
-    trait: "#c04008", // --tcn-orange-deep
+    // --tcn-orange-deeper, et non `-deep` : celui-ci est désormais trop proche du
+    // remplissage pour se lire comme un trait.
+    trait: "#b83a00",
     epaisseur: 2,
     pointilles: undefined,
   },

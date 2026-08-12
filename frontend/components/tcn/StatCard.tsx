@@ -49,7 +49,7 @@ export function StatCard({
         {/* Les trois textes sont en **blanc plein**, y compris le libellé qui
             n'était qu'à 85 % d'opacité : la hiérarchie passe à la taille et aux
             capitales, pas à l'opacité. C'est le dégradé qui a été assombri pour
-            que le blanc tienne — 4,61:1 à l'extrémité claire, contre 3,68:1
+            que le blanc tienne — 4,57:1 à l'extrémité claire, contre 3,68:1
             avant, alors que seul le nombre de 86px atteignait son seuil de grand
             texte (#299). La pastille assombrit son fond au lieu de l'éclaircir :
             un voile blanc à 20 % ne laissait que 3,42:1. */}

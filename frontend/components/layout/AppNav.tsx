@@ -350,7 +350,7 @@ function NavContent({
             borderRadius: "var(--tcn-radius-lg)",
             // 14 px en 800 : aucune taille de ce bouton n'atteint le seuil
             // « texte large », donc le blanc y demande 4,5:1 — d'où le fond
-            // `-deep`, où il tient 5,28:1 contre 3,68:1 sur l'orange nu (#299).
+            // `-deep`, où il tient 4,57:1 contre 3,68:1 sur l'orange nu (#299).
             background: "var(--tcn-orange-deep)",
             color: "#fff",
             textDecoration: "none",
