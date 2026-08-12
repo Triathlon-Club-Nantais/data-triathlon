@@ -231,4 +231,53 @@ describe("RaceFinishers", () => {
     expect(screen.getByText("Vélo")).toBeInTheDocument();
     expect(screen.getByText("Course")).toBeInTheDocument();
   });
+
+  // ── Tri par temps intermédiaire (#309) ─────────────────────────────────────
+
+  const dataAvecSplits = [
+    p({ id: 1, nom: "LENT", rank_overall: 2, total_time: "01:00:00", splits: { swim: "00:25:00" } }),
+    p({ id: 2, nom: "RAPIDE", rank_overall: 1, total_time: "00:58:00", splits: { swim: "00:20:00" } }),
+    // Pas de temps natation publié : doit finir en dernier une fois le tri actif.
+    p({ id: 3, nom: "SANSNATATION", rank_overall: 3, total_time: "01:05:00", splits: {} }),
+  ];
+
+  function nomsAffiches() {
+    return screen
+      .getAllByText(/^(LENT|RAPIDE|SANSNATATION) T$/)
+      .map((el) => el.textContent);
+  }
+
+  it("garde l'ordre transmis par le backend tant qu'aucun en-tête de split n'a été cliqué", () => {
+    afficher({
+      participations: dataAvecSplits,
+      summary: synthese({ split_keys: ["swim"] }),
+      eventType: "triathlon-m",
+    });
+
+    expect(nomsAffiches()).toEqual(["LENT T", "RAPIDE T", "SANSNATATION T"]);
+  });
+
+  it("trie en ordre croissant sur le split cliqué", async () => {
+    afficher({
+      participations: dataAvecSplits,
+      summary: synthese({ split_keys: ["swim"] }),
+      eventType: "triathlon-m",
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /Trier par temps.*Natation/i }));
+
+    // RAPIDE (20 min) avant LENT (25 min) ; SANSNATATION (aucun temps) en dernier.
+    expect(nomsAffiches()).toEqual(["RAPIDE T", "LENT T", "SANSNATATION T"]);
+  });
+
+  it("en-tête de split activable au clavier, avec libellé français explicite", () => {
+    afficher({
+      participations: dataAvecSplits,
+      summary: synthese({ split_keys: ["swim"] }),
+      eventType: "triathlon-m",
+    });
+
+    const bouton = screen.getByRole("button", { name: /Trier par temps.*Natation/i });
+    expect(bouton.tagName).toBe("BUTTON");
+  });
 });
