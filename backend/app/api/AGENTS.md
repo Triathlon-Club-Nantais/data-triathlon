@@ -81,6 +81,21 @@ une page vide.
 
 Spec, plan et tâches : `specs/20260803-195212-course-pagination/`.
 
+## Sources d'une épreuve : `GET /courses/{id}/sources` (#284)
+
+**Publique**, lecture seule, et ce n'est pas un oubli de garde : la décision D4
+de #275 rend la liste visible de tous — quel chronométreur alimente le classement
+affiché est une information de lecture. Ce qui reste fermé, c'est l'écriture
+(soumettre une URL, basculer l'active) et le **nom du soumetteur** :
+`CourseSourceOut` ne porte que `id`, `url`, `provider`, `is_active`,
+`last_scraped_at`, jamais `created_by`. L'ordre — active en tête, puis les
+passives par `created_at` — appartient à `course_source_repository.list_for_course`
+et n'est pas cosmétique : sans lui, la source affichée sauterait d'un
+rechargement à l'autre. Une épreuve inconnue est un **404**
+(`NotFoundError("Course introuvable")`, comme les deux routes voisines), une
+épreuve sans source une **liste vide** — confondre les deux ferait lire un
+identifiant inventé comme « aucune source ».
+
 ## Protéger une ressource (#115)
 
 `api/deps.require_permission(P.X)` fabrique la garde d'**une** route. Elle nomme

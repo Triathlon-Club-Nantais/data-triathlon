@@ -1,7 +1,34 @@
 """Schémas Pydantic pour Course et la vue agrégée des épreuves."""
-from datetime import date
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict
+
+
+class CourseSourceOut(BaseModel):
+    """Une source de chronométrage d'une épreuve, telle que la voit **le public** (#284).
+
+    Ici et non dans un `schemas/course_source.py` à part : la ressource est
+    servie par le router `courses` et n'a pas d'existence hors d'une épreuve —
+    c'est aussi ce que demande l'issue.
+
+    **Cinq champs, et l'absence du sixième est le contrat.**
+    `created_by_user_id` — comme la relation `created_by` — reste interne : une
+    route ouverte n'a aucune raison de nommer qui a soumis une URL. Rien ne le
+    remonterait par accident (Pydantic ne sérialise que les champs déclarés),
+    mais l'inverse serait vrai d'un `model_config` mal recopié, d'où le test
+    explicite de `tests/test_api/test_course_sources_api.py`.
+
+    `last_scraped_at` est celui de **cette** source, pas de l'épreuve : une
+    passive n'est jamais scrapée, donc `null` y est la valeur normale.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    url: str
+    provider: str = ""
+    is_active: bool = False
+    last_scraped_at: datetime | None = None
 
 
 class CourseBrief(BaseModel):
