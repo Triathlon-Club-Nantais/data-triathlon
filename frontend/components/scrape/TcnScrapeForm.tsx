@@ -194,28 +194,14 @@ export function TcnScrapeForm() {
 /** Bouton d'action TCN rendu en `<a>` : mêmes styles que `Button variant="primary"`,
  *  mais navigable au clavier et par les crawlers. Utilisé pour aller vers /courses/{id}
  *  depuis les alertes de fin d'import (#135).
+ *
+ *  Les styles étaient recopiés à la main tant qu'ils vivaient en ligne dans
+ *  `tcn/Button` ; depuis #299 ils sont en classes, donc il suffit de les porter —
+ *  et le focus, le survol et le blanc à 3,68:1 se corrigent ici du même coup.
  */
 function PrimaryLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
-    <Link
-      href={href}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 8,
-        padding: "12px 20px",
-        fontSize: 14,
-        fontFamily: "var(--tcn-font-body)",
-        fontWeight: 800,
-        lineHeight: 1,
-        color: "#fff",
-        background: "var(--tcn-orange)",
-        borderRadius: "var(--tcn-radius-lg)",
-        boxShadow: "var(--tcn-shadow-orange)",
-        textDecoration: "none",
-        whiteSpace: "nowrap",
-      }}
-    >
+    <Link href={href} className="tcn-btn tcn-btn--md tcn-btn--primary">
       {children}
     </Link>
   );
