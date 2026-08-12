@@ -104,6 +104,11 @@ export const NAV: NavSection[] = [
         permission: "pending_providers:read",
       },
       { id: "a-courses", label: "Gestion des courses", href: "/admin/courses" },
+      // Pouvoir de lecture de l'écran : `courses:sources` garde les trois
+      // routes qu'il consomme (liste, aperçu de fusion, fusion elle-même côté
+      // #292) — poser `courses:delete` ici masquerait l'écran à qui peut voir
+      // les doublons mais pas fusionner, ce que le composant distingue déjà.
+      { id: "a-doublons", label: "Doublons suspects", href: "/admin/doublons", permission: "courses:sources" },
       // Les entrées `soon` ci-dessous n'ont pas de pouvoir nommé : le catalogue
       // n'en porte pas d'évident, et en deviner un serait poser une règle à
       // rectifier le jour où l'écran sort. Sans conséquence — depuis #242 une

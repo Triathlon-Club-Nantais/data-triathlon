@@ -452,6 +452,69 @@ export interface CourseDeletionImpact {
   athletes: number;
 }
 
+/** Une épreuve côté aperçu de fusion — miroir de `MergeImpactCourse` (#286). */
+export interface MergeImpactCourse {
+  id: number;
+  name: string;
+  event_date: string | null;
+  event_type: string;
+  is_relay: boolean;
+  provider: string;
+  participations: number;
+}
+
+/**
+ * Ce qu'une fusion emporterait, chiffré **avant** le geste (#286).
+ *
+ * `participations_without_match` est le nombre de résultats de `absorbed` qui
+ * n'ont pas d'équivalent chez `target` : ces athlètes disparaissent purement et
+ * simplement de l'épreuve, la fusion ne re-scrape rien pour les récupérer.
+ * `tcn_participations_without_match` isole ceux du club dans ce total — le
+ * chiffre qui pèse le plus dans la décision d'un administrateur.
+ */
+export interface CourseMergeImpact {
+  target: MergeImpactCourse;
+  absorbed: MergeImpactCourse;
+  participations_without_match: number;
+  tcn_participations_without_match: number;
+  athletes_orphaned: number;
+  same_source_url: boolean;
+}
+
+/** Résultat d'une fusion (#287) — `sources` dans la forme de `GET /courses/{id}/sources`. */
+export interface CourseMergeResult {
+  target_id: number;
+  absorbed_id: number;
+  participations_deleted: number;
+  athletes_purged: number;
+  source_added: boolean;
+  sources: CourseSource[];
+}
+
+/** Une épreuve candidate à un doublon — miroir de `DuplicateCourse` (#288). */
+export interface DuplicateCourse {
+  id: number;
+  name: string;
+  event_date: string | null;
+  event_type: string;
+  is_relay: boolean;
+  provider: string;
+  source_url: string;
+  total: number;
+  tcn_count: number;
+}
+
+/** Une paire suspecte, jamais un cluster — miroir de `DuplicateCandidate` (#288). */
+export interface DuplicateCandidate {
+  reason: "same_source_url" | "shared_event_id" | "close_names";
+  reason_label: string;
+  courses: DuplicateCourse[];
+}
+
+export interface DuplicateCandidateList {
+  candidates: DuplicateCandidate[];
+}
+
 /**
  * Une fiche coureur **complète**, servie derrière le pouvoir `athletes:read` (#117).
  *

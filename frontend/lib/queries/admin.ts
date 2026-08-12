@@ -140,6 +140,41 @@ export function useSwitchCourseSource() {
   });
 }
 
+/** Doublons suspects entre épreuves (#288), pour le panel d'administration (#292). */
+export function useCourseDuplicates() {
+  return useQuery({
+    queryKey: queryKeys.courseDuplicates(),
+    queryFn: () => apiClient.listCourseDuplicates(),
+  });
+}
+
+/**
+ * Ce qu'une fusion emporterait — chargé **à la sélection de la cible**, sur le
+ * même patron que `useCourseDeletionImpact` : tant que l'administrateur n'a
+ * pas choisi quelle épreuve des deux survit, il n'y a rien à chiffrer.
+ */
+export function useCourseMergeImpact(courseId: number | null, absorbedId: number | null) {
+  return useQuery({
+    queryKey: queryKeys.courseMergeImpact(courseId ?? 0, absorbedId ?? 0),
+    queryFn: () => apiClient.getCourseMergeImpact(courseId as number, absorbedId as number),
+    enabled: courseId !== null && absorbedId !== null,
+    retry: false,
+  });
+}
+
+/** Fusion de deux épreuves (#287) : la paire fusionnée doit sortir de la liste des doublons. */
+export function useMergeCourses() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ courseId, absorbedId }: { courseId: number; absorbedId: number }) =>
+      apiClient.mergeCourses(courseId, absorbedId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.courseDuplicates() });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.courses });
+    },
+  });
+}
+
 /**
  * Recherche de coureurs réservée — la seule lecture qui rend une date de naissance.
  *

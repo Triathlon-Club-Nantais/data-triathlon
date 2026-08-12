@@ -19,6 +19,9 @@ export const queryKeys = {
     ["admin-course-detail", courseId, q] as const,
   courseDeletionImpact: (courseId: number) =>
     ["course-deletion-impact", courseId] as const,
+  courseDuplicates: () => ["course-duplicates"] as const,
+  courseMergeImpact: (courseId: number, absorbedId: number) =>
+    ["course-merge-impact", courseId, absorbedId] as const,
   adminUsers: () => ["admin-users"] as const,
   // Une seule clé pour `GET /admin/roles`, partagée par l'attribution (#239) et
   // la composition (#240) : deux clés donneraient deux caches de la même liste,
