@@ -30,9 +30,9 @@ export function Avatar({
         height: size,
         borderRadius: "var(--tcn-radius-pill)",
         background: "var(--tcn-orange-grad)",
-        // Encre et non blanc : le dégradé descend jusqu'à #E9530E, où du blanc
-        // ne tient que 3,68:1 (#299). L'orange, lui, ne bouge pas.
-        color: "var(--tcn-ink)",
+        // Blanc, le dégradé ayant été assombri pour le porter : il descendait
+        // jusqu'à #E9530E, où le blanc ne tenait que 3,68:1 (#299).
+        color: "#fff",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
