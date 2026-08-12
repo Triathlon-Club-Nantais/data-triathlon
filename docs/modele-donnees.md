@@ -15,8 +15,14 @@ table d'association, plus une entité technique isolée :
 - **Athlete** — une personne physique, dédoublonnée (une seule fois en base
   quelle que soit le nombre de courses).
 - **Course** — une épreuve (un « heat » : nom + date + type + relais).
+- **CourseSource** — les **N chronométrages** d'une même épreuve, dont un seul
+  **actif** (#278). C'est elle, et elle seule, qui porte l'URL d'import et le
+  provider : `Course.source_url` et `Course.provider` sont des propriétés dérivées
+  de la source active depuis #279, plus des colonnes.
 - **Participation** — le résultat d'un athlète sur une course. C'est la table
-  d'association qui porte les classements, temps et splits.
+  d'association qui porte les classements, temps et splits. Elle est portée par la
+  `Course`, **jamais** par la source : le classement affiché ne mélange pas deux
+  chronométreurs.
 - **PendingProvider** — entité technique isolée : URLs dont le scraping a échoué,
   signalées pour implémentation future. Aucune relation avec les autres tables.
 
@@ -30,6 +36,7 @@ athlètes.
 erDiagram
     ATHLETE ||--o{ PARTICIPATION : "participe"
     COURSE  ||--o{ PARTICIPATION : "rassemble"
+    COURSE  ||--o{ COURSE_SOURCE : "est chronométrée par"
 
     ATHLETE {
         int id PK
@@ -43,8 +50,6 @@ erDiagram
 
     COURSE {
         int id PK
-        string source_url "clé de cache (TTL via scraped_at)"
-        string provider
         string name "indexé (+ index trigram pg_trgm en Postgres)"
         date event_date "nullable"
         string event_type "indexé"
@@ -52,6 +57,17 @@ erDiagram
         bool is_relay
         datetime scraped_at
         datetime created_at
+    }
+
+    COURSE_SOURCE {
+        int id PK
+        int course_id FK "indexé"
+        string url "UNIQUE(course_id, url) — jamais UNIQUE(url)"
+        string provider
+        bool is_active "index partiel UNIQUE(course_id) WHERE is_active"
+        datetime created_at
+        int created_by_user_id FK "nullable (import sans utilisateur)"
+        datetime last_scraped_at "nullable, distinct de courses.scraped_at"
     }
 
     PARTICIPATION {
@@ -86,7 +102,7 @@ erDiagram
 
 ## Contraintes d'unicité (dédoublonnage)
 
-La normalisation repose sur trois contraintes d'unicité qui garantissent
+La normalisation repose sur cinq contraintes d'unicité qui garantissent
 l'absence de doublons à l'import :
 
 | Table            | Contrainte                | Colonnes                                       | Rôle                                                         |
@@ -94,6 +110,8 @@ l'absence de doublons à l'import :
 | `athletes`       | `uq_athlete_identity`     | `nom`, `prenom`, `birth_date`                  | Une personne = une seule ligne, quelles que soient ses courses |
 | `courses`        | `uq_course_identity`      | `name`, `event_date`, `event_type`, `is_relay` | Une épreuve (heat) = une seule ligne ; le relais est un heat distinct |
 | `participations` | `uq_participation_bib`    | `course_id`, `bib_number`                      | Un dossard est unique au sein d'une course → import idempotent |
+| `course_sources` | `uq_course_source_url`    | `course_id`, `url`                             | Une URL n'est rattachée qu'une fois à une épreuve donnée — **et surtout pas `UNIQUE(url)`** : une URL porte légitimement N épreuves (heats Klikego, multi-catégories Wiclax, multi-listes RaceResult, multi-épreuves Chronoplace) |
+| `course_sources` | `uq_course_source_active` | `course_id` **`WHERE is_active`**              | Une seule source active par épreuve, tenue par la base et non par une lecture préalable. Index **partiel** : il porte `sqlite_where=` *et* `postgresql_where=`, sans quoi l'autre moteur reçoit un index complet et interdit les passives |
 
 ## Détails de modélisation
 
@@ -111,7 +129,8 @@ figées `swim/t1/bike/t2/run`. Elle couvre tous les sports (duathlon
   course ; l'info est alors portée par la participation. `server_default="false"`.
 
 ### Cache TTL
-`courses.source_url` est la clé de cache et `courses.scraped_at` l'horodatage.
+`Course.source_url` — l'URL de la **source active**, plus une colonne depuis
+#279 — est la clé de cache, et `courses.scraped_at` l'horodatage.
 `services/cache.is_fresh()` court-circuite le re-scraping : 10 min si la course
 est en cours (une participation sans `total_time`), sinon 30 jours.
 
@@ -121,8 +140,12 @@ Migration `a1b2c3d4e5f6` : extension `pg_trgm` + index GIN trigram
 fautes. En SQLite (dev), la recherche retombe sur un `ILIKE` sous-chaîne.
 
 ### Cascade de suppression
-Supprimer un `Athlete` ou une `Course` supprime ses `Participation` associées
-(`cascade="all, delete-orphan"` côté ORM).
+Supprimer un `Athlete` ou une `Course` supprime ses `Participation` associées, et
+une `Course` emporte aussi ses `CourseSource` (`cascade="all, delete-orphan"`
+côté ORM). Aucune table du dépôt ne porte d'`ondelete` : `core/database.py`
+n'émet aucun `PRAGMA foreign_keys=ON`, une contrainte de base serait inerte en
+SQLite (dev et tests) et active en PostgreSQL — un écart que la suite ne verrait
+jamais.
 
 ## Historique des migrations Alembic
 

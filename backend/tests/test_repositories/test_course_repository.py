@@ -75,14 +75,18 @@ def test_iter_all_filtre_par_provider_et_anciennete(db_session):
 
     from app.core.time import utcnow
 
+    # `source_url` en plus du provider, et ce n'est pas du décor depuis #279 : le
+    # provider est porté par la **source**, dont l'URL est la raison d'être. Un
+    # provider sans URL ne se range plus nulle part (cf.
+    # `test_course_derived_source.test_a_provider_without_a_url_is_not_representable`).
     vieux = course_repository.get_or_create(
         db_session, name="Vieux", event_date=date(2025, 1, 1),
-        event_type="triathlon-m", provider="klikego",
+        event_type="triathlon-m", source_url="https://k/vieux", provider="klikego",
     )
     vieux.scraped_at = utcnow() - timedelta(days=40)
     frais = course_repository.get_or_create(
         db_session, name="Frais", event_date=date(2026, 1, 1),
-        event_type="triathlon-m", provider="timepulse",
+        event_type="triathlon-m", source_url="https://t/frais", provider="timepulse",
     )
     frais.scraped_at = utcnow()
     db_session.flush()
