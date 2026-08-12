@@ -6,21 +6,38 @@ import { Avatar, Input, Modal } from "@/components/tcn";
 import { apiClient } from "@/lib/api/client";
 import type { AthleteBrief } from "@/lib/types";
 
-/** Athlète retenu en session, mémorisé d'une visite à l'autre. */
-export type PickedAthlete = { id: number; name: string };
+/**
+ * Athlète retenu en session, mémorisé d'une visite à l'autre.
+ *
+ * `prenom` et `nom` restent **séparés**, comme l'API les donne. Les aplatir en
+ * un seul libellé obligeait le rail à redécouper le prénom, et « Jean Gael »
+ * y perdait sa seconde moitié quand « Jean-Gaël » passait entier (#264).
+ */
+export type PickedAthlete = { id: number; prenom: string; nom: string };
 
 const STORE = "tcn-athlete";
 
+/** Nom d'usage — `filter` couvre l'athlète dont un des deux champs est vide. */
+export function nomComplet(athlete: { prenom: string; nom: string }): string {
+  return [athlete.prenom, athlete.nom].filter(Boolean).join(" ");
+}
+
 /**
  * Le stock est éditable par l'utilisateur : une valeur JSON-valide mais de
- * mauvaise forme ferait planter l'affichage (`name.split`) ou router vers
- * `/athletes/undefined`. On la traite comme une absence de choix.
+ * mauvaise forme ferait planter l'affichage ou router vers
+ * `/athletes/undefined`. On la traite comme une absence de choix — ce qui
+ * couvre aussi les stocks écrits avant #264, de forme `{ id, name }` : leur
+ * porteur re-sélectionne son athlète une fois.
  */
 export function readAthlete(): PickedAthlete | null {
   try {
     const valeur: unknown = JSON.parse(window.localStorage.getItem(STORE) ?? "null");
     const candidat = valeur as PickedAthlete | null;
-    return typeof candidat?.id === "number" && typeof candidat?.name === "string" ? candidat : null;
+    return typeof candidat?.id === "number" &&
+      typeof candidat?.prenom === "string" &&
+      typeof candidat?.nom === "string"
+      ? candidat
+      : null;
   } catch {
     return null;
   }
@@ -105,18 +122,19 @@ export function AthletePicker({
       />
       <div style={{ marginTop: 8 }}>
         {rows.map((a) => {
-          const fullName = [a.prenom, a.nom].filter(Boolean).join(" ");
+          const fullName = nomComplet(a);
+          const choisir = () => onPick({ id: a.id, prenom: a.prenom, nom: a.nom });
           return (
             <div
               key={a.id}
               role="button"
               tabIndex={0}
               aria-label={`Choisir ${fullName}`}
-              onClick={() => onPick({ id: a.id, name: fullName })}
+              onClick={choisir}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  onPick({ id: a.id, name: fullName });
+                  choisir();
                 }
               }}
               style={{ display: "flex", alignItems: "center", gap: 14, padding: "11px 14px", borderRadius: 12, cursor: "pointer" }}

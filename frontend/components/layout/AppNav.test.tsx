@@ -89,15 +89,67 @@ beforeEach(() => {
 describe("readAthlete — stock corrompu", () => {
   it("traite une valeur illisible ou de mauvaise forme comme une absence de choix", () => {
     // Le stock est éditable : sans garde, `{ id: "1" }` passerait le
-    // `JSON.parse` puis planterait à l'affichage (`name.split`).
+    // `JSON.parse` puis planterait à l'affichage.
     window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: "1" }));
     expect(readAthlete()).toBeNull();
 
     window.localStorage.setItem("tcn-athlete", "pas du json");
     expect(readAthlete()).toBeNull();
 
+    window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 7, prenom: "Marie", nom: "Gaudin" }));
+    expect(readAthlete()).toEqual({ id: 7, prenom: "Marie", nom: "Gaudin" });
+  });
+
+  it("refuse un stock qui ne porte que le nom complet (#264)", () => {
+    // Forme abandonnée : `{ id, name }` obligeait le rail à redécouper le
+    // prénom, ce qu'aucune heuristique ne fait juste. Un stock d'avant le
+    // correctif est une absence de choix — l'athlète se re-sélectionne une fois.
     window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 7, name: "Marie Gaudin" }));
-    expect(readAthlete()).toEqual({ id: 7, name: "Marie Gaudin" });
+    expect(readAthlete()).toBeNull();
+  });
+});
+
+describe("AppNav — prénom de l'athlète retenu (#264)", () => {
+  /**
+   * Un prénom composé sans trait d'union — « Jean Gael » — est **un** prénom.
+   * Le rail affichait `name.split(" ")[0]`, donc « Jean », alors que
+   * « Jean-Gaël » passait entier : la troncature ne dépendait que de la
+   * présence d'une espace. Le prénom vient désormais du champ `prenom` de
+   * l'API, jamais d'un découpage du nom complet.
+   */
+  it("affiche un prénom composé en entier", async () => {
+    window.localStorage.setItem(
+      "tcn-athlete",
+      JSON.stringify({ id: 12, prenom: "Jean Gael", nom: "Dupont" }),
+    );
+    afficher(null);
+    await deplier();
+
+    expect(await screen.findByRole("link", { name: "Jean Gael" })).toHaveAttribute(
+      "href",
+      "/athletes/12",
+    );
+    expect(screen.queryByRole("link", { name: "Jean" })).not.toBeInTheDocument();
+    // Le nom complet reste porté par le profil et l'avatar, pas par le libellé.
+    expect(screen.getByRole("link", { name: "Mon profil — Jean Gael Dupont" })).toBeInTheDocument();
+  });
+
+  it("retient le prénom tel que l'API le donne, sans le reconstruire (#264)", async () => {
+    // Le bout en bout : le picker écrit le stock que le rail relit. C'est
+    // `AthletePicker` qui aplatissait `prenom` et `nom` en une seule chaîne,
+    // rendant le prénom indevinable en aval.
+    listParticipations.mockResolvedValue([
+      { athlete: { id: 12, prenom: "Jean Gael", nom: "Dupont", gender: "M", club: "TCN" } },
+    ]);
+    afficher(null);
+    await userEvent.keyboard("{Control>}k{/Control}");
+
+    const modale = await screen.findByRole("dialog");
+    await userEvent.type(within(modale).getByPlaceholderText("Rechercher un nom…"), "dupont");
+    await userEvent.click(await screen.findByRole("button", { name: "Choisir Jean Gael Dupont" }));
+
+    expect(readAthlete()).toEqual({ id: 12, prenom: "Jean Gael", nom: "Dupont" });
+    expect(push).toHaveBeenCalledWith("/athletes/12");
   });
 });
 
