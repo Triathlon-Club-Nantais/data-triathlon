@@ -534,3 +534,30 @@ def test_the_new_power_is_its_own_entry_in_the_catalogue():
     assert P.COURSES_SOURCES in permissions.ALL
     assert P.COURSES_SOURCES.feature == permissions.FEATURE_COURSES
     assert "réécrit" in P.COURSES_SOURCES.description
+
+
+def test_a_fanout_incoming_source_only_replaces_this_events_ranking(
+    client, db_session, organisation, epreuve, scrape
+):
+    """Une URL entrante qui publie **plusieurs** épreuves ne verse pas tout ici.
+
+    Cas mesuré de l'epic : une seule adresse Klikego publie les cinq heats de
+    Mesquer. `_require_same_event` se contente d'**un** résultat à la bonne
+    identité, précisément pour ne pas refuser ces adresses — reste à établir que
+    les manches voisines ne finissent pas dans le classement qu'on bascule.
+    """
+    course, passive = epreuve
+    voisin = _result("77", "MANCHE-VOISINE")
+    voisin.event_type = "swimrun-m"
+    scrape([_result("9", "NOUVEAU"), voisin])
+
+    connecte(client, db_session, organisation, P.COURSES_SOURCES.code)
+    response = client.patch(_url(course.id, passive.id), json={"is_active": True})
+
+    assert response.status_code == 200
+    assert _dossards(db_session, course.id) == ["9"]
+    autre = course_repository.get_by_identity(
+        db_session, name=NOM, event_date=JOUR, event_type="swimrun-m", is_relay=False
+    )
+    assert autre is not None, "la manche voisine suit son chemin d'import habituel"
+    assert _dossards(db_session, autre.id) == ["77"]
