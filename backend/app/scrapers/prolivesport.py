@@ -1,24 +1,37 @@
 """
-Scraper for prolivesport.fr
+Scraper prolivesport.fr — fan-out par course (#269).
 
-URL format:
+Formes d'URL acceptées :
   https://www.prolivesport.fr/index.php?chap=event&sub=liveV3&eventId=979&race=Triathlon%20M
-    &search=ARNOUX
+  https://www.prolivesport.fr/V2/result/1060           (nue)
+  https://www.prolivesport.fr/result/1082/4            (index positionnel)
 
-API base: https://api.prolivesport.fr/apiws
-Token:    AUTH_PLSWS_V2  (hardcoded in the Angular bundle)
+API base : https://api.prolivesport.fr/apiws
+Token    : AUTH_PLSWS_V2  (codé en dur dans le bundle Angular)
 
-Flow:
-  1. Parse eventId + race from URL
-  2. GET /result/raceList/{eventId}/  → verify race exists
-  3. GET /result/indiv/{eventId}/{race}/  → all athletes (JSON)
-  4. Filter by lastname (search param)
-  5. GET /result/splitDetail/{eventId}/  → field→split label mapping
-  6. Map T1-T5 fields to swim/T1/bike/T2/run
+Flux nominal (`scrape_event_fanout`) :
+  1. `_parse_url`        → eventId (le jeton `race` est ignoré : le fan-out énumère)
+  2. `event/detail`      → nom + date, partagés par toutes les courses
+  3. `result/raceList`   → la liste des courses = les sous-unités
+  4. `result/indiv`      → les lignes, **regroupées par leur champ `race`**
+  5. `result/splitDetail`→ un seul appel pour l'événement, filtré par course
+
+**Le piège central de ce fournisseur** (mesuré, cf.
+`docs/superpowers/specs/2026-08-11-prolivesport-fanout-sondage.md`) :
+`GET /result/indiv/{eventId}/{race}/` **ignore silencieusement** le segment
+`race` sur une partie des événements et renvoie l'**événement entier**. La
+corrélation observée — filtre ignoré dès que le code de course porte un espace
+ou un tiret bas — est parfaite sur le panel, mais on ne s'y fie pas : la seule
+vérité est le champ `race` porté par chaque ligne de la réponse, et le
+regroupement se fait toujours côté client. S'en fier coûtait ~4 000
+participations mal attribuées (rangs, temps et type d'épreuve faux) et
+l'événement stocké autant de fois qu'il avait de lignes dans le Sheet.
 """
+import logging
 import re
+from collections.abc import Callable
 from datetime import date
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 import httpx
 
@@ -29,10 +42,18 @@ from .base import (
     STATUS_DNS,
     STATUS_DSQ,
     STATUS_FINISHER,
+    FanoutTrace,
     ScrapedResult,
 )
 from .classify import classify_event_type
-from .utils import DEFAULT_HEADERS, normalize_rank, normalize_time
+from .utils import (
+    DEFAULT_HEADERS,
+    normalize_rank,
+    normalize_time,
+    qualify_event_name,
+)
+
+logger = logging.getLogger(__name__)
 
 API_BASE = "https://api.prolivesport.fr/apiws"
 TOKEN = "AUTH_PLSWS_V2"
@@ -41,6 +62,17 @@ HEADERS = {
     "access-token": TOKEN,
     "Accept": "application/json",
 }
+
+#: Essais d'un `result/indiv` avant abandon. Les réponses « événement entier »
+#: pèsent jusqu'à 14,7 Mo et la source rend des **500 à corps vide
+#: intermittents** dessus : mesuré 3 échecs d'affilée sur une course, 4 sur une
+#: autre, puis succès. Sans reprise, les plus gros événements échoueraient
+#: régulièrement en entier. Pas de temporisation entre les essais : les 500
+#: arrivent immédiatement, ils ne signalent pas une surcharge à laisser passer.
+_ESSAIS_INDIV = 5
+
+#: Délai d'un `result/indiv` — large, à la mesure des charges de 14,7 Mo.
+_TIMEOUT_INDIV = 60
 
 # Labels → split field mapping
 _SWIM_LABELS = {"swim", "nat", "cat/nat", "natation"}
@@ -130,19 +162,54 @@ def _parse_athlete(athlete: dict, split_map: dict, url: str, event_name: str, ev
 
 
 def _fetch_indiv(event_id: str, race: str, client: httpx.Client) -> list[dict]:
-    r = client.get(f"{API_BASE}/result/indiv/{event_id}/{race}/", timeout=20)
-    r.raise_for_status()
-    data = r.json()
-    if not data.get("success"):
-        raise ValueError(f"Prolivesport API erreur pour event {event_id} / race {race}: {data.get('message')}")
-    return data.get("result", [])
+    """Lignes de `result/indiv`, avec reprise sur les 500 intermittents.
+
+    Attention : la réponse peut couvrir **tout l'événement** et non la seule
+    course demandée (cf. le docstring du module). Ce qu'elle contient se lit
+    ligne par ligne dans le champ `race`, jamais dans le paramètre demandé.
+
+    Seuls les 5xx sont rejoués : un 4xx ou un `success: false` disent quelque
+    chose de la requête, les rejouer ne ferait que répéter l'erreur.
+    """
+    statut = 0
+    for essai in range(1, _ESSAIS_INDIV + 1):
+        r = client.get(
+            f"{API_BASE}/result/indiv/{event_id}/{race}/", timeout=_TIMEOUT_INDIV
+        )
+        if r.status_code >= 500:
+            statut = r.status_code
+            logger.warning(
+                "Prolivesport indiv %s/%s : HTTP %s à l'essai %s/%s",
+                event_id, race, statut, essai, _ESSAIS_INDIV,
+            )
+            continue
+        r.raise_for_status()
+        data = r.json()
+        if not data.get("success"):
+            raise ValueError(
+                f"Prolivesport API erreur pour event {event_id} / race {race}: "
+                f"{data.get('message')}"
+            )
+        return data.get("result", [])
+
+    raise httpx.HTTPError(
+        f"Prolivesport indiv {event_id}/{race} : {_ESSAIS_INDIV} essais, "
+        f"dernier statut HTTP {statut}."
+    )
 
 
-def _fetch_split_map(event_id: str, race: str, client: httpx.Client) -> dict[str, str]:
+def _fetch_splits(event_id: str, client: httpx.Client) -> list[dict]:
+    """Points de passage publiés, pour l'événement **entier**.
+
+    Un seul appel suffit : la réponse porte toutes les courses, `_build_split_map`
+    en extrait celle qui l'intéresse. Construire la carte pour une course et
+    l'appliquer aux autres était le défaut n° 5 du sondage — sur l'événement 1060,
+    la carte de « CHTRI 6-7 ans » (aucun split publié) était appliquée aux
+    3 120 lignes, effaçant les splits de `CHTRIMAN 113` et `CHTRIMAN 226`.
+    """
     r = client.get(f"{API_BASE}/result/splitDetail/{event_id}/", timeout=15)
     r.raise_for_status()
-    splits = r.json().get("result", [])
-    return _build_split_map(splits, race)
+    return r.json().get("result", [])
 
 
 def _fetch_event_meta(event_id: str, client: httpx.Client) -> tuple[str, date | None]:
@@ -184,10 +251,42 @@ def _parse_url(url: str) -> tuple[str, str]:
             rest = parts[parts.index("result") + 1:]
             event_id = rest[0] if rest else ""
             race = rest[1] if len(rest) >= 2 else race
+        elif parts and not parts[-1].endswith(".php"):
+            # Forme `/fftri/grand-prix-duathlon` : une page de **série**, pas une
+            # épreuve — même nature que le cas Competitor / ironman.com. Coquille
+            # SPA Angular sans aucun `eventId`, et le repli navigateur a été
+            # supprimé avec sa dépendance (#102) : rien à en tirer par scraping.
+            # L'API de série existe mais est derrière un JWT codé en dur dans le
+            # bundle, expiré depuis le 2025-04-07. Le message doit dire ce qu'est
+            # l'URL, sinon `import_service` la traduit en « fournisseur non
+            # supporté » — trompeur, ProLiveSport *est* supporté.
+            raise ValueError(
+                f"L'URL prolivesport.fr « {parsed.path} » désigne une page de "
+                "série (un Grand Prix et ses étapes), pas une épreuve : son "
+                "contenu est rendu par le navigateur et ne porte aucun "
+                "identifiant d'événement. Ouvrir l'étape voulue et copier son "
+                "lien, de la forme index.php?chap=event&sub=liveV3&eventId=…"
+            )
 
     if not event_id:
         raise ValueError("URL prolivesport.fr sans identifiant d'événement.")
     return event_id, race
+
+
+def _sub_source_url(event_id: str, race: str) -> str:
+    """URL canonique d'une course — clé de cache TTL et `source_url` persistée.
+
+    La forme doit être **identique caractère pour caractère** à celle des liens
+    du Sheet : `Course` est retrouvée par égalité exacte de `source_url`
+    (`course_repository.get_latest_by_source_url`), donc un `+` au lieu de `%20`
+    créerait un doublon au lieu de réécrire la `Course` existante. `quote`
+    encode bien l'espace en `%20` et laisse `_` et `-` intacts (`M_relay`,
+    `PO-PU`).
+    """
+    return (
+        "https://www.prolivesport.fr/index.php?chap=event&sub=liveV3"
+        f"&eventId={event_id}&race={quote(race)}"
+    )
 
 
 def _resolve_race(race: str, races: list[dict]) -> str:
@@ -227,11 +326,153 @@ def _derive_status(athlete: dict) -> str:
     return STATUS_DNS
 
 
+def _fetch_races(event_id: str, client: httpx.Client) -> list[str]:
+    """Codes de course de l'événement, dans l'ordre du `raceList`."""
+    r = client.get(f"{API_BASE}/result/raceList/{event_id}/", timeout=15)
+    r.raise_for_status()
+    return [
+        code
+        for entree in r.json().get("result", [])
+        if (code := (entree.get("race") or "").strip())
+    ]
+
+
+def _lignes_par_course(
+    event_id: str,
+    a_scraper: list[tuple[str, str]],
+    courses: list[str],
+    client: httpx.Client,
+    trace: FanoutTrace,
+    on_heat_start: Callable[[str, str, int, int], None] | None,
+) -> dict[str, list[dict]]:
+    """Lignes de chaque course à scraper, regroupées sur leur champ `race`.
+
+    Deux règles, tirées du sondage :
+
+    - **Le regroupement est côté client, toujours.** Une ligne appartient à la
+      course que son champ `race` désigne, jamais à celle qu'on a demandée.
+    - **Une réponse qui déborde de la course demandée est l'événement entier**
+      (comportement mesuré de la source) : elle est réutilisée pour toutes les
+      autres courses, plutôt que de redemander N fois 14,7 Mo.
+
+    `on_heat_start` est notifié pour **chaque** course à scraper, y compris celles
+    servies par une réponse déjà en main : la progression compte les courses
+    importées, pas les requêtes émises. Un échec est isolé sur sa course.
+    """
+    attendues = {race for race, _ in a_scraper}
+    lignes: dict[str, list[dict]] = {}
+    couvertes: set[str] = set()
+    total = len(a_scraper)
+
+    for index, (race, _sub_url) in enumerate(a_scraper, start=1):
+        if on_heat_start is not None:
+            on_heat_start(race, race, index, total)
+        if race in couvertes:
+            continue
+        try:
+            reponse = _fetch_indiv(event_id, race, client)
+        except Exception as exc:
+            logger.warning(
+                "Course prolivesport %s de l'événement %s en échec : %s",
+                race, event_id, exc,
+            )
+            trace.failures.append({"heat_slug": race, "reason": str(exc)})
+            continue
+
+        vues: set[str] = set()
+        for ligne in reponse:
+            code = (ligne.get("race") or "").strip()
+            vues.add(code)
+            if code in attendues:
+                lignes.setdefault(code, []).append(ligne)
+        couvertes.update(courses if vues - {race} else {race})
+
+    # Une course peut avoir échoué puis avoir été rattrapée par une réponse
+    # « événement entier » plus tardive : la laisser dans `failures` alors que ses
+    # participations sont importées casserait l'invariant
+    # `enumerated = imported + cached + len(failures)` dont `import_service`
+    # déduit `heats_imported`.
+    trace.failures = [
+        echec for echec in trace.failures if echec["heat_slug"] not in lignes
+    ]
+    return lignes
+
+
+def scrape_event_fanout(
+    url: str,
+    *,
+    cache_probe: Callable[[str], bool] | None = None,
+    on_heat_start: Callable[[str, str, int, int], None] | None = None,
+) -> tuple[list[ScrapedResult], FanoutTrace]:
+    """Fan-out par **course** de l'événement ProLiveSport — une `Course` par course.
+
+    Le jeton `race` de l'URL est ignoré : le fan-out énumère `raceList`. L'URL
+    nue et l'index positionnel (`/result/1082/4`, la 5ᵉ entrée du `raceList` — qui
+    change dès que la source réordonne) deviennent donc sans objet.
+
+    Contrat identique au fan-out Klikego (#156) :
+
+    - `cache_probe(sub_url)` — invoqué avant chaque course ; True → course sautée,
+      `trace.heats_cached++`, `trace.cached_urls.append(sub_url)`, `on_heat_start`
+      **non-notifié**.
+    - `on_heat_start(slug, label, index, total)` — `total` est le nombre de
+      courses **à scraper**, pas le nombre énuméré, sans quoi la progression
+      sauterait des indices sur un ré-import majoritairement caché.
+    - échec par course isolé, journalisé et ajouté à `trace.failures` sans
+      stopper les autres — indispensable ici, la source rend des 500
+      intermittents sur ses gros événements.
+
+    `trace.heats_imported` reste à 0 : dérivé par `import_service`.
+    """
+    trace = FanoutTrace()
+    event_id, _race_token = _parse_url(url)
+
+    with http.client(timeout=_TIMEOUT_INDIV, headers=HEADERS) as client:
+        event_name, event_date = _fetch_event_meta(event_id, client)
+        courses = _fetch_races(event_id, client)
+        trace.heats_enumerated = len(courses)
+        if not courses:
+            return [], trace
+
+        a_scraper: list[tuple[str, str]] = []
+        for race in courses:
+            sub_url = _sub_source_url(event_id, race)
+            if cache_probe is not None and cache_probe(sub_url):
+                trace.heats_cached += 1
+                trace.cached_urls.append(sub_url)
+                continue
+            a_scraper.append((race, sub_url))
+
+        if not a_scraper:
+            return [], trace
+
+        lignes = _lignes_par_course(
+            event_id, a_scraper, courses, client, trace, on_heat_start
+        )
+        splits = _fetch_splits(event_id, client)
+
+    resultats: list[ScrapedResult] = []
+    for race, sub_url in a_scraper:
+        split_map = _build_split_map(splits, race)
+        event_type = classify_event_type(race)
+        nom = qualify_event_name(event_name, race)
+        resultats.extend(
+            _parse_athlete(ligne, split_map, sub_url, nom, event_type, event_date)
+            for ligne in lignes.get(race, [])
+        )
+    return resultats, trace
+
+
 def scrape_event_all(url: str) -> list[ScrapedResult]:
-    """Fetch all participants for a Prolivesport event/race."""
+    """Une seule course, celle que l'URL désigne — échappatoire `--single-heat`.
+
+    Filtre les lignes sur leur champ `race` comme le fan-out : sans ce filtre,
+    l'échappatoire reconstruirait le fourre-tout que #269 corrige (815 lignes
+    dans un « Triathlon M » qui n'en compte que 336).
+    """
     event_id, race_token = _parse_url(url)
 
-    with http.client(timeout=30, headers=HEADERS) as client:
+    with http.client(timeout=_TIMEOUT_INDIV, headers=HEADERS) as client:
         event_name, event_date = _fetch_event_meta(event_id, client)
         r = client.get(f"{API_BASE}/result/raceList/{event_id}/", timeout=15)
         races = r.json().get("result", [])
@@ -241,11 +482,13 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                 f"Aucune épreuve trouvée pour l'événement prolivesport {event_id}."
             )
 
-        event_type = classify_event_type(race)
         athletes = _fetch_indiv(event_id, race, client)
-        split_map = _fetch_split_map(event_id, race, client)
+        split_map = _build_split_map(_fetch_splits(event_id, client), race)
 
+    event_type = classify_event_type(race)
+    nom = qualify_event_name(event_name, race)
     return [
-        _parse_athlete(a, split_map, url, event_name, event_type, event_date)
+        _parse_athlete(a, split_map, url, nom, event_type, event_date)
         for a in athletes
+        if (a.get("race") or "").strip() == race
     ]

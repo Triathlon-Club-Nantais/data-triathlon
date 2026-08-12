@@ -21,7 +21,6 @@ from app.core.club import is_tcn
 from app.scrapers import breizhchrono, klikego, registry
 
 # URLs réelles fonctionnelles, une par provider.
-# prolivesport : forme front `/result/{eventId}/{index}` (l'index 6 = course "S").
 LIVE_URLS = {
     "klikego": "https://www.klikego.com/resultats/triathlon-de-vierzon-2026/1674523163798-4",
     "breizhchrono": (
@@ -30,7 +29,15 @@ LIVE_URLS = {
     ),
     "wiclax": "https://chronosmetron.wiclax-results.com/Triathlon%20de%20la%20Roche%202026/",
     "timepulse": "https://www.timepulse.fr/epreuves/resultats/live/3232",
-    "prolivesport": "https://www.prolivesport.fr/result/1082/6",
+    # prolivesport : forme du Sheet, et l'événement le plus dur du panel de #269
+    # — 11 courses, des réponses de 14,7 Mo et des 500 intermittents dessus. Le
+    # `&race=` est **ignoré** depuis le fan-out (la forme positionnelle
+    # `/result/1082/6` qui servait ici désignait la 6ᵉ entrée du `raceList`,
+    # donc une course différente dès que la source réordonne).
+    "prolivesport": (
+        "https://www.prolivesport.fr/index.php?chap=event&sub=liveV3"
+        "&eventId=1082&race=M"
+    ),
     "sportinnovation": "https://sportinnovation.fr/Evenements/Resultats/7031",
     # Triathlon de Rumilly 2026 : 4 contests, dossards en collision d'un contest
     # à l'autre — l'épreuve qui a servi au sondage d'API initial.
