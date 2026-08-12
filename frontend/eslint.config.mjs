@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Flat config only ignores node_modules and .git by default, so a worktree
+    // nested under frontend/.claude/ would be linted as well (see #300).
+    "**/.claude/**",
   ]),
 ]);
 

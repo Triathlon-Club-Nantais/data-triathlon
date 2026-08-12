@@ -56,10 +56,12 @@ Thumbs.db
 docs/local/
 # État persistant du skill /onboard (voir .claude/skills/onboard/SKILL.md)
 .claude/skills/onboard/state.json
-# Worktrees (git worktree fallback)
-.claude/worktrees/
+# Worktrees (git worktree fallback) — dé-ancré : une session dont le répertoire
+# courant est frontend/ crée son worktree dans frontend/.claude/worktrees/, que
+# « .claude/worktrees/ » seul ne couvre pas (motif à slash = ancré à la racine).
+**/.claude/worktrees/
 
 # Worktrees isolés (superpowers)
-.worktrees/
+**/.worktrees/
 # Ledger d'exécution de subagent-driven-development — jetable, un dossier par plan
 .superpowers/
