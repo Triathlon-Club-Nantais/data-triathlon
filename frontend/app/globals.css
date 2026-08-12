@@ -86,8 +86,16 @@
   /* ── Brand orange ─────────────────────────────────────────────── */
   --tcn-orange:        #E9530E;
   --tcn-orange-bright: #ff6620;
-  --tcn-orange-deep:   #c04008;
-  --tcn-orange-grad:   linear-gradient(150deg, #ff6620, #E9530E);
+  /* Le couple porteur de texte blanc. `--tcn-orange` reste l'orange de marque et
+     ne bouge pas, mais du blanc n'y tient que 3,68:1 : partout où du texte se
+     pose **sur** de l'orange, c'est cette paire plus profonde qui sert, où le
+     blanc atteint 5,28:1 et 4,61:1 (#299). `-deep-bright` est au `-deep` ce que
+     `-bright` est à l'orange : la valeur de survol. */
+  --tcn-orange-deep:        #c04008;
+  --tcn-orange-deep-bright: #cf4708;
+  /* Dégradé des surfaces qui portent du texte — tuile hero, avatar, carte hero.
+     Il descendait de #ff6620 à #E9530E, où le blanc tombait à 2,93 et 3,68:1. */
+  --tcn-orange-grad:   linear-gradient(150deg, #cf4708, #c04008);
   --tcn-orange-12:     rgba(233, 83, 14, 0.12);
   --tcn-orange-10:     rgba(233, 83, 14, 0.10);
   --tcn-orange-08:     rgba(233, 83, 14, 0.08);
@@ -233,11 +241,18 @@
   --card-foreground: var(--tcn-ink);
   --popover: var(--tcn-surface);
   --popover-foreground: var(--tcn-ink);
-  --primary: var(--tcn-orange);
-  /* Le pendant shadcn de la décision de #299 : `bg-primary text-primary-foreground`
-     est le variant par défaut d'`ui/button` et d'`ui/badge`, plus `ScopeToggle` —
-     tous sur l'orange, où du blanc ne tenait que 3,68:1. */
-  --primary-foreground: var(--tcn-ink);
+  /* Le pendant shadcn de `.tcn-btn--primary`, et il suit le même arbitrage : le
+     texte reste blanc, le fond descend à `--tcn-orange-deep`. `bg-primary
+     text-primary-foreground` est le variant par défaut d'`ui/button` et
+     d'`ui/badge`, plus `ScopeToggle` ; sans ça les deux bibliothèques
+     afficheraient deux oranges différents sous le même texte blanc, et `ui/`
+     resterait à 3,68:1 sur sept écrans publics.
+
+     `--primary` sert aussi aux voiles (`bg-primary/5`, `border-primary/40`), aux
+     barres de `MonthlyTrend` et au `text-primary` de `CoursesAdminTable` — ce
+     dernier y gagne, passant de 3,32:1 à 5,28:1 sur blanc. */
+  --primary: var(--tcn-orange-deep);
+  --primary-foreground: #fff;
   --secondary: var(--tcn-fill);
   --secondary-foreground: var(--tcn-ink);
   --muted: var(--tcn-fill);
@@ -263,15 +278,26 @@
   }
 }
 
-/* Bouton TCN — en `components` et non `utilities` : une classe Tailwind passée
-   par l'appelant (`w-full`, `mt-4`) doit gagner, et dans la couche `utilities`
-   c'est l'ordre source qui trancherait, donc nous.
+/* Bouton TCN — en `base`, et le choix se mesure au CSS **compilé**, pas au
+   raisonnement sur les couches : Tailwind v4 **jette le contenu** d'un
+   `@layer components` écrit à la main. Il n'en reste qu'un `@layer components;`
+   vide dans la sortie, le bouton perd tout style, et rien ne le signale — ni
+   `npm run build`, ni le lint. Le `@layer utilities` de ce même fichier, lui,
+   est conservé (`.tcn-input`, `.tcn-rowlink`, `.eyebrow`), donc l'asymétrie ne
+   se devine pas : elle se vérifie.
+
+   `base` est de toute façon la meilleure des deux couches survivantes pour ces
+   règles. L'intention était qu'une classe Tailwind passée par l'appelant
+   (`w-full`, `mt-4`) gagne : depuis `base`, elle gagne toujours, la couche
+   `utilities` passant après. Depuis `utilities`, c'est l'ordre source qui
+   trancherait — et nos règles y sont émises **après** les utilitaires générés
+   (ligne 3540 contre 1170 dans la sortie), donc nous gagnerions à tort.
 
    Pourquoi des classes plutôt que le `CSSProperties` en ligne d'origine :
    `:hover`, `:active`, `:focus-visible` et `disabled` y sont **inexprimables**.
    C'était la cause commune de trois défauts de #299 — focus invisible,
    `disabled` sans rendu, transition déclarée pour rien. */
-@layer components {
+@layer base {
   .tcn-btn {
     display: inline-flex;
     align-items: center;
@@ -324,17 +350,19 @@
     font-size: 15px;
   }
 
-  /* Variants. L'orange ne bouge pas ; c'est le texte qui est en encre (#299) —
-     4,54:1, contre 3,68:1 pour du blanc. Le survol éclaircit vers
-     `--tcn-orange-bright`, où l'encre monte à 5,70:1. */
+  /* Variants. Le texte reste **blanc** — arbitrage produit de #299, l'encre sur
+     orange ayant été essayée puis écartée au rendu — et c'est le fond qui
+     descend d'un cran, de `--tcn-orange` à `--tcn-orange-deep` : le blanc y passe
+     de 3,68:1 à 5,28:1, et à 4,61:1 au survol. `--tcn-orange` lui-même est
+     intact, il ne portait de texte que sur ces boutons. */
   .tcn-btn--primary {
-    background: var(--tcn-orange);
-    color: var(--tcn-ink);
+    background: var(--tcn-orange-deep);
+    color: #fff;
     box-shadow: var(--tcn-shadow-orange);
     font-weight: 800;
   }
   .tcn-btn--primary:hover:not(:disabled) {
-    background: var(--tcn-orange-bright);
+    background: var(--tcn-orange-deep-bright);
   }
   .tcn-btn--secondary {
     background: var(--tcn-surface);

@@ -26,6 +26,14 @@ function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
+/** Nom de la couche `@layer` qui contient un sélecteur, `null` s'il est hors couche. */
+function layerOf(selector: string): string | null {
+  const position = css.indexOf(`${selector} {`);
+  if (position < 0) throw new Error(`sélecteur ${selector} absent de globals.css`);
+  const couches = [...css.slice(0, position).matchAll(/@layer\s+([a-z-]+)\s*\{/g)];
+  return couches.length > 0 ? couches[couches.length - 1][1] : null;
+}
+
 /** Corps d'une règle CSS, désigné par son sélecteur exact. */
 function rule(selector: string): string {
   const echappe = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -54,24 +62,38 @@ describe("palette de texte TCN", () => {
     }
   });
 
-  it("porte l'encre, pas du blanc, sur l'orange de marque et ses deux extrémités de dégradé", () => {
-    // Arbitrage produit de #299 : l'orange ne bouge pas, le texte devient encre.
-    // Du blanc n'y tenait que 3,68:1 pour 4,5:1 requis.
-    const encre = token("--tcn-ink");
+  /**
+   * Les fonds oranges qui portent du texte blanc.
+   *
+   * Arbitrage produit de #299, pris **au rendu** : le texte reste blanc — l'encre
+   * sur orange a été essayée et écartée — et c'est le fond qui descend d'un cran.
+   * `--tcn-orange` lui-même est intact ; il n'est donc pas dans cette liste,
+   * puisqu'il ne porte plus de texte nulle part.
+   */
+  const FONDS_A_TEXTE_BLANC = ["--tcn-orange-deep", "--tcn-orange-deep-bright"];
+
+  it.each(FONDS_A_TEXTE_BLANC)("%s porte du blanc à 4,5:1", (nom) => {
+    expect(contrast("#ffffff", token(nom))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("porte du blanc aux deux extrémités du dégradé, libellé de 13px compris", () => {
+    // Tuile hero, avatar et carte hero. Le seuil est celui du **petit** texte :
+    // le nombre de 86px atteignait déjà 3:1 avant, le libellé de 13px non.
     const grad = /--tcn-orange-grad:\s*linear-gradient\([^,]+,\s*(#[0-9a-fA-F]{6}),\s*(#[0-9a-fA-F]{6})\)/.exec(css);
     expect(grad).not.toBeNull();
 
-    for (const fond of [token("--tcn-orange"), grad![1], grad![2]]) {
-      expect(contrast(encre, fond)).toBeGreaterThanOrEqual(4.5);
-      expect(contrast("#ffffff", fond)).toBeLessThan(4.5);
+    for (const extremite of [grad![1], grad![2]]) {
+      expect(contrast("#ffffff", extremite)).toBeGreaterThanOrEqual(4.5);
     }
   });
 
-  it("fait suivre le pont shadcn : primary-foreground est l'encre", () => {
+  it("fait suivre le pont shadcn : bg-primary est l'orange profond, son texte du blanc", () => {
     // `bg-primary text-primary-foreground` est le variant par défaut
-    // d'`ui/button` et d'`ui/badge`, plus `ScopeToggle`. Sans ça, `tcn/` serait
-    // corrigé et `ui/` garderait le même défaut sur sept écrans publics.
-    expect(token("--primary-foreground")).toBe("var(--tcn-ink)");
+    // d'`ui/button` et d'`ui/badge`, plus `ScopeToggle`. Sans ça les deux
+    // bibliothèques afficheraient deux oranges sous le même blanc, et `ui/`
+    // resterait à 3,68:1 sur sept écrans publics.
+    expect(token("--primary")).toBe("var(--tcn-orange-deep)");
+    expect(token("--primary-foreground")).toBe("#fff");
   });
 
   it("garde l'anneau de focus au-dessus du seuil non-textuel sur papier", () => {
@@ -105,6 +127,16 @@ describe("bouton TCN", () => {
   // `:active`, `:focus-visible` et `disabled` sont **inexprimables** : c'était la
   // cause commune des trois défauts que ces règles referment (#299).
 
+  it("vit dans une couche que Tailwind v4 conserve", () => {
+    // Le piège qui a rendu le bouton entièrement nu en dev sans que rien ne
+    // bronche — ni `npm run build`, ni le lint, ni les tests d'ici, qui lisent la
+    // **source** et non le CSS compilé : Tailwind v4 **jette le contenu** d'un
+    // `@layer components` écrit à la main, n'en laissant qu'un `@layer components;`
+    // vide. Le `@layer utilities` du même fichier, lui, est conservé.
+    expect(css).not.toMatch(/@layer\s+components\s*\{/);
+    expect(layerOf(".tcn-btn")).toBe("base");
+  });
+
   it("rend le focus clavier visible, à l'identique de .tcn-input", () => {
     // WCAG 2.4.7 — le seul reste était l'anneau UA teinté par `outline-ring/50`,
     // soit l'orange à 50 % d'alpha : 1,86:1 composité sur papier pour 3:1 requis.
@@ -112,8 +144,10 @@ describe("bouton TCN", () => {
     expect(rule(".tcn-btn:focus-visible")).toContain("outline-offset: 2px");
   });
 
-  it("porte l'encre sur l'orange pour le variant primaire", () => {
-    expect(rule(".tcn-btn--primary")).toContain("color: var(--tcn-ink)");
+  it("pose son blanc sur l'orange profond, pas sur l'orange de marque", () => {
+    const primaire = rule(".tcn-btn--primary");
+    expect(primaire).toContain("color: #fff");
+    expect(primaire).toContain("background: var(--tcn-orange-deep)");
   });
 
   it("donne 44px de cible tactile aux deux tailles qui n'y arrivaient pas", () => {

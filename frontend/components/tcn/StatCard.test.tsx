@@ -26,14 +26,16 @@ describe("StatCard", () => {
     expect(screen.getByText("12 athlètes")).toBeInTheDocument();
   });
 
-  it("écrit la variante hero en encre sur le dégradé orange", () => {
-    // #299 : le libellé à 13 px et la pastille de delta étaient en blanc sur
-    // dégradé (3,68:1 à l'extrémité foncée) ; seule la valeur à 86 px tenait le
-    // seuil « texte large ». L'encre les met les trois à 4,54:1 au pire.
+  it("écrit la variante hero en blanc plein sur le dégradé orange", () => {
+    // #299 : le libellé de 13px n'était qu'à 85 % d'opacité et la pastille de
+    // delta sur un voile blanc, soit 3,68 et 3,42:1 ; seule la valeur de 86px
+    // tenait son seuil de grand texte. Le blanc reste — c'est le dégradé qui a
+    // été assombri, et la pastille qui assombrit désormais son fond.
     render(<StatCard variant="hero" label="Dossards" value={120} delta="12 athlètes" />);
 
     for (const texte of ["Dossards", "120", "12 athlètes"]) {
-      expect(screen.getByText(texte)).toHaveStyle({ color: "var(--tcn-ink)" });
+      expect(screen.getByText(texte)).toHaveStyle({ color: "#fff" });
     }
+    expect(screen.getByText("12 athlètes")).toHaveStyle({ background: "rgba(0,0,0,.12)" });
   });
 });

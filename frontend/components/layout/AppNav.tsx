@@ -348,10 +348,11 @@ function NavContent({
             padding: padAction,
             justifyContent: justify,
             borderRadius: "var(--tcn-radius-lg)",
-            background: "var(--tcn-orange)",
-            // 14 px en 800 : du blanc n'y tenait que 3,68:1, et aucune taille du
-            // bouton n'atteint le seuil « texte large » (#299).
-            color: "var(--tcn-ink)",
+            // 14 px en 800 : aucune taille de ce bouton n'atteint le seuil
+            // « texte large », donc le blanc y demande 4,5:1 — d'où le fond
+            // `-deep`, où il tient 5,28:1 contre 3,68:1 sur l'orange nu (#299).
+            background: "var(--tcn-orange-deep)",
+            color: "#fff",
             textDecoration: "none",
             boxShadow: "var(--tcn-shadow-orange)",
             fontWeight: 800,
@@ -615,12 +616,12 @@ const carreSecondaire: CSSProperties = {
 
 const carrePrimaire: CSSProperties = {
   ...carre,
-  background: "var(--tcn-orange)",
+  // Même fond que les boutons primaires : le glyphe blanc tenait déjà le seuil
+  // non-textuel sur l'orange nu (3,68:1 pour 3:1 requis), mais il aurait été le
+  // seul orange de l'interface à porter du blanc sous les 4,5:1 (#299).
+  background: "var(--tcn-orange-deep)",
   border: "none",
-  // Encre, comme les boutons primaires depuis #299. Le glyphe blanc tenait le
-  // seuil non-textuel (3,68:1 pour 3:1), mais il aurait été le dernier blanc sur
-  // orange de l'interface — la cohérence, ici, vaut mieux que le minimum.
-  color: "var(--tcn-ink)",
+  color: "#fff",
   boxShadow: "var(--tcn-shadow-orange)",
 };
 
