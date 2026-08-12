@@ -5,6 +5,7 @@
   (`uq_course_identity`) : le relais est un **heat distinct** du solo, sans quoi
   les deux fusionnaient dans la même ligne. Quatre colonnes, pas trois — la
   vérité est dans `backend/app/models/course.py`. `source_url` = clé de cache TTL.
+- **CourseSource** — `UNIQUE(course_id, url)`, **jamais** `UNIQUE(url)` (cf. plus bas).
 - **Participation** — `UNIQUE(course_id, bib_number)` → plus de doublons à l'import.
 - **splits** en **JSON** (remplace les colonnes figées swim/t1/bike/t2/run) →
   couvre tous les sports (duathlon course1/course2, swimrun…). Temps = strings.
@@ -25,6 +26,35 @@
   multi-legs « garde toutes ses étapes » : rien ne l'établit à ce jour. Panel et
   chiffres : `docs/superpowers/specs/2026-07-19-raceresult-api-sondage.md`. Les
   scrapers qui remplissent encore les 5 slots restent plafonnés à 5 segments.
+
+## Sources d'une épreuve (#278) — une table, deux contraintes
+
+`course_sources` (`id`, `course_id`, `url`, `provider`, `is_active`,
+`created_at`, `created_by_user_id`, `last_scraped_at`) donne à une épreuve **N
+sources dont une seule active**. Les participations restent portées par la
+`Course`, jamais par la source : le classement affiché ne mélange pas deux
+chronométreurs.
+
+- **`UNIQUE(course_id, url)`, et surtout pas `UNIQUE(url)`.** Une URL porte
+  légitimement N épreuves — heats Klikego, multi-catégories Wiclax, multi-listes
+  RaceResult, multi-épreuves Chronoplace, cf.
+  `course_repository.list_by_source_url`. Ce n'est pas une hypothèse : sur la base
+  de dev, **5 URLs portent plusieurs épreuves, la plus chargée en porte 13** — un
+  unique global aurait fait échouer la migration de reprise elle-même.
+- **`Index` partiel unique `UNIQUE(course_id) WHERE is_active`** : l'unicité de la
+  source active est tenue par la **base**, pas par une lecture préalable que deux
+  exploitants simultanés franchiraient tous deux. Il porte `sqlite_where=` **et**
+  `postgresql_where=` — même piège qu'`uq_role_global_slug` : n'en donner qu'un
+  produit un index *complet* sur l'autre moteur, et la deuxième source d'une
+  épreuve devient irreprésentable.
+- **Une source naît passive** (`is_active=False`) : une URL soumise pour une
+  épreuve déjà connue ne prend pas la main, la première scrapée la garde.
+- **Pas d'`ondelete`**, comme partout : la cascade est portée par
+  `Course.sources` (`delete-orphan`). Supprimer une épreuve emporte ses sources ;
+  en absorber une (#287) suppose de repointer `source.course` **avant** le delete,
+  comme `services/reclassify` le fait pour les participations.
+- `Course.source_url` et `Course.provider` restent la source de vérité du code
+  jusqu'à #279 : à cette étape la table est en avance sur ses lecteurs.
 
 ## RBAC (#115) — quatre tables, deux colonnes
 
