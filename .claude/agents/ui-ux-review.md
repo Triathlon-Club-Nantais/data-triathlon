@@ -83,6 +83,14 @@ en fin de rapport, hors des findings, et tu passes.
   Résous les `var(--tcn-*)` en hex via `globals.css` avant de calculer, et prends
   la **vraie** couleur de fond : celle de l'élément, sinon celle de son parent.
   Un texte sur dégradé se juge sur l'extrémité la moins favorable.
+- **La palette elle-même se balaie** dès que `globals.css` entre dans le
+  périmètre : croise chaque token de texte (`--tcn-text-*`, `--tcn-placeholder`,
+  la rampe neutre) avec chaque surface (`--tcn-paper`, `--tcn-surface`,
+  `--tcn-surface-sunk`, `--tcn-fill`) et calcule les paires en une passe. Un
+  token sous le seuil ne devient un finding que s'il est **consommé** :
+  compte ses usages (`rg 'tcn-text-faint' frontend/`) et donne le nombre. Un
+  token défini que personne ne lit est du code mort, pas un défaut
+  d'accessibilité — et c'est un finding d'une autre nature.
 - **Focus visible** (2.4.7) : tout élément interactif garde un focus clavier
   perceptible. Un `outline: none` sans remplacement est un bloquant.
 - **Animation** (2.3.3) : une transition ou une animation non essentielle doit
@@ -185,5 +193,9 @@ Une passe d'auto-critique, la même que tu appliquerais à un écran :
   refonte ? Si oui, je le retire.
 - Chaque contraste annoncé a-t-il été **calculé**, avec le bon fond ?
 - Chaque finding a-t-il un fichier, une ligne et un chiffre ?
+- Ai-je écrit une **absence** — « aucun usage », « zéro occurrence », « défini et
+  jamais lu » ? Alors le motif de recherche était-il assez large, et son
+  périmètre le bon ? Un `rg` trop étroit fabrique une absence, et une absence
+  fabriquée est un finding faux avec l'aplomb d'un chiffre.
 - Ai-je signalé quelque chose que la section « déjà arbitré » couvre ?
 - Le plus grave est-il en premier ?
