@@ -349,7 +349,9 @@ function NavContent({
             justifyContent: justify,
             borderRadius: "var(--tcn-radius-lg)",
             background: "var(--tcn-orange)",
-            color: "#fff",
+            // 14 px en 800 : du blanc n'y tenait que 3,68:1, et aucune taille du
+            // bouton n'atteint le seuil « texte large » (#299).
+            color: "var(--tcn-ink)",
             textDecoration: "none",
             boxShadow: "var(--tcn-shadow-orange)",
             fontWeight: 800,
@@ -615,7 +617,10 @@ const carrePrimaire: CSSProperties = {
   ...carre,
   background: "var(--tcn-orange)",
   border: "none",
-  color: "#fff",
+  // Encre, comme les boutons primaires depuis #299. Le glyphe blanc tenait le
+  // seuil non-textuel (3,68:1 pour 3:1), mais il aurait été le dernier blanc sur
+  // orange de l'interface — la cohérence, ici, vaut mieux que le minimum.
+  color: "var(--tcn-ink)",
   boxShadow: "var(--tcn-shadow-orange)",
 };
 

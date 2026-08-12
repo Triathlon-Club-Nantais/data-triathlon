@@ -42,8 +42,14 @@
 
   /* Marque + sémantique (orange TCN) */
   --color-brand: var(--tcn-orange);
-  --color-brand-foreground: #ffffff;
+  --color-brand-foreground: var(--tcn-ink);
   --color-accent-ink: var(--tcn-danger-text);
+  /* Ces deux paires ne sont **lues par personne** (`bg-success`, `bg-warning`,
+     `text-*-foreground` : zéro usage) et ne tiendraient pas le seuil si on les
+     consommait — blanc sur `--tcn-success` = 4,37:1, `--tcn-warning-text` sur
+     `--tcn-warning` = 3,29:1, et l'encre n'y arrive pas mieux (3,82:1 sur le
+     vert). Les corriger demanderait de bouger les deux couleurs sémantiques
+     elles-mêmes : à faire le jour où un écran en a besoin, pas avant. */
   --color-success: var(--tcn-success);
   --color-success-foreground: #ffffff;
   --color-warning: var(--tcn-warning);
@@ -228,7 +234,10 @@
   --popover: var(--tcn-surface);
   --popover-foreground: var(--tcn-ink);
   --primary: var(--tcn-orange);
-  --primary-foreground: #ffffff;
+  /* Le pendant shadcn de la décision de #299 : `bg-primary text-primary-foreground`
+     est le variant par défaut d'`ui/button` et d'`ui/badge`, plus `ScopeToggle` —
+     tous sur l'orange, où du blanc ne tenait que 3,68:1. */
+  --primary-foreground: var(--tcn-ink);
   --secondary: var(--tcn-fill);
   --secondary-foreground: var(--tcn-ink);
   --muted: var(--tcn-fill);
@@ -251,6 +260,97 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+/* Bouton TCN — en `components` et non `utilities` : une classe Tailwind passée
+   par l'appelant (`w-full`, `mt-4`) doit gagner, et dans la couche `utilities`
+   c'est l'ordre source qui trancherait, donc nous.
+
+   Pourquoi des classes plutôt que le `CSSProperties` en ligne d'origine :
+   `:hover`, `:active`, `:focus-visible` et `disabled` y sont **inexprimables**.
+   C'était la cause commune de trois défauts de #299 — focus invisible,
+   `disabled` sans rendu, transition déclarée pour rien. */
+@layer components {
+  .tcn-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: none;
+    border-radius: var(--tcn-radius-lg);
+    font-family: var(--tcn-font-body);
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    text-decoration: none;
+    white-space: nowrap;
+    outline: none;
+    transition:
+      background var(--tcn-dur-fast),
+      color var(--tcn-dur-fast),
+      border-color var(--tcn-dur-fast),
+      box-shadow var(--tcn-dur-fast);
+  }
+  /* WCAG 2.4.7 — même anneau que `.tcn-input` et `.tcn-rowlink` : 3,32:1 sur
+     papier. L'anneau UA teinté par `outline-ring/50` ne valait que 1,86:1. */
+  .tcn-btn:focus-visible {
+    outline: 2px solid var(--tcn-orange);
+    outline-offset: 2px;
+  }
+  /* Un composant d'interface inactif n'a pas de seuil de contraste (WCAG 1.4.3,
+     exception « incidental ») : l'opacité est donc le bon outil ici. */
+  .tcn-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+    box-shadow: none;
+  }
+
+  /* Tailles. `min-height` et non un padding plus grand : la consigne est de
+     garder les paddings, et 44px est la cible tactile visée. `sm` faisait 31px,
+     `md` — le défaut — 38px ; `lg` atteint déjà 45px par son padding. */
+  .tcn-btn--sm {
+    padding: 9px 16px;
+    font-size: 13px;
+    min-height: 44px;
+  }
+  .tcn-btn--md {
+    padding: 12px 20px;
+    font-size: 14px;
+    min-height: 44px;
+  }
+  .tcn-btn--lg {
+    padding: 15px 26px;
+    font-size: 15px;
+  }
+
+  /* Variants. L'orange ne bouge pas ; c'est le texte qui est en encre (#299) —
+     4,54:1, contre 3,68:1 pour du blanc. Le survol éclaircit vers
+     `--tcn-orange-bright`, où l'encre monte à 5,70:1. */
+  .tcn-btn--primary {
+    background: var(--tcn-orange);
+    color: var(--tcn-ink);
+    box-shadow: var(--tcn-shadow-orange);
+    font-weight: 800;
+  }
+  .tcn-btn--primary:hover:not(:disabled) {
+    background: var(--tcn-orange-bright);
+  }
+  .tcn-btn--secondary {
+    background: var(--tcn-surface);
+    color: var(--tcn-ink);
+    border: 1.5px solid var(--tcn-ink);
+  }
+  .tcn-btn--secondary:hover:not(:disabled) {
+    background: var(--tcn-fill);
+  }
+  .tcn-btn--ghost {
+    background: var(--tcn-fill);
+    color: var(--tcn-text-body);
+    border: 1px solid var(--tcn-border-strong);
+  }
+  .tcn-btn--ghost:hover:not(:disabled) {
+    background: var(--tcn-border);
   }
 }
 

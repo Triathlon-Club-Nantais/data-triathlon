@@ -25,6 +25,14 @@ function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
+/** Corps d'une règle CSS, désigné par son sélecteur exact. */
+function rule(selector: string): string {
+  const echappe = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const found = new RegExp(`(?:^|[,{}\\s])${echappe}\\s*\\{([^}]*)\\}`, "m").exec(css);
+  if (!found) throw new Error(`règle ${selector} absente de globals.css`);
+  return found[1];
+}
+
 /** Les trois surfaces sur lesquelles du texte se pose réellement. */
 const SURFACES = ["--tcn-surface", "--tcn-paper", "--tcn-surface-sunk"];
 
@@ -58,9 +66,48 @@ describe("palette de texte TCN", () => {
     }
   });
 
+  it("fait suivre le pont shadcn : primary-foreground est l'encre", () => {
+    // `bg-primary text-primary-foreground` est le variant par défaut
+    // d'`ui/button` et d'`ui/badge`, plus `ScopeToggle`. Sans ça, `tcn/` serait
+    // corrigé et `ui/` garderait le même défaut sur sept écrans publics.
+    expect(token("--primary-foreground")).toBe("var(--tcn-ink)");
+  });
+
   it("garde l'anneau de focus au-dessus du seuil non-textuel sur papier", () => {
     // WCAG 1.4.11 — `outline: 2px solid var(--tcn-orange)` de `.tcn-input`.
     expect(contrast(token("--tcn-orange"), token("--tcn-paper"))).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("bouton TCN", () => {
+  // `components/tcn/` stylait tout en `CSSProperties` en ligne, où `:hover`,
+  // `:active`, `:focus-visible` et `disabled` sont **inexprimables** : c'était la
+  // cause commune des trois défauts que ces règles referment (#299).
+
+  it("rend le focus clavier visible, à l'identique de .tcn-input", () => {
+    // WCAG 2.4.7 — le seul reste était l'anneau UA teinté par `outline-ring/50`,
+    // soit l'orange à 50 % d'alpha : 1,86:1 composité sur papier pour 3:1 requis.
+    expect(rule(".tcn-btn:focus-visible")).toContain("outline: 2px solid var(--tcn-orange)");
+    expect(rule(".tcn-btn:focus-visible")).toContain("outline-offset: 2px");
+  });
+
+  it("porte l'encre sur l'orange pour le variant primaire", () => {
+    expect(rule(".tcn-btn--primary")).toContain("color: var(--tcn-ink)");
+  });
+
+  it("donne 44px de cible tactile aux deux tailles qui n'y arrivaient pas", () => {
+    // `sm` faisait 31px et `md` — le défaut du composant — 38px, paddings
+    // inchangés. `lg` atteignait déjà 45px.
+    expect(rule(".tcn-btn--sm")).toContain("min-height: 44px");
+    expect(rule(".tcn-btn--md")).toContain("min-height: 44px");
+  });
+
+  it("donne un rendu à disabled", () => {
+    // L'attribut était transmis et réellement utilisé (TcnScrapeForm), mais rien
+    // ne changeait : même fond orange, même ombre, `cursor: pointer` conservé.
+    const desactive = rule(".tcn-btn:disabled");
+    expect(desactive).toContain("cursor: not-allowed");
+    expect(desactive).toContain("box-shadow: none");
   });
 });
 
