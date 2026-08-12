@@ -96,6 +96,53 @@ rechargement à l'autre. Une épreuve inconnue est un **404**
 épreuve sans source une **liste vide** — confondre les deux ferait lire un
 identifiant inventé comme « aucune source ».
 
+## Basculer la source active : `PATCH /admin/courses/{id}/sources/{source_id}` (#285)
+
+Le seul geste d'administration qui **scrape** — d'où son module à part,
+`admin_course_sources.py`, sa dépendance à `Settings` et sa durée en secondes.
+Garde `courses:sources`, et non `courses:write` : le pouvoir voisin est borné aux
+quatre champs d'identité, où corriger un libellé ne détruit rien ; ici le
+classement affiché est remplacé **en entier** (décision D2 de #275, un upsert par
+dossard laisserait survivre les lignes de l'ancienne source, donc exactement le
+mélange de deux chronométreurs que l'epic existe pour supprimer). Rend la liste
+des sources dans la forme et l'ordre de `GET /courses/{id}/sources`, pour que
+l'écran se réaffiche sans second appel.
+
+Cinq choses à ne pas défaire :
+
+- **L'ordre des quatre étapes est le contrat** : scraper, valider, détruire,
+  réimporter. Rien de destructeur n'est écrit avant qu'on tienne un classement
+  utilisable — c'est ce qui rend impossible l'accident propre à cette route, une
+  épreuve vidée par un geste qui échoue ensuite à la remplir. Ce n'est pas un
+  choix de style : `import_event` **commite** en interne, et un `begin_nested()`
+  autour ne le contient pas (mesuré sur SQLAlchemy 2.0.51 — le `commit` clôt la
+  transaction *externe*). Aucun rollback n'était donc disponible ; n'avoir rien
+  écrit est plus solide de toute façon.
+- **Le cache TTL est neutralisé des deux côtés.** `is_fresh` court-circuiterait
+  le scrape, mais `force=True` ne suffit pas : la sonde par manche à l'intérieur
+  de `_scrape_all` juge chaque sous-épreuve fraîche indépendamment, et l'épreuve
+  qu'on bascule est par définition la plus fraîche de la base. D'où
+  `import_service.scrape_for_replacement`, qui passe `use_cache_probe=False` —
+  sans quoi une épreuve fan-out perdrait toutes ses manches.
+- **Un scrape qui publie une autre épreuve est refusé** (422), pas importé.
+  `mapping.get_or_create_course` apparie sur `(nom, date, type, relais)` à
+  l'égalité stricte : un libellé différent chez le second chronométreur créerait
+  une **nouvelle** épreuve et laisserait celle qu'on vient de vider à zéro
+  résultat, sans qu'aucune exception ne passe. Zéro résultat est refusé pour la
+  même raison — banal sur le chemin d'import ordinaire (succès à zéro compteur),
+  ici un classement effacé.
+- **`is_active: false` est refusé** (400). L'index partiel autorise zéro active,
+  et une épreuve sans active n'est plus scrapée (#282) ni affichée avec sa source
+  (#279) : le seul moyen de changer d'active est d'en désigner une autre.
+- **Bloquant, et sans progression.** #275 tranche que la bascule et le re-scrape
+  à la demande « doivent partager le même mécanisme, pas en inventer deux » : le
+  SSE d'administration appartient donc à #118, et aucun critère d'acceptation de
+  #285 ne porte sur la progression.
+
+La purge des fiches coureur devenues vides relève ses candidats **avant** la
+suppression et ne tranche qu'**après** le réimport — même primitive et même piège
+que `DELETE /admin/courses/{id}`.
+
 ## Protéger une ressource (#115)
 
 `api/deps.require_permission(P.X)` fabrique la garde d'**une** route. Elle nomme
