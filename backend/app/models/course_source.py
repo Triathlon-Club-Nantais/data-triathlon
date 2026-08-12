@@ -36,9 +36,9 @@ class CourseSource(Base):
     partiel, et non par une lecture préalable : deux exploitants simultanés
     franchiraient tous deux la lecture, pas la contrainte.
 
-    À cette étape, `Course.source_url` et `Course.provider` restent la source de
-    vérité du reste du code — c'est #279 qui les dérive de la source active. La
-    montée ne change donc aucun comportement observable.
+    Cette table est, depuis #279, la **seule** vérité : `Course.source_url` et
+    `Course.provider` ne sont plus des colonnes mais deux `hybrid_property` qui
+    lisent la source active — écrire l'un ou l'autre lève.
     """
 
     __tablename__ = "course_sources"

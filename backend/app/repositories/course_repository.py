@@ -1,11 +1,12 @@
 """Accès données pour Course."""
 from datetime import date, timedelta
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.core.club import tcn_clause
 from app.core.time import utcnow
 from app.models.course import Course
+from app.models.course_source import CourseSource
 
 
 def get(db: Session, course_id: int) -> Course | None:
@@ -42,6 +43,17 @@ def get_or_create(
     is_relay: bool = False,
     distance_km: float | None = None,
 ) -> Course:
+    """L'épreuve d'identité `(name, event_date, event_type, is_relay)`, créée au besoin.
+
+    **La signature ne bouge pas, la destination des deux derniers kwargs si** :
+    `source_url` et `provider` n'étant plus des colonnes (#279), ils deviennent la
+    **source active** de l'épreuve neuve. Les 14 scrapers et `services/mapping`
+    appellent donc exactement comme avant.
+
+    Sur une épreuve **déjà connue**, rien n'est touché — ni l'identité, ni les
+    sources. C'est le contrat d'origine (la première scrapée garde la main, D3) ;
+    enregistrer la seconde URL en passive est le travail de #283, pas d'ici.
+    """
     existing = get_by_identity(db, name, event_date, event_type, is_relay)
     if existing:
         return existing
@@ -49,11 +61,17 @@ def get_or_create(
         name=name,
         event_date=event_date,
         event_type=event_type,
-        source_url=source_url,
-        provider=provider,
         is_relay=is_relay,
         distance_km=distance_km,
     )
+    if source_url:
+        # `is_active=True` explicitement : la colonne vaut `False` par défaut
+        # (#278, D3), et la **première** source d'une épreuve neuve est la seule
+        # qui doive prendre la main sans arbitrage. Passée par la relation, elle
+        # est visible de `course.source_url` avant même le flush.
+        course.sources.append(
+            CourseSource(url=source_url, provider=provider, is_active=True)
+        )
     db.add(course)
     db.flush()
     return course
@@ -63,6 +81,7 @@ def get_latest_by_source_url(db: Session, source_url: str) -> Course | None:
     """Course la plus récemment scrapée pour cette URL d'import (clé du cache TTL)."""
     return (
         db.query(Course)
+        .options(selectinload(Course.sources))
         .filter(Course.source_url == source_url)
         .order_by(Course.scraped_at.desc())
         .first()
@@ -84,6 +103,7 @@ def list_by_source_url(db: Session, source_url: str) -> list[Course]:
     """
     return (
         db.query(Course)
+        .options(selectinload(Course.sources))
         .filter(Course.source_url == source_url)
         .order_by(Course.scraped_at.desc())
         .all()
@@ -104,6 +124,7 @@ def list_by_source_urls(db: Session, source_urls: list[str]) -> list[Course]:
         return []
     return (
         db.query(Course)
+        .options(selectinload(Course.sources))
         .filter(Course.source_url.in_(source_urls))
         .order_by(Course.scraped_at.desc())
         .all()
@@ -203,8 +224,13 @@ def list_all(
         date_to=date_to,
     )
     offset = (page - 1) * page_size
+    # `selectinload` et non `_filtered` : le catalogue sérialise `CourseBrief`,
+    # qui expose `source_url` et `provider` — une page de 50 épreuves ferait
+    # sinon 50 requêtes de plus. `count_all` partage `_filtered` et n'a, lui,
+    # aucune entité à charger.
     return (
-        q.order_by(Course.event_date.desc().nullslast(), Course.name)
+        q.options(selectinload(Course.sources))
+        .order_by(Course.event_date.desc().nullslast(), Course.name)
         .offset(offset)
         .limit(page_size)
         .all()
@@ -240,8 +266,14 @@ def iter_all(
     """Toutes les courses (non paginé), filtrables par provider et ancienneté de scraped_at.
 
     Alimente le rescrape en masse ; l'accès DB reste confiné au repository.
+
+    `selectinload` sur les sources, et il n'est pas décoratif ici :
+    `rescrape_service.run_rescrape_db` lit `source_url` **et** `provider` sur
+    *chaque* course rendue. Sans lui, un rescrape de toute la base émettait une
+    requête de plus par épreuve — le N+1 le plus cher que #279 pouvait
+    introduire, sur le chemin qui traite justement le plus de lignes.
     """
-    q = db.query(Course)
+    q = db.query(Course).options(selectinload(Course.sources))
     if provider:
         q = q.filter(Course.provider == provider)
     if older_than_days is not None:

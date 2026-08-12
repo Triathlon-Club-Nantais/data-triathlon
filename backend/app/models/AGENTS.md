@@ -4,7 +4,9 @@
 - **Course** — `UNIQUE(name, event_date, event_type, is_relay)`
   (`uq_course_identity`) : le relais est un **heat distinct** du solo, sans quoi
   les deux fusionnaient dans la même ligne. Quatre colonnes, pas trois — la
-  vérité est dans `backend/app/models/course.py`. `source_url` = clé de cache TTL.
+  vérité est dans `backend/app/models/course.py`. `source_url` et `provider`
+  n'en font **plus** partie (#279) : deux `hybrid_property` lisant la source
+  active, cf. plus bas. `source_url` reste la clé du cache TTL.
 - **CourseSource** — `UNIQUE(course_id, url)`, **jamais** `UNIQUE(url)` (cf. plus bas).
 - **Participation** — `UNIQUE(course_id, bib_number)` → plus de doublons à l'import.
 - **splits** en **JSON** (remplace les colonnes figées swim/t1/bike/t2/run) →
@@ -53,8 +55,43 @@ chronométreurs.
   `Course.sources` (`delete-orphan`). Supprimer une épreuve emporte ses sources ;
   en absorber une (#287) suppose de repointer `source.course` **avant** le delete,
   comme `services/reclassify` le fait pour les participations.
-- `Course.source_url` et `Course.provider` restent la source de vérité du code
-  jusqu'à #279 : à cette étape la table est en avance sur ses lecteurs.
+
+### La table est la seule vérité (#279)
+
+`Course.source_url` et `Course.provider` **ne sont plus des colonnes** : ce sont
+deux `hybrid_property` qui lisent la source active, sur le patron de
+`Course.is_reliable` (plus bas) — la propriété Python **plus** son `@expression`.
+La moitié SQL n'est pas décorative : `get_latest_by_source_url`,
+`list_by_source_url`, `list_by_source_urls` et `iter_all(provider=…)` filtrent
+ces champs **en SQL**, et l'`@expression` est une sous-requête scalaire corrélée
+repliée sur `""` par `coalesce` — sans ce repli, le SQL rendrait `NULL` là où le
+contrat public promet une chaîne. Vérifié exécuté sur SQLite **et** PostgreSQL
+(`WHERE`, `IN`, `ORDER BY`, projection) : la suite de tests, elle, ne voit que
+SQLite (`tests/conftest.py` code le moteur en dur).
+
+- **Aucun `@setter`, et c'est délibéré** : plus aucun appelant n'écrit ces deux
+  champs. Ce n'est pas une convention à surveiller par grep — l'affectation lève.
+  Le point d'écriture unique est `course_repository.get_or_create`, dont la
+  **signature ne bouge pas** (les 14 scrapers et `services/mapping` appellent
+  comme avant) : ses kwargs `source_url`/`provider` deviennent la source active
+  de l'épreuve neuve, passée `is_active=True` **explicitement** puisque la
+  colonne vaut `False` par défaut.
+- **`selectinload(Course.sources)` sur tout chemin qui rend des entités et lit
+  ces champs** — les trois recherches par URL, `iter_all` (`rescrape-db` les lit
+  sur *chaque* épreuve) et `list_all` (le catalogue sérialise `CourseBrief`). Pas
+  sur `_filtered`, que `count_all` partage et qui ne charge rien.
+- **Un `provider` sans URL n'est plus représentable** : le provider est un champ
+  de la **source**, et `CourseSource.url` est `NOT NULL`. `POST /participations`
+  sans `source_url` donne donc une épreuve à provider vide. La décision ne date
+  pas d'ici — la reprise de #278 n'avait donné aucune source aux épreuves à
+  `source_url` vide. Portée mesurée sur la base de dev le 12/08/2026 : **0
+  épreuve sur 95**. Épinglé par
+  `test_course_derived_source.test_a_provider_without_a_url_is_not_representable`,
+  à revérifier sur preview avant #293.
+- **La remontée de `b3c4d5e6f7a8` rend les colonnes *et leur contenu***, relu
+  depuis la source active. Les passives, elles, n'ont pas d'endroit dans l'ancien
+  schéma : c'est la limite assumée, et la raison pour laquelle `course_sources`
+  n'est **pas** supprimée par cette remontée.
 
 ## RBAC (#115) — quatre tables, deux colonnes
 

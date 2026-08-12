@@ -264,7 +264,10 @@ def test_distinct_seasons_compte_et_exclut_epreuves_sans_date(db_session):
 
 def _athlete_course(db):
     athlete = Athlete(nom="DUPONT", prenom="Jean")
-    course = Course(name="Triathlon de Nantes", event_type="triathlon-m", source_url="http://x")
+    # Plus de `source_url=` au constructeur : c'est une propriété dérivée depuis
+    # #279, et elle refuse l'affectation. Ce test ne la lit pas — l'URL n'était
+    # ici que du remplissage.
+    course = Course(name="Triathlon de Nantes", event_type="triathlon-m")
     db.add_all([athlete, course])
     db.flush()
     return athlete, course
