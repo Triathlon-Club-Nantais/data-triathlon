@@ -153,6 +153,42 @@ def attach(db: Session, *, course: Course, url: str, provider: str = "") -> Cour
     )
 
 
+def move_to(db: Session, *, source: CourseSource, course: Course) -> CourseSource:
+    """Repointe une source vers une **autre** épreuve, et la rend passive (#287).
+
+    La primitive de la fusion : l'URL de l'épreuve absorbée rejoint la cible au
+    lieu de disparaître avec elle. Passe par la relation et non par un `UPDATE`
+    sur `course_id`, parce que c'est la seule écriture qui retire aussi la ligne de
+    `absorbed.sources` — sans quoi le `delete-orphan` de la collection la
+    supprimerait au `db.delete(absorbed)` qui suit, et l'URL serait perdue par le
+    geste même qui devait la sauver (`models/AGENTS.md` : repointer *avant* le
+    delete, comme `services/reclassify` pour les participations).
+
+    **Passive sans condition, et pas « active si la cible n'en a pas ».** Une
+    passive n'est jamais scrapée (#282) : c'est précisément ce qui rend la fusion
+    non destructrice — la cible garde le classement de son chronométreur, et
+    changer d'avis est un second geste explicite (#285). L'activer ferait scraper
+    l'URL de l'absorbée au prochain `rescrape-db`, qui recréerait l'épreuve
+    supprimée sous sa propre identité. C'est aussi l'inverse du choix d'`attach`,
+    et pour la raison qui l'y justifiait : là une épreuve neuve n'avait personne à
+    qui laisser la main, ici la cible a la sienne.
+
+    **Un seul `flush`, contrairement à `set_active`.** L'index partiel est
+    `UNIQUE(course_id) WHERE is_active` : `is_active` et `course_id` changent dans
+    le **même** `UPDATE`, donc aucun état intermédiaire n'est visible du moteur.
+    Découper serait ici l'erreur — la ligne toucherait la cible en restant active.
+
+    Ne vérifie pas `UNIQUE(course_id, url)` : c'est à l'appelant de ne pas
+    repointer une URL que la cible connaît déjà (`course_merge._url_already_known`),
+    parce que lui seul sait quoi répondre — la fusion n'ajoute alors rien, elle
+    supprime un doublon.
+    """
+    source.is_active = False
+    source.course = course
+    db.flush()
+    return source
+
+
 def set_active(db: Session, source: CourseSource) -> CourseSource:
     """Fait de cette source l'active de son épreuve, et de l'ancienne une passive.
 

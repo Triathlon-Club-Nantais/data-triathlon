@@ -12,6 +12,8 @@ from pydantic import (
     model_validator,
 )
 
+from app.schemas.course import CourseSourceOut
+
 
 class PermissionRead(BaseModel):
     """Un pouvoir de l'inventaire, prêt à cocher.
@@ -391,6 +393,51 @@ class CourseMergeImpact(BaseModel):
     tcn_participations_without_match: int
     athletes_orphaned: int
     same_source_url: bool
+
+
+class CourseMergeRequest(BaseModel):
+    """Le corps de la fusion (#287) : l'épreuve qui **disparaît**, et rien d'autre.
+
+    L'absorbée est nommée dans le corps et la cible dans le chemin, parce que la
+    ressource s'écrit du point de vue de ce qui **survit** : `POST
+    /admin/courses/{id}/merge` agit sur l'épreuve `{id}`, qui garde son identité,
+    ses résultats et sa source active.
+
+    `StrictInt` et non `int` : en mode permissif, Pydantic coerce `true` en `1`, et
+    l'épreuve `1` serait **supprimée** avec ses résultats. Même parti pris que
+    `AllowedEmailCreate.role_id`, pour un geste plus destructeur encore.
+
+    Aucune contrainte ne dit ici qu'une épreuve ne se fusionne pas avec elle-même :
+    ce refus est métier, il vit dans le service et sort en 400 avec un message
+    français. Un `model_validator` rendrait un 422 dont le `detail` est une liste
+    d'objets, en anglais — illisible à l'écran (même raison que `CourseSourceSwitch`).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    absorbed_id: StrictInt
+
+
+class CourseMergeResult(BaseModel):
+    """Ce que la fusion a fait, une fois faite (#287).
+
+    Les trois chiffres sont l'**ampleur réelle** du geste, à comparer à celle que
+    l'aperçu annonçait : `participations_deleted` et `athletes_purged` sont les
+    destructions, `source_added` dit si la cible a gagné une source ou si l'URL
+    de l'absorbée y était déjà connue (`same_source_url` de l'aperçu).
+
+    `sources` est la liste de la cible dans la forme et l'ordre de
+    `GET /courses/{id}/sources` (#284), comme la bascule (#285) : l'écran
+    d'arbitrage se réaffiche sans second appel, et le front n'a qu'une forme à
+    connaître pour cette donnée.
+    """
+
+    target_id: int
+    absorbed_id: int
+    participations_deleted: int
+    athletes_purged: int
+    source_added: bool
+    sources: list[CourseSourceOut]
 
 
 class CourseReliabilityUpdate(BaseModel):
