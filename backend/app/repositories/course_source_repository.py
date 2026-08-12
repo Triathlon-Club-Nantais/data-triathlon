@@ -4,7 +4,7 @@
 `Course.source_url` et `Course.provider` ne sont plus des colonnes : les écrire
 signifie désormais écrire *ici*, et nulle part ailleurs.
 """
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.course import Course
 from app.models.course_source import CourseSource
@@ -47,6 +47,37 @@ def find_by_url(db: Session, *, course_id: int, url: str) -> CourseSource | None
         db.query(CourseSource)
         .filter(CourseSource.course_id == course_id, CourseSource.url == url)
         .first()
+    )
+
+
+def list_by_urls(db: Session, urls: list[str]) -> list[CourseSource]:
+    """Les sources portant l'une de ces URLs, **toutes épreuves confondues** (#282).
+
+    Le pendant global de `find_by_url` : celui-ci répond « cette URL, sur cette
+    épreuve », celle-ci « qui porte cette URL, où que ce soit ». C'est la question
+    du ciblage explicite de `rescrape-db`, qui reçoit une URL nue sans savoir à
+    quelle épreuve elle appartient, ni même si elle est connue.
+
+    Rend les **lignes de source**, pas les épreuves, parce que l'appelant a
+    besoin de `is_active` : une URL absente de la table et une URL passive
+    demandent deux réponses opposées (scraper, refuser).
+
+    `selectinload` en chaîne jusqu'aux sources de l'épreuve : le refus nomme
+    `source.course.name` **et** l'URL active de cette épreuve, laquelle se lit sur
+    la collection `course.sources`. Sans la seconde étape, nommer l'active
+    coûterait une requête par URL refusée.
+
+    Ordre stable `(course_id, id)` : deux URLs d'une même épreuve se suivent, et
+    le refus ne change pas de forme d'une exécution à l'autre.
+    """
+    if not urls:
+        return []
+    return (
+        db.query(CourseSource)
+        .options(selectinload(CourseSource.course).selectinload(Course.sources))
+        .filter(CourseSource.url.in_(urls))
+        .order_by(CourseSource.course_id, CourseSource.id)
+        .all()
     )
 
 

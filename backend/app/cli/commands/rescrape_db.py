@@ -9,6 +9,25 @@ from app.core.config import get_settings
 from app.core.database import session_scope
 from app.services import rescrape_service
 
+#: Convention Click / Typer, comme `grant-role`, `allow-email` et
+#: `revoke-sessions` : `2` = erreur d'usage.
+USAGE = 2
+
+
+def _refus_source_passive(cible: rescrape_service.PassiveTarget) -> str:
+    """Le refus d'une URL passive, formulé pour être corrigeable sans lire le code."""
+    if not cible.active_url:
+        return (
+            f"« {cible.url} » est une source passive de l'épreuve "
+            f"« {cible.course_name} », qui n'a aucune source active : il n'y a "
+            "rien à re-scraper."
+        )
+    return (
+        f"« {cible.url} » est une source passive de l'épreuve "
+        f"« {cible.course_name} ». Sa source active est « {cible.active_url} » — "
+        "ciblez celle-là."
+    )
+
 
 def rescrape_db(
     dry_run: bool = typer.Option(
@@ -54,9 +73,12 @@ def rescrape_db(
 ) -> None:
     """Re-scrape des épreuves (toute la base, ou celles ciblées par `--url`).
 
-    Une épreuve = une source_url unique. Elle porte souvent plusieurs courses en
-    base (heats Breizh Chrono, variantes individuel/relais) : le rapport et
-    --limit comptent des épreuves, pas des lignes de la table course.
+    Une épreuve = une source **active** unique. Elle porte souvent plusieurs
+    courses en base (heats Breizh Chrono, variantes individuel/relais) : le
+    rapport et --limit comptent des épreuves, pas des lignes de la table course.
+    Les sources **passives** d'une épreuve fusionnée ne sont jamais scrapées
+    (#282) : `--provider` nomme le provider de l'active, et une URL passive
+    passée à `--url` est refusée.
 
     Deux modes de sélection, exclusifs l'un de l'autre : par filtre sur la base
     (`--provider`, `--older-than`), ou par URL explicite (`--url`,
@@ -77,6 +99,24 @@ def rescrape_db(
     reporter = select_reporter(no_progress=no_progress or dry_run, plain=plain)
 
     with session_scope() as db:
+        # Le seul refus de cette commande qui exige la base, et il ne pouvait pas
+        # être un callback Typer pour cette raison : « cette URL est-elle passive ? »
+        # ne se lit que dans `course_sources`. Reste une **erreur d'usage** (code
+        # 2) et non un échec de batch — l'opérateur a désigné la mauvaise URL,
+        # rien n'a été tenté. Précédent : `revoke-sessions --email <inconnue>`,
+        # qui se constate aussi en base et sort en 2.
+        #
+        # Refus **global** : on ne scrape pas les URLs valides du lot. Un bilan
+        # partiel doublé d'un code 2 ne se lirait ni comme un succès ni comme un
+        # refus, et l'opérateur relancerait sans savoir ce qui a déjà tourné.
+        passives = rescrape_service.find_passive_targets(db, urls or [])
+        if passives:
+            for cible in passives:
+                # stderr, comme toute erreur d'usage de cette commande : stdout
+                # est le canal `--json`, une phrase française l'invaliderait.
+                typer.echo(_refus_source_passive(cible), err=True)
+            raise typer.Exit(USAGE)
+
         outcome = rescrape_service.run_rescrape_db(
             db, settings,
             dry_run=dry_run, older_than=older_than, provider=provider,

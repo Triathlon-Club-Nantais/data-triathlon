@@ -61,13 +61,22 @@ chronométreurs.
 `Course.source_url` et `Course.provider` **ne sont plus des colonnes** : ce sont
 deux `hybrid_property` qui lisent la source active, sur le patron de
 `Course.is_reliable` (plus bas) — la propriété Python **plus** son `@expression`.
-La moitié SQL n'est pas décorative : `get_latest_by_source_url`,
-`list_by_source_url`, `list_by_source_urls` et `iter_all(provider=…)` filtrent
-ces champs **en SQL**, et l'`@expression` est une sous-requête scalaire corrélée
-repliée sur `""` par `coalesce` — sans ce repli, le SQL rendrait `NULL` là où le
-contrat public promet une chaîne. Vérifié exécuté sur SQLite **et** PostgreSQL
-(`WHERE`, `IN`, `ORDER BY`, projection) : la suite de tests, elle, ne voit que
-SQLite (`tests/conftest.py` code le moteur en dur).
+L'`@expression` est une sous-requête scalaire corrélée repliée sur `""` par
+`coalesce` — sans ce repli, le SQL rendrait `NULL` là où le contrat public promet
+une chaîne. Vérifiée exécutée sur SQLite **et** PostgreSQL (`WHERE`, `IN`,
+`ORDER BY`, projection) : la suite de tests, elle, ne voit que SQLite
+(`tests/conftest.py` code le moteur en dur).
+
+**Elle n'a plus d'appelant depuis #281 et #282.** Ses quatre consommateurs —
+`get_latest_by_source_url`, `list_by_source_url`, `list_by_source_urls` et
+`iter_all(provider=…)` — joignent désormais `course_sources` : une corrélée
+s'évalue une fois par ligne de `courses`, une jointure ramène `courses` par sa
+clé primaire. Seuls les tests de `test_course_derived_source` l'exercent encore.
+**À trancher avant #293** : la garder sans appelant contredit « pas d'indirection
+spéculative » ; la supprimer ferait lever tout futur `filter(Course.provider ==
+…)`, ce qui est peut-être l'effet voulu — la bonne écriture est maintenant la
+jointure. La moitié **Python**, elle, n'est pas en cause : `CourseBrief` et le
+rescrape la lisent sur chaque épreuve.
 
 - **Aucun `@setter`, et c'est délibéré** : plus aucun appelant n'écrit ces deux
   champs. Ce n'est pas une convention à surveiller par grep — l'affectation lève.
@@ -80,6 +89,18 @@ SQLite (`tests/conftest.py` code le moteur en dur).
   ces champs** — les trois recherches par URL, `iter_all` (`rescrape-db` les lit
   sur *chaque* épreuve) et `list_all` (le catalogue sérialise `CourseBrief`). Pas
   sur `_filtered`, que `count_all` partage et qui ne charge rien.
+- **Jointure pour filtrer, `selectinload` pour charger** (#281, #282), et les deux
+  sont nécessaires sur les mêmes requêtes : la jointure est filtrée sur la seule
+  source active, elle ne peut donc pas peupler `course.sources` — un
+  `contains_eager` y mettrait une collection tronquée à une ligne, et
+  `list_for_course` (#284) rendrait une source unique sur une épreuve qui en a
+  trois. Aucun `DISTINCT` n'est nécessaire : l'index partiel
+  `UNIQUE(course_id) WHERE is_active` ne laisse au plus **une** ligne joignable
+  par épreuve.
+- **Filtrer sur `is_active` est une règle, pas une optimisation** : une source
+  passive n'alimente aucun affichage, ne porte pas de cache TTL (#281) et n'est
+  jamais scrapée (#282). Une requête qui l'oublie rend le classement d'un autre
+  chronométreur sous l'URL qu'on vient de coller.
 - **Un `provider` sans URL n'est plus représentable** : le provider est un champ
   de la **source**, et `CourseSource.url` est `NOT NULL`. `POST /participations`
   sans `source_url` donne donc une épreuve à provider vide. La décision ne date

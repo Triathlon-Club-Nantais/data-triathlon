@@ -1,11 +1,16 @@
 """`Course.source_url` et `Course.provider` : dérivés de la source active (#279).
 
 Deux propriétés, plus deux colonnes. Le patron est celui de `Course.is_reliable`
-— `hybrid_property` **plus** son `@expression` — et la moitié SQL n'est pas
-décorative : `course_repository.get_latest_by_source_url`, `list_by_source_url`,
-`list_by_source_urls` et `iter_all(provider=…)` interrogent ces champs **en
-SQL**. Sans sous-requête scalaire corrélée, ils lèveraient ou, pire, filtreraient
-sur autre chose.
+— `hybrid_property` **plus** son `@expression`.
+
+**Ces tests sont, depuis #281 et #282, les seuls à exercer la moitié SQL.** Elle
+avait quatre appelants — les trois recherches par URL et `iter_all(provider=…)` —
+et tous quatre joignent désormais `course_sources` : une sous-requête scalaire
+corrélée s'évalue une fois par ligne de `courses`, une jointure ramène `courses`
+par sa clé primaire. Les tests restent, parce que l'`@expression` reste et qu'un
+hybride dont la moitié SQL n'est plus juste est un piège pour le premier qui
+écrira `filter(Course.provider == …)`. Le sort de l'`@expression` elle-même est
+une question ouverte, consignée dans `app/models/AGENTS.md`.
 """
 from datetime import date
 
@@ -199,9 +204,11 @@ def test_get_or_create_on_a_known_course_leaves_its_sources_alone(db_session):
 def test_the_url_lookups_survive_the_derivation(db_session):
     """`get_latest_by_source_url`, `list_by_source_url`, `list_by_source_urls`.
 
-    Trois filtres SQL sur `Course.source_url` que #281 déplacera vers la table.
-    D'ici là, ils doivent rester **justes** : c'est exactement le rôle de la
-    moitié SQL du hybride.
+    Trois recherches par URL qui filtraient `Course.source_url` en SQL et
+    joignent `course_sources` depuis #281. Ce test ne juge que leur **résultat**,
+    ce qui est exactement pourquoi il ne bouge pas d'un changement de chemin :
+    c'est le filet qui a permis de basculer sans rien deviner (le détail du plan
+    et du coût vit dans `test_course_source_lookups.py`).
     """
     premier = course_repository.get_or_create(
         db_session, name="Mesquer", event_date=date(2026, 5, 16),

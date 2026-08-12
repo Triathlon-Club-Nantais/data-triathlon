@@ -77,7 +77,7 @@ def get_or_create(
     return course
 
 
-def _par_source_active(db: Session, clause):
+def _by_active_source(db: Session, clause):
     """La requête de base des trois recherches par URL — **jointure**, pas hybride (#281).
 
     `Course.source_url` reste juste dans un `WHERE`, mais son `@expression` est
@@ -115,7 +115,7 @@ def _par_source_active(db: Session, clause):
 
 def get_latest_by_source_url(db: Session, source_url: str) -> Course | None:
     """Course la plus récemment scrapée pour cette URL d'import (clé du cache TTL)."""
-    return _par_source_active(db, CourseSource.url == source_url).first()
+    return _by_active_source(db, CourseSource.url == source_url).first()
 
 
 def list_by_source_url(db: Session, source_url: str) -> list[Course]:
@@ -131,7 +131,7 @@ def list_by_source_url(db: Session, source_url: str) -> list[Course]:
     décroissant → la plus récente en tête (comportement de la première course
     pré-sélectionnée du sélecteur).
     """
-    return _par_source_active(db, CourseSource.url == source_url).all()
+    return _by_active_source(db, CourseSource.url == source_url).all()
 
 
 def list_by_source_urls(db: Session, source_urls: list[str]) -> list[Course]:
@@ -151,7 +151,7 @@ def list_by_source_urls(db: Session, source_urls: list[str]) -> list[Course]:
     """
     if not source_urls:
         return []
-    return _par_source_active(db, CourseSource.url.in_(source_urls)).all()
+    return _by_active_source(db, CourseSource.url.in_(source_urls)).all()
 
 
 def touch_scraped_at(db: Session, course: Course) -> None:
@@ -286,19 +286,37 @@ def iter_all(
     provider: str | None = None,
     older_than_days: int | None = None,
 ) -> list[Course]:
-    """Toutes les courses (non paginé), filtrables par provider et ancienneté de scraped_at.
+    """Les courses **scrapables** (non paginé), filtrables par provider et ancienneté.
 
     Alimente le rescrape en masse ; l'accès DB reste confiné au repository.
 
-    `selectinload` sur les sources, et il n'est pas décoratif ici :
+    « Scrapables » est le mot exact depuis #282 : la jointure sur la source
+    **active** écarte les épreuves qui n'en ont aucune — saisie manuelle, ou
+    épreuve dont on n'a rattaché que des passives. Aucune n'était re-scrapable de
+    toute façon (`rescrape_service` filtrait ensuite sur `source_url` non vide) ;
+    la différence est que la base ne les rend plus, au lieu de les rendre pour
+    qu'on les jette.
+
+    `provider` porte sur la source active, et c'est le seul sens qu'il puisse
+    avoir : il nomme le chronométreur **qu'on va interroger**. Retenir une épreuve
+    parce qu'elle porte une passive du bon provider ferait scraper l'URL d'un
+    autre fournisseur sous un `--provider` explicite.
+
+    `join` **plus** `selectinload`, même raison que `_by_active_source` : la
+    jointure est filtrée sur la seule active, elle ne peut pas peupler
+    `course.sources`. Et le `selectinload` n'est pas décoratif —
     `rescrape_service.run_rescrape_db` lit `source_url` **et** `provider` sur
-    *chaque* course rendue. Sans lui, un rescrape de toute la base émettait une
-    requête de plus par épreuve — le N+1 le plus cher que #279 pouvait
-    introduire, sur le chemin qui traite justement le plus de lignes.
+    *chaque* course rendue ; sans lui, un rescrape de toute la base émettait une
+    requête de plus par épreuve, sur le chemin qui traite le plus de lignes.
     """
-    q = db.query(Course).options(selectinload(Course.sources))
+    q = (
+        db.query(Course)
+        .join(Course.sources)
+        .options(selectinload(Course.sources))
+        .filter(CourseSource.is_active)
+    )
     if provider:
-        q = q.filter(Course.provider == provider)
+        q = q.filter(CourseSource.provider == provider)
     if older_than_days is not None:
         cutoff = utcnow() - timedelta(days=older_than_days)
         q = q.filter(Course.scraped_at < cutoff)
