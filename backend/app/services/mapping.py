@@ -5,11 +5,14 @@ entités normalisées Athlete / Course / Participation.
 Les segments de temps (natation, T1, vélo, T2, course…) sont regroupés dans un
 dict `splits` adapté au sport, plutôt que des colonnes figées.
 """
+from dataclasses import dataclass
+
 from sqlalchemy.orm import Session
 
 from app.models.athlete import Athlete
 from app.models.course import Course
-from app.repositories import athlete_repository, course_repository
+from app.models.course_source import CourseSource
+from app.repositories import athlete_repository, course_repository, course_source_repository
 from app.scrapers.base import STATUS_DNF, STATUS_FINISHER, ScrapedResult
 from app.scrapers.classify import extract_distance_km
 
@@ -97,8 +100,22 @@ def derive_status(scraped: ScrapedResult) -> str:
     return STATUS_FINISHER if scraped.total_time else STATUS_DNF
 
 
-def get_or_create_course(db: Session, scraped: ScrapedResult, event_url: str) -> Course:
-    """Course identifiée par (nom, date, type) ; `source_url` = URL d'import (clé de cache).
+@dataclass(frozen=True)
+class CourseResolution:
+    """L'épreuve appariée, **et** la source passive que l'URL soumise y est devenue.
+
+    Deux valeurs et non une parce que l'appelant n'a aucun moyen de reconstituer
+    la seconde : une fois la source rattachée, une épreuve à deux sources est
+    indistinguable de celle qu'on vient d'enrichir. `passive_source` est `None`
+    dès que l'URL soumise **est** l'active — le cas nominal, y compris tout
+    re-scrape.
+    """
+    course: Course
+    passive_source: CourseSource | None
+
+
+def get_or_create_course(db: Session, scraped: ScrapedResult, event_url: str) -> CourseResolution:
+    """Course identifiée par (nom, date, type), et l'URL d'import rattachée en source.
 
     Priorité `scraped.source_url` puis `event_url` : un scraper qui a besoin
     d'une clé plus fine que l'URL soumise le dit en la posant lui-même sur
@@ -108,19 +125,35 @@ def get_or_create_course(db: Session, scraped: ScrapedResult, event_url: str) ->
     `scraped.source_url = url` (l'URL passée au scraper), le comportement
     est donc inchangé pour eux. `event_url` reste la voie de secours quand
     la source ne fournit pas d'URL (chemin manuel `save_one`).
+
+    **Le rattachement est inconditionnel** (#283) : `get_or_create` ne pose la
+    source que sur l'épreuve qu'il *crée*, celle qu'il apparie garde les siennes
+    — c'est là que la seconde publication se perdait. `attach` étant idempotent,
+    on l'appelle sans regarder lequel des deux cas on vient de traverser.
     """
     distance_km = scraped.distance_km
     if distance_km is None:
         distance_km = extract_distance_km(scraped.event_name)
-    return course_repository.get_or_create(
+    url = scraped.source_url or event_url
+    course = course_repository.get_or_create(
         db,
         name=scraped.event_name,
         event_date=scraped.event_date,
         event_type=scraped.event_type,
-        source_url=scraped.source_url or event_url,
+        source_url=url,
         provider=scraped.provider,
         is_relay=scraped.is_relay,
         distance_km=distance_km,
+    )
+    if not url:
+        # Saisie manuelle : pas d'URL, donc rien à rattacher — `CourseSource.url`
+        # est `NOT NULL`, une source vide ne désignerait rien (#279).
+        return CourseResolution(course=course, passive_source=None)
+    source = course_source_repository.attach(
+        db, course=course, url=url, provider=scraped.provider
+    )
+    return CourseResolution(
+        course=course, passive_source=None if source.is_active else source
     )
 
 

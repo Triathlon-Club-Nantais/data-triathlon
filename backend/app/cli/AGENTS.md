@@ -128,6 +128,20 @@ fichier d'état. À distinguer des **liens non supportés** (`ignored_by_host`,
 suivis dans #33) : ces derniers ne sont **jamais** soumis au batch, ils ne
 comptent ni en succès ni en échec.
 
+**Sources enregistrées, non principales** (#283) — le troisième cas, qui n'est ni
+l'un ni l'autre. Une URL soumise pour une épreuve **déjà connue** est rattachée à
+elle comme source secondaire : rien n'échoue, rien n'est ajouté au classement, et
+les compteurs ne bougent donc pas d'un iota. Les deux commandes listent ces URLs
+sous « Sources enregistrées, non principales (détail) : », avec le message qui
+**nomme l'épreuve** — sans lui, l'opérateur d'un import Sheet de 300 lignes ne
+peut pas distinguer une URL absorbée d'un import ordinaire à zéro nouveauté. Le
+champ `passive_sources` est dans la charge `--json`, et dans `CHAMPS_COMMUNS` :
+`run_batch` les collecte pour les deux commandes, deux rendus divergeraient sans
+raison. À ne pas confondre avec le refus de #282, qui porte sur une URL **déjà**
+passive passée à `--url` : celui-là est une erreur d'usage (code 2) et ne scrape
+rien ; celui-ci constate après coup, sur une URL que rien ne permettait de
+refuser d'avance.
+
 **Réconciliation de l'identité d'athlète** (issue #66) : `rescrape-db` n'est plus
 purement additif. Sur un dossard déjà en base, il **résout l'athlète** et, si la
 graphie stockée a divergé de la graphie corrigée, **réassigne

@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 def save_one(db: Session, scraped: ScrapedResult, event_url: str = "") -> Participation:
     """Persiste un résultat scrapé/édité (athlète + course + participation)."""
-    course = mapping.get_or_create_course(db, scraped, event_url)
+    course = mapping.get_or_create_course(db, scraped, event_url).course
     if scraped.bib_number and participation_repository.exists_for_bib(
         db, course.id, scraped.bib_number
     ):

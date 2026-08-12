@@ -512,3 +512,64 @@ def test_les_champs_communs_existent_des_deux_cotes():
     for classe in (BatchTotals, SheetOutcome, RescrapeOutcome):
         champs = {f.name for f in fields(classe)}
         assert set(CHAMPS_COMMUNS) <= champs, f"{classe.__name__} : {set(CHAMPS_COMMUNS) - champs}"
+
+
+def test_a_registered_passive_source_travels_from_the_done_phase_to_the_totals(
+    db_session, monkeypatch, fake_reporter
+):
+    """#283, AC5 — le signalement traverse `_ItemResult` puis `BatchTotals`.
+
+    Le contrat de recopie est `CHAMPS_COMMUNS` : un champ qui n'y figure pas
+    n'atteint jamais l'`Outcome` de la commande, donc ni le rapport texte ni la
+    charge `--json`. C'est le patron de `failures`, épinglé pour la même raison.
+    """
+    from app.services.import_service import PassiveSource
+
+    signalee = PassiveSource(
+        url="https://resultats.breizhchrono.com/r/1",
+        course_name="Triathlon de Mesquer",
+        message="« Triathlon de Mesquer » est déjà en base : …",
+    )
+
+    def _phases(db, url, settings, force=False, persist=True, **kwargs):
+        yield {"phase": "done", "imported": 0, "skipped": 42, "total": 42,
+               "passive_sources": [signalee]}
+
+    monkeypatch.setattr(import_service, "iter_import_event", _phases)
+
+    totals = batch.run_batch(
+        db_session, [BatchItem(url="https://k/1", label="klikego · A")], _settings(),
+        force=False, delay=0.0, reporter=fake_reporter,
+    )
+
+    assert totals.passive_sources == [signalee]
+    assert "passive_sources" in CHAMPS_COMMUNS
+
+
+def test_a_registered_passive_source_is_neither_an_error_nor_an_import(
+    db_session, monkeypatch, fake_reporter
+):
+    """« Ni succès d'import, ni échec » (AC5), pris au mot sur les deux compteurs.
+
+    Précédent : `ignored_by_host`, tenu hors d'`echec_total` parce que ces liens
+    n'ont jamais été tentés. Ici l'épreuve *a* été traitée — elle n'a simplement
+    rien importé de neuf, ce qui reste un succès (`est_echec_total` compare des
+    épreuves, pas des participants).
+    """
+    from app.services.import_service import PassiveSource
+
+    def _phases(db, url, settings, force=False, persist=True, **kwargs):
+        yield {"phase": "done", "imported": 0, "updated": 0, "skipped": 12, "total": 12,
+               "passive_sources": [PassiveSource(url=url, course_name="Mesquer", message="…")]}
+
+    monkeypatch.setattr(import_service, "iter_import_event", _phases)
+
+    totals = batch.run_batch(
+        db_session, [BatchItem(url="https://k/1", label="klikego · A")], _settings(),
+        force=False, delay=0.0, reporter=fake_reporter,
+    )
+
+    assert totals.errors == 0
+    assert totals.imported == 0
+    assert totals.failures == []
+    assert SheetOutcome(unique_supported=1, errors=0).echec_total is False

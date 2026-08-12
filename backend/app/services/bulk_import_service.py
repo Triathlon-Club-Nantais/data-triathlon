@@ -18,6 +18,7 @@ from app.services.batch import (
     est_echec_total,
     run_batch,
 )
+from app.services.import_service import PassiveSource
 from app.services.progress import ProgressReporter
 
 
@@ -43,6 +44,10 @@ class SheetOutcome:
     #: rejouer l'import. Borné aux seuls échecs (≈ dizaines), il reste léger dans
     #: la charge `--json`, contrairement à la liste de toutes les épreuves.
     failures: list[BatchFailure] = field(default_factory=list)
+    #: URLs enregistrées en sources passives d'une épreuve déjà connue (#283).
+    #: Elles ne comptent ni en succès d'import ni en échec — comme
+    #: `ignored_by_host`, mais à l'autre bout : ici l'épreuve *a* été soumise.
+    passive_sources: list[PassiveSource] = field(default_factory=list)
 
     @property
     def echec_total(self) -> bool:

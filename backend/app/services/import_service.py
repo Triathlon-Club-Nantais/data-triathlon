@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.core.exceptions import InvalidUrlError, ProviderNotSupportedError, ScraperError
 from app.models.course import Course
+from app.models.course_source import CourseSource
 from app.models.participation import Participation
 from app.repositories import course_repository, participation_repository
 from app.scrapers import registry
@@ -40,6 +41,23 @@ class Reassignment:
     ancien: str
     nouveau: str
     fusion: bool
+
+
+@dataclass(frozen=True)
+class PassiveSource:
+    """Une URL enregistrée comme source **passive** d'une épreuve déjà connue (#283).
+
+    Ni une erreur, ni un import : rien n'a échoué, et rien n'a été ajouté au
+    classement. C'est un fait à rapporter — même forme que `BatchFailure` (url,
+    libellé, message) pour qu'un seul objet serve le SSE, le `--json` et le
+    bilan texte de la CLI.
+
+    Le message est figé ici, à l'endroit qui connaît le nom de l'épreuve : plus
+    haut, le bilan de batch n'aurait plus que des URLs à recoller entre elles.
+    """
+    url: str
+    course_name: str
+    message: str
 
 
 def _identite(athlete) -> str:
@@ -370,6 +388,15 @@ class _Persister:
         self.skipped = 0
         self.reconciled = 0
         self.reassignments: list[Reassignment] = []
+        # Dédup par `id` de source, pas par ligne scrapée : `add` résout l'épreuve
+        # une fois par participant, un classement de 250 lignes rendrait sinon
+        # 250 fois la même phrase et ferait compter 250 sources pour une.
+        self._passive: dict[int, PassiveSource] = {}
+
+    @property
+    def passive_sources(self) -> list[PassiveSource]:
+        """Les sources passives rencontrées, dans l'ordre de première rencontre."""
+        return list(self._passive.values())
 
     def courses_summary(self) -> list[dict]:
         """Résumé des courses touchées, dans l'ordre où elles ont été rencontrées
@@ -419,8 +446,30 @@ class _Persister:
         else:
             self.skipped += 1
 
+    def _note_passive(self, course: Course, source: CourseSource) -> None:
+        """Retient une source passive **une fois**, et rédige le message qui la nomme.
+
+        Le message dit trois choses parce qu'il en faut trois pour être
+        actionnable : l'épreuve qui a absorbé l'URL, la raison pour laquelle le
+        classement affiché ne change pas, et qui peut décider l'inverse (#285).
+        """
+        if source.id in self._passive:
+            return
+        self._passive[source.id] = PassiveSource(
+            url=source.url,
+            course_name=course.name,
+            message=(
+                f"Cette URL est enregistrée comme source secondaire de "
+                f"« {course.name} », dont les résultats affichés viennent d'un autre "
+                f"chronométreur. Un administrateur peut la rendre principale."
+            ),
+        )
+
     def add(self, scraped: ScrapedResult) -> None:
-        course = mapping.get_or_create_course(self.db, scraped, self.event_url)
+        resolution = mapping.get_or_create_course(self.db, scraped, self.event_url)
+        course = resolution.course
+        if resolution.passive_source is not None:
+            self._note_passive(course, resolution.passive_source)
         self._courses[course.id] = course
         self._index_course(course.id)
         bib = scraped.bib_number or None
@@ -545,6 +594,10 @@ def _cached_result(db: Session, url: str, settings: Settings) -> dict | None:
         "skipped": total,
         "reconciled": 0,
         "cached": True,
+        # Rien n'a été scrapé, donc rien n'a pu être rattaché — mais la clé est là
+        # sur les trois chemins de `done`, pour que le consommateur n'ait aucun
+        # accès conditionnel à gérer.
+        "passive_sources": [],
         "courses": [
             {
                 "id": c.id, "name": c.name,
@@ -561,9 +614,11 @@ def import_event(
 ) -> dict:
     """Import complet (bloquant). Renvoie {imported, updated, skipped, reconciled, [cached]}.
 
-    Contrat stable : `updated` et `reconciled` (et `cached` à sa valeur par
-    défaut) sont présents sur **tous** les chemins de retour — cache TTL frais et
-    « aucun résultat » compris — pour éviter à l'appelant un accès conditionnel.
+    Contrat stable : `updated`, `reconciled` et `passive_sources` (et `cached` à
+    sa valeur par défaut) sont présents sur **tous** les chemins de retour — cache
+    TTL frais et « aucun résultat » compris — pour éviter à l'appelant un accès
+    conditionnel. `passive_sources` reste hors du schéma public `ImportResult`,
+    même parti pris que `reconciled` : le front consomme le SSE.
 
     force=True saute le cache TTL (`_cached_result`) → le scraping a toujours lieu.
     persist=False traverse tout le chemin de persistance (scrape, add, finalize)
@@ -580,6 +635,7 @@ def import_event(
     if not results:
         return {
             "imported": 0, "updated": 0, "skipped": 0, "reconciled": 0,
+            "passive_sources": [],
             "courses": _merge_cached_courses(db, [], trace),
             **_fanout_counters(trace),
         }
@@ -603,6 +659,7 @@ def import_event(
         "updated": persister.updated,
         "skipped": persister.skipped,
         "reconciled": persister.reconciled,
+        "passive_sources": persister.passive_sources,
         "courses": _merge_cached_courses(db, persister.courses_summary(), trace),
         **_fanout_counters(trace),
     }
@@ -618,7 +675,8 @@ def iter_import_event(
       → {phase: done, …}   (ou {phase: error, message})
 
     La phase `done` porte un contrat stable — `imported`, `updated`, `skipped`,
-    `reconciled`, `reassignments`, `total`, `courses` — sur **tous** les chemins, y
+    `reconciled`, `reassignments`, `passive_sources`, `total`, `courses` — sur
+    **tous** les chemins, y
     compris les court-circuits (cache TTL frais, aucun résultat), pour que le
     consommateur SSE / batch n'ait aucun champ conditionnel à gérer. `courses`
     reste **vide** si aucun résultat n'a été scrapé (aucune `Course` touchée).
@@ -664,6 +722,7 @@ def iter_import_event(
             "skipped": 0,
             "reconciled": 0,
             "reassignments": [],
+            "passive_sources": [],
             "total": 0,
             "courses": _merge_cached_courses(db, [], trace),
             **_fanout_counters(trace),
@@ -702,6 +761,7 @@ def iter_import_event(
         "skipped": persister.skipped,
         "reconciled": persister.reconciled,
         "reassignments": persister.reassignments,
+        "passive_sources": persister.passive_sources,
         "total": total,
         "courses": _merge_cached_courses(db, persister.courses_summary(), trace),
         **_fanout_counters(trace),

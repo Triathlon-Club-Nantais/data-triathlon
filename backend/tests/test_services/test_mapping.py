@@ -168,14 +168,14 @@ def test_build_splits_cyclisme_single_bike():
 
 def test_get_or_create_course_extracts_distance_km(db_session):
     s = _scraped(event_name="Trail des Forts 23 km", event_type="trail")
-    course = mapping.get_or_create_course(db_session, s, event_url="http://x")
+    course = mapping.get_or_create_course(db_session, s, event_url="http://x").course
     assert course.distance_km == 23.0
 
 
 def test_get_or_create_course_explicit_distance_km_wins(db_session):
     s = _scraped(event_name="Trail sans km dans le nom", event_type="trail",
                  distance_km=30.0)
-    course = mapping.get_or_create_course(db_session, s, event_url="http://x")
+    course = mapping.get_or_create_course(db_session, s, event_url="http://x").course
     assert course.distance_km == 30.0
 
 
@@ -190,8 +190,8 @@ def test_get_or_create_course_solo_and_relay_are_distinct(db_session):
         event_type="triathlon-m",
         is_relay=True,
     )
-    c_solo = mapping.get_or_create_course(db_session, solo, event_url="http://x")
-    c_relais = mapping.get_or_create_course(db_session, relais, event_url="http://x")
+    c_solo = mapping.get_or_create_course(db_session, solo, event_url="http://x").course
+    c_relais = mapping.get_or_create_course(db_session, relais, event_url="http://x").course
     assert c_solo.id != c_relais.id
     assert c_solo.is_relay is False
     assert c_relais.is_relay is True
@@ -215,7 +215,7 @@ def test_get_or_create_course_aquathlons_meme_jour_restent_distincts(db_session)
                 event_date=date(2025, 10, 4),
             ),
             event_url="http://x",
-        )
+        ).course
         for categorie in ("Pupilles", "Benjamins", "Minimes", "Poussins et Mini-Poussins")
     ]
     assert len({c.id for c in courses}) == 4

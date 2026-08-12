@@ -78,6 +78,25 @@ def _lignes_echecs(outcome: Outcome) -> list[str]:
     return lignes
 
 
+def _lignes_sources_passives(outcome: Outcome) -> list[str]:
+    """Les URLs enregistrées en sources secondaires, communes aux deux commandes (#283).
+
+    Elles ne laissent **aucune trace dans les compteurs** : ni erreur, ni
+    participant ajouté. Sans ce bloc, l'opérateur d'un import Sheet de 300 lignes
+    ne peut pas distinguer « cette URL a atterri sur une épreuve déjà connue »
+    d'un import ordinaire à zéro nouveauté. Masqué quand il n'a rien à dire, même
+    parti pris que le bloc de réconciliation.
+    """
+    if not outcome.passive_sources:
+        return []
+    lignes = [
+        _ligne("Sources enregistrées", len(outcome.passive_sources)),
+        "Sources enregistrées, non principales (détail) :",
+    ]
+    lignes.extend(f"  - {s.url} : {s.message}" for s in outcome.passive_sources)
+    return lignes
+
+
 def _lignes_reconciliation(outcome: RescrapeOutcome) -> list[str]:
     """Le bilan de réconciliation d'identité (issue #66), borné aux réassignations.
 
@@ -107,6 +126,7 @@ def render_sheet_report(outcome: SheetOutcome, *, dry_run: bool) -> str:
     if not dry_run:
         lignes.extend(_lignes_compteurs(outcome))
         lignes.extend(_lignes_echecs(outcome))
+        lignes.extend(_lignes_sources_passives(outcome))
     if outcome.ignored_by_host:
         lignes.append("Liens non supportés (suivis dans #33) :")
         for host, count in sorted(outcome.ignored_by_host.items()):
@@ -131,6 +151,7 @@ def render_rescrape_report(outcome: RescrapeOutcome, *, dry_run: bool) -> str:
     else:
         lignes.extend(_lignes_compteurs(outcome))
         lignes.extend(_lignes_echecs(outcome))
+        lignes.extend(_lignes_sources_passives(outcome))
     lignes.extend(_lignes_reconciliation(outcome))
     return "\n".join(lignes)
 

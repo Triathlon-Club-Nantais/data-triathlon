@@ -50,7 +50,12 @@ chronométreurs.
   produit un index *complet* sur l'autre moteur, et la deuxième source d'une
   épreuve devient irreprésentable.
 - **Une source naît passive** (`is_active=False`) : une URL soumise pour une
-  épreuve déjà connue ne prend pas la main, la première scrapée la garde.
+  épreuve déjà connue ne prend pas la main, la première scrapée la garde. C'est
+  vrai de `add`, la primitive ; `attach` (#283, le point d'entrée de l'import) la
+  pose **active quand l'épreuve n'en a aucune** — même règle lue dans l'autre
+  état, une épreuve sans source n'a personne à qui laisser la main. Rattacher en
+  passive une épreuve sans active produirait une source orpheline : jamais
+  scrapée (#282), jamais affichée (#279), à activer à la main faute d'alternative.
 - **Pas d'`ondelete`**, comme partout : la cascade est portée par
   `Course.sources` (`delete-orphan`). Supprimer une épreuve emporte ses sources ;
   en absorber une (#287) suppose de repointer `source.course` **avant** le delete,

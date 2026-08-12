@@ -29,6 +29,7 @@ from app.services.batch import (
     est_echec_total,
     run_batch,
 )
+from app.services.import_service import PassiveSource
 from app.services.progress import ProgressReporter
 
 
@@ -190,6 +191,10 @@ class RescrapeOutcome:
     dry_run: bool = False
     #: Détail des identités réconciliées (ancien -> nouveau, volume).
     reconciliations: list[IdentiteReconciliee] = field(default_factory=list)
+    #: URLs enregistrées en sources passives d'une épreuve déjà connue (#283).
+    #: Rare ici — le mode base re-scrape des URLs déjà actives — mais pas
+    #: impossible : un fan-out peut publier une URL de heat déjà connue ailleurs.
+    passive_sources: list[PassiveSource] = field(default_factory=list)
 
     @property
     def echec_total(self) -> bool:

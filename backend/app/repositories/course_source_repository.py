@@ -108,6 +108,34 @@ def add(
     return source
 
 
+def attach(db: Session, *, course: Course, url: str, provider: str = "") -> CourseSource:
+    """La source de cette épreuve portant cette URL, **rattachée au besoin** (#283).
+
+    Le point d'entrée de l'import : il est appelé une fois par ligne scrapée, sans
+    condition, et c'est son idempotence qui le permet — l'appelant n'a aucun
+    registre à tenir de ce qu'il a déjà vu, et `UNIQUE(course_id, url)` ne remonte
+    jamais en exception sur le chemin nominal du re-scrape.
+
+    **Active si l'épreuve n'en a aucune, passive sinon.** Les deux moitiés sont la
+    même règle (D3, « la première scrapée garde la main ») lue dans deux états :
+    une épreuve sans source n'a personne à qui laisser la main, une épreuve qui en
+    a une ne la reprend pas. Rattacher en passive une épreuve sans active
+    produirait une source orpheline — jamais scrapée (#282), jamais affichée
+    (#279), et qu'un administrateur devrait activer à la main faute d'alternative.
+
+    Cherche dans `course.sources` plutôt que par `find_by_url` : la collection est
+    déjà chargée (la propriété dérivée `Course.source_url` la lit), et une requête
+    par ligne scrapée coûterait 250 allers-retours sur un classement ordinaire.
+    """
+    for existante in course.sources:
+        if existante.url == url:
+            return existante
+    return add(
+        db, course=course, url=url, provider=provider,
+        is_active=not any(source.is_active for source in course.sources),
+    )
+
+
 def set_active(db: Session, source: CourseSource) -> CourseSource:
     """Fait de cette source l'active de son épreuve, et de l'ancienne une passive.
 

@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.core.sql_observability import measure_queries
 from app.services import import_service
-from app.services.import_service import Reassignment
+from app.services.import_service import PassiveSource, Reassignment
 from app.services.progress import NullReporter, ProgressReporter
 
 logger = logging.getLogger(__name__)
@@ -65,6 +65,10 @@ class BatchTotals:
     #: Détail des réassignations, cumulé dans l'ordre du batch (léger : ~1 par
     #: participation réconciliée, pas une ligne par participation traitée).
     reassignments: list[Reassignment] = field(default_factory=list)
+    #: Les URLs enregistrées en sources passives, cumulées dans l'ordre du batch.
+    #: Ni des erreurs ni des imports : une épreuve qui n'a fait *que* ça sort en
+    #: succès, avec zéro participant touché (#283).
+    passive_sources: list[PassiveSource] = field(default_factory=list)
 
 
 #: Les compteurs que `BatchTotals` et les deux `*Outcome` portent à l'identique.
@@ -74,6 +78,7 @@ class BatchTotals:
 #: `totals: {…}` la casserait.
 CHAMPS_COMMUNS = (
     "imported", "updated", "skipped", "errors", "processed", "interrupted", "failures",
+    "passive_sources",
 )
 
 
@@ -97,6 +102,7 @@ class _ItemResult:
     error: str | None = None
     reconciled: int = 0
     reassignments: list[Reassignment] = field(default_factory=list)
+    passive_sources: list[PassiveSource] = field(default_factory=list)
 
 
 def est_echec_total(*, epreuves: int, errors: int) -> bool:
@@ -198,6 +204,7 @@ def _import_one(
             result.skipped = phase.get("skipped", 0)
             result.reconciled = phase.get("reconciled", 0)
             result.reassignments = phase.get("reassignments", [])
+            result.passive_sources = phase.get("passive_sources", [])
         elif nom == "error":
             result.error = phase.get("message", "erreur inconnue")
 
@@ -247,6 +254,7 @@ def run_batch(
                 totals.skipped += result.skipped
                 totals.reconciled += result.reconciled
                 totals.reassignments.extend(result.reassignments)
+                totals.passive_sources.extend(result.passive_sources)
             totals.processed += 1  # tentée et allée au bout, réussie ou non
             _notify(partial(reporter.item_done, result.imported, result.skipped, result.error))
             _liberer_session(db)
