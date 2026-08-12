@@ -48,6 +48,18 @@ au même instant trouvaient le même « premier port libre », d'où une boucle 
 à trois essais pour rattraper la collision. Un port éphémère supprime la cause, donc
 le rattrapage.
 
+**Un worktree se crée depuis la racine.** `.claude/worktrees/` est résolu depuis le
+répertoire **courant** de la session : lancé depuis `frontend/`, un worktree
+s'imbrique en `frontend/.claude/worktrees/<nom>/` — un second dépôt complet, avec
+son propre `frontend/`, `backend/` et `node_modules` recopié, à l'intérieur du
+premier. Les trois configurations qui doivent l'ignorer sont désormais dé-ancrées
+(`**/.claude/worktrees/` dans `.gitignore`, `**/.claude/**` dans
+`frontend/vitest.config.ts` et `frontend/eslint.config.mjs`), parce qu'aucune ne
+le couvrait : `npm test` collectait **52 fichiers de test d'un worktree imbriqué**
+en plus des 69 du front, et un `npm test` vert ne disait plus ce qu'on croyait
+(#300). Les motifs restent des filets de sécurité — la bonne pratique est de
+créer le worktree depuis la racine.
+
 Un worktree reste une copie **neuve** : rien de gitignoré ne l'accompagne. Pour les
 worktrees créés par Claude Code (`claude --worktree`, sous-agents
 `isolation: worktree`) ou par Orca, `.worktreeinclude` à la racine liste ce qui doit
