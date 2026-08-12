@@ -15,6 +15,11 @@ import type { CourseSummary, Participation } from "@/lib/types";
 const BASE_COLS = "54px 1fr 70px 56px 100px";
 const CLUB_COL = "1.1fr";
 
+// Clé de tri du temps total : distincte de toute clé de split réelle
+// (swim/t1/bike/t2/run/course1/course2), qui vivent dans `Participation.splits`
+// alors que le temps total vit dans `Participation.total_time`.
+const CLE_TEMPS_TOTAL = "__temps_total__";
+
 export function RaceFinishers({
   participations,
   summary,
@@ -42,9 +47,19 @@ export function RaceFinishers({
   const [recherche, setRecherche] = useState(rechercheUrl);
   const [derniereUrl, setDerniereUrl] = useState(rechercheUrl);
   // Tri optionnel côté client, déclenché par un clic sur l'en-tête d'un split
-  // (#309) — croissant uniquement, sur la seule tranche affichée. `null` tant
+  // ou du temps total (#309) — sur la seule tranche affichée. `null` tant
   // qu'aucun en-tête n'a été cliqué : l'ordre reste alors celui du backend.
-  const [triSplit, setTriSplit] = useState<string | null>(null);
+  // Recliquer sur le même en-tête inverse la direction ; cliquer sur un autre
+  // en-tête repart en croissant.
+  const [tri, setTri] = useState<{ cle: string; direction: "asc" | "desc" } | null>(null);
+
+  function trierSur(cle: string) {
+    setTri((precedent) =>
+      precedent?.cle === cle
+        ? { cle, direction: precedent.direction === "asc" ? "desc" : "asc" }
+        : { cle, direction: "asc" }
+    );
+  }
 
   // L'URL est la vérité : après un « Précédent » du navigateur, le champ doit
   // suivre. Ajustement pendant le rendu plutôt qu'en effet — React le
@@ -82,17 +97,22 @@ export function RaceFinishers({
 
   const nbPages = pageSize ? Math.max(1, Math.ceil(total / pageSize)) : 1;
 
+  /** Temps (en secondes) du participant pour la colonne de tri active. */
+  function temps(p: Participation, cle: string): number | null {
+    return secondsFromHms(cle === CLE_TEMPS_TOTAL ? p.total_time : p.splits?.[cle]);
+  }
+
   // Valeurs non temporelles (DNF/DNS/DSQ, segment non publié) envoyées en fin
-  // de classement plutôt que traitées comme un temps nul. `sort` est stable
-  // (ES2019+) : les égalités et les lignes non triées gardent l'ordre du
-  // backend.
-  const lignes = triSplit
+  // de classement, croissant comme décroissant : ce n'est pas un temps nul, il
+  // n'y a simplement rien à comparer. `sort` est stable (ES2019+) : les
+  // égalités et les lignes non triées gardent l'ordre du backend.
+  const lignes = tri
     ? [...participations].sort((a, b) => {
-        const sa = secondsFromHms(a.splits?.[triSplit]);
-        const sb = secondsFromHms(b.splits?.[triSplit]);
+        const sa = temps(a, tri.cle);
+        const sb = temps(b, tri.cle);
         if (sa == null) return sb == null ? 0 : 1;
         if (sb == null) return -1;
-        return sa - sb;
+        return tri.direction === "asc" ? sa - sb : sb - sa;
       })
     : participations;
 
@@ -145,29 +165,13 @@ export function RaceFinishers({
       >
         <div style={{ minWidth: 1080 }}>
           <div style={{ display: "grid", gridTemplateColumns: fcols, gap: "0 12px", padding: "12px 22px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--tcn-text-faint)", borderBottom: "1px solid var(--tcn-border)" }}>
-            <div>Rang</div><div>Athlète</div><div>Catég.</div><div>Sexe</div><div>Temps total</div>
+            <div>Rang</div><div>Athlète</div><div>Catég.</div><div>Sexe</div>
+            <div>
+              <EnteteTriable cle={CLE_TEMPS_TOTAL} libelle="Temps total" ariaSujet="temps total" tri={tri} onTrier={trierSur} />
+            </div>
             {segments.map((s) => (
               <div key={s.key}>
-                <button
-                  type="button"
-                  onClick={() => setTriSplit(s.key)}
-                  aria-label={`Trier par temps ${s.label}, croissant`}
-                  style={{
-                    font: "inherit",
-                    fontSize: 11,
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    letterSpacing: ".04em",
-                    color: triSplit === s.key ? "var(--tcn-ink)" : "inherit",
-                    background: "none",
-                    border: "none",
-                    padding: 0,
-                    cursor: "pointer",
-                  }}
-                >
-                  {s.label}
-                  {triSplit === s.key ? " ▲" : ""}
-                </button>
+                <EnteteTriable cle={s.key} libelle={s.label} ariaSujet={`temps ${s.label}`} tri={tri} onTrier={trierSur} />
               </div>
             ))}
             <div>Club</div>
@@ -312,6 +316,52 @@ function resumeEpreuve(summary: CourseSummary): string {
   if (abandons > 0) parts.push(`${abandons} abandon${abandons > 1 ? "s" : ""}`);
   if (unknown > 0) parts.push(`${unknown} indéterminé${unknown > 1 ? "s" : ""}`);
   return parts.join(" · ");
+}
+
+/**
+ * En-tête de colonne triable (temps total ou un split) : un clic trie en
+ * croissant, recliquer sur la même colonne inverse en décroissant, cliquer sur
+ * une autre colonne repart en croissant.
+ */
+function EnteteTriable({
+  cle,
+  libelle,
+  ariaSujet,
+  tri,
+  onTrier,
+}: {
+  cle: string;
+  libelle: string;
+  ariaSujet: string;
+  tri: { cle: string; direction: "asc" | "desc" } | null;
+  onTrier: (cle: string) => void;
+}) {
+  const actif = tri?.cle === cle;
+  const direction = actif ? tri.direction : null;
+  const prochaineDirection = direction === "asc" ? "desc" : "asc";
+
+  return (
+    <button
+      type="button"
+      onClick={() => onTrier(cle)}
+      aria-label={`Trier par ${ariaSujet}, ${prochaineDirection === "asc" ? "croissant" : "décroissant"}`}
+      style={{
+        font: "inherit",
+        fontSize: 11,
+        fontWeight: 700,
+        textTransform: "uppercase",
+        letterSpacing: ".04em",
+        color: actif ? "var(--tcn-ink)" : "inherit",
+        background: "none",
+        border: "none",
+        padding: 0,
+        cursor: "pointer",
+      }}
+    >
+      {libelle}
+      {direction === "asc" ? " ▲" : direction === "desc" ? " ▼" : ""}
+    </button>
+  );
 }
 
 function genderShort(g: string | null | undefined): string {
