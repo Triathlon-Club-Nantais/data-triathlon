@@ -10,8 +10,18 @@ from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.core.season import parse_date as _parse_date
 from app.core.season import parse_seasons
-from app.repositories import course_repository, participation_repository
-from app.schemas.course import CourseBrief, CourseCount, CourseSummary, EventPage
+from app.repositories import (
+    course_repository,
+    course_source_repository,
+    participation_repository,
+)
+from app.schemas.course import (
+    CourseBrief,
+    CourseCount,
+    CourseSourceOut,
+    CourseSummary,
+    EventPage,
+)
 from app.schemas.participation import CourseParticipationPage, ParticipationOut
 from app.services import stats_service
 
@@ -148,6 +158,27 @@ def get_course_summary(course_id: int, db: Session = Depends(get_db)):
     if not course_repository.get(db, course_id):
         raise NotFoundError("Course introuvable")
     return stats_service.course_summary(db, course_id)
+
+
+@router.get("/courses/{course_id}/sources", response_model=list[CourseSourceOut])
+def list_course_sources(course_id: int, db: Session = Depends(get_db)):
+    """Les sources de chronométrage de l'épreuve, **non authentifié** (#284, D4).
+
+    Ouverte comme le reste de l'API de lecture : savoir qu'une épreuve a deux
+    chronométreurs et laquelle des deux alimente le classement affiché est une
+    information de lecture, pas d'exploitation. Ce qui reste fermé, c'est
+    l'écriture (soumettre, basculer l'active) et le nom du soumetteur, absent du
+    schéma.
+
+    **Le 404 précède la liste vide**, et les deux sont distincts : une épreuve
+    inconnue est une erreur d'adresse, une épreuve sans source est une réponse
+    valide (`[]`) — c'est l'état d'une épreuve saisie à la main. D'où la lecture
+    préalable de l'épreuve, sur le patron des deux routes voisines ; sans elle,
+    un identifiant inventé rendrait `[]` et se lirait comme « aucune source ».
+    """
+    if not course_repository.get(db, course_id):
+        raise NotFoundError("Course introuvable")
+    return course_source_repository.list_for_course(db, course_id)
 
 
 @router.get("/courses/{course_id}", response_model=CourseParticipationPage)
