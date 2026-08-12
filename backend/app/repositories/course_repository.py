@@ -77,15 +77,45 @@ def get_or_create(
     return course
 
 
-def get_latest_by_source_url(db: Session, source_url: str) -> Course | None:
-    """Course la plus récemment scrapée pour cette URL d'import (clé du cache TTL)."""
+def _par_source_active(db: Session, clause):
+    """La requête de base des trois recherches par URL — **jointure**, pas hybride (#281).
+
+    `Course.source_url` reste juste dans un `WHERE`, mais son `@expression` est
+    une sous-requête scalaire corrélée : le moteur l'évalue **une fois par ligne
+    de `courses`**. La jointure pose la question dans l'autre sens — « quelles
+    sources portent cette URL, et à quelle épreuve appartiennent-elles ? » — et
+    ramène `courses` par sa clé primaire.
+
+    `CourseSource.is_active` dans la clause, et il porte l'AC4 : une source
+    passive n'alimente aucun affichage et n'est jamais re-scrapée (#282), donc
+    elle ne cache rien. Sans ce filtre, coller la seconde publication d'une
+    épreuve fraîche rendrait un résultat caché portant le classement de l'autre
+    chronométreur.
+
+    `join` **plus** `selectinload`, et les deux sont nécessaires : la jointure est
+    filtrée sur la seule active, elle ne peut donc pas peupler `course.sources`
+    (un `contains_eager` y mettrait une collection tronquée). Le `selectinload`
+    reste ce qui évite le N+1 chez les appelants, qui lisent `provider` sur
+    chaque épreuve rendue.
+
+    Aucune épreuve n'apparaît deux fois, et c'est la base qui le garantit :
+    l'index partiel `UNIQUE(course_id) WHERE is_active` ne laisse **au plus une**
+    ligne joignable par épreuve, même quand le lot contient à la fois l'URL
+    active et une passive de la même épreuve. Pas de `DISTINCT` — il masquerait
+    la garantie au lieu de s'appuyer sur elle.
+    """
     return (
         db.query(Course)
+        .join(Course.sources)
         .options(selectinload(Course.sources))
-        .filter(Course.source_url == source_url)
+        .filter(clause, CourseSource.is_active)
         .order_by(Course.scraped_at.desc())
-        .first()
     )
+
+
+def get_latest_by_source_url(db: Session, source_url: str) -> Course | None:
+    """Course la plus récemment scrapée pour cette URL d'import (clé du cache TTL)."""
+    return _par_source_active(db, CourseSource.url == source_url).first()
 
 
 def list_by_source_url(db: Session, source_url: str) -> list[Course]:
@@ -101,34 +131,27 @@ def list_by_source_url(db: Session, source_url: str) -> list[Course]:
     décroissant → la plus récente en tête (comportement de la première course
     pré-sélectionnée du sélecteur).
     """
-    return (
-        db.query(Course)
-        .options(selectinload(Course.sources))
-        .filter(Course.source_url == source_url)
-        .order_by(Course.scraped_at.desc())
-        .all()
-    )
+    return _par_source_active(db, CourseSource.url == source_url).all()
 
 
 def list_by_source_urls(db: Session, source_urls: list[str]) -> list[Course]:
-    """Une seule requête IN pour un lot d'URLs — évite le N+1 sur les heats cachés.
+    """Un seul `IN` pour un lot d'URLs — évite le N+1 sur les heats cachés.
 
     Utilisé par le SSE `done` du fan-out Klikego (#156) : quand k heats sur N
     sont sautés par le cache TTL, on récupère leurs `Course` déjà en base pour
     étoffer le sélecteur de fin d'import. Sans lot, un import à 20 heats cachés
     ferait 20 requêtes à la place d'une.
 
+    Le coût reste constant en k depuis #281, et l'endroit du `IN` a changé : il
+    porte sur `course_sources.url` au travers de la jointure, plus sur la
+    sous-requête corrélée du hybride qui, elle, se rejouait par ligne de
+    `courses` — donc k fois pour rien.
+
     Liste vide → requête évitée, retour `[]`.
     """
     if not source_urls:
         return []
-    return (
-        db.query(Course)
-        .options(selectinload(Course.sources))
-        .filter(Course.source_url.in_(source_urls))
-        .order_by(Course.scraped_at.desc())
-        .all()
-    )
+    return _par_source_active(db, CourseSource.url.in_(source_urls)).all()
 
 
 def touch_scraped_at(db: Session, course: Course) -> None:
