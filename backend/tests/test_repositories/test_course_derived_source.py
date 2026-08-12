@@ -1,16 +1,13 @@
 """`Course.source_url` et `Course.provider` : dérivés de la source active (#279).
 
-Deux propriétés, plus deux colonnes. Le patron est celui de `Course.is_reliable`
-— `hybrid_property` **plus** son `@expression`.
-
-**Ces tests sont, depuis #281 et #282, les seuls à exercer la moitié SQL.** Elle
-avait quatre appelants — les trois recherches par URL et `iter_all(provider=…)` —
-et tous quatre joignent désormais `course_sources` : une sous-requête scalaire
-corrélée s'évalue une fois par ligne de `courses`, une jointure ramène `courses`
-par sa clé primaire. Les tests restent, parce que l'`@expression` reste et qu'un
-hybride dont la moitié SQL n'est plus juste est un piège pour le premier qui
-écrira `filter(Course.provider == …)`. Le sort de l'`@expression` elle-même est
-une question ouverte, consignée dans `app/models/AGENTS.md`.
+Deux propriétés, plus deux colonnes. `hybrid_property` **sans** `@expression`
+(#306, tranché) : ses quatre anciens appelants — les trois recherches par URL et
+`iter_all(provider=…)` — joignaient déjà `course_sources` depuis #281/#282, et
+#288/#289 (les deux candidats plausibles à lui rendre un appelant) sont arrivés
+depuis sans en créer aucun — confirmé par une recherche sur tout le dépôt, pas
+supposé. La garder sans appelant aurait contredit « pas d'indirection
+spéculative ». Ce fichier ne teste donc plus que la moitié Python ; le raisonnement
+complet vit dans `app/models/AGENTS.md`.
 """
 from datetime import date
 
@@ -45,23 +42,11 @@ def test_the_active_source_gives_the_course_its_url_and_provider(db_session):
 
 
 def test_a_course_without_any_source_renders_empty_strings(db_session):
-    """AC2 — un état légitime (saisie manuelle), pas une erreur.
-
-    Vaut des deux côtés du hybride : la propriété Python **et** le `coalesce` de
-    la sous-requête, sans quoi le SQL rendrait `NULL` là où le contrat public
-    promet une chaîne.
-    """
+    """AC2 — un état légitime (saisie manuelle), pas une erreur."""
     course = _epreuve(db_session, "Saisie manuelle")
 
     assert course.source_url == ""
     assert course.provider == ""
-
-    en_sql = (
-        db_session.query(Course.source_url, Course.provider)
-        .filter(Course.id == course.id)
-        .one()
-    )
-    assert en_sql == ("", "")
 
 
 def test_a_passive_source_never_surfaces_on_the_course(db_session):
@@ -85,35 +70,20 @@ def test_switching_the_active_source_switches_the_derived_values(db_session):
     assert course.provider == "breizhchrono"
 
 
-def test_filtering_on_provider_in_sql_reads_the_active_source(db_session):
-    """AC3 — le test qui échouerait sans `@expression`, et qu'on ne voit pas autrement.
+def test_provider_cannot_be_used_in_a_sql_filter_since_306(db_session):
+    """#306 — l'effet **voulu**, pas une régression à corriger.
 
-    La propriété Python marcherait, et ce `WHERE` lèverait — ou rendrait tout.
+    Sans `@expression`, la moitié « classe » du hybride retombe sur la même
+    fonction Python que l'instance, appliquée à `Course` lui-même :
+    `course.sources` y est un attribut de mapping, pas une collection, et
+    l'itération lève. C'est le signal qui doit orienter vers la jointure sur
+    `course_sources` (`course_repository._by_active_source`, `iter_all`),
+    jamais vers la restauration de l'`@expression`.
     """
-    klikego = _epreuve(db_session, "Klikego")
-    _source(db_session, klikego, KLIKEGO, provider="klikego", is_active=True)
-    breizh = _epreuve(db_session, "Breizh")
-    _source(db_session, breizh, BREIZH, provider="breizhchrono", is_active=True)
-    # Une passive klikego sur l'épreuve Breizh : elle ne doit pas la faire sortir.
-    _source(db_session, breizh, KLIKEGO, provider="klikego")
+    _epreuve(db_session, "Klikego")
 
-    trouvees = db_session.query(Course).filter(Course.provider == "klikego").all()
-
-    assert [course.name for course in trouvees] == ["Klikego"]
-
-
-def test_ordering_on_provider_in_sql_reads_the_active_source(db_session):
-    """AC3 — `ORDER BY` sur une sous-requête scalaire, l'autre moitié du contrat."""
-    for nom, provider in (("Wiclax", "wiclax"), ("Breizh", "breizhchrono"), ("Klikego", "klikego")):
-        course = _epreuve(db_session, nom)
-        _source(
-            db_session, course, f"https://{provider}.test/{nom}",
-            provider=provider, is_active=True,
-        )
-
-    ordonnees = db_session.query(Course).order_by(Course.provider).all()
-
-    assert [course.name for course in ordonnees] == ["Breizh", "Klikego", "Wiclax"]
+    with pytest.raises(NotImplementedError):
+        db_session.query(Course).filter(Course.provider == "klikego").all()
 
 
 def test_the_derived_fields_cannot_be_written(db_session):

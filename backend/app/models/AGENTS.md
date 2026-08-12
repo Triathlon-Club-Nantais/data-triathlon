@@ -64,26 +64,26 @@ chronométreurs.
 ### La table est la seule vérité (#279)
 
 `Course.source_url` et `Course.provider` **ne sont plus des colonnes** : ce sont
-deux `hybrid_property` qui lisent la source active, sur le patron de
-`Course.is_reliable` (plus bas) — la propriété Python **plus** son `@expression`.
-L'`@expression` est une sous-requête scalaire corrélée repliée sur `""` par
-`coalesce` — sans ce repli, le SQL rendrait `NULL` là où le contrat public promet
-une chaîne. Vérifiée exécutée sur SQLite **et** PostgreSQL (`WHERE`, `IN`,
-`ORDER BY`, projection) : la suite de tests, elle, ne voit que SQLite
-(`tests/conftest.py` code le moteur en dur).
+deux `hybrid_property` qui lisent la source active **dans la collection déjà en
+mémoire** (`_from_active_source`), sans requête ni `@expression` SQL.
 
-**Elle n'a plus d'appelant depuis #281 et #282.** Ses quatre consommateurs —
+**#306, tranché** : l'`@expression` (sous-requête scalaire corrélée) a été
+**supprimée**, pas gardée. Ses quatre anciens consommateurs —
 `get_latest_by_source_url`, `list_by_source_url`, `list_by_source_urls` et
-`iter_all(provider=…)` — joignent désormais `course_sources` : une corrélée
-s'évalue une fois par ligne de `courses`, une jointure ramène `courses` par sa
-clé primaire. Seuls les tests de `test_course_derived_source` l'exercent encore.
-**Le sort de l'`@expression` est #306, à trancher avant #293** : la garder sans
-appelant contredit « pas d'indirection spéculative » ; la supprimer ferait lever
-tout futur `filter(Course.provider == …)`, ce qui est peut-être l'effet voulu —
-la bonne écriture est maintenant la jointure. La question ne se referme qu'une
-fois les lots 2 à 4 livrés, #288 et #289 étant les deux candidats plausibles à
-lui rendre un appelant. La moitié **Python**, elle, n'est pas en cause :
-`CourseBrief` et le rescrape la lisent sur chaque épreuve.
+`iter_all(provider=…)` — joignaient déjà `course_sources` depuis #281/#282,
+plus rapide qu'une corrélée évaluée une fois par ligne de `courses`. #288
+(détection de doublons) et #289 (rapprochement automatique), les deux
+candidats que la question laissait ouverte, sont arrivés depuis sans en créer
+de nouveau : `list_identities_with_counts` (#288) et
+`course_reconciliation.find_reconcilable_course` (#289) lisent tous les deux
+`CourseSource.provider`/`.url` directement, jamais `Course.provider` en
+requête. Zéro appelant restant confirmé sur tout le dépôt (grep, pas
+supposition) : la garder aurait contredit « pas d'indirection spéculative ».
+**Un futur `filter(Course.provider == …)` lève désormais** — c'est l'effet
+voulu, pas une régression : la bonne écriture est la jointure sur
+`course_sources`, comme les quatre fonctions ci-dessus. La moitié **Python**,
+elle, n'a jamais été en cause : `CourseBrief` et le rescrape la lisent sur
+chaque épreuve, à l'instance — c'est la seule forme qui reste.
 
 - **Aucun `@setter`, et c'est délibéré** : plus aucun appelant n'écrit ces deux
   champs. Ce n'est pas une convention à surveiller par grep — l'affectation lève.
