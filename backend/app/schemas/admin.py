@@ -346,6 +346,53 @@ class CourseDeletionImpact(BaseModel):
     athletes: int
 
 
+class MergeImpactCourse(BaseModel):
+    """Un des deux côtés d'une fusion, tel qu'il se présente à l'arbitrage (#286).
+
+    Les six premiers champs sont ceux par lesquels un exploitant **reconnaît**
+    l'épreuve qu'il désigne, et les trois qui divergent le plus souvent — `name`,
+    `event_date`, `event_type` — sont rendus tels quels : deux libellés
+    différents sont le cas nominal d'une épreuve publiée deux fois.
+
+    Ni `source_url`, ni les sources : elles ont leur propre ressource
+    (`GET /courses/{id}/sources`, #284), et les redire ici en ferait deux
+    inventaires à tenir d'accord.
+    """
+
+    id: int
+    name: str
+    event_date: date | None = None
+    event_type: str = ""
+    is_relay: bool = False
+    provider: str = ""
+    participations: int
+
+
+class CourseMergeImpact(BaseModel):
+    """Ce qu'une fusion d'épreuves coûterait, chiffré **avant** le geste (#286).
+
+    `participations_without_match` compte les résultats de l'absorbée sans
+    jumeau de dossard dans la cible : ceux que la fusion perd jusqu'au prochain
+    re-scrape. `tcn_participations_without_match` en est le sous-ensemble qui
+    décide en pratique — perdre le résultat d'un membre du club n'a pas le même
+    poids que perdre celui d'un inconnu.
+
+    `athletes_orphaned` n'est pas le nombre de partants de l'absorbée : ce sont
+    les coureurs dont **toutes** les participations y sont, donc les fiches que
+    la fusion viderait, comptées par la même fonction que celle qui purge.
+
+    `same_source_url` dit que l'URL de l'absorbée est déjà une source de la
+    cible : la fusion n'ajoute alors aucune source, elle supprime un doublon.
+    """
+
+    target: MergeImpactCourse
+    absorbed: MergeImpactCourse
+    participations_without_match: int
+    tcn_participations_without_match: int
+    athletes_orphaned: int
+    same_source_url: bool
+
+
 class CourseReliabilityUpdate(BaseModel):
     """L'avis humain sur la fiabilité d'une épreuve. `null` **lève** l'avis."""
 
