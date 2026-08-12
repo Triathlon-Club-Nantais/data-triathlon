@@ -24,9 +24,9 @@ retiens qu'une chose : le flux va toujours dans un sens, `api → services
 
 Pour un profil backend, lis dans cet ordre :
 
-- §Architecture backend — la topologie des dossiers.
+- §Architecture backend (`backend/AGENTS.md`) — la topologie des dossiers.
 - §Modèle normalisé — les 4 tables et pourquoi `splits` est un JSON.
-- §Cache TTL — quand on re-scrape, quand on court-circuite.
+- §Cache TTL (`backend/AGENTS.md`) — quand on re-scrape, quand on court-circuite.
 - §Portée club et disciplines — les paramètres `scope=club` et
   `federal_only`, avec la leçon #76 (défauts neutres).
 - §Sorties de la CLI (stdout parsable) — contrats de sortie, codes 0/1/2/130.

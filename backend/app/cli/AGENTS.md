@@ -1,5 +1,30 @@
 # Sorties de la CLI (stdout parsable)
 
+## Les invocations, depuis `backend/`
+
+```bash
+uv run python -m app.cli import-sheet --dry-run     # import de masse (Sheet) : ce qui serait importé
+uv run python -m app.cli import-sheet --limit 5     # import réel — progression en direct
+uv run python -m app.cli rescrape-db --limit 10     # re-scrape la DB (force=True) ; --plain, --no-progress
+uv run python -m app.cli rescrape-db --json | jq    # bilan machine-lisible (stdout = JSON seul)
+uv run python -m app.cli rescrape-db --url <url> --url <url2>   # cible des épreuves précises
+uv run python -m app.cli rescrape-db --urls-from echecs.txt     # ou « - » pour lire stdin
+# rejeu des échecs, sans fichier intermédiaire ni état persistant :
+uv run python -m app.cli import-sheet --json | jq -r '.failures[].url' \
+  | uv run python -m app.cli rescrape-db --urls-from -
+uv run python -m app.cli club-labels --like nant   # libellés club vus en base, marqués TCN ou non
+uv run python -m app.cli allow-email --email <adresse>              # autorise une adresse à se connecter (#170)
+uv run python -m app.cli grant-role --email <adresse> --role admin   # amorce le 1er administrateur (#115)
+uv run python -m app.cli revoke-sessions --all --yes                 # révocation d'urgence : ferme toutes les sessions (#169)
+uv run python -m app.cli revoke-sessions --email <adresse>           # ou celles d'une adresse seulement
+```
+
+Les trois dernières sont les commandes d'**amorçage**, décrites une par une plus
+bas ; l'ordre qui marche sur une base neuve est `allow-email` → connexion par le
+navigateur → `grant-role`.
+
+## La couche
+
 `app/cli/` est une **couche mince**, zéro logique métier : `commands/` (une
 commande par fichier), `progress.py` (reporters Rich/Plain, `select_reporter`),
 `reports.py` (rendu des bilans + émission). La boucle vit dans

@@ -23,9 +23,10 @@ n'accueille que ce qu'on voudrait relire à chaque session.
 | --- | --- |
 | Workflow IA : les trois voies, garde-fous, artefacts | `docs/WORKFLOW-IA.md` |
 | Review UI/UX : grille, seuils chiffrés, faux positifs connus | `.claude/agents/ui-ux-review.md` |
+| Architecture backend : inventaire des modules, cache TTL | `backend/AGENTS.md` |
 | Conventions scrapers + les 14 fournisseurs supportés | `backend/app/scrapers/AGENTS.md` |
 | Un fournisseur en particulier (pièges mesurés, formes d'URL) | `docs/scrapers/<fournisseur>.md` |
-| Sorties de la CLI : stdout parsable, codes de sortie, bilans | `backend/app/cli/AGENTS.md` |
+| CLI de batch : les 6 commandes, stdout parsable, codes de sortie | `backend/app/cli/AGENTS.md` |
 | API de lecture : `scope`, `federal_only`, pagination du classement | `backend/app/api/AGENTS.md` |
 | Modèle normalisé et splits | `backend/app/models/AGENTS.md` |
 | Observabilité SQL | `backend/app/core/AGENTS.md` |
@@ -102,21 +103,8 @@ uv run pytest -m "not integration"                 # tests unitaires (sans rése
 uv run pytest -m integration                       # tests réseau réel (scrapers)
 uv run ruff check .                                # lint
 
-# CLI de batch (depuis backend/)
-uv run python -m app.cli import-sheet --dry-run     # import de masse (Sheet) : ce qui serait importé
-uv run python -m app.cli import-sheet --limit 5     # import réel — progression en direct
-uv run python -m app.cli rescrape-db --limit 10     # re-scrape la DB (force=True) ; --plain, --no-progress
-uv run python -m app.cli rescrape-db --json | jq    # bilan machine-lisible (stdout = JSON seul)
-uv run python -m app.cli rescrape-db --url <url> --url <url2>   # cible des épreuves précises
-uv run python -m app.cli rescrape-db --urls-from echecs.txt     # ou « - » pour lire stdin
-# rejeu des échecs, sans fichier intermédiaire ni état persistant :
-uv run python -m app.cli import-sheet --json | jq -r '.failures[].url' \
-  | uv run python -m app.cli rescrape-db --urls-from -
-uv run python -m app.cli club-labels --like nant   # libellés club vus en base, marqués TCN ou non
-uv run python -m app.cli allow-email --email <adresse>              # autorise une adresse à se connecter (#170)
-uv run python -m app.cli grant-role --email <adresse> --role admin   # amorce le 1er administrateur (#115)
-uv run python -m app.cli revoke-sessions --all --yes                 # révocation d'urgence : ferme toutes les sessions (#169)
-uv run python -m app.cli revoke-sessions --email <adresse>           # ou celles d'une adresse seulement
+# CLI de batch (depuis backend/) — les invocations : backend/app/cli/AGENTS.md
+uv run python -m app.cli --help                    # import-sheet, rescrape-db, club-labels, les 3 d'amorçage
 
 # Frontend (depuis frontend/)
 npm run dev        # Next.js sur :3000 (ou suivant libre), branché sur le backend du worktree
@@ -133,36 +121,14 @@ Plusieurs worktrees tournent en parallèle sans configuration : le backend prend
 le premier port libre à partir de 8001 et le publie, le frontend le lit.
 `docs/dev-multi-worktree.md` avant toute intervention sur les lanceurs de dev.
 
-## Architecture backend (`backend/`)
+## Architecture
 
-Archi en couches, le flux ne traverse qu'une direction
-(`api → services → repositories → DB`) :
-
-- `app/main.py` — usine `create_app()` : CORS, handlers d'erreurs, montage routers.
-- `app/core/` — `config.py` (pydantic-settings), `logging.py`, `database.py`,
-  `exceptions.py`, `time.py`, `club.py` (appartenance au TCN : **liste blanche**
-  de libellés, match à l'égalité — cf. #76), `discipline.py` (disciplines
-  fédérales vs trail / course à pied / cyclisme), `http.py` (**toute** sortie
-  HTTP y passe, garde SSRF sur la requête et chaque redirection — #49, #101).
-- `app/models/` — SQLAlchemy **normalisé** : `Athlete`, `Course`, `Participation`,
-  `PendingProvider`.
-- `app/schemas/` — DTO Pydantic v2 (entrée/sortie).
-- `app/repositories/` — `*_repository.py` : **seule couche qui touche la Session**.
-- `app/services/` — logique métier : `mapping`, `cache` (TTL), `scrape_service`,
-  `import_service`, `stats_service`, `geocode_service`, plus les batches CLI
-  (`sheet_source`, `batch`, `bulk_import_service`, `rescrape_service`,
-  `progress`) et `auth/` (socle SSO).
-- `app/cli/` — Typer, **couche mince** (zéro logique métier).
-- `app/api/` — `deps.py` + `v1/` (routers fins : validation + délégation au service),
-  agrégés dans `v1/router.py`, montés sous `/api/v1`. Une future API v2 vivra dans `v1/`→`v2/`.
-- `app/scrapers/` — `registry.py` (registre **Protocol**) + un module par provider.
-- `alembic/` — migrations (révision initiale = schéma complet).
-- `tests/` — `test_repositories/`, `test_services/`, `test_api/`, `test_cli/`… (≈745 tests).
-
-**Cache TTL** — `services/cache.py` : `is_fresh(course)` → 10 min si course en
-cours (une participation sans `total_time`), sinon 30 j. `scrape_service`
-court-circuite le re-scraping si frais. Réglable via
-`CACHE_TTL_IN_PROGRESS_SECONDS` / `CACHE_TTL_FINISHED_SECONDS`.
+Deux applications, une archi en couches côté backend dont le flux ne traverse
+qu'une direction : `api → services → repositories → DB`, les repositories étant
+la **seule** couche qui touche la Session SQLAlchemy. L'inventaire module par
+module et le cache TTL sont dans `backend/AGENTS.md`, le front dans
+`frontend/AGENTS.md` — les deux se chargent d'eux-mêmes dès qu'un fichier du
+dossier est lu.
 
 ## Principes de conception
 
