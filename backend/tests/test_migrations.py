@@ -349,3 +349,104 @@ def test_downgrade_puis_upgrade_des_adresses_autorisees(sqlite_url, monkeypatch)
 
     command.upgrade(cfg, "head")
     assert "allowed_emails" in _tables(sqlite_url)
+
+
+# --- Sources d'une épreuve (#278) -------------------------------------------
+
+#: Révision qui précède immédiatement la table des sources. **Nommée** : un `-1`
+#: se décalerait à la première migration insérée entre-temps.
+_BEFORE_COURSE_SOURCES = "bf114c4206a4"
+
+_SEED_COURSES = (
+    "INSERT INTO courses (name, source_url, provider, event_type, is_relay,"
+    " scraped_at, created_at) VALUES"
+    " ('Mesquer', 'https://klikego.test/mesquer', 'klikego', 'triathlon-s', 0,"
+    "  '2026-01-01', '2026-01-01'),"
+    " ('Mesquer', 'https://klikego.test/mesquer', 'klikego', 'swimrun-m', 0,"
+    "  '2026-01-01', '2026-01-01'),"
+    " ('Saisie manuelle', '', '', 'triathlon-m', 0, '2026-01-01', '2026-01-01')"
+)
+
+
+def _seed_courses(url: str) -> None:
+    engine = sa.create_engine(url)
+    try:
+        with engine.begin() as connexion:
+            connexion.execute(sa.text(_SEED_COURSES))
+    finally:
+        engine.dispose()
+
+
+def test_upgrade_head_creates_the_course_sources_table(sqlite_url):
+    command.upgrade(_alembic_config(), "head")
+
+    assert _columns(sqlite_url, "course_sources") == {
+        "id",
+        "course_id",
+        "url",
+        "provider",
+        "is_active",
+        "created_at",
+        "created_by_user_id",
+        "last_scraped_at",
+    }
+
+
+def test_the_data_migration_gives_each_imported_course_one_active_source(sqlite_url):
+    """AC2 — et deux épreuves partageant une URL (heats) en reçoivent chacune une.
+
+    C'est ce qu'un `UNIQUE(url)` aurait interdit : les deux lignes ci-dessous
+    sortent du même lien Klikego.
+    """
+    cfg = _alembic_config()
+    command.upgrade(cfg, _BEFORE_COURSE_SOURCES)
+    _seed_courses(sqlite_url)
+
+    command.upgrade(cfg, "head")
+
+    assert _lignes(
+        sqlite_url,
+        "SELECT courses.event_type, course_sources.url, course_sources.provider,"
+        " course_sources.is_active FROM course_sources"
+        " JOIN courses ON courses.id = course_sources.course_id"
+        " ORDER BY courses.event_type",
+    ) == [
+        ("swimrun-m", "https://klikego.test/mesquer", "klikego", 1),
+        ("triathlon-s", "https://klikego.test/mesquer", "klikego", 1),
+    ]
+
+
+def test_a_course_without_source_url_gets_no_source(sqlite_url):
+    """Une saisie manuelle n'a pas de source — état légitime, pas un trou."""
+    cfg = _alembic_config()
+    command.upgrade(cfg, _BEFORE_COURSE_SOURCES)
+    _seed_courses(sqlite_url)
+
+    command.upgrade(cfg, "head")
+
+    orphelines = _lignes(
+        sqlite_url,
+        "SELECT name FROM courses WHERE id NOT IN (SELECT course_id FROM course_sources)",
+    )
+    assert orphelines == [("Saisie manuelle",)]
+
+
+def test_downgrade_then_upgrade_of_the_course_sources_table(sqlite_url):
+    """AC1 — la descente ne perd rien : `courses.source_url` reste la source de vérité.
+
+    C'est ce qui rend la remontée reconstituante à l'identique, et c'est pour
+    cela que #278 ne supprime pas encore la colonne (#279 s'en charge).
+    """
+    cfg = _alembic_config()
+    command.upgrade(cfg, _BEFORE_COURSE_SOURCES)
+    _seed_courses(sqlite_url)
+    command.upgrade(cfg, "head")
+
+    command.downgrade(cfg, _BEFORE_COURSE_SOURCES)
+    assert "course_sources" not in _tables(sqlite_url)
+    assert _lignes(sqlite_url, "SELECT count(*) FROM courses") == [(3,)]
+
+    command.upgrade(cfg, "head")
+    assert _lignes(sqlite_url, "SELECT count(*) FROM course_sources WHERE is_active") == [
+        (2,)
+    ]

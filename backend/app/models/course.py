@@ -41,6 +41,13 @@ class Course(Base):
     participations: Mapped[list["Participation"]] = relationship(  # noqa: F821
         back_populates="course", cascade="all, delete-orphan"
     )
+    #: Les N sources d'import de l'épreuve, dont une seule active (#278). Même
+    #: cascade que les participations, et portée par l'**ORM** pour la même
+    #: raison : `database.py` n'émet aucun `PRAGMA foreign_keys=ON`, un
+    #: `ondelete` serait inerte en SQLite et actif en PostgreSQL.
+    sources: Mapped[list["CourseSource"]] = relationship(  # noqa: F821
+        back_populates="course", cascade="all, delete-orphan"
+    )
 
     @hybrid_property
     def is_reliable(self) -> bool | None:
