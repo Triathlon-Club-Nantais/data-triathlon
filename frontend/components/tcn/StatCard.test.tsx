@@ -25,4 +25,15 @@ describe("StatCard", () => {
     render(<StatCard variant="hero" label="Dossards" value={120} delta="12 athlètes" />);
     expect(screen.getByText("12 athlètes")).toBeInTheDocument();
   });
+
+  it("écrit la variante hero en encre sur le dégradé orange", () => {
+    // #299 : le libellé à 13 px et la pastille de delta étaient en blanc sur
+    // dégradé (3,68:1 à l'extrémité foncée) ; seule la valeur à 86 px tenait le
+    // seuil « texte large ». L'encre les met les trois à 4,54:1 au pire.
+    render(<StatCard variant="hero" label="Dossards" value={120} delta="12 athlètes" />);
+
+    for (const texte of ["Dossards", "120", "12 athlètes"]) {
+      expect(screen.getByText(texte)).toHaveStyle({ color: "var(--tcn-ink)" });
+    }
+  });
 });

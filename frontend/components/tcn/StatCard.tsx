@@ -46,14 +46,20 @@ export function StatCard({
             background: "rgba(255,255,255,.12)",
           }}
         />
-        <div style={{ fontWeight: 700, fontSize: 13, letterSpacing: ".04em", textTransform: "uppercase", color: "rgba(255,255,255,.85)" }}>
+        {/* Encre sur le dégradé (#299) : du blanc n'y tenait que 3,68:1 à
+            l'extrémité #E9530E, et la hiérarchie ne se portait plus qu'à
+            l'opacité — 85 % de blanc pour le libellé. Elle passe à la taille et
+            aux capitales, les trois textes étant désormais en encre pleine :
+            4,54:1 au pire pour le libellé et la valeur, 5,73:1 pour la pastille,
+            dont le blanc à 20 % éclaircit le fond au lieu de l'assombrir. */}
+        <div style={{ fontWeight: 700, fontSize: 13, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--tcn-ink)" }}>
           {label}
         </div>
-        <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 86, lineHeight: 0.95, color: "#fff", margin: "10px 0 8px", whiteSpace: "nowrap" }}>
+        <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 86, lineHeight: 0.95, color: "var(--tcn-ink)", margin: "10px 0 8px", whiteSpace: "nowrap" }}>
           {value}
         </div>
         {delta ? (
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 12px", background: "rgba(255,255,255,.2)", color: "#fff", borderRadius: 999, fontSize: 13, fontWeight: 800 }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 12px", background: "rgba(255,255,255,.2)", color: "var(--tcn-ink)", borderRadius: 999, fontSize: 13, fontWeight: 800 }}>
             {delta}
           </div>
         ) : null}
