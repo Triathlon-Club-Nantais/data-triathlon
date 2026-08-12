@@ -6,6 +6,7 @@ import { Card, SegmentedControl, PlaceBadge } from "@/components/tcn";
 import { StatusBadge } from "@/components/results/StatusBadge";
 import { isNonFinisher } from "@/lib/utils/raceOrder";
 import { splitColumnsFromKeys } from "@/lib/utils/splits";
+import { secondsFromHms } from "@/lib/utils/time";
 import { SCOPE_CLUB, SCOPE_PARAM } from "@/lib/scope";
 import { CLUB_NAME } from "@/lib/club";
 import type { CourseSummary, Participation } from "@/lib/types";
@@ -40,6 +41,10 @@ export function RaceFinishers({
   const rechercheUrl = searchParams.get("q") ?? "";
   const [recherche, setRecherche] = useState(rechercheUrl);
   const [derniereUrl, setDerniereUrl] = useState(rechercheUrl);
+  // Tri optionnel côté client, déclenché par un clic sur l'en-tête d'un split
+  // (#309) — croissant uniquement, sur la seule tranche affichée. `null` tant
+  // qu'aucun en-tête n'a été cliqué : l'ordre reste alors celui du backend.
+  const [triSplit, setTriSplit] = useState<string | null>(null);
 
   // L'URL est la vérité : après un « Précédent » du navigateur, le champ doit
   // suivre. Ajustement pendant le rendu plutôt qu'en effet — React le
@@ -76,6 +81,20 @@ export function RaceFinishers({
   const fcols = [BASE_COLS, ...segments.map((s) => (s.small ? "64px" : "80px")), CLUB_COL].join(" ");
 
   const nbPages = pageSize ? Math.max(1, Math.ceil(total / pageSize)) : 1;
+
+  // Valeurs non temporelles (DNF/DNS/DSQ, segment non publié) envoyées en fin
+  // de classement plutôt que traitées comme un temps nul. `sort` est stable
+  // (ES2019+) : les égalités et les lignes non triées gardent l'ordre du
+  // backend.
+  const lignes = triSplit
+    ? [...participations].sort((a, b) => {
+        const sa = secondsFromHms(a.splits?.[triSplit]);
+        const sb = secondsFromHms(b.splits?.[triSplit]);
+        if (sa == null) return sb == null ? 0 : 1;
+        if (sb == null) return -1;
+        return sa - sb;
+      })
+    : participations;
 
   return (
     <Card padding={0} style={{ overflow: "hidden" }}>
@@ -127,10 +146,33 @@ export function RaceFinishers({
         <div style={{ minWidth: 1080 }}>
           <div style={{ display: "grid", gridTemplateColumns: fcols, gap: "0 12px", padding: "12px 22px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--tcn-text-faint)", borderBottom: "1px solid var(--tcn-border)" }}>
             <div>Rang</div><div>Athlète</div><div>Catég.</div><div>Sexe</div><div>Temps total</div>
-            {segments.map((s) => <div key={s.key}>{s.label}</div>)}
+            {segments.map((s) => (
+              <div key={s.key}>
+                <button
+                  type="button"
+                  onClick={() => setTriSplit(s.key)}
+                  aria-label={`Trier par temps ${s.label}, croissant`}
+                  style={{
+                    font: "inherit",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: ".04em",
+                    color: triSplit === s.key ? "var(--tcn-ink)" : "inherit",
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    cursor: "pointer",
+                  }}
+                >
+                  {s.label}
+                  {triSplit === s.key ? " ▲" : ""}
+                </button>
+              </div>
+            ))}
             <div>Club</div>
           </div>
-          {participations.map((p) => {
+          {lignes.map((p) => {
             const own = p.is_tcn;
             const nf = isNonFinisher(p.status);
             const name = [p.athlete?.nom, p.athlete?.prenom].filter(Boolean).join(" ");
