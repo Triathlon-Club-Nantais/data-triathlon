@@ -204,6 +204,23 @@ def test_bc_live_dinard_swimrun():
 
 
 @pytest.mark.integration
+def test_klikego_mesquer_le_heat_duo_est_une_epreuve_dequipe():
+    """Mesquer 2026, heat `swim-run-m-duo` : un duo est une épreuve d'équipe (#295).
+
+    Relevé en base avant correctif : 58 participations sur ce heat, toutes
+    `is_relay=False` — ni le libellé ni le slug ne contiennent « relais », et le
+    duo se retrouvait classé avec les solos de `swim-run-s-indiv`.
+    """
+    results = klikego.scrape_event_all(
+        "1677015306084-12", "swim-run-m-duo",
+        "Triathlon et SwimRun Mesquer Quimiac 2026",
+        "triathlon-et-swimrun-mesquer-quimiac-2026",
+    )
+    assert results, "Mesquer duo : aucun participant renvoyé"
+    assert all(r.is_relay is True for r in results)
+
+
+@pytest.mark.integration
 def test_klikego_nozeen_exhaustif():
     results = klikego.scrape_event_all(
         "1517534975128-8", "duathlon-s---open",

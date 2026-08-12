@@ -117,6 +117,40 @@ def test_bc_import_one_heat_returns_dnf(monkeypatch):
 
 
 # --------------------------------------------------------------------------- #
+# _detect_relay — libellé et slug (#295)
+# --------------------------------------------------------------------------- #
+
+
+def test_detect_relay_on_a_duo_heat_without_label():
+    """Heat ciblé directement : pas de libellé, le slug seul porte le signal.
+
+    `swim-run-m-duo` (Mesquer 2026) sortait `is_relay=False` faute de connaître
+    « duo », et un duo compté individuel mélange équipes et solos au classement.
+    """
+    assert breizhchrono._detect_relay("", "swim-run-m-duo") is True
+
+
+def test_detect_relay_on_a_duo_label():
+    """Le libellé affiché suffit quand il porte le format (« Swim Run M Duo »)."""
+    assert breizhchrono._detect_relay("Swim Run M Duo", "swim-run-m") is True
+
+
+def test_detect_relay_keeps_individual_heats_solo():
+    """Un heat individuel reste solo, quel que soit le côté d'où on le regarde."""
+    assert breizhchrono._detect_relay("Swim Run S Indiv", "swim-run-s-indiv") is False
+    assert breizhchrono._detect_relay("", "swimrun-court-solo") is False
+
+
+def test_detect_relay_still_reads_the_truncated_relay_slug():
+    """Non-régression : un slug relais tronqué à « --- » reste détecté.
+
+    Sur Breizh Chrono, le slug d'un heat relais dont le libellé manque se
+    termine par « --- » ; ce signal-là ne passe par aucun mot.
+    """
+    assert breizhchrono._detect_relay("", "triathlon-m---") is True
+
+
+# --------------------------------------------------------------------------- #
 # Front live.breizhchrono.com (moteur Klikego, façade différente) — issue #34
 # --------------------------------------------------------------------------- #
 

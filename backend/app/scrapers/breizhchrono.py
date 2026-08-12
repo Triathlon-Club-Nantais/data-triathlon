@@ -36,6 +36,7 @@ from app.core.exceptions import DomainError
 
 from .base import ScrapedResult
 from .classify import classify_event_type
+from .klikego_platform import heat_is_relay
 from .utils import DEFAULT_HEADERS
 
 logger = logging.getLogger(__name__)
@@ -159,15 +160,17 @@ def _course_name(event_name: str, heat_label: str) -> str:
 
 
 def _detect_relay(heat_label: str, heat_slug: str) -> bool:
-    """Indique si un heat est une épreuve de relais.
+    """Indique si un heat est une épreuve d'équipe (relais, duo).
 
-    Le relais est une propriété du heat (et non du participant) : tous les
-    résultats d'un même heat héritent donc de cette valeur. Deux signaux :
-      - le libellé affiché contient « Relais » (cas nominal) ;
-      - à défaut de libellé (heat ciblé directement, sans label), le slug
-        d'un heat relais se termine par « --- » sur Breizh Chrono.
+    Le libellé et le slug portent tous deux le format, et l'un des deux manque
+    selon le chemin d'import : la reconnaissance des mots d'équipe est celle du
+    moteur partagé (`klikego_platform.heat_is_relay`) — une seule définition
+    pour les deux fronts et pour Klikego.
+
+    S'y ajoute un signal propre à Breizh Chrono : à défaut de libellé, le slug
+    d'un heat relais s'y termine par « --- », sans qu'aucun mot ne le dise.
     """
-    return "relais" in heat_label.lower() or heat_slug.endswith("---")
+    return heat_is_relay(heat_label, heat_slug) or heat_slug.endswith("---")
 
 
 def _import_one_heat(

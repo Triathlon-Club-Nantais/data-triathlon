@@ -685,6 +685,88 @@ def test_parse_search_row_duathlon_en_relais_heat():
 
 
 # ---------------------------------------------------------------------------
+# heat_is_relay — formes d'équipe des heats de la plateforme Klikego (#295)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("heat", [
+    "triathlon-s-relais",                     # forme nominale (Vierzon 2026, #203)
+    "triathlon-distance-olympique---relais",  # front live.breizhchrono (Dinard 2025)
+    "duathlon-s---en-relais",                 # « en relais » — le mot n'est pas en fin
+    "swim-run-m-duo",                         # Mesquer 2026 : un duo EST une équipe
+    "swim-run-s-duo",
+    "swimrun-court-duo",                      # Dinard 2025, front live
+    "format-s---en-binome",                   # RE SwimRun 2025 — un binôme aussi
+    "format-l---championnat-de-france---en-binome",
+    "duathlon-liffre-cormier-clm-par-equipe",  # CLM par équipes
+])
+def test_heat_is_relay_recognises_observed_team_heats(heat):
+    """Les quatre formes d'équipe constatées valent relais au sens du modèle.
+
+    Chacune est tirée d'un événement réel (corpus de classification ci-dessus,
+    fixtures Mesquer 2026 et Dinard 2025). Ne connaître que « relais » laissait
+    `swim-run-m-duo` en individuel, alors que `is_relay` entre dans l'identité de
+    la Course : le duo se retrouvait classé avec les solos.
+    """
+    assert plat.heat_is_relay(heat) is True
+
+
+@pytest.mark.parametrize("heat", [
+    "triathlon-s-indiv",
+    "swim-run-s-indiv",
+    "triathlon-m-individuel",
+    "swimrun-court-solo",
+    "format-m---en-solo",   # RE SwimRun / Côte de Beauté 2025 — l'opposé du binôme
+    "duathlon-s",           # la famille « dua- » n'est pas un duo
+    "",                     # heat ciblé sans libellé
+])
+def test_heat_is_relay_leaves_individual_heats_alone(heat):
+    """Aucun mot d'équipe → solo. Le test verrouille les formes vues en face."""
+    assert plat.heat_is_relay(heat) is False
+
+
+def test_heat_is_relay_reads_every_signal_it_is_given():
+    """Le signal peut venir du slug OU du libellé affiché.
+
+    Un heat ciblé directement n'a pas de libellé (seul le slug parle) ; à
+    l'inverse le libellé porte parfois deux formats (« Relais L & Duo »).
+    """
+    assert plat.heat_is_relay("", "Swim Run M Duo") is True
+    assert plat.heat_is_relay("Relais L & Duo") is True
+    assert plat.heat_is_relay("", "") is False
+
+
+def test_heat_is_relay_matches_whole_words_only():
+    """Le mot compte comme mot, pas comme sous-chaîne.
+
+    Le heat est un slug tokenisé par tirets : chercher « duo » n'importe où
+    dans la chaîne ferait mordre le premier libellé qui contient les trois
+    lettres au milieu d'un mot.
+    """
+    assert plat.heat_is_relay("triathlon-arduo") is False
+    assert plat.heat_is_relay("Trophée Iduoret") is False
+
+
+def test_heat_is_relay_survives_the_accents_of_a_displayed_label():
+    """Le slug aplatit les accents, le libellé non : « Binôme », « Équipe ».
+
+    Sans les aplatir, « ô » couperait le mot en deux et le libellé ne dirait
+    plus rien — le slug seul portait alors le signal.
+    """
+    assert plat.heat_is_relay("Format L - En Binôme") is True
+    assert plat.heat_is_relay("Duathlon CLM par Équipe") is True
+
+
+def test_parse_search_row_duo_heat_sets_is_relay():
+    """Mesquer 2026 : `swim-run-m-duo` → relais, comme son voisin « relais »."""
+    row = _make_search_row(bib="15", name="LEROY Anne")
+    result = _parse_search_row(
+        row, "EVT1", "swim-run-m-duo", "Swim Run M Duo", "swimrun-mesquer", rank=1
+    )
+    assert result.is_relay is True
+
+
+# ---------------------------------------------------------------------------
 # decode_data_block — décodage du data block base64+XOR
 # ---------------------------------------------------------------------------
 
@@ -998,6 +1080,36 @@ def test_build_heat_results_sets_is_relay_on_relay_heats():
     assert relais and indiv
     assert all(r.is_relay is True for r in relais)
     assert all(r.is_relay is False for r in indiv)
+
+
+def test_build_heat_results_sets_is_relay_on_duo_heats():
+    """Même exigence pour un duo : `swim-run-s-duo` et `swim-run-s-indiv`
+    coexistent à Mesquer 2026, mêmes nom, date et type. Si le duo sort
+    `is_relay=False`, les deux heats fusionnent sur l'UNIQUE
+    (name, event_date, event_type, is_relay) et le classement mélange les
+    équipes aux solos.
+    """
+    from app.scrapers.klikego_platform import build_heat_results
+
+    page0 = (FIXTURES / "klikego_datablock_page0.html").read_text()
+
+    class FakeResp:
+        status_code = 200
+        def __init__(self, t): self.text = t
+
+    class FakeClient:
+        def get(self, url):
+            return FakeResp(page0 if "inter=&page=0" in url else "<html></html>")
+
+    duo = build_heat_results(
+        base="https://x", provider="klikego", event_id="1",
+        heat="swim-run-s-duo",
+        heat_page_html="<html></html>",
+        event_name="SwimRun", slug="swimrun-mesquer", event_type="swimrun-s",
+        source_url="https://x", event_date=None, client=FakeClient(),
+    )
+    assert duo
+    assert all(r.is_relay is True for r in duo)
 
 
 # ---------------------------------------------------------------------------
