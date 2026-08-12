@@ -22,6 +22,7 @@ n'accueille que ce qu'on voudrait relire à chaque session.
 | Sujet | Où |
 | --- | --- |
 | Workflow IA : les trois voies, garde-fous, artefacts | `docs/WORKFLOW-IA.md` |
+| Review UI/UX : grille, seuils chiffrés, faux positifs connus | `.claude/agents/ui-ux-review.md` |
 | Conventions scrapers + les 14 fournisseurs supportés | `backend/app/scrapers/AGENTS.md` |
 | Un fournisseur en particulier (pièges mesurés, formes d'URL) | `docs/scrapers/<fournisseur>.md` |
 | Sorties de la CLI : stdout parsable, codes de sortie, bilans | `backend/app/cli/AGENTS.md` |
@@ -53,7 +54,10 @@ route. Détail complet : `docs/WORKFLOW-IA.md`.
   `subagent-driven-development`. L'agent ne déclenche de lui-même ni le fan-out
   ni les commits par tâche.
 - **Fin de branche, commune aux trois voies** : `requesting-code-review` →
-  `verification-before-completion` → `finishing-a-development-branch`.
+  `verification-before-completion` → `finishing-a-development-branch`. Si la
+  branche touche `frontend/`, le sous-agent `ui-ux-review` s'insère après la
+  revue de code : il juge du **rendu**, en lecture seule, sur déclenchement de
+  l'utilisateur, et ne rouvre jamais l'identité visuelle.
 - **Le TDD est non-négociable** (Principe III de la constitution) ; seul son
   garant change de place : le skill en voie Superpowers, `tasks.md` en voie Spec
   Kit. Un `tasks.md` sans tâches de test se **régénère**, il ne s'exécute pas.

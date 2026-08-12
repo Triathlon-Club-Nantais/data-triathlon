@@ -98,6 +98,24 @@ ne peuvent donc pas créer de doublon avec quoi que ce soit de Spec Kit. Et Spec
 Kit n'offre aucun équivalent de revue de code : sans elles, une feature de la
 voie Spec Kit se terminerait sans revue du tout.
 
+**Quand la branche touche `frontend/`, une quatrième étape s'insère après
+`requesting-code-review` : le sous-agent `ui-ux-review`**
+(`.claude/agents/ui-ux-review.md`, #276). `requesting-code-review` juge du code ;
+lui juge du rendu — respect des tokens `--tcn-*` et de la frontière
+`components/tcn/` vs `components/ui/`, accessibilité WCAG AA (contrastes
+**calculés**, focus visible, `prefers-reduced-motion`, cibles tactiles,
+sémantique), états d'écran, responsive jusqu'à 360 px, microcopie française. Il
+est en **lecture seule** et **l'utilisateur le déclenche** : comme le fan-out et
+les commits par tâche, il ne part pas de lui-même. Deux traits à connaître avant
+de le lancer :
+
+- **Il ne rouvre pas l'identité visuelle.** Ni palette, ni typo, ni « signature
+  element » : c'est arbitré. Un rapport qui en propose est un rapport à jeter.
+- **Il est statique.** Il lit le code et les tokens, il ne voit pas le rendu. Ce
+  qu'il ne peut pas juger, il le dit en clôture de rapport — et c'est ce relevé,
+  pas une intuition, qui décidera un jour d'ouvrir la review au navigateur
+  (`webapp-testing`, ou Playwright en devDep du front).
+
 La branche git, elle, n'est plus à créer soi-même sur la voie Spec Kit : depuis
 0.15.0 le hook `before_specify` de `/speckit-specify` l'ouvre pour de vrai. Les
 commits-gate, en revanche, restent inertes — voir §Les hooks git dans les
@@ -231,10 +249,21 @@ reste disponible sur la voie Superpowers, sur désignation explicite.
 
 1. Installer Superpowers : `/plugin marketplace add obra/superpowers-marketplace`
    puis `/plugin install superpowers@superpowers-marketplace`.
-2. Initialiser Spec Kit : `specify init --integration claude-code` (Spec Kit v0.10+
+2. Installer les skills officiels Anthropic :
+   `/plugin marketplace add anthropics/skills` puis
+   `/plugin install example-skills@anthropic-agent-skills`. Le paquet embarque
+   `frontend-design`, sur lequel `ui-ux-review` s'appuie pour le fond, et
+   `webapp-testing`, candidat du jour où la review passera au navigateur.
+3. Initialiser Spec Kit : `specify init --integration claude-code` (Spec Kit v0.10+
    a remplacé les anciens flags `--ai` par `--integration`).
-3. `/speckit-constitution`.
-4. Committer `.specify/` ; `.claude/` selon la politique de l'équipe.
+4. `/speckit-constitution`.
+5. Committer `.specify/` ; `.claude/` selon la politique de l'équipe.
+
+Les étapes 1 et 2 s'installent **par machine**, pas par dépôt : un plugin vit
+dans la configuration utilisateur et ne se commite pas. Les artefacts du dépôt —
+`.claude/agents/`, `.claude/skills/` — sont versionnés et arrivent donc avec le
+clone ; les plugins sont à installer une fois par poste. `ui-ux-review` reste
+utilisable sans le plugin : il en emprunte la doctrine, il n'en dépend pas.
 
 **Ne pas ajouter de « ligne-pont »** à la constitution du type « toute
 implémentation d'une task list doit suivre le workflow Superpowers » : c'est
@@ -242,7 +271,8 @@ exactement le croisement que la règle d'or interdit. (Ce document l'a recommand
 par le passé ; la ligne n'est jamais entrée dans la constitution de ce repo.)
 
 **État de ce repo** : la mise en place est déjà faite, en **Spec Kit 0.15.0**
-(`.specify/init-options.json`). La constitution est **ratifiée le
+(`.specify/init-options.json`) — à l'étape 2 près, qui est par poste et reste
+donc à faire sur une machine neuve. La constitution est **ratifiée le
 2026-07-27, amendée en v1.1.0** (`.specify/memory/constitution.md`) — ne pas
 relancer `/speckit-constitution`
 pour « la remplir ». Elle ne nomme aucun exécuteur (sa section « Development
