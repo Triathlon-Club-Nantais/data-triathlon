@@ -270,6 +270,22 @@ describe("RaceFinishers", () => {
     expect(nomsAffiches()).toEqual(["RAPIDE T", "LENT T", "SANSNATATION T"]);
   });
 
+  it("recliquer sur le même en-tête inverse l'ordre en décroissant", async () => {
+    afficher({
+      participations: dataAvecSplits,
+      summary: synthese({ split_keys: ["swim"] }),
+      eventType: "triathlon-m",
+    });
+
+    const bouton = screen.getByRole("button", { name: /Trier par temps.*Natation/i });
+    await userEvent.click(bouton); // croissant : RAPIDE, LENT, SANSNATATION
+    await userEvent.click(bouton); // décroissant
+
+    // SANSNATATION (aucun temps) reste en dernier même décroissant : ce n'est
+    // pas un temps nul, il n'y a simplement rien à comparer.
+    expect(nomsAffiches()).toEqual(["LENT T", "RAPIDE T", "SANSNATATION T"]);
+  });
+
   it("en-tête de split activable au clavier, avec libellé français explicite", () => {
     afficher({
       participations: dataAvecSplits,
@@ -279,5 +295,51 @@ describe("RaceFinishers", () => {
 
     const bouton = screen.getByRole("button", { name: /Trier par temps.*Natation/i });
     expect(bouton.tagName).toBe("BUTTON");
+  });
+
+  // ── Tri par temps total ─────────────────────────────────────────────────────
+
+  it("trie en ordre croissant sur le temps total", async () => {
+    afficher({
+      participations: dataAvecSplits,
+      summary: synthese({ split_keys: ["swim"] }),
+      eventType: "triathlon-m",
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /Trier par temps total/i }));
+
+    // RAPIDE (00:58:00) < LENT (01:00:00) < SANSNATATION (01:05:00).
+    expect(nomsAffiches()).toEqual(["RAPIDE T", "LENT T", "SANSNATATION T"]);
+  });
+
+  it("recliquer sur l'en-tête « Temps total » inverse l'ordre en décroissant", async () => {
+    afficher({
+      participations: dataAvecSplits,
+      summary: synthese({ split_keys: ["swim"] }),
+      eventType: "triathlon-m",
+    });
+
+    const bouton = screen.getByRole("button", { name: /Trier par temps total/i });
+    await userEvent.click(bouton);
+    await userEvent.click(bouton);
+
+    expect(nomsAffiches()).toEqual(["SANSNATATION T", "LENT T", "RAPIDE T"]);
+  });
+
+  it("cliquer sur un autre en-tête repart en croissant, sans garder la direction précédente", async () => {
+    afficher({
+      participations: dataAvecSplits,
+      summary: synthese({ split_keys: ["swim"] }),
+      eventType: "triathlon-m",
+    });
+
+    const totalBtn = screen.getByRole("button", { name: /Trier par temps total/i });
+    await userEvent.click(totalBtn);
+    await userEvent.click(totalBtn); // décroissant sur le temps total
+
+    await userEvent.click(screen.getByRole("button", { name: /Trier par temps.*Natation/i }));
+
+    // Nouvel en-tête : repart en croissant, pas en décroissant.
+    expect(nomsAffiches()).toEqual(["RAPIDE T", "LENT T", "SANSNATATION T"]);
   });
 });
