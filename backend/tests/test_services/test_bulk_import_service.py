@@ -241,3 +241,27 @@ def test_run_import_sheet_liens_non_supportes_ne_font_pas_un_echec(db_session, m
     assert out.unique_supported == 0
     assert out.ignored_by_host == {"inconnu.example": 1}
     assert out.echec_total is False
+
+
+def test_sheet_outcome_carries_the_registered_passive_sources(db_session, monkeypatch):
+    """#283, AC5 — le bilan d'`import-sheet` porte les sources enregistrées.
+
+    Même patron que `test_sheet_outcome_porte_updated` : ce qui compte est la
+    traversée `BatchTotals` → `Outcome`, pas le scraping.
+    """
+    from app.services.batch import BatchTotals
+    from app.services.import_service import PassiveSource
+
+    signalee = PassiveSource(url="https://k/1", course_name="Mesquer", message="…")
+    monkeypatch.setattr(
+        bulk_import_service, "run_batch",
+        lambda *a, **k: BatchTotals(skipped=42, processed=1, passive_sources=[signalee]),
+    )
+    csv_text = (
+        "a,Donne-nous un lien pour accéder aux résultats.\n"
+        "x,https://www.klikego.com/e/1\n"
+    )
+    out = bulk_import_service.run_import_sheet(db_session, csv_text, _settings(), delay=0)
+
+    assert out.passive_sources == [signalee]
+    assert out.echec_total is False

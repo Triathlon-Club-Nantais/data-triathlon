@@ -1,6 +1,7 @@
 from app.cli.reports import render_rescrape_report, render_sheet_report
 from app.services.batch import BatchFailure
 from app.services.bulk_import_service import SheetOutcome
+from app.services.import_service import PassiveSource
 from app.services.rescrape_service import RescrapeOutcome
 
 
@@ -200,3 +201,63 @@ def test_sheet_report_affiche_les_participants_mis_a_jour():
     out = SheetOutcome(unique_supported=2, imported=3, updated=4, skipped=5, processed=2)
     texte = render_sheet_report(out, dry_run=False)
     assert "Participants mis à jour   : 4" in texte
+
+
+def test_the_sheet_report_lists_the_registered_passive_sources():
+    """#283, AC5 — l'URL enregistrée sans prendre la main doit se lire dans le bilan.
+
+    Sans ce bloc, l'opérateur d'un import Sheet de 300 lignes n'a aucun moyen de
+    savoir qu'une de ses URLs a atterri sur une épreuve déjà connue : les
+    compteurs ne bougent pas (ni erreur, ni participant ajouté), et l'épreuve
+    passe pour un import ordinaire.
+    """
+    out = SheetOutcome(
+        unique_supported=2, processed=2, imported=0, skipped=42,
+        passive_sources=[
+            PassiveSource(
+                url="https://resultats.breizhchrono.com/r/1",
+                course_name="Triathlon de Mesquer",
+                message="« Triathlon de Mesquer » est déjà en base : …",
+            )
+        ],
+    )
+
+    rapport = render_sheet_report(out, dry_run=False)
+
+    assert "Sources enregistrées" in rapport
+    assert "https://resultats.breizhchrono.com/r/1" in rapport
+    assert "« Triathlon de Mesquer » est déjà en base : …" in rapport
+
+
+def test_a_report_without_any_registered_source_hides_the_block():
+    """Même parti pris que le bloc de réconciliation : masqué quand il n'a rien à dire."""
+    rapport = render_sheet_report(
+        SheetOutcome(unique_supported=1, processed=1, imported=3), dry_run=False
+    )
+
+    assert "Sources enregistrées" not in rapport
+
+
+def test_the_rescrape_report_lists_them_too():
+    """`rescrape-db --url` sur une URL inconnue peut aussi atterrir sur une épreuve connue.
+
+    #282 refuse une URL **passive** ; une URL qu'aucune source ne porte encore est
+    scrapée normalement et peut apparier une épreuve existante. Les deux commandes
+    passent par `run_batch`, le bloc est donc commun — deux rendus divergeraient
+    sans raison.
+    """
+    out = RescrapeOutcome(
+        total=1, processed=1, imported=0, skipped=7,
+        passive_sources=[
+            PassiveSource(
+                url="https://www.klikego.com/r/9",
+                course_name="Duathlon Nozéen",
+                message="« Duathlon Nozéen » est déjà en base : …",
+            )
+        ],
+    )
+
+    rapport = render_rescrape_report(out, dry_run=False)
+
+    assert "Duathlon Nozéen" in rapport
+    assert "https://www.klikego.com/r/9" in rapport
