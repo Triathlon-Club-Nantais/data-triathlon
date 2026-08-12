@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { COULEURS_CARTE } from "@/components/map/carte";
 
 const css = readFileSync(fileURLToPath(new URL("globals.css", import.meta.url)), "utf8");
 
@@ -76,6 +77,26 @@ describe("palette de texte TCN", () => {
   it("garde l'anneau de focus au-dessus du seuil non-textuel sur papier", () => {
     // WCAG 1.4.11 — `outline: 2px solid var(--tcn-orange)` de `.tcn-input`.
     expect(contrast(token("--tcn-orange"), token("--tcn-paper"))).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("couleurs de la carte", () => {
+  // `pathOptions` de Leaflet alimente un attribut SVG, où `var()` n'est pas
+  // fiable : les littéraux y sont légitimes. C'est leur **désynchronisation** avec
+  // les tokens qui était le défaut, la légende et la carte en portant chacune sa
+  // copie (#299). Ce test est le joint.
+  it.each([
+    ["avecTcn", "remplissage", "--tcn-orange"],
+    ["avecTcn", "trait", "--tcn-orange-deep"],
+    ["sansTcn", "remplissage", "--tcn-text-muted"],
+    ["sansTcn", "trait", "--tcn-text-body"],
+  ] as const)("%s.%s reste égal à %s", (categorie, role, nom) => {
+    expect(COULEURS_CARTE[categorie][role].toLowerCase()).toBe(token(nom).toLowerCase());
+  });
+
+  it("garde la pastille neutre au-dessus du seuil non-textuel sur papier", () => {
+    // WCAG 1.4.11 — #b0aaa0 (`--tcn-grey-400`) n'y tenait que 2,08:1.
+    expect(contrast(COULEURS_CARTE.sansTcn.remplissage, token("--tcn-paper"))).toBeGreaterThanOrEqual(3);
   });
 });
 
