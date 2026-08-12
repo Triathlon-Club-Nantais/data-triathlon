@@ -94,12 +94,19 @@
   --tcn-ink-3:         #5b5e65;
 
   /* ── Texte ────────────────────────────────────────────────────── */
+  /* `faint` portait #a39d93, soit 2,69:1, pour 41 usages dont des textes de
+     13-14 px qui portent du sens (états vides, en-têtes de colonnes) — pas de la
+     décoration. #726c61 le met à 4,69:1 au pire des trois surfaces.
+     Conséquence assumée, et provisoire : il est désormais **plus foncé** que
+     `muted` (#857f74, 3,97:1), donc la rampe est inversée. `muted` reste
+     arbitré ouvert dans #299 — 28 usages, et son sort se décide avec celui de
+     la rampe neutre. `app/globals.test.ts` garde les seuils, muted excepté et
+     l'exception y est écrite. */
   --tcn-text:          #1c1e22;
   --tcn-text-body:     #3a3833;
   --tcn-text-muted:    #857f74;
-  --tcn-text-faint:    #a39d93;
+  --tcn-text-faint:    #726c61;
   --tcn-text-disabled: #c4bdb1;
-  --tcn-placeholder:   #b3ada3;
 
   /* ── Surfaces ─────────────────────────────────────────────────── */
   --tcn-paper:         #f4f3f0;
@@ -296,4 +303,25 @@
 ::selection {
   background: var(--tcn-orange);
   color: #ffffff;
+}
+
+/* WCAG 2.3.3 — rien n'offrait de coupe-circuit au mouvement : 21 usages
+   `animate-*` sur 8 fichiers, plus les entrées/sorties de `ui/{dialog,sheet,
+   popover}` alimentées par tw-animate-css. La règle s'applique à tout, y compris
+   aux animations qu'aucun composant du dépôt ne déclare.
+
+   0,01ms et non 0 : une durée nulle empêche `animationend`/`transitionend` de
+   se déclencher sur plusieurs moteurs, donc casserait toute logique qui attend
+   la fin d'une animation pour démonter un nœud. `!important` parce que la
+   plupart des durées visées viennent d'utilitaires ou de styles en ligne, que
+   la spécificité seule ne bat pas. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
