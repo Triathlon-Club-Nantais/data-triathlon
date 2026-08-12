@@ -181,6 +181,72 @@ Quatre points à ne pas défaire :
 Fusionner une épreuve avec elle-même est un **400** (message français) : le geste
 n'a rien à absorber, et #287 supprimerait la cible qu'on croit garder.
 
+## Fusionner : `POST /admin/courses/{id}/merge` (#287)
+
+`{"absorbed_id": <id>}`, même module que son aperçu. L'absorbée est nommée dans le
+corps et la cible dans le chemin parce que la ressource s'écrit du point de vue de
+ce qui **survit** : l'épreuve `{id}` garde son identité, son classement et sa
+source active. Rend les mêmes chiffres que l'aperçu annonçait, plus la liste des
+sources de la cible dans la forme de `GET /courses/{id}/sources` (#284).
+
+Six choses à ne pas défaire :
+
+- **La fusion ne re-scrape rien**, et c'est la décision qui la définit. La cible
+  garde ses participations ; l'absorbée disparaît avec les siennes, et son URL la
+  rejoint en **passive**. Prendre les données de l'autre chronométreur est un
+  *second* geste, la bascule de #285 — deux décisions, deux gestes. Les fondre
+  donnerait un geste dont personne ne pourrait prédire le classement obtenu.
+- **Deux pouvoirs exigés — `courses:sources` et `courses:delete`**, par deux
+  `Depends(require_permission(...))` sur la route : la fabrique nomme *un* pouvoir,
+  les composer est le mécanisme, il n'en faut pas de troisième et **aucun pouvoir
+  n'est ajouté au catalogue** — « fusionner » n'est pas une capacité de plus, c'est
+  la conjonction de deux capacités existantes. L'arbitrage des sources ne perd
+  aucune ligne (la bascule réimporte), la fusion oui : exiger le seul
+  `courses:sources` donnerait une suppression d'épreuve à qui n'en a pas le droit.
+- **Seule la source *active* de l'absorbée survit ; ses passives meurent avec
+  elle.** Ce n'est pas une économie : c'est ce qui rend vraie la promesse de
+  l'aperçu, qui annonce « aucune source ne sera ajoutée » sur le seul examen de
+  l'URL active (`same_source_url`). Faire suivre les passives ferait apparaître des
+  sources non annoncées et rendrait le prédicat faux. Les deux ressources appellent
+  le **même** `_url_already_known`, et le refus de la fusion sur soi-même le même
+  `_pair_or_400` : l'annonce et l'acte ne peuvent pas diverger à base constante.
+  Une passive perdue reste rattrapable par le chemin ordinaire — la recoller recrée
+  une épreuve, que #288 signale et qu'une seconde fusion rapproche.
+- **La source repointée reste passive sans condition**, même si la cible n'a
+  aucune active. `course_source_repository.move_to` est l'inverse d'`attach` sur ce
+  point, et c'est délibéré : une passive n'est jamais scrapée (#282), ce qui est
+  exactement ce qui rend la fusion non destructrice. L'activer ferait scraper l'URL
+  de l'absorbée au prochain `rescrape-db`, qui recréerait l'épreuve supprimée sous
+  sa propre identité.
+- **Le repointage passe par la relation, et précède le `delete`.** `move_to` écrit
+  `source.course = target`, seule écriture qui retire aussi la ligne de
+  `absorbed.sources` : sans elle le `delete-orphan` de la collection supprimerait
+  l'URL au `db.delete(absorbed)` qui suit, donc le geste censé la sauver la
+  perdrait. `is_active` et `course_id` changent dans le **même** `UPDATE` — un seul
+  `flush`, contrairement à `set_active` : découper ferait toucher la cible à une
+  ligne encore active, contre l'index partiel `UNIQUE(course_id) WHERE is_active`.
+- **L'ordre des lectures est le piège.** Résumé, URL active, compte de
+  participations et candidats à la purge se relèvent **avant** la suppression :
+  après, l'épreuve n'a plus ni source ni résultat, la liste des candidats revient
+  vide et la purge devient un no-op qu'aucune erreur ne signale — même primitive et
+  même piège que `DELETE /admin/courses/{id}`.
+
+L'entrée de journal (`course.merge`) est rattachée à la **survivante** et porte
+l'identité complète de l'absorbée — nom, date, type, relais, URL — plus l'ampleur
+du geste. Sa ligne étant supprimée, cette entrée est la seule trace qui reste
+d'elle : un identifiant nu ne dirait pas six mois plus tard quelle épreuve a
+disparu. `absorbed_id` est un `StrictInt` : en mode permissif Pydantic coerce
+`true` en `1`, et une case à cocher mal sérialisée supprimerait l'épreuve `1` avec
+ses résultats.
+
+**Une limite connue, et elle n'est pas dans ce ticket.** L'issue suppose qu'après
+la fusion l'exploitant peut basculer sur l'autre chronométreur (#285). C'est faux
+tant que les deux libellés divergent : `admin_actions._require_same_event` refuse
+une bascule dont le scrape publie une autre identité — précisément le cas que la
+fusion existe pour rapprocher. Faire converger les identités est #289 ; d'ici là
+il faut renommer la cible (`PATCH /admin/courses/{id}`, `courses:write`) avant de
+pouvoir basculer.
+
 ## Protéger une ressource (#115)
 
 `api/deps.require_permission(P.X)` fabrique la garde d'**une** route. Elle nomme

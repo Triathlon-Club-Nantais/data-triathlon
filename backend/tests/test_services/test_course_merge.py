@@ -12,9 +12,11 @@ from datetime import date
 from sqlalchemy import event
 
 from app.repositories import (
+    admin_action_log_repository,
     athlete_repository,
     course_repository,
     participation_repository,
+    user_repository,
 )
 from app.services import course_merge
 
@@ -81,4 +83,34 @@ def test_the_query_count_does_not_grow_with_the_number_of_results(db_session):
     assert len(small) == len(large), (
         f"{len(small)} requêtes sur 2 résultats, {len(large)} sur 40 : "
         f"un compte s'est fait en Python\n" + "\n".join(large)
+    )
+
+
+def test_the_merge_flushes_but_never_commits(db_session):
+    """Le service écrit sans clore : c'est la route qui `commit` (#287, FR-015).
+
+    Sans cette propriété, le geste et sa trace cesseraient d'être indissociables —
+    un `commit` dans le service rendrait irrécupérable une fusion dont
+    l'enregistrement au journal échouerait ensuite, et le rollback ci-dessous ne
+    ramènerait rien. Le test rejoue donc la transaction à l'envers : après
+    `rollback`, l'épreuve absorbée doit être **exactement** là où elle était.
+    """
+    target, absorbed = _two_courses(db_session, results=2, marker="rollback")
+    user = user_repository.create(db_session, email="fusion@exemple.fr")
+    db_session.commit()
+
+    course_merge.merge_courses(
+        db_session, course_id=target.id, absorbed_id=absorbed.id, user_id=user.id
+    )
+    assert course_repository.get(db_session, absorbed.id) is None
+
+    db_session.rollback()
+
+    assert course_repository.get(db_session, absorbed.id) is not None
+    assert participation_repository.count_for_course(db_session, absorbed.id) == 2
+    assert (
+        admin_action_log_repository.list_for_entity(
+            db_session, entity_type="course", entity_id=target.id
+        )
+        == []
     )
