@@ -122,13 +122,33 @@ lisait « Fournisseur de chronométrage non supporté » alors que ProLiveSport
 *est* supporté. La correction des 3 lignes se fait **dans le Sheet**, en pointant
 l'étape voulue.
 
-## Défaut connu, hors périmètre (#280)
+## Rôles de split ambigus : résolus par candidat unique (#280)
 
-`_build_split_map` mappe **plusieurs champs sur le même rôle** puis
-`_parse_athlete` retient le premier non vide. Sur l'événement 979 :
-`{T1: swim, T2: t1, T3: bike, T6: bike, T7: bike, T4: t2, T5: run, T8: run}` —
-`T3`, `T6`, `T7` sont des points de passage vélo, `T5` et `T8` des points de
-passage à pied. Le temps stocké en `bike_time` / `run_time` est donc celui du
-**premier point de passage rencontré dans l'ordre de l'API**, pas le temps de la
-section. Indépendant du fan-out (le défaut existe déjà par course), donc traité à
-part : **#280**.
+Un rôle (`swim`/`t1`/`bike`/`t2`/`run`) peut avoir plusieurs champs candidats
+— mesuré sur l'événement 979 : `bike` reçoit `Bike`, `BikeStart` **et**
+`BikeEnd` (les trois contiennent la sous-chaîne `"bike"`), `run` reçoit `Run`
+**et** `RunStart`. Le sondage
+(`docs/superpowers/specs/2026-08-12-prolivesport-splits-sondage.md`) établit
+que le champ nommé exactement par la discipline (`Bike`, `Run`) est une durée
+de section fiable (la somme des 5 champs canoniques colle au temps total à
+2 s près), tandis que les variantes `*Start`/`*End` sont des points cumulés
+depuis le départ — la même information sous une autre forme, pas une donnée
+supplémentaire.
+
+**Règle retenue** : un rôle à candidat **unique** alimente son slot
+positionnel comme avant. Dès qu'un rôle a **deux candidats ou plus** pour une
+course, aucun slot positionnel n'est renseigné pour **toute la course** (y
+compris les rôles non ambigus) — tous ses champs partent dans
+`ScrapedResult.segments`, triés par suffixe numérique de champ, avec le
+libellé source conservé tel quel. Le « tout ou rien » vient de
+`services/mapping.build_splits`, qui fait primer `segments` en entier sur les
+5 slots dès qu'il est renseigné : laisser un rôle non ambigu dans son slot
+alors que `segments` est actif le ferait disparaître de
+`Participation.splits`. Détail : `docs/superpowers/specs/2026-08-12-prolivesport-splits-design.md`.
+
+Les libellés génériques sans rapport avec les 5 rôles connus (`SplitN` sur
+1082/1079, `SportN` sur les événements duathlon comme 1060) restent hors
+`splits`/`segments` quand ils n'accompagnent aucune ambiguïté — deviner leur
+discipline romprait le principe de simplicité. Ils restent lisibles dans
+`raw_data` (`timeT9`, `timeSport2`…), ce qui suffit au critère « rien n'est
+perdu ».
