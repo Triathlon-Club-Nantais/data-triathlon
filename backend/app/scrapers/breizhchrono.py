@@ -104,9 +104,25 @@ def _fetch_all_heats(slug_id: str, client: httpx.Client) -> list[tuple[str, str]
     """
     Scrape the event root page and return all (heat_slug, heat_label) pairs.
     heat_label is used to detect relays ("Relais" in the display name).
+
+    La racine (`/resultats-courses/{slug_id}`) ne porte jamais elle-même la
+    liste : elle répond systématiquement **302** vers un heat particulier
+    (mesuré sur Mesquer 2026, `swim-run-m-duo`), corps vide. On ne suit donc
+    pas cette redirection en silence (le défaut `follow_redirects=True` de
+    `http.client()` l'aurait fait) : on la lit explicitement et on refait un
+    appel vers sa cible — qui, elle, passe par le garde SSRF comme tout appel
+    (#49, #101), exactement comme l'aurait fait un suivi automatique, mais de
+    façon délibérée plutôt qu'implicite. La page du heat cible embarque la
+    même nav inter-heats (liens `<a href="/resultats-courses/{slug_id}/…">`)
+    que la racine aurait portée si elle avait répondu 200 : le parsing
+    ci-dessous, inchangé, s'applique donc aussi bien à son corps.
     """
+    root_url = f"{BASE}/resultats-courses/{slug_id}"
     try:
-        r = client.get(f"{BASE}/resultats-courses/{slug_id}")
+        r = client.get(root_url, follow_redirects=False)
+        if r.is_redirect and r.headers.get("location"):
+            target = str(httpx.URL(root_url).join(r.headers["location"]))
+            r = client.get(target)
         if r.status_code != 200:
             return []
     # Une destination refusée par le garde SSRF (#101) doit ressortir : la
