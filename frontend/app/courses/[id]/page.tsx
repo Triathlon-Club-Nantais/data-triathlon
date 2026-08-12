@@ -53,12 +53,15 @@ export default async function CoursePage({
   const q = sp.q?.trim() || undefined;
   const scope = scopeFromParam(sp[SCOPE_PARAM]);
 
-  // Deux appels distincts, et c'est structurant : la synthèse porte sur
+  // Trois appels distincts, et c'est structurant : la synthèse porte sur
   // l'épreuve entière, le classement sur la sélection courante. Chercher un nom
-  // ne doit pas faire tomber l'histogramme à une barre (#163).
-  const [data, summary] = await Promise.all([
+  // ne doit pas faire tomber l'histogramme à une barre (#163). Les sources ne
+  // conditionnent jamais le 404 : une épreuve sans source migrée reste une
+  // épreuve valide (#284), elle n'affiche simplement aucun chip.
+  const [data, summary, sources] = await Promise.all([
     apiServer.getCourse(Number(id), { page, q, scope }).catch(rendreNullSi404),
     apiServer.getCourseSummary(Number(id)).catch(rendreNullSi404),
+    apiServer.getCourseSources(Number(id)),
   ]);
   if (!data || !summary) notFound();
   const { course, participations } = data;
@@ -98,12 +101,25 @@ export default async function CoursePage({
           {nonFinishers > 0 && <MetaPill label="Abandons">{nonFinishers}</MetaPill>}
           {unknown > 0 && <MetaPill label="Indéterminés">{unknown}</MetaPill>}
           {tcnCount > 0 && <MetaPill accent dot>{tcnCount} athlète{tcnCount > 1 ? "s" : ""} TCN</MetaPill>}
-          {course.source_url && (
-            <MetaPill label="Source" href={course.source_url} title="Ouvrir les résultats du chronométreur dans un nouvel onglet">
-              {providerLabel(course.provider)}
+          {sources.length === 1 && (
+            <MetaPill label="Source" href={sources[0].url} title="Ouvrir les résultats du chronométreur dans un nouvel onglet">
+              {providerLabel(sources[0].provider)}
               <span aria-hidden="true">↗</span>
             </MetaPill>
           )}
+          {sources.length > 1 &&
+            sources.map((source) => (
+              <MetaPill
+                key={source.id}
+                label={source.is_active ? "Source active" : "Autre source"}
+                href={source.url}
+                accent={source.is_active}
+                title="Ouvrir les résultats du chronométreur dans un nouvel onglet"
+              >
+                {providerLabel(source.provider)}
+                <span aria-hidden="true">↗</span>
+              </MetaPill>
+            ))}
         </div>
       </div>
 

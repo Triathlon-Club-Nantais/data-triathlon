@@ -302,6 +302,15 @@ export interface AthleteDetail {
   participations: Participation[];
 }
 
+/** Une ligne de `GET /courses/{id}/sources` — miroir de `CourseSourceOut` (#284). */
+export interface CourseSource {
+  id: number;
+  url: string;
+  provider: string;
+  is_active: boolean;
+  last_scraped_at: string | null;
+}
+
 export interface CourseDetail {
   course: CourseBrief;
   /** La tranche demandée, déjà dans l'ordre d'affichage — ne pas la retrier. */

@@ -1,15 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import type { CourseSummary } from "@/lib/types";
+import type { CourseSource, CourseSummary } from "@/lib/types";
 import { ApiError } from "@/lib/api/client";
 
 const getCourse = vi.fn();
 const getCourseSummary = vi.fn();
+const getCourseSources = vi.fn();
 
 vi.mock("@/lib/api/server", () => ({
   apiServer: {
     getCourse: (id: number, opts: unknown) => getCourse(id, opts),
     getCourseSummary: (id: number) => getCourseSummary(id),
+    getCourseSources: (id: number) => getCourseSources(id),
   },
 }));
 
@@ -58,6 +60,10 @@ const SUMMARY: CourseSummary = {
   split_keys: [],
 };
 
+const ONE_SOURCE: CourseSource[] = [
+  { id: 1, url: "https://exemple.fr/x", provider: "klikego", is_active: true, last_scraped_at: null },
+];
+
 beforeEach(() => {
   vi.clearAllMocks();
   getCourse.mockResolvedValue({
@@ -68,6 +74,7 @@ beforeEach(() => {
     page_size: 20,
   });
   getCourseSummary.mockResolvedValue(SUMMARY);
+  getCourseSources.mockResolvedValue(ONE_SOURCE);
 });
 
 async function afficher(searchParams: Record<string, string | undefined> = {}) {
@@ -163,5 +170,41 @@ describe("CoursePage", () => {
     expect(screen.queryByText(/Distribution des temps/)).not.toBeInTheDocument();
     expect(screen.getByText("Catégories non renseignées.")).toBeInTheDocument();
     expect(screen.getByText("Clubs non renseignés.")).toBeInTheDocument();
+  });
+
+  it("demande les sources en même temps que la synthèse", async () => {
+    await afficher();
+    expect(getCourseSources).toHaveBeenCalledWith(1);
+  });
+
+  it("affiche une unique source sans la qualifier d'active ou de passive", async () => {
+    await afficher();
+    const lien = screen.getByRole("link", { name: /Klikego/ });
+    expect(lien).toHaveAttribute("href", "https://exemple.fr/x");
+    expect(screen.getByText("Source")).toBeInTheDocument();
+    expect(screen.queryByText("Source active")).not.toBeInTheDocument();
+  });
+
+  it("distingue la source active des autres quand une épreuve en a plusieurs", async () => {
+    getCourseSources.mockResolvedValue([
+      { id: 1, url: "https://exemple.fr/actif", provider: "klikego", is_active: true, last_scraped_at: null },
+      { id: 2, url: "https://exemple.fr/passif", provider: "breizhchrono", is_active: false, last_scraped_at: null },
+    ] satisfies CourseSource[]);
+
+    await afficher();
+
+    const actif = screen.getByRole("link", { name: /Klikego/ });
+    expect(actif).toHaveAttribute("href", "https://exemple.fr/actif");
+    const passif = screen.getByRole("link", { name: /Breizh Chrono/ });
+    expect(passif).toHaveAttribute("href", "https://exemple.fr/passif");
+    expect(screen.getByText("Source active")).toBeInTheDocument();
+    expect(screen.getByText("Autre source")).toBeInTheDocument();
+  });
+
+  it("n'affiche aucun chip de source quand l'épreuve n'en a aucune", async () => {
+    getCourseSources.mockResolvedValue([]);
+    await afficher();
+    expect(screen.queryByRole("link", { name: /Klikego/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Source/)).not.toBeInTheDocument();
   });
 });
