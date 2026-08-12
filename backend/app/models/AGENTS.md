@@ -72,11 +72,13 @@ une chaîne. Vérifiée exécutée sur SQLite **et** PostgreSQL (`WHERE`, `IN`,
 `iter_all(provider=…)` — joignent désormais `course_sources` : une corrélée
 s'évalue une fois par ligne de `courses`, une jointure ramène `courses` par sa
 clé primaire. Seuls les tests de `test_course_derived_source` l'exercent encore.
-**À trancher avant #293** : la garder sans appelant contredit « pas d'indirection
-spéculative » ; la supprimer ferait lever tout futur `filter(Course.provider ==
-…)`, ce qui est peut-être l'effet voulu — la bonne écriture est maintenant la
-jointure. La moitié **Python**, elle, n'est pas en cause : `CourseBrief` et le
-rescrape la lisent sur chaque épreuve.
+**Le sort de l'`@expression` est #306, à trancher avant #293** : la garder sans
+appelant contredit « pas d'indirection spéculative » ; la supprimer ferait lever
+tout futur `filter(Course.provider == …)`, ce qui est peut-être l'effet voulu —
+la bonne écriture est maintenant la jointure. La question ne se referme qu'une
+fois les lots 2 à 4 livrés, #288 et #289 étant les deux candidats plausibles à
+lui rendre un appelant. La moitié **Python**, elle, n'est pas en cause :
+`CourseBrief` et le rescrape la lisent sur chaque épreuve.
 
 - **Aucun `@setter`, et c'est délibéré** : plus aucun appelant n'écrit ces deux
   champs. Ce n'est pas une convention à surveiller par grep — l'affectation lève.
