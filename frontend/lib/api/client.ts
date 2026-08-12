@@ -11,9 +11,12 @@ import type {
   CourseBrief,
   CourseDeletionImpact,
   CourseDetail,
+  CourseMergeImpact,
+  CourseMergeResult,
   CourseQuery,
   CourseSource,
   CourseSummary,
+  DuplicateCandidateList,
   EventPage,
   GeoEvent,
   Group,
@@ -183,6 +186,17 @@ export const apiClient = {
     request<CourseSource[]>(`/admin/courses/${courseId}/sources/${sourceId}`, {
       method: "PATCH",
       body: JSON.stringify({ is_active: true }),
+    }),
+  listCourseDuplicates: () => request<DuplicateCandidateList>("/admin/courses/duplicates"),
+  getCourseMergeImpact: (courseId: number, absorbedId: number) =>
+    request<CourseMergeImpact>(
+      `/admin/courses/${courseId}/merge-impact${toQuery({ absorbed_id: absorbedId })}`,
+    ),
+  /** Ne re-scrape rien (#287) : la cible garde son classement, l'absorbée est détruite. */
+  mergeCourses: (courseId: number, absorbedId: number) =>
+    request<CourseMergeResult>(`/admin/courses/${courseId}/merge`, {
+      method: "POST",
+      body: JSON.stringify({ absorbed_id: absorbedId }),
     }),
   updateAthlete: (id: number, champs: Partial<AdminAthleteUpdate>) =>
     request<AdminAthlete>(`/admin/athletes/${id}`, {
