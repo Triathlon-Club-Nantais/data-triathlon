@@ -65,6 +65,26 @@ def current_user(
     return user
 
 
+def optional_user(
+    request: Request,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> User | None:
+    """Utilisateur de la session portée par le cookie, ou `None` sans lever.
+
+    **Seule différence avec `current_user`** : une session absente ou invalide
+    rend `None` au lieu d'un 401. Nécessaire pour une route publique qui veut
+    associer l'auteur connecté **si** une session existe, sans exiger d'en
+    avoir une (#267, FR-001 et FR-005 de `specs/20260812-191428-bouton-
+    signalement/spec.md`) — un cas que `current_user` seul ne couvre pas.
+    """
+    # Import différé : même raison que `current_user` ci-dessus.
+    from app.api.v1.auth import session_cookie_name
+
+    token = request.cookies.get(session_cookie_name(settings))
+    return session_service.resolve(db, token)
+
+
 def require_permission(code: Permission | str) -> Callable[..., User]:
     """Fabrique la garde d'une ressource. **Nomme un pouvoir, jamais un rôle** (FR-017).
 

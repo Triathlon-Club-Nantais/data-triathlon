@@ -46,6 +46,8 @@ CODES_ATTENDUS = {
     "participations:reassign",
     "batch:run",
     "batch:read",
+    "feedback:read",
+    "feedback:manage",
 }
 
 

@@ -23,7 +23,7 @@ et une validation indépendantes de chacune.
 
 **Purpose**: Réglages transverses nécessaires avant toute logique métier — aucune nouvelle dépendance (research.md §D1, §D3).
 
-- [ ] T001 [P] Ajouter `feedback_rate_limit_max_per_window` et `feedback_rate_limit_window_seconds` dans `backend/app/core/config.py` (research.md §D1), aux côtés de `geocode_min_interval_seconds`
+- [X] T001 [P] Ajouter `feedback_rate_limit_max_per_window` et `feedback_rate_limit_window_seconds` dans `backend/app/core/config.py` (research.md §D1), aux côtés de `geocode_min_interval_seconds`
 - [ ] T002 [P] Créer `frontend/lib/github.ts` exportant `GITHUB_REPOSITORY = "Triathlon-Club-Nantais/data-triathlon"`, sur le patron de `frontend/lib/club.ts` (research.md §D3)
 
 **Checkpoint**: réglages en place, aucune story ne peut encore fonctionner.
@@ -36,12 +36,12 @@ et une validation indépendantes de chacune.
 
 **⚠️ CRITICAL**: aucune story ne démarre avant la fin de cette phase.
 
-- [ ] T003 Créer le modèle `UserFeedback` dans `backend/app/models/user_feedback.py` (data-model.md : `type`, `title`, `body`, `page_url`, `user_agent`, `ip_address`, `user_id` FK nullable `ON DELETE SET NULL`, `status` défaut `"nouveau"`, `github_url`, `created_at`, index `(status, created_at)` et `(ip_address, created_at)`)
-- [ ] T004 Générer la migration Alembic (`uv run alembic revision --autogenerate -m "add user_feedback table"` depuis `backend/`) puis relire manuellement le fichier généré sous `backend/alembic/versions/` (Constitution §Additional Constraints)
-- [ ] T005 [P] Créer les schémas Pydantic `FeedbackCreate`, `FeedbackRead`, `FeedbackStatusUpdate`, `FeedbackGithubUrlUpdate` dans `backend/app/schemas/feedback.py` (contracts/feedback-api.md — `FeedbackRead` ne porte jamais `ip_address`, data-model.md §D4 ; `FeedbackCreate` porte `honeypot: str | None`)
-- [ ] T006 Créer le squelette de routeur (`router = APIRouter(tags=["admin"])`, aucune route encore) dans `backend/app/api/v1/admin_feedback.py` et le monter dans `backend/app/api/v1/router.py`
-- [ ] T021 Ajouter `FEEDBACK_READ` (libellé « Consulter les retours utilisateurs »), `FEEDBACK_MANAGE` (libellé « Instruire les retours utilisateurs ») et `FEATURE_FEEDBACK = "Retours utilisateurs"` dans `backend/app/core/permissions.py` (research.md §D5, patron `PENDING_PROVIDERS_READ`/`_HANDLE`) — libellés délibérément distincts de `PENDING_PROVIDERS_READ` (« Consulter les signalements ») pour ne pas dupliquer ce texte dans la grille de composition des rôles (`/speckit-analyze`, finding I2). *Déplacée depuis Phase 4 (US2) : requise par les gardes de T023 (US2), T033 (US3) et T041 (US4), donc structurellement bloquante pour trois stories et non une seule — `/speckit-analyze`, finding I1.*
-- [ ] T048 Ajouter `optional_user()` dans `backend/app/api/deps.py`, à côté de `current_user` : appelle `session_service.resolve(db, token)` et rend `User | None` **sans** lever `NotAuthenticatedError` en l'absence de session — nécessaire pour capturer l'email de l'auteur connecté sur une route publique (FR-005) sans casser l'accès anonyme (FR-001), un cas que `current_user` seul ne couvre pas (`/speckit-analyze`, finding U1).
+- [X] T003 Créer le modèle `UserFeedback` dans `backend/app/models/user_feedback.py` (data-model.md : `type`, `title`, `body`, `page_url`, `user_agent`, `ip_address`, `user_id` FK nullable `ON DELETE SET NULL`, `status` défaut `"nouveau"`, `github_url`, `created_at`, index `(status, created_at)` et `(ip_address, created_at)`)
+- [X] T004 Générer la migration Alembic (`uv run alembic revision --autogenerate -m "add user_feedback table"` depuis `backend/`) puis relire manuellement le fichier généré sous `backend/alembic/versions/` (Constitution §Additional Constraints)
+- [X] T005 [P] Créer les schémas Pydantic `FeedbackCreate`, `FeedbackRead`, `FeedbackStatusUpdate`, `FeedbackGithubUrlUpdate` dans `backend/app/schemas/feedback.py` (contracts/feedback-api.md — `FeedbackRead` ne porte jamais `ip_address`, data-model.md §D4 ; `FeedbackCreate` porte `honeypot: str | None`)
+- [X] T006 Créer le squelette de routeur (`router = APIRouter(tags=["admin"])`, aucune route encore) dans `backend/app/api/v1/admin_feedback.py` et le monter dans `backend/app/api/v1/router.py`
+- [X] T021 Ajouter `FEEDBACK_READ` (libellé « Consulter les retours utilisateurs »), `FEEDBACK_MANAGE` (libellé « Instruire les retours utilisateurs ») et `FEATURE_FEEDBACK = "Retours utilisateurs"` dans `backend/app/core/permissions.py` (research.md §D5, patron `PENDING_PROVIDERS_READ`/`_HANDLE`) — libellés délibérément distincts de `PENDING_PROVIDERS_READ` (« Consulter les signalements ») pour ne pas dupliquer ce texte dans la grille de composition des rôles (`/speckit-analyze`, finding I2). *Déplacée depuis Phase 4 (US2) : requise par les gardes de T023 (US2), T033 (US3) et T041 (US4), donc structurellement bloquante pour trois stories et non une seule — `/speckit-analyze`, finding I1.*
+- [X] T048 Ajouter `optional_user()` dans `backend/app/api/deps.py`, à côté de `current_user` : appelle `session_service.resolve(db, token)` et rend `User | None` **sans** lever `NotAuthenticatedError` en l'absence de session — nécessaire pour capturer l'email de l'auteur connecté sur une route publique (FR-005) sans casser l'accès anonyme (FR-001), un cas que `current_user` seul ne couvre pas (`/speckit-analyze`, finding U1).
 
 **Checkpoint**: socle prêt, les user stories peuvent démarrer.
 
@@ -57,19 +57,19 @@ et une validation indépendantes de chacune.
 
 > **NOTE: écrire ces tests D'ABORD, vérifier qu'ils échouent avant l'implémentation** (Principe III, non-négociable).
 
-- [ ] T007 [P] [US1] Test `feedback_repository.create` et `count_recent_by_ip` (fenêtre glissante, IP absente) dans `backend/tests/test_repositories/test_feedback_repository.py`
-- [ ] T008 [P] [US1] Test `feedback_service.submit` : honeypot rempli → aucune persistance mais réponse de succès identique ; débit dépassé → refus ; `user_id` renseigné seulement si une session est fournie dans `backend/tests/test_services/test_feedback_service.py`
-- [ ] T009 [P] [US1] Test API `POST /admin/feedback` : 201 sans authentification, 422 si titre/description vide ou trop long, 429 au-delà du seuil, honeypot silencieux (contracts/feedback-api.md) dans `backend/tests/test_api/test_admin_feedback_api.py`
-- [ ] T010 [P] [US1] Test composant `FeedbackButton` : bouton visible, formulaire bloque la soumission si titre/description vides, confirmation affichée après envoi dans `frontend/components/tcn/FeedbackButton.test.tsx`
+- [X] T007 [P] [US1] Test `feedback_repository.create` et `count_recent_by_ip` (fenêtre glissante, IP absente) dans `backend/tests/test_repositories/test_feedback_repository.py`
+- [X] T008 [P] [US1] Test `feedback_service.submit` : honeypot rempli → aucune persistance mais réponse de succès identique ; débit dépassé → refus ; `user_id` renseigné seulement si une session est fournie dans `backend/tests/test_services/test_feedback_service.py`
+- [X] T009 [P] [US1] Test API `POST /admin/feedback` : 201 sans authentification, 422 si titre/description vide ou trop long, 429 au-delà du seuil, honeypot silencieux (contracts/feedback-api.md) dans `backend/tests/test_api/test_admin_feedback_api.py`
+- [X] T010 [P] [US1] Test composant `FeedbackButton` : bouton visible, formulaire bloque la soumission si titre/description vides, confirmation affichée après envoi dans `frontend/components/tcn/FeedbackButton.test.tsx`
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] Implémenter `create` et `count_recent_by_ip` dans `backend/app/repositories/feedback_repository.py` (dépend de T003, T007)
-- [ ] T012 [US1] Implémenter `feedback_service.submit` (honeypot, limitation de débit via les réglages T001, association `user_id` depuis la session SSO courante) dans `backend/app/services/feedback_service.py` (dépend de T008, T011)
-- [ ] T013 [US1] Implémenter la route `POST /admin/feedback` dans `backend/app/api/v1/admin_feedback.py`, avec `user: User | None = Depends(optional_user)` pour renseigner `user_id` seulement si une session est présente (dépend de T005, T006, T009, T012, T048)
-- [ ] T014 [P] [US1] Ajouter `submitFeedback` dans `frontend/lib/api/client.ts`
-- [ ] T015 [US1] Implémenter `FeedbackButton` (bouton flottant + `ui/dialog` + formulaire titre/description/type + champ honeypot invisible) dans `frontend/components/tcn/FeedbackButton.tsx` (dépend de T010, T014)
-- [ ] T016 [US1] Monter `FeedbackButton` dans `frontend/app/layout.tsx`
+- [X] T011 [US1] Implémenter `create` et `count_recent_by_ip` dans `backend/app/repositories/feedback_repository.py` (dépend de T003, T007)
+- [X] T012 [US1] Implémenter `feedback_service.submit` (honeypot, limitation de débit via les réglages T001, association `user_id` depuis la session SSO courante) dans `backend/app/services/feedback_service.py` (dépend de T008, T011)
+- [X] T013 [US1] Implémenter la route `POST /admin/feedback` dans `backend/app/api/v1/admin_feedback.py`, avec `user: User | None = Depends(optional_user)` pour renseigner `user_id` seulement si une session est présente (dépend de T005, T006, T009, T012, T048)
+- [X] T014 [P] [US1] Ajouter `submitFeedback` dans `frontend/lib/api/client.ts`
+- [X] T015 [US1] Implémenter `FeedbackButton` (bouton flottant + `tcn/Modal` — **pas `ui/dialog`** : `frontend/AGENTS.md` réserve `ui/` au back-office, tout nouvel écran public prend `tcn/` — + formulaire titre/description/type + champ honeypot invisible) dans `frontend/components/tcn/FeedbackButton.tsx` (dépend de T010, T014)
+- [X] T016 [US1] Monter `FeedbackButton` dans `frontend/app/layout.tsx`
 
 **Checkpoint**: US1 fonctionnelle et testable indépendamment — un signalement public arrive en base.
 

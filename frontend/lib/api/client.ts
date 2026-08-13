@@ -18,6 +18,8 @@ import type {
   CourseSummary,
   DuplicateCandidateList,
   EventPage,
+  FeedbackCreate,
+  FeedbackCreated,
   GeoEvent,
   Group,
   GroupDetail,
@@ -335,5 +337,14 @@ export const apiClient = {
     request<SessionRevocation>("/admin/sessions/revoke", {
       method: "POST",
       body: JSON.stringify(email === undefined ? {} : { email }),
+    }),
+
+  // ── Retours utilisateurs (#267) ────────────────────────────────────────────
+  // Route publique : aucune session requise. L'email de l'émetteur, si connecté,
+  // est déduit côté serveur du cookie — jamais un champ de ce corps.
+  submitFeedback: (body: FeedbackCreate) =>
+    request<FeedbackCreated>("/admin/feedback", {
+      method: "POST",
+      body: JSON.stringify(body),
     }),
 };

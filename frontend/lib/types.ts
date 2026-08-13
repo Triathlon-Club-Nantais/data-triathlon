@@ -711,3 +711,40 @@ export interface SessionRevocation {
   sessions: number;
   accounts: number;
 }
+
+/** Corps de `POST /admin/feedback` (#267) — route publique. */
+export interface FeedbackCreate {
+  type: "bug" | "feedback";
+  title: string;
+  body: string;
+  page_url?: string | null;
+  user_agent?: string | null;
+  /** Champ caché du formulaire : jamais rempli par un visiteur humain. */
+  honeypot?: string | null;
+}
+
+/** Réponse minimale de `POST /admin/feedback` — identique en cas de honeypot. */
+export interface FeedbackCreated {
+  id: number;
+  status: string;
+}
+
+/** Un retour utilisateur, tel que rendu à un pouvoir `feedback:read`. */
+export interface Feedback {
+  id: number;
+  type: "bug" | "feedback";
+  title: string;
+  body: string;
+  page_url: string | null;
+  user_agent: string | null;
+  status: "nouveau" | "en_cours" | "traite" | "ignore";
+  github_url: string | null;
+  created_at: string;
+  email: string | null;
+}
+
+/** Corps de `PATCH /admin/feedback/{id}` — champs modifiés seulement. */
+export interface FeedbackUpdate {
+  status?: Feedback["status"];
+  github_url?: string;
+}
