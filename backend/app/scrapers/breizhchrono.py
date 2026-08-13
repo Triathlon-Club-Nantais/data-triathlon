@@ -17,8 +17,8 @@ chaque heat, eux, ne vivent que sur `/external/live5/index.jsp?reference=...`.
 Voir `scrape_live_event_all`.
 
 Une Course du modèle = un heat : son nom porte donc le libellé du heat
-(`_course_name`), faute de quoi les heats d'une même épreuve fusionnent sur
-l'identité (nom, date, type, relais).
+(`klikego_platform.course_name`, partagée avec Klikego — #308), faute de quoi
+les heats d'une même épreuve fusionnent sur l'identité (nom, date, type, relais).
 
 The detail page HTML (p.text-sm meta line, ranking divs, result-row splits table)
 is byte-for-byte identical, so _parse_detail is shared from klikego.
@@ -36,7 +36,7 @@ from app.core.exceptions import DomainError
 
 from .base import ScrapedResult
 from .classify import classify_event_type
-from .klikego_platform import heat_is_relay
+from .klikego_platform import course_name, heat_is_relay
 from .utils import DEFAULT_HEADERS
 
 logger = logging.getLogger(__name__)
@@ -154,27 +154,6 @@ def _fetch_all_heats(slug_id: str, client: httpx.Client) -> list[tuple[str, str]
     return heats
 
 
-def _course_name(event_name: str, heat_label: str) -> str:
-    """Nom de course = « <Épreuve> - <Heat> ».
-
-    Une Course du modèle EST un heat (cf. `models/course.py`), et son identité
-    est (nom, date, type, relais). Sans le libellé du heat dans le nom, les heats
-    d'une même épreuve partageant un type fusionnent en une seule course : à
-    Dinard 2025, les six swimruns (Court/Medium/Long × Solo/Duo, tous classés
-    `swimrun`) n'en formaient qu'une, et le heat « Trail 11 KM » s'affichait sous
-    un nom de triathlon.
-
-    Les espaces sont compactés : la plateforme en sème des doubles dans ses
-    libellés (« Triathlon Découverte  Aésio Mutuelle »).
-
-    Le séparateur est un tiret ASCII (et non un cadratin « — ») : il reste
-    tapable au clavier, donc trouvable en CTRL+F comme dans un futur champ de
-    recherche.
-    """
-    parts = [p for p in (event_name, heat_label) if p]
-    return " - ".join(" ".join(p.split()) for p in parts)
-
-
 def _detect_relay(heat_label: str, heat_slug: str) -> bool:
     """Indique si un heat est une épreuve d'équipe (relais, duo).
 
@@ -216,7 +195,7 @@ def _import_one_heat(
         event_id=event_id,
         heat=heat_slug,
         heat_page_html=heat_page_html,
-        event_name=_course_name(event_name, heat_label),
+        event_name=course_name(event_name, heat_label),
         slug=slug,
         event_type=event_type,
         source_url=source_url,
