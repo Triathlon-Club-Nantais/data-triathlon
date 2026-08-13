@@ -183,3 +183,9 @@ Guidelines d'écriture de code, valables dans les trois voies du workflow IA.
   après modif d'un modèle, puis `uv run alembic upgrade head`).
 - Tests unitaires **sans réseau** ; le réseau réel est isolé derrière le marker
   `integration` (déclaré dans `backend/pyproject.toml`).
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+at specs/20260807-222424-admin-composition-droits-role/plan.md
+<!-- SPECKIT END -->
