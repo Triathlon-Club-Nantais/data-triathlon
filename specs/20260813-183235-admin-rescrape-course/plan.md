@@ -29,8 +29,9 @@ Next.js 16 App Router (frontend, inchangé).
 dans `app/api/v1/scrape.py`) ; `app.services.import_service` (générateur de
 scraping streamé) et `app.services.admin_actions` (gardes d'identité, purge
 d'orphelins, journal) côté backend — aucune dépendance nouvelle. Côté front :
-`lib/api/sse.ts` (lecteur SSE existant) et `@tanstack/react-query`
-(`lib/queries/admin.ts`), même patron que `useSwitchCourseSource`.
+`lib/api/sse.ts` (lecteur SSE existant) et un hook d'état géré à la main, même
+patron que `useImportStream` — pas de mutation React Query
+(`lib/queries/admin.ts` n'est pas touché, cf. research.md R1).
 
 **Storage**: PostgreSQL (Supabase) / SQLite dev — inchangé, **aucune
 migration** : ni nouvelle colonne ni nouvelle table.
@@ -49,6 +50,9 @@ cadence de `_scrape_all_streaming` (patron déjà mesuré pour l'import public)
 sont réutilisés tels quels.
 
 **Constraints**:
+- Le scrape et la persistance tournent dans un **thread dédié**, indépendant
+  de la consommation du flux SSE (FR-011) — sans quoi une déconnexion client
+  suspend le générateur avant que la persistance ait eu lieu (research.md R7).
 - Un seul re-scrape actif à la fois **par course** (FR-007) — verrou en
   mémoire, process unique du service web, pas de verrou distribué.
 - Cache TTL totalement désarmé, y compris **par heat** d'un provider fan-out
@@ -118,8 +122,7 @@ backend/
 
 frontend/
 ├── lib/
-│   ├── api/sse.ts          # + lecteur SSE pour le nouvel endpoint
-│   └── queries/admin.ts    # + hook de déclenchement (patron useSwitchCourseSource)
+│   └── api/sse.ts          # + lecteur SSE pour le nouvel endpoint
 ├── hooks/
 │   └── useRescrapeStream.ts    # NOUVEAU — patron de useImportStream.ts
 ├── components/courses/
