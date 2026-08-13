@@ -9,9 +9,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FeedbackDetailDialog } from "@/components/admin/FeedbackDetailDialog";
 import { useFeedbackList } from "@/lib/queries/admin";
 import { messageDeRefus } from "@/lib/api/refus";
 import { formatDate } from "@/lib/utils/date";
@@ -59,6 +61,7 @@ function EnTeteTriable({
 export function FeedbackTable() {
   const [sort, setSort] = useState<ColonneTriable>("created_at");
   const [order, setOrder] = useState<"asc" | "desc">("desc");
+  const [ouvert, setOuvert] = useState<Feedback | null>(null);
   const { data, isLoading, error } = useFeedbackList(sort, order);
 
   function trier(colonne: ColonneTriable) {
@@ -82,49 +85,66 @@ export function FeedbackTable() {
   }
 
   return (
-    <Card className="p-0">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <EnTeteTriable
-              colonne="created_at"
-              label="Date"
-              actif={sort === "created_at"}
-              order={order}
-              onTrier={trier}
-            />
-            <EnTeteTriable
-              colonne="type"
-              label="Type"
-              actif={sort === "type"}
-              order={order}
-              onTrier={trier}
-            />
-            <TableHead>Titre</TableHead>
-            <EnTeteTriable
-              colonne="status"
-              label="Statut"
-              actif={sort === "status"}
-              order={order}
-              onTrier={trier}
-            />
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {data.map((f) => (
-            <TableRow key={f.id}>
-              <TableCell>{formatDate(f.created_at)}</TableCell>
-              <TableCell>
-                <Badge variant={f.type === "bug" ? "destructive" : "secondary"}>
-                  {f.type === "bug" ? "Bug" : "Retour"}
-                </Badge>
-              </TableCell>
-              <TableCell className="max-w-xs truncate">{f.title}</TableCell>
-              <TableCell>{LIBELLE_STATUT[f.status]}</TableCell>
+    <>
+      <Card className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <EnTeteTriable
+                colonne="created_at"
+                label="Date"
+                actif={sort === "created_at"}
+                order={order}
+                onTrier={trier}
+              />
+              <EnTeteTriable
+                colonne="type"
+                label="Type"
+                actif={sort === "type"}
+                order={order}
+                onTrier={trier}
+              />
+              <TableHead>Titre</TableHead>
+              <EnTeteTriable
+                colonne="status"
+                label="Statut"
+                actif={sort === "status"}
+                order={order}
+                onTrier={trier}
+              />
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </Card>
+          </TableHeader>
+          <TableBody>
+            {data.map((f) => (
+              <TableRow key={f.id}>
+                <TableCell>{formatDate(f.created_at)}</TableCell>
+                <TableCell>
+                  <Badge variant={f.type === "bug" ? "destructive" : "secondary"}>
+                    {f.type === "bug" ? "Bug" : "Retour"}
+                  </Badge>
+                </TableCell>
+                <TableCell className="max-w-xs truncate">
+                  <Button
+                    variant="link"
+                    className="h-auto p-0 font-normal"
+                    onClick={() => setOuvert(f)}
+                  >
+                    {f.title}
+                  </Button>
+                </TableCell>
+                <TableCell>{LIBELLE_STATUT[f.status]}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Card>
+      {ouvert && (
+        <FeedbackDetailDialog
+          feedback={ouvert}
+          open
+          onOpenChange={(o) => !o && setOuvert(null)}
+        />
+      )}
+    </>
   );
 }

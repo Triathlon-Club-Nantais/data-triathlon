@@ -149,3 +149,95 @@ def test_lister_avec_le_pouvoir_rend_200(client, db_session):
     _session_etroite(client, db_session, P.FEEDBACK_READ)
 
     assert client.get(_URL).status_code == 200
+
+
+# --- Vue détail et changement de statut (US3) --------------------------------
+
+
+def test_detail_dun_signalement_absent_rend_404(client):
+    assert client.get(f"{_URL}/999999").status_code == 404
+
+
+def test_detail_dun_signalement_anonyme_ne_porte_pas_demail(client, db_session):
+    entry = feedback_repository.create(db_session, type="bug", title="T", body="x")
+    db_session.commit()
+
+    assert client.get(f"{_URL}/{entry.id}").json()["email"] is None
+
+
+def test_detail_dun_signalement_connecte_porte_lemail(client, db_session):
+    # `session_de_saisie` (autouse) est déjà ouverte : la soumission porte donc
+    # l'identité de son auteur, avant que la lecture ne s'en serve.
+    id_signalement = client.post(_URL, json=_payload()).json()["id"]
+
+    ligne = client.get(f"{_URL}/{id_signalement}").json()
+    entry = feedback_repository.get(db_session, id_signalement)
+
+    assert ligne["email"] is not None
+    assert entry.user is not None
+    assert ligne["email"] == entry.user.email
+
+
+def test_detail_sans_le_pouvoir_rend_403(client, db_session):
+    entry = feedback_repository.create(db_session, type="bug", title="T", body="x")
+    db_session.commit()
+    _session_etroite(client, db_session)
+
+    assert client.get(f"{_URL}/{entry.id}").status_code == 403
+
+
+def test_changer_le_statut(client, db_session):
+    entry = feedback_repository.create(db_session, type="bug", title="T", body="x")
+    db_session.commit()
+
+    reponse = client.patch(f"{_URL}/{entry.id}", json={"status": "traite"})
+
+    assert reponse.status_code == 200
+    assert reponse.json()["status"] == "traite"
+
+
+def test_changer_le_statut_autorise_le_retour_en_arriere(client, db_session):
+    entry = feedback_repository.create(db_session, type="bug", title="T", body="x")
+    db_session.commit()
+    client.patch(f"{_URL}/{entry.id}", json={"status": "traite"})
+
+    reponse = client.patch(f"{_URL}/{entry.id}", json={"status": "nouveau"})
+
+    assert reponse.json()["status"] == "nouveau"
+
+
+def test_changer_le_statut_avec_une_valeur_inconnue_rend_422(client, db_session):
+    entry = feedback_repository.create(db_session, type="bug", title="T", body="x")
+    db_session.commit()
+
+    assert client.patch(f"{_URL}/{entry.id}", json={"status": "archive"}).status_code == 422
+
+
+def test_changer_le_statut_dun_signalement_absent_rend_404(client):
+    assert client.patch(f"{_URL}/999999", json={"status": "traite"}).status_code == 404
+
+
+def test_les_champs_non_envoyes_restent_inchanges(client, db_session):
+    entry = feedback_repository.create(db_session, type="bug", title="T", body="x")
+    feedback_repository.set_github_url(
+        db_session, entry.id, "https://github.com/Triathlon-Club-Nantais/data-triathlon/issues/1"
+    )
+    db_session.commit()
+
+    reponse = client.patch(f"{_URL}/{entry.id}", json={"status": "traite"})
+
+    assert (
+        reponse.json()["github_url"]
+        == "https://github.com/Triathlon-Club-Nantais/data-triathlon/issues/1"
+    )
+
+
+def test_changer_le_statut_sans_le_pouvoir_rend_403(client, db_session):
+    entry = feedback_repository.create(db_session, type="bug", title="T", body="x")
+    db_session.commit()
+    _session_etroite(client, db_session, P.FEEDBACK_READ)
+
+    reponse = client.patch(f"{_URL}/{entry.id}", json={"status": "traite"})
+
+    assert reponse.status_code == 403
+    assert feedback_repository.get(db_session, entry.id).status == "nouveau"

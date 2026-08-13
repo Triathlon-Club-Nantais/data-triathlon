@@ -4,6 +4,7 @@ import { queryKeys } from "./keys";
 import type {
   AdminAthleteUpdate,
   AdminCourseUpdate,
+  Feedback,
   RoleCreate,
   RoleUpdate,
 } from "@/lib/types";
@@ -494,5 +495,37 @@ export function useFeedbackList(sort: "created_at" | "type" | "status", order: "
   return useQuery({
     queryKey: queryKeys.feedbackList(sort, order),
     queryFn: () => apiClient.listFeedback(sort, order),
+  });
+}
+
+/**
+ * Le détail complet d'un signalement, chargé **à l'ouverture** de sa modale.
+ *
+ * `enabled` plutôt qu'un appel au montage : même raison que `useGroup` — une
+ * liste de signalements ne doit pas déclencher un détail par ligne pour un
+ * geste que personne n'a demandé.
+ */
+export function useFeedback(id: number | null) {
+  return useQuery({
+    queryKey: queryKeys.feedback(id ?? 0),
+    queryFn: () => apiClient.getFeedback(id as number),
+    enabled: id !== null,
+  });
+}
+
+/**
+ * Change le statut d'un signalement. Périme la liste **et** le détail : la
+ * liste affiche le statut de chaque ligne, le détail celui qu'on vient de
+ * changer — les deux mentiraient sinon jusqu'au prochain montage.
+ */
+export function useUpdateFeedbackStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: number; status: Feedback["status"] }) =>
+      apiClient.updateFeedbackStatus(id, { status }),
+    onSuccess: (_donnees, { id }) => {
+      qc.invalidateQueries({ queryKey: ["admin-feedback"] });
+      qc.invalidateQueries({ queryKey: queryKeys.feedback(id) });
+    },
   });
 }

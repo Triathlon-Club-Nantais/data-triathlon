@@ -41,4 +41,7 @@ export const queryKeys = {
   batchRuns: () => ["batch-runs"] as const,
   batchReport: (runId: number) => ["batch-report", runId] as const,
   feedbackList: (sort: string, order: string) => ["admin-feedback", sort, order] as const,
+  // Clé distincte de la liste : celle-ci stocke un `Feedback` unique, l'autre
+  // un tableau. Même patron que `group`/`groups`.
+  feedback: (id: number) => ["admin-feedback-detail", id] as const,
 };

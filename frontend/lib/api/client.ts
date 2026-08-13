@@ -21,6 +21,7 @@ import type {
   Feedback,
   FeedbackCreate,
   FeedbackCreated,
+  FeedbackUpdate,
   GeoEvent,
   Group,
   GroupDetail,
@@ -352,4 +353,12 @@ export const apiClient = {
   // (contracts/feedback-api.md — volume attendu modeste).
   listFeedback: (sort: "created_at" | "type" | "status", order: "asc" | "desc") =>
     request<Feedback[]>(`/admin/feedback${toQuery({ sort, order })}`),
+  getFeedback: (id: number) => request<Feedback>(`/admin/feedback/${id}`),
+  // `feedback:manage`. `champs` est partiel par contrat — même convention que
+  // `updateRole` : n'envoyer que ce qui a changé.
+  updateFeedbackStatus: (id: number, champs: Partial<FeedbackUpdate>) =>
+    request<Feedback>(`/admin/feedback/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(champs),
+    }),
 };
