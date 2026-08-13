@@ -25,6 +25,39 @@ export interface CourseBrief {
 // Clés possibles de splits : "swim" | "t1" | "bike" | "t2" | "run"
 export type Splits = Record<string, string>;
 
+/** Une étape du graphique d'évolution du classement. */
+export interface RankingEvolutionStep {
+  segment: string;
+  scratch_position: number;
+  segment_position: number;
+}
+
+/** Comparaison de l'athlète au coureur occupant une position de référence. */
+export interface ComparisonRow {
+  position_label: string;
+  rank: number;
+  /** Par clé de segment, plus « total » : temps de l'athlète en % de la référence. */
+  percentages: Record<string, number>;
+}
+
+/** Places scratch gagnées si un segment avait été amélioré d'un pourcentage donné. */
+export interface ImprovementRow {
+  segment: string;
+  gains: Record<string, number>;
+}
+
+export interface ParticipationStats {
+  /**
+   * Segments publiés par l'épreuve, dans l'ordre d'affichage. Porté par
+   * l'enveloppe et non déduit des blocs : ceux-ci omettent les valeurs
+   * manquantes, et une colonne s'y déduirait alors de son absence.
+   */
+  segments: string[];
+  ranking_evolution: RankingEvolutionStep[];
+  comparison: ComparisonRow[];
+  improvement: ImprovementRow[];
+}
+
 export interface Participation {
   id: number;
   athlete: AthleteBrief;
@@ -45,6 +78,10 @@ export interface Participation {
   // Nombre de finishers classés de la course (même groupe solo/relais).
   // Servi par la seule route /athletes/{id} — d'où l'optionnalité.
   course_finishers?: number | null;
+  // Statistiques détaillées, peuplées par la seule route /participations/{id}.
+  // `null` quand la course n'est pas éligible ou que la participation est un
+  // relais : c'est ce null qui pilote l'état « statistiques indisponibles ».
+  stats?: ParticipationStats | null;
 }
 
 interface EventOut {

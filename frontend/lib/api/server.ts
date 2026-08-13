@@ -62,6 +62,13 @@ export const apiServer = {
   listParticipations: (filters: ParticipationFilters = {}) =>
     serverFetch<Participation[]>(`/participations${toQuery(filters as Record<string, unknown>)}`),
   getAthlete: (id: number) => serverFetch<AthleteDetail>(`/athletes/${id}`),
+  /**
+   * Détail d'une participation — seule route à peupler `stats`.
+   *
+   * Le calcul parcourt tout le classement de la course : on le paie pour une
+   * participation consultée, jamais par ligne d'un tableau de finishers.
+   */
+  getParticipation: (id: number) => serverFetch<Participation>(`/participations/${id}`),
   getCourse: (id: number, opts: CourseQuery = {}) =>
     serverFetch<CourseDetail>(`/courses/${id}${toQuery(opts as Record<string, unknown>)}`),
   /**

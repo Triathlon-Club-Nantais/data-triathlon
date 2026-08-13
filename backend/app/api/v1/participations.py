@@ -13,7 +13,7 @@ from app.models.user import User
 from app.repositories import participation_repository
 from app.schemas.participation import ParticipationCreate, ParticipationOut
 from app.scrapers.base import ScrapedResult
-from app.services import scrape_service
+from app.services import participation_stats_service, scrape_service
 
 router = APIRouter(tags=["participations"])
 
@@ -101,7 +101,9 @@ def get_participation(participation_id: int, db: Session = Depends(get_db)):
     row = participation_repository.get(db, participation_id)
     if not row:
         raise NotFoundError("Résultat introuvable")
-    return row
+    out = ParticipationOut.model_validate(row)
+    out.stats = participation_stats_service.build(db, row)
+    return out
 
 
 @router.delete("/participations/{participation_id}", status_code=204)

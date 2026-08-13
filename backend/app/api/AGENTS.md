@@ -404,3 +404,33 @@ exigent chacun leur pouvoir, donc elles vivent sous `/admin/feedback`
 - **Honeypot silencieux** (research.md §D2) : un champ caché rempli répond le
   même succès apparent qu'une insertion réelle, sans qu'aucune ligne n'existe —
   `id=0` n'est jamais une clé réelle.
+
+## Statistiques détaillées d'une participation (#272)
+
+`GET /participations/{id}` porte un champ `stats` (`ParticipationStatsOut | None`)
+qui compare l'athlète au **classement complet** de sa course : évolution du rang
+par étape, comparaison aux positions de référence (1er, 10e, 25e, 50e, 100e),
+simulation de gains par amélioration. Calculé à la lecture par
+`services/participation_stats_service.py`, jamais persisté.
+
+Quatre points à ne pas défaire :
+
+- **Le calcul est réservé à la lecture d'une seule participation.** Le champ
+  appartient à `ParticipationOut`, donc il **apparaît** aussi sur
+  `GET /courses/{id}`, `GET /athletes/{id}` et `GET /participations` — toujours
+  à `null`, sans qu'aucun classement n'y soit parcouru. Le peupler sur une route
+  de liste ferait un parcours de classement complet **par ligne**.
+- **L'éligibilité vit dans `core/splits_reliability.py`, et nulle part
+  ailleurs.** C'est une liste d'**exclusion** (`t2area`, `breizhchrono`, plus la
+  saisie `manuel`) : un fournisseur nouvellement enregistré est éligible par
+  défaut. Une liste blanche se périmerait en silence à chaque scraper ajouté.
+  Sa mise à jour accompagne l'évolution du scraper concerné, dans la même PR.
+- **`stats: null` est le seul signal d'indisponibilité.** Course non éligible et
+  participation de relais rendent le même `null` ; le front en tire son état
+  « statistiques indisponibles ». Pas de booléen séparé à tenir en cohérence.
+- **Les temps se lisent en `strict=True`.** `to_seconds` permissif ramène
+  l'illisible à `0`, et un zéro se lit ici comme un temps parfait. Un segment
+  absent doit rester absent — c'est ce qui distingue « non publié » de
+  « instantané ».
+
+Spec, plan et tâches : `specs/20260813-163525-resultats-detail-participation/`.

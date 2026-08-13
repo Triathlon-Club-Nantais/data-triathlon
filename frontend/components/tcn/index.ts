@@ -14,3 +14,8 @@ export { Alert } from "./Alert";
 export { Badge } from "./Badge";
 export { Modal } from "./Modal";
 export { FeedbackButton } from "./FeedbackButton";
+export { UnavailableState } from "./participation-detail/UnavailableState";
+export { ResultRow } from "./participation-detail/ResultRow";
+export { ComparisonTable } from "./participation-detail/ComparisonTable";
+export { RankingEvolutionChart } from "./participation-detail/RankingEvolutionChart";
+export { ImprovementMatrix } from "./participation-detail/ImprovementMatrix";

@@ -155,7 +155,7 @@ describe("AthletePage", () => {
     // Ciblage sur la ligne du tableau (par son lien) : « — » apparaît aussi
     // dans les StatCards vides du haut de page, hors périmètre de cette cellule.
     const { container } = await renderAthlete([part({ id: 1, status: "DNF" })]);
-    const row = container.querySelector<HTMLElement>("a[href='/courses/1']");
+    const row = container.querySelector<HTMLElement>("a[href='/courses/1/participations/1']");
     expect(row).not.toBeNull();
     expect(within(row as HTMLElement).getByText("DNF")).toBeInTheDocument();
     expect(within(row as HTMLElement).queryByText("—")).not.toBeInTheDocument();
@@ -181,7 +181,7 @@ describe("AthletePage", () => {
     // Aucune pastille orange de finisher dans la ligne : le rang est
     // descriptif, pas glorieux. La StatCard « Meilleure place » du haut de
     // page peut encore afficher « 42 », hors périmètre.
-    const row = container.querySelector<HTMLElement>("a[href='/courses/1']");
+    const row = container.querySelector<HTMLElement>("a[href='/courses/1/participations/1']");
     expect(row).not.toBeNull();
     expect(within(row as HTMLElement).queryByText(/^42$/)).not.toBeInTheDocument();
   });
@@ -243,9 +243,16 @@ describe("AthletePage", () => {
     // ligne du tableau (via son lien) parce que d'autres cellules de la page
     // affichent aussi un « — » quand une stat manque.
     const { container } = await renderAthlete([part({ id: 1, status: "finisher" })]);
-    const row = container.querySelector<HTMLElement>("a[href='/courses/1']");
+    const row = container.querySelector<HTMLElement>("a[href='/courses/1/participations/1']");
     expect(row).not.toBeNull();
     expect(within(row as HTMLElement).getByText("—")).toBeInTheDocument();
     expect(within(row as HTMLElement).queryByText("DNF")).not.toBeInTheDocument();
+  });
+
+  it("ouvre le détail de la participation, et non plus la page de la course", async () => {
+    const { container } = await renderAthlete([part({ id: 1, rank_overall: 12 })]);
+
+    expect(container.querySelector("a[href='/courses/1/participations/1']")).not.toBeNull();
+    expect(container.querySelector("a[href='/courses/1']")).toBeNull();
   });
 });

@@ -1,6 +1,6 @@
-def _payload(bib="42", nom="DUPONT", club="TCN"):
+def _payload(bib="42", nom="DUPONT", club="TCN", provider="manuel"):
     return {
-        "provider": "manuel",
+        "provider": provider,
         "athlete_name": nom,
         "athlete_firstname": "Jean",
         "gender": "M",
@@ -90,3 +90,48 @@ def test_is_tcn_expose_le_verdict_du_backend(client):
 
     assert par_club["TRI CLUB NANTAIS"] is True
     assert par_club["RACING CLUB NANTAIS *"] is False
+
+
+def test_stats_is_null_when_provider_is_not_eligible(client):
+    """Une saisie manuelle n'ouvre jamais l'état détaillé, quel que soit son contenu (FR-003)."""
+    pid = client.post("/api/v1/participations", json=_payload()).json()["id"]
+    assert client.get(f"/api/v1/participations/{pid}").json()["stats"] is None
+
+
+def test_stats_is_null_for_a_relay(client):
+    payload = _payload(bib="9", provider="raceresult")
+    payload["is_relay"] = True
+    pid = client.post("/api/v1/participations", json=payload).json()["id"]
+    assert client.get(f"/api/v1/participations/{pid}").json()["stats"] is None
+
+
+def test_stats_is_populated_for_an_eligible_course(client):
+    client.post("/api/v1/participations", json=_payload(bib="1", nom="DUPONT", provider="raceresult"))
+    pid = client.post("/api/v1/participations", json=_payload(bib="2", nom="MARTIN", provider="raceresult")).json()["id"]
+
+    stats = client.get(f"/api/v1/participations/{pid}").json()["stats"]
+
+    assert stats is not None
+    assert set(stats) == {"segments", "ranking_evolution", "comparison", "improvement"}
+
+
+def test_stats_ignores_club_membership(client):
+    """FR-004 : les splits sont déjà publics ailleurs, la page n'ajoute aucune confidentialité."""
+    pid = client.post(
+        "/api/v1/participations",
+        json=_payload(bib="3", nom="MARTIN", club="ASPTT", provider="raceresult"),
+    ).json()["id"]
+
+    body = client.get(f"/api/v1/participations/{pid}").json()
+
+    assert body["is_tcn"] is False
+    assert body["stats"] is not None
+
+
+def test_course_listing_carries_the_field_without_computing_it(client):
+    """Le champ est additif partout où `ParticipationOut` est sérialisé ; le calcul, lui, ne l'est pas."""
+    created = client.post("/api/v1/participations", json=_payload(bib="4", provider="raceresult")).json()
+
+    rows = client.get(f"/api/v1/courses/{created['course']['id']}").json()["participations"]
+
+    assert [row["stats"] for row in rows] == [None]

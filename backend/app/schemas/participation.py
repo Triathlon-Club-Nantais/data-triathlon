@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, computed_field
 from app.core.club import is_tcn as _is_tcn
 from app.schemas.athlete import AthleteBrief
 from app.schemas.course import CourseBrief
+from app.schemas.participation_stats import ParticipationStatsOut
 
 
 class ParticipationOut(BaseModel):
@@ -27,6 +28,10 @@ class ParticipationOut(BaseModel):
     is_relay: bool = False
     splits: dict[str, str] | None = None
     created_at: datetime | None = None
+    #: Statistiques détaillées, peuplées par la seule lecture d'**une** participation
+    #: (`GET /participations/{id}`). Ailleurs — liste des finishers, fiche athlète —
+    #: le champ existe mais reste `None` : aucun classement n'est parcouru pour lui.
+    stats: ParticipationStatsOut | None = None
 
     @computed_field
     @property

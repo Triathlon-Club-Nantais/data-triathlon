@@ -100,7 +100,7 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
                 const nonFinisher = isNonFinisher(p.status);
                 const sigle = (p.status ?? "").toUpperCase();
                 return (
-                  <Link key={p.id} href={`/courses/${p.course?.id}`} className="tcn-rowlink" style={{ display: "grid", gridTemplateColumns: COLS, columnGap: GAP, alignItems: "center", padding: `15px ${PADDING_X}px`, borderBottom: "1px solid var(--tcn-border-faint)" }}>
+                  <Link key={p.id} href={`/courses/${p.course?.id}/participations/${p.id}`} className="tcn-rowlink" style={{ display: "grid", gridTemplateColumns: COLS, columnGap: GAP, alignItems: "center", padding: `15px ${PADDING_X}px`, borderBottom: "1px solid var(--tcn-border-faint)" }}>
                     <div style={{ fontSize: 14, color: "var(--tcn-text-muted)", fontWeight: 600 }}>{formatDate(p.course?.event_date)}</div>
                     <div style={{ fontSize: 15, color: "var(--tcn-ink)", fontWeight: 700 }}>{p.course?.name}</div>
                     <div style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>{eventTypeLabel(p.course?.event_type)}</div>
