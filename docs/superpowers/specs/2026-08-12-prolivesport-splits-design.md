@@ -143,3 +143,22 @@ besoin d'édition séparée.
   perdus (segments ou raw_data) » sans changement de code.
 - Dérivation par différence de cumulés (piste 2) : écartée, cf. sondage
   constat n° 5.
+
+## Révision (13/08/2026) — après revue humaine du rendu frontend
+
+La règle initiale (« ambiguïté ⇒ toute la course part dans `segments` ») a
+produit, sur les 2 courses ambiguës de 979, un tableau de résultats à
+14 colonnes (les 5 rôles canoniques **et** `BikeStart`/`BikeEnd`/`RunStart`/
+`Split1..3`) — non anticipé lors du design, faute d'avoir vérifié le rendu
+frontend avant la sortie de draft. Le test manuel demandé par la PR l'a
+débusqué.
+
+Le sondage donnait pourtant déjà de quoi trancher (constat n°3) : un champ
+dont le libellé finit par `start`/`end` est un point cumulé depuis le départ,
+jamais une durée de section. Exclure ces champs de la candidature d'un rôle
+laisse `Bike`/`Run` seuls candidats sur 979 — bike/run se résolvent donc
+normalement, sans jamais passer par `segments` pour ce panel. Le repli
+`segments` reste en place pour une ambiguïté qui résisterait à cette
+exclusion (deux candidats non cumulés pour un même rôle), non mesurée à ce
+jour. Aucun re-sondage n'était nécessaire : la donnée était déjà là, seule
+l'arbitrage a changé.

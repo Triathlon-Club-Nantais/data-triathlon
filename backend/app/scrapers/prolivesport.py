@@ -78,21 +78,32 @@ _TIMEOUT_INDIV = 60
 # Labels → split field mapping
 _SWIM_LABELS = {"swim", "nat", "cat/nat", "natation"}
 _T1_LABELS   = {"#1", "t1", "trans1", "transition1"}
-_BIKE_LABELS  = {"bike", "velo", "vélo", "cycle", "bikestart"}
+_BIKE_LABELS  = {"bike", "velo", "vélo", "cycle"}
 _T2_LABELS   = {"#2", "t2", "trans2", "transition2"}
 _RUN_LABELS  = {"run", "cap", "course", "courseapied", "c.a.p"}
+
+
+def _est_cumule(label: str) -> bool:
+    """Un libellé qui finit par `start`/`end` est un point cumulé depuis le
+    départ, pas une durée de section (mesuré, sondage #280 constat n°3 sur
+    l'événement 979 : `BikeStart` == `Swim`+`T1`, `BikeEnd` == `Swim`+`T1`+
+    `Bike`, `RunStart` == `Swim`+`T1`+`Bike`+`T2`, à 1 s près). Exclu de la
+    candidature d'un rôle, il laisse la durée directe (`Bike`, `Run`) seule
+    candidate."""
+    return label.endswith("start") or label.endswith("end")
 
 
 class _SplitPlan(NamedTuple):
     """Résolution des rôles de split pour une course (#280).
 
-    `resolved` ne porte que les rôles à candidat **unique** : un rôle à
-    ≥ 2 candidats (mesuré sur l'événement 979 : bike ← Bike/BikeStart/BikeEnd)
-    ne peut pas être tranché sans deviner lequel des champs est la vraie durée
-    de section — il est donc exclu, et `ambigu` le signale à l'appelant.
-    `tous_les_champs` porte l'intégralité des champs de la course, triés par
-    suffixe numérique (`T3` → 3) : nécessaire pour reconstruire `segments`
-    sans rien perdre quand `ambigu` est vrai (cf. design, "tout ou rien").
+    `resolved` ne porte que les rôles à candidat **unique** une fois les
+    points cumulés (`_est_cumule`) écartés — un rôle où subsistent malgré
+    tout ≥ 2 candidats (aucun mesuré à ce jour) ne peut pas être tranché sans
+    deviner lequel est la vraie durée de section : il est exclu, et `ambigu`
+    le signale à l'appelant. `tous_les_champs` porte l'intégralité des champs
+    de la course, triés par suffixe numérique (`T3` → 3) : nécessaire pour
+    reconstruire `segments` sans rien perdre quand `ambigu` est vrai (cf.
+    design, "tout ou rien").
     """
 
     resolved: dict[str, str]
@@ -109,9 +120,11 @@ def _numero_champ(field: str) -> int:
 def _build_split_map(splits: list, race: str) -> _SplitPlan:
     """Construit la résolution des rôles de split pour une course (#280).
 
-    Un rôle avec un seul champ candidat est résolu ; à partir de deux, aucun
-    des deux n'est retenu (cf. sondage/design : rien ne permet de trancher
-    lequel est la durée de section plutôt qu'un point cumulé redondant).
+    Un champ cumulé (`_est_cumule`) n'entre jamais en candidature : il porte
+    la même information qu'une durée directe déjà présente, sous une autre
+    forme (sondage constat n°3). Un rôle avec un seul candidat restant est
+    résolu ; à partir de deux, aucun des deux ne l'est (rien ne permet alors
+    de trancher lequel est la durée de section).
     """
     candidats: dict[str, list[str]] = {}
     champs_de_la_course: list[tuple[str, str]] = []
@@ -122,15 +135,16 @@ def _build_split_map(splits: list, race: str) -> _SplitPlan:
         label_brut = s.get("label") or s.get("displayTitle") or ""
         champs_de_la_course.append((field, label_brut))
         label = re.sub(r"\s+", "", label_brut).lower()
-        if any(lbl in label for lbl in _SWIM_LABELS):
+        cumule = _est_cumule(label)
+        if not cumule and any(lbl in label for lbl in _SWIM_LABELS):
             candidats.setdefault("swim", []).append(field)
         elif any(lbl == label for lbl in _T1_LABELS):
             candidats.setdefault("t1", []).append(field)
-        elif any(lbl in label for lbl in _BIKE_LABELS):
+        elif not cumule and any(lbl in label for lbl in _BIKE_LABELS):
             candidats.setdefault("bike", []).append(field)
         elif any(lbl == label for lbl in _T2_LABELS):
             candidats.setdefault("t2", []).append(field)
-        elif any(lbl in label for lbl in _RUN_LABELS):
+        elif not cumule and any(lbl in label for lbl in _RUN_LABELS):
             candidats.setdefault("run", []).append(field)
 
     resolved = {role: fields[0] for role, fields in candidats.items() if len(fields) == 1}
