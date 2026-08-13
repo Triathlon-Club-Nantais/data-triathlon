@@ -124,6 +124,15 @@ export const NAV: NavSection[] = [
         permission: "batch:run",
       },
       { id: "a-quality", label: "Revalidation qualité", permission: "quality:override", soon: true },
+      // Signalement public (#267) — même contraste que « Fournisseurs en
+      // attente » : la soumission est ouverte à tous, la consulter exige
+      // `feedback:read`.
+      {
+        id: "a-feedback",
+        label: "Retours utilisateurs",
+        href: "/admin/retours-utilisateurs",
+        permission: "feedback:read",
+      },
       { id: "a-benevolat", label: "Bénévolat", soon: true },
       // Pas d'entrée « Sessions » : #169 a livré la révocation **dans**
       // « Accès au back-office » — par adresse ligne à ligne, globale en bas de

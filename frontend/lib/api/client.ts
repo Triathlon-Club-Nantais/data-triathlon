@@ -18,6 +18,7 @@ import type {
   CourseSummary,
   DuplicateCandidateList,
   EventPage,
+  Feedback,
   FeedbackCreate,
   FeedbackCreated,
   GeoEvent,
@@ -347,4 +348,8 @@ export const apiClient = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  // Lecture réservée `feedback:read`. Pas de pagination dans cette v1
+  // (contracts/feedback-api.md — volume attendu modeste).
+  listFeedback: (sort: "created_at" | "type" | "status", order: "asc" | "desc") =>
+    request<Feedback[]>(`/admin/feedback${toQuery({ sort, order })}`),
 };

@@ -40,4 +40,5 @@ export const queryKeys = {
   providers: () => ["providers"] as const,
   batchRuns: () => ["batch-runs"] as const,
   batchReport: (runId: number) => ["batch-report", runId] as const,
+  feedbackList: (sort: string, order: string) => ["admin-feedback", sort, order] as const,
 };

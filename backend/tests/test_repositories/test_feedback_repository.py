@@ -70,6 +70,17 @@ def test_list_sorted_par_type_asc(db_session):
     assert [r.type for r in resultats] == ["bug", "feedback"]
 
 
+def test_list_sorted_par_statut_desc(db_session):
+    _create(db_session, title="N")
+    traite = _create(db_session, title="T")
+    traite.status = "traite"
+    db_session.flush()
+
+    resultats = feedback_repository.list_sorted(db_session, sort="status", order="desc")
+
+    assert [r.title for r in resultats] == ["T", "N"]
+
+
 def test_get_rend_none_si_absent(db_session):
     assert feedback_repository.get(db_session, 999) is None
 
