@@ -634,6 +634,64 @@ def scrape_for_replacement(
     return _scrape_all(_validate_url(url), db, settings, use_cache_probe=False)
 
 
+def _reclassify_heats(db: Session, event_url: str, results: list[ScrapedResult]) -> None:
+    """Aligne la classification des épreuves déjà en base sur ce scrape-ci (#294).
+
+    Le verdict de `classify_event_type` bouge d'un scrape à l'autre — heuristique
+    affinée, contexte de nom différent. L'identité étant
+    `(name, event_date, event_type, is_relay)`, l'épreuve ne se retrouvait plus :
+    une **seconde** `Course` naissait, et la première gardait ses résultats sous
+    un sport devenu faux, indiscernable de la neuve à l'écran (Mesquer 2026, 498
+    finishers classés swimrun alors que c'était un triathlon).
+
+    **Un rattrapage de lot, et pas de ligne**, parce que le signal qui distingue
+    une reclassification d'un second heat n'existe qu'au niveau du lot : une même
+    URL publie légitimement N épreuves du **même nom**, à la **même date**, que
+    seuls `event_type` et `is_relay` séparent — les six heats TimePulse sous
+    `/epreuves/resultats/live/3232` (mesuré, cf.
+    `services/course_duplicates._same_source_url`). Ligne à ligne, le second heat
+    est indistinguable d'un premier heat reclassé, et le rattraper reviendrait à
+    fondre deux classements réels en un. Le lot, lui, tranche : si ce scrape ne
+    publie **qu'une** classification pour une clé, il n'y a pas deux heats à
+    confondre.
+
+    Rien n'est écrit quand l'URL scrapée n'est pas la source **active** de
+    l'épreuve : c'est D2 (#303), la source active fait foi sur le nom, la date, et
+    donc aussi sur le sport. Une passive n'alimente aucun affichage, elle ne
+    classe rien.
+
+    Le coût est d'**une lecture indexée par heat** sur le chemin nominal — celui
+    où l'identité n'a pas bougé, et où il n'y a donc rien à reclasser. La jointure
+    sur `course_sources` n'est payée que quand elle a bougé, c'est-à-dire presque
+    jamais.
+    """
+    classifications: dict[tuple[str, str, object, bool], set[str]] = {}
+    for scraped in results:
+        # Même priorité que `mapping.get_or_create_course` : le fan-out Klikego
+        # (#156) donne à chaque heat sa propre URL, et c'est elle qui porte la
+        # source active de l'épreuve, pas l'URL d'événement soumise.
+        url = scraped.source_url or event_url
+        if not url:
+            continue
+        cle = (url, scraped.event_name, scraped.event_date, bool(scraped.is_relay))
+        classifications.setdefault(cle, set()).add(scraped.event_type)
+
+    for (url, name, event_date, is_relay), types in classifications.items():
+        if len(types) != 1:
+            continue
+        event_type = next(iter(types))
+        if course_repository.get_by_identity(db, name, event_date, event_type, is_relay):
+            # L'identité visée est déjà en base : ou bien c'est l'épreuve elle-même
+            # et rien n'a bougé, ou bien c'en est une autre et `uq_course_identity`
+            # interdirait l'écriture de toute façon.
+            continue
+        course = course_repository.get_by_active_source(
+            db, source_url=url, name=name, event_date=event_date, is_relay=is_relay
+        )
+        if course is not None:
+            course_repository.reclassify(db, course, event_type)
+
+
 def persist_results(db: Session, url: str, results: list[ScrapedResult]) -> dict:
     """Écrit des résultats déjà scrapés. **Ne clôt pas la transaction.**
 
@@ -647,6 +705,7 @@ def persist_results(db: Session, url: str, results: list[ScrapedResult]) -> dict
     cachés (`_merge_cached_courses`) appartient au compte rendu d'import, pas à
     l'écriture.
     """
+    _reclassify_heats(db, url, results)
     persister = _Persister(db, url)
     for scraped in results:
         persister.add(scraped)
@@ -778,6 +837,11 @@ def iter_import_event(
     persister = _Persister(db, url)
     yield {"phase": "saving", "total": total, "imported": 0, "updated": 0, "skipped": 0, "progress": 0}
     try:
+        # Le chemin SSE ré-implémente la boucle de `persist_results` pour émettre
+        # sa progression : le rattrapage de classification (#294) doit donc y être
+        # posé lui aussi, et **avant** la première ligne, sinon la seconde `Course`
+        # est déjà née quand on la cherche.
+        _reclassify_heats(db, url, results)
         for i, scraped in enumerate(results):
             persister.add(scraped)
             if (i + 1) % 20 == 0 or i == total - 1:

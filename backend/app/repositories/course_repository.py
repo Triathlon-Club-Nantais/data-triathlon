@@ -114,6 +114,61 @@ def _by_active_source(db: Session, clause):
     )
 
 
+def get_by_active_source(
+    db: Session,
+    *,
+    source_url: str,
+    name: str,
+    event_date: date | None,
+    is_relay: bool,
+) -> Course | None:
+    """L'épreuve dont la source **active** est cette URL, classification exclue (#294).
+
+    `event_type` est volontairement hors du filtre : c'est justement le champ qui
+    a pu changer d'un scrape à l'autre (heuristique de `classify` affinée, contexte
+    de nom différent), et le chercher à l'égalité est ce qui faisait naître une
+    seconde épreuve.
+
+    **Trois champs d'identité sur quatre ne désignent pas un heat**, et il ne faut
+    pas le croire : TimePulse publie ses six heats sous **une** URL d'événement et
+    sous le **même** nom, seuls `event_type` et `is_relay` les distinguent (mesuré,
+    cf. `services/course_duplicates._same_source_url`). Cette lecture rend donc un
+    candidat, pas un verdict — c'est à l'appelant d'établir que le scrape ne publie
+    qu'une classification pour cette clé (`import_service._reclassify_heats`).
+
+    **Jointure, jamais `Course.source_url`** : l'hybride n'a plus d'`@expression`
+    depuis #306, un filtre dessus lève. Et `CourseSource.is_active` porte ici du
+    sens, pas seulement de la performance — une source passive n'alimente aucun
+    affichage (#279) et ne classe donc rien non plus (D2).
+    """
+    return _by_active_source(
+        db,
+        (CourseSource.url == source_url)
+        & (Course.name == name)
+        & (Course.event_date == event_date)
+        & (Course.is_relay == is_relay),
+    ).first()
+
+
+def reclassify(db: Session, course: Course, event_type: str) -> Course:
+    """Aligne la classification de l'épreuve sur celle du dernier scrape (#294).
+
+    **N'écrit rien si l'identité visée est déjà prise.** `uq_course_identity` porte
+    sur `(name, event_date, event_type, is_relay)` : réécrire `event_type` fait
+    changer l'épreuve d'identité, et viser celle d'une épreuve déjà en base ferait
+    tomber le flush sur la contrainte, en plein import. La ligne garde alors sa
+    classification — deux épreuves à réunir sont un doublon à fusionner (#287,
+    #288), pas une écriture à forcer.
+    """
+    if course.event_type == event_type:
+        return course
+    if get_by_identity(db, course.name, course.event_date, event_type, course.is_relay):
+        return course
+    course.event_type = event_type
+    db.flush()
+    return course
+
+
 def get_latest_by_source_url(db: Session, source_url: str) -> Course | None:
     """Course la plus récemment scrapée pour cette URL d'import (clé du cache TTL)."""
     return _by_active_source(db, CourseSource.url == source_url).first()
