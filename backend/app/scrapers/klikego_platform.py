@@ -71,6 +71,33 @@ def heat_is_relay(*signals: str) -> bool:
     return False
 
 
+def course_name(event_name: str, heat_label: str) -> str:
+    """Nom de course = « <Épreuve> - <Heat> ».
+
+    Une Course du modèle EST un heat (cf. `models/course.py`), et son identité
+    est (nom, date, type, relais). Sans le libellé du heat dans le nom, les heats
+    d'une même épreuve partageant un type fusionnent en une seule course : à
+    Dinard 2025 (Breizh Chrono), les six swimruns (Court/Medium/Long × Solo/Duo,
+    tous classés `swimrun`) n'en formaient qu'une ; à Mesquer 2026 (Klikego), les
+    heats poussins et pupilles (tous deux `triathlon`, tous deux non-relais)
+    fusionnaient et un dossard réutilisé d'un heat à l'autre réattribuait
+    silencieusement un résultat à un autre athlète (#308).
+
+    Partagée par les deux fournisseurs de cette plateforme (Klikego et Breizh
+    Chrono) — une seule définition évite qu'une seule des deux implémentations
+    soit correcte (cf. #76).
+
+    Les espaces sont compactés : la plateforme en sème des doubles dans ses
+    libellés (« Triathlon Découverte  Aésio Mutuelle »).
+
+    Le séparateur est un tiret ASCII (et non un cadratin « — ») : il reste
+    tapable au clavier, donc trouvable en CTRL+F comme dans un futur champ de
+    recherche.
+    """
+    parts = [p for p in (event_name, heat_label) if p]
+    return " - ".join(" ".join(p.split()) for p in parts)
+
+
 def decode_data_block(html: str) -> list[list[str]]:
     """Décode le `<script id="data">` d'une page course-result.jsp.
 

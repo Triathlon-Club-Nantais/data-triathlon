@@ -12,7 +12,6 @@ import pytest
 
 from app.scrapers import breizhchrono
 from app.scrapers.breizhchrono import (
-    _course_name,
     _parse_bc_date,
     _parse_bc_url,
     _parse_live_heats,
@@ -20,6 +19,7 @@ from app.scrapers.breizhchrono import (
     _parse_live_slug,
     _parse_live_url,
 )
+from app.scrapers.klikego_platform import course_name
 
 
 def test_parse_bc_url_standard():
@@ -331,17 +331,18 @@ def test_parse_live_index_vide():
     assert _parse_live_index("<html></html>") == ("", {})
 
 
-def test_course_name_suffixe_le_heat():
-    """Le nom de course porte le libellé du heat : deux heats d'une même épreuve
-    ne peuvent plus fusionner sur l'identité (nom, date, type, relais)."""
+def test_bc_utilise_le_course_name_partage_avec_klikego():
+    """`course_name` vit désormais dans `klikego_platform` (partagée avec Klikego,
+    #308) : Breizh Chrono ne porte plus sa propre implémentation. Les cas de
+    composition eux-mêmes sont couverts par test_klikego.py."""
+    import inspect
+
+    src = inspect.getsource(breizhchrono._import_one_heat)
+    assert "course_name(event_name, heat_label)" in src
     assert (
-        _course_name("Triathlon SwimRun Dinard Côte d'Emeraude", "Trail 11 KM")
+        course_name("Triathlon SwimRun Dinard Côte d'Emeraude", "Trail 11 KM")
         == "Triathlon SwimRun Dinard Côte d'Emeraude - Trail 11 KM"
     )
-    # Heat ciblé sans libellé connu → nom d'épreuve seul (pas de suffixe vide).
-    assert _course_name("Triathlon de Vannes 2025", "") == "Triathlon de Vannes 2025"
-    # Nom d'épreuve introuvable → le libellé du heat fait office de nom.
-    assert _course_name("", "Trail 11 KM") == "Trail 11 KM"
 
 
 def test_live_import_one_heat_route_sur_lhote_live(monkeypatch):

@@ -311,7 +311,7 @@ def _heat_source_url(event_id: str, slug: str, heat: str) -> str:
 
 
 def _scrape_single_heat(
-    event_id: str, heat: str, event_name: str, slug: str,
+    event_id: str, heat: str, heat_label: str, event_name: str, slug: str,
     event_date: object, client: httpx.Client,
 ) -> list["ScrapedResult"]:
     """Scrape un heat Klikego (finishers + DNF/DNS/DSQ) — extraction du corps original.
@@ -319,6 +319,18 @@ def _scrape_single_heat(
     Phase A' — HTML de la page heat (options inter).
     Phase B — liste complète + splits inter pour tous (moteur partagé).
     Phase C — splits fins via page détail pour tous les participants (priment).
+
+    `heat_label` (libellé publié, ex. « Triathlon Pupilles (10-11 ans) ») suffixe
+    `event_name` via `klikego_platform.course_name` — la même fonction que Breizh
+    Chrono (#308). Composé **après** `build_heat_results` et non transmis en
+    paramètre `event_name` : le `<title>` d'une page de heat Klikego ne porte
+    jamais le libellé du heat (contrairement à Breizh Chrono), donc
+    `build_heat_results` y lit toujours un nom nu et **écraserait** silencieusement
+    toute composition faite en amont (`parse_event_name(...) or event_name`).
+    Sans ce suffixe, deux heats de même `event_type`/`is_relay` (poussins et
+    pupilles à Mesquer 2026, tous deux `triathlon` non-relais) partagent la même
+    identité de `Course` et fusionnent — un dossard réutilisé d'un heat à l'autre
+    réattribue silencieusement un résultat à un autre athlète.
     """
     from app.scrapers import klikego_platform as plat
 
@@ -339,6 +351,8 @@ def _scrape_single_heat(
         event_date=event_date,
         client=client,
     )
+    for r in results:
+        r.event_name = plat.course_name(r.event_name, heat_label)
     bib_to_result = {r.bib_number: r for r in results}
 
     # Phase C — splits fins via la page détail pour TOUS les participants.
@@ -373,12 +387,13 @@ def scrape_event_all(
     Le fan-out sur tous les heats vit **au niveau du provider**
     (`KlikegoProvider.scrape_event_all`) : il boucle sur cette fonction
     heat par heat. Ici on préserve la signature originale pour tous les
-    appelants directs (tests, batch, `--single-heat`).
+    appelants directs (tests, batch, `--single-heat`) : sans libellé de heat
+    connu à cet appel, `event_name` reste nu (pas de suffixe vide).
     """
     with http.client(timeout=30, headers=HEADERS) as client:
         _, event_date = _fetch_event_meta(event_id, slug, client)
         return _scrape_single_heat(
-            event_id, heat, event_name, slug, event_date, client,
+            event_id, heat, "", event_name, slug, event_date, client,
         )
 
 
@@ -437,7 +452,7 @@ def scrape_event_fanout(
                 on_heat_start(heat_slug, heat_label, index, total_a_scraper)
             try:
                 all_results.extend(_scrape_single_heat(
-                    event_id, heat_slug, event_name, slug, event_date, client,
+                    event_id, heat_slug, heat_label, event_name, slug, event_date, client,
                 ))
             except Exception as exc:
                 logger.warning("Heat %s de %s en échec : %s", heat_slug, event_id, exc)

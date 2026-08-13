@@ -757,6 +757,39 @@ def test_heat_is_relay_survives_the_accents_of_a_displayed_label():
     assert plat.heat_is_relay("Duathlon CLM par Équipe") is True
 
 
+# ---------------------------------------------------------------------------
+# course_name — nom de course partagé Klikego / Breizh Chrono (#308)
+# ---------------------------------------------------------------------------
+
+
+def test_course_name_suffixe_le_heat():
+    """Le nom de course porte le libellé du heat : deux heats d'une même épreuve
+    ne peuvent plus fusionner sur l'identité (nom, date, type, relais)."""
+    assert (
+        plat.course_name("Triathlon SwimRun Dinard Côte d'Emeraude", "Trail 11 KM")
+        == "Triathlon SwimRun Dinard Côte d'Emeraude - Trail 11 KM"
+    )
+
+
+def test_course_name_heat_label_absent_pas_de_suffixe_vide():
+    """Heat ciblé sans libellé connu (ex. `scrape_event_all`, contrat historique
+    sans discovery) → nom d'épreuve seul, sans tiret ni suffixe vide."""
+    assert plat.course_name("Triathlon de Vannes 2025", "") == "Triathlon de Vannes 2025"
+
+
+def test_course_name_event_name_absent_le_heat_fait_office_de_nom():
+    """Nom d'épreuve introuvable → le libellé du heat fait office de nom."""
+    assert plat.course_name("", "Trail 11 KM") == "Trail 11 KM"
+
+
+def test_course_name_compacte_les_espaces_multiples():
+    """La plateforme sème des espaces doubles dans ses libellés."""
+    assert (
+        plat.course_name("Triathlon Découverte  Aésio Mutuelle", "Triathlon  M")
+        == "Triathlon Découverte Aésio Mutuelle - Triathlon M"
+    )
+
+
 def test_parse_search_row_duo_heat_sets_is_relay():
     """Mesquer 2026 : `swim-run-m-duo` → relais, comme son voisin « relais »."""
     row = _make_search_row(bib="15", name="LEROY Anne")
@@ -1594,10 +1627,10 @@ def test_scrape_event_fanout_heat_failure_isolated(monkeypatch, caplog):
     from app.scrapers import klikego as kli_mod
     original = kli_mod._scrape_single_heat
 
-    def flaky(event_id, heat, event_name, slug, event_date, client):
+    def flaky(event_id, heat, heat_label, event_name, slug, event_date, client):
         if heat == "triathlon-xs-relais":
             raise RuntimeError("boom on xs-relais")
-        return original(event_id, heat, event_name, slug, event_date, client)
+        return original(event_id, heat, heat_label, event_name, slug, event_date, client)
 
     monkeypatch.setattr(kli_mod, "_scrape_single_heat", flaky)
 
@@ -1653,3 +1686,81 @@ def test_scrape_event_fanout_on_heat_start_notifie_par_heat_non_cache(monkeypatc
     assert [n[2] for n in notifications] == [1, 2, 3, 4, 5]
     assert all(n[3] == 5 for n in notifications)
     assert not any(n[0] in cached_slugs for n in notifications)
+
+
+def test_scrape_event_fanout_heats_de_meme_type_restent_distincts(monkeypatch):
+    """Deux heats classés `triathlon`/non-relais mais de libellés différents ne
+    doivent plus fusionner sur l'identité de Course (#308).
+
+    Mesuré sur Mesquer 2026 : `triathlon-poussin-et-mini-poussin-6-9-ans` et
+    `triathlon-pupilles-10-11-ans` partagent le même event_type (`triathlon`) et
+    le même is_relay (False). Avant #308, `event_name` était identique pour les
+    deux (le nom nu de l'épreuve) : les deux heats fusionnaient sur (nom, date,
+    type, relais) et un dossard réutilisé d'un heat à l'autre réattribuait
+    silencieusement un résultat à un autre athlète. Le libellé du heat doit
+    désormais suffixer `event_name`, exactement comme Breizh Chrono le fait déjà
+    (`klikego_platform.course_name`).
+    """
+    event_html = load_klikego_fixture("mesquer-2026-event.html")
+    page0 = (FIXTURES / "klikego_datablock_page0.html").read_text()
+
+    class FakeResp:
+        def __init__(self, text: str, code: int = 200):
+            self.text, self.status_code = text, code
+
+    class FakeClient:
+        def __init__(self, *a, **k):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            pass
+
+        def get(self, url: str, *a, **k):
+            if "course-result.jsp" in url:
+                # Première page (sans inter) : renvoie 50 lignes de données.
+                # Toute autre page/inter : liste vide → coupe la pagination.
+                if "inter=&" in url and "page=0" in url:
+                    return FakeResp(page0)
+                return FakeResp("<html></html>")
+            if "resultat-participant.jsp" in url:
+                return FakeResp("<html></html>")
+            if "?heat=" in url:
+                # Page heat : ni titre ni options inter, pour isoler le libellé
+                # de heat comme seule source du suffixe testé ici.
+                return FakeResp("<html></html>")
+            return FakeResp(event_html)  # page événement (racine)
+
+    monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
+    monkeypatch.setattr(klikego, "_fetch_event_meta", lambda *a, **k: ("", None))
+
+    results, _trace = klikego.scrape_event_fanout(
+        "1677015306084-12", "Triathlon et Swimrun Mesquer Quimiac 2026",
+        "triathlon-et-swimrun-mesquer-quimiac-2026",
+    )
+
+    poussin_names = {
+        r.event_name for r in results
+        if r.raw_data.get("heat_slug") == "triathlon-poussin-et-mini-poussin-6-9-ans"
+    }
+    pupilles_names = {
+        r.event_name for r in results
+        if r.raw_data.get("heat_slug") == "triathlon-pupilles-10-11-ans"
+    }
+
+    assert poussin_names, "le heat poussin doit produire des résultats"
+    assert pupilles_names, "le heat pupilles doit produire des résultats"
+    assert poussin_names.isdisjoint(pupilles_names), (
+        "les deux heats partagent event_type=triathlon et is_relay=False : "
+        "sans le libellé de heat dans event_name, ils fusionnent sur l'identité "
+        "de Course (#308)"
+    )
+    assert poussin_names == {
+        "Triathlon et Swimrun Mesquer Quimiac 2026 - "
+        "Triathlon Poussin et mini poussin (6-9 ans)"
+    }
+    assert pupilles_names == {
+        "Triathlon et Swimrun Mesquer Quimiac 2026 - Triathlon Pupilles (10-11 ans)"
+    }
