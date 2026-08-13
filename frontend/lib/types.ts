@@ -712,7 +712,7 @@ export interface SessionRevocation {
   accounts: number;
 }
 
-/** Corps de `POST /admin/feedback` (#267) — route publique. */
+/** Corps de `POST /feedback` (#267) — route publique. */
 export interface FeedbackCreate {
   type: "bug" | "feedback";
   title: string;
@@ -723,7 +723,7 @@ export interface FeedbackCreate {
   honeypot?: string | null;
 }
 
-/** Réponse minimale de `POST /admin/feedback` — identique en cas de honeypot. */
+/** Réponse minimale de `POST /feedback` — identique en cas de honeypot. */
 export interface FeedbackCreated {
   id: number;
   status: string;

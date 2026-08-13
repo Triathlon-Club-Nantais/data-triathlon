@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-12
 
-**Status**: Draft
+**Status**: Livrée (PR #315)
 
 **Input**: User description: "Bouton de signalement (bug / feedback) accessible à tous, remonté dans le panel admin. Ajouter sur le site un bouton de signalement qui ouvre un petit formulaire (titre, description, type bug/feedback, contexte auto-joint) accessible sans compte. Les signalements atterrissent dans le panel admin sous une nouvelle section « Retours utilisateurs » avec liste triable, vue détail, et actions de statut. Pas d'intégration GitHub automatique en v1. Issue GitHub #267."
 

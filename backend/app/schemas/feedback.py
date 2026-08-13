@@ -9,7 +9,7 @@ from app.schemas.admin import _PatchNonVide
 
 
 class FeedbackCreate(BaseModel):
-    """Corps de `POST /admin/feedback` — route publique, aucune authentification.
+    """Corps de `POST /feedback` — route publique, aucune authentification.
 
     L'email de l'émetteur n'est **jamais** un champ ici : il est déduit côté
     serveur de la session SSO courante (contracts/feedback-api.md).

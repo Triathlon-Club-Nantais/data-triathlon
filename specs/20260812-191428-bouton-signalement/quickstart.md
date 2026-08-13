@@ -67,7 +67,7 @@ rôle dédié composé via `/admin/droits`).
 ## Scénario 6 — anti-spam (FR-010, FR-011)
 
 1. Soumettre le formulaire avec le champ honeypot renseigné (via un appel
-   direct à `POST /api/v1/admin/feedback` plutôt que le formulaire, qui ne
+   direct à `POST /api/v1/feedback` plutôt que le formulaire, qui ne
    l'expose pas visuellement) : **attendu** un `201` apparent, mais rien
    n'apparaît dans `GET /admin/feedback`.
 2. Soumettre plusieurs signalements légitimes depuis la même IP en rafale, au

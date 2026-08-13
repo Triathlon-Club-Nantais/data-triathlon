@@ -34,11 +34,13 @@ PREFIXE_ADMIN = "/api/v1/admin/"
 #: `ScrapeForm.tsx` et `TcnScrapeForm.tsx` l'appellent en `.catch(() => {})`
 #: quand un visiteur **anonyme** colle une URL non supportée. C'est elle qui
 #: interdit toute garde par préfixe (FR-022).
+#:
+#: Elle reste **seule** et c'est un choix : le signalement de #267 est tout
+#: aussi public, mais il vit sous `/feedback` plutôt que d'agrandir cet
+#: ensemble. Celui-ci n'a de raison d'être que pour une route déjà publiée
+#: sous `/api/v1`, que le Principe IV interdit de déplacer.
 ADMIN_PUBLIQUES = {
     ("POST", "/api/v1/admin/pending-providers"),
-    # Signalement bug/feedback (#267) : même contraste, le bouton flottant est
-    # appelé par un visiteur anonyme du site public.
-    ("POST", "/api/v1/admin/feedback"),
 }
 
 #: Les ressources **hors `/admin/`** délibérément fermées par #115. Le préfixe

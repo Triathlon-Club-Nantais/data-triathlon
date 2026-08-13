@@ -58,7 +58,7 @@ class Settings(BaseSettings):
     geocode_min_interval_seconds: float = 1.1  # rate limit Nominatim : max 1 req/s
 
     # ── Retours utilisateurs (#267) ───────────────────────────────────────────
-    # Limitation de débit anti-spam sur POST /admin/feedback (research.md §D1) :
+    # Limitation de débit anti-spam sur POST /feedback (research.md §D1) :
     # une requête de comptage sur la table elle-même, pas de dépendance dédiée.
     feedback_rate_limit_max_per_window: int = 5
     feedback_rate_limit_window_seconds: int = 3600

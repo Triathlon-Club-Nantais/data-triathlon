@@ -342,10 +342,12 @@ export const apiClient = {
     }),
 
   // ── Retours utilisateurs (#267) ────────────────────────────────────────────
-  // Route publique : aucune session requise. L'email de l'émetteur, si connecté,
-  // est déduit côté serveur du cookie — jamais un champ de ce corps.
+  // Route publique, et son chemin le dit : `/feedback`, hors de `/admin` où
+  // vivent les trois verbes gardés de la même ressource. Aucune session requise ;
+  // l'email de l'émetteur, si connecté, est déduit côté serveur du cookie —
+  // jamais un champ de ce corps.
   submitFeedback: (body: FeedbackCreate) =>
-    request<FeedbackCreated>("/admin/feedback", {
+    request<FeedbackCreated>("/feedback", {
       method: "POST",
       body: JSON.stringify(body),
     }),
