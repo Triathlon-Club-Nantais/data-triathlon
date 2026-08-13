@@ -125,3 +125,28 @@ d'administration des sources d'une épreuve. `courses:write` est explicitement
 borné aux quatre champs d'identité (nom, date, type, relais) et ne convient
 pas à un geste qui réécrit des résultats. Ajouter un pouvoir dédié
 fragmenterait sans bénéfice un catalogue déjà cohérent.
+
+## R7 — Continuer un re-scrape après déconnexion du client (FR-011)
+
+**Decision**: `iter_rescrape_course` scrape et persiste dans un **thread
+dédié**, indépendant de la consommation du flux SSE — extension du patron déjà
+utilisé par `_scrape_all_streaming` pour le fan-out (thread + `queue.Queue` +
+sentinel), étendue cette fois à **toute** l'opération (scraping **et**
+saving **et** purge **et** commit), pas seulement la sous-phase de scraping
+fan-out. Le générateur HTTP se contente de drainer la file et de `yield` les
+événements ; si le client se déconnecte, Starlette cesse d'appeler `next()`
+sur le générateur, mais le thread, lui, continue jusqu'à son terme et commite
+normalement.
+
+**Rationale**: un générateur Python synchrone n'avance qu'au rythme des appels
+`next()` que lui fait `StreamingResponse` (via un thread pool). Dès que
+Starlette détecte la déconnexion, il cesse ces appels — tout ce qui suit le
+dernier `yield` consommé (souvent la persistance elle-même) ne s'exécute alors
+jamais. Le patron `iter_import_event` actuel n'a jamais eu à survivre à ça,
+l'import public n'ayant pas cette exigence (FR-011 est propre à ce geste
+d'administration).
+
+**Alternatives considered**: `BackgroundTasks` de FastAPI — rejeté, elles ne
+démarrent qu'**après** l'envoi de la réponse complète, incompatible avec un
+flux qui *est* la réponse. Celery/RQ — rejeté, sur-dimensionné (principe VI),
+le projet n'a ni broker ni worker.

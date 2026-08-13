@@ -13,10 +13,9 @@
 ### User Story 1 - Rafraîchir une course après correction chronométreur (Priority: P1)
 
 Un administrateur du club constate que le chronométreur a corrigé des temps ou
-des classements après publication. Depuis la page d'administration de la
-course, il déclenche un nouveau scrape sans passer par la CLI, et voit la
-progression se dérouler en direct jusqu'à confirmation que les résultats sont
-à jour.
+des classements après publication. Depuis la page de la course, il déclenche
+un nouveau scrape sans passer par la CLI, et voit la progression se dérouler
+en direct jusqu'à confirmation que les résultats sont à jour.
 
 **Why this priority**: C'est le scénario qui justifie la feature — jusqu'ici,
 seule la CLI (`rescrape-db`) permet de rafraîchir une course, ce qui exclut un
@@ -117,8 +116,8 @@ et en vérifiant le refus explicite.
 ### Functional Requirements
 
 - **FR-001**: Le système DOIT permettre à un administrateur habilité de
-  déclencher un re-scrape sur une course déjà en base, depuis la page
-  d'administration de cette course.
+  déclencher un re-scrape sur une course déjà en base, depuis la page de
+  cette course.
 - **FR-002**: Le système DOIT afficher la progression du re-scrape en temps
   réel, sans que l'administrateur ait à recharger la page manuellement.
 - **FR-003**: Le déclenchement DOIT court-circuiter toute fraîcheur mise en
