@@ -241,3 +241,53 @@ def test_changer_le_statut_sans_le_pouvoir_rend_403(client, db_session):
 
     assert reponse.status_code == 403
     assert feedback_repository.get(db_session, entry.id).status == "nouveau"
+
+
+# --- Pont vers GitHub (US4) ---------------------------------------------------
+
+_ISSUE = "https://github.com/Triathlon-Club-Nantais/data-triathlon/issues/321"
+
+
+def test_enregistrer_lurl_de_lissue(client, db_session):
+    entry = feedback_repository.create(db_session, type="bug", title="T", body="x")
+    db_session.commit()
+
+    reponse = client.patch(f"{_URL}/{entry.id}", json={"github_url": _ISSUE})
+
+    assert reponse.status_code == 200
+    assert reponse.json()["github_url"] == _ISSUE
+    assert feedback_repository.get(db_session, entry.id).github_url == _ISSUE
+
+
+def test_une_url_invalide_rend_422(client, db_session):
+    entry = feedback_repository.create(db_session, type="bug", title="T", body="x")
+    db_session.commit()
+
+    reponse = client.patch(f"{_URL}/{entry.id}", json={"github_url": "pas-une-url"})
+
+    assert reponse.status_code == 422
+    assert feedback_repository.get(db_session, entry.id).github_url is None
+
+
+def test_enregistrer_lurl_sans_le_pouvoir_rend_403(client, db_session):
+    entry = feedback_repository.create(db_session, type="bug", title="T", body="x")
+    db_session.commit()
+    _session_etroite(client, db_session, P.FEEDBACK_READ)
+
+    reponse = client.patch(f"{_URL}/{entry.id}", json={"github_url": _ISSUE})
+
+    assert reponse.status_code == 403
+    assert feedback_repository.get(db_session, entry.id).github_url is None
+
+
+def test_statut_et_url_peuvent_etre_envoyes_ensemble(client, db_session):
+    entry = feedback_repository.create(db_session, type="bug", title="T", body="x")
+    db_session.commit()
+
+    reponse = client.patch(
+        f"{_URL}/{entry.id}", json={"status": "traite", "github_url": _ISSUE}
+    )
+
+    assert reponse.status_code == 200
+    corps = reponse.json()
+    assert (corps["status"], corps["github_url"]) == ("traite", _ISSUE)

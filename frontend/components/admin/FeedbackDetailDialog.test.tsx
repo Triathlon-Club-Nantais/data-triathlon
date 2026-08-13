@@ -6,17 +6,20 @@ import type { Feedback, SessionUser } from "@/lib/types";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-const { getFeedback, updateFeedbackStatus, getSession } = vi.hoisted(() => ({
-  getFeedback: vi.fn(),
-  updateFeedbackStatus: vi.fn(),
-  getSession: vi.fn(),
-}));
+const { getFeedback, updateFeedbackStatus, updateFeedbackGithubUrl, getSession } = vi.hoisted(
+  () => ({
+    getFeedback: vi.fn(),
+    updateFeedbackStatus: vi.fn(),
+    updateFeedbackGithubUrl: vi.fn(),
+    getSession: vi.fn(),
+  }),
+);
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
   return {
     ...original,
-    apiClient: { getFeedback, updateFeedbackStatus, getSession },
+    apiClient: { getFeedback, updateFeedbackStatus, updateFeedbackGithubUrl, getSession },
   };
 });
 
@@ -113,5 +116,57 @@ describe("FeedbackDetailDialog", () => {
     await screen.findByText(SIGNALEMENT_ANONYME.title);
     await waitFor(() => expect(getSession).toHaveBeenCalled());
     expect(screen.queryByLabelText(/statut/i)).not.toBeInTheDocument();
+  });
+
+  it("construit le lien de promotion avec le dépôt, le titre et le corps encodés, sans appel réseau", async () => {
+    afficher(SIGNALEMENT_ANONYME);
+    await screen.findByText(SIGNALEMENT_ANONYME.title);
+
+    const lien = await screen.findByRole("link", { name: /promouvoir en issue github/i });
+    const href = lien.getAttribute("href")!;
+    const url = new URL(href);
+
+    expect(url.href.startsWith("https://github.com/Triathlon-Club-Nantais/data-triathlon/issues/new")).toBe(true);
+    expect(url.searchParams.get("title")).toBe(SIGNALEMENT_ANONYME.title);
+    expect(url.searchParams.get("body")).toBe(SIGNALEMENT_ANONYME.body);
+    expect(lien.getAttribute("target")).toBe("_blank");
+    // Un lien navigable, jamais un appel — aucune des deux fonctions d'écriture
+    // ne doit avoir été déclenchée par sa seule présence.
+    expect(updateFeedbackStatus).not.toHaveBeenCalled();
+    expect(updateFeedbackGithubUrl).not.toHaveBeenCalled();
+  });
+
+  it("enregistre l'URL de retour collée par l'administrateur", async () => {
+    updateFeedbackGithubUrl.mockResolvedValue({
+      ...SIGNALEMENT_ANONYME,
+      github_url: "https://github.com/Triathlon-Club-Nantais/data-triathlon/issues/321",
+    });
+
+    afficher(SIGNALEMENT_ANONYME);
+    await screen.findByText(SIGNALEMENT_ANONYME.title);
+
+    await userEvent.type(
+      await screen.findByLabelText(/url de l.issue/i),
+      "https://github.com/Triathlon-Club-Nantais/data-triathlon/issues/321",
+    );
+    await userEvent.click(screen.getByRole("button", { name: /enregistrer/i }));
+
+    await waitFor(() =>
+      expect(updateFeedbackGithubUrl).toHaveBeenCalledWith(
+        SIGNALEMENT_ANONYME.id,
+        "https://github.com/Triathlon-Club-Nantais/data-triathlon/issues/321",
+      ),
+    );
+  });
+
+  it("n'offre ni promotion ni saisie d'URL sans feedback:manage", async () => {
+    getSession.mockResolvedValue({ ...MOI, permissions: ["feedback:read"] });
+
+    afficher(SIGNALEMENT_ANONYME);
+
+    await screen.findByText(SIGNALEMENT_ANONYME.title);
+    await waitFor(() => expect(getSession).toHaveBeenCalled());
+    expect(screen.queryByRole("link", { name: /promouvoir/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/url de l.issue/i)).not.toBeInTheDocument();
   });
 });

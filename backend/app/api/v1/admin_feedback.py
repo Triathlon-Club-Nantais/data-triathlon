@@ -104,6 +104,8 @@ def update_feedback(
         raise NotFoundError("Signalement introuvable")
     if "status" in body.model_fields_set:
         feedback_repository.update_status(db, feedback_id, body.status)
+    if "github_url" in body.model_fields_set:
+        feedback_repository.set_github_url(db, feedback_id, str(body.github_url))
     db.commit()
     db.refresh(entry)
     return _vue(entry)

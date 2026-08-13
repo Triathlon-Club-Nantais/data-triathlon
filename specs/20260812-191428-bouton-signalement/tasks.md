@@ -24,7 +24,7 @@ et une validation indépendantes de chacune.
 **Purpose**: Réglages transverses nécessaires avant toute logique métier — aucune nouvelle dépendance (research.md §D1, §D3).
 
 - [X] T001 [P] Ajouter `feedback_rate_limit_max_per_window` et `feedback_rate_limit_window_seconds` dans `backend/app/core/config.py` (research.md §D1), aux côtés de `geocode_min_interval_seconds`
-- [ ] T002 [P] Créer `frontend/lib/github.ts` exportant `GITHUB_REPOSITORY = "Triathlon-Club-Nantais/data-triathlon"`, sur le patron de `frontend/lib/club.ts` (research.md §D3)
+- [X] T002 [P] Créer `frontend/lib/github.ts` exportant `GITHUB_REPOSITORY = "Triathlon-Club-Nantais/data-triathlon"`, sur le patron de `frontend/lib/club.ts` (research.md §D3)
 
 **Checkpoint**: réglages en place, aucune story ne peut encore fonctionner.
 
@@ -134,16 +134,16 @@ et une validation indépendantes de chacune.
 
 ### Tests for User Story 4
 
-- [ ] T037 [P] [US4] Test `feedback_repository.set_github_url` dans `backend/tests/test_repositories/test_feedback_repository.py`
-- [ ] T038 [P] [US4] Test API `PATCH /admin/feedback/{id}` (champ `github_url`) : 422 si URL invalide, 403 sans `feedback:manage`, persistance dans `backend/tests/test_api/test_admin_feedback_api.py`
-- [ ] T039 [P] [US4] Test de construction du lien de promotion (titre et corps correctement encodés en paramètres de requête, dépôt issu de `GITHUB_REPOSITORY`, aucun appel réseau déclenché) dans `frontend/components/admin/FeedbackDetailDialog.test.tsx`
+- [X] T037 [P] [US4] Test `feedback_repository.set_github_url` dans `backend/tests/test_repositories/test_feedback_repository.py`
+- [X] T038 [P] [US4] Test API `PATCH /admin/feedback/{id}` (champ `github_url`) : 422 si URL invalide, 403 sans `feedback:manage`, persistance dans `backend/tests/test_api/test_admin_feedback_api.py`
+- [X] T039 [P] [US4] Test de construction du lien de promotion (titre et corps correctement encodés en paramètres de requête, dépôt issu de `GITHUB_REPOSITORY`, aucun appel réseau déclenché) dans `frontend/components/admin/FeedbackDetailDialog.test.tsx`
 
 ### Implementation for User Story 4
 
-- [ ] T040 [US4] Implémenter `set_github_url` dans `backend/app/repositories/feedback_repository.py` (dépend de T037)
-- [ ] T041 [US4] Étendre la route `PATCH /admin/feedback/{id}` pour accepter le champ `github_url` (garde `FEEDBACK_MANAGE`) dans `backend/app/api/v1/admin_feedback.py` (dépend de T038, T040)
-- [ ] T042 [P] [US4] Ajouter `updateFeedbackGithubUrl` dans `frontend/lib/api/client.ts` + mutation dans `frontend/lib/queries/admin.ts`
-- [ ] T043 [US4] Ajouter le bouton « Promouvoir en issue GitHub » (construction d'URL via `GITHUB_REPOSITORY`, ouverture dans un nouvel onglet) et le champ de saisie de l'URL de retour dans `frontend/components/admin/FeedbackDetailDialog.tsx` (dépend de T039, T042)
+- [X] T040 [US4] Implémenter `set_github_url` dans `backend/app/repositories/feedback_repository.py` (dépend de T037)
+- [X] T041 [US4] Étendre la route `PATCH /admin/feedback/{id}` pour accepter le champ `github_url` (garde `FEEDBACK_MANAGE`) dans `backend/app/api/v1/admin_feedback.py` (dépend de T038, T040)
+- [X] T042 [P] [US4] Ajouter `updateFeedbackGithubUrl` dans `frontend/lib/api/client.ts` + mutation dans `frontend/lib/queries/admin.ts`
+- [X] T043 [US4] Ajouter le bouton « Promouvoir en issue GitHub » (construction d'URL via `GITHUB_REPOSITORY`, ouverture dans un nouvel onglet) et le champ de saisie de l'URL de retour dans `frontend/components/admin/FeedbackDetailDialog.tsx` (dépend de T039, T042)
 
 **Checkpoint**: les quatre user stories fonctionnent, indépendamment et ensemble.
 
@@ -153,10 +153,10 @@ et une validation indépendantes de chacune.
 
 **Purpose**: vérifications transverses, aucune nouvelle capacité métier.
 
-- [ ] T044 [P] Exécuter `uv run ruff check .` depuis `backend/` et corriger les écarts
-- [ ] T045 [P] Exécuter `npm run lint` depuis `frontend/` et corriger les écarts
-- [ ] T046 Dérouler `quickstart.md` de bout en bout (les 6 scénarios) sur un environnement de dev local
-- [ ] T047 Vérifier que `uv run pytest -m "not integration"` et `npm test` sont verts sur l'ensemble de la feature
+- [X] T044 [P] Exécuter `uv run ruff check .` depuis `backend/` et corriger les écarts
+- [X] T045 [P] Exécuter `npm run lint` depuis `frontend/` et corriger les écarts
+- [X] T046 Dérouler `quickstart.md` de bout en bout (les 6 scénarios) sur un environnement de dev local
+- [X] T047 Vérifier que `uv run pytest -m "not integration"` et `npm test` sont verts sur l'ensemble de la feature
 
 ---
 

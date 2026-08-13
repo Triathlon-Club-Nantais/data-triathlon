@@ -361,4 +361,9 @@ export const apiClient = {
       method: "PATCH",
       body: JSON.stringify(champs),
     }),
+  updateFeedbackGithubUrl: (id: number, githubUrl: string) =>
+    request<Feedback>(`/admin/feedback/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ github_url: githubUrl }),
+    }),
 };
