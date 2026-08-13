@@ -529,3 +529,16 @@ export function useUpdateFeedbackStatus() {
     },
   });
 }
+
+/** Enregistre l'URL de l'issue créée à la main — aucun appel à l'API GitHub. */
+export function useUpdateFeedbackGithubUrl() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, githubUrl }: { id: number; githubUrl: string }) =>
+      apiClient.updateFeedbackGithubUrl(id, githubUrl),
+    onSuccess: (_donnees, { id }) => {
+      qc.invalidateQueries({ queryKey: ["admin-feedback"] });
+      qc.invalidateQueries({ queryKey: queryKeys.feedback(id) });
+    },
+  });
+}
