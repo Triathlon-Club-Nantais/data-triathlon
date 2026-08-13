@@ -109,18 +109,18 @@ et une validation indépendantes de chacune.
 
 ### Tests for User Story 3
 
-- [ ] T028 [P] [US3] Test `feedback_repository.get` et `update_status` (toutes les transitions autorisées dans les deux sens, data-model.md) dans `backend/tests/test_repositories/test_feedback_repository.py`
-- [ ] T029 [P] [US3] Test API `GET /admin/feedback/{id}` : 404 si absent, email présent seulement si `user_id` renseigné, 403 sans `feedback:read` dans `backend/tests/test_api/test_admin_feedback_api.py`
-- [ ] T030 [P] [US3] Test API `PATCH /admin/feedback/{id}` (champ `status`) : 422 si valeur hors des quatre statuts, 403 sans `feedback:manage`, champs non envoyés inchangés dans `backend/tests/test_api/test_admin_feedback_api.py`
-- [ ] T031 [P] [US3] Test composant `FeedbackDetailDialog` : affichage titre/description/contexte/email conditionnel, sélecteur de statut déclenche la mutation dans `frontend/components/admin/FeedbackDetailDialog.test.tsx`
+- [X] T028 [P] [US3] Test `feedback_repository.get` et `update_status` (toutes les transitions autorisées dans les deux sens, data-model.md) dans `backend/tests/test_repositories/test_feedback_repository.py`
+- [X] T029 [P] [US3] Test API `GET /admin/feedback/{id}` : 404 si absent, email présent seulement si `user_id` renseigné, 403 sans `feedback:read` dans `backend/tests/test_api/test_admin_feedback_api.py`
+- [X] T030 [P] [US3] Test API `PATCH /admin/feedback/{id}` (champ `status`) : 422 si valeur hors des quatre statuts, 403 sans `feedback:manage`, champs non envoyés inchangés dans `backend/tests/test_api/test_admin_feedback_api.py`
+- [X] T031 [P] [US3] Test composant `FeedbackDetailDialog` : affichage titre/description/contexte/email conditionnel, sélecteur de statut déclenche la mutation dans `frontend/components/admin/FeedbackDetailDialog.test.tsx`
 
 ### Implementation for User Story 3
 
-- [ ] T032 [US3] Implémenter `get` et `update_status` dans `backend/app/repositories/feedback_repository.py` (dépend de T028)
-- [ ] T033 [US3] Implémenter les routes `GET /admin/feedback/{id}` (garde `FEEDBACK_READ`) et `PATCH /admin/feedback/{id}` pour le champ `status` (garde `FEEDBACK_MANAGE`) dans `backend/app/api/v1/admin_feedback.py` (dépend de T029, T030, T032)
-- [ ] T034 [P] [US3] Ajouter `getFeedback` et `updateFeedbackStatus` dans `frontend/lib/api/client.ts` + mutation dans `frontend/lib/queries/admin.ts` (invalidation de la clé liste, `frontend/lib/queries/keys.ts`)
-- [ ] T035 [US3] Implémenter `FeedbackDetailDialog` (vue détail + sélecteur de statut) dans `frontend/components/admin/FeedbackDetailDialog.tsx` (dépend de T031, T034)
-- [ ] T036 [US3] Ouvrir `FeedbackDetailDialog` au clic sur une ligne de `FeedbackTable` dans `frontend/components/admin/FeedbackTable.tsx` (dépend de T025, T035)
+- [X] T032 [US3] Implémenter `get` et `update_status` dans `backend/app/repositories/feedback_repository.py` (dépend de T028)
+- [X] T033 [US3] Implémenter les routes `GET /admin/feedback/{id}` (garde `FEEDBACK_READ`) et `PATCH /admin/feedback/{id}` pour le champ `status` (garde `FEEDBACK_MANAGE`) dans `backend/app/api/v1/admin_feedback.py` (dépend de T029, T030, T032)
+- [X] T034 [P] [US3] Ajouter `getFeedback` et `updateFeedbackStatus` dans `frontend/lib/api/client.ts` + mutation dans `frontend/lib/queries/admin.ts` (invalidation de la clé liste, `frontend/lib/queries/keys.ts`)
+- [X] T035 [US3] Implémenter `FeedbackDetailDialog` (vue détail + sélecteur de statut) dans `frontend/components/admin/FeedbackDetailDialog.tsx` (dépend de T031, T034)
+- [X] T036 [US3] Ouvrir `FeedbackDetailDialog` au clic sur une ligne de `FeedbackTable` dans `frontend/components/admin/FeedbackTable.tsx` (dépend de T025, T035)
 
 **Checkpoint**: US1 + US2 + US3 fonctionnelles ensemble — cycle complet signaler → consulter → traiter.
 

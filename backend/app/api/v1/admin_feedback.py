@@ -13,11 +13,12 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import optional_user, require_permission
 from app.core.database import get_db
+from app.core.exceptions import NotFoundError
 from app.core.permissions import P
 from app.models.user import User
 from app.models.user_feedback import UserFeedback
 from app.repositories import feedback_repository
-from app.schemas.feedback import FeedbackCreate, FeedbackCreated, FeedbackRead
+from app.schemas.feedback import FeedbackCreate, FeedbackCreated, FeedbackRead, FeedbackUpdate
 from app.services import feedback_service
 
 router = APIRouter(tags=["admin"])
@@ -77,3 +78,32 @@ def list_feedback(
 ):
     entries = feedback_repository.list_sorted(db, sort=sort, order=order)
     return [_vue(entry) for entry in entries]
+
+
+@router.get("/admin/feedback/{feedback_id}", response_model=FeedbackRead)
+def get_feedback(
+    feedback_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission(P.FEEDBACK_READ)),
+):
+    entry = feedback_repository.get(db, feedback_id)
+    if entry is None:
+        raise NotFoundError("Signalement introuvable")
+    return _vue(entry)
+
+
+@router.patch("/admin/feedback/{feedback_id}", response_model=FeedbackRead)
+def update_feedback(
+    feedback_id: int,
+    body: FeedbackUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission(P.FEEDBACK_MANAGE)),
+):
+    entry = feedback_repository.get(db, feedback_id)
+    if entry is None:
+        raise NotFoundError("Signalement introuvable")
+    if "status" in body.model_fields_set:
+        feedback_repository.update_status(db, feedback_id, body.status)
+    db.commit()
+    db.refresh(entry)
+    return _vue(entry)

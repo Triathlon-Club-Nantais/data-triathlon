@@ -104,6 +104,17 @@ def test_update_status_rend_none_si_absent(db_session):
     assert feedback_repository.update_status(db_session, 999, "traite") is None
 
 
+def test_update_status_autorise_le_retour_en_arriere(db_session):
+    """data-model.md : les transitions sont libres dans les deux sens — un admin
+    qui rouvre un signalement traité par erreur doit pouvoir revenir en arrière."""
+    entry = _create(db_session)
+    feedback_repository.update_status(db_session, entry.id, "traite")
+
+    revenu = feedback_repository.update_status(db_session, entry.id, "nouveau")
+
+    assert revenu.status == "nouveau"
+
+
 def test_set_github_url(db_session):
     entry = _create(db_session)
 
