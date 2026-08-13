@@ -67,3 +67,16 @@ export function pctFr(pct: number, decimals = 1): string {
 export function ordinalFr(n: number): string {
   return n === 1 ? "1er" : `${n}e`;
 }
+
+/**
+ * Sexe en une lettre. Les chronométreurs publient « H »/« M », « F »/« W » :
+ * on ramène aux deux lettres attendues, et on rend tel quel ce qu'on ne
+ * reconnaît pas plutôt que d'écraser une valeur exotique.
+ */
+export function genderShort(gender: string | null | undefined): string {
+  if (!gender) return "—";
+  const first = gender.trim().toLowerCase()[0];
+  if (first === "f" || first === "w") return "F";
+  if (first === "m" || first === "h") return "M";
+  return gender;
+}

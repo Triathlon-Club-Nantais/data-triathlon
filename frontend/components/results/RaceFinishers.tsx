@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/results/StatusBadge";
 import { isNonFinisher } from "@/lib/utils/raceOrder";
 import { splitColumnsFromKeys } from "@/lib/utils/splits";
 import { secondsFromHms } from "@/lib/utils/time";
+import { genderShort } from "@/lib/utils/format";
 import { SCOPE_CLUB, SCOPE_PARAM } from "@/lib/scope";
 import { CLUB_NAME } from "@/lib/club";
 import type { CourseSummary, Participation } from "@/lib/types";
@@ -19,6 +20,15 @@ const CLUB_COL = "1.1fr";
 // (swim/t1/bike/t2/run/course1/course2), qui vivent dans `Participation.splits`
 // alors que le temps total vit dans `Participation.total_time`.
 const CLE_TEMPS_TOTAL = "__temps_total__";
+
+/**
+ * Une ligne de finisher ouvre le détail de **ce résultat**, pas le profil de
+ * l'athlète : depuis un classement, la question est « comment s'est passée
+ * cette course », pas « qui est ce coureur ».
+ */
+function detailHref(p: Participation): string {
+  return `/courses/${p.course?.id}/participations/${p.id}`;
+}
 
 export function RaceFinishers({
   participations,
@@ -186,12 +196,12 @@ export function RaceFinishers({
                 key={p.id}
                 role="button"
                 tabIndex={0}
-                aria-label={`Voir le profil de ${name}`}
-                onClick={() => router.push(`/athletes/${p.athlete?.id}`)}
+                aria-label={`Voir le détail du résultat de ${name}`}
+                onClick={() => router.push(detailHref(p))}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    router.push(`/athletes/${p.athlete?.id}`);
+                    router.push(detailHref(p));
                   }
                 }}
                 className="tcn-rowlink"
@@ -364,10 +374,3 @@ function EnteteTriable({
   );
 }
 
-function genderShort(g: string | null | undefined): string {
-  if (!g) return "—";
-  const c = g.trim().toLowerCase()[0];
-  if (c === "f" || c === "w") return "F";
-  if (c === "m" || c === "h") return "M";
-  return g;
-}

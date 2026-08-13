@@ -342,4 +342,25 @@ describe("RaceFinishers", () => {
     // Nouvel en-tête : repart en croissant, pas en décroissant.
     expect(nomsAffiches()).toEqual(["RAPIDE T", "LENT T", "SANSNATATION T"]);
   });
+
+  // ── Ouverture du détail de participation ───────────────────────────────────
+
+  it("ouvre le détail de la participation, et non plus le profil de l'athlète", async () => {
+    const user = userEvent.setup();
+    afficher();
+
+    await user.click(screen.getByText("FINISHER T"));
+
+    expect(push).toHaveBeenCalledWith("/courses/1/participations/1");
+  });
+
+  it("ouvre le même détail au clavier", async () => {
+    const user = userEvent.setup();
+    afficher();
+
+    screen.getByText("FINISHER T").closest<HTMLElement>("[role=button]")?.focus();
+    await user.keyboard("{Enter}");
+
+    expect(push).toHaveBeenCalledWith("/courses/1/participations/1");
+  });
 });
