@@ -122,29 +122,41 @@ lisait « Fournisseur de chronométrage non supporté » alors que ProLiveSport
 *est* supporté. La correction des 3 lignes se fait **dans le Sheet**, en pointant
 l'étape voulue.
 
-## Rôles de split ambigus : résolus par candidat unique (#280)
+## Rôles de split ambigus : champs cumulés écartés, résolution par candidat unique (#280)
 
 Un rôle (`swim`/`t1`/`bike`/`t2`/`run`) peut avoir plusieurs champs candidats
 — mesuré sur l'événement 979 : `bike` reçoit `Bike`, `BikeStart` **et**
 `BikeEnd` (les trois contiennent la sous-chaîne `"bike"`), `run` reçoit `Run`
 **et** `RunStart`. Le sondage
-(`docs/superpowers/specs/2026-08-12-prolivesport-splits-sondage.md`) établit
-que le champ nommé exactement par la discipline (`Bike`, `Run`) est une durée
-de section fiable (la somme des 5 champs canoniques colle au temps total à
-2 s près), tandis que les variantes `*Start`/`*End` sont des points cumulés
-depuis le départ — la même information sous une autre forme, pas une donnée
-supplémentaire.
+(`docs/superpowers/specs/2026-08-12-prolivesport-splits-sondage.md`, constat
+n°3) établit que le champ nommé exactement par la discipline (`Bike`, `Run`)
+est une durée de section fiable (la somme des 5 champs canoniques colle au
+temps total à 2 s près), tandis que les variantes `*Start`/`*End` sont des
+points cumulés depuis le départ — la même information sous une autre forme,
+pas une donnée supplémentaire (`BikeStart` == `Swim`+`T1`, `BikeEnd` ==
+`Swim`+`T1`+`Bike`, `RunStart` == `Swim`+`T1`+`Bike`+`T2`, à 1 s près).
 
-**Règle retenue** : un rôle à candidat **unique** alimente son slot
-positionnel comme avant. Dès qu'un rôle a **deux candidats ou plus** pour une
-course, aucun slot positionnel n'est renseigné pour **toute la course** (y
-compris les rôles non ambigus) — tous ses champs partent dans
-`ScrapedResult.segments`, triés par suffixe numérique de champ, avec le
+**Règle retenue** : un champ dont le libellé finit par `start`/`end`
+(`_est_cumule`) n'entre jamais en candidature pour un rôle — il n'ajoute
+aucune information que la durée directe ne porte déjà. Sur 979, ceci laisse
+`Bike` seul candidat pour `bike`, `Run` seul candidat pour `run` : les deux se
+résolvent normalement dans leur slot positionnel, comme n'importe quel rôle à
+candidat unique, et `bike_time`/`run_time` sont peuplés (vérifié en réseau
+réel, dossard 245 : `00:51:31`/`00:30:25`, la valeur citée par l'issue).
+
+Le repli en `ScrapedResult.segments` reste le garde-fou pour une ambiguïté
+**réelle** — deux candidats non cumulés pour un même rôle, jamais mesurée à ce
+jour sur le panel du sondage : aucun slot positionnel n'est alors renseigné
+pour **toute la course** (y compris les rôles non ambigus), tous ses champs
+partent dans `segments`, triés par suffixe numérique de champ, avec le
 libellé source conservé tel quel. Le « tout ou rien » vient de
 `services/mapping.build_splits`, qui fait primer `segments` en entier sur les
 5 slots dès qu'il est renseigné : laisser un rôle non ambigu dans son slot
 alors que `segments` est actif le ferait disparaître de
-`Participation.splits`. Détail : `docs/superpowers/specs/2026-08-12-prolivesport-splits-design.md`.
+`Participation.splits`. Détail : `docs/superpowers/specs/2026-08-12-prolivesport-splits-design.md`
+(règle affinée après revue humaine du rendu frontend — le repli `segments`
+systématique sur 979 produisait un tableau à 14 colonnes pour 2 des 28 courses
+du panel, alors que le sondage donnait déjà de quoi trancher).
 
 Les libellés génériques sans rapport avec les 5 rôles connus (`SplitN` sur
 1082/1079, `SportN` sur les événements duathlon comme 1060) restent hors

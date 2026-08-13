@@ -52,9 +52,13 @@ def test_build_split_map_un_seul_candidat_par_role():
     assert plan.ambigu is False
 
 
-def test_build_split_map_ambiguite_carte_979():
-    """Carte exacte citée par l'issue #280 : bike a 3 candidats (T3/T6/T7),
-    run en a 2 (T5/T8)."""
+def test_build_split_map_resout_bike_run_malgre_champs_cumules_carte_979():
+    """Carte exacte citée par l'issue #280 : bike a 3 champs candidats
+    (T3=Bike, T6=BikeStart, T7=BikeEnd), run en a 2 (T5=Run, T8=RunStart).
+    `BikeStart`/`BikeEnd`/`RunStart` sont des points cumulés depuis le départ
+    (sondage constat n°3), pas des durées de section : écartés de la
+    candidature, ils laissent Bike/Run seuls candidats — bike/run se
+    résolvent normalement, sans passer par `segments`."""
     splits = [
         {"race": "M", "field": "T1", "label": "Swim"},
         {"race": "M", "field": "T2", "label": "#1"},
@@ -66,12 +70,26 @@ def test_build_split_map_ambiguite_carte_979():
         {"race": "M", "field": "T8", "label": "RunStart"},
     ]
     plan = _build_split_map(splits, race="M")
-    assert plan.resolved == {"swim": "T1", "t1": "T2", "t2": "T4"}  # bike/run absents : ambigus
-    assert plan.ambigu is True
+    assert plan.resolved == {
+        "swim": "T1", "t1": "T2", "bike": "T3", "t2": "T4", "run": "T5",
+    }
+    assert plan.ambigu is False
     assert plan.tous_les_champs == [
         ("T1", "Swim"), ("T2", "#1"), ("T3", "Bike"), ("T4", "#2"),
         ("T5", "Run"), ("T6", "BikeStart"), ("T7", "BikeEnd"), ("T8", "RunStart"),
     ]
+
+
+def test_build_split_map_ambiguite_reelle_deux_champs_non_cumules():
+    """Deux champs candidats *non cumulés* pour le même rôle restent ambigus :
+    rien, contrairement à Bike/BikeStart, ne permet de les distinguer."""
+    splits = [
+        {"race": "M", "field": "T1", "label": "Bike"},
+        {"race": "M", "field": "T2", "label": "Velo"},
+    ]
+    plan = _build_split_map(splits, race="M")
+    assert plan.ambigu is True
+    assert plan.resolved == {}
 
 
 def test_build_split_map_libelle_non_reconnu_reste_dans_tous_les_champs():
@@ -695,23 +713,29 @@ def test_fanout_split_map_par_course_en_un_seul_appel(monkeypatch):
     assert par_course["Triathlon XS"].swim_time == ""     # aucun split publié
 
 
-def test_fanout_ambiguite_de_role_route_vers_segments(monkeypatch):
+def test_fanout_resout_bike_run_malgre_champs_cumules(monkeypatch):
     """Non-régression #280 en conditions de fan-out : la course Triathlon M a
-    ses rôles bike/run ambigus (Bike/BikeStart/BikeEnd, Run/RunStart) → aucun
-    des deux slots n'est renseigné, tout part dans `segments`."""
-    splits_avec_ambiguite = SPLITS_979 + [
+    des champs cumulés en plus de la durée directe (Bike/BikeStart/BikeEnd,
+    Run/RunStart) — écartés de la candidature (sondage constat n°3),
+    bike_time/run_time se résolvent normalement, sans passer par
+    `segments`."""
+    splits_avec_cumules = SPLITS_979 + [
         {"race": "Triathlon M", "field": "T6", "label": "BikeStart"},
         {"race": "Triathlon M", "field": "T7", "label": "BikeEnd"},
         {"race": "Triathlon M", "field": "T5", "label": "Run"},
         {"race": "Triathlon M", "field": "T8", "label": "RunStart"},
     ]
-    _api(monkeypatch, splits=splits_avec_ambiguite)
+    evenement = EVENEMENT_979 + [
+        _ligne("Triathlon M", "245", "MARTIN", timeVelo="00:51:31", timeT5="00:30:25"),
+    ]
+    _api(monkeypatch, splits=splits_avec_cumules, indiv=lambda race: evenement)
 
     resultats, _trace = prolivesport.scrape_event_fanout(URL_979)
 
-    m = [r for r in resultats if r.raw_data["race"] == "Triathlon M"]
-    assert all(r.bike_time == "" and r.run_time == "" for r in m)
-    assert all(r.segments for r in m)
+    bib245 = next(r for r in resultats if r.bib_number == "245")
+    assert bib245.bike_time == "00:51:31"
+    assert bib245.run_time == "00:30:25"
+    assert bib245.segments is None
 
 
 def test_fanout_event_date_partagee_par_les_courses(monkeypatch):
