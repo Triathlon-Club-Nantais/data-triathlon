@@ -13,6 +13,7 @@ Sans #289, ces deux scrapes produiraient deux `Course` sans lien — exactement
 la régression qu'un rapprochement par nom seul (l'énoncé initial de l'epic
 #275) ne peut pas réparer non plus (granularité de nommage différente).
 """
+from dataclasses import replace
 from datetime import date
 
 import pytest
@@ -167,4 +168,68 @@ def test_klikego_seul_ne_declenche_aucun_rapprochement_avec_un_id_partage(db_ses
     )
     _importer(db_session, patch_scraper, "https://timepulse.fr/live?id_event=1488071608761", [autre])
 
+    assert db_session.query(Course).count() == 2
+
+
+def test_le_rescrape_de_la_source_active_rafraichit_la_classification(db_session, patch_scraper):
+    """#294 sur le chemin de la règle R : le doublon avait disparu, pas le symptôme.
+
+    Rapprochée par `(platform_event_id, heat_slug)`, la cible n'est plus jamais
+    recréée — mais elle gardait le `event_type` de son **premier** scrape. Le
+    classement de Mesquer restait donc affiché en swimrun alors que la source
+    disait triathlon : un seul enregistrement, et faux.
+    """
+    _importer(db_session, patch_scraper, RESULTATS, [_resultats_result("1")])
+
+    _importer(
+        db_session, patch_scraper, RESULTATS,
+        [replace(_resultats_result("1"), event_type="triathlon-m")],
+        force=True,
+    )
+
+    cible = db_session.query(Course).one()
+    assert cible.event_type == "triathlon-m"
+
+
+def test_un_scrape_de_la_source_passive_ne_reclasse_pas_la_cible(db_session, patch_scraper):
+    """D2, sur la classification comme sur le nom et la date : la source active
+    fait foi. La façade `live.`, rattachée en passive, n'a pas voix au chapitre —
+    sans quoi coller une seconde URL réécrirait le sport d'une épreuve dont le
+    classement affiché vient d'ailleurs."""
+    _importer(db_session, patch_scraper, RESULTATS, [_resultats_result("1")])
+
+    _importer(
+        db_session, patch_scraper, LIVE,
+        [replace(_live_result("1"), event_type="triathlon-m")],
+    )
+
+    cible = db_session.query(Course).one()
+    assert cible.event_type == "swimrun-m"
+    assert cible.source_url == RESULTATS
+
+
+def test_une_reclassification_en_collision_didentite_ne_reecrit_rien(db_session, patch_scraper):
+    """`uq_course_identity` prime sur le scrape : reclasser vers l'identité d'une
+    épreuve déjà en base ferait tomber le flush sur la contrainte, en plein
+    import. La cible garde son type ; le doublon se règle par une fusion (#287)."""
+    _importer(db_session, patch_scraper, RESULTATS, [_resultats_result("1")])
+    cible_id = db_session.query(Course).one().id
+    cible = db_session.get(Course, cible_id)
+    db_session.add(
+        Course(
+            name=cible.name,
+            event_date=cible.event_date,
+            event_type="triathlon-m",
+            is_relay=cible.is_relay,
+        )
+    )
+    db_session.flush()
+
+    _importer(
+        db_session, patch_scraper, RESULTATS,
+        [replace(_resultats_result("1"), event_type="triathlon-m")],
+        force=True,
+    )
+
+    assert db_session.get(Course, cible_id).event_type == "swimrun-m"
     assert db_session.query(Course).count() == 2
