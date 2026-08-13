@@ -369,3 +369,31 @@ large parce qu'un humain relit. Les motifs sont un ensemble **fermé** de trois,
 chacun rattaché à un cas de terrain mesuré ; les élargir se tranche en
 re-sondant, pas en ajoutant une tolérance
 (`docs/superpowers/specs/2026-08-12-sources-multiples-epreuve-sondage.md`).
+
+## Retours utilisateurs (#267)
+
+`admin_feedback.py` porte quatre routes sous `/admin/feedback`, **même
+contraste** que `admin.py` : la soumission est publique (elle vient du bouton
+flottant du site, chez un visiteur anonyme), la consulter et l'instruire
+exigent chacun leur pouvoir. Aucune garde de préfixe, pour la même raison que
+`POST /admin/pending-providers`.
+
+| Ressource | Pouvoir |
+| --- | --- |
+| `POST /admin/feedback` | aucun — publique |
+| `GET /admin/feedback`, `GET /admin/feedback/{id}` | `feedback:read` |
+| `PATCH /admin/feedback/{id}` (`status`, `github_url`) | `feedback:manage` |
+
+- **`ip_address` ne sort jamais** d'un schéma de lecture (`FeedbackRead`) : elle
+  ne sert qu'à `count_recent_by_ip`, la limitation de débit par IP (#267,
+  research.md §D1). En production derrière Render, `request.client.host` vaut
+  l'IP du proxy tant qu'uvicorn ne tourne pas avec `--proxy-headers` — réglage
+  qui vit dans le dashboard Render, `render.yaml` ne faisant foi de rien
+  (cf. son propre en-tête). Sans lui, la limitation dégénère en un seau
+  partagé par tous les visiteurs plutôt qu'un seau par IP réelle.
+- **`email` est résolu par jointure** (`UserFeedback.user`), jamais par une
+  seconde requête : `feedback_repository.get` et `list_sorted` chargent la
+  relation en `joinedload`, même patron que `allowed_email_repository`.
+- **Honeypot silencieux** (research.md §D2) : un champ caché rempli répond le
+  même succès apparent qu'une insertion réelle, sans qu'aucune ligne n'existe —
+  `id=0` n'est jamais une clé réelle.
