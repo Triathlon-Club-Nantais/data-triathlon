@@ -372,17 +372,24 @@ re-sondant, pas en ajoutant une tolérance
 
 ## Retours utilisateurs (#267)
 
-`admin_feedback.py` porte quatre routes sous `/admin/feedback`, **même
-contraste** que `admin.py` : la soumission est publique (elle vient du bouton
-flottant du site, chez un visiteur anonyme), la consulter et l'instruire
-exigent chacun leur pouvoir. Aucune garde de préfixe, pour la même raison que
-`POST /admin/pending-providers`.
+Une ressource, **deux modules, et c'est le chemin qui trie** : la soumission
+vient du bouton flottant du site, chez un visiteur anonyme — elle est publique,
+donc elle vit sous `/feedback` (`feedback.py`). La consulter et l'instruire
+exigent chacun leur pouvoir, donc elles vivent sous `/admin/feedback`
+(`admin_feedback.py`), où **rien** n'est public.
 
-| Ressource | Pouvoir |
-| --- | --- |
-| `POST /admin/feedback` | aucun — publique |
-| `GET /admin/feedback`, `GET /admin/feedback/{id}` | `feedback:read` |
-| `PATCH /admin/feedback/{id}` (`status`, `github_url`) | `feedback:manage` |
+| Ressource | Module | Pouvoir |
+| --- | --- | --- |
+| `POST /feedback` | `feedback.py` | aucun — publique |
+| `GET /admin/feedback`, `GET /admin/feedback/{id}` | `admin_feedback.py` | `feedback:read` |
+| `PATCH /admin/feedback/{id}` (`status`, `github_url`) | `admin_feedback.py` | `feedback:manage` |
+
+- **Pourquoi pas tout sous `/admin`** (revue de #315) : un verbe public y aurait
+  côtoyé trois verbes gardés, et se serait lu comme une garde oubliée. Le cas
+  existe encore une fois dans l'API — `POST /admin/pending-providers`, publique
+  et sous `/admin` — mais celle-là est **publiée** sous `/api/v1`, donc figée
+  par le Principe IV. Elle reste l'exception nommée dans
+  `test_public_routes_still_open.py`, elle ne devient pas le patron.
 
 - **`ip_address` ne sort jamais** d'un schéma de lecture (`FeedbackRead`) : elle
   ne sert qu'à `count_recent_by_ip`, la limitation de débit par IP (#267,

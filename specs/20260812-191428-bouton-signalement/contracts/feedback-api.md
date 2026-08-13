@@ -1,12 +1,13 @@
 # Contract: API des retours utilisateurs
 
-Quatre routes sous `/api/v1/admin/feedback`, montées depuis
-`app/api/v1/admin_feedback.py`. Une seule est publique — même contraste que
-`admin.py` (§ docstring : « le signalement est public [...] alors que le
-consulter et l'instruire exigent chacun leur pouvoir »), donc **pas de garde
-de préfixe**.
+Quatre routes, **deux préfixes, et c'est le chemin qui dit qui peut appeler** :
+la soumission est publique et vit sous `/api/v1/feedback`
+(`app/api/v1/feedback.py`) ; la consultation et l'instruction vivent sous
+`/api/v1/admin/feedback` (`app/api/v1/admin_feedback.py`), où rien n'est
+public. Décidé en revue de #315 : un verbe public sous `/admin` se lit comme
+une garde oubliée.
 
-## `POST /admin/feedback` — publique, aucune authentification requise
+## `POST /feedback` — publique, aucune authentification requise
 
 **Request body** (`FeedbackCreate`):
 
