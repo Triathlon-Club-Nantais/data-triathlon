@@ -1,7 +1,7 @@
 """add user_feedback table
 
 Revision ID: 9427c6c5e84a
-Revises: bf114c4206a4
+Revises: b3c4d5e6f7a8
 Create Date: 2026-08-12 19:56:44.074156
 """
 from typing import Sequence, Union
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 
 revision: str = '9427c6c5e84a'
-down_revision: Union[str, None] = 'bf114c4206a4'
+down_revision: Union[str, None] = 'b3c4d5e6f7a8'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
