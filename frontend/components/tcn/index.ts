@@ -13,3 +13,4 @@ export { SegmentedControl } from "./SegmentedControl";
 export { Alert } from "./Alert";
 export { Badge } from "./Badge";
 export { Modal } from "./Modal";
+export { FeedbackButton } from "./FeedbackButton";

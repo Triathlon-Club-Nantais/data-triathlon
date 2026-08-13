@@ -5,6 +5,7 @@ import { Providers } from "./providers";
 import { AppNav } from "@/components/layout/AppNav";
 import { VersionFooter } from "@/components/layout/VersionFooter";
 import { Toaster } from "@/components/ui/sonner";
+import { FeedbackButton } from "@/components/tcn/FeedbackButton";
 import { CLUB_NAME } from "@/lib/club";
 
 // TCN Design System — Anton (titres/chiffres), Barlow (UI/corps),
@@ -57,6 +58,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </div>
           <Toaster richColors position="top-right" />
+          <FeedbackButton />
         </Providers>
       </body>
     </html>

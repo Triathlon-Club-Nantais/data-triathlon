@@ -33,6 +33,7 @@ FEATURE_COURSES = "Épreuves"
 FEATURE_ATHLETES = "Coureurs"
 FEATURE_PARTICIPATIONS = "Résultats"
 FEATURE_BATCH = "Batches"
+FEATURE_FEEDBACK = "Retours utilisateurs"
 
 
 @dataclass(frozen=True, slots=True)
@@ -203,6 +204,22 @@ class P:
         "Suivre les lancements en cours et relire leurs bilans.",
         FEATURE_BATCH,
     )
+    # Libellés délibérément distincts de PENDING_PROVIDERS_READ/_HANDLE
+    # (« signalements » = chronométreurs non supportés) : les deux pouvoirs
+    # partagent la même grille de composition de rôles, et « signalement » y
+    # apparaîtrait deux fois pour deux ressources sans rapport (#267).
+    FEEDBACK_READ = Permission(
+        "feedback:read",
+        "Consulter les retours utilisateurs",
+        "Voir la liste des signalements de bug et retours soumis par les visiteurs.",
+        FEATURE_FEEDBACK,
+    )
+    FEEDBACK_MANAGE = Permission(
+        "feedback:manage",
+        "Instruire les retours utilisateurs",
+        "Changer le statut d'un retour et enregistrer l'URL de l'issue GitHub associée.",
+        FEATURE_FEEDBACK,
+    )
 
 
 #: L'inventaire, dans l'ordre d'affichage. `P` en est la façade d'appel ; un
@@ -230,6 +247,8 @@ ALL: tuple[Permission, ...] = (
     P.PARTICIPATIONS_REASSIGN,
     P.BATCH_RUN,
     P.BATCH_READ,
+    P.FEEDBACK_READ,
+    P.FEEDBACK_MANAGE,
 )
 
 _BY_CODE: dict[str, Permission] = {pouvoir.code: pouvoir for pouvoir in ALL}

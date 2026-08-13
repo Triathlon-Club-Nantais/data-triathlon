@@ -66,6 +66,13 @@ class AuthUnavailableError(DomainError):
     message = "L'authentification n'est pas configurée sur ce site."
 
 
+class TooManyRequestsError(DomainError):
+    """Limitation de débit dépassée (#267, FR-011)."""
+
+    status_code = 429
+    message = "Trop de signalements envoyés récemment, réessayez plus tard."
+
+
 class NotFoundError(DomainError):
     status_code = 404
     message = "Ressource introuvable"
