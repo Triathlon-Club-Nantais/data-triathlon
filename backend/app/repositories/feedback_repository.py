@@ -1,7 +1,7 @@
 """Accès données pour UserFeedback (#267)."""
 from datetime import datetime
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.user_feedback import UserFeedback
 
@@ -50,11 +50,21 @@ def count_recent_by_ip(db: Session, *, ip_address: str, since: datetime) -> int:
 def list_sorted(db: Session, *, sort: str = "created_at", order: str = "desc") -> list[UserFeedback]:
     colonne = _COLONNES_TRI[sort]
     colonne = colonne.desc() if order == "desc" else colonne.asc()
-    return db.query(UserFeedback).order_by(colonne).all()
+    return (
+        db.query(UserFeedback)
+        .options(joinedload(UserFeedback.user))
+        .order_by(colonne)
+        .all()
+    )
 
 
 def get(db: Session, feedback_id: int) -> UserFeedback | None:
-    return db.get(UserFeedback, feedback_id)
+    return (
+        db.query(UserFeedback)
+        .options(joinedload(UserFeedback.user))
+        .filter(UserFeedback.id == feedback_id)
+        .first()
+    )
 
 
 def update_status(db: Session, feedback_id: int, status: str) -> UserFeedback | None:

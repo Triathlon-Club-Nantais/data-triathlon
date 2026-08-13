@@ -20,8 +20,10 @@ class FeedbackCreate(BaseModel):
     type: Literal["bug", "feedback"]
     title: str = Field(min_length=1, max_length=200)
     body: str = Field(min_length=1, max_length=10_000)
-    page_url: str | None = None
-    user_agent: str | None = None
+    #: Auto-joints par le client (research.md) — bornés comme `title`/`body`,
+    #: sans quoi rien n'empêchait une valeur arbitrairement longue en base.
+    page_url: str | None = Field(default=None, max_length=2000)
+    user_agent: str | None = Field(default=None, max_length=500)
     #: Champ caché du formulaire (research.md §D2) : rempli → rejet silencieux.
     honeypot: str | None = None
 

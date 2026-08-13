@@ -83,6 +83,14 @@ def test_type_inconnu_rend_422(client):
     assert client.post(_URL, json=_payload(type="autre")).status_code == 422
 
 
+def test_page_url_trop_longue_rend_422(client):
+    assert client.post(_URL, json=_payload(page_url="x" * 2001)).status_code == 422
+
+
+def test_user_agent_trop_long_rend_422(client):
+    assert client.post(_URL, json=_payload(user_agent="x" * 501)).status_code == 422
+
+
 def test_honeypot_rempli_repond_201_sans_persister(client, db_session):
     client.cookies.clear()
 
