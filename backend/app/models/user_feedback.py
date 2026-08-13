@@ -2,7 +2,7 @@
 from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, Index, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 from app.core.time import utcnow
@@ -46,3 +46,8 @@ class UserFeedback(Base):
     status: Mapped[str] = mapped_column(String, nullable=False, default="nouveau")
     github_url: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    # Sens unique, comme `AllowedEmail.created_by` : `User` ne porte aucune
+    # collection de ses signalements (data-model.md — l'admin parcourt les
+    # signalements, jamais un historique par utilisateur).
+    user: Mapped["User | None"] = relationship()  # noqa: F821

@@ -83,19 +83,19 @@ et une validation indépendantes de chacune.
 
 ### Tests for User Story 2
 
-- [ ] T017 [P] [US2] Test `feedback_repository.list_sorted` (tri par `created_at`, `type`, `status`, ordre asc/desc) dans `backend/tests/test_repositories/test_feedback_repository.py`
-- [ ] T018 [P] [US2] Test API `GET /admin/feedback` : liste triée, 403 sans `feedback:read`, `ip_address` absent de la réponse dans `backend/tests/test_api/test_admin_feedback_api.py`
-- [ ] T019 [P] [US2] Test composant `FeedbackTable` : colonnes date/type/titre/statut, changement de tri au clic d'en-tête dans `frontend/components/admin/FeedbackTable.test.tsx`
-- [ ] T020 [P] [US2] Test page `frontend/app/admin/retours-utilisateurs/page.test.tsx` : rendu de la liste, garde d'accès (patron des autres pages `admin/*`)
+- [X] T017 [P] [US2] Test `feedback_repository.list_sorted` (tri par `created_at`, `type`, `status`, ordre asc/desc) dans `backend/tests/test_repositories/test_feedback_repository.py`
+- [X] T018 [P] [US2] Test API `GET /admin/feedback` : liste triée, 403 sans `feedback:read`, `ip_address` absent de la réponse dans `backend/tests/test_api/test_admin_feedback_api.py`
+- [X] T019 [P] [US2] Test composant `FeedbackTable` : colonnes date/type/titre/statut, changement de tri au clic d'en-tête dans `frontend/components/admin/FeedbackTable.test.tsx`
+- [X] T020 [P] [US2] Test page `frontend/app/admin/retours-utilisateurs/page.test.tsx` : rendu de la liste, garde d'accès (patron des autres pages `admin/*`)
 
 ### Implementation for User Story 2
 
-- [ ] T022 [US2] Implémenter `list_sorted` dans `backend/app/repositories/feedback_repository.py` (dépend de T017)
-- [ ] T023 [US2] Implémenter la route `GET /admin/feedback` (garde `require_permission(P.FEEDBACK_READ)`) dans `backend/app/api/v1/admin_feedback.py` (dépend de T018, T021, T022)
-- [ ] T024 [P] [US2] Ajouter `listFeedback` dans `frontend/lib/api/client.ts` et la lecture correspondante dans `frontend/lib/queries/admin.ts` + clé dans `frontend/lib/queries/keys.ts`
-- [ ] T025 [US2] Implémenter `FeedbackTable` (tri par date/type/statut) dans `frontend/components/admin/FeedbackTable.tsx` (dépend de T019, T024)
-- [ ] T026 [US2] Implémenter `frontend/app/admin/retours-utilisateurs/page.tsx` (dépend de T020, T025)
-- [ ] T027 [US2] Ajouter l'entrée « Retours utilisateurs » (permission `feedback:read`) dans `frontend/components/layout/nav.config.ts` (dépend de T021)
+- [X] T022 [US2] Implémenter `list_sorted` dans `backend/app/repositories/feedback_repository.py` (dépend de T017)
+- [X] T023 [US2] Implémenter la route `GET /admin/feedback` (garde `require_permission(P.FEEDBACK_READ)`) dans `backend/app/api/v1/admin_feedback.py` (dépend de T018, T021, T022)
+- [X] T024 [P] [US2] Ajouter `listFeedback` dans `frontend/lib/api/client.ts` et la lecture correspondante dans `frontend/lib/queries/admin.ts` + clé dans `frontend/lib/queries/keys.ts`
+- [X] T025 [US2] Implémenter `FeedbackTable` (tri par date/type/statut) dans `frontend/components/admin/FeedbackTable.tsx` (dépend de T019, T024)
+- [X] T026 [US2] Implémenter `frontend/app/admin/retours-utilisateurs/page.tsx` (dépend de T020, T025)
+- [X] T027 [US2] Ajouter l'entrée « Retours utilisateurs » (permission `feedback:read`) dans `frontend/components/layout/nav.config.ts` (dépend de T021)
 
 **Checkpoint**: US1 + US2 fonctionnelles ensemble — un signalement soumis publiquement est visible et triable côté admin.
 

@@ -487,3 +487,12 @@ export function useUpdateRole() {
 export function useDeleteRole() {
   return useRoleMutation((id: number) => apiClient.deleteRole(id));
 }
+
+// ── Retours utilisateurs (#267) ──────────────────────────────────────────────
+
+export function useFeedbackList(sort: "created_at" | "type" | "status", order: "asc" | "desc") {
+  return useQuery({
+    queryKey: queryKeys.feedbackList(sort, order),
+    queryFn: () => apiClient.listFeedback(sort, order),
+  });
+}
