@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { captureEvent } from "@/lib/posthog";
 import { Card, Input, Button, Alert } from "@/components/tcn";
 import { apiClient } from "@/lib/api/client";
 import { eventTypeLabel } from "@/lib/constants";
@@ -57,6 +58,7 @@ export function TcnScrapeForm() {
     reportedRef.current = null;
     refreshedRef.current = null;
     setManual(false);
+    captureEvent("results_import_started", { url: v });
     importStream.start(v);
   }, [url, running, importStream]);
 
@@ -67,6 +69,7 @@ export function TcnScrapeForm() {
     toast.error(error ?? "Import impossible");
     apiClient.reportPendingProvider(url).catch(() => {});
     setManual(true);
+    captureEvent("results_import_failed", { error_message: error ?? "Import impossible" });
   }, [phase, error, url]);
 
   // Après un import réel, invalider le cache RSC de la page pour que la carte
@@ -79,7 +82,15 @@ export function TcnScrapeForm() {
     if (refreshedRef.current === url) return;
     refreshedRef.current = url;
     router.refresh();
-  }, [phase, isDuplicate, url, router]);
+    // Même garde `refreshedRef` que router.refresh() ci-dessus : un seul tir
+    // par import, malgré les 3 dépendances ajoutées pour satisfaire
+    // exhaustive-deps.
+    captureEvent("results_import_completed", {
+      imported_count: imported,
+      skipped_count: skipped,
+      course_count: courses.length,
+    });
+  }, [phase, isDuplicate, url, router, imported, skipped, courses.length]);
 
   const persist = useCallback(
     async (data: Partial<ScrapedPreview>) => {
