@@ -124,9 +124,11 @@ import d'épreuve ────> ScrapedResult (défaut False) ──> même chem
 ```
 
 **Le champ n'est pas laissé au client.** `ParticipationCreate` ne l'expose pas :
-la route le force. Un champ d'entrée `is_pending_validation: false` permettrait à
-tout porteur de `participations:write` de publier un résultat directement comme
-vérifié, ce qui viderait FR-016 de son sens.
+la route le force. La route étant **publique** (FR-026, corrigé le 2026-08-14 —
+la garde `participations:write` héritée de #115 bloquait le cas d'usage
+central du formulaire), un champ d'entrée `is_pending_validation: false`
+permettrait à **n'importe quel appelant anonyme** de publier un résultat
+directement comme vérifié, ce qui viderait FR-016 de son sens.
 
 ---
 

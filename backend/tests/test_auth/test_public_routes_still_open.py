@@ -43,12 +43,15 @@ ADMIN_PUBLIQUES = {
     ("POST", "/api/v1/admin/pending-providers"),
 }
 
-#: Les ressources **hors `/admin/`** délibérément fermées par #115. Le préfixe
-#: n'est donc pas le critère, dans un sens comme dans l'autre : ces deux-là sont
-#: destructives et étaient ouvertes à Internet (FR-023). Les nommer ici est ce
-#: qui fait de leur fermeture une décision lue, et non un effet de bord.
+#: La ressource **hors `/admin/`** délibérément fermée par #115, et qui l'est
+#: encore : destructive, elle était ouverte à Internet (FR-023). La nommer ici
+#: est ce qui fait de sa fermeture une décision lue, et non un effet de bord.
+#: `POST /api/v1/participations` l'a rejointe un temps (#115), puis en est
+#: ressortie (#270) — la mise en quarantaine d'un résultat déclaré
+#: (`is_pending_validation`) protège désormais l'intégrité des agrégats publics
+#: à la place d'une session, ce qui permet de rouvrir la saisie manuelle à un
+#: membre sans compte, l'usage que le formulaire vise.
 ROUTES_FERMEES = {
-    ("POST", "/api/v1/participations"),
     ("DELETE", "/api/v1/participations/{participation_id}"),
 }
 

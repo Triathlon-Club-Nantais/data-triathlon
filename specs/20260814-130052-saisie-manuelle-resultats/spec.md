@@ -277,6 +277,14 @@ enregistrement aboutit avec tous ses champs de temps vides.
   d'affichage est la fiche de l'athlète concerné (FR-019).
 - **FR-022**: Une fois validé, un résultat MUST entrer dans ces agrégats au même
   titre qu'un résultat importé, sans autre intervention.
+- **FR-026**: La création d'un résultat par saisie manuelle MUST rester
+  accessible sans authentification — c'est le cas d'usage central du
+  formulaire, un membre du club n'ayant pas nécessairement de compte. C'est
+  l'état de validation ci-dessus (FR-016/FR-021) qui protège l'intégrité des
+  données publiées à la place d'un contrôle d'accès. **Corrigé le
+  2026-08-14** : la spec supposait initialement l'inverse (cf. Assumptions) ;
+  la vérification manuelle par le mainteneur a montré que la garde héritée de
+  #115 bloquait ce cas d'usage.
 
 **Statut sportif**
 
@@ -345,8 +353,16 @@ enregistrement aboutit avec tous ses champs de temps vides.
   données** : il accompagne le résultat pour permettre sa vérification humaine et
   ne doit pas être traité comme une adresse à scraper, sous peine de faire entrer
   une épreuve déclarée dans le circuit de rafraîchissement automatique.
-- **Aucune modification du contrôle d'accès** : qui a le droit de saisir un
-  résultat manuel reste inchangé par cette feature.
+- **Contrôle d'accès, corrigé le 2026-08-14** : cette hypothèse initiale
+  (« inchangé par cette feature ») s'est révélée fausse à la vérification
+  manuelle par le mainteneur. `POST /participations` était fermée par #115
+  (« n'importe qui pouvait injecter un résultat dans la base du club »),
+  ce qui bloquait le cas d'usage central — un membre sans compte ne pouvait
+  plus rien saisir. **La feature rouvre la route au public** : c'est
+  précisément l'état de validation qu'elle introduit (FR-016/FR-021) qui rend
+  cette réouverture sûre — un résultat créé anonymement reste en quarantaine,
+  invisible de tout agrégat public, jusqu'à validation par un bénévole. Seul
+  `DELETE /participations/{id}`, destructif, reste gardé.
 - **La place générale reste facultative** : le porteur produit l'a listée parmi
   les ajouts sans la ranger parmi les champs obligatoires, contrairement aux
   quatre champs d'identité qu'il a explicitement nommés.
