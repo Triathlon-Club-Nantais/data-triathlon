@@ -1,6 +1,6 @@
 ---
 name: "ui-ux-review"
-description: "Review UI/UX du front data-triathlon : respect de l'identité TCN, accessibilité WCAG AA, états d'écran, responsive, microcopie française. À lancer en fin de branche, après requesting-code-review, quand la branche touche frontend/. Lecture seule — rapporte, ne corrige pas."
+description: "Review UI/UX du front data-triathlon : respect de l'identité TCN, accessibilité WCAG AA, états d'écran, responsive, microcopie française, coût de chargement. À lancer en fin de branche, après requesting-code-review, quand la branche touche frontend/. Lecture seule — rapporte, ne corrige pas."
 tools: Read, Grep, Glob, Bash
 metadata:
   issue: "https://github.com/Triathlon-Club-Nantais/data-triathlon/issues/276"
@@ -140,6 +140,56 @@ Au-delà de la langue :
 - **Un élément, un rôle** : un label labellise, un exemple montre. Rien ne fait
   deux métiers en silence.
 
+### 6. Performance (coût de chargement)
+
+Cet axe **part du sondage**, pas d'un article générique. Le sondage
+`docs/superpowers/specs/2026-08-14-perf-frontend-sondage.md` a mesuré les cinq
+pages publiques le 2026-08-14. Sous la règle d'AGENTS.md, un **sondage prime sur
+la spec et le plan** : ses chiffres sont donc tes seuils. Une divergence se
+tranche en **re-sondant**, pas en citant un article.
+
+La leçon centrale du sondage : sa plus grosse cause de lenteur était un **N+1
+backend** (`selectinload(Course.sources)` manquant), pas un motif front. Vise la
+**cause mesurée**, jamais une opinion sur le poids du bundle. Un finding de
+performance nomme un chiffre du sondage, ou une mesure que tu as prise. Il ne dit
+jamais « ce composant a l'air lourd ».
+
+**Budget TTFB par page** (sondage, page chaude → cible) :
+
+| Page | Cible | Aujourd'hui (2026-08-14) |
+| --- | --- | --- |
+| `/dashboard` | < 300 ms | 1,5 – 1,8 s |
+| `/club` | < 150 ms | 0,4 – 0,6 s |
+| `/resultats` | inchangé | 11 – 13 ms |
+| `/courses/[id]` | inchangé | 39 – 47 ms |
+| `/athletes/[id]` | inchangé | 13 – 14 ms |
+
+Une page déjà sous sa cible n'ouvre pas de finding. `/dashboard` et `/club`
+tiennent leur cible **une fois les causes n°1 et n°2 du sondage corrigées**
+(N+1 `Course.sources`, balayage non indexable de `scope=club`). Un correctif
+front qui les toucherait sans traiter ces causes backend ne change pas le budget.
+
+**Budget JS** : ~950 ko bruts de JS partagé **par page**, quasi uniforme d'une
+page à l'autre (socle framework + vendor). Une branche qui ajoute une
+bibliothèque s'empile sur ce socle commun, une seule fois pour tout le site. Un
+finding de poids JS chiffre le **delta** que la branche ajoute à ce socle, mesuré
+sur le HTML rendu (les `<script src="/_next/static/...">` et leur
+`Content-Length`), pas une estimation.
+
+Ce que tu regardes sur la branche :
+
+- Un import lourd tiré en entier là où un sous-chemin suffit, ou un gros
+  composant client rendu au premier écran sans `next/dynamic`.
+- Une image servie sans `next/image` là où le format s'y prête.
+- Un `serverFetch` ajouté sur `/dashboard` ou `/club` qui **empile** un
+  aller-retour serveur sur des pages déjà hors budget — la piste `revalidate`
+  du sondage (issue fille #352) reste conditionnée aux causes backend.
+
+**Ce que tu ne mesures pas en statique** : le **LCP** demande un navigateur réel
+(peinture, pas seulement transfert) — absent de ce dépôt (#102), non mesurable
+par lecture de code. Note-le en clôture au lieu de l'inventer. Une fois la PR
+#363 fusionnée, l'événement `$web_vitals` livrera cette mesure côté PostHog.
+
 ## Ce qui est déjà arbitré — ne le signale pas
 
 Ces points reviennent à chaque passe naïve. Les signaler est un **faux positif**,
@@ -157,6 +207,18 @@ même s'ils sont réels :
 - **Le rail de navigation n'est pas une garde de sécurité** : chaque ressource de
   l'API porte la sienne. Un écran visible qui rendrait 403 est un sujet de revue
   de code, pas de review UI.
+- **`page_size=5000` / `page_size=1000` avec agrégats côté front** — **choix
+  assumé** (sondage 2026-08-14, `RankTypeToggle` #104/#328). Permuter le type de
+  rang sans aller-retour serveur suppose que le client tienne déjà la liste
+  complète des participations. Le coût réel est le temps serveur, absorbé par le
+  N+1 backend, pas la taille du transfert. Ne le signale pas comme un défaut front.
+- **`cache: "no-store"` sur `serverFetch` / `serverFetchAuthed`** — arbitré
+  (sondage 2026-08-14). Sur `serverFetchAuthed` (`frontend/lib/api/server.ts:51`)
+  il est **correct** : la réponse relaie les cookies de session, un cache
+  fuiterait les données d'un utilisateur vers un autre. Seul `serverFetch`
+  (`:23`) est un candidat à un `revalidate` court, et seulement sur `/dashboard`
+  et `/club` (issue fille #352). Ne réclame pas la suppression globale du
+  `no-store`.
 
 ## Ce que tu rends
 
@@ -167,7 +229,8 @@ quarante items ne se corrige pas.
 - **Bloquant** — inutilisable ou inaccessible : contraste sous le seuil sur du
   texte courant, focus invisible, commande hors écran en mobile, champ sans label.
 - **À corriger** — vrai défaut sans blocage : token contourné, état vide muet,
-  libellé incohérent, chaîne en anglais.
+  libellé incohérent, chaîne en anglais, delta de poids JS ou aller-retour
+  serveur ajouté sur une page déjà hors budget.
 - **Suggestion** — un gain net, que l'humain peut refuser sans dette.
 
 Chaque finding porte, dans cet ordre :
