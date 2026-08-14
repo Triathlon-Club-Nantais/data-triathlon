@@ -300,6 +300,15 @@ def iter_rescrape_course(
     course (FR-007) ; le verrou est relâché en fin d'opération, y compris en
     échec.
 
+    `ponytail:` le verrou n'est relâché que dans le `finally` du thread de
+    travail (`_stream_rescrape`), lui-même démarré seulement à la première
+    itération du générateur rendu ici. Si l'appelant ASGI n'itérait jamais ce
+    générateur après la garde (déconnexion dans la fenêtre étroite entre la
+    réponse acceptée et le premier `next()` de Starlette), le verrou resterait
+    tenu jusqu'au redémarrage du process — même propriété acceptée que le
+    verrou lui-même (research.md R5, data-model.md : « un redémarrage le
+    réinitialise silencieusement »). Upgrade si mesuré en production.
+
     Le générateur rendu **ne survit pas à la garde** : le scrape et la
     persistance tournent dans un thread dédié, indépendant de la consommation
     du flux SSE (FR-011, research.md R7) — si l'administrateur perd sa

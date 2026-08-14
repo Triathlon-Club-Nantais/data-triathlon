@@ -590,7 +590,16 @@ def test_rescrape_termine_et_commite_malgre_un_client_qui_arrete_de_lire(
     db_session, auteur, scrape,
 ):
     """T007 — FR-011 : le thread de fond persiste même si le générateur est
-    abandonné à mi-flux (les deux premiers events seuls sont consommés)."""
+    abandonné à mi-flux (les deux premiers events seuls sont consommés).
+
+    `ponytail:` `db_session` est ensuite lu (`_attendre`) depuis le fil de
+    test pendant que le thread de fond peut encore l'écrire — inévitable pour
+    éprouver ce comportement pour de vrai, sur le même patron que
+    `_scrape_all_streaming` en production. Amorti par le polling/retry
+    d'`_attendre` (ré-essaie sur exception), pas par une garantie de
+    non-concurrence — un flake occasionnel sous forte contention CI est
+    possible ; sans impact production, où le générateur qui pilote le thread
+    ne touche jamais `db` en parallèle de lui (cf. `_stream_rescrape`)."""
     course = _epreuve(db_session)
     db_session.commit()
     scrape([_resultat(course, "1", "NOUVEAU")])

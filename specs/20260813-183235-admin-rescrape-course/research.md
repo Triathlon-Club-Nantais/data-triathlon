@@ -150,3 +150,32 @@ d'administration).
 démarrent qu'**après** l'envoi de la réponse complète, incompatible avec un
 flux qui *est* la réponse. Celery/RQ — rejeté, sur-dimensionné (principe VI),
 le projet n'a ni broker ni worker.
+
+## R8 — FR-004 retirée : la mise à jour de métadonnées contredisait FR-009
+
+**Decision**: FR-004 (« mettre à jour nom/date/type si changés ») est
+**retirée** de spec.md, découverte contradictoire avec FR-009 lors de la revue
+de code post-implémentation, pas avant. `_require_same_event` (R3) refuse tout
+scrape dont l'identité diverge de celle stockée — donc, structurellement, un
+scrape qui *aurait* de nouvelles métadonnées à écrire est précisément celui que
+FR-009 vient de refuser une ligne plus haut. Les deux comportements ne peuvent
+pas coexister sur la même détection.
+
+**Rationale**: la fonction reste `_require_same_event`, réutilisée telle
+quelle de la bascule de source — aucune fusion de métadonnées n'existe nulle
+part dans le code (`course_repository.get_or_create` : « sur une épreuve déjà
+connue, rien n'est touché »), côté import public comme côté admin. Un
+administrateur qui doit corriger un nom ou une date mal orthographiés dispose
+déjà du geste dédié `PATCH /admin/courses/{id}` (`courses:write`, #117,
+`admin_actions.update_course`) — le re-scrape n'a pas à dupliquer cette
+capacité, et FR-004 décrivait un besoin déjà couvert ailleurs.
+
+**Alternatives considered**: implémenter une fusion prudente des champs
+d'identité (comme `_merge_fields` le fait pour `Participation`) — rejeté,
+demanderait de distinguer une correction de libellé (le même événement réel,
+mal saisi) d'un changement d'épreuve (une URL qui publie désormais autre
+chose) sans signal fiable pour trancher entre les deux ; un faux positif
+fusionnerait silencieusement les résultats de deux épreuves réelles
+différentes sous un seul `course_id`. Faire converger deux identités reste le
+travail explicite de #289 (cf. `backend/app/api/AGENTS.md`, section fusion),
+pas de cette feature.

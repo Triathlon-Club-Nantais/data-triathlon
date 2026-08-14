@@ -36,10 +36,24 @@ classement affiché reflète la nouvelle donnée en fin d'opération.
    **When** l'opération se termine avec succès,
    **Then** les temps, classements et métadonnées de la course affichés sont
    ceux renvoyés par le chronométreur au moment du re-scrape.
-3. **Given** une course dont le nom ou la date a changé chez le
-   chronométreur depuis le dernier import,
-   **When** le re-scrape se termine,
-   **Then** ces métadonnées sont mises à jour sur la fiche course.
+3. **Given** une course dont l'identité (nom, date, type) publiée par le
+   chronométreur ne correspond plus à celle enregistrée,
+   **When** l'administrateur déclenche un re-scrape,
+   **Then** il est refusé explicitement (cf. Edge Cases, FR-009) et la fiche
+   course n'est pas modifiée — converger deux identités pour une même épreuve
+   réelle est un geste distinct, hors périmètre (voir Amendement ci-dessous).
+
+**Amendement (revue de code, post-implémentation)** : la version initiale de
+ce scénario promettait une mise à jour du nom/date/type sur divergence. C'est
+irréalisable sans affaiblir la garde de sécurité de FR-009, qui refuse déjà
+toute divergence d'identité — les deux comportements sont mutuellement
+exclusifs pour la même détection. `_require_same_event` (réutilisée de la
+bascule de source, #285, research.md R3) est un refus **par construction**, et
+`course_repository.get_or_create` ne réécrit jamais l'identité d'une course
+déjà connue. Corriger un libellé erroné (nom, date, type) reste le geste déjà
+existant `PATCH /admin/courses/{id}` (`courses:write`, #117,
+`admin_actions.update_course`) — un re-scrape n'a pas à dupliquer cette
+capacité, et FR-004 est corrigée en ce sens ci-dessous.
 
 ---
 
@@ -123,8 +137,13 @@ et en vérifiant le refus explicite.
 - **FR-003**: Le déclenchement DOIT court-circuiter toute fraîcheur mise en
   cache — un re-scrape demandé explicitement doit toujours interroger la
   source, même si la course a été importée récemment.
-- **FR-004**: Le système DOIT mettre à jour les métadonnées de la course (nom,
-  date, type d'épreuve) si elles ont changé chez le chronométreur.
+- ~~**FR-004**: Le système DOIT mettre à jour les métadonnées de la course
+  (nom, date, type d'épreuve) si elles ont changé chez le chronométreur.~~
+  **Retirée** (revue de code, post-implémentation) — incompatible avec FR-009 :
+  l'identité (nom, date, type) est ce que FR-009 refuse de voir diverger, elle
+  ne peut donc jamais être « mise à jour » par ce chemin. Corriger un libellé
+  reste `PATCH /admin/courses/{id}` (`courses:write`, #117), un geste distinct
+  et déjà existant. Voir l'amendement sous User Story 1, Acceptance Scenario 3.
 - **FR-005**: Le système DOIT mettre à jour les participations existantes et
   ajouter les nouvelles, sans dupliquer un participant déjà présent (un même
   dossard reste une seule ligne).

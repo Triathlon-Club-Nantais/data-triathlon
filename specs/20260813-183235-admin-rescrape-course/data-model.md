@@ -12,9 +12,13 @@ purge d'orphelins), pas un nouveau champ ni une nouvelle table.
 Cible du re-scrape, désignée par `course_id` dans le chemin de la route. Seule
 sa **source active** (`course.source_url`, via `course_sources`) est
 réinterrogée — pas les sources passives. Les champs `name`, `event_date`,
-`event_type` peuvent être mis à jour si le chronométreur les a changés (FR-004),
-par le même mécanisme de fusion prudente que l'import public
-(`import_service._merge_fields`) : aucune logique nouvelle.
+`event_type`, `is_relay` **ne sont jamais réécrits** par un re-scrape — c'est
+l'identité de la course, et `_require_same_event` (FR-009) refuse justement
+tout scrape dont l'identité diverge de celle stockée avant d'écrire quoi que
+ce soit. FR-004 (« mettre à jour les métadonnées ») a été **retirée** en revue
+de code : incompatible par construction avec FR-009, elle décrivait une
+capacité qui existe déjà ailleurs, sous un geste dédié
+(`PATCH /admin/courses/{id}`, `courses:write`, #117).
 
 ### Participation
 
