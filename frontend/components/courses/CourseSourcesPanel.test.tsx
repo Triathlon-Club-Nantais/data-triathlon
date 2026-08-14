@@ -183,11 +183,34 @@ describe("CourseSourcesPanel", () => {
 
     await user.click(await screen.findByRole("button", { name: /re-scraper/i }));
 
-    await screen.findByText(/enregistrement… 3\/10/i);
+    await screen.findByText(/enregistrement des résultats/i);
+    await screen.findByText("3/10");
     liberer();
 
     await waitFor(() =>
-      expect(toastSuccess).toHaveBeenCalledWith("Résultats à jour : 3 ajoutés, 7 mis à jour."),
+      expect(toastSuccess).toHaveBeenCalledWith(
+        "Résultats à jour : 3 ajoutés, 7 mis à jour (sur 10 participants).",
+      ),
+    );
+  });
+
+  it("dit clairement « déjà à jour » plutôt que « 0 ajoutés, 0 mis à jour » quand rien n'a changé", async () => {
+    getSession.mockResolvedValue(ADMIN);
+    const { generateur, liberer } = fluxControle({
+      phase: "done", imported: 0, updated: 0, skipped: 586,
+      reconciled: 0, total: 586, orphans_removed: 0,
+    });
+    rescrapeEventStream.mockReturnValue(generateur);
+    const user = userEvent.setup();
+    afficher(UNE_SOURCE);
+
+    await user.click(await screen.findByRole("button", { name: /re-scraper/i }));
+    liberer();
+
+    await waitFor(() =>
+      expect(toastSuccess).toHaveBeenCalledWith(
+        "Déjà à jour — 586 participants vérifiés, aucun changement chez le chronométreur.",
+      ),
     );
   });
 

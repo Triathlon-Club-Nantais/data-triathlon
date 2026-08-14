@@ -1,15 +1,36 @@
 "use client";
 import { useEffect, useState } from "react";
+import { Loader2, RotateCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button, MetaPill, Modal } from "@/components/tcn";
 import { Progress } from "@/components/ui/progress";
-import { useRescrapeStream } from "@/hooks/useRescrapeStream";
+import { useRescrapeStream, type RescrapeState } from "@/hooks/useRescrapeStream";
 import { useSwitchCourseSource } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
 import { providerLabel } from "@/lib/constants";
 import type { CourseSource } from "@/lib/types";
 
 const TITRE_LIEN = "Ouvrir les résultats du chronométreur dans un nouvel onglet";
+
+/**
+ * Le message de fin de re-scrape doit rester vrai même quand rien n'a changé
+ * — le cas le plus fréquent sur une épreuve déjà à jour, et celui qui a
+ * dérouté un administrateur lisant « 0 ajoutés, 0 mis à jour » comme un échec
+ * plutôt que comme une confirmation (aucune régression : `imported`/`updated`
+ * à 0 est le comportement attendu de l'upsert quand la source n'a rien de
+ * neuf à publier, cf. `_merge_fields` côté backend).
+ */
+function messageFinRescrape(state: RescrapeState): string {
+  if (state.imported === 0 && state.updated === 0) {
+    return state.total > 0
+      ? `Déjà à jour — ${state.total} participant${state.total > 1 ? "s" : ""} vérifié${state.total > 1 ? "s" : ""}, aucun changement chez le chronométreur.`
+      : "Déjà à jour, aucun changement chez le chronométreur.";
+  }
+  const parts: string[] = [];
+  if (state.imported > 0) parts.push(`${state.imported} ajouté${state.imported > 1 ? "s" : ""}`);
+  if (state.updated > 0) parts.push(`${state.updated} mis à jour`);
+  return `Résultats à jour : ${parts.join(", ")} (sur ${state.total} participants).`;
+}
 
 /**
  * Sources d'une épreuve, en tête de la page course. Lecture publique (D4 de
@@ -42,9 +63,7 @@ export function CourseSourcesPanel({
   // verrait jamais l'échec.
   useEffect(() => {
     if (rescrape.state.phase === "done") {
-      toast.success(
-        `Résultats à jour : ${rescrape.state.imported} ajoutés, ${rescrape.state.updated} mis à jour.`,
-      );
+      toast.success(messageFinRescrape(rescrape.state));
     } else if (rescrape.state.phase === "error" && rescrape.state.error) {
       toast.error(rescrape.state.error);
     }
@@ -60,6 +79,13 @@ export function CourseSourcesPanel({
       aria-label="Re-scraper cette épreuve"
       disabled={rescrape.state.running}
       onClick={() => rescrape.start(courseId)}
+      icon={
+        rescrape.state.running ? (
+          <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+        ) : (
+          <RotateCw size={14} aria-hidden="true" />
+        )
+      }
     >
       {rescrape.state.running ? "Re-scrape en cours…" : "Re-scraper"}
     </Button>
@@ -70,16 +96,38 @@ export function CourseSourcesPanel({
       ? Math.round((rescrape.state.progress / rescrape.state.total) * 100)
       : 0;
 
-  const progressionRescrape = rescrape.state.phase !== "idle" && (
-    <div style={{ fontSize: 13, color: "var(--tcn-text-body)" }}>
-      {rescrape.state.phase === "scraping" && <p>{rescrape.state.message}</p>}
+  // Carte neutre (ni succès ni erreur — l'un ou l'autre part en toast à la
+  // fin) pendant que le re-scrape tourne. Mêmes tokens que `tcn/Alert` pour
+  // rester dans le même langage visuel, sans en détourner les couleurs
+  // sémantiques pour un état qui n'est encore ni l'un ni l'autre.
+  const progressionRescrape = rescrape.state.running && (
+    <div
+      role="status"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        marginTop: 10,
+        padding: "12px 16px",
+        background: "var(--tcn-surface-sunk)",
+        border: "1.5px solid var(--tcn-border)",
+        borderRadius: "var(--tcn-radius-xl)",
+        fontSize: 13,
+        color: "var(--tcn-text-body)",
+      }}
+    >
+      <Loader2 size={16} className="animate-spin" style={{ flex: "none", color: "var(--tcn-orange)" }} aria-hidden="true" />
+      {rescrape.state.phase === "scraping" && <span>{rescrape.state.message}</span>}
       {rescrape.state.phase === "saving" && (
-        <>
-          <p>
-            Enregistrement… {rescrape.state.progress}/{rescrape.state.total}
-          </p>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+            <span>Enregistrement des résultats…</span>
+            <span style={{ color: "var(--tcn-text-muted)" }}>
+              {rescrape.state.progress}/{rescrape.state.total}
+            </span>
+          </div>
           <Progress value={pctRescrape} />
-        </>
+        </div>
       )}
     </div>
   );
