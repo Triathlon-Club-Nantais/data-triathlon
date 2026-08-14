@@ -1,6 +1,5 @@
 "use client";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { useTransition } from "react";
+import { useSearchParams, usePathname } from "next/navigation";
 
 import { RANK_DEFAULT, RANK_PARAM, rankTypeFromParam, type RankType } from "@/lib/rank";
 import { rankTypeLabel } from "@/lib/labels";
@@ -13,12 +12,19 @@ const OPTION_VALUES: readonly RankType[] = ["scratch", "category", "gender", "al
  * Le défaut (scratch) est représenté par l'absence du paramètre — on nettoie
  * l'URL quand l'utilisateur revient dessus pour éviter deux liens différents
  * pour une même vue.
+ *
+ * L'URL est écrite par l'**historique natif**, pas par `router.push` (#328).
+ * `?rank=` n'est lu par aucun rendu serveur : les trois consommateurs
+ * (`StatCardsRank`, `ClubPodiumKpi`, `PodiumsList`) le relisent par
+ * `useSearchParams` et recalculent en mémoire. Or `/dashboard` et `/club` sont
+ * dynamiques et leurs `fetch` passent en `no-store` : un `push` rejouait tout
+ * leur rendu serveur — jusqu'à `listParticipations(page_size=5000)` — pour un
+ * résultat que le client tenait déjà. `pushState` s'intègre au routeur Next,
+ * donc `useSearchParams` le reflète et retour/avant restent cohérents.
  */
 export function RankTypeToggle() {
-  const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
-  const [pending, startTransition] = useTransition();
   const active = rankTypeFromParam(sp.get(RANK_PARAM) ?? undefined);
 
   function apply(next: RankType) {
@@ -26,14 +32,13 @@ export function RankTypeToggle() {
     if (next === RANK_DEFAULT) params.delete(RANK_PARAM);
     else params.set(RANK_PARAM, next);
     const qs = params.toString();
-    startTransition(() => router.push(`${pathname}${qs ? `?${qs}` : ""}`));
+    window.history.pushState(null, "", `${pathname}${qs ? `?${qs}` : ""}`);
   }
 
   return (
     <div
       role="radiogroup"
       aria-label="Type de rang"
-      data-pending={pending || undefined}
       style={{
         display: "inline-flex",
         alignItems: "center",
