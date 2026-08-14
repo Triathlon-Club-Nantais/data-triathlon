@@ -1,6 +1,14 @@
 def _payload(bib="42", nom="DUPONT", club="TCN", provider="manuel"):
+    """Payload de création, avec l'URL source qu'implique le fournisseur.
+
+    Depuis #279, `Course.provider` se lit sur la **source active** de l'épreuve,
+    et une source ne naît que d'une `source_url`. Un provider sans URL laisse
+    donc la course sans fournisseur : c'est exactement l'état d'une saisie
+    manuelle, et c'est pour ça que « manuel » n'en porte pas ici.
+    """
     return {
         "provider": provider,
+        "source_url": "" if provider == "manuel" else f"https://example.test/{provider}/nantes",
         "athlete_name": nom,
         "athlete_firstname": "Jean",
         "gender": "M",
