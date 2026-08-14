@@ -84,6 +84,9 @@ def test_list_filters_by_name_and_club(db_session):
     assert len(by_club) == 1
     assert by_club[0].club == "TCN"
 
+    by_full_name = participation_repository.list_participations(db_session, name="Jean Dupont")
+    assert [p.athlete.nom for p in by_full_name] == ["DUPONT"]
+
 
 def test_list_filters_by_course_id(db_session):
     athlete, course = _setup(db_session)
@@ -523,6 +526,42 @@ def test_recherche_insensible_aux_accents_et_a_la_casse(db_session):
     assert sans_accent[1] == avec_accent[1] == 1
     assert [p.id for p in sans_accent[0]] == [lignes["lemee"].id]
     assert [p.id for p in avec_accent[0]] == [lignes["lemee"].id]
+
+
+def test_recherche_par_prenom_nom(db_session):
+    """« prénom nom » : chaque mot matche nom **ou** prénom, dans l'ordre voulu (#357)."""
+    course, lignes = _classement_accents(db_session)
+
+    rows, total = participation_repository.list_page_for_course(
+        db_session, course.id, page_size=None, q="Herve Durand"
+    )
+
+    assert total == 1
+    assert [p.id for p in rows] == [lignes["durand"].id]
+
+
+def test_recherche_par_nom_prenom(db_session):
+    """L'ordre des mots ne compte pas : « nom prénom » trouve aussi."""
+    course, lignes = _classement_accents(db_session)
+
+    rows, total = participation_repository.list_page_for_course(
+        db_session, course.id, page_size=None, q="Durand Herve"
+    )
+
+    assert total == 1
+    assert [p.id for p in rows] == [lignes["durand"].id]
+
+
+def test_recherche_par_prenom_nom_accentue(db_session):
+    """Deux mots + nom accentué : « Loic Lemee » trouve « LEMÉE »."""
+    course, lignes = _classement_accents(db_session)
+
+    rows, total = participation_repository.list_page_for_course(
+        db_session, course.id, page_size=None, q="loic lemee"
+    )
+
+    assert total == 1
+    assert [p.id for p in rows] == [lignes["lemee"].id]
 
 
 def test_recherche_porte_aussi_sur_le_prenom(db_session):
