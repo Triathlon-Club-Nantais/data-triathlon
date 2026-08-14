@@ -348,6 +348,25 @@ export interface CourseSource {
   last_scraped_at: string | null;
 }
 
+// Événements du flux SSE de `POST /admin/courses/{id}/rescrape` (#118).
+// Même famille que `ImportProgressEvent`, mais `done` porte `orphans_removed`
+// (propre à ce geste — cf. contracts/admin-rescrape-sse.md) et aucune clé
+// fan-out (le re-scrape cible la source active, pas un provider mono-course
+// forcément Klikego).
+export type RescrapeProgressEvent =
+  | { phase: "scraping"; message?: string; heat_index?: number; heats_total?: number; heat_slug?: string; heat_label?: string }
+  | { phase: "saving"; total: number; imported: number; updated: number; skipped: number; progress: number }
+  | {
+      phase: "done";
+      imported: number;
+      updated: number;
+      skipped: number;
+      reconciled: number;
+      total: number;
+      orphans_removed: number;
+    }
+  | { phase: "error"; message: string };
+
 export interface CourseDetail {
   course: CourseBrief;
   /** La tranche demandée, déjà dans l'ordre d'affichage — ne pas la retrier. */

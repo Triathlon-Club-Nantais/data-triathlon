@@ -143,6 +143,64 @@ La purge des fiches coureur devenues vides relève ses candidats **avant** la
 suppression et ne tranche qu'**après** le réimport — même primitive et même piège
 que `DELETE /admin/courses/{id}`.
 
+## Re-scraper une épreuve à la demande : `POST /admin/courses/{id}/rescrape` (#118)
+
+La promesse faite par la section précédente : même module SSE que
+`POST /scrape/event/stream` (`scrape.py`), gardé par `courses:sources` comme la
+bascule (geste voisin), mais **upsert** plutôt que remplacement total — c'est ce
+qui distingue les deux gestes. Router mince
+(`admin_course_rescrape.py`) → générateur de service
+(`admin_actions.iter_rescrape_course`) → repositories existants ; zéro
+abstraction nouvelle, tout ce qui suit est réutilisé tel quel :
+`_require_same_event` (refus zéro résultat / épreuve divergente, FR-009),
+`athlete_repository.only_on_course`/`delete_orphans_among` (purge d'orphelins,
+même primitive que #285/#117), `admin_action_log_repository.create`.
+
+Quatre points à ne pas défaire :
+
+- **La garde (404/409) est synchrone, hors du générateur.** `iter_rescrape_course`
+  est une **fonction ordinaire**, pas un générateur : appelée directement par la
+  route, elle lève tout de suite si la course est introuvable, sans source
+  active, ou déjà en cours de re-scrape — et ne rend un générateur (celui qui
+  scrape et persiste) qu'une fois la garde passée. Raison : `StreamingResponse`
+  (Starlette) envoie le statut HTTP **avant** de tirer le premier élément du
+  générateur — une exception levée depuis l'intérieur d'un générateur déjà en
+  flux ne peut plus jamais devenir un 404/409, seulement une coupure à 200.
+- **Le scrape et la persistance tournent dans un thread dédié, indépendant de
+  la consommation du flux SSE** (FR-011). Un générateur Python synchrone
+  n'avance qu'au rythme des `next()` que lui fait `StreamingResponse` ; dès
+  qu'un client se déconnecte, Starlette cesse ces appels, et tout ce qui suit
+  le dernier `yield` consommé — la persistance elle-même — ne s'exécuterait
+  jamais sans ce thread. Patron déjà présent pour le fan-out Klikego
+  (`_scrape_all_streaming`, `queue.Queue` + sentinel), étendu ici à **toute**
+  l'opération. `ponytail:` la session dédiée (`SessionLocal()`) n'est jamais
+  fermée explicitement — le thread qui la possède peut survivre à la requête
+  HTTP ; upgrade si le volume de re-scrapes concurrents en fait un jour un
+  problème mesuré.
+- **Cache TTL désarmé par heat sur le chemin streamé** — `_scrape_all_streaming`
+  et `iter_import_event` gagnent `use_cache_probe: bool = True`, défaut inchangé
+  pour tout appelant existant, désarmé (`False`) uniquement par l'appel admin.
+  Même besoin que #285 (`scrape_for_replacement(use_cache_probe=False)`), côté
+  streamé cette fois : sans lui, un re-scrape demandé sur une épreuve fan-out
+  fraîchement importée sauterait tous ses heats jugés frais.
+- **Le verrou de concurrence est un `dict[int, bool]` en mémoire, process
+  unique** (FR-007/SC-005), acquis à l'entrée d'`iter_rescrape_course`, relâché
+  en `finally`. `ponytail:` migrer vers un verrou DB si le service passe un jour
+  multi-instance — cf. le docstring de `batch_runs.py` pour la même contrainte.
+
+**Piège de test à ne pas répéter** : la route utilise une session dédiée
+(`SessionLocal()`, patron `scrape_event_stream`), **pas** `Depends(get_db)` —
+elle doit survivre à la requête HTTP elle-même. Cette session n'est donc **pas**
+substituable par `app.dependency_overrides[get_db]` : un test qui la ferait
+tourner pour de vrai frapperait la base de dev réelle, jamais celle de test
+(mesuré — deux re-scrapes réels de « Triathlon de Vierzon 2026 » déclenchés par
+inadvertance lors de l'écriture de cette section). `test_admin_course_rescrape.py`
+mocke donc `admin_actions.iter_rescrape_course` lui-même pour n'éprouver que le
+contrat HTTP/SSE, exactement comme `test_scrape_api.py` mocke
+`import_service.iter_import_event` — le comportement réel (scrape, upsert,
+purge, verrou) est couvert à la couche service, dans
+`test_services/test_admin_actions.py`, sur `db_session`.
+
 ## Aperçu d'impact avant fusion : `GET /admin/courses/{id}/merge-impact` (#286)
 
 `?absorbed_id={id}`, gardé par **`courses:sources`** — le pouvoir qui *arbitre*,

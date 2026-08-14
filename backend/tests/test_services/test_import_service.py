@@ -755,6 +755,39 @@ def test_validate_url_ne_reecrit_pas_l_url():
 # ---------------------------------------------------------------------------
 
 
+def test_scrape_all_streaming_use_cache_probe_false_desarme_la_sonde_par_heat(
+    db_session, monkeypatch,
+):
+    """#118 (R2) — `use_cache_probe=False` doit atteindre le chemin **streamé**.
+
+    `_scrape_all` a déjà ce paramètre (#285) ; `_scrape_all_streaming` ne
+    l'exposait pas encore. Sans lui, un re-scrape demandé sur une épreuve
+    fan-out fraîchement importée sauterait tous ses heats jugés frais — le
+    classement resterait inchangé malgré la demande explicite.
+    """
+    from app.scrapers import registry
+
+    provider = registry.KlikegoProvider()
+    provider.last_trace = FanoutTrace(heats_enumerated=1)
+    monkeypatch.setattr(import_service.registry, "get_provider", lambda url: provider)
+
+    captured = {}
+
+    def fake_scrape(url, *, cache_probe=None, on_heat_start=None, **kwargs):
+        captured["cache_probe"] = cache_probe
+        return [_result("1", "DUPONT")]
+
+    monkeypatch.setattr(import_service, "registry_scrape_event_all", fake_scrape)
+
+    gen = import_service._scrape_all_streaming(
+        URL, db_session, _settings(), use_cache_probe=False
+    )
+    list(gen)  # draine les yields intermédiaires, ignore (results, trace)
+
+    assert "cache_probe" in captured, "le dispatcher fan-out doit être invoqué"
+    assert captured["cache_probe"] is None
+
+
 def _fake_klikego_provider(monkeypatch, enumerated: int, cached: int, failures: list[dict]):
     """Fait que `registry.get_provider(url)` rend un KlikegoProvider avec last_trace prédéfinie."""
     from app.scrapers import registry

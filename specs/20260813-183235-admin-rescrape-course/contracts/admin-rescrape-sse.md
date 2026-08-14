@@ -9,6 +9,14 @@ de 2 Ko, `Cache-Control: no-cache, no-transform`, `X-Accel-Buffering: no`,
 octet du flux si le pouvoir manque, 401 avant le 403 si non authentifié (patron
 `require_permission` standard).
 
+**Existence** (404, avant tout octet du flux) : course introuvable, **ou**
+course sans aucune source active — saisie manuelle, ou épreuve dont on n'a
+rattaché que des passives (édge case déjà réel, cité par
+`backend/app/models/AGENTS.md`). Corps `{"detail": "Cette épreuve n'a aucune
+source active à re-scraper."}` dans le second cas, `{"detail": "Épreuve
+introuvable."}` dans le premier — jamais un événement `phase: error` dans un
+flux déjà ouvert, même raison structurelle que le 409 ci-dessous.
+
 **Concurrence** (FR-007) : si un re-scrape est déjà en cours sur la **même**
 `course_id`, la route répond en `409` (corps JSON `{"detail": "..."}`,
 patron `DomainError`) **avant** d'ouvrir le flux — pas un événement `phase:

@@ -3,10 +3,12 @@
 Le fil de tous ces tests : **un refus ne laisse aucune trace, ni en base ni au
 journal** (FR-015), et **une demande sans effet n'est pas un geste** (FR-012).
 """
+import time
 from datetime import date
 
 import pytest
 
+from app.core.config import Settings
 from app.core.exceptions import NotFoundError
 from app.repositories import (
     admin_action_log_repository,
@@ -15,7 +17,8 @@ from app.repositories import (
     participation_repository,
     user_repository,
 )
-from app.services import admin_actions
+from app.scrapers.base import ScrapedResult
+from app.services import admin_actions, import_service
 
 
 @pytest.fixture
@@ -449,4 +452,234 @@ def test_update_course_sur_epreuve_inconnue_refuse(db_session, auteur):
     with pytest.raises(NotFoundError):
         admin_actions.update_course(
             db_session, course_id=4242, champs={"name": "X"}, user_id=auteur.id
+        )
+
+
+# --- Re-scraper une épreuve à la demande (#118) -----------------------------
+
+
+def _settings() -> Settings:
+    return Settings(cache_ttl_in_progress_seconds=600, cache_ttl_finished_seconds=2592000)
+
+
+@pytest.fixture
+def scrape(monkeypatch):
+    """Arme le chronométreur entrant — patron de `test_course_source_switch_api.py`."""
+    appels: list[str] = []
+
+    def armer(resultats_ou_exception):
+        def _scrape(url, **kwargs):
+            appels.append(url)
+            if isinstance(resultats_ou_exception, Exception):
+                raise resultats_ou_exception
+            return resultats_ou_exception
+
+        monkeypatch.setattr(import_service, "registry_scrape_event_all", _scrape)
+        return appels
+
+    return armer
+
+
+def _resultat(course, bib, nom, *, event_name=None, prenom="Jean", total_time="01:59:00"):
+    return ScrapedResult(
+        source_url=course.source_url,
+        provider="klikego",
+        athlete_name=nom,
+        athlete_firstname=prenom,
+        bib_number=bib,
+        event_name=event_name if event_name is not None else course.name,
+        event_date=course.event_date,
+        event_type=course.event_type,
+        total_time=total_time,
+    )
+
+
+def _rescrapes(db_session, course_id):
+    return [
+        entree
+        for entree in _journal(db_session, "course", course_id)
+        if entree.action == "course.rescrape"
+    ]
+
+
+def _attendre(condition, timeout=2.0, intervalle=0.02):
+    """Sonde `condition` jusqu'à vrai — le thread de re-scrape termine hors du
+    fil qui a itéré le générateur (FR-011), donc son effet n'est visible
+    qu'après un délai, jamais synchrone avec le dernier `next()` du test."""
+    fin = time.monotonic() + timeout
+    while time.monotonic() < fin:
+        try:
+            if condition():
+                return True
+        except Exception:
+            pass
+        time.sleep(intervalle)
+    return condition()
+
+
+def test_rescrape_upsert_purge_les_orphelins_et_consigne_le_geste(db_session, auteur, scrape):
+    """T003 — chemin heureux : upsert par dossard, purge d'orphelin, journal."""
+    course = _epreuve(db_session)
+    depart = _coureur(db_session, "DEPART")
+    reste = _coureur(db_session, "RESTE")
+    _inscrit(db_session, depart, course, "1")
+    _inscrit(db_session, reste, course, "2")
+    db_session.commit()
+    # Le dossard 1 change de titulaire chez le chronométreur (réconciliation
+    # d'identité) : DEPART n'a alors plus aucune participation → purgé.
+    scrape([
+        _resultat(course, "1", "NOUVEAU"),
+        # Même prénom que `_coureur` (défaut "Coureur") : sinon la réconciliation
+        # d'identité (nom + prénom) traiterait RESTE comme un homonyme différent
+        # et créerait une seconde fiche, faussant `orphans_removed`.
+        _resultat(course, "2", "RESTE", prenom="Coureur", total_time="02:10:00"),
+    ])
+
+    events = list(admin_actions.iter_rescrape_course(
+        db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
+    ))
+
+    assert events[-1]["phase"] == "done"
+    assert events[-1]["orphans_removed"] == 1
+    assert participation_repository.count_for_course(db_session, course.id) == 2
+    assert athlete_repository.get(db_session, depart.id) is None
+    assert athlete_repository.get(db_session, reste.id) is not None
+    entrees = _rescrapes(db_session, course.id)
+    assert len(entrees) == 1
+    assert entrees[0].payload["athletes_purged"] == 1
+    assert entrees[0].payload["source_url"] == course.source_url
+
+
+def test_rescrape_refuse_zero_resultat_et_ne_modifie_rien(db_session, auteur, scrape):
+    """T005 — FR-009."""
+    course = _epreuve(db_session)
+    coureur = _coureur(db_session, "INTACT")
+    _inscrit(db_session, coureur, course, "1")
+    db_session.commit()
+    scrape([])
+
+    events = list(admin_actions.iter_rescrape_course(
+        db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
+    ))
+
+    assert events[-1]["phase"] == "error"
+    assert "aucun résultat" in events[-1]["message"].lower()
+    assert participation_repository.count_for_course(db_session, course.id) == 1
+    assert _rescrapes(db_session, course.id) == []
+
+
+def test_rescrape_refuse_une_epreuve_divergente_et_ne_modifie_rien(db_session, auteur, scrape):
+    """T006 — FR-009."""
+    course = _epreuve(db_session)
+    coureur = _coureur(db_session, "INTACT")
+    _inscrit(db_session, coureur, course, "1")
+    db_session.commit()
+    scrape([_resultat(course, "9", "AUTRE", event_name="Une tout autre épreuve")])
+
+    events = list(admin_actions.iter_rescrape_course(
+        db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
+    ))
+
+    assert events[-1]["phase"] == "error"
+    assert "Une tout autre épreuve" in events[-1]["message"]
+    assert participation_repository.count_for_course(db_session, course.id) == 1
+    assert _rescrapes(db_session, course.id) == []
+
+
+def test_rescrape_termine_et_commite_malgre_un_client_qui_arrete_de_lire(
+    db_session, auteur, scrape,
+):
+    """T007 — FR-011 : le thread de fond persiste même si le générateur est
+    abandonné à mi-flux (les deux premiers events seuls sont consommés)."""
+    course = _epreuve(db_session)
+    db_session.commit()
+    scrape([_resultat(course, "1", "NOUVEAU")])
+
+    gen = admin_actions.iter_rescrape_course(
+        db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
+    )
+    for i, _event in enumerate(gen):
+        if i >= 1:
+            break  # le client cesse de lire — `gen` n'est plus jamais itéré
+
+    assert _attendre(
+        lambda: participation_repository.count_for_course(db_session, course.id) == 1
+    )
+    assert _attendre(lambda: len(_rescrapes(db_session, course.id)) == 1)
+
+
+def test_rescrape_ajoute_les_dossards_manquants_sans_dupliquer(db_session, auteur, scrape):
+    """T016 — US2 : rejouer un import partiel complète sans dupliquer."""
+    course = _epreuve(db_session)
+    deja_la = _coureur(db_session, "DEJA-LA")
+    _inscrit(db_session, deja_la, course, "1")
+    db_session.commit()
+    scrape([
+        _resultat(course, "1", "DEJA-LA"),
+        _resultat(course, "2", "MANQUANT"),
+    ])
+
+    events = list(admin_actions.iter_rescrape_course(
+        db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
+    ))
+
+    assert events[-1]["phase"] == "done"
+    assert participation_repository.count_for_course(db_session, course.id) == 2
+    dossards = sorted(
+        p.bib_number for p in participation_repository.list_for_course(db_session, course.id)
+    )
+    assert dossards == ["1", "2"]
+
+
+def test_rescrape_refuse_un_second_declenchement_sur_la_meme_course(db_session, auteur):
+    """T017 — FR-007/SC-005, premier volet : même course, refusé."""
+    course = _epreuve(db_session)
+    db_session.commit()
+
+    admin_actions._acquire_rescrape_lock(course.id)
+    try:
+        with pytest.raises(admin_actions.CourseRescrapeAlreadyRunningError):
+            admin_actions.iter_rescrape_course(
+                db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
+            )
+    finally:
+        admin_actions._release_rescrape_lock(course.id)
+
+
+def test_rescrape_sur_une_autre_course_n_est_pas_bloque(db_session, auteur, scrape):
+    """T017 — second volet : le refus ne porte que sur la même course."""
+    course_a = _epreuve(db_session, "Course A", date(2026, 5, 17))
+    course_b = _epreuve(db_session, "Course B", date(2026, 5, 18))
+    db_session.commit()
+    scrape([_resultat(course_b, "1", "X")])
+
+    admin_actions._acquire_rescrape_lock(course_a.id)
+    try:
+        events = list(admin_actions.iter_rescrape_course(
+            db_session, course_id=course_b.id, user_id=auteur.id, settings=_settings()
+        ))
+        assert events[-1]["phase"] == "done"
+    finally:
+        admin_actions._release_rescrape_lock(course_a.id)
+
+
+def test_rescrape_sur_course_sans_source_active_est_un_not_found(db_session, auteur):
+    """G4 — saisie manuelle ou épreuve dont on n'a rattaché que des passives :
+    rien à re-scraper, refus explicite plutôt qu'un flux qui ne ferait rien."""
+    course = course_repository.get_or_create(
+        db_session, name="Saisie manuelle", event_date=date(2026, 6, 1),
+        event_type="triathlon-m",
+    )
+    db_session.commit()
+
+    with pytest.raises(NotFoundError):
+        admin_actions.iter_rescrape_course(
+            db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
+        )
+
+
+def test_rescrape_sur_course_inconnue_est_un_not_found(db_session, auteur):
+    with pytest.raises(NotFoundError):
+        admin_actions.iter_rescrape_course(
+            db_session, course_id=4242, user_id=auteur.id, settings=_settings()
         )
