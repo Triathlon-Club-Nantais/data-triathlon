@@ -103,7 +103,12 @@ Réglages restants à faire **dans le dashboard** (non supportés par le MCP) :
    lisent les deux jobs, chacun déployant en `--prod` de son propre projet :
    - `data-triathlon` : `BACKEND_URL` / `API_URL` → backend Render **prod** ;
    - `data-triathlon-preview` : `BACKEND_URL` / `API_URL` → backend Render
-     **preview**. Sans ça, la preview taperait la base de production.
+     **preview**. Sans ça, la preview taperait la base de production ;
+   - Les deux projets : `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` / `NEXT_PUBLIC_POSTHOG_HOST`
+     (`https://eu.posthog.com`, cloud EU — RGPD) — un seul projet PostHog
+     partagé entre prod et preview, valeurs dans PostHog → Project settings →
+     API keys. Absentes, l'app tourne normalement, juste sans analytics (garde
+     dans `instrumentation-client.ts`).
 5. Sur `data-triathlon-preview` seul : configurer la protection de déploiement /
    SSO sur son URL fixe, désormais stable.
 

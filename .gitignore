@@ -68,3 +68,6 @@ docs/local/
 **/.worktrees/
 # Ledger d'exécution de subagent-driven-development — jetable, un dossier par plan
 .superpowers/
+# Scaffold du wizard d'installation PostHog (skill posthog-wizard, #339) —
+# jamais destiné à être commité, mal placé sous frontend/ au lieu de la racine.
+frontend/.claude/

@@ -14,8 +14,25 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       { source: "/api/:path*", destination: `${BACKEND_URL}/api/:path*` },
+      // Proxy inverse PostHog — fait passer les événements client par Next.js
+      // pour éviter les bloqueurs de pub. /static et /array pointent vers le
+      // CDN d'assets ; tout le reste de /ingest va vers l'endpoint d'ingestion.
+      {
+        source: "/ingest/static/:path*",
+        destination: "https://eu-assets.i.posthog.com/static/:path*",
+      },
+      {
+        source: "/ingest/array/:path*",
+        destination: "https://eu-assets.i.posthog.com/array/:path*",
+      },
+      {
+        source: "/ingest/:path*",
+        destination: "https://eu.i.posthog.com/:path*",
+      },
     ];
   },
+  // Requis pour que les requêtes API de PostHog (slash final) ne soient pas redirigées
+  skipTrailingSlashRedirect: true,
 };
 
 export default nextConfig;

@@ -2,6 +2,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { X } from "lucide-react";
+import { captureEvent } from "@/lib/posthog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +45,17 @@ export function ResultsFilters() {
   }
 
   function apply() {
+    const activeFilters = Object.fromEntries(
+      Object.entries({ name, event_name: eventName, event_type: eventType, date_from: dateFrom, date_to: dateTo })
+        .filter(([, v]) => v !== ""),
+    );
+    captureEvent("results_filter_applied", {
+      filter_count: Object.keys(activeFilters).length,
+      has_athlete_filter: !!name,
+      has_event_name_filter: !!eventName,
+      has_event_type_filter: !!eventType,
+      has_date_filter: !!(dateFrom || dateTo),
+    });
     push({
       name,
       event_name: eventName,

@@ -1,5 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
+import { captureEvent } from "@/lib/posthog";
 import { Avatar, Button } from "@/components/tcn";
 import {
   DropdownMenu,
@@ -50,8 +51,12 @@ export function UserMenu({ pleineLargeur = false }: { pleineLargeur?: boolean })
   }
 
   const nom = session.display_name || session.email;
-  const seDeconnecter = () =>
+  const seDeconnecter = () => {
+    captureEvent("user_logged_out");
+    // posthog.reset() n'est pas appelé ici : PostHogSessionSync (providers.tsx)
+    // le déclenche dès que session repasse à null, quelle qu'en soit la cause.
     logout.mutate(undefined, { onSuccess: () => router.push("/") });
+  };
 
   // Tiroir mobile : l'état connecté se déplie **à plat**. Un menu déroulant
   // dans un tiroir serait un menu dans un menu, et son popup sortirait du

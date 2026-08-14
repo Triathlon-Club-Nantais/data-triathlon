@@ -1,6 +1,7 @@
 "use client";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
+import { captureEvent } from "@/lib/posthog";
 import type { Season } from "@/lib/types";
 import { Badge } from "@/components/tcn";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -45,6 +46,7 @@ export function SeasonSelector({ seasons }: { seasons: Season[] }) {
   const selected = fromUrl.length > 0 ? fromUrl : [currentSeason()];
 
   function apply(next: number[]) {
+    captureEvent("season_changed", { season_count: next.length, seasons: next });
     startTransition(() => router.push(buildSeasonsHref(next, scope, pathname)));
   }
 

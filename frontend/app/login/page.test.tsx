@@ -1,10 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { AuthMethod } from "@/lib/types";
 
 const { listAuthMethods } = vi.hoisted(() => ({ listAuthMethods: vi.fn() }));
 const { parametres } = vi.hoisted(() => ({ parametres: new URLSearchParams() }));
+const { capture } = vi.hoisted(() => ({ capture: vi.fn() }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
@@ -14,6 +16,8 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 vi.mock("next/navigation", () => ({
   useSearchParams: () => parametres,
 }));
+
+vi.mock("posthog-js", () => ({ default: { capture } }));
 
 import LoginPage from "./page";
 
@@ -29,6 +33,13 @@ function afficher(methodes: AuthMethod[], erreur?: string) {
     </QueryClientProvider>,
   );
 }
+
+beforeEach(() => {
+  capture.mockClear();
+  // captureEvent (lib/posthog.ts) ne délègue à posthog-js que si le token est
+  // présent — sans ce stub, l'assertion sur `capture` ne verrait jamais rien.
+  vi.stubEnv("NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN", "test-token");
+});
 
 describe("Page de connexion — méthodes", () => {
   it("rend un bouton par méthode déclarée par l'API", async () => {
@@ -46,6 +57,21 @@ describe("Page de connexion — méthodes", () => {
 
     const lien = await screen.findByRole("link", { name: /GitHub/ });
     expect(lien).toHaveAttribute("href", "/api/v1/auth/github/authorize");
+  });
+
+  it("capture login_initiated via sendBeacon avant que la navigation ne parte (#339)", async () => {
+    // capture() doit survivre au unload : send_instantly + sendBeacon, pas la
+    // file batchée par défaut qu'une navigation immédiate peut couper court.
+    afficher([{ slug: "github", label: "GitHub" }]);
+
+    const lien = await screen.findByRole("link", { name: /GitHub/ });
+    await userEvent.click(lien);
+
+    expect(capture).toHaveBeenCalledWith(
+      "login_initiated",
+      { provider: "github" },
+      { transport: "sendBeacon", send_instantly: true },
+    );
   });
 
   it("ne code en dur aucune méthode : liste vide, aucun bouton", async () => {

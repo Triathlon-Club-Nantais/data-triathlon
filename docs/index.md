@@ -9,6 +9,8 @@ stocke, et importe tous les participants de l'épreuve.
 - [Workflow IA](WORKFLOW-IA.md) — Speckit et Superpowers : deux voies complètes,
   laquelle lancer, et pourquoi jamais les deux sur la même feature.
 - [CI/CD](ci-cd.md) — pipelines GitHub Actions, déploiements Render et Vercel.
+- [Analytics PostHog](analytics-posthog.md) — SDK frontend, cycle de vie de la
+  session, catalogue des événements suivis.
 - [Modèle de données](modele-donnees.md) — schéma normalisé (athlète, course,
   participation) et migrations Alembic.
 - [Dev multi-worktree](dev-multi-worktree.md) — plusieurs worktrees en

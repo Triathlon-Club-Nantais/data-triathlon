@@ -2,6 +2,7 @@
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { captureEvent } from "@/lib/posthog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -112,6 +113,8 @@ export function ManualResultForm({
           TIME_KEYS.map((key) => [key, clesTempsPertinentes.has(key) ? data[key] : ""]),
         );
         const estCollectif = data.individuel_ou_collectif === "collectif";
+        const eventType = computeEventType(data.discipline, data.format);
+        captureEvent("manual_result_submitted", { event_type: eventType });
         onSubmit({
           ...temps,
           provider: "manuel",
@@ -119,7 +122,7 @@ export function ManualResultForm({
           athlete_name: data.athlete_name,
           event_date: data.event_date || null,
           event_name: data.event_name,
-          event_type: computeEventType(data.discipline, data.format),
+          event_type: eventType,
           format_label: data.format === "autre" ? data.format_label : "",
           distance_km: !aUnFormat && data.distance_km ? Number(data.distance_km) : null,
           bib_number: data.bib_number,

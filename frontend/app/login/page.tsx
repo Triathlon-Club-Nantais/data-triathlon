@@ -1,6 +1,7 @@
 "use client";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { captureEvent } from "@/lib/posthog";
 import { Alert, Card, Eyebrow } from "@/components/tcn";
 import { authErrorLabel } from "@/lib/constants";
 import { useAuthMethods } from "@/lib/queries/auth";
@@ -64,6 +65,15 @@ function Connexion() {
             <a
               key={methode.slug}
               href={`/api/v1/auth/${methode.slug}/authorize`}
+              onClick={() =>
+                // La navigation vers /authorize démarre dès ce clic : sendBeacon
+                // survit au unload, send_instantly saute la file batchée qui,
+                // sinon, perdrait l'événement (cf. revue #339).
+                captureEvent("login_initiated", { provider: methode.slug }, {
+                  transport: "sendBeacon",
+                  send_instantly: true,
+                })
+              }
               style={{
                 display: "flex",
                 alignItems: "center",
