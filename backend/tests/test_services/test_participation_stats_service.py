@@ -247,12 +247,16 @@ def test_comparison_skips_a_reference_without_a_usable_total():
 
 
 def _seed_course(db, provider="raceresult"):
+    # `source_url` non vide : depuis #279 le fournisseur d'une épreuve se lit sur
+    # sa source active, et sans URL aucune source n'est créée — la course
+    # naîtrait sans fournisseur, donc inéligible aux statistiques.
     course = course_repository.get_or_create(
         db,
         name="Tri de Nantes",
         event_date=date(2026, 5, 16),
         event_type="triathlon-m",
         provider=provider,
+        source_url=f"https://example.test/{provider}/nantes",
     )
     rows = []
     for index, (nom, total, swim, bike) in enumerate(
