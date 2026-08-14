@@ -1,5 +1,6 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useTransition } from "react";
 import type { Season } from "@/lib/types";
 import { Badge } from "@/components/tcn";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -29,12 +30,13 @@ export function SeasonSelector({ seasons }: { seasons: Season[] }) {
   const router = useRouter();
   const sp = useSearchParams();
   const scope = sp.get("scope") ?? undefined;
+  const [pending, startTransition] = useTransition();
 
   const fromUrl = parseSeasonsParam(sp.get("seasons"));
   const selected = fromUrl.length > 0 ? fromUrl : [currentSeason()];
 
   function apply(next: number[]) {
-    router.push(buildSeasonsHref(next, scope));
+    startTransition(() => router.push(buildSeasonsHref(next, scope)));
   }
 
   return (
@@ -42,6 +44,8 @@ export function SeasonSelector({ seasons }: { seasons: Season[] }) {
       <Popover>
         <PopoverTrigger
           aria-label="Choisir les saisons"
+          data-pending={pending || undefined}
+          className="data-pending:opacity-70"
           style={{
             display: "inline-flex",
             alignItems: "center",
@@ -58,7 +62,11 @@ export function SeasonSelector({ seasons }: { seasons: Season[] }) {
         >
           {seasonSelectionLabel(selected)}
         </PopoverTrigger>
-        <PopoverContent align="end">
+        <PopoverContent
+          align="end"
+          data-pending={pending || undefined}
+          className="data-pending:opacity-70"
+        >
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {seasons.map((s) => {
               const checked = selected.includes(s.start_year);

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { SeasonSelector, buildSeasonsHref } from "./SeasonSelector";
 import { currentSeason, seasonLabel } from "@/lib/utils/season";
 import type { Season } from "@/lib/types";
@@ -33,5 +33,30 @@ describe("SeasonSelector", () => {
   it("affiche par défaut le libellé de la saison en cours", () => {
     render(<SeasonSelector seasons={SEASONS} />);
     expect(screen.getByText(new RegExp(`Saison ${currentSeason()}`))).toBeInTheDocument();
+  });
+
+  it("porte la variante Tailwind data-pending:opacity-70 dès le rendu initial", () => {
+    // Le trajet vers /dashboard traverse le serveur (issue #345) : l'élément
+    // qui recevra `data-pending` pendant la transition doit déjà porter la
+    // classe qui l'exploite, sans quoi l'attribut ne sert à rien (piège
+    // relevé sur RankTypeToggle, qui ne portait qu'un `style` en ligne).
+    render(<SeasonSelector seasons={SEASONS} />);
+    expect(screen.getByLabelText("Choisir les saisons").className).toContain(
+      "data-pending:opacity-70"
+    );
+  });
+
+  it("porte aussi le signal sur la liste ouverte du popover, là où l'utilisateur coche", () => {
+    // Le popover reste ouvert pendant tout le cochage : une fois ouvert,
+    // l'utilisateur ne regarde plus le déclencheur mais la liste. Le
+    // conteneur du popover doit donc porter, lui aussi, la variante qui lit
+    // `data-pending` (revue UI/UX de #345 : le signal posé uniquement sur le
+    // déclencheur répond mal à « l'utilisateur voit-il que son clic a été
+    // pris en compte ? »).
+    render(<SeasonSelector seasons={SEASONS} />);
+    fireEvent.click(screen.getByLabelText("Choisir les saisons"));
+    const list = screen.getByText("Saison 2023 — 2024").closest("[data-slot='popover-content']");
+    expect(list).not.toBeNull();
+    expect(list?.className).toContain("data-pending:opacity-70");
   });
 });
