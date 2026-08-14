@@ -75,10 +75,10 @@ export interface Participation {
   total_time: string | null;
   status: string;
   is_relay: boolean;
-  team_name: string | null;
-  evidence_url: string | null;
+  team_name?: string | null;
+  evidence_url?: string | null;
   // Résultat déclaré non encore vérifié par un bénévole (#270, #271).
-  is_pending_validation: boolean;
+  is_pending_validation?: boolean;
   splits: Splits | null;
   created_at: string | null;
   // Nombre de finishers classés de la course (même groupe solo/relais).
@@ -160,6 +160,10 @@ export interface ScrapedPreview {
   event_name: string;
   event_date: string | null;
   event_type: string;
+  // Précision libre du format (« Autre ») ou distance totale des disciplines
+  // sans format normalisé (#270).
+  format_label: string;
+  distance_km: number | null;
   rank_overall: number | null;
   rank_category: number | null;
   rank_gender: number | null;
@@ -170,6 +174,9 @@ export interface ScrapedPreview {
   t2_time: string;
   run_time: string;
   is_relay: boolean;
+  status: string;
+  team_name: string;
+  evidence_url: string;
   raw_data: Record<string, unknown>;
 }
 

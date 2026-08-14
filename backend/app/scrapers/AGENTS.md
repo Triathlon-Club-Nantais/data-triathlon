@@ -82,5 +82,11 @@ fournisseur — à lire **avant** de toucher au module correspondant.
 | Sporthive (MYLAPS) | API JSON publique sur `eventresults-api.speedhive.com` ; `size` plafonné à 10, statut dans `validity`, une course incomplète est écartée sans perdre l'événement. | `docs/scrapers/sporthive.md` |
 | chronoweb | HTML statique, une requête pour l'événement entier ; une ligne = un **passage**, pas un participant. | `docs/scrapers/chronoweb.md` |
 
-Types d'épreuve : Triathlon XS/S/M/L/XL, Duathlon XS/S/M/L, SwimRun S/M/L,
-Aquathlon, Aquarun, Bike & Run.
+Types d'épreuve : Triathlon XS/S/M/L/XL, Duathlon XS/S/M/L/XL, SwimRun S/M/L,
+Aquathlon XS/S/M/L/XL, Aquarun, Bike & Run, Swim Bike XS/S/M/L/XL, Cross
+Triathlon, Raid Multisport. Les quatre dernières disciplines et les tailles
+Duathlon XL / Aquathlon */Swim Bike * ont été ajoutées pour la saisie manuelle
+(#270) — `swim-bike`, `cross-triathlon` et `raid-multisport` sont des bases
+**multi-mots** dans `services/mapping._MULTI_WORD_BASES` (le tiret ne sépare
+pas une taille), à ne pas oublier si une nouvelle discipline composée
+s'ajoute un jour.

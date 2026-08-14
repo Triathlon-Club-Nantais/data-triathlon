@@ -44,10 +44,18 @@ _SPLIT_KEYS_BY_SPORT: dict[str, dict[str, str]] = {
     "course-a-pied": {"run_time": "run"},
     "trail": {"run_time": "run"},
     "cyclisme": {"bike_time": "bike"},
+    # Swim Bike (#270) : pas de course à pied à l'endroit où le slot positionnel
+    # l'attend — l'omettre du gabarit jetterait silencieusement un temps saisi
+    # par erreur, mais le champ n'est simplement pas proposé côté saisie manuelle.
+    "swim-bike": {"swim_time": "swim", "t1_time": "t1", "bike_time": "bike"},
+    # Raid Multisport (#270) : aucun découpage prévisible, cf. data-model.md §6.
+    "raid-multisport": {},
+    # Cross Triathlon (#270) retombe sur le gabarit par défaut (natation/T1/vélo/
+    # T2/course) : aucune entrée nécessaire ici.
 }
 
 # Bases de sport dont le nom contient un tiret (le tiret ne sépare pas la taille).
-_MULTI_WORD_BASES = ("bike-run", "course-a-pied")
+_MULTI_WORD_BASES = ("bike-run", "course-a-pied", "swim-bike", "cross-triathlon", "raid-multisport")
 
 
 def _sport_base(event_type: str) -> str:

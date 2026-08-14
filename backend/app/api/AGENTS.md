@@ -14,6 +14,41 @@ Deux paramètres traversent l'API de lecture, sur le même patron que `seasons` 
   « Inclure les autres disciplines ». Un défaut à `true` amputerait
   silencieusement tout futur appelant.
 
+## Résultats en attente de validation : exclus par construction (#270)
+
+Un résultat créé par `POST /participations` porte `is_pending_validation=True`
+(forcé par la route, jamais par le client) et reste invisible de tout agrégat
+public jusqu'à ce qu'un bénévole le valide — sa seule surface d'affichage est
+la fiche de son athlète (FR-019). **Aucun paramètre pour lever l'exclusion** :
+contrairement à `scope`/`federal_only`, ce n'est pas une préférence
+d'affichage mais un invariant d'intégrité, et le Principe V est en violation
+assumée sur ce point (justifiée dans `plan.md` §Complexity Tracking de la
+feature).
+
+`app/core/validation.py` (`is_pending`/`validated_clause`) est le point
+**unique** de la règle, sur le patron de `core/club.tcn_clause` et
+`core/discipline.federal_clause`. Appliqué à cinq fonctions de
+`participation_repository.py` :
+
+| Fonction | Alimente |
+| --- | --- |
+| `_apply_filters` | `list_participations`, et via `_grouped_events_query` : `events_with_counts`/`events_page` |
+| `for_stats` | tableau de bord, page club, podiums (calculés côté front sur ces données) |
+| `list_page_for_course` | classement paginé d'une épreuve |
+| `summary_rows_for_course` | synthèse d'épreuve |
+| `finishers_count_by_group` | `course_finishers` de la fiche athlète |
+
+**Délibérément absente** de six autres fonctions : `list_for_athlete` (la
+surface voulue par FR-019 — la filtrer viderait la feature de son objet),
+`list_for_course` (chemin d'import, pas d'affichage), `count_for_athlete`
+(purge des fiches orphelines, #117), `count_for_course`/`delete_for_course`
+(gestes d'administration), `count_bibs_absent_from` (aperçu de fusion, #286)
+et `existing_bibs_for_course` (dédoublonnage d'import). Verrouillé par un test
+**comportemental** (une participation pendante + une validée, assertion par
+fonction publique) dans `tests/test_repositories/test_pending_exclusion.py` —
+pas par lecture AST : `_apply_filters` est un helper partagé par trois
+fonctions publiques, qu'un lecteur d'appels statique attribuerait mal.
+
 ## Classement d'une épreuve : paginé, et l'ordre est en base (#163)
 
 `GET /courses/{id}` rendait **tout** le classement — 1811 participations, 1,15 Mo

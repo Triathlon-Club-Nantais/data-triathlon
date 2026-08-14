@@ -107,18 +107,23 @@ des champs Genre, Club et Catégorie ; remplir les quatre → `201`.
 
 ### Tests for User Story 1
 
-- [ ] T025 [P] [US1] Créer `frontend/components/scrape/ManualResultForm.test.tsx` : soumission à vide → message sous nom, prénom, date et nom de l'épreuve, et `onSubmit` non appelé
-- [ ] T026 [P] [US1] Test « un seul champ manquant » (prénom vide) → message ciblé, soumission bloquée, dans `frontend/components/scrape/ManualResultForm.test.tsx`
-- [ ] T027 [P] [US1] Test d'absence : aucun champ Genre, Club ni Catégorie rendu, et libellé « Nom de l'épreuve », dans `frontend/components/scrape/ManualResultForm.test.tsx`
+- [X] T025 [P] [US1] Créer `frontend/components/scrape/ManualResultForm.test.tsx` : soumission à vide → message sous nom, prénom, date et nom de l'épreuve, et `onSubmit` non appelé
+- [X] T026 [P] [US1] Test « un seul champ manquant » (prénom vide) → message ciblé, soumission bloquée, dans `frontend/components/scrape/ManualResultForm.test.tsx`
+- [X] T027 [P] [US1] Test d'absence : aucun champ Genre, Club ni Catégorie rendu, et libellé « Nom de l'épreuve », dans `frontend/components/scrape/ManualResultForm.test.tsx`
 
 ### Implémentation
 
-- [ ] T028 [US1] Rendre obligatoires nom, prénom, date et nom d'épreuve dans le schéma zod de `frontend/components/scrape/ManualResultForm.tsx`, messages d'erreur en français désignant l'action (FR-005)
-- [ ] T029 [US1] Retirer les champs Genre, Club et Catégorie du rendu et du schéma de `frontend/components/scrape/ManualResultForm.tsx` — **sans** toucher au schéma Pydantic, que les scrapers renseignent toujours
-- [ ] T030 [US1] Renommer le libellé « Épreuve » en « Nom de l'épreuve » dans `frontend/components/scrape/ManualResultForm.tsx`
-- [ ] T031 [US1] Vérifier que les nouveaux champs suivent la convention `.default("")` documentée aux lignes 39-40 de `frontend/components/scrape/ManualResultForm.tsx`, puis lancer `npm run build` (TypeScript strict)
+- [X] T028 [US1] Rendre obligatoires nom, prénom, date et nom d'épreuve dans le schéma zod de `frontend/components/scrape/ManualResultForm.tsx`, messages d'erreur en français désignant l'action (FR-005) — **discipline rendue obligatoire aussi**, cohérent avec le comportement pré-existant du formulaire (non retiré par la spec)
+- [X] T029 [US1] Retirer les champs Genre, Club et Catégorie du rendu et du schéma de `frontend/components/scrape/ManualResultForm.tsx` — **sans** toucher au schéma Pydantic, que les scrapers renseignent toujours
+- [X] T030 [US1] Renommer le libellé « Épreuve » en « Nom de l'épreuve » dans `frontend/components/scrape/ManualResultForm.tsx`
+- [X] T031 [US1] Convention `.default("")` respectée ; **le générique explicite de `useForm` a dû être retiré** (même piège documenté aux lignes 39-40 de l'ancienne version) — `npm run build` TypeScript strict passe (hors artefact `.next/dev/types/validator.ts` préexistant, sans rapport avec cette feature, cf. note de fin de phase)
 
 **Checkpoint**: US1 fonctionnelle et vérifiable seule.
+
+**Déviations assumées par rapport au plan** :
+- **`ui/select` non retenu** (research.md D8) : le formulaire garde des `<select>` natifs pour discipline/format/statut, comme le faisait déjà l'ancienne version pour `event_type`. Un `<select>` natif fonctionne trivialement avec `register()` de react-hook-form, alors que `ui/select` (Base UI, portail asynchrone) exige `Controller` sans gain fonctionnel ici. Simplification assumée (Principe VI).
+- **`watch()` remplacé par `useWatch()`** : `watch()` de react-hook-form ne peut pas être mémoïsé par le React Compiler (avertissement ESLint `react-hooks/incompatible-library`) ; `useWatch` est son équivalent compatible, comportement identique.
+- **Individuel/Collectif en radios natifs**, pas `SegmentedControl` (tcn/) : cohérent avec le choix de rester sur `ui/`, pas `tcn/`, pour ce fichier (frontend/AGENTS.md, dette assumée).
 
 ---
 
@@ -133,18 +138,18 @@ classement d'épreuve, page résultats, page épreuves et carte n'ont pas bougé
 
 ### Tests for User Story 2
 
-- [ ] T032 [P] [US2] Test : les stats du club sont identiques avec et sans une participation pendante, dans `backend/tests/test_services/test_stats_service.py`
-- [ ] T033 [P] [US2] Test : le classement paginé et la synthèse d'une épreuve ignorent une participation pendante, dans `backend/tests/test_api/test_courses_api.py`
-- [ ] T034 [P] [US2] Test : `GET /athletes/{id}` rend la participation pendante **et** un `course_finishers` qui ne la compte pas, dans `backend/tests/test_api/test_athletes_api.py`
-- [ ] T035 [P] [US2] Créer `frontend/components/tcn/PendingBadge.test.tsx` : rendu de la mention, libellé accessible
-- [ ] T036 [P] [US2] Test : la fiche athlète marque une participation pendante et ne marque pas les autres, dans `frontend/app/athletes/[id]/page.test.tsx`
-- [ ] T070 [P] [US2] Test **symétrique** de l'exclusion (FR-022) : une participation basculée à `is_pending_validation=False` entre dans les stats, le classement, la synthèse et les compteurs d'épreuve — dans `backend/tests/test_repositories/test_pending_exclusion.py`, à côté de T006 dont il est l'exact réciproque
+- [X] T032 [P] [US2] Test : les stats du club sont identiques avec et sans une participation pendante, dans `backend/tests/test_services/test_stats_service.py` — au niveau service (`stats_service.get_stats`), en plus du niveau repository déjà verrouillé en Phase 2
+- [X] T033 [P] [US2] Test : le classement paginé et la synthèse d'une épreuve ignorent une participation pendante, dans `backend/tests/test_api/test_courses_api.py` — au niveau contrat HTTP
+- [X] T034 [P] [US2] Test : `GET /athletes/{id}` rend la participation pendante **et** un `course_finishers` qui ne la compte pas, dans `backend/tests/test_api/test_athletes_api.py`
+- [X] T035 [P] [US2] Créer `frontend/components/tcn/PendingBadge.test.tsx` : rendu de la mention, libellé accessible
+- [X] T036 [P] [US2] Test : la fiche athlète marque une participation pendante et ne marque pas les autres, dans `frontend/app/athletes/[id]/page.test.tsx`
+- [X] T070 [P] [US2] Test **symétrique** de l'exclusion (FR-022) : une participation basculée à `is_pending_validation=False` entre dans les stats, le classement, la synthèse et les compteurs d'épreuve — dans `backend/tests/test_repositories/test_pending_exclusion.py`, à côté de T006 dont il est l'exact réciproque
 
 ### Implémentation
 
-- [ ] T037 [P] [US2] Créer `frontend/components/tcn/PendingBadge.tsx` — nouveau composant d'écran public, donc `tcn/` et non `ui/` (frontend/AGENTS.md), et l'exporter depuis l'index de `frontend/components/tcn/`
-- [ ] T038 [US2] Afficher la mention sur chaque ligne pendante de `frontend/app/athletes/[id]/page.tsx`, distincte au premier coup d'œil sans survol ni clic (SC-003)
-- [ ] T039 [US2] Vérifier qu'aucun autre écran n'a besoin de la mention : `/resultats`, `/courses/[id]` et `/club` n'affichent plus ces lignes du tout depuis la phase 2 — le confirmer plutôt que de le supposer
+- [X] T037 [P] [US2] Créer `frontend/components/tcn/PendingBadge.tsx` — nouveau composant d'écran public, donc `tcn/` et non `ui/` (frontend/AGENTS.md), et l'exporter depuis l'index de `frontend/components/tcn/`
+- [X] T038 [US2] Afficher la mention sur chaque ligne pendante de `frontend/app/athletes/[id]/page.tsx`, distincte au premier coup d'œil sans survol ni clic (SC-003)
+- [X] T039 [US2] Vérifié : `grep -rl is_pending_validation frontend/app frontend/components` ne renvoie que `athletes/[id]/page.tsx` — `/resultats`, `/courses/[id]` et `/club` n'affichent plus ces lignes du tout depuis la Phase 2, confirmé plutôt que supposé
 
 **Checkpoint**: US1 et US2 fonctionnent indépendamment. L'arbitrage Q1 est vérifiable de bout en bout.
 
@@ -167,19 +172,19 @@ de course à pied dans l'encart temps).
 
 ### Tests for User Story 3
 
-- [ ] T040 [P] [US3] Test d'idempotence : `normalize_event_type` rend tel quel chacun des 13 nouveaux slugs, dans `backend/tests/test_classify.py`
-- [ ] T041 [P] [US3] Test des bases multi-mots : `_sport_base("swim-bike-m")` rend `swim-bike` (et non `swim`), idem `cross-triathlon` et `raid-multisport` ; et `build_splits` d'un `swim-bike` ne produit **aucune** clé de course à pied — dans `backend/tests/test_services/test_mapping.py`
+- [X] T040 [P] [US3] Test d'idempotence : `normalize_event_type` rend tel quel chacun des 13 nouveaux slugs, dans `backend/tests/test_classify.py`
+- [X] T041 [P] [US3] Test des bases multi-mots : `_sport_base("swim-bike-m")` rend `swim-bike` (et non `swim`), idem `cross-triathlon` et `raid-multisport` ; et `build_splits` d'un `swim-bike` ne produit **aucune** clé de course à pied — dans `backend/tests/test_services/test_mapping.py`
 
 ### Implémentation
 
-- [ ] T042 [P] [US3] Ajouter les 13 slugs à `CANONICAL_TYPES` dans `backend/app/scrapers/classify.py` (liste exacte : data-model.md §6) — et rien d'autre dans ce fichier, cf. research.md D3
-- [ ] T043 [P] [US3] Ajouter `swim-bike`, `cross-triathlon` et `raid-multisport` à `_MULTI_WORD_BASES` dans `backend/app/services/mapping.py`
-- [ ] T044 [US3] Ajouter le gabarit `swim-bike` (`swim` / `t1` / `bike`, **sans** course à pied) à `_SPLIT_KEYS_BY_SPORT` dans `backend/app/services/mapping.py`, et trancher celui de `raid-multisport` (dépend de T043)
-- [ ] T045 [P] [US3] Ajouter les 13 libellés à `EVENT_TYPE_LABELS` dans `frontend/lib/constants.ts` — `EVENT_TYPE_OPTIONS` s'en déduit seul
-- [ ] T046 [US3] Implémenter la sélection en deux temps (discipline → format) dans `frontend/components/scrape/ManualResultForm.tsx`, avec `ui/select` plutôt que le `<select>` nu actuel (research.md D8)
-- [ ] T047 [US3] Rendre la précision obligatoire quand le format vaut « Autre », par `superRefine` sur le schéma zod de `frontend/components/scrape/ManualResultForm.tsx`, et l'envoyer en `format_label`
-- [ ] T048 [US3] Afficher un champ de distance totale (→ `distance_km` existant) à la place du format pour les disciplines sans format, dans `frontend/components/scrape/ManualResultForm.tsx`
-- [ ] T049 [P] [US3] Étendre les tests de `frontend/components/scrape/ManualResultForm.test.tsx` : 8 disciplines proposées, format conditionnel, précision bloquante, distance totale
+- [X] T042 [P] [US3] Ajouter les 13 slugs à `CANONICAL_TYPES` dans `backend/app/scrapers/classify.py` (liste exacte : data-model.md §6) — et rien d'autre dans ce fichier, cf. research.md D3
+- [X] T043 [P] [US3] Ajouter `swim-bike`, `cross-triathlon` et `raid-multisport` à `_MULTI_WORD_BASES` dans `backend/app/services/mapping.py`
+- [X] T044 [US3] Ajouter le gabarit `swim-bike` (`swim` / `t1` / `bike`, **sans** course à pied) à `_SPLIT_KEYS_BY_SPORT` dans `backend/app/services/mapping.py` ; `raid-multisport` tranché à `{}` (aucun découpage prévisible), `cross-triathlon` sans entrée (le gabarit par défaut est déjà juste)
+- [X] T045 [P] [US3] Ajouter les 13 libellés à `EVENT_TYPE_LABELS` dans `frontend/lib/constants.ts`, plus `MANUAL_ENTRY_DISCIPLINES`/`_WITH_FORMAT`/`_FORMATS`/`_TIME_FIELDS` — non prévus dans le libellé initial mais nécessaires pour piloter la sélection en deux temps et l'encart temps du formulaire
+- [X] T046 [US3] Implémenté la sélection en deux temps (discipline → format) dans `frontend/components/scrape/ManualResultForm.tsx` — **avec un `<select>` natif**, pas `ui/select` (déviation assumée, cf. note de fin de Phase 3)
+- [X] T047 [US3] Rendu la précision obligatoire quand le format vaut « Autre », par `superRefine` sur le schéma zod, envoyée en `format_label`
+- [X] T048 [US3] Ajouté un champ de distance totale (→ `distance_km`) à la place du format pour les disciplines sans format — **`distance_km` a dû être ajouté à `ParticipationCreate`/`ScrapedResult`/`_to_scraped`**, absent du schéma d'API avant cette tâche (gap découvert, cf. contracts/participations-api.md à mettre à jour)
+- [X] T049 [P] [US3] Étendu `ManualResultForm.test.tsx` : 8 disciplines proposées, format conditionnel, précision bloquante, distance totale, encart temps adapté (Swim Bike sans course à pied)
 
 **Checkpoint**: les trois user stories fonctionnent indépendamment.
 
@@ -196,38 +201,44 @@ temps vides ; enregistrer un abandon sans temps ni place.
 
 ### Tests for User Story 4
 
-- [ ] T050 [P] [US4] Tests du choix individuel/collectif (défaut, champ conditionnel, valeur non conservée au retour) dans `frontend/components/scrape/ManualResultForm.test.tsx`
-- [ ] T051 [P] [US4] Tests du statut sportif (défaut « terminée », abandon enregistrable sans temps ni place) dans `frontend/components/scrape/ManualResultForm.test.tsx`
-- [ ] T052 [P] [US4] Test de l'encart temps : facultatif, et adapté à la discipline choisie, dans `frontend/components/scrape/ManualResultForm.test.tsx`
-- [ ] T071 [P] [US4] Test du cas limite « changement de discipline après saisie des temps » : remplir les temps d'un triathlon puis basculer sur une discipline sans natation → le temps de natation n'est **pas** envoyé à l'enregistrement, dans `frontend/components/scrape/ManualResultForm.test.tsx`
-- [ ] T053 [P] [US4] Test backend : un `status` transmis prime sur l'heuristique de `derive_status`, notamment un `DNS` sans temps qui ne doit **pas** devenir `DNF`, dans `backend/tests/test_services/test_mapping.py`
-- [ ] T054 [P] [US4] Test backend : une saisie portant un `evidence_url` crée une épreuve **sans aucune** `CourseSource` (research.md D5), dans `backend/tests/test_api/test_participations_api.py`
+- [X] T050 [P] [US4] Tests du choix individuel/collectif (défaut, champ conditionnel, valeur non conservée au retour) dans `frontend/components/scrape/ManualResultForm.test.tsx`
+- [X] T051 [P] [US4] Tests du statut sportif (défaut « terminée », abandon enregistrable sans temps ni place) dans `frontend/components/scrape/ManualResultForm.test.tsx`
+- [X] T052 [P] [US4] Test de l'encart temps : facultatif, et adapté à la discipline choisie, dans `frontend/components/scrape/ManualResultForm.test.tsx`
+- [X] T071 [P] [US4] Test du cas limite « changement de discipline après saisie des temps » : remplir les temps d'un triathlon puis basculer sur une discipline sans natation → le temps de natation n'est **pas** envoyé à l'enregistrement, dans `frontend/components/scrape/ManualResultForm.test.tsx`
+- [X] T053 [P] [US4] **Déjà couvert** par `test_derive_status_respects_explicit_status` (préexistant, non écrit dans cette feature) : `derive_status(_scraped(status="DNS"))` sans temps rend déjà `"DNS"`, pas `"DNF"`. Aucun code à changer — `derive_status` respectait déjà un statut explicite.
+- [X] T054 [P] [US4] Test backend : une saisie portant un `evidence_url` crée une épreuve **sans aucune** `CourseSource` (research.md D5), dans `backend/tests/test_api/test_participations_api.py`
 
 ### Implémentation
 
-- [ ] T055 [US4] Ajouter le champ « place générale » (facultatif, → `rank_overall`) dans `frontend/components/scrape/ManualResultForm.tsx`
-- [ ] T056 [US4] Ajouter le choix individuel/collectif (→ `is_relay`, défaut individuel) et le champ conditionnel « nom de l'équipe » (→ `team_name`, obligatoire si collectif) dans `frontend/components/scrape/ManualResultForm.tsx`
-- [ ] T057 [US4] Ajouter le choix de statut sportif (terminée / abandon / forfait, défaut terminée) dans `frontend/components/scrape/ManualResultForm.tsx`
-- [ ] T058 [US4] Regrouper les champs de temps dans un encart distinct, adapté à la discipline et entièrement facultatif, dans `frontend/components/scrape/ManualResultForm.tsx` — et **purger les temps devenus sans objet** au changement de discipline, plutôt que de les envoyer en silence (cas limite de la spec, vérifié par T071)
-- [ ] T059 [US4] Ajouter le champ « lien vers les résultats » (→ `evidence_url`) dans `frontend/components/scrape/ManualResultForm.tsx`
-- [ ] T060 [US4] Cesser de passer l'URL collée en `source_url` : `defaultUrl` alimente désormais `evidence_url`, dans `frontend/components/scrape/TcnScrapeForm.tsx` et `frontend/components/scrape/ManualResultForm.tsx` (research.md D5)
-- [ ] T061 [P] [US4] Rendre `evidence_url` en `<a>` **uniquement** pour une valeur `http`/`https` reconnue, en texte brut sinon (data-model.md §5), dans `frontend/app/athletes/[id]/page.tsx`
-- [ ] T062 [P] [US4] Ajuster `frontend/components/scrape/TcnScrapeForm.test.tsx` au nouveau contrat de `defaultUrl`
+- [X] T055 [US4] Ajouté le champ « place générale » (facultatif, → `rank_overall`) dans `ManualResultForm.tsx`
+- [X] T056 [US4] Ajouté le choix individuel/collectif (→ `is_relay`, défaut individuel) et le champ conditionnel « nom de l'équipe » (→ `team_name`, obligatoire si collectif) — **radios natifs**, pas `SegmentedControl` tcn/ (cohérent avec le choix de rester sur `ui/` pour ce fichier)
+- [X] T057 [US4] Ajouté le choix de statut sportif (terminée / abandon / forfait, défaut terminée)
+- [X] T058 [US4] Regroupé les champs de temps dans un `<fieldset>` distinct, adapté à la discipline et entièrement facultatif ; les temps sans objet sont **purgés au submit** plutôt qu'à la saisie (même résultat côté API, moins d'effets de bord React)
+- [X] T059 [US4] Ajouté le champ « lien vers les résultats » (→ `evidence_url`)
+- [X] T060 [US4] `defaultUrl` alimente désormais `evidence_url` (`defaultValues` de `useForm`) ; le formulaire n'a plus de champ `source_url` du tout — `TcnScrapeForm.tsx` n'a nécessité aucun changement, son unique ligne `<ManualResultForm defaultUrl={url} .../>` couvrant déjà le nouveau contrat
+- [X] T061 [P] [US4] `evidence_url` rendu en `<a target="_blank">` uniquement si `isHttpUrl()` (réutilisé depuis `lib/utils/url.ts`, pas réimplémenté), en ligne séparée du `<Link>` de la ligne — un `<a>` imbriqué dans un autre est invalide en HTML
+- [X] T062 [P] [US4] Vérifié : `TcnScrapeForm.test.tsx` n'asserte jamais sur `source_url`/`evidence_url`, les 12 tests existants passent sans modification
 
 **Checkpoint**: les quatre user stories sont complètes.
+
+**Gaps découverts en cours d'implémentation, corrigés dans le même lot** :
+- `distance_km` manquait à `ParticipationCreate`/`ScrapedResult`/`_to_scraped` (T048) — ajouté, testé (`test_distance_km_saisie_est_transmise_a_l_epreuve`).
+- `server_default="false"` (chaîne) sur SQLite se relit `True` via l'ORM — détecté par le test « aucun backfill » de la Phase 2, corrigé en `sa.false()`.
+- `useForm<FormValues>` générique explicite incompatible avec les `.default(...)` zod (erreur TypeScript en build) — retiré, RHF infère depuis le resolver.
+- `watch()` incompatible avec le React Compiler (warning ESLint) — remplacé par `useWatch()`.
 
 ---
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T063 [P] Documenter les 4 colonnes et les deux dimensions d'état dans `backend/app/models/AGENTS.md`
-- [ ] T064 [P] Mettre à jour la liste des types d'épreuve en pied de `backend/app/scrapers/AGENTS.md` (les 13 slugs)
-- [ ] T065 [P] Documenter l'invariant d'exclusion — les 5 sites filtrés et les 6 non filtrés — dans `backend/app/api/AGENTS.md`
-- [ ] T072 [P] Consigner `PendingBadge` dans l'inventaire de `components/tcn/` de `frontend/AGENTS.md` — le fichier tient la frontière `tcn/` ÷ `ui/` et doit rester le relevé exact de ce qui vit de chaque côté
-- [ ] T066 Dérouler `quickstart.md` de bout en bout, §2 à §8, y compris la contre-épreuve du §6 (bascule manuelle vers l'état validé)
-- [ ] T067 Lancer `uv run ruff check .` depuis `backend/`, `npm run lint` et `npm run build` depuis `frontend/`
-- [ ] T068 Lancer la suite complète (`uv run pytest -m "not integration"` et `npm test`) et comparer aux compteurs relevés en T002
-- [ ] T069 Ouvrir la PR avec `Closes #270` et une section « Test plan » portant les commandes de T067 et T068
+- [X] T063 [P] Documenté les 4 colonnes et les deux dimensions d'état dans `backend/app/models/AGENTS.md`
+- [X] T064 [P] Mis à jour la liste des types d'épreuve en pied de `backend/app/scrapers/AGENTS.md` (les 13 slugs)
+- [X] T065 [P] Documenté l'invariant d'exclusion — les 5 sites filtrés et les 6 non filtrés — dans `backend/app/api/AGENTS.md`
+- [X] T072 [P] Consigné `PendingBadge` dans l'inventaire `tcn/` de `frontend/AGENTS.md`, et noté que `ManualResultForm` reste sur `ui/` malgré sa refonte
+- [~] T066 **Partiellement fait** : la vérification automatisable de `quickstart.md` §2-§7 est couverte par les tests (migration aller-retour, exclusion des 5 sites + symétrique, discipline/format, individuel-collectif, evidence_url sans source). **Non fait** : le parcours navigateur réel (§3-§5, `npm run dev` + clics) — non exécuté dans cette session, à faire avant de sortir la PR du statut draft.
+- [X] T067 `uv run ruff check .` (backend) et `npm run lint` (frontend) propres. `npm run build` réussit — seule erreur restante : `.next/dev/types/validator.ts`, artefact préexistant et gitignoré référençant une route absente du dépôt (`app/courses/[id]/participations/[participationId]`, une autre feature), sans rapport avec ce code
+- [X] T068 Suite complète : **3349 tests backend** (3327 après Phase 2 + 22 nouveaux US3/US4/Phase7) et **677 tests frontend** (656 après Phase 1 + 21 nouveaux), tous verts
+- [ ] T069 PR #336 existante (draft) mise à jour par commits successifs ; la description reste à actualiser avec le bilan complet avant de sortir du statut draft
 
 ---
 

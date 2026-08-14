@@ -32,6 +32,7 @@ def _to_scraped(body: ParticipationCreate) -> ScrapedResult:
         event_date=_parse_date(body.event_date),
         event_type=body.event_type,
         format_label=body.format_label,
+        distance_km=body.distance_km,
         rank_overall=body.rank_overall,
         rank_category=body.rank_category,
         rank_gender=body.rank_gender,

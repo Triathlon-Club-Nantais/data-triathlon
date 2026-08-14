@@ -172,6 +172,39 @@ def test_build_splits_cyclisme_single_bike():
     assert mapping.build_splits(s) == {"bike": "03:10:00"}
 
 
+# --- Nouvelles disciplines de la saisie manuelle (#270) ---
+
+
+def test_sport_base_reconnait_les_bases_multi_mots_nouvelles():
+    # Piège central : _sport_base coupe au premier tiret. Sans déclaration dans
+    # _MULTI_WORD_BASES, "swim-bike-m" donnerait la base "swim".
+    assert mapping._sport_base("swim-bike-m") == "swim-bike"
+    assert mapping._sport_base("swim-bike") == "swim-bike"
+    assert mapping._sport_base("cross-triathlon") == "cross-triathlon"
+    assert mapping._sport_base("raid-multisport") == "raid-multisport"
+
+
+def test_build_splits_swim_bike_omet_la_course_a_pied():
+    s = _scraped(
+        event_type="swim-bike-m",
+        swim_time="00:20:00", t1_time="00:02:00", bike_time="01:00:00",
+        run_time="00:30:00",  # sans objet sur cette discipline : doit être ignoré
+    )
+    assert mapping.build_splits(s) == {
+        "swim": "00:20:00", "t1": "00:02:00", "bike": "01:00:00",
+    }
+
+
+def test_build_splits_cross_triathlon_retombe_sur_le_gabarit_par_defaut():
+    s = _scraped(
+        event_type="cross-triathlon",
+        swim_time="00:20:00", bike_time="01:00:00", run_time="00:40:00",
+    )
+    assert mapping.build_splits(s) == {
+        "swim": "00:20:00", "bike": "01:00:00", "run": "00:40:00",
+    }
+
+
 def test_get_or_create_course_extracts_distance_km(db_session):
     s = _scraped(event_name="Trail des Forts 23 km", event_type="trail")
     course = mapping.get_or_create_course(db_session, s, event_url="http://x").course

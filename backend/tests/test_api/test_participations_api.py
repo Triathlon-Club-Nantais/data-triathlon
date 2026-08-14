@@ -101,6 +101,16 @@ def test_is_pending_validation_est_force_a_la_creation(client):
     assert resp.json()["is_pending_validation"] is True
 
 
+def test_distance_km_saisie_est_transmise_a_l_epreuve(client):
+    """FR-009 — distance totale des disciplines sans format normalisé."""
+    payload = _payload(bib="88")
+    payload["event_type"] = "raid-multisport"
+    payload["distance_km"] = 42.5
+    resp = client.post("/api/v1/participations", json=payload)
+    assert resp.status_code == 201
+    assert resp.json()["course"]["distance_km"] == 42.5
+
+
 def test_sortie_porte_les_nouveaux_champs(client):
     payload = _payload(bib="99")
     payload["team_name"] = "Les Foulées"
@@ -109,6 +119,23 @@ def test_sortie_porte_les_nouveaux_champs(client):
     body = resp.json()
     assert body["team_name"] == "Les Foulées"
     assert body["evidence_url"] == "https://club.example/resultats"
+
+
+def test_evidence_url_ne_cree_aucune_source_de_scraping(client, db_session):
+    """research.md D5 — le lien de vérification n'est jamais une CourseSource :
+    sinon `attach` la poserait active sur cette épreuve neuve, qui entrerait
+    dans le circuit de re-scrape avec `provider="manuel"`."""
+    from app.repositories import course_repository
+
+    payload = _payload(bib="100", nom="VERIF")
+    payload["evidence_url"] = "https://club.example/resultats-officiels"
+    resp = client.post("/api/v1/participations", json=payload)
+    course_id = resp.json()["course"]["id"]
+
+    course = course_repository.get(db_session, course_id)
+    assert course.sources == []
+    assert course.provider == ""
+    assert course.source_url == ""
 
 
 def test_is_tcn_expose_le_verdict_du_backend(client, db_session):

@@ -90,6 +90,30 @@ def test_classement_epreuve_inconnue(client):
     assert client.get("/api/v1/courses/999999").status_code == 404
 
 
+def test_classement_et_synthese_excluent_une_participation_pendante(
+    client, epreuve, db_session
+):
+    """#270, FR-021 — au niveau contrat HTTP, pas seulement au repository."""
+    avant = client.get(f"/api/v1/courses/{epreuve.id}?page_size=all").json()
+    synthese_avant = client.get(f"/api/v1/courses/{epreuve.id}/summary").json()
+
+    athlete = athlete_repository.get_or_create(
+        db_session, nom="PENDANT", prenom="Test", club="ASPTT"
+    )
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=epreuve.id, bib_number="pendant",
+        club="ASPTT", status="finisher", rank_overall=1, total_time="01:00:00",
+        is_pending_validation=True,
+    )
+    db_session.commit()
+
+    apres = client.get(f"/api/v1/courses/{epreuve.id}?page_size=all").json()
+    synthese_apres = client.get(f"/api/v1/courses/{epreuve.id}/summary").json()
+
+    assert apres["total"] == avant["total"]
+    assert synthese_apres["total"] == synthese_avant["total"]
+
+
 # ── GET /courses/{id}/summary — synthèse d'épreuve entière ───────────────────
 
 

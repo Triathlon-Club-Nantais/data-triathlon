@@ -38,6 +38,9 @@ function part(over: Partial<Participation> & { id: number }): Participation {
     total_time: "01:59:00",
     status: over.status ?? "finisher",
     is_relay: false,
+    team_name: over.team_name ?? null,
+    evidence_url: over.evidence_url ?? null,
+    is_pending_validation: over.is_pending_validation ?? false,
     splits: null,
     created_at: null,
     course_finishers: over.course_finishers,
@@ -254,5 +257,34 @@ describe("AthletePage", () => {
 
     expect(container.querySelector("a[href='/courses/1/participations/1']")).not.toBeNull();
     expect(container.querySelector("a[href='/courses/1']")).toBeNull();
+  });
+
+  // --- Saisie manuelle et validation (#270) ---
+
+  it("marque une participation en attente de validation, et pas les autres (FR-019)", async () => {
+    await renderAthlete([
+      part({ id: 1, is_pending_validation: true }),
+      part({ id: 2, is_pending_validation: false }),
+    ]);
+
+    const rows = screen.getAllByText(/en attente de validation/i);
+    expect(rows).toHaveLength(1);
+    const pendingRow = rows[0].closest("a[href='/courses/1/participations/1']");
+    expect(pendingRow).not.toBeNull();
+  });
+
+  it("rend le lien de vérification cliquable quand c'est une URL http(s)", async () => {
+    await renderAthlete([
+      part({ id: 1, evidence_url: "https://club.example/resultats" }),
+    ]);
+
+    const lien = screen.getByRole("link", { name: /voir la preuve/i });
+    expect(lien).toHaveAttribute("href", "https://club.example/resultats");
+  });
+
+  it("n'affiche pas de lien cliquable pour une valeur qui n'est pas une URL http(s)", async () => {
+    await renderAthlete([part({ id: 1, evidence_url: "javascript:alert(1)" })]);
+
+    expect(screen.queryByRole("link", { name: /voir la preuve/i })).not.toBeInTheDocument();
   });
 });
