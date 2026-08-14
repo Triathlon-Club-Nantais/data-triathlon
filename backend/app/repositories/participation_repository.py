@@ -270,8 +270,13 @@ def update(db: Session, participation: Participation, **fields) -> Participation
     return participation
 
 
-def _season_clause(seasons: list[int]):
-    """OU de plages de dates pour les saisons demandées (event_date NULL exclu)."""
+def season_clause(seasons: list[int]):
+    """OU de plages de dates pour les saisons demandées (event_date NULL exclu).
+
+    Publique (pas de `_`) : réutilisée telle quelle par `athlete_repository`
+    (#274) plutôt que recopiée — `core/season.py` reste pur (aucune dépendance
+    SQLAlchemy), donc cette clause vit ici, au plus près de `Course.event_date`.
+    """
     bounds = [season_bounds(y) for y in seasons]
     return or_(
         *[and_(Course.event_date >= start, Course.event_date <= end) for start, end in bounds]
@@ -318,7 +323,7 @@ def _apply_filters(
     if date_to:
         q = q.filter(Course.event_date <= date_to)
     if seasons:
-        q = q.filter(_season_clause(seasons))
+        q = q.filter(season_clause(seasons))
     if federal_only:
         q = q.filter(federal_clause(Course.event_type))
     return q
@@ -537,7 +542,7 @@ def for_stats(
     if seasons or federal_only:
         q = q.join(Course, Participation.course_id == Course.id)
     if seasons:
-        q = q.filter(_season_clause(seasons))
+        q = q.filter(season_clause(seasons))
     if federal_only:
         q = q.filter(federal_clause(Course.event_type))
     return q.all()

@@ -6,6 +6,7 @@ import type { Season } from "@/lib/types";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => "/dashboard",
   useSearchParams: () => new URLSearchParams(),
 }));
 
@@ -18,14 +19,18 @@ const SEASONS: Season[] = [
 describe("buildSeasonsHref", () => {
   it("omet le paramètre quand seule la saison en cours est sélectionnée", () => {
     // saison en cours par défaut → pas de ?seasons
-    const href = buildSeasonsHref([currentSeason()], undefined);
+    const href = buildSeasonsHref([currentSeason()], undefined, "/dashboard");
     expect(href === "/dashboard" || href === "/dashboard?").toBe(true);
     expect(href).not.toContain("seasons=");
   });
   it("sérialise plusieurs saisons et préserve le scope", () => {
-    const href = buildSeasonsHref([2025, 2023], "club");
+    const href = buildSeasonsHref([2025, 2023], "club", "/dashboard");
     expect(href).toContain("seasons=2025%2C2023");
     expect(href).toContain("scope=club");
+  });
+  it("respecte le pathname fourni (#274 — réutilisé hors /dashboard)", () => {
+    const href = buildSeasonsHref([2023], undefined, "/club/athletes");
+    expect(href).toBe("/club/athletes?seasons=2023");
   });
 });
 

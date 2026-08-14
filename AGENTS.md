@@ -187,5 +187,5 @@ Guidelines d'écriture de code, valables dans les trois voies du workflow IA.
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/20260814-164633-recherche-athlete-accessible/plan.md
+at specs/20260814-221102-athletes-par-saison/plan.md
 <!-- SPECKIT END -->
