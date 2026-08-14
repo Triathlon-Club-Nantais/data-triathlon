@@ -26,10 +26,8 @@ frontend/.env.local
 # Démarrer sur les données déjà importées plutôt que sur un schéma vide.
 backend/triathlon.db
 
-# Copie 12,8 s contre 34,3 s de `npm ci` ; périmé si package-lock.json change.
-# Sans slash final : un chemin littéral, pas un motif de répertoire.
-frontend/node_modules
-
-# Exclus exprès : backend/.venv (`uv sync` le refait en 0,21 s, et un venv n'est pas
-# déplaçable), .dev-backend.json (propre à chaque worktree), et
-# .claude/settings.local.json (déjà partagé avec le dépôt principal).
+# Exclus exprès : frontend/node_modules (#337 — la copie perd node_modules/.bin/,
+# `npm install` devient nécessaire à chaque worktree frontend), backend/.venv
+# (`uv sync` le refait en 0,21 s, et un venv n'est pas déplaçable),
+# .dev-backend.json (propre à chaque worktree), et .claude/settings.local.json
+# (déjà partagé avec le dépôt principal).
