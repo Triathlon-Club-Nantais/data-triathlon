@@ -777,7 +777,7 @@ def import_event(
 
 def iter_import_event(
     db: Session, url: str, settings: Settings, force: bool = False, persist: bool = True,
-    *, single_heat: bool = False, use_cache_probe: bool = True,
+    *, single_heat: bool = False,
 ) -> Iterator[dict]:
     """
     Générateur de progression pour le SSE. Émet des dicts de phase :
@@ -794,10 +794,10 @@ def iter_import_event(
     force=True saute le cache TTL (`_cached_result`).
     persist=False traverse tout le chemin de persistance (scrape, add, finalize)
     puis annule la transaction (dry-run) : rien n'est écrit.
-    use_cache_probe=False désarme en plus le cache TTL **par heat** d'un
-    provider fan-out (#118, research.md R2) — même paramètre que `_scrape_all`,
-    propagé jusqu'à `_scrape_all_streaming`. Défaut `True` : inchangé pour tout
-    appelant existant (import public, `run_batch`).
+
+    Pas de `use_cache_probe` ici : #118 (re-scrape admin) appelle
+    `_scrape_all_streaming` **directement**, pas ce générateur — l'ajouter ici
+    aurait été un paramètre sans appelant (revue de code, retiré).
     """
     try:
         url = _validate_url(url)
@@ -822,9 +822,7 @@ def iter_import_event(
         else:
             # Chemin nominal : yield les événements intermédiaires du fan-out
             # via `yield from`, récupère `(results, trace)` en fin de générateur.
-            results, trace = yield from _scrape_all_streaming(
-                url, db, settings, use_cache_probe=use_cache_probe
-            )
+            results, trace = yield from _scrape_all_streaming(url, db, settings)
     except (ProviderNotSupportedError, ScraperError) as exc:
         yield {"phase": "error", "message": exc.message}
         return
