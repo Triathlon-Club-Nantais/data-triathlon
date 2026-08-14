@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
@@ -26,7 +26,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 });
 
 import { AppNav } from "./AppNav";
-import { readAthlete } from "./AthletePicker";
+import { clearAthlete, readAthlete, writeAthlete } from "./AthletePicker";
 
 function afficher(session: SessionUser | null) {
   if (session) getSession.mockResolvedValue(session);
@@ -169,6 +169,68 @@ describe("AppNav — actions primaires", () => {
     const modale = await screen.findByRole("dialog");
     expect(within(modale).getByText("Sélectionne ton nom")).toBeInTheDocument();
     expect(within(modale).getByText("Saisis au moins 2 lettres de ton nom.")).toBeInTheDocument();
+  });
+
+  it("garde la recherche accessible en plus de la tuile, athlète retenu, rail déplié (#323)", async () => {
+    window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 12, prenom: "Jean", nom: "Dupont" }));
+    afficher(null);
+    await deplier();
+
+    // Scopé au rail : la barre mobile porte toujours son propre bouton
+    // loupe, indépendant de l'état de sélection, et ne doit pas fausser
+    // l'assertion sur le rail lui-même.
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    expect(within(rail).getByRole("button", { name: "Rechercher un athlète" })).toBeInTheDocument();
+    expect(within(rail).getByRole("link", { name: "Mon profil — Jean Dupont" })).toBeInTheDocument();
+  });
+
+  it("garde une icône de recherche cliquable, athlète retenu, rail replié (#323)", async () => {
+    // Le cas bloquant de l'issue #323 : seul le raccourci clavier ouvrait la
+    // recherche une fois un athlète retenu et le rail replié — aucune icône
+    // n'était rendue.
+    window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 12, prenom: "Jean", nom: "Dupont" }));
+    afficher(null);
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    await userEvent.click(within(rail).getByRole("button", { name: "Rechercher un athlète" }));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("ouvre le picker au clavier même avec un athlète retenu", async () => {
+    window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 12, prenom: "Jean", nom: "Dupont" }));
+    afficher(null);
+    await userEvent.keyboard("{Control>}k{/Control}");
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("affiche aussi la recherche et la tuile dans le tiroir mobile, athlète retenu", async () => {
+    window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 12, prenom: "Jean", nom: "Dupont" }));
+    afficher(null);
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+
+    const tiroir = await screen.findByRole("dialog");
+    expect(within(tiroir).getByRole("button", { name: "Rechercher un athlète" })).toBeInTheDocument();
+    expect(within(tiroir).getByRole("link", { name: "Mon profil — Jean Dupont" })).toBeInTheDocument();
+  });
+
+  it("se resynchronise sur une écriture externe, sans passer par son propre picker (#323)", async () => {
+    // Ce qui se passe réellement quand le bouton de la page profil
+    // (`SelectAthleteButton`) écrit la sélection pendant qu'`AppNav` est déjà
+    // monté ailleurs sur la page — aucune interaction avec le picker local ici.
+    afficher(null);
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    expect(within(rail).queryByRole("link", { name: /^Mon profil —/ })).not.toBeInTheDocument();
+
+    act(() => writeAthlete({ id: 12, prenom: "Jean", nom: "Dupont" }));
+    expect(await within(rail).findByRole("link", { name: "Mon profil — Jean Dupont" })).toBeInTheDocument();
+    // La recherche reste là, en plus de la tuile — jamais remplacée.
+    expect(within(rail).getByRole("button", { name: "Rechercher un athlète" })).toBeInTheDocument();
+
+    act(() => clearAthlete());
+    await waitFor(() =>
+      expect(within(rail).queryByRole("link", { name: /^Mon profil —/ })).not.toBeInTheDocument(),
+    );
   });
 });
 

@@ -2,12 +2,12 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type CSSProperties } from "react";
-import { ChevronRight, LogIn, Menu, PanelLeft, Plus, Search } from "lucide-react";
+import { LogIn, Menu, PanelLeft, Plus, Search } from "lucide-react";
 import { Avatar } from "@/components/tcn";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useSession } from "@/lib/queries/auth";
-import { AthletePicker, nomComplet, readAthlete, writeAthlete, type PickedAthlete } from "./AthletePicker";
+import { AthletePicker, ATHLETE_CHANGED_EVENT, nomComplet, readAthlete, writeAthlete, type PickedAthlete } from "./AthletePicker";
 import { NAV, ROLE, type NavItem, type NavSection } from "./nav.config";
 import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
 
@@ -75,6 +75,16 @@ export function AppNav() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Se resynchronise sur toute écriture faite ailleurs (bouton de la page
+  // profil, #323) — se redéclenche aussi sur les écritures faites par le
+  // picker local (l.288-293) : re-lecture idempotente de la même valeur, pas
+  // un bug à corriger.
+  useEffect(() => {
+    const onChange = () => setClient((c) => ({ ...c, athlete: readAthlete() }));
+    window.addEventListener(ATHLETE_CHANGED_EVENT, onChange);
+    return () => window.removeEventListener(ATHLETE_CHANGED_EVENT, onChange);
   }, []);
 
   function setExpanded(next: boolean) {
@@ -365,7 +375,58 @@ function NavContent({
           {expanded && <span>Ajouter une course</span>}
         </Link>
 
-        {athlete ? (
+        {/* L'entrée recherche reste rendue dans tous les cas — athlète
+            retenu ou non — pour ne jamais redevenir inaccessible autrement
+            que par le raccourci clavier (issue #323). La tuile de l'athlète
+            retenu s'affiche en complément, jamais à sa place. */}
+        <button
+          type="button"
+          onClick={onOpenPicker}
+          title={expanded ? undefined : `Rechercher un athlète (${kbd})`}
+          aria-label="Rechercher un athlète"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            height: 44,
+            padding: padAction,
+            justifyContent: justify,
+            borderRadius: "var(--tcn-radius-lg)",
+            background: "var(--tcn-surface)",
+            color: "var(--tcn-ink)",
+            border: "1.5px solid var(--tcn-ink)",
+            fontFamily: "var(--tcn-font-body)",
+            fontWeight: 700,
+            fontSize: 14,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            cursor: "pointer",
+          }}
+        >
+          <Search size={18} style={{ flex: "none" }} />
+          {expanded && (
+            <>
+              <span style={{ flex: 1, textAlign: "left" }}>Rechercher un athlète</span>
+              <span
+                style={{
+                  flex: "none",
+                  padding: "2px 7px",
+                  borderRadius: "var(--tcn-radius-sm)",
+                  background: "var(--tcn-fill)",
+                  border: "1px solid var(--tcn-border)",
+                  fontFamily: "var(--tcn-font-cond)",
+                  fontWeight: 700,
+                  fontSize: 11,
+                  color: "var(--tcn-text-muted)",
+                }}
+              >
+                {kbd}
+              </span>
+            </>
+          )}
+        </button>
+
+        {athlete && (
           <div
             style={{
               display: "flex",
@@ -388,77 +449,20 @@ function NavContent({
               <Avatar name={nomComplet(athlete)} size={30} style={{ boxShadow: "var(--tcn-shadow-orange)" }} />
             </Link>
             {expanded && (
-              <>
-                <Link
-                  href={`/athletes/${athlete.id}`}
-                  onClick={onNavigate}
-                  style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 14, color: "var(--tcn-orange-deep)", textDecoration: "none", ...tronque }}
-                >
-                  {/* Le prénom vient de l'API, jamais d'un découpage du nom
-                      complet : « Jean Gael » est **un** prénom, et
-                      `split(" ")[0]` n'en rendait que la moitié (#264). Repli
-                      sur le nom, faute de quoi la tuile n'aurait pas de
-                      libellé pour un athlète sans prénom renseigné. */}
-                  {athlete.prenom || athlete.nom}
-                </Link>
-                <button
-                  type="button"
-                  onClick={onOpenPicker}
-                  aria-label="Changer d'athlète"
-                  style={{ flex: "none", width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "var(--tcn-radius-pill)", background: "transparent", border: "none", color: "var(--tcn-orange)", cursor: "pointer" }}
-                >
-                  <ChevronRight size={15} />
-                </button>
-              </>
+              <Link
+                href={`/athletes/${athlete.id}`}
+                onClick={onNavigate}
+                style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 14, color: "var(--tcn-orange-deep)", textDecoration: "none", ...tronque }}
+              >
+                {/* Le prénom vient de l'API, jamais d'un découpage du nom
+                    complet : « Jean Gael » est **un** prénom, et
+                    `split(" ")[0]` n'en rendait que la moitié (#264). Repli
+                    sur le nom, faute de quoi la tuile n'aurait pas de
+                    libellé pour un athlète sans prénom renseigné. */}
+                {athlete.prenom || athlete.nom}
+              </Link>
             )}
           </div>
-        ) : (
-          <button
-            type="button"
-            onClick={onOpenPicker}
-            title={expanded ? undefined : `Rechercher un athlète (${kbd})`}
-            aria-label="Rechercher un athlète"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              height: 44,
-              padding: padAction,
-              justifyContent: justify,
-              borderRadius: "var(--tcn-radius-lg)",
-              background: "var(--tcn-surface)",
-              color: "var(--tcn-ink)",
-              border: "1.5px solid var(--tcn-ink)",
-              fontFamily: "var(--tcn-font-body)",
-              fontWeight: 700,
-              fontSize: 14,
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              cursor: "pointer",
-            }}
-          >
-            <Search size={18} style={{ flex: "none" }} />
-            {expanded && (
-              <>
-                <span style={{ flex: 1, textAlign: "left" }}>Rechercher un athlète</span>
-                <span
-                  style={{
-                    flex: "none",
-                    padding: "2px 7px",
-                    borderRadius: "var(--tcn-radius-sm)",
-                    background: "var(--tcn-fill)",
-                    border: "1px solid var(--tcn-border)",
-                    fontFamily: "var(--tcn-font-cond)",
-                    fontWeight: 700,
-                    fontSize: 11,
-                    color: "var(--tcn-text-muted)",
-                  }}
-                >
-                  {kbd}
-                </span>
-              </>
-            )}
-          </button>
         )}
       </div>
 

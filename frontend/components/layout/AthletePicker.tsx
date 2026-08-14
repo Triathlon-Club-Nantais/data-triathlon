@@ -17,6 +17,14 @@ export type PickedAthlete = { id: number; prenom: string; nom: string };
 
 const STORE = "tcn-athlete";
 
+/**
+ * Émis sur `window` après toute écriture effective du stock, pour que
+ * `AppNav` (ou tout autre abonné) se resynchronise sans rechargement de page
+ * — notamment depuis le bouton de sélection de la page profil (#323). Pas de
+ * payload : les abonnés relisent `readAthlete()`, seule source de vérité.
+ */
+export const ATHLETE_CHANGED_EVENT = "tcn-athlete-changed";
+
 /** Nom d'usage — `filter` couvre l'athlète dont un des deux champs est vide. */
 export function nomComplet(athlete: { prenom: string; nom: string }): string {
   return [athlete.prenom, athlete.nom].filter(Boolean).join(" ");
@@ -46,8 +54,19 @@ export function readAthlete(): PickedAthlete | null {
 export function writeAthlete(a: PickedAthlete) {
   try {
     window.localStorage.setItem(STORE, JSON.stringify(a));
+    window.dispatchEvent(new Event(ATHLETE_CHANGED_EVENT));
   } catch {
     /* mode privé, quota : le choix vaut alors pour la session en cours seule. */
+  }
+}
+
+/** Relâche l'athlète retenu — bouton de la page profil (#323). */
+export function clearAthlete() {
+  try {
+    window.localStorage.removeItem(STORE);
+    window.dispatchEvent(new Event(ATHLETE_CHANGED_EVENT));
+  } catch {
+    /* mode privé, quota : rien à relâcher côté stock. */
   }
 }
 
