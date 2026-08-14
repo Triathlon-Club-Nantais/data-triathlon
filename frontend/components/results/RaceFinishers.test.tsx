@@ -84,22 +84,22 @@ describe("RaceFinishers", () => {
     expect(screen.getByText("DNF")).toBeInTheDocument();
   });
 
-  it("ventile le pied de tableau : partants · finishers · abandons (pas « X finishers au total »)", () => {
+  it("ventile le pied de tableau : participants · finishers · abandons (pas « X finishers au total »)", () => {
     afficher();
-    expect(screen.getByText("3 partants · 1 finisher · 2 abandons")).toBeInTheDocument();
+    expect(screen.getByText("3 participants · 1 finisher · 2 abandons")).toBeInTheDocument();
   });
 
   it("ajoute les « indéterminés » au pied de tableau pour réconcilier avec le total", () => {
     afficher({ summary: synthese({ total: 4, finishers: 1, non_finishers: 1, unknown: 2 }) });
     expect(
-      screen.getByText("4 partants · 1 finisher · 1 abandon · 2 indéterminés"),
+      screen.getByText("4 participants · 1 finisher · 1 abandon · 2 indéterminés"),
     ).toBeInTheDocument();
   });
 
   it("prend son décompte dans la synthèse, pas dans la page affichée", () => {
     // Une page de 3 lignes sur une épreuve de 1811 : le pied annonce l'épreuve.
     afficher({ summary: synthese({ total: 1811, finishers: 1768, non_finishers: 43 }), total: 1811 });
-    expect(screen.getByText(/1811 partants/)).toBeInTheDocument();
+    expect(screen.getByText(/1811 participants/)).toBeInTheDocument();
   });
 
   // ── Pagination ─────────────────────────────────────────────────────────────

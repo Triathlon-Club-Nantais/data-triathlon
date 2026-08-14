@@ -440,9 +440,11 @@ export function RolePermissionsEditor() {
       <Accordion className="rounded-xl border px-4">
         {roles.data.map((role) => (
           <AccordionItem key={role.id} value={String(role.id)}>
-            <AccordionTrigger>
+            <AccordionTrigger className="cursor-pointer hover:no-underline">
               <span className="flex flex-wrap items-center gap-2">
-                <span className="font-semibold">{role.name}</span>
+                <span className="font-semibold group-hover/accordion-trigger:underline">
+                  {role.name}
+                </span>
                 {role.is_system && <Badge variant="outline">livré</Badge>}
                 {role.is_superuser && <Badge>superutilisateur</Badge>}
                 <span className="text-muted-foreground">{porteurs(role.holders)}</span>

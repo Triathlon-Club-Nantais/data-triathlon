@@ -166,6 +166,39 @@ describe("RolePermissionsEditor — lecture", () => {
     );
   });
 
+  it("ne souligne au survol que le nom du rôle, ni ses badges ni son décompte", async () => {
+    // La primitive porte `hover:underline` sur un déclencheur en `flex-1` : le
+    // trait courait sur toute la largeur de la ligne (#324). On ne réduit que
+    // le trait, jamais la cible cliquable.
+    afficher();
+
+    const ligne = await screen.findByRole("button", { name: /Administrateur/ });
+    expect(ligne).not.toHaveClass("hover:underline");
+    expect(ligne).toHaveClass("flex-1");
+    // Le trait pleine largeur tenait aussi lieu d'affordance. En le réduisant au
+    // nom, il fallait le second indice qui manquait : Tailwind v4 ne pose plus
+    // de `cursor` sur `button` (rien dans son preflight, rien dans globals.css),
+    // donc la ligne se survolait à la flèche.
+    expect(ligne).toHaveClass("cursor-pointer");
+    expect(screen.getByText("Administrateur")).toHaveClass(
+      "group-hover/accordion-trigger:underline",
+    );
+    // Le nom du groupe est le **contrat** avec la primitive, et c'est la seule
+    // pièce dont ce correctif dépende : `components/ui/` est une copie shadcn
+    // re-synchronisable, donc un renommage en amont est réaliste. Sans cette
+    // ligne, il laisse la suite verte et le soulignement mort.
+    expect(ligne).toHaveClass("group/accordion-trigger");
+    // Deuxième case de #324, affirmée de front plutôt que déduite. Restreint à
+    // la ligne visée : deux rôles de la fixture sont `is_system`, donc deux
+    // badges « livré » cohabitent à l'écran.
+    expect(within(ligne).getByText("livré")).not.toHaveClass(
+      "group-hover/accordion-trigger:underline",
+    );
+    expect(within(ligne).getByText("2 porteurs")).not.toHaveClass(
+      "group-hover/accordion-trigger:underline",
+    );
+  });
+
   it("groupe les pouvoirs par fonctionnalité, avec libellé et description en français", async () => {
     afficher();
     const panneau = await ouvrir("Validateur");
