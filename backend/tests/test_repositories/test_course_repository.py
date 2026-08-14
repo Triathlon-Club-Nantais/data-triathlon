@@ -1,6 +1,11 @@
 from datetime import date
 
+from sqlalchemy import func, select, text
+
+from app.core.time import utcnow
+from app.models.athlete import Athlete
 from app.models.course import Course
+from app.models.participation import Participation
 from app.repositories import course_repository
 
 
@@ -307,3 +312,72 @@ def test_delete_ne_touche_pas_les_epreuves_voisines(db_session):
 
     assert course_repository.get(db_session, voisine_id) is not None
     assert db_session.query(Participation).filter_by(course_id=voisine_id).count() == 2
+
+
+def test_le_filtre_scope_club_utilise_l_index_fonctionnel(db_session):
+    """Non-régression #351 : `_filtered(club_only=True)` ne balaie plus `participations`.
+
+    Sans index fonctionnel, `tcn_clause(Participation.club)` (huit fonctions SQL
+    imbriquées) ne peut être servi que ligne à ligne — mesuré 15-20x plus lent en
+    production sur ce chemin (876-1906 ms contre 92-109 ms, sondage #328). Ce test
+    verrouille le **plan de requête**, pas un temps d'exécution : à cette échelle,
+    SQLite en mémoire reste rapide même sans index (~13 ms mesurés sur la base de
+    dev, 20 300 lignes, cf. le commit) — un test chronométré ne détecterait donc
+    pas la régression qu'un retrait de l'index représenterait.
+
+    Volume comparable à l'ordre de grandeur du sondage (des milliers de lignes,
+    pas une poignée) : bulk-insert via le Core plutôt que le repository ligne à
+    ligne, dont chaque `flush()` serait un aller-retour à cette échelle.
+    """
+    course = course_repository.get_or_create(
+        db_session, name="Volume club", event_date=date(2026, 5, 18),
+        event_type="triathlon-m",
+    )
+    db_session.flush()
+
+    nb_participations = 3000
+    db_session.execute(
+        Athlete.__table__.insert(),
+        [
+            {"nom": f"Bulk{i}", "prenom": "Test", "gender": "", "birth_date": None,
+             "club": None, "created_at": utcnow()}
+            for i in range(nb_participations)
+        ],
+    )
+    db_session.flush()
+    athlete_ids = [
+        row[0]
+        for row in db_session.execute(
+            select(Athlete.id).where(Athlete.nom.like("Bulk%")).order_by(Athlete.id)
+        ).all()
+    ]
+    db_session.execute(
+        Participation.__table__.insert(),
+        [
+            {
+                "athlete_id": athlete_id,
+                "course_id": course.id,
+                "club": "Triathlon Club Nantais" if i % 50 == 0 else f"Autre Club {i}",
+                "bib_number": str(i),
+                "status": "finisher",
+                "created_at": utcnow(),
+            }
+            for i, athlete_id in enumerate(athlete_ids)
+        ],
+    )
+    db_session.flush()
+
+    qobj = course_repository._filtered(
+        db_session, name=None, event_type=None, club_only=True,
+        date_from=None, date_to=None,
+    )
+    # Même forme que la requête réellement journalisée « lente » dans le sondage :
+    # un `count(*)` enveloppant la sous-requête distincte, pas la liste paginée.
+    count_stmt = select(func.count()).select_from(qobj.statement.subquery())
+    compiled = count_stmt.compile(db_session.bind, compile_kwargs={"literal_binds": True})
+
+    with db_session.bind.connect() as conn:
+        plan = [tuple(row) for row in conn.execute(text(f"EXPLAIN QUERY PLAN {compiled}"))]
+
+    plan_text = " | ".join(str(row) for row in plan)
+    assert "ix_participations_club_normalized" in plan_text, plan_text

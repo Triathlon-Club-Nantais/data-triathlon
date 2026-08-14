@@ -12,7 +12,7 @@ sous-chaîne : « RACING CLUB NANTAIS » est un club nantais, pas le nôtre.
 """
 import re
 
-from sqlalchemy import func
+from sqlalchemy import column, func
 
 #: Libellé canonique affiché quand on parle du club — utilisé côté serveur pour
 #: fusionner les variantes scrapées dans « Top clubs » (issue #200). Le front
@@ -87,3 +87,31 @@ def tcn_clause(column):
     (le club inscrit sur la ligne de résultat) que `Athlete.club`.
     """
     return _normalise_sql(column).in_(sorted(TCN_CLUB_LABELS))
+
+
+#: Expression SQL de `_normalise_sql`, compilée en littéral DDL portable
+#: SQLite/Postgres (issue #351) — `replace`/`lower`/`trim` compilent à
+#: l'identique sur les deux moteurs, aucune branche `dialect.name` n'est donc
+#: nécessaire ici, à la différence des extensions Postgres (`pg_trgm`,
+#: `unaccent`). Source unique consommée par `Participation.__table_args__`
+#: **et** par la migration qui pose l'index fonctionnel : un seul texte, pas
+#: deux copies qui pourraient diverger silencieusement de `_normalise_sql`.
+#: Le nom de colonne générique `"club"` convient à `Participation.club`, seule
+#: colonne indexée par ce ticket (cf. issue #351, hors périmètre : `Athlete.club`).
+#:
+#: **Modifier `_normalise_sql` sans migration de reconstruction périme
+#: silencieusement l'index existant.** L'index fonctionnel `ix_participations_
+#: club_normalized` (migration `e9cdbf3a4866`) fige, à la construction, le texte
+#: SQL compilé *au moment où cette migration a tourné* — dans le catalogue de la
+#: base, pas dans ce fichier. Un environnement déjà migré qui voit `_normalise_sql`
+#: changer garde l'**ancienne** expression indexée : les lectures via
+#: `tcn_clause` restent correctes (elles recompilent la nouvelle expression à
+#: chaque requête), mais l'index ne les sert plus — retour silencieux au
+#: balayage complet que #351 corrigeait, sans erreur ni avertissement. Seul un
+#: environnement reconstruit de zéro (`create_all`, ou `alembic upgrade head`
+#: depuis une base vierge) obtient la nouvelle expression. Toute évolution de
+#: `_normalise_sql` doit donc s'accompagner d'une nouvelle migration qui
+#: `drop_index` puis `create_index` avec le texte à jour.
+CLUB_NORMALIZED_INDEX_EXPRESSION: str = str(
+    _normalise_sql(column("club")).compile(compile_kwargs={"literal_binds": True})
+)
