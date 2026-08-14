@@ -13,7 +13,14 @@ inversée, aucun code de retour modifié. Justification détaillée en
 
 ## 1. `POST /api/v1/participations` — entrée
 
-**Garde inchangée** : `participations:write` (`P.PARTICIPATIONS_WRITE`).
+**Garde retirée, corrigé le 2026-08-14.** La route était protégée par
+`participations:write`, fermée depuis #115. Vérification manuelle par le
+mainteneur : ce contrôle d'accès bloquait le cas d'usage central du
+formulaire — un membre sans compte ne pouvait plus rien saisir. La route
+redevient **publique** ; `participations:write` est retiré du catalogue
+(`app/core/permissions.py`) puisqu'il ne gardait plus rien. `DELETE
+/participations/{id}` (`participations:delete`), destructif, reste gardé,
+inchangé. FR-026.
 
 ### Champs ajoutés à `ParticipationCreate`
 

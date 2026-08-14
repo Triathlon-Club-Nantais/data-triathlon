@@ -59,13 +59,17 @@ def _to_scraped(body: ParticipationCreate) -> ScrapedResult:
 def create_participation(
     body: ParticipationCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission(P.PARTICIPATIONS_WRITE)),
 ):
-    """Crée manuellement un résultat (athlète + course + participation).
+    """Crée un résultat (athlète + course + participation) — **ouverte au public** (#270).
 
-    **Ouverte à Internet jusqu'à #115** : n'importe qui pouvait injecter un
-    résultat dans la base du club. La garde referme l'anomalie ; la lecture
-    (`GET`) reste publique, c'est tout l'objet du site.
+    Fermée un temps par #115 (« n'importe qui pouvait injecter un résultat
+    dans la base du club »), rouverte ici : c'est tout l'objet du formulaire
+    de saisie manuelle, utilisable par un membre sans qu'il ait de compte.
+    Ce qui protège désormais l'intégrité des données publiées n'est plus une
+    session mais la mise en quarantaine du résultat créé
+    (`is_pending_validation=True`, forcé ci-dessous) — invisible de tout
+    agrégat public jusqu'à la validation d'un bénévole (#271). `DELETE`,
+    destructif, reste gardé.
     """
     participation = scrape_service.save_one(db, _to_scraped(body))
     return participation_repository.get(db, participation.id)

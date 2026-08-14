@@ -170,12 +170,10 @@ class P:
         "Rectifier le nom, le prénom ou la date de naissance d'une fiche coureur.",
         FEATURE_ATHLETES,
     )
-    PARTICIPATIONS_WRITE = Permission(
-        "participations:write",
-        "Créer un résultat",
-        "Ajouter manuellement un résultat à une épreuve.",
-        FEATURE_PARTICIPATIONS,
-    )
+    # `participations:write` a existé (#115) puis a été retiré (#270) :
+    # POST /participations est redevenue publique, la mise en quarantaine
+    # d'un résultat déclaré (`is_pending_validation`) protégeant désormais
+    # les agrégats publics à la place d'une session.
     PARTICIPATIONS_DELETE = Permission(
         "participations:delete",
         "Supprimer un résultat",
@@ -242,7 +240,6 @@ ALL: tuple[Permission, ...] = (
     P.COURSES_DELETE,
     P.ATHLETES_READ,
     P.ATHLETES_WRITE,
-    P.PARTICIPATIONS_WRITE,
     P.PARTICIPATIONS_DELETE,
     P.PARTICIPATIONS_REASSIGN,
     P.BATCH_RUN,

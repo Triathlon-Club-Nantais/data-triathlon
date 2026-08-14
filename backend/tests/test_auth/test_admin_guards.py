@@ -1,9 +1,13 @@
 """Les trois issues de chaque ressource fermée par #115 (SC-003, SC-004).
 
-401 anonyme, 403 connecté sans le pouvoir, succès avec. Sur les **quatre**
-routes que la feature ferme — dont deux qui referment une anomalie de sécurité
-bien réelle : `POST /participations` et `DELETE /participations/{id}` sont
-aujourd'hui ouvertes à Internet.
+401 anonyme, 403 connecté sans le pouvoir, succès avec. Sur les **trois**
+routes que la feature ferme encore aujourd'hui — `GET`/`DELETE
+/admin/pending-providers` et `DELETE /participations/{id}`.
+
+`POST /participations` a rejoint ce lot un temps (#115), puis en est ressortie
+(#270) : la mise en quarantaine du résultat créé (`is_pending_validation`)
+protège désormais l'intégrité des agrégats publics à la place d'une session —
+voir `test_creer_un_resultat_reste_public` plus bas.
 """
 import pytest
 
@@ -143,23 +147,18 @@ CORPS_RESULTAT = {
 }
 
 
-def test_creer_un_resultat_sans_session_rend_401(client):
-    """**L'anomalie que cette feature referme.** Cette route était ouverte."""
-    assert client.post("/api/v1/participations", json=CORPS_RESULTAT).status_code == 401
+def test_creer_un_resultat_reste_public(client):
+    """#270 — la route redevient publique : un membre sans compte peut saisir.
 
-
-def test_creer_un_resultat_sans_le_pouvoir_rend_403(client, db_session, organisation):
-    connecte(client, db_session, organisation)
-
-    assert client.post("/api/v1/participations", json=CORPS_RESULTAT).status_code == 403
-
-
-def test_creer_un_resultat_avec_le_pouvoir_rend_201(client, db_session, organisation):
-    connecte(client, db_session, organisation, P.PARTICIPATIONS_WRITE.code)
-
+    Ce que #115 protégeait (l'injection anonyme d'un résultat) est désormais
+    tenu par la mise en quarantaine du résultat créé, pas par une session :
+    voir `is_pending_validation` et son exclusion des agrégats publics.
+    """
     reponse = client.post("/api/v1/participations", json=CORPS_RESULTAT)
 
     assert reponse.status_code == 201
+    assert reponse.json()["is_pending_validation"] is True
+    assert not client.cookies, "le test doit passer sans le moindre cookie"
 
 
 # --- DELETE /participations/{id} --------------------------------------------
@@ -175,7 +174,9 @@ def test_supprimer_un_resultat_sans_session_rend_401(client, participation):
 def test_supprimer_un_resultat_sans_le_pouvoir_rend_403(
     client, db_session, organisation, participation
 ):
-    connecte(client, db_session, organisation, P.PARTICIPATIONS_WRITE.code)
+    # Un pouvoir quelconque mais pas le bon : prouve que la garde est
+    # spécifique à `participations:delete`, pas à « avoir une session ».
+    connecte(client, db_session, organisation, P.PENDING_PROVIDERS_READ.code)
 
     reponse = client.delete(f"/api/v1/participations/{participation.id}")
 

@@ -13,7 +13,7 @@ import pytest
 from app.core import permissions
 from app.core.permissions import P, Permission
 
-#: Les vingt-deux codes des contrats : les neuf de `contracts/admin-api.md`
+#: Les vingt-et-un codes des contrats : les neuf de `contracts/admin-api.md`
 #: (#115), les trois de `contracts/admin-groups-api.md` (#197), celui de la
 #: liste d'autorisation (#170), les cinq des gestes correctifs (#117), les deux
 #: du lancement de batches (#47), celui de la révocation d'urgence des
@@ -23,6 +23,9 @@ from app.core.permissions import P, Permission
 #: dériverait la liste du catalogue ne prouverait rien. C'est ce qui fait
 #: qu'ajouter un pouvoir est un geste conscient — cette liste est le seul
 #: endroit du dépôt qui s'y oppose.
+#: `participations:write` (#115) a existé puis a été retiré (#270) : la route
+#: qu'il gardait est redevenue publique, la mise en quarantaine du résultat
+#: créé protégeant désormais les agrégats publics à sa place.
 CODES_ATTENDUS = {
     "roles:read",
     "roles:write",
@@ -41,7 +44,6 @@ CODES_ATTENDUS = {
     "courses:delete",
     "athletes:read",
     "athletes:write",
-    "participations:write",
     "participations:delete",
     "participations:reassign",
     "batch:run",

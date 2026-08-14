@@ -332,6 +332,29 @@ Le parallélisme est limité par `ManualResultForm.tsx`. Le découpage qui tient
 
 ---
 
+## Correction post-implémentation (2026-08-14) : contrôle d'accès de FR-026
+
+**Découverte par le mainteneur en testant l'application lancée**, hors du
+plan initial : `POST /api/v1/participations` était gardée par
+`participations:write` depuis #115, ce qui bloquait le cas d'usage central du
+formulaire — un membre sans compte ne pouvait plus rien saisir. La spec
+supposait l'inverse (« Aucune modification du contrôle d'accès »), une
+hypothèse jamais vérifiée sur le terrain.
+
+**Corrigé** : la route redevient publique. C'est l'état de validation que
+cette feature introduit (FR-016/FR-021) qui rend cette réouverture sûre — un
+résultat créé anonymement reste en quarantaine jusqu'à validation. `DELETE`,
+destructif, reste gardé.
+
+- [X] T073 Retiré `require_permission(P.PARTICIPATIONS_WRITE)` de `create_participation` (`backend/app/api/v1/participations.py`), retiré `PARTICIPATIONS_WRITE` du catalogue (`backend/app/core/permissions.py`, membre + tuple `ALL`)
+- [X] T074 Mis à jour `tests/test_auth/test_admin_guards.py` (3 tests obsolètes → 1 test de succès anonyme), `tests/test_auth/test_public_routes_still_open.py` (`ROUTES_FERMEES`), `tests/test_core/test_permissions.py` (`CODES_ATTENDUS`) — aucune autre référence au code retiré dans le dépôt (vérifié par grep)
+- [X] T075 Vérifié en conditions réelles : serveur de dev relancé (`reload=True`), `POST /participations` sans cookie → `201`, `is_pending_validation: true`, absent de `GET /participations` — la quarantaine tient dès la première requête publique
+- [X] T076 Spec, data-model et contrat mis à jour (FR-026 ajoutée, Assumption corrigée) — cette feature n'est pas encore livrée, corriger son propre dossier n'est pas une réécriture d'historique au sens de la constitution
+
+Suite complète après correction : voir compteurs au commit correspondant.
+
+---
+
 ## Notes
 
 - **T070 à T072 sont physiquement placées dans leur phase, pas en fin de liste.**
