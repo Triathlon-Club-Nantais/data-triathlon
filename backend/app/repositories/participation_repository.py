@@ -328,7 +328,8 @@ def list_participations(
     page_size: int = 20,
 ) -> list[Participation]:
     q = db.query(Participation).options(
-        joinedload(Participation.athlete), joinedload(Participation.course)
+        joinedload(Participation.athlete),
+        joinedload(Participation.course).selectinload(Course.sources),
     )
     q = _apply_filters(
         q,
@@ -356,7 +357,7 @@ def list_participations(
 def list_for_athlete(db: Session, athlete_id: int) -> list[Participation]:
     return (
         db.query(Participation)
-        .options(joinedload(Participation.course))
+        .options(joinedload(Participation.course).selectinload(Course.sources))
         .filter(Participation.athlete_id == athlete_id)
         .order_by(Participation.created_at.desc())
         .all()
@@ -438,10 +439,17 @@ def list_page_for_course(
     query = (
         db.query(Participation)
         .join(Athlete, Participation.athlete_id == Athlete.id)
-        # `contains_eager` et non `joinedload` : la jointure sur `Athlete` existe
-        # déjà (l'ordre et la recherche en dépendent), un `joinedload` en
-        # ajouterait une seconde vers la même table.
-        .options(contains_eager(Participation.athlete))
+        .options(
+            # `contains_eager` et non `joinedload` : la jointure sur `Athlete`
+            # existe déjà (l'ordre et la recherche en dépendent), un `joinedload`
+            # en ajouterait une seconde vers la même table. `Course`, lui, n'a
+            # pas de jointure préexistante — `joinedload` classique, chaîné avec
+            # `selectinload` pour ses sources (#350) : sans lui, `Course.provider`
+            # et `.source_url`, lus à la sérialisation, lazy-loadaient
+            # `course_sources` par course distincte de la page.
+            contains_eager(Participation.athlete),
+            joinedload(Participation.course).selectinload(Course.sources),
+        )
         .filter(Participation.course_id == course_id)
     )
     if club_only:
