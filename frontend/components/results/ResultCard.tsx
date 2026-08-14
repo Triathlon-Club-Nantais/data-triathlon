@@ -28,7 +28,7 @@ export function ResultCard({ result }: { result: Participation }) {
               <Link href={`/athletes/${a.id}`} className="text-lg font-bold hover:underline">
                 {fullName}
               </Link>
-              <div className="mt-1 flex flex-wrap gap-2 text-sm text-muted-foreground">
+              <div className="mt-1 flex flex-wrap gap-2 text-sm text-[var(--tcn-text-faint)]">
                 {result.club && <span>{result.club}</span>}
                 {result.category && <Badge variant="outline">{result.category}</Badge>}
                 {a?.gender && <Badge variant="outline">{a.gender}</Badge>}
@@ -50,10 +50,10 @@ export function ResultCard({ result }: { result: Participation }) {
           </Link>
           <SportBadge type={c?.event_type} />
           {c?.event_date && (
-            <span className="text-muted-foreground">{formatDate(c.event_date)}</span>
+            <span className="text-[var(--tcn-text-faint)]">{formatDate(c.event_date)}</span>
           )}
           {result.bib_number && (
-            <span className="text-muted-foreground">#{result.bib_number}</span>
+            <span className="text-[var(--tcn-text-faint)]">#{result.bib_number}</span>
           )}
           {(result.is_relay || c?.is_relay) && <Badge variant="destructive">Relais</Badge>}
         </div>
@@ -88,7 +88,7 @@ export function ResultCard({ result }: { result: Participation }) {
           </div>
         )}
 
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <div className="flex items-center justify-between text-xs text-[var(--tcn-text-faint)]">
           {isHttpUrl(c?.source_url) ? (
             <a href={c?.source_url} target="_blank" rel="noopener noreferrer" className="hover:underline">
               Source ({c?.provider})
@@ -106,7 +106,7 @@ export function ResultCard({ result }: { result: Participation }) {
 function Rank({ label, value }: { label: string; value: number }) {
   return (
     <div className="flex flex-col items-center gap-1">
-      <span className="micro-label text-muted-foreground">{label}</span>
+      <span className="micro-label text-[var(--tcn-text-faint)]">{label}</span>
       {value <= 3 ? (
         <Medal rank={value} size={26} />
       ) : (

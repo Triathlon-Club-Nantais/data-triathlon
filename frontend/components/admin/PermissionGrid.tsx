@@ -79,7 +79,7 @@ export function PermissionGrid({
                   <Label htmlFor={id} className="font-medium">
                     {pouvoir.label}
                   </Label>
-                  <p id={idDescription} className="text-sm text-muted-foreground">
+                  <p id={idDescription} className="text-sm text-[var(--tcn-text-faint)]">
                     {pouvoir.description}
                   </p>
                 </div>
@@ -90,7 +90,7 @@ export function PermissionGrid({
       ))}
 
       {raison && disabledCodes && disabledCodes.size > 0 && onToggle && (
-        <p id={idRaison} className="text-sm text-muted-foreground">
+        <p id={idRaison} className="text-sm text-[var(--tcn-text-faint)]">
           {raison}
         </p>
       )}

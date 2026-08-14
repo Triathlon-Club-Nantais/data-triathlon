@@ -64,7 +64,7 @@ export function RevokeSessionsCard() {
           <CardTitle>Révocation d&apos;urgence</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-muted-foreground text-sm">
+          <p className="text-[var(--tcn-text-faint)] text-sm">
             Après une fuite de jetons, un poste perdu ou un doute sur la base :
             ferme toutes les sessions ouvertes, tous comptes confondus. Personne
             n&apos;est désactivé — chacun se reconnecte normalement.

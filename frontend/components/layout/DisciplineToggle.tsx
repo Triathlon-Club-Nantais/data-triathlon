@@ -29,7 +29,7 @@ export function DisciplineToggle() {
   return (
     <label
       data-pending={pending || undefined}
-      className="inline-flex cursor-pointer items-center gap-2 rounded-lg border bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground data-pending:opacity-70"
+      className="inline-flex cursor-pointer items-center gap-2 rounded-lg border bg-card px-3 py-1.5 text-xs font-semibold text-[var(--tcn-text-faint)] data-pending:opacity-70"
     >
       <input
         type="checkbox"

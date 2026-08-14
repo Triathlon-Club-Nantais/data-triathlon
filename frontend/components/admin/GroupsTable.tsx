@@ -156,9 +156,9 @@ export function GroupsTable() {
                     >
                       {groupe.name}
                     </Button>
-                    <div className="text-muted-foreground text-xs">{groupe.slug}</div>
+                    <div className="text-[var(--tcn-text-faint)] text-xs">{groupe.slug}</div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
+                  <TableCell className="text-[var(--tcn-text-faint)]">
                     {groupe.description || "—"}
                   </TableCell>
                   <TableCell>{groupe.member_count}</TableCell>

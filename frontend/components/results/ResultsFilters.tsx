@@ -186,7 +186,7 @@ export function ResultsFilters() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex w-full flex-col gap-1.5 sm:w-auto">
-      <label className="text-xs font-medium text-muted-foreground">{label}</label>
+      <label className="text-xs font-medium text-[var(--tcn-text-faint)]">{label}</label>
       {children}
     </div>
   );

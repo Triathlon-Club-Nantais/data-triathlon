@@ -26,7 +26,7 @@ export function PodiumsList({ participations }: { participations: Participation[
 
   if (podiums.length === 0) {
     return (
-      <p className="py-6 text-center text-sm text-muted-foreground">
+      <p className="py-6 text-center text-sm text-[var(--tcn-text-faint)]">
         Pas encore de podium enregistré.
       </p>
     );
@@ -57,7 +57,7 @@ export function PodiumsList({ participations }: { participations: Participation[
               >
                 {name}
               </Link>
-              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--tcn-text-faint)]">
                 <span className="truncate">{formatEventName(p.course.name, p.course.is_relay)}</span>
                 <SportBadge type={p.course.event_type} />
                 <span className="micro-label text-[9px]">{podiumScopeLabel(best.scope)}</span>

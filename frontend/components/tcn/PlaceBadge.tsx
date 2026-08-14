@@ -16,7 +16,7 @@ export function PlaceBadge({
   const tiers: Record<string, CSSProperties> = {
     podium: { background: "var(--tcn-orange-12)", color: "var(--tcn-orange)" },
     top: { background: "rgba(28,30,34,.06)", color: "var(--tcn-ink)" },
-    rest: { background: "transparent", color: "var(--tcn-text-muted)" },
+    rest: { background: "transparent", color: "var(--tcn-text-faint)" },
   };
 
   return (

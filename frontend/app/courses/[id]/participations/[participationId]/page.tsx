@@ -101,7 +101,7 @@ function ReturnLinks({ courseId, athleteId }: { courseId: string; athleteId: num
         <Link
           key={link.href}
           href={link.href}
-          className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+          className="inline-flex items-center gap-1 text-sm font-medium text-[var(--tcn-text-faint)] transition-colors hover:text-foreground"
         >
           <ChevronLeft className="size-4" />
           {link.label}

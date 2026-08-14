@@ -38,7 +38,7 @@ export function ListeEpreuves({ events }: { events: GeoEvent[] }) {
             <tr key={`${ev.event_name}-${i}`} className="border-t border-[var(--tcn-border-faint)]">
               <th scope="row" className="py-1.5 pr-3 font-medium text-[var(--tcn-text)]">
                 {ev.event_name}
-                {ev.event_type ? <span className="text-[var(--tcn-text-muted)]"> · {eventTypeLabel(ev.event_type)}</span> : null}
+                {ev.event_type ? <span className="text-[var(--tcn-text-faint)]"> · {eventTypeLabel(ev.event_type)}</span> : null}
               </th>
               <td className="py-1.5 pr-3 text-[var(--tcn-text-body)]">
                 {ev.event_date ? formatMonth(ev.event_date.slice(0, 7)) : "date inconnue"}
