@@ -445,6 +445,15 @@
     outline: 2px solid var(--tcn-orange);
     outline-offset: 2px;
   }
+  /* Option d'un radio-toggle fait main (`AthleteSortToggle` — `RankTypeToggle`
+     est passé à `SegmentedControl`, #342) : le `<input>` est masqué en
+     opacité 0, donc son `outline` natif l'est aussi. Même défaut que #299
+     (focus invisible) — même remède : reporter l'anneau sur le `<label>`
+     visible via `:has()` quand l'input caché est focus. */
+  .tcn-radio-toggle:has(input:focus-visible) {
+    outline: 2px solid var(--tcn-orange);
+    outline-offset: 2px;
+  }
 }
 
 ::selection {

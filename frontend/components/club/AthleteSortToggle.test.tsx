@@ -31,6 +31,12 @@ describe("AthleteSortToggle", () => {
     expect(screen.getByRole("radio", { name: "Nom de famille" })).toBeInTheDocument();
   });
 
+  it("porte .tcn-radio-toggle (revue UI/UX #274) : l'input caché a un focus visible via :has() dans globals.css", () => {
+    render(<AthleteSortToggle />);
+    const option = screen.getByRole("radio", { name: "Nom de famille" }).closest("label");
+    expect(option?.className).toContain("tcn-radio-toggle");
+  });
+
   it("sans paramètre URL, « Nombre d'épreuves » est actif (défaut)", () => {
     render(<AthleteSortToggle />);
     expect(screen.getByRole("radio", { name: "Nombre d'épreuves" })).toBeChecked();

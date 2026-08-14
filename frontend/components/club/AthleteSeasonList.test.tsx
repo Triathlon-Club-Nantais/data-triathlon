@@ -41,10 +41,13 @@ describe("AthleteSeasonList", () => {
     expect(screen.getByText("MARTIN")).toBeInTheDocument();
   });
 
-  it("liste vide (FR-007) : affiche un état vide explicite, pas une liste silencieuse", () => {
+  it("liste vide (FR-007) : affiche un état vide explicite qui invite à changer de saison", () => {
+    // Revue UI/UX #274 — un état vide oriente vers une action, jamais
+    // « Aucune donnée » nu.
     render(<AthleteSeasonList athletes={[]} />);
 
     expect(screen.getByText(/aucun athlète/i)).toBeInTheDocument();
+    expect(screen.getByText(/essayez une autre saison/i)).toBeInTheDocument();
   });
 
   it("tri par défaut : nombre d'épreuves décroissant", () => {
