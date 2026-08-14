@@ -163,6 +163,11 @@ describe("RaceFinishers", () => {
     expect(push).toHaveBeenCalledWith("/courses/1");
   });
 
+  it("nomme le segment « tous » avec le même mot que le reste de l'écran : participants (#343)", () => {
+    afficher({ summary: synthese({ total: 1811 }) });
+    expect(screen.getByText("Tous les participants (1811)")).toBeInTheDocument();
+  });
+
   it("bascule le filtre club en paramètre d'URL et revient à la première page", async () => {
     searchParams = new URLSearchParams("page=4");
     afficher({ total: 100, pageSize: 20, page: 4 });
