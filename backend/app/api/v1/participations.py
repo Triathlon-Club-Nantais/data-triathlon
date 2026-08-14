@@ -31,6 +31,7 @@ def _to_scraped(body: ParticipationCreate) -> ScrapedResult:
         event_name=body.event_name,
         event_date=_parse_date(body.event_date),
         event_type=body.event_type,
+        format_label=body.format_label,
         rank_overall=body.rank_overall,
         rank_category=body.rank_category,
         rank_gender=body.rank_gender,
@@ -42,7 +43,14 @@ def _to_scraped(body: ParticipationCreate) -> ScrapedResult:
         run_time=body.run_time,
         segments=body.segments,
         is_relay=body.is_relay,
+        status=body.status,
+        team_name=body.team_name,
+        evidence_url=body.evidence_url,
         raw_data=body.raw_data,
+        # Forcé, jamais lu depuis `body` : une saisie manuelle par ce point
+        # d'entrée est toujours non vérifiée (FR-016). `ParticipationCreate`
+        # ne porte délibérément pas ce champ en entrée.
+        is_pending_validation=True,
     )
 
 

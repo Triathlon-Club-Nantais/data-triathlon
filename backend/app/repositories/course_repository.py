@@ -43,6 +43,7 @@ def get_or_create(
     provider: str = "",
     is_relay: bool = False,
     distance_km: float | None = None,
+    format_label: str | None = None,
 ) -> Course:
     """L'épreuve d'identité `(name, event_date, event_type, is_relay)`, créée au besoin.
 
@@ -64,6 +65,7 @@ def get_or_create(
         event_type=event_type,
         is_relay=is_relay,
         distance_km=distance_km,
+        format_label=format_label,
     )
     if source_url:
         # `is_active=True` explicitement : la colonne vaut `False` par défaut

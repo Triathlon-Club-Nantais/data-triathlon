@@ -1,3 +1,6 @@
+from tests.test_api.conftest import valider_toutes_les_participations
+
+
 def _payload(bib="1", nom="DUPONT", club="TCN"):
     return {
         "provider": "manuel",
@@ -23,9 +26,10 @@ def test_athletes_search_and_detail(client):
     assert len(detail["participations"]) == 1
 
 
-def test_courses_events_and_detail(client):
+def test_courses_events_and_detail(client, db_session):
     client.post("/api/v1/participations", json=_payload(bib="1", club="TCN"))
     client.post("/api/v1/participations", json=_payload(bib="2", nom="MARTIN", club="ASPTT"))
+    valider_toutes_les_participations(db_session)
 
     page = client.get("/api/v1/courses/events").json()
     assert page["total_events"] == 1
@@ -87,20 +91,22 @@ def test_course_importee_expose_ses_anomalies(client, db_session, monkeypatch):
     assert course["quality_issues"] == {"unknown_status": 1}
 
 
-def test_stats(client):
+def test_stats(client, db_session):
     client.post("/api/v1/participations", json=_payload(bib="1", club="TCN"))
+    valider_toutes_les_participations(db_session)
     stats = client.get("/api/v1/stats").json()
     assert stats["total"] == 1
     assert stats["by_type"] == {"triathlon-m": 1}
 
 
-def test_stats_seasons_endpoint_et_filtre(client):
+def test_stats_seasons_endpoint_et_filtre(client, db_session):
     # Saison 2025 (2026-05-16) et saison 2023 (2023-10-01).
     client.post("/api/v1/participations", json=_payload(bib="1", club="TCN"))
     client.post(
         "/api/v1/participations",
         json={**_payload(bib="2", nom="MARTIN", club="TCN"), "event_name": "Tri 2023", "event_date": "2023-10-01"},
     )
+    valider_toutes_les_participations(db_session)
 
     seasons = client.get("/api/v1/stats/seasons").json()
     years = [s["start_year"] for s in seasons]
@@ -117,23 +123,25 @@ def test_stats_seasons_endpoint_et_filtre(client):
     assert stats_multi["total"] == 2
 
 
-def test_courses_events_filtre_par_saison(client):
+def test_courses_events_filtre_par_saison(client, db_session):
     client.post("/api/v1/participations", json=_payload(bib="1", club="TCN"))  # saison 2025
     client.post(
         "/api/v1/participations",
         json={**_payload(bib="2", club="TCN"), "event_name": "Tri 2023", "event_date": "2023-10-01"},
     )
+    valider_toutes_les_participations(db_session)
     page = client.get("/api/v1/courses/events", params={"seasons": "2025"}).json()
     assert page["total_events"] == 1
     assert page["items"][0]["event_name"] == "Triathlon de Nantes"
 
 
-def test_participations_filtre_par_saison(client):
+def test_participations_filtre_par_saison(client, db_session):
     client.post("/api/v1/participations", json=_payload(bib="1", club="TCN"))  # saison 2025
     client.post(
         "/api/v1/participations",
         json={**_payload(bib="2", club="TCN"), "event_name": "Tri 2023", "event_date": "2023-10-01"},
     )
+    valider_toutes_les_participations(db_session)
     rows = client.get("/api/v1/participations", params={"seasons": "2023"}).json()
     assert len(rows) == 1
     assert rows[0]["course"]["event_date"] == "2023-10-01"
@@ -155,7 +163,7 @@ def test_admin_pending_providers_flow(client):
     assert client.get("/api/v1/admin/pending-providers").json() == []
 
 
-def test_athlete_detail_expose_le_nombre_de_finishers_classes(client):
+def test_athlete_detail_expose_le_nombre_de_finishers_classes(client, db_session):
     client.post("/api/v1/participations", json={**_payload(bib="1"), "rank_overall": 1})
     client.post(
         "/api/v1/participations",
@@ -165,6 +173,7 @@ def test_athlete_detail_expose_le_nombre_de_finishers_classes(client):
         "/api/v1/participations",
         json={**_payload(bib="3", nom="DURAND"), "rank_overall": None},
     )
+    valider_toutes_les_participations(db_session)
 
     athletes = client.get("/api/v1/athletes", params={"name": "dupont"}).json()
     detail = client.get(f"/api/v1/athletes/{athletes[0]['id']}").json()

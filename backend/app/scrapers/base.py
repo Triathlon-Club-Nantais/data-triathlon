@@ -46,6 +46,16 @@ class ScrapedResult:
     # "" = le scraper ne se prononce pas → l'infra retombe sur l'heuristique.
     # Un scraper qui sait (prolivesport) le renseigne explicitement.
     status: str = ""
+    # Saisie manuelle (#270) : nom de l'équipe si collective, lien de
+    # vérification saisi par le déclarant. Toujours vides côté import.
+    team_name: str = ""
+    evidence_url: str = ""
+    # Précision libre du format (« Autre » du formulaire manuel). Propriété de
+    # l'épreuve, pas de la participation — cf. `Course.format_label`.
+    format_label: str = ""
+    # Résultat déclaré non encore vérifié par un bénévole (#270). `False` pour
+    # tout import : c'est `POST /participations` qui le force à `True`.
+    is_pending_validation: bool = False
     raw_data: dict[str, Any] = field(default_factory=dict)
 
 

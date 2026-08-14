@@ -52,6 +52,11 @@ class Course(Base):
     name: Mapped[str] = mapped_column(String, index=True)
     event_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     event_type: Mapped[str] = mapped_column(String, index=True, default="")
+    # Précision libre du format quand il n'entre dans aucune taille normalisée
+    # (« Autre » du formulaire de saisie manuelle, #270). Le format normalisé,
+    # lui, reste encodé dans `event_type` (`triathlon-m`) — la taxonomie y est
+    # fermée pour garantir l'idempotence du re-classement (classify.py).
+    format_label: Mapped[str | None] = mapped_column(String, nullable=True)
     distance_km: Mapped[float | None] = mapped_column(Float, nullable=True)
     is_relay: Mapped[bool] = mapped_column(Boolean, default=False)
     # Ce que la **machine** constate, réécrit par l'import à chaque passage

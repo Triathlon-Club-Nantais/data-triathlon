@@ -16,6 +16,7 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    false,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -64,9 +65,29 @@ class Participation(Base):
     # Relais d'équipe (TimePulse mélange solos et relais dans une même course) :
     # l'info est portée par la participation, pas par la course.
     is_relay: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # Nom de l'équipe pour un résultat collectif (#270). Sur la participation et
+    # non sur la course : deux équipes courent la même épreuve.
+    team_name: Mapped[str | None] = mapped_column(String, nullable=True)
 
     splits: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     raw_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Lien vers les résultats publiés, saisi par le déclarant comme pièce
+    # justificative (#270). Jamais une `CourseSource` — cf. services/mapping.py.
+    evidence_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Résultat déclaré non encore vérifié par un bénévole (#270, #271). Dimension
+    # distincte de `status` : un DNF déclaré reste un DNF une fois validé.
+    #
+    # `server_default=false()` et non la chaîne `"false"` : sur SQLite, un
+    # défaut posé comme chaîne se rend `DEFAULT 'false'` (littéral texte), que
+    # l'ORM relit ensuite comme `True` — une chaîne non vide est vraie en
+    # Python. `false()` rend `DEFAULT 0`, qui relit correctement `False`. C'est
+    # l'exigence même de cette colonne (aucune ligne existante ne doit devenir
+    # pendante) qui en dépend ; ne pas reprendre le motif `server_default="false"`
+    # d'`is_relay` ci-dessus, qui porte ce défaut sans qu'aucun chemin actuel
+    # n'exerce sa valeur par défaut serveur.
+    is_pending_validation: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false()
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     athlete: Mapped["Athlete"] = relationship(back_populates="participations")  # noqa: F821
