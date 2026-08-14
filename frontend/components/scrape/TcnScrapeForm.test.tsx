@@ -48,7 +48,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/api/client", () => ({
   apiClient: {
-    detectProvider: vi.fn().mockResolvedValue({ provider: "klikego" }),
+    detectProvider: vi.fn().mockResolvedValue({ provider: "klikego", supported: true }),
     reportPendingProvider: vi.fn().mockResolvedValue({}),
     saveParticipation: vi.fn().mockResolvedValue({}),
   },
@@ -81,6 +81,10 @@ function renderForm() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // `clearAllMocks` efface les appels enregistrés, pas l'implémentation posée
+  // par un `mockResolvedValue` d'un test précédent : sans ce repli, un test qui
+  // détourne `detectProvider` fait fuir sa réponse vers les suivants.
+  vi.mocked(apiClient.detectProvider).mockResolvedValue({ provider: "klikego", supported: true });
   importMock.set({
     running: false,
     phase: "idle",
@@ -255,6 +259,50 @@ describe("TcnScrapeForm — rafraîchissement de la liste après import (#201)",
     });
     renderForm();
     expect(refreshMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("TcnScrapeForm — alerte anticipée sur provider non supporté", () => {
+  it("affiche l'alerte dès la détection, sans attendre une tentative d'import", async () => {
+    vi.mocked(apiClient.detectProvider).mockResolvedValue({ provider: "", supported: false });
+    renderForm();
+    await userEvent.type(
+      screen.getByPlaceholderText(/résultats-chrono/),
+      "https://chronopuce.test/x",
+    );
+
+    expect(
+      await screen.findByText("Impossible d'importer automatiquement"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Saisie manuelle" })).toBeInTheDocument();
+    expect(importMock.start).not.toHaveBeenCalled();
+  });
+
+  it("n'affiche pas l'alerte quand le provider est supporté", async () => {
+    renderForm();
+    await userEvent.type(
+      screen.getByPlaceholderText(/résultats-chrono/),
+      "https://www.klikego.com/resultats/x",
+    );
+
+    // Laisse le débounce + la résolution du mock se jouer avant de conclure.
+    await waitFor(() => expect(apiClient.detectProvider).toHaveBeenCalled());
+    expect(screen.queryByText("Impossible d'importer automatiquement")).not.toBeInTheDocument();
+  });
+
+  it("cliquer sur « Saisie manuelle » depuis l'alerte anticipée ouvre le formulaire", async () => {
+    vi.mocked(apiClient.detectProvider).mockResolvedValue({ provider: "", supported: false });
+    renderForm();
+    await userEvent.type(
+      screen.getByPlaceholderText(/résultats-chrono/),
+      "https://chronopuce.test/x",
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: "Saisie manuelle" }));
+
+    expect(
+      screen.getByRole("button", { name: "Enregistrer le résultat" }),
+    ).toBeInTheDocument();
   });
 });
 
