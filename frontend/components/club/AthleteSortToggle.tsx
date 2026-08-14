@@ -58,6 +58,7 @@ export function AthleteSortToggle() {
         return (
           <label
             key={value}
+            className="tcn-radio-toggle"
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -66,7 +67,7 @@ export function AthleteSortToggle() {
               cursor: "pointer",
               fontSize: 13,
               fontWeight: 700,
-              color: checked ? "var(--tcn-ink)" : "var(--tcn-text-muted)",
+              color: checked ? "var(--tcn-ink)" : "var(--tcn-text-faint)",
               background: checked ? "var(--tcn-fill)" : "transparent",
               transition: "background 120ms, color 120ms",
             }}

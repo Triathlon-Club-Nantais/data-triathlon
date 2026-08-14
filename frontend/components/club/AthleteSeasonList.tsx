@@ -39,7 +39,7 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
     return (
       <Card padding={0} style={{ overflow: "hidden" }}>
         <div style={{ padding: 40, textAlign: "center", color: "var(--tcn-text-faint)", fontSize: 14 }}>
-          Aucun athlète actif sur cette saison.
+          Aucun athlète actif sur cette saison. Essayez une autre saison.
         </div>
       </Card>
     );
@@ -68,9 +68,9 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
           >
             <div style={{ fontSize: 15, color: "var(--tcn-ink)", fontWeight: 700 }}>
               <span data-testid="athlete-row-nom">{a.nom}</span>{" "}
-              <span style={{ fontWeight: 500, color: "var(--tcn-text-muted)" }}>{a.prenom}</span>
+              <span style={{ fontWeight: 500, color: "var(--tcn-text-faint)" }}>{a.prenom}</span>
             </div>
-            <div style={{ fontSize: 14, color: "var(--tcn-text-muted)", fontWeight: 600 }}>
+            <div style={{ fontSize: 14, color: "var(--tcn-text-faint)", fontWeight: 600 }}>
               <span>{a.participation_count}</span>{" "}
               <span>épreuve{a.participation_count > 1 ? "s" : ""}</span>
             </div>
