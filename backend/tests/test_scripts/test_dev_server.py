@@ -4,12 +4,16 @@ import json
 import socket
 
 import pytest
+from alembic import command
+from alembic.config import Config
 
 import scripts.dev_server as dev_server
 from scripts.dev_server import (
     BIND_HOST,
     CLIENT_HOST,
     PORT_FILE_NAME,
+    backend_dir,
+    base_de_dev_a_jour,
     find_free_port,
     main,
     read_port_file,
@@ -150,3 +154,50 @@ def test_worktree_root_pointe_la_racine_du_depot():
 
     assert (racine / "backend" / "scripts" / "dev_server.py").is_file()
     assert (racine / "frontend" / "package.json").is_file()
+
+
+# ── Niveau de schéma Alembic (#338) ──────────────────────────────────────────
+
+
+@pytest.fixture
+def sqlite_url(tmp_path, monkeypatch):
+    """URL SQLite jetable, vue par `alembic/env.py` via `get_settings()`.
+
+    `alembic/env.py` réécrit toujours `sqlalchemy.url` depuis `get_settings()` —
+    passer l'URL à `Config.set_main_option` ne suffit donc pas pour piloter
+    `command.upgrade`/`command.downgrade` ; il faut passer par la variable
+    d'environnement, comme le fait la fixture homonyme de `tests/test_migrations.py`.
+    """
+    from app.core.config import get_settings
+
+    url = f"sqlite:///{tmp_path / 'migration.db'}"
+    monkeypatch.setenv("DATABASE_URL", url)
+    get_settings.cache_clear()
+    yield url
+    get_settings.cache_clear()
+
+
+def _config_pour_les_scripts() -> Config:
+    """Config Alembic pointant les vrais scripts de migration du dépôt."""
+    cfg = Config(str(backend_dir() / "alembic.ini"))
+    cfg.set_main_option("script_location", str(backend_dir() / "alembic"))
+    return cfg
+
+
+def test_base_de_dev_a_jour_est_vrai_quand_la_base_est_au_head(sqlite_url):
+    command.upgrade(_config_pour_les_scripts(), "head")
+
+    assert base_de_dev_a_jour(sqlite_url) is True
+
+
+def test_base_de_dev_a_jour_est_faux_quand_la_base_a_une_migration_de_retard(sqlite_url):
+    cfg = _config_pour_les_scripts()
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, "-1")  # une révision avant le head courant
+
+    assert base_de_dev_a_jour(sqlite_url) is False
+
+
+def test_base_de_dev_a_jour_est_faux_sur_une_base_vierge_sans_alembic_version(sqlite_url):
+    """Aucune migration jouée du tout — `alembic_version` n'existe même pas."""
+    assert base_de_dev_a_jour(sqlite_url) is False

@@ -54,6 +54,36 @@ def backend_dir() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
+# ── Niveau de schéma Alembic ─────────────────────────────────────────────────
+
+
+def base_de_dev_a_jour(database_url: str) -> bool:
+    """La base ouverte par `database_url` est-elle au(x) head(s) Alembic du dépôt ?
+
+    Compare la révision effectivement appliquée (`MigrationContext.get_current_heads`,
+    lue sur la connexion ouverte) à la révision de tête attendue par les scripts de
+    migration (`ScriptDirectory.get_heads`, lue depuis `alembic.ini`). N'exécute
+    aucune migration : c'est un constat, pas une correction — cf. #338.
+    """
+    from alembic.config import Config
+    from alembic.runtime.migration import MigrationContext
+    from alembic.script import ScriptDirectory
+    from sqlalchemy import create_engine
+
+    cfg = Config(str(backend_dir() / "alembic.ini"))
+    cfg.set_main_option("script_location", str(backend_dir() / "alembic"))
+    heads = set(ScriptDirectory.from_config(cfg).get_heads())
+
+    engine = create_engine(database_url)
+    try:
+        with engine.connect() as connection:
+            current = set(MigrationContext.configure(connection).get_current_heads())
+    finally:
+        engine.dispose()
+
+    return current == heads
+
+
 # ── Choix du port ────────────────────────────────────────────────────────────
 
 
@@ -141,6 +171,14 @@ def main() -> int:
     # (`sqlite:///./triathlon.db`) : on l'ancre, quel que soit le répertoire d'appel.
     os.chdir(backend_dir())
     sys.path.insert(0, str(backend_dir()))
+
+    from app.core.config import get_settings
+
+    if not base_de_dev_a_jour(get_settings().database_url):
+        print(
+            "⚠ Base de dev en retard sur les migrations Alembic — "
+            "lance `uv run alembic upgrade head` (depuis backend/) pour la mettre à jour."
+        )
 
     root = worktree_root()
     port = resolve_forced_port(os.environ) or find_free_port()
