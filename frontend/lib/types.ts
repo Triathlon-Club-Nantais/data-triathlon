@@ -16,6 +16,8 @@ export interface CourseBrief {
   provider: string;
   source_url: string;
   is_relay: boolean;
+  // Précision libre du format (« Autre » du formulaire manuel, #270).
+  format_label?: string | null;
   distance_km?: number | null;
   // Indice de fiabilité calculé à l'import ; null = course jamais évaluée.
   is_reliable?: boolean | null;
@@ -73,6 +75,10 @@ export interface Participation {
   total_time: string | null;
   status: string;
   is_relay: boolean;
+  team_name: string | null;
+  evidence_url: string | null;
+  // Résultat déclaré non encore vérifié par un bénévole (#270, #271).
+  is_pending_validation: boolean;
   splits: Splits | null;
   created_at: string | null;
   // Nombre de finishers classés de la course (même groupe solo/relais).

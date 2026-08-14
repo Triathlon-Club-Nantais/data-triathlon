@@ -54,6 +54,7 @@ class CourseBrief(BaseModel):
     provider: str = ""
     source_url: str = ""
     is_relay: bool = False
+    format_label: str | None = None
     distance_km: float | None = None
     # Indice de fiabilité calculé à l'import. `None` = course jamais évaluée.
     is_reliable: bool | None = None

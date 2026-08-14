@@ -1,3 +1,6 @@
+from tests.test_api.conftest import valider_toutes_les_participations
+
+
 def _payload(bib="42", nom="DUPONT", club="TCN", provider="manuel"):
     """Payload de création, avec l'URL source qu'implique le fournisseur.
 
@@ -63,9 +66,10 @@ def test_duplicate_participation_409(client):
     assert dup.status_code == 409
 
 
-def test_list_filters(client):
+def test_list_filters(client, db_session):
     client.post("/api/v1/participations", json=_payload(bib="1", nom="DUPONT", club="TCN"))
     client.post("/api/v1/participations", json=_payload(bib="2", nom="MARTIN", club="ASPTT"))
+    valider_toutes_les_participations(db_session)
 
     by_name = client.get("/api/v1/participations", params={"name": "dupont"})
     assert len(by_name.json()) == 1
@@ -88,10 +92,30 @@ def test_get_missing_404(client):
     assert client.get("/api/v1/participations/9999").status_code == 404
 
 
-def test_is_tcn_expose_le_verdict_du_backend(client):
+def test_is_pending_validation_est_force_a_la_creation(client):
+    """FR-016 — et un client qui tente de poser `false` lui-même ne le peut pas."""
+    payload = _payload()
+    payload["is_pending_validation"] = False
+    resp = client.post("/api/v1/participations", json=payload)
+    assert resp.status_code == 201
+    assert resp.json()["is_pending_validation"] is True
+
+
+def test_sortie_porte_les_nouveaux_champs(client):
+    payload = _payload(bib="99")
+    payload["team_name"] = "Les Foulées"
+    payload["evidence_url"] = "https://club.example/resultats"
+    resp = client.post("/api/v1/participations", json=payload)
+    body = resp.json()
+    assert body["team_name"] == "Les Foulées"
+    assert body["evidence_url"] == "https://club.example/resultats"
+
+
+def test_is_tcn_expose_le_verdict_du_backend(client, db_session):
     """Le front n'a plus à deviner : le backend tranche et le dit."""
     client.post("/api/v1/participations", json=_payload(bib="1", nom="DUPONT", club="TRI CLUB NANTAIS"))
     client.post("/api/v1/participations", json=_payload(bib="2", nom="MARTIN", club="RACING CLUB NANTAIS *"))
+    valider_toutes_les_participations(db_session)
 
     rows = client.get("/api/v1/participations").json()
     par_club = {r["club"]: r["is_tcn"] for r in rows}

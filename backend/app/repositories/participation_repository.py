@@ -9,6 +9,7 @@ from app.core.club import tcn_clause
 from app.core.discipline import federal_clause
 from app.core.season import season_bounds, season_of
 from app.core.text import deaccent
+from app.core.validation import validated_clause
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.participation import Participation
@@ -214,6 +215,10 @@ def finishers_count_by_group(
     dans une même course, cf. `services/quality.py`). Un groupe sans finisher
     classé est absent du résultat — l'appelant distingue « zéro classé » de
     « compte inconnu ».
+
+    Exclut les résultats en attente de validation (#270, FR-021) : la taille du
+    classement annoncée sur la fiche athlète (`course_finishers`) doit rester
+    celle du classement publié.
     """
     ids = list(dict.fromkeys(course_ids))
     if not ids:
@@ -228,6 +233,7 @@ def finishers_count_by_group(
             Participation.course_id.in_(ids),
             func.lower(Participation.status) == STATUS_FINISHER,
             Participation.rank_overall.isnot(None),
+            validated_clause(Participation.is_pending_validation),
         )
         .group_by(Participation.course_id, Participation.is_relay)
         .all()
@@ -286,10 +292,16 @@ def _apply_filters(
     seasons=None,
     federal_only=False,
 ):
-    """Joint Athlete + Course et applique les filtres communs (liste + épreuves)."""
+    """Joint Athlete + Course et applique les filtres communs (liste + épreuves).
+
+    `validated_clause` exclut systématiquement les résultats en attente de
+    validation (#270, FR-021) : cette fonction alimente `list_participations`
+    et, via `_grouped_events_query`, `events_with_counts`/`events_page` — soit
+    trois surfaces publiques agrégées.
+    """
     q = q.join(Athlete, Participation.athlete_id == Athlete.id).join(
         Course, Participation.course_id == Course.id
-    )
+    ).filter(validated_clause(Participation.is_pending_validation))
     if course_id is not None:
         q = q.filter(Participation.course_id == course_id)
     if name:
@@ -435,6 +447,9 @@ def list_page_for_course(
     `page_size=None` rend tout le classement en une page (`page_size=all` côté
     API). Le total porte sur la sélection — recherche et portée club comprises —,
     pas sur l'épreuve : les décomptes d'épreuve vivent dans la synthèse.
+
+    Exclut les résultats en attente de validation (#270, FR-021) : c'est le
+    classement publié d'une épreuve.
     """
     query = (
         db.query(Participation)
@@ -451,6 +466,7 @@ def list_page_for_course(
             joinedload(Participation.course).selectinload(Course.sources),
         )
         .filter(Participation.course_id == course_id)
+        .filter(validated_clause(Participation.is_pending_validation))
     )
     if club_only:
         query = query.filter(tcn_clause(Participation.club))
@@ -480,6 +496,9 @@ def summary_rows_for_course(db: Session, course_id: int) -> list[tuple]:
     pour une raison indirecte : en déduire les clés de colonnes du tableau.
     Aucun des deux moteurs n'offre d'extraction portable des clés d'un objet
     JSON, donc on lit la colonne.
+
+    Exclut les résultats en attente de validation (#270, FR-021) : la synthèse
+    ne doit pas compter un résultat que le classement paginé n'affiche pas.
     """
     return (
         db.query(
@@ -492,6 +511,7 @@ def summary_rows_for_course(db: Session, course_id: int) -> list[tuple]:
         )
         .join(Athlete, Participation.athlete_id == Athlete.id)
         .filter(Participation.course_id == course_id)
+        .filter(validated_clause(Participation.is_pending_validation))
         .order_by(Participation.id)
         .all()
     )
@@ -504,10 +524,14 @@ def for_stats(
     seasons: list[int] | None = None,
     federal_only: bool = False,
 ) -> list[Participation]:
-    """Charge les participations (avec course + athlète) pour les agrégations stats."""
+    """Charge les participations (avec course + athlète) pour les agrégations stats.
+
+    Exclut les résultats en attente de validation (#270, FR-021) : c'est la
+    fonction qui alimente le tableau de bord, la page club et les podiums.
+    """
     q = db.query(Participation).options(
         joinedload(Participation.course), joinedload(Participation.athlete)
-    )
+    ).filter(validated_clause(Participation.is_pending_validation))
     if club_only:
         q = q.filter(tcn_clause(Participation.club))
     if seasons or federal_only:

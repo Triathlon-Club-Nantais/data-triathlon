@@ -54,3 +54,19 @@ def session_de_saisie(client, db_session, monkeypatch):
     client.cookies.set(session_cookie_name(get_settings()), jeton)
     yield
     get_settings.cache_clear()
+
+
+def valider_toutes_les_participations(db_session):
+    """Bascule toute participation créée via l'API à l'état validé.
+
+    #270 rend un résultat créé par `POST /participations` non vérifié par
+    défaut (FR-016), donc exclu des agrégats publics (FR-021). Les tests de ce
+    dossier utilisent cette route comme raccourci de peuplement pour des
+    lectures qui ne portent pas sur la validation elle-même — filtres,
+    saisons, portée club, badge `is_tcn`, taille du classement — et doivent
+    donc lever cet état pour retrouver leur donnée dans ces agrégats.
+    """
+    from app.models.participation import Participation
+
+    db_session.query(Participation).update({"is_pending_validation": False})
+    db_session.commit()

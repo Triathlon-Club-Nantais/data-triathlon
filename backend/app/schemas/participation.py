@@ -26,6 +26,10 @@ class ParticipationOut(BaseModel):
     total_time: str | None = None
     status: str = "finisher"
     is_relay: bool = False
+    team_name: str | None = None
+    evidence_url: str | None = None
+    # Résultat déclaré non encore vérifié par un bénévole (#270, #271).
+    is_pending_validation: bool = False
     splits: dict[str, str] | None = None
     created_at: datetime | None = None
     #: Statistiques détaillées, peuplées par la seule lecture d'**une** participation
@@ -99,6 +103,9 @@ class ParticipationCreate(BaseModel):
     event_date: str | None = None
     event_type: str = ""
     is_relay: bool = False
+    # Format libre quand l'épreuve n'entre dans aucune taille normalisée
+    # (« Autre » du formulaire, #270). Propriété de l'épreuve.
+    format_label: str = ""
     # Participation
     bib_number: str = ""
     category: str = ""
@@ -106,6 +113,11 @@ class ParticipationCreate(BaseModel):
     rank_category: int | None = None
     rank_gender: int | None = None
     total_time: str = ""
+    status: str = ""
+    # Nom de l'équipe si `is_relay` est vrai, lien vers les résultats publiés
+    # comme pièce de vérification — jamais une source de scraping (#270).
+    team_name: str = ""
+    evidence_url: str = ""
     # Segments — commodité de saisie triathlon (mappés vers splits, ré-étiquetés
     # par sport). Pour les autres sports, préférer `segments` (chemin générique).
     swim_time: str = ""

@@ -641,6 +641,20 @@ def test_exists_for_athlete_on_course_voit_un_deja_classe(db_session):
     )
 
 
+def test_list_for_athlete_inclut_une_participation_pendante(db_session):
+    """FR-019 — la fiche athlète est la seule surface qui montre les pendantes."""
+    athlete, course = _setup(db_session)
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1",
+        club="TCN", is_pending_validation=True,
+    )
+    db_session.flush()
+
+    rows = participation_repository.list_for_athlete(db_session, athlete.id)
+    assert len(rows) == 1
+    assert rows[0].is_pending_validation is True
+
+
 def test_reassign_change_le_rattachement_et_rien_d_autre(db_session):
     course, source, cible, ligne = _duo_epreuve_athletes(db_session)
     ligne.total_time = "01:23:45"

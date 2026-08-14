@@ -141,6 +141,12 @@ def test_participation_fields():
     assert fields["splits"] == {"swim": "00:20:00"}
 
 
+def test_participation_fields_import_nest_jamais_pendant():
+    """FR-017 — un résultat importé ne porte jamais l'état de saisie manuelle."""
+    fields = mapping.participation_fields(_scraped(), athlete_id=1, course_id=2)
+    assert fields["is_pending_validation"] is False
+
+
 def test_participation_fields_carries_is_relay():
     assert mapping.participation_fields(
         _scraped(is_relay=True), athlete_id=1, course_id=2

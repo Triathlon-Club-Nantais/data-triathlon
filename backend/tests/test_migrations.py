@@ -431,6 +431,91 @@ def test_a_course_without_source_url_gets_no_source(sqlite_url):
     assert orphelines == [("Saisie manuelle",)]
 
 
+# --- Saisie manuelle des résultats (#270) -----------------------------------
+
+#: Révision qui précède immédiatement les colonnes de validation manuelle.
+#: **Nommée** : un `-1` se décalerait à la première migration insérée entre-temps.
+_BEFORE_MANUAL_VALIDATION = "9427c6c5e84a"
+
+
+def test_upgrade_head_adds_manual_result_validation_columns(sqlite_url):
+    command.upgrade(_alembic_config(), "head")
+
+    assert {"is_pending_validation", "team_name", "evidence_url"} <= _columns(
+        sqlite_url, "participations"
+    )
+    assert "format_label" in _columns(sqlite_url, "courses")
+
+
+def test_les_participations_existantes_ne_deviennent_pas_pendantes(sqlite_url):
+    """`server_default="false"` : aucun backfill, aucune ligne marquée à tort.
+
+    Lu via l'ORM et non par `sa.text()` brut : `server_default='false'` produit
+    en SQLite le littéral texte `'false'`, pas l'entier `0` — même artefact que
+    porte déjà `is_relay` sur ce patron. C'est ce que l'application observe qui
+    compte, pas la représentation du pilote.
+    """
+    cfg = _alembic_config()
+    command.upgrade(cfg, _BEFORE_MANUAL_VALIDATION)
+
+    engine = sa.create_engine(sqlite_url)
+    try:
+        with engine.begin() as connexion:
+            connexion.execute(
+                sa.text(
+                    "INSERT INTO athletes (nom, prenom, gender, created_at)"
+                    " VALUES ('DUPONT', 'Jean', '', '2026-01-01')"
+                )
+            )
+            connexion.execute(
+                sa.text(
+                    "INSERT INTO courses (name, event_type, is_relay, scraped_at,"
+                    " created_at) VALUES ('Tri', 'triathlon-m', 0, '2026-01-01',"
+                    " '2026-01-01')"
+                )
+            )
+            connexion.execute(
+                sa.text(
+                    "INSERT INTO participations (athlete_id, course_id, status,"
+                    " is_relay, created_at) VALUES (1, 1, 'finisher', 0, '2026-01-01')"
+                )
+            )
+    finally:
+        engine.dispose()
+
+    command.upgrade(cfg, "head")
+
+    from sqlalchemy.orm import sessionmaker
+
+    from app.models.participation import Participation
+
+    engine = sa.create_engine(sqlite_url)
+    try:
+        session = sessionmaker(bind=engine)()
+        participation = session.query(Participation).one()
+        assert participation.is_pending_validation is False
+        session.close()
+    finally:
+        engine.dispose()
+
+
+def test_downgrade_puis_upgrade_de_la_validation_manuelle(sqlite_url):
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+
+    command.downgrade(cfg, _BEFORE_MANUAL_VALIDATION)
+    assert not {"is_pending_validation", "team_name", "evidence_url"} & _columns(
+        sqlite_url, "participations"
+    )
+    assert "format_label" not in _columns(sqlite_url, "courses")
+
+    command.upgrade(cfg, "head")
+    assert {"is_pending_validation", "team_name", "evidence_url"} <= _columns(
+        sqlite_url, "participations"
+    )
+    assert "format_label" in _columns(sqlite_url, "courses")
+
+
 def test_downgrade_then_upgrade_of_the_course_sources_table(sqlite_url):
     """AC1 — la descente ne perd rien : `courses.source_url` reste la source de vérité.
 

@@ -161,6 +161,7 @@ def get_or_create_course(db: Session, scraped: ScrapedResult, event_url: str) ->
         provider=scraped.provider,
         is_relay=scraped.is_relay,
         distance_km=distance_km,
+        format_label=scraped.format_label or None,
     )
     if not url:
         # Saisie manuelle : pas d'URL, donc rien à rattacher — `CourseSource.url`
@@ -209,4 +210,7 @@ def participation_fields(
         "status": derive_status(scraped),
         "splits": build_splits(scraped) or None,
         "raw_data": scraped.raw_data or None,
+        "team_name": scraped.team_name or None,
+        "evidence_url": scraped.evidence_url or None,
+        "is_pending_validation": scraped.is_pending_validation,
     }

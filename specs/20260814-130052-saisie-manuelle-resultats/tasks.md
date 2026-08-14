@@ -32,8 +32,8 @@ de `Composant.tsx`), convention en place dans tout le dépôt.
 **Purpose**: Établir la ligne de base. Aucun échafaudage n'est nécessaire — la
 feature modifie une application existante et ne crée qu'un module backend.
 
-- [ ] T001 Installer les dépendances des deux applications : `uv sync` depuis `backend/`, `npm install` depuis `frontend/`
-- [ ] T002 Établir la ligne de base verte **avant** toute modification : `uv run pytest -m "not integration"` depuis `backend/` et `npm test` depuis `frontend/`, et noter les compteurs de tests
+- [X] T001 Installer les dépendances des deux applications : `uv sync` depuis `backend/`, `npm install` depuis `frontend/`
+- [X] T002 Établir la ligne de base verte **avant** toute modification : `uv run pytest -m "not integration"` depuis `backend/` et `npm test` depuis `frontend/`, et noter les compteurs de tests — **3309 tests backend, 656 tests frontend (83 fichiers), tous verts**
 
 **Checkpoint**: suite verte connue — tout rouge ultérieur est imputable à la feature.
 
@@ -50,34 +50,49 @@ des résultats déclarés dans les podiums pendant toute la durée du chantier.
 
 ### Tests (écrire d'abord, vérifier rouges)
 
-- [ ] T003 [P] Test de migration aller-retour (`upgrade head` / `downgrade -1` / `upgrade head`) et de présence des 4 colonnes dans `backend/tests/test_migrations.py`
-- [ ] T004 [P] Test du prédicat et de la clause (`is_pending`, `validated_clause`) dans `backend/tests/test_core/test_validation.py` — nouveau fichier, sur le patron de `backend/tests/test_core/test_discipline.py`
-- [ ] T005 [P] Test de **répartition** : les 11 fonctions de `participation_repository` se rangent dans le bon groupe (5 filtrantes, 6 non filtrantes) dans `backend/tests/test_repositories/test_pending_exclusion.py` — nouveau fichier, patron AST de `backend/tests/test_permissions_catalogue.py`
-- [ ] T006 [P] Test d'exclusion **effective** sur les 5 sites (une participation pendante n'apparaît ni dans la liste, ni dans les épreuves, ni dans les stats, ni dans le classement, ni dans la synthèse) dans `backend/tests/test_repositories/test_pending_exclusion.py`
-- [ ] T007 [P] Test de non-exclusion : `list_for_athlete` rend bien la participation pendante, dans `backend/tests/test_repositories/test_participation_repository.py`
-- [ ] T008 [P] Test de contrat d'entrée : `POST /participations` force `is_pending_validation=true` et **ignore** toute valeur envoyée par le client, dans `backend/tests/test_api/test_participations_api.py`
-- [ ] T009 [P] Test de contrat de sortie : `ParticipationOut` porte `is_pending_validation`, `team_name`, `evidence_url`, dans `backend/tests/test_api/test_participations_api.py`
-- [ ] T010 [P] Test de non-régression d'import : un résultat importé porte `is_pending_validation=false` (FR-017), dans `backend/tests/test_services/test_mapping.py`
+- [X] T003 [P] Test de migration aller-retour (`upgrade head` / `downgrade` / `upgrade head`) et de présence des 4 colonnes dans `backend/tests/test_migrations.py` — plus un test dédié « aucun backfill » (server_default), qui a révélé et fait corriger un défaut réel : `server_default="false"` (chaîne) se relit `True` via l'ORM sur SQLite ; corrigé en `sa.false()`, cf. note de fin de phase
+- [X] T004 [P] Test du prédicat et de la clause (`is_pending`, `validated_clause`) dans `backend/tests/test_core/test_validation.py` — nouveau fichier, sur le patron de `backend/tests/test_core/test_discipline.py`
+- [X] T005 [P] Test de **répartition** : les 11 fonctions de `participation_repository` se rangent dans le bon groupe (5 filtrantes, 6 non filtrantes) dans `backend/tests/test_repositories/test_pending_exclusion.py` — nouveau fichier. **Déviation assumée** : comportemental (une pendante + une validée, assertion par fonction publique) plutôt qu'AST — `_apply_filters` est un helper partagé par 3 fonctions publiques, qu'un lecteur d'appels statique attribuerait mal
+- [X] T006 [P] Test d'exclusion **effective** sur les 5 sites (une participation pendante n'apparaît ni dans la liste, ni dans les épreuves, ni dans les stats, ni dans le classement, ni dans la synthèse) dans `backend/tests/test_repositories/test_pending_exclusion.py`
+- [X] T007 [P] Test de non-exclusion : `list_for_athlete` rend bien la participation pendante, dans `backend/tests/test_repositories/test_participation_repository.py`
+- [X] T008 [P] Test de contrat d'entrée : `POST /participations` force `is_pending_validation=true` et **ignore** toute valeur envoyée par le client, dans `backend/tests/test_api/test_participations_api.py`
+- [X] T009 [P] Test de contrat de sortie : `ParticipationOut` porte `is_pending_validation`, `team_name`, `evidence_url`, dans `backend/tests/test_api/test_participations_api.py`
+- [X] T010 [P] Test de non-régression d'import : un résultat importé porte `is_pending_validation=false` (FR-017), dans `backend/tests/test_services/test_mapping.py`
 
 ### Implémentation
 
-- [ ] T011 [P] Ajouter `is_pending_validation`, `team_name`, `evidence_url` à `backend/app/models/participation.py` (forme exacte : data-model.md §1)
-- [ ] T012 [P] Ajouter `format_label` à `backend/app/models/course.py` — **hors** de `uq_course_identity` (data-model.md §2)
-- [ ] T013 Générer la migration (`uv run alembic revision --autogenerate -m "manual result validation"`) puis **relire à la main** la révision dans `backend/alembic/versions/` : vérifier le `server_default="false"` et l'absence de tout backfill (dépend de T011, T012)
-- [ ] T014 [P] Créer `backend/app/core/validation.py` avec `is_pending()` et `validated_clause()` — sans état, sans accès base, sur le patron littéral de `backend/app/core/discipline.py`
-- [ ] T015 [P] Porter les nouveaux champs sur `ScrapedResult` dans `backend/app/scrapers/base.py`, défaut non pendant
-- [ ] T016 Propager les champs dans `mapping.participation_fields` dans `backend/app/services/mapping.py` (dépend de T015)
-- [ ] T017 Étendre `ParticipationCreate` (+`status`, `team_name`, `evidence_url`, `format_label`) et `ParticipationOut` (+3 champs) dans `backend/app/schemas/participation.py` — **sans** exposer `is_pending_validation` en entrée (contracts §1)
-- [ ] T018 Forcer `is_pending_validation=True` dans `create_participation` et relayer les nouveaux champs par `_to_scraped` dans `backend/app/api/v1/participations.py` (dépend de T017)
-- [ ] T019 Appliquer `validated_clause` dans `_apply_filters` de `backend/app/repositories/participation_repository.py` — couvre `list_participations` **et** `_grouped_events_query`
-- [ ] T020 Appliquer `validated_clause` dans `for_stats` de `backend/app/repositories/participation_repository.py` — couvre tableau de bord, page club et podiums
-- [ ] T021 Appliquer `validated_clause` dans `list_page_for_course` de `backend/app/repositories/participation_repository.py`
-- [ ] T022 Appliquer `validated_clause` dans `summary_rows_for_course` de `backend/app/repositories/participation_repository.py`
-- [ ] T023 Appliquer `validated_clause` dans `finishers_count_by_group` de `backend/app/repositories/participation_repository.py`
-- [ ] T024 [P] Ajouter `is_pending_validation`, `team_name`, `evidence_url` au type `Participation` de `frontend/lib/types.ts`
+- [X] T011 [P] Ajouter `is_pending_validation`, `team_name`, `evidence_url` à `backend/app/models/participation.py` (forme exacte : data-model.md §1)
+- [X] T012 [P] Ajouter `format_label` à `backend/app/models/course.py` — **hors** de `uq_course_identity` (data-model.md §2)
+- [X] T013 Générer la migration (`uv run alembic revision --autogenerate -m "manual result validation"`) puis **relire à la main** la révision dans `backend/alembic/versions/` : `server_default` corrigé en `sa.false()` (cf. T003), aucun backfill (dépend de T011, T012)
+- [X] T014 [P] Créer `backend/app/core/validation.py` avec `is_pending()` et `validated_clause()` — sans état, sans accès base, sur le patron littéral de `backend/app/core/discipline.py`
+- [X] T015 [P] Porter les nouveaux champs sur `ScrapedResult` dans `backend/app/scrapers/base.py`, défaut non pendant
+- [X] T016 Propager les champs dans `mapping.participation_fields` dans `backend/app/services/mapping.py` (dépend de T015) — et `get_or_create_course`/`course_repository.get_or_create` pour `format_label`, non prévu dans le libellé initial mais nécessaire à FR-008
+- [X] T017 Étendre `ParticipationCreate` (+`status`, `team_name`, `evidence_url`, `format_label`) et `ParticipationOut` (+3 champs) dans `backend/app/schemas/participation.py` — **sans** exposer `is_pending_validation` en entrée (contracts §1). `CourseBrief` gagne aussi `format_label`
+- [X] T018 Forcer `is_pending_validation=True` dans `create_participation` et relayer les nouveaux champs par `_to_scraped` dans `backend/app/api/v1/participations.py` (dépend de T017)
+- [X] T019 Appliquer `validated_clause` dans `_apply_filters` de `backend/app/repositories/participation_repository.py` — couvre `list_participations` **et** `_grouped_events_query`
+- [X] T020 Appliquer `validated_clause` dans `for_stats` de `backend/app/repositories/participation_repository.py` — couvre tableau de bord, page club et podiums
+- [X] T021 Appliquer `validated_clause` dans `list_page_for_course` de `backend/app/repositories/participation_repository.py`
+- [X] T022 Appliquer `validated_clause` dans `summary_rows_for_course` de `backend/app/repositories/participation_repository.py`
+- [X] T023 Appliquer `validated_clause` dans `finishers_count_by_group` de `backend/app/repositories/participation_repository.py`
+- [X] T024 [P] Ajouter `is_pending_validation`, `team_name`, `evidence_url` (Participation) et `format_label` (CourseBrief) au type frontend de `frontend/lib/types.ts`
+- [X] T070 [P] [US2] Test symétrique (FR-022) exécuté avec T005/T006 dans `test_pending_exclusion.py`, par avance sur son placement de phase — cf. note en tête de fichier
 
 **Checkpoint**: T003 à T010 verts. Une participation pendante peut exister en base
 sans polluer aucun agrégat. Les user stories peuvent démarrer.
+
+**Note de phase — régression découverte et corrigée** : faire tourner la suite
+complète après ces changements a fait échouer 12 tests préexistants
+(`test_federal_only.py`, `test_other_api.py`, 2 de `test_participations_api.py`)
+qui utilisaient `POST /participations` comme raccourci de peuplement pour tester
+le filtrage — désormais exclu des agrégats puisque pendant par défaut. Corrigé en
+ajoutant `valider_toutes_les_participations(db_session)` (helper dans
+`test_api/conftest.py`) aux points de seed de ces 12 tests, sans toucher au
+comportement attendu de la feature. Un second défaut, réel et indépendant, a été
+découvert et corrigé au passage : `server_default="false"` (chaîne) sur SQLite se
+relit `True` via l'ORM (chaîne non vide) au lieu de `False` — corrigé en
+`server_default=false()` pour `is_pending_validation`. **`Participation.is_relay`
+porte le même défaut historique et n'a pas été touché** (hors périmètre de cette
+feature) : à signaler comme ticket suiveur, cf. rapport de fin de phase.
 
 ---
 

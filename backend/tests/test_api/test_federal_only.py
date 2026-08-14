@@ -1,4 +1,5 @@
 """`federal_only` sort les disciplines hors fédération des compteurs (#76)."""
+from tests.test_api.conftest import valider_toutes_les_participations
 
 
 def _payload(bib: str, nom: str, event_name: str, event_type: str) -> dict:
@@ -15,29 +16,30 @@ def _payload(bib: str, nom: str, event_name: str, event_type: str) -> dict:
     }
 
 
-def _peupler(client):
+def _peupler(client, db_session):
     client.post("/api/v1/participations", json=_payload("1", "DUPONT", "Tri M", "triathlon-m"))
     client.post("/api/v1/participations", json=_payload("2", "MARTIN", "Urban Trail", "trail"))
     client.post("/api/v1/participations", json=_payload("3", "DURAND", "10 km", "course-a-pied-10k"))
+    valider_toutes_les_participations(db_session)
 
 
-def test_sans_le_parametre_rien_n_est_filtre(client):
+def test_sans_le_parametre_rien_n_est_filtre(client, db_session):
     """L'API reste neutre par défaut : c'est l'écran qui décide, pas le backend."""
-    _peupler(client)
+    _peupler(client, db_session)
     rows = client.get("/api/v1/participations", params={"scope": "club"}).json()
     assert len(rows) == 3
 
 
-def test_federal_only_retire_trail_et_course_a_pied(client):
-    _peupler(client)
+def test_federal_only_retire_trail_et_course_a_pied(client, db_session):
+    _peupler(client, db_session)
     rows = client.get(
         "/api/v1/participations", params={"scope": "club", "federal_only": "true"}
     ).json()
     assert [r["course"]["event_type"] for r in rows] == ["triathlon-m"]
 
 
-def test_les_stats_suivent_le_meme_filtre(client):
-    _peupler(client)
+def test_les_stats_suivent_le_meme_filtre(client, db_session):
+    _peupler(client, db_session)
 
     tout = client.get("/api/v1/stats", params={"scope": "club"}).json()
     federal = client.get(
@@ -51,8 +53,8 @@ def test_les_stats_suivent_le_meme_filtre(client):
     assert set(federal["by_type"]) == {"triathlon-m"}
 
 
-def test_les_epreuves_agregees_suivent_le_meme_filtre(client):
-    _peupler(client)
+def test_les_epreuves_agregees_suivent_le_meme_filtre(client, db_session):
+    _peupler(client, db_session)
 
     tout = client.get("/api/v1/courses/events", params={"scope": "club"}).json()
     federal = client.get(
