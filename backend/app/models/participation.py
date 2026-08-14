@@ -12,12 +12,15 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.club import CLUB_NORMALIZED_INDEX_EXPRESSION
 from app.core.database import Base
 from app.core.time import utcnow
 
@@ -26,6 +29,22 @@ class Participation(Base):
     __tablename__ = "participations"
     __table_args__ = (
         UniqueConstraint("course_id", "bib_number", name="uq_participation_bib"),
+        # Index fonctionnel sur la forme normalisée de `club` (#351) : sans lui,
+        # `tcn_clause(Participation.club)` — `course_repository._filtered` et
+        # quatre `.filter(tcn_clause(...))` de `participation_repository.py`
+        # (lignes ~299, 448, 504, 687) — force un balayage complet de la table
+        # (aucun index ne peut servir une expression), mesuré à 15-20x plus
+        # lent que le même endpoint sans `scope=club`. Deux autres appels
+        # (~177, 535) évaluent `tcn_clause` dans un `func.sum(case(...))`,
+        # agrégat calculé sur un groupe déjà restreint par d'autres critères :
+        # l'index accélère une **sélection** de lignes, pas un booléen évalué
+        # ligne à ligne à l'intérieur d'un agrégat déjà borné — ces deux-là ne
+        # profitent pas dans les mêmes proportions.
+        # `EXPLAIN QUERY PLAN` avant/après : cf. migration `e9cdbf3a4866`.
+        Index(
+            "ix_participations_club_normalized",
+            text(CLUB_NORMALIZED_INDEX_EXPRESSION),
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
