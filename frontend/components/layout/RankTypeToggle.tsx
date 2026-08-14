@@ -3,6 +3,7 @@ import { useSearchParams, usePathname } from "next/navigation";
 
 import { RANK_DEFAULT, RANK_PARAM, rankTypeFromParam, type RankType } from "@/lib/rank";
 import { rankTypeLabel } from "@/lib/labels";
+import { SegmentedControl } from "@/components/tcn/SegmentedControl";
 
 const OPTION_VALUES: readonly RankType[] = ["scratch", "category", "gender", "all"];
 
@@ -21,6 +22,19 @@ const OPTION_VALUES: readonly RankType[] = ["scratch", "category", "gender", "al
  * leur rendu serveur — jusqu'à `listParticipations(page_size=5000)` — pour un
  * résultat que le client tenait déjà. `pushState` s'intègre au routeur Next,
  * donc `useSearchParams` le reflète et retour/avant restent cohérents.
+ *
+ * Rendu par `SegmentedControl` (`tone="ink"`, #342) plutôt qu'un radiogroup
+ * fait main : un `<input type="radio">` masqué par style en ligne
+ * (`opacity: 0`) ne peut exprimer `:focus-visible` — focus clavier invisible —
+ * et l'ancien fond d'état actif (`--tcn-fill` sur `--tcn-surface`, 1,11:1)
+ * n'atteignait pas le seuil de 3:1 pour une information d'état. `SegmentedControl`
+ * pose l'actif en encre sur blanc (16,69:1) et rend un `<button>` natif dont le
+ * focus se voit nativement (classe `tcn-segmented-btn`).
+ *
+ * Conteneur en `role="group"`, pas `role="radiogroup"` : ses enfants sont des
+ * `<button>` (`aria-pressed`), pas des `role="radio"` — un radiogroup sans
+ * enfant radio est une structure ARIA invalide qui rend l'état sélectionné
+ * muet pour un lecteur d'écran. Même précédent que `ScopeToggle`.
  */
 export function RankTypeToggle() {
   const pathname = usePathname();
@@ -36,51 +50,13 @@ export function RankTypeToggle() {
   }
 
   return (
-    <div
-      role="radiogroup"
-      aria-label="Type de rang"
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 0,
-        padding: 3,
-        borderRadius: 10,
-        border: "1px solid var(--tcn-border)",
-        background: "var(--tcn-surface, #fff)",
-      }}
-    >
-      {OPTION_VALUES.map((value) => {
-        const checked = value === active;
-        const label = rankTypeLabel(value);
-        return (
-          <label
-            key={value}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              padding: "6px 12px",
-              borderRadius: 8,
-              cursor: "pointer",
-              fontSize: 13,
-              fontWeight: 700,
-              color: checked ? "var(--tcn-ink)" : "var(--tcn-text-muted)",
-              background: checked ? "var(--tcn-fill)" : "transparent",
-              transition: "background 120ms, color 120ms",
-            }}
-          >
-            <input
-              type="radio"
-              name="rank-type"
-              value={value}
-              checked={checked}
-              onChange={() => apply(value)}
-              style={{ position: "absolute", opacity: 0, pointerEvents: "none" }}
-              aria-label={label}
-            />
-            {label}
-          </label>
-        );
-      })}
+    <div role="group" aria-label="Type de rang">
+      <SegmentedControl
+        tone="ink"
+        value={active}
+        onChange={(next) => apply(next as RankType)}
+        options={OPTION_VALUES.map((value) => ({ value, label: rankTypeLabel(value) }))}
+      />
     </div>
   );
 }

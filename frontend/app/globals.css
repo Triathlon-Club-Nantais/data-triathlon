@@ -431,6 +431,20 @@
     outline-offset: 2px;
     border-radius: 4px;
   }
+  /* SegmentedControl (`tcn/SegmentedControl.tsx`) est 100 % en style inline,
+     sans classe : son focus retombait donc sur le seul anneau universel
+     `outline-ring/50` (`@layer base`, règle `*`), qui ne vaut que 1,86:1 — sous
+     le seuil WCAG 1.4.11 de 3:1 (#342). Classe dédiée plutôt que `.tcn-btn` :
+     ce dernier embarque tailles `--sm/--md/--lg`, variants de couleur et un
+     `:disabled` que ce composant n'a pas (pas de prop `disabled`) — les lui
+     donner aurait été un effet de bord sans rapport avec le focus. */
+  .tcn-segmented-btn {
+    outline: none;
+  }
+  .tcn-segmented-btn:focus-visible {
+    outline: 2px solid var(--tcn-orange);
+    outline-offset: 2px;
+  }
 }
 
 ::selection {

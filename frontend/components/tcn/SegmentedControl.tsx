@@ -2,7 +2,16 @@ import type { CSSProperties, ReactNode } from "react";
 
 type Option = string | { value: string; label: ReactNode; dot?: boolean };
 
-/** Toggle choix-unique. Segment actif = encre ; variante orange pour les formats. */
+/**
+ * Toggle choix-unique. Segment actif = encre ; variante orange pour les formats.
+ *
+ * Chaque bouton porte `aria-pressed` (état déjà calculé ici, pas un prop
+ * séparé) et la classe `tcn-segmented-btn` (`app/globals.css`), seule à poser
+ * un `:focus-visible` à 3:1 — en style inline pur, ce composant n'a aucun
+ * autre moyen de l'exprimer (#342). Le conteneur ne porte pas de rôle : c'est
+ * à l'appelant de choisir `role="group"` (bouton-groupe, précédent :
+ * `ScopeToggle`) selon son contexte.
+ */
 export function SegmentedControl({
   options = [],
   value,
@@ -38,6 +47,8 @@ export function SegmentedControl({
           <button
             key={val}
             type="button"
+            className="tcn-segmented-btn"
+            aria-pressed={active}
             onClick={() => onChange(val)}
             style={{
               display: "inline-flex",
