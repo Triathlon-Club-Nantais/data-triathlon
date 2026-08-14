@@ -657,3 +657,131 @@ def test_reassign_change_le_rattachement_et_rien_d_autre(db_session):
     assert relue.total_time == "01:23:45"
     assert relue.rank_overall == 7
     assert relue.status == "finisher"
+
+
+# --- Non-régression #350 : N+1 sur Course.provider/source_url --------------
+#
+# `Course.provider`/`.source_url` sont des `hybrid_property` qui lisent
+# `course.sources` en mémoire (`_from_active_source`), sans requête — à
+# condition que la collection soit déjà chargée. Les trois fonctions
+# ci-dessous doivent charger `Course.sources` en un seul aller (`selectinload`
+# chaîné derrière `joinedload(Participation.course)`), quel que soit le nombre
+# de courses/participations dans la page. Le test porte sur le **nombre** de
+# requêtes SQL, pas sur le contenu du résultat — un test qui ne vérifierait
+# que `provider`/`source_url` laisserait le N+1 revenir sans jamais le voir.
+
+
+def _course_avec_source_active(db_session, indice: int) -> Course:
+    return course_repository.get_or_create(
+        db_session,
+        name=f"Tri Source {indice}",
+        event_date=date(2026, 5, indice + 1),
+        event_type="triathlon-m",
+        source_url=f"https://timing.example/{indice}",
+        provider="klikego",
+    )
+
+
+def test_list_participations_charge_les_sources_en_un_seul_aller(db_session):
+    """Cinq courses distinctes, huit participations : le nombre de requêtes ne
+    doit dépendre ni du nombre de courses, ni du nombre de participations."""
+    from app.core import sql_observability
+
+    athletes = [
+        athlete_repository.get_or_create(db_session, nom=f"NOM{i}", prenom="P", club="TCN")
+        for i in range(2)
+    ]
+    courses = [_course_avec_source_active(db_session, i) for i in range(5)]
+    for course in courses:
+        participation_repository.create(
+            db_session, athlete_id=athletes[0].id, course_id=course.id, bib_number="1", club="TCN"
+        )
+    # Trois des cinq courses portent un second participant : la source ne doit
+    # pas non plus être rechargée par participation.
+    for course in courses[:3]:
+        participation_repository.create(
+            db_session, athlete_id=athletes[1].id, course_id=course.id, bib_number="2", club="TCN"
+        )
+    db_session.flush()
+    # Périme tout ce que la mise en place vient de charger : sans ça, les
+    # sources posées par `get_or_create` restent en mémoire sur ces mêmes
+    # instances et le test ne verrait jamais le lazy-load qu'il cherche à
+    # détecter — comme une nouvelle session le ferait à chaque requête HTTP.
+    db_session.expire_all()
+
+    sql_observability.install(db_session.bind, slow_query_ms=0, collect_stats=True)
+    try:
+        with sql_observability.measure_queries("test list_participations") as stats:
+            rows = participation_repository.list_participations(db_session, page_size=50)
+            assert len(rows) == 8
+            for row in rows:
+                assert row.course.provider == "klikego"
+                assert row.course.source_url
+        # 1 requête principale (Participation + Athlete + Course joints) + 1
+        # requête groupée `IN (...)` pour les sources de toutes les courses de
+        # la page — jamais une par course distincte.
+        assert stats.count == 2
+    finally:
+        sql_observability.reset_for_tests()
+
+
+def test_list_for_athlete_charge_les_sources_en_un_seul_aller(db_session):
+    """Un même athlète sur quatre courses distinctes : même garde-fou que
+    `list_participations`, alimente `/athletes/[id]`."""
+    from app.core import sql_observability
+
+    athlete = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean", club="TCN")
+    courses = [_course_avec_source_active(db_session, i) for i in range(4)]
+    for course in courses:
+        participation_repository.create(
+            db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1", club="TCN"
+        )
+    db_session.flush()
+    athlete_id = athlete.id  # capturé avant expiration : sinon l'accès à
+    # l'attribut après `expire_all()` déclenche lui-même une requête, une de
+    # plus que ce que la fonction testée émet réellement.
+    db_session.expire_all()
+
+    sql_observability.install(db_session.bind, slow_query_ms=0, collect_stats=True)
+    try:
+        with sql_observability.measure_queries("test list_for_athlete") as stats:
+            rows = participation_repository.list_for_athlete(db_session, athlete_id)
+            assert len(rows) == 4
+            for row in rows:
+                assert row.course.provider == "klikego"
+                assert row.course.source_url
+        assert stats.count == 2
+    finally:
+        sql_observability.reset_for_tests()
+
+
+def test_list_page_for_course_charge_la_source_en_un_seul_aller(db_session):
+    """Le classement d'une épreuve : `contains_eager(Athlete)` déjà en place ne
+    doit pas empêcher le chaînage `joinedload(Course).selectinload(sources)`."""
+    from app.core import sql_observability
+
+    course = _course_avec_source_active(db_session, 0)
+    athletes = [
+        athlete_repository.get_or_create(db_session, nom=f"N{i}", prenom="P", club="TCN")
+        for i in range(3)
+    ]
+    for i, athlete in enumerate(athletes):
+        participation_repository.create(
+            db_session, athlete_id=athlete.id, course_id=course.id, bib_number=str(i), club="TCN"
+        )
+    db_session.flush()
+    course_id = course.id  # capturé avant expiration, même raison que ci-dessus.
+    db_session.expire_all()
+
+    sql_observability.install(db_session.bind, slow_query_ms=0, collect_stats=True)
+    try:
+        with sql_observability.measure_queries("test list_page_for_course") as stats:
+            rows, total = participation_repository.list_page_for_course(db_session, course_id)
+            assert total == 3
+            for row in rows:
+                assert row.course.provider == "klikego"
+                assert row.course.source_url
+        # count() + tranche paginée (Athlete + Course joints) + IN(...) sources.
+        assert stats.count == 3
+    finally:
+        sql_observability.reset_for_tests()
