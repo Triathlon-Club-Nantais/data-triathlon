@@ -162,7 +162,7 @@ export function RaceFinishers({
             value={filtreClub ? "tcn" : "all"}
             onChange={(v) => naviguer({ [SCOPE_PARAM]: v === "tcn" ? SCOPE_CLUB : null })}
             options={[
-              { value: "all", label: `Tous les coureurs (${summary.total})` },
+              { value: "all", label: `Tous les participants (${summary.total})` },
               { value: "tcn", label: `${CLUB_NAME} (${summary.tcn_count})`, dot: true },
             ]}
           />
