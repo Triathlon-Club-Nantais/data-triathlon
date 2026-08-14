@@ -238,7 +238,7 @@ temps vides ; enregistrer un abandon sans temps ni place.
 - [~] T066 **Partiellement fait** : la vérification automatisable de `quickstart.md` §2-§7 est couverte par les tests (migration aller-retour, exclusion des 5 sites + symétrique, discipline/format, individuel-collectif, evidence_url sans source). **Non fait** : le parcours navigateur réel (§3-§5, `npm run dev` + clics) — non exécuté dans cette session, à faire avant de sortir la PR du statut draft.
 - [X] T067 `uv run ruff check .` (backend) et `npm run lint` (frontend) propres. `npm run build` réussit — seule erreur restante : `.next/dev/types/validator.ts`, artefact préexistant et gitignoré référençant une route absente du dépôt (`app/courses/[id]/participations/[participationId]`, une autre feature), sans rapport avec ce code
 - [X] T068 Suite complète : **3349 tests backend** (3327 après Phase 2 + 22 nouveaux US3/US4/Phase7) et **677 tests frontend** (656 après Phase 1 + 21 nouveaux), tous verts
-- [ ] T069 PR #336 existante (draft) mise à jour par commits successifs ; la description reste à actualiser avec le bilan complet avant de sortir du statut draft
+- [X] T069 PR #336 (draft) mise à jour : description réécrite avec le bilan complet (impact schéma, 4 points à relire, contrat d'API, test plan, ce qui reste à faire)
 
 ---
 
