@@ -142,11 +142,12 @@ prod.
 
 Un worktree est en revanche une copie neuve : les fichiers gitignorés n'y sont pas.
 `.worktreeinclude` (racine, syntaxe `.gitignore`) liste ceux que **Claude Code**
-recopie à la création d'un worktree — `.env`, `.env.local`, la base de dev
-`backend/triathlon.db` et `frontend/node_modules/` (copie : 12,8 s, contre 34,3 s
-de `npm ci`). `backend/.venv/` n'y est pas : `uv sync` le reconstruit en 0,21 s
-depuis son cache, plus vite que la copie. Avec `git worktree add`, la copie reste à
-votre charge.
+recopie à la création d'un worktree — `.env`, `.env.local` et la base de dev
+`backend/triathlon.db`. `backend/.venv/` n'y est pas : `uv sync` le reconstruit en
+0,21 s depuis son cache, plus vite qu'une copie. `frontend/node_modules/` non plus :
+la copie perdait `node_modules/.bin/` (#337), donc un worktree frontend démarre
+sans dépendances installées — `npm ci` (ou `npm install`) y est requis. Avec
+`git worktree add`, la copie reste à votre charge.
 
 ---
 

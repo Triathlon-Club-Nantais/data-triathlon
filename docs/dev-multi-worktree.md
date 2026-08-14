@@ -51,8 +51,8 @@ le rattrapage.
 **Un worktree se crée depuis la racine.** `.claude/worktrees/` est résolu depuis le
 répertoire **courant** de la session : lancé depuis `frontend/`, un worktree
 s'imbrique en `frontend/.claude/worktrees/<nom>/` — un second dépôt complet, avec
-son propre `frontend/`, `backend/` et `node_modules` recopié, à l'intérieur du
-premier. Les trois configurations qui doivent l'ignorer sont désormais dé-ancrées
+son propre `frontend/` et `backend/`, à l'intérieur du premier. Les trois
+configurations qui doivent l'ignorer sont désormais dé-ancrées
 (`**/.claude/worktrees/` dans `.gitignore`, `**/.claude/**` dans
 `frontend/vitest.config.ts` et `frontend/eslint.config.mjs`), parce qu'aucune ne
 le couvrait : `npm test` collectait **52 fichiers de test d'un worktree imbriqué**
@@ -66,8 +66,8 @@ worktrees créés par Claude Code (`claude --worktree`, sous-agents
 suivre — un fichier n'est copié que s'il est à la fois listé **et** gitignoré.
 Aujourd'hui : `.env` **et** `backend/.env` (porteur de `DATABASE_URL`), les trois
 profondeurs de `.env.local` (racine, `backend/`, `frontend/` — aucune n'existe
-aujourd'hui, elles sont listées par avance), la base de dev `backend/triathlon.db`
-et `frontend/node_modules`.
+aujourd'hui, elles sont listées par avance) et la base de dev
+`backend/triathlon.db`.
 
 **Ce sont des chemins littéraux, pas des motifs `.gitignore`** : Orca ne fait aucune
 expansion (globs et négations sautés avec un avertissement), donc `.env` seul désigne
@@ -77,12 +77,21 @@ existant bel et bien, la copie réussissait — sur le mauvais fichier. Et un ch
 absent est sauté **en silence**, ce qui rend l'entrée morte indiscernable de l'entrée
 qui fonctionne.
 
-Ce dernier est là parce que **la copie bat la réinstallation** : 12,8 s contre
-34,3 s de `npm ci` à cache npm chaud. `backend/.venv/` en est absent pour la raison
-**inverse**, mesurée de même : 2,0 s de copie contre **0,21 s** d'`uv sync`, qui
-reconstruit l'environnement par liens durs depuis `~/.cache/uv` — et un venv n'est
-pas déplaçable, les shebangs de `.venv/bin/*` portant le chemin absolu du dépôt
-principal. Ne pas l'ajouter « par symétrie ».
+`frontend/node_modules` n'y figure **pas** : la copie a été essayée puis retirée
+de `.worktreeinclude`, parce qu'elle perdait `node_modules/.bin/` (les liens
+symboliques vers `vitest`, `eslint`, `next`) — le mécanisme de copie du harnais
+saute ce que la copie ne sait pas reconstituer, et le remède le plus immédiat,
+`npm install`, réécrit `package-lock.json` au passage. On paie alors la copie
+**et** l'installation, ce qui invalide l'arbitrage temps qui avait justifié
+l'entrée. Un worktree frontend démarre donc sans `node_modules` : `npm ci` (ou
+`npm install`) y est requis avant tout `npm run dev|test|lint|build`. Détail et
+mesures : issue #337.
+
+`backend/.venv/` en est absent pour une raison différente, mesurée de même :
+2,0 s de copie contre **0,21 s** d'`uv sync`, qui reconstruit l'environnement par
+liens durs depuis `~/.cache/uv` — et un venv n'est pas déplaçable, les shebangs de
+`.venv/bin/*` portant le chemin absolu du dépôt principal. Ne pas l'ajouter « par
+symétrie ».
 
 Deux fichiers en sont exclus pour une troisième raison, la même pour les deux : ils
 désignent un worktree **en particulier**. `.dev-backend.json`, que chaque
