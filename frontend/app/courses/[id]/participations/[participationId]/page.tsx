@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ChevronLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { apiServer } from "@/lib/api/server";
 import {
@@ -35,11 +36,13 @@ export default async function ParticipationDetailPage({
   if (!participation || participation.course?.id !== Number(id)) notFound();
 
   const athleteId = participation.athlete.id;
+  const returns = <ReturnLinks courseId={id} athleteId={athleteId} />;
 
   if (!participation.stats) {
     return (
       <PageShell>
-        <UnavailableState athleteId={athleteId} />
+        {returns}
+        <UnavailableState />
       </PageShell>
     );
   }
@@ -49,31 +52,19 @@ export default async function ParticipationDetailPage({
 
   return (
     <PageShell>
+      {returns}
       <PageHeader
         eyebrow="Détail du résultat"
-        title={course?.name ?? "Épreuve"}
+        title={<Link href={`/courses/${id}`}>{course?.name ?? "Épreuve"}</Link>}
         description={eventDate || undefined}
-        backHref={`/athletes/${athleteId}`}
-        backLabel="Retour aux résultats de l'athlète"
-        actions={
-          <Link
-            href="/ajouter"
-            style={{
-              padding: "8px 16px",
-              borderRadius: "var(--tcn-radius-md)",
-              border: "1px solid var(--tcn-border)",
-              fontSize: 13,
-              fontWeight: 700,
-              color: "var(--tcn-ink)",
-            }}
-          >
-            Ajouter un triathlon
-          </Link>
-        }
       />
 
       <div style={{ marginTop: 26 }}>
-        <ResultRow participation={participation} segments={stats.segments} />
+        <ResultRow
+          participation={participation}
+          segments={stats.segments}
+          steps={stats.ranking_evolution}
+        />
         <ComparisonTable
           rows={stats.comparison}
           segments={stats.segments}
@@ -89,5 +80,33 @@ export default async function ParticipationDetailPage({
         />
       </div>
     </PageShell>
+  );
+}
+
+/**
+ * Les deux retours de la page, rendus dans les deux états (statistiques
+ * calculées ou non) : on arrive ici depuis le tableau des finishers **ou**
+ * depuis la fiche athlète, et un seul retour renvoie la moitié des visiteurs
+ * là d'où ils ne viennent pas.
+ */
+function ReturnLinks({ courseId, athleteId }: { courseId: string; athleteId: number }) {
+  const links = [
+    { href: `/courses/${courseId}`, label: "Retour à la course" },
+    { href: `/athletes/${athleteId}`, label: "Retour aux résultats de l'athlète" },
+  ];
+
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-2">
+      {links.map((link) => (
+        <Link
+          key={link.href}
+          href={link.href}
+          className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ChevronLeft className="size-4" />
+          {link.label}
+        </Link>
+      ))}
+    </div>
   );
 }

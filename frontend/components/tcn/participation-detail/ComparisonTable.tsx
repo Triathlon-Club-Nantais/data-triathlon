@@ -30,7 +30,9 @@ export function ComparisonTable({
       <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 14, fontSize: 13 }}>
         <thead>
           <tr>
-            <th style={headStyle}>Position</th>
+            {/* Largeur fixe : sans elle, la colonne de position absorbe tout
+                l'espace que les colonnes de pourcentage n'occupent pas. */}
+            <th style={{ ...headStyle, width: 72, textAlign: "left" }}>Position</th>
             {columns.map((column) => (
               <th key={column.key} style={{ ...headStyle, color: column.small ? "var(--tcn-text-faint)" : column.color }}>
                 {column.label}

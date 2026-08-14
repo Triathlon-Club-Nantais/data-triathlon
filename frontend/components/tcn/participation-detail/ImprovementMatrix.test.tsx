@@ -5,8 +5,9 @@ import { ImprovementMatrix } from "./ImprovementMatrix";
 
 const ROWS: ImprovementRow[] = [
   { segment: "swim", gains: { "0.5": 1, "1": 2, "2": 4, "5": 10, "10": 18, "25": 39 } },
-  { segment: "t1", gains: { "0.5": 0, "1": 1, "2": 1, "5": 1, "10": 2, "25": 5 } },
+  { segment: "t1", gains: { "0.5": 0, "1": 0, "2": 0, "5": 0, "10": 0, "25": 0 } },
   { segment: "bike", gains: { "0.5": 2, "1": 5, "2": 11, "5": 26, "10": 40, "25": 62 } },
+  { segment: "t2", gains: { "0.5": 0, "1": 0, "2": 0, "5": 0, "10": 0, "25": 0 } },
 ];
 
 function renderMatrix(rows = ROWS, eventType = "triathlon-m") {
@@ -14,12 +15,10 @@ function renderMatrix(rows = ROWS, eventType = "triathlon-m") {
 }
 
 describe("ImprovementMatrix", () => {
-  it("rend une ligne par segment fourni", () => {
+  it("annonce ce que mesurent les colonnes", () => {
     renderMatrix();
 
-    expect(screen.getByRole("row", { name: /Natation/ })).toBeTruthy();
-    expect(screen.getByRole("row", { name: /Vélo/ })).toBeTruthy();
-    expect(screen.getAllByRole("row").length).toBe(4); // en-tête + trois segments
+    expect(screen.getByText(/si ce segment avait été couru plus vite/i)).toBeTruthy();
   });
 
   it("affiche les six colonnes de pourcentage", () => {
@@ -30,18 +29,34 @@ describe("ImprovementMatrix", () => {
     }
   });
 
-  it("affiche le nombre de places gagnées tel que l'API le fournit", () => {
+  it("ne garde dans le tableau que les segments où des places sont à gagner", () => {
+    renderMatrix();
+
+    expect(screen.getByRole("row", { name: /Natation/ })).toBeTruthy();
+    expect(screen.getByRole("row", { name: /Vélo/ })).toBeTruthy();
+    expect(screen.queryByRole("row", { name: /T1/ })).toBeNull();
+    expect(screen.getAllByRole("row").length).toBe(3); // en-tête + deux segments
+  });
+
+  it("marque les places gagnées d'un signe plus", () => {
     renderMatrix();
 
     const velo = screen.getByRole("row", { name: /Vélo/ });
-    expect(within(velo).getByText("62")).toBeTruthy();
-    expect(within(velo).getByText("11")).toBeTruthy();
+    expect(within(velo).getByText("+62")).toBeTruthy();
+    expect(within(velo).getByText("+11")).toBeTruthy();
   });
 
-  it("affiche un gain nul sans le maquiller", () => {
-    const t1 = renderMatrix().container.querySelector('[data-segment="t1"]');
+  it("nomme hors du tableau les segments qui ne rapportent rien", () => {
+    renderMatrix();
 
-    expect(within(t1 as HTMLElement).getAllByText("0").length).toBe(1);
+    expect(screen.getByText(/T1 et T2 : aucune place gagnée, même 25 % plus vite/)).toBeTruthy();
+  });
+
+  it("ne rend aucun tableau quand aucun segment ne rapporte de place", () => {
+    renderMatrix([{ segment: "swim", gains: { "0.5": 0, "1": 0, "2": 0, "5": 0, "10": 0, "25": 0 } }]);
+
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.getByText(/Natation : aucune place gagnée, même 25 % plus vite/)).toBeTruthy();
   });
 
   it("n'ouvre pas de ligne pour un segment absent du calcul", () => {

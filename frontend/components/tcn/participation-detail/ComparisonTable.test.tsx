@@ -52,6 +52,13 @@ describe("ComparisonTable", () => {
     expect(within(ligne).getAllByText("—").length).toBe(4); // swim, t1, t2, run
   });
 
+  it("garde la colonne de position étroite, le reste de la largeur allant aux segments", () => {
+    renderTable();
+
+    const position = screen.getAllByRole("columnheader")[0] as HTMLElement;
+    expect(position.style.width).toBe("72px");
+  });
+
   it("limite les colonnes aux segments publiés par l'épreuve", () => {
     renderTable(
       [{ position_label: "1er", rank: 1, percentages: { course1: 120.0, total: 118.0 } }],

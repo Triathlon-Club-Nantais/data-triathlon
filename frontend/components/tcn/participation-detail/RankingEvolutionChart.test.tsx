@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { RankingEvolutionStep } from "@/lib/types";
 import { RankingEvolutionChart } from "./RankingEvolutionChart";
@@ -62,6 +62,40 @@ describe("RankingEvolutionChart", () => {
     const premier = container.querySelector('[data-role="scratch"][data-step="run"]');
     const troisieme = container.querySelector('[data-role="scratch"][data-step="swim"]');
     expect(y(troisieme) - y(premier)).toBeGreaterThan(20);
+  });
+
+  it("reste un bandeau large plutôt qu'un pavé", () => {
+    const { container } = renderChart();
+
+    const [, , largeur, hauteur] = container
+      .querySelector("svg")!
+      .getAttribute("viewBox")!
+      .split(" ")
+      .map(Number);
+    // Le SVG occupe toute la largeur de la carte : c'est son rapport qui fixe
+    // sa hauteur rendue. Au-delà de 0,3 il occupait la moitié de l'écran.
+    expect(hauteur / largeur).toBeLessThanOrEqual(0.3);
+  });
+
+  it("gradue l'axe des positions", () => {
+    const { container } = renderChart();
+
+    const graduations = [...container.querySelectorAll("[data-tick]")].map(
+      (tick) => tick.textContent,
+    );
+    expect(graduations.length).toBeGreaterThanOrEqual(3);
+    // Bornes lues sur la course : la meilleure position (56e) et la pire (112e)
+    // doivent tomber dans l'intervalle gradué.
+    expect(Number(graduations[0])).toBeLessThanOrEqual(56);
+    expect(Number(graduations[graduations.length - 1])).toBeGreaterThanOrEqual(112);
+  });
+
+  it("dit ce que représentent la ligne et les barres", () => {
+    const { container } = renderChart();
+
+    const legende = container.querySelector("[data-legend]") as HTMLElement;
+    expect(within(legende).getByText(/classement scratch/i)).toBeTruthy();
+    expect(within(legende).getByText(/sur le segment/i)).toBeTruthy();
   });
 
   it("affiche l'étape et la position scratch au survol d'un point", async () => {
