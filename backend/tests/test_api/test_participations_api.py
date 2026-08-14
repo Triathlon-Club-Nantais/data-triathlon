@@ -187,9 +187,10 @@ def test_stats_ignores_club_membership(client):
     assert body["stats"] is not None
 
 
-def test_course_listing_carries_the_field_without_computing_it(client):
+def test_course_listing_carries_the_field_without_computing_it(client, db_session):
     """Le champ est additif partout où `ParticipationOut` est sérialisé ; le calcul, lui, ne l'est pas."""
     created = client.post("/api/v1/participations", json=_payload(bib="4", provider="raceresult")).json()
+    valider_toutes_les_participations(db_session)
 
     rows = client.get(f"/api/v1/courses/{created['course']['id']}").json()["participations"]
 
