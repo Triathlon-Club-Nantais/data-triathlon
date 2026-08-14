@@ -23,6 +23,10 @@ inversée, aucun code de retour modifié. Justification détaillée en
 | `team_name` | `str` | `""` | FR-013 |
 | `evidence_url` | `str` | `""` | FR-014 |
 | `format_label` | `str` | `""` | FR-008 — précision du format « Autre » |
+| `distance_km` | `float \| None` | `None` | FR-009 — distance totale des disciplines sans format normalisé. **Gap découvert à l'implémentation** : absent du contrat initial, alors que `Course.distance_km` existe déjà et que `ScrapedResult.distance_km` était déjà présent côté scrapers — seul le pont `ParticipationCreate → ScrapedResult` manquait. |
+
+`format_label` sort aussi sur `CourseBrief` (sortie), ajouté au même titre —
+propriété de l'épreuve, pas de la participation.
 
 `status` vide conserve le comportement actuel : `mapping.derive_status` retombe
 sur son heuristique (`finisher` si temps total, sinon `DNF`). Un statut transmis

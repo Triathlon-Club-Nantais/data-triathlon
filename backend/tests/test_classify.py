@@ -155,6 +155,19 @@ def test_normalize_idempotent(value, expected):
     assert normalize_event_type(normalize_event_type(value)) == expected
 
 
+# --- Nouvelles disciplines de la saisie manuelle (#270) ---
+@pytest.mark.parametrize("slug", [
+    "duathlon-xl",
+    "aquathlon-xs", "aquathlon-s", "aquathlon-m", "aquathlon-l", "aquathlon-xl",
+    "swim-bike", "swim-bike-xs", "swim-bike-s", "swim-bike-m", "swim-bike-l", "swim-bike-xl",
+    "cross-triathlon",
+    "raid-multisport",
+])
+def test_les_13_nouveaux_slugs_sont_idempotents(slug):
+    assert normalize_event_type(slug) == slug
+    assert normalize_event_type(normalize_event_type(slug)) == slug
+
+
 def test_bike_run_pas_de_faux_positif():
     # "bike" et "run" comme sous-chaînes de mots distincts ne doivent PAS
     # déclencher bike-run (frontières de mots requises).

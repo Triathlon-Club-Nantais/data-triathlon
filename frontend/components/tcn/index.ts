@@ -19,3 +19,4 @@ export { ResultRow } from "./participation-detail/ResultRow";
 export { ComparisonTable } from "./participation-detail/ComparisonTable";
 export { RankingEvolutionChart } from "./participation-detail/RankingEvolutionChart";
 export { ImprovementMatrix } from "./participation-detail/ImprovementMatrix";
+export { PendingBadge } from "./PendingBadge";

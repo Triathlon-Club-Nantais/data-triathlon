@@ -106,6 +106,8 @@ class ParticipationCreate(BaseModel):
     # Format libre quand l'épreuve n'entre dans aucune taille normalisée
     # (« Autre » du formulaire, #270). Propriété de l'épreuve.
     format_label: str = ""
+    # Distance totale pour les disciplines sans format normalisé (#270).
+    distance_km: float | None = None
     # Participation
     bib_number: str = ""
     category: str = ""

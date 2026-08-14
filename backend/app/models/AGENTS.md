@@ -9,6 +9,28 @@
   active, cf. plus bas. `source_url` reste la clé du cache TTL.
 - **CourseSource** — `UNIQUE(course_id, url)`, **jamais** `UNIQUE(url)` (cf. plus bas).
 - **Participation** — `UNIQUE(course_id, bib_number)` → plus de doublons à l'import.
+- **`Course.format_label`** (#270) — précision libre du format quand il n'entre
+  dans aucune taille normalisée (« Autre » du formulaire de saisie manuelle). Le
+  format normalisé, lui, reste encodé **dans** `event_type` (`triathlon-m`) —
+  cette colonne ne le duplique jamais, elle ne porte que ce que la taxonomie
+  fermée ne peut pas exprimer.
+- **`Participation.team_name`**, **`.evidence_url`**, **`.is_pending_validation`**
+  (#270) — respectivement le nom d'équipe d'un résultat collectif, le lien de
+  vérification saisi par le déclarant (jamais une `CourseSource` — un lien
+  posé en source active scraperait la page collée par un membre avec
+  `provider="manuel"`), et l'état de validation d'un résultat déclaré.
+  `is_pending_validation` est une **dimension distincte** de `status` : un
+  abandon déclaré reste un abandon une fois validé. Exclusion des agrégats
+  publics : `app/core/validation.py` (`is_pending`/`validated_clause`, sur le
+  patron de `club.py`/`discipline.py`), appliquée à 5 fonctions de
+  `participation_repository.py` (liste, épreuves, stats, classement,
+  synthèse) et délibérément absente de `list_for_athlete` — seule surface qui
+  doit montrer une participation pendante (FR-019).
+  **Piège mesuré** : `server_default="false"` (chaîne) sur SQLite se relit
+  `True` via l'ORM — une chaîne non vide est vraie en Python. `is_relay`
+  ci-dessous en porte le même défaut, non corrigé (hors périmètre de #270) ;
+  `is_pending_validation` utilise `server_default=false()` (l'expression
+  SQLAlchemy, pas la chaîne), qui rend `DEFAULT 0` et relit correctement.
 - **splits** en **JSON** (remplace les colonnes figées swim/t1/bike/t2/run) →
   couvre tous les sports (duathlon course1/course2, swimrun…). Temps = strings.
   Les scrapers rangent les segments dans 5 slots positionnels triathlon

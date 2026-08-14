@@ -1,7 +1,8 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { apiServer } from "@/lib/api/server";
-import { Avatar, StatCard, Card, Eyebrow, FormatChip, PlaceBadge } from "@/components/tcn";
+import { Avatar, StatCard, Card, Eyebrow, FormatChip, PlaceBadge, PendingBadge } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
 import { eventTypeLabel } from "@/lib/constants";
 import { formatToken, ordinalFr } from "@/lib/utils/format";
@@ -10,6 +11,7 @@ import { describeQualityIssues } from "@/lib/quality";
 import { formatDate } from "@/lib/utils/date";
 import { recentParticipations } from "@/lib/utils/club-aggregate";
 import { isNonFinisher } from "@/lib/utils/raceOrder";
+import { isHttpUrl } from "@/lib/utils/url";
 import { gridColumns, gridMinWidth, type Track } from "@/lib/utils/table";
 
 // Date | Épreuve | Type | Format | Temps final | Place | →
@@ -100,9 +102,13 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
                 const nonFinisher = isNonFinisher(p.status);
                 const sigle = (p.status ?? "").toUpperCase();
                 return (
-                  <Link key={p.id} href={`/courses/${p.course?.id}/participations/${p.id}`} className="tcn-rowlink" style={{ display: "grid", gridTemplateColumns: COLS, columnGap: GAP, alignItems: "center", padding: `15px ${PADDING_X}px`, borderBottom: "1px solid var(--tcn-border-faint)" }}>
+                  <Fragment key={p.id}>
+                  <Link href={`/courses/${p.course?.id}/participations/${p.id}`} className="tcn-rowlink" style={{ display: "grid", gridTemplateColumns: COLS, columnGap: GAP, alignItems: "center", padding: `15px ${PADDING_X}px`, borderBottom: p.is_pending_validation || (p.evidence_url && isHttpUrl(p.evidence_url)) ? "none" : "1px solid var(--tcn-border-faint)" }}>
                     <div style={{ fontSize: 14, color: "var(--tcn-text-muted)", fontWeight: 600 }}>{formatDate(p.course?.event_date)}</div>
-                    <div style={{ fontSize: 15, color: "var(--tcn-ink)", fontWeight: 700 }}>{p.course?.name}</div>
+                    <div style={{ fontSize: 15, color: "var(--tcn-ink)", fontWeight: 700, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      {p.course?.name}
+                      {p.is_pending_validation && <PendingBadge />}
+                    </div>
                     <div style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>{eventTypeLabel(p.course?.event_type)}</div>
                     <div><FormatChip>{formatToken(p.course?.event_type, p.course?.distance_km)}</FormatChip></div>
                     <div style={{ fontSize: 15, color: "var(--tcn-ink)", fontFamily: "var(--tcn-font-cond)", fontWeight: 700 }}>{p.total_time ?? "—"}</div>
@@ -144,6 +150,23 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
                     </div>
                     <div style={{ textAlign: "right", color: "var(--tcn-text-disabled)", fontSize: 16 }}>→</div>
                   </Link>
+                  {p.evidence_url && isHttpUrl(p.evidence_url) ? (
+                    // Ligne séparée, hors du `<Link>` de la ligne : un `<a>`
+                    // imbriqué dans un autre serait invalide en HTML. Le texte
+                    // qui n'est pas une URL http(s) exploitable reste stocké
+                    // (cas limite de la spec) mais n'est jamais rendu cliquable.
+                    <div style={{ padding: `0 ${PADDING_X}px 12px`, borderBottom: "1px solid var(--tcn-border-faint)" }}>
+                      <a
+                        href={p.evidence_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ fontSize: 12, fontWeight: 600, color: "var(--tcn-orange)" }}
+                      >
+                        Voir la preuve →
+                      </a>
+                    </div>
+                  ) : null}
+                  </Fragment>
                 );
               })}
             </div>

@@ -78,11 +78,16 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   primitive accessible sans équivalent TCN se prend dans `ui/`, y compris depuis
   un écran public** (`AppNav` compose `ui/sheet` avec `tcn/Avatar`, `EventList`
   compose `ui/select` avec `tcn/Card` — c'est la composition attendue, pas un
-  mélange). La règle vaut pour les **ajouts** : sept écrans publics existants
-  tirent encore `ui/{card,button,badge,input}` — `app/error.tsx`, `ClubDashboard`,
-  `ResultCard`, `ResultsFilters`, `StatusBadge`, `ManualResultForm`,
-  `ProviderDetector`. Dette assumée, pas une exception à arbitrer au cas par cas :
-  les basculer coûte 485 lignes de rendu à re-vérifier pour zéro gain fonctionnel.
+  mélange ; `PendingBadge`, #270, est un nouvel ajout 100 % `tcn/`, exporté
+  depuis `components/tcn/index.ts`). La règle vaut pour les **ajouts** : sept
+  écrans publics existants tirent encore `ui/{card,button,badge,input}` —
+  `app/error.tsx`, `ClubDashboard`, `ResultCard`, `ResultsFilters`,
+  `StatusBadge`, `ManualResultForm`, `ProviderDetector`. Dette assumée, pas une
+  exception à arbitrer au cas par cas : les basculer coûte 485 lignes de rendu à
+  re-vérifier pour zéro gain fonctionnel. `ManualResultForm` reste sur `ui/`
+  malgré sa refonte (#270) — ses sélecteurs discipline/format/statut restent des
+  `<select>` natifs plutôt que `ui/select`, cohérent avec le seul `<select>` que
+  le fichier portait déjà avant la feature.
   Cinq primitives existent des deux côtés (`card`, `button`, `badge`, `input`,
   `dialog`) : ce n'est **pas** un doublon à résorber, elles servent de part et
   d'autre de cette ligne. Les deux qui étaient **100 % publiques** ont été

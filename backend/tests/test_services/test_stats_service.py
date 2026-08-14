@@ -33,6 +33,26 @@ def test_get_stats_filtered_by_club(db_session):
     assert stats["athletes"] == 1
 
 
+def test_get_stats_ignore_une_participation_pendante(db_session):
+    """#270, FR-021 — au niveau service, pas seulement au niveau repository."""
+    _seed(db_session)
+    avant = stats_service.get_stats(db_session)
+
+    autre = athlete_repository.get_or_create(db_session, nom="DURAND", prenom="Léa", club="TCN")
+    course = course_repository.get_or_create(
+        db_session, name="Tri de Nantes", event_date=date(2026, 5, 16), event_type="triathlon-m"
+    )
+    participation_repository.create(
+        db_session, athlete_id=autre.id, course_id=course.id, bib_number="99",
+        club="TCN", is_pending_validation=True,
+    )
+    db_session.flush()
+
+    apres = stats_service.get_stats(db_session)
+    assert apres["total"] == avant["total"]
+    assert apres["athletes"] == avant["athletes"]
+
+
 def test_list_events_counts_tcn(db_session):
     _seed(db_session)
     page = stats_service.list_events(db_session)
