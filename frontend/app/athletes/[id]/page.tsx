@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { apiServer } from "@/lib/api/server";
 import { Avatar, StatCard, Card, Eyebrow, FormatChip, PlaceBadge, PendingBadge } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
+import { SelectAthleteButton } from "./SelectAthleteButton";
 import { eventTypeLabel } from "@/lib/constants";
 import { formatToken, ordinalFr } from "@/lib/utils/format";
 import { bestRatio, rankRatio } from "@/lib/utils/ranking";
@@ -60,6 +61,9 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
         <div>
           <Eyebrow>Résultats enregistrés</Eyebrow>
           <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(28px, 5vw, 42px)", color: "var(--tcn-ink)", lineHeight: 1, marginTop: 4 }}>{fullName}</div>
+        </div>
+        <div style={{ marginLeft: "auto" }}>
+          <SelectAthleteButton athlete={{ id: athlete.id, prenom: athlete.prenom, nom: athlete.nom }} />
         </div>
       </div>
 

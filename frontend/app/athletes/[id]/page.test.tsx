@@ -55,6 +55,17 @@ async function renderAthlete(participations: Participation[]) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+
+  const stock = new Map<string, string>();
+  Object.defineProperty(window, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (cle: string) => stock.get(cle) ?? null,
+      setItem: (cle: string, valeur: string) => void stock.set(cle, valeur),
+      removeItem: (cle: string) => void stock.delete(cle),
+      clear: () => stock.clear(),
+    },
+  });
 });
 
 describe("AthletePage", () => {
@@ -286,5 +297,11 @@ describe("AthletePage", () => {
     await renderAthlete([part({ id: 1, evidence_url: "javascript:alert(1)" })]);
 
     expect(screen.queryByRole("link", { name: /voir la preuve/i })).not.toBeInTheDocument();
+  });
+
+  it("propose de sélectionner l'athlète affiché depuis son profil (#323)", async () => {
+    await renderAthlete([part({ id: 1, rank_overall: 12 })]);
+
+    expect(await screen.findByRole("button", { name: "Choisir cet athlète" })).toBeInTheDocument();
   });
 });
