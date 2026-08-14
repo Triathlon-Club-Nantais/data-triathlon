@@ -1,6 +1,7 @@
-import type { Participation } from "@/lib/types";
+import Link from "next/link";
+import type { Participation, RankingEvolutionStep } from "@/lib/types";
 import { splitColumnsFromKeys } from "@/lib/utils/splits";
-import { genderShort } from "@/lib/utils/format";
+import { genderShort, ordinalFr } from "@/lib/utils/format";
 // Imports directs plutôt que via le barrel `@/components/tcn`, qui réexporte
 // ce composant : le cycle ne se verrait qu'au build.
 import { Card } from "../Card";
@@ -13,16 +14,24 @@ import { PlaceBadge } from "../PlaceBadge";
  * `segments` vient de l'API et non des splits de la participation : c'est la
  * liste publiée par l'**épreuve**. Un athlète auquel il manque un segment que
  * les autres ont doit garder sa colonne, avec un tiret dedans.
+ *
+ * `steps` n'y sert qu'à une chose : la position sur le segment isolé, celle
+ * que le graphique met en barres. Un segment que le classement n'a pas pu
+ * établir n'affiche rien — un tiret à cet endroit se lirait comme un dernier
+ * rang.
  */
 export function ResultRow({
   participation,
   segments,
+  steps,
 }: {
   participation: Participation;
   segments: string[];
+  steps: RankingEvolutionStep[];
 }) {
   const columns = splitColumnsFromKeys(participation.course?.event_type ?? "", segments);
   const splits = participation.splits ?? {};
+  const positions = new Map(steps.map((step) => [step.segment, step.segment_position]));
   const name = [participation.athlete?.nom, participation.athlete?.prenom]
     .filter(Boolean)
     .join(" ");
@@ -44,7 +53,8 @@ export function ResultRow({
         ) : (
           <span style={{ color: "var(--tcn-text-faint)" }}>—</span>
         )}
-        <div
+        <Link
+          href={`/athletes/${participation.athlete?.id}`}
           style={{
             fontFamily: "var(--tcn-font-display)",
             fontSize: "clamp(22px, 4vw, 32px)",
@@ -53,7 +63,7 @@ export function ResultRow({
           }}
         >
           {name}
-        </div>
+        </Link>
         <div style={{ display: "flex", gap: 14, fontSize: 13, color: "var(--tcn-text-body)" }}>
           <span>{participation.category ?? "—"}</span>
           <span>{genderShort(participation.athlete?.gender)}</span>
@@ -90,18 +100,34 @@ export function ResultRow({
               border: column.small ? "1px dashed var(--tcn-border)" : "1px solid var(--tcn-border)",
             }}
           >
-            <div
-              style={{
-                fontSize: 11,
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: ".04em",
-                color: column.small ? "var(--tcn-text-faint)" : column.color,
-              }}
-            >
-              {column.label}
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: ".04em",
+                  color: column.small ? "var(--tcn-text-faint)" : column.color,
+                }}
+              >
+                {column.label}
+              </div>
+              {positions.has(column.key) && (
+                <div
+                  data-position=""
+                  style={{
+                    fontFamily: "var(--tcn-font-cond)",
+                    fontWeight: 700,
+                    fontSize: 12,
+                    color: "var(--tcn-text-muted)",
+                  }}
+                >
+                  {ordinalFr(positions.get(column.key) as number)}
+                </div>
+              )}
             </div>
             <div
+              data-time=""
               style={{
                 fontFamily: "var(--tcn-font-cond)",
                 fontWeight: column.small ? 400 : 700,

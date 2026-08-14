@@ -231,6 +231,22 @@ Task: "Créer frontend/components/tcn/participation-detail/ComparisonTable.tsx"
 
 ---
 
+## Phase 7 : Retours de revue (PR #326)
+
+Remarques d'usage relevées en rendu réel après livraison. Chacune amende la
+spec au FR indiqué — les tâches ci-dessus restent le journal de la livraison
+initiale, elles ne sont pas réécrites.
+
+- [X] T034 Deux retours dans la page (`page.tsx`) — course **et** athlète, rendus dans les deux états ; le lien de retour interne à `UnavailableState` disparaît, il faisait doublon (FR-005, FR-015)
+- [X] T035 Suppression de l'action « Ajouter un triathlon » de l'en-tête (FR-015)
+- [X] T036 Nom de la course et nom de l'athlète cliquables vers leurs pages (`page.tsx`, `ResultRow.tsx`) (FR-015)
+- [X] T037 Position sur chaque segment isolé dans la ligne de résultat (`ResultRow.tsx`), alimentée par `ranking_evolution` (FR-006)
+- [X] T038 Graphique ramené à un bandeau, axe des positions gradué, légende des deux séries (`RankingEvolutionChart.tsx`) (FR-009)
+- [X] T039 Tableau de simulation : phrase d'intro, gains signés, segments stériles sortis du tableau et nommés en une phrase (`ImprovementMatrix.tsx`) (FR-011)
+- [X] T040 Colonne « Position » du tableau de comparaison ramenée à sa largeur utile (`ComparisonTable.tsx`) (FR-008)
+
+---
+
 ## Notes
 
 - Aucune migration Alembic, aucune nouvelle dépendance backend ou frontend

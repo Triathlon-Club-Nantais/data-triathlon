@@ -44,7 +44,8 @@ marche, pas comment l'écrire.
    `t2area` ou `breizhchrono`.
 2. Cliquer sur une ligne de finisher.
 3. **Attendu** : la page affiche l'état "statistiques indisponibles" (message
-   explicatif + lien de retour), aucun tableau ni graphique.
+   explicatif, plus les deux retours course/athlète), aucun tableau ni
+   graphique.
 
 ## Scénario 3 — Relais (FR-012)
 

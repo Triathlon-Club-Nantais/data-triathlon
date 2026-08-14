@@ -66,7 +66,50 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+const STATS = {
+  segments: ["swim", "bike", "run"],
+  ranking_evolution: [
+    { segment: "swim", scratch_position: 61, segment_position: 58 },
+    { segment: "bike", scratch_position: 58, segment_position: 44 },
+    { segment: "run", scratch_position: 56, segment_position: 63 },
+  ],
+  comparison: [{ position_label: "1er", rank: 1, percentages: { swim: 141.6, total: 128.0 } }],
+  improvement: [{ segment: "bike", gains: { "0.5": 1, "1": 2, "2": 3, "5": 7, "10": 12, "25": 25 } }],
+};
+
 describe("ParticipationDetailPage", () => {
+  it("propose un retour vers la course et vers les résultats de l'athlète", async () => {
+    await renderPage(participation({ stats: STATS }));
+
+    expect(screen.getByRole("link", { name: /retour à la course/i }).getAttribute("href")).toBe(
+      "/courses/3",
+    );
+    expect(
+      screen.getByRole("link", { name: /retour aux résultats de l'athlète/i }).getAttribute("href"),
+    ).toBe("/athletes/7");
+  });
+
+  it("ouvre la page de la course depuis son nom", async () => {
+    await renderPage(participation({ stats: STATS }));
+
+    const titre = screen.getByRole("link", { name: "Triathlon de Nantes" });
+    expect(titre.getAttribute("href")).toBe("/courses/3");
+  });
+
+  it("n'affiche pas d'action d'ajout de triathlon sur une page de résultat", async () => {
+    await renderPage(participation({ stats: STATS }));
+
+    expect(screen.queryByRole("link", { name: /ajouter un triathlon/i })).toBeNull();
+  });
+
+  it("garde les deux retours quand les statistiques sont indisponibles", async () => {
+    await renderPage(participation({ stats: null }));
+
+    expect(screen.getByRole("link", { name: /retour à la course/i }).getAttribute("href")).toBe(
+      "/courses/3",
+    );
+  });
+
   it("rend l'état « statistiques indisponibles » quand stats est null", async () => {
     await renderPage(participation({ stats: null }));
 
@@ -82,10 +125,12 @@ describe("ParticipationDetailPage", () => {
   });
 
   it("n'affiche aucun tableau ni graphique quand les statistiques sont indisponibles", async () => {
-    const { container } = await renderPage(participation({ stats: null }));
+    await renderPage(participation({ stats: null }));
 
     expect(screen.queryByRole("table")).toBeNull();
-    expect(container.querySelector("svg")).toBeNull();
+    // Le graphique porte un rôle explicite ; les seuls SVG restants sont les
+    // chevrons décoratifs des liens de retour.
+    expect(screen.queryByRole("img", { name: /évolution de la position/i })).toBeNull();
   });
 
   it("traite comme introuvable une participation qui n'appartient pas à la course de l'URL", async () => {

@@ -5,15 +5,21 @@ import { splitColumnsFromKeys } from "@/lib/utils/splits";
 import { Card } from "../Card";
 import { Eyebrow } from "../Eyebrow";
 
-const WIDTH = 600;
-const HEIGHT = 360;
-const PAD = { top: 28, right: 24, bottom: 42, left: 46 };
+// Le SVG prend toute la largeur de la carte : c'est ce rapport, et non une
+// hauteur en pixels, qui décide de sa place à l'écran. Un cadre carré occupait
+// la moitié d'un écran de portable pour cinq points.
+const WIDTH = 1000;
+const HEIGHT = 240;
+const PAD = { top: 16, right: 16, bottom: 30, left: 54 };
 const PLOT_W = WIDTH - PAD.left - PAD.right;
 const PLOT_H = HEIGHT - PAD.top - PAD.bottom;
-const BAR_W = 26;
+const BAR_W = 44;
 
-const TOOLTIP_W = 178;
-const TOOLTIP_H = 48;
+// Nombre de graduations de l'axe des positions, bornes comprises.
+const TICKS = 4;
+
+const TOOLTIP_W = 210;
+const TOOLTIP_H = 52;
 
 interface Hovered {
   step: RankingEvolutionStep;
@@ -70,9 +76,41 @@ export function RankingEvolutionChart({
     .map((step, index) => `${index === 0 ? "M" : "L"} ${xOf(index)} ${yOf(step.scratch_position)}`)
     .join(" ");
 
+  // Graduations réparties entre les deux bornes. Sans elles, la courbe montrait
+  // un sens de variation sans jamais dire de quelle place à quelle place.
+  const ticks = Array.from({ length: TICKS }, (_, index) =>
+    Math.round(top + ((bottom - top) * index) / (TICKS - 1)),
+  );
+
   return (
     <Card style={{ marginBottom: 24 }}>
       <Eyebrow>Évolution du classement</Eyebrow>
+      <div
+        data-legend=""
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 18,
+          marginTop: 10,
+          fontSize: 12,
+          color: "var(--tcn-text-secondary)",
+        }}
+      >
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+          <span
+            aria-hidden
+            style={{ width: 18, height: 3, borderRadius: 2, background: "var(--tcn-orange)" }}
+          />
+          Classement scratch à la sortie de l&apos;étape
+        </span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+          <span
+            aria-hidden
+            style={{ width: 12, height: 12, borderRadius: 3, background: "var(--tcn-orange-12)" }}
+          />
+          Position sur le segment seul
+        </span>
+      </div>
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         style={{ width: "100%", height: "auto", marginTop: 12 }}
@@ -80,6 +118,28 @@ export function RankingEvolutionChart({
         aria-label="Évolution de la position au fil des étapes"
         onMouseLeave={() => setHovered(null)}
       >
+        {ticks.map((position) => (
+          <g key={position}>
+            <line
+              x1={PAD.left}
+              y1={yOf(position)}
+              x2={PAD.left + PLOT_W}
+              y2={yOf(position)}
+              stroke="var(--tcn-border-faint)"
+            />
+            <text
+              data-tick=""
+              x={PAD.left - 10}
+              y={yOf(position) + 4}
+              textAnchor="end"
+              fontSize={12}
+              fill="var(--tcn-text-faint)"
+            >
+              {position}
+            </text>
+          </g>
+        ))}
+
         <line
           x1={PAD.left}
           y1={PAD.top}

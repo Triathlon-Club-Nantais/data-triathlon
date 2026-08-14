@@ -157,16 +157,19 @@ gagnées affiché au recalcul manuel à partir du classement complet.
   fiable, ou résultats saisis manuellement), le système DOIT afficher un état
   « statistiques indisponibles » qui explique la raison à l'athlète — que les
   statistiques détaillées ne s'affichent que lorsque l'intégralité des
-  résultats du chronométreur a pu être récupérée pour cette course — avec un
-  lien de retour vers les résultats de l'athlète, sans rendre aucun tableau,
-  graphique ni bouton d'action supplémentaire. Le message reste générique
+  résultats du chronométreur a pu être récupérée pour cette course — sans
+  rendre aucun tableau, graphique ni bouton d'action supplémentaire. Les deux
+  retours de la page (FR-015) y restent affichés. Le message reste générique
   (la raison de fond, pas le nom du fournisseur ni un jugement de fiabilité
   affiché à l'utilisateur).
 - **FR-006**: Le système DOIT afficher, pour la participation consultée, un
   rang scratch, le nom complet de l'athlète, la catégorie, le sexe, le temps
   total, et les splits publiés par l'épreuve (natation, T1, vélo, T2, course —
   jusqu'à cinq, cf. FR-013), avec une mise en avant visuelle distincte pour les
-  disciplines chronométrées par rapport aux transitions.
+  disciplines chronométrées par rapport aux transitions. Chaque segment DOIT
+  porter la position de l'athlète sur ce segment isolé (« 1er » en natation,
+  « 3e » en T1) ; un segment que le classement n'a pas pu établir n'affiche
+  aucune position, jamais un tiret — qui se lirait comme un dernier rang.
 - **FR-007**: Le système DOIT afficher un split absent comme une valeur
   explicitement vide, jamais comme un zéro ou une case ambiguë.
 - **FR-008**: Le système DOIT afficher un tableau de comparaison croisant cinq
@@ -177,7 +180,10 @@ gagnées affiché au recalcul manuel à partir du classement complet.
   sur les cinq étapes de la course (natation, T1, vélo, T2, course), montrant
   à la fois la position scratch cumulée de l'athlète à la sortie de chaque
   étape et sa position isolée sur cette étape, la meilleure position étant
-  représentée en haut.
+  représentée en haut. L'axe des positions DOIT être gradué et une légende DOIT
+  nommer les deux séries : sans elles, la courbe donne un sens de variation
+  sans jamais dire de quelle place à quelle place. Le graphique DOIT rester un
+  bandeau (rapport hauteur/largeur ≤ 0,3), pas un pavé occupant un écran.
 - **FR-010**: Le système DOIT afficher, au survol d'un élément du graphique
   d'évolution, une infobulle indiquant le nom de l'étape et la position
   correspondante (scratch cumulée ou segment isolé selon l'élément survolé),
@@ -187,7 +193,11 @@ gagnées affiché au recalcul manuel à partir du classement complet.
   d'amélioration (0,5 %, 1 %, 2 %, 5 %,
   10 %, 25 %), indiquant pour chaque cellule le nombre de places gagnées au
   classement scratch si ce segment avait été amélioré de ce pourcentage,
-  toutes choses égales par ailleurs.
+  toutes choses égales par ailleurs. Le tableau DOIT énoncer ce qu'il mesure,
+  marquer un gain d'un signe plus (« +2 »), et ne garder que les segments qui
+  rapportent au moins une place : les autres sont nommés en une phrase sous le
+  tableau (« Natation, T1 et T2 : aucune place gagnée, même 25 % plus vite »).
+  Une grille de zéros se lit comme un défaut de calcul, pas comme une réponse.
 - **FR-012**: Le système DOIT exclure du dispositif toute participation de
   relais (`is_relay = true`).
 - **FR-013**: Le système DOIT n'afficher, pour une épreuve donnée, que les
@@ -197,10 +207,13 @@ gagnées affiché au recalcul manuel à partir du classement complet.
   ligne d'une position de référence qui n'existe pas dans le classement de la
   course consultée (effectif insuffisant), plutôt que d'afficher une valeur
   vide ou trompeuse.
-- **FR-015**: Le système DOIT proposer, depuis la page de détail, un retour
-  vers la page de résultats de l'athlète courant et un accès au bouton
-  d'ajout d'un triathlon, cohérents avec la navigation existante des autres
-  pages de l'application.
+- **FR-015**: Le système DOIT proposer, depuis la page de détail, **deux**
+  retours — vers la page de la course et vers les résultats de l'athlète
+  courant : on arrive ici depuis l'un ou l'autre écran, et un seul retour
+  renvoie la moitié des visiteurs là d'où ils ne viennent pas. Le nom de la
+  course et le nom de l'athlète DOIVENT ouvrir respectivement ces deux mêmes
+  destinations. La page NE DOIT PAS porter d'action d'ajout de triathlon :
+  elle n'a rien à voir avec la consultation d'un résultat.
 
 ### Key Entities *(include if feature involves data)*
 
