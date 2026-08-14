@@ -101,7 +101,7 @@ export function ClubDashboard({
       <section className="space-y-4">
         <div className="flex items-baseline justify-between">
           <h2 className="font-heading text-lg font-semibold">Athlètes du club</h2>
-          <span className="text-sm text-muted-foreground">{roster.length} membres</span>
+          <span className="text-sm text-[var(--tcn-text-faint)]">{roster.length} membres</span>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {roster.map((r) => (
@@ -113,7 +113,7 @@ export function ClubDashboard({
               <Avatar name={r.name} size={40} />
               <div className="min-w-0 flex-1">
                 <div className="truncate font-semibold">{r.name}</div>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-xs text-[var(--tcn-text-faint)]">
                   {r.count} course{r.count > 1 ? "s" : ""}
                   {r.podiums > 0 && ` · ${r.podiums} podium${r.podiums > 1 ? "s" : ""}`}
                 </div>

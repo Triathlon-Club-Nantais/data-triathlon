@@ -85,7 +85,7 @@ export function UserRolesTable() {
                   <div className="flex items-center gap-2">
                     <div>
                       <div className="font-medium">{utilisateur.display_name}</div>
-                      <div className="text-muted-foreground text-xs">
+                      <div className="text-[var(--tcn-text-faint)] text-xs">
                         {utilisateur.email}
                       </div>
                     </div>
@@ -98,7 +98,7 @@ export function UserRolesTable() {
                 </TableCell>
                 <TableCell>
                   {utilisateur.roles.length === 0 ? (
-                    <span className="text-muted-foreground">—</span>
+                    <span className="text-[var(--tcn-text-faint)]">—</span>
                   ) : (
                     <div className="flex flex-wrap gap-1">
                       {utilisateur.roles.map((role) => (

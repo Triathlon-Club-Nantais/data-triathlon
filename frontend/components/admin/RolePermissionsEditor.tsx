@@ -266,7 +266,7 @@ function PanneauRole({
       {base.is_superuser && (
         <Card className="gap-1 border-primary/40 bg-primary/5 p-4">
           <p className="text-sm font-semibold">Superutilisateur</p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-[var(--tcn-text-faint)]">
             Ce rôle franchit tout pouvoir, y compris ceux livrés après lui. Sa composition
             ci-dessous reste enregistrée, mais elle ne décide de rien tant que ce statut est
             posé.
@@ -298,7 +298,7 @@ function PanneauRole({
       {base.stale_permissions.length > 0 && (
         <fieldset className="space-y-2 rounded-lg border border-dashed p-4">
           <legend className="px-1 text-sm font-semibold">Codes périmés</legend>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-[var(--tcn-text-faint)]">
             Ce rôle porte des codes que l&apos;application ne connaît plus. Ils sont{" "}
             <strong>sans effet</strong> et n&apos;accordent rien.
           </p>
@@ -355,7 +355,7 @@ function PanneauRole({
                   l'état d'avant : l'appliquer par-dessus un brouillon le
                   jetterait en annonçant un succès. */}
               {modifie && (
-                <span className="text-sm text-muted-foreground">
+                <span className="text-sm text-[var(--tcn-text-faint)]">
                   Enregistrez vos modifications avant de changer le statut.
                 </span>
               )}
@@ -364,7 +364,7 @@ function PanneauRole({
 
           <div className="ms-auto flex items-center gap-2">
             {raisonDeNonSuppression && (
-              <span className="text-sm text-muted-foreground">{raisonDeNonSuppression}</span>
+              <span className="text-sm text-[var(--tcn-text-faint)]">{raisonDeNonSuppression}</span>
             )}
             <Button
               variant="outline"
@@ -421,7 +421,7 @@ export function RolePermissionsEditor() {
           <Button onClick={() => setCreationOuverte(true)}>Créer un rôle</Button>
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-[var(--tcn-text-faint)]">
           Cet écran est en consultation : recomposer un rôle demande le pouvoir « Composer les
           rôles ».
         </p>
@@ -447,7 +447,7 @@ export function RolePermissionsEditor() {
                 </span>
                 {role.is_system && <Badge variant="outline">livré</Badge>}
                 {role.is_superuser && <Badge>superutilisateur</Badge>}
-                <span className="text-muted-foreground">{porteurs(role.holders)}</span>
+                <span className="text-[var(--tcn-text-faint)]">{porteurs(role.holders)}</span>
               </span>
             </AccordionTrigger>
             <AccordionContent>

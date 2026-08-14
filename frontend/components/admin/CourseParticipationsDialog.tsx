@@ -121,7 +121,7 @@ export function CourseParticipationsDialog({
                     <span className="font-medium">
                       {participation.athlete.nom} {participation.athlete.prenom}
                     </span>
-                    <span className="text-muted-foreground block text-xs">
+                    <span className="text-[var(--tcn-text-faint)] block text-xs">
                       Dossard {participation.bib_number ?? "—"} ·{" "}
                       {participation.total_time ?? participation.status}
                     </span>

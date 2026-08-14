@@ -71,7 +71,7 @@ export function SheetUpload() {
       </div>
 
       {lire.isPending && (
-        <p className="text-sm text-muted-foreground">Lecture du fichier…</p>
+        <p className="text-sm text-[var(--tcn-text-faint)]">Lecture du fichier…</p>
       )}
 
       {colonnes && (
@@ -94,7 +94,7 @@ export function SheetUpload() {
                 </option>
               ))}
             </select>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-[var(--tcn-text-faint)]">
               {colonnes.row_count} lignes lues.
             </p>
           </div>
@@ -102,7 +102,7 @@ export function SheetUpload() {
           {colonnes.suggested_index === null && (
             // Le cas d'un classeur dont les liens sont des hyperliens sans
             // texte (D8) : le dire vaut mieux que présélectionner au hasard.
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-[var(--tcn-text-faint)]">
               Aucune colonne ne semble porter de lien. Si le fichier en contient,
               ce sont peut-être des hyperliens sans texte : recopiez les adresses
               en clair dans une colonne.
@@ -139,7 +139,7 @@ export function SheetUpload() {
           {ignores.length > 0 && (
             // Ni un succès ni un échec : ces liens ne partiront pas. Les taire
             // ferait chercher des épreuves manquantes dans le bilan.
-            <p className="text-muted-foreground">
+            <p className="text-[var(--tcn-text-faint)]">
               Liens écartés, aucun scraper ne les reconnaît :{" "}
               {ignores.map(([hote, n]) => `${hote} (${n})`).join(", ")}.
             </p>

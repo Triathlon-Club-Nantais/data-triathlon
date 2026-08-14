@@ -92,18 +92,18 @@ export function FeedbackDetailDialog({
         <div className="space-y-3 text-sm">
           <p className="whitespace-pre-wrap">{affiche.body}</p>
           {affiche.page_url && (
-            <p className="text-muted-foreground">
+            <p className="text-[var(--tcn-text-faint)]">
               Page : <span className="break-all">{affiche.page_url}</span>
             </p>
           )}
           {/* `email` est `None` pour un signalement anonyme — data-model.md. */}
           {affiche.email && (
-            <p className="text-muted-foreground">
+            <p className="text-[var(--tcn-text-faint)]">
               Émis par : <span>{affiche.email}</span>
             </p>
           )}
           {affiche.github_url && (
-            <p className="text-muted-foreground">
+            <p className="text-[var(--tcn-text-faint)]">
               Issue GitHub :{" "}
               <a
                 href={affiche.github_url}

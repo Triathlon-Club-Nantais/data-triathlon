@@ -63,7 +63,7 @@ function Segment({
         "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
         active
           ? "bg-primary text-primary-foreground"
-          : "text-muted-foreground hover:text-foreground",
+          : "text-[var(--tcn-text-faint)] hover:text-foreground",
       )}
     >
       {children}

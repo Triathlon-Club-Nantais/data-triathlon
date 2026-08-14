@@ -22,7 +22,7 @@ export function EmptyState({
       {icon && <div className="text-muted-foreground [&>svg]:size-8">{icon}</div>}
       <div className="text-base font-bold">{title}</div>
       {description && (
-        <div className="max-w-sm text-sm text-muted-foreground">{description}</div>
+        <div className="max-w-sm text-sm text-[var(--tcn-text-faint)]">{description}</div>
       )}
       {action && <div className="mt-2">{action}</div>}
     </Card>

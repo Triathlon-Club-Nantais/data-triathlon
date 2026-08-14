@@ -198,7 +198,7 @@ export function CoursesAdminTable({
                       <ExternalLink className="size-3.5" />
                     </a>
                   ) : (
-                    <span className="text-muted-foreground">—</span>
+                    <span className="text-[var(--tcn-text-faint)]">—</span>
                   )}
                 </TableCell>
                 <TableCell className="text-right">
@@ -283,7 +283,7 @@ export function CoursesAdminTable({
           >
             ‹ Précédent
           </Button>
-          <span className="text-muted-foreground text-sm" aria-current="page">
+          <span className="text-[var(--tcn-text-faint)] text-sm" aria-current="page">
             {nbPages === undefined ? `Page ${page}` : `Page ${page} sur ${nbPages}`}
           </span>
           <Button
@@ -297,7 +297,7 @@ export function CoursesAdminTable({
         </nav>
 
         {total !== undefined && (
-          <div className="text-muted-foreground border-t p-3 text-center text-sm">
+          <div className="text-[var(--tcn-text-faint)] border-t p-3 text-center text-sm">
             {resume(total, filtresActifs)}
           </div>
         )}
@@ -439,7 +439,7 @@ function CatalogueFilters({
 function Champ({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex w-full flex-col gap-1.5 sm:w-auto">
-      <label className="text-xs font-medium text-muted-foreground">{label}</label>
+      <label className="text-xs font-medium text-[var(--tcn-text-faint)]">{label}</label>
       {children}
     </div>
   );

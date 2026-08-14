@@ -25,7 +25,7 @@ const REFUS = { sujet: "doublons suspects", action: "consulter les doublons susp
 function NoteRaison({ reason }: { reason: DuplicateCandidate["reason"] }) {
   if (reason !== "same_source_url") return null;
   return (
-    <p className="text-muted-foreground text-xs">
+    <p className="text-[var(--tcn-text-faint)] text-xs">
       Ces deux lignes viennent de la même URL : une correction du type d&apos;épreuve
       (bouton « Corriger » du catalogue) résout la cause. La fusion n&apos;efface que
       le symptôme — elle se déferait au prochain re-scrape.

@@ -137,7 +137,7 @@ export function BatchLauncher() {
             {lancer.isPending ? "Lancement…" : "Lancer la reprise"}
           </Button>
           {enCours && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-[var(--tcn-text-faint)]">
               Un batch est déjà en cours. Attendez sa fin pour en lancer un autre.
             </p>
           )}

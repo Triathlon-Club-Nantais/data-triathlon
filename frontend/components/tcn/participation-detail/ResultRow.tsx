@@ -119,7 +119,7 @@ export function ResultRow({
                     fontFamily: "var(--tcn-font-cond)",
                     fontWeight: 700,
                     fontSize: 12,
-                    color: "var(--tcn-text-muted)",
+                    color: "var(--tcn-text-faint)",
                   }}
                 >
                   {ordinalFr(positions.get(column.key) as number)}

@@ -197,7 +197,7 @@ export function AllowedEmailsTable() {
                     {acces.role ? (
                       <Badge variant="secondary">{acces.role.name}</Badge>
                     ) : (
-                      <span className="text-muted-foreground">—</span>
+                      <span className="text-[var(--tcn-text-faint)]">—</span>
                     )}
                   </TableCell>
                   <TableCell>{formatDate(acces.created_at)}</TableCell>

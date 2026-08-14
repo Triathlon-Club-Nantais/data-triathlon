@@ -35,7 +35,7 @@ function CarteEpreuve({
       }`}
     >
       <span className="block font-medium">Garder {providerLabel(course.provider)}</span>
-      <span className="text-muted-foreground block text-xs">
+      <span className="text-[var(--tcn-text-faint)] block text-xs">
         {course.name}
         {course.event_date ? ` · ${formatDate(course.event_date)}` : ""} ·{" "}
         {eventTypeLabel(course.event_type)} · {course.total} résultat{course.total > 1 ? "s" : ""}

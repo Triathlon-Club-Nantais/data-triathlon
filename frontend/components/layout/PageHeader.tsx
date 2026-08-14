@@ -31,7 +31,7 @@ export function PageHeader({
       {backHref && (
         <Link
           href={backHref}
-          className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+          className="inline-flex items-center gap-1 text-sm font-medium text-[var(--tcn-text-faint)] transition-colors hover:text-foreground"
         >
           <ChevronLeft className="size-4" />
           {backLabel}
@@ -44,7 +44,7 @@ export function PageHeader({
             {title}
           </h1>
           {description && (
-            <p className="max-w-2xl text-sm text-muted-foreground">{description}</p>
+            <p className="max-w-2xl text-sm text-[var(--tcn-text-faint)]">{description}</p>
           )}
           {children}
         </div>

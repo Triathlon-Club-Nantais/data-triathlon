@@ -11,7 +11,7 @@ export function MonthlyTrend({ byMonth }: { byMonth: Record<string, number> }) {
 
   if (entries.length === 0) {
     return (
-      <p className="py-8 text-center text-sm text-muted-foreground">
+      <p className="py-8 text-center text-sm text-[var(--tcn-text-faint)]">
         Pas encore de données mensuelles.
       </p>
     );
@@ -27,14 +27,14 @@ export function MonthlyTrend({ byMonth }: { byMonth: Record<string, number> }) {
           className="group flex h-full flex-1 flex-col items-center justify-end gap-1.5"
           title={`${formatMonth(key)} — ${value}`}
         >
-          <span className="num text-[11px] font-bold text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+          <span className="num text-[11px] font-bold text-[var(--tcn-text-faint)] opacity-0 transition-opacity group-hover:opacity-100">
             {value}
           </span>
           <div
             className="w-full rounded-t-sm bg-[color-mix(in_oklch,var(--primary)_70%,transparent)] transition-[height] duration-500 group-hover:bg-primary"
             style={{ height: `${Math.max(4, (value / max) * 100)}%` }}
           />
-          <span className="micro-label text-[8px] text-muted-foreground">
+          <span className="micro-label text-[8px] text-[var(--tcn-text-faint)]">
             {formatMonthShort(key)}
           </span>
         </div>

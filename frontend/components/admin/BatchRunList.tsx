@@ -84,20 +84,20 @@ function BilanDuLancement({ runId }: { runId: number }) {
           l'import ridicule. */}
       <div data-testid="compteurs-epreuves" className="text-sm">
         <div className="font-bold">Épreuves</div>
-        <div className="text-muted-foreground">
+        <div className="text-[var(--tcn-text-faint)]">
           {data.unique_supported} ciblées · {data.processed} traitées ·{" "}
           {data.errors} en erreur
         </div>
       </div>
       <div data-testid="compteurs-participants" className="text-sm">
         <div className="font-bold">Participants</div>
-        <div className="text-muted-foreground">
+        <div className="text-[var(--tcn-text-faint)]">
           {data.imported} importés · {data.updated} mis à jour · {data.skipped}{" "}
           inchangés
         </div>
       </div>
       {data.failures.length > 0 && (
-        <ul className="sm:col-span-2 space-y-1 text-sm text-muted-foreground">
+        <ul className="sm:col-span-2 space-y-1 text-sm text-[var(--tcn-text-faint)]">
           {data.failures.map((echec) => (
             <li key={echec.url}>
               {echec.label} — {echec.message}
@@ -154,7 +154,7 @@ export function BatchRunList() {
                   <TableCell>
                     <Badge>{libelleEtat(run)}</Badge>
                     {coince && (
-                      <p className="mt-1 text-xs text-muted-foreground">
+                      <p className="mt-1 text-xs text-[var(--tcn-text-faint)]">
                         En cours depuis plus de deux heures.{" "}
                         <a
                           className="underline"
@@ -182,7 +182,7 @@ export function BatchRunList() {
                         Bilan
                       </Button>
                     ) : (
-                      <span className="text-sm text-muted-foreground">
+                      <span className="text-sm text-[var(--tcn-text-faint)]">
                         Aucun bilan
                       </span>
                     )}

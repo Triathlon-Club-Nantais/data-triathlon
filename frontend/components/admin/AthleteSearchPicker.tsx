@@ -39,7 +39,7 @@ export function AthleteSearchPicker({
       {isFetching && <Skeleton className="h-20 w-full" />}
 
       {data && data.length === 0 && (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-[var(--tcn-text-faint)] text-sm">
           Aucun coureur ne correspond à cette recherche.
         </p>
       )}
@@ -59,7 +59,7 @@ export function AthleteSearchPicker({
                 <span className="font-medium">
                   {athlete.nom} {athlete.prenom}
                 </span>
-                <span className="text-muted-foreground block text-xs">
+                <span className="text-[var(--tcn-text-faint)] block text-xs">
                   {athlete.birth_date ? `Né(e) le ${formatDate(athlete.birth_date)}` : "Date de naissance inconnue"}
                   {athlete.club ? ` · ${athlete.club}` : ""}
                   {" · "}

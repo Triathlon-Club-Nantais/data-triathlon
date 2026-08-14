@@ -160,7 +160,7 @@ export function GroupDetailDialog({
               ))}
             </select>
             {utilisateurs.error && (
-              <p className="text-muted-foreground text-xs">
+              <p className="text-[var(--tcn-text-faint)] text-xs">
                 La liste des utilisateurs n&apos;a pas pu être chargée : ajouter un
                 membre demande aussi de pouvoir les consulter.
               </p>
@@ -176,7 +176,7 @@ export function GroupDetailDialog({
             tard.
           </p>
         ) : membres.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-[var(--tcn-text-faint)] text-sm">
             Aucun membre. Un groupe existe avant d&apos;être peuplé.
           </p>
         ) : (
@@ -197,7 +197,7 @@ export function GroupDetailDialog({
                         que porte un groupe ne dépend de son activité. */}
                     {!membre.is_active && <Badge variant="destructive">Désactivé</Badge>}
                   </div>
-                  <div className="text-muted-foreground text-xs">
+                  <div className="text-[var(--tcn-text-faint)] text-xs">
                     <span>{membre.email}</span> · depuis le{" "}
                     {formatDate(membre.joined_at)}
                   </div>

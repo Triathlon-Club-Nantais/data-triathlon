@@ -15,7 +15,7 @@ export function ImportProgress({ state }: { state: ImportState }) {
         <>
           <div className="flex justify-between">
             <span>Import en cours… {state.progress}/{state.total}</span>
-            <span className="text-muted-foreground">
+            <span className="text-[var(--tcn-text-faint)]">
               {state.imported} ajoutés · {state.updated} mis à jour · {state.skipped} ignorés
             </span>
           </div>
@@ -31,7 +31,7 @@ export function ImportProgress({ state }: { state: ImportState }) {
           </p>
           {state.courses.length > 0 && (
             <div className="space-y-1 pt-2">
-              <p className="text-muted-foreground">
+              <p className="text-[var(--tcn-text-faint)]">
                 {state.courses.length === 1 ? "1 course importée :" : `${state.courses.length} courses importées :`}
               </p>
               <ul className="space-y-1">
@@ -40,7 +40,7 @@ export function ImportProgress({ state }: { state: ImportState }) {
                     <Link href={`/courses/${c.id}`} className="underline hover:no-underline">
                       {c.name}
                     </Link>
-                    <span className="ml-2 text-xs text-muted-foreground">{c.event_type}</span>
+                    <span className="ml-2 text-xs text-[var(--tcn-text-faint)]">{c.event_type}</span>
                   </li>
                 ))}
               </ul>

@@ -147,7 +147,7 @@ export function CreateRoleDialog({
                   sans lettre (« 42 ») passe ici aussi : le champ est vide, et
                   cette phrase dit enfin pourquoi le bouton ne fait rien. */}
               {!slugValide && (
-                <p id="nouveau-role-slug-forme" className="text-sm text-muted-foreground">
+                <p id="nouveau-role-slug-forme" className="text-sm text-[var(--tcn-text-faint)]">
                   L&apos;identifiant commence par une lettre minuscule, puis ne porte que des
                   minuscules, des chiffres ou des traits d&apos;union.
                 </p>

@@ -71,7 +71,14 @@ export function StatCard({
   return (
     <div style={{ padding: "26px 24px", background: "var(--tcn-surface)", border: "1px solid var(--tcn-border)", borderRadius: "var(--tcn-radius-3xl)", ...style }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ fontWeight: 700, fontSize: 13, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--tcn-text-muted)" }}>
+        {/* `--tcn-text-muted` ne tenait que 3,97:1 sur ce fond blanc (#344) —
+            `delta`/`hint` ci-dessous portent déjà `--tcn-text-faint` (4,5:1+),
+            ce libellé les rejoint pour ne pas rester le seul écart du
+            composant. Le reste de la rampe neutre (`--tcn-text-muted` en
+            style inline ailleurs dans `components/tcn/`) reste l'objet ouvert
+            de #299 — ce site-ci sort du lot parce qu'il crée une
+            incohérence visible avec ses propres voisins immédiats. */}
+        <div style={{ fontWeight: 700, fontSize: 13, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--tcn-text-faint)" }}>
           {label}
         </div>
         {icon ? (
