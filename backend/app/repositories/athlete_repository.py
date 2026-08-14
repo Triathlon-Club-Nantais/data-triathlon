@@ -1,12 +1,14 @@
 """Accès données pour Athlete — seule couche qui touche la Session pour cette table."""
 from datetime import date
 
-from sqlalchemy import func, or_
+from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session
 
 from app.core.club import tcn_clause
 from app.models.athlete import Athlete
+from app.models.course import Course
 from app.models.participation import Participation
+from app.repositories.participation_repository import season_clause
 
 
 def get(db: Session, athlete_id: int) -> Athlete | None:
@@ -197,6 +199,38 @@ def delete_orphans(db: Session) -> int:
     dans `orphans_removed`.
     """
     return len(delete_orphans_among(db))
+
+
+def list_with_season_participation_count(
+    db: Session,
+    *,
+    seasons: list[int],
+    club_only: bool = False,
+) -> list[tuple[Athlete, int]]:
+    """Athlètes avec ≥1 participation sur `seasons`, et leur compte sur ces saisons (#274).
+
+    Jointure **interne** (à la différence de `search_admin`, qui veut voir les
+    athlètes à 0) : c'est elle qui exclut les athlètes sans participation sur le
+    filtre demandé. `seasons` vide = pas de restriction de date (Principe V —
+    neutralité par défaut), comme `season_clause` de `participation_repository`,
+    réutilisée ici plutôt que recopiée.
+    """
+    compte = func.count(Participation.id)
+    requete = (
+        db.query(Athlete, compte)
+        .join(Participation, Participation.athlete_id == Athlete.id)
+        .join(Course, Participation.course_id == Course.id)
+        .group_by(Athlete.id)
+    )
+    if club_only:
+        requete = requete.filter(tcn_clause(Participation.club))
+    if seasons:
+        requete = requete.filter(season_clause(seasons))
+    # Nom vide (import mal renseigné) en fin de tri, pas en tête (Edge Cases du spec) :
+    # sans ce `case`, une chaîne vide précède tout nom non vide en tri lexicographique.
+    nom_vide_en_fin = case((Athlete.nom == "", 1), else_=0)
+    lignes = requete.order_by(nom_vide_en_fin, Athlete.nom, Athlete.prenom).all()
+    return [(athlete, nombre) for athlete, nombre in lignes]
 
 
 def update_identity(db: Session, athlete: Athlete, **champs) -> Athlete:

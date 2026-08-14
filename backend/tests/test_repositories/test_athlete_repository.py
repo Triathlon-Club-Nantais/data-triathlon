@@ -269,3 +269,120 @@ def test_search_admin_cherche_aussi_dans_le_prenom(db_session):
     db_session.flush()
 
     assert len(athlete_repository.search_admin(db_session, search="sophie")) == 1
+
+
+# ── list_with_season_participation_count (issue #274) ───────────────────────
+
+
+def _epreuve_datee(db_session, nom_epreuve, event_date):
+    from app.repositories import course_repository
+
+    course = course_repository.get_or_create(
+        db_session, name=nom_epreuve, event_date=event_date, event_type="triathlon-m",
+        source_url=f"https://k/{nom_epreuve}", provider="klikego",
+    )
+    db_session.flush()
+    return course
+
+
+def _inscrit_club(db_session, athlete, course, dossard, club="TCN"):
+    from app.repositories import participation_repository
+
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number=dossard, club=club,
+    )
+    db_session.flush()
+
+
+def test_saison_ne_rend_que_les_athletes_avec_participation_dessus(db_session):
+    """FR-002 — jointure interne : 0 participation sur la saison ⇒ absent, pas à 0."""
+    course_2025 = _epreuve_datee(db_session, "Saison 2025", date(2025, 10, 1))
+    course_2024 = _epreuve_datee(db_session, "Saison 2024", date(2024, 10, 1))
+    actif = athlete_repository.get_or_create(db_session, nom="ACTIF", prenom="A", club="TCN")
+    ancien = athlete_repository.get_or_create(db_session, nom="ANCIEN", prenom="A", club="TCN")
+    db_session.flush()
+    _inscrit_club(db_session, actif, course_2025, "1")
+    _inscrit_club(db_session, ancien, course_2024, "1")
+
+    resultats = athlete_repository.list_with_season_participation_count(
+        db_session, seasons=[2025], club_only=False
+    )
+
+    assert [a.nom for a, _ in resultats] == ["ACTIF"]
+
+
+def test_saison_compte_les_participations_de_l_athlete_sur_la_saison(db_session):
+    course1 = _epreuve_datee(db_session, "Une", date(2025, 9, 15))
+    course2 = _epreuve_datee(db_session, "Deux", date(2026, 3, 1))
+    athlete = athlete_repository.get_or_create(db_session, nom="PROLIFIQUE", prenom="P", club="TCN")
+    db_session.flush()
+    _inscrit_club(db_session, athlete, course1, "1")
+    _inscrit_club(db_session, athlete, course2, "2")
+
+    resultats = athlete_repository.list_with_season_participation_count(
+        db_session, seasons=[2025], club_only=False
+    )
+
+    assert resultats == [(athlete, 2)]
+
+
+def test_saison_club_only_filtre_sur_le_club_de_la_participation(db_session):
+    """Comme `_apply_filters` : le filtre porte sur `Participation.club`, pas `Athlete.club`."""
+    course = _epreuve_datee(db_session, "Filtre club", date(2025, 9, 15))
+    membre = athlete_repository.get_or_create(db_session, nom="MEMBRE", prenom="M")
+    exterieur = athlete_repository.get_or_create(db_session, nom="EXTERIEUR", prenom="E")
+    db_session.flush()
+    _inscrit_club(db_session, membre, course, "1", club="Triathlon Club Nantais")
+    _inscrit_club(db_session, exterieur, course, "2", club="Un Autre Club")
+
+    resultats = athlete_repository.list_with_season_participation_count(
+        db_session, seasons=[2025], club_only=True
+    )
+
+    assert [a.nom for a, _ in resultats] == ["MEMBRE"]
+
+
+def test_saison_trie_par_nom_puis_prenom(db_session):
+    course = _epreuve_datee(db_session, "Tri", date(2025, 9, 15))
+    zebre = athlete_repository.get_or_create(db_session, nom="ZEBRE", prenom="Z", club="TCN")
+    alpha = athlete_repository.get_or_create(db_session, nom="ALPHA", prenom="A", club="TCN")
+    db_session.flush()
+    _inscrit_club(db_session, zebre, course, "1")
+    _inscrit_club(db_session, alpha, course, "2")
+
+    resultats = athlete_repository.list_with_season_participation_count(
+        db_session, seasons=[2025], club_only=False
+    )
+
+    assert [a.nom for a, _ in resultats] == ["ALPHA", "ZEBRE"]
+
+
+def test_saison_nom_vide_en_fin_de_tri(db_session):
+    """Edge Cases du spec — un nom mal renseigné ne fait pas échouer le tri,
+    et ne se retrouve pas non plus en tête d'une liste alphabétique."""
+    course = _epreuve_datee(db_session, "Nom vide", date(2025, 9, 15))
+    sans_nom = athlete_repository.get_or_create(db_session, nom="", prenom="X", club="TCN")
+    alpha = athlete_repository.get_or_create(db_session, nom="ALPHA", prenom="A", club="TCN")
+    db_session.flush()
+    _inscrit_club(db_session, sans_nom, course, "1")
+    _inscrit_club(db_session, alpha, course, "2")
+
+    resultats = athlete_repository.list_with_season_participation_count(
+        db_session, seasons=[2025], club_only=False
+    )
+
+    assert [a.nom for a, _ in resultats] == ["ALPHA", ""]
+
+
+def test_saison_vide_sans_seasons_ne_filtre_pas_la_date(db_session):
+    """`seasons=[]` (neutre, Principe V) : toutes saisons confondues, pas de résultat vide."""
+    course = _epreuve_datee(db_session, "Neutre", date(2020, 9, 15))
+    athlete = athlete_repository.get_or_create(db_session, nom="TOUTESSAISONS", prenom="T", club="TCN")
+    db_session.flush()
+    _inscrit_club(db_session, athlete, course, "1")
+
+    resultats = athlete_repository.list_with_season_participation_count(
+        db_session, seasons=[], club_only=False
+    )
+
+    assert [a.nom for a, _ in resultats] == ["TOUTESSAISONS"]

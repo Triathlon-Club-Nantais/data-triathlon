@@ -5,8 +5,9 @@ from sqlalchemy.orm import Session
 from app.core.club import is_club_scope
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
+from app.core.season import parse_seasons
 from app.repositories import athlete_repository, participation_repository
-from app.schemas.athlete import AthleteBrief
+from app.schemas.athlete import AthleteBrief, AthleteSeasonActivity
 from app.schemas.participation import AthleteParticipationOut
 
 router = APIRouter(tags=["athletes"])
@@ -23,6 +24,24 @@ def list_athletes(
     return athlete_repository.search(
         db, name=name, club_only=is_club_scope(scope), page=page, page_size=page_size
     )
+
+
+# Déclarée avant `/athletes/{athlete_id}` : sinon FastAPI matche "season-activity"
+# comme un `athlete_id` (int) et rend 422 au lieu de résoudre cette route (#274).
+@router.get("/athletes/season-activity", response_model=list[AthleteSeasonActivity])
+def list_athletes_season_activity(
+    scope: str | None = Query(None, description="« club » restreint aux membres du TCN."),
+    seasons: str | None = Query(None),
+    db: Session = Depends(get_db),
+):
+    """Athlètes ayant ≥1 participation sur `seasons`, avec leur compte (#274)."""
+    lignes = athlete_repository.list_with_season_participation_count(
+        db, seasons=parse_seasons(seasons), club_only=is_club_scope(scope)
+    )
+    return [
+        AthleteSeasonActivity(id=a.id, nom=a.nom, prenom=a.prenom, participation_count=n)
+        for a, n in lignes
+    ]
 
 
 @router.get("/athletes/{athlete_id}")

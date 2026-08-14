@@ -8,6 +8,16 @@ export interface AthleteBrief {
   club: string | null;
 }
 
+// Miroir de AthleteSeasonActivity backend (#274) — athlète + son nombre
+// d'épreuves sur la saison filtrée. Pas de `club` : la route qui l'expose est
+// déjà scopée club côté appelant.
+export interface AthleteSeasonActivity {
+  id: number;
+  nom: string;
+  prenom: string;
+  participation_count: number;
+}
+
 export interface CourseBrief {
   id: number;
   name: string;

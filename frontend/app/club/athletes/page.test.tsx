@@ -1,0 +1,68 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { currentSeason } from "@/lib/utils/season";
+
+const listAthleteSeasonActivity = vi.fn();
+const listSeasons = vi.fn();
+
+vi.mock("@/lib/api/server", () => ({
+  apiServer: {
+    listAthleteSeasonActivity: (opts: unknown) => listAthleteSeasonActivity(opts),
+    listSeasons: (opts: unknown) => listSeasons(opts),
+  },
+}));
+
+// SeasonSelector est un composant client : `usePathname`/`useSearchParams`
+// doivent être mockés pour que le rendu de la page (RSC) ne plante pas.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => "/club/athletes",
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+import AthletesSeasonPage from "./page";
+
+beforeEach(() => {
+  listAthleteSeasonActivity.mockReset().mockResolvedValue([
+    { id: 1, nom: "DUPONT", prenom: "Jean", participation_count: 2 },
+  ]);
+  listSeasons.mockReset().mockResolvedValue([
+    { start_year: currentSeason(), label: "Saison en cours", event_count: 1, participation_count: 2, is_current: true },
+  ]);
+});
+
+async function renderPage(searchParams: Record<string, string | undefined> = {}) {
+  const ui = await AthletesSeasonPage({ searchParams: Promise.resolve(searchParams) });
+  return render(ui);
+}
+
+describe("/club/athletes", () => {
+  it("appelle l'API scopée club, saison en cours par défaut", async () => {
+    await renderPage();
+
+    expect(listAthleteSeasonActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: "club", seasons: [currentSeason()] }),
+    );
+  });
+
+  it("rend la liste des athlètes actifs renvoyée par l'API", async () => {
+    await renderPage();
+
+    expect(screen.getByText("DUPONT")).toBeInTheDocument();
+  });
+
+  it("lit ?seasons= dans l'URL et l'utilise à la place de la saison en cours (US2)", async () => {
+    await renderPage({ seasons: "2023" });
+
+    expect(listAthleteSeasonActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: "club", seasons: [2023] }),
+    );
+  });
+
+  it("rend le sélecteur de saison, alimenté par apiServer.listSeasons", async () => {
+    await renderPage();
+
+    expect(listSeasons).toHaveBeenCalledWith(expect.objectContaining({ scope: "club" }));
+    expect(screen.getByLabelText("Choisir les saisons")).toBeInTheDocument();
+  });
+});

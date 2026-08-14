@@ -248,15 +248,20 @@ describe("AppNav — arborescence", () => {
     expect(screen.queryByText("À VENIR")).not.toBeInTheDocument();
   });
 
-  it("retire la section dont toutes les entrées sont à venir, rail replié compris", async () => {
-    // « Club » n'a que des entrées `soon` : ni intitulé dans le panneau, ni
-    // tuile qui déplierait sur du vide dans le rail.
+  it("cache les entrées à venir d'une section qui en porte aussi une livrée (#274)", async () => {
+    // « Club » porte désormais une entrée livrée (« Athlètes par saison ») à
+    // côté de ses entrées `soon` : la section s'affiche, mais seules les
+    // entrées `soon` restent masquées.
     afficher(null);
-    expect(screen.queryByRole("button", { name: "Club" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Club" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Carte")).not.toBeInTheDocument();
 
     await deplier();
-    expect(screen.queryByText("Club")).not.toBeInTheDocument();
+    expect(screen.getByText("Club")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Athlètes par saison" })).toHaveAttribute(
+      "href",
+      "/club/athletes",
+    );
     expect(screen.queryByText("Espace club")).not.toBeInTheDocument();
   });
 

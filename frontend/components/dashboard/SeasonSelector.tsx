@@ -1,5 +1,5 @@
 "use client";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
 import type { Season } from "@/lib/types";
 import { Badge } from "@/components/tcn";
@@ -13,21 +13,30 @@ import {
 } from "@/lib/utils/season";
 
 /**
- * Construit l'URL `/dashboard` reflétant la sélection de saisons.
+ * Construit l'URL `pathname` reflétant la sélection de saisons.
  * Le paramètre `seasons` est omis quand la sélection est vide ou égale à la
  * seule saison en cours (retour implicite au défaut). `scope` est préservé.
+ *
+ * `pathname` est un paramètre explicite (pas de défaut) plutôt qu'une valeur
+ * codée en dur : le composant sert `/dashboard` **et** `/club/athletes`
+ * (#274), deux pages qui lisent `?seasons=` côté serveur.
  */
-export function buildSeasonsHref(selected: number[], scope: string | undefined): string {
+export function buildSeasonsHref(
+  selected: number[],
+  scope: string | undefined,
+  pathname: string,
+): string {
   const params = new URLSearchParams();
   if (scope) params.set("scope", scope);
   const isDefault = selected.length === 0 || (selected.length === 1 && selected[0] === currentSeason());
   if (!isDefault) params.set("seasons", serializeSeasons(selected));
   const qs = params.toString();
-  return `/dashboard${qs ? `?${qs}` : ""}`;
+  return `${pathname}${qs ? `?${qs}` : ""}`;
 }
 
 export function SeasonSelector({ seasons }: { seasons: Season[] }) {
   const router = useRouter();
+  const pathname = usePathname();
   const sp = useSearchParams();
   const scope = sp.get("scope") ?? undefined;
   const [pending, startTransition] = useTransition();
@@ -36,7 +45,7 @@ export function SeasonSelector({ seasons }: { seasons: Season[] }) {
   const selected = fromUrl.length > 0 ? fromUrl : [currentSeason()];
 
   function apply(next: number[]) {
-    startTransition(() => router.push(buildSeasonsHref(next, scope)));
+    startTransition(() => router.push(buildSeasonsHref(next, scope, pathname)));
   }
 
   return (

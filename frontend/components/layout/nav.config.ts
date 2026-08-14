@@ -81,6 +81,9 @@ export const NAV: NavSection[] = [
       // une seule destination, pas deux entrées pour un même écran.
       { id: "vueclub", label: "Espace club", soon: true },
       { id: "stats", label: "Statistiques", soon: true },
+      // Page dédiée, distincte de « Espace club » (#274) : liste nominative
+      // par saison, pas une synthèse.
+      { id: "athletes-saison", label: "Athlètes par saison", href: "/club/athletes", icon: Users },
     ],
   },
   {

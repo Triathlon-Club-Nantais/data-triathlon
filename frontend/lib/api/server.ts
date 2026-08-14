@@ -3,6 +3,7 @@ import { ApiError } from "@/lib/api/client";
 import { errorDetail, toQuery } from "@/lib/api/query";
 import type {
   AthleteDetail,
+  AthleteSeasonActivity,
   AuthMethod,
   CourseDetail,
   CourseQuery,
@@ -62,6 +63,10 @@ export const apiServer = {
   listParticipations: (filters: ParticipationFilters = {}) =>
     serverFetch<Participation[]>(`/participations${toQuery(filters as Record<string, unknown>)}`),
   getAthlete: (id: number) => serverFetch<AthleteDetail>(`/athletes/${id}`),
+  listAthleteSeasonActivity: (opts: { scope?: string; seasons?: number[] } = {}) =>
+    serverFetch<AthleteSeasonActivity[]>(
+      `/athletes/season-activity${toQuery(opts as Record<string, unknown>)}`,
+    ),
   /**
    * Détail d'une participation — seule route à peupler `stats`.
    *
