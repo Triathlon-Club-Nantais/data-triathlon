@@ -85,4 +85,21 @@ describe("StatCardsRank — lecture URL et recalcul local", () => {
     expect(screen.getAllByText("général")).toHaveLength(3);
     expect(screen.queryByText("catégorie")).not.toBeInTheDocument();
   });
+
+  it("recalcule sur un changement de paramètre, sans remontage", () => {
+    // C'est la propriété dont dépend #328 : le sélecteur n'écrit plus l'URL par
+    // `router.push` mais par `history.pushState`, donc le composant n'est jamais
+    // remonté — il ne reçoit que la nouvelle valeur de `useSearchParams`. Les
+    // autres tests de ce fichier montent avec le paramètre déjà posé et ne
+    // distinguent donc pas « lit au montage » de « suit les changements ».
+    searchParams = new URLSearchParams();
+    const { rerender } = render(<StatCardsRank participations={PARTS} />);
+    expect(screen.getAllByText("général")).toHaveLength(3);
+
+    searchParams = new URLSearchParams("rank=category");
+    rerender(<StatCardsRank participations={PARTS} />);
+
+    expect(screen.getAllByText("catégorie")).toHaveLength(3);
+    expect(screen.queryByText("général")).not.toBeInTheDocument();
+  });
 });

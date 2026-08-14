@@ -56,6 +56,16 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   `session.permissions` (#115). Une section que le filtrage vide disparaît. Rien
   de tout cela ne garde une donnée : chaque ressource de l'API porte sa propre
   garde, et le rail ne fait qu'éviter d'annoncer un écran qui rendrait 403.
+- **Sélecteurs d'URL : `pushState` ou `router.push`, et la question qui tranche**
+  — *un rendu serveur lit-il ce paramètre ?* `?rank=` ne l'est par aucun, donc
+  `RankTypeToggle` écrit l'URL par `window.history.pushState` et les trois
+  consommateurs (`StatCardsRank`, `ClubPodiumKpi`, `PodiumsList`) recalculent en
+  mémoire : zéro requête (#328). `?scope`, `?sports` et `?seasons` **le sont**
+  (`app/club/page.tsx`, `app/dashboard/page.tsx`), donc `ScopeToggle` et
+  `DisciplineToggle` gardent `router.push` — les basculer serait un bug
+  silencieux, la page continuant de lire l'ancienne valeur sans erreur visible.
+  L'asymétrie est voulue ; elle se re-tranche paramètre par paramètre, jamais
+  par harmonisation.
 - `components/` — `scrape/` (TcnScrapeForm, ProviderDetector, ImportProgress),
   `results/` (ResultCard, ResultsList), `club/` (ClubDashboard, PodiumsList),
   `map/` (MapView), `dashboard/` (StatCardsRank, RecentCourses), plus les deux
