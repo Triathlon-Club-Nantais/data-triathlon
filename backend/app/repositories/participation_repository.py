@@ -8,42 +8,17 @@ from sqlalchemy.orm import Session, aliased, contains_eager, joinedload
 from app.core.club import tcn_clause
 from app.core.discipline import federal_clause
 from app.core.season import season_bounds, season_of
-from app.core.text import deaccent
 from app.core.validation import validated_clause
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.participation import Participation
+from app.repositories.athlete_repository import name_filter
 from app.scrapers.base import STATUS_FINISHER
 
 
 def _is_postgres(db: Session) -> bool:
     """Vrai si le moteur est PostgreSQL (prod) — sinon SQLite (dev)."""
     return db.bind is not None and db.bind.dialect.name == "postgresql"
-
-
-def _athlete_name_filter(term: str):
-    """Filtre nom **ou** prénom d'athlète, en sous-chaîne, sans casse ni accents.
-
-    `ilike` seul ne suffit pas : il ignore la casse, jamais les accents, et ce
-    sur les deux moteurs. Mesuré — `lower('LEMÉE') LIKE '%lemee%'` vaut faux, y
-    compris avec le listener Unicode de `core/database.py`, qui rend `lemée`.
-
-    `unaccent` désigne l'extension PostgreSQL en production et la fonction
-    applicative enregistrée sur la connexion SQLite en développement : même nom,
-    donc une seule expression ici. Aucun index n'est utilisable de ce fait, sans
-    conséquence — le filtre porte toujours sur une seule épreuve.
-    """
-    # Les jokers `LIKE` saisis par un visiteur sont échappés : ce n'est pas une
-    # injection (le motif est passé en paramètre lié), mais `q=%` rendait
-    # l'épreuve entière et `q=_` n'importe quel caractère.
-    terme = deaccent(term).lower()
-    for joker in ("\\", "%", "_"):
-        terme = terme.replace(joker, f"\\{joker}")
-    pattern = f"%{terme}%"
-    return or_(
-        func.unaccent(func.lower(Athlete.nom)).like(pattern, escape="\\"),
-        func.unaccent(func.lower(Athlete.prenom)).like(pattern, escape="\\"),
-    )
 
 
 def _course_name_filter(db: Session, term: str):
@@ -310,8 +285,7 @@ def _apply_filters(
     if course_id is not None:
         q = q.filter(Participation.course_id == course_id)
     if name:
-        pattern = f"%{name}%"
-        q = q.filter(or_(Athlete.nom.ilike(pattern), Athlete.prenom.ilike(pattern)))
+        q = q.filter(name_filter(name))
     if club_only:
         q = q.filter(tcn_clause(Participation.club))
     if event_type:
@@ -477,7 +451,7 @@ def list_page_for_course(
         query = query.filter(tcn_clause(Participation.club))
     terme = (q or "").strip()
     if terme:
-        query = query.filter(_athlete_name_filter(terme))
+        query = query.filter(name_filter(terme))
 
     total = query.count()
     query = query.order_by(*_ordre_affichage())

@@ -40,6 +40,48 @@ def test_search_by_name(db_session):
     assert [a.nom for a in found] == ["LEROY"]
 
 
+def test_search_par_prenom_nom(db_session):
+    """« prénom nom » : chaque mot doit matcher nom **ou** prénom (#357)."""
+    athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean")
+    athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul")
+    db_session.flush()
+
+    found = athlete_repository.search(db_session, name="Jean Dupont")
+
+    assert [a.nom for a in found] == ["DUPONT"]
+
+
+def test_search_par_nom_prenom(db_session):
+    """L'ordre des mots ne compte pas : « nom prénom » trouve aussi."""
+    athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean")
+    db_session.flush()
+
+    found = athlete_repository.search(db_session, name="Dupont Jean")
+
+    assert [a.nom for a in found] == ["DUPONT"]
+
+
+def test_search_par_prenom_nom_accentue(db_session):
+    """Nom accentué + deux mots : « Sébastien Lemée » trouve « LEMÉE »."""
+    athlete_repository.get_or_create(db_session, nom="LEMÉE", prenom="Sébastien")
+    db_session.flush()
+
+    found = athlete_repository.search(db_session, name="sebastien lemee")
+
+    assert [a.nom for a in found] == ["LEMÉE"]
+
+
+def test_search_admin_par_prenom_nom(db_session):
+    """La recherche gardée passe aussi par le filtre mot à mot (#357)."""
+    athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean")
+    athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Marie")
+    db_session.flush()
+
+    resultats = athlete_repository.search_admin(db_session, search="jean dupont")
+
+    assert [a.prenom for a, _ in resultats] == ["Jean"]
+
+
 def test_get_or_create_dedup_noms_accentues(db_session):
     """`lower()` de SQLite ignore les accents majuscules ('LEMÉE' → 'lemÉe').
 

@@ -1,14 +1,52 @@
 """Accès données pour Athlete — seule couche qui touche la Session pour cette table."""
 from datetime import date
 
-from sqlalchemy import case, func, or_
+from sqlalchemy import and_, case, func, or_, true
 from sqlalchemy.orm import Session
 
 from app.core.club import tcn_clause
+from app.core.text import deaccent
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.participation import Participation
 from app.repositories.participation_repository import season_clause
+
+
+def name_filter(term: str):
+    """Filtre nom **ou** prénom d'athlète, mot à mot, sans casse ni accents.
+
+    Chaque mot du terme doit matcher `nom` **ou** `prénom`, en sous-chaîne. Un
+    terme d'un seul mot garde donc l'ancien comportement, et « Jean Dupont »
+    trouve désormais l'athlète dont le prénom porte « Jean » et le nom
+    « Dupont » — impossible tant qu'on testait le terme entier contre chaque
+    colonne seule.
+
+    `ilike` seul ne suffit pas : il ignore la casse, jamais les accents, et ce
+    sur les deux moteurs. Mesuré — `lower('LEMÉE') LIKE '%lemee%'` vaut faux, y
+    compris avec le listener Unicode de `core/database.py`, qui rend `lemée`.
+
+    `unaccent` désigne l'extension PostgreSQL en production et la fonction
+    applicative enregistrée sur la connexion SQLite en développement : même nom,
+    donc une seule expression ici. Aucun index n'est utilisable de ce fait, sans
+    conséquence — le filtre porte sur une seule épreuve ou une page de résultats.
+    """
+    clauses = []
+    for mot in deaccent(term).split():
+        # Les jokers `LIKE` saisis par un visiteur sont échappés : ce n'est pas
+        # une injection (le motif est passé en paramètre lié), mais `q=%`
+        # rendait l'épreuve entière et `q=_` n'importe quel caractère.
+        for joker in ("\\", "%", "_"):
+            mot = mot.replace(joker, f"\\{joker}")
+        pattern = f"%{mot.lower()}%"
+        clauses.append(
+            or_(
+                func.unaccent(func.lower(Athlete.nom)).like(pattern, escape="\\"),
+                func.unaccent(func.lower(Athlete.prenom)).like(pattern, escape="\\"),
+            )
+        )
+    # Un terme sans mot (blancs seuls) ne contraint rien : `true()` évite le
+    # `and_()` vide et laisse l'appelant décider de filtrer ou non en amont.
+    return and_(true(), *clauses)
 
 
 def get(db: Session, athlete_id: int) -> Athlete | None:
@@ -90,10 +128,7 @@ def search(
 ) -> list[Athlete]:
     q = db.query(Athlete)
     if name:
-        pattern = f"%{name}%"
-        q = q.filter(
-            or_(Athlete.nom.ilike(pattern), Athlete.prenom.ilike(pattern))
-        )
+        q = q.filter(name_filter(name))
     if club_only:
         q = q.filter(tcn_clause(Athlete.club))
     offset = (page - 1) * page_size
@@ -125,10 +160,7 @@ def search_admin(
         .group_by(Athlete.id)
     )
     if search:
-        motif = f"%{search}%"
-        requete = requete.filter(
-            or_(Athlete.nom.ilike(motif), Athlete.prenom.ilike(motif))
-        )
+        requete = requete.filter(name_filter(search))
     offset = (page - 1) * page_size
     lignes = (
         requete.order_by(Athlete.nom, Athlete.prenom).offset(offset).limit(page_size).all()
