@@ -16,6 +16,13 @@ import { RankTypeToggle } from "./RankTypeToggle";
 
 let pushState: ReturnType<typeof vi.spyOn>;
 
+// `SegmentedControl` (#342) pose l'état actif en encre sur blanc, pas via
+// `aria-checked` — la sélection s'y vérifie donc par le style, pas par
+// `toBeChecked()` (qui n'a de sens que pour un input radio natif).
+function isActive(button: HTMLElement) {
+  return button.style.background === "var(--tcn-ink)" && button.style.color === "rgb(255, 255, 255)";
+}
+
 beforeEach(() => {
   push.mockClear();
   searchParams = new URLSearchParams();
@@ -31,29 +38,41 @@ afterEach(() => {
 describe("RankTypeToggle", () => {
   it("rend les 4 boutons canoniques (Général, Catégorie, Genre, Tous)", () => {
     render(<RankTypeToggle />);
-    expect(screen.getByRole("radio", { name: "Général" })).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "Catégorie" })).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "Genre" })).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "Tous" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Général" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Catégorie" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Genre" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tous" })).toBeInTheDocument();
+  });
+
+  it("le groupe porte le rôle group (pas radiogroup — ses enfants sont des boutons, pas des radios) et son libellé", () => {
+    render(<RankTypeToggle />);
+    expect(screen.getByRole("group", { name: "Type de rang" })).toBeInTheDocument();
+    expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
+  });
+
+  it("aria-pressed reflète l'option active, pas seulement le style", () => {
+    render(<RankTypeToggle />);
+    expect(screen.getByRole("button", { name: "Général" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Catégorie" })).toHaveAttribute("aria-pressed", "false");
   });
 
   it("sans paramètre URL, le bouton Général est actif (défaut)", () => {
     render(<RankTypeToggle />);
-    expect(screen.getByRole("radio", { name: "Général" })).toBeChecked();
-    expect(screen.getByRole("radio", { name: "Catégorie" })).not.toBeChecked();
+    expect(isActive(screen.getByRole("button", { name: "Général" }))).toBe(true);
+    expect(isActive(screen.getByRole("button", { name: "Catégorie" }))).toBe(false);
   });
 
   it("?rank=category → Catégorie actif", () => {
     searchParams = new URLSearchParams("rank=category");
     render(<RankTypeToggle />);
-    expect(screen.getByRole("radio", { name: "Catégorie" })).toBeChecked();
-    expect(screen.getByRole("radio", { name: "Général" })).not.toBeChecked();
+    expect(isActive(screen.getByRole("button", { name: "Catégorie" }))).toBe(true);
+    expect(isActive(screen.getByRole("button", { name: "Général" }))).toBe(false);
   });
 
   it("?rank=foo (valeur inconnue) → Général actif (défaut silencieux)", () => {
     searchParams = new URLSearchParams("rank=foo");
     render(<RankTypeToggle />);
-    expect(screen.getByRole("radio", { name: "Général" })).toBeChecked();
+    expect(isActive(screen.getByRole("button", { name: "Général" }))).toBe(true);
   });
 
   it("clic sur Genre → l'URL passe à ?rank=gender par l'historique, sans navigation", () => {
@@ -62,7 +81,7 @@ describe("RankTypeToggle", () => {
     // donc tout le rendu de /dashboard — dont `listParticipations(5000)` — pour
     // un résultat que le client tenait déjà (#328).
     render(<RankTypeToggle />);
-    fireEvent.click(screen.getByRole("radio", { name: "Genre" }));
+    fireEvent.click(screen.getByRole("button", { name: "Genre" }));
     expect(pushState).toHaveBeenCalledWith(null, "", "/dashboard?rank=gender");
     expect(push).not.toHaveBeenCalled();
   });
@@ -73,7 +92,7 @@ describe("RankTypeToggle", () => {
     // une même vue nuisent au partage.
     searchParams = new URLSearchParams("rank=category");
     render(<RankTypeToggle />);
-    fireEvent.click(screen.getByRole("radio", { name: "Général" }));
+    fireEvent.click(screen.getByRole("button", { name: "Général" }));
     expect(pushState).toHaveBeenCalledWith(null, "", "/dashboard");
     expect(push).not.toHaveBeenCalled();
   });
@@ -81,7 +100,7 @@ describe("RankTypeToggle", () => {
   it("compose avec les autres paramètres sans les écraser", () => {
     searchParams = new URLSearchParams("seasons=2025-2026&sports=all");
     render(<RankTypeToggle />);
-    fireEvent.click(screen.getByRole("radio", { name: "Catégorie" }));
+    fireEvent.click(screen.getByRole("button", { name: "Catégorie" }));
     const url = pushState.mock.calls[0][2] as string;
     expect(url).toContain("rank=category");
     expect(url).toContain("seasons=2025-2026");
