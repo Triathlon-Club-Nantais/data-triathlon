@@ -101,7 +101,7 @@ describe("CoursePage", () => {
     // Aucune participation dans la charge : tout ce qui suit vient de la synthèse.
     await afficher();
 
-    expect(screen.getByText("1811")).toBeInTheDocument(); // partants
+    expect(screen.getByText("1811")).toBeInTheDocument(); // participants
     expect(screen.getByText("1768")).toBeInTheDocument(); // finishers
     expect(screen.getByText("43")).toBeInTheDocument(); // abandons
     expect(screen.getByText(/4 athlètes TCN/)).toBeInTheDocument();
@@ -109,6 +109,19 @@ describe("CoursePage", () => {
     expect(screen.getByText("S2")).toBeInTheDocument();
     expect(screen.getByText("GRAVELINES TRIATHLON")).toBeInTheDocument();
     expect(screen.getByText(/Distribution des temps/)).toBeInTheDocument();
+  });
+
+  it("annonce le total comme un nombre de participants, pas de partants", async () => {
+    // `course_summary` additionne finishers + non_finishers + unknown, et range
+    // les DNS dans le deuxième : le chiffre compte tous ceux qui figurent sur
+    // l'épreuve, y compris ceux qui n'ont jamais pris le départ (#322).
+    await afficher();
+
+    expect(screen.getByText("Participants")).toBeInTheDocument();
+    // Insensible à la casse et non ancré : le mot est aussi rendu en minuscule
+    // dans le pied du tableau, par `RaceFinishers`, sur ce même `summary.total`.
+    // Un `queryByText("Partants")` exact affirmait une absence sans la vérifier.
+    expect(screen.queryByText(/partants/i)).not.toBeInTheDocument();
   });
 
   it("demande la page voulue au classement, et la synthèse sans aucun paramètre", async () => {

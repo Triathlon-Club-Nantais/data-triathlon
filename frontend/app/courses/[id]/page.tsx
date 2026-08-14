@@ -97,7 +97,7 @@ export default async function CoursePage({
           <MetaPill label="Type">{eventTypeLabel(course.event_type)}</MetaPill>
           <MetaPill label="Format">{formatToken(course.event_type, course.distance_km)}</MetaPill>
           {course.event_date && <MetaPill label="Date">{formatDate(course.event_date)}</MetaPill>}
-          <MetaPill label="Partants">{total}</MetaPill>
+          <MetaPill label="Participants">{total}</MetaPill>
           <MetaPill label="Finishers">{finishers}</MetaPill>
           {nonFinishers > 0 && <MetaPill label="Abandons">{nonFinishers}</MetaPill>}
           {unknown > 0 && <MetaPill label="Indéterminés">{unknown}</MetaPill>}
