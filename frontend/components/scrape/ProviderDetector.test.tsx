@@ -40,4 +40,20 @@ describe("ProviderDetector", () => {
       expect(screen.getByText("Non supporté — saisie manuelle")).toBeInTheDocument(),
     );
   });
+
+  it("signale la détection au parent via onDetected, y compris l'absence de résultat", async () => {
+    detectProvider.mockResolvedValue({ provider: "", supported: false });
+    const onDetected = vi.fn();
+    const { rerender } = render(
+      <ProviderDetector url="https://chronopuce.test/x" onDetected={onDetected} />,
+    );
+
+    await waitFor(() =>
+      expect(onDetected).toHaveBeenCalledWith({ provider: "", supported: false }),
+    );
+
+    onDetected.mockClear();
+    rerender(<ProviderDetector url="" onDetected={onDetected} />);
+    await waitFor(() => expect(onDetected).toHaveBeenCalledWith(null));
+  });
 });

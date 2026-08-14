@@ -7,7 +7,15 @@ import { providerLabel } from "@/lib/constants";
 
 type Detected = { provider: string; supported: boolean };
 
-export function ProviderDetector({ url }: { url: string }) {
+export function ProviderDetector({
+  url,
+  onDetected,
+}: {
+  url: string;
+  /** Relaie chaque détection au parent — `null` tant qu'aucune n'est connue —
+   *  pour qu'un écran puisse réagir sans dupliquer l'appel `detectProvider`. */
+  onDetected?: (detected: Detected | null) => void;
+}) {
   const debounced = useDebounce(url, 400);
   const [detected, setDetected] = useState<Detected | null>(null);
 
@@ -15,6 +23,7 @@ export function ProviderDetector({ url }: { url: string }) {
     if (!debounced || !debounced.startsWith("http")) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setDetected(null);
+      onDetected?.(null);
       return;
     }
     let cancelled = false;
@@ -26,11 +35,20 @@ export function ProviderDetector({ url }: { url: string }) {
         // tenue ici : la précédente avait divergé et affichait « Non supporté »
         // sur Competitor, RaceResult et Chronoplace, pourtant importables.
         setDetected(r);
+        onDetected?.(r);
       })
-      .catch(() => !cancelled && setDetected(null));
+      .catch(() => {
+        if (cancelled) return;
+        setDetected(null);
+        onDetected?.(null);
+      });
     return () => {
       cancelled = true;
     };
+    // `onDetected` n'est délibérément pas dans les dépendances : le rendre
+    // stable serait à la charge de chaque appelant, pour un callback qui ne
+    // lit jamais son ancienne valeur.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debounced]);
 
   if (!detected) return null;

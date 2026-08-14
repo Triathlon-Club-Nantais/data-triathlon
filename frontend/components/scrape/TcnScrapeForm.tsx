@@ -18,6 +18,16 @@ import type { ImportedCourse, ScrapedPreview } from "@/lib/types";
 export function TcnScrapeForm() {
   const [url, setUrl] = useState("");
   const [manual, setManual] = useState(false);
+  // Détection client (GET /scrape/detect), indépendante de toute tentative
+  // d'import : elle permet d'avertir avant même le clic sur « Enregistrer les
+  // résultats », plutôt que d'attendre l'échec réel du scrape.
+  const [providerUnsupported, setProviderUnsupported] = useState(false);
+  const handleProviderDetected = useCallback(
+    (detected: { provider: string; supported: boolean } | null) => {
+      setProviderUnsupported(detected !== null && !detected.supported);
+    },
+    [],
+  );
   const reportedRef = useRef<string | null>(null);
   const refreshedRef = useRef<string | null>(null);
   const router = useRouter();
@@ -126,7 +136,7 @@ export function TcnScrapeForm() {
               </div>
             )}
             <div style={{ marginTop: 8 }}>
-              <ProviderDetector url={url} />
+              <ProviderDetector url={url} onDetected={handleProviderDetected} />
             </div>
           </div>
           <Button size="lg" onClick={submit} disabled={running || !urlIsValid} iconRight={<span>→</span>} style={{ borderRadius: "var(--tcn-radius-xl)" }}>
@@ -167,14 +177,17 @@ export function TcnScrapeForm() {
             </Alert>
           </div>
         )}
-        {phase === "error" && (
+        {(phase === "error" || (providerUnsupported && phase === "idle")) && (
           <div style={{ marginTop: 14 }}>
             <Alert
               status="warning"
               title="Impossible d'importer automatiquement"
               action={<Button variant="secondary" size="sm" onClick={() => setManual(true)}>Saisie manuelle</Button>}
             >
-              {error ?? "Le lien fourni n'a pas pu être lu."} Tu peux saisir ta participation manuellement.
+              {phase === "error"
+                ? (error ?? "Le lien fourni n'a pas pu être lu.")
+                : "Aucun chronométreur ne reconnaît cette adresse."}{" "}
+              Tu peux saisir ta participation manuellement.
             </Alert>
           </div>
         )}
