@@ -5,15 +5,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
 import type { CourseSource, SessionUser } from "@/lib/types";
 
-const { getSession, switchCourseSource } = vi.hoisted(() => ({
+const { getSession, switchCourseSource, rescrapeEventStream } = vi.hoisted(() => ({
   getSession: vi.fn(),
   switchCourseSource: vi.fn(),
+  rescrapeEventStream: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
   return { ...original, apiClient: { getSession, switchCourseSource } };
 });
+
+vi.mock("@/lib/api/sse", () => ({ rescrapeEventStream }));
 
 const { toastSuccess, toastError } = vi.hoisted(() => ({
   toastSuccess: vi.fn(),
@@ -54,6 +57,22 @@ function afficher(sources: CourseSource[]) {
 beforeEach(() => {
   vi.clearAllMocks();
 });
+
+/** Flux contrôlable : la « saving » est yield immédiatement, le « done »
+ * n'arrive qu'après `release()` — pour observer la barre de progression avant
+ * la fin de l'opération sans dépendre d'un timing incertain. */
+function fluxControle(fin: object) {
+  let liberer: () => void;
+  const porte = new Promise<void>((resolve) => {
+    liberer = resolve;
+  });
+  async function* generateur() {
+    yield { phase: "saving", total: 10, imported: 2, updated: 1, skipped: 0, progress: 3 };
+    await porte;
+    yield fin;
+  }
+  return { generateur: generateur(), liberer: () => liberer() };
+}
 
 describe("CourseSourcesPanel", () => {
   it("n'affiche rien pour une épreuve sans source", () => {
@@ -133,5 +152,71 @@ describe("CourseSourcesPanel", () => {
     // Toujours Klikego l'actif, rien n'a bougé.
     const actif = screen.getByRole("link", { name: /klikego/i });
     expect(actif).toHaveAttribute("href", "https://exemple.fr/actif");
+  });
+
+  // --- Re-scraper à la demande (#118) --------------------------------------
+
+  it("ne propose aucun bouton « Re-scraper » à un visiteur anonyme", async () => {
+    getSession.mockResolvedValue(ANONYME);
+    afficher(UNE_SOURCE);
+
+    await screen.findByText("Klikego");
+    expect(screen.queryByRole("button", { name: /re-scraper/i })).not.toBeInTheDocument();
+  });
+
+  it("propose « Re-scraper » sur l'unique source à un porteur de courses:sources", async () => {
+    getSession.mockResolvedValue(ADMIN);
+    afficher(UNE_SOURCE);
+
+    expect(await screen.findByRole("button", { name: /re-scraper/i })).toBeInTheDocument();
+  });
+
+  it("affiche la progression pendant le flux et un succès en fin d'opération", async () => {
+    getSession.mockResolvedValue(ADMIN);
+    const { generateur, liberer } = fluxControle({
+      phase: "done", imported: 3, updated: 7, skipped: 0,
+      reconciled: 0, total: 10, orphans_removed: 1,
+    });
+    rescrapeEventStream.mockReturnValue(generateur);
+    const user = userEvent.setup();
+    afficher(UNE_SOURCE);
+
+    await user.click(await screen.findByRole("button", { name: /re-scraper/i }));
+
+    await screen.findByText(/enregistrement… 3\/10/i);
+    liberer();
+
+    await waitFor(() =>
+      expect(toastSuccess).toHaveBeenCalledWith("Résultats à jour : 3 ajoutés, 7 mis à jour."),
+    );
+  });
+
+  it("notifie l'échec sans modifier l'affichage (zéro résultat, refusé)", async () => {
+    getSession.mockResolvedValue(ADMIN);
+    const { generateur, liberer } = fluxControle({
+      phase: "error",
+      message: "Le chronométreur n'a publié aucun résultat à cette adresse.",
+    });
+    rescrapeEventStream.mockReturnValue(generateur);
+    const user = userEvent.setup();
+    afficher(UNE_SOURCE);
+
+    await user.click(await screen.findByRole("button", { name: /re-scraper/i }));
+    liberer();
+
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith(
+        "Le chronométreur n'a publié aucun résultat à cette adresse.",
+      ),
+    );
+  });
+
+  it("place « Re-scraper » sur la source active uniquement, jamais sur une passive", async () => {
+    getSession.mockResolvedValue(ADMIN);
+    afficher(DEUX_SOURCES);
+
+    await screen.findByRole("button", { name: /activer.*breizh chrono/i });
+    const boutons = screen.getAllByRole("button", { name: /re-scraper/i });
+    expect(boutons).toHaveLength(1);
   });
 });

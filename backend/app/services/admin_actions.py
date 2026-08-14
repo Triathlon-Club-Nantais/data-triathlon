@@ -18,11 +18,14 @@ soit ensuite — et ne permettrait pas de **nommer** la fiche en conflit, ce
 qu'exigent FR-005 et FR-021.
 """
 import logging
+import queue
+import threading
+from collections.abc import Iterator
 
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
-from app.core.exceptions import DuplicateError, NotFoundError, ScraperError
+from app.core.exceptions import DomainError, DuplicateError, NotFoundError, ScraperError
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.course_source import CourseSource
@@ -245,6 +248,214 @@ def _require_same_event(results: list, attendue: dict) -> None:
         f"pas « {attendue['name']} ». Rapprochez d'abord les deux épreuves : "
         "une bascule laisserait celle-ci sans aucun résultat."
     )
+
+
+class CourseRescrapeAlreadyRunningError(DomainError):
+    """Un re-scrape est déjà en cours sur cette course (FR-007, #118)."""
+
+    status_code = 409
+    message = "Un re-scrape est déjà en cours sur cette épreuve."
+
+
+#: Verrou de concurrence par course (research.md R5) : un `dict[int, bool]` en
+#: mémoire, process unique. `ponytail:` verrou process unique — migrer vers un
+#: verrou DB (`SELECT … FOR UPDATE`, ou colonne `rescrape_lock_at`) si le
+#: service passe un jour multi-instance.
+_rescrape_locks: dict[int, bool] = {}
+_rescrape_locks_guard = threading.Lock()
+
+
+def _acquire_rescrape_lock(course_id: int) -> None:
+    with _rescrape_locks_guard:
+        if _rescrape_locks.get(course_id):
+            raise CourseRescrapeAlreadyRunningError()
+        _rescrape_locks[course_id] = True
+
+
+def _release_rescrape_lock(course_id: int) -> None:
+    with _rescrape_locks_guard:
+        _rescrape_locks.pop(course_id, None)
+
+
+def iter_rescrape_course(
+    db: Session, *, course_id: int, user_id: int, settings: Settings
+) -> Iterator[dict]:
+    """Re-scrape la source **active** d'une course déjà en base, en upsert (#118).
+
+    **Fonction ordinaire, pas un générateur** — c'est ce qui rend le refus
+    synchrone. `iter_import_event` n'a jamais eu à le faire : ses seuls refus
+    (URL invalide, zéro résultat) sont acceptables en événement `phase: error`
+    dans un flux déjà ouvert. Ici FR-007 exige un vrai **409** *avant* le
+    premier octet du flux, or `StreamingResponse` (Starlette) envoie ses
+    en-têtes — donc le code HTTP — **avant** de tirer le premier élément du
+    générateur : une exception levée depuis l'intérieur d'un générateur ne
+    peut plus jamais devenir un 404/409, seulement une coupure de flux à 200.
+    En restant une fonction normale, l'appel lève *tout de suite* — la route
+    peut l'exécuter avant de construire le `StreamingResponse` — et ne rend un
+    générateur (celui qui scrape et persiste) qu'une fois la garde passée.
+
+    Refuse (404) si la course n'existe pas ou n'a aucune source active (saisie
+    manuelle, ou épreuve dont on n'a rattaché que des passives) — rien à
+    re-scraper. Refuse (409) si un re-scrape est déjà en cours sur cette
+    course (FR-007) ; le verrou est relâché en fin d'opération, y compris en
+    échec.
+
+    Le générateur rendu **ne survit pas à la garde** : le scrape et la
+    persistance tournent dans un thread dédié, indépendant de la consommation
+    du flux SSE (FR-011, research.md R7) — si l'administrateur perd sa
+    connexion, Starlette cesse d'appeler `next()` sur ce générateur, mais le
+    thread, lui, continue jusqu'à son terme et commite normalement.
+    """
+    course = _course_or_404(db, course_id)
+    source = course_source_repository.get_active(db, course_id)
+    if source is None:
+        raise NotFoundError("Cette épreuve n'a aucune source active à re-scraper.")
+
+    _acquire_rescrape_lock(course_id)
+    return _stream_rescrape(
+        db,
+        course_id=course_id,
+        course_name=course.name,
+        attendue=_instantane(course, _CHAMPS_COURSE),
+        source_url=source.url,
+        user_id=user_id,
+        settings=settings,
+    )
+
+
+def _stream_rescrape(
+    db: Session,
+    *,
+    course_id: int,
+    course_name: str,
+    attendue: dict,
+    source_url: str,
+    user_id: int,
+    settings: Settings,
+) -> Iterator[dict]:
+    """Le générateur SSE proprement dit — scrape et persiste dans un thread dédié.
+
+    **Ne clôt pas la `Session`** — même convention que le reste du fichier,
+    l'appelant la possède. `ponytail:` la route qui pilote ce générateur en
+    production lui passe une session dédiée (`SessionLocal()`, patron de
+    `scrape.py`) qu'elle ne referme jamais explicitement non plus : la fermer
+    depuis ce thread casserait FR-011 dès qu'un objet chargé par le générateur
+    appelant (attributs différés, `Course` de la garde) est relu après une
+    déconnexion, et la fermer depuis le générateur appelant reproduirait le
+    bug que FR-011 existe pour éviter — le thread continuerait d'écrire dans
+    une session fermée. Une connexion tenue jusqu'au ramasse-miettes après
+    chaque re-scrape est le coût accepté ; upgrade si le volume de re-scrapes
+    concurrents en fait un jour un problème mesuré (pool de connexions dédié).
+    """
+    events: queue.Queue[dict | object] = queue.Queue()
+    sentinel = object()
+    holder: dict = {}
+
+    def worker() -> None:
+        try:
+            candidats = athlete_repository.only_on_course(db, course_id)
+            events.put({"phase": "scraping", "message": "Récupération des participants…"})
+
+            # `_scrape_all_streaming` yield déjà ses propres events `scraping`
+            # par heat (fan-out Klikego, #156) — relayés tels quels par
+            # `_drain_scrape`, aucun callback à brancher ici.
+            results, _trace = _drain_scrape(
+                import_service._scrape_all_streaming(
+                    source_url, db, settings, use_cache_probe=False
+                ),
+                events,
+            )
+            _require_same_event(results, attendue)
+
+            total = len(results)
+            persister = import_service._Persister(db, source_url)
+            events.put({
+                "phase": "saving", "total": total,
+                "imported": 0, "updated": 0, "skipped": 0, "progress": 0,
+            })
+            for i, scraped in enumerate(results):
+                persister.add(scraped)
+                if (i + 1) % 20 == 0 or i == total - 1:
+                    events.put({
+                        "phase": "saving", "total": total,
+                        "imported": persister.imported, "updated": persister.updated,
+                        "skipped": persister.skipped, "progress": i + 1,
+                    })
+            persister.finalize()
+            purges = athlete_repository.delete_orphans_among(db, candidats)
+
+            admin_action_log_repository.create(
+                db,
+                user_id=user_id,
+                action="course.rescrape",
+                entity_type="course",
+                entity_id=course_id,
+                payload={
+                    "name": course_name,
+                    "source_url": source_url,
+                    "imported": persister.imported,
+                    "updated": persister.updated,
+                    "skipped": persister.skipped,
+                    "reconciled": persister.reconciled,
+                    "athletes_purged": len(purges),
+                },
+            )
+            db.commit()
+            holder["done"] = {
+                "imported": persister.imported,
+                "updated": persister.updated,
+                "skipped": persister.skipped,
+                "reconciled": persister.reconciled,
+                "total": total,
+                "orphans_removed": len(purges),
+            }
+            logger.info(
+                "Admin %s rescraped course %s (%s imported, %s updated, %s purged)",
+                user_id, course_id, persister.imported, persister.updated, len(purges),
+            )
+        except DomainError as exc:
+            db.rollback()
+            holder["error"] = exc.message
+        except Exception:
+            db.rollback()
+            logger.exception("Rollback du re-scrape de la course %s", course_id)
+            holder["error"] = "Erreur lors de l'enregistrement des résultats."
+        finally:
+            events.put(sentinel)
+            _release_rescrape_lock(course_id)
+
+    thread = threading.Thread(target=worker, daemon=True)
+    thread.start()
+
+    while True:
+        # Même compromis que `_scrape_all_streaming` : 0,5 s entre réactivité de
+        # la coupure côté client et coût CPU.
+        try:
+            item = events.get(timeout=0.5)
+        except queue.Empty:
+            continue
+        if item is sentinel:
+            break
+        yield item
+
+    if "error" in holder:
+        yield {"phase": "error", "message": holder["error"]}
+    else:
+        yield {"phase": "done", **holder["done"]}
+
+
+def _drain_scrape(gen: Iterator[dict], events: "queue.Queue[dict | object]") -> tuple:
+    """Pousse chaque event intermédiaire de `gen` dans `events`, rend `(results, trace)`.
+
+    `gen` est le générateur de `_scrape_all_streaming` — appelé ici depuis un
+    thread ordinaire (pas via `yield from`, réservé aux corps de générateur),
+    d'où ce relais manuel par `next()`/`StopIteration`.
+    """
+    while True:
+        try:
+            events.put(next(gen))
+        except StopIteration as stop:
+            return stop.value
 
 
 def reassign_participation(

@@ -219,7 +219,7 @@ def _scrape_all(
 
 
 def _scrape_all_streaming(
-    url: str, db: Session, settings: Settings,
+    url: str, db: Session, settings: Settings, *, use_cache_probe: bool = True,
 ) -> Iterator[dict]:
     """Variante générateur de `_scrape_all`, pour le SSE.
 
@@ -238,15 +238,20 @@ def _scrape_all_streaming(
     dans `queue.Queue` à chaque `on_heat_start`, plus un sentinel en fin de
     scrape. Le générateur draine la file avec `get(timeout=…)` pour rester
     responsive tout en ne bufférisant pas.
+
+    `use_cache_probe=False` retire le cache TTL **par heat** (#118, research.md
+    R2), même paramètre que `_scrape_all` — sans lui, un re-scrape demandé sur
+    une épreuve fan-out fraîchement importée sauterait tous ses heats jugés
+    frais, laissant le classement inchangé malgré la demande explicite.
     """
     provider = registry.get_provider(url)
 
     if not isinstance(provider, registry.FanoutProvider):
         # Chemin non-fan-out : bloquant unique, aucun yield intermédiaire.
-        results, trace = _scrape_all(url, db, settings)
+        results, trace = _scrape_all(url, db, settings, use_cache_probe=use_cache_probe)
         return (results, trace)
 
-    cache_probe = _make_cache_probe(db, settings)
+    cache_probe = _make_cache_probe(db, settings) if use_cache_probe else None
     events: queue.Queue[dict | object] = queue.Queue()
     sentinel = object()
     holder: dict = {}
@@ -772,7 +777,7 @@ def import_event(
 
 def iter_import_event(
     db: Session, url: str, settings: Settings, force: bool = False, persist: bool = True,
-    *, single_heat: bool = False,
+    *, single_heat: bool = False, use_cache_probe: bool = True,
 ) -> Iterator[dict]:
     """
     Générateur de progression pour le SSE. Émet des dicts de phase :
@@ -789,6 +794,10 @@ def iter_import_event(
     force=True saute le cache TTL (`_cached_result`).
     persist=False traverse tout le chemin de persistance (scrape, add, finalize)
     puis annule la transaction (dry-run) : rien n'est écrit.
+    use_cache_probe=False désarme en plus le cache TTL **par heat** d'un
+    provider fan-out (#118, research.md R2) — même paramètre que `_scrape_all`,
+    propagé jusqu'à `_scrape_all_streaming`. Défaut `True` : inchangé pour tout
+    appelant existant (import public, `run_batch`).
     """
     try:
         url = _validate_url(url)
@@ -813,7 +822,9 @@ def iter_import_event(
         else:
             # Chemin nominal : yield les événements intermédiaires du fan-out
             # via `yield from`, récupère `(results, trace)` en fin de générateur.
-            results, trace = yield from _scrape_all_streaming(url, db, settings)
+            results, trace = yield from _scrape_all_streaming(
+                url, db, settings, use_cache_probe=use_cache_probe
+            )
     except (ProviderNotSupportedError, ScraperError) as exc:
         yield {"phase": "error", "message": exc.message}
         return

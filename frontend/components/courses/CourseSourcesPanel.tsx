@@ -1,7 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button, MetaPill, Modal } from "@/components/tcn";
+import { Progress } from "@/components/ui/progress";
+import { useRescrapeStream } from "@/hooks/useRescrapeStream";
 import { useSwitchCourseSource } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
 import { providerLabel } from "@/lib/constants";
@@ -11,12 +13,14 @@ const TITRE_LIEN = "Ouvrir les résultats du chronométreur dans un nouvel ongle
 
 /**
  * Sources d'une épreuve, en tête de la page course. Lecture publique (D4 de
- * l'epic #275) : le rendu ne dépend jamais de la session. Seul le bouton
- * « Activer » — et la confirmation qu'il ouvre — l'exige, via `courses:sources`.
+ * l'epic #275) : le rendu ne dépend jamais de la session. Seuls le bouton
+ * « Activer » et le bouton « Re-scraper » — et les gestes qu'ils ouvrent —
+ * l'exigent, via `courses:sources` (#285, #118).
  *
  * Une seule source : rendu identique à l'ancien affichage sur
  * `course.source_url` (#279), aucune mention active/passive — il n'y a rien à
- * choisir. Le geste de bascule lui-même n'a de sens qu'à partir de deux.
+ * choisir. Le geste de bascule lui-même n'a de sens qu'à partir de deux ; le
+ * re-scrape, lui, cible toujours l'unique source, active par construction.
  */
 export function CourseSourcesPanel({
   courseId,
@@ -30,16 +34,69 @@ export function CourseSourcesPanel({
   const session = useSession();
   const peutBasculer = session.data?.permissions.includes("courses:sources") ?? false;
   const bascule = useSwitchCourseSource();
+  const rescrape = useRescrapeStream();
+
+  // Notifie en fin de flux plutôt qu'à chaque `await` — `start()` ne rejette
+  // jamais (le hook capture ses propres erreurs dans `state.error`, patron
+  // `useImportStream`), donc un simple `try/catch` autour de `start()` ne
+  // verrait jamais l'échec.
+  useEffect(() => {
+    if (rescrape.state.phase === "done") {
+      toast.success(
+        `Résultats à jour : ${rescrape.state.imported} ajoutés, ${rescrape.state.updated} mis à jour.`,
+      );
+    } else if (rescrape.state.phase === "error" && rescrape.state.error) {
+      toast.error(rescrape.state.error);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rescrape.state.phase]);
 
   if (sources.length === 0) return null;
+
+  const boutonRescraper = peutBasculer && (
+    <Button
+      size="sm"
+      variant="secondary"
+      aria-label="Re-scraper cette épreuve"
+      disabled={rescrape.state.running}
+      onClick={() => rescrape.start(courseId)}
+    >
+      {rescrape.state.running ? "Re-scrape en cours…" : "Re-scraper"}
+    </Button>
+  );
+
+  const pctRescrape =
+    rescrape.state.total > 0
+      ? Math.round((rescrape.state.progress / rescrape.state.total) * 100)
+      : 0;
+
+  const progressionRescrape = rescrape.state.phase !== "idle" && (
+    <div style={{ fontSize: 13, color: "var(--tcn-text-body)" }}>
+      {rescrape.state.phase === "scraping" && <p>{rescrape.state.message}</p>}
+      {rescrape.state.phase === "saving" && (
+        <>
+          <p>
+            Enregistrement… {rescrape.state.progress}/{rescrape.state.total}
+          </p>
+          <Progress value={pctRescrape} />
+        </>
+      )}
+    </div>
+  );
 
   if (sources.length === 1) {
     const [source] = sources;
     return (
-      <MetaPill label="Source" href={source.url} title={TITRE_LIEN}>
-        {providerLabel(source.provider)}
-        <span aria-hidden="true">↗</span>
-      </MetaPill>
+      <>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <MetaPill label="Source" href={source.url} title={TITRE_LIEN}>
+            {providerLabel(source.provider)}
+            <span aria-hidden="true">↗</span>
+          </MetaPill>
+          {boutonRescraper}
+        </span>
+        {progressionRescrape}
+      </>
     );
   }
 
@@ -78,8 +135,12 @@ export function CourseSourcesPanel({
               Activer
             </Button>
           )}
+          {/* Le re-scrape cible toujours l'active (Assumptions, spec.md) —
+              le bouton ne rejoint donc que sa pill, jamais celle d'une passive. */}
+          {source.is_active && boutonRescraper}
         </span>
       ))}
+      {progressionRescrape}
 
       {cible && (
         <Modal
