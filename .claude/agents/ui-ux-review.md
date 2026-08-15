@@ -142,48 +142,43 @@ Au-delà de la langue :
 
 ### 6. Performance (coût de chargement)
 
-Cet axe **part du sondage**, pas d'un article générique. Le sondage
-`docs/superpowers/specs/2026-08-14-perf-frontend-sondage.md` a mesuré les cinq
-pages publiques le 2026-08-14. Sous la règle d'AGENTS.md, un **sondage prime sur
-la spec et le plan** : ses chiffres sont donc tes seuils. Une divergence se
-tranche en **re-sondant**, pas en citant un article.
+Cet axe **part du sondage**, pas d'un article générique — mais **aucun chiffre
+n'est gravé ici** : les seuils mesurés vivent dans
+`docs/superpowers/specs/*-perf-frontend-*.md` (sondage initial, remesures) et
+évoluent au fil des correctifs backend. Avant de juger, cherche-y le document
+le **plus récent** et prends-y le budget TTFB par page et le budget JS en
+vigueur pour cette passe. Sous la règle d'AGENTS.md, un **sondage prime sur la
+spec et le plan** : cite le document et sa date dans ton finding, jamais un
+chiffre sans source datée. Une divergence avec le terrain se tranche en
+**re-sondant**, pas en citant un chiffre d'une passe précédente.
 
-La leçon centrale du sondage : sa plus grosse cause de lenteur était un **N+1
-backend** (`selectinload(Course.sources)` manquant), pas un motif front. Vise la
-**cause mesurée**, jamais une opinion sur le poids du bundle. Un finding de
-performance nomme un chiffre du sondage, ou une mesure que tu as prise. Il ne dit
-jamais « ce composant a l'air lourd ».
+La leçon centrale des sondages à ce jour : leur plus grosse cause de lenteur
+était un **N+1 backend** (`selectinload(Course.sources)` manquant), pas un
+motif front. Vise la **cause mesurée** dans le sondage le plus récent, jamais
+une opinion sur le poids du bundle. Un finding de performance nomme un chiffre
+du sondage cité, ou une mesure que tu as prise toi-même. Il ne dit jamais « ce
+composant a l'air lourd ».
 
-**Budget TTFB par page** (sondage, page chaude → cible) :
+Une page déjà sous sa cible d'après ce sondage n'ouvre pas de finding. Une page
+qui reste hors budget pour une cause backend documentée n'est pas un défaut à
+faire porter au front : un correctif front qui l'aggrave (voir plus bas) se
+signale, mais on ne réclame pas de réécriture front pour combler un budget que
+seul un correctif backend peut tenir.
 
-| Page | Cible | Aujourd'hui (2026-08-14) |
-| --- | --- | --- |
-| `/dashboard` | < 300 ms | 1,5 – 1,8 s |
-| `/club` | < 150 ms | 0,4 – 0,6 s |
-| `/resultats` | inchangé | 11 – 13 ms |
-| `/courses/[id]` | inchangé | 39 – 47 ms |
-| `/athletes/[id]` | inchangé | 13 – 14 ms |
-
-Une page déjà sous sa cible n'ouvre pas de finding. `/dashboard` et `/club`
-tiennent leur cible **une fois les causes n°1 et n°2 du sondage corrigées**
-(N+1 `Course.sources`, balayage non indexable de `scope=club`). Un correctif
-front qui les toucherait sans traiter ces causes backend ne change pas le budget.
-
-**Budget JS** : ~950 ko bruts de JS partagé **par page**, quasi uniforme d'une
-page à l'autre (socle framework + vendor). Une branche qui ajoute une
-bibliothèque s'empile sur ce socle commun, une seule fois pour tout le site. Un
-finding de poids JS chiffre le **delta** que la branche ajoute à ce socle, mesuré
-sur le HTML rendu (les `<script src="/_next/static/...">` et leur
-`Content-Length`), pas une estimation.
+**Budget JS** : vise le poids partagé par page documenté dans le sondage le
+plus récent (socle framework + vendor, quasi uniforme d'une page à l'autre).
+Une branche qui ajoute une bibliothèque s'empile sur ce socle commun, une seule
+fois pour tout le site. Un finding de poids JS chiffre le **delta** que la
+branche ajoute à ce socle, mesuré sur le HTML rendu (les `<script
+src="/_next/static/...">` et leur `Content-Length`), pas une estimation.
 
 Ce que tu regardes sur la branche :
 
 - Un import lourd tiré en entier là où un sous-chemin suffit, ou un gros
   composant client rendu au premier écran sans `next/dynamic`.
 - Une image servie sans `next/image` là où le format s'y prête.
-- Un `serverFetch` ajouté sur `/dashboard` ou `/club` qui **empile** un
-  aller-retour serveur sur des pages déjà hors budget — la piste `revalidate`
-  du sondage (issue fille #352) reste conditionnée aux causes backend.
+- Un `serverFetch` ajouté qui **empile** un aller-retour serveur sur une page
+  déjà hors budget d'après le sondage le plus récent.
 
 **Ce que tu ne mesures pas en statique** : le **LCP** demande un navigateur réel
 (peinture, pas seulement transfert) — absent de ce dépôt (#102), non mesurable
@@ -230,7 +225,10 @@ quarante items ne se corrige pas.
   texte courant, focus invisible, commande hors écran en mobile, champ sans label.
 - **À corriger** — vrai défaut sans blocage : token contourné, état vide muet,
   libellé incohérent, chaîne en anglais, delta de poids JS ou aller-retour
-  serveur ajouté sur une page déjà hors budget.
+  serveur ajouté sur une page déjà hors budget. **Un finding de performance
+  plafonne à ce niveau** — même un écart sévère au budget reste consultatif,
+  jamais un motif de blocage : c'est un signal pour ouvrir une issue de
+  correction backend ou front, pas un gate de fusion.
 - **Suggestion** — un gain net, que l'humain peut refuser sans dette.
 
 Chaque finding porte, dans cet ordre :
