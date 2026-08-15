@@ -13,7 +13,7 @@ export function Histogram({
   bucketSec: number;
 }) {
   const W = 900;
-  const H = 240;
+  const H = 240; // +20px par rapport à l'ancien 220 pour loger les labels X
   const top = 20;
   const bottom = 190;
   const left = 46;
@@ -24,7 +24,7 @@ export function Histogram({
 
   // Domaine [0, max] → pixel [bottom, top] (plus de finishers = plus haut).
   // Repli constant si max=0 : scaleLinear diviserait par un domaine nul.
-  const yScale = max > 0 ? scaleLinear().domain([0, max]).range([bottom, top]) : () => bottom;
+  const yScale = max > 0 ? scaleLinear().domain([0, max]).range([bottom, top]) : (value: number) => bottom;
 
   const endSec = startSec + bars.length * bucketSec;
   const xTicks = bars.length > 0 ? buildTicks(startSec, endSec) : [];
@@ -34,7 +34,7 @@ export function Histogram({
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
       {Array.from({ length: yTicks + 1 }, (_, i) => {
         const v = Math.round((max / yTicks) * i);
-        const y = yScale(v);
+        const y = bottom - (i / yTicks) * (bottom - top);
         return (
           <g key={i}>
             <line x1={left - 6} y1={y} x2={W - 10} y2={y} stroke="var(--tcn-border-faint)" />
