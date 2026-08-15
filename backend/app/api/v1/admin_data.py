@@ -25,6 +25,7 @@ from app.schemas.admin import (
     AdminCourseUpdate,
     CourseDeletionImpact,
     ParticipationReassign,
+    ParticipationsWipeImpact,
 )
 from app.schemas.course import CourseBrief
 from app.schemas.participation import ParticipationOut
@@ -137,6 +138,34 @@ def delete_course(
     au journal (FR-018).
     """
     admin_actions.delete_course(db, course_id=course_id, user_id=user.id)
+    db.commit()
+
+
+@router.get("/admin/participations/wipe-impact", response_model=ParticipationsWipeImpact)
+def participations_wipe_impact(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission(P.PARTICIPATIONS_WIPE_ALL)),
+):
+    """Chiffre l'ampleur d'une purge totale des résultats **avant** de la commettre (#384).
+
+    Gardée par `participations:wipe_all` et non par un pouvoir de lecture,
+    même logique que `course_deletion_impact` : qui peut détruire peut
+    mesurer, l'inverse n'aurait pas d'usage.
+    """
+    return admin_actions.wipe_impact(db)
+
+
+@router.delete("/admin/participations", status_code=204)
+def wipe_all_participations(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission(P.PARTICIPATIONS_WIPE_ALL)),
+):
+    """Vide `participations`, purge les fiches devenues vides, force un rescrape (#384).
+
+    `Course` et `course_sources` restent intacts. Irréversible et sans corps
+    de réponse : ce qui reste du geste est son entrée au journal.
+    """
+    admin_actions.wipe_all_participations(db, user_id=user.id)
     db.commit()
 
 
