@@ -9,7 +9,7 @@ import { eventTypeLabel } from "@/lib/constants";
 import { formatToken } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
 import { formatEventName } from "@/lib/utils/event";
-import { buildTicks, formatTickLabel } from "@/lib/utils/histogram-ticks";
+import { Histogram } from "@/components/charts/Histogram";
 import { SCOPE_PARAM, scopeFromParam } from "@/lib/scope";
 
 const CAT_COLORS = [
@@ -194,65 +194,5 @@ function Legend({ color, label, value }: { color: string; label: string; value: 
       <span style={{ color: "var(--tcn-text-body)" }}>{label}</span>
       <b style={{ marginLeft: "auto", fontFamily: "var(--tcn-font-display)", color: "var(--tcn-ink)" }}>{value}</b>
     </div>
-  );
-}
-
-function Histogram({
-  bars,
-  max,
-  startSec,
-  bucketSec,
-}: {
-  bars: number[];
-  max: number;
-  startSec: number;
-  bucketSec: number;
-}) {
-  const W = 900;
-  const H = 240; // +20px par rapport à l'ancien 220 pour loger les labels X
-  const top = 20;
-  const bottom = 190;
-  const left = 46;
-  const usableW = W - left - 10;
-  const barGap = usableW / bars.length;
-  const barW = Math.max(4, barGap * 0.72);
-  const yTicks = 5;
-
-  // Fin de la fenêtre temporelle = bord droit du dernier bucket. Les ticks X
-  // sont calculés en secondes, puis projetés sur X via barGap / bucketSec.
-  const endSec = startSec + bars.length * bucketSec;
-  const xTicks = bars.length > 0 ? buildTicks(startSec, endSec) : [];
-  const secToX = (sec: number) => left + ((sec - startSec) / bucketSec) * barGap;
-
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
-      {/* Axe Y — ticks horizontaux + labels de comptage. */}
-      {Array.from({ length: yTicks + 1 }, (_, i) => {
-        const v = Math.round((max / yTicks) * i);
-        const y = bottom - (i / yTicks) * (bottom - top);
-        return (
-          <g key={i}>
-            <line x1={left - 6} y1={y} x2={W - 10} y2={y} stroke="var(--tcn-border-faint)" />
-            <text x={left - 14} y={y + 4} textAnchor="end" fontSize="11" fill="var(--tcn-text-faint)" fontFamily="Barlow">{v}</text>
-          </g>
-        );
-      })}
-      {/* Barres. */}
-      {bars.map((c, i) => {
-        const h = max ? (c / max) * (bottom - top) : 0;
-        return <rect key={i} x={left + i * barGap} y={bottom - h} width={barW} height={h} rx="2" fill="var(--tcn-orange)" />;
-      })}
-      {/* Axe X — lignes verticales (fines, comme les horizontales de l'axe Y)
-          + labels d'heure `H:MM` alignés sur des multiples ronds du pas (#129). */}
-      {xTicks.map((tickSec) => {
-        const x = secToX(tickSec);
-        return (
-          <g key={tickSec}>
-            <line x1={x} y1={top} x2={x} y2={bottom} stroke="var(--tcn-border-faint)" />
-            <text x={x} y={bottom + 16} textAnchor="middle" fontSize="11" fill="var(--tcn-text-faint)" fontFamily="Barlow">{formatTickLabel(tickSec)}</text>
-          </g>
-        );
-      })}
-    </svg>
   );
 }
