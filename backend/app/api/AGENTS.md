@@ -177,3 +177,28 @@ d'urgence des sessions (#169), les dix ressources de `admin_data.py` (#117),
 doublons suspects (#288) — détail dans `docs/api/admin-donnees.md` ; retours
 utilisateurs (#267) et statistiques détaillées d'une participation (#272) —
 détail dans `docs/api/feedback-stats.md`.
+
+## Page bénévoles : une seconde garde, hors du socle SSO (#271)
+
+`benevoles.py` porte quatre ressources gardées par `require_benevole_access`
+(`api/deps.py`) — **pas** `require_permission`. Mot de passe partagé (5-6
+bénévoles), cookie signé HMAC-SHA256 avec le mot de passe lui-même comme clé,
+zéro table : changer le mot de passe invalide tous les cookies d'un coup,
+seule révocation retenue (aucune identité individuelle à révoquer). Décision
+produit et alternatives rejetées : `specs/20260815-114258-page-validation-
+benevoles/research.md` §D1.
+
+Trois des quatre routes délèguent à `admin_actions.update_course`/
+`.reassign_participation` (déjà livrées pour `/admin/*`) sous le `user_id`
+d'un **compte système** (« Bénévoles (accès partagé) », seedé par migration,
+jamais par le code applicatif) — `AdminActionLog.user_id` est une FK `NOT
+NULL`, et il n'y a pas d'identité individuelle à y mettre. Seule
+`validate_participation` (`is_pending_validation → false`) est une logique
+neuve. `GET /benevoles/queue` ne filtre **ni** par club ni par portée : les
+bénévoles valident les saisies de tous les clubs, pas seulement du leur.
+
+`POST /benevoles/session` reste **non gardée** — c'est elle qui pose la garde
+des trois autres — et `test_public_routes_still_open.py` classe les quatre
+routes gardées dans `ROUTES_BENEVOLES_FERMEES`, pas dans le préfixe `/admin/`
+(ce mécanisme n'a rien à voir avec le SSO/RBAC).
+

@@ -19,6 +19,7 @@ from app.api.v1 import (
     admin_sessions,
     athletes,
     auth,
+    benevoles,
     courses,
     feedback,
     health,
@@ -53,5 +54,6 @@ for module in (
     admin_groups,
     admin_sessions,
     auth,
+    benevoles,
 ):
     api_router.include_router(module.router)

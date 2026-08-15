@@ -15,6 +15,33 @@ def _setup(db_session):
     return athlete, course
 
 
+def test_list_pending_ne_rend_que_les_resultats_en_attente(db_session):
+    """#271 — tous clubs confondus, aucun filtre `tcn_clause` (research.md §D5)."""
+    athlete, course = _setup(db_session)
+    autre = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul", club="ASPTT")
+    pendante = participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1",
+        club="TCN", is_pending_validation=True,
+    )
+    pendante_autre_club = participation_repository.create(
+        db_session, athlete_id=autre.id, course_id=course.id, bib_number="2",
+        club="ASPTT", is_pending_validation=True,
+    )
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="3",
+        club="TCN", is_pending_validation=False,
+    )
+    db_session.flush()
+
+    en_attente = participation_repository.list_pending(db_session)
+
+    assert {p.id for p in en_attente} == {pendante.id, pendante_autre_club.id}
+
+
+def test_list_pending_vide_sans_resultat_en_attente(db_session):
+    assert participation_repository.list_pending(db_session) == []
+
+
 def test_create_and_dedup_by_bib(db_session):
     athlete, course = _setup(db_session)
     participation_repository.create(

@@ -696,6 +696,31 @@ def update_athlete(db: Session, *, athlete_id: int, champs: dict, user_id: int) 
     return athlete
 
 
+def validate_participation(db: Session, *, participation_id: int, user_id: int) -> Participation:
+    """Lève l'état d'attente d'un résultat déclaré manuellement (#271, US1).
+
+    **Idempotent** (FR-012, même patron que `reassign_participation`) : un
+    résultat déjà validé rend l'état voulu sans écrire un second geste au
+    journal — une demande sans effet n'est pas un geste.
+    """
+    participation = _participation_or_404(db, participation_id)
+    if not participation.is_pending_validation:
+        return participation
+
+    participation_repository.update(db, participation, is_pending_validation=False)
+
+    admin_action_log_repository.create(
+        db,
+        user_id=user_id,
+        action="participation.validate",
+        entity_type="participation",
+        entity_id=participation_id,
+        payload={"course_id": participation.course_id, "athlete_id": participation.athlete_id},
+    )
+    logger.info("Admin %s validated participation %s", user_id, participation_id)
+    return participation
+
+
 def update_course(db: Session, *, course_id: int, champs: dict, user_id: int) -> Course:
     """Corrige le libellé d'une épreuve — nom, date, type, relais (FR-020).
 
