@@ -381,3 +381,23 @@ def test_le_filtre_scope_club_utilise_l_index_fonctionnel(db_session):
 
     plan_text = " | ".join(str(row) for row in plan)
     assert "ix_participations_club_normalized" in plan_text, plan_text
+
+
+def test_reset_scraped_at_all_remet_toutes_les_epreuves_a_null(db_session):
+    a = course_repository.get_or_create(
+        db_session, name="Tri A", event_date=date(2026, 5, 1), event_type="triathlon-m"
+    )
+    b = course_repository.get_or_create(
+        db_session, name="Tri B", event_date=date(2026, 5, 2), event_type="triathlon-m"
+    )
+    course_repository.touch_scraped_at(db_session, a)
+    course_repository.touch_scraped_at(db_session, b)
+    db_session.flush()
+
+    touchees = course_repository.reset_scraped_at_all(db_session)
+
+    assert touchees == 2
+    db_session.expire(a)
+    db_session.expire(b)
+    assert course_repository.get(db_session, a.id).scraped_at is None
+    assert course_repository.get(db_session, b.id).scraped_at is None

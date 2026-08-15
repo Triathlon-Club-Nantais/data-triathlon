@@ -239,6 +239,17 @@ def delete_orphans(db: Session) -> int:
     return len(delete_orphans_among(db))
 
 
+def count_all(db: Session) -> int:
+    """Nombre total de fiches coureur en base (#384).
+
+    Sert à chiffrer l'impact d'une purge totale des résultats **avant** de la
+    commettre : vider `Participation` entièrement laisse *tout* athlète
+    orphelin (`Participation.athlete_id` est sa seule FK, cf. `delete_orphans_among`
+    ci-dessus), donc ce compte est exactement celui que `delete_orphans` purgera.
+    """
+    return db.query(func.count(Athlete.id)).scalar() or 0
+
+
 def list_with_season_participation_count(
     db: Session,
     *,
