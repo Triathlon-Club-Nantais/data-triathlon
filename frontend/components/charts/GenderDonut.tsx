@@ -49,9 +49,9 @@ export function GenderDonut({
   return (
     <>
       <div style={{ position: "relative", width: SIZE, height: SIZE }}>
-        <svg viewBox={`0 0 ${SIZE} ${SIZE}`} width={SIZE} height={SIZE}>
+        <svg viewBox={`0 0 ${SIZE} ${SIZE}`} width={SIZE} height={SIZE} style={{ display: "block" }}>
           <g transform={`translate(${OUTER_R}, ${OUTER_R})`}>
-            {hasGender ? (
+            {slices.length > 0 ? (
               slices.map((slice) => (
                 <path
                   key={slice.data.label}

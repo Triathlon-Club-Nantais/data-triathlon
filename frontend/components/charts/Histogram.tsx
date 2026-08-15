@@ -34,6 +34,10 @@ export function Histogram({
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
       {Array.from({ length: yTicks + 1 }, (_, i) => {
         const v = Math.round((max / yTicks) * i);
+        // Position i-basée, PAS yScale(v) : v est arrondi, le router par
+        // l'échelle décale les graduations quand max n'est pas divisible par
+        // yTicks (et les collapse toutes à `bottom` quand max=0) — régression
+        // déjà rencontrée et corrigée dans ce lot, cf. tests max=3/max=0.
         const y = bottom - (i / yTicks) * (bottom - top);
         return (
           <g key={i}>
