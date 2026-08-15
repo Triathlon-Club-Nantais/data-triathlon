@@ -151,15 +151,23 @@ def wipe_all_participations(db: Session, *, user_id: int) -> dict:
     sources. `scraped_at` est remis à `NULL` sur toute la base pour que le
     cache TTL ne masque pas ce rescrape immédiat.
 
+    **Les comptes journalisés sont ceux que les `DELETE` rendent**, jamais un
+    `COUNT(*)` préalable : ce dernier ferait un balayage de plus sur la plus
+    grosse table de la base, et un import concurrent validé entre les deux
+    requêtes serait supprimé sans être compté — la trace sous-estimerait un
+    geste irréversible. Même raison côté athlètes, où c'est `delete_all` qui
+    est appelé et non le balayage d'orphelins : après le premier `DELETE`, les
+    deux ensembles coïncident, et un `DELETE` sans `WHERE` ne bute pas sur le
+    plafond de paramètres liés de PostgreSQL.
+
     Contrairement à `delete_course`, le journal ne garde que des **comptes**,
     jamais la liste des ids purgés : à l'échelle de la base entière, cette
     liste peut porter des milliers d'entrées, et gonflerait le journal d'audit
     pour un geste qui n'a par nature qu'un seul lecteur (« combien la dernière
     purge a-t-elle emporté »).
     """
-    resume = {"participations_deleted": participation_repository.count_all(db)}
-    participation_repository.delete_all(db)
-    resume["athletes_purged"] = athlete_repository.delete_orphans(db)
+    resume = {"participations_deleted": participation_repository.delete_all(db)}
+    resume["athletes_purged"] = athlete_repository.delete_all(db)
     resume["courses_reset"] = course_repository.reset_scraped_at_all(db)
 
     admin_action_log_repository.create(
