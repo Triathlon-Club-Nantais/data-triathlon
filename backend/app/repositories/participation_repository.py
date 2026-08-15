@@ -372,6 +372,21 @@ def list_for_athlete(db: Session, athlete_id: int) -> list[Participation]:
     )
 
 
+def list_pending(db: Session) -> list[Participation]:
+    """Résultats déclarés en attente de validation, tous clubs confondus (#271).
+
+    Aucun filtre `tcn_clause`/`scope` : les bénévoles valident les saisies de
+    leurs propres membres (research.md §D5 de la feature).
+    """
+    return (
+        db.query(Participation)
+        .options(joinedload(Participation.athlete), joinedload(Participation.course).selectinload(Course.sources))
+        .filter(Participation.is_pending_validation.is_(True))
+        .order_by(Participation.created_at.desc())
+        .all()
+    )
+
+
 def list_for_course(db: Session, course_id: int) -> list[Participation]:
     return (
         db.query(Participation)

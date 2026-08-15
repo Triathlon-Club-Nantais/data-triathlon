@@ -839,3 +839,57 @@ def test_wipe_all_courses_sur_base_vide_ne_consigne_rien_a_tort(db_session, aute
     assert resume == {"courses_deleted": 0, "athletes_purged": 0}
     entrees = _journal(db_session, "courses", 0)
     assert [e.action for e in entrees] == ["courses.wipe_all"]
+
+
+# --- Valider un résultat en attente (#271, US1) ------------------------------
+
+
+def test_validate_participation_leve_l_etat_pendant(db_session, auteur):
+    course = _epreuve(db_session)
+    coureur = _coureur(db_session, "DUPONT")
+    ligne = participation_repository.create(
+        db_session, athlete_id=coureur.id, course_id=course.id, bib_number="1",
+        is_pending_validation=True,
+    )
+    db_session.flush()
+
+    admin_actions.validate_participation(db_session, participation_id=ligne.id, user_id=auteur.id)
+
+    assert participation_repository.get(db_session, ligne.id).is_pending_validation is False
+
+
+def test_validate_participation_consigne_le_geste(db_session, auteur):
+    course = _epreuve(db_session)
+    coureur = _coureur(db_session, "DUPONT")
+    ligne = participation_repository.create(
+        db_session, athlete_id=coureur.id, course_id=course.id, bib_number="1",
+        is_pending_validation=True,
+    )
+    db_session.flush()
+
+    admin_actions.validate_participation(db_session, participation_id=ligne.id, user_id=auteur.id)
+
+    entrees = _journal(db_session, "participation", ligne.id)
+    assert len(entrees) == 1
+    assert entrees[0].action == "participation.validate"
+    assert entrees[0].user_id == auteur.id
+
+
+def test_validate_participation_deja_validee_ne_consigne_pas_un_second_geste(db_session, auteur):
+    """FR-012 — patron de `reassign_participation` : l'état voulu est déjà atteint."""
+    course = _epreuve(db_session)
+    coureur = _coureur(db_session, "DUPONT")
+    ligne = participation_repository.create(
+        db_session, athlete_id=coureur.id, course_id=course.id, bib_number="1",
+        is_pending_validation=False,
+    )
+    db_session.flush()
+
+    admin_actions.validate_participation(db_session, participation_id=ligne.id, user_id=auteur.id)
+
+    assert _journal(db_session, "participation", ligne.id) == []
+
+
+def test_validate_participation_sur_resultat_inconnu_refuse(db_session, auteur):
+    with pytest.raises(NotFoundError):
+        admin_actions.validate_participation(db_session, participation_id=4242, user_id=auteur.id)

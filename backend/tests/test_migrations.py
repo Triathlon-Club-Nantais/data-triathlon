@@ -516,6 +516,33 @@ def test_downgrade_puis_upgrade_de_la_validation_manuelle(sqlite_url):
     assert "format_label" in _columns(sqlite_url, "courses")
 
 
+_BEFORE_BENEVOLE_SEED = "05094fea3bc2"
+
+
+def _user_emails(url: str) -> set[str]:
+    engine = sa.create_engine(url)
+    try:
+        with engine.connect() as connexion:
+            return {row[0] for row in connexion.execute(sa.text("SELECT email FROM users"))}
+    finally:
+        engine.dispose()
+
+
+def test_downgrade_puis_upgrade_du_semis_benevoles(sqlite_url):
+    """Le compte système « Bénévoles (accès partagé) » (#271) : une ligne, pas un schéma."""
+    from app.services.benevole_access import SYSTEM_USER_EMAIL
+
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+    assert SYSTEM_USER_EMAIL in _user_emails(sqlite_url)
+
+    command.downgrade(cfg, _BEFORE_BENEVOLE_SEED)
+    assert SYSTEM_USER_EMAIL not in _user_emails(sqlite_url)
+
+    command.upgrade(cfg, "head")
+    assert SYSTEM_USER_EMAIL in _user_emails(sqlite_url)
+
+
 def test_downgrade_then_upgrade_of_the_course_sources_table(sqlite_url):
     """AC1 — la descente ne perd rien : `courses.source_url` reste la source de vérité.
 

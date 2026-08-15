@@ -103,6 +103,13 @@ class Settings(BaseSettings):
     posthog_project_token: str = ""
     posthog_host: str = "https://eu.i.posthog.com"
 
+    # ── Accès bénévoles (#271) ────────────────────────────────────────────────
+    # Mot de passe partagé (5-6 bénévoles), distinct du SSO — décision produit
+    # actée le 2026-08-13/14 (spec § Décisions actées). Vide = accès non
+    # configuré, fail-closed (même politique que les réglages `AUTH_*`) : la
+    # garde refuse systématiquement plutôt que d'accepter un mot de passe vide.
+    benevole_shared_password: str = ""
+
     # ── Lancement des batches (#47) ───────────────────────────────────────────
     # Les batches ne tournent pas dans ce service : l'API ne fait que demander
     # leur exécution à GitHub Actions, qui lance la CLI sur un runner. Le service

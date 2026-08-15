@@ -34,6 +34,10 @@
     spec) ; quiconque relit le fil doit savoir que le dernier mot écrit n'est
     pas celui qui a été retenu ici, et que cet arbitrage reste rouvrable en
     amont d'une implémentation si le porteur produit le souhaite.
+  - **Tension levée le 2026-08-15**, avant le début de l'implémentation :
+    MathieuHerrmann confirme explicitement le mot de passe partagé plutôt que
+    le rôle RBAC évoqué le 2026-08-14. Ce plan et ces tâches s'exécutent donc
+    tels quels, sans revenir sur `research.md` §D1.
 - **Le fichier `Validation resultats.dc.html`** joint à l'issue (généré par
   Claude à partir de la description) est une **inspiration de layout**
   uniquement — file de validation à gauche, panneau de correction/validation à
