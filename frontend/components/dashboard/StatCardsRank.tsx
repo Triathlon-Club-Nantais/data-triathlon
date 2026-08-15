@@ -18,16 +18,19 @@ const Top10Icon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--tcn-orange)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="9" r="6" /><path d="M12 6v3l2 1" /><path d="M9 14l-2 7 5-3 5 3-2-7" /></svg>
 );
 
-// Rendu dédoublé F / H pour le mode gender (#104 US3).
+// Rendu dédoublé F / H pour le mode gender (#104 US3). L'espacement passe par
+// des marges plutôt que le `gap` du flex : le `gap` fait partie de la plage
+// sélectionnable et peignait une bande orange dans le vide entre les libellés
+// et leurs chiffres, une marge reste hors de la sélection (#375).
 function GenderPair({ women, men }: { women: number; men: number }): ReactNode {
   return (
-    <span style={{ display: "inline-flex", alignItems: "baseline", gap: 18, fontFamily: "var(--tcn-font-display)" }}>
-      <span style={{ display: "inline-flex", alignItems: "baseline", gap: 6 }}>
-        <span style={{ fontSize: 20, fontWeight: 700, color: "var(--tcn-text-muted)" }}>F</span>
+    <span style={{ display: "inline-flex", alignItems: "baseline", fontFamily: "var(--tcn-font-display)" }}>
+      <span style={{ display: "inline-flex", alignItems: "baseline" }}>
+        <span style={{ fontSize: 20, fontWeight: 700, color: "var(--tcn-text-muted)", marginRight: 6 }}>F</span>
         <span>{women}</span>
       </span>
-      <span style={{ display: "inline-flex", alignItems: "baseline", gap: 6 }}>
-        <span style={{ fontSize: 20, fontWeight: 700, color: "var(--tcn-text-muted)" }}>H</span>
+      <span style={{ display: "inline-flex", alignItems: "baseline", marginLeft: 18 }}>
+        <span style={{ fontSize: 20, fontWeight: 700, color: "var(--tcn-text-muted)", marginRight: 6 }}>H</span>
         <span>{men}</span>
       </span>
     </span>

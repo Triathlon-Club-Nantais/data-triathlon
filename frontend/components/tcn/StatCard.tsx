@@ -56,7 +56,7 @@ export function StatCard({
         <div style={{ fontWeight: 700, fontSize: 13, letterSpacing: ".04em", textTransform: "uppercase", color: "#fff" }}>
           {label}
         </div>
-        <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 86, lineHeight: 0.95, color: "#fff", margin: "10px 0 8px", whiteSpace: "nowrap" }}>
+        <div className="tcn-stat-value" style={{ fontFamily: "var(--tcn-font-display)", fontSize: 86, lineHeight: 0.95, color: "#fff", margin: "10px 0 8px", whiteSpace: "nowrap" }}>
           {value}
         </div>
         {delta ? (
@@ -87,7 +87,7 @@ export function StatCard({
           </div>
         ) : null}
       </div>
-      <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 68, lineHeight: 1, color: valueColor, marginTop: 10 }}>
+      <div className="tcn-stat-value" style={{ fontFamily: "var(--tcn-font-display)", fontSize: 68, lineHeight: 1, color: valueColor, marginTop: 10 }}>
         {value}
       </div>
       {accent ? (

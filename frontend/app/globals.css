@@ -462,6 +462,20 @@
   color: #ffffff;
 }
 
+/* Sélectionner un chiffre KPI peignait une bande orange bien plus haute que les
+   chiffres eux-mêmes : la police display Anton a un chasse-haut et un chasse-bas
+   très grands, et le navigateur peint `::selection` sur toute la boîte en ligne,
+   pas sur le tracé des glyphes (#375). On rogne l'interligne au-dessus et
+   au-dessous des capitales pour que la boîte peinte suive la hauteur des
+   chiffres, et `inline-block` ramène la largeur sélectionnable au contenu au
+   lieu de toute la carte. Repli sans `text-box-trim` (Firefox) : le
+   `line-height` posé en ligne réduit déjà la bande. */
+.tcn-stat-value {
+  display: inline-block;
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
+}
+
 /* WCAG 2.3.3 — rien n'offrait de coupe-circuit au mouvement : 21 usages
    `animate-*` sur 8 fichiers, plus les entrées/sorties de `ui/{dialog,sheet,
    popover}` alimentées par tw-animate-css. La règle s'applique à tout, y compris
