@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import { scaleLinear } from "d3-scale";
+import { line as d3Line, curveMonotoneX } from "d3-shape";
 import type { RankingEvolutionStep } from "@/lib/types";
 import { splitColumnsFromKeys } from "@/lib/utils/splits";
 import { Card } from "../Card";
@@ -65,16 +67,22 @@ export function RankingEvolutionChart({
   const top = Math.max(1, best - margin);
   const bottom = worst + margin;
 
-  // Position → ordonnée. `y` croît vers le bas, la meilleure position a le plus
-  // petit numéro : la conversion directe met donc bien le 1er en haut.
-  const yOf = (position: number) =>
-    PAD.top + ((position - top) / Math.max(1, bottom - top)) * PLOT_H;
+  // Position → ordonnée. Domaine [top, bottom] → pixel [PAD.top, PAD.top+PLOT_H] :
+  // la meilleure position (top, la plus petite) tombe en haut du graphique.
+  const yScale = scaleLinear().domain([top, bottom]).range([PAD.top, PAD.top + PLOT_H]);
+  const yOf = (position: number) => yScale(position);
   const xOf = (index: number) =>
     PAD.left + (PLOT_W / steps.length) * (index + 0.5);
 
-  const line = steps
-    .map((step, index) => `${index === 0 ? "M" : "L"} ${xOf(index)} ${yOf(step.scratch_position)}`)
-    .join(" ");
+  const linePoints = steps.map((step, index) => ({
+    x: xOf(index),
+    y: yOf(step.scratch_position),
+  }));
+  const line =
+    d3Line<{ x: number; y: number }>()
+      .x((point) => point.x)
+      .y((point) => point.y)
+      .curve(curveMonotoneX)(linePoints) ?? "";
 
   // Graduations réparties entre les deux bornes. Sans elles, la courbe montrait
   // un sens de variation sans jamais dire de quelle place à quelle place.
