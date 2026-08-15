@@ -3,7 +3,8 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { AthleteSeasonList } from "@/components/club/AthleteSeasonList";
 import { SeasonSelector } from "@/components/dashboard/SeasonSelector";
-import { SCOPE_CLUB } from "@/lib/scope";
+import { DisciplineToggle } from "@/components/layout/DisciplineToggle";
+import { SCOPE_CLUB, federalOnlyFromParam } from "@/lib/scope";
 import { CLUB_NAME } from "@/lib/club";
 import { currentSeason, parseSeasonsParam } from "@/lib/utils/season";
 
@@ -19,10 +20,11 @@ export default async function AthletesSeasonPage({
   const sp = await searchParams;
   const fromUrl = parseSeasonsParam(sp.seasons);
   const seasons = fromUrl.length > 0 ? fromUrl : [currentSeason()];
+  const federal_only = federalOnlyFromParam(sp.sports);
 
   const [athletes, availableSeasons] = await Promise.all([
-    apiServer.listAthleteSeasonActivity({ scope: SCOPE_CLUB, seasons }),
-    apiServer.listSeasons({ scope: SCOPE_CLUB }),
+    apiServer.listAthleteSeasonActivity({ scope: SCOPE_CLUB, seasons, federal_only }),
+    apiServer.listSeasons({ scope: SCOPE_CLUB, federal_only }),
   ]);
 
   return (
@@ -32,7 +34,12 @@ export default async function AthletesSeasonPage({
           eyebrow={CLUB_NAME}
           title="Athlètes par saison"
           description={`Nombre d'épreuves faites par les athlètes du ${CLUB_NAME}, saison par saison.`}
-          actions={<SeasonSelector seasons={availableSeasons} />}
+          actions={
+            <div className="flex flex-wrap items-center gap-3">
+              <DisciplineToggle />
+              <SeasonSelector seasons={availableSeasons} />
+            </div>
+          }
         />
         <AthleteSeasonList athletes={athletes} />
       </div>

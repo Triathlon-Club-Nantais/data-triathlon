@@ -117,3 +117,29 @@ def test_season_activity_accessible_sans_authentification(client, db_session):
     resp = client.get("/api/v1/athletes/season-activity")
 
     assert resp.status_code == 200
+
+
+def test_season_activity_federal_only_retire_les_disciplines_hors_federation(client, db_session):
+    """#382 — même paramètre et même défaut neutre que sur /dashboard et /club (#76)."""
+    from app.repositories import athlete_repository, course_repository
+
+    course_tri = _epreuve(db_session, "Triathlon", date(2025, 9, 15))
+    course_trail = course_repository.get_or_create(
+        db_session, name="Trail", event_date=date(2025, 9, 20), event_type="trail",
+        source_url="https://k/Trail", provider="klikego",
+    )
+    db_session.flush()
+    triathlete = athlete_repository.get_or_create(db_session, nom="TRIATHLETE", prenom="T")
+    traileur = athlete_repository.get_or_create(db_session, nom="TRAILEUR", prenom="T")
+    db_session.commit()
+    _inscrit(db_session, triathlete, course_tri, "1")
+    _inscrit(db_session, traileur, course_trail, "2")
+    db_session.commit()
+
+    resp = client.get(
+        "/api/v1/athletes/season-activity",
+        params={"scope": "club", "seasons": "2025", "federal_only": "true"},
+    )
+
+    assert resp.status_code == 200
+    assert [a["nom"] for a in resp.json()] == ["TRIATHLETE"]

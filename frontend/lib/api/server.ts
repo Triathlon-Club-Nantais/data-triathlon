@@ -84,7 +84,9 @@ export const apiServer = {
       fetchOpts,
     ),
   getAthlete: (id: number) => serverFetch<AthleteDetail>(`/athletes/${id}`),
-  listAthleteSeasonActivity: (opts: { scope?: string; seasons?: number[] } = {}) =>
+  listAthleteSeasonActivity: (
+    opts: { scope?: string; seasons?: number[]; federal_only?: boolean } = {},
+  ) =>
     serverFetch<AthleteSeasonActivity[]>(
       `/athletes/season-activity${toQuery(opts as Record<string, unknown>)}`,
     ),

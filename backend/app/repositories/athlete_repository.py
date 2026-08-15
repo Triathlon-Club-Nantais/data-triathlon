@@ -5,6 +5,7 @@ from sqlalchemy import and_, case, false, func, or_
 from sqlalchemy.orm import Session
 
 from app.core.club import tcn_clause
+from app.core.discipline import federal_clause
 from app.core.text import deaccent
 from app.models.athlete import Athlete
 from app.models.course import Course
@@ -275,6 +276,7 @@ def list_with_season_participation_count(
     *,
     seasons: list[int],
     club_only: bool = False,
+    federal_only: bool = False,
 ) -> list[tuple[Athlete, int]]:
     """Athlètes avec ≥1 participation sur `seasons`, et leur compte sur ces saisons (#274).
 
@@ -282,7 +284,9 @@ def list_with_season_participation_count(
     athlètes à 0) : c'est elle qui exclut les athlètes sans participation sur le
     filtre demandé. `seasons` vide = pas de restriction de date (Principe V —
     neutralité par défaut), comme `season_clause` de `participation_repository`,
-    réutilisée ici plutôt que recopiée.
+    réutilisée ici plutôt que recopiée. `federal_only` (#382) suit le même
+    défaut neutre et la même liste d'exclusion que `for_stats` (#76) —
+    `Course` est déjà jointe sans condition ici, contrairement à `for_stats`.
     """
     # Import local : participation_repository importe name_filter d'ici depuis
     # #357, un import en tête de module créerait un cycle.
@@ -299,6 +303,8 @@ def list_with_season_participation_count(
         requete = requete.filter(tcn_clause(Participation.club))
     if seasons:
         requete = requete.filter(season_clause(seasons))
+    if federal_only:
+        requete = requete.filter(federal_clause(Course.event_type))
     # Nom vide (import mal renseigné) en fin de tri, pas en tête (Edge Cases du spec) :
     # sans ce `case`, une chaîne vide précède tout nom non vide en tri lexicographique.
     nom_vide_en_fin = case((Athlete.nom == "", 1), else_=0)
