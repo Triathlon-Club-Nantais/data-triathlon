@@ -219,6 +219,142 @@ def test_le_pouvoir_de_purge_totale_est_offert_a_la_composition_des_roles(client
     assert libelle["label"] == "Purger tous les résultats"
 
 
+@pytest.fixture
+def base_avec_resultats(db_session):
+    """Deux épreuves, chacune un résultat — pour chiffrer et purger la base entière."""
+    a = course_repository.get_or_create(
+        db_session, name="Tri A", event_date=date(2026, 5, 1),
+        event_type="triathlon-m", source_url="https://k/a", provider="klikego",
+    )
+    b = course_repository.get_or_create(
+        db_session, name="Tri B", event_date=date(2026, 5, 2),
+        event_type="triathlon-m", source_url="https://k/b", provider="klikego",
+    )
+    db_session.flush()
+    jean = athlete_repository.get_or_create(db_session, nom="COUREUR", prenom="Jean")
+    paul = athlete_repository.get_or_create(db_session, nom="COUREUR", prenom="Paul")
+    db_session.flush()
+    participation_repository.create(db_session, athlete_id=jean.id, course_id=a.id, bib_number="1")
+    participation_repository.create(db_session, athlete_id=paul.id, course_id=b.id, bib_number="1")
+    course_repository.touch_scraped_at(db_session, a)
+    course_repository.touch_scraped_at(db_session, b)
+    db_session.commit()
+    return a, b
+
+
+# --- GET /admin/participations/wipe-impact -----------------------------------
+
+
+def test_l_impact_de_purge_chiffre_participations_et_athletes(client, base_avec_resultats):
+    reponse = client.get("/api/v1/admin/participations/wipe-impact")
+
+    assert reponse.status_code == 200
+    assert reponse.json() == {"participations": 2, "athletes": 2}
+
+
+def test_l_impact_de_purge_ne_modifie_rien(client, base_avec_resultats, db_session):
+    client.get("/api/v1/admin/participations/wipe-impact")
+
+    assert participation_repository.count_all(db_session) == 2
+
+
+def test_l_impact_de_purge_sans_session_rend_401(client, base_avec_resultats):
+    client.cookies.clear()
+
+    assert client.get("/api/v1/admin/participations/wipe-impact").status_code == 401
+
+
+def test_l_impact_de_purge_sans_le_pouvoir_rend_403(client, db_session, base_avec_resultats):
+    _session_etroite(client, db_session)
+
+    assert client.get("/api/v1/admin/participations/wipe-impact").status_code == 403
+
+
+# --- DELETE /admin/participations ---------------------------------------------
+
+
+def test_purger_rend_204_et_vide_la_table(client, db_session, base_avec_resultats):
+    reponse = client.delete("/api/v1/admin/participations")
+
+    assert reponse.status_code == 204
+    assert reponse.content == b""
+    assert participation_repository.count_all(db_session) == 0
+
+
+def test_purger_laisse_courses_et_sources_intacts(client, db_session, base_avec_resultats):
+    from app.repositories import course_source_repository
+
+    a, b = base_avec_resultats
+
+    client.delete("/api/v1/admin/participations")
+
+    assert course_repository.get(db_session, a.id) is not None
+    assert course_repository.get(db_session, b.id) is not None
+    assert len(course_source_repository.list_for_course(db_session, a.id)) == 1
+    assert len(course_source_repository.list_for_course(db_session, b.id)) == 1
+
+
+def test_purger_remet_scraped_at_a_null_sur_toutes_les_epreuves(
+    client, db_session, base_avec_resultats
+):
+    a, b = base_avec_resultats
+
+    client.delete("/api/v1/admin/participations")
+
+    db_session.expire(a)
+    db_session.expire(b)
+    assert course_repository.get(db_session, a.id).scraped_at is None
+    assert course_repository.get(db_session, b.id).scraped_at is None
+
+
+def test_purger_supprime_les_fiches_devenues_orphelines(client, db_session, base_avec_resultats):
+    jean = athlete_repository.get_by_identity(db_session, nom="COUREUR", prenom="Jean", birth_date=None)
+    jean_id = jean.id
+
+    client.delete("/api/v1/admin/participations")
+
+    assert athlete_repository.get(db_session, jean_id) is None
+
+
+def test_purger_consigne_le_geste(client, db_session, base_avec_resultats):
+    from app.repositories import admin_action_log_repository
+
+    client.delete("/api/v1/admin/participations")
+
+    entrees = admin_action_log_repository.list_for_entity(
+        db_session, entity_type="participations", entity_id=0
+    )
+    assert [e.action for e in entrees] == ["participations.wipe_all"]
+    assert entrees[0].payload["participations_deleted"] == 2
+
+
+def test_purger_sans_session_rend_401(client, base_avec_resultats):
+    client.cookies.clear()
+
+    assert client.delete("/api/v1/admin/participations").status_code == 401
+
+
+def test_purger_sans_le_pouvoir_rend_403(client, db_session, base_avec_resultats):
+    _session_etroite(client, db_session)
+
+    assert client.delete("/api/v1/admin/participations").status_code == 403
+
+
+def test_purger_avec_le_seul_pouvoir_utile_reussit(client, db_session, base_avec_resultats):
+    _session_etroite(client, db_session, P.PARTICIPATIONS_WIPE_ALL)
+
+    assert client.delete("/api/v1/admin/participations").status_code == 204
+
+
+def test_un_refus_de_pouvoir_ne_purge_rien(client, db_session, base_avec_resultats):
+    """FR-015 — un 403 laisse la base strictement inchangée."""
+    _session_etroite(client, db_session)
+
+    client.delete("/api/v1/admin/participations")
+
+    assert participation_repository.count_all(db_session) == 2
+
+
 # --- POST /admin/participations/{id}/reassign -------------------------------
 
 
