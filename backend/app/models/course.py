@@ -69,7 +69,10 @@ class Course(Base):
     reliability_override: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     # Détail des anomalies relevées : {code: nombre}. `{}` = évaluée, rien à signaler.
     quality_issues: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    scraped_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    # Nullable depuis #384 : une purge totale des résultats remet ce champ à
+    # `NULL` sur toute la base pour forcer un rescrape immédiat — `services/
+    # cache.is_fresh` lit déjà `None` comme « jamais scrapée ».
+    scraped_at: Mapped[datetime | None] = mapped_column(DateTime, default=utcnow, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     participations: Mapped[list["Participation"]] = relationship(  # noqa: F821
