@@ -24,7 +24,7 @@ export function Histogram({
 
   // Domaine [0, max] → pixel [bottom, top] (plus de finishers = plus haut).
   // Repli constant si max=0 : scaleLinear diviserait par un domaine nul.
-  const yScale = max > 0 ? scaleLinear().domain([0, max]).range([bottom, top]) : (value: number) => bottom;
+  const yScale = max > 0 ? scaleLinear().domain([0, max]).range([bottom, top]) : () => bottom;
 
   const endSec = startSec + bars.length * bucketSec;
   const xTicks = bars.length > 0 ? buildTicks(startSec, endSec) : [];
