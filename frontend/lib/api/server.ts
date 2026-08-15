@@ -20,8 +20,26 @@ import type {
 const API_URL = process.env.API_URL || "http://localhost:8001";
 const BASE = `${API_URL}/api/v1`;
 
-async function serverFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { cache: "no-store" });
+/** Fenêtre de revalidation optionnelle (#352) — `undefined` garde `no-store`. */
+export type FetchOpts = { revalidateSeconds?: number };
+
+/**
+ * Fenêtre courte pour `/dashboard` et `/club` (#352) — les deux seules pages
+ * dont le coût mesuré (sondage du 2026-08-14) justifie un `revalidate`, une
+ * fois #350/#351 corrigés. Les imports tournent par batch de plusieurs
+ * dizaines de minutes (`docs/ci-cd.md`), jamais en temps réel : 30 s masque
+ * le coût de chargement pour l'écrasante majorité des visites sans retarder
+ * la visibilité d'un import terminé au-delà de ce qu'un visiteur tolère.
+ */
+export const SHORT_REVALIDATE_SECONDS = 30;
+
+async function serverFetch<T>(path: string, opts: FetchOpts = {}): Promise<T> {
+  const res = await fetch(
+    `${BASE}${path}`,
+    opts.revalidateSeconds !== undefined
+      ? { next: { revalidate: opts.revalidateSeconds } }
+      : { cache: "no-store" },
+  );
   if (!res.ok) {
     // `ApiError` plutôt qu'un `Error` nu : sans le statut, un appelant ne peut
     // pas distinguer une ressource absente d'un backend en panne, et finit par
@@ -60,8 +78,11 @@ async function serverFetchAuthed<T>(path: string): Promise<T | null> {
 }
 
 export const apiServer = {
-  listParticipations: (filters: ParticipationFilters = {}) =>
-    serverFetch<Participation[]>(`/participations${toQuery(filters as Record<string, unknown>)}`),
+  listParticipations: (filters: ParticipationFilters = {}, fetchOpts: FetchOpts = {}) =>
+    serverFetch<Participation[]>(
+      `/participations${toQuery(filters as Record<string, unknown>)}`,
+      fetchOpts,
+    ),
   getAthlete: (id: number) => serverFetch<AthleteDetail>(`/athletes/${id}`),
   listAthleteSeasonActivity: (opts: { scope?: string; seasons?: number[] } = {}) =>
     serverFetch<AthleteSeasonActivity[]>(
@@ -84,12 +105,17 @@ export const apiServer = {
   getCourseSummary: (id: number) => serverFetch<CourseSummary>(`/courses/${id}/summary`),
   /** Sources connues de l'épreuve, active en tête (#284) — lecture publique (D4). */
   getCourseSources: (id: number) => serverFetch<CourseSource[]>(`/courses/${id}/sources`),
-  listEvents: (filters: ParticipationFilters = {}) =>
-    serverFetch<EventPage>(`/courses/events${toQuery(filters as Record<string, unknown>)}`),
-  getStats: (opts: { scope?: string; seasons?: number[]; federal_only?: boolean } = {}) =>
-    serverFetch<Stats>(`/stats${toQuery(opts)}`),
-  listSeasons: (opts: { scope?: string; federal_only?: boolean } = {}) =>
-    serverFetch<Season[]>(`/stats/seasons${toQuery(opts)}`),
+  listEvents: (filters: ParticipationFilters = {}, fetchOpts: FetchOpts = {}) =>
+    serverFetch<EventPage>(
+      `/courses/events${toQuery(filters as Record<string, unknown>)}`,
+      fetchOpts,
+    ),
+  getStats: (
+    opts: { scope?: string; seasons?: number[]; federal_only?: boolean } = {},
+    fetchOpts: FetchOpts = {},
+  ) => serverFetch<Stats>(`/stats${toQuery(opts)}`, fetchOpts),
+  listSeasons: (opts: { scope?: string; federal_only?: boolean } = {}, fetchOpts: FetchOpts = {}) =>
+    serverFetch<Season[]>(`/stats/seasons${toQuery(opts)}`, fetchOpts),
   /** Session du visiteur, ou `null` s'il est anonyme (#114). */
   getSession: () => serverFetchAuthed<SessionUser>("/auth/me"),
   /**
