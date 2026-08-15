@@ -1,4 +1,4 @@
-"""Les ressources d'administration des données (#117) — quatre gestes, deux lectures.
+"""Les ressources d'administration des données (#117) — cinq gestes, trois lectures.
 
 Ce fichier vit sous `tests/test_api/`, donc sous la session **superutilisateur**
 du `conftest` local. Les tests de refus ouvrent leur propre session, plus
