@@ -55,6 +55,13 @@ describe("palette de texte TCN", () => {
     }
   });
 
+  it("garde `muted` fusionné avec `faint` (#360) — pas une coïncidence de valeur", () => {
+    // Les deux tokens désignent désormais le même gris. Sans ce test, un futur
+    // arbitrage de #299 qui ne bougerait que `faint` referait diverger les deux
+    // en silence : chaque test de contraste individuel resterait vert.
+    expect(token("--tcn-text-muted")).toBe(token("--tcn-text-faint"));
+  });
+
   /**
    * Les fonds oranges qui portent du texte blanc.
    *
