@@ -52,6 +52,9 @@ const SUMMARY: CourseSummary = {
   total: 1811,
   finishers: 1768,
   non_finishers: 43,
+  dnf: 43,
+  dns: 0,
+  dsq: 0,
   unknown: 0,
   tcn_count: 4,
   male: 1063,
@@ -109,6 +112,28 @@ describe("CoursePage", () => {
     expect(screen.getByText("S2")).toBeInTheDocument();
     expect(screen.getByText("GRAVELINES TRIATHLON")).toBeInTheDocument();
     expect(screen.getByText(/Distribution des temps/)).toBeInTheDocument();
+  });
+
+  it("distingue abandons, non-partants et disqualifiés plutôt que de les agréger (#331)", async () => {
+    getCourseSummary.mockResolvedValue({ ...SUMMARY, non_finishers: 8, dnf: 5, dns: 2, dsq: 1 });
+
+    await afficher();
+
+    expect(screen.getByText("Abandons")).toBeInTheDocument();
+    expect(screen.getByText("5")).toBeInTheDocument();
+    expect(screen.getByText("Non-partants")).toBeInTheDocument();
+    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(screen.getByText("Disqualifiés")).toBeInTheDocument();
+    expect(screen.getByText("1")).toBeInTheDocument();
+  });
+
+  it("n'affiche aucune pastille vide pour les non-partants ni les disqualifiés (#331)", async () => {
+    // SUMMARY : dnf=43, dns=0, dsq=0.
+    await afficher();
+
+    expect(screen.getByText("Abandons")).toBeInTheDocument();
+    expect(screen.queryByText("Non-partants")).not.toBeInTheDocument();
+    expect(screen.queryByText("Disqualifiés")).not.toBeInTheDocument();
   });
 
   it("annonce le total comme un nombre de participants, pas de partants", async () => {
@@ -177,6 +202,9 @@ describe("CoursePage", () => {
       total: 0,
       finishers: 0,
       non_finishers: 0,
+      dnf: 0,
+      dns: 0,
+      dsq: 0,
       unknown: 0,
       tcn_count: 0,
       male: 0,

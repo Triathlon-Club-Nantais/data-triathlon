@@ -67,7 +67,7 @@ export default async function CoursePage({
   if (!data || !summary) notFound();
   const { course, participations } = data;
 
-  const { total, finishers, non_finishers: nonFinishers, unknown, tcn_count: tcnCount } = summary;
+  const { total, finishers, dnf, dns, dsq, unknown, tcn_count: tcnCount } = summary;
 
   // ── Répartition genre ──
   const genderTotal = summary.male + summary.female;
@@ -99,7 +99,9 @@ export default async function CoursePage({
           {course.event_date && <MetaPill label="Date">{formatDate(course.event_date)}</MetaPill>}
           <MetaPill label="Participants">{total}</MetaPill>
           <MetaPill label="Finishers">{finishers}</MetaPill>
-          {nonFinishers > 0 && <MetaPill label="Abandons">{nonFinishers}</MetaPill>}
+          {dnf > 0 && <MetaPill label="Abandons">{dnf}</MetaPill>}
+          {dns > 0 && <MetaPill label="Non-partants">{dns}</MetaPill>}
+          {dsq > 0 && <MetaPill label="Disqualifiés">{dsq}</MetaPill>}
           {unknown > 0 && <MetaPill label="Indéterminés">{unknown}</MetaPill>}
           {tcnCount > 0 && <MetaPill accent dot>{tcnCount} athlète{tcnCount > 1 ? "s" : ""} TCN</MetaPill>}
           <CourseSourcesPanel courseId={course.id} initialSources={sources} />
