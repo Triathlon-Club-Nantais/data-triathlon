@@ -317,18 +317,22 @@ function Pagination({
  * Décompte de l'épreuve **entière**, distinct du nombre de lignes affichées.
  *
  * « participants », pas « partants » (#322) : `summary.total` additionne
- * finishers, non-finishers et indéterminés, et les DNS entrent dans le
- * deuxième — il compte donc tous ceux qui figurent sur l'épreuve, y compris
- * ceux qui n'ont jamais pris le départ. La distinction que posait #23 reste
- * entière, un participant n'est pas un finisher ; seul le mot était faux.
+ * finishers, abandons (dnf), non-partants (dns), disqualifiés (dsq) et
+ * indéterminés — il compte donc tous ceux qui figurent sur l'épreuve, y
+ * compris ceux qui n'ont jamais pris le départ. La distinction que posait #23
+ * reste entière, un participant n'est pas un finisher ; seul le mot était
+ * faux. Les trois premiers étaient agrégés sous un seul « abandons » avant
+ * #331 — un DNS n'a jamais couru, un DSQ a fini disqualifié.
  */
 function resumeEpreuve(summary: CourseSummary): string {
-  const { total, finishers, non_finishers: abandons, unknown } = summary;
+  const { total, finishers, dnf, dns, dsq, unknown } = summary;
   const parts = [
     `${total} participant${total > 1 ? "s" : ""}`,
     `${finishers} finisher${finishers > 1 ? "s" : ""}`,
   ];
-  if (abandons > 0) parts.push(`${abandons} abandon${abandons > 1 ? "s" : ""}`);
+  if (dnf > 0) parts.push(`${dnf} abandon${dnf > 1 ? "s" : ""}`);
+  if (dns > 0) parts.push(`${dns} non-partant${dns > 1 ? "s" : ""}`);
+  if (dsq > 0) parts.push(`${dsq} disqualifié${dsq > 1 ? "s" : ""}`);
   if (unknown > 0) parts.push(`${unknown} indéterminé${unknown > 1 ? "s" : ""}`);
   return parts.join(" · ");
 }
