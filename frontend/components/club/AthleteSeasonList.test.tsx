@@ -155,4 +155,27 @@ describe("AthleteSeasonList", () => {
 
     expect(screen.getByRole("searchbox", { name: /rechercher un athlète/i })).toBeInTheDocument();
   });
+
+  it("aucun résultat de recherche : invite à réessayer, pas un constat nu (revue ui-ux #382)", async () => {
+    render(<AthleteSeasonList athletes={[athlete({ id: 1, nom: "DUPONT" })]} />);
+
+    await userEvent.type(screen.getByPlaceholderText(/rechercher un athlète/i), "zzz");
+
+    expect(screen.getByText(/essayez un autre nom/i)).toBeInTheDocument();
+  });
+
+  it("le nombre de résultats est annoncé aux lecteurs d'écran (WCAG 4.1.3, #382)", async () => {
+    render(
+      <AthleteSeasonList
+        athletes={[
+          athlete({ id: 1, nom: "DUPONT" }),
+          athlete({ id: 2, nom: "MARTIN" }),
+        ]}
+      />,
+    );
+
+    await userEvent.type(screen.getByPlaceholderText(/rechercher un athlète/i), "dupont");
+
+    expect(screen.getByRole("status")).toHaveTextContent(/1 athlète/i);
+  });
 });

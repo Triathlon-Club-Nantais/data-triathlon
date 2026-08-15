@@ -82,14 +82,20 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Rechercher un athlète (nom, prénom)"
           aria-label="Rechercher un athlète"
-          containerStyle={{ padding: "8px 14px", maxWidth: 320, flex: 1 }}
+          containerStyle={{ maxWidth: 320, flex: 1 }}
         />
         <AthleteSortToggle />
       </div>
+      {/* WCAG 4.1.3 — la recherche change le contenu de la liste sans déplacer
+          le focus : sans cette annonce, un lecteur d'écran ne signale ni le
+          nombre de résultats ni le basculement vers l'état vide (revue #382). */}
+      <p className="sr-only" role="status">
+        {sorted.length} athlète{sorted.length > 1 ? "s" : ""} trouvé{sorted.length > 1 ? "s" : ""}
+      </p>
       {sorted.length === 0 ? (
         <Card padding={0} style={{ overflow: "hidden" }}>
           <div style={{ padding: 40, textAlign: "center", color: "var(--tcn-text-faint)", fontSize: 14 }}>
-            Aucun athlète ne correspond à « {query.trim()} ».
+            Aucun athlète ne correspond à « {query.trim()} ». Essayez un autre nom.
           </div>
         </Card>
       ) : (
