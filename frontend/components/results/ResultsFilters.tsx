@@ -63,6 +63,9 @@ export function ResultsFilters() {
   // caractère ; on saute le premier rendu et les cas déjà à jour dans l'URL.
   // `replace` (pas `push`) : sinon chaque groupe de frappe empile une entrée
   // d'historique et le bouton Retour ne fait que rejouer la saisie.
+  // Discipline/dates viennent de l'URL (déjà appliqués), pas de l'état local :
+  // sinon un changement de discipline ou de date non validé par "Filtrer"
+  // serait appliqué en douce dès qu'on tape dans un champ texte (#387).
   const debouncedName = useDebounce(name);
   const debouncedEventName = useDebounce(eventName);
   useEffect(() => {
@@ -76,9 +79,9 @@ export function ResultsFilters() {
       urlFor({
         name: debouncedName,
         event_name: debouncedEventName,
-        event_type: eventType,
-        date_from: dateFrom,
-        date_to: dateTo,
+        event_type: sp.get("event_type") ?? "",
+        date_from: sp.get("date_from") ?? "",
+        date_to: sp.get("date_to") ?? "",
       }),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
