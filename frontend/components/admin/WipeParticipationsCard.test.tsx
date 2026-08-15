@@ -38,8 +38,10 @@ function session(permissions: string[]): SessionUser {
   };
 }
 
+let client: QueryClient;
+
 function afficher() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
       <WipeParticipationsCard />
@@ -61,7 +63,9 @@ describe("WipeParticipationsCard (#384)", () => {
 
     afficher();
 
-    await waitFor(() => expect(getSession).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(client.getQueryState(["session"])?.status).toBe("success"),
+    );
     expect(screen.queryByText(/zone dangereuse/i)).not.toBeInTheDocument();
   });
 
