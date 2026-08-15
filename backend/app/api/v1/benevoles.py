@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import NotAuthenticatedError, require_benevole_access
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
+from app.core.exceptions import NotFoundError
 from app.repositories import participation_repository
 from app.schemas.admin import ParticipationReassign
 from app.schemas.benevole import BenevoleCourseRename, BenevoleLogin
@@ -79,7 +80,15 @@ def queue(db: Session = Depends(get_db)):
     dependencies=[Depends(require_benevole_access)],
 )
 def rename_course(course_id: int, body: BenevoleCourseRename, db: Session = Depends(get_db)):
-    """Uniformise le nom d'une épreuve associée à un résultat en attente (US2)."""
+    """Uniformise le nom d'une épreuve associée à un résultat en attente (US2).
+
+    **Scopée aux épreuves qui portent un résultat en attente** (revue de
+    code) : le mot de passe partagé ne doit pas ouvrir n'importe quelle
+    épreuve à la réécriture, seulement celles que cette page a vocation à
+    corriger.
+    """
+    if not participation_repository.has_pending_for_course(db, course_id):
+        raise NotFoundError("Aucun résultat en attente n'est associé à cette épreuve.")
     course = admin_actions.update_course(
         db, course_id=course_id, champs={"name": body.name}, user_id=benevole_access.system_user_id(db)
     )
@@ -93,7 +102,15 @@ def rename_course(course_id: int, body: BenevoleCourseRename, db: Session = Depe
     dependencies=[Depends(require_benevole_access)],
 )
 def reassign(participation_id: int, body: ParticipationReassign, db: Session = Depends(get_db)):
-    """Réattribue un résultat en attente à un autre athlète existant (US3)."""
+    """Réattribue un résultat en attente à un autre athlète existant (US3).
+
+    **Scopée aux résultats encore en attente** (revue de code) : une fois
+    validé, un résultat sort du périmètre que le mot de passe partagé est
+    censé ouvrir.
+    """
+    cible = participation_repository.get(db, participation_id)
+    if cible is None or not cible.is_pending_validation:
+        raise NotFoundError("Ce résultat n'est pas ou plus en attente de validation.")
     participation = admin_actions.reassign_participation(
         db,
         participation_id=participation_id,

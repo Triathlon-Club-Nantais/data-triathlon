@@ -258,6 +258,19 @@ def test_rename_course_refuse_sans_cookie(client, resultat_pendant):
     assert reponse.status_code == 401
 
 
+def test_rename_course_refuse_si_aucun_resultat_en_attente(benevole_connecte, resultat_pendant, compte_systeme):
+    """Revue de code : le mot de passe partagé ne doit pas ouvrir n'importe
+    quelle épreuve à la réécriture, seulement celles qui ont un résultat à
+    valider."""
+    course, athlete, ligne = resultat_pendant
+    benevole_connecte.post(f"/api/v1/benevoles/participations/{ligne.id}/validate")
+
+    reponse = benevole_connecte.patch(
+        f"/api/v1/benevoles/courses/{course.id}", json={"name": "Renommée"}
+    )
+    assert reponse.status_code == 404
+
+
 # --- POST /benevoles/participations/{id}/reassign (US3, T034) ---------------
 
 
@@ -319,6 +332,21 @@ def test_reassign_refuse_sans_cookie(client, resultat_pendant):
         f"/api/v1/benevoles/participations/{ligne.id}/reassign", json={"athlete_id": athlete.id}
     )
     assert reponse.status_code == 401
+
+
+def test_reassign_refuse_si_le_resultat_n_est_plus_en_attente(
+    benevole_connecte, resultat_pendant, compte_systeme, db_session
+):
+    """Revue de code : une fois validé, un résultat sort du périmètre bénévole."""
+    course, athlete, ligne = resultat_pendant
+    benevole_connecte.post(f"/api/v1/benevoles/participations/{ligne.id}/validate")
+    cible = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul", club="ASPTT")
+    db_session.commit()
+
+    reponse = benevole_connecte.post(
+        f"/api/v1/benevoles/participations/{ligne.id}/reassign", json={"athlete_id": cible.id}
+    )
+    assert reponse.status_code == 404
 
 
 # --- Effet de bout en bout de la validation (quickstart.md, scénario 1) -----

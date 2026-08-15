@@ -49,6 +49,13 @@ Renomme l'épreuve associée à un résultat en attente (geste 2). **Délègue �
   `is_relay` — ne sont pas éditables depuis la page bénévoles).
 - 200 avec l'épreuve mise à jour, 409 en cas de collision avec une épreuve
   existante (`DuplicateError`, déjà levée par la fonction réutilisée).
+- **Scopée** (relevé en revue de code, corrigé) : 404 si l'épreuve ne porte
+  **aucun** résultat en attente de validation
+  (`participation_repository.has_pending_for_course`). Sans ce garde-fou, le
+  mot de passe partagé ouvrait la réécriture de **n'importe quelle** épreuve
+  en base — un pouvoir d'administration de fait, sans le contrôle
+  individuel du SSO — pour un geste censé se limiter au périmètre de
+  validation.
 
 ## POST /api/v1/benevoles/participations/{participation_id}/reassign
 
@@ -60,6 +67,9 @@ Réattribue un résultat à un autre athlète existant (geste 3). **Délègue à
 - 200 avec la participation mise à jour, 409 en cas de conflit (l'athlète
   cible a déjà un résultat sur cette épreuve, `DuplicateError` déjà levée par
   la fonction réutilisée), 404 si l'athlète cible n'existe pas.
+- **Scopée** (relevé en revue de code, corrigé) : 404 si la participation
+  ciblée n'existe pas **ou** n'est plus en attente de validation — même
+  raison que pour le renommage ci-dessus.
 
 ## POST /api/v1/benevoles/participations/{participation_id}/validate
 

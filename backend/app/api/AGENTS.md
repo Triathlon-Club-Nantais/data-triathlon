@@ -197,6 +197,15 @@ NULL`, et il n'y a pas d'identité individuelle à y mettre. Seule
 neuve. `GET /benevoles/queue` ne filtre **ni** par club ni par portée : les
 bénévoles valident les saisies de tous les clubs, pas seulement du leur.
 
+**Le renommage et la réattribution sont scopés au résultat en attente**
+(relevé en revue de code) : déléguer tel quel à `admin_actions` donnerait au
+mot de passe partagé le pouvoir de réécrire **n'importe quelle** épreuve ou
+participation en base, validée ou non — un pouvoir d'administration de fait,
+sans le contrôle individuel du SSO. `rename_course` vérifie donc
+`participation_repository.has_pending_for_course` avant de déléguer, et
+`reassign` relit la participation ciblée pour confirmer
+`is_pending_validation` — tous deux 404 sinon.
+
 `POST /benevoles/session` reste **non gardée** — c'est elle qui pose la garde
 des trois autres — et `test_public_routes_still_open.py` classe les quatre
 routes gardées dans `ROUTES_BENEVOLES_FERMEES`, pas dans le préfixe `/admin/`

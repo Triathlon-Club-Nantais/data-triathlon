@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AccessGate } from "@/components/benevoles/AccessGate";
 import { ParticipationPanel } from "@/components/benevoles/ParticipationPanel";
 import { ValidationQueue } from "@/components/benevoles/ValidationQueue";
-import { Eyebrow } from "@/components/tcn";
+import { Eyebrow, Button } from "@/components/tcn";
 import { apiClient, ApiError } from "@/lib/api/client";
 import type { Participation } from "@/lib/types";
 
@@ -23,6 +23,7 @@ export default function BenevolesPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
   const chargerLaFile = useCallback(async () => {
+    setEtat("chargement");
     try {
       const resultats = await apiClient.getBenevoleQueue();
       setParticipations(resultats);
@@ -50,8 +51,17 @@ export default function BenevolesPage() {
     setParticipations((liste) => liste.map((p) => (p.id === mise_a_jour.id ? mise_a_jour : p)));
   }
 
+  /** Cookie expiré ou mot de passe changé pendant que l'écran était ouvert (#271, revue de code). */
+  function surSessionExpiree() {
+    setEtat("gate");
+  }
+
   if (etat === "chargement") {
-    return null;
+    return (
+      <div style={{ maxWidth: 480, margin: "80px auto", textAlign: "center", color: "var(--tcn-text-faint)" }}>
+        Chargement…
+      </div>
+    );
   }
 
   if (etat === "gate") {
@@ -61,7 +71,12 @@ export default function BenevolesPage() {
   if (etat === "erreur") {
     return (
       <div style={{ maxWidth: 480, margin: "80px auto", textAlign: "center", color: "var(--tcn-text-faint)" }}>
-        La file de validation n&apos;a pas pu être chargée. Réessayez plus tard.
+        <div style={{ marginBottom: 16 }}>
+          La file de validation n&apos;a pas pu être chargée. Réessayez plus tard.
+        </div>
+        <Button variant="secondary" onClick={chargerLaFile}>
+          Réessayer
+        </Button>
       </div>
     );
   }
@@ -71,13 +86,18 @@ export default function BenevolesPage() {
   return (
     <div style={{ maxWidth: 1100, margin: "40px auto", padding: "0 24px" }}>
       <Eyebrow style={{ marginBottom: 6 }}>Bénévoles</Eyebrow>
-      <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(26px, 4vw, 34px)", color: "var(--tcn-ink)", marginBottom: 24 }}>
+      <h1 style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(26px, 4vw, 34px)", color: "var(--tcn-ink)", marginBottom: 24, fontWeight: 400 }}>
         Vérification des résultats
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(280px, 360px) 1fr", gap: 24, alignItems: "start" }}>
+      </h1>
+      <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-[minmax(280px,360px)_1fr]">
         <ValidationQueue participations={participations} selectedId={selectedId} onSelect={setSelectedId} />
         {selectionnee ? (
-          <ParticipationPanel participation={selectionnee} onChanged={surChangement} />
+          <ParticipationPanel
+            key={selectionnee.id}
+            participation={selectionnee}
+            onChanged={surChangement}
+            onSessionExpired={surSessionExpiree}
+          />
         ) : (
           <div style={{ color: "var(--tcn-text-faint)", fontSize: 14, padding: 24 }}>
             Sélectionnez un résultat dans la file pour le relire.

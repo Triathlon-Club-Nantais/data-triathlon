@@ -387,6 +387,21 @@ def list_pending(db: Session) -> list[Participation]:
     )
 
 
+def has_pending_for_course(db: Session, course_id: int) -> bool:
+    """Cette épreuve porte-t-elle au moins un résultat en attente de validation ? (#271)
+
+    Scope la portée du renommage bénévole : au-delà du seul mot de passe
+    partagé, une épreuve sans aucun résultat en attente n'a pas de raison
+    d'être touchée depuis cette page (revue de code, écart signalé).
+    """
+    return (
+        db.query(Participation.id)
+        .filter(Participation.course_id == course_id, Participation.is_pending_validation.is_(True))
+        .first()
+        is not None
+    )
+
+
 def list_for_course(db: Session, course_id: int) -> list[Participation]:
     return (
         db.query(Participation)

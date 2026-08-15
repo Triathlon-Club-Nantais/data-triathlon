@@ -182,4 +182,34 @@ describe("ParticipationPanel", () => {
 
     expect(await screen.findByText("Ce coureur a déjà un résultat sur cette épreuve.")).toBeInTheDocument();
   });
+
+  it("affiche un état vide quand la recherche ne trouve personne", async () => {
+    searchAthletes.mockResolvedValue([]);
+    const user = userEvent.setup();
+    render(<ParticipationPanel participation={participation()} onChanged={vi.fn()} />);
+
+    await user.type(screen.getByLabelText(/réattribuer à/i), "Zzz");
+
+    expect(await screen.findByText(/aucun coureur trouvé/i)).toBeInTheDocument();
+  });
+
+  // --- Reprise de session (revue de code) ---------------------------------
+
+  it("prévient le parent d'une session expirée plutôt que d'afficher une erreur générique", async () => {
+    validateParticipationBenevole.mockRejectedValue(new ApiError(401, "Non autorisé"));
+    const onSessionExpired = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ParticipationPanel
+        participation={participation()}
+        onChanged={vi.fn()}
+        onSessionExpired={onSessionExpired}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /valider/i }));
+
+    await waitFor(() => expect(onSessionExpired).toHaveBeenCalled());
+    expect(screen.queryByText(/réessayez plus tard/i)).not.toBeInTheDocument();
+  });
 });

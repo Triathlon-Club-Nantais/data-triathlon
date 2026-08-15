@@ -109,11 +109,22 @@ qu'écrite.
 confirmer une fois l'écran maquetté si sa densité réelle s'avère plus proche
 d'un écran public que d'un écran back-office.
 
+**Confirmé à l'implémentation (revue de code) : `components/tcn/` seul, pas
+`components/ui/`.** Une fois l'écran construit, sa densité réelle s'est avérée
+plus proche d'un écran public qu'attendu ici : une file de sélection (pas un
+tableau à colonnes multiples) et un panneau de trois formulaires courts — ni
+`ui/table` (pas de colonnes), ni `ui/dialog` (pas de flux modal, tout reste en
+place sur l'écran), ni `ui/select` (la réattribution cherche par texte libre,
+pas dans une liste fermée) ne trouvaient de point d'accroche réel. La densité
+qui justifiait `ui/` dans l'anticipation ci-dessus ne s'est pas confirmée sur
+preuve — exactement la clause de révision que ce statut avait posée. Ce
+document est donc corrigé après coup pour refléter ce qui a été construit,
+plutôt que de laisser `tasks.md` seul en désaccord silencieux avec le code.
+
 **Alternatives rejetées** :
-- *`components/tcn/` seul*, tel qu'évoqué dans le brief initial de ce cadrage —
-  cohérent avec « accès hors `/admin/*` », mais contredit la frontière
-  documentée par `frontend/AGENTS.md`, qui trace la limite sur la densité
-  d'écran et non sur le mécanisme d'authentification.
+- *`components/ui/{table,dialog,select}`*, retenu dans un premier temps sur
+  l'anticipation ci-dessus — non confirmé une fois l'écran construit (voir
+  la confirmation ci-dessus).
 
 ## D4 — Lecture de la file : réutilisation de `core/validation.validated_clause`
 

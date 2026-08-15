@@ -42,6 +42,32 @@ def test_list_pending_vide_sans_resultat_en_attente(db_session):
     assert participation_repository.list_pending(db_session) == []
 
 
+def test_has_pending_for_course_vrai_si_au_moins_un_resultat_en_attente(db_session):
+    athlete, course = _setup(db_session)
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1",
+        club="TCN", is_pending_validation=True,
+    )
+    db_session.flush()
+
+    assert participation_repository.has_pending_for_course(db_session, course.id) is True
+
+
+def test_has_pending_for_course_faux_si_tout_est_valide(db_session):
+    athlete, course = _setup(db_session)
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1",
+        club="TCN", is_pending_validation=False,
+    )
+    db_session.flush()
+
+    assert participation_repository.has_pending_for_course(db_session, course.id) is False
+
+
+def test_has_pending_for_course_faux_sur_epreuve_inconnue(db_session):
+    assert participation_repository.has_pending_for_course(db_session, 4242) is False
+
+
 def test_create_and_dedup_by_bib(db_session):
     athlete, course = _setup(db_session)
     participation_repository.create(
