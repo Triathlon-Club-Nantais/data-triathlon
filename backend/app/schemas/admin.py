@@ -348,6 +348,19 @@ class CourseDeletionImpact(BaseModel):
     athletes: int
 
 
+class ParticipationsWipeImpact(BaseModel):
+    """Ce qu'une purge totale des résultats détruirait, chiffré avant le geste (#384).
+
+    `athletes` est le compte total de fiches coureur : vider `participations`
+    entièrement laisse *toute* fiche orpheline (`Participation.athlete_id` en
+    est la seule FK), donc c'est le compte de la table entière, pas seulement
+    des coureurs inscrits quelque part.
+    """
+
+    participations: int
+    athletes: int
+
+
 class MergeImpactCourse(BaseModel):
     """Un des deux côtés d'une fusion, tel qu'il se présente à l'arbitrage (#286).
 
