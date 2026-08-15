@@ -1,4 +1,4 @@
-"""Router d'administration des données (#117) — six ressources, six gardes.
+"""Router d'administration des données (#117) — dix ressources, dix gardes.
 
 **Chacune porte sa garde individuellement, et nomme un pouvoir, jamais un rôle**
 (#115, FR-017/FR-018). Aucune garde de préfixe, et ce n'est pas une préférence
@@ -24,6 +24,7 @@ from app.schemas.admin import (
     AdminAthleteUpdate,
     AdminCourseUpdate,
     CourseDeletionImpact,
+    CoursesWipeImpact,
     ParticipationReassign,
     ParticipationsWipeImpact,
 )
@@ -138,6 +139,34 @@ def delete_course(
     au journal (FR-018).
     """
     admin_actions.delete_course(db, course_id=course_id, user_id=user.id)
+    db.commit()
+
+
+@router.get("/admin/courses/wipe-impact", response_model=CoursesWipeImpact)
+def courses_wipe_impact(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission(P.COURSES_WIPE_ALL)),
+):
+    """Chiffre l'ampleur d'une purge totale des épreuves **avant** de la commettre (#384).
+
+    Gardée par `courses:wipe_all`, même logique que `course_deletion_impact` :
+    qui peut détruire peut mesurer.
+    """
+    return admin_actions.courses_wipe_impact(db)
+
+
+@router.delete("/admin/courses", status_code=204)
+def wipe_all_courses(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission(P.COURSES_WIPE_ALL)),
+):
+    """Vide le catalogue d'épreuves — sources et résultats compris (#384, suite).
+
+    Strictement plus destructeur que `DELETE /admin/participations` : ici,
+    les épreuves elles-mêmes et leurs sources disparaissent aussi. Irréversible
+    et sans corps de réponse : ce qui reste du geste est son entrée au journal.
+    """
+    admin_actions.wipe_all_courses(db, user_id=user.id)
     db.commit()
 
 

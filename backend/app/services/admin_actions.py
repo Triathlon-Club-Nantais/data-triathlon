@@ -195,6 +195,58 @@ def wipe_all_participations(db: Session, *, user_id: int) -> dict:
     return resume
 
 
+def courses_wipe_impact(db: Session) -> dict:
+    """Ce qu'une purge totale des épreuves détruirait. **Ne modifie rien** (#384).
+
+    Même principe que `wipe_impact` : chaque compte vient de la lecture sur
+    laquelle s'appuiera la purge elle-même, pour que l'annonce et l'acte ne
+    puissent pas diverger à base constante.
+    """
+    return {
+        "courses": course_repository.count_all(db),
+        "participations": participation_repository.count_all(db),
+        "athletes": athlete_repository.count_all(db),
+    }
+
+
+def wipe_all_courses(db: Session, *, user_id: int) -> dict:
+    """Vide le catalogue d'épreuves — sources et résultats compris (#384, suite).
+
+    **Strictement plus destructeur que `wipe_all_participations`** : ici,
+    `Course` et `course_sources` disparaissent aussi. La cascade est portée
+    par l'ORM (`Course.sources`/`Course.participations`, `delete-orphan`),
+    comme pour la suppression d'une seule épreuve — un `DELETE` de masse
+    romprait la contrainte de `course_sources.course_id` en PostgreSQL, qui
+    n'a pas d'`ondelete`.
+
+    Les participations disparaissent par ricochet de la cascade, sans compte
+    à journaliser : les compter à part reproduirait le `COUNT(*)` préalable
+    évité dans `wipe_all_participations` (même risque de sous-estimation sous
+    écriture concurrente), pour une valeur que personne ne relit — le geste
+    se mesure en épreuves, pas en résultats. `athletes_purged` vient en
+    revanche de `delete_all`, sans risque : une fois le catalogue vidé, tout
+    athlète est orphelin par construction.
+    """
+    resume = {"courses_deleted": course_repository.delete_all(db)}
+    resume["athletes_purged"] = athlete_repository.delete_all(db)
+
+    admin_action_log_repository.create(
+        db,
+        user_id=user_id,
+        action="courses.wipe_all",
+        entity_type="courses",
+        entity_id=0,  # sentinelle « base entière », même patron que participations.wipe_all
+        payload=resume,
+    )
+    logger.info(
+        "Admin %s wiped all courses (%s deleted, %s athletes purged)",
+        user_id,
+        resume["courses_deleted"],
+        resume["athletes_purged"],
+    )
+    return resume
+
+
 def switch_course_source(
     db: Session, *, course_id: int, source_id: int, user_id: int, settings: Settings
 ) -> list[CourseSource]:

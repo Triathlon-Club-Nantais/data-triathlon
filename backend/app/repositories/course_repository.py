@@ -253,6 +253,27 @@ def delete(db: Session, course: Course) -> None:
     db.delete(course)
 
 
+def delete_all(db: Session) -> int:
+    """Supprime **toutes** les épreuves, avec leurs sources et résultats. Rend le
+    nombre d'épreuves supprimées (#384 — « Supprimer toutes les épreuves »).
+
+    Même mécanisme que `delete()`, appliqué à la base entière : un `DELETE`
+    de masse sur `courses` romprait la contrainte `course_sources.course_id`
+    en PostgreSQL (pas d'`ondelete`, cascade portée par l'ORM) — il faut donc
+    charger chaque épreuve et la passer à `db.delete()` une par une, comme le
+    fait déjà `delete()` pour une seule.
+
+    ponytail: même compromis que `delete()`, à l'échelle de la base entière —
+    N épreuves × leurs résultats, chacun son propre DELETE. Geste rare et
+    volontairement synchrone (#384) ; upgrade si mesuré.
+    """
+    courses = db.query(Course).all()
+    for course in courses:
+        db.delete(course)
+    db.flush()
+    return len(courses)
+
+
 def set_quality(
     db: Session,
     course: Course,

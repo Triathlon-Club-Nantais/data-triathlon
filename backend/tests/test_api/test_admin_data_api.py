@@ -1,4 +1,4 @@
-"""Les ressources d'administration des données (#117) — cinq gestes, trois lectures.
+"""Les ressources d'administration des données (#117) — six gestes, quatre lectures.
 
 Ce fichier vit sous `tests/test_api/`, donc sous la session **superutilisateur**
 du `conftest` local. Les tests de refus ouvrent leur propre session, plus
@@ -219,6 +219,17 @@ def test_le_pouvoir_de_purge_totale_est_offert_a_la_composition_des_roles(client
     assert libelle["label"] == "Purger tous les résultats"
 
 
+def test_le_pouvoir_de_purge_des_epreuves_est_offert_a_la_composition_des_roles(client):
+    """Suite de #384 — un second bouton, un second pouvoir, même garde-fou."""
+    groupes = client.get("/api/v1/admin/permissions").json()
+
+    epreuves = next(g for g in groupes if g["feature"] == "Épreuves")
+    codes = {p["code"] for p in epreuves["permissions"]}
+    assert "courses:wipe_all" in codes
+    libelle = next(p for p in epreuves["permissions"] if p["code"] == "courses:wipe_all")
+    assert libelle["label"] == "Purger toutes les épreuves"
+
+
 @pytest.fixture
 def base_avec_resultats(db_session):
     """Deux épreuves, chacune un résultat — pour chiffrer et purger la base entière."""
@@ -353,6 +364,104 @@ def test_un_refus_de_pouvoir_ne_purge_rien(client, db_session, base_avec_resulta
     client.delete("/api/v1/admin/participations")
 
     assert participation_repository.count_all(db_session) == 2
+
+
+# --- GET /admin/courses/wipe-impact -------------------------------------------
+
+
+def test_l_impact_de_purge_des_epreuves_chiffre_courses_participations_et_athletes(
+    client, base_avec_resultats
+):
+    reponse = client.get("/api/v1/admin/courses/wipe-impact")
+
+    assert reponse.status_code == 200
+    assert reponse.json() == {"courses": 2, "participations": 2, "athletes": 2}
+
+
+def test_l_impact_de_purge_des_epreuves_ne_modifie_rien(client, base_avec_resultats, db_session):
+    client.get("/api/v1/admin/courses/wipe-impact")
+
+    assert course_repository.count_all(db_session) == 2
+    assert participation_repository.count_all(db_session) == 2
+
+
+def test_l_impact_de_purge_des_epreuves_sans_session_rend_401(client, base_avec_resultats):
+    client.cookies.clear()
+
+    assert client.get("/api/v1/admin/courses/wipe-impact").status_code == 401
+
+
+def test_l_impact_de_purge_des_epreuves_sans_le_pouvoir_rend_403(
+    client, db_session, base_avec_resultats
+):
+    _session_etroite(client, db_session)
+
+    assert client.get("/api/v1/admin/courses/wipe-impact").status_code == 403
+
+
+# --- DELETE /admin/courses -----------------------------------------------------
+
+
+def test_purger_les_epreuves_rend_204_et_vide_le_catalogue(client, db_session, base_avec_resultats):
+    reponse = client.delete("/api/v1/admin/courses")
+
+    assert reponse.status_code == 204
+    assert reponse.content == b""
+    assert course_repository.count_all(db_session) == 0
+    assert participation_repository.count_all(db_session) == 0
+    assert athlete_repository.count_all(db_session) == 0
+
+
+def test_purger_les_epreuves_emporte_bien_les_sources(client, db_session, base_avec_resultats):
+    from app.repositories import course_source_repository
+
+    a, b = base_avec_resultats
+
+    client.delete("/api/v1/admin/courses")
+
+    assert course_source_repository.list_for_course(db_session, a.id) == []
+    assert course_source_repository.list_for_course(db_session, b.id) == []
+
+
+def test_purger_les_epreuves_consigne_le_geste(client, db_session, base_avec_resultats):
+    from app.repositories import admin_action_log_repository
+
+    client.delete("/api/v1/admin/courses")
+
+    entrees = admin_action_log_repository.list_for_entity(
+        db_session, entity_type="courses", entity_id=0
+    )
+    assert [e.action for e in entrees] == ["courses.wipe_all"]
+    assert entrees[0].payload == {"courses_deleted": 2, "athletes_purged": 2}
+
+
+def test_purger_les_epreuves_sans_session_rend_401(client, base_avec_resultats):
+    client.cookies.clear()
+
+    assert client.delete("/api/v1/admin/courses").status_code == 401
+
+
+def test_purger_les_epreuves_sans_le_pouvoir_rend_403(client, db_session, base_avec_resultats):
+    _session_etroite(client, db_session)
+
+    assert client.delete("/api/v1/admin/courses").status_code == 403
+
+
+def test_purger_les_epreuves_avec_le_seul_pouvoir_utile_reussit(
+    client, db_session, base_avec_resultats
+):
+    _session_etroite(client, db_session, P.COURSES_WIPE_ALL)
+
+    assert client.delete("/api/v1/admin/courses").status_code == 204
+
+
+def test_un_refus_de_pouvoir_ne_purge_pas_les_epreuves(client, db_session, base_avec_resultats):
+    """FR-015 — un 403 laisse la base strictement inchangée."""
+    _session_etroite(client, db_session)
+
+    client.delete("/api/v1/admin/courses")
+
+    assert course_repository.count_all(db_session) == 2
 
 
 # --- POST /admin/participations/{id}/reassign -------------------------------

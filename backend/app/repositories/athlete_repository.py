@@ -243,8 +243,9 @@ def delete_orphans(db: Session) -> int:
 def delete_all(db: Session) -> int:
     """Supprime **tous** les athlètes de la base. Rend le nombre effacé (#384).
 
-    Seul appelant : `wipe_all_participations`, **après** avoir vidé
-    `participations` — à ce moment, chaque athlète est orphelin par
+    Appelée par `wipe_all_participations` et `wipe_all_courses`, toujours
+    **après** avoir vidé `participations` (directement, ou par cascade
+    depuis `Course`) — à ce moment, chaque athlète est orphelin par
     construction (`Participation.athlete_id` est la seule FK vers `Athlete`
     jamais peuplée), donc « tous les athlètes » et « tous les orphelins »
     désignent le même ensemble. Un `DELETE` sans `WHERE` évite le plafond
