@@ -24,6 +24,16 @@ describe("MonthlyTrend", () => {
     expect(bars[1].style.height).toBe("100%");
   });
 
+  it("donne une hauteur strictement proportionnelle à une valeur intermédiaire", () => {
+    const { container } = render(
+      <MonthlyTrend byMonth={{ "2026-01": 10, "2026-02": 20 }} />,
+    );
+    const bars = [...container.querySelectorAll(".rounded-t-sm")] as HTMLElement[];
+    // max=20, value=10 → 50% avec range([0,100])+clamp externe ; une formule
+    // range([4,100]) donnerait 52% — c'est cette divergence que ce test garde.
+    expect(bars[0].style.height).toBe("50%");
+  });
+
   it("ne garde que les 12 derniers mois, triés chronologiquement", () => {
     // 14 mois valides à cheval sur deux années : les clés `YYYY-MM` restent
     // triables lexicographiquement dans le bon ordre chronologique.
