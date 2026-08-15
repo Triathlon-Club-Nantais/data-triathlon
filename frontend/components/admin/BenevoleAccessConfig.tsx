@@ -4,6 +4,14 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { messageDeRefus } from "@/lib/api/refus";
@@ -33,17 +41,24 @@ export function BenevoleAccessConfig() {
   const generer = useGenerateBenevoleAccessPassword();
   const [saisie, setSaisie] = useState("");
   const [genere, setGenere] = useState<string | null>(null);
+  const [confirmation, setConfirmation] = useState(false);
 
-  async function soumettre(evenement: React.SyntheticEvent) {
+  function demanderConfirmation(evenement: React.SyntheticEvent) {
     evenement.preventDefault();
+    if (!saisie.trim()) return;
+    setConfirmation(true);
+  }
+
+  async function confirmerRemplacement() {
     const mot_de_passe = saisie.trim();
-    if (!mot_de_passe) return;
     try {
       await remplacer.mutateAsync(mot_de_passe);
       setSaisie("");
       setGenere(null);
+      setConfirmation(false);
       toast.success("Mot de passe bénévoles remplacé.");
     } catch (e) {
+      setConfirmation(false);
       toast.error((e as Error).message);
     }
   }
@@ -125,7 +140,10 @@ export function BenevoleAccessConfig() {
           </div>
         )}
 
-        <form onSubmit={soumettre} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <form
+          onSubmit={demanderConfirmation}
+          className="flex flex-col gap-3 sm:flex-row sm:items-end"
+        >
           <div className="flex-1 space-y-1">
             <Label htmlFor="benevole-password">Nouveau mot de passe</Label>
             <Input
@@ -150,6 +168,28 @@ export function BenevoleAccessConfig() {
           </Button>
         </form>
       </CardContent>
+
+      <Dialog open={confirmation} onOpenChange={setConfirmation}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remplacer le mot de passe bénévoles ?</DialogTitle>
+            <DialogDescription>
+              Toutes les sessions bénévoles déjà ouvertes cesseront
+              immédiatement d&apos;être valides, l&apos;ancien mot de passe
+              compris. Assurez-vous d&apos;avoir un moyen de transmettre le
+              nouveau aux bénévoles.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmation(false)}>
+              Renoncer
+            </Button>
+            <Button onClick={confirmerRemplacement} disabled={remplacer.isPending}>
+              Remplacer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

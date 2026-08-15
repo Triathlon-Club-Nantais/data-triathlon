@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
@@ -44,6 +44,16 @@ function afficher() {
     <QueryClientProvider client={client}>
       <BenevoleAccessConfig />
     </QueryClientProvider>,
+  );
+}
+
+/** Saisit un mot de passe, ouvre la confirmation, puis la valide. */
+async function remplacerAvecConfirmation(motDePasse: string) {
+  await userEvent.type(screen.getByLabelText(/nouveau mot de passe/i), motDePasse);
+  await userEvent.click(screen.getByRole("button", { name: /^remplacer$/i }));
+  const dialogue = await screen.findByRole("dialog");
+  await userEvent.click(
+    within(dialogue).getByRole("button", { name: /^remplacer$/i }),
   );
 }
 
@@ -94,16 +104,53 @@ describe("BenevoleAccessConfig", () => {
     afficher();
     await screen.findByText(/non configuré/i);
 
+    await remplacerAvecConfirmation("un-secret-assez-long");
+
+    await waitFor(() =>
+      expect(replaceBenevoleAccessPassword).toHaveBeenCalledWith("un-secret-assez-long"),
+    );
+    expect(toastSuccess).toHaveBeenCalled();
+  });
+
+  it("le remplacement se confirme avant d'invalider les sessions ouvertes", async () => {
+    getBenevoleAccessConfig.mockResolvedValue({
+      configured: true,
+      updated_at: new Date().toISOString(),
+      updated_by: "Iris Admin",
+    });
+    afficher();
+    await screen.findByText(/^configuré$/i);
+
     await userEvent.type(
       screen.getByLabelText(/nouveau mot de passe/i),
       "un-secret-assez-long",
     );
     await userEvent.click(screen.getByRole("button", { name: /^remplacer$/i }));
 
-    await waitFor(() =>
-      expect(replaceBenevoleAccessPassword).toHaveBeenCalledWith("un-secret-assez-long"),
+    expect(await screen.findByRole("dialog")).toHaveTextContent(
+      /sessions bénévoles déjà ouvertes/i,
     );
-    expect(toastSuccess).toHaveBeenCalled();
+    expect(replaceBenevoleAccessPassword).not.toHaveBeenCalled();
+  });
+
+  it("renoncer à la confirmation ne remplace rien", async () => {
+    getBenevoleAccessConfig.mockResolvedValue({
+      configured: false,
+      updated_at: null,
+      updated_by: null,
+    });
+    afficher();
+    await screen.findByText(/non configuré/i);
+
+    await userEvent.type(
+      screen.getByLabelText(/nouveau mot de passe/i),
+      "un-secret-assez-long",
+    );
+    await userEvent.click(screen.getByRole("button", { name: /^remplacer$/i }));
+    const dialogue = await screen.findByRole("dialog");
+    await userEvent.click(within(dialogue).getByRole("button", { name: /renoncer/i }));
+
+    expect(replaceBenevoleAccessPassword).not.toHaveBeenCalled();
   });
 
   it("le mot de passe généré s'affiche une seule fois, avec une action de copie", async () => {
@@ -153,11 +200,7 @@ describe("BenevoleAccessConfig", () => {
     );
     await screen.findByText("genere-une-fois");
 
-    await userEvent.type(
-      screen.getByLabelText(/nouveau mot de passe/i),
-      "un-autre-secret",
-    );
-    await userEvent.click(screen.getByRole("button", { name: /^remplacer$/i }));
+    await remplacerAvecConfirmation("un-autre-secret");
 
     await waitFor(() => expect(screen.queryByText("genere-une-fois")).not.toBeInTheDocument());
   });
@@ -172,11 +215,7 @@ describe("BenevoleAccessConfig", () => {
     afficher();
     await screen.findByText(/non configuré/i);
 
-    await userEvent.type(
-      screen.getByLabelText(/nouveau mot de passe/i),
-      "un-secret-assez-long",
-    );
-    await userEvent.click(screen.getByRole("button", { name: /^remplacer$/i }));
+    await remplacerAvecConfirmation("un-secret-assez-long");
 
     await waitFor(() => expect(toastError).toHaveBeenCalled());
   });
