@@ -40,6 +40,9 @@ function synthese(over: Partial<CourseSummary> = {}): CourseSummary {
     total: 3,
     finishers: 1,
     non_finishers: 2,
+    dnf: 2,
+    dns: 0,
+    dsq: 0,
     unknown: 0,
     tcn_count: 0,
     male: 3,
@@ -90,7 +93,7 @@ describe("RaceFinishers", () => {
   });
 
   it("ajoute les « indéterminés » au pied de tableau pour réconcilier avec le total", () => {
-    afficher({ summary: synthese({ total: 4, finishers: 1, non_finishers: 1, unknown: 2 }) });
+    afficher({ summary: synthese({ total: 4, finishers: 1, non_finishers: 1, dnf: 1, unknown: 2 }) });
     expect(
       screen.getByText("4 participants · 1 finisher · 1 abandon · 2 indéterminés"),
     ).toBeInTheDocument();
@@ -98,8 +101,26 @@ describe("RaceFinishers", () => {
 
   it("prend son décompte dans la synthèse, pas dans la page affichée", () => {
     // Une page de 3 lignes sur une épreuve de 1811 : le pied annonce l'épreuve.
-    afficher({ summary: synthese({ total: 1811, finishers: 1768, non_finishers: 43 }), total: 1811 });
+    afficher({
+      summary: synthese({ total: 1811, finishers: 1768, non_finishers: 43, dnf: 43 }),
+      total: 1811,
+    });
     expect(screen.getByText(/1811 participants/)).toBeInTheDocument();
+  });
+
+  it("distingue abandons, non-partants et disqualifiés au pied de tableau (#331)", () => {
+    afficher({
+      summary: synthese({ total: 11, finishers: 3, non_finishers: 8, dnf: 5, dns: 2, dsq: 1 }),
+    });
+    expect(
+      screen.getByText("11 participants · 3 finishers · 5 abandons · 2 non-partants · 1 disqualifié"),
+    ).toBeInTheDocument();
+  });
+
+  it("ne mentionne ni non-partants ni disqualifiés quand ils sont nuls (#331)", () => {
+    afficher();
+    expect(screen.queryByText(/non-partant/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/disqualifié/)).not.toBeInTheDocument();
   });
 
   // ── Pagination ─────────────────────────────────────────────────────────────
