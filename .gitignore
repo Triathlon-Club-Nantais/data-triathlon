@@ -54,6 +54,9 @@ Thumbs.db
 # AI Tools
 .claude/memory/
 docs/local/
+# Pointeur Spec Kit vers la feature courante — local à chaque worktree,
+# source récurrente de conflits de merge sans valeur à trancher (#feature.json)
+.specify/feature.json
 # État persistant du skill /onboard (voir .claude/skills/onboard/SKILL.md)
 .claude/skills/onboard/state.json
 # Worktrees (git worktree fallback) — dé-ancré : une session dont le répertoire
