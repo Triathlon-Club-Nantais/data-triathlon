@@ -18,7 +18,7 @@
 
 ## Phase 0: Blocage externe — NE PAS DÉMARRER l'implémentation
 
-- [ ] T001 **BLOQUÉ** — Vérifier que la branche `20260814-130052-saisie-manuelle-resultats`
+- [X] T001 **BLOQUÉ** — Vérifier que la branche `20260814-130052-saisie-manuelle-resultats`
   (#270) est fusionnée dans `main` et que `backend/app/models/participation.py`
   porte bien `is_pending_validation`, `evidence_url`, `team_name` sur `main`
   avant de commencer **toute** tâche ci-dessous (T002 et suivantes). Sans
@@ -33,12 +33,12 @@
 
 **Purpose**: Scaffolding partagé, avant toute logique métier.
 
-- [ ] T002 [P] Ajouter `benevole_shared_password: str = ""` à
+- [X] T002 [P] Ajouter `benevole_shared_password: str = ""` à
   `backend/app/core/config.py` (défaut vide = accès non configuré, fail-closed
   — patron d'`auth_session_secret_key`, cf. `research.md` §D1).
-- [ ] T003 [P] Ajouter `BENEVOLE_SHARED_PASSWORD=` à `backend/.env.example`
+- [X] T003 [P] Ajouter `BENEVOLE_SHARED_PASSWORD=` à `backend/.env.example`
   avec un commentaire renvoyant à `research.md` §D1.
-- [ ] T004 [P] Créer `backend/app/services/benevole_access.py` (fichier vide
+- [X] T004 [P] Créer `backend/app/services/benevole_access.py` (fichier vide
   avec docstring de module, renvoyant à `research.md` §D1) et
   `backend/app/api/v1/benevoles.py` (routeur vide, `APIRouter(tags=["benevoles"])`).
 
@@ -55,36 +55,36 @@
 
 > Écrire ces tests d'abord, les voir échouer, puis les faire passer (Principe III).
 
-- [ ] T005 [P] Test `sign_session`/`verify_session` (round-trip valide, échec
+- [X] T005 [P] Test `sign_session`/`verify_session` (round-trip valide, échec
   si mot de passe changé entre-temps, échec si horodatage corrompu) dans
   `backend/tests/test_services/test_benevole_access.py`.
-- [ ] T006 [P] Test de la dépendance `require_benevole_access` (401 sans
+- [X] T006 [P] Test de la dépendance `require_benevole_access` (401 sans
   cookie, 401 avec cookie invalide, passe avec cookie valide) dans
   `backend/tests/test_api/test_benevoles_api.py`.
-- [ ] T007 [P] Test `participation_repository.list_pending` : ne renvoie que
+- [X] T007 [P] Test `participation_repository.list_pending` : ne renvoie que
   les participations `is_pending_validation=True`, tous clubs confondus (pas
   de filtre `tcn_clause`) dans
   `backend/tests/test_repositories/test_participation_repository.py`.
 
 ### Implémentation foundational
 
-- [ ] T008 Implémenter `sign_session`/`verify_session` dans
+- [X] T008 Implémenter `sign_session`/`verify_session` dans
   `backend/app/services/benevole_access.py` (HMAC-SHA256, clé = mot de passe
   courant, message = horodatage — cf. `research.md` §D1). Dépend de T005.
-- [ ] T009 Implémenter `require_benevole_access` (dépendance FastAPI) dans
+- [X] T009 Implémenter `require_benevole_access` (dépendance FastAPI) dans
   `backend/app/api/deps.py`, distincte de `require_permission` — vérifie le
   cookie via `benevole_access.verify_session`, lève 401 sinon. Dépend de T006, T008.
-- [ ] T010 [P] Implémenter `participation_repository.list_pending(db)` dans
+- [X] T010 [P] Implémenter `participation_repository.list_pending(db)` dans
   `backend/app/repositories/participation_repository.py`, filtre
   `Participation.is_pending_validation.is_(True)` (complément de
   `validated_clause`, cf. `research.md` §D4). Dépend de T007.
-- [ ] T011 Créer la migration Alembic de données (pas de schéma) insérant le
+- [X] T011 Créer la migration Alembic de données (pas de schéma) insérant le
   compte système « Bénévoles (accès partagé) » dans `users` (aucune ligne
   `identities` associée) — `backend/alembic/versions/<rev>_seed_benevole_system_user.py`.
   Consigner l'`id` généré dans une constante lisible (ex.
   `backend/app/core/config.py` ou un module dédié) pour que les services de
   la Phase 3+ le référencent sans requête ad hoc. Cf. `data-model.md`.
-- [ ] T012 Monter `benevoles.py` dans `backend/app/api/v1/router.py` (routeur
+- [X] T012 Monter `benevoles.py` dans `backend/app/api/v1/router.py` (routeur
   vide à ce stade, les routes arrivent story par story).
 
 **Checkpoint**: Le mécanisme d'accès, la lecture de la file et le compte
@@ -103,29 +103,29 @@ sans ce cookie → 401.
 
 ### Tests for User Story 4
 
-- [ ] T013 [P] [US4] Test `POST /api/v1/benevoles/session` : 401 mot de passe
+- [X] T013 [P] [US4] Test `POST /api/v1/benevoles/session` : 401 mot de passe
   erroné, 401 si `benevole_shared_password` non configuré, 204 + cookie posé
   si correct, dans `backend/tests/test_api/test_benevoles_api.py`.
-- [ ] T014 [P] [US4] Test `DELETE /api/v1/benevoles/session` : efface le
+- [X] T014 [P] [US4] Test `DELETE /api/v1/benevoles/session` : efface le
   cookie, 204, dans `backend/tests/test_api/test_benevoles_api.py`.
 
 ### Implementation for User Story 4
 
-- [ ] T015 [US4] Implémenter `POST /api/v1/benevoles/session` dans
+- [X] T015 [US4] Implémenter `POST /api/v1/benevoles/session` dans
   `backend/app/api/v1/benevoles.py` (`hmac.compare_digest`, pose le cookie via
   `benevole_access.sign_session`). Dépend de T008, T013.
-- [ ] T016 [US4] Implémenter `DELETE /api/v1/benevoles/session` (efface le
+- [X] T016 [US4] Implémenter `DELETE /api/v1/benevoles/session` (efface le
   cookie) dans `backend/app/api/v1/benevoles.py`. Dépend de T014.
-- [ ] T017 [P] [US4] Test composant : formulaire de mot de passe affiché sur
+- [X] T017 [P] [US4] Test composant : formulaire de mot de passe affiché sur
   401, soumission, redirection vers la file sur succès, message d'erreur
   français sur échec, dans
   `frontend/components/benevoles/__tests__/AccessGate.test.tsx`.
-- [ ] T018 [US4] Implémenter `app/benevoles/page.tsx` (garde d'accès : tente
+- [X] T018 [US4] Implémenter `app/benevoles/page.tsx` (garde d'accès : tente
   `GET /api/v1/benevoles/queue`, affiche `AccessGate` sur 401) et
   `components/benevoles/AccessGate.tsx` (formulaire de mot de passe,
   `components/ui/` pour l'input + `components/tcn/Card` pour le cadre — cf.
   `research.md` §D3). Dépend de T015, T017.
-- [ ] T019 [US4] Ajouter les appels `POST`/`DELETE /benevoles/session` dans
+- [X] T019 [US4] Ajouter les appels `POST`/`DELETE /benevoles/session` dans
   `frontend/lib/api/client.ts`.
 
 **Checkpoint**: L'accès par mot de passe fonctionne de bout en bout,
@@ -146,43 +146,43 @@ l'excluait.
 
 ### Tests for User Story 1
 
-- [ ] T020 [P] [US1] Test `GET /api/v1/benevoles/queue` : renvoie les
+- [X] T020 [P] [US1] Test `GET /api/v1/benevoles/queue` : renvoie les
   participations en attente avec épreuve, athlète, temps, splits,
   `evidence_url`, `team_name` ; liste vide sans erreur si aucune en attente ;
   401 sans cookie, dans `backend/tests/test_api/test_benevoles_api.py`.
-- [ ] T021 [P] [US1] Test `admin_actions.validate_participation` : passe
+- [X] T021 [P] [US1] Test `admin_actions.validate_participation` : passe
   `is_pending_validation` à `false`, journalise `participation.validate` sous
   le `user_id` du compte système, idempotent si déjà validée (pas de second
   écrit au journal, cf. `contracts/api.md`), dans
   `backend/tests/test_services/test_admin_actions.py`.
-- [ ] T022 [P] [US1] Test `POST /api/v1/benevoles/participations/{id}/validate` :
+- [X] T022 [P] [US1] Test `POST /api/v1/benevoles/participations/{id}/validate` :
   200 et disparition de la file, 404 si la participation n'existe pas, dans
   `backend/tests/test_api/test_benevoles_api.py`.
 
 ### Implementation for User Story 1
 
-- [ ] T023 [US1] Implémenter `GET /api/v1/benevoles/queue` dans
+- [X] T023 [US1] Implémenter `GET /api/v1/benevoles/queue` dans
   `backend/app/api/v1/benevoles.py`, délègue à
   `participation_repository.list_pending`. Dépend de T009, T010, T020.
-- [ ] T024 [US1] Implémenter `validate_participation(db, *, participation_id,
+- [X] T024 [US1] Implémenter `validate_participation(db, *, participation_id,
   user_id)` dans `backend/app/services/admin_actions.py`, sur le patron de
   `update_course`/`reassign_participation` (instantané avant/après,
   `admin_action_log_repository.create` action `participation.validate`).
   Dépend de T021.
-- [ ] T025 [US1] Implémenter
+- [X] T025 [US1] Implémenter
   `POST /api/v1/benevoles/participations/{participation_id}/validate` dans
   `backend/app/api/v1/benevoles.py`, appelle `validate_participation` avec le
   `user_id` du compte système (T011). Dépend de T024, T022.
-- [ ] T026 [P] [US1] Test composant `ValidationQueue` (liste, sélection d'un
+- [X] T026 [P] [US1] Test composant `ValidationQueue` (liste, sélection d'un
   résultat, affichage du panneau de détail avec `evidence_url`/`team_name`) et
   `ParticipationPanel` (bouton de validation) dans
   `frontend/components/benevoles/__tests__/ValidationQueue.test.tsx`.
-- [ ] T027 [US1] Implémenter `components/benevoles/ValidationQueue.tsx` et
+- [X] T027 [US1] Implémenter `components/benevoles/ValidationQueue.tsx` et
   `components/benevoles/ParticipationPanel.tsx` (`components/ui/table` +
   `components/ui/dialog`, `components/tcn/Card` pour les blocs d'information —
   cf. `research.md` §D3) et les brancher sur `app/benevoles/page.tsx`. Dépend
   de T018, T026.
-- [ ] T028 [US1] Ajouter les appels `GET /benevoles/queue` et
+- [X] T028 [US1] Ajouter les appels `GET /benevoles/queue` et
   `POST /benevoles/participations/{id}/validate` dans
   `frontend/lib/api/client.ts`.
 
@@ -208,24 +208,24 @@ d'exposition (garde bénévole, délégation avec le bon `user_id`).
 
 ### Tests for User Story 2
 
-- [ ] T029 [P] [US2] Test `PATCH /api/v1/benevoles/courses/{course_id}` : 200
+- [X] T029 [P] [US2] Test `PATCH /api/v1/benevoles/courses/{course_id}` : 200
   si renommage sans collision (délègue bien à `admin_actions.update_course`
   avec le `user_id` du compte système, vérifié sur l'entrée du journal), 409
   si collision, 401 sans cookie, dans `backend/tests/test_api/test_benevoles_api.py`.
 
 ### Implementation for User Story 2
 
-- [ ] T030 [US2] Implémenter `PATCH /api/v1/benevoles/courses/{course_id}`
+- [X] T030 [US2] Implémenter `PATCH /api/v1/benevoles/courses/{course_id}`
   dans `backend/app/api/v1/benevoles.py`, corps restreint au seul champ
   `name`, délègue à `admin_actions.update_course` avec le `user_id` du compte
   système (T011). Dépend de T029.
-- [ ] T031 [P] [US2] Test composant : champ d'édition du nom d'épreuve dans le
+- [X] T031 [P] [US2] Test composant : champ d'édition du nom d'épreuve dans le
   panneau de détail, affichage de l'erreur de collision, dans
   `frontend/components/benevoles/__tests__/ParticipationPanel.test.tsx`.
-- [ ] T032 [US2] Étendre `components/benevoles/ParticipationPanel.tsx` avec
+- [X] T032 [US2] Étendre `components/benevoles/ParticipationPanel.tsx` avec
   l'édition du nom d'épreuve (`components/ui/input`, message d'erreur
   français sur 409). Dépend de T027, T031.
-- [ ] T033 [US2] Ajouter l'appel `PATCH /benevoles/courses/{id}` dans
+- [X] T033 [US2] Ajouter l'appel `PATCH /benevoles/courses/{id}` dans
   `frontend/lib/api/client.ts`.
 
 **Checkpoint**: US1, US4 et US2 fonctionnent ensemble sans régression.
@@ -246,27 +246,27 @@ livrée et testée (#117) — pas de nouveau test de cette logique métier ici.
 
 ### Tests for User Story 3
 
-- [ ] T034 [P] [US3] Test `POST /api/v1/benevoles/participations/{id}/reassign` :
+- [X] T034 [P] [US3] Test `POST /api/v1/benevoles/participations/{id}/reassign` :
   200 (délègue à `admin_actions.reassign_participation` avec le `user_id` du
   compte système), 409 si conflit, 404 si l'athlète cible n'existe pas, 401
   sans cookie, dans `backend/tests/test_api/test_benevoles_api.py`.
 
 ### Implementation for User Story 3
 
-- [ ] T035 [US3] Implémenter
+- [X] T035 [US3] Implémenter
   `POST /api/v1/benevoles/participations/{participation_id}/reassign` dans
   `backend/app/api/v1/benevoles.py`, délègue à
   `admin_actions.reassign_participation` avec le `user_id` du compte système
   (T011). Dépend de T034.
-- [ ] T036 [P] [US3] Test composant : sélecteur d'athlète dans le panneau de
+- [X] T036 [P] [US3] Test composant : sélecteur d'athlète dans le panneau de
   détail, message d'erreur français sur conflit, dans
   `frontend/components/benevoles/__tests__/ParticipationPanel.test.tsx`.
-- [ ] T037 [US3] Étendre `components/benevoles/ParticipationPanel.tsx` avec le
+- [X] T037 [US3] Étendre `components/benevoles/ParticipationPanel.tsx` avec le
   sélecteur de réattribution (`components/ui/select`, recherche parmi les
   athlètes existants — réutiliser le point d'API de recherche déjà exposé aux
   admins si son schéma convient, sinon documenter l'écart en tâche suiveuse).
   Dépend de T027, T036.
-- [ ] T038 [US3] Ajouter l'appel `POST /benevoles/participations/{id}/reassign`
+- [X] T038 [US3] Ajouter l'appel `POST /benevoles/participations/{id}/reassign`
   dans `frontend/lib/api/client.ts`.
 
 **Checkpoint**: Les quatre user stories (US4, US1, US2, US3) fonctionnent
@@ -278,14 +278,14 @@ ensemble — les quatre gestes de l'écran sont couverts.
 
 **Purpose**: Vérification de bout en bout et cohérence documentaire.
 
-- [ ] T039 Exécuter les scénarios de `quickstart.md` de bout en bout sur une
+- [X] T039 Exécuter les scénarios de `quickstart.md` de bout en bout sur une
   base de dev avec #270 fusionnée.
-- [ ] T040 [P] `cd backend && uv run pytest -m "not integration"` vert.
-- [ ] T041 [P] `cd backend && uv run ruff check .` sans erreur.
-- [ ] T042 [P] `cd frontend && npm test` vert.
-- [ ] T043 [P] `cd frontend && npm run lint` sans erreur.
-- [ ] T044 [P] `cd frontend && npm run build` (strict TS + RSC) sans erreur.
-- [ ] T045 Ajouter une entrée pour `benevole_access.py` et le routeur
+- [X] T040 [P] `cd backend && uv run pytest -m "not integration"` vert.
+- [X] T041 [P] `cd backend && uv run ruff check .` sans erreur.
+- [X] T042 [P] `cd frontend && npm test` vert.
+- [X] T043 [P] `cd frontend && npm run lint` sans erreur.
+- [X] T044 [P] `cd frontend && npm run build` (strict TS + RSC) sans erreur.
+- [X] T045 Ajouter une entrée pour `benevole_access.py` et le routeur
   `benevoles.py` dans `backend/AGENTS.md` (inventaire des modules), sur le
   patron de l'entrée existante pour `services/auth/`.
 
