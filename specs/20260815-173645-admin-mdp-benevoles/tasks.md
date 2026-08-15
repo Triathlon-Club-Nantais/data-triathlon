@@ -71,7 +71,11 @@ de cette phase.
 - [ ] T006 Créer le modèle `BenevoleAccessConfig` (`id`, `password_hash`,
       `password_salt`, `session_secret`, `updated_at`,
       `updated_by_user_id` FK `users.id` NOT NULL) dans
-      `backend/app/models/benevole_access_config.py` (data-model.md).
+      `backend/app/models/benevole_access_config.py` (data-model.md), et
+      l'enregistrer dans `backend/app/models/__init__.py` (import +
+      `__all__`) — sans quoi `alembic/env.py`
+      (`importlib.import_module("app.models")`) ne le voit pas sur
+      `Base.metadata` et T007 autogenère une migration vide.
 - [ ] T007 Générer la migration Alembic de schéma pour
       `benevole_access_config` (`uv run alembic revision --autogenerate`)
       dans `backend/alembic/versions/` (dépend de T006).
@@ -85,6 +89,16 @@ de cette phase.
 - [ ] T010 [P] Ajouter `new_session_secret` (`secrets.token_urlsafe(32)` —
       research.md §D2) dans `backend/app/services/benevole_access.py` pour
       faire passer T003.
+- [ ] T010b Ajouter `replace_password(db, password, admin_user_id)` dans
+      `backend/app/services/benevole_access.py` : orchestration de service
+      (pas d'appel direct au repository depuis le routeur, cf. AGENTS.md
+      « routers fins : délégation au service ») qui hache le mot de passe
+      fourni (ou le génère si absent — réutilisé par T031/US2), régénère
+      `session_secret`, et écrit les trois champs
+      `password_hash`/`password_salt`/`session_secret` **dans le même appel**
+      à `benevole_config_repository.save_config` — jamais l'un sans les
+      autres (data-model.md, invariant d'atomicité) (dépend de T008, T009,
+      T010).
 - [ ] T011 [P] Ajouter le pouvoir `benevole_access:manage`
       (`P.BENEVOLE_ACCESS_MANAGE`) sous `FEATURE_ROLES` dans
       `backend/app/core/permissions.py` (research.md §D4, patron
@@ -154,10 +168,13 @@ que l'ancien mot de passe est rejeté (quickstart.md scénarios 1 et 2).
       `backend/app/schemas/benevole_access.py`.
 - [ ] T021 [US1] Créer le routeur
       `backend/app/api/v1/admin_benevole_access.py` avec les routes `GET`
-      et `PUT /api/v1/admin/benevoles/access`, gardées par
-      `require_permission(P.BENEVOLE_ACCESS_MANAGE)` route par route,
-      résolvant `updated_by` par jointure sur `User.display_name` (dépend
-      de T008, T009, T010, T011, T020 ; fait passer T015, T016, T017).
+      (délègue à `benevole_config_repository.get_config`) et
+      `PUT /api/v1/admin/benevoles/access` (délègue à
+      `benevole_access.replace_password`, jamais au repository
+      directement), gardées par `require_permission(P.BENEVOLE_ACCESS_MANAGE)`
+      route par route, résolvant `updated_by` par jointure sur
+      `User.display_name` (dépend de T008, T010b, T011, T020 ; fait passer
+      T015, T016, T017).
 - [ ] T022 [US1] Enregistrer le nouveau routeur dans l'agrégateur de routes
       `/api/v1` (dépend de T021).
 - [ ] T023 [US1] Ajouter la journalisation `AdminActionLog` dans la route
@@ -211,12 +228,16 @@ révèle jamais (quickstart.md scénario 3).
 
 - [ ] T031 [P] [US2] Ajouter `generate_password`
       (`secrets.token_urlsafe(18)`, research.md §D5) dans
-      `backend/app/services/benevole_access.py`.
+      `backend/app/services/benevole_access.py`, appelée par
+      `replace_password` (T010b) quand aucun mot de passe n'est fourni —
+      même chemin d'écriture atomique que T021, pas une seconde
+      implémentation.
 - [ ] T032 [US2] Ajouter la route
       `POST /api/v1/admin/benevoles/access/generate` dans
-      `admin_benevole_access.py` (génère, hache, stocke, journalise comme
+      `admin_benevole_access.py` : délègue à `benevole_access.replace_password`
+      sans mot de passe fourni (déclenche T031 en interne), journalise comme
       T023, renvoie le mot de passe en clair une seule fois — dépend de
-      T021, T023, T031 ; fait passer T027, T028, T029, T030).
+      T010b, T021, T023, T031 ; fait passer T027, T028, T029, T030).
 - [ ] T033 [P] [US2] Ajouter `generateBenevoleAccessPassword` dans
       `frontend/lib/api/client.ts`.
 - [ ] T034 [US2] Ajouter à `BenevoleAccessConfig.tsx` le bouton de
@@ -261,7 +282,7 @@ ensemble.
 
 - T002-T005 (tests Foundational) en parallèle.
 - T008-T011 (repository, hachage, secret de session, permission) en
-  parallèle une fois T006/T007 posés.
+  parallèle une fois T006/T007 posés ; T010b dépend d'eux et vient après.
 - T015-T019 (tests US1) en parallèle.
 - T027-T030 (tests US2) en parallèle.
 - T024 (client API) en parallèle du backend US1.
