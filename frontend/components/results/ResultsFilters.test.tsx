@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { buildResultsQuery, ResultsFilters } from "./ResultsFilters";
 
@@ -68,5 +68,22 @@ describe("ResultsFilters — recherche live", () => {
     await userEvent.click(screen.getByRole("button", { name: "Filtrer" }));
 
     expect(push).toHaveBeenCalled();
+  });
+
+  it("ne propage pas un filtre discipline/dates modifié mais pas encore appliqué (#387)", async () => {
+    // Changer la date sans cliquer sur "Filtrer" ne doit pas être appliqué
+    // par la recherche live déclenchée par le champ texte : seuls les
+    // champs texte filtrent dès la frappe, le reste attend une action
+    // explicite (bouton, Entrée).
+    const { container } = render(<ResultsFilters />);
+    const dateFrom = container.querySelector('input[type="date"]');
+    fireEvent.change(dateFrom as HTMLInputElement, { target: { value: "2026-01-01" } });
+
+    await userEvent.type(screen.getByPlaceholderText("Rechercher un athlète"), "mar");
+
+    await waitFor(() => {
+      expect(replace).toHaveBeenCalled();
+    });
+    expect(replace.mock.calls.at(-1)?.[0]).not.toContain("date_from=");
   });
 });
