@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { CoursesAdminTable } from "@/components/admin/CoursesAdminTable";
+import { WipeParticipationsCard } from "@/components/admin/WipeParticipationsCard";
 
 /**
  * Administration des épreuves (#117).
@@ -38,6 +39,7 @@ export default async function AdminCoursesPage({
             date_to: sp.date_to,
           }}
         />
+        <WipeParticipationsCard />
       </div>
     </PageShell>
   );
