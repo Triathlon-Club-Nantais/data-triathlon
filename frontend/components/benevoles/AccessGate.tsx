@@ -34,9 +34,9 @@ export function AccessGate({ onSuccess }: { onSuccess: () => void }) {
   return (
     <div style={{ maxWidth: 380, margin: "80px auto" }}>
       <Card padding={32}>
-        <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)", marginBottom: 8 }}>
+        <h1 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)", fontWeight: 400, margin: 0, marginBottom: 8 }}>
           Vérification des résultats
-        </div>
+        </h1>
         <div style={{ fontSize: 14, color: "var(--tcn-text-faint)", marginBottom: 20 }}>
           Réservé aux bénévoles chargés de la validation.
         </div>
@@ -50,11 +50,14 @@ export function AccessGate({ onSuccess }: { onSuccess: () => void }) {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             status={erreur ? "error" : "default"}
+            aria-describedby={erreur ? "benevole-password-erreur" : undefined}
             autoFocus
             style={{ width: "100%" }}
           />
           {erreur && (
-            <div style={{ color: "var(--tcn-danger-text)", fontSize: 13, marginTop: 8 }}>{erreur}</div>
+            <div id="benevole-password-erreur" role="alert" style={{ color: "var(--tcn-danger-text)", fontSize: 13, marginTop: 8 }}>
+              {erreur}
+            </div>
           )}
           <Button type="submit" disabled={enCours || !password} style={{ width: "100%", marginTop: 16 }}>
             {enCours ? "Connexion…" : "Se connecter"}

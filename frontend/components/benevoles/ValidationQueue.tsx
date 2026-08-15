@@ -30,7 +30,8 @@ export function ValidationQueue({
           <button
             key={participation.id}
             type="button"
-            aria-pressed={selectionnee}
+            className="tcn-rowlink"
+            aria-current={selectionnee ? "true" : undefined}
             onClick={() => onSelect(participation.id)}
             style={{
               textAlign: "left",
@@ -38,10 +39,10 @@ export function ValidationQueue({
               borderRadius: "var(--tcn-radius-lg)",
               border: `1.5px solid ${selectionnee ? "var(--tcn-orange)" : "var(--tcn-border)"}`,
               background: selectionnee ? "var(--tcn-orange-08)" : "var(--tcn-surface)",
-              cursor: "pointer",
               display: "flex",
               flexDirection: "column",
               gap: 4,
+              width: "100%",
             }}
           >
             <span style={{ fontWeight: 700, color: "var(--tcn-ink)" }}>

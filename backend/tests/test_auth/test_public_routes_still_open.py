@@ -220,6 +220,7 @@ def test_aucune_dependance_globale_sur_les_routers_existants():
         admin_data,
         admin_roles,
         athletes,
+        benevoles,
         courses,
         health,
         participations,
@@ -237,6 +238,7 @@ def test_aucune_dependance_globale_sur_les_routers_existants():
         admin,
         admin_data,
         admin_roles,
+        benevoles,
     ):
         assert module.router.dependencies == [], (
             f"{module.__name__} porte une dépendance de router — "

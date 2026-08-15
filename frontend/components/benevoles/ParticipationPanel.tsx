@@ -7,17 +7,16 @@ import type { AthleteBrief, Participation } from "@/lib/types";
 import { formatEventName } from "@/lib/utils/event";
 import { isHttpUrl } from "@/lib/utils/url";
 
-function messageErreur(err: unknown, repli: string): string {
-  return err instanceof ApiError ? err.message : repli;
-}
-
 /** Détail d'un résultat en attente : relecture, renommage, réattribution, validation (#271). */
 export function ParticipationPanel({
   participation,
   onChanged,
+  onSessionExpired,
 }: {
   participation: Participation;
   onChanged: (updated: Participation) => void;
+  /** Le cookie a expiré ou le mot de passe a changé pendant que l'écran était ouvert. */
+  onSessionExpired?: () => void;
 }) {
   const [erreurValidation, setErreurValidation] = useState<string | null>(null);
   const [enCoursValidation, setEnCoursValidation] = useState(false);
@@ -27,9 +26,21 @@ export function ParticipationPanel({
   const [enCoursRenommage, setEnCoursRenommage] = useState(false);
 
   const [rechercheAthlete, setRechercheAthlete] = useState("");
-  const [resultatsAthletes, setResultatsAthletes] = useState<AthleteBrief[]>([]);
+  const [resultatsAthletes, setResultatsAthletes] = useState<AthleteBrief[] | null>(null);
+  const [rechercheEnCours, setRechercheEnCours] = useState(false);
   const [erreurReattribution, setErreurReattribution] = useState<string | null>(null);
   const [enCoursReattribution, setEnCoursReattribution] = useState(false);
+
+  /** Une session expirée prévient le parent plutôt que d'afficher une erreur générique
+   *  sur un geste qui ne peut plus aboutir — sinon le bénévole reste bloqué sur cet
+   *  écran jusqu'au rechargement manuel de la page (revue de code). */
+  function gererErreur(err: unknown, setErreur: (message: string) => void, repli: string) {
+    if (err instanceof ApiError && err.status === 401) {
+      onSessionExpired?.();
+      return;
+    }
+    setErreur(err instanceof ApiError ? err.message : repli);
+  }
 
   async function valider() {
     setErreurValidation(null);
@@ -38,7 +49,7 @@ export function ParticipationPanel({
       const resultat = await apiClient.validateParticipationBenevole(participation.id);
       onChanged(resultat);
     } catch (err) {
-      setErreurValidation(messageErreur(err, "La validation a échoué. Réessayez plus tard."));
+      gererErreur(err, setErreurValidation, "La validation a échoué. Réessayez plus tard.");
     } finally {
       setEnCoursValidation(false);
     }
@@ -51,7 +62,7 @@ export function ParticipationPanel({
       const course = await apiClient.renameCourseBenevole(participation.course.id, nomEpreuve);
       onChanged({ ...participation, course });
     } catch (err) {
-      setErreurRenommage(messageErreur(err, "Le renommage a échoué. Réessayez plus tard."));
+      gererErreur(err, setErreurRenommage, "Le renommage a échoué. Réessayez plus tard.");
     } finally {
       setEnCoursRenommage(false);
     }
@@ -61,13 +72,16 @@ export function ParticipationPanel({
     setRechercheAthlete(valeur);
     setErreurReattribution(null);
     if (valeur.trim().length < 2) {
-      setResultatsAthletes([]);
+      setResultatsAthletes(null);
       return;
     }
+    setRechercheEnCours(true);
     try {
       setResultatsAthletes(await apiClient.searchAthletes(valeur));
     } catch {
       setResultatsAthletes([]);
+    } finally {
+      setRechercheEnCours(false);
     }
   }
 
@@ -76,11 +90,11 @@ export function ParticipationPanel({
     setEnCoursReattribution(true);
     try {
       const resultat = await apiClient.reassignParticipationBenevole(participation.id, athlete.id);
-      setResultatsAthletes([]);
+      setResultatsAthletes(null);
       setRechercheAthlete("");
       onChanged(resultat);
     } catch (err) {
-      setErreurReattribution(messageErreur(err, "La réattribution a échoué. Réessayez plus tard."));
+      gererErreur(err, setErreurReattribution, "La réattribution a échoué. Réessayez plus tard.");
     } finally {
       setEnCoursReattribution(false);
     }
@@ -90,9 +104,9 @@ export function ParticipationPanel({
     <Card padding={24}>
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         <div>
-          <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 20, color: "var(--tcn-ink)" }}>
+          <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 20, color: "var(--tcn-ink)", fontWeight: 400, margin: 0 }}>
             {participation.athlete.prenom} {participation.athlete.nom}
-          </div>
+          </h2>
           <div style={{ fontSize: 14, color: "var(--tcn-text-faint)" }}>
             {formatEventName(participation.course.name, participation.course.is_relay)}
           </div>
@@ -111,7 +125,7 @@ export function ParticipationPanel({
           )}
           {isHttpUrl(participation.evidence_url) && (
             <div>
-              <a href={participation.evidence_url!} target="_blank" rel="noopener noreferrer" className="hover:underline">
+              <a href={participation.evidence_url!} target="_blank" rel="noopener noreferrer" className="tcn-rowlink hover:underline">
                 Lien vers les résultats ↗
               </a>
             </div>
@@ -138,6 +152,7 @@ export function ParticipationPanel({
               id="benevole-nom-epreuve"
               value={nomEpreuve}
               onChange={(e) => setNomEpreuve(e.target.value)}
+              aria-describedby={erreurRenommage ? "benevole-nom-epreuve-erreur" : undefined}
               containerStyle={{ flex: 1 }}
             />
             <Button
@@ -149,7 +164,9 @@ export function ParticipationPanel({
             </Button>
           </div>
           {erreurRenommage && (
-            <div style={{ color: "var(--tcn-danger-text)", fontSize: 13, marginTop: 8 }}>{erreurRenommage}</div>
+            <div id="benevole-nom-epreuve-erreur" role="alert" style={{ color: "var(--tcn-danger-text)", fontSize: 13, marginTop: 8 }}>
+              {erreurRenommage}
+            </div>
           )}
         </div>
 
@@ -163,17 +180,27 @@ export function ParticipationPanel({
             onChange={(e) => rechercher(e.target.value)}
             placeholder="Nom du coureur"
             disabled={enCoursReattribution}
+            aria-describedby={erreurReattribution ? "benevole-reattribution-erreur" : undefined}
             style={{ width: "100%" }}
           />
-          {resultatsAthletes.length > 0 && (
+          {rechercheEnCours && (
+            <div style={{ color: "var(--tcn-text-faint)", fontSize: 13, marginTop: 8 }}>Recherche…</div>
+          )}
+          {!rechercheEnCours && resultatsAthletes !== null && resultatsAthletes.length === 0 && (
+            <div style={{ color: "var(--tcn-text-faint)", fontSize: 13, marginTop: 8 }}>
+              Aucun coureur trouvé.
+            </div>
+          )}
+          {!rechercheEnCours && resultatsAthletes !== null && resultatsAthletes.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
               {resultatsAthletes.map((athlete) => (
                 <button
                   key={athlete.id}
                   type="button"
+                  className="tcn-rowlink"
                   onClick={() => reattribuer(athlete)}
                   disabled={enCoursReattribution}
-                  style={{ textAlign: "left", padding: "8px 12px", border: "1px solid var(--tcn-border)", borderRadius: "var(--tcn-radius-md)", background: "var(--tcn-surface)", cursor: "pointer" }}
+                  style={{ textAlign: "left", padding: "8px 12px", minHeight: 44, border: "1px solid var(--tcn-border)", borderRadius: "var(--tcn-radius-md)", background: "var(--tcn-surface)" }}
                 >
                   {athlete.prenom} {athlete.nom}
                   {athlete.club && <span style={{ color: "var(--tcn-text-faint)" }}> · {athlete.club}</span>}
@@ -182,7 +209,9 @@ export function ParticipationPanel({
             </div>
           )}
           {erreurReattribution && (
-            <div style={{ color: "var(--tcn-danger-text)", fontSize: 13, marginTop: 8 }}>{erreurReattribution}</div>
+            <div id="benevole-reattribution-erreur" role="alert" style={{ color: "var(--tcn-danger-text)", fontSize: 13, marginTop: 8 }}>
+              {erreurReattribution}
+            </div>
           )}
         </div>
 
@@ -191,7 +220,9 @@ export function ParticipationPanel({
             {enCoursValidation ? "Validation…" : "Valider ce résultat"}
           </Button>
           {erreurValidation && (
-            <div style={{ color: "var(--tcn-danger-text)", fontSize: 13, marginTop: 8 }}>{erreurValidation}</div>
+            <div role="alert" style={{ color: "var(--tcn-danger-text)", fontSize: 13, marginTop: 8 }}>
+              {erreurValidation}
+            </div>
           )}
         </div>
       </div>

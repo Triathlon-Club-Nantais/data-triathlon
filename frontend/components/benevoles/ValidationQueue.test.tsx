@@ -88,7 +88,7 @@ describe("ValidationQueue", () => {
         onSelect={vi.fn()}
       />,
     );
-    expect(screen.getByRole("button", { name: /Course 2/ })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: /Course 1/ })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: /Course 2/ })).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("button", { name: /Course 1/ })).not.toHaveAttribute("aria-current");
   });
 });

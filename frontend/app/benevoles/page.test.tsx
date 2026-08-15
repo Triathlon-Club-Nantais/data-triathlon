@@ -107,4 +107,37 @@ describe("BenevolesPage", () => {
 
     await waitFor(() => expect(screen.getByText(/aucun résultat en attente/i)).toBeInTheDocument());
   });
+
+  it("affiche un signal de chargement avant que la file ne réponde", () => {
+    getBenevoleQueue.mockReturnValue(new Promise(() => {})); // ne se résout jamais dans ce test
+    render(<BenevolesPage />);
+    expect(screen.getByText(/chargement/i)).toBeInTheDocument();
+  });
+
+  it("propose de réessayer après un échec de chargement", async () => {
+    getBenevoleQueue.mockRejectedValueOnce(new Error("Panne réseau"));
+    getBenevoleQueue.mockResolvedValueOnce([participation({ id: 1 })]);
+    const user = userEvent.setup();
+    render(<BenevolesPage />);
+
+    const reessayer = await screen.findByRole("button", { name: /réessayer/i });
+    await user.click(reessayer);
+
+    expect(await screen.findByText(/Course 1/)).toBeInTheDocument();
+  });
+
+  it("réinitialise le panneau de détail quand on change de résultat sélectionné", async () => {
+    getBenevoleQueue.mockResolvedValue([participation({ id: 1 }), participation({ id: 2 })]);
+    const user = userEvent.setup();
+    render(<BenevolesPage />);
+
+    await user.click(await screen.findByRole("button", { name: /Course 1/ }));
+    const champNom = screen.getByLabelText(/nom de l.épreuve/i);
+    await user.clear(champNom);
+    await user.type(champNom, "Texte non enregistré");
+
+    await user.click(screen.getByRole("button", { name: /Course 2/ }));
+
+    expect(screen.getByLabelText(/nom de l.épreuve/i)).toHaveValue("Course 2");
+  });
 });
