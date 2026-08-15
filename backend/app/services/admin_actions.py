@@ -129,6 +129,64 @@ def delete_course(db: Session, *, course_id: int, user_id: int) -> dict:
     return resume
 
 
+def wipe_impact(db: Session) -> dict:
+    """Ce qu'une purge totale des résultats détruirait. **Ne modifie rien** (#384).
+
+    Même principe que `course_deletion_impact` : `athletes` vient de la
+    **même** lecture que celle sur laquelle s'appuiera la purge (le compte
+    total de la table), pour que l'annonce et l'acte ne puissent pas diverger
+    à base constante.
+    """
+    return {
+        "participations": participation_repository.count_all(db),
+        "athletes": athlete_repository.count_all(db),
+    }
+
+
+def wipe_all_participations(db: Session, *, user_id: int) -> dict:
+    """Vide `participations`, purge les fiches devenues vides, force un rescrape (#384).
+
+    **`Course` et `course_sources` restent strictement intacts** — c'est ce
+    qui permet de relancer un rescrape sans tout réimporter depuis les URLs
+    sources. `scraped_at` est remis à `NULL` sur toute la base pour que le
+    cache TTL ne masque pas ce rescrape immédiat.
+
+    Contrairement à `delete_course`, le journal ne garde que des **comptes**,
+    jamais la liste des ids purgés : à l'échelle de la base entière, cette
+    liste peut porter des milliers d'entrées, et gonflerait le journal d'audit
+    pour un geste qui n'a par nature qu'un seul lecteur (« combien la dernière
+    purge a-t-elle emporté »).
+    """
+    resume = {"participations_deleted": participation_repository.count_all(db)}
+    participation_repository.delete_all(db)
+    resume["athletes_purged"] = athlete_repository.delete_orphans(db)
+    resume["courses_reset"] = course_repository.reset_scraped_at_all(db)
+
+    admin_action_log_repository.create(
+        db,
+        user_id=user_id,
+        action="participations.wipe_all",
+        entity_type="participations",
+        entity_id=0,  # sentinelle « base entière » — aucune entité unique à désigner
+        # Les deux compteurs annoncés par `wipe_impact` (#384) — pas
+        # `courses_reset` : la spec de l'issue borne le payload à ce que la
+        # confirmation a chiffré, et `resume` (la valeur de retour) le garde
+        # pour l'appelant qui en aurait besoin.
+        payload={
+            "participations_deleted": resume["participations_deleted"],
+            "athletes_purged": resume["athletes_purged"],
+        },
+    )
+    logger.info(
+        "Admin %s wiped all participations (%s deleted, %s athletes purged, %s courses reset)",
+        user_id,
+        resume["participations_deleted"],
+        resume["athletes_purged"],
+        resume["courses_reset"],
+    )
+    return resume
+
+
 def switch_course_source(
     db: Session, *, course_id: int, source_id: int, user_id: int, settings: Settings
 ) -> list[CourseSource]:

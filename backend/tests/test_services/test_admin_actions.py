@@ -692,3 +692,92 @@ def test_rescrape_sur_course_inconnue_est_un_not_found(db_session, auteur):
         admin_actions.iter_rescrape_course(
             db_session, course_id=4242, user_id=auteur.id, settings=_settings()
         )
+
+
+# --- Purger tous les résultats (#384) ---------------------------------------
+
+
+def _epreuve_avec_resultat(db_session, nom, dossard, event_date=date(2026, 5, 17)):
+    """Une épreuve, un athlète, une participation, `scraped_at` posé — pour la purge.
+
+    `participation_repository` est déjà importé en tête de ce fichier."""
+    course = _epreuve(db_session, nom, event_date)
+    # `dossard` distingue l'athlète d'un appel à l'autre : `_coureur` dédoublonne
+    # par identité (nom, prénom, date de naissance), et "COUREUR"/"Jean" fixe
+    # pour tout appel referait le même athlète au lieu d'un par épreuve.
+    athlete = _coureur(db_session, f"COUREUR{dossard}", "Jean")
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number=dossard, club="TCN"
+    )
+    course_repository.touch_scraped_at(db_session, course)
+    db_session.flush()
+    return course, athlete
+
+
+def test_wipe_impact_chiffre_participations_et_athletes(db_session):
+    _epreuve_avec_resultat(db_session, "Tri A", "1")
+    _epreuve_avec_resultat(db_session, "Tri B", "2")
+
+    impact = admin_actions.wipe_impact(db_session)
+
+    assert impact == {"participations": 2, "athletes": 2}
+
+
+def test_wipe_impact_ne_modifie_rien(db_session):
+    _epreuve_avec_resultat(db_session, "Tri A", "1")
+
+    admin_actions.wipe_impact(db_session)
+
+    assert participation_repository.count_all(db_session) == 1
+    assert athlete_repository.count_all(db_session) == 1
+
+
+def test_wipe_all_participations_vide_la_table_et_laisse_les_courses_intactes(
+    db_session, auteur
+):
+    course_a, _ = _epreuve_avec_resultat(db_session, "Tri A", "1")
+    course_b, _ = _epreuve_avec_resultat(db_session, "Tri B", "2")
+
+    resume = admin_actions.wipe_all_participations(db_session, user_id=auteur.id)
+
+    assert resume == {
+        "participations_deleted": 2,
+        "athletes_purged": 2,
+        "courses_reset": 2,
+    }
+    assert participation_repository.count_all(db_session) == 0
+    assert athlete_repository.count_all(db_session) == 0
+    assert course_repository.get(db_session, course_a.id) is not None
+    assert course_repository.get(db_session, course_b.id) is not None
+
+
+def test_wipe_all_participations_remet_scraped_at_a_null(db_session, auteur):
+    course, _ = _epreuve_avec_resultat(db_session, "Tri A", "1")
+    assert course.scraped_at is not None
+
+    admin_actions.wipe_all_participations(db_session, user_id=auteur.id)
+
+    db_session.expire(course)
+    assert course_repository.get(db_session, course.id).scraped_at is None
+
+
+def test_wipe_all_participations_consigne_le_geste(db_session, auteur):
+    """Le journal ne garde que les deux compteurs annoncés par `wipe_impact` — pas
+    `courses_reset`, absent de la spec de l'issue #384 (« payload = les deux
+    compteurs »), même s'il reste dans la valeur de retour pour l'appelant."""
+    _epreuve_avec_resultat(db_session, "Tri A", "1")
+
+    admin_actions.wipe_all_participations(db_session, user_id=auteur.id)
+
+    entrees = _journal(db_session, "participations", 0)
+    assert [e.action for e in entrees] == ["participations.wipe_all"]
+    assert entrees[0].payload == {"participations_deleted": 1, "athletes_purged": 1}
+
+
+def test_wipe_all_participations_sur_base_vide_ne_consigne_rien_a_tort(db_session, auteur):
+    """Une base déjà vide reste un geste réel (compteurs à 0), pas un no-op tu."""
+    resume = admin_actions.wipe_all_participations(db_session, user_id=auteur.id)
+
+    assert resume == {"participations_deleted": 0, "athletes_purged": 0, "courses_reset": 0}
+    entrees = _journal(db_session, "participations", 0)
+    assert [e.action for e in entrees] == ["participations.wipe_all"]
