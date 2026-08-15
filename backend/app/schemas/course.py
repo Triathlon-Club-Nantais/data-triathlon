@@ -122,6 +122,12 @@ class CourseSummary(BaseModel):
     total: int
     finishers: int
     non_finishers: int
+    #: Ventilation de `non_finishers` par statut (#331) — un DNS n'a jamais
+    #: pris le départ, un DSQ a couru et a été disqualifié, ce n'est ni l'un
+    #: ni l'autre un abandon (DNF). `non_finishers` reste leur somme.
+    dnf: int
+    dns: int
+    dsq: int
     unknown: int
     tcn_count: int
     male: int
