@@ -15,6 +15,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import current_user
+from app.core.analytics import capture_event, set_person_properties
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.core.exceptions import AuthUnavailableError, NotFoundError
@@ -181,7 +182,7 @@ def callback(
 
     state_token = request.cookies.get(state_cookie_name(settings))
     try:
-        session_token, _ = flow.complete_login(
+        session_token, user = flow.complete_login(
             db,
             provider_slug=provider,
             state_token=state_token,
@@ -198,6 +199,13 @@ def callback(
         logger.exception("Unexpected failure during the %s callback", provider)
         response = _failure_redirect("provider_error", settings)
     else:
+        # Capturer avant la redirection, avec l'utilisateur déjà en main.
+        # `User` ne porte aucun rôle global (FR-041) : `is_superuser` est la
+        # décision réelle du projet, pas un champ inventé sur `User`.
+        set_person_properties(str(user.id), {"is_staff": authorization.is_superuser(db, user)})
+        capture_event(
+            "user_logged_in", distinct_id=str(user.id), properties={"provider": provider}
+        )
         # Le back-office, seul écran que la connexion ouvre aujourd'hui. La
         # destination reste **fixée par la configuration** (FR-026) : aucun
         # paramètre d'entrée n'y entre, la redirection ouverte reste fermée.
@@ -239,8 +247,14 @@ def logout(
     `POST` et non `GET` : le cookie étant `SameSite=Lax`, un `POST` d'origine
     tierce ne le porte pas.
     """
-    session_service.close(db, request.cookies.get(session_cookie_name(settings)))
+    token = request.cookies.get(session_cookie_name(settings))
+    # Résoudre l'utilisateur avant de fermer la session pour pouvoir le capturer.
+    logging_out_user = session_service.resolve(db, token)
+    session_service.close(db, token)
     db.commit()
+
+    if logging_out_user is not None:
+        capture_event("user_logged_out", distinct_id=str(logging_out_user.id))
 
     response = Response(status_code=204, headers=NO_STORE_HEADERS)
     _clear_auth_cookie(response, name=session_cookie_name(settings), settings=settings)

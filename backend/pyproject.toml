@@ -25,6 +25,7 @@ dependencies = [
     # Lecture des classeurs `.xlsx` téléversés dans l'écran d'administration
     # (#47). Le `.csv` reste à la stdlib ; c'est la seule brique qui manquait.
     "openpyxl>=3.1.5",
+    "posthog>=7.39.1",
 ]
 
 # PEP 735 : installé par `uv sync`, écarté par `uv sync --no-dev` (Render, Docker).

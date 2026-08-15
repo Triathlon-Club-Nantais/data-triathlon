@@ -71,3 +71,7 @@ docs/local/
 # Scaffold du wizard d'installation PostHog (skill posthog-wizard, #339) —
 # jamais destiné à être commité, mal placé sous frontend/ au lieu de la racine.
 frontend/.claude/
+# Même scaffold, deux copies dupliquées par le wizard côté backend : à la
+# racine et sous backend/.claude/ (motif identique à frontend/.claude/ ci-dessus).
+.posthog/
+backend/.claude/

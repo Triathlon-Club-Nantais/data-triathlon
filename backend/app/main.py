@@ -4,10 +4,12 @@ Point d'entrée FastAPI — usine à application.
 Lancement : `uvicorn app.main:app --reload --port 8001`
 """
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.core.analytics import init_posthog, shutdown_posthog
 from app.core.config import get_settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import setup_logging
@@ -70,7 +72,17 @@ def create_app() -> FastAPI:
     setup_logging()
     settings = get_settings()
 
-    app = FastAPI(title="Triathlon Club Results — v2")
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        init_posthog(
+            token=settings.posthog_project_token,
+            host=settings.posthog_host,
+            debug=settings.is_sqlite,
+        )
+        yield
+        shutdown_posthog()
+
+    app = FastAPI(title="Triathlon Club Results — v2", lifespan=lifespan)
 
     app.add_middleware(
         CORSMiddleware,
