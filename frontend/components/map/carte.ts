@@ -28,8 +28,9 @@ export const COULEURS_CARTE = {
   },
   sansTcn: {
     // --tcn-text-muted, et non l'ancien --tcn-grey-400 (#b0aaa0) qui ne tenait
-    // que 2,08:1 sur papier pour les 3:1 de WCAG 1.4.11.
-    remplissage: "#857f74",
+    // que 2,08:1 sur papier pour les 3:1 de WCAG 1.4.11. Relevé à #726c61 par
+    // #360 (fusion avec --tcn-text-faint).
+    remplissage: "#726c61",
     trait: "#3a3833", // --tcn-text-body
     epaisseur: 1,
     pointilles: "4 3",

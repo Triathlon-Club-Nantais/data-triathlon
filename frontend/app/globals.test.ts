@@ -45,15 +45,8 @@ function rule(selector: string): string {
 /** Les trois surfaces sur lesquelles du texte se pose réellement. */
 const SURFACES = ["--tcn-surface", "--tcn-paper", "--tcn-surface-sunk"];
 
-/**
- * Tokens de texte gardés au seuil du texte courant (WCAG 1.4.3, 4,5:1).
- *
- * `--tcn-text-muted` (3,97:1 sur blanc) en est **délibérément absent** : arbitré
- * ouvert dans #299 — l'assombrir touche 28 usages et se décide avec le sort de la
- * rampe neutre. L'ajouter ici sans le corriger rendrait la suite rouge ; le
- * corriger en passant élargirait le périmètre sans arbitrage.
- */
-const TOKENS_TEXTE = ["--tcn-text", "--tcn-text-body", "--tcn-text-faint"];
+/** Tokens de texte gardés au seuil du texte courant (WCAG 1.4.3, 4,5:1). */
+const TOKENS_TEXTE = ["--tcn-text", "--tcn-text-body", "--tcn-text-faint", "--tcn-text-muted"];
 
 describe("palette de texte TCN", () => {
   it.each(TOKENS_TEXTE)("%s atteint 4,5:1 sur les trois surfaces", (nom) => {

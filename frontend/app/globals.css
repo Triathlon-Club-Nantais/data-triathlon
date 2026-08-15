@@ -115,14 +115,15 @@
   /* `faint` portait #a39d93, soit 2,69:1, pour 41 usages dont des textes de
      13-14 px qui portent du sens (états vides, en-têtes de colonnes) — pas de la
      décoration. #726c61 le met à 4,69:1 au pire des trois surfaces.
-     Conséquence assumée, et provisoire : il est désormais **plus foncé** que
-     `muted` (#857f74, 3,97:1), donc la rampe est inversée. `muted` reste
-     arbitré ouvert dans #299 — 28 usages, et son sort se décide avec celui de
-     la rampe neutre. `app/globals.test.ts` garde les seuils, muted excepté et
-     l'exception y est écrite. */
+     `muted` portait #857f74 (3,58:1 au pire, sur `paper`) — non conforme sur
+     les trois surfaces, cf. #344/#360. Relevé à la même valeur que `faint`
+     (#360) : les deux tokens désignent désormais le même gris, la rampe à
+     trois niveaux (`body`/`muted`/`faint`) redevient une rampe à deux
+     niveaux. Fusion, pas un troisième niveau distinct — l'écart avec `body`
+     reste identique à celui déjà arbitré par #358 pour `faint` (2,25:1). */
   --tcn-text:          #1c1e22;
   --tcn-text-body:     #3a3833;
-  --tcn-text-muted:    #857f74;
+  --tcn-text-muted:    #726c61;
   --tcn-text-faint:    #726c61;
   --tcn-text-disabled: #c4bdb1;
 
