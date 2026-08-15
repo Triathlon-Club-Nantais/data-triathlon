@@ -257,21 +257,34 @@ def delete_all(db: Session) -> int:
     """Supprime **toutes** les épreuves, avec leurs sources et résultats. Rend le
     nombre d'épreuves supprimées (#384 — « Supprimer toutes les épreuves »).
 
-    Même mécanisme que `delete()`, appliqué à la base entière : un `DELETE`
-    de masse sur `courses` romprait la contrainte `course_sources.course_id`
-    en PostgreSQL (pas d'`ondelete`, cascade portée par l'ORM) — il faut donc
-    charger chaque épreuve et la passer à `db.delete()` une par une, comme le
-    fait déjà `delete()` pour une seule.
+    **`DELETE` de masse, enfants d'abord — pas la cascade ORM de `delete()`.**
+    Celle-ci charge une épreuve et ses résultats en mémoire pour émettre un
+    `DELETE` par ligne : correct pour **une** épreuve, mais un aller-retour
+    réseau par résultat sur la base entière — l'un des gestes les plus
+    destructeurs du back-office ne peut pas se permettre ce coût. Vider
+    `participations` puis `course_sources` avant `courses` rend un `DELETE`
+    de masse sûr malgré l'absence d'`ondelete` sur
+    `course_sources.course_id` : la contrainte ne peut être rompue que par un
+    enfant *restant*, pas par l'ordre des tables vidées.
 
-    ponytail: même compromis que `delete()`, à l'échelle de la base entière —
-    N épreuves × leurs résultats, chacun son propre DELETE. Geste rare et
-    volontairement synchrone (#384) ; upgrade si mesuré.
+    Le compte vient du `DELETE` sur `courses` lui-même, jamais d'un
+    `COUNT(*)` préalable — même précaution que `participation_repository.delete_all`.
+
+    Comme `participation_repository.delete_all` et `athlete_repository.delete_all`,
+    aucun `expire`/`expunge` de session ici : le seul appelant
+    (`wipe_all_courses`) ne relit aucune `Course` après ce `DELETE`, et c'est
+    la route qui `commit` juste après — ce qui périme normalement toute
+    instance encore en mémoire. Un appelant qui relirait une épreuve dans la
+    **même** session avant ce `commit` obtiendrait une instance périmée ;
+    aucun appelant de ce dépôt ne le fait aujourd'hui.
     """
-    courses = db.query(Course).all()
-    for course in courses:
-        db.delete(course)
+    from app.models.participation import Participation
+
+    db.query(Participation).delete(synchronize_session=False)
+    db.query(CourseSource).delete(synchronize_session=False)
+    efface = db.query(Course).delete(synchronize_session=False)
     db.flush()
-    return len(courses)
+    return efface
 
 
 def set_quality(

@@ -66,7 +66,7 @@ describe("WipeParticipationsCard (#384)", () => {
     await waitFor(() =>
       expect(client.getQueryState(["session"])?.status).toBe("success"),
     );
-    expect(screen.queryByText(/zone dangereuse/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/purger les résultats/i)).not.toBeInTheDocument();
   });
 
   it("propose le geste au porteur du pouvoir", async () => {
@@ -74,7 +74,7 @@ describe("WipeParticipationsCard (#384)", () => {
 
     afficher();
 
-    expect(await screen.findByText(/zone dangereuse/i)).toBeInTheDocument();
+    expect(await screen.findByText(/purger les résultats/i)).toBeInTheDocument();
   });
 
   it("ne chiffre rien tant que la modale n'est pas ouverte", async () => {

@@ -213,19 +213,22 @@ def wipe_all_courses(db: Session, *, user_id: int) -> dict:
     """Vide le catalogue d'épreuves — sources et résultats compris (#384, suite).
 
     **Strictement plus destructeur que `wipe_all_participations`** : ici,
-    `Course` et `course_sources` disparaissent aussi. La cascade est portée
-    par l'ORM (`Course.sources`/`Course.participations`, `delete-orphan`),
-    comme pour la suppression d'une seule épreuve — un `DELETE` de masse
-    romprait la contrainte de `course_sources.course_id` en PostgreSQL, qui
-    n'a pas d'`ondelete`.
+    `Course` et `course_sources` disparaissent aussi (`course_repository
+    .delete_all` — `DELETE` de masse, enfants d'abord, pas la cascade ORM de
+    la suppression d'une seule épreuve).
 
-    Les participations disparaissent par ricochet de la cascade, sans compte
-    à journaliser : les compter à part reproduirait le `COUNT(*)` préalable
-    évité dans `wipe_all_participations` (même risque de sous-estimation sous
-    écriture concurrente), pour une valeur que personne ne relit — le geste
-    se mesure en épreuves, pas en résultats. `athletes_purged` vient en
-    revanche de `delete_all`, sans risque : une fois le catalogue vidé, tout
-    athlète est orphelin par construction.
+    Les participations disparaissent par ricochet, sans compte à journaliser :
+    les compter à part reproduirait le `COUNT(*)` préalable évité dans
+    `wipe_all_participations` (même risque de sous-estimation sous écriture
+    concurrente), pour une valeur que personne ne relit — le geste se mesure
+    en épreuves, pas en résultats.
+
+    **`athletes_purged` rejoint `courses_deleted` dans le journal**, ce que
+    `wipe_all_participations` ne fait pas pour `courses_reset` : la règle de
+    ce dernier (« le payload est borné à ce que la confirmation a chiffré »)
+    n'est pas contredite, elle ne s'applique juste pas de la même façon ici —
+    `athletes_purged` vient de `delete_all`, sans le risque de sous-estimation
+    qui exclut `participations` du payload, donc rien ne justifie de le taire.
     """
     resume = {"courses_deleted": course_repository.delete_all(db)}
     resume["athletes_purged"] = athlete_repository.delete_all(db)
@@ -236,7 +239,13 @@ def wipe_all_courses(db: Session, *, user_id: int) -> dict:
         action="courses.wipe_all",
         entity_type="courses",
         entity_id=0,  # sentinelle « base entière », même patron que participations.wipe_all
-        payload=resume,
+        # Littéral et non `resume` : garder le payload journalisé visiblement
+        # distinct de la valeur de retour, même s'ils coïncident aujourd'hui —
+        # patron de `wipe_all_participations`, où les deux divergent déjà.
+        payload={
+            "courses_deleted": resume["courses_deleted"],
+            "athletes_purged": resume["athletes_purged"],
+        },
     )
     logger.info(
         "Admin %s wiped all courses (%s deleted, %s athletes purged)",

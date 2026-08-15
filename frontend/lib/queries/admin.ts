@@ -156,11 +156,15 @@ export function useWipeAllParticipations() {
     mutationFn: () => apiClient.wipeAllParticipations(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.participationsWipeImpact() });
+      // Symétrique de `useWipeAllCourses` : le chiffrage de l'autre purge lit
+      // aussi `participations`, une modale restée en cache mentirait pareil.
+      qc.invalidateQueries({ queryKey: queryKeys.coursesWipeImpact() });
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.courses });
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.detailEpreuve });
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.coureurs });
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.ficheCoureur });
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.resultatsPublics });
+      qc.invalidateQueries({ queryKey: queryKeys.courseDuplicates() });
     },
   });
 }
@@ -180,8 +184,10 @@ export function useCoursesWipeImpact(enabled: boolean) {
 
 /**
  * La purge totale des épreuves (#384, suite). Emporte aussi les résultats
- * (cascade ORM depuis `Course`), donc invalide les deux chiffrages — le
- * sien et celui de `useWipeAllParticipations` — en plus des mêmes caches.
+ * (`DELETE` de masse côté backend, enfants d'abord), donc invalide les deux
+ * chiffrages — le sien et celui de `useWipeAllParticipations` — en plus des
+ * mêmes caches. `courseDuplicates` aussi : le catalogue vidé, la liste de
+ * doublons suspects ne peut plus contenir que des entrées fantômes.
  */
 export function useWipeAllCourses() {
   const qc = useQueryClient();
@@ -195,6 +201,7 @@ export function useWipeAllCourses() {
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.coureurs });
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.ficheCoureur });
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.resultatsPublics });
+      qc.invalidateQueries({ queryKey: queryKeys.courseDuplicates() });
     },
   });
 }
