@@ -1,7 +1,7 @@
 """Accès données pour Athlete — seule couche qui touche la Session pour cette table."""
 from datetime import date
 
-from sqlalchemy import and_, case, func, or_, true
+from sqlalchemy import and_, case, false, func, or_
 from sqlalchemy.orm import Session
 
 from app.core.club import tcn_clause
@@ -9,7 +9,6 @@ from app.core.text import deaccent
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.participation import Participation
-from app.repositories.participation_repository import season_clause
 
 
 def name_filter(term: str):
@@ -29,24 +28,31 @@ def name_filter(term: str):
     applicative enregistrée sur la connexion SQLite en développement : même nom,
     donc une seule expression ici. Aucun index n'est utilisable de ce fait, sans
     conséquence — le filtre porte sur une seule épreuve ou une page de résultats.
+
+    Un terme sans mot (blancs seuls, ex. `name=%20`) ne matche **rien** : voir
+    le commentaire sur le `false()` de retour.
     """
     clauses = []
-    for mot in deaccent(term).split():
+    for word in deaccent(term).split():
         # Les jokers `LIKE` saisis par un visiteur sont échappés : ce n'est pas
         # une injection (le motif est passé en paramètre lié), mais `q=%`
         # rendait l'épreuve entière et `q=_` n'importe quel caractère.
         for joker in ("\\", "%", "_"):
-            mot = mot.replace(joker, f"\\{joker}")
-        pattern = f"%{mot.lower()}%"
+            word = word.replace(joker, f"\\{joker}")
+        pattern = f"%{word.lower()}%"
         clauses.append(
             or_(
                 func.unaccent(func.lower(Athlete.nom)).like(pattern, escape="\\"),
                 func.unaccent(func.lower(Athlete.prenom)).like(pattern, escape="\\"),
             )
         )
-    # Un terme sans mot (blancs seuls) ne contraint rien : `true()` évite le
-    # `and_()` vide et laisse l'appelant décider de filtrer ou non en amont.
-    return and_(true(), *clauses)
+    # Un terme sans mot (blancs seuls, ex. `name=%20`) ne doit rien laisser
+    # passer : `false()` empêche `and_(*clauses)` vide de dégénérer en un
+    # filtre vide qui rendrait tout le monde — les appelants testent la
+    # valeur brute (`if name:`), pas sa version strippée.
+    if not clauses:
+        return false()
+    return and_(*clauses)
 
 
 def get(db: Session, athlete_id: int) -> Athlete | None:
@@ -247,6 +253,10 @@ def list_with_season_participation_count(
     neutralité par défaut), comme `season_clause` de `participation_repository`,
     réutilisée ici plutôt que recopiée.
     """
+    # Import local : participation_repository importe name_filter d'ici depuis
+    # #357, un import en tête de module créerait un cycle.
+    from app.repositories.participation_repository import season_clause
+
     compte = func.count(Participation.id)
     requete = (
         db.query(Athlete, compte)
