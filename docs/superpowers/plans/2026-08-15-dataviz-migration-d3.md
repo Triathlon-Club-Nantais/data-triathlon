@@ -912,11 +912,13 @@ git commit -m "refactor(frontend): migre l'activité mensuelle vers d3-scale (#3
 | `MonthlyTrend.tsx` | `[0, max]` | `[0, 100]` | none (external `Math.max(4, ...)` clamp) |
 | `RankingEvolutionChart.tsx` | `[top, bottom]` | `[PAD.top, PAD.top+PLOT_H]` | none (domain never degenerates, see step 2 of Task 4) |
 
-Read the four files as actually committed (not this table) before deciding — confirm the shapes still differ this way.
+Read the four files as actually committed (not this table) before deciding — confirm the shapes still hold.
+
+**Correction (post-implementation)**: as actually shipped, `CategoryBars.tsx` (`domain([0, total])`, `range([0, 100])`) and `MonthlyTrend.tsx` (`domain([0, max])`, `range([0, 100])`) DO share the same domain shape (`[0, X]`) and the same range (`[0, 100]`) — the table above understated this. They differ only in the guard: `CategoryBars` has a runtime ternary (`total > 0 ? ... : () => 0`), while `MonthlyTrend` relies on an upstream invariant (`max = Math.max(1, ...)`, computed before the scale, so `max` is never zero and no ternary is needed).
 
 - [ ] **Step 2: Decide on extraction**
 
-No two of the four share the same domain/range shape, and two of the four need a zero-domain guard the other two don't. Per the earlier decision (no abstraction before a real duplicate appears), the expected outcome is: **no shared helper** — leave each `scaleLinear()` call inline where it is. Only extract a helper if, on reading the actual final code, two calls turn out to be identical in domain, range, and guard — in which case add `frontend/lib/charts/scales.ts` exporting that one shared function, update both call sites, add/adjust their tests, and commit as `refactor(frontend): factorise <nom> entre <fichiers> (#370)`.
+Domain+range shape alone isn't a strong enough signal to extract a helper: the two matching rows (`CategoryBars`, `MonthlyTrend`) differ in how they guard the zero case, and the runtime ternary in `CategoryBars` is arguably safer than relying on an upstream invariant holding forever — collapsing them into one helper would mean picking one guard strategy for both, which is a behavior decision dressed as a refactor, not a pure deduplication. Per the earlier decision (no abstraction before a real duplicate appears), the expected outcome is still: **no shared helper** — leave each `scaleLinear()` call inline where it is. A one-line wrapper isn't worth the abstraction here. Only extract a helper if, on reading the actual final code, two calls turn out to be identical in domain, range, **and** guard — in which case add `frontend/lib/charts/scales.ts` exporting that one shared function, update both call sites, add/adjust their tests, and commit as `refactor(frontend): factorise <nom> entre <fichiers> (#370)`.
 
 - [ ] **Step 3: Run the full verification suite**
 

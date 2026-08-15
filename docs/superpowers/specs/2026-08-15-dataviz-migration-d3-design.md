@@ -78,12 +78,21 @@ Même schéma que l'histogramme : `d3.scaleLinear()` pour la largeur en `%`
 
 ### Évolution du rang (`RankingEvolutionChart.tsx`, 247 lignes, déjà client)
 
-`d3.scaleLinear()` pour les échelles X et Y (remplace `xOf`/`yOf` et le
-calcul des `ticks`, lignes ~62-83 du fichier actuel) ; `d3.line()` avec
-`.curve(d3.curveMonotoneX)` pour le tracé de la courbe scratch (remplace la
-construction manuelle de la chaîne `path`, lignes ~75-77). Déjà `"use
-client"` : zéro régression RSC possible ici, seul le poids de code interne
-change.
+`d3.scaleLinear()` pour l'échelle Y (`yOf`, remplace le calcul manuel lignes
+~62-83 du fichier actuel) ; `d3.line()` avec `.curve(d3.curveMonotoneX)` pour
+le tracé de la courbe scratch (remplace la construction manuelle de la
+chaîne `path`, lignes ~75-77). Déjà `"use client"` : zéro régression RSC
+possible ici, seul le poids de code interne change.
+
+**Note** : `xOf` n'a, in fine, pas migré vers `scaleLinear` malgré ce que
+laisse entendre le titre de section — c'est une décision, pas un oubli.
+`xOf` mappe un index d'étape vers le centre d'une bande
+(`PAD.left + (PLOT_W / steps.length) * (index + 0.5)`), ce qui est le
+territoire de `d3-scale`'s `scaleBand`, pas de `scaleLinear` (le domaine
+n'est pas continu, c'est un ensemble discret d'index). Introduire
+`scaleBand` pour une seule ligne de calcul aurait dépassé le périmètre du
+plan, qui exclut explicitement de laisser d3 choisir des valeurs de
+position au-delà d'une projection linéaire simple.
 
 **Contrat de non-régression** : les attributs `data-role`, `data-step`,
 `data-y` et le comportement de survol/tooltip restent strictement identiques
@@ -94,10 +103,17 @@ comportementale pour ce lot, pas seulement une case à cocher.
 ### Activité mensuelle (`MonthlyTrend.tsx`, 44 lignes)
 
 Reste en CSS flex — pas de passage en SVG, la migration ne change que le
-calcul : `Math.max(4, (value / max) * 100)` devient
-`d3.scaleLinear().domain([0, max]).range([4, 100])(value)`. Gain de lignes
-quasi nul ; migré pour la cohérence actée par le sondage (le motif est déjà
-en place une fois les lots précédents faits), pas pour un gain de code sur ce
+calcul. **Corrigé pendant l'implémentation** : ce paragraphe annonçait à
+l'origine `d3.scaleLinear().domain([0, max]).range([4, 100])(value)` comme
+équivalent à `Math.max(4, (value / max) * 100)` — c'est faux
+(`range([4,100])` donne 52 pour `value = max/2`, pas 50 : le plancher de 4
+décale toute l'échelle, pas seulement le bas) et ce n'est pas ce qui a été
+livré. Le code réellement livré (`MonthlyTrend.tsx`) garde le domaine
+linéaire pur dans le scale — `d3.scaleLinear().domain([0, max]).range([0,
+100])` — et applique le plancher `Math.max(4, ...)` **en dehors** du scale,
+au point d'usage (`Math.max(4, heightScale(value))`). Gain de lignes quasi
+nul ; migré pour la cohérence actée par le sondage (le motif est déjà en
+place une fois les lots précédents faits), pas pour un gain de code sur ce
 composant précis.
 
 ## 3. Stratégie de tests

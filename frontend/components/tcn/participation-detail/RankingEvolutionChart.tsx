@@ -69,6 +69,9 @@ export function RankingEvolutionChart({
 
   // Position → ordonnée. Domaine [top, bottom] → pixel [PAD.top, PAD.top+PLOT_H] :
   // la meilleure position (top, la plus petite) tombe en haut du graphique.
+  // Pas de garde domaine nul ici (contrairement au max=0 de Histogram.tsx,
+  // atteignable) : `margin = Math.max(1, ...)` et `bottom = worst + margin`
+  // quelques lignes plus haut garantissent toujours `bottom > top`.
   const yScale = scaleLinear().domain([top, bottom]).range([PAD.top, PAD.top + PLOT_H]);
   const yOf = (position: number) => yScale(position);
   const xOf = (index: number) =>
