@@ -187,6 +187,15 @@ class P:
         "d'identité.",
         FEATURE_PARTICIPATIONS,
     )
+    PARTICIPATIONS_WIPE_ALL = Permission(
+        "participations:wipe_all",
+        "Purger tous les résultats",
+        "Vider entièrement la base des résultats pour repartir d'une base "
+        "propre — par exemple avant un rescrape complet suite à un "
+        "changement de logique d'import. Les épreuves et leurs sources "
+        "restent intactes.",
+        FEATURE_PARTICIPATIONS,
+    )
     # Deux pouvoirs et non un : lancer une reprise réécrit les résultats de
     # centaines d'épreuves, en relire le bilan ne touche à rien. Les confondre
     # obligerait à donner le premier pour obtenir le second.
@@ -242,6 +251,7 @@ ALL: tuple[Permission, ...] = (
     P.ATHLETES_WRITE,
     P.PARTICIPATIONS_DELETE,
     P.PARTICIPATIONS_REASSIGN,
+    P.PARTICIPATIONS_WIPE_ALL,
     P.BATCH_RUN,
     P.BATCH_READ,
     P.FEEDBACK_READ,
