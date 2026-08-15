@@ -208,6 +208,17 @@ def test_le_pouvoir_de_suppression_est_offert_a_la_composition_des_roles(client)
     assert libelle["label"] == "Supprimer une épreuve"
 
 
+def test_le_pouvoir_de_purge_totale_est_offert_a_la_composition_des_roles(client):
+    """#384 — même garde-fou que pour `courses:delete`."""
+    groupes = client.get("/api/v1/admin/permissions").json()
+
+    resultats = next(g for g in groupes if g["feature"] == "Résultats")
+    codes = {p["code"] for p in resultats["permissions"]}
+    assert "participations:wipe_all" in codes
+    libelle = next(p for p in resultats["permissions"] if p["code"] == "participations:wipe_all")
+    assert libelle["label"] == "Purger tous les résultats"
+
+
 # --- POST /admin/participations/{id}/reassign -------------------------------
 
 
