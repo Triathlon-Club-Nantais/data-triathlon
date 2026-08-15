@@ -56,10 +56,13 @@ besoin).
   `listParticipations`, `listSeasons` le propagent.
 - Seuls `/dashboard` (les 4 appels) et `/club` (les 2 appels) le renseignent,
   à `SHORT_REVALIDATE_SECONDS = 30` — une constante exportée, pas une valeur
-  arbitraire dupliquée. Les trois autres consommateurs de `listEvents`/
-  `listParticipations` (`/resultats`, `/ajouter`, `/courses/[id]`,
-  `/athletes/[id]`) ne changent pas d'un octet : ils continuent d'appeler ces
-  mêmes fonctions **sans** le second paramètre, donc gardent `no-store`.
+  arbitraire dupliquée. Les deux autres consommateurs de `listEvents` sans
+  filtre `scope=club`/`seasons` (`/resultats`, `/ajouter`) ne changent pas
+  d'un octet : ils continuent d'appeler cette même fonction **sans** le
+  second paramètre, donc gardent `no-store`. `/courses/[id]` et
+  `/athletes/[id]` n'appellent ni `listEvents` ni `listParticipations` du
+  tout (routes `getCourse`/`getAthlete`, jamais touchées) — ils ne sont
+  concernés par ce changement d'aucune façon, pas seulement par défaut.
 - Fenêtre choisie sur la base de la fréquence réelle des imports — des batches
   de plusieurs dizaines de minutes (`docs/ci-cd.md`), jamais du temps réel :
   30 s masque le coût de chargement pour l'écrasante majorité des visites
