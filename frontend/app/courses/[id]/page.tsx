@@ -10,6 +10,7 @@ import { formatToken } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
 import { formatEventName } from "@/lib/utils/event";
 import { Histogram } from "@/components/charts/Histogram";
+import { GenderDonut } from "@/components/charts/GenderDonut";
 import { SCOPE_PARAM, scopeFromParam } from "@/lib/scope";
 
 const CAT_COLORS = [
@@ -111,16 +112,7 @@ export default async function CoursePage({
       <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card padding={24} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 18 }}>
           <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 18, color: "var(--tcn-ink)", alignSelf: "flex-start" }}>Répartition genre</div>
-          <div style={{ position: "relative", width: 130, height: 130, borderRadius: 999, background: hasGender ? `conic-gradient(var(--tcn-orange) 0 ${malePct}%, var(--tcn-ink) ${malePct}% 100%)` : "var(--tcn-grey-300)" }}>
-            <div style={{ position: "absolute", inset: 26, borderRadius: 999, background: "var(--tcn-surface)", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column" }}>
-              <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)", lineHeight: 1 }}>{Math.round(malePct)}%</div>
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "var(--tcn-text-faint)", letterSpacing: ".05em" }}>Hommes</div>
-            </div>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
-            <Legend color="var(--tcn-orange)" label="Homme" value={`${pctFr(malePct)}%`} />
-            <Legend color="var(--tcn-ink)" label="Femme" value={`${pctFr(femalePct)}%`} />
-          </div>
+          <GenderDonut malePct={malePct} femalePct={femalePct} hasGender={hasGender} />
         </Card>
 
         <Card padding={24}>
@@ -187,12 +179,3 @@ export default async function CoursePage({
   );
 }
 
-function Legend({ color, label, value }: { color: string; label: string; value: string }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-      <span style={{ width: 10, height: 10, borderRadius: 3, background: color }} />
-      <span style={{ color: "var(--tcn-text-body)" }}>{label}</span>
-      <b style={{ marginLeft: "auto", fontFamily: "var(--tcn-font-display)", color: "var(--tcn-ink)" }}>{value}</b>
-    </div>
-  );
-}
