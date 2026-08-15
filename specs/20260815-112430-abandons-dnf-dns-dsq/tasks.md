@@ -47,13 +47,13 @@ stories (front) en dépendent — aucune ne peut être implémentée avant.
 
 > **Écrire ces tests D'ABORD, les voir échouer avant implémentation** (Principe III).
 
-- [ ] T001 Test `course_summary` avec des participations DNF + DNS + DSQ + finisher + statut inconnu mêlés : vérifie `dnf`, `dns`, `dsq` individuellement et l'invariant `non_finishers == dnf + dns + dsq` dans `backend/tests/test_services/test_stats_service.py`
+- [X] T001 Test `course_summary` avec des participations DNF + DNS + DSQ + finisher + statut inconnu mêlés : vérifie `dnf`, `dns`, `dsq` individuellement et l'invariant `non_finishers == dnf + dns + dsq` dans `backend/tests/test_services/test_stats_service.py`
 
 ### Implementation for Foundational
 
-- [ ] T002 Ajouter `dnf: int`, `dns: int`, `dsq: int` à `CourseSummary` dans `backend/app/schemas/course.py` (après `non_finishers`, avant `unknown`)
-- [ ] T003 Décomposer `_STATUTS_NON_FINISHERS` en trois compteurs dédiés (`dnf`, `dns`, `dsq`) dans la boucle de `course_summary`, `non_finishers` restant la somme des trois, dans `backend/app/services/stats_service.py` (depends on T002)
-- [ ] T004 [P] Ajouter `dnf: number`, `dns: number`, `dsq: number` au type `CourseSummary` dans `frontend/lib/types.ts`
+- [X] T002 Ajouter `dnf: int`, `dns: int`, `dsq: int` à `CourseSummary` dans `backend/app/schemas/course.py` (après `non_finishers`, avant `unknown`)
+- [X] T003 Décomposer `_STATUTS_NON_FINISHERS` en trois compteurs dédiés (`dnf`, `dns`, `dsq`) dans la boucle de `course_summary`, `non_finishers` restant la somme des trois, dans `backend/app/services/stats_service.py` (depends on T002)
+- [X] T004 [P] Ajouter `dnf: number`, `dns: number`, `dsq: number` au type `CourseSummary` dans `frontend/lib/types.ts`
 
 **Checkpoint**: `uv run pytest -m "not integration" backend/tests/test_services/test_stats_service.py` vert ; `GET /courses/{id}/summary` renvoie les trois nouveaux champs.
 
@@ -74,12 +74,12 @@ pastilles vides n'apparaît.
 
 > **Écrire ces tests D'ABORD, les voir échouer avant implémentation** (Principe III).
 
-- [ ] T005 [P] [US1] Test de rendu : épreuve avec `dnf`/`dns`/`dsq` tous non nuls → trois `MetaPill` avec les bons libellés et chiffres, dans `frontend/app/courses/[id]/page.test.tsx`
-- [ ] T006 [P] [US1] Test de rendu : épreuve avec `dns=0` et `dsq=0` → seule la pastille « Abandons » apparaît (si `dnf>0`), aucune pastille vide, dans `frontend/app/courses/[id]/page.test.tsx`
+- [X] T005 [P] [US1] Test de rendu : épreuve avec `dnf`/`dns`/`dsq` tous non nuls → trois `MetaPill` avec les bons libellés et chiffres, dans `frontend/app/courses/[id]/page.test.tsx`
+- [X] T006 [P] [US1] Test de rendu : épreuve avec `dns=0` et `dsq=0` → seule la pastille « Abandons » apparaît (si `dnf>0`), aucune pastille vide, dans `frontend/app/courses/[id]/page.test.tsx`
 
 ### Implementation for User Story 1
 
-- [ ] T007 [US1] Remplacer la pastille unique `Abandons` par trois `MetaPill` conditionnelles (`dnf`→« Abandons », `dns`→« Non-partants », `dsq`→« Disqualifiés »), chacune affichée seulement si `> 0`, dans `frontend/app/courses/[id]/page.tsx` (depends on T004)
+- [X] T007 [US1] Remplacer la pastille unique `Abandons` par trois `MetaPill` conditionnelles (`dnf`→« Abandons », `dns`→« Non-partants », `dsq`→« Disqualifiés »), chacune affichée seulement si `> 0`, dans `frontend/app/courses/[id]/page.tsx` (depends on T004)
 
 **Checkpoint**: User Story 1 fonctionnelle et testable indépendamment — la page de l'épreuve raconte les trois catégories séparément.
 
@@ -100,12 +100,12 @@ vérifier que le résumé ne mentionne ni non-partants ni disqualifiés.
 
 > **Écrire ces tests D'ABORD, les voir échouer avant implémentation** (Principe III).
 
-- [ ] T008 [P] [US2] Test : `resumeEpreuve` avec `dnf`/`dns`/`dsq` tous non nuls produit trois segments distincts (« X abandons », « Y non-partants », « Z disqualifiés ») dans `frontend/components/results/RaceFinishers.test.tsx`
-- [ ] T009 [P] [US2] Test : `resumeEpreuve` avec `dns=0` et `dsq=0` ne mentionne que les abandons, dans `frontend/components/results/RaceFinishers.test.tsx`
+- [X] T008 [P] [US2] Test : `resumeEpreuve` avec `dnf`/`dns`/`dsq` tous non nuls produit trois segments distincts (« X abandons », « Y non-partants », « Z disqualifiés ») dans `frontend/components/results/RaceFinishers.test.tsx`
+- [X] T009 [P] [US2] Test : `resumeEpreuve` avec `dns=0` et `dsq=0` ne mentionne que les abandons, dans `frontend/components/results/RaceFinishers.test.tsx`
 
 ### Implementation for User Story 2
 
-- [ ] T010 [US2] Réécrire `resumeEpreuve()` pour pousser trois segments conditionnels (`dnf`/`dns`/`dsq`) au lieu d'un segment `abandons` unique, dans `frontend/components/results/RaceFinishers.tsx` (depends on T004)
+- [X] T010 [US2] Réécrire `resumeEpreuve()` pour pousser trois segments conditionnels (`dnf`/`dns`/`dsq`) au lieu d'un segment `abandons` unique, dans `frontend/components/results/RaceFinishers.tsx` (depends on T004)
 
 **Checkpoint**: Les deux user stories fonctionnent indépendamment et racontent la même histoire des trois catégories sur toute la page.
 
@@ -113,8 +113,8 @@ vérifier que le résumé ne mentionne ni non-partants ni disqualifiés.
 
 ## Phase 5: Polish & Cross-Cutting Concerns
 
-- [ ] T011 [P] Vérifier l'invariant `total == finishers + dnf + dns + dsq + unknown` de bout en bout via `quickstart.md` §1-§3 (backend + frontend + vérification manuelle)
-- [ ] T012 Suite complète avant PR : `cd backend && uv run pytest -m "not integration" && uv run ruff check .` puis `cd frontend && npm test && npm run lint && npm run build` (quickstart.md §4)
+- [X] T011 [P] Vérifier l'invariant `total == finishers + dnf + dns + dsq + unknown` de bout en bout via `quickstart.md` §1-§3 (backend + frontend + vérification manuelle)
+- [X] T012 Suite complète avant PR : `cd backend && uv run pytest -m "not integration" && uv run ruff check .` puis `cd frontend && npm test && npm run lint && npm run build` (quickstart.md §4)
 
 ---
 
