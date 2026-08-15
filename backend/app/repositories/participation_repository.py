@@ -91,6 +91,23 @@ def count_for_course(db: Session, course_id: int) -> int:
     )
 
 
+def count_all(db: Session) -> int:
+    """Nombre total de participations en base (#384)."""
+    return db.query(func.count(Participation.id)).scalar() or 0
+
+
+def delete_all(db: Session) -> int:
+    """Supprime **toutes** les participations de la base. Rend le nombre effacé (#384).
+
+    Patron de `delete_for_course`, sans filtre : une purge totale n'a pas de
+    course à périmer une par une — `Course` et `course_sources` restent
+    strictement intacts, seule `participations` se vide.
+    """
+    efface = db.query(Participation).delete(synchronize_session=False)
+    db.flush()
+    return efface
+
+
 def delete_for_course(db: Session, course: Course) -> int:
     """Supprime **toutes** les participations de l'épreuve. Rend le nombre effacé (#285).
 

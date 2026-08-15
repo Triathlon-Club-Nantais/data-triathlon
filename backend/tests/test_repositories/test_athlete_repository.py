@@ -448,3 +448,11 @@ def test_saison_vide_sans_seasons_ne_filtre_pas_la_date(db_session):
     )
 
     assert [a.nom for a, _ in resultats] == ["TOUTESSAISONS"]
+
+
+def test_count_all_compte_toute_la_base(db_session):
+    athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean")
+    athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul")
+    db_session.flush()
+
+    assert athlete_repository.count_all(db_session) == 2

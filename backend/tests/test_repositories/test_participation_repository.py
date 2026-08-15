@@ -849,3 +849,31 @@ def test_list_page_for_course_charge_la_source_en_un_seul_aller(db_session):
         assert stats.count == 3
     finally:
         sql_observability.reset_for_tests()
+
+
+def test_count_all_compte_toutes_les_participations(db_session):
+    athlete, course = _setup(db_session)
+    other = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul", club="TCN")
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1", club="TCN"
+    )
+    participation_repository.create(
+        db_session, athlete_id=other.id, course_id=course.id, bib_number="2", club="TCN"
+    )
+    db_session.flush()
+
+    assert participation_repository.count_all(db_session) == 2
+
+
+def test_delete_all_vide_la_table_sans_toucher_aux_courses(db_session):
+    athlete, course = _setup(db_session)
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1", club="TCN"
+    )
+    db_session.flush()
+
+    efface = participation_repository.delete_all(db_session)
+
+    assert efface == 1
+    assert participation_repository.count_all(db_session) == 0
+    assert course_repository.get(db_session, course.id) is not None

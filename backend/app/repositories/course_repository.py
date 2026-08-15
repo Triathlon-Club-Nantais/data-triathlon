@@ -217,6 +217,25 @@ def touch_scraped_at(db: Session, course: Course) -> None:
     course.scraped_at = utcnow()
 
 
+def reset_scraped_at_all(db: Session) -> int:
+    """Remet `scraped_at` à `NULL` sur **toutes** les épreuves. Rend le nombre touché (#384).
+
+    `services/cache.is_fresh` lit `scraped_at is None` comme « jamais
+    scrapée » : après une purge totale des résultats, ceci force un rescrape
+    immédiat au lieu de laisser le TTL masquer la base vide jusqu'à 30 jours.
+
+    ponytail: `iter_all(older_than_days=...)` filtre sur `Course.scraped_at <
+    cutoff`, et `NULL` n'y matche jamais côté SQL — un rescrape en masse par
+    CLI avec `--older-than-days` ne retrouvera donc pas ces épreuves tant
+    qu'elles n'ont pas été re-scrapées au moins une fois. Sans incidence sur
+    le geste back-office (aucun filtre d'ancienneté ici) ; à garder en tête si
+    un usage CLI de cette purge apparaît un jour.
+    """
+    touchees = db.query(Course).update({Course.scraped_at: None}, synchronize_session=False)
+    db.flush()
+    return touchees
+
+
 def delete(db: Session, course: Course) -> None:
     """Supprime l'épreuve **et tous ses résultats** (#117, FR-002).
 
