@@ -142,7 +142,9 @@ _HISTOGRAM_MAX_BARS = 60
 _MAX_CATEGORIES = 8
 _MAX_CLUBS = 9
 
-_STATUTS_NON_FINISHERS = frozenset({"DNF", "DNS", "DSQ"})
+#: Statut brut (majuscule) → clé de compteur dédiée (#331). `non_finishers`
+#: reste leur somme, jamais recalculée séparément.
+_STATUTS_NON_FINISHERS = {"DNF": "dnf", "DNS": "dns", "DSQ": "dsq"}
 
 
 def _plus_frequents(compteur: Counter[str], limite: int) -> list[tuple[str, int]]:
@@ -182,7 +184,8 @@ def course_summary(db: Session, course_id: int) -> dict:
     pas faire tomber l'histogramme à une barre. C'est pour cela que la route
     qui l'expose n'accepte aucun paramètre.
     """
-    finishers = non_finishers = unknown = 0
+    finishers = unknown = 0
+    dnf = dns = dsq = 0
     male = female = tcn_count = 0
     categories: Counter[str] = Counter()
     clubs: Counter[str] = Counter()
@@ -192,8 +195,13 @@ def course_summary(db: Session, course_id: int) -> dict:
     lignes = participation_repository.summary_rows_for_course(db, course_id)
     for status, club, category, total_time, splits, gender in lignes:
         statut = (status or "").strip()
-        if statut.upper() in _STATUTS_NON_FINISHERS:
-            non_finishers += 1
+        cle_non_finisher = _STATUTS_NON_FINISHERS.get(statut.upper())
+        if cle_non_finisher == "dnf":
+            dnf += 1
+        elif cle_non_finisher == "dns":
+            dns += 1
+        elif cle_non_finisher == "dsq":
+            dsq += 1
         elif statut.lower() == STATUS_FINISHER:
             finishers += 1
         else:
@@ -233,7 +241,10 @@ def course_summary(db: Session, course_id: int) -> dict:
     return {
         "total": len(lignes),
         "finishers": finishers,
-        "non_finishers": non_finishers,
+        "non_finishers": dnf + dns + dsq,
+        "dnf": dnf,
+        "dns": dns,
+        "dsq": dsq,
         "unknown": unknown,
         "tcn_count": tcn_count,
         "male": male,

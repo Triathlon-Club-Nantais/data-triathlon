@@ -164,6 +164,12 @@ def test_course_summary_ventile_les_statuts(db_session):
         synthese["finishers"] + synthese["non_finishers"] + synthese["unknown"]
         == synthese["total"]
     )
+    # `non_finishers` agrégeait trois statuts distincts sous un seul chiffre,
+    # trompeur : un DNS n'a jamais couru, un DSQ a fini disqualifié (#331).
+    assert synthese["dnf"] == 1
+    assert synthese["dsq"] == 1
+    assert synthese["dns"] == 1
+    assert synthese["dnf"] + synthese["dsq"] + synthese["dns"] == synthese["non_finishers"]
 
 
 def test_course_summary_genre_ignore_les_lignes_sans_genre_lisible(db_session):
