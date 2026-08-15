@@ -1,6 +1,7 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useDebounce } from "@/hooks/useDebounce";
 import { X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -38,9 +39,13 @@ export function ResultsFilters() {
   const scope = sp.get("scope") ?? undefined;
   const sort = sp.get("sort") ?? undefined;
 
-  function push(filters: Record<string, string | undefined>) {
+  function urlFor(filters: Record<string, string | undefined>) {
     const qs = buildResultsQuery({ ...filters, scope, sort });
-    router.push(`/resultats${qs ? `?${qs}` : ""}`);
+    return `/resultats${qs ? `?${qs}` : ""}`;
+  }
+
+  function push(filters: Record<string, string | undefined>) {
+    router.push(urlFor(filters));
   }
 
   function apply() {
@@ -52,6 +57,32 @@ export function ResultsFilters() {
       date_to: dateTo,
     });
   }
+
+  // Recherche live : les champs texte filtrent dès la frappe (#383), sans
+  // attendre Entrée ou le bouton "Filtrer". Le debounce évite un appel par
+  // caractère ; on saute le premier rendu et les cas déjà à jour dans l'URL.
+  // `replace` (pas `push`) : sinon chaque groupe de frappe empile une entrée
+  // d'historique et le bouton Retour ne fait que rejouer la saisie.
+  const debouncedName = useDebounce(name);
+  const debouncedEventName = useDebounce(eventName);
+  useEffect(() => {
+    if (
+      debouncedName === (sp.get("name") ?? "") &&
+      debouncedEventName === (sp.get("event_name") ?? "")
+    ) {
+      return;
+    }
+    router.replace(
+      urlFor({
+        name: debouncedName,
+        event_name: debouncedEventName,
+        event_type: eventType,
+        date_from: dateFrom,
+        date_to: dateTo,
+      }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedName, debouncedEventName]);
 
   function reset() {
     setName("");
