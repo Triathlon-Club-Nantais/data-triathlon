@@ -28,9 +28,11 @@ n'accueille que ce qu'on voudrait relire à chaque session.
 | Un fournisseur en particulier (pièges mesurés, formes d'URL) | `docs/scrapers/<fournisseur>.md` |
 | CLI de batch : les 6 commandes, stdout parsable, codes de sortie | `backend/app/cli/AGENTS.md` |
 | API de lecture : `scope`, `federal_only`, pagination du classement | `backend/app/api/AGENTS.md` |
+| Une epic API en particulier (sources/fusion, admin, feedback, stats) | `docs/api/<sujet>.md` |
 | Modèle normalisé et splits | `backend/app/models/AGENTS.md` |
 | Observabilité SQL | `backend/app/core/AGENTS.md` |
 | Authentification SSO (#114) | `backend/app/services/auth/AGENTS.md` |
+| Liste d'autorisation (#170) ou groupes d'appartenance (#197) en détail | `docs/auth/<sujet>.md` |
 | Architecture frontend | `frontend/AGENTS.md` |
 | Dev multi-worktree : ports, `.worktreeinclude` | `docs/dev-multi-worktree.md` |
 | CI/CD, déploiements, variables par environnement | `docs/ci-cd.md` |
@@ -163,7 +165,8 @@ Guidelines d'écriture de code, valables dans les trois voies du workflow IA.
   produit, commentaires de règle métier, messages `DomainError`
   sérialisés vers le front) ; **English** pour la couche technique
   invisible (identifiants, tests, docstrings techniques, logs
-  Sentry/Datadog, préfixes Conventional Commits). Un identifiant nomme
+  Sentry/Datadog, préfixes Conventional Commits, **titres d'issues
+  GitHub** — même jeton machine que les titres de PR). Un identifiant nomme
   ce qu'il porte : les noms d'une ou deux lettres sont réservés aux
   liaisons dont la portée tient sous les yeux (compréhension, boucle,
   lambda, `db`). Règle de transition : on ne réécrit pas l'existant, la
@@ -179,6 +182,9 @@ Guidelines d'écriture de code, valables dans les trois voies du workflow IA.
   reconnaît aucune forme française, et « Ferme #123 » n'est que du texte — ni
   lien, ni fermeture à la fusion (constaté sur #162 et #163). Le reste de la
   description reste en français.
+- **Assignation GitHub** : s'assigner une issue au moment de commencer à y
+  travailler ; assigner toute PR une fois créée ; dès qu'elle n'est plus en
+  brouillon (« ready for review »), demander une review (#335).
 - Schéma DB : migrations **Alembic** (`uv run alembic revision --autogenerate`
   après modif d'un modèle, puis `uv run alembic upgrade head`).
 - Tests unitaires **sans réseau** ; le réseau réel est isolé derrière le marker
