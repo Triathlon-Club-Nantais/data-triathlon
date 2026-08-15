@@ -46,6 +46,7 @@ CODES_ATTENDUS = {
     "athletes:write",
     "participations:delete",
     "participations:reassign",
+    "participations:wipe_all",
     "batch:run",
     "batch:read",
     "feedback:read",
