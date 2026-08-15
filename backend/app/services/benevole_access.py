@@ -1,18 +1,23 @@
 """Accès partagé à la page de vérification des résultats bénévoles (#271).
 
-Aucune nouvelle table : un cookie de session signé par HMAC-SHA256 **avec le
-mot de passe partagé lui-même comme clé** (research.md §D1). La vérification
-recalcule ce HMAC avec le mot de passe courant — changer le mot de passe
-invalide donc tous les cookies existants, seul mécanisme de révocation
-retenu (collective, pas individuelle : il n'y a pas d'identité à révoquer).
+Le mot de passe partagé est géré depuis le back-office et stocké **haché et
+salé** (`hashlib.scrypt`, stdlib — research.md §D1 de
+`specs/20260815-173645-admin-mdp-benevoles/`), jamais en clair. Le cookie de
+session reste un HMAC signé sans état serveur, mais la clé n'est plus le mot
+de passe lui-même : c'est `session_secret`, un secret distinct stocké aux
+côtés du hachage et **régénéré à chaque remplacement** (research.md §D2) —
+ce qui préserve la révocation collective des sessions ouvertes sans jamais
+avoir besoin de relire le mot de passe en clair.
 """
 import hashlib
 import hmac
+import secrets
 import time
 
 from sqlalchemy.orm import Session
 
-from app.repositories import user_repository
+from app.models.benevole_access_config import BenevoleAccessConfig
+from app.repositories import benevole_config_repository, user_repository
 
 #: Nom du cookie de session bénévoles — distinct du cookie SSO (`tcn_session`,
 #: `api/v1/auth.py`), sur un mécanisme entièrement séparé.
@@ -23,6 +28,10 @@ BENEVOLE_SESSION_COOKIE = "tcn_benevole_session"
 #: par OAuth. Sert uniquement de cible à `AdminActionLog.user_id` pour les
 #: gestes déclenchés depuis cette page.
 SYSTEM_USER_EMAIL = "benevoles@systeme.interne"
+
+#: Taille du sel (research.md §D1) et du mot de passe généré (§D5), en octets.
+_SALT_SIZE = 16
+_GENERATED_PASSWORD_SIZE = 18
 
 
 def system_user_id(db: Session) -> int:
@@ -43,27 +52,96 @@ def system_user_id(db: Session) -> int:
     return comptes[0].id
 
 
-def sign_session(password: str) -> str:
-    """Fabrique la valeur du cookie : `{horodatage}.{HMAC(password, horodatage)}`."""
+def sign_session(key: str) -> str:
+    """Fabrique la valeur du cookie : `{horodatage}.{HMAC(key, horodatage)}`.
+
+    `key` est `BenevoleAccessConfig.session_secret` — plus le mot de passe
+    lui-même depuis cette feature (research.md §D2).
+    """
     horodatage = str(int(time.time()))
-    signature = _hmac(password, horodatage)
+    signature = _hmac(key, horodatage)
     return f"{horodatage}.{signature}"
 
 
-def verify_session(value: str | None, password: str) -> bool:
-    """Vrai si `value` a bien été signée par `password`.
+def verify_session(value: str | None, key: str) -> bool:
+    """Vrai si `value` a bien été signée par `key`.
 
-    Fail-closed : mot de passe vide (non configuré), valeur absente, ou
-    valeur mal formée rendent tous `False`, jamais une exception.
+    Fail-closed : clé vide (non configuré), valeur absente, ou valeur mal
+    formée rendent tous `False`, jamais une exception.
     """
-    if not value or not password:
+    if not value or not key:
         return False
     horodatage, separateur, signature = value.partition(".")
     if not separateur or not horodatage or not signature:
         return False
-    attendue = _hmac(password, horodatage)
+    attendue = _hmac(key, horodatage)
     return hmac.compare_digest(signature, attendue)
 
 
-def _hmac(password: str, message: str) -> str:
-    return hmac.new(password.encode("utf-8"), message.encode("utf-8"), hashlib.sha256).hexdigest()
+def _hmac(key: str, message: str) -> str:
+    return hmac.new(key.encode("utf-8"), message.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def hash_password(password: str) -> tuple[str, str]:
+    """Rend `(password_hash, password_salt)`, tous deux en hexadécimal.
+
+    `hashlib.scrypt` (stdlib, memory-hard) plutôt qu'un simple SHA-256 salé :
+    un mot de passe choisi par un humain a une entropie bien inférieure à un
+    jeton de session généré, et devient attaquable hors ligne par force brute
+    sur un simple hachage rapide (research.md §D1). Un sel de 16 octets,
+    régénéré à **chaque** appel — jamais réutilisé d'un mot de passe à l'autre.
+    """
+    salt = secrets.token_bytes(_SALT_SIZE)
+    empreinte = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=2**14, r=8, p=1)
+    return empreinte.hex(), salt.hex()
+
+
+def verify_password(password: str, *, password_hash: str, password_salt: str) -> bool:
+    """Vrai si `password` produit bien `password_hash` avec `password_salt`.
+
+    Comparaison en temps constant (`hmac.compare_digest`), même patron que la
+    vérification du cookie ci-dessus.
+    """
+    empreinte = hashlib.scrypt(
+        password.encode("utf-8"), salt=bytes.fromhex(password_salt), n=2**14, r=8, p=1
+    )
+    return hmac.compare_digest(empreinte.hex(), password_hash)
+
+
+def new_session_secret() -> str:
+    """Un secret de session neuf — jamais le même deux fois (research.md §D2)."""
+    return secrets.token_urlsafe(32)
+
+
+def generate_password() -> str:
+    """Un mot de passe robuste, généré côté serveur (research.md §D5).
+
+    144 bits d'entropie uniforme (`secrets.token_urlsafe(18)` → 24
+    caractères) — trop pour un humain à retenir, ce qui est le but (Story 2
+    vise un secret robuste, pas mémorisable).
+    """
+    return secrets.token_urlsafe(_GENERATED_PASSWORD_SIZE)
+
+
+def replace_password(
+    db: Session, *, password: str | None, admin_user_id: int
+) -> tuple[BenevoleAccessConfig, str]:
+    """Remplace le mot de passe bénévoles — saisi (`password` fourni) ou
+    généré (`password` absent, Story 2). Rend `(config, mot_de_passe_en_clair)`.
+
+    Orchestration de service, jamais un appel direct au repository depuis un
+    routeur (AGENTS.md, « routers fins : délégation au service ») : hache le
+    mot de passe, régénère `session_secret`, et écrit les trois champs
+    **dans le même appel** à `save_config` — jamais l'un sans les autres
+    (data-model.md, invariant d'atomicité, FR-006).
+    """
+    mot_de_passe = password if password is not None else generate_password()
+    password_hash, password_salt = hash_password(mot_de_passe)
+    config = benevole_config_repository.save_config(
+        db,
+        password_hash=password_hash,
+        password_salt=password_salt,
+        session_secret=new_session_secret(),
+        updated_by_user_id=admin_user_id,
+    )
+    return config, mot_de_passe

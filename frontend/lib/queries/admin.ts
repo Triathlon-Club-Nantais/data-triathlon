@@ -411,6 +411,32 @@ export function useRevokeSessions() {
   });
 }
 
+// ── Mot de passe partagé bénévoles (#271 → cette feature) ───────────────────
+
+export function useBenevoleAccessConfig() {
+  return useQuery({
+    queryKey: queryKeys.benevoleAccessConfig(),
+    queryFn: () => apiClient.getBenevoleAccessConfig(),
+    retry: false,
+  });
+}
+
+export function useReplaceBenevoleAccessPassword() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (password: string) => apiClient.replaceBenevoleAccessPassword(password),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.benevoleAccessConfig() }),
+  });
+}
+
+export function useGenerateBenevoleAccessPassword() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiClient.generateBenevoleAccessPassword(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.benevoleAccessConfig() }),
+  });
+}
+
 // ── Groupes d'appartenance (#241) ────────────────────────────────────────────
 
 export function useGroups() {

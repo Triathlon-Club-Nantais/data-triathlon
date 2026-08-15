@@ -2,6 +2,7 @@
 from app.models.admin_action_log import AdminActionLog
 from app.models.allowed_email import AllowedEmail
 from app.models.athlete import Athlete
+from app.models.benevole_access_config import BenevoleAccessConfig
 from app.models.course import Course
 from app.models.course_source import CourseSource
 from app.models.group import Group
@@ -21,6 +22,7 @@ __all__ = [
     "AdminActionLog",
     "AllowedEmail",
     "Athlete",
+    "BenevoleAccessConfig",
     "Course",
     "CourseSource",
     "Group",

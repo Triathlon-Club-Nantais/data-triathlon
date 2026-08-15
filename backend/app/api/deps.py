@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.core.exceptions import DomainError
 from app.core.permissions import Permission
 from app.models.user import User
+from app.repositories import benevole_config_repository
 from app.services import benevole_access
 from app.services.auth import authorization
 from app.services.auth import session as session_service
@@ -86,19 +87,20 @@ def optional_user(
     return session_service.resolve(db, token)
 
 
-def require_benevole_access(
-    request: Request, settings: Settings = Depends(get_settings)
-) -> None:
+def require_benevole_access(request: Request, db: Session = Depends(get_db)) -> None:
     """Garde de la page bénévoles (#271) — mot de passe partagé, pas de RBAC.
 
     **Distincte de `require_permission`** : ne compose pas `current_user`, ne
-    porte aucune identité individuelle (research.md §D1 de la feature — le
-    choix RGPD/CNIL qui a motivé le mot de passe partagé plutôt qu'un compte
-    par bénévole). Fail-closed : mot de passe non configuré ou cookie absent/
-    invalide rendent tous le même 401.
+    porte aucune identité individuelle (research.md §D1 de #271 — le choix
+    RGPD/CNIL qui a motivé le mot de passe partagé plutôt qu'un compte par
+    bénévole). Fail-closed : configuration absente (jamais définie) ou
+    cookie absent/invalide rendent tous le même 401 — la clé de vérification
+    est `session_secret`, pas le mot de passe lui-même (research.md §D2 de
+    `specs/20260815-173645-admin-mdp-benevoles/`).
     """
+    config = benevole_config_repository.get_config(db)
     cookie = request.cookies.get(benevole_access.BENEVOLE_SESSION_COOKIE)
-    if not benevole_access.verify_session(cookie, settings.benevole_shared_password):
+    if config is None or not benevole_access.verify_session(cookie, config.session_secret):
         raise NotAuthenticatedError()
 
 
