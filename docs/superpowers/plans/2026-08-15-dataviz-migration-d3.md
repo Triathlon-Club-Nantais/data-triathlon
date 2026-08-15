@@ -932,7 +932,7 @@ Expected: all three succeed with zero errors/warnings introduced by this migrati
 - [ ] **Step 4: Confirm no dead code remains**
 
 ```bash
-grep -rn "conic-gradient" app/courses "[id]"/page.tsx || echo "OK: plus de conic-gradient"
+grep -n "conic-gradient" "app/courses/[id]/page.tsx" || echo "OK: plus de conic-gradient"
 grep -n "CAT_COLORS\|function Legend\|function pctFr\|function Histogram" "app/courses/[id]/page.tsx" || echo "OK: rien à nettoyer"
 ```
 
