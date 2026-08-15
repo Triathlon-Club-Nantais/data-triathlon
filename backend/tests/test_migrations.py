@@ -535,3 +535,36 @@ def test_downgrade_then_upgrade_of_the_course_sources_table(sqlite_url):
     assert _lignes(sqlite_url, "SELECT count(*) FROM course_sources WHERE is_active") == [
         (2,)
     ]
+
+
+# --- Purge totale des résultats (#384) ------------------------------------
+
+#: Révision qui précède immédiatement la nullabilité de `scraped_at`. **Nommée** :
+#: un `-1` se décalerait à la première migration insérée entre-temps.
+_BEFORE_SCRAPED_AT_NULLABLE = "05094fea3bc2"
+
+
+def _nullable(url: str, table: str, column: str) -> bool:
+    engine = sa.create_engine(url)
+    try:
+        colonnes = {c["name"]: c for c in sa.inspect(engine).get_columns(table)}
+        return bool(colonnes[column]["nullable"])
+    finally:
+        engine.dispose()
+
+
+def test_scraped_at_devient_nullable(sqlite_url):
+    command.upgrade(_alembic_config(), "head")
+
+    assert _nullable(sqlite_url, "courses", "scraped_at") is True
+
+
+def test_downgrade_puis_upgrade_de_la_nullabilite_de_scraped_at(sqlite_url):
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+
+    command.downgrade(cfg, _BEFORE_SCRAPED_AT_NULLABLE)
+    assert _nullable(sqlite_url, "courses", "scraped_at") is False
+
+    command.upgrade(cfg, "head")
+    assert _nullable(sqlite_url, "courses", "scraped_at") is True
