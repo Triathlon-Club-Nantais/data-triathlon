@@ -11,16 +11,8 @@ import { formatDate } from "@/lib/utils/date";
 import { formatEventName } from "@/lib/utils/event";
 import { Histogram } from "@/components/charts/Histogram";
 import { GenderDonut } from "@/components/charts/GenderDonut";
+import { CategoryBars } from "@/components/charts/CategoryBars";
 import { SCOPE_PARAM, scopeFromParam } from "@/lib/scope";
-
-const CAT_COLORS = [
-  "var(--tcn-orange)", "var(--tcn-orange-300)", "var(--tcn-ink)", "var(--tcn-ink-2)",
-  "var(--tcn-ink-3)", "var(--tcn-grey-400)", "var(--tcn-orange-200)", "var(--tcn-grey-300)",
-];
-
-function pctFr(pct: number): string {
-  return pct.toFixed(1).replace(".", ",");
-}
 
 /**
  * Convertit une épreuve absente en `null`, et **laisse remonter le reste**.
@@ -76,15 +68,6 @@ export default async function CoursePage({
   const malePct = hasGender ? (summary.male / genderTotal) * 100 : 0;
   const femalePct = hasGender ? (summary.female / genderTotal) * 100 : 0;
 
-  // ── Répartition par catégorie ──
-  // Dénominateur : toutes les catégories, pas les 8 affichées (cf. `categories_total`).
-  const catTotal = summary.categories_total;
-  const categories = summary.categories.map((c, i) => ({
-    name: c.name,
-    pct: catTotal ? (c.count / catTotal) * 100 : 0,
-    color: CAT_COLORS[i % CAT_COLORS.length],
-  }));
-
   // ── Top clubs ──
   // Le drapeau TCN vient du backend, seul dépositaire de la définition (#76).
   const clubs = summary.clubs;
@@ -117,21 +100,7 @@ export default async function CoursePage({
 
         <Card padding={24}>
           <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 18, color: "var(--tcn-ink)", marginBottom: 18 }}>Répartition par catégorie</div>
-          {categories.length === 0 ? (
-            <div style={{ color: "var(--tcn-text-faint)", fontSize: 14 }}>Catégories non renseignées.</div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {categories.map((c) => (
-                <div key={c.name} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ flex: "none", width: 36, fontWeight: 800, fontSize: 13, color: "var(--tcn-ink)" }}>{c.name}</span>
-                  <div style={{ flex: 1, height: 13, background: "var(--tcn-fill)", borderRadius: 999, overflow: "hidden" }}>
-                    <div style={{ width: c.pct + "%", height: "100%", background: c.color, borderRadius: 999 }} />
-                  </div>
-                  <span style={{ flex: "none", width: 48, textAlign: "right", fontSize: 13, fontWeight: 700, color: "var(--tcn-text-body)" }}>{pctFr(c.pct)}%</span>
-                </div>
-              ))}
-            </div>
-          )}
+          <CategoryBars categories={summary.categories} total={summary.categories_total} />
         </Card>
 
         <Card padding={24} className="sm:col-span-2 lg:col-span-1">
