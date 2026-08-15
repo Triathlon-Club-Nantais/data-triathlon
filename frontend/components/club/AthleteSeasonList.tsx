@@ -14,11 +14,18 @@ function normalise(texte: string): string {
     .toLowerCase();
 }
 
-/** Filtre en mémoire (#382) — même liste déjà chargée que le tri, pas d'aller-retour réseau. */
+/**
+ * Filtre en mémoire (#382) — même liste déjà chargée que le tri, pas d'aller-retour
+ * réseau. Mot à mot comme `name_filter` côté API (#357) : chaque mot du terme doit
+ * matcher nom+prénom, sans quoi « Jean Dupont » (ordre naturel) ne trouve rien.
+ */
 function filterAthletes(athletes: AthleteSeasonActivity[], query: string): AthleteSeasonActivity[] {
-  const q = normalise(query.trim());
-  if (!q) return athletes;
-  return athletes.filter((a) => normalise(`${a.nom} ${a.prenom}`).includes(q));
+  const mots = normalise(query.trim()).split(/\s+/).filter(Boolean);
+  if (mots.length === 0) return athletes;
+  return athletes.filter((a) => {
+    const cible = normalise(`${a.nom} ${a.prenom}`);
+    return mots.every((mot) => cible.includes(mot));
+  });
 }
 
 // Nom vide (import mal renseigné) en fin de tri, pas en tête (Edge Cases du
@@ -74,6 +81,7 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Rechercher un athlète (nom, prénom)"
+          aria-label="Rechercher un athlète"
           containerStyle={{ padding: "8px 14px", maxWidth: 320, flex: 1 }}
         />
         <AthleteSortToggle />

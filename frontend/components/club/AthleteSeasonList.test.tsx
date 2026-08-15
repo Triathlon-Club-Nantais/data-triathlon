@@ -134,4 +134,25 @@ describe("AthleteSeasonList", () => {
 
     expect(rowNames()).toEqual(["LEMÉE"]);
   });
+
+  it("recherche « prénom nom » mot à mot, comme name_filter côté API (#357, #382)", async () => {
+    render(
+      <AthleteSeasonList
+        athletes={[
+          athlete({ id: 1, nom: "DUPONT", prenom: "Jean" }),
+          athlete({ id: 2, nom: "MARTIN", prenom: "Julie" }),
+        ]}
+      />,
+    );
+
+    await userEvent.type(screen.getByPlaceholderText(/rechercher un athlète/i), "jean dupont");
+
+    expect(rowNames()).toEqual(["DUPONT"]);
+  });
+
+  it("champ de recherche accessible : porte un aria-label (#382)", () => {
+    render(<AthleteSeasonList athletes={[athlete({ id: 1 })]} />);
+
+    expect(screen.getByRole("searchbox", { name: /rechercher un athlète/i })).toBeInTheDocument();
+  });
 });
