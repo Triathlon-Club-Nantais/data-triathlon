@@ -71,6 +71,26 @@ def test_search_par_prenom_nom_accentue(db_session):
     assert [a.nom for a in found] == ["LEMÉE"]
 
 
+def test_search_avec_terme_tout_espaces_ne_rend_rien(db_session):
+    """`name="   "` ne doit pas dégénérer en absence de filtre (revue #365)."""
+    athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean")
+    db_session.flush()
+
+    found = athlete_repository.search(db_session, name="   ")
+
+    assert found == []
+
+
+def test_search_admin_avec_terme_tout_espaces_ne_rend_rien(db_session):
+    """Même garde côté recherche gardée (revue #365)."""
+    athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean")
+    db_session.flush()
+
+    resultats = athlete_repository.search_admin(db_session, search="   ")
+
+    assert resultats == []
+
+
 def test_search_admin_par_prenom_nom(db_session):
     """La recherche gardée passe aussi par le filtre mot à mot (#357)."""
     athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean")

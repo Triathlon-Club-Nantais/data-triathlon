@@ -104,8 +104,11 @@ reportée sciemment). Si `unaccent` n'est pas résoluble depuis le `search_path`
 du rôle applicatif — les extensions vivant conventionnellement dans le schéma
 `extensions` sur Supabase —, seule la **recherche par nom** tombera ; la
 pagination, la synthèse et les six blocs n'en dépendent pas.
-`/athletes?name=` garde son comportement d'origine (casse seule) ; l'unifier est
-un autre sujet.
+`/athletes?name=` partage désormais le même `name_filter`
+(`repositories/athlete_repository.py`) que la recherche gardée, la liste des
+participations et le classement d'épreuve : mot à mot, `nom` **ou** `prénom`
+par mot, sans casse ni accents (#357). Les quatre sites d'appel ne peuvent
+plus diverger — un seul helper, testé une fois.
 
 Côté interface, l'état vit dans l'URL (`page`, `q`, `scope` — ce dernier via
 `lib/scope.SCOPE_PARAM`), la pagination est en `<Link>` (ouvrables en nouvel

@@ -88,6 +88,17 @@ def test_list_filters_by_name_and_club(db_session):
     assert [p.athlete.nom for p in by_full_name] == ["DUPONT"]
 
 
+def test_list_avec_terme_tout_espaces_ne_rend_rien(db_session):
+    """`name="   "` ne doit pas dégénérer en absence de filtre (revue #365)."""
+    athlete, course = _setup(db_session)
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1", club="TCN"
+    )
+    db_session.flush()
+
+    assert participation_repository.list_participations(db_session, name="   ") == []
+
+
 def test_list_filters_by_course_id(db_session):
     athlete, course = _setup(db_session)
     other_course = course_repository.get_or_create(
