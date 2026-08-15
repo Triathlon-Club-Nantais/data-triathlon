@@ -319,3 +319,25 @@ def test_reassign_refuse_sans_cookie(client, resultat_pendant):
         f"/api/v1/benevoles/participations/{ligne.id}/reassign", json={"athlete_id": athlete.id}
     )
     assert reponse.status_code == 401
+
+
+# --- Effet de bout en bout de la validation (quickstart.md, scénario 1) -----
+
+
+def test_valider_rend_le_resultat_visible_sur_la_fiche_et_dans_les_agregats(
+    benevole_connecte, resultat_pendant, compte_systeme
+):
+    """FR-008/FR-009 : ce que #270 excluait, la validation le restitue."""
+    course, athlete, ligne = resultat_pendant
+
+    fiche = benevole_connecte.get(f"/api/v1/athletes/{athlete.id}").json()
+    assert [p["id"] for p in fiche["participations"]] == [ligne.id]
+    assert fiche["participations"][0]["is_pending_validation"] is True
+
+    benevole_connecte.post(f"/api/v1/benevoles/participations/{ligne.id}/validate")
+
+    apres = benevole_connecte.get(f"/api/v1/athletes/{athlete.id}").json()
+    assert apres["participations"][0]["is_pending_validation"] is False
+
+    stats = benevole_connecte.get("/api/v1/stats").json()
+    assert stats["total"] >= 1

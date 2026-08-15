@@ -4,6 +4,7 @@ import type {
   AdminAthleteUpdate,
   AdminCourseUpdate,
   AdminUser,
+  AthleteBrief,
   AuthMethod,
   BatchLaunched,
   BatchReport,
@@ -385,5 +386,36 @@ export const apiClient = {
     request<Feedback>(`/admin/feedback/${id}`, {
       method: "PATCH",
       body: JSON.stringify({ github_url: githubUrl }),
+    }),
+
+  // ── Recherche publique d'athlètes ───────────────────────────────────────────
+  // `GET /athletes` est ouverte à tous — pas de `birth_date` (réservée à
+  // `searchAthletesAdmin`). Sert le sélecteur de réattribution de la page
+  // bénévoles (#271), qui n'a pas accès au SSO.
+  searchAthletes: (name: string) =>
+    request<AthleteBrief[]>(`/athletes${toQuery({ name, page_size: 20 })}`),
+
+  // ── Page de vérification des résultats par les bénévoles (#271) ────────────
+  // Garde par mot de passe partagé (`require_benevole_access`), **pas** par
+  // pouvoir SSO/RBAC — research.md §D1 de la feature. `benevoleLogin` répond
+  // 401 sur un mot de passe incorrect ou non configuré ; les quatre autres
+  // répondent 401 sans le cookie que `benevoleLogin` pose.
+  benevoleLogin: (password: string) =>
+    request<null>("/benevoles/session", { method: "POST", body: JSON.stringify({ password }) }),
+  benevoleLogout: () => request<null>("/benevoles/session", { method: "DELETE" }),
+  getBenevoleQueue: () => request<Participation[]>("/benevoles/queue"),
+  validateParticipationBenevole: (participationId: number) =>
+    request<Participation>(`/benevoles/participations/${participationId}/validate`, {
+      method: "POST",
+    }),
+  renameCourseBenevole: (courseId: number, name: string) =>
+    request<CourseBrief>(`/benevoles/courses/${courseId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }),
+  reassignParticipationBenevole: (participationId: number, athleteId: number) =>
+    request<Participation>(`/benevoles/participations/${participationId}/reassign`, {
+      method: "POST",
+      body: JSON.stringify({ athlete_id: athleteId }),
     }),
 };
