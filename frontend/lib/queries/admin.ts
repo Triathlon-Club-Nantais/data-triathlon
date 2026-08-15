@@ -166,6 +166,40 @@ export function useWipeAllParticipations() {
 }
 
 /**
+ * Ce qu'une purge totale des épreuves détruirait — même patron que
+ * `useParticipationsWipeImpact` (#384, suite).
+ */
+export function useCoursesWipeImpact(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.coursesWipeImpact(),
+    queryFn: () => apiClient.getCoursesWipeImpact(),
+    enabled,
+    retry: false,
+  });
+}
+
+/**
+ * La purge totale des épreuves (#384, suite). Emporte aussi les résultats
+ * (cascade ORM depuis `Course`), donc invalide les deux chiffrages — le
+ * sien et celui de `useWipeAllParticipations` — en plus des mêmes caches.
+ */
+export function useWipeAllCourses() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiClient.wipeAllCourses(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.coursesWipeImpact() });
+      qc.invalidateQueries({ queryKey: queryKeys.participationsWipeImpact() });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.courses });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.detailEpreuve });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.coureurs });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.ficheCoureur });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.resultatsPublics });
+    },
+  });
+}
+
+/**
  * Bascule de la source active d'une épreuve (#285, #291).
  *
  * Bloquante côté backend — pas de SSE ici, décision tranchée par l'epic #275

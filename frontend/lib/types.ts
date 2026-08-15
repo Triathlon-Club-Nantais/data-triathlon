@@ -548,6 +548,19 @@ export interface ParticipationsWipeImpact {
   athletes: number;
 }
 
+/**
+ * Ce qu'une purge totale des épreuves détruirait (#384, suite).
+ *
+ * Contrairement à `ParticipationsWipeImpact`, ce geste emporte aussi les
+ * épreuves elles-mêmes et leurs sources — `courses` s'ajoute donc aux deux
+ * compteurs déjà connus.
+ */
+export interface CoursesWipeImpact {
+  courses: number;
+  participations: number;
+  athletes: number;
+}
+
 /** Une épreuve côté aperçu de fusion — miroir de `MergeImpactCourse` (#286). */
 export interface MergeImpactCourse {
   id: number;
