@@ -27,6 +27,7 @@ import type {
   GroupDetail,
   Participation,
   ParticipationFilters,
+  ParticipationsWipeImpact,
   RescrapeLaunch,
   AllowedEmail,
   PendingProvider,
@@ -180,6 +181,16 @@ export const apiClient = {
     request<CourseDeletionImpact>(`/admin/courses/${id}/deletion-impact`),
   deleteCourse: (id: number) =>
     request<null>(`/admin/courses/${id}`, { method: "DELETE" }),
+
+  // ── Purge totale des résultats (#384) ──────────────────────────────────────
+  // `participations:wipe_all`. Vide `participations` entièrement ; `courses`
+  // et `course_sources` restent intacts — c'est ce qui permet un rescrape
+  // immédiat sans tout réimporter depuis les URLs sources.
+  getParticipationsWipeImpact: () =>
+    request<ParticipationsWipeImpact>("/admin/participations/wipe-impact"),
+  wipeAllParticipations: () =>
+    request<null>("/admin/participations", { method: "DELETE" }),
+
   updateCourse: (id: number, champs: Partial<AdminCourseUpdate>) =>
     request<CourseBrief>(`/admin/courses/${id}`, {
       method: "PATCH",

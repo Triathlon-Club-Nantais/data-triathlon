@@ -127,6 +127,37 @@ export function useDeleteCourse() {
 }
 
 /**
+ * Ce qu'une purge totale des résultats détruirait — chargé **à l'ouverture
+ * de la modale** (#384), même patron que `useCourseDeletionImpact`.
+ */
+export function useParticipationsWipeImpact(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.participationsWipeImpact(),
+    queryFn: () => apiClient.getParticipationsWipeImpact(),
+    enabled,
+    retry: false,
+  });
+}
+
+/**
+ * La purge totale des résultats (#384). Invalide tout ce qu'un résultat
+ * alimente : le catalogue d'épreuves (leur `scraped_at` vient de changer),
+ * le détail d'une épreuve, les fiches coureur, et les résultats publics.
+ */
+export function useWipeAllParticipations() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiClient.wipeAllParticipations(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.courses });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.detailEpreuve });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.coureurs });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.resultatsPublics });
+    },
+  });
+}
+
+/**
  * Bascule de la source active d'une épreuve (#285, #291).
  *
  * Bloquante côté backend — pas de SSE ici, décision tranchée par l'epic #275
