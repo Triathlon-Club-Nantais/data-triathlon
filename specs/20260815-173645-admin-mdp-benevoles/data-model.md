@@ -31,6 +31,14 @@ Une seule ligne existe à tout instant (research.md §D3). Remplace
 (#271) garde `SYSTEM_USER_EMAIL`/`system_user_id`, sans rapport avec cette
 configuration.
 
+**Longueur minimale d'une saisie manuelle** : 8 caractères
+(`BenevoleAccessReplaceIn.password`, `schemas/benevole_access.py`) — validée
+par le schéma Pydantic, jamais par le service (contracts/api.md). Une valeur
+délibérément basse : la génération sécurisée (research.md §D5) reste le
+chemin recommandé pour un secret robuste, cette borne n'existe que pour
+écarter une saisie manifestement dérisoire (un caractère, une chaîne vide),
+pas pour imposer une politique de mot de passe.
+
 ## Journalisation (`AdminActionLog`, réutilisé)
 
 Chaque remplacement (saisie ou génération) écrit une entrée sous l'action
