@@ -456,3 +456,26 @@ def test_count_all_compte_toute_la_base(db_session):
     db_session.flush()
 
     assert athlete_repository.count_all(db_session) == 2
+
+
+def test_saison_federal_only_retire_les_disciplines_hors_federation(db_session):
+    """#382 — même défaut neutre (`federal_only=False`) et même liste d'exclusion que #76."""
+    from app.repositories import course_repository
+
+    course_tri = _epreuve_datee(db_session, "Triathlon", date(2025, 9, 15))
+    course_trail = course_repository.get_or_create(
+        db_session, name="Trail", event_date=date(2025, 9, 20), event_type="trail",
+        source_url="https://k/Trail", provider="klikego",
+    )
+    db_session.flush()
+    triathlete = athlete_repository.get_or_create(db_session, nom="TRIATHLETE", prenom="T", club="TCN")
+    traileur = athlete_repository.get_or_create(db_session, nom="TRAILEUR", prenom="T", club="TCN")
+    db_session.flush()
+    _inscrit_club(db_session, triathlete, course_tri, "1")
+    _inscrit_club(db_session, traileur, course_trail, "2")
+
+    resultats = athlete_repository.list_with_season_participation_count(
+        db_session, seasons=[2025], club_only=False, federal_only=True
+    )
+
+    assert [a.nom for a, _ in resultats] == ["TRIATHLETE"]

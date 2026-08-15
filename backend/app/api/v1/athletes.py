@@ -32,11 +32,15 @@ def list_athletes(
 def list_athletes_season_activity(
     scope: str | None = Query(None, description="« club » restreint aux membres du TCN."),
     seasons: str | None = Query(None),
+    federal_only: bool = Query(False, description="Retire trail, course à pied et cyclisme."),
     db: Session = Depends(get_db),
 ):
-    """Athlètes ayant ≥1 participation sur `seasons`, avec leur compte (#274)."""
+    """Athlètes ayant ≥1 participation sur `seasons`, avec leur compte (#274, #382)."""
     lignes = athlete_repository.list_with_season_participation_count(
-        db, seasons=parse_seasons(seasons), club_only=is_club_scope(scope)
+        db,
+        seasons=parse_seasons(seasons),
+        club_only=is_club_scope(scope),
+        federal_only=federal_only,
     )
     return [
         AthleteSeasonActivity(id=a.id, nom=a.nom, prenom=a.prenom, participation_count=n)

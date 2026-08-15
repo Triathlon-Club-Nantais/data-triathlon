@@ -65,4 +65,26 @@ describe("/club/athletes", () => {
     expect(listSeasons).toHaveBeenCalledWith(expect.objectContaining({ scope: "club" }));
     expect(screen.getByLabelText("Choisir les saisons")).toBeInTheDocument();
   });
+
+  it("filtre aux disciplines fédérales par défaut, comme /dashboard et /club (#382)", async () => {
+    await renderPage();
+
+    expect(listAthleteSeasonActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ federal_only: true }),
+    );
+  });
+
+  it("lit ?sports=all pour inclure les autres disciplines (#382)", async () => {
+    await renderPage({ sports: "all" });
+
+    expect(listAthleteSeasonActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ federal_only: undefined }),
+    );
+  });
+
+  it("rend le DisciplineToggle (#382)", async () => {
+    await renderPage();
+
+    expect(screen.getByText("Inclure les autres disciplines")).toBeInTheDocument();
+  });
 });
