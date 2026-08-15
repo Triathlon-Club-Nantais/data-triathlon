@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { AthleteSeasonActivity } from "@/lib/types";
 
 let searchParams = new URLSearchParams();
@@ -102,5 +103,35 @@ describe("AthleteSeasonList", () => {
     );
 
     expect(rowNames()).toEqual(["ALPHA", "ZEBRE"]);
+  });
+
+  it("champ de recherche (#382) : filtre par nom ou prénom au fil de la frappe", async () => {
+    render(
+      <AthleteSeasonList
+        athletes={[
+          athlete({ id: 1, nom: "DUPONT", prenom: "Jean" }),
+          athlete({ id: 2, nom: "MARTIN", prenom: "Julie" }),
+        ]}
+      />,
+    );
+
+    await userEvent.type(screen.getByPlaceholderText(/rechercher un athlète/i), "dupont");
+
+    expect(rowNames()).toEqual(["DUPONT"]);
+  });
+
+  it("recherche insensible à la casse et aux accents, et matche aussi le prénom (#382)", async () => {
+    render(
+      <AthleteSeasonList
+        athletes={[
+          athlete({ id: 1, nom: "LEMÉE", prenom: "Éric" }),
+          athlete({ id: 2, nom: "MARTIN", prenom: "Julie" }),
+        ]}
+      />,
+    );
+
+    await userEvent.type(screen.getByPlaceholderText(/rechercher un athlète/i), "eric");
+
+    expect(rowNames()).toEqual(["LEMÉE"]);
   });
 });
