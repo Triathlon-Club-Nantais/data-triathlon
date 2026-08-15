@@ -416,11 +416,16 @@ def test_purger_les_epreuves_emporte_bien_les_sources(client, db_session, base_a
     from app.repositories import course_source_repository
 
     a, b = base_avec_resultats
+    # Ids capturés avant le geste : `delete_all` est un DELETE de masse, pas
+    # une cascade ORM instance par instance — relire `a`/`b` après coup
+    # lèverait sur une identity map périmée (même patron que
+    # `test_supprimer_une_epreuve_purge_les_fiches_devenues_vides`).
+    id_a, id_b = a.id, b.id
 
     client.delete("/api/v1/admin/courses")
 
-    assert course_source_repository.list_for_course(db_session, a.id) == []
-    assert course_source_repository.list_for_course(db_session, b.id) == []
+    assert course_source_repository.list_for_course(db_session, id_a) == []
+    assert course_source_repository.list_for_course(db_session, id_b) == []
 
 
 def test_purger_les_epreuves_consigne_le_geste(client, db_session, base_avec_resultats):
@@ -462,6 +467,7 @@ def test_un_refus_de_pouvoir_ne_purge_pas_les_epreuves(client, db_session, base_
     client.delete("/api/v1/admin/courses")
 
     assert course_repository.count_all(db_session) == 2
+    assert participation_repository.count_all(db_session) == 2
 
 
 # --- POST /admin/participations/{id}/reassign -------------------------------

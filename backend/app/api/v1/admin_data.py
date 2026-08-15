@@ -1,4 +1,5 @@
-"""Router d'administration des données (#117) — dix ressources, dix gardes.
+"""Router d'administration des données (#117) — dix ressources, onze gardes
+(les deux lectures de `athletes:read` partagent une ressource, pas leur garde).
 
 **Chacune porte sa garde individuellement, et nomme un pouvoir, jamais un rôle**
 (#115, FR-017/FR-018). Aucune garde de préfixe, et ce n'est pas une préférence

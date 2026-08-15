@@ -63,7 +63,7 @@ export function WipeParticipationsCard() {
     <>
       <Card className="border-destructive/40">
         <CardHeader>
-          <CardTitle>Zone dangereuse</CardTitle>
+          <CardTitle>Purger les résultats</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-[var(--tcn-text-faint)] text-sm">

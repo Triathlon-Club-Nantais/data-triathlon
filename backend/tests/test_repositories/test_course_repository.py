@@ -405,11 +405,16 @@ def test_reset_scraped_at_all_remet_toutes_les_epreuves_a_null(db_session):
 
 
 def test_delete_all_supprime_toutes_les_epreuves_sources_et_resultats(db_session):
+    from app.repositories import course_source_repository
+
     a = course_repository.get_or_create(
         db_session, name="Tri A", event_date=date(2026, 5, 1), event_type="triathlon-m",
         source_url="https://k/a", provider="klikego",
     )
-    b = course_repository.get_or_create(
+    # Une épreuve à sources multiples (#278) : le DELETE de masse ne doit pas
+    # ne cibler que la source active.
+    course_source_repository.add(db_session, course=a, url="https://w/a", provider="wiclax")
+    course_repository.get_or_create(
         db_session, name="Tri B", event_date=date(2026, 5, 2), event_type="triathlon-m",
         source_url="https://k/b", provider="klikego",
     )
@@ -423,7 +428,11 @@ def test_delete_all_supprime_toutes_les_epreuves_sources_et_resultats(db_session
     efface = course_repository.delete_all(db_session)
 
     assert efface == 2
-    assert course_repository.get(db_session, a.id) is None
-    assert course_repository.get(db_session, b.id) is None
+    # Lecture agrégée fraîche, pas `course_repository.get(db_session, a.id)` :
+    # `a`/`b` sont dans l'identity map depuis avant le `DELETE` de masse, et
+    # `delete_all` ne les périme pas (même choix que `participation_repository
+    # .delete_all` — voir sa docstring) ; les relire par ORM sur cette session
+    # testerait une staleté connue et acceptée, pas le comportement du dépôt.
+    assert db_session.query(Course).count() == 0
     assert db_session.query(CourseSource).count() == 0
     assert db_session.query(Participation).count() == 0

@@ -806,14 +806,18 @@ def test_courses_wipe_impact_ne_modifie_rien(db_session):
 
 
 def test_wipe_all_courses_supprime_courses_sources_et_resultats(db_session, auteur):
-    course_a, _ = _epreuve_avec_resultat(db_session, "Tri A", "1")
-    course_b, _ = _epreuve_avec_resultat(db_session, "Tri B", "2")
+    _epreuve_avec_resultat(db_session, "Tri A", "1")
+    _epreuve_avec_resultat(db_session, "Tri B", "2")
 
     resume = admin_actions.wipe_all_courses(db_session, user_id=auteur.id)
 
     assert resume == {"courses_deleted": 2, "athletes_purged": 2}
-    assert course_repository.get(db_session, course_a.id) is None
-    assert course_repository.get(db_session, course_b.id) is None
+    # Lecture agrégée fraîche, pas `course_repository.get` sur les objets
+    # `course_a`/`course_b` : `delete_all` est un DELETE de masse qui ne
+    # périme pas l'identity map (même choix que `participation_repository
+    # .delete_all`) — les relire par ORM sur cette session testerait une
+    # staleté connue et acceptée, pas le comportement du service.
+    assert course_repository.count_all(db_session) == 0
     assert participation_repository.count_all(db_session) == 0
     assert athlete_repository.count_all(db_session) == 0
 
