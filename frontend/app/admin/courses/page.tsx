@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { CoursesAdminTable } from "@/components/admin/CoursesAdminTable";
+import { WipeCoursesCard } from "@/components/admin/WipeCoursesCard";
 import { WipeParticipationsCard } from "@/components/admin/WipeParticipationsCard";
 
 /**
@@ -40,6 +41,7 @@ export default async function AdminCoursesPage({
           }}
         />
         <WipeParticipationsCard />
+        <WipeCoursesCard />
       </div>
     </PageShell>
   );

@@ -20,6 +20,7 @@ export const queryKeys = {
   courseDeletionImpact: (courseId: number) =>
     ["course-deletion-impact", courseId] as const,
   participationsWipeImpact: () => ["participations-wipe-impact"] as const,
+  coursesWipeImpact: () => ["courses-wipe-impact"] as const,
   courseDuplicates: () => ["course-duplicates"] as const,
   courseMergeImpact: (courseId: number, absorbedId: number) =>
     ["course-merge-impact", courseId, absorbedId] as const,

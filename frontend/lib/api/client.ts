@@ -16,6 +16,7 @@ import type {
   CourseQuery,
   CourseSource,
   CourseSummary,
+  CoursesWipeImpact,
   DuplicateCandidateList,
   EventPage,
   Feedback,
@@ -190,6 +191,12 @@ export const apiClient = {
     request<ParticipationsWipeImpact>("/admin/participations/wipe-impact"),
   wipeAllParticipations: () =>
     request<null>("/admin/participations", { method: "DELETE" }),
+
+  // ── Purge totale des épreuves (#384, suite) ─────────────────────────────────
+  // `courses:wipe_all`. Strictement plus destructeur que ci-dessus : les
+  // épreuves elles-mêmes et leurs sources disparaissent aussi.
+  getCoursesWipeImpact: () => request<CoursesWipeImpact>("/admin/courses/wipe-impact"),
+  wipeAllCourses: () => request<null>("/admin/courses", { method: "DELETE" }),
 
   updateCourse: (id: number, champs: Partial<AdminCourseUpdate>) =>
     request<CourseBrief>(`/admin/courses/${id}`, {
