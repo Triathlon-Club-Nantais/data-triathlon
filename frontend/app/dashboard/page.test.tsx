@@ -8,11 +8,12 @@ const listSeasons = vi.fn();
 
 vi.mock("@/lib/api/server", () => ({
   apiServer: {
-    getStats: (opts: unknown) => getStats(opts),
-    listEvents: (filters: unknown) => listEvents(filters),
-    listParticipations: (filters: unknown) => listParticipations(filters),
-    listSeasons: (opts: unknown) => listSeasons(opts),
+    getStats: (opts: unknown, fetchOpts?: unknown) => getStats(opts, fetchOpts),
+    listEvents: (filters: unknown, fetchOpts?: unknown) => listEvents(filters, fetchOpts),
+    listParticipations: (filters: unknown, fetchOpts?: unknown) => listParticipations(filters, fetchOpts),
+    listSeasons: (opts: unknown, fetchOpts?: unknown) => listSeasons(opts, fetchOpts),
   },
+  SHORT_REVALIDATE_SECONDS: 30,
 }));
 
 // SeasonSelector et DisciplineToggle sont des composants client
@@ -57,19 +58,30 @@ describe("DashboardPage", () => {
   it("force la portée club sur tous les appels API, même sans ?scope=club", async () => {
     await renderDashboard({});
 
-    expect(getStats).toHaveBeenCalledWith(expect.objectContaining({ scope: "club" }));
+    expect(getStats).toHaveBeenCalledWith(expect.objectContaining({ scope: "club" }), expect.anything());
     expect(listEvents).toHaveBeenCalledWith(
       expect.objectContaining({ scope: "club" }),
+      expect.anything(),
     );
     expect(listParticipations).toHaveBeenCalledWith(
       expect.objectContaining({ scope: "club" }),
+      expect.anything(),
     );
+  });
+
+  it("demande une fenêtre de revalidation courte sur les quatre appels (#352)", async () => {
+    await renderDashboard({});
+
+    expect(getStats).toHaveBeenCalledWith(expect.anything(), { revalidateSeconds: 30 });
+    expect(listEvents).toHaveBeenCalledWith(expect.anything(), { revalidateSeconds: 30 });
+    expect(listParticipations).toHaveBeenCalledWith(expect.anything(), { revalidateSeconds: 30 });
+    expect(listSeasons).toHaveBeenCalledWith(expect.anything(), { revalidateSeconds: 30 });
   });
 
   it("ignore ?scope et reste sur le club même si l'URL demande « tous »", async () => {
     await renderDashboard({ scope: undefined }); // pas de scope = ancien mode « Tous »
 
-    expect(getStats).toHaveBeenCalledWith(expect.objectContaining({ scope: "club" }));
+    expect(getStats).toHaveBeenCalledWith(expect.objectContaining({ scope: "club" }), expect.anything());
   });
 
   it("ne rend plus le sélecteur de portée (Tous / Membres TCN)", async () => {
@@ -85,7 +97,7 @@ describe("DashboardPage", () => {
   it("rend le sélecteur de saison alimenté par les saisons du club", async () => {
     await renderDashboard({});
 
-    expect(listSeasons).toHaveBeenCalledWith(expect.objectContaining({ scope: "club" }));
+    expect(listSeasons).toHaveBeenCalledWith(expect.objectContaining({ scope: "club" }), expect.anything());
     expect(screen.getByLabelText("Choisir les saisons")).toBeTruthy();
   });
 
@@ -93,6 +105,7 @@ describe("DashboardPage", () => {
     await renderDashboard({});
     expect(getStats).toHaveBeenCalledWith(
       expect.objectContaining({ federal_only: true }),
+      expect.anything(),
     );
 
     vi.clearAllMocks();
@@ -104,6 +117,7 @@ describe("DashboardPage", () => {
     await renderDashboard({ sports: "all" });
     expect(getStats).toHaveBeenCalledWith(
       expect.objectContaining({ federal_only: undefined }),
+      expect.anything(),
     );
   });
 });

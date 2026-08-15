@@ -1,4 +1,4 @@
-import { apiServer } from "@/lib/api/server";
+import { apiServer, SHORT_REVALIDATE_SECONDS } from "@/lib/api/server";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { DisciplineToggle } from "@/components/layout/DisciplineToggle";
@@ -16,9 +16,11 @@ export default async function ClubPage({
   const sp = await searchParams;
   const federal_only = federalOnlyFromParam(sp.sports);
 
+  // Fenêtre de revalidation courte (#352) — même raison qu'en page d'accueil.
+  const revalidateOpts = { revalidateSeconds: SHORT_REVALIDATE_SECONDS };
   const [stats, participations] = await Promise.all([
-    apiServer.getStats({ scope: SCOPE_CLUB, federal_only }),
-    apiServer.listParticipations({ scope: SCOPE_CLUB, federal_only, page_size: 1000 }),
+    apiServer.getStats({ scope: SCOPE_CLUB, federal_only }, revalidateOpts),
+    apiServer.listParticipations({ scope: SCOPE_CLUB, federal_only, page_size: 1000 }, revalidateOpts),
   ]);
 
   return (
