@@ -5,8 +5,9 @@ from sqlalchemy import func, select, text
 from app.core.time import utcnow
 from app.models.athlete import Athlete
 from app.models.course import Course
+from app.models.course_source import CourseSource
 from app.models.participation import Participation
-from app.repositories import course_repository
+from app.repositories import athlete_repository, course_repository, participation_repository
 
 
 def test_get_or_create_dedups_on_identity(db_session):
@@ -401,3 +402,28 @@ def test_reset_scraped_at_all_remet_toutes_les_epreuves_a_null(db_session):
     db_session.expire(b)
     assert course_repository.get(db_session, a.id).scraped_at is None
     assert course_repository.get(db_session, b.id).scraped_at is None
+
+
+def test_delete_all_supprime_toutes_les_epreuves_sources_et_resultats(db_session):
+    a = course_repository.get_or_create(
+        db_session, name="Tri A", event_date=date(2026, 5, 1), event_type="triathlon-m",
+        source_url="https://k/a", provider="klikego",
+    )
+    b = course_repository.get_or_create(
+        db_session, name="Tri B", event_date=date(2026, 5, 2), event_type="triathlon-m",
+        source_url="https://k/b", provider="klikego",
+    )
+    athlete = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean")
+    db_session.flush()
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=a.id, bib_number="1"
+    )
+    db_session.flush()
+
+    efface = course_repository.delete_all(db_session)
+
+    assert efface == 2
+    assert course_repository.get(db_session, a.id) is None
+    assert course_repository.get(db_session, b.id) is None
+    assert db_session.query(CourseSource).count() == 0
+    assert db_session.query(Participation).count() == 0

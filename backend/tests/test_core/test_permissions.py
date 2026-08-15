@@ -42,6 +42,7 @@ CODES_ATTENDUS = {
     "courses:write",
     "courses:sources",
     "courses:delete",
+    "courses:wipe_all",
     "athletes:read",
     "athletes:write",
     "participations:delete",

@@ -143,6 +143,13 @@ class P:
         "coureur qui n'en auraient plus aucun.",
         FEATURE_COURSES,
     )
+    COURSES_WIPE_ALL = Permission(
+        "courses:wipe_all",
+        "Purger toutes les épreuves",
+        "Vider entièrement le catalogue des épreuves — sources et résultats "
+        "compris — pour repartir d'une base strictement vierge.",
+        FEATURE_COURSES,
+    )
     COURSES_WRITE = Permission(
         "courses:write",
         "Corriger une épreuve",
@@ -247,6 +254,7 @@ ALL: tuple[Permission, ...] = (
     P.COURSES_WRITE,
     P.COURSES_SOURCES,
     P.COURSES_DELETE,
+    P.COURSES_WIPE_ALL,
     P.ATHLETES_READ,
     P.ATHLETES_WRITE,
     P.PARTICIPATIONS_DELETE,

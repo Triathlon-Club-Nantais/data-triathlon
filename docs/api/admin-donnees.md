@@ -31,8 +31,8 @@ est le but — voir `app/cli/AGENTS.md`.
 
 ## Administration des données (#117)
 
-`admin_data.py` porte huit ressources : cinq gestes correctifs et trois lectures
-réservées (neuf routes — la recherche de coureurs et la fiche unique partagent
+`admin_data.py` porte dix ressources : six gestes correctifs et quatre lectures
+réservées (onze routes — la recherche de coureurs et la fiche unique partagent
 une ligne). Elles vivent sous `/admin/`, et **chacune porte sa garde** — jamais le
 préfixe, pour la raison rappelée dans `backend/app/api/AGENTS.md` (§ Protéger une
 ressource).
@@ -42,6 +42,8 @@ ressource).
 | `GET /admin/courses/{id}/deletion-impact` | `courses:delete` |
 | `DELETE /admin/courses/{id}` | `courses:delete` |
 | `PATCH /admin/courses/{id}` | `courses:write` |
+| `GET /admin/courses/wipe-impact` | `courses:wipe_all` |
+| `DELETE /admin/courses` | `courses:wipe_all` |
 | `GET /admin/participations/wipe-impact` | `participations:wipe_all` |
 | `DELETE /admin/participations` | `participations:wipe_all` |
 | `GET /admin/athletes` (recherche) et `GET /admin/athletes/{id}` | `athletes:read` |

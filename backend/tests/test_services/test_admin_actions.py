@@ -781,3 +781,57 @@ def test_wipe_all_participations_sur_base_vide_ne_consigne_rien_a_tort(db_sessio
     assert resume == {"participations_deleted": 0, "athletes_purged": 0, "courses_reset": 0}
     entrees = _journal(db_session, "participations", 0)
     assert [e.action for e in entrees] == ["participations.wipe_all"]
+
+
+# --- Purger toutes les épreuves (#384, suite) --------------------------------
+
+
+def test_courses_wipe_impact_chiffre_courses_participations_et_athletes(db_session):
+    _epreuve_avec_resultat(db_session, "Tri A", "1")
+    _epreuve_avec_resultat(db_session, "Tri B", "2")
+
+    impact = admin_actions.courses_wipe_impact(db_session)
+
+    assert impact == {"courses": 2, "participations": 2, "athletes": 2}
+
+
+def test_courses_wipe_impact_ne_modifie_rien(db_session):
+    course, _ = _epreuve_avec_resultat(db_session, "Tri A", "1")
+
+    admin_actions.courses_wipe_impact(db_session)
+
+    assert course_repository.get(db_session, course.id) is not None
+    assert participation_repository.count_all(db_session) == 1
+    assert athlete_repository.count_all(db_session) == 1
+
+
+def test_wipe_all_courses_supprime_courses_sources_et_resultats(db_session, auteur):
+    course_a, _ = _epreuve_avec_resultat(db_session, "Tri A", "1")
+    course_b, _ = _epreuve_avec_resultat(db_session, "Tri B", "2")
+
+    resume = admin_actions.wipe_all_courses(db_session, user_id=auteur.id)
+
+    assert resume == {"courses_deleted": 2, "athletes_purged": 2}
+    assert course_repository.get(db_session, course_a.id) is None
+    assert course_repository.get(db_session, course_b.id) is None
+    assert participation_repository.count_all(db_session) == 0
+    assert athlete_repository.count_all(db_session) == 0
+
+
+def test_wipe_all_courses_consigne_le_geste(db_session, auteur):
+    _epreuve_avec_resultat(db_session, "Tri A", "1")
+
+    admin_actions.wipe_all_courses(db_session, user_id=auteur.id)
+
+    entrees = _journal(db_session, "courses", 0)
+    assert [e.action for e in entrees] == ["courses.wipe_all"]
+    assert entrees[0].payload == {"courses_deleted": 1, "athletes_purged": 1}
+
+
+def test_wipe_all_courses_sur_base_vide_ne_consigne_rien_a_tort(db_session, auteur):
+    """Même règle que `wipe_all_participations` : une base vide reste un geste réel."""
+    resume = admin_actions.wipe_all_courses(db_session, user_id=auteur.id)
+
+    assert resume == {"courses_deleted": 0, "athletes_purged": 0}
+    entrees = _journal(db_session, "courses", 0)
+    assert [e.action for e in entrees] == ["courses.wipe_all"]

@@ -361,6 +361,19 @@ class ParticipationsWipeImpact(BaseModel):
     athletes: int
 
 
+class CoursesWipeImpact(BaseModel):
+    """Ce qu'une purge totale des épreuves détruirait, chiffré avant le geste (#384).
+
+    Contrairement à `ParticipationsWipeImpact`, ce geste emporte aussi les
+    épreuves elles-mêmes et leurs sources — `courses` s'ajoute donc aux deux
+    compteurs déjà connus.
+    """
+
+    courses: int
+    participations: int
+    athletes: int
+
+
 class MergeImpactCourse(BaseModel):
     """Un des deux côtés d'une fusion, tel qu'il se présente à l'arbitrage (#286).
 
