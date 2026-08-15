@@ -100,6 +100,13 @@ class P:
         "sienne comprise. Le geste d'incident, après une fuite de jetons.",
         FEATURE_ROLES,
     )
+    BENEVOLE_ACCESS_MANAGE = Permission(
+        "benevole_access:manage",
+        "Gérer l'accès bénévoles",
+        "Consulter l'état du mot de passe partagé de la page bénévoles, le "
+        "remplacer par une saisie ou en générer un nouveau de façon sécurisée.",
+        FEATURE_ROLES,
+    )
     GROUPS_READ = Permission(
         "groups:read",
         "Consulter les groupes",
@@ -245,6 +252,7 @@ ALL: tuple[Permission, ...] = (
     P.USERS_READ,
     P.ALLOWED_EMAILS_MANAGE,
     P.SESSIONS_REVOKE,
+    P.BENEVOLE_ACCESS_MANAGE,
     P.GROUPS_READ,
     P.GROUPS_WRITE,
     P.GROUPS_ASSIGN,

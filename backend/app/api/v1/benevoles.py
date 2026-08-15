@@ -7,8 +7,6 @@ livrées de `services/admin_actions.py` (réutilisées, pas dupliquées) sous le
 `user_id` du compte système « Bénévoles (accès partagé) » ; seule la
 validation (`validate_participation`) est une logique nouvelle.
 """
-import hmac
-
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
@@ -16,7 +14,7 @@ from app.api.deps import NotAuthenticatedError, require_benevole_access
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
-from app.repositories import participation_repository
+from app.repositories import benevole_config_repository, participation_repository
 from app.schemas.admin import ParticipationReassign
 from app.schemas.benevole import BenevoleCourseRename, BenevoleLogin
 from app.schemas.course import CourseBrief
@@ -30,18 +28,20 @@ router = APIRouter(tags=["benevoles"])
 def open_session(
     body: BenevoleLogin,
     response: Response,
+    db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ):
     """Connexion par mot de passe partagé. **Non gardée** — c'est elle qui pose
     la garde des autres routes de ce routeur."""
-    if not settings.benevole_shared_password or not hmac.compare_digest(
-        body.password, settings.benevole_shared_password
+    config = benevole_config_repository.get_config(db)
+    if config is None or not benevole_access.verify_password(
+        body.password, password_hash=config.password_hash, password_salt=config.password_salt
     ):
         raise NotAuthenticatedError("Mot de passe incorrect.")
 
     response.set_cookie(
         key=benevole_access.BENEVOLE_SESSION_COOKIE,
-        value=benevole_access.sign_session(settings.benevole_shared_password),
+        value=benevole_access.sign_session(config.session_secret),
         httponly=True,
         secure=settings.auth_cookie_secure,
         samesite="lax",

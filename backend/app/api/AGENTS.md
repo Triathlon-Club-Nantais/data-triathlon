@@ -182,11 +182,24 @@ détail dans `docs/api/feedback-stats.md`.
 
 `benevoles.py` porte quatre ressources gardées par `require_benevole_access`
 (`api/deps.py`) — **pas** `require_permission`. Mot de passe partagé (5-6
-bénévoles), cookie signé HMAC-SHA256 avec le mot de passe lui-même comme clé,
-zéro table : changer le mot de passe invalide tous les cookies d'un coup,
-seule révocation retenue (aucune identité individuelle à révoquer). Décision
-produit et alternatives rejetées : `specs/20260815-114258-page-validation-
-benevoles/research.md` §D1.
+bénévoles). Décision produit et alternatives rejetées : `specs/20260815-
+114258-page-validation-benevoles/research.md` §D1.
+
+**Le mot de passe est géré depuis le back-office, plus une variable
+d'environnement** (`specs/20260815-173645-admin-mdp-benevoles/`) : trois
+routes sous `admin_benevole_access.py`, gardées par le pouvoir dédié
+`benevole_access:manage` (`GET`/`PUT /admin/benevoles/access`,
+`POST /admin/benevoles/access/generate`), lisent et écrivent la table
+`benevole_access_config` — une seule ligne à tout instant, absence = accès
+non configuré (fail-closed). Stocké **haché et salé** (`hashlib.scrypt`,
+jamais en clair, jamais récupérable), avec un `session_secret` distinct qui
+sert de clé au cookie signé HMAC-SHA256 : ce n'est plus le mot de passe lui-
+même qui signe le cookie (research.md §D2 de cette dernière feature), ce qui
+permet de préserver la propriété d'#271 — changer le mot de passe invalide
+tous les cookies d'un coup (seule révocation retenue, aucune identité
+individuelle à révoquer) — sans jamais avoir besoin de relire le mot de passe
+en clair. `services/benevole_access.replace_password` est le seul point
+d'écriture des trois champs secrets, toujours ensemble.
 
 Trois des quatre routes délèguent à `admin_actions.update_course`/
 `.reassign_participation` (déjà livrées pour `/admin/*`) sous le `user_id`

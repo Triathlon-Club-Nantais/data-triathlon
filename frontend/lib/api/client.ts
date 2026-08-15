@@ -9,6 +9,8 @@ import type {
   BatchLaunched,
   BatchReport,
   BatchRun,
+  BenevoleAccessConfig,
+  BenevoleAccessGenerated,
   CourseBrief,
   CourseDeletionImpact,
   CourseDetail,
@@ -358,6 +360,21 @@ export const apiClient = {
     request<SessionRevocation>("/admin/sessions/revoke", {
       method: "POST",
       body: JSON.stringify(email === undefined ? {} : { email }),
+    }),
+
+  // ── Mot de passe partagé bénévoles (#271 → cette feature) ─────────────────
+  // `benevole_access:manage`. `PUT`/`generate` rendent la même forme que `GET`,
+  // sauf `generate` qui ajoute le mot de passe en clair — une seule fois.
+  getBenevoleAccessConfig: () =>
+    request<BenevoleAccessConfig>("/admin/benevoles/access"),
+  replaceBenevoleAccessPassword: (password: string) =>
+    request<BenevoleAccessConfig>("/admin/benevoles/access", {
+      method: "PUT",
+      body: JSON.stringify({ password }),
+    }),
+  generateBenevoleAccessPassword: () =>
+    request<BenevoleAccessGenerated>("/admin/benevoles/access/generate", {
+      method: "POST",
     }),
 
   // ── Retours utilisateurs (#267) ────────────────────────────────────────────

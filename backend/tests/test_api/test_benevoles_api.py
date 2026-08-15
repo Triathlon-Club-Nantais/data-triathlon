@@ -1,7 +1,9 @@
 """Page de vérification des résultats par les bénévoles (#271).
 
 La garde (`require_benevole_access`) est **distincte** de `require_permission`
-(SSO/RBAC) : mot de passe partagé, cookie signé par HMAC, aucune table.
+(SSO/RBAC) : mot de passe partagé, cookie signé par HMAC — la clé est
+désormais `session_secret`, en base (`specs/20260815-173645-admin-mdp-
+benevoles/`), plus le mot de passe en clair (#271, `research.md` §D2).
 """
 from datetime import date
 
@@ -10,9 +12,9 @@ from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
 from app.api.deps import require_benevole_access
-from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.exceptions import register_exception_handlers
+from app.models.benevole_access_config import BenevoleAccessConfig
 from app.repositories import (
     admin_action_log_repository,
     athlete_repository,
@@ -25,12 +27,38 @@ from app.services import benevole_access
 MOT_DE_PASSE = "secret-du-club"
 
 
+@pytest.fixture
+def administrateur(db_session):
+    """Un utilisateur quelconque pour porter `updated_by_user_id` (NOT NULL).
+
+    Cette feature ne s'intéresse pas ici à *qui* administre, seulement au fait
+    qu'une configuration existe — la garde RBAC de l'écran d'administration
+    est testée séparément (`tests/test_auth/test_admin_benevole_access_api.py`).
+    """
+    compte = user_repository.create(
+        db_session, email="admin-test@exemple.fr", display_name="Admin Test"
+    )
+    db_session.flush()
+    return compte
+
+
 @pytest.fixture(autouse=True)
-def mot_de_passe_configure(monkeypatch):
-    monkeypatch.setenv("BENEVOLE_SHARED_PASSWORD", MOT_DE_PASSE)
-    get_settings.cache_clear()
-    yield
-    get_settings.cache_clear()
+def mot_de_passe_configure(db_session, administrateur):
+    benevole_access.replace_password(
+        db_session, password=MOT_DE_PASSE, admin_user_id=administrateur.id
+    )
+    db_session.commit()
+
+
+@pytest.fixture
+def sans_configuration(db_session):
+    """Ramène à l'état « jamais configuré » (fail-closed, FR-007)."""
+
+    def _vider() -> None:
+        db_session.query(BenevoleAccessConfig).delete()
+        db_session.commit()
+
+    return _vider
 
 
 # --- Garde `require_benevole_access`, seule, sur une application jetable ----
@@ -67,24 +95,25 @@ def test_refuse_avec_un_cookie_invalide(visiteur):
     assert visiteur.get("/protege").status_code == 401
 
 
-def test_refuse_meme_avec_un_cookie_signe_par_un_autre_mot_de_passe(visiteur):
-    valeur = benevole_access.sign_session("autre-mot-de-passe")
+def test_refuse_meme_avec_un_cookie_signe_par_un_autre_secret(visiteur):
+    valeur = benevole_access.sign_session("autre-secret-de-session")
     visiteur.cookies.set(benevole_access.BENEVOLE_SESSION_COOKIE, valeur)
     assert visiteur.get("/protege").status_code == 401
 
 
-def test_passe_avec_un_cookie_valide(visiteur):
-    valeur = benevole_access.sign_session(MOT_DE_PASSE)
+def test_passe_avec_un_cookie_valide(visiteur, db_session):
+    config = db_session.query(BenevoleAccessConfig).one()
+    valeur = benevole_access.sign_session(config.session_secret)
     visiteur.cookies.set(benevole_access.BENEVOLE_SESSION_COOKIE, valeur)
     reponse = visiteur.get("/protege")
     assert reponse.status_code == 200
     assert reponse.json() == {"ok": True}
 
 
-def test_refuse_si_le_mot_de_passe_n_est_pas_configure(visiteur, monkeypatch):
-    monkeypatch.setenv("BENEVOLE_SHARED_PASSWORD", "")
-    get_settings.cache_clear()
-    valeur = benevole_access.sign_session(MOT_DE_PASSE)
+def test_refuse_si_le_mot_de_passe_n_est_pas_configure(visiteur, sans_configuration, db_session):
+    config = db_session.query(BenevoleAccessConfig).one()
+    valeur = benevole_access.sign_session(config.session_secret)
+    sans_configuration()
     visiteur.cookies.set(benevole_access.BENEVOLE_SESSION_COOKIE, valeur)
     assert visiteur.get("/protege").status_code == 401
 
@@ -134,9 +163,8 @@ def test_connexion_refuse_un_mauvais_mot_de_passe(client):
     assert reponse.status_code == 401
 
 
-def test_connexion_refuse_si_non_configure(client, monkeypatch):
-    monkeypatch.setenv("BENEVOLE_SHARED_PASSWORD", "")
-    get_settings.cache_clear()
+def test_connexion_refuse_si_non_configure(client, sans_configuration):
+    sans_configuration()
     reponse = client.post("/api/v1/benevoles/session", json={"password": MOT_DE_PASSE})
     assert reponse.status_code == 401
 

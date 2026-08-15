@@ -285,6 +285,27 @@ export interface AllowedEmail {
 }
 
 /**
+ * État courant du mot de passe partagé bénévoles
+ * (`specs/20260815-173645-admin-mdp-benevoles/`) — **jamais** le mot de passe
+ * ni son empreinte.
+ */
+export interface BenevoleAccessConfig {
+  configured: boolean;
+  updated_at: string | null;
+  updated_by: string | null;
+}
+
+/**
+ * Réponse de la génération sécurisée — la **seule** forme qui porte jamais un
+ * mot de passe en clair, et une seule fois (FR-003).
+ */
+export interface BenevoleAccessGenerated {
+  password: string;
+  updated_at: string;
+  updated_by: string;
+}
+
+/**
  * Un rôle et sa composition (#115).
  *
  * `stale_permissions` liste les codes présents en base mais absents de
