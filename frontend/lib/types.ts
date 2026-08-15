@@ -539,8 +539,9 @@ export interface CourseDeletionImpact {
  * Ce qu'une purge totale des résultats détruirait (#384).
  *
  * `athletes` est le compte total de fiches coureur : vider `participations`
- * entièrement laisse *toute* fiche orpheline, donc c'est le compte de la
- * table entière, pas seulement des coureurs inscrits quelque part.
+ * entièrement laisse *toute* fiche orpheline — `Participation.athlete_id` est
+ * la seule FK vers `Athlete` jamais peuplée — donc c'est le compte de la table
+ * entière, pas seulement des coureurs inscrits quelque part.
  */
 export interface ParticipationsWipeImpact {
   participations: number;

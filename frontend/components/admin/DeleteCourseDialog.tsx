@@ -72,13 +72,14 @@ export function DeleteCourseDialog({
           <ul className="space-y-1 text-sm">
             <li>
               <strong>{impact.data.participations}</strong> résultat
-              {impact.data.participations > 1 ? "s" : ""} seront détruits.
+              {impact.data.participations === 1 ? " sera détruit" : "s seront détruits"}.
             </li>
             <li>
               <strong>{impact.data.athletes}</strong> fiche
-              {impact.data.athletes > 1 ? "s" : ""} coureur ne
-              {impact.data.athletes > 1 ? " conserveront" : " conservera"} plus aucun
-              résultat et {impact.data.athletes > 1 ? "seront retirées" : "sera retirée"}.
+              {impact.data.athletes === 1
+                ? " coureur ne conservera plus aucun résultat et sera retirée"
+                : "s coureur ne conserveront plus aucun résultat et seront retirées"}
+              .
             </li>
           </ul>
         )}
