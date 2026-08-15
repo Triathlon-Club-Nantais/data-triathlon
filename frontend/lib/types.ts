@@ -438,6 +438,10 @@ export interface CourseSummary {
   total: number;
   finishers: number;
   non_finishers: number;
+  /** Ventilation de `non_finishers` par statut (#331) : `dnf + dns + dsq === non_finishers`. */
+  dnf: number;
+  dns: number;
+  dsq: number;
   unknown: number;
   tcn_count: number;
   male: number;
