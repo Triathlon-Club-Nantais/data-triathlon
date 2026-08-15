@@ -353,8 +353,8 @@ class ParticipationsWipeImpact(BaseModel):
 
     `athletes` est le compte total de fiches coureur : vider `participations`
     entièrement laisse *toute* fiche orpheline (`Participation.athlete_id` en
-    est la seule FK), donc c'est le compte de la table entière, pas seulement
-    des coureurs inscrits quelque part.
+    est la seule FK jamais peuplée), donc c'est le compte de la table entière,
+    pas seulement des coureurs inscrits quelque part.
     """
 
     participations: int

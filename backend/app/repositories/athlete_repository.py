@@ -201,7 +201,8 @@ def only_on_course(db: Session, course_id: int) -> list[int]:
 def delete_orphans_among(db: Session, athlete_ids: list[int] | None = None) -> list[int]:
     """Supprime les athlètes sans participation, **parmi** `athlete_ids`. Rend les ids supprimés.
 
-    `Participation.athlete_id` est la **seule** FK vers `Athlete` : un athlète
+    `Participation.athlete_id` est la seule FK vers `Athlete` **jamais peuplée**
+    (`users.athlete_id` existe mais rien dans `app/` ne l'écrit) : un athlète
     sans participation n'est plus référencé nulle part.
 
     **`None` et `[]` ne veulent pas dire la même chose**, et la nuance porte tout
@@ -239,13 +240,31 @@ def delete_orphans(db: Session) -> int:
     return len(delete_orphans_among(db))
 
 
+def delete_all(db: Session) -> int:
+    """Supprime **tous** les athlètes de la base. Rend le nombre effacé (#384).
+
+    Seul appelant : `wipe_all_participations`, **après** avoir vidé
+    `participations` — à ce moment, chaque athlète est orphelin par
+    construction (`Participation.athlete_id` est la seule FK vers `Athlete`
+    jamais peuplée), donc « tous les athlètes » et « tous les orphelins »
+    désignent le même ensemble. Un `DELETE` sans `WHERE` évite le plafond
+    PostgreSQL de 65535 paramètres liés que franchirait `delete_orphans_among`
+    sur une base de cette taille (elle matérialise chaque id en mémoire puis
+    les repasse un par un dans un `IN (...)`).
+    """
+    efface = db.query(Athlete).delete(synchronize_session=False)
+    db.flush()
+    return efface
+
+
 def count_all(db: Session) -> int:
     """Nombre total de fiches coureur en base (#384).
 
     Sert à chiffrer l'impact d'une purge totale des résultats **avant** de la
     commettre : vider `Participation` entièrement laisse *tout* athlète
-    orphelin (`Participation.athlete_id` est sa seule FK, cf. `delete_orphans_among`
-    ci-dessus), donc ce compte est exactement celui que `delete_orphans` purgera.
+    orphelin (`Participation.athlete_id` est sa seule FK jamais peuplée, cf.
+    `delete_orphans_among` ci-dessus), donc ce compte est exactement celui que
+    `delete_all` purgera.
     """
     return db.query(func.count(Athlete.id)).scalar() or 0
 
