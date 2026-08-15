@@ -217,6 +217,40 @@ garde-fou : à connaître plutôt qu'à subir.
 
 ---
 
+## Le pointeur `<!-- SPECKIT START -->` de `AGENTS.md` peut devenir périmé
+
+`AGENTS.md` (racine) porte, tout en bas, un bloc géré par l'extension
+`agent-context` (`.specify/extensions/agent-context/`) : « lire le plan actuel
+à `specs/<id>-feature/plan.md` ». Ce bloc n'est réécrit que sur les hooks
+`after_specify`/`after_plan` — donc quand une branche lance `/speckit-specify`
+ou `/speckit-plan` — et son script (`update-agent-context.sh`) choisit alors le
+`plan.md` le plus récemment modifié sur **tout** `specs/`, sans regard pour la
+branche courante.
+
+Ce mécanisme est correct **pendant** la vie de la branche qui vient de générer
+son plan : le pointeur la désigne elle-même. Le problème survient après la
+fusion — le commit qui a mis à jour ce bloc fait partie du diff de la feature,
+donc `main` hérite d'un pointeur « plan actuel » qui désigne une feature déjà
+livrée. Rien ne le corrige avant qu'une future branche relance
+`/speckit-specify`/`/speckit-plan` et écrase le bloc à son tour — la fenêtre de
+péremption dure donc jusqu'à la prochaine feature Spec Kit mergée, pas jusqu'à
+la fin de la branche qui l'a laissé. Comme `AGENTS.md` se charge à **chaque**
+session quelle que soit la branche (`CLAUDE.md` → `@AGENTS.md`), ce pointeur
+périmé pousse chaque session, sur n'importe quelle branche, à ouvrir
+inutilement `spec.md` + `plan.md` + `tasks.md` + `research.md` d'une feature
+qui n'a plus rien à voir avec le travail en cours (constaté sur #374 : le
+pointeur vers `specs/20260814-221102-athletes-par-saison/` — #274, déjà mergé
+par `11d3527` — était toujours présent plusieurs branches plus tard).
+
+**Vérification avant de fusionner une branche qui a touché ce bloc** : si
+`git diff main -- AGENTS.md` montre que le pointeur désigne le plan de la
+branche en cours, il deviendra périmé dès la fusion — le vider (revenir à la
+forme sans ligne « at … », celle que le script émet lui-même quand aucun plan
+n'est trouvé) avant de merger, plutôt que de laisser `main` porter une
+référence à une feature déjà livrée.
+
+---
+
 ## Le piège qui reste : le sur-outillage
 
 Pour un correctif d'une ligne, ne rien lancer. L'estimation historique de ce
