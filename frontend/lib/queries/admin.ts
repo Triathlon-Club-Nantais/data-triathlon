@@ -142,16 +142,24 @@ export function useParticipationsWipeImpact(enabled: boolean) {
 /**
  * La purge totale des résultats (#384). Invalide tout ce qu'un résultat
  * alimente : le catalogue d'épreuves (leur `scraped_at` vient de changer),
- * le détail d'une épreuve, les fiches coureur, et les résultats publics.
+ * le détail d'une épreuve, la liste et les fiches coureur, et les résultats
+ * publics.
+ *
+ * **Son propre chiffrage en fait partie**, et c'est le plus facile à oublier :
+ * sans lui, rouvrir la modale après une purge repeindrait les comptes d'avant
+ * — donnée en cache, `isLoading` à `false`, donc pas même un squelette pour
+ * signaler qu'elle est périmée.
  */
 export function useWipeAllParticipations() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => apiClient.wipeAllParticipations(),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.participationsWipeImpact() });
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.courses });
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.detailEpreuve });
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.coureurs });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.ficheCoureur });
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.resultatsPublics });
     },
   });

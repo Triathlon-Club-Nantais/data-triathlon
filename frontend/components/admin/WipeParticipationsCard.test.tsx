@@ -77,6 +77,54 @@ describe("WipeParticipationsCard (#384)", () => {
     expect(await screen.findByText(/zone dangereuse/i)).toBeInTheDocument();
   });
 
+  it("ne chiffre rien tant que la modale n'est pas ouverte", async () => {
+    getSession.mockResolvedValue(session(["participations:wipe_all"]));
+    getParticipationsWipeImpact.mockResolvedValue({ participations: 412, athletes: 37 });
+
+    afficher();
+    const ouvrir = await screen.findByRole("button", { name: /purger tous les résultats/i });
+
+    expect(getParticipationsWipeImpact).not.toHaveBeenCalled();
+
+    await userEvent.click(ouvrir);
+
+    await waitFor(() => expect(getParticipationsWipeImpact).toHaveBeenCalled());
+  });
+
+  it.each([
+    [1, 1, /1 résultat sera détruit/, /1 fiche coureur sera retirée/],
+    [0, 0, /0 résultats seront détruits/, /0 fiches coureur seront retirées/],
+    [412, 37, /412 résultats seront détruits/, /37 fiches coureur seront retirées/],
+  ])(
+    "accorde le verbe avec le nombre annoncé (%i, %i)",
+    async (participations, athletes, phraseResultats, phraseCoureurs) => {
+      getSession.mockResolvedValue(session(["participations:wipe_all"]));
+      getParticipationsWipeImpact.mockResolvedValue({ participations, athletes });
+
+      afficher();
+      await userEvent.click(
+        await screen.findByRole("button", { name: /purger tous les résultats/i }),
+      );
+
+      const annonce = await screen.findByRole("list");
+      expect(annonce).toHaveTextContent(phraseResultats);
+      expect(annonce).toHaveTextContent(phraseCoureurs);
+    },
+  );
+
+  it("ne propose pas la purge quand le chiffrage échoue", async () => {
+    getSession.mockResolvedValue(session(["participations:wipe_all"]));
+    getParticipationsWipeImpact.mockRejectedValue(new ApiError(500, "Panne"));
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /purger tous les résultats/i }));
+
+    expect(await screen.findByText(/ampleur.*n'a pas pu être chiffrée/i)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /purger définitivement/i }),
+    ).not.toBeInTheDocument();
+  });
+
   it("le bouton de confirmation reste désactivé sans avoir tapé SUPPRIMER", async () => {
     getSession.mockResolvedValue(session(["participations:wipe_all"]));
     getParticipationsWipeImpact.mockResolvedValue({ participations: 412, athletes: 37 });
