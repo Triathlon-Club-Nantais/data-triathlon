@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.api.deps import optional_user
+from app.core.analytics import ANONYMOUS_DISTINCT_ID, capture_event
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.feedback import FeedbackCreate, FeedbackCreated
@@ -51,4 +52,13 @@ def submit_feedback(
         return _REPONSE_HONEYPOT
     db.commit()
     db.refresh(entry)
+    capture_event(
+        "feedback_submitted",
+        distinct_id=str(user.id) if user else ANONYMOUS_DISTINCT_ID,
+        properties={
+            "feedback_type": body.type,
+            "has_page_url": bool(body.page_url),
+            "is_authenticated": user is not None,
+        },
+    )
     return FeedbackCreated(id=entry.id, status=entry.status)

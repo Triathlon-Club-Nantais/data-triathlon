@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_permission
+from app.core.analytics import capture_event
 from app.core.database import get_db
 from app.core.permissions import P
 from app.models.user import User
@@ -111,6 +112,11 @@ def reassign_participation(
         db, participation_id=participation_id, athlete_id=body.athlete_id, user_id=user.id
     )
     db.commit()
+    capture_event(
+        "participation_reassigned",
+        distinct_id=str(user.id),
+        properties={"participation_id": participation_id},
+    )
     return participation
 
 
@@ -141,6 +147,11 @@ def delete_course(
     """
     admin_actions.delete_course(db, course_id=course_id, user_id=user.id)
     db.commit()
+    capture_event(
+        "course_deleted",
+        distinct_id=str(user.id),
+        properties={"course_id": course_id},
+    )
 
 
 @router.get("/admin/courses/wipe-impact", response_model=CoursesWipeImpact)
@@ -211,13 +222,19 @@ def update_athlete(
     `exclude_unset` et non `exclude_none` : `birth_date: null` est une mise à
     `NULL` légitime, et seule la présence du champ la distingue d'une absence.
     """
+    champs = body.model_dump(exclude_unset=True)
     athlete = admin_actions.update_athlete(
         db,
         athlete_id=athlete_id,
-        champs=body.model_dump(exclude_unset=True),
+        champs=champs,
         user_id=user.id,
     )
     db.commit()
+    capture_event(
+        "athlete_updated",
+        distinct_id=str(user.id),
+        properties={"fields_changed": list(champs.keys())},
+    )
     return _fiche(athlete, participation_repository.count_for_athlete(db, athlete_id))
 
 

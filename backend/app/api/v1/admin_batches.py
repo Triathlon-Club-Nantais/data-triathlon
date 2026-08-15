@@ -11,6 +11,7 @@ service web ne porte jamais le batch (FR-013).
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 
 from app.api.deps import require_permission
+from app.core.analytics import capture_event
 from app.core.config import get_settings
 from app.core.exceptions import DomainError
 from app.core.permissions import P
@@ -93,7 +94,7 @@ async def _lire_borne(fichier: UploadFile) -> bytes:
 )
 def launch_batch(
     demande: RescrapeLaunch,
-    _: User = Depends(require_permission(P.BATCH_RUN)),
+    user: User = Depends(require_permission(P.BATCH_RUN)),
 ):
     """Lance une reprise filtrée.
 
@@ -111,6 +112,15 @@ def launch_batch(
         older_than=demande.older_than,
         limit=demande.limit,
         dry_run=demande.dry_run,
+    )
+    capture_event(
+        "batch_launched",
+        distinct_id=str(user.id),
+        properties={
+            "mode": demande.mode,
+            "dry_run": demande.dry_run,
+            "has_limit": demande.limit is not None,
+        },
     )
     return BatchLaunched(correlation_id=correlation_id)
 
@@ -165,7 +175,7 @@ async def launch_batch_from_file(
     file: UploadFile = File(...),
     url_column: int = Form(...),
     dry_run: bool = Form(False),
-    _: User = Depends(require_permission(P.BATCH_RUN)),
+    user: User = Depends(require_permission(P.BATCH_RUN)),
 ):
     """Lance depuis la colonne de liens désignée par l'utilisateur.
 
@@ -189,6 +199,14 @@ async def launch_batch_from_file(
 
     correlation_id = batch_runs.dispatch_batch(
         settings, mode="urls", urls=colonne.supported, dry_run=dry_run
+    )
+    capture_event(
+        "batch_launched_from_file",
+        distinct_id=str(user.id),
+        properties={
+            "url_count": len(colonne.supported),
+            "dry_run": dry_run,
+        },
     )
     return BatchLaunched(
         correlation_id=correlation_id,

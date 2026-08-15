@@ -2,7 +2,8 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_permission
+from app.api.deps import optional_user, require_permission
+from app.core.analytics import ANONYMOUS_DISTINCT_ID, capture_event
 from app.core.club import is_club_scope
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
@@ -59,6 +60,7 @@ def _to_scraped(body: ParticipationCreate) -> ScrapedResult:
 def create_participation(
     body: ParticipationCreate,
     db: Session = Depends(get_db),
+    user: User | None = Depends(optional_user),
 ):
     """Crée un résultat (athlète + course + participation) — **ouverte au public** (#270).
 
@@ -72,6 +74,14 @@ def create_participation(
     destructif, reste gardé.
     """
     participation = scrape_service.save_one(db, _to_scraped(body))
+    capture_event(
+        "participation_created",
+        distinct_id=str(user.id) if user else ANONYMOUS_DISTINCT_ID,
+        properties={
+            "event_type": body.event_type,
+            "is_relay": body.is_relay,
+        },
+    )
     return participation_repository.get(db, participation.id)
 
 

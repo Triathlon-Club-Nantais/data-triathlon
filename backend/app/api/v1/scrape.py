@@ -6,8 +6,11 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
+from app.api.deps import optional_user
+from app.core.analytics import ANONYMOUS_DISTINCT_ID, capture_event
 from app.core.config import Settings, get_settings
 from app.core.database import SessionLocal, get_db
+from app.models.user import User
 from app.schemas.scrape import ImportResult, ScrapeRequest
 from app.scrapers import detect_provider, is_supported, provider_names
 from app.services import import_service
@@ -34,9 +37,21 @@ def scrape_event(
     body: ScrapeRequest,
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
+    user: User | None = Depends(optional_user),
 ):
     """Importe tous les participants d'une épreuve (bloquant)."""
-    return import_service.import_event(db, str(body.url), settings)
+    result = import_service.import_event(db, str(body.url), settings)
+    capture_event(
+        "event_scraped",
+        distinct_id=str(user.id) if user else ANONYMOUS_DISTINCT_ID,
+        properties={
+            "provider": detect_provider(str(body.url)),
+            "imported": result["imported"],
+            "updated": result["updated"],
+            "skipped": result["skipped"],
+        },
+    )
+    return result
 
 
 # Padding initial de 2 KB : dépasse le seuil de buffering des navigateurs

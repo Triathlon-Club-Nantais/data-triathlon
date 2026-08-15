@@ -96,6 +96,13 @@ class Settings(BaseSettings):
     auth_session_ttl_days: int = 7      # sans prolongation glissante
     auth_state_ttl_seconds: int = 600   # durée de vie du jeton d'état
 
+    # ── PostHog Analytics ──────────────────────────────────────────────────
+    # Vide par défaut : une installation sans clé reste fonctionnelle, les
+    # captures sont ignorées silencieusement en production. En développement,
+    # un avertissement est émis si la clé est absente (voir app/core/analytics.py).
+    posthog_project_token: str = ""
+    posthog_host: str = "https://eu.i.posthog.com"
+
     # ── Lancement des batches (#47) ───────────────────────────────────────────
     # Les batches ne tournent pas dans ce service : l'API ne fait que demander
     # leur exécution à GitHub Actions, qui lance la CLI sur un runner. Le service
