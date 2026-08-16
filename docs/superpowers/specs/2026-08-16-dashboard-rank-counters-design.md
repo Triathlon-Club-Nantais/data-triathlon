@@ -101,6 +101,30 @@ pas concerné (pas de prefetch global équivalent) et reste inchangé.
 - La structure de `GET /stats` pour les consommateurs existants — `rank_counters`
   est un champ **ajouté**, aucun champ retiré ni renommé (Principe IV).
 
+## Couplage d'ordre de déploiement (`rank_counters` requis)
+
+`Stats.rank_counters` est un champ **requis** côté TypeScript
+(`frontend/lib/types.ts`), pas optionnel. Ancien front / nouveau backend ne
+pose aucun problème (le champ est additif, l'ancien front l'ignore). Mais
+nouveau front / ancien backend — ou une réponse `/stats` mise en cache servie
+pendant la fenêtre `revalidate: 30` qui suit un déploiement backend — expose
+`stats.rank_counters` comme `undefined` à l'exécution, et `StatCardsRank.tsx`
+lève une `TypeError` en lisant `rankCounters.gender` ou `rankCounters[rankType]` :
+`/dashboard` casse entièrement plutôt que de dégrader. Ce couplage n'existait
+pas avant cette branche (le front calculait tout localement).
+
+Aucun repli défensif (champ optionnel, garde côté composant) n'a été ajouté :
+ce serait une couche de compatibilité ascendante pour une fenêtre transitoire
+de déploiement, contraire au principe du dépôt (« supprimer les chemins
+obsolètes plutôt qu'ajouter des couches de compatibilité ») — ce n'est pas un
+état stable à supporter, juste un instant de déploiement. La mitigation
+existante est l'ordre du pipeline (`render.yaml` déclenche le hook de déploiement
+Render avant le build Vercel dans le même job CI), mais ce n'est pas une
+garantie stricte : le hook Render est asynchrone. **Action** : vérifier
+`/dashboard` sur la preview Vercel de cette PR une fois les déploiements Render
+et Vercel tous deux terminés, avant de considérer le changement pleinement
+déployé.
+
 ## Hors périmètre
 
 - **Le « fetch sans réponse »** signalé dans le corps initial de l'issue —
