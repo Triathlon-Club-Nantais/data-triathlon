@@ -150,8 +150,11 @@ Cinq points à ne pas défaire :
 - **La migration `a107b77b53e8` reprend `AUTH_ALLOWED_EMAILS` depuis
   `os.environ`**, une fois, au `alembic upgrade head` du `startCommand`. Sans
   elle, le déploiement mettait dehors toute la production, administrateurs
-  compris. Ordre d'exploitation dans `docs/ci-cd.md` : déployer → vérifier →
-  supprimer la variable. L'inverser vide la source de la reprise.
+  compris. L'ordre d'exploitation — déployer, vérifier, *puis* supprimer la
+  variable — a été déroulé : la reprise a eu lieu et la variable a disparu des
+  deux services Render (#259). La migration garde sa lecture d'environnement pour
+  rester rejouable sur une base repartie de zéro ; elle ne trouve simplement plus
+  rien, et n'insère alors aucune ligne.
 
 L'amorçage d'une base neuve passe par `python -m app.cli allow-email`
 (`app/cli/AGENTS.md`) : liste vide → personne ne se connecte → personne n'ouvre
