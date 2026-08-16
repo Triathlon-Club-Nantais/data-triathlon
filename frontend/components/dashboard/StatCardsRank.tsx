@@ -1,12 +1,10 @@
 "use client";
 import type { ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
-import { useMemo } from "react";
 import { StatCard } from "@/components/tcn";
-import { rankCounters } from "@/lib/utils/club-aggregate";
 import { RANK_PARAM, rankTypeFromParam } from "@/lib/rank";
 import { rankTypeLabel } from "@/lib/labels";
-import type { Participation } from "@/lib/types";
+import type { DashboardRankCounters } from "@/lib/types";
 
 const TrophyIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--tcn-orange)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4h12v3a6 6 0 0 1-12 0V4z" /><path d="M6 5H3v2a3 3 0 0 0 3 3" /><path d="M18 5h3v2a3 3 0 0 1-3 3" /><path d="M9 17h6" /><path d="M12 13v4" /><path d="M8 21h8" /></svg>
@@ -40,32 +38,35 @@ function GenderPair({ women, men }: { women: number; men: number }): ReactNode {
 /**
  * Les 3 cartes « Victoires / Podiums / Top 10 » côté client.
  *
- * Les participations sont chargées **une fois** par le RSC parent, puis
- * `rankCounters` recalcule localement au changement de `?rank=…` — sans
- * re-fetch, sans re-render du reste du dashboard. Résout la latence observée
- * en dev quand chaque bascule du toggle déclenchait un cycle RSC complet
- * (voir issue #132).
+ * Les compteurs des 4 modes sont calculés **une fois** côté backend
+ * (`stats_service.get_stats`, champ `rank_counters`) — ce composant ne fait
+ * plus que choisir le bucket courant selon `?rank=…`, sans recalcul ni
+ * re-fetch (#132/#328 restent vrais : aucun réseau au changement de mode).
+ * Avant #376, ce composant recevait les participations brutes du club (jusqu'à
+ * 5000 lignes) pour ce seul calcul — déplacé en backend, la page n'a plus à
+ * les charger du tout.
  */
-export function StatCardsRank({ participations }: { participations: Participation[] }) {
+export function StatCardsRank({ rankCounters }: { rankCounters: DashboardRankCounters }) {
   const sp = useSearchParams();
   const rankType = rankTypeFromParam(sp.get(RANK_PARAM) ?? undefined);
-  const counters = useMemo(() => rankCounters(participations, rankType), [participations, rankType]);
   const rankLabel = rankTypeLabel(rankType, { form: "long" });
 
-  if (counters.kind === "scalar") {
+  if (rankType === "gender") {
+    const { women, men } = rankCounters.gender;
     return (
       <>
-        <StatCard label="Victoires" value={counters.victories} delta={rankLabel} icon={<TrophyIcon />} />
-        <StatCard label="Podiums" value={counters.podiums} delta={rankLabel} icon={<PodiumIcon />} />
-        <StatCard label="Top 10" value={counters.top10} delta={rankLabel} icon={<Top10Icon />} />
+        <StatCard label="Victoires" value={<GenderPair women={women.victories} men={men.victories} />} delta={rankLabel} icon={<TrophyIcon />} />
+        <StatCard label="Podiums" value={<GenderPair women={women.podiums} men={men.podiums} />} delta={rankLabel} icon={<PodiumIcon />} />
+        <StatCard label="Top 10" value={<GenderPair women={women.top10} men={men.top10} />} delta={rankLabel} icon={<Top10Icon />} />
       </>
     );
   }
+  const counters = rankCounters[rankType];
   return (
     <>
-      <StatCard label="Victoires" value={<GenderPair women={counters.women.victories} men={counters.men.victories} />} delta={rankLabel} icon={<TrophyIcon />} />
-      <StatCard label="Podiums" value={<GenderPair women={counters.women.podiums} men={counters.men.podiums} />} delta={rankLabel} icon={<PodiumIcon />} />
-      <StatCard label="Top 10" value={<GenderPair women={counters.women.top10} men={counters.men.top10} />} delta={rankLabel} icon={<Top10Icon />} />
+      <StatCard label="Victoires" value={counters.victories} delta={rankLabel} icon={<TrophyIcon />} />
+      <StatCard label="Podiums" value={counters.podiums} delta={rankLabel} icon={<PodiumIcon />} />
+      <StatCard label="Top 10" value={counters.top10} delta={rankLabel} icon={<Top10Icon />} />
     </>
   );
 }

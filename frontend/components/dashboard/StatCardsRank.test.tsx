@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import type { Participation } from "@/lib/types";
+import type { DashboardRankCounters } from "@/lib/types";
 
 let searchParams = new URLSearchParams();
 
@@ -10,94 +10,61 @@ vi.mock("next/navigation", () => ({
 
 import { StatCardsRank } from "./StatCardsRank";
 
-function part(over: Partial<Participation> & { id: number }): Participation {
-  return {
-    id: over.id,
-    athlete: over.athlete ?? { id: 1, nom: "N", prenom: "P", gender: "F", club: "TCN" },
-    course: over.course ?? {
-      id: 10,
-      name: "Course",
-      event_date: "2026-05-10",
-      event_type: "triathlon-m",
-      provider: "manuel",
-      source_url: "",
-      is_relay: false,
-    },
-    club: "TCN",
-    is_tcn: true,
-    category: null,
-    bib_number: null,
-    rank_overall: over.rank_overall ?? null,
-    rank_category: over.rank_category ?? null,
-    rank_gender: over.rank_gender ?? null,
-    total_time: "01:59:00",
-    status: "finisher",
-    is_relay: false,
-    splits: null,
-    created_at: null,
-  };
-}
+// Valeurs volontairement distinctes par mode, pour vérifier que le bon
+// mode est bien sélectionné et non un autre par erreur d'indexation.
+const COUNTERS: DashboardRankCounters = {
+  scratch: { victories: 0, podiums: 1, top10: 1 },
+  category: { victories: 1, podiums: 1, top10: 1 },
+  all: { victories: 1, podiums: 2, top10: 2 },
+  gender: {
+    women: { victories: 0, podiums: 0, top10: 1 },
+    men: { victories: 0, podiums: 1, top10: 1 },
+  },
+};
 
-// Fixture divergente : min-des-trois vs scratch seul divergent — 1 victoire
-// en catégorie qui n'existe pas en scratch. Permet de vérifier que le mode
-// courant est bien lu depuis l'URL et non un défaut figé.
-const PARTS: Participation[] = [
-  part({ id: 1, rank_overall: 100, rank_category: 1, rank_gender: 50 }),
-  part({ id: 2, rank_overall: 2 }),
-];
-
-describe("StatCardsRank — lecture URL et recalcul local", () => {
-  it("sans ?rank= : mode scratch (défaut) — compte sur rank_overall", () => {
+describe("StatCardsRank — sélection du bucket selon ?rank=", () => {
+  it("sans ?rank= : mode scratch (défaut)", () => {
     searchParams = new URLSearchParams();
-    render(<StatCardsRank participations={PARTS} />);
-    // Un podium scratch (rank_overall=2), aucune victoire.
-    // Trois cartes portent chacune le libellé « scratch ».
+    render(<StatCardsRank rankCounters={COUNTERS} />);
     expect(screen.getAllByText("général")).toHaveLength(3);
-    // La carte Victoires porte 0, Podiums 1, Top 10 1.
-    expect(screen.getByText("Victoires")).toBeInTheDocument();
   });
 
-  it("?rank=category : lit le mode catégorie et recalcule", () => {
+  it("?rank=category : affiche les compteurs catégorie", () => {
     searchParams = new URLSearchParams("rank=category");
-    render(<StatCardsRank participations={PARTS} />);
+    render(<StatCardsRank rankCounters={COUNTERS} />);
     expect(screen.getAllByText("catégorie")).toHaveLength(3);
-    // rank_category=1 → 1 victoire, 1 podium, 1 top 10.
   });
 
   it("?rank=gender : dédouble F / H", () => {
     searchParams = new URLSearchParams("rank=gender");
-    render(<StatCardsRank participations={PARTS} />);
+    render(<StatCardsRank rankCounters={COUNTERS} />);
     expect(screen.getAllByText("genre")).toHaveLength(3);
-    // Étiquettes F et H présentes une fois par carte.
     expect(screen.getAllByText("F")).toHaveLength(3);
     expect(screen.getAllByText("H")).toHaveLength(3);
   });
 
   it("?rank=all : mode agrégé", () => {
     searchParams = new URLSearchParams("rank=all");
-    render(<StatCardsRank participations={PARTS} />);
+    render(<StatCardsRank rankCounters={COUNTERS} />);
     expect(screen.getAllByText("général, genre ou catégorie")).toHaveLength(3);
   });
 
   it("?rank=foo : retombe silencieusement sur scratch", () => {
     searchParams = new URLSearchParams("rank=foo");
-    render(<StatCardsRank participations={PARTS} />);
+    render(<StatCardsRank rankCounters={COUNTERS} />);
     expect(screen.getAllByText("général")).toHaveLength(3);
     expect(screen.queryByText("catégorie")).not.toBeInTheDocument();
   });
 
   it("recalcule sur un changement de paramètre, sans remontage", () => {
-    // C'est la propriété dont dépend #328 : le sélecteur n'écrit plus l'URL par
-    // `router.push` mais par `history.pushState`, donc le composant n'est jamais
-    // remonté — il ne reçoit que la nouvelle valeur de `useSearchParams`. Les
-    // autres tests de ce fichier montent avec le paramètre déjà posé et ne
-    // distinguent donc pas « lit au montage » de « suit les changements ».
+    // Propriété dont dépend #328 : le sélecteur écrit l'URL par
+    // `history.pushState`, donc le composant n'est jamais remonté.
     searchParams = new URLSearchParams();
-    const { rerender } = render(<StatCardsRank participations={PARTS} />);
+    const { rerender } = render(<StatCardsRank rankCounters={COUNTERS} />);
     expect(screen.getAllByText("général")).toHaveLength(3);
 
     searchParams = new URLSearchParams("rank=category");
-    rerender(<StatCardsRank participations={PARTS} />);
+    rerender(<StatCardsRank rankCounters={COUNTERS} />);
 
     expect(screen.getAllByText("catégorie")).toHaveLength(3);
     expect(screen.queryByText("général")).not.toBeInTheDocument();

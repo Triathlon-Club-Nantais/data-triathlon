@@ -139,6 +139,19 @@ interface RecentItem {
   scraped_at: string | null;
 }
 
+export interface RankCountersBucket {
+  victories: number;
+  podiums: number;
+  top10: number;
+}
+
+export interface DashboardRankCounters {
+  scratch: RankCountersBucket;
+  category: RankCountersBucket;
+  all: RankCountersBucket;
+  gender: { women: RankCountersBucket; men: RankCountersBucket };
+}
+
 export interface Stats {
   total: number;
   athletes: number;
@@ -146,6 +159,7 @@ export interface Stats {
   by_type: Record<string, number>;
   by_month: Record<string, number>;
   recent: RecentItem[];
+  rank_counters: DashboardRankCounters;
 }
 
 // Saison sportive disponible (miroir de SeasonOut backend).
