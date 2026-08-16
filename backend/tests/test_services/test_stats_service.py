@@ -83,6 +83,105 @@ def test_get_stats_filtre_par_saison(db_session):
     assert stats["by_type"] == {"triathlon-m": 1}
 
 
+def _participation_rang(
+    db, *, athlete_gender="", rank_overall=None, rank_category=None, rank_gender=None
+):
+    """Une participation isolée, sur sa propre épreuve, pour ne pas polluer les
+    autres tests de rang (chaque appel crée son propre athlète/course)."""
+    unique = f"{rank_overall}-{rank_category}-{rank_gender}-{athlete_gender}-{id(object())}"
+    athlete = athlete_repository.get_or_create(
+        db, nom="RANG", prenom=unique, gender=athlete_gender, club="TCN"
+    )
+    course = course_repository.get_or_create(
+        db, name=f"Course rang {unique}", event_date=date(2026, 5, 16), event_type="triathlon-m"
+    )
+    participation_repository.create(
+        db,
+        athlete_id=athlete.id,
+        course_id=course.id,
+        bib_number="1",
+        club="TCN",
+        rank_overall=rank_overall,
+        rank_category=rank_category,
+        rank_gender=rank_gender,
+    )
+    db.flush()
+
+
+def test_get_stats_rank_counters_vide_sans_participation(db_session):
+    stats = stats_service.get_stats(db_session)
+    assert stats["rank_counters"] == {
+        "scratch": {"victories": 0, "podiums": 0, "top10": 0},
+        "category": {"victories": 0, "podiums": 0, "top10": 0},
+        "all": {"victories": 0, "podiums": 0, "top10": 0},
+        "gender": {
+            "women": {"victories": 0, "podiums": 0, "top10": 0},
+            "men": {"victories": 0, "podiums": 0, "top10": 0},
+        },
+    }
+
+
+def test_get_stats_rank_counters_scratch_et_category_independants(db_session):
+    # Victoire scratch (rank_overall=1) mais hors top10 en catégorie (rank_category=15).
+    _participation_rang(db_session, rank_overall=1, rank_category=15)
+    # Podium en catégorie (rank_category=3) mais hors classement scratch (rank_overall=None).
+    _participation_rang(db_session, rank_category=3)
+
+    stats = stats_service.get_stats(db_session)
+    rc = stats["rank_counters"]
+
+    assert rc["scratch"] == {"victories": 1, "podiums": 1, "top10": 1}
+    assert rc["category"] == {"victories": 0, "podiums": 1, "top10": 1}
+
+
+def test_get_stats_rank_counters_emboitement_victoires_podiums_top10(db_session):
+    """victoires ≤ podiums ≤ top10, même invariant que côté front (issue #77)."""
+    _participation_rang(db_session, rank_overall=1)
+    _participation_rang(db_session, rank_overall=3)
+    _participation_rang(db_session, rank_overall=10)
+    _participation_rang(db_session, rank_overall=200)
+
+    scratch = stats_service.get_stats(db_session)["rank_counters"]["scratch"]
+    assert scratch == {"victories": 1, "podiums": 2, "top10": 3}
+
+
+def test_get_stats_rank_counters_all_prend_le_min_des_trois(db_session):
+    # rank_overall=50 mais rank_category=1 : le mode "all" doit capter la victoire.
+    _participation_rang(db_session, rank_overall=50, rank_category=1, rank_gender=20)
+
+    rc = stats_service.get_stats(db_session)["rank_counters"]
+    assert rc["all"] == {"victories": 1, "podiums": 1, "top10": 1}
+    assert rc["scratch"] == {"victories": 0, "podiums": 0, "top10": 0}
+
+
+def test_get_stats_rank_counters_gender_ventile_f_h(db_session):
+    _participation_rang(db_session, athlete_gender="F", rank_gender=1)
+    _participation_rang(db_session, athlete_gender="M", rank_gender=2)
+    _participation_rang(db_session, athlete_gender="f", rank_gender=8)  # casse ignorée
+
+    rc = stats_service.get_stats(db_session)["rank_counters"]["gender"]
+    assert rc["women"] == {"victories": 1, "podiums": 1, "top10": 2}
+    assert rc["men"] == {"victories": 0, "podiums": 1, "top10": 1}
+
+
+def test_get_stats_rank_counters_gender_ignore_les_genres_non_f_m(db_session):
+    """Comportement préservé du front (`club-aggregate.ts`) : seuls "F"/"M"
+    comptent, un athlète "H" n'entre dans aucun des deux compteurs."""
+    _participation_rang(db_session, athlete_gender="H", rank_gender=1)
+
+    rc = stats_service.get_stats(db_session)["rank_counters"]["gender"]
+    assert rc["women"] == {"victories": 0, "podiums": 0, "top10": 0}
+    assert rc["men"] == {"victories": 0, "podiums": 0, "top10": 0}
+
+
+def test_get_stats_rank_counters_ignore_les_rangs_nuls_ou_absents(db_session):
+    _participation_rang(db_session, rank_overall=None)
+    _participation_rang(db_session, rank_overall=0)  # jamais valide, garde `>= 1`
+
+    rc = stats_service.get_stats(db_session)["rank_counters"]["scratch"]
+    assert rc == {"victories": 0, "podiums": 0, "top10": 0}
+
+
 def test_list_seasons_force_saison_courante_et_tri_decroissant(db_session, monkeypatch):
     from app.core import season as season_module
 
