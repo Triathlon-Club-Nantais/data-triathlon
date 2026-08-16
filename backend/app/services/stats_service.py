@@ -15,6 +15,53 @@ def _athlete_key(part) -> int:
     return part.athlete_id
 
 
+def _bucket() -> dict:
+    return {"victories": 0, "podiums": 0, "top10": 0}
+
+
+def _accumule(bucket: dict, rang: int | None) -> None:
+    if rang is None or rang < 1:
+        return
+    if rang <= 1:
+        bucket["victories"] += 1
+    if rang <= 3:
+        bucket["podiums"] += 1
+    if rang <= 10:
+        bucket["top10"] += 1
+
+
+def _meilleur_rang(rangs: list[int | None]) -> int | None:
+    valides = [r for r in rangs if r is not None and r >= 1]
+    return min(valides) if valides else None
+
+
+def _rank_counters(parts) -> dict:
+    """Compteurs Victoires/Podiums/Top10 des 4 modes de rang du dashboard.
+
+    Calculés en une passe sur les participations déjà chargées par
+    `get_stats` — aucune requête supplémentaire. Miroir du calcul
+    auparavant fait côté client par `rankCounters`
+    (`frontend/lib/utils/club-aggregate.ts`) : le comportement de chaque
+    mode, y compris la ventilation genre limitée à "F"/"M", est repris à
+    l'identique (#376 déplace le calcul, ne le change pas).
+    """
+    scratch, category, tous = _bucket(), _bucket(), _bucket()
+    genre = {"women": _bucket(), "men": _bucket()}
+
+    for p in parts:
+        _accumule(scratch, p.rank_overall)
+        _accumule(category, p.rank_category)
+        _accumule(tous, _meilleur_rang([p.rank_overall, p.rank_gender, p.rank_category]))
+
+        g = (p.athlete.gender or "").upper() if p.athlete else ""
+        if g == "F":
+            _accumule(genre["women"], p.rank_gender)
+        elif g == "M":
+            _accumule(genre["men"], p.rank_gender)
+
+    return {"scratch": scratch, "category": category, "all": tous, "gender": genre}
+
+
 def get_stats(
     db: Session,
     *,
@@ -27,7 +74,10 @@ def get_stats(
         db, club_only=club_only, seasons=seasons, federal_only=federal_only
     )
     if not parts:
-        return {"total": 0, "athletes": 0, "events": 0, "by_type": {}, "by_month": {}, "recent": []}
+        return {
+            "total": 0, "athletes": 0, "events": 0, "by_type": {}, "by_month": {}, "recent": [],
+            "rank_counters": _rank_counters([]),
+        }
 
     athlete_set = {p.athlete_id for p in parts}
     event_set = {p.course_id for p in parts}
@@ -68,6 +118,7 @@ def get_stats(
             }
             for p in recent
         ],
+        "rank_counters": _rank_counters(parts),
     }
 
 
