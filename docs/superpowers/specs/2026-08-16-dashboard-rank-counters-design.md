@@ -2,7 +2,7 @@
 
 **Issue** : [#376](https://github.com/Triathlon-Club-Nantais/data-triathlon/issues/376)
 **Date** : 2026-08-16
-**Statut** : design validé, à implémenter
+**Statut** : implémenté (#376)
 
 ## Le problème
 
