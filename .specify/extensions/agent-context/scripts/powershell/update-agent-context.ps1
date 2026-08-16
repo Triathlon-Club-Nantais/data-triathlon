@@ -9,6 +9,12 @@
 #   .specify/extensions/agent-context/agent-context-config.yml
 #
 # Usage: update-agent-context.ps1 [plan_path]
+#
+# When $PlanPath is omitted, the script looks for specs/<current-branch>/plan.md
+# and uses it if found, otherwise emits the section without a concrete plan
+# path. It never falls back to an unrelated feature's plan — picking the most
+# recently modified specs/*/plan.md repo-wide caused a stale, unrelated
+# feature's plan to stay referenced across many later branches (#374).
 
 [CmdletBinding()]
 param(
@@ -166,18 +172,17 @@ if ($cm) {
 }
 
 if (-not $PlanPath) {
-    # Discover plan.md exactly one level deep (specs/<feature>/plan.md),
-    # matching the bash glob specs/*/plan.md. Wrap in try/catch so access errors under
-    # $ErrorActionPreference = 'Stop' don't abort the script.
+    # Match specs/<current-branch>/plan.md. No repo-wide fallback: an
+    # unrelated feature's plan is never a better answer than no plan at all.
+    # Wrap in try/catch so access errors under $ErrorActionPreference = 'Stop'
+    # don't abort the script.
     try {
-        $specsDir = Join-Path $ProjectRoot 'specs'
-        $candidate = Get-ChildItem -Path $specsDir -Directory -ErrorAction SilentlyContinue |
-            ForEach-Object { Get-Item -LiteralPath (Join-Path $_.FullName 'plan.md') -ErrorAction SilentlyContinue } |
-            Where-Object { $_ } |
-            Sort-Object LastWriteTime -Descending |
-            Select-Object -First 1
-        if ($candidate) {
-            $PlanPath = [System.IO.Path]::GetRelativePath($ProjectRoot, $candidate.FullName).Replace('\','/')
+        $branch = (& git -C $ProjectRoot symbolic-ref --short -q HEAD 2>$null)
+        if ($LASTEXITCODE -eq 0 -and $branch) {
+            $candidatePath = Join-Path $ProjectRoot "specs/$branch/plan.md"
+            if (Test-Path -LiteralPath $candidatePath) {
+                $PlanPath = "specs/$branch/plan.md"
+            }
         }
     } catch {
         # Non-fatal: continue without a plan path.
