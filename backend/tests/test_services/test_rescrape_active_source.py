@@ -7,8 +7,9 @@ une source passive vieillit indéfiniment, elle ne sert qu'à documenter l'autre
 publication et à permettre la bascule (#285).
 
 Le ciblage explicite (`--url`, `--urls-from`) est l'autre moitié du sujet : une
-URL passive qu'on lui passe doit être **refusée en nommant l'épreuve**, jamais
-scrapée « à côté ».
+URL passive qu'on lui passe doit être **signalée en nommant l'épreuve et son
+active**, jamais scrapée « à côté ». C'est la CLI qui en tire la substitution
+(`test_cli/test_commands.py`) ; ce fichier-ci ne juge que la détection.
 """
 from datetime import date
 
@@ -126,27 +127,27 @@ def test_the_provider_filter_reads_the_active_source(db_session, monkeypatch):
 # --- AC2 : le ciblage explicite d'une URL passive ------------------------------
 
 
-def test_a_passive_url_is_refused_naming_the_course_and_its_active_source(db_session):
-    """AC2 — la matière du refus : l'épreuve, et l'URL que l'opérateur voulait.
+def test_a_passive_url_is_reported_naming_the_course_and_its_active_source(db_session):
+    """AC2 — la matière du signalement : l'épreuve, et l'URL réellement scrapée.
 
-    Sans le nom de l'épreuve, le refus est indéboguable : l'opérateur ne sait
-    qu'une chose, c'est qu'il a collé une URL qui existe. Avec l'URL active, le
-    refus porte sa propre correction.
+    Sans le nom de l'épreuve, la substitution est indéboguable : l'opérateur ne
+    sait qu'une chose, c'est qu'il a collé une URL qui existe. Avec l'URL active,
+    le message porte sa propre correction — celle du fichier d'URLs.
     """
     course = _fusionnee(db_session)
 
-    refuses = rescrape_service.find_passive_targets(db_session, [PASSIVE])
+    cibles = rescrape_service.find_passive_targets(db_session, [PASSIVE])
 
-    assert [cible.url for cible in refuses] == [PASSIVE]
-    assert refuses[0].course_name == course.name
-    assert refuses[0].active_url == ACTIVE
+    assert [cible.url for cible in cibles] == [PASSIVE]
+    assert cibles[0].course_name == course.name
+    assert cibles[0].active_url == ACTIVE
 
 
 def test_an_unknown_url_is_not_a_passive_target(db_session):
     """Le cas **nominal** du rejeu d'un échec d'import reste intact.
 
     Une épreuve qui a échoué à l'import n'a rien persisté : son URL est absente
-    de `course_sources`. La refuser fermerait la boucle
+    de `course_sources`. La détourner fermerait la boucle
     `import-sheet --json | … --urls-from -`, qui est la raison d'être du mode
     ciblé.
     """
@@ -155,13 +156,13 @@ def test_an_unknown_url_is_not_a_passive_target(db_session):
     assert rescrape_service.find_passive_targets(db_session, ["https://k/inconnue"]) == []
 
 
-def test_a_url_active_somewhere_is_never_refused(db_session):
+def test_a_url_active_somewhere_is_never_a_passive_target(db_session):
     """Passive ici, active là : elle reste scrapable, et pour l'épreuve où elle l'est.
 
     Une URL porte légitimement N épreuves (heats Klikego, catégories Wiclax) :
-    rien n'interdit qu'elle soit l'active de l'une et la passive d'une autre. Le
-    refus porte sur l'URL, pas sur le couple — il ne peut donc se déclencher que
-    si **aucune** épreuve ne la tient pour active.
+    rien n'interdit qu'elle soit l'active de l'une et la passive d'une autre. La
+    détection porte sur l'URL, pas sur le couple — elle ne peut donc se
+    déclencher que si **aucune** épreuve ne la tient pour active.
     """
     _epreuve(db_session, "Active", PASSIVE, provider="breizhchrono", jour=2)
     _fusionnee(db_session, jour=1)
@@ -170,27 +171,27 @@ def test_a_url_active_somewhere_is_never_refused(db_session):
 
 
 def test_a_trailing_slash_does_not_hide_a_passive_url(db_session):
-    """Le refus se juge sur l'URL normalisée, comme toute comparaison d'URL ici.
+    """Le cas se juge sur l'URL normalisée, comme toute comparaison d'URL ici.
 
     Un slash final ou une casse d'hôte différente vient d'un copier-coller, pas
     d'une intention. Comparer les formes brutes ferait passer la passive au
-    travers du refus — et la ferait scraper, ce que ce garde-fou existe pour
-    empêcher.
+    travers du garde-fou — et la ferait scraper telle quelle, ce qu'il existe
+    pour empêcher.
     """
     _fusionnee(db_session)
 
-    refuses = rescrape_service.find_passive_targets(db_session, [PASSIVE + "/"])
+    cibles = rescrape_service.find_passive_targets(db_session, [PASSIVE + "/"])
 
-    assert [cible.url for cible in refuses] == [PASSIVE + "/"]
-    assert refuses[0].active_url == ACTIVE
+    assert [cible.url for cible in cibles] == [PASSIVE + "/"]
+    assert cibles[0].active_url == ACTIVE
 
 
-def test_a_course_without_any_active_source_is_refused_without_naming_one(db_session):
-    """Refus quand même, mais sans promettre une URL de repli qui n'existe pas.
+def test_a_course_without_any_active_source_names_no_replacement(db_session):
+    """Signalée quand même, mais sans promettre une URL de repli qui n'existe pas.
 
     Épreuve saisie à la main + une URL rattachée (donc passive) : il n'y a rien à
-    proposer. Le refus doit le dire, plutôt que de nommer une chaîne vide comme
-    si c'était une URL.
+    proposer. `active_url` vide est ce qui dit à la CLI de scraper la passive
+    telle quelle, plutôt que de nommer une chaîne vide comme si c'était une URL.
     """
     manuelle = _epreuve(db_session, "Manuelle")
     course_source_repository.add(
@@ -198,10 +199,10 @@ def test_a_course_without_any_active_source_is_refused_without_naming_one(db_ses
     )
     db_session.flush()
 
-    refuses = rescrape_service.find_passive_targets(db_session, [PASSIVE])
+    cibles = rescrape_service.find_passive_targets(db_session, [PASSIVE])
 
-    assert [cible.course_name for cible in refuses] == ["Manuelle"]
-    assert refuses[0].active_url == ""
+    assert [cible.course_name for cible in cibles] == ["Manuelle"]
+    assert cibles[0].active_url == ""
 
 
 def test_every_passive_url_of_the_batch_is_reported_at_once(db_session):
@@ -218,16 +219,16 @@ def test_every_passive_url_of_the_batch_is_reported_at_once(db_session):
     )
     db_session.flush()
 
-    refuses = rescrape_service.find_passive_targets(
+    cibles = rescrape_service.find_passive_targets(
         db_session, [seconde_passive, "https://k/inconnue", PASSIVE]
     )
 
-    assert [cible.url for cible in refuses] == [seconde_passive, PASSIVE]
-    assert [cible.course_name for cible in refuses] == ["Mesquer", "Nozeen"]
+    assert [cible.url for cible in cibles] == [seconde_passive, PASSIVE]
+    assert [cible.course_name for cible in cibles] == ["Mesquer", "Nozeen"]
 
 
 def test_no_targeting_asks_nothing_of_the_sources_table(db_session):
-    """Mode base : il n'y a pas d'URL saisie, donc rien à refuser."""
+    """Mode base : il n'y a pas d'URL saisie, donc rien à rediriger."""
     _fusionnee(db_session)
 
     assert rescrape_service.find_passive_targets(db_session, []) == []

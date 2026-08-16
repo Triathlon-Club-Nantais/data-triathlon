@@ -9,23 +9,25 @@ from app.core.config import get_settings
 from app.core.database import session_scope
 from app.services import rescrape_service
 
-#: Convention Click / Typer, comme `grant-role`, `allow-email` et
-#: `revoke-sessions` : `2` = erreur d'usage.
-USAGE = 2
 
+def _redirection_source_passive(cible: rescrape_service.PassiveTarget) -> str:
+    """La substitution d'une URL passive, dite pour être corrigeable à la source.
 
-def _refus_source_passive(cible: rescrape_service.PassiveTarget) -> str:
-    """Le refus d'une URL passive, formulé pour être corrigeable sans lire le code."""
+    Le batch continue : ce message n'est pas une erreur, mais la trace de ce qui
+    a été redressé. C'est elle qui permet de corriger le **fichier** d'URLs, que
+    la CLI ne peut pas réécrire — sans elle, la liste resterait fausse pour
+    toujours.
+    """
     if not cible.active_url:
         return (
             f"« {cible.url} » est une source passive de l'épreuve "
-            f"« {cible.course_name} », qui n'a aucune source active : il n'y a "
-            "rien à re-scraper."
+            f"« {cible.course_name} », qui n'a aucune source active : elle est "
+            "re-scrapée telle quelle."
         )
     return (
         f"« {cible.url} » est une source passive de l'épreuve "
-        f"« {cible.course_name} ». Sa source active est « {cible.active_url} » — "
-        "ciblez celle-là."
+        f"« {cible.course_name} » : re-scrape de sa source active "
+        f"« {cible.active_url} »."
     )
 
 
@@ -78,7 +80,7 @@ def rescrape_db(
     rapport et --limit comptent des épreuves, pas des lignes de la table course.
     Les sources **passives** d'une épreuve fusionnée ne sont jamais scrapées
     (#282) : `--provider` nomme le provider de l'active, et une URL passive
-    passée à `--url` est refusée.
+    passée à `--url` est remplacée par l'active de son épreuve.
 
     Deux modes de sélection, exclusifs l'un de l'autre : par filtre sur la base
     (`--provider`, `--older-than`), ou par URL explicite (`--url`,
@@ -99,23 +101,30 @@ def rescrape_db(
     reporter = select_reporter(no_progress=no_progress or dry_run, plain=plain)
 
     with session_scope() as db:
-        # Le seul refus de cette commande qui exige la base, et il ne pouvait pas
-        # être un callback Typer pour cette raison : « cette URL est-elle passive ? »
-        # ne se lit que dans `course_sources`. Reste une **erreur d'usage** (code
-        # 2) et non un échec de batch — l'opérateur a désigné la mauvaise URL,
-        # rien n'a été tenté. Précédent : `revoke-sessions --email <inconnue>`,
-        # qui se constate aussi en base et sort en 2.
+        # Le seul redressement de cette commande qui exige la base, et il ne
+        # pouvait pas être un callback Typer pour cette raison : « cette URL
+        # est-elle passive ? » ne se lit que dans `course_sources`.
         #
-        # Refus **global** : on ne scrape pas les URLs valides du lot. Un bilan
-        # partiel doublé d'un code 2 ne se lirait ni comme un succès ni comme un
-        # refus, et l'opérateur relancerait sans savoir ce qui a déjà tourné.
-        passives = rescrape_service.find_passive_targets(db, urls or [])
+        # Une passive n'est jamais scrapée telle quelle quand son épreuve a une
+        # active (#282) : ce serait importer le classement d'un autre
+        # chronométreur dans l'épreuve. Mais le lot n'est plus **refusé** pour
+        # autant : une URL périmée dans un fichier de soixante-dix ne doit pas
+        # coûter les soixante-neuf autres. On substitue, et on le dit.
+        #
+        # Sans active — épreuve saisie à la main (#283) —, la passive part telle
+        # quelle : elle est la seule publication connue, aucun doublon n'est
+        # possible, et refuser ne scraperait rien du tout.
+        cibles = urls or []
+        passives = rescrape_service.find_passive_targets(db, cibles)
         if passives:
             for cible in passives:
-                # stderr, comme toute erreur d'usage de cette commande : stdout
-                # est le canal `--json`, une phrase française l'invaliderait.
-                typer.echo(_refus_source_passive(cible), err=True)
-            raise typer.Exit(USAGE)
+                # stderr : stdout est le canal `--json`, une phrase française
+                # l'invaliderait.
+                typer.echo(_redirection_source_passive(cible), err=True)
+            # Les doublons que la substitution peut créer (l'active déjà dans le
+            # lot) sont absorbés en aval par `_items_depuis_urls`, qui dédoublonne.
+            actives = {c.url: c.active_url for c in passives if c.active_url}
+            urls = [actives.get(soumise, soumise) for soumise in cibles]
 
         outcome = rescrape_service.run_rescrape_db(
             db, settings,

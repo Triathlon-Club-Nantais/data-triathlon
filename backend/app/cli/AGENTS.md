@@ -51,7 +51,7 @@ avant** la sortie :
 | --- | --- |
 | `0` | Succès, y compris **partiel** (quelques épreuves en échec sur N) ou « rien à faire » (zéro épreuve ciblée). Un dry-run sort toujours en 0. |
 | `1` | **Échec total** : aucune des épreuves ciblées n'a abouti (`batch.est_echec_total` : `errors >= épreuves > 0`). Sinon un cron dont les 53 épreuves échouent n'alerterait jamais. |
-| `2` | **Erreur d'usage** (convention Click) : option invalide — notamment `--provider` / `--only-provider` inconnu, rejeté avant tout travail par `cli/validators`, ou `--url` désignant une **source passive** (#282, voir plus bas). |
+| `2` | **Erreur d'usage** (convention Click) : option invalide — notamment `--provider` / `--only-provider` inconnu, rejeté avant tout travail par `cli/validators`. Une `--url` **passive** n'en fait plus partie : elle est redirigée, pas refusée (voir plus bas). |
 | `130` | Ctrl-C. **Prioritaire sur 1** : une interruption est une action de l'opérateur, pas une panne. |
 
 Un tube fermé (`… | head -2`) ne fausse aucun de ces codes : le `BrokenPipeError`
@@ -97,13 +97,20 @@ ciblée du tout. Sans ce filtre, `rescrape-db` recréait les doublons que la tab
 des sources existe pour supprimer.
 
 Corollaire côté ciblage explicite, seule exception au « URL inconnue = scrapée
-sans avertissement » : une URL **connue mais passive** est **refusée**, en nommant
-l'épreuve et sa source active, en **code 2** et sur **stderr** (stdout reste le
-canal `--json`). Le refus est **global** — aucune URL du lot n'est scrapée : un
-bilan partiel doublé d'un code 2 ne se lirait ni comme un succès ni comme un
-refus. Ce `2` s'appuie sur le même précédent que `revoke-sessions --email
-<inconnue>` : une erreur d'usage se constate parfois en base, et « rejeté avant
-tout travail » veut dire avant le premier scrape, pas avant la Session.
+sans avertissement » : une URL **connue mais passive** est **remplacée par
+l'active de son épreuve**, et la substitution est annoncée sur **stderr** (stdout
+reste le canal `--json`). Le batch continue et sort par ses codes habituels — ce
+n'est plus une erreur d'usage : une URL périmée dans un fichier de soixante-dix
+ne doit pas coûter les soixante-neuf autres, et un refus global n'apprenait à
+l'opérateur rien de plus que ce message. La trace sur stderr est ce qui permet de
+corriger le **fichier**, que la CLI ne réécrit pas.
+
+Deux propriétés à ne pas casser en y touchant : la substitution peut faire
+**doublon** avec une active déjà présente dans le lot — c'est
+`_items_depuis_urls` qui l'absorbe en dédoublonnant, la CLI ne s'en occupe pas ;
+et une passive dont l'épreuve n'a **aucune** active (saisie manuelle, #283) part
+**telle quelle**, sans redirection possible : elle est la seule publication
+connue, aucun doublon n'est possible, et la refuser ne scraperait rien du tout.
 
 **Deux unités dans un bilan**, et chaque libellé doit le dire : « Épreuves
 ciblées / traitées / en erreur » comptent des **épreuves** ; « Participants
@@ -137,10 +144,10 @@ sous « Sources enregistrées, non principales (détail) : », avec le message q
 peut pas distinguer une URL absorbée d'un import ordinaire à zéro nouveauté. Le
 champ `passive_sources` est dans la charge `--json`, et dans `CHAMPS_COMMUNS` :
 `run_batch` les collecte pour les deux commandes, deux rendus divergeraient sans
-raison. À ne pas confondre avec le refus de #282, qui porte sur une URL **déjà**
-passive passée à `--url` : celui-là est une erreur d'usage (code 2) et ne scrape
-rien ; celui-ci constate après coup, sur une URL que rien ne permettait de
-refuser d'avance.
+raison. À ne pas confondre avec la redirection de #282, qui porte sur une URL
+**déjà** passive passée à `--url` : celle-là est corrigée avant le batch, en
+substituant l'active ; celle-ci constate après coup, sur une URL que rien ne
+permettait de rediriger d'avance.
 
 **Réconciliation de l'identité d'athlète** (issue #66) : `rescrape-db` n'est plus
 purement additif. Sur un dossard déjà en base, il **résout l'athlète** et, si la

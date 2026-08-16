@@ -5,8 +5,10 @@ non la course. La table `course` en porte N par épreuve (heats Breizh Chrono,
 variantes individuel/relais) ; un seul scrape d'épreuve les réimporte toutes.
 Compteurs et `--limit` raisonnent donc en épreuves (cf. `_dedupe_par_url`).
 
-**Les sources passives ne sont jamais scrapées** (#282), ni par la sélection en
-base, ni par un ciblage explicite qui les refuse. C'est la fin des doublons que
+**Les sources passives ne sont jamais scrapées** (#282) : ni par la sélection en
+base, ni par un ciblage explicite, qui leur substitue l'active de leur épreuve —
+sauf quand celle-ci n'en a aucune, la passive étant alors la seule publication
+connue. C'est la fin des doublons que
 `rescrape-db` fabriquait : deux publications d'une même course réelle étaient
 deux lignes `Course` sans lien, donc deux scrapes, donc deux classements
 concurrents. Contrepartie assumée : une source passive vieillit indéfiniment —
@@ -81,15 +83,16 @@ def _items_depuis_urls(db: Session, urls: list[str]) -> list[BatchItem]:
 
 @dataclass(frozen=True)
 class PassiveTarget:
-    """Une URL ciblée qui n'est qu'une source **passive** : à refuser (#282).
+    """Une URL ciblée qui n'est qu'une source **passive** : à rediriger (#282).
 
-    Porte de quoi écrire le refus, et rien de plus — c'est la CLI qui le formule
-    (`cli/commands/rescrape_db`), seule à connaître le canal et le code de sortie.
+    Porte de quoi écrire la substitution, et rien de plus — c'est la CLI qui la
+    formule et l'applique (`cli/commands/rescrape_db`), seule à connaître le
+    canal d'affichage.
 
     `active_url` peut être vide, et ce n'est pas un cas dégradé : une épreuve
     saisie à la main n'a aucune source active, et rattacher une URL à celle-ci
-    (#283) produit exactement une passive orpheline. Le refus tient toujours, il
-    n'a simplement rien à proposer en remplacement.
+    (#283) produit exactement une passive orpheline. Il n'y a alors rien vers
+    quoi rediriger, et c'est la passive elle-même qui est scrapée.
     """
     #: L'URL telle que l'opérateur l'a écrite — c'est celle-là qu'il doit retrouver.
     url: str
@@ -105,7 +108,8 @@ def find_passive_targets(db: Session, urls: list[str]) -> list[PassiveTarget]:
     Ce court-circuit a un angle mort — une URL **connue mais passive** serait
     scrapée « à côté », et importerait le classement d'un autre chronométreur
     dans l'épreuve, soit le doublon que la table des sources existe pour
-    supprimer. On le refuse donc, en amont du batch.
+    supprimer. On les signale donc en amont du batch, pour que l'appelant leur
+    substitue l'active de leur épreuve.
 
     Trois réponses, et la distinction est tout l'objet de la fonction :
 
@@ -114,7 +118,7 @@ def find_passive_targets(db: Session, urls: list[str]) -> list[PassiveTarget]:
       elle est active est celle qui sera réimportée. Rien n'interdit qu'une même
       URL soit l'active de l'une et la passive d'une autre : une URL porte
       légitimement N épreuves (heats Klikego, catégories Wiclax).
-    - URL **connue et passive partout** → refusée, en nommant la première épreuve
+    - URL **connue et passive partout** → rendue, en nommant la première épreuve
       qui la porte et l'URL active de celle-ci.
 
     Comparaison sur `sheet_source.normalize_url`, comme partout ailleurs : un
