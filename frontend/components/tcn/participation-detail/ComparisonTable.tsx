@@ -23,7 +23,7 @@ export function ComparisonTable({
   eventType: string;
 }) {
   const columns = splitColumnsFromKeys(eventType, segments);
-  const hasShortSegment = columns.some((column) => column.small);
+  const shortSegmentLabels = columns.filter((column) => column.small).map((column) => column.label);
 
   return (
     <Card style={{ marginBottom: 24, overflowX: "auto" }}>
@@ -60,10 +60,11 @@ export function ComparisonTable({
           ))}
         </tbody>
       </table>
-      {hasShortSegment && (
-        <p style={{ marginTop: 10, fontSize: 11, color: "var(--tcn-text-faint)" }}>
-          Les segments courts (T1, T2) sont sensibles au bruit de chronométrage : leurs
-          pourcentages peuvent ne pas décroître régulièrement d&apos;un rang à l&apos;autre.
+      {shortSegmentLabels.length > 0 && (
+        <p style={{ marginTop: 10, fontSize: 13, color: "var(--tcn-text-faint)" }}>
+          Les segments courts ({shortSegmentLabels.join(", ")}) sont sensibles au bruit de
+          chronométrage : leurs pourcentages peuvent ne pas décroître régulièrement d&apos;un
+          rang à l&apos;autre.
         </p>
       )}
     </Card>

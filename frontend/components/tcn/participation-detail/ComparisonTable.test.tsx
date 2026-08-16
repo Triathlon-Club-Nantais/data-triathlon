@@ -86,4 +86,16 @@ describe("ComparisonTable", () => {
 
     expect(screen.queryByText(/bruit de chronométrage/i)).toBeNull();
   });
+
+  it("ne nomme que les segments courts réellement publiés (aquarun, T1 sans T2)", () => {
+    renderTable(
+      [{ position_label: "1er", rank: 1, percentages: { swim: 120.0, t1: 130.0, run: 118.0, total: 119.0 } }],
+      ["swim", "t1", "run"],
+      "aquarun",
+    );
+
+    const note = screen.getByText(/bruit de chronométrage/i);
+    expect(note.textContent).toContain("T1");
+    expect(note.textContent).not.toContain("T2");
+  });
 });
