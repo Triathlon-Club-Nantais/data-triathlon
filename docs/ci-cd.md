@@ -292,6 +292,58 @@ passe avant Markdown. L'exclusion est ce qui met les plans à l'abri ; dans une
 page **publiée**, il faut entourer le passage des balises Liquid `raw` /
 `endraw`.
 
+### Code scanning — CodeQL, deux analyses distinctes (#394)
+
+Deux analyses CodeQL tournent en parallèle sur le dépôt, sans lien l'une avec
+l'autre malgré un nom de mécanisme partagé (« dynamic/github-code-scanning/codeql ») :
+
+- **`code-quality`** — déjà en place avant #394, non désactivable depuis
+  l'API ni l'UI classique de default setup : c'est une fonctionnalité distincte
+  (aperçu « Code quality »), dont les alertes ne sont exposées par aucune route
+  REST (constaté dans le sondage `docs/superpowers/specs/2026-08-04-code-quality-codeql-sondage.md`).
+- **`code-scanning` (sécurité)** — activée par #394. `GET
+  /repos/…/code-scanning/default-setup` répondait `"state": "not-configured"` :
+  le dépôt n'avait **aucun SAST** malgré l'analyse qualité qui tournait déjà
+  (constat A08-1 de l'audit OWASP). Activée via :
+
+  ```bash
+  gh api --method PATCH repos/Triathlon-Club-Nantais/data-triathlon/code-scanning/default-setup \
+    --input - <<'JSON'
+  {
+    "state": "configured",
+    "query_suite": "default",
+    "languages": ["python", "javascript-typescript", "actions"],
+    "runner_type": "standard"
+  }
+  JSON
+  ```
+
+  Vérifié après coup : `code-scanning/alerts` et `code-scanning/analyses`
+  rendent désormais du contenu (3 analyses, une par langage), là où ils
+  répondaient `404 no analysis found` avant l'activation — c'est la default
+  setup qui ne tournait pas, pas une question de filtrage. Le paramètre
+  `query_suite` de cette API n'accepte que `default` / `extended` : il n'existe
+  pas de valeur « security-and-quality » à ce niveau, contrairement au
+  paramètre `queries:` d'un workflow CodeQL explicite — la distinction
+  sécurité/qualité est portée par deux mécanismes séparés, pas par un choix de
+  suite sur l'un des deux.
+
+  Le langage `actions` est inclus : les requêtes de sécurité GitHub Actions
+  (injection de commande, cache poisoning, permissions manquantes…) relèvent
+  du même A08 (intégrité logicielle) que le constat d'origine.
+
+**Non traité par #394, à noter pour qui reprendrait le sujet** : la propriété
+d'organisation `github-codeql-config-file`, qui doit fusionner
+`.github/codeql/codeql-config.yml` (filtrage `backend/alembic/versions` et
+`backend/tests/fixtures`) dans la configuration générée, n'a jamais été posée
+sur ce dépôt — `GET /repos/…/properties/values` n'en rend aucune trace (réponse
+`[]`, aucune valeur explicite déclarée). Vérifié après l'activation de #394 :
+le groupe de log « Augmented user configuration file contents » du run de
+sécurité ne contient aucun `paths-ignore`. C'est un reste du sondage du
+2026-08-04 (§7, « reste à faire ») jamais posé, indépendant de #394 : la poser
+demanderait un `PATCH /repos/…/properties/values` au niveau organisation, hors
+périmètre d'un chore sur un seul dépôt.
+
 ### Environments GitHub — requis, et un garde-fou optionnel
 
 Les *Environments* `preview` et `production` sont **nécessaires** : les deux jobs
