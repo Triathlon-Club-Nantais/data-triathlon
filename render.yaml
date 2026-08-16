@@ -23,9 +23,12 @@
 services:
   # PROD. `name` porte le nom **réel** du service : c'est par lui qu'un Blueprint
   # apparie un service existant, donc un nom approchant en créerait un troisième
-  # au lieu d'adopter celui-ci.
+  # au lieu d'adopter celui-ci. Il a justement porté `data-triathlon` — le nom du
+  # dépôt, pas celui du service — jusqu'à #259 ; le service s'appelle
+  # `triathlon-backend-production` (son *slug*, lui, est `data-triathlon-vq6u`,
+  # d'où l'URL `.onrender.com` : un slug ne s'écrit pas dans un blueprint).
   - type: web
-    name: data-triathlon
+    name: triathlon-backend-production
     runtime: python
     autoDeploy: false # déploiement uniquement via deploy hook (gate CI)
     rootDir: backend
@@ -71,18 +74,11 @@ services:
         sync: false
       - key: AUTH_GITHUB_CLIENT_SECRET
         sync: false
-      # **Plus lue par l'application** (#170) : la liste d'autorisation vit dans
-      # la table `allowed_emails`. Cette entrée survit **une** livraison parce
-      # qu'elle est le carburant de la reprise — la migration `a107b77b53e8` la
-      # lit dans `os.environ` au `alembic upgrade head` du `startCommand`, donc
-      # avant la première requête. La retirer du blueprint dans la même PR
-      # ferait dépendre la production d'un comportement non vérifié (Render
-      # supprime-t-il une valeur `sync: false` quand la clé disparaît ?), et le
-      # rattrapage n'existe pas : `plan: free` n'ouvre aucun shell, il faudrait
-      # un INSERT dans la console Supabase. À retirer dans une PR de suivi, une
-      # fois la reprise constatée dans /admin.
-      - key: AUTH_ALLOWED_EMAILS
-        sync: false
+      # `AUTH_ALLOWED_EMAILS` **a été retirée ici** (#259) : la liste vit dans la
+      # table `allowed_emails` depuis #170, et la reprise qui la lisait encore
+      # (migration `a107b77b53e8`, livrée en v0.2.0) a été constatée dans
+      # /admin/acces. Ne pas la réintroduire : `Settings` porte `extra="ignore"`,
+      # elle serait ignorée en silence.
       - key: AUTH_REDIRECT_BASE_URL
         sync: false # origine de l'**interface** (Vercel), jamais celle de l'API
       - key: AUTH_COOKIE_SECURE
@@ -90,6 +86,41 @@ services:
         # cookies en **dérive** (`__Host-` exige `Secure`), donc la valeur est
         # figée ici plutôt que laissée à une saisie.
         value: "true"
+      # ── Le reste de la référence (#259) ────────────────────────────────────
+      # Ces cinq entrées manquaient : le fichier ne décrivait que la base, la
+      # version et le SSO, ce qui en faisait une référence muette là où une
+      # erreur coûte le plus cher (`GITHUB_BATCH_TARGET`).
+      #
+      # Origines autorisées à appeler l'API depuis un navigateur (CSV). Le défaut
+      # du code est `localhost:3000,localhost:5173` — inutilisable en production,
+      # et pourtant **sans symptôme** : l'interface proxifie `/api/*` par un
+      # rewrite Next (`next.config.ts`), donc les appels partent en *same-origin*
+      # et n'exercent jamais CORS. Constaté le 16/08/2026 : la production ne
+      # renvoie aucun en-tête `Access-Control-Allow-*`. À saisir tout de même —
+      # le jour où un appel direct existe, l'oubli tombe côté navigateur.
+      - key: CORS_ORIGINS
+        sync: false
+      # Journalisation structurée (ingestion Render/Datadog). Mesuré le
+      # 16/08/2026 sur les journaux de production : aucune sortie JSON, la
+      # variable y est donc absente ou fausse. La ligne décrit cet état, elle ne
+      # le change pas — la basculer se fait au dashboard.
+      - key: LOG_JSON
+        value: "false"
+      - key: POSTHOG_PROJECT_TOKEN
+        sync: false # vide = captures ignorées en silence, état légitime
+      # ── Lancement des batches depuis /admin (#47) ──────────────────────────
+      # Jeton *fine-grained*, ce dépôt seul, permission `actions: write`. Il
+      # **expire** (un an au plus) : sa date de fin est suivie dans
+      # docs/ci-cd.md, § Échéances des jetons.
+      - key: GITHUB_BATCH_TOKEN
+        sync: false
+      # **La seule variable de ce fichier dont une erreur de saisie se voie chez
+      # les adhérents** : elle nomme la base que les batches lancés depuis CETTE
+      # instance écrivent — `production` ici, `preview` sur l'autre service.
+      # L'inverser ferait écrire les batches de la preview en production. C'est
+      # une propriété du déploiement, jamais un choix offert dans l'écran.
+      - key: GITHUB_BATCH_TARGET
+        sync: false
 
   # PREVIEW. Nom réel du service : `triathlon-backend-preview`. Même image, même
   # pipeline ; seules diffèrent les valeurs `sync: false` (base Supabase preview,

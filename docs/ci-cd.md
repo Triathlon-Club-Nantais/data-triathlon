@@ -183,30 +183,19 @@ Trois points qui coûtent cher s'ils sont découverts en production :
   d'une installation neuve passe par
   `uv run python -m app.cli allow-email --email <adresse>`.
 
-### Mettre en production la liste d'autorisation en base (#170)
+### Ajouter une adresse autorisée sans passer par `/admin` (#170)
 
-**L'ordre compte, et l'inverser ferme l'accès à tout le monde.** La migration qui
-crée `allowed_emails` reprend, au moment du `alembic upgrade head` du
-`startCommand`, ce que porte encore `AUTH_ALLOWED_EMAILS` dans l'environnement du
-processus. Elle s'exécute donc **avant** la première requête : il n'y a pas de
-fenêtre pendant laquelle un contributeur autorisé se verrait refuser la connexion.
+La liste d'autorisation vit en base depuis #170. Sa mise en production est
+**terminée** : la migration `a107b77b53e8` a repris ce que portait
+`AUTH_ALLOWED_EMAILS` (livrée en v0.2.0), la reprise a été constatée dans
+`/admin/acces`, et la variable a été retirée du blueprint comme des deux services
+Render (#259). Ne pas la réintroduire — `Settings` porte `extra="ignore"`, elle
+serait ignorée en silence.
 
-1. **Déployer.** La table est créée et remplie depuis la variable.
-2. **Vérifier** dans `/admin/acces` (« Gestion des utilisateurs » → « Accès au
-   back-office ») que les adresses attendues y sont.
-3. **Seulement ensuite**, et dans une PR de suivi, retirer l'entrée de
-   `render.yaml` puis la variable du tableau de bord Render. Elle y est
-   volontairement **conservée** par la livraison qui pose la table : c'est elle
-   que lit la reprise, et la retirer d'un même geste ferait dépendre la
-   production d'un comportement non vérifié — Render supprime-t-il une valeur
-   `sync: false` quand la clé disparaît du blueprint ? Une variable qui traîne
-   est **inoffensive** (`Settings` porte `extra="ignore"`) ; une variable
-   supprimée trop tôt ferme l'accès à tout le monde.
-
-**Si l'étape 2 montre une liste vide** — reprise manquée, variable absente au
-moment de la migration —, le rattrapage **n'est pas** `allow-email` : les deux
-services backend tournent en `plan: free`, qui n'ouvre aucun shell. Il faut
-passer par la console SQL de Supabase :
+Reste le cas d'une **liste vide** : installation neuve, ou base repartie de zéro.
+Le rattrapage **n'est pas** `allow-email` : les deux services backend tournent en
+`plan: free`, qui n'ouvre aucun shell. Il faut passer par la console SQL de
+Supabase :
 
 ```sql
 INSERT INTO allowed_emails (email, created_at)
@@ -260,6 +249,14 @@ n'est déployé : ce n'est pas un secret optionnel.
 l'autre : l'ID de `data-triathlon-preview` sur `preview`, celui de
 `data-triathlon` sur `production`. C'est ce qui route la preview vers le second
 projet Vercel (#172) sans qu'aucun job n'ait à nommer sa cible.
+
+`VERCEL_TOKEN` et `RENDER_API_KEY` **n'expirent pas** et n'ont pas de rotation
+programmée : c'est un choix, pas un oubli (#259). Une rotation régulière sur une
+infrastructure tenue par une poignée de bénévoles coûterait plus qu'elle ne
+protège, le jour où la clé n'est plus valable étant un déploiement qui échoue —
+bruyamment, sans rien casser en production. Les deux se révoquent en revanche
+**immédiatement** au moindre doute de fuite (dashboard Vercel / Render →
+*Account Settings*), la révocation ne touchant aucun service en marche.
 
 ### GitHub Pages (documentation) — une seule bascule
 
@@ -463,6 +460,14 @@ Un jeton fine-grained expire — un an au plus. Le régénérer se fait dans
 *Settings → Developer settings → Fine-grained tokens*, puis mise à jour du
 réglage sur Render. Aucune autre action n'est requise : le workflow, lui, ne
 connaît pas ce jeton.
+
+**C'est la seule échéance de l'infrastructure**, et elle ne se recopie pas ici :
+une date écrite dans un document diverge à la première régénération. La source
+qui fait foi est l'écran *Fine-grained tokens*, qui affiche l'expiration de
+chaque jeton ; GitHub prévient par courriel une semaine avant. Le jour où elle
+tombe sans avoir été vue, le symptôme est borné — l'écran de lancement des
+batches refuse en nommant la cause (tableau ci-dessus), et rien d'autre du site
+ne bouge (#259).
 
 ### Reprise périodique — `schedule` (#47)
 
