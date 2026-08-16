@@ -1,0 +1,44 @@
+# Mises à jour de version Dependabot (#401, constat A06-2 de l'audit OWASP :
+# docs/superpowers/specs/2026-08-16-securite-owasp-audit.md).
+#
+# Les alertes de sécurité Dependabot sont déjà actives sur ce dépôt ; ce
+# fichier ajoute les PR de montée de version proprement dites, sur les trois
+# écosystèmes présents : backend Python (uv), frontend npm, et les GitHub
+# Actions des workflows.
+#
+# Cadence mensuelle : le dépôt est tenu par une poignée de personnes, et un
+# Dependabot hebdomadaire qu'on cesse de lire ne vaut pas mieux que pas de
+# Dependabot. Les mises à jour mineures/correctives sont groupées en une seule
+# PR par écosystème pour limiter le bruit de revue ; les montées majeures
+# restent séparées pour une revue au cas par cas.
+
+version: 2
+updates:
+  - package-ecosystem: "uv"
+    directory: "/backend"
+    schedule:
+      interval: "monthly"
+    groups:
+      backend-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "monthly"
+    groups:
+      frontend-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
