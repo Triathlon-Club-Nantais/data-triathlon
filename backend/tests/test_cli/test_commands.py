@@ -556,14 +556,13 @@ def test_rescrape_db_url_transmise_au_service(monkeypatch):
     assert espion.kwargs["urls"] == ["https://k/1", "https://k/2"]
 
 
-def test_rescrape_db_refuse_une_url_passive(monkeypatch):
-    """AC2 de #282 — code 2, et surtout : aucun scrape « à côté ».
+def test_rescrape_db_redirige_une_url_passive_vers_son_active(monkeypatch):
+    """L'URL soumise est passive : c'est son active qui part au batch (#282).
 
-    Une URL passive existe en base, mais son épreuve est publiée ailleurs. La
-    scraper importerait le classement de l'autre chronométreur dans la même
-    épreuve : c'est le doublon que la table des sources existe pour supprimer.
-    Code 2 comme toute erreur d'usage — même précédent qu'une adresse inconnue
-    passée à `revoke-sessions`, qui se constate aussi en base.
+    La scraper telle quelle importerait le classement d'un autre chronométreur
+    dans l'épreuve — le doublon que la table des sources existe pour supprimer.
+    Le batch n'est plus refusé pour autant : la substitution est faite d'office,
+    et annoncée, pour qu'un fichier de 70 URLs ne soit pas sacrifié pour une.
     """
     espion = _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
     _brancher_sources_passives(monkeypatch, [
@@ -575,14 +574,13 @@ def test_rescrape_db_refuse_une_url_passive(monkeypatch):
 
     result = runner.invoke(app, ["rescrape-db", "--url", "https://b/nozeen"])
 
-    assert result.exit_code == 2
-    assert espion.kwargs == {}  # refusé avant tout travail : rien n'a été scrapé
+    assert result.exit_code == 0
+    assert espion.kwargs["urls"] == ["https://k/nozeen"]
     assert "Nozeen 2026" in result.stderr
     assert "https://k/nozeen" in result.stderr
-    assert result.stdout == ""  # contrat stdout : le canal --json reste propre
 
 
-def test_rescrape_db_refus_de_source_passive_ne_pollue_pas_le_json(monkeypatch):
+def test_rescrape_db_redirection_ne_pollue_pas_le_json(monkeypatch):
     """`… --json | jq` ne doit pas recevoir une phrase française à parser."""
     _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
     _brancher_sources_passives(monkeypatch, [
@@ -591,13 +589,14 @@ def test_rescrape_db_refus_de_source_passive_ne_pollue_pas_le_json(monkeypatch):
 
     result = runner.invoke(app, ["rescrape-db", "--url", "https://b/x", "--json"])
 
-    assert result.exit_code == 2
-    assert result.stdout == ""
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["total"] == 1
+    assert "source passive" in result.stderr
 
 
-def test_rescrape_db_refus_liste_toutes_les_urls_passives(monkeypatch):
-    """Un fichier de 40 URLs se corrige en une passe, pas en quarante."""
-    _brancher_rescrape(monkeypatch, RescrapeOutcome(total=2))
+def test_rescrape_db_redirige_toutes_les_urls_passives(monkeypatch):
+    """Un fichier de 40 URLs se redresse en une passe, pas en quarante."""
+    espion = _brancher_rescrape(monkeypatch, RescrapeOutcome(total=2))
     _brancher_sources_passives(monkeypatch, [
         PassiveTarget(url="https://b/1", course_name="Une", active_url="https://k/1"),
         PassiveTarget(url="https://b/2", course_name="Deux", active_url="https://k/2"),
@@ -607,26 +606,30 @@ def test_rescrape_db_refus_liste_toutes_les_urls_passives(monkeypatch):
         app, ["rescrape-db", "--url", "https://b/1", "--url", "https://b/2"]
     )
 
-    assert result.exit_code == 2
+    assert result.exit_code == 0
+    assert espion.kwargs["urls"] == ["https://k/1", "https://k/2"]
     assert "Une" in result.stderr
     assert "Deux" in result.stderr
 
 
-def test_rescrape_db_refus_sans_source_active_ne_nomme_aucune_url(monkeypatch):
-    """Rien à proposer : le message ne doit pas afficher une URL vide.
+def test_rescrape_db_url_passive_sans_active_part_telle_quelle(monkeypatch):
+    """Aucune active où rediriger : on scrape la passive plutôt que rien.
 
-    « sa source active est «  » » serait pire que muet — l'opérateur croirait à
-    un bug d'affichage au lieu de comprendre que l'épreuve n'a aucune source
-    active.
+    Une épreuve saisie à la main n'a pas de source active (#283) : sa passive
+    est la **seule** publication connue, et la scraper ne peut fabriquer aucun
+    doublon puisqu'il n'y a pas d'active concurrente. Le message ne nomme donc
+    aucune URL de remplacement — « sa source active est «  » » ferait croire à
+    un bug d'affichage.
     """
-    _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
+    espion = _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
     _brancher_sources_passives(monkeypatch, [
         PassiveTarget(url="https://b/x", course_name="Manuelle", active_url="")
     ])
 
     result = runner.invoke(app, ["rescrape-db", "--url", "https://b/x"])
 
-    assert result.exit_code == 2
+    assert result.exit_code == 0
+    assert espion.kwargs["urls"] == ["https://b/x"]
     assert "Manuelle" in result.stderr
     assert "aucune source active" in result.stderr
 
