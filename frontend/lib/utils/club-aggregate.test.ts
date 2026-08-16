@@ -8,7 +8,6 @@ import {
   buildRoster,
   recentParticipations,
   clubSummary,
-  rankCounters,
 } from "./club-aggregate";
 import type { Participation } from "@/lib/types";
 
@@ -118,115 +117,6 @@ describe("isTopN", () => {
   });
   it("exclut au-delà du seuil sur les trois classements", () => {
     expect(isTopN(part({ id: 1, rank_overall: 180, rank_category: 40 }), 10)).toBe(false);
-  });
-});
-
-describe("rankCounters", () => {
-  it("compte victoires, podiums et top 10 sur les trois classements", () => {
-    const parts = [
-      part({ id: 1, rank_overall: 1 }), // victoire scratch
-      part({ id: 2, rank_overall: 25, rank_category: 1 }), // victoire de catégorie
-      part({ id: 3, rank_overall: 60, rank_gender: 3 }), // podium genre
-      part({ id: 4, rank_overall: 180, rank_category: 7 }), // top 10 catégorie
-      part({ id: 5, rank_overall: 200, rank_category: 40 }), // rien
-    ];
-    expect(rankCounters(parts)).toEqual({
-      kind: "scalar",
-      victories: 2,
-      podiums: 3,
-      top10: 4,
-    });
-  });
-
-  it("garantit victoires ≤ podiums ≤ top 10", () => {
-    const parts = [
-      part({ id: 1, rank_overall: 1, rank_category: 1, rank_gender: 1 }),
-      part({ id: 2, rank_overall: 150, rank_category: 3 }),
-      part({ id: 3, rank_overall: 9 }),
-      part({ id: 4, rank_overall: 300 }),
-      part({ id: 5 }),
-    ];
-    const c = rankCounters(parts);
-    if (c.kind !== "scalar") throw new Error("scalar attendu");
-    expect(c.victories).toBeLessThanOrEqual(c.podiums);
-    expect(c.podiums).toBeLessThanOrEqual(c.top10);
-  });
-
-  it("mode scratch : compte sur rank_overall uniquement (kind scalar)", () => {
-    const parts = [
-      part({ id: 1, rank_overall: 1, rank_category: 40, rank_gender: 20 }), // victoire scratch
-      part({ id: 2, rank_overall: 25, rank_category: 1 }), // victoire cat mais mode scratch → ni victoire ni podium
-      part({ id: 3, rank_overall: 3 }), // podium scratch
-      part({ id: 4, rank_overall: 10 }), // top 10
-    ];
-    expect(rankCounters(parts, "scratch")).toEqual({
-      kind: "scalar",
-      victories: 1,
-      podiums: 2,
-      top10: 3,
-    });
-  });
-
-  it("mode category : compte sur rank_category uniquement", () => {
-    const parts = [
-      part({ id: 1, rank_overall: 1, rank_category: 25 }), // victoire scratch, rien en cat
-      part({ id: 2, rank_category: 1 }), // victoire cat
-      part({ id: 3, rank_category: 3 }), // podium cat
-      part({ id: 4, rank_category: 10 }), // top 10 cat
-    ];
-    expect(rankCounters(parts, "category")).toEqual({
-      kind: "scalar",
-      victories: 1,
-      podiums: 2,
-      top10: 3,
-    });
-  });
-
-  it("mode all : identique au défaut sans paramètre", () => {
-    const parts = [
-      part({ id: 1, rank_overall: 1 }),
-      part({ id: 2, rank_overall: 25, rank_category: 1 }),
-      part({ id: 3, rank_overall: 60, rank_gender: 3 }),
-    ];
-    expect(rankCounters(parts, "all")).toEqual(rankCounters(parts));
-  });
-
-  it("mode gender : ventile F et H, jamais confondus", () => {
-    const alice = { id: 10, nom: "Alice", prenom: "A", gender: "F", club: "TCN" };
-    const bob = { id: 20, nom: "Bob", prenom: "B", gender: "M", club: "TCN" };
-    const parts = [
-      part({ id: 1, athlete: alice, rank_gender: 1 }), // victoire F
-      part({ id: 2, athlete: alice, rank_gender: 3 }), // podium F
-      part({ id: 3, athlete: alice, rank_gender: 10 }), // top10 F
-      part({ id: 4, athlete: bob, rank_gender: 1 }), // victoire H
-      part({ id: 5, athlete: bob, rank_gender: 5 }), // top10 H
-    ];
-    const c = rankCounters(parts, "gender");
-    expect(c.kind).toBe("gender");
-    if (c.kind !== "gender") throw new Error("gender attendu");
-    expect(c.women).toEqual({ victories: 1, podiums: 2, top10: 3 });
-    expect(c.men).toEqual({ victories: 1, podiums: 1, top10: 2 });
-  });
-
-  it("mode gender : n'inclut pas les athlètes sans genre renseigné", () => {
-    const anon = { id: 30, nom: "X", prenom: "X", gender: "", club: "TCN" };
-    const parts = [
-      part({ id: 1, athlete: anon, rank_gender: 1 }), // exclu (pas de genre)
-    ];
-    const c = rankCounters(parts, "gender");
-    if (c.kind !== "gender") throw new Error("gender attendu");
-    expect(c.women).toEqual({ victories: 0, podiums: 0, top10: 0 });
-    expect(c.men).toEqual({ victories: 0, podiums: 0, top10: 0 });
-  });
-
-  it("mode gender : n'inclut pas les participations sans rank_gender", () => {
-    const alice = { id: 10, nom: "Alice", prenom: "A", gender: "F", club: "TCN" };
-    const parts = [
-      part({ id: 1, athlete: alice, rank_overall: 1 }), // pas de rank_gender → exclu
-    ];
-    const c = rankCounters(parts, "gender");
-    if (c.kind !== "gender") throw new Error("gender attendu");
-    expect(c.women.victories).toBe(0);
   });
 });
 

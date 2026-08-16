@@ -60,64 +60,6 @@ export function isPodium(p: Participation, rankType?: RankType): boolean {
   return bestPodiumRank(p, rankType) !== null;
 }
 
-interface RankCounters {
-  victories: number;
-  podiums: number;
-  top10: number;
-}
-
-/** Compteurs scalaires : modes scratch / category / all. */
-interface RankCountersScalar extends RankCounters {
-  kind: "scalar";
-}
-
-/** Compteurs dédoublés F/H : mode gender uniquement. */
-interface RankCountersGender {
-  kind: "gender";
-  women: RankCounters;
-  men: RankCounters;
-}
-
-/** Type discriminé retourné par `rankCounters` selon le mode. */
-type RankCountersResult = RankCountersScalar | RankCountersGender;
-
-/**
- * Compteurs du dashboard, tous mesurés sur le même périmètre pour rester
- * emboîtés : victoires ≤ podiums ≤ top 10 (issue #77).
- *
- * `rankType` :
- * - `"scratch"` / `"category"` : compte sur le seul rang correspondant.
- * - `"all"` ou `undefined` : min-des-trois (comportement historique).
- * - `"gender"` : ventile F/H via `athlete.gender` ; renvoie `{kind: "gender", women, men}`.
- *   Les athlètes sans genre renseigné ne sont comptés dans aucun des deux.
- */
-export function rankCounters(parts: Participation[], rankType?: RankType): RankCountersResult {
-  if (rankType === "gender") {
-    const women: RankCounters = { victories: 0, podiums: 0, top10: 0 };
-    const men: RankCounters = { victories: 0, podiums: 0, top10: 0 };
-    for (const p of parts) {
-      const g = (p.athlete?.gender ?? "").toUpperCase();
-      if (g !== "F" && g !== "M") continue;
-      const rank = p.rank_gender;
-      if (rank == null || rank < 1) continue;
-      const bucket = g === "F" ? women : men;
-      if (rank <= 1) bucket.victories += 1;
-      if (rank <= 3) bucket.podiums += 1;
-      if (rank <= 10) bucket.top10 += 1;
-    }
-    return { kind: "gender", women, men };
-  }
-  const counters: RankCounters = { victories: 0, podiums: 0, top10: 0 };
-  for (const p of parts) {
-    const best = bestRank(p, rankType);
-    if (!best) continue;
-    if (best.rank <= 1) counters.victories += 1;
-    if (best.rank <= 3) counters.podiums += 1;
-    if (best.rank <= 10) counters.top10 += 1;
-  }
-  return { kind: "scalar", ...counters };
-}
-
 interface PodiumEntry {
   participation: Participation;
   best: BestRank;

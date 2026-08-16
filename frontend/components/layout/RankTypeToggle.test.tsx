@@ -78,8 +78,9 @@ describe("RankTypeToggle", () => {
   it("clic sur Genre → l'URL passe à ?rank=gender par l'historique, sans navigation", () => {
     // Aucun rendu serveur ne lit `?rank=` : les trois consommateurs le relisent
     // par `useSearchParams` et recalculent en mémoire. Un `router.push` rejouait
-    // donc tout le rendu de /dashboard — dont `listParticipations(5000)` — pour
-    // un résultat que le client tenait déjà (#328).
+    // donc tout le rendu de /dashboard — dont `listEvents(page_size: 200)`,
+    // `getStats` et `listSeasons` — pour un résultat que le client tenait
+    // déjà (#328).
     render(<RankTypeToggle />);
     fireEvent.click(screen.getByRole("button", { name: "Genre" }));
     expect(pushState).toHaveBeenCalledWith(null, "", "/dashboard?rank=gender");
