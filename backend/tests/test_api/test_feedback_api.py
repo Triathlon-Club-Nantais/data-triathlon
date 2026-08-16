@@ -86,6 +86,40 @@ def test_debit_depasse_rend_429(client, monkeypatch):
     assert "réessayez" in reponse.json()["detail"]
 
 
+def test_x_forwarded_for_varie_ne_contourne_pas_le_debit(client, monkeypatch):
+    """Constat A04-1 de l'audit OWASP (#393).
+
+    Render **préfixe** `X-Forwarded-For` de l'IP réelle du client et laisse
+    derrière elle ce que l'appelant a lui-même envoyé. Retenir la dernière
+    entrée — le défaut d'uvicorn — revenait donc à compter sur une valeur
+    choisie par l'appelant : mesuré sur preview, 7 envois portant chacun un
+    `X-Forwarded-For` différent ont tous répondu 201, limite à 5.
+    """
+    client.cookies.clear()
+    monkeypatch.setattr(get_settings(), "feedback_rate_limit_max_per_window", 2)
+
+    def envoi(usurpee: str):
+        return client.post(
+            _URL, json=_payload(), headers={"X-Forwarded-For": f"203.0.113.7, {usurpee}"}
+        )
+
+    assert envoi("198.51.100.1").status_code == 201
+    assert envoi("198.51.100.2").status_code == 201
+    assert envoi("198.51.100.3").status_code == 429
+
+
+def test_l_ip_retenue_est_la_premiere_entree(client, db_session):
+    """Celle que le proxy de la plateforme a posée, pas celle du visiteur."""
+    client.cookies.clear()
+
+    reponse = client.post(
+        _URL, json=_payload(), headers={"X-Forwarded-For": "203.0.113.7, 198.51.100.1"}
+    )
+
+    entry = feedback_repository.get(db_session, reponse.json()["id"])
+    assert entry.ip_address == "203.0.113.7"
+
+
 def test_la_soumission_ne_vit_pas_sous_admin(client):
     """La revue de #315 : un verbe public sous `/admin` se lit comme une garde
     oubliée. Plus aucun POST n'y répond.
