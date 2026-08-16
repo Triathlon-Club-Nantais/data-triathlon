@@ -19,9 +19,11 @@ const OPTION_VALUES: readonly RankType[] = ["scratch", "category", "gender", "al
  * (`StatCardsRank`, `ClubPodiumKpi`, `PodiumsList`) le relisent par
  * `useSearchParams` et recalculent en mémoire. Or `/dashboard` et `/club` sont
  * dynamiques et leurs `fetch` passent en `no-store` : un `push` rejouait tout
- * leur rendu serveur — jusqu'à `listParticipations(page_size=5000)` — pour un
- * résultat que le client tenait déjà. `pushState` s'intègre au routeur Next,
- * donc `useSearchParams` le reflète et retour/avant restent cohérents.
+ * leur rendu serveur — `listEvents(page_size: 200)`, `getStats` et
+ * `listSeasons` sur `/dashboard`, plus le `listParticipations(page_size: 1000)`
+ * propre à `/club` — pour un résultat que le client tenait déjà. `pushState`
+ * s'intègre au routeur Next, donc `useSearchParams` le reflète et retour/avant
+ * restent cohérents.
  *
  * Rendu par `SegmentedControl` (`tone="ink"`, #342) plutôt qu'un radiogroup
  * fait main : un `<input type="radio">` masqué par style en ligne

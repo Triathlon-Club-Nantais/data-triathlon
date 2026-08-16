@@ -24,12 +24,16 @@ const BASE = `${API_URL}/api/v1`;
 export type FetchOpts = { revalidateSeconds?: number };
 
 /**
- * Fenêtre courte pour `/dashboard` et `/club` (#352) — les deux seules pages
- * dont le coût mesuré (sondage du 2026-08-14) justifie un `revalidate`, une
- * fois #350/#351 corrigés. Les imports tournent par batch de plusieurs
+ * Fenêtre courte pour `/dashboard` et `/club` (#352) — les deux pages dont le
+ * coût mesuré (sondage du 2026-08-14) justifie un `revalidate`, une fois
+ * #350/#351 corrigés. `/ajouter` (#376) partage la même fenêtre pour une
+ * raison différente : ce n'est pas son coût par appel qui pose problème, mais
+ * son prefetch continu par le bouton « + » de `AppNav`, présent sur toutes
+ * les pages. Dans les trois cas, les imports tournent par batch de plusieurs
  * dizaines de minutes (`docs/ci-cd.md`), jamais en temps réel : 30 s masque
- * le coût de chargement pour l'écrasante majorité des visites sans retarder
- * la visibilité d'un import terminé au-delà de ce qu'un visiteur tolère.
+ * le coût de chargement (ou le prefetch répété) pour l'écrasante majorité des
+ * visites sans retarder la visibilité d'un import terminé au-delà de ce qu'un
+ * visiteur tolère.
  */
 export const SHORT_REVALIDATE_SECONDS = 30;
 
