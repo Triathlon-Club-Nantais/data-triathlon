@@ -31,6 +31,16 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked
 
+      # uv audit interroge OSV sur le uv.lock résolu : aucune dépendance de dev
+      # supplémentaire (contrairement à pip-audit), en écho au Principe de
+      # conception « s'appuyer d'abord sur les dépendances déjà présentes ».
+      # Commande expérimentale côté uv (--preview-features tait juste l'avertissement,
+      # ne change pas le comportement) : bloquante comme ruff/pytest, faute de quoi
+      # une PR introduisant une version vulnérable ne ferait rougir personne — c'était
+      # tout le constat A06-1 de l'audit OWASP (#397).
+      - name: Audit des dépendances (uv audit)
+        run: uv audit --locked --preview-features audit-command
+
       - name: Lint (ruff)
         run: uv run ruff check .
 
