@@ -70,4 +70,20 @@ describe("ComparisonTable", () => {
     // trois segments + la colonne de position + la colonne total
     expect(screen.getAllByRole("columnheader").length).toBe(5);
   });
+
+  it("avertit sur les segments courts (T1/T2), sensibles au bruit de chronométrage", () => {
+    renderTable();
+
+    expect(screen.getByText(/segments courts.*bruit de chronométrage/i)).toBeTruthy();
+  });
+
+  it("n'avertit pas quand l'épreuve ne publie aucun segment court", () => {
+    renderTable(
+      [{ position_label: "1er", rank: 1, percentages: { bike: 124.9, run: 120.0, total: 122.0 } }],
+      ["bike", "run"],
+      "bike-run",
+    );
+
+    expect(screen.queryByText(/bruit de chronométrage/i)).toBeNull();
+  });
 });
