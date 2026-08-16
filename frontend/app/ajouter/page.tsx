@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { apiServer } from "@/lib/api/server";
+import { apiServer, SHORT_REVALIDATE_SECONDS } from "@/lib/api/server";
 import { Card, Eyebrow, FormatChip, Badge } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
 import { TcnScrapeForm } from "@/components/scrape/TcnScrapeForm";
@@ -12,8 +12,12 @@ const RCOLS = "140px 1fr 90px 130px";
 export default async function AjouterPage() {
   // « Derniers résultats enregistrés » (#201) : tri par date d'import, pas par
   // date d'épreuve, sans quoi une épreuve ancienne qu'on vient d'importer
-  // resterait invisible sous 6 épreuves à venir déjà en base.
-  const events = await apiServer.listEvents({ page_size: 6, sort: "imported_desc" }).catch(() => null);
+  // resterait invisible sous 6 épreuves à venir déjà en base. Fenêtre de
+  // revalidation courte (#376) : ce lien est prefetché en continu par le
+  // bouton « + » de la navigation globale, présent sur toutes les pages.
+  const events = await apiServer
+    .listEvents({ page_size: 6, sort: "imported_desc" }, { revalidateSeconds: SHORT_REVALIDATE_SECONDS })
+    .catch(() => null);
   const recent = events?.items ?? [];
 
   return (
