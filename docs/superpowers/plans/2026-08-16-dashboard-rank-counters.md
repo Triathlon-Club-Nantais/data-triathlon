@@ -94,7 +94,7 @@ def test_get_stats_rank_counters_scratch_et_category_independants(db_session):
     rc = stats["rank_counters"]
 
     assert rc["scratch"] == {"victories": 1, "podiums": 1, "top10": 1}
-    assert rc["category"] == {"victories": 0, "podiums": 1, "top10": 2}
+    assert rc["category"] == {"victories": 0, "podiums": 1, "top10": 1}
 
 
 def test_get_stats_rank_counters_emboitement_victoires_podiums_top10(db_session):
