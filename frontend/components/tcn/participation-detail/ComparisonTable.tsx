@@ -23,7 +23,7 @@ export function ComparisonTable({
   eventType: string;
 }) {
   const columns = splitColumnsFromKeys(eventType, segments);
-  const hasSegmentCourt = columns.some((column) => column.small);
+  const hasShortSegment = columns.some((column) => column.small);
 
   return (
     <Card style={{ marginBottom: 24, overflowX: "auto" }}>
@@ -60,7 +60,7 @@ export function ComparisonTable({
           ))}
         </tbody>
       </table>
-      {hasSegmentCourt && (
+      {hasShortSegment && (
         <p style={{ marginTop: 10, fontSize: 11, color: "var(--tcn-text-faint)" }}>
           Les segments courts (T1, T2) sont sensibles au bruit de chronométrage : leurs
           pourcentages peuvent ne pas décroître régulièrement d&apos;un rang à l&apos;autre.
