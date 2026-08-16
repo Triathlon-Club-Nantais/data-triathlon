@@ -84,6 +84,29 @@ def create_app() -> FastAPI:
 
     app = FastAPI(title="Triathlon Club Results — v2", lifespan=lifespan)
 
+    # Chaîne de confiance des en-têtes de proxy (#393, constat A04-1 de l'audit
+    # OWASP). `request.client.host` est la clé du seul plafond de débit du
+    # projet (`POST /feedback`) : il faut donc décider **ici** quelle entrée de
+    # `X-Forwarded-For` fait foi, plutôt que de l'hériter d'un défaut.
+    #
+    # Render **préfixe** l'en-tête de l'IP réelle du client et conserve derrière
+    # elle ce que l'appelant avait écrit : seule la **première** entrée est
+    # posée par la plateforme. Le défaut d'uvicorn retient la dernière entrée
+    # non fiable, donc exactement une valeur que l'appelant choisit — mesuré sur
+    # preview, 7 envois avec un `X-Forwarded-For` différent, 7 × 201 pour une
+    # limite de 5. `trusted_hosts="*"` est ce qui, dans ce middleware, sélectionne
+    # la première entrée ; le réglage vit dans l'application et non dans le
+    # `startCommand` parce que `render.yaml` n'est appliqué par personne (cf. son
+    # en-tête) et qu'un correctif de sécurité ne se pose pas dans un fichier
+    # décoratif.
+    #
+    # Plafond assumé : hors Render, aucun proxy ne préfixe l'en-tête, donc en
+    # développement local l'IP reste falsifiable — c'est le seul environnement
+    # où le plafond de débit ne protège rien.
+    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+    app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
