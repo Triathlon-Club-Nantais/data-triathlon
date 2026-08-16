@@ -589,8 +589,14 @@ frontière HTTP.
 **Sur preview** : 13 signalements de test créés par `POST /feedback`
 (identifiants 1 à 13), tous titrés `[audit #321] … — a supprimer`, portant un
 corps qui les désigne comme tels. Ils sont la pièce à conviction du constat
-A04-1 ; **à supprimer une fois l'issue fille ouverte**, depuis
-`/admin/retours-utilisateurs`.
+A04-1 (#393).
+
+**Comment les retirer, et ce qui l'en empêche.** L'API **n'a pas de route de
+suppression** d'un signalement : `PATCH /admin/feedback/{id}` ne modifie que
+`status` et `github_url`. Le geste possible est donc de les passer en `ignore`
+depuis `/admin/retours-utilisateurs` de la preview — ce qui demande une session
+portant `feedback:manage`, que l'audit n'a pas. **Reste à faire par un
+administrateur.** Une suppression réelle passerait par la base.
 
 **Sur la production** : rien. Aucune écriture, aucune charge, aucune donnée de
 test — uniquement des `GET` de lecture et l'inspection d'en-têtes.
@@ -609,25 +615,33 @@ notés pour qui reprendra `docs/ci-cd.md`.
   `render.yaml` écrit `data-triathlon` — or ce nom est précisément ce par quoi
   un Blueprint apparie un service existant, comme le fichier le documente
   lui-même.
+- Le champ **Website** du dépôt GitHub annonce `data-triathlon-tcn.vercel.app`,
+  qui rend `404 DEPLOYMENT_NOT_FOUND` : le lien affiché en tête du dépôt public
+  ne mène nulle part.
 
-## Issues filles proposées
+## Issues filles
 
-Une par constat retenu, étiquetée `security`, dans cet ordre de priorité.
+Une par constat retenu, étiquetée `security`, rattachée à #321 en sous-issue,
+dans cet ordre de priorité.
 
-| # | Constat | Sévérité | Titre proposé |
+| Issue | Constat | Sévérité | Titre |
 | --- | --- | --- | --- |
-| 1 | A04-1 | moyen | `fix(security): trust the proxy chain so feedback rate limiting cannot be bypassed` |
-| 2 | A08-1 | moyen | `chore(security): enable CodeQL code scanning alongside code quality` |
-| 3 | A04-2 | moyen | `feat(security): rate-limit the public scraping endpoints` |
-| 4 | A05-2 | moyen | `feat(security): add security headers to the frontend and the API` |
-| 5 | A06-1 | moyen | `chore(ci): audit Python dependencies for known vulnerabilities` |
-| 6 | A04-3 | moyen | `fix(security): bound the two public write endpoints` |
-| 7 | A05-1 | faible | `chore(security): close /docs and /openapi.json in production` |
-| 8 | A08-2 | faible | `chore(ci): pin GitHub Actions by commit SHA in privileged workflows` |
-| 9 | A06-2 | faible | `chore(ci): configure Dependabot version updates` |
-| 10 | A05-3 + A02-1 | faible | `chore(security): document CORS_ORIGINS and add HSTS to the API` |
-| 11 | A08-3 | faible | `chore(ci): declare least-privilege permissions in ci.yml and deploy.yml` |
-| 12 | DP-1 | faible | à traiter **dans** #313, pas d'issue dédiée |
+| #393 | A04-1 | moyen | `fix(security): trust the proxy chain so feedback rate limiting cannot be bypassed` |
+| #394 | A08-1 | moyen | `chore(security): enable CodeQL code scanning alongside code quality` |
+| #395 | A04-2 + A07-1 | moyen | `feat(security): rate-limit the public scraping endpoints` |
+| #396 | A05-2 | moyen | `feat(security): add security headers to the frontend and the API` |
+| #397 | A06-1 | moyen | `chore(ci): audit Python dependencies for known vulnerabilities` |
+| #398 | A04-3 | moyen | `fix(security): bound the two public write endpoints` |
+| #399 | A05-1 | faible | `chore(security): close /docs and /openapi.json in production` |
+| #400 | A08-2 | faible | `chore(ci): pin GitHub Actions by commit SHA in privileged workflows` |
+| #401 | A06-2 | faible | `chore(ci): configure Dependabot version updates` |
+| #402 | A05-3 + A02-1 | faible | `chore(security): document CORS_ORIGINS and add HSTS to the API` |
+| #403 | A08-3 | faible | `chore(ci): declare least-privilege permissions in ci.yml and deploy.yml` |
+| — | DP-1 | faible | à traiter **dans** #313, pas d'issue dédiée |
+
+**L'ordre de traitement n'est pas libre** : #393 conditionne #395 et le volet
+plafond de #398 — tant que l'IP est falsifiable, tout plafond par IP l'est
+aussi.
 
 **A07-1** rejoint l'issue n°3 (même mécanisme, même préalable) et **A10-1** ne
 donne pas lieu à issue : c'est une limite assumée, consignée pour qu'elle reste
