@@ -12,6 +12,14 @@ concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: false
 
+# Déclaré explicitement plutôt qu'hérité du défaut du dépôt pour `GITHUB_TOKEN`
+# (constat A08-3, docs/superpowers/specs/2026-08-16-securite-owasp-audit.md).
+# Aucun step de ce fichier n'écrit avec ce jeton : Render et Vercel sont
+# appelés avec leurs propres secrets (`RENDER_API_KEY`, `VERCEL_TOKEN`).
+# `contents: read` couvre le seul besoin réel des trois jobs, `actions/checkout`.
+permissions:
+  contents: read
+
 jobs:
   # Contrôles qualité (réutilise ci.yml) — aucun déploiement sans CI verte.
   ci:

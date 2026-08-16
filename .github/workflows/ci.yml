@@ -4,6 +4,14 @@ on:
   pull_request:
   workflow_call:
 
+# Déclaré explicitement plutôt qu'hérité du défaut du dépôt pour `GITHUB_TOKEN`
+# (constat A08-3, docs/superpowers/specs/2026-08-16-securite-owasp-audit.md) :
+# `pull_request` exécute du code de contributeur. Aucun step d'aucun job ne
+# pousse de commit, ne commente une PR ni ne crée de check run — `contents:
+# read` couvre le seul besoin réel, `actions/checkout`.
+permissions:
+  contents: read
+
 jobs:
   backend:
     runs-on: ubuntu-latest
