@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "API FastAPI des résultats de compétition du Triathlon Club Nantais"
 requires-python = ">=3.13"
 dependencies = [
-    "fastapi[standard]>=0.115.5",
+    "fastapi[standard]>=0.141.1",
     "uvicorn[standard]>=0.52.3",
     "pydantic>=2.10.3",
     "pydantic-settings>=2.15.0",
