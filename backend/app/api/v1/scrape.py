@@ -1,12 +1,13 @@
 """Routers de scraping : import épreuve (sync + SSE), détection de provider."""
 import json
+import logging
 from dataclasses import asdict, is_dataclass
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import optional_user
+from app.api.deps import optional_user, scrape_rate_limit
 from app.core.analytics import ANONYMOUS_DISTINCT_ID, capture_event
 from app.core.config import Settings, get_settings
 from app.core.database import SessionLocal, get_db
@@ -14,6 +15,8 @@ from app.models.user import User
 from app.schemas.scrape import ImportResult, ScrapeRequest
 from app.scrapers import detect_provider, is_supported, provider_names
 from app.services import import_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["scrape"])
 
@@ -32,7 +35,9 @@ def _json_default(value: object) -> object:
     return str(value)
 
 
-@router.post("/scrape/event", response_model=ImportResult)
+@router.post(
+    "/scrape/event", response_model=ImportResult, dependencies=[Depends(scrape_rate_limit)]
+)
 def scrape_event(
     body: ScrapeRequest,
     db: Session = Depends(get_db),
@@ -65,9 +70,25 @@ def scrape_event(
 _SSE_INITIAL_PADDING = b":" + b" " * 2048 + b"\n\n"
 
 
-@router.post("/scrape/event/stream")
-def scrape_event_stream(body: ScrapeRequest, settings: Settings = Depends(get_settings)):
+@router.post("/scrape/event/stream", dependencies=[Depends(scrape_rate_limit)])
+def scrape_event_stream(
+    body: ScrapeRequest,
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    user: User | None = Depends(optional_user),
+):
     """Import épreuve avec progression temps réel (SSE)."""
+    # `optional_user` n'est pas décoratif : cette route ne le prenait pas, et un
+    # import lancé depuis ici ne laissait donc **aucune trace de son appelant**
+    # (#395, constat A04-2). Le pendant bloquant, lui, l'associe déjà à son
+    # `capture_event`. Une ligne de journal suffit ici — le volume est borné par
+    # le plafond de débit posé au-dessus.
+    logger.info(
+        "SSE import requested: user=%s ip=%s url=%s",
+        user.id if user else "anonymous",
+        request.client.host if request.client else "unknown",
+        body.url,
+    )
 
     def generate():
         # Session dédiée au générateur (cycle de vie isolé du streaming)

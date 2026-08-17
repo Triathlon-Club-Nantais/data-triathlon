@@ -24,6 +24,21 @@ def load_klikego_fixture(name: str) -> str:
     return (_FIXTURES_DIR / "klikego" / name).read_text(encoding="utf-8")
 
 
+@pytest.fixture(autouse=True)
+def _compteurs_de_debit_vierges():
+    """Les plafonds de débit (#395) comptent en mémoire du process.
+
+    Sans cette remise à zéro, les appels d'un test se cumulent avec ceux du
+    suivant — la suite compte plus d'un import d'épreuve — et l'ordre
+    d'exécution déciderait qui prend un 429.
+    """
+    from app.api.deps import reset_rate_limits
+
+    reset_rate_limits()
+    yield
+    reset_rate_limits()
+
+
 @pytest.fixture
 def db_session():
     """Session SQLAlchemy sur une base SQLite en mémoire, schéma créé via les modèles."""

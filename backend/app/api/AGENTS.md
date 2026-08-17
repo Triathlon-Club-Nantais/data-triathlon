@@ -126,6 +126,30 @@ re-scrape à la demande #118, aperçu de fusion #286, fusion #287) : détail,
 pièges mesurés et invariants dans
 `docs/api/courses-sources-fusion.md`.
 
+## Plafonds de débit par IP (#395)
+
+Trois routes publiques sont plafonnées par IP, **route par route** comme les
+gardes de pouvoir — `api/deps.scrape_rate_limit` sur `POST /scrape/event` et
+`POST /scrape/event/stream`, `api/deps.authorize_rate_limit` sur
+`GET /auth/{provider}/authorize`. Quatre choses à ne pas défaire :
+
+- **Un seul seau pour les deux routes de scraping.** Elles déclenchent le même
+  travail (jusqu'à ~26 requêtes sortantes, puis des centaines de lignes
+  écrites) : deux compteurs doubleraient le plafond réel pour qui alterne.
+- **Le compteur est en mémoire du process**, contrairement à celui de
+  `POST /feedback` qui compte des lignes en base : il n'y a ici aucune table où
+  compter, et en créer une ferait écrire la requête que le plafond empêche.
+  Exact tant que l'API tourne en un seul process — le cas sur Render.
+- **La clé est `request.client.host`**, donc la première entrée de
+  `X-Forwarded-For` depuis #393. Sans ce préalable, tout plafond par IP se
+  contourne avec un en-tête forgé — c'est pourquoi #395 en dépendait.
+- **Le compteur survit d'un test à l'autre** : la fixture autouse
+  `_compteurs_de_debit_vierges` de `tests/conftest.py` le remet à zéro, sinon
+  l'ordre d'exécution déciderait quel test prend un 429.
+
+Le SSE prend `optional_user` et journalise son appelant : il ne le faisait pas,
+et un import lancé depuis là ne laissait aucune trace de qui l'avait demandé.
+
 ## Protéger une ressource (#115)
 
 `api/deps.require_permission(P.X)` fabrique la garde d'**une** route. Elle nomme

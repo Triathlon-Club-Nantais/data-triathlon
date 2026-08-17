@@ -36,8 +36,14 @@ export async function* importEventStream(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url }),
   });
+  // Même patron que `rescrapeEventStream` ci-dessous : un refus arrive **avant**
+  // le premier octet du flux, corps JSON `{"detail": "..."}`. Le lire n'est plus
+  // du confort depuis le plafond de débit (#395) — « Erreur lors du démarrage de
+  // l'import » sur un 429 laisserait le visiteur réessayer indéfiniment au lieu
+  // de lui dire d'attendre.
   if (!res.ok || !res.body) {
-    throw new Error("Erreur lors du démarrage de l'import");
+    const corps = await res.json().catch(() => null);
+    throw new Error(corps?.detail ?? "Erreur lors du démarrage de l'import");
   }
   yield* readEventStream<ImportProgressEvent>(res);
 }
