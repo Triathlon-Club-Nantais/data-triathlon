@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import current_user
+from app.api.deps import authorize_rate_limit, current_user
 from app.core.analytics import capture_event, set_person_properties
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
@@ -139,7 +139,7 @@ def list_methods():
     ]
 
 
-@router.get("/auth/{provider}/authorize")
+@router.get("/auth/{provider}/authorize", dependencies=[Depends(authorize_rate_limit)])
 def authorize(provider: str, settings: Settings = Depends(get_settings)):
     """Ouvre le parcours. Ne prend **aucun** paramètre, destination de retour
     comprise (FR-026) : la redirection ouverte est fermée par construction."""

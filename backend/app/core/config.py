@@ -63,6 +63,15 @@ class Settings(BaseSettings):
     feedback_rate_limit_max_per_window: int = 5
     feedback_rate_limit_window_seconds: int = 3600
 
+    # ── Import d'épreuve (#395) ───────────────────────────────────────────────
+    # Plafond par IP des deux routes de scraping, **seau commun** (api/deps.py).
+    # 10 imports par heure : au-delà du besoin d'un visiteur qui colle une URL,
+    # très en deçà de ce qui sature un process Render gratuit. Réglable sans
+    # redéploiement, contrairement au plafond d'ouverture de parcours, qui est
+    # une constante — celui-là est le seul dont le réglage se paie en incidents.
+    scrape_rate_limit_max_per_window: int = 10
+    scrape_rate_limit_window_seconds: int = 3600
+
     # ── Authentification (#114) ───────────────────────────────────────────────
     # Huit réglages, tous absents par défaut : une installation sans secrets est
     # un état légitime où le site public reste intact et où aucun moyen de

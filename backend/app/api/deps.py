@@ -1,5 +1,7 @@
 """Dépendances FastAPI partagées."""
 import logging
+import time
+from collections import deque
 from collections.abc import Callable
 
 from fastapi import Depends, Request
@@ -7,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
-from app.core.exceptions import DomainError
+from app.core.exceptions import DomainError, TooManyRequestsError
 from app.core.permissions import Permission
 from app.models.user import User
 from app.repositories import benevole_config_repository
@@ -102,6 +104,108 @@ def require_benevole_access(request: Request, db: Session = Depends(get_db)) -> 
     cookie = request.cookies.get(benevole_access.BENEVOLE_SESSION_COOKIE)
     if config is None or not benevole_access.verify_session(cookie, config.session_secret):
         raise NotAuthenticatedError()
+
+
+# ── Plafond de débit par IP (#395, constats A04-2 et A07-1 de l'audit OWASP) ──
+#
+# Le garde SSRF de `core/http.py` ferme la **destination** d'une sortie HTTP,
+# pas son **volume** ; le cache TTL de `services/cache.py` court-circuite le
+# re-scraping d'une **même** épreuve, jamais le nombre d'épreuves distinctes
+# demandées. Rien ne bornait donc ce qu'un appel public déclenche : jusqu'à ~26
+# requêtes sortantes vers un même hôte tiers, puis plusieurs centaines de lignes
+# écrites — et sur l'offre gratuite Render (un process, limiteur de threads AnyIO
+# à 40, routes toutes `def`), quelques appels concurrents saturent le site.
+#
+# La clé est `request.client.host`, donc la première entrée de `X-Forwarded-For`
+# depuis #393 (`ProxyHeadersMiddleware`, `app/main.py`) : sans ce préalable, tout
+# plafond par IP se contournerait avec un en-tête forgé.
+#
+# Compteur **en mémoire du process**, à la différence du plafond de `/feedback`
+# qui compte des lignes en base : il n'y a ici aucune table où compter, et en
+# créer une ferait écrire la requête que le plafond doit justement empêcher.
+#
+# ponytail: compteur mono-process et fenêtre glissante en mémoire — exact tant
+# que l'API tourne en un seul process (le cas sur Render). Le jour où elle scale
+# horizontalement, chaque instance appliquera le plafond pour elle seule :
+# passer alors à un compteur partagé (Redis). De même, le contrôle puis
+# l'enregistrement ne sont pas atomiques : sous concurrence, quelques appels
+# peuvent passer au-delà du plafond — sans conséquence pour un garde de volume.
+_hits: dict[tuple[str, str], deque[float]] = {}
+
+#: Au-delà, on purge les seaux dont la fenêtre est entièrement écoulée — un
+#: attaquant qui fait tourner ses adresses ne fait pas croître la mémoire sans
+#: fin. La purge n'efface aucun quota en cours.
+_MAX_SEAUX = 10_000
+
+#: A07-1, faible : l'ouverture de parcours ne fait qu'une signature JWS, sans
+#: écriture ni réseau. Le levier est mince, le plafond est donc large — et il
+#: reste une constante, pas un réglage : personne n'a de raison de l'ajuster.
+AUTHORIZE_RATE_LIMIT_MAX_PER_WINDOW = 30
+AUTHORIZE_RATE_LIMIT_WINDOW_SECONDS = 3600
+
+
+def reset_rate_limits() -> None:
+    """Vide les compteurs. Réservé aux tests (fixture autouse de `conftest`)."""
+    _hits.clear()
+
+
+def _enforce_rate_limit(
+    request: Request, bucket: str, *, max_per_window: int, window_seconds: int
+) -> None:
+    ip = request.client.host if request.client else None
+    if ip is None:
+        return
+
+    now = time.monotonic()
+    if len(_hits) > _MAX_SEAUX:
+        for key, seen in list(_hits.items()):
+            if not seen or now - seen[-1] >= window_seconds:
+                del _hits[key]
+
+    seen = _hits.setdefault((bucket, ip), deque())
+    while seen and now - seen[0] >= window_seconds:
+        seen.popleft()
+
+    if len(seen) >= max_per_window:
+        logger.warning(
+            "Rate limit reached on bucket %s for %s (%s %s)",
+            bucket,
+            ip,
+            request.method,
+            request.url.path,
+        )
+        retry_after = int(window_seconds - (now - seen[0])) + 1
+        raise TooManyRequestsError(
+            "Trop de demandes envoyées récemment, réessayez plus tard.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    seen.append(now)
+
+
+def scrape_rate_limit(request: Request, settings: Settings = Depends(get_settings)) -> None:
+    """Plafond des deux routes d'import d'épreuve — **un seul seau pour les deux**.
+
+    `POST /scrape/event` et `POST /scrape/event/stream` déclenchent le même
+    travail : deux compteurs distincts doubleraient le plafond réel pour qui
+    alterne entre les deux.
+    """
+    _enforce_rate_limit(
+        request,
+        "scrape",
+        max_per_window=settings.scrape_rate_limit_max_per_window,
+        window_seconds=settings.scrape_rate_limit_window_seconds,
+    )
+
+
+def authorize_rate_limit(request: Request) -> None:
+    """Plafond de `GET /auth/{provider}/authorize` (A07-1)."""
+    _enforce_rate_limit(
+        request,
+        "authorize",
+        max_per_window=AUTHORIZE_RATE_LIMIT_MAX_PER_WINDOW,
+        window_seconds=AUTHORIZE_RATE_LIMIT_WINDOW_SECONDS,
+    )
 
 
 def require_permission(code: Permission | str) -> Callable[..., User]:
