@@ -37,7 +37,7 @@ jobs:
     steps:
       # Le checkout précède le hook Render : la version poussée au backend (#162)
       # se calcule par `git describe`, elle a donc besoin de l'arbre.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           # `fetch-depth: 0` : `git describe --tags` a besoin de l'historique
           # complet pour trouver le tag le plus récent (le shallow clone par
@@ -111,7 +111,7 @@ jobs:
       # en `--prebuilt`) : c'est donc ici le runtime de build réel du front, à
       # tenir aligné sur celui de `ci.yml`, sans quoi la CI valide autre chose
       # que ce qui est livré.
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
           node-version: "26"
 
@@ -198,7 +198,7 @@ jobs:
           DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_PROD }}
         run: curl -fsSL -X POST --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 "$DEPLOY_HOOK&ref=${{ github.sha }}"
 
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0  # `git describe` a besoin des tags (cf. job preview)
 
@@ -206,7 +206,7 @@ jobs:
       # en `--prebuilt`) : c'est donc ici le runtime de build réel du front, à
       # tenir aligné sur celui de `ci.yml`, sans quoi la CI valide autre chose
       # que ce qui est livré.
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
           node-version: "26"
 
