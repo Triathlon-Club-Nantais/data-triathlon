@@ -9,12 +9,13 @@ We fetch it and find the competitor by bib number (B param).
 """
 import logging
 import re
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # annotations de type seulement
 from collections.abc import Callable
 from urllib.parse import parse_qs, quote, unquote, urlencode, urljoin, urlparse, urlunparse
 
 import httpx
 from bs4 import BeautifulSoup
+from defusedxml.ElementTree import fromstring as parse_xml
 
 from app.core import http
 
@@ -280,7 +281,7 @@ def _fetch_clax(url: str) -> tuple[ET.Element, str, str, str, object]:
         resp.raise_for_status()
         xml_content = resp.text
 
-    root = ET.fromstring(xml_content)
+    root = parse_xml(xml_content)
     event_elem = root.find(".//Event") or root.find(".//RACE") or root
     event_name = (
         event_elem.get("Name", "")
