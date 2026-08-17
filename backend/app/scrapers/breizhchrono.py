@@ -269,7 +269,12 @@ def scrape_event_all(
 # Front live.breizhchrono.com — même plateforme Klikego, façade différente.
 # --------------------------------------------------------------------------- #
 
-LIVE_BASE = "https://live.breizhchrono.com"
+#: Host de la façade live — comparé à l'**égalité** (`registry._url_host`), jamais
+#: cherché en sous-chaîne : `live.breizhchrono.com.attaquant.tld` satisfait un `in`
+#: et routerait le moteur live vers un hôte tiers (CodeQL
+#: `py/incomplete-url-substring-sanitization`, #432).
+LIVE_HOST = "live.breizhchrono.com"
+LIVE_BASE = f"https://{LIVE_HOST}"
 
 
 def _fetch_tcn_fine_splits(
