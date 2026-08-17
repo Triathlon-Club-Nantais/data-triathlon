@@ -34,6 +34,17 @@ class Settings(BaseSettings):
         "http://localhost:5173",
     ]
 
+    # ── Documentation interactive de l'API (#399, constat A05-1) ──────────────
+    # `/docs`, `/redoc` et `/openapi.json`. **Fermés par défaut** : le dépôt est
+    # public et aucun de ces chemins n'est un secret, ce qu'on retire est la
+    # carte prête à l'emploi et son interface d'appel. Le défaut ferme plutôt
+    # qu'il n'ouvre parce que `render.yaml` n'est appliqué par personne (cf. son
+    # en-tête) : un défaut ouvert aurait fait dépendre le correctif d'une saisie
+    # au dashboard, et une saisie oubliée ne se voit pas. `is_sqlite` ne pouvait
+    # pas servir de discriminant — la preview tourne sur PostgreSQL et garde ses
+    # `/docs`, qu'elle déclare par `DOCS_ENABLED=true`.
+    docs_enabled: bool = False
+
     # ── Logging ───────────────────────────────────────────────────────────────
     log_level: str = "INFO"
     log_json: bool = False  # True → logs JSON (ingestion Render/Datadog)

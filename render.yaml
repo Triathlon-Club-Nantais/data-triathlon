@@ -106,6 +106,14 @@ services:
       # le change pas — la basculer se fait au dashboard.
       - key: LOG_JSON
         value: "false"
+      # Documentation interactive (#399, constat A05-1 de l'audit OWASP) :
+      # `/docs`, `/redoc` et `/openapi.json`. Le code **ferme** par défaut, donc
+      # la production n'a rien à saisir — c'est la preview qui déclare son
+      # ouverture (`true`) au dashboard. Le sens du défaut est délibéré : ce
+      # fichier n'étant appliqué par personne, un défaut ouvert aurait fait
+      # dépendre le correctif d'une saisie, et une saisie oubliée ne se voit pas.
+      - key: DOCS_ENABLED
+        sync: false
       - key: POSTHOG_PROJECT_TOKEN
         sync: false # vide = captures ignorées en silence, état légitime
       # ── Lancement des batches depuis /admin (#47) ──────────────────────────
