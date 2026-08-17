@@ -92,7 +92,11 @@ Aucun venv à activer : `uv run` synchronise l'environnement avant d'exécuter.
 > Les endpoints sont versionnés sous **`/api/v1`** et le schéma DB est géré par
 > **Alembic**. Voir [`backend/README.md`](backend/README.md) pour le détail.
 
-Le port retenu s'affiche au démarrage, avec `/docs` pour la documentation interactive.
+Le port retenu s'affiche au démarrage, avec `/docs` pour la documentation
+interactive — servie **si** `DOCS_ENABLED=true` figure dans `backend/.env`
+(présent dans `.env.example`). Le défaut du code ferme `/docs`, `/redoc` et
+`/openapi.json` : c'est la production qui commande ce choix (#399), un `.env`
+antérieur à ce réglage rend donc 404 tant qu'on ne l'y ajoute pas.
 
 L'écoute couvre toutes les interfaces (`0.0.0.0`), comme en production : le seul
 loopback rendrait l'API injoignable depuis l'extérieur d'un conteneur, ou depuis un

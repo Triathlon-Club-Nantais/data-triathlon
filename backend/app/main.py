@@ -82,7 +82,17 @@ def create_app() -> FastAPI:
         yield
         shutdown_posthog()
 
-    app = FastAPI(title="Triathlon Club Results — v2", lifespan=lifespan)
+    # Les trois chemins de documentation tiennent au même réglage (#399) :
+    # `/redoc` sert le même schéma que `/docs`, et `/openapi.json` est ce que
+    # les deux consomment — n'en fermer qu'un ne fermerait rien.
+    docs = settings.docs_enabled
+    app = FastAPI(
+        title="Triathlon Club Results — v2",
+        lifespan=lifespan,
+        docs_url="/docs" if docs else None,
+        redoc_url="/redoc" if docs else None,
+        openapi_url="/openapi.json" if docs else None,
+    )
 
     # Chaîne de confiance des en-têtes de proxy (#393, constat A04-1 de l'audit
     # OWASP). `request.client.host` est la clé du seul plafond de débit du

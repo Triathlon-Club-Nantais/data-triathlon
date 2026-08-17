@@ -81,6 +81,15 @@ Réglages restants à faire **dans le dashboard** (non supportés par le MCP) :
 > (rootDir vide + `DATABASE_URL` absent) : sans gravité, il sera correct après
 > ces réglages et le premier hook.
 
+**`DOCS_ENABLED` — un seul service la porte** (#399). Elle commande `/docs`,
+`/redoc` et `/openapi.json`, et le code les **ferme par défaut** : la production
+n'a donc rien à saisir, et c'est le service **preview** qui déclare
+`DOCS_ENABLED=true` dans ses variables. Le sens du défaut n'est pas anodin —
+`render.yaml` n'étant appliqué par personne, un défaut ouvert aurait fait
+dépendre le correctif d'une saisie au dashboard, et une saisie oubliée ne se
+voit pas (c'est exactement ce qu'a coûté #162). Vérification après déploiement :
+`GET /docs` doit rendre **404** en production et **200** en preview.
+
 ### Vercel (offre Hobby) — 2 projets
 
 | Rôle | Projet Vercel | Ciblé par |
