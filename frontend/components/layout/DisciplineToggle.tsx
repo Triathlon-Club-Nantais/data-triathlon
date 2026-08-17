@@ -3,6 +3,7 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useTransition } from "react";
 
 import { SPORTS_ALL, SPORTS_PARAM } from "@/lib/scope";
+import { RANK_PARAM } from "@/lib/rank";
 
 /**
  * Ouvre les compteurs aux disciplines hors fédération triathlon.
@@ -19,7 +20,12 @@ export function DisciplineToggle() {
   const toutesDisciplines = sp.get(SPORTS_PARAM) === SPORTS_ALL;
 
   function basculer(toutes: boolean) {
+    // `router.push` est un vrai aller-retour serveur (contrairement à
+    // `RankTypeToggle`, #328) : ne cloner que les paramètres que le rendu
+    // serveur lit réellement. `?rank=` est strictement client (#425) — le
+    // propager déclenche un fetch RSC pour une valeur que le serveur ignore.
     const params = new URLSearchParams(sp.toString());
+    params.delete(RANK_PARAM);
     if (toutes) params.set(SPORTS_PARAM, SPORTS_ALL);
     else params.delete(SPORTS_PARAM);
     const qs = params.toString();
