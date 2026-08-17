@@ -7,14 +7,14 @@ dependencies = [
     "fastapi[standard]>=0.115.5",
     "uvicorn[standard]>=0.32.1",
     "pydantic>=2.10.3",
-    "pydantic-settings>=2.7.0",
-    "sqlalchemy>=2.0.36",
-    "alembic>=1.14.0",
+    "pydantic-settings>=2.15.0",
+    "sqlalchemy>=2.0.52",
+    "alembic>=1.19.1",
     "psycopg2-binary>=2.9.10",
     "httpx>=0.28.1",
     "beautifulsoup4>=4.12.3",
     "lxml>=5.3.0",
-    "typer>=0.26.7",
+    "typer>=0.27.1",
     "rich>=15.0.0",
     # Flux OAuth du socle d'authentification (#114). `httpx_client.OAuth2Client`
     # hérite de `httpx.Client`, donc le transport gardé de `core/http` y descend
@@ -33,7 +33,7 @@ dependencies = [
 dev = [
     "pytest>=8.3.4",
     "respx>=0.21.1",
-    "ruff>=0.8.4",
+    "ruff>=0.16.3",
 ]
 
 [tool.uv]
