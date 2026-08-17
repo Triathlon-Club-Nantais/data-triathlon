@@ -14,11 +14,11 @@ When a search name matches multiple athletes a ValueError is raised listing
 all matches so the user can refine their query.
 """
 import re
-import xml.etree.ElementTree as ET
 from datetime import date as date_t
 from urllib.parse import parse_qs, urlparse
 
 import httpx
+from defusedxml.ElementTree import fromstring as parse_xml
 
 from app.core import http
 
@@ -151,7 +151,7 @@ def _parse_series(xml: str) -> dict[str, str]:
     Special case — duathlon: both stages are "Course à pied" (no swim).
     The first run is mapped to the "swim" slot so both runs have distinct slots.
     """
-    root = ET.fromstring(xml)
+    root = parse_xml(xml)
     entries: list[tuple[str, str]] = []
     for s in root.iter("S"):
         idx = s.get("id", "")
@@ -228,7 +228,7 @@ def _compute_ranks(
     Compute (rank_overall, rank_gender, rank_category) within the athlete's
     parcours by sorting all R entries by total time.
     """
-    root = ET.fromstring(xml)
+    root = parse_xml(xml)
 
     # Gather bibs for the same parcours, and E attrs indexed by bib for
     # gender/category filtering
@@ -328,7 +328,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         raise ValueError(f"Impossible de récupérer les données de l'événement {id_event}.")
 
     series_map = _parse_series(xml)
-    root = ET.fromstring(xml)
+    root = parse_xml(xml)
 
     # Event metadata
     event_name = ""

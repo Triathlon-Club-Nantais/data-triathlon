@@ -41,7 +41,7 @@ PORT_FILE_NAME = ".dev-backend.json"
 #
 # CLIENT_HOST : ce qu'on publie comme cible joignable. `0.0.0.0` n'est pas une
 # adresse de destination — elle ne se résout pas hors de Linux — donc le loopback.
-BIND_HOST = "0.0.0.0"
+BIND_HOST = "0.0.0.0"  # noqa: S104 — serveur de dev, exposition au réseau local voulue
 CLIENT_HOST = "127.0.0.1"
 
 

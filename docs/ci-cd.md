@@ -344,6 +344,26 @@ sécurité ne contient aucun `paths-ignore`. C'est un reste du sondage du
 demanderait un `PATCH /repos/…/properties/values` au niveau organisation, hors
 périmètre d'un chore sur un seul dépôt.
 
+### SAST dans le lint — ruff `S` (flake8-bandit)
+
+CodeQL vit côté GitHub ; le second filet vit dans la CI et sur le poste du
+développeur. `S` est activé dans `backend/pyproject.toml` : bandit est **déjà
+embarqué dans ruff**, donc aucune dépendance ni job de CI en plus, et
+`uv run ruff check .` (déjà bloquant) suffit à le faire tourner.
+
+Les deux outils ne voient pas les mêmes choses — à l'activation, **6 des 7
+constats de ruff `S` étaient invisibles pour CodeQL**, et les 6 alertes CodeQL
+ouvertes sont invisibles pour ruff. Ce qui a été traité :
+
+- `S314` — `xml.etree` sur les flux scrapés (timepulse, wiclax) : parsing
+  basculé sur **defusedxml**, qui refuse les bombes d'entités.
+  `backend/tests/test_xml_hardening.py` verrouille le comportement.
+- `S105` / `S104` — faux positifs sur des constantes d'URL, et le bind
+  `0.0.0.0` volontaire du serveur de dev : `# noqa` motivés sur place.
+
+`tests/**` est neutralisé via `per-file-ignores` : les tests ne sont pas une
+frontière de confiance, et `S101` (`assert`) y sort 5347 fois.
+
 ### Environments GitHub — requis, et un garde-fou optionnel
 
 Les *Environments* `preview` et `production` sont **nécessaires** : les deux jobs

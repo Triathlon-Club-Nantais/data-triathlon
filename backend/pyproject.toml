@@ -26,6 +26,10 @@ dependencies = [
     # (#47). Le `.csv` reste à la stdlib ; c'est la seule brique qui manquait.
     "openpyxl>=3.1.5",
     "posthog>=7.39.1",
+    # Parsing XML des flux de chronométrage (timepulse, wiclax) : `xml.etree` se
+    # laisse saturer par une bombe d'entités, defusedxml est le drop-in qui les
+    # refuse (constat ruff S314, #394).
+    "defusedxml>=0.7.1",
 ]
 
 # PEP 735 : installé par `uv sync`, écarté par `uv sync --no-dev` (Render, Docker).
@@ -56,11 +60,18 @@ target-version = "py313"
 exclude = ["alembic/versions"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "W", "UP", "B", "N"]
+# `S` = flake8-bandit, le SAST embarqué dans ruff (#394) : il complète CodeQL
+# côté code plutôt que côté flux, sans dépendance ni job de CI en plus.
+select = ["E", "F", "I", "W", "UP", "B", "N", "S"]
 ignore = [
     "E501",  # longueur de ligne gérée par le formateur
     "B008",  # Depends(...) en argument par défaut = motif idiomatique FastAPI
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# Les tests ne sont pas une frontière de confiance : `assert` y est l'outil (5347
+# occurrences), les mots de passe y sont factices et le XML y vient de fixtures.
+"tests/**" = ["S"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]

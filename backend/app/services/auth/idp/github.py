@@ -23,7 +23,7 @@ from app.services.auth.idp.base import AuthorizationRequest, ExternalIdentity
 logger = logging.getLogger(__name__)
 
 AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
-TOKEN_URL = "https://github.com/login/oauth/access_token"
+TOKEN_URL = "https://github.com/login/oauth/access_token"  # noqa: S105 — URL publique
 USER_URL = "https://api.github.com/user"
 EMAILS_URL = "https://api.github.com/user/emails"
 

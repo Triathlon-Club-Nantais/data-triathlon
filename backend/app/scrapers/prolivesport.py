@@ -57,7 +57,7 @@ from .utils import (
 logger = logging.getLogger(__name__)
 
 API_BASE = "https://api.prolivesport.fr/apiws"
-TOKEN = "AUTH_PLSWS_V2"
+TOKEN = "AUTH_PLSWS_V2"  # noqa: S105 — nom du mode d'auth public de l'API, pas un secret
 HEADERS = {
     **DEFAULT_HEADERS,
     "access-token": TOKEN,
