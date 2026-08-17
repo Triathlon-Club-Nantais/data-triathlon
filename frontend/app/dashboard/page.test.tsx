@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 
@@ -20,6 +21,27 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
   usePathname: () => "/dashboard",
   useSearchParams: () => new URLSearchParams(),
+}));
+
+// `prefetch` ne se reflète sur aucun attribut DOM du <a> réel de next/link
+// (comportement purement interne, piloté par IntersectionObserver) : on ne
+// peut donc vérifier son câblage qu'en interceptant le composant lui-même.
+vi.mock("next/link", () => ({
+  default: ({
+    href,
+    prefetch,
+    children,
+    ...rest
+  }: {
+    href: string;
+    prefetch?: boolean;
+    children?: ReactNode;
+    [key: string]: unknown;
+  }) => (
+    <a href={href} data-prefetch={String(prefetch)} {...rest}>
+      {children}
+    </a>
+  ),
 }));
 
 import DashboardPage from "./page";
@@ -74,6 +96,22 @@ describe("DashboardPage", () => {
     expect(getStats).toHaveBeenCalledWith(expect.anything(), { revalidateSeconds: 30 });
     expect(listEvents).toHaveBeenCalledWith(expect.anything(), { revalidateSeconds: 30 });
     expect(listSeasons).toHaveBeenCalledWith(expect.anything(), { revalidateSeconds: 30 });
+  });
+
+  it("désactive le prefetch des liens « Épreuves préférées » (#425) — au-dessus de la ligne de flottaison, jusqu'à 6 à la fois, prefetchées au hasard sans intérêt", async () => {
+    listEvents.mockResolvedValue({
+      items: [
+        { id: 5, event_name: "Ironman Nantes", event_date: null, event_type: "Triathlon L", is_relay: false, distance_km: 113, total: 30, tcn_count: 5 },
+      ],
+      total_events: 1,
+      total_participations: 30,
+    });
+
+    await renderDashboard({});
+
+    const lien = screen.getByRole("link", { name: /Ironman Nantes/ });
+    expect(lien).toHaveAttribute("href", "/courses/5");
+    expect(lien).toHaveAttribute("data-prefetch", "false");
   });
 
   it("ignore ?scope et reste sur le club même si l'URL demande « tous »", async () => {

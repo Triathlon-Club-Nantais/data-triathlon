@@ -93,7 +93,11 @@ export default async function DashboardPage({
             <div>#</div><div>Épreuve</div><div>Format</div><div style={{ textAlign: "right" }}>Dossards</div>
           </div>
           {topEvents.map((e, i) => (
-            <Link key={e.id} href={`/courses/${e.id}`} className="tcn-rowlink" style={{ display: "grid", gridTemplateColumns: "24px 1fr auto auto", gap: "0 14px", alignItems: "center", padding: "12px 0", borderBottom: i < topEvents.length - 1 ? "1px solid var(--tcn-border-faint)" : "none", fontSize: 15 }}>
+            // prefetch={false} (#425) : jusqu'à 6 liens au-dessus de la ligne
+            // de flottaison, next/link les prefetch tous par défaut dès
+            // l'atterrissage sur /dashboard — un coût réseau pour des épreuves
+            // au hasard, rarement celle que le visiteur va effectivement ouvrir.
+            <Link key={e.id} href={`/courses/${e.id}`} prefetch={false} className="tcn-rowlink" style={{ display: "grid", gridTemplateColumns: "24px 1fr auto auto", gap: "0 14px", alignItems: "center", padding: "12px 0", borderBottom: i < topEvents.length - 1 ? "1px solid var(--tcn-border-faint)" : "none", fontSize: 15 }}>
               <span style={{ fontFamily: "var(--tcn-font-display)", color: i === 0 ? "var(--tcn-orange)" : "var(--tcn-text-muted)" }}>{i + 1}</span>
               <span style={{ color: "var(--tcn-ink)", fontWeight: 600 }}>{e.event_name}</span>
               <FormatChip>{formatToken(e.event_type, e.distance_km)}</FormatChip>

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -18,6 +19,27 @@ const chemin = vi.hoisted(() => ({ courant: "/dashboard" }));
 vi.mock("next/navigation", () => ({
   usePathname: () => chemin.courant,
   useRouter: () => ({ push, refresh: vi.fn() }),
+}));
+
+// `prefetch` ne se reflète sur aucun attribut DOM du <a> réel de next/link
+// (comportement purement interne, piloté par IntersectionObserver) : on ne
+// peut donc vérifier son câblage qu'en interceptant le composant lui-même.
+vi.mock("next/link", () => ({
+  default: ({
+    href,
+    prefetch,
+    children,
+    ...rest
+  }: {
+    href: string;
+    prefetch?: boolean;
+    children?: ReactNode;
+    [key: string]: unknown;
+  }) => (
+    <a href={href} data-prefetch={String(prefetch)} {...rest}>
+      {children}
+    </a>
+  ),
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
@@ -106,6 +128,20 @@ describe("readAthlete — stock corrompu", () => {
     // correctif est une absence de choix — l'athlète se re-sélectionne une fois.
     window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 7, name: "Marie Gaudin" }));
     expect(readAthlete()).toBeNull();
+  });
+});
+
+describe("AppNav — prefetch de la tuile « Mon profil » (#425)", () => {
+  it("désactive le prefetch des deux liens vers /athletes/{id} — un athlète épinglé au hasard, pas une destination probable", async () => {
+    window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 12, prenom: "Jean", nom: "Dupont" }));
+    afficher(null);
+    await deplier();
+
+    expect(screen.getByRole("link", { name: "Mon profil — Jean Dupont" })).toHaveAttribute(
+      "data-prefetch",
+      "false",
+    );
+    expect(await screen.findByRole("link", { name: "Jean" })).toHaveAttribute("data-prefetch", "false");
   });
 });
 

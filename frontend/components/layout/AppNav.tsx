@@ -440,8 +440,12 @@ function NavContent({
               border: "1.5px solid var(--tcn-orange-12)",
             }}
           >
+            {/* prefetch={false} (#425) : un athlète épinglé au hasard depuis
+                le picker, pas une destination probable — inutile de le
+                prefetcher dès que la tuile entre dans le viewport. */}
             <Link
               href={`/athletes/${athlete.id}`}
+              prefetch={false}
               onClick={onNavigate}
               aria-label={`Mon profil — ${nomComplet(athlete)}`}
               title={expanded ? undefined : "Mon profil"}
@@ -451,6 +455,7 @@ function NavContent({
             {expanded && (
               <Link
                 href={`/athletes/${athlete.id}`}
+                prefetch={false}
                 onClick={onNavigate}
                 style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 14, color: "var(--tcn-orange-deep)", textDecoration: "none", ...tronque }}
               >
