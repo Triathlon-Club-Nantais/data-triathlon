@@ -428,6 +428,27 @@ def test_registry_route_live_insensible_casse(monkeypatch):
     assert captured["reference"] == "42-7"
 
 
+def test_registry_ne_route_pas_un_host_prefixe_vers_le_live(monkeypatch):
+    """`live.breizhchrono.com.evil.tld` satisfaisait le `in` du dispatch (#432).
+
+    L'égalité stricte sur le host le renvoie à la façade classique, donc à
+    aucune requête vers un hôte contrôlé par un tiers via le moteur live.
+    """
+    from app.scrapers.registry import BreizhChronoProvider
+
+    def refuse_live(*a, **kw):
+        raise AssertionError("routé vers le moteur live sur un host usurpé")
+
+    monkeypatch.setattr(breizhchrono, "scrape_live_event_all", refuse_live)
+    monkeypatch.setattr(breizhchrono, "scrape_event_all", lambda *a, **kw: ["classique"])
+
+    url = (
+        "https://live.breizhchrono.com.evil.tld/external/live5/index.jsp"
+        "?reference=1488071608761-688"
+    )
+    assert BreizhChronoProvider().scrape_event_all(url) == ["classique"]
+
+
 def test_live_mode_heat_unique_conserve_le_libelle_pour_le_relais(monkeypatch):
     """En mode heat unique, le libellé est récupéré depuis classements.jsp afin
     que la détection de relais fonctionne pour un slug live « ...---relais »."""

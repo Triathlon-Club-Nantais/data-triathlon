@@ -11,6 +11,7 @@ from datetime import date
 from app.models.course import Course
 from app.models.course_source import CourseSource
 from app.services.course_reconciliation import (
+    _is_breizhchrono_live,
     find_reconcilable_course,
     heat_slug,
     platform_event_id,
@@ -49,6 +50,13 @@ class TestPlatformEventId:
 
     def test_url_illisible_rend_vide_plutot_que_de_lever(self):
         assert platform_event_id("breizhchrono", "pas-une-url") == ""
+
+    def test_host_prefixe_par_le_live_n_est_pas_la_facade_live(self):
+        """`live.breizhchrono.com.evil.tld` satisfaisait le `in` sur le netloc (#432)."""
+        assert not _is_breizhchrono_live(
+            "https://live.breizhchrono.com.evil.tld/external/live5/index.jsp"
+            "?reference=1488071608761-688"
+        )
 
     def test_ne_tronque_jamais_au_prefixe_epoch(self):
         """12 préfixes sur 40 mesurés dans le Sheet du club portent plusieurs

@@ -41,7 +41,10 @@ from app.core.config import get_settings  # noqa: E402
 from app.core.database import SessionLocal  # noqa: E402
 from app.core.time import utcnow  # noqa: E402
 from app.models.course import Course  # noqa: E402
+from app.repositories import course_repository  # noqa: E402
+from app.scrapers.breizhchrono import LIVE_HOST  # noqa: E402
 from app.scrapers.klikego_platform import parse_event_name  # noqa: E402
+from app.scrapers.registry import _url_host  # noqa: E402
 from app.services import import_service  # noqa: E402
 
 # Fronts dont le nom d'épreuve se lit dans le <title> (moteur Klikego partagé).
@@ -102,17 +105,21 @@ def _name_from_page(url: str) -> str:
 
 def repair_names(db, *, dry_run: bool) -> int:
     """Passe A — aligne le nom des courses Klikego / BC sur celui de leur page."""
-    courses = (
-        db.query(Course)
-        .filter(Course.provider.in_(_TITLE_PROVIDERS))
-        .order_by(Course.id)
-        .all()
-    )
+    # `Course.provider` n'a plus d'`@expression` depuis #306 : il se filtre par la
+    # jointure sur la source active, une seule fois, dans le repository.
+    courses = [
+        course
+        for provider in _TITLE_PROVIDERS
+        for course in course_repository.iter_all(db, provider=provider)
+    ]
     # Le nom d'épreuve ne dépend que de la page : une requête par URL suffit,
     # même quand plusieurs heats (donc plusieurs courses) la partagent.
     by_url: dict[str, list[Course]] = {}
     for course in courses:
-        if "live.breizhchrono.com" in course.source_url:
+        # Host comparé à l'égalité, jamais cherché dans l'URL entière : un `in`
+        # excluait aussi toute URL portant le jeton en query ou en préfixe de
+        # host (`live.breizhchrono.com.autre.tld`) — #432.
+        if _url_host(course.source_url) == LIVE_HOST:
             continue  # front non supporté par les scrapers (pas de page lisible)
         by_url.setdefault(course.source_url, []).append(course)
 

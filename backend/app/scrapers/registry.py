@@ -276,8 +276,9 @@ class BreizhChronoProvider(HostMatchedProvider):
 
         # live.breizhchrono.com = même plateforme Klikego (cf. #34), façade
         # différente : on route vers le moteur live plutôt que de rejeter.
-        # netloc en minuscules → robuste à une URL copiée/collée avec majuscules.
-        if "live.breizhchrono.com" in urlparse(url).netloc.lower():
+        # Égalité stricte sur le host (`_url_host`), pas d'appartenance : un `in`
+        # routait aussi `live.breizhchrono.com.attaquant.tld` (#432).
+        if _url_host(url) == breizhchrono.LIVE_HOST:
             reference, heat = _parse_live_url(url)
             if not reference:
                 raise ValueError(
