@@ -50,6 +50,16 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    # TypeScript 7 casse `npm run lint`, premier step du job frontend :
+    # eslint-config-next embarque typescript-eslint, dont le peer est
+    # `>=4.8.4 <6.1.0`, et qui lève une erreur dure au chargement sur TS >= 7
+    # (constaté sur #424 ; suivi amont : typescript-eslint#10940). Le build et
+    # les tests, eux, passent en TS 7 — Next 16.3 délègue le typecheck au `tsc`
+    # local. Borne à lever quand eslint-config-next embarquera un
+    # typescript-eslint compatible.
+    ignore:
+      - dependency-name: "typescript"
+        versions: [">=7"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
