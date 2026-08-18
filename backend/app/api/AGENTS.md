@@ -204,7 +204,7 @@ détail dans `docs/api/feedback-stats.md`.
 
 ## Page bénévoles : une seconde garde, hors du socle SSO (#271)
 
-`benevoles.py` porte quatre ressources gardées par `require_benevole_access`
+`benevoles.py` porte huit ressources gardées par `require_benevole_access`
 (`api/deps.py`) — **pas** `require_permission`. Mot de passe partagé (5-6
 bénévoles). Décision produit et alternatives rejetées : `specs/20260815-
 114258-page-validation-benevoles/research.md` §D1.
@@ -225,26 +225,37 @@ individuelle à révoquer) — sans jamais avoir besoin de relire le mot de pass
 en clair. `services/benevole_access.replace_password` est le seul point
 d'écriture des trois champs secrets, toujours ensemble.
 
-Trois des quatre routes délèguent à `admin_actions.update_course`/
+Deux des huit routes délèguent à `admin_actions.update_course`/
 `.reassign_participation` (déjà livrées pour `/admin/*`) sous le `user_id`
 d'un **compte système** (« Bénévoles (accès partagé) », seedé par migration,
 jamais par le code applicatif) — `AdminActionLog.user_id` est une FK `NOT
-NULL`, et il n'y a pas d'identité individuelle à y mettre. Seule
-`validate_participation` (`is_pending_validation → false`) est une logique
-neuve. `GET /benevoles/queue` ne filtre **ni** par club ni par portée : les
+NULL`, et il n'y a pas d'identité individuelle à y mettre. **Quatre sont une
+logique neuve** (#437) : `validate_participation`
+(`is_pending_validation → false`), `reject_participation`/
+`unreject_participation` (bascule `is_rejected`, jamais `is_pending_validation`
+— cf. `app/models/participation.py`), et `update_participation_fields`
+(dossard/place/club/catégorie, conflit de dossard détecté par lecture
+préalable). Les deux routes restantes, `GET /benevoles/queue` et
+`GET /benevoles/rejected`, lisent directement le repository sans passer par
+`admin_actions` ; ni l'une ni l'autre ne filtre par club ou par portée : les
 bénévoles valident les saisies de tous les clubs, pas seulement du leur.
 
-**Le renommage et la réattribution sont scopés au résultat en attente**
-(relevé en revue de code) : déléguer tel quel à `admin_actions` donnerait au
-mot de passe partagé le pouvoir de réécrire **n'importe quelle** épreuve ou
-participation en base, validée ou non — un pouvoir d'administration de fait,
-sans le contrôle individuel du SSO. `rename_course` vérifie donc
-`participation_repository.has_pending_for_course` avant de déléguer, et
-`reassign` relit la participation ciblée pour confirmer
-`is_pending_validation` — tous deux 404 sinon.
+**Le renommage, la réattribution, la validation, le rejet et la correction de
+champs sont scopés au résultat en attente actionnable** (relevé en revue de
+code, #437) : déléguer tel quel à `admin_actions` donnerait au mot de passe
+partagé le pouvoir de réécrire
+**n'importe quelle** épreuve ou participation en base, validée ou rejetée —
+un pouvoir d'administration de fait, sans le contrôle individuel du SSO.
+`rename_course` vérifie donc `participation_repository.has_pending_for_course`
+avant de déléguer ; `reassign`, `validate`, `reject` et `update_fields`
+relisent la participation ciblée pour confirmer `is_actionable_pending`
+(`core/validation.py` — en attente **et** non rejetée, #437) — les cinq 404
+sinon. `unreject` porte la garde inverse et n'en a pas besoin d'autre :
+l'entrée doit au contraire être `is_rejected`, sans quoi il n'y a rien à
+annuler.
 
 `POST /benevoles/session` reste **non gardée** — c'est elle qui pose la garde
-des trois autres — et `test_public_routes_still_open.py` classe les quatre
+des huit autres — et `test_public_routes_still_open.py` classe les huit
 routes gardées dans `ROUTES_BENEVOLES_FERMEES`, pas dans le préfixe `/admin/`
 (ce mécanisme n'a rien à voir avec le SSO/RBAC).
 

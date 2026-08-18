@@ -2,10 +2,13 @@
 
 Couche mince : garde dédiée (`require_benevole_access`, cf. `api/deps.py`),
 **distincte** de `require_permission` (SSO/RBAC) — mot de passe partagé, pas
-de rôle. Trois des quatre routes gardées délèguent à des fonctions déjà
-livrées de `services/admin_actions.py` (réutilisées, pas dupliquées) sous le
-`user_id` du compte système « Bénévoles (accès partagé) » ; seule la
-validation (`validate_participation`) est une logique nouvelle.
+de rôle. Deux des huit routes gardées délèguent à des fonctions déjà livrées
+de `services/admin_actions.py` (réutilisées, pas dupliquées) sous le
+`user_id` du compte système « Bénévoles (accès partagé) » ; quatre sont une
+logique nouvelle — validation (`validate_participation`), signalement non
+conforme et son annulation (`reject_participation`/`unreject_participation`,
+#437), et correction de champs (`update_participation_fields`, #437). Les
+deux dernières (`queue`, `rejected`) lisent directement le repository.
 """
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
