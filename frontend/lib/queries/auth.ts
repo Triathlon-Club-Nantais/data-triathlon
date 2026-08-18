@@ -4,6 +4,19 @@ import type { AuthMethod, SessionUser } from "@/lib/types";
 import { queryKeys } from "./keys";
 
 /**
+ * Signal de présence posé par le backend à la connexion (#427), lisible en JS
+ * — contrairement au cookie de session, `HttpOnly` par nécessité. Son absence
+ * ne garantit pas un vrai 401 (session expirée, révoquée), mais dispense de la
+ * requête dans l'immense majorité des visites, qui sont anonymes.
+ */
+function visiteurProbablementConnecte(): boolean {
+  if (typeof document === "undefined") return true;
+  return document.cookie
+    .split("; ")
+    .some((cookie) => cookie.startsWith("tcn_logged_in="));
+}
+
+/**
  * Session courante, ou `null` si le visiteur est anonyme.
  *
  * Un 401 n'est **pas** une erreur ici : « pas connecté » est l'état par défaut
@@ -13,6 +26,7 @@ export function useSession() {
   return useQuery<SessionUser | null>({
     queryKey: queryKeys.session(),
     queryFn: async () => {
+      if (!visiteurProbablementConnecte()) return null;
       try {
         return await apiClient.getSession();
       } catch (erreur) {
