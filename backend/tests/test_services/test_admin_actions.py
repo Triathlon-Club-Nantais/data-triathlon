@@ -893,3 +893,84 @@ def test_validate_participation_deja_validee_ne_consigne_pas_un_second_geste(db_
 def test_validate_participation_sur_resultat_inconnu_refuse(db_session, auteur):
     with pytest.raises(NotFoundError):
         admin_actions.validate_participation(db_session, participation_id=4242, user_id=auteur.id)
+
+
+# --- Signaler/dé-signaler un résultat non conforme (#437) -------------------
+
+
+def test_reject_participation_pose_is_rejected(db_session, auteur):
+    course = _epreuve(db_session)
+    coureur = _coureur(db_session, "DUPONT")
+    ligne = participation_repository.create(
+        db_session, athlete_id=coureur.id, course_id=course.id, bib_number="1",
+        is_pending_validation=True,
+    )
+    db_session.flush()
+
+    admin_actions.reject_participation(db_session, participation_id=ligne.id, user_id=auteur.id)
+
+    rechargee = participation_repository.get(db_session, ligne.id)
+    assert rechargee.is_rejected is True
+    assert rechargee.is_pending_validation is True  # jamais touché (#437)
+
+
+def test_reject_participation_consigne_le_geste(db_session, auteur):
+    course = _epreuve(db_session)
+    coureur = _coureur(db_session, "DUPONT")
+    ligne = participation_repository.create(
+        db_session, athlete_id=coureur.id, course_id=course.id, bib_number="1",
+        is_pending_validation=True,
+    )
+    db_session.flush()
+
+    admin_actions.reject_participation(db_session, participation_id=ligne.id, user_id=auteur.id)
+
+    entrees = _journal(db_session, "participation", ligne.id)
+    assert [e.action for e in entrees] == ["participation.reject"]
+
+
+def test_reject_participation_deja_rejetee_ne_consigne_pas_un_second_geste(db_session, auteur):
+    course = _epreuve(db_session)
+    coureur = _coureur(db_session, "DUPONT")
+    ligne = participation_repository.create(
+        db_session, athlete_id=coureur.id, course_id=course.id, bib_number="1",
+        is_pending_validation=True, is_rejected=True,
+    )
+    db_session.flush()
+
+    admin_actions.reject_participation(db_session, participation_id=ligne.id, user_id=auteur.id)
+
+    assert _journal(db_session, "participation", ligne.id) == []
+
+
+def test_reject_participation_sur_resultat_inconnu_refuse(db_session, auteur):
+    with pytest.raises(NotFoundError):
+        admin_actions.reject_participation(db_session, participation_id=4242, user_id=auteur.id)
+
+
+def test_unreject_participation_leve_is_rejected(db_session, auteur):
+    course = _epreuve(db_session)
+    coureur = _coureur(db_session, "DUPONT")
+    ligne = participation_repository.create(
+        db_session, athlete_id=coureur.id, course_id=course.id, bib_number="1",
+        is_pending_validation=True, is_rejected=True,
+    )
+    db_session.flush()
+
+    admin_actions.unreject_participation(db_session, participation_id=ligne.id, user_id=auteur.id)
+
+    assert participation_repository.get(db_session, ligne.id).is_rejected is False
+
+
+def test_unreject_participation_deja_actionnable_ne_consigne_pas_un_second_geste(db_session, auteur):
+    course = _epreuve(db_session)
+    coureur = _coureur(db_session, "DUPONT")
+    ligne = participation_repository.create(
+        db_session, athlete_id=coureur.id, course_id=course.id, bib_number="1",
+        is_pending_validation=True, is_rejected=False,
+    )
+    db_session.flush()
+
+    admin_actions.unreject_participation(db_session, participation_id=ligne.id, user_id=auteur.id)
+
+    assert _journal(db_session, "participation", ligne.id) == []
