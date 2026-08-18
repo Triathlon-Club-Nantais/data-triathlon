@@ -43,6 +43,7 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
   // les KPI avant qu'un bénévole ne l'ait vérifiée (#438). Le tableau détaillé
   // plus bas, lui, continue d'afficher `participations` au complet.
   const validated = participations.filter((p) => !p.is_pending_validation);
+  const pendingCount = participations.length - validated.length;
 
   const places = validated.map((p) => p.rank_overall).filter((r): r is number => r != null);
   const best = places.length ? Math.min(...places) : null;
@@ -74,7 +75,16 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        <StatCard label="Épreuves" value={validated.length} accent={false} />
+        <StatCard
+          label="Épreuves"
+          value={validated.length}
+          // Le tableau plus bas montre aussi les participations en attente de
+          // validation (#270) : sans ce repère, un « 0 » ou un compte plus bas
+          // que le nombre de lignes du tableau peut se lire comme une absence
+          // de résultat plutôt que comme une validation encore à faire (#438).
+          hint={pendingCount > 0 ? `${pendingCount} en attente de validation` : null}
+          accent={false}
+        />
         <StatCard label="Meilleure place" value={best ?? "—"} valueColor="var(--tcn-orange)" accent={false} />
         <StatCard
           label="Meilleur ratio"
