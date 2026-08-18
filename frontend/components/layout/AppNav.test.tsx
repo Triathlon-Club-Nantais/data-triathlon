@@ -189,6 +189,47 @@ describe("AppNav — prénom de l'athlète retenu (#264)", () => {
   });
 });
 
+describe("AppNav — ne plus suivre l'athlète retenu (#442)", () => {
+  const JEAN = { id: 12, prenom: "Jean", nom: "Dupont" };
+
+  it("retire l'athlète du rail et du stock d'un clic sur la croix de la tuile", async () => {
+    // Jusqu'ici, la désélection n'existait que sur la page de l'athlète
+    // (`SelectAthleteButton`) : depuis la nav, on ne pouvait que remplacer
+    // l'athlète retenu par un autre, jamais n'en retenir aucun.
+    window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
+    afficher(null);
+    await deplier();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Ne plus suivre Jean Dupont" }));
+
+    expect(readAthlete()).toBeNull();
+    expect(screen.queryByRole("link", { name: "Mon profil — Jean Dupont" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ne plus suivre Jean Dupont" })).not.toBeInTheDocument();
+  });
+
+  it("laisse l'entrée « Rechercher un athlète » en place après la désélection", async () => {
+    // La tuile s'affiche en complément de la recherche, jamais à sa place
+    // (#323) : la retirer ne doit pas emporter le seul moyen d'en choisir un
+    // autre.
+    window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
+    afficher(null);
+    await deplier();
+    await userEvent.click(await screen.findByRole("button", { name: "Ne plus suivre Jean Dupont" }));
+
+    expect(screen.getAllByRole("button", { name: "Rechercher un athlète" }).length).toBeGreaterThan(0);
+  });
+
+  it("n'offre pas la croix sur le rail replié, où la tuile se réduit à l'avatar", async () => {
+    // 44 px de large, l'avatar occupe la tuile entière : une croix y serait
+    // à l'étroit et sans libellé lisible. Le rail se déplie d'un clic.
+    window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
+    afficher(null);
+
+    expect(await screen.findByRole("link", { name: "Mon profil — Jean Dupont" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Ne plus suivre/ })).not.toBeInTheDocument();
+  });
+});
+
 describe("AppNav — actions primaires", () => {
   it("ancre « Ajouter une course » et « Rechercher un athlète », même replié", async () => {
     afficher(null);
