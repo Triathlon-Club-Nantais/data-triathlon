@@ -68,6 +68,27 @@ def test_has_pending_for_course_faux_sur_epreuve_inconnue(db_session):
     assert participation_repository.has_pending_for_course(db_session, 4242) is False
 
 
+def test_list_pending_exclut_une_rejetee(db_session):
+    """#437 : une entrée rejetée reste is_pending_validation=True mais ne
+    doit plus apparaître dans la file bénévoles."""
+    course = course_repository.get_or_create(
+        db_session, name="Tri Rejet", event_date=date(2026, 5, 16), event_type="triathlon-m"
+    )
+    athlete = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean")
+    pendante = participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1",
+        is_pending_validation=True,
+    )
+    rejetee = participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="2",
+        is_pending_validation=True, is_rejected=True,
+    )
+    db_session.flush()
+
+    assert [p.id for p in participation_repository.list_pending(db_session)] == [pendante.id]
+    assert [p.id for p in participation_repository.list_rejected(db_session)] == [rejetee.id]
+
+
 def test_create_and_dedup_by_bib(db_session):
     athlete, course = _setup(db_session)
     participation_repository.create(

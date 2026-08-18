@@ -377,26 +377,46 @@ def list_pending(db: Session) -> list[Participation]:
 
     Aucun filtre `tcn_clause`/`scope` : les bénévoles valident les saisies de
     leurs propres membres (research.md §D5 de la feature).
+
+    Exclut les entrées rejetées (#437) : une entrée rejetée reste
+    `is_pending_validation=True` pour toujours, mais n'a plus sa place dans
+    la file — c'est `list_rejected` ci-dessous qui la rend visible.
     """
     return (
         db.query(Participation)
         .options(joinedload(Participation.athlete), joinedload(Participation.course).selectinload(Course.sources))
-        .filter(Participation.is_pending_validation.is_(True))
+        .filter(Participation.is_pending_validation.is_(True), Participation.is_rejected.is_(False))
+        .order_by(Participation.created_at.desc())
+        .all()
+    )
+
+
+def list_rejected(db: Session) -> list[Participation]:
+    """Résultats signalés non conformes par un bénévole, tous clubs confondus (#437)."""
+    return (
+        db.query(Participation)
+        .options(joinedload(Participation.athlete), joinedload(Participation.course).selectinload(Course.sources))
+        .filter(Participation.is_pending_validation.is_(True), Participation.is_rejected.is_(True))
         .order_by(Participation.created_at.desc())
         .all()
     )
 
 
 def has_pending_for_course(db: Session, course_id: int) -> bool:
-    """Cette épreuve porte-t-elle au moins un résultat en attente de validation ? (#271)
+    """Cette épreuve porte-t-elle au moins un résultat en attente actionnable ? (#271, #437)
 
-    Scope la portée du renommage bénévole : au-delà du seul mot de passe
-    partagé, une épreuve sans aucun résultat en attente n'a pas de raison
-    d'être touchée depuis cette page (revue de code, écart signalé).
+    Scope la portée du renommage bénévole. Exclut les rejetées, sur la même
+    logique que `list_pending` : une épreuve dont l'unique résultat en
+    attente a été rejeté n'a plus de raison d'être renommable depuis cette
+    page tant qu'il n'est pas d'abord dé-rejeté.
     """
     return (
         db.query(Participation.id)
-        .filter(Participation.course_id == course_id, Participation.is_pending_validation.is_(True))
+        .filter(
+            Participation.course_id == course_id,
+            Participation.is_pending_validation.is_(True),
+            Participation.is_rejected.is_(False),
+        )
         .first()
         is not None
     )
