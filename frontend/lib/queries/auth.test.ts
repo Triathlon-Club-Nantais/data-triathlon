@@ -57,6 +57,18 @@ describe("useSession", () => {
 
     await waitFor(() => expect(result.current.isError).toBe(true));
   });
+
+  it("rend null sans appeler l'API quand aucun cookie de présence n'est posé", async () => {
+    // #427 — évite le 401 systématique loggé par le navigateur pour tout
+    // visiteur anonyme : la grande majorité du trafic d'un site public.
+    document.cookie = "tcn_logged_in=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+    getSession.mockClear();
+    const { result } = renderHook(() => useSession(), { wrapper });
+
+    await waitFor(() => expect(result.current.isPending).toBe(false));
+    expect(result.current.data).toBeNull();
+    expect(getSession).not.toHaveBeenCalled();
+  });
 });
 
 describe("useAuthMethods", () => {

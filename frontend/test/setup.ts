@@ -1,4 +1,15 @@
 import "@testing-library/jest-dom/vitest";
+import { beforeEach } from "vitest";
+
+// `useSession` (#427) n'appelle `/auth/me` que si ce cookie est présent —
+// posé par défaut ici pour que les tests existants, qui simulent une session
+// via `apiClient.getSession`, gardent leur comportement sans le poser
+// individuellement. Un test du visiteur anonyme l'efface explicitement.
+if (typeof document !== "undefined") {
+  beforeEach(() => {
+    document.cookie = "tcn_logged_in=1; path=/";
+  });
+}
 
 // jsdom ne fournit pas ResizeObserver, requis par les primitives `@base-ui/react`.
 if (!globalThis.ResizeObserver) {

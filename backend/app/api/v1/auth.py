@@ -47,6 +47,14 @@ STATE_COOKIE = "tcn_auth_state"
 #: message. Le nom est donc **dérivé** du réglage, jamais bricolé au cas par cas.
 HOST_PREFIX = "__Host-"
 
+#: Signal de présence, lisible en JS (#427) : sans lui, `useSession` n'a aucun
+#: moyen de savoir qu'un visiteur est anonyme avant d'appeler `/auth/me`, qui
+#: répond alors 401 — bruit systématique dans la console du navigateur. Ne
+#: porte aucun secret, donc pas de `HttpOnly` ; et n'a pas besoin du préfixe
+#: `__Host-` réservé aux deux cookies ci-dessus, son nom reste fixe d'un
+#: environnement à l'autre.
+LOGGED_IN_COOKIE = "tcn_logged_in"
+
 
 def _no_store(response: Response) -> None:
     for name, value in NO_STORE_HEADERS.items():
@@ -85,7 +93,13 @@ def _redirect_to(url: str) -> RedirectResponse:
 
 
 def _set_auth_cookie(
-    response: Response, *, name: str, value: str, max_age: int, settings: Settings
+    response: Response,
+    *,
+    name: str,
+    value: str,
+    max_age: int,
+    settings: Settings,
+    httponly: bool = True,
 ) -> None:
     """Pose un cookie du socle. **Jamais** d'attribut `Domain` : `__Host-` l'interdit,
     et c'est la non-écrasabilité depuis un sous-domaine qui ferme la fixation."""
@@ -93,14 +107,16 @@ def _set_auth_cookie(
         key=name,
         value=value,
         max_age=max_age,
-        httponly=True,
+        httponly=httponly,
         secure=settings.auth_cookie_secure,
         samesite="lax",  # `strict` casserait le retour de navigation depuis le fournisseur
         path="/",
     )
 
 
-def _clear_auth_cookie(response: Response, *, name: str, settings: Settings) -> None:
+def _clear_auth_cookie(
+    response: Response, *, name: str, settings: Settings, httponly: bool = True
+) -> None:
     """Efface un cookie du socle, avec **les mêmes attributs** que la pose.
 
     `Response.delete_cookie` de Starlette pose `secure=False` par défaut. Or la
@@ -116,7 +132,7 @@ def _clear_auth_cookie(response: Response, *, name: str, settings: Settings) -> 
     response.delete_cookie(
         key=name,
         path="/",
-        httponly=True,
+        httponly=httponly,
         secure=settings.auth_cookie_secure,
         samesite="lax",
     )
@@ -210,12 +226,21 @@ def callback(
         # destination reste **fixée par la configuration** (FR-026) : aucun
         # paramètre d'entrée n'y entre, la redirection ouverte reste fermée.
         response = _redirect_to(f"{settings.auth_redirect_base_url}/admin")
+        session_max_age = settings.auth_session_ttl_days * 24 * 60 * 60
         _set_auth_cookie(
             response,
             name=session_cookie_name(settings),
             value=session_token,
-            max_age=settings.auth_session_ttl_days * 24 * 60 * 60,
+            max_age=session_max_age,
             settings=settings,
+        )
+        _set_auth_cookie(
+            response,
+            name=LOGGED_IN_COOKIE,
+            value="1",
+            max_age=session_max_age,
+            settings=settings,
+            httponly=False,
         )
 
     # Effacé sur **tous** les chemins de sortie, succès compris (FR-023) : c'est
@@ -258,6 +283,9 @@ def logout(
 
     response = Response(status_code=204, headers=NO_STORE_HEADERS)
     _clear_auth_cookie(response, name=session_cookie_name(settings), settings=settings)
+    _clear_auth_cookie(
+        response, name=LOGGED_IN_COOKIE, settings=settings, httponly=False
+    )
     return response
 
 

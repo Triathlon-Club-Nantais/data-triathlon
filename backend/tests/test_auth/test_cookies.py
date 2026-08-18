@@ -186,3 +186,43 @@ def test_l_effacement_conserve_les_autres_attributs(client_https, doublure):
     assert "HttpOnly" in entete
     assert "Path=/" in entete
     assert "Domain" not in entete
+
+
+def test_le_cookie_de_presence_ne_porte_jamais_le_prefixe_host(en_https):
+    """#427 — signal lisible en JS pour éviter d'émettre `/auth/me` en pure
+    perte pour un visiteur anonyme. Il ne porte aucun secret : contrairement à
+    la session et à l'état, son nom n'a pas besoin de varier avec l'environnement."""
+    from app.api.v1.auth import LOGGED_IN_COOKIE
+
+    assert LOGGED_IN_COOKIE == "tcn_logged_in"
+
+
+def test_le_cookie_de_presence_est_pose_a_la_connexion_sans_httponly(client_https, doublure):
+    from app.services.auth import state
+
+    client_https.get("/api/v1/auth/doublure/authorize", follow_redirects=False)
+    charge = state.read(client_https.cookies["__Host-tcn_auth_state"])
+    reponse = client_https.get(
+        f"/api/v1/auth/doublure/callback?code=c&state={charge.state}",
+        follow_redirects=False,
+    )
+
+    entete = _cookie(reponse, "tcn_logged_in=")
+    assert "HttpOnly" not in entete
+    assert "Path=/" in entete
+    assert "Domain" not in entete
+
+
+def test_l_effacement_du_cookie_de_presence_a_la_deconnexion_reste_lisible(client_https, db_session):
+    from app.repositories import user_repository
+    from app.services.auth import session
+
+    user = user_repository.create(db_session, email="a@exemple.fr", display_name="a")
+    db_session.flush()
+    client_https.cookies.set("__Host-tcn_session", session.open_for(db_session, user))
+    db_session.commit()
+
+    reponse = client_https.post("/api/v1/auth/logout")
+
+    entete = _efface(reponse, "tcn_logged_in")
+    assert "HttpOnly" not in entete
