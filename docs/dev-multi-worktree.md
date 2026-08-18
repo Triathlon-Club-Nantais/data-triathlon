@@ -101,6 +101,23 @@ en plus des 69 du front, et un `npm test` vert ne disait plus ce qu'on croyait
 (#300). Les motifs restent des filets de sécurité — la bonne pratique est de
 créer le worktree depuis la racine.
 
+**`EnterWorktree` ne crée rien depuis un worktree** (constaté le 18/08/2026) :
+appelé dans une session déjà entrée dans un worktree, il refuse — « Already in a
+worktree session. Pass `path` to switch into another existing worktree, or use
+ExitWorktree to leave this one before creating a new worktree. » `ExitWorktree`
+n'est pas cette issue de secours : il ne gère que les worktrees créés par
+`EnterWorktree` **dans la session courante**, et reste un no-op quand la session
+a *démarré* dans un worktree (`claude --worktree`, reprise d'un worktree
+existant) — il signale qu'aucune session de worktree n'est active, sans rien
+changer. Enchaîner une seconde issue laisse donc deux chemins : **une nouvelle
+session ouverte depuis la racine**, ou un worktree créé à la main
+(`git worktree add -b <branche> .claude/worktrees/<nom> origin/main`) puis
+rejoint par `EnterWorktree` avec `path` — seul appel qui passe depuis un
+worktree. Le chemin manuel paie le prix décrit juste après : rien de gitignoré
+n'est recopié, donc ni `backend/.env` ni base de dev. Indolore pour une
+modification de documentation, bloquant pour une tâche backend, qui ne
+démarrerait pas.
+
 Un worktree reste une copie **neuve** : rien de gitignoré ne l'accompagne. Pour les
 worktrees créés par Claude Code (`claude --worktree`, sous-agents
 `isolation: worktree`) ou par Orca, `.worktreeinclude` à la racine liste ce qui doit
