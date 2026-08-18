@@ -88,6 +88,14 @@ class Participation(Base):
     is_pending_validation: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false()
     )
+    # Écarté par un bénévole comme non conforme (#437) — dimension distincte
+    # d'`is_pending_validation`, qui reste `True` pour toujours sur une entrée
+    # rejetée : elle n'a jamais été *validée*, seulement écartée. C'est cet
+    # invariant qui la fait profiter gratuitement des cinq exclusions déjà
+    # posées sur `is_pending_validation` (cf. app/core/validation.py).
+    is_rejected: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false()
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     athlete: Mapped["Athlete"] = relationship(back_populates="participations")  # noqa: F821
