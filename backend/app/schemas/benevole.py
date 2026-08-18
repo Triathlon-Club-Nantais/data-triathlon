@@ -29,7 +29,7 @@ class ParticipationFieldsUpdate(BaseModel):
     bénévole peut aussi bien renseigner un dossard que l'effacer.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     bib_number: str | None = None
     rank_overall: int | None = None

@@ -1094,3 +1094,55 @@ def test_update_participation_fields_sur_resultat_inconnu_refuse(db_session, aut
         admin_actions.update_participation_fields(
             db_session, participation_id=4242, champs={"club": "TCN"}, user_id=auteur.id,
         )
+
+
+def test_update_participation_fields_dossard_vide_devient_null(db_session, auteur):
+    """Revue finale (#437) : un dossard vide ne doit jamais s'écrire tel quel.
+
+    `if nouveau_dossard and ...` est faux sur une chaîne vide — le contrôle de
+    conflit se contourne silencieusement, et `""` finirait par heurter la
+    contrainte `uq_participation_bib` dès qu'une seconde ligne est aussi
+    corrigée vers `""`. La normalisation en `None` doit avoir lieu ici, dans
+    le service, pas seulement côté frontend."""
+    course = _epreuve(db_session)
+    coureur = _coureur(db_session, "DUPONT")
+    ligne = participation_repository.create(
+        db_session, athlete_id=coureur.id, course_id=course.id, bib_number="1",
+        is_pending_validation=True,
+    )
+    db_session.flush()
+
+    admin_actions.update_participation_fields(
+        db_session, participation_id=ligne.id, champs={"bib_number": ""}, user_id=auteur.id,
+    )
+
+    assert participation_repository.get(db_session, ligne.id).bib_number is None
+
+
+def test_update_participation_fields_deux_dossards_vides_ne_collisionnent_pas(db_session, auteur):
+    """#437 : deux résultats corrigés vers un dossard vide ne doivent jamais
+    se heurter à `uq_participation_bib` — `""` doit se comporter comme
+    « pas de dossard », au même titre que `None`."""
+    course = _epreuve(db_session)
+    premier = _coureur(db_session, "DUPONT")
+    second = _coureur(db_session, "MARTIN")
+    ligne_1 = participation_repository.create(
+        db_session, athlete_id=premier.id, course_id=course.id, bib_number="1",
+        is_pending_validation=True,
+    )
+    ligne_2 = participation_repository.create(
+        db_session, athlete_id=second.id, course_id=course.id, bib_number="2",
+        is_pending_validation=True,
+    )
+    db_session.flush()
+
+    admin_actions.update_participation_fields(
+        db_session, participation_id=ligne_1.id, champs={"bib_number": ""}, user_id=auteur.id,
+    )
+    admin_actions.update_participation_fields(
+        db_session, participation_id=ligne_2.id, champs={"bib_number": ""}, user_id=auteur.id,
+    )
+    db_session.flush()
+
+    assert participation_repository.get(db_session, ligne_1.id).bib_number is None
+    assert participation_repository.get(db_session, ligne_2.id).bib_number is None

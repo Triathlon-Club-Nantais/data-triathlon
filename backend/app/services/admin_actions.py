@@ -787,9 +787,19 @@ def update_participation_fields(
     — même règle que `update_athlete` pour les doublons d'identité. Le dossard
     inchangé ne déclenche jamais ce contrôle : `exists_for_bib` trouverait la
     ligne elle-même et rendrait un faux conflit.
+
+    **Un dossard vide ou blanc est normalisé en `None` avant toute autre
+    étape** (revue finale, #437) : sinon `if nouveau_dossard and ...` — faux
+    sur une chaîne vide — laisserait passer `""` sans contrôle de conflit, et
+    deux résultats corrigés vers `""` collisionneraient sur
+    `uq_participation_bib`, exactement l'`IntegrityError` non maîtrisée que ce
+    module s'interdit ailleurs. La colonne est nullable ; `""` doit se
+    comporter comme « pas de dossard », au même titre que `None`.
     """
     participation = _participation_or_404(db, participation_id)
     demande = {champ: champs[champ] for champ in _CHAMPS_PARTICIPATION if champ in champs}
+    if "bib_number" in demande and isinstance(demande["bib_number"], str) and not demande["bib_number"].strip():
+        demande["bib_number"] = None
 
     nouveau_dossard = demande.get("bib_number")
     if nouveau_dossard and nouveau_dossard != participation.bib_number:
