@@ -25,3 +25,14 @@ def validated_clause(column):
     que par sa négation.
     """
     return column.is_(False)
+
+
+def is_actionable_pending(participation) -> bool:
+    """Vrai si ce résultat est encore en attente ET n'a pas été rejeté (#437).
+
+    Garde des routes bénévoles qui doivent redevenir inaccessibles une fois
+    l'entrée écartée — `reassign`, `validate`, la future correction de champs
+    — sans quoi valider une entrée rejetée la ferait entrer dans tous les
+    agrégats publics malgré le rejet.
+    """
+    return bool(participation.is_pending_validation) and not bool(participation.is_rejected)
