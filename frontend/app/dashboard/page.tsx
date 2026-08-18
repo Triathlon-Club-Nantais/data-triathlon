@@ -3,7 +3,7 @@ import { apiServer, SHORT_REVALIDATE_SECONDS } from "@/lib/api/server";
 import { SCOPE_CLUB, federalOnlyFromParam } from "@/lib/scope";
 import { DisciplineToggle } from "@/components/layout/DisciplineToggle";
 import { RankTypeToggle } from "@/components/layout/RankTypeToggle";
-import { SeasonSelector } from "@/components/dashboard/SeasonSelector";
+import { SeasonSelector, SeasonTags } from "@/components/dashboard/SeasonSelector";
 import { StatCardsRank } from "@/components/dashboard/StatCardsRank";
 import { currentSeason, parseSeasonsParam, seasonSelectionLabel } from "@/lib/utils/season";
 import { StatCard, Card, Eyebrow, FormatChip } from "@/components/tcn";
@@ -58,6 +58,11 @@ export default async function DashboardPage({
           <DisciplineToggle />
           <SeasonSelector seasons={seasons} />
         </div>
+        {/* Hors de la barre d'outils, à dessein (#445) : les tags y élargissaient
+            la barre jusqu'à la faire basculer sous le titre, tout à gauche.
+            Troisième élément de l'en-tête, ils prennent leur propre ligne sans
+            déplacer les boutons de sélection. */}
+        <SeasonTags seasons={seasons} />
       </div>
 
       <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

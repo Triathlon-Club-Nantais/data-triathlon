@@ -2,7 +2,7 @@ import { apiServer } from "@/lib/api/server";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { AthleteSeasonList } from "@/components/club/AthleteSeasonList";
-import { SeasonSelector } from "@/components/dashboard/SeasonSelector";
+import { SeasonSelector, SeasonTags } from "@/components/dashboard/SeasonSelector";
 import { DisciplineToggle } from "@/components/layout/DisciplineToggle";
 import { SCOPE_CLUB, federalOnlyFromParam } from "@/lib/scope";
 import { CLUB_NAME } from "@/lib/club";
@@ -41,6 +41,10 @@ export default async function AthletesSeasonPage({
             </div>
           }
         />
+        {/* Sous l'en-tête, jamais dans le slot d'actions (#445) : dans la barre
+            d'outils, les tags la poussaient à déborder et déplaçaient les
+            boutons de sélection. */}
+        <SeasonTags seasons={availableSeasons} />
         <AthleteSeasonList athletes={athletes} />
       </div>
     </PageShell>

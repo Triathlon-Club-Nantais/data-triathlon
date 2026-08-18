@@ -1,14 +1,23 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { SeasonSelector, buildSeasonsHref } from "./SeasonSelector";
+import { SeasonSelector, SeasonTags, buildSeasonsHref } from "./SeasonSelector";
 import { currentSeason, seasonLabel } from "@/lib/utils/season";
 import type { Season } from "@/lib/types";
+
+// Query string mutable : la mise en page des tags (#445) ne s'observe qu'avec
+// plusieurs saisons sélectionnées, donc `?seasons=` doit pouvoir varier d'un
+// test à l'autre.
+const url = vi.hoisted(() => ({ qs: "" }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
   usePathname: () => "/dashboard",
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(url.qs),
 }));
+
+beforeEach(() => {
+  url.qs = "";
+});
 
 const CS = currentSeason();
 const SEASONS: Season[] = [
@@ -63,5 +72,49 @@ describe("SeasonSelector", () => {
     const list = screen.getByText("Saison 2023 — 2024").closest("[data-slot='popover-content']");
     expect(list).not.toBeNull();
     expect(list?.className).toContain("data-pending:opacity-70");
+  });
+});
+
+describe("SeasonSelector — le déclencheur ne porte plus les tags (#445)", () => {
+  it("ne rend qu'un bouton, sans conteneur ni tag, même en multi-saisons", () => {
+    // Les tags rendus à côté du déclencheur élargissaient la barre d'outils
+    // jusqu'à la faire basculer sous le titre, tout à gauche : c'est ce qui
+    // déplaçait les boutons de sélection dès la deuxième saison cochée. Ils
+    // vivent désormais dans `SeasonTags`, que la page place hors de la barre.
+    url.qs = `seasons=${CS},2023`;
+    render(<SeasonSelector seasons={SEASONS} />);
+
+    expect(screen.queryByTestId("season-tags")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Choisir les saisons")).toHaveTextContent(
+      "2 saisons sélectionnées",
+    );
+  });
+});
+
+describe("SeasonTags (#445)", () => {
+  it("ne rend rien quand une seule saison est sélectionnée — le déclencheur en porte déjà le libellé", () => {
+    const { container } = render(<SeasonTags seasons={SEASONS} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("nomme chaque saison sélectionnée", () => {
+    url.qs = `seasons=${CS},2023`;
+    render(<SeasonTags seasons={SEASONS} />);
+
+    const tags = screen.getByTestId("season-tags");
+    expect(tags).toHaveTextContent(seasonLabel(CS));
+    expect(tags).toHaveTextContent("Saison 2023 — 2024");
+  });
+
+  it("réclame une ligne entière sans peser sur la largeur de son parent", () => {
+    // `width:0` + `min-width:100%`, et non `flex-basis:100%` : un pourcentage
+    // de `flex-basis` compte dans le `max-content` du parent, donc l'élargit —
+    // et élargir l'en-tête, c'est déplacer les boutons, le bug d'origine.
+    url.qs = `seasons=${CS},2023`;
+    render(<SeasonTags seasons={SEASONS} />);
+
+    const tags = screen.getByTestId("season-tags");
+    expect(tags.style.width).toBe("0px");
+    expect(tags.style.minWidth).toBe("100%");
   });
 });
