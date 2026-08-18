@@ -20,13 +20,18 @@ type Etat = "chargement" | "gate" | "file" | "erreur";
 export default function BenevolesPage() {
   const [etat, setEtat] = useState<Etat>("chargement");
   const [participations, setParticipations] = useState<Participation[]>([]);
+  const [rejetees, setRejetees] = useState<Participation[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
   const chargerLaFile = useCallback(async () => {
     setEtat("chargement");
     try {
-      const resultats = await apiClient.getBenevoleQueue();
+      const [resultats, rejets] = await Promise.all([
+        apiClient.getBenevoleQueue(),
+        apiClient.getBenevoleRejected(),
+      ]);
       setParticipations(resultats);
+      setRejetees(rejets);
       setEtat("file");
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
@@ -44,11 +49,25 @@ export default function BenevolesPage() {
 
   function surChangement(mise_a_jour: Participation) {
     if (!mise_a_jour.is_pending_validation) {
+      // Validée : sort des deux listes.
       setParticipations((liste) => liste.filter((p) => p.id !== mise_a_jour.id));
+      setRejetees((liste) => liste.filter((p) => p.id !== mise_a_jour.id));
       setSelectedId((id) => (id === mise_a_jour.id ? null : id));
       return;
     }
-    setParticipations((liste) => liste.map((p) => (p.id === mise_a_jour.id ? mise_a_jour : p)));
+    if (mise_a_jour.is_rejected) {
+      // Vient d'être rejetée : sort de la file, entre dans les non-conformes.
+      setParticipations((liste) => liste.filter((p) => p.id !== mise_a_jour.id));
+      setRejetees((liste) => [mise_a_jour, ...liste.filter((p) => p.id !== mise_a_jour.id)]);
+      return;
+    }
+    // Rejet annulé : sort des non-conformes, revient dans la file.
+    setRejetees((liste) => liste.filter((p) => p.id !== mise_a_jour.id));
+    setParticipations((liste) =>
+      liste.some((p) => p.id === mise_a_jour.id)
+        ? liste.map((p) => (p.id === mise_a_jour.id ? mise_a_jour : p))
+        : [mise_a_jour, ...liste],
+    );
   }
 
   /** Cookie expiré ou mot de passe changé pendant que l'écran était ouvert (#271, revue de code). */
@@ -81,7 +100,8 @@ export default function BenevolesPage() {
     );
   }
 
-  const selectionnee = participations.find((p) => p.id === selectedId) ?? null;
+  const selectionnee =
+    participations.find((p) => p.id === selectedId) ?? rejetees.find((p) => p.id === selectedId) ?? null;
 
   return (
     <div style={{ maxWidth: 1100, margin: "40px auto", padding: "0 24px" }}>
@@ -90,7 +110,12 @@ export default function BenevolesPage() {
         Vérification des résultats
       </h1>
       <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-[minmax(280px,360px)_1fr]">
-        <ValidationQueue participations={participations} selectedId={selectedId} onSelect={setSelectedId} />
+        <ValidationQueue
+          participations={participations}
+          rejected={rejetees}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+        />
         {selectionnee ? (
           <ParticipationPanel
             key={selectionnee.id}

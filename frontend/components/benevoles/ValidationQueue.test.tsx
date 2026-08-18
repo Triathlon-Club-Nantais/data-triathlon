@@ -91,4 +91,23 @@ describe("ValidationQueue", () => {
     expect(screen.getByRole("button", { name: /Course 2/ })).toHaveAttribute("aria-current", "true");
     expect(screen.getByRole("button", { name: /Course 1/ })).not.toHaveAttribute("aria-current");
   });
+
+  it("affiche un onglet Non conformes et bascule la liste affichée", async () => {
+    const user = userEvent.setup();
+    const dupont = p({ id: 1, athlete: { id: 1, nom: "DUPONT", prenom: "Jean", gender: "M", club: "TCN" } });
+    const martin = p({ id: 9, athlete: { id: 9, nom: "MARTIN", prenom: "Paul", gender: "M", club: "TCN" } });
+    render(
+      <ValidationQueue
+        participations={[dupont]}
+        rejected={[martin]}
+        selectedId={null}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/DUPONT/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /non conformes/i }));
+    expect(screen.getByText(/MARTIN/)).toBeInTheDocument();
+    expect(screen.queryByText(/DUPONT/)).not.toBeInTheDocument();
+  });
 });
