@@ -649,6 +649,9 @@ _CHAMPS_ATHLETE = ("nom", "prenom", "birth_date")
 #: Ceux d'une épreuve — exactement la clé `uq_course_identity`.
 _CHAMPS_COURSE = ("name", "event_date", "event_type", "is_relay")
 
+#: Les quatre champs qu'un bénévole peut corriger sur un résultat en attente (#437).
+_CHAMPS_PARTICIPATION = ("bib_number", "rank_overall", "club", "category")
+
 
 def _instantane(entite, champs: tuple[str, ...]) -> dict:
     """Les champs surveillés, sérialisables pour le journal."""
@@ -770,6 +773,46 @@ def unreject_participation(db: Session, *, participation_id: int, user_id: int) 
         payload={"course_id": participation.course_id, "athlete_id": participation.athlete_id},
     )
     logger.info("Admin %s unrejected participation %s", user_id, participation_id)
+    return participation
+
+
+def update_participation_fields(
+    db: Session, *, participation_id: int, champs: dict, user_id: int
+) -> Participation:
+    """Corrige dossard, place au général, club et catégorie d'un résultat en
+    attente (#437).
+
+    **Le conflit de dossard se détecte par lecture préalable**
+    (`exists_for_bib`), jamais par l'`IntegrityError` de `uq_participation_bib`
+    — même règle que `update_athlete` pour les doublons d'identité. Le dossard
+    inchangé ne déclenche jamais ce contrôle : `exists_for_bib` trouverait la
+    ligne elle-même et rendrait un faux conflit.
+    """
+    participation = _participation_or_404(db, participation_id)
+    demande = {champ: champs[champ] for champ in _CHAMPS_PARTICIPATION if champ in champs}
+
+    nouveau_dossard = demande.get("bib_number")
+    if nouveau_dossard and nouveau_dossard != participation.bib_number:
+        if participation_repository.exists_for_bib(db, participation.course_id, nouveau_dossard):
+            raise DuplicateError(
+                "Ce dossard est déjà attribué à un autre participant de cette épreuve."
+            )
+
+    avant = _instantane(participation, _CHAMPS_PARTICIPATION)
+    participation_repository.update(db, participation, **demande)
+    apres = _instantane(participation, _CHAMPS_PARTICIPATION)
+    if apres == avant:
+        return participation
+
+    admin_action_log_repository.create(
+        db,
+        user_id=user_id,
+        action="participation.correct_fields",
+        entity_type="participation",
+        entity_id=participation_id,
+        payload={"before": avant, "after": apres},
+    )
+    logger.info("Admin %s corrected fields of participation %s", user_id, participation_id)
     return participation
 
 
