@@ -40,6 +40,16 @@ def _duo(db_session, event_type="triathlon-m"):
     return course, pendante, validee
 
 
+def test_is_rejected_est_un_champ_reel_persiste(db_session):
+    """#437 : is_rejected est mappé au modèle et persiste en base."""
+    course, pendante, _ = _duo(db_session)
+    assert pendante.is_rejected is False  # défaut
+    pendante.is_rejected = True
+    db_session.flush()
+    db_session.expire(pendante)
+    assert participation_repository.get(db_session, pendante.id).is_rejected is True
+
+
 def test_list_participations_exclut_une_pendante(db_session):
     course, _, validee = _duo(db_session)
     rows = participation_repository.list_participations(db_session, course_id=course.id)
