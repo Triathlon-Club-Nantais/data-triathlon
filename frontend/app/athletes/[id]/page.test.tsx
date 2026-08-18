@@ -299,7 +299,12 @@ describe("AthletePage", () => {
     // Le badge affiché doit être "Non conforme", pas "En attente de validation",
     // pour la participation dont is_rejected est vrai.
     expect(screen.getByText(/non conforme/i)).toBeInTheDocument();
-    const rows = screen.getAllByText(/en attente de validation/i);
+    // Scopé aux lignes du tableau (comme le test précédent) : la carte
+    // "Épreuves" porte aussi un indice "N en attente de validation" qui
+    // matcherait sinon la même regex (#438).
+    const rows = screen
+      .getAllByText(/en attente de validation/i)
+      .filter((el) => el.closest("a"));
     expect(rows).toHaveLength(1);
   });
 
