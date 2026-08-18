@@ -477,17 +477,21 @@ function NavContent({
                 <button
                   type="button"
                   onClick={() => clearAthlete()}
-                  aria-label={`Ne plus suivre ${nomComplet(athlete)}`}
-                  title="Ne plus suivre"
+                  aria-label={`Ne plus choisir ${nomComplet(athlete)}`}
+                  title="Ne plus choisir"
+                  className="tcn-icon-btn"
                   style={{
                     flex: "none",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    // 28 px : au-delà du minimum de 24 px de la WCAG 2.5.8,
-                    // et sans faire grandir la tuile de 44 px.
-                    width: 28,
-                    height: 28,
+                    // 44 px, le plancher tactile de la grille : la croix est
+                    // aussi rendue dans le tiroir mobile, où le rail est
+                    // déplié. La hauteur est gratuite, la tuile en fait déjà
+                    // autant ; la largeur coûte 16 px à la colonne du prénom,
+                    // que `tronque` écourtait déjà.
+                    width: 44,
+                    height: 44,
                     borderRadius: "var(--tcn-radius-sm)",
                     border: "none",
                     background: "transparent",

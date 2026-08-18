@@ -4,6 +4,7 @@ import { useTransition } from "react";
 import { captureEvent } from "@/lib/posthog";
 import type { Season } from "@/lib/types";
 import { Badge } from "@/components/tcn";
+import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   currentSeason,
@@ -124,31 +125,30 @@ export function SeasonSelector({ seasons }: { seasons: Season[] }) {
 }
 
 /**
- * Ligne des saisons retenues, à placer **hors de la barre d'outils** qui porte
- * le déclencheur — sous l'en-tête (#445). Ne rend rien quand une seule saison
+ * Ligne des saisons retenues, à placer **sous** l'en-tête, jamais dans la barre
+ * d'outils qui porte le déclencheur (#445). Ne rend rien quand une seule saison
  * est sélectionnée : le déclencheur en porte déjà le libellé.
  *
- * `width:0` + `minWidth:100%` réclame une ligne entière sans peser sur la
- * largeur intrinsèque du parent : dans un conteneur `flex-wrap` la ligne
- * s'isole sans l'élargir, dans un conteneur en flux normal elle occupe
- * simplement toute la largeur. Un `flexBasis:"100%"` provoquerait bien le
- * retour à la ligne, mais compterait dans le `max-content` du parent.
+ * L'alignement vient de `className`, jamais d'ici : le déclencheur passe à
+ * gauche quand l'en-tête s'empile, et chaque page s'empile à sa propre largeur
+ * (`lg` sur /dashboard, `sm` via `PageHeader` sur /club/athletes). Codé en dur,
+ * un `justify-end` laissait les tags à droite pendant que le bouton qui les
+ * commande était à gauche.
+ *
+ * `role="group"` porte le nom accessible : détachée du déclencheur, la ligne
+ * n'énumérait que des libellés de saison, sans rien pour les relier au bouton
+ * — et un `aria-label` sur un `div` nu n'est pas exposé.
  */
-export function SeasonTags({ seasons }: { seasons: Season[] }) {
+export function SeasonTags({ seasons, className }: { seasons: Season[]; className?: string }) {
   const selected = useSelectedSeasons();
   if (selected.length < 2) return null;
 
   return (
     <div
       data-testid="season-tags"
-      style={{
-        width: 0,
-        minWidth: "100%",
-        display: "flex",
-        flexWrap: "wrap",
-        justifyContent: "flex-end",
-        gap: 8,
-      }}
+      role="group"
+      aria-label="Saisons retenues"
+      className={cn("flex flex-wrap gap-2", className)}
     >
       {selected.map((y) => (
         <Badge key={y} variant="orange">
