@@ -7,4 +7,10 @@ describe("PendingBadge", () => {
     render(<PendingBadge />);
     expect(screen.getByText(/en attente de validation/i)).toBeInTheDocument();
   });
+
+  it("affiche « non conforme » quand rejected est vrai", () => {
+    render(<PendingBadge rejected />);
+    expect(screen.getByText(/non conforme/i)).toBeInTheDocument();
+    expect(screen.queryByText(/en attente de validation/i)).not.toBeInTheDocument();
+  });
 });
