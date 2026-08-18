@@ -145,6 +145,19 @@ export function ParticipationPanel({
     }
   }
 
+  async function annulerLeRejet() {
+    setErreurRejet(null);
+    setEnCoursRejet(true);
+    try {
+      const resultat = await apiClient.unrejectParticipationBenevole(participation.id);
+      onChanged(resultat);
+    } catch (err) {
+      gererErreur(err, setErreurRejet, "L'annulation a échoué. Réessayez plus tard.");
+    } finally {
+      setEnCoursRejet(false);
+    }
+  }
+
   return (
     <Card padding={24}>
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -323,7 +336,11 @@ export function ParticipationPanel({
               {erreurValidation}
             </div>
           )}
-          {!confirmationRejet ? (
+          {participation.is_rejected ? (
+            <Button variant="secondary" onClick={annulerLeRejet} disabled={enCoursRejet} style={{ width: "100%" }}>
+              {enCoursRejet ? "Annulation…" : "Annuler le rejet"}
+            </Button>
+          ) : !confirmationRejet ? (
             <Button
               variant="secondary"
               onClick={() => setConfirmationRejet(true)}

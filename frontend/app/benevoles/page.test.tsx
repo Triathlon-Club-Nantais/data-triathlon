@@ -4,17 +4,31 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
 import type { Participation } from "@/lib/types";
 
-const { getBenevoleQueue, benevoleLogin, validateParticipationBenevole } = vi.hoisted(() => ({
+const {
+  getBenevoleQueue,
+  getBenevoleRejected,
+  benevoleLogin,
+  validateParticipationBenevole,
+  unrejectParticipationBenevole,
+} = vi.hoisted(() => ({
   getBenevoleQueue: vi.fn(),
+  getBenevoleRejected: vi.fn(),
   benevoleLogin: vi.fn(),
   validateParticipationBenevole: vi.fn(),
+  unrejectParticipationBenevole: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
   return {
     ...original,
-    apiClient: { getBenevoleQueue, benevoleLogin, validateParticipationBenevole },
+    apiClient: {
+      getBenevoleQueue,
+      getBenevoleRejected,
+      benevoleLogin,
+      validateParticipationBenevole,
+      unrejectParticipationBenevole,
+    },
   };
 });
 
@@ -53,6 +67,7 @@ function participation(over: Partial<Participation> & { id: number }): Participa
 
 beforeEach(() => {
   vi.clearAllMocks();
+  getBenevoleRejected.mockResolvedValue([]);
 });
 
 describe("BenevolesPage", () => {
@@ -139,5 +154,24 @@ describe("BenevolesPage", () => {
     await user.click(screen.getByRole("button", { name: /Course 2/ }));
 
     expect(screen.getByLabelText(/nom de l.épreuve/i)).toHaveValue("Course 2");
+  });
+
+  it("annule un rejet et fait revenir le résultat dans la file", async () => {
+    const rejetee = participation({ id: 1, is_pending_validation: true, is_rejected: true });
+    getBenevoleQueue.mockResolvedValue([]);
+    getBenevoleRejected.mockResolvedValue([rejetee]);
+    unrejectParticipationBenevole.mockResolvedValue(
+      participation({ id: 1, is_pending_validation: true, is_rejected: false }),
+    );
+    const user = userEvent.setup();
+    render(<BenevolesPage />);
+
+    await user.click(await screen.findByRole("button", { name: /non conformes/i }));
+    await user.click(screen.getByRole("button", { name: /Course 1/ }));
+    await user.click(screen.getByRole("button", { name: /annuler le rejet/i }));
+
+    await waitFor(() => expect(unrejectParticipationBenevole).toHaveBeenCalledWith(1));
+    await user.click(screen.getByRole("button", { name: /^file/i }));
+    expect(screen.getByRole("button", { name: /Course 1/ })).toBeInTheDocument();
   });
 });
