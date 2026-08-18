@@ -16,11 +16,14 @@ vi.mock("@/lib/api/server", () => ({
 }));
 
 // SeasonSelector et DisciplineToggle sont des composants client
-// (useRouter/usePathname/useSearchParams).
+// (useRouter/usePathname/useSearchParams). La query string est mutable : la
+// place des tags de saison (#445) ne s'observe qu'en multi-saisons.
+const url = vi.hoisted(() => ({ qs: "" }));
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
   usePathname: () => "/dashboard",
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(url.qs),
 }));
 
 // `prefetch` ne se reflète sur aucun attribut DOM du <a> réel de next/link
@@ -69,6 +72,7 @@ const SEASONS = [
 
 beforeEach(() => {
   vi.clearAllMocks();
+  url.qs = "";
   getStats.mockResolvedValue(STATS);
   listEvents.mockResolvedValue(EVENTS_PAGE);
   listSeasons.mockResolvedValue(SEASONS);
@@ -135,6 +139,24 @@ describe("DashboardPage", () => {
 
     expect(listSeasons).toHaveBeenCalledWith(expect.objectContaining({ scope: "club" }), expect.anything());
     expect(screen.getByLabelText("Choisir les saisons")).toBeTruthy();
+  });
+
+  it("garde les tags de saison hors de la barre d'outils, pour que les boutons ne bougent pas (#445)", async () => {
+    // Dans la barre, les tags l'élargissaient jusqu'à la faire basculer sous
+    // le titre et repartir tout à gauche : les quatre boutons de sélection
+    // changeaient de place à la deuxième saison cochée. La ligne de tags est
+    // donc un frère de la barre, pas un de ses enfants.
+    url.qs = "seasons=2026,2025";
+    await renderDashboard({ seasons: "2026,2025" });
+
+    const barre = screen.getByLabelText("Choisir les saisons").parentElement;
+    const tags = screen.getByTestId("season-tags");
+
+    expect(barre).not.toBeNull();
+    expect(barre).toContainElement(screen.getByLabelText("Inclure les autres disciplines"));
+    expect(barre).not.toContainElement(tags);
+    expect(tags).toHaveTextContent("Saison 2026");
+    expect(tags).toHaveTextContent("Saison 2025");
   });
 
   it("exclut les autres disciplines par défaut et les inclut sur demande", async () => {
