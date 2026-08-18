@@ -34,7 +34,7 @@ n'accueille que ce qu'on voudrait relire à chaque session.
 | Authentification SSO (#114) | `backend/app/services/auth/AGENTS.md` |
 | Liste d'autorisation (#170) ou groupes d'appartenance (#197) en détail | `docs/auth/<sujet>.md` |
 | Architecture frontend | `frontend/AGENTS.md` |
-| Dev multi-worktree : ports, `.worktreeinclude` | `docs/dev-multi-worktree.md` |
+| Worktree par issue/PR : la règle, les ports, `.worktreeinclude` | `docs/dev-multi-worktree.md` |
 | CI/CD, déploiements, variables par environnement | `docs/ci-cd.md` |
 | Infrastructure Azure (base de production PostgreSQL) | `docs/infra-azure.md` |
 
@@ -119,9 +119,8 @@ Variable requise : `backend/.env` avec `DATABASE_URL` (voir `.env.example`). Le
 schéma est géré par **Alembic** (`uv run alembic upgrade head`). Les dépendances et la
 config des outils vivent dans `backend/pyproject.toml` (lock : `backend/uv.lock`).
 
-Plusieurs worktrees tournent en parallèle sans configuration : le backend prend
-le premier port libre à partir de 8001 et le publie, le frontend le lit.
-`docs/dev-multi-worktree.md` avant toute intervention sur les lanceurs de dev.
+Plusieurs worktrees tournent en parallèle sans configuration : chaque backend prend un
+port éphémère et le publie, son frontend le lit. `docs/dev-multi-worktree.md` avant d'y toucher.
 
 ## Architecture
 
@@ -182,6 +181,10 @@ Guidelines d'écriture de code, valables dans les trois voies du workflow IA.
   reconnaît aucune forme française, et « Ferme #123 » n'est que du texte — ni
   lien, ni fermeture à la fusion (constaté sur #162 et #163). Le reste de la
   description reste en français.
+- **Un worktree isolé dès qu'on travaille sur une issue ou une PR**, jamais dans
+  le checkout partagé ni sur `main` : le créer avec l'outil natif de l'agent
+  (`EnterWorktree`, `claude --worktree`) **depuis la racine** du dépôt ; créé à la
+  main, il n'hérite d'aucun fichier gitignoré (`docs/dev-multi-worktree.md`).
 - **Assignation GitHub** : s'assigner une issue au moment de commencer à y
   travailler ; assigner toute PR une fois créée ; dès qu'elle n'est plus en
   brouillon (« ready for review »), demander une review (#335).
