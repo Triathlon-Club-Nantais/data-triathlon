@@ -16,7 +16,7 @@ const LOGGED_IN_COOKIE = "tcn_logged_in";
  * (dev) et `__Host-tcn_session` (production) sans dupliquer la dérivation du
  * préfixe, propre au backend (`app/api/v1/auth.py`).
  */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const porteUneSession = request.cookies
     .getAll()
     .some((cookie) => cookie.name.endsWith("tcn_session"));
