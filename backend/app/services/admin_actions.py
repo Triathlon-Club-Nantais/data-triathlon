@@ -721,6 +721,58 @@ def validate_participation(db: Session, *, participation_id: int, user_id: int) 
     return participation
 
 
+def reject_participation(db: Session, *, participation_id: int, user_id: int) -> Participation:
+    """Signale un résultat en attente comme non conforme (#437).
+
+    **Ne touche jamais `is_pending_validation`** : une entrée rejetée n'a
+    jamais été *validée*, elle reste en attente pour toujours — c'est cet
+    invariant qui la fait profiter gratuitement des cinq exclusions déjà
+    posées sur `is_pending_validation` (`app/core/validation.py`).
+
+    **Idempotent**, même patron que `validate_participation`.
+    """
+    participation = _participation_or_404(db, participation_id)
+    if participation.is_rejected:
+        return participation
+
+    participation_repository.update(db, participation, is_rejected=True)
+
+    admin_action_log_repository.create(
+        db,
+        user_id=user_id,
+        action="participation.reject",
+        entity_type="participation",
+        entity_id=participation_id,
+        payload={"course_id": participation.course_id, "athlete_id": participation.athlete_id},
+    )
+    logger.info("Admin %s rejected participation %s", user_id, participation_id)
+    return participation
+
+
+def unreject_participation(db: Session, *, participation_id: int, user_id: int) -> Participation:
+    """Annule un rejet — l'entrée réapparaît dans la file bénévoles (#437).
+
+    Idempotent : une entrée qui n'est pas rejetée rend l'état voulu sans
+    écrire un second geste.
+    """
+    participation = _participation_or_404(db, participation_id)
+    if not participation.is_rejected:
+        return participation
+
+    participation_repository.update(db, participation, is_rejected=False)
+
+    admin_action_log_repository.create(
+        db,
+        user_id=user_id,
+        action="participation.unreject",
+        entity_type="participation",
+        entity_id=participation_id,
+        payload={"course_id": participation.course_id, "athlete_id": participation.athlete_id},
+    )
+    logger.info("Admin %s unrejected participation %s", user_id, participation_id)
+    return participation
+
+
 def update_course(db: Session, *, course_id: int, champs: dict, user_id: int) -> Course:
     """Corrige le libellé d'une épreuve — nom, date, type, relais (FR-020).
 
