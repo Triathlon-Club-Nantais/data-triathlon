@@ -125,3 +125,66 @@ def test_le_sse_trace_qui_l_appelle(client, caplog, monkeypatch):
             "".join(resp.iter_text())
 
     assert any("SSE import requested" in record.message for record in caplog.records)
+
+
+# ── Écritures publiques (#398, constat A04-3) ─────────────────────────────────
+
+_SIGNALEMENT = "/api/v1/admin/pending-providers"
+_PARTICIPATIONS = "/api/v1/participations"
+_RESULTAT = {
+    "provider": "manuel",
+    "athlete_name": "DUPONT",
+    "athlete_firstname": "Jean",
+    "event_name": "Triathlon de Nantes",
+    "event_date": "2026-05-16",
+    "event_type": "triathlon-m",
+    "bib_number": "1",
+    "total_time": "01:59:00",
+}
+
+
+def test_les_deux_ecritures_publiques_partagent_un_plafond(client, monkeypatch):
+    """A04-3 : la quarantaine borne ce qui est **publié**, jamais ce qui est écrit.
+
+    Un seul seau pour les deux routes : elles se suivent dans le même geste
+    (import échoué → signalement → saisie manuelle), et deux compteurs
+    n'ajouteraient qu'un plafond à contourner par alternance.
+    """
+    monkeypatch.setattr(deps, "PUBLIC_WRITE_RATE_LIMIT_MAX_PER_WINDOW", 2)
+
+    assert client.post(_SIGNALEMENT, json={"url": "https://newchrono.fr/a"}).status_code == 201
+    assert client.post(_PARTICIPATIONS, json=_RESULTAT).status_code == 201
+
+    refus = client.post(_PARTICIPATIONS, json=_RESULTAT)
+    assert refus.status_code == 429
+    assert int(refus.headers["Retry-After"]) > 0
+    assert client.post(_SIGNALEMENT, json={"url": "https://newchrono.fr/b"}).status_code == 429
+
+
+def test_le_plafond_des_ecritures_publiques_est_par_ip(client, monkeypatch):
+    monkeypatch.setattr(deps, "PUBLIC_WRITE_RATE_LIMIT_MAX_PER_WINDOW", 1)
+
+    def envoi(ip: str, bib: str):
+        # Dossard distinct : deux résultats identiques rendraient 409, et le
+        # test ne dirait plus rien du plafond.
+        return client.post(
+            _PARTICIPATIONS, json={**_RESULTAT, "bib_number": bib}, headers={"X-Forwarded-For": ip}
+        )
+
+    assert envoi("203.0.113.7", "1").status_code == 201
+    assert envoi("203.0.113.8", "2").status_code == 201
+    assert envoi("203.0.113.7", "3").status_code == 429
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "x" * 5000,  # aucune longueur maximale avant #398, colonne TEXT en face
+        "javascript:alert(1)",
+        "pas une url",
+        "",
+    ],
+)
+def test_le_signalement_refuse_ce_qui_n_est_pas_une_url_http(client, url):
+    """La route reste **publique** — c'est la forme du corps qu'on borne, pas l'accès."""
+    assert client.post(_SIGNALEMENT, json={"url": url}).status_code == 422

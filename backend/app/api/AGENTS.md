@@ -126,16 +126,21 @@ re-scrape à la demande #118, aperçu de fusion #286, fusion #287) : détail,
 pièges mesurés et invariants dans
 `docs/api/courses-sources-fusion.md`.
 
-## Plafonds de débit par IP (#395)
+## Plafonds de débit par IP (#395, #398)
 
-Trois routes publiques sont plafonnées par IP, **route par route** comme les
+Cinq routes publiques sont plafonnées par IP, **route par route** comme les
 gardes de pouvoir — `api/deps.scrape_rate_limit` sur `POST /scrape/event` et
 `POST /scrape/event/stream`, `api/deps.authorize_rate_limit` sur
-`GET /auth/{provider}/authorize`. Quatre choses à ne pas défaire :
+`GET /auth/{provider}/authorize`, `api/deps.public_write_rate_limit` sur
+`POST /admin/pending-providers` et `POST /participations`. Quatre choses à ne
+pas défaire :
 
-- **Un seul seau pour les deux routes de scraping.** Elles déclenchent le même
-  travail (jusqu'à ~26 requêtes sortantes, puis des centaines de lignes
-  écrites) : deux compteurs doubleraient le plafond réel pour qui alterne.
+- **Un seul seau par geste, pas par route.** Les deux routes de scraping
+  déclenchent le même travail (jusqu'à ~26 requêtes sortantes, puis des
+  centaines de lignes écrites) ; les deux écritures publiques se suivent dans
+  la même séquence (import échoué → signalement du fournisseur → saisie
+  manuelle). Dans les deux cas, des compteurs distincts ne feraient qu'offrir
+  un plafond à contourner par alternance.
 - **Le compteur est en mémoire du process**, contrairement à celui de
   `POST /feedback` qui compte des lignes en base : il n'y a ici aucune table où
   compter, et en créer une ferait écrire la requête que le plafond empêche.
@@ -149,6 +154,19 @@ gardes de pouvoir — `api/deps.scrape_rate_limit` sur `POST /scrape/event` et
 
 Le SSE prend `optional_user` et journalise son appelant : il ne le faisait pas,
 et un import lancé depuis là ne laissait aucune trace de qui l'avait demandé.
+
+**Ce que le plafond des écritures publiques borne, et ce qu'il ne borne pas**
+(A04-3, #398) : `POST /admin/pending-providers` et `POST /participations`
+écrivent en base sans session, et ce qui les encadrait ne bornait que ce qu'un
+anonyme **publie** — le `provider_hint` déduit pour l'une, la quarantaine
+`is_pending_validation` pour l'autre. La base grossissait quand même, et la
+fiche d'un athlète réel restait polluable. **Aucune des deux ne se ferme** :
+le signalement anonyme (#267) et la saisie sans compte (#270) sont des choix
+délibérés que `tests/test_auth/test_public_routes_still_open.py` nomme. C'est
+aussi pourquoi `PendingProviderCreate.url` est un `HttpUrl` et non un `str` :
+sans forme imposée, la colonne `TEXT` en face accepte n'importe quelle taille.
+Le signalement suivant toujours un import échoué, l'URL est déjà passée par
+`ScrapeRequest` — la contrainte ne coûte rien à l'appelant légitime.
 
 ## Protéger une ressource (#115)
 

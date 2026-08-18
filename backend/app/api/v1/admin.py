@@ -6,13 +6,11 @@ consulter et l'instruire exigent chacun leur pouvoir. C'est ce contraste qui
 interdit toute garde par préfixe (FR-018, FR-022) : posée sur `/admin`, elle
 supprimerait la fonctionnalité de signalement sans que rien ne la nomme.
 """
-from urllib.parse import urlparse
-
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, HttpUrl
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_permission
+from app.api.deps import public_write_rate_limit, require_permission
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.core.permissions import P
@@ -25,16 +23,26 @@ router = APIRouter(tags=["admin"])
 
 
 class PendingProviderCreate(BaseModel):
-    url: str
+    #: `HttpUrl` et non `str` (A04-3, #398) : la route est publique et écrit en
+    #: base sans session — sans forme imposée, un anonyme y range des lignes de
+    #: taille arbitraire dans une colonne `TEXT`. Le patron est celui de
+    #: `ScrapeRequest.url` (#49), et il est ici **sans coût pour l'appelant** :
+    #: le signalement suit toujours un import échoué, donc une URL que
+    #: `ScrapeRequest` a déjà validée comme `HttpUrl`. Ce qu'`HttpUrl` normalise
+    #: au passage n'a pas d'importance pour un champ de diagnostic.
+    url: HttpUrl
 
 
-@router.post("/admin/pending-providers", status_code=201)
+@router.post(
+    "/admin/pending-providers",
+    status_code=201,
+    dependencies=[Depends(public_write_rate_limit)],
+)
 def report_pending_provider(body: PendingProviderCreate, db: Session = Depends(get_db)):
-    try:
-        hint = urlparse(body.url).netloc
-    except Exception:
-        hint = ""
-    entry = pending_provider_repository.create(db, url=body.url, provider_hint=hint)
+    # `HttpUrl` garantit un host : plus rien à rattraper ici.
+    entry = pending_provider_repository.create(
+        db, url=str(body.url), provider_hint=body.url.host or ""
+    )
     db.commit()
     db.refresh(entry)
     return {"id": entry.id, "url": entry.url, "provider_hint": entry.provider_hint}
