@@ -377,6 +377,125 @@ def test_reassign_refuse_si_le_resultat_n_est_plus_en_attente(
     assert reponse.status_code == 404
 
 
+# --- Le rejet bloque validate/reassign tant qu'il n'est pas levé (#437) -----
+
+
+def test_validate_refuse_un_resultat_rejete(benevole_connecte, resultat_pendant, compte_systeme):
+    course, athlete, ligne = resultat_pendant
+    benevole_connecte.post(f"/api/v1/benevoles/participations/{ligne.id}/reject")
+
+    reponse = benevole_connecte.post(f"/api/v1/benevoles/participations/{ligne.id}/validate")
+    assert reponse.status_code == 404
+
+
+def test_reassign_refuse_un_resultat_rejete(benevole_connecte, resultat_pendant, compte_systeme, db_session):
+    course, athlete, ligne = resultat_pendant
+    cible = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul", club="ASPTT")
+    db_session.commit()
+    benevole_connecte.post(f"/api/v1/benevoles/participations/{ligne.id}/reject")
+
+    reponse = benevole_connecte.post(
+        f"/api/v1/benevoles/participations/{ligne.id}/reassign", json={"athlete_id": cible.id}
+    )
+    assert reponse.status_code == 404
+
+
+# --- POST .../reject, POST .../unreject, GET /benevoles/rejected (#437) -----
+
+
+def test_reject_fait_sortir_le_resultat_de_la_file(benevole_connecte, resultat_pendant, compte_systeme):
+    course, athlete, ligne = resultat_pendant
+
+    reponse = benevole_connecte.post(f"/api/v1/benevoles/participations/{ligne.id}/reject")
+    assert reponse.status_code == 200
+    assert reponse.json()["is_rejected"] is True
+    assert reponse.json()["is_pending_validation"] is True
+
+    assert benevole_connecte.get("/api/v1/benevoles/queue").json() == []
+    rejetees = benevole_connecte.get("/api/v1/benevoles/rejected").json()
+    assert [r["id"] for r in rejetees] == [ligne.id]
+
+
+def test_reject_sur_resultat_inconnu_est_un_404(benevole_connecte, compte_systeme):
+    reponse = benevole_connecte.post("/api/v1/benevoles/participations/4242/reject")
+    assert reponse.status_code == 404
+
+
+def test_reject_refuse_sans_cookie(client, resultat_pendant):
+    course, athlete, ligne = resultat_pendant
+    reponse = client.post(f"/api/v1/benevoles/participations/{ligne.id}/reject")
+    assert reponse.status_code == 401
+
+
+def test_unreject_fait_revenir_le_resultat_dans_la_file(benevole_connecte, resultat_pendant, compte_systeme):
+    course, athlete, ligne = resultat_pendant
+    benevole_connecte.post(f"/api/v1/benevoles/participations/{ligne.id}/reject")
+
+    reponse = benevole_connecte.post(f"/api/v1/benevoles/participations/{ligne.id}/unreject")
+    assert reponse.status_code == 200
+    assert reponse.json()["is_rejected"] is False
+
+    assert [p["id"] for p in benevole_connecte.get("/api/v1/benevoles/queue").json()] == [ligne.id]
+    assert benevole_connecte.get("/api/v1/benevoles/rejected").json() == []
+
+
+def test_rejected_vide_sans_erreur_si_rien_de_rejete(benevole_connecte):
+    reponse = benevole_connecte.get("/api/v1/benevoles/rejected")
+    assert reponse.status_code == 200
+    assert reponse.json() == []
+
+
+# --- PATCH /benevoles/participations/{id} (#437) -----------------------------
+
+
+def test_update_fields_ecrit_les_champs_fournis(benevole_connecte, resultat_pendant, compte_systeme):
+    course, athlete, ligne = resultat_pendant
+
+    reponse = benevole_connecte.patch(
+        f"/api/v1/benevoles/participations/{ligne.id}",
+        json={"bib_number": "42", "club": "TCN"},
+    )
+    assert reponse.status_code == 200
+    assert reponse.json()["bib_number"] == "42"
+    assert reponse.json()["club"] == "TCN"
+
+
+def test_update_fields_signale_un_conflit_de_dossard(
+    benevole_connecte, resultat_pendant, compte_systeme, db_session
+):
+    course, athlete, ligne = resultat_pendant
+    autre = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul", club="ASPTT")
+    participation_repository.create(db_session, athlete_id=autre.id, course_id=course.id, bib_number="9")
+    db_session.commit()
+
+    reponse = benevole_connecte.patch(
+        f"/api/v1/benevoles/participations/{ligne.id}", json={"bib_number": "9"}
+    )
+    assert reponse.status_code == 409
+
+
+def test_update_fields_refuse_un_corps_vide(benevole_connecte, resultat_pendant, compte_systeme):
+    course, athlete, ligne = resultat_pendant
+    reponse = benevole_connecte.patch(f"/api/v1/benevoles/participations/{ligne.id}", json={})
+    assert reponse.status_code == 422
+
+
+def test_update_fields_refuse_sur_resultat_rejete(benevole_connecte, resultat_pendant, compte_systeme):
+    course, athlete, ligne = resultat_pendant
+    benevole_connecte.post(f"/api/v1/benevoles/participations/{ligne.id}/reject")
+
+    reponse = benevole_connecte.patch(
+        f"/api/v1/benevoles/participations/{ligne.id}", json={"club": "TCN"}
+    )
+    assert reponse.status_code == 404
+
+
+def test_update_fields_refuse_sans_cookie(client, resultat_pendant):
+    course, athlete, ligne = resultat_pendant
+    reponse = client.patch(f"/api/v1/benevoles/participations/{ligne.id}", json={"club": "TCN"})
+    assert reponse.status_code == 401
+
+
 # --- Effet de bout en bout de la validation (quickstart.md, scénario 1) -----
 
 

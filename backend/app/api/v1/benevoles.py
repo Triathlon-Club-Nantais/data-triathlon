@@ -14,9 +14,10 @@ from app.api.deps import NotAuthenticatedError, require_benevole_access
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
+from app.core.validation import is_actionable_pending
 from app.repositories import benevole_config_repository, participation_repository
 from app.schemas.admin import ParticipationReassign
-from app.schemas.benevole import BenevoleCourseRename, BenevoleLogin
+from app.schemas.benevole import BenevoleCourseRename, BenevoleLogin, ParticipationFieldsUpdate
 from app.schemas.course import CourseBrief
 from app.schemas.participation import ParticipationOut
 from app.services import admin_actions, benevole_access
@@ -109,7 +110,7 @@ def reassign(participation_id: int, body: ParticipationReassign, db: Session = D
     censé ouvrir.
     """
     cible = participation_repository.get(db, participation_id)
-    if cible is None or not cible.is_pending_validation:
+    if cible is None or not is_actionable_pending(cible):
         raise NotFoundError("Ce résultat n'est pas ou plus en attente de validation.")
     participation = admin_actions.reassign_participation(
         db,
@@ -128,8 +129,75 @@ def reassign(participation_id: int, body: ParticipationReassign, db: Session = D
 )
 def validate(participation_id: int, db: Session = Depends(get_db)):
     """Valide un résultat en attente (US1) — le fait passer visible partout."""
+    cible = participation_repository.get(db, participation_id)
+    if cible is None or not is_actionable_pending(cible):
+        raise NotFoundError("Ce résultat n'est pas ou plus en attente de validation.")
     participation = admin_actions.validate_participation(
         db, participation_id=participation_id, user_id=benevole_access.system_user_id(db)
+    )
+    db.commit()
+    return participation
+
+
+@router.get(
+    "/benevoles/rejected",
+    response_model=list[ParticipationOut],
+    dependencies=[Depends(require_benevole_access)],
+)
+def rejected(db: Session = Depends(get_db)):
+    """Résultats signalés non conformes, tous clubs confondus (#437)."""
+    return participation_repository.list_rejected(db)
+
+
+@router.post(
+    "/benevoles/participations/{participation_id}/reject",
+    response_model=ParticipationOut,
+    dependencies=[Depends(require_benevole_access)],
+)
+def reject(participation_id: int, db: Session = Depends(get_db)):
+    """Signale un résultat en attente comme non conforme (#437)."""
+    cible = participation_repository.get(db, participation_id)
+    if cible is None or not is_actionable_pending(cible):
+        raise NotFoundError("Ce résultat n'est pas ou plus en attente de validation.")
+    participation = admin_actions.reject_participation(
+        db, participation_id=participation_id, user_id=benevole_access.system_user_id(db)
+    )
+    db.commit()
+    return participation
+
+
+@router.post(
+    "/benevoles/participations/{participation_id}/unreject",
+    response_model=ParticipationOut,
+    dependencies=[Depends(require_benevole_access)],
+)
+def unreject(participation_id: int, db: Session = Depends(get_db)):
+    """Annule le signalement d'un résultat non conforme (#437)."""
+    cible = participation_repository.get(db, participation_id)
+    if cible is None or not cible.is_pending_validation or not cible.is_rejected:
+        raise NotFoundError("Ce résultat n'est pas ou plus signalé non conforme.")
+    participation = admin_actions.unreject_participation(
+        db, participation_id=participation_id, user_id=benevole_access.system_user_id(db)
+    )
+    db.commit()
+    return participation
+
+
+@router.patch(
+    "/benevoles/participations/{participation_id}",
+    response_model=ParticipationOut,
+    dependencies=[Depends(require_benevole_access)],
+)
+def update_fields(participation_id: int, body: ParticipationFieldsUpdate, db: Session = Depends(get_db)):
+    """Corrige dossard, place au général, club et catégorie (#437)."""
+    cible = participation_repository.get(db, participation_id)
+    if cible is None or not is_actionable_pending(cible):
+        raise NotFoundError("Ce résultat n'est pas ou plus en attente de validation.")
+    participation = admin_actions.update_participation_fields(
+        db,
+        participation_id=participation_id,
+        champs=body.model_dump(exclude_unset=True),
+        user_id=benevole_access.system_user_id(db),
     )
     db.commit()
     return participation
