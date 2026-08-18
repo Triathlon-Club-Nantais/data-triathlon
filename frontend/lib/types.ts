@@ -89,6 +89,8 @@ export interface Participation {
   evidence_url?: string | null;
   // Résultat déclaré non encore vérifié par un bénévole (#270, #271).
   is_pending_validation?: boolean;
+  // Écarté par un bénévole comme non conforme (#437).
+  is_rejected?: boolean;
   splits: Splits | null;
   created_at: string | null;
   // Nombre de finishers classés de la course (même groupe solo/relais).
