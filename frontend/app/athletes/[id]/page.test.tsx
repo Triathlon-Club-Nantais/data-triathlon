@@ -41,6 +41,7 @@ function part(over: Partial<Participation> & { id: number }): Participation {
     team_name: over.team_name ?? null,
     evidence_url: over.evidence_url ?? null,
     is_pending_validation: over.is_pending_validation ?? false,
+    is_rejected: over.is_rejected ?? false,
     splits: null,
     created_at: null,
     course_finishers: over.course_finishers,
@@ -287,6 +288,19 @@ describe("AthletePage", () => {
     expect(rows).toHaveLength(1);
     const pendingRow = rows[0].closest("a[href='/courses/1/participations/1']");
     expect(pendingRow).not.toBeNull();
+  });
+
+  it("distingue une participation rejetée d'une simple attente", async () => {
+    await renderAthlete([
+      part({ id: 1, is_pending_validation: true, is_rejected: true }),
+      part({ id: 2, is_pending_validation: true, is_rejected: false }),
+    ]);
+
+    // Le badge affiché doit être "Non conforme", pas "En attente de validation",
+    // pour la participation dont is_rejected est vrai.
+    expect(screen.getByText(/non conforme/i)).toBeInTheDocument();
+    const rows = screen.getAllByText(/en attente de validation/i);
+    expect(rows).toHaveLength(1);
   });
 
   it("rend le lien de vérification cliquable quand c'est une URL http(s)", async () => {

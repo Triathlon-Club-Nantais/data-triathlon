@@ -128,7 +128,7 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
                     <div style={{ fontSize: 14, color: "var(--tcn-text-muted)", fontWeight: 600 }}>{formatDate(p.course?.event_date)}</div>
                     <div style={{ fontSize: 15, color: "var(--tcn-ink)", fontWeight: 700, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       {p.course?.name}
-                      {p.is_pending_validation && <PendingBadge />}
+                      {p.is_pending_validation && <PendingBadge rejected={p.is_rejected} />}
                     </div>
                     <div style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>{eventTypeLabel(p.course?.event_type)}</div>
                     <div><FormatChip>{formatToken(p.course?.event_type, p.course?.distance_km)}</FormatChip></div>
