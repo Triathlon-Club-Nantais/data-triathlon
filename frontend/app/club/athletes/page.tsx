@@ -30,21 +30,27 @@ export default async function AthletesSeasonPage({
   return (
     <PageShell>
       <div className="space-y-8">
-        <PageHeader
-          eyebrow={CLUB_NAME}
-          title="Athlètes par saison"
-          description={`Nombre d'épreuves faites par les athlètes du ${CLUB_NAME}, saison par saison.`}
-          actions={
-            <div className="flex flex-wrap items-center gap-3">
-              <DisciplineToggle />
-              <SeasonSelector seasons={availableSeasons} />
-            </div>
-          }
-        />
-        {/* Sous l'en-tête, jamais dans le slot d'actions (#445) : dans la barre
-            d'outils, les tags la poussaient à déborder et déplaçaient les
-            boutons de sélection. */}
-        <SeasonTags seasons={availableSeasons} />
+        {/* Groupé avec l'en-tête, au pas resserré : enfant direct du
+            `space-y-8`, la ligne de tags se retrouvait à 32 px de l'en-tête
+            **et** 32 px de la liste, donc rattachée à rien. L'alignement suit
+            le slot d'actions de `PageHeader`, qui bascule au palier `sm`. */}
+        <div className="space-y-3">
+          <PageHeader
+            eyebrow={CLUB_NAME}
+            title="Athlètes par saison"
+            description={`Nombre d'épreuves faites par les athlètes du ${CLUB_NAME}, saison par saison.`}
+            actions={
+              <div className="flex flex-wrap items-center gap-3">
+                <DisciplineToggle />
+                <SeasonSelector seasons={availableSeasons} />
+              </div>
+            }
+          />
+          {/* Sous l'en-tête, jamais dans le slot d'actions (#445) : dans la barre
+              d'outils, les tags la poussaient à déborder et déplaçaient les
+              boutons de sélection. */}
+          <SeasonTags seasons={availableSeasons} className="justify-start sm:justify-end" />
+        </div>
         <AthleteSeasonList athletes={athletes} />
       </div>
     </PageShell>

@@ -106,15 +106,29 @@ describe("SeasonTags (#445)", () => {
     expect(tags).toHaveTextContent("Saison 2023 — 2024");
   });
 
-  it("réclame une ligne entière sans peser sur la largeur de son parent", () => {
-    // `width:0` + `min-width:100%`, et non `flex-basis:100%` : un pourcentage
-    // de `flex-basis` compte dans le `max-content` du parent, donc l'élargit —
-    // et élargir l'en-tête, c'est déplacer les boutons, le bug d'origine.
+  it("se nomme, la ligne étant détachée de son déclencheur (revue UI/UX)", () => {
+    // Séparée du déclencheur par l'en-tête, la ligne perd le rattachement que
+    // la proximité visuelle assurait : un lecteur d'écran énumérait des
+    // libellés de saison sans rien pour les relier au bouton, qui ne dit que
+    // « 2 saisons sélectionnées ». `role="group"` parce qu'un `aria-label` sur
+    // un `div` nu n'est pas exposé.
     url.qs = `seasons=${CS},2023`;
     render(<SeasonTags seasons={SEASONS} />);
 
+    expect(screen.getByRole("group", { name: "Saisons retenues" })).toBe(
+      screen.getByTestId("season-tags"),
+    );
+  });
+
+  it("laisse la page décider de l'alignement, qui dépend de son en-tête (revue UI/UX)", () => {
+    // Le déclencheur passe à gauche quand l'en-tête s'empile, et chaque page
+    // s'empile à sa propre largeur : un `justify-content` codé en dur ici
+    // laissait les tags à droite pendant que le bouton, lui, était à gauche.
+    url.qs = `seasons=${CS},2023`;
+    render(<SeasonTags seasons={SEASONS} className="justify-start md:justify-end" />);
+
     const tags = screen.getByTestId("season-tags");
-    expect(tags.style.width).toBe("0px");
-    expect(tags.style.minWidth).toBe("100%");
+    expect(tags).toHaveClass("justify-start", "md:justify-end");
+    expect(tags).toHaveClass("flex", "flex-wrap");
   });
 });

@@ -159,6 +159,16 @@ describe("DashboardPage", () => {
     expect(tags).toHaveTextContent("Saison 2025");
   });
 
+  it("aligne les tags comme la barre d'outils, au palier où l'en-tête cesse de s'empiler (revue UI/UX)", async () => {
+    // L'en-tête s'empile sous `lg` — la barre y passe donc à gauche, sous le
+    // titre. Les tags doivent basculer au **même** palier, faute de quoi ils
+    // restent à droite pendant que le bouton qui les commande est à gauche.
+    url.qs = "seasons=2026,2025";
+    await renderDashboard({ seasons: "2026,2025" });
+
+    expect(screen.getByTestId("season-tags")).toHaveClass("justify-start", "lg:justify-end");
+  });
+
   it("exclut les autres disciplines par défaut et les inclut sur demande", async () => {
     await renderDashboard({});
     expect(getStats).toHaveBeenCalledWith(

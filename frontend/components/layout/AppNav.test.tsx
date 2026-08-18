@@ -200,11 +200,53 @@ describe("AppNav — ne plus suivre l'athlète retenu (#442)", () => {
     afficher(null);
     await deplier();
 
-    await userEvent.click(await screen.findByRole("button", { name: "Ne plus suivre Jean Dupont" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Ne plus choisir Jean Dupont" }));
 
     expect(readAthlete()).toBeNull();
     expect(screen.queryByRole("link", { name: "Mon profil — Jean Dupont" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Ne plus suivre Jean Dupont" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ne plus choisir Jean Dupont" })).not.toBeInTheDocument();
+  });
+
+  it("dit « ne plus choisir », le verbe déjà arbitré ailleurs (revue UI/UX)", async () => {
+    // `SelectAthleteButton` rend « Ne plus choisir cet athlète » et
+    // `AthletePicker` « Choisir <nom> » — vocabulaire harmonisé après la revue
+    // de #323. « Suivre » y ajoutait un troisième verbe pour le même geste, et
+    // promettait un abonnement qui n'existe pas.
+    window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
+    afficher(null);
+    await deplier();
+
+    const croix = await screen.findByRole("button", { name: "Ne plus choisir Jean Dupont" });
+    expect(croix).toHaveAttribute("title", "Ne plus choisir");
+    expect(screen.queryByRole("button", { name: /suivre/i })).not.toBeInTheDocument();
+  });
+
+  it("porte .tcn-icon-btn, seule à exprimer :hover et :focus-visible (revue UI/UX)", async () => {
+    // Stylée en ligne, la croix n'avait ni survol ni anneau de focus : il ne
+    // restait que l'anneau UA `outline-ring/50`, mesuré à 1,85:1 sur le fond
+    // de la tuile, sous le seuil WCAG 1.4.11 de 3:1. Même cause commune que
+    // les trois défauts de #299 — un `style` en ligne ne peut pas exprimer
+    // d'état.
+    window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
+    afficher(null);
+    await deplier();
+
+    expect(await screen.findByRole("button", { name: "Ne plus choisir Jean Dupont" })).toHaveClass(
+      "tcn-icon-btn",
+    );
+  });
+
+  it("offre une cible de 44 px, la tuile en faisant déjà autant (revue UI/UX)", async () => {
+    // 28 px tenait WCAG 2.5.8 (24 px) mais pas le plancher tactile de cette
+    // grille, et la croix **est** rendue dans le tiroir mobile
+    // (`contenu(true, …)`). La hauteur ne coûte rien : la tuile fait 44 px.
+    window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
+    afficher(null);
+    await deplier();
+
+    const croix = await screen.findByRole("button", { name: "Ne plus choisir Jean Dupont" });
+    expect(croix.style.width).toBe("44px");
+    expect(croix.style.height).toBe("44px");
   });
 
   it("laisse l'entrée « Rechercher un athlète » en place après la désélection", async () => {
@@ -214,7 +256,7 @@ describe("AppNav — ne plus suivre l'athlète retenu (#442)", () => {
     window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
     afficher(null);
     await deplier();
-    await userEvent.click(await screen.findByRole("button", { name: "Ne plus suivre Jean Dupont" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Ne plus choisir Jean Dupont" }));
 
     expect(screen.getAllByRole("button", { name: "Rechercher un athlète" }).length).toBeGreaterThan(0);
   });
@@ -226,7 +268,7 @@ describe("AppNav — ne plus suivre l'athlète retenu (#442)", () => {
     afficher(null);
 
     expect(await screen.findByRole("link", { name: "Mon profil — Jean Dupont" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Ne plus suivre/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Ne plus choisir/ })).not.toBeInTheDocument();
   });
 });
 
