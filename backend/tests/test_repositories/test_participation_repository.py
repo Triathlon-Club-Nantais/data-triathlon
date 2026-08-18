@@ -68,6 +68,19 @@ def test_has_pending_for_course_faux_sur_epreuve_inconnue(db_session):
     assert participation_repository.has_pending_for_course(db_session, 4242) is False
 
 
+def test_has_pending_for_course_faux_si_toutes_rejetees(db_session):
+    """#437 : une épreuve dont l'unique résultat en attente a été rejeté
+    n'a plus de raison d'être renommable depuis la page bénévoles."""
+    athlete, course = _setup(db_session)
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1",
+        club="TCN", is_pending_validation=True, is_rejected=True,
+    )
+    db_session.flush()
+
+    assert participation_repository.has_pending_for_course(db_session, course.id) is False
+
+
 def test_list_pending_exclut_une_rejetee(db_session):
     """#437 : une entrée rejetée reste is_pending_validation=True mais ne
     doit plus apparaître dans la file bénévoles."""
