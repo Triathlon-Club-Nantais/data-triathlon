@@ -3,7 +3,7 @@ import { apiServer, SHORT_REVALIDATE_SECONDS } from "@/lib/api/server";
 import { SCOPE_CLUB, federalOnlyFromParam } from "@/lib/scope";
 import { DisciplineToggle } from "@/components/layout/DisciplineToggle";
 import { RankTypeToggle } from "@/components/layout/RankTypeToggle";
-import { SeasonSelector } from "@/components/dashboard/SeasonSelector";
+import { SeasonSelector, SeasonTags } from "@/components/dashboard/SeasonSelector";
 import { StatCardsRank } from "@/components/dashboard/StatCardsRank";
 import { currentSeason, parseSeasonsParam, seasonSelectionLabel } from "@/lib/utils/season";
 import { StatCard, Card, Eyebrow, FormatChip } from "@/components/tcn";
@@ -47,17 +47,29 @@ export default async function DashboardPage({
 
   return (
     <PageShell>
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 26 }}>
-        <div>
-          <Eyebrow>Participations aux courses</Eyebrow>
-          <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(28px, 5vw, 40px)", color: "var(--tcn-ink)", lineHeight: 1, marginTop: 6 }}>{seasonSelectionLabel(selected)}</div>
-          <div style={{ fontSize: 15, color: "var(--tcn-text-muted)", marginTop: 8, fontWeight: 500 }}>Vue d&apos;ensemble des performances des athlètes du club</div>
+      {/* En-tête en colonne : titre + barre d'outils sur une ligne, tags sur la
+          suivante (#445). L'empilement est déclaré au palier `lg` plutôt que
+          laissé à un `flex-wrap` : la barre basculait alors sous le titre à une
+          largeur qui dépendait du `max-content` de la description, donc à un
+          point que rien ne pouvait suivre — et les tags, eux, restaient à
+          droite. Même palier ici et sur `SeasonTags`, les deux bougent
+          ensemble. */}
+      <div className="space-y-3" style={{ marginBottom: 26 }}>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <Eyebrow>Participations aux courses</Eyebrow>
+            <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(28px, 5vw, 40px)", color: "var(--tcn-ink)", lineHeight: 1, marginTop: 6 }}>{seasonSelectionLabel(selected)}</div>
+            <div style={{ fontSize: 15, color: "var(--tcn-text-muted)", marginTop: 8, fontWeight: 500 }}>Vue d&apos;ensemble des performances des athlètes du club</div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <RankTypeToggle />
+            <DisciplineToggle />
+            <SeasonSelector seasons={seasons} />
+          </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <RankTypeToggle />
-          <DisciplineToggle />
-          <SeasonSelector seasons={seasons} />
-        </div>
+        {/* Hors de la barre d'outils, à dessein (#445) : les tags y élargissaient
+            la barre jusqu'à la faire basculer sous le titre, tout à gauche. */}
+        <SeasonTags seasons={seasons} className="justify-start lg:justify-end" />
       </div>
 
       <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

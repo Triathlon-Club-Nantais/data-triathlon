@@ -37,9 +37,14 @@ export function Badge({
     );
   }
 
+  // `orange` : le texte descend de `--tcn-orange` à `--tcn-orange-deeper`
+  // (revue UI/UX). À 12 px / 700 c'est du texte courant, donc 4,5:1 exigés
+  // (WCAG 1.4.3) ; sur `--tcn-orange-12` composé sur le papier, `--tcn-orange`
+  // ne valait que 2,88:1 et `--tcn-orange-deep` 3,58:1. Le fond, lui, est
+  // inchangé — c'est le même arbitrage que #299 sur `.tcn-btn`, à l'envers.
   const variants: Record<string, CSSProperties> = {
     neutral: { background: "rgba(28,30,34,.06)", color: "var(--tcn-ink)" },
-    orange: { background: "var(--tcn-orange-12)", color: "var(--tcn-orange)" },
+    orange: { background: "var(--tcn-orange-12)", color: "var(--tcn-orange-deeper)" },
     ink: { background: "var(--tcn-ink)", color: "#fff" },
   };
 

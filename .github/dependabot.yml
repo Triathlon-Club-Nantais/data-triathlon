@@ -10,7 +10,9 @@
 # Dependabot hebdomadaire qu'on cesse de lire ne vaut pas mieux que pas de
 # Dependabot. Les mises à jour mineures/correctives sont groupées en une seule
 # PR par écosystème pour limiter le bruit de revue ; les montées majeures
-# restent séparées pour une revue au cas par cas.
+# restent séparées pour une revue au cas par cas. Le backend en compte deux :
+# les deux dépendances déclarées avec extras ne peuvent pas rejoindre un groupe
+# qui filtre par `update-types` (raison mesurée sous `backend-extras`).
 
 version: 2
 updates:
@@ -23,6 +25,21 @@ updates:
         update-types:
           - "minor"
           - "patch"
+      # `fastapi[standard]` et `uvicorn[standard]` échappaient au groupe
+      # ci-dessus, une PR isolée chacune par salve (#418, #419) : le parser uv
+      # nomme l'entrée du manifeste avec ses extras et celle du lock sans
+      # (`uvicorn[standard]` contre `uvicorn`), les deux ne fusionnent jamais,
+      # et la dépendance arrive donc **sans version résolue** — un `>=` n'en
+      # fournit aucune, seul un `==` le ferait. Or le filtre `update-types` a
+      # besoin de comparer deux versions : sans version, il rejette la
+      # dépendance du groupe. Ce second groupe, défini par motif et **sans**
+      # `update-types`, les capte ; leurs majeures y sont donc groupées, ce qui
+      # reste une revue de deux paquets couplés. Ni `patterns: ["*"]` ni un
+      # plancher aligné sur le lock n'y changent quoi que ce soit (#431).
+      backend-extras:
+        patterns:
+          - "fastapi*"
+          - "uvicorn*"
 
   - package-ecosystem: "npm"
     directory: "/frontend"
@@ -33,6 +50,24 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    ignore:
+      # TypeScript 7 casse `npm run lint`, premier step du job frontend :
+      # eslint-config-next embarque typescript-eslint, dont le peer est
+      # `>=4.8.4 <6.1.0`, et qui lève une erreur dure au chargement sur TS >= 7
+      # (constaté sur #424 ; suivi amont : typescript-eslint#10940). Le build et
+      # les tests, eux, passent en TS 7 — Next 16.3 délègue le typecheck au `tsc`
+      # local. Borne à lever quand eslint-config-next embarquera un
+      # typescript-eslint compatible.
+      - dependency-name: "typescript"
+        versions: [">=7"]
+      # ESLint 10 casse toutes les règles react/* : eslint-plugin-react (peer
+      # « ^9.7 », tiré transitivement par eslint-config-next) appelle encore
+      # context.getFilename(), retiré en 10 — « Error while loading rule
+      # 'react/display-name' » (PR #422). Aucune version publiée ne corrige.
+      # À rouvrir quand jsx-eslint/eslint-plugin-react#4022 est mergé/publié.
+      - dependency-name: "eslint"
+        update-types:
+          - "version-update:semver-major"
 
   - package-ecosystem: "github-actions"
     directory: "/"
