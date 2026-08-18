@@ -278,7 +278,12 @@ describe("AthletePage", () => {
       part({ id: 2, is_pending_validation: false }),
     ]);
 
-    const rows = screen.getAllByText(/en attente de validation/i);
+    // Scopé aux lignes du tableau (`PendingBadge`, dans un `<a>`) : la StatCard
+    // « Épreuves » porte désormais son propre repère textuel qui matche aussi
+    // cette regex (#438), sans être une ligne du tableau.
+    const rows = screen
+      .getAllByText(/en attente de validation/i)
+      .filter((el) => el.closest("a"));
     expect(rows).toHaveLength(1);
     const pendingRow = rows[0].closest("a[href='/courses/1/participations/1']");
     expect(pendingRow).not.toBeNull();
@@ -321,14 +326,16 @@ describe("AthletePage", () => {
   // --- KPI et participations en attente de validation (#438) ---
 
   it("n'inclut pas une participation en attente de validation dans les 5 StatCard (#438)", async () => {
-    await renderAthlete([
+    const { container } = await renderAthlete([
       part({ id: 1, is_pending_validation: true, rank_overall: 1, course_finishers: 50 }),
     ]);
 
-    // « Épreuves » : la seule participation est en attente, elle ne compte pas.
+    // « Épreuves » : la seule participation est en attente, elle ne compte pas
+    // — et un repère explique l'écart avec la ligne du tableau plus bas.
     const episCard = screen.getByText("Épreuves").parentElement?.parentElement;
     expect(episCard).not.toBeNull();
     expect(within(episCard as HTMLElement).getByText("0")).toBeInTheDocument();
+    expect(within(episCard as HTMLElement).getByText("1 en attente de validation")).toBeInTheDocument();
 
     // « Meilleure place » et « Top 10 » : le rang 1 de la participation en
     // attente ne doit pas ressortir.
@@ -349,8 +356,12 @@ describe("AthletePage", () => {
     expect(formatCard).not.toBeNull();
     expect(within(formatCard as HTMLElement).getByText("—")).toBeInTheDocument();
 
-    // Le tableau détaillé, lui, continue d'afficher la participation en attente.
-    expect(screen.getByText(/en attente de validation/i)).toBeInTheDocument();
+    // Le tableau détaillé, lui, continue d'afficher la participation en
+    // attente, badge compris — scopé à sa ligne pour ne pas confondre avec
+    // le repère de la StatCard « Épreuves » ci-dessus.
+    const pendingRow = container.querySelector<HTMLElement>("a[href='/courses/1/participations/1']");
+    expect(pendingRow).not.toBeNull();
+    expect(within(pendingRow as HTMLElement).getByText("En attente de validation")).toBeInTheDocument();
   });
 
   it("compte les StatCard sur les participations validées, malgré une en attente (#438)", async () => {
@@ -361,9 +372,18 @@ describe("AthletePage", () => {
 
     const episCard = screen.getByText("Épreuves").parentElement?.parentElement;
     expect(within(episCard as HTMLElement).getByText("1")).toBeInTheDocument();
+    expect(within(episCard as HTMLElement).getByText("1 en attente de validation")).toBeInTheDocument();
 
     // La meilleure place validée est 5, pas le rang 1 de la participation en attente.
     const placeCard = screen.getByText("Meilleure place").parentElement?.parentElement;
     expect(within(placeCard as HTMLElement).getByText("5")).toBeInTheDocument();
+  });
+
+  it("n'affiche pas de repère « en attente » sur « Épreuves » quand tout est validé (#438)", async () => {
+    await renderAthlete([part({ id: 1, rank_overall: 5, course_finishers: 50 })]);
+
+    const episCard = screen.getByText("Épreuves").parentElement?.parentElement;
+    expect(episCard).not.toBeNull();
+    expect(within(episCard as HTMLElement).queryByTestId("statcard-hint")).not.toBeInTheDocument();
   });
 });
