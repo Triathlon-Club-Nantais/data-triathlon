@@ -31,6 +31,19 @@ export function ParticipationPanel({
   const [erreurReattribution, setErreurReattribution] = useState<string | null>(null);
   const [enCoursReattribution, setEnCoursReattribution] = useState(false);
 
+  const [champs, setChamps] = useState({
+    bib_number: participation.bib_number ?? "",
+    rank_overall: participation.rank_overall != null ? String(participation.rank_overall) : "",
+    club: participation.club ?? "",
+    category: participation.category ?? "",
+  });
+  const [erreurChamps, setErreurChamps] = useState<string | null>(null);
+  const [enCoursChamps, setEnCoursChamps] = useState(false);
+
+  const [confirmationRejet, setConfirmationRejet] = useState(false);
+  const [erreurRejet, setErreurRejet] = useState<string | null>(null);
+  const [enCoursRejet, setEnCoursRejet] = useState(false);
+
   /** Une session expirée prévient le parent plutôt que d'afficher une erreur générique
    *  sur un geste qui ne peut plus aboutir — sinon le bénévole reste bloqué sur cet
    *  écran jusqu'au rechargement manuel de la page (revue de code). */
@@ -97,6 +110,38 @@ export function ParticipationPanel({
       gererErreur(err, setErreurReattribution, "La réattribution a échoué. Réessayez plus tard.");
     } finally {
       setEnCoursReattribution(false);
+    }
+  }
+
+  async function enregistrerChamps() {
+    setErreurChamps(null);
+    setEnCoursChamps(true);
+    try {
+      const resultat = await apiClient.updateParticipationFieldsBenevole(participation.id, {
+        bib_number: champs.bib_number || null,
+        rank_overall: champs.rank_overall ? Number(champs.rank_overall) : null,
+        club: champs.club || null,
+        category: champs.category || null,
+      });
+      onChanged(resultat);
+    } catch (err) {
+      gererErreur(err, setErreurChamps, "L'enregistrement a échoué. Réessayez plus tard.");
+    } finally {
+      setEnCoursChamps(false);
+    }
+  }
+
+  async function signalerNonConforme() {
+    setErreurRejet(null);
+    setEnCoursRejet(true);
+    try {
+      const resultat = await apiClient.rejectParticipationBenevole(participation.id);
+      onChanged(resultat);
+    } catch (err) {
+      gererErreur(err, setErreurRejet, "Le signalement a échoué. Réessayez plus tard.");
+    } finally {
+      setEnCoursRejet(false);
+      setConfirmationRejet(false);
     }
   }
 
@@ -216,12 +261,94 @@ export function ParticipationPanel({
         </div>
 
         <div style={{ borderTop: "1px solid var(--tcn-border)", paddingTop: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div>
+              <label htmlFor="benevole-dossard" style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                Dossard
+              </label>
+              <Input
+                id="benevole-dossard"
+                value={champs.bib_number}
+                onChange={(e) => setChamps((c) => ({ ...c, bib_number: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label htmlFor="benevole-place" style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                Place au général
+              </label>
+              <Input
+                id="benevole-place"
+                type="number"
+                value={champs.rank_overall}
+                onChange={(e) => setChamps((c) => ({ ...c, rank_overall: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label htmlFor="benevole-club" style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                Club
+              </label>
+              <Input
+                id="benevole-club"
+                value={champs.club}
+                onChange={(e) => setChamps((c) => ({ ...c, club: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label htmlFor="benevole-categorie" style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                Catégorie
+              </label>
+              <Input
+                id="benevole-categorie"
+                value={champs.category}
+                onChange={(e) => setChamps((c) => ({ ...c, category: e.target.value }))}
+              />
+            </div>
+          </div>
+          <Button variant="secondary" onClick={enregistrerChamps} disabled={enCoursChamps} style={{ marginTop: 12 }}>
+            {enCoursChamps ? "Enregistrement…" : "Enregistrer les modifications"}
+          </Button>
+          {erreurChamps && (
+            <div role="alert" style={{ color: "var(--tcn-danger-text)", fontSize: 13, marginTop: 8 }}>
+              {erreurChamps}
+            </div>
+          )}
+        </div>
+
+        <div style={{ borderTop: "1px solid var(--tcn-border)", paddingTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
           <Button onClick={valider} disabled={enCoursValidation} style={{ width: "100%" }}>
             {enCoursValidation ? "Validation…" : "Valider ce résultat"}
           </Button>
           {erreurValidation && (
-            <div role="alert" style={{ color: "var(--tcn-danger-text)", fontSize: 13, marginTop: 8 }}>
+            <div role="alert" style={{ color: "var(--tcn-danger-text)", fontSize: 13 }}>
               {erreurValidation}
+            </div>
+          )}
+          {!confirmationRejet ? (
+            <Button
+              variant="secondary"
+              onClick={() => setConfirmationRejet(true)}
+              style={{ width: "100%", color: "var(--tcn-danger-text)", borderColor: "var(--tcn-danger-border)" }}
+            >
+              Signaler non conforme
+            </Button>
+          ) : (
+            <div style={{ display: "flex", gap: 8 }}>
+              <Button
+                variant="secondary"
+                onClick={signalerNonConforme}
+                disabled={enCoursRejet}
+                style={{ flex: 1, color: "var(--tcn-danger-text)", borderColor: "var(--tcn-danger-border)" }}
+              >
+                {enCoursRejet ? "Signalement…" : "Confirmer ?"}
+              </Button>
+              <Button variant="ghost" onClick={() => setConfirmationRejet(false)} disabled={enCoursRejet} style={{ flex: 1 }}>
+                Annuler
+              </Button>
+            </div>
+          )}
+          {erreurRejet && (
+            <div role="alert" style={{ color: "var(--tcn-danger-text)", fontSize: 13 }}>
+              {erreurRejet}
             </div>
           )}
         </div>
