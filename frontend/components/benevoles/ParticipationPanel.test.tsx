@@ -288,4 +288,31 @@ describe("ParticipationPanel", () => {
 
     expect(rejectParticipationBenevole).not.toHaveBeenCalled();
   });
+
+  // --- Revue finale (#437) : les actions qui 404ent sur une entrée rejetée --
+
+  it("masque le renommage, la réattribution, l'édition de champs et la validation sur une entrée rejetée", () => {
+    render(<ParticipationPanel participation={participation({ is_rejected: true })} onChanged={vi.fn()} />);
+
+    expect(screen.queryByLabelText(/nom de l.épreuve/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/réattribuer à/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/dossard/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/place au général/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^club/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/catégorie/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /valider ce résultat/i })).not.toBeInTheDocument();
+
+    expect(screen.getByText(/annulez d.abord le rejet/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /annuler le rejet/i })).toBeInTheDocument();
+  });
+
+  it("affiche à nouveau tous les blocs d'édition une fois le rejet annulé", () => {
+    render(<ParticipationPanel participation={participation({ is_rejected: false })} onChanged={vi.fn()} />);
+
+    expect(screen.getByLabelText(/nom de l.épreuve/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/réattribuer à/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/dossard/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /valider ce résultat/i })).toBeInTheDocument();
+    expect(screen.queryByText(/annulez d.abord le rejet/i)).not.toBeInTheDocument();
+  });
 });

@@ -201,136 +201,150 @@ export function ParticipationPanel({
           </div>
         )}
 
-        <div style={{ borderTop: "1px solid var(--tcn-border)", paddingTop: 16 }}>
-          <label htmlFor="benevole-nom-epreuve" style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-            Nom de l&apos;épreuve
-          </label>
-          <div style={{ display: "flex", gap: 8 }}>
+        {participation.is_rejected && (
+          <div style={{ borderTop: "1px solid var(--tcn-border)", paddingTop: 16, color: "var(--tcn-text-faint)", fontSize: 14 }}>
+            Annulez d&apos;abord le rejet pour modifier ce résultat.
+          </div>
+        )}
+
+        {!participation.is_rejected && (
+          <div style={{ borderTop: "1px solid var(--tcn-border)", paddingTop: 16 }}>
+            <label htmlFor="benevole-nom-epreuve" style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+              Nom de l&apos;épreuve
+            </label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <Input
+                id="benevole-nom-epreuve"
+                value={nomEpreuve}
+                onChange={(e) => setNomEpreuve(e.target.value)}
+                aria-describedby={erreurRenommage ? "benevole-nom-epreuve-erreur" : undefined}
+                containerStyle={{ flex: 1 }}
+              />
+              <Button
+                variant="secondary"
+                onClick={enregistrerNom}
+                disabled={enCoursRenommage || !nomEpreuve.trim() || nomEpreuve === participation.course.name}
+              >
+                Enregistrer le nom
+              </Button>
+            </div>
+            {erreurRenommage && (
+              <div id="benevole-nom-epreuve-erreur" role="alert" style={{ color: "var(--tcn-danger-text)", fontSize: 13, marginTop: 8 }}>
+                {erreurRenommage}
+              </div>
+            )}
+          </div>
+        )}
+
+        {!participation.is_rejected && (
+          <div style={{ borderTop: "1px solid var(--tcn-border)", paddingTop: 16 }}>
+            <label htmlFor="benevole-reattribution" style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+              Réattribuer à
+            </label>
             <Input
-              id="benevole-nom-epreuve"
-              value={nomEpreuve}
-              onChange={(e) => setNomEpreuve(e.target.value)}
-              aria-describedby={erreurRenommage ? "benevole-nom-epreuve-erreur" : undefined}
-              containerStyle={{ flex: 1 }}
+              id="benevole-reattribution"
+              value={rechercheAthlete}
+              onChange={(e) => rechercher(e.target.value)}
+              placeholder="Nom du coureur"
+              disabled={enCoursReattribution}
+              aria-describedby={erreurReattribution ? "benevole-reattribution-erreur" : undefined}
+              style={{ width: "100%" }}
             />
-            <Button
-              variant="secondary"
-              onClick={enregistrerNom}
-              disabled={enCoursRenommage || !nomEpreuve.trim() || nomEpreuve === participation.course.name}
-            >
-              Enregistrer le nom
+            {rechercheEnCours && (
+              <div style={{ color: "var(--tcn-text-faint)", fontSize: 13, marginTop: 8 }}>Recherche…</div>
+            )}
+            {!rechercheEnCours && resultatsAthletes !== null && resultatsAthletes.length === 0 && (
+              <div style={{ color: "var(--tcn-text-faint)", fontSize: 13, marginTop: 8 }}>
+                Aucun coureur trouvé.
+              </div>
+            )}
+            {!rechercheEnCours && resultatsAthletes !== null && resultatsAthletes.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
+                {resultatsAthletes.map((athlete) => (
+                  <button
+                    key={athlete.id}
+                    type="button"
+                    className="tcn-rowlink"
+                    onClick={() => reattribuer(athlete)}
+                    disabled={enCoursReattribution}
+                    style={{ textAlign: "left", padding: "8px 12px", minHeight: 44, border: "1px solid var(--tcn-border)", borderRadius: "var(--tcn-radius-md)", background: "var(--tcn-surface)" }}
+                  >
+                    {athlete.prenom} {athlete.nom}
+                    {athlete.club && <span style={{ color: "var(--tcn-text-faint)" }}> · {athlete.club}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+            {erreurReattribution && (
+              <div id="benevole-reattribution-erreur" role="alert" style={{ color: "var(--tcn-danger-text)", fontSize: 13, marginTop: 8 }}>
+                {erreurReattribution}
+              </div>
+            )}
+          </div>
+        )}
+
+        {!participation.is_rejected && (
+          <div style={{ borderTop: "1px solid var(--tcn-border)", paddingTop: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <div>
+                <label htmlFor="benevole-dossard" style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                  Dossard
+                </label>
+                <Input
+                  id="benevole-dossard"
+                  value={champs.bib_number}
+                  onChange={(e) => setChamps((c) => ({ ...c, bib_number: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label htmlFor="benevole-place" style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                  Place au général
+                </label>
+                <Input
+                  id="benevole-place"
+                  type="number"
+                  value={champs.rank_overall}
+                  onChange={(e) => setChamps((c) => ({ ...c, rank_overall: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label htmlFor="benevole-club" style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                  Club
+                </label>
+                <Input
+                  id="benevole-club"
+                  value={champs.club}
+                  onChange={(e) => setChamps((c) => ({ ...c, club: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label htmlFor="benevole-categorie" style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                  Catégorie
+                </label>
+                <Input
+                  id="benevole-categorie"
+                  value={champs.category}
+                  onChange={(e) => setChamps((c) => ({ ...c, category: e.target.value }))}
+                />
+              </div>
+            </div>
+            <Button variant="secondary" onClick={enregistrerChamps} disabled={enCoursChamps} style={{ marginTop: 12 }}>
+              {enCoursChamps ? "Enregistrement…" : "Enregistrer les modifications"}
             </Button>
+            {erreurChamps && (
+              <div role="alert" style={{ color: "var(--tcn-danger-text)", fontSize: 13, marginTop: 8 }}>
+                {erreurChamps}
+              </div>
+            )}
           </div>
-          {erreurRenommage && (
-            <div id="benevole-nom-epreuve-erreur" role="alert" style={{ color: "var(--tcn-danger-text)", fontSize: 13, marginTop: 8 }}>
-              {erreurRenommage}
-            </div>
-          )}
-        </div>
-
-        <div style={{ borderTop: "1px solid var(--tcn-border)", paddingTop: 16 }}>
-          <label htmlFor="benevole-reattribution" style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-            Réattribuer à
-          </label>
-          <Input
-            id="benevole-reattribution"
-            value={rechercheAthlete}
-            onChange={(e) => rechercher(e.target.value)}
-            placeholder="Nom du coureur"
-            disabled={enCoursReattribution}
-            aria-describedby={erreurReattribution ? "benevole-reattribution-erreur" : undefined}
-            style={{ width: "100%" }}
-          />
-          {rechercheEnCours && (
-            <div style={{ color: "var(--tcn-text-faint)", fontSize: 13, marginTop: 8 }}>Recherche…</div>
-          )}
-          {!rechercheEnCours && resultatsAthletes !== null && resultatsAthletes.length === 0 && (
-            <div style={{ color: "var(--tcn-text-faint)", fontSize: 13, marginTop: 8 }}>
-              Aucun coureur trouvé.
-            </div>
-          )}
-          {!rechercheEnCours && resultatsAthletes !== null && resultatsAthletes.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
-              {resultatsAthletes.map((athlete) => (
-                <button
-                  key={athlete.id}
-                  type="button"
-                  className="tcn-rowlink"
-                  onClick={() => reattribuer(athlete)}
-                  disabled={enCoursReattribution}
-                  style={{ textAlign: "left", padding: "8px 12px", minHeight: 44, border: "1px solid var(--tcn-border)", borderRadius: "var(--tcn-radius-md)", background: "var(--tcn-surface)" }}
-                >
-                  {athlete.prenom} {athlete.nom}
-                  {athlete.club && <span style={{ color: "var(--tcn-text-faint)" }}> · {athlete.club}</span>}
-                </button>
-              ))}
-            </div>
-          )}
-          {erreurReattribution && (
-            <div id="benevole-reattribution-erreur" role="alert" style={{ color: "var(--tcn-danger-text)", fontSize: 13, marginTop: 8 }}>
-              {erreurReattribution}
-            </div>
-          )}
-        </div>
-
-        <div style={{ borderTop: "1px solid var(--tcn-border)", paddingTop: 16 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <div>
-              <label htmlFor="benevole-dossard" style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                Dossard
-              </label>
-              <Input
-                id="benevole-dossard"
-                value={champs.bib_number}
-                onChange={(e) => setChamps((c) => ({ ...c, bib_number: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label htmlFor="benevole-place" style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                Place au général
-              </label>
-              <Input
-                id="benevole-place"
-                type="number"
-                value={champs.rank_overall}
-                onChange={(e) => setChamps((c) => ({ ...c, rank_overall: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label htmlFor="benevole-club" style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                Club
-              </label>
-              <Input
-                id="benevole-club"
-                value={champs.club}
-                onChange={(e) => setChamps((c) => ({ ...c, club: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label htmlFor="benevole-categorie" style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                Catégorie
-              </label>
-              <Input
-                id="benevole-categorie"
-                value={champs.category}
-                onChange={(e) => setChamps((c) => ({ ...c, category: e.target.value }))}
-              />
-            </div>
-          </div>
-          <Button variant="secondary" onClick={enregistrerChamps} disabled={enCoursChamps} style={{ marginTop: 12 }}>
-            {enCoursChamps ? "Enregistrement…" : "Enregistrer les modifications"}
-          </Button>
-          {erreurChamps && (
-            <div role="alert" style={{ color: "var(--tcn-danger-text)", fontSize: 13, marginTop: 8 }}>
-              {erreurChamps}
-            </div>
-          )}
-        </div>
+        )}
 
         <div style={{ borderTop: "1px solid var(--tcn-border)", paddingTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-          <Button onClick={valider} disabled={enCoursValidation} style={{ width: "100%" }}>
-            {enCoursValidation ? "Validation…" : "Valider ce résultat"}
-          </Button>
+          {!participation.is_rejected && (
+            <Button onClick={valider} disabled={enCoursValidation} style={{ width: "100%" }}>
+              {enCoursValidation ? "Validation…" : "Valider ce résultat"}
+            </Button>
+          )}
           {erreurValidation && (
             <div role="alert" style={{ color: "var(--tcn-danger-text)", fontSize: 13 }}>
               {erreurValidation}
