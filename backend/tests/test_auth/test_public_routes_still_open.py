@@ -51,16 +51,20 @@ ADMIN_PUBLIQUES = {
 #: (`is_pending_validation`) protège désormais l'intégrité des agrégats publics
 #: à la place d'une session, ce qui permet de rouvrir la saisie manuelle à un
 #: membre sans compte, l'usage que le formulaire vise.
-#: Les quatre ressources de la page bénévoles (#271), fermées par un mot de
+#: Les ressources de la page bénévoles (#271, #437), fermées par un mot de
 #: passe partagé (`require_benevole_access`) plutôt que par une session SSO —
 #: mécanisme distinct, mais même exigence : anonyme n'obtient rien. `POST` et
 #: `DELETE /benevoles/session` restent hors de cet ensemble : la première pose
-#: la garde des quatre autres, la seconde n'a aucun effet de bord sensible.
+#: la garde des autres, la seconde n'a aucun effet de bord sensible.
 ROUTES_BENEVOLES_FERMEES = {
     ("GET", "/api/v1/benevoles/queue"),
+    ("GET", "/api/v1/benevoles/rejected"),
     ("PATCH", "/api/v1/benevoles/courses/{course_id}"),
     ("POST", "/api/v1/benevoles/participations/{participation_id}/reassign"),
     ("POST", "/api/v1/benevoles/participations/{participation_id}/validate"),
+    ("POST", "/api/v1/benevoles/participations/{participation_id}/reject"),
+    ("POST", "/api/v1/benevoles/participations/{participation_id}/unreject"),
+    ("PATCH", "/api/v1/benevoles/participations/{participation_id}"),
 }
 
 ROUTES_FERMEES = {
