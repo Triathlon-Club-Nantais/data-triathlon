@@ -38,19 +38,25 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
   const { athlete, participations } = data;
   const fullName = [athlete.prenom, athlete.nom].filter(Boolean).join(" ");
 
-  const places = participations.map((p) => p.rank_overall).filter((r): r is number => r != null);
+  // Les 5 StatCard ne portent que sur les participations déjà validées : une
+  // saisie manuelle « en attente de validation » (#270) ne doit pas fausser
+  // les KPI avant qu'un bénévole ne l'ait vérifiée (#438). Le tableau détaillé
+  // plus bas, lui, continue d'afficher `participations` au complet.
+  const validated = participations.filter((p) => !p.is_pending_validation);
+
+  const places = validated.map((p) => p.rank_overall).filter((r): r is number => r != null);
   const best = places.length ? Math.min(...places) : null;
   const top10 = places.filter((p) => p <= 10).length;
 
   // Format favori : jeton le plus fréquent.
   const formatCounts = new Map<string, number>();
-  for (const p of participations) {
+  for (const p of validated) {
     const tok = formatToken(p.course?.event_type, p.course?.distance_km);
     if (tok !== "—") formatCounts.set(tok, (formatCounts.get(tok) ?? 0) + 1);
   }
   const favFormat = [...formatCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
 
-  const topRatio = bestRatio(participations);
+  const topRatio = bestRatio(validated);
 
   const ordered = recentParticipations(participations, participations.length);
 
@@ -68,7 +74,7 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        <StatCard label="Épreuves" value={participations.length} accent={false} />
+        <StatCard label="Épreuves" value={validated.length} accent={false} />
         <StatCard label="Meilleure place" value={best ?? "—"} valueColor="var(--tcn-orange)" accent={false} />
         <StatCard
           label="Meilleur ratio"
