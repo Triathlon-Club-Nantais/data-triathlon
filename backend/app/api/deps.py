@@ -143,6 +143,13 @@ _MAX_SEAUX = 10_000
 AUTHORIZE_RATE_LIMIT_MAX_PER_WINDOW = 30
 AUTHORIZE_RATE_LIMIT_WINDOW_SECONDS = 3600
 
+#: A04-3, moyen : un signalement de fournisseur suit un import qui a échoué, et
+#: une saisie manuelle suit ce signalement — le plafond de scraping (10/h) borne
+#: donc déjà le parcours légitime. Large pour la même raison qu'ailleurs : on
+#: vise l'écriture en boucle, pas le membre qui saisit sa saison.
+PUBLIC_WRITE_RATE_LIMIT_MAX_PER_WINDOW = 30
+PUBLIC_WRITE_RATE_LIMIT_WINDOW_SECONDS = 3600
+
 
 def reset_rate_limits() -> None:
     """Vide les compteurs. Réservé aux tests (fixture autouse de `conftest`)."""
@@ -205,6 +212,36 @@ def authorize_rate_limit(request: Request) -> None:
         "authorize",
         max_per_window=AUTHORIZE_RATE_LIMIT_MAX_PER_WINDOW,
         window_seconds=AUTHORIZE_RATE_LIMIT_WINDOW_SECONDS,
+    )
+
+
+def public_write_rate_limit(request: Request) -> None:
+    """Plafond des deux écritures publiques non bornées (A04-3, #398).
+
+    `POST /admin/pending-providers` et `POST /participations` écrivent en base
+    sans session. Ce qui les protégeait — le `provider_hint` déduit pour l'une,
+    la mise en quarantaine (`is_pending_validation`) pour l'autre — borne ce
+    qu'un anonyme **publie**, jamais ce qu'il **écrit** : la base grossit quand
+    même, et la fiche d'un athlète réel reste polluable. C'est ce volume-là
+    qu'on borne, et lui seul : les deux routes restent ouvertes par choix
+    (#267, #270), et `tests/test_auth/test_public_routes_still_open.py` les
+    nomme comme telles.
+
+    **Un seul seau pour les deux** : elles se suivent dans le même geste — un
+    import qui échoue déclenche le signalement du fournisseur, puis la saisie
+    manuelle qu'il propose. Deux compteurs distincts n'ajouteraient qu'un
+    plafond à contourner par alternance.
+
+    Constante plutôt que réglage : à la différence du plafond de scraping,
+    aucune de ces deux routes n'appelle le réseau ni ne sature un process —
+    leur coût est une ligne en base. Personne n'a de raison de l'ajuster à
+    chaud.
+    """
+    _enforce_rate_limit(
+        request,
+        "public_write",
+        max_per_window=PUBLIC_WRITE_RATE_LIMIT_MAX_PER_WINDOW,
+        window_seconds=PUBLIC_WRITE_RATE_LIMIT_WINDOW_SECONDS,
     )
 
 

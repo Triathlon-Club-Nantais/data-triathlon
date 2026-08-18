@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import optional_user, require_permission
+from app.api.deps import optional_user, public_write_rate_limit, require_permission
 from app.core.analytics import ANONYMOUS_DISTINCT_ID, capture_event
 from app.core.club import is_club_scope
 from app.core.database import get_db
@@ -56,7 +56,12 @@ def _to_scraped(body: ParticipationCreate) -> ScrapedResult:
     )
 
 
-@router.post("/participations", response_model=ParticipationOut, status_code=201)
+@router.post(
+    "/participations",
+    response_model=ParticipationOut,
+    status_code=201,
+    dependencies=[Depends(public_write_rate_limit)],
+)
 def create_participation(
     body: ParticipationCreate,
     db: Session = Depends(get_db),
