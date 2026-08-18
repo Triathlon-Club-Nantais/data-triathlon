@@ -169,8 +169,14 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
                         // `tcn/Button` (voir globals.css) plutôt qu'un composant
                         // dédié — un `<button>` serait sémantiquement faux ici,
                         // c'est une navigation, pas une action (rôle "link" à
-                        // conserver, cf. page.test.tsx).
-                        className="tcn-btn tcn-btn--sm tcn-btn--ghost"
+                        // conserver, cf. page.test.tsx). `--secondary` et non
+                        // `--ghost` : cette carte a un fond blanc
+                        // (`--tcn-surface`), sur lequel le remplissage et la
+                        // bordure de `--ghost` tombent sous 1,3:1 (WCAG
+                        // 1.4.11) — quasi invisibles, à l'inverse de
+                        // l'affordance recherchée. La bordure encre de
+                        // `--secondary` reste à ~16:1 sur ce même fond.
+                        className="tcn-btn tcn-btn--sm tcn-btn--secondary"
                       >
                         <Eye size={14} aria-hidden="true" />
                         Voir la preuve
