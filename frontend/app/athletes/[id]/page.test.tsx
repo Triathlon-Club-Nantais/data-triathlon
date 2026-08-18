@@ -317,4 +317,53 @@ describe("AthletePage", () => {
 
     expect(await screen.findByRole("button", { name: "Choisir cet athlète" })).toBeInTheDocument();
   });
+
+  // --- KPI et participations en attente de validation (#438) ---
+
+  it("n'inclut pas une participation en attente de validation dans les 5 StatCard (#438)", async () => {
+    await renderAthlete([
+      part({ id: 1, is_pending_validation: true, rank_overall: 1, course_finishers: 50 }),
+    ]);
+
+    // « Épreuves » : la seule participation est en attente, elle ne compte pas.
+    const episCard = screen.getByText("Épreuves").parentElement?.parentElement;
+    expect(episCard).not.toBeNull();
+    expect(within(episCard as HTMLElement).getByText("0")).toBeInTheDocument();
+
+    // « Meilleure place » et « Top 10 » : le rang 1 de la participation en
+    // attente ne doit pas ressortir.
+    const placeCard = screen.getByText("Meilleure place").parentElement?.parentElement;
+    expect(placeCard).not.toBeNull();
+    expect(within(placeCard as HTMLElement).getByText("—")).toBeInTheDocument();
+
+    const top10Card = screen.getByText("Top 10").parentElement?.parentElement;
+    expect(top10Card).not.toBeNull();
+    expect(within(top10Card as HTMLElement).getByText("0")).toBeInTheDocument();
+
+    // « Meilleur ratio » et « Format favori » : rien à afficher non plus.
+    const ratioCard = screen.getByText("Meilleur ratio").parentElement?.parentElement;
+    expect(ratioCard).not.toBeNull();
+    expect(within(ratioCard as HTMLElement).getByText("—")).toBeInTheDocument();
+
+    const formatCard = screen.getByText("Format favori").parentElement?.parentElement;
+    expect(formatCard).not.toBeNull();
+    expect(within(formatCard as HTMLElement).getByText("—")).toBeInTheDocument();
+
+    // Le tableau détaillé, lui, continue d'afficher la participation en attente.
+    expect(screen.getByText(/en attente de validation/i)).toBeInTheDocument();
+  });
+
+  it("compte les StatCard sur les participations validées, malgré une en attente (#438)", async () => {
+    await renderAthlete([
+      part({ id: 1, rank_overall: 5, course_finishers: 50 }),
+      part({ id: 2, is_pending_validation: true, rank_overall: 1, course_finishers: 50 }),
+    ]);
+
+    const episCard = screen.getByText("Épreuves").parentElement?.parentElement;
+    expect(within(episCard as HTMLElement).getByText("1")).toBeInTheDocument();
+
+    // La meilleure place validée est 5, pas le rang 1 de la participation en attente.
+    const placeCard = screen.getByText("Meilleure place").parentElement?.parentElement;
+    expect(within(placeCard as HTMLElement).getByText("5")).toBeInTheDocument();
+  });
 });
