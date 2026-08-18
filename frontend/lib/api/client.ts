@@ -435,4 +435,21 @@ export const apiClient = {
       method: "POST",
       body: JSON.stringify({ athlete_id: athleteId }),
     }),
+  getBenevoleRejected: () => request<Participation[]>("/benevoles/rejected"),
+  rejectParticipationBenevole: (participationId: number) =>
+    request<Participation>(`/benevoles/participations/${participationId}/reject`, {
+      method: "POST",
+    }),
+  unrejectParticipationBenevole: (participationId: number) =>
+    request<Participation>(`/benevoles/participations/${participationId}/unreject`, {
+      method: "POST",
+    }),
+  updateParticipationFieldsBenevole: (
+    participationId: number,
+    champs: { bib_number?: string | null; rank_overall?: number | null; club?: string | null; category?: string | null },
+  ) =>
+    request<Participation>(`/benevoles/participations/${participationId}`, {
+      method: "PATCH",
+      body: JSON.stringify(champs),
+    }),
 };
