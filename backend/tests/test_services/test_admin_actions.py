@@ -9,7 +9,7 @@ from datetime import date
 import pytest
 
 from app.core.config import Settings
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import DuplicateError, NotFoundError
 from app.repositories import (
     admin_action_log_repository,
     athlete_repository,
@@ -974,3 +974,123 @@ def test_unreject_participation_deja_actionnable_ne_consigne_pas_un_second_geste
     admin_actions.unreject_participation(db_session, participation_id=ligne.id, user_id=auteur.id)
 
     assert _journal(db_session, "participation", ligne.id) == []
+
+
+# --- Corriger les champs d'un résultat en attente (#437) --------------------
+
+
+def test_update_participation_fields_ecrit_les_champs_fournis(db_session, auteur):
+    course = _epreuve(db_session)
+    coureur = _coureur(db_session, "DUPONT")
+    ligne = participation_repository.create(
+        db_session, athlete_id=coureur.id, course_id=course.id, bib_number="1",
+        is_pending_validation=True,
+    )
+    db_session.flush()
+
+    admin_actions.update_participation_fields(
+        db_session, participation_id=ligne.id,
+        champs={"bib_number": "42", "rank_overall": 3, "club": "TCN", "category": "V2"},
+        user_id=auteur.id,
+    )
+
+    rechargee = participation_repository.get(db_session, ligne.id)
+    assert rechargee.bib_number == "42"
+    assert rechargee.rank_overall == 3
+    assert rechargee.club == "TCN"
+    assert rechargee.category == "V2"
+
+
+def test_update_participation_fields_ne_touche_pas_les_champs_absents(db_session, auteur):
+    course = _epreuve(db_session)
+    coureur = _coureur(db_session, "DUPONT")
+    ligne = participation_repository.create(
+        db_session, athlete_id=coureur.id, course_id=course.id, bib_number="1",
+        is_pending_validation=True, club="ASPTT",
+    )
+    db_session.flush()
+
+    admin_actions.update_participation_fields(
+        db_session, participation_id=ligne.id, champs={"bib_number": "42"}, user_id=auteur.id,
+    )
+
+    assert participation_repository.get(db_session, ligne.id).club == "ASPTT"
+
+
+def test_update_participation_fields_refuse_un_dossard_deja_pris(db_session, auteur):
+    course = _epreuve(db_session)
+    coureur = _coureur(db_session, "DUPONT")
+    autre = _coureur(db_session, "MARTIN")
+    ligne = participation_repository.create(
+        db_session, athlete_id=coureur.id, course_id=course.id, bib_number="1",
+        is_pending_validation=True,
+    )
+    participation_repository.create(
+        db_session, athlete_id=autre.id, course_id=course.id, bib_number="2",
+    )
+    db_session.flush()
+
+    with pytest.raises(DuplicateError):
+        admin_actions.update_participation_fields(
+            db_session, participation_id=ligne.id, champs={"bib_number": "2"}, user_id=auteur.id,
+        )
+
+
+def test_update_participation_fields_autorise_a_garder_son_propre_dossard(db_session, auteur):
+    """Le dossard inchangé ne doit jamais se heurter à son propre conflit."""
+    course = _epreuve(db_session)
+    coureur = _coureur(db_session, "DUPONT")
+    ligne = participation_repository.create(
+        db_session, athlete_id=coureur.id, course_id=course.id, bib_number="1",
+        is_pending_validation=True,
+    )
+    db_session.flush()
+
+    admin_actions.update_participation_fields(
+        db_session, participation_id=ligne.id, champs={"bib_number": "1", "club": "TCN"}, user_id=auteur.id,
+    )
+
+    assert participation_repository.get(db_session, ligne.id).club == "TCN"
+
+
+def test_update_participation_fields_consigne_l_avant_et_l_apres(db_session, auteur):
+    course = _epreuve(db_session)
+    coureur = _coureur(db_session, "DUPONT")
+    ligne = participation_repository.create(
+        db_session, athlete_id=coureur.id, course_id=course.id, bib_number="1",
+        is_pending_validation=True,
+    )
+    db_session.flush()
+
+    admin_actions.update_participation_fields(
+        db_session, participation_id=ligne.id, champs={"club": "TCN"}, user_id=auteur.id,
+    )
+
+    entrees = _journal(db_session, "participation", ligne.id)
+    assert len(entrees) == 1
+    assert entrees[0].action == "participation.correct_fields"
+    assert entrees[0].payload["before"]["club"] is None
+    assert entrees[0].payload["after"]["club"] == "TCN"
+
+
+def test_update_participation_fields_sans_changement_ne_consigne_rien(db_session, auteur):
+    course = _epreuve(db_session)
+    coureur = _coureur(db_session, "DUPONT")
+    ligne = participation_repository.create(
+        db_session, athlete_id=coureur.id, course_id=course.id, bib_number="1",
+        is_pending_validation=True, club="TCN",
+    )
+    db_session.flush()
+
+    admin_actions.update_participation_fields(
+        db_session, participation_id=ligne.id, champs={"club": "TCN"}, user_id=auteur.id,
+    )
+
+    assert _journal(db_session, "participation", ligne.id) == []
+
+
+def test_update_participation_fields_sur_resultat_inconnu_refuse(db_session, auteur):
+    with pytest.raises(NotFoundError):
+        admin_actions.update_participation_fields(
+            db_session, participation_id=4242, champs={"club": "TCN"}, user_id=auteur.id,
+        )
