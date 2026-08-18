@@ -7,12 +7,19 @@ l'arborescence, et chaque dossier qui a ses propres pièges porte son
 `AGENTS.md` (`app/api/`, `app/cli/`, `app/core/`, `app/models/`,
 `app/scrapers/`, `app/services/auth/`).
 
-- `app/main.py` — usine `create_app()` : CORS, handlers d'erreurs, montage routers.
+- `app/main.py` — usine `create_app()` : CORS, handlers d'erreurs, montage
+  routers. **L'ordre des `add_middleware` y porte du sens** : la pile s'empile à
+  l'envers, donc le premier monté est le plus proche du routeur.
+  `SecurityHeadersMiddleware` l'est à dessein, pour voir le schéma déjà réécrit
+  par `ProxyHeadersMiddleware` (#396).
 - `app/core/` — `config.py` (pydantic-settings), `logging.py`, `database.py`,
   `exceptions.py`, `time.py`, `club.py` (appartenance au TCN : **liste blanche**
   de libellés, match à l'égalité — cf. #76), `discipline.py` (disciplines
   fédérales vs trail / course à pied / cyclisme), `http.py` (**toute** sortie
-  HTTP y passe, garde SSRF sur la requête et chaque redirection — #49, #101).
+  HTTP y passe, garde SSRF sur la requête et chaque redirection — #49, #101),
+  `security_headers.py` (en-têtes de sécurité sur **toute** réponse — jumeau du
+  `headers()` de `frontend/next.config.ts`, parce que les backends Render sont
+  joignables directement ; sans la CSP, traitée à part — #396).
 - `app/models/` — SQLAlchemy **normalisé** : `Athlete`, `Course`, `Participation`,
   `PendingProvider`.
 - `app/schemas/` — DTO Pydantic v2 (entrée/sortie).

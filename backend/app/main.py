@@ -94,6 +94,14 @@ def create_app() -> FastAPI:
         openapi_url="/openapi.json" if docs else None,
     )
 
+    # En-têtes de sécurité (#396, constats A05-2 et A02-1). Monté **en premier**
+    # à dessein : `add_middleware` empile à l'envers, donc ce middleware est le
+    # plus proche du routeur et voit le `scope["scheme"]` déjà réécrit par
+    # `ProxyHeadersMiddleware` ci-dessous — dont dépend la pose de HSTS.
+    from app.core.security_headers import SecurityHeadersMiddleware
+
+    app.add_middleware(SecurityHeadersMiddleware)
+
     # Chaîne de confiance des en-têtes de proxy (#393, constat A04-1 de l'audit
     # OWASP). `request.client.host` est la clé du seul plafond de débit du
     # projet (`POST /feedback`) : il faut donc décider **ici** quelle entrée de
