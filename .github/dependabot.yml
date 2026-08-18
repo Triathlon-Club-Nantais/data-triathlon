@@ -10,7 +10,9 @@
 # Dependabot hebdomadaire qu'on cesse de lire ne vaut pas mieux que pas de
 # Dependabot. Les mises à jour mineures/correctives sont groupées en une seule
 # PR par écosystème pour limiter le bruit de revue ; les montées majeures
-# restent séparées pour une revue au cas par cas.
+# restent séparées pour une revue au cas par cas. Le backend en compte deux :
+# les deux dépendances déclarées avec extras ne peuvent pas rejoindre un groupe
+# qui filtre par `update-types` (raison mesurée sous `backend-extras`).
 
 version: 2
 updates:
@@ -23,6 +25,21 @@ updates:
         update-types:
           - "minor"
           - "patch"
+      # `fastapi[standard]` et `uvicorn[standard]` échappaient au groupe
+      # ci-dessus, une PR isolée chacune par salve (#418, #419) : le parser uv
+      # nomme l'entrée du manifeste avec ses extras et celle du lock sans
+      # (`uvicorn[standard]` contre `uvicorn`), les deux ne fusionnent jamais,
+      # et la dépendance arrive donc **sans version résolue** — un `>=` n'en
+      # fournit aucune, seul un `==` le ferait. Or le filtre `update-types` a
+      # besoin de comparer deux versions : sans version, il rejette la
+      # dépendance du groupe. Ce second groupe, défini par motif et **sans**
+      # `update-types`, les capte ; leurs majeures y sont donc groupées, ce qui
+      # reste une revue de deux paquets couplés. Ni `patterns: ["*"]` ni un
+      # plancher aligné sur le lock n'y changent quoi que ce soit (#431).
+      backend-extras:
+        patterns:
+          - "fastapi*"
+          - "uvicorn*"
 
   - package-ecosystem: "npm"
     directory: "/frontend"
