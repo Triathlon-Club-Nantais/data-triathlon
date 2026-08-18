@@ -101,5 +101,10 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   l'utilisent et lire les cookies les rendrait toutes dynamiques),
   `sse.ts` (streaming import SSE).
 - `lib/types.ts` — types TypeScript partagés.
+- `next.config.ts` — rewrites (`/api/*`, proxy PostHog) **et** `headers()` : les
+  en-têtes de sécurité posés sur `/:path*`, rewrites comprises (#396). Ils ne
+  couvrent que ce qui passe par Next : les backends Render étant joignables en
+  direct, `backend/app/core/security_headers.py` en est le jumeau. La CSP n'y est
+  pas — elle demande un `nonce` pour Next.js et PostHog.
 - Déploiement : Vercel, variables `BACKEND_URL` + `API_URL`.
 
