@@ -30,6 +30,8 @@ class ParticipationOut(BaseModel):
     evidence_url: str | None = None
     # Résultat déclaré non encore vérifié par un bénévole (#270, #271).
     is_pending_validation: bool = False
+    # Écarté par un bénévole comme non conforme (#437).
+    is_rejected: bool = False
     splits: dict[str, str] | None = None
     created_at: datetime | None = None
     #: Statistiques détaillées, peuplées par la seule lecture d'**une** participation
