@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
 import type { Participation } from "@/lib/types";
 
@@ -9,11 +9,15 @@ const {
   renameCourseBenevole,
   reassignParticipationBenevole,
   searchAthletes,
+  updateParticipationFieldsBenevole,
+  rejectParticipationBenevole,
 } = vi.hoisted(() => ({
   validateParticipationBenevole: vi.fn(),
   renameCourseBenevole: vi.fn(),
   reassignParticipationBenevole: vi.fn(),
   searchAthletes: vi.fn(),
+  updateParticipationFieldsBenevole: vi.fn(),
+  rejectParticipationBenevole: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
@@ -25,6 +29,8 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
       renameCourseBenevole,
       reassignParticipationBenevole,
       searchAthletes,
+      updateParticipationFieldsBenevole,
+      rejectParticipationBenevole,
     },
   };
 });
@@ -44,7 +50,7 @@ function participation(over: Partial<Participation> = {}): Participation {
       source_url: "",
       is_relay: false,
     },
-    club: "TCN",
+    club: null,
     is_tcn: true,
     category: null,
     bib_number: null,
@@ -64,6 +70,10 @@ function participation(over: Partial<Participation> = {}): Participation {
 }
 
 describe("ParticipationPanel", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("affiche l'athlète, l'épreuve, le temps et le lien de la pièce justificative", () => {
     render(
       <ParticipationPanel
@@ -211,5 +221,71 @@ describe("ParticipationPanel", () => {
 
     await waitFor(() => expect(onSessionExpired).toHaveBeenCalled());
     expect(screen.queryByText(/réessayez plus tard/i)).not.toBeInTheDocument();
+  });
+
+  // --- #437 : champs éditables ---------------------------------------------
+
+  it("enregistre les quatre champs modifiés en un seul appel", async () => {
+    const corrigee = participation({ bib_number: "42", rank_overall: 3, club: "TCN", category: "V2" });
+    updateParticipationFieldsBenevole.mockResolvedValue(corrigee);
+    const onChanged = vi.fn();
+    const user = userEvent.setup();
+    render(<ParticipationPanel participation={participation()} onChanged={onChanged} />);
+
+    await user.type(screen.getByLabelText(/dossard/i), "42");
+    await user.type(screen.getByLabelText(/place au général/i), "3");
+    await user.type(screen.getByLabelText(/^club/i), "TCN");
+    await user.type(screen.getByLabelText(/catégorie/i), "V2");
+    await user.click(screen.getByRole("button", { name: /enregistrer les modifications/i }));
+
+    await waitFor(() =>
+      expect(updateParticipationFieldsBenevole).toHaveBeenCalledWith(7, {
+        bib_number: "42",
+        rank_overall: 3,
+        club: "TCN",
+        category: "V2",
+      }),
+    );
+    expect(onChanged).toHaveBeenCalledWith(corrigee);
+  });
+
+  it("signale un conflit de dossard en français", async () => {
+    updateParticipationFieldsBenevole.mockRejectedValue(
+      new ApiError(409, "Ce dossard est déjà attribué à un autre participant de cette épreuve."),
+    );
+    const user = userEvent.setup();
+    render(<ParticipationPanel participation={participation()} onChanged={vi.fn()} />);
+
+    await user.type(screen.getByLabelText(/dossard/i), "9");
+    await user.click(screen.getByRole("button", { name: /enregistrer les modifications/i }));
+
+    expect(
+      await screen.findByText("Ce dossard est déjà attribué à un autre participant de cette épreuve."),
+    ).toBeInTheDocument();
+  });
+
+  // --- #437 : signalement non conforme -------------------------------------
+
+  it("signale non conforme après confirmation", async () => {
+    const rejetee = participation({ is_rejected: true });
+    rejectParticipationBenevole.mockResolvedValue(rejetee);
+    const onChanged = vi.fn();
+    const user = userEvent.setup();
+    render(<ParticipationPanel participation={participation()} onChanged={onChanged} />);
+
+    await user.click(screen.getByRole("button", { name: /signaler non conforme/i }));
+    await user.click(screen.getByRole("button", { name: /confirmer/i }));
+
+    await waitFor(() => expect(rejectParticipationBenevole).toHaveBeenCalledWith(7));
+    expect(onChanged).toHaveBeenCalledWith(rejetee);
+  });
+
+  it("n'appelle rien si le signalement n'est pas confirmé", async () => {
+    const user = userEvent.setup();
+    render(<ParticipationPanel participation={participation()} onChanged={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /signaler non conforme/i }));
+
+    expect(rejectParticipationBenevole).not.toHaveBeenCalled();
   });
 });
