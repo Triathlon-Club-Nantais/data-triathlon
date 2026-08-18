@@ -2,12 +2,12 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type CSSProperties } from "react";
-import { LogIn, Menu, PanelLeft, Plus, Search } from "lucide-react";
+import { LogIn, Menu, PanelLeft, Plus, Search, X } from "lucide-react";
 import { Avatar } from "@/components/tcn";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useSession } from "@/lib/queries/auth";
-import { AthletePicker, ATHLETE_CHANGED_EVENT, nomComplet, readAthlete, writeAthlete, type PickedAthlete } from "./AthletePicker";
+import { AthletePicker, ATHLETE_CHANGED_EVENT, clearAthlete, nomComplet, readAthlete, writeAthlete, type PickedAthlete } from "./AthletePicker";
 import { NAV, ROLE, type NavItem, type NavSection } from "./nav.config";
 import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
 
@@ -453,19 +453,51 @@ function NavContent({
               <Avatar name={nomComplet(athlete)} size={30} style={{ boxShadow: "var(--tcn-shadow-orange)" }} />
             </Link>
             {expanded && (
-              <Link
-                href={`/athletes/${athlete.id}`}
-                prefetch={false}
-                onClick={onNavigate}
-                style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 14, color: "var(--tcn-orange-deep)", textDecoration: "none", ...tronque }}
-              >
-                {/* Le prénom vient de l'API, jamais d'un découpage du nom
-                    complet : « Jean Gael » est **un** prénom, et
-                    `split(" ")[0]` n'en rendait que la moitié (#264). Repli
-                    sur le nom, faute de quoi la tuile n'aurait pas de
-                    libellé pour un athlète sans prénom renseigné. */}
-                {athlete.prenom || athlete.nom}
-              </Link>
+              <>
+                <Link
+                  href={`/athletes/${athlete.id}`}
+                  prefetch={false}
+                  onClick={onNavigate}
+                  style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 14, color: "var(--tcn-orange-deep)", textDecoration: "none", ...tronque }}
+                >
+                  {/* Le prénom vient de l'API, jamais d'un découpage du nom
+                      complet : « Jean Gael » est **un** prénom, et
+                      `split(" ")[0]` n'en rendait que la moitié (#264). Repli
+                      sur le nom, faute de quoi la tuile n'aurait pas de
+                      libellé pour un athlète sans prénom renseigné. */}
+                  {athlete.prenom || athlete.nom}
+                </Link>
+                {/* Croix de désélection (#442) — offerte au seul rail déplié :
+                    replié, la tuile fait 44 px et l'avatar l'occupe entière.
+                    `clearAthlete` émet `ATHLETE_CHANGED_EVENT`, que `AppNav`
+                    écoute déjà (l.84) : la tuile disparaît par ce chemin, sans
+                    rappel à faire descendre jusqu'ici. Le nom complet, et non
+                    le prénom, parce qu'un libellé d'action se lit hors
+                    contexte. */}
+                <button
+                  type="button"
+                  onClick={() => clearAthlete()}
+                  aria-label={`Ne plus suivre ${nomComplet(athlete)}`}
+                  title="Ne plus suivre"
+                  style={{
+                    flex: "none",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    // 28 px : au-delà du minimum de 24 px de la WCAG 2.5.8,
+                    // et sans faire grandir la tuile de 44 px.
+                    width: 28,
+                    height: 28,
+                    borderRadius: "var(--tcn-radius-sm)",
+                    border: "none",
+                    background: "transparent",
+                    color: "var(--tcn-orange-deep)",
+                    cursor: "pointer",
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              </>
             )}
           </div>
         )}
