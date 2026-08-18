@@ -9,12 +9,14 @@ const {
   getBenevoleRejected,
   benevoleLogin,
   validateParticipationBenevole,
+  rejectParticipationBenevole,
   unrejectParticipationBenevole,
 } = vi.hoisted(() => ({
   getBenevoleQueue: vi.fn(),
   getBenevoleRejected: vi.fn(),
   benevoleLogin: vi.fn(),
   validateParticipationBenevole: vi.fn(),
+  rejectParticipationBenevole: vi.fn(),
   unrejectParticipationBenevole: vi.fn(),
 }));
 
@@ -27,6 +29,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
       getBenevoleRejected,
       benevoleLogin,
       validateParticipationBenevole,
+      rejectParticipationBenevole,
       unrejectParticipationBenevole,
     },
   };
@@ -154,6 +157,27 @@ describe("BenevolesPage", () => {
     await user.click(screen.getByRole("button", { name: /Course 2/ }));
 
     expect(screen.getByLabelText(/nom de l.épreuve/i)).toHaveValue("Course 2");
+  });
+
+  it("signale un résultat non conforme et le fait passer dans l'onglet non-conformes", async () => {
+    const pendante = participation({ id: 1, is_pending_validation: true, is_rejected: false });
+    getBenevoleQueue.mockResolvedValue([pendante]);
+    getBenevoleRejected.mockResolvedValue([]);
+    rejectParticipationBenevole.mockResolvedValue(
+      participation({ id: 1, is_pending_validation: true, is_rejected: true }),
+    );
+    const user = userEvent.setup();
+    render(<BenevolesPage />);
+
+    await user.click(await screen.findByRole("button", { name: /Course 1/ }));
+    await user.click(screen.getByRole("button", { name: /signaler non conforme/i }));
+    await user.click(screen.getByRole("button", { name: /confirmer/i }));
+
+    await waitFor(() => expect(rejectParticipationBenevole).toHaveBeenCalledWith(1));
+    expect(screen.queryByRole("button", { name: /Course 1/ })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /non conformes/i }));
+    expect(screen.getByRole("button", { name: /Course 1/ })).toBeInTheDocument();
   });
 
   it("annule un rejet et fait revenir le résultat dans la file", async () => {
