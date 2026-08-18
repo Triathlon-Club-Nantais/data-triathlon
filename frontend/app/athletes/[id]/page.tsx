@@ -1,5 +1,6 @@
 import { Fragment } from "react";
 import Link from "next/link";
+import { Eye } from "lucide-react";
 import { notFound } from "next/navigation";
 import { apiServer } from "@/lib/api/server";
 import { Avatar, StatCard, Card, Eyebrow, FormatChip, PlaceBadge, PendingBadge } from "@/components/tcn";
@@ -164,9 +165,15 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
                         href={p.evidence_url}
                         target="_blank"
                         rel="noreferrer"
-                        style={{ fontSize: 12, fontWeight: 600, color: "var(--tcn-orange)" }}
+                        // Affordance de bouton discret : classes partagées avec
+                        // `tcn/Button` (voir globals.css) plutôt qu'un composant
+                        // dédié — un `<button>` serait sémantiquement faux ici,
+                        // c'est une navigation, pas une action (rôle "link" à
+                        // conserver, cf. page.test.tsx).
+                        className="tcn-btn tcn-btn--sm tcn-btn--ghost"
                       >
-                        Voir la preuve →
+                        <Eye size={14} aria-hidden="true" />
+                        Voir la preuve
                       </a>
                     </div>
                   ) : null}

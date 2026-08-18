@@ -293,6 +293,19 @@ describe("AthletePage", () => {
     expect(lien).toHaveAttribute("href", "https://club.example/resultats");
   });
 
+  it("affiche le lien de vérification avec l'affordance d'un bouton, icône incluse", async () => {
+    await renderAthlete([
+      part({ id: 1, evidence_url: "https://club.example/resultats" }),
+    ]);
+
+    const lien = screen.getByRole("link", { name: /voir la preuve/i });
+    // Icône décorative : masquée aux lecteurs d'écran, le nom accessible
+    // reste porté par le texte "Voir la preuve" ci-dessus.
+    expect(lien.querySelector("svg[aria-hidden='true']")).not.toBeNull();
+    // Affordance de bouton discret : la classe partagée avec `tcn/Button`.
+    expect(lien.className).toMatch(/tcn-btn/);
+  });
+
   it("n'affiche pas de lien cliquable pour une valeur qui n'est pas une URL http(s)", async () => {
     await renderAthlete([part({ id: 1, evidence_url: "javascript:alert(1)" })]);
 
