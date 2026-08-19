@@ -186,3 +186,64 @@ def test_l_effacement_conserve_les_autres_attributs(client_https, doublure):
     assert "HttpOnly" in entete
     assert "Path=/" in entete
     assert "Domain" not in entete
+
+
+def test_le_cookie_de_presence_est_pose_a_la_connexion_sans_httponly(client_https, doublure):
+    """#427 — signal lisible en JS pour éviter d'émettre `/auth/me` en pure
+    perte pour un visiteur anonyme. `Secure` et `SameSite` restent alignés sur
+    le cookie de session ; seuls `HttpOnly` et le préfixe `__Host-` en
+    divergent, ce dernier n'étant testé qu'ici — le nom, sans secret à
+    protéger, n'a pas besoin de varier avec l'environnement comme les deux
+    autres cookies du module."""
+    from app.services.auth import state
+
+    client_https.get("/api/v1/auth/doublure/authorize", follow_redirects=False)
+    charge = state.read(client_https.cookies["__Host-tcn_auth_state"])
+    reponse = client_https.get(
+        f"/api/v1/auth/doublure/callback?code=c&state={charge.state}",
+        follow_redirects=False,
+    )
+
+    entete = _cookie(reponse, "tcn_logged_in=")
+    assert "HttpOnly" not in entete
+    assert "Secure" in entete
+    assert "SameSite=lax" in entete.replace("SameSite=Lax", "SameSite=lax")
+    assert "Path=/" in entete
+    assert "Domain" not in entete
+
+
+def test_le_cookie_de_presence_et_la_session_expirent_ensemble(client_https, doublure):
+    """Sans quoi les deux cookies dérivent avec le temps : le signal de
+    présence survivrait à une session déjà expirée (rebruite la console qu'on
+    cherche à faire taire), ou l'inverse, une session valide vue comme
+    anonyme."""
+    from app.services.auth import state
+
+    client_https.get("/api/v1/auth/doublure/authorize", follow_redirects=False)
+    charge = state.read(client_https.cookies["__Host-tcn_auth_state"])
+    reponse = client_https.get(
+        f"/api/v1/auth/doublure/callback?code=c&state={charge.state}",
+        follow_redirects=False,
+    )
+
+    def _max_age(entete: str) -> str:
+        return next(p for p in entete.split("; ") if p.lower().startswith("max-age="))
+
+    assert _max_age(_cookie(reponse, "__Host-tcn_session=")) == _max_age(
+        _cookie(reponse, "tcn_logged_in=")
+    )
+
+
+def test_l_effacement_du_cookie_de_presence_a_la_deconnexion_reste_lisible(client_https, db_session):
+    from app.repositories import user_repository
+    from app.services.auth import session
+
+    user = user_repository.create(db_session, email="a@exemple.fr", display_name="a")
+    db_session.flush()
+    client_https.cookies.set("__Host-tcn_session", session.open_for(db_session, user))
+    db_session.commit()
+
+    reponse = client_https.post("/api/v1/auth/logout")
+
+    entete = _efface(reponse, "tcn_logged_in")
+    assert "HttpOnly" not in entete

@@ -90,6 +90,29 @@ dépendre le correctif d'une saisie au dashboard, et une saisie oubliée ne se
 voit pas (c'est exactement ce qu'a coûté #162). Vérification après déploiement :
 `GET /docs` doit rendre **404** en production et **200** en preview.
 
+**`CORS_ORIGINS` — celle dont une erreur ne se voit pas** (#402, constat A05-3 de
+l'audit OWASP). Elle liste, en CSV, les origines autorisées à appeler l'API
+depuis un navigateur. Le défaut du code ouvre les quatre origines locales
+(`127.0.0.1` et `localhost`, ports 3000 et 5173 —
+`backend/app/core/config.py`) : inutilisable en production, et pourtant **sans
+aucun symptôme**. L'interface proxifie `/api/*` par un rewrite Next
+(`frontend/next.config.ts`), donc ses appels partent en *same-origin* et
+n'exercent jamais CORS. Mesuré le 16/08/2026 : la production ne renvoie aucun
+en-tête `Access-Control-Allow-*`, et une origine hostile reçoit un 400 au
+preflight. `allow_credentials` n'est jamais activé (`backend/app/main.py`), donc
+aucun cookie ne peut partir en cross-origin.
+
+| Variable | PROD | PREVIEW | Local |
+|---|---|---|---|
+| `CORS_ORIGINS` | origine de production du projet Vercel `data-triathlon` | origine de production du projet Vercel `data-triathlon-preview` | défaut du code (les quatre origines locales) |
+
+À saisir **tout de même**, sur les deux services : le jour où un appel direct au
+backend existe, l'oubli tombe côté navigateur. Et la valeur ne vit que dans le
+dashboard Render, où rien ne la garde — un `*` posé « pour déboguer » ouvrirait
+l'API à toute origine, et c'est justement l'absence de symptôme qui ferait durer
+l'ouverture : aucune revue ne la voit passer, aucun écran ne s'en plaint. #402 ne
+corrige pas le comportement, qui est bon, mais ce défaut de traçabilité.
+
 ### Vercel (offre Hobby) — 2 projets
 
 | Rôle | Projet Vercel | Ciblé par |

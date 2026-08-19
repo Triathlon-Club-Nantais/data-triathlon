@@ -13,16 +13,20 @@ vi.mock("@/lib/api/server", () => ({
 }));
 
 // SeasonSelector est un composant client : `usePathname`/`useSearchParams`
-// doivent être mockés pour que le rendu de la page (RSC) ne plante pas.
+// doivent être mockés pour que le rendu de la page (RSC) ne plante pas. La
+// query string est mutable : la ligne de tags ne se rend qu'à deux saisons.
+const url = vi.hoisted(() => ({ qs: "" }));
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
   usePathname: () => "/club/athletes",
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(url.qs),
 }));
 
 import AthletesSeasonPage from "./page";
 
 beforeEach(() => {
+  url.qs = "";
   listAthleteSeasonActivity.mockReset().mockResolvedValue([
     { id: 1, nom: "DUPONT", prenom: "Jean", participation_count: 2 },
   ]);
@@ -86,5 +90,28 @@ describe("/club/athletes", () => {
     await renderPage();
 
     expect(screen.getByText("Inclure les autres disciplines")).toBeInTheDocument();
+  });
+
+  it("rattache la ligne de tags à l'en-tête, pas à la liste (revue UI/UX)", async () => {
+    // Posée en enfant du `space-y-8`, la ligne se retrouvait à 32 px de
+    // l'en-tête **et** 32 px de la liste : rien ne disait à quoi elle
+    // appartenait. Groupée avec l'en-tête, sa distance au titre est plus
+    // courte que sa distance à la liste.
+    url.qs = "seasons=2023,2024";
+    await renderPage({ seasons: "2023,2024" });
+
+    const tags = screen.getByTestId("season-tags");
+    const groupe = tags.parentElement;
+
+    expect(groupe).not.toBeNull();
+    expect(groupe).toContainElement(screen.getByRole("heading", { name: "Athlètes par saison" }));
+    expect(groupe).not.toContainElement(screen.getByText("DUPONT"));
+  });
+
+  it("aligne les tags comme le slot d'actions, qui bascule au palier sm (revue UI/UX)", async () => {
+    url.qs = "seasons=2023,2024";
+    await renderPage({ seasons: "2023,2024" });
+
+    expect(screen.getByTestId("season-tags")).toHaveClass("justify-start", "sm:justify-end");
   });
 });

@@ -446,6 +446,24 @@
     outline: 2px solid var(--tcn-orange);
     outline-offset: 2px;
   }
+  /* Bouton-icône posé sur une surface déjà teintée (croix de désélection de la
+     tuile d'athlète, `AppNav`, #442). Même défaut que #299 et #342 : stylé en
+     ligne, il n'avait ni survol ni anneau de focus, et retombait sur
+     `outline-ring/50` — 1,85:1 sur le fond composite de la tuile
+     (`--tcn-orange-08` sur `--tcn-surface`), sous le seuil WCAG 1.4.11 de 3:1.
+     Classe dédiée plutôt que `.tcn-btn` : la géométrie est celle de son hôte,
+     seuls les états manquaient. */
+  .tcn-icon-btn {
+    outline: none;
+    transition: background var(--tcn-dur-fast);
+  }
+  .tcn-icon-btn:hover {
+    background: var(--tcn-orange-12);
+  }
+  .tcn-icon-btn:focus-visible {
+    outline: 2px solid var(--tcn-orange);
+    outline-offset: 2px;
+  }
   /* Option d'un radio-toggle fait main (`AthleteSortToggle` — `RankTypeToggle`
      est passé à `SegmentedControl`, #342) : le `<input>` est masqué en
      opacité 0, donc son `outline` natif l'est aussi. Même défaut que #299

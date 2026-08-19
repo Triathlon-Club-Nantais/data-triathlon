@@ -1,5 +1,46 @@
 # Dev multi-worktree
 
+## Un worktree par issue ou par PR
+
+**Dès qu'un travail cible une issue ou une PR — code, docs, migration —, il se
+fait dans un worktree dédié.** Ni dans le checkout partagé, ni sur `main`. La
+règle est dans `AGENTS.md` (§Conventions générales) ; voici ce qu'elle recouvre.
+
+Elle n'est pas une préférence de rangement. Le checkout partagé est la copie de
+référence que l'humain garde sous les yeux : y committer une branche de travail
+lui déplace son HEAD sans qu'il l'ait demandé, et plusieurs sessions d'agent
+travaillent en parallèle sur ce dépôt (`git worktree list` en dénombre couramment
+plusieurs dizaines). Une branche par worktree, c'est aussi un `backend/.env`, une
+base de dev et un port de backend par travail — sans quoi le front d'une session
+tape la base d'une autre, **sans erreur visible** (voir plus bas).
+
+**Une session isolée ne sort pas de son worktree.** Ses commandes git doivent
+viser son propre arbre : un `git -C <racine-partagée> …`, ou un `cd` vers la
+racine, est refusé par le harnais — pas contourné, refusé.
+
+Comment le créer, dans l'ordre de préférence :
+
+1. **Au démarrage** : `claude --worktree`, qui crée le worktree avant la première
+   question.
+2. **En séance, depuis la racine** : l'outil natif `EnterWorktree`. Il place le
+   worktree sous `.claude/worktrees/<nom>`, ouvre la branche depuis
+   `origin/<branche par défaut>` (réglage `worktree.baseRef` : `fresh` par
+   défaut, `head` pour partir du HEAD local) et recopie ce que liste
+   `.worktreeinclude`. Il gère aussi le nettoyage en fin de session — un
+   `git worktree add` posé à côté crée un état que le harnais ne voit pas.
+3. **En séance, depuis un worktree** : `EnterWorktree` refuse alors de *créer*
+   (son paramètre `name`) et n'accepte plus que d'*entrer* dans un worktree
+   existant (`path`). Il faut donc deux temps — `git worktree add` avec un
+   **chemin absolu** vers `.claude/worktrees/<nom>` (un chemin relatif
+   imbriquerait le worktree dans le worktree courant), puis `EnterWorktree` avec
+   ce `path` — et recopier soi-même les fichiers de `.worktreeinclude`, que ce
+   chemin manuel ne déclenche pas. Mesuré sur #440.
+
+Seule exception : la lecture seule. Explorer le code, répondre à une question,
+relire une PR sans y toucher ne produit aucun commit, donc n'a rien à isoler.
+
+## Ports, découverte, fichiers recopiés
+
 Plusieurs worktrees tournent en parallèle sans configuration. Le backend
 (`backend/scripts/dev_server.py`) laisse l'OS lui attribuer un **port éphémère** —
 un `--port 8001` figé faisait échouer le second worktree sur « Address already in
@@ -59,6 +100,23 @@ le couvrait : `npm test` collectait **52 fichiers de test d'un worktree imbriqu�
 en plus des 69 du front, et un `npm test` vert ne disait plus ce qu'on croyait
 (#300). Les motifs restent des filets de sécurité — la bonne pratique est de
 créer le worktree depuis la racine.
+
+**`EnterWorktree` ne crée rien depuis un worktree** (constaté le 18/08/2026) :
+appelé dans une session déjà entrée dans un worktree, il refuse — « Already in a
+worktree session. Pass `path` to switch into another existing worktree, or use
+ExitWorktree to leave this one before creating a new worktree. » `ExitWorktree`
+n'est pas cette issue de secours : il ne gère que les worktrees créés par
+`EnterWorktree` **dans la session courante**, et reste un no-op quand la session
+a *démarré* dans un worktree (`claude --worktree`, reprise d'un worktree
+existant) — il signale qu'aucune session de worktree n'est active, sans rien
+changer. Enchaîner une seconde issue laisse donc deux chemins : **une nouvelle
+session ouverte depuis la racine**, ou un worktree créé à la main
+(`git worktree add -b <branche> .claude/worktrees/<nom> origin/main`) puis
+rejoint par `EnterWorktree` avec `path` — seul appel qui passe depuis un
+worktree. Le chemin manuel paie le prix décrit juste après : rien de gitignoré
+n'est recopié, donc ni `backend/.env` ni base de dev. Indolore pour une
+modification de documentation, bloquant pour une tâche backend, qui ne
+démarrerait pas.
 
 Un worktree reste une copie **neuve** : rien de gitignoré ne l'accompagne. Pour les
 worktrees créés par Claude Code (`claude --worktree`, sous-agents

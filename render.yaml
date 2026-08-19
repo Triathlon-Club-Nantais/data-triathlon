@@ -92,7 +92,10 @@ services:
       # erreur coûte le plus cher (`GITHUB_BATCH_TARGET`).
       #
       # Origines autorisées à appeler l'API depuis un navigateur (CSV). Le défaut
-      # du code est `localhost:3000,localhost:5173` — inutilisable en production,
+      # du code (`app/core/config.py`) en tient **quatre** — `127.0.0.1` et
+      # `localhost`, chacun en :3000 et :5173 : un navigateur les compte comme
+      # des origines distinctes, et c'est `http://127.0.0.1:3000` que le parcours
+      # SSO local prescrit (docs/ci-cd.md). Inutilisable en production,
       # et pourtant **sans symptôme** : l'interface proxifie `/api/*` par un
       # rewrite Next (`next.config.ts`), donc les appels partent en *same-origin*
       # et n'exercent jamais CORS. Constaté le 16/08/2026 : la production ne
