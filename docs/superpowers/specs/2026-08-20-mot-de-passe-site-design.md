@@ -83,13 +83,20 @@ configuration absente ou cookie absent/invalide/expiré → 401 uniforme.
 
 Posée dans `app/api/v1/router.py`, à l'inclusion de chaque sous-router
 (`include_router(module.router, dependencies=[Depends(require_site_access)])`),
-sauf deux exceptions nommées :
+sauf trois exceptions nommées :
 
 - `health` (`/health`, `/version`) — needs d'infra (keep-warm Render) et
   donnée non sensible, déjà documentée comme volontairement publique ;
 - le nouveau routeur `site_access` lui-même (`POST/DELETE /site-access/session`,
   et `GET /site-access/session` pour la vérification depuis le frontend) —
-  c'est lui qui pose le cookie, il ne peut pas exiger sa propre présence.
+  c'est lui qui pose le cookie, il ne peut pas exiger sa propre présence ;
+- `benevoles` (#271) — **correction apportée en cours de planification** : la
+  page bénévoles vise explicitement une population qui peut ne pas être
+  adhérente (§ Ce que ça change dans les invariantes existantes évoque déjà
+  « potentiellement non-adhérents »). La gater derrière le mot de passe site
+  fermerait la page de vérification à tout bénévole extérieur au club, ce que
+  #271 a justement ouvert. `require_benevole_access` reste sa **seule** garde,
+  inchangée.
 
 Tout le reste, **`auth` (SSO) compris** : un visiteur externe ne doit
 atteindre ni les pages publiques, ni même l'écran de connexion admin, sans
@@ -102,10 +109,24 @@ RBAC de #115 s'applique normalement par-dessus.
 `middleware.ts` pour ce type de garde : un middleware ne constate que la
 *présence* du cookie, jamais sa validité, et un `matcher` mal borné
 intercepte `/api/*` et casse la réécriture vers le backend. Cette feature
-reprend donc le même patron de garde-par-layout, posé cette fois sur
-`app/layout.tsx` (racine) plutôt que sur `admin/` seul : appel serveur à
-`GET /api/v1/site-access/session`, redirection vers une page dédiée
-(`/acces` ou équivalent, formulaire de mot de passe) si 401.
+reprend donc le même patron de garde-par-layout — appel serveur à
+`GET /api/v1/site-access/session`, redirection vers `/acces` (formulaire de
+mot de passe) si 401 — mais **pas sur `app/layout.tsx`** : ce fichier définit
+`<html>`/`<body>` pour **toute** l'application, `/acces` et `/benevoles`
+compris, et une redirection posée là boucle sur elle-même (`/acces` rend le
+layout racine, qui revérifie la session, qui redirige vers `/acces`…) et
+fermerait au passage `/benevoles`, dont l'exemption backend ci-dessus n'aurait
+plus d'effet si le frontend redirige avant même que la page ne s'affiche.
+
+La garde se pose donc sur un groupe de routes, `app/(protege)/layout.tsx`
+(parenthèses : invisible dans l'URL), qui accueille toutes les routes
+existantes (`dashboard`, `resultats`, `athletes`, `courses`, `club`, `carte`,
+`ajouter`, `admin`, `login`) par un déplacement mécanique de dossiers
+(`git mv app/dashboard app/\(protege\)/dashboard`, etc.). `app/layout.tsx`
+(html/body/nav) ne change pas de rôle, il englobe toujours tout. `/acces` et
+`/benevoles` restent des routes **sœurs**, hors du groupe, donc jamais
+soumises à cette garde — `/benevoles` garde sa propre garde côté client
+(`AccessGate`, déjà en place), `/acces` est la page que la garde cible.
 
 **Conséquence assumée** : les six pages publiques aujourd'hui prérendues
 statiquement (`frontend/AGENTS.md`, `serverFetch` inchangé) basculent en
@@ -132,10 +153,28 @@ un nouveau pouvoir RBAC `site_access:manage` (catalogue `core/permissions.py`,
 
 ## Tests
 
-TDD, comme partout : un test qui pose une requête sans cookie sur une route
-gardée quelconque (santé exclue) et attend 401 avant toute implémentation ;
-un test qui vérifie que `health`/`version`/`site-access/session` restent
-accessibles sans cookie ; les tests de non-régression déjà en place sur
-`test_public_routes_still_open.py` et l'inventaire de routes se mettent à
-jour pour refléter la nouvelle garde par défaut (inversion du présupposé,
-donc portée à vérifier avec soin plutôt qu'un simple ajout).
+TDD, comme partout. Un point de terrain change la portée de la fixture
+partagée : `tests/conftest.py::client` est utilisée par la quasi-totalité de
+la suite (~745 tests), et la garde `require_site_access` s'appliquant à
+pratiquement tous les routers, un `client` qui ne présente aucun cookie
+casserait toute la suite d'un coup — ce n'est pas ce que ce livrable doit
+mesurer. La fixture provisionne donc une configuration `site_access_config`
+valide et pose le cookie signé **par défaut**, comme si un adhérent était
+déjà entré ; les tests qui veulent spécifiquement l'anonyme (le nouveau filet
+ci-dessous) appellent `TestClient` directement, sur le patron déjà utilisé
+par `tests/test_api/test_benevoles_api.py::visiteur`, plutôt que de retirer
+le cookie de la fixture partagée.
+
+Nouveau filet, `test_site_access_gate.py` : dérive l'inventaire des routes
+comme `test_public_routes_still_open.py` (jamais à la main), affirme que
+toute route hors `health`/`version`/`site-access/session`/`benevoles/*`
+répond 401 sans le cookie site, et que les mêmes répondent normalement une
+fois le cookie posé. `test_public_routes_still_open.py` et
+`test_permissions_catalogue.py` n'ont, eux, pas besoin de changer d'assertion
+— `client` portant déjà le cookie site, ils continuent de n'éprouver que
+l'axe RBAC qu'ils testaient déjà ; seul
+`test_aucune_dependance_globale_sur_les_routers_existants` doit être vérifié
+à la main plutôt que supposé : il inspecte `module.router.dependencies`, un
+attribut que `include_router(module.router, dependencies=[...])` ne modifie
+pas sur l'objet importé — la garde ci-dessus ne le fait donc pas rougir, mais
+c'est à confirmer par une exécution, pas par lecture seule.
