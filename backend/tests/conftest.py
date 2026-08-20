@@ -63,7 +63,14 @@ def db_session():
 
 @pytest.fixture
 def client(db_session):
-    """TestClient avec `get_db` surchargé pour utiliser la base de test."""
+    """TestClient avec `get_db` surchargé pour utiliser la base de test.
+
+    Neutralise aussi `require_site_access` (#509) : la garde s'applique à
+    quasiment tous les routers, et la quasi-totalité de la suite ne teste
+    pas ce mécanisme — `test_site_access_gate.py` la retire explicitement
+    pour l'éprouver.
+    """
+    from app.api.deps import require_site_access
     from app.core.database import get_db
     from app.main import app
 
@@ -74,6 +81,7 @@ def client(db_session):
             pass
 
     app.dependency_overrides[get_db] = _override_get_db
+    app.dependency_overrides[require_site_access] = lambda: None
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()

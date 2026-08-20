@@ -310,6 +310,7 @@ def test_middleware_compte_les_requetes_d_un_appel_http(monkeypatch, caplog):
 
         monkeypatch.setattr(app_logging._state, "configured", True)
 
+        from app.api.deps import require_site_access
         from app.main import create_app
 
         application = create_app()
@@ -322,6 +323,9 @@ def test_middleware_compte_les_requetes_d_un_appel_http(monkeypatch, caplog):
                 db.close()
 
         application.dependency_overrides[get_db] = _override_get_db
+        # `/api/v1/athletes` est gardé par `require_site_access` (#509) depuis
+        # la tâche 8 : ce test mesure l'observabilité SQL, pas cette garde.
+        application.dependency_overrides[require_site_access] = lambda: None
 
         with caplog.at_level(logging.INFO, logger="app.sql"):
             with TestClient(application) as client:
