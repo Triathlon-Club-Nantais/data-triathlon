@@ -5,17 +5,20 @@ import { useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { ScopeToggle } from "@/components/layout/ScopeToggle";
+import { Skeleton } from "@/components/ui/skeleton";
 import { scopeFromParam } from "@/lib/scope";
 import { CLUB_NAME_SHORT } from "@/lib/club";
-import { COULEURS_CARTE, LIBELLE_CHARGEMENT } from "@/components/map/carte";
+import { COULEURS_CARTE } from "@/components/map/carte";
 
-function Attente() {
-  return <p className="py-10 text-center text-[var(--tcn-text-body)]">{LIBELLE_CHARGEMENT}</p>;
+// Même taille que le conteneur réel de MapView.tsx (`h-[320px] sm:h-[480px]`) :
+// sans quoi le remplacement par la vraie carte décale tout ce qui suit.
+function AttenteCarte() {
+  return <Skeleton className="h-[320px] w-full rounded-md sm:h-[480px]" />;
 }
 
 const MapView = dynamic(() => import("@/components/map/MapView").then((m) => m.MapView), {
   ssr: false,
-  loading: Attente,
+  loading: AttenteCarte,
 });
 
 /**
@@ -41,9 +44,20 @@ function Teinte({ role, children }: { role: keyof typeof COULEURS_CARTE; childre
   );
 }
 
-function CarteContent() {
+/**
+ * Portée de la carte : seul point du composant qui a besoin de
+ * `useSearchParams`, donc seul point qui a besoin d'une frontière `Suspense`
+ * (exigée par Next pour le bail-out statique). L'isoler ici — plutôt que de
+ * l'appeler dans `CartePage` et de faire porter la frontière par toute la
+ * page — laisse le titre s'afficher sans attendre quoi que ce soit (#476).
+ */
+function CarteMap() {
   const sp = useSearchParams();
   const scope = scopeFromParam(sp.get("scope"));
+  return <MapView scope={scope} />;
+}
+
+export default function CartePage() {
   return (
     <PageShell>
       <div className="space-y-6">
@@ -51,22 +65,20 @@ function CarteContent() {
           eyebrow="Géographie des épreuves"
           title="Carte des épreuves"
           description="Localisation des épreuves importées. La taille des cercles reflète le nombre de participants."
-          actions={<ScopeToggle />}
+          actions={
+            <Suspense fallback={<Skeleton className="h-9 w-40 rounded-lg" />}>
+              <ScopeToggle />
+            </Suspense>
+          }
         />
-        <MapView scope={scope} />
+        <Suspense fallback={<AttenteCarte />}>
+          <CarteMap />
+        </Suspense>
         <div className="flex flex-wrap items-center gap-4 text-xs text-[var(--tcn-text-body)]">
           <Teinte role="avecTcn">Épreuve avec des membres {CLUB_NAME_SHORT} (trait plein)</Teinte>
           <Teinte role="sansTcn">Épreuve sans membre {CLUB_NAME_SHORT} (trait pointillé)</Teinte>
         </div>
       </div>
     </PageShell>
-  );
-}
-
-export default function CartePage() {
-  return (
-    <Suspense fallback={<Attente />}>
-      <CarteContent />
-    </Suspense>
   );
 }
