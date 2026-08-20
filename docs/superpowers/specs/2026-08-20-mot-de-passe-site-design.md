@@ -83,24 +83,42 @@ configuration absente ou cookie absent/invalide/expiré → 401 uniforme.
 
 Posée dans `app/api/v1/router.py`, à l'inclusion de chaque sous-router
 (`include_router(module.router, dependencies=[Depends(require_site_access)])`),
-sauf trois exceptions nommées :
+sauf **cinq** exceptions nommées :
 
 - `health` (`/health`, `/version`) — needs d'infra (keep-warm Render) et
   donnée non sensible, déjà documentée comme volontairement publique ;
 - le nouveau routeur `site_access` lui-même (`POST/DELETE /site-access/session`,
   et `GET /site-access/session` pour la vérification depuis le frontend) —
   c'est lui qui pose le cookie, il ne peut pas exiger sa propre présence ;
-- `benevoles` (#271) — **correction apportée en cours de planification** : la
-  page bénévoles vise explicitement une population qui peut ne pas être
-  adhérente (§ Ce que ça change dans les invariantes existantes évoque déjà
-  « potentiellement non-adhérents »). La gater derrière le mot de passe site
-  fermerait la page de vérification à tout bénévole extérieur au club, ce que
-  #271 a justement ouvert. `require_benevole_access` reste sa **seule** garde,
-  inchangée.
+- `benevoles` (#271) — la page bénévoles vise explicitement une population
+  qui peut ne pas être adhérente (§ Ce que ça change dans les invariantes
+  existantes évoque déjà « potentiellement non-adhérents »). La gater
+  derrière le mot de passe site fermerait la page de vérification à tout
+  bénévole extérieur au club, ce que #271 a justement ouvert.
+  `require_benevole_access` reste sa **seule** garde, inchangée ;
+- **`auth`** (SSO) et **`admin_site_access`** — **correction apportée en
+  cours d'implémentation, après un blocage de déploiement détecté en revue
+  de la garde transverse (Task 8)** : gater `auth` derrière le mot de passe
+  site interdisait toute connexion SSO sans lui, et gater
+  `admin_site_access` exigeait le cookie site pour le poser — sur une
+  installation neuve, sans configuration, **aucune** des deux routes n'est
+  jamais atteignable, y compris par un administrateur. Un déploiement frais
+  restait fermé pour toujours, sans échappatoire en base ni en CLI. Les deux
+  routeurs restent protégés par ce qui les protégeait déjà avant #509 :
+  `admin_site_access` par `require_permission(P.SITE_ACCESS_MANAGE)` (RBAC),
+  `auth` par ses propres contrôles (liste d'autorisation, #170). C'est
+  exactement le patron déjà en place pour `admin_benevole_access`, qui n'a
+  jamais été doublement gardé par `require_benevole_access` — la garde
+  transverse ne fait que le reproduire pour la paire équivalente ici.
+  Le bootstrap du tout premier administrateur reste le même qu'aujourd'hui
+  (`app/cli/AGENTS.md`, `grant-role`), inchangé par #509.
 
-Tout le reste, **`auth` (SSO) compris** : un visiteur externe ne doit
-atteindre ni les pages publiques, ni même l'écran de connexion admin, sans
-le mot de passe site d'abord. Une fois la session site ouverte, la garde
+Tout le reste **hors ces cinq** : un visiteur externe ne doit atteindre
+aucune page publique, ni aucune écriture publique existante
+(`POST /participations`, `POST /admin/pending-providers`, `POST /feedback`)
+sans le mot de passe site d'abord — ces routes restent ouvertes **côté
+RBAC** (FR-018/FR-022 de #115 ne changent pas), mais exigent désormais le
+cookie site comme tout le reste. Une fois la session site ouverte, la garde
 RBAC de #115 s'applique normalement par-dessus.
 
 ## Garde frontend — layout, pas middleware
