@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
+import { queryKeys } from "@/lib/queries/keys";
 import type { SheetColumns } from "@/lib/types";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -41,11 +42,14 @@ function afficher() {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(
-    <QueryClientProvider client={qc}>
-      <SheetUpload />
-    </QueryClientProvider>,
-  );
+  return {
+    qc,
+    ...render(
+      <QueryClientProvider client={qc}>
+        <SheetUpload />
+      </QueryClientProvider>,
+    ),
+  };
 }
 
 async function televerser(user: ReturnType<typeof userEvent.setup>) {
@@ -145,6 +149,24 @@ describe("SheetUpload", () => {
     // Les liens jamais soumis, dits explicitement : les taire ferait chercher
     // des épreuves manquantes dans le bilan.
     expect(screen.getByText(/chrono-maison\.example/)).toBeInTheDocument();
+  });
+
+  it("fait apparaître l'exécution lancée dans la liste des imports", async () => {
+    // La plateforme ne rend aucun identifiant au dispatch : c'est l'invalidation
+    // qui fait entrer l'exécution dans la liste, où on la retrouve par son
+    // `correlation_id`. `useLaunchBatch` le fait pour la reprise en base ; ce
+    // chemin-ci l'avait oublié, et l'import lancé restait invisible jusqu'à un
+    // rechargement d'onglet (#471).
+    const user = userEvent.setup();
+    const { qc } = afficher();
+    qc.setQueryData(queryKeys.batchRuns(), []);
+
+    await televerser(user);
+    await user.click(await screen.findByRole("button", { name: /lancer/i }));
+
+    await waitFor(() =>
+      expect(qc.getQueryState(queryKeys.batchRuns())?.isInvalidated).toBe(true),
+    );
   });
 
   it("réaffiche le motif du refus tel qu'il est rendu", async () => {

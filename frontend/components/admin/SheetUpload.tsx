@@ -1,12 +1,13 @@
 "use client";
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiClient } from "@/lib/api/client";
+import { queryKeys } from "@/lib/queries/keys";
 import type { BatchLaunched, SheetColumns } from "@/lib/types";
 
 /**
@@ -18,6 +19,7 @@ import type { BatchLaunched, SheetColumns } from "@/lib/types";
  * évite un dépôt temporaire et la question de sa purge.
  */
 export function SheetUpload() {
+  const qc = useQueryClient();
   const [fichier, setFichier] = useState<File | null>(null);
   const [colonnes, setColonnes] = useState<SheetColumns | null>(null);
   const [colonne, setColonne] = useState<number | null>(null);
@@ -44,7 +46,13 @@ export function SheetUpload() {
   const lancer = useMutation({
     mutationFn: () =>
       apiClient.launchBatchFromFile(fichier as File, colonne as number, dryRun),
-    onSuccess: setLance,
+    // Même invalidation que `useLaunchBatch` : la plateforme ne rend aucun
+    // identifiant au dispatch, c'est elle qui fait entrer l'exécution dans la
+    // liste des imports, où on la retrouve par son `correlation_id`.
+    onSuccess: (data) => {
+      setLance(data);
+      qc.invalidateQueries({ queryKey: queryKeys.batchRuns() });
+    },
     onError: (erreur: Error) => toast.error(erreur.message),
   });
 
