@@ -30,6 +30,42 @@ function detailHref(p: Participation): string {
   return `/courses/${p.course?.id}/participations/${p.id}`;
 }
 
+/**
+ * Cellule d'un inter — **ne rend que ce qui se lit comme une durée** (#472).
+ *
+ * Le repli `—` ne couvrait que l'absence de valeur, jamais l'impossible : un
+ * `0-2:-15:00` (observé sur la course 340) partait à l'écran tel quel, que rien
+ * ne distinguait d'un chronomètre exact. Il devient un manque **signalé** — ni
+ * la chaîne brute, ni un silence qui ferait croire que le chronométreur n'a rien
+ * publié. Même lecture que le tri, qui écarte déjà ces valeurs faute de pouvoir
+ * les comparer.
+ */
+function CelluleInter({ valeur, small }: { valeur?: string; small?: boolean }) {
+  const style = {
+    fontSize: 13,
+    fontWeight: small ? 400 : 600,
+    color: small ? "var(--tcn-grey-400)" : "var(--tcn-text-body)",
+  };
+  if (valeur && secondsFromHms(valeur) == null) {
+    const motif = `Temps illisible chez le chronométreur (« ${valeur} ») — la donnée existe, mais ce n'est pas un temps.`;
+    return (
+      <div style={style}>
+        —{" "}
+        <span
+          // `role="img"` : le marqueur informe, il ne commande rien.
+          role="img"
+          title={motif}
+          aria-label={motif}
+          style={{ color: "var(--tcn-text-faint)", cursor: "help", userSelect: "none" }}
+        >
+          ⚠
+        </span>
+      </div>
+    );
+  }
+  return <div style={style}>{valeur ?? "—"}</div>;
+}
+
 export function RaceFinishers({
   participations,
   summary,
@@ -234,9 +270,7 @@ export function RaceFinishers({
                 <div style={{ fontSize: 13, color: "var(--tcn-text-body)" }}>{genderShort(p.athlete?.gender)}</div>
                 <div style={{ fontFamily: "var(--tcn-font-cond)", fontWeight: 700, fontSize: 15, color: "var(--tcn-ink)" }}>{p.total_time ?? "—"}</div>
                 {segments.map((s) => (
-                  <div key={s.key} style={{ fontSize: 13, fontWeight: s.small ? 400 : 600, color: s.small ? "var(--tcn-grey-400)" : "var(--tcn-text-body)" }}>
-                    {splits[s.key] ?? "—"}
-                  </div>
+                  <CelluleInter key={s.key} valeur={splits[s.key]} small={s.small} />
                 ))}
                 <div style={{ fontSize: 13, fontWeight: own ? 700 : 400, color: own ? "var(--tcn-orange)" : "var(--tcn-text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.club ?? "—"}</div>
               </div>
