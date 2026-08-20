@@ -964,3 +964,41 @@ def test_delete_all_vide_la_table_sans_toucher_aux_courses(db_session):
     assert efface == 1
     assert participation_repository.count_all(db_session) == 0
     assert course_repository.get(db_session, course.id) is not None
+
+
+def test_delete_retire_la_ligne_et_laisse_le_coureur(db_session):
+    """#439 — la suppression d'un résultat ne purge pas la fiche devenue vide.
+
+    Divergence assumée avec `reassign_participation`, qui purge : là, la fiche
+    orpheline est le résidu d'une erreur de rattachement ; ici, un coureur du
+    club dont on retire le seul résultat erroné reste un coureur du club.
+    """
+    athlete, course = _setup(db_session)
+    ligne = participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1", club="TCN"
+    )
+    db_session.flush()
+
+    participation_repository.delete(db_session, ligne)
+
+    assert participation_repository.count_all(db_session) == 0
+    assert athlete_repository.get(db_session, athlete.id) is not None
+
+
+def test_delete_n_emet_aucun_commit(db_session):
+    """Principe II — le repository `flush`, la route `commit`."""
+    athlete, course = _setup(db_session)
+    ligne = participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1", club="TCN"
+    )
+    db_session.flush()
+    appels: list[str] = []
+    original = db_session.commit
+    db_session.commit = lambda: appels.append("commit") or original()
+
+    try:
+        participation_repository.delete(db_session, ligne)
+    finally:
+        db_session.commit = original
+
+    assert appels == []

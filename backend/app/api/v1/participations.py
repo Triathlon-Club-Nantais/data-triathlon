@@ -14,7 +14,7 @@ from app.models.user import User
 from app.repositories import participation_repository
 from app.schemas.participation import ParticipationCreate, ParticipationOut
 from app.scrapers.base import ScrapedResult
-from app.services import participation_stats_service, scrape_service
+from app.services import admin_actions, participation_stats_service, scrape_service
 
 router = APIRouter(tags=["participations"])
 
@@ -138,16 +138,22 @@ def get_participation(participation_id: int, db: Session = Depends(get_db)):
 def delete_participation(
     participation_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission(P.PARTICIPATIONS_DELETE)),
+    user: User = Depends(require_permission(P.PARTICIPATIONS_DELETE)),
 ):
     """Supprime définitivement un résultat.
 
     **L'anomalie la plus nette de la base de code avant #115** : `db.delete()`
     puis `db.commit()`, sans aucune authentification. Un pouvoir distinct de
     l'écriture — créer et détruire ne sont pas le même geste.
+
+    Depuis #439, le geste passe par le service et laisse une entrée au journal :
+    c'est la seule trace qui survit à ce qu'elle décrit. Chemin, verbe et `204`
+    sont inchangés — le contrat publié ne bouge pas (Principe IV).
     """
-    row = participation_repository.get(db, participation_id)
-    if not row:
-        raise NotFoundError("Résultat introuvable")
-    db.delete(row)
+    admin_actions.delete_participation(db, participation_id=participation_id, user_id=user.id)
     db.commit()
+    capture_event(
+        "participation_deleted",
+        distinct_id=str(user.id),
+        properties={"participation_id": participation_id},
+    )

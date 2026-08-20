@@ -50,7 +50,16 @@ ressource).
 | `PATCH /admin/athletes/{id}` | `athletes:write` |
 | `POST /admin/participations/{id}/reassign` | `participations:reassign` |
 
-Quatre points à ne pas défaire :
+**Un geste correctif vit hors de ce tableau** : `DELETE /participations/{id}`,
+gardée par `participations:delete`, est restée dans `participations.py` — chemin,
+verbe et `204` sont publiés, et les déplacer sous `/admin/` serait la
+« modification silencieuse de v1 » que le Principe IV proscrit. Depuis #439 elle
+délègue au service et laisse une entrée `participation.delete` au journal : la
+seule trace qui survive à ce qu'elle décrit. Le journal enregistre l'identité du
+résultat effacé (épreuve, coureur, dossard, temps), pas seulement son
+identifiant, qui ne désigne plus rien.
+
+Sept points à ne pas défaire :
 
 - **L'ampleur annoncée est l'ampleur réelle.** Supprimer une épreuve emporte ses
   résultats *et* les fiches coureur qui n'ont couru qu'elle. `deletion-impact` et
@@ -69,8 +78,37 @@ Quatre points à ne pas défaire :
   coureur qui le porte déjà réussit sans écrire d'entrée : une demande sans effet
   n'est pas un geste. Un refus, lui, n'écrit rien **et** ne modifie rien — le
   service `flush`, la route `commit`.
+- **`PATCH /admin/athletes/{id}` porte le `club` actuel** en plus du triplet
+  d'identité (#439). Il n'entre **pas** dans `uq_athlete_identity` : deux
+  homonymes de clubs différents restent la même personne. « Sans club » s'écrit
+  `null` ; la chaîne vide est refusée (422), sans quoi elle se rangerait comme un
+  libellé de club à part entière.
+- **La correction manuelle du club prime sur tout import ultérieur.** Le
+  chronométreur d'une course d'il y a trois ans annonce le club de l'époque, et
+  le laisser gagner ramènerait la correction à chaque réimport. D'où
+  `athletes.club_locked`, posé par le service quand le club écrit **diffère** de
+  celui en base — sur le geste, pas sur la présence du champ, sinon un
+  enregistrement du formulaire prérempli gèlerait un libellé que personne n'a
+  corrigé. `athlete_repository.resolve` le lit avant de suivre l'import. Le
+  drapeau n'est **exposé par aucune réponse** : ni `AthleteOut`, ni
+  `AdminAthleteOut`, ni `AthleteBrief` — c'est une mécanique interne, pas une
+  donnée du coureur, et un test l'interdit.
+- **Corriger le club actuel ne touche aucun club de résultat.**
+  `participations.club` garde celui de l'époque de sa course : c'est ce qui rend
+  l'historique lisible, et le recalculer effacerait la seule trace du club porté
+  ce jour-là.
+- **La réattribution exige `participations:reassign` *et* `athletes:read`**, à
+  l'affichage comme au parcours (#439). Le sélecteur de coureur cible lit
+  `GET /admin/athletes?search=`, gardée par `athletes:read` et seule à rendre la
+  date de naissance qui départage deux homonymes du même club. Annoncée sur le
+  seul pouvoir de réattribution, l'action s'ouvre sur une liste que rien ne peut
+  remplir — un 403 muet. Le couplage vaut pour les **deux** écrans : la page
+  publique du coureur et `CourseParticipationsDialog` du back-office, où il
+  corrige un bug latent.
 
-Spec, plan et tâches : `specs/20260806-180938-admin-crud-actions/`.
+Spec, plan et tâches : `specs/20260806-180938-admin-crud-actions/`, puis
+`specs/20260820-095442-page-athlete-actions-admin/` pour les gestes portés par la
+page publique du coureur (#439).
 
 ## Doublons suspects (#288)
 

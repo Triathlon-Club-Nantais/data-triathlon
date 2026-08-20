@@ -14,6 +14,7 @@ import pytest
 from app.api.v1.auth import session_cookie_name
 from app.core.config import get_settings
 from app.core.permissions import P
+from app.models.admin_action_log import AdminActionLog
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.organisation import Organisation
@@ -195,12 +196,18 @@ def test_supprimer_un_resultat_avec_le_pouvoir_rend_204(
 
 def test_un_refus_precede_toute_ecriture(client, db_session, organisation, participation):
     """403 et la ligne est toujours là — la garde est une dépendance, pas un contrôle
-    posé au milieu du endpoint."""
+    posé au milieu du endpoint.
+
+    Le journal reste vide avec elle (#439, FR-009) : un geste refusé n'a pas eu
+    lieu, et une trace de tentative ferait lire le journal comme un registre de
+    ce qui a été fait alors qu'il enregistrerait ce qui a été tenté.
+    """
     connecte(client, db_session, organisation)
 
     client.delete(f"/api/v1/participations/{participation.id}")
 
     assert db_session.query(Participation).count() == 1
+    assert db_session.query(AdminActionLog).count() == 0
 
 
 # --- Le signalement anonyme, qui ne bouge pas -------------------------------

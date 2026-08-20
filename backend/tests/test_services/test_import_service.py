@@ -6,9 +6,14 @@ import pytest
 from app.core.config import Settings
 from app.core.exceptions import ProviderNotSupportedError
 from app.core.time import utcnow
-from app.repositories import course_repository, participation_repository
+from app.repositories import (
+    athlete_repository,
+    course_repository,
+    participation_repository,
+    user_repository,
+)
 from app.scrapers.base import FanoutTrace, ScrapedResult
-from app.services import import_service, quality
+from app.services import admin_actions, import_service, quality
 
 
 def _settings() -> Settings:
@@ -90,6 +95,46 @@ def test_reimport_after_cache_dedups_by_bib(db_session, patch_scraper):
     patch_scraper([_result("1", "DUPONT"), _result("2", "MARTIN")])
     out = import_service.import_event(db_session, URL, _settings())
     assert _counters(out) == {"imported": 1, "updated": 0, "skipped": 1, "reconciled": 0}
+
+
+def test_reimport_respecte_un_club_corrige_a_la_main(db_session, patch_scraper):
+    """#439, SC-008 — la correction manuelle du club survit à un réimport complet.
+
+    Les deux coureurs de l'épreuve sont traités par le **même** appel de
+    `resolve` : celui dont le club a été corrigé garde sa valeur, l'autre suit le
+    chronométreur. C'est le seul test qui éprouve l'invariant sur le chemin réel
+    d'import plutôt que sur le repository seul.
+    """
+    patch_scraper(
+        [
+            _result("1", "VERROU", prenom="Vera", club="ASPTT NANTES"),
+            _result("2", "SUIVEUR", prenom="Sam", club="ASPTT NANTES"),
+        ]
+    )
+    import_service.import_event(db_session, URL, _settings())
+
+    auteur = user_repository.create(db_session, email="admin@exemple.fr")
+    db_session.flush()
+    verrouille = athlete_repository.get_by_identity(db_session, "VERROU", "Vera", None)
+    admin_actions.update_athlete(
+        db_session,
+        athlete_id=verrouille.id,
+        champs={"club": "TRI CLUB NANTAIS"},
+        user_id=auteur.id,
+    )
+
+    # Le chronométreur, lui, ignore la correction et publie son propre libellé.
+    patch_scraper(
+        [
+            _result("1", "VERROU", prenom="Vera", club="ASPTT NANTES 44"),
+            _result("2", "SUIVEUR", prenom="Sam", club="ASPTT NANTES 44"),
+        ]
+    )
+    import_service.import_event(db_session, URL, _settings(), force=True)
+
+    assert athlete_repository.get(db_session, verrouille.id).club == "TRI CLUB NANTAIS"
+    suiveur = athlete_repository.get_by_identity(db_session, "SUIVEUR", "Sam", None)
+    assert suiveur.club == "ASPTT NANTES 44"
 
 
 def test_import_calcule_l_indice_de_fiabilite(db_session, patch_scraper):

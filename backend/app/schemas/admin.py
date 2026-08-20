@@ -283,19 +283,25 @@ class _PatchNonVide(BaseModel):
 
 
 class AdminAthleteUpdate(_PatchNonVide):
-    """Correction d'identité d'un coureur (#117, FR-004).
+    """Correction de la fiche d'un coureur — identité et club actuel (#117, #439).
 
-    `nom` et `prenom` restent en français : gelés par un contrat public
+    `nom`, `prenom` et `club` restent en français : gelés par un contrat public
     (Principe I) — ils traversent la base, l'API et `frontend/lib/types.ts`.
+
+    **« Sans club » s'écrit `null`, jamais `""`** : la chaîne vide serait rangée
+    comme un libellé de club à part entière, présent dans les regroupements. D'où
+    `club` dans `_NULLABLES` *et* son `min_length` — les deux disent la même règle
+    par leurs deux bouts.
     """
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
-    _NULLABLES: ClassVar[frozenset[str]] = frozenset({"birth_date"})
+    _NULLABLES: ClassVar[frozenset[str]] = frozenset({"birth_date", "club"})
 
     nom: str | None = Field(default=None, min_length=1)
     prenom: str | None = Field(default=None, min_length=1)
     birth_date: date | None = None
+    club: str | None = Field(default=None, min_length=1)
 
 
 class AdminCourseUpdate(_PatchNonVide):

@@ -643,8 +643,53 @@ def reassign_participation(
     return participation
 
 
-#: Les champs d'identité éditables d'un coureur. Le triplet, et rien d'autre.
-_CHAMPS_ATHLETE = ("nom", "prenom", "birth_date")
+def delete_participation(db: Session, *, participation_id: int, user_id: int) -> dict:
+    """Supprime un résultat, et en garde la mémoire (#439).
+
+    **Le `payload` se construit avant la suppression** : après, il n'y a plus rien
+    à lire, et le journal est la seule trace de ce que portait la ligne.
+
+    **Aucune purge de fiche coureur**, contrairement à `reassign_participation`
+    (D5). Là, la fiche source n'a jamais rien couru — elle est le résidu d'une
+    erreur de rattachement, et la purger achève le geste. Ici, la fiche est celle
+    d'un coureur réel dont on retire un résultat erroné : la supprimer parce
+    qu'elle devient vide dépasserait ce qui a été demandé.
+    """
+    participation = _participation_or_404(db, participation_id)
+    resume = {
+        "athlete_id": participation.athlete_id,
+        "athlete_name": f"{participation.athlete.prenom} {participation.athlete.nom}".strip(),
+        "course_id": participation.course_id,
+        "course_name": participation.course.name,
+        "event_date": (
+            participation.course.event_date.isoformat()
+            if participation.course.event_date
+            else None
+        ),
+        "bib_number": participation.bib_number,
+        "rank_overall": participation.rank_overall,
+        "total_time": participation.total_time,
+        "status": participation.status,
+        "was_pending_validation": participation.is_pending_validation,
+    }
+
+    admin_action_log_repository.create(
+        db,
+        user_id=user_id,
+        action="participation.delete",
+        entity_type="participation",
+        entity_id=participation_id,
+        payload=resume,
+    )
+    participation_repository.delete(db, participation)
+    logger.info("Admin %s deleted participation %s", user_id, participation_id)
+    return resume
+
+
+#: Les champs éditables d'un coureur : le triplet d'identité, plus le club actuel
+#: (#439). Le club **n'entre pas** dans la clé d'unicité — deux homonymes de clubs
+#: différents restent la même personne pour `uq_athlete_identity`.
+_CHAMPS_ATHLETE = ("nom", "prenom", "birth_date", "club")
 
 #: Ceux d'une épreuve — exactement la clé `uq_course_identity`.
 _CHAMPS_COURSE = ("name", "event_date", "event_type", "is_relay")
@@ -663,11 +708,15 @@ def _instantane(entite, champs: tuple[str, ...]) -> dict:
 
 
 def update_athlete(db: Session, *, athlete_id: int, champs: dict, user_id: int) -> Athlete:
-    """Corrige l'identité d'un coureur — nom, prénom, date de naissance (FR-004).
+    """Corrige la fiche d'un coureur — nom, prénom, date de naissance, club (FR-004).
 
     **Le doublon se détecte par lecture préalable**, jamais par l'`IntegrityError`
     de `uq_athlete_identity` : celle-ci invaliderait la transaction et rendrait un
     message technique, là où AC2 demande de **nommer** la fiche en conflit.
+
+    Le club corrigé ici cesse de suivre les imports (`club_locked`, US3-AC4) ; les
+    clubs portés par les **résultats** ne bougent pas — chacun garde celui de
+    l'époque de sa course (FR-013).
     """
     athlete = _athlete_or_404(db, athlete_id)
     avant = _instantane(athlete, _CHAMPS_ATHLETE)
@@ -681,6 +730,13 @@ def update_athlete(db: Session, *, athlete_id: int, champs: dict, user_id: int) 
         raise DuplicateError(
             f"Un coureur porte déjà cette identité (fiche #{conflit.id})."
         )
+
+    # Le verrou se pose sur le **geste**, pas sur la présence du champ : le
+    # formulaire renvoie le club prérempli à chaque enregistrement, et verrouiller
+    # là gèlerait contre tous les imports à venir un libellé que personne n'a
+    # corrigé.
+    if "club" in demande and demande["club"] != athlete.club:
+        demande["club_locked"] = True
 
     athlete_repository.update_identity(db, athlete, **demande)
     apres = _instantane(athlete, _CHAMPS_ATHLETE)

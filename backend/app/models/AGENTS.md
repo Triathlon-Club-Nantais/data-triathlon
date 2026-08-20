@@ -1,6 +1,12 @@
 # Modèle normalisé
 
-- **Athlete** — `UNIQUE(nom, prenom, birth_date)`.
+- **Athlete** — `UNIQUE(nom, prenom, birth_date)`. `club` porte le club
+  **actuel** : il suit l'import, sauf correction humaine — `club_locked` (#439),
+  posé par `admin_actions.update_athlete` quand le club écrit diffère de celui en
+  base, dit à `athlete_repository.resolve` de ne plus le réécrire. Sans lui, une
+  course d'il y a trois ans annonçant le club de l'époque ramènerait la
+  correction à chaque réimport. Le club **de l'époque** d'un résultat, lui, vit
+  sur `Participation.club` et ne bouge jamais.
 - **Course** — `UNIQUE(name, event_date, event_type, is_relay)`
   (`uq_course_identity`) : le relais est un **heat distinct** du solo, sans quoi
   les deux fusionnaient dans la même ligne. Quatre colonnes, pas trois — la
