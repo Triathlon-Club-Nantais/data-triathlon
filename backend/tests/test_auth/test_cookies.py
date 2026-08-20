@@ -42,6 +42,7 @@ def client_https(db_session, en_https):
     """
     from fastapi.testclient import TestClient
 
+    from app.api.deps import require_site_access
     from app.core.database import get_db
     from app.main import app
 
@@ -49,6 +50,7 @@ def client_https(db_session, en_https):
         yield db_session
 
     app.dependency_overrides[get_db] = _override_get_db
+    app.dependency_overrides[require_site_access] = lambda: None
     with TestClient(app, base_url="https://testserver") as c:
         yield c
     app.dependency_overrides.clear()
