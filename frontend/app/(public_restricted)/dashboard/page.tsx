@@ -100,7 +100,7 @@ export default async function DashboardPage({
         </Card>
 
         <Card>
-          <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 24, color: "var(--tcn-ink)", marginBottom: 18 }}>Épreuves préférées</div>
+          <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 24, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 18 }}>Épreuves préférées</h2>
           <div style={{ display: "grid", gridTemplateColumns: "24px 1fr auto auto", gap: "0 14px", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--tcn-text-faint)", paddingBottom: 10, borderBottom: "1px solid var(--tcn-border)" }}>
             <div>#</div><div>Épreuve</div><div>Format</div><div style={{ textAlign: "right" }}>Dossards</div>
           </div>

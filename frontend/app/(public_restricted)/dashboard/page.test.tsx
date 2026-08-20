@@ -152,6 +152,7 @@ describe("DashboardPage", () => {
     await renderDashboard({});
 
     expect(screen.getByRole("heading", { level: 2, name: "Type d'épreuves" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Épreuves préférées" })).toBeInTheDocument();
   });
 
   it("garde les tags de saison hors de la barre d'outils, pour que les boutons ne bougent pas (#445)", async () => {
