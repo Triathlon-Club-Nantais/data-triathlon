@@ -437,6 +437,32 @@ export function useGenerateBenevoleAccessPassword() {
   });
 }
 
+// ── Mot de passe d'accès au site (#509) ──────────────────────────────────────
+
+export function useSiteAccessConfig() {
+  return useQuery({
+    queryKey: queryKeys.siteAccessConfig(),
+    queryFn: () => apiClient.getSiteAccessConfig(),
+    retry: false,
+  });
+}
+
+export function useReplaceSiteAccessPassword() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (password: string) => apiClient.replaceSiteAccessPassword(password),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.siteAccessConfig() }),
+  });
+}
+
+export function useGenerateSiteAccessPassword() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiClient.generateSiteAccessPassword(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.siteAccessConfig() }),
+  });
+}
+
 // ── Groupes d'appartenance (#241) ────────────────────────────────────────────
 
 export function useGroups() {

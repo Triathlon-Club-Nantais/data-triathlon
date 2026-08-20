@@ -5,6 +5,7 @@ export const queryKeys = {
   pendingProviders: () => ["pending-providers"] as const,
   allowedEmails: () => ["allowed-emails"] as const,
   benevoleAccessConfig: () => ["benevole-access-config"] as const,
+  siteAccessConfig: () => ["site-access-config"] as const,
   adminCourses: (page = 1, filtres: Record<string, string> = {}) =>
     ["admin-courses", page, filtres] as const,
   // Sous le même préfixe que la liste, délibérément : `CACHES_ADMIN.courses`
