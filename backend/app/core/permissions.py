@@ -107,6 +107,13 @@ class P:
         "remplacer par une saisie ou en générer un nouveau de façon sécurisée.",
         FEATURE_ROLES,
     )
+    SITE_ACCESS_MANAGE = Permission(
+        "site_access:manage",
+        "Gérer l'accès au site",
+        "Consulter l'état du mot de passe partagé du site, le remplacer par "
+        "une saisie ou en générer un nouveau de façon sécurisée.",
+        FEATURE_ROLES,
+    )
     GROUPS_READ = Permission(
         "groups:read",
         "Consulter les groupes",
@@ -253,6 +260,7 @@ ALL: tuple[Permission, ...] = (
     P.ALLOWED_EMAILS_MANAGE,
     P.SESSIONS_REVOKE,
     P.BENEVOLE_ACCESS_MANAGE,
+    P.SITE_ACCESS_MANAGE,
     P.GROUPS_READ,
     P.GROUPS_WRITE,
     P.GROUPS_ASSIGN,
