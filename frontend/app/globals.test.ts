@@ -2,28 +2,9 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { COULEURS_CARTE } from "@/components/map/carte";
+import { SURFACES, contrast, token } from "@/test/couleur";
 
 const css = readFileSync(fileURLToPath(new URL("globals.css", import.meta.url)), "utf8");
-
-/** Valeur littérale d'un token `--tcn-*` déclaré sur `:root`. */
-function token(name: string): string {
-  const found = new RegExp(`${name}:\\s*([^;]+);`).exec(css);
-  if (!found) throw new Error(`token ${name} absent de globals.css`);
-  return found[1].trim();
-}
-
-function relativeLuminance(hex: string): number {
-  const clean = hex.replace("#", "");
-  const channels = [0, 2, 4].map((i) => parseInt(clean.slice(i, i + 2), 16) / 255);
-  const [r, g, b] = channels.map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-/** Ratio de contraste WCAG 2.1 entre deux couleurs hexadécimales. */
-function contrast(a: string, b: string): number {
-  const [hi, lo] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x);
-  return (hi + 0.05) / (lo + 0.05);
-}
 
 /** Nom de la couche `@layer` qui contient un sélecteur, `null` s'il est hors couche. */
 function layerOf(selector: string): string | null {
@@ -40,9 +21,6 @@ function rule(selector: string): string {
   if (!found) throw new Error(`règle ${selector} absente de globals.css`);
   return found[1];
 }
-
-/** Les trois surfaces sur lesquelles du texte se pose réellement. */
-const SURFACES = ["--tcn-surface", "--tcn-paper", "--tcn-surface-sunk"];
 
 /** Tokens de texte gardés au seuil du texte courant (WCAG 1.4.3, 4,5:1). */
 const TOKENS_TEXTE = ["--tcn-text", "--tcn-text-body", "--tcn-text-faint", "--tcn-text-muted"];
@@ -176,6 +154,20 @@ describe("bouton TCN", () => {
     const desactive = rule(".tcn-btn:disabled");
     expect(desactive).toContain("cursor: not-allowed");
     expect(desactive).toContain("box-shadow: none");
+  });
+});
+
+describe("part d'encre des libellés teintés", () => {
+  it("déclare `--ink-mix` en pourcentage", () => {
+    // `tintedStyle` et les segments de ResultCard écrivent
+    // `color-mix(in oklab, <discipline>, var(--foreground) var(--ink-mix))` : le
+    // jeton n'était déclaré nulle part (#469), donc la fonction rendait invalide
+    // et le libellé gardait la couleur pleine de la discipline sur son propre
+    // aplat à 14 % — 3,32:1 pour l'orange clair, sous le seuil WCAG 1.4.3. Ce
+    // que la valeur doit valoir se vérifie sur la vraie fonction, dans
+    // `lib/sport-colors.test.ts` ; ici, seule sa forme est en jeu : `color-mix`
+    // n'accepte qu'un pourcentage et ignore silencieusement tout le reste.
+    expect(token("--ink-mix")).toMatch(/^\d+(?:\.\d+)?%$/);
   });
 });
 

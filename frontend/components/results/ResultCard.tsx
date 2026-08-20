@@ -7,6 +7,7 @@ import { SportBadge } from "./SportBadge";
 import { StatusBadge } from "./StatusBadge";
 import { Medal } from "@/components/ui/medal";
 import { splitSegments } from "@/lib/utils/splits";
+import { inkColor } from "@/lib/sport-colors";
 import { formatDate, timeAgo } from "@/lib/utils/date";
 import { formatEventName } from "@/lib/utils/event";
 import { isHttpUrl } from "@/lib/utils/url";
@@ -74,12 +75,7 @@ export function ResultCard({ result }: { result: Participation }) {
                 className="flex min-w-[60px] flex-col items-center"
                 style={{ opacity: s.small ? 0.6 : 1 }}
               >
-                <span
-                  className="micro-label"
-                  style={{
-                    color: `color-mix(in oklch, ${s.color}, var(--foreground) var(--ink-mix))`,
-                  }}
-                >
+                <span className="micro-label" style={{ color: inkColor(s.color) }}>
                   {s.label}
                 </span>
                 <span className="num text-sm font-semibold">{s.time}</span>

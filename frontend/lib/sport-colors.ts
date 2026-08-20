@@ -26,12 +26,24 @@ export function eventTypeColor(type: string | null | undefined): string {
 }
 
 /**
+ * Version « encre » d'une couleur de discipline : assez sombre pour porter du
+ * texte sur l'aplat correspondant, assez colorée pour rester reconnaissable.
+ *
+ * **`in oklab`, pas `in oklch`** : vers une encre quasi neutre mais bleutée,
+ * l'arc de teinte le plus court d'OKLCH fait passer l'orange de marque par le
+ * prune (#E9530E → #863c6c). En OKLab, la teinte ne dévie pas (#469).
+ */
+export function inkColor(color: string): string {
+  return `color-mix(in oklab, ${color}, var(--foreground) var(--ink-mix))`;
+}
+
+/**
  * Règle d'or : **aplat = couleur pleine, texte = `…-ink`**.
  * Fond teinté à 14 %, libellé mixé vers `--foreground` de `--ink-mix`.
  */
 export function tintedStyle(color: string): React.CSSProperties {
   return {
-    color: `color-mix(in oklch, ${color}, var(--foreground) var(--ink-mix))`,
-    background: `color-mix(in oklch, ${color} 14%, transparent)`,
+    color: inkColor(color),
+    background: `color-mix(in oklab, ${color} 14%, transparent)`,
   };
 }

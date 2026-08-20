@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ResultCard } from "./ResultCard";
+import { inkColor } from "@/lib/sport-colors";
 import type { Participation } from "@/lib/types";
 
 const base: Participation = {
@@ -71,6 +72,15 @@ describe("ResultCard", () => {
   it("n'affiche pas le badge Relais pour un solo", () => {
     render(<ResultCard result={base} />);
     expect(screen.queryByText("Relais")).not.toBeInTheDocument();
+  });
+
+  it("colore les libellés de segment de l'encre de leur discipline", () => {
+    // ResultCard recopiait à la main l'expression de `tintedStyle`, et gardait
+    // donc sa version fautive : `in oklch` fait dévier la teinte de l'orange
+    // vers le prune (#469). La formule n'a qu'un seul propriétaire.
+    render(<ResultCard result={base} />);
+    expect(screen.getByText("Natation")).toHaveStyle({ color: inkColor("var(--swim)") });
+    expect(screen.getByText("Vélo")).toHaveStyle({ color: inkColor("var(--bike)") });
   });
 
   it("affiche le sigle DNS à la place du temps pour un non-partant", () => {
