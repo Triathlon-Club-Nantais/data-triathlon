@@ -377,6 +377,10 @@ export const apiClient = {
       method: "POST",
     }),
 
+  // ── Mot de passe d'accès au site (#509) ────────────────────────────────────
+  siteAccessLogin: (password: string) =>
+    request<null>("/site-access/session", { method: "POST", body: JSON.stringify({ password }) }),
+
   // ── Retours utilisateurs (#267) ────────────────────────────────────────────
   // Route publique, et son chemin le dit : `/feedback`, hors de `/admin` où
   // vivent les trois verbes gardés de la même ressource. Aucune session requise ;
