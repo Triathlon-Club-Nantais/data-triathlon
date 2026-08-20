@@ -10,8 +10,6 @@ from app.core.exceptions import register_exception_handlers
 from app.repositories import user_repository
 from app.services import site_access
 
-MOT_DE_PASSE_TTL_JOURS = 7
-
 
 @pytest.fixture
 def administrateur(db_session):
