@@ -179,6 +179,39 @@ describe("bouton TCN", () => {
   });
 });
 
+describe("micro-libellé", () => {
+  // `.micro-label` était **utilisée par cinq composants** et déclarée nulle part
+  // (#470) : SportBadge, ResultCard (deux fois), MonthlyTrend, PodiumsList. Les
+  // libellés de discipline, de segment et de portée de podium rendaient donc en
+  // corps de texte hérité, ni condensés ni en capitales — la classe était morte.
+
+  it("existe, en micro-capitales condensées", () => {
+    const micro = rule(".micro-label");
+    expect(micro).toContain("font-family: var(--tcn-font-cond)");
+    expect(micro).toContain("text-transform: uppercase");
+    expect(micro).toMatch(/letter-spacing:/);
+
+    const taille = /font-size:\s*(\d+)px/.exec(micro);
+    expect(taille).not.toBeNull();
+    expect(Number(taille![1])).toBeLessThanOrEqual(11);
+  });
+
+  it("vit dans `base`, pour que la taille passée par l'appelant gagne", () => {
+    // MonthlyTrend écrit `micro-label text-[8px]` et PodiumsList `text-[9px]` :
+    // depuis `utilities`, nos règles étant émises après les utilitaires générés,
+    // c'est nous qui gagnerions et les deux tailles seraient perdues. Même
+    // arbitrage que `.tcn-btn`, pour la même raison.
+    expect(layerOf(".micro-label")).toBe("base");
+  });
+
+  it("laisse la couleur à l'appelant", () => {
+    // Les cinq usages fixent la leur (mix en ligne de ResultCard et SportBadge,
+    // `text-[var(--tcn-text-faint)]` de MonthlyTrend) ou héritent volontairement
+    // (PodiumsList). Une couleur posée ici n'en laisserait vivre qu'une.
+    expect(rule(".micro-label")).not.toMatch(/(^|;)\s*color:/);
+  });
+});
+
 describe("mouvement réduit", () => {
   it("neutralise animations et transitions sous prefers-reduced-motion", () => {
     // WCAG 2.3.3 — 21 usages `animate-*` et les entrées de tw-animate-css
