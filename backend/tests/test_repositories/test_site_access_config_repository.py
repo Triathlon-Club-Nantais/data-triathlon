@@ -7,6 +7,30 @@ def test_get_config_rend_none_en_l_absence_de_configuration(db_session):
     assert site_access_config_repository.get_config(db_session) is None
 
 
+def test_get_config_sans_updated_by_ne_le_charge_pas(db_session):
+    """Fix #7, revue finale : la garde (`require_site_access`) ne lit jamais
+    que `session_secret` et n'a aucune raison de payer la jointure — mesuré en
+    confirmant que l'attribut n'est **pas** chargé en session (`unloaded`),
+    plutôt que sur le nombre de requêtes SQL, plus fragile à l'implémentation."""
+    from sqlalchemy import inspect
+
+    admin = user_repository.create(db_session, email="admin@exemple.fr", display_name="Admin")
+    db_session.flush()
+    site_access_config_repository.save_config(
+        db_session,
+        password_hash="hash",
+        password_salt="salt",
+        session_secret="secret",
+        updated_by_user_id=admin.id,
+    )
+    db_session.expire_all()
+
+    config = site_access_config_repository.get_config(db_session, with_updated_by=False)
+
+    assert config is not None
+    assert "updated_by" in inspect(config).unloaded
+
+
 def test_save_config_cree_la_ligne_absente(db_session):
     admin = user_repository.create(db_session, email="admin@exemple.fr", display_name="Admin")
     db_session.flush()

@@ -63,3 +63,12 @@ def test_verification_accepte_apres_ouverture(client):
     c.post("/api/v1/site-access/session", json={"password": MOT_DE_PASSE})
     reponse = c.get("/api/v1/site-access/session")
     assert reponse.status_code == 200
+
+
+def test_refuse_un_mot_de_passe_trop_long(client):
+    """Revue finale de #509, § Plafond de débit : `max_length` sur le corps,
+    en plus du plafond de débit par IP."""
+    reponse = _client_anonyme(client).post(
+        "/api/v1/site-access/session", json={"password": "x" * 201}
+    )
+    assert reponse.status_code == 422
