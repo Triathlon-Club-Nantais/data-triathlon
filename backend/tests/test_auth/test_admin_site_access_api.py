@@ -1,9 +1,9 @@
 """Gestion admin du mot de passe partagé du site (#509) — patron exact de
 `test_admin_benevole_access_api.py`, RBAC (`site_access:manage`).
 
-Le routeur n'est monté qu'à la tâche suivante (#509, tâche 8) : à ce stade,
-toute requête sur `/admin/site-access` rend 404 — c'est le résultat attendu
-de cette tâche, pas un échec à corriger ici.
+`GET`/`PUT /admin/site-access` sont gardées par `require_permission` : 401
+sans session, 403 sans le pouvoir, 200 avec — jamais un 404, le routeur étant
+monté depuis la tâche 8.
 """
 from app.core.permissions import P
 

@@ -176,6 +176,7 @@ le frontend n'en porte aucun, il ne fait que proxifier `/api/*`.
 | `AUTH_REDIRECT_BASE_URL` | URL de production de `data-triathlon` | URL de production de `data-triathlon-preview` | `http://127.0.0.1:3000` |
 | `AUTH_COOKIE_SECURE` | `true` | `true` | `false` |
 | `AUTH_SESSION_TTL_DAYS` / `AUTH_STATE_TTL_SECONDS` | défauts (7 j / 600 s) | défauts | défauts |
+| `SITE_ACCESS_SESSION_TTL_DAYS` (#509, hors SSO — mot de passe d'accès au site) | défaut (7 j) | défaut | défaut |
 
 > **Régénérer `AUTH_SESSION_SECRET_KEY` ne ferme aucune session.** C'est
 > l'attente naturelle, et elle est fausse : le jeton de session est **opaque et
