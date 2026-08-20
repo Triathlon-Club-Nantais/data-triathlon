@@ -107,6 +107,9 @@ describe("CoursePage", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Répartition genre" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Répartition par catégorie" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Top clubs" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Distribution des temps des finishers" }),
+    ).toBeInTheDocument();
   });
 
   it("alimente les six blocs depuis la synthèse, pas depuis les lignes affichées", async () => {

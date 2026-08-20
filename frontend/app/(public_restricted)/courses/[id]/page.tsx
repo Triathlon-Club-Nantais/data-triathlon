@@ -125,7 +125,7 @@ export default async function CoursePage({
 
       {summary.histogram && (
         <Card padding={28} style={{ marginBottom: 18 }}>
-          <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)", marginBottom: 4 }}>Distribution des temps des finishers</div>
+          <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 4 }}>Distribution des temps des finishers</h2>
           <div style={{ fontSize: 13, color: "var(--tcn-text-muted)", marginBottom: 18 }}>Nombre d&apos;athlètes par tranche de 5 minutes</div>
           <Histogram
             bars={summary.histogram.bars}
