@@ -386,6 +386,20 @@
   .tcn-btn--ghost:hover:not(:disabled) {
     background: var(--tcn-border);
   }
+
+  /* Micro-libellé : petites capitales condensées des badges et des segments
+     (SportBadge, ResultCard, MonthlyTrend, PodiumsList). Dans `base` comme
+     `.tcn-btn`, et pour la même raison : `text-[8px]` et `text-[9px]` sont
+     passés par l'appelant et doivent gagner. Pas de couleur — chaque usage pose
+     la sienne, ou hérite. */
+  .micro-label {
+    font-family: var(--tcn-font-cond);
+    font-weight: 700;
+    font-size: 11px;
+    line-height: 1.2;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
 }
 
 @layer utilities {
