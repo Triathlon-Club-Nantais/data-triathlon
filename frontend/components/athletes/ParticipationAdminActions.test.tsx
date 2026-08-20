@@ -146,7 +146,7 @@ describe("ParticipationAdminActions — la visibilité", () => {
 
     expect(
       await screen.findByRole("button", {
-        name: "Rattacher le résultat de « Triathlon de Nantes »",
+        name: "Rattacher le résultat de « Triathlon de Nantes — 15/06/2025 »",
       }),
     ).toBeInTheDocument();
     // Un pouvoir n'en offre pas un autre : pas de suppression ici.
@@ -158,11 +158,12 @@ describe("ParticipationAdminActions — la visibilité", () => {
 
     afficher();
 
-    // L'intitulé accessible nomme l'épreuve : sur une page qui en aligne vingt,
-    // « Supprimer » seul ne dirait pas lequel des vingt.
+    // L'intitulé accessible nomme l'épreuve **et sa date** : sur une page qui
+    // aligne vingt lignes, « Supprimer » seul ne dirait pas laquelle part, et
+    // trois éditions d'une même course porteraient le même intitulé.
     expect(
       await screen.findByRole("button", {
-        name: "Supprimer le résultat de « Triathlon de Nantes »",
+        name: "Supprimer le résultat de « Triathlon de Nantes — 15/06/2025 »",
       }),
     ).toBeInTheDocument();
   });
@@ -324,5 +325,52 @@ describe("ParticipationAdminActions — rattacher un résultat (US4)", () => {
       ),
     );
     expect(refresh).toHaveBeenCalled();
+  });
+
+  it("nomme le conflit quand le coureur choisi a déjà un résultat sur l'épreuve", async () => {
+    // C'est *le* refus attendu de ce geste : le rattachement sert d'abord à
+    // résorber un doublon de fiche, et deux fiches d'une même personne portent
+    // très souvent la même épreuve. Le dire « réessayez dans un instant »
+    // inviterait à une reprise qui échouera identiquement, sans fin.
+    reassignParticipation.mockRejectedValue(
+      new ApiError(409, "Ce coureur a déjà un résultat sur cette épreuve."),
+    );
+
+    afficher();
+    await chercherUnCoureur();
+    await userEvent.click(await screen.findByRole("button", { name: /LEMÉE/ }));
+
+    // Le message du serveur est déjà en français et nomme le conflit : la
+    // modale l'affiche telle quelle, à côté de la liste, pour que l'opérateur
+    // choisisse un autre candidat sans rien retaper.
+    expect(
+      await screen.findByText("Ce coureur a déjà un résultat sur cette épreuve."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByLabelText("Rattacher à")).toHaveValue("lemée");
+    expect(toastError).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("annonce que la liste est tronquée quand la recherche remplit une page", async () => {
+    // La recherche rend 20 fiches au plus (`page_size` par défaut), sans total
+    // ni drapeau de troncature : sur « Martin », la 21e est absente sans que
+    // rien ne le dise — juste avant un geste sans retour.
+    searchAthletesAdmin.mockResolvedValue(
+      Array.from({ length: 20 }, (_, index) => ({ ...HOMONYME, id: 100 + index })),
+    );
+
+    afficher();
+    await chercherUnCoureur("martin");
+
+    expect(await screen.findByText(/20 premiers coureurs/i)).toBeInTheDocument();
+  });
+
+  it("ne l'annonce pas quand la recherche tient dans une page", async () => {
+    afficher();
+    await chercherUnCoureur();
+
+    await screen.findByRole("button", { name: /LEMÉE/ });
+    expect(screen.queryByText(/20 premiers coureurs/i)).not.toBeInTheDocument();
   });
 });
