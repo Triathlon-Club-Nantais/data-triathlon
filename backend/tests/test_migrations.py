@@ -29,6 +29,31 @@ def sqlite_url(tmp_path, monkeypatch):
     get_settings.cache_clear()
 
 
+@pytest.fixture(scope="module")
+def base_migree(tmp_path_factory):
+    """Base SQLite montée à `head` **une seule fois** pour tout le module.
+
+    Les 13 tests qui la prennent ne font qu'**inspecter le schéma** : aucun
+    n'écrit. Répéter `upgrade head` pour chacun coûtait ~0,6 s par test sans rien
+    vérifier de plus, la montée étant identique à chaque fois (#508).
+
+    Celui qui aurait besoin d'écrire, de semer à une révision intermédiaire ou de
+    descendre reprend `sqlite_url`, qui rend une base neuve par test.
+
+    `DATABASE_URL` n'est posée que le temps de la montée : `alembic/env.py` la lit
+    via `get_settings()`, mais les inspections passent ensuite par l'URL explicite.
+    La laisser en place à portée module la ferait fuir vers les autres tests
+    exécutés par le même worker xdist.
+    """
+    url = f"sqlite:///{tmp_path_factory.mktemp('migrations') / 'migration.db'}"
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setenv("DATABASE_URL", url)
+        get_settings.cache_clear()
+        command.upgrade(_alembic_config(), "head")
+    get_settings.cache_clear()
+    return url
+
+
 def _alembic_config() -> Config:
     cfg = Config(str(BACKEND_ROOT / "alembic.ini"))
     cfg.set_main_option("script_location", str(BACKEND_ROOT / "alembic"))
@@ -53,7 +78,7 @@ def test_upgrade_head_sur_base_vierge(sqlite_url):
     assert "is_reliable" not in _columns(sqlite_url, "courses")
 
 
-def test_upgrade_head_creates_the_group_tables(sqlite_url):
+def test_upgrade_head_creates_the_group_tables(base_migree):
     """#197 — les deux tables, et surtout ce qu'elles **ne** portent pas.
 
     Les absences sont assertées plutôt que supposées : un `is_superuser` sur
@@ -61,9 +86,7 @@ def test_upgrade_head_creates_the_group_tables(sqlite_url):
     `organisation_id` sur `user_groups` rendrait représentable une appartenance
     dont le club contredit celui du groupe.
     """
-    command.upgrade(_alembic_config(), "head")
-
-    assert _columns(sqlite_url, "groups") == {
+    assert _columns(base_migree, "groups") == {
         "id",
         "organisation_id",
         "slug",
@@ -71,7 +94,7 @@ def test_upgrade_head_creates_the_group_tables(sqlite_url):
         "description",
         "created_at",
     }
-    assert _columns(sqlite_url, "user_groups") == {
+    assert _columns(base_migree, "user_groups") == {
         "id",
         "user_id",
         "group_id",
@@ -104,20 +127,18 @@ def _tables(url: str) -> set[str]:
         engine.dispose()
 
 
-def test_les_tables_d_authentification_sont_creees(sqlite_url):
-    command.upgrade(_alembic_config(), "head")
-    assert {"users", "identities", "user_sessions"} <= _tables(sqlite_url)
+def test_les_tables_d_authentification_sont_creees(base_migree):
+    assert {"users", "identities", "user_sessions"} <= _tables(base_migree)
 
 
-def test_users_ne_porte_aucune_colonne_de_role(sqlite_url):
+def test_users_ne_porte_aucune_colonne_de_role(base_migree):
     """FR-041 / SC-014, vérifié sur le **schéma appliqué**, pas sur le modèle.
 
     Le rôle de #115 est relatif à une organisation et vivra dans une
     association ; un scalaire posé ici serait à défaire par une migration
     destructive.
     """
-    command.upgrade(_alembic_config(), "head")
-    assert not {nom for nom in _columns(sqlite_url, "users") if "role" in nom}
+    assert not {nom for nom in _columns(base_migree, "users") if "role" in nom}
 
 
 def test_downgrade_puis_upgrade_des_tables_d_authentification(sqlite_url):
@@ -155,14 +176,13 @@ def test_downgrade_puis_upgrade_de_l_indice_de_fiabilite(sqlite_url):
     )
 
 
-def test_les_tables_du_rbac_sont_creees(sqlite_url):
-    command.upgrade(_alembic_config(), "head")
+def test_les_tables_du_rbac_sont_creees(base_migree):
     assert {
         "organisations",
         "roles",
         "role_permissions",
         "user_roles",
-    } <= _tables(sqlite_url)
+    } <= _tables(base_migree)
 
 
 def _lignes(url: str, requete: str) -> list[tuple]:
@@ -174,7 +194,7 @@ def _lignes(url: str, requete: str) -> list[tuple]:
         engine.dispose()
 
 
-def test_la_migration_seme_exactement_trois_roles_systeme(sqlite_url):
+def test_la_migration_seme_exactement_trois_roles_systeme(base_migree):
     """FR-041 — et ce semis ne se rejoue **jamais**.
 
     Aucune migration ultérieure ne doit recomposer ces trois lignes : leur
@@ -182,10 +202,8 @@ def test_la_migration_seme_exactement_trois_roles_systeme(sqlite_url):
     chaud, et une migration qui la réécrirait effacerait une décision humaine
     sans laisser de trace. Ce test verrouille le **seul** semis autorisé.
     """
-    command.upgrade(_alembic_config(), "head")
-
     roles = _lignes(
-        sqlite_url,
+        base_migree,
         "SELECT slug, is_system, is_superuser, organisation_id FROM roles ORDER BY slug",
     )
 
@@ -194,35 +212,31 @@ def test_la_migration_seme_exactement_trois_roles_systeme(sqlite_url):
     assert all(ligne[3] is None for ligne in roles), "un rôle semé n'est pas global"
 
 
-def test_admin_est_le_seul_superutilisateur_et_ne_porte_aucun_code(sqlite_url):
+def test_admin_est_le_seul_superutilisateur_et_ne_porte_aucun_code(base_migree):
     """`is_superuser` franchit tout pouvoir, **y compris ceux pas encore écrits**.
 
     Lui coller les neuf codes du jour le figerait au jour d'aujourd'hui — c'est
     exactement ce que ce booléen évite (FR-014).
     """
-    command.upgrade(_alembic_config(), "head")
-
-    superutilisateurs = _lignes(sqlite_url, "SELECT slug FROM roles WHERE is_superuser")
+    superutilisateurs = _lignes(base_migree, "SELECT slug FROM roles WHERE is_superuser")
     assert superutilisateurs == [("admin",)]
 
     codes_admin = _lignes(
-        sqlite_url,
+        base_migree,
         "SELECT permission_code FROM role_permissions"
         " JOIN roles ON roles.id = role_permissions.role_id WHERE roles.slug = 'admin'",
     )
     assert codes_admin == []
 
 
-def test_moderator_porte_ses_deux_codes_couples(sqlite_url):
+def test_moderator_porte_ses_deux_codes_couples(base_migree):
     """Instruire un signalement sans pouvoir lire la liste n'a pas de sens.
 
     C'est la raison d'être du semis de ce rôle : l'oubli du pouvoir de lecture
     est le bug attendu d'une composition à la main.
     """
-    command.upgrade(_alembic_config(), "head")
-
     codes = _lignes(
-        sqlite_url,
+        base_migree,
         "SELECT permission_code FROM role_permissions"
         " JOIN roles ON roles.id = role_permissions.role_id"
         " WHERE roles.slug = 'moderator' ORDER BY permission_code",
@@ -231,11 +245,9 @@ def test_moderator_porte_ses_deux_codes_couples(sqlite_url):
     assert codes == [("pending_providers:handle",), ("pending_providers:read",)]
 
 
-def test_validator_porte_le_seul_pouvoir_de_qualite(sqlite_url):
-    command.upgrade(_alembic_config(), "head")
-
+def test_validator_porte_le_seul_pouvoir_de_qualite(base_migree):
     codes = _lignes(
-        sqlite_url,
+        base_migree,
         "SELECT permission_code FROM role_permissions"
         " JOIN roles ON roles.id = role_permissions.role_id WHERE roles.slug = 'validator'",
     )
@@ -243,11 +255,9 @@ def test_validator_porte_le_seul_pouvoir_de_qualite(sqlite_url):
     assert codes == [("quality:override",)]
 
 
-def test_l_organisation_du_club_est_semee(sqlite_url):
+def test_l_organisation_du_club_est_semee(base_migree):
     """`user_roles.organisation_id` est non nul : sans elle, aucune attribution."""
-    command.upgrade(_alembic_config(), "head")
-
-    assert _lignes(sqlite_url, "SELECT slug FROM organisations") == [("tcn",)]
+    assert _lignes(base_migree, "SELECT slug FROM organisations") == [("tcn",)]
 
 
 def test_le_renommage_de_is_reliable_conserve_les_donnees(sqlite_url):
@@ -298,9 +308,8 @@ def test_downgrade_puis_upgrade_du_rbac(sqlite_url):
 # --- Liste d'autorisation en base (#170) ------------------------------------
 
 
-def test_la_table_des_adresses_autorisees_est_creee(sqlite_url):
-    command.upgrade(_alembic_config(), "head")
-    assert "allowed_emails" in _tables(sqlite_url)
+def test_la_table_des_adresses_autorisees_est_creee(base_migree):
+    assert "allowed_emails" in _tables(base_migree)
 
 
 def test_la_reprise_importe_les_adresses_de_l_environnement(sqlite_url, monkeypatch):
@@ -377,10 +386,8 @@ def _seed_courses(url: str) -> None:
         engine.dispose()
 
 
-def test_upgrade_head_creates_the_course_sources_table(sqlite_url):
-    command.upgrade(_alembic_config(), "head")
-
-    assert _columns(sqlite_url, "course_sources") == {
+def test_upgrade_head_creates_the_course_sources_table(base_migree):
+    assert _columns(base_migree, "course_sources") == {
         "id",
         "course_id",
         "url",
@@ -438,13 +445,11 @@ def test_a_course_without_source_url_gets_no_source(sqlite_url):
 _BEFORE_MANUAL_VALIDATION = "9427c6c5e84a"
 
 
-def test_upgrade_head_adds_manual_result_validation_columns(sqlite_url):
-    command.upgrade(_alembic_config(), "head")
-
+def test_upgrade_head_adds_manual_result_validation_columns(base_migree):
     assert {"is_pending_validation", "team_name", "evidence_url"} <= _columns(
-        sqlite_url, "participations"
+        base_migree, "participations"
     )
-    assert "format_label" in _columns(sqlite_url, "courses")
+    assert "format_label" in _columns(base_migree, "courses")
 
 
 def test_les_participations_existantes_ne_deviennent_pas_pendantes(sqlite_url):
@@ -580,10 +585,8 @@ def _nullable(url: str, table: str, column: str) -> bool:
         engine.dispose()
 
 
-def test_scraped_at_devient_nullable(sqlite_url):
-    command.upgrade(_alembic_config(), "head")
-
-    assert _nullable(sqlite_url, "courses", "scraped_at") is True
+def test_scraped_at_devient_nullable(base_migree):
+    assert _nullable(base_migree, "courses", "scraped_at") is True
 
 
 def test_downgrade_puis_upgrade_de_la_nullabilite_de_scraped_at(sqlite_url):
