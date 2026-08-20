@@ -666,7 +666,9 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 Le levier 2 ne devient pas du code : `maxWorkers` n'est pas touché. Son livrable est une **preuve de stabilité** et la mise à jour du sondage. Le sondage lui-même écrit que « 2 exécutions front vertes ne sont pas une preuve » et demande 5 exécutions consécutives au repos, au délai par défaut.
 
 **Files:**
-- Modify: `docs/superpowers/specs/2026-08-20-suites-de-tests-sondage.md` — nouvelle section « Après », **et** correction des deux endroits qui chiffrent le levier 5 si l'A/B ne le reproduit pas (la phrase « **`-v` coûte 19 s, soit 20 %** » de la section Backend, et la ligne « 5 — retirer `-v` » du tableau « Verdicts par levier »)
+- Modify: `docs/superpowers/specs/2026-08-20-suites-de-tests-sondage.md` — nouvelle section « Après », **et** correction des chiffres que la remesure démentirait. Deux leviers sont concernés, chacun à **deux** endroits :
+  - **levier 5**, si l'A/B ne reproduit pas son coût : la phrase « **`-v` coûte 19 s, soit 20 %** » de la section Backend, et la ligne « 5 — retirer `-v` » du tableau « Verdicts par levier » ;
+  - **levier 4**, si la remesure ne reproduit pas les 18,2 s : la phrase « `tests/test_migrations.py` : **29 tests en 18,2 s** » de la section Backend, et la ligne « 4 — tests de migration » du même tableau.
 
 **Interfaces:**
 - Consumes: l'état final des tâches 1 à 3.
@@ -730,6 +732,15 @@ echo "=== levier 5 : A/B de -v, sous protocole ==="
 mesurer "back-avec-v" 2 uv run pytest -m "not integration" -o addopts=-v
 mesurer "back-sans-v" 2 uv run pytest -m "not integration" -o addopts=
 
+# Le levier 4 se remesure lui aussi, et pour la même raison : la tâche 3 a
+# relevé sa référence à **7,95 s** là où le sondage annonce **18,2 s** pour le
+# même fichier — facteur 2,3. Ici l'écart est causalement cohérent (une charge
+# extérieure ne peut qu'ajouter du temps, et le sondage a été relevé sur une
+# machine chargée), mais ses deux relevés à elle sont n=1 : rien n'est établi
+# sous protocole, ni l'avant ni l'après.
+echo "=== levier 4 : test_migrations.py seul, sequentiel ==="
+mesurer "migrations" 2 uv run pytest tests/test_migrations.py -n 0
+
 cd "$RACINE/frontend" || exit 1
 echo "=== frontend, deux projets, 5 exécutions (levier 2) ==="
 mesurer "front" 5 npx vitest run
@@ -760,6 +771,12 @@ Ajouter à `docs/superpowers/specs/2026-08-20-suites-de-tests-sondage.md`, avant
 
 Le levier 2 est tranché par la ligne du bas : <verdict en une phrase>.
 
+<Si la remesure de `test_migrations.py` ne retrouve pas les 18,2 s de la colonne
+« avant », remplacer cette valeur par la valeur mesurée sur la branche, et
+corriger les deux endroits du levier 4 listés plus haut. Le gain du levier reste
+celui que la remesure établit, avant → après, et non celui qu'annonçait le
+sondage.>
+
 ### Le coût de `-v`, remesuré
 
 Les relevés de la tâche 1 (n=1) donnaient `-v` **plus rapide** que sans `-v`,
@@ -775,8 +792,9 @@ les deux bras séquentiels.
 <Une phrase : le « 19 s, 20 % » annoncé plus haut est confirmé, ou il est
 corrigé à cette valeur — et dans ce second cas, corriger aussi la ligne du
 levier 5 du tableau « Verdicts par levier » et la phrase « **`-v` coûte 19 s,
-soit 20 %** » de la section Backend, qui deviennent faux. Le commit `50f6f6e`
-cite l'état antérieur et n'est pas réécrit : le sondage est l'autorité vivante.>
+soit 20 %** » de la section Backend, qui deviennent faux. Le commit `c05cd67`
+de la tâche 1 ne chiffre volontairement pas ce coût et renvoie ici : le sondage
+est l'autorité vivante.>
 ```
 
 - [ ] **Step 4 : Commit**
