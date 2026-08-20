@@ -145,6 +145,12 @@ export const apiClient = {
   listParticipations: (filters: ParticipationFilters = {}) =>
     request<Participation[]>(`/participations${toQuery(filters as Record<string, unknown>)}`),
 
+  // Route du router public, et non `/admin/…` : elle y était déjà avant #439,
+  // gardée par `participations:delete` (#115). La déplacer casserait un contrat
+  // `/api/v1` publié pour un simple rangement (Principe IV).
+  deleteParticipation: (id: number) =>
+    request<null>(`/participations/${id}`, { method: "DELETE" }),
+
   getCourse: (id: number, opts: CourseQuery = {}) =>
     request<CourseDetail>(`/courses/${id}${toQuery(opts as Record<string, unknown>)}`),
   getCourseSummary: (id: number) => request<CourseSummary>(`/courses/${id}/summary`),

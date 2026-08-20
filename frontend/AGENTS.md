@@ -175,8 +175,12 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   l'arbitrage ; de la mise en avant, non.
 - `components/` — `scrape/` (TcnScrapeForm, ProviderDetector, ImportProgress),
   `results/` (ResultCard, ResultsList), `club/` (ClubDashboard, PodiumsList),
-  `map/` (MapView), `dashboard/` (StatCardsRank, RecentCourses), plus les deux
-  bibliothèques de composants ci-dessous.
+  `map/` (MapView), `dashboard/` (StatCardsRank, RecentCourses),
+  `athletes/` (AthleteAdminPanel, ParticipationAdminActions — les gestes
+  d'administration posés sur la page publique d'un coureur, #439 : ils prennent
+  `tcn/` parce que c'est un écran public, et décident leur visibilité **dans le
+  navigateur**, pouvoir par pouvoir, pour que la page reste rendue sans cookies),
+  plus les deux bibliothèques de composants ci-dessous.
 - **Deux bibliothèques, une frontière.** `components/tcn/` porte l'identité
   visuelle (tokens `--tcn-*`, Anton/Barlow, dégradé orange) ; `components/ui/`
   porte les primitives complexes bâties sur `@base-ui/react` — `dialog`,

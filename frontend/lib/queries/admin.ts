@@ -305,6 +305,25 @@ export function useReassignParticipation() {
   });
 }
 
+/**
+ * Suppression d'**un** résultat (#439).
+ *
+ * Mêmes invalidations que `useReassignParticipation` : le geste change les mêmes
+ * écrans — les résultats publics, le détail de l'épreuve et la liste des
+ * coureurs, dont les compteurs de participations bougent.
+ */
+export function useDeleteParticipation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (participationId: number) => apiClient.deleteParticipation(participationId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.resultatsPublics });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.detailEpreuve });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.coureurs });
+    },
+  });
+}
+
 export function useUpdateCourse() {
   const qc = useQueryClient();
   return useMutation({

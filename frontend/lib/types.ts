@@ -722,6 +722,8 @@ export interface AdminAthleteUpdate {
   nom: string;
   prenom: string;
   birth_date: string | null;
+  /** Club **actuel** : `null` retire le club, `""` est refusé par l'API (#439). */
+  club: string | null;
 }
 
 /**

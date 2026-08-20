@@ -8,7 +8,23 @@ vi.mock("@/lib/api/server", () => ({
   apiServer: { getAthlete: (id: number) => getAthlete(id) },
 }));
 
-vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
+vi.mock("next/navigation", () => ({ notFound: vi.fn(), useRouter: () => ({ refresh: vi.fn() }) }));
+
+// `AthleteAdminPanel` et `ParticipationAdminActions` sont testés pour eux-mêmes
+// dans leurs propres fichiers (visibilité pouvoir par pouvoir, formulaire,
+// conflit, confirmation de suppression), avec un vrai `QueryClientProvider`.
+// Ici, un visiteur anonyme systématique et des requêtes neutres suffisent : la
+// page publique doit être strictement celle d'avant la feature (SC-004).
+vi.mock("@/lib/queries/auth", () => ({
+  useSession: () => ({ data: null }),
+}));
+vi.mock("@/lib/queries/admin", () => ({
+  useAdminAthlete: () => ({ data: undefined }),
+  useUpdateAthlete: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeleteParticipation: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useReassignParticipation: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useAdminAthleteSearch: () => ({ data: undefined, isFetching: false }),
+}));
 
 import AthletePage from "./page";
 

@@ -1,4 +1,3 @@
-import { Fragment } from "react";
 import Link from "next/link";
 import { Eye } from "lucide-react";
 import { notFound } from "next/navigation";
@@ -8,6 +7,8 @@ import { PageShell } from "@/components/layout/PageShell";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AthleteAvatar } from "./AthleteAvatar";
 import { AthleteSelection } from "./AthleteSelection";
+import { AthleteAdminPanel } from "@/components/athletes/AthleteAdminPanel";
+import { ParticipationAdminActions } from "@/components/athletes/ParticipationAdminActions";
 import { eventTypeLabel } from "@/lib/constants";
 import { formatToken, ordinalFr } from "@/lib/utils/format";
 import { bestRatio, rankRatio } from "@/lib/utils/ranking";
@@ -72,8 +73,14 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
           <Eyebrow>Résultats enregistrés</Eyebrow>
           <h1 style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(28px, 5vw, 42px)", fontWeight: 400, color: "var(--tcn-ink)", lineHeight: 1, margin: 0, marginTop: 4 }}>{fullName}</h1>
         </div>
-        <div style={{ marginLeft: "auto" }}>
+        {/* Un seul `marginLeft: "auto"` pour les deux commandes : un second
+            les séparerait aux deux bouts de la ligne. Sur mobile, l'en-tête
+            passe à la ligne — elles y restent côte à côte. */}
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <AthleteSelection athlete={{ id: athlete.id, prenom: athlete.prenom, nom: athlete.nom }} />
+          <AthleteAdminPanel
+            athlete={{ id: athlete.id, nom: athlete.nom, prenom: athlete.prenom, club: athlete.club }}
+          />
         </div>
       </div>
 
@@ -132,9 +139,19 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
                     : null;
                 const nonFinisher = isNonFinisher(p.status);
                 const sigle = (p.status ?? "").toUpperCase();
+                const preuve = p.evidence_url && isHttpUrl(p.evidence_url) ? p.evidence_url : null;
                 return (
-                  <Fragment key={p.id}>
-                  <Link href={`/courses/${p.course?.id}/participations/${p.id}`} className="tcn-rowlink" style={{ display: "grid", gridTemplateColumns: COLS, columnGap: GAP, alignItems: "center", padding: `15px ${PADDING_X}px`, borderBottom: p.is_pending_validation || (p.evidence_url && isHttpUrl(p.evidence_url)) ? "none" : "1px solid var(--tcn-border-faint)" }}>
+                  // Le trait de séparation est porté par le groupe, et non par la
+                  // ligne ni par chacune de ses sous-lignes : la sous-ligne
+                  // d'actions n'existe que dans le navigateur (#439), donc aucun
+                  // rendu serveur ne peut savoir laquelle est la dernière. Le
+                  // dessin reste celui d'avant — sans trait pour une ligne en
+                  // attente qui n'a pas de sous-ligne de preuve (#270).
+                  <div
+                    key={p.id}
+                    style={{ borderBottom: p.is_pending_validation && !preuve ? "none" : "1px solid var(--tcn-border-faint)" }}
+                  >
+                  <Link href={`/courses/${p.course?.id}/participations/${p.id}`} className="tcn-rowlink" style={{ display: "grid", gridTemplateColumns: COLS, columnGap: GAP, alignItems: "center", padding: `15px ${PADDING_X}px` }}>
                     <div style={{ fontSize: 14, color: "var(--tcn-text-muted)", fontWeight: 600 }}>{formatDate(p.course?.event_date)}</div>
                     <div style={{ fontSize: 15, color: "var(--tcn-ink)", fontWeight: 700, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       {p.course?.name}
@@ -181,14 +198,14 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
                     </div>
                     <div style={{ textAlign: "right", color: "var(--tcn-text-disabled)", fontSize: 16 }}>→</div>
                   </Link>
-                  {p.evidence_url && isHttpUrl(p.evidence_url) ? (
+                  {preuve ? (
                     // Ligne séparée, hors du `<Link>` de la ligne : un `<a>`
                     // imbriqué dans un autre serait invalide en HTML. Le texte
                     // qui n'est pas une URL http(s) exploitable reste stocké
                     // (cas limite de la spec) mais n'est jamais rendu cliquable.
-                    <div style={{ padding: `0 ${PADDING_X}px 12px`, borderBottom: "1px solid var(--tcn-border-faint)" }}>
+                    <div style={{ padding: `0 ${PADDING_X}px 12px` }}>
                       <a
-                        href={p.evidence_url}
+                        href={preuve}
                         target="_blank"
                         rel="noreferrer"
                         // Affordance de bouton discret : classes partagées avec
@@ -209,7 +226,20 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
                       </a>
                     </div>
                   ) : null}
-                  </Fragment>
+                  {/* Sous-ligne d'actions : le composant se rend lui-même nul
+                      pour qui ne porte aucun des pouvoirs, donc rien ici ne
+                      réserve d'espace au visiteur public (#439). */}
+                  <ParticipationAdminActions
+                    resultat={{
+                      id: p.id,
+                      epreuve: p.course?.name ?? "cette épreuve",
+                      date: p.course?.event_date ?? null,
+                      coureur: fullName,
+                      coureurId: athlete.id,
+                    }}
+                    style={{ padding: `0 ${PADDING_X}px 14px` }}
+                  />
+                  </div>
                 );
               })}
             </div>
