@@ -9,15 +9,13 @@ côtés du hachage et **régénéré à chaque remplacement** (research.md §D2)
 ce qui préserve la révocation collective des sessions ouvertes sans jamais
 avoir besoin de relire le mot de passe en clair.
 """
-import hashlib
-import hmac
 import secrets
-import time
 
 from sqlalchemy.orm import Session
 
 from app.models.benevole_access_config import BenevoleAccessConfig
 from app.repositories import benevole_config_repository, user_repository
+from app.services import shared_password
 
 #: Nom du cookie de session bénévoles — distinct du cookie SSO (`tcn_session`,
 #: `api/v1/auth.py`), sur un mécanisme entièrement séparé.
@@ -29,8 +27,7 @@ BENEVOLE_SESSION_COOKIE = "tcn_benevole_session"
 #: gestes déclenchés depuis cette page.
 SYSTEM_USER_EMAIL = "benevoles@systeme.interne"
 
-#: Taille du sel (research.md §D1) et du mot de passe généré (§D5), en octets.
-_SALT_SIZE = 16
+#: Taille du mot de passe généré (research.md §D5), en octets.
 _GENERATED_PASSWORD_SIZE = 18
 
 
@@ -58,9 +55,7 @@ def sign_session(key: str) -> str:
     `key` est `BenevoleAccessConfig.session_secret` — plus le mot de passe
     lui-même depuis cette feature (research.md §D2).
     """
-    horodatage = str(int(time.time()))
-    signature = _hmac(key, horodatage)
-    return f"{horodatage}.{signature}"
+    return shared_password.sign_cookie(key)
 
 
 def verify_session(value: str | None, key: str) -> bool:
@@ -69,17 +64,7 @@ def verify_session(value: str | None, key: str) -> bool:
     Fail-closed : clé vide (non configuré), valeur absente, ou valeur mal
     formée rendent tous `False`, jamais une exception.
     """
-    if not value or not key:
-        return False
-    horodatage, separateur, signature = value.partition(".")
-    if not separateur or not horodatage or not signature:
-        return False
-    attendue = _hmac(key, horodatage)
-    return hmac.compare_digest(signature, attendue)
-
-
-def _hmac(key: str, message: str) -> str:
-    return hmac.new(key.encode("utf-8"), message.encode("utf-8"), hashlib.sha256).hexdigest()
+    return shared_password.verify_cookie(value, key)
 
 
 def hash_password(password: str) -> tuple[str, str]:
@@ -91,9 +76,7 @@ def hash_password(password: str) -> tuple[str, str]:
     sur un simple hachage rapide (research.md §D1). Un sel de 16 octets,
     régénéré à **chaque** appel — jamais réutilisé d'un mot de passe à l'autre.
     """
-    salt = secrets.token_bytes(_SALT_SIZE)
-    empreinte = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=2**14, r=8, p=1)
-    return empreinte.hex(), salt.hex()
+    return shared_password.hash_password(password)
 
 
 def verify_password(password: str, *, password_hash: str, password_salt: str) -> bool:
@@ -102,10 +85,9 @@ def verify_password(password: str, *, password_hash: str, password_salt: str) ->
     Comparaison en temps constant (`hmac.compare_digest`), même patron que la
     vérification du cookie ci-dessus.
     """
-    empreinte = hashlib.scrypt(
-        password.encode("utf-8"), salt=bytes.fromhex(password_salt), n=2**14, r=8, p=1
+    return shared_password.verify_password(
+        password, password_hash=password_hash, password_salt=password_salt
     )
-    return hmac.compare_digest(empreinte.hex(), password_hash)
 
 
 def new_session_secret() -> str:
