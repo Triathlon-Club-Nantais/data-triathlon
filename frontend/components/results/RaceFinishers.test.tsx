@@ -258,6 +258,46 @@ describe("RaceFinishers", () => {
     expect(screen.getByText("Course")).toBeInTheDocument();
   });
 
+  // ── Inter illisible (#472) ─────────────────────────────────────────────────
+
+  // Observé en préproduction sur la course 340 : un inter valant `0-2:-15:00`.
+  // Le repli `—` ne couvrait que l'absence, pas l'impossible — la chaîne partait
+  // à l'écran telle quelle, indiscernable d'un chronomètre exact.
+  const ILLISIBLE = "0-2:-15:00";
+
+  function afficherInter(splits: Record<string, string> = { swim: ILLISIBLE }) {
+    afficher({
+      participations: [p({ id: 1, nom: "ABIME", rank_overall: 1, total_time: "01:00:00", splits })],
+      summary: synthese({ split_keys: ["swim"] }),
+      total: 1,
+      eventType: "triathlon-m",
+    });
+  }
+
+  it("ne rend pas un inter impossible comme s'il s'agissait d'un temps", () => {
+    afficherInter();
+    expect(screen.queryByText(ILLISIBLE)).not.toBeInTheDocument();
+  });
+
+  it("signale l'inter illisible au lieu de le taire, et rappelle la valeur reçue", () => {
+    // Masquer sans rien dire ferait croire que le chronométreur n'a rien publié.
+    afficherInter();
+    expect(screen.getByRole("img", { name: /illisible/i })).toHaveAccessibleName(
+      new RegExp(ILLISIBLE),
+    );
+  });
+
+  it("laisse un inter absent en simple tiret, sans signal", () => {
+    afficherInter({});
+    expect(screen.queryByRole("img", { name: /illisible/i })).not.toBeInTheDocument();
+  });
+
+  it("rend tel quel un inter parsable", () => {
+    afficherInter({ swim: "00:25:00" });
+    expect(screen.getByText("00:25:00")).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: /illisible/i })).not.toBeInTheDocument();
+  });
+
   // ── Tri par temps intermédiaire (#309) ─────────────────────────────────────
 
   const dataAvecSplits = [
