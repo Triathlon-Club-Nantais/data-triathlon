@@ -158,12 +158,18 @@ partagée : `tests/conftest.py::client` est utilisée par la quasi-totalité de
 la suite (~745 tests), et la garde `require_site_access` s'appliquant à
 pratiquement tous les routers, un `client` qui ne présente aucun cookie
 casserait toute la suite d'un coup — ce n'est pas ce que ce livrable doit
-mesurer. La fixture provisionne donc une configuration `site_access_config`
-valide et pose le cookie signé **par défaut**, comme si un adhérent était
-déjà entré ; les tests qui veulent spécifiquement l'anonyme (le nouveau filet
-ci-dessous) appellent `TestClient` directement, sur le patron déjà utilisé
-par `tests/test_api/test_benevoles_api.py::visiteur`, plutôt que de retirer
-le cookie de la fixture partagée.
+mesurer, et fabriquer une ligne `site_access_config` (donc un `User` FK) dans
+**chaque** test risquerait en plus de fausser un test qui compte les lignes
+de `users`. La fixture neutralise donc `require_site_access` par
+`app.dependency_overrides`, exactement comme elle le fait déjà pour `get_db` :
+```python
+app.dependency_overrides[require_site_access] = lambda: None
+```
+Aucune ligne en base, aucun cookie à fabriquer — la quasi-totalité de la
+suite continue de tester ce qu'elle testait. Les tests qui veulent
+spécifiquement l'anonyme (le nouveau filet ci-dessous) retirent cette
+surcharge (`app.dependency_overrides.pop(require_site_access, None)`) pour
+éprouver la vraie garde.
 
 Nouveau filet, `test_site_access_gate.py` : dérive l'inventaire des routes
 comme `test_public_routes_still_open.py` (jamais à la main), affirme que
