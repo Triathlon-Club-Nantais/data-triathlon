@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Alert, Button, Input, Modal } from "@/components/tcn";
+import { ApiError } from "@/lib/api/client";
 import { useAdminAthlete, useUpdateAthlete } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
 import type { AdminAthleteUpdate } from "@/lib/types";
@@ -14,8 +15,33 @@ export type CoureurACorriger = {
   club: string | null;
 };
 
-/** Champ étiqueté du formulaire — `htmlFor` sur l'`<input>` que rend `tcn/Input`. */
-function Champ({ id, label, children }: { id: string; label: string; children: ReactNode }) {
+/** Un `404` décrit une requête ; l'opérateur, lui, voit un écran (FR-016). */
+const DISPARU = "Ce coureur n'existe plus. La page a été mise à jour.";
+/** Refus prononcé ici plutôt qu'au serveur, dont le message est en anglais. */
+const IDENTITE_INCOMPLETE = "Le nom et le prénom ne peuvent pas être vides.";
+const ECHEC = "La correction n'a pas abouti. Réessayez dans un instant.";
+const NAISSANCE_ILLISIBLE =
+  "La date de naissance n'a pas pu être lue : elle n'est pas modifiable pour l'instant.";
+
+/**
+ * Champ étiqueté du formulaire — `htmlFor` sur l'`<input>` que rend `tcn/Input`.
+ *
+ * `aide` est un texte **permanent** sous le champ, jamais un `placeholder` : une
+ * instruction qui disparaît à la première frappe manque précisément le moment où
+ * elle sert. Elle est rattachée au champ par `aria-describedby`, que l'appelant
+ * pose lui-même sur l'`<input>` — `tcn/Input` relaie tous ses attributs.
+ */
+function Champ({
+  id,
+  label,
+  aide,
+  children,
+}: {
+  id: string;
+  label: string;
+  aide?: string;
+  children: ReactNode;
+}) {
   return (
     <div>
       <label
@@ -31,6 +57,14 @@ function Champ({ id, label, children }: { id: string; label: string; children: R
         {label}
       </label>
       {children}
+      {aide ? (
+        <p
+          id={`${id}-aide`}
+          style={{ margin: "6px 0 0", fontSize: 13, color: "var(--tcn-text-muted)" }}
+        >
+          {aide}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -91,6 +125,14 @@ export function AthleteAdminPanel({ athlete }: { athlete: CoureurACorriger }) {
     // Seuls les champs **corrigés** partent : ce qui est absent du corps n'est
     // pas réécrit (`exclude_unset` côté serveur), ce qui vaut garantie de
     // non-effacement pour la date de naissance qu'on n'a pas lue.
+    // « Un nom vide n'est pas une correction » (spec, cas limites) : le serveur
+    // le refuse aussi, mais avec le message anglais de Pydantic — le refus se
+    // prononce donc ici, en français et sans aller-retour.
+    if (nom.trim() === "" || prenom.trim() === "") {
+      setRefus(IDENTITE_INCOMPLETE);
+      return;
+    }
+
     const champs: Partial<AdminAthleteUpdate> = {};
     if (nom !== athlete.nom) champs.nom = nom;
     if (prenom !== athlete.prenom) champs.prenom = prenom;
@@ -115,10 +157,22 @@ export function AthleteAdminPanel({ athlete }: { athlete: CoureurACorriger }) {
       // mise à jour d'état local ne les recalculerait pas (FR-015).
       router.refresh();
     } catch (erreur) {
+      // La fiche a disparu sous les doigts — un rattachement concurrent a pu
+      // emporter son dernier résultat, donc la fiche. Il n'y a plus rien à
+      // corriger ici : c'est la page qu'il faut remettre à jour (FR-016).
+      if (erreur instanceof ApiError && erreur.status === 404) {
+        toast.error(DISPARU);
+        setOuverte(false);
+        router.refresh();
+        return;
+      }
       // Affiché **dans** la modale plutôt qu'en toast : le refus le plus
       // fréquent est le conflit d'identité, et il se corrige dans le champ juste
-      // au-dessus. La saisie n'est jamais vidée (FR-010).
-      setRefus((erreur as Error).message);
+      // au-dessus. La saisie n'est jamais vidée (FR-010). Seul le 409 porte un
+      // message écrit pour l'opérateur ; tout le reste est un incident, dont le
+      // texte serveur serait technique et anglais (FR-017).
+      const conflit = erreur instanceof ApiError && erreur.status === 409;
+      setRefus(conflit ? erreur.message : ECHEC);
     }
   }
 
@@ -172,24 +226,46 @@ export function AthleteAdminPanel({ athlete }: { athlete: CoureurACorriger }) {
             </Champ>
 
             {peutLireLaFiche && (
-              <Champ id="correction-naissance" label="Date de naissance">
+              // Un champ date vide se lit « ce coureur n'a pas de date de
+              // naissance ». Tant que la fiche gardée n'est pas arrivée — ou si
+              // sa lecture échoue — c'est faux, et le dire coûte une ligne.
+              <Champ
+                id="correction-naissance"
+                label="Date de naissance"
+                aide={
+                  fiche.isError
+                    ? NAISSANCE_ILLISIBLE
+                    : fiche.isPending
+                      ? "Lecture de la date de naissance…"
+                      : undefined
+                }
+              >
                 <Input
                   id="correction-naissance"
                   type="date"
                   value={naissance}
                   onChange={(e) => setNaissanceSaisie(e.target.value)}
+                  disabled={fiche.isError || fiche.isPending}
+                  aria-describedby={
+                    fiche.isError || fiche.isPending ? "correction-naissance-aide" : undefined
+                  }
                 />
               </Champ>
             )}
 
-            <Champ id="correction-club" label="Club actuel">
+            <Champ
+              id="correction-club"
+              label="Club actuel"
+              // Le champ vide est un état légitime, et c'est le seul moment où
+              // il faut le dire. En `placeholder`, l'instruction disparaissait à
+              // la première frappe — juste avant le geste qu'elle décrit.
+              aide="Laisser le champ vide retire le club."
+            >
               <Input
                 id="correction-club"
                 value={club}
                 onChange={(e) => setClub(e.target.value)}
-                // Le champ vide est un état légitime, et c'est le seul moment où
-                // il faut le dire : laisser le champ vide retire le club.
-                placeholder="Sans club"
+                aria-describedby="correction-club-aide"
                 autoComplete="off"
               />
             </Champ>

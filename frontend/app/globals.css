@@ -435,6 +435,11 @@
     transition: background var(--tcn-dur-fast);
     text-decoration: none;
     color: inherit;
+    /* Pour les `<button>` qui portent la classe (#439) : sans ça, le fond reste
+       le `buttonface` du navigateur. Le poser **ici** et non en ligne est ce qui
+       laisse le `:hover` ci-dessous gagner — un style en ligne battrait toute
+       couche CSS, et le survol ne rendrait plus rien. */
+    background: transparent;
   }
   .tcn-rowlink:hover {
     background: var(--tcn-surface-sunk);

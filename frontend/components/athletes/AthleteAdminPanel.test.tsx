@@ -222,6 +222,76 @@ describe("AthleteAdminPanel — corriger l'identité (US1)", () => {
     expect(naissance).toHaveValue("1980-03-12");
     expect(getAthleteAdmin).toHaveBeenCalledWith(42);
   });
+
+  it("refuse un nom ou un prénom vide sans appeler le serveur", async () => {
+    // Le serveur refuse déjà (`min_length=1`), mais avec le message de Pydantic
+    // — de l'anglais dans une modale française (FR-017). Le refus se prononce
+    // donc ici, où il est en français et immédiat.
+    getSession.mockResolvedValue(session(["athletes:write"]));
+
+    afficher();
+    await ouvrirLesCorrections();
+    await userEvent.clear(screen.getByLabelText("Nom"));
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    expect(
+      await screen.findByText("Le nom et le prénom ne peuvent pas être vides."),
+    ).toBeInTheDocument();
+    expect(updateAthlete).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("n'affiche jamais une erreur technique brute (FR-017)", async () => {
+    // Seul le 409 porte un message écrit pour l'opérateur. Tout le reste est un
+    // incident : le relayer tel quel afficherait « Internal Server Error » sous
+    // un titre français.
+    getSession.mockResolvedValue(session(["athletes:write"]));
+    updateAthlete.mockRejectedValue(new ApiError(500, "Internal Server Error"));
+
+    afficher();
+    await ouvrirLesCorrections();
+    await userEvent.type(screen.getByLabelText("Nom"), "-Durand");
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    expect(await screen.findByText(/n'a pas abouti/i)).toBeInTheDocument();
+    expect(screen.queryByText(/internal server error/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("explique en clair une fiche déjà disparue et rafraîchit la page (FR-016)", async () => {
+    // Atteignable : le rattachement d'un autre administrateur vient d'emporter
+    // le dernier résultat de la fiche, donc la fiche elle-même. La modale n'a
+    // plus rien à corriger — c'est la page qu'il faut remettre à jour.
+    getSession.mockResolvedValue(session(["athletes:write"]));
+    updateAthlete.mockRejectedValue(new ApiError(404, "Coureur introuvable."));
+
+    afficher();
+    await ouvrirLesCorrections();
+    await userEvent.type(screen.getByLabelText("Nom"), "-Durand");
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith(
+        "Ce coureur n'existe plus. La page a été mise à jour.",
+      ),
+    );
+    expect(refresh).toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("dit que la date de naissance n'a pas pu être lue plutôt que de la rendre vide", async () => {
+    // Un champ date vide se lit « pas de date de naissance », ce qui est faux :
+    // la lecture a échoué. L'enregistrer tel quel n'effacerait rien (le champ
+    // n'est envoyé que s'il change), mais l'écran mentirait.
+    getSession.mockResolvedValue(session(["athletes:write", "athletes:read"]));
+    getAthleteAdmin.mockRejectedValue(new ApiError(500, "Boum"));
+
+    afficher();
+    await ouvrirLesCorrections();
+
+    expect(await screen.findByText(/date de naissance n'a pas pu être lue/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Date de naissance")).toBeDisabled();
+  });
 });
 
 describe("AthleteAdminPanel — corriger le club actuel (US3)", () => {
@@ -236,6 +306,21 @@ describe("AthleteAdminPanel — corriger le club actuel (US3)", () => {
 
     expect(screen.getByLabelText("Club actuel")).toHaveValue("Triathlon Club Nantais");
     expect(getAthleteAdmin).not.toHaveBeenCalled();
+  });
+
+  it("dit à demeure que vider le champ retire le club (US3-AC2)", async () => {
+    // L'instruction portait un `placeholder` : elle disparaissait à la première
+    // frappe, donc exactement quand elle sert. Elle est désormais rattachée au
+    // champ par `aria-describedby` et reste lisible.
+    getSession.mockResolvedValue(session(["athletes:write"]));
+
+    afficher();
+    await ouvrirLesCorrections();
+
+    const champ = screen.getByLabelText("Club actuel");
+    const aide = screen.getByText(/vide retire le club/i);
+    expect(aide).toBeInTheDocument();
+    expect(champ.getAttribute("aria-describedby")).toBe(aide.id);
   });
 
   it("envoie le nouveau libellé de club (US3-AC1)", async () => {

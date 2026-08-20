@@ -84,7 +84,16 @@ le code traverse la base, il est gelé.
 
 **Pouvoir** : `participations:delete` (inchangé)
 **Réponse** : `204`, sans corps (inchangée)
-**Introuvable** : `404` `{"detail": "Résultat introuvable"}` (inchangée)
+**Introuvable** : `404` `{"detail": "Résultat introuvable."}` — **le point final est
+nouveau**, et c'est le seul écart de contrat de cette feature. La route délègue à
+`admin_actions._participation_or_404`, dont toute la famille de messages est
+ponctuée (`« Épreuve introuvable. »`, `« Coureur introuvable. »`) ; dépunctuer ce
+seul message pour retrouver l'ancienne chaîne changerait en échange celle du
+rattachement, publiée depuis #117. `GET /participations/{id}` est alignée du même
+geste, sans quoi la même ressource répondrait deux chaînes selon le verbe. Aucun
+écran n'affiche ce `detail` — les deux composants du navigateur le remplacent par
+leur propre phrase (FR-016) —, mais il est publié : il se change **en le disant**,
+jamais en silence (Principe IV).
 
 ### Ce qui change — à l'intérieur seulement
 

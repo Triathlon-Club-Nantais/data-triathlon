@@ -128,7 +128,10 @@ def list_participations(
 def get_participation(participation_id: int, db: Session = Depends(get_db)):
     row = participation_repository.get(db, participation_id)
     if not row:
-        raise NotFoundError("Résultat introuvable")
+        # Ponctué comme la famille de `admin_actions` (#439), à laquelle la
+        # suppression du même résultat délègue désormais : sans ça, la même
+        # ressource répondrait deux chaînes selon le verbe.
+        raise NotFoundError("Résultat introuvable.")
     out = ParticipationOut.model_validate(row)
     out.stats = participation_stats_service.build(db, row)
     return out
