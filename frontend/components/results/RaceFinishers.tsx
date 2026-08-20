@@ -290,7 +290,19 @@ export function RaceFinishers({
                 }
               />
             ) : rechercheUrl || filtreClub ? (
-              <EmptyState bare title="Aucun athlète ne correspond à cette recherche" />
+              <EmptyState
+                bare
+                title="Aucun athlète ne correspond à cette recherche"
+                action={
+                  <button
+                    type="button"
+                    onClick={() => naviguer({ q: null, [SCOPE_PARAM]: null })}
+                    style={{ background: "none", border: "none", padding: 0, font: "inherit", fontWeight: 700, color: "var(--tcn-ink)", cursor: "pointer" }}
+                  >
+                    Effacer la recherche
+                  </button>
+                }
+              />
             ) : (
               <EmptyState bare title="Aucun participant à afficher" />
             )
