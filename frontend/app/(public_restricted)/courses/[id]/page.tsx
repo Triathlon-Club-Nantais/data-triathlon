@@ -55,7 +55,7 @@ export default async function CoursePage({
   const [data, summary, sources] = await Promise.all([
     apiServer.getCourse(Number(id), { page, q, scope }).catch(rendreNullSi404),
     apiServer.getCourseSummary(Number(id)).catch(rendreNullSi404),
-    apiServer.getCourseSources(Number(id)),
+    apiServer.getCourseSources(Number(id)).catch(rendreNullSi404),
   ]);
   if (!data || !summary) notFound();
   const { course, participations } = data;
@@ -88,7 +88,7 @@ export default async function CoursePage({
           {dsq > 0 && <MetaPill label="Disqualifiés">{dsq}</MetaPill>}
           {unknown > 0 && <MetaPill label="Indéterminés">{unknown}</MetaPill>}
           {tcnCount > 0 && <MetaPill accent dot>{tcnCount} athlète{tcnCount > 1 ? "s" : ""} TCN</MetaPill>}
-          <CourseSourcesPanel courseId={course.id} initialSources={sources} />
+          <CourseSourcesPanel courseId={course.id} initialSources={sources ?? []} />
         </div>
       </div>
 

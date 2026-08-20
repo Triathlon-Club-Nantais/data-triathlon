@@ -190,6 +190,37 @@ describe("CoursePage", () => {
     await expect(afficher()).rejects.toThrow("notFound");
   });
 
+  it("rend 404 quand un id inconnu fait aussi 404 sur les sources", async () => {
+    // Le cas réel : les trois routes répondent 404 pour le même id absent. Sans
+    // `.catch` sur les sources, `Promise.all` rejetait avant d'atteindre le
+    // `notFound()`, et le visiteur tombait sur l'écran d'erreur générique là où
+    // la page « épreuve introuvable » l'attendait (#468).
+    const absente = () => new ApiError(404, "Course introuvable");
+    getCourse.mockRejectedValue(absente());
+    getCourseSummary.mockRejectedValue(absente());
+    getCourseSources.mockRejectedValue(absente());
+
+    await expect(afficher()).rejects.toThrow("notFound");
+  });
+
+  it("affiche l'épreuve même si la seule route des sources répond 404", async () => {
+    // Les sources ne conditionnent jamais le 404 : une épreuve sans source
+    // migrée reste une épreuve valide (#284), elle n'affiche aucun chip.
+    getCourseSources.mockRejectedValue(new ApiError(404, "Pas de sources"));
+
+    await afficher();
+
+    expect(screen.getByText("Participants")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Klikego/ })).not.toBeInTheDocument();
+  });
+
+  it("laisse remonter une panne de la route des sources", async () => {
+    // Le `.catch` ne rattrape que le 404 : un 500 doit rester visible en
+    // supervision plutôt que d'effacer silencieusement les sources.
+    getCourseSources.mockRejectedValue(new ApiError(500, "Boum"));
+    await expect(afficher()).rejects.toThrow("Boum");
+  });
+
   it("affiche une épreuve vide sans NaN ni histogramme", async () => {
     getCourse.mockResolvedValue({
       course: COURSE,
