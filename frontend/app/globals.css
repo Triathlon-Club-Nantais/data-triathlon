@@ -153,6 +153,12 @@
   --run:    var(--tcn-orange);
   --violet: var(--tcn-ink-3);
 
+  /* Part d'encre mêlée à la couleur de discipline pour en faire un **libellé**
+     (`tintedStyle`, segments de ResultCard). Bornée des deux côtés : assez pour
+     que le texte tienne 4,5:1 sur son propre aplat à 14 %, pas assez pour
+     effacer la couleur qui code la discipline. Voir app/globals.test.ts. */
+  --ink-mix: 42%;
+
   /* ── Sémantique — succès ──────────────────────────────────────── */
   --tcn-success:       #1f8a4d;
   --tcn-success-bg:    #f0fdf5;
