@@ -34,6 +34,7 @@ CODES_ATTENDUS = {
     "allowed_emails:manage",
     "sessions:revoke",
     "benevole_access:manage",
+    "site_access:manage",
     "groups:read",
     "groups:write",
     "groups:assign",
