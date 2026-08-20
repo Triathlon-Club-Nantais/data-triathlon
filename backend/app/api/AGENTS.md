@@ -152,6 +152,12 @@ pas défaire :
   `_compteurs_de_debit_vierges` de `tests/conftest.py` le remet à zéro, sinon
   l'ordre d'exécution déciderait quel test prend un 429.
 
+**Depuis #509**, ces cinq routes restent anonymes **côté RBAC** — aucune
+session, aucun pouvoir — mais exigent désormais le mot de passe partagé du
+site comme le reste de l'API (`require_site_access`, posé à l'inclusion dans
+`v1/router.py`) : un visiteur qui ne l'a jamais entré ne les atteint plus du
+tout, plafond ou pas.
+
 Le SSE prend `optional_user` et journalise son appelant : il ne le faisait pas,
 et un import lancé depuis là ne laissait aucune trace de qui l'avait demandé.
 
@@ -186,6 +192,10 @@ le même `/admin/`, le signalement anonyme `POST /admin/pending-providers`, appe
 par le formulaire du site public en `.catch(() => {})` : une garde de préfixe
 supprimerait la fonctionnalité sans que rien ne la nomme, invisible en
 développement et totale en production. Deux tests de #114 l'interdisent encore.
+Anonyme ici veut dire **sans RBAC** ; depuis #509, `POST /admin/pending-
+providers` comme `POST /participations` restent derrière le mot de passe
+partagé du site (`require_site_access`), au même titre que le reste de l'API
+hors des cinq exceptions nommées de `v1/router.py`.
 
 **401 avant 403, structurellement** : la fabrique compose `current_user`, donc
 une requête sans session n'atteint jamais le contrôle de pouvoir. Le corps du 403
