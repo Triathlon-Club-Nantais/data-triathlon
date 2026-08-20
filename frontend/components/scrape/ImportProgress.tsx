@@ -1,15 +1,67 @@
 "use client";
+import { useState } from "react";
 import Link from "next/link";
 import { Progress } from "@/components/ui/progress";
+import { AnnonceStatut } from "@/components/tcn";
 import type { ImportState } from "@/hooks/useImportStream";
 
+/** Quart de progression (0-4) : jalon de l'annonce en phase `saving`. */
+function quart(state: ImportState): number {
+  const pct = state.total > 0 ? Math.round((state.progress / state.total) * 100) : 0;
+  return Math.floor(pct / 25);
+}
+
+/**
+ * Jalon courant de l'import — sert de clé de déduplication (#477) : le flux
+ * SSE émet un message par participant enregistré, et annoncer chacun
+ * spammerait un lecteur d'écran. On ne réannonce qu'au changement de heat
+ * (scraping), de quart de progression (saving), ou de phase.
+ */
+function jalon(state: ImportState): string {
+  if (state.phase === "scraping") return `scraping:${state.heatIndex}`;
+  if (state.phase === "saving") return `saving:${quart(state)}`;
+  return state.phase;
+}
+
+function texteJalon(state: ImportState): string {
+  if (state.phase === "scraping") {
+    if (state.heatsScrapingTotal > 0) {
+      return `Import en cours : heat ${state.heatIndex} sur ${state.heatsScrapingTotal}${state.heatLabel ? ` (${state.heatLabel})` : ""}.`;
+    }
+    return state.message || "Import en cours : récupération des participants.";
+  }
+  if (state.phase === "saving") {
+    const pct = state.total > 0 ? Math.round((state.progress / state.total) * 100) : 0;
+    return `Enregistrement en cours : ${state.progress} sur ${state.total} (${pct} %).`;
+  }
+  if (state.phase === "done") {
+    return state.cached
+      ? `Import terminé, déjà à jour (${state.skipped} participants en cache).`
+      : `Import terminé : ${state.imported} ajoutés, ${state.updated} mis à jour, ${state.skipped} ignorés.`;
+  }
+  return state.error || "Erreur lors de l'import.";
+}
+
 export function ImportProgress({ state }: { state: ImportState }) {
+  // Ajustement pendant le rendu (patron déjà en place dans `RaceFinishers`) :
+  // ne recalcule le texte annoncé qu'au changement de jalon, jamais à chaque
+  // re-rendu déclenché par un message SSE dans le même quart.
+  const [dernierJalon, setDernierJalon] = useState<string | null>(null);
+  const [texteAnnonce, setTexteAnnonce] = useState("");
+
   if (state.phase === "idle") return null;
+
+  const jalonCourant = jalon(state);
+  if (jalonCourant !== dernierJalon) {
+    setDernierJalon(jalonCourant);
+    setTexteAnnonce(texteJalon(state));
+  }
 
   const pct = state.total > 0 ? Math.round((state.progress / state.total) * 100) : 0;
 
   return (
     <div className="space-y-2 rounded-md border p-4 text-sm">
+      <AnnonceStatut texte={texteAnnonce} busy={state.phase === "scraping" || state.phase === "saving"} />
       {state.phase === "scraping" && <p>{state.message || "Récupération des participants…"}</p>}
       {state.phase === "saving" && (
         <>

@@ -389,4 +389,24 @@ describe("RaceFinishers", () => {
 
     expect(push).toHaveBeenCalledWith("/courses/1/participations/1");
   });
+
+  // ── Annonce du décompte / tri (WCAG 4.1.3, #477) ───────────────────────────
+
+  it("annonce le nombre de résultats affichés dans une région role=status", () => {
+    afficher();
+    expect(screen.getByRole("status")).toHaveTextContent("3 résultats affichés");
+  });
+
+  it("annonce la colonne et la direction de tri une fois un en-tête cliqué", async () => {
+    afficher({
+      participations: [
+        p({ id: 1, nom: "LENT", total_time: "01:00:00" }),
+        p({ id: 2, nom: "RAPIDE", total_time: "00:58:00" }),
+      ],
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /Trier par temps total/i }));
+
+    expect(screen.getByRole("status")).toHaveTextContent(/temps total.*croissant/i);
+  });
 });

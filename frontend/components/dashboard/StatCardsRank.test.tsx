@@ -70,3 +70,27 @@ describe("StatCardsRank — sélection du bucket selon ?rank=", () => {
     expect(screen.queryByText("général")).not.toBeInTheDocument();
   });
 });
+
+// WCAG 4.1.3 (#477) : la bascule recalcule en mémoire (#328), sans navigation
+// ni re-fetch — rien ne signale le changement à un lecteur d'écran.
+describe("StatCardsRank — annonce du changement (#477)", () => {
+  it("annonce les compteurs du mode courant dans une région role=status", () => {
+    searchParams = new URLSearchParams();
+    render(<StatCardsRank rankCounters={COUNTERS} />);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Classement général : 0 victoire, 1 podium, 1 top 10",
+    );
+  });
+
+  it("réannonce au changement de mode", () => {
+    searchParams = new URLSearchParams();
+    const { rerender } = render(<StatCardsRank rankCounters={COUNTERS} />);
+
+    searchParams = new URLSearchParams("rank=category");
+    rerender(<StatCardsRank rankCounters={COUNTERS} />);
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Classement catégorie : 1 victoire, 1 podium, 1 top 10",
+    );
+  });
+});

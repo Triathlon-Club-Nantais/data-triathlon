@@ -1,7 +1,7 @@
 "use client";
 import type { ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
-import { StatCard } from "@/components/tcn";
+import { StatCard, AnnonceStatut } from "@/components/tcn";
 import { RANK_PARAM, rankTypeFromParam } from "@/lib/rank";
 import { rankTypeLabel } from "@/lib/labels";
 import type { DashboardRankCounters } from "@/lib/types";
@@ -46,6 +46,18 @@ function GenderPair({ women, men }: { women: number; men: number }): ReactNode {
  * 5000 lignes) pour ce seul calcul — déplacé en backend, la page n'a plus à
  * les charger du tout.
  */
+/** Décompte annoncé (#477) : plusieurs mots par occurrence pluriel/singulier français. */
+function motCompte(n: number, mot: string): string {
+  return `${n} ${mot}${n > 1 ? "s" : ""}`;
+}
+
+// WCAG 4.1.3 (#477) — le sélecteur écrit l'URL par `history.pushState` (#328),
+// donc rien ne navigue et rien ne recharge : sans cette annonce, la bascule
+// est muette pour un lecteur d'écran.
+function texteAnnonce(rankLabel: string, victories: number, podiums: number, top10: number): string {
+  return `Classement ${rankLabel} : ${motCompte(victories, "victoire")}, ${motCompte(podiums, "podium")}, ${top10} top 10`;
+}
+
 export function StatCardsRank({ rankCounters }: { rankCounters: DashboardRankCounters }) {
   const sp = useSearchParams();
   const rankType = rankTypeFromParam(sp.get(RANK_PARAM) ?? undefined);
@@ -55,6 +67,14 @@ export function StatCardsRank({ rankCounters }: { rankCounters: DashboardRankCou
     const { women, men } = rankCounters.gender;
     return (
       <>
+        <AnnonceStatut
+          texte={texteAnnonce(
+            rankLabel,
+            women.victories + men.victories,
+            women.podiums + men.podiums,
+            women.top10 + men.top10,
+          )}
+        />
         <StatCard label="Victoires" value={<GenderPair women={women.victories} men={men.victories} />} delta={rankLabel} icon={<TrophyIcon />} />
         <StatCard label="Podiums" value={<GenderPair women={women.podiums} men={men.podiums} />} delta={rankLabel} icon={<PodiumIcon />} />
         <StatCard label="Top 10" value={<GenderPair women={women.top10} men={men.top10} />} delta={rankLabel} icon={<Top10Icon />} />
@@ -64,6 +84,7 @@ export function StatCardsRank({ rankCounters }: { rankCounters: DashboardRankCou
   const counters = rankCounters[rankType];
   return (
     <>
+      <AnnonceStatut texte={texteAnnonce(rankLabel, counters.victories, counters.podiums, counters.top10)} />
       <StatCard label="Victoires" value={counters.victories} delta={rankLabel} icon={<TrophyIcon />} />
       <StatCard label="Podiums" value={counters.podiums} delta={rankLabel} icon={<PodiumIcon />} />
       <StatCard label="Top 10" value={counters.top10} delta={rankLabel} icon={<Top10Icon />} />

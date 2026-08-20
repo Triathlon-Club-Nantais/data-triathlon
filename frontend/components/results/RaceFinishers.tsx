@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Card, SegmentedControl, PlaceBadge } from "@/components/tcn";
+import { Card, SegmentedControl, PlaceBadge, AnnonceStatut } from "@/components/tcn";
 import { StatusBadge } from "@/components/results/StatusBadge";
 import { isNonFinisher } from "@/lib/utils/raceOrder";
 import { splitColumnsFromKeys } from "@/lib/utils/splits";
@@ -126,8 +126,21 @@ export function RaceFinishers({
       })
     : participations;
 
+  // WCAG 4.1.3 (#477) : le tri par en-tête réordonne les 1080 px du tableau
+  // sans déplacer le focus — sans cette annonce, un lecteur d'écran ne le voit
+  // pas passer, pas plus que le nouveau décompte après une recherche.
+  const libelleTri = tri
+    ? tri.cle === CLE_TEMPS_TOTAL
+      ? "temps total"
+      : `temps ${segments.find((s) => s.key === tri.cle)?.label ?? tri.cle}`
+    : null;
+  const texteAnnonce =
+    `${lignes.length} résultat${lignes.length > 1 ? "s" : ""} affiché${lignes.length > 1 ? "s" : ""}` +
+    (libelleTri ? `, trié par ${libelleTri}, ${tri!.direction === "asc" ? "croissant" : "décroissant"}` : "");
+
   return (
     <Card padding={0} style={{ overflow: "hidden" }}>
+      <AnnonceStatut texte={texteAnnonce} />
       <div style={{ padding: "20px 26px", borderBottom: "1px solid var(--tcn-border)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
         <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)" }}>Classement</div>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>

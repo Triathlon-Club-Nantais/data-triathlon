@@ -2,7 +2,7 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Card, Badge, FormatChip } from "@/components/tcn";
+import { Card, Badge, FormatChip, AnnonceStatut } from "@/components/tcn";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Select,
@@ -49,6 +49,8 @@ export function EventList({
   const sentinel = useRef<HTMLDivElement | null>(null);
 
   const events = data?.pages.flatMap((p) => p.items) ?? [];
+  const totalEvents = data?.pages[0]?.total_events ?? 0;
+  const totalParticipations = data?.pages[0]?.total_participations ?? 0;
 
   // Scroll infini : charge la page suivante quand la sentinelle entre dans le viewport.
   useEffect(() => {
@@ -80,6 +82,12 @@ export function EventList({
 
   return (
     <Card padding={0} style={{ overflow: "hidden" }}>
+      {/* WCAG 4.1.3 (#477) : filtrer ou trier remplace la liste sans déplacer
+          le focus — sans cette annonce, un lecteur d'écran ne signale ni le
+          nouveau décompte ni le rechargement. */}
+      <AnnonceStatut
+        texte={`${totalEvents} épreuve${totalEvents > 1 ? "s" : ""}, ${totalParticipations} résultat${totalParticipations > 1 ? "s" : ""}`}
+      />
       <div
         style={{
           display: "flex",

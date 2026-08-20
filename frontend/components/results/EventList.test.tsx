@@ -196,4 +196,37 @@ describe("EventList", () => {
     renderList();
     expect(screen.getByText("Aucun résultat")).toBeInTheDocument();
   });
+
+  // WCAG 4.1.3 (#477) : filtrer/trier remplace la liste sans annonce.
+  it("annonce le décompte d'épreuves et de résultats dans une région role=status", () => {
+    setEvents({
+      data: {
+        pages: [
+          {
+            items: [
+              {
+                id: 14,
+                event_name: "Tri de Nantes",
+                event_type: "triathlon-m",
+                event_date: "2026-05-16",
+                is_relay: false,
+                total: 42,
+                tcn_count: 3,
+              },
+            ],
+            total_events: 48,
+            total_participations: 312,
+          },
+        ],
+      },
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+    });
+
+    renderList();
+
+    expect(screen.getByRole("status")).toHaveTextContent("48 épreuves, 312 résultats");
+  });
 });
