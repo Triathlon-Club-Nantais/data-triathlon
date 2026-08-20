@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { Anton, Barlow, Barlow_Semi_Condensed } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
@@ -36,7 +37,18 @@ export const metadata: Metadata = {
   description: `Résultats de compétition des membres du ${CLUB_NAME}`,
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Rendu dynamique de **toutes** les routes (#448) : un nonce n'existe qu'à la
+  // requête, donc une page générée au build livrerait des scripts sans nonce —
+  // rapportés à tort en violation, et cassés le jour du mode bloquant. Le
+  // layout racine s'appliquant à tout, cet unique `await` suffit.
+  //
+  // Pas `export const dynamic = "force-dynamic"` : la doc le décrit comme
+  // équivalent à `{ cache: "no-store", next: { revalidate: 0 } }` sur **chaque**
+  // `fetch`, ce qui annulerait le cache de #352. `connection()` n'attend que la
+  // requête et ne touche pas au Data Cache.
+  await connection();
+
   return (
     <html
       lang="fr"

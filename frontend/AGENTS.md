@@ -105,6 +105,25 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   en-têtes de sécurité posés sur `/:path*`, rewrites comprises (#396). Ils ne
   couvrent que ce qui passe par Next : les backends Render étant joignables en
   direct, `backend/app/core/security_headers.py` en est le jumeau. La CSP n'y est
-  pas — elle demande un `nonce` pour Next.js et PostHog.
+  **pas** — elle vit dans `proxy.ts` (#448) : `headers()` ne sert que des
+  constantes, or un nonce se génère par requête.
+- `proxy.ts` — le proxy Next (nom que Next 16 donne à l'ancien `middleware.ts`).
+  Deux charges, dans cet ordre : la **CSP entière** (#448) et le marquage du
+  cookie de présence (#427). Trois pièges :
+  - La politique n'est **pas** scindée avec `next.config.ts` : deux en-têtes CSP
+    sur une réponse se cumulent **par intersection**, chacun évalué séparément —
+    ce serait deux sources de vérité et des rapports en double.
+  - Elle est posée sur les en-têtes de la **requête** transmise au renderer,
+    autant que sur la réponse : c'est là que Next lit le nonce. N'écrire que la
+    réponse donne une politique correcte et un HTML sans nonce.
+  - La CSP est le **tronc** de la fonction, le cookie un effet de bord : une
+    sortie précoce la court-circuiterait pour la majorité des visiteurs.
+
+  En `Content-Security-Policy-Report-Only` pour l'instant — le nonce est injecté
+  quand même, donc l'observation vaut mesure ; le passage en mode bloquant est
+  une issue de suite. Corollaire : `await connection()` dans `app/layout.tsx`
+  rend **toute** route dynamique, un nonce ne pouvant exister dans une page
+  générée au build. Ne pas y substituer `dynamic = "force-dynamic"`, qui
+  annulerait le cache de fetch de #352.
 - Déploiement : Vercel, variables `BACKEND_URL` + `API_URL`.
 

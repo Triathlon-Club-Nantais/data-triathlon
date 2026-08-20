@@ -35,4 +35,14 @@ describe("headers()", () => {
       expect(politique).toContain(`${fonctionnalite}=()`);
     }
   });
+
+  it("ne porte aucune directive CSP, qui vit entière dans proxy.ts", async () => {
+    // #448 — deux en-têtes CSP sur une même réponse **se cumulent par
+    // intersection**, chacun évalué séparément : scinder la politique donnerait
+    // deux sources de vérité et des rapports en double. Le nonce, lui, ne peut
+    // de toute façon pas venir d'ici : `headers()` ne sert que des constantes.
+    for (const nom of (await enTetes()).keys()) {
+      expect(nom.toLowerCase()).not.toContain("content-security-policy");
+    }
+  });
 });
