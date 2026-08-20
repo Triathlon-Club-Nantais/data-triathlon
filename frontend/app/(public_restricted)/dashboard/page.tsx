@@ -8,6 +8,7 @@ import { StatCardsRank } from "@/components/dashboard/StatCardsRank";
 import { currentSeason, parseSeasonsParam, seasonSelectionLabel } from "@/lib/utils/season";
 import { StatCard, Card, Eyebrow, FormatChip } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
+import { EmptyState } from "@/components/ui/empty-state";
 import { aggregateDisciplines, formatToken, pctFr } from "@/lib/utils/format";
 
 export default async function DashboardPage({
@@ -81,7 +82,15 @@ export default async function DashboardPage({
         <Card>
           <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 24, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 20 }}>Type d&apos;épreuves</h2>
           {disciplines.length === 0 ? (
-            <div style={{ color: "var(--tcn-text-faint)", fontSize: 14 }}>Aucune épreuve enregistrée.</div>
+            <EmptyState
+              bare
+              title="Aucune épreuve enregistrée"
+              action={
+                <Link href="/ajouter" className="text-sm font-semibold text-accent-ink hover:underline">
+                  Ajouter une épreuve →
+                </Link>
+              }
+            />
           ) : (
             <>
               <div style={{ display: "flex", height: 20, borderRadius: 999, overflow: "hidden", marginBottom: 24 }}>
@@ -116,7 +125,18 @@ export default async function DashboardPage({
               <b style={{ textAlign: "right", fontFamily: "var(--tcn-font-display)", color: "var(--tcn-ink)" }}>{e.total}</b>
             </Link>
           ))}
-          {topEvents.length === 0 && <div style={{ padding: 20, textAlign: "center", color: "var(--tcn-text-faint)", fontSize: 14 }}>Aucune épreuve.</div>}
+          {topEvents.length === 0 && (
+            <EmptyState
+              bare
+              className="py-6"
+              title="Aucune épreuve à afficher"
+              action={
+                <Link href="/ajouter" className="text-sm font-semibold text-accent-ink hover:underline">
+                  Ajouter une épreuve →
+                </Link>
+              }
+            />
+          )}
         </Card>
       </div>
     </PageShell>

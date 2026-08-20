@@ -202,7 +202,8 @@ describe("RaceFinishers", () => {
     searchParams = new URLSearchParams("page=99999");
     afficher({ participations: [], total: 100, pageSize: 20, page: 99999 });
 
-    expect(screen.getByText(/Cette page n'existe pas/)).toBeInTheDocument();
+    expect(screen.getByText("Cette page n'existe pas")).toBeInTheDocument();
+    expect(screen.getByText(/le classement s'arrête à la page 5/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Revenir au début" })).toHaveAttribute(
       "href",
       "/courses/1",
@@ -240,7 +241,12 @@ describe("RaceFinishers", () => {
   it("annonce l'absence de résultat de recherche distinctement d'une épreuve vide", () => {
     searchParams = new URLSearchParams("q=zzz");
     afficher({ participations: [], total: 0 });
-    expect(screen.getByText(/Aucun athlète ne correspond/)).toBeInTheDocument();
+    expect(screen.getByText("Aucun athlète ne correspond à cette recherche")).toBeInTheDocument();
+  });
+
+  it("annonce une épreuve sans aucun participant (ETAT-3)", () => {
+    afficher({ participations: [], total: 0 });
+    expect(screen.getByText("Aucun participant à afficher")).toBeInTheDocument();
   });
 
   // ── Colonnes de splits ─────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import { scaleLinear } from "d3-scale";
 import { pctFr } from "@/lib/utils/format";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const CAT_COLORS = [
   "var(--tcn-orange)", "var(--tcn-orange-300)", "var(--tcn-ink)", "var(--tcn-ink-2)",
@@ -19,9 +20,7 @@ export function CategoryBars({
   total: number;
 }) {
   if (categories.length === 0) {
-    return (
-      <div style={{ color: "var(--tcn-text-faint)", fontSize: 14 }}>Catégories non renseignées.</div>
-    );
+    return <EmptyState bare className="px-0 py-4" title="Catégories non renseignées" />;
   }
 
   const scale = total > 0 ? scaleLinear().domain([0, total]).range([0, 100]) : () => 0;

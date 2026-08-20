@@ -3,6 +3,7 @@ import { apiServer } from "@/lib/api/server";
 import { ApiError } from "@/lib/api/client";
 import { Card, Eyebrow, MetaPill } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
+import { EmptyState } from "@/components/ui/empty-state";
 import { RaceFinishers } from "@/components/results/RaceFinishers";
 import { CourseSourcesPanel } from "@/components/courses/CourseSourcesPanel";
 import { eventTypeLabel } from "@/lib/constants";
@@ -109,7 +110,7 @@ export default async function CoursePage({
             <div>Club</div><div style={{ textAlign: "right" }}>Athlètes</div>
           </div>
           {clubs.length === 0 ? (
-            <div style={{ color: "var(--tcn-text-faint)", fontSize: 13, paddingTop: 8 }}>Clubs non renseignés.</div>
+            <EmptyState bare className="px-0 py-4" title="Clubs non renseignés" />
           ) : (
             clubs.map(({ name, count, is_tcn: own }) => {
               return (

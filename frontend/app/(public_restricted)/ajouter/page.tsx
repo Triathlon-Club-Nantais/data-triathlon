@@ -2,6 +2,7 @@ import Link from "next/link";
 import { apiServer, SHORT_REVALIDATE_SECONDS } from "@/lib/api/server";
 import { Card, Eyebrow, FormatChip, Badge } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
+import { EmptyState } from "@/components/ui/empty-state";
 import { TcnScrapeForm } from "@/components/scrape/TcnScrapeForm";
 import { formatToken } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
@@ -38,7 +39,8 @@ export default async function AjouterPage() {
               <div>Date</div><div>Épreuve</div><div>Format</div><div>Athlètes club</div>
             </div>
             {recent.length === 0 ? (
-              <div style={{ padding: 40, textAlign: "center", color: "var(--tcn-text-faint)", fontSize: 14 }}>Aucun résultat enregistré pour l&apos;instant.</div>
+              // Pas d'action : le formulaire d'import est juste au-dessus.
+              <EmptyState bare title="Aucun résultat enregistré pour l'instant" />
             ) : (
               recent.map((e) => (
                 <Link key={e.id} href={`/courses/${e.id}`} className="tcn-rowlink" style={{ display: "grid", gridTemplateColumns: RCOLS, gap: "0 14px", alignItems: "center", padding: "13px 24px", borderBottom: "1px solid var(--tcn-border-faint)" }}>

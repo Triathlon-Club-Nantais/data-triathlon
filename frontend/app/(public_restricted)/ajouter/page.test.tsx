@@ -44,4 +44,12 @@ describe("AjouterPage", () => {
       screen.getByRole("heading", { level: 2, name: "Derniers résultats enregistrés" }),
     ).toBeInTheDocument();
   });
+
+  it("affiche un état vide quand il n'y a encore aucun résultat récent (ETAT-3)", async () => {
+    // Pas d'action ici, à dessein : le formulaire d'import est juste au-dessus.
+    const ui = await AjouterPage();
+    render(ui);
+
+    expect(screen.getByText("Aucun résultat enregistré pour l'instant")).toBeInTheDocument();
+  });
 });

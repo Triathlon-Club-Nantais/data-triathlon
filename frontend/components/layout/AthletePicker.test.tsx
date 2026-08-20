@@ -1,5 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { readAthlete, writeAthlete, clearAthlete } from "./AthletePicker";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, act } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { readAthlete, writeAthlete, clearAthlete, AthletePicker } from "./AthletePicker";
+
+const listParticipations = vi.fn();
+vi.mock("@/lib/api/client", () => ({
+  apiClient: { listParticipations: (filters: unknown) => listParticipations(filters) },
+}));
 
 const ATHLETE = { id: 7, prenom: "Marie", nom: "Gaudin" };
 
@@ -25,6 +32,31 @@ describe("clearAthlete", () => {
 
     clearAthlete();
     expect(readAthlete()).toBeNull();
+  });
+});
+
+describe("AthletePicker — aucune correspondance (ETAT-3)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    listParticipations.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("propose d'effacer la recherche quand rien ne correspond", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<AthletePicker onClose={vi.fn()} onPick={vi.fn()} />);
+
+    await user.type(screen.getByPlaceholderText("Rechercher un nom…"), "zzz");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+
+    expect(await screen.findByText("Aucun athlète trouvé")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Effacer la recherche" }));
+    expect(screen.getByPlaceholderText("Rechercher un nom…")).toHaveValue("");
   });
 });
 

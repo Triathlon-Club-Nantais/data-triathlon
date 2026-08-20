@@ -83,6 +83,28 @@ async function renderDashboard(searchParams: Record<string, string | undefined> 
   return render(ui);
 }
 
+describe("DashboardPage — états vides (ETAT-3)", () => {
+  it("propose d'ajouter une épreuve quand aucune discipline n'est enregistrée", async () => {
+    getStats.mockResolvedValue({ ...STATS, by_type: {} });
+    await renderDashboard({});
+
+    expect(screen.getByText("Aucune épreuve enregistrée")).toBeInTheDocument();
+    // `eventsPage` (mock par défaut) est vide elle aussi : les deux états vides
+    // du dashboard s'affichent ensemble, d'où `getAllBy` plutôt que `getBy`.
+    const liens = screen.getAllByRole("link", { name: /Ajouter une épreuve/ });
+    expect(liens.every((l) => l.getAttribute("href") === "/ajouter")).toBe(true);
+  });
+
+  it("propose d'ajouter une épreuve quand la liste des épreuves préférées est vide", async () => {
+    // `EVENTS_PAGE` par défaut a déjà `items: []` : l'état vide est le cas
+    // par défaut de la fixture, pas un cas à construire.
+    await renderDashboard({});
+
+    expect(screen.getByText("Aucune épreuve à afficher")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Ajouter une épreuve/ })).toHaveAttribute("href", "/ajouter");
+  });
+});
+
 describe("DashboardPage", () => {
   it("force la portée club sur tous les appels API, même sans ?scope=club", async () => {
     await renderDashboard({});

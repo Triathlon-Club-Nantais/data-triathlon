@@ -24,7 +24,7 @@ describe("CategoryBars", () => {
 
   it("affiche un état vide quand aucune catégorie n'est renseignée", () => {
     render(<CategoryBars categories={[]} total={0} />);
-    expect(screen.getByText("Catégories non renseignées.")).toBeInTheDocument();
+    expect(screen.getByText("Catégories non renseignées")).toBeInTheDocument();
   });
 
   it("n'échoue pas quand le total est nul", () => {

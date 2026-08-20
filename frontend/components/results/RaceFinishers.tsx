@@ -8,6 +8,7 @@ import { isNonFinisher } from "@/lib/utils/raceOrder";
 import { splitColumnsFromKeys } from "@/lib/utils/splits";
 import { secondsFromHms } from "@/lib/utils/time";
 import { genderShort } from "@/lib/utils/format";
+import { EmptyState } from "@/components/ui/empty-state";
 import { SCOPE_CLUB, SCOPE_PARAM } from "@/lib/scope";
 import { CLUB_NAME } from "@/lib/club";
 import type { CourseSummary, Participation } from "@/lib/types";
@@ -277,20 +278,22 @@ export function RaceFinishers({
             );
           })}
           {participations.length === 0 && (
-            <div style={{ padding: 30, textAlign: "center", color: "var(--tcn-text-faint)", fontSize: 14 }}>
-              {page > nbPages ? (
-                <>
-                  Cette page n&apos;existe pas — le classement s&apos;arrête à la page {nbPages}.{" "}
+            page > nbPages ? (
+              <EmptyState
+                bare
+                title="Cette page n'existe pas"
+                description={`le classement s'arrête à la page ${nbPages}`}
+                action={
                   <Link href={lienVers({ page: null })} style={{ fontWeight: 700, color: "var(--tcn-ink)" }}>
                     Revenir au début
                   </Link>
-                </>
-              ) : rechercheUrl || filtreClub ? (
-                "Aucun athlète ne correspond à cette recherche."
-              ) : (
-                "Aucun participant à afficher."
-              )}
-            </div>
+                }
+              />
+            ) : rechercheUrl || filtreClub ? (
+              <EmptyState bare title="Aucun athlète ne correspond à cette recherche" />
+            ) : (
+              <EmptyState bare title="Aucun participant à afficher" />
+            )
           )}
         </div>
       </div>
