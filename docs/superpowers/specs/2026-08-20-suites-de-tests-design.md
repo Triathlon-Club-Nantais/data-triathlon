@@ -65,6 +65,14 @@ principes de conception refusent, pour économiser un drapeau documenté.
   par un ;
 - projet **`node`** — tout le reste, `.test.ts` **et `.test.mjs`**.
 
+« Tout le reste » se construit, il ne s'énumère pas. Une constante `GLOBS_JSDOM`
+porte la liste ci-dessus ; `jsdom` la prend en `include`, et `node` prend le
+`include` **par défaut de vitest** en la retirant par `exclude`. La partition est
+alors **structurelle** : tout fichier que vitest collecte tombe dans `jsdom` s'il
+matche `GLOBS_JSDOM`, dans `node` sinon — jamais dans les deux, jamais dans
+aucun. Deux listes de globs disjointes tenues à la main donneraient le même
+résultat aujourd'hui et divergeraient au premier ajout.
+
 Les deux `scripts/*.test.mjs` sont le piège de cette section. Un jeu de globs
 bâti sur `**/*.test.ts` + `**/*.test.tsx` — la formulation naturelle — les
 laisserait réclamés par **aucun** projet, donc jamais exécutés, et la suite
@@ -101,7 +109,15 @@ réclamé par exactement un projet** — ni zéro, ni deux.
 Son glob de référence est celui de vitest lui-même,
 `**/*.{test,spec}.?(c|m)[jt]s?(x)`, et non une liste d'extensions réécrite à la
 main : recopier `ts` et `tsx` dans le garde-fou reproduirait l'angle mort qu'il
-est censé couvrir, et un `.test.cjs` futur passerait sous les deux.
+est censé couvrir, et un `.test.cjs` futur passerait sous les deux. Il l'obtient
+en **important** `configDefaults.include` de `vitest/config`, ce qui rend la
+recopie impossible.
+
+Il ne réimplémente aucune règle de correspondance : il globe **une fois par
+projet**, avec les `include`/`exclude` de ce projet, et compare au glob de
+référence. Le moteur est donc `tinyglobby`, celui de vitest, promu de dépendance
+transitive à `devDependency` explicite — un test qui en dépend ne doit pas
+reposer sur l'arbre d'un tiers.
 
 C'est l'artefact TDD du levier 1, et il couvre un mode de défaillance que ni les
 docblocks ni les globs n'attrapent : un fichier de test dans un dossier neuf que
@@ -126,17 +142,22 @@ L'étape 4 n'est pas cosmétique : l'inspection se fait sur l'URL explicite, la
 variable n'est plus nécessaire après la montée, et une `DATABASE_URL` posée à
 portée module fuirait vers les autres tests exécutés par le même worker xdist.
 
-Les **15** tests purement inspecteurs de schéma la prennent ; les **14** autres
+Les **13** tests purement inspecteurs de schéma la prennent ; les **16** autres
 gardent `sqlite_url` par test, inchangés — dont les trois faux amis relevés par
 le sondage (l'effet de bord de `fileConfig()`, et les deux qui dépendent de la
 présence ou de l'absence d'`AUTH_ALLOWED_EMAILS` **avant** la montée).
 
-Ce qu'on perd, et il faut l'écrire : chacun de ces 15 tests ne prouve plus à lui
-seul qu'`upgrade head` part d'une base vierge — un seul le prouve, les autres
-inspectent son résultat. Ce qu'on garde : les assertions mot pour mot, et une
-détection qui reste immédiate, la fixture emportant les 15 d'un coup si la montée
-casse. La docstring pose la contrainte d'usage : **ces 15 lisent le schéma, aucun
-n'écrit** ; celui qui aurait besoin d'écrire reprend `sqlite_url`.
+Parmi ces 16, un l'est **par choix et non par contrainte** :
+`test_upgrade_head_sur_base_vierge` pourrait techniquement partager la fixture,
+mais il est le seul à porter la preuve du chemin vierge → `head`. Il garde donc
+sa propre base, pour que cette preuve tienne sans dépendre d'un état partagé.
+
+Ce qu'on perd, et il faut l'écrire : chacun de ces 13 tests ne prouve plus à lui
+seul qu'`upgrade head` part d'une base vierge — le test ci-dessus le prouve, les
+13 inspectent le résultat d'une montée. Ce qu'on garde : les assertions mot pour
+mot, et une détection qui reste immédiate, la fixture emportant les 13 d'un coup
+si la montée casse. La docstring pose la contrainte d'usage : **ces 13 lisent le
+schéma, aucun n'écrit** ; celui qui aurait besoin d'écrire reprend `sqlite_url`.
 
 ### 5. Le levier 2 ne devient pas du code
 

@@ -103,10 +103,20 @@ non entrelacée.
 soit ~24 % de la suite séquentielle sans `-v`. Sous `-n 4` il n'est plus le
 chemin critique.
 
-Ces 29 tests se scindent nettement à la lecture : **15 ne font qu'un
-`upgrade head` puis inspectent le schéma** — donc partageables — et **14 sèment
-des données à une révision intermédiaire ou font un cycle
-`downgrade`/`upgrade`** — donc non partageables.
+Ces 29 tests se scindent nettement à la lecture, en **13 / 15 / 1** :
+
+- **13 ne font qu'un `upgrade head` puis inspectent le schéma** — partageables ;
+- **15 ne le sont pas** : semis de données à une révision intermédiaire, cycle
+  `downgrade`/`upgrade`, ou dépendance à une variable d'environnement posée
+  **avant** la montée ;
+- **1 reste à part**, `test_upgrade_head_sur_base_vierge` : c'est lui qui prouve
+  le chemin vierge → `head`, et il garde sa propre base pour le prouver seul.
+
+> **Correction.** Une première lecture annonçait ici « 15 partageables sur 14 »,
+> décompte repris tel quel par le design. L'**énumération nom par nom** des 29
+> fonctions du fichier donne 13 / 15 / 1 — les tests de cycle sont 8 et non 7, et
+> les deux tests de reprise des adresses autorisées sont bien non partageables.
+> C'est l'énumération qui fait foi ; les deux documents ont été corrigés.
 
 Trois tests méritent une mention parce qu'ils *ressemblent* à des inspecteurs
 sans en être : `test_upgrade_ne_desactive_pas_les_loggers_existants` observe
@@ -167,7 +177,7 @@ disparu de `InlineConfig`. `test.projects` est la seule route.
 | 5 — retirer `-v` | « marginal », à faire si budget | **19 s, 20 %** | **à faire en premier**, risque nul |
 | 3 — xdist | 2,6× | **1,6×** (77 → 47 s) | à faire, valeur **plafonnée** |
 | 1 — env. node | 3,1× sur la tranche | **4× sur la tranche, 8 % sur la suite** | à faire, pour la boucle ciblée |
-| 4 — tests de migration | 14 % du temps | 18,2 s ; 15 upgrades partageables sur 29 | modeste sous xdist |
+| 4 — tests de migration | 14 % du temps | 18,2 s ; 13 montées mutualisables sur 29 | modeste sous xdist |
 | 2 — flakiness | contention interne à vitest, diagnostiquer `maxWorkers` | **ne reproduit pas au repos** | **ne rien changer** à `maxWorkers` |
 
 Le levier 2 n'est pas un changement de configuration : la cause est la
