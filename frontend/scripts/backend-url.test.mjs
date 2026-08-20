@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it, afterEach } from "vitest";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer as createHttpServer } from "node:http";
