@@ -70,6 +70,12 @@ beforeEach(() => {
 });
 
 describe("AthletePage", () => {
+  it("rend le nom de l'athlète comme un <h1> (A11Y-2)", async () => {
+    await renderAthlete([part({ id: 1 })]);
+
+    expect(screen.getByRole("heading", { level: 1, name: "Jean DUPONT" })).toBeInTheDocument();
+  });
+
   it("retient le meilleur ratio, pas la meilleure place", async () => {
     await renderAthlete([
       part({ id: 1, rank_overall: 42, course_finishers: 300 }),

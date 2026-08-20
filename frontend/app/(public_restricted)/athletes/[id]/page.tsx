@@ -68,7 +68,7 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
         <Avatar name={fullName} size={72} />
         <div>
           <Eyebrow>Résultats enregistrés</Eyebrow>
-          <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(28px, 5vw, 42px)", color: "var(--tcn-ink)", lineHeight: 1, marginTop: 4 }}>{fullName}</div>
+          <h1 style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(28px, 5vw, 42px)", fontWeight: 400, color: "var(--tcn-ink)", lineHeight: 1, margin: 0, marginTop: 4 }}>{fullName}</h1>
         </div>
         <div style={{ marginLeft: "auto" }}>
           <SelectAthleteButton athlete={{ id: athlete.id, prenom: athlete.prenom, nom: athlete.nom }} />

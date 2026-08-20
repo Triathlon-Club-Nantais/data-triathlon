@@ -100,6 +100,15 @@ async function afficher(searchParams: Record<string, string | undefined> = {}) {
 }
 
 describe("CoursePage", () => {
+  it("rend le nom de l'épreuve en <h1> et les titres de carte en <h2> (A11Y-2)", async () => {
+    await afficher();
+
+    expect(screen.getByRole("heading", { level: 1, name: "Triathlon de Nantes" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Répartition genre" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Répartition par catégorie" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Top clubs" })).toBeInTheDocument();
+  });
+
   it("alimente les six blocs depuis la synthèse, pas depuis les lignes affichées", async () => {
     // Aucune participation dans la charge : tout ce qui suit vient de la synthèse.
     await afficher();

@@ -76,7 +76,7 @@ export default async function CoursePage({
     <PageShell>
       <div style={{ marginBottom: 24 }}>
         <Eyebrow style={{ marginBottom: 6 }}>Résultats complets</Eyebrow>
-        <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(30px, 5vw, 46px)", color: "var(--tcn-ink)", lineHeight: 1, marginBottom: 12 }}>{formatEventName(course.name, course.is_relay)}</div>
+        <h1 style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(30px, 5vw, 46px)", fontWeight: 400, color: "var(--tcn-ink)", lineHeight: 1, margin: 0, marginBottom: 12 }}>{formatEventName(course.name, course.is_relay)}</h1>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
           <MetaPill label="Type">{eventTypeLabel(course.event_type)}</MetaPill>
           <MetaPill label="Format">{formatToken(course.event_type, course.distance_km)}</MetaPill>
@@ -94,17 +94,17 @@ export default async function CoursePage({
 
       <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card padding={24} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 18 }}>
-          <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 18, color: "var(--tcn-ink)", alignSelf: "flex-start" }}>Répartition genre</div>
+          <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 18, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, alignSelf: "flex-start" }}>Répartition genre</h2>
           <GenderDonut malePct={malePct} femalePct={femalePct} hasGender={hasGender} />
         </Card>
 
         <Card padding={24}>
-          <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 18, color: "var(--tcn-ink)", marginBottom: 18 }}>Répartition par catégorie</div>
+          <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 18, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 18 }}>Répartition par catégorie</h2>
           <CategoryBars categories={summary.categories} total={summary.categories_total} />
         </Card>
 
         <Card padding={24} className="sm:col-span-2 lg:col-span-1">
-          <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 18, color: "var(--tcn-ink)", marginBottom: 14 }}>Top clubs</div>
+          <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 18, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 14 }}>Top clubs</h2>
           <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, paddingBottom: 8, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--tcn-text-faint)", borderBottom: "1px solid var(--tcn-border)", marginBottom: 4 }}>
             <div>Club</div><div style={{ textAlign: "right" }}>Athlètes</div>
           </div>

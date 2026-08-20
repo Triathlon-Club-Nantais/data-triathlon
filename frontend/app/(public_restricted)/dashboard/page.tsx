@@ -58,7 +58,7 @@ export default async function DashboardPage({
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <Eyebrow>Participations aux courses</Eyebrow>
-            <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(28px, 5vw, 40px)", color: "var(--tcn-ink)", lineHeight: 1, marginTop: 6 }}>{seasonSelectionLabel(selected)}</div>
+            <h1 style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(28px, 5vw, 40px)", fontWeight: 400, color: "var(--tcn-ink)", lineHeight: 1, margin: 0, marginTop: 6 }}>{seasonSelectionLabel(selected)}</h1>
             <div style={{ fontSize: 15, color: "var(--tcn-text-muted)", marginTop: 8, fontWeight: 500 }}>Vue d&apos;ensemble des performances des athlètes du club</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -79,7 +79,7 @@ export default async function DashboardPage({
 
       <div className="grid gap-4 lg:grid-cols-2" style={{ gridTemplateColumns: undefined }}>
         <Card>
-          <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 24, color: "var(--tcn-ink)", marginBottom: 20 }}>Type d&apos;épreuves</div>
+          <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 24, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 20 }}>Type d&apos;épreuves</h2>
           {disciplines.length === 0 ? (
             <div style={{ color: "var(--tcn-text-faint)", fontSize: 14 }}>Aucune épreuve enregistrée.</div>
           ) : (

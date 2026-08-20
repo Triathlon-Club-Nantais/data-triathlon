@@ -58,6 +58,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         className="min-h-screen text-foreground antialiased"
         style={{ background: "var(--tcn-paper)", fontFamily: "var(--tcn-font-body)" }}
       >
+        <a
+          href="#contenu"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-[var(--tcn-orange)] focus:px-4 focus:py-2 focus:text-white"
+        >
+          Aller au contenu
+        </a>
         <Providers>
           {/* Colonne sous md (barre + contenu), rangée au-dessus (rail +
               contenu) : la nav prend la hauteur, le contenu prend le reste.
@@ -65,7 +71,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <div className="flex min-h-screen flex-col md:flex-row">
             <AppNav />
             <div className="flex min-w-0 flex-1 flex-col">
-              <main className="flex-1">{children}</main>
+              <main id="contenu" tabIndex={-1} className="flex-1">
+                {children}
+              </main>
               <VersionFooter />
             </div>
           </div>
