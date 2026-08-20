@@ -163,4 +163,27 @@ describe("CourseParticipationsDialog", () => {
       screen.queryByRole("button", { name: /corriger le coureur/i }),
     ).not.toBeInTheDocument();
   });
+
+  it("n'offre pas le rattachement sans `athletes:read` (#439, FR-020)", async () => {
+    // Bug latent : le sélecteur de la réattribution appelle
+    // `GET /admin/athletes?search=`, gardée par `athletes:read`. Annoncé sur le
+    // seul `participations:reassign`, le geste s'ouvre sur une liste vide qui ne
+    // se remplira jamais — un 403 muet. La visibilité se règle par **geste**,
+    // pas par écran.
+    getSession.mockResolvedValue(session(["participations:reassign"]));
+
+    afficher();
+    await screen.findByText(/J\. DUPONT/);
+
+    expect(screen.queryByRole("button", { name: /rattacher/i })).not.toBeInTheDocument();
+  });
+
+  it("offre le rattachement au porteur des deux pouvoirs (US4-AC3)", async () => {
+    getSession.mockResolvedValue(session(["participations:reassign", "athletes:read"]));
+
+    afficher();
+    await screen.findByText(/J\. DUPONT/);
+
+    expect(await screen.findByRole("button", { name: /rattacher/i })).toBeInTheDocument();
+  });
 });

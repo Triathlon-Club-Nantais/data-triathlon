@@ -42,8 +42,13 @@ export function CourseParticipationsDialog({
   const [saisie, setSaisie] = useState("");
   const recherche = useDebounce(saisie, 300);
   const session = useSession();
+  // Les **deux** pouvoirs (#439, FR-020) : `ReassignParticipationDialog` →
+  // `AthleteSearchPicker` → `GET /admin/athletes?search=` est gardée par
+  // `athletes:read`. Sur le seul `participations:reassign`, le geste s'ouvrait sur
+  // un sélecteur que rien ne pouvait remplir — un 403 muet, sans repli.
   const peutRattacher =
-    session.data?.permissions.includes("participations:reassign") ?? false;
+    (session.data?.permissions.includes("participations:reassign") ?? false) &&
+    (session.data?.permissions.includes("athletes:read") ?? false);
   const peutCorrigerCoureur =
     session.data?.permissions.includes("athletes:write") ?? false;
 
