@@ -179,7 +179,15 @@ export function AppNav() {
             {expanded ? <PanelLeft size={20} /> : <Menu size={20} />}
           </button>
           {expanded && (
-            <Link href="/dashboard" aria-label={`${CLUB_NAME_SHORT} — Accueil`} style={{ display: "inline-flex" }}>
+            /* prefetch={false} (#428) : rendu au seul état déplié, ce lien
+               monte un second observateur vers `/dashboard` alors que l'entrée
+               « Tableau de bord » du rail prefetche déjà la route. */
+            <Link
+              href="/dashboard"
+              prefetch={false}
+              aria-label={`${CLUB_NAME_SHORT} — Accueil`}
+              style={{ display: "inline-flex" }}
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/logo-tcn.png" alt={CLUB_NAME} style={{ height: 26, display: "block" }} />
             </Link>
@@ -525,22 +533,28 @@ function NavContent({
             <div key={sec.id} style={{ position: "relative" }}>
               {expanded && !sec.root && <div style={{ ...eyebrow, paddingBottom: 8 }}>{sec.label}</div>}
 
-              {/* Rail compact : une tuile par destination pour la section
-                  racine, une tuile par catégorie sinon — elle déplie. */}
-              {!expanded &&
-                (sec.root ? (
-                  sec.items.map((it) => <Tuile key={it.id} item={it} actif={isActive(it.href)} />)
-                ) : (
-                  <button type="button" onClick={onExpand} title={sec.label} aria-label={sec.label} style={tuile(actifIci)}>
-                    <sec.icon size={20} />
-                    {actifIci && <span style={barreActive(9)} />}
-                  </button>
-                ))}
-
-              {expanded && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              {/* Repliée, une catégorie n'offre qu'une tuile qui déplie. La
+                  section racine, elle, garde ses destinations à plat dans les
+                  deux états — **au même emplacement de l'arbre** (#428) : un
+                  conteneur propre à chaque état remonterait les `Link` à la
+                  bascule, malgré une `Entree` unifiée. */}
+              {!expanded && !sec.root ? (
+                <button type="button" onClick={onExpand} title={sec.label} aria-label={sec.label} style={tuile(actifIci)}>
+                  <sec.icon size={20} />
+                  {actifIci && <span style={barreActive(9)} />}
+                </button>
+              ) : (
+                // `gap: 0` replié, l'espacement des tuiles venant de leur propre
+                // `margin: 0 auto 4px` (cf. `tuile()`) — un `gap` s'y ajouterait.
+                <div style={{ display: "flex", flexDirection: "column", gap: expanded ? 2 : 0 }}>
                   {sec.items.map((it) => (
-                    <Entree key={it.id} item={it} actif={isActive(it.href)} onNavigate={onNavigate} />
+                    <Entree
+                      key={it.id}
+                      item={it}
+                      actif={isActive(it.href)}
+                      expanded={expanded}
+                      onNavigate={onNavigate}
+                    />
                   ))}
                 </div>
               )}
@@ -552,65 +566,59 @@ function NavContent({
   );
 }
 
-/** Tuile du rail compact — icône seule, libellé en infobulle native. */
-function Tuile({ item, actif }: { item: Destination; actif: boolean }) {
+/**
+ * Une destination livrée, donc toujours un lien — et **le même** lien dans les
+ * deux états du rail (#428) : replié il se réduit à son icône, avec le libellé
+ * en infobulle native ; déplié il porte pastille et libellé. Seuls le style et
+ * les enfants changent.
+ *
+ * C'est l'objet du correctif : deux composants distincts (`Tuile` replié,
+ * `Entree` déplié) faisaient basculer React entre deux branches JSX
+ * structurellement différentes. Le `Link` était démonté puis remonté pour la
+ * **même** route, déjà dans le viewport, et son `IntersectionObserver` neuf
+ * retirait un second prefetch RSC — mesuré 2 fois à l'atterrissage rail
+ * persisté déplié, 3 fois après un pliage/dépliage à la main.
+ */
+function Entree({
+  item,
+  actif,
+  expanded,
+  onNavigate,
+}: {
+  item: Destination;
+  actif: boolean;
+  expanded: boolean;
+  onNavigate?: () => void;
+}) {
   const Icon = item.icon;
   return (
     <Link
       href={item.href}
-      title={item.label}
-      aria-label={item.label}
-      aria-current={actif ? "page" : undefined}
-      style={tuile(actif)}
-    >
-      {Icon && <Icon size={20} />}
-      {actif && <span style={barreActive(9)} />}
-    </Link>
-  );
-}
-
-/** Entrée du panneau déplié — une destination livrée, donc toujours un lien. */
-function Entree({ item, actif, onNavigate }: { item: Destination; actif: boolean; onNavigate?: () => void }) {
-  const base: CSSProperties = {
-    position: "relative",
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "9px 12px",
-    minHeight: 44,
-    borderRadius: "var(--tcn-radius-md)",
-    textDecoration: "none",
-    fontSize: 14,
-  };
-  const corps = (
-    <>
-      {actif && <span style={barreActive(10)} />}
-      <span
-        style={{
-          flex: "none",
-          width: 5,
-          height: 5,
-          borderRadius: "var(--tcn-radius-pill)",
-          background: actif ? "var(--tcn-orange)" : "var(--tcn-text-disabled)",
-        }}
-      />
-      <span style={{ flex: 1 }}>{item.label}</span>
-    </>
-  );
-
-  return (
-    <Link
-      href={item.href}
       onClick={onNavigate}
+      // Replié, l'icône est seule : le nom accessible et l'infobulle sont les
+      // seuls porteurs du libellé. Déplié, il est dans le texte du lien.
+      title={expanded ? undefined : item.label}
+      aria-label={expanded ? undefined : item.label}
       aria-current={actif ? "page" : undefined}
-      style={{
-        ...base,
-        fontWeight: actif ? 700 : 500,
-        color: actif ? "var(--tcn-orange)" : "var(--tcn-text-body)",
-        background: actif ? "var(--tcn-orange-08)" : "transparent",
-      }}
+      style={expanded ? entree(actif) : tuile(actif)}
     >
-      {corps}
+      {actif && <span style={barreActive(expanded ? 10 : 9)} />}
+      {expanded ? (
+        <>
+          <span
+            style={{
+              flex: "none",
+              width: 5,
+              height: 5,
+              borderRadius: "var(--tcn-radius-pill)",
+              background: actif ? "var(--tcn-orange)" : "var(--tcn-text-disabled)",
+            }}
+          />
+          <span style={{ flex: 1 }}>{item.label}</span>
+        </>
+      ) : (
+        Icon && <Icon size={20} />
+      )}
     </Link>
   );
 }
@@ -683,6 +691,25 @@ function barreActive(top: number): CSSProperties {
   };
 }
 
+/** Entrée du panneau déplié — pastille, libellé, et la barre active du bord. */
+function entree(actif: boolean): CSSProperties {
+  return {
+    position: "relative",
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "9px 12px",
+    minHeight: 44,
+    borderRadius: "var(--tcn-radius-md)",
+    textDecoration: "none",
+    fontSize: 14,
+    fontWeight: actif ? 700 : 500,
+    color: actif ? "var(--tcn-orange)" : "var(--tcn-text-body)",
+    background: actif ? "var(--tcn-orange-08)" : "transparent",
+  };
+}
+
+/** Tuile du rail replié — 44 px, icône centrée, libellé en infobulle. */
 function tuile(actif: boolean): CSSProperties {
   return {
     position: "relative",
