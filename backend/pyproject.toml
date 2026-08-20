@@ -36,6 +36,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=8.3.4",
+    "pytest-xdist>=3.8.0",
     "respx>=0.21.1",
     "ruff>=0.16.3",
 ]
@@ -48,7 +49,18 @@ package = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-addopts = "-v"
+# `-v` coûtait 19 s sur 3656 tests (20 % de la suite), sortie redirigée — et
+# davantage dans un terminal qui doit rendre 3656 lignes.
+#
+# `-n 4` et non `auto` : le plateau xdist est **plat** de 4 à 12 workers (44 à
+# 49 s), donc la valeur ne se choisit pas sur la vitesse. 4 workers laissent
+# 8 cœurs libres et n'entrent pas dans le régime de saturation qui a produit une
+# erreur à n=12 ; et sur le runner CI à 4 vCPU, `-n 4` et `auto` coïncident.
+#
+# Le prix : ~1,35 s de démarrage sur une **exécution ciblée** (0,40 s → 1,75 s
+# pour un seul fichier). `-n 0` le rend, et rétablit au passage `--pdb` et une
+# sortie non entrelacée. Mesures : docs/superpowers/specs/2026-08-20-suites-de-tests-sondage.md
+addopts = "-n 4"
 markers = [
     "integration: tests nécessitant un accès réseau réel (pytest -m integration)",
 ]
