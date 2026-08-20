@@ -8,9 +8,16 @@ RGPD, les données restent en zone UE.
 - **Init** — `frontend/instrumentation-client.ts` (hook Next.js dédié, tourne
   avant tout rendu client). Sans `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` /
   `NEXT_PUBLIC_POSTHOG_HOST`, `posthog.init()` ne se lance pas : l'app tourne
-  normalement, juste sans analytics — utile en local, où ces variables restent
-  vides par défaut (`.env.local.example`). Variables et valeurs en prod/preview :
+  normalement, juste sans analytics — et **sans rien logguer**, l'absence de
+  variable étant un réglage attendu, pas une erreur (#426). Variables et valeurs :
   `docs/ci-cd.md`.
+- **Seule la production est instrumentée.** Le local (variables vides par défaut
+  dans `.env.local.example`) et la **preview** (variables non saisies sur le
+  projet Vercel `data-triathlon-preview`) n'envoient aucun événement : il
+  n'existe qu'un projet PostHog, et y mélanger le trafic de test fausserait les
+  statistiques du club. C'est ce qu'a tranché #426, contre son propre titre — le
+  constat de départ prenait l'absence de variable en preview pour un oubli de
+  configuration.
 - **Proxy** — `frontend/next.config.ts` route `/ingest/*` vers PostHog EU au
   lieu d'appeler `eu.i.posthog.com` en direct depuis le navigateur : les
   bloqueurs de pub ciblent le domaine PostHog, pas le domaine du site.
