@@ -4,6 +4,7 @@ import { StrictMode } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { CourseSummary, Participation } from "@/lib/types";
+import { SCOPE_CLUB, SCOPE_PARAM } from "@/lib/scope";
 
 const push = vi.fn();
 let searchParams = new URLSearchParams();
@@ -242,6 +243,15 @@ describe("RaceFinishers", () => {
     searchParams = new URLSearchParams("q=zzz");
     afficher({ participations: [], total: 0 });
     expect(screen.getByText("Aucun athlète ne correspond à cette recherche")).toBeInTheDocument();
+  });
+
+  it("efface la recherche et le filtre club quand rien ne correspond (revue de code #476)", async () => {
+    searchParams = new URLSearchParams("q=zzz&" + SCOPE_PARAM + "=" + SCOPE_CLUB);
+    afficher({ participations: [], total: 0 });
+
+    await userEvent.click(screen.getByRole("button", { name: "Effacer la recherche" }));
+
+    expect(push).toHaveBeenCalledWith("/courses/1");
   });
 
   it("annonce une épreuve sans aucun participant (ETAT-3)", () => {
