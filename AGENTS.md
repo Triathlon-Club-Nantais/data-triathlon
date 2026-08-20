@@ -101,7 +101,7 @@ uv run alembic upgrade head                        # applique les migrations
 uv run alembic revision --autogenerate -m "..."    # nouvelle migration après modif d'un modèle
 uv run python scripts/reset_db.py                  # reset base dev SQLite (vide + migre + seed démo)
 uv run python scripts/reset_db.py --no-seed --yes  # schéma vierge seul (refuse si DB non-SQLite)
-uv run pytest -m "not integration"                 # tests unitaires (sans réseau) — défaut CI
+uv run pytest -m "not integration"                 # tests unitaires (sans réseau) — 4 workers ; -n 0 pour séquentiel
 uv run pytest -m integration                       # tests réseau réel (scrapers)
 uv run ruff check .                                # lint
 
