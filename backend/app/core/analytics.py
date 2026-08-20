@@ -56,8 +56,12 @@ def init_posthog(token: str, host: str, debug: bool = False) -> None:
     # (ex. nom d'athlète dans `admin_data.py`) sont eux capturés proprement et
     # n'atteignent jamais l'autocapture ; le risque résiduel est un bug non
     # prévu qui logue accidentellement une donnée similaire dans son message.
+    # `project_api_key` et non `api_key` : le SDK nomme ainsi le **paramètre**
+    # du constructeur, alors qu'il expose la valeur sous l'attribut `api_key` —
+    # asymétrie qui a coûté un démarrage en production (`TypeError` dans le
+    # lifespan, application startup failed). Un test tient désormais ce nom.
     posthog_client = Posthog(
-        api_key=token,
+        project_api_key=token,
         host=host,
         enable_exception_autocapture=True,
         debug=debug,
