@@ -3,6 +3,7 @@
 // Next exige des props sérialisables — or ce composant prend deux callbacks.
 import { useEffect, useState } from "react";
 import { Avatar, Input, Modal } from "@/components/tcn";
+import { EmptyState } from "@/components/ui/empty-state";
 import { apiClient } from "@/lib/api/client";
 import type { AthleteBrief } from "@/lib/types";
 
@@ -174,7 +175,19 @@ export function AthletePicker({
           );
         })}
         {query.trim().length >= 2 && !loading && rows.length === 0 && (
-          <div style={{ padding: 30, textAlign: "center", color: "var(--tcn-text-faint)", fontSize: 14 }}>Aucun athlète trouvé.</div>
+          <EmptyState
+            bare
+            title="Aucun athlète trouvé"
+            action={
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                style={{ background: "none", border: "none", padding: 0, font: "inherit", fontWeight: 700, color: "var(--tcn-ink)", cursor: "pointer" }}
+              >
+                Effacer la recherche
+              </button>
+            }
+          />
         )}
         {query.trim().length < 2 && (
           <div style={{ padding: 30, textAlign: "center", color: "var(--tcn-text-faint)", fontSize: 14 }}>

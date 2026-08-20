@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { apiServer } from "@/lib/api/server";
 import { Avatar, StatCard, Card, Eyebrow, FormatChip, PlaceBadge, PendingBadge } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
+import { EmptyState } from "@/components/ui/empty-state";
 import { SelectAthleteButton } from "./SelectAthleteButton";
 import { eventTypeLabel } from "@/lib/constants";
 import { formatToken, ordinalFr } from "@/lib/utils/format";
@@ -104,7 +105,15 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
           <div style={{ fontSize: 13, color: "var(--tcn-text-faint)", fontWeight: 600 }}>Clique sur une épreuve pour voir le détail →</div>
         </div>
         {ordered.length === 0 ? (
-          <div style={{ padding: 40, textAlign: "center", color: "var(--tcn-text-faint)", fontSize: 14 }}>Aucun résultat pour cet athlète.</div>
+          <EmptyState
+            bare
+            title="Aucun résultat pour cet athlète"
+            action={
+              <Link href="/ajouter" className="text-sm font-semibold text-accent-ink hover:underline">
+                Ajouter un résultat →
+              </Link>
+            }
+          />
         ) : (
           <div style={{ overflowX: "auto" }}>
             <div style={{ minWidth: MIN_WIDTH }}>

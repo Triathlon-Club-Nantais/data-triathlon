@@ -36,6 +36,23 @@ function p(over: Partial<Participation> & { id: number }): Participation {
   };
 }
 
+describe("ValidationQueue — files vides (ETAT-3)", () => {
+  it("dit qu'il n'y a rien en attente de validation", () => {
+    render(<ValidationQueue participations={[]} selectedId={null} onSelect={vi.fn()} />);
+
+    expect(screen.getByText("Aucun résultat en attente de validation")).toBeInTheDocument();
+  });
+
+  it("dit qu'il n'y a rien de signalé non conforme, sur l'onglet correspondant", async () => {
+    const user = userEvent.setup();
+    render(<ValidationQueue participations={[]} rejected={[]} selectedId={null} onSelect={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /Non conformes/ }));
+
+    expect(screen.getByText("Aucun résultat signalé non conforme")).toBeInTheDocument();
+  });
+});
+
 describe("ValidationQueue", () => {
   it("liste les résultats en attente avec l'athlète et l'épreuve", () => {
     const resultats = [

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Card } from "@/components/tcn";
+import { EmptyState } from "@/components/ui/empty-state";
 import type { Participation } from "@/lib/types";
 import { formatEventName } from "@/lib/utils/event";
 
@@ -45,9 +46,10 @@ export function ValidationQueue({
 
       {liste.length === 0 ? (
         <Card padding={24}>
-          <div style={{ color: "var(--tcn-text-faint)", fontSize: 14, textAlign: "center" }}>
-            {onglet === "file" ? "Aucun résultat en attente de validation." : "Aucun résultat signalé non conforme."}
-          </div>
+          <EmptyState
+            bare
+            title={onglet === "file" ? "Aucun résultat en attente de validation" : "Aucun résultat signalé non conforme"}
+          />
         </Card>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

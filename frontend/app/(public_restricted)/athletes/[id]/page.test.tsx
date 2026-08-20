@@ -69,6 +69,15 @@ beforeEach(() => {
   });
 });
 
+describe("AthletePage — état vide (ETAT-3)", () => {
+  it("propose d'ajouter un résultat quand l'athlète n'en a aucun", async () => {
+    await renderAthlete([]);
+
+    expect(screen.getByText("Aucun résultat pour cet athlète")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Ajouter un résultat/ })).toHaveAttribute("href", "/ajouter");
+  });
+});
+
 describe("AthletePage", () => {
   it("rend le nom de l'athlète comme un <h1> (A11Y-2)", async () => {
     await renderAthlete([part({ id: 1 })]);

@@ -263,8 +263,8 @@ describe("CoursePage", () => {
 
     expect(container.textContent).not.toContain("NaN");
     expect(screen.queryByText(/Distribution des temps/)).not.toBeInTheDocument();
-    expect(screen.getByText("Catégories non renseignées.")).toBeInTheDocument();
-    expect(screen.getByText("Clubs non renseignés.")).toBeInTheDocument();
+    expect(screen.getByText("Catégories non renseignées")).toBeInTheDocument();
+    expect(screen.getByText("Clubs non renseignés")).toBeInTheDocument();
   });
 
   it("demande les sources en même temps que la synthèse", async () => {
