@@ -49,11 +49,14 @@ package = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-# `-v` coûtait 19 s sur 3656 tests (20 % de la suite), sortie redirigée — et
-# davantage dans un terminal qui doit rendre 3656 lignes.
+# `-v` a été retiré pour l'**hygiène de sortie**, pas pour le temps : remesuré en
+# bras entrelacés, il ne coûte que ~0,4 s sur 58 s (0,6 %), sortie redirigée. Les
+# « 19 s, 20 % » du premier sondage venaient d'une machine chargée et sont
+# démentis. Une sortie de 3656 lignes ne se défend pas par sa gratuité.
 #
 # `-n 4` et non `auto` : le plateau xdist est **plat** de 4 à 12 workers (44 à
-# 49 s), donc la valeur ne se choisit pas sur la vitesse. 4 workers laissent
+# 49 s sur le relevé initial ; au repos, `-n 4` donne 35 s contre 58 s en
+# séquentiel), donc la valeur ne se choisit pas sur la vitesse. 4 workers laissent
 # 8 cœurs libres et n'entrent pas dans le régime de saturation qui a produit une
 # erreur à n=12 ; et sur le runner CI à 4 vCPU, `-n 4` et `auto` coïncident.
 #

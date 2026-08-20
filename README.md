@@ -205,12 +205,13 @@ Détail complet — jeton, environments, secrets, pièges de connexion : [`docs/
 ```bash
 cd backend
 uv sync
-uv run pytest -m "not integration"   # tests par couche (≈130)
+uv run pytest -m "not integration"   # tests par couche (3656), 4 workers
 uv run ruff check .                  # lint
 ```
 
-≈130 tests par couche : `test_repositories/`, `test_services/`, `test_api/`,
-plus les scrapers Klikego / TimePulse.
+3656 tests par couche : `test_repositories/`, `test_services/`, `test_api/`,
+plus les scrapers Klikego / TimePulse. La suite tourne à 4 workers par défaut
+(#508) ; `-n 0` rend `--pdb` et une sortie non entrelacée.
 
 **Frontend** (`frontend/`)
 
@@ -224,10 +225,12 @@ npm run lint   # ESLint
 
 ```bash
 cd backend
-uv run pytest -m integration
+uv run pytest -m integration -n 0
 ```
 
 Tests avec appels aux APIs Klikego, Breizh Chrono et TimePulse en conditions réelles.
+`-n 0` neutralise le parallélisme par défaut (#508) : quatre workers quadruplent
+le débit sortant vers les fournisseurs.
 
 ---
 

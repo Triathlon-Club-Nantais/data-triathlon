@@ -190,8 +190,10 @@ Mesuré par absence de `@testing-library`, `document`, `window`, `localStorage`,
   déjà `// @vitest-environment node`. Un `grep` restreint aux `.ts`/`.tsx` les
   manque — l'extension `.mjs` est invisible à ce filtre — et un jeu de globs
   bâti sur `**/*.test.ts` + `**/*.test.tsx` les laisserait **réclamés par aucun
-  projet, donc jamais exécutés**. C'est le mode de défaillance de #300 : un vert
-  qui ne vérifie rien. Le `include` par défaut de vitest,
+  projet, donc jamais exécutés**. C'est la famille de panne de #300 — un vert qui
+  ne dit pas ce qu'on croit — mais par **omission**, là où #300 était par excès
+  (52 fichiers d'un worktree imbriqué, collectés en trop). Le `include` par
+  défaut de vitest,
   `**/*.{test,spec}.?(c|m)[jt]s?(x)`, les couvre aujourd'hui — toute
   reconfiguration doit le couvrir aussi.
 

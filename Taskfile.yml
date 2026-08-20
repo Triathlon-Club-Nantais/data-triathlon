@@ -96,7 +96,9 @@ tasks:
     desc: 'backend : tests d''intégration (réseau réel, scrapers)'
     dir: backend
     cmds:
-      - uv run pytest -m integration
+      # `-n 0` neutralise le `-n 4` d'`addopts` (#508) : ces tests sortent sur le
+      # réseau des fournisseurs, et 4 workers quadruplent le débit vers eux.
+      - uv run pytest -m integration -n 0
 
   b:test:all:
     desc: 'backend : tous les tests (unitaires + intégration)'

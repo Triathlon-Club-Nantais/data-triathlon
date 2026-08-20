@@ -149,8 +149,8 @@ adresse **déjà retirée** de la liste, que l'écran ne montre plus.
 ## Tests & qualité
 
 ```bash
-uv run pytest -m "not integration"   # tests rapides (sans réseau) — défaut CI
-uv run pytest -m integration         # tests réseau réel (scrapers)
+uv run pytest -m "not integration"   # tests rapides (sans réseau) — défaut CI, 4 workers
+uv run pytest -m integration -n 0    # tests réseau réel (scrapers) ; -n 0 : un seul débit sortant
 uv run ruff check .                  # lint
 ```
 

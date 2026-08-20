@@ -31,7 +31,12 @@ def sqlite_url(tmp_path, monkeypatch):
 
 @pytest.fixture(scope="module")
 def base_migree(tmp_path_factory):
-    """Base SQLite montée à `head` **une seule fois** pour tout le module.
+    """Base SQLite montée à `head` **une fois par worker** pour tout le module.
+
+    « Une fois » et non « une seule fois » : le `--dist load` par défaut de xdist
+    éparpille les tests d'un module sur plusieurs workers, et chacun monte donc sa
+    propre base — mesuré, deux montées à `-n 4`, deux à `-n 8`. C'est aussi ce qui
+    rend toute collision de chemin impossible, chaque worker ayant son `basetemp`.
 
     Les 13 tests qui la prennent ne font qu'**inspecter le schéma** : aucun
     n'écrit. Répéter `upgrade head` pour chacun coûtait ~0,6 s par test sans rien
