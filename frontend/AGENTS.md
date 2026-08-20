@@ -109,7 +109,10 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   échoue franchement sur « document is not defined » ; c'est le sens de
   l'orientation, l'oubli inverse étant silencieux. `test/environments.test.ts`
   vérifie que chaque fichier est réclamé par **exactement un** projet — ni zéro
-  (jamais exécuté, cf. #300), ni deux. Cibler un projet :
+  (jamais exécuté), ni deux. Il globe avec les **mêmes options que vitest**
+  (`dot: true`), sans quoi un test posé sous un dossier en « . » lui serait
+  invisible. #300 est la panne inverse — 52 fichiers *de trop*, ceux d'un
+  worktree imbriqué — et c'est `exclude` qui la garde. Cibler un projet :
   `npx vitest run --project node`.
 - `next.config.ts` — rewrites (`/api/*`, proxy PostHog) **et** `headers()` : les
   en-têtes de sécurité posés sur `/:path*`, rewrites comprises (#396). Ils ne

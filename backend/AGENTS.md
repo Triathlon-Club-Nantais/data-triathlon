@@ -34,11 +34,13 @@ l'arborescence, et chaque dossier qui a ses propres pièges porte son
   agrégés dans `v1/router.py`, montés sous `/api/v1`. Une future API v2 vivra dans `v1/`→`v2/`.
 - `app/scrapers/` — `registry.py` (registre **Protocol**) + un module par provider.
 - `alembic/` — migrations (révision initiale = schéma complet).
-- `tests/` — `test_repositories/`, `test_services/`, `test_api/`, `test_cli/`… (≈745 tests).
+- `tests/` — `test_repositories/`, `test_services/`, `test_api/`, `test_cli/`… (3656 tests).
   **La suite tourne en parallèle par défaut** (`addopts = "-n 4"`, #508) : la sortie
   de plusieurs workers s'entrelace et `--pdb` ne s'attache plus. `-n 0` rétablit
-  les deux, au prix de ~30 s sur la suite complète — et l'ôte des ~1,35 s que
-  xdist coûte à une exécution d'un seul fichier.
+  les deux, au prix de ~23 s sur la suite complète (35 s → 58 s) — et l'ôte des
+  ~1,35 s que xdist coûte à une exécution d'un seul fichier. Les tests
+  `integration` héritent aussi du `-n 4` : les lancer avec `-n 0` pour ne pas
+  quadrupler le débit sortant vers les fournisseurs.
 
 **Cache TTL** — `services/cache.py` : `is_fresh(course)` → 10 min si course en
 cours (une participation sans `total_time`), sinon 30 j. `scrape_service`
