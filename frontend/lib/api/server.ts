@@ -81,6 +81,23 @@ async function serverFetchAuthed<T>(path: string): Promise<T | null> {
   return res.json() as Promise<T>;
 }
 
+/**
+ * Variante de `serverFetchAuthed` qui ne rend qu'un booléen.
+ *
+ * `checkSiteAccess` n'a besoin que de savoir si le cookie est valide, jamais
+ * du corps de la réponse : lever une `ApiError` sur un 4xx quelconque (ici un
+ * 401 pour un cookie absent ou invalide, cas nominal et non une panne) serait
+ * plus coûteux à traiter côté appelant que renvoyer directement `res.ok`.
+ */
+async function serverFetchAuthedRaw(path: string): Promise<boolean> {
+  const jar = await cookies();
+  const res = await fetch(`${BASE}${path}`, {
+    cache: "no-store",
+    headers: { cookie: jar.toString() },
+  });
+  return res.ok;
+}
+
 export const apiServer = {
   listParticipations: (filters: ParticipationFilters = {}, fetchOpts: FetchOpts = {}) =>
     serverFetch<Participation[]>(
@@ -132,4 +149,6 @@ export const apiServer = {
    * de « aucune connexion possible » (liste vide → laisser passer, FR-036).
    */
   listAuthMethods: () => serverFetch<AuthMethod[]>("/auth/methods"),
+  /** Session du mot de passe site (#509) — vrai si le cookie est valide. */
+  checkSiteAccess: () => serverFetchAuthedRaw("/site-access/session"),
 };
