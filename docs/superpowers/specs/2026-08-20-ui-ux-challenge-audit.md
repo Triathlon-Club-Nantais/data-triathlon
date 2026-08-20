@@ -1911,28 +1911,29 @@ précisions du demandeur : les 63 entrées sont portées par une **issue parente
 est de **tout traiter à terme**, pas de garder 58 entrées en réserve dormante — et les cinq bugs du
 § 11 partent en **cinq issues séparées**, indépendantes du backlog d'idées.
 
-**Épic parente** — porte les 63 entrées de ce rapport, groupées par la matrice du § 13, chaque
-entrée cochable. Elle est le point de vérité de l'avancement ; ce fichier reste le point de vérité
-des preuves. Une entrée ne se traite jamais depuis l'epic : elle devient une issue fille au moment
-où quelqu'un s'y met.
+**Épic parente : #460** — porte les 63 entrées de ce rapport, groupées par la matrice du § 13,
+chaque entrée cochable. Elle est le point de vérité de l'avancement ; ce fichier reste le point de
+vérité des preuves. Une entrée ne se traite jamais depuis l'epic : elle devient une issue fille au
+moment où quelqu'un s'y met.
 
-**Issues filles créées d'emblée** — les cinq du top 5, plus deux :
+**Issues filles créées d'emblée** — les cinq du top 5, plus deux, toutes rattachées à #460 :
 
-1. `RESP-1` — les quatre tableaux à largeur plancher sur mobile
-2. `RES-1` — le détail qui affiche moins que la ligne cliquée
-3. `RES-4` — le regroupement de la liste des épreuves
-4. `ETAT-1` — `not-found.tsx`, `error.tsx`, et le `.catch` manquant
-5. `A11Y-4` — l'orange en texte, via `--tcn-orange-deeper`
-6. **Manques de visualisation** (§ 16) — nouvelle issue, prémisse `d3-scale`/`d3-shape` déjà en
-   place, puisque #329/#369/#370 sont closes
-7. **Usages de l'athlète retenu** (§ 10) — la réponse à la question versée par #323 ; #323 étant
-   fermée, elle ne peut pas se trancher dans son fil. Un usage retenu = une issue, comme son corps
-   le prescrivait — à commencer par `PROF-7`, dont les trois autres dépendent
+1. **#461** — `RESP-1`, les quatre tableaux à largeur plancher sur mobile
+2. **#462** — `RES-1`, le détail qui affiche moins que la ligne cliquée
+3. **#463** — `RES-4`, le regroupement de la liste des épreuves
+4. **#464** — `ETAT-1`, `not-found.tsx` et `error.tsx` en français
+5. **#465** — `A11Y-4`, l'orange en texte, via `--tcn-orange-deeper`
+6. **#466** — manques de visualisation (§ 16), prémisse `d3-scale`/`d3-shape` déjà en place,
+   puisque #329/#369/#370 sont closes
+7. **#467** — usages de l'athlète retenu (§ 10), la réponse à la question versée par #323 ; #323
+   étant fermée, elle ne peut pas se trancher dans son fil. Un usage retenu = une issue, comme son
+   corps le prescrivait — d'où `PROF-7` seul, dont `NAV-9`, `NAV-10` et `PROF-8` dépendent
 
-**Les cinq bugs du § 11** ont chacun leur issue : le `.catch` manquant, `--ink-mix`,
-`.micro-label`, l'invalidation de cache de `SheetUpload`, et le split rendu brut. Chacune est
-minuscule, revuable seule, et livrable sans attendre l'arbitrage d'une idée. Aucune ne rouvre
-l'identité visuelle : les deux jetons morts la font fonctionner telle qu'elle est écrite.
+**Les cinq bugs du § 11**, hors de l'arriéré d'idées : **#468** le `.catch` manquant, **#469**
+`--ink-mix`, **#470** `.micro-label`, **#471** l'invalidation de cache de `SheetUpload`, **#472** le
+split rendu brut. Chacune est minuscule, revuable seule, et livrable sans attendre l'arbitrage d'une
+idée. Aucune ne rouvre l'identité visuelle : les deux jetons morts la font fonctionner telle qu'elle
+est écrite.
 
 **Ce que ce rapport n'autorise pas.** C'est un backlog, pas un plan : chaque issue fille reprend le
 cycle normal (`docs/WORKFLOW-IA.md`), et une idée d'ici ne dispense ni de spec, ni de TDD, ni de la
