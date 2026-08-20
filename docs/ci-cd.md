@@ -136,11 +136,13 @@ corrige pas le comportement, qui est bon, mais ce défaut de traçabilité.
    - `data-triathlon` : `BACKEND_URL` / `API_URL` → backend Render **prod** ;
    - `data-triathlon-preview` : `BACKEND_URL` / `API_URL` → backend Render
      **preview**. Sans ça, la preview taperait la base de production ;
-   - Les deux projets : `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` / `NEXT_PUBLIC_POSTHOG_HOST`
-     (`https://eu.posthog.com`, cloud EU — RGPD) — un seul projet PostHog
-     partagé entre prod et preview, valeurs dans PostHog → Project settings →
-     API keys. Absentes, l'app tourne normalement, juste sans analytics (garde
-     dans `instrumentation-client.ts`).
+   - `data-triathlon` **seul** : `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` /
+     `NEXT_PUBLIC_POSTHOG_HOST` (`https://eu.posthog.com`, cloud EU — RGPD),
+     valeurs dans PostHog → Project settings → API keys. **À ne pas saisir sur
+     `data-triathlon-preview`** : il n'existe qu'un projet PostHog, et le trafic
+     de test n'a rien à faire dans les mêmes statistiques que celui du club
+     (#426). Absentes, l'app tourne normalement, juste sans analytics et sans un
+     mot en console (garde dans `instrumentation-client.ts`).
 5. Sur `data-triathlon-preview` seul : configurer la protection de déploiement /
    SSO sur son URL fixe, désormais stable.
 
