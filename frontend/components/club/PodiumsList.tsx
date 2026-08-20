@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { Medal } from "@/components/ui/medal";
+import { AnnonceStatut } from "@/components/tcn";
 import { SportBadge } from "@/components/results/SportBadge";
 import { formatEventName } from "@/lib/utils/event";
 import { listPodiums } from "@/lib/utils/club-aggregate";
@@ -32,7 +33,11 @@ export function PodiumsList({ participations }: { participations: Participation[
     );
   }
   return (
-    <ul className="divide-y">
+    <>
+      {/* WCAG 4.1.3 (#477) : la bascule recalcule en mémoire (#132), sans
+          navigation — sans cette annonce, la liste se réordonne en silence. */}
+      <AnnonceStatut texte={`${podiums.length} podium${podiums.length > 1 ? "s" : ""} affiché${podiums.length > 1 ? "s" : ""}`} />
+      <ul className="divide-y">
       {podiums.map(({ participation: p, best }) => {
         const name =
           [p.athlete?.prenom, p.athlete?.nom].filter(Boolean).join(" ") || "Athlète";
@@ -69,6 +74,7 @@ export function PodiumsList({ participations }: { participations: Participation[
           </li>
         );
       })}
-    </ul>
+      </ul>
+    </>
   );
 }

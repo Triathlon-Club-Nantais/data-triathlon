@@ -24,9 +24,11 @@ describe("ImportProgress", () => {
 
   it("récapitule les trois compteurs à la fin", () => {
     render(<ImportProgress state={state({ phase: "done", total: 10, progress: 10, imported: 4, updated: 2, skipped: 4 })} />);
-    expect(screen.getByText(/4 ajoutés/)).toBeTruthy();
-    expect(screen.getByText(/2 mis à jour/)).toBeTruthy();
-    expect(screen.getByText(/4 ignorés/)).toBeTruthy();
+    // La région sr-only (#477) répète le même récapitulatif : on cible le
+    // paragraphe visible pour ne pas matcher les deux à la fois.
+    const recap = screen.getByText(/4 ajoutés/, { selector: "p.text-success" });
+    expect(recap).toHaveTextContent("2 mis à jour");
+    expect(recap).toHaveTextContent("4 ignorés");
   });
 
   // T014 — récap des courses créées (#135 + fan-out #156)
@@ -72,5 +74,61 @@ describe("ImportProgress", () => {
     expect(screen.getByText(/HTTPError 502/)).toBeTruthy();
     expect(screen.getByText(/swim-run-s-duo/)).toBeTruthy();
     expect(screen.getByText(/timeout/)).toBeTruthy();
+  });
+
+  // ── Annonce jalonnée (WCAG 4.1.3, #477) ────────────────────────────────────
+  // L'import SSE est l'opération la plus longue de l'app et n'avait aucun
+  // annonceur : `aria-live="polite"` + `aria-busy`, jalonné par quart de
+  // progression plutôt qu'à chaque message SSE (sinon le flux spamme un
+  // lecteur d'écran).
+
+  it("ne rend aucune région de statut en idle", () => {
+    render(<ImportProgress state={state({ phase: "idle" })} />);
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("porte aria-busy pendant la récupération des participants", () => {
+    render(<ImportProgress state={state({ phase: "scraping", message: "Récupération des participants…" })} />);
+    const region = screen.getByRole("status");
+    expect(region).toHaveAttribute("aria-busy", "true");
+    expect(region).toHaveTextContent("Récupération des participants");
+  });
+
+  it("ne réannonce pas à chaque message SSE dans le même quart de progression", () => {
+    const { rerender } = render(
+      <ImportProgress state={state({ phase: "saving", total: 10, progress: 1, imported: 1, updated: 0, skipped: 0 })} />,
+    );
+    const texteInitial = screen.getByRole("status").textContent;
+
+    rerender(
+      <ImportProgress state={state({ phase: "saving", total: 10, progress: 2, imported: 2, updated: 0, skipped: 0 })} />,
+    );
+
+    expect(screen.getByRole("status").textContent).toBe(texteInitial);
+  });
+
+  it("réannonce au franchissement d'un quart de progression", () => {
+    const { rerender } = render(
+      <ImportProgress state={state({ phase: "saving", total: 10, progress: 1, imported: 1, updated: 0, skipped: 0 })} />,
+    );
+    const texteInitial = screen.getByRole("status").textContent;
+
+    rerender(
+      <ImportProgress state={state({ phase: "saving", total: 10, progress: 3, imported: 3, updated: 0, skipped: 0 })} />,
+    );
+
+    expect(screen.getByRole("status").textContent).not.toBe(texteInitial);
+  });
+
+  it("aria-busy retombe à la fin de l'import", () => {
+    render(<ImportProgress state={state({ phase: "done", imported: 4, updated: 2, skipped: 1 })} />);
+    expect(screen.getByRole("status")).not.toHaveAttribute("aria-busy", "true");
+  });
+
+  it("annonce l'erreur, sans aria-busy", () => {
+    render(<ImportProgress state={state({ phase: "error", error: "Chronométreur injoignable" })} />);
+    const region = screen.getByRole("status");
+    expect(region).toHaveTextContent("Chronométreur injoignable");
+    expect(region).not.toHaveAttribute("aria-busy", "true");
   });
 });

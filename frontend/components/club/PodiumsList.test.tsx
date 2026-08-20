@@ -118,3 +118,22 @@ describe("PodiumsList — icône par scope (#128)", () => {
     );
   });
 });
+
+// WCAG 4.1.3 (#477) : `?rank=` recalcule en mémoire (#132), sans navigation.
+describe("PodiumsList — annonce du changement (#477)", () => {
+  it("annonce le nombre de podiums affichés dans une région role=status", () => {
+    searchParams = new URLSearchParams();
+    render(<PodiumsList participations={PARTS} />);
+    expect(screen.getByRole("status")).toHaveTextContent("1 podium affiché");
+  });
+
+  it("réannonce au changement de mode", () => {
+    searchParams = new URLSearchParams();
+    const { rerender } = render(<PodiumsList participations={PARTS} />);
+
+    searchParams = new URLSearchParams("rank=all");
+    rerender(<PodiumsList participations={PARTS} />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("3 podiums affichés");
+  });
+});
