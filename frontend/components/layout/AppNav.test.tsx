@@ -16,6 +16,16 @@ const { push, getSession, logout, listParticipations } = vi.hoisted(() => ({
 /** Mutable : le surlignage se teste depuis plusieurs écrans. */
 const chemin = vi.hoisted(() => ({ courant: "/dashboard" }));
 
+/**
+ * Montages de `next/link` par route, `prefetch={false}` exclu (#428).
+ *
+ * C'est le seul proxy fidèle du prefetch : Next.js le déclenche à l'entrée du
+ * nœud dans le viewport, donc **une fois par montage**. Un `Link` démonté puis
+ * remonté pour la même route retire son `IntersectionObserver` et en pose un
+ * neuf, d'où un second prefetch — invisible dans le DOM, mais compté ici.
+ */
+const montages = vi.hoisted(() => new Map<string, number>());
+
 vi.mock("next/navigation", () => ({
   usePathname: () => chemin.courant,
   useRouter: () => ({ push, refresh: vi.fn() }),
@@ -24,8 +34,9 @@ vi.mock("next/navigation", () => ({
 // `prefetch` ne se reflète sur aucun attribut DOM du <a> réel de next/link
 // (comportement purement interne, piloté par IntersectionObserver) : on ne
 // peut donc vérifier son câblage qu'en interceptant le composant lui-même.
-vi.mock("next/link", () => ({
-  default: ({
+vi.mock("next/link", async () => {
+  const { useEffect } = await import("react");
+  function Lien({
     href,
     prefetch,
     children,
@@ -35,12 +46,19 @@ vi.mock("next/link", () => ({
     prefetch?: boolean;
     children?: ReactNode;
     [key: string]: unknown;
-  }) => (
-    <a href={href} data-prefetch={String(prefetch)} {...rest}>
-      {children}
-    </a>
-  ),
-}));
+  }) {
+    useEffect(() => {
+      if (prefetch === false) return;
+      montages.set(href, (montages.get(href) ?? 0) + 1);
+    }, [href, prefetch]);
+    return (
+      <a href={href} data-prefetch={String(prefetch)} {...rest}>
+        {children}
+      </a>
+    );
+  }
+  return { default: Lien };
+});
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
@@ -90,6 +108,7 @@ async function deplier() {
 
 beforeEach(() => {
   push.mockClear();
+  montages.clear();
   chemin.courant = "/dashboard";
   listParticipations.mockResolvedValue([]);
 
@@ -142,6 +161,65 @@ describe("AppNav — prefetch de la tuile « Mon profil » (#425)", () => {
       "false",
     );
     expect(await screen.findByRole("link", { name: "Jean" })).toHaveAttribute("data-prefetch", "false");
+  });
+});
+
+describe("AppNav — doublon de prefetch après resynchro localStorage (#428)", () => {
+  /**
+   * Le rendu serveur part du rail replié ; l'effet de montage lit
+   * `localStorage` et déplie. Tant que les deux états rendaient deux blocs JSX
+   * mutuellement exclusifs (`Tuile` ↔ `Entree`), cette bascule démontait les
+   * `Link` du rail pour en monter d'autres vers les **mêmes** routes, déjà dans
+   * le viewport : second prefetch RSC pour rien (sondage
+   * `2026-08-17-dashboard-perf-rank-et-prefetch-sondage.md`, constat 2).
+   */
+  it("ne prefetche « Résultats » qu'une fois quand le rail persisté est déjà déplié", async () => {
+    window.localStorage.setItem("tcn-nav-expanded", "1");
+    afficher(null);
+
+    // Le rail est déplié : c'est la bascule elle-même qui est mesurée.
+    expect(await screen.findByRole("link", { name: "Résultats" })).toBeInTheDocument();
+    expect(montages.get("/resultats")).toBe(1);
+  });
+
+  it("garde l'entrée montée d'un pliage et d'un dépliage à la main", async () => {
+    // Le cookie côté serveur n'aurait évité que la bascule de l'atterrissage.
+    // Le bouton de dépliage, lui, la rejoue à chaque clic.
+    afficher(null);
+    await userEvent.click(screen.getByRole("button", { name: "Déplier la navigation" }));
+    await userEvent.click(screen.getByRole("button", { name: "Replier la navigation" }));
+
+    expect(montages.get("/resultats")).toBe(1);
+  });
+
+  it("remonte l'entrée d'une catégorie à chaque dépliage — limite assumée du correctif", async () => {
+    // Caractérisation, pas un objectif : l'unification ne vaut que pour la
+    // section **racine**, dont les destinations sont rendues dans les deux
+    // états. Repliée, une catégorie n'offre qu'une tuile qui déplie : ses
+    // `Link` n'existent pas, donc il n'y a rien à réutiliser à la bascule.
+    // Sans conséquence à l'atterrissage — ils ne montent qu'une fois — et le
+    // bouton de catégorie est resté hors périmètre de #428.
+    afficher(null);
+    await userEvent.click(screen.getByRole("button", { name: "Déplier la navigation" }));
+    expect(montages.get("/club/athletes")).toBe(1);
+
+    await userEvent.click(screen.getByRole("button", { name: "Replier la navigation" }));
+    await userEvent.click(screen.getByRole("button", { name: "Déplier la navigation" }));
+    expect(montages.get("/club/athletes")).toBe(2);
+    // La racine, elle, tient : c'est ce que le correctif garantit.
+    expect(montages.get("/resultats")).toBe(1);
+  });
+
+  it("ne prefetche pas le logo du rail déplié, qui double la route de « Tableau de bord »", async () => {
+    // Rendu au seul état déplié, ce lien monte un second observateur vers
+    // `/dashboard`, que l'entrée « Tableau de bord » prefetche déjà.
+    window.localStorage.setItem("tcn-nav-expanded", "1");
+    afficher(null);
+
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    const logo = await within(rail).findByRole("link", { name: "TCN — Accueil" });
+    expect(logo).toHaveAttribute("href", "/dashboard");
+    expect(logo).toHaveAttribute("data-prefetch", "false");
   });
 });
 

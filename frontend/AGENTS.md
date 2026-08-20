@@ -92,6 +92,29 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   `session.permissions` (#115). Une section que le filtrage vide disparaît. Rien
   de tout cela ne garde une donnée : chaque ressource de l'API porte sa propre
   garde, et le rail ne fait qu'éviter d'annoncer un écran qui rendrait 403.
+  **Un seul composant `Entree` rend une destination dans les deux états du
+  rail** — seuls son style et ses enfants changent avec `expanded` (#428). Deux
+  composants (une tuile repliée, une entrée dépliée) faisaient basculer React
+  entre deux branches JSX : le `Link` était démonté puis remonté pour la même
+  route, et son `IntersectionObserver` neuf retirait un **second prefetch RSC**.
+  Le rendu serveur partant toujours du rail replié, la resynchronisation
+  `localStorage` du montage suffit à déclencher la bascule. Même raison pour le
+  `prefetch={false}` du logo du rail déplié : il double la route de
+  « Tableau de bord ». Le test verrouille l'invariant en comptant les
+  **montages** de `next/link` par route — le prefetch ne se reflétant sur aucun
+  attribut du DOM. Deux bornes à connaître avant de s'y fier :
+  - **L'invariant ne porte que sur la section racine.** Repliée, une catégorie
+    n'offre qu'une tuile qui déplie, pas ses destinations : leurs `Link`
+    n'existent pas, donc l'unification ne peut rien y réutiliser et ils
+    remontent à chaque dépliage (mesuré : 2 montages de `/club/athletes` après
+    un pliage/dépliage à la main, contre 1 pour `/resultats`). Sans conséquence
+    à l'atterrissage, où ils ne montent qu'une fois. Le bouton de catégorie est
+    resté hors périmètre de #428.
+  - **La barre mobile garde ses doublons.** Son logo (`/dashboard`) et son
+    bouton « Ajouter une course » doublent deux entrées du tiroir, exactement
+    comme le logo du rail corrigé ici. Hors périmètre de #428 également : sous
+    `md` le rail est en `display:none`, le coût réel est celui de l'ouverture
+    du tiroir, repayé à chaque ouverture.
 - **Sélecteurs d'URL : `pushState` ou `router.push`, et la question qui tranche**
   — *un rendu serveur lit-il ce paramètre ?* `?rank=` ne l'est par aucun, donc
   `RankTypeToggle` écrit l'URL par `window.history.pushState` et les trois
