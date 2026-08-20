@@ -27,8 +27,11 @@ l'arborescence, et chaque dossier qui a ses propres pièges porte son
 - `app/services/` — logique métier : `mapping`, `cache` (TTL), `scrape_service`,
   `import_service`, `stats_service`, `geocode_service`, plus les batches CLI
   (`sheet_source`, `batch`, `bulk_import_service`, `rescrape_service`,
-  `progress`), `auth/` (socle SSO) et `benevole_access` (#271 — mot de passe
-  partagé, cookie signé HMAC, aucune table ; distinct du socle SSO).
+  `progress`), `auth/` (socle SSO), `benevole_access` (#271 — mot de passe
+  partagé, cookie signé HMAC ; distinct du socle SSO) et `site_access` (#509 —
+  mot de passe partagé du site entier, même patron, secret et table propres),
+  tous deux au-dessus du socle neutre `shared_password`
+  (hachage/signature HMAC communs).
 - `app/cli/` — Typer, **couche mince** (zéro logique métier).
 - `app/api/` — `deps.py` + `v1/` (routers fins : validation + délégation au service),
   agrégés dans `v1/router.py`, montés sous `/api/v1`. Une future API v2 vivra dans `v1/`→`v2/`.

@@ -96,6 +96,16 @@ l'autre interdit une dépendance globale sur l'application et sur les routers
 existants. La protection future se posera **route par route**, jamais par un
 `dependencies=` global qui fermerait le site public sans qu'on le voie.
 
+**Cette règle est spécifique au RBAC (#115), pas à toute garde transverse.**
+Le mot de passe d'accès au site (#509) pose bien un `dependencies=` global,
+sur l'inclusion de chaque sous-router (`app/api/v1/router.py`) — délibérément,
+pour la raison inverse : fermer le site public dans son ensemble est
+exactement son but, pas un accident à éviter. Les deux gardes sont
+orthogonales et compatibles : une session RBAC ne dispense pas du mot de
+passe site, et réciproquement. Rationale complète dans le commentaire de
+`app/api/v1/router.py` et dans
+`docs/superpowers/specs/2026-08-20-mot-de-passe-site-design.md`.
+
 **Toute sortie HTTP du parcours passe par `core.http.guarded_transport()`.**
 `OAuth2Client` d'Authlib hérite de `httpx.Client`, donc `transport=` y descend
 nativement. Le détecteur AST de `tests/test_core_http.py` a été **étendu** pour

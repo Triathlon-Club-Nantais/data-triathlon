@@ -13,13 +13,24 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 `/api/v1` du backend. Tests Vitest + RTL verts. Build prod OK.
 
-- `app/` — App Router : `dashboard`, `resultats`, `athletes/[id]`, `courses/[id]`,
-  `club`, `carte`, `ajouter`, `admin`, `admin/acces`, `admin/utilisateurs`,
-  `admin/groupes`, `admin/droits`, la révocation d'urgence (#169) vivant
-  **dans** `admin/acces` : par adresse ligne à ligne, globale en carte de bas
-  de page. Pas d'écran ni d'entrée de navigation dédiés — un unique bouton ne
-  les justifiait pas. Jumelle de la CLI, la redondance étant le but : le
-  back-office suppose une session, la CLI non.
+- `app/` — App Router. **Mot de passe d'accès au site (#509)** : `app/(protege)/`
+  (groupe de routes, invisible dans l'URL) accueille tout ce qui exige le mot de
+  passe partagé — `dashboard`, `resultats`, `athletes/[id]`, `courses/[id]`,
+  `club`, `carte`, `ajouter`, `login`, et `admin/*` **y compris**
+  (`admin/acces`, `admin/utilisateurs`, `admin/groupes`, `admin/droits`…) —
+  gardé par `app/(protege)/layout.tsx`, un appel serveur à
+  `GET /api/v1/site-access/session`. `acces` (formulaire de mot de passe) et
+  `benevoles` restent des routes **sœurs**, hors du groupe, jamais soumises à
+  cette garde — `acces` en est la cible, `benevoles` garde sa propre garde
+  client (`AccessGate`, #271). **`admin` aussi est resté hors du groupe**
+  (revue finale de #509) : y placer `admin` fermerait le seul chemin
+  navigateur permettant de poser le tout premier mot de passe sur un
+  déploiement neuf (`site_access_config` vide) — `admin` garde sa garde
+  d'origine, indépendante (`app/admin/layout.tsx`, SSO/RBAC). La révocation
+  d'urgence (#169) vit **dans** `admin/acces` : par adresse ligne à ligne,
+  globale en carte de bas de page. Pas d'écran ni d'entrée de navigation
+  dédiés — un unique bouton ne les justifiait pas. Jumelle de la CLI, la
+  redondance étant le but : le back-office suppose une session, la CLI non.
 - **Composition des rôles** (`admin/droits`, #240) — l'écran **n'invente aucun
   regroupement** : `GET /admin/permissions` rend l'inventaire déjà rangé par
   fonctionnalité, dans son ordre d'affichage, et `PermissionGrid` le reproduit
@@ -96,10 +107,19 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   il lit la frontière. Relevé et mesures :
   `docs/superpowers/specs/2026-08-06-frontend-surengineering-audit.md`.
 - `lib/api/` — `client.ts` (appels `/api/v1`, `ApiError` porteur du statut HTTP),
-  `server.ts` (`serverFetch`, plus `serverFetchAuthed` qui relaie les cookies —
-  `serverFetch` reste **inchangé**, six pages publiques en rendu serveur
-  l'utilisent et lire les cookies les rendrait toutes dynamiques),
-  `sse.ts` (streaming import SSE).
+  `server.ts` (`serverFetch`, plus `serverFetchAuthed`/`serverFetchAuthedRaw`
+  qui relaient les cookies), `sse.ts` (streaming import SSE). `serverFetch`
+  reste **distinct**, volontairement cookie-libre : la justification d'origine
+  (« six pages publiques en rendu serveur, lire les cookies les rendrait
+  toutes dynamiques ») est devenue **historique** avec #509 — ces six pages
+  vivent désormais sous `app/(protege)/`, dont le layout lit déjà le cookie du
+  mot de passe site au-dessus d'elles, donc elles sont dynamiques de toute
+  façon. L'exemption elle-même ne bouge pas : `serverFetch` reste la fonction
+  à utiliser pour tout appel qui n'a jamais eu besoin de relayer un cookie
+  (`/courses`, `/stats`, `/auth/methods`…, cette dernière volontairement
+  publique — c'est ce qui permet à la garde `/admin` de distinguer « pas
+  connecté » de « aucune connexion possible », FR-036), la distinction portant
+  désormais sur le **besoin de cookie**, plus sur le rendu statique.
 - `lib/types.ts` — types TypeScript partagés.
 - `next.config.ts` — rewrites (`/api/*`, proxy PostHog) **et** `headers()` : les
   en-têtes de sécurité posés sur `/:path*`, rewrites comprises (#396). Ils ne

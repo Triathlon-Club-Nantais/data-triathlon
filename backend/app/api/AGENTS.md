@@ -287,3 +287,20 @@ des huit autres — et `test_public_routes_still_open.py` classe les huit
 routes gardées dans `ROUTES_BENEVOLES_FERMEES`, pas dans le préfixe `/admin/`
 (ce mécanisme n'a rien à voir avec le SSO/RBAC).
 
+## Mot de passe d'accès au site : deux routeurs jumeaux (#509)
+
+`site_access.py` (`POST`/`DELETE /site-access/session`, `GET` pour la
+vérification) et `admin_site_access.py` (`GET`/`PUT /admin/site-access`,
+`POST /admin/site-access/generate`) reprennent, secret par secret, le même
+duo que `benevoles.py`/`admin_benevole_access.py` — même patron de mot de
+passe haché+salé (`hashlib.scrypt`) et de cookie signé HMAC, gardé par le
+pouvoir dédié `site_access:manage`. Deux différences assumées, pas un
+doublon à fusionner : ce mot de passe ferme **tout** le site (posé en
+`dependencies=` à l'inclusion de chaque sous-router dans `v1/router.py`,
+plutôt qu'une garde route par route) et non la seule page bénévoles, et
+`POST /site-access/session` porte `public_write_rate_limit` — cette route est
+désormais la seule porte publique non authentifiée du site, et son
+`hashlib.scrypt` à chaque tentative en fait un levier de déni de service sans
+ce plafond (revue finale, § « Plafond de débit » de
+`docs/superpowers/specs/2026-08-20-mot-de-passe-site-design.md`).
+
