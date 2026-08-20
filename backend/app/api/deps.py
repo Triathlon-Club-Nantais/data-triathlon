@@ -114,7 +114,7 @@ def require_site_access(
     Fail-closed : configuration absente, cookie absent/invalide/expiré
     rendent tous le même 401.
     """
-    config = site_access_config_repository.get_config(db)
+    config = site_access_config_repository.get_config(db, with_updated_by=False)
     cookie = request.cookies.get(site_access.SITE_SESSION_COOKIE)
     ttl_seconds = settings.site_access_session_ttl_days * 24 * 60 * 60
     if config is None or not site_access.verify_session(

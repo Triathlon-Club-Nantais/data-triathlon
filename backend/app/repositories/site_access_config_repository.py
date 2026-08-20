@@ -13,10 +13,16 @@ from app.models.site_access_config import SiteAccessConfig
 SINGLETON_ID = 1
 
 
-def get_config(db: Session) -> SiteAccessConfig | None:
-    return db.scalar(
-        select(SiteAccessConfig).options(joinedload(SiteAccessConfig.updated_by))
-    )
+def get_config(db: Session, *, with_updated_by: bool = True) -> SiteAccessConfig | None:
+    """`with_updated_by=False` pour la garde (`api/deps.require_site_access`) :
+    posée sur pratiquement chaque requête (revue finale, Fix #7), elle ne lit
+    jamais que `session_secret` et n'a donc aucune raison de payer la jointure
+    sur `updated_by`, utile à la seule vue d'administration
+    (`admin_site_access.get_access_config`), qui garde `with_updated_by=True`."""
+    query = select(SiteAccessConfig)
+    if with_updated_by:
+        query = query.options(joinedload(SiteAccessConfig.updated_by))
+    return db.scalar(query)
 
 
 def save_config(

@@ -188,3 +188,19 @@ def test_le_plafond_des_ecritures_publiques_est_par_ip(client, monkeypatch):
 def test_le_signalement_refuse_ce_qui_n_est_pas_une_url_http(client, url):
     """La route reste **publique** — c'est la forme du corps qu'on borne, pas l'accès."""
     assert client.post(_SIGNALEMENT, json={"url": url}).status_code == 422
+
+
+def test_le_mot_de_passe_site_partage_le_plafond_des_ecritures_publiques(client, monkeypatch):
+    """Revue finale de #509, § Plafond de débit : `POST /site-access/session`
+    est désormais la seule porte publique non authentifiée du site, et elle
+    rejoint le seau `public_write` déjà partagé par le signalement et la
+    saisie manuelle — même dépendance, même seau, aucune infrastructure
+    nouvelle.
+    """
+    monkeypatch.setattr(deps, "PUBLIC_WRITE_RATE_LIMIT_MAX_PER_WINDOW", 1)
+
+    assert client.post(_SIGNALEMENT, json={"url": "https://newchrono.fr/c"}).status_code == 201
+
+    refus = client.post("/api/v1/site-access/session", json={"password": "peu importe"})
+    assert refus.status_code == 429
+    assert int(refus.headers["Retry-After"]) > 0
