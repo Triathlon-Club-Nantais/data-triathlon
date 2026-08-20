@@ -666,7 +666,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 Le levier 2 ne devient pas du code : `maxWorkers` n'est pas touché. Son livrable est une **preuve de stabilité** et la mise à jour du sondage. Le sondage lui-même écrit que « 2 exécutions front vertes ne sont pas une preuve » et demande 5 exécutions consécutives au repos, au délai par défaut.
 
 **Files:**
-- Modify: `docs/superpowers/specs/2026-08-20-suites-de-tests-sondage.md` (nouvelle section « Après »)
+- Modify: `docs/superpowers/specs/2026-08-20-suites-de-tests-sondage.md` — nouvelle section « Après », **et** correction des deux endroits qui chiffrent le levier 5 si l'A/B ne le reproduit pas (la phrase « **`-v` coûte 19 s, soit 20 %** » de la section Backend, et la ligne « 5 — retirer `-v` » du tableau « Verdicts par levier »)
 
 **Interfaces:**
 - Consumes: l'état final des tâches 1 à 3.
@@ -722,6 +722,14 @@ cd "$RACINE/backend" || exit 1
 echo "=== backend, défaut -n 4 ==="
 mesurer "back" 2 uv run pytest -m "not integration"
 
+# L'A/B du levier 5, ajouté après la tâche 1 : ses relevés n=1 ont donné `-v`
+# **plus rapide** que sans `-v` (60,42 s contre 72,48 s), ce qui est
+# causalement impossible et laisse le « 19 s, 20 % » du sondage sans appui.
+# Les deux bras sont séquentiels, donc comparables aux 96 s / 77 s d'origine.
+echo "=== levier 5 : A/B de -v, sous protocole ==="
+mesurer "back-avec-v" 2 uv run pytest -m "not integration" -o addopts=-v
+mesurer "back-sans-v" 2 uv run pytest -m "not integration" -o addopts=
+
 cd "$RACINE/frontend" || exit 1
 echo "=== frontend, deux projets, 5 exécutions (levier 2) ==="
 mesurer "front" 5 npx vitest run
@@ -751,6 +759,24 @@ Ajouter à `docs/superpowers/specs/2026-08-20-suites-de-tests-sondage.md`, avant
 | Flakiness front | 0 échec sur 2 | **<…> échec(s) sur 5**, au défaut de 5 s |
 
 Le levier 2 est tranché par la ligne du bas : <verdict en une phrase>.
+
+### Le coût de `-v`, remesuré
+
+Les relevés de la tâche 1 (n=1) donnaient `-v` **plus rapide** que sans `-v`,
+ce qui est causalement impossible : l'A/B a donc été rejoué sous protocole,
+les deux bras séquentiels.
+
+| | mesuré |
+| --- | --- |
+| séquentiel, `-o addopts=-v` | **<…> s** |
+| séquentiel, `-o addopts=` | **<…> s** |
+| **coût de `-v`** | **<…> s, soit <…> %** |
+
+<Une phrase : le « 19 s, 20 % » annoncé plus haut est confirmé, ou il est
+corrigé à cette valeur — et dans ce second cas, corriger aussi la ligne du
+levier 5 du tableau « Verdicts par levier » et la phrase « **`-v` coûte 19 s,
+soit 20 %** » de la section Backend, qui deviennent faux. Le commit `50f6f6e`
+cite l'état antérieur et n'est pas réécrit : le sondage est l'autorité vivante.>
 ```
 
 - [ ] **Step 4 : Commit**
