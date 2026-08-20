@@ -138,13 +138,29 @@ plus d'effet si le frontend redirige avant même que la page ne s'affiche.
 
 La garde se pose donc sur un groupe de routes, `app/(protege)/layout.tsx`
 (parenthèses : invisible dans l'URL), qui accueille toutes les routes
-existantes (`dashboard`, `resultats`, `athletes`, `courses`, `club`, `carte`,
-`ajouter`, `admin`, `login`) par un déplacement mécanique de dossiers
-(`git mv app/dashboard app/\(protege\)/dashboard`, etc.). `app/layout.tsx`
-(html/body/nav) ne change pas de rôle, il englobe toujours tout. `/acces` et
-`/benevoles` restent des routes **sœurs**, hors du groupe, donc jamais
-soumises à cette garde — `/benevoles` garde sa propre garde côté client
-(`AccessGate`, déjà en place), `/acces` est la page que la garde cible.
+existantes sauf trois, par un déplacement mécanique de dossiers
+(`git mv app/dashboard app/\(protege\)/dashboard`, etc.) : `dashboard`,
+`resultats`, `athletes`, `courses`, `club`, `carte`, `ajouter`, `login`.
+`app/layout.tsx` (html/body/nav) ne change pas de rôle, il englobe toujours
+tout. `/acces`, `/benevoles` **et `/admin`** restent des routes **sœurs**,
+hors du groupe, donc jamais soumises à cette garde — `/benevoles` garde sa
+propre garde côté client (`AccessGate`, déjà en place), `/acces` est la page
+que la garde cible.
+
+**`admin` en est sorti après coup — correction apportée en revue finale**,
+sur le même défaut que celui déjà nommé côté backend (§ Ce que ça change
+dans les invariantes existantes) : y placer `admin` fermait le seul chemin
+**navigateur** pour poser le tout premier mot de passe. Sur un déploiement
+neuf, `site_access_config` est vide ; `/admin/acces`, gardé par ce layout,
+redirigeait vers `/acces`, qui ne peut accepter aucun mot de passe puisque
+aucun n'existe — sans issue en navigateur, y compris pour un administrateur.
+Le correctif backend de la même nature (exempter `auth` et
+`admin_site_access` de `require_site_access`, ci-dessus) n'avait corrigé que
+l'API ; ce même geste manquait côté frontend. `admin` reste protégé par ce
+qui le protégeait déjà — `app/admin/layout.tsx` (SSO/RBAC), inchangé — donc
+rien n'est exposé de plus qu'avant #509 : seul l'écran de connexion redevient
+visible sans le mot de passe site, symétrique de l'exemption `auth` déjà
+acceptée côté API.
 
 **Conséquence assumée** : les six pages publiques aujourd'hui prérendues
 statiquement (`frontend/AGENTS.md`, `serverFetch` inchangé) basculent en
@@ -164,10 +180,20 @@ un nouveau pouvoir RBAC `site_access:manage` (catalogue `core/permissions.py`,
 ## Hors périmètre de ce livrable
 
 - Renouvellement glissant de la session (voir § Expiration) ;
-- Compte/identité pour les écritures anonymes (voir § Modèle de données) ;
-- Rate-limiting dédié sur `POST /site-access/session` — à évaluer avec le
-  même patron que le plafond par IP de #395 si un abus est constaté ; pas de
-  besoin exprimé aujourd'hui.
+- Compte/identité pour les écritures anonymes (voir § Modèle de données).
+
+## Plafond de débit — revenu sur la décision initiale (revue finale)
+
+`POST /site-access/session` est désormais **la seule porte publique non
+authentifiée du site** — à la différence de `POST /benevoles/session`, sur
+lequel le déferrement initial se calquait, et qui ne sert qu'une poignée de
+bénévoles. Le calcul `hashlib.scrypt` qu'elle déclenche à chaque tentative
+(~16 Mo, 50-100 ms CPU) devient donc un levier de déni de service **et**
+de force brute sur l'offre gratuite Render, exactement le risque que #395
+plafonne ailleurs. `public_write_rate_limit` (`api/deps.py`) est réutilisé
+tel quel, et `SiteAccessLogin.password` gagne un `max_length` — les deux
+changements coûtent une ligne chacun et ne demandent aucune nouvelle
+infrastructure.
 
 ## Tests
 
