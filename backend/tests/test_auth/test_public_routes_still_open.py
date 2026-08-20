@@ -6,6 +6,17 @@ tout refus : il exige que **toute** ressource sous `/api/v1/admin/` soit soit
 gardée, soit **déclarée publique nommément** ici, et que toute autre route
 existante réponde sans session (FR-024, FR-025, SC-001, SC-002).
 
+**Depuis #509, « ouvert » ne veut plus dire « atteignable par n'importe qui »**.
+La garde transverse `require_site_access` ferme désormais l'essentiel de l'API
+derrière le mot de passe partagé du site, y compris les routes que ce fichier
+classe ici comme « publiques » : elles restent ouvertes **côté RBAC/SSO** — sans
+session, sans pouvoir — mais un visiteur qui n'a jamais entré le mot de passe du
+site ne les atteint plus du tout. Ce fichier ne le voit pas : `client`
+(`tests/conftest.py`) neutralise `require_site_access` par défaut pour que ce
+filet continue de n'éprouver que l'axe qu'il a toujours éprouvé (RBAC), et ses
+assertions n'ont donc pas changé — la garde site, elle, est couverte séparément
+par `test_site_access_gate.py`.
+
 **Ce qu'il ne prouve plus.** Avec la politique en base, il établit qu'une
 ressource exige *un* pouvoir — jamais *qui* le porte : la composition des rôles
 est une donnée d'exploitation, modifiable à chaud, et aucun test ne peut en
@@ -184,10 +195,13 @@ def test_une_ressource_protegee_refuse_l_anonyme(client, methode, chemin):
 def test_le_signalement_anonyme_reste_ouvert(client):
     """FR-022 — le fait de terrain qui interdit toute garde par préfixe.
 
-    Un visiteur **anonyme** colle une URL non supportée ; le formulaire la
-    signale en `.catch(() => {})`. Une garde de préfixe supprimerait la
-    fonctionnalité sans que rien ne la nomme, et sans que personne ne le voie
-    en développement.
+    Un visiteur **anonyme au sens RBAC** — sans session, sans pouvoir — colle
+    une URL non supportée ; le formulaire la signale en `.catch(() => {})`.
+    Depuis #509, il doit en plus avoir déjà entré le mot de passe du site, une
+    garde que `client` neutralise ici par défaut (cf. docstring de module) :
+    ce test continue de n'éprouver que l'absence de RBAC. Une garde de préfixe
+    RBAC supprimerait la fonctionnalité sans que rien ne la nomme, et sans que
+    personne ne le voie en développement.
     """
     reponse = client.post(
         "/api/v1/admin/pending-providers", json={"url": "https://inconnu.example/x"}
