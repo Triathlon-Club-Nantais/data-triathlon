@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 
 const listEvents = vi.fn();
 
@@ -33,5 +33,15 @@ describe("AjouterPage", () => {
       { page_size: 6, sort: "imported_desc" },
       { revalidateSeconds: 30 },
     );
+  });
+
+  it("rend un titre <h1> et le titre de carte en <h2> (A11Y-2)", async () => {
+    const ui = await AjouterPage();
+    render(ui);
+
+    expect(screen.getByRole("heading", { level: 1, name: "Ajouter un triathlon" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Derniers résultats enregistrés" }),
+    ).toBeInTheDocument();
   });
 });

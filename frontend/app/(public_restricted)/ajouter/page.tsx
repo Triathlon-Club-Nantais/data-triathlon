@@ -23,13 +23,13 @@ export default async function AjouterPage() {
   return (
     <PageShell form>
       <Eyebrow style={{ marginBottom: 6 }}>Nouvelle participation</Eyebrow>
-      <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(30px, 6vw, 44px)", color: "var(--tcn-ink)", lineHeight: 1, marginBottom: 30 }}>Ajouter un triathlon</div>
+      <h1 style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(30px, 6vw, 44px)", fontWeight: 400, color: "var(--tcn-ink)", lineHeight: 1, margin: 0, marginBottom: 30 }}>Ajouter un triathlon</h1>
 
       <TcnScrapeForm />
 
       <Card padding={0} style={{ overflow: "hidden" }}>
         <div style={{ padding: "22px 28px 16px", borderBottom: "1px solid var(--tcn-border)", display: "flex", alignItems: "baseline", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-          <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)" }}>Derniers résultats enregistrés</div>
+          <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: 0 }}>Derniers résultats enregistrés</h2>
           <div style={{ fontSize: 13, color: "var(--tcn-text-faint)", fontWeight: 600 }}>Clique pour voir la page de résultats →</div>
         </div>
         <div style={{ overflowX: "auto" }}>

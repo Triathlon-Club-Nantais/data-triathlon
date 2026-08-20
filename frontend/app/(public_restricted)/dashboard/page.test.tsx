@@ -141,6 +141,19 @@ describe("DashboardPage", () => {
     expect(screen.getByLabelText("Choisir les saisons")).toBeTruthy();
   });
 
+  it("rend le titre de saison comme un <h1> (A11Y-2)", async () => {
+    url.qs = "seasons=2026,2025";
+    await renderDashboard({ seasons: "2026,2025" });
+
+    expect(screen.getByRole("heading", { level: 1, name: "2 saisons sélectionnées" })).toBeInTheDocument();
+  });
+
+  it("rend les titres de carte comme des <h2> (A11Y-2)", async () => {
+    await renderDashboard({});
+
+    expect(screen.getByRole("heading", { level: 2, name: "Type d'épreuves" })).toBeInTheDocument();
+  });
+
   it("garde les tags de saison hors de la barre d'outils, pour que les boutons ne bougent pas (#445)", async () => {
     // Dans la barre, les tags l'élargissaient jusqu'à la faire basculer sous
     // le titre et repartir tout à gauche : les quatre boutons de sélection
