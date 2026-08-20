@@ -31,6 +31,35 @@ def test_get_or_create_updates_current_club(db_session):
     assert a2.club == "Triathlon Club Nantais"
 
 
+def test_une_fiche_nee_d_un_import_suit_l_import(db_session):
+    """#439, INV-2 — le drapeau naît faux : sans correction humaine, rien ne change."""
+    athlete = athlete_repository.get_or_create(
+        db_session, nom="NOUVEAU", prenom="Nino", club="TCN"
+    )
+    assert athlete.club_locked is False
+
+
+def test_resolve_ne_reecrit_pas_un_club_verrouille(db_session):
+    """#439, INV-1 — la correction humaine prime sur tout import ultérieur.
+
+    C'est le seul point d'application de l'invariant : `resolve` est le seul
+    écrivain de `Athlete.club` après création, donc aucun chemin d'import ne peut
+    le contourner.
+    """
+    athlete = athlete_repository.get_or_create(
+        db_session, nom="VERROU", prenom="Vera", club="ASPTT NANTES"
+    )
+    athlete.club_locked = True
+    db_session.flush()
+
+    de_nouveau, cree = athlete_repository.resolve(
+        db_session, nom="VERROU", prenom="Vera", club="TRI CLUB NANTAIS"
+    )
+
+    assert cree is False
+    assert de_nouveau.club == "ASPTT NANTES"
+
+
 def test_search_by_name(db_session):
     athlete_repository.get_or_create(db_session, nom="LEROY", prenom="Anne", club="TCN")
     athlete_repository.get_or_create(db_session, nom="MOREAU", prenom="Eric", club="TCN")

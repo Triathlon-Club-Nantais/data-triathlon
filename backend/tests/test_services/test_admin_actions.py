@@ -41,9 +41,9 @@ def _epreuve(db_session, nom="Triathlon de Nantes", event_date=date(2026, 5, 17)
     return course
 
 
-def _coureur(db_session, nom, prenom="Coureur", birth_date=None):
+def _coureur(db_session, nom, prenom="Coureur", birth_date=None, club=None):
     athlete = athlete_repository.get_or_create(
-        db_session, nom=nom, prenom=prenom, birth_date=birth_date
+        db_session, nom=nom, prenom=prenom, birth_date=birth_date, club=club
     )
     db_session.flush()
     return athlete
@@ -295,6 +295,85 @@ def test_reassign_vers_le_coureur_deja_porteur_ne_consigne_rien(db_session, aute
     assert _journal(db_session, "participation", ligne.id) == []
 
 
+# --- Supprimer un résultat (#439, US2) --------------------------------------
+
+
+def _resultat_complet(db_session):
+    """Un résultat renseigné : le journal doit permettre de le relire entier."""
+    course = _epreuve(db_session, "Suppression", date(2026, 3, 8))
+    athlete = _coureur(db_session, "EFFACE", "Éva")
+    ligne = participation_repository.create(
+        db_session,
+        athlete_id=athlete.id,
+        course_id=course.id,
+        bib_number="17",
+        club="TCN",
+        rank_overall=12,
+        total_time="01:59:00",
+    )
+    db_session.flush()
+    return course, athlete, ligne
+
+
+def test_delete_participation_retire_la_ligne(db_session, auteur):
+    course, athlete, ligne = _resultat_complet(db_session)
+
+    admin_actions.delete_participation(
+        db_session, participation_id=ligne.id, user_id=auteur.id
+    )
+
+    assert participation_repository.get(db_session, ligne.id) is None
+
+
+def test_delete_participation_consigne_de_quoi_relire_ce_qui_a_disparu(db_session, auteur):
+    """FR-013 — une trace qui ne dirait pas *quoi* a disparu ne prouve rien.
+
+    Le résultat n'existe plus : le journal est la seule mémoire du classement, du
+    temps et du coureur concernés. Le `payload` se construit donc **avant** la
+    suppression.
+    """
+    course, athlete, ligne = _resultat_complet(db_session)
+    course_id, athlete_id, ligne_id = course.id, athlete.id, ligne.id
+
+    admin_actions.delete_participation(
+        db_session, participation_id=ligne_id, user_id=auteur.id
+    )
+
+    entrees = _journal(db_session, "participation", ligne_id)
+    assert len(entrees) == 1
+    assert entrees[0].action == "participation.delete"
+    assert entrees[0].payload["athlete_id"] == athlete_id
+    assert entrees[0].payload["course_id"] == course_id
+    assert entrees[0].payload["course_name"] == "Suppression"
+    assert entrees[0].payload["rank_overall"] == 12
+    assert entrees[0].payload["total_time"] == "01:59:00"
+
+
+def test_delete_participation_ne_purge_pas_la_fiche_devenue_vide(db_session, auteur):
+    """FR-012, D5 — divergence **assumée** avec `reassign_participation`.
+
+    Un rattachement laisse derrière lui une fiche née d'une erreur, qui n'a
+    jamais rien couru : la purger est la fin du geste. Ici, la fiche est celle
+    d'un coureur réel dont on retire un résultat erroné — la supprimer
+    dépasserait ce qui a été demandé.
+    """
+    course, athlete, ligne = _resultat_complet(db_session)
+    athlete_id = athlete.id
+
+    admin_actions.delete_participation(
+        db_session, participation_id=ligne.id, user_id=auteur.id
+    )
+
+    assert athlete_repository.get(db_session, athlete_id) is not None
+
+
+def test_delete_participation_d_un_resultat_inconnu_refuse_et_n_ecrit_rien(db_session, auteur):
+    with pytest.raises(NotFoundError):
+        admin_actions.delete_participation(db_session, participation_id=4242, user_id=auteur.id)
+
+    assert _journal(db_session, "participation", 4242) == []
+
+
 # --- Corriger un coureur (US3) ----------------------------------------------
 
 
@@ -372,6 +451,94 @@ def test_update_athlete_sans_changement_ne_consigne_rien(db_session, auteur):
     )
 
     assert _journal(db_session, "athlete", coureur.id) == []
+
+
+def test_corriger_le_club_verrouille_la_colonne(db_session, auteur):
+    """#439, INV-3 — la correction manuelle prime ensuite sur tout import.
+
+    Le verrou est la contrepartie assumée du geste : sans lui, le prochain import
+    de n'importe quelle épreuve où le coureur figure avec l'ancien libellé
+    réécrirait la correction, en silence.
+    """
+    coureur = _coureur(db_session, "MUTE", "Marc", club="ASPTT NANTES")
+
+    admin_actions.update_athlete(
+        db_session,
+        athlete_id=coureur.id,
+        champs={"club": "TRI CLUB NANTAIS"},
+        user_id=auteur.id,
+    )
+
+    relu = athlete_repository.get(db_session, coureur.id)
+    assert relu.club == "TRI CLUB NANTAIS"
+    assert relu.club_locked is True
+
+
+def test_corriger_l_identite_seule_ne_verrouille_pas_le_club(db_session, auteur):
+    """#439, INV-4 — le verrou qualifie la colonne `club`, pas la fiche."""
+    coureur = _coureur(db_session, "DUPOND", "Jean", club="ASPTT NANTES")
+
+    admin_actions.update_athlete(
+        db_session, athlete_id=coureur.id, champs={"nom": "DUPONT"}, user_id=auteur.id
+    )
+
+    assert athlete_repository.get(db_session, coureur.id).club_locked is False
+
+
+def test_corriger_le_club_vers_la_meme_valeur_n_est_pas_un_geste(db_session, auteur):
+    """Ni journal, ni verrou : une demande sans effet n'a rien corrigé.
+
+    Poser le verrou ici changerait durablement le comportement des imports sur la
+    foi d'un geste qui n'a rien changé.
+    """
+    coureur = _coureur(db_session, "IDEM", "Ida", club="TCN")
+
+    admin_actions.update_athlete(
+        db_session, athlete_id=coureur.id, champs={"club": "TCN"}, user_id=auteur.id
+    )
+
+    relu = athlete_repository.get(db_session, coureur.id)
+    assert relu.club_locked is False
+    assert _journal(db_session, "athlete", coureur.id) == []
+
+
+def test_le_journal_porte_le_club_dans_ses_instantanes(db_session, auteur):
+    coureur = _coureur(db_session, "TRACE", "Théo", club="ASPTT NANTES")
+
+    admin_actions.update_athlete(
+        db_session, athlete_id=coureur.id, champs={"club": None}, user_id=auteur.id
+    )
+
+    entree = _journal(db_session, "athlete", coureur.id)[0]
+    assert entree.payload["before"]["club"] == "ASPTT NANTES"
+    assert entree.payload["after"]["club"] is None
+
+
+def test_corriger_le_club_actuel_ne_touche_aucun_club_de_resultat(db_session, auteur):
+    """FR-013 — le club d'un résultat est celui **de l'époque**, une autre donnée.
+
+    Le réécrire réviserait l'histoire : un coureur passé de l'ASPTT au TCN a bien
+    couru sous les couleurs de l'ASPTT ce jour-là.
+    """
+    course = _epreuve(db_session)
+    coureur = _coureur(db_session, "MUTATION", "Mila", club="ASPTT NANTES")
+    ligne = participation_repository.create(
+        db_session,
+        athlete_id=coureur.id,
+        course_id=course.id,
+        bib_number="12",
+        club="ASPTT NANTES",
+    )
+    db_session.flush()
+
+    admin_actions.update_athlete(
+        db_session,
+        athlete_id=coureur.id,
+        champs={"club": "TRI CLUB NANTAIS"},
+        user_id=auteur.id,
+    )
+
+    assert participation_repository.get(db_session, ligne.id).club == "ASPTT NANTES"
 
 
 # --- Corriger une épreuve (US4) ---------------------------------------------

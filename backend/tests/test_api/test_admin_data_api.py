@@ -14,6 +14,7 @@ import pytest
 from app.api.v1.auth import session_cookie_name
 from app.core.config import get_settings
 from app.core.permissions import P
+from app.models.admin_action_log import AdminActionLog
 from app.models.organisation import Organisation
 from app.models.role_permission import RolePermission
 from app.repositories import (
@@ -566,6 +567,25 @@ def test_rattacher_sans_le_pouvoir_rend_403(client, db_session, rattachement):
     assert reponse.status_code == 403
 
 
+def test_un_refus_de_rattachement_ne_change_ni_la_donnee_ni_le_journal(
+    client, db_session, rattachement
+):
+    """#439, FR-009 — le refus est total : le résultat reste sur son coureur, et
+    le journal ne garde aucune trace d'une tentative."""
+    ligne = rattachement["participation"]
+    source_id = rattachement["source"].id
+    _session_etroite(client, db_session)
+
+    client.post(
+        f"/api/v1/admin/participations/{ligne.id}/reassign",
+        json={"athlete_id": rattachement["cible"].id},
+    )
+
+    db_session.expire_all()
+    assert participation_repository.get(db_session, ligne.id).athlete_id == source_id
+    assert db_session.query(AdminActionLog).count() == 0
+
+
 # --- GET /admin/athletes ----------------------------------------------------
 
 
@@ -642,6 +662,94 @@ def test_corriger_un_coureur_vers_une_identite_prise_rend_409(client, db_session
     assert "identité" in reponse.json()["detail"]
 
 
+def test_corriger_le_club_actuel_laisse_les_clubs_des_resultats(client, db_session, coureur):
+    """#439, FR-013 — le club d'un résultat est celui de l'époque, pas le club actuel."""
+    course = course_repository.get_or_create(
+        db_session,
+        name="Triathlon de Nantes",
+        event_date=date(2026, 5, 17),
+        event_type="triathlon-m",
+        source_url="https://k/nantes",
+        provider="klikego",
+    )
+    ligne = participation_repository.create(
+        db_session,
+        athlete_id=coureur.id,
+        course_id=course.id,
+        bib_number="7",
+        club="ASPTT NANTES",
+    )
+    db_session.commit()
+
+    reponse = client.patch(
+        f"/api/v1/admin/athletes/{coureur.id}", json={"club": "TRI CLUB NANTAIS"}
+    )
+
+    assert reponse.status_code == 200
+    assert reponse.json()["club"] == "TRI CLUB NANTAIS"
+    db_session.expire_all()
+    assert participation_repository.get(db_session, ligne.id).club == "ASPTT NANTES"
+
+
+def test_vider_le_club_actuel_le_met_a_null(client, db_session, coureur):
+    """US3-AC2 — `null` et non `""` : « sans club » n'est pas un club au libellé vide."""
+    client.patch(f"/api/v1/admin/athletes/{coureur.id}", json={"club": "ASPTT NANTES"})
+
+    reponse = client.patch(f"/api/v1/admin/athletes/{coureur.id}", json={"club": None})
+
+    assert reponse.status_code == 200
+    assert reponse.json()["club"] is None
+    db_session.expire_all()
+    assert athlete_repository.get(db_session, coureur.id).club is None
+
+
+def test_un_club_detrempe_est_refuse(client, db_session, coureur):
+    """Le pendant d'AC2 : « sans club » s'écrit `null`, un `""` n'est pas un club.
+
+    `str_strip_whitespace` détrempe `"   "` en `""` ; sans le `min_length`, la
+    chaîne vide serait rangée comme un libellé à part entière et apparaîtrait dans
+    les regroupements par club.
+    """
+    client.patch(f"/api/v1/admin/athletes/{coureur.id}", json={"club": "ASPTT NANTES"})
+
+    reponse = client.patch(f"/api/v1/admin/athletes/{coureur.id}", json={"club": "   "})
+
+    assert reponse.status_code == 422
+    db_session.expire_all()
+    assert athlete_repository.get(db_session, coureur.id).club == "ASPTT NANTES"
+
+
+def test_le_verrou_du_club_n_est_expose_par_aucune_reponse(client, db_session, coureur):
+    """#439, INV-5, D2 — c'est un rouage interne, pas une donnée du contrat.
+
+    L'exposer inviterait un écran à s'en servir, alors qu'il ne se pilote que par
+    le geste de correction : aucune API ne le pose ni ne le lève directement.
+    """
+    fiche = client.patch(
+        f"/api/v1/admin/athletes/{coureur.id}", json={"club": "TRI CLUB NANTAIS"}
+    ).json()
+    assert "club_locked" not in fiche
+    assert "club_locked" not in client.get(f"/api/v1/admin/athletes/{coureur.id}").json()
+
+    # `AthleteBrief`, le DTO public embarqué dans chaque résultat, non plus.
+    course = course_repository.get_or_create(
+        db_session,
+        name="Duathlon de Nantes",
+        event_date=date(2026, 6, 7),
+        event_type="duathlon-s",
+        source_url="https://k/duathlon",
+        provider="klikego",
+    )
+    participation_repository.create(
+        db_session, athlete_id=coureur.id, course_id=course.id, bib_number="3"
+    )
+    db_session.commit()
+
+    resultats = client.get("/api/v1/participations").json()
+    assert resultats
+    assert all("club_locked" not in r["athlete"] for r in resultats)
+
+
 def test_corriger_un_coureur_sans_champ_rend_422(client, coureur):
     assert client.patch(f"/api/v1/admin/athletes/{coureur.id}", json={}).status_code == 422
 
@@ -686,8 +794,6 @@ def test_un_type_d_epreuve_de_la_nomenclature_est_accepte(client, epreuve):
 
 def test_un_conflit_d_epreuve_n_ecrit_rien_au_journal(client, db_session, epreuve):
     """FR-015 à l'étage HTTP : un 409 ne laisse ni donnée ni trace."""
-    from app.models.admin_action_log import AdminActionLog
-
     avant = db_session.query(AdminActionLog).count()
 
     client.patch(
@@ -719,6 +825,21 @@ def test_corriger_un_coureur_sans_le_pouvoir_rend_403(client, db_session, coureu
     assert client.patch(
         f"/api/v1/admin/athletes/{coureur.id}", json={"nom": "X"}
     ).status_code == 403
+
+
+def test_un_refus_de_correction_ne_change_ni_la_donnee_ni_le_journal(
+    client, db_session, coureur
+):
+    """#439, FR-009 — même exigence que sur le rattachement : rien n'est écrit,
+    ni dans la fiche, ni dans le journal."""
+    coureur_id = coureur.id
+    _session_etroite(client, db_session)
+
+    client.patch(f"/api/v1/admin/athletes/{coureur_id}", json={"nom": "X"})
+
+    db_session.expire_all()
+    assert athlete_repository.get(db_session, coureur_id).nom == "DUPOND"
+    assert db_session.query(AdminActionLog).count() == 0
 
 
 def test_corriger_une_epreuve_rend_le_libelle_a_jour(client, epreuve):

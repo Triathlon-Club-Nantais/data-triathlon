@@ -96,6 +96,17 @@ def count_all(db: Session) -> int:
     return db.query(func.count(Participation.id)).scalar() or 0
 
 
+def delete(db: Session, participation: Participation) -> None:
+    """Supprime **un** résultat, et lui seul (#439).
+
+    Prend l'entité et non un identifiant : l'appelant l'a déjà hydratée pour en
+    construire la trace au journal, la relire ici serait un aller-retour de plus.
+    Aucune purge de fiche coureur — c'est la décision D5, pas un oubli.
+    """
+    db.delete(participation)
+    db.flush()
+
+
 def delete_all(db: Session) -> int:
     """Supprime **toutes** les participations de la base. Rend le nombre effacé (#384).
 

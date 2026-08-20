@@ -92,8 +92,12 @@ def resolve(
     """
     existing = get_by_identity(db, nom, prenom, birth_date)
     if existing:
-        # Met à jour le club courant si l'info est plus récente
-        if club and existing.club != club:
+        # Met à jour le club courant si l'info est plus récente — sauf si un
+        # humain l'a corrigé : une correction manuelle prime sur tout import
+        # ultérieur, y compris celui d'une course d'il y a trois ans qui annonce
+        # le club de l'époque (#439). Le drapeau est un attribut de la ligne déjà
+        # chargée : le lire ne coûte aucune requête de plus à l'import.
+        if club and existing.club != club and not existing.club_locked:
             existing.club = club
         return existing, False
 

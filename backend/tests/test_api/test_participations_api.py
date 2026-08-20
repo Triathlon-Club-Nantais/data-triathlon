@@ -1,3 +1,4 @@
+from app.models.admin_action_log import AdminActionLog
 from tests.test_api.conftest import valider_toutes_les_participations
 
 
@@ -86,6 +87,50 @@ def test_delete_participation(client):
     suppression = client.delete(f"/api/v1/participations/{pid}")
     assert suppression.status_code == 204
     assert client.get(f"/api/v1/participations/{pid}").status_code == 404
+
+
+def test_delete_participation_consigne_une_entree_au_journal(client, db_session):
+    """#439 — le geste le plus irréversible de l'API ne laissait aucune trace."""
+    pid = client.post("/api/v1/participations", json=_payload()).json()["id"]
+
+    assert client.delete(f"/api/v1/participations/{pid}").status_code == 204
+
+    entrees = db_session.query(AdminActionLog).all()
+    assert [(e.action, e.entity_type, e.entity_id) for e in entrees] == [
+        ("participation.delete", "participation", pid)
+    ]
+
+
+def test_supprimer_deux_fois_rend_404_et_n_ecrit_rien_de_plus(client, db_session):
+    """FR-014, FR-016 — un autre administrateur est passé avant : 404, pas 204.
+
+    Un second 204 laisserait croire à une seconde suppression, et une seconde
+    entrée au journal ferait compter deux gestes là où il n'y en a eu qu'un.
+    """
+    pid = client.post("/api/v1/participations", json=_payload()).json()["id"]
+    client.delete(f"/api/v1/participations/{pid}")
+
+    seconde = client.delete(f"/api/v1/participations/{pid}")
+
+    assert seconde.status_code == 404
+    assert db_session.query(AdminActionLog).count() == 1
+
+
+def test_supprimer_un_resultat_en_attente_de_validation_rend_204_et_journalise(
+    client, db_session
+):
+    """US2-AC6 — la route ne distingue pas les deux états.
+
+    Un résultat créé par `POST /participations` naît en attente (#270) : le
+    supprimer est le même geste, avec la même trace. Côté page, sa disparition
+    ne bouge aucun indicateur — les cinq sont calculés sur les validés.
+    """
+    creation = client.post("/api/v1/participations", json=_payload())
+    assert creation.json()["is_pending_validation"] is True
+    pid = creation.json()["id"]
+
+    assert client.delete(f"/api/v1/participations/{pid}").status_code == 204
+    assert db_session.query(AdminActionLog).count() == 1
 
 
 def test_get_missing_404(client):

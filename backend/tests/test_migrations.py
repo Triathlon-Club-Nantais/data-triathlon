@@ -181,6 +181,41 @@ def test_downgrade_puis_upgrade_de_l_indice_de_fiabilite(sqlite_url):
     )
 
 
+def test_downgrade_puis_upgrade_de_club_locked(sqlite_url):
+    """#439 — sans ce test, le `downgrade` de la révision ne serait jamais exécuté.
+
+    Ce fichier ne couvre l'aller-retour que **révision par révision** : seul
+    `test_upgrade_head_sur_base_vierge` est générique, aucun `downgrade` ne l'est.
+    """
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+
+    # Cible nommée, comme pour l'indice de fiabilité : `-1` désignerait autre
+    # chose dès qu'une migration s'ajoute au-dessus.
+    command.downgrade(cfg, "aeb0b98d1a51")
+    assert "club_locked" not in _columns(sqlite_url, "athletes")
+
+    command.upgrade(cfg, "head")
+    assert "club_locked" in _columns(sqlite_url, "athletes")
+
+    # C'est la **base** qui remplit la colonne, pas Python : une fiche insérée en
+    # SQL brut — ce que sont les lignes déjà en production au moment de la
+    # migration — doit en ressortir non verrouillée.
+    engine = sa.create_engine(sqlite_url)
+    try:
+        with engine.begin() as connexion:
+            connexion.execute(
+                sa.text(
+                    "INSERT INTO athletes (nom, prenom, gender, created_at) "
+                    "VALUES ('MIGRE', 'Mia', 'F', '2026-08-20 00:00:00')"
+                )
+            )
+            verrou = connexion.execute(sa.text("SELECT club_locked FROM athletes")).scalar()
+    finally:
+        engine.dispose()
+    assert verrou in (0, False)
+
+
 def test_les_tables_du_rbac_sont_creees(base_migree):
     assert {
         "organisations",

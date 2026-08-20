@@ -188,7 +188,9 @@ class P:
     ATHLETES_WRITE = Permission(
         "athletes:write",
         "Corriger un coureur",
-        "Rectifier le nom, le prénom ou la date de naissance d'une fiche coureur.",
+        "Rectifier le nom, le prénom, la date de naissance ou le club actuel d'une "
+        "fiche coureur. Le club corrigé ici ne suit plus les imports suivants ; "
+        "les clubs portés par les résultats déjà enregistrés ne bougent pas.",
         FEATURE_ATHLETES,
     )
     # `participations:write` a existé (#115) puis a été retiré (#270) :
