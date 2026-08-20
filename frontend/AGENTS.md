@@ -182,6 +182,16 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   l'en-tête `cookie`, donc la fenêtre de 30 s ne se partage plus entre
   visiteurs — elle profite encore à chacun sur sa propre navigation.
 - `lib/types.ts` — types TypeScript partagés.
+- **Deux projets vitest, `node` par défaut** (#508) — `vitest.config.ts` ne pose
+  plus un environnement global : `jsdom` prend les `.test.tsx` et trois
+  `.test.ts` nommés dans `GLOBS_JSDOM`, `node` prend tout le reste (le `include`
+  par défaut de vitest **moins** ces globs, pour que la partition soit
+  structurelle plutôt que tenue à la main). Un test à DOM oublié dans `node`
+  échoue franchement sur « document is not defined » ; c'est le sens de
+  l'orientation, l'oubli inverse étant silencieux. `test/environments.test.ts`
+  vérifie que chaque fichier est réclamé par **exactement un** projet — ni zéro
+  (jamais exécuté, cf. #300), ni deux. Cibler un projet :
+  `npx vitest run --project node`.
 - `next.config.ts` — rewrites (`/api/*`, proxy PostHog) **et** `headers()` : les
   en-têtes de sécurité posés sur `/:path*`, rewrites comprises (#396). Ils ne
   couvrent que ce qui passe par Next : les backends Render étant joignables en

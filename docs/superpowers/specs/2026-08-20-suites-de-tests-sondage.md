@@ -157,8 +157,8 @@ Mesuré par absence de `@testing-library`, `document`, `window`, `localStorage`,
   (`next.config.test.ts`, `app/globals.test.ts`), d'où les **27** candidats de
   l'A/B ci-dessus.
 - **Deux `scripts/*.test.mjs` existent** (`backend-url`, `exit-code`) et portent
-  déjà `// @vitest-environment node`, en **commentaire de ligne** et non en
-  docblock. Un `grep` restreint aux `.ts`/`.tsx` les manque, et un jeu de globs
+  déjà `// @vitest-environment node`. Un `grep` restreint aux `.ts`/`.tsx` les
+  manque — l'extension `.mjs` est invisible à ce filtre — et un jeu de globs
   bâti sur `**/*.test.ts` + `**/*.test.tsx` les laisserait **réclamés par aucun
   projet, donc jamais exécutés**. C'est le mode de défaillance de #300 : un vert
   qui ne vérifie rien. Le `include` par défaut de vitest,
