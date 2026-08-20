@@ -44,6 +44,8 @@ import type {
   SessionRevocation,
   SessionUser,
   SheetColumns,
+  SiteAccessConfig,
+  SiteAccessGenerated,
 } from "@/lib/types";
 
 const BASE = "/api/v1";
@@ -380,6 +382,16 @@ export const apiClient = {
   // ── Mot de passe d'accès au site (#509) ────────────────────────────────────
   siteAccessLogin: (password: string) =>
     request<null>("/site-access/session", { method: "POST", body: JSON.stringify({ password }) }),
+  // `site_access:manage`. `PUT`/`generate` rendent la même forme que `GET`,
+  // sauf `generate` qui ajoute le mot de passe en clair — une seule fois.
+  getSiteAccessConfig: () => request<SiteAccessConfig>("/admin/site-access"),
+  replaceSiteAccessPassword: (password: string) =>
+    request<SiteAccessConfig>("/admin/site-access", {
+      method: "PUT",
+      body: JSON.stringify({ password }),
+    }),
+  generateSiteAccessPassword: () =>
+    request<SiteAccessGenerated>("/admin/site-access/generate", { method: "POST" }),
 
   // ── Retours utilisateurs (#267) ────────────────────────────────────────────
   // Route publique, et son chemin le dit : `/feedback`, hors de `/admin` où

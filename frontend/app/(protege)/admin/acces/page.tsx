@@ -2,6 +2,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { AllowedEmailsTable } from "@/components/admin/AllowedEmailsTable";
 import { BenevoleAccessConfig } from "@/components/admin/BenevoleAccessConfig";
+import { SiteAccessConfig } from "@/components/admin/SiteAccessConfig";
 import { RevokeSessionsCard } from "@/components/admin/RevokeSessionsCard";
 
 /**
@@ -27,6 +28,7 @@ export default function AdminAccesPage() {
           description="Seules ces adresses peuvent ouvrir une session. Une adresse retirée perd l'accès immédiatement."
         />
         <AllowedEmailsTable />
+        <SiteAccessConfig />
         <BenevoleAccessConfig />
         <RevokeSessionsCard />
       </div>

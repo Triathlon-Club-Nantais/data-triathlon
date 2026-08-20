@@ -321,6 +321,22 @@ export interface BenevoleAccessGenerated {
   updated_by: string;
 }
 
+/** État courant du mot de passe partagé du site (#509) — jamais le mot de
+ * passe ni son empreinte. */
+export interface SiteAccessConfig {
+  configured: boolean;
+  updated_at: string | null;
+  updated_by: string | null;
+}
+
+/** Réponse de la génération sécurisée — la seule forme qui porte jamais un
+ * mot de passe en clair, une seule fois. */
+export interface SiteAccessGenerated {
+  password: string;
+  updated_at: string;
+  updated_by: string;
+}
+
 /**
  * Un rôle et sa composition (#115).
  *
