@@ -84,10 +84,15 @@ async function serverFetchAuthed<T>(path: string): Promise<T | null> {
 /**
  * Variante de `serverFetchAuthed` qui ne rend qu'un booléen.
  *
- * `checkSiteAccess` n'a besoin que de savoir si le cookie est valide, jamais
- * du corps de la réponse : lever une `ApiError` sur un 4xx quelconque (ici un
- * 401 pour un cookie absent ou invalide, cas nominal et non une panne) serait
- * plus coûteux à traiter côté appelant que renvoyer directement `res.ok`.
+ * `checkSiteAccess` n'a besoin que de savoir si le cookie est valide — mais
+ * `false` doit rester réservé au seul 401 **avéré** (cookie absent, invalide
+ * ou expiré). Un réseau en échec ou un statut ≠ 200/401 (démarrage à froid,
+ * 5xx) ne dit rien sur la validité du cookie : les confondre avec `false`
+ * ferait rediriger vers `/acces` pendant une panne backend, exactement ce que
+ * `admin/layout.tsx` évite déjà pour sa propre garde via son couple
+ * `panne()`/`INDISPONIBLE`. On lève donc une `ApiError` (ou on laisse
+ * remonter l'échec réseau) sur tout ce qui n'est ni 200 ni 401, à charge pour
+ * l'appelant — `app/(protege)/layout.tsx` — de les traiter comme lui.
  */
 async function serverFetchAuthedRaw(path: string): Promise<boolean> {
   const jar = await cookies();
@@ -95,7 +100,11 @@ async function serverFetchAuthedRaw(path: string): Promise<boolean> {
     cache: "no-store",
     headers: { cookie: jar.toString() },
   });
-  return res.ok;
+  if (res.status === 401) return false;
+  if (!res.ok) {
+    throw new ApiError(res.status, await errorDetail(res));
+  }
+  return true;
 }
 
 export const apiServer = {
