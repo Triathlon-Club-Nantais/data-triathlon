@@ -41,6 +41,31 @@ def test_put_remplace_le_mot_de_passe(client, ouvrir_session):
     assert charge["updated_by"] == "Iris Admin"
 
 
+def test_put_refuse_un_mot_de_passe_plus_long_que_ce_que_la_connexion_accepte(
+    client, ouvrir_session
+):
+    """Les deux bornes doivent se répondre (relevé en revue de #513).
+
+    `SiteAccessLogin` plafonne à 200 ; sans la même borne ici, un `PUT` de 201
+    caractères réussissait — le secret tournait, toutes les sessions ouvertes
+    tombaient, et `POST /site-access/session` rendait ensuite 422 sur le seul
+    mot de passe qui aurait marché. Tout le monde dehors, personne au courant.
+    """
+    ouvrir_session(P.SITE_ACCESS_MANAGE)
+
+    reponse = client.put(URL, json={"password": "x" * 201})
+
+    assert reponse.status_code == 422
+    assert client.get(URL).json()["configured"] is False  # rien n'a été remplacé
+
+
+def test_put_accepte_la_longueur_maximale_de_la_connexion(client, ouvrir_session):
+    """La borne est la **même** des deux côtés, pas seulement présente."""
+    ouvrir_session(P.SITE_ACCESS_MANAGE)
+
+    assert client.put(URL, json={"password": "x" * 200}).status_code == 200
+
+
 def test_generate_rend_le_mot_de_passe_en_clair_une_seule_fois(client, ouvrir_session):
     ouvrir_session(P.SITE_ACCESS_MANAGE)
 
