@@ -44,6 +44,13 @@ describe("ImportProgress", () => {
     expect(link.getAttribute("href")).toBe("/courses/42");
   });
 
+  it("affiche le type d'épreuve via eventTypeLabel plutôt que le code brut", () => {
+    const courses = [{ id: 42, name: "Triathlon de Mesquer", event_type: "triathlon-s" }];
+    render(<ImportProgress state={state({ phase: "done", courses })} />);
+    expect(screen.getByText("Triathlon S")).toBeInTheDocument();
+    expect(screen.queryByText("triathlon-s")).not.toBeInTheDocument();
+  });
+
   it("rend N liens pour N courses (fan-out)", () => {
     const courses = Array.from({ length: 8 }, (_, i) => ({
       id: 100 + i,
@@ -60,19 +67,20 @@ describe("ImportProgress", () => {
   // T015 — rendu des heats en échec (fan-out #156)
   it("ne rend aucun bloc d'échec si failures est vide", () => {
     render(<ImportProgress state={state({ phase: "done", failures: [] })} />);
-    expect(screen.queryByText(/Heats en erreur/i)).toBeNull();
+    expect(screen.queryByText(/n'a pas pu être importée|n'ont pas pu être importées/i)).toBeNull();
   });
 
-  it("rend un bloc listant chaque heat en erreur avec sa cause", () => {
+  it("rend un bloc en français métier listant chaque série en erreur avec sa cause, sans le slug technique", () => {
     const failures = [
       { heat_slug: "triathlon-xs-relais", reason: "HTTPError 502" },
       { heat_slug: "swim-run-s-duo", reason: "timeout" },
     ];
     render(<ImportProgress state={state({ phase: "done", failures, heatsFailed: 2 })} />);
-    expect(screen.getByText(/Heats en erreur/i)).toBeTruthy();
-    expect(screen.getByText(/triathlon-xs-relais/)).toBeTruthy();
+    expect(screen.getByText("2 séries n'ont pas pu être importées :")).toBeTruthy();
+    expect(screen.queryByText(/Heats en erreur/i)).toBeNull();
+    expect(screen.queryByText(/triathlon-xs-relais/)).toBeNull();
+    expect(screen.queryByText(/swim-run-s-duo/)).toBeNull();
     expect(screen.getByText(/HTTPError 502/)).toBeTruthy();
-    expect(screen.getByText(/swim-run-s-duo/)).toBeTruthy();
     expect(screen.getByText(/timeout/)).toBeTruthy();
   });
 
@@ -130,5 +138,11 @@ describe("ImportProgress", () => {
     const region = screen.getByRole("status");
     expect(region).toHaveTextContent("Chronométreur injoignable");
     expect(region).not.toHaveAttribute("aria-busy", "true");
+  });
+
+  it("accorde le message au singulier pour une seule série en échec", () => {
+    const failures = [{ heat_slug: "triathlon-xs-relais", reason: "HTTPError 502" }];
+    render(<ImportProgress state={state({ phase: "done", failures, heatsFailed: 1 })} />);
+    expect(screen.getByText("1 série n'a pas pu être importée :")).toBeTruthy();
   });
 });

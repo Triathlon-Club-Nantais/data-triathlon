@@ -38,7 +38,7 @@ export function UserMenu({ pleineLargeur = false }: { pleineLargeur?: boolean })
     // `Button` rend un `<button>`, et un `<a>` autour serait deux éléments
     // interactifs imbriqués — HTML invalide, annoncé deux fois par les
     // technologies d'assistance. C'est déjà la forme des deux autres actions de
-    // la topbar (« Ajouter un triathlon »).
+    // la topbar (« Ajouter une épreuve »).
     return (
       <Button
         variant="secondary"

@@ -119,7 +119,7 @@ export function TcnScrapeForm() {
     <>
       <Card padding={32} style={{ marginBottom: 22 }}>
         <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)", marginBottom: 5 }}>
-          Colle ici l&apos;adresse des résultats de ton triathlon
+          Collez ici l&apos;adresse des résultats de votre épreuve
         </div>
         <div style={{ fontSize: 14, color: "var(--tcn-text-muted)", fontWeight: 500, marginBottom: 18 }}>
           Le lien vers la page de résultats officielle du chronométreur (PDF, site web…)
@@ -198,7 +198,7 @@ export function TcnScrapeForm() {
               {phase === "error"
                 ? (error ?? "Le lien fourni n'a pas pu être lu.")
                 : "Aucun chronométreur ne reconnaît cette adresse."}{" "}
-              Tu peux saisir ta participation manuellement.
+              Vous pouvez saisir votre participation manuellement.
             </Alert>
           </div>
         )}
@@ -206,8 +206,8 @@ export function TcnScrapeForm() {
 
       {manual && (
         <Card padding={30} style={{ border: "1.5px solid var(--tcn-warning-border)", marginBottom: 22 }}>
-          <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)", marginBottom: 6 }}>Saisie manuelle de ta participation</div>
-          <div style={{ fontSize: 14, color: "var(--tcn-text-muted)", marginBottom: 22 }}>Complète les champs ci-dessous. Ta participation sera bien enregistrée.</div>
+          <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)", marginBottom: 6 }}>Saisie manuelle de votre participation</div>
+          <div style={{ fontSize: 14, color: "var(--tcn-text-muted)", marginBottom: 22 }}>Complétez les champs ci-dessous. Votre participation sera bien enregistrée.</div>
           <ManualResultForm defaultUrl={url} onSubmit={persist} submitting={save.isPending} />
         </Card>
       )}

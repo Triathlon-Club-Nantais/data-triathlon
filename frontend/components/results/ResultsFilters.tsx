@@ -112,7 +112,7 @@ export function ResultsFilters() {
   const active: { key: string; label: string }[] = [];
   if (sp.get("name")) active.push({ key: "name", label: `Athlète : ${sp.get("name")}` });
   if (sp.get("event_name"))
-    active.push({ key: "event_name", label: `Course : ${sp.get("event_name")}` });
+    active.push({ key: "event_name", label: `Épreuve : ${sp.get("event_name")}` });
   if (sp.get("event_type"))
     active.push({ key: "event_type", label: eventTypeLabel(sp.get("event_type")) });
   if (sp.get("date_from"))
@@ -150,12 +150,12 @@ export function ResultsFilters() {
               className="w-full sm:w-48"
             />
           </Field>
-          <Field label="Course">
+          <Field label="Épreuve">
             <Input
               value={eventName}
               onChange={(e) => setEventName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && apply()}
-              placeholder="Rechercher une course"
+              placeholder="Rechercher une épreuve"
               className="w-full sm:w-48"
             />
           </Field>

@@ -24,7 +24,7 @@ export default async function AjouterPage() {
   return (
     <PageShell form>
       <Eyebrow style={{ marginBottom: 6 }}>Nouvelle participation</Eyebrow>
-      <h1 style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(30px, 6vw, 44px)", fontWeight: 400, color: "var(--tcn-ink)", lineHeight: 1, margin: 0, marginBottom: 30 }}>Ajouter un triathlon</h1>
+      <h1 style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(30px, 6vw, 44px)", fontWeight: 400, color: "var(--tcn-ink)", lineHeight: 1, margin: 0, marginBottom: 30 }}>Ajouter une épreuve</h1>
 
       <TcnScrapeForm />
 

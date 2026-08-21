@@ -3,6 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Progress } from "@/components/ui/progress";
 import { AnnonceStatut } from "@/components/tcn";
+import { eventTypeLabel } from "@/lib/constants";
 import type { ImportState } from "@/hooks/useImportStream";
 
 /** Quart de progression (0-4) : jalon de l'annonce en phase `saving`. */
@@ -92,7 +93,7 @@ export function ImportProgress({ state }: { state: ImportState }) {
                     <Link href={`/courses/${c.id}`} className="underline hover:no-underline">
                       {c.name}
                     </Link>
-                    <span className="ml-2 text-xs text-[var(--tcn-text-faint)]">{c.event_type}</span>
+                    <span className="ml-2 text-xs text-[var(--tcn-text-faint)]">{eventTypeLabel(c.event_type)}</span>
                   </li>
                 ))}
               </ul>
@@ -101,13 +102,13 @@ export function ImportProgress({ state }: { state: ImportState }) {
           {state.failures.length > 0 && (
             <div className="space-y-1 pt-2">
               <p className="font-medium text-destructive">
-                Heats en erreur ({state.failures.length}) :
+                {state.failures.length === 1
+                  ? "1 série n'a pas pu être importée :"
+                  : `${state.failures.length} séries n'ont pas pu être importées :`}
               </p>
               <ul className="space-y-1 text-xs text-destructive">
                 {state.failures.map((f, i) => (
-                  <li key={`${f.heat_slug}-${i}`}>
-                    <span className="font-mono">{f.heat_slug}</span> — {f.reason}
-                  </li>
+                  <li key={`${f.heat_slug}-${i}`}>{f.reason}</li>
                 ))}
               </ul>
             </div>

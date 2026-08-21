@@ -90,4 +90,24 @@ describe("ResultCard", () => {
     expect(screen.getByText("DNS")).toBeInTheDocument();
     expect(screen.queryByText("02:15:30")).not.toBeInTheDocument();
   });
+
+  it("normalise le genre via genderShort plutôt que d'afficher le sigle brut du fournisseur", () => {
+    render(
+      <ResultCard result={{ ...base, athlete: { ...base.athlete, gender: "W" } }} />,
+    );
+    expect(screen.getByText("F")).toBeInTheDocument();
+    expect(screen.queryByText("W")).not.toBeInTheDocument();
+  });
+
+  it("affiche le nom commercial du fournisseur via providerLabel plutôt que le slug brut", () => {
+    render(<ResultCard result={base} />);
+    expect(screen.getByText("Source (Klikego)")).toBeInTheDocument();
+    expect(screen.queryByText("Source (klikego)")).not.toBeInTheDocument();
+  });
+
+  it("compose l'ordinal du classement via ordinalFr, sans superscript fait main", () => {
+    render(<ResultCard result={{ ...base, rank_overall: 42 }} />);
+    expect(screen.getByText("42e")).toBeInTheDocument();
+    expect(screen.queryByText("42ᵉ")).not.toBeInTheDocument();
+  });
 });

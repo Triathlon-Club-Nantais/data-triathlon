@@ -11,6 +11,8 @@ import { inkColor } from "@/lib/sport-colors";
 import { formatDate, timeAgo } from "@/lib/utils/date";
 import { formatEventName } from "@/lib/utils/event";
 import { isHttpUrl } from "@/lib/utils/url";
+import { genderShort, ordinalFr } from "@/lib/utils/format";
+import { providerLabel } from "@/lib/constants";
 import type { Participation } from "@/lib/types";
 
 export function ResultCard({ result }: { result: Participation }) {
@@ -32,7 +34,7 @@ export function ResultCard({ result }: { result: Participation }) {
               <div className="mt-1 flex flex-wrap gap-2 text-sm text-[var(--tcn-text-faint)]">
                 {result.club && <span>{result.club}</span>}
                 {result.category && <Badge variant="outline">{result.category}</Badge>}
-                {a?.gender && <Badge variant="outline">{a.gender}</Badge>}
+                {a?.gender && <Badge variant="outline">{genderShort(a.gender)}</Badge>}
               </div>
             </div>
           </div>
@@ -87,10 +89,10 @@ export function ResultCard({ result }: { result: Participation }) {
         <div className="flex items-center justify-between text-xs text-[var(--tcn-text-faint)]">
           {isHttpUrl(c?.source_url) ? (
             <a href={c?.source_url} target="_blank" rel="noopener noreferrer" className="hover:underline">
-              Source ({c?.provider})
+              Source ({providerLabel(c?.provider)})
             </a>
           ) : (
-            <span>Source ({c?.provider})</span>
+            <span>Source ({providerLabel(c?.provider)})</span>
           )}
           {result.created_at && <span>Ajouté {timeAgo(result.created_at)}</span>}
         </div>
@@ -106,10 +108,7 @@ function Rank({ label, value }: { label: string; value: number }) {
       {value <= 3 ? (
         <Medal rank={value} size={26} />
       ) : (
-        <span className="num text-xl font-extrabold">
-          {value}
-          <span className="align-super text-xs">ᵉ</span>
-        </span>
+        <span className="num text-xl font-extrabold">{ordinalFr(value)}</span>
       )}
     </div>
   );

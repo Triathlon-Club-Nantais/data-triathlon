@@ -41,10 +41,10 @@ describe("ResultsFilters — recherche live", () => {
     });
   });
 
-  it("filtre sur le nom de course dès la frappe, sans clic ni Entrée", async () => {
+  it("filtre sur le nom d'épreuve dès la frappe, sans clic ni Entrée", async () => {
     render(<ResultsFilters />);
 
-    await userEvent.type(screen.getByPlaceholderText("Rechercher une course"), "nantes");
+    await userEvent.type(screen.getByPlaceholderText("Rechercher une épreuve"), "nantes");
 
     await waitFor(() => {
       expect(replace).toHaveBeenCalledWith(expect.stringContaining("event_name=nantes"));
