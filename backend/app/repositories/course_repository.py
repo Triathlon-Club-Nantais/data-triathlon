@@ -312,6 +312,7 @@ def _filtered(
     club_only: bool,
     date_from: date | None,
     date_to: date | None,
+    unreliable: bool = False,
 ):
     """Les filtres du catalogue, en un seul endroit — `list_all` et `count_all`.
 
@@ -329,6 +330,12 @@ def _filtered(
         q = q.filter(Course.event_date >= date_from)
     if date_to:
         q = q.filter(Course.event_date <= date_to)
+    if unreliable:
+        # `is_reliable` est `coalesce(reliability_override, is_reliable_computed)` :
+        # l'avis humain prime, et `NULL` — « jamais évaluée » — n'entre pas dans la
+        # comparaison, donc reste hors de la file. Toute la règle tient dans
+        # l'`@expression` du modèle ; il n'y a rien à brancher ici.
+        q = q.filter(Course.is_reliable.is_(False))
     if club_only:
         q = (
             q.join(Participation, Participation.course_id == Course.id)
@@ -346,6 +353,7 @@ def list_all(
     club_only: bool = False,
     date_from: date | None = None,
     date_to: date | None = None,
+    unreliable: bool = False,
     page: int = 1,
     page_size: int = 50,
 ) -> list[Course]:
@@ -356,6 +364,7 @@ def list_all(
         club_only=club_only,
         date_from=date_from,
         date_to=date_to,
+        unreliable=unreliable,
     )
     offset = (page - 1) * page_size
     # `selectinload` et non `_filtered` : le catalogue sérialise `CourseBrief`,
@@ -379,6 +388,7 @@ def count_all(
     club_only: bool = False,
     date_from: date | None = None,
     date_to: date | None = None,
+    unreliable: bool = False,
 ) -> int:
     """Combien d'épreuves la liste rendrait sans pagination — le « sur 7 »."""
     return _filtered(
@@ -388,6 +398,7 @@ def count_all(
         club_only=club_only,
         date_from=date_from,
         date_to=date_to,
+        unreliable=unreliable,
     ).count()
 
 

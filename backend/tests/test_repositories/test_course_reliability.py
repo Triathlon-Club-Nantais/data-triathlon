@@ -4,6 +4,8 @@ Les deux colonnes évoluent **indépendamment** — ce ne sont pas deux états d
 machine, ce sont deux faits qui coexistent : ce que la machine constate, et ce
 qu'un humain a tranché.
 """
+from datetime import date
+
 import pytest
 
 from app.models.course import Course
@@ -127,3 +129,87 @@ def test_l_import_n_ecrase_jamais_l_avis_humain(db_session):
     assert course.reliability_override is False
     assert course.is_reliable is False, "l'humain a tranché, l'import ne le défait pas"
     assert course.quality_issues == {"rank_gap": 3}
+
+
+def _epreuve_filtrable(db_session, **colonnes):
+    """Une épreuve nommée et datée, pour que le tri du catalogue ait prise."""
+    course = Course(
+        name=colonnes.pop("name", "Épreuve"),
+        event_type="triathlon-m",
+        event_date=colonnes.pop("event_date", date(2026, 6, 1)),
+        **colonnes,
+    )
+    db_session.add(course)
+    db_session.flush()
+    return course
+
+
+def test_le_filtre_unreliable_ne_garde_que_les_epreuves_douteuses(db_session):
+    douteuse = _epreuve_filtrable(db_session, name="Douteuse", is_reliable_computed=False)
+    _epreuve_filtrable(db_session, name="Fiable", is_reliable_computed=True)
+
+    resultats = course_repository.list_all(db_session, unreliable=True)
+
+    assert [c.id for c in resultats] == [douteuse.id]
+
+
+def test_une_epreuve_jamais_evaluee_reste_hors_de_la_file(db_session):
+    """`NULL` n'est pas « douteuse » : c'est « jamais évaluée ».
+
+    L'y inclure ferait tomber dans la file toute la base antérieure à l'indice.
+    """
+    _epreuve_filtrable(db_session, name="Jamais évaluée", is_reliable_computed=None)
+
+    assert course_repository.list_all(db_session, unreliable=True) == []
+
+
+def test_l_avis_humain_favorable_sort_l_epreuve_de_la_file(db_session):
+    """Le `coalesce` fait tout le travail : l'avis humain prime sur le calculé."""
+    _epreuve_filtrable(
+        db_session, name="Revalidée", is_reliable_computed=False, reliability_override=True
+    )
+
+    assert course_repository.list_all(db_session, unreliable=True) == []
+
+
+def test_l_avis_humain_defavorable_fait_entrer_l_epreuve_dans_la_file(db_session):
+    """Une épreuve que la machine juge saine mais qu'un humain conteste est du
+    travail en attente, donc dans la file."""
+    contestee = _epreuve_filtrable(
+        db_session, name="Contestée", is_reliable_computed=True, reliability_override=False
+    )
+
+    resultats = course_repository.list_all(db_session, unreliable=True)
+
+    assert [c.id for c in resultats] == [contestee.id]
+
+
+def test_sans_le_filtre_le_catalogue_est_inchange(db_session):
+    """Le paramètre est additif : son absence ne change aucune réponse."""
+    _epreuve_filtrable(db_session, name="Douteuse", is_reliable_computed=False)
+    _epreuve_filtrable(db_session, name="Fiable", is_reliable_computed=True)
+    _epreuve_filtrable(db_session, name="Jamais évaluée", is_reliable_computed=None)
+
+    assert len(course_repository.list_all(db_session)) == 3
+
+
+def test_count_all_compte_le_meme_ensemble_que_list_all(db_session):
+    """Sinon la pagination annoncerait une page 4 qui ne rend rien."""
+    _epreuve_filtrable(db_session, name="Douteuse 1", is_reliable_computed=False)
+    _epreuve_filtrable(db_session, name="Douteuse 2", is_reliable_computed=False)
+    _epreuve_filtrable(db_session, name="Fiable", is_reliable_computed=True)
+
+    assert course_repository.count_all(db_session, unreliable=True) == 2
+    assert len(course_repository.list_all(db_session, unreliable=True)) == 2
+
+
+def test_le_filtre_unreliable_se_combine_aux_filtres_du_catalogue(db_session):
+    """Les filtres se composent — la file reste filtrable par nom et par date."""
+    cible = _epreuve_filtrable(
+        db_session, name="Triathlon de Vertou", is_reliable_computed=False
+    )
+    _epreuve_filtrable(db_session, name="Triathlon de Carnac", is_reliable_computed=False)
+
+    resultats = course_repository.list_all(db_session, unreliable=True, name="Vertou")
+
+    assert [c.id for c in resultats] == [cible.id]
