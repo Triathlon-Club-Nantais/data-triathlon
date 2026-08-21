@@ -93,4 +93,14 @@ describe("StatCardsRank — annonce du changement (#477)", () => {
       "Classement catégorie : 1 victoire, 1 podium, 1 top 10",
     );
   });
+
+  it("annonce le total F+H en mode genre, plutôt que de rester muette sur ce chemin (revue de code)", () => {
+    searchParams = new URLSearchParams("rank=gender");
+    render(<StatCardsRank rankCounters={COUNTERS} />);
+
+    // women {v:0,p:0,t:1} + men {v:0,p:1,t:1} = 0 victoire, 1 podium, 2 top 10.
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Classement genre : 0 victoire, 1 podium, 2 top 10",
+    );
+  });
 });

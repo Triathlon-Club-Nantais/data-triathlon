@@ -2,6 +2,15 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+// jsdom ne fournit pas IntersectionObserver, requis par le défilement infini
+// dès que `hasNextPage` est vrai.
+class IntersectionObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+globalThis.IntersectionObserver = IntersectionObserverStub as unknown as typeof IntersectionObserver;
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
@@ -228,5 +237,68 @@ describe("EventList", () => {
     renderList();
 
     expect(screen.getByRole("status")).toHaveTextContent("48 épreuves, 312 résultats");
+  });
+
+  it("garde la région d'annonce montée quand un filtre ne laisse plus aucune épreuve (revue de code)", () => {
+    // Avant la revue : `AnnonceStatut` était rendu après le retour anticipé sur
+    // liste vide, donc absente du DOM précisément quand un filtre venant de
+    // tout effacer aurait le plus besoin de le dire.
+    setEvents({
+      data: { pages: [{ items: [], total_events: 0, total_participations: 0 }] },
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+    });
+
+    renderList();
+
+    expect(screen.getByRole("status")).toHaveTextContent("0 épreuve, 0 résultat");
+  });
+
+  it("réannonce quand le défilement infini charge une page supplémentaire (revue de code)", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const page = (id: number) => ({
+      id,
+      event_name: `Épreuve ${id}`,
+      event_type: "triathlon-m",
+      event_date: "2026-05-16",
+      is_relay: false,
+      total: 42,
+      tcn_count: 0,
+    });
+    setEvents({
+      data: { pages: [{ items: [page(1)], total_events: 48, total_participations: 312 }] },
+      fetchNextPage: vi.fn(),
+      hasNextPage: true,
+      isFetchingNextPage: false,
+      isLoading: false,
+    });
+    const { rerender } = render(
+      <QueryClientProvider client={qc}>
+        <EventList filters={{}} />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("48 épreuves, 312 résultats, 1 affichée");
+
+    setEvents({
+      data: {
+        pages: [
+          { items: [page(1)], total_events: 48, total_participations: 312 },
+          { items: [page(2)], total_events: 48, total_participations: 312 },
+        ],
+      },
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+    });
+    rerender(
+      <QueryClientProvider client={qc}>
+        <EventList filters={{}} />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("48 épreuves, 312 résultats, 2 affichées");
   });
 });
