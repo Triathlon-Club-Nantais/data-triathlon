@@ -586,6 +586,24 @@ function NavContent({
  * retirait un second prefetch RSC — mesuré 2 fois à l'atterrissage rail
  * persisté déplié, 3 fois après un pliage/dépliage à la main.
  */
+
+/**
+ * Nom accessible du compteur d'une entrée (#119) : un lecteur d'écran annonçant
+ * juste le chiffre (« Revalidation qualité 4 ») ne dit pas ce qu'il dénombre.
+ *
+ * Une seule clé de badge existe aujourd'hui (`quality`) ; ce switch grandira
+ * avec les prochaines, sur le même patron que `useNavBadges`.
+ */
+function libelleCompteur(item: Destination): string {
+  const n = item.count ?? 0;
+  switch (item.badge) {
+    case "quality":
+      return `${n} épreuve${n > 1 ? "s" : ""} à revalider`;
+    default:
+      return String(n);
+  }
+}
+
 function Entree({
   item,
   actif,
@@ -624,12 +642,21 @@ function Entree({
           <span style={{ flex: 1 }}>{item.label}</span>
           {!!item.count && (
             <span
+              aria-label={libelleCompteur(item)}
               style={{
                 flex: "none",
                 minWidth: 20,
                 padding: "1px 6px",
                 borderRadius: "var(--tcn-radius-pill)",
-                background: "var(--tcn-orange)",
+                // 11 px / 700 n'atteint aucun seuil de « texte large » : le blanc y
+                // demande 4,5:1, comme sur les boutons primaires du fichier
+                // (l.371, l.705). `--tcn-orange` nu ne tenait que 3,68:1 (#299) ;
+                // `Badge.tsx` porte bien une variante `count`, mais elle compose
+                // `--tcn-orange` sur `--tcn-orange-12` — la même paire que son
+                // propre commentaire chiffre à 2,88:1, donc pas davantage
+                // conforme — et son style (chip translucide) diffère du pastille
+                // pleine attendue ici. On garde le markup, on aligne le token.
+                background: "var(--tcn-orange-deep)",
                 color: "#fff",
                 fontSize: 11,
                 fontWeight: 700,
@@ -641,23 +668,13 @@ function Entree({
           )}
         </>
       ) : (
-        <>
-          {Icon && <Icon size={20} />}
-          {!!item.count && (
-            <span
-              aria-hidden
-              style={{
-                position: "absolute",
-                top: 6,
-                right: 6,
-                width: 7,
-                height: 7,
-                borderRadius: "var(--tcn-radius-pill)",
-                background: "var(--tcn-orange)",
-              }}
-            />
-          )}
-        </>
+        // Pas de pastille de compteur ici : elle serait inatteignable. Seule
+        // la section `root` rend des entrées repliées à plat (l.548), et
+        // « Administration » — seule section à porter un `badge` aujourd'hui —
+        // n'est pas `root`. Porter le signal sur la tuile de catégorie qui la
+        // remplace au rail replié est une autre fonctionnalité, hors périmètre
+        // (#119).
+        Icon && <Icon size={20} />
       )}
     </Link>
   );
