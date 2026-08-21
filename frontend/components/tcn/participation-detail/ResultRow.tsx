@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import type { Participation, RankingEvolutionStep } from "@/lib/types";
 import { splitColumnsFromKeys } from "@/lib/utils/splits";
 import { genderShort, ordinalFr } from "@/lib/utils/format";
@@ -36,9 +37,14 @@ export function ResultRow({
     .filter(Boolean)
     .join(" ");
 
+  const secondaryRanks = [
+    { label: "cat.", value: participation.rank_category },
+    { label: "genre", value: participation.rank_gender },
+  ].filter((rank) => rank.value != null);
+
   return (
     <Card style={{ marginBottom: 24 }}>
-      <Eyebrow>Ma performance</Eyebrow>
+      <Eyebrow>Résultat</Eyebrow>
       <div
         style={{
           display: "flex",
@@ -52,6 +58,24 @@ export function ResultRow({
           <PlaceBadge place={participation.rank_overall} style={{ fontSize: 22, minWidth: 44 }} />
         ) : (
           <span style={{ color: "var(--tcn-text-faint)" }}>—</span>
+        )}
+        {secondaryRanks.length > 0 && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+              fontSize: 12,
+              fontWeight: 700,
+              color: "var(--tcn-text-faint)",
+            }}
+          >
+            {secondaryRanks.map((rank) => (
+              <span key={rank.label}>
+                {ordinalFr(rank.value as number)} {rank.label}
+              </span>
+            ))}
+          </div>
         )}
         <Link
           href={`/athletes/${participation.athlete?.id}`}
@@ -82,11 +106,8 @@ export function ResultRow({
       </div>
 
       <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
-          gap: 12,
-        }}
+        className="result-segments-grid"
+        style={{ "--segments-count": columns.length } as CSSProperties}
       >
         {columns.map((column) => (
           <div

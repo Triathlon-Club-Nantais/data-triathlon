@@ -514,6 +514,23 @@
   text-box-edge: cap alphabetic;
 }
 
+/* Grille des segments de ResultRow : les inline styles ne peuvent pas
+   exprimer de media query, donc le nombre de colonnes voyage par variable
+   CSS (`--segments-count`) plutôt que par `gridTemplateColumns` en ligne
+   (#462, RES-12) — sous 640px les cinq inters s'empilent au lieu de se
+   comprimer. */
+.result-segments-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--segments-count), minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .result-segments-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* WCAG 2.3.3 — rien n'offrait de coupe-circuit au mouvement : 21 usages
    `animate-*` sur 8 fichiers, plus les entrées/sorties de `ui/{dialog,sheet,
    popover}` alimentées par tw-animate-css. La règle s'applique à tout, y compris

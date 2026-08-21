@@ -38,17 +38,9 @@ export default async function ParticipationDetailPage({
   const athleteId = participation.athlete.id;
   const returns = <ReturnLinks courseId={id} athleteId={athleteId} />;
 
-  if (!participation.stats) {
-    return (
-      <PageShell>
-        {returns}
-        <UnavailableState />
-      </PageShell>
-    );
-  }
-
   const { stats, course } = participation;
   const eventDate = formatDate(course?.event_date);
+  const segments = stats?.segments ?? Object.keys(participation.splits ?? {});
 
   return (
     <PageShell>
@@ -62,22 +54,28 @@ export default async function ParticipationDetailPage({
       <div style={{ marginTop: 26 }}>
         <ResultRow
           participation={participation}
-          segments={stats.segments}
-          steps={stats.ranking_evolution}
+          segments={segments}
+          steps={stats?.ranking_evolution ?? []}
         />
-        <ComparisonTable
-          rows={stats.comparison}
-          segments={stats.segments}
-          eventType={course?.event_type ?? ""}
-        />
-        <RankingEvolutionChart
-          steps={stats.ranking_evolution}
-          eventType={course?.event_type ?? ""}
-        />
-        <ImprovementMatrix
-          rows={stats.improvement}
-          eventType={course?.event_type ?? ""}
-        />
+        {stats ? (
+          <>
+            <ComparisonTable
+              rows={stats.comparison}
+              segments={stats.segments}
+              eventType={course?.event_type ?? ""}
+            />
+            <RankingEvolutionChart
+              steps={stats.ranking_evolution}
+              eventType={course?.event_type ?? ""}
+            />
+            <ImprovementMatrix
+              rows={stats.improvement}
+              eventType={course?.event_type ?? ""}
+            />
+          </>
+        ) : (
+          <UnavailableState />
+        )}
       </div>
     </PageShell>
   );

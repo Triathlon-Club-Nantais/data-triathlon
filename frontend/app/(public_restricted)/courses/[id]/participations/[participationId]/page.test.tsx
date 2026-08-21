@@ -110,11 +110,19 @@ describe("ParticipationDetailPage", () => {
     );
   });
 
-  it("rend l'état « statistiques indisponibles » quand stats est null", async () => {
+  it("rend l'état « comparaison indisponible » quand stats est null", async () => {
     await renderPage(participation({ stats: null }));
 
-    expect(screen.getByText(/statistiques indisponibles/i)).toBeTruthy();
+    expect(screen.getByText(/comparaison au classement indisponible/i)).toBeTruthy();
     expect(screen.getByText(/intégralité des résultats/i)).toBeTruthy();
+  });
+
+  it("affiche le résultat de l'athlète même quand les statistiques sont indisponibles (#462)", async () => {
+    await renderPage(participation({ stats: null }));
+
+    expect(screen.getByText("DUPONT Jean")).toBeTruthy();
+    expect(screen.getByText("02:02:31")).toBeTruthy();
+    expect(screen.getByText("56")).toBeTruthy();
   });
 
   it("propose un retour vers les résultats de l'athlète depuis l'état indisponible", async () => {
