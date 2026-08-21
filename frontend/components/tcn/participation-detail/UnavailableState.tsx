@@ -21,7 +21,7 @@ export function UnavailableState() {
   return (
     <Card style={{ textAlign: "center", marginBottom: 24 }}>
       <Eyebrow tone="muted">Comparaison détaillée</Eyebrow>
-      <h1
+      <h2
         style={{
           fontFamily: "var(--tcn-font-display)",
           fontSize: "clamp(24px, 4vw, 34px)",
@@ -31,7 +31,7 @@ export function UnavailableState() {
         }}
       >
         Comparaison au classement indisponible
-      </h1>
+      </h2>
       <p style={{ fontSize: 15, lineHeight: 1.6, color: "var(--tcn-text-secondary)" }}>
         Les statistiques détaillées ne s&apos;affichent que lorsque
         l&apos;intégralité des résultats du chronométreur a pu être récupérée
