@@ -132,19 +132,32 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   il lit la frontière. Relevé et mesures :
   `docs/superpowers/specs/2026-08-06-frontend-surengineering-audit.md`.
 - `lib/api/` — `client.ts` (appels `/api/v1`, `ApiError` porteur du statut HTTP),
-  `server.ts` (`serverFetch`, plus `serverFetchAuthed`/`serverFetchAuthedRaw`
-  qui relaient les cookies), `sse.ts` (streaming import SSE). `serverFetch`
-  reste **distinct**, volontairement cookie-libre : la justification d'origine
-  (« six pages publiques en rendu serveur, lire les cookies les rendrait
-  toutes dynamiques ») est devenue **historique** avec #509 — ces six pages
-  vivent désormais sous `app/(public_restricted)/`, dont le layout lit déjà le cookie du
-  mot de passe site au-dessus d'elles, donc elles sont dynamiques de toute
-  façon. L'exemption elle-même ne bouge pas : `serverFetch` reste la fonction
-  à utiliser pour tout appel qui n'a jamais eu besoin de relayer un cookie
-  (`/courses`, `/stats`, `/auth/methods`…, cette dernière volontairement
-  publique — c'est ce qui permet à la garde `/admin` de distinguer « pas
-  connecté » de « aucune connexion possible », FR-036), la distinction portant
-  désormais sur le **besoin de cookie**, plus sur le rendu statique.
+  `server.ts`, `sse.ts` (streaming import SSE). **Les trois fonctions de
+  `server.ts` relaient les cookies entrants** (#526) ; ce qui les distingue est
+  leur lecture du 401, pas le cookie :
+  - `serverFetch` — lève une `ApiError` sur tout non-OK, 401 compris.
+  - `serverFetchAuthed` — rend `null` sur 401 (anonyme est un état normal),
+    lève sur le reste. Sert `/auth/me`.
+  - `serverFetchAuthedRaw` — rend `false` sur 401, `true` sur 200, lève sur le
+    reste, pour que la garde site distingue un refus avéré d'une panne.
+
+  `serverFetch` a été cookie-libre jusqu'à #526, au nom du prérendu statique de
+  six pages publiques. #509 a rendu cette justification caduque (ces pages
+  vivent sous `app/(public_restricted)/`, dont le layout lit déjà le cookie
+  au-dessus d'elles : elles sont dynamiques de toute façon) **et** le relais
+  obligatoire — `require_site_access` garde `athletes`, `courses`,
+  `participations` et `stats`, fail-closed. Le relais manquant a fait planter
+  les six pages en 401 pendant la passe de rendu serveur dès qu'un mot de passe
+  site était configuré, soit React #441 / `app/error.tsx` sur tout le site
+  (#526, constaté sur la preview après la fusion de #513). Ne pas rouvrir
+  l'arbitrage « et si on remettait `serverFetch` sans cookie » : la seule route
+  qu'il vise et qui soit exemptée de la garde est `/auth/methods`, et son
+  caractère public tient à ce qu'elle **répond** sans session (FR-036 — c'est ce
+  qui permet à la garde `/admin` de distinguer « pas connecté » de « aucune
+  connexion possible »), pas à ce que l'appelant s'abstienne d'envoyer un
+  cookie. Conséquence assumée sur #352 : la clé du Data Cache inclut désormais
+  l'en-tête `cookie`, donc la fenêtre de 30 s ne se partage plus entre
+  visiteurs — elle profite encore à chacun sur sa propre navigation.
 - `lib/types.ts` — types TypeScript partagés.
 - `next.config.ts` — rewrites (`/api/*`, proxy PostHog) **et** `headers()` : les
   en-têtes de sécurité posés sur `/:path*`, rewrites comprises (#396). Ils ne

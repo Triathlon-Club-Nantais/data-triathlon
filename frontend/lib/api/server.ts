@@ -37,13 +37,31 @@ export type FetchOpts = { revalidateSeconds?: number };
  */
 export const SHORT_REVALIDATE_SECONDS = 30;
 
+/**
+ * Relaie les cookies entrants, **y compris pour les routes publiques** (#526).
+ *
+ * Cookie-libre jusqu'à #526, au nom du prérendu statique des six pages
+ * publiques en rendu serveur. #509 a rendu la justification caduque (le layout
+ * de `app/(public_restricted)/` lit déjà le cookie du mot de passe site
+ * au-dessus d'elles, donc elles sont dynamiques de toute façon) **et** le
+ * relais obligatoire : `require_site_access` garde `athletes`, `courses`,
+ * `participations` et `stats`, et il est fail-closed. Sans cookie, chacune de
+ * ces pages levait une `ApiError` 401 en pleine passe de rendu serveur, soit
+ * l'écran d'erreur (React #441) sur tout le site dès qu'un mot de passe site
+ * était configuré.
+ *
+ * Conséquence assumée sur la fenêtre de revalidation (#352) : la clé du Data
+ * Cache inclut désormais l'en-tête, donc les 30 s ne se partagent plus entre
+ * visiteurs — elles profitent encore à chacun sur sa propre navigation.
+ */
 async function serverFetch<T>(path: string, opts: FetchOpts = {}): Promise<T> {
-  const res = await fetch(
-    `${BASE}${path}`,
-    opts.revalidateSeconds !== undefined
+  const jar = await cookies();
+  const res = await fetch(`${BASE}${path}`, {
+    ...(opts.revalidateSeconds !== undefined
       ? { next: { revalidate: opts.revalidateSeconds } }
-      : { cache: "no-store" },
-  );
+      : { cache: "no-store" }),
+    headers: { cookie: jar.toString() },
+  });
   if (!res.ok) {
     // `ApiError` plutôt qu'un `Error` nu : sans le statut, un appelant ne peut
     // pas distinguer une ressource absente d'un backend en panne, et finit par
@@ -54,14 +72,11 @@ async function serverFetch<T>(path: string, opts: FetchOpts = {}): Promise<T> {
 }
 
 /**
- * Variante **authentifiée** de `serverFetch`, qui relaie les cookies entrants.
+ * Variante **authentifiée** de `serverFetch`.
  *
- * Fonction séparée, et `serverFetch` volontairement **inchangé** : six pages
- * publiques en rendu serveur l'utilisent, et lire les cookies les rendrait
- * toutes dynamiques — on paierait le prérendu statique du site public pour
- * afficher un avatar.
- *
- * Rend `null` sur 401 : anonyme est un état normal, pas une panne.
+ * Les deux relaient les cookies depuis #526 : ce qui les sépare est la lecture
+ * du 401, plus le cookie. Rend `null` sur 401 — anonyme est un état normal,
+ * pas une panne.
  *
  * Toute autre réponse non-OK lève une `ApiError`, comme `serverFetch` : un
  * `Error` nu jetterait le statut, et l'appelant ne pourrait plus distinguer un
@@ -153,9 +168,12 @@ export const apiServer = {
   /**
    * Moyens de connexion disponibles, côté serveur.
    *
-   * Public : passe par `serverFetch`, sans cookie. C'est ce qui permet à la
-   * garde `/admin` de distinguer « pas connecté » (liste non vide → rediriger)
-   * de « aucune connexion possible » (liste vide → laisser passer, FR-036).
+   * Publique, et exemptée de `require_site_access` : elle **répond** sans
+   * session, ce qui permet à la garde `/admin` de distinguer « pas connecté »
+   * (liste non vide → rediriger) de « aucune connexion possible » (liste vide →
+   * laisser passer, FR-036). Le cookie que `serverFetch` relaie depuis #526 n'y
+   * change rien : ce qui compte est qu'elle n'en exige aucun, pas qu'on
+   * s'abstienne de l'envoyer.
    */
   listAuthMethods: () => serverFetch<AuthMethod[]>("/auth/methods"),
   /** Session du mot de passe site (#509) — vrai si le cookie est valide. */
