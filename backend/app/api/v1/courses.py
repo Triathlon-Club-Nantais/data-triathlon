@@ -70,10 +70,21 @@ def list_courses(
     scope: str | None = Query(None, description="« club » restreint aux membres du TCN."),
     date_from: str | None = Query(None),
     date_to: str | None = Query(None),
+    unreliable: bool = Query(
+        False,
+        description="Ne garde que les épreuves à revalider (indice de fiabilité défavorable).",
+    ),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
 ):
+    """Le catalogue d'épreuves, filtrable.
+
+    `unreliable=true` sert la file de revalidation (#119) : une route dédiée
+    aurait dupliqué cette pagination, ce tri et cette sérialisation pour le seul
+    bénéfice d'un préfixe d'URL. Le paramètre n'expose rien de neuf —
+    `CourseBrief` rend `is_reliable` et `quality_issues` depuis l'origine.
+    """
     return course_repository.list_all(
         db,
         name=name,
@@ -81,6 +92,7 @@ def list_courses(
         club_only=is_club_scope(scope),
         date_from=_parse_date(date_from),
         date_to=_parse_date(date_to),
+        unreliable=unreliable,
         page=page,
         page_size=page_size,
     )
@@ -93,6 +105,10 @@ def count_courses(
     scope: str | None = Query(None, description="« club » restreint aux membres du TCN."),
     date_from: str | None = Query(None),
     date_to: str | None = Query(None),
+    unreliable: bool = Query(
+        False,
+        description="Ne garde que les épreuves à revalider (indice de fiabilité défavorable).",
+    ),
     db: Session = Depends(get_db),
 ):
     """Combien d'épreuves `GET /courses` rendrait aux mêmes filtres.
@@ -111,6 +127,7 @@ def count_courses(
             club_only=is_club_scope(scope),
             date_from=_parse_date(date_from),
             date_to=_parse_date(date_to),
+            unreliable=unreliable,
         )
     )
 
