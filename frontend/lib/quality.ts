@@ -33,3 +33,20 @@ function describeIssue(code: string, count: number): string {
 function plural(count: number, singular: string, pluralForm?: string): string {
   return count > 1 ? (pluralForm ?? `${singular}s`) : singular;
 }
+
+/**
+ * Libellé nu d'un code d'anomalie — un **nom de catégorie**, pas une phrase.
+ *
+ * `describeIssue` porte un compteur (« 1 trou dans le classement ») : utile
+ * dans la colonne Anomalies, absurde comme intitulé d'option de filtre. Cette
+ * table sert ce second usage. Un code inconnu n'y figure pas : à l'appelant de
+ * replier sur le code brut, comme le fait déjà `describeIssue`.
+ */
+export const QUALITY_ISSUE_LABELS: Record<string, string> = {
+  duplicate_bib: "Dossards en doublon",
+  rank_gap: "Trous dans le classement",
+  duplicate_rank: "Rangs partagés",
+  finisher_without_time: "Finishers sans temps",
+  unknown_status: "Statuts hors nomenclature",
+  no_participation: "Course importée sans participation",
+};

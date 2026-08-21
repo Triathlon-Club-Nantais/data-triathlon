@@ -1,15 +1,19 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { CourseBrief, SessionUser } from "@/lib/types";
 
-const { listCourses, countCourses, setCourseReliability, getSession } = vi.hoisted(() => ({
-  listCourses: vi.fn(),
-  countCourses: vi.fn(),
-  setCourseReliability: vi.fn(),
-  getSession: vi.fn(),
-}));
+const { listCourses, countCourses, setCourseReliability, getSession, rescrapeEventStream } =
+  vi.hoisted(() => ({
+    listCourses: vi.fn(),
+    countCourses: vi.fn(),
+    setCourseReliability: vi.fn(),
+    getSession: vi.fn(),
+    rescrapeEventStream: vi.fn(),
+  }));
+
+const push = vi.fn();
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
@@ -19,8 +23,10 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
   };
 });
 
+vi.mock("@/lib/api/sse", () => ({ rescrapeEventStream }));
+
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push }),
   usePathname: () => "/admin/quality",
 }));
 
@@ -35,6 +41,11 @@ const AVEC_POUVOIR: SessionUser = {
 } as unknown as SessionUser;
 
 const SANS_POUVOIR: SessionUser = { ...AVEC_POUVOIR, permissions: [] } as SessionUser;
+
+const AVEC_RESCRAPE: SessionUser = {
+  ...AVEC_POUVOIR,
+  permissions: ["quality:override", "courses:sources"],
+} as SessionUser;
 
 const VERTOU: CourseBrief = {
   id: 7,
@@ -56,6 +67,21 @@ const CARNAC: CourseBrief = {
   quality_issues: { duplicate_bib: 2 },
 };
 
+/** Même patron que `CourseSourcesPanel.test.tsx` : un flux SSE contrôlé à la
+ * main, libéré au moment choisi par le test. */
+function fluxControle(fin: object) {
+  let liberer: () => void;
+  const porte = new Promise<void>((resolve) => {
+    liberer = resolve;
+  });
+  async function* generateur() {
+    yield { phase: "saving", total: 10, imported: 2, updated: 1, skipped: 0, progress: 3 };
+    await porte;
+    yield fin;
+  }
+  return { generateur: generateur(), liberer: () => liberer() };
+}
+
 function rendre() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
@@ -66,6 +92,7 @@ function rendre() {
 }
 
 beforeEach(() => {
+  push.mockReset();
   listCourses.mockReset();
   countCourses.mockReset();
   setCourseReliability.mockReset();
@@ -178,5 +205,81 @@ describe("QualityQueueTable", () => {
 
     expect(await screen.findByText(/aucune épreuve à revalider/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/anomalie/i)).toBeInTheDocument();
+  });
+
+  it("distingue la file vide d'un filtre par nom sans correspondance", async () => {
+    listCourses.mockResolvedValue([]);
+    countCourses.mockResolvedValue({ total: 0 });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <QualityQueueTable filtres={{ name: "vertou" }} />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText(/aucun résultat/i)).toBeInTheDocument();
+    expect(screen.queryByText("Aucune épreuve à revalider")).not.toBeInTheDocument();
+  });
+
+  it("le filtre par date part dans la requête (#119)", async () => {
+    rendre();
+    await screen.findByText("Triathlon de Vertou");
+
+    fireEvent.change(screen.getByLabelText(/^du$/i), { target: { value: "2026-05-01" } });
+    fireEvent.blur(screen.getByLabelText(/^du$/i));
+
+    expect(push).toHaveBeenCalledWith(
+      expect.stringContaining("date_from=2026-05-01"),
+    );
+  });
+
+  it("le re-scrape recharge la file en fin de flux, la ligne ne reste pas avec ses anciennes anomalies", async () => {
+    getSession.mockResolvedValue(AVEC_RESCRAPE);
+    const { generateur, liberer } = fluxControle({
+      phase: "done", total: 10, imported: 1, updated: 9, skipped: 0,
+      reconciled: 0, orphans_removed: 0,
+    });
+    rescrapeEventStream.mockReturnValue(generateur);
+    const user = userEvent.setup();
+    rendre();
+    const ligne = (await screen.findByText("Triathlon de Vertou")).closest("tr")!;
+    expect(listCourses).toHaveBeenCalledTimes(1);
+
+    await user.click(within(ligne).getByRole("button", { name: /re-scraper/i }));
+    liberer();
+
+    await waitFor(() => expect(listCourses.mock.calls.length).toBeGreaterThan(1));
+  });
+
+  it("ne montre la progression que sur la ligne dont le re-scrape est en cours", async () => {
+    getSession.mockResolvedValue(AVEC_RESCRAPE);
+    const { generateur, liberer } = fluxControle({
+      phase: "done", total: 10, imported: 1, updated: 9, skipped: 0,
+      reconciled: 0, orphans_removed: 0,
+    });
+    rescrapeEventStream.mockReturnValue(generateur);
+    const user = userEvent.setup();
+    rendre();
+    const ligneVertou = (await screen.findByText("Triathlon de Vertou")).closest("tr")!;
+    const ligneCarnac = screen.getByText("Triathlon de Carnac").closest("tr")!;
+
+    await user.click(within(ligneVertou).getByRole("button", { name: /re-scraper/i }));
+
+    expect(
+      await within(ligneVertou).findByRole("button", { name: /re-scrape en cours/i }),
+    ).toBeInTheDocument();
+    // L'autre ligne reste identifiable par son propre nom, sans revendiquer
+    // « en cours » — et le hook n'étant pas multi-lignes, elle reste
+    // désactivée le temps du flux (réserve documentée dans le rapport final).
+    expect(
+      within(ligneCarnac).getByRole("button", { name: /re-scraper triathlon de carnac/i }),
+    ).toBeDisabled();
+
+    liberer();
+    await waitFor(() =>
+      expect(
+        within(ligneVertou).queryByRole("button", { name: /re-scrape en cours/i }),
+      ).not.toBeInTheDocument(),
+    );
   });
 });

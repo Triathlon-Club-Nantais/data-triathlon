@@ -311,4 +311,14 @@ describe("file de revalidation qualité (#119)", () => {
 
     expect(setCourseReliability).toHaveBeenCalledWith(7, { reliability_override: null });
   });
+
+  it("périme aussi les résultats publics — is_reliable pilote un marqueur sur la fiche athlète", async () => {
+    setCourseReliability.mockResolvedValue({});
+    const invalider = vi.spyOn(client, "invalidateQueries");
+
+    const { result } = renderHook(() => useSetCourseReliability(), { wrapper });
+    await result.current.mutateAsync({ courseId: 7, verdict: true });
+
+    expect(invalider).toHaveBeenCalledWith({ queryKey: ["course-participations"] });
+  });
 });

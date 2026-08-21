@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Pencil, RefreshCw } from "lucide-react";
+import { Loader2, Pencil, RefreshCw } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -17,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { eventTypeLabel, providerLabel } from "@/lib/constants";
-import { describeQualityIssues } from "@/lib/quality";
+import { describeQualityIssues, QUALITY_ISSUE_LABELS } from "@/lib/quality";
 import {
   useAdminCourses,
   useAdminCoursesCount,
@@ -57,6 +58,7 @@ export function QualityQueueTable({
 }) {
   const router = useRouter();
   const chemin = usePathname();
+  const qc = useQueryClient();
   const page = Math.max(1, Math.trunc(pageDemandee) || 1);
 
   const requete = { ...filtres, unreliable: true as const };
@@ -70,6 +72,19 @@ export function QualityQueueTable({
     null,
   );
   const [aCorriger, setACorriger] = useState<CourseBrief | null>(null);
+  // La ligne dont le re-scrape est en cours — posé au clic, remis à `null`
+  // juste après l'attente du flux (l'effet ci-dessous s'occupe déjà du toast :
+  // lui ajouter cette écriture le ferait poser un état, ce que
+  // `react-hooks/set-state-in-effect` refuse). `rescrape.start` n'a rien à
+  // faire ici de son côté : c'est bien la ligne qui vient de cliquer qui doit
+  // se réinitialiser, pas un effet global qui ne sait pas laquelle a cliqué.
+  const [enCoursId, setEnCoursId] = useState<number | null>(null);
+
+  async function lancerRescrape(course: CourseBrief) {
+    setEnCoursId(course.id);
+    await rescrape.start(course.id);
+    setEnCoursId(null);
+  }
 
   // Le serveur reste seul juge : ces tests n'autorisent rien, ils évitent de
   // proposer un bouton qui rendrait 403.
@@ -104,6 +119,10 @@ export function QualityQueueTable({
   useEffect(() => {
     if (rescrape.state.phase === "done") {
       toast.success("Re-scrape terminé — l'indice de fiabilité a été recalculé.");
+      // Le serveur vient de réécrire `is_reliable_computed` et
+      // `quality_issues` : sans cette invalidation, la ligne reste dans la
+      // file avec ses anciennes anomalies malgré le message.
+      qc.invalidateQueries({ queryKey: ["admin-courses"] });
     } else if (rescrape.state.phase === "error" && rescrape.state.error) {
       toast.error(rescrape.state.error);
     }
@@ -112,8 +131,11 @@ export function QualityQueueTable({
 
   // La barre de filtres reste montée dans **tous** les états : la retirer sur
   // une file vide enfermerait le validateur dans son propre filtre.
+  // `key` resynchronise la saisie brouillon sur l'URL : sans elle, un Retour
+  // navigateur laisserait les champs remplis au-dessus d'une liste qui montre
+  // autre chose (même patron que `CoursesAdminTable`).
   const barre = (
-    <Card>
+    <Card key={JSON.stringify(filtres)}>
       <CardContent className="flex flex-wrap items-end gap-3 pt-6">
         <div className="space-y-1">
           <label className="text-sm" htmlFor="filtre-nom">
@@ -123,6 +145,28 @@ export function QualityQueueTable({
             id="filtre-nom"
             defaultValue={filtres.name ?? ""}
             onBlur={(e) => naviguer({ ...filtres, name: e.target.value || undefined }, 1)}
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-sm" htmlFor="filtre-date-debut">
+            Du
+          </label>
+          <Input
+            id="filtre-date-debut"
+            type="date"
+            defaultValue={filtres.date_from ?? ""}
+            onBlur={(e) => naviguer({ ...filtres, date_from: e.target.value || undefined }, 1)}
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-sm" htmlFor="filtre-date-fin">
+            Au
+          </label>
+          <Input
+            id="filtre-date-fin"
+            type="date"
+            defaultValue={filtres.date_to ?? ""}
+            onBlur={(e) => naviguer({ ...filtres, date_to: e.target.value || undefined }, 1)}
           />
         </div>
         <div className="space-y-1">
@@ -138,7 +182,7 @@ export function QualityQueueTable({
             <option value="">Toutes</option>
             {codes.map((code) => (
               <option key={code} value={code}>
-                {describeQualityIssues({ [code]: 1 })[0]}
+                {QUALITY_ISSUE_LABELS[code] ?? code}
               </option>
             ))}
           </select>
@@ -146,6 +190,12 @@ export function QualityQueueTable({
       </CardContent>
     </Card>
   );
+
+  // Un `?name=` ou une plage de dates sans correspondance vide la file tout
+  // en laissant d'autres épreuves douteuses ailleurs : ce n'est pas la même
+  // annonce qu'une file réellement vide (même distinction que
+  // `CoursesAdminTable.filtresActifs`).
+  const filtresActifs = Object.values(filtres).some(Boolean);
 
   if (isLoading) {
     return (
@@ -170,10 +220,17 @@ export function QualityQueueTable({
       {barre}
 
       {lignes.length === 0 ? (
-        <EmptyState
-          title="Aucune épreuve à revalider"
-          description="Toutes les épreuves du catalogue passent l'indice de fiabilité, ou ont été tranchées à la main."
-        />
+        filtresActifs ? (
+          <EmptyState
+            title="Aucun résultat"
+            description="Aucune épreuve à revalider ne correspond à ces filtres. Élargissez la recherche."
+          />
+        ) : (
+          <EmptyState
+            title="Aucune épreuve à revalider"
+            description="Toutes les épreuves du catalogue passent l'indice de fiabilité, ou ont été tranchées à la main."
+          />
+        )
       ) : affichees.length === 0 ? (
         // Le filtre d'anomalie n'agit que sur la page affichée (limite
         // assumée, voir la doc du composant) : il peut vider une page tout en
@@ -234,17 +291,40 @@ export function QualityQueueTable({
                       </Button>
                     </>
                   )}
-                  {peutRescraper && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={rescrape.state.running}
-                      onClick={() => rescrape.start(course.id)}
-                      aria-label={`Re-scraper ${course.name}`}
-                    >
-                      <RefreshCw size={14} />
-                    </Button>
-                  )}
+                  {peutRescraper && (() => {
+                    const active = enCoursId === course.id && rescrape.state.running;
+                    return (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        // Le hook n'expose qu'un état unique (`activeRef`) : un
+                        // second appel concurrent serait silencieusement
+                        // ignoré plutôt que traité en parallèle. Toutes les
+                        // lignes restent donc désactivées pendant un
+                        // re-scrape — seule la ligne active se distingue par
+                        // sa progression, ce qui répond au constat sans
+                        // prétendre à un re-scrape multi-lignes que le hook
+                        // ne porte pas (réserve documentée dans le rapport).
+                        disabled={rescrape.state.running}
+                        onClick={() => lancerRescrape(course)}
+                        aria-label={
+                          active
+                            ? `Re-scrape en cours — ${course.name}${
+                                rescrape.state.total > 0
+                                  ? ` (${rescrape.state.progress} sur ${rescrape.state.total})`
+                                  : ""
+                              }`
+                            : `Re-scraper ${course.name}`
+                        }
+                      >
+                        {active ? (
+                          <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+                        ) : (
+                          <RefreshCw size={14} aria-hidden="true" />
+                        )}
+                      </Button>
+                    );
+                  })()}
                   {peutCorriger && (
                     <Button
                       size="sm"

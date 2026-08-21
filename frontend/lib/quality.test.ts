@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { describeQualityIssues } from "./quality";
+import { describeQualityIssues, QUALITY_ISSUE_LABELS } from "./quality";
 
 describe("describeQualityIssues", () => {
   it("rend une liste vide sur null / undefined / objet vide", () => {
@@ -47,5 +47,20 @@ describe("describeQualityIssues", () => {
 
   it("rend un code inconnu tel quel (nouveau code backend en attente de trad)", () => {
     expect(describeQualityIssues({ future_anomaly: 7 })).toEqual(["future_anomaly: 7"]);
+  });
+});
+
+describe("QUALITY_ISSUE_LABELS", () => {
+  it("nomme les six codes canoniques par un libellé nu, sans compteur", () => {
+    expect(QUALITY_ISSUE_LABELS.duplicate_bib).toBe("Dossards en doublon");
+    expect(QUALITY_ISSUE_LABELS.rank_gap).toBe("Trous dans le classement");
+    expect(QUALITY_ISSUE_LABELS.duplicate_rank).toBe("Rangs partagés");
+    expect(QUALITY_ISSUE_LABELS.finisher_without_time).toBe("Finishers sans temps");
+    expect(QUALITY_ISSUE_LABELS.unknown_status).toBe("Statuts hors nomenclature");
+    expect(QUALITY_ISSUE_LABELS.no_participation).toBe("Course importée sans participation");
+  });
+
+  it("n'a pas de libellé pour un code inconnu (repli sur le code brut à l'appelant)", () => {
+    expect(QUALITY_ISSUE_LABELS.future_anomaly).toBeUndefined();
   });
 });
