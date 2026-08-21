@@ -167,6 +167,22 @@ AUTHORIZE_RATE_LIMIT_WINDOW_SECONDS = 3600
 PUBLIC_WRITE_RATE_LIMIT_MAX_PER_WINDOW = 30
 PUBLIC_WRITE_RATE_LIMIT_WINDOW_SECONDS = 3600
 
+#: #509, et **son propre seau** depuis la revue de #513 : `POST /site-access/
+#: session` partageait `public_write`, ce qui couplait la porte d'entrée du site
+#: à la saisie manuelle de résultats — un membre qui saisissait sa saison ne
+#: pouvait plus ouvrir de session, et un club derrière une seule IP NAT/CGNAT
+#: épuisait les 30 tentatives collectivement.
+#:
+#: Plus large que les écritures publiques, et pour la raison inverse : c'est le
+#: **premier** geste de chaque visiteur, plusieurs adhérents partagent une IP,
+#: et une saisie au clavier se trompe. 60/heure laisse la place à un club
+#: derrière un NAT tout en gardant le plafond qui compte : `hashlib.scrypt`
+#: (~16 Mo, 50-100 ms CPU) tourne à chaque tentative, avant même de savoir si
+#: le mot de passe est bon — c'est le levier de déni de service que ce seau
+#: ferme, la force brute n'étant pas le sujet sur un secret généré à 144 bits.
+SITE_ACCESS_RATE_LIMIT_MAX_PER_WINDOW = 60
+SITE_ACCESS_RATE_LIMIT_WINDOW_SECONDS = 3600
+
 
 def reset_rate_limits() -> None:
     """Vide les compteurs. Réservé aux tests (fixture autouse de `conftest`)."""
@@ -259,6 +275,22 @@ def public_write_rate_limit(request: Request) -> None:
         "public_write",
         max_per_window=PUBLIC_WRITE_RATE_LIMIT_MAX_PER_WINDOW,
         window_seconds=PUBLIC_WRITE_RATE_LIMIT_WINDOW_SECONDS,
+    )
+
+
+def site_access_rate_limit(request: Request) -> None:
+    """Plafond de `POST /site-access/session` (#509) — **seau dédié**.
+
+    Séparé de `public_write` en revue de #513 : voir
+    `SITE_ACCESS_RATE_LIMIT_MAX_PER_WINDOW` pour ce que le partage cassait.
+    Lit la constante par le module et non par sa valeur importée, pour que le
+    `monkeypatch` des tests porte (patron de `public_write_rate_limit`).
+    """
+    _enforce_rate_limit(
+        request,
+        "site_access",
+        max_per_window=SITE_ACCESS_RATE_LIMIT_MAX_PER_WINDOW,
+        window_seconds=SITE_ACCESS_RATE_LIMIT_WINDOW_SECONDS,
     )
 
 

@@ -190,17 +190,61 @@ def test_le_signalement_refuse_ce_qui_n_est_pas_une_url_http(client, url):
     assert client.post(_SIGNALEMENT, json={"url": url}).status_code == 422
 
 
-def test_le_mot_de_passe_site_partage_le_plafond_des_ecritures_publiques(client, monkeypatch):
-    """Revue finale de #509, § Plafond de débit : `POST /site-access/session`
-    est désormais la seule porte publique non authentifiée du site, et elle
-    rejoint le seau `public_write` déjà partagé par le signalement et la
-    saisie manuelle — même dépendance, même seau, aucune infrastructure
-    nouvelle.
+_SESSION_SITE = "/api/v1/site-access/session"
+
+
+def test_la_connexion_au_site_est_plafonnee(client, monkeypatch):
+    """#509, § Plafond de débit : cette route déclenche `hashlib.scrypt`
+    (~16 Mo, 50-100 ms CPU) avant même de savoir si le mot de passe est bon.
+    Sans plafond, c'est un levier de déni de service **et** de force brute.
     """
-    monkeypatch.setattr(deps, "PUBLIC_WRITE_RATE_LIMIT_MAX_PER_WINDOW", 1)
+    monkeypatch.setattr(deps, "SITE_ACCESS_RATE_LIMIT_MAX_PER_WINDOW", 2)
 
-    assert client.post(_SIGNALEMENT, json={"url": "https://newchrono.fr/c"}).status_code == 201
+    assert client.post(_SESSION_SITE, json={"password": "faux-1"}).status_code == 401
+    assert client.post(_SESSION_SITE, json={"password": "faux-2"}).status_code == 401
 
-    refus = client.post("/api/v1/site-access/session", json={"password": "peu importe"})
+    refus = client.post(_SESSION_SITE, json={"password": "faux-3"})
     assert refus.status_code == 429
     assert int(refus.headers["Retry-After"]) > 0
+
+
+def test_le_plafond_de_la_connexion_au_site_est_par_ip(client, monkeypatch):
+    monkeypatch.setattr(deps, "SITE_ACCESS_RATE_LIMIT_MAX_PER_WINDOW", 1)
+
+    def envoi(ip: str):
+        return client.post(_SESSION_SITE, json={"password": "faux"}, headers={"X-Forwarded-For": ip})
+
+    assert envoi("203.0.113.7").status_code == 401
+    assert envoi("203.0.113.8").status_code == 401
+    assert envoi("203.0.113.7").status_code == 429
+
+
+def test_la_connexion_au_site_ne_partage_pas_le_seau_des_ecritures_publiques(client, monkeypatch):
+    """Relevé en revue de #513 : partager `public_write` couplait la **porte
+    d'entrée** du site à la saisie manuelle de résultats.
+
+    Un membre qui saisit sa saison (30 participations en une heure) ne pouvait
+    plus ouvrir de session ; un club derrière une seule IP NAT/CGNAT épuisait
+    les 30 tentatives collectivement. Les deux gestes n'ont ni le même volume
+    légitime, ni la même fréquence : deux seaux, chacun dimensionné pour le sien.
+    """
+    monkeypatch.setattr(deps, "PUBLIC_WRITE_RATE_LIMIT_MAX_PER_WINDOW", 1)
+    monkeypatch.setattr(deps, "SITE_ACCESS_RATE_LIMIT_MAX_PER_WINDOW", 1)
+
+    # Le seau des écritures publiques est épuisé…
+    assert client.post(_SIGNALEMENT, json={"url": "https://newchrono.fr/c"}).status_code == 201
+    assert client.post(_SIGNALEMENT, json={"url": "https://newchrono.fr/d"}).status_code == 429
+
+    # …la connexion au site garde le sien, et réciproquement.
+    assert client.post(_SESSION_SITE, json={"password": "faux"}).status_code == 401
+    assert client.post(_SESSION_SITE, json={"password": "faux"}).status_code == 429
+    assert client.post(_PARTICIPATIONS, json=_RESULTAT).status_code == 429
+
+
+def test_le_plafond_de_connexion_est_plus_large_que_celui_des_ecritures(client):
+    """Le dimensionnement fait partie du correctif, pas seulement la séparation :
+    ouvrir une session est le **premier** geste de chaque visiteur, et plusieurs
+    adhérents partagent une IP — le plafond doit tenir un club derrière un NAT,
+    là où une écriture publique reste un geste rare et individuel.
+    """
+    assert deps.SITE_ACCESS_RATE_LIMIT_MAX_PER_WINDOW > deps.PUBLIC_WRITE_RATE_LIMIT_MAX_PER_WINDOW
