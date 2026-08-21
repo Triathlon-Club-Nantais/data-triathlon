@@ -8,6 +8,7 @@ from datetime import date
 
 import pytest
 
+from app.models.course import Course
 from app.repositories import athlete_repository, course_repository, participation_repository
 
 
@@ -206,3 +207,77 @@ def test_compte_aux_memes_filtres_que_la_liste(client, catalogue):
 def test_compte_ignore_la_pagination(client, catalogue):
     """`count` n'est pas paginé : c'est ce qui permet de feuilleter sans le refaire."""
     assert client.get("/api/v1/courses/count?page=2&page_size=1").json() == {"total": 3}
+
+
+# ── GET /courses?unreliable=true — filtre de revalidation (#119) ──────────────
+
+
+def _epreuve(db_session, **colonnes) -> Course:
+    """Une épreuve minimale pour le filtre de revalidation (#119)."""
+    course = Course(
+        name=colonnes.pop("name", "Épreuve"),
+        event_type="triathlon-m",
+        event_date=colonnes.pop("event_date", date(2026, 6, 1)),
+        **colonnes,
+    )
+    db_session.add(course)
+    db_session.commit()
+    return course
+
+
+def test_le_catalogue_filtre_les_epreuves_douteuses(client, db_session):
+    douteuse = _epreuve(db_session, name="Douteuse", is_reliable_computed=False)
+    _epreuve(db_session, name="Fiable", is_reliable_computed=True)
+
+    reponse = client.get("/api/v1/courses", params={"unreliable": "true"})
+
+    assert reponse.status_code == 200
+    assert [c["id"] for c in reponse.json()] == [douteuse.id]
+
+
+def test_le_catalogue_rend_les_anomalies_de_chaque_epreuve_douteuse(client, db_session):
+    """AC2 — l'écran décode `quality_issues`, encore faut-il que la route le rende."""
+    _epreuve(
+        db_session,
+        name="Douteuse",
+        is_reliable_computed=False,
+        quality_issues={"rank_gap": 3, "duplicate_bib": 1},
+    )
+
+    corps = client.get("/api/v1/courses", params={"unreliable": "true"}).json()
+
+    assert corps[0]["quality_issues"] == {"rank_gap": 3, "duplicate_bib": 1}
+    assert corps[0]["is_reliable"] is False
+
+
+def test_sans_le_parametre_la_reponse_est_inchangee(client, db_session):
+    """Principe IV — l'ajout est additif, aucun appelant existant ne bouge."""
+    _epreuve(db_session, name="Douteuse", is_reliable_computed=False)
+    _epreuve(db_session, name="Fiable", is_reliable_computed=True)
+
+    assert len(client.get("/api/v1/courses").json()) == 2
+
+
+def test_le_comptage_suit_le_meme_filtre(client, db_session):
+    _epreuve(db_session, name="Douteuse 1", is_reliable_computed=False)
+    _epreuve(db_session, name="Douteuse 2", is_reliable_computed=False)
+    _epreuve(db_session, name="Fiable", is_reliable_computed=True)
+
+    reponse = client.get("/api/v1/courses/count", params={"unreliable": "true"})
+
+    assert reponse.status_code == 200
+    assert reponse.json()["total"] == 2
+
+
+def test_la_file_est_triee_par_date_la_plus_recente(client, db_session):
+    """AC1 — le tri vient de `list_all`, ce test le verrouille au niveau route."""
+    ancienne = _epreuve(
+        db_session, name="Ancienne", event_date=date(2025, 3, 1), is_reliable_computed=False
+    )
+    recente = _epreuve(
+        db_session, name="Récente", event_date=date(2026, 9, 1), is_reliable_computed=False
+    )
+
+    corps = client.get("/api/v1/courses", params={"unreliable": "true"}).json()
+
+    assert [c["id"] for c in corps] == [recente.id, ancienne.id]
