@@ -6,11 +6,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
 import type { SessionUser } from "@/lib/types";
 
-const { push, getSession, logout, listParticipations } = vi.hoisted(() => ({
+const { push, getSession, logout, listParticipations, countCourses } = vi.hoisted(() => ({
   push: vi.fn(),
   getSession: vi.fn(),
   logout: vi.fn(),
   listParticipations: vi.fn(),
+  countCourses: vi.fn(),
 }));
 
 /** Mutable : le surlignage se teste depuis plusieurs écrans. */
@@ -62,7 +63,7 @@ vi.mock("next/link", async () => {
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { listParticipations, getSession, logout } };
+  return { ...original, apiClient: { listParticipations, getSession, logout, countCourses } };
 });
 
 import { AppNav } from "./AppNav";
@@ -674,5 +675,38 @@ describe("AppNav — session (#114)", () => {
     // catégorie « Administration » de la nav vit hors du tiroir.
     expect(within(tiroir).queryByRole("link", { name: "Administration" })).not.toBeInTheDocument();
     expect(within(tiroir).getByRole("button", { name: "Se déconnecter" })).toBeInTheDocument();
+  });
+});
+
+describe("badge de la file de revalidation (#119)", () => {
+  beforeEach(() => {
+    countCourses.mockReset();
+  });
+
+  it("affiche le nombre d'épreuves à revalider sur son entrée", async () => {
+    countCourses.mockResolvedValue({ total: 4 });
+    afficher(habilite("quality:override"));
+    await deplier();
+
+    const entree = await screen.findByRole("link", { name: /revalidation qualité/i });
+    expect(await within(entree).findByText("4")).toBeInTheDocument();
+  });
+
+  it("n'affiche aucun badge quand la file est vide", async () => {
+    countCourses.mockResolvedValue({ total: 0 });
+    afficher(habilite("quality:override"));
+    await deplier();
+
+    const entree = await screen.findByRole("link", { name: /revalidation qualité/i });
+    await waitFor(() => expect(countCourses).toHaveBeenCalled());
+    expect(within(entree).queryByText("0")).not.toBeInTheDocument();
+  });
+
+  it("n'émet aucun comptage pour qui ne porte pas le pouvoir", async () => {
+    afficher(habilite("feedback:read"));
+    await deplier();
+
+    await screen.findByRole("link", { name: /retours utilisateurs/i });
+    expect(countCourses).not.toHaveBeenCalled();
   });
 });
