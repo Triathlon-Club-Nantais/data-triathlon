@@ -90,9 +90,13 @@ export function ParticipationPanel({
     }
     setRechercheEnCours(true);
     try {
-      setResultatsAthletes(await apiClient.searchAthletes(valeur));
+      setResultatsAthletes(await apiClient.searchAthletesBenevole(valeur));
     } catch {
-      setResultatsAthletes([]);
+      // `null` et non `[]` : rendre une liste vide affichait « aucun coureur
+      // trouvé » sur une recherche **en échec** (relevé en revue de #513), et
+      // le bénévole en concluait que l'athlète n'existe pas.
+      setResultatsAthletes(null);
+      setErreurReattribution("Recherche impossible pour le moment. Réessayez dans un instant.");
     } finally {
       setRechercheEnCours(false);
     }

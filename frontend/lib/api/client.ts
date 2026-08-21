@@ -421,18 +421,19 @@ export const apiClient = {
       body: JSON.stringify({ github_url: githubUrl }),
     }),
 
-  // ── Recherche publique d'athlètes ───────────────────────────────────────────
-  // `GET /athletes` est ouverte à tous — pas de `birth_date` (réservée à
-  // `searchAthletesAdmin`). Sert le sélecteur de réattribution de la page
-  // bénévoles (#271), qui n'a pas accès au SSO.
-  searchAthletes: (name: string) =>
-    request<AthleteBrief[]>(`/athletes${toQuery({ name, page_size: 20 })}`),
-
   // ── Page de vérification des résultats par les bénévoles (#271) ────────────
   // Garde par mot de passe partagé (`require_benevole_access`), **pas** par
   // pouvoir SSO/RBAC — research.md §D1 de la feature. `benevoleLogin` répond
   // 401 sur un mot de passe incorrect ou non configuré ; les quatre autres
   // répondent 401 sans le cookie que `benevoleLogin` pose.
+  //
+  // `searchAthletesBenevole` visait `GET /athletes` jusqu'à #513 : cette route
+  // est passée derrière le mot de passe du site (#509), que cette population
+  // n'a pas — 401 avalé en « aucun coureur trouvé ». Sa jumelle sous
+  // `/benevoles/` porte la garde de la page qui l'appelle. Ne pas la remplacer
+  // par `searchAthletesAdmin` : celle-ci rend la date de naissance.
+  searchAthletesBenevole: (name: string) =>
+    request<AthleteBrief[]>(`/benevoles/athletes${toQuery({ name })}`),
   benevoleLogin: (password: string) =>
     request<null>("/benevoles/session", { method: "POST", body: JSON.stringify({ password }) }),
   benevoleLogout: () => request<null>("/benevoles/session", { method: "DELETE" }),

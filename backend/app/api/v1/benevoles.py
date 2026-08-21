@@ -10,7 +10,7 @@ conforme et son annulation (`reject_participation`/`unreject_participation`,
 #437), et correction de champs (`update_participation_fields`, #437). Les
 deux dernières (`queue`, `rejected`) lisent directement le repository.
 """
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import NotAuthenticatedError, require_benevole_access
@@ -18,8 +18,13 @@ from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.core.validation import is_actionable_pending
-from app.repositories import benevole_config_repository, participation_repository
+from app.repositories import (
+    athlete_repository,
+    benevole_config_repository,
+    participation_repository,
+)
 from app.schemas.admin import ParticipationReassign
+from app.schemas.athlete import AthleteBrief
 from app.schemas.benevole import BenevoleCourseRename, BenevoleLogin, ParticipationFieldsUpdate
 from app.schemas.course import CourseBrief
 from app.schemas.participation import ParticipationOut
@@ -76,6 +81,38 @@ def close_session(response: Response, settings: Settings = Depends(get_settings)
 def queue(db: Session = Depends(get_db)):
     """Résultats en attente de validation, tous clubs confondus (research.md §D5)."""
     return participation_repository.list_pending(db)
+
+
+#: Taille de la liste rendue au sélecteur de réattribution. Fixée ici plutôt
+#: qu'ouverte en paramètre : cette route n'a qu'un appelant, et une liste
+#: déroulante de vingt lignes est déjà plus longue que ce qu'on parcourt.
+_TAILLE_RECHERCHE = 20
+
+
+@router.get(
+    "/benevoles/athletes",
+    response_model=list[AthleteBrief],
+    dependencies=[Depends(require_benevole_access)],
+)
+def search_athletes(
+    name: str = Query(min_length=2, description="Nom ou prénom, mot à mot, sans casse ni accents."),
+    db: Session = Depends(get_db),
+):
+    """Recherche d'athlètes du sélecteur de réattribution (US3).
+
+    **Jumelle de `GET /athletes`, et volontairement pas elle** : depuis #509,
+    `athletes` vit derrière le mot de passe du site, que cette population n'a
+    pas — un bénévole non-adhérent y recevait un 401, avalé en « aucun athlète
+    trouvé » par le panneau (relevé en revue de #513). Exempter `athletes` de
+    la garde site aurait rouvert toute la recherche d'athlètes du site à
+    l'anonyme pour servir ce seul sélecteur ; la ranger ici lui donne la garde
+    qui vaut pour la page qui l'appelle, et une seule.
+
+    Elle rend le même `AthleteBrief` que la route publique, donc **sans date de
+    naissance** — celle-ci reste réservée à `search_admin` et à son pouvoir
+    RBAC (`athletes:read`, cf. `athlete_repository.search_admin`).
+    """
+    return athlete_repository.search(db, name=name, page_size=_TAILLE_RECHERCHE)
 
 
 @router.patch(

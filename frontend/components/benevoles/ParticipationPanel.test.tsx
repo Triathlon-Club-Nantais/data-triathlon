@@ -8,14 +8,14 @@ const {
   validateParticipationBenevole,
   renameCourseBenevole,
   reassignParticipationBenevole,
-  searchAthletes,
+  searchAthletesBenevole,
   updateParticipationFieldsBenevole,
   rejectParticipationBenevole,
 } = vi.hoisted(() => ({
   validateParticipationBenevole: vi.fn(),
   renameCourseBenevole: vi.fn(),
   reassignParticipationBenevole: vi.fn(),
-  searchAthletes: vi.fn(),
+  searchAthletesBenevole: vi.fn(),
   updateParticipationFieldsBenevole: vi.fn(),
   rejectParticipationBenevole: vi.fn(),
 }));
@@ -28,7 +28,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
       validateParticipationBenevole,
       renameCourseBenevole,
       reassignParticipationBenevole,
-      searchAthletes,
+      searchAthletesBenevole,
       updateParticipationFieldsBenevole,
       rejectParticipationBenevole,
     },
@@ -157,7 +157,7 @@ describe("ParticipationPanel", () => {
   // --- US3 : réattribution ------------------------------------------------
 
   it("recherche puis réattribue à un autre athlète", async () => {
-    searchAthletes.mockResolvedValue([
+    searchAthletesBenevole.mockResolvedValue([
       { id: 2, nom: "MARTIN", prenom: "Paul", gender: "M", club: "ASPTT" },
     ]);
     const reattribuee = participation({ athlete: { id: 2, nom: "MARTIN", prenom: "Paul", gender: "M", club: "ASPTT" } });
@@ -177,7 +177,7 @@ describe("ParticipationPanel", () => {
   });
 
   it("signale un conflit de réattribution en français", async () => {
-    searchAthletes.mockResolvedValue([
+    searchAthletesBenevole.mockResolvedValue([
       { id: 2, nom: "MARTIN", prenom: "Paul", gender: "M", club: "ASPTT" },
     ]);
     reassignParticipationBenevole.mockRejectedValue(
@@ -194,13 +194,27 @@ describe("ParticipationPanel", () => {
   });
 
   it("affiche un état vide quand la recherche ne trouve personne", async () => {
-    searchAthletes.mockResolvedValue([]);
+    searchAthletesBenevole.mockResolvedValue([]);
     const user = userEvent.setup();
     render(<ParticipationPanel participation={participation()} onChanged={vi.fn()} />);
 
     await user.type(screen.getByLabelText(/réattribuer à/i), "Zzz");
 
     expect(await screen.findByText(/aucun coureur trouvé/i)).toBeInTheDocument();
+  });
+
+  it("distingue une recherche en échec d'une recherche sans résultat", async () => {
+    // Relevé en revue de #513 : le `catch` rendait `[]`, donc une recherche
+    // **cassée** s'affichait « aucun coureur trouvé » — le bénévole conclut que
+    // l'athlète n'existe pas et abandonne, alors que la route a répondu 401.
+    searchAthletesBenevole.mockRejectedValue(new ApiError(401, "Non autorisé"));
+    const user = userEvent.setup();
+    render(<ParticipationPanel participation={participation()} onChanged={vi.fn()} />);
+
+    await user.type(screen.getByLabelText(/réattribuer à/i), "Martin");
+
+    expect(await screen.findByText(/recherche impossible/i)).toBeInTheDocument();
+    expect(screen.queryByText(/aucun coureur trouvé/i)).not.toBeInTheDocument();
   });
 
   // --- Reprise de session (revue de code) ---------------------------------
