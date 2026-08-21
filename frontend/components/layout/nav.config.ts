@@ -115,8 +115,7 @@ export const NAV: NavSection[] = [
       // Les entrées `soon` ci-dessous n'ont pas de pouvoir nommé : le catalogue
       // n'en porte pas d'évident, et en deviner un serait poser une règle à
       // rectifier le jour où l'écran sort. Sans conséquence — depuis #242 une
-      // entrée `soon` n'est plus rendue du tout. La revalidation qualité, elle,
-      // a le sien depuis #115.
+      // entrée `soon` n'est plus rendue du tout.
       // L'écran promis par cette entrée existe depuis #47. `batch:run` et non
       // `batch:read` : `permission` ne porte qu'un code, et c'est le lancement
       // qui donne son nom à l'écran — même arbitrage que `u-roles`.
@@ -126,7 +125,12 @@ export const NAV: NavSection[] = [
         href: "/admin/batches",
         permission: "batch:run",
       },
-      { id: "a-quality", label: "Revalidation qualité", permission: "quality:override", soon: true },
+      {
+        id: "a-quality",
+        label: "Revalidation qualité",
+        href: "/admin/quality",
+        permission: "quality:override",
+      },
       // Signalement public (#267) — même contraste que « Fournisseurs en
       // attente » : la soumission est ouverte à tous, la consulter exige
       // `feedback:read`.
