@@ -40,11 +40,13 @@ describe("app/error", () => {
     expect(retry).toHaveBeenCalledTimes(1);
   });
 
-  it("signale l'affichage de l'écran de panne à PostHog, avec le digest", () => {
+  it("signale l'affichage de l'écran de panne à PostHog, une fois, avec le digest", () => {
     const erreur = Object.assign(new Error("boum"), { digest: "4f3c9a12" });
 
     render(<ErrorBoundary error={erreur} retry={vi.fn()} />);
 
-    expect(captureEvent).toHaveBeenCalledWith("error_screen_shown", { digest: "4f3c9a12" });
+    expect(captureEvent).toHaveBeenCalledExactlyOnceWith("error_screen_shown", {
+      digest: "4f3c9a12",
+    });
   });
 });

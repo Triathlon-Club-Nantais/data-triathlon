@@ -190,9 +190,10 @@ par lecture de code. Note-le en clôture au lieu de l'inventer. Une fois la PR
 Ces points reviennent à chaque passe naïve. Les signaler est un **faux positif**,
 même s'ils sont réels :
 
-- **Sept écrans publics tirent encore `ui/{card,button,badge,input}`** —
-  `app/error.tsx`, `ClubDashboard`, `ResultCard`, `ResultsFilters`, `StatusBadge`,
-  `ManualResultForm`, `ProviderDetector`. Dette **assumée** (audit du 2026-08-06) :
+- **Six écrans publics tirent encore `ui/{card,button,badge,input}`** —
+  `ClubDashboard`, `ResultCard`, `ResultsFilters`, `StatusBadge`,
+  `ManualResultForm`, `ProviderDetector` (`app/error.tsx` en est sorti avec
+  #464). Dette **assumée** (audit du 2026-08-06) :
   la règle `tcn/` vaut pour les **ajouts**. Ne la réclame pas sur l'existant.
 - **Pas de mode sombre** : `.dark` n'est jamais posé, le design system est clair
   seulement, et c'est délibéré (`globals.css`, en-tête). L'absence de variantes

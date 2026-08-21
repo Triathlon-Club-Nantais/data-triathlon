@@ -38,6 +38,9 @@ describe("app/not-found", () => {
   it("ne renvoie pas vers la carte, que le rail masque volontairement (#10, #28)", () => {
     render(<NotFound />);
 
-    expect(screen.queryByRole("link", { name: /carte/i })).not.toBeInTheDocument();
+    // Sur le `href`, pas sur le libellé : « Explorer les épreuves » vers
+    // `/carte` rouvrirait l'écran masqué sans que le mot « carte » apparaisse.
+    const destinations = screen.getAllByRole("link").map((lien) => lien.getAttribute("href"));
+    expect(destinations).not.toContain("/carte");
   });
 });
