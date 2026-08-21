@@ -98,9 +98,27 @@ Un composant dédié, `QualityQueueTable`, et **non** un mode de
 actions sont autres. Deux personnalités dans un composant, c'est une branche par
 ligne de rendu et un test par branche.
 
-Ce qu'il rend, par ligne : l'épreuve, sa date, ses anomalies décodées par
-`describeQualityIssues`, et **les deux verdicts** — calculé et humain — que la
-route rend déjà séparément.
+Ce qu'il rend, par ligne : l'épreuve, sa date, et ses anomalies décodées par
+`describeQualityIssues`.
+
+Pas de colonne « Verdict » — retirée en cours de route, et c'est délibéré. La
+file n'est par construction que l'ensemble `is_reliable === false` : une
+colonne calquée dessus afficherait la même valeur sur chaque ligne. Distinguer
+le calculé de l'humain demanderait `is_reliable_computed` et
+`reliability_override`, que `CourseBrief` ne porte pas — seule
+`CourseReliability`, la réponse du `PATCH`, les porte, et l'élargir au contrat
+de lecture publique est un changement de schéma qu'on n'a pas fait pour un
+affichage de liste.
+
+**Limite assumée qui en découle** : la file, telle qu'elle est aujourd'hui, ne
+distingue pas une épreuve qu'un humain a déjà tranchée « douteuse » d'une
+épreuve jamais examinée — les deux y apparaissent de façon identique. Et une
+épreuve ainsi tranchée y reste **définitivement** : aucun re-scrape ne la fait
+sortir de `is_reliable === false`, seul le geste « Revenir à l'avis calculé »
+le peut. Le jour où cette distinction compte, elle se rétablit côté écran sans
+toucher au contrat public de `GET /courses` : la route de détail —
+`PATCH /admin/courses/{id}/reliability`, qui rend `CourseReliability` — porte
+déjà les trois valeurs, il n'y a qu'à les afficher.
 
 Les gestes, chacun masqué si le pouvoir manque (le serveur reste seul juge, ces
 tests évitent d'offrir un bouton qui rendrait 403) :
