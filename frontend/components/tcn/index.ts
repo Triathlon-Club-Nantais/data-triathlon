@@ -21,3 +21,4 @@ export { RankingEvolutionChart } from "./participation-detail/RankingEvolutionCh
 export { ImprovementMatrix } from "./participation-detail/ImprovementMatrix";
 export { PendingBadge } from "./PendingBadge";
 export { AnnonceStatut } from "./AnnonceStatut";
+export { ErrorScreen } from "./ErrorScreen";
