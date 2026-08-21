@@ -14,6 +14,8 @@ const {
   createRole,
   updateRole,
   deleteRole,
+  countCourses,
+  setCourseReliability,
 } = vi.hoisted(() => ({
   updateAthlete: vi.fn(),
   reassignParticipation: vi.fn(),
@@ -24,6 +26,8 @@ const {
   createRole: vi.fn(),
   updateRole: vi.fn(),
   deleteRole: vi.fn(),
+  countCourses: vi.fn(),
+  setCourseReliability: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
@@ -40,6 +44,8 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
       createRole,
       updateRole,
       deleteRole,
+      countCourses,
+      setCourseReliability,
     },
   };
 });
@@ -55,6 +61,8 @@ import {
   useCreateRole,
   useUpdateRole,
   useDeleteRole,
+  useAdminCoursesCount,
+  useSetCourseReliability,
 } from "./admin";
 
 /**
@@ -247,5 +255,60 @@ describe("écriture de la composition des rôles (#240)", () => {
     await waitFor(() => expect(appel).toHaveBeenCalledWith(...attendu));
     expect(invalider).toHaveBeenCalledWith({ queryKey: ["roles"] });
     expect(invalider).toHaveBeenCalledWith({ queryKey: ["session"] });
+  });
+});
+
+describe("file de revalidation qualité (#119)", () => {
+  beforeEach(() => {
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    countCourses.mockReset();
+    setCourseReliability.mockReset();
+  });
+
+  it("n'émet le comptage de la file que si l'appel est actif", async () => {
+    const { result } = renderHook(() => useAdminCoursesCount({ unreliable: true }, false), {
+      wrapper,
+    });
+
+    await waitFor(() => expect(result.current.fetchStatus).toBe("idle"));
+    expect(countCourses).not.toHaveBeenCalled();
+  });
+
+  it("émet le comptage de la file quand l'appel est actif", async () => {
+    countCourses.mockResolvedValue({ total: 4 });
+
+    const { result } = renderHook(() => useAdminCoursesCount({ unreliable: true }), {
+      wrapper,
+    });
+
+    await waitFor(() => expect(result.current.data).toEqual({ total: 4 }));
+    expect(countCourses).toHaveBeenCalledWith({ unreliable: true });
+  });
+
+  it("transmet verdict et notes au PATCH de fiabilité", async () => {
+    setCourseReliability.mockResolvedValue({
+      id: 7,
+      is_reliable: true,
+      is_reliable_computed: false,
+      reliability_override: true,
+      quality_issues: { rank_gap: 3 },
+    });
+
+    const { result } = renderHook(() => useSetCourseReliability(), { wrapper });
+    await result.current.mutateAsync({ courseId: 7, verdict: true, notes: "Vérifié." });
+
+    expect(setCourseReliability).toHaveBeenCalledWith(7, {
+      reliability_override: true,
+      notes: "Vérifié.",
+    });
+  });
+
+  it("omet les notes quand le motif est vide", async () => {
+    setCourseReliability.mockResolvedValue({});
+
+    const { result } = renderHook(() => useSetCourseReliability(), { wrapper });
+    await result.current.mutateAsync({ courseId: 7, verdict: null });
+
+    expect(setCourseReliability).toHaveBeenCalledWith(7, { reliability_override: null });
   });
 });

@@ -34,6 +34,15 @@ export interface CourseBrief {
   quality_issues?: Record<string, number> | null;
 }
 
+/** Les trois verdicts d'une épreuve, rendus par `PATCH …/reliability` (#115). */
+export interface CourseReliability {
+  id: number;
+  is_reliable: boolean | null;
+  is_reliable_computed: boolean | null;
+  reliability_override: boolean | null;
+  quality_issues: Record<string, number> | null;
+}
+
 // Clés possibles de splits : "swim" | "t1" | "bike" | "t2" | "run"
 export type Splits = Record<string, string>;
 

@@ -75,6 +75,8 @@ export type FiltresCourses = {
   event_type?: string;
   date_from?: string;
   date_to?: string;
+  /** La file de revalidation (#119). `true` seul — voir `client.listCourses`. */
+  unreliable?: true;
 };
 
 export function useAdminCourses(page = 1, filtres: FiltresCourses = {}) {
@@ -90,12 +92,16 @@ export function useAdminCourses(page = 1, filtres: FiltresCourses = {}) {
  * Le total du catalogue aux mêmes filtres — le « sur 7 » de la pagination.
  *
  * Clé **sans la page** : feuilleter ne redemande pas un total qui ne bouge pas.
+ *
+ * `actif` sert le badge de navigation (#119), monté sur **toutes** les pages :
+ * sans lui, chaque visiteur paierait un comptage qu'il n'a pas le droit de voir.
  */
-export function useAdminCoursesCount(filtres: FiltresCourses = {}) {
+export function useAdminCoursesCount(filtres: FiltresCourses = {}, actif = true) {
   return useQuery({
     queryKey: queryKeys.adminCoursesCount(filtres as Record<string, string>),
     queryFn: () => apiClient.countCourses(filtres),
     placeholderData: (precedent) => precedent,
+    enabled: actif,
   });
 }
 
@@ -304,6 +310,36 @@ export function useUpdateCourse() {
   return useMutation({
     mutationFn: ({ id, champs }: { id: number; champs: Partial<AdminCourseUpdate> }) =>
       apiClient.updateCourse(id, champs),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.courses });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.detailEpreuve });
+    },
+  });
+}
+
+/**
+ * Trancher la fiabilité d'une épreuve (#119, `quality:override`).
+ *
+ * `verdict: null` **lève** l'avis humain. L'invalidation de « admin-courses »
+ * suffit à faire sortir la ligne de la file : la file n'est qu'une vue filtrée
+ * du catalogue, il n'y a aucune seconde liste à tenir à jour (AC4).
+ */
+export function useSetCourseReliability() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      courseId,
+      verdict,
+      notes,
+    }: {
+      courseId: number;
+      verdict: boolean | null;
+      notes?: string;
+    }) =>
+      apiClient.setCourseReliability(courseId, {
+        reliability_override: verdict,
+        ...(notes ? { notes } : {}),
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.courses });
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.detailEpreuve });
