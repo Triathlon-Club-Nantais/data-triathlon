@@ -472,6 +472,10 @@ class CourseReliabilityUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     reliability_override: bool | None = None
+    #: Le motif de la décision, consigné au journal (#119, AC3). Facultatif —
+    #: un verdict sans commentaire reste un verdict — mais borné : un champ
+    #: texte libre écrit en base se borne, même derrière une session.
+    notes: str | None = Field(default=None, max_length=500)
 
 
 class CourseReliabilityRead(BaseModel):

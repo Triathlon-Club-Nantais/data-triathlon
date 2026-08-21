@@ -13,6 +13,7 @@ from app.models.course import Course
 from app.models.organisation import Organisation
 from app.models.role_permission import RolePermission
 from app.repositories import (
+    admin_action_log_repository,
     course_repository,
     role_repository,
     user_repository,
@@ -210,3 +211,63 @@ def test_le_contrat_public_expose_toujours_is_reliable_et_lui_seul(
     ligne = next(c for c in liste if c["id"] == epreuve_douteuse.id)
     assert ligne["is_reliable"] is True
     assert "reliability_override" not in ligne
+
+
+def test_le_patch_transmet_les_notes_au_journal(client, db_session, epreuve_douteuse):
+    """AC3 de bout en bout : le geste et sa trace partagent la transaction."""
+    reponse = client.patch(
+        f"/api/v1/admin/courses/{epreuve_douteuse.id}/reliability",
+        json={"reliability_override": True, "notes": "Vérifié à la source."},
+    )
+
+    assert reponse.status_code == 200
+    traces = admin_action_log_repository.list_for_entity(
+        db_session, entity_type="course", entity_id=epreuve_douteuse.id
+    )
+    assert len(traces) == 1
+    assert traces[0].payload["notes"] == "Vérifié à la source."
+    assert traces[0].payload["after"] is True
+
+
+def test_le_patch_refuse_des_notes_hors_limite(client, epreuve_douteuse):
+    """Un champ texte libre écrit en base se borne, même derrière une session."""
+    reponse = client.patch(
+        f"/api/v1/admin/courses/{epreuve_douteuse.id}/reliability",
+        json={"reliability_override": True, "notes": "x" * 501},
+    )
+
+    assert reponse.status_code == 422
+
+
+def test_le_patch_sans_notes_reste_accepte(client, db_session, epreuve_douteuse):
+    reponse = client.patch(
+        f"/api/v1/admin/courses/{epreuve_douteuse.id}/reliability",
+        json={"reliability_override": True},
+    )
+
+    assert reponse.status_code == 200
+    traces = admin_action_log_repository.list_for_entity(
+        db_session, entity_type="course", entity_id=epreuve_douteuse.id
+    )
+    assert traces[0].payload["notes"] is None
+
+
+def test_un_refus_n_ecrit_ni_verdict_ni_trace(client, db_session, epreuve_douteuse):
+    """Le geste et sa trace partagent la transaction : un refus lève **avant**,
+    et rien n'est écrit — ni la donnée, ni le journal."""
+    _session_etroite(client, db_session)  # aucun pouvoir
+
+    reponse = client.patch(
+        f"/api/v1/admin/courses/{epreuve_douteuse.id}/reliability",
+        json={"reliability_override": True, "notes": "Tentative."},
+    )
+
+    assert reponse.status_code == 403
+    db_session.refresh(epreuve_douteuse)
+    assert epreuve_douteuse.reliability_override is None
+    assert (
+        admin_action_log_repository.list_for_entity(
+            db_session, entity_type="course", entity_id=epreuve_douteuse.id
+        )
+        == []
+    )
