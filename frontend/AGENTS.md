@@ -139,6 +139,34 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   silencieux, la page continuant de lire l'ancienne valeur sans erreur visible.
   L'asymétrie est voulue ; elle se re-tranche paramètre par paramètre, jamais
   par harmonisation.
+- **L'athlète retenu ne franchit pas la frontière serveur : pas de cookie
+  miroir** (#467 — arbitrage du cluster, il vaut aussi pour #502, #503, #504).
+  Le stock `tcn-athlete` vit en `localStorage` ; un écran qui s'y adapte le lit
+  **côté client** par `useIsSelectedAthlete(id)`
+  (`components/layout/AthletePicker.tsx`, à côté du stock), jamais par une copie
+  en cookie relue en rendu serveur. Trois raisons, dans cet ordre.
+  - **Aucun rendu serveur n'en a besoin.** Les quatre usages du cluster sont de
+    la mise en avant (pastille, liseré, ancre) et un rapprochement de chiffres
+    que l'API publique sert déjà : rien ne se filtre, ne se trie ni ne se
+    récupère sur cette valeur. Un cookie serait un transport sans destinataire.
+  - **Le coût de cache est réel dès qu'on sort du profil.** Ce n'est pas
+    `/athletes/[id]` qui le paierait — le build le donne `ƒ`, `serverFetch`
+    l'appelant en `no-store` —, c'est le cookie **en tant que transport** :
+    `/dashboard`, `/club` et `/ajouter` tournent sur la fenêtre de revalidation
+    de 30 s mesurée par #352, et un rendu qui dépend d'un cookie par visiteur
+    n'est plus partageable. C'est le même raisonnement qui a déjà valu à
+    `serverFetch` de ne pas relayer les cookies (voir son commentaire dans
+    `lib/api/server.ts`) : #502 est exactement la page concernée.
+  - **Un miroir, c'est deux stocks à tenir synchronisés**, dont un éditable par
+    l'utilisateur et un envoyé au serveur à chaque requête, sans qu'aucune
+    donnée personnelle n'ait à y aller.
+
+  Le prix, assumé : `useSyncExternalStore` rend `false` au serveur, donc le
+  signifiant d'état n'est **jamais dans le HTML initial** et apparaît à
+  l'hydratation — la boîte qui le porte réserve sa place (`.tcn-avatar-frame`)
+  pour que son apparition ne déplace rien. Seul un besoin **serveur** authentique
+  — une requête API qui dépendrait de l'athlète retenu — rouvrirait
+  l'arbitrage ; de la mise en avant, non.
 - `components/` — `scrape/` (TcnScrapeForm, ProviderDetector, ImportProgress),
   `results/` (ResultCard, ResultsList), `club/` (ClubDashboard, PodiumsList),
   `map/` (MapView), `dashboard/` (StatCardsRank, RecentCourses), plus les deux

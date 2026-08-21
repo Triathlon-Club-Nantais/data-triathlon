@@ -3,10 +3,11 @@ import Link from "next/link";
 import { Eye } from "lucide-react";
 import { notFound } from "next/navigation";
 import { apiServer } from "@/lib/api/server";
-import { Avatar, StatCard, Card, Eyebrow, FormatChip, PlaceBadge, PendingBadge } from "@/components/tcn";
+import { StatCard, Card, Eyebrow, FormatChip, PlaceBadge, PendingBadge } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
 import { EmptyState } from "@/components/ui/empty-state";
-import { SelectAthleteButton } from "./SelectAthleteButton";
+import { AthleteAvatar } from "./AthleteAvatar";
+import { AthleteSelection } from "./AthleteSelection";
 import { eventTypeLabel } from "@/lib/constants";
 import { formatToken, ordinalFr } from "@/lib/utils/format";
 import { bestRatio, rankRatio } from "@/lib/utils/ranking";
@@ -66,13 +67,13 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
   return (
     <PageShell>
       <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 28, flexWrap: "wrap" }}>
-        <Avatar name={fullName} size={72} />
+        <AthleteAvatar athleteId={athlete.id} name={fullName} />
         <div>
           <Eyebrow>Résultats enregistrés</Eyebrow>
           <h1 style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(28px, 5vw, 42px)", fontWeight: 400, color: "var(--tcn-ink)", lineHeight: 1, margin: 0, marginTop: 4 }}>{fullName}</h1>
         </div>
         <div style={{ marginLeft: "auto" }}>
-          <SelectAthleteButton athlete={{ id: athlete.id, prenom: athlete.prenom, nom: athlete.nom }} />
+          <AthleteSelection athlete={{ id: athlete.id, prenom: athlete.prenom, nom: athlete.nom }} />
         </div>
       </div>
 
