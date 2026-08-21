@@ -641,29 +641,37 @@ function Entree({
           />
           <span style={{ flex: 1 }}>{item.label}</span>
           {!!item.count && (
-            <span
-              aria-label={libelleCompteur(item)}
-              style={{
-                flex: "none",
-                minWidth: 20,
-                padding: "1px 6px",
-                borderRadius: "var(--tcn-radius-pill)",
-                // 11 px / 700 n'atteint aucun seuil de « texte large » : le blanc y
-                // demande 4,5:1, comme sur les boutons primaires du fichier
-                // (l.371, l.705). `--tcn-orange` nu ne tenait que 3,68:1 (#299) ;
-                // `Badge.tsx` porte bien une variante `count`, mais elle compose
-                // `--tcn-orange` sur `--tcn-orange-12` — la même paire que son
-                // propre commentaire chiffre à 2,88:1, donc pas davantage
-                // conforme — et son style (chip translucide) diffère du pastille
-                // pleine attendue ici. On garde le markup, on aligne le token.
-                background: "var(--tcn-orange-deep)",
-                color: "#fff",
-                fontSize: 11,
-                fontWeight: 700,
-                textAlign: "center",
-              }}
-            >
-              {item.count}
+            // ARIA 1.2 interdit de nommer un élément de rôle `generic` (un
+            // `<span>` nu) : l'`aria-label` posé directement dessus n'a jamais
+            // été garanti, il ne « marchait » que par raccroc via le calcul de
+            // nom du `<a>` parent. La forme durable : la pastille visuelle
+            // passe `aria-hidden`, et un `<span className="sr-only">` porte
+            // seul le nom accessible.
+            <span style={{ flex: "none", display: "inline-flex", alignItems: "center" }}>
+              <span
+                aria-hidden="true"
+                style={{
+                  minWidth: 20,
+                  padding: "1px 6px",
+                  borderRadius: "var(--tcn-radius-pill)",
+                  // 11 px / 700 n'atteint aucun seuil de « texte large » : le blanc y
+                  // demande 4,5:1, comme sur les boutons primaires du fichier
+                  // (l.371, l.705). `--tcn-orange` nu ne tenait que 3,68:1 (#299) ;
+                  // `Badge.tsx` porte bien une variante `count`, mais elle compose
+                  // `--tcn-orange` sur `--tcn-orange-12` — la même paire que son
+                  // propre commentaire chiffre à 2,88:1, donc pas davantage
+                  // conforme — et son style (chip translucide) diffère du pastille
+                  // pleine attendue ici. On garde le markup, on aligne le token.
+                  background: "var(--tcn-orange-deep)",
+                  color: "#fff",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  textAlign: "center",
+                }}
+              >
+                {item.count}
+              </span>
+              <span className="sr-only">{libelleCompteur(item)}</span>
             </span>
           )}
         </>
