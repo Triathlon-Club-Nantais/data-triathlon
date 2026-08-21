@@ -17,6 +17,7 @@ import type {
   CourseMergeImpact,
   CourseMergeResult,
   CourseQuery,
+  CourseReliability,
   CourseSource,
   CourseSummary,
   CoursesWipeImpact,
@@ -176,12 +177,22 @@ export const apiClient = {
       event_type?: string;
       date_from?: string;
       date_to?: string;
+      // `true` seul, jamais `false` : `toQuery` sérialise tout ce qui n'est ni
+      // `undefined`, ni `null`, ni `""` — un `false` partirait en
+      // `?unreliable=false` et brouillerait les clés de cache pour rien.
+      unreliable?: true;
       page?: number;
       page_size?: number;
     } = {},
   ) => request<CourseBrief[]>(`/courses${toQuery(opts)}`),
   countCourses: (
-    opts: { name?: string; event_type?: string; date_from?: string; date_to?: string } = {},
+    opts: {
+      name?: string;
+      event_type?: string;
+      date_from?: string;
+      date_to?: string;
+      unreliable?: true;
+    } = {},
   ) => request<{ total: number }>(`/courses/count${toQuery(opts)}`),
   getCourseDeletionImpact: (id: number) =>
     request<CourseDeletionImpact>(`/admin/courses/${id}/deletion-impact`),
@@ -207,6 +218,17 @@ export const apiClient = {
     request<CourseBrief>(`/admin/courses/${id}`, {
       method: "PATCH",
       body: JSON.stringify(champs),
+    }),
+  // ── Revalidation qualité (#119) ────────────────────────────────────────────
+  // `quality:override`. `reliability_override: null` **lève** l'avis humain et
+  // fait reprendre le verdict calculé ; `notes` motive la décision au journal.
+  setCourseReliability: (
+    id: number,
+    body: { reliability_override: boolean | null; notes?: string },
+  ) =>
+    request<CourseReliability>(`/admin/courses/${id}/reliability`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
     }),
   /** Bascule de la source active (#285) : bloquant, re-scrape et remplace les résultats. */
   switchCourseSource: (courseId: number, sourceId: number) =>

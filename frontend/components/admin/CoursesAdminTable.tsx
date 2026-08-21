@@ -92,7 +92,7 @@ export function CoursesAdminTable({
 
   function naviguer(valeurs: FiltresCourses, versLaPage: number) {
     const qs = new URLSearchParams();
-    Object.entries(valeurs).forEach(([cle, valeur]) => valeur && qs.set(cle, valeur));
+    Object.entries(valeurs).forEach(([cle, valeur]) => valeur && qs.set(cle, String(valeur)));
     // La page 1 ne s'écrit pas : `?page=1` est du bruit dans une URL partagée.
     if (versLaPage > 1) qs.set("page", String(versLaPage));
     router.push(qs.size ? `${chemin}?${qs}` : chemin);
