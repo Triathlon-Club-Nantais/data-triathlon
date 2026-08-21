@@ -1,39 +1,13 @@
-import Link from "next/link";
-import { Eye } from "lucide-react";
 import { notFound } from "next/navigation";
 import { apiServer } from "@/lib/api/server";
-import { StatCard, Card, Eyebrow, FormatChip, PlaceBadge, PendingBadge } from "@/components/tcn";
+import { StatCard, Eyebrow } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
-import { EmptyState } from "@/components/ui/empty-state";
 import { AthleteAvatar } from "./AthleteAvatar";
 import { AthleteSelection } from "./AthleteSelection";
+import { EventsTable } from "./EventsTable";
 import { AthleteAdminPanel } from "@/components/athletes/AthleteAdminPanel";
-import { ParticipationAdminActions } from "@/components/athletes/ParticipationAdminActions";
-import { eventTypeLabel } from "@/lib/constants";
 import { formatToken, ordinalFr } from "@/lib/utils/format";
-import { bestRatio, rankRatio } from "@/lib/utils/ranking";
-import { describeQualityIssues } from "@/lib/quality";
-import { formatDate } from "@/lib/utils/date";
-import { recentParticipations } from "@/lib/utils/club-aggregate";
-import { isNonFinisher } from "@/lib/utils/raceOrder";
-import { isHttpUrl } from "@/lib/utils/url";
-import { gridColumns, gridMinWidth, type Track } from "@/lib/utils/table";
-
-// Date | Épreuve | Type | Format | Temps final | Place | →
-// La colonne Place loge la pastille *et* le « /N » de classés (issue #80).
-const TRACKS: Track[] = [120, { flexMin: 200 }, 150, 90, 120, 120, 28];
-
-// Tooltip d'une course non fiable : détail des anomalies quand connues, repli
-// générique sinon (ancien import backfillé sans quality_issues).
-function unreliableTooltip(issues: Record<string, number> | null | undefined): string {
-  const details = describeQualityIssues(issues);
-  if (details.length === 0) return "Fiabilité des données incertaine chez le chronométreur — le classement complet ne peut pas être affiché.";
-  return `Fiabilité incertaine : ${details.join(" ; ")}.`;
-}
-const GAP = 18;
-const PADDING_X = 26;
-const COLS = gridColumns(TRACKS);
-const MIN_WIDTH = gridMinWidth(TRACKS, { gap: GAP, paddingX: PADDING_X });
+import { bestRatio } from "@/lib/utils/ranking";
 
 export default async function AthletePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -62,8 +36,6 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
   const favFormat = [...formatCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
 
   const topRatio = bestRatio(validated);
-
-  const ordered = recentParticipations(participations, participations.length);
 
   return (
     <PageShell>
@@ -107,145 +79,7 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
         <StatCard label="Format favori" value={favFormat} accent={false} />
       </div>
 
-      <Card padding={0} style={{ overflow: "hidden" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 26px 16px", flexWrap: "wrap", gap: 8 }}>
-          <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: 0 }}>Toutes les épreuves</h2>
-          <div style={{ fontSize: 13, color: "var(--tcn-text-faint)", fontWeight: 600 }}>Clique sur une épreuve pour voir le détail →</div>
-        </div>
-        {ordered.length === 0 ? (
-          <EmptyState
-            bare
-            title="Aucun résultat pour cet athlète"
-            action={
-              <Link href="/ajouter" className="text-sm font-semibold text-accent-ink hover:underline">
-                Ajouter un résultat →
-              </Link>
-            }
-          />
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <div style={{ minWidth: MIN_WIDTH }}>
-              <div style={{ display: "grid", gridTemplateColumns: COLS, columnGap: GAP, padding: `0 ${PADDING_X}px 12px`, fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--tcn-text-faint)", borderBottom: "1px solid var(--tcn-border)" }}>
-                <div>Date</div><div>Épreuve</div><div>Type</div><div>Format</div><div>Temps final</div><div>Place</div><div></div>
-              </div>
-              {ordered.map((p) => {
-                const { ratio } = rankRatio(p);
-                // AC5 : le marqueur ⚠ dépend de la fiabilité de la course, pas
-                // du rang ni du statut. Il doit apparaître à côté d'un DNF non
-                // fiable comme à côté d'un finisher classé.
-                const unreliableTitle =
-                  p.course?.is_reliable === false
-                    ? unreliableTooltip(p.course?.quality_issues)
-                    : null;
-                const nonFinisher = isNonFinisher(p.status);
-                const sigle = (p.status ?? "").toUpperCase();
-                const preuve = p.evidence_url && isHttpUrl(p.evidence_url) ? p.evidence_url : null;
-                return (
-                  // Le trait de séparation est porté par le groupe, et non par la
-                  // ligne ni par chacune de ses sous-lignes : la sous-ligne
-                  // d'actions n'existe que dans le navigateur (#439), donc aucun
-                  // rendu serveur ne peut savoir laquelle est la dernière. Le
-                  // dessin reste celui d'avant — sans trait pour une ligne en
-                  // attente qui n'a pas de sous-ligne de preuve (#270).
-                  <div
-                    key={p.id}
-                    style={{ borderBottom: p.is_pending_validation && !preuve ? "none" : "1px solid var(--tcn-border-faint)" }}
-                  >
-                  <Link href={`/courses/${p.course?.id}/participations/${p.id}`} className="tcn-rowlink" style={{ display: "grid", gridTemplateColumns: COLS, columnGap: GAP, alignItems: "center", padding: `15px ${PADDING_X}px` }}>
-                    <div style={{ fontSize: 14, color: "var(--tcn-text-muted)", fontWeight: 600 }}>{formatDate(p.course?.event_date)}</div>
-                    <div style={{ fontSize: 15, color: "var(--tcn-ink)", fontWeight: 700, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      {p.course?.name}
-                      {p.is_pending_validation && <PendingBadge rejected={p.is_rejected} />}
-                    </div>
-                    <div style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>{eventTypeLabel(p.course?.event_type)}</div>
-                    <div><FormatChip>{formatToken(p.course?.event_type, p.course?.distance_km)}</FormatChip></div>
-                    <div style={{ fontSize: 15, color: "var(--tcn-ink)", fontFamily: "var(--tcn-font-cond)", fontWeight: 700 }}>{p.total_time ?? "—"}</div>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                      {nonFinisher ? (
-                        // Non-finisher : sigle sobre. DSQ garde le rang entre
-                        // parenthèses quand le chronométreur en a fourni un ;
-                        // le /N n'est ajouté que si la course est fiable.
-                        <span style={{ fontSize: 14, fontWeight: 700, color: "var(--tcn-text-muted)" }}>
-                          {sigle}
-                          {p.rank_overall != null ? (
-                            <>({p.rank_overall}{ratio ? `/${ratio.total}` : ""})</>
-                          ) : null}
-                        </span>
-                      ) : p.rank_overall != null ? (
-                        <>
-                          <PlaceBadge place={p.rank_overall} />
-                          {ratio ? (
-                            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--tcn-text-faint)" }}>
-                              /{ratio.total}
-                            </span>
-                          ) : null}
-                        </>
-                      ) : (
-                        <span style={{ color: "var(--tcn-text-faint)" }}>—</span>
-                      )}
-                      {unreliableTitle ? (
-                        <span
-                          data-testid="unreliable-marker"
-                          title={unreliableTitle}
-                          aria-label={unreliableTitle}
-                          // `role="img"` : le texte est purement informatif, pas un contrôle.
-                          role="img"
-                          style={{ fontSize: 13, color: "var(--tcn-text-faint)", cursor: "help", userSelect: "none" }}
-                        >
-                          ⚠
-                        </span>
-                      ) : null}
-                    </div>
-                    <div style={{ textAlign: "right", color: "var(--tcn-text-disabled)", fontSize: 16 }}>→</div>
-                  </Link>
-                  {preuve ? (
-                    // Ligne séparée, hors du `<Link>` de la ligne : un `<a>`
-                    // imbriqué dans un autre serait invalide en HTML. Le texte
-                    // qui n'est pas une URL http(s) exploitable reste stocké
-                    // (cas limite de la spec) mais n'est jamais rendu cliquable.
-                    <div style={{ padding: `0 ${PADDING_X}px 12px` }}>
-                      <a
-                        href={preuve}
-                        target="_blank"
-                        rel="noreferrer"
-                        // Affordance de bouton discret : classes partagées avec
-                        // `tcn/Button` (voir globals.css) plutôt qu'un composant
-                        // dédié — un `<button>` serait sémantiquement faux ici,
-                        // c'est une navigation, pas une action (rôle "link" à
-                        // conserver, cf. page.test.tsx). `--secondary` et non
-                        // `--ghost` : cette carte a un fond blanc
-                        // (`--tcn-surface`), sur lequel le remplissage et la
-                        // bordure de `--ghost` tombent sous 1,3:1 (WCAG
-                        // 1.4.11) — quasi invisibles, à l'inverse de
-                        // l'affordance recherchée. La bordure encre de
-                        // `--secondary` reste à ~16:1 sur ce même fond.
-                        className="tcn-btn tcn-btn--sm tcn-btn--secondary"
-                      >
-                        <Eye size={14} aria-hidden="true" />
-                        Voir la preuve
-                      </a>
-                    </div>
-                  ) : null}
-                  {/* Sous-ligne d'actions : le composant se rend lui-même nul
-                      pour qui ne porte aucun des pouvoirs, donc rien ici ne
-                      réserve d'espace au visiteur public (#439). */}
-                  <ParticipationAdminActions
-                    resultat={{
-                      id: p.id,
-                      epreuve: p.course?.name ?? "cette épreuve",
-                      date: p.course?.event_date ?? null,
-                      coureur: fullName,
-                      coureurId: athlete.id,
-                    }}
-                    style={{ padding: `0 ${PADDING_X}px 14px` }}
-                  />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </Card>
+      <EventsTable participations={participations} athleteId={athlete.id} athleteName={fullName} />
     </PageShell>
   );
 }

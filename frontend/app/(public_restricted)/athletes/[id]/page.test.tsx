@@ -8,7 +8,15 @@ vi.mock("@/lib/api/server", () => ({
   apiServer: { getAthlete: (id: number) => getAthlete(id) },
 }));
 
-vi.mock("next/navigation", () => ({ notFound: vi.fn(), useRouter: () => ({ refresh: vi.fn() }) }));
+// `usePathname`/`useSearchParams` : le tableau des épreuves est un composant
+// client depuis qu'il porte ses filtres (#489), et il lit l'URL. Les tests de
+// ces filtres vivent dans `EventsTable.test.tsx` ; ici, l'URL reste nue.
+vi.mock("next/navigation", () => ({
+  notFound: vi.fn(),
+  useRouter: () => ({ refresh: vi.fn() }),
+  usePathname: () => "/athletes/7",
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 // `AthleteAdminPanel` et `ParticipationAdminActions` sont testés pour eux-mêmes
 // dans leurs propres fichiers (visibilité pouvoir par pouvoir, formulaire,
