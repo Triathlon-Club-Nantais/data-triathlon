@@ -68,6 +68,7 @@ ADMIN_PUBLIQUES = {
 #: `DELETE /benevoles/session` restent hors de cet ensemble : la première pose
 #: la garde des autres, la seconde n'a aucun effet de bord sensible.
 ROUTES_BENEVOLES_FERMEES = {
+    ("GET", "/api/v1/benevoles/athletes"),
     ("GET", "/api/v1/benevoles/queue"),
     ("GET", "/api/v1/benevoles/rejected"),
     ("PATCH", "/api/v1/benevoles/courses/{course_id}"),
