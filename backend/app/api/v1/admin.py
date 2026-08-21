@@ -82,7 +82,7 @@ def set_course_reliability(
     course_id: int,
     body: CourseReliabilityUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission(P.QUALITY_OVERRIDE)),
+    user: User = Depends(require_permission(P.QUALITY_OVERRIDE)),
 ):
     """Tranche à la main la fiabilité d'une épreuve, contre l'avis calculé.
 
@@ -95,7 +95,13 @@ def set_course_reliability(
     course = course_repository.get(db, course_id)
     if course is None:
         raise NotFoundError("Épreuve introuvable")
-    course_review.set_override(db, course, verdict=body.reliability_override)
+    course_review.set_override(
+        db,
+        course,
+        verdict=body.reliability_override,
+        user_id=user.id,
+        notes=body.notes,
+    )
     db.commit()
     db.refresh(course)
     return course
