@@ -34,7 +34,7 @@ describe("describeQualityIssues", () => {
 
   it("rend `no_participation` sans compteur (toujours 1)", () => {
     expect(describeQualityIssues({ no_participation: 1 })).toEqual([
-      "Course importée sans participation",
+      "Épreuve importée sans aucun résultat",
     ]);
   });
 
@@ -57,7 +57,7 @@ describe("QUALITY_ISSUE_LABELS", () => {
     expect(QUALITY_ISSUE_LABELS.duplicate_rank).toBe("Rangs partagés");
     expect(QUALITY_ISSUE_LABELS.finisher_without_time).toBe("Finishers sans temps");
     expect(QUALITY_ISSUE_LABELS.unknown_status).toBe("Statuts hors nomenclature");
-    expect(QUALITY_ISSUE_LABELS.no_participation).toBe("Course importée sans participation");
+    expect(QUALITY_ISSUE_LABELS.no_participation).toBe("Épreuve importée sans aucun résultat");
   });
 
   it("n'a pas de libellé pour un code inconnu (repli sur le code brut à l'appelant)", () => {
