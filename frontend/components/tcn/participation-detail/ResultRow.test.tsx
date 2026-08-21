@@ -83,6 +83,19 @@ describe("ResultRow", () => {
     expect(screen.getByText("56")).toBeTruthy();
   });
 
+  it("affiche le rang catégorie et le rang genre, pas seulement le rang scratch", () => {
+    renderRow();
+
+    expect(screen.getByText("4e cat.")).toBeTruthy();
+    expect(screen.getByText("41e genre")).toBeTruthy();
+  });
+
+  it("n'affiche pas d'eyebrow \"Ma performance\" — l'écran est public", () => {
+    renderRow();
+
+    expect(screen.queryByText("Ma performance")).toBeNull();
+  });
+
   it("affiche chaque segment publié par l'épreuve", () => {
     const { container } = renderRow();
 
@@ -128,6 +141,14 @@ describe("ResultRow", () => {
     expect(transition("swim")).toBe("false");
     expect(transition("bike")).toBe("false");
     expect(transition("run")).toBe("false");
+  });
+
+  it("délègue le point de rupture de la grille des segments au CSS (#462)", () => {
+    const { container } = renderRow();
+
+    const grid = container.querySelector(".result-segments-grid") as HTMLElement;
+    expect(grid).toBeTruthy();
+    expect(grid.style.gridTemplateColumns).toBe("");
   });
 
   it("n'ouvre pas de colonne pour un segment que l'épreuve ne publie pas", () => {
