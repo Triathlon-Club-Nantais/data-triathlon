@@ -48,14 +48,14 @@ beforeEach(() => {
 });
 
 describe("ReliabilityVerdictDialog", () => {
-  it("envoie true et les notes saisies pour « Marquer OK »", async () => {
+  it("envoie true et les notes saisies pour « Marquer fiable »", async () => {
     rendre("fiable");
 
     await userEvent.type(
       screen.getByLabelText(/motif/i),
       "Classement vérifié à la source.",
     );
-    await userEvent.click(screen.getByRole("button", { name: /confirmer/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^marquer fiable$/i }));
 
     await waitFor(() =>
       expect(setCourseReliability).toHaveBeenCalledWith(7, {
@@ -68,7 +68,7 @@ describe("ReliabilityVerdictDialog", () => {
   it("envoie false pour « Marquer douteuse »", async () => {
     rendre("douteuse");
 
-    await userEvent.click(screen.getByRole("button", { name: /confirmer/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^marquer douteuse$/i }));
 
     await waitFor(() =>
       expect(setCourseReliability).toHaveBeenCalledWith(7, { reliability_override: false }),
@@ -78,7 +78,7 @@ describe("ReliabilityVerdictDialog", () => {
   it("envoie null pour « Revenir à l'avis calculé »", async () => {
     rendre("calcule");
 
-    await userEvent.click(screen.getByRole("button", { name: /confirmer/i }));
+    await userEvent.click(screen.getByRole("button", { name: /revenir à l'avis calculé/i }));
 
     await waitFor(() =>
       expect(setCourseReliability).toHaveBeenCalledWith(7, { reliability_override: null }),
@@ -94,7 +94,7 @@ describe("ReliabilityVerdictDialog", () => {
   it("ferme après un envoi réussi", async () => {
     const { onOpenChange } = rendre("fiable");
 
-    await userEvent.click(screen.getByRole("button", { name: /confirmer/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^marquer fiable$/i }));
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
   });
@@ -121,7 +121,7 @@ describe("ReliabilityVerdictDialog", () => {
     );
     rendre("fiable");
 
-    const bouton = screen.getByRole("button", { name: /confirmer/i });
+    const bouton = screen.getByRole("button", { name: /^marquer fiable$/i });
     // `fireEvent`, pas `userEvent` : deux clics synchrones, enchaînés avant
     // que React n'ait eu la moindre chance de re-render `disabled`.
     fireEvent.click(bouton);

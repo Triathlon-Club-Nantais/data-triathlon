@@ -30,24 +30,41 @@ export type Verdict = "fiable" | "douteuse" | "calcule";
  * Le motif est **facultatif** : un verdict sans commentaire reste un verdict, et
  * rendre la saisie obligatoire ferait écrire « ok » trois cents fois.
  */
-const TEXTES: Record<Verdict, { titre: string; corps: string; valeur: boolean | null }> = {
+/**
+ * Un seul verbe par geste, porté identiquement par le bouton de ligne, le CTA
+ * de la modale et le toast de confirmation (revue UI/UX #119, constat 4) :
+ * « OK » était du jargon là où le domaine dit « fiable » partout (l'indice
+ * s'appelle « indice de fiabilité »), et « Confirmer » ne nommait pas le
+ * verdict posé, contrairement au reste du back-office (« Filtrer »,
+ * « Épreuve corrigée. »).
+ */
+const TEXTES: Record<
+  Verdict,
+  { titre: string; corps: string; valeur: boolean | null; cta: string; toast: string }
+> = {
   fiable: {
     titre: "Marquer cette épreuve comme fiable",
     corps:
       "Elle sortira de la file de revalidation. L'indice calculé, lui, est conservé : il reparaîtra si vous revenez à l'avis de la machine.",
     valeur: true,
+    cta: "Marquer fiable",
+    toast: "Épreuve marquée fiable.",
   },
   douteuse: {
     titre: "Marquer cette épreuve comme douteuse",
     corps:
       "Elle restera dans la file de revalidation, même si la machine ne relève plus rien après un re-scrape.",
     valeur: false,
+    cta: "Marquer douteuse",
+    toast: "Épreuve marquée douteuse.",
   },
   calcule: {
     titre: "Revenir à l'avis calculé",
     corps:
       "Votre décision est retirée et l'épreuve reprend le dernier verdict de la machine en date — pas celui qui valait au moment de votre décision.",
     valeur: null,
+    cta: "Revenir à l'avis calculé",
+    toast: "Avis calculé rétabli.",
   },
 };
 
@@ -91,6 +108,8 @@ export function ReliabilityVerdictDialog({
             key={`${course.id}-${verdict}`}
             courseId={course.id}
             valeur={textes.valeur}
+            cta={textes.cta}
+            toast={textes.toast}
             onOpenChange={onOpenChange}
           />
         )}
@@ -102,10 +121,14 @@ export function ReliabilityVerdictDialog({
 function Corps({
   courseId,
   valeur,
+  cta,
+  toast: toastMessage,
   onOpenChange,
 }: {
   courseId: number;
   valeur: boolean | null;
+  cta: string;
+  toast: string;
   onOpenChange: (ouvert: boolean) => void;
 }) {
   const [motif, setMotif] = useState("");
@@ -127,7 +150,7 @@ function Corps({
         verdict: valeur,
         notes: motif.trim() || undefined,
       });
-      toast.success("Décision enregistrée.");
+      toast.success(toastMessage);
       onOpenChange(false);
     } catch (erreur) {
       toast.error(erreur instanceof Error ? erreur.message : "Décision refusée.");
@@ -154,7 +177,7 @@ function Corps({
           Annuler
         </Button>
         <Button onClick={confirmer} disabled={decision.isPending}>
-          {decision.isPending ? "Enregistrement…" : "Confirmer"}
+          {decision.isPending ? "Enregistrement…" : cta}
         </Button>
       </DialogFooter>
     </>

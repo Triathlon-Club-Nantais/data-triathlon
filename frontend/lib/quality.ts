@@ -24,7 +24,7 @@ function describeIssue(code: string, count: number): string {
     case "unknown_status":
       return `${count} statut${plural(count, "", "s")} hors nomenclature`;
     case "no_participation":
-      return "Course importée sans participation";
+      return "Épreuve importée sans aucun résultat";
     default:
       return `${code}: ${count}`;
   }
@@ -48,5 +48,5 @@ export const QUALITY_ISSUE_LABELS: Record<string, string> = {
   duplicate_rank: "Rangs partagés",
   finisher_without_time: "Finishers sans temps",
   unknown_status: "Statuts hors nomenclature",
-  no_participation: "Course importée sans participation",
+  no_participation: "Épreuve importée sans aucun résultat",
 };
