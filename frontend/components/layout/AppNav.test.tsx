@@ -623,8 +623,10 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
       screen.getByRole("link", { name: "Groupes d'appartenance" }),
     ).toHaveAttribute("href", "/admin/groupes");
 
-    // « Revalidation qualité » reste `soon`, donc n'est pas rendue (#242).
-    expect(screen.queryByText("Revalidation qualité")).not.toBeInTheDocument();
+    // « Revalidation qualité » est livrée depuis #119 : elle mène quelque part.
+    expect(
+      screen.getByRole("link", { name: "Revalidation qualité" }),
+    ).toHaveAttribute("href", "/admin/quality");
   });
 });
 
