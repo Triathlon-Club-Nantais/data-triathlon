@@ -2,22 +2,39 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
-import type { PendingProvider } from "@/lib/types";
+import type { PendingProvider, SessionUser } from "@/lib/types";
 
-const { listPendingProviders, markProviderHandled } = vi.hoisted(() => ({
+const { listPendingProviders, markProviderHandled, getSession } = vi.hoisted(() => ({
   listPendingProviders: vi.fn(),
   markProviderHandled: vi.fn(),
+  getSession: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
   return {
     ...original,
-    apiClient: { listPendingProviders, markProviderHandled },
+    apiClient: { listPendingProviders, markProviderHandled, getSession },
   };
 });
 
 import { PendingProvidersTable } from "./PendingProvidersTable";
+
+/** Les deux pouvoirs des signalements sont distincts et attribuables séparément. */
+const MODERATEUR: SessionUser = {
+  id: 1,
+  email: "moi@exemple.fr",
+  display_name: "Moi",
+  created_at: "2026-01-01T00:00:00Z",
+  permissions: ["pending_providers:read", "pending_providers:handle"],
+  roles: [],
+  groups: [],
+};
+
+const LECTEUR: SessionUser = {
+  ...MODERATEUR,
+  permissions: ["pending_providers:read"],
+};
 
 const SIGNALEMENT: PendingProvider = {
   id: 1,
@@ -40,6 +57,9 @@ function afficher() {
 describe("PendingProvidersTable", () => {
   beforeEach(() => {
     listPendingProviders.mockReset();
+    markProviderHandled.mockReset();
+    getSession.mockReset();
+    getSession.mockResolvedValue(MODERATEUR);
   });
 
   it("affiche les signalements", async () => {
@@ -77,6 +97,36 @@ describe("PendingProvidersTable", () => {
 
     expect(await screen.findByText(/session expirée/i)).toBeInTheDocument();
     expect(screen.queryByText(/accès refusé/i)).not.toBeInTheDocument();
+  });
+
+  it("offre « Traité » à un porteur de pending_providers:handle", async () => {
+    listPendingProviders.mockResolvedValue([SIGNALEMENT]);
+
+    afficher();
+
+    expect(await screen.findByRole("button", { name: /traité/i })).toBeInTheDocument();
+  });
+
+  it("n'offre pas « Traité » sans pending_providers:handle", async () => {
+    // `pending_providers:read` a ouvert la liste ; le `DELETE` qui retire un
+    // signalement exige `pending_providers:handle`, distinct et attribuable
+    // séparément. Le bouton offert sans lui ne rend que des 403.
+    getSession.mockResolvedValue(LECTEUR);
+    listPendingProviders.mockResolvedValue([SIGNALEMENT]);
+
+    afficher();
+    await screen.findByText(SIGNALEMENT.url);
+
+    expect(screen.queryByRole("button", { name: /traité/i })).not.toBeInTheDocument();
+  });
+
+  it("dit qu'il est en consultation plutôt que de rester muet", async () => {
+    getSession.mockResolvedValue(LECTEUR);
+    listPendingProviders.mockResolvedValue([SIGNALEMENT]);
+
+    afficher();
+
+    expect(await screen.findByText(/en consultation/i)).toBeInTheDocument();
   });
 
   it("reste lisible sur une panne réseau", async () => {

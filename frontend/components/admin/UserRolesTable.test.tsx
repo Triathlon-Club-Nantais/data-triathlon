@@ -92,6 +92,15 @@ const MOI: SessionUser = {
   groups: [],
 };
 
+/**
+ * La même session privée du seul pouvoir d'écriture de l'écran : elle voit les
+ * utilisateurs et l'inventaire des rôles, elle n'en distribue aucun.
+ */
+const MOI_EN_LECTURE: SessionUser = {
+  ...MOI,
+  permissions: ["users:read", "roles:read"],
+};
+
 const CAMILLE: AdminUser = {
   id: 7,
   email: "camille@exemple.fr",
@@ -266,6 +275,50 @@ describe("UserRolesTable", () => {
     expect(
       within(selecteur).getByRole("option", { name: ADMINISTRATEUR.name }),
     ).toBeEnabled();
+  });
+
+  it("n'offre ni attribution ni retrait sans roles:assign", async () => {
+    // `users:read` ouvre la liste, `roles:assign` seul autorise les deux
+    // écritures (`POST` et `DELETE /admin/users/{id}/roles`). Offerts sans ce
+    // pouvoir, le sélecteur et la croix rendent 403 à chaque geste, et rien à
+    // l'écran ne distingue « je m'y prends mal » de « je n'ai pas le droit ».
+    getSession.mockResolvedValue(MOI_EN_LECTURE);
+    listAdminUsers.mockResolvedValue([CAMILLE]);
+
+    afficher();
+    await screen.findByText(CAMILLE.email);
+
+    expect(
+      screen.queryByLabelText(/attribuer un rôle à camille durand/i),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /retirer le rôle administrateur/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("dit qu'il est en consultation plutôt que de rester muet", async () => {
+    // Sans la phrase, l'écran privé de ses deux contrôles ressemble à un écran
+    // cassé — c'est la phrase que `RolePermissionsEditor` sait déjà dire.
+    getSession.mockResolvedValue(MOI_EN_LECTURE);
+    listAdminUsers.mockResolvedValue([CAMILLE]);
+
+    afficher();
+
+    expect(await screen.findByText(/en consultation/i)).toBeInTheDocument();
+  });
+
+  it("porteur de roles:assign, garde ses deux contrôles et se taît", async () => {
+    listAdminUsers.mockResolvedValue([CAMILLE]);
+
+    afficher();
+
+    expect(
+      await screen.findByLabelText(/attribuer un rôle à camille durand/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /retirer le rôle administrateur/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/en consultation/i)).not.toBeInTheDocument();
   });
 
   it("retire un rôle porté", async () => {
