@@ -139,6 +139,38 @@ describe("QualityQueueTable", () => {
     expect(screen.queryByText("Triathlon de Carnac")).not.toBeInTheDocument();
   });
 
+  it("distingue la file vide du filtre qui vide la page (AC…)", async () => {
+    // Le filtre d'anomalie agit côté client, sur la page affichée (limite
+    // assumée) : un code qui matchait sur la page 1 peut ne plus matcher sur
+    // la page 2, sans que la file soit vide pour autant — deux messages
+    // différents, pas le même.
+    listCourses.mockImplementation((opts: { page?: number } = {}) =>
+      Promise.resolve(opts.page === 2 ? [CARNAC] : [VERTOU, CARNAC]),
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { rerender } = render(
+      <QueryClientProvider client={client}>
+        <QualityQueueTable />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText("Triathlon de Vertou");
+    await userEvent.selectOptions(screen.getByLabelText(/anomalie/i), "rank_gap");
+    expect(screen.getByText("Triathlon de Vertou")).toBeInTheDocument();
+    expect(screen.queryByText("Triathlon de Carnac")).not.toBeInTheDocument();
+
+    rerender(
+      <QueryClientProvider client={client}>
+        <QualityQueueTable page={2} />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByText(/aucune épreuve ne porte cette anomalie sur cette page/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/aucune épreuve à revalider/i)).not.toBeInTheDocument();
+  });
+
   it("annonce une file vide sans faire disparaître ses filtres", async () => {
     listCourses.mockResolvedValue([]);
     countCourses.mockResolvedValue({ total: 0 });

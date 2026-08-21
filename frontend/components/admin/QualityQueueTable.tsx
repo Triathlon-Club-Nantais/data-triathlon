@@ -169,10 +169,18 @@ export function QualityQueueTable({
     <div className="space-y-4">
       {barre}
 
-      {affichees.length === 0 ? (
+      {lignes.length === 0 ? (
         <EmptyState
           title="Aucune épreuve à revalider"
           description="Toutes les épreuves du catalogue passent l'indice de fiabilité, ou ont été tranchées à la main."
+        />
+      ) : affichees.length === 0 ? (
+        // Le filtre d'anomalie n'agit que sur la page affichée (limite
+        // assumée, voir la doc du composant) : il peut vider une page tout en
+        // laissant du monde ailleurs — distinct de la file réellement vide.
+        <EmptyState
+          title="Aucune épreuve ne porte cette anomalie sur cette page"
+          description="Le filtre ne s'applique qu'à la page affichée. Changez de page ou choisissez une autre anomalie."
         />
       ) : (
         <Table>
@@ -181,7 +189,6 @@ export function QualityQueueTable({
               <TableHead>Épreuve</TableHead>
               <TableHead>Date</TableHead>
               <TableHead>Anomalies</TableHead>
-              <TableHead>Verdict</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -201,11 +208,6 @@ export function QualityQueueTable({
                       <li key={phrase}>{phrase}</li>
                     ))}
                   </ul>
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {/* Le calculé **et** l'humain : ils ne se déduisent pas l'un de
-                      l'autre, et c'est ce qu'une interface de revue doit montrer. */}
-                  Machine : {libelleVerdict(course.is_reliable)}
                 </TableCell>
                 <TableCell className="space-x-2 text-right">
                   {peutTrancher && (
@@ -302,10 +304,4 @@ export function QualityQueueTable({
       )}
     </div>
   );
-}
-
-function libelleVerdict(verdict: boolean | null | undefined): string {
-  if (verdict === true) return "fiable";
-  if (verdict === false) return "douteuse";
-  return "jamais évaluée";
 }
