@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,7 +46,7 @@ const TEXTES: Record<Verdict, { titre: string; corps: string; valeur: boolean | 
   calcule: {
     titre: "Revenir à l'avis calculé",
     corps:
-      "Votre décision est retirée et l'épreuve reprend le **dernier** verdict de la machine — pas celui qui valait au moment de votre décision.",
+      "Votre décision est retirée et l'épreuve reprend le dernier verdict de la machine en date — pas celui qui valait au moment de votre décision.",
     valeur: null,
   },
 };
@@ -110,8 +110,17 @@ function Corps({
 }) {
   const [motif, setMotif] = useState("");
   const decision = useSetCourseReliability();
+  // Garde **synchrone**, pas `decision.isPending` : cet état ne se met à jour
+  // qu'au re-render que déclenche TanStack Query après le démarrage de
+  // `mutateAsync`, un tick après le clic. Deux clics enchaînés dans le même
+  // tick (double-clic réel) le liraient donc tous les deux à `false` et
+  // passeraient au travers — un `useRef` change de valeur immédiatement,
+  // sans attendre de re-render, et ferme la fenêtre.
+  const enVol = useRef(false);
 
   async function confirmer() {
+    if (enVol.current) return;
+    enVol.current = true;
     try {
       await decision.mutateAsync({
         courseId,
@@ -122,6 +131,8 @@ function Corps({
       onOpenChange(false);
     } catch (erreur) {
       toast.error(erreur instanceof Error ? erreur.message : "Décision refusée.");
+    } finally {
+      enVol.current = false;
     }
   }
 
