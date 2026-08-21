@@ -323,6 +323,10 @@ export function useUpdateCourse() {
  * `verdict: null` **lève** l'avis humain. L'invalidation de « admin-courses »
  * suffit à faire sortir la ligne de la file : la file n'est qu'une vue filtrée
  * du catalogue, il n'y a aucune seconde liste à tenir à jour (AC4).
+ *
+ * `resultatsPublics` aussi, même raison que `useUpdateAthlete` : `is_reliable`
+ * pilote un marqueur sur la fiche athlète (`app/athletes/[id]/page.tsx`), qui
+ * resterait périmé jusqu'au prochain montage sans cette invalidation.
  */
 export function useSetCourseReliability() {
   const qc = useQueryClient();
@@ -343,6 +347,7 @@ export function useSetCourseReliability() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.courses });
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.detailEpreuve });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.resultatsPublics });
     },
   });
 }
