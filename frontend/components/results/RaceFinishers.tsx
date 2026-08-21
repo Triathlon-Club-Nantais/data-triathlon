@@ -426,6 +426,8 @@ function EnteteTriable({
       type="button"
       onClick={() => onTrier(cle)}
       aria-label={`Trier par ${ariaSujet}, ${prochaineDirection === "asc" ? "croissant" : "décroissant"}`}
+      // `padding` + `minHeight: 24` : plancher tactile WCAG 2.2 2.5.8, contre
+      // 11 px sans padding avant #479.
       style={{
         font: "inherit",
         fontSize: 11,
@@ -435,7 +437,10 @@ function EnteteTriable({
         color: actif ? "var(--tcn-ink)" : "inherit",
         background: "none",
         border: "none",
-        padding: 0,
+        padding: "4px 0",
+        minHeight: 24,
+        display: "inline-flex",
+        alignItems: "center",
         cursor: "pointer",
       }}
     >

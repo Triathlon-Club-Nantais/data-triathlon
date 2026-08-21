@@ -313,6 +313,30 @@ describe("AllowedEmailsTable", () => {
     expect(await screen.findByText(ADRESSE.email)).toBeInTheDocument();
   });
 
+  it("empile le formulaire d'ajout en colonne sous le point de rupture sm (#479, ADM-11)", async () => {
+    // À 375 px, `flex items-end gap-2` sans `flex-wrap` écrasait le champ
+    // e-mail contre un `<select>` en `w-48` fixe.
+    listAllowedEmails.mockResolvedValue([]);
+
+    afficher();
+    await screen.findByText(/aucune adresse autorisée/i);
+    const formulaire = screen.getByLabelText(/adresse à autoriser/i).closest("form");
+
+    expect(formulaire?.className).toMatch(/(^|\s)flex-col(\s|$)/);
+    expect(formulaire?.className).toMatch(/(^|\s)sm:flex-row(\s|$)/);
+  });
+
+  it("laisse le sélecteur de rôle prendre toute la largeur sous le point de rupture sm (#479, ADM-11)", async () => {
+    listAllowedEmails.mockResolvedValue([]);
+
+    afficher();
+    const selecteur = await screen.findByLabelText(/rôle à l'inscription/i);
+
+    expect(selecteur.className).toMatch(/(^|\s)w-full(\s|$)/);
+    expect(selecteur.className).not.toMatch(/(^|\s)w-48(\s|$)/);
+    expect(selecteur.className).toMatch(/(^|\s)sm:w-48(\s|$)/);
+  });
+
   it("n'envoie rien sur un formulaire vide", async () => {
     listAllowedEmails.mockResolvedValue([]);
 

@@ -74,6 +74,10 @@ export function SeasonSelector({ seasons }: { seasons: Season[] }) {
           alignItems: "center",
           gap: 8,
           padding: "8px 14px",
+          // Plancher tactile WCAG 2.2 2.5.8 (#479) : un des trois contrôles
+          // de la barre d'outils du dashboard mesurés entre 26 et 34 px par
+          // l'audit UI/UX.
+          minHeight: 28,
           borderRadius: 10,
           border: "1px solid var(--tcn-border)",
           background: "var(--tcn-surface, #fff)",

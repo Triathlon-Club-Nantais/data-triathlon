@@ -38,4 +38,18 @@ describe("DisciplineToggle", () => {
     const url = push.mock.calls[0][0] as string;
     expect(url).not.toContain("rank=");
   });
+
+  it("porte la case à la taille tactile minimale (24 px, #479)", () => {
+    // WCAG 2.2 2.5.8 : 24 px CSS minimum. `size-3.5` (14 px) était sous le
+    // plancher.
+    render(<DisciplineToggle />);
+    expect(screen.getByRole("checkbox").className).toMatch(/(^|\s)size-6(\s|$)/);
+  });
+
+  it("porte le contrôle entier à la taille tactile minimale (28 px, #479)", () => {
+    // Un des trois contrôles de la barre d'outils du dashboard mesurés entre
+    // 26 et 34 px selon l'audit UI/UX — un plancher explicite lève le doute.
+    render(<DisciplineToggle />);
+    expect(screen.getByRole("checkbox").closest("label")?.className).toMatch(/(^|\s)min-h-7(\s|$)/);
+  });
 });

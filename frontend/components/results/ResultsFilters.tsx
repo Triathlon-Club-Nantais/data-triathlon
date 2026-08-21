@@ -210,16 +210,20 @@ export function ResultsFilters() {
         {active.length > 0 && (
           <div className="flex flex-wrap gap-2 border-t pt-3">
             {active.map((chip) => (
-              <Badge key={chip.key} variant="secondary" className="gap-1 pr-1">
+              // `h-7` (28 px) : le badge grandit avec la croix — sans quoi
+              // `overflow-hidden` (badge, `h-5` par défaut) la retaillerait à
+              // sa taille d'origine, 16 px (#479).
+              <Badge key={chip.key} variant="secondary" className="h-7 gap-1 pr-1">
                 {chip.label}
-                <button
-                  type="button"
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  className="rounded-full p-0"
                   onClick={() => removeChip(chip.key)}
                   aria-label={`Retirer ${chip.label}`}
-                  className="rounded-sm p-0.5 hover:bg-foreground/10"
                 >
                   <X className="size-3" />
-                </button>
+                </Button>
               </Badge>
             ))}
           </div>

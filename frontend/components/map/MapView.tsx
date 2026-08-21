@@ -21,6 +21,16 @@ L.Icon.Default.mergeOptions({
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
 
+/**
+ * Rayon (px) d'un cercle de la carte, proportionnel au nombre de
+ * participants. Le plancher est le rayon d'une cible tactile de 24 px de
+ * diamètre (WCAG 2.2 2.5.8) — sous ce seuil, un cercle représentant une
+ * épreuve à faible effectif devenait un point cliquable de 20 px (#479).
+ */
+export function rayonCercle(count: number, maxCount: number): number {
+  return Math.max(12, Math.min(40, 10 + (count / maxCount) * 30));
+}
+
 function FitBounds({ events }: { events: GeoEvent[] }) {
   const map = useMap();
   useEffect(() => {
@@ -113,7 +123,7 @@ export function MapView({ scope }: { scope?: string }) {
           maxZoom={13}
         />
         {events.map((ev, i) => {
-          const radius = Math.max(10, Math.min(40, 10 + (ev.count / maxCount) * 30));
+          const radius = rayonCercle(ev.count, maxCount);
           const teinte = ev.tcn_count > 0 ? COULEURS_CARTE.avecTcn : COULEURS_CARTE.sansTcn;
           return (
             <CircleMarker

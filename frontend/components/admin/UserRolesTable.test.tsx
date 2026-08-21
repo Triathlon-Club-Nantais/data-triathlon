@@ -336,6 +336,23 @@ describe("UserRolesTable", () => {
     );
   });
 
+  it("porte la croix de retrait de rôle à la taille tactile minimale (24 px, #479)", async () => {
+    // WCAG 2.2 2.5.8 : 24 px CSS minimum. `size-4` (16 px) était sous le
+    // plancher ; `icon-xs` (24 px) est déjà le plus petit format que
+    // `ui/button` propose.
+    listAdminUsers.mockResolvedValue([CAMILLE]);
+
+    afficher();
+    const croix = await screen.findByRole("button", {
+      name: /retirer le rôle administrateur/i,
+    });
+
+    expect(croix.className).toMatch(/(^|\s)size-6(\s|$)/);
+    // Le badge qui l'entoure grandit avec elle : sans quoi `overflow-hidden`
+    // (badge, `h-5` par défaut) la retaillerait à sa taille d'origine.
+    expect(croix.parentElement?.className).toMatch(/(^|\s)h-7(\s|$)/);
+  });
+
   it("affiche le refus du dernier administrateur tel que rendu par l'API", async () => {
     // 409 : l'appelant est bien administrateur et sa requête bien formée, c'est
     // le résultat qui est interdit. Le message vient du serveur — le front le
