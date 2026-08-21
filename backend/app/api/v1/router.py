@@ -36,7 +36,7 @@ api_router = APIRouter()
 
 # La garde `require_site_access` (#509) ferme tout, à l'inclusion — jamais sur
 # le router lui-même (`module.router.dependencies` reste `[]`, cf.
-# `test_aucune_dependance_globale_sur_les_routers_existants`). Cinq
+# `test_aucune_dependance_globale_sur_les_routers_existants`). Six
 # exceptions nommées (design § Garde backend) : `health` (infra), `site_access`
 # (pose le cookie, ne peut pas exiger sa propre présence), `benevoles` (#271 —
 # population potentiellement non-adhérente), et `auth`/`admin_site_access` —
@@ -50,7 +50,16 @@ api_router = APIRouter()
 # `auth` par ses propres contrôles (liste d'autorisation, #170) — le même
 # patron que `admin_benevole_access`, jamais doublement gardé par
 # `require_benevole_access`.
-_EXEMPTES_DE_LA_GARDE_SITE = (health, site_access, auth, admin_site_access, benevoles)
+#
+# La sixième, `feedback`, est venue de la revue de #513 : `FeedbackButton` vit
+# dans le layout **racine** du front, donc il s'affiche aussi sur `/acces` et
+# `/benevoles`, les deux pages hors garde — le visiteur bloqué sur l'écran de
+# mot de passe, soit exactement la personne la plus susceptible de signaler
+# « je n'arrive pas à entrer », se prenait un 401 à la soumission. Ce qui la
+# borne reste ce qui la bornait déjà (honeypot et plafond compté en base,
+# `services/feedback_service`), et elle n'écrit qu'une ligne sans jamais rien
+# rendre à lire : `admin_feedback`, qui expose les signalements, reste gardée.
+_EXEMPTES_DE_LA_GARDE_SITE = (health, site_access, auth, admin_site_access, benevoles, feedback)
 
 for module in _EXEMPTES_DE_LA_GARDE_SITE:
     api_router.include_router(module.router)
@@ -61,7 +70,6 @@ for module in (
     courses,
     participations,
     stats,
-    feedback,
     admin,
     admin_allowed_emails,
     admin_batches,
