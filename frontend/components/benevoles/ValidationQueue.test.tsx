@@ -127,4 +127,17 @@ describe("ValidationQueue", () => {
     expect(screen.getByText(/MARTIN/)).toBeInTheDocument();
     expect(screen.queryByText(/DUPONT/)).not.toBeInTheDocument();
   });
+
+  it("porte les onglets à la taille tactile minimale (24 px, #479)", () => {
+    // WCAG 2.2 2.5.8 : 24 px CSS minimum. Sans padding, les onglets ne
+    // faisaient que la hauteur de leur texte, ~20 px.
+    render(
+      <ValidationQueue participations={[p({ id: 1 })]} selectedId={null} onSelect={vi.fn()} />,
+    );
+
+    const file = screen.getByRole("button", { name: /^File/ });
+    const nonConformes = screen.getByRole("button", { name: /non conformes/i });
+    expect(Number.parseInt(file.style.minHeight, 10)).toBeGreaterThanOrEqual(24);
+    expect(Number.parseInt(nonConformes.style.minHeight, 10)).toBeGreaterThanOrEqual(24);
+  });
 });

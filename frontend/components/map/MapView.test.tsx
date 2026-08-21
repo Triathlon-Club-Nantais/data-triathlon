@@ -20,7 +20,17 @@ vi.mock("react-leaflet", () => ({
 }));
 
 import { LIBELLE_CHARGEMENT } from "./carte";
-import { MapView } from "./MapView";
+import { MapView, rayonCercle } from "./MapView";
+
+describe("rayonCercle", () => {
+  it("ne descend jamais sous 12 px — 24 px de diamètre, le plancher tactile WCAG 2.2 2.5.8 (#479)", () => {
+    expect(rayonCercle(1, 1000)).toBeGreaterThanOrEqual(12);
+  });
+
+  it("reste borné à 40 px pour la plus grosse épreuve", () => {
+    expect(rayonCercle(1000, 1000)).toBe(40);
+  });
+});
 
 function epreuve(over: Partial<GeoEvent> = {}): GeoEvent {
   return { event_name: "Triathlon de Nantes", event_date: "2026-06-14", event_type: "triathlon", count: 320, tcn_count: 2, lat: 47.2, lon: -1.5, ...over };

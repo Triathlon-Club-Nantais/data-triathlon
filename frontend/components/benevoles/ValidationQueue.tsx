@@ -26,11 +26,13 @@ export function ValidationQueue({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ display: "flex", gap: 8 }}>
+        {/* `minHeight: 28`, `padding` : plancher tactile WCAG 2.2 2.5.8, contre
+            ~20 px sans padding avant #479. */}
         <button
           type="button"
           onClick={() => setOnglet("file")}
           aria-pressed={onglet === "file"}
-          style={{ fontWeight: onglet === "file" ? 700 : 400, background: "none", border: "none", cursor: "pointer" }}
+          style={{ fontWeight: onglet === "file" ? 700 : 400, background: "none", border: "none", cursor: "pointer", padding: "6px 4px", minHeight: 28, display: "inline-flex", alignItems: "center" }}
         >
           File ({participations.length})
         </button>
@@ -38,7 +40,7 @@ export function ValidationQueue({
           type="button"
           onClick={() => setOnglet("non-conformes")}
           aria-pressed={onglet === "non-conformes"}
-          style={{ fontWeight: onglet === "non-conformes" ? 700 : 400, background: "none", border: "none", cursor: "pointer" }}
+          style={{ fontWeight: onglet === "non-conformes" ? 700 : 400, background: "none", border: "none", cursor: "pointer", padding: "6px 4px", minHeight: 28, display: "inline-flex", alignItems: "center" }}
         >
           Non conformes ({rejected.length})
         </button>

@@ -465,4 +465,15 @@ describe("RaceFinishers", () => {
 
     expect(screen.getByRole("status")).toHaveTextContent(/temps total.*croissant/i);
   });
+
+  // ── Cible tactile (#479) ────────────────────────────────────────────────────
+
+  it("porte l'en-tête triable à la taille tactile minimale (24 px)", () => {
+    // WCAG 2.2 2.5.8 : 24 px CSS minimum. `padding: 0` sur un texte de 11 px
+    // ne laissait qu'une bande de ~11 px cliquable.
+    afficher();
+
+    const entete = screen.getByRole("button", { name: /trier par temps total/i });
+    expect(Number.parseInt(entete.style.minHeight, 10)).toBeGreaterThanOrEqual(24);
+  });
 });

@@ -117,13 +117,16 @@ export function UserRolesTable() {
                     ) : (
                       <div className="flex flex-wrap gap-1">
                         {utilisateur.roles.map((role) => (
-                          <Badge key={role.id} variant="secondary" className="gap-1 pr-1">
+                          // `h-7` (28 px) : le badge grandit avec la croix — sans
+                          // quoi `overflow-hidden` (badge, `h-5` par défaut) la
+                          // retaillerait à sa taille d'origine, 16 px (#479).
+                          <Badge key={role.id} variant="secondary" className="h-7 gap-1 pr-1">
                             {role.name}
                             {peutAttribuer && (
                               <Button
-                                size="sm"
+                                size="icon-xs"
                                 variant="ghost"
-                                className="size-4 rounded-full p-0 text-xs"
+                                className="rounded-full p-0 text-xs"
                                 aria-label={`Retirer le rôle ${role.name} de ${utilisateur.display_name}`}
                                 onClick={() => oter(utilisateur, role)}
                               >

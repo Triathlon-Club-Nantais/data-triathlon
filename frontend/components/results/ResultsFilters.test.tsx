@@ -20,15 +20,17 @@ describe("buildResultsQuery", () => {
 
 const push = vi.fn();
 const replace = vi.fn();
+let searchParams = new URLSearchParams();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, replace }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => searchParams,
 }));
 
 describe("ResultsFilters — recherche live", () => {
   beforeEach(() => {
     push.mockReset();
     replace.mockReset();
+    searchParams = new URLSearchParams();
   });
 
   it("filtre sur le nom d'athlète dès la frappe, sans clic ni Entrée", async () => {
@@ -85,5 +87,17 @@ describe("ResultsFilters — recherche live", () => {
       expect(replace).toHaveBeenCalled();
     });
     expect(replace.mock.calls.at(-1)?.[0]).not.toContain("date_from=");
+  });
+
+  it("porte la croix de retrait d'un chip de filtre à la taille tactile minimale (24 px, #479)", async () => {
+    // WCAG 2.2 2.5.8 : 24 px CSS minimum. `size-3` + `p-0.5` (16 px) était
+    // sous le plancher.
+    searchParams = new URLSearchParams("name=marie");
+    render(<ResultsFilters />);
+
+    const croix = await screen.findByRole("button", { name: /retirer athlète/i });
+
+    expect(croix.className).toMatch(/(^|\s)size-6(\s|$)/);
+    expect(croix.parentElement?.className).toMatch(/(^|\s)h-7(\s|$)/);
   });
 });

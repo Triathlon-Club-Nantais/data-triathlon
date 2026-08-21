@@ -41,4 +41,11 @@ describe("SegmentedControl", () => {
     expect(screen.getByRole("button", { name: "Tous les coureurs (42)" })).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByRole("button", { name: "TCN (7)" })).toHaveAttribute("aria-pressed", "true");
   });
+
+  it("porte chaque segment à la taille tactile minimale (28 px, #479)", () => {
+    // Un des trois contrôles de la barre d'outils du dashboard mesurés entre
+    // 26 et 34 px selon l'audit UI/UX — un plancher explicite lève le doute.
+    render(<SegmentedControl value="a" onChange={() => {}} options={["a", "b"]} />);
+    expect(Number.parseInt(screen.getByRole("button", { name: "a" }).style.minHeight, 10)).toBeGreaterThanOrEqual(28);
+  });
 });

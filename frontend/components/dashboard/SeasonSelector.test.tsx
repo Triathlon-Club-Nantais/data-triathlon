@@ -73,6 +73,14 @@ describe("SeasonSelector", () => {
     expect(list).not.toBeNull();
     expect(list?.className).toContain("data-pending:opacity-70");
   });
+
+  it("porte le déclencheur à la taille tactile minimale (28 px, #479)", () => {
+    // Un des trois contrôles de la barre d'outils du dashboard mesurés entre
+    // 26 et 34 px selon l'audit UI/UX — un plancher explicite lève le doute.
+    render(<SeasonSelector seasons={SEASONS} />);
+    const declencheur = screen.getByLabelText("Choisir les saisons");
+    expect(Number.parseInt(declencheur.style.minHeight, 10)).toBeGreaterThanOrEqual(28);
+  });
 });
 
 describe("SeasonSelector — le déclencheur ne porte plus les tags (#445)", () => {

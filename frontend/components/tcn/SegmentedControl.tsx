@@ -57,6 +57,10 @@ export function SegmentedControl({
               gap: 8,
               flex: tone === "orange" ? 1 : "none",
               padding: tone === "orange" ? "10px 0" : "9px 16px",
+              // Plancher tactile WCAG 2.2 2.5.8 (#479) : un des trois
+              // contrôles de la barre d'outils du dashboard mesurés entre
+              // 26 et 34 px par l'audit UI/UX.
+              minHeight: 28,
               borderRadius: "var(--tcn-radius-lg)",
               fontFamily: tone === "orange" ? "var(--tcn-font-display)" : "var(--tcn-font-body)",
               fontSize: tone === "orange" ? 17 : 13,
