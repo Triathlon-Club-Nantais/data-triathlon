@@ -1,8 +1,6 @@
 "use client";
-import { useEffect } from "react";
 import { ErrorScreen } from "@/components/tcn/ErrorScreen";
 import { PageShell } from "@/components/layout/PageShell";
-import { captureEvent } from "@/lib/posthog";
 
 /**
  * Frontière d'erreur des pages — tout ce qui est sous le layout racine.
@@ -20,10 +18,9 @@ import { captureEvent } from "@/lib/posthog";
  *   son bouton flottant est donc déjà à l'écran ; un second exemplaire les
  *   empilerait. `global-error.tsx`, qui remplace le layout, porte le sien.
  *
- * `instrumentation-client.ts` remonte déjà les exceptions non rattrapées
- * (`capture_exceptions`). L'événement ci-dessous est autre chose : il mesure
- * combien de visiteurs *voient* l'écran de panne, et le rattache au `digest`
- * qu'ils recopieront dans un signalement.
+ * La mesure PostHog de l'affichage vit dans `ErrorScreen`, pour que
+ * `global-error.tsx` la porte aussi : c'est la panne la plus grave et c'était la
+ * moins comptée.
  */
 export default function ErrorBoundary({
   error,
@@ -32,10 +29,6 @@ export default function ErrorBoundary({
   error: Error & { digest?: string };
   retry: () => void;
 }) {
-  useEffect(() => {
-    captureEvent("error_screen_shown", { digest: error.digest ?? null });
-  }, [error.digest]);
-
   return (
     <PageShell>
       <ErrorScreen onRetry={retry} digest={error.digest} />
