@@ -238,6 +238,11 @@ Le levier 2 est tranché par la ligne du bas : 5 exécutions consécutives au re
 Le gain réel de la branche côté back est **1,66×** (58,2 → 35 s) : la colonne
 « avant » du sondage initial était chargée.
 
+Le décompte front passe de **118 fichiers / 939 tests** à **119 / 941** : la
+branche ajoute `test/environments.test.ts` et ses deux cas. Les 118 / 939 du
+§ Frontend sont donc justes — ce sont ceux d'**avant**, et ils ne contredisent pas
+les 119 / 941 qu'on relève après.
+
 ### Le coût de `-v`, remesuré
 
 Un premier A/B (tâche 4, bras **non entrelacés** : AA puis BB) donnait avec-v =

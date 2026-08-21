@@ -104,7 +104,11 @@ tasks:
     desc: 'backend : tous les tests (unitaires + intégration)'
     dir: backend
     cmds:
-      - uv run pytest
+      # `-n 0` pour la même raison qu'au-dessus : cette tâche embarque les tests
+      # d'intégration, donc le `-n 4` d'`addopts` y quadruplerait aussi le débit
+      # sortant. On paie ~23 s sur la partie unitaire, ce que la seule tâche qui
+      # sort sur le réseau peut assumer — `b:test` reste parallèle.
+      - uv run pytest -n 0
 
   b:lint:
     desc: 'backend : lint ruff'
