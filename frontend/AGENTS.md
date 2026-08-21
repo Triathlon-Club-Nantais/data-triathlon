@@ -65,7 +65,16 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   `DisciplineToggle` gardent `router.push` — les basculer serait un bug
   silencieux, la page continuant de lire l'ancienne valeur sans erreur visible.
   L'asymétrie est voulue ; elle se re-tranche paramètre par paramètre, jamais
-  par harmonisation.
+  par harmonisation. `?season=` et `?discipline=`, les deux filtres du tableau
+  d'`/athletes/[id]` (#489), tombent du côté `pushState` : `GET /athletes/{id}`
+  rend **toutes** les participations en un appel, donc `EventsTable` filtre en
+  mémoire et un `push` ne referait ce fetch que pour redonner ce que le client
+  tient déjà. Leurs jumeaux de `/club/athletes` n'ont pas pu être réemployés :
+  le défaut de `SeasonSelector` est la saison en cours, celui de
+  `DisciplineToggle` la seule fédération triathlon — sur un profil qui s'annonce
+  « Toutes les épreuves », ces défauts escamotent neuf saisons sur dix et tout
+  le hors-triathlon sans que personne l'ait demandé. Ici le défaut est « tout »,
+  et une valeur d'URL qui ne correspond à aucune épreuve y retombe en silence.
 - `components/` — `scrape/` (TcnScrapeForm, ProviderDetector, ImportProgress),
   `results/` (ResultCard, ResultsList), `club/` (ClubDashboard, PodiumsList),
   `map/` (MapView), `dashboard/` (StatCardsRank, RecentCourses), plus les deux

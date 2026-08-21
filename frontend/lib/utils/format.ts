@@ -21,6 +21,48 @@ export function formatToken(
   return "—";
 }
 
+/**
+ * Disciplines connues, telles qu'elles sont nommées dans `EVENT_TYPE_LABELS`.
+ * Un `event_type` en base y ajoute son format (`triathlon-m`, `cyclisme-clm`,
+ * `course-a-pied-semi`) : c'est ce préfixe qui nomme la discipline.
+ */
+const DISCIPLINES = [
+  "triathlon",
+  "duathlon",
+  "swimrun",
+  "aquathlon",
+  "aquarun",
+  "bike-run",
+  "swim-bike",
+  "cross-triathlon",
+  "raid-multisport",
+  "course-a-pied",
+  "trail",
+  "cyclisme",
+];
+
+/**
+ * Discipline d'une épreuve, format mis de côté : « triathlon-m » → « triathlon ».
+ *
+ * Sert à filtrer par discipline sans éclater une même pratique en cinq entrées
+ * de format (#489) — la taille reste lisible dans la colonne Format. Le plus
+ * long préfixe l'emporte, pour que « cross-triathlon » et « cyclisme-route »
+ * tombent sur la bonne discipline et non sur une homonymie de préfixe. Un type
+ * inconnu est rendu tel quel : il vaut alors sa propre discipline, plutôt que
+ * de disparaître dans un fourre-tout.
+ */
+export function disciplineOf(eventType: string | null | undefined): string {
+  const type = (eventType ?? "").toLowerCase();
+  if (!type) return "";
+  let best = "";
+  for (const discipline of DISCIPLINES) {
+    if (type === discipline || type.startsWith(`${discipline}-`)) {
+      if (discipline.length > best.length) best = discipline;
+    }
+  }
+  return best || type;
+}
+
 // Famille de discipline (libellé + couleur du ramp TCN) pour les répartitions.
 export interface Discipline {
   name: string;
