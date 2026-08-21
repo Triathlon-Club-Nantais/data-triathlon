@@ -96,6 +96,13 @@ describe("ResultRow", () => {
     expect(screen.queryByText("Ma performance")).toBeNull();
   });
 
+  it("affiche le rang catégorie seul quand le rang genre n'est pas connu", () => {
+    renderRow({ row: participation({ rank_gender: null }) });
+
+    expect(screen.getByText("4e cat.")).toBeTruthy();
+    expect(screen.queryByText(/genre/)).toBeNull();
+  });
+
   it("affiche chaque segment publié par l'épreuve", () => {
     const { container } = renderRow();
 

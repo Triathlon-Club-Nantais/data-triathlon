@@ -40,7 +40,7 @@ export function ResultRow({
   const secondaryRanks = [
     { label: "cat.", value: participation.rank_category },
     { label: "genre", value: participation.rank_gender },
-  ].filter((rank) => rank.value != null);
+  ].filter((rank): rank is { label: string; value: number } => rank.value != null);
 
   return (
     <Card style={{ marginBottom: 24 }}>
@@ -72,7 +72,7 @@ export function ResultRow({
           >
             {secondaryRanks.map((rank) => (
               <span key={rank.label}>
-                {ordinalFr(rank.value as number)} {rank.label}
+                {ordinalFr(rank.value)} {rank.label}
               </span>
             ))}
           </div>

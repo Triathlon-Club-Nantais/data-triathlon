@@ -125,6 +125,12 @@ describe("ParticipationDetailPage", () => {
     expect(screen.getByText("56")).toBeTruthy();
   });
 
+  it("ne garde qu'un seul niveau de titre h1 quand les statistiques sont indisponibles", async () => {
+    await renderPage(participation({ stats: null }));
+
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+  });
+
   it("propose un retour vers les résultats de l'athlète depuis l'état indisponible", async () => {
     await renderPage(participation({ stats: null }));
 
