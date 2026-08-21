@@ -16,14 +16,12 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 - `app/` — App Router. **Mot de passe d'accès au site (#509)** : `app/(protege)/`
   (groupe de routes, invisible dans l'URL) accueille tout ce qui exige le mot de
   passe partagé — `dashboard`, `resultats`, `athletes/[id]`, `courses/[id]`,
-  `club`, `carte`, `ajouter`, `login`, et `admin/*` **y compris**
-  (`admin/acces`, `admin/utilisateurs`, `admin/groupes`, `admin/droits`…) —
-  gardé par `app/(protege)/layout.tsx`, un appel serveur à
-  `GET /api/v1/site-access/session`. `acces` (formulaire de mot de passe) et
-  `benevoles` restent des routes **sœurs**, hors du groupe, jamais soumises à
-  cette garde — `acces` en est la cible, `benevoles` garde sa propre garde
-  client (`AccessGate`, #271). **`admin` aussi est resté hors du groupe**
-  (revue finale de #509) : y placer `admin` fermerait le seul chemin
+  `club`, `carte`, `ajouter`, `login` — gardé par `app/(protege)/layout.tsx`, un
+  appel serveur à `GET /api/v1/site-access/session`. `acces` (formulaire de mot
+  de passe), `benevoles` **et `admin`** restent des routes **sœurs**, hors du
+  groupe, jamais soumises à cette garde — `acces` en est la cible, `benevoles`
+  garde sa propre garde client (`AccessGate`, #271). **`admin` est resté hors du
+  groupe** (revue finale de #509) : y placer `admin` fermerait le seul chemin
   navigateur permettant de poser le tout premier mot de passe sur un
   déploiement neuf (`site_access_config` vide) — `admin` garde sa garde
   d'origine, indépendante (`app/admin/layout.tsx`, SSO/RBAC). La révocation
