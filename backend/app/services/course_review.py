@@ -29,8 +29,8 @@ def set_override(
     verdict et sa trace indissociables. Et **rien n'est consigné quand rien ne
     change** — reposer le verdict déjà en place n'est pas un geste.
     """
-    avant = course.reliability_override
-    if avant == verdict:
+    previous = course.reliability_override
+    if previous == verdict:
         return course
 
     course.reliability_override = verdict
@@ -44,7 +44,7 @@ def set_override(
             # Les trois valeurs, parce qu'elles ne se déduisent pas l'une de
             # l'autre : « la machine doutait, un humain a tranché l'inverse »
             # est précisément ce qu'une relecture du journal doit pouvoir dire.
-            "before": avant,
+            "before": previous,
             "after": verdict,
             "computed": course.is_reliable_computed,
             "notes": notes,
