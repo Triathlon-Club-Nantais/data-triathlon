@@ -363,6 +363,26 @@ describe("AthletePage", () => {
     expect(await screen.findByRole("button", { name: "Choisir cet athlète" })).toBeInTheDocument();
   });
 
+  // --- L'athlète retenu, un état signifié dans l'en-tête (#467) ---
+
+  it("nomme le bénéfice du choix dans l'en-tête d'un profil non retenu (#467)", async () => {
+    await renderAthlete([part({ id: 1, rank_overall: 12 })]);
+
+    expect(
+      await screen.findByText("Choisir cet athlète pour retrouver ses résultats en un geste et se comparer au club"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("athlete-avatar")).toHaveAttribute("data-selected", "false");
+  });
+
+  it("signifie « C'est vous » dans l'en-tête du profil de l'athlète retenu (#467)", async () => {
+    window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 7, prenom: "Jean", nom: "DUPONT" }));
+    await renderAthlete([part({ id: 1, rank_overall: 12 })]);
+
+    expect(await screen.findByText("C'est vous")).toBeInTheDocument();
+    expect(screen.getByTestId("athlete-avatar")).toHaveAttribute("data-selected", "true");
+    expect(screen.queryByText(/en un geste et se comparer au club/)).not.toBeInTheDocument();
+  });
+
   // --- KPI et participations en attente de validation (#438) ---
 
   it("n'inclut pas une participation en attente de validation dans les 5 StatCard (#438)", async () => {

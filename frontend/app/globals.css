@@ -493,6 +493,22 @@
     outline: 2px solid var(--tcn-orange);
     outline-offset: 2px;
   }
+  /* Anneau orange de l'athlète retenu, en-tête de `/athletes/[id]` (#467) : le
+     signifiant permanent que le libellé du bouton ne pouvait pas porter. Deux
+     précautions : `box-shadow` et non `outline`, réservé au focus clavier sur
+     tout le front (voir plus haut) ; et un premier anneau couleur `paper`, qui
+     détache l'orange du dégradé de l'avatar — sans ce liseré, orange sur
+     orange, l'anneau ne se voit pas. L'anneau lui-même tient 3,32:1 sur
+     `--tcn-paper`, au-dessus du seuil WCAG 1.4.11 (3:1) pour un élément
+     d'interface non textuel. La boîte est posée dans les deux états pour que
+     l'apparition de l'anneau après hydratation ne déplace rien. */
+  .tcn-avatar-frame {
+    display: inline-flex;
+    border-radius: var(--tcn-radius-pill);
+  }
+  .tcn-avatar-frame[data-selected="true"] {
+    box-shadow: 0 0 0 3px var(--tcn-paper), 0 0 0 6px var(--tcn-orange);
+  }
 }
 
 ::selection {

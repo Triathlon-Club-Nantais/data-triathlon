@@ -1,7 +1,7 @@
 // Pas de `"use client"` ici : ce module n'est importé que par `AppNav`, qui
 // porte la directive. L'ajouter en ferait un **point d'entrée** client, dont
 // Next exige des props sérialisables — or ce composant prend deux callbacks.
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { Avatar, Input, Modal } from "@/components/tcn";
 import { EmptyState } from "@/components/ui/empty-state";
 import { apiClient } from "@/lib/api/client";
@@ -69,6 +69,34 @@ export function clearAthlete() {
   } catch {
     /* mode privé, quota : rien à relâcher côté stock. */
   }
+}
+
+/** Abonnement au stock — référence stable, exigée par `useSyncExternalStore`. */
+function subscribeAthlete(onChange: () => void): () => void {
+  window.addEventListener(ATHLETE_CHANGED_EVENT, onChange);
+  return () => window.removeEventListener(ATHLETE_CHANGED_EVENT, onChange);
+}
+
+/**
+ * L'athlète affiché est-il l'athlète retenu ? Côté client uniquement.
+ *
+ * Le stock vit en `localStorage` : **aucun rendu serveur ne le connaît**.
+ * L'arbitrage du cluster #467 est de le lire là où il vit plutôt que d'en
+ * miroiter une copie en cookie — le détail du raisonnement est dans
+ * `frontend/AGENTS.md`. `useSyncExternalStore` porte exactement les deux
+ * instantanés que cela demande : `false` au rendu serveur, la lecture réelle
+ * dès l'hydratation, et une resynchronisation sur l'événement du stock sans
+ * `useEffect` ni état local.
+ *
+ * Un booléen, pas l'athlète : `getSnapshot` doit rendre une valeur stable d'un
+ * appel à l'autre, or `readAthlete()` reconstruit un objet à chaque lecture.
+ */
+export function useIsSelectedAthlete(id: number): boolean {
+  return useSyncExternalStore(
+    subscribeAthlete,
+    useCallback(() => readAthlete()?.id === id, [id]),
+    () => false,
+  );
 }
 
 type AthleteRow = AthleteBrief & { count: number };

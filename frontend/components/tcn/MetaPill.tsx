@@ -46,7 +46,12 @@ export function MetaPill({
         borderRadius: "var(--tcn-radius-pill)",
         fontSize: 13,
         fontWeight: accent ? 700 : 600,
-        color: accent ? "var(--tcn-orange)" : "var(--tcn-text-body)",
+        // Variante accentuée : du texte **sur** de l'orange, donc la paire
+        // `-deep`/`-deeper` de #299 et non `--tcn-orange`, qui ne tenait que
+        // 3,01:1 sur le composite (`--tcn-orange-08` sur `--tcn-paper`,
+        // soit #f3e6de) — 13 px gras est du texte courant au sens WCAG, seuil
+        // 4,5:1. `-deep` n'y monte qu'à 3,74:1 ; `-deeper` donne 4,72:1.
+        color: accent ? "var(--tcn-orange-deeper)" : "var(--tcn-text-body)",
         ...style,
       }}
     >
