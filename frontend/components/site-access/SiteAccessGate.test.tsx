@@ -31,7 +31,7 @@ describe("SiteAccessGate", () => {
   });
 
   it("rejoue la page demandée après une connexion réussie", async () => {
-    // Défaut, celui du rendu **sur place** par `app/(protege)/layout.tsx` :
+    // Défaut, celui du rendu **sur place** par `app/(public_restricted)/layout.tsx` :
     // l'URL est déjà la bonne, il n'y a qu'à rejouer le layout avec le cookie.
     // C'est ce qui préserve la destination d'un lien partagé (revue de #513) —
     // avant, tout finissait sur le tableau de bord.

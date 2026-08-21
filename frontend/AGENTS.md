@@ -13,10 +13,13 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 `/api/v1` du backend. Tests Vitest + RTL verts. Build prod OK.
 
-- `app/` — App Router. **Mot de passe d'accès au site (#509)** : `app/(protege)/`
-  (groupe de routes, invisible dans l'URL) accueille tout ce qui exige le mot de
+- `app/` — App Router. **Mot de passe d'accès au site (#509)** : `app/(public_restricted)/`
+  (groupe de routes, invisible dans l'URL — nommé en revue de #513 : ces pages
+  restent **publiques côté RBAC**, seule leur porte d'entrée est restreinte, et
+  un nom de dossier jamais rendu dans une URL relève de la couche technique)
+  accueille tout ce qui exige le mot de
   passe partagé — `dashboard`, `resultats`, `athletes/[id]`, `courses/[id]`,
-  `club`, `carte`, `ajouter` — gardé par `app/(protege)/layout.tsx`, un
+  `club`, `carte`, `ajouter` — gardé par `app/(public_restricted)/layout.tsx`, un
   appel serveur à `GET /api/v1/site-access/session`. Sur refus, ce layout rend
   `SiteAccessGate` **à la place** des enfants ; il ne redirige pas vers
   `/acces`. Un layout serveur ne reçoit en Next 16 ni le chemin demandé ni les
@@ -41,7 +44,7 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   navigateur qui pose le tout premier mot de passe sur un déploiement neuf
   (`site_access_config` vide, garde fail-closed) : `admin` seul ne suffisait pas
   — sa propre garde renvoie un anonyme vers `/login`, et `login` rangé sous
-  `(protege)` refermait la boucle en `/admin` → `/login` → `/acces` → impasse,
+  le groupe refermait la boucle en `/admin` → `/login` → `/acces` → impasse,
   aucun mot de passe n'existant encore à saisir (relevé en revue de #513, après
   la sortie d'`admin` en revue finale de #509). Le placement des deux côtés est
   désormais tenu par `app/routes-garde-site.test.ts`, un test de structure de
@@ -134,7 +137,7 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   reste **distinct**, volontairement cookie-libre : la justification d'origine
   (« six pages publiques en rendu serveur, lire les cookies les rendrait
   toutes dynamiques ») est devenue **historique** avec #509 — ces six pages
-  vivent désormais sous `app/(protege)/`, dont le layout lit déjà le cookie du
+  vivent désormais sous `app/(public_restricted)/`, dont le layout lit déjà le cookie du
   mot de passe site au-dessus d'elles, donc elles sont dynamiques de toute
   façon. L'exemption elle-même ne bouge pas : `serverFetch` reste la fonction
   à utiliser pour tout appel qui n'a jamais eu besoin de relayer un cookie

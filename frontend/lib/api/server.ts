@@ -92,7 +92,7 @@ async function serverFetchAuthed<T>(path: string): Promise<T | null> {
  * `admin/layout.tsx` évite déjà pour sa propre garde via son couple
  * `panne()`/`INDISPONIBLE`. On lève donc une `ApiError` (ou on laisse
  * remonter l'échec réseau) sur tout ce qui n'est ni 200 ni 401, à charge pour
- * l'appelant — `app/(protege)/layout.tsx` — de les traiter comme lui.
+ * l'appelant — `app/(public_restricted)/layout.tsx` — de les traiter comme lui.
  */
 async function serverFetchAuthedRaw(path: string): Promise<boolean> {
   const jar = await cookies();
