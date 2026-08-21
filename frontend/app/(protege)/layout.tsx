@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
+import { SiteAccessGate } from "@/components/site-access/SiteAccessGate";
 import { ApiError } from "@/lib/api/client";
 import { apiServer } from "@/lib/api/server";
 
@@ -39,8 +39,23 @@ export default async function ProtegeLayout({ children }: { children: ReactNode 
   // `=== false` et non `!acces` : seul un 401 **avéré** dit que le cookie est
   // absent ou invalide. Une panne rend le sentinelle, et ne doit jamais être
   // lue comme un refus — cf. `admin/layout.tsx` pour le même raisonnement.
+  //
+  // Le formulaire est rendu **à la place** des enfants, et non par une
+  // redirection vers `/acces` : un layout serveur ne reçoit ni le chemin
+  // demandé ni les `searchParams` (Next 16), donc `redirect("/acces")` perdait
+  // la destination — quelqu'un qui suivait un lien partagé vers `/courses/42`
+  // saisissait le mot de passe et atterrissait sur le tableau de bord (relevé
+  // en revue de #513). Sur place, l'URL ne bouge pas : le rafraîchissement qui
+  // suit la connexion rejoue ce layout, cookie en main, et rend la page
+  // demandée. Il n'y a plus de destination à transporter, donc pas de
+  // paramètre `next` à valider contre la redirection ouverte — et toujours pas
+  // de `middleware.ts`, seul autre endroit d'où le chemin serait lisible.
+  //
+  // `/acces` reste une route à part entière, cible d'une navigation directe et
+  // point d'entrée après une déconnexion : c'est le même formulaire, avec
+  // `apres="accueil"` puisqu'il n'y a là aucune page demandée à rejouer.
   if (acces === false) {
-    redirect("/acces");
+    return <SiteAccessGate />;
   }
   return <>{children}</>;
 }

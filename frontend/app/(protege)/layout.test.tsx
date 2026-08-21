@@ -2,19 +2,14 @@ import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/client";
 
-const { checkSiteAccess, redirect } = vi.hoisted(() => ({
-  checkSiteAccess: vi.fn(),
-  redirect: vi.fn(() => {
-    // `redirect()` de Next interrompt le rendu en levant : le simuler à
-    // l'identique est ce qui prouve que rien n'est rendu après la garde.
-    throw new Error("NEXT_REDIRECT");
-  }),
-}));
+const { checkSiteAccess } = vi.hoisted(() => ({ checkSiteAccess: vi.fn() }));
 
 vi.mock("@/lib/api/server", () => ({
   apiServer: { checkSiteAccess },
 }));
-vi.mock("next/navigation", () => ({ redirect }));
+vi.mock("@/components/site-access/SiteAccessGate", () => ({
+  SiteAccessGate: () => <p>formulaire de mot de passe</p>,
+}));
 
 import ProtegeLayout from "./layout";
 
@@ -39,14 +34,23 @@ describe("Garde d'accès au site (#509)", () => {
     render(await ProtegeLayout({ children: <p>contenu réservé</p> }));
 
     expect(screen.getByText("contenu réservé")).toBeInTheDocument();
-    expect(redirect).not.toHaveBeenCalled();
+    expect(screen.queryByText("formulaire de mot de passe")).not.toBeInTheDocument();
   });
 
-  it("redirige vers /acces sur un 401 avéré (cookie absent ou invalide)", async () => {
+  it("rend le formulaire **à la place** des enfants sur un 401 avéré", async () => {
+    // Et non une redirection vers `/acces` : un layout serveur ne connaît pas
+    // le chemin demandé (Next n'expose ni `pathname` ni `searchParams` à un
+    // layout), donc la redirection perdait la destination — quelqu'un qui suit
+    // un lien vers `/courses/42` atterrissait sur le tableau de bord (relevé en
+    // revue de #513). Rendu sur place, l'URL ne bouge pas : il n'y a plus de
+    // destination à transporter, et pas de paramètre `next` à valider contre la
+    // redirection ouverte.
     checkSiteAccess.mockResolvedValue(false);
 
-    await expect(ProtegeLayout({ children: <p>secret</p> })).rejects.toThrow("NEXT_REDIRECT");
-    expect(redirect).toHaveBeenCalledWith("/acces");
+    render(await ProtegeLayout({ children: <p>secret</p> }));
+
+    expect(screen.getByText("formulaire de mot de passe")).toBeInTheDocument();
+    expect(screen.queryByText("secret")).not.toBeInTheDocument();
   });
 
   it("laisse passer quand le backend est en panne (erreur réseau)", async () => {
@@ -58,7 +62,7 @@ describe("Garde d'accès au site (#509)", () => {
     render(await ProtegeLayout({ children: <p>contenu réservé</p> }));
 
     expect(screen.getByText("contenu réservé")).toBeInTheDocument();
-    expect(redirect).not.toHaveBeenCalled();
+    expect(screen.queryByText("formulaire de mot de passe")).not.toBeInTheDocument();
     expect(journal).toHaveBeenCalledWith(
       expect.stringContaining("session indisponible (sans réponse)"),
     );
@@ -70,7 +74,7 @@ describe("Garde d'accès au site (#509)", () => {
     render(await ProtegeLayout({ children: <p>contenu réservé</p> }));
 
     expect(screen.getByText("contenu réservé")).toBeInTheDocument();
-    expect(redirect).not.toHaveBeenCalled();
+    expect(screen.queryByText("formulaire de mot de passe")).not.toBeInTheDocument();
     expect(journal).toHaveBeenCalledWith(expect.stringContaining("session indisponible (502)"));
   });
 });

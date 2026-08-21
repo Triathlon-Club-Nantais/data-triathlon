@@ -5,8 +5,22 @@ import { useState } from "react";
 import { Button, Card, Input } from "@/components/tcn";
 import { apiClient, ApiError } from "@/lib/api/client";
 
-/** Formulaire du mot de passe partagé au site (#509) — patron `AccessGate` (#271). */
-export function SiteAccessGate() {
+/**
+ * Formulaire du mot de passe partagé au site (#509) — patron `AccessGate` (#271).
+ *
+ * `apres` dit où aller après une connexion réussie, et les deux valeurs
+ * correspondent aux deux façons dont ce formulaire s'affiche :
+ *
+ * - `"rafraichir"` (défaut) — rendu **sur place** par `app/(protege)/layout.tsx`
+ *   à la place de la page demandée. L'URL est déjà la bonne : rejouer le layout
+ *   suffit, et c'est ce qui préserve la destination d'un lien partagé vers
+ *   `/courses/42` (relevé en revue de #513 — tout finissait sur le tableau de
+ *   bord). Un `push` ferait perdre la page qu'on voulait voir.
+ * - `"accueil"` — page `/acces`, atteinte en direct ou après déconnexion. Aucune
+ *   page n'était demandée, et un rafraîchissement ne ferait que réafficher ce
+ *   formulaire.
+ */
+export function SiteAccessGate({ apres = "rafraichir" }: { apres?: "rafraichir" | "accueil" }) {
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
@@ -18,7 +32,11 @@ export function SiteAccessGate() {
     setEnCours(true);
     try {
       await apiClient.siteAccessLogin(password);
-      router.push("/");
+      if (apres === "accueil") {
+        router.push("/");
+      } else {
+        router.refresh();
+      }
     } catch (err) {
       setErreur(
         err instanceof ApiError ? err.message : "Connexion impossible. Réessayez plus tard.",
