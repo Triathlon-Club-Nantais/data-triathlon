@@ -34,6 +34,7 @@ import { useSession } from "@/lib/queries/auth";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/utils/date";
 import type { CourseBrief } from "@/lib/types";
+import { Champ } from "./AdminFilterField";
 import { DeleteCourseDialog } from "./DeleteCourseDialog";
 import { CourseParticipationsDialog } from "./CourseParticipationsDialog";
 import { EditCourseDialog } from "./EditCourseDialog";
@@ -433,14 +434,5 @@ function CatalogueFilters({
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-function Champ({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex w-full flex-col gap-1.5 sm:w-auto">
-      <label className="text-xs font-medium text-[var(--tcn-text-faint)]">{label}</label>
-      {children}
-    </div>
   );
 }
