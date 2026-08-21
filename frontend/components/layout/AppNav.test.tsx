@@ -627,6 +627,9 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
     expect(
       screen.getByRole("link", { name: "Revalidation qualité" }),
     ).toHaveAttribute("href", "/admin/quality");
+
+    // « Bénévolat », elle, reste `soon` : toujours pas de lien à afficher.
+    expect(screen.queryByText("Bénévolat")).not.toBeInTheDocument();
   });
 });
 
