@@ -236,10 +236,12 @@ c'est à confirmer par une exécution, pas par lecture seule.
 
 ## Suites de la revue de #513
 
-Six correctifs et deux gestes de forme, tous vérifiés contre le code avant
+Six correctifs et trois gestes de forme, tous vérifiés contre le code avant
 d'être écrits. Ils ne
 rouvrent pas le design : ils ferment ce que la garde transverse avait cassé sans
-que la suite ne le voie.
+que la suite ne le voie. Les deux derniers (8 et 9) débordent sur le jumeau #271,
+à dessein — un renommage ou une suppression qui ne vaudrait que d'un côté
+défairait le jumelage.
 
 1. **`login` ressorti du groupe gardé** (`git mv "app/(public_restricted)/login" app/login`).
    Le § Garde frontend avait sorti `admin` sans sortir `login`, or la garde
@@ -302,9 +304,14 @@ que la suite ne le voie.
    modules de domaine est ce qui leur est propre : le nom du cookie, le TTL, la
    génération du secret, `replace_password`.
 
-Un point de revue **non retenu** :
-
-- `SINGLETON_ID` reste tel quel : c'est la clé primaire figée qui **rend** le
-  singleton vrai (collision de PK plutôt que seconde ligne), et le même nom vit
-  dans `benevole_config_repository` (#271) — le renommer n'aurait de sens
-  qu'ensemble. Le raisonnement est désormais dans le module, en commentaire.
+9. **`SINGLETON_ID` devient `CONFIG_ROW_ID`**, des deux côtés du jumelage
+   (`site_access_config_repository` et `benevole_config_repository`, #271). La
+   revue n'avait pas compris à quoi servait la constante, et le nom en était la
+   cause : « singleton » décrit la forme de la table, pas ce que la constante
+   porte — l'`id` de la ligne en base. Ce qu'elle **fait** reste écrit au-dessus
+   d'elle : figer la clé primaire est ce qui rend le singleton vrai, deux
+   remplacements concurrents au premier réglage entrant en collision de PK
+   (`IntegrityError` rattrapée par le savepoint) au lieu de créer une seconde
+   configuration que personne ne lirait. Renommage seul, aucun changement de
+   comportement : la valeur reste `1`, les lignes déjà en base ne bougent pas,
+   donc pas de migration.

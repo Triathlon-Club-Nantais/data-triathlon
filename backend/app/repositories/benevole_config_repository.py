@@ -10,13 +10,18 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models.benevole_access_config import BenevoleAccessConfig
 
-#: Id fixe de la ligne unique. Deux administrateurs (ou un double-clic)
+#: Id fixe de la ligne unique — nommée `SINGLETON_ID` jusqu'à la revue de #513,
+#: qui a jugé le mot illisible : il dit la forme de la table, pas ce que la
+#: constante porte. Renommée ici comme dans le jumeau `site_access_config_repository`
+#: (#509), pour que les deux modules continuent de se lire l'un par l'autre.
+#:
+#: Deux administrateurs (ou un double-clic)
 #: remplaçant le mot de passe au tout premier réglage peuvent tous deux
 #: constater l'absence de ligne avant que l'un des deux n'écrive — une
 #: lecture préalable serait franchie par les deux. La contrainte de clé
 #: primaire, elle, ne l'est jamais : le second `INSERT` échoue et se
 #: rattrape en `UPDATE` (patron `allowed_email_repository.add`).
-SINGLETON_ID = 1
+CONFIG_ROW_ID = 1
 
 
 def get_config(db: Session) -> BenevoleAccessConfig | None:
@@ -48,7 +53,7 @@ def save_config(
     alors la contrainte de clé primaire — jamais une seconde lecture, que
     les deux franchiraient pareillement — qui tranche.
     """
-    config = db.get(BenevoleAccessConfig, SINGLETON_ID)
+    config = db.get(BenevoleAccessConfig, CONFIG_ROW_ID)
     if config is not None:
         config.password_hash = password_hash
         config.password_salt = password_salt
@@ -59,7 +64,7 @@ def save_config(
         return config
 
     config = BenevoleAccessConfig(
-        id=SINGLETON_ID,
+        id=CONFIG_ROW_ID,
         password_hash=password_hash,
         password_salt=password_salt,
         session_secret=session_secret,
@@ -70,7 +75,7 @@ def save_config(
             db.add(config)
             db.flush()
     except IntegrityError:
-        config = db.get(BenevoleAccessConfig, SINGLETON_ID)
+        config = db.get(BenevoleAccessConfig, CONFIG_ROW_ID)
         if config is None:  # pragma: no cover — une autre contrainte a cédé
             raise
         config.password_hash = password_hash
