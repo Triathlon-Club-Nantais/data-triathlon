@@ -208,138 +208,150 @@ export function QualityQueueTable({
             description="Toutes les épreuves du catalogue passent l'indice de fiabilité, ou ont été tranchées à la main."
           />
         )
-      ) : affichees.length === 0 ? (
-        // Le filtre d'anomalie n'agit que sur la page affichée (limite
-        // assumée, voir la doc du composant) : il peut vider une page tout en
-        // laissant du monde ailleurs — distinct de la file réellement vide.
-        <EmptyState
-          title="Aucune épreuve ne porte cette anomalie sur cette page"
-          description="Le filtre ne s'applique qu'à la page affichée. Changez de page ou choisissez une autre anomalie."
-        />
       ) : (
-        <Card className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Épreuve</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Anomalies</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {affichees.map((course) => (
-                <TableRow key={course.id}>
-                  <TableCell className="whitespace-normal">
-                    <div className="font-medium">{course.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {eventTypeLabel(course.event_type)} · {providerLabel(course.provider)}
-                    </div>
-                  </TableCell>
-                  <TableCell>{formatDate(course.event_date)}</TableCell>
-                  <TableCell className="whitespace-normal">
-                    <ul className="space-y-1 text-sm">
-                      {describeQualityIssues(course.quality_issues).map((phrase) => (
-                        <li key={phrase}>{phrase}</li>
-                      ))}
-                    </ul>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex flex-wrap justify-end gap-1.5">
-                      {peutTrancher && (
-                        <>
-                          {/* Seul le geste courant reste en toutes lettres — les
-                              deux autres, plus rares, passent en boutons-icône
-                              sur le patron de `CoursesAdminTable` : sans quoi
-                              la colonne Actions dépasse la ligne (constat 2). */}
-                          <Button
-                            size="sm"
-                            className="min-h-11"
-                            onClick={() => setATrancher({ course, verdict: "fiable" })}
-                          >
-                            Marquer fiable
-                          </Button>
-                          <Button
-                            size="icon-sm"
-                            variant="outline"
-                            className="min-h-11 min-w-11"
-                            title="Marquer douteuse"
-                            aria-label={`Marquer douteuse — ${course.name}`}
-                            onClick={() => setATrancher({ course, verdict: "douteuse" })}
-                          >
-                            <ShieldAlert />
-                          </Button>
-                          <Button
-                            size="icon-sm"
-                            variant="ghost"
-                            className="min-h-11 min-w-11"
-                            title="Revenir à l'avis calculé"
-                            aria-label={`Revenir à l'avis calculé — ${course.name}`}
-                            onClick={() => setATrancher({ course, verdict: "calcule" })}
-                          >
-                            <RotateCcw />
-                          </Button>
-                        </>
-                      )}
-                      {peutRescraper && (() => {
-                        const active = enCoursId === course.id && rescrape.state.running;
-                        return (
-                          <Button
-                            size="icon-sm"
-                            variant="outline"
-                            className="min-h-11 min-w-11"
-                            // Le hook n'expose qu'un état unique (`activeRef`) : un
-                            // second appel concurrent serait silencieusement
-                            // ignoré plutôt que traité en parallèle. Toutes les
-                            // lignes restent donc désactivées pendant un
-                            // re-scrape — seule la ligne active se distingue par
-                            // sa progression, ce qui répond au constat sans
-                            // prétendre à un re-scrape multi-lignes que le hook
-                            // ne porte pas (réserve documentée dans le rapport).
-                            disabled={rescrape.state.running}
-                            onClick={() => lancerRescrape(course)}
-                            title={active ? "Re-scrape en cours" : "Re-scraper l'épreuve"}
-                            aria-label={
-                              active
-                                ? `Re-scrape en cours — ${course.name}${
-                                    rescrape.state.total > 0
-                                      ? ` (${rescrape.state.progress} sur ${rescrape.state.total})`
-                                      : ""
-                                  }`
-                                : `Re-scraper ${course.name}`
-                            }
-                          >
-                            {active ? (
-                              <Loader2 size={14} className="animate-spin" aria-hidden="true" />
-                            ) : (
-                              <RefreshCw size={14} aria-hidden="true" />
-                            )}
-                          </Button>
-                        );
-                      })()}
-                      {peutCorriger && (
-                        <Button
-                          size="icon-sm"
-                          variant="outline"
-                          className="min-h-11 min-w-11"
-                          title="Corriger l'épreuve"
-                          aria-label={`Éditer ${course.name}`}
-                          onClick={() => setACorriger(course)}
-                        >
-                          <Pencil size={14} />
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <>
+          {affichees.length === 0 ? (
+            // Le filtre d'anomalie n'agit que sur la page affichée (limite
+            // assumée, voir la doc du composant) : il peut vider une page tout
+            // en laissant du monde ailleurs — distinct de la file réellement
+            // vide. La pagination reste donc hors de ce ternaire (ci-dessous) :
+            // sans elle, cet état serait une impasse dès que la file dépasse
+            // une page — le seul moyen d'en sortir serait de relâcher le filtre.
+            <EmptyState
+              title="Aucune épreuve ne porte cette anomalie sur cette page"
+              description="Le filtre ne s'applique qu'à la page affichée. Changez de page ou choisissez une autre anomalie."
+            />
+          ) : (
+            <Card className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Épreuve</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Anomalies</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {affichees.map((course) => (
+                    <TableRow key={course.id}>
+                      <TableCell className="whitespace-normal">
+                        <div className="font-medium">{course.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {eventTypeLabel(course.event_type)} · {providerLabel(course.provider)}
+                        </div>
+                      </TableCell>
+                      <TableCell>{formatDate(course.event_date)}</TableCell>
+                      <TableCell className="whitespace-normal">
+                        <ul className="space-y-1 text-sm">
+                          {describeQualityIssues(course.quality_issues).map((phrase) => (
+                            <li key={phrase}>{phrase}</li>
+                          ))}
+                        </ul>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex flex-wrap justify-end gap-1.5">
+                          {peutTrancher && (
+                            <>
+                              {/* Seul le geste courant reste en toutes lettres — les
+                                  deux autres, plus rares, passent en boutons-icône
+                                  sur le patron de `CoursesAdminTable` : sans quoi
+                                  la colonne Actions dépasse la ligne (constat 2). */}
+                              <Button
+                                size="sm"
+                                className="min-h-11"
+                                onClick={() => setATrancher({ course, verdict: "fiable" })}
+                              >
+                                Marquer fiable
+                              </Button>
+                              <Button
+                                size="icon-sm"
+                                variant="outline"
+                                className="min-h-11 min-w-11"
+                                title="Marquer douteuse"
+                                aria-label={`Marquer douteuse — ${course.name}`}
+                                onClick={() => setATrancher({ course, verdict: "douteuse" })}
+                              >
+                                <ShieldAlert />
+                              </Button>
+                              <Button
+                                size="icon-sm"
+                                variant="ghost"
+                                className="min-h-11 min-w-11"
+                                title="Revenir à l'avis calculé"
+                                aria-label={`Revenir à l'avis calculé — ${course.name}`}
+                                onClick={() => setATrancher({ course, verdict: "calcule" })}
+                              >
+                                <RotateCcw />
+                              </Button>
+                            </>
+                          )}
+                          {peutRescraper && (() => {
+                            const active = enCoursId === course.id && rescrape.state.running;
+                            return (
+                              <Button
+                                size="icon-sm"
+                                variant="outline"
+                                className="min-h-11 min-w-11"
+                                // Le hook n'expose qu'un état unique (`activeRef`) : un
+                                // second appel concurrent serait silencieusement
+                                // ignoré plutôt que traité en parallèle. Toutes les
+                                // lignes restent donc désactivées pendant un
+                                // re-scrape — seule la ligne active se distingue par
+                                // sa progression, ce qui répond au constat sans
+                                // prétendre à un re-scrape multi-lignes que le hook
+                                // ne porte pas (réserve documentée dans le rapport).
+                                disabled={rescrape.state.running}
+                                onClick={() => lancerRescrape(course)}
+                                title={active ? "Re-scrape en cours" : "Re-scraper l'épreuve"}
+                                aria-label={
+                                  active
+                                    ? `Re-scrape en cours — ${course.name}${
+                                        rescrape.state.total > 0
+                                          ? ` (${rescrape.state.progress} sur ${rescrape.state.total})`
+                                          : ""
+                                      }`
+                                    : `Re-scraper ${course.name}`
+                                }
+                              >
+                                {active ? (
+                                  <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+                                ) : (
+                                  <RefreshCw size={14} aria-hidden="true" />
+                                )}
+                              </Button>
+                            );
+                          })()}
+                          {peutCorriger && (
+                            <Button
+                              size="icon-sm"
+                              variant="outline"
+                              className="min-h-11 min-w-11"
+                              title="Corriger l'épreuve"
+                              aria-label={`Éditer ${course.name}`}
+                              onClick={() => setACorriger(course)}
+                            >
+                              <Pencil size={14} />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          )}
 
+          {/* Hors du ternaire ci-dessus, à dessein : `affichees` peut être
+              vide (filtre d'anomalie qui ne retient rien sur cette page) sans
+              que `pages` le soit — le total vient de `comptage`, non affecté
+              par ce filtre client. La pagination doit rester atteignable dans
+              les deux branches non vides, sous peine d'impasse. */}
           {pages > 1 && (
             <nav
               aria-label="Pagination de la file de revalidation"
-              className="flex items-center justify-between gap-3 border-t p-3 text-sm"
+              className="flex items-center justify-between gap-3 rounded-xl border p-3 text-sm"
             >
               <span aria-current="page">
                 Page {page} sur {pages} — {total} épreuve{total > 1 ? "s" : ""} à revalider
@@ -366,22 +378,25 @@ export function QualityQueueTable({
               </div>
             </nav>
           )}
-        </Card>
+        </>
       )}
 
-      {/* Région live : le seul signal visuel restait un `Loader2` de 14 px et
-          un `aria-label` porté par un bouton non focalisé, jamais ré-annoncé
-          par un lecteur d'écran (constat 9). Explique aussi pourquoi les
-          autres lignes sont désactivées le temps du flux. */}
-      {rescrape.state.running && courseEnCours && (
-        <p role="status" className="text-sm text-[var(--tcn-text-faint)]">
-          Re-scrape de {courseEnCours.name}
-          {rescrape.state.total > 0
-            ? ` — ${rescrape.state.progress} sur ${rescrape.state.total} résultats`
-            : " en cours"}
-          . Les autres épreuves de la file sont désactivées le temps du flux.
-        </p>
-      )}
+      {/* Région live, montée en permanence : un `<p role="status">` inséré
+          déjà rempli n'est pas annoncé par plusieurs lecteurs d'écran (seules
+          ses mises à jour ultérieures le seraient). Vide au repos, elle
+          reçoit son texte au démarrage du flux. Le seul signal visuel restait
+          sinon un `Loader2` de 14 px et un `aria-label` porté par un bouton
+          non focalisé, jamais ré-annoncé (constat 9). Explique aussi pourquoi
+          les autres lignes sont désactivées le temps du flux. */}
+      <p role="status" className="text-sm text-[var(--tcn-text-faint)]">
+        {rescrape.state.running && courseEnCours
+          ? `Re-scrape de ${courseEnCours.name}${
+              rescrape.state.total > 0
+                ? ` — ${rescrape.state.progress} sur ${rescrape.state.total} résultats`
+                : " en cours"
+            }. Les autres épreuves de la file sont désactivées le temps du flux.`
+          : ""}
+      </p>
 
       {aTrancher && (
         <ReliabilityVerdictDialog
@@ -505,9 +520,11 @@ function FiltresFile({
           </Select>
         </Champ>
         <div className="flex gap-2">
-          <Button onClick={appliquer}>Filtrer</Button>
+          <Button className="min-h-11" onClick={appliquer}>
+            Filtrer
+          </Button>
           {actifs && (
-            <Button variant="ghost" onClick={reinitialiser}>
+            <Button variant="ghost" className="min-h-11" onClick={reinitialiser}>
               Réinitialiser
             </Button>
           )}

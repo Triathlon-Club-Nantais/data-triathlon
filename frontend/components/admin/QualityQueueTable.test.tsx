@@ -324,6 +324,44 @@ describe("QualityQueueTable", () => {
     );
 
     liberer();
-    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
+    // Montée en permanence (une région live insérée déjà remplie n'est pas
+    // annoncée par plusieurs lecteurs d'écran) : au repos, elle reste dans le
+    // DOM, vidée plutôt que retirée.
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(""));
+  });
+
+  it("le filtre qui vide la page affichée n'emmure pas la pagination (régression)", async () => {
+    // La page contient des lignes, le filtre d'anomalie n'en retient aucune,
+    // mais `comptage.total` — non affecté par ce filtre client — porte
+    // toujours plusieurs pages : le bouton « Suivant › » doit rester
+    // atteignable, faute de quoi le seul moyen de sortir de cet état serait
+    // de relâcher le filtre.
+    listCourses.mockImplementation((opts: { page?: number } = {}) =>
+      Promise.resolve(opts.page === 2 ? [CARNAC] : [VERTOU, CARNAC]),
+    );
+    countCourses.mockResolvedValue({ total: 45 });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { rerender } = render(
+      <QueryClientProvider client={client}>
+        <QualityQueueTable />
+      </QueryClientProvider>,
+    );
+    await screen.findByText("Triathlon de Vertou");
+
+    await userEvent.click(screen.getByRole("combobox", { name: /anomalie/i }));
+    await userEvent.click(await screen.findByRole("option", { name: "Trous dans le classement" }));
+
+    rerender(
+      <QueryClientProvider client={client}>
+        <QualityQueueTable page={2} />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByText(/aucune épreuve ne porte cette anomalie sur cette page/i),
+    ).toBeInTheDocument();
+    const suivant = screen.getByRole("button", { name: /suivant/i });
+    expect(suivant).toBeInTheDocument();
+    expect(suivant).toBeEnabled();
   });
 });
