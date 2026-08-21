@@ -1,4 +1,4 @@
-"""La garde transverse du mot de passe site (#509) : tout, sauf cinq
+"""La garde transverse du mot de passe site (#509) : tout, sauf six
 exceptions nommées, exige le cookie `tcn_site_session`.
 
 Inventaire dérivé de l'application, comme `test_public_routes_still_open.py`
@@ -8,18 +8,19 @@ import pytest
 
 from app.api.deps import require_site_access
 from app.main import app
-from app.repositories import user_repository
+from app.repositories import athlete_repository, user_repository
 from app.services import benevole_access, site_access
 
 PREFIXE_AUTH = "/api/v1/auth/"
 
-#: Les cinq exceptions nommées (design, § Garde backend, cinq exceptions
-#: nommées) : `health`/`version` (infra), `site-access` (pose le cookie),
-#: `benevoles` (#271 — population potentiellement non-adhérente), `auth`
-#: (SSO — sans elle, personne ne peut jamais se connecter sur une
-#: installation neuve) et `admin/site-access` seul, pas tout `/admin/`
-#: (sans elle, personne ne peut jamais poser le tout premier mot de passe —
-#: verrou de démarrage détecté en revue de la garde transverse, Task 8).
+#: Les six exceptions nommées (design, § Garde backend) : `health`/`version`
+#: (infra), `site-access` (pose le cookie), `benevoles` (#271 — population
+#: potentiellement non-adhérente), `auth` (SSO — sans elle, personne ne peut
+#: jamais se connecter sur une installation neuve), `admin/site-access` seul,
+#: pas tout `/admin/` (sans elle, personne ne peut jamais poser le tout premier
+#: mot de passe — verrou de démarrage détecté en revue de la garde transverse,
+#: Task 8), et `feedback` (le bouton de signalement vit dans le layout racine
+#: du front, donc sur les pages hors garde aussi — revue de #513).
 ROUTES_EXEMPTEES_PREFIXES = (
     "/api/v1/health",
     "/api/v1/version",
@@ -27,6 +28,7 @@ ROUTES_EXEMPTEES_PREFIXES = (
     "/api/v1/benevoles/",
     "/api/v1/auth/",
     "/api/v1/admin/site-access",
+    "/api/v1/feedback",
 )
 
 
@@ -129,6 +131,60 @@ def test_benevoles_reste_joignable_sans_jamais_poser_de_cookie_site(client, db_s
     assert site_access.SITE_SESSION_COOKIE not in client.cookies
 
     assert client.get("/api/v1/benevoles/queue").status_code == 200
+
+
+def test_la_recherche_d_athletes_des_benevoles_reste_joignable_sans_cookie_site(client, db_session):
+    """Le sélecteur de réattribution de la page bénévoles a besoin de chercher
+    un athlète (`components/benevoles/ParticipationPanel.tsx`). Il visait
+    `GET /athletes`, resté sous la garde site — un bénévole non-adhérent
+    recevait donc un 401 avalé par le `catch` du panneau : « aucun athlète
+    trouvé », et réattribution impossible sans le moindre message (relevé en
+    revue de #513). La recherche vit désormais dans `benevoles`, sous la seule
+    garde qui vaut pour cette population.
+    """
+    admin = user_repository.create(db_session, email="admin-recherche@exemple.fr", display_name="Admin")
+    db_session.flush()
+    benevole_access.replace_password(db_session, password="secret-benevoles", admin_user_id=admin.id)
+    athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean", club="TCN")
+    db_session.commit()
+
+    assert client.post("/api/v1/benevoles/session", json={"password": "secret-benevoles"}).status_code == 204
+    assert site_access.SITE_SESSION_COOKIE not in client.cookies
+
+    reponse = client.get("/api/v1/benevoles/athletes", params={"name": "dupont"})
+    assert reponse.status_code == 200
+    assert [a["nom"] for a in reponse.json()] == ["DUPONT"]
+
+
+def test_la_recherche_d_athletes_des_benevoles_refuse_sans_cookie_benevole(client):
+    """Elle n'est pas pour autant ouverte : hors garde site, mais sous celle
+    des bénévoles — sans quoi #509 aurait un trou nommé `/benevoles/athletes`."""
+    assert client.get("/api/v1/benevoles/athletes", params={"name": "dupont"}).status_code == 401
+
+
+def test_le_signalement_repond_sans_cookie_site(client):
+    """`FeedbackButton` vit dans le layout **racine** du front, donc il
+    s'affiche aussi sur `/acces` et `/benevoles`, les deux pages hors garde.
+    Gardé, `POST /feedback` renvoyait 401 à la soumission — chez le visiteur
+    bloqué sur l'écran de mot de passe, soit exactement la personne la plus
+    susceptible de signaler « je n'arrive pas à entrer », et chez tout bénévole
+    non-adhérent (relevé en revue de #513).
+
+    Ce qui borne cette route reste ce qui la bornait déjà : honeypot et plafond
+    compté en base (`services/feedback_service`), plus le fait qu'elle n'écrit
+    qu'une ligne sans jamais rien rendre à lire — `admin_feedback`, qui expose
+    les signalements, reste gardée (préfixe `/admin/feedback`, distinct).
+    """
+    reponse = client.post(
+        "/api/v1/feedback",
+        json={"type": "bug", "title": "Impossible d'entrer", "body": "Le mot de passe est refusé."},
+    )
+    assert reponse.status_code == 201
+
+
+def test_la_consultation_des_signalements_reste_gardee(client):
+    """L'exemption porte sur la soumission publique, pas sur l'instruction."""
+    assert client.get("/api/v1/admin/feedback").status_code == 401
 
 
 def test_une_route_gardee_repond_normalement_avec_le_cookie(client, db_session):
