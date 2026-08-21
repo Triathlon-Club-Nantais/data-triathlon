@@ -11,7 +11,7 @@ import { apiClient, ApiError } from "@/lib/api/client";
  * `apres` dit où aller après une connexion réussie, et les deux valeurs
  * correspondent aux deux façons dont ce formulaire s'affiche :
  *
- * - `"rafraichir"` (défaut) — rendu **sur place** par `app/(protege)/layout.tsx`
+ * - `"rafraichir"` (défaut) — rendu **sur place** par `app/(public_restricted)/layout.tsx`
  *   à la place de la page demandée. L'URL est déjà la bonne : rejouer le layout
  *   suffit, et c'est ce qui préserve la destination d'un lien partagé vers
  *   `/courses/42` (relevé en revue de #513 — tout finissait sur le tableau de

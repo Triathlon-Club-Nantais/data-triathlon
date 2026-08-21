@@ -139,10 +139,10 @@ layout racine, qui revérifie la session, qui redirige vers `/acces`…) et
 fermerait au passage `/benevoles`, dont l'exemption backend ci-dessus n'aurait
 plus d'effet si le frontend redirige avant même que la page ne s'affiche.
 
-La garde se pose donc sur un groupe de routes, `app/(protege)/layout.tsx`
+La garde se pose donc sur un groupe de routes, `app/(public_restricted)/layout.tsx`
 (parenthèses : invisible dans l'URL), qui accueille toutes les routes
 existantes sauf trois, par un déplacement mécanique de dossiers
-(`git mv app/dashboard app/\(protege\)/dashboard`, etc.) : `dashboard`,
+(`git mv app/dashboard "app/(public_restricted)/dashboard"`, etc.) : `dashboard`,
 `resultats`, `athletes`, `courses`, `club`, `carte`, `ajouter` — plus `login` à
 la livraison, ressorti en revue de #513 (§ Suites de la revue de #513).
 `app/layout.tsx` (html/body/nav) ne change pas de rôle, il englobe toujours
@@ -236,11 +236,12 @@ c'est à confirmer par une exécution, pas par lecture seule.
 
 ## Suites de la revue de #513
 
-Six correctifs, tous vérifiés contre le code avant d'être écrits. Ils ne
+Six correctifs et deux gestes de forme, tous vérifiés contre le code avant
+d'être écrits. Ils ne
 rouvrent pas le design : ils ferment ce que la garde transverse avait cassé sans
 que la suite ne le voie.
 
-1. **`login` ressorti du groupe gardé** (`git mv app/(protege)/login app/login`).
+1. **`login` ressorti du groupe gardé** (`git mv "app/(public_restricted)/login" app/login`).
    Le § Garde frontend avait sorti `admin` sans sortir `login`, or la garde
    d'`admin` renvoie un anonyme vers `/login` : sur un déploiement neuf, le
    chemin devenait `/admin` → `/login` → `/acces` → impasse, aucun mot de passe
@@ -284,14 +285,25 @@ que la suite ne le voie.
    `/acces` reste une route à part entière (navigation directe, retour de
    déconnexion) et rend le même composant avec `apres="accueil"`.
 
-Deux points de revue **non retenus tels quels** :
+7. **Le groupe de routes est renommé `(public_restricted)`** — nom demandé en
+   revue. `(protege)` décrivait le mécanisme ; celui-ci décrit l'état : ces pages
+   restent **publiques côté RBAC**, seule leur porte d'entrée est restreinte. En
+   anglais, à la différence des routes sœurs (`acces`, `benevoles`…) : un nom de
+   groupe entre parenthèses n'apparaît dans aucune URL, il ne se rend jamais à un
+   utilisateur, donc il tombe du côté technique du Principe I. `git mv` du dossier
+   seul — aucun import n'y référait, les chemins ne vivaient que dans des
+   commentaires et dans `routes-garde-site.test.ts`.
+8. **Les délégations d'une ligne vers `shared_password` sont supprimées**, des
+   **deux** côtés (#271 et #509). La mutualisation demandée en revue était déjà
+   faite (commit `4e2f8ef`, `services/shared_password.py` porte le scrypt et le
+   HMAC) ; ce qui restait dans `site_access.py` et `benevole_access.py` était
+   quatre fonctions qui ne faisaient que renvoyer au socle. Les appelants
+   (routeurs, garde, tests) l'appellent directement. Ce qui reste dans les deux
+   modules de domaine est ce qui leur est propre : le nom du cookie, le TTL, la
+   génération du secret, `replace_password`.
 
-- La mutualisation demandée entre `services/site_access.py` et
-  `services/benevole_access.py` **est déjà faite** — les deux passent par
-  `services/shared_password.py` (hachage scrypt, signature HMAC, TTL). Ce qui
-  reste dans `site_access.py` est une façade de trois fonctions qui ne fait que
-  nommer le domaine ; la fusionner reviendrait à faire dépendre chaque appelant
-  du socle neutre pour économiser une indirection.
+Un point de revue **non retenu** :
+
 - `SINGLETON_ID` reste tel quel : c'est la clé primaire figée qui **rend** le
   singleton vrai (collision de PK plutôt que seconde ligne), et le même nom vit
   dans `benevole_config_repository` (#271) — le renommer n'aurait de sens
