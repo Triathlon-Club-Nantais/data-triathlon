@@ -1374,7 +1374,7 @@ Créer `frontend/components/admin/QualityQueueTable.tsx` :
 
 ```tsx
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Pencil, RefreshCw } from "lucide-react";
@@ -1472,10 +1472,18 @@ export function QualityQueueTable({
     router.push(qs.size ? `${chemin}?${qs}` : chemin);
   }
 
-  async function relancer(course: CourseBrief) {
-    await rescrape.start(course.id);
-    toast.success("Re-scrape terminé — l'indice sera recalculé à l'import.");
-  }
+  // Notifie en fin de flux plutôt qu'après l'`await` : `start()` ne rejette
+  // **jamais** — le hook capture ses propres erreurs dans `state.error` — donc
+  // un `try/catch` autour de lui annoncerait un succès sur un échec. Même
+  // patron que `CourseSourcesPanel`, pour la même raison.
+  useEffect(() => {
+    if (rescrape.state.phase === "done") {
+      toast.success("Re-scrape terminé — l'indice de fiabilité a été recalculé.");
+    } else if (rescrape.state.phase === "error" && rescrape.state.error) {
+      toast.error(rescrape.state.error);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rescrape.state.phase]);
 
   // La barre de filtres reste montée dans **tous** les états : la retirer sur
   // une file vide enfermerait le validateur dans son propre filtre.
@@ -1604,7 +1612,7 @@ export function QualityQueueTable({
                       size="sm"
                       variant="outline"
                       disabled={rescrape.state.running}
-                      onClick={() => relancer(course)}
+                      onClick={() => rescrape.start(course.id)}
                       aria-label={`Re-scraper ${course.name}`}
                     >
                       <RefreshCw size={14} />
@@ -1944,7 +1952,7 @@ Dans `Entree`, à l'intérieur de `corps`, après le libellé :
       )}
 ```
 
-Vérifier que `Tuile` porte bien `position: "relative"` (via `tuile(actif)`) ; sinon l'ajouter au style du `Link`, faute de quoi la pastille se positionnerait sur un ancêtre.
+`tuile(actif)` porte déjà `position: "relative"` — la pastille se positionne donc sur la tuile, rien à ajouter.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
