@@ -250,7 +250,7 @@ data-triathlon/
 │   │   └── scrapers/            # registre Protocol + un module par provider
 │   ├── alembic/                 # migrations (révision initiale = schéma complet)
 │   ├── scripts/                 # reset_db.py, seed_demo.py, audit_scrapers.py
-│   ├── tests/                   # test_repositories / test_services / test_api (≈130 tests)
+│   ├── tests/                   # test_repositories / test_services / test_api (3656 tests)
 │   ├── Dockerfile
 │   └── README.md
 ├── frontend/                    # Next.js 16 (App Router) + TypeScript + Tailwind + shadcn/ui
