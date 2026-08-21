@@ -7,6 +7,7 @@ import { Avatar } from "@/components/tcn";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useSession } from "@/lib/queries/auth";
+import { useNavBadges } from "@/lib/queries/nav-badges";
 import { AthletePicker, ATHLETE_CHANGED_EVENT, clearAthlete, nomComplet, readAthlete, writeAthlete, type PickedAthlete } from "./AthletePicker";
 import { NAV, ROLE, type NavItem, type NavSection } from "./nav.config";
 import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
@@ -28,7 +29,7 @@ import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
  */
 
 /** Entrée rendue : une destination livrée, donc porteuse d'un `href`. */
-type Destination = NavItem & { href: string };
+type Destination = NavItem & { href: string; count?: number };
 type SectionRendue = Omit<NavSection, "items"> & { items: Destination[] };
 
 const STORE_NAV = "tcn-nav-expanded";
@@ -101,16 +102,22 @@ export function AppNav() {
   // au-delà vient des **pouvoirs**, seuls réellement renseignés (#115).
   const rank: number = session ? ROLE.CONNECTED : ROLE.ANON;
   const pouvoirs = new Set(session?.permissions ?? []);
+  const badges = useNavBadges(pouvoirs);
   const sections = NAV.filter((s) => rank >= s.minRole)
     .map((s) => ({
       ...s,
-      items: s.items.filter(
-        (i): i is Destination =>
-          !!i.href &&
-          !i.soon &&
-          rank >= (i.minRole ?? ROLE.ANON) &&
-          (!i.permission || pouvoirs.has(i.permission)),
-      ),
+      items: s.items
+        .filter(
+          (i): i is Destination =>
+            !!i.href &&
+            !i.soon &&
+            rank >= (i.minRole ?? ROLE.ANON) &&
+            (!i.permission || pouvoirs.has(i.permission)),
+        )
+        // Le compteur est attaché à la destination plutôt que passé en prop à
+        // travers `NavContent` : il suit l'entrée jusqu'aux deux rendus (tuile
+        // et ligne dépliée) sans élargir trois signatures au passage.
+        .map((i) => (i.badge ? { ...i, count: badges[i.badge] } : i)),
     }))
     // Une section vidée par le filtrage n'a plus qu'un intitulé à afficher —
     // et, sur le rail replié, une tuile qui déplie sur rien. C'est le cas de
@@ -615,9 +622,42 @@ function Entree({
             }}
           />
           <span style={{ flex: 1 }}>{item.label}</span>
+          {!!item.count && (
+            <span
+              style={{
+                flex: "none",
+                minWidth: 20,
+                padding: "1px 6px",
+                borderRadius: "var(--tcn-radius-pill)",
+                background: "var(--tcn-orange)",
+                color: "#fff",
+                fontSize: 11,
+                fontWeight: 700,
+                textAlign: "center",
+              }}
+            >
+              {item.count}
+            </span>
+          )}
         </>
       ) : (
-        Icon && <Icon size={20} />
+        <>
+          {Icon && <Icon size={20} />}
+          {!!item.count && (
+            <span
+              aria-hidden
+              style={{
+                position: "absolute",
+                top: 6,
+                right: 6,
+                width: 7,
+                height: 7,
+                borderRadius: "var(--tcn-radius-pill)",
+                background: "var(--tcn-orange)",
+              }}
+            />
+          )}
+        </>
       )}
     </Link>
   );

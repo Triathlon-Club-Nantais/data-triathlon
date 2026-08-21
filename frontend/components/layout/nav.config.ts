@@ -41,6 +41,15 @@ export type NavItem = {
    * `soon`.
    */
   soon?: boolean;
+  /**
+   * Clé du compteur affiché en badge, résolue par `useNavBadges`
+   * (`lib/queries/nav-badges.ts`). Une **clé**, jamais un nombre : cette table
+   * est de la configuration, elle ne fait pas de requête.
+   *
+   * Le badge est masqué à zéro — un « 0 » permanent est du bruit — et la requête
+   * n'est émise que si la session porte le `permission` de l'entrée.
+   */
+  badge?: string;
 };
 
 export type NavSection = {
@@ -130,6 +139,7 @@ export const NAV: NavSection[] = [
         label: "Revalidation qualité",
         href: "/admin/quality",
         permission: "quality:override",
+        badge: "quality",
       },
       // Signalement public (#267) — même contraste que « Fournisseurs en
       // attente » : la soumission est ouverte à tous, la consulter exige
