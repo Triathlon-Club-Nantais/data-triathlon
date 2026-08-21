@@ -22,6 +22,7 @@ n'accueille que ce qu'on voudrait relire à chaque session.
 | Sujet | Où |
 | --- | --- |
 | Workflow IA : les trois voies, garde-fous, artefacts | `docs/WORKFLOW-IA.md` |
+| RTK : gains mesurés du préfixe `rtk`, et où il est interdit | `docs/rtk.md` |
 | Review UI/UX : grille, seuils chiffrés, faux positifs connus | `.claude/agents/ui-ux-review.md` |
 | Architecture backend : inventaire des modules, cache TTL | `backend/AGENTS.md` |
 | Conventions scrapers + les 14 fournisseurs supportés | `backend/app/scrapers/AGENTS.md` |
@@ -114,6 +115,10 @@ npm run build      # build prod (strict TS + RSC)
 npm test           # vitest run
 npm run lint       # ESLint
 ```
+
+**RTK**, s'il est installé : `rtk uv run pytest -m "not integration"` rend la même
+preuve pour -99 % de tokens. Jamais sur un sondage, la CLI de batch ni `alembic`,
+et inutile ailleurs — gains mesurés et garde-fous dans `docs/rtk.md`.
 
 Variable requise : `backend/.env` avec `DATABASE_URL` (voir `.env.example`). Le
 schéma est géré par **Alembic** (`uv run alembic upgrade head`). Les dépendances et la

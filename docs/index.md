@@ -15,6 +15,8 @@ stocke, et importe tous les participants de l'épreuve.
   participation) et migrations Alembic.
 - [Dev multi-worktree](dev-multi-worktree.md) — plusieurs worktrees en
   parallèle : découverte de port, `.worktreeinclude`, codes de sortie.
+- [RTK](rtk.md) — compresser la sortie des commandes pour les sessions d'agent :
+  ce que ça rapporte vraiment, et les cas où c'est interdit.
 - Fournisseurs de chronométrage (`scrapers/`) — un fichier par chronométreur :
   formes d'URL acceptées, pièges mesurés et vérités d'API.
 
