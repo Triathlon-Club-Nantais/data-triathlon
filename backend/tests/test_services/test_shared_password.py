@@ -14,6 +14,13 @@ def test_echoue_si_la_cle_a_change():
     assert shared_password.verify_cookie(valeur, "nouveau-secret") is False
 
 
+def test_echoue_si_l_horodatage_est_corrompu():
+    valeur = shared_password.sign_cookie("secret")
+    horodatage, _, signature = valeur.partition(".")
+    trafique = f"{horodatage}9.{signature}"
+    assert shared_password.verify_cookie(trafique, "secret") is False
+
+
 def test_echoue_sur_une_valeur_vide_ou_mal_formee():
     assert shared_password.verify_cookie(None, "secret") is False
     assert shared_password.verify_cookie("", "secret") is False

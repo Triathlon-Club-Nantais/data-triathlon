@@ -2,6 +2,14 @@
 mots de passe communs du dépôt (`benevole_access`, #271 ; `site_access`,
 #509). Les deux diffèrent par leur cookie, leur table et leur politique
 d'expiration — jamais par ce calcul.
+
+Les appelants (routeurs, `api/deps`, tests) s'adressent **directement** ici : les
+deux modules de domaine ont porté un temps des délégations d'une ligne qui ne
+faisaient que renommer ces fonctions, supprimées en revue de #513. Les décisions
+d'origine restent tracées dans
+`specs/20260815-173645-admin-mdp-benevoles/research.md` — §D1 pour scrypt plutôt
+qu'un hachage rapide, §D2 pour la clé du cookie, qui est un `session_secret`
+distinct et non le mot de passe lui-même.
 """
 import hashlib
 import hmac

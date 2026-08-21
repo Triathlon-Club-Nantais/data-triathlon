@@ -22,7 +22,7 @@ from app.repositories import (
     participation_repository,
     user_repository,
 )
-from app.services import benevole_access
+from app.services import benevole_access, shared_password
 
 MOT_DE_PASSE = "secret-du-club"
 
@@ -96,14 +96,14 @@ def test_refuse_avec_un_cookie_invalide(visiteur):
 
 
 def test_refuse_meme_avec_un_cookie_signe_par_un_autre_secret(visiteur):
-    valeur = benevole_access.sign_session("autre-secret-de-session")
+    valeur = shared_password.sign_cookie("autre-secret-de-session")
     visiteur.cookies.set(benevole_access.BENEVOLE_SESSION_COOKIE, valeur)
     assert visiteur.get("/protege").status_code == 401
 
 
 def test_passe_avec_un_cookie_valide(visiteur, db_session):
     config = db_session.query(BenevoleAccessConfig).one()
-    valeur = benevole_access.sign_session(config.session_secret)
+    valeur = shared_password.sign_cookie(config.session_secret)
     visiteur.cookies.set(benevole_access.BENEVOLE_SESSION_COOKIE, valeur)
     reponse = visiteur.get("/protege")
     assert reponse.status_code == 200
@@ -112,7 +112,7 @@ def test_passe_avec_un_cookie_valide(visiteur, db_session):
 
 def test_refuse_si_le_mot_de_passe_n_est_pas_configure(visiteur, sans_configuration, db_session):
     config = db_session.query(BenevoleAccessConfig).one()
-    valeur = benevole_access.sign_session(config.session_secret)
+    valeur = shared_password.sign_cookie(config.session_secret)
     sans_configuration()
     visiteur.cookies.set(benevole_access.BENEVOLE_SESSION_COOKIE, valeur)
     assert visiteur.get("/protege").status_code == 401

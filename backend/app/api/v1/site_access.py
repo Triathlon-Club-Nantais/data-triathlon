@@ -25,7 +25,7 @@ from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.repositories import site_access_config_repository
 from app.schemas.site_access import SiteAccessLogin
-from app.services import site_access
+from app.services import shared_password, site_access
 
 router = APIRouter(tags=["site-access"])
 
@@ -38,14 +38,14 @@ def open_session(
     settings: Settings = Depends(get_settings),
 ):
     config = site_access_config_repository.get_config(db)
-    if config is None or not site_access.verify_password(
+    if config is None or not shared_password.verify_password(
         body.password, password_hash=config.password_hash, password_salt=config.password_salt
     ):
         raise NotAuthenticatedError("Mot de passe incorrect.")
 
     response.set_cookie(
         key=site_access.SITE_SESSION_COOKIE,
-        value=site_access.sign_session(config.session_secret),
+        value=shared_password.sign_cookie(config.session_secret),
         max_age=settings.site_access_session_ttl_days * 24 * 60 * 60,
         httponly=True,
         secure=settings.auth_cookie_secure,

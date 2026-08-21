@@ -28,7 +28,7 @@ from app.schemas.athlete import AthleteBrief
 from app.schemas.benevole import BenevoleCourseRename, BenevoleLogin, ParticipationFieldsUpdate
 from app.schemas.course import CourseBrief
 from app.schemas.participation import ParticipationOut
-from app.services import admin_actions, benevole_access
+from app.services import admin_actions, benevole_access, shared_password
 
 router = APIRouter(tags=["benevoles"])
 
@@ -43,14 +43,14 @@ def open_session(
     """Connexion par mot de passe partagé. **Non gardée** — c'est elle qui pose
     la garde des autres routes de ce routeur."""
     config = benevole_config_repository.get_config(db)
-    if config is None or not benevole_access.verify_password(
+    if config is None or not shared_password.verify_password(
         body.password, password_hash=config.password_hash, password_salt=config.password_salt
     ):
         raise NotAuthenticatedError("Mot de passe incorrect.")
 
     response.set_cookie(
         key=benevole_access.BENEVOLE_SESSION_COOKIE,
-        value=benevole_access.sign_session(config.session_secret),
+        value=shared_password.sign_cookie(config.session_secret),
         httponly=True,
         secure=settings.auth_cookie_secure,
         samesite="lax",
