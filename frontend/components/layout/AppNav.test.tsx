@@ -715,7 +715,10 @@ describe("badge de la file de revalidation (#119)", () => {
     afficher(habilite("quality:override"));
     await deplier();
 
-    const pastille = await screen.findByText("4");
-    expect(pastille).toHaveAttribute("aria-label", "4 épreuves à revalider");
+    // ARIA 1.2 interdit de nommer un `<span>` (rôle `generic`) par
+    // `aria-label` : le nom accessible passe par un texte `sr-only` dédié, la
+    // pastille chiffrée restant purement décorative.
+    expect(await screen.findByText("4 épreuves à revalider")).toHaveClass("sr-only");
+    expect(screen.getByText("4")).toHaveAttribute("aria-hidden", "true");
   });
 });
