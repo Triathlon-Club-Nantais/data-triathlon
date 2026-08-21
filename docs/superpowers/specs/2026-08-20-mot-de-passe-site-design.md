@@ -83,7 +83,8 @@ configuration absente ou cookie absent/invalide/expiré → 401 uniforme.
 
 Posée dans `app/api/v1/router.py`, à l'inclusion de chaque sous-router
 (`include_router(module.router, dependencies=[Depends(require_site_access)])`),
-sauf **cinq** exceptions nommées :
+sauf **six** exceptions nommées (cinq à la livraison, `feedback` ajouté en
+revue de #513 — voir § Suites de la revue de #513) :
 
 - `health` (`/health`, `/version`) — needs d'infra (keep-warm Render) et
   donnée non sensible, déjà documentée comme volontairement publique ;
@@ -113,10 +114,10 @@ sauf **cinq** exceptions nommées :
   Le bootstrap du tout premier administrateur reste le même qu'aujourd'hui
   (`app/cli/AGENTS.md`, `grant-role`), inchangé par #509.
 
-Tout le reste **hors ces cinq** : un visiteur externe ne doit atteindre
+Tout le reste **hors ces six** : un visiteur externe ne doit atteindre
 aucune page publique, ni aucune écriture publique existante
-(`POST /participations`, `POST /admin/pending-providers`, `POST /feedback`)
-sans le mot de passe site d'abord — ces routes restent ouvertes **côté
+(`POST /participations`, `POST /admin/pending-providers`) sans le mot de passe
+site d'abord — ces routes restent ouvertes **côté
 RBAC** (FR-018/FR-022 de #115 ne changent pas), mais exigent désormais le
 cookie site comme tout le reste. Une fois la session site ouverte, la garde
 RBAC de #115 s'applique normalement par-dessus.
@@ -128,8 +129,10 @@ RBAC de #115 s'applique normalement par-dessus.
 *présence* du cookie, jamais sa validité, et un `matcher` mal borné
 intercepte `/api/*` et casse la réécriture vers le backend. Cette feature
 reprend donc le même patron de garde-par-layout — appel serveur à
-`GET /api/v1/site-access/session`, redirection vers `/acces` (formulaire de
-mot de passe) si 401 — mais **pas sur `app/layout.tsx`** : ce fichier définit
+`GET /api/v1/site-access/session`, puis, si 401, le formulaire de mot de passe
+(redirection vers `/acces` à la livraison ; **rendu sur place depuis la revue
+de #513**, voir § Suites de la revue de #513) — mais **pas sur
+`app/layout.tsx`** : ce fichier définit
 `<html>`/`<body>` pour **toute** l'application, `/acces` et `/benevoles`
 compris, et une redirection posée là boucle sur elle-même (`/acces` rend le
 layout racine, qui revérifie la session, qui redirige vers `/acces`…) et
@@ -140,7 +143,8 @@ La garde se pose donc sur un groupe de routes, `app/(protege)/layout.tsx`
 (parenthèses : invisible dans l'URL), qui accueille toutes les routes
 existantes sauf trois, par un déplacement mécanique de dossiers
 (`git mv app/dashboard app/\(protege\)/dashboard`, etc.) : `dashboard`,
-`resultats`, `athletes`, `courses`, `club`, `carte`, `ajouter`, `login`.
+`resultats`, `athletes`, `courses`, `club`, `carte`, `ajouter` — plus `login` à
+la livraison, ressorti en revue de #513 (§ Suites de la revue de #513).
 `app/layout.tsx` (html/body/nav) ne change pas de rôle, il englobe toujours
 tout. `/acces`, `/benevoles` **et `/admin`** restent des routes **sœurs**,
 hors du groupe, donc jamais soumises à cette garde — `/benevoles` garde sa
@@ -193,7 +197,8 @@ de force brute sur l'offre gratuite Render, exactement le risque que #395
 plafonne ailleurs. `public_write_rate_limit` (`api/deps.py`) est réutilisé
 tel quel, et `SiteAccessLogin.password` gagne un `max_length` — les deux
 changements coûtent une ligne chacun et ne demandent aucune nouvelle
-infrastructure.
+infrastructure. *La réutilisation du seau `public_write` a été défaite en revue
+de #513 (§ Suites de la revue de #513) ; le plafond lui-même, lui, reste.*
 
 ## Tests
 
@@ -228,3 +233,66 @@ l'axe RBAC qu'ils testaient déjà ; seul
 attribut que `include_router(module.router, dependencies=[...])` ne modifie
 pas sur l'objet importé — la garde ci-dessus ne le fait donc pas rougir, mais
 c'est à confirmer par une exécution, pas par lecture seule.
+
+## Suites de la revue de #513
+
+Six correctifs, tous vérifiés contre le code avant d'être écrits. Ils ne
+rouvrent pas le design : ils ferment ce que la garde transverse avait cassé sans
+que la suite ne le voie.
+
+1. **`login` ressorti du groupe gardé** (`git mv app/(protege)/login app/login`).
+   Le § Garde frontend avait sorti `admin` sans sortir `login`, or la garde
+   d'`admin` renvoie un anonyme vers `/login` : sur un déploiement neuf, le
+   chemin devenait `/admin` → `/login` → `/acces` → impasse, aucun mot de passe
+   n'existant encore à saisir. C'était le **même** défaut que celui déjà corrigé
+   deux fois (backend en Task 8, `admin` en revue finale), à un dossier près —
+   d'où un test de **structure de dossiers**, `app/routes-garde-site.test.ts` :
+   l'erreur est un rangement, invisible à la lecture de n'importe quel fichier.
+2. **`GET /benevoles/athletes`**, jumeau gardé par `require_benevole_access`. La
+   réattribution de participation (`ParticipationPanel`) appelait
+   `GET /athletes`, passée sous la garde site : un bénévole n'a que le mot de
+   passe bénévoles, sa recherche rendait 401 en silence. Exempter `athletes` de
+   la garde site aurait rouvert toute la recherche d'athlètes à l'anonyme — la
+   route jumelle la garde derrière ce que le bénévole possède déjà. Le front
+   distingue désormais « aucun résultat » d'« échec de recherche ».
+3. **`MAX_PASSWORD_LENGTH` partagé** entre `schemas/site_access.py` (borne de la
+   connexion, ajoutée en revue finale) et `schemas/site_access_config.py` (borne
+   de l'administration). Elles divergeaient : l'administration acceptait un mot
+   de passe plus long que ce que la connexion pouvait soumettre, donc un accès
+   configuré et inutilisable.
+4. **`feedback` exempté de la garde site.** `FeedbackButton` vit dans le layout
+   racine du front : il se rend donc aussi sur `/acces` et `/benevoles`, où
+   aucun cookie de site n'existe. Son unique route reste bornée par honeypot et
+   par un plafond compté en base ; `admin_feedback`, lui, reste gardé.
+5. **Seau de débit dédié `site_access`, 60/h.** Partager `public_write` couplait
+   la porte d'entrée du site à la saisie manuelle de résultats — saisir sa saison
+   empêchait d'ouvrir une session, et un club derrière une seule IP NAT/CGNAT
+   épuisait les 30 tentatives collectivement. Plus large pour la raison inverse
+   des autres seaux : premier geste de chaque visiteur, IP partagée, saisie au
+   clavier faillible. Ce qu'il ferme reste le déni de service par `scrypt`, pas
+   la force brute sur un secret de 144 bits.
+6. **Le formulaire est rendu sur place, plus par redirection vers `/acces`.**
+   `redirect("/acces")` perdait la destination : un lien partagé vers
+   `/courses/42` finissait sur le tableau de bord. Un layout serveur ne reçoit en
+   Next 16 ni le chemin ni les `searchParams`, donc « transporter la
+   destination » n'était pas implémentable là où la garde est posée —
+   `middleware.ts` est exclu par design et `authInterrupts`/`unauthorized()`
+   reste expérimental en 16.3.1. Rendre le formulaire à la place des enfants
+   supprime le problème au lieu de le contourner : l'URL ne bouge pas, le
+   `router.refresh()` qui suit la connexion rejoue le layout cookie en main, et
+   il n'y a aucun paramètre `next` à valider contre la redirection ouverte.
+   `/acces` reste une route à part entière (navigation directe, retour de
+   déconnexion) et rend le même composant avec `apres="accueil"`.
+
+Deux points de revue **non retenus tels quels** :
+
+- La mutualisation demandée entre `services/site_access.py` et
+  `services/benevole_access.py` **est déjà faite** — les deux passent par
+  `services/shared_password.py` (hachage scrypt, signature HMAC, TTL). Ce qui
+  reste dans `site_access.py` est une façade de trois fonctions qui ne fait que
+  nommer le domaine ; la fusionner reviendrait à faire dépendre chaque appelant
+  du socle neutre pour économiser une indirection.
+- `SINGLETON_ID` reste tel quel : c'est la clé primaire figée qui **rend** le
+  singleton vrai (collision de PK plutôt que seconde ligne), et le même nom vit
+  dans `benevole_config_repository` (#271) — le renommer n'aurait de sens
+  qu'ensemble. Le raisonnement est désormais dans le module, en commentaire.
