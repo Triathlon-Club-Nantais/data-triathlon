@@ -126,9 +126,10 @@ describe("TcnScrapeForm — navigation vers les courses importées (#135)", () =
       ],
     });
     renderForm();
-    // Le titre du sélecteur annonce le nombre de courses (compteur unique — le
-    // reste du texte est en fragments donc pas testé littéralement).
-    expect(screen.getByText(/3 courses importées/)).toBeInTheDocument();
+    // Le titre du sélecteur annonce le nombre d'épreuves (compteur unique —
+    // le reste du texte est en fragments donc pas testé littéralement).
+    // « épreuve », jamais « course », dans un libellé (revue de code #478).
+    expect(screen.getByText(/3 épreuves importées/)).toBeInTheDocument();
     // Le bouton file vers la première course par défaut, sans interaction.
     const link = screen.getByRole("link", { name: /Voir les résultats/ });
     expect(link.getAttribute("href")).toBe("/courses/1");
@@ -146,7 +147,7 @@ describe("TcnScrapeForm — navigation vers les courses importées (#135)", () =
     });
     renderForm();
     // Le sélecteur est un `<select>` natif restylé (label accessible via aria-label).
-    const select = screen.getByRole("combobox", { name: /Choisir la course/ });
+    const select = screen.getByRole("combobox", { name: /Choisir l'épreuve/ });
     await userEvent.selectOptions(select, "2");
     expect(
       screen.getByRole("link", { name: /Voir les résultats/ }).getAttribute("href"),

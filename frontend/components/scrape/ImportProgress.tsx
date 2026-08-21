@@ -85,7 +85,7 @@ export function ImportProgress({ state }: { state: ImportState }) {
           {state.courses.length > 0 && (
             <div className="space-y-1 pt-2">
               <p className="text-[var(--tcn-text-faint)]">
-                {state.courses.length === 1 ? "1 course importée :" : `${state.courses.length} courses importées :`}
+                {state.courses.length === 1 ? "1 épreuve importée :" : `${state.courses.length} épreuves importées :`}
               </p>
               <ul className="space-y-1">
                 {state.courses.map((c) => (

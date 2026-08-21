@@ -105,6 +105,20 @@ describe("ResultCard", () => {
     expect(screen.queryByText("Source (klikego)")).not.toBeInTheDocument();
   });
 
+  it("n'affiche pas « Source (Source) » pour une saisie manuelle sans fournisseur (revue de code)", () => {
+    // Une participation saisie à la main n'a pas de `source_url`, donc
+    // `Course.provider` vaut "" côté backend — jamais null/undefined, mais
+    // vide. `providerLabel("")` retombe sur le mot "Source" lui-même : le
+    // gabarit `Source (...)` produisait alors "Source (Source)".
+    render(
+      <ResultCard
+        result={{ ...base, course: { ...base.course, provider: "", source_url: "" } }}
+      />,
+    );
+    expect(screen.queryByText("Source (Source)")).not.toBeInTheDocument();
+    expect(screen.getByText("Source")).toBeInTheDocument();
+  });
+
   it("compose l'ordinal du classement via ordinalFr, sans superscript fait main", () => {
     render(<ResultCard result={{ ...base, rank_overall: 42 }} />);
     expect(screen.getByText("42e")).toBeInTheDocument();

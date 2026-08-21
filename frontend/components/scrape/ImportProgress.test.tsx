@@ -44,6 +44,18 @@ describe("ImportProgress", () => {
     expect(link.getAttribute("href")).toBe("/courses/42");
   });
 
+  it("dit « épreuve », jamais « course », dans l'en-tête de la liste importée (revue de code)", () => {
+    render(
+      <ImportProgress
+        state={state({
+          phase: "done",
+          courses: [{ id: 42, name: "Triathlon de Mesquer", event_type: "triathlon-s" }],
+        })}
+      />,
+    );
+    expect(screen.getByText("1 épreuve importée :")).toBeInTheDocument();
+  });
+
   it("affiche le type d'épreuve via eventTypeLabel plutôt que le code brut", () => {
     const courses = [{ id: 42, name: "Triathlon de Mesquer", event_type: "triathlon-s" }];
     render(<ImportProgress state={state({ phase: "done", courses })} />);
