@@ -10,6 +10,18 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models.site_access_config import SiteAccessConfig
 
+#: La clé primaire de l'unique ligne de `site_access_config`, **figée à 1**.
+#:
+#: C'est bien l'`id` en base (question posée en revue de #513) : la table est un
+#: singleton — un seul mot de passe de site existe à tout instant — et fixer la
+#: clé plutôt que de laisser l'autoincrément la donner est ce qui rend le
+#: singleton vrai. `save_config` fait `db.get(SiteAccessConfig, SINGLETON_ID)`
+#: puis écrit cette ligne ou la crée avec cet `id` : deux appels concurrents
+#: entrent en collision de clé primaire (`IntegrityError`, rattrapée par le
+#: savepoint) au lieu de créer une seconde configuration que personne ne lirait.
+#:
+#: Même nom et même valeur que `benevole_config_repository.SINGLETON_ID` (#271),
+#: dont ce module est le jumeau — les renommer n'aurait de sens qu'ensemble.
 SINGLETON_ID = 1
 
 

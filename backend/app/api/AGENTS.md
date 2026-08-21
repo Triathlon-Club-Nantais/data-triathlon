@@ -128,19 +128,30 @@ pièges mesurés et invariants dans
 
 ## Plafonds de débit par IP (#395, #398)
 
-Cinq routes publiques sont plafonnées par IP, **route par route** comme les
+Six routes publiques sont plafonnées par IP, **route par route** comme les
 gardes de pouvoir — `api/deps.scrape_rate_limit` sur `POST /scrape/event` et
 `POST /scrape/event/stream`, `api/deps.authorize_rate_limit` sur
 `GET /auth/{provider}/authorize`, `api/deps.public_write_rate_limit` sur
-`POST /admin/pending-providers` et `POST /participations`. Quatre choses à ne
-pas défaire :
+`POST /admin/pending-providers` et `POST /participations`, et
+`api/deps.site_access_rate_limit` sur `POST /site-access/session` (#509).
+Quatre choses à ne pas défaire :
 
 - **Un seul seau par geste, pas par route.** Les deux routes de scraping
   déclenchent le même travail (jusqu'à ~26 requêtes sortantes, puis des
   centaines de lignes écrites) ; les deux écritures publiques se suivent dans
   la même séquence (import échoué → signalement du fournisseur → saisie
   manuelle). Dans les deux cas, des compteurs distincts ne feraient qu'offrir
-  un plafond à contourner par alternance.
+  un plafond à contourner par alternance. **Le corollaire est la réciproque, et
+  il a coûté un seau** : `POST /site-access/session` a partagé `public_write`
+  jusqu'à la revue de #513, alors qu'elle n'est dans le geste d'aucune des deux
+  écritures — un membre qui saisissait sa saison ne pouvait plus ouvrir de
+  session, et un club derrière une seule IP NAT épuisait les 30 tentatives
+  collectivement. Elle a son seau `site_access`, plus large (60/h) pour la
+  raison inverse de tous les autres : c'est le **premier** geste de chaque
+  visiteur, partagé entre adhérents, et une saisie au clavier se trompe. Ce
+  qu'il ferme reste le déni de service par `hashlib.scrypt` (~16 Mo, 50-100 ms
+  de CPU par tentative, bonne ou mauvaise), pas la force brute — le secret est
+  généré à 144 bits.
 - **Le compteur est en mémoire du process**, contrairement à celui de
   `POST /feedback` qui compte des lignes en base : il n'y a ici aucune table où
   compter, et en créer une ferait écrire la requête que le plafond empêche.
@@ -152,11 +163,14 @@ pas défaire :
   `_compteurs_de_debit_vierges` de `tests/conftest.py` le remet à zéro, sinon
   l'ordre d'exécution déciderait quel test prend un 429.
 
-**Depuis #509**, ces cinq routes restent anonymes **côté RBAC** — aucune
+**Depuis #509**, les cinq premières restent anonymes **côté RBAC** — aucune
 session, aucun pouvoir — mais exigent désormais le mot de passe partagé du
 site comme le reste de l'API (`require_site_access`, posé à l'inclusion dans
 `v1/router.py`) : un visiteur qui ne l'a jamais entré ne les atteint plus du
-tout, plafond ou pas.
+tout, plafond ou pas. La sixième, `POST /site-access/session`, est par
+construction hors de cette garde — c'est elle qui la satisfait. Son plafond est
+donc le seul qui borne encore un vrai anonyme, et le seul à ne pas pouvoir
+compter sur la garde en amont.
 
 Le SSE prend `optional_user` et journalise son appelant : il ne le faisait pas,
 et un import lancé depuis là ne laissait aucune trace de qui l'avait demandé.
@@ -232,7 +246,7 @@ détail dans `docs/api/feedback-stats.md`.
 
 ## Page bénévoles : une seconde garde, hors du socle SSO (#271)
 
-`benevoles.py` porte huit ressources gardées par `require_benevole_access`
+`benevoles.py` porte neuf ressources gardées par `require_benevole_access`
 (`api/deps.py`) — **pas** `require_permission`. Mot de passe partagé (5-6
 bénévoles). Décision produit et alternatives rejetées : `specs/20260815-
 114258-page-validation-benevoles/research.md` §D1.
@@ -253,7 +267,7 @@ individuelle à révoquer) — sans jamais avoir besoin de relire le mot de pass
 en clair. `services/benevole_access.replace_password` est le seul point
 d'écriture des trois champs secrets, toujours ensemble.
 
-Deux des huit routes délèguent à `admin_actions.update_course`/
+Deux d'entre elles délèguent à `admin_actions.update_course`/
 `.reassign_participation` (déjà livrées pour `/admin/*`) sous le `user_id`
 d'un **compte système** (« Bénévoles (accès partagé) », seedé par migration,
 jamais par le code applicatif) — `AdminActionLog.user_id` est une FK `NOT
@@ -267,6 +281,16 @@ préalable). Les deux routes restantes, `GET /benevoles/queue` et
 `GET /benevoles/rejected`, lisent directement le repository sans passer par
 `admin_actions` ; ni l'une ni l'autre ne filtre par club ou par portée : les
 bénévoles valident les saisies de tous les clubs, pas seulement du leur.
+
+**La neuvième est `GET /benevoles/athletes`** (revue de #513) — recherche
+d'athlètes par nom, rendue en `AthleteBrief`, plafonnée à 20 résultats. C'est le
+jumeau volontaire de `GET /athletes` : la réattribution d'une participation
+(`ParticipationPanel`) a besoin de chercher un athlète, mais la page bénévoles
+est une route sœur du groupe gardé côté front et un bénévole n'a que le mot de
+passe **bénévoles**, jamais celui du site. Exempter `athletes` de
+`require_site_access` aurait rouvert toute la recherche d'athlètes à l'anonyme ;
+une route sous `/benevoles/` la garde derrière la garde que le bénévole possède
+déjà. Elle rend `AthleteBrief`, donc sans `birth_date`.
 
 **Le renommage, la réattribution, la validation, le rejet et la correction de
 champs sont scopés au résultat en attente actionnable** (relevé en revue de
@@ -283,9 +307,11 @@ l'entrée doit au contraire être `is_rejected`, sans quoi il n'y a rien à
 annuler.
 
 `POST /benevoles/session` reste **non gardée** — c'est elle qui pose la garde
-des huit autres — et `test_public_routes_still_open.py` classe les huit
+des neuf autres — et `test_public_routes_still_open.py` classe les neuf
 routes gardées dans `ROUTES_BENEVOLES_FERMEES`, pas dans le préfixe `/admin/`
-(ce mécanisme n'a rien à voir avec le SSO/RBAC).
+(ce mécanisme n'a rien à voir avec le SSO/RBAC). Y **ajouter** toute nouvelle
+route de ce router : le test range par défaut dans « publique », donc un oubli
+se lit comme une régression d'ouverture, pas comme une absence de couverture.
 
 ## Mot de passe d'accès au site : deux routeurs jumeaux (#509)
 
@@ -298,9 +324,28 @@ pouvoir dédié `site_access:manage`. Deux différences assumées, pas un
 doublon à fusionner : ce mot de passe ferme **tout** le site (posé en
 `dependencies=` à l'inclusion de chaque sous-router dans `v1/router.py`,
 plutôt qu'une garde route par route) et non la seule page bénévoles, et
-`POST /site-access/session` porte `public_write_rate_limit` — cette route est
+`POST /site-access/session` porte `site_access_rate_limit` — cette route est
 désormais la seule porte publique non authentifiée du site, et son
 `hashlib.scrypt` à chaque tentative en fait un levier de déni de service sans
 ce plafond (revue finale, § « Plafond de débit » de
-`docs/superpowers/specs/2026-08-20-mot-de-passe-site-design.md`).
+`docs/superpowers/specs/2026-08-20-mot-de-passe-site-design.md` ; le seau est
+devenu **dédié** en revue de #513, cf. § « Plafonds de débit par IP »).
+
+**Six routers sont exemptés de la garde**, et la liste
+`_EXEMPTES_DE_LA_GARDE_SITE` de `v1/router.py` en est la description unique :
+`health` (sonde Render), `site_access` (elle pose la garde), `auth` +
+`admin_site_access` (le chemin qui installe le tout premier mot de passe sur un
+déploiement neuf), `benevoles` (le bénévole n'a que **son** mot de passe, cf. la
+section ci-dessus) et `feedback` (revue de #513 — `FeedbackButton` vit dans le
+layout racine du front, donc il se rend aussi sur `/acces` et `/benevoles`, où
+aucun cookie de site n'existe ; son unique route est déjà bornée par honeypot et
+par un plafond compté en base, et `admin_feedback` reste gardé, lui). Les
+inventaires dérivés de cette liste — `tests/test_auth/test_site_access_gate.py`,
+son `ROUTES_EXEMPTEES_PREFIXES` — se mettent à jour du même geste.
+
+La longueur maximale du mot de passe est **une seule constante partagée**,
+`schemas/site_access.MAX_PASSWORD_LENGTH`, que `site_access_config.py` importe :
+les deux bouts doivent s'accorder, sans quoi l'administration accepte un mot de
+passe que la connexion refuse en 422 — un accès configuré et inutilisable
+(relevé en revue de #513).
 
