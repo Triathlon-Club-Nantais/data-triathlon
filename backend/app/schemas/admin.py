@@ -471,7 +471,10 @@ class CourseReliabilityUpdate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    reliability_override: bool | None = None
+    #: Pas de défaut : `null` **lève** l'avis humain, un `PATCH` qui n'envoie que
+    #: `notes` ne doit pas produire la même écriture sous silence. L'unique
+    #: appelant (`ReliabilityVerdictDialog`) l'envoie toujours.
+    reliability_override: bool | None
     #: Le motif de la décision, consigné au journal (#119, AC3). Facultatif —
     #: un verdict sans commentaire reste un verdict — mais borné : un champ
     #: texte libre écrit en base se borne, même derrière une session.

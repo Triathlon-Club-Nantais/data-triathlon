@@ -213,6 +213,17 @@ def test_le_contrat_public_expose_toujours_is_reliable_et_lui_seul(
     assert "reliability_override" not in ligne
 
 
+def test_un_corps_sans_reliability_override_rend_422(client, epreuve_douteuse):
+    """`reliability_override` est obligatoire : `{"notes": "…"}` seul ne doit pas
+    lever l'avis humain sous silence (aucun défaut à `None`)."""
+    reponse = client.patch(
+        f"/api/v1/admin/courses/{epreuve_douteuse.id}/reliability",
+        json={"notes": "Vérifié à la source."},
+    )
+
+    assert reponse.status_code == 422
+
+
 def test_le_patch_transmet_les_notes_au_journal(client, db_session, epreuve_douteuse):
     """AC3 de bout en bout : le geste et sa trace partagent la transaction."""
     reponse = client.patch(
