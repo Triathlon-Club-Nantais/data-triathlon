@@ -81,7 +81,7 @@ def test_save_config_ne_cree_pas_une_seconde_ligne_face_a_une_ecriture_concurren
     db_session.flush()
     db_session.add(
         SiteAccessConfig(
-            id=site_access_config_repository.SINGLETON_ID,
+            id=site_access_config_repository.CONFIG_ROW_ID,
             password_hash="hash-concurrent",
             password_salt="salt-concurrent",
             session_secret="secret-concurrent",
@@ -98,6 +98,6 @@ def test_save_config_ne_cree_pas_une_seconde_ligne_face_a_une_ecriture_concurren
         updated_by_user_id=admin.id,
     )
 
-    assert config.id == site_access_config_repository.SINGLETON_ID
+    assert config.id == site_access_config_repository.CONFIG_ROW_ID
     assert db_session.query(SiteAccessConfig).count() == 1
     assert config.password_hash == "hash-apres"
