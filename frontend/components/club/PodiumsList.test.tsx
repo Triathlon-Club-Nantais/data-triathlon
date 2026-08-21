@@ -136,4 +136,14 @@ describe("PodiumsList — annonce du changement (#477)", () => {
 
     expect(screen.getByRole("status")).toHaveTextContent("3 podiums affichés");
   });
+
+  it("reste montée et annonce zéro quand la bascule ne laisse plus aucun podium (revue de code)", () => {
+    // Avant la revue : la région `role="status"` était rendue APRÈS le retour
+    // anticipé sur liste vide, donc elle disparaissait du DOM au moment précis
+    // où un lecteur d'écran aurait le plus besoin d'être prévenu.
+    searchParams = new URLSearchParams();
+    render(<PodiumsList participations={[]} />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("0 podium affiché");
+  });
 });

@@ -71,23 +71,39 @@ export function EventList({
 
   const currentSort = sp.get("sort") ?? "date_desc";
 
+  // WCAG 4.1.3 (#477) : filtrer ou trier remplace la liste sans déplacer le
+  // focus, et le défilement infini y ajoute des pages sans un mot — sans
+  // cette annonce, un lecteur d'écran ne signale ni l'un ni l'autre. Le
+  // décompte d'épreuves chargées (`events.length`) est inclus précisément
+  // pour que le défilement infini change le texte annoncé : les totaux seuls
+  // (`totalEvents`/`totalParticipations`) sont ceux de la sélection entière et
+  // ne bougent pas d'une page à l'autre. Rendue avant le retour anticipé sur
+  // liste vide, à dessein : sinon la région disparaît du DOM précisément
+  // quand un filtre venant de tout effacer aurait le plus besoin de le dire.
+  const annonce = (
+    <AnnonceStatut
+      texte={
+        `${totalEvents} épreuve${totalEvents > 1 ? "s" : ""}, ${totalParticipations} résultat${totalParticipations > 1 ? "s" : ""}` +
+        (events.length > 0 ? `, ${events.length} affichée${events.length > 1 ? "s" : ""}` : "")
+      }
+    />
+  );
+
   if (!isLoading && events.length === 0) {
     return (
-      <EmptyState
-        title="Aucun résultat"
-        description="Importez une épreuve depuis une URL de chronométrage pour voir apparaître les résultats ici."
-      />
+      <>
+        {annonce}
+        <EmptyState
+          title="Aucun résultat"
+          description="Importez une épreuve depuis une URL de chronométrage pour voir apparaître les résultats ici."
+        />
+      </>
     );
   }
 
   return (
     <Card padding={0} style={{ overflow: "hidden" }}>
-      {/* WCAG 4.1.3 (#477) : filtrer ou trier remplace la liste sans déplacer
-          le focus — sans cette annonce, un lecteur d'écran ne signale ni le
-          nouveau décompte ni le rechargement. */}
-      <AnnonceStatut
-        texte={`${totalEvents} épreuve${totalEvents > 1 ? "s" : ""}, ${totalParticipations} résultat${totalParticipations > 1 ? "s" : ""}`}
-      />
+      {annonce}
       <div
         style={{
           display: "flex",
