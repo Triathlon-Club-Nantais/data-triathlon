@@ -476,4 +476,16 @@ describe("RaceFinishers", () => {
     const entete = screen.getByRole("button", { name: /trier par temps total/i });
     expect(Number.parseInt(entete.style.minHeight, 10)).toBeGreaterThanOrEqual(24);
   });
+
+  it("centre verticalement la ligne d'en-tête, comme la ligne de résultat (revue de code)", () => {
+    // Le bouton triable impose maintenant `minHeight: 24`, plus haut que le
+    // texte brut des autres cellules ("Rang", "Athlète"…) : sans
+    // `alignItems: "center"` sur la ligne, la grille les étire (`stretch`,
+    // le défaut) et leur texte remonte en haut de la ligne pendant que le
+    // bouton reste centré sur lui-même.
+    afficher();
+
+    const ligne = screen.getByText("Rang").parentElement;
+    expect(ligne).toHaveStyle({ alignItems: "center" });
+  });
 });
