@@ -173,6 +173,25 @@ vérifiant un cookie à chaque requête. C'est l'effet recherché, au même titr
 que pour `/admin` (#115) : protéger *tout* le site implique que *tout* le
 site devienne dynamique.
 
+**Ce raisonnement s'est arrêté une marche trop tôt — corrigé par #526.** Il a
+constaté que `serverFetch` n'avait plus de prérendu à protéger, et en a conclu
+qu'il pouvait rester *inchangé*. Or il devait devenir **obligatoirement**
+cookie-relayant : les six pages qu'il sert lisent `athletes`, `courses`,
+`participations` et `stats`, tous gardés par `require_site_access`, qui est
+fail-closed. Un cookie site valide passait donc la garde du layout, puis chaque
+enfant se prenait un 401 en pleine passe de rendu serveur — React #441 et
+`app/error.tsx` sur tout le site dès qu'un mot de passe était configuré,
+constaté sur la preview après la fusion de #513.
+
+Ni la suite backend ni la suite frontend ne pouvaient l'attraper : la fixture
+`client` neutralise `require_site_access` par `dependency_overrides` (§ Tests,
+décision assumée), et les pages sont testées avec `apiServer` mocké. Seule la
+vérification manuelle de bout en bout que #513 avait explicitement laissée
+en suspens l'aurait montrée — elle demandait un mot de passe **configuré**, et
+c'est exactement l'état qu'aucun test n'exerce. À retenir pour toute garde
+transverse fail-closed : la neutraliser globalement en test rend la
+vérification manuelle non-optionnelle, pas simplement recommandée.
+
 ## Administration
 
 Écran existant `admin/acces`, qui héberge déjà `BenevoleAccessConfig` : un
