@@ -127,12 +127,13 @@ describe("QualityQueueTable", () => {
     expect(screen.getByText(/2 dossards en doublon/i)).toBeInTheDocument();
   });
 
-  it("« Marquer OK » envoie le verdict favorable (AC4)", async () => {
+  it("« Marquer fiable » envoie le verdict favorable (AC4)", async () => {
     rendre();
     const ligne = (await screen.findByText("Triathlon de Vertou")).closest("tr")!;
 
-    await userEvent.click(within(ligne).getByRole("button", { name: /marquer ok/i }));
-    await userEvent.click(await screen.findByRole("button", { name: /confirmer/i }));
+    await userEvent.click(within(ligne).getByRole("button", { name: /^marquer fiable$/i }));
+    const modale = await screen.findByRole("dialog");
+    await userEvent.click(within(modale).getByRole("button", { name: /^marquer fiable$/i }));
 
     await waitFor(() =>
       expect(setCourseReliability).toHaveBeenCalledWith(
@@ -147,7 +148,7 @@ describe("QualityQueueTable", () => {
     rendre();
 
     await screen.findByText("Triathlon de Vertou");
-    expect(screen.queryByRole("button", { name: /marquer ok/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^marquer fiable$/i })).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /marquer douteuse/i }),
     ).not.toBeInTheDocument();
@@ -157,10 +158,8 @@ describe("QualityQueueTable", () => {
     rendre();
     await screen.findByText("Triathlon de Vertou");
 
-    await userEvent.selectOptions(
-      screen.getByLabelText(/anomalie/i),
-      "rank_gap",
-    );
+    await userEvent.click(screen.getByRole("combobox", { name: /anomalie/i }));
+    await userEvent.click(await screen.findByRole("option", { name: "Trous dans le classement" }));
 
     expect(screen.getByText("Triathlon de Vertou")).toBeInTheDocument();
     expect(screen.queryByText("Triathlon de Carnac")).not.toBeInTheDocument();
@@ -182,7 +181,8 @@ describe("QualityQueueTable", () => {
     );
 
     await screen.findByText("Triathlon de Vertou");
-    await userEvent.selectOptions(screen.getByLabelText(/anomalie/i), "rank_gap");
+    await userEvent.click(screen.getByRole("combobox", { name: /anomalie/i }));
+    await userEvent.click(await screen.findByRole("option", { name: "Trous dans le classement" }));
     expect(screen.getByText("Triathlon de Vertou")).toBeInTheDocument();
     expect(screen.queryByText("Triathlon de Carnac")).not.toBeInTheDocument();
 
@@ -204,7 +204,7 @@ describe("QualityQueueTable", () => {
     rendre();
 
     expect(await screen.findByText(/aucune épreuve à revalider/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/anomalie/i)).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /anomalie/i })).toBeInTheDocument();
   });
 
   it("distingue la file vide d'un filtre par nom sans correspondance", async () => {
@@ -226,11 +226,34 @@ describe("QualityQueueTable", () => {
     await screen.findByText("Triathlon de Vertou");
 
     fireEvent.change(screen.getByLabelText(/^du$/i), { target: { value: "2026-05-01" } });
-    fireEvent.blur(screen.getByLabelText(/^du$/i));
+    await userEvent.click(screen.getByRole("button", { name: /^filtrer$/i }));
 
     expect(push).toHaveBeenCalledWith(
       expect.stringContaining("date_from=2026-05-01"),
     );
+  });
+
+  it("« Entrée » applique les filtres, sans attendre le clic (constat 7)", async () => {
+    rendre();
+    await screen.findByText("Triathlon de Vertou");
+
+    await userEvent.type(screen.getByLabelText(/nom de l'épreuve/i), "Vertou{Enter}");
+
+    expect(push).toHaveBeenCalledWith(expect.stringContaining("name=Vertou"));
+  });
+
+  it("« Réinitialiser », visible dès qu'un filtre est actif, le vide", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <QualityQueueTable filtres={{ name: "vertou" }} />
+      </QueryClientProvider>,
+    );
+    await screen.findByText("Triathlon de Vertou");
+
+    await userEvent.click(screen.getByRole("button", { name: /réinitialiser/i }));
+
+    expect(push).toHaveBeenCalledWith("/admin/quality");
   });
 
   it("le re-scrape recharge la file en fin de flux, la ligne ne reste pas avec ses anciennes anomalies", async () => {
@@ -281,5 +304,26 @@ describe("QualityQueueTable", () => {
         within(ligneVertou).queryByRole("button", { name: /re-scrape en cours/i }),
       ).not.toBeInTheDocument(),
     );
+  });
+
+  it("annonce la progression du re-scrape dans une région live (constat 9)", async () => {
+    getSession.mockResolvedValue(AVEC_RESCRAPE);
+    const { generateur, liberer } = fluxControle({
+      phase: "done", total: 10, imported: 1, updated: 9, skipped: 0,
+      reconciled: 0, orphans_removed: 0,
+    });
+    rescrapeEventStream.mockReturnValue(generateur);
+    const user = userEvent.setup();
+    rendre();
+    const ligne = (await screen.findByText("Triathlon de Vertou")).closest("tr")!;
+
+    await user.click(within(ligne).getByRole("button", { name: /re-scraper/i }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      /re-scrape de triathlon de vertou.*3 sur 10 résultats/i,
+    );
+
+    liberer();
+    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
   });
 });
