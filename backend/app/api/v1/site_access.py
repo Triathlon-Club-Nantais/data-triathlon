@@ -6,19 +6,21 @@ point que le frontend interroge pour savoir s'il doit rediriger vers
 `/acces`. `POST`/`DELETE` restent non gardées : la première pose le cookie,
 la seconde n'a aucun effet de bord sensible.
 
-**`POST` porte `public_write_rate_limit`** (revue finale, § Plafond de débit
+**`POST` porte `site_access_rate_limit`** (revue finale, § Plafond de débit
 du design) : depuis #509, cette route est la seule porte publique non
 authentifiée du site — à la différence de `POST /benevoles/session`, qui ne
 sert qu'une poignée de bénévoles — et elle déclenche `hashlib.scrypt`
 (~16 Mo, 50-100 ms CPU) à chaque tentative, un levier de déni de service et de
-force brute sans ce plafond. Même seau `"public_write"` que
-`POST /admin/pending-providers` et `POST /participations` — aucune
-infrastructure nouvelle.
+force brute sans ce plafond. **Son propre seau**, plus large, depuis la revue
+de #513 : partagé avec `POST /admin/pending-providers` et
+`POST /participations`, le plafond couplait la porte d'entrée du site à la
+saisie manuelle de résultats — un membre qui saisissait sa saison ne pouvait
+plus ouvrir de session (`api/deps.SITE_ACCESS_RATE_LIMIT_MAX_PER_WINDOW`).
 """
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
-from app.api.deps import NotAuthenticatedError, public_write_rate_limit, require_site_access
+from app.api.deps import NotAuthenticatedError, require_site_access, site_access_rate_limit
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.repositories import site_access_config_repository
@@ -28,7 +30,7 @@ from app.services import site_access
 router = APIRouter(tags=["site-access"])
 
 
-@router.post("/site-access/session", status_code=204, dependencies=[Depends(public_write_rate_limit)])
+@router.post("/site-access/session", status_code=204, dependencies=[Depends(site_access_rate_limit)])
 def open_session(
     body: SiteAccessLogin,
     response: Response,
