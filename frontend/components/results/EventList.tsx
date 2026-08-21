@@ -116,9 +116,6 @@ export function EventList({
           <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)" }}>
             Toutes les épreuves
           </div>
-          <div style={{ fontSize: 13, color: "var(--tcn-text-faint)", fontWeight: 600 }}>
-            Clique sur une épreuve pour voir le détail →
-          </div>
         </div>
         <Select value={currentSort} onValueChange={(v) => setSort(v as string)}>
           <SelectTrigger className="h-9 w-44">

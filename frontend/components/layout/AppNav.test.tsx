@@ -351,11 +351,11 @@ describe("AppNav — ne plus suivre l'athlète retenu (#442)", () => {
 });
 
 describe("AppNav — actions primaires", () => {
-  it("ancre « Ajouter une course » et « Rechercher un athlète », même replié", async () => {
+  it("ancre « Ajouter une épreuve » et « Rechercher un athlète », même replié", async () => {
     afficher(null);
     // Repliée, la nav n'a plus de libellé visible : ce sont les noms
     // accessibles qui portent l'action.
-    expect(screen.getAllByRole("link", { name: "Ajouter une course" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: "Ajouter une épreuve" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: "Rechercher un athlète" }).length).toBeGreaterThan(0);
   });
 
@@ -364,8 +364,8 @@ describe("AppNav — actions primaires", () => {
     await userEvent.keyboard("{Control>}k{/Control}");
 
     const modale = await screen.findByRole("dialog");
-    expect(within(modale).getByText("Sélectionne ton nom")).toBeInTheDocument();
-    expect(within(modale).getByText("Saisis au moins 2 lettres de ton nom.")).toBeInTheDocument();
+    expect(within(modale).getByText("Sélectionnez votre nom")).toBeInTheDocument();
+    expect(within(modale).getByText("Saisissez au moins 2 lettres de votre nom.")).toBeInTheDocument();
   });
 
   it("garde la recherche accessible en plus de la tuile, athlète retenu, rail déplié (#323)", async () => {

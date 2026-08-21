@@ -13,6 +13,12 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 `/api/v1` du backend. Tests Vitest + RTL verts. Build prod OK.
 
+- **Vocabulaire et registre de la copie publique** (#478) — l'objet que le
+  club importe se dit **« épreuve »**, et c'est le seul mot que l'utilisateur
+  lit ; `course` reste l'identifiant technique (route `/courses/`, champ
+  `course`), il ne doit jamais apparaître dans un libellé. Le registre est le
+  **vouvoiement** sur tout écran public — jamais de tutoiement dans une copie
+  destinée à l'utilisateur.
 - `app/` — App Router. **Mot de passe d'accès au site (#509)** : `app/(public_restricted)/`
   (groupe de routes, invisible dans l'URL — nommé en revue de #513 : ces pages
   restent **publiques côté RBAC**, seule leur porte d'entrée est restreinte, et

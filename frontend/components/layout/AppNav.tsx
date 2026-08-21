@@ -19,7 +19,7 @@ import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
  * depuis `nav.config.ts` : l'arborescence n'est décrite qu'une fois.
  *
  * Deux invariants tenus par le design :
- * - **les deux actions primaires** (« Ajouter une course », « Rechercher un
+ * - **les deux actions primaires** (« Ajouter une épreuve », « Rechercher un
  *   athlète ») gardent le même ancrage, sous le logo, dans les trois formats ;
  *   la liste des catégories scrolle, ce bloc ne cède jamais (`flex:none`) ;
  * - **les entrées sans écran livré** (`soon`) restent déclarées dans
@@ -263,7 +263,7 @@ export function AppNav() {
         <button type="button" aria-label="Rechercher un athlète" onClick={() => setPickerOpen(true)} style={carreSecondaire}>
           <Search size={18} />
         </button>
-        <Link href="/ajouter" aria-label="Ajouter une course" style={carrePrimaire}>
+        <Link href="/ajouter" aria-label="Ajouter une épreuve" style={carrePrimaire}>
           <Plus size={20} />
         </Link>
       </header>
@@ -356,8 +356,8 @@ function NavContent({
         <Link
           href="/ajouter"
           onClick={onNavigate}
-          title={expanded ? undefined : "Ajouter une course"}
-          aria-label="Ajouter une course"
+          title={expanded ? undefined : "Ajouter une épreuve"}
+          aria-label="Ajouter une épreuve"
           style={{
             display: "flex",
             alignItems: "center",
@@ -380,7 +380,7 @@ function NavContent({
           }}
         >
           <Plus size={20} style={{ flex: "none" }} />
-          {expanded && <span>Ajouter une course</span>}
+          {expanded && <span>Ajouter une épreuve</span>}
         </Link>
 
         {/* L'entrée recherche reste rendue dans tous les cas — athlète

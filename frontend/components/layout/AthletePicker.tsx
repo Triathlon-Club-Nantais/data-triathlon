@@ -124,12 +124,12 @@ export function AthletePicker({
   return (
     <Modal
       eyebrow="Accès athlète"
-      title="Sélectionne ton nom"
+      title="Sélectionnez votre nom"
       onClose={onClose}
       width={520}
       footer={
         <div style={{ fontSize: 13, color: "var(--tcn-text-faint)", textAlign: "center" }}>
-          Pas de blocage d&apos;accès — choisis librement ton profil.
+          Pas de blocage d&apos;accès — choisissez librement votre profil.
         </div>
       }
     >
@@ -167,7 +167,7 @@ export function AthletePicker({
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700, color: "var(--tcn-ink)", fontSize: 15 }}>{fullName}</div>
                 <div style={{ fontSize: 13, color: "var(--tcn-text-muted)" }}>
-                  {a.club ?? "Sans club"} · {a.count} course{a.count > 1 ? "s" : ""}
+                  {a.club ?? "Sans club"} · {a.count} épreuve{a.count > 1 ? "s" : ""}
                 </div>
               </div>
               <span style={{ color: "var(--tcn-text-disabled)", fontSize: 18 }}>→</span>
@@ -191,7 +191,7 @@ export function AthletePicker({
         )}
         {query.trim().length < 2 && (
           <div style={{ padding: 30, textAlign: "center", color: "var(--tcn-text-faint)", fontSize: 14 }}>
-            Saisis au moins 2 lettres de ton nom.
+            Saisissez au moins 2 lettres de votre nom.
           </div>
         )}
       </div>
