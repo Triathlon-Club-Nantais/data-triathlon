@@ -1,6 +1,13 @@
-"""Mot de passe partagé fermant l'accès public au site (#509)."""
+"""Mot de passe partagé fermant l'accès public au site (#509).
+
+Ce qui est propre à cette feature : la génération du secret, celle du mot de
+passe, et `replace_password`. La signature du cookie et le hachage scrypt sont
+éprouvés une fois pour toutes dans `test_shared_password.py` — les tests qui les
+rejouaient ici sont partis avec les délégations, en revue de #513. Le TTL du
+cookie, lui, s'éprouve là où il est appliqué : `test_require_site_access.py`.
+"""
 from app.repositories import user_repository
-from app.services import site_access
+from app.services import shared_password, site_access
 
 
 def test_new_session_secret_rend_une_valeur_differente_a_chaque_appel():
@@ -14,19 +21,6 @@ def test_generate_password_rend_une_valeur_suffisamment_longue_et_variable():
     assert len(premier) >= 20
 
 
-def test_verify_session_respecte_le_ttl():
-    valeur = site_access.sign_session("secret-du-site")
-    assert site_access.verify_session(valeur, "secret-du-site", max_age_seconds=3600) is True
-    assert site_access.verify_session(valeur, "secret-du-site", max_age_seconds=0) is False
-
-
-def test_verify_password_accepte_le_bon_mot_de_passe():
-    password_hash, password_salt = site_access.hash_password("mot-de-passe-club")
-    assert site_access.verify_password(
-        "mot-de-passe-club", password_hash=password_hash, password_salt=password_salt
-    )
-
-
 def test_replace_password_avec_saisie_stocke_le_hash_et_pas_le_mot_de_passe(db_session):
     admin = user_repository.create(db_session, email="admin@exemple.fr", display_name="Admin")
     db_session.flush()
@@ -37,7 +31,7 @@ def test_replace_password_avec_saisie_stocke_le_hash_et_pas_le_mot_de_passe(db_s
 
     assert mot_de_passe == "mon-nouveau-secret"
     assert config.password_hash != "mon-nouveau-secret"
-    assert site_access.verify_password(
+    assert shared_password.verify_password(
         "mon-nouveau-secret",
         password_hash=config.password_hash,
         password_salt=config.password_salt,
@@ -53,7 +47,7 @@ def test_replace_password_sans_saisie_genere_un_mot_de_passe(db_session):
     )
 
     assert len(mot_de_passe) >= 20
-    assert site_access.verify_password(
+    assert shared_password.verify_password(
         mot_de_passe, password_hash=config.password_hash, password_salt=config.password_salt
     )
 

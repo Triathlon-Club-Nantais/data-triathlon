@@ -13,7 +13,7 @@ from app.core.exceptions import DomainError, TooManyRequestsError
 from app.core.permissions import Permission
 from app.models.user import User
 from app.repositories import benevole_config_repository, site_access_config_repository
-from app.services import benevole_access, site_access
+from app.services import benevole_access, shared_password, site_access
 from app.services.auth import authorization
 from app.services.auth import session as session_service
 
@@ -102,7 +102,7 @@ def require_benevole_access(request: Request, db: Session = Depends(get_db)) -> 
     """
     config = benevole_config_repository.get_config(db)
     cookie = request.cookies.get(benevole_access.BENEVOLE_SESSION_COOKIE)
-    if config is None or not benevole_access.verify_session(cookie, config.session_secret):
+    if config is None or not shared_password.verify_cookie(cookie, config.session_secret):
         raise NotAuthenticatedError()
 
 
@@ -117,7 +117,7 @@ def require_site_access(
     config = site_access_config_repository.get_config(db, with_updated_by=False)
     cookie = request.cookies.get(site_access.SITE_SESSION_COOKIE)
     ttl_seconds = settings.site_access_session_ttl_days * 24 * 60 * 60
-    if config is None or not site_access.verify_session(
+    if config is None or not shared_password.verify_cookie(
         cookie, config.session_secret, max_age_seconds=ttl_seconds
     ):
         raise NotAuthenticatedError()

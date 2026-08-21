@@ -8,6 +8,13 @@ de passe lui-même : c'est `session_secret`, un secret distinct stocké aux
 côtés du hachage et **régénéré à chaque remplacement** (research.md §D2) —
 ce qui préserve la révocation collective des sessions ouvertes sans jamais
 avoir besoin de relire le mot de passe en clair.
+
+Ne porte que ce qui est propre à cette feature : le nom du cookie, le compte
+système, la génération du secret et le remplacement du mot de passe. La
+signature HMAC et le hachage scrypt s'appellent **directement** sur
+`shared_password` depuis les routeurs et la garde — les délégations d'une ligne
+qui les renommaient ici ont été supprimées en revue de #513, en même temps que
+leurs jumelles de `site_access.py`.
 """
 import secrets
 
@@ -49,47 +56,6 @@ def system_user_id(db: Session) -> int:
     return comptes[0].id
 
 
-def sign_session(key: str) -> str:
-    """Fabrique la valeur du cookie : `{horodatage}.{HMAC(key, horodatage)}`.
-
-    `key` est `BenevoleAccessConfig.session_secret` — plus le mot de passe
-    lui-même depuis cette feature (research.md §D2).
-    """
-    return shared_password.sign_cookie(key)
-
-
-def verify_session(value: str | None, key: str) -> bool:
-    """Vrai si `value` a bien été signée par `key`.
-
-    Fail-closed : clé vide (non configuré), valeur absente, ou valeur mal
-    formée rendent tous `False`, jamais une exception.
-    """
-    return shared_password.verify_cookie(value, key)
-
-
-def hash_password(password: str) -> tuple[str, str]:
-    """Rend `(password_hash, password_salt)`, tous deux en hexadécimal.
-
-    `hashlib.scrypt` (stdlib, memory-hard) plutôt qu'un simple SHA-256 salé :
-    un mot de passe choisi par un humain a une entropie bien inférieure à un
-    jeton de session généré, et devient attaquable hors ligne par force brute
-    sur un simple hachage rapide (research.md §D1). Un sel de 16 octets,
-    régénéré à **chaque** appel — jamais réutilisé d'un mot de passe à l'autre.
-    """
-    return shared_password.hash_password(password)
-
-
-def verify_password(password: str, *, password_hash: str, password_salt: str) -> bool:
-    """Vrai si `password` produit bien `password_hash` avec `password_salt`.
-
-    Comparaison en temps constant (`hmac.compare_digest`), même patron que la
-    vérification du cookie ci-dessus.
-    """
-    return shared_password.verify_password(
-        password, password_hash=password_hash, password_salt=password_salt
-    )
-
-
 def new_session_secret() -> str:
     """Un secret de session neuf — jamais le même deux fois (research.md §D2)."""
     return secrets.token_urlsafe(32)
@@ -118,7 +84,7 @@ def replace_password(
     (data-model.md, invariant d'atomicité, FR-006).
     """
     mot_de_passe = password if password is not None else generate_password()
-    password_hash, password_salt = hash_password(mot_de_passe)
+    password_hash, password_salt = shared_password.hash_password(mot_de_passe)
     config = benevole_config_repository.save_config(
         db,
         password_hash=password_hash,

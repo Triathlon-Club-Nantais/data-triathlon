@@ -5,6 +5,12 @@ cookie propre — même mécanisme (`services/shared_password`), même contrat
 fail-closed. Contrairement à #271, ce cookie porte une expiration serveur
 (`Settings.site_access_session_ttl_days`) : #509 la demande explicitement,
 là où le cookie bénévoles est un cookie de session navigateur sans `max_age`.
+
+Ne porte que ce qui est propre à cette feature : le nom du cookie, la
+génération du secret et le remplacement du mot de passe. La signature HMAC et
+le hachage scrypt s'appellent **directement** sur `shared_password` depuis les
+routeurs et la garde — les délégations d'une ligne qui les renommaient ici ont
+été supprimées en revue de #513, des deux côtés du jumelage.
 """
 import secrets
 
@@ -17,24 +23,6 @@ from app.services import shared_password
 SITE_SESSION_COOKIE = "tcn_site_session"
 
 _GENERATED_PASSWORD_SIZE = 18
-
-
-def sign_session(key: str) -> str:
-    return shared_password.sign_cookie(key)
-
-
-def verify_session(value: str | None, key: str, *, max_age_seconds: int) -> bool:
-    return shared_password.verify_cookie(value, key, max_age_seconds=max_age_seconds)
-
-
-def hash_password(password: str) -> tuple[str, str]:
-    return shared_password.hash_password(password)
-
-
-def verify_password(password: str, *, password_hash: str, password_salt: str) -> bool:
-    return shared_password.verify_password(
-        password, password_hash=password_hash, password_salt=password_salt
-    )
 
 
 def new_session_secret() -> str:
@@ -57,7 +45,7 @@ def replace_password(
     des sessions ouvertes.
     """
     mot_de_passe = password if password is not None else generate_password()
-    password_hash, password_salt = hash_password(mot_de_passe)
+    password_hash, password_salt = shared_password.hash_password(mot_de_passe)
     config = site_access_config_repository.save_config(
         db,
         password_hash=password_hash,

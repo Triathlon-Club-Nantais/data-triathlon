@@ -9,7 +9,7 @@ import pytest
 from app.api.deps import require_site_access
 from app.main import app
 from app.repositories import athlete_repository, user_repository
-from app.services import benevole_access, site_access
+from app.services import benevole_access, shared_password, site_access
 
 PREFIXE_AUTH = "/api/v1/auth/"
 
@@ -193,7 +193,7 @@ def test_une_route_gardee_repond_normalement_avec_le_cookie(client, db_session):
     config, _ = site_access.replace_password(db_session, password="secret-du-club", admin_user_id=admin.id)
     db_session.commit()
 
-    client.cookies.set(site_access.SITE_SESSION_COOKIE, site_access.sign_session(config.session_secret))
+    client.cookies.set(site_access.SITE_SESSION_COOKIE, shared_password.sign_cookie(config.session_secret))
 
     assert client.get("/api/v1/health").status_code == 200  # santé, jamais gardée
     assert client.get("/api/v1/courses").status_code == 200

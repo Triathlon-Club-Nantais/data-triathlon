@@ -31,7 +31,11 @@ l'arborescence, et chaque dossier qui a ses propres pièges porte son
   partagé, cookie signé HMAC ; distinct du socle SSO) et `site_access` (#509 —
   mot de passe partagé du site entier, même patron, secret et table propres),
   tous deux au-dessus du socle neutre `shared_password`
-  (hachage/signature HMAC communs).
+  (hachage/signature HMAC communs). **Les appelants s'adressent directement à
+  `shared_password`** pour ces deux calculs : les deux modules de domaine ne
+  gardent que ce qui leur est propre — nom du cookie, TTL, secret de session,
+  `replace_password` — leurs délégations d'une ligne ayant été supprimées en
+  revue de #513.
 - `app/cli/` — Typer, **couche mince** (zéro logique métier).
 - `app/api/` — `deps.py` + `v1/` (routers fins : validation + délégation au service),
   agrégés dans `v1/router.py`, montés sous `/api/v1`. Une future API v2 vivra dans `v1/`→`v2/`.
