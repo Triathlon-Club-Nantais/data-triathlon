@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { CourseBrief } from "@/lib/types";
@@ -97,5 +97,36 @@ describe("ReliabilityVerdictDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: /confirmer/i }));
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+  });
+
+  it("un double-clic sur « Confirmer » ne déclenche qu'un seul envoi", async () => {
+    // Résolution différée : sans elle, le premier envoi termine avant même le
+    // second `fireEvent.click`, et le test ne prouverait rien sur la fenêtre
+    // où `disabled` n'a pas encore pris effet.
+    setCourseReliability.mockImplementation(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve({
+                id: 7,
+                is_reliable: true,
+                is_reliable_computed: false,
+                reliability_override: true,
+                quality_issues: { rank_gap: 3 },
+              }),
+            10,
+          ),
+        ),
+    );
+    rendre("fiable");
+
+    const bouton = screen.getByRole("button", { name: /confirmer/i });
+    // `fireEvent`, pas `userEvent` : deux clics synchrones, enchaînés avant
+    // que React n'ait eu la moindre chance de re-render `disabled`.
+    fireEvent.click(bouton);
+    fireEvent.click(bouton);
+
+    await waitFor(() => expect(setCourseReliability).toHaveBeenCalledTimes(1));
   });
 });
