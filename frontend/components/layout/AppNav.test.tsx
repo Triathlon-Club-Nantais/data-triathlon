@@ -709,4 +709,13 @@ describe("badge de la file de revalidation (#119)", () => {
     await screen.findByRole("link", { name: /retours utilisateurs/i });
     expect(countCourses).not.toHaveBeenCalled();
   });
+
+  it("porte un nom accessible explicite, pas seulement le chiffre nu", async () => {
+    countCourses.mockResolvedValue({ total: 4 });
+    afficher(habilite("quality:override"));
+    await deplier();
+
+    const pastille = await screen.findByText("4");
+    expect(pastille).toHaveAttribute("aria-label", "4 épreuves à revalider");
+  });
 });
