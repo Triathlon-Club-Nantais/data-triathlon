@@ -3,13 +3,17 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
+import type { SessionUser } from "@/lib/types";
 
-const { revokeSessions, toastError, toastSuccess, push } = vi.hoisted(() => ({
-  revokeSessions: vi.fn(),
-  toastError: vi.fn(),
-  toastSuccess: vi.fn(),
-  push: vi.fn(),
-}));
+const { revokeSessions, getSession, toastError, toastSuccess, push } = vi.hoisted(
+  () => ({
+    revokeSessions: vi.fn(),
+    getSession: vi.fn(),
+    toastError: vi.fn(),
+    toastSuccess: vi.fn(),
+    push: vi.fn(),
+  }),
+);
 
 vi.mock("sonner", () => ({ toast: { error: toastError, success: toastSuccess } }));
 
@@ -19,10 +23,30 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { revokeSessions } };
+  return { ...original, apiClient: { revokeSessions, getSession } };
 });
 
 import { RevokeSessionsCard } from "./RevokeSessionsCard";
+
+/**
+ * L'écran s'ouvre avec `allowed_emails:manage` seul ; la révocation, elle, est
+ * un pouvoir à part — celui que le bouton frère de `AllowedEmailsTable` teste
+ * déjà, ligne à ligne, sur le même écran.
+ */
+const RESPONSABLE: SessionUser = {
+  id: 1,
+  email: "moi@exemple.fr",
+  display_name: "Moi",
+  created_at: "2026-01-01T00:00:00Z",
+  permissions: ["allowed_emails:manage", "sessions:revoke"],
+  roles: [],
+  groups: [],
+};
+
+const SANS_REVOCATION: SessionUser = {
+  ...RESPONSABLE,
+  permissions: ["allowed_emails:manage"],
+};
 
 let client: QueryClient;
 
@@ -38,15 +62,42 @@ function afficher() {
 describe("RevokeSessionsCard (#169)", () => {
   beforeEach(() => {
     revokeSessions.mockReset();
+    getSession.mockReset();
+    getSession.mockResolvedValue(RESPONSABLE);
     toastError.mockReset();
     toastSuccess.mockReset();
     push.mockReset();
   });
 
+  it("n'offre pas la révocation globale sans sessions:revoke", async () => {
+    // `POST /admin/sessions/revoke` exige `sessions:revoke`. La carte n'existe
+    // que pour ce geste : sans le pouvoir, elle n'annonce qu'un 403. Le bouton
+    // frère, par adresse, disparaît déjà dans les mêmes conditions.
+    getSession.mockResolvedValue(SANS_REVOCATION);
+
+    afficher();
+
+    await waitFor(() => expect(getSession).toHaveBeenCalled());
+    expect(
+      screen.queryByRole("button", { name: /fermer toutes les sessions/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/révocation d'urgence/i)).not.toBeInTheDocument();
+  });
+
+  it("l'offre à un porteur de sessions:revoke", async () => {
+    afficher();
+
+    expect(
+      await screen.findByRole("button", { name: /fermer toutes les sessions/i }),
+    ).toBeInTheDocument();
+  });
+
   it("ne révoque rien sans confirmation", async () => {
     afficher();
 
-    await userEvent.click(screen.getByRole("button", { name: /fermer toutes les sessions/i }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: /fermer toutes les sessions/i }),
+    );
 
     expect(revokeSessions).not.toHaveBeenCalled();
   });
@@ -54,14 +105,18 @@ describe("RevokeSessionsCard (#169)", () => {
   it("prévient que la session de l'opérateur tombera aussi", async () => {
     afficher();
 
-    await userEvent.click(screen.getByRole("button", { name: /fermer toutes les sessions/i }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: /fermer toutes les sessions/i }),
+    );
 
     expect(await screen.findByRole("dialog")).toHaveTextContent(/la vôtre/i);
   });
 
   it("renoncer laisse toutes les sessions ouvertes", async () => {
     afficher();
-    await userEvent.click(screen.getByRole("button", { name: /fermer toutes les sessions/i }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: /fermer toutes les sessions/i }),
+    );
 
     await userEvent.click(await screen.findByRole("button", { name: /renoncer/i }));
 
@@ -71,7 +126,9 @@ describe("RevokeSessionsCard (#169)", () => {
   it("confirmé, révoque et annonce les deux unités du bilan", async () => {
     revokeSessions.mockResolvedValue({ sessions: 14, accounts: 3 });
     afficher();
-    await userEvent.click(screen.getByRole("button", { name: /fermer toutes les sessions/i }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: /fermer toutes les sessions/i }),
+    );
 
     await userEvent.click(await screen.findByRole("button", { name: /révoquer/i }));
 
@@ -82,7 +139,9 @@ describe("RevokeSessionsCard (#169)", () => {
   it("renvoie vers la connexion, la session de l'opérateur venant de tomber", async () => {
     revokeSessions.mockResolvedValue({ sessions: 1, accounts: 1 });
     afficher();
-    await userEvent.click(screen.getByRole("button", { name: /fermer toutes les sessions/i }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: /fermer toutes les sessions/i }),
+    );
 
     await userEvent.click(await screen.findByRole("button", { name: /révoquer/i }));
 
@@ -92,7 +151,9 @@ describe("RevokeSessionsCard (#169)", () => {
   it("un refus de l'API laisse l'écran en place et le dit", async () => {
     revokeSessions.mockRejectedValue(new ApiError(403, "Accès refusé"));
     afficher();
-    await userEvent.click(screen.getByRole("button", { name: /fermer toutes les sessions/i }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: /fermer toutes les sessions/i }),
+    );
 
     await userEvent.click(await screen.findByRole("button", { name: /révoquer/i }));
 
@@ -110,7 +171,9 @@ describe("RevokeSessionsCard (#169)", () => {
     revokeSessions.mockResolvedValue({ sessions: 2, accounts: 2 });
     afficher();
     const invalider = vi.spyOn(client, "invalidateQueries");
-    await userEvent.click(screen.getByRole("button", { name: /fermer toutes les sessions/i }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: /fermer toutes les sessions/i }),
+    );
 
     await userEvent.click(await screen.findByRole("button", { name: /révoquer/i }));
 
@@ -127,7 +190,9 @@ describe("RevokeSessionsCard (#169)", () => {
     // mensonges.
     revokeSessions.mockRejectedValue(new ApiError(401, "Session expirée"));
     afficher();
-    await userEvent.click(screen.getByRole("button", { name: /fermer toutes les sessions/i }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: /fermer toutes les sessions/i }),
+    );
 
     await userEvent.click(await screen.findByRole("button", { name: /révoquer/i }));
 

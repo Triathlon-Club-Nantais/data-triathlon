@@ -83,6 +83,20 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   codes », qui est faux. Et une session **illisible** n'est pas une session sans
   pouvoirs : `useSession` ne réessaie pas, donc son erreur entre dans la garde de
   l'écran plutôt que de figer les cases en affirmant qu'on ne porte rien.
+- **Gardes d'écriture du back-office** (#496) — un contrôle qui écrit teste
+  **son** code de pouvoir avant de se rendre, jamais celui qui a ouvert l'écran :
+  `session.data?.permissions.includes("x:y") ?? false`, puis `{peutX && …}`. Six
+  écrans le font — `CoursesAdminTable`, `GroupsTable`, `CourseDuplicatesTable`,
+  `AllowedEmailsTable`, `PendingProvidersTable`, `UserRolesTable`, ce dernier par
+  le `peutAttribuer` de `lib/roles.ts`, l'unique question posée aux deux guichets
+  de `roles:assign`. Une garde n'est **jamais** de la sécurité : elle évite
+  d'offrir un geste qui rendrait 403, la règle restant au serveur. Deux suites, et
+  leur arbitrage : un écran que la garde rend **entièrement** passif dit « Cet
+  écran est en consultation : … demande le pouvoir « X » », avec le libellé de
+  `core/permissions.py` — une page muette ne se distingue pas d'une page cassée ;
+  une carte qui n'existe **que** pour un geste ne se rend pas du tout
+  (`RevokeSessionsCard`, comme son bouton frère par adresse), l'écran restant
+  agissant par ailleurs.
 - **Navigation** — `components/layout/nav.config.ts` en est la description
   **unique** ; ajouter une destination y tient en une ligne. Deux échelons de
   visibilité, à ne pas confondre : `minRole` ne distingue qu'anonyme et

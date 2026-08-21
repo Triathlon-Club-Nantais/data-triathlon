@@ -27,7 +27,11 @@ const REFUS = { sujet: "utilisateurs", action: "consulter les utilisateurs" };
 
 export function UserRolesTable() {
   const { data, isLoading, error } = useAdminUsers();
-  const { roles, accordable } = useRolesAttribuables();
+  // `users:read` ouvre la liste ; les deux écritures — `POST` et
+  // `DELETE /admin/users/{id}/roles` — exigent `roles:assign`, attribuable
+  // séparément. `useRolesAttribuables` répond déjà à la question, pour les deux
+  // guichets qui la posent : la poser une seconde fois ici les ferait diverger.
+  const { roles, accordable, peutAttribuer } = useRolesAttribuables();
   const attribuer = useGrantRole();
   const retirer = useRevokeRole();
 
@@ -64,91 +68,107 @@ export function UserRolesTable() {
   }
 
   return (
-    <Card className="p-0">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Utilisateur</TableHead>
-            <TableHead>Rôles</TableHead>
-            <TableHead>Attribuer</TableHead>
-            <TableHead>Inscrit le</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {data.map((utilisateur) => {
-            const disponibles = roles.filter(
-              (role) => !utilisateur.roles.some((porte) => porte.id === role.id),
-            );
-            return (
-              <TableRow key={utilisateur.id}>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <div>
-                      <div className="font-medium">{utilisateur.display_name}</div>
-                      <div className="text-[var(--tcn-text-faint)] text-xs">
-                        {utilisateur.email}
+    <div className="space-y-4">
+      {/* Un écran privé de ses deux contrôles ressemble à un écran cassé : la
+          phrase dit lequel des deux manque, plutôt que de laisser deviner.
+          Même formulation que `RolePermissionsEditor`, même libellé de pouvoir
+          que l'inventaire de `core/permissions.py`. */}
+      {!peutAttribuer && (
+        <p className="text-sm text-[var(--tcn-text-faint)]">
+          Cet écran est en consultation : attribuer ou retirer un rôle demande le pouvoir
+          « Attribuer les rôles ».
+        </p>
+      )}
+      <Card className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Utilisateur</TableHead>
+              <TableHead>Rôles</TableHead>
+              {peutAttribuer && <TableHead>Attribuer</TableHead>}
+              <TableHead>Inscrit le</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {data.map((utilisateur) => {
+              const disponibles = roles.filter(
+                (role) => !utilisateur.roles.some((porte) => porte.id === role.id),
+              );
+              return (
+                <TableRow key={utilisateur.id}>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <div>
+                        <div className="font-medium">{utilisateur.display_name}</div>
+                        <div className="text-[var(--tcn-text-faint)] text-xs">
+                          {utilisateur.email}
+                        </div>
                       </div>
+                      {!utilisateur.is_active && (
+                        // Effet d'un retrait de la liste d'autorisation (#170) :
+                        // le compte et ses rôles survivent, la connexion non.
+                        <Badge variant="destructive">Désactivé</Badge>
+                      )}
                     </div>
-                    {!utilisateur.is_active && (
-                      // Effet d'un retrait de la liste d'autorisation (#170) :
-                      // le compte et ses rôles survivent, la connexion non.
-                      <Badge variant="destructive">Désactivé</Badge>
+                  </TableCell>
+                  <TableCell>
+                    {utilisateur.roles.length === 0 ? (
+                      <span className="text-[var(--tcn-text-faint)]">—</span>
+                    ) : (
+                      <div className="flex flex-wrap gap-1">
+                        {utilisateur.roles.map((role) => (
+                          <Badge key={role.id} variant="secondary" className="gap-1 pr-1">
+                            {role.name}
+                            {peutAttribuer && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="size-4 rounded-full p-0 text-xs"
+                                aria-label={`Retirer le rôle ${role.name} de ${utilisateur.display_name}`}
+                                onClick={() => oter(utilisateur, role)}
+                              >
+                                ×
+                              </Button>
+                            )}
+                          </Badge>
+                        ))}
+                      </div>
                     )}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {utilisateur.roles.length === 0 ? (
-                    <span className="text-[var(--tcn-text-faint)]">—</span>
-                  ) : (
-                    <div className="flex flex-wrap gap-1">
-                      {utilisateur.roles.map((role) => (
-                        <Badge key={role.id} variant="secondary" className="gap-1 pr-1">
-                          {role.name}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="size-4 rounded-full p-0 text-xs"
-                            aria-label={`Retirer le rôle ${role.name} de ${utilisateur.display_name}`}
-                            onClick={() => oter(utilisateur, role)}
-                          >
-                            ×
-                          </Button>
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {/* `<select>` natif : un rôle par ligne, clavier et lecteur
-                      d'écran compris, sans état local — la valeur retombe sur
-                      le libellé dès que la liste se rafraîchit. */}
-                  <select
-                    aria-label={`Attribuer un rôle à ${utilisateur.display_name}`}
-                    className="border-input h-9 rounded-md border bg-transparent px-2 text-sm"
-                    value=""
-                    disabled={disponibles.length === 0}
-                    onChange={(e) => poser(utilisateur, Number(e.target.value))}
-                  >
-                    <option value="" disabled>
-                      Ajouter un rôle…
-                    </option>
-                    {disponibles.map((role) => (
-                      <option
-                        key={role.id}
-                        value={role.id}
-                        disabled={!accordable(role)}
+                  </TableCell>
+                  {peutAttribuer && (
+                    <TableCell>
+                      {/* `<select>` natif : un rôle par ligne, clavier et lecteur
+                          d'écran compris, sans état local — la valeur retombe sur
+                          le libellé dès que la liste se rafraîchit. */}
+                      <select
+                        aria-label={`Attribuer un rôle à ${utilisateur.display_name}`}
+                        className="border-input h-9 rounded-md border bg-transparent px-2 text-sm"
+                        value=""
+                        disabled={disponibles.length === 0}
+                        onChange={(e) => poser(utilisateur, Number(e.target.value))}
                       >
-                        {role.name}
-                      </option>
-                    ))}
-                  </select>
-                </TableCell>
-                <TableCell>{formatDate(utilisateur.created_at)}</TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </Card>
+                        <option value="" disabled>
+                          Ajouter un rôle…
+                        </option>
+                        {disponibles.map((role) => (
+                          <option
+                            key={role.id}
+                            value={role.id}
+                            disabled={!accordable(role)}
+                          >
+                            {role.name}
+                          </option>
+                        ))}
+                      </select>
+                    </TableCell>
+                  )}
+                  <TableCell>{formatDate(utilisateur.created_at)}</TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </Card>
+    </div>
   );
 }

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { ApiError } from "@/lib/api/client";
 import { useRevokeSessions } from "@/lib/queries/admin";
+import { useSession } from "@/lib/queries/auth";
 
 /**
  * Le geste d'incident (#169) : fermer d'un coup toutes les sessions ouvertes.
@@ -26,11 +27,20 @@ import { useRevokeSessions } from "@/lib/queries/admin";
  * sous fuite, son jeton est suspect comme les autres. D'où la redirection vers
  * `/login` au succès — laisser un écran d'apparence connectée alors que la
  * requête suivante rendra 401 serait un mensonge d'interface.
+ *
+ * L'écran s'ouvre avec `allowed_emails:manage` seul, quand la route exige
+ * `sessions:revoke` : sans ce pouvoir la carte ne s'affiche pas du tout, comme
+ * son bouton frère par adresse dans `AllowedEmailsTable`. Rien à dire ici sur la
+ * consultation — l'écran reste pleinement agissant sur les adresses, seule cette
+ * carte-là s'efface, et une carte bordée de rouge sans son bouton n'expliquerait
+ * pas mieux qu'elle ne troublerait.
  */
 export function RevokeSessionsCard() {
   const [ouvert, setOuvert] = useState(false);
   const router = useRouter();
   const revoquer = useRevokeSessions();
+  const session = useSession();
+  const peutRevoquer = session.data?.permissions.includes("sessions:revoke") ?? false;
 
   async function confirmer() {
     try {
@@ -56,6 +66,8 @@ export function RevokeSessionsCard() {
       }
     }
   }
+
+  if (!peutRevoquer) return null;
 
   return (
     <>
