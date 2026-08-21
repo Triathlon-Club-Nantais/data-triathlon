@@ -280,7 +280,7 @@ function CourseNavigator({ courses }: { courses: ImportedCourse[] }) {
           marginBottom: 8,
         }}
       >
-        {courses.length} courses importées
+        {courses.length} épreuve{courses.length > 1 ? "s" : ""} importée{courses.length > 1 ? "s" : ""}
       </div>
       <div
         style={{
@@ -385,7 +385,7 @@ function CourseSelectField({
         ▾
       </span>
       <select
-        aria-label="Choisir la course à consulter"
+        aria-label="Choisir l'épreuve à consulter"
         value={selectedId}
         onChange={(e) => onChange(e.target.value)}
         onFocus={() => setFocused(true)}

@@ -39,7 +39,7 @@ describe("AjouterPage", () => {
     const ui = await AjouterPage();
     render(ui);
 
-    expect(screen.getByRole("heading", { level: 1, name: "Ajouter un triathlon" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Ajouter une épreuve" })).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { level: 2, name: "Derniers résultats enregistrés" }),
     ).toBeInTheDocument();

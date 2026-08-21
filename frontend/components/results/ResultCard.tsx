@@ -89,10 +89,10 @@ export function ResultCard({ result }: { result: Participation }) {
         <div className="flex items-center justify-between text-xs text-[var(--tcn-text-faint)]">
           {isHttpUrl(c?.source_url) ? (
             <a href={c?.source_url} target="_blank" rel="noopener noreferrer" className="hover:underline">
-              Source ({providerLabel(c?.provider)})
+              {c?.provider ? `Source (${providerLabel(c.provider)})` : "Source"}
             </a>
           ) : (
-            <span>Source ({providerLabel(c?.provider)})</span>
+            <span>{c?.provider ? `Source (${providerLabel(c.provider)})` : "Source"}</span>
           )}
           {result.created_at && <span>Ajouté {timeAgo(result.created_at)}</span>}
         </div>
