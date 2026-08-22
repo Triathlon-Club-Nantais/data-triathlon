@@ -17,11 +17,15 @@ vi.mock("@/components/ui/sonner", () => ({ Toaster: () => null }));
 vi.mock("@/components/tcn/FeedbackButton", () => ({ FeedbackButton: () => null }));
 vi.mock("./providers", () => ({ Providers: ({ children }: { children: React.ReactNode }) => children }));
 
+// `connection()` n'a de sens que dans une requête Next ; hors serveur il lève.
+vi.mock("next/server", () => ({ connection: async () => {} }));
+
 import RootLayout from "./layout";
 
 describe("RootLayout — lien d'évitement (A11Y-1)", () => {
-  it("propose un lien « Aller au contenu » qui cible le <main>", () => {
-    render(<RootLayout>{<p>contenu de la page</p>}</RootLayout>);
+  it("propose un lien « Aller au contenu » qui cible le <main>", async () => {
+    // RootLayout est un composant serveur `async` : on l'attend avant de rendre.
+    render(await RootLayout({ children: <p>contenu de la page</p> }));
 
     const lien = screen.getByRole("link", { name: "Aller au contenu" });
     expect(lien).toHaveAttribute("href", "#contenu");
