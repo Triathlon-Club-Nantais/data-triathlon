@@ -77,7 +77,7 @@ export function ImportProgress({ state }: { state: ImportState }) {
       )}
       {state.phase === "done" && (
         <>
-          <p className="font-medium text-success">
+          <p className="font-medium" style={{ color: "var(--tcn-success-text)" }}>
             {state.cached
               ? `Déjà à jour (${state.skipped} participants en cache).`
               : `Import terminé : ${state.imported} ajoutés, ${state.updated} mis à jour, ${state.skipped} ignorés.`}

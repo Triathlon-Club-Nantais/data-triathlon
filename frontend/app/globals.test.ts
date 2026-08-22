@@ -93,6 +93,20 @@ describe("palette de texte TCN", () => {
   });
 });
 
+describe(".eyebrow", () => {
+  it("porte son orange au seuil texte, pas l'orange de marque (A11Y-4)", () => {
+    // `--tcn-orange` en texte n'atteint que 3,32:1 à 3,68:1 selon la surface ;
+    // `--tcn-orange-deeper` est le seul candidat à franchir 4,5:1 partout.
+    expect(rule(".eyebrow")).toContain("color: var(--tcn-orange-deeper)");
+  });
+
+  it("franchit 4,5:1 sur les surfaces qui portent du texte", () => {
+    for (const surface of SURFACES) {
+      expect(contrast(token("--tcn-orange-deeper"), token(surface))).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+});
+
 describe("couleurs de la carte", () => {
   // `pathOptions` de Leaflet alimente un attribut SVG, où `var()` n'est pas
   // fiable : les littéraux y sont légitimes. C'est leur **désynchronisation** avec
