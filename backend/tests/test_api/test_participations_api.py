@@ -93,7 +93,8 @@ def test_delete_participation_consigne_une_entree_au_journal(client, db_session)
     """#439 — le geste le plus irréversible de l'API ne laissait aucune trace."""
     pid = client.post("/api/v1/participations", json=_payload()).json()["id"]
 
-    assert client.delete(f"/api/v1/participations/{pid}").status_code == 204
+    suppression = client.delete(f"/api/v1/participations/{pid}")
+    assert suppression.status_code == 204
 
     entrees = db_session.query(AdminActionLog).all()
     assert [(e.action, e.entity_type, e.entity_id) for e in entrees] == [
@@ -129,7 +130,8 @@ def test_supprimer_un_resultat_en_attente_de_validation_rend_204_et_journalise(
     assert creation.json()["is_pending_validation"] is True
     pid = creation.json()["id"]
 
-    assert client.delete(f"/api/v1/participations/{pid}").status_code == 204
+    suppression = client.delete(f"/api/v1/participations/{pid}")
+    assert suppression.status_code == 204
     assert db_session.query(AdminActionLog).count() == 1
 
 
