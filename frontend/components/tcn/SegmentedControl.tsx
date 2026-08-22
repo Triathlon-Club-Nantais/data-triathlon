@@ -38,7 +38,7 @@ export function SegmentedControl({
           : { background: "var(--tcn-surface)", color: "var(--tcn-text-body)", border: "1.5px solid var(--tcn-border-input)" };
 
         const orangeStyle: CSSProperties = active
-          ? { background: "var(--tcn-orange-10)", color: "var(--tcn-orange)", border: "1.5px solid var(--tcn-orange)" }
+          ? { background: "var(--tcn-orange-10)", color: "var(--tcn-orange-deeper)", border: "1.5px solid var(--tcn-orange)" }
           : { background: "var(--tcn-fill)", color: "var(--tcn-text-body)", border: "1.5px solid var(--tcn-border)" };
 
         const skin = tone === "orange" ? orangeStyle : inkStyle;

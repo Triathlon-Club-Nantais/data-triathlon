@@ -427,7 +427,7 @@
     font-size: 13px;
     letter-spacing: var(--tcn-eyebrow-tracking);
     text-transform: uppercase;
-    color: var(--tcn-orange);
+    color: var(--tcn-orange-deeper);
   }
   /* Ligne de tableau cliquable (survol surface sunk) — pages Server. */
   .tcn-rowlink {

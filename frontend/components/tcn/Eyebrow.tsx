@@ -11,7 +11,7 @@ export function Eyebrow({
   children?: ReactNode;
   style?: CSSProperties;
 } & Omit<HTMLAttributes<HTMLDivElement>, "style">) {
-  const colors = { orange: "var(--tcn-orange)", muted: "var(--tcn-text-faint)" } as const;
+  const colors = { orange: "var(--tcn-orange-deeper)", muted: "var(--tcn-text-faint)" } as const;
   return (
     <div
       style={{

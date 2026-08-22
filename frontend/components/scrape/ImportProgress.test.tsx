@@ -26,9 +26,11 @@ describe("ImportProgress", () => {
     render(<ImportProgress state={state({ phase: "done", total: 10, progress: 10, imported: 4, updated: 2, skipped: 4 })} />);
     // La région sr-only (#477) répète le même récapitulatif : on cible le
     // paragraphe visible pour ne pas matcher les deux à la fois.
-    const recap = screen.getByText(/4 ajoutés/, { selector: "p.text-success" });
+    const recap = screen.getByText(/4 ajoutés/, { selector: "p.font-medium" });
     expect(recap).toHaveTextContent("2 mis à jour");
     expect(recap).toHaveTextContent("4 ignorés");
+    // AA à 4,5:1 : var(--tcn-success) ne tenait que 4,37:1 (revue UI/UX #465).
+    expect(recap.style.color).toBe("var(--tcn-success-text)");
   });
 
   // T014 — récap des courses créées (#135 + fan-out #156)

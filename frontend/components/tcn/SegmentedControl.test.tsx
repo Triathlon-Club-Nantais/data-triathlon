@@ -27,6 +27,12 @@ describe("SegmentedControl", () => {
     expect(onChange).toHaveBeenCalledWith("b");
   });
 
+  it("rend l'option active en tone=\"orange\" avec --tcn-orange-deeper, seul à tenir 4,5:1 (revue UI/UX #465)", () => {
+    // --tcn-orange ne tient que 3,25:1 à 13-14px — sous le seuil AA.
+    render(<SegmentedControl value="a" onChange={() => {}} tone="orange" options={["a", "b"]} />);
+    expect(screen.getByRole("button", { name: "a" }).style.color).toBe("var(--tcn-orange-deeper)");
+  });
+
   it("accepte des options objet avec label distinct de la valeur", () => {
     render(
       <SegmentedControl

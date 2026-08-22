@@ -112,6 +112,16 @@ describe("CoursePage", () => {
     ).toBeInTheDocument();
   });
 
+  it("écrit le club TCN du classement « Top clubs » en `--tcn-orange-deeper`, seul token à tenir 4,5:1 (A11Y-4)", async () => {
+    await afficher();
+
+    const nom = screen.getByText("TRIATHLON CLUB NANTAIS");
+    const compte = nom.nextElementSibling as HTMLElement;
+    expect(nom.style.color).toBe("var(--tcn-orange-deeper)");
+    expect(compte).toHaveTextContent("4");
+    expect(compte.style.color).toBe("var(--tcn-orange-deeper)");
+  });
+
   it("alimente les six blocs depuis la synthèse, pas depuis les lignes affichées", async () => {
     // Aucune participation dans la charge : tout ce qui suit vient de la synthèse.
     await afficher();
