@@ -23,6 +23,7 @@ function p(over: Partial<Participation> & { id: number; nom: string }): Particip
     athlete: { id: over.id, nom: over.nom, prenom: "T", gender: "M", club: null },
     course: { id: 1, name: "C", event_date: null, event_type: "", provider: "", source_url: "", is_relay: false },
     club: over.club ?? null,
+    is_tcn: over.is_tcn ?? false,
     category: "S4",
     bib_number: null,
     rank_overall: over.rank_overall ?? null,
@@ -86,6 +87,17 @@ describe("RaceFinishers", () => {
     afficher();
     expect(screen.getByText("DNS")).toBeInTheDocument();
     expect(screen.getByText("DNF")).toBeInTheDocument();
+  });
+
+  it("écrit le club du participant TCN en `--tcn-orange-deeper`, seul token à tenir 4,5:1 (A11Y-4)", () => {
+    // Même défaut que PlaceBadge/Eyebrow/SegmentedControl : --tcn-orange en
+    // texte 13px ne tient que 3,32 à 3,68:1 selon le fond (revue UI/UX #465).
+    afficher({
+      participations: [
+        p({ id: 1, nom: "FINISHER", status: "finisher", rank_overall: 1, total_time: "00:55:00", club: "TRIATHLON CLUB NANTAIS", is_tcn: true }),
+      ],
+    });
+    expect(screen.getByText("TRIATHLON CLUB NANTAIS").style.color).toBe("var(--tcn-orange-deeper)");
   });
 
   it("ventile le pied de tableau : participants · finishers · abandons (pas « X finishers au total »)", () => {

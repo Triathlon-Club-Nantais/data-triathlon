@@ -273,7 +273,7 @@ export function RaceFinishers({
                 {segments.map((s) => (
                   <CelluleInter key={s.key} valeur={splits[s.key]} small={s.small} />
                 ))}
-                <div style={{ fontSize: 13, fontWeight: own ? 700 : 400, color: own ? "var(--tcn-orange)" : "var(--tcn-text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.club ?? "—"}</div>
+                <div style={{ fontSize: 13, fontWeight: own ? 700 : 400, color: own ? "var(--tcn-orange-deeper)" : "var(--tcn-text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.club ?? "—"}</div>
               </div>
             );
           })}
