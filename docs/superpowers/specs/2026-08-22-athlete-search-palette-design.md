@@ -143,17 +143,38 @@ partagé plutôt que dupliqué) :
 
 - **0 — préfixe exact** : le champ commence par le terme
   (`unaccent(lower(champ)) LIKE 'terme%'`).
-- **1 — début de mot** : le terme suit un séparateur interne — espace, trait
-  d'union, apostrophe (`LIKE '% terme%'`, `LIKE '%-terme%'`, `LIKE '%''terme%'`)
-  — et n'est pas déjà en position 0.
+- **1 — début de mot** : le terme suit un séparateur interne — espace ou trait
+  d'union (`LIKE '% terme%'`, `LIKE '%-terme%'`) — et n'est pas déjà en
+  position 0. L'apostrophe est laissée de côté : aucun nom/prénom du jeu de
+  données actuel n'en porte, et `name_filter` ne la traite pas non plus comme
+  séparateur — pas de raison d'introduire ici une distinction que le filtre
+  qui alimente le classement ne fait pas lui-même.
 - **2 — sous-chaîne** : matché par `name_filter` sans être dans les deux
   buckets ci-dessus (le cas déjà couvert aujourd'hui, sans distinction).
 
-Le rang retenu par athlète est le **meilleur** (le plus petit) des deux rangs
-`nom`/`prenom` — `least(rang_nom, rang_prenom)` en SQL, ou un `case()` imbriqué
-équivalent selon ce que SQLAlchemy expose proprement sur les deux moteurs
-(SQLite/PostgreSQL) ; à vérifier au moment d'écrire le test, pas de blocage de
-principe.
+Le rang retenu par athlète est le **meilleur** (le plus petit) des deux
+champs, obtenu sans fonction `LEAST` (absente de SQLite, où la suite tourne) :
+un unique `case()` teste d'abord la condition bucket-0 combinée sur les deux
+champs (`OR` du préfixe sur `nom`, du préfixe sur `prenom`), puis, à défaut,
+la condition bucket-1 combinée, sinon bucket 2 — logiquement équivalent à
+« minimum des deux rangs » sans jamais avoir besoin de calculer un rang par
+champ séparément :
+
+```python
+def _relevance_rank(term: str):
+    nom_dea = func.unaccent(func.lower(Athlete.nom))
+    prenom_dea = func.unaccent(func.lower(Athlete.prenom))
+    t = _escape_like(deaccent(term).lower())
+    prefixe = or_(nom_dea.like(f"{t}%", escape="\\"), prenom_dea.like(f"{t}%", escape="\\"))
+    debut_mot = or_(
+        nom_dea.like(f"% {t}%", escape="\\"), nom_dea.like(f"%-{t}%", escape="\\"),
+        prenom_dea.like(f"% {t}%", escape="\\"), prenom_dea.like(f"%-{t}%", escape="\\"),
+    )
+    return case((prefixe, 0), (debut_mot, 1), else_=2)
+```
+
+`_escape_like` est l'échappement des jokers `\`, `%`, `_` déjà présent dans
+`name_filter`, extrait en fonction partagée plutôt que dupliqué.
 
 **Portée volontairement limitée** : le classement travaille sur le terme
 **entier**, pas mot à mot comme `name_filter`. Un « Jean Dupont » qui ne
