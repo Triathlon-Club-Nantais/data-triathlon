@@ -192,7 +192,7 @@ def test_downgrade_puis_upgrade_de_club_locked(sqlite_url):
 
     # Cible nommée, comme pour l'indice de fiabilité : `-1` désignerait autre
     # chose dès qu'une migration s'ajoute au-dessus.
-    command.downgrade(cfg, "aeb0b98d1a51")
+    command.downgrade(cfg, "d25f17b925d4")
     assert "club_locked" not in _columns(sqlite_url, "athletes")
 
     command.upgrade(cfg, "head")
