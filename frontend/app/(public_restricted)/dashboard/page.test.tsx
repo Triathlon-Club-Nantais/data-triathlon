@@ -140,6 +140,23 @@ describe("DashboardPage", () => {
     expect(lien).toHaveAttribute("data-prefetch", "false");
   });
 
+  it("met le rang 1 des épreuves préférées en orange conforme AA (A11Y-4)", async () => {
+    listEvents.mockResolvedValue({
+      items: [
+        { id: 5, event_name: "Ironman Nantes", event_date: null, event_type: "Triathlon L", is_relay: false, distance_km: 113, total: 30, tcn_count: 5 },
+      ],
+      total_events: 1,
+      total_participations: 30,
+    });
+
+    await renderDashboard({});
+
+    const lien = screen.getByRole("link", { name: /Ironman Nantes/ });
+    const rang = lien.querySelector("span");
+    expect(rang).toHaveTextContent("1");
+    expect(rang).toHaveStyle({ color: "var(--tcn-orange-deeper)" });
+  });
+
   it("ignore ?scope et reste sur le club même si l'URL demande « tous »", async () => {
     await renderDashboard({ scope: undefined }); // pas de scope = ancien mode « Tous »
 
