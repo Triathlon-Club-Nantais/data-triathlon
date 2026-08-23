@@ -10,6 +10,7 @@ import { secondsFromHms } from "@/lib/utils/time";
 import { genderShort } from "@/lib/utils/format";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ClassementPagination } from "@/components/results/ClassementPagination";
+import { PAGE_SIZE_DEFAUT, PAGE_SIZE_PARAM, parsePageSize } from "@/lib/pageSize";
 import { SCOPE_CLUB, SCOPE_PARAM } from "@/lib/scope";
 import { CLUB_NAME } from "@/lib/club";
 import type { CourseSummary, Participation } from "@/lib/types";
@@ -118,6 +119,9 @@ export function RaceFinishers({
   }
 
   const filtreClub = searchParams.get(SCOPE_PARAM) === SCOPE_CLUB;
+  // La taille vient de l'URL, pas de la prop `pageSize` : sous `all`, le
+  // backend renvoie `null` et le sélecteur n'aurait plus quoi afficher.
+  const tailleCourante = parsePageSize(searchParams.get(PAGE_SIZE_PARAM));
 
   /** Construit une URL en repartant des paramètres courants. */
   function lienVers(modifications: Record<string, string | null>): string {
@@ -311,7 +315,15 @@ export function RaceFinishers({
         </div>
       </div>
 
-      {nbPages > 1 && <ClassementPagination page={page} nbPages={nbPages} lienVers={lienVers} />}
+      <ClassementPagination
+        page={page}
+        nbPages={nbPages}
+        lienVers={lienVers}
+        tailleCourante={tailleCourante}
+        onTaille={(taille) =>
+          naviguer({ [PAGE_SIZE_PARAM]: taille === PAGE_SIZE_DEFAUT ? null : String(taille) })
+        }
+      />
 
       <div style={{ padding: "16px 24px", borderTop: "1px solid var(--tcn-border)", textAlign: "center", fontSize: 13, color: "var(--tcn-text-faint)" }}>
         {resumeEpreuve(summary)}

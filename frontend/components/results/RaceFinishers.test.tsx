@@ -175,6 +175,44 @@ describe("RaceFinishers", () => {
     expect(suivant).toContain("page=2");
   });
 
+  // ── Taille de tranche ──────────────────────────────────────────────────────
+
+  it("propose les quatre tailles de tranche, même quand tout tient en une page", () => {
+    afficher({ total: 3, pageSize: 20 });
+
+    const selecteur = screen.getByLabelText("Lignes par page");
+    expect(selecteur).toBeInTheDocument();
+    expect(
+      Array.from(selecteur.querySelectorAll("option")).map((o) => o.textContent),
+    ).toEqual(["20 lignes", "50 lignes", "200 lignes", "Tout"]);
+  });
+
+  it("pousse la taille choisie dans l'URL et revient à la première page", async () => {
+    searchParams = new URLSearchParams("page=7");
+    afficher({ total: 900, pageSize: 20, page: 7 });
+
+    await userEvent.selectOptions(screen.getByLabelText("Lignes par page"), "200");
+
+    expect(push).toHaveBeenCalledWith("/courses/1?page_size=200");
+  });
+
+  it("retire le paramètre quand on revient à la taille par défaut", async () => {
+    searchParams = new URLSearchParams("page_size=200");
+    afficher({ total: 900, pageSize: 200, page: 1 });
+
+    await userEvent.selectOptions(screen.getByLabelText("Lignes par page"), "20");
+
+    expect(push).toHaveBeenCalledWith("/courses/1");
+  });
+
+  it("garde le sélecteur mais retire la navigation de pages quand tout est demandé", () => {
+    searchParams = new URLSearchParams("page_size=all");
+    afficher({ total: 900, pageSize: null, page: 1 });
+
+    expect(screen.getByLabelText("Lignes par page")).toHaveValue("all");
+    expect(screen.queryByRole("navigation", { name: /pagination/i })).not.toBeInTheDocument();
+  });
+
   // ── Recherche et filtre club ───────────────────────────────────────────────
 
   it("pousse la recherche dans l'URL et revient à la première page", async () => {
