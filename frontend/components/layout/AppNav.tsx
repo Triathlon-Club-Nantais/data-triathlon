@@ -160,10 +160,12 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
           style={{
             flex: "none",
             display: "flex",
+            flexDirection: expanded ? "row" : "column",
             alignItems: "center",
-            gap: 10,
+            justifyContent: "center",
+            gap: expanded ? 10 : 4,
             height: 68,
-            padding: "0 14px",
+            padding: expanded ? "0 14px" : "8px 0",
             borderBottom: "1px solid var(--tcn-border-faint)",
           }}
         >
@@ -176,7 +178,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
           >
             {expanded ? <PanelLeft size={20} /> : <Menu size={20} />}
           </button>
-          {expanded && (
+          {expanded ? (
             /* prefetch={false} (#428) : rendu au seul état déplié, ce lien
                monte un second observateur vers `/dashboard` alors que l'entrée
                « Tableau de bord » du rail prefetche déjà la route. */
@@ -188,6 +190,29 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/logo-tcn.png" alt={CLUB_NAME} style={{ height: 26, display: "block" }} />
+            </Link>
+          ) : (
+            // Monogramme du rail replié (#482, NAV-2) : jusqu'ici seule la
+            // barre mobile portait une marque dans le HTML servi. Texte plutôt
+            // qu'un second asset graphique — `logo-tcn.png` est un wordmark
+            // 2000×638, illisible à 76 px de large, et calquer un mark carré
+            // dessus aurait rouvert l'identité visuelle (#325), hors mandat de
+            // ce lot. Même `aria-label` et même destination que le logo
+            // déplié : un seul lien « accueil », deux habillages.
+            <Link
+              href="/dashboard"
+              prefetch={false}
+              aria-label={`${CLUB_NAME_SHORT} — Accueil`}
+              style={{
+                display: "inline-flex",
+                fontFamily: "var(--tcn-font-display)",
+                fontSize: 15,
+                letterSpacing: "0.02em",
+                color: "var(--tcn-ink)",
+                textDecoration: "none",
+              }}
+            >
+              {CLUB_NAME_SHORT}
             </Link>
           )}
         </div>
