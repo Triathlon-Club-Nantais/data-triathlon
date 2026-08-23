@@ -66,66 +66,97 @@ Le jeu de familles retenu est **celui du tableau de bord** (statu quo) :
 Triathlon, Swim & Run, Duathlon, Aquathlon, Run & Bike, Autres. L'ordre
 d'empilement et de légende ne bouge pas.
 
-### 2.2 Réaffectation des tokens
+### 2.2 La seconde contrainte, mesurée : ces tokens portent aussi du texte
 
-Triathlon garde l'orange de marque (`--tri` est documenté comme découplé du
-primaire) ; « Autres » reste un neutre. Sous ces deux bornes, l'affectation qui
-maximise l'adjacence est :
+Une couleur de discipline ne sert pas qu'à remplir un segment : `SportBadge`
+la passe à `tintedStyle`, qui en tire un **libellé** posé sur son propre aplat à
+14 %. Ce libellé doit tenir 4,5:1 (WCAG 1.4.3) — c'est déjà ce que garde
+`lib/sport-colors.test.ts`. Mesure des candidats sur les trois surfaces :
+
+| Token | Libellé sur son aplat | Admis |
+| --- | --- | --- |
+| `--tcn-ink` | 11,38 – 12,53:1 | oui |
+| `--tcn-ink-2` | 9,46 – 10,40:1 | oui |
+| `--tcn-ink-3` | 7,51 – 8,24:1 | oui |
+| `--tcn-orange-deeper` | 6,88 – 7,55:1 | oui |
+| `--tcn-text-muted` | 6,79 – 7,45:1 | oui |
+| `--tcn-orange` | 5,50 – 6,05:1 | oui |
+| `--tcn-orange-300` | 4,58 – 5,01:1 | oui |
+| `--tcn-grey-400` | **4,37** – 4,79:1 | **non** |
+| `--tcn-orange-200` | **3,71** – 4,08:1 | **non** |
+| `--tcn-grey-300` | **3,44** – 3,78:1 | **non** |
+
+**Les trois tons les plus pâles de la palette sont donc inadmissibles**, ce qui
+retire d'emblée `--tcn-grey-300`, `--tcn-grey-400` et `--tcn-orange-200` du jeu.
+C'est la contrainte qui commande, l'adjacence se calculant ensuite sur ce qui
+reste.
+
+### 2.3 Réaffectation des tokens
+
+Triathlon garde l'orange de marque ; « Autres » reste un neutre, et prend
+`--tcn-text-muted` — exactement le gris que `eventTypeColor` renvoie déjà
+aujourd'hui en repli (`var(--muted-foreground)`). Sous ces bornes et le pool
+admissible de la § 2.2 :
 
 | Famille | Avant | Après | Contraste avec la précédente |
 | --- | --- | --- | --- |
 | Triathlon | `--tcn-orange` | `--tcn-orange` | — |
 | Swim & Run | `--tcn-ink` | `--tcn-ink-2` | **2,96:1** |
 | Duathlon | `--tcn-orange-300` | `--tcn-orange-300` | **4,29:1** |
-| Aquathlon | `--tcn-grey-400` | `--tcn-ink` | **6,58:1** |
-| Run & Bike | `--tcn-orange-200` | `--tcn-orange-deeper` | **2,90:1** |
-| Autres | `--tcn-grey-300` | `--tcn-grey-300` | **3,79:1** |
+| Aquathlon | `--tcn-grey-400` | `--tcn-orange-deeper` | **2,27:1** |
+| Run & Bike | `--tcn-orange-200` | `--tcn-ink` | **2,90:1** |
+| Autres | `--tcn-grey-300` | `--tcn-text-muted` | **3,21:1** |
 
-**Minimum entre voisins : 2,90:1**, contre 1,10:1 aujourd'hui. Rien ne quitte la
+**Minimum entre voisins : 2,27:1**, contre 1,10:1 aujourd'hui. Rien ne quitte la
 palette.
 
-### 2.3 Deux conséquences assumées
+Une variante atteignait 2,56:1 (`orange → ink-2 → orange-300 → ink-3 → ink →
+text-muted`) et a été écartée : elle empile trois quasi-noirs sur six, et la
+répartition se lit alors comme un graphique en niveaux de gris. Trois tons de la
+rampe orange gardent l'échelle reconnaissablement TCN, pour une marge encore
+supérieure de 42 % au seuil.
+
+### 2.4 Deux conséquences assumées
 
 - **`--violet` est mort.** `DISCIPLINE_COLORS.violet` n'est renvoyé par aucune
   branche d'`eventTypeColor`, et le token n'a aucun autre consommateur. Il est
   supprimé de `lib/sport-colors.ts`, de `:root` et du bloc `@theme` — pas de
   couche de compatibilité, conformément aux principes de conception. `--tri`
-  suit, pour la raison expliquée en § 2.4.
+  suit, pour la raison expliquée en § 2.5.
 - **Les badges de `/resultats` perdent la distinction trail / cyclisme** : les
   deux tombent dans « Autres ». Sans coût d'accessibilité — le libellé de la
   discipline est écrit *dans* le badge, la couleur n'y a jamais été le seul
   encodage. C'est le prix du jeu de familles du tableau de bord, retenu pour ne
   pas redécouper la légende que les utilisateurs lisent déjà.
 
-### 2.4 Effet de bord dans le même périmètre : l'échelle des splits
+### 2.5 L'échelle des splits reste en l'état — et pourquoi
 
 `lib/utils/splits.ts` réutilise `--swim` / `--bike` / `--run` pour les segments
-d'une course (natation, vélo, course à pied, transitions), qui s'affichent
-**côte à côte** dans `ResultCard`. Deux d'entre eux valent aujourd'hui
-**1,45:1** (`bike` = `--tcn-orange-300` contre `run` = `--tcn-orange`) : c'est le
-même défaut, sur un axe sémantique différent.
+d'une course, et deux d'entre eux ne valent que **1,45:1** (`--bike` =
+`--tcn-orange-300` contre `--run` = `--tcn-orange`). Il était tentant de les
+reprendre sous la même règle. **On ne le fait pas**, pour deux raisons dans cet
+ordre :
 
-Le quadruplet est repris sous la même règle :
+1. **La couleur n'y est pas un encodage.** Dans `ResultCard`, un segment n'est
+   pas un aplat adjacent à un autre : c'est le **libellé écrit** (« Natation »,
+   « T1 », « Vélo »), coloré par `inkColor`. Le nom porte l'information, la
+   couleur n'est qu'un accent redondant. WCAG 1.4.1 est déjà satisfait, et
+   l'audit ne relève d'ailleurs rien sur ces segments.
+2. **Les deux règles se contredisent dans cette palette.** Ces mêmes tokens
+   doivent tenir 4,5:1 en texte (§ 2.2), ce qui exclut les trois tons pâles ;
+   dans le pool restant, **aucun quadruplet n'atteint 1,6:1** sur ses six
+   paires. Séparer les splits reviendrait donc à casser une exigence WCAG dure
+   (1.4.3) pour satisfaire une heuristique qui vise un graphique inexistant ici.
 
-| Rôle | Avant | Après |
-| --- | --- | --- |
-| `--swim` | `--tcn-ink` | `--tcn-ink` |
-| `--bike` | `--tcn-orange-300` | `--tcn-ink-3` |
-| `--run` | `--tcn-orange` | `--tcn-orange` |
-| transitions (T1/T2) | `--muted-foreground` | `--tcn-grey-300` |
+La collision `--run` = `--tri` que l'issue relève est bien corrigée — mais **par
+la fusion elle-même** : `eventTypeColor` ne lit plus ces alias, donc un trail et
+un triathlon cessent de recevoir la même couleur. C'était l'objet du grief.
 
-**Minimum sur les 6 paires : 1,77:1** — le maximum atteignable dans la palette,
-puisque c'est exactement la clique de 4 de la § 1.1.
-
-Note : la collision `--run` = `--tri` que l'issue relève dans `eventTypeColor`
-disparaît **par la fusion elle-même**, la fonction ne lisant plus ces alias.
-
-Des cinq alias sémantiques, il n'en survit donc que **trois**, et pour les seuls
-splits : `--swim`, `--bike`, `--run`. `--violet` n'a jamais eu de consommateur
-(§ 2.3) et `--tri` perd le sien avec la fusion, la table des familles écrivant
-directement ses tokens `--tcn-*` comme `disciplineFamily` le fait déjà. Les deux
-sont supprimés de `:root` **et** du bloc `@theme` (`--color-tri`,
-`--color-violet`).
+Des cinq alias sémantiques, il en survit donc **trois**, pour les seuls splits :
+`--swim`, `--bike`, `--run`. `--violet` n'a jamais eu de consommateur (§ 2.4) et
+`--tri` perd le sien avec la fusion, la table des familles écrivant directement
+ses tokens `--tcn-*` comme `disciplineFamily` le fait déjà. Les deux sont
+supprimés de `:root` **et** du bloc `@theme` (`--color-tri`, `--color-violet`).
 
 ## 3. Sortir les textes de l'échelle du `viewBox`
 
@@ -197,12 +228,14 @@ Trois ajouts, dont deux retirent à la couleur son statut d'encodage unique :
 TDD sur les cinq suites de graphiques existantes, plus un test neuf :
 
 - **Un test de contraste**, sur le modèle d'`app/globals.test.ts`, qui verrouille
-  les **5 paires adjacentes** de l'échelle des disciplines et les **6 paires**
-  du quadruplet des splits au seuil de 1,6:1. C'est la seule régression que rien
-  n'attrape à la lecture d'un diff : réordonner une famille ou retoucher un token
-  casse silencieusement la séparation.
+  les **5 paires adjacentes** de l'échelle des disciplines au seuil de 1,6:1.
+  C'est la seule régression que rien n'attrape à la lecture d'un diff :
+  réordonner une famille ou retoucher un token casse silencieusement la
+  séparation.
 - `lib/sport-colors.test.ts` — la fusion des deux échelles, famille par famille,
-  et la disparition de `--violet`.
+  la disparition de `--violet` et de `--tri`, et surtout `tintedStyle` réévalué
+  sur les **six tokens de familles** : c'est la contrainte de la § 2.2, et elle
+  doit rester tenue par un test, pas par ce document.
 - Les suites de `Histogram`, `MonthlyTrend`, `GenderDonut`, `CategoryBars` et
   `RankingEvolutionChart` — les libellés sortent du SVG, leurs sélecteurs
   changent.
@@ -215,8 +248,7 @@ TDD sur les cinq suites de graphiques existantes, plus un test neuf :
 | --- | --- |
 | `lib/sport-colors.ts` | source unique de l'échelle ; `--violet` supprimé |
 | `lib/utils/format.ts` | `disciplineFamily` / `FAMILY_ORDER` déplacés ; `aggregateDisciplines` importe |
-| `lib/utils/splits.ts` | quadruplet des splits repris |
-| `app/globals.css` | tokens de discipline réaffectés, `--violet` supprimé (`:root` + `@theme`) |
+| `app/globals.css` | `--violet` et `--tri` supprimés (`:root` + `@theme`) |
 | `components/charts/Histogram.tsx` | grille CSS, libellés HTML, `role="img"` |
 | `components/charts/MonthlyTrend.tsx` | valeurs permanentes, mois 1/2, `title` retiré, `role="img"` |
 | `components/charts/BarList.tsx` | plancher de largeur, `role="img"` |
@@ -230,5 +262,13 @@ TDD sur les cinq suites de graphiques existantes, plus un test neuf :
 - L'identité visuelle (`--tcn-*`, Anton/Barlow) et la frontière
   `components/tcn/` vs `components/ui/` : arbitrées, non rejugées (#325, #460).
 - Les 13 questions du § 16 de l'audit (#466), qui se posent **sur** ce lot.
+- **L'échelle des splits** (§ 2.5), et avec elle la paire `--bike` / `--run` à
+  1,45:1 : la palette ne permet pas de la séparer sans casser 1.4.3, et rien
+  n'y repose sur la couleur seule.
+- **WCAG 1.4.11 sur les aplats eux-mêmes.** `--tcn-orange-300` ne tient que
+  2,53:1 sur `--tcn-surface` : un segment de cette couleur est faiblement
+  détaché du fond de la carte, indépendamment de ses voisins. C'est déjà le cas
+  aujourd'hui, l'audit ne le relève pas, et le corriger demanderait de
+  re-arbitrer la rampe orange — donc #325.
 - Toute nouvelle visualisation : ce lot est l'hygiène des six graphiques
   existants, à faire avant d'en ajouter.
