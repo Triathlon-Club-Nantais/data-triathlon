@@ -95,4 +95,24 @@ describe("SegmentedControl", () => {
     expect(tcn.style.opacity).toBe("");
     expect(tcn.style.color).toBe("var(--tcn-text-faint)");
   });
+
+  it("garde le contraste de l'état actif sur un segment à la fois actif et désactivé (re-revue #485)", () => {
+    // `/courses/42?scope=club` sur une épreuve sans athlète club : `value`
+    // (l'URL) et `disabled` (le compte TCN) sont calculés indépendamment,
+    // rien n'empêche les deux à la fois. `--tcn-text-faint` sur `--tcn-ink`
+    // ne tient que 3,21:1 — le blanc actif (16,15:1) doit rester intact.
+    render(
+      <SegmentedControl
+        value="tcn"
+        onChange={() => {}}
+        options={[
+          { value: "all", label: "Tous" },
+          { value: "tcn", label: "TCN", disabled: true },
+        ]}
+      />,
+    );
+
+    const tcn = screen.getByRole("button", { name: "TCN" });
+    expect(tcn.style.color).toBe("rgb(255, 255, 255)");
+  });
 });

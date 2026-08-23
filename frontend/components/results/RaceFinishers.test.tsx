@@ -704,6 +704,20 @@ describe("RaceFinishers", () => {
     expect(screen.getByText(/kermarrec/)).toBeInTheDocument();
   });
 
+  it("sépare recherche et filtre club par un espace, pas une virgule (#485 re-revue)", () => {
+    // Verrouille la copie exacte du seul cas qui combine les deux clauses :
+    // les autres tests de cette section n'assertent que des fragments et
+    // ne distinguent pas join(" ") de join(", ").
+    searchParams = new URLSearchParams(`q=kermarrec&${SCOPE_PARAM}=${SCOPE_CLUB}`);
+    afficher({ summary: synthese({ total: 498, tcn_count: 12 }), total: 2 });
+
+    expect(
+      screen.getByText(
+        "2 résultats sur 498 pour « kermarrec » du Triathlon Club Nantais",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("nomme le filtre club dans la ligne d'état", () => {
     searchParams = new URLSearchParams(`${SCOPE_PARAM}=${SCOPE_CLUB}`);
     afficher({ summary: synthese({ total: 498, tcn_count: 12 }), total: 12 });
