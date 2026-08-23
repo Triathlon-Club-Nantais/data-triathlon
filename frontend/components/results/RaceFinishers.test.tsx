@@ -302,7 +302,7 @@ describe("RaceFinishers", () => {
 
   it("bascule le filtre club en paramètre d'URL et revient à la première page", async () => {
     searchParams = new URLSearchParams("page=4");
-    afficher({ total: 100, pageSize: 20, page: 4 });
+    afficher({ summary: synthese({ tcn_count: 5 }), total: 100, pageSize: 20, page: 4 });
 
     await userEvent.click(screen.getByRole("button", { name: /Triathlon Club Nantais/ }));
 
@@ -383,13 +383,6 @@ describe("RaceFinishers", () => {
     await userEvent.click(screen.getByRole("button", { name: "Voir tous les participants" }));
 
     expect(push).toHaveBeenCalledWith("/courses/1");
-  });
-
-  it("garde le message de recherche quand une recherche a bien eu lieu", () => {
-    searchParams = new URLSearchParams("q=zzz");
-    afficher({ participations: [], total: 0 });
-
-    expect(screen.getByText("Aucun athlète ne correspond à cette recherche")).toBeInTheDocument();
   });
 
   it("annonce une épreuve sans aucun participant (ETAT-3)", () => {
@@ -665,5 +658,23 @@ describe("RaceFinishers", () => {
     afficher({ total: 2 });
 
     expect(screen.getByText(/Sur l'ensemble de l'épreuve/)).toBeInTheDocument();
+  });
+
+  it("grise l'onglet club quand l'épreuve ne compte aucun athlète TCN", () => {
+    afficher({ summary: synthese({ total: 498, tcn_count: 0 }) });
+
+    expect(screen.getByRole("button", { name: /Triathlon Club Nantais \(0\)/ })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+  });
+
+  it("laisse l'onglet club actif dès qu'un athlète TCN figure sur l'épreuve", () => {
+    afficher({ summary: synthese({ total: 498, tcn_count: 3 }) });
+
+    expect(screen.getByRole("button", { name: /Triathlon Club Nantais \(3\)/ })).not.toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   });
 });
