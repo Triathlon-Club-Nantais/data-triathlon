@@ -129,3 +129,62 @@ describe("ResultsFilters — libellés associés (WCAG 3.3.2)", () => {
     expect(du.id).toBeTruthy();
   });
 });
+
+describe("ResultsFilters — volet mobile", () => {
+  beforeEach(() => {
+    push.mockReset();
+    replace.mockReset();
+    searchParams = new URLSearchParams();
+  });
+
+  it("porte le nombre de filtres repliés actifs, athlète non compté", () => {
+    // « Athlète » reste visible hors du volet : il ne fait pas partie du compte.
+    searchParams = new URLSearchParams("name=marie&event_type=triathlon-m&date_from=2026-01-01");
+    render(<ResultsFilters />);
+
+    expect(screen.getByRole("button", { name: "Filtres (2)" })).toBeInTheDocument();
+  });
+
+  it("n'affiche aucun compte quand aucun filtre replié n'est actif", () => {
+    searchParams = new URLSearchParams("name=marie");
+    render(<ResultsFilters />);
+
+    expect(screen.getByRole("button", { name: "Filtres" })).toBeInTheDocument();
+  });
+
+  it("ouvre le volet et y rend les quatre champs repliés", async () => {
+    render(<ResultsFilters />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Filtres" }));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    // Deux rendus du même champ : l'inline (masqué sous `sm`) et celui du volet.
+    expect(screen.getAllByLabelText("Épreuve")).toHaveLength(2);
+    expect(screen.getAllByLabelText("Du")).toHaveLength(2);
+  });
+
+  it("ne duplique aucun identifiant entre le rendu inline et celui du volet", async () => {
+    render(<ResultsFilters />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Filtres" }));
+    await screen.findByRole("dialog");
+
+    const ids = screen.getAllByLabelText("Épreuve").map((champ) => champ.id);
+    expect(new Set(ids).size).toBe(2);
+  });
+
+  it("« Appliquer » pousse l'URL et ferme le volet", async () => {
+    render(<ResultsFilters />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Filtres" }));
+    await screen.findByRole("dialog");
+    const [, epreuveVolet] = screen.getAllByLabelText("Épreuve");
+    fireEvent.change(epreuveVolet, { target: { value: "nantes" } });
+    await userEvent.click(screen.getByRole("button", { name: "Appliquer" }));
+
+    expect(push).toHaveBeenCalledWith(expect.stringContaining("event_name=nantes"));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  });
+});
