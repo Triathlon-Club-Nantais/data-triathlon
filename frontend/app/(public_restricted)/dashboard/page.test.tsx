@@ -95,12 +95,12 @@ describe("DashboardPage — états vides (ETAT-3)", () => {
     expect(liens.every((l) => l.getAttribute("href") === "/ajouter")).toBe(true);
   });
 
-  it("propose d'ajouter une épreuve quand la liste des épreuves préférées est vide", async () => {
+  it("propose d'ajouter une épreuve quand la liste des dernières épreuves est vide", async () => {
     // `EVENTS_PAGE` par défaut a déjà `items: []` : l'état vide est le cas
     // par défaut de la fixture, pas un cas à construire.
     await renderDashboard({});
 
-    expect(screen.getByText("Aucune épreuve à afficher")).toBeInTheDocument();
+    expect(screen.getByText("Aucune épreuve récente à afficher")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Ajouter une épreuve/ })).toHaveAttribute("href", "/ajouter");
   });
 });
@@ -124,7 +124,7 @@ describe("DashboardPage", () => {
     expect(listSeasons).toHaveBeenCalledWith(expect.anything(), { revalidateSeconds: 30 });
   });
 
-  it("désactive le prefetch des liens « Épreuves préférées » (#425) — au-dessus de la ligne de flottaison, jusqu'à 6 à la fois, prefetchées au hasard sans intérêt", async () => {
+  it("désactive le prefetch des liens « Dernières épreuves » (#425) — au-dessus de la ligne de flottaison, jusqu'à 6 à la fois, prefetchées au hasard sans intérêt", async () => {
     listEvents.mockResolvedValue({
       items: [
         { id: 5, event_name: "Ironman Nantes", event_date: null, event_type: "Triathlon L", is_relay: false, distance_km: 113, total: 30, tcn_count: 5 },
@@ -140,21 +140,21 @@ describe("DashboardPage", () => {
     expect(lien).toHaveAttribute("data-prefetch", "false");
   });
 
-  it("met le rang 1 des épreuves préférées en orange conforme AA (A11Y-4)", async () => {
+  it("trie les dernières épreuves par date décroissante plutôt que par volume (NAV-7)", async () => {
     listEvents.mockResolvedValue({
       items: [
-        { id: 5, event_name: "Ironman Nantes", event_date: null, event_type: "Triathlon L", is_relay: false, distance_km: 113, total: 30, tcn_count: 5 },
+        { id: 1, event_name: "Petit format", event_date: "2026-01-10", event_type: "Triathlon S", is_relay: false, distance_km: null, total: 50, tcn_count: 5 },
+        { id: 2, event_name: "Ironman Nantes", event_date: "2026-06-14", event_type: "Triathlon L", is_relay: false, distance_km: 113, total: 5, tcn_count: 5 },
       ],
-      total_events: 1,
-      total_participations: 30,
+      total_events: 2,
+      total_participations: 55,
     });
 
     await renderDashboard({});
 
-    const lien = screen.getByRole("link", { name: /Ironman Nantes/ });
-    const rang = lien.querySelector("span");
-    expect(rang).toHaveTextContent("1");
-    expect(rang).toHaveStyle({ color: "var(--tcn-orange-deeper)" });
+    const liens = screen.getAllByRole("link", { name: /Petit format|Ironman Nantes/ });
+    expect(liens[0]).toHaveTextContent("Ironman Nantes");
+    expect(liens[1]).toHaveTextContent("Petit format");
   });
 
   it("ignore ?scope et reste sur le club même si l'URL demande « tous »", async () => {
@@ -191,7 +191,7 @@ describe("DashboardPage", () => {
     await renderDashboard({});
 
     expect(screen.getByRole("heading", { level: 2, name: "Type d'épreuves" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: "Épreuves préférées" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Dernières épreuves" })).toBeInTheDocument();
   });
 
   it("garde les tags de saison hors de la barre d'outils, pour que les boutons ne bougent pas (#445)", async () => {
