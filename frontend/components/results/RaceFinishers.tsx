@@ -24,6 +24,21 @@ const CLUB_COL = "1.1fr";
 // alors que le temps total vit dans `Participation.total_time`.
 const CLE_TEMPS_TOTAL = "__temps_total__";
 
+// Style partagé des boutons d'action des états d'absence (« Effacer la
+// recherche », « Voir tous les participants ») : `padding` + `minHeight: 24`
+// pour le plancher tactile WCAG 2.2 2.5.8, sous 24 px quand le bouton ne tient
+// sa hauteur que du texte.
+const STYLE_BOUTON_ABSENCE = {
+  background: "none",
+  border: "none",
+  padding: "4px 0",
+  minHeight: 24,
+  font: "inherit",
+  fontWeight: 700,
+  color: "var(--tcn-ink)",
+  cursor: "pointer",
+} as const;
+
 /**
  * Une ligne de finisher ouvre le détail de **ce résultat**, pas le profil de
  * l'athlète : depuis un classement, la question est « comment s'est passée
@@ -185,7 +200,9 @@ export function RaceFinishers({
   // taire rendrait le classement trompeur ; sous `page_size=all`, il n'y a rien
   // à dire, le tri est global.
   const perimetreTri =
-    pageSize == null ? "" : `, sur ${lignes.length === 1 ? "la ligne affichée" : `les ${lignes.length} lignes affichées`}`;
+    pageSize == null || lignes.length === 0
+      ? ""
+      : `, sur ${lignes.length === 1 ? "la ligne affichée" : `les ${lignes.length} lignes affichées`}`;
   const texteAnnonce =
     `${lignes.length} résultat${lignes.length > 1 ? "s" : ""} affiché${lignes.length > 1 ? "s" : ""}` +
     (libelleTri
@@ -307,7 +324,11 @@ export function RaceFinishers({
             );
           })}
           {participations.length === 0 && (
-            page > nbPages ? (
+            // `total > 0` : sans ce garde, une recherche sans résultat sur une
+            // page sautée (`?q=zzz&page=5`) tombe dans cette branche — `nbPages`
+            // vaut 1 faute de résultats, donc `page > nbPages` est vrai pour une
+            // tout autre raison que « cette page n'existe pas ».
+            page > nbPages && total > 0 ? (
               <EmptyState
                 bare
                 title="Cette page n'existe pas"
@@ -326,9 +347,7 @@ export function RaceFinishers({
                   <button
                     type="button"
                     onClick={() => naviguer({ q: null })}
-                    // `padding` + `minHeight: 24` : plancher tactile WCAG 2.2 2.5.8,
-                    // sous 24 px quand le bouton ne tient sa hauteur que du texte.
-                    style={{ background: "none", border: "none", padding: "4px 0", minHeight: 24, font: "inherit", fontWeight: 700, color: "var(--tcn-ink)", cursor: "pointer" }}
+                    style={STYLE_BOUTON_ABSENCE}
                   >
                     Effacer la recherche
                   </button>
@@ -342,9 +361,7 @@ export function RaceFinishers({
                   <button
                     type="button"
                     onClick={() => naviguer({ [SCOPE_PARAM]: null })}
-                    // `padding` + `minHeight: 24` : plancher tactile WCAG 2.2 2.5.8,
-                    // sous 24 px quand le bouton ne tient sa hauteur que du texte.
-                    style={{ background: "none", border: "none", padding: "4px 0", minHeight: 24, font: "inherit", fontWeight: 700, color: "var(--tcn-ink)", cursor: "pointer" }}
+                    style={STYLE_BOUTON_ABSENCE}
                   >
                     Voir tous les participants
                   </button>

@@ -355,6 +355,16 @@ describe("RaceFinishers", () => {
     expect(screen.getByText("Aucun athlète ne correspond à cette recherche")).toBeInTheDocument();
   });
 
+  it("n'affirme pas « Cette page n'existe pas » quand la vraie cause est une recherche sans résultat (#M4)", () => {
+    // `?q=zzz&page=5` : total=0 fait tomber nbPages à 1, donc page(5) > nbPages(1) —
+    // mais la cause réelle est la recherche vide, pas une page hors bornes.
+    searchParams = new URLSearchParams("q=zzz&page=5");
+    afficher({ participations: [], total: 0, page: 5 });
+
+    expect(screen.getByText("Aucun athlète ne correspond à cette recherche")).toBeInTheDocument();
+    expect(screen.queryByText("Cette page n'existe pas")).not.toBeInTheDocument();
+  });
+
   it("n'efface que la recherche quand le filtre club est aussi actif (tâche 8, supersède la revue #476)", async () => {
     searchParams = new URLSearchParams("q=zzz&" + SCOPE_PARAM + "=" + SCOPE_CLUB);
     afficher({ participations: [], total: 0 });
@@ -634,6 +644,21 @@ describe("RaceFinishers", () => {
     await userEvent.click(screen.getByRole("button", { name: /Trier par temps total/ }));
 
     expect(screen.getByRole("status").textContent).toContain("sur la ligne affichée");
+  });
+
+  it("ne mentionne aucun périmètre quand le tri porte sur zéro ligne affichée (#M3)", async () => {
+    searchParams = new URLSearchParams("q=zzz");
+    afficher({ participations: [], total: 0 });
+
+    // Le périmètre de tri se lit dans l'aria-label avant même de cliquer :
+    // il décrit la prochaine direction, « 0 lignes affichées » n'a rien à dire.
+    expect(
+      screen.getByRole("button", { name: "Trier par temps total, croissant" }),
+    ).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /Trier par temps total/ }));
+
+    expect(screen.getByRole("status").textContent).not.toContain("lignes affichées");
   });
 
   // ── Cible tactile (#479) ────────────────────────────────────────────────────

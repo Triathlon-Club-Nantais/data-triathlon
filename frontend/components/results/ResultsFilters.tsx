@@ -117,6 +117,28 @@ export function ResultsFilters() {
     push({});
   }
 
+  // Réinitialisation **partielle** : seuls les quatre champs repliés dans le
+  // volet, l'athlète restant hors de son périmètre (#M2 revue finale).
+  function resetVolet() {
+    setEventName("");
+    setEventType("");
+    setDateFrom("");
+    setDateTo("");
+    push({ name, event_name: "", event_type: "", date_from: "", date_to: "" });
+  }
+
+  // Referme la fuite #387 côté volet : sorti sans valider (Échap, clic sur le
+  // fond), l'état local des quatre champs repliés reste modifié tant qu'on ne
+  // le remet pas à ce que l'URL dit déjà appliqué — sinon une saisie abandonnée
+  // s'applique au prochain Entrée dans « Athlète », et réapparaît comme active
+  // si l'on rouvre le volet.
+  function resetVoletDepuisUrl() {
+    setEventName(sp.get("event_name") ?? "");
+    setEventType(sp.get("event_type") ?? "");
+    setDateFrom(sp.get("date_from") ?? "");
+    setDateTo(sp.get("date_to") ?? "");
+  }
+
   // Filtres actifs (depuis l'URL) → chips.
   const active: { key: string; label: string }[] = [];
   if (sp.get("name")) active.push({ key: "name", label: `Athlète : ${sp.get("name")}` });
@@ -185,7 +207,7 @@ export function ResultsFilters() {
               Filtrer
             </Button>
             {active.length > 0 && (
-              <Button variant="ghost" onClick={reset}>
+              <Button variant="ghost" className="hidden sm:inline-flex" onClick={reset}>
                 Réinitialiser
               </Button>
             )}
@@ -214,7 +236,13 @@ export function ResultsFilters() {
           </div>
         )}
 
-        <Sheet open={volet} onOpenChange={setVolet}>
+        <Sheet
+          open={volet}
+          onOpenChange={(open) => {
+            setVolet(open);
+            if (!open) resetVoletDepuisUrl();
+          }}
+        >
           <SheetContent side="right" className="w-80 overflow-y-auto">
             <SheetTitle>Filtres</SheetTitle>
             <div className="flex flex-col gap-3">
@@ -235,8 +263,11 @@ export function ResultsFilters() {
               />
             </div>
             <div className="mt-auto flex gap-2">
-              {/* Application à la validation, jamais à la frappe : discipline et
-                  dates ne s'appliquent que sur demande explicite (#387). */}
+              {/* Application à la validation, jamais à la frappe, pour la
+                  discipline et les dates (#387) : c'est la seule promesse du
+                  volet. « Épreuve » garde sa recherche live (#383), comme hors
+                  du volet — l'`onKeyDown` Entrée reste un raccourci vers la
+                  même validation, pas un second régime. */}
               <Button
                 className="flex-1"
                 onClick={() => {
@@ -249,7 +280,7 @@ export function ResultsFilters() {
               <Button
                 variant="ghost"
                 onClick={() => {
-                  reset();
+                  resetVolet();
                   setVolet(false);
                 }}
               >
