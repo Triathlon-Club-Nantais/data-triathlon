@@ -23,7 +23,7 @@ export default function AdminAccesPage() {
   return (
     <PageShell>
       <div className="space-y-10">
-        <PageHeader eyebrow="Gestion des utilisateurs" {...ecran("/admin/acces")} />
+        <PageHeader {...ecran("/admin/acces")} />
         <AllowedEmailsTable />
         <SiteAccessConfig />
         <BenevoleAccessConfig />

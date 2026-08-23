@@ -14,7 +14,7 @@ export default function AdminUtilisateursPage() {
   return (
     <PageShell>
       <div className="space-y-10">
-        <PageHeader eyebrow="Gestion des utilisateurs" {...ecran("/admin/utilisateurs")} />
+        <PageHeader {...ecran("/admin/utilisateurs")} />
         <UserRolesTable />
       </div>
     </PageShell>

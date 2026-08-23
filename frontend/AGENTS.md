@@ -154,7 +154,16 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   ce pouvoir, la liste dit ce qui manque au lieu de partir en 403, et
   `BatchLauncher` **dit** qu'il lance à l'aveugle plutôt que de laisser
   `enCours` valoir silencieusement `false` — le refus du second lancement reste
-  au serveur (409).
+  au serveur (409). Trois points relevés en `ui-ux-review` du même lot, valables
+  bien au-delà : le **surtitre** vient lui aussi de la section (`ecran()` le
+  rend), sans quoi quatre écrans rangés sous « Administration » annonçaient
+  « Maintenance » ou « Exploitation » à l'arrivée ; un anneau de focus se pose
+  en **trait opaque** `--tcn-orange` (3,32:1 sur `--tcn-paper`), jamais en halo
+  `ring-ring/50` seul, qui tombe à 1,86:1 ; et `Skeleton` porte
+  `--tcn-grey-300` depuis que `bg-muted` s'est révélé être **exactement**
+  `--background` (`--tcn-fill` = `--tcn-paper` = `#f4f3f0`, ratio 1,00:1) —
+  `animate-pulse` n'animant que l'opacité, tous les squelettes du front étaient
+  invisibles.
 - **Navigation** — `components/layout/nav.config.ts` en est la description
   **unique** ; ajouter une destination y tient en une ligne. Deux échelons de
   visibilité, à ne pas confondre : `minRole` ne distingue qu'anonyme et

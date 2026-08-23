@@ -69,7 +69,13 @@ describe("AdminIndex", () => {
     getSession.mockRejectedValue(new ApiError(503, "Backend injoignable."));
     afficher();
 
-    expect(await screen.findByText(/injoignable/i)).toBeInTheDocument();
+    // La phrase est fixe et française : le repli d'`ApiError` est `statusText`,
+    // donc anglais, et le réveil à froid du backend n'est même pas une
+    // `ApiError`. Le message du serveur ne sort donc jamais ici.
+    expect(
+      await screen.findByText(/Vos pouvoirs n'ont pas pu être lus/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/injoignable/i)).toBeNull();
     expect(screen.queryByText(/Aucun écran d'administration/)).toBeNull();
   });
 });

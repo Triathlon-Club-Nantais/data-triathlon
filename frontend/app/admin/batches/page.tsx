@@ -19,7 +19,7 @@ export default function AdminBatchesPage() {
   return (
     <PageShell>
       <div className="space-y-10">
-        <PageHeader eyebrow="Exploitation" {...ecran("/admin/batches")} />
+        <PageHeader {...ecran("/admin/batches")} />
         <section className="space-y-4">
           <h2 className="text-lg font-bold">Reprise de la base</h2>
           <BatchLauncher />

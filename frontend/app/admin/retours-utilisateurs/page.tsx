@@ -7,7 +7,7 @@ export default function AdminFeedbackPage() {
   return (
     <PageShell>
       <div className="space-y-6">
-        <PageHeader eyebrow="Maintenance" {...ecran("/admin/retours-utilisateurs")} />
+        <PageHeader {...ecran("/admin/retours-utilisateurs")} />
         <FeedbackTable />
       </div>
     </PageShell>

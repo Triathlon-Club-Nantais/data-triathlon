@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { Card } from "@/components/ui/card";
+import { Card, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { NAV, ROLE, estVisible } from "@/components/layout/nav.config";
@@ -31,15 +31,19 @@ export function AdminIndex() {
   const session = useSession();
   const pouvoirs = new Set(session.data?.permissions ?? []);
 
-  if (session.isPending) return <Skeleton className="h-40 w-full" />;
+  if (session.isPending)
+    return <Skeleton className="h-40 w-full" aria-label="Chargement des écrans" />;
   // Une session illisible n'est pas une session sans pouvoirs : `useSession` ne
   // réessaie pas, et afficher « aucun écran » ferait croire à un retrait de
-  // droits là où il n'y a qu'une panne.
+  // droits là où il n'y a qu'une panne. Le message du serveur n'est **pas**
+  // réaffiché : son repli est `statusText`, donc anglais, et la panne la plus
+  // fréquente ici — le réveil à froid du backend — n'est même pas une
+  // `ApiError` (même doctrine que `tcn/ErrorScreen`).
   if (session.error)
     return (
       <EmptyState
         title="Vos pouvoirs n'ont pas pu être lus"
-        description={session.error.message}
+        description="Rechargez la page. Si le problème persiste, signalez-le depuis le bouton de retour du site."
       />
     );
 
@@ -60,23 +64,30 @@ export function AdminIndex() {
     <div className="space-y-8">
       {sections.map((section) => (
         <section key={section.id} className="space-y-4">
-          <h2 className="text-lg font-bold">{section.label}</h2>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <h2 className="font-heading text-lg font-semibold">{section.label}</h2>
+          {/* Une liste, et pas des liens frères : le lecteur d'écran annonce le
+              nombre d'écrans ouverts et la position dans la section. */}
+          <ul className="grid list-none gap-4 sm:grid-cols-2">
             {section.items.map((item) => (
-              <Link
-                key={item.id}
-                href={item.href}
-                className="block rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                <Card className="h-full p-6 space-y-2 transition-all hover:ring-foreground/25">
-                  <div className="font-bold">{item.label}</div>
-                  <p className="text-sm text-[var(--tcn-text-faint)]">
-                    {item.description}
-                  </p>
-                </Card>
-              </Link>
+              <li key={item.id}>
+                {/* L'anneau de focus est celui du reste du front — trait opaque
+                    `--tcn-orange` à 3,32:1 sur `--tcn-paper` (cf. `.tcn-btn` et
+                    consorts dans `globals.css`). Le halo `ring-ring/50` seul
+                    tombait à 1,86:1, sous le seuil WCAG 1.4.11. */}
+                <Link
+                  href={item.href}
+                  className="block h-full rounded-xl outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--tcn-orange)]"
+                >
+                  <Card className="h-full gap-2 p-6 transition-all hover:ring-foreground/25">
+                    <CardTitle>{item.label}</CardTitle>
+                    <p className="text-sm text-[var(--tcn-text-faint)]">
+                      {item.description}
+                    </p>
+                  </Card>
+                </Link>
+              </li>
             ))}
-          </div>
+          </ul>
         </section>
       ))}
     </div>

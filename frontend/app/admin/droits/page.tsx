@@ -14,7 +14,7 @@ export default function AdminDroitsPage() {
   return (
     <PageShell>
       <div className="space-y-10">
-        <PageHeader eyebrow="Gestion des utilisateurs" {...ecran("/admin/droits")} />
+        <PageHeader {...ecran("/admin/droits")} />
         <RolePermissionsEditor />
       </div>
     </PageShell>

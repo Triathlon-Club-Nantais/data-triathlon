@@ -27,7 +27,7 @@ export default async function AdminCoursesPage({
   return (
     <PageShell>
       <div className="space-y-6">
-        <PageHeader eyebrow="Administration" {...ecran("/admin/courses")} />
+        <PageHeader {...ecran("/admin/courses")} />
         <CoursesAdminTable
           page={Number(sp.page)}
           filtres={{
