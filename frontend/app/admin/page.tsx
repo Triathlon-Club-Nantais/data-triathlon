@@ -1,24 +1,25 @@
+import { AdminIndex } from "@/components/admin/AdminIndex";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
-import { EmptyState } from "@/components/ui/empty-state";
 
 /**
- * Racine de l'administration — le futur tableau de bord global.
+ * Racine de l'administration — le **sommaire** du back-office (ADM-6).
  *
- * Vide et sans entrée de navigation tant qu'il n'a rien à montrer : les écrans
- * d'administration vivent chacun sous `/admin/<écran>`, et c'est la nav qui y
- * mène. Cette page tient l'URL, elle ne redirige pas — un `/admin` qui saute
- * ailleurs ferait croire que l'écran d'arrivée *est* la racine.
+ * Cette page tient l'URL, elle ne redirige pas : un `/admin` qui saute ailleurs
+ * ferait croire que l'écran d'arrivée *est* la racine. Elle n'a pas d'entrée de
+ * navigation pour autant — un `href` préfixe de tous les autres allumerait le
+ * rail sur chaque écran d'administration (cf. `nav.config.ts`).
  */
 export default function AdminPage() {
   return (
     <PageShell>
       <div className="space-y-6">
-        <PageHeader eyebrow="Maintenance" title="Administration" />
-        <EmptyState
-          title="Tableau de bord à venir"
-          description="Choisissez un écran d'administration dans la navigation."
+        <PageHeader
+          eyebrow="Maintenance"
+          title="Administration"
+          description="Les écrans du back-office qui vous sont ouverts, et ce que chacun permet de faire."
         />
+        <AdminIndex />
       </div>
     </PageShell>
   );

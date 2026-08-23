@@ -476,14 +476,16 @@ describe("AppNav — arborescence", () => {
     expect(screen.queryByText("Administration")).not.toBeInTheDocument();
     unmount();
 
-    afficher(habilite("pending_providers:read"));
+    afficher(habilite("pending_providers:read", "courses:write"));
     await deplier();
     await waitFor(() => expect(screen.getByText("Administration")).toBeInTheDocument());
     expect(screen.getByRole("link", { name: "Fournisseurs en attente" })).toHaveAttribute(
       "href",
       "/admin/fournisseurs",
     );
-    expect(screen.getByRole("link", { name: "Gestion des courses" })).toHaveAttribute(
+    // Le libellé du rail est le titre de l'écran d'arrivée, pas un synonyme
+    // (ADM-6) : « Gestion des courses » menait à une page intitulée « Épreuves ».
+    expect(screen.getByRole("link", { name: "Épreuves" })).toHaveAttribute(
       "href",
       "/admin/courses",
     );
@@ -493,13 +495,13 @@ describe("AppNav — arborescence", () => {
 
   it("n'allume qu'une entrée d'administration à la fois", async () => {
     chemin.courant = "/admin/courses";
-    afficher(habilite("pending_providers:read"));
+    afficher(habilite("pending_providers:read", "courses:write"));
     await deplier();
 
     // `isActive` teste `startsWith` : une entrée branchée sur `/admin` serait
     // allumée sur **tous** les écrans d'administration.
     await waitFor(() =>
-      expect(screen.getByRole("link", { name: "Gestion des courses" })).toHaveAttribute(
+      expect(screen.getByRole("link", { name: "Épreuves" })).toHaveAttribute(
         "aria-current",
         "page",
       ),
@@ -538,8 +540,12 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
   it("cache la section à un connecté sans pouvoir", async () => {
     afficher(SESSION);
     await deplier();
-    await waitFor(() => expect(screen.getByText("Administration")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Résultats")).toBeInTheDocument());
     expect(screen.queryByText("Gestion des utilisateurs")).not.toBeInTheDocument();
+    // « Administration » disparaît de même depuis qu'« Épreuves » porte un
+    // pouvoir : c'était la seule entrée de la section à n'en porter aucun,
+    // donc la seule proposée à qui n'y peut rien faire (ADM-6).
+    expect(screen.queryByText("Administration")).not.toBeInTheDocument();
   });
 
   it("ouvre « Accès au back-office » à qui porte allowed_emails:manage", async () => {

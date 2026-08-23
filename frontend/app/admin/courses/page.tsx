@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/layout/PageHeader";
+import { ecran } from "@/components/layout/nav.config";
 import { PageShell } from "@/components/layout/PageShell";
 import { CoursesAdminTable } from "@/components/admin/CoursesAdminTable";
 import { WipeCoursesCard } from "@/components/admin/WipeCoursesCard";
@@ -26,11 +27,7 @@ export default async function AdminCoursesPage({
   return (
     <PageShell>
       <div className="space-y-6">
-        <PageHeader
-          eyebrow="Administration"
-          title="Épreuves"
-          description="Corriger ou retirer une épreuve du catalogue. Ces actions sont irréversibles et tracées."
-        />
+        <PageHeader eyebrow="Administration" {...ecran("/admin/courses")} />
         <CoursesAdminTable
           page={Number(sp.page)}
           filtres={{

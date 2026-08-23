@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/layout/PageHeader";
+import { ecran } from "@/components/layout/nav.config";
 import { PageShell } from "@/components/layout/PageShell";
 import { BatchLauncher } from "@/components/admin/BatchLauncher";
 import { BatchRunList } from "@/components/admin/BatchRunList";
@@ -18,11 +19,7 @@ export default function AdminBatchesPage() {
   return (
     <PageShell>
       <div className="space-y-10">
-        <PageHeader
-          eyebrow="Exploitation"
-          title="Batches"
-          description="Relancer le scraping des épreuves déjà en base, importer une liste d'épreuves depuis un fichier, et relire le bilan des lancements précédents."
-        />
+        <PageHeader eyebrow="Exploitation" {...ecran("/admin/batches")} />
         <section className="space-y-4">
           <h2 className="text-lg font-bold">Reprise de la base</h2>
           <BatchLauncher />

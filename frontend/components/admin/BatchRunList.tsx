@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useBatchReport, useBatchRuns } from "@/lib/queries/batches";
+import { useSession } from "@/lib/queries/auth";
 import { formatDate } from "@/lib/utils/date";
 import type { BatchRun } from "@/lib/types";
 
@@ -110,11 +111,33 @@ function BilanDuLancement({ runId }: { runId: number }) {
 }
 
 export function BatchRunList() {
-  const { data, isLoading, error } = useBatchRuns();
+  const session = useSession();
+  const peutLire = session.data?.permissions.includes("batch:read") ?? false;
+  // L'écran est annoncé sur `batch:run` : cette liste-ci est la part que ce
+  // pouvoir-là n'ouvre pas. Sans la garde, elle partait en 403 et s'affichait en
+  // « Lancements indisponibles » avec le message serveur brut — un état d'erreur
+  // comme rendu par défaut d'un visiteur légitime (ADM-2).
+  const { data, isLoading, error } = useBatchRuns(peutLire);
   const [ouvert, setOuvert] = useState<number | null>(null);
   const maintenant = useMaintenant();
 
-  if (isLoading) return <Skeleton className="h-40 w-full" />;
+  // Une session illisible n'est pas une session sans pouvoirs : `useSession` ne
+  // réessaie pas, et dire « demande le pouvoir » sur une panne accuse à tort.
+  if (session.error)
+    return (
+      <EmptyState
+        title="Lancements indisponibles"
+        description={session.error.message}
+      />
+    );
+  if (!peutLire && !session.isPending)
+    return (
+      <EmptyState
+        title="Lancements non affichés"
+        description="Suivre les lancements et relire leurs bilans demande le pouvoir « Consulter les batches »."
+      />
+    );
+  if (isLoading || session.isPending) return <Skeleton className="h-40 w-full" />;
   // Un refus n'est pas une liste vide : « aucun lancement » se lirait comme une
   // information, alors qu'elle est seulement indisponible.
   if (error)

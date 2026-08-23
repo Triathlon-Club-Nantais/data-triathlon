@@ -146,4 +146,24 @@ describe("BatchLauncher", () => {
     await waitFor(() => expect(getSession).toHaveBeenCalled());
     expect(listBatchRuns).not.toHaveBeenCalled();
   });
+
+  it("dit qu'il lance à l'aveugle sans le pouvoir de lire l'état courant", async () => {
+    // Sans la liste, `enCours` vaut toujours `false` : le garde-fou est absent,
+    // et le taire laissait croire à un plateau libre (ADM-2).
+    getSession.mockResolvedValue(SESSION(["batch:run"]));
+    afficher();
+
+    expect(
+      await screen.findByText(/Impossible de savoir si un batch tourne déjà/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /lancer/i })).toBeEnabled();
+  });
+
+  it("ne dit rien de tel quand la liste est lisible", async () => {
+    afficher();
+
+    await screen.findByRole("button", { name: /lancer/i });
+    await waitFor(() => expect(listBatchRuns).toHaveBeenCalled());
+    expect(screen.queryByText(/Impossible de savoir/)).toBeNull();
+  });
 });

@@ -35,8 +35,8 @@ const TOUS = "all";
  * nomme le fautif si l'API refuse malgré tout.
  */
 export function BatchLauncher() {
-  const { data: session } = useSession();
-  const peutLire = (session?.permissions ?? []).includes("batch:read");
+  const session = useSession();
+  const peutLire = session.data?.permissions.includes("batch:read") ?? false;
   // N'interroger la liste que si la session sait la lire : sinon l'écran
   // afficherait un bloc en 403 à la place de l'état courant.
   const { data: runs } = useBatchRuns(peutLire);
@@ -139,6 +139,18 @@ export function BatchLauncher() {
           {enCours && (
             <p className="text-sm text-[var(--tcn-text-faint)]">
               Un batch est déjà en cours. Attendez sa fin pour en lancer un autre.
+            </p>
+          )}
+          {/* Le garde-fou ne dépend plus **silencieusement** d'une lecture
+              facultative : sans `batch:read`, `enCours` valait toujours `false`
+              et rien ne le disait (ADM-2). Le lancement reste offert — c'est le
+              pouvoir qui ouvre cet écran — mais à l'aveugle, et le serveur reste
+              seul juge : il refuse un second lancement en 409. */}
+          {!peutLire && !session.isPending && (
+            <p className="text-sm text-[var(--tcn-text-faint)]">
+              Impossible de savoir si un batch tourne déjà : le suivi demande le
+              pouvoir « Consulter les batches ». Le serveur refusera un second
+              lancement.
             </p>
           )}
         </div>
