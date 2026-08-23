@@ -181,9 +181,15 @@ export function RaceFinishers({
       ? "temps total"
       : `temps ${segments.find((s) => s.key === tri.cle)?.label ?? tri.cle}`
     : null;
+  // Le tri par en-tête ne porte que sur la tranche affichée. Sur 43 pages, le
+  // taire rendrait le classement trompeur ; sous `page_size=all`, il n'y a rien
+  // à dire, le tri est global.
+  const perimetreTri = pageSize == null ? "" : `, sur les ${lignes.length} lignes affichées`;
   const texteAnnonce =
     `${lignes.length} résultat${lignes.length > 1 ? "s" : ""} affiché${lignes.length > 1 ? "s" : ""}` +
-    (libelleTri ? `, trié par ${libelleTri}, ${tri!.direction === "asc" ? "croissant" : "décroissant"}` : "");
+    (libelleTri
+      ? `, trié par ${libelleTri}, ${tri!.direction === "asc" ? "croissant" : "décroissant"}${perimetreTri}`
+      : "");
 
   return (
     <Card padding={0} style={{ overflow: "hidden" }}>
@@ -249,11 +255,11 @@ export function RaceFinishers({
           <div style={{ display: "grid", gridTemplateColumns: fcols, gap: "0 12px", alignItems: "center", padding: "12px 22px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--tcn-text-faint)", borderBottom: "1px solid var(--tcn-border)" }}>
             <div>Rang</div><div>Athlète</div><div>Catég.</div><div>Sexe</div>
             <div>
-              <EnteteTriable cle={CLE_TEMPS_TOTAL} libelle="Temps total" ariaSujet="temps total" tri={tri} onTrier={trierSur} />
+              <EnteteTriable cle={CLE_TEMPS_TOTAL} libelle="Temps total" ariaSujet="temps total" tri={tri} onTrier={trierSur} perimetre={perimetreTri} />
             </div>
             {segments.map((s) => (
               <div key={s.key}>
-                <EnteteTriable cle={s.key} libelle={s.label} ariaSujet={`temps ${s.label}`} tri={tri} onTrier={trierSur} />
+                <EnteteTriable cle={s.key} libelle={s.label} ariaSujet={`temps ${s.label}`} tri={tri} onTrier={trierSur} perimetre={perimetreTri} />
               </div>
             ))}
             <div>Club</div>
@@ -419,12 +425,14 @@ function EnteteTriable({
   ariaSujet,
   tri,
   onTrier,
+  perimetre,
 }: {
   cle: string;
   libelle: string;
   ariaSujet: string;
   tri: { cle: string; direction: "asc" | "desc" } | null;
   onTrier: (cle: string) => void;
+  perimetre: string;
 }) {
   const actif = tri?.cle === cle;
   const direction = actif ? tri.direction : null;
@@ -434,7 +442,7 @@ function EnteteTriable({
     <button
       type="button"
       onClick={() => onTrier(cle)}
-      aria-label={`Trier par ${ariaSujet}, ${prochaineDirection === "asc" ? "croissant" : "décroissant"}`}
+      aria-label={`Trier par ${ariaSujet}, ${prochaineDirection === "asc" ? "croissant" : "décroissant"}${perimetre}`}
       // `padding` + `minHeight: 24` : plancher tactile WCAG 2.2 2.5.8, contre
       // 11 px sans padding avant #479.
       style={{
