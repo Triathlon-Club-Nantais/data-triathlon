@@ -98,11 +98,22 @@ export function EventList({
   // ne bougent pas d'une page à l'autre. Rendue avant le retour anticipé sur
   // liste vide, à dessein : sinon la région disparaît du DOM précisément
   // quand un filtre venant de tout effacer aurait le plus besoin de le dire.
+  //
+  // #463 y ajoute les compétitions repliées : `events.length` compte les
+  // épreuves **chargées**, pas les lignes **visibles**, donc replier quinze
+  // lignes en une ne changeait pas un mot de l'annonce. Mention omise quand
+  // rien n'est replié, pour ne pas allonger le cas courant.
+  const repliees = groups.filter(
+    (g) => g.events.length > 1 && !ouverts.has(g.events[0].id),
+  ).length;
   const annonce = (
     <AnnonceStatut
       texte={
         `${totalEvents} épreuve${totalEvents > 1 ? "s" : ""}, ${totalParticipations} résultat${totalParticipations > 1 ? "s" : ""}` +
-        (events.length > 0 ? `, ${events.length} affichée${events.length > 1 ? "s" : ""}` : "")
+        (events.length > 0 ? `, ${events.length} affichée${events.length > 1 ? "s" : ""}` : "") +
+        (repliees > 0
+          ? ` dans ${repliees} compétition${repliees > 1 ? "s" : ""} repliée${repliees > 1 ? "s" : ""}`
+          : "")
       }
     />
   );
@@ -276,11 +287,13 @@ function CompetitionRows({
           ...ROW_STYLE,
           width: "100%",
           textAlign: "left",
-          background: "none",
           border: "none",
           borderBottom: "1px solid var(--tcn-border-faint)",
           cursor: "pointer",
         }}
+        // Pas de `background` ici : `.tcn-rowlink` le pose en couche CSS pour
+        // que son `:hover` gagne, et un style en ligne le battrait — la ligne
+        // de groupe serait la seule de la liste sans retour au survol.
       >
         <div style={{ fontSize: 14, color: "var(--tcn-text-muted)", fontWeight: 600 }}>
           {formatDate(groupe.events[0].event_date)}
@@ -306,7 +319,7 @@ function CompetitionRows({
         </div>
         <div
           aria-hidden
-          style={{ textAlign: "right", color: "var(--tcn-text-disabled)", fontSize: 16 }}
+          style={{ textAlign: "right", color: "var(--tcn-text-muted)", fontSize: 16 }}
         >
           {ouvert ? "▾" : "▸"}
         </div>
