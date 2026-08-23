@@ -111,7 +111,7 @@ export interface Participation {
   stats?: ParticipationStats | null;
 }
 
-interface EventOut {
+export interface EventOut {
   id: number; // course_id — sert à charger les participants au dépliage
   event_name: string;
   event_date: string | null;

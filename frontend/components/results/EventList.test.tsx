@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // jsdom ne fournit pas IntersectionObserver, requis par le défilement infini
@@ -300,5 +301,108 @@ describe("EventList", () => {
     );
 
     expect(screen.getByRole("status")).toHaveTextContent("48 épreuves, 312 résultats, 2 affichées");
+  });
+});
+
+// Issue #463 : quinze épreuves d'un même week-end partagent 49 caractères de
+// préfixe ; la liste plate obligeait à lire jusqu'au 60ᵉ pour les distinguer.
+describe("EventList — regroupement par compétition parente (#463)", () => {
+  const PREFIXE = "MEDOC ATLANTIQUE FRENCHMAN Triathlon Carcans 2026";
+  const sousEpreuve = (id: number, suffixe: string, total: number, tcn: number) => ({
+    id,
+    event_name: `${PREFIXE} - ${suffixe}`,
+    event_type: "triathlon-s",
+    event_date: "2026-06-13",
+    is_relay: false,
+    total,
+    tcn_count: tcn,
+  });
+
+  function setGroupe() {
+    setEvents({
+      data: {
+        pages: [
+          {
+            items: [
+              sousEpreuve(1, "Frenchkid Aquathlon - 2013/2014 - Fille", 120, 2),
+              sousEpreuve(2, "Frenchkid Aquathlon - 2013/2014 - Garçon", 80, 1),
+            ],
+            total_events: 2,
+            total_participations: 200,
+          },
+        ],
+      },
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+    });
+  }
+
+  it("replie plusieurs épreuves d'une même compétition sous une ligne dépliable", () => {
+    setGroupe();
+    renderList();
+
+    const entete = screen.getByRole("button", { name: new RegExp(PREFIXE) });
+    expect(entete).toHaveAttribute("aria-expanded", "false");
+    expect(entete).toHaveTextContent("2 épreuves");
+    expect(screen.queryByRole("link", { name: /Fille/ })).toBeNull();
+  });
+
+  it("additionne résultats et TCN des épreuves chargées sur la ligne de compétition", () => {
+    setGroupe();
+    renderList();
+
+    const entete = screen.getByRole("button", { name: new RegExp(PREFIXE) });
+    expect(entete).toHaveTextContent("200 résultats");
+    expect(entete).toHaveTextContent("3");
+  });
+
+  it("déplie la compétition et n'affiche que la part distinctive de chaque épreuve", async () => {
+    setGroupe();
+    renderList();
+
+    await userEvent.click(screen.getByRole("button", { name: new RegExp(PREFIXE) }));
+
+    const lien = screen.getByRole("link", { name: /2013\/2014 - Fille/ });
+    expect(lien).toHaveAttribute("href", "/courses/1");
+    // Le préfixe commun est porté par la ligne de groupe, pas répété 15 fois.
+    expect(lien).not.toHaveTextContent(PREFIXE);
+  });
+
+  it("laisse une épreuve isolée en lien direct, sans ligne de groupe", () => {
+    setEvents({
+      data: {
+        pages: [
+          {
+            items: [
+              {
+                id: 14,
+                event_name: "Tri de Nantes",
+                event_type: "triathlon-m",
+                event_date: "2026-05-16",
+                is_relay: false,
+                total: 42,
+                tcn_count: 3,
+              },
+            ],
+            total_events: 1,
+            total_participations: 42,
+          },
+        ],
+      },
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+    });
+
+    renderList();
+
+    expect(screen.queryByRole("button", { name: /Tri de Nantes/ })).toBeNull();
+    expect(screen.getByRole("link", { name: /Tri de Nantes/ })).toHaveAttribute(
+      "href",
+      "/courses/14",
+    );
   });
 });
