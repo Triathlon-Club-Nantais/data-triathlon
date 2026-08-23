@@ -267,6 +267,24 @@ describe("AppNav — largeur du rail décidée avant la peinture (#482, NAV-3)",
   });
 });
 
+describe("AppNav — monogramme du rail replié (#482, NAV-2)", () => {
+  it("porte un lien vers /dashboard même rail replié, alors qu'aucune marque n'existait avant", () => {
+    afficher(null);
+
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    const monogramme = within(rail).getByRole("link", { name: "TCN — Accueil" });
+    expect(monogramme).toHaveAttribute("href", "/dashboard");
+    expect(monogramme).toHaveTextContent("TCN");
+  });
+
+  it("ne double pas le monogramme une fois le rail déplié — seul le logo image reste", () => {
+    afficher(null, { initialExpanded: true });
+
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    expect(within(rail).getAllByRole("link", { name: "TCN — Accueil" })).toHaveLength(1);
+  });
+});
+
 describe("AppNav — prénom de l'athlète retenu (#264)", () => {
   /**
    * Un prénom composé sans trait d'union — « Jean Gael » — est **un** prénom.
