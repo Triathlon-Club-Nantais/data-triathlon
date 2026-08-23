@@ -7,7 +7,7 @@ export default function CourseDuplicatesPage() {
   return (
     <PageShell>
       <div className="space-y-6">
-        <PageHeader eyebrow="Maintenance" {...ecran("/admin/doublons")} />
+        <PageHeader {...ecran("/admin/doublons")} />
         <CourseDuplicatesTable />
       </div>
     </PageShell>

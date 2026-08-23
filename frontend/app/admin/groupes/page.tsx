@@ -15,7 +15,7 @@ export default function AdminGroupesPage() {
   return (
     <PageShell>
       <div className="space-y-10">
-        <PageHeader eyebrow="Gestion des utilisateurs" {...ecran("/admin/groupes")} />
+        <PageHeader {...ecran("/admin/groupes")} />
         <GroupsTable />
       </div>
     </PageShell>

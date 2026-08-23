@@ -7,7 +7,7 @@ export default function PendingProvidersPage() {
   return (
     <PageShell>
       <div className="space-y-6">
-        <PageHeader eyebrow="Maintenance" {...ecran("/admin/fournisseurs")} />
+        <PageHeader {...ecran("/admin/fournisseurs")} />
         <PendingProvidersTable />
       </div>
     </PageShell>

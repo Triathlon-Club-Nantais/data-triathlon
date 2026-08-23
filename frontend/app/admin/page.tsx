@@ -14,10 +14,13 @@ export default function AdminPage() {
   return (
     <PageShell>
       <div className="space-y-6">
+        {/* Ni surtitre, ni titre « Administration » : le sommaire range ses
+            tuiles sous les intitulés de section, dont « Administration ». Un
+            `h1` de même chaîne que son premier `h2`, sous un surtitre d'un
+            quatrième vocabulaire, donnait trois noms au même endroit. */}
         <PageHeader
-          eyebrow="Maintenance"
-          title="Administration"
-          description="Les écrans du back-office qui vous sont ouverts, et ce que chacun permet de faire."
+          title="Back-office"
+          description="Les écrans qui vous sont ouverts, et ce que chacun permet de faire."
         />
         <AdminIndex />
       </div>

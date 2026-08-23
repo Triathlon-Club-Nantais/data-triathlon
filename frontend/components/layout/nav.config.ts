@@ -127,7 +127,7 @@ export const NAV: NavSection[] = [
         id: "a-providers",
         label: "Fournisseurs en attente",
         description:
-          "Fournisseurs de chronométrage non supportés, signalés automatiquement lors d'un import en échec.",
+          "Fournisseurs de chronométrage non pris en charge, signalés automatiquement lors d'un import en échec.",
         href: "/admin/fournisseurs",
         permission: "pending_providers:read",
       },
@@ -168,7 +168,7 @@ export const NAV: NavSection[] = [
         id: "a-scrape",
         label: "Batches",
         description:
-          "Relancer le scraping des épreuves déjà en base, importer une liste d'épreuves depuis un fichier, et relire le bilan des lancements précédents.",
+          "Relancer la récupération des épreuves déjà enregistrées, importer une liste d'épreuves depuis un fichier, et relire le bilan des lancements précédents.",
         href: "/admin/batches",
         permission: "batch:run",
       },
@@ -262,19 +262,31 @@ export const NAV: NavSection[] = [
 ];
 
 /**
- * Le titre et la phrase d'un écran, tenus **une fois** — ici — et rendus aux
- * deux endroits qui les affichent : le `PageHeader` de la page, et la tuile du
- * sommaire `/admin`. Les tenir en double les a déjà fait diverger — le rail
- * annonçait « Gestion des courses » quand l'écran s'intitulait « Épreuves »
- * (ADM-6). Un écran absent de cette table est une erreur de configuration, pas
- * un cas à couvrir en silence.
+ * L'en-tête d'un écran — surtitre, titre, phrase — tenu **une fois**, ici, et
+ * rendu aux deux endroits qui l'affichent : le `PageHeader` de la page, et la
+ * tuile du sommaire `/admin`. Les tenir en double les a déjà fait diverger —
+ * le rail annonçait « Gestion des courses » quand l'écran s'intitulait
+ * « Épreuves » (ADM-6). Le surtitre suit la **section** pour la même raison :
+ * écrit à la main, il annonçait « Maintenance » ou « Exploitation » sur quatre
+ * écrans que le sommaire range sous « Administration », donc un changement de
+ * lieu apparent en cours de route. Un écran absent de cette table est une
+ * erreur de configuration, pas un cas à couvrir en silence.
  */
-export function ecran(href: string): { title: string; description: string } {
-  const item = NAV.flatMap((s) => s.items).find((i) => i.href === href);
-  if (!item?.description) {
+export function ecran(href: string): {
+  eyebrow: string;
+  title: string;
+  description: string;
+} {
+  const section = NAV.find((s) => s.items.some((i) => i.href === href));
+  const item = section?.items.find((i) => i.href === href);
+  if (!section || !item?.description) {
     throw new Error(`Aucune entrée de navigation décrite pour ${href}`);
   }
-  return { title: item.label, description: item.description };
+  return {
+    eyebrow: section.label,
+    title: item.label,
+    description: item.description,
+  };
 }
 
 /**

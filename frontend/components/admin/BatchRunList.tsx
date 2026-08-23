@@ -123,18 +123,23 @@ export function BatchRunList() {
 
   // Une session illisible n'est pas une session sans pouvoirs : `useSession` ne
   // réessaie pas, et dire « demande le pouvoir » sur une panne accuse à tort.
+  // Son message ne sort pas : le repli d'`ApiError` est `statusText`, en
+  // anglais — contrairement à celui de la liste elle-même, écrit en français
+  // par le backend et qui distingue 404, 410 et 503.
   if (session.error)
     return (
       <EmptyState
         title="Lancements indisponibles"
-        description={session.error.message}
+        description="Vos pouvoirs n'ont pas pu être lus. Rechargez la page."
       />
     );
+  // La conséquence — le lancement à l'aveugle, et le 409 qui l'arrête — est
+  // dite une seule fois, par `BatchLauncher`. Ici, le seul fait.
   if (!peutLire && !session.isPending)
     return (
       <EmptyState
         title="Lancements non affichés"
-        description="Suivre les lancements et relire leurs bilans demande le pouvoir « Consulter les batches »."
+        description="Demande le pouvoir « Consulter les batches »."
       />
     );
   if (isLoading || session.isPending) return <Skeleton className="h-40 w-full" />;
