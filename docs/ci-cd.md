@@ -113,6 +113,46 @@ l'API à toute origine, et c'est justement l'absence de symptôme qui ferait dur
 l'ouverture : aucune revue ne la voit passer, aucun écran ne s'en plaint. #402 ne
 corrige pas le comportement, qui est bon, mais ce défaut de traçabilité.
 
+### Rester sous les 750 h du plan free — la décision (#530)
+
+Les deux services web se partagent **750 h d'instance par mois** pour tout le
+workspace : au-delà, Render suspend l'ensemble des services free jusqu'au mois
+suivant. Trois pistes ont été posées ; voici celle qui est retenue et pourquoi
+les autres ne le sont pas.
+
+**Retenu — suspendre les deux environnements par routine `schedule`** (piste 1,
+mise en œuvre dans #528). C'est la seule option qui ne change ni d'hébergeur, ni
+de compte, ni de facture : on garde la main sur la configuration serveur — c'est
+l'objection qui a ouvert cette décision —, le coût reste nul, et un retour en
+arrière tient dans la suppression d'un workflow. Elle s'appuie sur ce qui existe
+déjà : l'API Render `suspend`/`resume` et le secret `RENDER_API_KEY` du dépôt.
+La fenêtre horaire, le sort de la preview et la validation du couple
+suspend/resume sur le plan free relèvent de #528, pas d'ici.
+
+**Écarté — un second compte Vercel sur un alias Google** (piste 2). Vérifié, pas
+supposé : les *Fair Use Guidelines* de Vercel (consultées le 23/08/2026) posent
+que « circumventing or otherwise misusing Vercel's limits or usage guidelines is
+a violation of our fair use guidelines », et renvoient aux conditions générales.
+Ouvrir un second compte gratuit pour le même projet est précisément un
+contournement de quota : le risque n'est pas la suspension du nouveau compte
+seul, mais des deux — donc de la production. S'y ajoutent un coût de migration
+non nul (deux projets, domaines, `VERCEL_TOKEN` / `VERCEL_ORG_ID` /
+`VERCEL_PROJECT_ID`, URL de retour SSO #172, protection de déploiement) et un
+accès suspendu à un alias détenu par une seule personne. Le rapport risque/gain
+ne tient pas.
+
+**Écarté — migrer le backend chez Vercel.** On y perd la main sur la
+configuration serveur et le déploiement devient plus exigeant, pour un service
+qui scrape et travaille en tâche de fond — pas le profil d'une fonction.
+
+**Repli, si la mesure d'usage de #528 montre un dépassement malgré la routine** :
+passer **un seul** des deux services (la production) sur un plan payant Render,
+et laisser la preview sur le free. À ne décider que sur des heures relevées.
+
+> Reste ouvert : le relevé d'usage réel (dashboard Render → workspace → *Usage*)
+> demandé par #528. Il ne conditionne pas la décision ci-dessus — il conditionne
+> le repli.
+
 ### Vercel (offre Hobby) — 2 projets
 
 | Rôle | Projet Vercel | Ciblé par |
