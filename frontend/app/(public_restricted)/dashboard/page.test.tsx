@@ -267,3 +267,46 @@ describe("DashboardPage — sélecteur de type de rang", () => {
     expect(screen.queryByText("général, genre ou catégorie")).not.toBeInTheDocument();
   });
 });
+
+describe("DashboardPage — état vide unifié (NAV-6)", () => {
+  const STATS_VIDE = { ...STATS, total: 0, athletes: 0, events: 0, by_type: {} };
+  const EVENTS_PAGE_VIDE = { items: [], total_events: 0, total_participations: 0 };
+
+  it("remplace toute la grille par un état vide unique quand stats.total === 0", async () => {
+    getStats.mockResolvedValue(STATS_VIDE);
+    listEvents.mockResolvedValue(EVENTS_PAGE_VIDE);
+
+    await renderDashboard({ seasons: "2015" });
+
+    expect(screen.getByText("Aucun résultat enregistré pour la saison 2015 — 2016")).toBeInTheDocument();
+    expect(screen.queryByText("Dossards enregistrés")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 2, name: "Type d'épreuves" })).not.toBeInTheDocument();
+  });
+
+  it("propose « Voir la saison en cours » quand la sélection n'est pas la saison en cours", async () => {
+    getStats.mockResolvedValue(STATS_VIDE);
+    listEvents.mockResolvedValue(EVENTS_PAGE_VIDE);
+
+    await renderDashboard({ seasons: "2015" });
+
+    expect(screen.getByRole("link", { name: "Voir la saison en cours" })).toHaveAttribute("href", "/dashboard");
+  });
+
+  it("n'affiche pas « Voir la saison en cours » quand la saison en cours est déjà sélectionnée", async () => {
+    getStats.mockResolvedValue(STATS_VIDE);
+    listEvents.mockResolvedValue(EVENTS_PAGE_VIDE);
+
+    await renderDashboard({});
+
+    expect(screen.queryByRole("link", { name: "Voir la saison en cours" })).not.toBeInTheDocument();
+  });
+
+  it("garde le CTA « Ajouter une épreuve » dans l'état vide", async () => {
+    getStats.mockResolvedValue(STATS_VIDE);
+    listEvents.mockResolvedValue(EVENTS_PAGE_VIDE);
+
+    await renderDashboard({});
+
+    expect(screen.getByRole("link", { name: /Ajouter une épreuve/ })).toHaveAttribute("href", "/ajouter");
+  });
+});
