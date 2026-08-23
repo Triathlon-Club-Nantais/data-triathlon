@@ -536,7 +536,7 @@ function NavContent({
                   deux états — **au même emplacement de l'arbre** (#428) : un
                   conteneur propre à chaque état remonterait les `Link` à la
                   bascule, malgré une `Entree` unifiée. */}
-              {!expanded && !sec.root ? (
+              {!expanded && !sec.root && sec.items.length > 1 ? (
                 <button type="button" onClick={onExpand} title={sec.label} aria-label={sec.label} style={tuile(actifIci)}>
                   <sec.icon size={20} />
                   {actifIci && <span style={barreActive(9)} />}
@@ -544,6 +544,10 @@ function NavContent({
               ) : (
                 // `gap: 0` replié, l'espacement des tuiles venant de leur propre
                 // `margin: 0 auto 4px` (cf. `tuile()`) — un `gap` s'y ajouterait.
+                // Une section réduite à une seule destination livrée (« Club »
+                // aujourd'hui) rend directement son `Entree` ici plutôt que le
+                // bouton dépliant ci-dessus : deux gestes pour une seule
+                // destination n'ont plus de sens (#482, NAV-2).
                 <div style={{ display: "flex", flexDirection: "column", gap: expanded ? 2 : 0 }}>
                   {sec.items.map((it) => (
                     <Entree
