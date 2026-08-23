@@ -254,7 +254,7 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 - **Deux bibliothèques, une frontière.** `components/tcn/` porte l'identité
   visuelle (tokens `--tcn-*`, Anton/Barlow, dégradé orange) ; `components/ui/`
   porte les primitives complexes bâties sur `@base-ui/react` — `dialog`,
-  `select`, `dropdown-menu`, `popover`, `sheet`, `table` — et le back-office,
+  `select`, `dropdown-menu`, `popover`, `sheet`, `table`, `tooltip` — et le back-office,
   qui a besoin de leur densité. **Tout nouvel écran public prend `tcn/` ; une
   primitive accessible sans équivalent TCN se prend dans `ui/`, y compris depuis
   un écran public** (`AppNav` compose `ui/sheet` avec `tcn/Avatar`, `EventList`
