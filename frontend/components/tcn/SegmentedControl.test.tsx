@@ -75,4 +75,24 @@ describe("SegmentedControl", () => {
     await userEvent.click(tcn);
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it("rend un segment désactivé en --tcn-text-faint plutôt qu'en opacité (revue UI/UX #485)", () => {
+    // `opacity: 0.5` rendait le texte à 2,75:1 sur blanc, sous le seuil WCAG
+    // 1.4.3 — contradictoire avec l'information que le segment porte encore
+    // via `aria-disabled`. `--tcn-text-faint` seul tient 5,21:1.
+    render(
+      <SegmentedControl
+        value="all"
+        onChange={() => {}}
+        options={[
+          { value: "all", label: "Tous" },
+          { value: "tcn", label: "TCN", disabled: true },
+        ]}
+      />,
+    );
+
+    const tcn = screen.getByRole("button", { name: "TCN" });
+    expect(tcn.style.opacity).toBe("");
+    expect(tcn.style.color).toBe("var(--tcn-text-faint)");
+  });
 });

@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { SlidersHorizontal } from "lucide-react";
 import { EVENT_TYPE_OPTIONS, eventTypeLabel } from "@/lib/constants";
 import { formatDate } from "@/lib/utils/date";
@@ -197,12 +197,18 @@ export function ResultsFilters() {
             />
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" className="sm:hidden" onClick={() => setVolet(true)}>
+            <Button
+              variant="outline"
+              className="sm:hidden"
+              aria-expanded={volet}
+              aria-haspopup="dialog"
+              onClick={() => setVolet(true)}
+            >
               <SlidersHorizontal className="size-4" />
               {nbReplies > 0 ? `Filtres (${nbReplies})` : "Filtres"}
             </Button>
             {/* « Filtrer » ne sert plus sous `sm` : le champ athlète y filtre en
-                direct (#383) et le volet a son propre « Appliquer ». */}
+                direct (#383) et le volet porte le même verbe (#485). */}
             <Button className="hidden sm:inline-flex" onClick={apply}>
               Filtrer
             </Button>
@@ -244,7 +250,15 @@ export function ResultsFilters() {
           }}
         >
           <SheetContent side="right" className="w-80 overflow-y-auto">
-            <SheetTitle>Filtres</SheetTitle>
+            <div className="flex items-center justify-between">
+              <SheetTitle>Filtres</SheetTitle>
+              <SheetClose
+                aria-label="Fermer les filtres"
+                className="rounded-full p-1 text-[var(--tcn-text-faint)] hover:text-[var(--tcn-ink)]"
+              >
+                <X className="size-4" />
+              </SheetClose>
+            </div>
             <div className="flex flex-col gap-3">
               <ChampsReplies
                 suffixe="volet"
@@ -275,7 +289,7 @@ export function ResultsFilters() {
                   setVolet(false);
                 }}
               >
-                Appliquer
+                Filtrer
               </Button>
               <Button
                 variant="ghost"
@@ -284,7 +298,7 @@ export function ResultsFilters() {
                   setVolet(false);
                 }}
               >
-                Réinitialiser
+                Réinitialiser ces filtres
               </Button>
             </div>
           </SheetContent>

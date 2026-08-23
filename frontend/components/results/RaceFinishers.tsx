@@ -405,7 +405,10 @@ function libelleSelection(total: number, totalEpreuve: number, recherche: string
   const morceaux = [];
   if (recherche) morceaux.push(`pour « ${recherche} »`);
   if (filtreClub) morceaux.push(`du ${CLUB_NAME}`);
-  return `${tete} ${morceaux.join(", ")}`;
+  // `join(" ")`, pas `join(", ")` : les deux clauses n'ont pas la même nature
+  // (l'une qualifie la recherche, l'autre le périmètre), la virgule les met à
+  // tort sur le même plan (revue UI/UX #485).
+  return `${tete} ${morceaux.join(" ")}`;
 }
 
 /**

@@ -75,7 +75,12 @@ export function SegmentedControl({
               cursor: "pointer",
               transition: "all var(--tcn-dur-fast)",
               ...skin,
-              ...(desactive ? { opacity: 0.5, cursor: "not-allowed" } : null),
+              // `color` seul, pas `opacity` : le segment désactivé porte une
+              // information (ex. « Triathlon Club Nantais (0) »), gardée dans
+              // l'arbre d'accessibilité via `aria-disabled` — l'opacité la
+              // rendait illisible à l'œil (2,75:1) quand `--tcn-text-faint`
+              // tient 5,21:1 (revue UI/UX #485).
+              ...(desactive ? { color: "var(--tcn-text-faint)", cursor: "not-allowed" } : null),
             }}
           >
             {dot ? <span style={{ width: 8, height: 8, borderRadius: 999, background: "var(--tcn-orange)" }} /> : null}

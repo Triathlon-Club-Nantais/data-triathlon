@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { buildResultsQuery, ResultsFilters } from "./ResultsFilters";
 
@@ -173,19 +173,32 @@ describe("ResultsFilters — volet mobile", () => {
     expect(new Set(ids).size).toBe(2);
   });
 
-  it("« Appliquer » pousse l'URL et ferme le volet", async () => {
+  it("« Filtrer » du volet pousse l'URL et ferme le volet (#485 — même verbe qu'en bandeau)", async () => {
     render(<ResultsFilters />);
 
     await userEvent.click(screen.getByRole("button", { name: "Filtres" }));
-    await screen.findByRole("dialog");
+    const dialogue = await screen.findByRole("dialog");
     const [, epreuveVolet] = screen.getAllByLabelText("Épreuve");
     fireEvent.change(epreuveVolet, { target: { value: "nantes" } });
-    await userEvent.click(screen.getByRole("button", { name: "Appliquer" }));
+    await userEvent.click(within(dialogue).getByRole("button", { name: "Filtrer" }));
 
     expect(push).toHaveBeenCalledWith(expect.stringContaining("event_name=nantes"));
     await waitFor(() => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
+  });
+
+  it("se ferme par la croix du volet sans modifier l'URL (#485)", async () => {
+    render(<ResultsFilters />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Filtres" }));
+    const dialogue = await screen.findByRole("dialog");
+    await userEvent.click(within(dialogue).getByRole("button", { name: "Fermer les filtres" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+    expect(push).not.toHaveBeenCalled();
   });
 
   it("fermer le volet sans appliquer (Échap) ne laisse pas une discipline abandonnée s'appliquer via Entrée dans « Athlète » (#I2)", async () => {
@@ -237,14 +250,27 @@ describe("ResultsFilters — volet mobile", () => {
     );
   });
 
-  it("« Réinitialiser » du volet ne remet pas à zéro le champ « Athlète », qui n'y figure pas (#M2)", async () => {
+  it("« Réinitialiser ces filtres » du volet ne remet pas à zéro le champ « Athlète », qui n'y figure pas (#M2, #485)", async () => {
     searchParams = new URLSearchParams("name=marie");
     render(<ResultsFilters />);
 
     await userEvent.click(screen.getByRole("button", { name: "Filtres" }));
     await screen.findByRole("dialog");
-    await userEvent.click(screen.getByRole("button", { name: "Réinitialiser" }));
+    await userEvent.click(screen.getByRole("button", { name: "Réinitialiser ces filtres" }));
 
     expect(push).toHaveBeenCalledWith(expect.stringContaining("name=marie"));
+  });
+
+  it("annonce l'état du volet sur le bouton « Filtres » (aria-expanded, aria-haspopup, #485)", async () => {
+    render(<ResultsFilters />);
+
+    const bouton = screen.getByRole("button", { name: "Filtres" });
+    expect(bouton).toHaveAttribute("aria-haspopup", "dialog");
+    expect(bouton).toHaveAttribute("aria-expanded", "false");
+
+    await userEvent.click(bouton);
+    await screen.findByRole("dialog");
+
+    expect(bouton).toHaveAttribute("aria-expanded", "true");
   });
 });

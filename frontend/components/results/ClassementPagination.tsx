@@ -29,13 +29,15 @@ export function ClassementPagination({
     padding: "6px 14px",
     fontSize: 13,
     fontWeight: 700,
-    borderRadius: 8,
-    border: "1px solid var(--tcn-border)",
+    borderRadius: "var(--tcn-radius-md)",
+    border: "1px solid var(--tcn-border-input)",
     color: "var(--tcn-ink)",
     // Plancher tactile WCAG 2.2 2.5.8, comme le champ numérique et le sélecteur voisins.
     minHeight: 24,
   } as const;
-  const inactif = { ...style, color: "var(--tcn-text-faint)", opacity: 0.5 };
+  // `--tcn-text-faint` seul tient 5,21:1 sur blanc (revue UI/UX #485) : une
+  // opacité en plus n'ajoutait qu'une redondance illisible (2,03:1).
+  const inactif = { ...style, color: "var(--tcn-text-faint)" };
   // Hors bornes, « Précédent » ramène à la dernière page réelle : reculer d'un
   // cran depuis la page 99 999 ferait traverser 99 908 pages vides.
   const precedente = Math.min(page - 1, nbPages);
@@ -102,9 +104,10 @@ export function ClassementPagination({
               // validation native du navigateur avant même la soumission.
               value={saisie}
               onChange={(e) => setSaisie(e.target.value)}
-              style={{ width: 68, minHeight: 28, padding: "2px 8px", fontSize: 13, borderRadius: 8, border: "1px solid var(--tcn-border)", background: "var(--tcn-surface)", color: "var(--tcn-ink)" }}
+              aria-describedby="classement-page-total"
+              style={{ width: 68, minHeight: 28, padding: "2px 8px", fontSize: 13, borderRadius: "var(--tcn-radius-md)", border: "1px solid var(--tcn-border-input)", background: "var(--tcn-surface)", color: "var(--tcn-ink)" }}
             />
-            <span>sur {nbPages}</span>
+            <span id="classement-page-total">sur {nbPages}</span>
             {/* Bouton de soumission explicite : sans lui, la soumission
                 implicite par Entrée dépend du nombre de champs du formulaire et
                 n'existe pas du tout au doigt. Il porte aussi le saut sans
@@ -132,7 +135,7 @@ export function ClassementPagination({
           value={String(tailleCourante)}
           onChange={(e) => onTaille(parsePageSize(e.target.value))}
           // Plancher tactile WCAG 2.2 2.5.8 (#479).
-          style={{ minHeight: 28, padding: "2px 8px", fontSize: 13, borderRadius: 8, border: "1px solid var(--tcn-border)", background: "var(--tcn-surface)", color: "var(--tcn-ink)" }}
+          style={{ minHeight: 28, padding: "2px 8px", fontSize: 13, borderRadius: "var(--tcn-radius-md)", border: "1px solid var(--tcn-border-input)", background: "var(--tcn-surface)", color: "var(--tcn-ink)" }}
         >
           {PAGE_SIZE_OPTIONS.map((o) => (
             <option key={String(o)} value={String(o)}>
