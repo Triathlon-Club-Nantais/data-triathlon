@@ -18,6 +18,18 @@ export interface AthleteSeasonActivity {
   participation_count: number;
 }
 
+// Miroir de AthleteSearchResult backend (#484) — recherche classée par
+// pertinence pour la palette ⌘K. `club` en plus de AthleteSeasonActivity :
+// affiché sous le nom dans la palette, comme `AthleteBrief.club` l'était déjà.
+export interface AthleteSearchResult {
+  id: number;
+  nom: string;
+  prenom: string;
+  gender: string;
+  club: string | null;
+  participation_count: number;
+}
+
 export interface CourseBrief {
   id: number;
   name: string;
