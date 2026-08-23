@@ -81,6 +81,17 @@ jobs:
           # pas ses fragments. Le garder hors du dépôt tout en l'imprimant ici
           # serait une distinction sans différence.
           echo "::add-mask::$service_id"
+          # Reprise avant tout le reste : `render-sleep.yml` suspend ce service
+          # (la preview dort entre deux déploiements, la production entre 1 h et
+          # 4 h UTC — #530), et un deploy hook envoyé à un service suspendu ne le
+          # rallume pas. C'est aussi le filet si le cron de lever ne passe pas :
+          # un déploiement rallume toujours sa cible. Reprendre un service déjà
+          # éveillé n'est pas une erreur ici — `--fail-with-body` n'est pas armé
+          # sur cet appel, dont l'échec ne doit pas bloquer un déploiement.
+          curl -sS -X POST -H "Authorization: Bearer $RENDER_API_KEY" \
+            --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 \
+            "https://api.render.com/v1/services/$service_id/resume" || true
+          echo
           # `--fail-with-body` et non `-f` : sans lui, un 400 ne rend que
           # « curl: (22) … error: 400 », sans le motif renvoyé par Render. Le
           # corps n'est donc **pas** redirigé — c'est lui le diagnostic. En
@@ -175,6 +186,17 @@ jobs:
           # pas ses fragments. Le garder hors du dépôt tout en l'imprimant ici
           # serait une distinction sans différence.
           echo "::add-mask::$service_id"
+          # Reprise avant tout le reste : `render-sleep.yml` suspend ce service
+          # (la preview dort entre deux déploiements, la production entre 1 h et
+          # 4 h UTC — #530), et un deploy hook envoyé à un service suspendu ne le
+          # rallume pas. C'est aussi le filet si le cron de lever ne passe pas :
+          # un déploiement rallume toujours sa cible. Reprendre un service déjà
+          # éveillé n'est pas une erreur ici — `--fail-with-body` n'est pas armé
+          # sur cet appel, dont l'échec ne doit pas bloquer un déploiement.
+          curl -sS -X POST -H "Authorization: Bearer $RENDER_API_KEY" \
+            --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 \
+            "https://api.render.com/v1/services/$service_id/resume" || true
+          echo
           # `--fail-with-body` et non `-f` : sans lui, un 400 ne rend que
           # « curl: (22) … error: 400 », sans le motif renvoyé par Render. Le
           # corps n'est donc **pas** redirigé — c'est lui le diagnostic. En

@@ -28,6 +28,10 @@ Toute PR déclenche la CI seule (aucun déploiement).
 - **`.github/workflows/deploy.yml`** — déclenché sur `push` (branche `main` et
   tags `v*`). Appelle `ci.yml` puis, **seulement si la CI passe** (`needs: ci`),
   lance `deploy-preview` (sur `main`) ou `deploy-production` (sur tag `v*`).
+- **`.github/workflows/render-sleep.yml`** — suspend et reprend les deux
+  services Render pour tenir les 750 h/mois du plan free (#528, décision #530).
+  `schedule` deux fois par jour, plus un `workflow_dispatch` de secours. Voir
+  « Veille des services Render » plus bas.
 - **`.github/workflows/pages.yml`** — publie ce site de documentation
   (`docs/`) sur GitHub Pages. Sur `pull_request`, le job `build` seul valide que
   le site compile ; sur `main`, `deploy` publie. Il remplace le workflow
@@ -652,6 +656,69 @@ la dernière modification du fichier de cron, pas l'équipe. À constater sur la
 première occurrence rouge (quickstart §12) ; si ce n'est pas la bonne personne,
 c'est l'hypothèse « aucun canal d'alerte nouveau » de la spec qu'il faut
 rouvrir, pas une situation avec laquelle vivre.
+
+## Veille des services Render — `render-sleep.yml` (#528)
+
+Les deux services web se partagent **750 h d'instance par mois** sur tout le
+workspace : au-delà, Render suspend l'ensemble des services free jusqu'au mois
+suivant. Le mois faisant 730 h, deux services éveillés en permanence en
+réclament 1460. Le workflow les couche, par l'API Render (`POST
+/v1/services/{id}/suspend` et `/resume`, 202, jeton `RENDER_API_KEY` déjà présent
+au niveau dépôt).
+
+**Deux régimes, et c'est délibéré** :
+
+| Service | Coucher | Lever |
+|---|---|---|
+| **production** | cron `0 1 * * *` | cron `0 4 * * *` |
+| **preview** | cron `0 1 * * *` | **jamais par cron** — `deploy.yml` la reprend avant son deploy hook |
+
+La preview ne se rallume que pour servir la vérification post-déploiement, puis
+attend la nuit. C'est là qu'est le gros du quota : la fenêtre nocturne seule ne
+rend que ~90 h par mois et par service, quand une preview qui ne s'éveille qu'à
+la demande en rend plusieurs centaines.
+
+**Heure UTC, pas heure de Paris.** Le cron d'Actions ignore l'heure d'été : la
+coupure de production tombe entre 2 h et 5 h l'hiver, 3 h et 6 h l'été. Viser
+Paris à la minute demanderait deux jeux de crons et une bascule saisonnière à
+entretenir, pour une fenêtre qui reste nocturne dans les deux cas.
+
+**La procédure de vérification ci-dessous n'est pas touchée** : le `resume`
+précède le deploy hook dans `deploy.yml`, sur les deux environnements. C'est
+nécessaire — un deploy hook envoyé à un service suspendu ne le rallume pas — et
+c'est aussi le filet du paragraphe suivant.
+
+**Le piège, le même que celui de `batch.yml` mais plus cher.** GitHub désactive
+les workflows planifiés d'un dépôt sans activité depuis 60 jours (D13), sans
+rien dire. Si la désactivation tombe entre le cron de 1 h et celui de 4 h, la
+production reste **éteinte** jusqu'à ce que quelqu'un s'en aperçoive. Deux
+parades, volontaires toutes les deux : le `workflow_dispatch` (`action: resume`,
+`target: production`), et le `resume` de `deploy.yml` — un déploiement rallume
+toujours sa cible, quel que soit l'état du cron.
+
+**Ne pas poser de required reviewer sur l'environment `production`** (cf.
+« Environments GitHub » plus haut) sans exclure ce workflow : le job déclare
+l'environment pour lire son deploy hook, et une approbation manuelle mettrait le
+lever de 4 h en attente — donc laisserait le site éteint jusqu'au clic.
+
+**À constater au premier passage réel**, dans cet ordre — la documentation
+publique de Render ne répond ni à l'un ni à l'autre :
+
+1. **Sur la preview d'abord** (`workflow_dispatch` → `suspend`, `target:
+   preview`), que suspend/resume est bien ouvert au plan **free**. Si l'API le
+   refuse, tout le dispositif tombe et le repli est le plan payant sur la seule
+   production (décision #530).
+2. Le code rendu quand le service est **déjà** dans l'état demandé — un cron qui
+   sortirait rouge chaque nuit sur un service déjà suspendu serait du bruit à
+   traiter, pas une panne.
+3. Ce que voit un visiteur pendant la fenêtre coupée : Render ne sert pas de page
+   de maintenance, l'appel échoue en erreur de connexion. Vérifier que le front
+   Vercel rend une erreur lisible et non une page blanche.
+
+Et le relevé qui reste dû : **les heures d'instance réellement consommées**
+(dashboard Render → workspace → *Usage*), avant et après un mois plein de
+routine. C'est lui qui dira si la routine suffit ou s'il faut basculer la
+production sur un plan payant.
 
 ## Publier une version
 
