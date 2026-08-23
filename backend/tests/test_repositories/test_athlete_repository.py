@@ -508,3 +508,74 @@ def test_saison_federal_only_retire_les_disciplines_hors_federation(db_session):
     )
 
     assert [a.nom for a, _ in resultats] == ["TRIATHLETE"]
+
+
+# ── search_by_relevance (issue #484, NAV-8) ───────────────────────────────
+
+
+def test_search_by_relevance_classe_prefixe_avant_sous_chaine_malgre_le_volume(db_session):
+    """Preuve de terrain NAV-8 (audit § 5) : un préfixe exact bat toujours une
+    sous-chaîne en milieu de nom, quel que soit le volume de courses."""
+    prefixe = athlete_repository.get_or_create(db_session, nom="HERRMANN", prenom="Mathieu")
+    milieu = athlete_repository.get_or_create(db_session, nom="CHERRUEAU", prenom="Yves")
+    db_session.flush()
+    _inscrit(db_session, prefixe, _epreuve(db_session, "P1"), "1")
+    for i in range(5):
+        _inscrit(db_session, milieu, _epreuve(db_session, f"P-milieu-{i}"), "1")
+    db_session.commit()
+
+    resultats = athlete_repository.search_by_relevance(db_session, term="herr")
+
+    assert [a.nom for a, _ in resultats] == ["HERRMANN", "CHERRUEAU"]
+
+
+def test_search_by_relevance_classe_les_trois_paliers(db_session):
+    """0 = préfixe exact, 1 = début de mot (après espace/trait d'union), 2 = sous-chaîne."""
+    prefixe = athlete_repository.get_or_create(db_session, nom="HERRMANN", prenom="Anna")
+    debut_mot = athlete_repository.get_or_create(db_session, nom="DUBOIS-HERRY", prenom="Alex")
+    sous_chaine = athlete_repository.get_or_create(db_session, nom="CHERRUEAU", prenom="Yves")
+    db_session.flush()
+
+    resultats = athlete_repository.search_by_relevance(db_session, term="herr")
+
+    assert [a.nom for a, _ in resultats] == ["HERRMANN", "DUBOIS-HERRY", "CHERRUEAU"]
+
+
+def test_search_by_relevance_departage_par_volume_dans_un_meme_palier(db_session):
+    """Deux préfixes exacts : le volume reste le départage à l'intérieur d'un
+    même palier — « avant le volume » ne s'applique qu'entre paliers différents."""
+    peu_couru = athlete_repository.get_or_create(db_session, nom="HERRMANN", prenom="Mathieu")
+    tres_couru = athlete_repository.get_or_create(db_session, nom="HERRY", prenom="Yves")
+    db_session.flush()
+    _inscrit(db_session, peu_couru, _epreuve(db_session, "P1"), "1")
+    for i in range(5):
+        _inscrit(db_session, tres_couru, _epreuve(db_session, f"P-herry-{i}"), "1")
+    db_session.commit()
+
+    resultats = athlete_repository.search_by_relevance(db_session, term="herr")
+
+    assert [a.nom for a, _ in resultats] == ["HERRY", "HERRMANN"]
+
+
+def test_search_by_relevance_respecte_club_only(db_session):
+    membre = athlete_repository.get_or_create(
+        db_session, nom="HERRMANN", prenom="Mathieu", club="Triathlon Club Nantais"
+    )
+    exterieur = athlete_repository.get_or_create(
+        db_session, nom="HERRY", prenom="Yves", club="Un Autre Club"
+    )
+    db_session.flush()
+
+    resultats = athlete_repository.search_by_relevance(db_session, term="herr", club_only=True)
+
+    assert [a.nom for a, _ in resultats] == ["HERRMANN"]
+
+
+def test_search_by_relevance_respecte_la_limite(db_session):
+    for i in range(3):
+        athlete_repository.get_or_create(db_session, nom=f"HERR{i}", prenom="A")
+    db_session.flush()
+
+    resultats = athlete_repository.search_by_relevance(db_session, term="herr", limit=2)
+
+    assert len(resultats) == 2
