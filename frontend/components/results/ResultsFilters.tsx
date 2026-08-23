@@ -15,6 +15,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { SlidersHorizontal } from "lucide-react";
 import { EVENT_TYPE_OPTIONS, eventTypeLabel } from "@/lib/constants";
 import { formatDate } from "@/lib/utils/date";
 
@@ -36,6 +38,13 @@ export function ResultsFilters() {
   const [eventType, setEventType] = useState(sp.get("event_type") ?? "");
   const [dateFrom, setDateFrom] = useState(sp.get("date_from") ?? "");
   const [dateTo, setDateTo] = useState(sp.get("date_to") ?? "");
+  const [volet, setVolet] = useState(false);
+
+  // Compte des filtres **repliés** actifs, athlète exclu : il reste visible
+  // hors du volet, le compter ferait mentir le bouton.
+  const nbReplies = ["event_name", "event_type", "date_from", "date_to"].filter((cle) =>
+    sp.get(cle),
+  ).length;
 
   const scope = sp.get("scope") ?? undefined;
   const sort = sp.get("sort") ?? undefined;
@@ -151,62 +160,30 @@ export function ResultsFilters() {
               className="w-full sm:w-48"
             />
           </Field>
-          <Field id="filtre-epreuve" label="Épreuve">
-            <Input
-              id="filtre-epreuve"
-              value={eventName}
-              onChange={(e) => setEventName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && apply()}
-              placeholder="Rechercher une épreuve"
-              className="w-full sm:w-48"
+          <div className="hidden sm:contents">
+            <ChampsReplies
+              suffixe="inline"
+              eventName={eventName}
+              setEventName={setEventName}
+              eventType={eventType}
+              setEventType={setEventType}
+              dateFrom={dateFrom}
+              setDateFrom={setDateFrom}
+              dateTo={dateTo}
+              setDateTo={setDateTo}
+              onValider={apply}
             />
-          </Field>
-          <Field id="filtre-discipline" label="Discipline">
-            <Select
-              value={eventType || ALL}
-              onValueChange={(v) => setEventType(v === ALL ? "" : (v as string))}
-            >
-              <SelectTrigger
-                id="filtre-discipline"
-                aria-labelledby="filtre-discipline-label"
-                className="h-9 w-full sm:w-48"
-              >
-                <SelectValue placeholder="Toutes les disciplines">
-                  {(v) =>
-                    !v || v === ALL ? "Toutes les disciplines" : eventTypeLabel(v as string)
-                  }
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Toutes les disciplines</SelectItem>
-                {EVENT_TYPE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field id="filtre-date-du" label="Du">
-            <Input
-              id="filtre-date-du"
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full sm:w-40"
-            />
-          </Field>
-          <Field id="filtre-date-au" label="Au">
-            <Input
-              id="filtre-date-au"
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="w-full sm:w-40"
-            />
-          </Field>
+          </div>
           <div className="flex gap-2">
-            <Button onClick={apply}>Filtrer</Button>
+            <Button variant="outline" className="sm:hidden" onClick={() => setVolet(true)}>
+              <SlidersHorizontal className="size-4" />
+              {nbReplies > 0 ? `Filtres (${nbReplies})` : "Filtres"}
+            </Button>
+            {/* « Filtrer » ne sert plus sous `sm` : le champ athlète y filtre en
+                direct (#383) et le volet a son propre « Appliquer ». */}
+            <Button className="hidden sm:inline-flex" onClick={apply}>
+              Filtrer
+            </Button>
             {active.length > 0 && (
               <Button variant="ghost" onClick={reset}>
                 Réinitialiser
@@ -236,8 +213,143 @@ export function ResultsFilters() {
             ))}
           </div>
         )}
+
+        <Sheet open={volet} onOpenChange={setVolet}>
+          <SheetContent side="right" className="w-80 overflow-y-auto">
+            <SheetTitle>Filtres</SheetTitle>
+            <div className="flex flex-col gap-3">
+              <ChampsReplies
+                suffixe="volet"
+                eventName={eventName}
+                setEventName={setEventName}
+                eventType={eventType}
+                setEventType={setEventType}
+                dateFrom={dateFrom}
+                setDateFrom={setDateFrom}
+                dateTo={dateTo}
+                setDateTo={setDateTo}
+                onValider={() => {
+                  apply();
+                  setVolet(false);
+                }}
+              />
+            </div>
+            <div className="mt-auto flex gap-2">
+              {/* Application à la validation, jamais à la frappe : discipline et
+                  dates ne s'appliquent que sur demande explicite (#387). */}
+              <Button
+                className="flex-1"
+                onClick={() => {
+                  apply();
+                  setVolet(false);
+                }}
+              >
+                Appliquer
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  reset();
+                  setVolet(false);
+                }}
+              >
+                Réinitialiser
+              </Button>
+            </div>
+          </SheetContent>
+        </Sheet>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Les quatre filtres repliables, rendus **deux fois** : inline au-dessus de
+ * `sm`, dans le volet en dessous. Le suffixe garde les identifiants uniques ;
+ * l'état vit chez le parent, les deux rendus affichent donc la même saisie.
+ *
+ * C'est ce qui évite un `useMediaQuery` : un hook média rendrait la disposition
+ * dépendante de l'hydratation, avec le flash que cela implique sur les filtres,
+ * première chose vue de l'écran.
+ */
+function ChampsReplies({
+  suffixe,
+  eventName,
+  setEventName,
+  eventType,
+  setEventType,
+  dateFrom,
+  setDateFrom,
+  dateTo,
+  setDateTo,
+  onValider,
+}: {
+  suffixe: string;
+  eventName: string;
+  setEventName: (v: string) => void;
+  eventType: string;
+  setEventType: (v: string) => void;
+  dateFrom: string;
+  setDateFrom: (v: string) => void;
+  dateTo: string;
+  setDateTo: (v: string) => void;
+  onValider: () => void;
+}) {
+  return (
+    <>
+      <Field id={`filtre-epreuve-${suffixe}`} label="Épreuve">
+        <Input
+          id={`filtre-epreuve-${suffixe}`}
+          value={eventName}
+          onChange={(e) => setEventName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && onValider()}
+          placeholder="Rechercher une épreuve"
+          className="w-full sm:w-48"
+        />
+      </Field>
+      <Field id={`filtre-discipline-${suffixe}`} label="Discipline">
+        <Select
+          value={eventType || ALL}
+          onValueChange={(v) => setEventType(v === ALL ? "" : (v as string))}
+        >
+          <SelectTrigger
+            id={`filtre-discipline-${suffixe}`}
+            aria-labelledby={`filtre-discipline-${suffixe}-label`}
+            className="h-9 w-full sm:w-48"
+          >
+            <SelectValue placeholder="Toutes les disciplines">
+              {(v) => (!v || v === ALL ? "Toutes les disciplines" : eventTypeLabel(v as string))}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Toutes les disciplines</SelectItem>
+            {EVENT_TYPE_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field id={`filtre-date-du-${suffixe}`} label="Du">
+        <Input
+          id={`filtre-date-du-${suffixe}`}
+          type="date"
+          value={dateFrom}
+          onChange={(e) => setDateFrom(e.target.value)}
+          className="w-full sm:w-40"
+        />
+      </Field>
+      <Field id={`filtre-date-au-${suffixe}`} label="Au">
+        <Input
+          id={`filtre-date-au-${suffixe}`}
+          type="date"
+          value={dateTo}
+          onChange={(e) => setDateTo(e.target.value)}
+          className="w-full sm:w-40"
+        />
+      </Field>
+    </>
   );
 }
 
