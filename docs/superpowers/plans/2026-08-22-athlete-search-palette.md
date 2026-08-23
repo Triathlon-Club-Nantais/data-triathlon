@@ -540,7 +540,7 @@ describe("AthletePicker — classement par pertinence, servi par l'API (NAV-8, #
       await vi.advanceTimersByTimeAsync(250);
     });
 
-    expect(await screen.findByText(/3 courses/)).toBeInTheDocument();
+    expect(await screen.findByText(/3 épreuves/)).toBeInTheDocument();
   });
 });
 ```
@@ -644,10 +644,15 @@ Dans le rendu, remplacer `{rows.map((a) => {` par
 remplacer l'affichage du compte :
 ```tsx
                 <div style={{ fontSize: 13, color: "var(--tcn-text-muted)" }}>
-                  {a.club ?? "Sans club"} · {a.participation_count} course
+                  {a.club ?? "Sans club"} · {a.participation_count} épreuve
                   {a.participation_count > 1 ? "s" : ""}
                 </div>
 ```
+
+(« épreuve », pas « course » : #478/COPY-1, `frontend/AGENTS.md` — c'est le
+seul mot que l'utilisateur doit lire pour cet objet, `course` restant réservé
+à l'identifiant technique. La ligne d'origine du fichier dit déjà « épreuve »
+depuis #478 ; ne pas la faire régresser vers « course ».)
 
 (`rows.length` peut valoir jusqu'à `PAGE_SIZE + 1` — le `slice` borne le rendu
 à 12 dès cette tâche ; la Task 6 utilisera `rows.length > PAGE_SIZE` pour
@@ -1138,7 +1143,7 @@ describe("AthletePicker — listbox accessible (NAV-8, #484)", () => {
     });
 
     expect(await screen.findAllByRole("option")).toHaveLength(12);
-    expect(screen.getByText(/précise ta recherche/i)).toBeInTheDocument();
+    expect(screen.getByText(/précisez votre recherche/i)).toBeInTheDocument();
   });
 });
 ```
@@ -1250,7 +1255,7 @@ ajouté en Task 5) par une vraie `listbox` :
                       {fullName}
                     </div>
                     <div style={{ fontSize: 13, color: "var(--tcn-text-muted)" }}>
-                      {a.club ?? "Sans club"} · {a.participation_count} course
+                      {a.club ?? "Sans club"} · {a.participation_count} épreuve
                       {a.participation_count > 1 ? "s" : ""}
                     </div>
                   </div>
@@ -1262,7 +1267,7 @@ ajouté en Task 5) par une vraie `listbox` :
         )}
         {!loading && trapPlein && (
           <div style={{ padding: "10px 14px", fontSize: 13, color: "var(--tcn-text-faint)" }}>
-            Trop de résultats — précise ta recherche.
+            Trop de résultats — précisez votre recherche.
           </div>
         )}
         <div aria-live="polite" className="sr-only">
