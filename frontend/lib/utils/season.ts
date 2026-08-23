@@ -54,3 +54,15 @@ export function seasonSelectionLabel(years: number[]): string {
   if (years.length === 1) return seasonLabel(years[0]);
   return `${years.length} saisons sélectionnées`;
 }
+
+/** Formulation « la saison X — Y » (singulier) ou « les N saisons
+ *  sélectionnées » (pluriel), pour l'état vide du dashboard (#483, NAV-6).
+ *  Contrairement à `seasonSelectionLabel`, la phrase porte son article et sa
+ *  minuscule : elle s'insère dans "Aucun résultat enregistré pour …", pas
+ *  dans un <h1>. */
+export function seasonAbsenceLabel(years: number[]): string {
+  if (years.length <= 1) {
+    return `la ${seasonLabel(years[0] ?? currentSeason()).toLowerCase()}`;
+  }
+  return `les ${years.length} saisons sélectionnées`;
+}
