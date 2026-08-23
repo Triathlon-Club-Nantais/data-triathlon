@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { Avatar, Input, Modal } from "@/components/tcn";
 import { EmptyState } from "@/components/ui/empty-state";
 import { apiClient } from "@/lib/api/client";
-import type { AthleteBrief } from "@/lib/types";
+import type { AthleteSearchResult } from "@/lib/types";
 
 /**
  * Athlète retenu en session, mémorisé d'une visite à l'autre.
@@ -99,7 +99,9 @@ export function useIsSelectedAthlete(id: number): boolean {
   );
 }
 
-type AthleteRow = AthleteBrief & { count: number };
+/** Nombre d'athlètes affichés — au-delà, la palette précise « trop de
+ *  résultats » plutôt que d'en cacher silencieusement (défaut 4/5, #484). */
+const PAGE_SIZE = 12;
 
 /**
  * Recherche d'un athlète du club. Interroge l'API à partir de **2 caractères**,
@@ -113,7 +115,7 @@ export function AthletePicker({
   onPick: (athlete: PickedAthlete) => void;
 }) {
   const [query, setQuery] = useState("");
-  const [rows, setRows] = useState<AthleteRow[]>([]);
+  const [rows, setRows] = useState<AthleteSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -127,16 +129,8 @@ export function AthletePicker({
     setLoading(true);
     const t = setTimeout(async () => {
       try {
-        const parts = await apiClient.listParticipations({ name: q, page_size: 100 });
-        if (cancelled) return;
-        const byAthlete = new Map<number, AthleteRow>();
-        for (const p of parts) {
-          const a = p.athlete;
-          const existing = byAthlete.get(a.id);
-          if (existing) existing.count += 1;
-          else byAthlete.set(a.id, { ...a, count: 1 });
-        }
-        setRows([...byAthlete.values()].sort((x, y) => y.count - x.count).slice(0, 12));
+        const found = await apiClient.searchAthletes(q, PAGE_SIZE + 1);
+        if (!cancelled) setRows(found);
       } catch {
         if (!cancelled) setRows([]);
       } finally {
@@ -169,7 +163,7 @@ export function AthletePicker({
         placeholder="Rechercher un nom…"
       />
       <div style={{ marginTop: 8 }}>
-        {rows.map((a) => {
+        {rows.slice(0, PAGE_SIZE).map((a) => {
           const fullName = nomComplet(a);
           const choisir = () => onPick({ id: a.id, prenom: a.prenom, nom: a.nom });
           return (
@@ -195,7 +189,8 @@ export function AthletePicker({
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700, color: "var(--tcn-ink)", fontSize: 15 }}>{fullName}</div>
                 <div style={{ fontSize: 13, color: "var(--tcn-text-muted)" }}>
-                  {a.club ?? "Sans club"} · {a.count} épreuve{a.count > 1 ? "s" : ""}
+                  {a.club ?? "Sans club"} · {a.participation_count} épreuve
+                  {a.participation_count > 1 ? "s" : ""}
                 </div>
               </div>
               <span style={{ color: "var(--tcn-text-disabled)", fontSize: 18 }}>→</span>

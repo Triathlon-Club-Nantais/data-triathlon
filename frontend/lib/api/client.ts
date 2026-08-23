@@ -5,6 +5,7 @@ import type {
   AdminCourseUpdate,
   AdminUser,
   AthleteBrief,
+  AthleteSearchResult,
   AuthMethod,
   BatchLaunched,
   BatchReport,
@@ -144,6 +145,13 @@ export const apiClient = {
 
   listParticipations: (filters: ParticipationFilters = {}) =>
     request<Participation[]>(`/participations${toQuery(filters as Record<string, unknown>)}`),
+
+  // Palette ⌘K (#484) — distincte de `listParticipations` : interroge les
+  // athlètes directement (classés par pertinence côté backend), plus
+  // l'agrégation de participations plafonnée à 100 lignes qui pouvait faire
+  // disparaître un athlète peu couru sur un patronyme fréquent.
+  searchAthletes: (q: string, limit = 13) =>
+    request<AthleteSearchResult[]>(`/athletes/search${toQuery({ q, limit })}`),
 
   // Route du router public, et non `/admin/…` : elle y était déjà avant #439,
   // gardée par `participations:delete` (#115). La déplacer casserait un contrat
