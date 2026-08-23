@@ -7,7 +7,7 @@ from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.core.season import parse_seasons
 from app.repositories import athlete_repository, participation_repository
-from app.schemas.athlete import AthleteBrief, AthleteSeasonActivity
+from app.schemas.athlete import AthleteBrief, AthleteSearchResult, AthleteSeasonActivity
 from app.schemas.participation import AthleteParticipationOut
 
 router = APIRouter(tags=["athletes"])
@@ -45,6 +45,33 @@ def list_athletes_season_activity(
     return [
         AthleteSeasonActivity(id=a.id, nom=a.nom, prenom=a.prenom, participation_count=n)
         for a, n in lignes
+    ]
+
+
+# Déclarée avant `/athletes/{athlete_id}`, même raison que
+# `/athletes/season-activity` ci-dessus (#484).
+@router.get("/athletes/search", response_model=list[AthleteSearchResult])
+def search_athletes(
+    q: str = Query(..., min_length=2),
+    scope: str | None = Query(None, description="« club » restreint aux membres du TCN."),
+    limit: int = Query(12, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    """Recherche classée par pertinence pour la palette `⌘K` (#484, NAV-8).
+
+    Distincte de `GET /athletes` : celle-ci trie par pertinence (préfixe
+    exact, début de mot, sous-chaîne) puis volume, et rend le compte de
+    participations — deux choses que `GET /athletes` ne fait pas et n'a pas à
+    faire pour ses propres appelants.
+    """
+    lignes = athlete_repository.search_by_relevance(
+        db, term=q, club_only=is_club_scope(scope), limit=limit
+    )
+    return [
+        AthleteSearchResult(
+            **AthleteBrief.model_validate(athlete).model_dump(), participation_count=nombre
+        )
+        for athlete, nombre in lignes
     ]
 
 

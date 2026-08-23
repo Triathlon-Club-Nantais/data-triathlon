@@ -62,9 +62,11 @@ def test_fiche_athlete_rend_une_participation_pendante_mais_pas_son_rang_dans_le
 # ── GET /athletes/season-activity (issue #274) ───────────────────────────────
 
 
-def _epreuve(db_session, nom, event_date):
+def _epreuve(db_session, nom, event_date=None):
     from app.repositories import course_repository
 
+    if event_date is None:
+        event_date = date(2025, 10, 1)
     course = course_repository.get_or_create(
         db_session, name=nom, event_date=event_date, event_type="triathlon-m",
         source_url=f"https://k/{nom}", provider="klikego",
@@ -143,3 +145,72 @@ def test_season_activity_federal_only_retire_les_disciplines_hors_federation(cli
 
     assert resp.status_code == 200
     assert [a["nom"] for a in resp.json()] == ["TRIATHLETE"]
+
+
+# ── GET /athletes/search (issue #484, NAV-8) ─────────────────────────────────
+
+
+def test_search_rend_le_compte_de_participations_sans_date_de_naissance(client, db_session):
+    from app.repositories import athlete_repository
+
+    course = _epreuve(db_session, "Recherche")
+    athlete = athlete_repository.get_or_create(
+        db_session, nom="HERRMANN", prenom="Mathieu", birth_date=date(1990, 1, 1), club="TCN"
+    )
+    db_session.commit()
+    _inscrit(db_session, athlete, course, "1")
+
+    resp = client.get("/api/v1/athletes/search", params={"q": "herr"})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body[0]["nom"] == "HERRMANN"
+    assert body[0]["participation_count"] == 1
+    assert "birth_date" not in body[0]
+
+
+def test_search_classe_par_pertinence_avant_le_volume(client, db_session):
+    """Preuve de terrain NAV-8 (audit § 5) rejouée à l'API."""
+    from app.repositories import athlete_repository
+
+    prefixe = athlete_repository.get_or_create(db_session, nom="HERRMANN", prenom="Mathieu")
+    milieu = athlete_repository.get_or_create(db_session, nom="CHERRUEAU", prenom="Yves")
+    db_session.commit()
+    _inscrit(db_session, prefixe, _epreuve(db_session, "P1"), "1")
+    for i in range(5):
+        _inscrit(db_session, milieu, _epreuve(db_session, f"P-milieu-{i}"), "1")
+
+    resp = client.get("/api/v1/athletes/search", params={"q": "herr"})
+
+    assert [a["nom"] for a in resp.json()] == ["HERRMANN", "CHERRUEAU"]
+
+
+def test_search_refuse_un_terme_de_moins_de_deux_caracteres(client):
+    resp = client.get("/api/v1/athletes/search", params={"q": "h"})
+    assert resp.status_code == 422
+
+
+def test_search_refuse_l_absence_de_terme(client):
+    resp = client.get("/api/v1/athletes/search")
+    assert resp.status_code == 422
+
+
+def test_search_respecte_la_limite(client, db_session):
+    from app.repositories import athlete_repository
+
+    for i in range(3):
+        athlete_repository.get_or_create(db_session, nom=f"TESTLIM{i}", prenom="A")
+    db_session.commit()
+
+    resp = client.get("/api/v1/athletes/search", params={"q": "testlim", "limit": 2})
+
+    assert len(resp.json()) == 2
+
+
+def test_search_nest_pas_capturee_par_la_route_athlete_id(client, db_session):
+    """Précédence de route, même piège que `/athletes/season-activity` (#274) :
+    `search` doit se résoudre avant `{athlete_id}` (int), sinon FastAPI rend
+    422 sur `search` comme identifiant invalide."""
+    resp = client.get("/api/v1/athletes/search", params={"q": "zzzzz"})
+    assert resp.status_code == 200
+    assert resp.json() == []
