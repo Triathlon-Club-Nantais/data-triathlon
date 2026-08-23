@@ -12,6 +12,15 @@ class AthleteBrief(BaseModel):
     club: str | None = None
 
 
+class AthleteSearchResult(AthleteBrief):
+    """Résultat de `GET /athletes/search` (#484) : `AthleteBrief` + le compte
+    de participations qu'affiche la palette `⌘K` sous le nom. Pas de
+    `birth_date` — cette route reste publique, la date de naissance reste
+    réservée à `athletes:read` (voir `athlete_repository.search_admin`)."""
+
+    participation_count: int
+
+
 class AthleteSeasonActivity(BaseModel):
     """Athlète + son nombre d'épreuves sur la saison filtrée (#274).
 
