@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useId, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useId, useRef, type CSSProperties, type ReactNode } from "react";
 import { IconButton } from "./IconButton";
 import { Eyebrow } from "./Eyebrow";
 
@@ -24,11 +24,51 @@ export function Modal({
   style?: CSSProperties;
 }) {
   const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Mémorise le déclencheur à l'ouverture, lui rend le focus à la fermeture
+  // (démontage, ou passage à `open=false`) — défaut 3 de NAV-8 (#484).
+  useEffect(() => {
+    if (!open) return;
+    const declencheur =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+    // Auto-focus the first focusable element in the dialog
+    if (dialogRef.current) {
+      const focusables = dialogRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusables.length > 0) {
+        focusables[0].focus();
+      }
+    }
+
+    return () => {
+      declencheur?.focus();
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab" || !dialogRef.current) return;
+      const focusables = dialogRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusables.length === 0) return;
+      const premier = focusables[0];
+      const dernier = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === premier) {
+        e.preventDefault();
+        dernier.focus();
+      } else if (!e.shiftKey && document.activeElement === dernier) {
+        e.preventDefault();
+        premier.focus();
+      }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -50,6 +90,7 @@ export function Modal({
       }}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? titleId : undefined}
