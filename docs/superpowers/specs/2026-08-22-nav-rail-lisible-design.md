@@ -110,6 +110,34 @@ replié ; l'assertion doit devenir un lien vers `/club/athletes`.
 
 ## NAV-3 — le double saut à l'hydratation
 
+### Cohérence avec le précédent « pas de cookie miroir » (#467)
+
+`frontend/AGENTS.md` documente un arbitrage récent, distinct de ce lot : le
+stock `tcn-athlete` (athlète retenu) reste en `localStorage` seul, sans copie
+en cookie relue côté serveur — trois raisons y sont données, dont « aucun
+rendu serveur n'en a besoin » et le coût de cache sur les routes qui
+dépendent de la fenêtre de revalidation de 30 s (#352), un rendu qui
+dépendrait d'un cookie par visiteur n'étant plus partageable au niveau du
+**Data Cache** (les appels `fetch()` vers `/api/v1`). Ce même paragraphe
+prévoit lui-même l'exception : « Seul un besoin serveur authentique — une
+requête API qui dépendrait de l'athlète retenu — rouvrirait l'arbitrage ; de
+la mise en avant, non. »
+
+La largeur du rail est précisément ce cas d'exception, pas une contradiction
+du précédent : le besoin serveur est authentique (peindre la bonne largeur
+dès le premier octet est tout l'objet de NAV-3, impossible sans qu'un
+composant serveur connaisse la préférence), et surtout **aucun appel
+`fetch()` vers l'API n'est concerné** — le cookie ne sert qu'à calculer un
+`initialExpanded` passé en prop à un composant client, jamais relayé vers le
+backend. Il ne touche donc pas au Data Cache ni à sa fenêtre de 30 s. De
+plus, `app/layout.tsx` est déjà rendu dynamiquement pour **chaque** requête,
+cookie ou non (`await connection()`, #448, pour le nonce CSP) : lire un
+cookie de plus dans une coquille déjà 100 % dynamique n'entame aucun
+partage de cache qui n'était pas déjà absent. Le précédent #467 et ce
+cookie ne se contredisent pas : le premier écarte un miroir sans
+destinataire serveur, le second en introduit un qui a exactement ce
+destinataire.
+
 ### Ce qui est traité : la largeur du rail
 
 `app/layout.tsx` est déjà une fonction serveur asynchrone (`await
