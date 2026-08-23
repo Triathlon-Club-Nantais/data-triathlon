@@ -174,7 +174,7 @@ describe("CoursePage", () => {
   it("demande la page voulue au classement, et la synthèse sans aucun paramètre", async () => {
     await afficher({ page: "3", q: "lemee", scope: "club" });
 
-    expect(getCourse).toHaveBeenCalledWith(1, { page: 3, q: "lemee", scope: "club" });
+    expect(getCourse).toHaveBeenCalledWith(1, { page: 3, page_size: 20, q: "lemee", scope: "club" });
     expect(getCourseSummary).toHaveBeenCalledWith(1);
   });
 
@@ -182,13 +182,26 @@ describe("CoursePage", () => {
     "traite un numéro de page illisible (%s) comme la première, sans erreur",
     async (page) => {
       await afficher({ page });
-      expect(getCourse).toHaveBeenCalledWith(1, { page: 1, q: undefined, scope: undefined });
+      expect(getCourse).toHaveBeenCalledWith(1, { page: 1, page_size: 20, q: undefined, scope: undefined });
     },
   );
 
   it("ne transmet pas une recherche composée d'espaces", async () => {
     await afficher({ q: "   " });
-    expect(getCourse).toHaveBeenCalledWith(1, { page: 1, q: undefined, scope: undefined });
+    expect(getCourse).toHaveBeenCalledWith(1, { page: 1, page_size: 20, q: undefined, scope: undefined });
+  });
+
+  it("transmet une taille de tranche valide de l'URL telle quelle à l'API", async () => {
+    await afficher({ page_size: "all" });
+    expect(getCourse).toHaveBeenCalledWith(1, { page: 1, page_size: "all", q: undefined, scope: undefined });
+  });
+
+  it("retombe sur la taille par défaut pour une taille hors liste blanche", async () => {
+    // 137 est une valeur acceptée par le backend (1 à 200), mais absente des
+    // quatre options du sélecteur : elle doit retomber sur le défaut plutôt
+    // que d'être transmise telle quelle (`lib/pageSize.ts`).
+    await afficher({ page_size: "137" });
+    expect(getCourse).toHaveBeenCalledWith(1, { page: 1, page_size: 20, q: undefined, scope: undefined });
   });
 
   it("rapporte les pourcentages de catégorie à TOUTES les catégories, pas aux 8 rendues", async () => {
