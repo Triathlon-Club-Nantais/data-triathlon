@@ -202,20 +202,27 @@ describe("AppNav — doublon de prefetch après resynchro localStorage (#428)", 
     expect(montages.get("/resultats")).toBe(1);
   });
 
-  it("remonte l'entrée d'une catégorie à chaque dépliage — limite assumée du correctif", async () => {
+  it("remonte l'entrée d'une catégorie à plusieurs destinations à chaque dépliage — limite assumée du correctif", async () => {
     // Caractérisation, pas un objectif : l'unification ne vaut que pour la
-    // section **racine**, dont les destinations sont rendues dans les deux
-    // états. Repliée, une catégorie n'offre qu'une tuile qui déplie : ses
-    // `Link` n'existent pas, donc il n'y a rien à réutiliser à la bascule.
+    // section **racine** et, depuis #482 (NAV-2), pour une catégorie réduite à
+    // une seule destination livrée (« Club », qui rend désormais son `Link`
+    // dans les deux états et échappe donc à cette limite). Une catégorie à
+    // *plusieurs* destinations livrées (« Administration ») repliée n'offre
+    // toujours qu'une tuile qui déplie : ses `Link` n'existent pas, donc il
+    // n'y a rien à réutiliser à la bascule.
     // Sans conséquence à l'atterrissage — ils ne montent qu'une fois — et le
     // bouton de catégorie est resté hors périmètre de #428.
-    afficher(null);
+    afficher(habilite("pending_providers:read", "batch:run"));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Administration" })).toBeInTheDocument(),
+    );
+
     await userEvent.click(screen.getByRole("button", { name: "Déplier la navigation" }));
-    expect(montages.get("/club/athletes")).toBe(1);
+    expect(montages.get("/admin/fournisseurs")).toBe(1);
 
     await userEvent.click(screen.getByRole("button", { name: "Replier la navigation" }));
     await userEvent.click(screen.getByRole("button", { name: "Déplier la navigation" }));
-    expect(montages.get("/club/athletes")).toBe(2);
+    expect(montages.get("/admin/fournisseurs")).toBe(2);
     // La racine, elle, tient : c'est ce que le correctif garantit.
     expect(montages.get("/resultats")).toBe(1);
   });
@@ -482,21 +489,35 @@ describe("AppNav — arborescence", () => {
     expect(screen.queryByText("À VENIR")).not.toBeInTheDocument();
   });
 
-  it("cache les entrées à venir d'une section qui en porte aussi une livrée (#274)", async () => {
-    // « Club » porte désormais une entrée livrée (« Athlètes par saison ») à
-    // côté de ses entrées `soon` : la section s'affiche, mais seules les
-    // entrées `soon` restent masquées.
+  it("rend « Club » comme un lien direct sur le rail replié, une seule destination livrée (#482, NAV-2)", async () => {
     afficher(null);
-    expect(screen.getByRole("button", { name: "Club" })).toBeInTheDocument();
+    // Scopé au rail : Task 6 y ajoute une barre basse mobile qui porte, elle
+    // aussi, une entrée « Athlètes par saison ».
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+
+    // Plus de bouton dépliant pour une section à une seule destination : le
+    // rail replié porte directement le lien.
+    expect(within(rail).queryByRole("button", { name: "Club" })).not.toBeInTheDocument();
+    const lien = within(rail).getByRole("link", { name: "Athlètes par saison" });
+    expect(lien).toHaveAttribute("href", "/club/athletes");
     expect(screen.queryByLabelText("Carte")).not.toBeInTheDocument();
 
     await deplier();
-    expect(screen.getByText("Club")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Athlètes par saison" })).toHaveAttribute(
+    expect(within(rail).getByText("Club")).toBeInTheDocument();
+    expect(within(rail).getByRole("link", { name: "Athlètes par saison" })).toHaveAttribute(
       "href",
       "/club/athletes",
     );
-    expect(screen.queryByText("Espace club")).not.toBeInTheDocument();
+    expect(within(rail).queryByText("Espace club")).not.toBeInTheDocument();
+  });
+
+  it("garde le bouton dépliant pour une section à plusieurs destinations livrées (#482, NAV-2)", async () => {
+    afficher(habilite("pending_providers:read", "batch:run"));
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Administration" })).toBeInTheDocument(),
+    );
+    expect(screen.queryByRole("link", { name: "Fournisseurs en attente" })).not.toBeInTheDocument();
   });
 
   it("marque l'entrée courante avec aria-current=\"page\"", async () => {
