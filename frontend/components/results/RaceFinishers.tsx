@@ -228,6 +228,18 @@ export function RaceFinishers({
           />
         </div>
       </div>
+      {(rechercheUrl || filtreClub) && (
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "10px 26px", borderBottom: "1px solid var(--tcn-border)", fontSize: 13, color: "var(--tcn-text-body)" }}>
+          <span>{libelleSelection(total, summary.total, rechercheUrl, filtreClub)}</span>
+          <button
+            type="button"
+            onClick={() => naviguer({ q: null, [SCOPE_PARAM]: null })}
+            style={{ background: "none", border: "none", padding: "4px 0", minHeight: 24, font: "inherit", fontWeight: 700, color: "var(--tcn-ink)", textDecoration: "underline", cursor: "pointer" }}
+          >
+            Effacer
+          </button>
+        </div>
+      )}
       <div
         style={{ overflowX: "auto" }}
         data-pending={pending || undefined}
@@ -332,10 +344,26 @@ export function RaceFinishers({
       />
 
       <div style={{ padding: "16px 24px", borderTop: "1px solid var(--tcn-border)", textAlign: "center", fontSize: 13, color: "var(--tcn-text-faint)" }}>
-        {resumeEpreuve(summary)}
+        <span>Sur l&apos;ensemble de l&apos;épreuve : </span>
+        <span>{resumeEpreuve(summary)}</span>
       </div>
     </Card>
   );
+}
+
+/**
+ * Cadre de la vue filtrée : ce qu'on regarde, et sur quoi.
+ *
+ * `total` est le total de la **sélection**, `totalEpreuve` celui de l'épreuve
+ * entière — c'est leur opposition qui manquait, l'écran affirmant « 498
+ * participants » sous deux lignes de résultats.
+ */
+function libelleSelection(total: number, totalEpreuve: number, recherche: string, filtreClub: boolean): string {
+  const tete = `${total} résultat${total > 1 ? "s" : ""} sur ${totalEpreuve}`;
+  const morceaux = [];
+  if (recherche) morceaux.push(`pour « ${recherche} »`);
+  if (filtreClub) morceaux.push(`du ${CLUB_NAME}`);
+  return `${tete} ${morceaux.join(", ")}`;
 }
 
 /**
