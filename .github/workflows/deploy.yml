@@ -99,13 +99,18 @@ jobs:
       # Sur un `workflow_dispatch` depuis une branche de PR, l'**intention** est
       # de déployer ce commit-là et non `main`, sur laquelle le service est
       # épinglé. Non vérifié : Render documente `ref` pour un SHA, sans dire si
-      # un commit hors branche liée est résolvable. L'échec serait discret — le
-      # hook rend 200 quoi qu'il arrive, et la panne surviendrait côté Render,
-      # job vert. À confirmer par un dispatch manuel avant de s'y fier.
+      # un commit hors branche liée est résolvable. À confirmer par un dispatch
+      # manuel avant de s'y fier.
+      #
+      # `--fail-with-body` et non `-f`, même raison qu'à l'étape env-var :
+      # le hook ne rend pas 200 quoi qu'il arrive — il rend 409 quand le
+      # service est suspendu ou qu'un déploiement est déjà en cours, et `-f`
+      # avalait le motif (constaté du 22 au 23/08/2026, quatre jours de CI
+      # rouge sans autre diagnostic que « error: 409 »).
       - name: Render (backend) — deploy hook preview
         env:
           DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_PREVIEW }}
-        run: curl -fsSL -X POST --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 "$DEPLOY_HOOK&ref=${{ github.sha }}"
+        run: curl -sSL --fail-with-body -X POST --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 "$DEPLOY_HOOK&ref=${{ github.sha }}"
 
       # `vercel build` tourne **sur ce runner** (le déploiement se fait ensuite
       # en `--prebuilt`) : c'est donc ici le runtime de build réel du front, à
@@ -196,7 +201,7 @@ jobs:
       - name: Render (backend) — deploy hook prod
         env:
           DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_PROD }}
-        run: curl -fsSL -X POST --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 "$DEPLOY_HOOK&ref=${{ github.sha }}"
+        run: curl -sSL --fail-with-body -X POST --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 "$DEPLOY_HOOK&ref=${{ github.sha }}"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
