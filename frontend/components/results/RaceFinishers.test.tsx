@@ -597,6 +597,33 @@ describe("RaceFinishers", () => {
     expect(screen.getByRole("status")).toHaveTextContent(/temps total.*croissant/i);
   });
 
+  it("annonce le périmètre du tri : la tranche affichée, pas le classement", async () => {
+    afficher({ total: 860, pageSize: 20 });
+
+    await userEvent.click(screen.getByRole("button", { name: /Trier par temps total/ }));
+
+    expect(
+      screen.getByRole("status").textContent,
+    ).toContain("sur les 3 lignes affichées");
+  });
+
+  it("ne mentionne aucun périmètre quand tout le classement est affiché", async () => {
+    searchParams = new URLSearchParams("page_size=all");
+    afficher({ total: 3, pageSize: null });
+
+    await userEvent.click(screen.getByRole("button", { name: /Trier par temps total/ }));
+
+    expect(screen.getByRole("status").textContent).not.toContain("lignes affichées");
+  });
+
+  it("porte le périmètre jusque dans l'aria-label des en-têtes", () => {
+    afficher({ total: 860, pageSize: 20 });
+
+    expect(
+      screen.getByRole("button", { name: "Trier par temps total, croissant, sur les 3 lignes affichées" }),
+    ).toBeInTheDocument();
+  });
+
   // ── Cible tactile (#479) ────────────────────────────────────────────────────
 
   it("porte l'en-tête triable à la taille tactile minimale (24 px)", () => {
