@@ -597,4 +597,44 @@ describe("RaceFinishers", () => {
     const ligne = screen.getByText("Rang").parentElement;
     expect(ligne).toHaveStyle({ alignItems: "center" });
   });
+
+  // ── Cadre de la vue filtrée (RES-9) ────────────────────────────────────────
+
+  it("oppose le total de la sélection à celui de l'épreuve après une recherche", () => {
+    searchParams = new URLSearchParams("q=kermarrec");
+    afficher({ summary: synthese({ total: 498 }), total: 2 });
+
+    expect(screen.getByText(/2 résultats/)).toBeInTheDocument();
+    expect(screen.getByText(/sur 498/)).toBeInTheDocument();
+    expect(screen.getByText(/kermarrec/)).toBeInTheDocument();
+  });
+
+  it("nomme le filtre club dans la ligne d'état", () => {
+    searchParams = new URLSearchParams(`${SCOPE_PARAM}=${SCOPE_CLUB}`);
+    afficher({ summary: synthese({ total: 498, tcn_count: 12 }), total: 12 });
+
+    expect(screen.getByText(/du Triathlon Club Nantais/)).toBeInTheDocument();
+  });
+
+  it("ne rend aucune ligne d'état en vue complète", () => {
+    afficher({ total: 3 });
+
+    expect(screen.queryByRole("button", { name: "Effacer" })).not.toBeInTheDocument();
+  });
+
+  it("« Effacer » retire la recherche et le filtre d'un coup", async () => {
+    searchParams = new URLSearchParams(`q=kermarrec&${SCOPE_PARAM}=${SCOPE_CLUB}`);
+    afficher({ summary: synthese({ total: 498 }), total: 1 });
+
+    await userEvent.click(screen.getByRole("button", { name: "Effacer" }));
+
+    expect(push).toHaveBeenCalledWith("/courses/1");
+  });
+
+  it("situe le pied de carte sur l'épreuve entière, pas sur la sélection", () => {
+    searchParams = new URLSearchParams("q=kermarrec");
+    afficher({ total: 2 });
+
+    expect(screen.getByText(/Sur l'ensemble de l'épreuve/)).toBeInTheDocument();
+  });
 });

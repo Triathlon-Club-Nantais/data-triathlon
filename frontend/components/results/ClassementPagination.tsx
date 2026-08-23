@@ -32,6 +32,8 @@ export function ClassementPagination({
     borderRadius: 8,
     border: "1px solid var(--tcn-border)",
     color: "var(--tcn-ink)",
+    // Plancher tactile WCAG 2.2 2.5.8, comme le champ numérique et le sélecteur voisins.
+    minHeight: 24,
   } as const;
   const inactif = { ...style, color: "var(--tcn-text-faint)", opacity: 0.5 };
   // Hors bornes, « Précédent » ramène à la dernière page réelle : reculer d'un
