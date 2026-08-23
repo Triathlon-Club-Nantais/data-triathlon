@@ -132,7 +132,9 @@ export function BatchLauncher() {
           </Label>
         </div>
 
-        <div className="flex items-center gap-3">
+        {/* `flex-wrap` : sous 400 px, la phrase se comprimait en colonne de six
+            lignes à côté du bouton. Elle passe dessous. */}
+        <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" disabled={enCours || lancer.isPending}>
             {lancer.isPending ? "Lancement…" : "Lancer la reprise"}
           </Button>
