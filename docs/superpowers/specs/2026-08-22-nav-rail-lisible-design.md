@@ -60,7 +60,7 @@ bandeau (68 px) : pas de saut de layout pour le reste de la colonne.
 
 Six emplacements du fichier posent aujourd'hui `title={expanded ? undefined :
 "…"}` (ou l'équivalent inconditionnel pour les tuiles de catégorie) : le
-bouton « Se connecter » replié, « Ajouter une course », « Rechercher un
+bouton « Se connecter » replié, « Ajouter une épreuve », « Rechercher un
 athlète », « Mon profil » (tuile athlète retenu), la tuile d'une catégorie
 repliée (`onExpand`), et `Entree` elle-même. C'est le sous-ensemble exact des
 « huit pastilles » de l'audit — le septième `title` du fichier
@@ -94,7 +94,7 @@ tactile ; les technologies d'assistance avaient déjà leur nom accessible.
 
 `nav.config.ts` déclare aujourd'hui « Club » avec une seule entrée livrée
 (`athletes-saison`, les autres `soon`). Le rendu du rail replié
-(`AppNav.tsx:541-545`) teste aujourd'hui seulement `!expanded && !sec.root` :
+(`AppNav.tsx:548-552`) teste aujourd'hui seulement `!expanded && !sec.root` :
 la condition devient `!expanded && !sec.root && sec.items.length === 1`, avec
 un second embranchement pour rendre directement l'`Entree` unique plutôt que
 le bouton `onExpand`. Générique par construction : si une deuxième section un
@@ -226,7 +226,7 @@ Le tiroir mobile (`Sheet`) reçoit aujourd'hui l'intégralité des `sections`
 filtrées par rang. Il ne reçoit désormais que celles dont `minRole >
 ROLE.ANON` (« Administration », « Gestion des utilisateurs » aujourd'hui) —
 les sections publiques ayant migré vers la barre basse. Les deux actions
-primaires ancrées en tête du tiroir (« Ajouter une course », « Rechercher un
+primaires ancrées en tête du tiroir (« Ajouter une épreuve », « Rechercher un
 athlète ») ne bougent pas : elles restent des doublons assumés avec la barre
 du haut mobile, hors périmètre de #428 comme déjà noté dans le fichier — ce
 lot n'y touche pas.
@@ -241,7 +241,7 @@ ne porte que du public.
 ### La fermeture du tiroir restreinte à la navigation
 
 Aujourd'hui, tout le pied du tiroir (`<div onClick={() =>
-setDrawerOpen(false)}><UserMenu pleineLargeur /></div>`, `AppNav.tsx:294-299`)
+setDrawerOpen(false)}><UserMenu pleineLargeur /></div>`, `AppNav.tsx:301-306`)
 ferme le tiroir au moindre clic — y compris un clic sur « Se déconnecter »,
 qui masque le tiroir avant que son état d'attente (`UserMenu.tsx:72`,
 `logout.isPending`) n'ait pu s'afficher.
