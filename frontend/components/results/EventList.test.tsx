@@ -406,3 +406,52 @@ describe("EventList — regroupement par compétition parente (#463)", () => {
     );
   });
 });
+
+describe("EventList — annonce du repliement (#463, WCAG 4.1.3)", () => {
+  const PREFIXE = "MEDOC ATLANTIQUE FRENCHMAN Triathlon Carcans 2026";
+
+  function setDeuxSousEpreuves() {
+    setEvents({
+      data: {
+        pages: [
+          {
+            items: [1, 2].map((id) => ({
+              id,
+              event_name: `${PREFIXE} - Épreuve ${id}`,
+              event_type: "triathlon-s",
+              event_date: "2026-06-13",
+              is_relay: false,
+              total: 100,
+              tcn_count: 1,
+            })),
+            total_events: 2,
+            total_participations: 200,
+          },
+        ],
+      },
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+    });
+  }
+
+  it("signale les compétitions repliées, que le décompte d'épreuves chargées ne dit pas", () => {
+    setDeuxSousEpreuves();
+    renderList();
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "2 épreuves, 200 résultats, 2 affichées dans 1 compétition repliée",
+    );
+  });
+
+  it("retire la mention quand la compétition est dépliée", async () => {
+    setDeuxSousEpreuves();
+    renderList();
+
+    await userEvent.click(screen.getByRole("button", { name: new RegExp(PREFIXE) }));
+
+    expect(screen.getByRole("status")).toHaveTextContent("2 épreuves, 200 résultats, 2 affichées");
+    expect(screen.getByRole("status")).not.toHaveTextContent("repliée");
+  });
+});
