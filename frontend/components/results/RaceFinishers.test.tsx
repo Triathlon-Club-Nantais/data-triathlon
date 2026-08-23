@@ -146,7 +146,8 @@ describe("RaceFinishers", () => {
   it("rend des liens « Précédent » / « Suivant » portant le numéro de page", () => {
     afficher({ total: 100, pageSize: 20, page: 3 });
 
-    expect(screen.getByText("Page 3 sur 5")).toBeInTheDocument();
+    expect(screen.getByLabelText("Aller à la page")).toHaveValue(3);
+    expect(screen.getByText("sur 5")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Précédent/ })).toHaveAttribute("href", "/courses/1?page=2");
     expect(screen.getByRole("link", { name: /Suivant/ })).toHaveAttribute("href", "/courses/1?page=4");
   });
@@ -173,6 +174,64 @@ describe("RaceFinishers", () => {
     expect(suivant).toContain("q=dupont");
     expect(suivant).toContain("scope=club");
     expect(suivant).toContain("page=2");
+  });
+
+  // ── Saut de page ───────────────────────────────────────────────────────────
+
+  it("rend des liens vers la première et la dernière page", () => {
+    afficher({ total: 860, pageSize: 20, page: 21 });
+
+    expect(screen.getByRole("link", { name: /Première/ })).toHaveAttribute("href", "/courses/1");
+    expect(screen.getByRole("link", { name: /Dernière/ })).toHaveAttribute("href", "/courses/1?page=43");
+  });
+
+  it("saute à la page saisie sans perdre la recherche ni le filtre", async () => {
+    searchParams = new URLSearchParams("q=dupont&scope=club");
+    afficher({ total: 860, pageSize: 20, page: 1 });
+
+    const champ = screen.getByLabelText("Aller à la page");
+    await userEvent.clear(champ);
+    await userEvent.type(champ, "22");
+    await userEvent.click(screen.getByRole("button", { name: "Aller" }));
+
+    const url = push.mock.calls.at(-1)?.[0] ?? "";
+    expect(url).toContain("q=dupont");
+    expect(url).toContain("scope=club");
+    expect(url).toContain("page=22");
+  });
+
+  it("ramène une saisie hors bornes dans le classement plutôt que de la refuser", async () => {
+    // « 99 » sur 43 pages veut dire « la fin ».
+    afficher({ total: 860, pageSize: 20, page: 1 });
+
+    const champ = screen.getByLabelText("Aller à la page");
+    await userEvent.clear(champ);
+    await userEvent.type(champ, "99");
+    await userEvent.click(screen.getByRole("button", { name: "Aller" }));
+
+    expect(push).toHaveBeenCalledWith("/courses/1?page=43");
+  });
+
+  it("omet le paramètre page quand on saute à la première", async () => {
+    afficher({ total: 860, pageSize: 20, page: 5 });
+
+    const champ = screen.getByLabelText("Aller à la page");
+    await userEvent.clear(champ);
+    await userEvent.type(champ, "1");
+    await userEvent.click(screen.getByRole("button", { name: "Aller" }));
+
+    expect(push).toHaveBeenCalledWith("/courses/1");
+  });
+
+  it("porte les autres paramètres en champs cachés, pour un saut sans JavaScript", () => {
+    searchParams = new URLSearchParams("q=dupont&page_size=50");
+    afficher({ total: 860, pageSize: 50, page: 2 });
+
+    const form = screen.getByLabelText("Aller à la page").closest("form")!;
+    expect(form).toHaveAttribute("method", "get");
+    // `toHaveValue` ne lit pas un champ caché : on interroge l'attribut.
+    expect(form.querySelector('input[name="q"]')).toHaveAttribute("value", "dupont");
+    expect(form.querySelector('input[name="page_size"]')).toHaveAttribute("value", "50");
   });
 
   // ── Taille de tranche ──────────────────────────────────────────────────────

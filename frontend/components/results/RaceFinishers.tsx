@@ -142,6 +142,11 @@ export function RaceFinishers({
     startTransition(() => router.push(lienVers({ ...modifications, page: null })));
   }
 
+  /** Saut direct à une page, la recherche et le filtre en cours conservés. */
+  function naviguerPage(n: number) {
+    startTransition(() => router.push(lienVers({ page: n === 1 ? null : String(n) })));
+  }
+
   // Les colonnes viennent de la synthèse et non des lignes affichées : sur vingt
   // lignes, elles changeraient d'une page à l'autre.
   const segments = splitColumnsFromKeys(eventType ?? "", summary.split_keys);
@@ -323,6 +328,7 @@ export function RaceFinishers({
         onTaille={(taille) =>
           naviguer({ [PAGE_SIZE_PARAM]: taille === PAGE_SIZE_DEFAUT ? null : String(taille) })
         }
+        onAllerPage={naviguerPage}
       />
 
       <div style={{ padding: "16px 24px", borderTop: "1px solid var(--tcn-border)", textAlign: "center", fontSize: 13, color: "var(--tcn-text-faint)" }}>
