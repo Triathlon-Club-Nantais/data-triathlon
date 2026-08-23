@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { Anton, Barlow, Barlow_Semi_Condensed } from "next/font/google";
 import "./globals.css";
@@ -49,6 +50,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // requête et ne touche pas au Data Cache.
   await connection();
 
+  // Largeur du rail décidée avant la peinture (#482, NAV-3) : le cookie que
+  // `AppNav` écrit au pliage/dépliage (`document.cookie`, jamais relayé à
+  // l'API) est relu ici pour que le rendu serveur et la première passe
+  // client partagent déjà la bonne largeur — plus de bascule 76 px → 288 px
+  // après coup.
+  const jar = await cookies();
+  const initialExpanded = jar.get("tcn-nav-expanded")?.value === "1";
+
   return (
     <html
       lang="fr"
@@ -69,7 +78,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               contenu) : la nav prend la hauteur, le contenu prend le reste.
               `VersionFooter` vit sous le **contenu**, pas sous le rail. */}
           <div className="flex min-h-screen flex-col md:flex-row">
-            <AppNav />
+            <AppNav initialExpanded={initialExpanded} />
             <div className="flex min-w-0 flex-1 flex-col">
               <main id="contenu" tabIndex={-1} className="flex-1">
                 {children}

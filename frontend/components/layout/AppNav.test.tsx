@@ -69,14 +69,14 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 import { AppNav } from "./AppNav";
 import { clearAthlete, readAthlete, writeAthlete } from "./AthletePicker";
 
-function afficher(session: SessionUser | null) {
+function afficher(session: SessionUser | null, { initialExpanded = false }: { initialExpanded?: boolean } = {}) {
   if (session) getSession.mockResolvedValue(session);
   else getSession.mockRejectedValue(new ApiError(401, "anonyme"));
 
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <AppNav />
+      <AppNav initialExpanded={initialExpanded} />
     </QueryClientProvider>,
   );
 }
@@ -126,6 +126,11 @@ beforeEach(() => {
       clear: () => stock.clear(),
     },
   });
+
+  // Le cookie de largeur (#482, NAV-3) n'est réinitialisé par aucun mock —
+  // contrairement à `localStorage` ci-dessus, `document.cookie` est un vrai
+  // objet du document jsdom qui persiste d'un test à l'autre dans le même fichier.
+  document.cookie = "tcn-nav-expanded=; path=/; max-age=0";
 });
 
 describe("readAthlete — stock corrompu", () => {
@@ -175,11 +180,15 @@ describe("AppNav — doublon de prefetch après resynchro localStorage (#428)", 
    * `2026-08-17-dashboard-perf-rank-et-prefetch-sondage.md`, constat 2).
    */
   it("ne prefetche « Résultats » qu'une fois quand le rail persisté est déjà déplié", async () => {
-    window.localStorage.setItem("tcn-nav-expanded", "1");
-    afficher(null);
+    afficher(null, { initialExpanded: true });
 
-    // Le rail est déplié : c'est la bascule elle-même qui est mesurée.
-    expect(await screen.findByRole("link", { name: "Résultats" })).toBeInTheDocument();
+    // Le rail est déjà déplié dès le premier rendu — synchrone, sans attendre
+    // un effet de montage (#482, NAV-3) : c'est exactement ce que ce correctif
+    // change par rapport à l'ancien comportement, qui exigeait un `findByRole`.
+    // Scopé au rail : Task 6 y ajoute une barre basse mobile qui porte, elle
+    // aussi, une entrée « Résultats ».
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    expect(within(rail).getByRole("link", { name: "Résultats" })).toBeInTheDocument();
     expect(montages.get("/resultats")).toBe(1);
   });
 
@@ -212,15 +221,42 @@ describe("AppNav — doublon de prefetch après resynchro localStorage (#428)", 
   });
 
   it("ne prefetche pas le logo du rail déplié, qui double la route de « Tableau de bord »", async () => {
-    // Rendu au seul état déplié, ce lien monte un second observateur vers
-    // `/dashboard`, que l'entrée « Tableau de bord » prefetche déjà.
-    window.localStorage.setItem("tcn-nav-expanded", "1");
+    afficher(null, { initialExpanded: true });
+
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    const logo = within(rail).getByRole("link", { name: "TCN — Accueil" });
+    expect(logo).toHaveAttribute("href", "/dashboard");
+    expect(logo).toHaveAttribute("data-prefetch", "false");
+  });
+});
+
+describe("AppNav — largeur du rail décidée avant la peinture (#482, NAV-3)", () => {
+  it("réplique replié par défaut quand aucune prop n'est fournie", () => {
     afficher(null);
 
     const rail = screen.getByRole("navigation", { name: "Navigation principale" });
-    const logo = await within(rail).findByRole("link", { name: "TCN — Accueil" });
-    expect(logo).toHaveAttribute("href", "/dashboard");
-    expect(logo).toHaveAttribute("data-prefetch", "false");
+    expect(rail.style.width).toBe("var(--tcn-nav-rail)");
+  });
+
+  it("peint le rail à sa largeur persistée dès le premier rendu, sans jamais lire localStorage", () => {
+    // Le stock localStorage reste vide : si le rail lisait encore
+    // `tcn-nav-expanded` depuis là, la prop n'aurait aucun effet.
+    afficher(null, { initialExpanded: true });
+
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    expect(rail.style.width).toBe("var(--tcn-nav-panel)");
+    expect(window.localStorage.getItem("tcn-nav-expanded")).toBeNull();
+  });
+
+  it("écrit un cookie — jamais localStorage — quand on (re)plie le rail à la main", async () => {
+    afficher(null);
+    await userEvent.click(screen.getByRole("button", { name: "Déplier la navigation" }));
+
+    expect(document.cookie).toContain("tcn-nav-expanded=1");
+    expect(window.localStorage.getItem("tcn-nav-expanded")).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Replier la navigation" }));
+    expect(document.cookie).toContain("tcn-nav-expanded=0");
   });
 });
 

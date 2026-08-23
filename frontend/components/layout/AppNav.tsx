@@ -34,35 +34,31 @@ type SectionRendue = Omit<NavSection, "items"> & { items: Destination[] };
 
 const STORE_NAV = "tcn-nav-expanded";
 
-export function AppNav() {
+export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const { data: session } = useSession();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  // Les trois valeurs que seul le client connaît, en un seul état : le rendu
-  // serveur part du rail replié, sans athlète, raccourci PC.
+  // `expanded` vient désormais du cookie lu par `app/layout.tsx` (#482,
+  // NAV-3), synchrone dès le premier rendu — plus rien à y lire au montage.
+  // `athlete` et raccourci clavier restent client-only : `localStorage` et
+  // `navigator` n'existent pas au rendu serveur.
   const [{ expanded, athlete, kbd }, setClient] = useState({
-    expanded: false,
+    expanded: initialExpanded,
     athlete: null as PickedAthlete | null,
     kbd: "Ctrl K",
   });
 
   useEffect(() => {
-    let stored: string | null = null;
-    try {
-      stored = window.localStorage.getItem(STORE_NAV);
-    } catch {
-      /* mode privé : on reste sur le rail compact. */
-    }
-    // `localStorage` et la plateforme n'existent pas au rendu serveur :
-    // l'alignement ne peut avoir lieu qu'au montage, en un seul `setState`.
+    // `localStorage` et `navigator` n'existent pas au rendu serveur : leur
+    // lecture ne peut avoir lieu qu'au montage, en un seul `setState`.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setClient({
-      expanded: stored === "1",
+    setClient((c) => ({
+      ...c,
       athlete: readAthlete(),
       kbd: /Mac|iPhone|iPad/i.test(navigator.userAgent) ? "⌘K" : "Ctrl K",
-    });
+    }));
   }, []);
 
   // ⌘K / Ctrl+K ouvre la recherche athlète depuis n'importe où. Escape est
@@ -90,11 +86,12 @@ export function AppNav() {
 
   function setExpanded(next: boolean) {
     setClient((c) => ({ ...c, expanded: next }));
-    try {
-      window.localStorage.setItem(STORE_NAV, next ? "1" : "0");
-    } catch {
-      /* l'état vaut alors pour l'onglet en cours seul. */
-    }
+    // Cookie plutôt que `localStorage` (#482, NAV-3) : lu par `app/layout.tsx`
+    // au prochain chargement, pour peindre la bonne largeur avant la
+    // peinture — jamais relayé à l'API, donc sans effet sur le Data Cache
+    // (#352). Un an de `max-age` : c'est une préférence d'affichage, pas une
+    // session à faire expirer.
+    document.cookie = `${STORE_NAV}=${next ? "1" : "0"}; path=/; max-age=31536000; SameSite=Lax`;
   }
 
   // La nav ne distingue qu'anonyme et connecté : c'est le seul échelon que la
