@@ -153,6 +153,15 @@ describe("RaceFinishers", () => {
     expect(screen.getByRole("link", { name: /Suivant/ })).toHaveAttribute("href", "/courses/1?page=4");
   });
 
+  it("relie « sur N » au champ de saut par aria-describedby, pas seulement par proximité visuelle (#485)", () => {
+    afficher({ total: 100, pageSize: 20, page: 3 });
+
+    const champ = screen.getByLabelText("Aller à la page");
+    const idDescription = champ.getAttribute("aria-describedby");
+    expect(idDescription).toBeTruthy();
+    expect(document.getElementById(idDescription!)).toHaveTextContent("sur 5");
+  });
+
   it("omet le paramètre page pour revenir à la première : l'URL par défaut reste propre", () => {
     afficher({ total: 100, pageSize: 20, page: 2 });
     expect(screen.getByRole("link", { name: /Précédent/ })).toHaveAttribute("href", "/courses/1");
