@@ -184,7 +184,8 @@ export function RaceFinishers({
   // Le tri par en-tête ne porte que sur la tranche affichée. Sur 43 pages, le
   // taire rendrait le classement trompeur ; sous `page_size=all`, il n'y a rien
   // à dire, le tri est global.
-  const perimetreTri = pageSize == null ? "" : `, sur les ${lignes.length} lignes affichées`;
+  const perimetreTri =
+    pageSize == null ? "" : `, sur ${lignes.length === 1 ? "la ligne affichée" : `les ${lignes.length} lignes affichées`}`;
   const texteAnnonce =
     `${lignes.length} résultat${lignes.length > 1 ? "s" : ""} affiché${lignes.length > 1 ? "s" : ""}` +
     (libelleTri

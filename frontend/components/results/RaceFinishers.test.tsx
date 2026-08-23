@@ -624,6 +624,18 @@ describe("RaceFinishers", () => {
     ).toBeInTheDocument();
   });
 
+  it("accorde le périmètre au singulier quand une seule ligne est affichée", async () => {
+    afficher({ participations: [data[0]], total: 860, pageSize: 20 });
+
+    expect(
+      screen.getByRole("button", { name: "Trier par temps total, croissant, sur la ligne affichée" }),
+    ).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /Trier par temps total/ }));
+
+    expect(screen.getByRole("status").textContent).toContain("sur la ligne affichée");
+  });
+
   // ── Cible tactile (#479) ────────────────────────────────────────────────────
 
   it("porte l'en-tête triable à la taille tactile minimale (24 px)", () => {
