@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, Badge, FormatChip, AnnonceStatut } from "@/components/tcn";
@@ -16,9 +16,10 @@ import { eventTypeLabel } from "@/lib/constants";
 import { formatToken } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
 import { formatEventName } from "@/lib/utils/event";
+import { groupEventsByCompetition, eventSuffix, type EventGroup } from "@/lib/utils/eventGroups";
 import { gridColumns, gridMinWidth, type Track } from "@/lib/utils/table";
 import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
-import type { EventPage, ParticipationFilters } from "@/lib/types";
+import type { EventOut, EventPage, ParticipationFilters } from "@/lib/types";
 
 const SORT_OPTIONS = [
   { value: "date_desc", label: "Date (récent)" },
@@ -48,7 +49,24 @@ export function EventList({
   const sp = useSearchParams();
   const sentinel = useRef<HTMLDivElement | null>(null);
 
+  const [ouverts, setOuverts] = useState<ReadonlySet<number>>(new Set());
+
   const events = data?.pages.flatMap((p) => p.items) ?? [];
+  // #463 : replier les épreuves d'une même compétition sous une ligne parente.
+  // ponytail: totaux sommés sur les seules épreuves chargées — un groupe à
+  // cheval sur deux pages du défilement infini affiche donc un total partiel
+  // jusqu'à la page suivante. Un compteur exact dès la 1re page demanderait un
+  // agrégat côté backend (events_page), à ouvrir si la gêne se constate.
+  const groups = groupEventsByCompetition(events);
+
+  function basculer(id: number) {
+    setOuverts((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  }
+
   const totalEvents = data?.pages[0]?.total_events ?? 0;
   const totalParticipations = data?.pages[0]?.total_participations ?? 0;
 
@@ -158,44 +176,18 @@ export function EventList({
             <div></div>
           </div>
 
-          {events.map((ev) => (
-            <Link
-              key={ev.id}
-              href={`/courses/${ev.id}`}
-              className="tcn-rowlink"
-              style={{
-                display: "grid",
-                gridTemplateColumns: COLS,
-                columnGap: GAP,
-                alignItems: "center",
-                padding: `15px ${PADDING_X}px`,
-                borderBottom: "1px solid var(--tcn-border-faint)",
-              }}
-            >
-              <div style={{ fontSize: 14, color: "var(--tcn-text-muted)", fontWeight: 600 }}>
-                {formatDate(ev.event_date)}
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                <span style={{ fontSize: 15, color: "var(--tcn-ink)", fontWeight: 700 }}>{formatEventName(ev.event_name, ev.is_relay)}</span>
-                {ev.is_relay && <Badge variant="orange">Relais</Badge>}
-              </div>
-              <div style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>{eventTypeLabel(ev.event_type)}</div>
-              <div>
-                <FormatChip>{formatToken(ev.event_type, ev.distance_km)}</FormatChip>
-              </div>
-              <div style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>
-                {ev.total} résultat{ev.total > 1 ? "s" : ""}
-              </div>
-              <div>
-                {ev.tcn_count > 0 ? (
-                  <Badge count>{ev.tcn_count}</Badge>
-                ) : (
-                  <span style={{ color: "var(--tcn-text-faint)" }}>—</span>
-                )}
-              </div>
-              <div style={{ textAlign: "right", color: "var(--tcn-text-disabled)", fontSize: 16 }}>→</div>
-            </Link>
-          ))}
+          {groups.map((groupe) =>
+            groupe.events.length === 1 ? (
+              <EventRow key={groupe.events[0].id} event={groupe.events[0]} />
+            ) : (
+              <CompetitionRows
+                key={groupe.events[0].id}
+                groupe={groupe}
+                ouvert={ouverts.has(groupe.events[0].id)}
+                onBascule={() => basculer(groupe.events[0].id)}
+              />
+            ),
+          )}
         </div>
       </div>
 
@@ -212,5 +204,117 @@ export function EventList({
         </p>
       )}
     </Card>
+  );
+}
+
+const ROW_STYLE = {
+  display: "grid",
+  gridTemplateColumns: COLS,
+  columnGap: GAP,
+  alignItems: "center",
+  padding: `15px ${PADDING_X}px`,
+  borderBottom: "1px solid var(--tcn-border-faint)",
+} as const;
+
+/** Une épreuve. `label` remplace son nom quand un groupe porte déjà le préfixe. */
+function EventRow({ event: ev, label, indent }: { event: EventOut; label?: string; indent?: boolean }) {
+  return (
+    <Link href={`/courses/${ev.id}`} className="tcn-rowlink" style={ROW_STYLE}>
+      <div
+        style={{
+          fontSize: 14,
+          color: "var(--tcn-text-muted)",
+          fontWeight: 600,
+          paddingLeft: indent ? 22 : 0,
+        }}
+      >
+        {formatDate(ev.event_date)}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+        <span style={{ fontSize: 15, color: "var(--tcn-ink)", fontWeight: 700 }}>
+          {formatEventName(label ?? ev.event_name, ev.is_relay)}
+        </span>
+        {ev.is_relay && <Badge variant="orange">Relais</Badge>}
+      </div>
+      <div style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>{eventTypeLabel(ev.event_type)}</div>
+      <div>
+        <FormatChip>{formatToken(ev.event_type, ev.distance_km)}</FormatChip>
+      </div>
+      <div style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>
+        {ev.total} résultat{ev.total > 1 ? "s" : ""}
+      </div>
+      <div>
+        {ev.tcn_count > 0 ? (
+          <Badge count>{ev.tcn_count}</Badge>
+        ) : (
+          <span style={{ color: "var(--tcn-text-faint)" }}>—</span>
+        )}
+      </div>
+      <div style={{ textAlign: "right", color: "var(--tcn-text-disabled)", fontSize: 16 }}>→</div>
+    </Link>
+  );
+}
+
+/** Ligne de compétition parente dépliable, suivie de ses épreuves quand elle l'est. */
+function CompetitionRows({
+  groupe,
+  ouvert,
+  onBascule,
+}: {
+  groupe: EventGroup;
+  ouvert: boolean;
+  onBascule: () => void;
+}) {
+  return (
+    <>
+      <button
+        type="button"
+        onClick={onBascule}
+        aria-expanded={ouvert}
+        className="tcn-rowlink"
+        style={{
+          ...ROW_STYLE,
+          width: "100%",
+          textAlign: "left",
+          background: "none",
+          border: "none",
+          borderBottom: "1px solid var(--tcn-border-faint)",
+          cursor: "pointer",
+        }}
+      >
+        <div style={{ fontSize: 14, color: "var(--tcn-text-muted)", fontWeight: 600 }}>
+          {formatDate(groupe.events[0].event_date)}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+          <span style={{ fontSize: 15, color: "var(--tcn-ink)", fontWeight: 700 }}>{groupe.prefix}</span>
+        </div>
+        {/* Le décompte tient la colonne « Type » : les épreuves d'une même
+            compétition n'en partagent ni le type ni le format. */}
+        <div style={{ fontSize: 14, color: "var(--tcn-text-muted)" }}>
+          {groupe.events.length} épreuves
+        </div>
+        <div />
+        <div style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>
+          {groupe.total} résultat{groupe.total > 1 ? "s" : ""}
+        </div>
+        <div>
+          {groupe.tcnCount > 0 ? (
+            <Badge count>{groupe.tcnCount}</Badge>
+          ) : (
+            <span style={{ color: "var(--tcn-text-faint)" }}>—</span>
+          )}
+        </div>
+        <div
+          aria-hidden
+          style={{ textAlign: "right", color: "var(--tcn-text-disabled)", fontSize: 16 }}
+        >
+          {ouvert ? "▾" : "▸"}
+        </div>
+      </button>
+      {ouvert &&
+        groupe.events.map((ev) => (
+          <EventRow key={ev.id} event={ev} label={eventSuffix(ev.event_name, groupe.prefix)} indent />
+        ))}
+    </>
   );
 }
