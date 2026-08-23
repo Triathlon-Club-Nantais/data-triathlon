@@ -101,3 +101,31 @@ describe("ResultsFilters — recherche live", () => {
     expect(croix.parentElement?.className).toMatch(/(^|\s)h-7(\s|$)/);
   });
 });
+
+describe("ResultsFilters — libellés associés (WCAG 3.3.2)", () => {
+  beforeEach(() => {
+    push.mockReset();
+    replace.mockReset();
+    searchParams = new URLSearchParams();
+  });
+
+  it("associe chacun des cinq libellés à son champ", () => {
+    render(<ResultsFilters />);
+
+    // Un `<label>` posé à côté d'un `<input>` n'est pas un libellé : un lecteur
+    // d'écran annonçait « Du » et « Au » comme deux champs de date anonymes.
+    expect(screen.getByLabelText("Athlète")).toBeInTheDocument();
+    expect(screen.getByLabelText("Épreuve")).toBeInTheDocument();
+    expect(screen.getByLabelText("Discipline")).toBeInTheDocument();
+    expect(screen.getByLabelText("Du")).toBeInTheDocument();
+    expect(screen.getByLabelText("Au")).toBeInTheDocument();
+  });
+
+  it("associe les deux dates par htmlFor/id, pas par proximité", () => {
+    render(<ResultsFilters />);
+
+    const du = screen.getByLabelText("Du");
+    expect(du).toHaveAttribute("type", "date");
+    expect(du.id).toBeTruthy();
+  });
+});

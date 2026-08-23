@@ -141,8 +141,9 @@ export function ResultsFilters() {
     <Card>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap items-end gap-3">
-          <Field label="Athlète">
+          <Field id="filtre-athlete" label="Athlète">
             <Input
+              id="filtre-athlete"
               value={name}
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && apply()}
@@ -150,8 +151,9 @@ export function ResultsFilters() {
               className="w-full sm:w-48"
             />
           </Field>
-          <Field label="Épreuve">
+          <Field id="filtre-epreuve" label="Épreuve">
             <Input
+              id="filtre-epreuve"
               value={eventName}
               onChange={(e) => setEventName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && apply()}
@@ -159,12 +161,16 @@ export function ResultsFilters() {
               className="w-full sm:w-48"
             />
           </Field>
-          <Field label="Discipline">
+          <Field id="filtre-discipline" label="Discipline">
             <Select
               value={eventType || ALL}
               onValueChange={(v) => setEventType(v === ALL ? "" : (v as string))}
             >
-              <SelectTrigger className="h-9 w-full sm:w-48">
+              <SelectTrigger
+                id="filtre-discipline"
+                aria-labelledby="filtre-discipline-label"
+                className="h-9 w-full sm:w-48"
+              >
                 <SelectValue placeholder="Toutes les disciplines">
                   {(v) =>
                     !v || v === ALL ? "Toutes les disciplines" : eventTypeLabel(v as string)
@@ -181,16 +187,18 @@ export function ResultsFilters() {
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Du">
+          <Field id="filtre-date-du" label="Du">
             <Input
+              id="filtre-date-du"
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
               className="w-full sm:w-40"
             />
           </Field>
-          <Field label="Au">
+          <Field id="filtre-date-au" label="Au">
             <Input
+              id="filtre-date-au"
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
@@ -233,10 +241,31 @@ export function ResultsFilters() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+/**
+ * Libellé **associé** à son champ, et non simplement posé au-dessus.
+ *
+ * `htmlFor` ne désigne que les contrôles de formulaire étiquetables : le
+ * `SelectTrigger` de Base UI étant un `<button>`, il se référence par
+ * `aria-labelledby` sur l'`id` du libellé, d'où le `${id}-label`.
+ */
+function Field({
+  id,
+  label,
+  children,
+}: {
+  id: string;
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="flex w-full flex-col gap-1.5 sm:w-auto">
-      <label className="text-xs font-medium text-[var(--tcn-text-faint)]">{label}</label>
+      <label
+        id={`${id}-label`}
+        htmlFor={id}
+        className="text-xs font-medium text-[var(--tcn-text-faint)]"
+      >
+        {label}
+      </label>
       {children}
     </div>
   );
