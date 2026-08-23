@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 
-type Option = string | { value: string; label: ReactNode; dot?: boolean };
+type Option = string | { value: string; label: ReactNode; dot?: boolean; disabled?: boolean };
 
 /**
  * Toggle choix-unique. Segment actif = encre ; variante orange pour les formats.
@@ -32,6 +32,7 @@ export function SegmentedControl({
         const label = typeof opt === "string" ? opt : opt.label;
         const dot = typeof opt === "object" ? opt.dot : false;
         const active = val === value;
+        const desactive = typeof opt === "object" ? !!opt.disabled : false;
 
         const inkStyle: CSSProperties = active
           ? { background: "var(--tcn-ink)", color: "#fff", border: "1.5px solid var(--tcn-ink)" }
@@ -49,7 +50,13 @@ export function SegmentedControl({
             type="button"
             className="tcn-segmented-btn"
             aria-pressed={active}
-            onClick={() => onChange(val)}
+            aria-disabled={desactive || undefined}
+            onClick={() => {
+              // `aria-disabled` plutôt que `disabled` : un segment retiré du
+              // parcours clavier disparaîtrait aussi de l'annonce, alors qu'il
+              // porte une information — le club n'a personne sur l'épreuve.
+              if (!desactive) onChange(val);
+            }}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -68,6 +75,7 @@ export function SegmentedControl({
               cursor: "pointer",
               transition: "all var(--tcn-dur-fast)",
               ...skin,
+              ...(desactive ? { opacity: 0.5, cursor: "not-allowed" } : null),
             }}
           >
             {dot ? <span style={{ width: 8, height: 8, borderRadius: 999, background: "var(--tcn-orange)" }} /> : null}

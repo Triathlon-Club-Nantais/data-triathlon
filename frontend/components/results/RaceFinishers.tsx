@@ -223,7 +223,7 @@ export function RaceFinishers({
             onChange={(v) => naviguer({ [SCOPE_PARAM]: v === "tcn" ? SCOPE_CLUB : null })}
             options={[
               { value: "all", label: `Tous les participants (${summary.total})` },
-              { value: "tcn", label: `${CLUB_NAME} (${summary.tcn_count})`, dot: true },
+              { value: "tcn", label: `${CLUB_NAME} (${summary.tcn_count})`, dot: true, disabled: summary.tcn_count === 0 },
             ]}
           />
         </div>
@@ -319,7 +319,9 @@ export function RaceFinishers({
                   <button
                     type="button"
                     onClick={() => naviguer({ q: null })}
-                    style={{ background: "none", border: "none", padding: 0, font: "inherit", fontWeight: 700, color: "var(--tcn-ink)", cursor: "pointer" }}
+                    // `padding` + `minHeight: 24` : plancher tactile WCAG 2.2 2.5.8,
+                    // sous 24 px quand le bouton ne tient sa hauteur que du texte.
+                    style={{ background: "none", border: "none", padding: "4px 0", minHeight: 24, font: "inherit", fontWeight: 700, color: "var(--tcn-ink)", cursor: "pointer" }}
                   >
                     Effacer la recherche
                   </button>
@@ -333,7 +335,9 @@ export function RaceFinishers({
                   <button
                     type="button"
                     onClick={() => naviguer({ [SCOPE_PARAM]: null })}
-                    style={{ background: "none", border: "none", padding: 0, font: "inherit", fontWeight: 700, color: "var(--tcn-ink)", cursor: "pointer" }}
+                    // `padding` + `minHeight: 24` : plancher tactile WCAG 2.2 2.5.8,
+                    // sous 24 px quand le bouton ne tient sa hauteur que du texte.
+                    style={{ background: "none", border: "none", padding: "4px 0", minHeight: 24, font: "inherit", fontWeight: 700, color: "var(--tcn-ink)", cursor: "pointer" }}
                   >
                     Voir tous les participants
                   </button>

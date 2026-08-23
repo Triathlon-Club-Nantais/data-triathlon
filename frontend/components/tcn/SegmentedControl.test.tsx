@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { SegmentedControl } from "./SegmentedControl";
 
 describe("SegmentedControl", () => {
@@ -53,5 +54,25 @@ describe("SegmentedControl", () => {
     // 26 et 34 px selon l'audit UI/UX — un plancher explicite lève le doute.
     render(<SegmentedControl value="a" onChange={() => {}} options={["a", "b"]} />);
     expect(Number.parseInt(screen.getByRole("button", { name: "a" }).style.minHeight, 10)).toBeGreaterThanOrEqual(28);
+  });
+
+  it("n'appelle pas onChange sur une option désactivée", async () => {
+    const onChange = vi.fn();
+    render(
+      <SegmentedControl
+        value="all"
+        onChange={onChange}
+        options={[
+          { value: "all", label: "Tous" },
+          { value: "tcn", label: "TCN", disabled: true },
+        ]}
+      />,
+    );
+
+    const tcn = screen.getByRole("button", { name: "TCN" });
+    expect(tcn).toHaveAttribute("aria-disabled", "true");
+
+    await userEvent.click(tcn);
+    expect(onChange).not.toHaveBeenCalled();
   });
 });
