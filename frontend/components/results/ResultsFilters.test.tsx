@@ -187,4 +187,64 @@ describe("ResultsFilters — volet mobile", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
   });
+
+  it("fermer le volet sans appliquer (Échap) ne laisse pas une discipline abandonnée s'appliquer via Entrée dans « Athlète » (#I2)", async () => {
+    render(<ResultsFilters />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Filtres" }));
+    await screen.findByRole("dialog");
+    const [, disciplineVolet] = screen.getAllByLabelText("Discipline");
+    await userEvent.click(disciplineVolet);
+    await userEvent.click(await screen.findByRole("option", { name: /triathlon m/i }));
+
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    await userEvent.type(screen.getByPlaceholderText("Rechercher un athlète"), "mar{Enter}");
+
+    expect(push).toHaveBeenCalledWith(expect.stringContaining("name=mar"));
+    expect(push.mock.calls.at(-1)?.[0]).not.toContain("event_type=");
+  });
+
+  it("rouvrir le volet après un abandon (Échap) ne montre plus la discipline abandonnée comme active (#I2)", async () => {
+    render(<ResultsFilters />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Filtres" }));
+    await screen.findByRole("dialog");
+    const [, disciplineVolet] = screen.getAllByLabelText("Discipline");
+    await userEvent.click(disciplineVolet);
+    await userEvent.click(await screen.findByRole("option", { name: /triathlon m/i }));
+
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "Filtres" }));
+    await screen.findByRole("dialog");
+    const [, disciplineReouverte] = screen.getAllByLabelText("Discipline");
+    expect(disciplineReouverte).toHaveTextContent("Toutes les disciplines");
+  });
+
+  it("le « Réinitialiser » du bandeau se replie sous `sm`, comme « Filtrer » (#M1)", () => {
+    searchParams = new URLSearchParams("name=marie");
+    render(<ResultsFilters />);
+
+    expect(screen.getByRole("button", { name: "Réinitialiser" }).className).toMatch(
+      /(^|\s)hidden(\s|$)/,
+    );
+  });
+
+  it("« Réinitialiser » du volet ne remet pas à zéro le champ « Athlète », qui n'y figure pas (#M2)", async () => {
+    searchParams = new URLSearchParams("name=marie");
+    render(<ResultsFilters />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Filtres" }));
+    await screen.findByRole("dialog");
+    await userEvent.click(screen.getByRole("button", { name: "Réinitialiser" }));
+
+    expect(push).toHaveBeenCalledWith(expect.stringContaining("name=marie"));
+  });
 });

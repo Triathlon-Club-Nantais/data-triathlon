@@ -42,10 +42,12 @@ Quatre points tranchés en amont du design, avec leur raison :
    l'échappatoire contractuelle de l'API (`backend/app/api/AGENTS.md`) ; c'est
    elle qui rend le tri client exact et le `Ctrl+F` du navigateur utilisable sur
    une grosse épreuve.
-3. **Le volet mobile applique à la validation, pas à la frappe.** C'est
-   l'arbitrage #387 — discipline et dates ne s'appliquent que sur « Filtrer » —
-   qu'un volet à application immédiate contredirait. Le champ « Athlète », hors
-   volet, garde sa recherche live (#383).
+3. **Le volet mobile applique à la validation, pas à la frappe — pour la
+   discipline et les dates.** C'est l'arbitrage #387 — discipline et dates ne
+   s'appliquent que sur « Filtrer » — qu'un volet à application immédiate
+   contredirait. Le champ « Épreuve », comme le champ « Athlète » hors volet,
+   garde sa recherche live (#383) : le volet ne change pas ce régime, il le
+   reproduit tel qu'il existait déjà.
 4. **Le repli mobile ne monte pas sur desktop.** Replier quatre champs derrière
    un bouton coûterait deux clics là où l'espace ne manque pas.
 
@@ -97,8 +99,9 @@ et le passe à `apiServer.getCourse` ; toute autre valeur retombe à `20`. Sans
 cette liste, une URL bricolée (`page_size=500`, dans les bornes du backend)
 afficherait une taille que le sélecteur ne sait pas représenter.
 
-`CourseQuery.page_size` existe déjà côté types, et le backend accepte déjà
-`1..500` plus `all`. **Aucun changement backend.**
+`CourseQuery.page_size` existe déjà côté types, et le backend borne déjà cette
+route à **1..200** (`backend/app/api/v1/courses.py`, `backend/app/api/AGENTS.md`)
+plus `all`. **Aucun changement backend.**
 
 Quand `page_size=all`, le backend renvoie `page_size: null` et `nbPages` vaut 1 :
 la navigation de pages disparaît, le sélecteur reste.
@@ -123,7 +126,10 @@ que si `nbPages > 1` :
   perdre la recherche ni le filtre en cours.
 - Saisie hors bornes : ramenée dans `[1, nbPages]` plutôt que refusée — un « 99 »
   sur 43 pages veut dire « la fin ».
-- Le champ porte un libellé associé, `min`/`max` et `inputMode="numeric"`.
+- Le champ porte un libellé associé et `inputMode="numeric"`. Pas de `max` :
+  la validation native du navigateur bloquerait la soumission au-delà, avant
+  que le clamp indulgent `[1, nbPages]` ci-dessus n'ait sa chance de ramener
+  un « 99 » sur 43 pages à la dernière page.
 - Première/dernière et précédent/suivant restent des `<Link>`, comme aujourd'hui :
   ouvrables en nouvel onglet et fonctionnels sans JavaScript.
 - Changer la taille de page renvoie à la **page 1** : la position courante n'a
