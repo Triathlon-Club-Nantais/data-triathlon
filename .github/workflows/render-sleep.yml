@@ -1,0 +1,117 @@
+name: Render sleep
+
+run-name: "render-sleep · ${{ inputs.action || github.event.schedule }} · ${{ inputs.target || 'auto' }}"
+
+# Tient les deux services backend sous les **750 h d'instance par mois** que le
+# plan free partage sur tout le workspace Render (décision : #530, `docs/ci-cd.md`).
+#
+# Deux régimes, pas un :
+#
+# - la **production** dort la nuit et se rallume au matin (1 h → 4 h UTC) ;
+# - la **preview** ne se rallume jamais toute seule. C'est `deploy.yml` qui la
+#   reprend avant son deploy hook, le temps de la vérification post-déploiement ;
+#   le cron de 1 h la recouche. C'est là qu'est le gros du quota : un mois fait
+#   730 h, donc deux services éveillés en permanence en réclament 1460 pour 750
+#   disponibles, quand la fenêtre nocturne seule n'en rend que ~90 par service.
+#
+# **Heure UTC, pas heure de Paris** : le cron d'Actions ignore l'heure d'été, si
+# bien que la coupure tombe entre 2 h et 5 h l'hiver, 3 h et 6 h l'été. Viser
+# Paris à la minute demanderait deux jeux de crons et une bascule saisonnière à
+# entretenir, pour une fenêtre qui reste nocturne dans les deux cas.
+#
+# **Une planification muette est une panne invisible**, et elle coûte plus cher
+# ici que dans `batch.yml` : GitHub désactive les workflows planifiés d'un dépôt
+# sans activité depuis 60 jours (D13, `docs/ci-cd.md`), sans rien dire — et si
+# la désactivation tombe entre le cron de 1 h et celui de 4 h, la production
+# reste **éteinte** jusqu'à ce que quelqu'un s'en aperçoive. Deux filets, tous
+# deux volontaires : le `workflow_dispatch` ci-dessous, et le `resume` que
+# `deploy.yml` exécute avant chaque deploy hook — un déploiement rallume donc
+# toujours sa cible, quel que soit l'état du cron.
+on:
+  schedule:
+    # Coucher : les deux services.
+    - cron: "0 1 * * *"
+    # Lever : la production seule — la preview attend son prochain déploiement.
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Suspendre ou reprendre"
+        type: choice
+        options: [resume, suspend]
+        default: resume
+      target:
+        description: "Service visé"
+        type: choice
+        options: [preview, production, both]
+        default: preview
+
+concurrency:
+  group: render-sleep
+  cancel-in-progress: false
+
+# Aucun step n'écrit avec `GITHUB_TOKEN` : Render est appelé avec `RENDER_API_KEY`.
+permissions:
+  contents: read
+
+# Le `resume` est le défaut de repli : sur un déclenchement dont on n'attend pas
+# le nom de cron (une entrée ajoutée sans être branchée ici, par exemple), mieux
+# vaut rallumer que couper.
+env:
+  ACTION: ${{ inputs.action || (github.event.schedule == '0 1 * * *' && 'suspend' || 'resume') }}
+  TARGET: ${{ inputs.target || (github.event.schedule == '0 1 * * *' && 'both' || 'production') }}
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      # `fail-fast: false` : une preview en échec ne doit pas emporter le lever
+      # de la production.
+      fail-fast: false
+      matrix:
+        include:
+          - environment: preview
+            hook: RENDER_DEPLOY_HOOK_PREVIEW
+          - environment: production
+            hook: RENDER_DEPLOY_HOOK_PROD
+    # L'environment porte le deploy hook, dont l'ID de service est extrait. Il
+    # porte aussi ses règles de protection : **une required reviewer posée sur
+    # `production` (cf. docs/ci-cd.md) mettrait le lever de 4 h en attente d'une
+    # approbation humaine**, donc laisserait le site éteint jusqu'à ce que
+    # quelqu'un clique. Ne pas en poser, ou exclure ce workflow.
+    environment: ${{ matrix.environment }}
+    steps:
+      # `matrix` n'est pas lisible dans un `if` de job, seulement de step : le
+      # runner démarre donc aussi pour le service non visé, et s'arrête ici.
+      # Un runner à vide une fois par jour coûte moins qu'un job de calcul
+      # préalable dont la sortie n'aurait servi qu'à ça.
+      - name: "Render — ${{ matrix.environment }}"
+        if: ${{ env.TARGET == 'both' || env.TARGET == matrix.environment }}
+        env:
+          DEPLOY_HOOK: ${{ secrets[matrix.hook] }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          set -euo pipefail
+          # Même extraction que `deploy.yml` : l'ID de service vit dans le
+          # deploy hook (`…/deploy/srv-xxx?key=…`) plutôt que dans un secret à
+          # part, ce qui vise par construction le service qu'on déploie. Le
+          # dépôt est public, donc ses logs Actions le sont : `service_id` est
+          # une *sous-chaîne* d'un secret, et GitHub ne masque que la valeur
+          # exacte, pas ses fragments.
+          service_id=$(printf '%s' "$DEPLOY_HOOK" | sed -n 's#.*/deploy/\(srv-[^/?]*\).*#\1#p')
+          [ -n "$service_id" ] || { echo "::error::ID de service introuvable dans le deploy hook"; exit 1; }
+          echo "::add-mask::$service_id"
+          # `--fail-with-body` et non `-f` : sans lui, un refus ne rend que
+          # « curl: (22) … error: 4xx », sans le motif de Render. Deux motifs
+          # sont attendus ici et **non confirmés par la documentation
+          # publique** — la disponibilité de suspend/resume sur le plan free,
+          # et le code rendu quand le service est déjà dans l'état demandé
+          # (l'API répond 202 au changement). Les deux se lisent au premier
+          # passage réel, d'où la validation sur preview avant la production.
+          curl -sS --fail-with-body -X POST \
+            -H "Authorization: Bearer $RENDER_API_KEY" \
+            --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 \
+            "https://api.render.com/v1/services/$service_id/$ACTION"
+          echo
+          echo "$ACTION appliqué au service ${{ matrix.environment }}"
