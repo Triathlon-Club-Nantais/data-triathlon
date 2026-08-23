@@ -54,6 +54,14 @@ concurrency:
 permissions:
   contents: read
 
+# **Ce workflow ne déclare aucun environment, et c'est la condition pour qu'il
+# fonctionne.** Les deploy hooks — d'où `deploy.yml` tire ses ID de service —
+# sont des secrets d'environment, or `Production` porte une *required reviewer*
+# (`docs/ci-cd.md`). Un job qui déclarerait cet environment mettrait le lever de
+# 4 h en attente d'une approbation humaine : le site resterait éteint jusqu'à ce
+# que quelqu'un clique, tous les matins. Les ID sont donc résolus par leur nom
+# via l'API, avec le seul `RENDER_API_KEY`, qui est un secret **de dépôt**.
+#
 # Le `resume` est le défaut de repli : sur un déclenchement dont on n'attend pas
 # le nom de cron (une entrée ajoutée sans être branchée ici, par exemple), mieux
 # vaut rallumer que couper.
@@ -70,17 +78,19 @@ jobs:
       # de la production.
       fail-fast: false
       matrix:
+        # Les **noms** des services, pas leurs ID. Un nom n'est pas un secret —
+        # `docs/ci-cd.md` les porte déjà en clair — là où les `srv-…` restent
+        # volontairement hors du dépôt, qui est public. Si un service est
+        # renommé dans le dashboard, c'est cette ligne qui se corrige, et le
+        # workflow sort **rouge** en attendant : il ne peut pas viser à côté.
         include:
           - environment: preview
-            hook: RENDER_DEPLOY_HOOK_PREVIEW
+            service_name: triathlon-backend-preview
           - environment: production
-            hook: RENDER_DEPLOY_HOOK_PROD
-    # L'environment porte le deploy hook, dont l'ID de service est extrait. Il
-    # porte aussi ses règles de protection : **une required reviewer posée sur
-    # `production` (cf. docs/ci-cd.md) mettrait le lever de 4 h en attente d'une
-    # approbation humaine**, donc laisserait le site éteint jusqu'à ce que
-    # quelqu'un clique. Ne pas en poser, ou exclure ce workflow.
-    environment: ${{ matrix.environment }}
+            # Le service de prod ne s'appelle pas `data-triathlon` : c'est le
+            # nom du dépôt, et la confusion a déjà coûté #259 côté blueprint
+            # (constat repris dans l'audit OWASP du 16/08/2026).
+            service_name: triathlon-backend-production
     steps:
       # `matrix` n'est pas lisible dans un `if` de job, seulement de step : le
       # runner démarre donc aussi pour le service non visé, et s'arrête ici.
@@ -89,18 +99,26 @@ jobs:
       - name: "Render — ${{ matrix.environment }}"
         if: ${{ env.TARGET == 'both' || env.TARGET == matrix.environment }}
         env:
-          DEPLOY_HOOK: ${{ secrets[matrix.hook] }}
+          SERVICE_NAME: ${{ matrix.service_name }}
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: |
           set -euo pipefail
-          # Même extraction que `deploy.yml` : l'ID de service vit dans le
-          # deploy hook (`…/deploy/srv-xxx?key=…`) plutôt que dans un secret à
-          # part, ce qui vise par construction le service qu'on déploie. Le
-          # dépôt est public, donc ses logs Actions le sont : `service_id` est
-          # une *sous-chaîne* d'un secret, et GitHub ne masque que la valeur
-          # exacte, pas ses fragments.
-          service_id=$(printf '%s' "$DEPLOY_HOOK" | sed -n 's#.*/deploy/\(srv-[^/?]*\).*#\1#p')
-          [ -n "$service_id" ] || { echo "::error::ID de service introuvable dans le deploy hook"; exit 1; }
+          # Le filtre `name` de l'API n'est pas une égalité : sans le `select`
+          # exact ci-dessous, `data-triathlon` ramènerait aussi tout service
+          # dont le nom le contient, et on suspendrait le mauvais. `length == 1`
+          # est donc la garde qui compte — zéro ou deux résultats font échouer
+          # le job plutôt que d'agir sur une supposition.
+          service_id=$(curl -sS --fail-with-body \
+            -H "Authorization: Bearer $RENDER_API_KEY" \
+            --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 \
+            --get --data-urlencode "name=$SERVICE_NAME" \
+            --data "type=web_service" --data "limit=20" \
+            "https://api.render.com/v1/services" \
+            | jq -r --arg n "$SERVICE_NAME" \
+                '[.[].service | select(.name == $n) | .id] | if length == 1 then .[0] else "" end')
+          [ -n "$service_id" ] || { echo "::error::Aucun service web unique nommé « $SERVICE_NAME » chez Render"; exit 1; }
+          # Le dépôt est public, donc ses logs Actions le sont : l'ID n'y entre
+          # pas, alors même qu'il ne vient plus d'un secret ici.
           echo "::add-mask::$service_id"
           # `--fail-with-body` et non `-f` : sans lui, un refus ne rend que
           # « curl: (22) … error: 4xx », sans le motif de Render. Deux motifs

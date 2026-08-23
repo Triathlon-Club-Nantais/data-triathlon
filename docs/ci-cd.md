@@ -60,11 +60,18 @@ région Frankfurt, plan free, runtime python :
 
 | Rôle | Service | Accès |
 |---|---|---|
-| **PROD** | `data-triathlon` (existant) | dashboard Render → service `data-triathlon` → Settings |
+| **PROD** | `triathlon-backend-production` | dashboard Render → service `triathlon-backend-production` → Settings |
 | **PREVIEW** | `triathlon-backend-preview` (créé via MCP) | dashboard Render → service `triathlon-backend-preview` → Settings |
 
 > Les IDs de service (`srv-…`) et les URLs publiques sont visibles dans le
 > dashboard Render ; ils ne sont volontairement pas committés ici (dépôt public).
+
+> **Le service de prod ne s'appelle pas `data-triathlon`** — c'est le nom du
+> dépôt. Ce tableau l'a écrit jusqu'ici, comme `render.yaml` avant #259 ; le
+> constat est celui de l'audit OWASP du 16/08/2026. Le *slug* du service, lui,
+> est `data-triathlon-vq6u`, d'où l'URL `.onrender.com`. La distinction n'est
+> plus documentaire depuis `render-sleep.yml`, qui résout les services **par
+> leur nom** via l'API : un nom faux y sort rouge, il ne vise pas à côté.
 
 Réglages restants à faire **dans le dashboard** (non supportés par le MCP) :
 
@@ -696,10 +703,19 @@ parades, volontaires toutes les deux : le `workflow_dispatch` (`action: resume`,
 `target: production`), et le `resume` de `deploy.yml` — un déploiement rallume
 toujours sa cible, quel que soit l'état du cron.
 
-**Ne pas poser de required reviewer sur l'environment `production`** (cf.
-« Environments GitHub » plus haut) sans exclure ce workflow : le job déclare
-l'environment pour lire son deploy hook, et une approbation manuelle mettrait le
-lever de 4 h en attente — donc laisserait le site éteint jusqu'au clic.
+**Ce workflow ne déclare aucun environment, et c'est la condition pour qu'il
+fonctionne.** L'environment `Production` porte une *required reviewer* (cf.
+« Environments GitHub » plus haut) : un job qui le déclarerait — comme le fait
+`deploy.yml` pour lire son deploy hook — mettrait le lever de 4 h en attente
+d'une approbation humaine, donc laisserait le site éteint jusqu'au clic, tous
+les matins. D'où la résolution des services **par leur nom** via
+`GET /v1/services`, qui ne demande que `RENDER_API_KEY`, secret **de dépôt**.
+
+Le prix de ce choix est que les noms vivent dans le workflow. Ils n'y sont pas
+un secret — ce document les porte déjà en clair, à la différence des `srv-…` —
+et un renommage dans le dashboard fait sortir le job **rouge** plutôt que de le
+laisser viser un autre service : le filtre `name` de l'API n'étant pas une
+égalité, le workflow n'agit que sur une correspondance exacte et **unique**.
 
 **À constater au premier passage réel**, dans cet ordre — la documentation
 publique de Render ne répond ni à l'un ni à l'autre :
