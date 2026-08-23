@@ -56,7 +56,7 @@ export function AdminIndex() {
     return (
       <EmptyState
         title="Aucun écran d'administration ne vous est ouvert"
-        description="Ces écrans s'ouvrent avec un rôle. Demandez-en un à un administrateur du club."
+        description="Ces écrans s'ouvrent avec les pouvoirs correspondants. Demandez-les à un administrateur du club."
       />
     );
 
@@ -73,10 +73,16 @@ export function AdminIndex() {
                 {/* L'anneau de focus est celui du reste du front — trait opaque
                     `--tcn-orange` à 3,32:1 sur `--tcn-paper` (cf. `.tcn-btn` et
                     consorts dans `globals.css`). Le halo `ring-ring/50` seul
-                    tombait à 1,86:1, sous le seuil WCAG 1.4.11. */}
+                    tombait à 1,86:1, sous le seuil WCAG 1.4.11.
+                    **Pas d'`outline-none` ici** : en Tailwind v4 il ne se
+                    contente pas d'annuler l'anneau au repos, il pose
+                    `--tw-outline-style: none`, dont `focus-visible:outline-2`
+                    dépend — l'anneau ne se dessinait pas du tout (constaté au
+                    navigateur, invisible en revue de code). Sans lui, le repos
+                    n'a pas d'anneau de toute façon. */}
                 <Link
                   href={item.href}
-                  className="block h-full rounded-xl outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--tcn-orange)]"
+                  className="block h-full rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--tcn-orange)]"
                 >
                   <Card className="h-full gap-2 p-6 transition-all hover:ring-foreground/25">
                     <CardTitle>{item.label}</CardTitle>
