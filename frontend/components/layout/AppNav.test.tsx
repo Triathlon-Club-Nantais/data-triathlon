@@ -6,11 +6,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
 import type { SessionUser } from "@/lib/types";
 
-const { push, getSession, logout, listParticipations, countCourses } = vi.hoisted(() => ({
+const { push, getSession, logout, searchAthletes, countCourses } = vi.hoisted(() => ({
   push: vi.fn(),
   getSession: vi.fn(),
   logout: vi.fn(),
-  listParticipations: vi.fn(),
+  searchAthletes: vi.fn(),
   countCourses: vi.fn(),
 }));
 
@@ -63,7 +63,7 @@ vi.mock("next/link", async () => {
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { listParticipations, getSession, logout, countCourses } };
+  return { ...original, apiClient: { searchAthletes, getSession, logout, countCourses } };
 });
 
 import { AppNav } from "./AppNav";
@@ -111,7 +111,7 @@ beforeEach(() => {
   push.mockClear();
   montages.clear();
   chemin.courant = "/dashboard";
-  listParticipations.mockResolvedValue([]);
+  searchAthletes.mockResolvedValue([]);
 
   // Node 20 (la CI) fournit `window.localStorage` à jsdom, Node 26 non. Sans
   // stock déterministe, la persistance de l'état déplié fuit d'un test à
@@ -314,8 +314,8 @@ describe("AppNav — prénom de l'athlète retenu (#264)", () => {
     // Le bout en bout : le picker écrit le stock que le rail relit. C'est
     // `AthletePicker` qui aplatissait `prenom` et `nom` en une seule chaîne,
     // rendant le prénom indevinable en aval.
-    listParticipations.mockResolvedValue([
-      { athlete: { id: 12, prenom: "Jean Gael", nom: "Dupont", gender: "M", club: "TCN" } },
+    searchAthletes.mockResolvedValue([
+      { id: 12, prenom: "Jean Gael", nom: "Dupont", gender: "M", club: "TCN", participation_count: 1 },
     ]);
     afficher(null);
     await userEvent.keyboard("{Control>}k{/Control}");
