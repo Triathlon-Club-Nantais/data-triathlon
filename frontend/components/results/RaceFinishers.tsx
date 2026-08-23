@@ -311,17 +311,31 @@ export function RaceFinishers({
                   </Link>
                 }
               />
-            ) : rechercheUrl || filtreClub ? (
+            ) : rechercheUrl ? (
               <EmptyState
                 bare
                 title="Aucun athlète ne correspond à cette recherche"
                 action={
                   <button
                     type="button"
-                    onClick={() => naviguer({ q: null, [SCOPE_PARAM]: null })}
+                    onClick={() => naviguer({ q: null })}
                     style={{ background: "none", border: "none", padding: 0, font: "inherit", fontWeight: 700, color: "var(--tcn-ink)", cursor: "pointer" }}
                   >
                     Effacer la recherche
+                  </button>
+                }
+              />
+            ) : filtreClub ? (
+              <EmptyState
+                bare
+                title={`Aucun athlète du ${CLUB_NAME} sur cette épreuve`}
+                action={
+                  <button
+                    type="button"
+                    onClick={() => naviguer({ [SCOPE_PARAM]: null })}
+                    style={{ background: "none", border: "none", padding: 0, font: "inherit", fontWeight: 700, color: "var(--tcn-ink)", cursor: "pointer" }}
+                  >
+                    Voir tous les participants
                   </button>
                 }
               />

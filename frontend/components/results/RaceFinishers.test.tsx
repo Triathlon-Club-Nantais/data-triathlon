@@ -5,6 +5,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { CourseSummary, Participation } from "@/lib/types";
 import { SCOPE_CLUB, SCOPE_PARAM } from "@/lib/scope";
+import { CLUB_NAME } from "@/lib/club";
 
 const push = vi.fn();
 let searchParams = new URLSearchParams();
@@ -354,13 +355,41 @@ describe("RaceFinishers", () => {
     expect(screen.getByText("Aucun athlète ne correspond à cette recherche")).toBeInTheDocument();
   });
 
-  it("efface la recherche et le filtre club quand rien ne correspond (revue de code #476)", async () => {
+  it("n'efface que la recherche quand le filtre club est aussi actif (tâche 8, supersède la revue #476)", async () => {
     searchParams = new URLSearchParams("q=zzz&" + SCOPE_PARAM + "=" + SCOPE_CLUB);
     afficher({ participations: [], total: 0 });
 
     await userEvent.click(screen.getByRole("button", { name: "Effacer la recherche" }));
 
+    expect(push).toHaveBeenCalledWith(`/courses/1?${SCOPE_PARAM}=${SCOPE_CLUB}`);
+  });
+
+  it("ne parle pas de recherche quand seul le filtre club est actif", () => {
+    // Course sans athlète TCN : « Aucun athlète ne correspond à cette recherche »
+    // alors qu'aucune recherche n'a été faite.
+    searchParams = new URLSearchParams(`${SCOPE_PARAM}=${SCOPE_CLUB}`);
+    afficher({ participations: [], total: 0, summary: synthese({ total: 498, tcn_count: 0 }) });
+
+    expect(
+      screen.getByText(`Aucun athlète du ${CLUB_NAME} sur cette épreuve`),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/correspond à cette recherche/)).not.toBeInTheDocument();
+  });
+
+  it("offre la sortie du filtre club depuis son message d'absence", async () => {
+    searchParams = new URLSearchParams(`${SCOPE_PARAM}=${SCOPE_CLUB}`);
+    afficher({ participations: [], total: 0, summary: synthese({ total: 498, tcn_count: 0 }) });
+
+    await userEvent.click(screen.getByRole("button", { name: "Voir tous les participants" }));
+
     expect(push).toHaveBeenCalledWith("/courses/1");
+  });
+
+  it("garde le message de recherche quand une recherche a bien eu lieu", () => {
+    searchParams = new URLSearchParams("q=zzz");
+    afficher({ participations: [], total: 0 });
+
+    expect(screen.getByText("Aucun athlète ne correspond à cette recherche")).toBeInTheDocument();
   });
 
   it("annonce une épreuve sans aucun participant (ETAT-3)", () => {
