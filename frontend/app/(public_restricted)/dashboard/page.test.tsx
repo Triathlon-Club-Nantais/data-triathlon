@@ -202,14 +202,28 @@ describe("DashboardPage", () => {
     url.qs = "seasons=2026,2025";
     await renderDashboard({ seasons: "2026,2025" });
 
-    const barre = screen.getByLabelText("Choisir les saisons").parentElement;
+    const barre = screen.getByTestId("dashboard-toolbar");
     const tags = screen.getByTestId("season-tags");
 
-    expect(barre).not.toBeNull();
+    expect(barre).toContainElement(screen.getByLabelText("Choisir les saisons"));
     expect(barre).toContainElement(screen.getByLabelText("Inclure les autres disciplines"));
     expect(barre).not.toContainElement(tags);
     expect(tags).toHaveTextContent("Saison 2026");
     expect(tags).toHaveTextContent("Saison 2025");
+  });
+
+  it("nomme visiblement les 3 contrôles de filtrage, et sort le sélecteur de rang de la barre d'outils (NAV-5)", async () => {
+    await renderDashboard({});
+
+    const barre = screen.getByTestId("dashboard-toolbar");
+    expect(screen.getByText("Disciplines")).toBeInTheDocument();
+    expect(screen.getByText("Saisons")).toBeInTheDocument();
+    expect(screen.getByText("Type de rang")).toBeInTheDocument();
+
+    const rankGroup = screen.getByRole("group", { name: "Type de rang" });
+    expect(barre).not.toContainElement(rankGroup);
+    expect(barre).toContainElement(screen.getByLabelText("Inclure les autres disciplines"));
+    expect(barre).toContainElement(screen.getByLabelText("Choisir les saisons"));
   });
 
   it("aligne les tags comme la barre d'outils, au palier où l'en-tête cesse de s'empiler (revue UI/UX)", async () => {

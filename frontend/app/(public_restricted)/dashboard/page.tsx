@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { apiServer, SHORT_REVALIDATE_SECONDS } from "@/lib/api/server";
 import { SCOPE_CLUB, federalOnlyFromParam } from "@/lib/scope";
@@ -10,6 +11,27 @@ import { StatCard, Card, Eyebrow, FormatChip } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
 import { EmptyState } from "@/components/ui/empty-state";
 import { aggregateDisciplines, formatToken, pctFr } from "@/lib/utils/format";
+
+/** Petit libellé visuel au-dessus d'un contrôle de filtrage (NAV-5, #483) —
+ *  même style que les en-têtes de la table "Dernières épreuves" plus bas
+ *  dans ce fichier, réutilisé ici pour la 3ᵉ fois plutôt qu'un nouveau
+ *  token. */
+function FieldLabel({ children }: { children: ReactNode }) {
+  return (
+    <div
+      style={{
+        fontSize: 12,
+        fontWeight: 700,
+        textTransform: "uppercase",
+        letterSpacing: ".04em",
+        color: "var(--tcn-text-faint)",
+        marginBottom: 6,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
 
 export default async function DashboardPage({
   searchParams,
@@ -62,10 +84,15 @@ export default async function DashboardPage({
             <h1 style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(28px, 5vw, 40px)", fontWeight: 400, color: "var(--tcn-ink)", lineHeight: 1, margin: 0, marginTop: 6 }}>{seasonSelectionLabel(selected)}</h1>
             <div style={{ fontSize: 15, color: "var(--tcn-text-muted)", marginTop: 8, fontWeight: 500 }}>Vue d&apos;ensemble des performances des athlètes du club</div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <RankTypeToggle />
-            <DisciplineToggle />
-            <SeasonSelector seasons={seasons} />
+          <div data-testid="dashboard-toolbar" style={{ display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}>
+            <div>
+              <FieldLabel>Disciplines</FieldLabel>
+              <DisciplineToggle />
+            </div>
+            <div>
+              <FieldLabel>Saisons</FieldLabel>
+              <SeasonSelector seasons={seasons} />
+            </div>
           </div>
         </div>
         {/* Hors de la barre d'outils, à dessein (#445) : les tags y élargissaient
@@ -73,9 +100,17 @@ export default async function DashboardPage({
         <SeasonTags seasons={seasons} className="justify-start lg:justify-end" />
       </div>
 
-      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,3fr)] lg:items-start">
         <StatCard variant="hero" label="Dossards enregistrés" value={stats.total.toLocaleString("fr-FR")} delta={`${stats.athletes} athlètes · ${stats.events} épreuves`} />
-        <StatCardsRank rankCounters={stats.rank_counters} />
+        <div>
+          <div className="mb-2 flex items-center justify-between">
+            <FieldLabel>Type de rang</FieldLabel>
+            <RankTypeToggle />
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <StatCardsRank rankCounters={stats.rank_counters} />
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2" style={{ gridTemplateColumns: undefined }}>
