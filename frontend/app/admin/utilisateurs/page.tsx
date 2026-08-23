@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/layout/PageHeader";
+import { ecran } from "@/components/layout/nav.config";
 import { PageShell } from "@/components/layout/PageShell";
 import { UserRolesTable } from "@/components/admin/UserRolesTable";
 
@@ -13,11 +14,7 @@ export default function AdminUtilisateursPage() {
   return (
     <PageShell>
       <div className="space-y-10">
-        <PageHeader
-          eyebrow="Gestion des utilisateurs"
-          title="Rôles des utilisateurs"
-          description="Qui s'est connecté au moins une fois, et ce que chacun porte. Un rôle prend effet à la requête suivante, sans reconnexion."
-        />
+        <PageHeader eyebrow="Gestion des utilisateurs" {...ecran("/admin/utilisateurs")} />
         <UserRolesTable />
       </div>
     </PageShell>

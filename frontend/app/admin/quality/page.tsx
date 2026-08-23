@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/layout/PageHeader";
+import { ecran } from "@/components/layout/nav.config";
 import { PageShell } from "@/components/layout/PageShell";
 import { QualityQueueTable } from "@/components/admin/QualityQueueTable";
 
@@ -20,11 +21,7 @@ export default async function AdminQualityPage({
   return (
     <PageShell>
       <div className="space-y-6">
-        <PageHeader
-          eyebrow="Administration"
-          title="Revalidation qualité"
-          description="Les épreuves dont l'indice de fiabilité doute. Inspecter, corriger, puis trancher — chaque décision est tracée."
-        />
+        <PageHeader eyebrow="Administration" {...ecran("/admin/quality")} />
         <QualityQueueTable
           page={Number(sp.page)}
           filtres={{ name: sp.name, date_from: sp.date_from, date_to: sp.date_to }}

@@ -9,7 +9,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useSession } from "@/lib/queries/auth";
 import { useNavBadges } from "@/lib/queries/nav-badges";
 import { AthletePicker, ATHLETE_CHANGED_EVENT, clearAthlete, nomComplet, readAthlete, writeAthlete, type PickedAthlete } from "./AthletePicker";
-import { NAV, ROLE, type NavItem, type NavSection } from "./nav.config";
+import { NAV, ROLE, estVisible, type NavItem, type NavSection } from "./nav.config";
 import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
 
 /**
@@ -107,13 +107,7 @@ export function AppNav() {
     .map((s) => ({
       ...s,
       items: s.items
-        .filter(
-          (i): i is Destination =>
-            !!i.href &&
-            !i.soon &&
-            rank >= (i.minRole ?? ROLE.ANON) &&
-            (!i.permission || pouvoirs.has(i.permission)),
-        )
+        .filter((i): i is Destination => estVisible(i, pouvoirs, rank))
         // Le compteur est attaché à la destination plutôt que passé en prop à
         // travers `NavContent` : il suit l'entrée jusqu'aux deux rendus (tuile
         // et ligne dépliée) sans élargir trois signatures au passage.

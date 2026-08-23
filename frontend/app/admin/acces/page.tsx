@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/layout/PageHeader";
+import { ecran } from "@/components/layout/nav.config";
 import { PageShell } from "@/components/layout/PageShell";
 import { AllowedEmailsTable } from "@/components/admin/AllowedEmailsTable";
 import { BenevoleAccessConfig } from "@/components/admin/BenevoleAccessConfig";
@@ -22,11 +23,7 @@ export default function AdminAccesPage() {
   return (
     <PageShell>
       <div className="space-y-10">
-        <PageHeader
-          eyebrow="Gestion des utilisateurs"
-          title="Accès au back-office"
-          description="Seules ces adresses peuvent ouvrir une session. Une adresse retirée perd l'accès immédiatement."
-        />
+        <PageHeader eyebrow="Gestion des utilisateurs" {...ecran("/admin/acces")} />
         <AllowedEmailsTable />
         <SiteAccessConfig />
         <BenevoleAccessConfig />

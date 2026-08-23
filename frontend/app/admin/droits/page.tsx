@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/layout/PageHeader";
+import { ecran } from "@/components/layout/nav.config";
 import { PageShell } from "@/components/layout/PageShell";
 import { RolePermissionsEditor } from "@/components/admin/RolePermissionsEditor";
 
@@ -13,11 +14,7 @@ export default function AdminDroitsPage() {
   return (
     <PageShell>
       <div className="space-y-10">
-        <PageHeader
-          eyebrow="Gestion des utilisateurs"
-          title="Droits des rôles"
-          description="Un rôle porte des pouvoirs ; les personnes portent des rôles. Une recomposition s'applique dès la requête suivante de chaque porteur, sans reconnexion."
-        />
+        <PageHeader eyebrow="Gestion des utilisateurs" {...ecran("/admin/droits")} />
         <RolePermissionsEditor />
       </div>
     </PageShell>

@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/layout/PageHeader";
+import { ecran } from "@/components/layout/nav.config";
 import { PageShell } from "@/components/layout/PageShell";
 import { GroupsTable } from "@/components/admin/GroupsTable";
 
@@ -14,11 +15,7 @@ export default function AdminGroupesPage() {
   return (
     <PageShell>
       <div className="space-y-10">
-        <PageHeader
-          eyebrow="Gestion des utilisateurs"
-          title="Groupes d'appartenance"
-          description="À quoi chacun appartient — le Codir, les officiels, une section. Un groupe n'accorde aucun droit : ce que l'on peut faire vient des rôles."
-        />
+        <PageHeader eyebrow="Gestion des utilisateurs" {...ecran("/admin/groupes")} />
         <GroupsTable />
       </div>
     </PageShell>

@@ -3,16 +3,17 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
-import type { BatchReport, BatchRun } from "@/lib/types";
+import type { BatchReport, BatchRun, SessionUser } from "@/lib/types";
 
-const { listBatchRuns, getBatchReport } = vi.hoisted(() => ({
+const { listBatchRuns, getBatchReport, getSession } = vi.hoisted(() => ({
   listBatchRuns: vi.fn(),
   getBatchReport: vi.fn(),
+  getSession: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { listBatchRuns, getBatchReport } };
+  return { ...original, apiClient: { listBatchRuns, getBatchReport, getSession } };
 });
 
 import { BatchRunList } from "./BatchRunList";
@@ -54,11 +55,21 @@ function afficher() {
   );
 }
 
+const SESSION = (permissions: string[]): SessionUser =>
+  ({
+    id: 1,
+    email: "admin@exemple.fr",
+    display_name: "Admin",
+    roles: [],
+    permissions,
+  }) as unknown as SessionUser;
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers({ shouldAdvanceTime: true });
   vi.setSystemTime(MAINTENANT);
   getBatchReport.mockResolvedValue(BILAN);
+  getSession.mockResolvedValue(SESSION(["batch:run", "batch:read"]));
 });
 
 describe("BatchRunList", () => {
@@ -153,6 +164,17 @@ describe("BatchRunList", () => {
     afficher();
 
     expect(await screen.findByText(/aucun lancement/i)).toBeInTheDocument();
+  });
+
+  it("n'interroge pas la liste sans `batch:read`, et dit ce qui manque", async () => {
+    // L'écran est annoncé sur `batch:run` : ce porteur-là est légitime, et
+    // l'appeler quand même lui rendait un bloc d'erreur en 403 (ADM-2).
+    getSession.mockResolvedValue(SESSION(["batch:run"]));
+    afficher();
+
+    expect(await screen.findByText(/Consulter les batches/)).toBeInTheDocument();
+    expect(listBatchRuns).not.toHaveBeenCalled();
+    expect(screen.queryByText(/aucun lancement/i)).toBeNull();
   });
 
   it("ne confond pas une plateforme injoignable avec une liste vide", async () => {

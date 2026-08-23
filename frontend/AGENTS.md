@@ -136,6 +136,25 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   une carte qui n'existe **que** pour un geste ne se rend pas du tout
   (`RevokeSessionsCard`, comme son bouton frère par adresse), l'écran restant
   agissant par ailleurs.
+- **Sommaire `/admin` et source unique des titres** (#497, ADM-2/ADM-6) —
+  `/admin` n'est plus une impasse : `AdminIndex` rend une tuile par écran du
+  back-office, filtrée par `estVisible`, **la même règle que le rail** — un
+  écran annoncé d'un côté et tu de l'autre est un écran dont on ne sait plus à
+  qui il s'adresse. Le titre **et** la phrase d'un écran d'administration vivent
+  une seule fois, dans `nav.config.ts`, et sont rendus aux deux endroits par
+  `ecran(href)` : la page les passe à son `PageHeader`, la tuile les affiche.
+  Les tenir en double les avait déjà fait diverger (le rail annonçait « Gestion
+  des courses » quand l'écran s'intitulait « Épreuves »). `ecran()` **lève** sur
+  une entrée sans phrase : c'est une erreur de configuration, pas un cas à
+  couvrir en silence, et `nav.config.test.ts` la rattrape avant l'écran.
+  Corollaire du même lot : plus aucune entrée d'administration sans
+  `permission`, « Épreuves » ayant été la dernière — donc la seule proposée à
+  qui n'y peut rien faire. Enfin, `/admin/batches` **est** l'écran de
+  `batch:run`, et c'est `BatchRunList` qui porte la garde de `batch:read` : sans
+  ce pouvoir, la liste dit ce qui manque au lieu de partir en 403, et
+  `BatchLauncher` **dit** qu'il lance à l'aveugle plutôt que de laisser
+  `enCours` valoir silencieusement `false` — le refus du second lancement reste
+  au serveur (409).
 - **Navigation** — `components/layout/nav.config.ts` en est la description
   **unique** ; ajouter une destination y tient en une ligne. Deux échelons de
   visibilité, à ne pas confondre : `minRole` ne distingue qu'anonyme et

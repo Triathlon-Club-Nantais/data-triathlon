@@ -18,7 +18,21 @@ export const ROLE = { ANON: 0, CONNECTED: 1, ADMIN: 2 } as const;
 
 export type NavItem = {
   id: string;
+  /**
+   * Ce que l'entrée annonce — et, pour un écran d'administration, **le titre de
+   * la page elle-même** : `ecran()` le rend à son `PageHeader`. Un libellé de
+   * rail qui diverge du titre d'arrivée (« Gestion des courses » → « Épreuves »)
+   * fait douter d'avoir atterri au bon endroit (ADM-6).
+   */
   label: string;
+  /**
+   * La phrase qui dit **à quoi sert l'écran**, au vouvoiement, telle que son
+   * `PageHeader` l'affiche — même source, via `ecran()`. Portée par les entrées
+   * d'administration : quatre de leurs libellés sont quasi synonymes pour un
+   * bénévole occasionnel, et le sommaire `/admin` les désambiguïse par cette
+   * phrase, avant le choix plutôt qu'après (ADM-6).
+   */
+  description?: string;
   /** Absent quand `soon` : rien à atteindre, donc rien à rendre. */
   href?: string;
   icon?: LucideIcon;
@@ -112,15 +126,37 @@ export const NAV: NavSection[] = [
       {
         id: "a-providers",
         label: "Fournisseurs en attente",
+        description:
+          "Fournisseurs de chronométrage non supportés, signalés automatiquement lors d'un import en échec.",
         href: "/admin/fournisseurs",
         permission: "pending_providers:read",
       },
-      { id: "a-courses", label: "Gestion des courses", href: "/admin/courses" },
+      // `courses:write` : la correction est le geste courant de l'écran, et
+      // c'était la seule entrée de la section sans aucun `permission` — donc la
+      // seule proposée à qui n'y peut rien faire (ADM-6). Qui porte
+      // `courses:delete` sans l'écriture y arrive par l'URL et trouve la
+      // suppression offerte, `CoursesAdminTable` testant les deux séparément :
+      // la navigation n'est pas une garde.
+      {
+        id: "a-courses",
+        label: "Épreuves",
+        description:
+          "Corriger ou retirer une épreuve du catalogue. Ces actions sont irréversibles et tracées.",
+        href: "/admin/courses",
+        permission: "courses:write",
+      },
       // Pouvoir de lecture de l'écran : `courses:sources` garde les trois
       // routes qu'il consomme (liste, aperçu de fusion, fusion elle-même côté
       // #292) — poser `courses:delete` ici masquerait l'écran à qui peut voir
       // les doublons mais pas fusionner, ce que le composant distingue déjà.
-      { id: "a-doublons", label: "Doublons suspects", href: "/admin/doublons", permission: "courses:sources" },
+      {
+        id: "a-doublons",
+        label: "Doublons suspects",
+        description:
+          "Paires d'épreuves qui désignent probablement le même événement — même URL, même identifiant de plateforme, ou noms proches à la même date.",
+        href: "/admin/doublons",
+        permission: "courses:sources",
+      },
       // Les entrées `soon` ci-dessous n'ont pas de pouvoir nommé : le catalogue
       // n'en porte pas d'évident, et en deviner un serait poser une règle à
       // rectifier le jour où l'écran sort. Sans conséquence — depuis #242 une
@@ -130,13 +166,17 @@ export const NAV: NavSection[] = [
       // qui donne son nom à l'écran — même arbitrage que `u-roles`.
       {
         id: "a-scrape",
-        label: "Re-scrape à la demande",
+        label: "Batches",
+        description:
+          "Relancer le scraping des épreuves déjà en base, importer une liste d'épreuves depuis un fichier, et relire le bilan des lancements précédents.",
         href: "/admin/batches",
         permission: "batch:run",
       },
       {
         id: "a-quality",
         label: "Revalidation qualité",
+        description:
+          "Les épreuves dont l'indice de fiabilité doute. Inspecter, corriger, puis trancher — chaque décision est tracée.",
         href: "/admin/quality",
         permission: "quality:override",
         badge: "quality",
@@ -147,6 +187,8 @@ export const NAV: NavSection[] = [
       {
         id: "a-feedback",
         label: "Retours utilisateurs",
+        description:
+          "Signalements de bug et retours soumis depuis le bouton du site public.",
         href: "/admin/retours-utilisateurs",
         permission: "feedback:read",
       },
@@ -175,6 +217,8 @@ export const NAV: NavSection[] = [
       {
         id: "u-acces",
         label: "Accès au back-office",
+        description:
+          "Seules ces adresses peuvent ouvrir une session. Une adresse retirée perd l'accès immédiatement.",
         href: "/admin/acces",
         permission: "allowed_emails:manage",
       },
@@ -185,6 +229,8 @@ export const NAV: NavSection[] = [
       {
         id: "u-roles",
         label: "Rôles des utilisateurs",
+        description:
+          "Qui s'est connecté au moins une fois, et ce que chacun porte. Un rôle prend effet à la requête suivante, sans reconnexion.",
         href: "/admin/utilisateurs",
         permission: "roles:assign",
       },
@@ -195,6 +241,8 @@ export const NAV: NavSection[] = [
       {
         id: "u-droits",
         label: "Droits des rôles",
+        description:
+          "Un rôle porte des pouvoirs ; les personnes portent des rôles. Une recomposition s'applique dès la requête suivante de chaque porteur, sans reconnexion.",
         href: "/admin/droits",
         permission: "roles:write",
       },
@@ -204,9 +252,45 @@ export const NAV: NavSection[] = [
       {
         id: "u-groupes",
         label: "Groupes d'appartenance",
+        description:
+          "À quoi chacun appartient — le Codir, les officiels, une section. Un groupe n'accorde aucun droit : ce que l'on peut faire vient des rôles.",
         href: "/admin/groupes",
         permission: "groups:assign",
       },
     ],
   },
 ];
+
+/**
+ * Le titre et la phrase d'un écran, tenus **une fois** — ici — et rendus aux
+ * deux endroits qui les affichent : le `PageHeader` de la page, et la tuile du
+ * sommaire `/admin`. Les tenir en double les a déjà fait diverger — le rail
+ * annonçait « Gestion des courses » quand l'écran s'intitulait « Épreuves »
+ * (ADM-6). Un écran absent de cette table est une erreur de configuration, pas
+ * un cas à couvrir en silence.
+ */
+export function ecran(href: string): { title: string; description: string } {
+  const item = NAV.flatMap((s) => s.items).find((i) => i.href === href);
+  if (!item?.description) {
+    throw new Error(`Aucune entrée de navigation décrite pour ${href}`);
+  }
+  return { title: item.label, description: item.description };
+}
+
+/**
+ * Une entrée est-elle portée par cette session ? Le rail et le sommaire
+ * `/admin` filtrent sur la **même** règle : un écran annoncé à un endroit et tu
+ * à l'autre est un écran dont on ne sait plus à qui il s'adresse.
+ */
+export function estVisible(
+  item: NavItem,
+  pouvoirs: Set<string>,
+  rank: number,
+): item is NavItem & { href: string } {
+  return (
+    !!item.href &&
+    !item.soon &&
+    rank >= (item.minRole ?? ROLE.ANON) &&
+    (!item.permission || pouvoirs.has(item.permission))
+  );
+}
