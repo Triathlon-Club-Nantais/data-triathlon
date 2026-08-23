@@ -79,8 +79,12 @@ export function SegmentedControl({
               // information (ex. « Triathlon Club Nantais (0) »), gardée dans
               // l'arbre d'accessibilité via `aria-disabled` — l'opacité la
               // rendait illisible à l'œil (2,75:1) quand `--tcn-text-faint`
-              // tient 5,21:1 (revue UI/UX #485).
-              ...(desactive ? { color: "var(--tcn-text-faint)", cursor: "not-allowed" } : null),
+              // tient 5,21:1 (revue UI/UX #485). Réservé à l'état inactif :
+              // un segment actif+désactivé (`?scope=club` sans athlète club,
+              // #485 re-revue) garde son blanc sur encre, pas d'assombrissement
+              // en plus de `cursor: not-allowed`/`aria-disabled`.
+              ...(desactive && !active ? { color: "var(--tcn-text-faint)" } : null),
+              ...(desactive ? { cursor: "not-allowed" } : null),
             }}
           >
             {dot ? <span style={{ width: 8, height: 8, borderRadius: 999, background: "var(--tcn-orange)" }} /> : null}
