@@ -14,6 +14,7 @@ import { Histogram } from "@/components/charts/Histogram";
 import { GenderDonut } from "@/components/charts/GenderDonut";
 import { CategoryBars } from "@/components/charts/CategoryBars";
 import { SCOPE_PARAM, scopeFromParam } from "@/lib/scope";
+import { PAGE_SIZE_PARAM, parsePageSize } from "@/lib/pageSize";
 
 /**
  * Convertit une épreuve absente en `null`, et **laisse remonter le reste**.
@@ -47,6 +48,9 @@ export default async function CoursePage({
   const page = parsePage(sp.page);
   const q = sp.q?.trim() || undefined;
   const scope = scopeFromParam(sp[SCOPE_PARAM]);
+  // Liste blanche : le sélecteur du classement ne sait représenter que quatre
+  // tailles, une URL bricolée le désaccorderait (cf. `lib/pageSize.ts`).
+  const pageSize = parsePageSize(sp[PAGE_SIZE_PARAM]);
 
   // Trois appels distincts, et c'est structurant : la synthèse porte sur
   // l'épreuve entière, le classement sur la sélection courante. Chercher un nom
@@ -54,7 +58,7 @@ export default async function CoursePage({
   // conditionnent jamais le 404 : une épreuve sans source migrée reste une
   // épreuve valide (#284), elle n'affiche simplement aucun chip.
   const [data, summary, sources] = await Promise.all([
-    apiServer.getCourse(Number(id), { page, q, scope }).catch(rendreNullSi404),
+    apiServer.getCourse(Number(id), { page, page_size: pageSize, q, scope }).catch(rendreNullSi404),
     apiServer.getCourseSummary(Number(id)).catch(rendreNullSi404),
     apiServer.getCourseSources(Number(id)).catch(rendreNullSi404),
   ]);
