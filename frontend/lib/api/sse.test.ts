@@ -80,3 +80,19 @@ describe("importEventStream — refus avant le premier octet", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("importEventStream — détail de validation", () => {
+  it("rend lisible un `detail` en liste (validation Pydantic)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      status: 422,
+      headers: new Headers(),
+      json: async () => ({ detail: [{ loc: ["body", "url"], msg: "URL invalide" }] }),
+    } as unknown as Response));
+
+    const erreur = await importEventStream("http://x").next().catch((e) => e);
+
+    expect((erreur as ApiError).message).toBe("URL invalide");
+    vi.unstubAllGlobals();
+  });
+});

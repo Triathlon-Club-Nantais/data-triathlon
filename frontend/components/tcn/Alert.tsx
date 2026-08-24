@@ -33,6 +33,9 @@ export function Alert({
         display: "flex",
         alignItems: "flex-start",
         justifyContent: action ? "space-between" : "flex-start",
+        // Sans quoi un titre long et une action se partagent ~290 px à 360 px,
+        // et le titre tombe sur quatre lignes contre un bouton comprimé.
+        flexWrap: "wrap",
         gap: 16,
         padding: "14px 18px",
         background: p.bg,

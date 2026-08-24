@@ -66,10 +66,11 @@ vi.mock("@/lib/api/client", () => ({
   },
 }));
 
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), message: vi.fn() } }));
 
 import { TcnScrapeForm } from "./TcnScrapeForm";
 import { apiClient } from "@/lib/api/client";
+import { toast } from "sonner";
 
 function renderForm() {
   const qc = new QueryClient({
@@ -336,6 +337,7 @@ describe("TcnScrapeForm — repli sur échec d'import", () => {
       screen.getByPlaceholderText("https://résultats-chrono.fr/triathlon-vertou-2026"),
       "http://x.test/ev",
     );
+    await userEvent.click(screen.getByRole("button", { name: /Enregistrer les résultats/ }));
     importMock.set({ phase: "error", error: "boom" });
     rerenderForm();
 
@@ -430,17 +432,23 @@ describe("TcnScrapeForm — le bilan dit toute la vérité (#491, ACT-3)", () =>
       heatsImported: 9,
       heatsCached: 0,
       heatsFailed: 3,
+      // Ce que le backend met réellement dans `reason` : `str(exc)`, anglais
+      // et technique (`import_service`/`klikego.py`). L'écran ne doit pas le
+      // rendre verbatim (Principe I).
       failures: [
-        { heat_slug: "s-1", reason: "Série « Relais » : page illisible." },
-        { heat_slug: "s-2", reason: "Série « Jeunes » : délai dépassé." },
-        { heat_slug: "s-3", reason: "Série « Découverte » : 404." },
+        { heat_slug: "relais-h", reason: "Server error '502 Bad Gateway' for url 'https://x'" },
+        { heat_slug: "jeunes", reason: "ReadTimeout: timed out" },
+        { heat_slug: "decouverte", reason: "list index out of range" },
       ],
       courses: [{ id: 42, name: "Triathlon de Nantes 2026", event_type: "triathlon-m" }],
     });
     renderForm();
 
     expect(screen.getByText("Import partiel : 3 séries sur 12 manquent")).toBeInTheDocument();
-    expect(screen.getByText(/Série « Relais » : page illisible./)).toBeInTheDocument();
+    expect(screen.getByText(/Série « relais-h » : le chronométreur était indisponible/)).toBeInTheDocument();
+    expect(screen.getByText(/Série « jeunes » : le chronométreur n'a pas répondu à temps/)).toBeInTheDocument();
+    expect(screen.getByText(/Série « decouverte » : la page n'a pas pu être lue/)).toBeInTheDocument();
+    expect(screen.queryByText(/Bad Gateway/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Relancer l'import" })).toBeInTheDocument();
   });
 
@@ -506,5 +514,98 @@ describe("TcnScrapeForm — une attente habitée (#491, ACT-4)", () => {
     const evenement = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(evenement);
     expect(evenement.defaultPrevented).toBe(false);
+  });
+});
+
+describe("TcnScrapeForm — suites des revues (#491)", () => {
+  it("le décompte du plafond décompte vraiment", () => {
+    vi.useFakeTimers();
+    try {
+      importMock.set({ phase: "error", error: "Trop de demandes", errorStatus: 429, retryAfter: 180 });
+      renderForm();
+      expect(screen.getByText(/Réessayez dans 3 minutes/)).toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(130_000);
+      });
+
+      expect(screen.getByText(/moins d'une minute/)).toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(60_000);
+      });
+
+      expect(screen.getByText(/Vous pouvez réessayer maintenant/)).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("corriger l'adresse après un échec ne re-signale pas le fournisseur à chaque frappe", async () => {
+    const { rerenderForm } = renderForm();
+    const champ = screen.getByPlaceholderText(/résultats-chrono/);
+    await userEvent.type(champ, "http://x.test/ev");
+    await userEvent.click(screen.getByRole("button", { name: /Enregistrer les résultats/ }));
+    importMock.set({ phase: "error", error: "boom", errorStatus: null });
+    rerenderForm();
+    await waitFor(() => expect(apiClient.reportPendingProvider).toHaveBeenCalledTimes(1));
+
+    await userEvent.type(champ, "ent");
+
+    expect(apiClient.reportPendingProvider).toHaveBeenCalledTimes(1);
+    expect(apiClient.reportPendingProvider).toHaveBeenCalledWith("http://x.test/ev");
+  });
+
+  it("séries en échec servies par le cache : le doublon ne masque plus les manques", () => {
+    importMock.set({
+      phase: "done",
+      cached: true,
+      imported: 0,
+      updated: 0,
+      skipped: 250,
+      heatsEnumerated: 12,
+      heatsImported: 0,
+      heatsCached: 11,
+      heatsFailed: 1,
+      failures: [{ heat_slug: "relais-h", reason: "ReadTimeout" }],
+      courses: [{ id: 7, name: "Duathlon de La Baule 2026", event_type: "duathlon-s" }],
+    });
+    renderForm();
+
+    expect(screen.getByText("Import partiel : 1 série sur 12 manque")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Relancer l'import" })).toBeInTheDocument();
+    expect(screen.queryByText("Résultats déjà enregistrés")).not.toBeInTheDocument();
+  });
+
+  it("borne la liste des séries perdues au-delà de cinq", () => {
+    importMock.set({
+      phase: "done",
+      imported: 10,
+      heatsEnumerated: 12,
+      heatsFailed: 7,
+      failures: Array.from({ length: 7 }, (_, i) => ({
+        heat_slug: `serie-${i}`,
+        reason: "ReadTimeout",
+      })),
+      courses: [],
+    });
+    renderForm();
+
+    expect(screen.getByText(/et 2 autres séries/)).toBeInTheDocument();
+  });
+
+  it("annuler dit ce que l'annulation laisse derrière elle", async () => {
+    importMock.set({ phase: "scraping", running: true });
+    renderForm();
+
+    await userEvent.click(screen.getByRole("button", { name: "Annuler l'import" }));
+
+    expect(importMock.cancel).toHaveBeenCalled();
+    expect(toast.message).toHaveBeenCalledWith(
+      "Import interrompu",
+      expect.objectContaining({
+        description: expect.stringContaining("déjà enregistrés sont conservés"),
+      }),
+    );
   });
 });
