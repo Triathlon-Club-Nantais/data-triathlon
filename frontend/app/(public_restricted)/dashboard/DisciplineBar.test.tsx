@@ -31,6 +31,17 @@ describe("DisciplineBar", () => {
     expect(screen.queryByText("Aquathlon")).not.toBeInTheDocument();
   });
 
+  it("ne nomme les segments qu'à partir de sm: — sous ce seuil, la légende s'en charge (#480)", () => {
+    // 12 % (LABEL_THRESHOLD) est une part de la largeur réelle, pas une
+    // largeur en px : sur iPhone SE, 12 % d'une barre de 287px ne laissent
+    // que 22px de texte, soit un fragment tronqué et centré (illisible comme
+    // troncature). La légende sous la barre nomme déjà chaque famille avec
+    // son pourcentage (spec § 5.2) : sous `sm:`, le nom du segment se masque.
+    render(<DisciplineBar disciplines={TROIS} />);
+    expect(screen.getByText("Triathlon")).toHaveClass("max-sm:hidden");
+    expect(screen.getByText("Duathlon")).toHaveClass("max-sm:hidden");
+  });
+
   it("sépare les segments d'un filet, sans rogner leur largeur", () => {
     const { container } = render(<DisciplineBar disciplines={TROIS} />);
     const segments = [...container.querySelectorAll("[data-segment]")] as HTMLElement[];

@@ -27,10 +27,26 @@ describe("BarList", () => {
     expect(bars[1].style.width).toBe("50%");
   });
 
-  it("récapitule la répartition pour un lecteur d'écran", () => {
+  it("récapitule la répartition pour un lecteur d'écran, sans vocabulaire de structure de données (#480)", () => {
+    // « Répartition sur N entrées » nommait la boîte, pas ce qu'elle contient.
+    // Sans indication de l'appelant, le récapitulatif reste honnête et se
+    // limite à ce que le composant sait réellement.
     render(<BarList entries={SPREAD} labeller={(k) => k.toUpperCase()} />);
     expect(screen.getByRole("img")).toHaveAccessibleName(
-      "Répartition sur 3 entrées : A 279, B 40, C 1.",
+      "Répartition : A 279, B 40, C 1.",
+    );
+  });
+
+  it("nomme l'objet de la répartition quand l'appelant le fournit (#480)", () => {
+    render(
+      <BarList
+        entries={SPREAD}
+        labeller={(k) => k.toUpperCase()}
+        subjectLabel="type d'épreuve"
+      />,
+    );
+    expect(screen.getByRole("img")).toHaveAccessibleName(
+      "Répartition par type d'épreuve : A 279, B 40, C 1.",
     );
   });
 

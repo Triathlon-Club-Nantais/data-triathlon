@@ -82,7 +82,30 @@ describe("MonthlyTrend", () => {
   it("récapitule la tendance pour un lecteur d'écran", () => {
     render(<MonthlyTrend byMonth={{ "2026-01": 7, "2026-02": 20 }} />);
     expect(screen.getByRole("img")).toHaveAccessibleName(
-      "Activité mensuelle sur 2 mois, de 7 à 20 dossards.",
+      "Activité mensuelle : janv 7, févr 20.",
     );
+  });
+
+  it("n'écrête pas les mois récents sur téléphone : la colonne peut descendre sous sa largeur min-content (#480)", () => {
+    // Régression : `flex-1` seul pose `min-width: auto`, donc une colonne ne
+    // peut pas descendre sous la largeur min-content de son contenu — sur
+    // iPhone SE (375px), les douze libellés imposaient leur largeur à la
+    // rangée et les mois les plus récents étaient coupés par l'`overflow-hidden`
+    // de la Card, sans scroll. `min-w-0` lève ce plancher ; `whitespace-nowrap`
+    // sur le libellé et la valeur les fait déborder proprement plutôt que de
+    // se casser en plusieurs lignes (ce qui décalerait l'alignement des barres).
+    const { container } = render(
+      <MonthlyTrend byMonth={{ "2026-01": 7, "2026-02": 20 }} />,
+    );
+    const columns = [...container.querySelectorAll(":scope > div > div")] as HTMLElement[];
+    expect(columns.length).toBeGreaterThan(0);
+    for (const column of columns) {
+      expect(column.classList.contains("min-w-0")).toBe(true);
+    }
+
+    const value = screen.getByText("7");
+    const label = container.querySelector("[data-month-label]") as HTMLElement;
+    expect(value.classList.contains("whitespace-nowrap")).toBe(true);
+    expect(label.classList.contains("whitespace-nowrap")).toBe(true);
   });
 });

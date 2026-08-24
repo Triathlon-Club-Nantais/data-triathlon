@@ -6,11 +6,18 @@ export function BarList({
   labeller,
   colorer,
   emptyTitle = "Aucune donnée",
+  subjectLabel,
 }: {
   entries: [string, number][];
   labeller: (key: string) => string;
   colorer?: (key: string) => string;
   emptyTitle?: string;
+  /** Nom de l'objet réparti (« type d'épreuve », « catégorie »…), pour le
+   *  récapitulatif lu par un lecteur d'écran. Le composant ne connaît pas le
+   *  domaine de l'appelant : sans cette prop, le récapitulatif reste honnête
+   *  et se limite à « Répartition : … », plutôt que d'employer un vocabulaire
+   *  de structure de données (« entrées ») qui ne dit rien à l'utilisateur (#480). */
+  subjectLabel?: string;
 }) {
   if (entries.length === 0) {
     return (
@@ -26,10 +33,11 @@ export function BarList({
   const summary = entries
     .map(([key, value]) => `${labeller(key)} ${value}`)
     .join(", ");
+  const subjectClause = subjectLabel ? `Répartition par ${subjectLabel}` : "Répartition";
   return (
     <div
       role="img"
-      aria-label={`Répartition sur ${entries.length} entrées : ${summary}.`}
+      aria-label={`${subjectClause} : ${summary}.`}
       className="space-y-2.5"
     >
       {entries.map(([key, value]) => (

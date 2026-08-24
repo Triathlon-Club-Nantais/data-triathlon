@@ -11,7 +11,17 @@ interface Part {
 /**
  * Part minimale, en pourcentage, pour qu'un segment puisse porter son nom.
  * En dessous, le libellé serait tronqué à une lettre : c'est la légende qui le
- * nomme, et l'alternative textuelle qui le chiffre.
+ * nomme, et l'alternative textuelle qui le chiffre. Un pourcentage n'est
+ * indépendant de la largeur réelle qu'au-dessus de `sm:` : sur iPhone SE
+ * (barre ~287px), 12 % ne laissent que 22px de texte une fois le padding
+ * retranché — même un nom qui passe ce seuil s'y tronque en un fragment
+ * centré illisible comme troncature. D'où `max-sm:hidden` sur le libellé
+ * ci-dessous plutôt qu'un seuil plus haut : la légende sous la barre nomme
+ * déjà chaque famille avec son pourcentage sur toutes les largeurs (spec §
+ * 5.2), donc le nom du segment n'est qu'un raccourci desktop, jamais la seule
+ * source du nom. Le filet blanc et le récapitulatif `aria-label` restent seuls
+ * responsables de WCAG 1.4.1 à toutes les largeurs — la couleur ne redevient
+ * donc jamais le seul encodage, même sous `sm:`.
  */
 const LABEL_THRESHOLD = 12;
 
@@ -54,7 +64,7 @@ export function DisciplineBar({ disciplines }: { disciplines: Part[] }) {
           {d.pct >= LABEL_THRESHOLD && (
             <span
               aria-hidden
-              className="micro-label"
+              className="micro-label max-sm:hidden"
               style={{ color: d.ink, padding: "0 6px" }}
             >
               {d.name}

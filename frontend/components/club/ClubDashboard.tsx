@@ -87,6 +87,7 @@ export function ClubDashboard({
                   labeller={(k) => eventTypeLabel(k)}
                   colorer={(k) => eventTypeColor(k)}
                   emptyTitle="Aucune épreuve"
+                  subjectLabel="type d'épreuve"
                 />
               </TabsContent>
               <TabsContent value="month" className="pt-4">
