@@ -6,6 +6,7 @@ import { LogIn, Menu, PanelLeft, Plus, Search, X } from "lucide-react";
 import { Avatar } from "@/components/tcn";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSession } from "@/lib/queries/auth";
 import { useNavBadges } from "@/lib/queries/nav-badges";
 import { AthletePicker, ATHLETE_CHANGED_EVENT, clearAthlete, nomComplet, readAthlete, writeAthlete, type PickedAthlete } from "./AthletePicker";
@@ -230,34 +231,41 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
               )}
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={() => router.push("/login")}
-              title={expanded ? undefined : "Se connecter"}
-              aria-label="Se connecter"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                width: "100%",
-                height: 44,
-                padding: expanded ? "0 14px" : 0,
-                justifyContent: expanded ? "flex-start" : "center",
-                borderRadius: "var(--tcn-radius-lg)",
-                background: "var(--tcn-surface)",
-                color: "var(--tcn-ink)",
-                border: "1.5px solid var(--tcn-border-strong)",
-                fontFamily: "var(--tcn-font-body)",
-                fontWeight: 700,
-                fontSize: 13.5,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                cursor: "pointer",
-              }}
-            >
-              <LogIn size={18} style={{ flex: "none" }} />
-              {expanded && <span>Se connecter</span>}
-            </button>
+            <Tooltip>
+              <TooltipTrigger
+                disabled={expanded}
+                render={
+                  <button
+                    type="button"
+                    onClick={() => router.push("/login")}
+                    aria-label="Se connecter"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      width: "100%",
+                      height: 44,
+                      padding: expanded ? "0 14px" : 0,
+                      justifyContent: expanded ? "flex-start" : "center",
+                      borderRadius: "var(--tcn-radius-lg)",
+                      background: "var(--tcn-surface)",
+                      color: "var(--tcn-ink)",
+                      border: "1.5px solid var(--tcn-border-strong)",
+                      fontFamily: "var(--tcn-font-body)",
+                      fontWeight: 700,
+                      fontSize: 13.5,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      cursor: "pointer",
+                    }}
+                  />
+                }
+              >
+                <LogIn size={18} style={{ flex: "none" }} />
+                {expanded && <span>Se connecter</span>}
+              </TooltipTrigger>
+              {!expanded && <TooltipContent>Se connecter</TooltipContent>}
+            </Tooltip>
           )}
         </div>
       </nav>
@@ -376,86 +384,100 @@ function NavContent({
       >
         {expanded && <div style={eyebrow}>Actions</div>}
 
-        <Link
-          href="/ajouter"
-          onClick={onNavigate}
-          title={expanded ? undefined : "Ajouter une épreuve"}
-          aria-label="Ajouter une épreuve"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            height: 44,
-            padding: padAction,
-            justifyContent: justify,
-            borderRadius: "var(--tcn-radius-lg)",
-            // 14 px en 800 : aucune taille de ce bouton n'atteint le seuil
-            // « texte large », donc le blanc y demande 4,5:1 — d'où le fond
-            // `-deep`, où il tient 4,57:1 contre 3,68:1 sur l'orange nu (#299).
-            background: "var(--tcn-orange-deep)",
-            color: "#fff",
-            textDecoration: "none",
-            boxShadow: "var(--tcn-shadow-orange)",
-            fontWeight: 800,
-            fontSize: 14,
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-          }}
-        >
-          <Plus size={20} style={{ flex: "none" }} />
-          {expanded && <span>Ajouter une épreuve</span>}
-        </Link>
+        <Tooltip>
+          <TooltipTrigger
+            disabled={expanded}
+            render={
+              <Link
+                href="/ajouter"
+                onClick={onNavigate}
+                aria-label="Ajouter une épreuve"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  height: 44,
+                  padding: padAction,
+                  justifyContent: justify,
+                  borderRadius: "var(--tcn-radius-lg)",
+                  // 14 px en 800 : aucune taille de ce bouton n'atteint le seuil
+                  // « texte large », donc le blanc y demande 4,5:1 — d'où le fond
+                  // `-deep`, où il tient 4,57:1 contre 3,68:1 sur l'orange nu (#299).
+                  background: "var(--tcn-orange-deep)",
+                  color: "#fff",
+                  textDecoration: "none",
+                  boxShadow: "var(--tcn-shadow-orange)",
+                  fontWeight: 800,
+                  fontSize: 14,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                }}
+              />
+            }
+          >
+            <Plus size={20} style={{ flex: "none" }} />
+            {expanded && <span>Ajouter une épreuve</span>}
+          </TooltipTrigger>
+          {!expanded && <TooltipContent>Ajouter une épreuve</TooltipContent>}
+        </Tooltip>
 
         {/* L'entrée recherche reste rendue dans tous les cas — athlète
             retenu ou non — pour ne jamais redevenir inaccessible autrement
             que par le raccourci clavier (issue #323). La tuile de l'athlète
             retenu s'affiche en complément, jamais à sa place. */}
-        <button
-          type="button"
-          onClick={onOpenPicker}
-          title={expanded ? undefined : `Rechercher un athlète (${kbd})`}
-          aria-label="Rechercher un athlète"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            height: 44,
-            padding: padAction,
-            justifyContent: justify,
-            borderRadius: "var(--tcn-radius-lg)",
-            background: "var(--tcn-surface)",
-            color: "var(--tcn-ink)",
-            border: "1.5px solid var(--tcn-ink)",
-            fontFamily: "var(--tcn-font-body)",
-            fontWeight: 700,
-            fontSize: 14,
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            cursor: "pointer",
-          }}
-        >
-          <Search size={18} style={{ flex: "none" }} />
-          {expanded && (
-            <>
-              <span style={{ flex: 1, textAlign: "left" }}>Rechercher un athlète</span>
-              <span
+        <Tooltip>
+          <TooltipTrigger
+            disabled={expanded}
+            render={
+              <button
+                type="button"
+                onClick={onOpenPicker}
+                aria-label="Rechercher un athlète"
                 style={{
-                  flex: "none",
-                  padding: "2px 7px",
-                  borderRadius: "var(--tcn-radius-sm)",
-                  background: "var(--tcn-fill)",
-                  border: "1px solid var(--tcn-border)",
-                  fontFamily: "var(--tcn-font-cond)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  height: 44,
+                  padding: padAction,
+                  justifyContent: justify,
+                  borderRadius: "var(--tcn-radius-lg)",
+                  background: "var(--tcn-surface)",
+                  color: "var(--tcn-ink)",
+                  border: "1.5px solid var(--tcn-ink)",
+                  fontFamily: "var(--tcn-font-body)",
                   fontWeight: 700,
-                  fontSize: 11,
-                  color: "var(--tcn-text-muted)",
+                  fontSize: 14,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  cursor: "pointer",
                 }}
-              >
-                {kbd}
-              </span>
-            </>
-          )}
-        </button>
+              />
+            }
+          >
+            <Search size={18} style={{ flex: "none" }} />
+            {expanded && (
+              <>
+                <span style={{ flex: 1, textAlign: "left" }}>Rechercher un athlète</span>
+                <span
+                  style={{
+                    flex: "none",
+                    padding: "2px 7px",
+                    borderRadius: "var(--tcn-radius-sm)",
+                    background: "var(--tcn-fill)",
+                    border: "1px solid var(--tcn-border)",
+                    fontFamily: "var(--tcn-font-cond)",
+                    fontWeight: 700,
+                    fontSize: 11,
+                    color: "var(--tcn-text-muted)",
+                  }}
+                >
+                  {kbd}
+                </span>
+              </>
+            )}
+          </TooltipTrigger>
+          {!expanded && <TooltipContent>{`Rechercher un athlète (${kbd})`}</TooltipContent>}
+        </Tooltip>
 
         {athlete && (
           <div
@@ -474,15 +496,22 @@ function NavContent({
             {/* prefetch={false} (#425) : un athlète épinglé au hasard depuis
                 le picker, pas une destination probable — inutile de le
                 prefetcher dès que la tuile entre dans le viewport. */}
-            <Link
-              href={`/athletes/${athlete.id}`}
-              prefetch={false}
-              onClick={onNavigate}
-              aria-label={`Mon profil — ${nomComplet(athlete)}`}
-              title={expanded ? undefined : "Mon profil"}
-            >
-              <Avatar name={nomComplet(athlete)} size={30} style={{ boxShadow: "var(--tcn-shadow-orange)" }} />
-            </Link>
+            <Tooltip>
+              <TooltipTrigger
+                disabled={expanded}
+                render={
+                  <Link
+                    href={`/athletes/${athlete.id}`}
+                    prefetch={false}
+                    onClick={onNavigate}
+                    aria-label={`Mon profil — ${nomComplet(athlete)}`}
+                  />
+                }
+              >
+                <Avatar name={nomComplet(athlete)} size={30} style={{ boxShadow: "var(--tcn-shadow-orange)" }} />
+              </TooltipTrigger>
+              {!expanded && <TooltipContent>Mon profil</TooltipContent>}
+            </Tooltip>
             {expanded && (
               <>
                 <Link
@@ -562,10 +591,15 @@ function NavContent({
                   conteneur propre à chaque état remonterait les `Link` à la
                   bascule, malgré une `Entree` unifiée. */}
               {!expanded && !sec.root && sec.items.length > 1 ? (
-                <button type="button" onClick={onExpand} title={sec.label} aria-label={sec.label} style={tuile(actifIci)}>
-                  <sec.icon size={20} />
-                  {actifIci && <span style={barreActive(9)} />}
-                </button>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={<button type="button" onClick={onExpand} aria-label={sec.label} style={tuile(actifIci)} />}
+                  >
+                    <sec.icon size={20} />
+                    {actifIci && <span style={barreActive(9)} />}
+                  </TooltipTrigger>
+                  <TooltipContent>{sec.label}</TooltipContent>
+                </Tooltip>
               ) : (
                 // `gap: 0` replié, l'espacement des tuiles venant de leur propre
                 // `margin: 0 auto 4px` (cf. `tuile()`) — un `gap` s'y ajouterait.
@@ -636,75 +670,87 @@ function Entree({
   onNavigate?: () => void;
 }) {
   const Icon = item.icon;
+  // Replié, le seul porteur visible du libellé était le `title` natif du
+  // navigateur — jamais lu au tactile, jamais au clavier (#482, NAV-2). Une
+  // infobulle maison le remplace ; `aria-label` reste le nom accessible, donc
+  // rien ne change pour les technologies d'assistance. `disabled` plutôt
+  // qu'un rendu conditionnel du `Tooltip` lui-même : la structure de l'arbre
+  // ne dépend jamais d'`expanded`, seul ce qui protège le montage unique du
+  // `Link` (#428).
   return (
-    <Link
-      href={item.href}
-      onClick={onNavigate}
-      // Replié, l'icône est seule : le nom accessible et l'infobulle sont les
-      // seuls porteurs du libellé. Déplié, il est dans le texte du lien.
-      title={expanded ? undefined : item.label}
-      aria-label={expanded ? undefined : item.label}
-      aria-current={actif ? "page" : undefined}
-      style={expanded ? entree(actif) : tuile(actif)}
-    >
-      {actif && <span style={barreActive(expanded ? 10 : 9)} />}
-      {expanded ? (
-        <>
-          <span
-            style={{
-              flex: "none",
-              width: 5,
-              height: 5,
-              borderRadius: "var(--tcn-radius-pill)",
-              background: actif ? "var(--tcn-orange)" : "var(--tcn-text-disabled)",
-            }}
+    <Tooltip>
+      <TooltipTrigger
+        disabled={expanded}
+        render={
+          <Link
+            href={item.href}
+            onClick={onNavigate}
+            aria-label={expanded ? undefined : item.label}
+            aria-current={actif ? "page" : undefined}
+            style={expanded ? entree(actif) : tuile(actif)}
           />
-          <span style={{ flex: 1 }}>{item.label}</span>
-          {!!item.count && (
-            // ARIA 1.2 interdit de nommer un élément de rôle `generic` (un
-            // `<span>` nu) : l'`aria-label` posé directement dessus n'a jamais
-            // été garanti, il ne « marchait » que par raccroc via le calcul de
-            // nom du `<a>` parent. La forme durable : la pastille visuelle
-            // passe `aria-hidden`, et un `<span className="sr-only">` porte
-            // seul le nom accessible.
-            <span style={{ flex: "none", display: "inline-flex", alignItems: "center" }}>
-              <span
-                aria-hidden="true"
-                style={{
-                  minWidth: 20,
-                  padding: "1px 6px",
-                  borderRadius: "var(--tcn-radius-pill)",
-                  // 11 px / 700 n'atteint aucun seuil de « texte large » : le blanc y
-                  // demande 4,5:1, comme sur les boutons primaires du fichier
-                  // (l.371, l.705). `--tcn-orange` nu ne tenait que 3,68:1 (#299) ;
-                  // `Badge.tsx` porte bien une variante `count`, mais elle compose
-                  // `--tcn-orange` sur `--tcn-orange-12` — la même paire que son
-                  // propre commentaire chiffre à 2,88:1, donc pas davantage
-                  // conforme — et son style (chip translucide) diffère du pastille
-                  // pleine attendue ici. On garde le markup, on aligne le token.
-                  background: "var(--tcn-orange-deep)",
-                  color: "#fff",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  textAlign: "center",
-                }}
-              >
-                {item.count}
+        }
+      >
+        {actif && <span style={barreActive(expanded ? 10 : 9)} />}
+        {expanded ? (
+          <>
+            <span
+              style={{
+                flex: "none",
+                width: 5,
+                height: 5,
+                borderRadius: "var(--tcn-radius-pill)",
+                background: actif ? "var(--tcn-orange)" : "var(--tcn-text-disabled)",
+              }}
+            />
+            <span style={{ flex: 1 }}>{item.label}</span>
+            {!!item.count && (
+              // ARIA 1.2 interdit de nommer un élément de rôle `generic` (un
+              // `<span>` nu) : l'`aria-label` posé directement dessus n'a jamais
+              // été garanti, il ne « marchait » que par raccroc via le calcul de
+              // nom du `<a>` parent. La forme durable : la pastille visuelle
+              // passe `aria-hidden`, et un `<span className="sr-only">` porte
+              // seul le nom accessible.
+              <span style={{ flex: "none", display: "inline-flex", alignItems: "center" }}>
+                <span
+                  aria-hidden="true"
+                  style={{
+                    minWidth: 20,
+                    padding: "1px 6px",
+                    borderRadius: "var(--tcn-radius-pill)",
+                    // 11 px / 700 n'atteint aucun seuil de « texte large » : le blanc y
+                    // demande 4,5:1, comme sur les boutons primaires du fichier
+                    // (l.371, l.705). `--tcn-orange` nu ne tenait que 3,68:1 (#299) ;
+                    // `Badge.tsx` porte bien une variante `count`, mais elle compose
+                    // `--tcn-orange` sur `--tcn-orange-12` — la même paire que son
+                    // propre commentaire chiffre à 2,88:1, donc pas davantage
+                    // conforme — et son style (chip translucide) diffère du pastille
+                    // pleine attendue ici. On garde le markup, on aligne le token.
+                    background: "var(--tcn-orange-deep)",
+                    color: "#fff",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    textAlign: "center",
+                  }}
+                >
+                  {item.count}
+                </span>
+                <span className="sr-only">{libelleCompteur(item)}</span>
               </span>
-              <span className="sr-only">{libelleCompteur(item)}</span>
-            </span>
-          )}
-        </>
-      ) : (
-        // Pas de pastille de compteur ici : elle serait inatteignable. Seule
-        // la section `root` rend des entrées repliées à plat (l.548), et
-        // « Administration » — seule section à porter un `badge` aujourd'hui —
-        // n'est pas `root`. Porter le signal sur la tuile de catégorie qui la
-        // remplace au rail replié est une autre fonctionnalité, hors périmètre
-        // (#119).
-        Icon && <Icon size={20} />
-      )}
-    </Link>
+            )}
+          </>
+        ) : (
+          // Pas de pastille de compteur ici : elle serait inatteignable. Seule
+          // la section `root` rend des entrées repliées à plat (l.548), et
+          // « Administration » — seule section à porter un `badge` aujourd'hui —
+          // n'est pas `root`. Porter le signal sur la tuile de catégorie qui la
+          // remplace au rail replié est une autre fonctionnalité, hors périmètre
+          // (#119).
+          Icon && <Icon size={20} />
+        )}
+      </TooltipTrigger>
+      {!expanded && <TooltipContent>{item.label}</TooltipContent>}
+    </Tooltip>
   );
 }
 

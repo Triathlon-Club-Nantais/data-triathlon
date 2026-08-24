@@ -35,6 +35,11 @@ function TooltipContent({
       <TooltipPrimitive.Positioner side={side} sideOffset={sideOffset} className="z-50">
         <TooltipPrimitive.Popup
           data-slot="tooltip-content"
+          // `Popup` ne pose `role="tooltip"` sous aucune forme (vérifié dans
+          // ses sources, aucun `useRole` ni assignation de rôle) — sans ce
+          // prop explicite, aucune technologie d'assistance ne l'annonce
+          // comme une infobulle.
+          role="tooltip"
           style={{
             background: "var(--tcn-ink)",
             color: "var(--tcn-paper)",

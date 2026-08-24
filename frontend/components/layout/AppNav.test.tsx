@@ -803,3 +803,79 @@ describe("badge de la file de revalidation (#119)", () => {
     expect(screen.getByText("4")).toHaveAttribute("aria-hidden", "true");
   });
 });
+
+describe("AppNav — infobulles du rail replié remplacent les title (#482, NAV-2)", () => {
+  it("affiche une infobulle « Se connecter » au survol du bouton replié", async () => {
+    afficher(null);
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    const bouton = within(rail).getByRole("button", { name: "Se connecter" });
+
+    await userEvent.hover(bouton);
+    expect(await screen.findByRole("tooltip", { name: "Se connecter" })).toBeInTheDocument();
+  });
+
+  it("affiche la même infobulle au focus clavier, pas seulement au survol", async () => {
+    afficher(null);
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    const bouton = within(rail).getByRole("button", { name: "Se connecter" });
+
+    act(() => bouton.focus());
+    expect(await screen.findByRole("tooltip", { name: "Se connecter" })).toBeInTheDocument();
+  });
+
+  it("n'affiche plus aucune infobulle sur ce bouton une fois le rail déplié", async () => {
+    afficher(null, { initialExpanded: true });
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    const bouton = within(rail).getByRole("button", { name: "Se connecter" });
+
+    await userEvent.hover(bouton);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+
+  it("porte une infobulle sur le lien « Ajouter une épreuve » replié", async () => {
+    afficher(null);
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    const lien = within(rail).getByRole("link", { name: "Ajouter une épreuve" });
+
+    await userEvent.hover(lien);
+    expect(await screen.findByRole("tooltip", { name: "Ajouter une épreuve" })).toBeInTheDocument();
+  });
+
+  it("porte une infobulle sur le bouton « Rechercher un athlète » replié", async () => {
+    afficher(null);
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    const bouton = within(rail).getByRole("button", { name: "Rechercher un athlète" });
+
+    await userEvent.hover(bouton);
+    // Le contenu de l'infobulle reprend le raccourci clavier, comme le
+    // faisait le `title` natif qu'elle remplace — seul l'`aria-label` du
+    // bouton reste sobre.
+    expect(await screen.findByRole("tooltip", { name: "Rechercher un athlète (Ctrl K)" })).toBeInTheDocument();
+  });
+
+  it("porte une infobulle « Mon profil » sur la tuile de l'athlète retenu, repliée", async () => {
+    window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 12, prenom: "Jean", nom: "Dupont" }));
+    afficher(null);
+    const avatar = await screen.findByRole("link", { name: "Mon profil — Jean Dupont" });
+
+    await userEvent.hover(avatar);
+    expect(await screen.findByRole("tooltip", { name: "Mon profil" })).toBeInTheDocument();
+  });
+
+  it("porte une infobulle sur la tuile de catégorie repliée (« Administration »)", async () => {
+    afficher(habilite("pending_providers:read", "batch:run"));
+    const bouton = await screen.findByRole("button", { name: "Administration" });
+
+    await userEvent.hover(bouton);
+    expect(await screen.findByRole("tooltip", { name: "Administration" })).toBeInTheDocument();
+  });
+
+  it("porte une infobulle sur une entrée repliée du rail (« Tableau de bord »)", async () => {
+    afficher(null);
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    const lien = within(rail).getByRole("link", { name: "Tableau de bord" });
+
+    await userEvent.hover(lien);
+    expect(await screen.findByRole("tooltip", { name: "Tableau de bord" })).toBeInTheDocument();
+  });
+});
