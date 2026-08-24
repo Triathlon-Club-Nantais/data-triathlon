@@ -12,6 +12,17 @@ from app.models.course import Course
 from app.models.participation import Participation
 
 
+def _escape_like(word: str) -> str:
+    """Échappe les jokers `LIKE` (`\\`, `%`, `_`) d'un terme utilisateur.
+
+    Extrait de `name_filter` (#484) pour être réutilisé par le classement de
+    pertinence de `search_by_relevance` sans dupliquer l'échappement.
+    """
+    for joker in ("\\", "%", "_"):
+        word = word.replace(joker, f"\\{joker}")
+    return word
+
+
 def name_filter(term: str):
     """Filtre nom **ou** prénom d'athlète, mot à mot, sans casse ni accents.
 
@@ -35,11 +46,7 @@ def name_filter(term: str):
     """
     clauses = []
     for word in deaccent(term).split():
-        # Les jokers `LIKE` saisis par un visiteur sont échappés : ce n'est pas
-        # une injection (le motif est passé en paramètre lié), mais `q=%`
-        # rendait l'épreuve entière et `q=_` n'importe quel caractère.
-        for joker in ("\\", "%", "_"):
-            word = word.replace(joker, f"\\{joker}")
+        word = _escape_like(word)
         pattern = f"%{word.lower()}%"
         clauses.append(
             or_(
@@ -324,3 +331,53 @@ def update_identity(db: Session, athlete: Athlete, **champs) -> Athlete:
         setattr(athlete, nom_champ, valeur)
     db.flush()
     return athlete
+
+
+def _relevance_rank(term: str):
+    """Palier de pertinence pour `search_by_relevance` (#484) : 0 = préfixe
+    exact, 1 = début de mot après un espace ou un trait d'union, 2 = sous-chaîne
+    (déjà tout ce que `name_filter` matchait, sans distinction).
+
+    Combine les conditions sur `nom` et `prenom` en un seul `case()` — évite de
+    calculer un rang par champ puis un `LEAST`, absent de SQLite (mesuré : voir
+    le design). `min(rang_nom, rang_prenom)` équivaut à « le palier le plus bas
+    est atteint si l'une des deux conditions du palier l'est ».
+    """
+    t = _escape_like(deaccent(term).lower())
+    nom = func.unaccent(func.lower(Athlete.nom))
+    prenom = func.unaccent(func.lower(Athlete.prenom))
+    prefixe = or_(nom.like(f"{t}%", escape="\\"), prenom.like(f"{t}%", escape="\\"))
+    debut_mot = or_(
+        nom.like(f"% {t}%", escape="\\"),
+        nom.like(f"%-{t}%", escape="\\"),
+        prenom.like(f"% {t}%", escape="\\"),
+        prenom.like(f"%-{t}%", escape="\\"),
+    )
+    return case((prefixe, 0), (debut_mot, 1), else_=2)
+
+
+def search_by_relevance(
+    db: Session, *, term: str, club_only: bool = False, limit: int = 12
+) -> list[tuple[Athlete, int]]:
+    """Classement pour la palette `⌘K` (#484, NAV-8) : pertinence puis volume.
+
+    À la différence de `search`/`search_admin` (ordonnées `nom, prenom`), le
+    tri ici est `_relevance_rank` puis le nombre de participations décroissant
+    — le volume ne départage plus qu'à l'intérieur d'un même palier de
+    pertinence, jamais entre deux paliers différents.
+    """
+    compte = func.count(Participation.id)
+    rang = _relevance_rank(term)
+    requete = (
+        db.query(Athlete, compte)
+        .outerjoin(Participation, Participation.athlete_id == Athlete.id)
+        .filter(name_filter(term))
+        .group_by(Athlete.id)
+    )
+    if club_only:
+        requete = requete.filter(tcn_clause(Athlete.club))
+    return (
+        requete.order_by(rang, compte.desc(), Athlete.nom, Athlete.prenom)
+        .limit(limit)
+        .all()
+    )

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { SegmentedControl } from "./SegmentedControl";
 
 describe("SegmentedControl", () => {
@@ -53,5 +54,65 @@ describe("SegmentedControl", () => {
     // 26 et 34 px selon l'audit UI/UX — un plancher explicite lève le doute.
     render(<SegmentedControl value="a" onChange={() => {}} options={["a", "b"]} />);
     expect(Number.parseInt(screen.getByRole("button", { name: "a" }).style.minHeight, 10)).toBeGreaterThanOrEqual(28);
+  });
+
+  it("n'appelle pas onChange sur une option désactivée", async () => {
+    const onChange = vi.fn();
+    render(
+      <SegmentedControl
+        value="all"
+        onChange={onChange}
+        options={[
+          { value: "all", label: "Tous" },
+          { value: "tcn", label: "TCN", disabled: true },
+        ]}
+      />,
+    );
+
+    const tcn = screen.getByRole("button", { name: "TCN" });
+    expect(tcn).toHaveAttribute("aria-disabled", "true");
+
+    await userEvent.click(tcn);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("rend un segment désactivé en --tcn-text-faint plutôt qu'en opacité (revue UI/UX #485)", () => {
+    // `opacity: 0.5` rendait le texte à 2,75:1 sur blanc, sous le seuil WCAG
+    // 1.4.3 — contradictoire avec l'information que le segment porte encore
+    // via `aria-disabled`. `--tcn-text-faint` seul tient 5,21:1.
+    render(
+      <SegmentedControl
+        value="all"
+        onChange={() => {}}
+        options={[
+          { value: "all", label: "Tous" },
+          { value: "tcn", label: "TCN", disabled: true },
+        ]}
+      />,
+    );
+
+    const tcn = screen.getByRole("button", { name: "TCN" });
+    expect(tcn.style.opacity).toBe("");
+    expect(tcn.style.color).toBe("var(--tcn-text-faint)");
+  });
+
+  it("garde le contraste de l'état actif sur un segment à la fois actif et désactivé (re-revue #485)", () => {
+    // `/courses/42?scope=club` sur une épreuve sans athlète club : `value`
+    // (l'URL) et `disabled` (le compte TCN) sont calculés indépendamment,
+    // rien n'empêche les deux à la fois. `--tcn-text-faint` sur `--tcn-ink`
+    // ne tient que 3,21:1 — le blanc actif (16,15:1) doit rester intact.
+    render(
+      <SegmentedControl
+        value="tcn"
+        onChange={() => {}}
+        options={[
+          { value: "all", label: "Tous" },
+          { value: "tcn", label: "TCN", disabled: true },
+        ]}
+      />,
+    );
+
+    const tcn = screen.getByRole("button", { name: "TCN" });
+    expect(tcn.style.color).toBe("rgb(255, 255, 255)");
   });
 });

@@ -1,0 +1,135 @@
+name: Render sleep
+
+run-name: "render-sleep · ${{ inputs.action || github.event.schedule }} · ${{ inputs.target || 'auto' }}"
+
+# Tient les deux services backend sous les **750 h d'instance par mois** que le
+# plan free partage sur tout le workspace Render (décision : #530, `docs/ci-cd.md`).
+#
+# Deux régimes, pas un :
+#
+# - la **production** dort la nuit et se rallume au matin (1 h → 4 h UTC) ;
+# - la **preview** ne se rallume jamais toute seule. C'est `deploy.yml` qui la
+#   reprend avant son deploy hook, le temps de la vérification post-déploiement ;
+#   le cron de 1 h la recouche. C'est là qu'est le gros du quota : un mois fait
+#   730 h, donc deux services éveillés en permanence en réclament 1460 pour 750
+#   disponibles, quand la fenêtre nocturne seule n'en rend que ~90 par service.
+#
+# **Heure UTC, pas heure de Paris** : le cron d'Actions ignore l'heure d'été, si
+# bien que la coupure tombe entre 2 h et 5 h l'hiver, 3 h et 6 h l'été. Viser
+# Paris à la minute demanderait deux jeux de crons et une bascule saisonnière à
+# entretenir, pour une fenêtre qui reste nocturne dans les deux cas.
+#
+# **Une planification muette est une panne invisible**, et elle coûte plus cher
+# ici que dans `batch.yml` : GitHub désactive les workflows planifiés d'un dépôt
+# sans activité depuis 60 jours (D13, `docs/ci-cd.md`), sans rien dire — et si
+# la désactivation tombe entre le cron de 1 h et celui de 4 h, la production
+# reste **éteinte** jusqu'à ce que quelqu'un s'en aperçoive. Deux filets, tous
+# deux volontaires : le `workflow_dispatch` ci-dessous, et le `resume` que
+# `deploy.yml` exécute avant chaque deploy hook — un déploiement rallume donc
+# toujours sa cible, quel que soit l'état du cron.
+on:
+  schedule:
+    # Coucher : les deux services.
+    - cron: "0 1 * * *"
+    # Lever : la production seule — la preview attend son prochain déploiement.
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Suspendre ou reprendre"
+        type: choice
+        options: [resume, suspend]
+        default: resume
+      target:
+        description: "Service visé"
+        type: choice
+        options: [preview, production, both]
+        default: preview
+
+concurrency:
+  group: render-sleep
+  cancel-in-progress: false
+
+# Aucun step n'écrit avec `GITHUB_TOKEN` : Render est appelé avec `RENDER_API_KEY`.
+permissions:
+  contents: read
+
+# **Ce workflow ne déclare aucun environment, et c'est la condition pour qu'il
+# fonctionne.** Les deploy hooks — d'où `deploy.yml` tire ses ID de service —
+# sont des secrets d'environment, or `Production` porte une *required reviewer*
+# (`docs/ci-cd.md`). Un job qui déclarerait cet environment mettrait le lever de
+# 4 h en attente d'une approbation humaine : le site resterait éteint jusqu'à ce
+# que quelqu'un clique, tous les matins. Les ID sont donc résolus par leur nom
+# via l'API, avec le seul `RENDER_API_KEY`, qui est un secret **de dépôt**.
+#
+# Le `resume` est le défaut de repli : sur un déclenchement dont on n'attend pas
+# le nom de cron (une entrée ajoutée sans être branchée ici, par exemple), mieux
+# vaut rallumer que couper.
+env:
+  ACTION: ${{ inputs.action || (github.event.schedule == '0 1 * * *' && 'suspend' || 'resume') }}
+  TARGET: ${{ inputs.target || (github.event.schedule == '0 1 * * *' && 'both' || 'production') }}
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      # `fail-fast: false` : une preview en échec ne doit pas emporter le lever
+      # de la production.
+      fail-fast: false
+      matrix:
+        # Les **noms** des services, pas leurs ID. Un nom n'est pas un secret —
+        # `docs/ci-cd.md` les porte déjà en clair — là où les `srv-…` restent
+        # volontairement hors du dépôt, qui est public. Si un service est
+        # renommé dans le dashboard, c'est cette ligne qui se corrige, et le
+        # workflow sort **rouge** en attendant : il ne peut pas viser à côté.
+        include:
+          - environment: preview
+            service_name: triathlon-backend-preview
+          - environment: production
+            # Le service de prod ne s'appelle pas `data-triathlon` : c'est le
+            # nom du dépôt, et la confusion a déjà coûté #259 côté blueprint
+            # (constat repris dans l'audit OWASP du 16/08/2026).
+            service_name: triathlon-backend-production
+    steps:
+      # `matrix` n'est pas lisible dans un `if` de job, seulement de step : le
+      # runner démarre donc aussi pour le service non visé, et s'arrête ici.
+      # Un runner à vide une fois par jour coûte moins qu'un job de calcul
+      # préalable dont la sortie n'aurait servi qu'à ça.
+      - name: "Render — ${{ matrix.environment }}"
+        if: ${{ env.TARGET == 'both' || env.TARGET == matrix.environment }}
+        env:
+          SERVICE_NAME: ${{ matrix.service_name }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          set -euo pipefail
+          # Le filtre `name` de l'API n'est pas une égalité : sans le `select`
+          # exact ci-dessous, `data-triathlon` ramènerait aussi tout service
+          # dont le nom le contient, et on suspendrait le mauvais. `length == 1`
+          # est donc la garde qui compte — zéro ou deux résultats font échouer
+          # le job plutôt que d'agir sur une supposition.
+          service_id=$(curl -sS --fail-with-body \
+            -H "Authorization: Bearer $RENDER_API_KEY" \
+            --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 \
+            --get --data-urlencode "name=$SERVICE_NAME" \
+            --data "type=web_service" --data "limit=20" \
+            "https://api.render.com/v1/services" \
+            | jq -r --arg n "$SERVICE_NAME" \
+                '[.[].service | select(.name == $n) | .id] | if length == 1 then .[0] else "" end')
+          [ -n "$service_id" ] || { echo "::error::Aucun service web unique nommé « $SERVICE_NAME » chez Render"; exit 1; }
+          # Le dépôt est public, donc ses logs Actions le sont : l'ID n'y entre
+          # pas, alors même qu'il ne vient plus d'un secret ici.
+          echo "::add-mask::$service_id"
+          # `--fail-with-body` et non `-f` : sans lui, un refus ne rend que
+          # « curl: (22) … error: 4xx », sans le motif de Render. Deux motifs
+          # sont attendus ici et **non confirmés par la documentation
+          # publique** — la disponibilité de suspend/resume sur le plan free,
+          # et le code rendu quand le service est déjà dans l'état demandé
+          # (l'API répond 202 au changement). Les deux se lisent au premier
+          # passage réel, d'où la validation sur preview avant la production.
+          curl -sS --fail-with-body -X POST \
+            -H "Authorization: Bearer $RENDER_API_KEY" \
+            --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 \
+            "https://api.render.com/v1/services/$service_id/$ACTION"
+          echo
+          echo "$ACTION appliqué au service ${{ matrix.environment }}"

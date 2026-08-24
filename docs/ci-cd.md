@@ -28,6 +28,10 @@ Toute PR déclenche la CI seule (aucun déploiement).
 - **`.github/workflows/deploy.yml`** — déclenché sur `push` (branche `main` et
   tags `v*`). Appelle `ci.yml` puis, **seulement si la CI passe** (`needs: ci`),
   lance `deploy-preview` (sur `main`) ou `deploy-production` (sur tag `v*`).
+- **`.github/workflows/render-sleep.yml`** — suspend et reprend les deux
+  services Render pour tenir les 750 h/mois du plan free (#528, décision #530).
+  `schedule` deux fois par jour, plus un `workflow_dispatch` de secours. Voir
+  « Veille des services Render » plus bas.
 - **`.github/workflows/pages.yml`** — publie ce site de documentation
   (`docs/`) sur GitHub Pages. Sur `pull_request`, le job `build` seul valide que
   le site compile ; sur `main`, `deploy` publie. Il remplace le workflow
@@ -56,11 +60,18 @@ région Frankfurt, plan free, runtime python :
 
 | Rôle | Service | Accès |
 |---|---|---|
-| **PROD** | `data-triathlon` (existant) | dashboard Render → service `data-triathlon` → Settings |
+| **PROD** | `triathlon-backend-production` | dashboard Render → service `triathlon-backend-production` → Settings |
 | **PREVIEW** | `triathlon-backend-preview` (créé via MCP) | dashboard Render → service `triathlon-backend-preview` → Settings |
 
 > Les IDs de service (`srv-…`) et les URLs publiques sont visibles dans le
 > dashboard Render ; ils ne sont volontairement pas committés ici (dépôt public).
+
+> **Le service de prod ne s'appelle pas `data-triathlon`** — c'est le nom du
+> dépôt. Ce tableau l'a écrit jusqu'ici, comme `render.yaml` avant #259 ; le
+> constat est celui de l'audit OWASP du 16/08/2026. Le *slug* du service, lui,
+> est `data-triathlon-vq6u`, d'où l'URL `.onrender.com`. La distinction n'est
+> plus documentaire depuis `render-sleep.yml`, qui résout les services **par
+> leur nom** via l'API : un nom faux y sort rouge, il ne vise pas à côté.
 
 Réglages restants à faire **dans le dashboard** (non supportés par le MCP) :
 
@@ -652,6 +663,78 @@ la dernière modification du fichier de cron, pas l'équipe. À constater sur la
 première occurrence rouge (quickstart §12) ; si ce n'est pas la bonne personne,
 c'est l'hypothèse « aucun canal d'alerte nouveau » de la spec qu'il faut
 rouvrir, pas une situation avec laquelle vivre.
+
+## Veille des services Render — `render-sleep.yml` (#528)
+
+Les deux services web se partagent **750 h d'instance par mois** sur tout le
+workspace : au-delà, Render suspend l'ensemble des services free jusqu'au mois
+suivant. Le mois faisant 730 h, deux services éveillés en permanence en
+réclament 1460. Le workflow les couche, par l'API Render (`POST
+/v1/services/{id}/suspend` et `/resume`, 202, jeton `RENDER_API_KEY` déjà présent
+au niveau dépôt).
+
+**Deux régimes, et c'est délibéré** :
+
+| Service | Coucher | Lever |
+|---|---|---|
+| **production** | cron `0 1 * * *` | cron `0 4 * * *` |
+| **preview** | cron `0 1 * * *` | **jamais par cron** — `deploy.yml` la reprend avant son deploy hook |
+
+La preview ne se rallume que pour servir la vérification post-déploiement, puis
+attend la nuit. C'est là qu'est le gros du quota : la fenêtre nocturne seule ne
+rend que ~90 h par mois et par service, quand une preview qui ne s'éveille qu'à
+la demande en rend plusieurs centaines.
+
+**Heure UTC, pas heure de Paris.** Le cron d'Actions ignore l'heure d'été : la
+coupure de production tombe entre 2 h et 5 h l'hiver, 3 h et 6 h l'été. Viser
+Paris à la minute demanderait deux jeux de crons et une bascule saisonnière à
+entretenir, pour une fenêtre qui reste nocturne dans les deux cas.
+
+**La procédure de vérification ci-dessous n'est pas touchée** : le `resume`
+précède le deploy hook dans `deploy.yml`, sur les deux environnements. C'est
+nécessaire — un deploy hook envoyé à un service suspendu ne le rallume pas — et
+c'est aussi le filet du paragraphe suivant.
+
+**Le piège, le même que celui de `batch.yml` mais plus cher.** GitHub désactive
+les workflows planifiés d'un dépôt sans activité depuis 60 jours (D13), sans
+rien dire. Si la désactivation tombe entre le cron de 1 h et celui de 4 h, la
+production reste **éteinte** jusqu'à ce que quelqu'un s'en aperçoive. Deux
+parades, volontaires toutes les deux : le `workflow_dispatch` (`action: resume`,
+`target: production`), et le `resume` de `deploy.yml` — un déploiement rallume
+toujours sa cible, quel que soit l'état du cron.
+
+**Ce workflow ne déclare aucun environment, et c'est la condition pour qu'il
+fonctionne.** L'environment `Production` porte une *required reviewer* (cf.
+« Environments GitHub » plus haut) : un job qui le déclarerait — comme le fait
+`deploy.yml` pour lire son deploy hook — mettrait le lever de 4 h en attente
+d'une approbation humaine, donc laisserait le site éteint jusqu'au clic, tous
+les matins. D'où la résolution des services **par leur nom** via
+`GET /v1/services`, qui ne demande que `RENDER_API_KEY`, secret **de dépôt**.
+
+Le prix de ce choix est que les noms vivent dans le workflow. Ils n'y sont pas
+un secret — ce document les porte déjà en clair, à la différence des `srv-…` —
+et un renommage dans le dashboard fait sortir le job **rouge** plutôt que de le
+laisser viser un autre service : le filtre `name` de l'API n'étant pas une
+égalité, le workflow n'agit que sur une correspondance exacte et **unique**.
+
+**À constater au premier passage réel**, dans cet ordre — la documentation
+publique de Render ne répond ni à l'un ni à l'autre :
+
+1. **Sur la preview d'abord** (`workflow_dispatch` → `suspend`, `target:
+   preview`), que suspend/resume est bien ouvert au plan **free**. Si l'API le
+   refuse, tout le dispositif tombe et le repli est le plan payant sur la seule
+   production (décision #530).
+2. Le code rendu quand le service est **déjà** dans l'état demandé — un cron qui
+   sortirait rouge chaque nuit sur un service déjà suspendu serait du bruit à
+   traiter, pas une panne.
+3. Ce que voit un visiteur pendant la fenêtre coupée : Render ne sert pas de page
+   de maintenance, l'appel échoue en erreur de connexion. Vérifier que le front
+   Vercel rend une erreur lisible et non une page blanche.
+
+Et le relevé qui reste dû : **les heures d'instance réellement consommées**
+(dashboard Render → workspace → *Usage*), avant et après un mois plein de
+routine. C'est lui qui dira si la routine suffit ou s'il faut basculer la
+production sur un plan payant.
 
 ## Publier une version
 

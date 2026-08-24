@@ -81,6 +81,17 @@ jobs:
           # pas ses fragments. Le garder hors du dépôt tout en l'imprimant ici
           # serait une distinction sans différence.
           echo "::add-mask::$service_id"
+          # Reprise avant tout le reste : `render-sleep.yml` suspend ce service
+          # (la preview dort entre deux déploiements, la production entre 1 h et
+          # 4 h UTC — #530), et un deploy hook envoyé à un service suspendu ne le
+          # rallume pas. C'est aussi le filet si le cron de lever ne passe pas :
+          # un déploiement rallume toujours sa cible. Reprendre un service déjà
+          # éveillé n'est pas une erreur ici — `--fail-with-body` n'est pas armé
+          # sur cet appel, dont l'échec ne doit pas bloquer un déploiement.
+          curl -sS -X POST -H "Authorization: Bearer $RENDER_API_KEY" \
+            --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 \
+            "https://api.render.com/v1/services/$service_id/resume" || true
+          echo
           # `--fail-with-body` et non `-f` : sans lui, un 400 ne rend que
           # « curl: (22) … error: 400 », sans le motif renvoyé par Render. Le
           # corps n'est donc **pas** redirigé — c'est lui le diagnostic. En
@@ -99,13 +110,18 @@ jobs:
       # Sur un `workflow_dispatch` depuis une branche de PR, l'**intention** est
       # de déployer ce commit-là et non `main`, sur laquelle le service est
       # épinglé. Non vérifié : Render documente `ref` pour un SHA, sans dire si
-      # un commit hors branche liée est résolvable. L'échec serait discret — le
-      # hook rend 200 quoi qu'il arrive, et la panne surviendrait côté Render,
-      # job vert. À confirmer par un dispatch manuel avant de s'y fier.
+      # un commit hors branche liée est résolvable. À confirmer par un dispatch
+      # manuel avant de s'y fier.
+      #
+      # `--fail-with-body` et non `-f`, même raison qu'à l'étape env-var :
+      # le hook ne rend pas 200 quoi qu'il arrive — il rend 409 quand le
+      # service est suspendu ou qu'un déploiement est déjà en cours, et `-f`
+      # avalait le motif (constaté du 22 au 23/08/2026, quatre jours de CI
+      # rouge sans autre diagnostic que « error: 409 »).
       - name: Render (backend) — deploy hook preview
         env:
           DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_PREVIEW }}
-        run: curl -fsSL -X POST --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 "$DEPLOY_HOOK&ref=${{ github.sha }}"
+        run: curl -sSL --fail-with-body -X POST --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 "$DEPLOY_HOOK&ref=${{ github.sha }}"
 
       # `vercel build` tourne **sur ce runner** (le déploiement se fait ensuite
       # en `--prebuilt`) : c'est donc ici le runtime de build réel du front, à
@@ -175,6 +191,17 @@ jobs:
           # pas ses fragments. Le garder hors du dépôt tout en l'imprimant ici
           # serait une distinction sans différence.
           echo "::add-mask::$service_id"
+          # Reprise avant tout le reste : `render-sleep.yml` suspend ce service
+          # (la preview dort entre deux déploiements, la production entre 1 h et
+          # 4 h UTC — #530), et un deploy hook envoyé à un service suspendu ne le
+          # rallume pas. C'est aussi le filet si le cron de lever ne passe pas :
+          # un déploiement rallume toujours sa cible. Reprendre un service déjà
+          # éveillé n'est pas une erreur ici — `--fail-with-body` n'est pas armé
+          # sur cet appel, dont l'échec ne doit pas bloquer un déploiement.
+          curl -sS -X POST -H "Authorization: Bearer $RENDER_API_KEY" \
+            --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 \
+            "https://api.render.com/v1/services/$service_id/resume" || true
+          echo
           # `--fail-with-body` et non `-f` : sans lui, un 400 ne rend que
           # « curl: (22) … error: 400 », sans le motif renvoyé par Render. Le
           # corps n'est donc **pas** redirigé — c'est lui le diagnostic. En
@@ -196,7 +223,7 @@ jobs:
       - name: Render (backend) — deploy hook prod
         env:
           DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_PROD }}
-        run: curl -fsSL -X POST --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 "$DEPLOY_HOOK&ref=${{ github.sha }}"
+        run: curl -sSL --fail-with-body -X POST --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 "$DEPLOY_HOOK&ref=${{ github.sha }}"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:

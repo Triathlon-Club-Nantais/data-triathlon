@@ -5,6 +5,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { CourseSummary, Participation } from "@/lib/types";
 import { SCOPE_CLUB, SCOPE_PARAM } from "@/lib/scope";
+import { CLUB_NAME } from "@/lib/club";
 
 const push = vi.fn();
 let searchParams = new URLSearchParams();
@@ -146,9 +147,19 @@ describe("RaceFinishers", () => {
   it("rend des liens « Précédent » / « Suivant » portant le numéro de page", () => {
     afficher({ total: 100, pageSize: 20, page: 3 });
 
-    expect(screen.getByText("Page 3 sur 5")).toBeInTheDocument();
+    expect(screen.getByLabelText("Aller à la page")).toHaveValue(3);
+    expect(screen.getByText("sur 5")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Précédent/ })).toHaveAttribute("href", "/courses/1?page=2");
     expect(screen.getByRole("link", { name: /Suivant/ })).toHaveAttribute("href", "/courses/1?page=4");
+  });
+
+  it("relie « sur N » au champ de saut par aria-describedby, pas seulement par proximité visuelle (#485)", () => {
+    afficher({ total: 100, pageSize: 20, page: 3 });
+
+    const champ = screen.getByLabelText("Aller à la page");
+    const idDescription = champ.getAttribute("aria-describedby");
+    expect(idDescription).toBeTruthy();
+    expect(document.getElementById(idDescription!)).toHaveTextContent("sur 5");
   });
 
   it("omet le paramètre page pour revenir à la première : l'URL par défaut reste propre", () => {
@@ -173,6 +184,102 @@ describe("RaceFinishers", () => {
     expect(suivant).toContain("q=dupont");
     expect(suivant).toContain("scope=club");
     expect(suivant).toContain("page=2");
+  });
+
+  // ── Saut de page ───────────────────────────────────────────────────────────
+
+  it("rend des liens vers la première et la dernière page", () => {
+    afficher({ total: 860, pageSize: 20, page: 21 });
+
+    expect(screen.getByRole("link", { name: /Première/ })).toHaveAttribute("href", "/courses/1");
+    expect(screen.getByRole("link", { name: /Dernière/ })).toHaveAttribute("href", "/courses/1?page=43");
+  });
+
+  it("saute à la page saisie sans perdre la recherche ni le filtre", async () => {
+    searchParams = new URLSearchParams("q=dupont&scope=club");
+    afficher({ total: 860, pageSize: 20, page: 1 });
+
+    const champ = screen.getByLabelText("Aller à la page");
+    await userEvent.clear(champ);
+    await userEvent.type(champ, "22");
+    await userEvent.click(screen.getByRole("button", { name: "Aller" }));
+
+    const url = push.mock.calls.at(-1)?.[0] ?? "";
+    expect(url).toContain("q=dupont");
+    expect(url).toContain("scope=club");
+    expect(url).toContain("page=22");
+  });
+
+  it("ramène une saisie hors bornes dans le classement plutôt que de la refuser", async () => {
+    // « 99 » sur 43 pages veut dire « la fin ».
+    afficher({ total: 860, pageSize: 20, page: 1 });
+
+    const champ = screen.getByLabelText("Aller à la page");
+    await userEvent.clear(champ);
+    await userEvent.type(champ, "99");
+    await userEvent.click(screen.getByRole("button", { name: "Aller" }));
+
+    expect(push).toHaveBeenCalledWith("/courses/1?page=43");
+  });
+
+  it("omet le paramètre page quand on saute à la première", async () => {
+    afficher({ total: 860, pageSize: 20, page: 5 });
+
+    const champ = screen.getByLabelText("Aller à la page");
+    await userEvent.clear(champ);
+    await userEvent.type(champ, "1");
+    await userEvent.click(screen.getByRole("button", { name: "Aller" }));
+
+    expect(push).toHaveBeenCalledWith("/courses/1");
+  });
+
+  it("porte les autres paramètres en champs cachés, pour un saut sans JavaScript", () => {
+    searchParams = new URLSearchParams("q=dupont&page_size=50");
+    afficher({ total: 860, pageSize: 50, page: 2 });
+
+    const form = screen.getByLabelText("Aller à la page").closest("form")!;
+    expect(form).toHaveAttribute("method", "get");
+    // `toHaveValue` ne lit pas un champ caché : on interroge l'attribut.
+    expect(form.querySelector('input[name="q"]')).toHaveAttribute("value", "dupont");
+    expect(form.querySelector('input[name="page_size"]')).toHaveAttribute("value", "50");
+  });
+
+  // ── Taille de tranche ──────────────────────────────────────────────────────
+
+  it("propose les quatre tailles de tranche, même quand tout tient en une page", () => {
+    afficher({ total: 3, pageSize: 20 });
+
+    const selecteur = screen.getByLabelText("Lignes par page");
+    expect(selecteur).toBeInTheDocument();
+    expect(
+      Array.from(selecteur.querySelectorAll("option")).map((o) => o.textContent),
+    ).toEqual(["20 lignes", "50 lignes", "200 lignes", "Tout"]);
+  });
+
+  it("pousse la taille choisie dans l'URL et revient à la première page", async () => {
+    searchParams = new URLSearchParams("page=7");
+    afficher({ total: 900, pageSize: 20, page: 7 });
+
+    await userEvent.selectOptions(screen.getByLabelText("Lignes par page"), "200");
+
+    expect(push).toHaveBeenCalledWith("/courses/1?page_size=200");
+  });
+
+  it("retire le paramètre quand on revient à la taille par défaut", async () => {
+    searchParams = new URLSearchParams("page_size=200");
+    afficher({ total: 900, pageSize: 200, page: 1 });
+
+    await userEvent.selectOptions(screen.getByLabelText("Lignes par page"), "20");
+
+    expect(push).toHaveBeenCalledWith("/courses/1");
+  });
+
+  it("garde le sélecteur mais retire la navigation de pages quand tout est demandé", () => {
+    searchParams = new URLSearchParams("page_size=all");
+    afficher({ total: 900, pageSize: null, page: 1 });
+
+    expect(screen.getByLabelText("Lignes par page")).toHaveValue("all");
+    expect(screen.queryByRole("navigation", { name: /pagination/i })).not.toBeInTheDocument();
   });
 
   // ── Recherche et filtre club ───────────────────────────────────────────────
@@ -204,7 +311,7 @@ describe("RaceFinishers", () => {
 
   it("bascule le filtre club en paramètre d'URL et revient à la première page", async () => {
     searchParams = new URLSearchParams("page=4");
-    afficher({ total: 100, pageSize: 20, page: 4 });
+    afficher({ summary: synthese({ tcn_count: 5 }), total: 100, pageSize: 20, page: 4 });
 
     await userEvent.click(screen.getByRole("button", { name: /Triathlon Club Nantais/ }));
 
@@ -257,11 +364,42 @@ describe("RaceFinishers", () => {
     expect(screen.getByText("Aucun athlète ne correspond à cette recherche")).toBeInTheDocument();
   });
 
-  it("efface la recherche et le filtre club quand rien ne correspond (revue de code #476)", async () => {
+  it("n'affirme pas « Cette page n'existe pas » quand la vraie cause est une recherche sans résultat (#M4)", () => {
+    // `?q=zzz&page=5` : total=0 fait tomber nbPages à 1, donc page(5) > nbPages(1) —
+    // mais la cause réelle est la recherche vide, pas une page hors bornes.
+    searchParams = new URLSearchParams("q=zzz&page=5");
+    afficher({ participations: [], total: 0, page: 5 });
+
+    expect(screen.getByText("Aucun athlète ne correspond à cette recherche")).toBeInTheDocument();
+    expect(screen.queryByText("Cette page n'existe pas")).not.toBeInTheDocument();
+  });
+
+  it("n'efface que la recherche quand le filtre club est aussi actif (tâche 8, supersède la revue #476)", async () => {
     searchParams = new URLSearchParams("q=zzz&" + SCOPE_PARAM + "=" + SCOPE_CLUB);
     afficher({ participations: [], total: 0 });
 
     await userEvent.click(screen.getByRole("button", { name: "Effacer la recherche" }));
+
+    expect(push).toHaveBeenCalledWith(`/courses/1?${SCOPE_PARAM}=${SCOPE_CLUB}`);
+  });
+
+  it("ne parle pas de recherche quand seul le filtre club est actif", () => {
+    // Course sans athlète TCN : « Aucun athlète ne correspond à cette recherche »
+    // alors qu'aucune recherche n'a été faite.
+    searchParams = new URLSearchParams(`${SCOPE_PARAM}=${SCOPE_CLUB}`);
+    afficher({ participations: [], total: 0, summary: synthese({ total: 498, tcn_count: 0 }) });
+
+    expect(
+      screen.getByText(`Aucun athlète du ${CLUB_NAME} sur cette épreuve`),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/correspond à cette recherche/)).not.toBeInTheDocument();
+  });
+
+  it("offre la sortie du filtre club depuis son message d'absence", async () => {
+    searchParams = new URLSearchParams(`${SCOPE_PARAM}=${SCOPE_CLUB}`);
+    afficher({ participations: [], total: 0, summary: synthese({ total: 498, tcn_count: 0 }) });
+
+    await userEvent.click(screen.getByRole("button", { name: "Voir tous les participants" }));
 
     expect(push).toHaveBeenCalledWith("/courses/1");
   });
@@ -478,6 +616,60 @@ describe("RaceFinishers", () => {
     expect(screen.getByRole("status")).toHaveTextContent(/temps total.*croissant/i);
   });
 
+  it("annonce le périmètre du tri : la tranche affichée, pas le classement", async () => {
+    afficher({ total: 860, pageSize: 20 });
+
+    await userEvent.click(screen.getByRole("button", { name: /Trier par temps total/ }));
+
+    expect(
+      screen.getByRole("status").textContent,
+    ).toContain("sur les 3 lignes affichées");
+  });
+
+  it("ne mentionne aucun périmètre quand tout le classement est affiché", async () => {
+    searchParams = new URLSearchParams("page_size=all");
+    afficher({ total: 3, pageSize: null });
+
+    await userEvent.click(screen.getByRole("button", { name: /Trier par temps total/ }));
+
+    expect(screen.getByRole("status").textContent).not.toContain("lignes affichées");
+  });
+
+  it("porte le périmètre jusque dans l'aria-label des en-têtes", () => {
+    afficher({ total: 860, pageSize: 20 });
+
+    expect(
+      screen.getByRole("button", { name: "Trier par temps total, croissant, sur les 3 lignes affichées" }),
+    ).toBeInTheDocument();
+  });
+
+  it("accorde le périmètre au singulier quand une seule ligne est affichée", async () => {
+    afficher({ participations: [data[0]], total: 860, pageSize: 20 });
+
+    expect(
+      screen.getByRole("button", { name: "Trier par temps total, croissant, sur la ligne affichée" }),
+    ).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /Trier par temps total/ }));
+
+    expect(screen.getByRole("status").textContent).toContain("sur la ligne affichée");
+  });
+
+  it("ne mentionne aucun périmètre quand le tri porte sur zéro ligne affichée (#M3)", async () => {
+    searchParams = new URLSearchParams("q=zzz");
+    afficher({ participations: [], total: 0 });
+
+    // Le périmètre de tri se lit dans l'aria-label avant même de cliquer :
+    // il décrit la prochaine direction, « 0 lignes affichées » n'a rien à dire.
+    expect(
+      screen.getByRole("button", { name: "Trier par temps total, croissant" }),
+    ).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /Trier par temps total/ }));
+
+    expect(screen.getByRole("status").textContent).not.toContain("lignes affichées");
+  });
+
   // ── Cible tactile (#479) ────────────────────────────────────────────────────
 
   it("porte l'en-tête triable à la taille tactile minimale (24 px)", () => {
@@ -499,5 +691,77 @@ describe("RaceFinishers", () => {
 
     const ligne = screen.getByText("Rang").parentElement;
     expect(ligne).toHaveStyle({ alignItems: "center" });
+  });
+
+  // ── Cadre de la vue filtrée (RES-9) ────────────────────────────────────────
+
+  it("oppose le total de la sélection à celui de l'épreuve après une recherche", () => {
+    searchParams = new URLSearchParams("q=kermarrec");
+    afficher({ summary: synthese({ total: 498 }), total: 2 });
+
+    expect(screen.getByText(/2 résultats/)).toBeInTheDocument();
+    expect(screen.getByText(/sur 498/)).toBeInTheDocument();
+    expect(screen.getByText(/kermarrec/)).toBeInTheDocument();
+  });
+
+  it("sépare recherche et filtre club par un espace, pas une virgule (#485 re-revue)", () => {
+    // Verrouille la copie exacte du seul cas qui combine les deux clauses :
+    // les autres tests de cette section n'assertent que des fragments et
+    // ne distinguent pas join(" ") de join(", ").
+    searchParams = new URLSearchParams(`q=kermarrec&${SCOPE_PARAM}=${SCOPE_CLUB}`);
+    afficher({ summary: synthese({ total: 498, tcn_count: 12 }), total: 2 });
+
+    expect(
+      screen.getByText(
+        "2 résultats sur 498 pour « kermarrec » du Triathlon Club Nantais",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("nomme le filtre club dans la ligne d'état", () => {
+    searchParams = new URLSearchParams(`${SCOPE_PARAM}=${SCOPE_CLUB}`);
+    afficher({ summary: synthese({ total: 498, tcn_count: 12 }), total: 12 });
+
+    expect(screen.getByText(/du Triathlon Club Nantais/)).toBeInTheDocument();
+  });
+
+  it("ne rend aucune ligne d'état en vue complète", () => {
+    afficher({ total: 3 });
+
+    expect(screen.queryByRole("button", { name: "Effacer" })).not.toBeInTheDocument();
+  });
+
+  it("« Effacer » retire la recherche et le filtre d'un coup", async () => {
+    searchParams = new URLSearchParams(`q=kermarrec&${SCOPE_PARAM}=${SCOPE_CLUB}`);
+    afficher({ summary: synthese({ total: 498 }), total: 1 });
+
+    await userEvent.click(screen.getByRole("button", { name: "Effacer" }));
+
+    expect(push).toHaveBeenCalledWith("/courses/1");
+  });
+
+  it("situe le pied de carte sur l'épreuve entière, pas sur la sélection", () => {
+    searchParams = new URLSearchParams("q=kermarrec");
+    afficher({ total: 2 });
+
+    expect(screen.getByText(/Sur l'ensemble de l'épreuve/)).toBeInTheDocument();
+  });
+
+  it("grise l'onglet club quand l'épreuve ne compte aucun athlète TCN", () => {
+    afficher({ summary: synthese({ total: 498, tcn_count: 0 }) });
+
+    expect(screen.getByRole("button", { name: /Triathlon Club Nantais \(0\)/ })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+  });
+
+  it("laisse l'onglet club actif dès qu'un athlète TCN figure sur l'épreuve", () => {
+    afficher({ summary: synthese({ total: 498, tcn_count: 3 }) });
+
+    expect(screen.getByRole("button", { name: /Triathlon Club Nantais \(3\)/ })).not.toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   });
 });

@@ -33,7 +33,7 @@ const SESSION: SessionUser = {
   groups: [],
 };
 
-function afficher(session: SessionUser | null, props: { pleineLargeur?: boolean } = {}) {
+function afficher(session: SessionUser | null, props: { pleineLargeur?: boolean; onNavigate?: () => void } = {}) {
   push.mockClear();
   logout.mockClear();
   logout.mockResolvedValue(undefined);
@@ -171,6 +171,46 @@ describe("UserMenu — tiroir mobile (AC7)", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Se déconnecter" }));
 
     await waitFor(() => expect(logout).toHaveBeenCalled());
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/"));
+  });
+});
+
+describe("UserMenu — onNavigate ferme le tiroir au bon moment (#482, NAV-4)", () => {
+  it("appelle onNavigate juste avant de router vers /login", async () => {
+    const onNavigate = vi.fn();
+    afficher(null, { onNavigate });
+
+    await userEvent.click(await screen.findByRole("button", { name: "Se connecter" }));
+
+    expect(onNavigate).toHaveBeenCalled();
+    expect(push).toHaveBeenCalledWith("/login");
+  });
+
+  it("n'appelle pas onNavigate au clic de « Se déconnecter », seulement après le succès de la mutation", async () => {
+    const onNavigate = vi.fn();
+    afficher(SESSION, { pleineLargeur: true, onNavigate });
+    let resoudre!: () => void;
+    logout.mockReturnValue(new Promise<void>((resolve) => { resoudre = resolve; }));
+
+    await userEvent.click(await screen.findByRole("button", { name: "Se déconnecter" }));
+
+    // La mutation est en vol : `onNavigate` ne doit pas encore avoir été
+    // appelé, sans quoi le tiroir se fermerait avant que l'état d'attente du
+    // bouton n'ait eu le temps de s'afficher (#482, NAV-4).
+    expect(onNavigate).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Se déconnecter" })).toBeDisabled();
+
+    resoudre();
+    await waitFor(() => expect(onNavigate).toHaveBeenCalled());
+    expect(push).toHaveBeenCalledWith("/");
+  });
+
+  it("ne casse rien quand onNavigate est omis (usage historique du rail desktop)", async () => {
+    afficher(SESSION);
+    await ouvrirLeMenu();
+
+    await userEvent.click(screen.getByRole("menuitem", { name: "Se déconnecter" }));
+
     await waitFor(() => expect(push).toHaveBeenCalledWith("/"));
   });
 });

@@ -7,6 +7,7 @@ import {
   serializeSeasons,
   toggleSeason,
   seasonSelectionLabel,
+  seasonAbsenceLabel,
 } from "./season";
 
 describe("seasonOf", () => {
@@ -62,5 +63,17 @@ describe("seasonSelectionLabel", () => {
   });
   it("plusieurs saisons → décompte", () => {
     expect(seasonSelectionLabel([2025, 2023])).toBe("2 saisons sélectionnées");
+  });
+});
+
+describe("seasonAbsenceLabel", () => {
+  it("une saison → « la saison Y — Y+1 »", () => {
+    expect(seasonAbsenceLabel([2015])).toBe("la saison 2015 — 2016");
+  });
+  it("plusieurs saisons → « les N saisons sélectionnées »", () => {
+    expect(seasonAbsenceLabel([2025, 2023])).toBe("les 2 saisons sélectionnées");
+  });
+  it("liste vide → retombe sur la saison en cours", () => {
+    expect(seasonAbsenceLabel([])).toBe(`la ${seasonLabel(currentSeason()).toLowerCase()}`);
   });
 });

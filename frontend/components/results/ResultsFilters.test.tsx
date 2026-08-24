@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { buildResultsQuery, ResultsFilters } from "./ResultsFilters";
 
@@ -99,5 +99,178 @@ describe("ResultsFilters — recherche live", () => {
 
     expect(croix.className).toMatch(/(^|\s)size-6(\s|$)/);
     expect(croix.parentElement?.className).toMatch(/(^|\s)h-7(\s|$)/);
+  });
+});
+
+describe("ResultsFilters — libellés associés (WCAG 3.3.2)", () => {
+  beforeEach(() => {
+    push.mockReset();
+    replace.mockReset();
+    searchParams = new URLSearchParams();
+  });
+
+  it("associe chacun des cinq libellés à son champ", () => {
+    render(<ResultsFilters />);
+
+    // Un `<label>` posé à côté d'un `<input>` n'est pas un libellé : un lecteur
+    // d'écran annonçait « Du » et « Au » comme deux champs de date anonymes.
+    expect(screen.getByLabelText("Athlète")).toBeInTheDocument();
+    expect(screen.getByLabelText("Épreuve")).toBeInTheDocument();
+    expect(screen.getByLabelText("Discipline")).toBeInTheDocument();
+    expect(screen.getByLabelText("Du")).toBeInTheDocument();
+    expect(screen.getByLabelText("Au")).toBeInTheDocument();
+  });
+
+  it("associe les deux dates par htmlFor/id, pas par proximité", () => {
+    render(<ResultsFilters />);
+
+    const du = screen.getByLabelText("Du");
+    expect(du).toHaveAttribute("type", "date");
+    expect(du.id).toBeTruthy();
+  });
+});
+
+describe("ResultsFilters — volet mobile", () => {
+  beforeEach(() => {
+    push.mockReset();
+    replace.mockReset();
+    searchParams = new URLSearchParams();
+  });
+
+  it("porte le nombre de filtres repliés actifs, athlète non compté", () => {
+    // « Athlète » reste visible hors du volet : il ne fait pas partie du compte.
+    searchParams = new URLSearchParams("name=marie&event_type=triathlon-m&date_from=2026-01-01");
+    render(<ResultsFilters />);
+
+    expect(screen.getByRole("button", { name: "Filtres (2)" })).toBeInTheDocument();
+  });
+
+  it("n'affiche aucun compte quand aucun filtre replié n'est actif", () => {
+    searchParams = new URLSearchParams("name=marie");
+    render(<ResultsFilters />);
+
+    expect(screen.getByRole("button", { name: "Filtres" })).toBeInTheDocument();
+  });
+
+  it("ouvre le volet et y rend les quatre champs repliés", async () => {
+    render(<ResultsFilters />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Filtres" }));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    // Deux rendus du même champ : l'inline (masqué sous `sm`) et celui du volet.
+    expect(screen.getAllByLabelText("Épreuve")).toHaveLength(2);
+    expect(screen.getAllByLabelText("Du")).toHaveLength(2);
+  });
+
+  it("ne duplique aucun identifiant entre le rendu inline et celui du volet", async () => {
+    render(<ResultsFilters />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Filtres" }));
+    await screen.findByRole("dialog");
+
+    const ids = screen.getAllByLabelText("Épreuve").map((champ) => champ.id);
+    expect(new Set(ids).size).toBe(2);
+  });
+
+  it("« Filtrer » du volet pousse l'URL et ferme le volet (#485 — même verbe qu'en bandeau)", async () => {
+    render(<ResultsFilters />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Filtres" }));
+    const dialogue = await screen.findByRole("dialog");
+    const [, epreuveVolet] = screen.getAllByLabelText("Épreuve");
+    fireEvent.change(epreuveVolet, { target: { value: "nantes" } });
+    await userEvent.click(within(dialogue).getByRole("button", { name: "Filtrer" }));
+
+    expect(push).toHaveBeenCalledWith(expect.stringContaining("event_name=nantes"));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  });
+
+  it("se ferme par la croix du volet sans modifier l'URL (#485)", async () => {
+    render(<ResultsFilters />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Filtres" }));
+    const dialogue = await screen.findByRole("dialog");
+    await userEvent.click(within(dialogue).getByRole("button", { name: "Fermer les filtres" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("fermer le volet sans appliquer (Échap) ne laisse pas une discipline abandonnée s'appliquer via Entrée dans « Athlète » (#I2)", async () => {
+    render(<ResultsFilters />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Filtres" }));
+    await screen.findByRole("dialog");
+    const [, disciplineVolet] = screen.getAllByLabelText("Discipline");
+    await userEvent.click(disciplineVolet);
+    await userEvent.click(await screen.findByRole("option", { name: /triathlon m/i }));
+
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    await userEvent.type(screen.getByPlaceholderText("Rechercher un athlète"), "mar{Enter}");
+
+    expect(push).toHaveBeenCalledWith(expect.stringContaining("name=mar"));
+    expect(push.mock.calls.at(-1)?.[0]).not.toContain("event_type=");
+  });
+
+  it("rouvrir le volet après un abandon (Échap) ne montre plus la discipline abandonnée comme active (#I2)", async () => {
+    render(<ResultsFilters />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Filtres" }));
+    await screen.findByRole("dialog");
+    const [, disciplineVolet] = screen.getAllByLabelText("Discipline");
+    await userEvent.click(disciplineVolet);
+    await userEvent.click(await screen.findByRole("option", { name: /triathlon m/i }));
+
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "Filtres" }));
+    await screen.findByRole("dialog");
+    const [, disciplineReouverte] = screen.getAllByLabelText("Discipline");
+    expect(disciplineReouverte).toHaveTextContent("Toutes les disciplines");
+  });
+
+  it("le « Réinitialiser » du bandeau se replie sous `sm`, comme « Filtrer » (#M1)", () => {
+    searchParams = new URLSearchParams("name=marie");
+    render(<ResultsFilters />);
+
+    expect(screen.getByRole("button", { name: "Réinitialiser" }).className).toMatch(
+      /(^|\s)hidden(\s|$)/,
+    );
+  });
+
+  it("« Réinitialiser ces filtres » du volet ne remet pas à zéro le champ « Athlète », qui n'y figure pas (#M2, #485)", async () => {
+    searchParams = new URLSearchParams("name=marie");
+    render(<ResultsFilters />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Filtres" }));
+    await screen.findByRole("dialog");
+    await userEvent.click(screen.getByRole("button", { name: "Réinitialiser ces filtres" }));
+
+    expect(push).toHaveBeenCalledWith(expect.stringContaining("name=marie"));
+  });
+
+  it("annonce l'état du volet sur le bouton « Filtres » (aria-expanded, aria-haspopup, #485)", async () => {
+    render(<ResultsFilters />);
+
+    const bouton = screen.getByRole("button", { name: "Filtres" });
+    expect(bouton).toHaveAttribute("aria-haspopup", "dialog");
+    expect(bouton).toHaveAttribute("aria-expanded", "false");
+
+    await userEvent.click(bouton);
+    await screen.findByRole("dialog");
+
+    expect(bouton).toHaveAttribute("aria-expanded", "true");
   });
 });

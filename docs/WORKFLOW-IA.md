@@ -277,6 +277,44 @@ garde-fous qui coûtaient peu sont tous conservés (TDD, vérification, revue de
 de branche), seul le fan-out par tâche disparaît. `subagent-driven-development`
 reste disponible sur la voie Superpowers, sur désignation explicite.
 
+### Le brainstorming+plan ne doit jamais tourner en un seul agent continu
+
+Mesuré le 22-23/08/2026 sur trois lots de la même epic (#482, #483, #484) : un
+unique agent enchaînant `brainstorming` puis `writing-plans` a duré 255, 280 et
+219 tours — soit 67,3M / 55,7M / 38,9M tokens bruts cumulés à eux trois (mesure
+par parsing des transcripts JSONL). L'essentiel est du `cache_read` : dans une
+conversation continue, chaque tour renvoie tout l'historique accumulé, donc le
+cumul croît avec le **carré** du nombre de tours — un agent à 250 tours ne coûte
+pas 3× un agent à 80 tours, il en coûte de l'ordre de 10×.
+
+**Règle** : un cycle brainstorming+plan ne dépasse jamais **80 tours au total**,
+scindés en deux agents distincts d'au plus **40 tours chacun** :
+
+1. Un agent d'exploration (`brainstorming`) qui produit un **résumé structuré**
+   des options et de la décision — pas un historique complet.
+2. Un agent de rédaction (`writing-plans`) qui reprend ce résumé, jamais la
+   conversation d'exploration, pour écrire le plan.
+
+Le relais entre les deux se fait par un **document**, jamais par le contexte de
+conversation de l'agent d'exploration : c'est ce qui casse la croissance
+quadratique. À l'approche de 40 tours dans l'un ou l'autre, l'agent s'arrête et
+livre l'état courant — même incomplet — plutôt que de continuer à itérer.
+
+**Budgets indicatifs**, à consigner dans le prompt de dispatch faute de plafond
+dur disponible sur un dispatch `Agent` classique :
+
+| Agent | Tours max | Budget tokens bruts (cache inclus) |
+|---|---|---|
+| Exploration (`brainstorming`) | 40 | ~5M |
+| Rédaction (`writing-plans`) | 40 | ~3M |
+| **Total par feature** | **80** | **~8M** |
+
+Si le cycle passe par l'outil `Workflow` (budget dur, en tokens de **sortie**
+réellement facturés) plutôt que par des dispatches `Agent` successifs, les
+budgets équivalents sont plus bas puisqu'ils ne comptent que la sortie, jamais le
+cache relu : **150K tokens de sortie** pour l'exploration, **100K** pour la
+rédaction du plan.
+
 ---
 
 ## Mise en place (une fois par repo)

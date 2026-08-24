@@ -9,6 +9,8 @@ import { splitColumnsFromKeys } from "@/lib/utils/splits";
 import { secondsFromHms } from "@/lib/utils/time";
 import { genderShort } from "@/lib/utils/format";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ClassementPagination } from "@/components/results/ClassementPagination";
+import { PAGE_SIZE_DEFAUT, PAGE_SIZE_PARAM, parsePageSize } from "@/lib/pageSize";
 import { SCOPE_CLUB, SCOPE_PARAM } from "@/lib/scope";
 import { CLUB_NAME } from "@/lib/club";
 import type { CourseSummary, Participation } from "@/lib/types";
@@ -21,6 +23,21 @@ const CLUB_COL = "1.1fr";
 // (swim/t1/bike/t2/run/course1/course2), qui vivent dans `Participation.splits`
 // alors que le temps total vit dans `Participation.total_time`.
 const CLE_TEMPS_TOTAL = "__temps_total__";
+
+// Style partagé des boutons d'action des états d'absence (« Effacer la
+// recherche », « Voir tous les participants ») : `padding` + `minHeight: 24`
+// pour le plancher tactile WCAG 2.2 2.5.8, sous 24 px quand le bouton ne tient
+// sa hauteur que du texte.
+const STYLE_BOUTON_ABSENCE = {
+  background: "none",
+  border: "none",
+  padding: "4px 0",
+  minHeight: 24,
+  font: "inherit",
+  fontWeight: 700,
+  color: "var(--tcn-ink)",
+  cursor: "pointer",
+} as const;
 
 /**
  * Une ligne de finisher ouvre le détail de **ce résultat**, pas le profil de
@@ -117,6 +134,9 @@ export function RaceFinishers({
   }
 
   const filtreClub = searchParams.get(SCOPE_PARAM) === SCOPE_CLUB;
+  // La taille vient de l'URL, pas de la prop `pageSize` : sous `all`, le
+  // backend renvoie `null` et le sélecteur n'aurait plus quoi afficher.
+  const tailleCourante = parsePageSize(searchParams.get(PAGE_SIZE_PARAM));
 
   /** Construit une URL en repartant des paramètres courants. */
   function lienVers(modifications: Record<string, string | null>): string {
@@ -135,6 +155,11 @@ export function RaceFinishers({
    */
   function naviguer(modifications: Record<string, string | null>) {
     startTransition(() => router.push(lienVers({ ...modifications, page: null })));
+  }
+
+  /** Saut direct à une page, la recherche et le filtre en cours conservés. */
+  function naviguerPage(n: number) {
+    startTransition(() => router.push(lienVers({ page: n === 1 ? null : String(n) })));
   }
 
   // Les colonnes viennent de la synthèse et non des lignes affichées : sur vingt
@@ -171,9 +196,18 @@ export function RaceFinishers({
       ? "temps total"
       : `temps ${segments.find((s) => s.key === tri.cle)?.label ?? tri.cle}`
     : null;
+  // Le tri par en-tête ne porte que sur la tranche affichée. Sur 43 pages, le
+  // taire rendrait le classement trompeur ; sous `page_size=all`, il n'y a rien
+  // à dire, le tri est global.
+  const perimetreTri =
+    pageSize == null || lignes.length === 0
+      ? ""
+      : `, sur ${lignes.length === 1 ? "la ligne affichée" : `les ${lignes.length} lignes affichées`}`;
   const texteAnnonce =
     `${lignes.length} résultat${lignes.length > 1 ? "s" : ""} affiché${lignes.length > 1 ? "s" : ""}` +
-    (libelleTri ? `, trié par ${libelleTri}, ${tri!.direction === "asc" ? "croissant" : "décroissant"}` : "");
+    (libelleTri
+      ? `, trié par ${libelleTri}, ${tri!.direction === "asc" ? "croissant" : "décroissant"}${perimetreTri}`
+      : "");
 
   return (
     <Card padding={0} style={{ overflow: "hidden" }}>
@@ -213,11 +247,23 @@ export function RaceFinishers({
             onChange={(v) => naviguer({ [SCOPE_PARAM]: v === "tcn" ? SCOPE_CLUB : null })}
             options={[
               { value: "all", label: `Tous les participants (${summary.total})` },
-              { value: "tcn", label: `${CLUB_NAME} (${summary.tcn_count})`, dot: true },
+              { value: "tcn", label: `${CLUB_NAME} (${summary.tcn_count})`, dot: true, disabled: summary.tcn_count === 0 },
             ]}
           />
         </div>
       </div>
+      {(rechercheUrl || filtreClub) && (
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "10px 26px", borderBottom: "1px solid var(--tcn-border)", fontSize: 13, color: "var(--tcn-text-body)" }}>
+          <span>{libelleSelection(total, summary.total, rechercheUrl, filtreClub)}</span>
+          <button
+            type="button"
+            onClick={() => naviguer({ q: null, [SCOPE_PARAM]: null })}
+            style={{ background: "none", border: "none", padding: "4px 0", minHeight: 24, font: "inherit", fontWeight: 700, color: "var(--tcn-ink)", textDecoration: "underline", cursor: "pointer" }}
+          >
+            Effacer
+          </button>
+        </div>
+      )}
       <div
         style={{ overflowX: "auto" }}
         data-pending={pending || undefined}
@@ -227,11 +273,11 @@ export function RaceFinishers({
           <div style={{ display: "grid", gridTemplateColumns: fcols, gap: "0 12px", alignItems: "center", padding: "12px 22px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--tcn-text-faint)", borderBottom: "1px solid var(--tcn-border)" }}>
             <div>Rang</div><div>Athlète</div><div>Catég.</div><div>Sexe</div>
             <div>
-              <EnteteTriable cle={CLE_TEMPS_TOTAL} libelle="Temps total" ariaSujet="temps total" tri={tri} onTrier={trierSur} />
+              <EnteteTriable cle={CLE_TEMPS_TOTAL} libelle="Temps total" ariaSujet="temps total" tri={tri} onTrier={trierSur} perimetre={perimetreTri} />
             </div>
             {segments.map((s) => (
               <div key={s.key}>
-                <EnteteTriable cle={s.key} libelle={s.label} ariaSujet={`temps ${s.label}`} tri={tri} onTrier={trierSur} />
+                <EnteteTriable cle={s.key} libelle={s.label} ariaSujet={`temps ${s.label}`} tri={tri} onTrier={trierSur} perimetre={perimetreTri} />
               </div>
             ))}
             <div>Club</div>
@@ -278,7 +324,11 @@ export function RaceFinishers({
             );
           })}
           {participations.length === 0 && (
-            page > nbPages ? (
+            // `total > 0` : sans ce garde, une recherche sans résultat sur une
+            // page sautée (`?q=zzz&page=5`) tombe dans cette branche — `nbPages`
+            // vaut 1 faute de résultats, donc `page > nbPages` est vrai pour une
+            // tout autre raison que « cette page n'existe pas ».
+            page > nbPages && total > 0 ? (
               <EmptyState
                 bare
                 title="Cette page n'existe pas"
@@ -289,17 +339,31 @@ export function RaceFinishers({
                   </Link>
                 }
               />
-            ) : rechercheUrl || filtreClub ? (
+            ) : rechercheUrl ? (
               <EmptyState
                 bare
                 title="Aucun athlète ne correspond à cette recherche"
                 action={
                   <button
                     type="button"
-                    onClick={() => naviguer({ q: null, [SCOPE_PARAM]: null })}
-                    style={{ background: "none", border: "none", padding: 0, font: "inherit", fontWeight: 700, color: "var(--tcn-ink)", cursor: "pointer" }}
+                    onClick={() => naviguer({ q: null })}
+                    style={STYLE_BOUTON_ABSENCE}
                   >
                     Effacer la recherche
+                  </button>
+                }
+              />
+            ) : filtreClub ? (
+              <EmptyState
+                bare
+                title={`Aucun athlète du ${CLUB_NAME} sur cette épreuve`}
+                action={
+                  <button
+                    type="button"
+                    onClick={() => naviguer({ [SCOPE_PARAM]: null })}
+                    style={STYLE_BOUTON_ABSENCE}
+                  >
+                    Voir tous les participants
                   </button>
                 }
               />
@@ -310,69 +374,41 @@ export function RaceFinishers({
         </div>
       </div>
 
-      {nbPages > 1 && <Pagination page={page} nbPages={nbPages} lienVers={lienVers} />}
+      <ClassementPagination
+        page={page}
+        nbPages={nbPages}
+        lienVers={lienVers}
+        tailleCourante={tailleCourante}
+        onTaille={(taille) =>
+          naviguer({ [PAGE_SIZE_PARAM]: taille === PAGE_SIZE_DEFAUT ? null : String(taille) })
+        }
+        onAllerPage={naviguerPage}
+      />
 
       <div style={{ padding: "16px 24px", borderTop: "1px solid var(--tcn-border)", textAlign: "center", fontSize: 13, color: "var(--tcn-text-faint)" }}>
-        {resumeEpreuve(summary)}
+        <span>Sur l&apos;ensemble de l&apos;épreuve : </span>
+        <span>{resumeEpreuve(summary)}</span>
       </div>
     </Card>
   );
 }
 
 /**
- * Navigation par pages, en liens et non en boutons : ouvrables en nouvel onglet,
- * utilisables au clavier et fonctionnels avant hydratation.
+ * Cadre de la vue filtrée : ce qu'on regarde, et sur quoi.
+ *
+ * `total` est le total de la **sélection**, `totalEpreuve` celui de l'épreuve
+ * entière — c'est leur opposition qui manquait, l'écran affirmant « 498
+ * participants » sous deux lignes de résultats.
  */
-function Pagination({
-  page,
-  nbPages,
-  lienVers,
-}: {
-  page: number;
-  nbPages: number;
-  lienVers: (modifications: Record<string, string | null>) => string;
-}) {
-  const style = {
-    padding: "6px 14px",
-    fontSize: 13,
-    fontWeight: 700,
-    borderRadius: 8,
-    border: "1px solid var(--tcn-border)",
-    color: "var(--tcn-ink)",
-  } as const;
-  const inactif = { ...style, color: "var(--tcn-text-faint)", opacity: 0.5 };
-  // Hors bornes, « Précédent » ramène à la dernière page réelle : reculer d'un
-  // cran depuis la page 99 999 ferait traverser 99 908 pages vides.
-  const precedente = Math.min(page - 1, nbPages);
-
-  return (
-    <nav
-      aria-label="Pagination du classement"
-      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, padding: "14px 24px", borderTop: "1px solid var(--tcn-border)" }}
-    >
-      {page > 1 ? (
-        <Link
-          href={lienVers({ page: precedente === 1 ? null : String(precedente) })}
-          style={style}
-          rel="prev"
-        >
-          ‹ Précédent
-        </Link>
-      ) : (
-        <span style={inactif} aria-disabled="true">‹ Précédent</span>
-      )}
-      <span style={{ fontSize: 13, color: "var(--tcn-text-muted)" }} aria-current="page">
-        Page {page} sur {nbPages}
-      </span>
-      {page < nbPages ? (
-        <Link href={lienVers({ page: String(page + 1) })} style={style} rel="next">
-          Suivant ›
-        </Link>
-      ) : (
-        <span style={inactif} aria-disabled="true">Suivant ›</span>
-      )}
-    </nav>
-  );
+function libelleSelection(total: number, totalEpreuve: number, recherche: string, filtreClub: boolean): string {
+  const tete = `${total} résultat${total > 1 ? "s" : ""} sur ${totalEpreuve}`;
+  const morceaux = [];
+  if (recherche) morceaux.push(`pour « ${recherche} »`);
+  if (filtreClub) morceaux.push(`du ${CLUB_NAME}`);
+  // `join(" ")`, pas `join(", ")` : les deux clauses n'ont pas la même nature
+  // (l'une qualifie la recherche, l'autre le périmètre), la virgule les met à
+  // tort sur le même plan (revue UI/UX #485).
+  return `${tete} ${morceaux.join(" ")}`;
 }
 
 /**
@@ -410,12 +446,14 @@ function EnteteTriable({
   ariaSujet,
   tri,
   onTrier,
+  perimetre,
 }: {
   cle: string;
   libelle: string;
   ariaSujet: string;
   tri: { cle: string; direction: "asc" | "desc" } | null;
   onTrier: (cle: string) => void;
+  perimetre: string;
 }) {
   const actif = tri?.cle === cle;
   const direction = actif ? tri.direction : null;
@@ -425,7 +463,7 @@ function EnteteTriable({
     <button
       type="button"
       onClick={() => onTrier(cle)}
-      aria-label={`Trier par ${ariaSujet}, ${prochaineDirection === "asc" ? "croissant" : "décroissant"}`}
+      aria-label={`Trier par ${ariaSujet}, ${prochaineDirection === "asc" ? "croissant" : "décroissant"}${perimetre}`}
       // `padding` + `minHeight: 24` : plancher tactile WCAG 2.2 2.5.8, contre
       // 11 px sans padding avant #479.
       style={{

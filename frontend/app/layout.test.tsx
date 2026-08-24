@@ -20,6 +20,10 @@ vi.mock("./providers", () => ({ Providers: ({ children }: { children: React.Reac
 // `connection()` n'a de sens que dans une requête Next ; hors serveur il lève.
 vi.mock("next/server", () => ({ connection: async () => {} }));
 
+// `cookies()` lève hors d'une requête Next (#482, NAV-3) ; ce test ne porte
+// pas sur la largeur du rail, donc un jar vide (comportement replié par défaut).
+vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined }) }));
+
 import RootLayout from "./layout";
 
 describe("RootLayout — lien d'évitement (A11Y-1)", () => {
@@ -32,5 +36,15 @@ describe("RootLayout — lien d'évitement (A11Y-1)", () => {
 
     const main = document.querySelector("main");
     expect(main).toHaveAttribute("id", "contenu");
+  });
+});
+
+describe("RootLayout — espace réservé sous le contenu mobile (#482, NAV-4)", () => {
+  it("réserve la hauteur de la barre basse mobile sous <main>, seulement sous md", async () => {
+    render(await RootLayout({ children: <p>contenu de la page</p> }));
+
+    const conteneur = document.querySelector("main")?.parentElement;
+    expect(conteneur?.className).toContain("pb-[var(--tcn-nav-bottom)]");
+    expect(conteneur?.className).toContain("md:pb-0");
   });
 });

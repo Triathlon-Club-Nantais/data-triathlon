@@ -15,6 +15,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
+import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { SlidersHorizontal } from "lucide-react";
 import { EVENT_TYPE_OPTIONS, eventTypeLabel } from "@/lib/constants";
 import { formatDate } from "@/lib/utils/date";
 
@@ -36,6 +38,13 @@ export function ResultsFilters() {
   const [eventType, setEventType] = useState(sp.get("event_type") ?? "");
   const [dateFrom, setDateFrom] = useState(sp.get("date_from") ?? "");
   const [dateTo, setDateTo] = useState(sp.get("date_to") ?? "");
+  const [volet, setVolet] = useState(false);
+
+  // Compte des filtres **repliés** actifs, athlète exclu : il reste visible
+  // hors du volet, le compter ferait mentir le bouton.
+  const nbReplies = ["event_name", "event_type", "date_from", "date_to"].filter((cle) =>
+    sp.get(cle),
+  ).length;
 
   const scope = sp.get("scope") ?? undefined;
   const sort = sp.get("sort") ?? undefined;
@@ -108,6 +117,28 @@ export function ResultsFilters() {
     push({});
   }
 
+  // Réinitialisation **partielle** : seuls les quatre champs repliés dans le
+  // volet, l'athlète restant hors de son périmètre (#M2 revue finale).
+  function resetVolet() {
+    setEventName("");
+    setEventType("");
+    setDateFrom("");
+    setDateTo("");
+    push({ name, event_name: "", event_type: "", date_from: "", date_to: "" });
+  }
+
+  // Referme la fuite #387 côté volet : sorti sans valider (Échap, clic sur le
+  // fond), l'état local des quatre champs repliés reste modifié tant qu'on ne
+  // le remet pas à ce que l'URL dit déjà appliqué — sinon une saisie abandonnée
+  // s'applique au prochain Entrée dans « Athlète », et réapparaît comme active
+  // si l'on rouvre le volet.
+  function resetVoletDepuisUrl() {
+    setEventName(sp.get("event_name") ?? "");
+    setEventType(sp.get("event_type") ?? "");
+    setDateFrom(sp.get("date_from") ?? "");
+    setDateTo(sp.get("date_to") ?? "");
+  }
+
   // Filtres actifs (depuis l'URL) → chips.
   const active: { key: string; label: string }[] = [];
   if (sp.get("name")) active.push({ key: "name", label: `Athlète : ${sp.get("name")}` });
@@ -141,8 +172,9 @@ export function ResultsFilters() {
     <Card>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap items-end gap-3">
-          <Field label="Athlète">
+          <Field id="filtre-athlete" label="Athlète">
             <Input
+              id="filtre-athlete"
               value={name}
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && apply()}
@@ -150,57 +182,38 @@ export function ResultsFilters() {
               className="w-full sm:w-48"
             />
           </Field>
-          <Field label="Épreuve">
-            <Input
-              value={eventName}
-              onChange={(e) => setEventName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && apply()}
-              placeholder="Rechercher une épreuve"
-              className="w-full sm:w-48"
+          <div className="hidden sm:contents">
+            <ChampsReplies
+              suffixe="inline"
+              eventName={eventName}
+              setEventName={setEventName}
+              eventType={eventType}
+              setEventType={setEventType}
+              dateFrom={dateFrom}
+              setDateFrom={setDateFrom}
+              dateTo={dateTo}
+              setDateTo={setDateTo}
+              onValider={apply}
             />
-          </Field>
-          <Field label="Discipline">
-            <Select
-              value={eventType || ALL}
-              onValueChange={(v) => setEventType(v === ALL ? "" : (v as string))}
-            >
-              <SelectTrigger className="h-9 w-full sm:w-48">
-                <SelectValue placeholder="Toutes les disciplines">
-                  {(v) =>
-                    !v || v === ALL ? "Toutes les disciplines" : eventTypeLabel(v as string)
-                  }
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Toutes les disciplines</SelectItem>
-                {EVENT_TYPE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Du">
-            <Input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full sm:w-40"
-            />
-          </Field>
-          <Field label="Au">
-            <Input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="w-full sm:w-40"
-            />
-          </Field>
+          </div>
           <div className="flex gap-2">
-            <Button onClick={apply}>Filtrer</Button>
+            <Button
+              variant="outline"
+              className="sm:hidden"
+              aria-expanded={volet}
+              aria-haspopup="dialog"
+              onClick={() => setVolet(true)}
+            >
+              <SlidersHorizontal className="size-4" />
+              {nbReplies > 0 ? `Filtres (${nbReplies})` : "Filtres"}
+            </Button>
+            {/* « Filtrer » ne sert plus sous `sm` : le champ athlète y filtre en
+                direct (#383) et le volet porte le même verbe (#485). */}
+            <Button className="hidden sm:inline-flex" onClick={apply}>
+              Filtrer
+            </Button>
             {active.length > 0 && (
-              <Button variant="ghost" onClick={reset}>
+              <Button variant="ghost" className="hidden sm:inline-flex" onClick={reset}>
                 Réinitialiser
               </Button>
             )}
@@ -228,15 +241,188 @@ export function ResultsFilters() {
             ))}
           </div>
         )}
+
+        <Sheet
+          open={volet}
+          onOpenChange={(open) => {
+            setVolet(open);
+            if (!open) resetVoletDepuisUrl();
+          }}
+        >
+          <SheetContent side="right" className="w-80 overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <SheetTitle>Filtres</SheetTitle>
+              <SheetClose
+                aria-label="Fermer les filtres"
+                className="rounded-full p-1 text-[var(--tcn-text-faint)] hover:text-[var(--tcn-ink)]"
+              >
+                <X className="size-4" />
+              </SheetClose>
+            </div>
+            <div className="flex flex-col gap-3">
+              <ChampsReplies
+                suffixe="volet"
+                eventName={eventName}
+                setEventName={setEventName}
+                eventType={eventType}
+                setEventType={setEventType}
+                dateFrom={dateFrom}
+                setDateFrom={setDateFrom}
+                dateTo={dateTo}
+                setDateTo={setDateTo}
+                onValider={() => {
+                  apply();
+                  setVolet(false);
+                }}
+              />
+            </div>
+            <div className="mt-auto flex gap-2">
+              {/* Application à la validation, jamais à la frappe, pour la
+                  discipline et les dates (#387) : c'est la seule promesse du
+                  volet. « Épreuve » garde sa recherche live (#383), comme hors
+                  du volet — l'`onKeyDown` Entrée reste un raccourci vers la
+                  même validation, pas un second régime. */}
+              <Button
+                className="flex-1"
+                onClick={() => {
+                  apply();
+                  setVolet(false);
+                }}
+              >
+                Filtrer
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  resetVolet();
+                  setVolet(false);
+                }}
+              >
+                Réinitialiser ces filtres
+              </Button>
+            </div>
+          </SheetContent>
+        </Sheet>
       </CardContent>
     </Card>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+/**
+ * Les quatre filtres repliables, rendus **deux fois** : inline au-dessus de
+ * `sm`, dans le volet en dessous. Le suffixe garde les identifiants uniques ;
+ * l'état vit chez le parent, les deux rendus affichent donc la même saisie.
+ *
+ * C'est ce qui évite un `useMediaQuery` : un hook média rendrait la disposition
+ * dépendante de l'hydratation, avec le flash que cela implique sur les filtres,
+ * première chose vue de l'écran.
+ */
+function ChampsReplies({
+  suffixe,
+  eventName,
+  setEventName,
+  eventType,
+  setEventType,
+  dateFrom,
+  setDateFrom,
+  dateTo,
+  setDateTo,
+  onValider,
+}: {
+  suffixe: string;
+  eventName: string;
+  setEventName: (v: string) => void;
+  eventType: string;
+  setEventType: (v: string) => void;
+  dateFrom: string;
+  setDateFrom: (v: string) => void;
+  dateTo: string;
+  setDateTo: (v: string) => void;
+  onValider: () => void;
+}) {
+  return (
+    <>
+      <Field id={`filtre-epreuve-${suffixe}`} label="Épreuve">
+        <Input
+          id={`filtre-epreuve-${suffixe}`}
+          value={eventName}
+          onChange={(e) => setEventName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && onValider()}
+          placeholder="Rechercher une épreuve"
+          className="w-full sm:w-48"
+        />
+      </Field>
+      <Field id={`filtre-discipline-${suffixe}`} label="Discipline">
+        <Select
+          value={eventType || ALL}
+          onValueChange={(v) => setEventType(v === ALL ? "" : (v as string))}
+        >
+          <SelectTrigger
+            id={`filtre-discipline-${suffixe}`}
+            aria-labelledby={`filtre-discipline-${suffixe}-label`}
+            className="h-9 w-full sm:w-48"
+          >
+            <SelectValue placeholder="Toutes les disciplines">
+              {(v) => (!v || v === ALL ? "Toutes les disciplines" : eventTypeLabel(v as string))}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Toutes les disciplines</SelectItem>
+            {EVENT_TYPE_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field id={`filtre-date-du-${suffixe}`} label="Du">
+        <Input
+          id={`filtre-date-du-${suffixe}`}
+          type="date"
+          value={dateFrom}
+          onChange={(e) => setDateFrom(e.target.value)}
+          className="w-full sm:w-40"
+        />
+      </Field>
+      <Field id={`filtre-date-au-${suffixe}`} label="Au">
+        <Input
+          id={`filtre-date-au-${suffixe}`}
+          type="date"
+          value={dateTo}
+          onChange={(e) => setDateTo(e.target.value)}
+          className="w-full sm:w-40"
+        />
+      </Field>
+    </>
+  );
+}
+
+/**
+ * Libellé **associé** à son champ, et non simplement posé au-dessus.
+ *
+ * `htmlFor` ne désigne que les contrôles de formulaire étiquetables : le
+ * `SelectTrigger` de Base UI étant un `<button>`, il se référence par
+ * `aria-labelledby` sur l'`id` du libellé, d'où le `${id}-label`.
+ */
+function Field({
+  id,
+  label,
+  children,
+}: {
+  id: string;
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="flex w-full flex-col gap-1.5 sm:w-auto">
-      <label className="text-xs font-medium text-[var(--tcn-text-faint)]">{label}</label>
+      <label
+        id={`${id}-label`}
+        htmlFor={id}
+        className="text-xs font-medium text-[var(--tcn-text-faint)]"
+      >
+        {label}
+      </label>
       {children}
     </div>
   );

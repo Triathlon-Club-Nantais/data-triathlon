@@ -6,11 +6,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
 import type { SessionUser } from "@/lib/types";
 
-const { push, getSession, logout, listParticipations, countCourses } = vi.hoisted(() => ({
+const { push, getSession, logout, searchAthletes, countCourses } = vi.hoisted(() => ({
   push: vi.fn(),
   getSession: vi.fn(),
   logout: vi.fn(),
-  listParticipations: vi.fn(),
+  searchAthletes: vi.fn(),
   countCourses: vi.fn(),
 }));
 
@@ -63,20 +63,20 @@ vi.mock("next/link", async () => {
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { listParticipations, getSession, logout, countCourses } };
+  return { ...original, apiClient: { searchAthletes, getSession, logout, countCourses } };
 });
 
 import { AppNav } from "./AppNav";
 import { clearAthlete, readAthlete, writeAthlete } from "./AthletePicker";
 
-function afficher(session: SessionUser | null) {
+function afficher(session: SessionUser | null, { initialExpanded = false }: { initialExpanded?: boolean } = {}) {
   if (session) getSession.mockResolvedValue(session);
   else getSession.mockRejectedValue(new ApiError(401, "anonyme"));
 
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <AppNav />
+      <AppNav initialExpanded={initialExpanded} />
     </QueryClientProvider>,
   );
 }
@@ -111,7 +111,7 @@ beforeEach(() => {
   push.mockClear();
   montages.clear();
   chemin.courant = "/dashboard";
-  listParticipations.mockResolvedValue([]);
+  searchAthletes.mockResolvedValue([]);
 
   // Node 20 (la CI) fournit `window.localStorage` à jsdom, Node 26 non. Sans
   // stock déterministe, la persistance de l'état déplié fuit d'un test à
@@ -126,6 +126,11 @@ beforeEach(() => {
       clear: () => stock.clear(),
     },
   });
+
+  // Le cookie de largeur (#482, NAV-3) n'est réinitialisé par aucun mock —
+  // contrairement à `localStorage` ci-dessus, `document.cookie` est un vrai
+  // objet du document jsdom qui persiste d'un test à l'autre dans le même fichier.
+  document.cookie = "tcn-nav-expanded=; path=/; max-age=0";
 });
 
 describe("readAthlete — stock corrompu", () => {
@@ -175,12 +180,19 @@ describe("AppNav — doublon de prefetch après resynchro localStorage (#428)", 
    * `2026-08-17-dashboard-perf-rank-et-prefetch-sondage.md`, constat 2).
    */
   it("ne prefetche « Résultats » qu'une fois quand le rail persisté est déjà déplié", async () => {
-    window.localStorage.setItem("tcn-nav-expanded", "1");
-    afficher(null);
+    afficher(null, { initialExpanded: true });
 
-    // Le rail est déplié : c'est la bascule elle-même qui est mesurée.
-    expect(await screen.findByRole("link", { name: "Résultats" })).toBeInTheDocument();
-    expect(montages.get("/resultats")).toBe(1);
+    // Le rail est déjà déplié dès le premier rendu — synchrone, sans attendre
+    // un effet de montage (#482, NAV-3) : c'est exactement ce que ce correctif
+    // change par rapport à l'ancien comportement, qui exigeait un `findByRole`.
+    // Scopé au rail : Task 6 y ajoute une barre basse mobile qui porte, elle
+    // aussi, une entrée « Résultats ».
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    expect(within(rail).getByRole("link", { name: "Résultats" })).toBeInTheDocument();
+    // 2, pas 1 : la barre basse mobile (#482, NAV-4) monte son propre `Link`
+    // vers la même route, en plus de celui du rail — même limite assumée que
+    // le logo/bouton d'ajout du pied mobile (frontend/AGENTS.md, « #428 »).
+    expect(montages.get("/resultats")).toBe(2);
   });
 
   it("garde l'entrée montée d'un pliage et d'un dépliage à la main", async () => {
@@ -190,37 +202,92 @@ describe("AppNav — doublon de prefetch après resynchro localStorage (#428)", 
     await userEvent.click(screen.getByRole("button", { name: "Déplier la navigation" }));
     await userEvent.click(screen.getByRole("button", { name: "Replier la navigation" }));
 
-    expect(montages.get("/resultats")).toBe(1);
+    // 2 : le rail (une seule fois, l'objet de ce test) + la barre basse
+    // mobile, toujours montée (#482, NAV-4).
+    expect(montages.get("/resultats")).toBe(2);
   });
 
-  it("remonte l'entrée d'une catégorie à chaque dépliage — limite assumée du correctif", async () => {
+  it("remonte l'entrée d'une catégorie à plusieurs destinations à chaque dépliage — limite assumée du correctif", async () => {
     // Caractérisation, pas un objectif : l'unification ne vaut que pour la
-    // section **racine**, dont les destinations sont rendues dans les deux
-    // états. Repliée, une catégorie n'offre qu'une tuile qui déplie : ses
-    // `Link` n'existent pas, donc il n'y a rien à réutiliser à la bascule.
+    // section **racine** et, depuis #482 (NAV-2), pour une catégorie réduite à
+    // une seule destination livrée (« Club », qui rend désormais son `Link`
+    // dans les deux états et échappe donc à cette limite). Une catégorie à
+    // *plusieurs* destinations livrées (« Administration ») repliée n'offre
+    // toujours qu'une tuile qui déplie : ses `Link` n'existent pas, donc il
+    // n'y a rien à réutiliser à la bascule.
     // Sans conséquence à l'atterrissage — ils ne montent qu'une fois — et le
     // bouton de catégorie est resté hors périmètre de #428.
-    afficher(null);
+    afficher(habilite("pending_providers:read", "batch:run"));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Administration" })).toBeInTheDocument(),
+    );
+
     await userEvent.click(screen.getByRole("button", { name: "Déplier la navigation" }));
-    expect(montages.get("/club/athletes")).toBe(1);
+    expect(montages.get("/admin/fournisseurs")).toBe(1);
 
     await userEvent.click(screen.getByRole("button", { name: "Replier la navigation" }));
     await userEvent.click(screen.getByRole("button", { name: "Déplier la navigation" }));
-    expect(montages.get("/club/athletes")).toBe(2);
-    // La racine, elle, tient : c'est ce que le correctif garantit.
-    expect(montages.get("/resultats")).toBe(1);
+    expect(montages.get("/admin/fournisseurs")).toBe(2);
+    // La racine, elle, tient : c'est ce que le correctif garantit. 2, pas 1 :
+    // la barre basse mobile (#482, NAV-4) porte, elle aussi, « Résultats ».
+    expect(montages.get("/resultats")).toBe(2);
   });
 
   it("ne prefetche pas le logo du rail déplié, qui double la route de « Tableau de bord »", async () => {
-    // Rendu au seul état déplié, ce lien monte un second observateur vers
-    // `/dashboard`, que l'entrée « Tableau de bord » prefetche déjà.
-    window.localStorage.setItem("tcn-nav-expanded", "1");
+    afficher(null, { initialExpanded: true });
+
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    const logo = within(rail).getByRole("link", { name: "TCN — Accueil" });
+    expect(logo).toHaveAttribute("href", "/dashboard");
+    expect(logo).toHaveAttribute("data-prefetch", "false");
+  });
+});
+
+describe("AppNav — largeur du rail décidée avant la peinture (#482, NAV-3)", () => {
+  it("réplique replié par défaut quand aucune prop n'est fournie", () => {
     afficher(null);
 
     const rail = screen.getByRole("navigation", { name: "Navigation principale" });
-    const logo = await within(rail).findByRole("link", { name: "TCN — Accueil" });
-    expect(logo).toHaveAttribute("href", "/dashboard");
-    expect(logo).toHaveAttribute("data-prefetch", "false");
+    expect(rail.style.width).toBe("var(--tcn-nav-rail)");
+  });
+
+  it("peint le rail à sa largeur persistée dès le premier rendu, sans jamais lire localStorage", () => {
+    // Le stock localStorage reste vide : si le rail lisait encore
+    // `tcn-nav-expanded` depuis là, la prop n'aurait aucun effet.
+    afficher(null, { initialExpanded: true });
+
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    expect(rail.style.width).toBe("var(--tcn-nav-panel)");
+    expect(window.localStorage.getItem("tcn-nav-expanded")).toBeNull();
+  });
+
+  it("écrit un cookie — jamais localStorage — quand on (re)plie le rail à la main", async () => {
+    afficher(null);
+    await userEvent.click(screen.getByRole("button", { name: "Déplier la navigation" }));
+
+    expect(document.cookie).toContain("tcn-nav-expanded=1");
+    expect(window.localStorage.getItem("tcn-nav-expanded")).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Replier la navigation" }));
+    expect(document.cookie).toContain("tcn-nav-expanded=0");
+  });
+});
+
+describe("AppNav — monogramme du rail replié (#482, NAV-2)", () => {
+  it("porte un lien vers /dashboard même rail replié, alors qu'aucune marque n'existait avant", () => {
+    afficher(null);
+
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    const monogramme = within(rail).getByRole("link", { name: "TCN — Accueil" });
+    expect(monogramme).toHaveAttribute("href", "/dashboard");
+    expect(monogramme).toHaveTextContent("TCN");
+  });
+
+  it("ne double pas le monogramme une fois le rail déplié — seul le logo image reste", () => {
+    afficher(null, { initialExpanded: true });
+
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    expect(within(rail).getAllByRole("link", { name: "TCN — Accueil" })).toHaveLength(1);
   });
 });
 
@@ -253,8 +320,8 @@ describe("AppNav — prénom de l'athlète retenu (#264)", () => {
     // Le bout en bout : le picker écrit le stock que le rail relit. C'est
     // `AthletePicker` qui aplatissait `prenom` et `nom` en une seule chaîne,
     // rendant le prénom indevinable en aval.
-    listParticipations.mockResolvedValue([
-      { athlete: { id: 12, prenom: "Jean Gael", nom: "Dupont", gender: "M", club: "TCN" } },
+    searchAthletes.mockResolvedValue([
+      { id: 12, prenom: "Jean Gael", nom: "Dupont", gender: "M", club: "TCN", participation_count: 1 },
     ]);
     afficher(null);
     await userEvent.keyboard("{Control>}k{/Control}");
@@ -437,8 +504,11 @@ describe("AppNav — arborescence", () => {
     afficher(null);
     await deplier();
 
-    expect(screen.getByRole("link", { name: "Tableau de bord" })).toHaveAttribute("href", "/dashboard");
-    expect(screen.getByRole("link", { name: "Résultats" })).toHaveAttribute("href", "/resultats");
+    // Scopé au rail : la barre basse mobile (#482, NAV-4) porte les mêmes
+    // libellés pour les mêmes destinations.
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    expect(within(rail).getByRole("link", { name: "Tableau de bord" })).toHaveAttribute("href", "/dashboard");
+    expect(within(rail).getByRole("link", { name: "Résultats" })).toHaveAttribute("href", "/resultats");
 
     // Une entrée `soon` reste déclarée dans `nav.config.ts` — feuille de route
     // de la navigation — mais n'est plus rendue nulle part.
@@ -446,28 +516,44 @@ describe("AppNav — arborescence", () => {
     expect(screen.queryByText("À VENIR")).not.toBeInTheDocument();
   });
 
-  it("cache les entrées à venir d'une section qui en porte aussi une livrée (#274)", async () => {
-    // « Club » porte désormais une entrée livrée (« Athlètes par saison ») à
-    // côté de ses entrées `soon` : la section s'affiche, mais seules les
-    // entrées `soon` restent masquées.
+  it("rend « Club » comme un lien direct sur le rail replié, une seule destination livrée (#482, NAV-2)", async () => {
     afficher(null);
-    expect(screen.getByRole("button", { name: "Club" })).toBeInTheDocument();
+    // Scopé au rail : Task 6 y ajoute une barre basse mobile qui porte, elle
+    // aussi, une entrée « Athlètes par saison ».
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+
+    // Plus de bouton dépliant pour une section à une seule destination : le
+    // rail replié porte directement le lien.
+    expect(within(rail).queryByRole("button", { name: "Club" })).not.toBeInTheDocument();
+    const lien = within(rail).getByRole("link", { name: "Athlètes par saison" });
+    expect(lien).toHaveAttribute("href", "/club/athletes");
     expect(screen.queryByLabelText("Carte")).not.toBeInTheDocument();
 
     await deplier();
-    expect(screen.getByText("Club")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Athlètes par saison" })).toHaveAttribute(
+    expect(within(rail).getByText("Club")).toBeInTheDocument();
+    expect(within(rail).getByRole("link", { name: "Athlètes par saison" })).toHaveAttribute(
       "href",
       "/club/athletes",
     );
-    expect(screen.queryByText("Espace club")).not.toBeInTheDocument();
+    expect(within(rail).queryByText("Espace club")).not.toBeInTheDocument();
+  });
+
+  it("garde le bouton dépliant pour une section à plusieurs destinations livrées (#482, NAV-2)", async () => {
+    afficher(habilite("pending_providers:read", "batch:run"));
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Administration" })).toBeInTheDocument(),
+    );
+    expect(screen.queryByRole("link", { name: "Fournisseurs en attente" })).not.toBeInTheDocument();
   });
 
   it("marque l'entrée courante avec aria-current=\"page\"", async () => {
     afficher(null);
     await deplier();
-    expect(screen.getByRole("link", { name: "Tableau de bord" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "Résultats" })).not.toHaveAttribute("aria-current");
+
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    expect(within(rail).getByRole("link", { name: "Tableau de bord" })).toHaveAttribute("aria-current", "page");
+    expect(within(rail).getByRole("link", { name: "Résultats" })).not.toHaveAttribute("aria-current");
   });
 
   it("cache Administration à un anonyme et la montre à un connecté", async () => {
@@ -518,7 +604,8 @@ describe("AppNav — arborescence", () => {
     afficher(SESSION);
     await deplier();
 
-    await waitFor(() => expect(screen.getByText("Résultats")).toBeInTheDocument());
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    await waitFor(() => expect(within(rail).getByText("Résultats")).toBeInTheDocument());
     expect(
       screen.queryByRole("link", { name: "Fournisseurs en attente" }),
     ).not.toBeInTheDocument();
@@ -540,7 +627,10 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
   it("cache la section à un connecté sans pouvoir", async () => {
     afficher(SESSION);
     await deplier();
-    await waitFor(() => expect(screen.getByText("Résultats")).toBeInTheDocument());
+    // Scopé au rail : la barre basse mobile (#482, NAV-4) porte, elle aussi,
+    // un « Résultats ».
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    await waitFor(() => expect(within(rail).getByText("Résultats")).toBeInTheDocument());
     expect(screen.queryByText("Gestion des utilisateurs")).not.toBeInTheDocument();
     // « Administration » disparaît de même depuis qu'« Épreuves » porte un
     // pouvoir : c'était la seule entrée de la section à n'en porter aucun,
@@ -726,5 +816,177 @@ describe("badge de la file de revalidation (#119)", () => {
     // pastille chiffrée restant purement décorative.
     expect(await screen.findByText("4 épreuves à revalider")).toHaveClass("sr-only");
     expect(screen.getByText("4")).toHaveAttribute("aria-hidden", "true");
+  });
+});
+
+describe("AppNav — infobulles du rail replié remplacent les title (#482, NAV-2)", () => {
+  it("affiche une infobulle « Se connecter » au survol du bouton replié", async () => {
+    afficher(null);
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    const bouton = within(rail).getByRole("button", { name: "Se connecter" });
+
+    await userEvent.hover(bouton);
+    expect(await screen.findByRole("tooltip", { name: "Se connecter" })).toBeInTheDocument();
+  });
+
+  it("affiche la même infobulle au focus clavier, pas seulement au survol", async () => {
+    afficher(null);
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    const bouton = within(rail).getByRole("button", { name: "Se connecter" });
+
+    act(() => bouton.focus());
+    expect(await screen.findByRole("tooltip", { name: "Se connecter" })).toBeInTheDocument();
+  });
+
+  it("n'affiche plus aucune infobulle sur ce bouton une fois le rail déplié", async () => {
+    afficher(null, { initialExpanded: true });
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    const bouton = within(rail).getByRole("button", { name: "Se connecter" });
+
+    await userEvent.hover(bouton);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+
+  it("porte une infobulle sur le lien « Ajouter une épreuve » replié", async () => {
+    afficher(null);
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    const lien = within(rail).getByRole("link", { name: "Ajouter une épreuve" });
+
+    await userEvent.hover(lien);
+    expect(await screen.findByRole("tooltip", { name: "Ajouter une épreuve" })).toBeInTheDocument();
+  });
+
+  it("porte une infobulle sur le bouton « Rechercher un athlète » replié", async () => {
+    afficher(null);
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    const bouton = within(rail).getByRole("button", { name: "Rechercher un athlète" });
+
+    await userEvent.hover(bouton);
+    // Le contenu de l'infobulle reprend le raccourci clavier, comme le
+    // faisait le `title` natif qu'elle remplace — seul l'`aria-label` du
+    // bouton reste sobre.
+    expect(await screen.findByRole("tooltip", { name: "Rechercher un athlète (Ctrl K)" })).toBeInTheDocument();
+  });
+
+  it("porte une infobulle « Mon profil » sur la tuile de l'athlète retenu, repliée", async () => {
+    window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 12, prenom: "Jean", nom: "Dupont" }));
+    afficher(null);
+    const avatar = await screen.findByRole("link", { name: "Mon profil — Jean Dupont" });
+
+    await userEvent.hover(avatar);
+    expect(await screen.findByRole("tooltip", { name: "Mon profil" })).toBeInTheDocument();
+  });
+
+  it("porte une infobulle sur la tuile de catégorie repliée (« Administration »)", async () => {
+    afficher(habilite("pending_providers:read", "batch:run"));
+    const bouton = await screen.findByRole("button", { name: "Administration" });
+
+    await userEvent.hover(bouton);
+    expect(await screen.findByRole("tooltip", { name: "Administration" })).toBeInTheDocument();
+  });
+
+  it("porte une infobulle sur une entrée repliée du rail (« Tableau de bord »)", async () => {
+    afficher(null);
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    const lien = within(rail).getByRole("link", { name: "Tableau de bord" });
+
+    await userEvent.hover(lien);
+    expect(await screen.findByRole("tooltip", { name: "Tableau de bord" })).toBeInTheDocument();
+  });
+});
+
+describe("AppNav — barre basse mobile (#482, NAV-4)", () => {
+  it("porte les trois destinations publiques, avec libellé visible", () => {
+    afficher(null);
+
+    const barre = screen.getByRole("navigation", { name: "Navigation" });
+    expect(within(barre).getByRole("link", { name: "Tableau de bord" })).toHaveAttribute("href", "/dashboard");
+    expect(within(barre).getByRole("link", { name: "Résultats" })).toHaveAttribute("href", "/resultats");
+    expect(within(barre).getByRole("link", { name: "Athlètes par saison" })).toHaveAttribute(
+      "href",
+      "/club/athletes",
+    );
+  });
+
+  it("marque la destination courante avec aria-current=\"page\"", () => {
+    afficher(null);
+
+    const barre = screen.getByRole("navigation", { name: "Navigation" });
+    expect(within(barre).getByRole("link", { name: "Tableau de bord" })).toHaveAttribute("aria-current", "page");
+    expect(within(barre).getByRole("link", { name: "Résultats" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("ne porte aucune destination privée, connecté ou non", async () => {
+    // Deux pouvoirs, pas un seul : une seule destination livrée ferait rendre
+    // « Administration » en lien direct plutôt qu'en tuile de catégorie
+    // (#482, NAV-2). Attend la tuile par son nom accessible, pas par un texte
+    // visible : repliée, seule l'icône est rendue, le libellé ne vit que
+    // dans l'`aria-label` du bouton.
+    afficher(habilite("pending_providers:read", "batch:run"));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Administration" })).toBeInTheDocument());
+
+    const barre = screen.getByRole("navigation", { name: "Navigation" });
+    expect(within(barre).queryByRole("link", { name: "Fournisseurs en attente" })).not.toBeInTheDocument();
+  });
+});
+
+describe("AppNav — tiroir mobile réduit à l'administration et au compte (#482, NAV-4)", () => {
+  it("ne porte plus les sections publiques dans le tiroir, désormais dans la barre basse", async () => {
+    afficher(null);
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+
+    const tiroir = await screen.findByRole("dialog");
+    expect(within(tiroir).queryByRole("link", { name: "Tableau de bord" })).not.toBeInTheDocument();
+    expect(within(tiroir).queryByText("Club")).not.toBeInTheDocument();
+  });
+
+  it("garde les sections privées dans le tiroir pour un connecté habilité", async () => {
+    afficher(habilite("pending_providers:read"));
+    await userEvent.click(await screen.findByRole("button", { name: "Ouvrir le menu" }));
+
+    const tiroir = await screen.findByRole("dialog");
+    expect(within(tiroir).getByText("Administration")).toBeInTheDocument();
+    expect(within(tiroir).getByRole("link", { name: "Fournisseurs en attente" })).toHaveAttribute(
+      "href",
+      "/admin/fournisseurs",
+    );
+  });
+
+  it("garde les deux actions primaires en tête du tiroir même réduit", async () => {
+    afficher(null);
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+
+    const tiroir = await screen.findByRole("dialog");
+    expect(within(tiroir).getByRole("link", { name: "Ajouter une épreuve" })).toBeInTheDocument();
+    expect(within(tiroir).getByRole("button", { name: "Rechercher un athlète" })).toBeInTheDocument();
+  });
+});
+
+describe("AppNav — le tiroir ne se ferme plus au clic du pied (#482, NAV-4)", () => {
+  it("reste ouvert juste après un clic sur « Se déconnecter », le temps de la mutation", async () => {
+    afficher(SESSION);
+    await waitFor(() => expect(screen.getByRole("button", { name: `Compte — ${SESSION.email}` })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+    const tiroir = await screen.findByRole("dialog");
+    let resoudre!: () => void;
+    logout.mockReturnValue(new Promise<void>((resolve) => { resoudre = resolve; }));
+
+    await userEvent.click(within(tiroir).getByRole("button", { name: "Se déconnecter" }));
+
+    // Toujours dans le DOM juste après le clic : la fermeture n'est plus
+    // câblée sur l'événement de clic du pied (#482, NAV-4).
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    resoudre();
+  });
+
+  it("ne ferme pas le tiroir au clic sur un élément neutre du pied (l'adresse, hors bouton)", async () => {
+    afficher(SESSION);
+    await waitFor(() => expect(screen.getByRole("button", { name: `Compte — ${SESSION.email}` })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+    const tiroir = await screen.findByRole("dialog");
+
+    await userEvent.click(within(tiroir).getByText(SESSION.email));
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });
