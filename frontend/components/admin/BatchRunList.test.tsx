@@ -145,8 +145,12 @@ describe("BatchRunList", () => {
     afficher();
 
     expect(await screen.findByText(/plus de deux heures/i)).toBeInTheDocument();
-    const lien = screen.getByRole("link", { name: /annuler/i });
-    expect(lien).toHaveAttribute("href", RUN().external_url);
+    // La sortie est le lien permanent de la colonne « Lancement ». Le second
+    // lien qui vivait ici pointait la même URL sous un nom qui promettait
+    // l'annulation elle-même.
+    const liens = screen.getAllByRole("link");
+    expect(liens).toHaveLength(1);
+    expect(liens[0]).toHaveAttribute("href", RUN().external_url);
   });
 
   it("ne signale pas une exécution en cours depuis dix minutes", async () => {
@@ -225,7 +229,17 @@ describe("BatchRunList", () => {
     const reussi = await screen.findByText("Réussi");
     const echec = screen.getByText("Échec");
     const annule = screen.getByText("Annulé");
-    expect(echec.className).toMatch(/destructive/);
+    // Les couples sémantiques du thème, pas les variantes génériques : celle
+    // d'« Échec » ne tenait que 3,25:1, et « Réussi »/« Annulé » ne se
+    // détachaient pas du fond de la carte.
+    expect(echec.className).toMatch(/tcn-danger-text/);
+    expect(reussi.className).toMatch(/tcn-success-text/);
+    // L'aplat primaire est bien *remplacé*, pas empilé : sans quoi le couple
+    // sémantique poserait son encre sur l'orange par-dessus lequel il n'a été
+    // mesuré à aucun moment. (Le `[a]:hover:bg-primary/80` qui survit ne vise
+    // que les badges rendus en lien — ceux-ci sont des `span`.)
+    expect(echec.className).not.toMatch(/(^|\s)bg-primary(\s|$)/);
+    expect(echec.className).not.toMatch(/text-primary-foreground/);
     expect(reussi.className).not.toBe(echec.className);
     expect(annule.className).not.toBe(echec.className);
     expect(annule.className).not.toBe(reussi.className);

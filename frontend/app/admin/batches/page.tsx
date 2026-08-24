@@ -21,8 +21,10 @@ export default function AdminBatchesPage() {
       <div className="space-y-10">
         <PageHeader {...ecran("/admin/batches")}>
           {/* Le fait, dit à l'écran et plus seulement dans ce commentaire :
-              l'exécution est sur un runner, pas dans l'onglet (ADM-3). */}
-          <p className="max-w-2xl text-sm text-[var(--tcn-text-faint)]">
+              l'exécution est sur un runner, pas dans l'onglet (ADM-3). En gris
+              faible, il devenait le second de deux paragraphes indiscernables
+              sous le titre — et c'est celui des deux qui porte une consigne. */}
+          <p className="max-w-2xl text-sm font-medium text-foreground">
             Le traitement continue même si vous fermez cet onglet ; revenez ici
             pour lire le bilan.
           </p>
