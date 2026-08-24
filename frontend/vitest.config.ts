@@ -12,6 +12,7 @@ import path from "node:path";
 // passe, et coûte une seconde par exécution, pour toujours.
 const GLOBS_JSDOM = [
   "**/*.test.tsx",
+  "hooks/useImportStream.test.ts",
   "hooks/useRescrapeStream.test.ts",
   "lib/queries/admin.test.ts",
   "lib/queries/auth.test.ts",

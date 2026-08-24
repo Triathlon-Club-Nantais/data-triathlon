@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ImportedCourse } from "@/lib/types";
+import type { HeatFailure, ImportedCourse } from "@/lib/types";
 
 // Ces tests contrôlent l'état du hook d'import de bout en bout pour n'observer
 // que le rendu — l'objectif est de câbler la phase `done` sur /courses/{id} (#135)
@@ -21,10 +21,21 @@ const importMock = vi.hoisted(() => {
     skipped: 0,
     cached: false,
     courses: [] as ImportedCourse[],
+    heatsEnumerated: 0,
+    heatsImported: 0,
+    heatsCached: 0,
+    heatsFailed: 0,
+    failures: [] as HeatFailure[],
     error: null as string | null,
+    errorStatus: null as number | null,
+    retryAfter: null as number | null,
+    heatIndex: 0,
+    heatsScrapingTotal: 0,
+    heatLabel: "",
   };
   return {
     start: vi.fn(),
+    cancel: vi.fn(),
     reset: vi.fn(),
     get: () => state,
     set: (patch: Partial<typeof state>) => {
@@ -37,6 +48,7 @@ vi.mock("@/hooks/useImportStream", () => ({
   useImportStream: () => ({
     state: importMock.get(),
     start: importMock.start,
+    cancel: importMock.cancel,
     reset: importMock.reset,
   }),
 }));
@@ -93,7 +105,17 @@ beforeEach(() => {
     skipped: 0,
     cached: false,
     courses: [],
+    heatsEnumerated: 0,
+    heatsImported: 0,
+    heatsCached: 0,
+    heatsFailed: 0,
+    failures: [],
     error: null,
+    errorStatus: null,
+    retryAfter: null,
+    heatIndex: 0,
+    heatsScrapingTotal: 0,
+    heatLabel: "",
   });
 });
 
@@ -323,5 +345,166 @@ describe("TcnScrapeForm — repli sur échec d'import", () => {
     expect(
       screen.getByRole("button", { name: "Enregistrer le résultat" }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("TcnScrapeForm — trois échecs, trois écrans (#491, ACT-2)", () => {
+  it("plafond de débit : annonce l'attente, sans saisie manuelle ni signalement", async () => {
+    const { rerenderForm } = renderForm();
+    await userEvent.type(
+      screen.getByPlaceholderText(/résultats-chrono/),
+      "https://www.klikego.com/resultats/x",
+    );
+    importMock.set({ phase: "error", error: "Trop de demandes", errorStatus: 429, retryAfter: 180 });
+    rerenderForm();
+
+    expect(screen.getByText("Trop d'imports dans l'heure")).toBeInTheDocument();
+    expect(screen.getByText(/Réessayez dans 3 minutes/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Saisie manuelle" })).not.toBeInTheDocument();
+    await waitFor(() => expect(apiClient.detectProvider).toHaveBeenCalled());
+    expect(apiClient.reportPendingProvider).not.toHaveBeenCalled();
+  });
+
+  it("service muet : propose de réessayer, sans signaler le fournisseur", async () => {
+    const { rerenderForm } = renderForm();
+    await userEvent.type(
+      screen.getByPlaceholderText(/résultats-chrono/),
+      "https://www.klikego.com/resultats/x",
+    );
+    importMock.set({ phase: "error", error: "Boum", errorStatus: 500 });
+    rerenderForm();
+
+    expect(screen.getByText("Le service n'a pas répondu")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Saisie manuelle" })).not.toBeInTheDocument();
+    expect(apiClient.reportPendingProvider).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Réessayer" }));
+    expect(importMock.start).toHaveBeenCalledWith("https://www.klikego.com/resultats/x");
+  });
+
+  it("coupure réseau : même écran que le service muet", async () => {
+    const { rerenderForm } = renderForm();
+    await userEvent.type(
+      screen.getByPlaceholderText(/résultats-chrono/),
+      "https://www.klikego.com/resultats/x",
+    );
+    importMock.set({ phase: "error", error: "Failed to fetch", errorStatus: 0 });
+    rerenderForm();
+
+    expect(screen.getByText("Le service n'a pas répondu")).toBeInTheDocument();
+    expect(apiClient.reportPendingProvider).not.toHaveBeenCalled();
+  });
+});
+
+describe("TcnScrapeForm — le bilan dit toute la vérité (#491, ACT-3)", () => {
+  it("rend les cinq chiffres, mises à jour comprises", () => {
+    importMock.set({
+      phase: "done",
+      imported: 12,
+      updated: 5,
+      skipped: 3,
+      courses: [{ id: 42, name: "Triathlon de Nantes 2026", event_type: "triathlon-m" }],
+    });
+    renderForm();
+
+    expect(screen.getByText(/12 résultats ajoutés/)).toBeInTheDocument();
+    expect(screen.getByText(/5 mis à jour/)).toBeInTheDocument();
+    expect(screen.getByText(/3 déjà présents/)).toBeInTheDocument();
+  });
+
+  it("un import qui n'a fait que mettre à jour ne s'annonce pas comme vide", () => {
+    importMock.set({ phase: "done", imported: 0, updated: 40, skipped: 0, courses: [] });
+    renderForm();
+
+    expect(screen.getByText(/40 mis à jour/)).toBeInTheDocument();
+    expect(screen.queryByText("Résultats déjà enregistrés")).not.toBeInTheDocument();
+  });
+
+  it("séries en échec : statut dégradé, chiffres des séries et cause de chaque échec", () => {
+    importMock.set({
+      phase: "done",
+      imported: 120,
+      updated: 0,
+      skipped: 0,
+      heatsEnumerated: 12,
+      heatsImported: 9,
+      heatsCached: 0,
+      heatsFailed: 3,
+      failures: [
+        { heat_slug: "s-1", reason: "Série « Relais » : page illisible." },
+        { heat_slug: "s-2", reason: "Série « Jeunes » : délai dépassé." },
+        { heat_slug: "s-3", reason: "Série « Découverte » : 404." },
+      ],
+      courses: [{ id: 42, name: "Triathlon de Nantes 2026", event_type: "triathlon-m" }],
+    });
+    renderForm();
+
+    expect(screen.getByText("Import partiel : 3 séries sur 12 manquent")).toBeInTheDocument();
+    expect(screen.getByText(/Série « Relais » : page illisible./)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Relancer l'import" })).toBeInTheDocument();
+  });
+
+  it("aucune série en échec : le succès reste un succès", () => {
+    importMock.set({
+      phase: "done",
+      imported: 120,
+      heatsEnumerated: 12,
+      heatsImported: 12,
+      heatsFailed: 0,
+      failures: [],
+      courses: [{ id: 42, name: "Triathlon de Nantes 2026", event_type: "triathlon-m" }],
+    });
+    renderForm();
+
+    expect(screen.getByText("Résultats enregistrés avec succès !")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Relancer l'import" })).not.toBeInTheDocument();
+  });
+});
+
+describe("TcnScrapeForm — une attente habitée (#491, ACT-4)", () => {
+  it("compte le temps écoulé pendant le scraping", () => {
+    vi.useFakeTimers();
+    try {
+      importMock.set({ phase: "scraping", running: true, message: "Récupération des participants…" });
+      renderForm();
+
+      act(() => {
+        vi.advanceTimersByTime(65_000);
+      });
+
+      expect(screen.getByText(/1 min 5 s/)).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("« Annuler l'import » coupe le flux", async () => {
+    importMock.set({ phase: "scraping", running: true, message: "Récupération des participants…" });
+    renderForm();
+
+    await userEvent.click(screen.getByRole("button", { name: "Annuler l'import" }));
+
+    expect(importMock.cancel).toHaveBeenCalled();
+  });
+
+  it("prévient avant de quitter l'onglet tant que l'import tourne", () => {
+    importMock.set({ phase: "scraping", running: true });
+    const { unmount } = renderForm();
+
+    const evenement = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(evenement);
+    expect(evenement.defaultPrevented).toBe(true);
+
+    unmount();
+    const apres = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(apres);
+    expect(apres.defaultPrevented).toBe(false);
+  });
+
+  it("ne prévient pas quand aucun import ne tourne", () => {
+    renderForm();
+    const evenement = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(evenement);
+    expect(evenement.defaultPrevented).toBe(false);
   });
 });

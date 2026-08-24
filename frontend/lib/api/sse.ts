@@ -1,3 +1,4 @@
+import { ApiError } from "@/lib/api/client";
 import type { ImportProgressEvent, RescrapeProgressEvent } from "@/lib/types";
 
 const BASE = "/api/v1";
@@ -30,20 +31,32 @@ async function* readEventStream<T>(res: Response): AsyncGenerator<T> {
 
 export async function* importEventStream(
   url: string,
+  signal?: AbortSignal,
 ): AsyncGenerator<ImportProgressEvent> {
   const res = await fetch(`${BASE}/scrape/event/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url }),
+    signal,
   });
   // Même patron que `rescrapeEventStream` ci-dessous : un refus arrive **avant**
   // le premier octet du flux, corps JSON `{"detail": "..."}`. Le lire n'est plus
   // du confort depuis le plafond de débit (#395) — « Erreur lors du démarrage de
   // l'import » sur un 429 laisserait le visiteur réessayer indéfiniment au lieu
   // de lui dire d'attendre.
+  //
+  // `ApiError` et non `Error` nu (#491) : le statut est la seule chose qui
+  // distingue « plafond atteint », « service muet » et « page illisible », et
+  // l'écran doit les traiter différemment — seul le dernier est un défaut de
+  // fournisseur à signaler au back-office.
   if (!res.ok || !res.body) {
     const corps = await res.json().catch(() => null);
-    throw new Error(corps?.detail ?? "Erreur lors du démarrage de l'import");
+    const attente = Number(res.headers?.get("Retry-After"));
+    throw new ApiError(
+      res.status,
+      corps?.detail ?? "Erreur lors du démarrage de l'import",
+      Number.isFinite(attente) && attente > 0 ? attente : null,
+    );
   }
   yield* readEventStream<ImportProgressEvent>(res);
 }

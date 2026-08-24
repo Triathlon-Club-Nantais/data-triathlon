@@ -58,14 +58,20 @@ const BASE = "/api/v1";
  * Sans lui, un 401 était indiscernable d'un 500 : les deux arrivaient en `Error`
  * nu. La session en dépend — « pas connecté » est un état normal de la page, pas
  * une panne à signaler. Reste une `Error`, donc rien de l'existant ne change.
+ *
+ * `retryAfter` (secondes) ne vaut que pour un 429 : le plafond de débit
+ * (`deps.py`) renvoie l'attente restante en en-tête `Retry-After`, et sans elle
+ * un écran ne peut que dire « réessayez plus tard » là où il pourrait décompter.
  */
 export class ApiError extends Error {
   readonly status: number;
+  readonly retryAfter: number | null;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, retryAfter: number | null = null) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.retryAfter = retryAfter;
   }
 }
 

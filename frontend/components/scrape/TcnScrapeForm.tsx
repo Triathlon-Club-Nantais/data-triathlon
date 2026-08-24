@@ -19,6 +19,11 @@ import type { ImportedCourse, ScrapedPreview } from "@/lib/types";
 export function TcnScrapeForm() {
   const [url, setUrl] = useState("");
   const [manual, setManual] = useState(false);
+  // Une ligne immobile pendant des minutes ne distingue pas « ça travaille »
+  // de « c'est figé » (#491, ACT-4). La minuterie tient cette promesse même
+  // sous `prefers-reduced-motion`, qui gèle l'indicateur animé.
+  const [secondes, setSecondes] = useState(0);
+
   // Détection client (GET /scrape/detect), indépendante de toute tentative
   // d'import : elle permet d'avertir avant même le clic sur « Enregistrer les
   // résultats », plutôt que d'attendre l'échec réel du scrape.
@@ -36,11 +41,31 @@ export function TcnScrapeForm() {
   const save = useSaveParticipation();
   const importStream = useImportStream();
   const {
-    phase, error, running, imported, skipped, total, progress, cached, message, courses,
-    heatIndex, heatsScrapingTotal, heatLabel,
+    phase, error, errorStatus, retryAfter, running, imported, updated, skipped, total, progress,
+    cached, message, courses, heatIndex, heatsScrapingTotal, heatLabel,
+    heatsEnumerated, heatsImported, heatsCached, heatsFailed, failures,
   } = importStream.state;
 
-  const isDuplicate = phase === "done" && (cached || (imported === 0 && skipped > 0));
+  const isDuplicate = phase === "done" && (cached || (imported === 0 && updated === 0 && skipped > 0));
+
+  // Un import qui ramène des séries en échec n'est pas un import réussi : le
+  // dire en vert ferait passer 3 séries perdues sur 12 pour un plein succès
+  // (#491, ACT-3).
+  const partiel = phase === "done" && failures.length > 0;
+
+  // Trois causes, trois gestes (#491, ACT-2). `errorStatus` vaut `null` quand
+  // le flux s'est ouvert avant d'annoncer l'échec : c'est le **seul** cas où
+  // la page est en cause, donc le seul qui vaille une saisie manuelle et un
+  // signalement au back-office. Un 429 ou un 500 signalés en « fournisseur
+  // non supporté » polluaient `pending-providers` de liens parfaitement lisibles.
+  const motifEchec =
+    phase !== "error"
+      ? null
+      : errorStatus === 429
+        ? "plafond"
+        : errorStatus === 0 || (errorStatus !== null && errorStatus >= 500)
+          ? "service"
+          : "lecture";
 
   // Défense en profondeur alignée sur le backend (`ScrapeRequest.url: HttpUrl`,
   // 422 dès la porte, cf. `schemas/scrape.py`) : on filtre côté UI pour ne pas
@@ -58,19 +83,31 @@ export function TcnScrapeForm() {
     reportedRef.current = null;
     refreshedRef.current = null;
     setManual(false);
+    setSecondes(0);
     captureEvent("results_import_started", { url: v });
     importStream.start(v);
   }, [url, running, importStream]);
 
-  // Sur échec réel : signaler le fournisseur + proposer la saisie manuelle.
+  // Sur échec de lecture **avéré** : signaler le fournisseur + proposer la
+  // saisie manuelle. Un plafond de débit ou un service muet ne disent rien de
+  // l'URL, et n'ouvrent donc ni l'un ni l'autre.
   useEffect(() => {
-    if (phase !== "error" || reportedRef.current === url) return;
+    if (motifEchec !== "lecture" || reportedRef.current === url) return;
     reportedRef.current = url;
     toast.error(error ?? "Import impossible");
     apiClient.reportPendingProvider(url).catch(() => {});
     setManual(true);
     captureEvent("results_import_failed", { error_message: error ?? "Import impossible" });
-  }, [phase, error, url]);
+  }, [motifEchec, error, url]);
+
+  // Les deux autres causes ne se taisent pas pour autant : le toast reste, la
+  // télémétrie aussi, seuls le signalement et la saisie manuelle sautent.
+  useEffect(() => {
+    if (motifEchec === null || motifEchec === "lecture" || reportedRef.current === url) return;
+    reportedRef.current = url;
+    toast.error(error ?? "Import impossible");
+    captureEvent("results_import_failed", { error_message: error ?? "Import impossible" });
+  }, [motifEchec, error, url]);
 
   // Après un import réel, invalider le cache RSC de la page pour que la carte
   // « Derniers résultats enregistrés » (rendue côté serveur dans /ajouter) reflète
@@ -91,6 +128,26 @@ export function TcnScrapeForm() {
       course_count: courses.length,
     });
   }, [phase, isDuplicate, url, router, imported, skipped, courses.length]);
+
+  useEffect(() => {
+    if (!running) return;
+    const debut = Date.now();
+    const id = setInterval(() => setSecondes(Math.floor((Date.now() - debut) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [running]);
+
+  // Fermer l'onglet coupe la SSE et arrête l'import à mi-course : le dire
+  // avant, plutôt que de laisser une épreuve à moitié importée en base.
+  useEffect(() => {
+    if (!running) return;
+    const garde = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", garde);
+    return () => window.removeEventListener("beforeunload", garde);
+  }, [running]);
+
+  // Décompte du plafond de débit : `Retry-After` est un instantané, il fond
+  // avec le temps qui passe.
+  const attenteRestante = Math.max(0, (retryAfter ?? 0) - secondes);
 
   const persist = useCallback(
     async (data: Partial<ScrapedPreview>) => {
@@ -167,15 +224,45 @@ export function TcnScrapeForm() {
               heatIndex={heatIndex}
               heatsScrapingTotal={heatsScrapingTotal}
               heatLabel={heatLabel}
+              secondes={secondes}
+              onAnnuler={importStream.cancel}
             />
           </div>
         )}
 
         {phase === "done" && !isDuplicate && (
           <div style={{ marginTop: 14 }}>
-            <Alert status="success" title="Résultats enregistrés avec succès !">
-              {imported} résultat{imported > 1 ? "s" : ""} ajouté{imported > 1 ? "s" : ""}
-              {skipped > 0 ? ` · ${skipped} déjà présent${skipped > 1 ? "s" : ""}` : ""}. Les statistiques du club ont été mises à jour.
+            <Alert
+              status={partiel ? "warning" : "success"}
+              title={
+                partiel
+                  ? `Import partiel : ${failures.length} série${failures.length > 1 ? "s" : ""} sur ${heatsEnumerated} manque${failures.length > 1 ? "nt" : ""}`
+                  : "Résultats enregistrés avec succès !"
+              }
+              action={
+                partiel ? (
+                  <Button variant="secondary" size="sm" onClick={submit}>
+                    Relancer l&apos;import
+                  </Button>
+                ) : null
+              }
+            >
+              <BilanChiffres
+                imported={imported}
+                updated={updated}
+                skipped={skipped}
+                heatsEnumerated={heatsEnumerated}
+                heatsImported={heatsImported}
+                heatsCached={heatsCached}
+                heatsFailed={heatsFailed}
+              />
+              {failures.length > 0 && (
+                <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
+                  {failures.map((f, i) => (
+                    <li key={`${f.heat_slug}-${i}`}>{f.reason}</li>
+                  ))}
+                </ul>
+              )}
               <CourseNavigator courses={courses} />
             </Alert>
           </div>
@@ -188,14 +275,36 @@ export function TcnScrapeForm() {
             </Alert>
           </div>
         )}
-        {(phase === "error" || (providerUnsupported && phase === "idle")) && (
+        {motifEchec === "plafond" && (
+          <div style={{ marginTop: 14 }}>
+            <Alert status="warning" title="Trop d'imports dans l'heure">
+              {attenteRestante > 0
+                ? `Réessayez dans ${formatAttente(attenteRestante)}.`
+                : "Vous pouvez réessayer maintenant."}{" "}
+              Cette limite protège les sites des chronométreurs ; vos imports précédents sont bien enregistrés.
+            </Alert>
+          </div>
+        )}
+        {motifEchec === "service" && (
+          <div style={{ marginTop: 14 }}>
+            <Alert
+              status="warning"
+              title="Le service n'a pas répondu"
+              action={<Button variant="secondary" size="sm" onClick={submit}>Réessayer</Button>}
+            >
+              L&apos;import n&apos;a pas pu aboutir — connexion interrompue ou service momentanément indisponible.
+              L&apos;adresse que vous avez collée n&apos;est pas en cause.
+            </Alert>
+          </div>
+        )}
+        {(motifEchec === "lecture" || (providerUnsupported && phase === "idle")) && (
           <div style={{ marginTop: 14 }}>
             <Alert
               status="warning"
               title="Impossible d'importer automatiquement"
               action={<Button variant="secondary" size="sm" onClick={() => setManual(true)}>Saisie manuelle</Button>}
             >
-              {phase === "error"
+              {motifEchec === "lecture"
                 ? (error ?? "Le lien fourni n'a pas pu être lu.")
                 : "Aucun chronométreur ne reconnaît cette adresse."}{" "}
               Vous pouvez saisir votre participation manuellement.
@@ -210,6 +319,66 @@ export function TcnScrapeForm() {
           <div style={{ fontSize: 14, color: "var(--tcn-text-muted)", marginBottom: 22 }}>Complétez les champs ci-dessous. Votre participation sera bien enregistrée.</div>
           <ManualResultForm defaultUrl={url} onSubmit={persist} submitting={save.isPending} />
         </Card>
+      )}
+    </>
+  );
+}
+
+/** « 3 minutes », « 1 minute », « moins d'une minute » — le décompte du plafond
+ *  de débit. Les secondes n'y apportent rien sur une attente qui se compte en
+ *  minutes, et un « 179 s » qui défile donnerait envie de rester à regarder. */
+function formatAttente(secondes: number): string {
+  const minutes = Math.ceil(secondes / 60);
+  if (minutes <= 1) return "moins d'une minute";
+  return `${minutes} minutes`;
+}
+
+/** « 45 s », « 1 min 5 s » — le temps déjà passé sur l'import en cours. */
+function formatDuree(secondes: number): string {
+  if (secondes < 60) return `${secondes} s`;
+  return `${Math.floor(secondes / 60)} min ${secondes % 60} s`;
+}
+
+/** Les cinq chiffres du bilan (#491, ACT-3).
+ *
+ *  L'écran n'en rendait que deux : un import qui ne faisait que **mettre à
+ *  jour** s'annonçait « 0 résultat ajouté », et les séries perdues d'un fan-out
+ *  ne se lisaient nulle part. Chaque chiffre porte son propre `<span>` : c'est
+ *  ce qui le rend lisible un par un, à l'œil comme au test. */
+function BilanChiffres({
+  imported,
+  updated,
+  skipped,
+  heatsEnumerated,
+  heatsImported,
+  heatsCached,
+  heatsFailed,
+}: {
+  imported: number;
+  updated: number;
+  skipped: number;
+  heatsEnumerated: number;
+  heatsImported: number;
+  heatsCached: number;
+  heatsFailed: number;
+}) {
+  return (
+    <>
+      <div>
+        <span>{imported} résultat{imported > 1 ? "s" : ""} ajouté{imported > 1 ? "s" : ""}</span>
+        {" · "}
+        <span>{updated} mis à jour</span>
+        {" · "}
+        <span>{skipped} déjà présent{skipped > 1 ? "s" : ""}</span>
+      </div>
+      {heatsEnumerated > 0 && (
+        <div style={{ marginTop: 4 }}>
+          <span>
+            {heatsImported} série{heatsImported > 1 ? "s" : ""} importée{heatsImported > 1 ? "s" : ""} sur {heatsEnumerated}
+          </span>
+          {heatsCached > 0 ? <span>{` · ${heatsCached} déjà à jour`}</span> : null}
+          {heatsFailed > 0 ? <span>{` · ${heatsFailed} en échec`}</span> : null}
+        </div>
       )}
     </>
   );
@@ -422,6 +591,8 @@ function ImportBar({
   heatIndex,
   heatsScrapingTotal,
   heatLabel,
+  secondes,
+  onAnnuler,
 }: {
   phase: string;
   progress: number;
@@ -432,6 +603,8 @@ function ImportBar({
   heatIndex: number;
   heatsScrapingTotal: number;
   heatLabel: string;
+  secondes: number;
+  onAnnuler: () => void;
 }) {
   const pct = total > 0 ? Math.round((progress / total) * 100) : 0;
   // Fan-out Klikego (#156) : le backend émet un événement `scraping` par heat
@@ -453,7 +626,17 @@ function ImportBar({
             </div>
           </>
         ) : (
-          <div style={{ fontSize: 14, color: "var(--tcn-text-body)", fontWeight: 600 }}>{message || "Récupération des participants…"}</div>
+          <>
+            <div style={{ fontSize: 14, color: "var(--tcn-text-body)", fontWeight: 600, marginBottom: 8 }}>
+              {message || "Récupération des participants…"}
+            </div>
+            {/* Barre indéterminée : le scrape n'a aucune progression à rapporter
+                avant son premier participant, et une ligne immobile pendant des
+                minutes ne se distingue pas d'un écran figé (#491, ACT-4). */}
+            <div style={{ height: 8, background: "var(--tcn-surface)", borderRadius: 999, overflow: "hidden" }}>
+              <div className="tcn-barre-indeterminee" style={{ height: "100%", width: "35%", background: "var(--tcn-orange)", borderRadius: 999 }} />
+            </div>
+          </>
         )
       ) : (
         <>
@@ -465,6 +648,16 @@ function ImportBar({
             <div style={{ width: pct + "%", height: "100%", background: "var(--tcn-orange)", transition: "width var(--tcn-dur)" }} />
           </div>
         </>
+      )}
+      {phase === "scraping" && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 10, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, color: "var(--tcn-text-muted)" }}>
+            Import en cours depuis {formatDuree(secondes)}
+          </span>
+          <Button variant="secondary" size="sm" onClick={onAnnuler}>
+            Annuler l&apos;import
+          </Button>
+        </div>
       )}
     </div>
   );

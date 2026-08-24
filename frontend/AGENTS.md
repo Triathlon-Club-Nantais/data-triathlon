@@ -282,7 +282,34 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   Corollaire de lecture : `list_participations` trie par `created_at desc` hors
   détail d'épreuve — la date d'**import**, jamais celle de l'épreuve —, d'où la
   microcopie « derniers résultats importés » de la note de troncature.
-- `components/` — `scrape/` (TcnScrapeForm, ProviderDetector, ImportProgress),
+- **Ce que l'import dit pendant, et après** (#491) — trois points qui se
+  re-cassent séparément, et qui tiennent tous à une seule donnée : la **cause**
+  de l'échec, que `importEventStream` jette dans une `ApiError` plutôt que dans
+  une `Error` nue.
+  - `useImportStream` expose `errorStatus` : `null` = le flux s'est ouvert
+    avant d'annoncer l'échec, donc la page **est** en cause ; `0` = coupure
+    réseau ; sinon le statut HTTP du refus. `TcnScrapeForm` en tire trois
+    écrans — plafond de débit (décompte sur `retryAfter`, l'en-tête
+    `Retry-After` de `deps.py`), service muet (« Réessayer »), lecture
+    impossible (saisie manuelle). **`reportPendingProvider` n'est appelé que
+    dans le troisième** : signaler un lien Klikego parfaitement supporté au
+    back-office parce que le plafond horaire était atteint polluait
+    `pending-providers` sans qu'aucun écran ne le dise.
+  - Le bilan rend les **cinq** chiffres (`imported`, `updated`, `skipped`, et
+    les séries du fan-out) et la liste des `failures`. Une série perdue dégrade
+    le statut de l'alerte en `warning` : un import où 3 séries sur 12 ont
+    échoué ne s'annonce pas en vert. `ImportProgress`, qui savait déjà tout
+    afficher mais qu'aucun écran n'importait, a été **supprimé** plutôt que
+    remis en service — son rendu était en `ui/` quand l'écran est en `tcn/`.
+  - Le scrape n'a **rien** à rapporter avant son premier participant : barre
+    indéterminée (`.tcn-barre-indeterminee`) **et** minuterie, la seconde
+    restant la seule preuve de vie sous `prefers-reduced-motion`, qui fige la
+    première. « Annuler l'import » coupe le flux par `AbortController`, et
+    `cancel()` lève le verrou sans attendre que le flux veuille bien finir —
+    un scrape muet retiendrait sinon le formulaire indéfiniment. Un
+    `beforeunload` prévient tant que l'import tourne : fermer l'onglet coupe
+    la SSE à mi-course.
+- `components/` — `scrape/` (TcnScrapeForm, ProviderDetector),
   `results/` (ResultCard, ResultsList), `club/` (ClubDashboard, PodiumsList),
   `map/` (MapView), `dashboard/` (StatCardsRank, RecentCourses),
   `athletes/` (AthleteAdminPanel, ParticipationAdminActions — les gestes
