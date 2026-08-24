@@ -31,7 +31,9 @@ export function PageHeader({
       {backHref && (
         <Link
           href={backHref}
-          className="inline-flex items-center gap-1 text-sm font-medium text-[var(--tcn-text-faint)] transition-colors hover:text-foreground"
+          // `py-1 -my-1` : la cible passe de 20 à 28 px de haut (SC 2.5.8 en
+          // demande 24) sans déplacer quoi que ce soit autour.
+          className="-my-1 inline-flex items-center gap-1 py-1 text-sm font-medium text-[var(--tcn-text-faint)] transition-colors hover:text-foreground"
         >
           <ChevronLeft className="size-4" />
           {backLabel}

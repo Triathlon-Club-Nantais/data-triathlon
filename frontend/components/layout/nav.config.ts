@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Briefcase, LayoutGrid, List, Map, Trophy, UserCog, Users } from "lucide-react";
+import { Briefcase, Gauge, LayoutGrid, List, Map, UserCog, Users } from "lucide-react";
 
 /**
  * Table de configuration **unique** de la navigation (proto « Navigation TCN »).
@@ -107,9 +107,11 @@ export const NAV: NavSection[] = [
     icon: Users,
     minRole: ROLE.ANON,
     items: [
-      // `ClubDashboard.tsx` porte déjà la synthèse **et** les podiums (#128) :
-      // une seule destination, pas deux entrées pour un même écran.
-      { id: "vueclub", label: "Espace club", href: "/club", icon: Trophy },
+      // `ClubDashboard.tsx` porte la synthèse **et** les podiums (#128) : une
+      // entrée pour les deux, pas une par bloc. `Gauge` et non `Trophy` — ce
+      // dernier est le glyphe du podium scratch (`lib/podium-scope.tsx`), rendu
+      // par `PodiumsList` sur cet écran même.
+      { id: "vueclub", label: "Espace club", href: "/club", icon: Gauge },
       { id: "stats", label: "Statistiques", soon: true },
       // Page dédiée, distincte de « Espace club » (#274) : liste nominative
       // par saison, pas une synthèse.

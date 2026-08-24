@@ -152,19 +152,25 @@ describe("ClubDashboard — smoke", () => {
     );
     render(<ClubDashboard stats={STATS} participations={parts} />);
 
+    // Le titre dit **ce qui est montré** : `buildRoster` trie par volume
+    // décroissant, donc l'aperçu est le peloton de tête, pas un échantillon.
     // Scopé à la section : `ResultCard` lie lui aussi vers /athletes/.
-    const section = screen.getByRole("heading", { name: "Athlètes du club" }).closest("section");
+    const section = screen
+      .getByRole("heading", { name: "Les athlètes les plus actifs" })
+      .closest("section");
     expect(section?.querySelectorAll('a[href^="/athletes/"]')).toHaveLength(APERCU_ROSTER);
 
-    const versTous = screen.getByRole("link", {
-      name: `Voir les ${APERCU_ROSTER + 8} athlètes →`,
-    });
+    // Pas de décompte dans le libellé : /club/athletes s'ouvre sur la saison en
+    // cours seule, quand `roster.length` agrège toutes les saisons — la
+    // promesse ne serait pas tenue à l'arrivée. Le total vit dans le KPI.
+    const versTous = screen.getByRole("link", { name: "Voir tous les athlètes →" });
     expect(versTous).toHaveAttribute("href", "/club/athletes");
   });
 
   it("roster : pas de renvoi « voir tous » quand l'aperçu suffit", () => {
     render(<ClubDashboard stats={STATS} participations={[part({ id: 1 })]} />);
-    expect(screen.queryByRole("link", { name: /Voir les .* athlètes/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Voir tous les athlètes/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Athlètes du club" })).toBeInTheDocument();
   });
 
   // Le plafond de `page_size` se lit sur la longueur reçue : à ras bord, la
