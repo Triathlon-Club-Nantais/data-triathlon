@@ -23,9 +23,16 @@ def upgrade() -> None:
     # toute la base pour forcer un rescrape immédiat — `services/cache.is_fresh`
     # lit déjà `course.scraped_at is None` comme « jamais scrapée ». Sans cette
     # migration, l'`UPDATE` échouerait sur la contrainte `NOT NULL` en
-    # PostgreSQL (silencieusement accepté en SQLite, donc invisible en test).
-    op.alter_column("courses", "scraped_at", existing_type=sa.DateTime(), nullable=True)
+    # PostgreSQL.
+    #
+    # `batch_alter_table` **n'est pas optionnel** : SQLite ne sait pas relâcher
+    # un `NOT NULL` par `ALTER COLUMN`, il faut recréer la table (copie +
+    # rename), ce que le batch fait pour ce seul dialecte — PostgreSQL reçoit
+    # l'`ALTER` direct.
+    with op.batch_alter_table("courses", schema=None) as batch_op:
+        batch_op.alter_column("scraped_at", existing_type=sa.DateTime(), nullable=True)
 
 
 def downgrade() -> None:
-    op.alter_column("courses", "scraped_at", existing_type=sa.DateTime(), nullable=False)
+    with op.batch_alter_table("courses", schema=None) as batch_op:
+        batch_op.alter_column("scraped_at", existing_type=sa.DateTime(), nullable=False)
