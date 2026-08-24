@@ -1,8 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
 
-import { DangerConfirm } from "./DangerConfirm";
+import { DangerConfirm, DangerConfirmProvider, useDangerConfirm } from "./DangerConfirm";
 
 describe("DangerConfirm", () => {
   it("rend le titre et le libellé d'action demandés", () => {
@@ -73,5 +73,51 @@ describe("DangerConfirm", () => {
     );
     expect(screen.getByText("Ce rôle est le vôtre.")).toBeTruthy();
     expect(screen.getByText("12 résultats seront détruits.")).toBeTruthy();
+  });
+});
+
+describe("useDangerConfirm", () => {
+  function Cobaye({ journal }: { journal: (verdict: boolean) => void }) {
+    const confirmer = useDangerConfirm();
+    return (
+      <button
+        type="button"
+        onClick={async () => journal(await confirmer({ titre: "Retirer « a@b.fr » ?", libelleAction: "Retirer" }))}
+      >
+        Déclencher
+      </button>
+    );
+  }
+
+  function afficher(journal: (verdict: boolean) => void) {
+    return render(
+      <DangerConfirmProvider>
+        <Cobaye journal={journal} />
+      </DangerConfirmProvider>,
+    );
+  }
+
+  it("résout `true` quand on confirme", async () => {
+    const journal = vi.fn();
+    afficher(journal);
+    await userEvent.click(screen.getByRole("button", { name: "Déclencher" }));
+    await userEvent.click(screen.getByRole("button", { name: "Retirer" }));
+    await waitFor(() => expect(journal).toHaveBeenCalledWith(true));
+  });
+
+  it("résout `false` quand on renonce", async () => {
+    const journal = vi.fn();
+    afficher(journal);
+    await userEvent.click(screen.getByRole("button", { name: "Déclencher" }));
+    await userEvent.click(screen.getByRole("button", { name: "Renoncer" }));
+    await waitFor(() => expect(journal).toHaveBeenCalledWith(false));
+  });
+
+  it("refuse de servir hors de son provider", () => {
+    // Sans le provider, le geste s'exécuterait sans confirmation : mieux vaut
+    // un écran cassé au premier rendu qu'une destruction silencieuse.
+    const muet = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() => render(<Cobaye journal={vi.fn()} />)).toThrow(/DangerConfirmProvider/);
+    muet.mockRestore();
   });
 });

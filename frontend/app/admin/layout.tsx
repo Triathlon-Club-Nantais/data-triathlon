@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
+import { DangerConfirmProvider } from "@/components/admin/DangerConfirm";
 import { ApiError } from "@/lib/api/client";
 import { apiServer } from "@/lib/api/server";
 
@@ -79,5 +80,8 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     redirect("/dashboard");
   }
 
-  return <>{children}</>;
+  // Le dialog des gestes destructifs, monté une fois pour toutes les
+  // sous-routes (#499). Composant client sous un layout serveur : les enfants
+  // rendus par le serveur traversent le provider sans devenir clients.
+  return <DangerConfirmProvider>{children}</DangerConfirmProvider>;
 }
