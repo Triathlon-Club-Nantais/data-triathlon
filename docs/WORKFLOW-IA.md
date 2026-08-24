@@ -338,21 +338,46 @@ légitime d'un doublon.
 | Emplacement | Écrit par | Statut |
 |---|---|---|
 | `specs/<id>-feature/` — `spec.md`, `plan.md`, `tasks.md`, `checklists/`, `research.md`, `data-model.md`, `quickstart.md` | Spec Kit | **Canonique** sur la voie Spec Kit. Un seul de chaque, par feature. `id` **horodaté** (`YYYYMMDD-HHMMSS`) depuis 0.15.0 : `feature_numbering: timestamp` dans `.specify/init-options.json`, doublé de `branch_numbering: timestamp` dans `.specify/extensions/git/git-config.yml` pour que la branche et le dossier portent le même préfixe. Les trois features déjà en place gardent leur `NNN` séquentiel. |
-| `docs/superpowers/specs/…-design.md` | `brainstorming` (l'écrit **et le commite**) | **Canonique** sur la voie Superpowers. |
-| `docs/superpowers/plans/…` | `writing-plans` | **Canonique** sur la voie Superpowers. |
-| `docs/superpowers/specs/YYYY-MM-DD-<sujet>-{sondage,audit,report}.md` | l'agent, à la main | **Rapport de terrain** — voir ci-dessous. |
+| `docs/superpowers/specs/…-design.md` | `brainstorming` (l'écrit **et le commite**) | **Canonique** sur la voie Superpowers, tant que la feature reste active ou citée — voir §Archivage. |
+| `docs/superpowers/plans/…` | `writing-plans` | **Canonique** sur la voie Superpowers, même sort. |
+| `docs/superpowers/specs/YYYY-MM-DD-<sujet>-{sondage,audit,report}.md` | l'agent, à la main | **Rapport de terrain** — voir ci-dessous. **Jamais archivé**, quel que soit son âge. |
+| `docs/superpowers/archive/{specs,plans}/…` | déplacé depuis les deux lignes ci-dessus | Designs et plans de features livrées, historiques — voir §Archivage. |
 | `.superpowers/sdd/<nom-du-plan>/` | `subagent-driven-development` | Ledger d'exécution (`progress.md`, briefs, rapports). Jetable, jamais commité. |
 
 Une feature relève d'une voie **ou** de l'autre : la ligne `specs/<id>-feature/` et
 les deux lignes `docs/superpowers/` qui la suivent ne se remplissent **jamais**
-ensemble. Les deux dernières lignes du tableau, elles, sont transverses.
+ensemble. Les trois dernières lignes du tableau, elles, sont transverses.
 
 Les chemins `docs/superpowers/` sont les **défauts amont du plugin**
 (`brainstorming/SKILL.md`, `writing-plans/SKILL.md`), pas une convention de ce
-dépôt : le dossier porte le nom de **l'outil**, pas celui du contenu. Les fichiers
-déjà présents **restent où ils sont** ; ils mêlent des designs de features livrées
-(valeur historique) et des rapports de terrain encore normatifs, cités nominativement
-par `AGENTS.md` là où ils s'appliquent.
+dépôt : le dossier porte le nom de **l'outil**, pas celui du contenu.
+
+### Archivage des designs de features livrées
+
+`docs/superpowers/specs/` et `docs/superpowers/plans/` mêlaient deux natures :
+des designs de features livrées (valeur historique) et des rapports de terrain
+encore normatifs — sondages et audits, cités là où ils s'appliquent. Mesuré le
+24/08/2026 : 129 fichiers, 68 844 lignes, sans jamais avoir été élagués — c'est
+ce dossier que `brainstorming`/`writing-plans` explorent pour l'antériorité, donc
+sa croissance continue alourdit chaque futur cycle de planification.
+
+**Règle** : un design + son plan pairé migrent vers `docs/superpowers/archive/`
+si, et seulement si, les trois conditions tiennent :
+
+1. Le nom de fichier ne finit pas par `-sondage.md`, `-audit.md`, ni `-report.md`
+   — ces trois-là restent **toujours** en place, quel que soit leur âge (un
+   sondage prime sur le design et sur le plan indéfiniment, cf. §La troisième
+   catégorie).
+2. Ni le design ni le plan ne sont cités par leur nom de fichier ailleurs dans le
+   dépôt (`AGENTS.md`, `docs/`, code) — une citation vaut usage normatif encore
+   actif, quel que soit l'âge du fichier.
+3. Ni l'un ni l'autre n'a été modifié dans les 7 derniers jours — marge de
+   prudence pour une feature tout juste livrée.
+
+Premier passage (#543) : 52 fichiers (26 designs + 26 plans), ~28 500 lignes,
+soit 41 % du dossier. Un design/plan qui devient cité ou révisé après
+archivage se **déplace à nouveau** vers son emplacement canonique — l'archive
+n'est pas une destination définitive, seulement l'absence d'usage actif.
 
 ### La troisième catégorie : le sondage
 
