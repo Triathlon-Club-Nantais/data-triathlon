@@ -929,3 +929,35 @@ describe("AppNav — barre basse mobile (#482, NAV-4)", () => {
     expect(within(barre).queryByRole("link", { name: "Fournisseurs en attente" })).not.toBeInTheDocument();
   });
 });
+
+describe("AppNav — tiroir mobile réduit à l'administration et au compte (#482, NAV-4)", () => {
+  it("ne porte plus les sections publiques dans le tiroir, désormais dans la barre basse", async () => {
+    afficher(null);
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+
+    const tiroir = await screen.findByRole("dialog");
+    expect(within(tiroir).queryByRole("link", { name: "Tableau de bord" })).not.toBeInTheDocument();
+    expect(within(tiroir).queryByText("Club")).not.toBeInTheDocument();
+  });
+
+  it("garde les sections privées dans le tiroir pour un connecté habilité", async () => {
+    afficher(habilite("pending_providers:read"));
+    await userEvent.click(await screen.findByRole("button", { name: "Ouvrir le menu" }));
+
+    const tiroir = await screen.findByRole("dialog");
+    expect(within(tiroir).getByText("Administration")).toBeInTheDocument();
+    expect(within(tiroir).getByRole("link", { name: "Fournisseurs en attente" })).toHaveAttribute(
+      "href",
+      "/admin/fournisseurs",
+    );
+  });
+
+  it("garde les deux actions primaires en tête du tiroir même réduit", async () => {
+    afficher(null);
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+
+    const tiroir = await screen.findByRole("dialog");
+    expect(within(tiroir).getByRole("link", { name: "Ajouter une épreuve" })).toBeInTheDocument();
+    expect(within(tiroir).getByRole("button", { name: "Rechercher un athlète" })).toBeInTheDocument();
+  });
+});
