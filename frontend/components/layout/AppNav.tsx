@@ -121,6 +121,10 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   // `nav.config.ts` au fil des livraisons futures (ex. « Carte », #10/#28).
   const publicItems = sections.filter((s) => s.minRole === ROLE.ANON).flatMap((s) => s.items);
 
+  // Le tiroir mobile ne garde plus que ce qui exige une session — les
+  // sections publiques vivent désormais dans la barre basse (#482, NAV-4).
+  const sectionsPrivees = sections.filter((s) => s.minRole > ROLE.ANON);
+
   /**
    * Un `href` de la nav désigne **un** écran, pas une famille : c'est pourquoi
    * la comparaison est une égalité et non un préfixe. `startsWith` allumait
@@ -133,10 +137,10 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
     return pathname === href || (href === "/dashboard" && pathname === "/");
   }
 
-  const contenu = (deplie: boolean, fermer?: () => void) => (
+  const contenu = (deplie: boolean, fermer?: () => void, listeSections: SectionRendue[] = sections) => (
     <NavContent
       expanded={deplie}
-      sections={sections}
+      sections={listeSections}
       isActive={isActive}
       athlete={athlete}
       kbd={kbd}
@@ -362,7 +366,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
             </SheetTitle>
           </div>
 
-          {contenu(true, () => setDrawerOpen(false))}
+          {contenu(true, () => setDrawerOpen(false), sectionsPrivees)}
 
           {/* `pleineLargeur` : dans un tiroir, l'état connecté se déplie à plat —
               un menu déroulant y sortirait du piège de focus. */}
