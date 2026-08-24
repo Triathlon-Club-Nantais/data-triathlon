@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { COULEURS_CARTE } from "@/components/map/carte";
-import { SURFACES, contrast, token } from "@/test/couleur";
+import { SURFACES, contrast, resolve, token } from "@/test/couleur";
 
 const css = readFileSync(fileURLToPath(new URL("globals.css", import.meta.url)), "utf8");
 
@@ -223,5 +223,25 @@ describe("mouvement réduit", () => {
     // WCAG 2.3.3 — 21 usages `animate-*` et les entrées de tw-animate-css
     // n'étaient coupables par personne avant #299.
     expect(css).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)/);
+  });
+});
+
+describe("échelle des disciplines", () => {
+  it("n'a plus de token `--tri` ni `--violet` (#480)", () => {
+    // Les deux étaient des alias sémantiques de l'ancienne échelle de
+    // `lib/sport-colors.ts`. `--violet` n'a jamais eu de consommateur et `--tri`
+    // a perdu le sien avec la fusion : la table des familles écrit directement
+    // ses tokens `--tcn-*`. Un alias qui survit à son usage se remet en service
+    // par mégarde.
+    expect(() => token("--tri")).toThrow();
+    expect(() => token("--violet")).toThrow();
+    expect(css).not.toContain("--color-tri:");
+    expect(css).not.toContain("--color-violet:");
+  });
+
+  it("garde les trois couleurs de segments dont les splits ont besoin", () => {
+    for (const nom of ["--swim", "--bike", "--run"]) {
+      expect(resolve(nom)).toMatch(/^#[0-9a-fA-F]{6}$/);
+    }
   });
 });

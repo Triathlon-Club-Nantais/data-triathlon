@@ -1,3 +1,5 @@
+import { FAMILY_ORDER, disciplineFamily, type FamilyName } from "@/lib/sport-colors";
+
 // Jeton court de format pour les FormatChip (XS / S / M / L, ou distance).
 const SIZE_RE = /-(xs|s|m|l|xl)$/i;
 
@@ -63,24 +65,6 @@ export function disciplineOf(eventType: string | null | undefined): string {
   return best || type;
 }
 
-// Famille de discipline (libellé + couleur du ramp TCN) pour les répartitions.
-export interface Discipline {
-  name: string;
-  color: string;
-}
-
-function disciplineFamily(eventType: string | null | undefined): Discipline {
-  const t = (eventType ?? "").toLowerCase();
-  if (t.startsWith("triathlon")) return { name: "Triathlon", color: "var(--tcn-orange)" };
-  if (t.startsWith("swimrun")) return { name: "Swim & Run", color: "var(--tcn-ink)" };
-  if (t.startsWith("duathlon")) return { name: "Duathlon", color: "var(--tcn-orange-300)" };
-  if (t === "aquathlon" || t === "aquarun") return { name: "Aquathlon", color: "var(--tcn-grey-400)" };
-  if (t === "bike-run") return { name: "Run & Bike", color: "var(--tcn-orange-200)" };
-  return { name: "Autres", color: "var(--tcn-grey-300)" };
-}
-
-const FAMILY_ORDER = ["Triathlon", "Swim & Run", "Duathlon", "Aquathlon", "Run & Bike", "Autres"];
-
 /** Agrège `by_type` (clés event_type → compte) en familles ordonnées avec %. */
 export function aggregateDisciplines(
   byType: Record<string, number>,
@@ -96,7 +80,7 @@ export function aggregateDisciplines(
   }
   return [...acc.entries()]
     .map(([name, { color, count }]) => ({ name, color, count, pct: total ? (count / total) * 100 : 0 }))
-    .sort((a, b) => FAMILY_ORDER.indexOf(a.name) - FAMILY_ORDER.indexOf(b.name));
+    .sort((a, b) => FAMILY_ORDER.indexOf(a.name as FamilyName) - FAMILY_ORDER.indexOf(b.name as FamilyName));
 }
 
 /** Formate la valeur numérique d'un pourcentage à la française (« 71,2 »),
