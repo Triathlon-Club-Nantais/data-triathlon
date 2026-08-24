@@ -45,6 +45,19 @@ describe("AdminMaintenancePage", () => {
     getSession.mockReset();
   });
 
+  it("rend un état de chargement pendant que la session arrive, pas un écran muet", async () => {
+    // Sur un réveil à froid du backend Render, la fenêtre n'est pas
+    // symbolique : sans squelette, l'écran se réduit à son titre (#499,
+    // revue de fin de branche).
+    getSession.mockImplementation(() => new Promise(() => {}));
+
+    const { container } = afficher();
+
+    expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/cet écran est en consultation/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /supprimer toutes les épreuves/i })).not.toBeInTheDocument();
+  });
+
   it("dit que l'écran est en consultation à une session sans aucun des deux pouvoirs de purge", async () => {
     getSession.mockResolvedValue(session(["courses:sources"]));
 
