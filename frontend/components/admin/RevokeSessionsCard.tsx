@@ -1,17 +1,9 @@
 "use client";
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { useDangerConfirm } from "@/components/admin/DangerConfirm";
 import { ApiError } from "@/lib/api/client";
 import { useRevokeSessions } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
@@ -36,20 +28,33 @@ import { useSession } from "@/lib/queries/auth";
  * pas mieux qu'elle ne troublerait.
  */
 export function RevokeSessionsCard() {
-  const [ouvert, setOuvert] = useState(false);
   const router = useRouter();
   const revoquer = useRevokeSessions();
   const session = useSession();
+  const confirmerLeDanger = useDangerConfirm();
   const peutRevoquer = session.data?.permissions.includes("sessions:revoke") ?? false;
 
-  async function confirmer() {
+  async function fermer() {
+    // Geste destructif malgré un rayon d'action réparable : il déconnecte tout
+    // le monde, l'opérateur compris (#499). Le dialog du produit et non le
+    // `confirm` du navigateur — ce dernier n'est ni traduisible, ni stylable,
+    // ni testable au même titre.
+    if (
+      !(await confirmerLeDanger({
+        titre: "Fermer toutes les sessions ?",
+        description:
+          "Toutes les sessions ouvertes seront fermées, la vôtre comprise : vous serez renvoyé vers la page de connexion. Les comptes restent actifs, chacun peut se reconnecter aussitôt.",
+        libelleAction: "Révoquer",
+      }))
+    ) {
+      return;
+    }
     try {
       // Sans adresse : la portée est globale.
       const bilan = await revoquer.mutateAsync(undefined);
       toast.success(
         `${bilan.sessions} session(s) fermée(s) sur ${bilan.accounts} compte(s).`,
       );
-      setOuvert(false);
       router.push("/login");
     } catch (e) {
       // Le message du serveur est déjà en français ; en inventer un second le
@@ -61,7 +66,6 @@ export function RevokeSessionsCard() {
       // « déjà fait ». Rester sur un écran d'apparence connectée en annonçant
       // un échec serait le pire des deux mensonges.
       if (e instanceof ApiError && e.status === 401) {
-        setOuvert(false);
         router.push("/login");
       }
     }
@@ -70,47 +74,20 @@ export function RevokeSessionsCard() {
   if (!peutRevoquer) return null;
 
   return (
-    <>
-      <Card className="border-destructive/40">
-        <CardHeader>
-          <CardTitle>Révocation d&apos;urgence</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-[var(--tcn-text-faint)] text-sm">
-            Après une fuite de jetons, un poste perdu ou un doute sur la base :
-            ferme toutes les sessions ouvertes, tous comptes confondus. Personne
-            n&apos;est désactivé — chacun se reconnecte normalement.
-          </p>
-          <Button variant="destructive" onClick={() => setOuvert(true)}>
-            Fermer toutes les sessions
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Dialog open={ouvert} onOpenChange={setOuvert}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Fermer toutes les sessions ?</DialogTitle>
-            <DialogDescription>
-              Toutes les sessions ouvertes seront fermées, la vôtre comprise :
-              vous serez renvoyé vers la page de connexion. Les comptes restent
-              actifs, chacun peut se reconnecter aussitôt.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOuvert(false)}>
-              Renoncer
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={confirmer}
-              disabled={revoquer.isPending}
-            >
-              Révoquer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+    <Card className="border-destructive/40">
+      <CardHeader>
+        <CardTitle>Révocation d&apos;urgence</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-[var(--tcn-text-faint)] text-sm">
+          Après une fuite de jetons, un poste perdu ou un doute sur la base :
+          ferme toutes les sessions ouvertes, tous comptes confondus. Personne
+          n&apos;est désactivé — chacun se reconnecte normalement.
+        </p>
+        <Button variant="destructive" onClick={fermer} disabled={revoquer.isPending}>
+          Fermer toutes les sessions
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
