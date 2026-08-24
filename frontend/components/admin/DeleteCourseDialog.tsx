@@ -64,7 +64,7 @@ export function DeleteCourseDialog({
       {impact.error && (
         <p className="text-sm text-destructive">
           L&apos;ampleur de la suppression n&apos;a pas pu être chiffrée. Par prudence,
-          la suppression n&apos;est pas proposée — réessayez plus tard.
+          la suppression n&apos;est pas activée — réessayez plus tard.
         </p>
       )}
 

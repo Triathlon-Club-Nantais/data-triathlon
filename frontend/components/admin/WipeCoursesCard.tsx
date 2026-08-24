@@ -87,7 +87,7 @@ export function WipeCoursesCard() {
         {impact.error && (
           <p className="text-sm text-destructive">
             L&apos;ampleur de la purge n&apos;a pas pu être chiffrée. Par prudence,
-            la purge n&apos;est pas proposée — réessayez plus tard.
+            la purge n&apos;est pas activée — réessayez plus tard.
           </p>
         )}
 

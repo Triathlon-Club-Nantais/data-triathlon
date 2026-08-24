@@ -97,7 +97,7 @@ export function DangerConfirm({
 
         {children}
 
-        {motDeConfirmation !== undefined && (
+        {motDeConfirmation !== undefined && !actionBloquee && (
           <label className="block space-y-1 text-sm" htmlFor={champ}>
             Tapez <strong>{motDeConfirmation}</strong> pour activer la confirmation.
             <Input

@@ -33,6 +33,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 });
 
 import { RolePermissionsEditor } from "./RolePermissionsEditor";
+import { confirmerDansLeDialog } from "./__tests__/dangerConfirm";
 
 const INVENTAIRE: PermissionGroup[] = [
   {
@@ -135,13 +136,6 @@ function afficher(session: SessionUser | null | Error = SESSION) {
 async function ouvrir(nom: string) {
   await userEvent.click(await screen.findByRole("button", { name: new RegExp(nom) }));
   return screen.getByRole("region", { name: new RegExp(nom) });
-}
-
-/** Vise le bouton du dialog plutôt que celui du panneau : les deux partagent
- *  parfois le même libellé, mais seul le premier vit dans `role="dialog"`. */
-async function confirmerDansLeDialog(nom: RegExp | string) {
-  const dialog = await screen.findByRole("dialog");
-  await userEvent.click(within(dialog).getByRole("button", { name: nom }));
 }
 
 beforeEach(() => {
@@ -512,18 +506,6 @@ describe("RolePermissionsEditor — suppression", () => {
     const panneau = await ouvrir("Bénévole");
 
     await userEvent.click(within(panneau).getByRole("button", { name: "Supprimer" }));
-    await confirmerDansLeDialog("Renoncer");
-
-    expect(deleteRole).not.toHaveBeenCalled();
-  });
-
-  it("ne supprime le rôle qu'après confirmation", async () => {
-    deleteRole.mockResolvedValue(undefined);
-    afficher();
-    const panneau = await ouvrir("Bénévole");
-
-    await userEvent.click(within(panneau).getByRole("button", { name: "Supprimer" }));
-    expect(await screen.findByText(/Supprimer le rôle « .+ » \?/)).toBeTruthy();
     await confirmerDansLeDialog("Renoncer");
 
     expect(deleteRole).not.toHaveBeenCalled();

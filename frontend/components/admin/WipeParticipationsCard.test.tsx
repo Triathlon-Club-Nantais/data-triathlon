@@ -112,7 +112,7 @@ describe("WipeParticipationsCard (#384)", () => {
     },
   );
 
-  it("ne propose pas la purge quand le chiffrage échoue", async () => {
+  it("n'active pas la purge quand le chiffrage échoue", async () => {
     getSession.mockResolvedValue(session(["participations:wipe_all"]));
     getParticipationsWipeImpact.mockRejectedValue(new ApiError(500, "Panne"));
 

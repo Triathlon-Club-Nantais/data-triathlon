@@ -42,6 +42,22 @@ describe("DangerConfirm", () => {
     expect(screen.getByRole("button", { name: "Supprimer définitivement" }).hasAttribute("disabled")).toBe(true);
   });
 
+  it("ne propose pas de taper le mot tant que l'action reste bloquée", () => {
+    render(
+      <DangerConfirm
+        open
+        onOpenChange={vi.fn()}
+        titre="Purger ?"
+        motDeConfirmation="SUPPRIMER"
+        actionBloquee
+        onConfirm={vi.fn()}
+      />,
+    );
+    // Un message dit que rien ne se passera (`actionBloquee`) : proposer de
+    // taper un mot en dessous serait bavard pour rien.
+    expect(screen.queryByLabelText(/Tapez/)).not.toBeInTheDocument();
+  });
+
   it("ferme sans agir sur « Renoncer »", async () => {
     const onConfirm = vi.fn();
     const onOpenChange = vi.fn();

@@ -126,7 +126,7 @@ describe("WipeCoursesCard (#384, suite)", () => {
     },
   );
 
-  it("ne propose pas la purge quand le chiffrage échoue", async () => {
+  it("n'active pas la purge quand le chiffrage échoue", async () => {
     getSession.mockResolvedValue(session(["courses:wipe_all"]));
     getCoursesWipeImpact.mockRejectedValue(new ApiError(500, "Panne"));
 
