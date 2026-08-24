@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { Histogram } from "./Histogram";
 
 describe("Histogram", () => {
@@ -31,23 +31,51 @@ describe("Histogram", () => {
     expect(heights).toEqual([0, 0]);
   });
 
-  it("gradue l'axe Y de 0 au maximum", () => {
-    const { container } = render(
-      <Histogram bars={[10]} max={10} startSec={0} bucketSec={60} />,
-    );
-    const labels = [...container.querySelectorAll("text")].map((t) => t.textContent);
-    expect(labels).toContain("0");
-    expect(labels).toContain("10");
-  });
-
   it("aligne les graduations X sur des multiples ronds du pas (#129)", () => {
     // 6 tranches de 15 min = 90 min de fenêtre → pas de 15 min (histogram-ticks.ts).
     const { container } = render(
       <Histogram bars={[1, 1, 1, 1, 1, 1]} max={1} startSec={0} bucketSec={900} />,
     );
-    const labels = [...container.querySelectorAll("text")].map((t) => t.textContent);
+    const labels = [...container.querySelectorAll("[data-x-tick]")].map((t) => t.textContent);
     expect(labels).toContain("0:15");
     expect(labels).toContain("1:30");
+  });
+
+  it("ne met plus aucun texte dans le SVG", () => {
+    // Un <text> dans un viewBox étiré à width:100% se réduit à 3,5px sur un
+    // iPhone SE (facteur 0,32). Aucune unité CSS ne l'en empêche : le texte doit
+    // sortir du SVG (#480, RESP-2).
+    const { container } = render(
+      <Histogram bars={[1, 2, 3]} max={3} startSec={0} bucketSec={300} />,
+    );
+    expect(container.querySelectorAll("svg text").length).toBe(0);
+  });
+
+  it("garde une hauteur en pixels, pour que les libellés HTML s'alignent", () => {
+    const { container } = render(
+      <Histogram bars={[1, 2, 3]} max={3} startSec={0} bucketSec={300} />,
+    );
+    const svg = container.querySelector("svg")!;
+    expect(svg.getAttribute("preserveAspectRatio")).toBe("none");
+    expect((svg as unknown as HTMLElement).style.height).toBe("200px");
+  });
+
+  it("gradue l'axe Y de 0 au maximum, en HTML", () => {
+    const { container } = render(
+      <Histogram bars={[10]} max={10} startSec={0} bucketSec={60} />,
+    );
+    const ticks = [...container.querySelectorAll("[data-y-tick]")].map(
+      (n) => n.textContent,
+    );
+    expect(ticks).toContain("0");
+    expect(ticks).toContain("10");
+  });
+
+  it("récapitule la distribution pour un lecteur d'écran", () => {
+    render(<Histogram bars={[2, 5, 3]} max={5} startSec={1800} bucketSec={300} />);
+    expect(screen.getByRole("img")).toHaveAccessibleName(
+      "Distribution des temps d'arrivée, de 0:30 à 0:45, maximum 5 finishers sur une tranche.",
+    );
   });
 
   it("reste un bandeau large plutôt qu'un pavé", () => {
@@ -82,7 +110,7 @@ describe("Histogram", () => {
     for (let i = 1; i < y1Values.length; i++) {
       differences.push(y1Values[i - 1] - y1Values[i]);
     }
-    const expectedStep = 34; // (bottom - top) / yTicks = (190 - 20) / 5 = 34
+    const expectedStep = 35.2; // (BOTTOM - TOP) / Y_TICKS = (188 - 12) / 5 = 35.2
     differences.forEach((diff) => {
       expect(Math.abs(diff - expectedStep)).toBeLessThan(0.01);
     });
@@ -107,7 +135,7 @@ describe("Histogram", () => {
     for (let i = 1; i < y1Values.length; i++) {
       differences.push(y1Values[i - 1] - y1Values[i]);
     }
-    const expectedStep = 34; // (bottom - top) / yTicks = (190 - 20) / 5 = 34
+    const expectedStep = 35.2; // (BOTTOM - TOP) / Y_TICKS = (188 - 12) / 5 = 35.2
     differences.forEach((diff) => {
       expect(Math.abs(diff - expectedStep)).toBeLessThan(0.01);
     });
