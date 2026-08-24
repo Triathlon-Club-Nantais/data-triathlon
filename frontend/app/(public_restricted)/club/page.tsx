@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { DisciplineToggle } from "@/components/layout/DisciplineToggle";
 import { RankTypeToggle } from "@/components/layout/RankTypeToggle";
-import { ClubDashboard } from "@/components/club/ClubDashboard";
+import { ClubDashboard, CLUB_PARTICIPATIONS_PAGE_SIZE } from "@/components/club/ClubDashboard";
 import { SCOPE_CLUB, federalOnlyFromParam } from "@/lib/scope";
 import { CLUB_NAME } from "@/lib/club";
 
@@ -20,7 +20,7 @@ export default async function ClubPage({
   const revalidateOpts = { revalidateSeconds: SHORT_REVALIDATE_SECONDS };
   const [stats, participations] = await Promise.all([
     apiServer.getStats({ scope: SCOPE_CLUB, federal_only }, revalidateOpts),
-    apiServer.listParticipations({ scope: SCOPE_CLUB, federal_only, page_size: 1000 }, revalidateOpts),
+    apiServer.listParticipations({ scope: SCOPE_CLUB, federal_only, page_size: CLUB_PARTICIPATIONS_PAGE_SIZE }, revalidateOpts),
   ]);
 
   return (

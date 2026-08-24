@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Briefcase, LayoutGrid, List, Map, UserCog, Users } from "lucide-react";
+import { Briefcase, LayoutGrid, List, Map, Trophy, UserCog, Users } from "lucide-react";
 
 /**
  * Table de configuration **unique** de la navigation (proto « Navigation TCN »).
@@ -33,6 +33,13 @@ export type NavItem = {
    * phrase, avant le choix plutôt qu'après (ADM-6).
    */
   description?: string;
+  /**
+   * Libellé **visible** de la barre basse mobile, quand `label` n'y tient pas
+   * (#487 : quatre onglets, ~93 px chacun sur un écran de 375 px). Le nom
+   * accessible du lien reste `label` — « Athlètes » ne distingue pas deux
+   * écrans à l'oreille. Absent = `label` convient.
+   */
+  labelCourt?: string;
   /** Absent quand `soon` : rien à atteindre, donc rien à rendre. */
   href?: string;
   icon?: LucideIcon;
@@ -102,11 +109,17 @@ export const NAV: NavSection[] = [
     items: [
       // `ClubDashboard.tsx` porte déjà la synthèse **et** les podiums (#128) :
       // une seule destination, pas deux entrées pour un même écran.
-      { id: "vueclub", label: "Espace club", soon: true },
+      { id: "vueclub", label: "Espace club", href: "/club", icon: Trophy },
       { id: "stats", label: "Statistiques", soon: true },
       // Page dédiée, distincte de « Espace club » (#274) : liste nominative
       // par saison, pas une synthèse.
-      { id: "athletes-saison", label: "Athlètes par saison", href: "/club/athletes", icon: Users },
+      {
+        id: "athletes-saison",
+        label: "Athlètes par saison",
+        labelCourt: "Athlètes",
+        href: "/club/athletes",
+        icon: Users,
+      },
     ],
   },
   {

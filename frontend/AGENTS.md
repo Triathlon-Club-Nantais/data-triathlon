@@ -250,14 +250,19 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   `components/ui/tooltip.tsx` (`@base-ui/react/tooltip`, délai ramené à
   0 ms — l'audit reprochait le délai natif d'~1 s, pas seulement son absence
   au clavier/tactile). Une section réduite à une seule destination livrée
-  (« Club » aujourd'hui) rend directement son `Entree` au lieu du bouton
-  dépliant. La largeur du rail (`tcn-nav-expanded`) est désormais un
+  rend directement son `Entree` au lieu du bouton dépliant — « Club » tenait ce
+  rôle jusqu'à #487, qui lui a livré `/club` en seconde destination ; la branche
+  reste vivante par les pouvoirs (« Administration » s'y réduit pour qui n'en
+  porte qu'un). La largeur du rail (`tcn-nav-expanded`) est désormais un
   **cookie**, lu par `app/layout.tsx` avant la peinture plutôt qu'un
   `localStorage` relu au montage — la seule exception documentée au refus de
   miroir cookie de #467, parce que le besoin serveur y est authentique et
   qu'aucun `fetch()` vers `/api/v1` n'est concerné. Sous `md`, une barre
   basse fixe porte les destinations dont `minRole === ROLE.ANON` (calculée
-  dynamiquement, jamais en dur) ; le hamburger ne garde que les sections
+  dynamiquement, jamais en dur) — quatre depuis #487, d'où le `labelCourt` de
+  `nav.config.ts` : il ne change que le **texte visible**, le nom accessible du
+  lien restant `label`, « Athlètes » ne distinguant pas deux écrans à
+  l'oreille ; le hamburger ne garde que les sections
   `minRole > ROLE.ANON` et les deux actions primaires. Le pied du tiroir ne
   ferme plus au clic : `UserMenu` ferme lui-même via `onNavigate`, au moment
   où la navigation a réellement lieu (immédiat pour la connexion, après le

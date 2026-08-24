@@ -20,6 +20,21 @@ import type { Participation, Stats } from "@/lib/types";
 import { PodiumsList } from "./PodiumsList";
 import { ClubPodiumKpi } from "./ClubPodiumKpi";
 
+/**
+ * Plafond de `page_size` de `GET /participations` (`le=5000`). La page club
+ * demande **le maximum**, et non un rond arbitraire : sous le plafond, le
+ * roster et les quatre KPI se tronquent sans que rien ne le dise. Au plafond,
+ * on le dit.
+ */
+export const CLUB_PARTICIPATIONS_PAGE_SIZE = 5000;
+
+/**
+ * Taille de l'aperçu du roster (#487). La liste complète — 350 fiches, 1,69 Mo
+ * de document, triées par volume décroissant — vit sur `/club/athletes`, qui
+ * porte déjà la recherche insensible aux accents et le tri.
+ */
+export const APERCU_ROSTER = 12;
+
 export function ClubDashboard({
   stats,
   participations,
@@ -29,6 +44,8 @@ export function ClubDashboard({
 }) {
   const summary = clubSummary(participations);
   const roster = buildRoster(participations);
+  const apercu = roster.slice(0, APERCU_ROSTER);
+  const tronque = participations.length >= CLUB_PARTICIPATIONS_PAGE_SIZE;
   const recent = recentParticipations(participations, 6);
 
   if (participations.length === 0) {
@@ -50,6 +67,14 @@ export function ClubDashboard({
 
   return (
     <div className="space-y-8">
+      {tronque && (
+        <p data-testid="club-plafond" role="status" className="rounded-xl bg-muted/50 p-3 text-sm text-[var(--tcn-text-faint)]">
+          Cette synthèse porte sur les {CLUB_PARTICIPATIONS_PAGE_SIZE} résultats les plus
+          récents, le maximum qu&apos;une page puisse charger. Les épreuves plus anciennes
+          n&apos;y sont pas comptées.
+        </p>
+      )}
+
       {/* Synthèse — les 3 premiers KPI ne dépendent pas du rank et restent SSR.
           Le KPI Podiums, lui, suit `?rank=…` via un composant client (#132). */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -101,10 +126,21 @@ export function ClubDashboard({
       <section className="space-y-4">
         <div className="flex items-baseline justify-between">
           <h2 className="font-heading text-lg font-semibold">Athlètes du club</h2>
-          <span className="text-sm text-[var(--tcn-text-faint)]">{roster.length} membres</span>
+          {roster.length > APERCU_ROSTER ? (
+            <Link
+              href="/club/athletes"
+              className="text-sm font-medium text-accent-ink hover:underline"
+            >
+              Voir les {roster.length} athlètes →
+            </Link>
+          ) : (
+            <span className="text-sm text-[var(--tcn-text-faint)]">
+              {roster.length} membre{roster.length > 1 ? "s" : ""}
+            </span>
+          )}
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {roster.map((r) => (
+          {apercu.map((r) => (
             <Link
               key={r.athleteId}
               href={`/athletes/${r.athleteId}`}

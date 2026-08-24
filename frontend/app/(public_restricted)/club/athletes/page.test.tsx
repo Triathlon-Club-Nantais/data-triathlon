@@ -114,4 +114,12 @@ describe("/club/athletes", () => {
 
     expect(screen.getByTestId("season-tags")).toHaveClass("justify-start", "sm:justify-end");
   });
+
+  // #487 : les deux écrans club se relient dans les deux sens. /club renvoie
+  // ici par « Voir les N athlètes → » ; le retour manquait.
+  it("renvoie vers /club", async () => {
+    await renderPage();
+
+    expect(screen.getByRole("link", { name: /Espace club/ })).toHaveAttribute("href", "/club");
+  });
 });
