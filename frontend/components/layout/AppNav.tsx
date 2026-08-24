@@ -111,8 +111,9 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
         .map((i) => (i.badge ? { ...i, count: badges[i.badge] } : i)),
     }))
     // Une section vidée par le filtrage n'a plus qu'un intitulé à afficher —
-    // et, sur le rail replié, une tuile qui déplie sur rien. C'est le cas de
-    // « Club », dont les deux entrées sont à venir (#242).
+    // et, sur le rail replié, une tuile qui déplie sur rien. Le cas se produit
+    // quand toutes les entrées d'une section sont `soon` (#242) ou hors des
+    // pouvoirs de la session — « Club » l'illustrait jusqu'à #487.
     .filter((s) => s.items.length > 0);
 
   // Barre basse mobile (#482, NAV-4) : jamais codé en dur — dérivé des

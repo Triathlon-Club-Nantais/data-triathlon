@@ -16,22 +16,18 @@ import {
   type RosterEntry,
 } from "@/lib/utils/club-aggregate";
 import { PODIUM_SCOPE_META } from "@/lib/podium-scope";
+import { CLUB_PARTICIPATIONS_PAGE_SIZE } from "@/lib/club";
 import type { Participation, Stats } from "@/lib/types";
 import { PodiumsList } from "./PodiumsList";
 import { ClubPodiumKpi } from "./ClubPodiumKpi";
 
 /**
- * Plafond de `page_size` de `GET /participations` (`le=5000`). La page club
- * demande **le maximum**, et non un rond arbitraire : sous le plafond, le
- * roster et les quatre KPI se tronquent sans que rien ne le dise. Au plafond,
- * on le dit.
- */
-export const CLUB_PARTICIPATIONS_PAGE_SIZE = 5000;
-
-/**
- * Taille de l'aperçu du roster (#487). La liste complète — 350 fiches, 1,69 Mo
- * de document, triées par volume décroissant — vit sur `/club/athletes`, qui
- * porte déjà la recherche insensible aux accents et le tri.
+ * Taille de l'aperçu du roster (#487). La liste complète — 350 fiches triées
+ * par volume décroissant — vit sur `/club/athletes`, qui porte déjà la
+ * recherche insensible aux accents et le tri. Ce que l'aperçu retire est le
+ * **rendu** : 338 liens, autant d'`Avatar` et de badges, et leur hydratation.
+ * Le transport, lui, ne bouge pas — voir le `ponytail:` de
+ * `CLUB_PARTICIPATIONS_PAGE_SIZE`.
  */
 export const APERCU_ROSTER = 12;
 
@@ -68,17 +64,16 @@ export function ClubDashboard({
   return (
     <div className="space-y-8">
       {tronque && (
-        // Pas de `role="status"` : la note est rendue au SSR, et une région
-        // live n'annonce que ce qui change **après** son entrée dans l'arbre.
-        // Pas de `bg-muted` non plus — il vaut exactement `--background`
-        // (cf. frontend/AGENTS.md, le piège des squelettes), la carte ne se
-        // dessinerait pas.
-        <p
-          data-testid="club-plafond"
-          className="rounded-xl bg-[var(--tcn-surface)] p-3 text-sm text-[var(--tcn-text-faint)] ring-1 ring-[var(--tcn-border-strong)]"
-        >
-          Cette synthèse porte sur les {CLUB_PARTICIPATIONS_PAGE_SIZE} résultats les plus
-          récents. Les épreuves plus anciennes n&apos;y sont pas comptées.
+        // « importés », et non « les plus récents » : `list_participations`
+        // trie par `created_at desc` hors détail d'épreuve — la date d'import,
+        // pas celle de la course. Une épreuve de 2019 importée hier est dans
+        // la tranche. Pas de `role="status"` : rendue au SSR, une région live
+        // n'annonce que ce qui change **après** son entrée dans l'arbre. Pas
+        // de `bg-muted` non plus — il vaut exactement `--background`
+        // (cf. frontend/AGENTS.md, le piège des squelettes).
+        <p className="rounded-xl bg-[var(--tcn-surface)] p-3 text-sm text-[var(--tcn-text-faint)] ring-1 ring-[var(--tcn-border-strong)]">
+          Cette synthèse porte sur les {CLUB_PARTICIPATIONS_PAGE_SIZE.toLocaleString("fr-FR")}{" "}
+          derniers résultats importés. Les résultats importés avant n&apos;y figurent pas.
         </p>
       )}
 
@@ -136,21 +131,18 @@ export function ClubDashboard({
           <h2 className="font-heading text-lg font-semibold">
             {roster.length > APERCU_ROSTER ? "Les athlètes les plus actifs" : "Athlètes du club"}
           </h2>
-          {roster.length > APERCU_ROSTER ? (
-            // Sans décompte : /club/athletes s'ouvre sur la saison en cours
-            // seule, quand `roster.length` agrège toutes les saisons. Le total
-            // du club vit dans le KPI « Athlètes », qui le tient déjà.
-            <Link
-              href="/club/athletes"
-              className="text-sm font-medium text-accent-ink hover:underline"
-            >
-              Voir tous les athlètes →
-            </Link>
-          ) : (
-            <span className="text-sm text-[var(--tcn-text-faint)]">
-              {roster.length} membre{roster.length > 1 ? "s" : ""}
-            </span>
-          )}
+          {/* Inconditionnel : « les deux écrans reliés dans les deux sens »
+              est une garantie de navigation, elle ne peut pas s'éteindre sous
+              13 athlètes. Le libellé dit la destination et non un décompte —
+              /club/athletes ouvre sur la saison en cours seule, quand
+              `roster.length` agrège toutes les saisons ; le total du club vit
+              dans le KPI « Athlètes », qui le tient déjà. */}
+          <Link
+            href="/club/athletes"
+            className="text-sm font-medium text-accent-ink hover:underline"
+          >
+            Voir saison par saison →
+          </Link>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {apercu.map((r) => (

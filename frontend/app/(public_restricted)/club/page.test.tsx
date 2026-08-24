@@ -23,7 +23,7 @@ vi.mock("@/components/charts/BarList", () => ({ BarList: () => <div data-testid=
 vi.mock("@/components/charts/MonthlyTrend", () => ({ MonthlyTrend: () => <div data-testid="monthly" /> }));
 
 import ClubPage from "./page";
-import { CLUB_PARTICIPATIONS_PAGE_SIZE } from "@/components/club/ClubDashboard";
+import { CLUB_PARTICIPATIONS_PAGE_SIZE } from "@/lib/club";
 
 const STATS: Stats = {
   total: 42,

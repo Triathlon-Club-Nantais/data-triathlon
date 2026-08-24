@@ -13,3 +13,19 @@ export const CLUB_NAME = "Triathlon Club Nantais";
 
 /** Raccourci, pour les espaces contraints (badges, en-têtes de colonne, toggle). */
 export const CLUB_NAME_SHORT = "TCN";
+
+/**
+ * Plafond de `page_size` de `GET /participations` (`le=5000`, cf.
+ * `backend/app/api/v1/participations.py`). `/club` demande **le maximum**, et
+ * non un rond arbitraire : sous le plafond, le roster et les quatre KPI se
+ * tronquent sans que rien ne le dise. Au plafond, `ClubDashboard` le dit.
+ *
+ * ponytail: le plafond *servable* est plus bas que 5000. `ClubPodiumKpi` et
+ * `PodiumsList` sont deux composants client qui reçoivent `participations`
+ * **entier** (#132, pour recalculer sur `?rank=` sans re-fetch) : le tableau
+ * est sérialisé dans la charge RSC, donc le poids de la page croît avec le
+ * nombre de participations quel que soit ce qui est rendu. Sans effet
+ * aujourd'hui (820 en base) ; la sortie est l'agrégation côté serveur
+ * (#274, #382), pas un plafond plus bas qui tronquerait en silence.
+ */
+export const CLUB_PARTICIPATIONS_PAGE_SIZE = 5000;

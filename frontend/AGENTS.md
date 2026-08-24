@@ -268,6 +268,20 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   où la navigation a réellement lieu (immédiat pour la connexion, après le
   succès de la mutation pour la déconnexion) — jamais au clic de « Se
   déconnecter » seul, qui couperait l'affichage de son état d'attente.
+- **`/club` sérialise toutes les participations dans la charge RSC** (#487) —
+  `ClubPodiumKpi` et `PodiumsList` sont deux composants **client** qui reçoivent
+  `participations` **entier**, par construction : #132 les veut capables de
+  recalculer sur `?rank=` sans re-fetch. Le tableau part donc dans la charge RSC
+  du HTML, quel que soit ce qui est rendu. Conséquence à connaître avant de
+  profiler : l'aperçu de 12 fiches du roster (#487) retire le **rendu** de 338
+  cartes — DOM, liens, hydratation — mais **pas** le transport, qui reste
+  proportionnel au nombre de participations. `CLUB_PARTICIPATIONS_PAGE_SIZE`
+  (`lib/club.ts`) vaut 5000, le plafond de `GET /participations` ; le plafond
+  *servable* est plus bas, et la sortie est l'agrégation côté serveur
+  (#274, #382), pas un `page_size` plus bas qui retronquerait en silence.
+  Corollaire de lecture : `list_participations` trie par `created_at desc` hors
+  détail d'épreuve — la date d'**import**, jamais celle de l'épreuve —, d'où la
+  microcopie « derniers résultats importés » de la note de troncature.
 - `components/` — `scrape/` (TcnScrapeForm, ProviderDetector, ImportProgress),
   `results/` (ResultCard, ResultsList), `club/` (ClubDashboard, PodiumsList),
   `map/` (MapView), `dashboard/` (StatCardsRank, RecentCourses),
