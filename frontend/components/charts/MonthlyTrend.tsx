@@ -27,22 +27,28 @@ export function MonthlyTrend({ byMonth }: { byMonth: Record<string, number> }) {
   // du max, pas 50 % : deux formules différentes, pas juste deux écritures).
   const heightScale = scaleLinear().domain([0, max]).range([0, 100]);
 
-  const values = entries.map(([, v]) => v);
-  const summary =
-    `Activité mensuelle sur ${entries.length} mois, ` +
-    `de ${Math.min(...values)} à ${Math.max(...values)} dossards.`;
+  // `role="img"` élague tous les descendants de l'arbre d'accessibilité : sans
+  // énumération ici, les douze couples mois/valeur — pourtant lisibles à
+  // l'écran — disparaissent pour un lecteur d'écran (#480). Même patron que
+  // `DisciplineBar`, `BarList` et `CategoryBars` : « X : liste. ».
+  const summary = entries
+    .map(([key, value]) => `${formatMonthShort(key)} ${value}`)
+    .join(", ");
 
   return (
     <div
       role="img"
-      aria-label={summary}
+      aria-label={`Activité mensuelle : ${summary}.`}
       className="flex h-44 items-end gap-1.5"
     >
       {entries.map(([key, value], index) => (
-        <div key={key} className="flex h-full flex-1 flex-col items-center justify-end gap-1.5">
+        <div key={key} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1.5">
           {/* Valeur toujours écrite : `opacity-0` + `group-hover` n'existent pas
               au doigt, et l'attribut `title` non plus (WCAG 1.4.13, #480). */}
-          <span aria-hidden className="num text-[11px] font-bold text-[var(--tcn-text-faint)]">
+          <span
+            aria-hidden
+            className="num whitespace-nowrap text-[11px] font-bold text-[var(--tcn-text-faint)]"
+          >
             {value}
           </span>
           <div
@@ -51,16 +57,26 @@ export function MonthlyTrend({ byMonth }: { byMonth: Record<string, number> }) {
           />
           {/* Le texte est TOUJOURS rendu : `.micro-label` n'a ni `min-height`
               ni `display`, donc un span vide a une hauteur de 0 et décale sa
-              barre d'une colonne sur deux (#480). Le masquage un-mois-sur-deux
-              ne vaut donc que sous `sm:` — douze libellés de 11px ne tiennent
-              pas sur 287px, mais tiennent très bien sur la carte desktop — et
-              en `invisible`, jamais `hidden` : la place réservée est ce qui
-              garde les barres alignées. Compté depuis la fin pour que le plus
-              récent soit toujours écrit. */}
+              barre d'une colonne sur deux (#480) — c'est pour réserver cette
+              hauteur, et non pour restituer de la largeur, que le libellé
+              reste rendu même masqué : `visibility: hidden` ne rend aucune
+              largeur, contrairement à ce qu'un lecteur pourrait supposer. Le
+              masquage un-mois-sur-deux (`max-sm:invisible`) ne vaut que sous
+              `sm:`, pour que les libellés restés visibles ne se touchent pas
+              — douze tiennent très bien sur la carte desktop. Compté depuis
+              la fin pour que le plus récent soit toujours écrit. Sans
+              `min-w-0`, `flex: 1 1 0%` garde `min-width: auto` : les douze
+              boîtes imposeraient leur largeur min-content à la rangée et,
+              sur téléphone, l'`overflow-hidden` de la Card écrêterait sans
+              scroll les colonnes de trop — précisément les mois les plus
+              récents (#480). `whitespace-nowrap`, sur ce libellé et sur la
+              valeur au-dessus, les fait déborder proprement de leur colonne
+              plutôt que de se casser en plusieurs lignes, ce qui décalerait
+              l'alignement des barres. */}
           <span
             aria-hidden
             data-month-label
-            className={`micro-label text-[var(--tcn-text-faint)] ${
+            className={`micro-label whitespace-nowrap text-[var(--tcn-text-faint)] ${
               (entries.length - 1 - index) % 2 === 0 ? "" : "max-sm:invisible"
             }`}
           >
