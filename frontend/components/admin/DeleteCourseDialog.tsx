@@ -1,15 +1,7 @@
 "use client";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DangerConfirm } from "@/components/admin/DangerConfirm";
 import { useCourseDeletionImpact, useDeleteCourse } from "@/lib/queries/admin";
 import type { CourseBrief } from "@/lib/types";
 
@@ -25,6 +17,10 @@ import type { CourseBrief } from "@/lib/types";
  * **Aucun bouton d'annulation**, et ce n'est pas un oubli (FR-018) : rien ne
  * restaure une épreuve supprimée. Ce qui reste du geste est son entrée au
  * journal d'audit.
+ *
+ * Passé sur `DangerConfirm` (#499) : la coquille, les libellés et la place du
+ * bouton de renoncement sont désormais les mêmes que pour tous les autres
+ * gestes destructifs de l'administration.
  */
 export function DeleteCourseDialog({
   course,
@@ -49,56 +45,44 @@ export function DeleteCourseDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Supprimer « {course.name} » ?</DialogTitle>
-          <DialogDescription>
-            Cette action est <strong>irréversible</strong>. Elle restera tracée dans le
-            journal d&apos;administration, mais rien ne permettra de revenir en arrière.
-          </DialogDescription>
-        </DialogHeader>
+    <DangerConfirm
+      open={open}
+      onOpenChange={onOpenChange}
+      titre={`Supprimer « ${course.name} » ?`}
+      description={
+        <>
+          Cette action est <strong>irréversible</strong>. Elle restera tracée dans le
+          journal d&apos;administration, mais rien ne permettra de revenir en arrière.
+        </>
+      }
+      actionBloquee={!impact.data}
+      enAttente={suppression.isPending}
+      onConfirm={confirmer}
+    >
+      {impact.isLoading && <Skeleton className="h-16 w-full" />}
 
-        {impact.isLoading && <Skeleton className="h-16 w-full" />}
+      {impact.error && (
+        <p className="text-sm text-destructive">
+          L&apos;ampleur de la suppression n&apos;a pas pu être chiffrée. Par prudence,
+          la suppression n&apos;est pas proposée — réessayez plus tard.
+        </p>
+      )}
 
-        {impact.error && (
-          <p className="text-sm text-destructive">
-            L&apos;ampleur de la suppression n&apos;a pas pu être chiffrée. Par prudence,
-            la suppression n&apos;est pas proposée — réessayez plus tard.
-          </p>
-        )}
-
-        {impact.data && (
-          <ul className="space-y-1 text-sm">
-            <li>
-              <strong>{impact.data.participations}</strong> résultat
-              {impact.data.participations === 1 ? " sera détruit" : "s seront détruits"}.
-            </li>
-            <li>
-              <strong>{impact.data.athletes}</strong> fiche
-              {impact.data.athletes === 1
-                ? " coureur ne conservera plus aucun résultat et sera retirée"
-                : "s coureur ne conserveront plus aucun résultat et seront retirées"}
-              .
-            </li>
-          </ul>
-        )}
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Renoncer
-          </Button>
-          {impact.data && (
-            <Button
-              variant="destructive"
-              onClick={confirmer}
-              disabled={suppression.isPending}
-            >
-              Supprimer définitivement
-            </Button>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      {impact.data && (
+        <ul className="space-y-1 text-sm">
+          <li>
+            <strong>{impact.data.participations}</strong> résultat
+            {impact.data.participations === 1 ? " sera détruit" : "s seront détruits"}.
+          </li>
+          <li>
+            <strong>{impact.data.athletes}</strong> fiche
+            {impact.data.athletes === 1
+              ? " coureur ne conservera plus aucun résultat et sera retirée"
+              : "s coureur ne conserveront plus aucun résultat et seront retirées"}
+            .
+          </li>
+        </ul>
+      )}
+    </DangerConfirm>
   );
 }
