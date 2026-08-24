@@ -5,6 +5,17 @@ export function formatDate(d: string | null | undefined): string {
   return String(d);
 }
 
+/**
+ * Date **et** heure. `formatDate` coupe l'horodatage au jour : deux
+ * événements du même jour y deviennent indiscernables.
+ */
+export function formatDateTime(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return d.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
+}
+
 export function formatMonth(ym: string | null | undefined): string {
   if (!ym) return "";
   const m = String(ym).match(/^(\d{4})-(\d{2})/);

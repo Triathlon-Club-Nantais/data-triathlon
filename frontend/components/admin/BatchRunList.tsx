@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useBatchReport, useBatchRuns } from "@/lib/queries/batches";
 import { useSession } from "@/lib/queries/auth";
-import { formatDate } from "@/lib/utils/date";
+import { formatDateTime } from "@/lib/utils/date";
 import type { BatchRun } from "@/lib/types";
 
 /** Le workflow borne à 120 minutes ; au-delà, quelque chose est coincé. */
@@ -51,6 +51,31 @@ const ISSUES: Record<NonNullable<BatchRun["outcome"]>, string> = {
   failure: "Échec",
   cancelled: "Annulé",
 };
+
+/**
+ * Une variante par issue. En aplat primaire, « Réussi », « Échec » et
+ * « Annulé » sortaient identiques à l'œil (ADM-3) ; l'orange reste au seul
+ * état qui bouge encore.
+ */
+const VARIANTES: Record<
+  NonNullable<BatchRun["outcome"]>,
+  "secondary" | "destructive" | "outline"
+> = {
+  success: "secondary",
+  failure: "destructive",
+  cancelled: "outline",
+};
+
+/** « il y a 3 minutes », « il y a 2 heures », « il y a 4 jours ». */
+const RELATIF = new Intl.RelativeTimeFormat("fr-FR", { numeric: "auto" });
+
+function ilYA(millisecondes: number): string {
+  const minutes = Math.round(millisecondes / 60_000);
+  if (minutes < 60) return RELATIF.format(-minutes, "minute");
+  const heures = Math.round(minutes / 60);
+  if (heures < 24) return RELATIF.format(-heures, "hour");
+  return RELATIF.format(-Math.round(heures / 24), "day");
+}
 
 const ORIGINES: Record<BatchRun["triggered_by"], string> = {
   ui: "Interface",
@@ -172,15 +197,35 @@ export function BatchRunList() {
         </TableHeader>
         <TableBody>
           {data.map((run) => {
-            const coince =
-              run.state === "running" &&
-              maintenant - new Date(run.started_at).getTime() > TROP_LONG_MS;
+            const ecoule = maintenant - new Date(run.started_at).getTime();
+            const coince = run.state === "running" && ecoule > TROP_LONG_MS;
+            // `duration_s` reste nul tant que l'exécution tourne : sans le
+            // temps écoulé, la colonne disait « — » pendant deux heures.
+            const secondes =
+              run.duration_s ??
+              (run.state === "completed" ? null : Math.floor(ecoule / 1000));
             return (
               <Fragment key={run.id}>
                 <TableRow>
-                  <TableCell>{run.label}</TableCell>
                   <TableCell>
-                    <Badge>{libelleEtat(run)}</Badge>
+                    <div>{run.label}</div>
+                    {/* En permanence, pas seulement quand ça coince : c'est le
+                        seul endroit qui dit où le batch tourne réellement. */}
+                    <a
+                      className="text-xs underline text-[var(--tcn-text-faint)]"
+                      href={run.external_url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Voir l&apos;exécution
+                    </a>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={run.outcome ? VARIANTES[run.outcome] : "default"}
+                    >
+                      {libelleEtat(run)}
+                    </Badge>
                     {coince && (
                       <p className="mt-1 text-xs text-[var(--tcn-text-faint)]">
                         En cours depuis plus de deux heures.{" "}
@@ -196,8 +241,15 @@ export function BatchRunList() {
                     )}
                   </TableCell>
                   <TableCell>{ORIGINES[run.triggered_by]}</TableCell>
-                  <TableCell>{formatDate(run.started_at)}</TableCell>
-                  <TableCell>{duree(run.duration_s)}</TableCell>
+                  <TableCell data-testid={`demarrage-${run.id}`}>
+                    <div>{formatDateTime(run.started_at)}</div>
+                    <div className="text-xs text-[var(--tcn-text-faint)]">
+                      {ilYA(ecoule)}
+                    </div>
+                  </TableCell>
+                  <TableCell data-testid={`duree-${run.id}`}>
+                    {duree(secondes)}
+                  </TableCell>
                   <TableCell>
                     {run.report_available ? (
                       <Button

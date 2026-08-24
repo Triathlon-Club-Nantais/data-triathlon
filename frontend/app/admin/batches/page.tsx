@@ -19,7 +19,14 @@ export default function AdminBatchesPage() {
   return (
     <PageShell>
       <div className="space-y-10">
-        <PageHeader {...ecran("/admin/batches")} />
+        <PageHeader {...ecran("/admin/batches")}>
+          {/* Le fait, dit à l'écran et plus seulement dans ce commentaire :
+              l'exécution est sur un runner, pas dans l'onglet (ADM-3). */}
+          <p className="max-w-2xl text-sm text-[var(--tcn-text-faint)]">
+            Le traitement continue même si vous fermez cet onglet ; revenez ici
+            pour lire le bilan.
+          </p>
+        </PageHeader>
         <section className="space-y-4">
           <h2 className="text-lg font-bold">Reprise de la base</h2>
           <BatchLauncher />

@@ -159,6 +159,61 @@ describe("BatchRunList", () => {
     expect(screen.queryByText(/plus de deux heures/i)).toBeNull();
   });
 
+  it("garde l'heure du démarrage et dit depuis combien de temps", async () => {
+    // Deux lancements du même jour étaient indiscernables : `formatDate`
+    // coupait l'horodatage aux dix premiers caractères (ADM-3).
+    listBatchRuns.mockResolvedValue([
+      RUN({ started_at: "2026-08-08T18:00:23Z" }),
+    ]);
+    afficher();
+
+    const cellule = await screen.findByTestId("demarrage-1284");
+    expect(cellule).toHaveTextContent(/08\/08\/2026/);
+    expect(cellule).toHaveTextContent(/\d{2}:\d{2}/);
+    expect(cellule).toHaveTextContent(/il y a 2 heures/);
+  });
+
+  it("compte la durée écoulée tant que le lancement tourne", async () => {
+    // `duration_s` reste nul pendant toute l'exécution : sans ce calcul, la
+    // colonne affichait « — » deux heures durant.
+    listBatchRuns.mockResolvedValue([
+      RUN({
+        state: "running",
+        outcome: null,
+        duration_s: null,
+        started_at: "2026-08-08T19:38:00Z",
+      }),
+    ]);
+    afficher();
+
+    expect(await screen.findByTestId("duree-1284")).toHaveTextContent("22 min");
+  });
+
+  it("distingue à l'œil un échec d'une réussite", async () => {
+    listBatchRuns.mockResolvedValue([
+      RUN({ id: 1, outcome: "success" }),
+      RUN({ id: 2, outcome: "failure" }),
+      RUN({ id: 3, outcome: "cancelled" }),
+    ]);
+    afficher();
+
+    const reussi = await screen.findByText("Réussi");
+    const echec = screen.getByText("Échec");
+    const annule = screen.getByText("Annulé");
+    expect(echec.className).toMatch(/destructive/);
+    expect(reussi.className).not.toBe(echec.className);
+    expect(annule.className).not.toBe(echec.className);
+    expect(annule.className).not.toBe(reussi.className);
+  });
+
+  it("renvoie à l'exécution sans attendre qu'elle se coince", async () => {
+    listBatchRuns.mockResolvedValue([RUN()]);
+    afficher();
+
+    const lien = await screen.findByRole("link", { name: /voir l'exécution/i });
+    expect(lien).toHaveAttribute("href", RUN().external_url);
+  });
+
   it("dit qu'aucun lancement n'a eu lieu quand la liste est vide", async () => {
     listBatchRuns.mockResolvedValue([]);
     afficher();

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { formatDate, timeAgo, formatMonth } from "./date";
+import { formatDate, formatDateTime, timeAgo, formatMonth } from "./date";
 
 describe("formatDate", () => {
   it("formate une date ISO en fr-FR", () => {
@@ -13,6 +13,17 @@ describe("formatDate", () => {
 describe("formatMonth", () => {
   it("formate YYYY-MM en mois/année français", () => {
     expect(formatMonth("2026-03")).toBe("mars 2026");
+  });
+});
+
+describe("formatDateTime", () => {
+  it("garde l'heure, que `formatDate` jette", () => {
+    const rendu = formatDateTime("2026-08-08T18:00:23Z");
+    expect(rendu).toMatch(/08\/08\/2026/);
+    expect(rendu).toMatch(/\d{2}:\d{2}/);
+  });
+  it("renvoie une chaîne vide si null", () => {
+    expect(formatDateTime(null)).toBe("");
   });
 });
 
