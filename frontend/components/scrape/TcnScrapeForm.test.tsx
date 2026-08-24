@@ -325,7 +325,7 @@ describe("TcnScrapeForm — alerte anticipée sur provider non supporté", () =>
     await userEvent.click(await screen.findByRole("button", { name: "Saisie manuelle" }));
 
     expect(
-      screen.getByRole("button", { name: "Enregistrer le résultat" }),
+      screen.getByRole("button", { name: "Enregistrer votre participation" }),
     ).toBeInTheDocument();
   });
 });
@@ -345,7 +345,7 @@ describe("TcnScrapeForm — repli sur échec d'import", () => {
       expect(apiClient.reportPendingProvider).toHaveBeenCalledWith("http://x.test/ev"),
     );
     expect(
-      screen.getByRole("button", { name: "Enregistrer le résultat" }),
+      screen.getByRole("button", { name: "Enregistrer votre participation" }),
     ).toBeInTheDocument();
   });
 });
@@ -627,7 +627,14 @@ describe("TcnScrapeForm — accusé de réception de la saisie manuelle (ACT-1)"
     fireEvent.change(screen.getByLabelText("Date"), { target: { value: "2026-05-16" } });
     await userEvent.type(screen.getByLabelText("Nom de l'épreuve"), "Triathlon de Nantes");
     await userEvent.selectOptions(screen.getByLabelText("Discipline"), "triathlon");
-    await userEvent.click(screen.getByRole("button", { name: "Enregistrer le résultat" }));
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer votre participation" }));
+  }
+
+  function participationCreee() {
+    vi.mocked(apiClient.saveParticipation).mockResolvedValue({
+      id: 77,
+      course: { id: 42, name: "Triathlon de Nantes", event_type: "triathlon-m" },
+    } as never);
   }
 
   it("l'accroche annonce la validation par un bénévole au lieu de la nier", async () => {
@@ -638,10 +645,7 @@ describe("TcnScrapeForm — accusé de réception de la saisie manuelle (ACT-1)"
   });
 
   it("après enregistrement, une alerte persistante dit la mise en attente et mène au résultat", async () => {
-    vi.mocked(apiClient.saveParticipation).mockResolvedValue({
-      id: 77,
-      course: { id: 42, name: "Triathlon de Nantes", event_type: "triathlon-m" },
-    } as never);
+    participationCreee();
     await ouvrirSaisieManuelle();
     await saisirEtEnregistrer();
 
@@ -656,8 +660,63 @@ describe("TcnScrapeForm — accusé de réception de la saisie manuelle (ACT-1)"
     // Le formulaire se referme : l'accusé de réception le remplace, et
     // l'invitation à saisir à la main ne contredit plus le succès affiché.
     expect(
-      screen.queryByRole("button", { name: "Enregistrer le résultat" }),
+      screen.queryByRole("button", { name: "Enregistrer votre participation" }),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Impossible d'importer automatiquement")).not.toBeInTheDocument();
+  });
+
+  it("annonce l'accusé de réception aux lecteurs d'écran", async () => {
+    participationCreee();
+    await ouvrirSaisieManuelle();
+    await saisirEtEnregistrer();
+
+    // Le formulaire est démonté au moment où la carte apparaît : sans région
+    // live, plus rien n'est annoncé ni focalisé (WCAG 4.1.3, #477).
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      /en attente de validation par un bénévole/i,
+    );
+  });
+
+  it("offre une sortie pour saisir une seconde participation", async () => {
+    participationCreee();
+    await ouvrirSaisieManuelle();
+    await saisirEtEnregistrer();
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Saisir une autre participation" }),
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Enregistrer votre participation" }),
+    ).toBeInTheDocument();
+  });
+
+  it("coller une nouvelle adresse non reconnue rouvre l'invitation à la saisie manuelle", async () => {
+    participationCreee();
+    await ouvrirSaisieManuelle();
+    await saisirEtEnregistrer();
+    await screen.findByText(/en attente de validation par un bénévole du club/i);
+
+    await userEvent.type(screen.getByPlaceholderText(/résultats-chrono/), "/autre");
+
+    expect(await screen.findByText("Impossible d'importer automatiquement")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/en attente de validation par un bénévole du club/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("un échec d'enregistrement laisse le formulaire ouvert et affiche une alerte persistante", async () => {
+    vi.mocked(apiClient.saveParticipation).mockRejectedValue(new Error("Service indisponible"));
+    await ouvrirSaisieManuelle();
+    await saisirEtEnregistrer();
+
+    expect(
+      await screen.findByText("Impossible d'enregistrer votre participation"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Service indisponible/)).toBeInTheDocument();
+    // Ce qui a été saisi reste sous les yeux, prêt à être renvoyé.
+    expect(
+      screen.getByRole("button", { name: "Enregistrer votre participation" }),
+    ).toBeInTheDocument();
   });
 });

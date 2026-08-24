@@ -142,6 +142,13 @@ export function ManualResultForm({
         });
       })}
     >
+      {/* Un astérisque rouge est une convention pour qui la connaît déjà : la
+          légende la pose, avant le premier champ qui la porte. */}
+      <p className="text-sm text-muted-foreground">
+        Les champs marqués <span className="text-[var(--tcn-danger-text)]">*</span> sont
+        obligatoires.
+      </p>
+
       <Groupe titre="Qui">
         <Field label="Prénom" htmlFor="mrf-firstname" required error={errors.athlete_firstname?.message}>
           <Input id="mrf-firstname" aria-required="true" {...register("athlete_firstname")} />
@@ -168,7 +175,7 @@ export function ManualResultForm({
           <select
             id="mrf-discipline"
             aria-required="true"
-            className="h-9 rounded-md border bg-background px-2"
+            className="tcn-input h-9 rounded-md border bg-background px-2"
             {...register("discipline")}
           >
             <option value="">—</option>
@@ -182,7 +189,7 @@ export function ManualResultForm({
           <Field label="Format" htmlFor="mrf-format" optional>
             <select
               id="mrf-format"
-              className="h-9 rounded-md border bg-background px-2"
+              className="tcn-input h-9 rounded-md border bg-background px-2"
               {...register("format")}
             >
               <option value="">—</option>
@@ -246,7 +253,7 @@ export function ManualResultForm({
         <Field label="Statut" htmlFor="mrf-status">
           <select
             id="mrf-status"
-            className="h-9 rounded-md border bg-background px-2"
+            className="tcn-input h-9 rounded-md border bg-background px-2"
             {...register("status")}
           >
             {STATUTS.map((s) => (
@@ -279,12 +286,15 @@ export function ManualResultForm({
           // Cinq champs de plus que personne n'a sous la main au moment de
           // saisir : repliés, ils ne pèsent plus sur la décision de commencer.
           <details className="sm:col-span-2">
-            <summary className="cursor-pointer text-sm font-medium">
-              Ajouter mes temps par discipline
+            {/* `min-h-11` : 44 px, le seuil de cible tactile que le dépôt s'est
+                donné sur `.tcn-btn` — c'est la commande qui ouvre les cinq
+                champs, sur un écran pensé mobile d'abord. */}
+            <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">
+              Ajouter vos temps par discipline
             </summary>
-            <div className={`${GROUPE} pt-4`}>
+            <div className={`${GROUPE} pt-2`}>
               {champsTemps.map((c) => (
-                <Field key={c.key} label={c.label} htmlFor={`mrf-${c.key}`}>
+                <Field key={c.key} label={c.label} htmlFor={`mrf-${c.key}`} optional>
                   <Input id={`mrf-${c.key}`} placeholder="HH:MM:SS" {...register(c.key)} />
                 </Field>
               ))}
@@ -295,7 +305,7 @@ export function ManualResultForm({
 
       <div>
         <Button type="submit" disabled={submitting}>
-          {submitting ? "Enregistrement…" : "Enregistrer le résultat"}
+          {submitting ? "Enregistrement…" : "Enregistrer votre participation"}
         </Button>
       </div>
     </form>
@@ -305,7 +315,10 @@ export function ManualResultForm({
 function Groupe({ titre, children }: { titre: string; children: React.ReactNode }) {
   return (
     <fieldset className={GROUPE}>
-      <legend className="text-sm font-semibold sm:col-span-2">{titre}</legend>
+      {/* Pas de `col-span` ici : un `<legend>` rendu est sorti du flux interne
+          du `<fieldset>`, il n'est donc jamais un élément de la grille — d'où
+          aussi la marge basse, que le `gap` ne lui applique pas. */}
+      <legend className="mb-3 text-base font-semibold text-[var(--tcn-ink)]">{titre}</legend>
       {children}
     </fieldset>
   );
@@ -346,7 +359,7 @@ function Field({
       </span>
       {children}
       {error && (
-        <span role="alert" className="text-xs text-destructive">
+        <span role="alert" className="text-xs text-[var(--tcn-danger-text)]">
           {error}
         </span>
       )}
