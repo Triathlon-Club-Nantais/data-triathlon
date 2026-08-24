@@ -125,7 +125,12 @@ function BilanDuLancement({ runId }: { runId: number }) {
   if (isLoading) return <Skeleton className="h-24 w-full" />;
   // Le message du serveur, tel quel : il distingue « pas encore de bilan »
   // (404) de « bilan expiré » (410), et cette nuance ne se redevine pas ici.
-  if (error) return <p className="text-sm text-destructive">{error.message}</p>;
+  // `text-destructive` est `--tcn-danger` brut : 3,68:1 sur le blanc de la
+  // carte, sous les 4,5:1 de WCAG 1.4.3. Même token que les badges.
+  if (error)
+    return (
+      <p className="text-sm text-[var(--tcn-danger-text)]">{error.message}</p>
+    );
   if (!data) return null;
 
   return (
@@ -226,11 +231,13 @@ export function BatchRunList() {
             const coince = run.state === "running" && ecoule > TROP_LONG_MS;
             // `duration_s` reste nul tant que l'exécution tourne : sans le
             // temps écoulé, la colonne disait « — » pendant deux heures.
-            const secondes =
-              run.duration_s ??
-              (run.state === "completed" || !Number.isFinite(ecoule)
-                ? null
-                : Math.max(0, Math.floor(ecoule / 1000)));
+            const compteLEcoule =
+              run.duration_s === null &&
+              run.state !== "completed" &&
+              Number.isFinite(ecoule);
+            const secondes = compteLEcoule
+              ? Math.max(0, Math.floor(ecoule / 1000))
+              : run.duration_s;
             return (
               <Fragment key={run.id}>
                 <TableRow>
@@ -271,9 +278,14 @@ export function BatchRunList() {
                   <TableCell>{ORIGINES[run.triggered_by]}</TableCell>
                   <TableCell data-testid={`demarrage-${run.id}`}>
                     <div>{formatDateTime(run.started_at)}</div>
-                    <div className="text-xs text-[var(--tcn-text-faint)]">
-                      {ilYA(ecoule)}
-                    </div>
+                    {/* Tu quand la colonne « Durée » compte déjà l'écoulé :
+                        sur une ligne en cours, « il y a 22 minutes » et
+                        « 22 min » sont le même nombre, par construction. */}
+                    {!compteLEcoule && (
+                      <div className="text-xs text-[var(--tcn-text-faint)]">
+                        {ilYA(ecoule)}
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell data-testid={`duree-${run.id}`}>
                     {duree(secondes)}
