@@ -128,28 +128,33 @@ export function Histogram({
         ))}
       </svg>
 
-      {/* Libellés de l'axe X, en px réels. `left` est un pourcentage : il suit
-          l'étirement horizontal sans avoir à le connaître. */}
-      {xTicks.map((tickSec) => (
-        <span
-          key={tickSec}
-          data-x-tick
-          aria-hidden
-          style={{
-            position: "absolute",
-            left: `calc(34px + ${secToPct(tickSec)}% - 20px)`,
-            bottom: 0,
-            width: 40,
-            textAlign: "center",
-            fontSize: 11,
-            lineHeight: "14px",
-            color: "var(--tcn-text-faint)",
-            fontFamily: "var(--tcn-font-body)",
-          }}
-        >
-          {formatTickLabel(tickSec)}
-        </span>
-      ))}
+      {/* Rangée des libellés d'axe X. Sa largeur épouse exactement celle du SVG,
+          ce qui est la condition pour qu'une abscisse s'exprime en pourcentage.
+          Posé sur le conteneur, ce même pourcentage se résoudrait contre la
+          largeur padding comprise et décalerait chaque libellé de 34 px × sa
+          position — soit la gouttière entière sur la dernière graduation. */}
+      <div style={{ position: "absolute", left: 34, right: 0, bottom: 0, height: 20 }}>
+        {xTicks.map((tickSec) => (
+          <span
+            key={tickSec}
+            data-x-tick
+            aria-hidden
+            style={{
+              position: "absolute",
+              left: `calc(${secToPct(tickSec)}% - 20px)`,
+              top: 0,
+              width: 40,
+              textAlign: "center",
+              fontSize: 11,
+              lineHeight: "14px",
+              color: "var(--tcn-text-faint)",
+              fontFamily: "var(--tcn-font-body)",
+            }}
+          >
+            {formatTickLabel(tickSec)}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
