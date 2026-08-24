@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
+import { DangerConfirmProvider } from "./DangerConfirm";
 import type { Group, GroupDetail, SessionUser } from "@/lib/types";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -55,10 +56,21 @@ function afficher() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <GroupsTable />
+      <DangerConfirmProvider>
+        <GroupsTable />
+      </DangerConfirmProvider>
     </QueryClientProvider>,
   );
 }
+
+/** Vise le bouton du dialog plutôt que celui de la ligne : les deux partagent
+ *  le même libellé, mais seul le premier vit dans `role="dialog"`. */
+async function confirmerDansLeDialog(nom: RegExp | string) {
+  const dialog = await screen.findByRole("dialog");
+  await userEvent.click(within(dialog).getByRole("button", { name: nom }));
+}
+
+const VIDE: Group = { ...CODIR, id: 4, slug: "officiels", name: "Officiels", member_count: 0 };
 
 describe("GroupsTable", () => {
   beforeEach(() => {
@@ -128,33 +140,47 @@ describe("GroupsTable", () => {
     );
   });
 
-  it("supprime un groupe", async () => {
-    listGroups.mockResolvedValue([CODIR]);
-    deleteGroup.mockResolvedValue(null);
-
+  it("annonce avant le clic qu'un groupe peuplé ne peut pas être supprimé", async () => {
+    listGroups.mockResolvedValue([CODIR]); // member_count: 2
     afficher();
-    await screen.findByText("Codir");
-    await userEvent.click(
-      screen.getByRole("button", { name: /supprimer le groupe codir/i }),
-    );
-
-    await waitFor(() => expect(deleteGroup).toHaveBeenCalledWith(CODIR.id));
+    const bouton = await screen.findByRole("button", { name: "Supprimer le groupe Codir" });
+    expect(bouton.hasAttribute("disabled")).toBe(true);
+    await userEvent.hover(bouton.parentElement!);
+    expect(await screen.findByText(/Videz d'abord le groupe \(2 membres\)/)).toBeTruthy();
   });
 
-  it("affiche tel quel le refus de supprimer un groupe peuplé", async () => {
+  it("exige une confirmation nominative avant de supprimer un groupe vide", async () => {
+    listGroups.mockResolvedValue([VIDE]);
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: "Supprimer le groupe Officiels" }));
+    expect(screen.getByText("Supprimer « Officiels » ?")).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Renoncer" }));
+    expect(deleteGroup).not.toHaveBeenCalled();
+  });
+
+  it("supprime le groupe vide une fois la confirmation donnée", async () => {
+    listGroups.mockResolvedValue([VIDE]);
+    deleteGroup.mockResolvedValue(undefined);
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: "Supprimer le groupe Officiels" }));
+    await confirmerDansLeDialog("Supprimer définitivement");
+    await waitFor(() => expect(deleteGroup).toHaveBeenCalledWith(VIDE.id));
+  });
+
+  it("affiche tel quel le refus serveur de supprimer un groupe", async () => {
     // 409 : la demande est bien formée et l'appelant en a le droit, c'est le
-    // résultat qui est interdit. Le message vient du serveur, déjà en français.
-    listGroups.mockResolvedValue([CODIR]);
-    deleteGroup.mockRejectedValue(new ApiError(409, "Ce groupe compte encore 2 membres."));
+    // résultat qui est interdit — ici une composition changée entre
+    // l'affichage et la confirmation. Le message vient du serveur, déjà en
+    // français.
+    listGroups.mockResolvedValue([VIDE]);
+    deleteGroup.mockRejectedValue(new ApiError(409, "Ce groupe compte encore 1 membre."));
 
     afficher();
-    await screen.findByText("Codir");
-    await userEvent.click(
-      screen.getByRole("button", { name: /supprimer le groupe codir/i }),
-    );
+    await userEvent.click(await screen.findByRole("button", { name: "Supprimer le groupe Officiels" }));
+    await confirmerDansLeDialog("Supprimer définitivement");
 
     await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith("Ce groupe compte encore 2 membres."),
+      expect(toast.error).toHaveBeenCalledWith("Ce groupe compte encore 1 membre."),
     );
   });
 

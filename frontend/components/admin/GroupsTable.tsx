@@ -15,7 +15,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { GroupDetailDialog } from "@/components/admin/GroupDetailDialog";
+import { useDangerConfirm } from "@/components/admin/DangerConfirm";
 import { useCreateGroup, useDeleteGroup, useGroups } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
 import { messageDeRefus } from "@/lib/api/refus";
@@ -34,6 +36,7 @@ export function GroupsTable() {
   const session = useSession();
   const creer = useCreateGroup();
   const supprimer = useDeleteGroup();
+  const confirmerLeDanger = useDangerConfirm();
   const [nom, setNom] = useState("");
   const [slug, setSlug] = useState("");
   const [description, setDescription] = useState("");
@@ -65,15 +68,22 @@ export function GroupsTable() {
   }
 
   async function detruire(groupe: Group) {
-    // Aucune confirmation : l'API refuse de supprimer un groupe peuplé, donc le
-    // geste ne détruit jamais de composition. Rien n'est perdu, rien n'est à
-    // confirmer — à l'inverse du retrait d'une adresse autorisée (#170).
+    // Le geste détruit un groupe : il se confirme, comme tout ce qui ne se
+    // refait pas (#499, ADM-8). L'argument d'avant — « l'API refuse un groupe
+    // peuplé, donc rien n'est perdu » — ne tenait que pour les groupes peuplés,
+    // dont le bouton est désormais inerte et dit pourquoi.
+    if (
+      !(await confirmerLeDanger({
+        titre: `Supprimer « ${groupe.name} » ?`,
+        description: "Le groupe disparaît. Les comptes qui en relevaient ne sont pas touchés.",
+      }))
+    ) {
+      return;
+    }
     try {
       await supprimer.mutateAsync(groupe.id);
       toast.success(`« ${groupe.name} » a été supprimé.`);
     } catch (e) {
-      // Le 409 du groupe encore peuplé porte son message côté serveur, déjà en
-      // français, et il nomme le nombre de membres.
       toast.error((e as Error).message);
     }
   }
@@ -164,19 +174,43 @@ export function GroupsTable() {
                   <TableCell>{groupe.member_count}</TableCell>
                   <TableCell>{formatDate(groupe.created_at)}</TableCell>
                   <TableCell className="text-right">
-                    {peutEcrire && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        aria-label={`Supprimer le groupe ${groupe.name}`}
-                        onClick={() => detruire(groupe)}
-                        // Bornée à **cette** ligne : `isPending` seul griserait
-                        // tous les boutons du tableau pendant une suppression.
-                        disabled={supprimer.isPending && supprimer.variables === groupe.id}
-                      >
-                        Supprimer
-                      </Button>
-                    )}
+                    {peutEcrire &&
+                      (groupe.member_count > 0 ? (
+                        // Le refus du serveur, dit **avant** le clic — même
+                        // patron que `raisonDeNonSuppression` de
+                        // `RolePermissionsEditor` (#499). Le déclencheur porte
+                        // sur un `<span tabIndex={0}>` et non sur le bouton :
+                        // un bouton désactivé ne reçoit ni survol ni focus, son
+                        // infobulle ne s'ouvrirait jamais.
+                        <Tooltip>
+                          <TooltipTrigger render={<span tabIndex={0} className="inline-block" />}>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              aria-label={`Supprimer le groupe ${groupe.name}`}
+                              disabled
+                            >
+                              Supprimer
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="left">
+                            Videz d&apos;abord le groupe ({groupe.member_count} membre
+                            {groupe.member_count === 1 ? "" : "s"}).
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          aria-label={`Supprimer le groupe ${groupe.name}`}
+                          onClick={() => detruire(groupe)}
+                          // Bornée à **cette** ligne : `isPending` seul griserait
+                          // tous les boutons du tableau pendant une suppression.
+                          disabled={supprimer.isPending && supprimer.variables === groupe.id}
+                        >
+                          Supprimer
+                        </Button>
+                      ))}
                   </TableCell>
                 </TableRow>
               ))}
