@@ -87,7 +87,7 @@ export function MergeCoursesDialog({
     <DangerConfirm
       open={open}
       onOpenChange={onOpenChange}
-      titre="Fusionner ces deux lignes ?"
+      titre="Fusionner ces deux épreuves ?"
       description={
         <>
           Choisissez l&apos;épreuve à conserver. L&apos;autre est supprimée ; son URL
@@ -118,14 +118,17 @@ export function MergeCoursesDialog({
         <ul className="space-y-1 text-sm">
           <li>
             <strong>{impact.data.participations_without_match}</strong> résultat
-            {impact.data.participations_without_match > 1 ? "s" : ""} de l&apos;épreuve
-            absorbée n&apos;ont pas d&apos;équivalent côté cible et disparaîtront
+            {impact.data.participations_without_match === 1 ? "" : "s"} de l&apos;épreuve
+            absorbée n&apos;{impact.data.participations_without_match === 1 ? "a" : "ont"} pas
+            d&apos;équivalent côté cible et{" "}
+            {impact.data.participations_without_match === 1 ? "disparaîtra" : "disparaîtront"}{" "}
             (dont <strong>{impact.data.tcn_participations_without_match}</strong> du TCN).
           </li>
           <li>
             <strong>{impact.data.athletes_orphaned}</strong> fiche
-            {impact.data.athletes_orphaned > 1 ? "s" : ""} coureur ne conserveront plus
-            aucun résultat et {impact.data.athletes_orphaned > 1 ? "seront retirées" : "sera retirée"}.
+            {impact.data.athletes_orphaned === 1 ? "" : "s"} coureur ne{" "}
+            {impact.data.athletes_orphaned === 1 ? "conservera" : "conserveront"} plus aucun
+            résultat et {impact.data.athletes_orphaned === 1 ? "sera retirée" : "seront retirées"}.
           </li>
           <li>
             {impact.data.same_source_url
