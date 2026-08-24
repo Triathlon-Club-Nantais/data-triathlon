@@ -279,6 +279,7 @@ describe("AllowedEmailsTable", () => {
     afficher();
     await screen.findByText(ADRESSE.email);
     await userEvent.click(screen.getByRole("button", { name: /retirer/i }));
+    expect(screen.getByText(new RegExp(`Retirer « ${ADRESSE.email} » \\?`))).toBeTruthy();
     await confirmerDansLeDialog(/retirer/i);
 
     await waitFor(() => expect(removeAllowedEmail).toHaveBeenCalledWith(ADRESSE.id));
