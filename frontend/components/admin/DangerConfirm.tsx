@@ -30,6 +30,12 @@ export type DangerConfirmProps = {
   /** L'action reste inerte — typiquement, le chiffrage d'impact n'est pas arrivé. */
   actionBloquee?: boolean;
   libelleAction?: string;
+  /**
+   * Ce geste précis ne ferme aucun accès et ne détruit aucune donnée — la
+   * bascule superutilisateur en est le seul appelant. Un booléen, pas une
+   * échelle de gravité : le lot n'invente pas une troisième catégorie.
+   */
+  actionNeutre?: boolean;
   enAttente?: boolean;
   onConfirm: () => void | Promise<void>;
   /** Le corps chiffré, quand le geste annonce son ampleur avant d'agir. */
@@ -60,6 +66,7 @@ export function DangerConfirm({
   motDeConfirmation,
   actionBloquee = false,
   libelleAction = "Supprimer définitivement",
+  actionNeutre = false,
   enAttente = false,
   onConfirm,
   children,
@@ -108,7 +115,7 @@ export function DangerConfirm({
             Renoncer
           </Button>
           <Button
-            variant="destructive"
+            variant={actionNeutre ? "default" : "destructive"}
             onClick={() => void onConfirm()}
             disabled={enAttente || actionBloquee || motManquant}
           >
@@ -125,6 +132,7 @@ export type DemandeDeConfirmation = {
   description?: ReactNode;
   avertissement?: ReactNode;
   libelleAction?: string;
+  actionNeutre?: boolean;
 };
 
 const DangerConfirmContext = createContext<
@@ -172,6 +180,7 @@ export function DangerConfirmProvider({ children }: { children: ReactNode }) {
           description={enCours.demande.description}
           avertissement={enCours.demande.avertissement}
           libelleAction={enCours.demande.libelleAction}
+          actionNeutre={enCours.demande.actionNeutre}
           onConfirm={() => repondre(true)}
         />
       )}

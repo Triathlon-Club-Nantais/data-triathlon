@@ -213,6 +213,7 @@ function PanneauRole({
           ? "Il franchira tout pouvoir, y compris ceux livrés après lui."
           : "Il ne franchira plus que les pouvoirs qu'il porte explicitement.",
         libelleAction: pose ? "Poser le statut" : "Retirer le statut",
+        actionNeutre: true,
       }))
     ) {
       return;
