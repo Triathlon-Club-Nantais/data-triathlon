@@ -13,6 +13,7 @@ import { StatCard, Card, Eyebrow } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
 import { EmptyState } from "@/components/ui/empty-state";
 import { aggregateDisciplines, pctFr } from "@/lib/utils/format";
+import { DisciplineBar } from "./DisciplineBar";
 
 /** Petit libellé visuel au-dessus d'un contrôle de filtrage (NAV-5, #483) —
  *  même style que les en-têtes de la table "Dernières épreuves" plus bas
@@ -160,9 +161,7 @@ export default async function DashboardPage({
                 />
               ) : (
                 <>
-                  <div style={{ display: "flex", height: 20, borderRadius: 999, overflow: "hidden", marginBottom: 24 }}>
-                    {disciplines.map((d) => <div key={d.name} style={{ width: d.pct + "%", background: d.color }} />)}
-                  </div>
+                  <DisciplineBar disciplines={disciplines} />
                   <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                     {disciplines.map((d) => (
                       <div key={d.name} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 15, color: "var(--tcn-text-body)" }}>
