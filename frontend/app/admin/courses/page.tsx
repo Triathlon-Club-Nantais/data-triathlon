@@ -2,8 +2,6 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { ecran } from "@/components/layout/nav.config";
 import { PageShell } from "@/components/layout/PageShell";
 import { CoursesAdminTable } from "@/components/admin/CoursesAdminTable";
-import { WipeCoursesCard } from "@/components/admin/WipeCoursesCard";
-import { WipeParticipationsCard } from "@/components/admin/WipeParticipationsCard";
 
 /**
  * Administration des épreuves (#117).
@@ -16,6 +14,9 @@ import { WipeParticipationsCard } from "@/components/admin/WipeParticipationsCar
  * `useSearchParams` : ce hook force une frontière `Suspense`, faute de quoi le
  * prérendu de cette route échoue au build. Le tableau, lui, écrit dans l'URL —
  * un `router.push` re-rend cette page, qui lui repasse le nouvel état.
+ *
+ * Les deux purges globales ont quitté ce pied de page pour `/admin/maintenance`
+ * (#499) : on ne détruit pas la base depuis l'écran où l'on corrige une date.
  */
 export default async function AdminCoursesPage({
   searchParams,
@@ -37,8 +38,6 @@ export default async function AdminCoursesPage({
             date_to: sp.date_to,
           }}
         />
-        <WipeParticipationsCard />
-        <WipeCoursesCard />
       </div>
     </PageShell>
   );

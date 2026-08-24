@@ -120,9 +120,7 @@ describe("WipeParticipationsCard (#384)", () => {
     await userEvent.click(await screen.findByRole("button", { name: /purger tous les résultats/i }));
 
     expect(await screen.findByText(/ampleur.*n'a pas pu être chiffrée/i)).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /purger définitivement/i }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /purger définitivement/i })).toBeDisabled();
   });
 
   it("le bouton de confirmation reste désactivé sans avoir tapé SUPPRIMER", async () => {
@@ -180,6 +178,20 @@ describe("WipeParticipationsCard (#384)", () => {
     await waitFor(() =>
       expect(toastError).toHaveBeenCalledWith("Vous n'avez pas les droits nécessaires."),
     );
+  });
+
+  it("oublie le mot tapé si on renonce puis rouvre", async () => {
+    getSession.mockResolvedValue(session(["participations:wipe_all"]));
+    getParticipationsWipeImpact.mockResolvedValue({ participations: 412, athletes: 37 });
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /Purger tous les résultats/ }));
+    await userEvent.type(await screen.findByLabelText(/Tapez/), "SUPPRIMER");
+    await userEvent.click(screen.getByRole("button", { name: "Renoncer" }));
+    await userEvent.click(await screen.findByRole("button", { name: /Purger tous les résultats/ }));
+    expect(
+      (await screen.findByRole("button", { name: "Purger définitivement" })).hasAttribute("disabled"),
+    ).toBe(true);
   });
 
   it("n'offre aucune annulation : le geste est irréversible", async () => {
