@@ -163,7 +163,7 @@ describe("BatchRunList", () => {
     // Deux lancements du même jour étaient indiscernables : `formatDate`
     // coupait l'horodatage aux dix premiers caractères (ADM-3).
     listBatchRuns.mockResolvedValue([
-      RUN({ started_at: "2026-08-08T18:00:23Z" }),
+      RUN({ started_at: "2026-08-08T17:45:23Z" }),
     ]);
     afficher();
 
@@ -171,6 +171,31 @@ describe("BatchRunList", () => {
     expect(cellule).toHaveTextContent(/08\/08\/2026/);
     expect(cellule).toHaveTextContent(/\d{2}:\d{2}/);
     expect(cellule).toHaveTextContent(/il y a 2 heures/);
+  });
+
+  it("ne perd pas tout le tableau sur un horodatage illisible", async () => {
+    // `Intl.RelativeTimeFormat.format(NaN)` lève : sans garde, la ligne fautive
+    // emportait la liste entière, lignes saines comprises.
+    listBatchRuns.mockResolvedValue([
+      RUN({ id: 1, started_at: "pas une date", duration_s: null }),
+      RUN({ id: 2, label: "batch · sain" }),
+    ]);
+    afficher();
+
+    expect(await screen.findByText("batch · sain")).toBeInTheDocument();
+    expect(screen.getByTestId("duree-1")).toHaveTextContent("—");
+  });
+
+  it("dit « à l'instant » sur un lancement qui vient de partir", async () => {
+    // L'état juste après le clic. `numeric: "auto"` rendait « cette minute-ci ».
+    listBatchRuns.mockResolvedValue([
+      RUN({ state: "pending", outcome: null, duration_s: null, started_at: MAINTENANT.toISOString() }),
+    ]);
+    afficher();
+
+    expect(await screen.findByTestId("demarrage-1284")).toHaveTextContent(
+      "à l'instant",
+    );
   });
 
   it("compte la durée écoulée tant que le lancement tourne", async () => {

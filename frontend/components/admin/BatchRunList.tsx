@@ -70,11 +70,20 @@ const VARIANTES: Record<
 const RELATIF = new Intl.RelativeTimeFormat("fr-FR", { numeric: "auto" });
 
 function ilYA(millisecondes: number): string {
-  const minutes = Math.round(millisecondes / 60_000);
+  // `format(NaN)` **lève** — un `started_at` illisible emporterait alors tout
+  // le tableau, les lignes saines comprises. Et un horodatage dans le futur
+  // (horloge serveur en avance) rendrait « dans 3 minutes » sur un départ.
+  if (!Number.isFinite(millisecondes)) return "";
+  const minutes = Math.max(0, Math.floor(millisecondes / 60_000));
+  // « cette minute-ci », ce que rend `numeric: "auto"` à zéro, se lit mal dans
+  // une colonne « Démarré » — et c'est l'état juste après le clic.
+  if (minutes === 0) return "à l'instant";
   if (minutes < 60) return RELATIF.format(-minutes, "minute");
-  const heures = Math.round(minutes / 60);
+  // Un temps écoulé se plancherise : arrondi, 40 h sorti en « avant-hier »
+  // donne un mot de calendrier faux.
+  const heures = Math.floor(minutes / 60);
   if (heures < 24) return RELATIF.format(-heures, "hour");
-  return RELATIF.format(-Math.round(heures / 24), "day");
+  return RELATIF.format(-Math.floor(heures / 24), "day");
 }
 
 const ORIGINES: Record<BatchRun["triggered_by"], string> = {
@@ -203,7 +212,9 @@ export function BatchRunList() {
             // temps écoulé, la colonne disait « — » pendant deux heures.
             const secondes =
               run.duration_s ??
-              (run.state === "completed" ? null : Math.floor(ecoule / 1000));
+              (run.state === "completed" || !Number.isFinite(ecoule)
+                ? null
+                : Math.max(0, Math.floor(ecoule / 1000)));
             return (
               <Fragment key={run.id}>
                 <TableRow>
