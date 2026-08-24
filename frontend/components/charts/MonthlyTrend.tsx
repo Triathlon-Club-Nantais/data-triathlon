@@ -1,5 +1,5 @@
 import { scaleLinear } from "d3-scale";
-import { formatMonthShort, formatMonth } from "@/lib/utils/date";
+import { formatMonthShort } from "@/lib/utils/date";
 
 /**
  * Histogramme vertical de l'activité par mois (12 derniers mois présents).
@@ -27,23 +27,32 @@ export function MonthlyTrend({ byMonth }: { byMonth: Record<string, number> }) {
   // du max, pas 50 % : deux formules différentes, pas juste deux écritures).
   const heightScale = scaleLinear().domain([0, max]).range([0, 100]);
 
+  const valeurs = entries.map(([, v]) => v);
+  const resume =
+    `Activité mensuelle sur ${entries.length} mois, ` +
+    `de ${Math.min(...valeurs)} à ${Math.max(...valeurs)} dossards.`;
+
   return (
-    <div className="flex h-44 items-end gap-1.5">
-      {entries.map(([key, value]) => (
-        <div
-          key={key}
-          className="group flex h-full flex-1 flex-col items-center justify-end gap-1.5"
-          title={`${formatMonth(key)} — ${value}`}
-        >
-          <span className="num text-[11px] font-bold text-[var(--tcn-text-faint)] opacity-0 transition-opacity group-hover:opacity-100">
+    <div
+      role="img"
+      aria-label={resume}
+      className="flex h-44 items-end gap-1.5"
+    >
+      {entries.map(([key, value], index) => (
+        <div key={key} className="flex h-full flex-1 flex-col items-center justify-end gap-1.5">
+          {/* Valeur toujours écrite : `opacity-0` + `group-hover` n'existent pas
+              au doigt, et l'attribut `title` non plus (WCAG 1.4.13, #480). */}
+          <span aria-hidden className="num text-[11px] font-bold text-[var(--tcn-text-faint)]">
             {value}
           </span>
           <div
-            className="w-full rounded-t-sm bg-[color-mix(in_oklch,var(--primary)_70%,transparent)] transition-[height] duration-500 group-hover:bg-primary"
+            className="w-full rounded-t-sm bg-[color-mix(in_oklch,var(--primary)_70%,transparent)]"
             style={{ height: `${Math.max(4, heightScale(value))}%` }}
           />
-          <span className="micro-label text-[8px] text-[var(--tcn-text-faint)]">
-            {formatMonthShort(key)}
+          {/* Un mois sur deux, compté depuis la fin pour que le plus récent soit
+              toujours écrit : douze libellés de 11px ne tiennent pas sur 287px. */}
+          <span aria-hidden data-month-label className="micro-label text-[var(--tcn-text-faint)]">
+            {(entries.length - 1 - index) % 2 === 0 ? formatMonthShort(key) : ""}
           </span>
         </div>
       ))}
