@@ -272,6 +272,49 @@ describe("RankingEvolutionChart", () => {
     expect(infobulle.style.pointerEvents).toBe("none");
   });
 
+  it("garde le marqueur au-dessus de l'infobulle qui le décrit", async () => {
+    // Sans z-index, l'ordre du DOM fixe l'ordre de peinture entre frères : la
+    // rangée de l'infobulle doit précéder celle des marqueurs, sinon
+    // l'infobulle plaquée sur le bord droit par `clamp()` recouvrirait
+    // entièrement le point survolé (mesuré : dernière étape à xPct=90 %,
+    // infobulle ramenée à [606, 816], marqueur à x=734 ; si l'étape porte la
+    // meilleure position, top=0 pour les deux, le marqueur disparaît).
+    const user = userEvent.setup();
+    const { container } = renderChart();
+
+    await user.hover(container.querySelector('[data-role="scratch"][data-step="bike"]')!);
+
+    const infobulle = screen.getByRole("tooltip");
+    const rangeeInfobulle = infobulle.parentElement!;
+    const marqueur = container.querySelector('[data-role="scratch"][data-step="bike"]')!;
+    const rangeeMarqueurs = marqueur.parentElement!;
+
+    // DOCUMENT_POSITION_FOLLOWING (4) : la rangée des marqueurs doit suivre
+    // celle de l'infobulle dans l'arbre, donc peindre par-dessus elle.
+    expect(rangeeInfobulle.compareDocumentPosition(rangeeMarqueurs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("aligne le nom de l'étape à gauche, pour que l'ellipse se lise comme une troncature", () => {
+    // Centré, un span écrêté par text-overflow: ellipsis est rogné des deux
+    // côtés et ne reçoit l'ellipse qu'à droite : le début disparaît sans le
+    // moindre marqueur visuel — défaut déjà corrigé sur `DisciplineBar`.
+    const { container } = render(
+      <RankingEvolutionChart
+        steps={[{ segment: "COURSE A PIED", scratch_position: 12, segment_position: 9 }]}
+        eventType="format-inconnu"
+      />,
+    );
+
+    const label = container.querySelector("[data-step-label]") as HTMLElement;
+    const name = label.querySelector("span") as HTMLElement;
+    const position = label.querySelector("b") as HTMLElement;
+
+    expect(name.style.textAlign).toBe("left");
+    // La position reste centrée (héritée de la boîte) et n'a pas sa propre
+    // règle d'alignement : elle ne s'écrête jamais, gauche ou droite.
+    expect(position.style.textAlign).toBe("");
+  });
+
   it("nomme le graphique par un récapitulatif chiffré, sur le patron « X : liste. »", () => {
     // Fix D (#480) : seul récapitulatif du lot à ne rendre aucun chiffre — les
     // cinq autres graphiques suivent « X : liste. » ou « X, de A à B. ».
