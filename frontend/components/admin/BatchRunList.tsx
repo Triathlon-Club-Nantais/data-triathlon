@@ -53,18 +53,34 @@ const ISSUES: Record<NonNullable<BatchRun["outcome"]>, string> = {
 };
 
 /**
- * Une variante par issue. En aplat primaire, « Réussi », « Échec » et
+ * Un couple aplat/encre par issue. En aplat primaire, « Réussi », « Échec » et
  * « Annulé » sortaient identiques à l'œil (ADM-3) ; l'orange reste au seul
  * état qui bouge encore.
+ *
+ * Les variantes génériques de `Badge` ne suffisaient pas : `destructive` pose
+ * `--tcn-danger` sur son propre aplat à 10 %, soit 3,25:1 sous 12 px — en
+ * dessous des 4,5:1 de WCAG 1.4.3 pour le seul mot qui dit qu'un batch a
+ * échoué. Les couples sémantiques du thème passent (4,89:1 et 7,25:1), et
+ * `secondary`/`outline` ne se distinguaient de toute façon pas du fond de la
+ * carte (1,11:1 et 1,22:1).
  */
-const VARIANTES: Record<
-  NonNullable<BatchRun["outcome"]>,
-  "secondary" | "destructive" | "outline"
-> = {
-  success: "secondary",
-  failure: "destructive",
-  cancelled: "outline",
+const APLATS: Record<NonNullable<BatchRun["outcome"]>, string> = {
+  success: "bg-[var(--tcn-success-bg)] text-[var(--tcn-success-text)]",
+  failure: "bg-[var(--tcn-danger-bg)] text-[var(--tcn-danger-text)]",
+  cancelled: "bg-[var(--tcn-fill)] text-[var(--tcn-text-faint)]",
 };
+
+/**
+ * Anneau de focus opaque, la norme du dépôt (`globals.css`, `.tcn-btn`) :
+ * l'anneau UA hérité, `outline-ring/50`, ne vaut que 1,93:1 sur le blanc de la
+ * carte, contre les 3:1 de WCAG 1.4.11. `-my-1 py-1` porte la cible de 16 à
+ * 24 px sans déplacer la mise en page (SC 2.5.8), comme le fait déjà le lien
+ * de retour de `PageHeader`.
+ */
+const LIEN =
+  "-my-1 inline-block py-1 text-xs underline text-[var(--tcn-text-faint)] " +
+  "focus-visible:outline-2 focus-visible:outline-offset-2 " +
+  "focus-visible:outline-[var(--tcn-orange)]";
 
 /** « il y a 3 minutes », « il y a 2 heures », « il y a 4 jours ». */
 const RELATIF = new Intl.RelativeTimeFormat("fr-FR", { numeric: "auto" });
@@ -221,9 +237,13 @@ export function BatchRunList() {
                   <TableCell>
                     <div>{run.label}</div>
                     {/* En permanence, pas seulement quand ça coince : c'est le
-                        seul endroit qui dit où le batch tourne réellement. */}
+                        seul endroit qui dit où le batch tourne réellement. Le
+                        nom accessible porte le libellé : sans lui, la liste de
+                        liens d'un lecteur d'écran répète N fois le même mot
+                        pour N destinations (SC 2.4.4). */}
                     <a
-                      className="text-xs underline text-[var(--tcn-text-faint)]"
+                      className={LIEN}
+                      aria-label={`Voir l'exécution ${run.label} (nouvel onglet)`}
                       href={run.external_url}
                       target="_blank"
                       rel="noreferrer"
@@ -233,21 +253,18 @@ export function BatchRunList() {
                   </TableCell>
                   <TableCell>
                     <Badge
-                      variant={run.outcome ? VARIANTES[run.outcome] : "default"}
+                      className={run.outcome ? APLATS[run.outcome] : undefined}
                     >
                       {libelleEtat(run)}
                     </Badge>
                     {coince && (
+                      // Pas de second lien : il pointait `external_url`, la
+                      // même page que « Voir l'exécution » une colonne plus
+                      // tôt, sous un nom qui promettait une annulation qu'il
+                      // n'exécutait pas.
                       <p className="mt-1 text-xs text-[var(--tcn-text-faint)]">
-                        En cours depuis plus de deux heures.{" "}
-                        <a
-                          className="underline"
-                          href={run.external_url}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Annuler l&apos;exécution
-                        </a>
+                        En cours depuis plus de deux heures. Vous pouvez
+                        l&apos;annuler depuis la page de l&apos;exécution.
                       </p>
                     )}
                   </TableCell>
