@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { captureEvent } from "@/lib/posthog";
-import { Card, Input, Button, Alert, PendingBadge } from "@/components/tcn";
+import { Card, Input, Button, Alert, PendingBadge, AnnonceStatut } from "@/components/tcn";
 import { apiClient } from "@/lib/api/client";
 import { eventTypeLabel } from "@/lib/constants";
 import { eventTypeColor } from "@/lib/sport-colors";
@@ -26,6 +26,7 @@ export function TcnScrapeForm() {
   // Le résultat saisi à la main, gardé après l'enregistrement : c'est lui que
   // l'accusé de réception affiche (ACT-1).
   const [saved, setSaved] = useState<Participation | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   // Détection client (GET /scrape/detect), indépendante de toute tentative
   // d'import : elle permet d'avertir avant même le clic sur « Enregistrer les
   // résultats », plutôt que d'attendre l'échec réel du scrape.
@@ -193,10 +194,13 @@ export function TcnScrapeForm() {
         // La `Participation` rendue porte son `id` et son épreuve : c'est ce qui
         // permet à l'accusé de réception de mener au résultat créé plutôt que de
         // refermer la carte sur un toast fugace (ACT-1).
+        setSaveError(null);
         setSaved(await save.mutateAsync(data));
         setManual(false);
       } catch (e) {
-        toast.error((e as Error).message);
+        // Persistant, comme le succès : le formulaire reste rempli sous les
+        // yeux, un toast qui s'efface ne dirait pas quoi refaire (ACT-1).
+        setSaveError((e as Error).message);
       }
     },
     [save],
@@ -226,7 +230,11 @@ export function TcnScrapeForm() {
             <Input
               value={url}
               status={inputStatus}
-              onChange={(e) => setUrl(e.target.value)}
+              // Repartir d'une adresse, c'est repartir d'un import : l'accusé
+              // de réception de la saisie précédente s'efface, sans quoi il
+              // masquerait le préavis « fournisseur non reconnu » de la
+              // nouvelle et refermerait la porte de la saisie manuelle.
+              onChange={(e) => { setUrl(e.target.value); setSaved(null); }}
               onKeyDown={(e) => e.key === "Enter" && submit()}
               placeholder="https://résultats-chrono.fr/triathlon-vertou-2026"
               type="url"
@@ -353,7 +361,7 @@ export function TcnScrapeForm() {
             <Alert
               status="warning"
               title="Impossible d'importer automatiquement"
-              action={<Button variant="secondary" size="sm" onClick={() => { setSaved(null); setManual(true); }}>Saisie manuelle</Button>}
+              action={<Button variant="secondary" size="sm" onClick={() => setManual(true)}>Saisie manuelle</Button>}
             >
               {motifEchec === "lecture"
                 ? (error ?? "Le lien fourni n'a pas pu être lu.")
@@ -368,26 +376,41 @@ export function TcnScrapeForm() {
         <Card padding={30} style={{ border: "1.5px solid var(--tcn-warning-border)", marginBottom: 22 }}>
           <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)", marginBottom: 6 }}>Saisie manuelle de votre participation</div>
           <div style={{ fontSize: 14, color: "var(--tcn-text-muted)", marginBottom: 22 }}>Complétez les champs ci-dessous. Votre participation sera vérifiée par un bénévole du club avant d&apos;apparaître dans les résultats.</div>
+          {saveError && (
+            <div style={{ marginBottom: 18 }}>
+              <Alert status="error" title="Impossible d'enregistrer votre participation">
+                {saveError} Vos réponses sont conservées ci-dessous : corrigez ce qui doit
+                l&apos;être, puis renvoyez le formulaire.
+              </Alert>
+            </div>
+          )}
           <ManualResultForm defaultUrl={url} onSubmit={persist} submitting={save.isPending} />
         </Card>
       )}
 
       {saved && (
         <Card padding={30} style={{ marginBottom: 22 }}>
-          <Alert status="success" title="Merci ! Votre participation est enregistrée.">
+          {/* Le formulaire est démonté au moment où cette carte apparaît : sans
+              région live, rien n'est annoncé et le focus retombe sur `body`
+              (WCAG 4.1.3, #477). */}
+          <AnnonceStatut texte="Votre participation est enregistrée, en attente de validation par un bénévole du club." />
+          <Alert status="success" title="Merci ! Votre participation est en attente de validation.">
             <div style={{ marginBottom: 10 }}>
               <PendingBadge />
             </div>
-            Elle est en attente de validation par un bénévole du club, en général sous quelques
-            jours. Elle apparaîtra dans les résultats et les statistiques du club dès qu&apos;elle
-            sera validée.
-            {saved.course?.id != null && (
-              <div style={{ marginTop: 12 }}>
-                <PrimaryLink href={`/courses/${saved.course.id}/participations/${saved.id}`}>
-                  Voir ma participation <span aria-hidden="true">→</span>
-                </PrimaryLink>
-              </div>
-            )}
+            Un bénévole du club la vérifie, en général sous quelques jours. Elle apparaîtra dans
+            les résultats et les statistiques du club dès qu&apos;elle sera validée.
+            <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <PrimaryLink href={`/courses/${saved.course.id}/participations/${saved.id}`}>
+                Voir ma participation <span aria-hidden="true">→</span>
+              </PrimaryLink>
+              <Button
+                variant="secondary"
+                onClick={() => { setSaved(null); setManual(true); }}
+              >
+                Saisir une autre participation
+              </Button>
+            </div>
           </Alert>
         </Card>
       )}

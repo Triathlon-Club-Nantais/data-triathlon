@@ -13,7 +13,7 @@ function remplirSocle() {
 }
 
 const submit = () =>
-  userEvent.click(screen.getByRole("button", { name: /enregistrer le résultat/i }));
+  userEvent.click(screen.getByRole("button", { name: /enregistrer votre participation/i }));
 
 describe("ManualResultForm — champs obligatoires (US1)", () => {
   it("soumission à vide affiche un message sous les quatre champs obligatoires et bloque l'enregistrement", async () => {
@@ -125,8 +125,8 @@ describe("ManualResultForm — taxonomie FFTri et format (US3)", () => {
   it("Swim Bike n'affiche pas de champ de temps de course à pied", async () => {
     render(<ManualResultForm onSubmit={vi.fn()} />);
     await userEvent.selectOptions(screen.getByLabelText("Discipline"), "swim-bike");
-    expect(screen.queryByLabelText("Course à pied")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Natation")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Course à pied (optionnel)")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Natation (optionnel)")).toBeInTheDocument();
   });
 
   it("un format normalisé compose le slug, sans précision", async () => {
@@ -224,7 +224,7 @@ describe("ManualResultForm — cas limite : changement de discipline après sais
     render(<ManualResultForm onSubmit={onSubmit} />);
     remplirSocle();
     await userEvent.selectOptions(screen.getByLabelText("Discipline"), "triathlon");
-    fireEvent.change(screen.getByLabelText("Natation"), { target: { value: "00:20:00" } });
+    fireEvent.change(screen.getByLabelText("Natation (optionnel)"), { target: { value: "00:20:00" } });
 
     await userEvent.selectOptions(screen.getByLabelText("Discipline"), "bike-run");
     await submit();
@@ -275,11 +275,28 @@ describe("ManualResultForm — requis, optionnel et validation au blur (ACT-11)"
     render(<ManualResultForm onSubmit={vi.fn()} />);
     await userEvent.selectOptions(screen.getByLabelText("Discipline"), "triathlon");
 
-    const depliant = screen.getByText("Ajouter mes temps par discipline").closest("details");
+    const depliant = screen.getByText("Ajouter vos temps par discipline").closest("details");
     expect(depliant).not.toBeNull();
     expect(depliant).not.toHaveAttribute("open");
     // Le temps total, lui, reste visible sans dépliage.
     expect(screen.getByLabelText("Temps total (optionnel)").closest("details")).toBeNull();
+  });
+
+  it("légende l'astérisque plutôt que de supposer la convention connue", () => {
+    render(<ManualResultForm onSubmit={vi.fn()} />);
+    expect(screen.getByText(/Les champs marqués .*sont obligatoires/)).toBeInTheDocument();
+  });
+
+  it("marque aussi les temps par discipline comme optionnels", async () => {
+    render(<ManualResultForm onSubmit={vi.fn()} />);
+    await userEvent.selectOptions(screen.getByLabelText("Discipline"), "triathlon");
+    expect(screen.getByLabelText("Natation (optionnel)")).toBeInTheDocument();
+  });
+
+  it("garde le vouvoiement jusque dans le dépliant des temps", async () => {
+    render(<ManualResultForm onSubmit={vi.fn()} />);
+    await userEvent.selectOptions(screen.getByLabelText("Discipline"), "triathlon");
+    expect(screen.getByText("Ajouter vos temps par discipline")).toBeInTheDocument();
   });
 
   it("regroupe la saisie en Qui / Quelle épreuve / Quel résultat / Temps", () => {
