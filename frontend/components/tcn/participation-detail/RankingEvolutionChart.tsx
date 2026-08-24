@@ -7,15 +7,22 @@ import { splitColumnsFromKeys } from "@/lib/utils/splits";
 import { Card } from "../Card";
 import { Eyebrow } from "../Eyebrow";
 
-// Le SVG prend toute la largeur de la carte : c'est ce rapport, et non une
-// hauteur en pixels, qui décide de sa place à l'écran. Un cadre carré occupait
-// la moitié d'un écran de portable pour cinq points.
+// `WIDTH` n'est plus qu'un système de coordonnées horizontal : le SVG s'étire à
+// la largeur disponible (`preserveAspectRatio="none"`), donc une abscisse ne
+// vaut qu'en **pourcentage** de WIDTH. `HEIGHT` est en pixels réels — hauteur
+// fixée, pour que les libellés HTML s'alignent sur les ordonnées de la
+// géométrie sans connaître la largeur rendue (#480, RESP-2).
 const WIDTH = 1000;
-const HEIGHT = 240;
-const PAD = { top: 16, right: 16, bottom: 30, left: 54 };
+const HEIGHT = 210;
+const PAD = { top: 14, right: 0, bottom: 10, left: 0 };
 const PLOT_W = WIDTH - PAD.left - PAD.right;
 const PLOT_H = HEIGHT - PAD.top - PAD.bottom;
 const BAR_W = 44;
+
+// Gouttières **en pixels**, hors du SVG : la colonne des graduations à gauche,
+// la rangée des libellés d'étape en bas.
+const LEFT_GUTTER = 40;
+const BOTTOM_GUTTER = 34;
 
 // Nombre de graduations de l'axe des positions, bornes comprises.
 const TICKS = 4;
@@ -122,57 +129,57 @@ export function RankingEvolutionChart({
           Position sur le segment seul
         </span>
       </div>
-      <svg
-        viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-        style={{ width: "100%", height: "auto", marginTop: 12 }}
-        role="img"
-        aria-label="Évolution de la position au fil des étapes"
-        onMouseLeave={() => setHovered(null)}
-      >
+      <div style={{ position: "relative", paddingLeft: LEFT_GUTTER, paddingBottom: BOTTOM_GUTTER, marginTop: 12 }}>
+        {/* Graduations de position, en px réels. La 1re place est en haut :
+            l'axe est inversé, et ses bornes viennent des positions réellement
+            atteintes sur cette course. */}
         {ticks.map((position) => (
-          <g key={position}>
-            <line
-              x1={PAD.left}
-              y1={yOf(position)}
-              x2={PAD.left + PLOT_W}
-              y2={yOf(position)}
-              stroke="var(--tcn-border-faint)"
-            />
-            <text
-              data-tick=""
-              x={PAD.left - 10}
-              y={yOf(position) + 4}
-              textAnchor="end"
-              fontSize={12}
-              fill="var(--tcn-text-faint)"
-            >
-              {position}
-            </text>
-          </g>
+          <span
+            key={position}
+            data-tick=""
+            aria-hidden
+            style={{
+              position: "absolute",
+              left: 0,
+              top: yOf(position) - 7,
+              width: LEFT_GUTTER - 10,
+              textAlign: "right",
+              fontSize: 12,
+              lineHeight: "14px",
+              color: "var(--tcn-text-faint)",
+            }}
+          >
+            {position}
+          </span>
         ))}
 
-        <line
-          x1={PAD.left}
-          y1={PAD.top}
-          x2={PAD.left}
-          y2={PAD.top + PLOT_H}
-          stroke="var(--tcn-border)"
-        />
-        <line
-          x1={PAD.left}
-          y1={PAD.top + PLOT_H}
-          x2={PAD.left + PLOT_W}
-          y2={PAD.top + PLOT_H}
-          stroke="var(--tcn-border)"
-        />
+        <svg
+          viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+          preserveAspectRatio="none"
+          style={{ width: "100%", height: HEIGHT, display: "block" }}
+          role="img"
+          aria-label="Évolution de la position au fil des étapes"
+          onMouseLeave={() => setHovered(null)}
+        >
+          {ticks.map((position) => (
+            <line
+              key={position}
+              x1={0}
+              y1={yOf(position)}
+              x2={PLOT_W}
+              y2={yOf(position)}
+              stroke="var(--tcn-border-faint)"
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
 
-        {steps.map((step, index) => {
-          const label = labels.get(step.segment) ?? step.segment;
-          const x = xOf(index);
-          const barY = yOf(step.segment_position);
-          return (
-            <g key={step.segment}>
+          {steps.map((step, index) => {
+            const label = labels.get(step.segment) ?? step.segment;
+            const x = xOf(index);
+            const barY = yOf(step.segment_position);
+            return (
               <rect
+                key={step.segment}
                 data-step={step.segment}
                 data-role="segment"
                 data-y={barY}
@@ -181,46 +188,96 @@ export function RankingEvolutionChart({
                 width={BAR_W}
                 height={Math.max(1, PAD.top + PLOT_H - barY)}
                 fill="var(--tcn-orange-12)"
-                onMouseEnter={() =>
-                  setHovered({ step, label, role: "segment", x, y: barY })
-                }
+                onMouseEnter={() => setHovered({ step, label, role: "segment", x, y: barY })}
               />
-              <text
-                x={x}
-                y={HEIGHT - 16}
-                textAnchor="middle"
-                fontSize={12}
-                fill="var(--tcn-text-faint)"
-              >
-                {label}
-              </text>
-            </g>
-          );
-        })}
+            );
+          })}
 
-        <path d={line} fill="none" stroke="var(--tcn-orange)" strokeWidth={2.5} />
+          <path
+            d={line}
+            fill="none"
+            stroke="var(--tcn-orange)"
+            strokeWidth={2.5}
+            vectorEffect="non-scaling-stroke"
+          />
 
-        {steps.map((step, index) => {
-          const label = labels.get(step.segment) ?? step.segment;
-          const x = xOf(index);
-          const pointY = yOf(step.scratch_position);
-          return (
-            <circle
+          {hovered && <Tooltip hovered={hovered} />}
+        </svg>
+
+        {/* Les points de la courbe sont du HTML : un <circle> dans un viewBox
+            étiré non uniformément rendrait une ellipse. Rangée dédiée dont la
+            largeur épouse celle du SVG — condition pour qu'un pourcentage de
+            `left` retombe juste (même défaut que Histogram, task 5) : posé
+            directement sur le conteneur, qui réserve LEFT_GUTTER de gouttière,
+            le pourcentage se serait résolu contre sa padding-box et aurait
+            dérivé de LEFT_GUTTER × la position. `pointerEvents: none` sur la
+            rangée, `auto` sur chaque marqueur : la rangée recouvre tout le
+            plot et intercepterait sinon le survol des barres de segment
+            dans le SVG en dessous. */}
+        <div
+          style={{
+            position: "absolute",
+            left: LEFT_GUTTER,
+            right: 0,
+            top: 0,
+            height: HEIGHT,
+            pointerEvents: "none",
+          }}
+        >
+          {steps.map((step, index) => {
+            const label = labels.get(step.segment) ?? step.segment;
+            const pointY = yOf(step.scratch_position);
+            return (
+              <span
+                key={step.segment}
+                data-step={step.segment}
+                data-role="scratch"
+                data-y={pointY}
+                aria-hidden
+                onMouseEnter={() =>
+                  setHovered({ step, label, role: "scratch", x: xOf(index), y: pointY })
+                }
+                style={{
+                  position: "absolute",
+                  left: `calc(${(xOf(index) / WIDTH) * 100}% - 6px)`,
+                  top: pointY - 6,
+                  width: 12,
+                  height: 12,
+                  borderRadius: 999,
+                  background: "var(--tcn-orange)",
+                  pointerEvents: "auto",
+                }}
+              />
+            );
+          })}
+        </div>
+
+        {/* Nom de l'étape **et sa position**, écrits en permanence : l'infobulle
+            au survol n'existe pas au doigt (WCAG 1.4.13, #480). Même rangée
+            dédiée que les marqueurs, pour la même raison arithmétique. */}
+        <div style={{ position: "absolute", left: LEFT_GUTTER, right: 0, bottom: 0, height: BOTTOM_GUTTER }}>
+          {steps.map((step, index) => (
+            <span
               key={step.segment}
-              data-step={step.segment}
-              data-role="scratch"
-              data-y={pointY}
-              cx={x}
-              cy={pointY}
-              r={6}
-              fill="var(--tcn-orange)"
-              onMouseEnter={() => setHovered({ step, label, role: "scratch", x, y: pointY })}
-            />
-          );
-        })}
-
-        {hovered && <Tooltip hovered={hovered} />}
-      </svg>
+              data-step-label={step.segment}
+              style={{
+                position: "absolute",
+                left: `calc(${(xOf(index) / WIDTH) * 100}% - 40px)`,
+                top: 0,
+                width: 80,
+                textAlign: "center",
+                fontSize: 12,
+                lineHeight: "15px",
+                color: "var(--tcn-text-faint)",
+              }}
+            >
+              {labels.get(step.segment) ?? step.segment}
+              <br />
+              <b style={{ color: "var(--tcn-ink)" }}>{step.scratch_position}</b>
+            </span>
+          ))}
+        </div>
+      </div>
     </Card>
   );
 }
