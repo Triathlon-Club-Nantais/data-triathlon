@@ -136,6 +136,30 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   une carte qui n'existe **que** pour un geste ne se rend pas du tout
   (`RevokeSessionsCard`, comme son bouton frère par adresse), l'écran restant
   agissant par ailleurs.
+
+## Gestes destructifs
+
+`variant="destructive"` **et** confirmation dès qu'un geste ferme un accès ou
+détruit une donnée. Neutre et sans confirmation pour tout ce qui se refait.
+
+La confirmation passe par `components/admin/DangerConfirm.tsx`, jamais par
+`window.confirm` — ce dernier n'est ni traduisible, ni stylable, ni testable au
+même titre. Deux formes d'appel : `<DangerConfirm>` quand le geste chiffre son
+impact avant d'agir, `useDangerConfirm()` — une promesse — pour les autres.
+
+Quand le serveur refusera le geste et que le front le sait, **le dire avant le
+clic** : bouton inerte et raison visible, patron de `GroupsTable` et de
+`raisonDeNonSuppression` dans `RolePermissionsEditor`. Ne pas recalculer côté
+front une règle métier serveur qu'on ne fait que deviner : dans ce cas, laisser
+le message du refus faire le travail.
+
+Une seule exception à la couleur, et elle est commentée sur place : la croix de
+retrait de rôle d'`UserRolesTable` est `ghost` au repos et `destructive` au
+survol et au focus — une croix par badge, plusieurs badges par ligne.
+
+Les gestes sans retour dont la portée est la base entière vivent sur
+`/admin/maintenance`, jamais au pied d'un écran d'édition (#499).
+
 - **Sommaire `/admin` et source unique des titres** (#497, ADM-2/ADM-6) —
   `/admin` n'est plus une impasse : `AdminIndex` rend une tuile par écran du
   back-office, filtrée par `estVisible`, **la même règle que le rail** — un
