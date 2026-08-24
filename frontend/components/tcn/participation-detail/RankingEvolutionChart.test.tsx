@@ -131,6 +131,35 @@ describe("RankingEvolutionChart", () => {
     expect(screen.getByRole("tooltip").textContent).toContain("56");
   });
 
+  it("referme l'infobulle quand le pointeur quitte un marqueur de courbe", async () => {
+    // Les points scratch sont du HTML posé **hors** du SVG (#480, RESP-2) :
+    // un `onMouseLeave` sur le SVG ne voit jamais un pointeur qui sort d'un
+    // marqueur vers l'extérieur du cadre, et l'infobulle de 210×52 restait
+    // plaquée sur le graphique. Au doigt, le premier tap émet un `mouseenter`
+    // synthétique et rien ne la referme jamais.
+    const user = userEvent.setup();
+    const { container } = renderChart();
+    const marqueur = container.querySelector('[data-role="scratch"][data-step="bike"]')!;
+
+    await user.hover(marqueur);
+    expect(screen.getByRole("tooltip")).toBeTruthy();
+
+    await user.unhover(marqueur);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("referme l'infobulle quand le pointeur quitte une barre de segment", async () => {
+    const user = userEvent.setup();
+    const { container } = renderChart();
+    const barre = container.querySelector('[data-role="segment"][data-step="bike"]')!;
+
+    await user.hover(barre);
+    expect(screen.getByRole("tooltip")).toBeTruthy();
+
+    await user.unhover(barre);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
   it("n'affiche aucune infobulle tant que rien n'est survolé", () => {
     renderChart();
 
@@ -270,6 +299,23 @@ describe("RankingEvolutionChart", () => {
     expect(infobulle.tagName).toBe("DIV");
     expect(container.querySelector("svg")!.contains(infobulle)).toBe(false);
     expect(infobulle.style.pointerEvents).toBe("none");
+  });
+
+  it("garde l'infobulle dans le cadre sur une rangée plus étroite qu'elle", async () => {
+    // `clamp(MIN, VAL, MAX)` vaut `max(MIN, min(VAL, MAX))` : dès que MAX
+    // passe sous MIN, CSS retient MIN. Sur une rangée de moins de 210px
+    // (iPhone SE : ~208px utiles une fois la gouttière retranchée),
+    // `calc(100% - 210px)` devient négatif, l'infobulle se plaque à gauche
+    // **et** déborde du cadre à droite de sa largeur fixe. La borne haute doit
+    // donc être plancherée, et la largeur suivre la rangée quand elle rétrécit.
+    const user = userEvent.setup();
+    const { container } = renderChart();
+
+    await user.hover(container.querySelector('[data-role="scratch"][data-step="run"]')!);
+
+    const infobulle = screen.getByRole("tooltip");
+    expect(infobulle.style.width).toBe("min(210px, 100%)");
+    expect(infobulle.style.left).toContain("max(0px");
   });
 
   it("garde le marqueur au-dessus de l'infobulle qui le décrit", async () => {
