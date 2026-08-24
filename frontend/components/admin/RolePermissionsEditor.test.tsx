@@ -496,6 +496,7 @@ describe("RolePermissionsEditor — suppression", () => {
     const panneau = await ouvrir("Bénévole");
 
     await userEvent.click(within(panneau).getByRole("button", { name: "Supprimer" }));
+    expect(await screen.findByText(`Supprimer le rôle « ${BENEVOLE.name} » ?`)).toBeTruthy();
     await confirmerDansLeDialog("Supprimer définitivement");
 
     await vi.waitFor(() => expect(deleteRole).toHaveBeenCalledWith(BENEVOLE.id));

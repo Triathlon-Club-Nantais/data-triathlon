@@ -96,7 +96,7 @@ export function MergeCoursesDialog({
         </>
       }
       actionBloquee={!impact.data}
-      libelleAction="Fusionner"
+      libelleAction={fusion.isPending ? "Fusion en cours…" : "Fusionner"}
       enAttente={fusion.isPending}
       onConfirm={confirmer}
     >
