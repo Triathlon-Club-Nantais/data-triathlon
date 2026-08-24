@@ -571,3 +571,20 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Barre de progression indéterminée (#491) — le scrape d'une épreuve ne peut
+   rien rapporter avant son premier participant, et l'attente se compte en
+   minutes. La règle `prefers-reduced-motion` ci-dessus la fige ; c'est la
+   minuterie affichée à côté, elle, qui continue de prouver que ça travaille. */
+@keyframes tcn-barre-indeterminee {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
+.tcn-barre-indeterminee {
+  animation: tcn-barre-indeterminee 1.4s ease-in-out infinite;
+}

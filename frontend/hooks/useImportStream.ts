@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useRef, useState } from "react";
+import { ApiError } from "@/lib/api/client";
 import { importEventStream } from "@/lib/api/sse";
 import type { HeatFailure, ImportProgressEvent, ImportedCourse } from "@/lib/types";
 
@@ -30,6 +31,13 @@ export interface ImportState {
   heatsFailed: number;
   failures: HeatFailure[];
   error: string | null;
+  // Cause de l'échec, et non plus son seul message (#491) : `null` = le flux
+  // s'est ouvert puis a annoncé un échec de lecture (le seul cas où l'URL est
+  // en cause), `0` = coupure réseau, sinon le statut HTTP du refus. Trois
+  // écrans distincts en dépendent, dont un seul signale le fournisseur.
+  errorStatus: number | null;
+  // Secondes à attendre avant un nouvel essai (en-tête `Retry-After` du 429).
+  retryAfter: number | null;
 }
 
 const INITIAL: ImportState = {
@@ -53,18 +61,27 @@ const INITIAL: ImportState = {
   heatsFailed: 0,
   failures: [],
   error: null,
+  errorStatus: null,
+  retryAfter: null,
 };
 
 export function useImportStream() {
   const [state, setState] = useState<ImportState>(INITIAL);
-  const activeRef = useRef(false);
+  // Le contrôleur de l'import en cours — et, du même coup, le verrou : non
+  // nul = un import tourne. `courant()` distingue « c'est toujours mon flux »
+  // de « on m'a annulé, ou un autre import a démarré », pour qu'un flux
+  // abandonné n'écrive plus dans l'état qu'il ne possède plus.
+  const abortRef = useRef<AbortController | null>(null);
 
   const start = useCallback(async (url: string) => {
-    if (activeRef.current) return;
-    activeRef.current = true;
+    if (abortRef.current) return;
+    const controle = new AbortController();
+    abortRef.current = controle;
+    const courant = () => abortRef.current === controle;
     setState({ ...INITIAL, running: true, phase: "scraping", message: "Récupération des participants…" });
     try {
-      for await (const ev of importEventStream(url)) {
+      for await (const ev of importEventStream(url, controle.signal)) {
+        if (!courant()) return;
         if (ev.phase === "scraping") {
           setState((s) => ({
             ...s,
@@ -108,13 +125,33 @@ export function useImportStream() {
         }
       }
     } catch (e) {
-      setState((s) => ({ ...s, running: false, phase: "error", error: (e as Error).message }));
+      // Une annulation fait lever l'`AbortError` du fetch : ce n'est pas une
+      // panne, et `cancel` a déjà remis l'écran d'où il vient plutôt que
+      // d'accuser un chronométreur qui n'a rien fait.
+      if (!courant()) return;
+      setState((s) => ({
+        ...s,
+        running: false,
+        phase: "error",
+        error: (e as Error).message,
+        errorStatus: e instanceof ApiError ? e.status : 0,
+        retryAfter: e instanceof ApiError ? e.retryAfter : null,
+      }));
     } finally {
-      activeRef.current = false;
+      if (courant()) abortRef.current = null;
     }
+  }, []);
+
+  /** Coupe le flux en cours et rend la main. Sans effet si rien ne tourne.
+   *  Le verrou est levé ici, sans attendre que le flux veuille bien finir :
+   *  un scrape muet retiendrait sinon le formulaire indéfiniment. */
+  const cancel = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setState(INITIAL);
   }, []);
 
   const reset = useCallback(() => setState(INITIAL), []);
 
-  return { state, start, reset };
+  return { state, start, cancel, reset };
 }
