@@ -158,7 +158,17 @@ export function RankingEvolutionChart({
           Position sur le segment seul
         </span>
       </div>
-      <div style={{ position: "relative", paddingLeft: LEFT_GUTTER, paddingBottom: BOTTOM_GUTTER, marginTop: 12 }}>
+      {/* `onMouseLeave` sur le **conteneur**, jamais sur le SVG : les marqueurs
+          de courbe sont du HTML posé hors du SVG (voir plus bas), donc en sortir
+          ne lui envoie aucun `mouseleave` et l'infobulle restait plaquée sur le
+          graphique — indéfiniment au doigt, où le premier tap émet un
+          `mouseenter` synthétique et où rien ne repasse jamais sur le SVG. Le
+          conteneur est le seul ancêtre commun aux deux déclencheurs (barres
+          dans le SVG, marqueurs à côté). */}
+      <div
+        style={{ position: "relative", paddingLeft: LEFT_GUTTER, paddingBottom: BOTTOM_GUTTER, marginTop: 12 }}
+        onMouseLeave={() => setHovered(null)}
+      >
         {/* Graduations de position, en px réels. La 1re place est en haut :
             l'axe est inversé, et ses bornes viennent des positions réellement
             atteintes sur cette course. */}
@@ -188,7 +198,6 @@ export function RankingEvolutionChart({
           style={{ width: "100%", height: HEIGHT, display: "block" }}
           role="img"
           aria-label={`Évolution du classement : ${summary}.`}
-          onMouseLeave={() => setHovered(null)}
         >
           {ticks.map((position) => (
             <line
@@ -367,6 +376,13 @@ export function RankingEvolutionChart({
  * — le moteur CSS résout `calc(100% - {TOOLTIP_W}px)` contre la largeur réelle
  * de la rangée, ce qu'aucun calcul JS ne peut faire avant le rendu. `hovered.y`
  * est déjà en px réels (la hauteur du SVG est fixée), donc utilisé tel quel.
+ *
+ * Les deux bornes se plancherent l'une l'autre : `clamp(MIN, VAL, MAX)` vaut
+ * `max(MIN, min(VAL, MAX))`, donc CSS retient **MIN** dès que MAX passe dessous
+ * — sur une rangée plus étroite que l'infobulle (iPhone SE : ~208px utiles pour
+ * 210px de boîte), `calc(100% - 210px)` devient négatif et l'infobulle se
+ * plaquait à gauche *en débordant à droite*. D'où `max(0px, …)` sur la borne
+ * haute, et une largeur qui suit la rangée quand elle rétrécit.
  */
 function Tooltip({ hovered }: { hovered: Hovered }) {
   const scratch = hovered.role === "scratch";
@@ -379,9 +395,9 @@ function Tooltip({ hovered }: { hovered: Hovered }) {
       role="tooltip"
       style={{
         position: "absolute",
-        left: `clamp(0px, calc(${xPct}% + 12px), calc(100% - ${TOOLTIP_W}px))`,
+        left: `clamp(0px, calc(${xPct}% + 12px), max(0px, calc(100% - ${TOOLTIP_W}px)))`,
         top: y,
-        width: TOOLTIP_W,
+        width: `min(${TOOLTIP_W}px, 100%)`,
         height: TOOLTIP_H,
         boxSizing: "border-box",
         borderRadius: 8,
