@@ -41,6 +41,21 @@ describe("Histogram", () => {
     expect(labels).toContain("1:30");
   });
 
+  it("mesure les abscisses des libellés sur la largeur du SVG, pas sur celle du conteneur", () => {
+    // Un `%` de `left` se résout contre la padding-box du bloc conteneur. Posés
+    // sur le conteneur, qui réserve 34px de gouttière à gauche, les libellés
+    // dérivaient de 34px × leur position — la gouttière entière sur la dernière
+    // graduation, hors du cadre sur un téléphone (#480, RESP-2).
+    const { container } = render(
+      <Histogram bars={[1, 1, 1, 1, 1, 1]} max={1} startSec={0} bucketSec={900} />,
+    );
+    const tick = container.querySelector("[data-x-tick]") as HTMLElement;
+    expect(tick.style.left).not.toContain("34px");
+    const row = tick.parentElement as HTMLElement;
+    expect(row.style.left).toBe("34px");
+    expect(row.style.right).toBe("0px");
+  });
+
   it("ne met plus aucun texte dans le SVG", () => {
     // Un <text> dans un viewBox étiré à width:100% se réduit à 3,5px sur un
     // iPhone SE (facteur 0,32). Aucune unité CSS ne l'en empêche : le texte doit
