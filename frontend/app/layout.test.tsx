@@ -38,3 +38,13 @@ describe("RootLayout — lien d'évitement (A11Y-1)", () => {
     expect(main).toHaveAttribute("id", "contenu");
   });
 });
+
+describe("RootLayout — espace réservé sous le contenu mobile (#482, NAV-4)", () => {
+  it("réserve la hauteur de la barre basse mobile sous <main>, seulement sous md", async () => {
+    render(await RootLayout({ children: <p>contenu de la page</p> }));
+
+    const conteneur = document.querySelector("main")?.parentElement;
+    expect(conteneur?.className).toContain("pb-[var(--tcn-nav-bottom)]");
+    expect(conteneur?.className).toContain("md:pb-0");
+  });
+});
