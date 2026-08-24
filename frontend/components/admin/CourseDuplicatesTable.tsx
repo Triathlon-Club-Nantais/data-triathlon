@@ -61,7 +61,7 @@ function CandidatCard({
         <div className="flex items-center justify-between gap-3">
           <Badge variant="secondary">{candidate.reason_label}</Badge>
           {peutFusionner && (
-            <Button size="sm" variant="outline" onClick={() => setFusionOuverte(true)}>
+            <Button size="sm" variant="destructive" onClick={() => setFusionOuverte(true)}>
               Fusionner
             </Button>
           )}

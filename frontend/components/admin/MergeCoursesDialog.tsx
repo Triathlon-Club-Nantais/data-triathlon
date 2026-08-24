@@ -1,16 +1,8 @@
 "use client";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DangerConfirm } from "@/components/admin/DangerConfirm";
 import { useCourseMergeImpact, useMergeCourses } from "@/lib/queries/admin";
 import { eventTypeLabel, providerLabel } from "@/lib/constants";
 import { formatDate } from "@/lib/utils/date";
@@ -56,6 +48,10 @@ function CarteEpreuve({
  * Aperçu chargé **à la sélection**, jamais avant (même patron que
  * `DeleteCourseDialog`) : chiffrer une fusion qui n'aura peut-être pas lieu
  * coûterait un aller-retour serveur pour rien.
+ *
+ * Passée sur `DangerConfirm` (#499) : la fusion détruit la ligne absorbée et
+ * ses fiches coureur orphelines, sans retour — même mécanisme que les autres
+ * gestes destructifs de l'administration.
  */
 export function MergeCoursesDialog({
   courseA,
@@ -88,63 +84,56 @@ export function MergeCoursesDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Fusionner ces deux lignes ?</DialogTitle>
-          <DialogDescription>
-            Choisissez l&apos;épreuve à conserver. L&apos;autre est supprimée ; son URL
-            devient une source passive de celle conservée, et ses résultats sans
-            correspondance disparaissent — la fusion ne re-scrape rien.
-          </DialogDescription>
-        </DialogHeader>
+    <DangerConfirm
+      open={open}
+      onOpenChange={onOpenChange}
+      titre="Fusionner ces deux lignes ?"
+      description={
+        <>
+          Choisissez l&apos;épreuve à conserver. L&apos;autre est supprimée ; son URL
+          devient une source passive de celle conservée, et ses résultats sans
+          correspondance disparaissent — la fusion ne re-scrape rien.
+        </>
+      }
+      actionBloquee={!impact.data}
+      libelleAction="Fusionner"
+      enAttente={fusion.isPending}
+      onConfirm={confirmer}
+    >
+      <div className="space-y-2">
+        <CarteEpreuve course={courseA} choisie={cibleId === courseA.id} onChoisir={() => setCibleId(courseA.id)} />
+        <CarteEpreuve course={courseB} choisie={cibleId === courseB.id} onChoisir={() => setCibleId(courseB.id)} />
+      </div>
 
-        <div className="space-y-2">
-          <CarteEpreuve course={courseA} choisie={cibleId === courseA.id} onChoisir={() => setCibleId(courseA.id)} />
-          <CarteEpreuve course={courseB} choisie={cibleId === courseB.id} onChoisir={() => setCibleId(courseB.id)} />
-        </div>
+      {cibleId !== null && impact.isLoading && <Skeleton className="h-16 w-full" />}
 
-        {cibleId !== null && impact.isLoading && <Skeleton className="h-16 w-full" />}
+      {cibleId !== null && impact.error && (
+        <p className="text-sm text-destructive">
+          L&apos;ampleur de la fusion n&apos;a pas pu être chiffrée. Par prudence, la
+          fusion n&apos;est pas proposée — réessayez plus tard.
+        </p>
+      )}
 
-        {cibleId !== null && impact.error && (
-          <p className="text-sm text-destructive">
-            L&apos;ampleur de la fusion n&apos;a pas pu être chiffrée. Par prudence, la
-            fusion n&apos;est pas proposée — réessayez plus tard.
-          </p>
-        )}
-
-        {impact.data && (
-          <ul className="space-y-1 text-sm">
-            <li>
-              <strong>{impact.data.participations_without_match}</strong> résultat
-              {impact.data.participations_without_match > 1 ? "s" : ""} de l&apos;épreuve
-              absorbée n&apos;ont pas d&apos;équivalent côté cible et disparaîtront
-              (dont <strong>{impact.data.tcn_participations_without_match}</strong> du TCN).
-            </li>
-            <li>
-              <strong>{impact.data.athletes_orphaned}</strong> fiche
-              {impact.data.athletes_orphaned > 1 ? "s" : ""} coureur ne conserveront plus
-              aucun résultat et {impact.data.athletes_orphaned > 1 ? "seront retirées" : "sera retirée"}.
-            </li>
-            <li>
-              {impact.data.same_source_url
-                ? "Aucune source ne sera ajoutée : les deux lignes partagent déjà la même URL."
-                : "L'URL de l'épreuve absorbée sera conservée comme source passive de la cible."}
-            </li>
-          </ul>
-        )}
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Renoncer
-          </Button>
-          {impact.data && (
-            <Button onClick={confirmer} disabled={fusion.isPending}>
-              {fusion.isPending ? "Fusion en cours…" : "Fusionner"}
-            </Button>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      {impact.data && (
+        <ul className="space-y-1 text-sm">
+          <li>
+            <strong>{impact.data.participations_without_match}</strong> résultat
+            {impact.data.participations_without_match > 1 ? "s" : ""} de l&apos;épreuve
+            absorbée n&apos;ont pas d&apos;équivalent côté cible et disparaîtront
+            (dont <strong>{impact.data.tcn_participations_without_match}</strong> du TCN).
+          </li>
+          <li>
+            <strong>{impact.data.athletes_orphaned}</strong> fiche
+            {impact.data.athletes_orphaned > 1 ? "s" : ""} coureur ne conserveront plus
+            aucun résultat et {impact.data.athletes_orphaned > 1 ? "seront retirées" : "sera retirée"}.
+          </li>
+          <li>
+            {impact.data.same_source_url
+              ? "Aucune source ne sera ajoutée : les deux lignes partagent déjà la même URL."
+              : "L'URL de l'épreuve absorbée sera conservée comme source passive de la cible."}
+          </li>
+        </ul>
+      )}
+    </DangerConfirm>
   );
 }

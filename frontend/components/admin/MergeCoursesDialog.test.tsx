@@ -68,13 +68,13 @@ beforeEach(() => {
 });
 
 describe("MergeCoursesDialog", () => {
-  it("affiche les deux épreuves sans aperçu ni bouton de fusion avant toute sélection", async () => {
+  it("affiche les deux épreuves sans aperçu, bouton de fusion inerte avant toute sélection", async () => {
     afficher();
 
     expect(await screen.findByText(/klikego/i)).toBeInTheDocument();
     expect(screen.getByText(/breizh chrono/i)).toBeInTheDocument();
     expect(getCourseMergeImpact).not.toHaveBeenCalled();
-    expect(screen.queryByRole("button", { name: /^fusionner$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^fusionner$/i })).toBeDisabled();
   });
 
   it("choisir une cible déclenche l'aperçu avec l'autre épreuve comme absorbée", async () => {
@@ -144,13 +144,13 @@ describe("MergeCoursesDialog", () => {
     expect(await screen.findByRole("button", { name: /^fusionner$/i })).toBeInTheDocument();
   });
 
-  it("ne propose aucune fusion tant que l'aperçu n'a pas répondu", async () => {
+  it("n'active pas la fusion tant que l'aperçu n'a pas répondu", async () => {
     getCourseMergeImpact.mockImplementation(() => new Promise(() => {}));
     const user = userEvent.setup();
     afficher();
 
     await user.click(await screen.findByRole("button", { name: /garder.*klikego/i }));
 
-    expect(screen.queryByRole("button", { name: /^fusionner$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^fusionner$/i })).toBeDisabled();
   });
 });

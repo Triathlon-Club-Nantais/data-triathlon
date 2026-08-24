@@ -111,6 +111,20 @@ describe("CourseDuplicatesTable", () => {
     expect(await screen.findByRole("button", { name: /fusionner/i })).toBeInTheDocument();
   });
 
+  it("peint le déclencheur de fusion en rouge — la fusion est sans retour", async () => {
+    getSession.mockResolvedValue(AVEC_DROIT);
+    listCourseDuplicates.mockResolvedValue(PAIRE);
+
+    afficher();
+
+    // `aria-invalid:*` porte "destructive" sur tout bouton quel que soit son
+    // variant — c'est `bg-destructive`, propre au variant, qui distingue
+    // vraiment (piège connu, #499).
+    expect((await screen.findByRole("button", { name: /fusionner/i })).className).toContain(
+      "bg-destructive",
+    );
+  });
+
   it("ne propose aucune fusion sans courses:delete", async () => {
     getSession.mockResolvedValue(SANS_SUPPRESSION);
     listCourseDuplicates.mockResolvedValue(PAIRE);
