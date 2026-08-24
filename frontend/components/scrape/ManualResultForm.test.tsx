@@ -90,9 +90,9 @@ describe("ManualResultForm — taxonomie FFTri et format (US3)", () => {
 
   it("Triathlon fait apparaître le choix de format", async () => {
     render(<ManualResultForm onSubmit={vi.fn()} />);
-    expect(screen.queryByLabelText("Format")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Format/)).not.toBeInTheDocument();
     await userEvent.selectOptions(screen.getByLabelText("Discipline"), "triathlon");
-    expect(screen.getByLabelText("Format")).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Format/)).toBeInTheDocument();
   });
 
   it("format « Autre » rend la précision obligatoire et bloque sans elle", async () => {
@@ -100,7 +100,7 @@ describe("ManualResultForm — taxonomie FFTri et format (US3)", () => {
     render(<ManualResultForm onSubmit={onSubmit} />);
     remplirSocle();
     await userEvent.selectOptions(screen.getByLabelText("Discipline"), "triathlon");
-    await userEvent.selectOptions(screen.getByLabelText("Format"), "autre");
+    await userEvent.selectOptions(screen.getByLabelText(/^Format/), "autre");
     await submit();
 
     expect(await screen.findByText(/précision.*requise/i)).toBeInTheDocument();
@@ -118,7 +118,7 @@ describe("ManualResultForm — taxonomie FFTri et format (US3)", () => {
   it("Raid Multisport n'affiche aucun format mais une distance totale", async () => {
     render(<ManualResultForm onSubmit={vi.fn()} />);
     await userEvent.selectOptions(screen.getByLabelText("Discipline"), "raid-multisport");
-    expect(screen.queryByLabelText("Format")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Format/)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/distance totale/i)).toBeInTheDocument();
   });
 
@@ -134,7 +134,7 @@ describe("ManualResultForm — taxonomie FFTri et format (US3)", () => {
     render(<ManualResultForm onSubmit={onSubmit} />);
     remplirSocle();
     await userEvent.selectOptions(screen.getByLabelText("Discipline"), "triathlon");
-    await userEvent.selectOptions(screen.getByLabelText("Format"), "m");
+    await userEvent.selectOptions(screen.getByLabelText(/^Format/), "m");
     await submit();
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
@@ -208,7 +208,7 @@ describe("ManualResultForm — qualification du résultat (US4)", () => {
     render(<ManualResultForm onSubmit={onSubmit} />);
     remplirSocle();
     await userEvent.selectOptions(screen.getByLabelText("Discipline"), "triathlon");
-    fireEvent.change(screen.getByLabelText(/lien vers les résultats/i), {
+    fireEvent.change(screen.getByLabelText(/lien vers la page de résultats/i), {
       target: { value: "https://club.example/resultats" },
     });
     await submit();
@@ -231,5 +231,61 @@ describe("ManualResultForm — cas limite : changement de discipline après sais
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0].swim_time).toBe("");
+  });
+});
+
+describe("ManualResultForm — requis, optionnel et validation au blur (ACT-11)", () => {
+  it("marque les cinq champs requis en `aria-required`, et aucun autre", () => {
+    render(<ManualResultForm onSubmit={vi.fn()} />);
+
+    for (const nom of ["Prénom", "Nom", "Date", "Nom de l'épreuve", "Discipline"]) {
+      expect(screen.getByLabelText(nom)).toHaveAttribute("aria-required", "true");
+    }
+    expect(screen.getByLabelText(/^Dossard/)).not.toHaveAttribute("aria-required");
+    expect(screen.getByLabelText(/^Statut/)).not.toHaveAttribute("aria-required");
+  });
+
+  it("suffixe « (optionnel) » aux champs facultatifs", () => {
+    render(<ManualResultForm onSubmit={vi.fn()} />);
+
+    expect(screen.getByLabelText("Dossard (optionnel)")).toBeInTheDocument();
+    expect(screen.getByLabelText("Place générale (optionnel)")).toBeInTheDocument();
+    expect(screen.getByLabelText("Temps total (optionnel)")).toBeInTheDocument();
+  });
+
+  it("annonce à quoi sert le lien de résultats, et qu'il est facultatif", () => {
+    render(<ManualResultForm onSubmit={vi.fn()} />);
+    expect(
+      screen.getByLabelText("Lien vers la page de résultats, si vous en avez un (optionnel)"),
+    ).toBeInTheDocument();
+  });
+
+  it("valide au blur : quitter Prénom vide affiche son message sans soumettre", async () => {
+    const onSubmit = vi.fn();
+    render(<ManualResultForm onSubmit={onSubmit} />);
+
+    await userEvent.click(screen.getByLabelText("Prénom"));
+    await userEvent.tab();
+
+    expect(await screen.findByText("Prénom requis")).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("replie les temps par discipline derrière un dépliant fermé au départ", async () => {
+    render(<ManualResultForm onSubmit={vi.fn()} />);
+    await userEvent.selectOptions(screen.getByLabelText("Discipline"), "triathlon");
+
+    const depliant = screen.getByText("Ajouter mes temps par discipline").closest("details");
+    expect(depliant).not.toBeNull();
+    expect(depliant).not.toHaveAttribute("open");
+    // Le temps total, lui, reste visible sans dépliage.
+    expect(screen.getByLabelText("Temps total (optionnel)").closest("details")).toBeNull();
+  });
+
+  it("regroupe la saisie en Qui / Quelle épreuve / Quel résultat / Temps", () => {
+    render(<ManualResultForm onSubmit={vi.fn()} />);
+    for (const groupe of ["Qui", "Quelle épreuve", "Quel résultat", "Temps"]) {
+      expect(screen.getByRole("group", { name: groupe })).toBeInTheDocument();
+    }
   });
 });

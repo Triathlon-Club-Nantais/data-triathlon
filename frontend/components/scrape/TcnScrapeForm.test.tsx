@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { HeatFailure, ImportedCourse } from "@/lib/types";
@@ -607,5 +607,57 @@ describe("TcnScrapeForm — suites des revues (#491)", () => {
         description: expect.stringContaining("déjà enregistrés sont conservés"),
       }),
     );
+  });
+});
+
+describe("TcnScrapeForm — accusé de réception de la saisie manuelle (ACT-1)", () => {
+  async function ouvrirSaisieManuelle() {
+    vi.mocked(apiClient.detectProvider).mockResolvedValue({ provider: "", supported: false });
+    renderForm();
+    await userEvent.type(
+      screen.getByPlaceholderText(/résultats-chrono/),
+      "https://chronopuce.test/x",
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Saisie manuelle" }));
+  }
+
+  async function saisirEtEnregistrer() {
+    await userEvent.type(screen.getByLabelText("Prénom"), "Jean");
+    await userEvent.type(screen.getByLabelText("Nom"), "DUPONT");
+    fireEvent.change(screen.getByLabelText("Date"), { target: { value: "2026-05-16" } });
+    await userEvent.type(screen.getByLabelText("Nom de l'épreuve"), "Triathlon de Nantes");
+    await userEvent.selectOptions(screen.getByLabelText("Discipline"), "triathlon");
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer le résultat" }));
+  }
+
+  it("l'accroche annonce la validation par un bénévole au lieu de la nier", async () => {
+    await ouvrirSaisieManuelle();
+    expect(
+      screen.getByText(/vérifiée par un bénévole du club avant d'apparaître/i),
+    ).toBeInTheDocument();
+  });
+
+  it("après enregistrement, une alerte persistante dit la mise en attente et mène au résultat", async () => {
+    vi.mocked(apiClient.saveParticipation).mockResolvedValue({
+      id: 77,
+      course: { id: 42, name: "Triathlon de Nantes", event_type: "triathlon-m" },
+    } as never);
+    await ouvrirSaisieManuelle();
+    await saisirEtEnregistrer();
+
+    expect(
+      await screen.findByText(/en attente de validation par un bénévole du club/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText("En attente de validation")).toBeInTheDocument();
+    expect(screen.getByText(/sous quelques jours/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Voir ma participation/i }).getAttribute("href"),
+    ).toBe("/courses/42/participations/77");
+    // Le formulaire se referme : l'accusé de réception le remplace, et
+    // l'invitation à saisir à la main ne contredit plus le succès affiché.
+    expect(
+      screen.queryByRole("button", { name: "Enregistrer le résultat" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Impossible d'importer automatiquement")).not.toBeInTheDocument();
   });
 });
