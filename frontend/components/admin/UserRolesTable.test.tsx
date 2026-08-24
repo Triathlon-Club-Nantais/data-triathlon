@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
+import { DangerConfirmProvider } from "./DangerConfirm";
 import type { AdminUser, Role, SessionUser } from "@/lib/types";
 
 // Sans cette doublure, « le message du serveur est réaffiché » n'était vérifié
@@ -125,9 +126,18 @@ function afficher() {
   });
   return render(
     <QueryClientProvider client={client}>
-      <UserRolesTable />
+      <DangerConfirmProvider>
+        <UserRolesTable />
+      </DangerConfirmProvider>
     </QueryClientProvider>,
   );
+}
+
+/** Vise le bouton du dialog plutôt que celui de la ligne : les deux partagent
+ *  le même libellé, mais seul le premier vit dans `role="dialog"`. */
+async function confirmerDansLeDialog(nom: RegExp | string) {
+  const dialog = await screen.findByRole("dialog");
+  await userEvent.click(within(dialog).getByRole("button", { name: nom }));
 }
 
 describe("UserRolesTable", () => {
@@ -321,19 +331,58 @@ describe("UserRolesTable", () => {
     expect(screen.queryByText(/en consultation/i)).not.toBeInTheDocument();
   });
 
-  it("retire un rôle porté", async () => {
+  it("ne retire pas le rôle au premier clic", async () => {
+    listAdminUsers.mockResolvedValue([CAMILLE]);
+
+    afficher();
+    await userEvent.click(
+      await screen.findByRole("button", { name: /retirer le rôle administrateur de/i }),
+    );
+    expect(
+      screen.getByText(/Retirer le rôle « Administrateur » à « Camille Durand » \?/),
+    ).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Renoncer" }));
+
+    expect(revokeRole).not.toHaveBeenCalled();
+  });
+
+  it("retire le rôle une fois la confirmation donnée", async () => {
     listAdminUsers.mockResolvedValue([CAMILLE]);
     revokeRole.mockResolvedValue(null);
 
     afficher();
-    await screen.findByText(CAMILLE.email);
     await userEvent.click(
-      screen.getByRole("button", { name: /retirer le rôle administrateur/i }),
+      await screen.findByRole("button", { name: /retirer le rôle administrateur de/i }),
     );
+    await confirmerDansLeDialog("Retirer le rôle");
 
     await waitFor(() =>
       expect(revokeRole).toHaveBeenCalledWith(CAMILLE.id, ADMINISTRATEUR.id),
     );
+  });
+
+  it("avertit quand le rôle retiré est le sien", async () => {
+    getSession.mockResolvedValue({ ...MOI, id: CAMILLE.id });
+    listAdminUsers.mockResolvedValue([CAMILLE]);
+
+    afficher();
+    await userEvent.click(
+      await screen.findByRole("button", { name: /retirer le rôle administrateur de/i }),
+    );
+
+    expect(screen.getByText(/Ce rôle est le vôtre/)).toBeTruthy();
+  });
+
+  it("n'avertit pas quand le rôle retiré est celui d'un autre", async () => {
+    // La session (MOI, id 1) ne porte pas l'id de la ligne visée (CAMILLE, id 7).
+    listAdminUsers.mockResolvedValue([CAMILLE]);
+
+    afficher();
+    await userEvent.click(
+      await screen.findByRole("button", { name: /retirer le rôle administrateur de/i }),
+    );
+
+    expect(screen.queryByText(/Ce rôle est le vôtre/)).toBeNull();
   });
 
   it("porte la croix de retrait de rôle à la taille tactile minimale (24 px, #479)", async () => {
@@ -365,8 +414,9 @@ describe("UserRolesTable", () => {
     afficher();
     await screen.findByText(CAMILLE.email);
     await userEvent.click(
-      screen.getByRole("button", { name: /retirer le rôle administrateur/i }),
+      screen.getByRole("button", { name: /retirer le rôle administrateur de/i }),
     );
+    await confirmerDansLeDialog("Retirer le rôle");
 
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith(

@@ -14,7 +14,9 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useAdminUsers, useGrantRole, useRevokeRole } from "@/lib/queries/admin";
+import { useSession } from "@/lib/queries/auth";
 import { useRolesAttribuables } from "@/lib/roles";
+import { useDangerConfirm } from "@/components/admin/DangerConfirm";
 import { messageDeRefus } from "@/lib/api/refus";
 import { formatDate } from "@/lib/utils/date";
 import type { AdminUser, SessionRole } from "@/lib/types";
@@ -34,6 +36,8 @@ export function UserRolesTable() {
   const { roles, accordable, peutAttribuer } = useRolesAttribuables();
   const attribuer = useGrantRole();
   const retirer = useRevokeRole();
+  const confirmerLeDanger = useDangerConfirm();
+  const session = useSession();
 
   async function poser(utilisateur: AdminUser, roleId: number) {
     try {
@@ -45,6 +49,29 @@ export function UserRolesTable() {
   }
 
   async function oter(utilisateur: AdminUser, role: SessionRole) {
+    // Un retrait de rôle ôte des pouvoirs : il se confirme, nommément, comme le
+    // retrait d'une adresse autorisée dont la gravité est comparable (#499,
+    // ADM-9). Il partait jusqu'ici au premier clic, sans annulation.
+    //
+    // L'avertissement se borne à ce que le front sait avec certitude — « c'est
+    // vous ». Le serveur, lui, refuse par un 409 que l'organisation perde son
+    // dernier administrateur actif (`admin_roles.py:182`) : ce prédicat-là est
+    // le sien, le recalculer ici le ferait diverger au premier ajustement.
+    const cEstMoi = session.data?.id === utilisateur.id;
+    if (
+      !(await confirmerLeDanger({
+        titre: `Retirer le rôle « ${role.name} » à « ${utilisateur.display_name} » ?`,
+        description: "Les pouvoirs qu'il portait s'appliquent dès la requête suivante.",
+        avertissement: cEstMoi ? (
+          <>
+            <strong>Ce rôle est le vôtre.</strong> Vous pourriez perdre l&apos;accès à cet écran.
+          </>
+        ) : undefined,
+        libelleAction: "Retirer le rôle",
+      }))
+    ) {
+      return;
+    }
     try {
       await retirer.mutateAsync({ userId: utilisateur.id, roleId: role.id });
       toast.success("Rôle retiré.");
@@ -126,7 +153,14 @@ export function UserRolesTable() {
                               <Button
                                 size="icon-xs"
                                 variant="ghost"
-                                className="rounded-full p-0 text-xs"
+                                // `ghost` au repos, `destructive` au survol et
+                                // au focus : c'est la seule exception à la
+                                // règle de couleur (#499), et elle tient à la
+                                // densité — une croix par badge, plusieurs
+                                // badges par ligne. En rouge permanent, plus
+                                // rien ne ressort du tableau ; là, le rouge
+                                // arrive au moment où l'on vise.
+                                className="rounded-full p-0 text-xs hover:bg-destructive/10 hover:text-destructive focus-visible:bg-destructive/10 focus-visible:text-destructive"
                                 aria-label={`Retirer le rôle ${role.name} de ${utilisateur.display_name}`}
                                 onClick={() => oter(utilisateur, role)}
                               >
