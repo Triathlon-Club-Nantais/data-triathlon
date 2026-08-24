@@ -34,3 +34,19 @@ describe("nav.config — Club (#487)", () => {
     expect(estVisible(item!, new Set(), ROLE.ANON)).toBe(true);
   });
 });
+
+describe("permission en OU", () => {
+  const MAINTENANCE = NAV.flatMap((s) => s.items).find((i) => i.id === "a-maintenance")!;
+
+  it("annonce la maintenance à qui ne détient que la purge des résultats", () => {
+    expect(estVisible(MAINTENANCE, new Set(["participations:wipe_all"]), ROLE.CONNECTED)).toBe(true);
+  });
+
+  it("l'annonce aussi à qui ne détient que la purge des épreuves", () => {
+    expect(estVisible(MAINTENANCE, new Set(["courses:wipe_all"]), ROLE.CONNECTED)).toBe(true);
+  });
+
+  it("ne l'annonce pas à qui n'a ni l'une ni l'autre", () => {
+    expect(estVisible(MAINTENANCE, new Set(["courses:write"]), ROLE.CONNECTED)).toBe(false);
+  });
+});
