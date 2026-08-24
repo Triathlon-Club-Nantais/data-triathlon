@@ -64,9 +64,13 @@ export function FeedbackButton() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Signaler un bug ou laisser un retour"
+        // Sous `md`, la barre basse mobile (#482, NAV-4) occupe déjà le bas de
+        // l'écran : décalé au-dessus d'elle, sans quoi elle en couvrirait une
+        // bonne partie et intercepterait les appuis sur sa destination la
+        // plus à droite.
+        className="bottom-[calc(24px+var(--tcn-nav-bottom))] md:bottom-6"
         style={{
           position: "fixed",
-          bottom: 24,
           right: 24,
           zIndex: 40,
           width: 52,
