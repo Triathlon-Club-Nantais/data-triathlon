@@ -110,7 +110,7 @@ export function MergeCoursesDialog({
       {cibleId !== null && impact.error && (
         <p className="text-sm text-destructive">
           L&apos;ampleur de la fusion n&apos;a pas pu être chiffrée. Par prudence, la
-          fusion n&apos;est pas proposée — réessayez plus tard.
+          fusion n&apos;est pas activée — réessayez plus tard.
         </p>
       )}
 

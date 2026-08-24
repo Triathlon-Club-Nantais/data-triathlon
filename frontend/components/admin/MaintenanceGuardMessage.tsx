@@ -20,7 +20,7 @@ export function MaintenanceGuardMessage() {
     (session.data?.permissions.includes("courses:wipe_all") ||
       session.data?.permissions.includes("participations:wipe_all")) ??
     false;
-  if (peutAgir) return null;
+  if (session.isPending || peutAgir) return null;
 
   return (
     <p className="text-sm text-[var(--tcn-text-faint)]">
