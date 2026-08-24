@@ -109,6 +109,74 @@ describe("MergeCoursesDialog", () => {
     ).toBeInTheDocument();
   });
 
+  it("accorde le singulier à un seul résultat et une seule fiche orpheline", async () => {
+    getCourseMergeImpact.mockResolvedValue({
+      ...IMPACT,
+      participations_without_match: 1,
+      tcn_participations_without_match: 1,
+      athletes_orphaned: 1,
+    });
+    const user = userEvent.setup();
+    afficher();
+
+    await user.click(await screen.findByRole("button", { name: /garder.*klikego/i }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          (_, el) =>
+            el?.tagName === "LI" &&
+            /^1 résultat de l'épreuve absorbée n'a pas d'équivalent côté cible et disparaîtra/.test(
+              el.textContent ?? "",
+            ),
+        ),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByText(
+        (_, el) =>
+          el?.tagName === "LI" &&
+          /^1 fiche coureur ne conservera plus aucun résultat et sera retirée/.test(
+            el.textContent ?? "",
+          ),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("accorde le pluriel à zéro résultat et zéro fiche orpheline", async () => {
+    getCourseMergeImpact.mockResolvedValue({
+      ...IMPACT,
+      participations_without_match: 0,
+      tcn_participations_without_match: 0,
+      athletes_orphaned: 0,
+    });
+    const user = userEvent.setup();
+    afficher();
+
+    await user.click(await screen.findByRole("button", { name: /garder.*klikego/i }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          (_, el) =>
+            el?.tagName === "LI" &&
+            /^0 résultats de l'épreuve absorbée n'ont pas d'équivalent côté cible et disparaîtront/.test(
+              el.textContent ?? "",
+            ),
+        ),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByText(
+        (_, el) =>
+          el?.tagName === "LI" &&
+          /^0 fiches coureur ne conserveront plus aucun résultat et seront retirées/.test(
+            el.textContent ?? "",
+          ),
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("fusionne après confirmation et notifie le succès", async () => {
     getCourseMergeImpact.mockResolvedValue(IMPACT);
     mergeCourses.mockResolvedValue({

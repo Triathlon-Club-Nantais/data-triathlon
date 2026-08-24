@@ -28,6 +28,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 
 import { RevokeSessionsCard } from "./RevokeSessionsCard";
 import { DangerConfirmProvider } from "./DangerConfirm";
+import { confirmerDansLeDialog } from "./__tests__/dangerConfirm";
 
 /**
  * L'écran s'ouvre avec `allowed_emails:manage` seul ; la révocation, elle, est
@@ -133,10 +134,24 @@ describe("RevokeSessionsCard (#169)", () => {
       await screen.findByRole("button", { name: /fermer toutes les sessions/i }),
     );
 
-    await userEvent.click(await screen.findByRole("button", { name: /révoquer/i }));
+    await confirmerDansLeDialog(/fermer toutes les sessions/i);
 
     await waitFor(() => expect(revokeSessions).toHaveBeenCalledWith(undefined));
-    expect(toastSuccess).toHaveBeenCalledWith(expect.stringMatching(/14.*3/));
+    expect(toastSuccess).toHaveBeenCalledWith("14 sessions fermées sur 3 comptes.");
+  });
+
+  it("accorde le bilan au singulier pour une seule session et un seul compte", async () => {
+    revokeSessions.mockResolvedValue({ sessions: 1, accounts: 1 });
+    afficher();
+    await userEvent.click(
+      await screen.findByRole("button", { name: /fermer toutes les sessions/i }),
+    );
+
+    await confirmerDansLeDialog(/fermer toutes les sessions/i);
+
+    await waitFor(() =>
+      expect(toastSuccess).toHaveBeenCalledWith("1 session fermée sur 1 compte."),
+    );
   });
 
   it("renvoie vers la connexion, la session de l'opérateur venant de tomber", async () => {
@@ -146,7 +161,7 @@ describe("RevokeSessionsCard (#169)", () => {
       await screen.findByRole("button", { name: /fermer toutes les sessions/i }),
     );
 
-    await userEvent.click(await screen.findByRole("button", { name: /révoquer/i }));
+    await confirmerDansLeDialog(/fermer toutes les sessions/i);
 
     await waitFor(() => expect(push).toHaveBeenCalledWith("/login"));
   });
@@ -158,7 +173,7 @@ describe("RevokeSessionsCard (#169)", () => {
       await screen.findByRole("button", { name: /fermer toutes les sessions/i }),
     );
 
-    await userEvent.click(await screen.findByRole("button", { name: /révoquer/i }));
+    await confirmerDansLeDialog(/fermer toutes les sessions/i);
 
     await waitFor(() => expect(toastError).toHaveBeenCalled());
     expect(push).not.toHaveBeenCalled();
@@ -178,7 +193,7 @@ describe("RevokeSessionsCard (#169)", () => {
       await screen.findByRole("button", { name: /fermer toutes les sessions/i }),
     );
 
-    await userEvent.click(await screen.findByRole("button", { name: /révoquer/i }));
+    await confirmerDansLeDialog(/fermer toutes les sessions/i);
 
     await waitFor(() =>
       expect(invalider).toHaveBeenCalledWith({ queryKey: ["session"] }),
@@ -197,7 +212,7 @@ describe("RevokeSessionsCard (#169)", () => {
       await screen.findByRole("button", { name: /fermer toutes les sessions/i }),
     );
 
-    await userEvent.click(await screen.findByRole("button", { name: /révoquer/i }));
+    await confirmerDansLeDialog(/fermer toutes les sessions/i);
 
     await waitFor(() => expect(push).toHaveBeenCalledWith("/login"));
   });

@@ -236,6 +236,7 @@ export function AllowedEmailsTable() {
                     <Button
                       size="sm"
                       variant="destructive"
+                      aria-label={`Retirer l'accès de ${acces.email}`}
                       onClick={() => supprimer(acces)}
                       // Bornée à **cette** ligne : `isPending` seul grisait
                       // tous les boutons du tableau pendant un retrait.

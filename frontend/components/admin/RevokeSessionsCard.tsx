@@ -44,7 +44,7 @@ export function RevokeSessionsCard() {
         titre: "Fermer toutes les sessions ?",
         description:
           "Toutes les sessions ouvertes seront fermées, la vôtre comprise : vous serez renvoyé vers la page de connexion. Les comptes restent actifs, chacun peut se reconnecter aussitôt.",
-        libelleAction: "Révoquer",
+        libelleAction: "Fermer toutes les sessions",
       }))
     ) {
       return;
@@ -53,7 +53,9 @@ export function RevokeSessionsCard() {
       // Sans adresse : la portée est globale.
       const bilan = await revoquer.mutateAsync(undefined);
       toast.success(
-        `${bilan.sessions} session(s) fermée(s) sur ${bilan.accounts} compte(s).`,
+        `${bilan.sessions} session${bilan.sessions === 1 ? "" : "s"} fermée${
+          bilan.sessions === 1 ? "" : "s"
+        } sur ${bilan.accounts} compte${bilan.accounts === 1 ? "" : "s"}.`,
       );
       router.push("/login");
     } catch (e) {

@@ -272,6 +272,17 @@ describe("AllowedEmailsTable", () => {
     expect(within(ligne).queryByText(/jamais connecté/i)).not.toBeInTheDocument();
   });
 
+  it("nomme le retrait nominativement, comme son voisin « Fermer les sessions »", async () => {
+    // Le geste le plus grave de l'écran ne doit pas être le moins nommé : dans
+    // un tableau, plusieurs boutons « Retirer » identiques se distinguent au
+    // lecteur d'écran par leur aria-label (#499, revue de fin de branche).
+    listAllowedEmails.mockResolvedValue([ADRESSE]);
+    afficher();
+    expect(
+      await screen.findByRole("button", { name: `Retirer l'accès de ${ADRESSE.email}` }),
+    ).toBeInTheDocument();
+  });
+
   it("retire une adresse", async () => {
     listAllowedEmails.mockResolvedValue([ADRESSE]);
     removeAllowedEmail.mockResolvedValue(null);
