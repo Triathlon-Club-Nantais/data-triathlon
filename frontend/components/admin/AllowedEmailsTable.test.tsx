@@ -42,6 +42,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 });
 
 import { AllowedEmailsTable } from "./AllowedEmailsTable";
+import { DangerConfirmProvider } from "./DangerConfirm";
 
 const BENEVOLE: Role = {
   id: 2,
@@ -81,9 +82,18 @@ function afficher() {
   });
   return render(
     <QueryClientProvider client={client}>
-      <AllowedEmailsTable />
+      <DangerConfirmProvider>
+        <AllowedEmailsTable />
+      </DangerConfirmProvider>
     </QueryClientProvider>,
   );
+}
+
+/** Vise le bouton du dialog plutôt que celui de la ligne : les deux partagent
+ *  le même libellé, mais seul le premier vit dans `role="dialog"`. */
+async function confirmerDansLeDialog(nom: RegExp | string) {
+  const dialog = await screen.findByRole("dialog");
+  await userEvent.click(within(dialog).getByRole("button", { name: nom }));
 }
 
 describe("AllowedEmailsTable", () => {
@@ -95,7 +105,6 @@ describe("AllowedEmailsTable", () => {
     getSession.mockReset();
     listRoles.mockResolvedValue([BENEVOLE]);
     getSession.mockResolvedValue(MOI);
-    vi.spyOn(window, "confirm").mockReturnValue(true);
   });
 
   it("affiche les adresses autorisées et qui les a inscrites", async () => {
@@ -276,19 +285,50 @@ describe("AllowedEmailsTable", () => {
     afficher();
     await screen.findByText(ADRESSE.email);
     await userEvent.click(screen.getByRole("button", { name: /retirer/i }));
+    await confirmerDansLeDialog(/retirer/i);
 
     await waitFor(() => expect(removeAllowedEmail).toHaveBeenCalledWith(ADRESSE.id));
+  });
+
+  it("ne retire rien tant que la confirmation n'est pas donnée", async () => {
+    listAllowedEmails.mockResolvedValue([ADRESSE]);
+    afficher();
+    await userEvent.click((await screen.findAllByRole("button", { name: "Retirer" }))[0]);
+    expect(screen.getByText(/Retirer « .+ » \?/)).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Renoncer" }));
+    expect(removeAllowedEmail).not.toHaveBeenCalled();
+  });
+
+  it("retire l'adresse une fois la confirmation donnée", async () => {
+    listAllowedEmails.mockResolvedValue([ADRESSE]);
+    removeAllowedEmail.mockResolvedValue(undefined);
+    afficher();
+    await userEvent.click((await screen.findAllByRole("button", { name: "Retirer" }))[0]);
+    await confirmerDansLeDialog("Retirer");
+    await waitFor(() => expect(removeAllowedEmail).toHaveBeenCalled());
+  });
+
+  it("laisse « Fermer les sessions » neutre et sans confirmation", async () => {
+    getSession.mockResolvedValue({
+      ...MOI,
+      permissions: [...MOI.permissions, "sessions:revoke"],
+    });
+    revokeSessions.mockResolvedValue({ sessions: 1, accounts: 1 });
+    listAllowedEmails.mockResolvedValue([{ ...ADRESSE, has_account: true }]);
+    afficher();
+    await userEvent.click((await screen.findAllByRole("button", { name: /Fermer les sessions/ }))[0]);
+    await waitFor(() => expect(revokeSessions).toHaveBeenCalled());
   });
 
   it("ne retire rien si la confirmation est refusée", async () => {
     // Le retrait coupe des sessions vivantes : un clic accidentel ne doit pas
     // suffire, même si le geste est réversible.
-    vi.spyOn(window, "confirm").mockReturnValue(false);
     listAllowedEmails.mockResolvedValue([ADRESSE]);
 
     afficher();
     await screen.findByText(ADRESSE.email);
     await userEvent.click(screen.getByRole("button", { name: /retirer/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Renoncer" }));
 
     expect(removeAllowedEmail).not.toHaveBeenCalled();
   });
@@ -304,6 +344,7 @@ describe("AllowedEmailsTable", () => {
     afficher();
     await screen.findByText(ADRESSE.email);
     await userEvent.click(screen.getByRole("button", { name: /retirer/i }));
+    await confirmerDansLeDialog(/retirer/i);
 
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith(
@@ -364,7 +405,6 @@ describe("AllowedEmailsTable — révocation des sessions (#169)", () => {
     revokeSessions.mockReset();
     listRoles.mockResolvedValue([BENEVOLE]);
     getSession.mockResolvedValue(MOI_REVOCATRICE);
-    vi.spyOn(window, "confirm").mockReturnValue(true);
   });
 
   it("ferme les sessions de l'adresse de la ligne", async () => {

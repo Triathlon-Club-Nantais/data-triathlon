@@ -27,6 +27,7 @@ import { useRolesAttribuables } from "@/lib/roles";
 import { messageDeRefus } from "@/lib/api/refus";
 import { formatDate } from "@/lib/utils/date";
 import type { AllowedEmail } from "@/lib/types";
+import { useDangerConfirm } from "@/components/admin/DangerConfirm";
 
 /**
  * Ce que dit un refus ici : sans distinction, l'écran mentirait sur *qui a accès
@@ -41,6 +42,7 @@ export function AllowedEmailsTable() {
   const retirer = useRemoveAllowedEmail();
   const revoquer = useRevokeSessions();
   const session = useSession();
+  const confirmerLeDanger = useDangerConfirm();
   // L'écran s'ouvre avec `allowed_emails:manage` seul : un bouton qui rendrait
   // 403 à chaque clic est pire que pas de bouton. Patron de `CoursesAdminTable`.
   const peutRevoquer = session.data?.permissions.includes("sessions:revoke") ?? false;
@@ -78,13 +80,15 @@ export function AllowedEmailsTable() {
   }
 
   async function supprimer(acces: AllowedEmail) {
-    // Geste destructif : il coupe des sessions vivantes. Réversible par une
-    // réinscription, mais pas silencieux — d'où la confirmation native plutôt
-    // qu'une boîte de dialogue maison.
+    // Geste destructif : il ferme un accès et coupe les sessions vivantes. Le
+    // dialog du produit et non le `confirm` du navigateur (#499) — ce dernier
+    // n'est ni traduisible, ni stylable, ni testable au même titre.
     if (
-      !window.confirm(
-        `Retirer « ${acces.email} » ? Ses sessions ouvertes seront fermées immédiatement.`,
-      )
+      !(await confirmerLeDanger({
+        titre: `Retirer « ${acces.email} » ?`,
+        description: "Ses sessions ouvertes seront fermées immédiatement.",
+        libelleAction: "Retirer",
+      }))
     ) {
       return;
     }
@@ -225,9 +229,13 @@ export function AllowedEmailsTable() {
                         Fermer les sessions
                       </Button>
                     )}
+                    {/* `destructive` et son voisin neutre : le geste le plus
+                        grave des deux était jusqu'ici le moins signalé (#499,
+                        ADM-8). Fermer les sessions se répare par une
+                        reconnexion, retirer l'adresse non. */}
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="destructive"
                       onClick={() => supprimer(acces)}
                       // Bornée à **cette** ligne : `isPending` seul grisait
                       // tous les boutons du tableau pendant un retrait.
