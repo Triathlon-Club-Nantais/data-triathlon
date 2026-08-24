@@ -190,16 +190,33 @@ describe("BatchRunList", () => {
     expect(screen.getByTestId("duree-1")).toHaveTextContent("—");
   });
 
-  it("dit « à l'instant » sur un lancement qui vient de partir", async () => {
-    // L'état juste après le clic. `numeric: "auto"` rendait « cette minute-ci ».
+  it("dit « à l'instant » sur un lancement de moins d'une minute", async () => {
+    // `numeric: "auto"` rendait « cette minute-ci ».
     listBatchRuns.mockResolvedValue([
-      RUN({ state: "pending", outcome: null, duration_s: null, started_at: MAINTENANT.toISOString() }),
+      RUN({ started_at: MAINTENANT.toISOString(), duration_s: 12 }),
     ]);
     afficher();
 
     expect(await screen.findByTestId("demarrage-1284")).toHaveTextContent(
       "à l'instant",
     );
+  });
+
+  it("ne dit pas deux fois le même nombre sur une ligne en cours", async () => {
+    // « il y a 22 minutes » sous la date et « 22 min » dans la colonne
+    // voisine sont le même écart, par construction.
+    listBatchRuns.mockResolvedValue([
+      RUN({
+        state: "running",
+        outcome: null,
+        duration_s: null,
+        started_at: "2026-08-08T19:38:00Z",
+      }),
+    ]);
+    afficher();
+
+    expect(await screen.findByTestId("duree-1284")).toHaveTextContent("22 min");
+    expect(screen.getByTestId("demarrage-1284")).not.toHaveTextContent(/il y a/);
   });
 
   it("compte la durée écoulée tant que le lancement tourne", async () => {
