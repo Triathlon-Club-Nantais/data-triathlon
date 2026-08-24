@@ -173,7 +173,11 @@ pour ce seul bouton.
 ### Dire le refus avant le clic
 
 `GroupsTable` : quand `groupe.member_count > 0`, le bouton « Supprimer » est
-désactivé et porte une infobulle « Videz d'abord le groupe (N membres) ».
+désactivé et porte une infobulle « Videz d'abord le groupe (N membres) ». Le
+déclencheur de l'infobulle porte sur un `<span tabIndex={0}>` enveloppant, et
+non sur le bouton : un bouton désactivé ne reçoit ni survol ni focus
+(`buttonVariants` pose `disabled:pointer-events-none`), son infobulle ne
+s'ouvrirait jamais.
 L'API refuse déjà ce cas par un 409 ; l'écran cesse de laisser cliquer pour le
 découvrir. La cible de la règle est le commentaire de `GroupsTable.tsx:68-70`,
 qui justifiait l'absence de confirmation par ce refus serveur : le refus étant
