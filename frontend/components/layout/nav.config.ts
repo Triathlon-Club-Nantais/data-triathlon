@@ -45,16 +45,14 @@ export type NavItem = {
   icon?: LucideIcon;
   minRole?: number;
   /**
-   * Code du pouvoir (`core/permissions.py`) sans lequel l'entrée n'est pas
-   * portée. **Préférer ceci à `minRole: ROLE.ADMIN`** : `rank` ne vaut jamais
-   * `ADMIN`, l'échelon reste inerte, tandis que `session.permissions` est
-   * renseigné par `/auth/me` depuis #115.
-   *
-   * Confort d'affichage seul — n'annoncer que ce qui est faisable. Chaque
-   * ressource de l'API porte sa propre garde ; retirer ce champ ouvrirait un
-   * menu, jamais une donnée.
+   * Un code, ou plusieurs en **OU** : l'entrée est portée dès que la session en
+   * détient un. Le OU sert `/admin/maintenance`, dont les deux purges relèvent
+   * de pouvoirs distincts et attribuables séparément (`courses:wipe_all`,
+   * `participations:wipe_all`) — n'en nommer qu'un annoncerait l'écran à qui
+   * n'y peut rien faire, exactement le défaut que `a-courses` se reproche
+   * ci-dessous (ADM-6).
    */
-  permission?: string;
+  permission?: string | string[];
   /**
    * Écran pas encore livré : l'entrée reste déclarée ici — cette table **est**
    * la feuille de route de la navigation — mais `AppNav` ne la rend pas (#242).
@@ -207,6 +205,18 @@ export const NAV: NavSection[] = [
         href: "/admin/retours-utilisateurs",
         permission: "feedback:read",
       },
+      // Les deux purges globales vivaient en pied de `/admin/courses`, l'écran
+      // où l'on vient corriger une date : feuilleter le catalogue jusqu'au bout
+      // menait à un clic de la destruction de toute la base (#499, ADM-7). Un
+      // écran à elles, et le voisinage disparaît.
+      {
+        id: "a-maintenance",
+        label: "Maintenance",
+        description:
+          "Les gestes sans retour : vider les résultats, ou vider le catalogue entier. Rien ici ne se répare — chaque geste annonce son ampleur avant d'agir.",
+        href: "/admin/maintenance",
+        permission: ["participations:wipe_all", "courses:wipe_all"],
+      },
       { id: "a-benevolat", label: "Bénévolat", soon: true },
       // Pas d'entrée « Sessions » : #169 a livré la révocation **dans**
       // « Accès au back-office » — par adresse ligne à ligne, globale en bas de
@@ -318,6 +328,9 @@ export function estVisible(
     !!item.href &&
     !item.soon &&
     rank >= (item.minRole ?? ROLE.ANON) &&
-    (!item.permission || pouvoirs.has(item.permission))
+    (!item.permission ||
+      (Array.isArray(item.permission)
+        ? item.permission.some((code) => pouvoirs.has(code))
+        : pouvoirs.has(item.permission)))
   );
 }
