@@ -462,6 +462,20 @@ describe("RolePermissionsEditor — statut de superutilisateur", () => {
 
     expect(updateRole).not.toHaveBeenCalled();
   });
+
+  it("ne peint pas non plus en rouge le bouton d'action du dialog de la bascule", async () => {
+    afficher();
+    const panneau = await ouvrir("Validateur");
+
+    await userEvent.click(within(panneau).getByRole("button", { name: /superutilisateur/i }));
+    const dialog = await screen.findByRole("dialog");
+
+    expect(
+      within(dialog).getByRole("button", { name: /Poser le statut/ }).className,
+    ).not.toContain("bg-destructive");
+
+    await confirmerDansLeDialog("Renoncer");
+  });
 });
 
 describe("RolePermissionsEditor — suppression", () => {
@@ -522,6 +536,18 @@ describe("RolePermissionsEditor — suppression", () => {
     expect(within(panneau).getByRole("button", { name: "Supprimer" }).className).toContain(
       "bg-destructive",
     );
+  });
+
+  it("peint aussi en rouge le bouton d'action du dialog de suppression", async () => {
+    afficher();
+    const panneau = await ouvrir("Bénévole");
+
+    await userEvent.click(within(panneau).getByRole("button", { name: "Supprimer" }));
+    const dialog = await screen.findByRole("dialog");
+
+    expect(
+      within(dialog).getByRole("button", { name: "Supprimer définitivement" }).className,
+    ).toContain("bg-destructive");
   });
 });
 
