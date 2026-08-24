@@ -50,4 +50,19 @@ describe("CategoryBars", () => {
     );
     expect(fills[0]).not.toBe(fills[1]);
   });
+
+  it("récapitule la répartition pour un lecteur d'écran", () => {
+    render(
+      <CategoryBars
+        categories={[
+          { name: "V1", count: 30 },
+          { name: "S", count: 20 },
+        ]}
+        total={100}
+      />,
+    );
+    expect(screen.getByRole("img")).toHaveAccessibleName(
+      "Répartition par catégorie : V1 30,0 %, S 20,0 %.",
+    );
+  });
 });
