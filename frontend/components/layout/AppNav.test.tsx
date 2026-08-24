@@ -516,26 +516,41 @@ describe("AppNav — arborescence", () => {
     expect(screen.queryByText("À VENIR")).not.toBeInTheDocument();
   });
 
-  it("rend « Club » comme un lien direct sur le rail replié, une seule destination livrée (#482, NAV-2)", async () => {
+  it("rend un lien direct sur le rail replié pour une section à une seule destination livrée (#482, NAV-2)", async () => {
+    // « Club » tenait ce rôle jusqu'à #487, qui lui a livré sa seconde
+    // destination. La branche reste vivante : elle dépend des pouvoirs, et
+    // « Administration » se réduit à une destination pour qui n'en porte qu'un.
+    afficher(habilite("batch:run"));
+
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    await waitFor(() =>
+      expect(within(rail).getByRole("link", { name: "Batches" })).toHaveAttribute(
+        "href",
+        "/admin/batches",
+      ),
+    );
+    expect(within(rail).queryByRole("button", { name: "Administration" })).not.toBeInTheDocument();
+  });
+
+  it("relie les deux écrans club depuis le rail (#487)", async () => {
     afficher(null);
-    // Scopé au rail : Task 6 y ajoute une barre basse mobile qui porte, elle
-    // aussi, une entrée « Athlètes par saison ».
+    // Scopé au rail : la barre basse mobile porte les mêmes libellés.
     const rail = screen.getByRole("navigation", { name: "Navigation principale" });
 
-    // Plus de bouton dépliant pour une section à une seule destination : le
-    // rail replié porte directement le lien.
-    expect(within(rail).queryByRole("button", { name: "Club" })).not.toBeInTheDocument();
-    const lien = within(rail).getByRole("link", { name: "Athlètes par saison" });
-    expect(lien).toHaveAttribute("href", "/club/athletes");
+    // Deux destinations livrées : le bouton dépliant reprend sa place.
+    expect(within(rail).getByRole("button", { name: "Club" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Carte")).not.toBeInTheDocument();
 
+    // Rail déplié, les destinations d'une section sont rendues à plat.
     await deplier();
-    expect(within(rail).getByText("Club")).toBeInTheDocument();
+    expect(within(rail).getByRole("link", { name: "Espace club" })).toHaveAttribute(
+      "href",
+      "/club",
+    );
     expect(within(rail).getByRole("link", { name: "Athlètes par saison" })).toHaveAttribute(
       "href",
       "/club/athletes",
     );
-    expect(within(rail).queryByText("Espace club")).not.toBeInTheDocument();
   });
 
   it("garde le bouton dépliant pour une section à plusieurs destinations livrées (#482, NAV-2)", async () => {
@@ -896,16 +911,33 @@ describe("AppNav — infobulles du rail replié remplacent les title (#482, NAV-
 });
 
 describe("AppNav — barre basse mobile (#482, NAV-4)", () => {
-  it("porte les trois destinations publiques, avec libellé visible", () => {
+  it("porte les destinations publiques, avec libellé visible", () => {
     afficher(null);
 
     const barre = screen.getByRole("navigation", { name: "Navigation" });
     expect(within(barre).getByRole("link", { name: "Tableau de bord" })).toHaveAttribute("href", "/dashboard");
+    expect(within(barre).getByRole("link", { name: "Espace club" })).toHaveAttribute("href", "/club");
     expect(within(barre).getByRole("link", { name: "Résultats" })).toHaveAttribute("href", "/resultats");
     expect(within(barre).getByRole("link", { name: "Athlètes par saison" })).toHaveAttribute(
       "href",
       "/club/athletes",
     );
+  });
+
+  // #487 ouvre « Espace club » : la barre passe de trois onglets à quatre,
+  // soit ~93 px sur un écran de 375 px. « Athlètes par saison » n'y tient
+  // plus. Le libellé **visible** raccourcit ; le nom accessible reste entier,
+  // sans quoi le lecteur d'écran annoncerait « Athlètes » pour deux écrans.
+  it("raccourcit le libellé visible sans toucher au nom accessible", () => {
+    afficher(null);
+
+    const barre = screen.getByRole("navigation", { name: "Navigation" });
+    const lien = within(barre).getByRole("link", { name: "Athlètes par saison" });
+    expect(lien).toHaveTextContent("Athlètes");
+    expect(lien).not.toHaveTextContent("par saison");
+
+    // Un libellé déjà court n'est pas dupliqué en configuration.
+    expect(within(barre).getByRole("link", { name: "Résultats" })).toHaveTextContent("Résultats");
   });
 
   it("marque la destination courante avec aria-current=\"page\"", () => {

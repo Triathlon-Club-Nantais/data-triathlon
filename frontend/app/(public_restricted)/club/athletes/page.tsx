@@ -36,6 +36,8 @@ export default async function AthletesSeasonPage({
             le slot d'actions de `PageHeader`, qui bascule au palier `sm`. */}
         <div className="space-y-3">
           <PageHeader
+            backHref="/club"
+            backLabel="Espace club"
             eyebrow={CLUB_NAME}
             title="Athlètes par saison"
             description={`Nombre d'épreuves faites par les athlètes du ${CLUB_NAME}, saison par saison.`}

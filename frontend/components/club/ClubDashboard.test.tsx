@@ -13,7 +13,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-import { ClubDashboard } from "./ClubDashboard";
+import { ClubDashboard, APERCU_ROSTER, CLUB_PARTICIPATIONS_PAGE_SIZE } from "./ClubDashboard";
 
 const STATS: Stats = {
   total: 0,
@@ -137,5 +137,54 @@ describe("ClubDashboard — smoke", () => {
     expect(screen.queryByLabelText(/podium général/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/podium de catégorie/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/podium de genre/)).not.toBeInTheDocument();
+  });
+
+  // PROF-2 (#487) : le roster rendait les 350 athlètes du club, soit
+  // 1,69 Mo de document et 362 liens, triés par volume — qui cherche un nom
+  // traversait 164 fiches à « 1 course ». Il devient un aperçu, la recherche
+  // et le tri vivant déjà sur /club/athletes.
+  it("roster : n'affiche qu'un aperçu et renvoie vers /club/athletes", () => {
+    const parts = Array.from({ length: APERCU_ROSTER + 8 }, (_, i) =>
+      part({
+        id: i + 1,
+        athlete: { id: i + 1, nom: `N${i}`, prenom: "P", gender: "F", club: "TCN" },
+      }),
+    );
+    render(<ClubDashboard stats={STATS} participations={parts} />);
+
+    // Scopé à la section : `ResultCard` lie lui aussi vers /athletes/.
+    const section = screen.getByRole("heading", { name: "Athlètes du club" }).closest("section");
+    expect(section?.querySelectorAll('a[href^="/athletes/"]')).toHaveLength(APERCU_ROSTER);
+
+    const versTous = screen.getByRole("link", {
+      name: `Voir les ${APERCU_ROSTER + 8} athlètes →`,
+    });
+    expect(versTous).toHaveAttribute("href", "/club/athletes");
+  });
+
+  it("roster : pas de renvoi « voir tous » quand l'aperçu suffit", () => {
+    render(<ClubDashboard stats={STATS} participations={[part({ id: 1 })]} />);
+    expect(screen.queryByRole("link", { name: /Voir les .* athlètes/ })).not.toBeInTheDocument();
+  });
+
+  // Le plafond de `page_size` se lit sur la longueur reçue : à ras bord, la
+  // page tronque en silence — les 4 KPI compris. On le dit plutôt que de
+  // laisser croire à une synthèse complète.
+  it("dit le plafond quand la page arrive pleine", () => {
+    const parts = Array.from({ length: CLUB_PARTICIPATIONS_PAGE_SIZE }, (_, i) =>
+      part({
+        id: i + 1,
+        athlete: { id: i + 1, nom: `N${i}`, prenom: "P", gender: "F", club: "TCN" },
+      }),
+    );
+    render(<ClubDashboard stats={STATS} participations={parts} />);
+    expect(screen.getByTestId("club-plafond")).toHaveTextContent(
+      String(CLUB_PARTICIPATIONS_PAGE_SIZE),
+    );
+  });
+
+  it("ne dit rien du plafond sous le plafond", () => {
+    render(<ClubDashboard stats={STATS} participations={[part({ id: 1 })]} />);
+    expect(screen.queryByTestId("club-plafond")).not.toBeInTheDocument();
   });
 });

@@ -307,7 +307,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
         </Link>
       </header>
 
-      {/* ── Barre basse mobile — 3 destinations publiques (#482, NAV-4) ── */}
+      {/* ── Barre basse mobile — les destinations publiques (#482, NAV-4) ── */}
       <nav
         aria-label="Navigation"
         className="fixed inset-x-0 bottom-0 z-30 flex md:hidden"
@@ -325,6 +325,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
               key={it.id}
               href={it.href}
               aria-current={actif ? "page" : undefined}
+              aria-label={it.labelCourt ? it.label : undefined}
               style={{
                 flex: 1,
                 display: "flex",
@@ -340,7 +341,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
               }}
             >
               {Icon && <Icon size={20} />}
-              <span>{it.label}</span>
+              <span>{it.labelCourt ?? it.label}</span>
             </Link>
           );
         })}

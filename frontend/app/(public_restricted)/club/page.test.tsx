@@ -23,6 +23,7 @@ vi.mock("@/components/charts/BarList", () => ({ BarList: () => <div data-testid=
 vi.mock("@/components/charts/MonthlyTrend", () => ({ MonthlyTrend: () => <div data-testid="monthly" /> }));
 
 import ClubPage from "./page";
+import { CLUB_PARTICIPATIONS_PAGE_SIZE } from "@/components/club/ClubDashboard";
 
 const STATS: Stats = {
   total: 42,
@@ -89,5 +90,18 @@ describe("ClubPage", () => {
 
     expect(getStats).toHaveBeenCalledWith(expect.anything(), { revalidateSeconds: 30 });
     expect(listParticipations).toHaveBeenCalledWith(expect.anything(), { revalidateSeconds: 30 });
+  });
+
+  // #487 : la page demandait 1000 participations quand `/participations`
+  // accepte 5000 (`page_size: int = Query(20, ge=1, le=5000)`). Le roster et
+  // les 4 KPI se seraient tronqués en silence bien avant le plafond réel.
+  it("demande le plafond réel de /participations", async () => {
+    await renderClub({});
+
+    expect(listParticipations).toHaveBeenCalledWith(
+      expect.objectContaining({ page_size: CLUB_PARTICIPATIONS_PAGE_SIZE }),
+      expect.anything(),
+    );
+    expect(CLUB_PARTICIPATIONS_PAGE_SIZE).toBe(5000);
   });
 });
