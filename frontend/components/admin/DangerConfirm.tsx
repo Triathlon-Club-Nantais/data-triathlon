@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -118,4 +118,75 @@ export function DangerConfirm({
       </DialogContent>
     </Dialog>
   );
+}
+
+export type DemandeDeConfirmation = {
+  titre: string;
+  description?: ReactNode;
+  avertissement?: ReactNode;
+  libelleAction?: string;
+};
+
+const DangerConfirmContext = createContext<
+  ((demande: DemandeDeConfirmation) => Promise<boolean>) | null
+>(null);
+
+/**
+ * Le dialog partagé des gestes simples — ceux qui n'ont pas d'impact à chiffrer.
+ *
+ * Un provider et non un `useState` par tableau : sans lui, chaque tableau
+ * porterait l'état d'ouverture **et** la ligne visée, dupliqués autant de fois
+ * qu'il y a d'écrans. Monté dans `app/admin/layout.tsx`, pas à la racine : tous
+ * les appelants sont sous `/admin`.
+ */
+export function DangerConfirmProvider({ children }: { children: ReactNode }) {
+  const [enCours, setEnCours] = useState<{
+    demande: DemandeDeConfirmation;
+    resoudre: (verdict: boolean) => void;
+  } | null>(null);
+
+  const confirmer = useCallback(
+    (demande: DemandeDeConfirmation) =>
+      new Promise<boolean>((resoudre) => setEnCours({ demande, resoudre })),
+    [],
+  );
+
+  function repondre(verdict: boolean) {
+    enCours?.resoudre(verdict);
+    setEnCours(null);
+  }
+
+  return (
+    <DangerConfirmContext.Provider value={confirmer}>
+      {children}
+      {enCours && (
+        <DangerConfirm
+          open
+          onOpenChange={(ouvert) => {
+            // Échap et clic hors du dialog passent par ici : les deux valent un
+            // renoncement, sans quoi la promesse ne se résoudrait jamais et
+            // l'appelant resterait suspendu.
+            if (!ouvert) repondre(false);
+          }}
+          titre={enCours.demande.titre}
+          description={enCours.demande.description}
+          avertissement={enCours.demande.avertissement}
+          libelleAction={enCours.demande.libelleAction}
+          onConfirm={() => repondre(true)}
+        />
+      )}
+    </DangerConfirmContext.Provider>
+  );
+}
+
+/**
+ * Remplace `window.confirm` un pour un :
+ * `if (!(await confirmer({ titre, description, libelleAction }))) return;`
+ */
+export function useDangerConfirm() {
+  const confirmer = useContext(DangerConfirmContext);
+  if (!confirmer) {
+    throw new Error("useDangerConfirm exige un DangerConfirmProvider au-dessus de lui.");
+  }
+  return confirmer;
 }
