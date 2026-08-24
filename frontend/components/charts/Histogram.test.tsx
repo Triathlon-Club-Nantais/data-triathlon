@@ -46,11 +46,22 @@ describe("Histogram", () => {
     // sur le conteneur, qui réserve 34px de gouttière à gauche, les libellés
     // dérivaient de 34px × leur position — la gouttière entière sur la dernière
     // graduation, hors du cadre sur un téléphone (#480, RESP-2).
+    //
+    // `not.toContain("34px")` ne garde rien : jsdom normalise
+    // `calc(34px + 0% - 20px)` en `calc(0% + 14px)`, donc la sous-chaîne
+    // « 34px » est absente aussi bien sous la formule fautive que sous la
+    // bonne. `pxTerm` (repris de RankingEvolutionChart.test.tsx) extrait le
+    // terme constant en px pour comparer les deux formules pour de vrai :
+    // -20 sans la gouttière, +14 si elle s'y réintroduit.
+    const pxTerm = (calc: string) => {
+      const [, sign, digits] = calc.match(/([+-])\s*(\d+(?:\.\d+)?)px/)!;
+      return (sign === "-" ? -1 : 1) * Number(digits);
+    };
     const { container } = render(
       <Histogram bars={[1, 1, 1, 1, 1, 1]} max={1} startSec={0} bucketSec={900} />,
     );
     const tick = container.querySelector("[data-x-tick]") as HTMLElement;
-    expect(tick.style.left).not.toContain("34px");
+    expect(pxTerm(tick.style.left)).toBe(-20);
     const row = tick.parentElement as HTMLElement;
     expect(row.style.left).toBe("34px");
     expect(row.style.right).toBe("0px");
@@ -84,6 +95,19 @@ describe("Histogram", () => {
     );
     expect(ticks).toContain("0");
     expect(ticks).toContain("10");
+  });
+
+  it("nomme l'état vide, sans graduation X, pour un lecteur d'écran (#480)", () => {
+    // L'état vide (aucun `bar`) rend un récapitulatif entièrement différent —
+    // c'est justement ce que personne ne regarde en développement, et
+    // qu'aucun test n'atteignait avant ce lot.
+    const { container } = render(
+      <Histogram bars={[]} max={0} startSec={0} bucketSec={300} />,
+    );
+    expect(screen.getByRole("img")).toHaveAccessibleName(
+      "Distribution des temps d'arrivée : aucune donnée.",
+    );
+    expect(container.querySelectorAll("[data-x-tick]").length).toBe(0);
   });
 
   it("récapitule la distribution pour un lecteur d'écran", () => {

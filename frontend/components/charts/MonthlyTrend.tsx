@@ -49,10 +49,22 @@ export function MonthlyTrend({ byMonth }: { byMonth: Record<string, number> }) {
             className="w-full rounded-t-sm bg-[color-mix(in_oklch,var(--primary)_70%,transparent)]"
             style={{ height: `${Math.max(4, heightScale(value))}%` }}
           />
-          {/* Un mois sur deux, compté depuis la fin pour que le plus récent soit
-              toujours écrit : douze libellés de 11px ne tiennent pas sur 287px. */}
-          <span aria-hidden data-month-label className="micro-label text-[var(--tcn-text-faint)]">
-            {(entries.length - 1 - index) % 2 === 0 ? formatMonthShort(key) : ""}
+          {/* Le texte est TOUJOURS rendu : `.micro-label` n'a ni `min-height`
+              ni `display`, donc un span vide a une hauteur de 0 et décale sa
+              barre d'une colonne sur deux (#480). Le masquage un-mois-sur-deux
+              ne vaut donc que sous `sm:` — douze libellés de 11px ne tiennent
+              pas sur 287px, mais tiennent très bien sur la carte desktop — et
+              en `invisible`, jamais `hidden` : la place réservée est ce qui
+              garde les barres alignées. Compté depuis la fin pour que le plus
+              récent soit toujours écrit. */}
+          <span
+            aria-hidden
+            data-month-label
+            className={`micro-label text-[var(--tcn-text-faint)] ${
+              (entries.length - 1 - index) % 2 === 0 ? "" : "max-sm:invisible"
+            }`}
+          >
+            {formatMonthShort(key)}
           </span>
         </div>
       ))}

@@ -97,6 +97,16 @@ describe("échelle unique des disciplines", () => {
     // `--run` et `--tri` valaient tous deux `--tcn-orange` : le grief de VIZ-1.
     expect(eventTypeColor("trail-court")).not.toBe(eventTypeColor("triathlon-m"));
   });
+
+  it.each(FAMILY_ORDER)(
+    "« %s » porte son libellé de segment à 4,5:1 sur son propre aplat (#480)",
+    (name) => {
+      // WCAG 1.4.3, sur l'aplat plein (pas un fond teinté) : pas de composition
+      // sur surface à faire, `evalue(...).hex` des deux côtés suffit.
+      const { ink, color } = disciplineFamily(REPRESENTATIVE_TYPE[name]);
+      expect(contrast(evalue(ink).hex, evalue(color).hex)).toBeGreaterThanOrEqual(4.5);
+    },
+  );
 });
 
 describe("tintedStyle", () => {

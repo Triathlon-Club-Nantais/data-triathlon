@@ -3,6 +3,7 @@ import { pctFr } from "@/lib/utils/format";
 interface Part {
   name: string;
   color: string;
+  ink: string;
   count: number;
   pct: number;
 }
@@ -54,7 +55,7 @@ export function DisciplineBar({ disciplines }: { disciplines: Part[] }) {
             <span
               aria-hidden
               className="micro-label"
-              style={{ color: "var(--tcn-surface)", padding: "0 6px" }}
+              style={{ color: d.ink, padding: "0 6px" }}
             >
               {d.name}
             </span>
