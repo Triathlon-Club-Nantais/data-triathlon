@@ -32,6 +32,10 @@ export default defineConfig({
   },
   test: {
     globals: true,
+    // Le fuseau du club, pas celui de la machine : sans lui, toute assertion
+    // sur une date rendue ne passe qu'en Europe — verte ici, rouge sur un CI
+    // en UTC ou sur un poste hors métropole.
+    env: { TZ: "Europe/Paris" },
     setupFiles: ["./test/setup.ts"],
     exclude: EXCLUDE,
     // `environmentMatchGlobs` a été **supprimé** de vitest 4 (pas déprécié) :
