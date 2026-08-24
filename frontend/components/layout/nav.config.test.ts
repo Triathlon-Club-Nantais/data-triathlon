@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { NAV, ROLE, ecran, estVisible, type NavItem } from "./nav.config";
+import { NAV, ROLE, ecran, estVisible } from "./nav.config";
 
 /** Les destinations du back-office : celles que le sommaire `/admin` annonce. */
 const ECRANS_ADMIN = NAV.flatMap((s) => s.items).filter(
@@ -29,7 +29,8 @@ describe("nav.config — Club (#487)", () => {
     // PROF-1 : la page la plus riche du périmètre n'était atteignable qu'en
     // tapant l'URL — l'entrée existait sans `href`, donc `estVisible` la taisait.
     const item = NAV.flatMap((s) => s.items).find((i) => i.id === "vueclub");
+    expect(item).toBeDefined();
     expect(item?.href).toBe("/club");
-    expect(estVisible(item as NavItem, new Set(), ROLE.ANON)).toBe(true);
+    expect(estVisible(item!, new Set(), ROLE.ANON)).toBe(true);
   });
 });

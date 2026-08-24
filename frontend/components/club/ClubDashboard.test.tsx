@@ -13,7 +13,8 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-import { ClubDashboard, APERCU_ROSTER, CLUB_PARTICIPATIONS_PAGE_SIZE } from "./ClubDashboard";
+import { ClubDashboard, APERCU_ROSTER } from "./ClubDashboard";
+import { CLUB_PARTICIPATIONS_PAGE_SIZE } from "@/lib/club";
 
 const STATS: Stats = {
   total: 0,
@@ -160,16 +161,21 @@ describe("ClubDashboard — smoke", () => {
       .closest("section");
     expect(section?.querySelectorAll('a[href^="/athletes/"]')).toHaveLength(APERCU_ROSTER);
 
-    // Pas de décompte dans le libellé : /club/athletes s'ouvre sur la saison en
-    // cours seule, quand `roster.length` agrège toutes les saisons — la
-    // promesse ne serait pas tenue à l'arrivée. Le total vit dans le KPI.
-    const versTous = screen.getByRole("link", { name: "Voir tous les athlètes →" });
-    expect(versTous).toHaveAttribute("href", "/club/athletes");
+    // Le libellé dit la destination, pas un décompte : /club/athletes s'ouvre
+    // sur la saison en cours seule, quand `roster.length` agrège toutes les
+    // saisons. Le total du club vit dans le KPI « Athlètes ».
+    expect(screen.getByRole("link", { name: "Voir saison par saison →" })).toHaveAttribute(
+      "href",
+      "/club/athletes",
+    );
   });
 
   it("roster : pas de renvoi « voir tous » quand l'aperçu suffit", () => {
     render(<ClubDashboard stats={STATS} participations={[part({ id: 1 })]} />);
-    expect(screen.queryByRole("link", { name: /Voir tous les athlètes/ })).not.toBeInTheDocument();
+    // Le renvoi est inconditionnel : « les deux écrans reliés dans les deux
+    // sens » est une garantie de navigation, elle ne peut pas dépendre du
+    // volume de données. Seul le titre bascule.
+    expect(screen.getByRole("link", { name: "Voir saison par saison →" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Athlètes du club" })).toBeInTheDocument();
   });
 
@@ -184,13 +190,14 @@ describe("ClubDashboard — smoke", () => {
       }),
     );
     render(<ClubDashboard stats={STATS} participations={parts} />);
-    expect(screen.getByTestId("club-plafond")).toHaveTextContent(
-      String(CLUB_PARTICIPATIONS_PAGE_SIZE),
-    );
+    // `list_participations` trie par `created_at desc` (date d'**import**),
+    // pas par date d'épreuve : la note ne doit pas promettre un ordre
+    // chronologique que le backend ne rend pas.
+    expect(screen.getByText(/derniers résultats importés/)).toBeInTheDocument();
   });
 
   it("ne dit rien du plafond sous le plafond", () => {
     render(<ClubDashboard stats={STATS} participations={[part({ id: 1 })]} />);
-    expect(screen.queryByTestId("club-plafond")).not.toBeInTheDocument();
+    expect(screen.queryByText(/derniers résultats importés/)).not.toBeInTheDocument();
   });
 });

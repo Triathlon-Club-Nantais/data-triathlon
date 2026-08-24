@@ -3,9 +3,9 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { DisciplineToggle } from "@/components/layout/DisciplineToggle";
 import { RankTypeToggle } from "@/components/layout/RankTypeToggle";
-import { ClubDashboard, CLUB_PARTICIPATIONS_PAGE_SIZE } from "@/components/club/ClubDashboard";
+import { ClubDashboard } from "@/components/club/ClubDashboard";
 import { SCOPE_CLUB, federalOnlyFromParam } from "@/lib/scope";
-import { CLUB_NAME } from "@/lib/club";
+import { CLUB_NAME, CLUB_PARTICIPATIONS_PAGE_SIZE } from "@/lib/club";
 
 // La page Club est TOUJOURS filtrée sur le club, indépendamment de toute portée.
 export default async function ClubPage({
