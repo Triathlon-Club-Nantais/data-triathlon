@@ -342,7 +342,12 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   `FAMILY_ORDER` sur ses paires adjacentes (1,6:1, dans la barre empilée) et,
   depuis #480, le couple encre/aplat de chaque famille (4,5:1, WCAG 1.4.3 sur le
   libellé de segment) — réordonner `FAMILY_ORDER` ou retoucher un token casse
-  l'un des deux en silence.
+  l'un des deux en silence. Le premier des deux ne vaut que **les six familles
+  au complet**, et la barre n'en rend que les familles présentes : une famille
+  absente en rapproche deux que la palette ne sépare pas (1,11:1 au pire,
+  mesuré). Ce qui tient WCAG 1.4.1 quel que soit le sous-ensemble n'est donc pas
+  la couleur mais le filet, le nom écrit dans le segment et la légende — ne pas
+  les retirer au motif que « les couleurs se distinguent ».
 - **Deux projets vitest, `node` par défaut** (#508) — `vitest.config.ts` ne pose
   plus un environnement global : `jsdom` prend les `.test.tsx` et trois
   `.test.ts` nommés dans `GLOBS_JSDOM`, `node` prend tout le reste (le `include`

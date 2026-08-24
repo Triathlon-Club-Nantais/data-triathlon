@@ -13,8 +13,20 @@
 //   2. **Deux familles voisines se distinguent** dans la barre empilée, au
 //      seuil de 1,6:1. Six familles toutes distinguables deux à deux est
 //      *impossible* sans quitter la palette (au mieux 4 couleurs) ; on tient
-//      donc les 5 paires **adjacentes** — minimum obtenu : 2,27:1 — et la
-//      couleur cesse d'être le seul encodage (libellés, filet, légende).
+//      donc les 5 paires **adjacentes dans l'ordre complet** — minimum
+//      obtenu : 2,27:1.
+//
+// Cette seconde garantie est **conditionnée à la présence des six familles**,
+// et ce n'est pas le cas courant : `aggregateDisciplines` n'émet que les
+// familles réellement présentes dans `by_type`, donc une famille absente rend
+// adjacentes deux couleurs que rien ne sépare. Mesuré sur les paires que cela
+// rapproche : Triathlon/Duathlon 1,45:1 dès qu'il manque « Swim & Run » (un
+// club sans swimrun — le cas le plus fréquent), Aquathlon/Autres 1,11:1 dès
+// qu'il manque « Run & Bike » (`bike-run` est un type rare), 1,42:1 entre
+// Triathlon et Autres. C'est **pour cette raison** que la couleur n'est jamais
+// le seul encodage : filet blanc entre segments, nom écrit dans le segment,
+// légende chiffrée dessous (WCAG 1.4.1, gardés par `DisciplineBar.test.tsx`)
+// — eux valent pour tout sous-ensemble et à toute largeur.
 //
 // Réordonner FAMILY_ORDER ou retoucher un token casse la seconde contrainte en
 // silence : `lib/sport-colors.test.ts` est ce qui l'attrape.
@@ -85,7 +97,20 @@ function familyName(type: string): FamilyName {
   return "Autres";
 }
 
-/** Couleur d'un type d'épreuve — la couleur de sa famille, rien d'autre. */
+/**
+ * Couleur d'un type d'épreuve — la couleur de sa famille, rien d'autre.
+ *
+ * Ici, **#480 arbitre** (contrairement à `disciplineFamily` ci-dessus, qui ne
+ * fait que recopier les prédicats de `format.ts`) : l'ancienne fonction rendait
+ * `--bike` au cyclisme, `--run` au trail et à la course, `--swim` à
+ * l'aquathlon. Désormais `trail-*`, `cyclisme-*`, `course-a-pied-*`,
+ * `cross-triathlon`, `raid-multisport` et `swim-bike` rendent tous la couleur
+ * d'« Autres », donc la même. Perte assumée : ses deux consommateurs — la
+ * `BarList` de `/club > Par discipline` et `SportBadge` — écrivent le nom du
+ * type à côté de la pastille, la couleur n'y porte jamais l'information seule.
+ * Une seconde échelle « par sport » serait exactement le doublon que ce fichier
+ * vient de supprimer.
+ */
 export function eventTypeColor(type: string | null | undefined): string {
   return disciplineFamily(type).color;
 }
