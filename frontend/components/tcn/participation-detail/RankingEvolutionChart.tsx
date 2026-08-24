@@ -231,6 +231,31 @@ export function RankingEvolutionChart({
           />
         </svg>
 
+        {/* Infobulle : sortie du SVG (#480, fix B) — un <text> dans un viewBox
+            étiré à width:100% se met à l'échelle avec lui et tombait à 10,3px
+            sur un laptop 1280 avec le rail déplié. Même rangée que les
+            marqueurs pour la conversion abscisse → pourcentage. Posée **avant**
+            la rangée des marqueurs, pas après : sinon elle peindrait par-dessus
+            eux, et dès que le `clamp()` la plaque sur le bord droit du cadre,
+            elle couvrirait entièrement le point qu'elle décrit (mesuré : dernier
+            point d'une courbe qui culmine à `top: 0`, infobulle plaquée sur
+            [0, 52], point à `top: 2` — recouvert). L'ancien `<text>` SVG vivait
+            *dans* le SVG, donc la rangée des marqueurs peignait déjà par-dessus
+            lui ; cet ordre rétablit ce même dessus-dessous. `pointerEvents:
+            none` : elle ne doit jamais intercepter le survol qui la fait vivre. */}
+        <div
+          style={{
+            position: "absolute",
+            left: LEFT_GUTTER,
+            right: 0,
+            top: 0,
+            height: HEIGHT,
+            pointerEvents: "none",
+          }}
+        >
+          {hovered && <Tooltip hovered={hovered} />}
+        </div>
+
         {/* Les points de la courbe sont du HTML : un <circle> dans un viewBox
             étiré non uniformément rendrait une ellipse. Rangée dédiée dont la
             largeur épouse celle du SVG — condition pour qu'un pourcentage de
@@ -306,9 +331,17 @@ export function RankingEvolutionChart({
                 color: "var(--tcn-text-faint)",
               }}
             >
+              {/* `textAlign: "left"` sur ce seul span : centré, un texte écrêté
+                  à l'ellipse est rogné des deux côtés et ne reçoit l'ellipse
+                  qu'à droite — le début disparaît sans aucun marqueur visuel
+                  (même défaut déjà corrigé sur `DisciplineBar`, ce lot doit
+                  rester cohérent avec lui-même). Aligné à gauche, seule la fin
+                  se perd, et l'ellipse la signale. La position, elle, reste
+                  centrée et entière : elle n'est jamais écrêtée. */}
               <span
                 style={{
                   display: "block",
+                  textAlign: "left",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
@@ -319,25 +352,6 @@ export function RankingEvolutionChart({
               <b style={{ display: "block", color: "var(--tcn-ink)" }}>{step.scratch_position}</b>
             </span>
           ))}
-        </div>
-
-        {/* Infobulle : sortie du SVG (#480, fix B) — un <text> dans un viewBox
-            étiré à width:100% se met à l'échelle avec lui et tombait à 10,3px
-            sur un laptop 1280 avec le rail déplié. Même rangée que les
-            marqueurs pour la conversion abscisse → pourcentage ; posée en
-            dernier pour peindre au-dessus. `pointerEvents: none` : elle ne
-            doit jamais intercepter le survol qui la fait vivre. */}
-        <div
-          style={{
-            position: "absolute",
-            left: LEFT_GUTTER,
-            right: 0,
-            top: 0,
-            height: HEIGHT,
-            pointerEvents: "none",
-          }}
-        >
-          {hovered && <Tooltip hovered={hovered} />}
         </div>
       </div>
     </Card>
