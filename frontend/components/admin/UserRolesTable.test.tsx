@@ -41,6 +41,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 });
 
 import { UserRolesTable } from "./UserRolesTable";
+import { confirmerDansLeDialog } from "./__tests__/dangerConfirm";
 
 const ADMINISTRATEUR: Role = {
   id: 1,
@@ -131,13 +132,6 @@ function afficher() {
       </DangerConfirmProvider>
     </QueryClientProvider>,
   );
-}
-
-/** Vise le bouton du dialog plutôt que celui de la ligne : les deux partagent
- *  le même libellé, mais seul le premier vit dans `role="dialog"`. */
-async function confirmerDansLeDialog(nom: RegExp | string) {
-  const dialog = await screen.findByRole("dialog");
-  await userEvent.click(within(dialog).getByRole("button", { name: nom }));
 }
 
 describe("UserRolesTable", () => {

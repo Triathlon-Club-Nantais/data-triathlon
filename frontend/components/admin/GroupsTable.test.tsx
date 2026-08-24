@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
 import { DangerConfirmProvider } from "./DangerConfirm";
+import { confirmerDansLeDialog } from "./__tests__/dangerConfirm";
 import type { Group, GroupDetail, SessionUser } from "@/lib/types";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -61,13 +62,6 @@ function afficher() {
       </DangerConfirmProvider>
     </QueryClientProvider>,
   );
-}
-
-/** Vise le bouton du dialog plutôt que celui de la ligne : les deux partagent
- *  le même libellé, mais seul le premier vit dans `role="dialog"`. */
-async function confirmerDansLeDialog(nom: RegExp | string) {
-  const dialog = await screen.findByRole("dialog");
-  await userEvent.click(within(dialog).getByRole("button", { name: nom }));
 }
 
 const VIDE: Group = { ...CODIR, id: 4, slug: "officiels", name: "Officiels", member_count: 0 };
@@ -147,6 +141,17 @@ describe("GroupsTable", () => {
     expect(bouton.hasAttribute("disabled")).toBe(true);
     await userEvent.hover(bouton.parentElement!);
     expect(await screen.findByText(/Videz d'abord le groupe \(2 membres\)/)).toBeTruthy();
+  });
+
+  it("nomme le geste refusé au clavier, pas seulement sa raison", async () => {
+    // Le bouton porte l'aria-label mais est `disabled`, donc hors du parcours
+    // clavier : seul le `<span tabIndex={0}>` qui le déclenche est atteint.
+    // Sans son propre aria-label, on entend « Videz d'abord le groupe » sans
+    // jamais entendre quel geste est refusé.
+    listGroups.mockResolvedValue([CODIR]); // member_count: 2
+    afficher();
+    const bouton = await screen.findByRole("button", { name: "Supprimer le groupe Codir" });
+    expect(bouton.parentElement).toHaveAttribute("aria-label", "Supprimer le groupe Codir");
   });
 
   it("exige une confirmation nominative avant de supprimer un groupe vide", async () => {

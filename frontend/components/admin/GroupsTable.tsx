@@ -183,7 +183,15 @@ export function GroupsTable() {
                         // un bouton désactivé ne reçoit ni survol ni focus, son
                         // infobulle ne s'ouvrirait jamais.
                         <Tooltip>
-                          <TooltipTrigger render={<span tabIndex={0} className="inline-block" />}>
+                          <TooltipTrigger
+                            render={
+                              <span
+                                tabIndex={0}
+                                className="inline-block"
+                                aria-label={`Supprimer le groupe ${groupe.name}`}
+                              />
+                            }
+                          >
                             <Button
                               size="sm"
                               variant="destructive"

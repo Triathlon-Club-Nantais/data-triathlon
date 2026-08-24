@@ -43,6 +43,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 
 import { AllowedEmailsTable } from "./AllowedEmailsTable";
 import { DangerConfirmProvider } from "./DangerConfirm";
+import { confirmerDansLeDialog } from "./__tests__/dangerConfirm";
 
 const BENEVOLE: Role = {
   id: 2,
@@ -87,13 +88,6 @@ function afficher() {
       </DangerConfirmProvider>
     </QueryClientProvider>,
   );
-}
-
-/** Vise le bouton du dialog plutôt que celui de la ligne : les deux partagent
- *  le même libellé, mais seul le premier vit dans `role="dialog"`. */
-async function confirmerDansLeDialog(nom: RegExp | string) {
-  const dialog = await screen.findByRole("dialog");
-  await userEvent.click(within(dialog).getByRole("button", { name: nom }));
 }
 
 describe("AllowedEmailsTable", () => {
@@ -288,24 +282,6 @@ describe("AllowedEmailsTable", () => {
     await confirmerDansLeDialog(/retirer/i);
 
     await waitFor(() => expect(removeAllowedEmail).toHaveBeenCalledWith(ADRESSE.id));
-  });
-
-  it("ne retire rien tant que la confirmation n'est pas donnée", async () => {
-    listAllowedEmails.mockResolvedValue([ADRESSE]);
-    afficher();
-    await userEvent.click((await screen.findAllByRole("button", { name: "Retirer" }))[0]);
-    expect(screen.getByText(/Retirer « .+ » \?/)).toBeTruthy();
-    await userEvent.click(screen.getByRole("button", { name: "Renoncer" }));
-    expect(removeAllowedEmail).not.toHaveBeenCalled();
-  });
-
-  it("retire l'adresse une fois la confirmation donnée", async () => {
-    listAllowedEmails.mockResolvedValue([ADRESSE]);
-    removeAllowedEmail.mockResolvedValue(undefined);
-    afficher();
-    await userEvent.click((await screen.findAllByRole("button", { name: "Retirer" }))[0]);
-    await confirmerDansLeDialog("Retirer");
-    await waitFor(() => expect(removeAllowedEmail).toHaveBeenCalled());
   });
 
   it("laisse « Fermer les sessions » neutre et sans confirmation", async () => {
