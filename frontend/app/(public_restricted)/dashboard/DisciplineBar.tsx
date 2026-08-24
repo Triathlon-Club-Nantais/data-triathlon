@@ -12,7 +12,7 @@ interface Part {
  * En dessous, le libellé serait tronqué à une lettre : c'est la légende qui le
  * nomme, et l'alternative textuelle qui le chiffre.
  */
-const SEUIL_LIBELLE = 12;
+const LABEL_THRESHOLD = 12;
 
 /**
  * Barre empilée de la répartition par type d'épreuve.
@@ -26,12 +26,12 @@ const SEUIL_LIBELLE = 12;
 export function DisciplineBar({ disciplines }: { disciplines: Part[] }) {
   if (disciplines.length === 0) return null;
 
-  const resume = disciplines.map((d) => `${d.name} ${pctFr(d.pct)} %`).join(", ");
+  const summary = disciplines.map((d) => `${d.name} ${pctFr(d.pct)} %`).join(", ");
 
   return (
     <div
       role="img"
-      aria-label={`Répartition des dossards par type d'épreuve : ${resume}.`}
+      aria-label={`Répartition des dossards par type d'épreuve : ${summary}.`}
       style={{ display: "flex", height: 24, borderRadius: 999, overflow: "hidden", marginBottom: 24 }}
     >
       {disciplines.map((d) => (
@@ -50,7 +50,7 @@ export function DisciplineBar({ disciplines }: { disciplines: Part[] }) {
             whiteSpace: "nowrap",
           }}
         >
-          {d.pct >= SEUIL_LIBELLE && (
+          {d.pct >= LABEL_THRESHOLD && (
             <span
               aria-hidden
               className="micro-label"

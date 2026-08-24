@@ -27,15 +27,15 @@ export function MonthlyTrend({ byMonth }: { byMonth: Record<string, number> }) {
   // du max, pas 50 % : deux formules différentes, pas juste deux écritures).
   const heightScale = scaleLinear().domain([0, max]).range([0, 100]);
 
-  const valeurs = entries.map(([, v]) => v);
-  const resume =
+  const values = entries.map(([, v]) => v);
+  const summary =
     `Activité mensuelle sur ${entries.length} mois, ` +
-    `de ${Math.min(...valeurs)} à ${Math.max(...valeurs)} dossards.`;
+    `de ${Math.min(...values)} à ${Math.max(...values)} dossards.`;
 
   return (
     <div
       role="img"
-      aria-label={resume}
+      aria-label={summary}
       className="flex h-44 items-end gap-1.5"
     >
       {entries.map(([key, value], index) => (
