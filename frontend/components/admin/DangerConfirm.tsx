@@ -90,10 +90,20 @@ export function DangerConfirm({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{titre}</DialogTitle>
-          {description && <DialogDescription>{description}</DialogDescription>}
+          {/* L'avertissement vit **dans** la description : Base UI câble
+              `aria-describedby` sur elle seule, et c'est la seule phrase du
+              dialog particulière à *ce* clic-ci (#499, revue de fin de
+              branche). Un `<span>` porte la mise en évidence visuelle sans
+              rompre `aria-describedby` comme le ferait un second `<p>`. */}
+          {(description || avertissement) && (
+            <DialogDescription>
+              {avertissement && (
+                <span className="mb-1 block font-medium text-destructive">{avertissement}</span>
+              )}
+              {description}
+            </DialogDescription>
+          )}
         </DialogHeader>
-
-        {avertissement && <p className="text-sm text-destructive">{avertissement}</p>}
 
         {children}
 

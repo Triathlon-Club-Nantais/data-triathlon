@@ -134,24 +134,14 @@ describe("GroupsTable", () => {
     );
   });
 
-  it("annonce avant le clic qu'un groupe peuplé ne peut pas être supprimé", async () => {
+  it("annonce avant le clic, en texte visible, qu'un groupe peuplé ne peut pas être supprimé", async () => {
+    // Texte visible et permanent, pas une infobulle : atteignable au tactile,
+    // sans survol ni focus (#499, revue de fin de branche).
     listGroups.mockResolvedValue([CODIR]); // member_count: 2
     afficher();
     const bouton = await screen.findByRole("button", { name: "Supprimer le groupe Codir" });
     expect(bouton.hasAttribute("disabled")).toBe(true);
-    await userEvent.hover(bouton.parentElement!);
-    expect(await screen.findByText(/Videz d'abord le groupe \(2 membres\)/)).toBeTruthy();
-  });
-
-  it("nomme le geste refusé au clavier, pas seulement sa raison", async () => {
-    // Le bouton porte l'aria-label mais est `disabled`, donc hors du parcours
-    // clavier : seul le `<span tabIndex={0}>` qui le déclenche est atteint.
-    // Sans son propre aria-label, on entend « Videz d'abord le groupe » sans
-    // jamais entendre quel geste est refusé.
-    listGroups.mockResolvedValue([CODIR]); // member_count: 2
-    afficher();
-    const bouton = await screen.findByRole("button", { name: "Supprimer le groupe Codir" });
-    expect(bouton.parentElement).toHaveAttribute("aria-label", "Supprimer le groupe Codir");
+    expect(screen.getByText("2 membres — videz-le d'abord")).toBeInTheDocument();
   });
 
   it("exige une confirmation nominative avant de supprimer un groupe vide", async () => {

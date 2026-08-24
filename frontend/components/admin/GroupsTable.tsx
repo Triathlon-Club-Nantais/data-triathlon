@@ -15,7 +15,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { GroupDetailDialog } from "@/components/admin/GroupDetailDialog";
 import { useDangerConfirm } from "@/components/admin/DangerConfirm";
 import { useCreateGroup, useDeleteGroup, useGroups } from "@/lib/queries/admin";
@@ -176,36 +175,26 @@ export function GroupsTable() {
                   <TableCell className="text-right">
                     {peutEcrire &&
                       (groupe.member_count > 0 ? (
-                        // Le refus du serveur, dit **avant** le clic — même
-                        // patron que `raisonDeNonSuppression` de
-                        // `RolePermissionsEditor` (#499). Le déclencheur porte
-                        // sur un `<span tabIndex={0}>` et non sur le bouton :
-                        // un bouton désactivé ne reçoit ni survol ni focus, son
-                        // infobulle ne s'ouvrirait jamais.
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <span
-                                tabIndex={0}
-                                className="inline-block"
-                                aria-label={`Supprimer le groupe ${groupe.name}`}
-                              />
-                            }
+                        // Le refus du serveur, dit **avant** le clic, en texte
+                        // visible et permanent — même patron que
+                        // `raisonDeNonSuppression` de `RolePermissionsEditor`
+                        // (#499). Pas d'infobulle : elle n'ouvre ni au tactile
+                        // ni sur un bouton désactivé, qui ne reçoit ni survol
+                        // ni focus.
+                        <div className="flex items-center justify-end gap-2">
+                          <span className="text-[var(--tcn-text-faint)] text-xs">
+                            {groupe.member_count} membre
+                            {groupe.member_count === 1 ? "" : "s"} — videz-le d&apos;abord
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            aria-label={`Supprimer le groupe ${groupe.name}`}
+                            disabled
                           >
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              aria-label={`Supprimer le groupe ${groupe.name}`}
-                              disabled
-                            >
-                              Supprimer
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent side="left">
-                            Videz d&apos;abord le groupe ({groupe.member_count} membre
-                            {groupe.member_count === 1 ? "" : "s"}).
-                          </TooltipContent>
-                        </Tooltip>
+                            Supprimer
+                          </Button>
+                        </div>
                       ) : (
                         <Button
                           size="sm"

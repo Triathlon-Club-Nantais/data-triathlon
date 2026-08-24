@@ -90,6 +90,24 @@ describe("DangerConfirm", () => {
     expect(screen.getByText("Ce rôle est le vôtre.")).toBeTruthy();
     expect(screen.getByText("12 résultats seront détruits.")).toBeTruthy();
   });
+
+  it("annonce l'avertissement au lecteur d'écran : il vit dans la description du dialog", () => {
+    // La seule phrase censée arrêter un geste coûteux doit être dans
+    // l'aria-describedby que Base UI câble sur DialogDescription, pas dans un
+    // <p> à côté (#499, revue de fin de branche, Important #3).
+    render(
+      <DangerConfirm
+        open
+        onOpenChange={vi.fn()}
+        titre="Retirer le rôle « Administrateur » à « Alix » ?"
+        avertissement="Ce rôle est le vôtre. Vous pourriez perdre l'accès à cet écran."
+        onConfirm={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("dialog")).toHaveAccessibleDescription(
+      /Ce rôle est le vôtre/,
+    );
+  });
 });
 
 describe("useDangerConfirm", () => {
