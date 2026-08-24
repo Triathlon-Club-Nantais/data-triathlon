@@ -151,17 +151,18 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   front une règle métier serveur qu'on ne fait que deviner : dans ce cas,
   laisser le message du refus faire le travail.
 
-  Trois exceptions à la couleur portée par le `variant` plein, chacune
+  Deux exceptions à la couleur portée par le `variant` plein, chacune
   commentée sur place : la croix de retrait de rôle d'`UserRolesTable`, `ghost`
   au repos et `destructive` au survol et au focus — une croix par badge,
   plusieurs badges par ligne ; un bouton-icône dans un tableau dense qui pose
   la couleur destructive par une teinte posée à la main plutôt que par le
   variant plein, pour ne pas écraser ses voisins (`CoursesAdminTable`, la
-  corbeille et son crayon jumeau) ; et un geste réparable mais dont le rayon
-  d'action est l'ensemble des comptes, qui se signale en destructif malgré
-  tout (`RevokeSessionsCard`, « Fermer toutes les sessions », qui déconnecte
-  tout le monde, vous compris — face à « Fermer les sessions » d'une seule
-  adresse, qui reste neutre).
+  corbeille et son crayon jumeau). Un critère à part, de rayon d'action et non
+  de rendu : un geste réparable mais dont la portée est l'ensemble des comptes
+  se signale en destructif malgré tout, variant plein compris
+  (`RevokeSessionsCard`, « Fermer toutes les sessions », qui déconnecte tout le
+  monde, vous compris — face à « Fermer les sessions » d'une seule adresse, qui
+  reste neutre).
 
   Les gestes sans retour dont la portée est la base entière vivent sur
   `/admin/maintenance`, jamais au pied d'un écran d'édition.
