@@ -961,3 +961,32 @@ describe("AppNav — tiroir mobile réduit à l'administration et au compte (#48
     expect(within(tiroir).getByRole("button", { name: "Rechercher un athlète" })).toBeInTheDocument();
   });
 });
+
+describe("AppNav — le tiroir ne se ferme plus au clic du pied (#482, NAV-4)", () => {
+  it("reste ouvert juste après un clic sur « Se déconnecter », le temps de la mutation", async () => {
+    afficher(SESSION);
+    await waitFor(() => expect(screen.getByRole("button", { name: `Compte — ${SESSION.email}` })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+    const tiroir = await screen.findByRole("dialog");
+    let resoudre!: () => void;
+    logout.mockReturnValue(new Promise<void>((resolve) => { resoudre = resolve; }));
+
+    await userEvent.click(within(tiroir).getByRole("button", { name: "Se déconnecter" }));
+
+    // Toujours dans le DOM juste après le clic : la fermeture n'est plus
+    // câblée sur l'événement de clic du pied (#482, NAV-4).
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    resoudre();
+  });
+
+  it("ne ferme pas le tiroir au clic sur un élément neutre du pied (l'adresse, hors bouton)", async () => {
+    afficher(SESSION);
+    await waitFor(() => expect(screen.getByRole("button", { name: `Compte — ${SESSION.email}` })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+    const tiroir = await screen.findByRole("dialog");
+
+    await userEvent.click(within(tiroir).getByText(SESSION.email));
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+});
