@@ -370,11 +370,8 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
 
           {/* `pleineLargeur` : dans un tiroir, l'état connecté se déplie à plat —
               un menu déroulant y sortirait du piège de focus. */}
-          <div
-            style={{ flex: "none", padding: 14, borderTop: "1px solid var(--tcn-border-faint)" }}
-            onClick={() => setDrawerOpen(false)}
-          >
-            <UserMenu pleineLargeur />
+          <div style={{ flex: "none", padding: 14, borderTop: "1px solid var(--tcn-border-faint)" }}>
+            <UserMenu pleineLargeur onNavigate={() => setDrawerOpen(false)} />
           </div>
         </SheetContent>
       </Sheet>

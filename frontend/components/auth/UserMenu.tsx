@@ -19,12 +19,23 @@ import type { SessionUser } from "@/lib/types";
  * Les deux formes ne coexistent jamais à l'écran : le rail est `hidden md:flex`,
  * le tiroir `md:hidden`.
  *
- * Ne prend **aucun callback** : la fermeture du tiroir mobile se fait par
- * remontée du clic sur le conteneur, dans `AppNav`. Une prop fonction ferait
- * ici l'objet d'un avertissement de sérialisation de Next, ce composant étant
- * un point d'entrée « use client ».
+ * `onNavigate` s'appelle au moment où une navigation **a réellement lieu**
+ * (#482, NAV-4) : juste avant `router.push("/login")`, ou dans le `onSuccess`
+ * de la déconnexion — jamais au clic de « Se déconnecter » lui-même, qui
+ * couperait l'affichage de son état d'attente (`logout.isPending`) avant que
+ * la requête n'ait eu le temps de partir. Un prop fonction ne pose ici aucun
+ * problème de sérialisation Next : `UserMenu` n'est aujourd'hui rendu que par
+ * `AppNav`, lui-même `"use client"` — aucune frontière serveur/client n'est
+ * traversée à l'un ou l'autre de ses deux points d'appel. Un futur appelant
+ * serveur rouvrirait la question.
  */
-export function UserMenu({ pleineLargeur = false }: { pleineLargeur?: boolean }) {
+export function UserMenu({
+  pleineLargeur = false,
+  onNavigate,
+}: {
+  pleineLargeur?: boolean;
+  onNavigate?: () => void;
+}) {
   const { data: session, isPending } = useSession();
   const logout = useLogout();
   const router = useRouter();
@@ -42,7 +53,10 @@ export function UserMenu({ pleineLargeur = false }: { pleineLargeur?: boolean })
     return (
       <Button
         variant="secondary"
-        onClick={() => router.push("/login")}
+        onClick={() => {
+          onNavigate?.();
+          router.push("/login");
+        }}
         style={{ width: pleineLargeur ? "100%" : undefined }}
       >
         Se connecter
@@ -55,7 +69,12 @@ export function UserMenu({ pleineLargeur = false }: { pleineLargeur?: boolean })
     captureEvent("user_logged_out");
     // posthog.reset() n'est pas appelé ici : PostHogSessionSync (providers.tsx)
     // le déclenche dès que session repasse à null, quelle qu'en soit la cause.
-    logout.mutate(undefined, { onSuccess: () => router.push("/") });
+    logout.mutate(undefined, {
+      onSuccess: () => {
+        router.push("/");
+        onNavigate?.();
+      },
+    });
   };
 
   // Tiroir mobile : l'état connecté se déplie **à plat**. Un menu déroulant

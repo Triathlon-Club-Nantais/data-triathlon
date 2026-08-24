@@ -243,6 +243,26 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   pour que son apparition ne déplace rien. Seul un besoin **serveur** authentique
   — une requête API qui dépendrait de l'athlète retenu — rouvrirait
   l'arbitrage ; de la mise en avant, non.
+- **Rail replié, cookie de largeur, nav mobile** (#482) — le rail replié
+  porte désormais un monogramme texte lié à `/dashboard` en plus du bouton de
+  pliage (l'en-tête passe en colonne à cet état, faute de place pour les
+  deux côte à côte), et ses six `title` sont remplacés par
+  `components/ui/tooltip.tsx` (`@base-ui/react/tooltip`, délai ramené à
+  0 ms — l'audit reprochait le délai natif d'~1 s, pas seulement son absence
+  au clavier/tactile). Une section réduite à une seule destination livrée
+  (« Club » aujourd'hui) rend directement son `Entree` au lieu du bouton
+  dépliant. La largeur du rail (`tcn-nav-expanded`) est désormais un
+  **cookie**, lu par `app/layout.tsx` avant la peinture plutôt qu'un
+  `localStorage` relu au montage — la seule exception documentée au refus de
+  miroir cookie de #467, parce que le besoin serveur y est authentique et
+  qu'aucun `fetch()` vers `/api/v1` n'est concerné. Sous `md`, une barre
+  basse fixe porte les destinations dont `minRole === ROLE.ANON` (calculée
+  dynamiquement, jamais en dur) ; le hamburger ne garde que les sections
+  `minRole > ROLE.ANON` et les deux actions primaires. Le pied du tiroir ne
+  ferme plus au clic : `UserMenu` ferme lui-même via `onNavigate`, au moment
+  où la navigation a réellement lieu (immédiat pour la connexion, après le
+  succès de la mutation pour la déconnexion) — jamais au clic de « Se
+  déconnecter » seul, qui couperait l'affichage de son état d'attente.
 - `components/` — `scrape/` (TcnScrapeForm, ProviderDetector, ImportProgress),
   `results/` (ResultCard, ResultsList), `club/` (ClubDashboard, PodiumsList),
   `map/` (MapView), `dashboard/` (StatCardsRank, RecentCourses),
