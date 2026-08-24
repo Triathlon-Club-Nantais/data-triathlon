@@ -10,6 +10,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useDangerConfirm } from "@/components/admin/DangerConfirm";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -157,6 +158,7 @@ function PanneauRole({
 
   const recomposition = useUpdateRole();
   const suppression = useDeleteRole();
+  const confirmerLeDanger = useDangerConfirm();
 
   const nomNet = nom.trim();
   const compositionModifiee = purgeDemandee || !memesCodes(codes, base.permissions);
@@ -199,12 +201,19 @@ function PanneauRole({
 
   async function basculerLeStatut() {
     const pose = !base.is_superuser;
+    // Confirmé dans les deux sens, mais **neutre** de couleur : ni poser ni
+    // retirer le statut ne ferme un accès ni ne détruit une donnée (#499). Le
+    // lot n'invente pas une troisième catégorie de gravité pour ce bouton.
     if (
-      !window.confirm(
-        pose
-          ? `Faire de « ${base.name} » un superutilisateur ? Il franchira tout pouvoir, y compris ceux livrés après lui.`
+      !(await confirmerLeDanger({
+        titre: pose
+          ? `Faire de « ${base.name} » un superutilisateur ?`
           : `Retirer le statut de superutilisateur à « ${base.name} » ?`,
-      )
+        description: pose
+          ? "Il franchira tout pouvoir, y compris ceux livrés après lui."
+          : "Il ne franchira plus que les pouvoirs qu'il porte explicitement.",
+        libelleAction: pose ? "Poser le statut" : "Retirer le statut",
+      }))
     ) {
       return;
     }
@@ -212,7 +221,14 @@ function PanneauRole({
   }
 
   async function supprimer() {
-    if (!window.confirm(`Supprimer le rôle « ${role.name} » ? Ce geste est sans retour.`)) return;
+    if (
+      !(await confirmerLeDanger({
+        titre: `Supprimer le rôle « ${role.name} » ?`,
+        description: "Ce geste est sans retour.",
+      }))
+    ) {
+      return;
+    }
     try {
       await suppression.mutateAsync(role.id);
       toast.success("Rôle supprimé.");
@@ -367,7 +383,7 @@ function PanneauRole({
               <span className="text-sm text-[var(--tcn-text-faint)]">{raisonDeNonSuppression}</span>
             )}
             <Button
-              variant="outline"
+              variant="destructive"
               onClick={supprimer}
               disabled={raisonDeNonSuppression !== null || suppression.isPending}
             >

@@ -3,6 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
+import { DangerConfirmProvider } from "./DangerConfirm";
 import type { PermissionGroup, Role, SessionUser } from "@/lib/types";
 
 const { listPermissions, listRoles, getSession, createRole, updateRole, deleteRole } = vi.hoisted(
@@ -123,7 +124,9 @@ function afficher(session: SessionUser | null | Error = SESSION) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <RolePermissionsEditor />
+      <DangerConfirmProvider>
+        <RolePermissionsEditor />
+      </DangerConfirmProvider>
     </QueryClientProvider>,
   );
 }
@@ -132,6 +135,13 @@ function afficher(session: SessionUser | null | Error = SESSION) {
 async function ouvrir(nom: string) {
   await userEvent.click(await screen.findByRole("button", { name: new RegExp(nom) }));
   return screen.getByRole("region", { name: new RegExp(nom) });
+}
+
+/** Vise le bouton du dialog plutôt que celui du panneau : les deux partagent
+ *  parfois le même libellé, mais seul le premier vit dans `role="dialog"`. */
+async function confirmerDansLeDialog(nom: RegExp | string) {
+  const dialog = await screen.findByRole("dialog");
+  await userEvent.click(within(dialog).getByRole("button", { name: nom }));
 }
 
 beforeEach(() => {
@@ -147,7 +157,6 @@ beforeEach(() => {
   deleteRole.mockReset();
   toastError.mockReset();
   toastSuccess.mockReset();
-  vi.spyOn(window, "confirm").mockReturnValue(true);
 });
 
 describe("RolePermissionsEditor — lecture", () => {
@@ -432,8 +441,26 @@ describe("RolePermissionsEditor — statut de superutilisateur", () => {
     const panneau = await ouvrir("Validateur");
 
     await userEvent.click(within(panneau).getByRole("button", { name: /superutilisateur/i }));
+    await confirmerDansLeDialog(/Poser le statut/);
 
     expect(updateRole).toHaveBeenCalledWith(VALIDATOR.id, { is_superuser: true });
+  });
+
+  it("confirme la bascule de superutilisateur sans la peindre en rouge", async () => {
+    afficher();
+    const panneau = await ouvrir("Validateur");
+
+    const bascule = within(panneau).getByRole("button", { name: /superutilisateur/i });
+    // Poser le statut n'est ni une fermeture d'accès ni une destruction : la
+    // couleur reste neutre, seule la confirmation est due. (`aria-invalid:*`
+    // porte "destructive" sur tout bouton, quel que soit son variant — c'est
+    // `bg-destructive`, propre au variant, qui distingue vraiment.)
+    expect(bascule.className).not.toContain("bg-destructive");
+
+    await userEvent.click(bascule);
+    await confirmerDansLeDialog("Renoncer");
+
+    expect(updateRole).not.toHaveBeenCalled();
   });
 });
 
@@ -461,19 +488,40 @@ describe("RolePermissionsEditor — suppression", () => {
     const panneau = await ouvrir("Bénévole");
 
     await userEvent.click(within(panneau).getByRole("button", { name: "Supprimer" }));
+    await confirmerDansLeDialog("Supprimer définitivement");
 
-    expect(window.confirm).toHaveBeenCalled();
     await vi.waitFor(() => expect(deleteRole).toHaveBeenCalledWith(BENEVOLE.id));
   });
 
   it("renonce si la confirmation est refusée", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(false);
     afficher();
     const panneau = await ouvrir("Bénévole");
 
     await userEvent.click(within(panneau).getByRole("button", { name: "Supprimer" }));
+    await confirmerDansLeDialog("Renoncer");
 
     expect(deleteRole).not.toHaveBeenCalled();
+  });
+
+  it("ne supprime le rôle qu'après confirmation", async () => {
+    deleteRole.mockResolvedValue(undefined);
+    afficher();
+    const panneau = await ouvrir("Bénévole");
+
+    await userEvent.click(within(panneau).getByRole("button", { name: "Supprimer" }));
+    expect(await screen.findByText(/Supprimer le rôle « .+ » \?/)).toBeTruthy();
+    await confirmerDansLeDialog("Renoncer");
+
+    expect(deleteRole).not.toHaveBeenCalled();
+  });
+
+  it("peint le bouton de suppression en rouge", async () => {
+    afficher();
+    const panneau = await ouvrir("Bénévole");
+
+    expect(within(panneau).getByRole("button", { name: "Supprimer" }).className).toContain(
+      "bg-destructive",
+    );
   });
 });
 
