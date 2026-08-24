@@ -35,6 +35,12 @@ export function TcnScrapeForm() {
     [],
   );
   const reportedRef = useRef<string | null>(null);
+  // L'URL réellement **soumise**. La garde de signalement portait sur `url`,
+  // l'état vivant du champ : corriger son adresse après un échec relançait
+  // toast, télémétrie et `reportPendingProvider` à **chaque frappe**, avec
+  // autant de chaînes tronquées jamais soumises — exactement la pollution de
+  // `pending-providers` que ce lot vient fermer.
+  const soumiseRef = useRef<string>("");
   const refreshedRef = useRef<string | null>(null);
   const router = useRouter();
 
@@ -46,12 +52,16 @@ export function TcnScrapeForm() {
     heatsEnumerated, heatsImported, heatsCached, heatsFailed, failures,
   } = importStream.state;
 
-  const isDuplicate = phase === "done" && (cached || (imported === 0 && updated === 0 && skipped > 0));
-
   // Un import qui ramène des séries en échec n'est pas un import réussi : le
   // dire en vert ferait passer 3 séries perdues sur 12 pour un plein succès
   // (#491, ACT-3).
   const partiel = phase === "done" && failures.length > 0;
+
+  // `!partiel` en tête : toutes les séries servies par le cache TTL **plus** une
+  // en échec reste un cas atteignable, et l'alerte « déjà enregistrés » y
+  // escamotait la liste des manques — le silence même que ce lot corrige.
+  const isDuplicate =
+    phase === "done" && !partiel && (cached || (imported === 0 && updated === 0 && skipped > 0));
 
   // Trois causes, trois gestes (#491, ACT-2). `errorStatus` vaut `null` quand
   // le flux s'est ouvert avant d'annoncer l'échec : c'est le **seul** cas où
@@ -82,6 +92,7 @@ export function TcnScrapeForm() {
     if (!isHttpUrl(v)) return;
     reportedRef.current = null;
     refreshedRef.current = null;
+    soumiseRef.current = v;
     setManual(false);
     setSecondes(0);
     captureEvent("results_import_started", { url: v });
@@ -92,22 +103,24 @@ export function TcnScrapeForm() {
   // saisie manuelle. Un plafond de débit ou un service muet ne disent rien de
   // l'URL, et n'ouvrent donc ni l'un ni l'autre.
   useEffect(() => {
-    if (motifEchec !== "lecture" || reportedRef.current === url) return;
-    reportedRef.current = url;
+    const soumise = soumiseRef.current;
+    if (motifEchec !== "lecture" || !soumise || reportedRef.current === soumise) return;
+    reportedRef.current = soumise;
     toast.error(error ?? "Import impossible");
-    apiClient.reportPendingProvider(url).catch(() => {});
+    apiClient.reportPendingProvider(soumise).catch(() => {});
     setManual(true);
     captureEvent("results_import_failed", { error_message: error ?? "Import impossible" });
-  }, [motifEchec, error, url]);
+  }, [motifEchec, error]);
 
   // Les deux autres causes ne se taisent pas pour autant : le toast reste, la
   // télémétrie aussi, seuls le signalement et la saisie manuelle sautent.
   useEffect(() => {
-    if (motifEchec === null || motifEchec === "lecture" || reportedRef.current === url) return;
-    reportedRef.current = url;
+    const soumise = soumiseRef.current;
+    if (motifEchec === null || motifEchec === "lecture" || reportedRef.current === soumise) return;
+    reportedRef.current = soumise;
     toast.error(error ?? "Import impossible");
     captureEvent("results_import_failed", { error_message: error ?? "Import impossible" });
-  }, [motifEchec, error, url]);
+  }, [motifEchec, error]);
 
   // Après un import réel, invalider le cache RSC de la page pour que la carte
   // « Derniers résultats enregistrés » (rendue côté serveur dans /ajouter) reflète
@@ -129,12 +142,27 @@ export function TcnScrapeForm() {
     });
   }, [phase, isDuplicate, url, router, imported, skipped, courses.length]);
 
+  // Une horloge, deux usages : le temps passé sur l'import en cours, et le
+  // temps écoulé depuis un refus pour plafond de débit. Sans le second, le
+  // « compte à rebours » restait figé sur sa valeur d'origine — `running` étant
+  // déjà `false` quand l'alerte s'affiche —, et « Réessayez dans 3 minutes »
+  // l'affirmait encore dix minutes plus tard.
+  // Décompte du plafond de débit : `Retry-After` est un instantané, il fond
+  // avec le temps qui passe.
+  const attenteRestante = Math.max(0, (retryAfter ?? 0) - secondes);
+  const compteEnCours = running || (motifEchec === "plafond" && retryAfter !== null);
   useEffect(() => {
-    if (!running) return;
+    if (!compteEnCours) return;
     const debut = Date.now();
-    const id = setInterval(() => setSecondes(Math.floor((Date.now() - debut) / 1000)), 1000);
+    const id = setInterval(() => {
+      const ecoulees = Math.floor((Date.now() - debut) / 1000);
+      setSecondes(ecoulees);
+      // Le décompte fini, plus rien à compter : ne pas re-rendre l'écran une
+      // fois par seconde sur une alerte que personne ne referme.
+      if (!running && retryAfter !== null && ecoulees >= retryAfter) clearInterval(id);
+    }, 1000);
     return () => clearInterval(id);
-  }, [running]);
+  }, [compteEnCours, running, retryAfter]);
 
   // Fermer l'onglet coupe la SSE et arrête l'import à mi-course : le dire
   // avant, plutôt que de laisser une épreuve à moitié importée en base.
@@ -145,9 +173,16 @@ export function TcnScrapeForm() {
     return () => window.removeEventListener("beforeunload", garde);
   }, [running]);
 
-  // Décompte du plafond de débit : `Retry-After` est un instantané, il fond
-  // avec le temps qui passe.
-  const attenteRestante = Math.max(0, (retryAfter ?? 0) - secondes);
+
+  // `cancel()` coupe la SSE, pas la transaction déjà partie côté serveur : les
+  // participants enregistrés avant le clic restent en base. Le taire ferait
+  // croire à une annulation propre, démentie au prochain chargement.
+  const annuler = useCallback(() => {
+    importStream.cancel();
+    toast.message("Import interrompu", {
+      description: "Les résultats déjà enregistrés sont conservés. Relancez l'import pour reprendre le reste.",
+    });
+  }, [importStream]);
 
   const persist = useCallback(
     async (data: Partial<ScrapedPreview>) => {
@@ -225,7 +260,7 @@ export function TcnScrapeForm() {
               heatsScrapingTotal={heatsScrapingTotal}
               heatLabel={heatLabel}
               secondes={secondes}
-              onAnnuler={importStream.cancel}
+              onAnnuler={annuler}
             />
           </div>
         )}
@@ -257,11 +292,20 @@ export function TcnScrapeForm() {
                 heatsFailed={heatsFailed}
               />
               {failures.length > 0 && (
-                <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
-                  {failures.map((f, i) => (
-                    <li key={`${f.heat_slug}-${i}`}>{f.reason}</li>
-                  ))}
-                </ul>
+                <>
+                  <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
+                    {failures.slice(0, MAX_ECHECS_LISTES).map((f, i) => (
+                      <li key={`${f.heat_slug}-${i}`}>
+                        Série « {f.heat_slug} » : {causeSerie(f.reason)}.
+                      </li>
+                    ))}
+                  </ul>
+                  {failures.length > MAX_ECHECS_LISTES && (
+                    <div style={{ marginTop: 4 }}>
+                      … et {failures.length - MAX_ECHECS_LISTES} autres séries.
+                    </div>
+                  )}
+                </>
               )}
               <CourseNavigator courses={courses} />
             </Alert>
@@ -324,9 +368,27 @@ export function TcnScrapeForm() {
   );
 }
 
-/** « 3 minutes », « 1 minute », « moins d'une minute » — le décompte du plafond
- *  de débit. Les secondes n'y apportent rien sur une attente qui se compte en
- *  minutes, et un « 179 s » qui défile donnerait envie de rester à regarder. */
+/** Au-delà, l'alerte devient un mur de puces : sur un fan-out à 12 séries
+ *  toutes perdues, la liste occupait tout le bandeau. */
+const MAX_ECHECS_LISTES = 5;
+
+/** Ce qu'une série perdue dit à qui la lit.
+ *
+ *  `reason` arrive du backend en `str(exc)` (`import_service`, huit scrapers) :
+ *  anglais, technique, parfois une URL brute — donc irrecevable tel quel dans
+ *  une copie utilisateur (Principe I). On n'en garde que ce qui change le geste :
+ *  réessayer plus tard, ou renoncer. Le texte d'origine reste dans les logs
+ *  backend, qui sont sa place. */
+function causeSerie(reason: string): string {
+  if (/timeout|timed out/i.test(reason)) return "le chronométreur n'a pas répondu à temps";
+  if (/\b(429|5\d\d)\b/.test(reason)) return "le chronométreur était indisponible";
+  if (/\b40[34]\b/.test(reason)) return "la page n'existe plus";
+  return "la page n'a pas pu être lue";
+}
+
+/** « 3 minutes » ou « moins d'une minute » — le décompte du plafond de débit.
+ *  Les secondes n'y apportent rien sur une attente qui se compte en minutes, et
+ *  un « 179 s » qui défile donnerait envie de rester à regarder. */
 function formatAttente(secondes: number): string {
   const minutes = Math.ceil(secondes / 60);
   if (minutes <= 1) return "moins d'une minute";
@@ -618,7 +680,7 @@ function ImportBar({
         fanoutProgress ? (
           <>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "var(--tcn-text-body)", marginBottom: 8 }}>
-              <span style={{ fontWeight: 600 }}>Récupération… épreuve {heatIndex}/{heatsScrapingTotal}</span>
+              <span style={{ fontWeight: 600 }}>Récupération… série {heatIndex}/{heatsScrapingTotal}</span>
               <span style={{ color: "var(--tcn-text-muted)" }}>{heatLabel}</span>
             </div>
             <div style={{ height: 8, background: "var(--tcn-surface)", borderRadius: 999, overflow: "hidden" }}>
@@ -642,7 +704,7 @@ function ImportBar({
         <>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "var(--tcn-text-body)", marginBottom: 8 }}>
             <span style={{ fontWeight: 600 }}>Import en cours… {progress}/{total}</span>
-            <span style={{ color: "var(--tcn-text-muted)" }}>{imported} importés · {skipped} ignorés</span>
+            <span style={{ color: "var(--tcn-text-muted)" }}>{imported} ajoutés · {skipped} déjà présents</span>
           </div>
           <div style={{ height: 8, background: "var(--tcn-surface)", borderRadius: 999, overflow: "hidden" }}>
             <div style={{ width: pct + "%", height: "100%", background: "var(--tcn-orange)", transition: "width var(--tcn-dur)" }} />

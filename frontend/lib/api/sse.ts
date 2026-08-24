@@ -1,4 +1,4 @@
-import { ApiError } from "@/lib/api/client";
+import { ApiError, messageDErreur } from "@/lib/api/client";
 import type { ImportProgressEvent, RescrapeProgressEvent } from "@/lib/types";
 
 const BASE = "/api/v1";
@@ -51,10 +51,12 @@ export async function* importEventStream(
   // fournisseur à signaler au back-office.
   if (!res.ok || !res.body) {
     const corps = await res.json().catch(() => null);
-    const attente = Number(res.headers?.get("Retry-After"));
+    const attente = Number(res.headers.get("Retry-After"));
     throw new ApiError(
       res.status,
-      corps?.detail ?? "Erreur lors du démarrage de l'import",
+      // `messageDErreur` et non `corps.detail` : sur un 422, FastAPI rend une
+      // **liste** d'objets, qui s'affichait « [object Object] » dans l'alerte.
+      messageDErreur(corps?.detail, "Erreur lors du démarrage de l'import"),
       Number.isFinite(attente) && attente > 0 ? attente : null,
     );
   }
@@ -78,7 +80,10 @@ export async function* rescrapeEventStream(
   });
   if (!res.ok) {
     const corps = await res.json().catch(() => null);
-    throw new Error(corps?.detail ?? "Erreur lors du démarrage du re-scrape");
+    throw new ApiError(
+      res.status,
+      messageDErreur(corps?.detail, "Erreur lors du démarrage du re-scrape"),
+    );
   }
   yield* readEventStream<RescrapeProgressEvent>(res);
 }

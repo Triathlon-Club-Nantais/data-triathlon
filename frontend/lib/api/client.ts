@@ -84,7 +84,7 @@ export class ApiError extends Error {
  * s'affichait « [object Object] » dans un toast. Le cas est atteignable sur
  * toute route à contrainte de champ ou `extra="forbid"`.
  */
-function messageDErreur(detail: unknown, repli: string): string {
+export function messageDErreur(detail: unknown, repli: string): string {
   if (typeof detail === "string" && detail) return detail;
   if (Array.isArray(detail)) {
     const messages = detail

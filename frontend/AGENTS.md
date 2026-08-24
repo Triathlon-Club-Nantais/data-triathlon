@@ -301,6 +301,18 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
     échoué ne s'annonce pas en vert. `ImportProgress`, qui savait déjà tout
     afficher mais qu'aucun écran n'importait, a été **supprimé** plutôt que
     remis en service — son rendu était en `ui/` quand l'écran est en `tcn/`.
+  - Quatre pièges relevés en revue, qui se re-cassent séparément. La garde du
+    signalement porte sur l'URL **soumise** (`soumiseRef`), jamais sur l'état
+    vivant du champ : corriger son adresse après un échec envoyait sinon un
+    `reportPendingProvider` **par frappe**. L'horloge de la minuterie sert aussi
+    le décompte du 429, `running` étant déjà `false` quand l'alerte s'affiche —
+    sans quoi « Réessayez dans 3 minutes » l'affirmait encore dix minutes plus
+    tard. `isDuplicate` teste `!partiel` en tête, faute de quoi un import tout
+    en cache **plus** une série perdue affichait « déjà enregistrés » et
+    escamotait la liste des manques. Et `failures[].reason` arrive du backend en
+    `str(exc)` — anglais, technique, parfois une URL brute : `causeSerie()` le
+    traduit en l'une des quatre causes qui changent le geste, le texte d'origine
+    restant aux logs.
   - Le scrape n'a **rien** à rapporter avant son premier participant : barre
     indéterminée (`.tcn-barre-indeterminee`) **et** minuterie, la seconde
     restant la seule preuve de vie sous `prefers-reduced-motion`, qui fige la
