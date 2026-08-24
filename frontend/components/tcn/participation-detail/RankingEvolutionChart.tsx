@@ -4,6 +4,8 @@ import { scaleLinear } from "d3-scale";
 import { line as d3Line, curveMonotoneX } from "d3-shape";
 import type { RankingEvolutionStep } from "@/lib/types";
 import { splitColumnsFromKeys } from "@/lib/utils/splits";
+import { ordinalFr } from "@/lib/utils/format";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Card } from "../Card";
 import { Eyebrow } from "../Eyebrow";
 
@@ -27,6 +29,9 @@ const BOTTOM_GUTTER = 34;
 // Nombre de graduations de l'axe des positions, bornes comprises.
 const TICKS = 4;
 
+// Dimensions réelles de l'infobulle, en px : posée en HTML (#480, fix B), elle
+// n'est plus mise à l'échelle du viewBox — contrairement à l'ancien <text>
+// SVG, tombé à 10,3px sur un laptop 1280 avec le rail déplié.
 const TOOLTIP_W = 210;
 const TOOLTIP_H = 52;
 
@@ -60,12 +65,36 @@ export function RankingEvolutionChart({
 }) {
   const [hovered, setHovered] = useState<Hovered | null>(null);
 
+  // Sortie anticipée : le backend saute toute étape sans rang
+  // (`_ranking_evolution`), donc `steps` peut arriver vide. Sans ce garde,
+  // `Math.min(...[])` vaut Infinity et l'échelle produit du NaN (#480, fix C).
+  if (steps.length === 0) {
+    return (
+      <Card style={{ marginBottom: 24 }}>
+        <Eyebrow>Évolution du classement</Eyebrow>
+        <EmptyState
+          bare
+          className="px-0 py-8"
+          title="Classement par étape indisponible"
+          description="Aucune étape de cette épreuve n'a de position enregistrée pour ce coureur."
+        />
+      </Card>
+    );
+  }
+
   const labels = new Map(
     splitColumnsFromKeys(
       eventType,
       steps.map((s) => s.segment),
     ).map((column) => [column.key, column.label]),
   );
+
+  // Récapitulatif chiffré pour `role="img"` (#480, fix D) : patron « X : liste. »
+  // partagé avec DisciplineBar/BarList/CategoryBars. Les noms sont mis en
+  // minuscule — ce sont des noms communs dans une phrase, pas des titres.
+  const summary = steps
+    .map((step) => `${(labels.get(step.segment) ?? step.segment).toLowerCase()} ${ordinalFr(step.scratch_position)}`)
+    .join(", ");
 
   const positions = steps.flatMap((s) => [s.scratch_position, s.segment_position]);
   const best = Math.min(...positions);
@@ -111,7 +140,7 @@ export function RankingEvolutionChart({
           gap: 18,
           marginTop: 10,
           fontSize: 12,
-          color: "var(--tcn-text-secondary)",
+          color: "var(--tcn-text-muted)",
         }}
       >
         <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
@@ -158,7 +187,7 @@ export function RankingEvolutionChart({
           preserveAspectRatio="none"
           style={{ width: "100%", height: HEIGHT, display: "block" }}
           role="img"
-          aria-label="Évolution de la position au fil des étapes"
+          aria-label={`Évolution du classement : ${summary}.`}
           onMouseLeave={() => setHovered(null)}
         >
           {ticks.map((position) => (
@@ -200,8 +229,6 @@ export function RankingEvolutionChart({
             strokeWidth={2.5}
             vectorEffect="non-scaling-stroke"
           />
-
-          {hovered && <Tooltip hovered={hovered} />}
         </svg>
 
         {/* Les points de la courbe sont du HTML : un <circle> dans un viewBox
@@ -254,7 +281,15 @@ export function RankingEvolutionChart({
 
         {/* Nom de l'étape **et sa position**, écrits en permanence : l'infobulle
             au survol n'existe pas au doigt (WCAG 1.4.13, #480). Même rangée
-            dédiée que les marqueurs, pour la même raison arithmétique. */}
+            dédiée que les marqueurs, pour la même raison arithmétique.
+            La boîte vaut l'entraxe (`100% / N`), jamais une largeur fixe : à
+            80px fixes, cinq étapes sur un iPhone SE (247px de SVG utiles)
+            se chevauchent de 31px (#480, revue UI/UX bloquante). Le
+            **nom** s'écrête à l'ellipse quand il ne tient pas — un libellé
+            de source peut faire trois mots en capitales (« COURSE A PIED »,
+            `splitColumnsFromKeys` → `sourceEntry`) — mais la **position**
+            ne s'écrête jamais : c'est le chiffre que ce lot vient de rendre
+            accessible sans survol, l'écrêter serait revenir en arrière. */}
         <div style={{ position: "absolute", left: LEFT_GUTTER, right: 0, bottom: 0, height: BOTTOM_GUTTER }}>
           {steps.map((step, index) => (
             <span
@@ -262,20 +297,47 @@ export function RankingEvolutionChart({
               data-step-label={step.segment}
               style={{
                 position: "absolute",
-                left: `calc(${(xOf(index) / WIDTH) * 100}% - 40px)`,
+                left: `calc(${(xOf(index) / WIDTH) * 100}% - 50% / ${steps.length})`,
                 top: 0,
-                width: 80,
+                width: `calc(100% / ${steps.length})`,
                 textAlign: "center",
                 fontSize: 12,
                 lineHeight: "15px",
                 color: "var(--tcn-text-faint)",
               }}
             >
-              {labels.get(step.segment) ?? step.segment}
-              <br />
-              <b style={{ color: "var(--tcn-ink)" }}>{step.scratch_position}</b>
+              <span
+                style={{
+                  display: "block",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {labels.get(step.segment) ?? step.segment}
+              </span>
+              <b style={{ display: "block", color: "var(--tcn-ink)" }}>{step.scratch_position}</b>
             </span>
           ))}
+        </div>
+
+        {/* Infobulle : sortie du SVG (#480, fix B) — un <text> dans un viewBox
+            étiré à width:100% se met à l'échelle avec lui et tombait à 10,3px
+            sur un laptop 1280 avec le rail déplié. Même rangée que les
+            marqueurs pour la conversion abscisse → pourcentage ; posée en
+            dernier pour peindre au-dessus. `pointerEvents: none` : elle ne
+            doit jamais intercepter le survol qui la fait vivre. */}
+        <div
+          style={{
+            position: "absolute",
+            left: LEFT_GUTTER,
+            right: 0,
+            top: 0,
+            height: HEIGHT,
+            pointerEvents: "none",
+          }}
+        >
+          {hovered && <Tooltip hovered={hovered} />}
         </div>
       </div>
     </Card>
@@ -284,32 +346,45 @@ export function RankingEvolutionChart({
 
 /**
  * Infobulle unique — l'état ne retient qu'un élément survolé, jamais une liste.
- * Elle bascule à gauche du point quand elle déborderait à droite du cadre.
+ *
+ * `hovered.x` est une abscisse de viewBox : convertie en pourcentage de la
+ * rangée (largeur = celle du SVG rendu), elle se pose en HTML sans connaître
+ * la largeur réelle. `clamp()` la borne dans le cadre sans mesure au montage
+ * — le moteur CSS résout `calc(100% - {TOOLTIP_W}px)` contre la largeur réelle
+ * de la rangée, ce qu'aucun calcul JS ne peut faire avant le rendu. `hovered.y`
+ * est déjà en px réels (la hauteur du SVG est fixée), donc utilisé tel quel.
  */
 function Tooltip({ hovered }: { hovered: Hovered }) {
   const scratch = hovered.role === "scratch";
   const position = scratch ? hovered.step.scratch_position : hovered.step.segment_position;
-  const flip = hovered.x + TOOLTIP_W + 12 > WIDTH;
-  const x = flip ? hovered.x - TOOLTIP_W - 12 : hovered.x + 12;
+  const xPct = (hovered.x / WIDTH) * 100;
   const y = Math.max(0, hovered.y - TOOLTIP_H - 8);
 
   return (
-    <g role="tooltip" pointerEvents="none">
-      <rect
-        x={x}
-        y={y}
-        width={TOOLTIP_W}
-        height={TOOLTIP_H}
-        rx={8}
-        fill="var(--tcn-ink)"
-        opacity={0.95}
-      />
-      <text x={x + 12} y={y + 20} fontSize={12} fill="#fff" fontWeight={700}>
-        {hovered.label}
-      </text>
-      <text x={x + 12} y={y + 37} fontSize={12} fill="rgba(255,255,255,.8)">
+    <div
+      role="tooltip"
+      style={{
+        position: "absolute",
+        left: `clamp(0px, calc(${xPct}% + 12px), calc(100% - ${TOOLTIP_W}px))`,
+        top: y,
+        width: TOOLTIP_W,
+        height: TOOLTIP_H,
+        boxSizing: "border-box",
+        borderRadius: 8,
+        background: "var(--tcn-ink)",
+        opacity: 0.95,
+        pointerEvents: "none",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        gap: 4,
+        padding: "0 12px",
+      }}
+    >
+      <span style={{ fontSize: 12, fontWeight: 700, color: "#fff" }}>{hovered.label}</span>
+      <span style={{ fontSize: 12, color: "rgba(255,255,255,.8)" }}>
         {scratch ? "Classement scratch" : "Sur le segment"} : {position}
-      </text>
-    </g>
+      </span>
+    </div>
   );
 }
