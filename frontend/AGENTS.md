@@ -271,6 +271,15 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   `tcn/` parce que c'est un écran public, et décident leur visibilité **dans le
   navigateur**, pouvoir par pouvoir, pour que la page reste rendue sans cookies),
   plus les deux bibliothèques de composants ci-dessous.
+- **« La géométrie dans le SVG, les textes en HTML »** (#480, RESP-2) — pour
+  tout `viewBox` fixe étiré à `width: 100%` (`Histogram`, `RankingEvolutionChart`) :
+  aucune unité CSS ne fige la taille d'un `<text>` SVG dans ce cas, il est mis à
+  l'échelle avec le `viewBox` et tombe à ~3,5 px sur un iPhone SE. D'où
+  `preserveAspectRatio="none"` + une hauteur en px, et les libellés posés en
+  HTML autour. Corollaire qui a coûté une ronde de correction : une abscisse
+  HTML s'exprime en **pourcentage d'une rangée absolue dont la largeur épouse
+  celle du SVG**, jamais du conteneur — celui-ci porte la gouttière des
+  graduations, contre laquelle un `%` se résoudrait, gouttière comprise.
 - **Deux bibliothèques, une frontière.** `components/tcn/` porte l'identité
   visuelle (tokens `--tcn-*`, Anton/Barlow, dégradé orange) ; `components/ui/`
   porte les primitives complexes bâties sur `@base-ui/react` — `dialog`,
@@ -326,6 +335,14 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   l'en-tête `cookie`, donc la fenêtre de 30 s ne se partage plus entre
   visiteurs — elle profite encore à chacun sur sa propre navigation.
 - `lib/types.ts` — types TypeScript partagés.
+- **`lib/sport-colors.ts` est la source unique de l'échelle des disciplines**
+  (#480) — la redoubler ailleurs *est* le bug, et c'est déjà arrivé une fois
+  (`lib/utils/format.ts` en portait une seconde, avec d'autres familles et
+  d'autres couleurs). Elle est gardée par deux tests de contraste :
+  `FAMILY_ORDER` sur ses paires adjacentes (1,6:1, dans la barre empilée) et,
+  depuis #480, le couple encre/aplat de chaque famille (4,5:1, WCAG 1.4.3 sur le
+  libellé de segment) — réordonner `FAMILY_ORDER` ou retoucher un token casse
+  l'un des deux en silence.
 - **Deux projets vitest, `node` par défaut** (#508) — `vitest.config.ts` ne pose
   plus un environnement global : `jsdom` prend les `.test.tsx` et trois
   `.test.ts` nommés dans `GLOBS_JSDOM`, `node` prend tout le reste (le `include`

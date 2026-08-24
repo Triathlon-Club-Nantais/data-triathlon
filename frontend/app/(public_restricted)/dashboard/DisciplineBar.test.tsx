@@ -3,9 +3,15 @@ import { render, screen } from "@testing-library/react";
 import { DisciplineBar } from "./DisciplineBar";
 
 const TROIS = [
-  { name: "Triathlon", color: "var(--tcn-orange)", count: 300, pct: 75 },
-  { name: "Duathlon", color: "var(--tcn-orange-300)", count: 96, pct: 24 },
-  { name: "Aquathlon", color: "var(--tcn-orange-deeper)", count: 4, pct: 1 },
+  { name: "Triathlon", color: "var(--tcn-orange)", ink: "var(--tcn-ink)", count: 300, pct: 75 },
+  { name: "Duathlon", color: "var(--tcn-orange-300)", ink: "var(--tcn-ink)", count: 96, pct: 24 },
+  {
+    name: "Aquathlon",
+    color: "var(--tcn-orange-deeper)",
+    ink: "var(--tcn-surface)",
+    count: 4,
+    pct: 1,
+  },
 ];
 
 describe("DisciplineBar", () => {
@@ -30,6 +36,14 @@ describe("DisciplineBar", () => {
     const segments = [...container.querySelectorAll("[data-segment]")] as HTMLElement[];
     expect(segments.map((s) => s.style.width)).toEqual(["75%", "24%", "1%"]);
     expect(segments[0].style.outline).toContain("var(--tcn-surface)");
+  });
+
+  it("écrit le libellé dans l'encre de la famille, pas toujours en blanc (#480)", () => {
+    // Triathlon (fond clair) veut de l'encre --tcn-ink ; Duathlon --tcn-ink
+    // aussi ; --tcn-surface (blanc) n'y tient pas 4,5:1 (lib/sport-colors.ts).
+    render(<DisciplineBar disciplines={TROIS} />);
+    expect(screen.getByText("Triathlon")).toHaveStyle({ color: "var(--tcn-ink)" });
+    expect(screen.getByText("Duathlon")).toHaveStyle({ color: "var(--tcn-ink)" });
   });
 
   it("ne rend rien quand il n'y a aucune discipline", () => {

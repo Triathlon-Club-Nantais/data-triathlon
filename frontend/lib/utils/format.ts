@@ -68,18 +68,24 @@ export function disciplineOf(eventType: string | null | undefined): string {
 /** Agrège `by_type` (clés event_type → compte) en familles ordonnées avec %. */
 export function aggregateDisciplines(
   byType: Record<string, number>,
-): { name: string; color: string; count: number; pct: number }[] {
-  const acc = new Map<string, { color: string; count: number }>();
+): { name: string; color: string; ink: string; count: number; pct: number }[] {
+  const acc = new Map<string, { color: string; ink: string; count: number }>();
   let total = 0;
   for (const [type, count] of Object.entries(byType)) {
     const fam = disciplineFamily(type);
     total += count;
     const e = acc.get(fam.name);
     if (e) e.count += count;
-    else acc.set(fam.name, { color: fam.color, count });
+    else acc.set(fam.name, { color: fam.color, ink: fam.ink, count });
   }
   return [...acc.entries()]
-    .map(([name, { color, count }]) => ({ name, color, count, pct: total ? (count / total) * 100 : 0 }))
+    .map(([name, { color, ink, count }]) => ({
+      name,
+      color,
+      ink,
+      count,
+      pct: total ? (count / total) * 100 : 0,
+    }))
     .sort((a, b) => FAMILY_ORDER.indexOf(a.name as FamilyName) - FAMILY_ORDER.indexOf(b.name as FamilyName));
 }
 

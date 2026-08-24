@@ -29,10 +29,13 @@ export const FAMILY_ORDER = [
 
 export type FamilyName = (typeof FAMILY_ORDER)[number];
 
-/** Famille de discipline : ce que la légende nomme, et la couleur qui la code. */
+/** Famille de discipline : ce que la légende nomme, la couleur qui la code, et
+ *  l'encre qui écrit son nom **sur** cette couleur (aplat plein, pas un fond
+ *  teinté — voir `FAMILY_INK`). */
 export interface Discipline {
   name: FamilyName;
   color: string;
+  ink: string;
 }
 
 const FAMILY_COLORS: Record<FamilyName, string> = {
@@ -45,6 +48,24 @@ const FAMILY_COLORS: Record<FamilyName, string> = {
 };
 
 /**
+ * Encre du libellé posé **sur l'aplat plein** de la famille (le segment de
+ * `DisciplineBar`, pas le fond teinté à 14 % de `tintedStyle`, qui a sa propre
+ * règle). `--tcn-surface` (blanc) ne tient 4,5:1 que sur les quatre aplats
+ * sombres ; sur les deux aplats clairs de la rampe orange (`--tcn-orange`,
+ * `--tcn-orange-300`), le blanc tombe à 3,68:1 et 2,53:1 (#480) — `--tcn-ink`
+ * y grimpe à 4,54:1 et 6,58:1, le maximum que la palette permette sans
+ * l'élargir.
+ */
+const FAMILY_INK: Record<FamilyName, string> = {
+  Triathlon: "var(--tcn-ink)",
+  "Swim & Run": "var(--tcn-surface)",
+  Duathlon: "var(--tcn-ink)",
+  Aquathlon: "var(--tcn-surface)",
+  "Run & Bike": "var(--tcn-surface)",
+  Autres: "var(--tcn-surface)",
+};
+
+/**
  * Famille d'un `event_type`. Les prédicats sont ceux qui vivaient dans
  * `lib/utils/format.ts` — `cross-triathlon` tombe donc dans « Autres », faute de
  * commencer par « triathlon ». C'est l'état antérieur, pas un arbitrage de #480.
@@ -52,7 +73,7 @@ const FAMILY_COLORS: Record<FamilyName, string> = {
 export function disciplineFamily(eventType: string | null | undefined): Discipline {
   const type = (eventType ?? "").toLowerCase();
   const name = familyName(type);
-  return { name, color: FAMILY_COLORS[name] };
+  return { name, color: FAMILY_COLORS[name], ink: FAMILY_INK[name] };
 }
 
 function familyName(type: string): FamilyName {
