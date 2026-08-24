@@ -27,6 +27,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 });
 
 import { RevokeSessionsCard } from "./RevokeSessionsCard";
+import { DangerConfirmProvider } from "./DangerConfirm";
 
 /**
  * L'écran s'ouvre avec `allowed_emails:manage` seul ; la révocation, elle, est
@@ -54,7 +55,9 @@ function afficher() {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <RevokeSessionsCard />
+      <DangerConfirmProvider>
+        <RevokeSessionsCard />
+      </DangerConfirmProvider>
     </QueryClientProvider>,
   );
 }
