@@ -61,7 +61,8 @@ export function UserRolesTable() {
     if (
       !(await confirmerLeDanger({
         titre: `Retirer le rôle « ${role.name} » à « ${utilisateur.display_name} » ?`,
-        description: "Les pouvoirs qu'il portait s'appliquent dès la requête suivante.",
+        description:
+          "Les pouvoirs que ce rôle lui donnait ne s'appliqueront plus dès la requête suivante.",
         avertissement: cEstMoi ? (
           <>
             <strong>Ce rôle est le vôtre.</strong> Vous pourriez perdre l&apos;accès à cet écran.
