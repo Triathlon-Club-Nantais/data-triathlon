@@ -67,6 +67,8 @@ function computeEventType(discipline: string, format: string): string {
   return `${discipline}-${format}`;
 }
 
+const GROUPE = "grid gap-4 sm:grid-cols-2";
+
 export function ManualResultForm({
   defaultUrl = "",
   onSubmit,
@@ -86,6 +88,11 @@ export function ManualResultForm({
     formState: { errors },
   } = useForm({
     resolver: zodResolver(schema),
+    // Chaque champ se corrige là où il se remplit (ACT-11) : sans `mode`, RHF
+    // ne valide qu'à la soumission et les manques n'arrivent qu'au bas de page,
+    // tous d'un coup. `onTouched` et non `onChange` : signaler « Prénom requis »
+    // à la première lettre tapée est du bruit, pas une aide.
+    mode: "onTouched",
     defaultValues: {
       evidence_url: defaultUrl,
       individuel_ou_collectif: "individuel",
@@ -105,7 +112,7 @@ export function ManualResultForm({
 
   return (
     <form
-      className="grid gap-4 sm:grid-cols-2"
+      className="flex flex-col gap-6"
       onSubmit={handleSubmit((data) => {
         // Les temps devenus sans objet après un changement de discipline ne
         // doivent pas être transmis en silence (cas limite de la spec).
@@ -135,127 +142,158 @@ export function ManualResultForm({
         });
       })}
     >
-      <Field label="Prénom" htmlFor="mrf-firstname" error={errors.athlete_firstname?.message}>
-        <Input id="mrf-firstname" {...register("athlete_firstname")} />
-      </Field>
-      <Field label="Nom" htmlFor="mrf-name" error={errors.athlete_name?.message}>
-        <Input id="mrf-name" {...register("athlete_name")} />
-      </Field>
-      <Field label="Date" htmlFor="mrf-date" error={errors.event_date?.message}>
-        <Input id="mrf-date" type="date" {...register("event_date")} />
-      </Field>
-      <Field label="Nom de l'épreuve" htmlFor="mrf-event-name" error={errors.event_name?.message}>
-        <Input id="mrf-event-name" {...register("event_name")} />
-      </Field>
+      <Groupe titre="Qui">
+        <Field label="Prénom" htmlFor="mrf-firstname" required error={errors.athlete_firstname?.message}>
+          <Input id="mrf-firstname" aria-required="true" {...register("athlete_firstname")} />
+        </Field>
+        <Field label="Nom" htmlFor="mrf-name" required error={errors.athlete_name?.message}>
+          <Input id="mrf-name" aria-required="true" {...register("athlete_name")} />
+        </Field>
+      </Groupe>
 
-      <Field label="Discipline" htmlFor="mrf-discipline" error={errors.discipline?.message}>
-        <select
-          id="mrf-discipline"
-          className="h-9 rounded-md border bg-background px-2"
-          {...register("discipline")}
+      <Groupe titre="Quelle épreuve">
+        <Field label="Date" htmlFor="mrf-date" required error={errors.event_date?.message}>
+          <Input id="mrf-date" type="date" aria-required="true" {...register("event_date")} />
+        </Field>
+        <Field
+          label="Nom de l'épreuve"
+          htmlFor="mrf-event-name"
+          required
+          error={errors.event_name?.message}
         >
-          <option value="">—</option>
-          {MANUAL_ENTRY_DISCIPLINES.map((d) => (
-            <option key={d.value} value={d.value}>{d.label}</option>
-          ))}
-        </select>
-      </Field>
+          <Input id="mrf-event-name" aria-required="true" {...register("event_name")} />
+        </Field>
 
-      {aUnFormat ? (
-        <Field label="Format" htmlFor="mrf-format">
+        <Field label="Discipline" htmlFor="mrf-discipline" required error={errors.discipline?.message}>
           <select
-            id="mrf-format"
+            id="mrf-discipline"
+            aria-required="true"
             className="h-9 rounded-md border bg-background px-2"
-            {...register("format")}
+            {...register("discipline")}
           >
             <option value="">—</option>
-            {MANUAL_ENTRY_FORMATS.map((f) => (
-              <option key={f.value} value={f.value}>{f.label}</option>
+            {MANUAL_ENTRY_DISCIPLINES.map((d) => (
+              <option key={d.value} value={d.value}>{d.label}</option>
             ))}
           </select>
         </Field>
-      ) : (
-        <Field label="Distance totale (km)" htmlFor="mrf-distance-km">
-          <Input id="mrf-distance-km" type="number" step="0.1" {...register("distance_km")} />
-        </Field>
-      )}
 
-      {format === "autre" && (
+        {aUnFormat ? (
+          <Field label="Format" htmlFor="mrf-format" optional>
+            <select
+              id="mrf-format"
+              className="h-9 rounded-md border bg-background px-2"
+              {...register("format")}
+            >
+              <option value="">—</option>
+              {MANUAL_ENTRY_FORMATS.map((f) => (
+                <option key={f.value} value={f.value}>{f.label}</option>
+              ))}
+            </select>
+          </Field>
+        ) : (
+          <Field label="Distance totale (km)" htmlFor="mrf-distance-km" optional>
+            <Input id="mrf-distance-km" type="number" step="0.1" {...register("distance_km")} />
+          </Field>
+        )}
+
+        {format === "autre" && (
+          <Field
+            label="Précision du format"
+            htmlFor="mrf-format-label"
+            required
+            error={errors.format_label?.message}
+          >
+            <Input id="mrf-format-label" aria-required="true" {...register("format_label")} />
+          </Field>
+        )}
+      </Groupe>
+
+      <Groupe titre="Quel résultat">
+        <fieldset className="flex flex-col gap-1 sm:col-span-2">
+          <legend className="text-sm font-medium">Individuel ou collectif</legend>
+          <div className="flex gap-4">
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                value="individuel"
+                {...register("individuel_ou_collectif")}
+              />
+              Individuel
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                value="collectif"
+                {...register("individuel_ou_collectif")}
+              />
+              Collectif
+            </label>
+          </div>
+        </fieldset>
+
+        {individuelOuCollectif === "collectif" && (
+          <Field
+            label="Nom de l'équipe"
+            htmlFor="mrf-team-name"
+            required
+            error={errors.team_name?.message}
+          >
+            <Input id="mrf-team-name" aria-required="true" {...register("team_name")} />
+          </Field>
+        )}
+
+        <Field label="Statut" htmlFor="mrf-status">
+          <select
+            id="mrf-status"
+            className="h-9 rounded-md border bg-background px-2"
+            {...register("status")}
+          >
+            {STATUTS.map((s) => (
+              <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Dossard" htmlFor="mrf-bib" optional>
+          <Input id="mrf-bib" {...register("bib_number")} />
+        </Field>
+        <Field label="Place générale" htmlFor="mrf-rank" optional>
+          <Input id="mrf-rank" type="number" {...register("rank_overall")} />
+        </Field>
+
         <Field
-          label="Précision du format"
-          htmlFor="mrf-format-label"
-          error={errors.format_label?.message}
+          label="Lien vers la page de résultats, si vous en avez un"
+          htmlFor="mrf-evidence-url"
+          optional
         >
-          <Input id="mrf-format-label" {...register("format_label")} />
+          <Input id="mrf-evidence-url" {...register("evidence_url")} />
         </Field>
-      )}
+      </Groupe>
 
-      <Field label="Dossard" htmlFor="mrf-bib"><Input id="mrf-bib" {...register("bib_number")} /></Field>
-      <Field label="Place générale" htmlFor="mrf-rank">
-        <Input id="mrf-rank" type="number" {...register("rank_overall")} />
-      </Field>
-
-      <fieldset className="flex flex-col gap-1 sm:col-span-2">
-        <legend className="text-sm font-medium">Individuel ou collectif</legend>
-        <div className="flex gap-4">
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              value="individuel"
-              {...register("individuel_ou_collectif")}
-            />
-            Individuel
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              value="collectif"
-              {...register("individuel_ou_collectif")}
-            />
-            Collectif
-          </label>
-        </div>
-      </fieldset>
-
-      {individuelOuCollectif === "collectif" && (
-        <Field
-          label="Nom de l'équipe"
-          htmlFor="mrf-team-name"
-          error={errors.team_name?.message}
-        >
-          <Input id="mrf-team-name" {...register("team_name")} />
-        </Field>
-      )}
-
-      <Field label="Statut" htmlFor="mrf-status">
-        <select
-          id="mrf-status"
-          className="h-9 rounded-md border bg-background px-2"
-          {...register("status")}
-        >
-          {STATUTS.map((s) => (
-            <option key={s.value} value={s.value}>{s.label}</option>
-          ))}
-        </select>
-      </Field>
-
-      <Field label="Lien vers les résultats" htmlFor="mrf-evidence-url">
-        <Input id="mrf-evidence-url" {...register("evidence_url")} />
-      </Field>
-
-      <fieldset className="grid gap-4 sm:col-span-2 sm:grid-cols-2 border rounded-md p-3">
-        <legend className="text-sm font-medium px-1">Temps</legend>
-        <Field label="Temps total" htmlFor="mrf-total-time">
+      <Groupe titre="Temps">
+        <Field label="Temps total" htmlFor="mrf-total-time" optional>
           <Input id="mrf-total-time" placeholder="HH:MM:SS" {...register("total_time")} />
         </Field>
-        {champsTemps.map((c) => (
-          <Field key={c.key} label={c.label} htmlFor={`mrf-${c.key}`}>
-            <Input id={`mrf-${c.key}`} placeholder="HH:MM:SS" {...register(c.key)} />
-          </Field>
-        ))}
-      </fieldset>
+        {champsTemps.length > 0 && (
+          // Cinq champs de plus que personne n'a sous la main au moment de
+          // saisir : repliés, ils ne pèsent plus sur la décision de commencer.
+          <details className="sm:col-span-2">
+            <summary className="cursor-pointer text-sm font-medium">
+              Ajouter mes temps par discipline
+            </summary>
+            <div className={`${GROUPE} pt-4`}>
+              {champsTemps.map((c) => (
+                <Field key={c.key} label={c.label} htmlFor={`mrf-${c.key}`}>
+                  <Input id={`mrf-${c.key}`} placeholder="HH:MM:SS" {...register(c.key)} />
+                </Field>
+              ))}
+            </div>
+          </details>
+        )}
+      </Groupe>
 
-      <div className="sm:col-span-2">
+      <div>
         <Button type="submit" disabled={submitting}>
           {submitting ? "Enregistrement…" : "Enregistrer le résultat"}
         </Button>
@@ -264,20 +302,48 @@ export function ManualResultForm({
   );
 }
 
+function Groupe({ titre, children }: { titre: string; children: React.ReactNode }) {
+  return (
+    <fieldset className={GROUPE}>
+      <legend className="text-sm font-semibold sm:col-span-2">{titre}</legend>
+      {children}
+    </fieldset>
+  );
+}
+
 function Field({
   label,
   htmlFor,
   error,
+  required,
+  optional,
   children,
 }: {
   label: string;
   htmlFor: string;
   error?: string;
+  required?: boolean;
+  optional?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <Label htmlFor={htmlFor}>{label}</Label>
+      <span className="flex items-center gap-1">
+        <Label htmlFor={htmlFor}>
+          {label}
+          {optional && (
+            <span className="font-normal text-muted-foreground">{" (optionnel)"}</span>
+          )}
+        </Label>
+        {/* Hors du `<Label>` : l'astérisque est décoratif — `aria-required` porte
+            l'information sur le champ — et le laisser dedans collerait un « * »
+            au libellé, donc au nom accessible. */}
+        {required && (
+          <span aria-hidden="true" className="text-sm text-destructive">
+            *
+          </span>
+        )}
+      </span>
       {children}
       {error && (
         <span role="alert" className="text-xs text-destructive">

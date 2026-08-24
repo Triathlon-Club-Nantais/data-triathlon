@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { captureEvent } from "@/lib/posthog";
-import { Card, Input, Button, Alert } from "@/components/tcn";
+import { Card, Input, Button, Alert, PendingBadge } from "@/components/tcn";
 import { apiClient } from "@/lib/api/client";
 import { eventTypeLabel } from "@/lib/constants";
 import { eventTypeColor } from "@/lib/sport-colors";
@@ -14,7 +14,7 @@ import { useSaveParticipation } from "@/lib/queries/participations";
 import { useImportStream } from "@/hooks/useImportStream";
 import { ProviderDetector } from "./ProviderDetector";
 import { ManualResultForm } from "./ManualResultForm";
-import type { ImportedCourse, ScrapedPreview } from "@/lib/types";
+import type { ImportedCourse, Participation, ScrapedPreview } from "@/lib/types";
 
 export function TcnScrapeForm() {
   const [url, setUrl] = useState("");
@@ -23,7 +23,9 @@ export function TcnScrapeForm() {
   // de « c'est figé » (#491, ACT-4). La minuterie tient cette promesse même
   // sous `prefers-reduced-motion`, qui gèle l'indicateur animé.
   const [secondes, setSecondes] = useState(0);
-
+  // Le résultat saisi à la main, gardé après l'enregistrement : c'est lui que
+  // l'accusé de réception affiche (ACT-1).
+  const [saved, setSaved] = useState<Participation | null>(null);
   // Détection client (GET /scrape/detect), indépendante de toute tentative
   // d'import : elle permet d'avertir avant même le clic sur « Enregistrer les
   // résultats », plutôt que d'attendre l'échec réel du scrape.
@@ -95,6 +97,7 @@ export function TcnScrapeForm() {
     soumiseRef.current = v;
     setManual(false);
     setSecondes(0);
+    setSaved(null);
     captureEvent("results_import_started", { url: v });
     importStream.start(v);
   }, [url, running, importStream]);
@@ -187,8 +190,10 @@ export function TcnScrapeForm() {
   const persist = useCallback(
     async (data: Partial<ScrapedPreview>) => {
       try {
-        await save.mutateAsync(data);
-        toast.success("Résultat enregistré.");
+        // La `Participation` rendue porte son `id` et son épreuve : c'est ce qui
+        // permet à l'accusé de réception de mener au résultat créé plutôt que de
+        // refermer la carte sur un toast fugace (ACT-1).
+        setSaved(await save.mutateAsync(data));
         setManual(false);
       } catch (e) {
         toast.error((e as Error).message);
@@ -341,12 +346,14 @@ export function TcnScrapeForm() {
             </Alert>
           </div>
         )}
-        {(motifEchec === "lecture" || (providerUnsupported && phase === "idle")) && (
+        {/* `!saved` : une fois la saisie manuelle enregistrée, réinviter à
+            saisir à la main contredirait l'accusé de réception juste dessous. */}
+        {!saved && (motifEchec === "lecture" || (providerUnsupported && phase === "idle")) && (
           <div style={{ marginTop: 14 }}>
             <Alert
               status="warning"
               title="Impossible d'importer automatiquement"
-              action={<Button variant="secondary" size="sm" onClick={() => setManual(true)}>Saisie manuelle</Button>}
+              action={<Button variant="secondary" size="sm" onClick={() => { setSaved(null); setManual(true); }}>Saisie manuelle</Button>}
             >
               {motifEchec === "lecture"
                 ? (error ?? "Le lien fourni n'a pas pu être lu.")
@@ -360,8 +367,28 @@ export function TcnScrapeForm() {
       {manual && (
         <Card padding={30} style={{ border: "1.5px solid var(--tcn-warning-border)", marginBottom: 22 }}>
           <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)", marginBottom: 6 }}>Saisie manuelle de votre participation</div>
-          <div style={{ fontSize: 14, color: "var(--tcn-text-muted)", marginBottom: 22 }}>Complétez les champs ci-dessous. Votre participation sera bien enregistrée.</div>
+          <div style={{ fontSize: 14, color: "var(--tcn-text-muted)", marginBottom: 22 }}>Complétez les champs ci-dessous. Votre participation sera vérifiée par un bénévole du club avant d&apos;apparaître dans les résultats.</div>
           <ManualResultForm defaultUrl={url} onSubmit={persist} submitting={save.isPending} />
+        </Card>
+      )}
+
+      {saved && (
+        <Card padding={30} style={{ marginBottom: 22 }}>
+          <Alert status="success" title="Merci ! Votre participation est enregistrée.">
+            <div style={{ marginBottom: 10 }}>
+              <PendingBadge />
+            </div>
+            Elle est en attente de validation par un bénévole du club, en général sous quelques
+            jours. Elle apparaîtra dans les résultats et les statistiques du club dès qu&apos;elle
+            sera validée.
+            {saved.course?.id != null && (
+              <div style={{ marginTop: 12 }}>
+                <PrimaryLink href={`/courses/${saved.course.id}/participations/${saved.id}`}>
+                  Voir ma participation <span aria-hidden="true">→</span>
+                </PrimaryLink>
+              </div>
+            )}
+          </Alert>
         </Card>
       )}
     </>
