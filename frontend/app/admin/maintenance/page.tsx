@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ecran } from "@/components/layout/nav.config";
 import { PageShell } from "@/components/layout/PageShell";
+import { MaintenanceGuardMessage } from "@/components/admin/MaintenanceGuardMessage";
 import { WipeCoursesCard } from "@/components/admin/WipeCoursesCard";
 import { WipeParticipationsCard } from "@/components/admin/WipeParticipationsCard";
 
@@ -15,6 +16,9 @@ import { WipeParticipationsCard } from "@/components/admin/WipeParticipationsCar
  *
  * Aucune garde ici : le `layout.tsx` de `/admin` couvre ses sous-routes, chaque
  * carte teste son propre pouvoir, et la protection réelle est côté serveur.
+ * `MaintenanceGuardMessage` couvre le seul trou que ça laisse : une session
+ * qui porte un pouvoir d'admin sans aucun des deux `*:wipe_all` ne doit pas
+ * voir un écran muet.
  */
 export default function AdminMaintenancePage() {
   return (
@@ -25,6 +29,7 @@ export default function AdminMaintenancePage() {
           <h2 id="zone-de-dangers" className="font-heading text-lg text-destructive">
             Zone de dangers — gestes sans retour
           </h2>
+          <MaintenanceGuardMessage />
           <WipeParticipationsCard />
           <WipeCoursesCard />
         </section>
