@@ -194,11 +194,111 @@ describe("RankingEvolutionChart", () => {
   it("mesure les abscisses des libellés d'étape sur la largeur du SVG, pas sur celle du conteneur", () => {
     const { container } = renderChart();
 
+    // jsdom résout entièrement un calc() qui ne mélange que des %, contrairement
+    // au cas marqueur (%/px) : `calc(10% - 10%)` devient `calc(0%)`, pas une
+    // sous-chaîne cherchable. On lit donc la valeur, pas le texte brut.
+    const pctOf = (calc: string) => Number(calc.match(/calc\(([\d.]+)%\)/)![1]);
     const label = container.querySelector("[data-step-label]") as HTMLElement;
-    expect(pxTerm(label.style.left)).toBe(-40);
+    // STEPS[0] sur 5 étapes : centre à 10 %, moitié d'entraxe = 10 % → 0 %.
+    expect(pctOf(label.style.left)).toBeCloseTo(0, 3);
 
     const row = label.parentElement as HTMLElement;
     expect(row.style.left).toBe("40px");
     expect(row.style.right).toBe("0px");
+  });
+
+  it("borne la boîte du libellé d'étape à l'entraxe, jamais à une largeur fixe", () => {
+    // Régression du fix bloquant #480 : des boîtes de 80px fixes se
+    // chevauchaient de 31px sur cinq étapes à 375px de large (iPhone SE).
+    // La largeur doit suivre 100 % / N, pas une constante.
+    const pctOf = (calc: string) => Number(calc.match(/calc\(([\d.]+)%\)/)![1]);
+
+    const { container: five } = renderChart();
+    const label5 = five.querySelector("[data-step-label]") as HTMLElement;
+    expect(pctOf(label5.style.width)).toBeCloseTo(100 / 5, 3);
+
+    const { container: three } = render(
+      <RankingEvolutionChart steps={STEPS.slice(0, 3)} eventType="triathlon-m" />,
+    );
+    const label3 = three.querySelector("[data-step-label]") as HTMLElement;
+    expect(pctOf(label3.style.width)).toBeCloseTo(100 / 3, 3);
+
+    // Largeur identique pour toutes les boîtes d'un même graphique : elles se
+    // partagent l'entraxe à parts égales, pas de largeur par libellé.
+    const allWidths5 = [...five.querySelectorAll("[data-step-label]")].map(
+      (el) => (el as HTMLElement).style.width,
+    );
+    expect(new Set(allWidths5).size).toBe(1);
+  });
+
+  it("écrête le nom de l'étape à l'ellipse, mais jamais la position", () => {
+    // Un libellé de source peut faire trois mots en capitales
+    // (`splitColumnsFromKeys` → `sourceEntry`, cf. « COURSE A PIED ») : c'est
+    // lui qui s'écrête, jamais la position — seule information que ce lot a
+    // justement rendue accessible sans survol (WCAG 1.4.13).
+    const { container } = render(
+      <RankingEvolutionChart
+        steps={[{ segment: "COURSE A PIED", scratch_position: 12, segment_position: 9 }]}
+        eventType="format-inconnu"
+      />,
+    );
+
+    const label = container.querySelector("[data-step-label]") as HTMLElement;
+    const name = label.querySelector("span") as HTMLElement;
+    const position = label.querySelector("b") as HTMLElement;
+
+    expect(name.textContent).toBe("COURSE A PIED");
+    expect(name.style.overflow).toBe("hidden");
+    expect(name.style.textOverflow).toBe("ellipsis");
+    expect(name.style.whiteSpace).toBe("nowrap");
+
+    expect(position.textContent).toBe("12");
+    expect(position.style.overflow).not.toBe("hidden");
+    expect(position.style.textOverflow).not.toBe("ellipsis");
+  });
+
+  it("sort l'infobulle du SVG, en HTML positionné", async () => {
+    // Fix B (#480) : un <text fontSize={12}> dans un viewBox étiré à 856px
+    // (laptop 1280, rail déplié) tombe à 10,3px, sous le plancher de 11px, et
+    // les glyphes sont compressés à 86 % horizontalement.
+    const user = userEvent.setup();
+    const { container } = renderChart();
+
+    await user.hover(container.querySelector('[data-role="scratch"][data-step="bike"]')!);
+
+    const infobulle = screen.getByRole("tooltip");
+    expect(infobulle.tagName).toBe("DIV");
+    expect(container.querySelector("svg")!.contains(infobulle)).toBe(false);
+    expect(infobulle.style.pointerEvents).toBe("none");
+  });
+
+  it("nomme le graphique par un récapitulatif chiffré, sur le patron « X : liste. »", () => {
+    // Fix D (#480) : seul récapitulatif du lot à ne rendre aucun chiffre — les
+    // cinq autres graphiques suivent « X : liste. » ou « X, de A à B. ».
+    const { container } = renderChart();
+
+    const svg = container.querySelector("svg")!;
+    expect(svg.getAttribute("aria-label")).toBe(
+      "Évolution du classement : natation 91e, t1 91e, vélo 74e, t2 63e, course 56e.",
+    );
+  });
+
+  it("affiche un état vide sans NaN quand l'épreuve ne publie aucune étape classée", () => {
+    // Fix C (#480) : Math.min(...[]) === Infinity, l'échelle produit du NaN.
+    // Atteignable : le backend saute toute étape sans rang.
+    render(<RankingEvolutionChart steps={[]} eventType="triathlon-m" />);
+
+    expect(screen.queryByRole("img")).toBeNull();
+    expect(document.body.textContent).not.toMatch(/NaN/);
+    expect(screen.getByText("Classement par étape indisponible")).toBeTruthy();
+  });
+
+  it("colore la légende avec un token déclaré dans la palette", () => {
+    // Fix E (#480) : `--tcn-text-secondary` n'existe dans aucun `:root` de
+    // `app/globals.css` — `color` retombait donc sur l'encre pleine héritée.
+    const { container } = renderChart();
+
+    const legende = container.querySelector("[data-legend]") as HTMLElement;
+    expect(legende.style.color).toBe("var(--tcn-text-muted)");
   });
 });
