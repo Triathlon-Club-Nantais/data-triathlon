@@ -9,6 +9,7 @@ import { VersionFooter } from "@/components/layout/VersionFooter";
 import { Toaster } from "@/components/ui/sonner";
 import { FeedbackButton } from "@/components/tcn/FeedbackButton";
 import { CLUB_NAME } from "@/lib/club";
+import { NAV_WIDTH_COOKIE } from "@/lib/nav-cookies";
 
 // TCN Design System — Anton (titres/chiffres), Barlow (UI/corps),
 // Barlow Semi Condensed (eyebrows, temps, tabulaires).
@@ -56,7 +57,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // client partagent déjà la bonne largeur — plus de bascule 76 px → 288 px
   // après coup.
   const jar = await cookies();
-  const initialExpanded = jar.get("tcn-nav-expanded")?.value === "1";
+  const initialExpanded = jar.get(NAV_WIDTH_COOKIE)?.value === "1";
 
   return (
     <html

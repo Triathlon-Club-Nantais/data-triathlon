@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { ApiError } from "@/lib/api/client";
 import { errorDetail, toQuery } from "@/lib/api/query";
+import { NAV_WIDTH_COOKIE } from "@/lib/nav-cookies";
 import type {
   AthleteDetail,
   AthleteSeasonActivity,
@@ -38,6 +39,21 @@ export type FetchOpts = { revalidateSeconds?: number };
 export const SHORT_REVALIDATE_SECONDS = 30;
 
 /**
+ * Construit l'en-tête `cookie` relayé au backend, **hors** `NAV_WIDTH_COOKIE`
+ * (#482, NAV-3) : purement une préférence d'affichage côté client, jamais lue
+ * par l'API, mais qui ferait sinon partie de la clé du Data Cache (#526) —
+ * exactement la fenêtre de partage inter-visiteurs que #352 cherche à
+ * préserver le plus possible.
+ */
+function cookieHeader(jar: Awaited<ReturnType<typeof cookies>>): string {
+  return jar
+    .getAll()
+    .filter((c) => c.name !== NAV_WIDTH_COOKIE)
+    .map((c) => `${c.name}=${c.value}`)
+    .join("; ");
+}
+
+/**
  * Relaie les cookies entrants, **y compris pour les routes publiques** (#526).
  *
  * Cookie-libre jusqu'à #526, au nom du prérendu statique des six pages
@@ -60,7 +76,7 @@ async function serverFetch<T>(path: string, opts: FetchOpts = {}): Promise<T> {
     ...(opts.revalidateSeconds !== undefined
       ? { next: { revalidate: opts.revalidateSeconds } }
       : { cache: "no-store" }),
-    headers: { cookie: jar.toString() },
+    headers: { cookie: cookieHeader(jar) },
   });
   if (!res.ok) {
     // `ApiError` plutôt qu'un `Error` nu : sans le statut, un appelant ne peut
@@ -87,7 +103,7 @@ async function serverFetchAuthed<T>(path: string): Promise<T | null> {
   const jar = await cookies();
   const res = await fetch(`${BASE}${path}`, {
     cache: "no-store",
-    headers: { cookie: jar.toString() },
+    headers: { cookie: cookieHeader(jar) },
   });
   if (res.status === 401) return null;
   if (!res.ok) {
@@ -113,7 +129,7 @@ async function serverFetchAuthedRaw(path: string): Promise<boolean> {
   const jar = await cookies();
   const res = await fetch(`${BASE}${path}`, {
     cache: "no-store",
-    headers: { cookie: jar.toString() },
+    headers: { cookie: cookieHeader(jar) },
   });
   if (res.status === 401) return false;
   if (!res.ok) {

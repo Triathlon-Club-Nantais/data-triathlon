@@ -12,6 +12,7 @@ import { useNavBadges } from "@/lib/queries/nav-badges";
 import { AthletePicker, ATHLETE_CHANGED_EVENT, clearAthlete, nomComplet, readAthlete, writeAthlete, type PickedAthlete } from "./AthletePicker";
 import { NAV, ROLE, estVisible, type NavItem, type NavSection } from "./nav.config";
 import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
+import { NAV_WIDTH_COOKIE } from "@/lib/nav-cookies";
 
 /**
  * Navigation de l'application — rail compact ↔ panneau déplié (proto
@@ -32,8 +33,6 @@ import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
 /** Entrée rendue : une destination livrée, donc porteuse d'un `href`. */
 type Destination = NavItem & { href: string; count?: number };
 type SectionRendue = Omit<NavSection, "items"> & { items: Destination[] };
-
-const STORE_NAV = "tcn-nav-expanded";
 
 export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean }) {
   const pathname = usePathname();
@@ -92,7 +91,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
     // peinture — jamais relayé à l'API, donc sans effet sur le Data Cache
     // (#352). Un an de `max-age` : c'est une préférence d'affichage, pas une
     // session à faire expirer.
-    document.cookie = `${STORE_NAV}=${next ? "1" : "0"}; path=/; max-age=31536000; SameSite=Lax`;
+    document.cookie = `${NAV_WIDTH_COOKIE}=${next ? "1" : "0"}; path=/; max-age=31536000; SameSite=Lax`;
   }
 
   // La nav ne distingue qu'anonyme et connecté : c'est le seul échelon que la
