@@ -189,7 +189,10 @@ describe("AppNav — doublon de prefetch après resynchro localStorage (#428)", 
     // aussi, une entrée « Résultats ».
     const rail = screen.getByRole("navigation", { name: "Navigation principale" });
     expect(within(rail).getByRole("link", { name: "Résultats" })).toBeInTheDocument();
-    expect(montages.get("/resultats")).toBe(1);
+    // 2, pas 1 : la barre basse mobile (#482, NAV-4) monte son propre `Link`
+    // vers la même route, en plus de celui du rail — même limite assumée que
+    // le logo/bouton d'ajout du pied mobile (frontend/AGENTS.md, « #428 »).
+    expect(montages.get("/resultats")).toBe(2);
   });
 
   it("garde l'entrée montée d'un pliage et d'un dépliage à la main", async () => {
@@ -199,7 +202,9 @@ describe("AppNav — doublon de prefetch après resynchro localStorage (#428)", 
     await userEvent.click(screen.getByRole("button", { name: "Déplier la navigation" }));
     await userEvent.click(screen.getByRole("button", { name: "Replier la navigation" }));
 
-    expect(montages.get("/resultats")).toBe(1);
+    // 2 : le rail (une seule fois, l'objet de ce test) + la barre basse
+    // mobile, toujours montée (#482, NAV-4).
+    expect(montages.get("/resultats")).toBe(2);
   });
 
   it("remonte l'entrée d'une catégorie à plusieurs destinations à chaque dépliage — limite assumée du correctif", async () => {
@@ -223,8 +228,9 @@ describe("AppNav — doublon de prefetch après resynchro localStorage (#428)", 
     await userEvent.click(screen.getByRole("button", { name: "Replier la navigation" }));
     await userEvent.click(screen.getByRole("button", { name: "Déplier la navigation" }));
     expect(montages.get("/admin/fournisseurs")).toBe(2);
-    // La racine, elle, tient : c'est ce que le correctif garantit.
-    expect(montages.get("/resultats")).toBe(1);
+    // La racine, elle, tient : c'est ce que le correctif garantit. 2, pas 1 :
+    // la barre basse mobile (#482, NAV-4) porte, elle aussi, « Résultats ».
+    expect(montages.get("/resultats")).toBe(2);
   });
 
   it("ne prefetche pas le logo du rail déplié, qui double la route de « Tableau de bord »", async () => {
@@ -498,8 +504,11 @@ describe("AppNav — arborescence", () => {
     afficher(null);
     await deplier();
 
-    expect(screen.getByRole("link", { name: "Tableau de bord" })).toHaveAttribute("href", "/dashboard");
-    expect(screen.getByRole("link", { name: "Résultats" })).toHaveAttribute("href", "/resultats");
+    // Scopé au rail : la barre basse mobile (#482, NAV-4) porte les mêmes
+    // libellés pour les mêmes destinations.
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    expect(within(rail).getByRole("link", { name: "Tableau de bord" })).toHaveAttribute("href", "/dashboard");
+    expect(within(rail).getByRole("link", { name: "Résultats" })).toHaveAttribute("href", "/resultats");
 
     // Une entrée `soon` reste déclarée dans `nav.config.ts` — feuille de route
     // de la navigation — mais n'est plus rendue nulle part.
@@ -541,8 +550,10 @@ describe("AppNav — arborescence", () => {
   it("marque l'entrée courante avec aria-current=\"page\"", async () => {
     afficher(null);
     await deplier();
-    expect(screen.getByRole("link", { name: "Tableau de bord" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "Résultats" })).not.toHaveAttribute("aria-current");
+
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    expect(within(rail).getByRole("link", { name: "Tableau de bord" })).toHaveAttribute("aria-current", "page");
+    expect(within(rail).getByRole("link", { name: "Résultats" })).not.toHaveAttribute("aria-current");
   });
 
   it("cache Administration à un anonyme et la montre à un connecté", async () => {
@@ -593,7 +604,8 @@ describe("AppNav — arborescence", () => {
     afficher(SESSION);
     await deplier();
 
-    await waitFor(() => expect(screen.getByText("Résultats")).toBeInTheDocument());
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    await waitFor(() => expect(within(rail).getByText("Résultats")).toBeInTheDocument());
     expect(
       screen.queryByRole("link", { name: "Fournisseurs en attente" }),
     ).not.toBeInTheDocument();
@@ -615,7 +627,10 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
   it("cache la section à un connecté sans pouvoir", async () => {
     afficher(SESSION);
     await deplier();
-    await waitFor(() => expect(screen.getByText("Résultats")).toBeInTheDocument());
+    // Scopé au rail : la barre basse mobile (#482, NAV-4) porte, elle aussi,
+    // un « Résultats ».
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    await waitFor(() => expect(within(rail).getByText("Résultats")).toBeInTheDocument());
     expect(screen.queryByText("Gestion des utilisateurs")).not.toBeInTheDocument();
     // « Administration » disparaît de même depuis qu'« Épreuves » porte un
     // pouvoir : c'était la seule entrée de la section à n'en porter aucun,
@@ -877,5 +892,40 @@ describe("AppNav — infobulles du rail replié remplacent les title (#482, NAV-
 
     await userEvent.hover(lien);
     expect(await screen.findByRole("tooltip", { name: "Tableau de bord" })).toBeInTheDocument();
+  });
+});
+
+describe("AppNav — barre basse mobile (#482, NAV-4)", () => {
+  it("porte les trois destinations publiques, avec libellé visible", () => {
+    afficher(null);
+
+    const barre = screen.getByRole("navigation", { name: "Navigation" });
+    expect(within(barre).getByRole("link", { name: "Tableau de bord" })).toHaveAttribute("href", "/dashboard");
+    expect(within(barre).getByRole("link", { name: "Résultats" })).toHaveAttribute("href", "/resultats");
+    expect(within(barre).getByRole("link", { name: "Athlètes par saison" })).toHaveAttribute(
+      "href",
+      "/club/athletes",
+    );
+  });
+
+  it("marque la destination courante avec aria-current=\"page\"", () => {
+    afficher(null);
+
+    const barre = screen.getByRole("navigation", { name: "Navigation" });
+    expect(within(barre).getByRole("link", { name: "Tableau de bord" })).toHaveAttribute("aria-current", "page");
+    expect(within(barre).getByRole("link", { name: "Résultats" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("ne porte aucune destination privée, connecté ou non", async () => {
+    // Deux pouvoirs, pas un seul : une seule destination livrée ferait rendre
+    // « Administration » en lien direct plutôt qu'en tuile de catégorie
+    // (#482, NAV-2). Attend la tuile par son nom accessible, pas par un texte
+    // visible : repliée, seule l'icône est rendue, le libellé ne vit que
+    // dans l'`aria-label` du bouton.
+    afficher(habilite("pending_providers:read", "batch:run"));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Administration" })).toBeInTheDocument());
+
+    const barre = screen.getByRole("navigation", { name: "Navigation" });
+    expect(within(barre).queryByRole("link", { name: "Fournisseurs en attente" })).not.toBeInTheDocument();
   });
 });

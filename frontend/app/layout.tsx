@@ -79,7 +79,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               `VersionFooter` vit sous le **contenu**, pas sous le rail. */}
           <div className="flex min-h-screen flex-col md:flex-row">
             <AppNav initialExpanded={initialExpanded} />
-            <div className="flex min-w-0 flex-1 flex-col">
+            <div className="flex min-w-0 flex-1 flex-col pb-[var(--tcn-nav-bottom)] md:pb-0">
               <main id="contenu" tabIndex={-1} className="flex-1">
                 {children}
               </main>

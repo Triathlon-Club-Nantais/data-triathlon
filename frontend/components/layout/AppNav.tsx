@@ -116,6 +116,11 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
     // « Club », dont les deux entrées sont à venir (#242).
     .filter((s) => s.items.length > 0);
 
+  // Barre basse mobile (#482, NAV-4) : jamais codé en dur — dérivé des
+  // sections dont `minRole` vaut `ROLE.ANON`, pour rester aligné avec
+  // `nav.config.ts` au fil des livraisons futures (ex. « Carte », #10/#28).
+  const publicItems = sections.filter((s) => s.minRole === ROLE.ANON).flatMap((s) => s.items);
+
   /**
    * Un `href` de la nav désigne **un** écran, pas une famille : c'est pourquoi
    * la comparaison est une égalité et non un préfixe. `startsWith` allumait
@@ -298,6 +303,45 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
           <Plus size={20} />
         </Link>
       </header>
+
+      {/* ── Barre basse mobile — 3 destinations publiques (#482, NAV-4) ── */}
+      <nav
+        aria-label="Navigation"
+        className="fixed inset-x-0 bottom-0 z-30 flex md:hidden"
+        style={{
+          height: "var(--tcn-nav-bottom)",
+          background: "var(--tcn-surface)",
+          borderTop: "1px solid var(--tcn-border-strong)",
+        }}
+      >
+        {publicItems.map((it) => {
+          const Icon = it.icon;
+          const actif = isActive(it.href);
+          return (
+            <Link
+              key={it.id}
+              href={it.href}
+              aria-current={actif ? "page" : undefined}
+              style={{
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 2,
+                textDecoration: "none",
+                fontFamily: "var(--tcn-font-cond)",
+                fontWeight: 700,
+                fontSize: 11,
+                color: actif ? "var(--tcn-orange)" : "var(--tcn-text-muted)",
+              }}
+            >
+              {Icon && <Icon size={20} />}
+              <span>{it.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
 
       {/* ── Tiroir mobile : le panneau déplié, à l'identique ── */}
       <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
