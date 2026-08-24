@@ -80,11 +80,20 @@ describe("échelle unique des disciplines", () => {
     }
   });
 
-  it("sépare deux familles voisines d'au moins 1,6:1", () => {
+  it("sépare d'au moins 1,6:1 deux familles voisines dans l'ordre complet", () => {
     // C'est la seule garde de l'arbitrage de la spec : la palette ne permet pas
     // de séparer les 15 paires, seulement les 5 qui se **touchent** dans la
     // barre empilée. Réordonner FAMILY_ORDER ou retoucher un token casse cette
     // séparation sans qu'aucun autre test ne bronche.
+    //
+    // Ce que ce test ne dit pas, et qu'aucun ne peut dire :
+    // `aggregateDisciplines` n'émet que les familles présentes dans les
+    // données, donc l'adjacence **rendue** dépend du club et de la saison. Sans
+    // « Swim & Run », Triathlon et Duathlon se touchent à 1,45:1 ; sans
+    // « Run & Bike », Aquathlon et Autres à 1,11:1. Ces paires-là ne sont pas
+    // rattrapables dans la palette (cf. l'en-tête de `sport-colors.ts`) : ce
+    // qui tient WCAG 1.4.1 pour tout sous-ensemble est le filet, le nom du
+    // segment et la légende, gardés par `DisciplineBar.test.tsx`.
     const colors = FAMILY_ORDER.map(
       (name) => evalue(disciplineFamily(REPRESENTATIVE_TYPE[name]).color).hex,
     );

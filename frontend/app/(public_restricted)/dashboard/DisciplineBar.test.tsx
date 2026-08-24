@@ -46,7 +46,15 @@ describe("DisciplineBar", () => {
     const { container } = render(<DisciplineBar disciplines={TROIS} />);
     const segments = [...container.querySelectorAll("[data-segment]")] as HTMLElement[];
     expect(segments.map((s) => s.style.width)).toEqual(["75%", "24%", "1%"]);
-    expect(segments[0].style.outline).toContain("var(--tcn-surface)");
+    // **Tous** les segments, pas seulement le premier : le filet est ce qui
+    // tient WCAG 1.4.1 quand la couleur ne sépare rien, et c'est le cas courant
+    // — l'échelle ne garantit 1,6:1 qu'entre les six familles au complet, or
+    // `aggregateDisciplines` n'émet que celles qui sont présentes. Ici même :
+    // Triathlon et Duathlon se touchent à 1,45:1, faute de « Swim & Run » entre
+    // eux (mesuré, cf. l'en-tête de `lib/sport-colors.ts`).
+    for (const segment of segments) {
+      expect(segment.style.outline).toContain("var(--tcn-surface)");
+    }
   });
 
   it("écrit le libellé dans l'encre de la famille, pas toujours en blanc (#480)", () => {
