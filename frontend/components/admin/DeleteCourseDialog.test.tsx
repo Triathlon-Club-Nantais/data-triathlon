@@ -149,7 +149,7 @@ describe("DeleteCourseDialog", () => {
 
     expect(await screen.findByText(/ampleur.*n'a pas pu être|impossible de chiffrer/i))
       .toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /supprimer définitivement/i }))
-      .not.toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /supprimer définitivement/i }))
+      .toBeDisabled();
   });
 });
