@@ -75,7 +75,7 @@ export function PodiumsList({ participations }: { participations: Participation[
                 <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--tcn-text-faint)]">
                   <span className="truncate">{formatEventName(p.course.name, p.course.is_relay)}</span>
                   <SportBadge type={p.course.event_type} />
-                  <span className="micro-label text-[9px]">{podiumScopeLabel(best.scope)}</span>
+                  <span className="micro-label">{podiumScopeLabel(best.scope)}</span>
                 </div>
               </div>
               {p.total_time && (

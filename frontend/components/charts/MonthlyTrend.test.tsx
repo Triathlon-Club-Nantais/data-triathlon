@@ -47,4 +47,39 @@ describe("MonthlyTrend", () => {
     const bars = [...container.querySelectorAll(".rounded-t-sm")];
     expect(bars.length).toBe(12);
   });
+
+  it("affiche la valeur de chaque barre en permanence, sans survol", () => {
+    // WCAG 1.4.13 : `opacity-0` + `group-hover` et l'attribut `title` n'existent
+    // ni l'un ni l'autre au doigt — sur téléphone, aucune barre ne portait de
+    // chiffre.
+    const { container } = render(<MonthlyTrend byMonth={{ "2026-01": 7, "2026-02": 20 }} />);
+    expect(screen.getByText("7")).toBeVisible();
+    expect(screen.getByText("20")).toBeVisible();
+    expect(container.querySelector(".opacity-0")).toBeNull();
+    expect(container.querySelector("[title]")).toBeNull();
+  });
+
+  it("n'écrit qu'un mois sur deux, en gardant le plus récent", () => {
+    const byMonth = {
+      "2025-09": 1, "2025-10": 2, "2025-11": 3, "2025-12": 4,
+      "2026-01": 5, "2026-02": 6,
+    };
+    const { container } = render(<MonthlyTrend byMonth={byMonth} />);
+    const mois = [...container.querySelectorAll("[data-month-label]")].map(
+      (n) => n.textContent,
+    );
+    // Une colonne porte toujours son span, vide ou non : elle réserve la place qui
+    // aligne les barres de la rangée. Un mois sur deux est écrit, et c'est le plus
+    // récent qui l'est toujours — donc on compte les libellés **non vides**.
+    expect(mois.length).toBe(6);
+    expect(mois.filter((m) => m !== "").length).toBe(3);
+    expect(mois.at(-1)).not.toBe("");
+  });
+
+  it("récapitule la tendance pour un lecteur d'écran", () => {
+    render(<MonthlyTrend byMonth={{ "2026-01": 7, "2026-02": 20 }} />);
+    expect(screen.getByRole("img")).toHaveAccessibleName(
+      "Activité mensuelle sur 2 mois, de 7 à 20 dossards.",
+    );
+  });
 });
