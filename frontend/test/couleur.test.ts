@@ -23,7 +23,7 @@ describe("arithmétique OKLab", () => {
 
 describe("évaluation de color-mix()", () => {
   it("suit les var() jusqu'au littéral", () => {
-    expect(evalue("var(--tri)").hex).toBe(resolve("--tri").toLowerCase());
+    expect(evalue("var(--run)").hex).toBe(resolve("--run").toLowerCase());
   });
 
   it("rend un aplat mélangé à transparent comme un alpha, sans toucher la couleur", () => {

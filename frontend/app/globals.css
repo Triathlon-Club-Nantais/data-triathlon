@@ -59,8 +59,6 @@
   --color-swim: var(--tcn-ink);
   --color-bike: var(--tcn-orange-300);
   --color-run: var(--tcn-orange);
-  --color-violet: var(--tcn-ink-3);
-  --color-tri: var(--tcn-orange);
 
   /* Médailles (réutilise la palette TCN) */
   --color-gold: var(--tcn-orange);
@@ -144,14 +142,14 @@
   --tcn-grey-400:      #b0aaa0;
   --tcn-grey-300:      #d6d1c8;
 
-  /* Échelle disciplines — alias sémantiques consommés par lib/sport-colors.
-     Doublés du bloc @theme (qui n'expose que --color-*, utilitaires Tailwind)
-     parce que `var(--tri)` etc. ne résout rien sans définition sur :root. */
-  --tri:    var(--tcn-orange);
+  /* Couleurs des **segments** d'une course (splits), consommées par
+     lib/utils/splits.ts. Ce ne sont plus des couleurs de discipline : depuis
+     #480, l'échelle des disciplines vit entièrement dans lib/sport-colors.ts et
+     n'utilise que des tokens `--tcn-*`. `--tri` et `--violet` ont disparu avec
+     leur dernier consommateur. */
   --bike:   var(--tcn-orange-300);
   --swim:   var(--tcn-ink);
   --run:    var(--tcn-orange);
-  --violet: var(--tcn-ink-3);
 
   /* Part d'encre mêlée à la couleur de discipline pour en faire un **libellé**
      (`tintedStyle`, segments de ResultCard). Bornée des deux côtés : assez pour
