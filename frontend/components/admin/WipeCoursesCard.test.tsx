@@ -136,9 +136,7 @@ describe("WipeCoursesCard (#384, suite)", () => {
     );
 
     expect(await screen.findByText(/ampleur.*n'a pas pu être chiffrée/i)).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /supprimer définitivement/i }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /supprimer définitivement/i })).toBeDisabled();
   });
 
   it("le bouton de confirmation reste désactivé sans avoir tapé SUPPRIMER", async () => {
@@ -202,6 +200,20 @@ describe("WipeCoursesCard (#384, suite)", () => {
     await waitFor(() =>
       expect(toastError).toHaveBeenCalledWith("Vous n'avez pas les droits nécessaires."),
     );
+  });
+
+  it("oublie le mot tapé si on renonce puis rouvre", async () => {
+    getSession.mockResolvedValue(session(["courses:wipe_all"]));
+    getCoursesWipeImpact.mockResolvedValue({ courses: 53, participations: 412, athletes: 37 });
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /Supprimer toutes les épreuves/ }));
+    await userEvent.type(await screen.findByLabelText(/Tapez/), "SUPPRIMER");
+    await userEvent.click(screen.getByRole("button", { name: "Renoncer" }));
+    await userEvent.click(await screen.findByRole("button", { name: /Supprimer toutes les épreuves/ }));
+    expect(
+      (await screen.findByRole("button", { name: "Supprimer définitivement" })).hasAttribute("disabled"),
+    ).toBe(true);
   });
 
   it("n'offre aucune annulation : le geste est irréversible", async () => {
