@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, act } from "@testing-library/react";
+import { render, screen, waitFor, act, within } from "@testing-library/react";
 import type { Participation } from "@/lib/types";
 
 let searchParams = new URLSearchParams();
@@ -71,9 +71,13 @@ describe("MaSaison — état rempli", () => {
 
     render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
 
-    expect(await screen.findByText(/4 épreuves/)).toBeInTheDocument();
-    expect(screen.getByText(/1 podium/)).toBeInTheDocument();
-    expect(screen.getByText(/32/)).toBeInTheDocument();
+    // Portée sur la ligne visible : la région d'annonce (#477) reprend le
+    // même texte en sr-only dès qu'elle s'affiche, ce qui recoupe une requête
+    // non scopée (patron de `StatCardsRank.test.tsx`).
+    const ligneVisible = await screen.findByTestId("ma-saison-ligne");
+    expect(within(ligneVisible).getByText(/4 épreuves/)).toBeInTheDocument();
+    expect(within(ligneVisible).getByText(/1 podium/)).toBeInTheDocument();
+    expect(within(ligneVisible).getByText(/32/)).toBeInTheDocument();
   });
 
   it("transmet les filtres du tableau de bord à l'API", async () => {
@@ -111,12 +115,13 @@ describe("MaSaison — état rempli", () => {
     const { rerender } = render(
       <MaSaison clubEvents={32} seasons="2025" federalOnly={true} />,
     );
-    expect(await screen.findByText(/0 podium/)).toBeInTheDocument();
+    const ligneVisible = await screen.findByTestId("ma-saison-ligne");
+    expect(within(ligneVisible).getByText(/0 podium/)).toBeInTheDocument();
 
     searchParams = new URLSearchParams("rank=category");
     rerender(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
 
-    expect(await screen.findByText(/1 podium/)).toBeInTheDocument();
+    expect(await within(ligneVisible).findByText(/1 podium/)).toBeInTheDocument();
     expect(getAthlete).toHaveBeenCalledTimes(1);
   });
 
@@ -128,7 +133,8 @@ describe("MaSaison — état rempli", () => {
 
     act(() => writeAthlete(ATHLETE));
 
-    expect(await screen.findByText(/1 épreuve/)).toBeInTheDocument();
+    const ligneVisible = await screen.findByTestId("ma-saison-ligne");
+    expect(within(ligneVisible).getByText(/1 épreuve/)).toBeInTheDocument();
   });
 });
 
@@ -147,11 +153,11 @@ describe("MaSaison — états dégradés", () => {
     getAthlete.mockResolvedValue({ athlete: ATHLETE, participations: [] });
     render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
 
-    expect(await screen.findByText(/aucune épreuve/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /ajouter un résultat/i })).toHaveAttribute(
-      "href",
-      "/ajouter",
-    );
+    const ligneVisible = await screen.findByTestId("ma-saison-ligne");
+    expect(within(ligneVisible).getByText(/aucune épreuve/i)).toBeInTheDocument();
+    expect(
+      within(ligneVisible).getByRole("link", { name: /ajouter un résultat/i }),
+    ).toHaveAttribute("href", "/ajouter");
   });
 
   it("garde le nom et le lien quand le fetch échoue", async () => {
@@ -162,6 +168,49 @@ describe("MaSaison — états dégradés", () => {
     expect(screen.getByRole("link", { name: /mon athlète/i })).toHaveAttribute(
       "href",
       "/athletes/12",
+    );
+  });
+});
+
+// WCAG 4.1.3 (#477) : `?rank=` ne navigue pas (`history.pushState`, #328),
+// donc rien n'annonce la bascule à un lecteur d'écran sans cette région. Muette
+// à la première apparition, pour ne pas transformer chaque chargement de page
+// en bruit — patron vérifié séparément de la ligne visible, comme
+// `StatCardsRank.test.tsx` (`getByRole("status")`, pas une requête de texte
+// partagée avec le contenu visible).
+describe("MaSaison — annonce (#477)", () => {
+  beforeEach(() => {
+    window.localStorage.setItem("tcn-athlete", JSON.stringify(ATHLETE));
+  });
+
+  it("reste silencieuse à la première apparition", async () => {
+    getAthlete.mockResolvedValue({
+      athlete: ATHLETE,
+      participations: [ligne(1, { rank_overall: 2 })],
+    });
+
+    render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
+    await screen.findByTestId("ma-saison-ligne");
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("annonce le nouveau résumé après un changement de ?rank=", async () => {
+    getAthlete.mockResolvedValue({
+      athlete: ATHLETE,
+      participations: [ligne(1, { rank_overall: 40, rank_category: 2 })],
+    });
+    const { rerender } = render(
+      <MaSaison clubEvents={32} seasons="2025" federalOnly={true} />,
+    );
+    await screen.findByTestId("ma-saison-ligne");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+
+    searchParams = new URLSearchParams("rank=category");
+    rerender(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
+
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(/1 podium/),
     );
   });
 });
