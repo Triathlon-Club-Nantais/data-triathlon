@@ -805,4 +805,38 @@ describe("RaceFinishers — ma ligne dans le classement (NAV-10, #503)", () => {
     const ligne = screen.getByText("Vous").closest("[role='button']") as HTMLElement;
     expect(ligne.style.background).toBe("var(--tcn-orange-08)");
   });
+
+  it("n'offre pas le saut quand aucun athlète n'est retenu", () => {
+    afficher();
+    expect(screen.queryByRole("button", { name: /Aller à ma ligne/ })).not.toBeInTheDocument();
+  });
+
+  it("cherche mon nom complet dans le classement, page courante indifférente", async () => {
+    writeAthlete({ id: 3, prenom: "Thomas", nom: "DNFGUY" });
+    searchParams = new URLSearchParams("page=4");
+    afficher({ page: 4 });
+
+    await userEvent.click(screen.getByRole("button", { name: "Aller à ma ligne — Thomas DNFGUY" }));
+
+    // La recherche remet à la page 1 : `naviguer` retire `page`.
+    expect(push).toHaveBeenCalledWith("/courses/1?q=Thomas+DNFGUY");
+  });
+
+  it("nomme l'athlète quand il ne figure pas sur l'épreuve, plutôt qu'un échec de recherche", async () => {
+    writeAthlete({ id: 99, prenom: "Marie", nom: "GAUDIN" });
+    searchParams = new URLSearchParams("q=Marie GAUDIN");
+    afficher({ participations: [], total: 0 });
+
+    expect(screen.getByText("Marie GAUDIN ne figure pas sur cette épreuve")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Voir tous les participants" }));
+    expect(push).toHaveBeenCalledWith("/courses/1");
+  });
+
+  it("garde l'état vide générique pour une recherche qui n'est pas la mienne", () => {
+    writeAthlete({ id: 99, prenom: "Marie", nom: "GAUDIN" });
+    searchParams = new URLSearchParams("q=zzz");
+    afficher({ participations: [], total: 0 });
+
+    expect(screen.getByText("Aucun athlète ne correspond à cette recherche")).toBeInTheDocument();
+  });
 });
