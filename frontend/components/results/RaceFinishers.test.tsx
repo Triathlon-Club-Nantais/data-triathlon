@@ -1254,6 +1254,17 @@ describe("RaceFinishers — filtres club et catégorie", () => {
     expect(screen.getByText(/s'excluent/)).toBeInTheDocument();
   });
 
+  it("nomme les filtres actifs dans l'annonce, pas seulement le décompte", () => {
+    // Deux filtres différents peuvent rendre le même nombre de lignes : le
+    // décompte seul ne dirait alors rien avoir changé (FR-032).
+    searchParams = new URLSearchParams("club=BLAIN+TRIATHLON&category=V2");
+    afficher();
+
+    const annonce = screen.getByRole("status").textContent ?? "";
+    expect(annonce).toContain("du club BLAIN TRIATHLON");
+    expect(annonce).toContain("en catégorie V2 — Vétéran 2");
+  });
+
   it("ne montre aucun repère quand aucun filtre de carte n'est actif", () => {
     searchParams = new URLSearchParams("");
     afficher();

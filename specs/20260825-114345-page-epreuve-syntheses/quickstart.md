@@ -26,6 +26,24 @@ worktree (`docs/dev-multi-worktree.md`). Les `curl` ci-dessous supposent `$API` 
 export API="$(jq -r .url .dev-backend.json)"
 ```
 
+> ⚠ **L'API de lecture est gardée par le mot de passe du site** (#509, #526), et la garde
+> est *fail-closed* : un `curl` nu rend `401 Vous devez être connecté…`, pas les données.
+> Deux façons de dérouler ce qui suit :
+>
+> - **par le navigateur**, en passant d'abord `/acces` — c'est le chemin réel du visiteur,
+>   et le seul qui vérifie aussi le rendu ;
+> - **hors réseau**, en montant l'app avec la garde neutralisée, ce qui vérifie les champs
+>   publiés sans se battre avec l'authentification :
+>
+> ```python
+> app = create_app()
+> app.dependency_overrides[require_site_access] = lambda: None
+> client = TestClient(app)
+> ```
+>
+> Vérifier aussi que la base de dev est à jour (`uv run alembic upgrade head`) : une
+> migration arrivée sur `main` la laisse sinon sur `no such column`.
+
 Base de dev : `backend/triathlon.db`, 72 épreuves et 11 629 participations. Les identifiants
 d'épreuve cités ci-dessous en viennent — sauf la course 214, qui est le cas de l'audit et
 vit en **production**, figée ici en fixture de test.
@@ -182,6 +200,28 @@ Un appel sans les nouveaux paramètres doit rendre une réponse identique aux cl
 d'origine. Six champs sont ajoutés, aucun retiré, aucune sémantique inversée.
 
 ---
+
+## Ce que le déroulé a effectivement montré (2026-08-25)
+
+Mesuré sur la base de dev, garde neutralisée :
+
+| Vérification | Attendu | Constaté |
+| --- | --- | --- |
+| c8 — filtre club `Usc caen triathlon` | le compte de la carte | **13 = 13** |
+| c8 — filtre `category=S2` | le compte de la carte | **215 = 215** |
+| c8 — ligne TCN (via `scope=club`) | le compte TCN de la carte | **15 = 15** |
+| c8 — cumul club + catégorie | intersection | 1 |
+| c8 — `club=CLUB INEXISTANT` | 200 et sélection vide | **HTTP 200, total 0** |
+| c27 — barre « Autres » | le reste des catégories | **Autres (163)** sur 546 |
+| c8 — pied des clubs | `clubs_total − 9` | **« et 164 autres clubs »** |
+| c47 — aucun club renseigné | en-tête masqué | **0/0, pas de pied** |
+| c47 — médiane d'écart | > 1 %, donc note d'épreuve | **+1,69 % sur 681 lignes** |
+| c8, c65 — médiane d'écart | < 1 %, donc silence | **+0,07 % et +0,34 %** |
+| Réponse sans les nouveaux paramètres | clés inchangées | `course, page, page_size, participations, total` |
+
+La troisième ligne est celle qui compte : elle vérifie le correctif de la revue de code.
+La carte fusionne les orthographes du TCN sous un libellé canonique qu'**aucune** ligne ne
+porte en base — un `?club=` en égalité exacte y rendait 0 sous une carte annonçant 15.
 
 ## Re-sonder les seuils
 
