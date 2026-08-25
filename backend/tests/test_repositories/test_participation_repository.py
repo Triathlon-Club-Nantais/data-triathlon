@@ -1290,3 +1290,78 @@ def test_les_filtres_absents_ne_filtrent_rien(db_session):
     )
 
     assert sans == avec_none == 4
+
+
+# ── club_podiums : lignes podium filtrées en SQL (#581) ─────────────────────
+
+
+def test_club_podiums_ne_rend_que_les_lignes_podium(db_session):
+    ath = athlete_repository.get_or_create(db_session, nom="A", prenom="A", club="TCN")
+    course = course_repository.get_or_create(
+        db_session, name="C", event_date=date(2026, 5, 16), event_type="triathlon-m"
+    )
+    podium = participation_repository.create(
+        db_session, athlete_id=ath.id, course_id=course.id, bib_number="1",
+        club="TCN", status="finisher", rank_overall=2, total_time="01:00:00",
+    )
+    hors_podium = participation_repository.create(
+        db_session, athlete_id=ath.id, course_id=course.id, bib_number="2",
+        club="TCN", status="finisher", rank_overall=40, total_time="01:10:00",
+    )
+    db_session.flush()
+
+    rows = participation_repository.club_podiums(db_session)
+
+    assert [r[0] for r in rows] == [podium.id]
+
+
+def test_club_podiums_inclut_une_ligne_sur_chacune_des_trois_portees(db_session):
+    ath = athlete_repository.get_or_create(db_session, nom="A", prenom="A", club="TCN")
+    course = course_repository.get_or_create(
+        db_session, name="C", event_date=date(2026, 5, 16), event_type="triathlon-m"
+    )
+    scratch = participation_repository.create(
+        db_session, athlete_id=ath.id, course_id=course.id, bib_number="1",
+        club="TCN", status="finisher", rank_overall=1,
+    )
+    genre = participation_repository.create(
+        db_session, athlete_id=ath.id, course_id=course.id, bib_number="2",
+        club="TCN", status="finisher", rank_gender=2,
+    )
+    categorie = participation_repository.create(
+        db_session, athlete_id=ath.id, course_id=course.id, bib_number="3",
+        club="TCN", status="finisher", rank_category=3,
+    )
+    db_session.flush()
+
+    ids = {r[0] for r in participation_repository.club_podiums(db_session)}
+    assert ids == {scratch.id, genre.id, categorie.id}
+
+
+def test_club_podiums_exclut_hors_club(db_session):
+    exterieur = athlete_repository.get_or_create(db_session, nom="D", prenom="D", club="Un Autre Club")
+    course = course_repository.get_or_create(
+        db_session, name="C", event_date=date(2026, 5, 16), event_type="triathlon-m"
+    )
+    participation_repository.create(
+        db_session, athlete_id=exterieur.id, course_id=course.id, bib_number="1",
+        club="Un Autre Club", status="finisher", rank_overall=1,
+    )
+    db_session.flush()
+
+    assert participation_repository.club_podiums(db_session) == []
+
+
+def test_club_podiums_respecte_federal_only(db_session):
+    ath = athlete_repository.get_or_create(db_session, nom="T", prenom="T", club="TCN")
+    course = course_repository.get_or_create(
+        db_session, name="Trail", event_date=date(2026, 5, 16), event_type="trail"
+    )
+    participation_repository.create(
+        db_session, athlete_id=ath.id, course_id=course.id, bib_number="1",
+        club="TCN", status="finisher", rank_overall=1,
+    )
+    db_session.flush()
+
+    assert participation_repository.club_podiums(db_session, federal_only=False) != []
+    assert participation_repository.club_podiums(db_session, federal_only=True) == []
