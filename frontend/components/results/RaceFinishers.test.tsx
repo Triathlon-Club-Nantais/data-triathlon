@@ -60,6 +60,7 @@ function p(over: Partial<Participation> & { id: number; nom: string }): Particip
     status: over.status ?? "finisher",
     is_relay: false,
     splits: over.splits ?? null,
+    split_gap_ratio: over.split_gap_ratio ?? null,
     created_at: null,
   } as Participation;
 }
@@ -79,8 +80,11 @@ function synthese(over: Partial<CourseSummary> = {}): CourseSummary {
     categories: [],
     categories_total: 0,
     clubs: [],
+    clubs_total: 0,
     histogram: null,
     split_keys: [],
+    split_gap_median: null,
+    split_gap_rows: 0,
     ...over,
   };
 }
@@ -1082,5 +1086,95 @@ describe("RaceFinishers — ma ligne dans le classement (NAV-10, #503)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Voir tous les participants" }));
 
     expect(push).toHaveBeenCalledWith("/courses/1");
+  });
+});
+
+// ── Marqueur d'écart des inters (#486, RES-10) ──────────────────────────────
+//
+// Les seuils viennent du sondage
+// `docs/superpowers/specs/2026-08-25-ecart-inters-total-sondage.md`, qui prime :
+// celui de 2 % proposé par l'audit signalait 8,02 % du classement, dont 285
+// lignes d'une épreuve saine. Une ligne n'est douteuse que face à **ses pairs**.
+
+describe("RaceFinishers — marqueur d'écart", () => {
+  const MARQUEUR = { name: /ne rendent pas compte/i };
+
+  function afficherEcart(participations: Participation[], over: Partial<CourseSummary>) {
+    return render(
+      <RaceFinishers
+        participations={participations}
+        summary={synthese(over)}
+        total={participations.length}
+        page={1}
+        pageSize={20}
+      />,
+    );
+  }
+
+  const ligne = (ratio: number | null, total = "01:00:00") =>
+    p({
+      id: 1,
+      nom: "ECART",
+      status: "finisher",
+      rank_overall: 1,
+      total_time: total,
+      split_gap_ratio: ratio,
+    });
+
+  it("marque une ligne qui s'écarte de plus de 5 % de la médiane de son épreuve", () => {
+    afficherEcart([ligne(0.2)], { split_gap_median: 0, split_gap_rows: 100 });
+
+    expect(screen.getByRole("img", MARQUEUR)).toBeInTheDocument();
+  });
+
+  it("ne marque pas une ligne alignée sur ses pairs, même à fort écart absolu", () => {
+    // Course 66 : 100 % des lignes à +7,44 %. Ce n'est pas la ligne qui est
+    // fausse, c'est la transition que le chronométreur ne publie pas.
+    afficherEcart([ligne(0.0744)], { split_gap_median: 0.0744, split_gap_rows: 13 });
+
+    expect(screen.queryByRole("img", MARQUEUR)).not.toBeInTheDocument();
+  });
+
+  it("ne marque rien sous dix lignes évaluables — la médiane n'y est pas une référence", () => {
+    afficherEcart([ligne(0.2)], { split_gap_median: 0, split_gap_rows: 9 });
+
+    expect(screen.queryByRole("img", MARQUEUR)).not.toBeInTheDocument();
+  });
+
+  it("ne marque rien sous soixante secondes d'écart, quel que soit le pourcentage", () => {
+    // 10 % d'un total de 5 minutes = 30 s : au-dessus du seuil relatif, sous le
+    // plancher absolu. Sans lui, un petit dénominateur suffit à franchir 5 %.
+    afficherEcart([ligne(0.1, "00:05:00")], { split_gap_median: 0, split_gap_rows: 50 });
+
+    expect(screen.queryByRole("img", MARQUEUR)).not.toBeInTheDocument();
+  });
+
+  it("ne marque rien quand l'épreuve n'a pas de médiane", () => {
+    afficherEcart([ligne(0.5)], { split_gap_median: null, split_gap_rows: 0 });
+
+    expect(screen.queryByRole("img", MARQUEUR)).not.toBeInTheDocument();
+  });
+
+  it("rend les temps publiés tels quels, marqueur ou non (FR-009)", () => {
+    // Le marqueur informe, il ne réécrit pas la donnée : ni correction, ni
+    // masquage, ni recalcul du total à partir des inters.
+    const kermarrec = p({
+      id: 1,
+      nom: "ECART",
+      status: "finisher",
+      rank_overall: 1,
+      total_time: "01:06:18",
+      splits: { swim: "00:00:31" },
+      split_gap_ratio: 0.693,
+    });
+    afficherEcart([kermarrec], {
+      split_gap_median: 0,
+      split_gap_rows: 498,
+      split_keys: ["swim"],
+    });
+
+    expect(screen.getByRole("img", MARQUEUR)).toBeInTheDocument();
+    expect(screen.getByText("01:06:18")).toBeInTheDocument();
+    expect(screen.getByText("00:00:31")).toBeInTheDocument();
   });
 });

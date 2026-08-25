@@ -6,7 +6,7 @@ normalisé (`Athlete`, `Course`, `Participation`) est inchangé.
 
 ---
 
-## 1. Les cinq champs publiés
+## 1. Les six champs publiés
 
 ### `CourseSummary.clubs_total: int`
 
@@ -70,7 +70,7 @@ puisse marquer ce qu'elle liste sans un second appel.
 
 ## 2. La règle d'écart, et son domicile unique
 
-Elle vit dans `backend/app/services/split_gap.py`, et **nulle part ailleurs**.
+Elle vit dans `backend/app/core/split_gap.py`, et **nulle part ailleurs**.
 
 ### Ce qui rend une ligne évaluable
 

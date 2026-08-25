@@ -539,4 +539,54 @@ describe("EventList — annonce du repliement (#463, WCAG 4.1.3)", () => {
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.getByText("Aucun résultat")).toBeInTheDocument();
   });
+
+  // ── Fiabilité en liste (#486, RES-10) ────────────────────────────────────
+
+  function unePage(items: unknown[]) {
+    setEvents({
+      data: { pages: [{ items, total_events: items.length, total_participations: 42 }] },
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+    });
+  }
+
+  const EPREUVE = {
+    id: 14,
+    event_name: "Tri de Nantes",
+    event_type: "triathlon-m",
+    event_date: "2026-05-16",
+    is_relay: false,
+    total: 42,
+    tcn_count: 3,
+  };
+
+  it("marque une épreuve à anomalies, dans les mots du reste du produit", () => {
+    unePage([{ ...EPREUVE, is_reliable: false, quality_issues: { rank_gap: 2 } }]);
+
+    renderList();
+
+    // Même vocabulaire que la page épreuve et que le profil athlète : la source
+    // est `lib/quality.ts`, et elle ne doit pas se dédoubler.
+    expect(
+      screen.getByRole("img", { name: /2 trous dans le classement/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("ne marque pas une épreuve saine", () => {
+    unePage([{ ...EPREUVE, is_reliable: true, quality_issues: null }]);
+
+    renderList();
+
+    expect(screen.queryByRole("img", { name: /Données douteuses/ })).not.toBeInTheDocument();
+  });
+
+  it("ne marque pas une épreuve jamais évaluée — `null` n'est pas un verdict", () => {
+    unePage([{ ...EPREUVE, is_reliable: null, quality_issues: null }]);
+
+    renderList();
+
+    expect(screen.queryByRole("img", { name: /Données douteuses/ })).not.toBeInTheDocument();
+  });
 });

@@ -75,7 +75,7 @@ fiable.
 Il n'est pas dans la base de dev — c'est l'angle mort assumé du sondage. Il vit en fixture :
 
 ```bash
-cd backend && uv run pytest tests/test_services/test_split_gap.py -k "course_214" -v
+cd backend && uv run pytest tests/test_core/test_split_gap.py -k "course_214" -v
 ```
 
 La ligne figée : 31 s + 34 s + 19 min 18 s pour un total de 1 h 06 min 18 s, soit **69,3 %
@@ -179,7 +179,7 @@ cd backend && git diff --stat origin/main -- tests/test_api/
 ```
 
 Un appel sans les nouveaux paramètres doit rendre une réponse identique aux clés
-d'origine. Cinq champs sont ajoutés, aucun retiré, aucune sémantique inversée.
+d'origine. Six champs sont ajoutés, aucun retiré, aucune sémantique inversée.
 
 ---
 

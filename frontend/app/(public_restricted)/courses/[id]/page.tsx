@@ -5,6 +5,7 @@ import { Card, Eyebrow, MetaPill } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RaceFinishers } from "@/components/results/RaceFinishers";
+import { ReliabilityMark, SplitCoverageNote } from "@/components/results/ReliabilityMark";
 import { CourseSourcesPanel } from "@/components/courses/CourseSourcesPanel";
 import { eventTypeLabel } from "@/lib/constants";
 import { formatToken } from "@/lib/utils/format";
@@ -93,8 +94,10 @@ export default async function CoursePage({
           {dsq > 0 && <MetaPill label="Disqualifiés">{dsq}</MetaPill>}
           {unknown > 0 && <MetaPill label="Indéterminés">{unknown}</MetaPill>}
           {tcnCount > 0 && <MetaPill accent dot>{tcnCount} athlète{tcnCount > 1 ? "s" : ""} TCN</MetaPill>}
+          <ReliabilityMark isReliable={course.is_reliable} issues={course.quality_issues} />
           <CourseSourcesPanel courseId={course.id} initialSources={sources ?? []} />
         </div>
+        <SplitCoverageNote median={summary.split_gap_median} />
       </div>
 
       <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

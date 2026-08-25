@@ -17,6 +17,7 @@ import { formatToken } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
 import { formatEventName } from "@/lib/utils/event";
 import { groupEventsByCompetition, eventSuffix, type EventGroup } from "@/lib/utils/eventGroups";
+import { ReliabilityMark } from "@/components/results/ReliabilityMark";
 import { gridColumns, gridMinWidth, type Track } from "@/lib/utils/table";
 import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
 import type { EventOut, EventPage, ParticipationFilters } from "@/lib/types";
@@ -257,6 +258,9 @@ function EventRow({ event: ev, label, indent }: { event: EventOut; label?: strin
           {formatEventName(label ?? ev.event_name, ev.is_relay)}
         </Link>
         {ev.is_relay && <Badge variant="orange">Relais</Badge>}
+        {/* Même marque et même vocabulaire que la page épreuve (#486) : la
+            colonne n'a pas la place d'un libellé, d'où la forme compacte. */}
+        <ReliabilityMark isReliable={ev.is_reliable} issues={ev.quality_issues} compact />
       </td>
       <td role="cell" style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>{eventTypeLabel(ev.event_type)}</td>
       <td role="cell">

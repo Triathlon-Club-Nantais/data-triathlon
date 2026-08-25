@@ -46,9 +46,9 @@ Aucune migration Alembic dans ce lot.
 **Purpose**: le seul point de contention entre les trois stories.
 
 **⚠️ CRITIQUE**: `frontend/lib/types.ts` est touché par les trois stories. Déclarer les
-cinq champs d'un coup évite un conflit à trois sur un fichier de types.
+six champs d'un coup évite un conflit à trois sur un fichier de types.
 
-- [ ] T002 Déclarer les cinq champs publiés dans `frontend/lib/types.ts` — `split_gap_ratio` sur `Participation`, `clubs_total` et `split_gap_median` sur `CourseSummary`, `is_reliable` et `quality_issues` sur `EventOut` — tous optionnels/nullables, conformément à `contracts/api-lecture.md`
+- [ ] T002 Déclarer les six champs publiés dans `frontend/lib/types.ts` — `split_gap_ratio` sur `Participation`, `clubs_total` et `split_gap_median` sur `CourseSummary`, `is_reliable` et `quality_issues` sur `EventOut` — tous optionnels/nullables, conformément à `contracts/api-lecture.md`
 
 **Checkpoint**: fondation prête — les trois stories peuvent démarrer.
 
@@ -68,11 +68,11 @@ un marqueur de ligne réservé aux lignes qui s'écartent de leurs voisines.
 > **Écrire ces tests D'ABORD, vérifier qu'ils ÉCHOUENT avant toute implémentation**
 > (Principe III, non-négociable).
 
-- [ ] T003 [P] [US1] Test de l'évaluabilité d'une ligne — les cinq conditions cumulatives de `data-model.md` § 2, chacune rendant `None` — dans `backend/tests/test_services/test_split_gap.py`
-- [ ] T004 [US1] Test de captation : figer la ligne de tête de la course 214 (31 s + 34 s + 19 min 18 s pour 01:06:18, soit 69,3 %) en fixture et vérifier qu'elle est évaluée et signalée, dans `backend/tests/test_services/test_split_gap.py` (dépend de T003)
-- [ ] T005 [US1] Test du signe : un écart positif (segment non publié) et un écart négatif se distinguent, dans `backend/tests/test_services/test_split_gap.py` (dépend de T003)
+- [ ] T003 [P] [US1] Test de l'évaluabilité d'une ligne — les cinq conditions cumulatives de `data-model.md` § 2, chacune rendant `None` — dans `backend/tests/test_core/test_split_gap.py`
+- [ ] T004 [US1] Test de captation : figer la ligne de tête de la course 214 (31 s + 34 s + 19 min 18 s pour 01:06:18, soit 69,3 %) en fixture et vérifier qu'elle est évaluée et signalée, dans `backend/tests/test_core/test_split_gap.py` (dépend de T003)
+- [ ] T005 [US1] Test du signe : un écart positif (segment non publié) et un écart négatif se distinguent, dans `backend/tests/test_core/test_split_gap.py` (dépend de T003)
 - [ ] T006 [P] [US1] Test de la médiane d'épreuve — `split_gap_median` sur une épreuve à lignes évaluables, `None` sur une épreuve de relais et sur une épreuve sans splits — dans `backend/tests/test_services/test_participation_stats_service.py`
-- [ ] T007 [P] [US1] Test du croisement des deux tables de schémas de segments, dans `backend/tests/test_services/test_split_gap.py` : lire `frontend/lib/utils/splits.ts` depuis le test (chemin résolu par `Path(__file__).parents[3] / "frontend/lib/utils/splits.ts"`), en extraire les entrées `SCHEMAS` par expression régulière sur `key: "…"`, et asserter l'égalité **stricte** — mêmes noms de schéma, mêmes clés, même ordre — avec la table Python. Le test **échoue** si le fichier est introuvable : c'est la garde qui justifie la dérogation au Principe VI, elle ne se saute pas. Aucun accès réseau, aucune dépendance de production sur le front.
+- [ ] T007 [P] [US1] Test du croisement des deux tables de schémas de segments, dans `backend/tests/test_core/test_split_gap.py` : lire `frontend/lib/utils/splits.ts` depuis le test (chemin résolu par `Path(__file__).parents[3] / "frontend/lib/utils/splits.ts"`), en extraire les entrées `SCHEMAS` par expression régulière sur `key: "…"`, et asserter l'égalité **stricte** — mêmes noms de schéma, mêmes clés, même ordre — avec la table Python. Le test **échoue** si le fichier est introuvable : c'est la garde qui justifie la dérogation au Principe VI, elle ne se saute pas. Aucun accès réseau, aucune dépendance de production sur le front.
 - [ ] T008 [P] [US1] Test API : `split_gap_ratio` publié par participation et `split_gap_median` par synthèse, `null` quand non évaluable, dans `backend/tests/test_api/test_courses_api.py`
 - [ ] T009 [US1] Test API : `EventOut` porte `is_reliable` et `quality_issues`, y compris `null`, dans `backend/tests/test_api/test_courses_api.py` (même fichier que T008)
 - [ ] T010 [P] [US1] Test repository : la requête agrégée d'épreuves rend les deux colonnes de fiabilité **sans** placer `quality_issues` dans le `GROUP BY`, dans `backend/tests/test_repositories/test_participation_repository.py`
@@ -82,7 +82,7 @@ un marqueur de ligne réservé aux lignes qui s'écartent de leurs voisines.
 
 ### Implementation for User Story 1
 
-- [ ] T014 [US1] Créer `backend/app/services/split_gap.py` — les cinq schémas de segments par sport, la règle d'évaluabilité et le calcul de l'écart signé, avec la docstring qui nomme le sondage comme point de vérité (rend T003, T005, T007 verts)
+- [ ] T014 [US1] Créer `backend/app/core/split_gap.py` — les cinq schémas de segments par sport, la règle d'évaluabilité et le calcul de l'écart signé, avec la docstring qui nomme le sondage comme point de vérité (rend T003, T005, T007 verts)
 - [ ] T015 [US1] Calculer `split_gap_ratio` par ligne et `split_gap_median` par épreuve dans `backend/app/services/stats_service.py`, dans la boucle existante de `course_summary` (rend T006 vert)
 - [ ] T016 [P] [US1] Ajouter `split_gap_ratio: float | None` à `ParticipationOut` dans `backend/app/schemas/participation.py`
 - [ ] T017 [P] [US1] Ajouter `split_gap_median: float | None` à `CourseSummary` et `is_reliable` / `quality_issues` à `EventOut` dans `backend/app/schemas/course.py`
@@ -159,9 +159,9 @@ contenu correspond à la valeur activée. § `US3` de [quickstart.md](./quicksta
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T048 [P] Documenter les deux nouveaux paramètres de `GET /courses/{course_id}` et les cinq champs publiés dans `backend/app/api/AGENTS.md`
+- [ ] T048 [P] Documenter les deux nouveaux paramètres de `GET /courses/{course_id}` et les six champs publiés dans `backend/app/api/AGENTS.md`
 - [ ] T049 [P] Vérifier le plancher de cible tactile (24 px) sur les nouveaux contrôles de `frontend/components/charts/CategoryBars.tsx`, `frontend/components/courses/ClubBreakdown.tsx` et `frontend/components/results/RaceFinishers.tsx`, et l'annonce du changement de sélection par `AnnonceStatut` dans ce dernier
-- [ ] T050 Rejouer le sondage **contre le module livré** : mesurer, en important `backend/app/services/split_gap.py` et non un prototype, le nombre de lignes signalées sur les 4 150 lignes évaluables de `backend/triathlon.db`, vérifier qu'il vaut **0** (`SC-005`), et consigner l'écart éventuel dans `docs/superpowers/specs/2026-08-25-ecart-inters-total-sondage.md`
+- [ ] T050 Rejouer le sondage **contre le module livré** : mesurer, en important `backend/app/core/split_gap.py` et non un prototype, le nombre de lignes signalées sur les 4 150 lignes évaluables de `backend/triathlon.db`, vérifier qu'il vaut **0** (`SC-005`), et consigner l'écart éventuel dans `docs/superpowers/specs/2026-08-25-ecart-inters-total-sondage.md`
 - [ ] T051 Dérouler `specs/20260825-114345-page-epreuve-syntheses/quickstart.md` de bout en bout sur les épreuves témoins relevées en T001
 - [ ] T052 Vérifier l'additivité du contrat : `git diff origin/main -- backend/tests/test_api/` ne montre **aucune assertion existante modifiée**
 - [ ] T053 Passer les cinq suites depuis `backend/` et `frontend/` : `uv run pytest -m "not integration"`, `uv run ruff check .`, `npm test`, `npm run lint`, `npm run build`
@@ -205,7 +205,7 @@ repository → router → composants.
 
 ```bash
 # Les tests backend de US1 qui ne partagent pas de fichier :
-Task: "T003 évaluabilité dans backend/tests/test_services/test_split_gap.py"
+Task: "T003 évaluabilité dans backend/tests/test_core/test_split_gap.py"
 Task: "T006 médiane dans backend/tests/test_services/test_participation_stats_service.py"
 Task: "T008 contrat API dans backend/tests/test_api/test_courses_api.py"
 Task: "T010 requête agrégée dans backend/tests/test_repositories/test_participation_repository.py"
@@ -241,6 +241,6 @@ la seule entrée à fort impact.
 - **Zéro fausse alerte n'est pas la captation.** T004 est le seul test qui prouve que la règle capte quelque chose — la base de dev ne contient aucune ligne fausse au sens de `RES-10`. Ne pas le supprimer parce qu'il est le seul de son espèce : c'est précisément pour cela qu'il existe.
 - **Le 0/4 150 du sondage a été mesuré sur un prototype, pas sur le module livré.** T050 est ce qui rattache `SC-005` au code réellement écrit ; sans lui, le chiffre qui porte tout le lot n'est vérifié nulle part.
 - **T007 est la garde de la seule dérogation du Constitution Check.** Le §Complexity Tracking justifie la duplication du schéma de segments **par ce test**. Un T007 sauté ou affaibli rouvre la dérogation.
-- Aucune migration Alembic : les cinq champs sont calculés à la lecture.
+- Aucune migration Alembic : les six champs sont calculés à la lecture.
 - L'identité visuelle et la frontière `components/tcn/` vs `components/ui/` ne sont pas rejugées (#325, #460).
 - Un commit par tâche ou par groupe cohérent, en Conventional Commits.

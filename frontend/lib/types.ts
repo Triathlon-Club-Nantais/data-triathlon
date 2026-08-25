@@ -570,6 +570,9 @@ export interface CourseSummary {
    *  segment que le chronométreur ne publie pas, pas une ligne fausse.
    *  `null` quand aucune ligne n'est évaluable (#486). */
   split_gap_median: number | null;
+  /** Nombre de lignes évaluables — la médiane d'une population de neuf n'est pas
+   *  une référence, et l'écran a besoin de le savoir pour se taire (#486). */
+  split_gap_rows: number;
 }
 
 export interface ParticipationFilters {
