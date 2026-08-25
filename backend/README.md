@@ -164,8 +164,8 @@ uv run ruff check .                  # lint
 | `LOG_JSON` | `false` | Logs JSON (ingestion Render/Datadog) |
 | `CACHE_TTL_IN_PROGRESS_SECONDS` | `600` | TTL cache course en cours (10 min) |
 | `CACHE_TTL_FINISHED_SECONDS` | `2592000` | TTL cache course terminée (30 j) |
-| `DB_POOL_SIZE` | `5` | Connexions permanentes du pool SQLAlchemy (défaut SQLAlchemy, rendu explicite — #585) |
-| `DB_MAX_OVERFLOW` | `10` | Connexions temporaires au-delà de `DB_POOL_SIZE` (défaut SQLAlchemy) |
+| `DB_POOL_SIZE` | `15` | Connexions permanentes du pool SQLAlchemy (dimensionné sur le plafond Azure B1ms — 35 connexions utilisateur, `docs/infra-azure.md` — #585) |
+| `DB_MAX_OVERFLOW` | `10` | Connexions temporaires au-delà de `DB_POOL_SIZE` (25 au total, 10 de marge pour migrations/batch/dev) |
 | `DB_POOL_TIMEOUT_SECONDS` | `5` | Attente max d'une connexion avant `TimeoutError` (30 s par défaut chez SQLAlchemy — abaissé pour échouer vite plutôt qu'attendre en silence) |
 | `AUTH_SESSION_SECRET_KEY` | *(vide)* | Signe le jeton d'état du parcours. **≥ 32 caractères** ou le démarrage échoue ; vide = authentification non configurée |
 | `AUTH_GITHUB_CLIENT_ID` | *(vide)* | Application OAuth GitHub |

@@ -19,6 +19,7 @@ ne sont pas commités : le dépôt est public. Se les procurer via
 | Serveur | `tcndatabdd` | Flexible Server, PG 18.x |
 | FQDN | `tcndatabdd.postgres.database.azure.com` | résolution IPv4 |
 | SKU | `Standard_B1ms` (Burstable) | tag `env=prd` |
+| `max_connections` | `50` (défaut Azure pour ce SKU) | 15 réservées réplication/monitoring → **35 connexions utilisateur**. Pas de pooler PgBouncer intégré sur Burstable. Base du dimensionnement `DB_POOL_SIZE`/`DB_MAX_OVERFLOW` (#585) |
 | Stockage | 32 GiB Premium_LRS, auto-grow **désactivé** | 120 IOPS |
 | Backup | 21 jours, **pas** de geo-redundant | |
 | Haute disponibilité | Désactivée | mono-zone (zone 1) |
