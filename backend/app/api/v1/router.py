@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends
 from app.api.deps import require_site_access
 from app.api.v1 import (
     admin,
+    admin_action_log,
     admin_allowed_emails,
     admin_batches,
     admin_benevole_access,
@@ -71,6 +72,7 @@ for module in (
     participations,
     stats,
     admin,
+    admin_action_log,
     admin_allowed_emails,
     admin_batches,
     admin_benevole_access,
