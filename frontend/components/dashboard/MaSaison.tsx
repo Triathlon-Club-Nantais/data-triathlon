@@ -3,16 +3,26 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { AnnonceStatut, Card, Eyebrow } from "@/components/tcn";
+import { AnnonceStatut, Button, Card, Eyebrow } from "@/components/tcn";
 import { Skeleton } from "@/components/ui/skeleton";
-import { nomComplet, useSelectedAthlete } from "@/components/layout/AthletePicker";
-import { apiClient } from "@/lib/api/client";
+import {
+  clearAthlete,
+  nomComplet,
+  OPEN_PICKER_EVENT,
+  useSelectedAthlete,
+} from "@/components/layout/AthletePicker";
+import { ApiError, apiClient } from "@/lib/api/client";
 import { RANK_PARAM, rankTypeFromParam, type RankType } from "@/lib/rank";
 import type { Participation } from "@/lib/types";
 import { motCompte } from "@/lib/utils/format";
 import { compteMaSaison } from "@/lib/utils/ma-saison";
+import { parseSeasonsParam } from "@/lib/utils/season";
 
-type Etat = "chargement" | "ok" | "echec";
+// « chargement »/« ok »/« echec » sont l'issue du fetch ; « perdu » est le
+// cas particulier d'un 404 (#502, item 11) : l'athlète retenu a disparu
+// (suppression, fusion admin) — le stock est purgé mais la bande reste
+// affichée pour porter l'invitation à en choisir un autre.
+type Etat = "chargement" | "ok" | "echec" | "perdu";
 
 /**
  * Parenthétique de rang de la bande (#502) — pas `RANK_LABEL_LONG`
@@ -29,6 +39,14 @@ const LIBELLE_RANG_BANDE: Record<RankType, string> = {
   all: "meilleur classement",
 };
 
+/** Première lettre en capitale — le libellé de rang ouvre la ligne
+ *  secondaire (#502, revue UI/UX) et y tient donc le rôle du premier mot de
+ *  la phrase, quand `LIBELLE_RANG_BANDE` le garde en minuscules pour son
+ *  usage entre parenthèses de `resumeCourant`. */
+function capitaliser(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 /** Hauteur intérieure minimale de la bande, dans ses trois états visibles.
  *
  *  La bande n'est **pas** dans le HTML initial — l'athlète retenu vit en
@@ -40,12 +58,32 @@ const LIBELLE_RANG_BANDE: Record<RankType, string> = {
  *
  *  Deux plateaux, posés en classes Tailwind sur `Bande` (`min-h-[84px]
  *  sm:min-h-[68px]`) plutôt qu'un seul `minHeight` inline : `Ligne` passe en
- *  `flex-col` sous `sm`, où son empilement mesuré (texte principal ~55px +
- *  8px de `gap` + secondaire ~20px) dépasse les 68px qui suffisent à la
- *  disposition sur une ligne. La promesse ne tient donc **qu'à partir de
- *  `sm`**, et seulement tant que le texte principal ne fait pas deux lignes —
- *  un écran plus étroit que 360px ou un nom très long peut encore la
- *  rouvrir ; ce cas-là n'est pas couvert ici. */
+ *  `flex-col` sous `sm`, où l'action se retrouve **sous** le texte plutôt
+ *  qu'à côté.
+ *
+ *  Mesures réelles (revue UI/UX #502, `hmtx`/`hhea` du woff2 servi) : une
+ *  ligne Anton 20px pèse 30,1px de boîte, une ligne Barlow 14px 16,8px.
+ *  Depuis que le parenthétique de rang a quitté la ligne principale pour
+ *  ouvrir la secondaire, celle-ci pèse 295px et la secondaire 309px — contre
+ *  471px pour l'ancienne ligne unique, dont 176px pour le seul parenthétique.
+ *
+ *  **À partir de `sm`** (largeur de texte disponible ≥391px, mesurée jusqu'à
+ *  425px au rail replié de 768px), les deux tiennent chacune sur une ligne :
+ *  30,1 + 4px de marge + 16,8 = 50,9px, sous les 68px réservés. La promesse
+ *  tient donc désormais sur **toute** la plage `sm`, alors qu'avant ce lot le
+ *  parenthétique ne laissait passer une ligne principale seule qu'au-delà
+ *  d'environ 814px de viewport — le repli sur deux lignes était l'état
+ *  ordinaire entre `sm` et ce seuil, pas l'exception, d'où le décalage de
+ *  +13px mesuré en revue sur cette plage.
+ *
+ *  **Sous `sm`** (270px de texte disponible à 360px de viewport), les deux
+ *  lignes dépassent encore cette largeur (295px et 309px) et peuvent se
+ *  replier à deux lignes chacune — ce lot ne change rien à ce cas : c'était
+ *  déjà vrai de l'ancien texte (+39px de décalage mesuré à 360px, plancher de
+ *  84px contre ~123px réels, action comprise sur sa propre ligne). La
+ *  promesse ne couvre donc que `sm` et au-delà, comme le disait déjà cette
+ *  note avant ce lot — un viewport plus étroit que 360px ou un nom très long
+ *  peut la rouvrir plus encore ; ce cas-là n'est pas couvert ici. */
 
 /**
  * Bande « Ma saison » en tête du tableau de bord (#502, NAV-9).
@@ -74,6 +112,12 @@ const LIBELLE_RANG_BANDE: Record<RankType, string> = {
  * laissent tomber : seul son **texte** doit changer après l'enregistrement de
  * la région pour être annoncé. Le silence de la première apparition vient
  * donc de `texteAnnonce` vide (`""`), jamais de l'absence du nœud.
+ *
+ * Un 404 sur `getAthlete` (#502, revue UI/UX, item 11) distingue son cause de
+ * celle d'une panne réseau : `ApiError.status === 404` signe une fiche
+ * disparue (suppression, fusion admin), une `TypeError` de `fetch` signe une
+ * panne. Seul le premier purge le stock — le second le laisserait perdre le
+ * choix de quelqu'un dont l'athlète existe très bien.
  */
 export function MaSaison({
   clubEvents,
@@ -92,6 +136,10 @@ export function MaSaison({
 
   const [etat, setEtat] = useState<Etat>("chargement");
   const [participations, setParticipations] = useState<Participation[]>([]);
+  // Rejoue l'effet sans changer ni `id` ni `seasons` ni `federalOnly` — le
+  // bouton « Réessayer » de l'état d'échec incrémente ce compteur, seule
+  // façon honnête de refaire le même fetch (#502, item 5).
+  const [tentative, setTentative] = useState(0);
   // Dernier texte effectivement annoncé — `null` avant la première annonce.
   // État et non ref : sa lecture pendant le rendu doit rester réactive (c'est
   // lui qui décide si `<AnnonceStatut>` est monté).
@@ -115,13 +163,24 @@ export function MaSaison({
         setParticipations(detail.participations);
         setEtat("ok");
       })
-      .catch(() => {
-        if (!annule) setEtat("echec");
+      .catch((err) => {
+        if (annule) return;
+        if (err instanceof ApiError && err.status === 404) {
+          // La fiche a disparu (suppression, fusion admin, #502 item 11) :
+          // le stock pointerait sur un athlète mort — on le purge pour que
+          // la tuile du rail cesse elle aussi de pointer dessus. Jamais sur
+          // une simple panne réseau (`TypeError`, pas `ApiError`) : ce
+          // serait perdre le choix de quelqu'un dont l'athlète existe bien.
+          clearAthlete();
+          setEtat("perdu");
+        } else {
+          setEtat("echec");
+        }
       });
     return () => {
       annule = true;
     };
-  }, [id, seasons, federalOnly]);
+  }, [id, seasons, federalOnly, tentative]);
 
   // Calculés inconditionnellement (participations vide hors de l'état "ok",
   // coût négligeable) : un Hook ne peut pas suivre un retour anticipé, et
@@ -150,12 +209,18 @@ export function MaSaison({
     }
   }, [resumeCourant]);
 
-  if (!athlete) return null;
+  // « Ma saison » suppose une saison unique — faux dès que `SeasonSelector`
+  // en retient plusieurs, où le h1 juste au-dessus dit « N saisons
+  // sélectionnées » (#502, item 10). C'est le seul mot du bloc qui pouvait
+  // devenir faux ; le corps s'en tirait déjà (« sur cette sélection »).
+  const titre = parseSeasonsParam(seasons).length > 1 ? "Mes saisons" : "Ma saison";
+
+  if (!athlete && etat !== "perdu") return null;
 
   const lienProfil = (
     <Link
-      href={`/athletes/${athlete.id}`}
-      className="text-sm font-semibold text-accent-ink hover:underline"
+      href={`/athletes/${athlete?.id}`}
+      className="-my-1 inline-block py-1 text-sm font-semibold text-accent-ink hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--tcn-orange)]"
     >
       Voir mon athlète →
     </Link>
@@ -163,27 +228,55 @@ export function MaSaison({
 
   if (etat === "chargement") {
     return (
-      <Bande>
-        <AnnonceStatut texte={texteAnnonce ?? ""} />
+      <Bande titre={titre}>
+        <AnnonceStatut texte={texteAnnonce ?? ""} busy />
         <div
           data-testid="ma-saison-squelette"
           style={{ display: "flex", flexDirection: "column", gap: 10 }}
         >
-          <Skeleton className="h-6 w-72" />
-          <Skeleton className="h-4 w-56" />
+          <Skeleton className="h-6 w-full max-w-72" />
+          <Skeleton className="h-4 w-3/4 max-w-56" />
         </div>
+      </Bande>
+    );
+  }
+
+  if (etat === "perdu") {
+    return (
+      <Bande titre={titre}>
+        <AnnonceStatut texte={texteAnnonce ?? ""} />
+        <Ligne
+          principale="Votre fiche a changé"
+          secondaire="Choisissez votre nom à nouveau."
+          action={
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event(OPEN_PICKER_EVENT))}
+              className="-my-1 inline-block py-1 text-sm font-semibold text-accent-ink hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--tcn-orange)]"
+            >
+              Choisir mon athlète →
+            </button>
+          }
+        />
       </Bande>
     );
   }
 
   if (etat === "echec") {
     return (
-      <Bande>
+      <Bande titre={titre}>
         <AnnonceStatut texte={texteAnnonce ?? ""} />
         <Ligne
           principale={nom}
           secondaire="Chiffres indisponibles pour l'instant."
-          action={lienProfil}
+          action={
+            <div className="flex flex-wrap items-center gap-3">
+              <Button size="sm" onClick={() => setTentative((t) => t + 1)}>
+                Réessayer
+              </Button>
+              {lienProfil}
+            </div>
+          }
         />
       </Bande>
     );
@@ -192,14 +285,17 @@ export function MaSaison({
   if (epreuves === 0) {
     const texte = `${nom} — aucune épreuve sur cette sélection.`;
     return (
-      <Bande>
+      <Bande titre={titre}>
         <AnnonceStatut texte={texteAnnonce ?? ""} />
         <Ligne
           principale={texte}
-          secondaire={`Le club en a couru ${clubEvents}.`}
+          secondaire={`Le club en a couru ${motCompte(clubEvents, "épreuve")} sur la même sélection.`}
           action={
-            <Link href="/ajouter" className="text-sm font-semibold text-accent-ink hover:underline">
-              Ajouter un résultat →
+            <Link
+              href="/ajouter"
+              className="-my-1 inline-block py-1 text-sm font-semibold text-accent-ink hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--tcn-orange)]"
+            >
+              Ajouter une épreuve →
             </Link>
           }
         />
@@ -207,22 +303,32 @@ export function MaSaison({
     );
   }
 
-  const principale = `${nom} — ${motCompte(epreuves, "épreuve")} · ${motCompte(podiums, "podium")} (${rang})`;
-  const secondaire = `Le club a couru ${motCompte(clubEvents, "épreuve")} sur la même sélection.`;
+  const principale = `${nom} — ${motCompte(epreuves, "épreuve")} · ${motCompte(podiums, "podium")}`;
+  const secondaire = `${capitaliser(rang)} · le club a couru ${motCompte(clubEvents, "épreuve")} sur la même sélection.`;
 
   return (
-    <Bande>
+    <Bande titre={titre}>
       <AnnonceStatut texte={texteAnnonce ?? ""} />
       <Ligne principale={principale} secondaire={secondaire} action={lienProfil} />
     </Bande>
   );
 }
 
-function Bande({ children }: { children: React.ReactNode }) {
+function Bande({ titre, children }: { titre: string; children: React.ReactNode }) {
   return (
     <div className="mb-4">
       <Card>
-        <Eyebrow>Ma saison</Eyebrow>
+        {/* `Eyebrow` rend un `<div>` (pas de sémantique de titre) : sans
+            relais, un parcours par titres (WCAG 1.3.1) saute le seul bloc de
+            l'écran qui parle du membre, quand ses deux voisins immédiats sont
+            des `h2` (#502, item 6). Un `h2` masqué visuellement porte donc le
+            même texte que l'`Eyebrow` visible plutôt qu'un `aria-labelledby`
+            de section : le libellé est dynamique (« Ma saison »/« Mes
+            saisons », item 10) et un simple relais de titre évite d'ouvrir un
+            second point d'entrée (la sémantique de landmark) pour un bloc qui
+            n'en a nul besoin ailleurs sur la page. */}
+        <h2 className="sr-only">{titre}</h2>
+        <Eyebrow>{titre}</Eyebrow>
         <div className="flex min-h-[84px] items-center sm:min-h-[68px]">
           {children}
         </div>
