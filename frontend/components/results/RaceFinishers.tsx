@@ -628,7 +628,11 @@ export function RaceFinishers({
                   </button>
                 }
               />
-            ) : rechercheUrl ? (
+            ) : rechercheUrl && !clubChoisi && !categorieChoisie ? (
+              // `&& !clubChoisi && !categorieChoisie` : sans cette exclusion, une
+              // recherche **et** un filtre de carte tombaient ici, et « Effacer la
+              // recherche » laissait le visiteur sur un écran toujours vide, sans
+              // jamais nommer le filtre qui le vidait (relevé en revue de code).
               <EmptyState
                 bare
                 title="Aucun athlète ne correspond à cette recherche"
@@ -652,7 +656,11 @@ export function RaceFinishers({
                 action={
                   <button
                     type="button"
-                    onClick={() => naviguer({ [CLUB_PARAM]: null, [CATEGORY_PARAM]: null })}
+                    // La recherche part avec, quand elle est là : la laisser
+                    // renverrait sur un second écran vide, pour une autre raison.
+                    onClick={() =>
+                      naviguer({ [CLUB_PARAM]: null, [CATEGORY_PARAM]: null, q: null })
+                    }
                     style={STYLE_BOUTON_ABSENCE}
                   >
                     Voir tous les participants

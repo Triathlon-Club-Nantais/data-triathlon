@@ -107,4 +107,25 @@ describe("ClubBreakdown", () => {
 
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
+
+  it("dit à l'appelant quelle ligne est celle du club", () => {
+    // La synthèse fusionne les variantes d'orthographe du TCN sous un libellé
+    // canonique qui n'est le verbatim d'aucune ligne en base : un filtre en
+    // égalité exacte sur ce nom ne ramènerait personne. C'est à l'appelant de
+    // router cette ligne vers `scope=club` — encore faut-il qu'il la reconnaisse.
+    const vus: [string, boolean][] = [];
+    render(
+      <ClubBreakdown
+        clubs={TROIS}
+        total={3}
+        hrefFor={(nom, estTcn) => {
+          vus.push([nom, estTcn]);
+          return "/x";
+        }}
+      />,
+    );
+
+    expect(vus).toContainEqual(["TRIATHLON CLUB NANTAIS", true]);
+    expect(vus).toContainEqual(["GRAVELINES TRIATHLON", false]);
+  });
 });

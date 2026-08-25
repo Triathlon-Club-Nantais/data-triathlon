@@ -1225,6 +1225,28 @@ describe("RaceFinishers — filtres club et catégorie", () => {
     expect(absence.textContent).not.toMatch(/recherche/i);
   });
 
+  it("nomme le filtre de carte même quand une recherche est active", () => {
+    // Sinon la branche « recherche » gagne, l'écran dit « Aucun athlète ne
+    // correspond à cette recherche », et « Effacer la recherche » laisse le
+    // visiteur sur un écran toujours vide sans jamais nommer ce qui le vidait.
+    searchParams = new URLSearchParams("q=dupont&club=CLUB+INEXISTANT");
+    afficher({ participations: [], total: 0 });
+
+    expect(screen.getByText(/du club « CLUB INEXISTANT »/)).toBeInTheDocument();
+    expect(
+      screen.queryByText("Aucun athlète ne correspond à cette recherche"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("efface la recherche en même temps que le filtre de carte", async () => {
+    searchParams = new URLSearchParams("q=dupont&club=CLUB+INEXISTANT");
+    afficher({ participations: [], total: 0 });
+
+    await userEvent.click(screen.getByRole("button", { name: "Voir tous les participants" }));
+
+    expect(push).toHaveBeenCalledWith("/courses/1");
+  });
+
   it("explique le croisement vide par construction avec la portée TCN", () => {
     searchParams = new URLSearchParams("club=BLAIN+TRIATHLON&scope=club");
     afficher({ participations: [], total: 0 });
