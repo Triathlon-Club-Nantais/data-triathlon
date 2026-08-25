@@ -180,7 +180,8 @@ describe("serverFetch — fenêtre de revalidation (#352)", () => {
 
     await apiServer.getClubSummary({ federal_only: true }, { revalidateSeconds: 30 });
 
-    const [, options] = fetchMock.mock.calls[0];
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toContain("/api/v1/club/summary?federal_only=true");
     expect(options.next).toEqual({ revalidate: 30 });
   });
 });
