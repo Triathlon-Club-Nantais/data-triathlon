@@ -6,6 +6,7 @@ import type {
   AthleteDetail,
   AthleteSeasonActivity,
   AuthMethod,
+  ClubSummary,
   CourseDetail,
   CourseQuery,
   CourseSource,
@@ -217,6 +218,10 @@ export const apiServer = {
     opts: { scope?: string; seasons?: number[]; federal_only?: boolean } = {},
     fetchOpts: FetchOpts = {},
   ) => serverFetch<Stats>(`/stats${toQuery(opts)}`, fetchOpts),
+  getClubSummary: (
+    opts: { federal_only?: boolean } = {},
+    fetchOpts: FetchOpts = {},
+  ) => serverFetch<ClubSummary>(`/club/summary${toQuery(opts)}`, fetchOpts),
   listSeasons: (opts: { scope?: string; federal_only?: boolean } = {}, fetchOpts: FetchOpts = {}) =>
     serverFetch<Season[]>(`/stats/seasons${toQuery(opts)}`, fetchOpts),
   /** Session du visiteur, ou `null` s'il est anonyme (#114). */

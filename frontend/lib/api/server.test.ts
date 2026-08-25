@@ -171,4 +171,16 @@ describe("serverFetch — fenêtre de revalidation (#352)", () => {
     await apiServer.listSeasons({ scope: "club" }, { revalidateSeconds: 30 });
     expect(fetchMockSeasons.mock.calls[0][1].next).toEqual({ revalidate: 30 });
   });
+
+  it("propage la fenêtre de revalidation sur getClubSummary (#581)", async () => {
+    const fetchMock = mockFetchOk({
+      rosters: { tcn: [], other: [] },
+      podiums: [],
+    });
+
+    await apiServer.getClubSummary({ federal_only: true }, { revalidateSeconds: 30 });
+
+    const [, options] = fetchMock.mock.calls[0];
+    expect(options.next).toEqual({ revalidate: 30 });
+  });
 });
