@@ -126,3 +126,53 @@ def test_une_entree_survit_a_la_disparition_de_son_entite(db_session):
 
     assert course_repository.get(db_session, course_id) is None
     assert [e.payload["name"] for e in entrees] == ["Épreuve éphémère"]
+
+
+def test_list_recent_rend_la_plus_recente_d_abord(db_session):
+    auteur = _auteur(db_session)
+    for indice in range(3):
+        admin_action_log_repository.create(
+            db_session,
+            user_id=auteur.id,
+            action="athlete.update",
+            entity_type="athlete",
+            entity_id=indice,
+            payload={"rang": indice},
+        )
+    db_session.flush()
+
+    entrees, total = admin_action_log_repository.list_recent(db_session)
+
+    assert [e.payload["rang"] for e in entrees] == [2, 1, 0]
+    assert total == 3
+
+
+def test_list_recent_pagine(db_session):
+    auteur = _auteur(db_session)
+    for indice in range(5):
+        admin_action_log_repository.create(
+            db_session,
+            user_id=auteur.id,
+            action="athlete.update",
+            entity_type="athlete",
+            entity_id=indice,
+            payload={"rang": indice},
+        )
+    db_session.flush()
+
+    entrees, total = admin_action_log_repository.list_recent(db_session, page=2, page_size=2)
+
+    assert [e.payload["rang"] for e in entrees] == [2, 1]
+    assert total == 5
+
+
+def test_list_recent_charge_l_auteur_sans_requete_supplementaire(db_session):
+    auteur = _auteur(db_session, email="jean@exemple.fr")
+    admin_action_log_repository.create(
+        db_session, user_id=auteur.id, action="course.delete", entity_type="course", entity_id=1
+    )
+    db_session.flush()
+
+    entrees, _ = admin_action_log_repository.list_recent(db_session)
+
+    assert entrees[0].user.email == "jean@exemple.fr"

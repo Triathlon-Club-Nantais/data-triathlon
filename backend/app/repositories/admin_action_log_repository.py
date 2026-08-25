@@ -1,11 +1,12 @@
 """Accès données pour AdminActionLog — seule couche qui touche la Session (Principe II).
 
-**Deux fonctions, et pas de troisième.** Ni `update`, ni `delete` : un journal
-d'audit modifiable ne prouve rien. `list_for_entity` n'a aujourd'hui qu'un
-lecteur, les tests — la consultation du journal depuis une interface est un
-besoin distinct, hors du périmètre de #117.
+**Trois fonctions, jamais de quatrième.** Ni `update`, ni `delete` : un journal
+d'audit modifiable ne prouve rien. `list_recent` (#501) est la lecture paginée
+qui alimente l'écran d'administration ; `list_for_entity` reste utilisée par
+les tests et n'a pas d'autre lecteur.
 """
-from sqlalchemy.orm import Session
+from sqlalchemy import func
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.admin_action_log import AdminActionLog
 
@@ -49,3 +50,26 @@ def list_for_entity(db: Session, *, entity_type: str, entity_id: int) -> list[Ad
         .order_by(AdminActionLog.id.desc())
         .all()
     )
+
+
+def list_recent(
+    db: Session, *, page: int = 1, page_size: int = 20
+) -> tuple[list[AdminActionLog], int]:
+    """Les dernières entrées du journal, la plus récente d'abord (#501).
+
+    Tri sur `id` et non sur `created_at`, même raison que `list_for_entity` :
+    deux gestes de la même transaction partagent l'horodatage à la microseconde
+    près. `user` est chargé dans la même requête (`joinedload`) — l'écran
+    affiche l'auteur sur chaque ligne, et une requête par ligne serait un N+1.
+    """
+    total = db.query(func.count(AdminActionLog.id)).scalar() or 0
+    offset = (page - 1) * page_size
+    entries = (
+        db.query(AdminActionLog)
+        .options(joinedload(AdminActionLog.user))
+        .order_by(AdminActionLog.id.desc())
+        .offset(offset)
+        .limit(page_size)
+        .all()
+    )
+    return entries, total
