@@ -14,16 +14,6 @@ import type { ClubSummary, Participation, Stats } from "@/lib/types";
 import { PodiumsList } from "./PodiumsList";
 import { ClubPodiumKpi } from "./ClubPodiumKpi";
 
-/**
- * Miroir non exporté de `club_roster(..., limit=12)` côté backend (#581,
- * Task 2) — le plafond de l'aperçu vit désormais là-bas ; ce seuil ne sert
- * plus qu'à décider le titre de la section, pas à tronquer quoi que ce soit
- * ici. Le roster arrivant toujours à ≤ 12 entrées, l'atteindre est le seul
- * signe local qu'il existe potentiellement d'autres athlètes au-delà de
- * l'aperçu.
- */
-const ROSTER_APERCU_CAP = 12;
-
 export function ClubDashboard({
   stats,
   summary,
@@ -106,7 +96,7 @@ export function ClubDashboard({
       <section className="space-y-4">
         <div className="flex items-baseline justify-between gap-4">
           <h2 className="font-heading text-lg font-semibold">
-            {roster.length >= ROSTER_APERCU_CAP ? "Les athlètes les plus actifs" : "Athlètes du club"}
+            {stats.athletes > roster.length ? "Les athlètes les plus actifs" : "Athlètes du club"}
           </h2>
           {/* Inconditionnel : « les deux écrans reliés dans les deux sens »
               est une garantie de navigation, elle ne peut pas s'éteindre sous
