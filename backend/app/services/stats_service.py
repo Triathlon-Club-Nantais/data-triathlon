@@ -46,6 +46,9 @@ def _rank_counters(rows) -> dict:
     de chaque mode, y compris la ventilation genre limitée à "F"/"M", est
     repris à l'identique (#376 déplace le calcul, ne le change pas — #580 ne
     fait que déplacer une seconde fois **où** il tourne, pas ce qu'il fait).
+    Ce fichier front reste vivant : `bestRank`/`isPodium` y calculent encore
+    le podium club (KPI `?rank=`) et, depuis #502, celui de la bande « Ma
+    saison » — à tenir en phase avec ce qui suit.
     """
     scratch, category, tous = _bucket(), _bucket(), _bucket()
     genre = {"women": _bucket(), "men": _bucket()}
