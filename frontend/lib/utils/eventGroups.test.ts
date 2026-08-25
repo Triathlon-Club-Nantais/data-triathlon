@@ -63,6 +63,97 @@ describe("groupEventsByCompetition", () => {
   it("rend une liste vide sur une liste vide", () => {
     expect(groupEventsByCompetition([])).toEqual([]);
   });
+
+  // #568, cas 1 : sous le tri « Nom », le backend rend deux éditions du même
+  // nom adjacentes (`ORDER BY courses.name ASC, courses.event_date DESC`).
+  // Elles partagent le préfixe mais pas la date : sans la date dans la clé,
+  // elles fusionnaient sous une ligne unique qui affichait la date de la
+  // seule première tout en sommant les compteurs des deux années.
+  it("ne fusionne pas deux éditions du même nom à des dates différentes", () => {
+    const groupes = groupEventsByCompetition([
+      ev(1, "Triathlon de Mesquer", { event_date: "2026-05-16" }),
+      ev(2, "Triathlon de Mesquer", { event_date: "2025-05-17" }),
+    ]);
+
+    expect(groupes).toHaveLength(2);
+    expect(groupes.map((g) => g.events.map((e) => e.id))).toEqual([[1], [2]]);
+  });
+
+  // Non-régression #463 : des heats d'une même compétition, à la même date,
+  // continuent de se replier sous une seule ligne — c'est le cas normal
+  // (formats successifs d'un même week-end), la date seule ne doit rien
+  // casser ici.
+  it("regroupe toujours les heats d'une même compétition à la même date", () => {
+    const groupes = groupEventsByCompetition([
+      ev(1, `${PREFIXE} - Distance S`, { event_date: "2026-06-13" }),
+      ev(2, `${PREFIXE} - Distance M`, { event_date: "2026-06-13" }),
+    ]);
+
+    expect(groupes).toHaveLength(1);
+    expect(groupes[0].events.map((e) => e.id)).toEqual([1, 2]);
+  });
+
+  // `event_date` est une mise à vide légitime (`lib/types.ts`). Comportement
+  // retenu : une épreuve non datée ne fusionne jamais avec une épreuve datée
+  // du même préfixe (les dates diffèrent, `null !== "2026-05-16"`) ; deux
+  // épreuves non datées du même préfixe se regroupent, elles, toujours entre
+  // elles (`null === null`).
+  it("ne fusionne pas une épreuve sans date avec une épreuve datée du même préfixe", () => {
+    const groupes = groupEventsByCompetition([
+      ev(1, `${PREFIXE} - A`, { event_date: null }),
+      ev(2, `${PREFIXE} - B`, { event_date: "2026-06-13" }),
+    ]);
+
+    expect(groupes.map((g) => g.events.map((e) => e.id))).toEqual([[1], [2]]);
+  });
+
+  it("regroupe deux épreuves sans date partageant le même préfixe", () => {
+    const groupes = groupEventsByCompetition([
+      ev(1, `${PREFIXE} - A`, { event_date: null }),
+      ev(2, `${PREFIXE} - B`, { event_date: null }),
+    ]);
+
+    expect(groupes).toHaveLength(1);
+    expect(groupes[0].events.map((e) => e.id)).toEqual([1, 2]);
+  });
+
+  // Propriété que le cas 1 casse : la date que la ligne de groupe affiche
+  // (`groupe.events[0].event_date`, EventList.tsx) doit valoir pour TOUTES
+  // les épreuves qu'elle replie — sans quoi la ligne ment sur au moins l'une
+  // d'entre elles. Survit à tout remaniement futur de la clé de groupe.
+  it("propriété : la date affichée par un groupe vaut pour toutes les épreuves qu'il replie", () => {
+    const echantillons: EventOut[][] = [
+      [
+        ev(1, `${PREFIXE} - A`, { event_date: "2026-06-13" }),
+        ev(2, `${PREFIXE} - B`, { event_date: "2026-06-13" }),
+        ev(3, `${PREFIXE} - C`, { event_date: "2026-06-13" }),
+      ],
+      [
+        ev(1, "Triathlon de Mesquer", { event_date: "2026-05-16" }),
+        ev(2, "Triathlon de Mesquer", { event_date: "2025-05-17" }),
+      ],
+      [
+        ev(1, `${PREFIXE} - A`, { event_date: null }),
+        ev(2, `${PREFIXE} - B`, { event_date: null }),
+        ev(3, `${PREFIXE} - C`, { event_date: "2026-06-13" }),
+      ],
+      [
+        ev(1, "Trail de Nantes", { event_date: "2026-01-10" }),
+        ev(2, `${PREFIXE} - A`, { event_date: "2026-06-13" }),
+        ev(3, `${PREFIXE} - B`, { event_date: "2026-06-13" }),
+        ev(4, `${PREFIXE} - C`, { event_date: "2025-06-14" }),
+      ],
+    ];
+
+    for (const events of echantillons) {
+      const groupes = groupEventsByCompetition(events);
+      for (const groupe of groupes) {
+        const datesDistinctes = new Set(groupe.events.map((e) => e.event_date));
+        expect(datesDistinctes.size).toBe(1);
+        expect(groupe.events.every((e) => e.event_date === groupe.events[0].event_date)).toBe(true);
+      }
+    }
+  });
 });
 
 describe("eventSuffix", () => {
