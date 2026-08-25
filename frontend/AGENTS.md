@@ -141,6 +141,12 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
     l'audit reprochait. Les couples viennent du thème pour la raison de
     `BatchRunList` : les variantes génériques de `Badge` ne tiennent pas 4,5:1
     sous 12 px.
+  - **La modale de détail est rendue hors de la cascade d'états**, pas dans la
+    seule branche nominale : instruire depuis elle le dernier signalement d'un
+    filtre vide la liste, et la modale disparaîtrait sous les doigts avant la
+    promotion en issue. Symétriquement, « aucun retour utilisateur » ne
+    s'affirme que si les décomptes le disent — une vue **filtrée** vide ne
+    prouve rien sur la base, et le comptage peut échouer.
   - **`queryKeys.feedbackCounts()` vit sous le préfixe `["admin-feedback"]`**,
     celui de la liste : un changement de statut périme les deux, et
     l'invalidation existante les emporte alors d'un seul geste.

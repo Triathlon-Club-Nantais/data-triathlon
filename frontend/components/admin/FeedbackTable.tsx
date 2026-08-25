@@ -46,11 +46,18 @@ const STATUTS = Object.keys(LIBELLE_STATUT) as Statut[];
  * l'un demande un geste et l'autre dit qu'il n'y en aura pas (ADM-10). Les
  * couples sémantiques du thème sont retenus pour la même raison que là-bas :
  * les variantes génériques de `Badge` ne tiennent pas 4,5:1 sous 12 px.
- * L'orange va au seul statut qui bouge encore.
+ *
+ * **L'accent le plus fort va à `nouveau`**, le seul statut qui demande un
+ * geste — et c'est en vue « Tous » que la couleur travaille, la vue par défaut
+ * n'affichant qu'un statut. `--tcn-danger` n'est pas un rouge ici : c'est
+ * l'orange de marque (`#E9530E`), ce que `globals.css` nomme
+ * « danger / doublon ». Le jaune de `--tcn-warning` va donc à `en_cours`, et
+ * l'inverse — l'orange sur `en_cours` — mettrait l'accent sur ce qui est déjà
+ * pris en main.
  */
 const APLATS: Record<Statut, string> = {
-  nouveau: "bg-[var(--tcn-warning-bg)] text-[var(--tcn-warning-text)]",
-  en_cours: "bg-[var(--tcn-danger-bg)] text-[var(--tcn-danger-text)]",
+  nouveau: "bg-[var(--tcn-danger-bg)] text-[var(--tcn-danger-text)]",
+  en_cours: "bg-[var(--tcn-warning-bg)] text-[var(--tcn-warning-text)]",
   traite: "bg-[var(--tcn-success-bg)] text-[var(--tcn-success-text)]",
   ignore: "bg-[var(--tcn-fill)] text-[var(--tcn-text-faint)]",
 };
@@ -152,6 +159,10 @@ export function FeedbackTable() {
   // La file s'ouvre sur ce qui reste à traiter, pas sur l'historique (ADM-10).
   const [statut, setStatut] = useState<Filtre>("nouveau");
   const [ouvert, setOuvert] = useState<Feedback | null>(null);
+  // Les lignes dont le changement de statut est en vol. Un `useMutation` est
+  // **partagé** par tout le tableau et ses `variables` ne portent que le dernier
+  // appel : s'y fier réactiverait la ligne A dès qu'on touche la ligne B.
+  const [enVol, setEnVol] = useState<number[]>([]);
   const { data, isLoading, error } = useFeedbackList(sort, order, statut);
   const { data: comptes } = useFeedbackCounts();
   const session = useSession();
@@ -171,21 +182,37 @@ export function FeedbackTable() {
   }
 
   async function changer(feedback: Feedback, vers: Statut) {
+    setEnVol((vol) => [...vol, feedback.id]);
     try {
       await changerStatut.mutateAsync({ id: feedback.id, status: vers });
       toast.success(`« ${feedback.title} » — ${LIBELLE_STATUT[vers]}.`);
     } catch (e) {
       toast.error((e as Error).message);
+    } finally {
+      setEnVol((vol) => vol.filter((id) => id !== feedback.id));
     }
   }
 
   const barre = <BarreDeStatuts actif={statut} comptes={comptes} onFiltrer={setStatut} />;
+
+  // La modale est rendue **hors** de la cascade d'états, jamais dans la seule
+  // branche nominale : instruire depuis elle le dernier signalement d'un filtre
+  // vide la liste, et la modale disparaîtrait alors sous les doigts — avant
+  // qu'on ait pu promouvoir le signalement en issue ou coller son URL.
+  const modale = ouvert && (
+    <FeedbackDetailDialog
+      feedback={ouvert}
+      open
+      onOpenChange={(o) => !o && setOuvert(null)}
+    />
+  );
 
   if (isLoading) {
     return (
       <div className="space-y-4">
         {barre}
         <Skeleton className="h-40 w-full" />
+        {modale}
       </div>
     );
   }
@@ -194,13 +221,17 @@ export function FeedbackTable() {
       <div className="space-y-4">
         {barre}
         <EmptyState {...messageDeRefus(error, REFUS)} />
+        {modale}
       </div>
     );
   }
   if (!data || data.length === 0) {
     // Rien du tout et « rien sous ce filtre » sont deux situations distinctes :
-    // la première attend des signalements, la seconde attend un clic.
-    const baseVide = (comptes?.total ?? 0) === 0;
+    // la première attend des signalements, la seconde attend un clic. Tant que
+    // les décomptes n'ont pas répondu, une vue **filtrée** vide ne prouve rien
+    // sur la base — affirmer « aucun retour utilisateur » y serait faux, et
+    // définitivement si la requête de comptage échoue.
+    const baseVide = statut === "tous" || comptes?.total === 0;
     return (
       <div className="space-y-4">
         {barre}
@@ -215,6 +246,7 @@ export function FeedbackTable() {
             description="Rien à traiter ici. « Tous » rouvre l'ensemble des signalements."
           />
         )}
+        {modale}
       </div>
     );
   }
@@ -282,7 +314,7 @@ export function FeedbackTable() {
                         APLATS[f.status],
                       )}
                       value={f.status}
-                      disabled={changerStatut.isPending && changerStatut.variables?.id === f.id}
+                      disabled={enVol.includes(f.id)}
                       onChange={(e) => changer(f, e.target.value as Statut)}
                     >
                       {STATUTS.map((valeur) => (
@@ -300,13 +332,7 @@ export function FeedbackTable() {
           </TableBody>
         </Table>
       </Card>
-      {ouvert && (
-        <FeedbackDetailDialog
-          feedback={ouvert}
-          open
-          onOpenChange={(o) => !o && setOuvert(null)}
-        />
-      )}
+      {modale}
     </div>
   );
 }

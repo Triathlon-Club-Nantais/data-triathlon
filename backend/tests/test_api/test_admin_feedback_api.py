@@ -4,12 +4,14 @@ from app.core.config import get_settings
 from app.core.permissions import P
 from app.models.organisation import Organisation
 from app.models.role_permission import RolePermission
+from app.models.user_feedback import FEEDBACK_STATUSES
 from app.repositories import (
     feedback_repository,
     role_repository,
     user_repository,
     user_role_repository,
 )
+from app.schemas.feedback import FeedbackCounts
 from app.services.auth import session as session_service
 
 _URL = "/api/v1/admin/feedback"
@@ -144,6 +146,16 @@ def test_comptage_sans_le_pouvoir_rend_403(client, db_session):
     _session_etroite(client, db_session)
 
     assert client.get(f"{_URL}/counts").status_code == 403
+
+
+def test_le_comptage_porte_exactement_les_statuts_de_la_nomenclature():
+    """Le filtre de `GET /admin/feedback` **dérive** de `FEEDBACK_STATUSES`,
+    `FeedbackCounts` **énumère** ses champs : sans ce test, un cinquième statut
+    ajouté à la nomenclature ferait passer un kwarg de trop à un modèle
+    Pydantic qui l'ignore en silence (`extra="ignore"` par défaut). La clé
+    disparaîtrait de la réponse — donc un filtre du front —, pendant que
+    `total` continuerait de compter ses lignes."""
+    assert set(FeedbackCounts.model_fields) == {*FEEDBACK_STATUSES, "total"}
 
 
 def test_comptage_ne_se_lit_pas_comme_un_identifiant(client, db_session):

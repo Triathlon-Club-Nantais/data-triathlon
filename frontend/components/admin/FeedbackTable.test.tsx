@@ -6,18 +6,21 @@ import type { Feedback, FeedbackCounts, SessionUser } from "@/lib/types";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-const { listFeedback, countFeedback, updateFeedbackStatus, getSession } = vi.hoisted(() => ({
-  listFeedback: vi.fn(),
-  countFeedback: vi.fn(),
-  updateFeedbackStatus: vi.fn(),
-  getSession: vi.fn(),
-}));
+const { listFeedback, countFeedback, updateFeedbackStatus, getFeedback, getSession } = vi.hoisted(
+  () => ({
+    listFeedback: vi.fn(),
+    countFeedback: vi.fn(),
+    updateFeedbackStatus: vi.fn(),
+    getFeedback: vi.fn(),
+    getSession: vi.fn(),
+  }),
+);
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
   return {
     ...original,
-    apiClient: { listFeedback, countFeedback, updateFeedbackStatus, getSession },
+    apiClient: { listFeedback, countFeedback, updateFeedbackStatus, getFeedback, getSession },
   };
 });
 
@@ -79,10 +82,12 @@ describe("FeedbackTable", () => {
     listFeedback.mockReset();
     countFeedback.mockReset();
     updateFeedbackStatus.mockReset();
+    getFeedback.mockReset();
     getSession.mockReset();
     listFeedback.mockResolvedValue([SIGNALEMENT]);
     countFeedback.mockResolvedValue(COMPTES);
     updateFeedbackStatus.mockResolvedValue({ ...SIGNALEMENT, status: "traite" });
+    getFeedback.mockResolvedValue(SIGNALEMENT);
     getSession.mockResolvedValue(INSTRUCTEUR);
   });
 
@@ -184,6 +189,34 @@ describe("FeedbackTable", () => {
       expect(filtre(/^tous/i)).toBeInTheDocument();
     });
 
+    it("ne dit « aucun retour utilisateur » que si la base l'est vraiment", async () => {
+      // Vue filtrée vide + décomptes qui n'ont pas encore répondu : la base
+      // n'est pas en cause, et elle le serait encore moins si le comptage
+      // échouait pour de bon.
+      listFeedback.mockResolvedValue([]);
+      countFeedback.mockRejectedValue(new ApiError(500, "Indisponible"));
+
+      afficher();
+
+      expect(await screen.findByText(/aucun signalement sous ce filtre/i)).toBeInTheDocument();
+      expect(screen.queryByText(/aucun retour utilisateur/i)).not.toBeInTheDocument();
+    });
+
+    it("dit « aucun retour utilisateur » sur une base réellement vide", async () => {
+      listFeedback.mockResolvedValue([]);
+      countFeedback.mockResolvedValue({
+        nouveau: 0,
+        en_cours: 0,
+        traite: 0,
+        ignore: 0,
+        total: 0,
+      });
+
+      afficher();
+
+      expect(await screen.findByText(/aucun retour utilisateur/i)).toBeInTheDocument();
+    });
+
     it("reste montée sur un refus, pour la même raison", async () => {
       listFeedback.mockRejectedValue(new ApiError(403, "Refusé"));
 
@@ -209,7 +242,9 @@ describe("FeedbackTable", () => {
       const nouveau = tableau.getByText("Nouveau");
       const ignore = tableau.getByText("Ignoré");
       expect(nouveau.className).not.toBe(ignore.className);
-      expect(nouveau.className).toMatch(/tcn-warning/);
+      // L'accent le plus fort au seul statut qui demande un geste ;
+      // `--tcn-danger` est l'orange de marque, pas un rouge d'erreur.
+      expect(nouveau.className).toMatch(/tcn-danger/);
       expect(ignore.className).toMatch(/tcn-text-faint/);
     });
 
@@ -224,6 +259,23 @@ describe("FeedbackTable", () => {
       await waitFor(() =>
         expect(updateFeedbackStatus).toHaveBeenCalledWith(1, { status: "traite" }),
       );
+    });
+
+    it("ne fait pas disparaître la modale quand la liste se vide sous elle", async () => {
+      // Instruire depuis la modale le dernier signalement d'un filtre vide la
+      // liste : rendue dans la seule branche nominale, la modale s'escamoterait
+      // avant qu'on ait pu promouvoir le signalement en issue.
+      afficher();
+      fireEvent.click(await screen.findByRole("button", { name: SIGNALEMENT.title }));
+      const modale = within(await screen.findByRole("dialog"));
+
+      // La liste que le succès de la mutation ira rechercher ne portera plus
+      // ce signalement : son statut ne correspond plus au filtre.
+      listFeedback.mockResolvedValue([]);
+      fireEvent.change(modale.getByLabelText("Statut"), { target: { value: "traite" } });
+
+      expect(await screen.findByText(/aucun signalement sous ce filtre/i)).toBeInTheDocument();
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
 
     it("reste une lecture pour qui n'a pas « feedback:manage »", async () => {
