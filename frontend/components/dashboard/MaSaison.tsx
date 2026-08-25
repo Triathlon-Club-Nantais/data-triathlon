@@ -7,22 +7,45 @@ import { AnnonceStatut, Card, Eyebrow } from "@/components/tcn";
 import { Skeleton } from "@/components/ui/skeleton";
 import { nomComplet, useSelectedAthlete } from "@/components/layout/AthletePicker";
 import { apiClient } from "@/lib/api/client";
-import { rankTypeLabel } from "@/lib/labels";
-import { RANK_PARAM, rankTypeFromParam } from "@/lib/rank";
+import { RANK_PARAM, rankTypeFromParam, type RankType } from "@/lib/rank";
 import type { Participation } from "@/lib/types";
 import { motCompte } from "@/lib/utils/format";
 import { compteMaSaison } from "@/lib/utils/ma-saison";
 
 type Etat = "chargement" | "ok" | "echec";
 
-/** Hauteur intérieure fixe de la bande, dans ses trois états visibles.
+/**
+ * Parenthétique de rang de la bande (#502) — pas `RANK_LABEL_LONG`
+ * (`lib/labels.ts`), qui documente sa forme comme le delta minuscule affiché
+ * *sous* les compteurs, pas comme de la prose enchâssée dans une phrase à
+ * 20px : son « général, genre ou catégorie » y pèse trop lourd. Le mode `all`
+ * prend ici un libellé propre — « meilleur classement » — puisque c'est
+ * exactement ce qu'il désigne, le meilleur des trois.
+ */
+const LIBELLE_RANG_BANDE: Record<RankType, string> = {
+  scratch: "classement général",
+  category: "classement catégorie",
+  gender: "classement genre",
+  all: "meilleur classement",
+};
+
+/** Hauteur intérieure minimale de la bande, dans ses trois états visibles.
  *
  *  La bande n'est **pas** dans le HTML initial — l'athlète retenu vit en
  *  `localStorage` et n'atteint aucun rendu serveur (`frontend/AGENTS.md:218`).
  *  Elle apparaît donc à l'hydratation, ce qui décale les compteurs club vers le
  *  bas : coût déjà assumé par #467. Ce qu'on refuse, c'est un **second**
- *  décalage au retour du fetch — d'où le squelette à la hauteur définitive. */
-const HAUTEUR_INTERIEURE = 68;
+ *  décalage au retour du fetch — d'où un plancher de hauteur posé dès le
+ *  squelette.
+ *
+ *  Deux plateaux, posés en classes Tailwind sur `Bande` (`min-h-[84px]
+ *  sm:min-h-[68px]`) plutôt qu'un seul `minHeight` inline : `Ligne` passe en
+ *  `flex-col` sous `sm`, où son empilement mesuré (texte principal ~55px +
+ *  8px de `gap` + secondaire ~20px) dépasse les 68px qui suffisent à la
+ *  disposition sur une ligne. La promesse ne tient donc **qu'à partir de
+ *  `sm`**, et seulement tant que le texte principal ne fait pas deux lignes —
+ *  un écran plus étroit que 360px ou un nom très long peut encore la
+ *  rouvrir ; ce cas-là n'est pas couvert ici. */
 
 /**
  * Bande « Ma saison » en tête du tableau de bord (#502, NAV-9).
@@ -105,12 +128,12 @@ export function MaSaison({
   // l'effet d'annonce ci-dessous a besoin du résumé à chaque rendu.
   const nom = athlete ? nomComplet(athlete) : "";
   const { epreuves, podiums } = compteMaSaison(participations, mode);
-  const rang = rankTypeLabel(mode, { form: "long" });
+  const rang = LIBELLE_RANG_BANDE[mode];
   const resumeCourant =
     etat === "ok"
       ? epreuves === 0
         ? `Ma saison : ${nom} — aucune épreuve sur cette sélection. Le club en a couru ${clubEvents}.`
-        : `Ma saison : ${nom} — ${motCompte(epreuves, "épreuve")} · ${motCompte(podiums, "podium")} (classement ${rang}). Le club a couru ${motCompte(clubEvents, "épreuve")} sur la même sélection.`
+        : `Ma saison : ${nom} — ${motCompte(epreuves, "épreuve")} · ${motCompte(podiums, "podium")} (${rang}). Le club a couru ${motCompte(clubEvents, "épreuve")} sur la même sélection.`
       : null;
 
   useEffect(() => {
@@ -184,7 +207,7 @@ export function MaSaison({
     );
   }
 
-  const principale = `${nom} — ${motCompte(epreuves, "épreuve")} · ${motCompte(podiums, "podium")} (classement ${rang})`;
+  const principale = `${nom} — ${motCompte(epreuves, "épreuve")} · ${motCompte(podiums, "podium")} (${rang})`;
   const secondaire = `Le club a couru ${motCompte(clubEvents, "épreuve")} sur la même sélection.`;
 
   return (
@@ -200,7 +223,7 @@ function Bande({ children }: { children: React.ReactNode }) {
     <div className="mb-4">
       <Card>
         <Eyebrow>Ma saison</Eyebrow>
-        <div style={{ minHeight: HAUTEUR_INTERIEURE, display: "flex", alignItems: "center" }}>
+        <div className="flex min-h-[84px] items-center sm:min-h-[68px]">
           {children}
         </div>
       </Card>
