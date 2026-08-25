@@ -64,7 +64,7 @@ export default async function DashboardPage({
   const [stats, eventsPage, seasons] = await Promise.all([
     apiServer.getStats({ scope: SCOPE_CLUB, seasons: selected, federal_only }, revalidateOpts),
     apiServer.listEvents(
-      { scope: SCOPE_CLUB, seasons: selected, federal_only, page_size: 200 },
+      { scope: SCOPE_CLUB, seasons: selected, federal_only, page_size: 6 },
       revalidateOpts,
     ),
     apiServer.listSeasons({ scope: SCOPE_CLUB, federal_only }, revalidateOpts),
