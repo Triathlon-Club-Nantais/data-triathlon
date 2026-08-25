@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Card, SegmentedControl, PlaceBadge, AnnonceStatut } from "@/components/tcn";
@@ -50,6 +50,56 @@ function detailHref(p: Participation): string {
 }
 
 /**
+ * Marque d'attente de la ligne cliquée (#481, FR-005).
+ *
+ * Vit **dans** le lien parce que `useLinkStatus` ne se lit que depuis un
+ * descendant de `<Link>` (doc de Next 16.3.1), et se cale sur la **ligne**, le
+ * `<tr>` étant l'ancêtre positionné (`.tcn-rowlink`).
+ *
+ * **C'est un filet en pied de ligne, pas un voile par-dessus.** La première
+ * version couvrait la ligne entière d'une nappe `--tcn-surface-sunk` à 0,6 :
+ * un descendant positionné passe au-dessus du contenu en flux de *toutes* les
+ * cellules, et le texte tombait à 2,50:1 (`--tcn-ink`) voire 1,74:1
+ * (`--tcn-text-muted`, colonne Club) — sous le plancher WCAG 1.4.3 de 4,5:1
+ * (revue UI/UX). Elle était en outre **invisible** sur la ligne survolée,
+ * c'est-à-dire celle qu'on vient de cliquer à la souris : le `:hover` de
+ * `.tcn-rowlink` pose déjà exactement ce fond. Inefficace comme changement de
+ * fond, trop violent comme atténuation de texte.
+ *
+ * Le filet ne recouvre aucun texte, donc aucun contraste de texte ne bouge, et
+ * `--tcn-orange` tient 1.4.11 (3,32:1) sur les deux fonds de ligne.
+ *
+ * Toujours monté, seule son opacité change : la doc de Next met en garde contre
+ * un indicateur monté au clic, qui déplace la mise en page. C'est aussi ce qui
+ * le rend perceptible sous `prefers-reduced-motion` — il n'y a aucun mouvement
+ * à figer.
+ *
+ * `pending` reste faux sur un ⌘/Ctrl+clic ou un clic milieu : ils n'ouvrent pas
+ * de navigation cliente. Le scénario « ouvrir dans un onglet n'allume rien »
+ * est donc satisfait sans code.
+ */
+function VoileAttente() {
+  const { pending } = useLinkStatus();
+  return (
+    <span
+      aria-hidden="true"
+      data-attente={String(pending)}
+      style={{
+        position: "absolute",
+        left: 0,
+        right: 0,
+        bottom: 0,
+        height: 3,
+        background: "var(--tcn-orange)",
+        opacity: pending ? 1 : 0,
+        transition: "opacity var(--tcn-dur-fast)",
+        pointerEvents: "none",
+      }}
+    />
+  );
+}
+
+/**
  * Cellule d'un inter — **ne rend que ce qui se lit comme une durée** (#472).
  *
  * Le repli `—` ne couvrait que l'absence de valeur, jamais l'impossible : un
@@ -68,21 +118,26 @@ function CelluleInter({ valeur, small }: { valeur?: string; small?: boolean }) {
   if (valeur && secondsFromHms(valeur) == null) {
     const motif = `Temps illisible chez le chronométreur (« ${valeur} ») — la donnée existe, mais ce n'est pas un temps.`;
     return (
-      <div style={style}>
+      <td role="cell" style={style}>
         —{" "}
         <span
           // `role="img"` : le marqueur informe, il ne commande rien.
           role="img"
           title={motif}
           aria-label={motif}
-          style={{ color: "var(--tcn-text-faint)", cursor: "help", userSelect: "none" }}
+          // `position: relative` : le `::after` de `.tcn-rowlink__cible` couvre
+          // la ligne entière et gagne le survol sur tout contenu en flux. Sans
+          // cette remontée, le ⚠ affiche le pointeur de la ligne et **aucune**
+          // infobulle — le marqueur redevient muet, ce que #472 avait
+          // justement corrigé.
+          style={{ position: "relative", color: "var(--tcn-text-faint)", cursor: "help", userSelect: "none" }}
         >
           ⚠
         </span>
-      </div>
+      </td>
     );
   }
-  return <div style={style}>{valeur ?? "—"}</div>;
+  return <td role="cell" style={style}>{valeur ?? "—"}</td>;
 }
 
 export function RaceFinishers({
@@ -178,6 +233,19 @@ export function RaceFinishers({
 
   const nbPages = pageSize ? Math.max(1, Math.ceil(total / pageSize)) : 1;
 
+  /**
+   * État du tri **de la colonne**, pour l'aide technique (#481, WCAG 1.3.1).
+   *
+   * Complémentaire de l'`aria-label` du bouton d'`EnteteTriable`, qui annonce
+   * l'action **à venir** : `aria-sort` dit l'état courant. `"none"` sur une
+   * colonne triable mais non triée — l'omettre la rendrait indiscernable d'une
+   * colonne qui ne se trie pas.
+   */
+  function ariaSort(cle: string): "ascending" | "descending" | "none" {
+    if (tri?.cle !== cle) return "none";
+    return tri.direction === "asc" ? "ascending" : "descending";
+  }
+
   /** Temps (en secondes) du participant pour la colonne de tri active. */
   function temps(p: Participation, cle: string): number | null {
     return secondsFromHms(cle === CLE_TEMPS_TOTAL ? p.total_time : p.splits?.[cle]);
@@ -222,7 +290,10 @@ export function RaceFinishers({
     <Card padding={0} style={{ overflow: "hidden" }}>
       <AnnonceStatut texte={texteAnnonce} />
       <div style={{ padding: "20px 26px", borderBottom: "1px solid var(--tcn-border)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-        <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)" }}>Classement</div>
+        {/* `id` : il nomme le tableau plus bas. `/courses/[id]` en porte deux,
+            et sans nom un lecteur d'écran les annonce tous deux « tableau »
+            sans dire lequel — « Top clubs » l'était déjà (#481). */}
+        <div id="titre-classement" style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)" }}>Classement</div>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <form
             role="search"
@@ -298,18 +369,22 @@ export function RaceFinishers({
         className="transition-opacity data-pending:opacity-60"
       >
         <div style={{ minWidth: 1080 }}>
-          <div style={{ display: "grid", gridTemplateColumns: fcols, gap: "0 12px", alignItems: "center", padding: "12px 22px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--tcn-text-faint)", borderBottom: "1px solid var(--tcn-border)" }}>
-            <div>Rang</div><div>Athlète</div><div>Catég.</div><div>Sexe</div>
-            <div>
+          <table className="tcn-table" role="table" aria-labelledby="titre-classement">
+          <thead role="rowgroup">
+          <tr role="row" style={{ display: "grid", gridTemplateColumns: fcols, gap: "0 12px", alignItems: "center", padding: "12px 22px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--tcn-text-faint)", borderBottom: "1px solid var(--tcn-border)" }}>
+            <th role="columnheader" scope="col">Rang</th><th role="columnheader" scope="col">Athlète</th><th role="columnheader" scope="col">Catég.</th><th role="columnheader" scope="col">Sexe</th>
+            <th role="columnheader" scope="col" aria-sort={ariaSort(CLE_TEMPS_TOTAL)}>
               <EnteteTriable cle={CLE_TEMPS_TOTAL} libelle="Temps total" ariaSujet="temps total" tri={tri} onTrier={trierSur} perimetre={perimetreTri} />
-            </div>
+            </th>
             {segments.map((s) => (
-              <div key={s.key}>
+              <th role="columnheader" scope="col" key={s.key} aria-sort={ariaSort(s.key)}>
                 <EnteteTriable cle={s.key} libelle={s.label} ariaSujet={`temps ${s.label}`} tri={tri} onTrier={trierSur} perimetre={perimetreTri} />
-              </div>
+              </th>
             ))}
-            <div>Club</div>
-          </div>
+            <th role="columnheader" scope="col">Club</th>
+          </tr>
+          </thead>
+          <tbody role="rowgroup">
           {lignes.map((p) => {
             const own = p.is_tcn;
             const nf = isNonFinisher(p.status);
@@ -317,18 +392,9 @@ export function RaceFinishers({
             const name = [p.athlete?.nom, p.athlete?.prenom].filter(Boolean).join(" ");
             const splits = p.splits ?? {};
             return (
-              <div
+              <tr
                 key={p.id}
-                role="button"
-                tabIndex={0}
-                aria-label={`Voir le détail du résultat de ${name}`}
-                onClick={() => router.push(detailHref(p))}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    router.push(detailHref(p));
-                  }
-                }}
+                role="row"
                 className={moi ? "tcn-rowlink tcn-rowlink--moi" : "tcn-rowlink"}
                 style={{
                   display: "grid",
@@ -355,7 +421,7 @@ export function RaceFinishers({
                     : undefined,
                 }}
               >
-                <div>
+                <td role="cell">
                   {nf ? (
                     <StatusBadge status={p.status} />
                   ) : p.rank_overall != null ? (
@@ -363,40 +429,59 @@ export function RaceFinishers({
                   ) : (
                     <span style={{ color: "var(--tcn-text-faint)" }}>—</span>
                   )}
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: "var(--tcn-ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</span>
-                  {/* Le chip, pas le fond, est le signifiant : la couleur seule
-                      échouerait WCAG 1.4.1. `flex: none` pour qu'il survive à
-                      un nom long, dont c'est l'ellipse qui cède. */}
-                  {moi && (
-                    <span
-                      style={{
-                        flex: "none",
-                        padding: "1px 7px",
-                        borderRadius: "var(--tcn-radius-sm)",
-                        background: "var(--tcn-orange-deep)",
-                        color: "#fff",
-                        fontFamily: "var(--tcn-font-cond)",
-                        fontWeight: 700,
-                        fontSize: 11,
-                        letterSpacing: ".04em",
-                      }}
-                    >
-                      Vous
+                </td>
+                {/* `minWidth: 0` remplace l'`overflow: hidden` que portait la
+                    cellule, et l'ellipsis descend sur le `<span>` intérieur.
+                    Les deux faisaient le même travail sur la piste `1fr` — mais
+                    un `overflow` ici **rognerait** le voile de couverture du
+                    lien et celui de l'attente, tous deux absolus et calés sur la
+                    ligne : la ligne cesserait d'être cliquable hors du nom. */}
+                <td role="cell" style={{ fontSize: 14, fontWeight: 700, color: "var(--tcn-ink)", minWidth: 0 }}>
+                  <Link
+                    href={detailHref(p)}
+                    prefetch={false}
+                    aria-label={`Voir le détail du résultat de ${name}`}
+                    className="tcn-rowlink__cible"
+                    style={{ display: "flex", alignItems: "center", gap: 8, maxWidth: "100%" }}
+                  >
+                    <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {name}
                     </span>
-                  )}
-                </div>
-                <div style={{ fontSize: 13, color: "var(--tcn-text-body)" }}>{p.category ?? "—"}</div>
-                <div style={{ fontSize: 13, color: "var(--tcn-text-body)" }}>{genderShort(p.athlete?.gender)}</div>
-                <div style={{ fontFamily: "var(--tcn-font-cond)", fontWeight: 700, fontSize: 15, color: "var(--tcn-ink)" }}>{p.total_time ?? "—"}</div>
+                    {/* Le chip, pas le fond, est le signifiant : la couleur seule
+                        échouerait WCAG 1.4.1. `flex: none` pour qu'il survive à
+                        un nom long, dont c'est l'ellipse qui cède. */}
+                    {moi && (
+                      <span
+                        style={{
+                          flex: "none",
+                          padding: "1px 7px",
+                          borderRadius: "var(--tcn-radius-sm)",
+                          background: "var(--tcn-orange-deep)",
+                          color: "#fff",
+                          fontFamily: "var(--tcn-font-cond)",
+                          fontWeight: 700,
+                          fontSize: 11,
+                          letterSpacing: ".04em",
+                        }}
+                      >
+                        Vous
+                      </span>
+                    )}
+                    <VoileAttente />
+                  </Link>
+                </td>
+                <td role="cell" style={{ fontSize: 13, color: "var(--tcn-text-body)" }}>{p.category ?? "—"}</td>
+                <td role="cell" style={{ fontSize: 13, color: "var(--tcn-text-body)" }}>{genderShort(p.athlete?.gender)}</td>
+                <td role="cell" style={{ fontFamily: "var(--tcn-font-cond)", fontWeight: 700, fontSize: 15, color: "var(--tcn-ink)" }}>{p.total_time ?? "—"}</td>
                 {segments.map((s) => (
                   <CelluleInter key={s.key} valeur={splits[s.key]} small={s.small} />
                 ))}
-                <div style={{ fontSize: 13, fontWeight: own ? 700 : 400, color: own ? "var(--tcn-orange-deeper)" : "var(--tcn-text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.club ?? "—"}</div>
-              </div>
+                <td role="cell" style={{ fontSize: 13, fontWeight: own ? 700 : 400, color: own ? "var(--tcn-orange-deeper)" : "var(--tcn-text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.club ?? "—"}</td>
+              </tr>
             );
           })}
+          </tbody>
+          </table>
           {participations.length === 0 && (
             // `total > 0` : sans ce garde, une recherche sans résultat sur une
             // page sautée (`?q=zzz&page=5`) tombe dans cette branche — `nbPages`

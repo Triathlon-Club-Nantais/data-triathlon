@@ -63,9 +63,20 @@ const PAGE_CANDIDATS = 20;
 export function ParticipationAdminActions({
   resultat,
   style,
+  colonnes,
 }: {
   resultat: ResultatACorriger;
   style?: CSSProperties;
+  /**
+   * Nombre de colonnes du tableau appelant — le composant rend alors sa propre
+   * ligne de tableau (#481).
+   *
+   * C'est le corollaire de l'invariant ci-dessus : le conteneur de la
+   * sous-ligne appartient au composant. Le poser côté appelant rendrait une
+   * `<tr>` vide à tout visiteur sans pouvoir, et l'aide technique annoncerait
+   * une ligne de plus par épreuve.
+   */
+  colonnes?: number;
 }) {
   const session = useSession();
   const pouvoirs = session.data?.permissions;
@@ -167,7 +178,7 @@ export function ParticipationAdminActions({
   // confirmation se relit contre la ligne que l'opérateur vient de cliquer.
   const intitule = quand ? `« ${resultat.epreuve} — ${quand} »` : `« ${resultat.epreuve} »`;
 
-  return (
+  const contenu = (
     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", ...style }}>
       {peutSupprimer && (
         <Button
@@ -379,5 +390,17 @@ export function ParticipationAdminActions({
         </Modal>
       )}
     </div>
+  );
+
+  if (colonnes == null) return contenu;
+  return (
+    <tr role="row" style={{ display: "block" }}>
+      {/* `aria-colspan` double `colSpan` : la surcharge de `display` du tableau
+          appelant peut faire tomber la portée dérivée de la disposition, comme
+          elle fait tomber les rôles (#481). */}
+      <td role="cell" colSpan={colonnes} aria-colspan={colonnes} style={{ display: "block" }}>
+        {contenu}
+      </td>
+    </tr>
   );
 }

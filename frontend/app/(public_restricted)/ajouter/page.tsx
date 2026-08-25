@@ -35,21 +35,30 @@ export default async function AjouterPage() {
         </div>
         <div style={{ overflowX: "auto" }}>
           <div style={{ minWidth: 480 }}>
-            <div style={{ display: "grid", gridTemplateColumns: RCOLS, gap: "0 14px", padding: "12px 24px", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--tcn-text-faint)", borderBottom: "1px solid var(--tcn-border)" }}>
-              <div>Date</div><div>Épreuve</div><div>Format</div><div>Athlètes club</div>
-            </div>
-            {recent.length === 0 ? (
+            <table className="tcn-table" role="table">
+              <thead role="rowgroup">
+                <tr role="row" style={{ display: "grid", gridTemplateColumns: RCOLS, gap: "0 14px", padding: "12px 24px", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--tcn-text-faint)", borderBottom: "1px solid var(--tcn-border)" }}>
+                  <th role="columnheader" scope="col">Date</th><th role="columnheader" scope="col">Épreuve</th><th role="columnheader" scope="col">Format</th><th role="columnheader" scope="col">Athlètes club</th>
+                </tr>
+              </thead>
+              <tbody role="rowgroup">
+                {recent.map((e) => (
+                  <tr key={e.id} role="row" className="tcn-rowlink" style={{ display: "grid", gridTemplateColumns: RCOLS, gap: "0 14px", alignItems: "center", padding: "13px 24px", borderBottom: "1px solid var(--tcn-border-faint)" }}>
+                    <td role="cell" style={{ fontSize: 14, color: "var(--tcn-text-muted)", fontWeight: 600 }}>{formatDate(e.event_date)}</td>
+                    <td role="cell" style={{ fontSize: 15, fontWeight: 700, color: "var(--tcn-ink)" }}>
+                      <Link href={`/courses/${e.id}`} className="tcn-rowlink__cible">{formatEventName(e.event_name, e.is_relay)}</Link>
+                    </td>
+                    <td role="cell"><FormatChip>{formatToken(e.event_type, e.distance_km)}</FormatChip></td>
+                    <td role="cell">{e.tcn_count > 0 ? <Badge count>{e.tcn_count}</Badge> : <span style={{ color: "var(--tcn-text-faint)", fontSize: 13 }}>—</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {recent.length === 0 && (
               // Pas d'action : le formulaire d'import est juste au-dessus.
+              // Hors du tableau : posé en ligne, il s'annoncerait comme une
+              // donnée du classement (#481, contrat C1).
               <EmptyState bare title="Aucun résultat enregistré pour l'instant" />
-            ) : (
-              recent.map((e) => (
-                <Link key={e.id} href={`/courses/${e.id}`} className="tcn-rowlink" style={{ display: "grid", gridTemplateColumns: RCOLS, gap: "0 14px", alignItems: "center", padding: "13px 24px", borderBottom: "1px solid var(--tcn-border-faint)" }}>
-                  <div style={{ fontSize: 14, color: "var(--tcn-text-muted)", fontWeight: 600 }}>{formatDate(e.event_date)}</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: "var(--tcn-ink)" }}>{formatEventName(e.event_name, e.is_relay)}</div>
-                  <div><FormatChip>{formatToken(e.event_type, e.distance_km)}</FormatChip></div>
-                  <div>{e.tcn_count > 0 ? <Badge count>{e.tcn_count}</Badge> : <span style={{ color: "var(--tcn-text-faint)", fontSize: 13 }}>—</span>}</div>
-                </Link>
-              ))
             )}
           </div>
         </div>

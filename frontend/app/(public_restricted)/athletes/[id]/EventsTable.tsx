@@ -238,9 +238,12 @@ export function EventsTable({
       ) : (
         <div style={{ overflowX: "auto" }}>
           <div style={{ minWidth: MIN_WIDTH }}>
-            <div style={{ display: "grid", gridTemplateColumns: COLS, columnGap: GAP, padding: `0 ${PADDING_X}px 12px`, fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--tcn-text-faint)", borderBottom: "1px solid var(--tcn-border)" }}>
-              <div>Date</div><div>Épreuve</div><div>Type</div><div>Format</div><div>Temps final</div><div>Place</div><div></div>
-            </div>
+            <table className="tcn-table" role="table">
+            <thead role="rowgroup">
+            <tr role="row" style={{ display: "grid", gridTemplateColumns: COLS, columnGap: GAP, padding: `0 ${PADDING_X}px 12px`, fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--tcn-text-faint)", borderBottom: "1px solid var(--tcn-border)" }}>
+              <th role="columnheader" scope="col">Date</th><th role="columnheader" scope="col">Épreuve</th><th role="columnheader" scope="col">Type</th><th role="columnheader" scope="col">Format</th><th role="columnheader" scope="col">Temps final</th><th role="columnheader" scope="col">Place</th><th role="columnheader" scope="col"><span className="sr-only">Ouvrir</span></th>
+            </tr>
+            </thead>
             {ordered.map((p) => {
               const { ratio } = rankRatio(p);
               // AC5 : le marqueur ⚠ dépend de la fiabilité de la course, pas
@@ -259,21 +262,26 @@ export function EventsTable({
                 // d'actions n'existe que dans le navigateur (#439), donc aucun
                 // rendu serveur ne peut savoir laquelle est la dernière. Le
                 // dessin reste celui d'avant — sans trait pour une ligne en
-                // attente qui n'a pas de sous-ligne de preuve (#270).
-                <div
+                // attente qui n'a pas de sous-ligne de preuve (#270). Le groupe
+                // est un `<tbody>` depuis #481 : un tableau n'autorise aucun
+                // élément intermédiaire entre le corps et ses lignes.
+                <tbody
+                  role="rowgroup"
                   key={p.id}
                   style={{ borderBottom: p.is_pending_validation && !preuve ? "none" : "1px solid var(--tcn-border-faint)" }}
                 >
-                <Link href={`/courses/${p.course?.id}/participations/${p.id}`} className="tcn-rowlink" style={{ display: "grid", gridTemplateColumns: COLS, columnGap: GAP, alignItems: "center", padding: `15px ${PADDING_X}px` }}>
-                  <div style={{ fontSize: 14, color: "var(--tcn-text-muted)", fontWeight: 600 }}>{formatDate(p.course?.event_date)}</div>
-                  <div style={{ fontSize: 15, color: "var(--tcn-ink)", fontWeight: 700, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    {p.course?.name}
+                <tr role="row" className="tcn-rowlink" style={{ display: "grid", gridTemplateColumns: COLS, columnGap: GAP, alignItems: "center", padding: `15px ${PADDING_X}px` }}>
+                  <td role="cell" style={{ fontSize: 14, color: "var(--tcn-text-muted)", fontWeight: 600 }}>{formatDate(p.course?.event_date)}</td>
+                  <td role="cell" style={{ fontSize: 15, color: "var(--tcn-ink)", fontWeight: 700, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <Link href={`/courses/${p.course?.id}/participations/${p.id}`} className="tcn-rowlink__cible">
+                      {p.course?.name}
+                    </Link>
                     {p.is_pending_validation && <PendingBadge rejected={p.is_rejected} />}
-                  </div>
-                  <div style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>{eventTypeLabel(p.course?.event_type)}</div>
-                  <div><FormatChip>{formatToken(p.course?.event_type, p.course?.distance_km)}</FormatChip></div>
-                  <div style={{ fontSize: 15, color: "var(--tcn-ink)", fontFamily: "var(--tcn-font-cond)", fontWeight: 700 }}>{p.total_time ?? "—"}</div>
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                  </td>
+                  <td role="cell" style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>{eventTypeLabel(p.course?.event_type)}</td>
+                  <td role="cell"><FormatChip>{formatToken(p.course?.event_type, p.course?.distance_km)}</FormatChip></td>
+                  <td role="cell" style={{ fontSize: 15, color: "var(--tcn-ink)", fontFamily: "var(--tcn-font-cond)", fontWeight: 700 }}>{p.total_time ?? "—"}</td>
+                  <td role="cell" style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
                     {nonFinisher ? (
                       // Non-finisher : sigle sobre. DSQ garde le rang entre
                       // parenthèses quand le chronométreur en a fourni un ;
@@ -303,20 +311,31 @@ export function EventsTable({
                         aria-label={unreliableTitle}
                         // `role="img"` : le texte est purement informatif, pas un contrôle.
                         role="img"
-                        style={{ fontSize: 13, color: "var(--tcn-text-faint)", cursor: "help", userSelect: "none" }}
+                        // `position: relative` : le `::after` de
+                        // `.tcn-rowlink__cible` couvre la ligne et gagne le
+                        // survol sur tout contenu en flux. Sans cette remontée,
+                        // l'infobulle du marqueur — qui fonctionnait avant #481
+                        // — ne s'ouvre plus.
+                        style={{ position: "relative", fontSize: 13, color: "var(--tcn-text-faint)", cursor: "help", userSelect: "none" }}
                       >
                         ⚠
                       </span>
                     ) : null}
-                  </div>
-                  <div style={{ textAlign: "right", color: "var(--tcn-text-disabled)", fontSize: 16 }}>→</div>
-                </Link>
+                  </td>
+                  <td role="cell" style={{ textAlign: "right", color: "var(--tcn-text-disabled)", fontSize: 16 }}><span aria-hidden>→</span></td>
+                </tr>
                 {preuve ? (
                   // Ligne séparée, hors du `<Link>` de la ligne : un `<a>`
                   // imbriqué dans un autre serait invalide en HTML. Le texte
                   // qui n'est pas une URL http(s) exploitable reste stocké
                   // (cas limite de la spec) mais n'est jamais rendu cliquable.
-                  <div style={{ padding: `0 ${PADDING_X}px 12px` }}>
+                  <tr role="row" style={{ display: "block", padding: `0 ${PADDING_X}px 12px` }}>
+                  {/* `aria-colspan` double `colSpan` pour la même raison que
+                      les rôles doublent les balises : la surcharge de `display`
+                      peut faire tomber la portée dérivée de la disposition, et
+                      la sous-ligne serait exposée en cellule de la seule
+                      première colonne. */}
+                  <td role="cell" colSpan={TRACKS.length} aria-colspan={TRACKS.length} style={{ display: "block" }}>
                     <a
                       href={preuve}
                       target="_blank"
@@ -337,12 +356,17 @@ export function EventsTable({
                       <Eye size={14} aria-hidden="true" />
                       Voir la preuve
                     </a>
-                  </div>
+                  </td>
+                  </tr>
                 ) : null}
                 {/* Sous-ligne d'actions : le composant se rend lui-même nul
                     pour qui ne porte aucun des pouvoirs, donc rien ici ne
-                    réserve d'espace au visiteur public (#439). */}
+                    réserve d'espace au visiteur public (#439). `colonnes` lui
+                    fait porter sa propre `<tr>` — la poser ici la rendrait
+                    vide pour le public, et l'aide technique annoncerait une
+                    ligne de plus par épreuve (#481). */}
                 <ParticipationAdminActions
+                  colonnes={TRACKS.length}
                   resultat={{
                     id: p.id,
                     epreuve: p.course?.name ?? "cette épreuve",
@@ -352,9 +376,10 @@ export function EventsTable({
                   }}
                   style={{ padding: `0 ${PADDING_X}px 14px` }}
                 />
-                </div>
+                </tbody>
               );
             })}
+            </table>
           </div>
         </div>
       )}

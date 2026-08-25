@@ -102,6 +102,18 @@ describe("AthletePage — état vide (ETAT-3)", () => {
   });
 });
 
+/**
+ * La ligne du tableau qui porte ce lien.
+ *
+ * Depuis #481, la ligne **n'est plus** le lien : c'est un `<tr>` dont une
+ * cellule porte la cible. Passer par le lien reste le moyen le plus court de
+ * désigner une ligne précise, mais il faut remonter à sa ligne pour y chercher
+ * les autres cellules.
+ */
+function ligneDe(container: HTMLElement, href: string): HTMLElement | null {
+  return container.querySelector<HTMLElement>(`a[href='${href}']`)?.closest("tr") ?? null;
+}
+
 describe("AthletePage", () => {
   it("rend le nom de l'athlète comme un <h1> (A11Y-2)", async () => {
     await renderAthlete([part({ id: 1 })]);
@@ -221,7 +233,7 @@ describe("AthletePage", () => {
     // Ciblage sur la ligne du tableau (par son lien) : « — » apparaît aussi
     // dans les StatCards vides du haut de page, hors périmètre de cette cellule.
     const { container } = await renderAthlete([part({ id: 1, status: "DNF" })]);
-    const row = container.querySelector<HTMLElement>("a[href='/courses/1/participations/1']");
+    const row = ligneDe(container, "/courses/1/participations/1");
     expect(row).not.toBeNull();
     expect(within(row as HTMLElement).getByText("DNF")).toBeInTheDocument();
     expect(within(row as HTMLElement).queryByText("—")).not.toBeInTheDocument();
@@ -247,7 +259,7 @@ describe("AthletePage", () => {
     // Aucune pastille orange de finisher dans la ligne : le rang est
     // descriptif, pas glorieux. La StatCard « Meilleure place » du haut de
     // page peut encore afficher « 42 », hors périmètre.
-    const row = container.querySelector<HTMLElement>("a[href='/courses/1/participations/1']");
+    const row = ligneDe(container, "/courses/1/participations/1");
     expect(row).not.toBeNull();
     expect(within(row as HTMLElement).queryByText(/^42$/)).not.toBeInTheDocument();
   });
@@ -309,7 +321,7 @@ describe("AthletePage", () => {
     // ligne du tableau (via son lien) parce que d'autres cellules de la page
     // affichent aussi un « — » quand une stat manque.
     const { container } = await renderAthlete([part({ id: 1, status: "finisher" })]);
-    const row = container.querySelector<HTMLElement>("a[href='/courses/1/participations/1']");
+    const row = ligneDe(container, "/courses/1/participations/1");
     expect(row).not.toBeNull();
     expect(within(row as HTMLElement).getByText("—")).toBeInTheDocument();
     expect(within(row as HTMLElement).queryByText("DNF")).not.toBeInTheDocument();
@@ -335,10 +347,10 @@ describe("AthletePage", () => {
     // cette regex (#438), sans être une ligne du tableau.
     const rows = screen
       .getAllByText(/en attente de validation/i)
-      .filter((el) => el.closest("a"));
+      .filter((el) => el.closest("tr"));
     expect(rows).toHaveLength(1);
-    const pendingRow = rows[0].closest("a[href='/courses/1/participations/1']");
-    expect(pendingRow).not.toBeNull();
+    const pendingRow = rows[0].closest("tr");
+    expect(pendingRow?.querySelector("a[href='/courses/1/participations/1']")).not.toBeNull();
   });
 
   it("distingue une participation rejetée d'une simple attente", async () => {
@@ -355,7 +367,7 @@ describe("AthletePage", () => {
     // matcherait sinon la même regex (#438).
     const rows = screen
       .getAllByText(/en attente de validation/i)
-      .filter((el) => el.closest("a"));
+      .filter((el) => el.closest("tr"));
     expect(rows).toHaveLength(1);
   });
 
@@ -430,8 +442,9 @@ describe("AthletePage", () => {
     ).toBeInTheDocument();
 
     // Le tableau détaillé, lui, continue d'afficher la participation en
-    // attente, badge compris.
-    const pendingRow = container.querySelector<HTMLElement>("a[href='/courses/1/participations/1']");
+    // attente, badge compris — scopé à sa ligne pour ne pas confondre avec
+    // le repère de la StatCard « Épreuves » ci-dessus.
+    const pendingRow = ligneDe(container, "/courses/1/participations/1");
     expect(pendingRow).not.toBeNull();
     expect(within(pendingRow as HTMLElement).getByText("En attente de validation")).toBeInTheDocument();
   });

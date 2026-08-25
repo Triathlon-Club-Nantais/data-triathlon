@@ -1,7 +1,7 @@
 // frontend/components/results/RaceFinishers.test.tsx
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { StrictMode } from "react";
-import { render, screen } from "@testing-library/react";
+import { StrictMode, type ReactNode } from "react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { CourseSummary, Participation } from "@/lib/types";
 import { SCOPE_CLUB, SCOPE_PARAM } from "@/lib/scope";
@@ -15,6 +15,31 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
   usePathname: () => "/courses/1",
   useSearchParams: () => searchParams,
+}));
+
+// `prefetch` ne se reflète sur aucun attribut du DOM : sans ce miroir, rien ne
+// distinguerait une ligne préchargée d'une autre — et #481 en dépend, la phase
+// d'attente étant sautée sur une route déjà préchargée. Même patron que
+// `components/dashboard/RecentCourses.test.tsx` (#425).
+vi.mock("next/link", () => ({
+  default: ({
+    href,
+    prefetch,
+    children,
+    ...rest
+  }: {
+    href: string;
+    prefetch?: boolean;
+    children?: ReactNode;
+    [key: string]: unknown;
+  }) => (
+    <a href={href} data-prefetch={String(prefetch)} {...rest}>
+      {children}
+    </a>
+  ),
+  // Hors d'une navigation cliente, Next rend `{ pending: false }` — c'est aussi
+  // l'état au repos, le seul que jsdom peut observer.
+  useLinkStatus: () => ({ pending: false }),
 }));
 
 import { RaceFinishers } from "./RaceFinishers";
@@ -446,6 +471,16 @@ describe("RaceFinishers", () => {
     expect(screen.queryByText(ILLISIBLE)).not.toBeInTheDocument();
   });
 
+  it("garde le marqueur d'inter illisible au-dessus du voile de la ligne (revue de code #481)", () => {
+    // Le `::after` de `.tcn-rowlink__cible` couvre la ligne entière et gagne le
+    // survol sur le contenu en flux des cellules voisines : sans `position`, le
+    // ⚠ rendait le pointeur de la ligne et **aucune** infobulle. FR-008 nomme ce
+    // marqueur parmi les comportements à préserver.
+    afficherInter();
+
+    expect(screen.getByRole("img", { name: /illisible/i }).style.position).toBe("relative");
+  });
+
   it("signale l'inter illisible au lieu de le taire, et rappelle la valeur reçue", () => {
     // Masquer sans rien dire ferait croire que le chronométreur n'a rien publié.
     afficherInter();
@@ -578,23 +613,90 @@ describe("RaceFinishers", () => {
 
   // ── Ouverture du détail de participation ───────────────────────────────────
 
-  it("ouvre le détail de la participation, et non plus le profil de l'athlète", async () => {
-    const user = userEvent.setup();
+  // La ligne est un **lien** depuis #481 : ce qui se vérifie n'est plus un
+  // appel de navigation mais une adresse de destination. Un test sur le
+  // gestionnaire de clic est précisément ce qui avait laissé passer le défaut —
+  // il passait au vert sur une ligne qu'on ne pouvait ni partager ni ouvrir
+  // dans un onglet (FR-010).
+  it("ouvre le détail de la participation, et non plus le profil de l'athlète", () => {
     afficher();
 
-    await user.click(screen.getByText("FINISHER T"));
-
-    expect(push).toHaveBeenCalledWith("/courses/1/participations/1");
+    expect(screen.getByRole("link", { name: /Voir le détail du résultat de FINISHER/ })).toHaveAttribute(
+      "href",
+      "/courses/1/participations/1",
+    );
   });
 
-  it("ouvre le même détail au clavier", async () => {
-    const user = userEvent.setup();
+  it("porte une adresse de détail par ligne affichée, sans exécuter de script", () => {
     afficher();
 
-    screen.getByText("FINISHER T").closest<HTMLElement>("[role=button]")?.focus();
-    await user.keyboard("{Enter}");
+    const adresses = screen
+      .getAllByRole("row")
+      .slice(1)
+      .map((l) => l.querySelector("a[href]")?.getAttribute("href"));
+    expect(adresses).toEqual([
+      "/courses/1/participations/1",
+      "/courses/1/participations/2",
+      "/courses/1/participations/3",
+    ]);
+  });
 
-    expect(push).toHaveBeenCalledWith("/courses/1/participations/1");
+  it("n'annonce plus la ligne comme un bouton (WCAG 4.1.2)", () => {
+    // Assertion **négative**, et c'est elle qui interdit le retour du défaut :
+    // un test qui ne vérifierait que la présence du lien laisserait réapparaître
+    // un `role="button"` à côté.
+    afficher();
+
+    expect(screen.queryByRole("button", { name: /Voir le détail/i })).not.toBeInTheDocument();
+  });
+
+  it("n'offre qu'un arrêt clavier par ligne", () => {
+    // FR-011, compté par `<tr>` : un `href` par cellule multiplierait les
+    // tabulations par sept sans qu'aucune autre assertion ne bronche.
+    afficher();
+
+    for (const ligne of screen.getAllByRole("row").slice(1)) {
+      expect(ligne.querySelectorAll("a[href], button, input, select, textarea")).toHaveLength(1);
+    }
+  });
+
+  it("désactive le prefetch des lignes, sans quoi l'attente ne s'afficherait jamais", () => {
+    // `useLinkStatus` saute la phase d'attente sur une route déjà préchargée
+    // (doc de Next 16.3.1). Sans `prefetch={false}`, l'indicateur de FR-005
+    // serait mort en production — et 20 routes dynamiques seraient préchargées
+    // par page, le coût que #425 a déjà refusé sur `RecentCourses`.
+    afficher();
+
+    for (const ligne of screen.getAllByRole("row").slice(1)) {
+      expect(ligne.querySelector("a[href]")).toHaveAttribute("data-prefetch", "false");
+    }
+  });
+
+  it("porte une marque d'attente sur la ligne, toujours montée et sans mouvement", () => {
+    // Toujours rendue, seule son opacité change : un indicateur monté au clic
+    // déplacerait la mise en page (doc de Next), et une animation serait figée
+    // sous `prefers-reduced-motion`.
+    afficher();
+
+    for (const ligne of screen.getAllByRole("row").slice(1)) {
+      const marque = ligne.querySelector<HTMLElement>("[data-attente]");
+      expect(marque).not.toBeNull();
+      expect(marque).toHaveAttribute("aria-hidden", "true");
+      expect(marque).toHaveAttribute("data-attente", "false");
+    }
+  });
+
+  it("marque l'attente en pied de ligne, jamais en nappe par-dessus le texte", () => {
+    // Régression bloquante relevée en revue UI/UX : une nappe couvrant la ligne
+    // passe au-dessus du contenu en flux de **toutes** les cellules et faisait
+    // tomber le texte à 2,50:1 (`--tcn-ink`) et 1,74:1 (colonne Club), sous le
+    // plancher WCAG 1.4.3. Le filet ne recouvre aucun texte.
+    afficher();
+
+    const marque = screen.getAllByRole("row")[1].querySelector<HTMLElement>("[data-attente]")!;
+    expect(marque.style.top).toBe("");
+    expect(marque.style.bottom).toBe("0px");
+    expect(marque.style.height).toBe("3px");
   });
 
   // ── Annonce du décompte / tri (WCAG 4.1.3, #477) ───────────────────────────
@@ -764,6 +866,99 @@ describe("RaceFinishers", () => {
       "aria-disabled",
       "true",
     );
+  });
+
+  // ── Structure de tableau (#481, A11Y-3) ────────────────────────────────────
+  //
+  // Le classement était une grille de `div` dont l'en-tête n'était reliée à
+  // rien : un lecteur d'écran énonçait « 01:10:47 » sans jamais dire de quelle
+  // colonne. Ces tests interrogent l'arbre d'accessibilité, jamais le nom des
+  // balises — c'est ce qui laisse la mise en œuvre libre (contrat C1/C2).
+
+  it("s'annonce comme un tableau nommé, une ligne d'en-tête plus une par participant", () => {
+    // Nommé, parce que `/courses/[id]` en porte deux : sans nom, un lecteur
+    // d'écran annonce « tableau » deux fois sans dire lequel (revue de code
+    // #481 — « Top clubs » l'était, celui-ci ne l'était pas).
+    afficher();
+
+    expect(screen.getByRole("table", { name: "Classement" })).toBeInTheDocument();
+    expect(screen.getAllByRole("row")).toHaveLength(1 + data.length);
+  });
+
+  it("nomme chacune de ses colonnes, inters de la synthèse compris", () => {
+    afficher({
+      summary: synthese({ split_keys: ["swim", "bike", "run"] }),
+      eventType: "triathlon-m",
+    });
+
+    for (const nom of ["Rang", "Athlète", "Catég.", "Sexe", "Temps total", "Club"]) {
+      expect(screen.getByRole("columnheader", { name: nom })).toBeInTheDocument();
+    }
+    for (const inter of ["Natation", "Vélo", "Course"]) {
+      expect(screen.getByRole("columnheader", { name: new RegExp(inter) })).toBeInTheDocument();
+    }
+  });
+
+  it("range chaque valeur dans la cellule de sa colonne", () => {
+    afficher({
+      participations: [
+        p({ id: 9, nom: "KERMARREC", rank_overall: 4, total_time: "01:10:47", club: "TCN" }),
+      ],
+      total: 1,
+    });
+
+    // L'ordre des cellules est le contrat : c'est lui qui rattache une valeur à
+    // son en-tête. Rang, Athlète, Catég., Sexe, Temps total, Club.
+    const cellules = within(screen.getAllByRole("row")[1]).getAllByRole("cell");
+    expect(cellules).toHaveLength(6);
+    expect(cellules[1]).toHaveTextContent("KERMARREC");
+    expect(cellules[2]).toHaveTextContent("S4");
+    expect(cellules[4]).toHaveTextContent("01:10:47");
+    expect(cellules[5]).toHaveTextContent("TCN");
+  });
+
+  it("annonce la direction du tri sur la colonne triée, et « none » sur les autres colonnes triables", async () => {
+    // `aria-sort` dit l'**état** ; l'`aria-label` du bouton dit l'action à
+    // venir. Les deux sont complémentaires, et c'est le premier qui manquait.
+    const user = userEvent.setup();
+    afficher({
+      summary: synthese({ split_keys: ["swim"] }),
+      eventType: "triathlon-m",
+    });
+
+    const tempsTotal = screen.getByRole("columnheader", { name: /Temps total/ });
+    const natation = screen.getByRole("columnheader", { name: /Natation/ });
+    expect(tempsTotal).toHaveAttribute("aria-sort", "none");
+    expect(natation).toHaveAttribute("aria-sort", "none");
+
+    await user.click(within(tempsTotal).getByRole("button"));
+    expect(tempsTotal).toHaveAttribute("aria-sort", "ascending");
+    expect(natation).toHaveAttribute("aria-sort", "none");
+
+    await user.click(within(tempsTotal).getByRole("button"));
+    expect(tempsTotal).toHaveAttribute("aria-sort", "descending");
+  });
+
+  it("ne porte aucun aria-sort sur les colonnes qui ne se trient pas", () => {
+    afficher();
+
+    for (const nom of ["Rang", "Athlète", "Catég.", "Sexe", "Club"]) {
+      expect(screen.getByRole("columnheader", { name: nom })).not.toHaveAttribute("aria-sort");
+    }
+  });
+
+  it("garde son en-tête sur une épreuve vide, et laisse l'état vide hors du tableau", () => {
+    // FR-007 : l'en-tête est rendue aujourd'hui sur une liste vide, elle doit
+    // continuer de l'être. L'`EmptyState` reste un frère du tableau — le poser
+    // en ligne le ferait annoncer comme une donnée du classement.
+    afficher({ participations: [], total: 0 });
+
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    expect(screen.getAllByRole("row")).toHaveLength(1);
+    expect(
+      within(screen.getByRole("table")).queryByText("Aucun participant à afficher"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Aucun participant à afficher")).toBeInTheDocument();
   });
 });
 

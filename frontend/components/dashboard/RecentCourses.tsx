@@ -45,59 +45,65 @@ export function RecentCourses({ events }: { events: EventOut[] }) {
           }
         />
       ) : (
-        <>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: GRID_COLUMNS,
-              gap: "0 14px",
-              fontSize: 12,
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: ".04em",
-              color: "var(--tcn-text-faint)",
-              paddingBottom: 10,
-              borderBottom: "1px solid var(--tcn-border)",
-            }}
-          >
-            <div>Date</div>
-            <div>Épreuve</div>
-            <div>Format</div>
-            <div style={{ textAlign: "right" }}>Dossards</div>
-          </div>
-          {events.map((e, i) => (
-            // prefetch={false} (#425) : jusqu'à 6 liens au-dessus de la ligne
-            // de flottaison, next/link les prefetch tous par défaut dès
-            // l'atterrissage sur /dashboard — un coût réseau pour des
-            // épreuves au hasard, rarement celle que le visiteur ouvrira.
-            <Link
-              key={e.id}
-              href={`/courses/${e.id}`}
-              prefetch={false}
-              className="tcn-rowlink"
+        <table className="tcn-table" role="table">
+          <thead role="rowgroup">
+            <tr
+              role="row"
               style={{
                 display: "grid",
                 gridTemplateColumns: GRID_COLUMNS,
                 gap: "0 14px",
-                alignItems: "center",
-                padding: "12px 0",
-                borderBottom: i < events.length - 1 ? "1px solid var(--tcn-border-faint)" : "none",
-                fontSize: 15,
+                fontSize: 12,
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: ".04em",
+                color: "var(--tcn-text-faint)",
+                paddingBottom: 10,
+                borderBottom: "1px solid var(--tcn-border)",
               }}
             >
-              <span style={{ fontFamily: "var(--tcn-font-display)", color: "var(--tcn-text-muted)" }}>
-                {formatDate(e.event_date) || "—"}
-              </span>
-              <span style={{ color: "var(--tcn-ink)", fontWeight: 600 }}>
-                {formatEventName(e.event_name, e.is_relay)}
-              </span>
-              <FormatChip>{formatToken(e.event_type, e.distance_km)}</FormatChip>
-              <b style={{ textAlign: "right", fontFamily: "var(--tcn-font-display)", color: "var(--tcn-ink)" }}>
-                {e.total}
-              </b>
-            </Link>
-          ))}
-        </>
+              <th role="columnheader" scope="col">Date</th>
+              <th role="columnheader" scope="col">Épreuve</th>
+              <th role="columnheader" scope="col">Format</th>
+              <th role="columnheader" scope="col" style={{ textAlign: "right" }}>Dossards</th>
+            </tr>
+          </thead>
+          <tbody role="rowgroup">
+            {events.map((e, i) => (
+              <tr
+                key={e.id}
+                role="row"
+                className="tcn-rowlink"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: GRID_COLUMNS,
+                  gap: "0 14px",
+                  alignItems: "center",
+                  padding: "12px 0",
+                  borderBottom: i < events.length - 1 ? "1px solid var(--tcn-border-faint)" : "none",
+                  fontSize: 15,
+                }}
+              >
+                <td role="cell" style={{ fontFamily: "var(--tcn-font-display)", color: "var(--tcn-text-muted)" }}>
+                  {formatDate(e.event_date) || "—"}
+                </td>
+                <td role="cell" style={{ color: "var(--tcn-ink)", fontWeight: 600 }}>
+                  {/* prefetch={false} (#425) : jusqu'à 6 liens au-dessus de la
+                      ligne de flottaison, next/link les prefetch tous par défaut
+                      dès l'atterrissage sur /dashboard — un coût réseau pour des
+                      épreuves au hasard, rarement celle que le visiteur ouvrira. */}
+                  <Link href={`/courses/${e.id}`} prefetch={false} className="tcn-rowlink__cible">
+                    {formatEventName(e.event_name, e.is_relay)}
+                  </Link>
+                </td>
+                <td role="cell"><FormatChip>{formatToken(e.event_type, e.distance_km)}</FormatChip></td>
+                <td role="cell" style={{ textAlign: "right", fontFamily: "var(--tcn-font-display)", color: "var(--tcn-ink)", fontWeight: 700 }}>
+                  {e.total}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </Card>
   );

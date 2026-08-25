@@ -60,4 +60,31 @@ describe("RecentCourses", () => {
     expect(screen.getByText("Aucune épreuve récente à afficher")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Ajouter une épreuve/ })).toHaveAttribute("href", "/ajouter");
   });
+
+  // ── Structure de tableau (#481, A11Y-3) ────────────────────────────────────
+
+  it("s'annonce comme un tableau et nomme ses quatre colonnes", () => {
+    render(<RecentCourses events={[EVENT]} />);
+
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    for (const nom of ["Date", "Épreuve", "Format", "Dossards"]) {
+      expect(screen.getByRole("columnheader", { name: nom })).toBeInTheDocument();
+    }
+    expect(screen.getAllByRole("row")).toHaveLength(2);
+  });
+
+  it("n'offre qu'un arrêt clavier par ligne", () => {
+    // FR-011, compté **par `<tr>`** : un `href` par cellule quadruplerait les
+    // tabulations sans qu'aucune autre assertion ne bronche.
+    render(<RecentCourses events={[EVENT]} />);
+
+    const ligne = screen.getAllByRole("row")[1];
+    expect(ligne.querySelectorAll("a[href], button, input, select, textarea")).toHaveLength(1);
+  });
+
+  it("ne rend aucun tableau quand la liste est vide : cette carte masque déjà son en-tête", () => {
+    render(<RecentCourses events={[]} />);
+
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
 });
