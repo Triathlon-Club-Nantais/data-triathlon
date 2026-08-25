@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 import type { CourseSummary, Participation } from "@/lib/types";
 import { SCOPE_CLUB, SCOPE_PARAM } from "@/lib/scope";
 import { CLUB_NAME } from "@/lib/club";
+import { writeAthlete } from "@/components/layout/AthletePicker";
 
 const push = vi.fn();
 let searchParams = new URLSearchParams();
@@ -763,5 +764,45 @@ describe("RaceFinishers", () => {
       "aria-disabled",
       "true",
     );
+  });
+});
+
+describe("RaceFinishers — ma ligne dans le classement (NAV-10, #503)", () => {
+  beforeEach(() => {
+    const stock = new Map<string, string>();
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (cle: string) => stock.get(cle) ?? null,
+        setItem: (cle: string, valeur: string) => void stock.set(cle, valeur),
+        removeItem: (cle: string) => void stock.delete(cle),
+        clear: () => stock.clear(),
+      },
+    });
+  });
+
+  it("ne marque aucune ligne quand aucun athlète n'est retenu", () => {
+    afficher();
+    expect(screen.queryByText("Vous")).not.toBeInTheDocument();
+  });
+
+  it("marque la seule ligne de l'athlète retenu, d'un chip et non de la couleur seule", () => {
+    // `p({ id, nom })` donne `athlete.id === id` : l'athlète retenu est donc
+    // celui de la ligne 3 (DNFGUY) — un abandon reste ma ligne.
+    writeAthlete({ id: 3, prenom: "T", nom: "DNFGUY" });
+    afficher();
+
+    const marques = screen.getAllByText("Vous");
+    expect(marques).toHaveLength(1);
+    // WCAG 1.4.1 : le chip est le signifiant, le fond ne fait que l'appuyer.
+    expect(marques[0].closest("[role='button']")).toHaveTextContent("DNFGUY");
+  });
+
+  it("peint le fond de ma ligne, y compris sur un non-finisher", () => {
+    writeAthlete({ id: 3, prenom: "T", nom: "DNFGUY" });
+    afficher();
+
+    const ligne = screen.getByText("Vous").closest("[role='button']") as HTMLElement;
+    expect(ligne.style.background).toBe("var(--tcn-orange-08)");
   });
 });

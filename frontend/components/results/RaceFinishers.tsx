@@ -13,6 +13,7 @@ import { ClassementPagination } from "@/components/results/ClassementPagination"
 import { PAGE_SIZE_DEFAUT, PAGE_SIZE_PARAM, parsePageSize } from "@/lib/pageSize";
 import { SCOPE_CLUB, SCOPE_PARAM } from "@/lib/scope";
 import { CLUB_NAME } from "@/lib/club";
+import { nomComplet, useSelectedAthlete } from "@/components/layout/AthletePicker";
 import type { CourseSummary, Participation } from "@/lib/types";
 
 // Colonnes fixes (rang, athlète, catég., sexe, temps total) + club en fin.
@@ -116,6 +117,11 @@ export function RaceFinishers({
   // Recliquer sur le même en-tête inverse la direction ; cliquer sur un autre
   // en-tête repart en croissant.
   const [tri, setTri] = useState<{ cle: string; direction: "asc" | "desc" } | null>(null);
+
+  // Athlète retenu (#467) : lu côté client, sur les seules lignes de la
+  // tranche affichée — c'est tout ce que le client tient. Un seul appel, en
+  // tête : un hook ne s'appelle pas dans la boucle des lignes.
+  const athleteRetenu = useSelectedAthlete();
 
   function trierSur(cle: string) {
     setTri((precedent) =>
@@ -285,6 +291,7 @@ export function RaceFinishers({
           {lignes.map((p) => {
             const own = p.is_tcn;
             const nf = isNonFinisher(p.status);
+            const moi = athleteRetenu?.id === p.athlete.id;
             const name = [p.athlete?.nom, p.athlete?.prenom].filter(Boolean).join(" ");
             const splits = p.splits ?? {};
             return (
@@ -301,7 +308,23 @@ export function RaceFinishers({
                   }
                 }}
                 className="tcn-rowlink"
-                style={{ display: "grid", gridTemplateColumns: fcols, gap: "0 12px", alignItems: "center", padding: "12px 22px", borderBottom: "1px solid var(--tcn-border-faint)", borderLeft: `3px solid ${own ? "var(--tcn-orange)" : "transparent"}`, background: nf ? "color-mix(in srgb, var(--tcn-grey-400) 15%, transparent)" : undefined }}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: fcols,
+                  gap: "0 12px",
+                  alignItems: "center",
+                  padding: "12px 22px",
+                  borderBottom: "1px solid var(--tcn-border-faint)",
+                  borderLeft: `3px solid ${own ? "var(--tcn-orange)" : "transparent"}`,
+                  // Ma ligne prime sur le gris des non-finishers : un athlète
+                  // qui a abandonné reste l'athlète retenu, et « c'est vous »
+                  // est l'information qu'il cherche.
+                  background: moi
+                    ? "var(--tcn-orange-08)"
+                    : nf
+                      ? "color-mix(in srgb, var(--tcn-grey-400) 15%, transparent)"
+                      : undefined,
+                }}
               >
                 <div>
                   {nf ? (
@@ -312,7 +335,29 @@ export function RaceFinishers({
                     <span style={{ color: "var(--tcn-text-faint)" }}>—</span>
                   )}
                 </div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--tcn-ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: "var(--tcn-ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</span>
+                  {/* Le chip, pas le fond, est le signifiant : la couleur seule
+                      échouerait WCAG 1.4.1. `flex: none` pour qu'il survive à
+                      un nom long, dont c'est l'ellipse qui cède. */}
+                  {moi && (
+                    <span
+                      style={{
+                        flex: "none",
+                        padding: "1px 7px",
+                        borderRadius: "var(--tcn-radius-sm)",
+                        background: "var(--tcn-orange-deep)",
+                        color: "#fff",
+                        fontFamily: "var(--tcn-font-cond)",
+                        fontWeight: 700,
+                        fontSize: 11,
+                        letterSpacing: ".04em",
+                      }}
+                    >
+                      Vous
+                    </span>
+                  )}
+                </div>
                 <div style={{ fontSize: 13, color: "var(--tcn-text-body)" }}>{p.category ?? "—"}</div>
                 <div style={{ fontSize: 13, color: "var(--tcn-text-body)" }}>{genderShort(p.athlete?.gender)}</div>
                 <div style={{ fontFamily: "var(--tcn-font-cond)", fontWeight: 700, fontSize: 15, color: "var(--tcn-ink)" }}>{p.total_time ?? "—"}</div>
