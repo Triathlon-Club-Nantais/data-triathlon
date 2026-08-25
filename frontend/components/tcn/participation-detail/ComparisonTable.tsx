@@ -25,6 +25,13 @@ export function ComparisonTable({
   const columns = splitColumnsFromKeys(eventType, segments);
   const shortSegmentLabels = columns.filter((column) => column.small).map((column) => column.label);
 
+  // Sous 640 px, sept colonnes tombent à ~500 px de large et le tableau défile
+  // dans sa carte. Les segments courts sont les premiers à sortir : ils sont
+  // déjà rendus en gris atténué, et la note du bas dit déjà que leurs
+  // pourcentages sont bruités. Ce n'est pas une mise en conformité — un tableau
+  // de données est exempté de WCAG 1.4.10 —, c'est de la lisibilité.
+  const classeColonne = (small?: boolean) => (small ? "hidden sm:table-cell" : undefined);
+
   return (
     <Card style={{ marginBottom: 24, overflowX: "auto" }}>
       <Eyebrow>Comparaison au classement</Eyebrow>
@@ -35,7 +42,11 @@ export function ComparisonTable({
                 l'espace que les colonnes de pourcentage n'occupent pas. */}
             <th style={{ ...headStyle, width: 72, textAlign: "left" }}>Position</th>
             {columns.map((column) => (
-              <th key={column.key} style={{ ...headStyle, color: column.small ? "var(--tcn-text-faint)" : column.color }}>
+              <th
+                key={column.key}
+                className={classeColonne(column.small)}
+                style={{ ...headStyle, color: column.small ? "var(--tcn-text-faint)" : column.color }}
+              >
                 {column.label}
               </th>
             ))}
@@ -49,7 +60,7 @@ export function ComparisonTable({
                 {row.position_label}
               </th>
               {columns.map((column) => (
-                <td key={column.key} style={cellStyle}>
+                <td key={column.key} className={classeColonne(column.small)} style={cellStyle}>
                   {formatPercentage(row.percentages[column.key])}
                 </td>
               ))}
@@ -64,7 +75,7 @@ export function ComparisonTable({
         <p style={{ marginTop: 10, fontSize: 13, color: "var(--tcn-text-faint)" }}>
           Les segments courts ({shortSegmentLabels.join(", ")}) sont sensibles au bruit de
           chronométrage : leurs pourcentages peuvent ne pas décroître régulièrement d&apos;un
-          rang à l&apos;autre.
+          rang à l&apos;autre. Leurs colonnes s&apos;affichent sur un écran plus large.
         </p>
       )}
     </Card>

@@ -5,6 +5,14 @@ import { Eyebrow } from "../Eyebrow";
 
 const PERCENTAGES = ["0.5", "1", "2", "5", "10", "25"];
 
+// Les six paliers tombent à ~440 px de large sur un téléphone. Trois suffisent
+// à lire la courbe — les autres s'interpolent à l'œil entre eux — et le
+// tableau tient alors dans ~300 px. Comme pour `ComparisonTable` : lisibilité,
+// pas conformité.
+const PALIERS_ETROITS = new Set(["1", "5", "25"]);
+const classePalier = (percentage: string) =>
+  PALIERS_ETROITS.has(percentage) ? undefined : "hidden sm:table-cell";
+
 /** Énumération française « Natation, T1 et T2 », sans dépendance ajoutée. */
 const LIST_FR = new Intl.ListFormat("fr", { style: "long", type: "conjunction" });
 
@@ -51,7 +59,7 @@ export function ImprovementMatrix({
             <tr>
               <th style={{ ...headStyle, width: 110, textAlign: "left" }}>Segment</th>
               {PERCENTAGES.map((percentage) => (
-                <th key={percentage} style={headStyle}>
+                <th key={percentage} className={classePalier(percentage)} style={headStyle}>
                   {percentage.replace(".", ",")} %
                 </th>
               ))}
@@ -64,7 +72,7 @@ export function ImprovementMatrix({
                   {label(row.segment)}
                 </th>
                 {PERCENTAGES.map((percentage) => (
-                  <td key={percentage} style={cellStyle}>
+                  <td key={percentage} className={classePalier(percentage)} style={cellStyle}>
                     {formatGain(row.gains[percentage])}
                   </td>
                 ))}

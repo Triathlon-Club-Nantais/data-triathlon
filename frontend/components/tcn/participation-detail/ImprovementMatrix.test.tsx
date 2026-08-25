@@ -65,4 +65,29 @@ describe("ImprovementMatrix", () => {
     expect(screen.queryByRole("row", { name: /Natation/ })).toBeNull();
     expect(screen.getAllByRole("row").length).toBe(2);
   });
+
+  // Trois paliers suffisent à lire la courbe ; les autres s'interpolent à
+  // l'œil entre eux, et le tableau tient alors dans ~300 px.
+  it("ne garde que trois paliers sous sm", () => {
+    renderMatrix();
+
+    for (const masque of ["0,5 %", "2 %", "10 %"]) {
+      expect(screen.getByRole("columnheader", { name: masque }).className).toContain(
+        "hidden sm:table-cell",
+      );
+    }
+    for (const garde of ["1 %", "5 %", "25 %"]) {
+      expect(screen.getByRole("columnheader", { name: garde }).className ?? "").not.toContain(
+        "hidden",
+      );
+    }
+  });
+
+  it("masque aussi les cellules de ces paliers", () => {
+    renderMatrix();
+
+    const natation = screen.getByRole("row", { name: /Natation/ });
+    // +18 est le gain à 10 % de la ligne `swim` de `ROWS`.
+    expect(within(natation).getByText("+18").className).toContain("hidden sm:table-cell");
+  });
 });
