@@ -50,12 +50,17 @@ export function CategoryBars({
 
   const summary = barres.map((c) => `${nomCourt(c.name)} ${pctFr(scale(c.count))} %`).join(", ");
 
+  // Sans lien, la carte est une image et se lit d'un bloc. Avec, elle devient une
+  // liste de contrôles : la donner encore pour une image masquerait chaque lien au
+  // lecteur d'écran. Une vraie `<ul>` dans ce cas — `role="list"` sur un `div` tient,
+  // mais l'élément natif évite d'avoir à poser `listitem` à la main sur des `<li>`.
+  const Conteneur = hrefFor ? "ul" : "div";
+
   return (
-    <div
-      // Sans lien, la carte est une image et se lit d'un bloc. Avec, elle
-      // devient une liste de contrôles : la donner encore pour une image
-      // masquerait chaque lien au lecteur d'écran.
-      role={hrefFor ? "list" : "img"}
+    <Conteneur
+      // La `<ul>` porte déjà son rôle de liste ; seul le `div` a besoin qu'on lui
+      // dise qu'il est une image.
+      role={hrefFor ? undefined : "img"}
       aria-label={
         hrefFor
           ? // La répartition **entière** reste annoncée, part « Autres » comprise :
@@ -65,7 +70,7 @@ export function CategoryBars({
             `Répartition par catégorie : ${summary}. Chaque barre filtre le classement.`
           : `Répartition par catégorie : ${summary}.`
       }
-      style={{ display: "flex", flexDirection: "column", gap: 10 }}
+      style={{ display: "flex", flexDirection: "column", gap: 10, listStyle: "none", margin: 0, padding: 0 }}
     >
       {barres.map((c, i) => {
         const pct = scale(c.count);
@@ -80,12 +85,36 @@ export function CategoryBars({
           <>
             <span
               aria-hidden
-              style={{ flex: "none", width: estReste ? "auto" : 36, minWidth: 36, fontWeight: 800, fontSize: 13, color: estReste ? "var(--tcn-text-muted)" : "var(--tcn-ink)", whiteSpace: "nowrap" }}
+              // Largeur **identique pour toutes les lignes**, et calibrée sur la plus
+              // longue — « Autres (500) ». Une piste `flex: 1` se résout contre ce
+              // qui reste : élargir ce seul libellé raccourcissait sa piste de 16 à
+              // 25 % selon la largeur de carte, si bien qu'une part de 29,9 % s'y
+              // dessinait à la longueur d'un 22 %. C'est l'honnêteté même que RES-7
+              // devait rétablir qui se perdait au tracé.
+              //
+              // 36 px suffisaient pour « S1 » mais pas pour les codes en mots que
+              // portent les données (« M SENIOR », « F VETERAN », ~58 px) : sans
+              // `overflow`, ils débordaient sur la piste. L'ellipse les borne, et le
+              // libellé complet reste dans le `title` et le nom accessible du lien.
+              style={{ flex: "none", width: 84, fontWeight: 800, fontSize: 13, color: estReste ? "var(--tcn-text-muted)" : "var(--tcn-ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+              title={estReste ? undefined : c.name}
             >
               {c.name}
             </span>
             <div style={{ flex: 1, height: 13, background: "var(--tcn-fill)", borderRadius: 999, overflow: "hidden" }}>
-              <div style={{ width: pct + "%", height: "100%", background: CAT_COLORS[i % CAT_COLORS.length], borderRadius: 999 }} />
+              <div
+                style={{
+                  width: pct + "%",
+                  height: "100%",
+                  // `CAT_COLORS` compte exactement `_MAX_CATEGORIES` entrées : la
+                  // barre « Autres », en position 8, reprenait `8 % 8 = 0`, soit
+                  // l'orange de la **plus grosse** catégorie. Les deux barres les
+                  // plus larges de la carte se peignaient de la même couleur, dans
+                  // un graphique où elle est le seul différenciateur.
+                  background: estReste ? "var(--tcn-grey-300)" : CAT_COLORS[i % CAT_COLORS.length],
+                  borderRadius: 999,
+                }}
+              />
             </div>
             <span aria-hidden style={{ flex: "none", width: 48, textAlign: "right", fontSize: 13, fontWeight: 700, color: "var(--tcn-text-body)" }}>
               {pctFr(pct)}%
@@ -98,19 +127,15 @@ export function CategoryBars({
         const ligne = { display: "flex", alignItems: "center", gap: 10, minHeight: 24 } as const;
 
         if (!href) {
-          return (
-            // La barre « Autres » n'est pas activable, mais elle porte du sens :
-            // ses deux spans sont `aria-hidden`, donc son nom accessible vient
-            // d'ici — sans quoi elle serait un élément de liste muet.
-            <div
-              key={c.name}
-              role={hrefFor ? "listitem" : undefined}
-              aria-label={hrefFor ? `${nomCourt(c.name)}, ${pctFr(pct)} %` : undefined}
-              style={ligne}
-            >
+          // La barre « Autres » n'est pas activable, mais elle porte du sens : ses
+          // trois spans sont `aria-hidden`, donc son nom accessible vient d'ici —
+          // sans quoi elle serait un élément de liste muet.
+          const contenu = (
+            <div aria-label={hrefFor ? `${nomCourt(c.name)}, ${pctFr(pct)} %` : undefined} style={ligne}>
               {barre}
             </div>
           );
+          return hrefFor ? <li key={c.name}>{contenu}</li> : <div key={c.name}>{contenu}</div>;
         }
 
         // Le libellé complet vit dans le nom accessible du lien **et** dans son
@@ -118,20 +143,32 @@ export function CategoryBars({
         // « V2 — Vétéran 2 », là où une infobulle de survol seule n'existerait
         // ni pour l'un ni pour l'autre (FR-028).
         const titre = categoryTitle(c.name);
+        // Un `<li>` réel, jamais `role="listitem"` posé sur le `Link` — le rôle
+        // explicite écraserait `link` et le contrôle disparaîtrait de l'arbre. Et
+        // pas de conteneur en `display: contents` non plus : selon le moteur il
+        // peut être retiré de l'arbre, laissant une liste sans enfants.
         return (
-          <div key={c.name} role="listitem" style={{ display: "contents" }}>
-            <Link
-              href={href}
-              title={titre}
-              aria-label={`${titre} — ${pctFr(pct)} %. Voir ces participants dans le classement.`}
-              className="tcn-rowlink"
-              style={{ ...ligne, color: "inherit", textDecoration: "none" }}
-            >
-              {barre}
-            </Link>
-          </div>
+          <li key={c.name}>
+          <Link
+            href={href}
+            title={titre}
+            aria-label={`${titre} — ${pctFr(pct)} %. Voir ces participants dans le classement.`}
+            className="tcn-rowlink"
+            style={{ ...ligne, color: "inherit", textDecoration: "none" }}
+          >
+            {barre}
+            {/* Affordance : `.tcn-rowlink` ne pose qu'un survol à 1,05:1 sur une
+                carte blanche — « littéralement invisible » selon globals.css — et
+                rien du tout au doigt. Le chevron reprend le patron de fin de ligne
+                d'`EventList`, seul signal qui dise qu'une statistique mène quelque
+                part. */}
+            <span aria-hidden style={{ flex: "none", color: "var(--tcn-text-disabled)", fontSize: 13 }}>
+              →
+            </span>
+          </Link>
+          </li>
         );
       })}
-    </div>
+    </Conteneur>
   );
 }

@@ -194,12 +194,18 @@ function MarqueurEcart({
     <span
       // `role="img"` : le marqueur informe, il ne commande rien — même patron que
       // `CelluleInter`, posé par #472.
+      //
+      // Glyphe **distinct** du « ⚠ » de `CelluleInter` : les deux peuvent coexister
+      // sur une même ligne, l'un dans la colonne du temps total, l'autre dans une
+      // colonne d'inter, et ils disent deux choses différentes — « cette ligne
+      // s'écarte de ses pairs » contre « ce temps est illisible ». Le même
+      // pictogramme pour les deux ne se départageait qu'au survol.
       role="img"
       title={motif}
       aria-label={motif}
       style={{ marginLeft: 6, color: "var(--tcn-text-faint)", cursor: "help", userSelect: "none" }}
     >
-      ⚠
+      ≠
     </span>
   );
 }
@@ -581,7 +587,18 @@ export function RaceFinishers({
                     <VoileAttente />
                   </Link>
                 </td>
-                <td role="cell" style={{ fontSize: 13, color: "var(--tcn-text-body)" }}>{p.category ?? "—"}</td>
+                {/* Le code reste la clé de lecture — l'élargir en « Vétéran 2 »
+                    n'apprendrait rien à qui connaît la nomenclature, sur un tableau
+                    déjà à 1080 px. Mais le parent qui cherche « PoM » doit pouvoir
+                    l'obtenir : `title` sur la cellule, et le libellé complet vit
+                    aussi dans le repère de filtre et dans l'annonce de statut. */}
+                <td
+                  role="cell"
+                  title={p.category ? categoryTitle(p.category) : undefined}
+                  style={{ fontSize: 13, color: "var(--tcn-text-body)", cursor: p.category ? "help" : undefined }}
+                >
+                  {p.category ?? "—"}
+                </td>
                 <td role="cell" style={{ fontSize: 13, color: "var(--tcn-text-body)" }}>{genderShort(p.athlete.gender)}</td>
                 <td role="cell" style={{ fontFamily: "var(--tcn-font-cond)", fontWeight: 700, fontSize: 15, color: "var(--tcn-ink)" }}>
                   {p.total_time ?? "—"}
@@ -754,7 +771,10 @@ function titreAbsenceFiltre(club: string, categorie: string, filtreClub: boolean
   }
   const morceaux = [];
   if (club) morceaux.push(`du club « ${club} »`);
-  if (categorie) morceaux.push(`en catégorie « ${categorie} »`);
+  // `categoryTitle` et non le code brut : le repère retirable et l'annonce
+  // disent « V2 — Vétéran 2 » au même instant, et les trois surfaces sont
+  // visibles ensemble. Un nom, un parcours.
+  if (categorie) morceaux.push(`en catégorie « ${categoryTitle(categorie)} »`);
   return `Aucun athlète ${morceaux.join(" ")} sur cette épreuve`;
 }
 
@@ -796,11 +816,20 @@ function ChipRetirable({
         fontWeight: 700,
       }}
     >
-      {libelle}
+      {/* Un libellé de club long ne pousse pas la rangée hors de l'écran : sous
+          360 px, quatre repères et « Tout effacer » se partagent 308 px utiles. */}
+      <span style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" }} title={libelle}>
+        {libelle}
+      </span>
       <button
         type="button"
         onClick={onRetirer}
         aria-label={`Retirer ${sujet} « ${libelle} »`}
+        // `tcn-icon-btn` porte l'anneau de focus opaque `--tcn-orange` (3,32:1).
+        // Sans lui, le bouton retombe sur l'anneau universel `outline-ring/50`,
+        // soit 1,86:1 sur cette surface teintée — le défaut déjà corrigé par
+        // #299, #342 et #503, et ici le seul chemin clavier pour retirer un filtre.
+        className="tcn-icon-btn"
         // 24 px pleins : plancher tactile WCAG 2.2 2.5.8 — la croix des chips
         // était sous le seuil avant #479, et ce lot n'en réintroduit pas.
         style={{

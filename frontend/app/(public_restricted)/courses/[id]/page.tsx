@@ -50,7 +50,9 @@ function titreCategories(
 }
 
 function titreClubs(affiches: number, total: number): string {
-  if (total <= affiches) return "Top clubs";
+  // « Répartition par club » et non « Top clubs » : miroir exact de sa jumelle
+  // ci-dessus, et français. L'anglicisme ne disait pas non plus sa portée.
+  if (total <= affiches) return "Répartition par club";
   return `Les ${affiches} clubs les plus représentés`;
 }
 
