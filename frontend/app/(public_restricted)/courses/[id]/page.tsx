@@ -14,7 +14,7 @@ import { formatEventName } from "@/lib/utils/event";
 import { Histogram } from "@/components/charts/Histogram";
 import { GenderDonut } from "@/components/charts/GenderDonut";
 import { CategoryBars } from "@/components/charts/CategoryBars";
-import { SCOPE_PARAM, scopeFromParam } from "@/lib/scope";
+import { CATEGORY_PARAM, CLUB_PARAM, SCOPE_PARAM, scopeFromParam } from "@/lib/scope";
 import { PAGE_SIZE_PARAM, parsePageSize } from "@/lib/pageSize";
 
 /**
@@ -81,8 +81,26 @@ export default async function CoursePage({
   // ne doit pas faire tomber l'histogramme à une barre (#163). Les sources ne
   // conditionnent jamais le 404 : une épreuve sans source migrée reste une
   // épreuve valide (#284), elle n'affiche simplement aucun chip.
+  // Filtres venus des cartes de synthèse (#486). Transmis verbatim : l'API
+  // compare en égalité exacte au libellé que la carte a elle-même proposé.
+  const club = sp[CLUB_PARAM]?.trim() || undefined;
+  const category = sp[CATEGORY_PARAM]?.trim() || undefined;
+
+  /** Lien vers le classement filtré, les autres paramètres d'URL conservés. */
+  function lienFiltre(cle: string, valeur: string): string {
+    const params = new URLSearchParams(
+      Object.entries(sp).filter(([, v]) => v != null) as [string, string][],
+    );
+    params.set(cle, valeur);
+    // Une sélection réduite atterrirait sinon sur une page vide.
+    params.delete("page");
+    return `/courses/${id}?${params.toString()}`;
+  }
+
   const [data, summary, sources] = await Promise.all([
-    apiServer.getCourse(Number(id), { page, page_size: pageSize, q, scope }).catch(rendreNullSi404),
+    apiServer
+      .getCourse(Number(id), { page, page_size: pageSize, q, scope, club, category })
+      .catch(rendreNullSi404),
     apiServer.getCourseSummary(Number(id)).catch(rendreNullSi404),
     apiServer.getCourseSources(Number(id)).catch(rendreNullSi404),
   ]);
@@ -131,7 +149,11 @@ export default async function CoursePage({
 
         <Card padding={24}>
           <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 18, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 18 }}>{titreCategories(summary.categories.length, summary.categories_total, summary.categories)}</h2>
-          <CategoryBars categories={summary.categories} total={summary.categories_total} />
+          <CategoryBars
+            categories={summary.categories}
+            total={summary.categories_total}
+            hrefFor={(nom) => lienFiltre(CATEGORY_PARAM, nom)}
+          />
         </Card>
 
         <Card padding={24} className="sm:col-span-2 lg:col-span-1">
@@ -139,7 +161,11 @@ export default async function CoursePage({
               classement). Sans nom, un lecteur d'écran les annonce tous deux
               « tableau » sans dire lequel. */}
           <h2 id="titre-top-clubs" style={{ fontFamily: "var(--tcn-font-display)", fontSize: 18, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 14 }}>{titreClubs(clubs.length, summary.clubs_total)}</h2>
-          <ClubBreakdown clubs={clubs} total={summary.clubs_total} />
+          <ClubBreakdown
+            clubs={clubs}
+            total={summary.clubs_total}
+            hrefFor={(nom) => lienFiltre(CLUB_PARAM, nom)}
+          />
         </Card>
       </div>
 

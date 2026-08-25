@@ -838,11 +838,13 @@ describe("RaceFinishers", () => {
     expect(screen.queryByRole("button", { name: "Effacer" })).not.toBeInTheDocument();
   });
 
-  it("« Effacer » retire la recherche et le filtre d'un coup", async () => {
+  it("« Tout effacer » retire les quatre restrictions d'un coup", async () => {
+    // Renommé avec #486 : quatre filtres peuvent coexister, chacun avec son
+    // propre repère retirable, et « Effacer » seul ne disait plus quoi.
     searchParams = new URLSearchParams(`q=kermarrec&${SCOPE_PARAM}=${SCOPE_CLUB}`);
     afficher({ summary: synthese({ total: 498 }), total: 1 });
 
-    await userEvent.click(screen.getByRole("button", { name: "Effacer" }));
+    await userEvent.click(screen.getByRole("button", { name: "Tout effacer" }));
 
     expect(push).toHaveBeenCalledWith("/courses/1");
   });
@@ -1176,5 +1178,64 @@ describe("RaceFinishers — marqueur d'écart", () => {
     expect(screen.getByRole("img", MARQUEUR)).toBeInTheDocument();
     expect(screen.getByText("01:06:18")).toBeInTheDocument();
     expect(screen.getByText("00:00:31")).toBeInTheDocument();
+  });
+});
+
+// ── Repères des filtres de carte (#486, RES-11) ─────────────────────────────
+
+describe("RaceFinishers — filtres club et catégorie", () => {
+  it("porte un repère par filtre actif, retirable indépendamment", () => {
+    // Retirer les deux d'un bloc effacerait le club qu'on venait de choisir en
+    // activant une catégorie depuis la carte voisine (FR-021).
+    searchParams = new URLSearchParams("club=BLAIN+TRIATHLON&category=V2");
+    afficher({ participations: [], total: 0 });
+
+    expect(
+      screen.getByRole("button", { name: 'Retirer le filtre club « BLAIN TRIATHLON »' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Retirer le filtre catégorie/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("donne au repère de catégorie son libellé complet", () => {
+    searchParams = new URLSearchParams("category=V2");
+    afficher({ participations: [], total: 0 });
+
+    expect(screen.getByText("V2 — Vétéran 2")).toBeInTheDocument();
+  });
+
+  it("annonce la sélection face au total de l'épreuve", () => {
+    searchParams = new URLSearchParams("club=BLAIN+TRIATHLON");
+    afficher({ participations: [data[0]], total: 33, summary: synthese({ total: 498 }) });
+
+    expect(screen.getByText(/33 résultats sur 498/)).toBeInTheDocument();
+  });
+
+  it("nomme le filtre en cause quand la sélection est vide, sans parler de recherche", () => {
+    // Défaut constaté sur `/courses/340?scope=club` : « Aucun athlète ne
+    // correspond à cette recherche » alors qu'aucune recherche n'a été faite.
+    searchParams = new URLSearchParams("club=CLUB+INEXISTANT");
+    afficher({ participations: [], total: 0 });
+
+    const absence = screen.getByText(/du club « CLUB INEXISTANT »/);
+    expect(absence).toBeInTheDocument();
+    // Le mot « recherche » ne doit pas apparaître **dans l'état d'absence** —
+    // le champ de recherche, lui, reste monté au-dessus.
+    expect(absence.textContent).not.toMatch(/recherche/i);
+  });
+
+  it("explique le croisement vide par construction avec la portée TCN", () => {
+    searchParams = new URLSearchParams("club=BLAIN+TRIATHLON&scope=club");
+    afficher({ participations: [], total: 0 });
+
+    expect(screen.getByText(/s'excluent/)).toBeInTheDocument();
+  });
+
+  it("ne montre aucun repère quand aucun filtre de carte n'est actif", () => {
+    searchParams = new URLSearchParams("");
+    afficher();
+
+    expect(screen.queryByRole("button", { name: /Retirer le filtre/ })).not.toBeInTheDocument();
   });
 });

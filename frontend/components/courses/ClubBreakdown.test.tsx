@@ -64,4 +64,47 @@ describe("ClubBreakdown", () => {
     expect(pied).toBeVisible();
     expect(pied).not.toHaveAttribute("aria-hidden");
   });
+
+  // ── Des lignes qui mènent quelque part (#486, RES-11) ─────────────────────
+
+  it("rend chaque ligne activable vers le classement filtré quand un lien est fourni", () => {
+    render(
+      <ClubBreakdown
+        clubs={TROIS}
+        total={3}
+        hrefFor={(name) => `/courses/1?club=${encodeURIComponent(name)}`}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: /GRAVELINES TRIATHLON/ })).toHaveAttribute(
+      "href",
+      "/courses/1?club=GRAVELINES%20TRIATHLON",
+    );
+  });
+
+  it("annonce l'effectif et la destination dans le nom du lien", () => {
+    render(<ClubBreakdown clubs={TROIS} total={3} hrefFor={() => "/x"} />);
+
+    expect(screen.getByRole("link", { name: /GRAVELINES/ })).toHaveAccessibleName(
+      "GRAVELINES TRIATHLON, 51 athlètes. Voir ces participants dans le classement.",
+    );
+  });
+
+  it("accorde l'effectif au singulier", () => {
+    render(
+      <ClubBreakdown
+        clubs={[{ name: "SEUL", count: 1, is_tcn: false }]}
+        total={1}
+        hrefFor={() => "/x"}
+      />,
+    );
+
+    expect(screen.getByRole("link")).toHaveAccessibleName(/1 athlète\./);
+  });
+
+  it("reste inerte quand aucun lien n'est fourni", () => {
+    render(<ClubBreakdown clubs={TROIS} total={3} />);
+
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
 });

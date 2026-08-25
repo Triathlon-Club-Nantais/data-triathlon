@@ -1177,3 +1177,116 @@ def test_list_for_athlete_combine_saison_et_discipline(db_session):
     )
 
     assert [p.course.name for p in lignes] == ["Tri 2025"]
+
+
+# ── Filtres club et catégorie du classement (issue #486, RES-11) ─────────────
+#
+# **Égalité exacte**, et c'est structurant : les valeurs proposées à l'écran sont
+# littéralement les chaînes stockées, puisqu'elles viennent d'un `Counter` sur ces
+# deux colonnes. Une comparaison partielle ferait diverger le compteur affiché sur
+# la carte du total rendu par le classement — le défaut que RES-9 vient de faire
+# corriger par le lot #485.
+
+
+def _classement_filtrable(db_session):
+    """Trois clubs, trois catégories, de quoi croiser les filtres."""
+    course = course_repository.get_or_create(
+        db_session, name="Tri Filtres", event_date=date(2026, 6, 3), event_type="triathlon-m"
+    )
+
+    def ajoute(nom, club, categorie):
+        athlete = athlete_repository.get_or_create(
+            db_session, nom=nom, prenom="Test", club=club, gender="M"
+        )
+        return participation_repository.create(
+            db_session,
+            athlete_id=athlete.id,
+            course_id=course.id,
+            bib_number=nom,
+            club=club,
+            category=categorie,
+            status="finisher",
+            rank_overall=1,
+            total_time="01:00:00",
+        )
+
+    lignes = {
+        "blain_v2": ajoute("BLAINV2", "BLAIN TRIATHLON", "V2"),
+        "blain_s1": ajoute("BLAINS1", "BLAIN TRIATHLON", "S1"),
+        "blain_jeunes": ajoute("JEUNES", "BLAIN TRIATHLON JEUNES", "V2"),
+        "tcn_v2": ajoute("TCNV2", "TRIATHLON CLUB NANTAIS", "V2"),
+    }
+    db_session.flush()
+    return course, lignes
+
+
+def test_le_filtre_club_est_une_egalite_exacte(db_session):
+    """« BLAIN TRIATHLON » ne doit pas ramasser « BLAIN TRIATHLON JEUNES »."""
+    course, lignes = _classement_filtrable(db_session)
+
+    rows, total = participation_repository.list_page_for_course(
+        db_session, course.id, page_size=None, club="BLAIN TRIATHLON"
+    )
+
+    assert total == 2
+    assert {p.id for p in rows} == {lignes["blain_v2"].id, lignes["blain_s1"].id}
+
+
+def test_le_filtre_categorie_est_une_egalite_exacte(db_session):
+    course, lignes = _classement_filtrable(db_session)
+
+    rows, total = participation_repository.list_page_for_course(
+        db_session, course.id, page_size=None, category="V2"
+    )
+
+    assert total == 3
+    assert lignes["blain_s1"].id not in {p.id for p in rows}
+
+
+def test_les_deux_filtres_se_cumulent(db_session):
+    course, lignes = _classement_filtrable(db_session)
+
+    rows, total = participation_repository.list_page_for_course(
+        db_session, course.id, page_size=None, club="BLAIN TRIATHLON", category="V2"
+    )
+
+    assert total == 1
+    assert [p.id for p in rows] == [lignes["blain_v2"].id]
+
+
+def test_les_filtres_se_cumulent_avec_la_recherche_et_la_portee_club(db_session):
+    course, lignes = _classement_filtrable(db_session)
+
+    _, avec_recherche = participation_repository.list_page_for_course(
+        db_session, course.id, page_size=None, category="V2", q="BLAINV2"
+    )
+    assert avec_recherche == 1
+
+    rows, avec_portee = participation_repository.list_page_for_course(
+        db_session, course.id, page_size=None, category="V2", club_only=True
+    )
+    assert avec_portee == 1
+    assert [p.id for p in rows] == [lignes["tcn_v2"].id]
+
+
+def test_une_valeur_inconnue_rend_une_selection_vide(db_session):
+    course, _ = _classement_filtrable(db_session)
+
+    rows, total = participation_repository.list_page_for_course(
+        db_session, course.id, page_size=None, club="CLUB INEXISTANT"
+    )
+
+    assert rows == []
+    assert total == 0
+
+
+def test_les_filtres_absents_ne_filtrent_rien(db_session):
+    """Défaut neutre — Principe V : c'est l'appelant qui active, jamais l'API."""
+    course, _ = _classement_filtrable(db_session)
+
+    _, sans = participation_repository.list_page_for_course(db_session, course.id, page_size=None)
+    _, avec_none = participation_repository.list_page_for_course(
+        db_session, course.id, page_size=None, club=None, category=None
+    )
+
+    assert sans == avec_none == 4
