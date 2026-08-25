@@ -140,6 +140,69 @@ function CelluleInter({ valeur, small }: { valeur?: string; small?: boolean }) {
   return <td role="cell" style={style}>{valeur ?? "—"}</td>;
 }
 
+/**
+ * Seuils du marqueur d'écart, calés par sondage (#486, RES-10).
+ *
+ * Point de vérité : `docs/superpowers/specs/2026-08-25-ecart-inters-total-sondage.md`,
+ * qui **prime** — le seuil de 2 % proposé par l'audit signalait 8,02 % du classement,
+ * dont 285 lignes d'une épreuve que le produit tient pour fiable. Les régler se fait
+ * là-bas, en re-mesurant, pas ici.
+ *
+ * Une ligne n'est douteuse que face à **ses pairs** : 81,7 % des écarts mesurés sont
+ * « total > somme », signature d'un segment que le chronométreur ne publie pas — une
+ * propriété de l'épreuve, dite une seule fois en tête de page.
+ */
+const ECART_SEUIL = 0.05;
+/** Sous cet effectif, la médiane n'est pas une référence (course 65 : neuf enfants). */
+const ECART_MIN_LIGNES = 10;
+/** Sans ce plancher, un petit dénominateur suffit à franchir 5 %. */
+const ECART_MIN_SECONDES = 60;
+
+/**
+ * Marqueur d'une ligne dont les inters ne rendent pas compte de son temps total.
+ *
+ * L'écart lui-même vient du serveur (`split_gap_ratio`) : le recalculer ici rejouerait
+ * #76, où trois listes divergentes du critère club ont fait compter tout Nantes comme
+ * TCN. L'écran ne fait que comparer aux seuils d'affichage.
+ */
+function MarqueurEcart({
+  ratio,
+  mediane,
+  lignesEvaluees,
+  totalTime,
+}: {
+  ratio?: number | null;
+  mediane: number | null;
+  lignesEvaluees: number;
+  totalTime: string | null;
+}) {
+  if (ratio == null || mediane == null || lignesEvaluees < ECART_MIN_LIGNES) return null;
+
+  const ecart = Math.abs(ratio - mediane);
+  if (ecart <= ECART_SEUIL) return null;
+
+  const secondes = secondsFromHms(totalTime);
+  if (secondes == null || ecart * secondes <= ECART_MIN_SECONDES) return null;
+
+  const motif =
+    "Les temps intermédiaires de cette ligne ne rendent pas compte de son temps total — " +
+    "les autres lignes de l'épreuve ne présentent pas cet écart. Les temps affichés sont " +
+    "ceux publiés par le chronométreur.";
+
+  return (
+    <span
+      // `role="img"` : le marqueur informe, il ne commande rien — même patron que
+      // `CelluleInter`, posé par #472.
+      role="img"
+      title={motif}
+      aria-label={motif}
+      style={{ marginLeft: 6, color: "var(--tcn-text-faint)", cursor: "help", userSelect: "none" }}
+    >
+      ⚠
+    </span>
+  );
+}
+
 export function RaceFinishers({
   participations,
   summary,
@@ -472,7 +535,15 @@ export function RaceFinishers({
                 </td>
                 <td role="cell" style={{ fontSize: 13, color: "var(--tcn-text-body)" }}>{p.category ?? "—"}</td>
                 <td role="cell" style={{ fontSize: 13, color: "var(--tcn-text-body)" }}>{genderShort(p.athlete.gender)}</td>
-                <td role="cell" style={{ fontFamily: "var(--tcn-font-cond)", fontWeight: 700, fontSize: 15, color: "var(--tcn-ink)" }}>{p.total_time ?? "—"}</td>
+                <td role="cell" style={{ fontFamily: "var(--tcn-font-cond)", fontWeight: 700, fontSize: 15, color: "var(--tcn-ink)" }}>
+                  {p.total_time ?? "—"}
+                  <MarqueurEcart
+                    ratio={p.split_gap_ratio}
+                    mediane={summary.split_gap_median}
+                    lignesEvaluees={summary.split_gap_rows}
+                    totalTime={p.total_time}
+                  />
+                </td>
                 {segments.map((s) => (
                   <CelluleInter key={s.key} valeur={splits[s.key]} small={s.small} />
                 ))}

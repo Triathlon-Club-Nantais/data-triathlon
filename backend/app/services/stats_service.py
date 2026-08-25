@@ -349,4 +349,5 @@ def course_summary(db: Session, course_id: int) -> dict:
         # qui applique ses propres seuils. Les régler après re-sondage ne touche
         # donc pas au contrat (#486).
         "split_gap_median": split_gap.median(ecarts),
+        "split_gap_rows": sum(1 for ecart in ecarts if ecart is not None),
     }

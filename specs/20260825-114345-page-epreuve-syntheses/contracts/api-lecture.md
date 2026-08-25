@@ -72,7 +72,8 @@ barre (#163). Les deux filtres ci-dessus ne l'atteignent pas.
 ```jsonc
 {
   "clubs_total": 187,            // int
-  "split_gap_median": 0.0169     // float | null
+  "split_gap_median": 0.0169,    // float | null
+  "split_gap_rows": 681          // int
 }
 ```
 
@@ -91,6 +92,12 @@ en ont sur la base de dev).
 Elle sert de **référence** : un écart de ligne ne se juge pas dans l'absolu mais par
 rapport à ses pairs, l'écart étant le plus souvent une propriété de l'épreuve — un segment
 que le chronométreur ne publie pas — et non de la ligne.
+
+**`split_gap_rows`** — nombre de lignes évaluables, celles sur lesquelles la médiane est
+calculée. Ajouté à l'implémentation : sans lui, l'écran ne peut pas appliquer la garde
+d'effectif du sondage, et la médiane d'une population de neuf se retrouverait traitée comme
+une référence — c'est précisément le cas de la course 65, neuf enfants aux totaux de cinq
+minutes, où vingt secondes font 6 %.
 
 ---
 
@@ -121,7 +128,7 @@ d'égalité sur `json`, et la requête passerait en SQLite pour échouer en prod
 - Aucun code de retour modifié : 404 reste réservé à l'épreuve inconnue.
 - `page_size=all` reste atteignable et se combine aux nouveaux filtres.
 - `GET /courses/{course_id}/summary` reste sans paramètre.
-- Aucune migration Alembic : ces cinq champs sont calculés à la lecture.
+- Aucune migration Alembic : ces six champs sont calculés à la lecture.
 
 ## Vérification de l'additivité
 

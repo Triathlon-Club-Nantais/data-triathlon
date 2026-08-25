@@ -70,8 +70,11 @@ const SUMMARY: CourseSummary = {
     { name: "GRAVELINES TRIATHLON", count: 51, is_tcn: false },
     { name: "TRIATHLON CLUB NANTAIS", count: 4, is_tcn: true },
   ],
+  clubs_total: 2,
   histogram: { bars: [3, 18, 47], start_sec: 3600, bucket_sec: 300 },
   split_keys: [],
+  split_gap_median: null,
+  split_gap_rows: 0,
 };
 
 const ONE_SOURCE: CourseSource[] = [
@@ -309,8 +312,11 @@ describe("CoursePage", () => {
       categories: [],
       categories_total: 0,
       clubs: [],
+      clubs_total: 0,
       histogram: null,
       split_keys: [],
+      split_gap_median: null,
+      split_gap_rows: 0,
     } satisfies CourseSummary);
 
     const { container } = await afficher();
@@ -355,5 +361,55 @@ describe("CoursePage", () => {
     await afficher();
     expect(screen.queryByRole("link", { name: /Klikego/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/^Source/)).not.toBeInTheDocument();
+  });
+
+  // ── Fiabilité affichée (#486, RES-10) ──────────────────────────────────────
+
+  it("marque une épreuve à anomalies, et énumère celles-ci dans les mots du reste du produit", async () => {
+    getCourse.mockResolvedValue({
+      course: { ...COURSE, is_reliable: false, quality_issues: { duplicate_bib: 3, rank_gap: 1 } },
+      participations: [],
+      total: 1811,
+      page: 1,
+      page_size: 20,
+    });
+
+    await afficher();
+
+    const marque = screen.getByText("Données douteuses");
+    // Le vocabulaire vient de `lib/quality.ts`, partagé avec le profil athlète :
+    // un même code ne doit pas se dire de deux façons selon l'écran (FR-002).
+    expect(marque.closest("[title]")).toHaveAttribute(
+      "title",
+      expect.stringContaining("3 dossards en doublon dans les données du chronométreur"),
+    );
+    expect(marque.closest("[title]")).toHaveAttribute(
+      "title",
+      expect.stringContaining("1 trou dans le classement"),
+    );
+  });
+
+  it("n'affiche aucune marque sur une épreuve saine — l'absence de signal est l'état normal", async () => {
+    await afficher();
+
+    expect(screen.queryByText("Données douteuses")).not.toBeInTheDocument();
+  });
+
+  it("dit une seule fois, au niveau de l'épreuve, que les inters ne couvrent pas le parcours", async () => {
+    // Course 65 de la base de dev : médiane +11,4 %, la T1 d'un aquathlon n'est
+    // pas publiée. Le dire sur chacune des lignes serait du bruit (FR-005).
+    getCourseSummary.mockResolvedValue({ ...SUMMARY, split_gap_median: 0.114 });
+
+    await afficher();
+
+    expect(screen.getAllByText(/temps intermédiaires ne couvrent pas/i)).toHaveLength(1);
+  });
+
+  it("se tait quand les inters collent au total", async () => {
+    getCourseSummary.mockResolvedValue({ ...SUMMARY, split_gap_median: 0.0007 });
+
+    await afficher();
+
+    expect(screen.queryByText(/temps intermédiaires ne couvrent pas/i)).not.toBeInTheDocument();
   });
 });

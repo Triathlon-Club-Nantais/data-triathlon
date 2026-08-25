@@ -154,3 +154,9 @@ class CourseSummary(BaseModel):
     #: contrat. Point de vérité des seuils :
     #: `docs/superpowers/specs/2026-08-25-ecart-inters-total-sondage.md`.
     split_gap_median: float | None = None
+    #: Nombre de lignes **évaluables** de l'épreuve — celles sur lesquelles la
+    #: médiane est calculée. Sans lui, l'écran ne peut pas appliquer la garde
+    #: d'effectif du sondage : la médiane d'une population de neuf n'est pas une
+    #: référence, et la course 65 (neuf enfants, totaux de cinq minutes) faisait
+    #: signaler deux lignes pour vingt secondes.
+    split_gap_rows: int = 0

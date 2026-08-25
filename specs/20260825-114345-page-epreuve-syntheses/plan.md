@@ -11,7 +11,7 @@ mentent par omission (`RES-7`), présentent des temps impossibles sur le même t
 justes (`RES-10`), et ne mènent nulle part (`RES-11`).
 
 L'approche technique tient en une phrase : **le serveur publie ce que l'écran ne peut pas
-calculer, l'écran ne fait que le rendre visible.** Cinq champs additifs sur trois DTO de
+calculer, l'écran ne fait que le rendre visible.** Six champs additifs sur trois DTO de
 lecture, deux paramètres de requête facultatifs, et le reste est du rendu.
 
 Le sondage `docs/superpowers/specs/2026-08-25-ecart-inters-total-sondage.md` a réécrit la
@@ -59,7 +59,7 @@ catégorie distincts, 1 393 clubs distincts.
 | I | Langue métier français / technique English | ✅ | Identifiants nouveaux en anglais (`split_gap_ratio`, `split_gap_median`, `clubs_total`, `club`, `category`) ; libellés, marqueurs et infobulles en français ; le sondage et la spec en français. |
 | II | Architecture en couches (api → services → repositories → DB) | ✅ | Les deux filtres s'ajoutent à `participation_repository` (seule couche à toucher `Session`) ; les deux agrégats à `stats_service`. Aucun calcul métier ne monte dans le router ni ne descend dans le front — c'est précisément l'objet de R2. |
 | III | TDD sans réseau (non-négociable) | ✅ | Chaque tâche d'implémentation est précédée de son test. Aucun accès réseau : les fixtures existantes de `backend/tests/` et des composants suffisent. Le cas de la course 214 est figé en fixture (`SC-004`). |
-| IV | Contrats API et CLI stables | ✅ | Cinq champs **ajoutés** à `CourseSummary`, `ParticipationOut` et `EventOut` ; deux paramètres de requête **facultatifs**. Aucun champ retiré, aucune sémantique inversée, aucun code de retour modifié. `SC-010` le vérifie. |
+| IV | Contrats API et CLI stables | ✅ | Six champs **ajoutés** à `CourseSummary`, `ParticipationOut` et `EventOut` ; deux paramètres de requête **facultatifs**. Aucun champ retiré, aucune sémantique inversée, aucun code de retour modifié. `SC-010` le vérifie. |
 | V | Neutralité par défaut des paramètres transverses | ✅ | `club=None` et `category=None` ne filtrent rien. C'est l'écran qui les active en écrivant l'URL, jamais l'API. |
 | VI | Simplicité / YAGNI | ⚠️ | Le schéma de segments par sport est dupliqué en Python. Voir Complexity Tracking. |
 
@@ -72,7 +72,7 @@ specs/20260825-114345-page-epreuve-syntheses/
 ├── plan.md              # Ce fichier
 ├── spec.md              # Phase -1 (/speckit-specify)
 ├── research.md          # Phase 0 — six inconnues tranchées
-├── data-model.md        # Phase 1 — les cinq champs et les deux règles
+├── data-model.md        # Phase 1 — les six champs et les deux règles
 ├── quickstart.md        # Phase 1 — comment vérifier que ça marche
 ├── contracts/
 │   └── api-lecture.md   # Phase 1 — le delta de contrat /api/v1
@@ -94,7 +94,7 @@ backend/
 │   │                                        # + is_reliable, quality_issues (EventOut)
 │   ├── schemas/participation.py             # + split_gap_ratio (ParticipationOut)
 │   ├── services/stats_service.py            # calcul des deux agrégats + _event_row
-│   ├── services/split_gap.py                # NOUVEAU — la règle d'écart, en un seul endroit
+│   ├── core/split_gap.py                    # NOUVEAU — la règle d'écart, en un seul endroit
 │   └── repositories/participation_repository.py  # filtres club/category, colonnes fiabilité
 └── tests/
     ├── test_services/test_split_gap.py      # NOUVEAU — dont la fixture course 214
@@ -109,12 +109,16 @@ frontend/
 ├── components/courses/ClubBreakdown.tsx            # NOUVEAU — carte clubs extraite
 ├── lib/categories.ts                               # NOUVEAU — libellés de catégorie
 ├── lib/quality.ts                                  # phrases d'anomalie (existant, réutilisé)
-└── lib/types.ts                                    # miroir TS des cinq champs
+└── lib/types.ts                                    # miroir TS des six champs
 ```
 
 **Structure Decision** : les deux applications existantes, sans nouveau module de premier
-niveau. Deux fichiers naissent, et chacun pour une raison nommée. `app/services/split_gap.py`
+niveau. Deux fichiers naissent, et chacun pour une raison nommée. `app/core/split_gap.py`
 isole la règle d'écart pour qu'elle ait **un seul** domicile (R2, et la leçon de #76).
+Dans `core/` et non `services/`, décidé à l'implémentation : `ParticipationOut` doit
+l'appeler pour son champ calculé, et un schéma qui importerait un service inverserait le
+flux `api → services → repositories`. Même place que `core/club.py`, pour la même raison —
+logique de domaine pure, sans `Session`, consommée par plusieurs couches.
 `components/courses/ClubBreakdown.tsx` extrait la carte « Top clubs » aujourd'hui écrite
 en JSX inline dans `page.tsx:108-127` : elle gagne un pied, un en-tête conditionnel et des
 lignes activables, ce qui la rend intestable là où elle est.
@@ -130,7 +134,7 @@ lignes activables, ce qui la rend intestable là où elle est.
 Trois tranches, alignées sur les trois histoires de la spec, chacune livrable seule.
 
 **P1 — la fiabilité affichée** (`US1`, la seule à fort impact). Backend d'abord :
-`services/split_gap.py` et ses tests, puis les trois champs publiés, puis les deux
+`core/split_gap.py` et ses tests, puis les champs publiés, puis les deux
 colonnes de `EventOut`. Front ensuite : marque en tête de page, marqueur de ligne, marque
 en liste. Se vérifie sans que P2 ni P3 existent.
 
