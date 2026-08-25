@@ -2,7 +2,8 @@
 import Link, { useLinkStatus } from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Card, SegmentedControl, PlaceBadge, AnnonceStatut } from "@/components/tcn";
+import { Card, SegmentedControl, PlaceBadge, AnnonceStatut, LigneCarte } from "@/components/tcn";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusBadge } from "@/components/results/StatusBadge";
 import { isNonFinisher } from "@/lib/utils/raceOrder";
 import { splitColumnsFromKeys } from "@/lib/utils/splits";
@@ -259,6 +260,31 @@ export function RaceFinishers({
     );
   }
 
+  /**
+   * Choix d'une colonne depuis le sélecteur mobile. Distinct de `trierSur`,
+   * qui bascule la direction quand on reclique la même colonne : rechoisir la
+   * colonne déjà active dans une liste déroulante n'est pas un geste
+   * d'inversion, et inverserait à chaque réouverture du menu.
+   */
+  function choisirTri(cle: string) {
+    setTri((precedent) => ({
+      cle,
+      direction: precedent?.cle === cle ? precedent.direction : "asc",
+    }));
+  }
+
+  /** Inversion explicite, seul geste d'inversion du rendu carte. */
+  function inverserTri() {
+    setTri((precedent) => ({
+      cle: precedent?.cle ?? CLE_TEMPS_TOTAL,
+      // Non trié → « décroissant », et non « croissant » : le nom accessible du
+      // bouton annonce alors « actuellement croissant », donc l'appuyer doit
+      // donner l'autre sens. Le test compare le sens **et** le libellé — les
+      // désaccorder est une régression silencieuse pour un lecteur d'écran.
+      direction: precedent?.direction === "desc" ? "asc" : "desc",
+    }));
+  }
+
   // L'URL est la vérité : après un « Précédent » du navigateur, le champ doit
   // suivre. Ajustement pendant le rendu plutôt qu'en effet — React le
   // recommande pour un état dérivé d'une valeur qui change.
@@ -481,9 +507,10 @@ export function RaceFinishers({
         </div>
       )}
       <div
-        style={{ overflowX: "auto" }}
+        data-testid="classement-grille"
+        data-affichage="grille"
+        className="hidden lg:block overflow-x-auto transition-opacity data-pending:opacity-60"
         data-pending={pending || undefined}
-        className="transition-opacity data-pending:opacity-60"
       >
         <div style={{ minWidth: 1080 }}>
           <table className="tcn-table" role="table" aria-labelledby="titre-classement">
@@ -618,102 +645,198 @@ export function RaceFinishers({
           })}
           </tbody>
           </table>
-          {participations.length === 0 && (
-            // `total > 0` : sans ce garde, une recherche sans résultat sur une
-            // page sautée (`?q=zzz&page=5`) tombe dans cette branche — `nbPages`
-            // vaut 1 faute de résultats, donc `page > nbPages` est vrai pour une
-            // tout autre raison que « cette page n'existe pas ».
-            page > nbPages && total > 0 ? (
-              <EmptyState
-                bare
-                title="Cette page n'existe pas"
-                description={`le classement s'arrête à la page ${nbPages}`}
-                action={
-                  <Link href={lienVers({ page: null })} style={{ fontWeight: 700, color: "var(--tcn-ink)" }}>
-                    Revenir au début
-                  </Link>
-                }
-              />
-            ) : rechercheUrl && athleteRetenu && rechercheUrl === nomRetenu ? (
-              // « Aller à ma ligne » ne peut pas savoir d'avance si l'athlète
-              // retenu a couru : ici, il n'a pas couru. Le dire, plutôt que
-              // d'annoncer un échec de recherche que personne n'a lancée. La
-              // portée club tombe avec la recherche : la sélection club n'est
-              // pas une intention que « aller à ma ligne » doit préserver, et
-              // « Voir tous les participants » doit montrer tous les
-              // participants, pas seulement ceux du club.
-              <EmptyState
-                bare
-                title={`${nomRetenu} ne figure pas sur cette épreuve`}
-                action={
-                  <button
-                    type="button"
-                    onClick={() => naviguer({ q: null, [SCOPE_PARAM]: null })}
-                    style={STYLE_BOUTON_ABSENCE}
-                  >
-                    Voir tous les participants
-                  </button>
-                }
-              />
-            ) : rechercheUrl && !clubChoisi && !categorieChoisie ? (
-              // `&& !clubChoisi && !categorieChoisie` : sans cette exclusion, une
-              // recherche **et** un filtre de carte tombaient ici, et « Effacer la
-              // recherche » laissait le visiteur sur un écran toujours vide, sans
-              // jamais nommer le filtre qui le vidait (relevé en revue de code).
-              <EmptyState
-                bare
-                title="Aucun athlète ne correspond à cette recherche"
-                action={
-                  <button
-                    type="button"
-                    onClick={() => naviguer({ q: null })}
-                    style={STYLE_BOUTON_ABSENCE}
-                  >
-                    Effacer la recherche
-                  </button>
-                }
-              />
-            ) : clubChoisi || categorieChoisie ? (
-              // L'état d'absence **nomme le filtre en cause** (#486, FR-025) et
-              // ne parle jamais de « recherche » quand aucune n'est active —
-              // c'est le défaut constaté sur `/courses/340?scope=club`.
-              <EmptyState
-                bare
-                title={titreAbsenceFiltre(clubChoisi, categorieChoisie, filtreClub)}
-                action={
-                  <button
-                    type="button"
-                    // La recherche part avec, quand elle est là : la laisser
-                    // renverrait sur un second écran vide, pour une autre raison.
-                    onClick={() =>
-                      naviguer({ [CLUB_PARAM]: null, [CATEGORY_PARAM]: null, q: null })
-                    }
-                    style={STYLE_BOUTON_ABSENCE}
-                  >
-                    Voir tous les participants
-                  </button>
-                }
-              />
-            ) : filtreClub ? (
-              <EmptyState
-                bare
-                title={`Aucun athlète du ${CLUB_NAME} sur cette épreuve`}
-                action={
-                  <button
-                    type="button"
-                    onClick={() => naviguer({ [SCOPE_PARAM]: null })}
-                    style={STYLE_BOUTON_ABSENCE}
-                  >
-                    Voir tous les participants
-                  </button>
-                }
-              />
-            ) : (
-              <EmptyState bare title="Aucun participant à afficher" />
-            )
-          )}
         </div>
       </div>
+
+      {/* Sous 1 024 px la grille de 1 080 px ne tient plus : elle demandait 3,1
+          écrans de défilement horizontal sur un iPhone SE, et la colonne
+          « Athlète » sortait de l'écran avant les inters (#461, WCAG 1.4.10). */}
+      <div
+        data-testid="classement-cartes"
+        data-affichage="cartes"
+        className="transition-opacity data-pending:opacity-60 lg:hidden"
+        data-pending={pending || undefined}
+      >
+        {lignes.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderBottom: "1px solid var(--tcn-border)" }}>
+            <span id="libelle-tri-classement" style={{ fontSize: 13, fontWeight: 700, color: "var(--tcn-text-muted)" }}>
+              Trier par
+            </span>
+            <Select value={tri?.cle ?? CLE_TEMPS_TOTAL} onValueChange={(v) => choisirTri(v as string)}>
+              <SelectTrigger aria-labelledby="libelle-tri-classement" className="h-11 flex-1">
+                <SelectValue>
+                  {(value) =>
+                    value === CLE_TEMPS_TOTAL
+                      ? "Temps total"
+                      : (segments.find((s) => s.key === value)?.label ?? String(value))
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={CLE_TEMPS_TOTAL}>Temps total</SelectItem>
+                {segments.map((s) => (
+                  <SelectItem key={s.key} value={s.key}>
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <button
+              type="button"
+              onClick={inverserTri}
+              aria-label={`Inverser l'ordre, actuellement ${tri?.direction === "desc" ? "décroissant" : "croissant"}${perimetreTri}`}
+              // 44 px : plancher tactile WCAG 2.2 2.5.8.
+              style={{ minWidth: 44, minHeight: 44, borderRadius: 8, border: "1px solid var(--tcn-border)", background: "var(--tcn-fill)", color: "var(--tcn-ink)", fontSize: 15, cursor: "pointer" }}
+            >
+              {tri?.direction === "desc" ? "▼" : "▲"}
+            </button>
+          </div>
+        )}
+        {lignes.map((p) => {
+          const nf = isNonFinisher(p.status);
+          const name = [p.athlete?.nom, p.athlete?.prenom].filter(Boolean).join(" ");
+          const splits = p.splits ?? {};
+          const meta = [p.club ?? "—", p.category ?? "—", genderShort(p.athlete?.gender)]
+            .filter(Boolean)
+            .join(" · ");
+          return (
+            <LigneCarte
+              key={p.id}
+              href={detailHref(p)}
+              accent={p.is_tcn}
+              attenue={nf}
+              marqueur={
+                nf ? (
+                  <StatusBadge status={p.status} />
+                ) : p.rank_overall != null ? (
+                  <PlaceBadge place={p.rank_overall} />
+                ) : (
+                  <span style={{ color: "var(--tcn-text-faint)" }}>—</span>
+                )
+              }
+              titre={name}
+              valeur={p.total_time ?? "—"}
+              meta={meta}
+              depliant={
+                segments.length > 0
+                  ? {
+                      libelle: "Inters",
+                      // `CelluleInter` telle quelle : le ⚠ des temps illisibles
+                      // (#472), son `title` et son `aria-label` voyagent avec.
+                      contenu: (
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(72px, 1fr))", gap: 8 }}>
+                          {segments.map((s) => (
+                            <div key={s.key}>
+                              <div className="micro-label" style={{ color: "var(--tcn-text-faint)" }}>
+                                {s.label}
+                              </div>
+                              <CelluleInter valeur={splits[s.key]} small={s.small} />
+                            </div>
+                          ))}
+                        </div>
+                      ),
+                    }
+                  : undefined
+              }
+            />
+          );
+        })}
+      </div>
+
+      {participations.length === 0 && (
+        // `total > 0` : sans ce garde, une recherche sans résultat sur une
+        // page sautée (`?q=zzz&page=5`) tombe dans cette branche — `nbPages`
+        // vaut 1 faute de résultats, donc `page > nbPages` est vrai pour une
+        // tout autre raison que « cette page n'existe pas ».
+        page > nbPages && total > 0 ? (
+          <EmptyState
+            bare
+            title="Cette page n'existe pas"
+            description={`le classement s'arrête à la page ${nbPages}`}
+            action={
+              <Link href={lienVers({ page: null })} style={{ fontWeight: 700, color: "var(--tcn-ink)" }}>
+                Revenir au début
+              </Link>
+            }
+          />
+        ) : rechercheUrl && athleteRetenu && rechercheUrl === nomRetenu ? (
+          // « Aller à ma ligne » ne peut pas savoir d'avance si l'athlète
+          // retenu a couru : ici, il n'a pas couru. Le dire, plutôt que
+          // d'annoncer un échec de recherche que personne n'a lancée. La
+          // portée club tombe avec la recherche : la sélection club n'est
+          // pas une intention que « aller à ma ligne » doit préserver, et
+          // « Voir tous les participants » doit montrer tous les
+          // participants, pas seulement ceux du club.
+          <EmptyState
+            bare
+            title={`${nomRetenu} ne figure pas sur cette épreuve`}
+            action={
+              <button
+                type="button"
+                onClick={() => naviguer({ q: null, [SCOPE_PARAM]: null })}
+                style={STYLE_BOUTON_ABSENCE}
+              >
+                Voir tous les participants
+              </button>
+            }
+          />
+        ) : rechercheUrl && !clubChoisi && !categorieChoisie ? (
+          // `&& !clubChoisi && !categorieChoisie` : sans cette exclusion, une
+          // recherche **et** un filtre de carte tombaient ici, et « Effacer la
+          // recherche » laissait le visiteur sur un écran toujours vide, sans
+          // jamais nommer le filtre qui le vidait (relevé en revue de code).
+          <EmptyState
+            bare
+            title="Aucun athlète ne correspond à cette recherche"
+            action={
+              <button
+                type="button"
+                onClick={() => naviguer({ q: null })}
+                style={STYLE_BOUTON_ABSENCE}
+              >
+                Effacer la recherche
+              </button>
+            }
+          />
+        ) : clubChoisi || categorieChoisie ? (
+          // L'état d'absence **nomme le filtre en cause** (#486, FR-025) et
+          // ne parle jamais de « recherche » quand aucune n'est active —
+          // c'est le défaut constaté sur `/courses/340?scope=club`.
+          <EmptyState
+            bare
+            title={titreAbsenceFiltre(clubChoisi, categorieChoisie, filtreClub)}
+            action={
+              <button
+                type="button"
+                // La recherche part avec, quand elle est là : la laisser
+                // renverrait sur un second écran vide, pour une autre raison.
+                onClick={() =>
+                  naviguer({ [CLUB_PARAM]: null, [CATEGORY_PARAM]: null, q: null })
+                }
+                style={STYLE_BOUTON_ABSENCE}
+              >
+                Voir tous les participants
+              </button>
+            }
+          />
+        ) : filtreClub ? (
+          <EmptyState
+            bare
+            title={`Aucun athlète du ${CLUB_NAME} sur cette épreuve`}
+            action={
+              <button
+                type="button"
+                onClick={() => naviguer({ [SCOPE_PARAM]: null })}
+                style={STYLE_BOUTON_ABSENCE}
+              >
+                Voir tous les participants
+              </button>
+            }
+          />
+        ) : (
+          <EmptyState bare title="Aucun participant à afficher" />
+        )
+      )}
 
       <ClassementPagination
         page={page}
