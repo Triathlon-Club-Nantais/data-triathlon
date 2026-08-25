@@ -22,3 +22,4 @@ export { ImprovementMatrix } from "./participation-detail/ImprovementMatrix";
 export { PendingBadge } from "./PendingBadge";
 export { AnnonceStatut } from "./AnnonceStatut";
 export { ErrorScreen } from "./ErrorScreen";
+export { LigneCarte } from "./LigneCarte";
