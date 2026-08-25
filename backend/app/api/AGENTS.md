@@ -11,8 +11,9 @@ Deux paramètres traversent l'API de lecture, sur le même patron que `seasons` 
 - `federal_only=true` — retire les disciplines hors fédération triathlon
   (`trail`, `course-a-pied*`, `cyclisme*`). **Défaut à `false` : l'API reste
   neutre.** Ce sont le dashboard et la page club qui l'activent, via le toggle
-  « Inclure les autres disciplines ». Un défaut à `true` amputerait
-  silencieusement tout futur appelant.
+  « Inclure les autres disciplines » — et, depuis #502, `GET /athletes/{id}`,
+  qui reçoit `seasons`/`federal_only` de la bande « Ma saison » du tableau de
+  bord. Un défaut à `true` amputerait silencieusement tout futur appelant.
 
 ## Résultats en attente de validation : exclus par construction (#270)
 
