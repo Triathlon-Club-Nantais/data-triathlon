@@ -1,14 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { AccessGate } from "@/components/benevoles/AccessGate";
 import { ParticipationPanel } from "@/components/benevoles/ParticipationPanel";
+import { useFileValidation } from "@/components/benevoles/useFileValidation";
 import { ValidationQueue } from "@/components/benevoles/ValidationQueue";
-import { Eyebrow, Button } from "@/components/tcn";
-import { apiClient, ApiError } from "@/lib/api/client";
+import { AnnonceStatut, Eyebrow, Button } from "@/components/tcn";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { useEstCompact } from "@/hooks/useEstCompact";
 import type { Participation } from "@/lib/types";
-
-type Etat = "chargement" | "gate" | "file" | "erreur";
 
 /**
  * Page de vérification des résultats par les bénévoles (#271).
@@ -16,66 +16,40 @@ type Etat = "chargement" | "gate" | "file" | "erreur";
  * Hors `/admin/*` et hors `nav.config.ts` — accès direct par URL communiquée
  * aux bénévoles, protégé par mot de passe partagé plutôt que par SSO
  * (research.md §D1 de la feature).
+ *
+ * Depuis #490 (PROF-9) la file s'enchaîne : la validation d'une entrée
+ * sélectionne la suivante, au lieu de laisser le bénévole repointer à la main.
  */
 export default function BenevolesPage() {
-  const [etat, setEtat] = useState<Etat>("chargement");
-  const [participations, setParticipations] = useState<Participation[]>([]);
-  const [rejetees, setRejetees] = useState<Participation[]>([]);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const file = useFileValidation();
+  const compact = useEstCompact();
+  const [feuilleOuverte, setFeuilleOuverte] = useState(false);
+  /** Une ref plutôt qu'un état : le garde-fou est lu dans un gestionnaire de
+   *  clic, jamais rendu — un état ne ferait que déclencher un rendu de plus. */
+  const brouillonSale = useRef(false);
 
-  const chargerLaFile = useCallback(async () => {
-    setEtat("chargement");
-    try {
-      const [resultats, rejets] = await Promise.all([
-        apiClient.getBenevoleQueue(),
-        apiClient.getBenevoleRejected(),
-      ]);
-      setParticipations(resultats);
-      setRejetees(rejets);
-      setEtat("file");
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        setEtat("gate");
-      } else {
-        setEtat("erreur");
-      }
-    }
+  const surBrouillonSale = useCallback((sale: boolean) => {
+    brouillonSale.current = sale;
   }, []);
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    chargerLaFile();
-  }, [chargerLaFile]);
-
-  function surChangement(mise_a_jour: Participation) {
-    if (!mise_a_jour.is_pending_validation) {
-      // Validée : sort des deux listes.
-      setParticipations((liste) => liste.filter((p) => p.id !== mise_a_jour.id));
-      setRejetees((liste) => liste.filter((p) => p.id !== mise_a_jour.id));
-      setSelectedId((id) => (id === mise_a_jour.id ? null : id));
-      return;
+  function selectionner(id: number) {
+    if (id !== file.selectedId && brouillonSale.current) {
+      const ok = window.confirm(
+        "Ce résultat porte des modifications non enregistrées. Les abandonner ?",
+      );
+      if (!ok) return;
     }
-    if (mise_a_jour.is_rejected) {
-      // Vient d'être rejetée : sort de la file, entre dans les non-conformes.
-      setParticipations((liste) => liste.filter((p) => p.id !== mise_a_jour.id));
-      setRejetees((liste) => [mise_a_jour, ...liste.filter((p) => p.id !== mise_a_jour.id)]);
-      return;
-    }
-    // Rejet annulé : sort des non-conformes, revient dans la file.
-    setRejetees((liste) => liste.filter((p) => p.id !== mise_a_jour.id));
-    setParticipations((liste) =>
-      liste.some((p) => p.id === mise_a_jour.id)
-        ? liste.map((p) => (p.id === mise_a_jour.id ? mise_a_jour : p))
-        : [mise_a_jour, ...liste],
-    );
+    brouillonSale.current = false;
+    file.selectionner(id);
+    if (compact) setFeuilleOuverte(true);
   }
 
-  /** Cookie expiré ou mot de passe changé pendant que l'écran était ouvert (#271, revue de code). */
-  function surSessionExpiree() {
-    setEtat("gate");
+  function surChangement(maj: Participation) {
+    brouillonSale.current = false;
+    file.surChangement(maj);
   }
 
-  if (etat === "chargement") {
+  if (file.etat === "chargement") {
     return (
       <div style={{ maxWidth: 480, margin: "80px auto", textAlign: "center", color: "var(--tcn-text-faint)" }}>
         Chargement…
@@ -83,25 +57,32 @@ export default function BenevolesPage() {
     );
   }
 
-  if (etat === "gate") {
-    return <AccessGate onSuccess={chargerLaFile} />;
+  if (file.etat === "gate") {
+    return <AccessGate onSuccess={file.charger} />;
   }
 
-  if (etat === "erreur") {
+  if (file.etat === "erreur") {
     return (
       <div style={{ maxWidth: 480, margin: "80px auto", textAlign: "center", color: "var(--tcn-text-faint)" }}>
         <div style={{ marginBottom: 16 }}>
           La file de validation n&apos;a pas pu être chargée. Réessayez plus tard.
         </div>
-        <Button variant="secondary" onClick={chargerLaFile}>
+        <Button variant="secondary" onClick={file.charger}>
           Réessayer
         </Button>
       </div>
     );
   }
 
-  const selectionnee =
-    participations.find((p) => p.id === selectedId) ?? rejetees.find((p) => p.id === selectedId) ?? null;
+  const panneau = file.selectionnee ? (
+    <ParticipationPanel
+      key={file.selectionnee.id}
+      participation={file.selectionnee}
+      onChanged={surChangement}
+      onSessionExpired={file.surSessionExpiree}
+      onBrouillonSale={surBrouillonSale}
+    />
+  ) : null;
 
   return (
     <div style={{ maxWidth: 1100, margin: "40px auto", padding: "0 24px" }}>
@@ -109,24 +90,30 @@ export default function BenevolesPage() {
       <h1 style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(26px, 4vw, 34px)", color: "var(--tcn-ink)", marginBottom: 24, fontWeight: 400 }}>
         Vérification des résultats
       </h1>
+      {/* Le toast passe inaperçu d'un lecteur d'écran : la même phrase vit ici
+          en région `status` (WCAG 4.1.3, patron `AnnonceStatut`). */}
+      <AnnonceStatut texte={file.annonce} />
       <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-[minmax(280px,360px)_1fr]">
         <ValidationQueue
-          participations={participations}
-          rejected={rejetees}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
+          participations={file.participations}
+          rejected={file.rejetees}
+          selectedId={file.selectedId}
+          onSelect={selectionner}
+          traitees={file.traitees}
         />
-        {selectionnee ? (
-          <ParticipationPanel
-            key={selectionnee.id}
-            participation={selectionnee}
-            onChanged={surChangement}
-            onSessionExpired={surSessionExpiree}
-          />
+        {compact ? (
+          <Sheet open={feuilleOuverte && panneau !== null} onOpenChange={setFeuilleOuverte}>
+            <SheetContent side="right" className="w-full max-w-[520px] overflow-y-auto p-4">
+              <SheetTitle style={{ fontSize: 0 }}>Détail du résultat</SheetTitle>
+              {panneau}
+            </SheetContent>
+          </Sheet>
         ) : (
-          <div style={{ color: "var(--tcn-text-faint)", fontSize: 14, padding: 24 }}>
-            Sélectionnez un résultat dans la file pour le relire.
-          </div>
+          (panneau ?? (
+            <div style={{ color: "var(--tcn-text-faint)", fontSize: 14, padding: 24 }}>
+              Sélectionnez un résultat dans la file pour le relire.
+            </div>
+          ))
         )}
       </div>
     </div>
