@@ -30,7 +30,8 @@ Toute PR déclenche la CI seule (aucun déploiement).
   lance `deploy-preview` (sur `main`) ou `deploy-production` (sur tag `v*`).
 - **`.github/workflows/render-sleep.yml`** — suspend et reprend les deux
   services Render pour tenir les 750 h/mois du plan free (#528, décision #530).
-  `schedule` deux fois par jour, plus un `workflow_dispatch` de secours. Voir
+  `schedule` à l'heure pile pour coucher la preview (#560), plus deux crons
+  nocturnes pour la production, plus un `workflow_dispatch` de secours. Voir
   « Veille des services Render » plus bas.
 - **`.github/workflows/pages.yml`** — publie ce site de documentation
   (`docs/`) sur GitHub Pages. Sur `pull_request`, le job `build` seul valide que
@@ -664,7 +665,7 @@ première occurrence rouge (quickstart §12) ; si ce n'est pas la bonne personne
 c'est l'hypothèse « aucun canal d'alerte nouveau » de la spec qu'il faut
 rouvrir, pas une situation avec laquelle vivre.
 
-## Veille des services Render — `render-sleep.yml` (#528)
+## Veille des services Render — `render-sleep.yml` (#528, #560)
 
 Les deux services web se partagent **750 h d'instance par mois** sur tout le
 workspace : au-delà, Render suspend l'ensemble des services free jusqu'au mois
@@ -678,17 +679,48 @@ au niveau dépôt).
 | Service | Coucher | Lever |
 |---|---|---|
 | **production** | cron `0 1 * * *` | cron `0 4 * * *` |
-| **preview** | cron `0 1 * * *` | **jamais par cron** — `deploy.yml` la reprend avant son deploy hook |
+| **preview** | cron `0 * * * *` — **à chaque heure pile** (#560) | **jamais par cron** — `deploy.yml` la reprend avant son deploy hook |
 
 La preview ne se rallume que pour servir la vérification post-déploiement, puis
-attend la nuit. C'est là qu'est le gros du quota : la fenêtre nocturne seule ne
-rend que ~90 h par mois et par service, quand une preview qui ne s'éveille qu'à
-la demande en rend plusieurs centaines.
+se recouche à l'heure pile suivante. C'est là qu'est le gros du quota : la
+fenêtre nocturne seule ne rend que ~90 h par mois et par service, quand une
+preview qui ne s'éveille qu'à la demande en rend plusieurs centaines.
+
+**Pourquoi l'heure pile et non la nuit** (#560). Le régime d'origine ne
+recouchait la preview qu'au cron de 1 h : une journée à plusieurs merges sur
+`main` — donc plusieurs `deploy-preview` — la laissait éveillée du premier
+déploiement jusqu'à la nuit, soit potentiellement une journée entière au
+compteur. Elle ne reste désormais éveillée qu'une heure au plus après un
+déploiement (~1 h 15 avec le délai de grâce ci-dessous). La preview est sortie du
+cron de 1 h, devenu **production seule** : suspendre un service déjà suspendu
+n'aurait rien coûté, mais deux mécanismes qui se chevauchent se lisent moins bien
+qu'un seul.
+
+**Le cron horaire ne coupe jamais un déploiement**, et ce n'est pas un pari sur
+ce que fait l'API Render d'un `suspend` reçu en plein build — question ouverte
+que la documentation publique ne tranche pas. Avant tout `suspend`, le job lit
+l'état du service et de son dernier déploiement (`GET /v1/services?name=…`, qui
+porte déjà `suspended`, puis `GET /v1/services/{id}/deploys?limit=1`) et
+**s'abstient** dans trois cas :
+
+| Constat | Décision |
+|---|---|
+| Service déjà `suspended` | rien à faire — le passage horaire est muet, pas rouge |
+| Dernier déploiement `created`, `queued` ou `*_in_progress` | reporté à l'heure suivante |
+| Dernier déploiement terminé depuis moins de `GRACE_MINUTES` (15) | reporté à l'heure suivante |
+
+Le délai de grâce couvre la vérification post-déploiement et l'écart entre le
+`finishedAt` de Render et le service réellement prêt à répondre. Le `resume`, lui,
+ne s'abstient **jamais** : il part même sur un service annoncé éveillé, parce que
+laisser la production éteinte sur la foi d'un champ périmé coûte plus cher qu'un
+appel inutile.
 
 **Heure UTC, pas heure de Paris.** Le cron d'Actions ignore l'heure d'été : la
 coupure de production tombe entre 2 h et 5 h l'hiver, 3 h et 6 h l'été. Viser
 Paris à la minute demanderait deux jeux de crons et une bascule saisonnière à
-entretenir, pour une fenêtre qui reste nocturne dans les deux cas.
+entretenir, pour une fenêtre qui reste nocturne dans les deux cas. Un cron
+d'Actions peut aussi être retardé ou sauté quand la plateforme est chargée : sur
+le cron horaire, une occurrence manquée ne coûte qu'une heure d'instance de plus.
 
 **La procédure de vérification ci-dessous n'est pas touchée** : le `resume`
 précède le deploy hook dans `deploy.yml`, sur les deux environnements. C'est
@@ -718,18 +750,28 @@ laisser viser un autre service : le filtre `name` de l'API n'étant pas une
 égalité, le workflow n'agit que sur une correspondance exacte et **unique**.
 
 **À constater au premier passage réel**, dans cet ordre — la documentation
-publique de Render ne répond ni à l'un ni à l'autre :
+publique de Render ne répond à aucun de ces points :
 
 1. **Sur la preview d'abord** (`workflow_dispatch` → `suspend`, `target:
    preview`), que suspend/resume est bien ouvert au plan **free**. Si l'API le
    refuse, tout le dispositif tombe et le repli est le plan payant sur la seule
    production (décision #530).
-2. Le code rendu quand le service est **déjà** dans l'état demandé — un cron qui
-   sortirait rouge chaque nuit sur un service déjà suspendu serait du bruit à
-   traiter, pas une panne.
-3. Ce que voit un visiteur pendant la fenêtre coupée : Render ne sert pas de page
+2. Ce que voit un visiteur pendant la fenêtre coupée : Render ne sert pas de page
    de maintenance, l'appel échoue en erreur de connexion. Vérifier que le front
    Vercel rend une erreur lisible et non une page blanche.
+3. **Un cycle complet du régime horaire** (#560) : après un merge sur `main`,
+   voir sur le dashboard Render la preview réveillée par `deploy.yml`, le
+   déploiement aller au bout sans être interrompu, puis le passage horaire
+   suivant — celui d'après la grâce de 15 min — la recoucher. Et vérifier que les
+   passages des heures suivantes sortent **verts et muets** (« déjà suspendu »).
+4. **Le rythme d'appels**, désormais 24 h/24 : deux `GET` puis au plus un `POST`
+   par heure, ce qui reste très en deçà de tout rate-limit documenté par Render —
+   mais, comme le reste de cette liste, non confirmé.
+
+Le code rendu quand le service est **déjà** dans l'état demandé ne se constate
+plus : depuis #560 le job lit `suspended` avant d'agir et n'envoie pas le
+`suspend` dans ce cas. La question ne se poserait à nouveau que si ce champ
+mentait.
 
 Et le relevé qui reste dû : **les heures d'instance réellement consommées**
 (dashboard Render → workspace → *Usage*), avant et après un mois plein de

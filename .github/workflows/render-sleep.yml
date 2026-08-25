@@ -8,11 +8,21 @@ run-name: "render-sleep · ${{ inputs.action || github.event.schedule }} · ${{ 
 # Deux régimes, pas un :
 #
 # - la **production** dort la nuit et se rallume au matin (1 h → 4 h UTC) ;
-# - la **preview** ne se rallume jamais toute seule. C'est `deploy.yml` qui la
-#   reprend avant son deploy hook, le temps de la vérification post-déploiement ;
-#   le cron de 1 h la recouche. C'est là qu'est le gros du quota : un mois fait
-#   730 h, donc deux services éveillés en permanence en réclament 1460 pour 750
-#   disponibles, quand la fenêtre nocturne seule n'en rend que ~90 par service.
+# - la **preview** ne se rallume jamais toute seule — c'est `deploy.yml` qui la
+#   reprend avant son deploy hook, le temps de la vérification post-déploiement —
+#   et elle se recouche **à l'heure pile suivante**, pas à la nuit suivante
+#   (#560). C'est là qu'est le gros du quota : un mois fait 730 h, donc deux
+#   services éveillés en permanence en réclament 1460 pour 750 disponibles, et
+#   une journée à plusieurs merges laissait la preview éveillée du premier
+#   déploiement jusqu'au cron de 1 h — quand la fenêtre nocturne seule ne rend
+#   que ~90 h par service.
+#
+# **Le cron horaire ne coupe jamais un déploiement**, et ce n'est pas une
+# supposition sur ce que fait l'API Render d'un `suspend` reçu en plein build :
+# le job interroge l'état du dernier déploiement et **s'abstient** tant qu'il est
+# en vol ou qu'il vient de finir (délai de grâce, `GRACE_MINUTES` ci-dessous).
+# La preview reste donc éveillée jusqu'à ~1 h 15 après un déploiement, et pas
+# davantage.
 #
 # **Heure UTC, pas heure de Paris** : le cron d'Actions ignore l'heure d'été, si
 # bien que la coupure tombe entre 2 h et 5 h l'hiver, 3 h et 6 h l'été. Viser
@@ -29,7 +39,13 @@ run-name: "render-sleep · ${{ inputs.action || github.event.schedule }} · ${{ 
 # toujours sa cible, quel que soit l'état du cron.
 on:
   schedule:
-    # Coucher : les deux services.
+    # Coucher de la preview : à chaque heure pile. Un cron d'Actions peut être
+    # retardé ou sauté quand la plateforme est chargée ; le prix d'une heure
+    # manquée est une heure d'instance de plus, pas une panne.
+    - cron: "0 * * * *"
+    # Coucher de la production. La preview n'est **pas** visée ici : l'heure
+    # pile s'en charge déjà, et deux mécanismes qui se chevauchent se lisent
+    # moins bien qu'un seul (#560).
     - cron: "0 1 * * *"
     # Lever : la production seule — la preview attend son prochain déploiement.
     - cron: "0 4 * * *"
@@ -46,6 +62,10 @@ on:
         options: [preview, production, both]
         default: preview
 
+# Le cron horaire croise celui de 1 h et celui de 4 h deux fois par jour : les
+# deux exécutions se sérialisent ici plutôt que de courir l'une sur l'autre.
+# `cancel-in-progress: false` est ce qui compte — un coucher de production annulé
+# à mi-course, ou un lever perdu, ne se verrait pas.
 concurrency:
   group: render-sleep
   cancel-in-progress: false
@@ -62,12 +82,12 @@ permissions:
 # que quelqu'un clique, tous les matins. Les ID sont donc résolus par leur nom
 # via l'API, avec le seul `RENDER_API_KEY`, qui est un secret **de dépôt**.
 #
-# Le `resume` est le défaut de repli : sur un déclenchement dont on n'attend pas
-# le nom de cron (une entrée ajoutée sans être branchée ici, par exemple), mieux
-# vaut rallumer que couper.
+# Le `resume` sur la production est le défaut de repli : sur un déclenchement
+# dont on n'attend pas le nom de cron (une entrée ajoutée sans être branchée
+# ici, par exemple), mieux vaut rallumer que couper.
 env:
-  ACTION: ${{ inputs.action || (github.event.schedule == '0 1 * * *' && 'suspend' || 'resume') }}
-  TARGET: ${{ inputs.target || (github.event.schedule == '0 1 * * *' && 'both' || 'production') }}
+  ACTION: ${{ inputs.action || ((github.event.schedule == '0 * * * *' || github.event.schedule == '0 1 * * *') && 'suspend' || 'resume') }}
+  TARGET: ${{ inputs.target || (github.event.schedule == '0 * * * *' && 'preview' || 'production') }}
 
 jobs:
   render:
@@ -92,34 +112,27 @@ jobs:
             # (constat repris dans l'audit OWASP du 16/08/2026).
             service_name: triathlon-backend-production
     steps:
-      # `matrix` n'est pas lisible dans un `if` de job, seulement de step : le
-      # runner démarre donc aussi pour le service non visé, et s'arrête ici.
-      # Un runner à vide une fois par jour coûte moins qu'un job de calcul
-      # préalable dont la sortie n'aurait servi qu'à ça.
+      # `matrix` n'est pas lisible dans un `if` de job, seulement de step — et
+      # `env` non plus : le runner démarre donc aussi pour le service non visé,
+      # et s'arrête ici. Depuis #560 c'est 24 fois par jour et non plus une ;
+      # le dépôt étant public, ses minutes Actions sont gratuites, et un job de
+      # calcul préalable dont la sortie n'aurait servi qu'à cette condition
+      # coûterait un runner de plus à chaque passage.
       - name: "Render — ${{ matrix.environment }}"
         if: ${{ env.TARGET == 'both' || env.TARGET == matrix.environment }}
         env:
           SERVICE_NAME: ${{ matrix.service_name }}
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          # Délai de grâce après la **fin** d'un déploiement, pendant lequel on
+          # ne suspend pas : il couvre la vérification post-déploiement, et la
+          # marge entre le `finishedAt` de Render et le service réellement prêt
+          # à répondre. Le porter plus haut ne coûte que des heures d'instance ;
+          # le descendre sous la durée d'un build ne servirait à rien, un build
+          # en vol étant déjà couvert par le test de statut ci-dessous.
+          GRACE_MINUTES: "15"
         run: |
           set -euo pipefail
-          # Le filtre `name` de l'API n'est pas une égalité : sans le `select`
-          # exact ci-dessous, `data-triathlon` ramènerait aussi tout service
-          # dont le nom le contient, et on suspendrait le mauvais. `length == 1`
-          # est donc la garde qui compte — zéro ou deux résultats font échouer
-          # le job plutôt que d'agir sur une supposition.
-          service_id=$(curl -sS --fail-with-body \
-            -H "Authorization: Bearer $RENDER_API_KEY" \
-            --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 \
-            --get --data-urlencode "name=$SERVICE_NAME" \
-            --data "type=web_service" --data "limit=20" \
-            "https://api.render.com/v1/services" \
-            | jq -r --arg n "$SERVICE_NAME" \
-                '[.[].service | select(.name == $n) | .id] | if length == 1 then .[0] else "" end')
-          [ -n "$service_id" ] || { echo "::error::Aucun service web unique nommé « $SERVICE_NAME » chez Render"; exit 1; }
-          # Le dépôt est public, donc ses logs Actions le sont : l'ID n'y entre
-          # pas, alors même qu'il ne vient plus d'un secret ici.
-          echo "::add-mask::$service_id"
+
           # `--fail-with-body` et non `-f` : sans lui, un refus ne rend que
           # « curl: (22) … error: 4xx », sans le motif de Render. Deux motifs
           # sont attendus ici et **non confirmés par la documentation
@@ -127,9 +140,71 @@ jobs:
           # et le code rendu quand le service est déjà dans l'état demandé
           # (l'API répond 202 au changement). Les deux se lisent au premier
           # passage réel, d'où la validation sur preview avant la production.
-          curl -sS --fail-with-body -X POST \
-            -H "Authorization: Bearer $RENDER_API_KEY" \
-            --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 \
-            "https://api.render.com/v1/services/$service_id/$ACTION"
+          render_api() {
+            curl -sS --fail-with-body \
+              -H "Authorization: Bearer $RENDER_API_KEY" \
+              --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 "$@"
+          }
+
+          # Le filtre `name` de l'API n'est pas une égalité : sans le `select`
+          # exact ci-dessous, `data-triathlon` ramènerait aussi tout service
+          # dont le nom le contient, et on suspendrait le mauvais. `length == 1`
+          # est donc la garde qui compte — zéro ou deux résultats font échouer
+          # le job plutôt que d'agir sur une supposition.
+          service=$(render_api \
+            --get --data-urlencode "name=$SERVICE_NAME" \
+            --data "type=web_service" --data "limit=20" \
+            "https://api.render.com/v1/services" \
+            | jq -c --arg n "$SERVICE_NAME" \
+                '[.[].service | select(.name == $n)] | if length == 1 then .[0] else empty end')
+          [ -n "$service" ] || { echo "::error::Aucun service web unique nommé « $SERVICE_NAME » chez Render"; exit 1; }
+          service_id=$(jq -r '.id' <<<"$service")
+          # Le dépôt est public, donc ses logs Actions le sont : l'ID n'y entre
+          # pas, alors même qu'il ne vient plus d'un secret ici.
+          echo "::add-mask::$service_id"
+
+          # Les deux abstentions ne valent que pour `suspend`. Un `resume` part
+          # toujours, y compris sur un service déjà éveillé : c'est le filet du
+          # lever de 4 h, et le lire dans un champ plutôt que l'exécuter, c'est
+          # accepter de laisser le site éteint sur une information périmée.
+          if [ "$ACTION" = suspend ]; then
+            if [ "$(jq -r '.suspended' <<<"$service")" = suspended ]; then
+              echo "Service ${{ matrix.environment }} déjà suspendu — rien à faire."
+              exit 0
+            fi
+
+            # Le garde-fou de #560 : à l'heure pile, un déploiement peut être en
+            # vol (`deploy.yml` fait `resume` → deploy hook → build Render, une
+            # séquence qui dépasse volontiers l'heure). Plutôt que de parier sur
+            # ce que fait l'API d'un `suspend` reçu en plein build — que la
+            # documentation Render ne dit pas —, on ne l'envoie pas.
+            deploy=$(render_api "https://api.render.com/v1/services/$service_id/deploys?limit=1" \
+              | jq -c '.[0].deploy // empty')
+            if [ -n "$deploy" ]; then
+              status=$(jq -r '.status' <<<"$deploy")
+              case "$status" in
+                created | queued | *_in_progress)
+                  echo "Déploiement en cours ($status) — suspension reportée à l'heure suivante."
+                  exit 0
+                  ;;
+              esac
+              # `finishedAt` est nul sur un déploiement jamais parti (annulé
+              # depuis la file, par exemple) : `createdAt`, toujours présent,
+              # borne alors la grâce.
+              ended=$(jq -r '.finishedAt // .createdAt // empty' <<<"$deploy")
+              ended_ts=$(date -u -d "$ended" +%s 2>/dev/null || echo 0)
+              if [ "$ended_ts" -eq 0 ]; then
+                # Une date illisible est une condition permanente : s'abstenir
+                # ici ne suspendrait plus jamais, et le quota partirait en
+                # silence. On suspend, et on laisse la trace.
+                echo "::warning::Horodatage de déploiement illisible (« $ended ») — grâce ignorée."
+              elif [ $(( $(date -u +%s) - ended_ts )) -lt $(( GRACE_MINUTES * 60 )) ]; then
+                echo "Déploiement terminé il y a moins de $GRACE_MINUTES min — suspension reportée à l'heure suivante."
+                exit 0
+              fi
+            fi
+          fi
+
+          render_api -X POST "https://api.render.com/v1/services/$service_id/$ACTION"
           echo
           echo "$ACTION appliqué au service ${{ matrix.environment }}"
