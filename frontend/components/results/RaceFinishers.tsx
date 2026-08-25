@@ -247,6 +247,16 @@ export function RaceFinishers({
               Chercher
             </button>
           </form>
+          {athleteRetenu && (
+            <button
+              type="button"
+              onClick={() => naviguer({ q: nomComplet(athleteRetenu) })}
+              aria-label={`Aller à ma ligne — ${nomComplet(athleteRetenu)}`}
+              style={{ height: 34, padding: "0 12px", fontSize: 13, fontWeight: 700, borderRadius: 8, border: "1.5px solid var(--tcn-orange-deep)", background: "var(--tcn-surface)", color: "var(--tcn-orange-deep)", cursor: "pointer" }}
+            >
+              Aller à ma ligne
+            </button>
+          )}
           <SegmentedControl
             tone="ink"
             value={filtreClub ? "tcn" : "all"}
@@ -382,6 +392,23 @@ export function RaceFinishers({
                   <Link href={lienVers({ page: null })} style={{ fontWeight: 700, color: "var(--tcn-ink)" }}>
                     Revenir au début
                   </Link>
+                }
+              />
+            ) : rechercheUrl && athleteRetenu && rechercheUrl === nomComplet(athleteRetenu) ? (
+              // « Aller à ma ligne » ne peut pas savoir d'avance si l'athlète
+              // retenu a couru : ici, il n'a pas couru. Le dire, plutôt que
+              // d'annoncer un échec de recherche que personne n'a lancée.
+              <EmptyState
+                bare
+                title={`${nomComplet(athleteRetenu)} ne figure pas sur cette épreuve`}
+                action={
+                  <button
+                    type="button"
+                    onClick={() => naviguer({ q: null })}
+                    style={STYLE_BOUTON_ABSENCE}
+                  >
+                    Voir tous les participants
+                  </button>
                 }
               />
             ) : rechercheUrl ? (
