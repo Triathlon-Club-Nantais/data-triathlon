@@ -585,6 +585,30 @@
   .tcn-avatar-frame[data-selected="true"] {
     box-shadow: 0 0 0 3px var(--tcn-paper), 0 0 0 6px var(--tcn-orange);
   }
+  /* « Aller à ma ligne » (`RaceFinishers`, #503) : bouton bordé stylé en
+     ligne, sans `:focus-visible` déclaré — retombait sur `outline-ring/50`
+     (1,93:1 sur `--tcn-surface`), sous le seuil WCAG 1.4.11 de 3:1. Ce n'est
+     pas `.tcn-lien-action` (pas un lien de texte), et un style en ligne ne
+     peut pas porter un `:focus-visible` : classe dédiée au seul anneau, sur
+     le patron de `.tcn-rowlink:focus-visible` ci-dessus. */
+  .tcn-cta-classement {
+    outline: none;
+  }
+  .tcn-cta-classement:focus-visible {
+    outline: 2px solid var(--tcn-orange);
+    outline-offset: 2px;
+  }
+  /* « Ma ligne » du classement (`RaceFinishers`, #503) : le fond ne peut pas
+     être un style en ligne, il battrait `.tcn-rowlink:hover` et couperait le
+     retour au survol sur la ligne où l'utilisateur clique le plus (#439). Le
+     survol est rendu explicitement, un cran plus marqué que le repos, comme
+     n'importe quelle autre ligne. */
+  .tcn-rowlink--moi {
+    background: var(--tcn-orange-08);
+  }
+  .tcn-rowlink--moi:hover {
+    background: var(--tcn-orange-12);
+  }
 }
 
 ::selection {

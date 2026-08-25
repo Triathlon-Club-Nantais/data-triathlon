@@ -806,12 +806,28 @@ describe("RaceFinishers — ma ligne dans le classement (NAV-10, #503)", () => {
     expect(marques[0].closest("[role='button']")).toHaveTextContent("DNFGUY");
   });
 
-  it("peint le fond de ma ligne, y compris sur un non-finisher", () => {
+  it("peint le fond de ma ligne, y compris sur un non-finisher — par une classe, pas un style en ligne", () => {
+    // Le fond vit en CSS (`.tcn-rowlink--moi`, globals.css) : un style en
+    // ligne battrait `.tcn-rowlink:hover` et couperait le retour au survol
+    // (#439, correctif de revue #503).
     writeAthlete({ id: 3, prenom: "T", nom: "DNFGUY" });
     afficher();
 
     const ligne = screen.getByText("Vous").closest("[role='button']") as HTMLElement;
-    expect(ligne.style.background).toBe("var(--tcn-orange-08)");
+    expect(ligne.className).toMatch(/(^|\s)tcn-rowlink--moi(\s|$)/);
+    expect(ligne.style.background).toBe("");
+  });
+
+  it("ne porte la classe modificatrice que sur ma ligne, pas sur les autres", () => {
+    writeAthlete({ id: 3, prenom: "T", nom: "DNFGUY" });
+    afficher();
+
+    const lignes = screen.getAllByRole("button", { name: /Voir le détail du résultat de/ });
+    const autres = lignes.filter((el) => !el.getAttribute("aria-label")?.includes("DNFGUY"));
+    expect(autres.length).toBeGreaterThan(0);
+    for (const ligne of autres) {
+      expect(ligne.className).not.toMatch(/(^|\s)tcn-rowlink--moi(\s|$)/);
+    }
   });
 
   it("n'offre pas le saut quand aucun athlète n'est retenu", () => {
