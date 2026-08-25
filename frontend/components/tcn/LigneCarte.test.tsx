@@ -94,4 +94,28 @@ describe("LigneCarte", () => {
       "border-left: 3px solid transparent",
     );
   });
+
+  // Même piège cssstyle que le liseré : `color-mix(...)` contient une
+  // variable, `toHaveStyle` ne la voit pas sous jsdom. On lit l'attribut.
+  it("pose le fond atténué pour un non-finisher", () => {
+    render(<LigneCarte href="/x" titre="Jean DUPONT" attenue />);
+    expect(screen.getByRole("article").getAttribute("style")).toContain(
+      "color-mix(in srgb, var(--tcn-grey-400) 15%, transparent)",
+    );
+  });
+
+  // Vérifications de type seules : vitest transpile les .test.tsx avec esbuild
+  // sans type-checker, donc ces deux cas ne rougissent qu'à `npm run build`
+  // (tsc strict). `it.skip` : jamais exécutées, seulement compilées — un
+  // `@ts-expect-error` sur du code que TS accepte est lui-même une erreur, ce
+  // qui rend le test auto-vérifiant.
+  it.skip("le type refuse une carte sans zone cliquable", () => {
+    // @ts-expect-error — ni `href` ni `onSelect` : union Navigation | Action non satisfaite.
+    return <LigneCarte titre="x" />;
+  });
+
+  it.skip("le type refuse onSelect sans ariaLabel", () => {
+    // @ts-expect-error — `ariaLabel` est requis avec `onSelect` : le bouton perdrait son nom accessible.
+    return <LigneCarte onSelect={() => {}} titre="x" />;
+  });
 });

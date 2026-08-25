@@ -1,6 +1,50 @@
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 
+/** Ce que toute carte porte, cliquable ou non. */
+type Contenu = {
+  /** Ligne au-dessus du titre : une date, en général. */
+  surtitre?: ReactNode;
+  /** Pastille à gauche du titre : `PlaceBadge`, `StatusBadge`. */
+  marqueur?: ReactNode;
+  titre: ReactNode;
+  /** Valeur forte alignée à droite : temps total, compteur. */
+  valeur?: ReactNode;
+  /** Bande secondaire sous le titre. */
+  meta?: ReactNode;
+  depliant?: { libelle: string; contenu: ReactNode };
+  /** Sous-ligne d'actions, rendue hors de la zone cliquable. */
+  actions?: ReactNode;
+  /** Liseré orange TCN, comme le `borderLeft` des lignes du classement. */
+  accent?: boolean;
+  /** Fond grisé des non-finishers. */
+  attenue?: boolean;
+};
+
+/**
+ * La zone cliquable est soit une navigation, soit une action — jamais les deux,
+ * jamais aucune. L'exclusivité vit dans le type plutôt que dans un commentaire :
+ * sans elle, une carte sans `href` ni `onSelect` rendait un `<button>`
+ * focalisable, sans nom accessible ni gestionnaire (WCAG 4.1.2), et rien ne le
+ * signalait avant l'écran.
+ */
+type Navigation = {
+  /** Cible de la zone cliquable : la carte rend une `<Link>`. */
+  href: string;
+  onSelect?: never;
+  ariaLabel?: never;
+  ouvert?: never;
+};
+type Action = {
+  href?: never;
+  /** Action de la zone cliquable : la carte rend un `<button>`. */
+  onSelect: () => void;
+  /** Nom accessible du bouton — un `<button>` n'a pas d'URL à annoncer. */
+  ariaLabel: string;
+  /** `aria-expanded` du bouton, pour une carte qui en replie d'autres (#463). */
+  ouvert?: boolean;
+};
+
 /**
  * Une ligne de tableau repliée en carte, pour les largeurs où la grille ne
  * tient plus (#461, `RESP-1`).
@@ -30,32 +74,7 @@ export function LigneCarte({
   actions,
   accent = false,
   attenue = false,
-}: {
-  /** Cible de la zone cliquable, quand la carte navigue. Exclusif avec `onSelect`. */
-  href?: string;
-  /** Action de la zone cliquable, quand la carte ne navigue pas. */
-  onSelect?: () => void;
-  /** Nom accessible du bouton — un `<button>` n'a pas d'URL à annoncer. */
-  ariaLabel?: string;
-  /** `aria-expanded` du bouton, pour une carte qui en replie d'autres (#463). */
-  ouvert?: boolean;
-  /** Ligne au-dessus du titre : une date, en général. */
-  surtitre?: ReactNode;
-  /** Pastille à gauche du titre : `PlaceBadge`, `StatusBadge`. */
-  marqueur?: ReactNode;
-  titre: ReactNode;
-  /** Valeur forte alignée à droite : temps total, compteur. */
-  valeur?: ReactNode;
-  /** Bande secondaire sous le titre. */
-  meta?: ReactNode;
-  depliant?: { libelle: string; contenu: ReactNode };
-  /** Sous-ligne d'actions, rendue hors de la zone cliquable. */
-  actions?: ReactNode;
-  /** Liseré orange TCN, comme le `borderLeft` des lignes du classement. */
-  accent?: boolean;
-  /** Fond grisé des non-finishers. */
-  attenue?: boolean;
-}) {
+}: Contenu & (Navigation | Action)) {
   const contenu = (
     <>
       {surtitre ? <div style={STYLE_SURTITRE}>{surtitre}</div> : null}
