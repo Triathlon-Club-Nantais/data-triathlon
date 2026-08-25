@@ -788,6 +788,13 @@ def _grouped_events_query(
         Course.event_type.label("event_type"),
         Course.is_relay.label("is_relay"),
         Course.distance_km.label("distance_km"),
+        # Fiabilité (#486) : sélectionnées, mais **jamais ajoutées au `GROUP BY`**.
+        # `quality_issues` est une colonne JSON, et PostgreSQL n'a pas d'opérateur
+        # d'égalité sur ce type — la grouper passerait en SQLite et échouerait en
+        # production. Le `GROUP BY Course.id` suffit par dépendance fonctionnelle,
+        # ce qui rend d'ailleurs les cinq colonnes déjà listées redondantes.
+        Course.is_reliable.label("is_reliable"),
+        Course.quality_issues.label("quality_issues"),
         func.count(Participation.id).label("total"),
         func.sum(case((tcn_clause(Participation.club), 1), else_=0)).label("tcn_count"),
     )

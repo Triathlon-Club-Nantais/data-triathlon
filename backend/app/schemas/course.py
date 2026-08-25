@@ -72,6 +72,12 @@ class EventOut(BaseModel):
     distance_km: float | None = None
     total: int
     tcn_count: int
+    #: Miroir des deux champs de `CourseBrief` (#486). Sans eux, la liste des
+    #: épreuves ne peut pas marquer ce qu'elle liste sans un second appel, alors
+    #: que sa requête agrège déjà par `Course.id`. `None` = épreuve jamais
+    #: évaluée, état normal des imports antérieurs au calcul de fiabilité.
+    is_reliable: bool | None = None
+    quality_issues: dict[str, int] | None = None
 
 
 class CourseCount(BaseModel):
@@ -138,3 +144,13 @@ class CourseSummary(BaseModel):
     clubs: list[ClubCount]
     histogram: Histogram | None = None
     split_keys: list[str]
+    #: Médiane des écarts `(total − Σ inters) / total` des lignes évaluables (#486).
+    #: C'est la **référence** à laquelle se juge l'écart d'une ligne : un écart
+    #: partagé par toute l'épreuve est un segment que le chronométreur ne publie
+    #: pas, pas une ligne fausse. `None` quand aucune ligne n'est évaluable.
+    #:
+    #: Une **mesure**, jamais un verdict : les seuils d'affichage vivent côté
+    #: écran, ce qui permet de les régler après re-sondage sans toucher au
+    #: contrat. Point de vérité des seuils :
+    #: `docs/superpowers/specs/2026-08-25-ecart-inters-total-sondage.md`.
+    split_gap_median: float | None = None

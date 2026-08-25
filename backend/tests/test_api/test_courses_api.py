@@ -281,3 +281,108 @@ def test_la_file_est_triee_par_date_la_plus_recente(client, db_session):
     corps = client.get("/api/v1/courses", params={"unreliable": "true"}).json()
 
     assert [c["id"] for c in corps] == [recente.id, ancienne.id]
+
+
+# ── Fiabilité et écart des inters (issue #486, RES-10) ───────────────────────
+
+
+def test_le_classement_publie_l_ecart_de_chaque_ligne(client, db_session):
+    """`split_gap_ratio` est une **mesure**, publiée par ligne — jamais un verdict."""
+    course = course_repository.get_or_create(
+        db_session, name="Tri Écart", event_date=date(2026, 8, 2), event_type="triathlon-m"
+    )
+    athlete = athlete_repository.get_or_create(
+        db_session, nom="ECART", prenom="Test", gender="M", club="ASPTT"
+    )
+    participation_repository.create(
+        db_session,
+        athlete_id=athlete.id,
+        course_id=course.id,
+        bib_number="1",
+        club="ASPTT",
+        status="finisher",
+        total_time="01:00:00",
+        splits={
+            "swim": "00:15:00",
+            "t1": "00:01:00",
+            "bike": "00:30:00",
+            "t2": "00:03:00",
+            "run": "00:10:00",
+        },
+    )
+    db_session.commit()
+
+    corps = client.get(f"/api/v1/courses/{course.id}").json()
+
+    assert corps["participations"][0]["split_gap_ratio"] == pytest.approx(60 / 3600)
+
+
+def test_l_ecart_est_nul_quand_la_ligne_n_est_pas_evaluable(client, epreuve):
+    """L'épreuve de la fixture n'a aucun split : rien à mesurer, donc `null`."""
+    corps = client.get(f"/api/v1/courses/{epreuve.id}").json()
+
+    assert all(p["split_gap_ratio"] is None for p in corps["participations"])
+
+
+def test_la_synthese_publie_la_mediane_des_ecarts(client, epreuve):
+    corps = client.get(f"/api/v1/courses/{epreuve.id}/summary").json()
+
+    assert "split_gap_median" in corps
+    assert corps["split_gap_median"] is None
+
+
+def test_la_liste_des_epreuves_porte_la_fiabilite(client, db_session):
+    """`EventOut` ne portait aucun champ de fiabilité : la liste ne pouvait pas marquer.
+
+    `quality_issues` est une colonne JSON — elle doit rester **hors** du `GROUP BY`,
+    PostgreSQL n'ayant pas d'opérateur d'égalité sur `json`.
+    """
+    course = _epreuve(
+        db_session,
+        name="Douteuse avec anomalies",
+        is_reliable_computed=False,
+        quality_issues={"duplicate_bib": 3},
+    )
+    athlete = athlete_repository.get_or_create(
+        db_session, nom="LISTE", prenom="Test", gender="M", club="ASPTT"
+    )
+    participation_repository.create(
+        db_session,
+        athlete_id=athlete.id,
+        course_id=course.id,
+        bib_number="1",
+        club="ASPTT",
+        status="finisher",
+        total_time="01:00:00",
+    )
+    db_session.commit()
+
+    items = client.get("/api/v1/courses/events").json()["items"]
+    ligne = next(item for item in items if item["id"] == course.id)
+
+    assert ligne["is_reliable"] is False
+    assert ligne["quality_issues"] == {"duplicate_bib": 3}
+
+
+def test_une_epreuve_jamais_evaluee_porte_des_champs_nuls(client, db_session):
+    """`null` est un état normal : les imports antérieurs au calcul n'ont pas été remplis."""
+    course = _epreuve(db_session, name="Jamais évaluée")
+    athlete = athlete_repository.get_or_create(
+        db_session, nom="NULLE", prenom="Test", gender="M", club="ASPTT"
+    )
+    participation_repository.create(
+        db_session,
+        athlete_id=athlete.id,
+        course_id=course.id,
+        bib_number="1",
+        club="ASPTT",
+        status="finisher",
+        total_time="01:00:00",
+    )
+    db_session.commit()
+
+    items = client.get("/api/v1/courses/events").json()["items"]
+    ligne = next(item for item in items if item["id"] == course.id)
+
+    assert ligne["is_reliable"] is None
+    assert ligne["quality_issues"] is None
