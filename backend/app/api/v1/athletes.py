@@ -76,11 +76,29 @@ def search_athletes(
 
 
 @router.get("/athletes/{athlete_id}")
-def get_athlete(athlete_id: int, db: Session = Depends(get_db)):
+def get_athlete(
+    athlete_id: int,
+    seasons: str | None = Query(None),
+    federal_only: bool = Query(
+        False,
+        description="Exclut les disciplines hors fédération triathlon (trail, course à pied, cyclisme).",
+    ),
+    db: Session = Depends(get_db),
+):
+    """Fiche athlète et ses participations.
+
+    Les deux filtres sont **optionnels et neutres par défaut** (#502) : sans
+    eux, la route rend la carrière entière, comme depuis toujours. Ils servent
+    la bande « Ma saison » du tableau de bord, qui doit compter sur la même
+    base que les compteurs club affichés juste dessous — mêmes noms et mêmes
+    sémantiques que sur `/stats` et `/athletes/season-activity`.
+    """
     athlete = athlete_repository.get(db, athlete_id)
     if not athlete:
         raise NotFoundError("Athlète introuvable")
-    participations = participation_repository.list_for_athlete(db, athlete_id)
+    participations = participation_repository.list_for_athlete(
+        db, athlete_id, seasons=parse_seasons(seasons), federal_only=federal_only
+    )
     counts = participation_repository.finishers_count_by_group(
         db, [p.course_id for p in participations]
     )
