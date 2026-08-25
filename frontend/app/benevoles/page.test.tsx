@@ -123,7 +123,7 @@ describe("BenevolesPage", () => {
     await user.click(await screen.findByRole("button", { name: /Course 1/ }));
     await user.click(screen.getByRole("button", { name: /valider ce résultat/i }));
 
-    await waitFor(() => expect(screen.getByText(/aucun résultat en attente/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("File vide, merci !")).toBeInTheDocument());
   });
 
   it("affiche un signal de chargement avant que la file ne réponde", () => {
