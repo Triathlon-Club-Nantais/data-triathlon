@@ -53,7 +53,7 @@ export function ReassignParticipationDialog({
         <DialogHeader>
           <DialogTitle>Rattacher ce résultat à un autre coureur</DialogTitle>
           <DialogDescription>
-            {participation.course?.name} — actuellement au nom de{" "}
+            {participation.course.name} — actuellement au nom de{" "}
             {participation.athlete?.nom} {participation.athlete?.prenom}. Le
             rattachement est <strong>irréversible</strong> ; si la fiche d&apos;origine
             n&apos;a plus aucun résultat, elle sera supprimée.

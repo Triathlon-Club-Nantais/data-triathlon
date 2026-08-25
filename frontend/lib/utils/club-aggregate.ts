@@ -72,8 +72,8 @@ export function listPodiums(parts: Participation[], rankType?: RankType): Podium
     .filter((e): e is PodiumEntry => e.best !== null)
     .sort((a, b) => {
       if (a.best.rank !== b.best.rank) return a.best.rank - b.best.rank;
-      const da = a.participation.course?.event_date ?? "";
-      const db = b.participation.course?.event_date ?? "";
+      const da = a.participation.course.event_date ?? "";
+      const db = b.participation.course.event_date ?? "";
       return db.localeCompare(da);
     });
 }
@@ -132,10 +132,10 @@ export function buildRoster(parts: Participation[]): RosterEntry[] {
       }
     }
     if (hasPodium) e.podiums += 1;
-    const date = p.course?.event_date ?? null;
+    const date = p.course.event_date;
     if (date && (!e.lastDate || date > e.lastDate)) {
       e.lastDate = date;
-      e.lastEvent = p.course?.name ?? null;
+      e.lastEvent = p.course.name;
     }
   }
   return [...map.values()].sort(
@@ -151,8 +151,8 @@ export function recentParticipations(
 ): Participation[] {
   return [...parts]
     .sort((a, b) => {
-      const da = a.course?.event_date ?? "";
-      const db = b.course?.event_date ?? "";
+      const da = a.course.event_date ?? "";
+      const db = b.course.event_date ?? "";
       if (da !== db) return db.localeCompare(da);
       return (b.created_at ?? "").localeCompare(a.created_at ?? "");
     })
@@ -178,9 +178,7 @@ export function clubSummary(parts: Participation[]): ClubSummary {
     // `event_type`/`id` les distingue (#564, backend/app/services/
     // course_duplicates.py). `course.id` est l'identité que porte déjà le
     // backend (stats_service.get_stats compte des `course_id` distincts).
-    // `course` absent/nul écarte la participation, comme avant — surtout
-    // pas de fusion dans un groupe « undefined ».
-    if (p.course?.id != null) events.add(p.course.id);
+    events.add(p.course.id);
     if (isPodium(p)) podiums += 1;
   }
   return {

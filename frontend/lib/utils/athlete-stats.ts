@@ -52,7 +52,7 @@ export interface ResumeAthlete {
 function derniere(parts: Participation[]): Participation | null {
   let best: Participation | null = null;
   for (const p of parts) {
-    if (best === null || (p.course?.event_date ?? "") >= (best.course?.event_date ?? "")) best = p;
+    if (best === null || (p.course.event_date ?? "") >= (best.course.event_date ?? "")) best = p;
   }
   return best;
 }
@@ -72,7 +72,7 @@ export function resumeAthlete(participations: Participation[]): ResumeAthlete {
   }
 
   const p = derniereValidee as Participation;
-  const date = formatDate(p.course?.event_date) || null;
+  const date = formatDate(p.course.event_date) || null;
   const tuiles: TuileResume[] = [
     {
       label: "Épreuves",
@@ -83,9 +83,9 @@ export function resumeAthlete(participations: Participation[]): ResumeAthlete {
 
   // `formatToken` retombe sur « — » quand il ne reconnaît rien : dans ce cas la
   // tuile disparaît au lieu d'afficher un tiret nu, ce que PROF-4 interdit.
-  const discipline = formatToken(p.course?.event_type, p.course?.distance_km);
+  const discipline = formatToken(p.course.event_type, p.course.distance_km);
   if (discipline !== "—") {
-    tuiles.push({ label: "Discipline", value: discipline, hint: p.course?.name ?? null });
+    tuiles.push({ label: "Discipline", value: discipline, hint: p.course.name });
   }
 
   if (p.total_time) {

@@ -266,15 +266,4 @@ describe("clubSummary", () => {
     expect(clubSummary(parts).events).toBe(2);
   });
 
-  it("écarte une participation sans épreuve, sans créer de groupe fantôme", () => {
-    const withCourse = part({ id: 1 });
-    const withoutCourse = part({ id: 2 }) as Participation;
-    // @ts-expect-error — sonde volontairement une donnée orpheline (course
-    // absente) : le champ est requis côté type, mais le cas doit rester géré
-    // sans planter, exactement comme l'ancienne garde `if (p.course?.name)`.
-    withoutCourse.course = undefined;
-    const s = clubSummary([withCourse, withoutCourse]);
-    expect(s.results).toBe(2);
-    expect(s.events).toBe(1);
-  });
 });

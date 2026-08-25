@@ -96,7 +96,7 @@ export function EventsTable({
   const seasonOptions = useMemo(() => {
     const years = new Set<number>();
     for (const p of participations) {
-      if (p.course?.event_date) years.add(seasonOf(p.course.event_date));
+      if (p.course.event_date) years.add(seasonOf(p.course.event_date));
     }
     return [...years].sort((a, b) => b - a);
   }, [participations]);
@@ -107,7 +107,7 @@ export function EventsTable({
   const disciplineOptions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const p of participations) {
-      const discipline = disciplineOf(p.course?.event_type);
+      const discipline = disciplineOf(p.course.event_type);
       if (!discipline) continue;
       counts.set(discipline, (counts.get(discipline) ?? 0) + 1);
     }
@@ -123,10 +123,10 @@ export function EventsTable({
   const discipline = disciplineOptions.find((d) => d === sp.get(DISCIPLINE_PARAM)) ?? null;
 
   const filtered = participations.filter((p) => {
-    if (season != null && (!p.course?.event_date || seasonOf(p.course.event_date) !== season)) {
+    if (season != null && (!p.course.event_date || seasonOf(p.course.event_date) !== season)) {
       return false;
     }
-    return discipline == null || disciplineOf(p.course?.event_type) === discipline;
+    return discipline == null || disciplineOf(p.course.event_type) === discipline;
   });
   const ordered = recentParticipations(filtered, filtered.length);
 
@@ -250,8 +250,8 @@ export function EventsTable({
               // du rang ni du statut. Il doit apparaître à côté d'un DNF non
               // fiable comme à côté d'un finisher classé.
               const unreliableTitle =
-                p.course?.is_reliable === false
-                  ? unreliableTooltip(p.course?.quality_issues)
+                p.course.is_reliable === false
+                  ? unreliableTooltip(p.course.quality_issues)
                   : null;
               const nonFinisher = isNonFinisher(p.status);
               const sigle = (p.status ?? "").toUpperCase();
@@ -271,15 +271,15 @@ export function EventsTable({
                   style={{ borderBottom: p.is_pending_validation && !preuve ? "none" : "1px solid var(--tcn-border-faint)" }}
                 >
                 <tr role="row" className="tcn-rowlink" style={{ display: "grid", gridTemplateColumns: COLS, columnGap: GAP, alignItems: "center", padding: `15px ${PADDING_X}px` }}>
-                  <td role="cell" style={{ fontSize: 14, color: "var(--tcn-text-muted)", fontWeight: 600 }}>{formatDate(p.course?.event_date)}</td>
+                  <td role="cell" style={{ fontSize: 14, color: "var(--tcn-text-muted)", fontWeight: 600 }}>{formatDate(p.course.event_date)}</td>
                   <td role="cell" style={{ fontSize: 15, color: "var(--tcn-ink)", fontWeight: 700, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <Link href={`/courses/${p.course?.id}/participations/${p.id}`} className="tcn-rowlink__cible">
-                      {p.course?.name}
+                    <Link href={`/courses/${p.course.id}/participations/${p.id}`} className="tcn-rowlink__cible">
+                      {p.course.name}
                     </Link>
                     {p.is_pending_validation && <PendingBadge rejected={p.is_rejected} />}
                   </td>
-                  <td role="cell" style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>{eventTypeLabel(p.course?.event_type)}</td>
-                  <td role="cell"><FormatChip>{formatToken(p.course?.event_type, p.course?.distance_km)}</FormatChip></td>
+                  <td role="cell" style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>{eventTypeLabel(p.course.event_type)}</td>
+                  <td role="cell"><FormatChip>{formatToken(p.course.event_type, p.course.distance_km)}</FormatChip></td>
                   <td role="cell" style={{ fontSize: 15, color: "var(--tcn-ink)", fontFamily: "var(--tcn-font-cond)", fontWeight: 700 }}>{p.total_time ?? "—"}</td>
                   <td role="cell" style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
                     {nonFinisher ? (
@@ -369,8 +369,8 @@ export function EventsTable({
                   colonnes={TRACKS.length}
                   resultat={{
                     id: p.id,
-                    epreuve: p.course?.name ?? "cette épreuve",
-                    date: p.course?.event_date ?? null,
+                    epreuve: p.course.name,
+                    date: p.course.event_date,
                     coureur: athleteName,
                     coureurId: athleteId,
                   }}

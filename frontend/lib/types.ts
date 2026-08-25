@@ -94,6 +94,17 @@ export interface ParticipationStats {
 export interface Participation {
   id: number;
   athlete: AthleteBrief;
+  /**
+   * **Toujours servie** — se lit sans `?.` (#578). Trois maillons le
+   * garantissent : `participations.course_id` est `NOT NULL` depuis le schéma
+   * initial, `ParticipationOut.course` est requis côté Pydantic (une relation
+   * absente y ferait un 500, jamais une réponse amputée), et la relation est
+   * chargée en `joinedload`/`contains_eager` par toutes les routes.
+   *
+   * Le code la lisait pourtant en optionnel partout : le typage décrivait alors
+   * autre chose que le programme, et les `?.` masquaient les vraies absences au
+   * lieu de les signaler.
+   */
   course: CourseBrief;
   club: string | null;
   /** Appartenance au club, tranchée par le backend (jamais recalculée ici). */

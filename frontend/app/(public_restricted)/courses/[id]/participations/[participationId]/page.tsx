@@ -33,13 +33,13 @@ export default async function ParticipationDetailPage({
     .getParticipation(Number(participationId))
     .catch(() => null);
 
-  if (!participation || participation.course?.id !== Number(id)) notFound();
+  if (!participation || participation.course.id !== Number(id)) notFound();
 
   const athleteId = participation.athlete.id;
   const returns = <ReturnLinks courseId={id} athleteId={athleteId} />;
 
   const { stats, course } = participation;
-  const eventDate = formatDate(course?.event_date);
+  const eventDate = formatDate(course.event_date);
   const segments = stats?.segments ?? Object.keys(participation.splits ?? {});
 
   return (
@@ -47,7 +47,7 @@ export default async function ParticipationDetailPage({
       {returns}
       <PageHeader
         eyebrow="Détail du résultat"
-        title={<Link href={`/courses/${id}`}>{course?.name ?? "Épreuve"}</Link>}
+        title={<Link href={`/courses/${id}`}>{course.name}</Link>}
         description={eventDate || undefined}
       />
 
@@ -62,15 +62,15 @@ export default async function ParticipationDetailPage({
             <ComparisonTable
               rows={stats.comparison}
               segments={stats.segments}
-              eventType={course?.event_type ?? ""}
+              eventType={course.event_type}
             />
             <RankingEvolutionChart
               steps={stats.ranking_evolution}
-              eventType={course?.event_type ?? ""}
+              eventType={course.event_type}
             />
             <ImprovementMatrix
               rows={stats.improvement}
-              eventType={course?.event_type ?? ""}
+              eventType={course.event_type}
             />
           </>
         ) : (
