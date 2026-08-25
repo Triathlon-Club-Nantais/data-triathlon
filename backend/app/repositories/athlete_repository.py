@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.club import tcn_clause
 from app.core.discipline import federal_clause
 from app.core.text import deaccent
+from app.core.validation import validated_clause
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.participation import Participation
@@ -308,6 +309,9 @@ def list_with_season_participation_count(
         db.query(Athlete, compte)
         .join(Participation, Participation.athlete_id == Athlete.id)
         .join(Course, Participation.course_id == Course.id)
+        # #562 : jointure interne, comme le reste de cette fonction — un
+        # `.filter()` suffit, pas de piège d'`outerjoin` ici.
+        .filter(validated_clause(Participation.is_pending_validation))
         .group_by(Athlete.id)
     )
     if club_only:
@@ -365,12 +369,26 @@ def search_by_relevance(
     tri ici est `_relevance_rank` puis le nombre de participations décroissant
     — le volume ne départage plus qu'à l'intérieur d'un même palier de
     pertinence, jamais entre deux paliers différents.
+
+    `validated_clause` (#562) exclut les résultats en attente du **compte**,
+    sans faire disparaître l'athlète : elle vit dans la **condition du
+    outerjoin**, pas dans un `.filter()` après coup. Un `.filter()` post-jointure
+    dégraderait l'`outerjoin` en jointure interne de fait — la ligne pendante
+    serait écartée par le `WHERE`, et un athlète dont l'unique participation
+    est pendante n'aurait alors plus aucune ligne jointe du tout, donc
+    disparaîtrait de la palette au lieu d'y rester à 0 résultat validé.
     """
     compte = func.count(Participation.id)
     rang = _relevance_rank(term)
     requete = (
         db.query(Athlete, compte)
-        .outerjoin(Participation, Participation.athlete_id == Athlete.id)
+        .outerjoin(
+            Participation,
+            and_(
+                Participation.athlete_id == Athlete.id,
+                validated_clause(Participation.is_pending_validation),
+            ),
+        )
         .filter(name_filter(term))
         .group_by(Athlete.id)
     )

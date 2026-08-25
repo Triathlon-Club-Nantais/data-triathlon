@@ -28,10 +28,13 @@
   `is_pending_validation` est une **dimension distincte** de `status` : un
   abandon déclaré reste un abandon une fois validé. Exclusion des agrégats
   publics : `app/core/validation.py` (`is_pending`/`validated_clause`, sur le
-  patron de `club.py`/`discipline.py`), appliquée à 5 fonctions de
-  `participation_repository.py` (liste, épreuves, stats, classement,
-  synthèse) et délibérément absente de `list_for_athlete` — seule surface qui
-  doit montrer une participation pendante (FR-019).
+  patron de `club.py`/`discipline.py`), appliquée à 9 fonctions réparties sur
+  trois repositories (`participation_repository.py` : liste, épreuves,
+  stats, classement, synthèse, saisons distinctes ; `course_repository.py` :
+  catalogue en portée club ; `athlete_repository.py` : activité par saison,
+  recherche de la palette ⌘K — détail dans `app/api/AGENTS.md`) et
+  délibérément absente de `list_for_athlete` — seule surface qui doit montrer
+  une participation pendante (FR-019).
   **Piège mesuré** : `server_default="false"` (chaîne) sur SQLite se relit
   `True` via l'ORM — une chaîne non vide est vraie en Python. `is_relay`
   ci-dessous en porte le même défaut, non corrigé (hors périmètre de #270) ;

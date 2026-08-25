@@ -763,6 +763,10 @@ def distinct_seasons(
 
     Repli Python plutôt que SQL pour rester portable SQLite/Postgres sans
     fonctions de date spécifiques. Volume de données modeste.
+
+    `validated_clause` exclut systématiquement les résultats en attente de
+    validation (#270, #562) : sans elle, une saison entière pouvait n'exister
+    dans le sélecteur que par une saisie jamais vérifiée.
     """
     q = (
         db.query(
@@ -771,6 +775,7 @@ def distinct_seasons(
         )
         .join(Participation, Participation.course_id == Course.id)
         .filter(Course.event_date.isnot(None))
+        .filter(validated_clause(Participation.is_pending_validation))
     )
     if club_only:
         q = q.filter(tcn_clause(Participation.club))
