@@ -337,6 +337,43 @@ def test_events_page_filtre_par_saison_exclut_sans_date(db_session):
     assert page["items"][0].event_name == "Tri Z"
 
 
+def test_events_page_meme_nom_meme_date_pagine_sans_doublon_ni_manque(db_session):
+    """#567 point 3 — cas Mesquer : deux `Course` de même `name` et `event_date`
+    (identité `(name, event_date, event_type, is_relay)` distincte par
+    `event_type`, cf. `course_repository.get_or_create`) sont entièrement à
+    égalité sous `date_desc` faute de clé de départage unique. Feuilletées en
+    `page_size=1`, elles doivent apparaître exactement une fois chacune, sans
+    répétition ni absence — l'instabilité que `LIMIT/OFFSET` introduirait sur
+    des lignes ex æquo."""
+    athlete = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean", club="TCN")
+    a = course_repository.get_or_create(
+        db_session, name="Triathlon de Mesquer", event_date=date(2026, 6, 1), event_type="triathlon-m"
+    )
+    b = course_repository.get_or_create(
+        db_session, name="Triathlon de Mesquer", event_date=date(2026, 6, 1), event_type="triathlon-s"
+    )
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=a.id, bib_number="1", club="TCN"
+    )
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=b.id, bib_number="1", club="TCN"
+    )
+    db_session.flush()
+
+    seen: list[int] = []
+    page = 1
+    while True:
+        result = participation_repository.events_page(db_session, page=page, page_size=1)
+        if not result["items"]:
+            break
+        seen.extend(row.course_id for row in result["items"])
+        page += 1
+        if page > 10:  # garde-fou anti-boucle infinie si la pagination reste cassée
+            break
+
+    assert sorted(seen) == sorted([a.id, b.id])
+
+
 def test_distinct_seasons_compte_et_exclut_epreuves_sans_date(db_session):
     athlete, course_2025 = _setup(db_session)  # saison 2025
     c_2023 = course_repository.get_or_create(
