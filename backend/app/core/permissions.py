@@ -34,6 +34,7 @@ FEATURE_ATHLETES = "Coureurs"
 FEATURE_PARTICIPATIONS = "Résultats"
 FEATURE_BATCH = "Batches"
 FEATURE_FEEDBACK = "Retours utilisateurs"
+FEATURE_ADMIN_LOG = "Journal d'administration"
 
 
 @dataclass(frozen=True, slots=True)
@@ -250,6 +251,13 @@ class P:
         "Changer le statut d'un retour et enregistrer l'URL de l'issue GitHub associée.",
         FEATURE_FEEDBACK,
     )
+    ADMIN_LOG_READ = Permission(
+        "admin_log:read",
+        "Consulter le journal d'administration",
+        "Voir l'historique des gestes d'administration effectués sur les "
+        "données — qui, quoi, quand.",
+        FEATURE_ADMIN_LOG,
+    )
 
 
 #: L'inventaire, dans l'ordre d'affichage. `P` en est la façade d'appel ; un
@@ -282,6 +290,7 @@ ALL: tuple[Permission, ...] = (
     P.BATCH_READ,
     P.FEEDBACK_READ,
     P.FEEDBACK_MANAGE,
+    P.ADMIN_LOG_READ,
 )
 
 _BY_CODE: dict[str, Permission] = {pouvoir.code: pouvoir for pouvoir in ALL}
