@@ -14,11 +14,15 @@ export function ValidationQueue({
   rejected = [],
   selectedId,
   onSelect,
+  traitees = 0,
 }: {
   participations: Participation[];
   rejected?: Participation[];
   selectedId: number | null;
   onSelect: (id: number) => void;
+  /** Entrées traitées depuis l'ouverture de l'écran (#490, PROF-9). Non
+   *  persisté : c'est un encouragement, pas une donnée. */
+  traitees?: number;
 }) {
   const [onglet, setOnglet] = useState<"file" | "non-conformes">("file");
   const liste = onglet === "file" ? participations : rejected;
@@ -44,13 +48,21 @@ export function ValidationQueue({
         >
           Non conformes ({rejected.length})
         </button>
+        {traitees > 0 && (
+          <span style={{ marginLeft: "auto", alignSelf: "center", fontSize: 13, color: "var(--tcn-text-faint)" }}>
+            {traitees} traité{traitees > 1 ? "s" : ""}
+          </span>
+        )}
       </div>
 
       {liste.length === 0 ? (
         <Card padding={24}>
           <EmptyState
             bare
-            title={onglet === "file" ? "Aucun résultat en attente de validation" : "Aucun résultat signalé non conforme"}
+            title={onglet === "file" ? "File vide, merci !" : "Aucun résultat signalé non conforme"}
+            description={
+              onglet === "file" ? "Tous les résultats déclarés ont été relus." : undefined
+            }
           />
         </Card>
       ) : (
