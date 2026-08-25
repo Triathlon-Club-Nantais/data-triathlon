@@ -321,6 +321,23 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
     un scrape muet retiendrait sinon le formulaire indéfiniment. Un
     `beforeunload` prévient tant que l'import tourne : fermer l'onglet coupe
     la SSE à mi-course.
+- **Le champ URL et le verdict qui vit sous lui** (#492) — trois points à ne pas
+  rouvrir séparément :
+  - **La taille de police d'un champ TCN vit dans `.tcn-input`, jamais en
+    ligne.** 16px sous `md`, 15px au-delà : sous 16px, iOS Safari zoome à la
+    mise au point et l'écran fait un bond sur le geste fondateur de l'app. Une
+    valeur en ligne rendrait la media query inerte sans que rien ne bronche —
+    `app/globals.test.ts` garde les deux crans.
+  - **Un seul verdict, à un seul endroit.** `ProviderDetector` **est** la ligne
+    sous le champ, et ses trois états s'excluent : au repos les chronométreurs
+    pris en charge (depuis `useProviders()`, jamais une liste tenue à la main —
+    la précédente avait divergé), sinon le fournisseur reconnu ou l'absence de
+    reconnaissance avec sa sortie « Saisir à la main ». Le badge rouge et
+    l'alerte jaune disaient le même verdict en même temps, pendant que le bouton
+    principal restait actif et promettait l'inverse. Sa hauteur est réservée
+    (`minHeight`), sans quoi le débounce déplace le bouton pendant la frappe.
+  - **`providerUnsupported` garde le bouton *et* `submit()`.** Le `disabled` seul
+    laisse la touche Entrée lancer l'import que le verdict vient d'exclure.
 - `components/` — `scrape/` (TcnScrapeForm, ProviderDetector),
   `results/` (ResultCard, ResultsList), `club/` (ClubDashboard, PodiumsList),
   `map/` (MapView), `dashboard/` (StatCardsRank, RecentCourses),

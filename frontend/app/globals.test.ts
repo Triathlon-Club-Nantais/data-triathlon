@@ -127,6 +127,21 @@ describe("couleurs de la carte", () => {
   });
 });
 
+describe("champ TCN", () => {
+  it("porte 16px au doigt, pour qu'iOS Safari cesse de zoomer à la mise au point", () => {
+    // Sous 16px, iOS Safari zoome sur le champ au focus : l'écran fait un bond
+    // et la page déborde, sur le seul champ obligatoire de l'app (#492, ACT-5).
+    expect(rule(".tcn-input")).toContain("font-size: 16px");
+  });
+
+  it("redescend à 15px à partir de md, où le zoom n'existe pas", () => {
+    // La densité d'origine est conservée là où elle ne coûte rien — même
+    // arbitrage que `text-base md:text-sm` d'`ui/input`.
+    const bureau = /@media\s*\(min-width:\s*768px\)\s*\{\s*\.tcn-input\s*\{([^}]*)\}/.exec(css);
+    expect(bureau?.[1]).toContain("font-size: 15px");
+  });
+});
+
 describe("bouton TCN", () => {
   // `components/tcn/` stylait tout en `CSSProperties` en ligne, où `:hover`,
   // `:active`, `:focus-visible` et `disabled` sont **inexprimables** : c'était la
