@@ -211,4 +211,18 @@ describe("ClubDashboard — smoke", () => {
 
     expect(screen.getByText("podiums toutes portées confondues")).toBeInTheDocument();
   });
+
+  // Revue finale (#488) : la légende qualifiait des nombres absents de
+  // l'écran sur un club sans aucun podium — les cartes ne rendent leur
+  // décompte que sous condition (`r.podiums > 0`).
+  it("n'affiche pas la légende des podiums quand aucun athlète de l'aperçu n'en a", () => {
+    render(
+      <ClubDashboard
+        stats={STATS}
+        participations={[part({ id: 1, rank_overall: 50 })]}
+      />,
+    );
+
+    expect(screen.queryByText("podiums toutes portées confondues")).not.toBeInTheDocument();
+  });
 });

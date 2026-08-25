@@ -17,7 +17,7 @@ import type { Participation } from "@/lib/types";
  * plus haut annonce le total ; tronquer sans le dire faisait mentir la moitié
  * de l'écran. Le bouton d'extension dit combien il reste, et ouvre tout.
  */
-const APERCU_PODIUMS = 6;
+export const APERCU_PODIUMS = 6;
 
 /**
  * Liste des podiums récents côté client — lit `?rank=…` et recalcule
@@ -92,13 +92,23 @@ export function PodiumsList({ participations }: { participations: Participation[
           );
         })}
       </ul>
-      {restants > 0 && (
+      {/* Bascule plutôt qu'un bouton qui se démonte : au clic, `restants`
+          tombait à 0 et le `<button>` disparaissait du DOM — un utilisateur
+          clavier perdait son focus au `<body>` et devait re-tabuler depuis le
+          début du document pour atteindre les podiums qu'il venait de
+          révéler, situés au-dessus (revue finale, #488). Le bouton reste
+          monté tant qu'il y a quelque chose à réduire ou à étendre. */}
+      {tous.length > APERCU_PODIUMS && (
         <button
           type="button"
-          onClick={() => setEtendu(true)}
+          onClick={() => setEtendu((v) => !v)}
           className="mt-3 text-sm font-medium text-accent-ink hover:underline"
         >
-          {restants > 1 ? `Voir les ${restants} autres podiums` : "Voir l'autre podium"}
+          {etendu
+            ? "Réduire la liste"
+            : restants > 1
+              ? `Voir les ${restants} autres podiums`
+              : "Voir l'autre podium"}
         </button>
       )}
     </>
