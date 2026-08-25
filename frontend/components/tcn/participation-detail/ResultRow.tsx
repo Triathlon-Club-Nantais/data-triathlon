@@ -7,6 +7,7 @@ import { genderShort, ordinalFr } from "@/lib/utils/format";
 // ce composant : le cycle ne se verrait qu'au build.
 import { Card } from "../Card";
 import { Eyebrow } from "../Eyebrow";
+import { PendingBadge } from "../PendingBadge";
 import { PlaceBadge } from "../PlaceBadge";
 
 /**
@@ -88,6 +89,9 @@ export function ResultRow({
         >
           {name}
         </Link>
+        {participation.is_pending_validation && (
+          <PendingBadge rejected={participation.is_rejected} />
+        )}
         <div style={{ display: "flex", gap: 14, fontSize: 13, color: "var(--tcn-text-body)" }}>
           <span>{participation.category ?? "—"}</span>
           <span>{genderShort(participation.athlete?.gender)}</span>

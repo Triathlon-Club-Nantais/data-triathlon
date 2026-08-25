@@ -158,6 +158,32 @@ describe("ResultRow", () => {
     expect(grid.style.gridTemplateColumns).toBe("");
   });
 
+  it("affiche le badge « en attente » quand la participation attend une validation", () => {
+    renderRow({ row: participation({ is_pending_validation: true }) });
+
+    expect(screen.getByText("En attente de validation")).toBeTruthy();
+  });
+
+  it("affiche le badge « non conforme » quand la participation est signalée non conforme", () => {
+    renderRow({ row: participation({ is_pending_validation: true, is_rejected: true }) });
+
+    expect(screen.getByText("Non conforme")).toBeTruthy();
+  });
+
+  it("n'affiche aucun badge pour une participation validée", () => {
+    renderRow();
+
+    expect(screen.queryByText("En attente de validation")).toBeNull();
+    expect(screen.queryByText("Non conforme")).toBeNull();
+  });
+
+  it("ne mêle pas le badge au nom de l'athlète dans le lien", () => {
+    renderRow({ row: participation({ is_pending_validation: true }) });
+
+    const lien = screen.getByRole("link", { name: "DUPONT Jean" });
+    expect(lien.textContent).toBe("DUPONT Jean");
+  });
+
   it("n'ouvre pas de colonne pour un segment que l'épreuve ne publie pas", () => {
     const { container } = renderRow({
       row: participation({
