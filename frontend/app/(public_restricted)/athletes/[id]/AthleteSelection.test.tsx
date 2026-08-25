@@ -7,7 +7,8 @@ import { AthleteSelection } from "./AthleteSelection";
 const ATHLETE = { id: 12, prenom: "Jean", nom: "Dupont" };
 const AUTRE = { id: 99, prenom: "Marie", nom: "Gaudin" };
 
-const BENEFICE = "Choisir cet athlète pour retrouver ses résultats en un geste et se comparer au club";
+const BENEFICE =
+  "Choisir cet athlète pour retrouver ses résultats en un geste et voir sa saison en tête du tableau de bord";
 
 beforeEach(() => {
   const stock = new Map<string, string>();
@@ -107,5 +108,15 @@ describe("AthleteSelection", () => {
     window.localStorage.setItem("tcn-athlete", JSON.stringify(ATHLETE));
     render(<AthleteSelection athlete={ATHLETE} />);
     expect(await screen.findByRole("button", { name: "Ne plus choisir cet athlète" })).toHaveClass("tcn-btn--secondary");
+  });
+
+  it("nomme le bénéfice réellement rendu par le tableau de bord (#502)", () => {
+    render(<AthleteSelection athlete={ATHLETE} />);
+    expect(
+      screen.getByText(
+        "Choisir cet athlète pour retrouver ses résultats en un geste et voir sa saison en tête du tableau de bord",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/se comparer au club/)).not.toBeInTheDocument();
   });
 });

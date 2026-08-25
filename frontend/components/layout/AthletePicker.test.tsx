@@ -33,6 +33,24 @@ beforeEach(() => {
   });
 });
 
+describe("microcopie — un seul nom pour l'objet (#502)", () => {
+  it("nomme la modale « Mon athlète »", () => {
+    render(<AthletePicker onClose={() => {}} onPick={() => {}} />);
+    expect(screen.getByText("Mon athlète")).toBeInTheDocument();
+    expect(screen.queryByText("Accès athlète")).not.toBeInTheDocument();
+  });
+
+  // Le pied rassurait sur une inquiétude que personne n'a exprimée ; il énonce
+  // désormais ce que le choix rapporte (audit § 10, gradient de but).
+  it("énonce la promesse au moment du choix", () => {
+    render(<AthletePicker onClose={() => {}} onPick={() => {}} />);
+    expect(
+      screen.getByText("Votre tableau de bord affichera vos résultats en premier."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Pas de blocage d'accès/)).not.toBeInTheDocument();
+  });
+});
+
 describe("clearAthlete", () => {
   it("supprime la sélection retenue", () => {
     writeAthlete(ATHLETE);
