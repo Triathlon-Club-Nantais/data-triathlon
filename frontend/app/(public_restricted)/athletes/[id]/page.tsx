@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { apiServer } from "@/lib/api/server";
-import { StatCard, Eyebrow } from "@/components/tcn";
+import { StatCard, MetaPill } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { AthleteAvatar } from "./AthleteAvatar";
 import { AthleteSelection } from "./AthleteSelection";
 import { EventsTable } from "./EventsTable";
 import { AthleteAdminPanel } from "@/components/athletes/AthleteAdminPanel";
-import { formatToken, ordinalFr } from "@/lib/utils/format";
+import { formatToken, genderShort, ordinalFr } from "@/lib/utils/format";
 import { bestRatio } from "@/lib/utils/ranking";
 import { resumeAthlete } from "@/lib/utils/athlete-stats";
 
@@ -27,6 +28,15 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
   const resume = resumeAthlete(participations);
   const { validees: validated, enAttente: pendingCount } = resume;
 
+  // La catégorie n'est pas sur l'athlète : elle vit sur la participation et
+  // change avec l'âge. On prend celle de la dernière épreuve validée, et son
+  // année part en `title` de la pastille pour dire de quand elle date (#488).
+  const derniereValidee = [...validated].sort((a, b) =>
+    (b.course?.event_date ?? "").localeCompare(a.course?.event_date ?? ""),
+  )[0];
+  const categorie = derniereValidee?.category ?? null;
+  const anneeCategorie = derniereValidee?.course?.event_date?.slice(0, 4) ?? null;
+
   const places = validated.map((p) => p.rank_overall).filter((r): r is number => r != null);
   const best = places.length ? Math.min(...places) : null;
   const top10 = places.filter((p) => p <= 10).length;
@@ -43,21 +53,41 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
 
   return (
     <PageShell>
-      <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 28, flexWrap: "wrap" }}>
+      <div className="mb-7 flex flex-wrap items-start gap-5">
         <AthleteAvatar athleteId={athlete.id} name={fullName} />
-        <div>
-          <Eyebrow>Résultats enregistrés</Eyebrow>
-          <h1 style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(28px, 5vw, 42px)", fontWeight: 400, color: "var(--tcn-ink)", lineHeight: 1, margin: 0, marginTop: 4 }}>{fullName}</h1>
-        </div>
-        {/* Un seul `marginLeft: "auto"` pour les deux commandes : un second
-            les séparerait aux deux bouts de la ligne. Sur mobile, l'en-tête
-            passe à la ligne — elles y restent côte à côte. */}
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <AthleteSelection athlete={{ id: athlete.id, prenom: athlete.prenom, nom: athlete.nom }} />
-          <AthleteAdminPanel
-            athlete={{ id: athlete.id, nom: athlete.nom, prenom: athlete.prenom, club: athlete.club }}
-          />
-        </div>
+        <PageHeader
+          className="min-w-0 flex-1"
+          backHref="/club/athletes"
+          backLabel="Athlètes du club"
+          // Le club en surtitre plutôt qu'un « Résultats enregistrés » qui ne
+          // distinguait rien : les homonymes existent dans ce jeu de données, et
+          // arrivé sur le profil on ne pouvait plus vérifier qu'on était sur le
+          // bon (#488, PROF-5). Repli sur l'ancien surtitre sans club connu.
+          eyebrow={athlete.club ?? "Résultats enregistrés"}
+          title={fullName}
+          actions={
+            <>
+              <AthleteSelection athlete={{ id: athlete.id, prenom: athlete.prenom, nom: athlete.nom }} />
+              <AthleteAdminPanel
+                athlete={{ id: athlete.id, nom: athlete.nom, prenom: athlete.prenom, club: athlete.club }}
+              />
+            </>
+          }
+        >
+          {(categorie || athlete.gender) && (
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              {categorie && (
+                <MetaPill
+                  label="Catégorie"
+                  title={anneeCategorie ? `Catégorie relevée en ${anneeCategorie}` : undefined}
+                >
+                  {categorie}
+                </MetaPill>
+              )}
+              {athlete.gender && <MetaPill label="Genre">{genderShort(athlete.gender)}</MetaPill>}
+            </div>
+          )}
+        </PageHeader>
       </div>
 
       {resume.regime === "reduit" && (
