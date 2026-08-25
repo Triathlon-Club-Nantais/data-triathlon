@@ -1,12 +1,13 @@
 "use client";
 
+import { X } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import { AccessGate } from "@/components/benevoles/AccessGate";
 import { ParticipationPanel } from "@/components/benevoles/ParticipationPanel";
 import { useFileValidation } from "@/components/benevoles/useFileValidation";
 import { ValidationQueue } from "@/components/benevoles/ValidationQueue";
 import { AnnonceStatut, Eyebrow, Button } from "@/components/tcn";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useEstCompact } from "@/hooks/useEstCompact";
 import type { Participation } from "@/lib/types";
 
@@ -91,6 +92,19 @@ export default function BenevolesPage() {
     />
   ) : null;
 
+  // Sous `md` le panneau vit dans une feuille modale : le reste du document
+  // (donc cette région) n'est jamais garanti d'être annoncé par un lecteur
+  // d'écran une fois la feuille ouverte. L'annonce voyage avec la feuille
+  // plutôt que de rester dans l'arbre principal, sans jamais être rendue deux
+  // fois (#490, revue de branche finale).
+  const annonce = <AnnonceStatut texte={file.annonce} />;
+
+  // Une file non vide (file **ou** non-conformes) laisse toujours quelque
+  // chose à sélectionner ; une file entièrement épuisée ne doit pas
+  // contredire l'état de réussite affiché à côté par `ValidationQueue`
+  // (#490, revue de branche finale).
+  const quelqueChoseASelectionner = file.participations.length > 0 || file.rejetees.length > 0;
+
   return (
     <div style={{ maxWidth: 1100, margin: "40px auto", padding: "0 24px" }}>
       <Eyebrow style={{ marginBottom: 6 }}>Bénévoles</Eyebrow>
@@ -98,8 +112,9 @@ export default function BenevolesPage() {
         Vérification des résultats
       </h1>
       {/* Le toast passe inaperçu d'un lecteur d'écran : la même phrase vit ici
-          en région `status` (WCAG 4.1.3, patron `AnnonceStatut`). */}
-      <AnnonceStatut texte={file.annonce} />
+          en région `status` (WCAG 4.1.3, patron `AnnonceStatut`). Seulement
+          au-dessus de `md` : sous `md` l'annonce vit dans la feuille. */}
+      {!compact && annonce}
       <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-[minmax(280px,360px)_1fr]">
         <ValidationQueue
           participations={file.participations}
@@ -118,17 +133,34 @@ export default function BenevolesPage() {
                 changement d'entrée via `selectionner` peut encore abandonner
                 un brouillon, et seulement après confirmation (#490, revue
                 ronde 1). */}
-            <SheetContent side="right" className="w-full max-w-[520px] overflow-y-auto p-4" keepMounted>
-              <SheetTitle style={{ fontSize: 0 }}>Détail du résultat</SheetTitle>
+            <SheetContent side="right" className="w-full overflow-y-auto p-4" keepMounted>
+              {/* La largeur ne fige plus `max-w-[520px]` : sous 520px de
+                  viewport — tous les téléphones — cette valeur remplaçait
+                  entièrement le `max-w-[85%]` de la primitive (`cn` fait un
+                  `twMerge`, pas une union) et couvrait tout l'écran, sans
+                  bande de fond restant tactile pour fermer la feuille. Un
+                  `SheetClose` explicite couvre le cas général ; garder
+                  `max-w-[85%]` garde aussi une bande de secours (#490, revue
+                  de branche finale). */}
+              <div className="flex items-center justify-between">
+                <SheetTitle style={{ fontSize: 0 }}>Détail du résultat</SheetTitle>
+                <SheetClose
+                  aria-label="Fermer le détail du résultat"
+                  className="rounded-full p-1 text-[var(--tcn-text-faint)] hover:text-[var(--tcn-ink)]"
+                >
+                  <X className="size-4" />
+                </SheetClose>
+              </div>
+              {compact && annonce}
               {panneau}
             </SheetContent>
           </Sheet>
         ) : (
-          (panneau ?? (
+          (panneau ?? (quelqueChoseASelectionner ? (
             <div style={{ color: "var(--tcn-text-faint)", fontSize: 14, padding: 24 }}>
               Sélectionnez un résultat dans la file pour le relire.
             </div>
-          ))
+          ) : null))
         )}
       </div>
     </div>

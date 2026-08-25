@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
@@ -148,6 +148,10 @@ describe("BenevolesPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /Valider ce résultat/ }));
 
     await waitFor(() => expect(screen.getByText("File vide, merci !")).toBeInTheDocument());
+    // La colonne de droite ne doit plus contredire l'état de réussite affiché
+    // à gauche en invitant à sélectionner un résultat qui n'existe plus
+    // (#490, revue de branche finale).
+    expect(screen.queryByText(/Sélectionnez un résultat/)).not.toBeInTheDocument();
   });
 
   it("affiche un signal de chargement avant que la file ne réponde", () => {
@@ -249,6 +253,45 @@ describe("BenevolesPage", () => {
 
     expect(screen.getByRole("heading", { level: 2, name: /Coureur1/ })).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("offre un bouton de fermeture tactile dans la feuille mobile", async () => {
+    // Sous 520 px de viewport (tous les téléphones), la feuille n'avait ni
+    // bande de fond tactile ni contrôle de fermeture visible — seule sortie :
+    // Échap, qu'un clavier logiciel ne propose pas (#490, revue de branche
+    // finale). `{Escape}` de jsdom fonctionnant toujours, seul un vrai clic
+    // sur un contrôle de fermeture peut distinguer les deux : ce test échoue
+    // sans le `SheetClose` ajouté par le correctif.
+    simulerLargeur(true);
+    render(<BenevolesPage />);
+
+    await waitFor(() => expect(screen.getByText("Coureur1 HERRMANN")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /Coureur1/ }));
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole("button", { name: /fermer le détail du résultat/i }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("annonce le statut dans la feuille elle-même sous le point de rupture md", async () => {
+    // L'annonce vivait hors du portail de la feuille : sans le correctif elle
+    // reste un frère du `Sheet` dans l'arbre de la page plutôt qu'un
+    // descendant du `dialog`, ce que cette assertion distingue (#490, revue
+    // de branche finale).
+    simulerLargeur(true);
+    validateParticipationBenevole.mockResolvedValue(participation(2, { is_pending_validation: false }));
+    render(<BenevolesPage />);
+
+    await waitFor(() => expect(screen.getByText("Coureur2 HERRMANN")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /Coureur2/ }));
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /Valider ce résultat/ }));
+
+    const dialogue = await screen.findByRole("dialog");
+    await waitFor(() =>
+      expect(within(dialogue).getByRole("status")).toHaveTextContent("Résultat validé — 2 restants."),
+    );
   });
 
   it("ne perd pas le brouillon quand on ferme la feuille sans confirmer (Échap)", async () => {
