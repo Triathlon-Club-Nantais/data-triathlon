@@ -1,5 +1,6 @@
 import { toQuery } from "@/lib/api/query";
 import type {
+  AdminActionLogPage,
   AdminAthlete,
   AdminAthleteUpdate,
   AdminCourseUpdate,
@@ -22,6 +23,7 @@ import type {
   CourseSource,
   CourseSummary,
   CoursesWipeImpact,
+  CoursesWipeResult,
   DuplicateCandidateList,
   EventPage,
   Feedback,
@@ -35,6 +37,7 @@ import type {
   Participation,
   ParticipationFilters,
   ParticipationsWipeImpact,
+  ParticipationsWipeResult,
   RescrapeLaunch,
   AllowedEmail,
   PendingProvider,
@@ -226,20 +229,27 @@ export const apiClient = {
   // immédiat sans tout réimporter depuis les URLs sources.
   getParticipationsWipeImpact: () =>
     request<ParticipationsWipeImpact>("/admin/participations/wipe-impact"),
+  // Rend le décompte réel depuis #501 — la route ne rendait qu'un 204 vide.
   wipeAllParticipations: () =>
-    request<null>("/admin/participations", { method: "DELETE" }),
+    request<ParticipationsWipeResult>("/admin/participations", { method: "DELETE" }),
 
   // ── Purge totale des épreuves (#384, suite) ─────────────────────────────────
   // `courses:wipe_all`. Strictement plus destructeur que ci-dessus : les
   // épreuves elles-mêmes et leurs sources disparaissent aussi.
   getCoursesWipeImpact: () => request<CoursesWipeImpact>("/admin/courses/wipe-impact"),
-  wipeAllCourses: () => request<null>("/admin/courses", { method: "DELETE" }),
+  wipeAllCourses: () =>
+    request<CoursesWipeResult>("/admin/courses", { method: "DELETE" }),
 
   updateCourse: (id: number, champs: Partial<AdminCourseUpdate>) =>
     request<CourseBrief>(`/admin/courses/${id}`, {
       method: "PATCH",
       body: JSON.stringify(champs),
     }),
+
+  // ── Journal d'administration (#501) ─────────────────────────────────────────
+  getActionLog: (page: number, pageSize: number) =>
+    request<AdminActionLogPage>(`/admin/action-log${toQuery({ page, page_size: pageSize })}`),
+
   // ── Revalidation qualité (#119) ────────────────────────────────────────────
   // `quality:override`. `reliability_override: null` **lève** l'avis humain et
   // fait reprendre le verdict calculé ; `notes` motive la décision au journal.

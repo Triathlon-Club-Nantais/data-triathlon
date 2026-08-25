@@ -657,6 +657,19 @@ export interface CoursesWipeImpact {
   athletes: number;
 }
 
+/** Ce qu'une purge totale des résultats a détruit, une fois faite (#501). */
+export interface ParticipationsWipeResult {
+  participations_deleted: number;
+  athletes_purged: number;
+  courses_reset: number;
+}
+
+/** Ce qu'une purge totale des épreuves a détruit, une fois faite (#501). */
+export interface CoursesWipeResult {
+  courses_deleted: number;
+  athletes_purged: number;
+}
+
 /** Une épreuve côté aperçu de fusion — miroir de `MergeImpactCourse` (#286). */
 export interface MergeImpactCourse {
   id: number;
@@ -967,4 +980,21 @@ export interface FeedbackCounts {
 export interface FeedbackUpdate {
   status?: Feedback["status"];
   github_url?: string;
+}
+
+/** Une entrée du journal d'administration (#501). */
+export interface AdminActionLogEntry {
+  id: number;
+  created_at: string;
+  user_name: string;
+  action: string;
+  entity_type: string;
+  entity_id: number;
+  payload: Record<string, unknown> | null;
+}
+
+/** Une page du journal — `total` porte le compte plein, pas celui de la page. */
+export interface AdminActionLogPage {
+  entries: AdminActionLogEntry[];
+  total: number;
 }

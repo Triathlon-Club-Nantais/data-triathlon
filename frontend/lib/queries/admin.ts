@@ -757,3 +757,15 @@ export function useUpdateFeedbackGithubUrl() {
     },
   });
 }
+
+// ── Journal d'administration (#501) ─────────────────────────────────────────
+
+export const TAILLE_PAGE_JOURNAL = 20;
+
+export function useAdminActionLog(page = 1) {
+  return useQuery({
+    queryKey: queryKeys.adminActionLog(page),
+    queryFn: () => apiClient.getActionLog(page, TAILLE_PAGE_JOURNAL),
+    placeholderData: (precedent) => precedent,
+  });
+}
