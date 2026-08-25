@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Medal } from "@/components/ui/medal";
 import { AnnonceStatut } from "@/components/tcn";
@@ -13,6 +13,13 @@ import { PODIUM_SCOPE_META } from "@/lib/podium-scope";
 import type { Participation } from "@/lib/types";
 
 /**
+ * Taille de l'aperçu de la liste (#488, PROF-3). Le KPI « Podiums » deux blocs
+ * plus haut annonce le total ; tronquer sans le dire faisait mentir la moitié
+ * de l'écran. Le bouton d'extension dit combien il reste, et ouvre tout.
+ */
+const APERCU_PODIUMS = 6;
+
+/**
  * Liste des podiums récents côté client — lit `?rank=…` et recalcule
  * localement au changement, sans re-fetch. Le RSC parent fournit les
  * participations chargées une seule fois. Voir issue #132 (latence toggle).
@@ -20,10 +27,10 @@ import type { Participation } from "@/lib/types";
 export function PodiumsList({ participations }: { participations: Participation[] }) {
   const sp = useSearchParams();
   const rankType = rankTypeFromParam(sp.get(RANK_PARAM) ?? undefined);
-  const podiums = useMemo(
-    () => listPodiums(participations, rankType).slice(0, 6),
-    [participations, rankType],
-  );
+  const [etendu, setEtendu] = useState(false);
+  const tous = useMemo(() => listPodiums(participations, rankType), [participations, rankType]);
+  const podiums = etendu ? tous : tous.slice(0, APERCU_PODIUMS);
+  const restants = tous.length - podiums.length;
 
   // WCAG 4.1.3 (#477) : la bascule recalcule en mémoire (#132), sans
   // navigation — sans cette annonce, la liste se réordonne (ou se vide) en
@@ -85,6 +92,15 @@ export function PodiumsList({ participations }: { participations: Participation[
           );
         })}
       </ul>
+      {restants > 0 && (
+        <button
+          type="button"
+          onClick={() => setEtendu(true)}
+          className="mt-3 text-sm font-medium text-accent-ink hover:underline"
+        >
+          {restants > 1 ? `Voir les ${restants} autres podiums` : "Voir l'autre podium"}
+        </button>
+      )}
     </>
   );
 }
