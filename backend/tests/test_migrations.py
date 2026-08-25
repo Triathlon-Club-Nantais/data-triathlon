@@ -638,3 +638,53 @@ def test_downgrade_puis_upgrade_de_la_nullabilite_de_scraped_at(sqlite_url):
 
     command.upgrade(cfg, "head")
     assert _nullable(sqlite_url, "courses", "scraped_at") is True
+
+
+# --- Géocodage persisté des épreuves (#579) ---------------------------------
+
+
+def test_upgrade_head_adds_course_geocoding_columns(base_migree):
+    assert {"latitude", "longitude", "geocoded_at"} <= _columns(base_migree, "courses")
+
+
+def test_downgrade_puis_upgrade_du_geocodage(sqlite_url):
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+
+    # Cible nommée : `-1` se décalerait à la première migration insérée
+    # entre-temps — même précaution que les autres tests de ce fichier.
+    command.downgrade(cfg, "50b1c877b851")
+    assert not {"latitude", "longitude", "geocoded_at"} & _columns(sqlite_url, "courses")
+
+    command.upgrade(cfg, "head")
+    assert {"latitude", "longitude", "geocoded_at"} <= _columns(sqlite_url, "courses")
+
+
+def test_la_migration_ne_remplit_rien(sqlite_url):
+    """Colonnes vides sur l'existant : le remplissage est le rôle de `geocode-courses`.
+
+    Une épreuve insérée en SQL brut avant la migration — ce que sont les
+    lignes déjà en production au moment de la montée — doit en ressortir
+    sans coordonnées.
+    """
+    cfg = _alembic_config()
+    command.upgrade(cfg, "50b1c877b851")
+
+    engine = sa.create_engine(sqlite_url)
+    try:
+        with engine.begin() as connexion:
+            connexion.execute(
+                sa.text(
+                    "INSERT INTO courses (name, event_type, is_relay, scraped_at,"
+                    " created_at) VALUES ('Épreuve', 'triathlon-m', 0, '2026-01-01',"
+                    " '2026-01-01')"
+                )
+            )
+    finally:
+        engine.dispose()
+
+    command.upgrade(cfg, "head")
+
+    assert _lignes(
+        sqlite_url, "SELECT latitude, longitude, geocoded_at FROM courses"
+    ) == [(None, None, None)]

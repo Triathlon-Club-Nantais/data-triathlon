@@ -7,9 +7,10 @@ from dataclasses import asdict
 import typer
 
 from app.services.bulk_import_service import SheetOutcome
+from app.services.geocode_service import GeocodeOutcome
 from app.services.rescrape_service import RescrapeOutcome
 
-Outcome = SheetOutcome | RescrapeOutcome
+Outcome = SheetOutcome | RescrapeOutcome | GeocodeOutcome
 
 #: Interruption clavier (convention shell : 128 + SIGINT).
 EXIT_INTERROMPU = 130
@@ -153,6 +154,28 @@ def render_rescrape_report(outcome: RescrapeOutcome, *, dry_run: bool) -> str:
         lignes.extend(_lignes_echecs(outcome))
         lignes.extend(_lignes_sources_passives(outcome))
     lignes.extend(_lignes_reconciliation(outcome))
+    return "\n".join(lignes)
+
+
+def render_geocode_report(outcome: GeocodeOutcome, *, dry_run: bool) -> str:
+    """Rapport texte pour `geocode-courses` (#579).
+
+    En dry-run, seule la liste des épreuves ciblées est rendue — aucun appel
+    Nominatim n'a eu lieu, il n'y a donc ni géocodées ni en erreur à compter.
+    """
+    lignes = [_titre("GÉOCODAGE DES ÉPREUVES", dry_run=dry_run, interrupted=outcome.interrupted)]
+    lignes.append(_ligne("Épreuves ciblées", outcome.total))
+    if dry_run:
+        for nom in outcome.dry_run_names:
+            lignes.append(f"  - {nom}")
+        return "\n".join(lignes)
+    if outcome.interrupted:
+        lignes.append(_ligne("Épreuves traitées", outcome.processed))
+    lignes.append(_ligne("Épreuves géocodées", outcome.geocoded))
+    lignes.append(_ligne("Épreuves en erreur", outcome.errors))
+    if outcome.echec_total:
+        lignes.append(_LIGNE_ECHEC_TOTAL)
+    lignes.extend(_lignes_echecs(outcome))
     return "\n".join(lignes)
 
 

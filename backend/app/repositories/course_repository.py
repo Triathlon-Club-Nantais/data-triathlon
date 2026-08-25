@@ -1,7 +1,7 @@
 """Accès données pour Course."""
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
-from sqlalchemy import case, func
+from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.club import tcn_clause
@@ -235,6 +235,63 @@ def reset_scraped_at_all(db: Session) -> int:
     touchees = db.query(Course).update({Course.scraped_at: None}, synchronize_session=False)
     db.flush()
     return touchees
+
+
+def coordinates_by_id(db: Session, course_ids: list[int]) -> dict[int, tuple[float, float]]:
+    """Coordonnées déjà géocodées d'un ensemble d'épreuves, sans requête N+1 (#579).
+
+    Ne rend que les épreuves **géocodées avec succès** : `GET /stats/events-geo`
+    écarte déjà celles sans coordonnées (`if coord:`), ce filtre en amont évite
+    de transporter des `None` que la route devrait re-filtrer.
+    """
+    if not course_ids:
+        return {}
+    rows = (
+        db.query(Course.id, Course.latitude, Course.longitude)
+        .filter(Course.id.in_(course_ids))
+        .filter(Course.latitude.isnot(None))
+        .all()
+    )
+    return {r.id: (r.latitude, r.longitude) for r in rows}
+
+
+def list_missing_geocode(
+    db: Session, *, retry_after: datetime, limit: int | None = None
+) -> list[Course]:
+    """Épreuves sans coordonnées, hors celles dont l'échec est encore « frais » (#579).
+
+    Une tentative échouée pose `geocoded_at` sans poser `latitude`/`longitude`
+    (cf. `save_geocode_attempt`) : sans le filtre sur `retry_after`, une épreuve
+    que Nominatim ne trouve pas serait retentée à chaque lancement de
+    `geocode-courses`, en pure perte.
+    """
+    q = (
+        db.query(Course)
+        .filter(Course.latitude.is_(None))
+        .filter(or_(Course.geocoded_at.is_(None), Course.geocoded_at <= retry_after))
+        .order_by(Course.id)
+    )
+    if limit is not None:
+        q = q.limit(limit)
+    return q.all()
+
+
+def save_geocode_attempt(db: Session, course: Course, coord: tuple[float, float] | None) -> None:
+    """Persiste le résultat d'une tentative de géocodage, réussie ou non (#579).
+
+    `geocoded_at` est posé dans tous les cas — c'est lui qui empêche de
+    retenter en boucle un échec. `latitude`/`longitude` ne le sont que sur un
+    succès : `None` les laisse tels quels, plutôt que d'écraser un succès
+    passé si une recherche redevenait bredouille.
+
+    Commite immédiatement : chaque épreuve est traitée séparément, sur le
+    patron des batches CLI (`rescrape-db`) — un Ctrl-C au milieu du lot ne
+    perd que la tentative en cours, jamais celles déjà persistées.
+    """
+    if coord is not None:
+        course.latitude, course.longitude = coord
+    course.geocoded_at = utcnow()
+    db.commit()
 
 
 def delete(db: Session, course: Course) -> None:
