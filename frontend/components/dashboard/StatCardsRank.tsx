@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { StatCard, AnnonceStatut } from "@/components/tcn";
 import { RANK_PARAM, rankTypeFromParam } from "@/lib/rank";
 import { rankTypeLabel } from "@/lib/labels";
+import { motCompte } from "@/lib/utils/format";
 import type { DashboardRankCounters } from "@/lib/types";
 
 const TrophyIcon = () => (
@@ -46,11 +47,6 @@ function GenderPair({ women, men }: { women: number; men: number }): ReactNode {
  * 5000 lignes) pour ce seul calcul — déplacé en backend, la page n'a plus à
  * les charger du tout.
  */
-/** Décompte annoncé (#477) : plusieurs mots par occurrence pluriel/singulier français. */
-function motCompte(n: number, mot: string): string {
-  return `${n} ${mot}${n > 1 ? "s" : ""}`;
-}
-
 // WCAG 4.1.3 (#477) — le sélecteur écrit l'URL par `history.pushState` (#328),
 // donc rien ne navigue et rien ne recharge : sans cette annonce, la bascule
 // est muette pour un lecteur d'écran.
