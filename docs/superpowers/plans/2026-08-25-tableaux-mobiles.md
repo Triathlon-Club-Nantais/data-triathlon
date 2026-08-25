@@ -1159,7 +1159,7 @@ Le conteneur de la grille devient :
       <div
         data-testid="epreuves-grille"
         data-affichage="grille"
-        className="hidden overflow-x-auto md:block"
+        className="hidden md:block overflow-x-auto"
       >
         <div style={{ minWidth: MIN_WIDTH }}>
           {/* … en-tête et groupes, inchangés … */}
@@ -1352,7 +1352,7 @@ Le conteneur de la grille devient :
         <div
           data-testid="recents-grille"
           data-affichage="grille"
-          className="hidden overflow-x-auto sm:block"
+          className="hidden sm:block overflow-x-auto"
         >
           <div style={{ minWidth: 480 }}>
             {/* … en-tête et lignes, inchangés … */}
