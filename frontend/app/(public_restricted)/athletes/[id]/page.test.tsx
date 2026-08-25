@@ -189,7 +189,9 @@ describe("AthletePage", () => {
       }),
     ]);
 
-    const marker = screen.getByTestId("unreliable-marker");
+    // Scopé à la grille : depuis #461, le marqueur existe aussi dans l'arbre
+    // carte (masqué par CSS, toujours dans le DOM).
+    const marker = within(screen.getByTestId("epreuves-grille")).getByTestId("unreliable-marker");
     expect(marker).toBeInTheDocument();
     // AC2 : tooltip natif via `title`, en français.
     const title = marker.getAttribute("title") ?? "";
@@ -221,7 +223,8 @@ describe("AthletePage", () => {
       }),
     ]);
 
-    const marker = screen.getByTestId("unreliable-marker");
+    // Scopé à la grille (voir plus haut).
+    const marker = within(screen.getByTestId("epreuves-grille")).getByTestId("unreliable-marker");
     expect(marker.getAttribute("title") ?? "").toMatch(/fiabilité/i);
   });
 
@@ -288,7 +291,10 @@ describe("AthletePage", () => {
     ]);
     expect(screen.getByText("DSQ(42)")).toBeInTheDocument();
     expect(screen.queryByText("DSQ(42/300)")).not.toBeInTheDocument();
-    expect(screen.getByTestId("unreliable-marker")).toBeInTheDocument();
+    // Scopé à la grille (voir plus haut).
+    expect(
+      within(screen.getByTestId("epreuves-grille")).getByTestId("unreliable-marker"),
+    ).toBeInTheDocument();
   });
 
   it("garde le marker ⚠ à côté d'un statut de non-finisher (AC5)", async () => {
@@ -312,7 +318,10 @@ describe("AthletePage", () => {
       }),
     ]);
     expect(screen.getByText("DNF")).toBeInTheDocument();
-    expect(screen.getByTestId("unreliable-marker")).toBeInTheDocument();
+    // Scopé à la grille (voir plus haut).
+    expect(
+      within(screen.getByTestId("epreuves-grille")).getByTestId("unreliable-marker"),
+    ).toBeInTheDocument();
   });
 
   it("garde le tiret muet pour un finisher sans rang (AC3)", async () => {
@@ -376,7 +385,9 @@ describe("AthletePage", () => {
       part({ id: 1, evidence_url: "https://club.example/resultats" }),
     ]);
 
-    const lien = screen.getByRole("link", { name: /voir la preuve/i });
+    // Scopé à la grille : depuis #461, le même lien existe aussi dans
+    // l'arbre carte (masqué par CSS, toujours dans le DOM).
+    const lien = within(screen.getByTestId("epreuves-grille")).getByRole("link", { name: /voir la preuve/i });
     expect(lien).toHaveAttribute("href", "https://club.example/resultats");
   });
 
@@ -385,7 +396,8 @@ describe("AthletePage", () => {
       part({ id: 1, evidence_url: "https://club.example/resultats" }),
     ]);
 
-    const lien = screen.getByRole("link", { name: /voir la preuve/i });
+    // Scopé à la grille (voir plus haut).
+    const lien = within(screen.getByTestId("epreuves-grille")).getByRole("link", { name: /voir la preuve/i });
     // Icône décorative : masquée aux lecteurs d'écran, le nom accessible
     // reste porté par le texte "Voir la preuve" ci-dessus.
     expect(lien.querySelector("svg[aria-hidden='true']")).not.toBeNull();
