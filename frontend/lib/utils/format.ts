@@ -112,3 +112,12 @@ export function genderShort(gender: string | null | undefined): string {
   if (first === "m" || first === "h") return "M";
   return gender;
 }
+
+/**
+ * « 1 podium » / « 2 podiums » — décompte accordé, pour les zones dont le
+ * contenu change sans navigation et doit rester lisible à l'annonce (#477).
+ * Le zéro reste au singulier, comme le veut le français.
+ */
+export function motCompte(n: number, mot: string): string {
+  return `${n} ${mot}${n > 1 ? "s" : ""}`;
+}

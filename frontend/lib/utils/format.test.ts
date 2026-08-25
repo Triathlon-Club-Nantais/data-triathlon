@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { disciplineOf, ordinalFr } from "./format";
+import { disciplineOf, motCompte, ordinalFr } from "./format";
 
 describe("ordinalFr", () => {
   it("écrit « 1er » pour la première place", () => {
@@ -41,5 +41,21 @@ describe("disciplineOf", () => {
     expect(disciplineOf("natation-eau-libre")).toBe("natation-eau-libre");
     expect(disciplineOf(null)).toBe("");
     expect(disciplineOf(undefined)).toBe("");
+  });
+});
+
+describe("motCompte", () => {
+  it("laisse le singulier à 1", () => {
+    expect(motCompte(1, "podium")).toBe("1 podium");
+  });
+
+  it("accorde au pluriel au-delà", () => {
+    expect(motCompte(2, "podium")).toBe("2 podiums");
+    expect(motCompte(4, "épreuve")).toBe("4 épreuves");
+  });
+
+  // Le zéro français est singulier — « 0 podium », pas « 0 podiums ».
+  it("laisse le singulier à 0", () => {
+    expect(motCompte(0, "épreuve")).toBe("0 épreuve");
   });
 });
