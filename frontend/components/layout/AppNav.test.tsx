@@ -156,13 +156,13 @@ describe("readAthlete — stock corrompu", () => {
   });
 });
 
-describe("AppNav — prefetch de la tuile « Mon profil » (#425)", () => {
+describe("AppNav — prefetch de la tuile « Mon athlète » (#425)", () => {
   it("désactive le prefetch des deux liens vers /athletes/{id} — un athlète épinglé au hasard, pas une destination probable", async () => {
     window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 12, prenom: "Jean", nom: "Dupont" }));
     afficher(null);
     await deplier();
 
-    expect(screen.getByRole("link", { name: "Mon profil — Jean Dupont" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Mon athlète — Jean Dupont" })).toHaveAttribute(
       "data-prefetch",
       "false",
     );
@@ -313,7 +313,7 @@ describe("AppNav — prénom de l'athlète retenu (#264)", () => {
     );
     expect(screen.queryByRole("link", { name: "Jean" })).not.toBeInTheDocument();
     // Le nom complet reste porté par le profil et l'avatar, pas par le libellé.
-    expect(screen.getByRole("link", { name: "Mon profil — Jean Gael Dupont" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Mon athlète — Jean Gael Dupont" })).toBeInTheDocument();
   });
 
   it("retient le prénom tel que l'API le donne, sans le reconstruire (#264)", async () => {
@@ -349,7 +349,7 @@ describe("AppNav — ne plus suivre l'athlète retenu (#442)", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Ne plus choisir Jean Dupont" }));
 
     expect(readAthlete()).toBeNull();
-    expect(screen.queryByRole("link", { name: "Mon profil — Jean Dupont" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Mon athlète — Jean Dupont" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Ne plus choisir Jean Dupont" })).not.toBeInTheDocument();
   });
 
@@ -413,7 +413,7 @@ describe("AppNav — ne plus suivre l'athlète retenu (#442)", () => {
     window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
     afficher(null);
 
-    expect(await screen.findByRole("link", { name: "Mon profil — Jean Dupont" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Mon athlète — Jean Dupont" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Ne plus choisir/ })).not.toBeInTheDocument();
   });
 });
@@ -448,7 +448,7 @@ describe("AppNav — raccourci « Mes résultats » de la tuile (NAV-10, #503)",
     window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
     afficher(null, { initialExpanded: false });
 
-    expect(await screen.findByRole("link", { name: "Mon profil — Jean Dupont" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Mon athlète — Jean Dupont" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Mes résultats/ })).not.toBeInTheDocument();
   });
 });
@@ -481,7 +481,7 @@ describe("AppNav — actions primaires", () => {
     // l'assertion sur le rail lui-même.
     const rail = screen.getByRole("navigation", { name: "Navigation principale" });
     expect(within(rail).getByRole("button", { name: "Rechercher un athlète" })).toBeInTheDocument();
-    expect(within(rail).getByRole("link", { name: "Mon profil — Jean Dupont" })).toBeInTheDocument();
+    expect(within(rail).getByRole("link", { name: "Mon athlète — Jean Dupont" })).toBeInTheDocument();
   });
 
   it("garde une icône de recherche cliquable, athlète retenu, rail replié (#323)", async () => {
@@ -511,7 +511,7 @@ describe("AppNav — actions primaires", () => {
 
     const tiroir = await screen.findByRole("dialog");
     expect(within(tiroir).getByRole("button", { name: "Rechercher un athlète" })).toBeInTheDocument();
-    expect(within(tiroir).getByRole("link", { name: "Mon profil — Jean Dupont" })).toBeInTheDocument();
+    expect(within(tiroir).getByRole("link", { name: "Mon athlète — Jean Dupont" })).toBeInTheDocument();
   });
 
   it("se resynchronise sur une écriture externe, sans passer par son propre picker (#323)", async () => {
@@ -520,16 +520,16 @@ describe("AppNav — actions primaires", () => {
     // monté ailleurs sur la page — aucune interaction avec le picker local ici.
     afficher(null);
     const rail = screen.getByRole("navigation", { name: "Navigation principale" });
-    expect(within(rail).queryByRole("link", { name: /^Mon profil —/ })).not.toBeInTheDocument();
+    expect(within(rail).queryByRole("link", { name: /^Mon athlète —/ })).not.toBeInTheDocument();
 
     act(() => writeAthlete({ id: 12, prenom: "Jean", nom: "Dupont" }));
-    expect(await within(rail).findByRole("link", { name: "Mon profil — Jean Dupont" })).toBeInTheDocument();
+    expect(await within(rail).findByRole("link", { name: "Mon athlète — Jean Dupont" })).toBeInTheDocument();
     // La recherche reste là, en plus de la tuile — jamais remplacée.
     expect(within(rail).getByRole("button", { name: "Rechercher un athlète" })).toBeInTheDocument();
 
     act(() => clearAthlete());
     await waitFor(() =>
-      expect(within(rail).queryByRole("link", { name: /^Mon profil —/ })).not.toBeInTheDocument(),
+      expect(within(rail).queryByRole("link", { name: /^Mon athlète —/ })).not.toBeInTheDocument(),
     );
   });
 });
@@ -918,13 +918,20 @@ describe("AppNav — infobulles du rail replié remplacent les title (#482, NAV-
     expect(await screen.findByRole("tooltip", { name: "Rechercher un athlète (Ctrl K)" })).toBeInTheDocument();
   });
 
-  it("porte une infobulle « Mon profil » sur la tuile de l'athlète retenu, repliée", async () => {
+  it("porte une infobulle « Mon athlète » sur la tuile de l'athlète retenu, repliée", async () => {
     window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 12, prenom: "Jean", nom: "Dupont" }));
     afficher(null);
-    const avatar = await screen.findByRole("link", { name: "Mon profil — Jean Dupont" });
+    const avatar = await screen.findByRole("link", { name: "Mon athlète — Jean Dupont" });
 
     await userEvent.hover(avatar);
-    expect(await screen.findByRole("tooltip", { name: "Mon profil" })).toBeInTheDocument();
+    expect(await screen.findByRole("tooltip", { name: "Mon athlète" })).toBeInTheDocument();
+  });
+
+  it("nomme la tuile « Mon athlète » (#502)", () => {
+    window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 12, prenom: "Jean", nom: "Dupont" }));
+    afficher(null);
+    expect(screen.getByLabelText("Mon athlète — Jean Dupont")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Mon profil — Jean Dupont")).not.toBeInTheDocument();
   });
 
   it("porte une infobulle sur la tuile de catégorie repliée (« Administration »)", async () => {

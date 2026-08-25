@@ -51,7 +51,7 @@ export function AthleteSelection({ athlete }: { athlete: PickedAthlete }) {
         Choisir cet athlète
       </Button>
       <p id={BENEFICE_ID} style={{ margin: 0, fontSize: 13, lineHeight: 1.45, color: "var(--tcn-text-muted)" }}>
-        Choisir cet athlète pour retrouver ses résultats en un geste et se comparer au club
+        Choisir cet athlète pour retrouver ses résultats en un geste et voir sa saison en tête du tableau de bord
       </p>
     </div>
   );

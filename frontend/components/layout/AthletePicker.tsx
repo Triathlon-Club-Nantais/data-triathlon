@@ -183,13 +183,13 @@ export function AthletePicker({
 
   return (
     <Modal
-      eyebrow="Accès athlète"
+      eyebrow="Mon athlète"
       title="Sélectionnez votre nom"
       onClose={onClose}
       width={520}
       footer={
         <div style={{ fontSize: 13, color: "var(--tcn-text-faint)", textAlign: "center" }}>
-          Pas de blocage d&apos;accès — choisissez librement votre profil.
+          Votre tableau de bord affichera vos résultats en premier.
         </div>
       }
     >

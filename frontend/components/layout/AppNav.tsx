@@ -548,13 +548,13 @@ function NavContent({
                       href={`/athletes/${athlete.id}`}
                       prefetch={false}
                       onClick={onNavigate}
-                      aria-label={`Mon profil — ${nomComplet(athlete)}`}
+                      aria-label={`Mon athlète — ${nomComplet(athlete)}`}
                     />
                   }
                 >
                   <Avatar name={nomComplet(athlete)} size={30} style={{ boxShadow: "var(--tcn-shadow-orange)" }} />
                 </TooltipTrigger>
-                {!expanded && <TooltipContent>Mon profil</TooltipContent>}
+                {!expanded && <TooltipContent>Mon athlète</TooltipContent>}
               </Tooltip>
               {expanded && (
                 <>
