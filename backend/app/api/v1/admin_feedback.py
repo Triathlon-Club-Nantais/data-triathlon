@@ -23,6 +23,10 @@ router = APIRouter(tags=["admin"])
 #: Les statuts, en type de paramètre — dérivé de la nomenclature du modèle
 #: plutôt que réécrit : un cinquième statut ajouté là ouvrirait le filtre ici
 #: du même geste, et un `?status=archive` reste un 422 sans code à écrire.
+#:
+#: `FeedbackCounts`, lui, **énumère** ses champs et ne suivrait pas tout seul —
+#: un kwarg de trop y serait ignoré en silence. C'est un test qui tient les deux
+#: bouts (`test_le_comptage_porte_exactement_les_statuts_de_la_nomenclature`).
 StatutFeedback = Literal[*FEEDBACK_STATUSES]
 
 
