@@ -296,8 +296,7 @@ def test_fiche_athlete_saisons_non_parsables_valent_toutes_saisons(client, db_se
     qui vaut « pas de filtre » — pas de 422, pas de 500."""
     athlete = _athlete_trois_saisons(db_session)
 
-    detail = client.get(
-        f"/api/v1/athletes/{athlete.id}", params={"seasons": "abc"}
-    ).json()
+    resp = client.get(f"/api/v1/athletes/{athlete.id}", params={"seasons": "abc"})
 
-    assert len(detail["participations"]) == 3
+    assert resp.status_code == 200
+    assert len(resp.json()["participations"]) == 3
