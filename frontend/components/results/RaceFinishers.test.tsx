@@ -998,7 +998,7 @@ describe("RaceFinishers — ma ligne dans le classement (NAV-10, #503)", () => {
     const marques = screen.getAllByText("Vous");
     expect(marques).toHaveLength(1);
     // WCAG 1.4.1 : le chip est le signifiant, le fond ne fait que l'appuyer.
-    expect(marques[0].closest("[role='button']")).toHaveTextContent("DNFGUY");
+    expect(marques[0].closest("tr")).toHaveTextContent("DNFGUY");
   });
 
   it("peint le fond de ma ligne, y compris sur un non-finisher — par une classe, pas un style en ligne", () => {
@@ -1008,7 +1008,7 @@ describe("RaceFinishers — ma ligne dans le classement (NAV-10, #503)", () => {
     writeAthlete({ id: 3, prenom: "T", nom: "DNFGUY" });
     afficher();
 
-    const ligne = screen.getByText("Vous").closest("[role='button']") as HTMLElement;
+    const ligne = screen.getByText("Vous").closest("tr") as HTMLElement;
     expect(ligne.className).toMatch(/(^|\s)tcn-rowlink--moi(\s|$)/);
     expect(ligne.style.background).toBe("");
   });
@@ -1017,8 +1017,10 @@ describe("RaceFinishers — ma ligne dans le classement (NAV-10, #503)", () => {
     writeAthlete({ id: 3, prenom: "T", nom: "DNFGUY" });
     afficher();
 
-    const lignes = screen.getAllByRole("button", { name: /Voir le détail du résultat de/ });
-    const autres = lignes.filter((el) => !el.getAttribute("aria-label")?.includes("DNFGUY"));
+    const lignes = screen
+      .getAllByRole("link", { name: /Voir le détail du résultat de/ })
+      .map((lien) => lien.closest("tr") as HTMLElement);
+    const autres = lignes.filter((ligne) => !ligne.textContent?.includes("DNFGUY"));
     expect(autres.length).toBeGreaterThan(0);
     for (const ligne of autres) {
       expect(ligne.className).not.toMatch(/(^|\s)tcn-rowlink--moi(\s|$)/);
