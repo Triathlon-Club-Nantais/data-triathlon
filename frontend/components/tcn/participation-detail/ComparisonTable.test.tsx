@@ -98,4 +98,35 @@ describe("ComparisonTable", () => {
     expect(note.textContent).toContain("T1");
     expect(note.textContent).not.toContain("T2");
   });
+
+  // Sept colonnes tombent à ~500 px de large : sur un téléphone, le tableau
+  // défile dans sa carte. Les segments courts sortent les premiers — ils sont
+  // déjà atténués, et déjà signalés comme bruités par la note du bas.
+  it("masque les colonnes des segments courts sous sm", () => {
+    renderTable();
+
+    expect(screen.getByRole("columnheader", { name: "T1" }).className).toContain(
+      "hidden sm:table-cell",
+    );
+    expect(screen.getByRole("columnheader", { name: "T2" }).className).toContain(
+      "hidden sm:table-cell",
+    );
+    expect(screen.getByRole("columnheader", { name: "Natation" }).className ?? "").not.toContain(
+      "hidden",
+    );
+  });
+
+  it("masque aussi les cellules de ces colonnes, pas seulement leur en-tête", () => {
+    renderTable();
+
+    const premiere = screen.getByRole("row", { name: /1er/ });
+    // 137,8 % est la valeur T1 de la première ligne de `ROWS`.
+    expect(within(premiere).getByText("137,8 %").className).toContain("hidden sm:table-cell");
+  });
+
+  it("dit que les colonnes masquées se lisent sur écran large", () => {
+    renderTable();
+
+    expect(screen.getByText(/écran plus large/)).toBeTruthy();
+  });
 });
