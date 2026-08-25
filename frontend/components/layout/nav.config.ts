@@ -217,6 +217,18 @@ export const NAV: NavSection[] = [
         href: "/admin/maintenance",
         permission: ["participations:wipe_all", "courses:wipe_all"],
       },
+      // Lecture du journal existant (#117) — sans elle, la promesse de trace
+      // de `DeleteCourseDialog`/`WipeCoursesCard` était invérifiable (#501,
+      // ADM-5). Pouvoir dédié : le journal couvre des entités que
+      // `courses:delete`/`participations:wipe_all` ne gardent pas.
+      {
+        id: "a-journal",
+        label: "Journal d'administration",
+        description:
+          "L'historique des gestes d'administration sur les données — qui, quoi, quand. Rien ici ne s'annule.",
+        href: "/admin/journal",
+        permission: "admin_log:read",
+      },
       { id: "a-benevolat", label: "Bénévolat", soon: true },
       // Pas d'entrée « Sessions » : #169 a livré la révocation **dans**
       // « Accès au back-office » — par adresse ligne à ligne, globale en bas de
