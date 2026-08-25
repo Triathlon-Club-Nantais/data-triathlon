@@ -67,7 +67,17 @@ export function ClubBreakdown({
                   name
                 )}
               </td>
-              <td role="cell" style={{ fontFamily: "var(--tcn-font-display)", fontSize: 16, color: own ? "var(--tcn-orange-deeper)" : "var(--tcn-ink)", textAlign: "right" }}>{count}</td>
+              {/* Le chevron vit dans la même cellule que l'effectif, plutôt qu'une
+                  troisième colonne : le tableau garde deux `<th>` quel que soit
+                  `hrefFor`, sans quoi l'en-tête et les lignes divergeraient en
+                  nombre de cellules (WCAG 1.3.1). Seul signal, avec le curseur,
+                  qu'une ligne de statistique mène quelque part (patron d'`EventList`). */}
+              <td role="cell" style={{ fontFamily: "var(--tcn-font-display)", fontSize: 16, color: own ? "var(--tcn-orange-deeper)" : "var(--tcn-ink)", textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
+                {count}
+                {hrefFor && (
+                  <span aria-hidden style={{ color: "var(--tcn-text-disabled)", fontSize: 13 }}>→</span>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>

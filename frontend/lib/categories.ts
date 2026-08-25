@@ -61,8 +61,11 @@ const EQUIPES: Record<string, string> = {
   MPM: "Relais par équipe",
 };
 
-// Trois lettres pour deux genres : les chronométreurs n'ont pas de convention commune.
-const GENRES: Record<string, string> = { M: "hommes", H: "hommes", F: "femmes", D: "dames" };
+// Quatre lettres pour deux genres : les chronométreurs n'ont pas de convention
+// commune. « D » (dames) se rend en « femmes » comme les autres — c'est le mot du
+// reste du site (`GenderDonut` dit « Hommes »/« Femmes »), et deux libellés pour la
+// même classe pouvaient apparaître dans la même carte.
+const GENRES: Record<string, string> = { M: "hommes", H: "hommes", F: "femmes", D: "femmes" };
 
 /** Mot de genre en préfixe — « M SENIOR », « F VETERAN ». */
 const GENRES_MOT: Record<string, string> = { M: "hommes", H: "hommes", F: "femmes" };

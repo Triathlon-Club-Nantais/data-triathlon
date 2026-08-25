@@ -38,7 +38,12 @@ export function ReliabilityMark({
     <span
       role="img"
       title={motif}
-      aria-label={`Données douteuses. ${motif}`}
+      // En liste, le nom accessible se réduit au verdict : la forme compacte vit
+      // **dans** le lien de ligne d'`EventList`, dont le nom accessible absorbe
+      // son sous-arbre — le détail complet y ajoutait ~120 caractères par ligne,
+      // relus à chaque parcours au rotor. Le détail reste au `title`, et la page
+      // de l'épreuve l'énumère en toutes lettres.
+      aria-label={compact ? "Données douteuses" : `Données douteuses. ${motif}`}
       style={{
         display: "inline-flex",
         alignItems: "center",
@@ -46,15 +51,22 @@ export function ReliabilityMark({
         minHeight: 24,
         padding: compact ? 0 : "3px 10px",
         borderRadius: 999,
-        border: compact ? "none" : "1px solid var(--tcn-border)",
-        background: compact ? "none" : "var(--tcn-fill)",
+        // Registre d'alerte, pas registre de donnée (#486, revue UI/UX). Le fond
+        // `--tcn-fill` vaut exactement `--tcn-paper` : la marque se lisait à
+        // 1,00:1 contre la page, en retrait des onze `MetaPill` voisines qui
+        // portent `--tcn-surface`. Le seul élément qui dise « ne vous fiez pas à
+        // ces chiffres » était le moins saillant de la rangée. Le triplet
+        // `--tcn-warning-*` est celui de `PendingBadge`, même registre, même
+        // écran public — aucun token inventé.
+        border: compact ? "none" : "1px solid var(--tcn-warning-border)",
+        background: compact ? "none" : "var(--tcn-warning-bg)",
         fontSize: 12,
         fontWeight: 700,
-        color: "var(--tcn-text-body)",
+        color: compact ? "var(--tcn-text-body)" : "var(--tcn-warning-text)",
         cursor: "help",
       }}
     >
-      <span aria-hidden style={{ color: "var(--tcn-text-faint)" }}>
+      <span aria-hidden style={{ color: compact ? "var(--tcn-text-faint)" : "inherit" }}>
         ⚠
       </span>
       {!compact && "Données douteuses"}

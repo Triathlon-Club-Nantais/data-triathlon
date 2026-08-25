@@ -567,11 +567,14 @@ describe("EventList — annonce du repliement (#463, WCAG 4.1.3)", () => {
 
     renderList();
 
-    // Même vocabulaire que la page épreuve et que le profil athlète : la source
-    // est `lib/quality.ts`, et elle ne doit pas se dédoubler.
-    expect(
-      screen.getByRole("img", { name: /2 trous dans le classement/ }),
-    ).toBeInTheDocument();
+    // En liste, le nom accessible se réduit au verdict : la marque vit **dans**
+    // le lien de ligne, dont le nom absorbe le sous-arbre — le détail complet y
+    // ajoutait ~120 caractères relus à chaque parcours au rotor (revue UI/UX).
+    const marque = screen.getByRole("img", { name: "Données douteuses" });
+    expect(marque).toBeInTheDocument();
+    // Le détail reste au survol, dans le même vocabulaire que la page épreuve et
+    // que le profil athlète : la source est `lib/quality.ts`, elle ne se dédouble pas.
+    expect(marque).toHaveAttribute("title", expect.stringContaining("2 trous dans le classement"));
   });
 
   it("ne marque pas une épreuve saine", () => {

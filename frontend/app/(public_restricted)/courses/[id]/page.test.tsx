@@ -113,7 +113,7 @@ describe("CoursePage", () => {
     expect(
       screen.getByRole("heading", { level: 2, name: "Les 2 catégories les plus représentées" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: "Top clubs" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Répartition par club" })).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { level: 2, name: "Distribution des temps des finishers" }),
     ).toBeInTheDocument();
@@ -482,7 +482,7 @@ describe("CoursePage", () => {
     expect(
       screen.getByRole("heading", { level: 2, name: "Répartition par catégorie" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: "Top clubs" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Répartition par club" })).toBeInTheDocument();
   });
 
   it("dit le nombre de clubs non listés sous la carte", async () => {
