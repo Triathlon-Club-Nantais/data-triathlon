@@ -212,3 +212,14 @@ export function authErrorLabel(code: string | null | undefined): string {
   if (!code) return "";
   return AUTH_ERROR_LABELS[code] ?? "La connexion a échoué. Merci de réessayer.";
 }
+
+/**
+ * Clé `sessionStorage` du chemin à retrouver après connexion (#494).
+ *
+ * Le backend redirige toujours vers `/admin`, destination fixée par la
+ * configuration (FR-026) : aucun paramètre `next` ne circule côté serveur, la
+ * redirection ouverte reste fermée. Le retour au point de départ est donc
+ * entièrement client — posé par `UserMenu` avant de router vers `/login`, lu
+ * par `PostLoginReturn` (`app/providers.tsx`) à l'atterrissage.
+ */
+export const RETOUR_CONNEXION_KEY = "tcn_retour_connexion";

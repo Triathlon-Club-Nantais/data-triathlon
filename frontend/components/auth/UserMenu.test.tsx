@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
 import { ApiError } from "@/lib/api/client";
+import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
 import type { SessionUser } from "@/lib/types";
 
 const { push, getSession, logout } = vi.hoisted(() => ({
@@ -36,6 +37,7 @@ const SESSION: SessionUser = {
 function afficher(session: SessionUser | null, props: { pleineLargeur?: boolean; onNavigate?: () => void } = {}) {
   push.mockClear();
   logout.mockClear();
+  sessionStorage.clear();
   logout.mockResolvedValue(undefined);
   if (session) getSession.mockResolvedValue(session);
   else getSession.mockRejectedValue(new ApiError(401, "anonyme"));
@@ -72,6 +74,16 @@ describe("UserMenu — anonyme (AC5)", () => {
 
     expect(screen.queryByRole("button", { name: /Compte/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Se déconnecter" })).not.toBeInTheDocument();
+  });
+
+  it("mémorise le chemin courant avant de router vers /login (#494)", async () => {
+    // `usePathname` est mocké à "/dashboard" en tête de fichier : c'est la
+    // page depuis laquelle ce clic est censé partir dans ce test.
+    afficher(null);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Se connecter" }));
+
+    expect(sessionStorage.getItem(RETOUR_CONNEXION_KEY)).toBe("/dashboard");
   });
 });
 
