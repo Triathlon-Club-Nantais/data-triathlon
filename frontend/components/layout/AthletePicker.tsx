@@ -129,9 +129,11 @@ function snapshotAthlete(): PickedAthlete | null {
 /**
  * L'athlète retenu lui-même, côté client uniquement — le pendant de
  * `useIsSelectedAthlete` pour les écrans qui ont besoin de son **nom** et non
- * d'un booléen : la pastille de `/resultats`, le raccourci du rail et le saut
- * vers sa ligne dans un classement (#503). Même arbitrage qu'en #467 : le
- * stock se lit là où il vit, jamais par un cookie miroir.
+ * d'un booléen : la pastille de `/resultats`, le raccourci du rail, le saut
+ * vers sa ligne dans un classement (#503) et la bande « Ma saison » du
+ * tableau de bord (#502). Même arbitrage qu'en #467 : le stock se lit là où
+ * il vit, jamais par un cookie miroir — `null` au rendu serveur, la lecture
+ * réelle dès l'hydratation (`frontend/AGENTS.md:218-277`).
  */
 export function useSelectedAthlete(): PickedAthlete | null {
   return useSyncExternalStore(subscribeAthlete, snapshotAthlete, () => null);
