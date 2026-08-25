@@ -11,6 +11,7 @@ export function StatCard({
   hint = null,
   variant = "default",
   style,
+  valueFontSize,
 }: {
   label?: ReactNode;
   value?: ReactNode;
@@ -21,6 +22,8 @@ export function StatCard({
   hint?: ReactNode;
   variant?: "default" | "hero";
   style?: CSSProperties;
+  /** Override ciblé de la taille du `value` en variant `default` (voir `TuileResume.valueFontSize`). */
+  valueFontSize?: number;
 }) {
   if (variant === "hero") {
     return (
@@ -87,7 +90,7 @@ export function StatCard({
           </div>
         ) : null}
       </div>
-      <div className="tcn-stat-value" style={{ fontFamily: "var(--tcn-font-display)", fontSize: 68, lineHeight: 1, color: valueColor, marginTop: 10 }}>
+      <div className="tcn-stat-value" style={{ fontFamily: "var(--tcn-font-display)", fontSize: valueFontSize ?? 68, lineHeight: 1, color: valueColor, marginTop: 10 }}>
         {value}
       </div>
       {accent ? (

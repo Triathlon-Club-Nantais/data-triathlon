@@ -192,6 +192,24 @@ describe("PodiumsList — extension de la liste (PROF-3, #488)", () => {
 
   // Revue finale (#488) : le bouton se démontait à l'extension, faisant
   // perdre le focus clavier au `<body>`. Il devient une bascule.
+  // #488, revue UI/UX : le bouton est un contrôle de divulgation, mais son
+  // état n'était porté que par le libellé et l'annonce, jamais par le DOM.
+  it("porte aria-expanded, à jour après le clic", async () => {
+    searchParams = new URLSearchParams();
+    const user = userEvent.setup();
+    render(<PodiumsList participations={NEUF} />);
+
+    const bouton = screen.getByRole("button", { name: "Voir les 3 autres podiums" });
+    expect(bouton).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(bouton);
+
+    expect(screen.getByRole("button", { name: "Réduire la liste" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+  });
+
   it("réduit la liste au second clic, focus préservé, et l'annonce suit", async () => {
     searchParams = new URLSearchParams();
     const user = userEvent.setup();

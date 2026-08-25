@@ -128,25 +128,9 @@ export function ClubDashboard({
       {/* Roster */}
       <section className="space-y-4">
         <div className="flex items-baseline justify-between gap-4">
-          <div>
-            <h2 className="font-heading text-lg font-semibold">
-              {roster.length > APERCU_ROSTER ? "Les athlètes les plus actifs" : "Athlètes du club"}
-            </h2>
-            {/* #488 (PROF-3) : `buildRoster` compte les podiums sur les trois
-                portées sans condition, quand le KPI « Podiums » plus haut suit
-                `?rank=`. Les deux nombres sont justes et incomparables ; sans
-                cette ligne, basculer le toggle faisait bouger l'un et pas
-                l'autre, sans explication à l'écran. Rendue seulement si
-                l'aperçu montre au moins un podium : les cartes elles-mêmes ne
-                rendent leur décompte que sous cette condition (`r.podiums > 0`
-                ci-dessous) — sur un club sans podium, la légende qualifiait
-                des nombres absents de l'écran (revue finale). */}
-            {apercu.some((r) => r.podiums > 0) && (
-              <p className="text-sm text-[var(--tcn-text-faint)]">
-                podiums toutes portées confondues
-              </p>
-            )}
-          </div>
+          <h2 className="font-heading text-lg font-semibold">
+            {roster.length > APERCU_ROSTER ? "Les athlètes les plus actifs" : "Athlètes du club"}
+          </h2>
           {/* Inconditionnel : « les deux écrans reliés dans les deux sens »
               est une garantie de navigation, elle ne peut pas s'éteindre sous
               13 athlètes. Le libellé dit la destination et non un décompte —
@@ -160,6 +144,24 @@ export function ClubDashboard({
             Voir saison par saison →
           </Link>
         </div>
+        {/* #488 (PROF-3, revue UI/UX) : `buildRoster` compte les podiums sur
+            les trois portées sans condition, quand le KPI « Podiums » plus
+            haut suit `?rank=`. Les deux nombres sont justes et incomparables ;
+            sans cette légende, basculer le toggle faisait bouger l'un et pas
+            l'autre, sans explication à l'écran. Déplacée du bloc de titre (où
+            elle qualifiait le `h2`, pas les cartes) vers ici, juste au-dessus
+            de la grille qu'elle décrit, et reformulée avec le vocabulaire déjà
+            posé par le KPI et les badges plutôt que « portée », un mot de
+            `PodiumScope` que l'utilisateur ne lit nulle part ailleurs. Rendue
+            seulement si l'aperçu montre au moins un podium : les cartes
+            elles-mêmes ne rendent leur décompte que sous cette condition
+            (`r.podiums > 0` ci-dessous) — sur un club sans podium, la légende
+            qualifiait des nombres absents de l'écran (revue finale). */}
+        {apercu.some((r) => r.podiums > 0) && (
+          <p className="text-sm text-[var(--tcn-text-faint)]">
+            Les podiums comptés ici cumulent le général, le genre et la catégorie.
+          </p>
+        )}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {apercu.map((r) => (
             <Link

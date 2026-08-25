@@ -102,6 +102,7 @@ export function PodiumsList({ participations }: { participations: Participation[
         <button
           type="button"
           onClick={() => setEtendu((v) => !v)}
+          aria-expanded={etendu}
           className="mt-3 text-sm font-medium text-accent-ink hover:underline"
         >
           {etendu

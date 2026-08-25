@@ -17,6 +17,14 @@ export interface TuileResume {
   /** Volontairement court : `StatCard` rend `value` en 68 px display sans clamp. */
   value: string;
   hint: string | null;
+  /**
+   * Taille de police custom pour `value` (`StatCard` la passe en `style`).
+   * `.tcn-stat-value` ne porte pas de `clamp()` — ciblé sur la tuile
+   * « Temps » : "01:02:03" en 68px (223px, insécable) déborde la piste de
+   * 133px qu'ouvre `sm:grid-cols-3` entre 640px et ~926px (#488, revue
+   * UI/UX). 40px pour 8 glyphes tient dans cette piste.
+   */
+  valueFontSize?: number;
 }
 
 export interface ResumeAthlete {
@@ -81,7 +89,7 @@ export function resumeAthlete(participations: Participation[]): ResumeAthlete {
   }
 
   if (p.total_time) {
-    tuiles.push({ label: "Temps", value: p.total_time, hint: date });
+    tuiles.push({ label: "Temps", value: p.total_time, hint: date, valueFontSize: 40 });
   } else if (p.rank_overall != null && p.rank_overall >= 1) {
     // Repli sur la place, qui reste un fait de cette course-là — et non une
     // « meilleure place » qui ne compare rien.

@@ -59,7 +59,10 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
         <PageHeader
           className="min-w-0 flex-1"
           backHref="/club/athletes"
-          backLabel="Athlètes du club"
+          // Le `h1` de la destination dit « Athlètes par saison », mot pour
+          // mot (convention posée par l'autre `backHref` du site, celui de
+          // `/club/athletes` lui-même vers « Espace club ») — #488, revue UI/UX.
+          backLabel="Athlètes par saison"
           // Le club en surtitre plutôt qu'un « Résultats enregistrés » qui ne
           // distinguait rien : les homonymes existent dans ce jeu de données, et
           // arrivé sur le profil on ne pouvait plus vérifier qu'on était sur le
@@ -78,11 +81,15 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
           {(categorie || athlete.gender) && (
             <div className="flex flex-wrap items-center gap-2 pt-1">
               {categorie && (
-                <MetaPill
-                  label="Catégorie"
-                  title={anneeCategorie ? `Catégorie relevée en ${anneeCategorie}` : undefined}
-                >
-                  {categorie}
+                // L'année dans la pastille elle-même plutôt qu'en `title` :
+                // un `title` sur un `<span>` non focusable est inaccessible
+                // au clavier et au tactile — le motif qui a fait retirer les
+                // six `title` du rail replié (#482). L'année est ce qui rend
+                // la pastille honnête (une catégorie relevée il y a six ans
+                // n'est plus la bonne) donc reste visible même sans survol
+                // (#488, revue UI/UX).
+                <MetaPill label="Catégorie">
+                  {anneeCategorie ? `${categorie} (${anneeCategorie})` : categorie}
                 </MetaPill>
               )}
               {athlete.gender && <MetaPill label="Genre">{genderShort(athlete.gender)}</MetaPill>}
@@ -99,7 +106,14 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
               contenu et provoque un scroll horizontal (#488, revue finale). */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {resume.tuiles.map((t) => (
-              <StatCard key={t.label} label={t.label} value={t.value} hint={t.hint} accent={false} />
+              <StatCard
+                key={t.label}
+                label={t.label}
+                value={t.value}
+                hint={t.hint}
+                accent={false}
+                valueFontSize={t.valueFontSize}
+              />
             ))}
           </div>
           <Link href="/ajouter" className="text-sm font-semibold text-accent-ink hover:underline">
