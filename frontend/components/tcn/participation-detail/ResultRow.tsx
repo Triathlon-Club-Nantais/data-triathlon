@@ -34,7 +34,7 @@ export function ResultRow({
   const columns = splitColumnsFromKeys(participation.course.event_type, segments);
   const splits = participation.splits ?? {};
   const positions = new Map(steps.map((step) => [step.segment, step.segment_position]));
-  const name = [participation.athlete?.nom, participation.athlete?.prenom]
+  const name = [participation.athlete.nom, participation.athlete.prenom]
     .filter(Boolean)
     .join(" ");
 
@@ -79,7 +79,7 @@ export function ResultRow({
           </div>
         )}
         <Link
-          href={`/athletes/${participation.athlete?.id}`}
+          href={`/athletes/${participation.athlete.id}`}
           style={{
             fontFamily: "var(--tcn-font-display)",
             fontSize: "clamp(22px, 4vw, 32px)",
@@ -94,7 +94,7 @@ export function ResultRow({
         )}
         <div style={{ display: "flex", gap: 14, fontSize: 13, color: "var(--tcn-text-body)" }}>
           <span>{participation.category ?? "—"}</span>
-          <span>{genderShort(participation.athlete?.gender)}</span>
+          <span>{genderShort(participation.athlete.gender)}</span>
         </div>
         <div
           style={{

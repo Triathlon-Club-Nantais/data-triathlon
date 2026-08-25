@@ -93,6 +93,16 @@ export interface ParticipationStats {
 
 export interface Participation {
   id: number;
+  /**
+   * **Toujours servi** — se lit sans `?.` (#593, jumeau de #578 sur `course`).
+   * `participations.athlete_id` est `NOT NULL` depuis le schéma initial,
+   * `ParticipationOut.athlete` est requis côté Pydantic (une relation absente y
+   * ferait un 500, jamais une réponse amputée), et la relation est chargée en
+   * `joinedload`/`contains_eager` par les routes qui la servent.
+   *
+   * En revanche `prenom` et `gender` valent `""` par défaut côté backend,
+   * jamais `null` : les `filter(Boolean)` qui les entourent, eux, servent.
+   */
   athlete: AthleteBrief;
   /**
    * **Toujours servie** — se lit sans `?.` (#578). Trois maillons le

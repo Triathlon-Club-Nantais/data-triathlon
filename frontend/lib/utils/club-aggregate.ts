@@ -98,22 +98,21 @@ export interface RosterEntry {
 
 function fullName(p: Participation): string {
   const a = p.athlete;
-  return [a?.prenom, a?.nom].filter(Boolean).join(" ") || "Athlète inconnu";
+  return [a.prenom, a.nom].filter(Boolean).join(" ") || "Athlète inconnu";
 }
 
 /** Roster du club : un athlète par ligne, trié par nb de courses puis podiums. */
 export function buildRoster(parts: Participation[]): RosterEntry[] {
   const map = new Map<number, RosterEntry>();
   for (const p of parts) {
-    const id = p.athlete?.id;
-    if (id == null) continue;
+    const id = p.athlete.id;
     let e = map.get(id);
     if (!e) {
       e = {
         athleteId: id,
         name: fullName(p),
-        gender: p.athlete?.gender ?? "",
-        club: p.club ?? p.athlete?.club ?? null,
+        gender: p.athlete.gender,
+        club: p.club ?? p.athlete.club,
         count: 0,
         podiums: 0,
         podiumsByScope: { overall: 0, gender: 0, category: 0 },
@@ -172,7 +171,7 @@ export function clubSummary(parts: Participation[]): ClubSummary {
   const events = new Set<number>();
   let podiums = 0;
   for (const p of parts) {
-    if (p.athlete?.id != null) athletes.add(p.athlete.id);
+    athletes.add(p.athlete.id);
     // Clé sur `course.id`, jamais sur (nom, date) : un même événement
     // TimePulse publie ses heats sous un nom et une URL uniques, seul
     // `event_type`/`id` les distingue (#564, backend/app/services/

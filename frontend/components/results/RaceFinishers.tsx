@@ -389,7 +389,7 @@ export function RaceFinishers({
             const own = p.is_tcn;
             const nf = isNonFinisher(p.status);
             const moi = athleteRetenu?.id === p.athlete.id;
-            const name = [p.athlete?.nom, p.athlete?.prenom].filter(Boolean).join(" ");
+            const name = [p.athlete.nom, p.athlete.prenom].filter(Boolean).join(" ");
             const splits = p.splits ?? {};
             return (
               <tr
@@ -471,7 +471,7 @@ export function RaceFinishers({
                   </Link>
                 </td>
                 <td role="cell" style={{ fontSize: 13, color: "var(--tcn-text-body)" }}>{p.category ?? "—"}</td>
-                <td role="cell" style={{ fontSize: 13, color: "var(--tcn-text-body)" }}>{genderShort(p.athlete?.gender)}</td>
+                <td role="cell" style={{ fontSize: 13, color: "var(--tcn-text-body)" }}>{genderShort(p.athlete.gender)}</td>
                 <td role="cell" style={{ fontFamily: "var(--tcn-font-cond)", fontWeight: 700, fontSize: 15, color: "var(--tcn-ink)" }}>{p.total_time ?? "—"}</td>
                 {segments.map((s) => (
                   <CelluleInter key={s.key} valeur={splits[s.key]} small={s.small} />

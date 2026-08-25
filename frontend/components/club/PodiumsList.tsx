@@ -57,7 +57,7 @@ export function PodiumsList({ participations }: { participations: Participation[
       <ul className="divide-y">
         {podiums.map(({ participation: p, best }) => {
           const name =
-            [p.athlete?.prenom, p.athlete?.nom].filter(Boolean).join(" ") || "Athlète";
+            [p.athlete.prenom, p.athlete.nom].filter(Boolean).join(" ") || "Athlète";
           const { Icon, label, title } = PODIUM_SCOPE_META[best.scope];
           return (
             <li key={p.id} className="flex items-center gap-3 py-2.5">
@@ -74,7 +74,7 @@ export function PodiumsList({ participations }: { participations: Participation[
               </span>
               <div className="min-w-0 flex-1">
                 <Link
-                  href={`/athletes/${p.athlete?.id}`}
+                  href={`/athletes/${p.athlete.id}`}
                   className="font-semibold hover:underline"
                 >
                   {name}
