@@ -107,6 +107,30 @@ describe("resumeAthlete — régimes (#488, PROF-4)", () => {
     expect(tuile(r, "Temps")?.value).toBe("04:00:00");
   });
 
+  it("aucune participation : derniere vaut null", () => {
+    const r = resumeAthlete([]);
+
+    expect(r.derniere).toBeNull();
+  });
+
+  it("deux participations à la même date : la dernière du tableau départage (#488, revue finale)", () => {
+    const p1 = part({ id: 1, course: { event_date: "2026-05-16", name: "Relais" } as Participation["course"] });
+    const p2 = part({ id: 2, course: { event_date: "2026-05-16", name: "Individuel" } as Participation["course"] });
+    const r = resumeAthlete([p1, p2]);
+
+    expect(r.derniere).toBe(p2);
+  });
+
+  it(`régime complet (${SEUIL_TUILES_COMPLETES} épreuves) : derniere est aussi calculée`, () => {
+    const p1 = part({ id: 1, course: { event_date: "2026-01-01" } as Participation["course"] });
+    const p2 = part({ id: 2, course: { event_date: "2026-06-01" } as Participation["course"] });
+    const p3 = part({ id: 3, course: { event_date: "2026-03-01" } as Participation["course"] });
+    const r = resumeAthlete([p1, p2, p3]);
+
+    expect(r.regime).toBe("complet");
+    expect(r.derniere).toBe(p2);
+  });
+
   it("les participations en attente ne comptent ni dans le régime ni dans les tuiles", () => {
     const r = resumeAthlete([
       part({ id: 1, total_time: "01:00:00" }),
