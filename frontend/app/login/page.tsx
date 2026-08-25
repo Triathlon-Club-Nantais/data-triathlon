@@ -2,7 +2,8 @@
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { captureEvent } from "@/lib/posthog";
-import { Alert, Card, Eyebrow } from "@/components/tcn";
+import { Alert, Button, Card, Eyebrow } from "@/components/tcn";
+import { messageDeRefus } from "@/lib/api/refus";
 import { authErrorLabel } from "@/lib/constants";
 import { useAuthMethods } from "@/lib/queries/auth";
 
@@ -20,7 +21,7 @@ export default function LoginPage() {
 }
 
 function Connexion() {
-  const { data: methodes, isPending } = useAuthMethods();
+  const { data: methodes, isPending, isError, error, refetch } = useAuthMethods();
   const erreur = useSearchParams().get("error");
 
   return (
@@ -52,7 +53,31 @@ function Connexion() {
           <p style={{ color: "var(--tcn-text-faint)", fontSize: 14 }}>Chargement…</p>
         )}
 
-        {!isPending && methodes?.length === 0 && (
+        {isError && (
+          <div style={{ marginBottom: 16 }}>
+            {(() => {
+              const { title, description } = messageDeRefus(error, {
+                sujet: "moyens de connexion",
+                action: "consulter les moyens de connexion",
+              });
+              return (
+                <Alert
+                  status="error"
+                  title={title}
+                  action={
+                    <Button variant="secondary" size="sm" onClick={() => refetch()}>
+                      Réessayer
+                    </Button>
+                  }
+                >
+                  {description}
+                </Alert>
+              );
+            })()}
+          </div>
+        )}
+
+        {!isPending && !isError && methodes?.length === 0 && (
           <Alert status="warning">
             Aucun moyen de connexion n&apos;est disponible sur ce site pour le moment.
           </Alert>

@@ -1,7 +1,10 @@
 "use client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import posthog from "posthog-js";
+import { toast } from "sonner";
+import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
 import { useSession } from "@/lib/queries/auth";
 
 /**
@@ -43,6 +46,36 @@ function PostHogSessionSync() {
   return null;
 }
 
+/**
+ * Ramène au point de départ après connexion (#494).
+ *
+ * Le backend redirige toujours vers `/admin` (FR-026 : destination fixée par
+ * la configuration, aucun `next` ne circule côté serveur) ; `/admin` peut à son
+ * tour renvoyer vers `/dashboard` pour une session sans pouvoir. `UserMenu`
+ * mémorise le chemin d'origine dans `sessionStorage` avant de router vers
+ * `/login` ; ce composant le relit dès qu'une session existe et, s'il diffère
+ * de l'atterrissage, y ramène côté client — sans jamais toucher au serveur ni
+ * à l'URL d'`/authorize`.
+ */
+function PostLoginReturn() {
+  const { data: session } = useSession();
+  const pathname = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!session) return;
+    const cible = sessionStorage.getItem(RETOUR_CONNEXION_KEY);
+    if (!cible) return;
+    sessionStorage.removeItem(RETOUR_CONNEXION_KEY);
+    if (cible !== pathname) {
+      router.replace(cible);
+      toast.success("Connexion réussie");
+    }
+  }, [session, pathname, router]);
+
+  return null;
+}
+
 // TCN Design System : thème clair uniquement (le mode sombre a été retiré).
 export function Providers({ children }: { children: ReactNode }) {
   const [client] = useState(
@@ -54,6 +87,7 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={client}>
       <PostHogSessionSync />
+      <PostLoginReturn />
       {children}
     </QueryClientProvider>
   );

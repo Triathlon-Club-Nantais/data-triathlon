@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { ApiError } from "@/lib/api/client";
 import type { AuthMethod } from "@/lib/types";
 
 const { listAuthMethods } = vi.hoisted(() => ({ listAuthMethods: vi.fn() }));
@@ -117,5 +118,37 @@ describe("Page de connexion — refus (US3)", () => {
 
     await screen.findByRole("link", { name: /GitHub/ });
     expect(screen.queryByText(/La connexion a échoué/)).not.toBeInTheDocument();
+  });
+});
+
+describe("Page de connexion — panne du chargement des méthodes (ACT-9a)", () => {
+  it("affiche une alerte et un bouton Réessayer, sans coder le message en dur", async () => {
+    listAuthMethods.mockRejectedValue(new ApiError(500, "boum"));
+    parametres.delete("error");
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <LoginPage />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText(/n'ont pas pu être chargés/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Réessayer" })).toBeInTheDocument();
+    expect(screen.queryByText(/aucun moyen de connexion/i)).not.toBeInTheDocument();
+  });
+
+  it("relance le chargement des méthodes au clic sur Réessayer", async () => {
+    listAuthMethods.mockRejectedValueOnce(new ApiError(500, "boum"));
+    listAuthMethods.mockResolvedValueOnce([{ slug: "github", label: "GitHub" }]);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <LoginPage />
+      </QueryClientProvider>,
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: "Réessayer" }));
+
+    expect(await screen.findByRole("link", { name: /GitHub/ })).toBeInTheDocument();
   });
 });

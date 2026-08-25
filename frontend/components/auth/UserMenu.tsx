@@ -1,5 +1,5 @@
 "use client";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { captureEvent } from "@/lib/posthog";
 import { Avatar, Button } from "@/components/tcn";
 import {
@@ -9,6 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
 import { useLogout, useSession } from "@/lib/queries/auth";
 import type { SessionUser } from "@/lib/types";
 
@@ -39,6 +40,7 @@ export function UserMenu({
   const { data: session, isPending } = useSession();
   const logout = useLogout();
   const router = useRouter();
+  const chemin = usePathname();
 
   // Tant que la session n'est pas connue, on n'affiche rien : faire clignoter
   // « Se connecter » avant de le remplacer par un nom est pire que d'attendre.
@@ -54,6 +56,10 @@ export function UserMenu({
       <Button
         variant="secondary"
         onClick={() => {
+          // Mémorisé côté navigateur seulement (#494) : le backend redirige
+          // toujours vers /admin (FR-026), `PostLoginReturn` (providers.tsx)
+          // lit cette clé à l'atterrissage pour ramener au point de départ.
+          if (chemin !== "/login") sessionStorage.setItem(RETOUR_CONNEXION_KEY, chemin);
           onNavigate?.();
           router.push("/login");
         }}
