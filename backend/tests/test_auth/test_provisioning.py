@@ -117,8 +117,19 @@ def test_une_adresse_non_certifiee_est_refusee(db_session):
     assert refus.value.code == "email_unverified"
 
 
-def test_une_adresse_non_certifiee_est_refusee_meme_si_autorisee(db_session):
-    """L'ordre compte : certification d'abord, liste ensuite (FR-005)."""
+def test_la_certification_est_examinee_avant_la_liste(
+    db_session, vider_la_liste_autorisation
+):
+    """FR-005 : l'ordre ne se voit que sur une adresse qui échoue aux **deux**
+    contrôles — c'est le seul cas où les deux codes sont candidats, et où celui
+    qui est rendu dit lequel des deux a tranché.
+
+    Le test précédent ne le prouve pas : la fixture autouse `liste_autorisation`
+    autorise l'adresse de `_identite()`, donc la seconde porte y est ouverte et
+    ne peut rien refuser.
+    """
+    vider_la_liste_autorisation()
+
     with pytest.raises(LoginError) as refus:
         provisioning.resolve_user(db_session, _identite(email_verified=False))
 
