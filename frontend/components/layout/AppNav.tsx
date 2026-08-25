@@ -529,85 +529,113 @@ function NavContent({
           <div
             style={{
               display: "flex",
-              alignItems: "center",
-              gap: 10,
-              height: 44,
-              padding: expanded ? "0 8px" : 0,
-              justifyContent: justify,
+              flexDirection: "column",
+              padding: expanded ? "0 8px 6px" : 0,
               borderRadius: "var(--tcn-radius-lg)",
               background: "var(--tcn-orange-08)",
               border: "1.5px solid var(--tcn-orange-12)",
             }}
           >
-            {/* prefetch={false} (#425) : un athlète épinglé au hasard depuis
-                le picker, pas une destination probable — inutile de le
-                prefetcher dès que la tuile entre dans le viewport. */}
-            <Tooltip>
-              <TooltipTrigger
-                disabled={expanded}
-                render={
+            <div style={{ display: "flex", alignItems: "center", gap: 10, height: 44, justifyContent: justify }}>
+              {/* prefetch={false} (#425) : un athlète épinglé au hasard depuis
+                  le picker, pas une destination probable — inutile de le
+                  prefetcher dès que la tuile entre dans le viewport. */}
+              <Tooltip>
+                <TooltipTrigger
+                  disabled={expanded}
+                  render={
+                    <Link
+                      href={`/athletes/${athlete.id}`}
+                      prefetch={false}
+                      onClick={onNavigate}
+                      aria-label={`Mon profil — ${nomComplet(athlete)}`}
+                    />
+                  }
+                >
+                  <Avatar name={nomComplet(athlete)} size={30} style={{ boxShadow: "var(--tcn-shadow-orange)" }} />
+                </TooltipTrigger>
+                {!expanded && <TooltipContent>Mon profil</TooltipContent>}
+              </Tooltip>
+              {expanded && (
+                <>
                   <Link
                     href={`/athletes/${athlete.id}`}
                     prefetch={false}
                     onClick={onNavigate}
-                    aria-label={`Mon profil — ${nomComplet(athlete)}`}
-                  />
-                }
-              >
-                <Avatar name={nomComplet(athlete)} size={30} style={{ boxShadow: "var(--tcn-shadow-orange)" }} />
-              </TooltipTrigger>
-              {!expanded && <TooltipContent>Mon profil</TooltipContent>}
-            </Tooltip>
+                    style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 14, color: "var(--tcn-orange-deep)", textDecoration: "none", ...tronque }}
+                  >
+                    {/* Le prénom vient de l'API, jamais d'un découpage du nom
+                        complet : « Jean Gael » est **un** prénom, et
+                        `split(" ")[0]` n'en rendait que la moitié (#264). Repli
+                        sur le nom, faute de quoi la tuile n'aurait pas de
+                        libellé pour un athlète sans prénom renseigné. */}
+                    {athlete.prenom || athlete.nom}
+                  </Link>
+                  {/* Croix de désélection (#442) — offerte au seul rail déplié :
+                      replié, la tuile fait 44 px et l'avatar l'occupe entière.
+                      `clearAthlete` émet `ATHLETE_CHANGED_EVENT`, que `AppNav`
+                      écoute déjà (l.84) : la tuile disparaît par ce chemin, sans
+                      rappel à faire descendre jusqu'ici. Le nom complet, et non
+                      le prénom, parce qu'un libellé d'action se lit hors
+                      contexte. */}
+                  <button
+                    type="button"
+                    onClick={() => clearAthlete()}
+                    aria-label={`Ne plus choisir ${nomComplet(athlete)}`}
+                    title="Ne plus choisir"
+                    className="tcn-icon-btn"
+                    style={{
+                      flex: "none",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      // 44 px, le plancher tactile de la grille : la croix est
+                      // aussi rendue dans le tiroir mobile, où le rail est
+                      // déplié. La hauteur est gratuite, la tuile en fait déjà
+                      // autant ; la largeur coûte 16 px à la colonne du prénom,
+                      // que `tronque` écourtait déjà.
+                      width: 44,
+                      height: 44,
+                      borderRadius: "var(--tcn-radius-sm)",
+                      border: "none",
+                      background: "transparent",
+                      color: "var(--tcn-orange-deep)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <X size={16} />
+                  </button>
+                </>
+              )}
+            </div>
+            {/* Le raccourci vers les résultats pré-filtrés (#503) : offert au
+                seul rail déplié, comme la croix — replié, la tuile fait 44 px.
+                `prefetch={false}` pour la même raison que le lien de profil
+                voisin (#425) : un athlète épinglé n'est pas une destination
+                probable. Le nom complet dans le nom accessible, jamais le
+                prénom seul : un libellé de lien se lit hors contexte. */}
             {expanded && (
-              <>
-                <Link
-                  href={`/athletes/${athlete.id}`}
-                  prefetch={false}
-                  onClick={onNavigate}
-                  style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 14, color: "var(--tcn-orange-deep)", textDecoration: "none", ...tronque }}
-                >
-                  {/* Le prénom vient de l'API, jamais d'un découpage du nom
-                      complet : « Jean Gael » est **un** prénom, et
-                      `split(" ")[0]` n'en rendait que la moitié (#264). Repli
-                      sur le nom, faute de quoi la tuile n'aurait pas de
-                      libellé pour un athlète sans prénom renseigné. */}
-                  {athlete.prenom || athlete.nom}
-                </Link>
-                {/* Croix de désélection (#442) — offerte au seul rail déplié :
-                    replié, la tuile fait 44 px et l'avatar l'occupe entière.
-                    `clearAthlete` émet `ATHLETE_CHANGED_EVENT`, que `AppNav`
-                    écoute déjà (l.84) : la tuile disparaît par ce chemin, sans
-                    rappel à faire descendre jusqu'ici. Le nom complet, et non
-                    le prénom, parce qu'un libellé d'action se lit hors
-                    contexte. */}
-                <button
-                  type="button"
-                  onClick={() => clearAthlete()}
-                  aria-label={`Ne plus choisir ${nomComplet(athlete)}`}
-                  title="Ne plus choisir"
-                  className="tcn-icon-btn"
-                  style={{
-                    flex: "none",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    // 44 px, le plancher tactile de la grille : la croix est
-                    // aussi rendue dans le tiroir mobile, où le rail est
-                    // déplié. La hauteur est gratuite, la tuile en fait déjà
-                    // autant ; la largeur coûte 16 px à la colonne du prénom,
-                    // que `tronque` écourtait déjà.
-                    width: 44,
-                    height: 44,
-                    borderRadius: "var(--tcn-radius-sm)",
-                    border: "none",
-                    background: "transparent",
-                    color: "var(--tcn-orange-deep)",
-                    cursor: "pointer",
-                  }}
-                >
-                  <X size={16} />
-                </button>
-              </>
+              <Link
+                href={`/resultats?name=${encodeURIComponent(nomComplet(athlete))}`}
+                prefetch={false}
+                onClick={onNavigate}
+                aria-label={`Mes résultats — ${nomComplet(athlete)}`}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  // 36 px : au-dessus du plancher tactile WCAG 2.2 2.5.8
+                  // (24 px) sans doubler la hauteur de la tuile comme le
+                  // ferait la grille à 44 px du rail.
+                  minHeight: 36,
+                  padding: "0 4px",
+                  fontWeight: 700,
+                  fontSize: 13,
+                  color: "var(--tcn-orange-deep)",
+                  textDecoration: "none",
+                }}
+              >
+                Mes résultats
+              </Link>
             )}
           </div>
         )}

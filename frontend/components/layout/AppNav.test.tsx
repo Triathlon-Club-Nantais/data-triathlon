@@ -418,6 +418,41 @@ describe("AppNav — ne plus suivre l'athlète retenu (#442)", () => {
   });
 });
 
+describe("AppNav — raccourci « Mes résultats » de la tuile (NAV-10, #503)", () => {
+  const JEAN = { id: 12, prenom: "Jean", nom: "Dupont" };
+
+  it("pointe vers /resultats avec le nom complet pré-rempli", async () => {
+    window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
+    afficher(null, { initialExpanded: true });
+
+    const lien = await screen.findByRole("link", { name: "Mes résultats — Jean Dupont" });
+    expect(lien).toHaveAttribute("href", "/resultats?name=Jean%20Dupont");
+  });
+
+  it("ne prefetche pas la destination, comme le lien de profil voisin (#425)", async () => {
+    window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
+    afficher(null, { initialExpanded: true });
+
+    const lien = await screen.findByRole("link", { name: "Mes résultats — Jean Dupont" });
+    expect(lien).toHaveAttribute("data-prefetch", "false");
+  });
+
+  it("n'existe pas sans athlète retenu", async () => {
+    afficher(null, { initialExpanded: true });
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    await within(rail).findByRole("link", { name: "Ajouter une épreuve" });
+    expect(screen.queryByRole("link", { name: /Mes résultats/ })).not.toBeInTheDocument();
+  });
+
+  it("n'existe pas sur le rail replié, où la tuile se réduit à l'avatar", async () => {
+    window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
+    afficher(null, { initialExpanded: false });
+
+    expect(await screen.findByRole("link", { name: "Mon profil — Jean Dupont" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Mes résultats/ })).not.toBeInTheDocument();
+  });
+});
+
 describe("AppNav — actions primaires", () => {
   it("ancre « Ajouter une épreuve » et « Rechercher un athlète », même replié", async () => {
     afficher(null);
