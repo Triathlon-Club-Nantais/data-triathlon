@@ -4,10 +4,11 @@ import { apiServer, SHORT_REVALIDATE_SECONDS } from "@/lib/api/server";
 import { SCOPE_CLUB, federalOnlyFromParam } from "@/lib/scope";
 import { DisciplineToggle } from "@/components/layout/DisciplineToggle";
 import { RankTypeToggle } from "@/components/layout/RankTypeToggle";
+import { MaSaison } from "@/components/dashboard/MaSaison";
 import { RecentCourses } from "@/components/dashboard/RecentCourses";
 import { SeasonSelector, SeasonTags } from "@/components/dashboard/SeasonSelector";
 import { StatCardsRank } from "@/components/dashboard/StatCardsRank";
-import { currentSeason, parseSeasonsParam, seasonAbsenceLabel, seasonSelectionLabel } from "@/lib/utils/season";
+import { currentSeason, parseSeasonsParam, seasonAbsenceLabel, seasonSelectionLabel, serializeSeasons } from "@/lib/utils/season";
 import { sortEventsByDateDesc } from "@/lib/utils/event";
 import { StatCard, Card, Eyebrow } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
@@ -133,6 +134,12 @@ export default async function DashboardPage({
         />
       ) : (
         <>
+          {/* Au-dessus des compteurs club, à dessein (#502, NAV-9) : l'écran
+              d'atterrissage ne parlait que du club en agrégat. La bande n'existe
+              que pour qui a désigné son nom — elle se monte donc côté client et
+              n'est pas dans le HTML initial (arbitrage #467, `frontend/AGENTS.md`). */}
+          <MaSaison clubEvents={stats.events} seasons={serializeSeasons(selected)} federalOnly={federal_only} />
+
           <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,3fr)] lg:items-start">
             <StatCard variant="hero" label="Dossards enregistrés" value={stats.total.toLocaleString("fr-FR")} delta={`${stats.athletes} athlètes · ${stats.events} épreuves`} />
             <div>

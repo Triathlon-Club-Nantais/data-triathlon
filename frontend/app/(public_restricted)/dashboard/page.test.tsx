@@ -47,6 +47,29 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+// `MaSaison` (#502) est un composant client testé pour lui-même
+// (`components/dashboard/MaSaison.test.tsx`) : ici on ne vérifie que le
+// câblage — quelles props la page lui transmet, et à quelle place dans le
+// document. Le stub expose ses props reçues en attributs `data-*`.
+vi.mock("@/components/dashboard/MaSaison", () => ({
+  MaSaison: ({
+    clubEvents,
+    seasons,
+    federalOnly,
+  }: {
+    clubEvents: number;
+    seasons: string;
+    federalOnly: boolean | undefined;
+  }) => (
+    <div
+      data-testid="ma-saison-stub"
+      data-club-events={clubEvents}
+      data-seasons={seasons}
+      data-federal-only={String(federalOnly)}
+    />
+  ),
+}));
+
 import DashboardPage from "./page";
 
 const ZERO_BUCKET = { victories: 0, podiums: 0, top10: 0 };
@@ -308,5 +331,38 @@ describe("DashboardPage — état vide unifié (NAV-6)", () => {
     await renderDashboard({});
 
     expect(screen.getByRole("link", { name: /Ajouter une épreuve/ })).toHaveAttribute("href", "/ajouter");
+  });
+});
+
+describe("DashboardPage — bande « Ma saison » (#502, NAV-9)", () => {
+  it("monte la bande avec les compteurs club et les filtres de la page, sur une sélection non vide", async () => {
+    getStats.mockResolvedValue({ ...STATS, events: 32 });
+
+    await renderDashboard({ seasons: "2025" });
+
+    const bande = screen.getByTestId("ma-saison-stub");
+    expect(bande).toHaveAttribute("data-club-events", "32");
+    expect(bande).toHaveAttribute("data-seasons", "2025");
+    // Aucun `?sports=all` dans l'URL : le défaut fédéral s'applique (#76).
+    expect(bande).toHaveAttribute("data-federal-only", "true");
+  });
+
+  it("ne monte pas la bande quand la sélection du club est vide — l'EmptyState porte déjà la sortie", async () => {
+    getStats.mockResolvedValue({ ...STATS, total: 0, athletes: 0, events: 0, by_type: {} });
+    listEvents.mockResolvedValue({ items: [], total_events: 0, total_participations: 0 });
+
+    await renderDashboard({ seasons: "2019" });
+
+    expect(screen.getByText(/Aucun résultat enregistré/)).toBeInTheDocument();
+    expect(screen.queryByTestId("ma-saison-stub")).not.toBeInTheDocument();
+  });
+
+  it("place la bande au-dessus de la grille de compteurs club, dans l'ordre du document", async () => {
+    await renderDashboard({});
+
+    const bande = screen.getByTestId("ma-saison-stub");
+    const compteurClub = screen.getByText("Dossards enregistrés");
+
+    expect(bande.compareDocumentPosition(compteurClub) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
