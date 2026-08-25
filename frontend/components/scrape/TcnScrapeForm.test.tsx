@@ -61,6 +61,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/lib/api/client", () => ({
   apiClient: {
     detectProvider: vi.fn().mockResolvedValue({ provider: "klikego", supported: true }),
+    listProviders: vi.fn().mockResolvedValue(["klikego", "wiclax"]),
     reportPendingProvider: vi.fn().mockResolvedValue({}),
     saveParticipation: vi.fn().mockResolvedValue({}),
   },
@@ -71,6 +72,10 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), message: v
 import { TcnScrapeForm } from "./TcnScrapeForm";
 import { apiClient } from "@/lib/api/client";
 import { toast } from "sonner";
+
+/** Le champ URL, désigné par son nom accessible — le placeholder n'en est pas
+ *  un, et il disparaît dès que « Coller » remplit le champ. */
+const champUrl = () => screen.getByRole("textbox", { name: /Adresse des résultats/ });
 
 function renderForm() {
   const qc = new QueryClient({
@@ -217,7 +222,7 @@ describe("TcnScrapeForm — validation de l'URL avant appel backend (#249)", () 
     // À vide, le bouton est déjà désactivé (rien à envoyer).
     expect(bouton).toBeDisabled();
 
-    const input = screen.getByPlaceholderText(/résultats-chrono/);
+    const input = champUrl();
     await userEvent.type(input, "pas une url");
     expect(bouton).toBeDisabled();
     // Message d'erreur affiché en français.
@@ -230,7 +235,7 @@ describe("TcnScrapeForm — validation de l'URL avant appel backend (#249)", () 
 
   it("touche Entrée n'envoie rien sur entrée invalide", async () => {
     renderForm();
-    const input = screen.getByPlaceholderText(/résultats-chrono/);
+    const input = champUrl();
     await userEvent.type(input, "javascript:alert(1){enter}");
     expect(importMock.start).not.toHaveBeenCalled();
     // Champ marqué invalide pour les lecteurs d'écran.
@@ -239,7 +244,7 @@ describe("TcnScrapeForm — validation de l'URL avant appel backend (#249)", () 
 
   it("URL http(s) valide : bouton actif, pas d'erreur, `start` appelé", async () => {
     renderForm();
-    const input = screen.getByPlaceholderText(/résultats-chrono/);
+    const input = champUrl();
     await userEvent.type(input, "https://www.klikego.com/resultats/x");
     const bouton = screen.getByRole("button", { name: /Enregistrer les résultats/ });
     expect(bouton).not.toBeDisabled();
@@ -286,43 +291,66 @@ describe("TcnScrapeForm — rafraîchissement de la liste après import (#201)",
   });
 });
 
-describe("TcnScrapeForm — alerte anticipée sur provider non supporté", () => {
-  it("affiche l'alerte dès la détection, sans attendre une tentative d'import", async () => {
+describe("TcnScrapeForm — un seul verdict avant d'essayer (#492, ACT-6)", () => {
+  it("annonce l'adresse non reconnue une seule fois, et nulle part ailleurs", async () => {
     vi.mocked(apiClient.detectProvider).mockResolvedValue({ provider: "", supported: false });
     renderForm();
-    await userEvent.type(
-      screen.getByPlaceholderText(/résultats-chrono/),
-      "https://chronopuce.test/x",
-    );
+    await userEvent.type(champUrl(), "https://chronopuce.test/x");
 
     expect(
-      await screen.findByText("Impossible d'importer automatiquement"),
+      await screen.findByText("Aucun chronométreur ne reconnaît cette adresse."),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Saisie manuelle" })).toBeInTheDocument();
+    // Le badge rouge et l'alerte jaune disaient le même verdict au même
+    // moment : trois formulations font douter qu'il s'agisse du même.
+    expect(screen.queryByText("Non supporté — saisie manuelle")).not.toBeInTheDocument();
+    expect(screen.queryByText("Impossible d'importer automatiquement")).not.toBeInTheDocument();
     expect(importMock.start).not.toHaveBeenCalled();
   });
 
-  it("n'affiche pas l'alerte quand le provider est supporté", async () => {
-    renderForm();
-    await userEvent.type(
-      screen.getByPlaceholderText(/résultats-chrono/),
-      "https://www.klikego.com/resultats/x",
-    );
-
-    // Laisse le débounce + la résolution du mock se jouer avant de conclure.
-    await waitFor(() => expect(apiClient.detectProvider).toHaveBeenCalled());
-    expect(screen.queryByText("Impossible d'importer automatiquement")).not.toBeInTheDocument();
-  });
-
-  it("cliquer sur « Saisie manuelle » depuis l'alerte anticipée ouvre le formulaire", async () => {
+  it("désactive le bouton principal quand aucun chronométreur ne reconnaît l'adresse", async () => {
     vi.mocked(apiClient.detectProvider).mockResolvedValue({ provider: "", supported: false });
     renderForm();
-    await userEvent.type(
-      screen.getByPlaceholderText(/résultats-chrono/),
-      "https://chronopuce.test/x",
-    );
+    await userEvent.type(champUrl(), "https://chronopuce.test/x");
 
-    await userEvent.click(await screen.findByRole("button", { name: "Saisie manuelle" }));
+    // Il restait actif et promettait le contraire du verdict affiché juste
+    // au-dessus : `disabled` ne testait que `running || !urlIsValid`.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Enregistrer les résultats/ })).toBeDisabled(),
+    );
+  });
+
+  it("la touche Entrée ne contourne pas le bouton désactivé", async () => {
+    vi.mocked(apiClient.detectProvider).mockResolvedValue({ provider: "", supported: false });
+    renderForm();
+    await userEvent.type(champUrl(), "https://chronopuce.test/x");
+    await screen.findByText("Aucun chronométreur ne reconnaît cette adresse.");
+
+    await userEvent.type(champUrl(), "{enter}");
+
+    expect(importMock.start).not.toHaveBeenCalled();
+  });
+
+  it("laisse le bouton actif quand le chronométreur est reconnu, et le dit", async () => {
+    renderForm();
+    await userEvent.type(champUrl(), "https://www.klikego.com/resultats/x");
+
+    expect(await screen.findByText("Chronométreur reconnu : Klikego")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Enregistrer les résultats/ })).not.toBeDisabled();
+  });
+
+  it("au repos, nomme les chronométreurs pris en charge avant tout collage", async () => {
+    renderForm();
+
+    expect(await screen.findByText("Klikego")).toBeInTheDocument();
+    expect(screen.getByText("Wiclax")).toBeInTheDocument();
+  });
+
+  it("« Saisir à la main » depuis le verdict ouvre le formulaire", async () => {
+    vi.mocked(apiClient.detectProvider).mockResolvedValue({ provider: "", supported: false });
+    renderForm();
+    await userEvent.type(champUrl(), "https://chronopuce.test/x");
+
+    await userEvent.click(await screen.findByRole("button", { name: "Saisir à la main" }));
 
     expect(
       screen.getByRole("button", { name: "Enregistrer votre participation" }),
@@ -330,11 +358,47 @@ describe("TcnScrapeForm — alerte anticipée sur provider non supporté", () =>
   });
 });
 
+describe("TcnScrapeForm — le champ URL au doigt (#492, ACT-5)", () => {
+  it("déclare le clavier que ce champ attend", async () => {
+    renderForm();
+    const champ = champUrl();
+
+    // Une URL n'est ni capitalisée, ni corrigée, et la touche d'action du
+    // clavier mobile doit lancer l'import plutôt qu'insérer un retour ligne.
+    expect(champ).toHaveAttribute("autocapitalize", "none");
+    expect(champ).toHaveAttribute("spellcheck", "false");
+    expect(champ).toHaveAttribute("enterkeyhint", "go");
+    expect(champ).toHaveAttribute("inputmode", "url");
+  });
+
+  it("« Coller » remplit le champ depuis le presse-papiers", async () => {
+    const readText = vi.fn().mockResolvedValue("https://www.klikego.com/resultats/x");
+    Object.assign(navigator, { clipboard: { readText } });
+    renderForm();
+
+    await userEvent.click(screen.getByRole("button", { name: "Coller l'adresse" }));
+
+    await waitFor(() =>
+      expect(champUrl()).toHaveValue("https://www.klikego.com/resultats/x"),
+    );
+  });
+
+  it("« Effacer » vide le champ, et n'apparaît que s'il y a quelque chose à effacer", async () => {
+    renderForm();
+    expect(screen.queryByRole("button", { name: "Effacer l'adresse" })).not.toBeInTheDocument();
+
+    await userEvent.type(champUrl(), "https://www.klikego.com/resultats/x");
+    await userEvent.click(screen.getByRole("button", { name: "Effacer l'adresse" }));
+
+    expect(champUrl()).toHaveValue("");
+  });
+});
+
 describe("TcnScrapeForm — repli sur échec d'import", () => {
   it("signale le fournisseur et bascule en saisie manuelle", async () => {
     const { rerenderForm } = renderForm();
     await userEvent.type(
-      screen.getByPlaceholderText("https://résultats-chrono.fr/triathlon-vertou-2026"),
+      champUrl(),
       "http://x.test/ev",
     );
     await userEvent.click(screen.getByRole("button", { name: /Enregistrer les résultats/ }));
@@ -354,7 +418,7 @@ describe("TcnScrapeForm — trois échecs, trois écrans (#491, ACT-2)", () => {
   it("plafond de débit : annonce l'attente, sans saisie manuelle ni signalement", async () => {
     const { rerenderForm } = renderForm();
     await userEvent.type(
-      screen.getByPlaceholderText(/résultats-chrono/),
+      champUrl(),
       "https://www.klikego.com/resultats/x",
     );
     importMock.set({ phase: "error", error: "Trop de demandes", errorStatus: 429, retryAfter: 180 });
@@ -362,7 +426,7 @@ describe("TcnScrapeForm — trois échecs, trois écrans (#491, ACT-2)", () => {
 
     expect(screen.getByText("Trop d'imports dans l'heure")).toBeInTheDocument();
     expect(screen.getByText(/Réessayez dans 3 minutes/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Saisie manuelle" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Saisir à la main" })).not.toBeInTheDocument();
     await waitFor(() => expect(apiClient.detectProvider).toHaveBeenCalled());
     expect(apiClient.reportPendingProvider).not.toHaveBeenCalled();
   });
@@ -370,14 +434,14 @@ describe("TcnScrapeForm — trois échecs, trois écrans (#491, ACT-2)", () => {
   it("service muet : propose de réessayer, sans signaler le fournisseur", async () => {
     const { rerenderForm } = renderForm();
     await userEvent.type(
-      screen.getByPlaceholderText(/résultats-chrono/),
+      champUrl(),
       "https://www.klikego.com/resultats/x",
     );
     importMock.set({ phase: "error", error: "Boum", errorStatus: 500 });
     rerenderForm();
 
     expect(screen.getByText("Le service n'a pas répondu")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Saisie manuelle" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Saisir à la main" })).not.toBeInTheDocument();
     expect(apiClient.reportPendingProvider).not.toHaveBeenCalled();
 
     await userEvent.click(screen.getByRole("button", { name: "Réessayer" }));
@@ -387,7 +451,7 @@ describe("TcnScrapeForm — trois échecs, trois écrans (#491, ACT-2)", () => {
   it("coupure réseau : même écran que le service muet", async () => {
     const { rerenderForm } = renderForm();
     await userEvent.type(
-      screen.getByPlaceholderText(/résultats-chrono/),
+      champUrl(),
       "https://www.klikego.com/resultats/x",
     );
     importMock.set({ phase: "error", error: "Failed to fetch", errorStatus: 0 });
@@ -543,7 +607,7 @@ describe("TcnScrapeForm — suites des revues (#491)", () => {
 
   it("corriger l'adresse après un échec ne re-signale pas le fournisseur à chaque frappe", async () => {
     const { rerenderForm } = renderForm();
-    const champ = screen.getByPlaceholderText(/résultats-chrono/);
+    const champ = champUrl();
     await userEvent.type(champ, "http://x.test/ev");
     await userEvent.click(screen.getByRole("button", { name: /Enregistrer les résultats/ }));
     importMock.set({ phase: "error", error: "boom", errorStatus: null });
@@ -615,10 +679,10 @@ describe("TcnScrapeForm — accusé de réception de la saisie manuelle (ACT-1)"
     vi.mocked(apiClient.detectProvider).mockResolvedValue({ provider: "", supported: false });
     renderForm();
     await userEvent.type(
-      screen.getByPlaceholderText(/résultats-chrono/),
+      champUrl(),
       "https://chronopuce.test/x",
     );
-    await userEvent.click(await screen.findByRole("button", { name: "Saisie manuelle" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Saisir à la main" }));
   }
 
   async function saisirEtEnregistrer() {
@@ -662,7 +726,7 @@ describe("TcnScrapeForm — accusé de réception de la saisie manuelle (ACT-1)"
     expect(
       screen.queryByRole("button", { name: "Enregistrer votre participation" }),
     ).not.toBeInTheDocument();
-    expect(screen.queryByText("Impossible d'importer automatiquement")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Saisir à la main" })).not.toBeInTheDocument();
   });
 
   it("annonce l'accusé de réception aux lecteurs d'écran", async () => {
@@ -697,9 +761,11 @@ describe("TcnScrapeForm — accusé de réception de la saisie manuelle (ACT-1)"
     await saisirEtEnregistrer();
     await screen.findByText(/en attente de validation par un bénévole du club/i);
 
-    await userEvent.type(screen.getByPlaceholderText(/résultats-chrono/), "/autre");
+    await userEvent.type(champUrl(), "/autre");
 
-    expect(await screen.findByText("Impossible d'importer automatiquement")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Saisir à la main" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByText(/en attente de validation par un bénévole du club/i),
     ).not.toBeInTheDocument();

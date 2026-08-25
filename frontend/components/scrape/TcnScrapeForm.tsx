@@ -37,6 +37,7 @@ export function TcnScrapeForm() {
     },
     [],
   );
+  const champRef = useRef<HTMLInputElement>(null);
   const reportedRef = useRef<string | null>(null);
   // L'URL réellement **soumise**. La garde de signalement portait sur `url`,
   // l'état vivant du champ : corriger son adresse après un échec relançait
@@ -89,10 +90,38 @@ export function TcnScrapeForm() {
   const urlIsValid = isHttpUrl(trimmed);
   const showUrlError = trimmed.length > 0 && !urlIsValid;
 
+  // Effacer puis rendre la main au champ : sans le focus, il faut le viser une
+  // seconde fois au doigt pour recoller (ACT-5).
+  const effacer = useCallback(() => {
+    setUrl("");
+    setSaved(null);
+    champRef.current?.focus();
+  }, []);
+
+  // `readText()` demande une permission que Safari accorde par une invite, et
+  // que Firefox refuse tout net : on le dit plutôt que d'avaler l'échec sur un
+  // bouton qui n'aurait alors aucun effet visible.
+  const coller = useCallback(async () => {
+    try {
+      const texte = (await navigator.clipboard.readText()).trim();
+      if (!texte) return;
+      setUrl(texte);
+      setSaved(null);
+      champRef.current?.focus();
+    } catch {
+      toast.message("Impossible de lire le presse-papiers", {
+        description: "Collez l'adresse directement dans le champ (appui long, ou Ctrl+V).",
+      });
+    }
+  }, []);
+
   const submit = useCallback(() => {
     const v = url.trim();
     if (!v || running) return;
     if (!isHttpUrl(v)) return;
+    // La touche Entrée ne contourne pas le bouton désactivé : sans cette garde,
+    // le clavier lance l'import que le verdict vient d'exclure (ACT-6).
+    if (providerUnsupported) return;
     reportedRef.current = null;
     refreshedRef.current = null;
     soumiseRef.current = v;
@@ -101,7 +130,7 @@ export function TcnScrapeForm() {
     setSaved(null);
     captureEvent("results_import_started", { url: v });
     importStream.start(v);
-  }, [url, running, importStream]);
+  }, [url, running, providerUnsupported, importStream]);
 
   // Sur échec de lecture **avéré** : signaler le fournisseur + proposer la
   // saisie manuelle. Un plafond de débit ou un service muet ne disent rien de
@@ -228,6 +257,7 @@ export function TcnScrapeForm() {
         <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
           <div style={{ flex: 1, minWidth: 260 }}>
             <Input
+              ref={champRef}
               value={url}
               status={inputStatus}
               // Repartir d'une adresse, c'est repartir d'un import : l'accusé
@@ -236,11 +266,31 @@ export function TcnScrapeForm() {
               // nouvelle et refermerait la porte de la saisie manuelle.
               onChange={(e) => { setUrl(e.target.value); setSaved(null); }}
               onKeyDown={(e) => e.key === "Enter" && submit()}
-              placeholder="https://résultats-chrono.fr/triathlon-vertou-2026"
+              placeholder="https://www.klikego.com/resultats/…"
               type="url"
               inputMode="url"
+              // Une URL n'est ni capitalisée, ni corrigée par le correcteur, et
+              // la touche d'action du clavier mobile lance l'import (ACT-5).
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              enterKeyHint="go"
+              // Le placeholder n'est pas un nom accessible, et il disparaît dès
+              // que « Coller » remplit le champ.
+              aria-label="Adresse des résultats"
               aria-invalid={showUrlError || undefined}
               aria-describedby={showUrlError ? "scrape-url-error" : undefined}
+              actions={
+                url ? (
+                  <ActionChamp label="Effacer l'adresse" onClick={effacer}>
+                    ×
+                  </ActionChamp>
+                ) : (
+                  <ActionChamp label="Coller l'adresse" onClick={coller}>
+                    <span style={{ fontSize: 13, fontWeight: 700 }}>Coller</span>
+                  </ActionChamp>
+                )
+              }
             />
             {showUrlError && (
               <div
@@ -252,10 +302,18 @@ export function TcnScrapeForm() {
               </div>
             )}
             <div style={{ marginTop: 8 }}>
-              <ProviderDetector url={url} onDetected={handleProviderDetected} />
+              <ProviderDetector
+                url={url}
+                onDetected={handleProviderDetected}
+                // Une participation vient d'être saisie : réinviter à la saisir
+                // contredirait l'accusé de réception juste dessous.
+                onSaisieManuelle={saved ? undefined : () => setManual(true)}
+              />
             </div>
           </div>
-          <Button size="lg" onClick={submit} disabled={running || !urlIsValid} iconRight={<span>→</span>} style={{ borderRadius: "var(--tcn-radius-xl)" }}>
+          {/* `providerUnsupported` dans `disabled` : le bouton restait actif et
+              promettait le contraire du verdict affiché sous le champ (ACT-6). */}
+          <Button size="lg" onClick={submit} disabled={running || !urlIsValid || providerUnsupported} iconRight={<span>→</span>} style={{ borderRadius: "var(--tcn-radius-xl)" }}>
             {running ? "Import en cours…" : "Enregistrer les résultats"}
           </Button>
         </div>
@@ -354,18 +412,19 @@ export function TcnScrapeForm() {
             </Alert>
           </div>
         )}
-        {/* `!saved` : une fois la saisie manuelle enregistrée, réinviter à
+        {/* Cette alerte ne dit plus que l'**échec de lecture avéré** : le
+            « fournisseur non reconnu » avant tentative est le verdict de la
+            ligne sous le champ, et il ne se dit qu'une fois (ACT-6).
+            `!saved` : une fois la saisie manuelle enregistrée, réinviter à
             saisir à la main contredirait l'accusé de réception juste dessous. */}
-        {!saved && (motifEchec === "lecture" || (providerUnsupported && phase === "idle")) && (
+        {!saved && motifEchec === "lecture" && (
           <div style={{ marginTop: 14 }}>
             <Alert
               status="warning"
               title="Impossible d'importer automatiquement"
-              action={<Button variant="secondary" size="sm" onClick={() => setManual(true)}>Saisie manuelle</Button>}
+              action={<Button variant="secondary" size="sm" onClick={() => setManual(true)}>Saisir à la main</Button>}
             >
-              {motifEchec === "lecture"
-                ? (error ?? "Le lien fourni n'a pas pu être lu.")
-                : "Aucun chronométreur ne reconnaît cette adresse."}{" "}
+              {error ?? "Le lien fourni n'a pas pu être lu."}{" "}
               Vous pouvez saisir votre participation manuellement.
             </Alert>
           </div>
@@ -415,6 +474,30 @@ export function TcnScrapeForm() {
         </Card>
       )}
     </>
+  );
+}
+
+/** Bouton posé dans le champ URL : 44px de cible tactile, nom accessible
+ *  explicite — « × » et « Coller » ne disent rien à l'oreille (ACT-5). */
+function ActionChamp({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className="tcn-action-champ"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+    >
+      {children}
+    </button>
   );
 }
 

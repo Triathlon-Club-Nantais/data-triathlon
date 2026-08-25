@@ -454,9 +454,66 @@
     outline: 2px solid var(--tcn-orange);
     outline-offset: -2px;
   }
-  /* Champ texte TCN : focus clavier visible (l'outline natif est masqué hors :focus-visible). */
+  /* Champ texte TCN : focus clavier visible (l'outline natif est masqué hors
+     :focus-visible), et une taille de police qui vit ici plutôt qu'en ligne.
+     Sous 16px, iOS Safari zoome sur le champ à la mise au point : l'écran fait
+     un bond et la page déborde, sur le geste fondateur de l'app (#492, ACT-5).
+     La densité d'origine reprend à partir de `md`, où ce zoom n'existe pas —
+     même arbitrage que le `text-base md:text-sm` d'`ui/input`. */
   .tcn-input {
     outline: none;
+    font-size: 16px;
+  }
+  @media (min-width: 768px) {
+    .tcn-input {
+      font-size: 15px;
+    }
+  }
+  /* Bouton posé **dans** un champ TCN (effacer, coller) : 44px de cible
+     tactile, le seuil au doigt, sans agrandir la boîte — le champ resserre son
+     rembourrage vertical dès qu'il porte des actions (#492, ACT-5). */
+  .tcn-action-champ {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    height: 44px;
+    padding: 0 10px;
+    border-radius: var(--tcn-radius-lg);
+    color: var(--tcn-text-body);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    outline: none;
+    transition: background var(--tcn-dur-fast);
+  }
+  .tcn-action-champ:hover {
+    background: var(--tcn-surface-sunk);
+  }
+  .tcn-action-champ:focus-visible {
+    outline: 2px solid var(--tcn-orange);
+    outline-offset: -2px;
+  }
+  /* Action en texte posée dans une ligne d'état, là où un `.tcn-btn` et ses
+     44px de haut feraient sauter la ligne. 24px de cible tactile — le plancher
+     de WCAG 2.5.8 —, et le même anneau de focus que partout ailleurs. */
+  .tcn-lien-action {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 0 4px;
+    color: var(--tcn-orange-deeper);
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+    outline: none;
+  }
+  .tcn-lien-action:focus-visible {
+    outline: 2px solid var(--tcn-orange);
+    outline-offset: 2px;
+    border-radius: 4px;
   }
   .tcn-input:focus-visible {
     outline: 2px solid var(--tcn-orange);
