@@ -48,12 +48,12 @@ function FitBounds({ events }: { events: GeoEvent[] }) {
  * deux doigts, donc n'entre jamais en conflit avec un défilement à un doigt —
  * seul le glisser-déposer à un doigt est le vrai piège.
  */
-function VerrouGlisse({ deverrouillee }: { deverrouillee: boolean }) {
+function VerrouGlisse({ verrouillee }: { verrouillee: boolean }) {
   const map = useMap();
   useEffect(() => {
-    if (deverrouillee) map.dragging.enable();
-    else map.dragging.disable();
-  }, [deverrouillee, map]);
+    if (verrouillee) map.dragging.disable();
+    else map.dragging.enable();
+  }, [verrouillee, map]);
   return null;
 }
 
@@ -183,7 +183,7 @@ export function MapView({ scope }: { scope?: string }) {
             );
           })}
           <FitBounds events={events} />
-          <VerrouGlisse deverrouillee={!verrouillee} />
+          <VerrouGlisse verrouillee={verrouillee} />
         </MapContainer>
         {verrouillee && (
           <button

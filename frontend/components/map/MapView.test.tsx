@@ -3,7 +3,10 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { GeoEvent } from "@/lib/types";
 
-const { getEventsGeo } = vi.hoisted(() => ({ getEventsGeo: vi.fn() }));
+const { getEventsGeo, dragging } = vi.hoisted(() => ({
+  getEventsGeo: vi.fn(),
+  dragging: { enable: vi.fn(), disable: vi.fn() },
+}));
 vi.mock("@/lib/api/client", async (originale) => {
   const reel = await originale<typeof import("@/lib/api/client")>();
   return { ...reel, apiClient: { getEventsGeo } };
@@ -11,12 +14,16 @@ vi.mock("@/lib/api/client", async (originale) => {
 
 // Leaflet manipule la géométrie du conteneur, que jsdom ne mesure pas. Seule la
 // composition nous intéresse ici : les états, la microcopie et la liste jumelle.
+// `dragging` est une référence stable (hors de la factory) : `useMap()` doit
+// rendre le **même** objet à chaque appel pour que les tests puissent asserter
+// ses appels — sinon `VerrouGlisse` verrouille/déverrouille un mock jetable et
+// rien ne prouve qu'il agit vraiment sur la carte.
 vi.mock("react-leaflet", () => ({
   MapContainer: ({ children }: { children?: React.ReactNode }) => <div data-testid="carte">{children}</div>,
   TileLayer: () => null,
   CircleMarker: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
   Popup: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
-  useMap: () => ({ fitBounds: vi.fn(), dragging: { enable: vi.fn(), disable: vi.fn() } }),
+  useMap: () => ({ fitBounds: vi.fn(), dragging }),
 }));
 
 import { LIBELLE_CHARGEMENT } from "./carte";
@@ -45,6 +52,8 @@ function epreuve(over: Partial<GeoEvent> = {}): GeoEvent {
 describe("MapView", () => {
   beforeEach(() => {
     getEventsGeo.mockReset();
+    dragging.enable.mockReset();
+    dragging.disable.mockReset();
   });
 
   afterEach(() => {
@@ -109,17 +118,23 @@ describe("MapView", () => {
     render(<MapView />);
     await screen.findByTestId("carte");
 
+    expect(dragging.disable).toHaveBeenCalled();
+    expect(dragging.enable).not.toHaveBeenCalled();
+
     const voile = screen.getByRole("button", { name: "Toucher pour activer la carte" });
     await userEvent.click(voile);
 
     expect(screen.queryByRole("button", { name: "Toucher pour activer la carte" })).not.toBeInTheDocument();
+    expect(dragging.enable).toHaveBeenCalled();
   });
 
-  it("sur pointeur fin, ne pose aucun voile", async () => {
+  it("sur pointeur fin, ne pose aucun voile et laisse la carte se glisser", async () => {
     getEventsGeo.mockResolvedValue([epreuve()]);
     render(<MapView />);
 
     await screen.findByTestId("carte");
     expect(screen.queryByRole("button", { name: "Toucher pour activer la carte" })).not.toBeInTheDocument();
+    expect(dragging.enable).toHaveBeenCalled();
+    expect(dragging.disable).not.toHaveBeenCalled();
   });
 });
