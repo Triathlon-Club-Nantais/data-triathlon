@@ -121,7 +121,7 @@ d'égalité sur `json`, et la requête passerait en SQLite pour échouer en prod
 - Aucun code de retour modifié : 404 reste réservé à l'épreuve inconnue.
 - `page_size=all` reste atteignable et se combine aux nouveaux filtres.
 - `GET /courses/{course_id}/summary` reste sans paramètre.
-- Aucune migration Alembic : ces six champs sont calculés à la lecture.
+- Aucune migration Alembic : ces cinq champs sont calculés à la lecture.
 
 ## Vérification de l'additivité
 

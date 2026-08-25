@@ -19,6 +19,13 @@ npm install
 npm run dev
 ```
 
+Le backend prend un **port éphémère** et le publie dans `.dev-backend.json` à la racine du
+worktree (`docs/dev-multi-worktree.md`). Les `curl` ci-dessous supposent `$API` résolu :
+
+```bash
+export API="$(jq -r .url .dev-backend.json)"
+```
+
 Base de dev : `backend/triathlon.db`, 72 épreuves et 11 629 participations. Les identifiants
 d'épreuve cités ci-dessous en viennent — sauf la course 214, qui est le cas de l'audit et
 vit en **production**, figée ici en fixture de test.
@@ -172,7 +179,7 @@ cd backend && git diff --stat origin/main -- tests/test_api/
 ```
 
 Un appel sans les nouveaux paramètres doit rendre une réponse identique aux clés
-d'origine. Quatre champs sont ajoutés, aucun retiré, aucune sémantique inversée.
+d'origine. Cinq champs sont ajoutés, aucun retiré, aucune sémantique inversée.
 
 ---
 
