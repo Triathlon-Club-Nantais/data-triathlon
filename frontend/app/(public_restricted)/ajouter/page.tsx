@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { apiServer, SHORT_REVALIDATE_SECONDS } from "@/lib/api/server";
-import { Card, Eyebrow, FormatChip, Badge } from "@/components/tcn";
+import { Card, Eyebrow, FormatChip, Badge, LigneCarte } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TcnScrapeForm } from "@/components/scrape/TcnScrapeForm";
@@ -9,6 +9,20 @@ import { formatDate } from "@/lib/utils/date";
 import { formatEventName } from "@/lib/utils/event";
 
 const RCOLS = "140px 1fr 90px 130px";
+
+/**
+ * Ce que la grille et les cartes lisent identiquement par ligne — un seul
+ * calcul, pour que les deux arbres ne puissent pas diverger en silence
+ * (#461, leçon de la tâche 5 : une carte sans membre du club ne rendait
+ * rien là où la grille rendait un tiret).
+ */
+function compteurClub(tcnCount: number) {
+  return tcnCount > 0 ? (
+    <Badge count>{tcnCount}</Badge>
+  ) : (
+    <span style={{ color: "var(--tcn-text-faint)", fontSize: 13 }}>—</span>
+  );
+}
 
 export default async function AjouterPage() {
   // « Derniers résultats enregistrés » (#201) : tri par date d'import, pas par
@@ -33,7 +47,11 @@ export default async function AjouterPage() {
           <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: 0 }}>Derniers résultats enregistrés</h2>
           <div style={{ fontSize: 13, color: "var(--tcn-text-faint)", fontWeight: 600 }}>Clique pour voir la page de résultats →</div>
         </div>
-        <div style={{ overflowX: "auto" }}>
+        <div
+          data-testid="recents-grille"
+          data-affichage="grille"
+          className="hidden sm:block overflow-x-auto"
+        >
           <div style={{ minWidth: 480 }}>
             <table className="tcn-table" role="table">
               <thead role="rowgroup">
@@ -49,7 +67,7 @@ export default async function AjouterPage() {
                       <Link href={`/courses/${e.id}`} className="tcn-rowlink__cible">{formatEventName(e.event_name, e.is_relay)}</Link>
                     </td>
                     <td role="cell"><FormatChip>{formatToken(e.event_type, e.distance_km)}</FormatChip></td>
-                    <td role="cell">{e.tcn_count > 0 ? <Badge count>{e.tcn_count}</Badge> : <span style={{ color: "var(--tcn-text-faint)", fontSize: 13 }}>—</span>}</td>
+                    <td role="cell">{compteurClub(e.tcn_count)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -61,6 +79,26 @@ export default async function AjouterPage() {
               <EmptyState bare title="Aucun résultat enregistré pour l'instant" />
             )}
           </div>
+        </div>
+
+        {/* Sous 640 px, les 480 px de la grille dépassent la largeur utile
+            d'un iPhone SE, gouttière `PageShell` déduite (#461). */}
+        <div data-testid="recents-cartes" data-affichage="cartes" className="sm:hidden">
+          {recent.length === 0 ? (
+            // Pas d'action : le formulaire d'import est juste au-dessus.
+            <EmptyState bare title="Aucun résultat enregistré pour l'instant" />
+          ) : (
+            recent.map((e) => (
+              <LigneCarte
+                key={e.id}
+                href={`/courses/${e.id}`}
+                surtitre={formatDate(e.event_date)}
+                titre={formatEventName(e.event_name, e.is_relay)}
+                valeur={compteurClub(e.tcn_count)}
+                meta={<FormatChip>{formatToken(e.event_type, e.distance_km)}</FormatChip>}
+              />
+            ))
+          )}
         </div>
       </Card>
     </PageShell>
