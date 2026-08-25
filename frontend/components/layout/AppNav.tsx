@@ -9,7 +9,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSession } from "@/lib/queries/auth";
 import { useNavBadges } from "@/lib/queries/nav-badges";
-import { AthletePicker, ATHLETE_CHANGED_EVENT, clearAthlete, nomComplet, readAthlete, writeAthlete, type PickedAthlete } from "./AthletePicker";
+import { AthletePicker, ATHLETE_CHANGED_EVENT, OPEN_PICKER_EVENT, clearAthlete, nomComplet, readAthlete, writeAthlete, type PickedAthlete } from "./AthletePicker";
 import { NAV, ROLE, estVisible, type NavItem, type NavSection } from "./nav.config";
 import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
 import { NAV_WIDTH_COOKIE } from "@/lib/nav-cookies";
@@ -82,6 +82,17 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
     const onChange = () => setClient((c) => ({ ...c, athlete: readAthlete() }));
     window.addEventListener(ATHLETE_CHANGED_EVENT, onChange);
     return () => window.removeEventListener(ATHLETE_CHANGED_EVENT, onChange);
+  }, []);
+
+  // Ouverture de la palette demandée depuis un écran qui n'en porte pas
+  // l'état — la bande « Ma saison » sur un 404 (#502, revue UI/UX item 11).
+  // `AppNav` reste l'unique porteur de `pickerOpen` ; l'événement ne fait que
+  // le lui demander, comme `onOpenPicker` le fait déjà pour le rail et la
+  // barre mobile.
+  useEffect(() => {
+    const onOpen = () => setPickerOpen(true);
+    window.addEventListener(OPEN_PICKER_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_PICKER_EVENT, onOpen);
   }, []);
 
   function setExpanded(next: boolean) {
