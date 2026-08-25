@@ -119,6 +119,8 @@ describe("AthletePage", () => {
     await renderAthlete([
       part({ id: 1, rank_overall: 42, course_finishers: 300 }),
       part({ id: 2, rank_overall: 20, course_finishers: 80 }),
+      // #488 : le régime complet des cinq tuiles commence à 3 épreuves validées.
+      part({ id: 3, rank_overall: 60, course_finishers: 90 }),
     ]);
 
     expect(screen.getByText("Meilleur ratio")).toBeInTheDocument();
@@ -141,7 +143,11 @@ describe("AthletePage", () => {
   });
 
   it("retombe sur la place seule quand le classement est incohérent", async () => {
-    await renderAthlete([part({ id: 1, rank_overall: 42, course_finishers: 20 })]);
+    await renderAthlete([
+      part({ id: 1, rank_overall: 42, course_finishers: 20 }),
+      part({ id: 2, rank_overall: 50, course_finishers: 20 }),
+      part({ id: 3, rank_overall: 60, course_finishers: 20 }),
+    ]);
 
     // Ni le « /N » de la ligne, ni un percentile : la place reste seule.
     expect(screen.queryByText("/20")).not.toBeInTheDocument();
@@ -409,40 +415,22 @@ describe("AthletePage", () => {
 
   // --- KPI et participations en attente de validation (#438) ---
 
-  it("n'inclut pas une participation en attente de validation dans les 5 StatCard (#438)", async () => {
+  it("ne rend aucune tuile quand la seule participation est en attente, et dit pourquoi (#438, #488)", async () => {
     const { container } = await renderAthlete([
       part({ id: 1, is_pending_validation: true, rank_overall: 1, course_finishers: 50 }),
     ]);
 
-    // « Épreuves » : la seule participation est en attente, elle ne compte pas
-    // — et un repère explique l'écart avec la ligne du tableau plus bas.
-    const episCard = screen.getByText("Épreuves").parentElement?.parentElement;
-    expect(episCard).not.toBeNull();
-    expect(within(episCard as HTMLElement).getByText("0")).toBeInTheDocument();
-    expect(within(episCard as HTMLElement).getByText("1 en attente de validation")).toBeInTheDocument();
-
-    // « Meilleure place » et « Top 10 » : le rang 1 de la participation en
-    // attente ne doit pas ressortir.
-    const placeCard = screen.getByText("Meilleure place").parentElement?.parentElement;
-    expect(placeCard).not.toBeNull();
-    expect(within(placeCard as HTMLElement).getByText("—")).toBeInTheDocument();
-
-    const top10Card = screen.getByText("Top 10").parentElement?.parentElement;
-    expect(top10Card).not.toBeNull();
-    expect(within(top10Card as HTMLElement).getByText("0")).toBeInTheDocument();
-
-    // « Meilleur ratio » et « Format favori » : rien à afficher non plus.
-    const ratioCard = screen.getByText("Meilleur ratio").parentElement?.parentElement;
-    expect(ratioCard).not.toBeNull();
-    expect(within(ratioCard as HTMLElement).getByText("—")).toBeInTheDocument();
-
-    const formatCard = screen.getByText("Format favori").parentElement?.parentElement;
-    expect(formatCard).not.toBeNull();
-    expect(within(formatCard as HTMLElement).getByText("—")).toBeInTheDocument();
+    // Aucune tuile : sans résultat validé, les cinq KPI ne rendaient que des
+    // zéros et des tirets. Une ligne explique l'absence plutôt que de la subir.
+    expect(screen.queryByText("Meilleure place")).not.toBeInTheDocument();
+    expect(screen.queryByText("Meilleur ratio")).not.toBeInTheDocument();
+    expect(screen.queryByText("Format favori")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Aucun résultat validé pour l'instant — 1 en attente de validation."),
+    ).toBeInTheDocument();
 
     // Le tableau détaillé, lui, continue d'afficher la participation en
-    // attente, badge compris — scopé à sa ligne pour ne pas confondre avec
-    // le repère de la StatCard « Épreuves » ci-dessus.
+    // attente, badge compris.
     const pendingRow = container.querySelector<HTMLElement>("a[href='/courses/1/participations/1']");
     expect(pendingRow).not.toBeNull();
     expect(within(pendingRow as HTMLElement).getByText("En attente de validation")).toBeInTheDocument();
@@ -451,11 +439,13 @@ describe("AthletePage", () => {
   it("compte les StatCard sur les participations validées, malgré une en attente (#438)", async () => {
     await renderAthlete([
       part({ id: 1, rank_overall: 5, course_finishers: 50 }),
+      part({ id: 3, rank_overall: 9, course_finishers: 50 }),
+      part({ id: 4, rank_overall: 30, course_finishers: 50 }),
       part({ id: 2, is_pending_validation: true, rank_overall: 1, course_finishers: 50 }),
     ]);
 
     const episCard = screen.getByText("Épreuves").parentElement?.parentElement;
-    expect(within(episCard as HTMLElement).getByText("1")).toBeInTheDocument();
+    expect(within(episCard as HTMLElement).getByText("3")).toBeInTheDocument();
     expect(within(episCard as HTMLElement).getByText("1 en attente de validation")).toBeInTheDocument();
 
     // La meilleure place validée est 5, pas le rang 1 de la participation en attente.
@@ -469,5 +459,59 @@ describe("AthletePage", () => {
     const episCard = screen.getByText("Épreuves").parentElement?.parentElement;
     expect(episCard).not.toBeNull();
     expect(within(episCard as HTMLElement).queryByTestId("statcard-hint")).not.toBeInTheDocument();
+  });
+});
+
+describe("AthletePage — tuiles proportionnées au volume (PROF-4, #488)", () => {
+  it("sous le seuil, ne rend que ce qui est certain — et aucun tiret nu", async () => {
+    await renderAthlete([
+      part({
+        id: 1,
+        rank_overall: 12,
+        course_finishers: 300,
+        course: { name: "Triathlon de Nantes" } as Participation["course"],
+      }),
+    ]);
+
+    expect(screen.getByText("Épreuves")).toBeInTheDocument();
+    expect(screen.getByText("Discipline")).toBeInTheDocument();
+    expect(screen.getByText("Temps")).toBeInTheDocument();
+    expect(screen.queryByText("Meilleure place")).not.toBeInTheDocument();
+    expect(screen.queryByText("Meilleur ratio")).not.toBeInTheDocument();
+    expect(screen.queryByText("Top 10")).not.toBeInTheDocument();
+    expect(screen.queryByText("Format favori")).not.toBeInTheDocument();
+
+    // Le critère central de PROF-4, scopé à la grille : le tableau plus bas a
+    // ses propres tirets légitimes (finisher sans rang, AC3 de #438).
+    const grille = screen.getByText("Épreuves").closest("div.grid");
+    expect(grille).not.toBeNull();
+    expect(grille?.textContent).not.toContain("—");
+  });
+
+  it("sous le seuil, propose d'ajouter une épreuve", async () => {
+    await renderAthlete([part({ id: 1, rank_overall: 12 })]);
+
+    expect(screen.getByRole("link", { name: /Ajouter une épreuve/ })).toHaveAttribute("href", "/ajouter");
+  });
+
+  it("sans aucune participation, ne rend ni tuile ni second appel à l'action", async () => {
+    await renderAthlete([]);
+
+    expect(screen.queryByText("Épreuves")).not.toBeInTheDocument();
+    // L'`EmptyState` d'`EventsTable` (ETAT-3) porte déjà le seul CTA de l'écran.
+    expect(screen.queryByRole("link", { name: /Ajouter une épreuve/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Ajouter un résultat/ })).toBeInTheDocument();
+  });
+
+  it("au seuil, retrouve les cinq tuiles", async () => {
+    await renderAthlete([
+      part({ id: 1, rank_overall: 12, course_finishers: 300 }),
+      part({ id: 2, rank_overall: 20, course_finishers: 300 }),
+      part({ id: 3, rank_overall: 30, course_finishers: 300 }),
+    ]);
+
+    for (const label of ["Épreuves", "Meilleure place", "Meilleur ratio", "Top 10", "Format favori"]) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
   });
 });
