@@ -614,6 +614,18 @@ describe("EventList — entrée « Pertinence » pendant une recherche d'épreuv
     expect(screen.getByRole("combobox")).toHaveTextContent("Date (ancien)");
   });
 
+  it("distingue un « Date (récent) » explicite de l'absence de tri, alors que la valeur backend est la même", () => {
+    // `date_desc` est à la fois la valeur explicite de « Date (récent) » et le
+    // défaut appliqué en l'absence de `sort` : seule la présence du paramètre
+    // dans l'URL distingue les deux — pas sa valeur (revue de code #577).
+    searchParams = new URLSearchParams("event_name=nantes&sort=date_desc");
+    setUnEvenement();
+    renderList();
+
+    expect(screen.getByRole("combobox")).toHaveTextContent("Date (récent)");
+    expect(screen.getByRole("combobox")).not.toHaveTextContent("Pertinence");
+  });
+
   it("choisir « Pertinence » retire le paramètre sort de l'URL sans toucher aux autres", async () => {
     searchParams = new URLSearchParams("event_name=nantes&sort=name");
     setUnEvenement();
