@@ -140,11 +140,9 @@ describe("Histogram", () => {
       (line) => line.getAttribute("x1") !== line.getAttribute("x2"),
     ); // Sélectionne les lignes Y (horizontales) uniquement
     const y1Values = lines.map((line) => Number(line.getAttribute("y1")));
-    // 6 lignes Y (i=0 à 5), i.e. 6 positions distinctes
     expect(y1Values.length).toBe(6);
     const uniqueY1 = new Set(y1Values);
     expect(uniqueY1.size).toBe(6);
-    // Espace constant entre les positions successives
     const differences = [];
     for (let i = 1; i < y1Values.length; i++) {
       differences.push(y1Values[i - 1] - y1Values[i]);
@@ -169,7 +167,6 @@ describe("Histogram", () => {
     expect(y1Values.length).toBe(6);
     const uniqueY1 = new Set(y1Values);
     expect(uniqueY1.size).toBe(6);
-    // Espace constant
     const differences = [];
     for (let i = 1; i < y1Values.length; i++) {
       differences.push(y1Values[i - 1] - y1Values[i]);

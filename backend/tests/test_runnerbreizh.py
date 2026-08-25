@@ -406,9 +406,7 @@ def test_parse_row_carries_the_event_metadata():
     assert result.distance_km == 49.5
 
 
-# ---------------------------------------------------------------------------
-# scrape_event_all: pagination, network cost, refusals
-# ---------------------------------------------------------------------------
+# ── scrape_event_all: pagination, network cost, refusals ─────────────────────
 
 
 def _fake_client(monkeypatch, pages: dict[int, str], default: str | None = None):
@@ -551,9 +549,7 @@ def test_event_without_timekeeper_mention_logs_nothing(monkeypatch, caplog):
     assert "timekeeper" not in results[0].raw_data
 
 
-# ---------------------------------------------------------------------------
-# URL canonicalisation: the real Sheet spellings
-# ---------------------------------------------------------------------------
+# ── URL canonicalisation: the real Sheet spellings ───────────────────────────
 
 #: The four shapes actually found in the Sheet, plus the bare form.
 SHEET_SHAPES = [
@@ -602,9 +598,7 @@ def test_scrape_from_an_intermediate_page_starts_over_at_page_one(monkeypatch):
     assert all(r.source_url == EVENT_URL for r in results)
 
 
-# ---------------------------------------------------------------------------
-# Refusals
-# ---------------------------------------------------------------------------
+# ── Refusals ─────────────────────────────────────────────────────────────────
 
 
 def test_runner_profile_url_is_refused_before_any_request(monkeypatch):

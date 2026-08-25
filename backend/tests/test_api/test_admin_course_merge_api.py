@@ -307,9 +307,7 @@ def test_the_sources_permission_is_offered_to_role_composition(client):
     assert "courses:sources" in codes
 
 
-# ============================================================================
-# `POST /admin/courses/{id}/merge` — l'acte (#287)
-# ============================================================================
+# ── `POST /admin/courses/{id}/merge` — l'acte (#287) ─────────────────────────
 #
 # La fusion ne re-scrape **rien** : la cible garde sa source active et ses
 # participations, l'absorbée disparaît avec les siennes, et son URL rejoint la

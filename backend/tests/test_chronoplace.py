@@ -806,9 +806,7 @@ def test_registry_nattrape_pas_les_autres_hosts():
     assert registry.detect_provider("https://www.klikego.com/resultats/x/1") != "chronoplace"
 
 
-# ---------------------------------------------------------------------------
-# scrape_event_fanout — cache TTL par épreuve (épique #195)
-# ---------------------------------------------------------------------------
+# ── scrape_event_fanout — cache TTL par épreuve (épique #195) ────────────────
 
 
 URL_494_CANONICAL = (

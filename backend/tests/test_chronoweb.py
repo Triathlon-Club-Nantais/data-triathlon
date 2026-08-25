@@ -783,9 +783,7 @@ def test_parse_races_tolerates_an_event_without_any_ranking():
     assert [r.label for r in races] == ["M"]
 
 
-# ---------------------------------------------------------------------------
-# scrape_event_fanout — fan-out par race, cache TTL par sous-unité (issue #220)
-# ---------------------------------------------------------------------------
+# ── scrape_event_fanout — fan-out par race, cache TTL par sous-unité (issue #220)
 #
 # Sur chronoweb, une seule requête HTML rend l'événement entier — le gain du
 # fan-out n'est pas la requête économisée mais **l'intégrité du cache TTL** :

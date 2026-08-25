@@ -193,7 +193,6 @@ def test_rescrape_report_affiche_les_participants_mis_a_jour():
     out = RescrapeOutcome(total=3, imported=1, updated=7, skipped=900, processed=3)
     texte = render_rescrape_report(out, dry_run=False)
     assert "Participants mis à jour   : 7" in texte
-    # Ordre : ajoutés → mis à jour → déjà en base.
     assert texte.index("ajoutés") < texte.index("mis à jour") < texte.index("déjà en base")
 
 

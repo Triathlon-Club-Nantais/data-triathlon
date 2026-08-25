@@ -97,14 +97,12 @@ def test_parse_html_row():
     assert r.run_time == "00:41:10"
 
 
-# ---------------------------------------------------------------------------
-# _parse_race_meta — nom d'événement + date, depuis la page de détail legacy
+# ── _parse_race_meta — nom d'événement + date, depuis la page de détail legacy
 #
 # La page liste `/Evenements/Resultats/{id}` n'expose ni le nom de l'événement
 # ni sa date (le bandeau est rempli en JS). La page du modal de détail,
 # `/Evenements/Resultats/Detail/{id}/1`, porte les deux : un <h6> « Course
 # (jj/mm/aaaa) » et un lien de partage « Résultats - Course - Événement ».
-# ---------------------------------------------------------------------------
 
 def test_parse_race_meta_extrait_course_evenement_et_date():
     html = (FIXTURES / "sportinnovation_detail_7031.html").read_text(encoding="utf-8")
@@ -145,13 +143,11 @@ def test_parse_race_meta_date_invalide_ignoree():
     assert event_date is None
 
 
-# ---------------------------------------------------------------------------
-# _compose_course_name — « Événement - Course », clé d'unicité de la Course
+# ── _compose_course_name — « Événement - Course », clé d'unicité de la Course
 #
 # `uq_course_identity` = (name, event_date, event_type, is_relay). Les quatre
 # aquathlons de Carnac partagent date + event_type : sans le nom de course dans
 # le nom, ils fusionneraient en une seule Course.
-# ---------------------------------------------------------------------------
 
 def test_compose_course_name_concatene():
     assert _compose_course_name("Triathlon de Carnac 2025", "Triathlon M") == (
@@ -182,9 +178,7 @@ def test_compose_course_name_identiques_pas_de_doublon():
     )
 
 
-# ---------------------------------------------------------------------------
-# _parse_html_row — porte désormais le nom composé et la date
-# ---------------------------------------------------------------------------
+# ── _parse_html_row — porte désormais le nom composé et la date ──────────────
 
 def test_parse_html_row_porte_nom_composé_et_date():
     col = {"name": 0, "bib": 1, "total_time": 2}
@@ -200,9 +194,7 @@ def test_parse_html_row_porte_nom_composé_et_date():
     assert r.event_type == "aquathlon"
 
 
-# ---------------------------------------------------------------------------
-# _classify_results_url — distingue la forme 2026 /race/{slug} de /{codeUrl}
-# ---------------------------------------------------------------------------
+# ── _classify_results_url — distingue la forme 2026 /race/{slug} de /{codeUrl}
 
 def test_classify_results_url_race_form():
     kind, ident = _classify_results_url("https://results.sportinnovation.fr/race/zmhc-triathlon-m")
@@ -224,9 +216,7 @@ def test_classify_results_url_empty_raises():
         _classify_results_url("https://results.sportinnovation.fr/")
 
 
-# ---------------------------------------------------------------------------
-# _parse_api_athlete — mapping d'un athlète JSON (API results.sportinnovation.fr)
-# ---------------------------------------------------------------------------
+# ── _parse_api_athlete — mapping d'un athlète JSON (API results.sportinnovation.fr)
 
 def test_parse_api_athlete():
     a = {
@@ -256,9 +246,7 @@ def test_parse_api_athlete_falls_back_to_real_time():
     assert r.total_time == "00:59:00"
 
 
-# ---------------------------------------------------------------------------
-# Statut non-finisher — HTML (colonne temps) + API (champ status/state)
-# ---------------------------------------------------------------------------
+# ── Statut non-finisher — HTML (colonne temps) + API (champ status/state) ────
 
 def test_parse_html_row_explicit_status():
     """Colonne temps = 'Abandon' → status DNF + temps purgé."""
@@ -289,15 +277,13 @@ def test_parse_api_athlete_explicit_status():
     assert r.rank_overall is None
 
 
-# ---------------------------------------------------------------------------
-# Second schéma de l'API results (≈11 % des courses : 17 sur 155 en 2026-07).
+# ── Second schéma de l'API results (≈11 % des courses : 17 sur 155 en 2026-07).
 #
 # Les rangs, temps et référence athlète y portent d'autres noms :
 #   generalRank / sexRank / categoryRank   (au lieu de …Ranking)
 #   officialTimeFfa / realTimeFfa          (au lieu de officialTime / realTime)
 #   ni `id` ni `slug`                      → pas de splits récupérables
 # Sans ces alias, l'athlète ressort sans temps ni rang, donc DNF à l'import.
-# ---------------------------------------------------------------------------
 
 def test_parse_api_athlete_schema_ffa():
     a = {
@@ -369,9 +355,7 @@ def test_fetch_splits_parallel_schema_ffa_ne_fabrique_pas_de_reference():
     assert out == {}
 
 
-# ---------------------------------------------------------------------------
-# _scrape_results_race — chemin API : même convention de nommage que le legacy
-# ---------------------------------------------------------------------------
+# ── _scrape_results_race — chemin API : même convention de nommage que le legacy
 
 class _FakeResponse:
     def __init__(self, payload):

@@ -2777,9 +2777,7 @@ def test_scrape_event_all_410891_hidden_recupere_les_splits_intermediaires(monke
     assert finisher.segments == [("10KMS", "02:05:29")]
 
 
-# ---------------------------------------------------------------------------
-# scrape_event_fanout — fan-out par contest, cache_probe et failures (issue #217)
-# ---------------------------------------------------------------------------
+# ── scrape_event_fanout — fan-out par contest, cache_probe et failures (issue #217)
 #
 # Répliquent les 5 scénarios de test_klikego.py, plus un cas spécifique #217 :
 # Contest="0" est **réservé** et ne doit pas être fan-outé.

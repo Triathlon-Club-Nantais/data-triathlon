@@ -249,10 +249,8 @@ def test_parse_athlete_dnf_clears_time_and_ranks():
     assert r.rank_overall is None
 
 
-# ---------------------------------------------------------------------------
-# _is_relay — un relais ProliveSport a category="Relay" / categoryRef="R"
+# ── _is_relay — un relais ProliveSport a category="Relay" / categoryRef="R" ──
 # (les courses solo portent des catégories d'âge : Senior/SE, Master/MA…)
-# ---------------------------------------------------------------------------
 
 def test_is_relay_from_category_ref():
     assert _is_relay({"category": "Relay", "categoryRef": "R"}) is True
@@ -290,9 +288,7 @@ def test_classify_event_type():
     assert classify_event_type("Triathlon") == "triathlon"
 
 
-# ---------------------------------------------------------------------------
-# _parse_url — supporte la forme query ET la forme front /result/{id}/{index}
-# ---------------------------------------------------------------------------
+# ── _parse_url — supporte la forme query ET la forme front /result/{id}/{index}
 
 def test_parse_url_query_form():
     assert _parse_url("https://www.prolivesport.fr/index.php?eventId=1082&race=S") == ("1082", "S")
@@ -316,9 +312,7 @@ def test_parse_url_missing_event_id_raises():
         _parse_url("https://www.prolivesport.fr/")
 
 
-# ---------------------------------------------------------------------------
-# _resolve_race — un token numérique est un index positionnel dans raceList
-# ---------------------------------------------------------------------------
+# ── _resolve_race — un token numérique est un index positionnel dans raceList
 
 def test_resolve_race_by_positional_index():
     assert _resolve_race("6", RACES) == "S"   # index 6 (0-based) = "S"
@@ -337,9 +331,7 @@ def test_resolve_race_index_out_of_range_raises():
         _resolve_race("99", RACES)
 
 
-# ---------------------------------------------------------------------------
-# _derive_status — lit dsq / dnf / time (le champ dns de l'API n'est pas fiable)
-# ---------------------------------------------------------------------------
+# ── _derive_status — lit dsq / dnf / time (le champ dns de l'API n'est pas fiable)
 
 def test_derive_status_dsq():
     assert _derive_status({"dsq": "O", "time": "01:59:00"}) == "DSQ"
@@ -366,9 +358,7 @@ def test_derive_status_dsq_takes_precedence_over_dnf():
     assert _derive_status({"dsq": "O", "dnf": "O", "time": ""}) == "DSQ"
 
 
-# ---------------------------------------------------------------------------
-# Constantes de statut + champ ScrapedResult.status
-# ---------------------------------------------------------------------------
+# ── Constantes de statut + champ ScrapedResult.status ────────────────────────
 
 def test_status_constants_values():
     from app.scrapers.base import (
@@ -389,14 +379,12 @@ def test_scraped_result_status_defaults_empty():
     assert r.status == ""
 
 
-# ---------------------------------------------------------------------------
-# Fan-out par course (#269)
+# ── Fan-out par course (#269) ────────────────────────────────────────────────
 #
 # Sondage : docs/superpowers/specs/2026-08-11-prolivesport-fanout-sondage.md.
 # Les charges factices reproduisent le défaut mesuré : `indiv/{event}/{race}/`
 # rend l'événement **entier** dès que le code de course porte un espace ou un
 # tiret bas. Seul le champ `race` de chaque ligne dit la vérité.
-# ---------------------------------------------------------------------------
 
 URL_979 = (
     "https://www.prolivesport.fr/index.php?chap=event&sub=liveV3"

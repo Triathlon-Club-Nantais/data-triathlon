@@ -77,7 +77,16 @@ exclude = ["alembic/versions"]
 [tool.ruff.lint]
 # `S` = flake8-bandit, le SAST embarqué dans ruff (#394) : il complète CodeQL
 # côté code plutôt que côté flux, sans dépendance ni job de CI en plus.
-select = ["E", "F", "I", "W", "UP", "B", "N", "S"]
+# `FIX` = flake8-fixme : verrouille le zéro `TODO`/`FIXME`/`XXX`/`HACK` mesuré
+# sur les 100 000 lignes du dépôt (#591). Une intention laissée en commentaire
+# n'est ni suivie ni datée ; sa place est une issue.
+#
+# `ERA` (code commenté) a été mesurée dans la même passe et **écartée** : zéro
+# vrai positif, quatre faux — de la prose que le détecteur prend pour du code
+# (`# Duration = cumulative_now - cumulative_after_previous_mapped_stage`,
+# `# Domino : "triathlon-m---individuel"`). Elle coûterait quatre `noqa`, donc
+# du bruit ajouté pour en retirer.
+select = ["E", "F", "I", "W", "UP", "B", "N", "S", "FIX"]
 ignore = [
     "E501",  # longueur de ligne gérée par le formateur
     "B008",  # Depends(...) en argument par défaut = motif idiomatique FastAPI

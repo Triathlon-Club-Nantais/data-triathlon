@@ -46,9 +46,7 @@ API_BASE = "https://sportinnovation.fr/api"
 _PAGE_SIZE = 250
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Helpers — HTML format (www.sportinnovation.fr)
-# ──────────────────────────────────────────────────────────────────────────────
+# ── Helpers — HTML format (www.sportinnovation.fr) ───────────────────────────
 
 _NAME_RE = re.compile(
     r"^(?P<lastname>[A-ZÀ-Ÿ][A-ZÀ-Ÿ'\- ]+?)\s+(?P<firstname>[A-Za-zÀ-ÿ'\- ]+?)(?P<gender>[HF])-(?P<cat>[A-Z0-9]+)(?P<gender2>[HF])?$"
