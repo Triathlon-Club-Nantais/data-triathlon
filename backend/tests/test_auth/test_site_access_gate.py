@@ -10,8 +10,7 @@ from app.api.deps import require_site_access
 from app.main import app
 from app.repositories import athlete_repository, user_repository
 from app.services import benevole_access, shared_password, site_access
-
-PREFIXE_AUTH = "/api/v1/auth/"
+from tests.test_auth.conftest import chemin_concret, toutes_les_routes
 
 #: Les six exceptions nommées (design, § Garde backend) : `health`/`version`
 #: (infra), `site-access` (pose le cookie), `benevoles` (#271 — population
@@ -32,28 +31,12 @@ ROUTES_EXEMPTEES_PREFIXES = (
 )
 
 
-def _toutes_les_routes() -> list[tuple[str, str]]:
-    return [
-        (methode.upper(), chemin)
-        for chemin, operations in app.openapi()["paths"].items()
-        for methode in operations
-        if not chemin.startswith(PREFIXE_AUTH)
-    ]
-
-
 def _routes_gardees_par_le_site() -> list[tuple[str, str]]:
     return [
         (methode, chemin)
-        for methode, chemin in _toutes_les_routes()
+        for methode, chemin in toutes_les_routes()
         if not chemin.startswith(ROUTES_EXEMPTEES_PREFIXES)
     ]
-
-
-def _chemin_concret(chemin: str) -> str:
-    return "/".join(
-        "1" if morceau.startswith("{") and morceau.endswith("}") else morceau
-        for morceau in chemin.split("/")
-    )
 
 
 @pytest.fixture(autouse=True)
@@ -76,7 +59,7 @@ def test_l_inventaire_n_est_pas_vide():
     ids=lambda v: v.replace("/", "_") if isinstance(v, str) else v,
 )
 def test_toute_route_gardee_refuse_l_anonyme(client, methode, chemin):
-    reponse = client.request(methode, _chemin_concret(chemin), json={})
+    reponse = client.request(methode, chemin_concret(chemin), json={})
     assert reponse.status_code == 401, f"{methode} {chemin} répond sans le cookie site"
 
 

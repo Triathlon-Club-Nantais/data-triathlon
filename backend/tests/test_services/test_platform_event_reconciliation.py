@@ -16,8 +16,6 @@ la régression qu'un rapprochement par nom seul (l'énoncé initial de l'epic
 from dataclasses import replace
 from datetime import date
 
-import pytest
-
 from app.core.config import Settings
 from app.models.course import Course
 from app.repositories import course_source_repository
@@ -74,15 +72,6 @@ def _live_result(bib: str, *, heat_ref: str = "1488071608761-688:swimrun-court-d
         is_relay=True,
         total_time="02:59:00",
     )
-
-
-@pytest.fixture
-def patch_scraper(monkeypatch):
-    def _set(results):
-        monkeypatch.setattr(
-            import_service, "registry_scrape_event_all", lambda url, **kwargs: results
-        )
-    return _set
 
 
 def _importer(db, patch_scraper, url: str, résultats: list[ScrapedResult], *, force=False) -> dict:

@@ -5,7 +5,6 @@ Le geste que la procédure SQL rendait impraticable — ouvrir `psql` sur Supaba
 contourne délibérément la garde de pouvoir : sans session, il n'y a pas d'acteur
 dont comparer les pouvoirs, et l'accès au serveur *est* le privilège.
 """
-from contextlib import contextmanager
 
 from typer.testing import CliRunner
 
@@ -18,14 +17,6 @@ from app.services.auth import session as session_service
 runner = CliRunner()
 
 
-def _brancher_session(monkeypatch, db_session):
-    @contextmanager
-    def _session():
-        yield db_session
-
-    monkeypatch.setattr(cmd, "session_scope", _session)
-
-
 def _compte(db, email):
     user = user_repository.create(db, email=email, display_name="Prénom Nom")
     db.flush()
@@ -36,10 +27,8 @@ def _lancer(*arguments, entree=None):
     return runner.invoke(app, ["revoke-sessions", *arguments], input=entree)
 
 
-def test_revoquer_une_adresse_sort_en_0_et_compte_les_deux_unites(
-    monkeypatch, db_session
-):
-    _brancher_session(monkeypatch, db_session)
+def test_revoquer_une_adresse_sort_en_0_et_compte_les_deux_unites(brancher_session, db_session):
+    brancher_session(cmd)
     _, jeton = _compte(db_session, "fuite@exemple.fr")
 
     resultat = _lancer("--email", "fuite@exemple.fr")
@@ -50,14 +39,14 @@ def test_revoquer_une_adresse_sort_en_0_et_compte_les_deux_unites(
     assert session_service.resolve(db_session, jeton) is None
 
 
-def test_revoquer_une_adresse_ne_demande_aucune_confirmation(monkeypatch, db_session):
+def test_revoquer_une_adresse_ne_demande_aucune_confirmation(brancher_session, db_session):
     """`--yes` ne garde que `--all`.
 
     Fermer les sessions d'une personne se répare par une reconnexion ; fermer
     celles de tout le club, non — et c'est le seul des deux gestes qui déconnecte
     aussi celui qui le lance.
     """
-    _brancher_session(monkeypatch, db_session)
+    brancher_session(cmd)
     _compte(db_session, "fuite@exemple.fr")
 
     resultat = _lancer("--email", "fuite@exemple.fr")
@@ -66,8 +55,8 @@ def test_revoquer_une_adresse_ne_demande_aucune_confirmation(monkeypatch, db_ses
     assert "?" not in resultat.stdout
 
 
-def test_revoquer_tout_avec_yes_ferme_toutes_les_sessions(monkeypatch, db_session):
-    _brancher_session(monkeypatch, db_session)
+def test_revoquer_tout_avec_yes_ferme_toutes_les_sessions(brancher_session, db_session):
+    brancher_session(cmd)
     _, une = _compte(db_session, "une@exemple.fr")
     _, deux = _compte(db_session, "deux@exemple.fr")
 
@@ -80,11 +69,9 @@ def test_revoquer_tout_avec_yes_ferme_toutes_les_sessions(monkeypatch, db_sessio
     assert session_service.resolve(db_session, deux) is None
 
 
-def test_revoquer_tout_demande_confirmation_et_un_refus_ne_ferme_rien(
-    monkeypatch, db_session
-):
+def test_revoquer_tout_demande_confirmation_et_un_refus_ne_ferme_rien(brancher_session, db_session):
     """Annuler n'est pas une panne : code 0, comme `reset_db.py`."""
-    _brancher_session(monkeypatch, db_session)
+    brancher_session(cmd)
     _, jeton = _compte(db_session, "une@exemple.fr")
 
     resultat = _lancer("--all", entree="n\n")
@@ -94,8 +81,8 @@ def test_revoquer_tout_demande_confirmation_et_un_refus_ne_ferme_rien(
     assert session_service.resolve(db_session, jeton) is not None
 
 
-def test_revoquer_tout_confirme_interactivement_ferme_bien(monkeypatch, db_session):
-    _brancher_session(monkeypatch, db_session)
+def test_revoquer_tout_confirme_interactivement_ferme_bien(brancher_session, db_session):
+    brancher_session(cmd)
     _, jeton = _compte(db_session, "une@exemple.fr")
 
     resultat = _lancer("--all", entree="y\n")
@@ -104,9 +91,9 @@ def test_revoquer_tout_confirme_interactivement_ferme_bien(monkeypatch, db_sessi
     assert session_service.resolve(db_session, jeton) is None
 
 
-def test_sans_cible_est_une_erreur_d_usage(monkeypatch, db_session):
+def test_sans_cible_est_une_erreur_d_usage(brancher_session, db_session):
     """Un `revoke-sessions` nu ne doit pas retomber sur `--all` par défaut."""
-    _brancher_session(monkeypatch, db_session)
+    brancher_session(cmd)
     _, jeton = _compte(db_session, "une@exemple.fr")
 
     resultat = _lancer()
@@ -115,9 +102,9 @@ def test_sans_cible_est_une_erreur_d_usage(monkeypatch, db_session):
     assert session_service.resolve(db_session, jeton) is not None
 
 
-def test_les_deux_cibles_a_la_fois_est_une_erreur_d_usage(monkeypatch, db_session):
+def test_les_deux_cibles_a_la_fois_est_une_erreur_d_usage(brancher_session, db_session):
     """Deux modes, pas des filtres à composer — même parti pris que `rescrape-db`."""
-    _brancher_session(monkeypatch, db_session)
+    brancher_session(cmd)
     _, jeton = _compte(db_session, "une@exemple.fr")
 
     resultat = _lancer("--all", "--email", "une@exemple.fr", "--yes")
@@ -126,9 +113,7 @@ def test_les_deux_cibles_a_la_fois_est_une_erreur_d_usage(monkeypatch, db_sessio
     assert session_service.resolve(db_session, jeton) is not None
 
 
-def test_une_adresse_sans_compte_le_dit_au_lieu_de_compter_zero(
-    monkeypatch, db_session
-):
+def test_une_adresse_sans_compte_le_dit_au_lieu_de_compter_zero(brancher_session, db_session):
     """« 0 session fermée » vaut pour `--all`, jamais pour une adresse.
 
     Ce compte rendu confond « l'adresse est bonne, aucune session ouverte » et
@@ -136,7 +121,7 @@ def test_une_adresse_sans_compte_le_dit_au_lieu_de_compter_zero(
     sur la même liste rendue par `find_by_email`. Sous stress, l'exploitant lit
     une ligne verte et croit le jeton fuité mort.
     """
-    _brancher_session(monkeypatch, db_session)
+    brancher_session(cmd)
     _compte(db_session, "existe@exemple.fr")
 
     resultat = _lancer("--email", "faute-de-frappe@exemple.fr")
@@ -145,18 +130,16 @@ def test_une_adresse_sans_compte_le_dit_au_lieu_de_compter_zero(
     assert "aucun compte" in resultat.stdout.lower()
 
 
-def test_une_adresse_vide_est_une_erreur_d_usage(monkeypatch, db_session):
+def test_une_adresse_vide_est_une_erreur_d_usage(brancher_session):
     """`--email ""` ne doit pas se faufiler en cible valide."""
-    _brancher_session(monkeypatch, db_session)
+    brancher_session(cmd)
 
     assert _lancer("--email", "  ").exit_code == USAGE
 
 
-def test_une_adresse_connue_sans_session_ouverte_reste_un_succes(
-    monkeypatch, db_session
-):
+def test_une_adresse_connue_sans_session_ouverte_reste_un_succes(brancher_session, db_session):
     """Là, « 0 session » est bien un compte rendu : le compte existe."""
-    _brancher_session(monkeypatch, db_session)
+    brancher_session(cmd)
     user = user_repository.create(db_session, email="dort@exemple.fr")
     db_session.flush()
 
@@ -167,10 +150,10 @@ def test_une_adresse_connue_sans_session_ouverte_reste_un_succes(
     assert "0 session" in resultat.stdout
 
 
-def test_rien_a_fermer_avec_all_le_dit_sans_echouer(monkeypatch, db_session):
+def test_rien_a_fermer_avec_all_le_dit_sans_echouer(brancher_session):
     """« 0 session » est un compte rendu, pas un échec — l'exploitant doit
     pouvoir distinguer un geste utile d'un geste dans le vide."""
-    _brancher_session(monkeypatch, db_session)
+    brancher_session(cmd)
 
     resultat = _lancer("--all", "--yes")
 

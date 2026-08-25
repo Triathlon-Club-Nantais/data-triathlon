@@ -26,3 +26,21 @@ class FakeReporter:
 @pytest.fixture
 def fake_reporter() -> FakeReporter:
     return FakeReporter()
+
+
+@pytest.fixture
+def patch_scraper(monkeypatch):
+    """Substitue au registre de scrapers une liste de résultats déjà prête.
+
+    Recopiée à l'identique dans quatre modules jusqu'à #590, dont un seul disait
+    pourquoi `**kwargs` est là — c'est `cache_probe` (fan-out Klikego #156), que
+    l'appelant passe et que la doublure ne consulte pas.
+    """
+    from app.services import import_service
+
+    def _set(results):
+        monkeypatch.setattr(
+            import_service, "registry_scrape_event_all", lambda url, **kwargs: results
+        )
+
+    return _set

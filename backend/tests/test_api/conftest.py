@@ -70,3 +70,21 @@ def valider_toutes_les_participations(db_session):
 
     db_session.query(Participation).update({"is_pending_validation": False})
     db_session.commit()
+
+
+@pytest.fixture
+def administrateur(db_session):
+    """Un utilisateur quelconque pour porter `updated_by_user_id` (NOT NULL).
+
+    Ces tests ne s'intéressent pas à *qui* administre, seulement au fait qu'une
+    configuration existe — la garde RBAC des écrans d'administration est éprouvée
+    à part (`tests/test_auth/test_admin_benevole_access_api.py`,
+    `test_admin_site_access_api.py`).
+
+    Recopiée à l'identique dans trois modules jusqu'à #590.
+    """
+    compte = user_repository.create(
+        db_session, email="admin-test@exemple.fr", display_name="Admin Test"
+    )
+    db_session.flush()
+    return compte

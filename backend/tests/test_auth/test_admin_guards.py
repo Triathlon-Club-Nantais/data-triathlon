@@ -17,20 +17,11 @@ from app.core.permissions import P
 from app.models.admin_action_log import AdminActionLog
 from app.models.athlete import Athlete
 from app.models.course import Course
-from app.models.organisation import Organisation
 from app.models.participation import Participation
 from app.models.pending_provider import PendingProvider
 from app.models.role_permission import RolePermission
 from app.repositories import role_repository, user_repository, user_role_repository
 from app.services.auth import session as session_service
-
-
-@pytest.fixture
-def organisation(db_session) -> Organisation:
-    ligne = Organisation(slug="tcn", name="Triathlon Club Nantais")
-    db_session.add(ligne)
-    db_session.flush()
-    return ligne
 
 
 def connecte(client, db_session, organisation, *codes, email="a@exemple.fr"):

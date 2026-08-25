@@ -1,19 +1,9 @@
 """Ouverture/fermeture/vérification de la session site (#509)."""
 import pytest
 
-from app.repositories import user_repository
 from app.services import site_access
 
 MOT_DE_PASSE = "secret-du-club"
-
-
-@pytest.fixture
-def administrateur(db_session):
-    compte = user_repository.create(
-        db_session, email="admin-test@exemple.fr", display_name="Admin Test"
-    )
-    db_session.flush()
-    return compte
 
 
 @pytest.fixture(autouse=True)
