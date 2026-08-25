@@ -27,8 +27,10 @@ from app.schemas.admin import (
     AdminCourseUpdate,
     CourseDeletionImpact,
     CoursesWipeImpact,
+    CoursesWipeResult,
     ParticipationReassign,
     ParticipationsWipeImpact,
+    ParticipationsWipeResult,
 )
 from app.schemas.course import CourseBrief
 from app.schemas.participation import ParticipationOut
@@ -167,7 +169,7 @@ def courses_wipe_impact(
     return admin_actions.courses_wipe_impact(db)
 
 
-@router.delete("/admin/courses", status_code=204)
+@router.delete("/admin/courses", response_model=CoursesWipeResult)
 def wipe_all_courses(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.COURSES_WIPE_ALL)),
@@ -175,11 +177,14 @@ def wipe_all_courses(
     """Vide le catalogue d'épreuves — sources et résultats compris (#384, suite).
 
     Strictement plus destructeur que `DELETE /admin/participations` : ici,
-    les épreuves elles-mêmes et leurs sources disparaissent aussi. Irréversible
-    et sans corps de réponse : ce qui reste du geste est son entrée au journal.
+    les épreuves elles-mêmes et leurs sources disparaissent aussi. Irréversible,
+    et rend désormais le décompte réel (#501) — ce qui reste du geste est son
+    entrée au journal, mais l'administrateur qui vient d'agir doit pouvoir le
+    lire sans y aller.
     """
-    admin_actions.wipe_all_courses(db, user_id=user.id)
+    resume = admin_actions.wipe_all_courses(db, user_id=user.id)
     db.commit()
+    return resume
 
 
 @router.get("/admin/participations/wipe-impact", response_model=ParticipationsWipeImpact)
@@ -196,18 +201,19 @@ def participations_wipe_impact(
     return admin_actions.wipe_impact(db)
 
 
-@router.delete("/admin/participations", status_code=204)
+@router.delete("/admin/participations", response_model=ParticipationsWipeResult)
 def wipe_all_participations(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.PARTICIPATIONS_WIPE_ALL)),
 ):
     """Vide `participations`, purge les fiches devenues vides, force un rescrape (#384).
 
-    `Course` et `course_sources` restent intacts. Irréversible et sans corps
-    de réponse : ce qui reste du geste est son entrée au journal.
+    `Course` et `course_sources` restent intacts. Irréversible, et rend
+    désormais le décompte réel (#501) au lieu d'un `204` vide.
     """
-    admin_actions.wipe_all_participations(db, user_id=user.id)
+    resume = admin_actions.wipe_all_participations(db, user_id=user.id)
     db.commit()
+    return resume
 
 
 @router.patch("/admin/athletes/{athlete_id}", response_model=AdminAthleteRead)
