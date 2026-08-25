@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { apiServer } from "@/lib/api/server";
 import { StatCard, Eyebrow } from "@/components/tcn";
@@ -8,6 +9,7 @@ import { EventsTable } from "./EventsTable";
 import { AthleteAdminPanel } from "@/components/athletes/AthleteAdminPanel";
 import { formatToken, ordinalFr } from "@/lib/utils/format";
 import { bestRatio } from "@/lib/utils/ranking";
+import { resumeAthlete } from "@/lib/utils/athlete-stats";
 
 export default async function AthletePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -16,12 +18,14 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
   const { athlete, participations } = data;
   const fullName = [athlete.prenom, athlete.nom].filter(Boolean).join(" ");
 
-  // Les 5 StatCard ne portent que sur les participations déjà validées : une
-  // saisie manuelle « en attente de validation » (#270) ne doit pas fausser
-  // les KPI avant qu'un bénévole ne l'ait vérifiée (#438). Le tableau détaillé
-  // plus bas, lui, continue d'afficher `participations` au complet.
-  const validated = participations.filter((p) => !p.is_pending_validation);
-  const pendingCount = participations.length - validated.length;
+  // Les tuiles ne portent que sur les participations déjà validées : une saisie
+  // manuelle « en attente de validation » (#270) ne doit pas fausser les KPI
+  // avant qu'un bénévole ne l'ait vérifiée (#438). Le tableau détaillé plus bas,
+  // lui, continue d'afficher `participations` au complet.
+  // Le **régime** de tuiles, lui, suit le volume : sous 3 épreuves, les cinq
+  // tuiles habituelles ne rendent que des tautologies et des tirets (#488).
+  const resume = resumeAthlete(participations);
+  const { validees: validated, enAttente: pendingCount } = resume;
 
   const places = validated.map((p) => p.rank_overall).filter((r): r is number => r != null);
   const best = places.length ? Math.min(...places) : null;
@@ -56,28 +60,53 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
         </div>
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        <StatCard
-          label="Épreuves"
-          value={validated.length}
-          // Le tableau plus bas montre aussi les participations en attente de
-          // validation (#270) : sans ce repère, un « 0 » ou un compte plus bas
-          // que le nombre de lignes du tableau peut se lire comme une absence
-          // de résultat plutôt que comme une validation encore à faire (#438).
-          hint={pendingCount > 0 ? `${pendingCount} en attente de validation` : null}
-          accent={false}
-        />
-        <StatCard label="Meilleure place" value={best ?? "—"} valueColor="var(--tcn-orange)" accent={false} />
-        <StatCard
-          label="Meilleur ratio"
-          value={topRatio ? `Top ${topRatio.ratio.percent}%` : "—"}
-          hint={topRatio ? `${ordinalFr(topRatio.ratio.rank)} sur ${topRatio.ratio.total}` : null}
-          valueColor="var(--tcn-orange)"
-          accent={false}
-        />
-        <StatCard label="Top 10" value={top10} accent={false} />
-        <StatCard label="Format favori" value={favFormat} accent={false} />
-      </div>
+      {resume.regime === "reduit" && (
+        <div className="mb-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            {resume.tuiles.map((t) => (
+              <StatCard key={t.label} label={t.label} value={t.value} hint={t.hint} accent={false} />
+            ))}
+          </div>
+          <Link href="/ajouter" className="text-sm font-semibold text-accent-ink hover:underline">
+            Ajouter une épreuve →
+          </Link>
+        </div>
+      )}
+
+      {/* Régime vide avec des participations en attente : le tableau plus bas
+          montre bien des lignes, il faut donc dire pourquoi les chiffres, eux,
+          sont absents. Sans participation du tout, l'`EmptyState`
+          d'`EventsTable` (ETAT-3) porte déjà le message et le seul CTA. */}
+      {resume.regime === "vide" && pendingCount > 0 && (
+        <p className="mb-6 text-sm text-[var(--tcn-text-faint)]">
+          Aucun résultat validé pour l&apos;instant — {pendingCount} en attente de validation.
+        </p>
+      )}
+
+      {resume.regime === "complet" && (
+        <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          <StatCard
+            label="Épreuves"
+            value={validated.length}
+            // Le tableau plus bas montre aussi les participations en attente de
+            // validation (#270) : sans ce repère, un « 0 » ou un compte plus bas
+            // que le nombre de lignes du tableau peut se lire comme une absence
+            // de résultat plutôt que comme une validation encore à faire (#438).
+            hint={pendingCount > 0 ? `${pendingCount} en attente de validation` : null}
+            accent={false}
+          />
+          <StatCard label="Meilleure place" value={best ?? "—"} valueColor="var(--tcn-orange)" accent={false} />
+          <StatCard
+            label="Meilleur ratio"
+            value={topRatio ? `Top ${topRatio.ratio.percent}%` : "—"}
+            hint={topRatio ? `${ordinalFr(topRatio.ratio.rank)} sur ${topRatio.ratio.total}` : null}
+            valueColor="var(--tcn-orange)"
+            accent={false}
+          />
+          <StatCard label="Top 10" value={top10} accent={false} />
+          <StatCard label="Format favori" value={favFormat} accent={false} />
+        </div>
+      )}
 
       <EventsTable participations={participations} athleteId={athlete.id} athleteName={fullName} />
     </PageShell>
