@@ -741,11 +741,18 @@ def events_page(
         federal_only=federal_only,
     )
 
-    total_events = db.query(func.count()).select_from(grouped.subquery()).scalar() or 0
-
-    parts = db.query(func.count(Participation.id))
-    parts = _apply_filters(
-        parts,
+    # `total_events` : COUNT(DISTINCT course_id) sur la requête filtrée plutôt
+    # qu'un COUNT sur la sous-requête groupée — même valeur (`_apply_filters`
+    # est la clause partagée des deux requêtes, prouvé par
+    # tests/test_repositories/test_events_page_total_events.py), 12× moins
+    # cher : #584 mesure 70 ms contre 6 ms sur 31 280 participations, la
+    # moitié du temps de la route qui recalculait ce que la page groupée
+    # venait de produire.
+    counts = _apply_filters(
+        db.query(
+            func.count(func.distinct(Participation.course_id)).label("total_events"),
+            func.count(Participation.id).label("total_participations"),
+        ),
         db,
         name=name,
         event_type=event_type,
@@ -755,8 +762,9 @@ def events_page(
         date_to=date_to,
         seasons=seasons,
         federal_only=federal_only,
-    )
-    total_participations = parts.scalar() or 0
+    ).one()
+    total_events = counts.total_events or 0
+    total_participations = counts.total_participations or 0
 
     offset = (page - 1) * page_size
     rows = (
