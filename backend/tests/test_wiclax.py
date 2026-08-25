@@ -530,9 +530,7 @@ def test_scrape_event_all_er_ranks_computed_by_time(monkeypatch):
     assert by_bib["176"].rank_category == 1
 
 
-# ---------------------------------------------------------------------------
-# Date d'épreuve — le .clax ancien ne porte pas de date ISO
-# ---------------------------------------------------------------------------
+# ── Date d'épreuve — le .clax ancien ne porte pas de date ISO ────────────────
 
 
 def test_clax_event_date_iso():
@@ -583,9 +581,7 @@ def test_clax_event_date_absent():
     assert _clax_event_date(_el('<Epreuve nom="X"/>')) is None
 
 
-# ---------------------------------------------------------------------------
-# Détection de provider (registre)
-# ---------------------------------------------------------------------------
+# ── Détection de provider (registre) ─────────────────────────────────────────
 
 
 def test_registry_detecte_chronowest():
@@ -611,9 +607,7 @@ def test_registry_host_inconnu_n_est_reconnu_par_personne():
     assert registry.detect_provider("https://exemple-inconnu.fr/resultats/") == ""
 
 
-# ---------------------------------------------------------------------------
-# Résolution d'URL : page → iframe G-Live
-# ---------------------------------------------------------------------------
+# ── Résolution d'URL : page → iframe G-Live ──────────────────────────────────
 
 
 def test_find_glive_url_apostrophe_non_tronquee():
@@ -646,9 +640,7 @@ def test_find_glive_url_absente():
     assert _find_glive_url(_fixture("chronowest_event_page.html"), "https://chronowest.fr/x/") is None
 
 
-# ---------------------------------------------------------------------------
-# Résolution d'URL : page épreuve → coquille de résultats
-# ---------------------------------------------------------------------------
+# ── Résolution d'URL : page épreuve → coquille de résultats ──────────────────
 
 
 def test_find_wiclax_link_page_wordpress():
@@ -775,9 +767,7 @@ def test_resolve_sans_iframe_ni_lien_leve_valueerror():
         _resolve_to_wiclax_url("https://chronowest.fr/vide/", client)
 
 
-# ---------------------------------------------------------------------------
-# Résolution d'URL : g-live.html?f=… → .clax
-# ---------------------------------------------------------------------------
+# ── Résolution d'URL : g-live.html?f=… → .clax ───────────────────────────────
 
 
 def test_clax_url_chronosmetron_f_relatif():
@@ -805,9 +795,7 @@ def test_clax_url_sans_f_leve_valueerror():
         _clax_url("https://chronowest.fr/wp-content/glive/g-live.html")
 
 
-# ---------------------------------------------------------------------------
-# Parsing d'un .clax ChronoWest réel (réduit)
-# ---------------------------------------------------------------------------
+# ── Parsing d'un .clax ChronoWest réel (réduit) ──────────────────────────────
 
 
 def test_scrape_event_all_clax_chronowest(monkeypatch):
@@ -862,9 +850,7 @@ def test_qualify_event_name_factorise_dans_utils():
     assert qualify_event_name("Triathlon M", "") == "Triathlon M"
 
 
-# ---------------------------------------------------------------------------
-# Fan-out par parcours — cache_probe, on_heat_start, isolation d'échec (#195)
-# ---------------------------------------------------------------------------
+# ── Fan-out par parcours — cache_probe, on_heat_start, isolation d'échec (#195)
 
 
 def _clax_multi_parcours() -> ET.Element:

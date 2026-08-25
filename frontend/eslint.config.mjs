@@ -16,6 +16,18 @@ const eslintConfig = defineConfig([
     // nested under frontend/.claude/ would be linted as well (see #300).
     "**/.claude/**",
   ]),
+  {
+    rules: {
+      // Jumeau de `FIX` côté ruff (#591) : le dépôt ne porte aucun marqueur
+      // d'intention, et cette règle est ce qui le maintient. Une intention
+      // laissée en commentaire n'est ni suivie ni datée ; sa place est une
+      // issue. Les quatre termes ci-dessous sont ceux que ruff surveille.
+      "no-warning-comments": [
+        "error",
+        { terms: ["todo", "fixme", "xxx", "hack"], location: "anywhere" },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

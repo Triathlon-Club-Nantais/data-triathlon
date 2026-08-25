@@ -42,8 +42,8 @@ PREFIXE_ADMIN = "/api/v1/admin/"
 
 #: Les ressources d'administration **délibérément publiques**, nommées une par
 #: une. Aujourd'hui une seule, et c'est un fait de terrain, pas une tolérance :
-#: `ScrapeForm.tsx` et `TcnScrapeForm.tsx` l'appellent en `.catch(() => {})`
-#: quand un visiteur **anonyme** colle une URL non supportée. C'est elle qui
+#: `TcnScrapeForm.tsx` l'appelle en `.catch(() => {})` quand un visiteur
+#: **anonyme** colle une URL non supportée. C'est elle qui
 #: interdit toute garde par préfixe (FR-022).
 #:
 #: Elle reste **seule** et c'est un choix : le signalement de #267 est tout

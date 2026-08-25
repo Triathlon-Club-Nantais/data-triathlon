@@ -148,9 +148,7 @@ def test_fake_client_routes_by_url_paginates_and_proves_a_call_absence():
     assert client.calls_containing("/races/1/participants") == []
 
 
-# ---------------------------------------------------------------------------
-# URL reading (T006 / T007) — the event id is the only thing the URL carries
-# ---------------------------------------------------------------------------
+# ── URL reading (T006 / T007) — the event id is the only thing the URL carries
 
 #: The eight cases of the "Lecture d'URL" table of
 #: specs/004-sporthive-scraper/contracts/provider-contract.md. The first six
@@ -230,9 +228,7 @@ def test_parse_url_never_exposes_the_race_ordinal():
     assert lu == _EVENT_ID
 
 
-# ---------------------------------------------------------------------------
-# API client and pagination (T010 / T011)
-# ---------------------------------------------------------------------------
+# ── API client and pagination (T010 / T011) ──────────────────────────────────
 
 _RACE_ID = "7242234087144997120"
 
@@ -324,9 +320,7 @@ def test_fetch_json_lets_a_server_error_through_untranslated():
         sporthive._fetch_races(client, _EVENT_ID)
 
 
-# ---------------------------------------------------------------------------
-# Event scraping (T012–T021) — shared scaffolding
-# ---------------------------------------------------------------------------
+# ── Event scraping (T012–T021) — shared scaffolding ──────────────────────────
 
 URL_SHEET = f"https://results.sporthive.com/events/{_EVENT_ID}/races/1/bib/426"
 
@@ -400,9 +394,7 @@ def _client_factice(monkeypatch, routes: dict, defaut: FakeResponse | None = Non
     return client
 
 
-# ---------------------------------------------------------------------------
-# T012 — completeness guard: race scope, never event scope
-# ---------------------------------------------------------------------------
+# ── T012 — completeness guard: race scope, never event scope ─────────────────
 
 
 def test_scrape_event_all_drops_only_the_truncated_race(monkeypatch, caplog):
@@ -447,9 +439,7 @@ def test_scrape_event_all_accepts_a_race_that_gained_entrants(monkeypatch, caplo
     assert any("2" in message and "1" in message for message in caplog.messages)
 
 
-# ---------------------------------------------------------------------------
-# T013 — a race with no ranked entrants costs no request
-# ---------------------------------------------------------------------------
+# ── T013 — a race with no ranked entrants costs no request ───────────────────
 
 
 def test_scrape_event_all_skips_a_race_without_entrants_and_never_calls_it(monkeypatch, caplog):
@@ -484,9 +474,7 @@ def test_scrape_event_all_skips_a_race_without_entrants_and_never_calls_it(monke
     assert any("Triathlon Decouverte" in message for message in caplog.messages)
 
 
-# ---------------------------------------------------------------------------
-# T014 — scalars: times, ranks, gender, status
-# ---------------------------------------------------------------------------
+# ── T014 — scalars: times, ranks, gender, status ─────────────────────────────
 
 
 @pytest.mark.parametrize("brut, attendu", [
@@ -612,9 +600,7 @@ def test_identity_is_split_except_on_a_relay(monkeypatch):
     assert (relais.athlete_name, relais.athlete_firstname) == ("LA COUSINADE", "")
 
 
-# ---------------------------------------------------------------------------
-# T015 — segments come from `type`; `sportName` only rescues an `Other`
-# ---------------------------------------------------------------------------
+# ── T015 — segments come from `type`; `sportName` only rescues an `Other` ────
 
 
 def test_segments_label_a_five_leg_triathlon_in_order():
@@ -745,9 +731,7 @@ def test_two_transitions_are_disambiguated_by_build_splits_not_overwritten():
     }
 
 
-# ---------------------------------------------------------------------------
-# T016 — event metadata
-# ---------------------------------------------------------------------------
+# ── T016 — event metadata ────────────────────────────────────────────────────
 
 
 #: The five rows of the "Classification" table of the contract.
@@ -889,9 +873,7 @@ def test_the_provider_slug_matches_the_registry_entry():
     } == {"sporthive"}
 
 
-# ---------------------------------------------------------------------------
-# T022 / T024 — the club (US2): filled in, and judged elsewhere
-# ---------------------------------------------------------------------------
+# ── T022 / T024 — the club (US2): filled in, and judged elsewhere ────────────
 
 
 @pytest.mark.parametrize("team_name, attendu_club, attendu_tcn", [
@@ -1001,9 +983,7 @@ def test_the_module_never_reimplements_club_membership():
     assert not identifiants & {"is_tcn", "tcn_clause", "normalize_club", "TCN_CLUB_LABELS", "club"}
 
 
-# ---------------------------------------------------------------------------
-# T025–T028 (US3) — a link that can't be imported names its cause
-# ---------------------------------------------------------------------------
+# ── T025–T028 (US3) — a link that can't be imported names its cause ──────────
 
 
 def test_an_unreadable_url_is_refused_before_any_request(monkeypatch):
@@ -1098,8 +1078,7 @@ def test_no_request_is_ever_made_to_the_race_ordinal_of_the_url(monkeypatch):
         assert any(f"/races/{identifiant}/participants" in appel for identifiant in identifiants)
 
 
-# ---------------------------------------------------------------------------
-# Fan-out par race (issue #216) — patron Klikego répliqué : la sous-unité de
+# ── Fan-out par race (issue #216) — patron Klikego répliqué : la sous-unité de
 # cache TTL n'est plus l'événement mais la **race**, identifiée par son
 # snowflake `race.id`. Cinq scénarios verrouillent le contrat :
 #   1. nominal — trace complète, une entrée `heat_enumerated` par race,
@@ -1113,7 +1092,6 @@ def test_no_request_is_ever_made_to_the_race_ordinal_of_the_url(monkeypatch):
 #      appel réseau au-delà des métadonnées ;
 #   5. `on_heat_start` — `total` = nombre à scraper, jamais le nombre
 #      énuméré, sinon la progression sauterait des indices.
-# ---------------------------------------------------------------------------
 
 
 def _race_url_for(race: dict) -> str:
@@ -1260,9 +1238,7 @@ def test_scrape_event_fanout_on_heat_start_notifie_par_race_non_cache(monkeypatc
     assert not any(n[0] in cached_slugs for n in notifications)
 
 
-# ---------------------------------------------------------------------------
-# Intégration Provider — le fan-out est bien routé par le registre (issue #216)
-# ---------------------------------------------------------------------------
+# ── Intégration Provider — le fan-out est bien routé par le registre (issue #216)
 
 
 def test_sporthive_provider_exposes_last_trace_after_fanout(monkeypatch):

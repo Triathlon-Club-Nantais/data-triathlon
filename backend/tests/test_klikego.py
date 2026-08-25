@@ -31,9 +31,7 @@ parse_data_row = plat.parse_data_row
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
-# ---------------------------------------------------------------------------
-# Helper
-# ---------------------------------------------------------------------------
+# ── Helper ───────────────────────────────────────────────────────────────────
 
 def make_detail_html(
     meta: str = "M - Dossard N°123 - V1H - CLUB TEST",
@@ -82,9 +80,7 @@ def fresh_result() -> tuple[ScrapedResult, dict]:
     return ScrapedResult(source_url="http://test", provider="klikego"), {}
 
 
-# ---------------------------------------------------------------------------
-# _detect_event_type
-# ---------------------------------------------------------------------------
+# ── _detect_event_type ───────────────────────────────────────────────────────
 
 @pytest.mark.parametrize("heat,slug,expected", [
     # --- Triathlon (non-régression) ---
@@ -129,9 +125,7 @@ def test_event_type_detection(heat, slug, expected):
     assert classify_event_type(heat, contexte=slug) == expected
 
 
-# ---------------------------------------------------------------------------
-# Redon Sprint : pas de splits, juste le temps total
-# ---------------------------------------------------------------------------
+# ── Redon Sprint : pas de splits, juste le temps total ───────────────────────
 
 def test_parse_detail_no_splits():
     """Cas Redon Sprint — la page détail n'expose aucun split intermédiaire."""
@@ -149,9 +143,7 @@ def test_parse_detail_no_splits():
     assert raw.get("cumulative") is False
 
 
-# ---------------------------------------------------------------------------
-# Domino : "Chg Nat." → t1, "Chg Vé." → t2
-# ---------------------------------------------------------------------------
+# ── Domino : "Chg Nat." → t1, "Chg Vé." → t2 ─────────────────────────────────
 
 def test_parse_detail_chg_nat_velo():
     """Cas Domino Val-de-Loire — T1/T2 labellisés "Chg Nat." / "Chg Vé."."""
@@ -175,9 +167,7 @@ def test_parse_detail_chg_nat_velo():
     assert raw["cumulative"] is False
 
 
-# ---------------------------------------------------------------------------
-# Lacanau : temps cumulés détectés et convertis en déltas
-# ---------------------------------------------------------------------------
+# ── Lacanau : temps cumulés détectés et convertis en déltas ──────────────────
 
 def test_parse_detail_cumulative_lacanau():
     """
@@ -254,9 +244,7 @@ def test_parse_detail_run_derived_when_cumulative_and_absent():
     assert result.run_time  == "00:45:00"   # 7500 - 4800
 
 
-# ---------------------------------------------------------------------------
-# Classements
-# ---------------------------------------------------------------------------
+# ── Classements ──────────────────────────────────────────────────────────────
 
 def test_parse_detail_rankings():
     """Les classements général, genre et catégorie sont extraits correctement."""
@@ -275,9 +263,7 @@ def test_parse_detail_rankings():
     assert result.rank_category == 3
 
 
-# ---------------------------------------------------------------------------
-# Méta-ligne : genre / dossard / catégorie / club
-# ---------------------------------------------------------------------------
+# ── Méta-ligne : genre / dossard / catégorie / club ──────────────────────────
 
 def test_parse_detail_meta_standard():
     """Méta-ligne standard : M - Dossard N°2141 - V1H - LE MANS TRIATHLON."""
@@ -349,9 +335,7 @@ def test_parse_detail_meta_be_f_spaces():
     assert result.club     == "CLUB JUNIORS"
 
 
-# ---------------------------------------------------------------------------
-# Duathlon : "CAP 1" → swim_time (run1), "CAP 2" → run_time (run2)
-# ---------------------------------------------------------------------------
+# ── Duathlon : "CAP 1" → swim_time (run1), "CAP 2" → run_time (run2) ─────────
 
 def test_parse_detail_duathlon_cap1_cap2():
     """
@@ -422,9 +406,7 @@ def test_parse_detail_duathlon_generic_cap_fallback():
     assert result.bike_time == "00:05:00"
 
 
-# ---------------------------------------------------------------------------
-# Sables et Cap 2026 : "Transition 1" / "Transition 2" (labels numérotés)
-# ---------------------------------------------------------------------------
+# ── Sables et Cap 2026 : "Transition 1" / "Transition 2" (labels numérotés) ──
 
 def test_parse_detail_transition_numbered_labels():
     """
@@ -453,9 +435,7 @@ def test_parse_detail_transition_numbered_labels():
     assert raw["cumulative"] is False
 
 
-# ---------------------------------------------------------------------------
-# Mimizan 2026 : "NAT" (forme abrégée, épreuves jeunes)
-# ---------------------------------------------------------------------------
+# ── Mimizan 2026 : "NAT" (forme abrégée, épreuves jeunes) ────────────────────
 
 def test_parse_detail_nat_abbreviated_swim():
     """
@@ -522,9 +502,7 @@ def test_parse_detail_nat_not_matched_as_transition():
     assert result.t1_time   == ""
 
 
-# ---------------------------------------------------------------------------
-# _parse_search_row — extraction des lignes de la liste paginée (bulk import)
-# ---------------------------------------------------------------------------
+# ── _parse_search_row — extraction des lignes de la liste paginée (bulk import)
 
 def _make_search_row(
     bib: str,
@@ -684,9 +662,7 @@ def test_parse_search_row_duathlon_en_relais_heat():
     assert result.event_type == "duathlon-s"
 
 
-# ---------------------------------------------------------------------------
-# heat_is_relay — formes d'équipe des heats de la plateforme Klikego (#295)
-# ---------------------------------------------------------------------------
+# ── heat_is_relay — formes d'équipe des heats de la plateforme Klikego (#295)
 
 
 @pytest.mark.parametrize("heat", [
@@ -757,9 +733,7 @@ def test_heat_is_relay_survives_the_accents_of_a_displayed_label():
     assert plat.heat_is_relay("Duathlon CLM par Équipe") is True
 
 
-# ---------------------------------------------------------------------------
-# course_name — nom de course partagé Klikego / Breizh Chrono (#308)
-# ---------------------------------------------------------------------------
+# ── course_name — nom de course partagé Klikego / Breizh Chrono (#308) ───────
 
 
 def test_course_name_suffixe_le_heat():
@@ -799,9 +773,7 @@ def test_parse_search_row_duo_heat_sets_is_relay():
     assert result.is_relay is True
 
 
-# ---------------------------------------------------------------------------
-# decode_data_block — décodage du data block base64+XOR
-# ---------------------------------------------------------------------------
+# ── decode_data_block — décodage du data block base64+XOR ────────────────────
 
 
 def _encode_block(lines: list[str]) -> str:
@@ -835,9 +807,7 @@ def test_decode_data_block_tolerant_on_invalid_payload():
     assert decode_data_block(html) == []
 
 
-# ---------------------------------------------------------------------------
-# parse_data_row — transformation d'une ligne du data block en dict
-# ---------------------------------------------------------------------------
+# ── parse_data_row — transformation d'une ligne du data block en dict ────────
 
 
 def test_parse_data_row_finisher():
@@ -910,9 +880,7 @@ def test_parse_data_row_dns_has_no_time():
     assert r["rank_overall"] is None
 
 
-# ---------------------------------------------------------------------------
-# Fixture réelle page 0 — valide le décodage + parse sur données réelles
-# ---------------------------------------------------------------------------
+# ── Fixture réelle page 0 — valide le décodage + parse sur données réelles ───
 
 
 def test_fixture_page0_contains_dnf_and_finishers():
@@ -925,9 +893,7 @@ def test_fixture_page0_contains_dnf_and_finishers():
     assert any(r["total_time"] for r in rows if not r["status"])
 
 
-# ---------------------------------------------------------------------------
-# fetch_heat_rows — pagination via monkeypatch (sans réseau)
-# ---------------------------------------------------------------------------
+# ── fetch_heat_rows — pagination via monkeypatch (sans réseau) ───────────────
 
 
 def test_fetch_heat_rows_paginates_and_stops(monkeypatch):
@@ -959,9 +925,7 @@ def test_fetch_heat_rows_paginates_and_stops(monkeypatch):
     assert len(rows) == 52          # 50 + 2, dédoublonnés
 
 
-# ---------------------------------------------------------------------------
-# parse_event_name — le nom d'épreuve vient de la page, pas du slug d'URL
-# ---------------------------------------------------------------------------
+# ── parse_event_name — le nom d'épreuve vient de la page, pas du slug d'URL ──
 
 
 def test_parse_event_name_klikego_title():
@@ -1145,9 +1109,7 @@ def test_build_heat_results_sets_is_relay_on_duo_heats():
     assert all(r.is_relay is True for r in duo)
 
 
-# ---------------------------------------------------------------------------
-# discover_inter_options et inter_label_to_slot — découverte des checkpoints
-# ---------------------------------------------------------------------------
+# ── discover_inter_options et inter_label_to_slot — découverte des checkpoints
 
 
 def test_discover_inter_options_triathlon():
@@ -1184,9 +1146,7 @@ def test_inter_label_to_slot():
     assert inter_label_to_slot("Truc inconnu") is None
 
 
-# ---------------------------------------------------------------------------
-# fetch_inter_splits — collecte des temps intermédiaires pour tous les participants
-# ---------------------------------------------------------------------------
+# ── fetch_inter_splits — collecte des temps intermédiaires pour tous les participants
 
 
 def _block(lines):
@@ -1225,9 +1185,7 @@ def test_fetch_inter_splits_collects_per_slot(monkeypatch):
     assert splits["358"] == {"swim": "00:06:24", "bike": "00:19:28"}
 
 
-# ---------------------------------------------------------------------------
-# build_heat_results — assemblage des ScrapedResult complets d'un heat
-# ---------------------------------------------------------------------------
+# ── build_heat_results — assemblage des ScrapedResult complets d'un heat ─────
 
 
 def test_build_heat_results_includes_dnf_and_total_times(monkeypatch):
@@ -1276,9 +1234,7 @@ def test_build_heat_results_includes_dnf_and_total_times(monkeypatch):
     assert all(r.event_date == date(2024, 9, 28) for r in results)
 
 
-# ---------------------------------------------------------------------------
-# scrape_event_all — import exhaustif via data block (finishers + DNF/DNS/DSQ)
-# ---------------------------------------------------------------------------
+# ── scrape_event_all — import exhaustif via data block (finishers + DNF/DNS/DSQ)
 
 
 def test_klikego_scrape_event_all_returns_dnf(monkeypatch):
@@ -1318,9 +1274,7 @@ def test_klikego_scrape_event_all_returns_dnf(monkeypatch):
     assert any(r.status == "DNF" for r in results)
 
 
-# ---------------------------------------------------------------------------
-# Phase C — les splits fins TCN priment sur les splits inter pré-remplis
-# ---------------------------------------------------------------------------
+# ── Phase C — les splits fins TCN priment sur les splits inter pré-remplis ───
 
 
 def test_parse_detail_ignores_zero_placeholders():
@@ -1483,9 +1437,7 @@ def test_scrape_event_all_fetches_detail_for_non_tcn(monkeypatch):
     assert r182.run_time == "00:08:55"
 
 
-# ---------------------------------------------------------------------------
-# _enumerate_heats — fan-out event (issue #156)
-# ---------------------------------------------------------------------------
+# ── _enumerate_heats — fan-out event (issue #156) ────────────────────────────
 
 
 def test_enumerate_heats_mesquer():
@@ -1533,9 +1485,7 @@ def test_enumerate_heats_select_without_options():
     assert klikego._enumerate_heats(html) == []
 
 
-# ---------------------------------------------------------------------------
-# scrape_event_fanout — fan-out avec cache_probe et failures (issue #156)
-# ---------------------------------------------------------------------------
+# ── scrape_event_fanout — fan-out avec cache_probe et failures (issue #156) ──
 
 
 def _make_fanout_fake_client(monkeypatch, event_html: str, heat_bibs: dict | None = None):

@@ -88,9 +88,7 @@ def _client_factice(monkeypatch, pages=None, defaut=None):
     return client
 
 
-# --------------------------------------------------------------------------
-# Résolution de l'URL
-# --------------------------------------------------------------------------
+# ── Résolution de l'URL ──────────────────────────────────────────────────────
 
 
 @pytest.mark.parametrize(
@@ -133,9 +131,7 @@ def test_page_sans_iframe_est_rejetee(monkeypatch):
         competitor._resoudre_uuid(client, URL_IRONMAN)
 
 
-# --------------------------------------------------------------------------
-# Lecture de __NEXT_DATA__ et choix de l'édition
-# --------------------------------------------------------------------------
+# ── Lecture de __NEXT_DATA__ et choix de l'édition ───────────────────────────
 
 
 def test_uuid_inconnu_rejete_malgre_un_200(monkeypatch):
@@ -187,9 +183,7 @@ def test_date_dedition_absente_ne_leve_pas():
     assert competitor._date_edition({}) is None
 
 
-# --------------------------------------------------------------------------
-# Import complet — édition courante
-# --------------------------------------------------------------------------
+# ── Import complet — édition courante ────────────────────────────────────────
 
 
 def test_import_edition_courante(monkeypatch):
@@ -339,9 +333,7 @@ def test_dossard_replie_sur_bibnumber_v2():
     assert competitor._dossard({}) == ""
 
 
-# --------------------------------------------------------------------------
-# Pagination et édition ancienne (via le proxy)
-# --------------------------------------------------------------------------
+# ── Pagination et édition ancienne (via le proxy) ────────────────────────────
 
 
 def test_pagination_suivie_via_le_proxy(monkeypatch):
@@ -485,9 +477,7 @@ def test_client_httpx_suit_les_redirections(monkeypatch):
     assert vus.get("timeout") == 30
 
 
-# --------------------------------------------------------------------------
-# Registre
-# --------------------------------------------------------------------------
+# ── Registre ─────────────────────────────────────────────────────────────────
 
 
 @pytest.mark.parametrize(

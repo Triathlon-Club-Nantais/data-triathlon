@@ -83,9 +83,7 @@ def test_is_supported_derive_de_la_liste_des_providers(monkeypatch):
     assert registry.is_supported("https://chronofictif.test/e/1") is True
 
 
-# ---------------------------------------------------------------------------
-# Détection par host — la règle unique (issue #49)
-# ---------------------------------------------------------------------------
+# ── Détection par host — la règle unique (issue #49) ─────────────────────────
 
 
 @pytest.mark.parametrize("url", [
@@ -155,9 +153,7 @@ def test_host_matched_provider_sans_hosts_ne_matche_rien():
     assert _Vide().matches("https://exemple.fr/resultats") is False
 
 
-# ---------------------------------------------------------------------------
-# Routage : ce qui doit continuer à marcher, et ce qui ne doit plus passer
-# ---------------------------------------------------------------------------
+# ── Routage : ce qui doit continuer à marcher, et ce qui ne doit plus passer ─
 
 #: URLs légitimes, une ou plusieurs par façade réellement supportée.
 _ROUTAGE_LEGITIME = [
@@ -308,9 +304,7 @@ def test_t2area_n_accepte_que_le_host_fftri_exact():
     assert provider.matches("https://x.fftri.t2area.com/calendrier/x/y/2025.html") is False
 
 
-# ---------------------------------------------------------------------------
-# Verrou : le fallback refuse AVANT le réseau (tient lieu du point 3 de #49)
-# ---------------------------------------------------------------------------
+# ── Verrou : le fallback refuse AVANT le réseau (tient lieu du point 3 de #49)
 
 
 @pytest.mark.parametrize("url", [
@@ -359,9 +353,7 @@ def test_provider_names_contient_oktime():
     assert "oktime" in registry.provider_names()
 
 
-# ---------------------------------------------------------------------------
-# Sporthive (#53) — un host, et surtout pas celui de l'API
-# ---------------------------------------------------------------------------
+# ── Sporthive (#53) — un host, et surtout pas celui de l'API ─────────────────
 
 
 @pytest.mark.parametrize("url", [
@@ -394,9 +386,7 @@ def test_provider_names_contient_sporthive():
     assert "sporthive" in registry.provider_names()
 
 
-# ---------------------------------------------------------------------------
-# ChronoWeb (#55)
-# ---------------------------------------------------------------------------
+# ── ChronoWeb (#55) ──────────────────────────────────────────────────────────
 
 
 def test_chronoweb_est_supporte():
@@ -419,9 +409,7 @@ def test_chronoweb_rejette_un_host_sosie():
     assert registry.detect_provider("https://evil-chronoweb.com/resultats") == ""
 
 
-# ---------------------------------------------------------------------------
-# get_provider — accès à l'instance provider (issue #156)
-# ---------------------------------------------------------------------------
+# ── get_provider — accès à l'instance provider (issue #156) ──────────────────
 
 def test_get_provider_returns_instance_for_klikego():
     from app.scrapers.registry import KlikegoProvider, get_provider
@@ -456,9 +444,7 @@ def test_get_provider_returns_none_for_malformed_url():
     assert result is None
 
 
-# ---------------------------------------------------------------------------
-# KlikegoProvider fan-out (issue #156)
-# ---------------------------------------------------------------------------
+# ── KlikegoProvider fan-out (issue #156) ─────────────────────────────────────
 
 
 def _patch_klikego_fanout(monkeypatch, results_by_heat: dict[str, list], failures: list[str] | None = None):

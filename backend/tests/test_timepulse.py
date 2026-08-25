@@ -18,9 +18,7 @@ from app.scrapers.timepulse import (
     scrape_event_all,
 )
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+# ── Helpers ──────────────────────────────────────────────────────────────────
 
 def make_xml(
     athletes: list[tuple[str, str, str, str, str]],
@@ -69,9 +67,7 @@ def make_xml(
 </Triathlon>"""
 
 
-# ---------------------------------------------------------------------------
-# _parse_series
-# ---------------------------------------------------------------------------
+# ── _parse_series ────────────────────────────────────────────────────────────
 
 def test_parse_series_standard():
     """Mapping S0→swim, S1→t1, S2→bike, S3→t2, S4→run."""
@@ -97,9 +93,7 @@ def test_parse_series_chg_nat():
     assert mapping["s3"] == "t2"
 
 
-# ---------------------------------------------------------------------------
-# _compute_ranks
-# ---------------------------------------------------------------------------
+# ── _compute_ranks ───────────────────────────────────────────────────────────
 
 def test_compute_ranks():
     """
@@ -185,9 +179,7 @@ def test_compute_ranks_no_result_for_bib():
     assert rc is None
 
 
-# ---------------------------------------------------------------------------
-# _detect_event_type
-# ---------------------------------------------------------------------------
+# ── _detect_event_type ───────────────────────────────────────────────────────
 
 @pytest.mark.parametrize("name,expected", [
     # --- Triathlon (non-régression) ---
@@ -214,9 +206,7 @@ def test_detect_event_type_timepulse(name, expected):
     assert classify_event_type(name) == expected
 
 
-# ---------------------------------------------------------------------------
-# _parse_series — duathlon et aquarun
-# ---------------------------------------------------------------------------
+# ── _parse_series — duathlon et aquarun ──────────────────────────────────────
 
 def test_parse_series_duathlon():
     """
@@ -286,9 +276,7 @@ def test_parse_event_date_invalid():
     assert _parse_event_date("") is None
 
 
-# ---------------------------------------------------------------------------
-# Extraction de l'id_event depuis le chemin URL (sans query param id_event=)
-# ---------------------------------------------------------------------------
+# ── Extraction de l'id_event depuis le chemin URL (sans query param id_event=)
 
 def test_id_event_extracted_from_path():
     """
@@ -315,9 +303,7 @@ def test_id_event_extracted_from_path():
     assert id_event == "3090"
 
 
-# ---------------------------------------------------------------------------
-# scrape_event_all — conservation des non-finishers + statut
-# ---------------------------------------------------------------------------
+# ── scrape_event_all — conservation des non-finishers + statut ───────────────
 
 def test_scrape_event_all_keeps_non_finisher(monkeypatch):
     """Un <E> sans <R> est désormais CONSERVÉ (régression du drop historique)."""
@@ -518,9 +504,7 @@ def test_id_event_extracted_from_path_short():
     assert id_event == "3090"
 
 
-# ---------------------------------------------------------------------------
-# Date d'épreuve — repli sur la page publique quand le XML n'en porte aucune
-# ---------------------------------------------------------------------------
+# ── Date d'épreuve — repli sur la page publique quand le XML n'en porte aucune
 
 
 def test_parse_event_page_date():

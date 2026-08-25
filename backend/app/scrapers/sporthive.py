@@ -237,9 +237,7 @@ class _IncompleteRankingError(Exception):
         self.annonces = annonces
 
 
-# ---------------------------------------------------------------------------
-# Scalars
-# ---------------------------------------------------------------------------
+# ── Scalars ──────────────────────────────────────────────────────────────────
 
 
 def _time(raw) -> str:
@@ -292,9 +290,7 @@ def _status(participant: dict, total_time: str, rank_overall: int | None) -> str
     return status
 
 
-# ---------------------------------------------------------------------------
-# Segments
-# ---------------------------------------------------------------------------
+# ── Segments ─────────────────────────────────────────────────────────────────
 
 #: `legs[].type` → label stored, a closed vocabulary (D7). `sportName` is
 #: **never** read: entered by the timekeeper, unnormalised (`SWIM` / `Swim` /
@@ -369,9 +365,7 @@ def _segments(legs) -> list[tuple[str, str]]:
     return segments
 
 
-# ---------------------------------------------------------------------------
-# Event metadata
-# ---------------------------------------------------------------------------
+# ── Event metadata ───────────────────────────────────────────────────────────
 
 #: An event is a relay if its **race** name says so (D10). Decided per race and
 #: not per participant, otherwise `Course.is_relay` and `Participation.is_relay`
@@ -451,9 +445,7 @@ def _race_context(url: str, event: dict, race: dict) -> _RaceContext:
     )
 
 
-# ---------------------------------------------------------------------------
-# Assembly
-# ---------------------------------------------------------------------------
+# ── Assembly ─────────────────────────────────────────────────────────────────
 
 
 def _to_result(participant: dict, ctx: _RaceContext) -> ScrapedResult:

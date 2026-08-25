@@ -70,9 +70,7 @@ def _extract_status(ea: dict[str, str], ra: dict[str, str]) -> str:
     return ""
 
 
-# ---------------------------------------------------------------------------
-# XML helpers
-# ---------------------------------------------------------------------------
+# ── XML helpers ──────────────────────────────────────────────────────────────
 
 def _fetch_xml(id_event: str) -> str:
     with http.client(timeout=20, headers=_HEADERS) as client:
@@ -111,9 +109,7 @@ def _parse_event_page_date(html: str) -> date_t | None:
         return None
 
 
-# ---------------------------------------------------------------------------
-# Series → split field mapping
-# ---------------------------------------------------------------------------
+# ── Series → split field mapping ─────────────────────────────────────────────
 
 _SERIES_SPLIT_MAP = [
     ("natation", "swim"), ("swim", "swim"),
@@ -178,9 +174,7 @@ def _parse_series(xml: str) -> dict[str, str]:
     return mapping
 
 
-# ---------------------------------------------------------------------------
-# Rankings computation
-# ---------------------------------------------------------------------------
+# ── Rankings computation ─────────────────────────────────────────────────────
 
 def _derive_late_splits(result: ScrapedResult, ra: dict[str, str]) -> None:
     """Reconstitue T2 + course depuis les points de passage cumulés (`pN`).
@@ -301,9 +295,7 @@ def _parse_event_date(date_str: str) -> date_t | None:
     return parse_fr_date(date_str)
 
 
-# ---------------------------------------------------------------------------
-# Bulk event scraping
-# ---------------------------------------------------------------------------
+# ── Bulk event scraping ──────────────────────────────────────────────────────
 
 def scrape_event_all(url: str) -> list[ScrapedResult]:
     """
@@ -429,6 +421,4 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     return results
 
 
-# ---------------------------------------------------------------------------
-# Event type detection
-# ---------------------------------------------------------------------------
+# ── Event type detection ─────────────────────────────────────────────────────

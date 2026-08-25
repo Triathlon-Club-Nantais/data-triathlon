@@ -199,14 +199,12 @@ def _expire_cache(db_session, url=URL):
     db_session.flush()
 
 
-# ---------------------------------------------------------------------------
-# Participations sans dossard — le dédoublonnage ne peut pas s'appuyer sur le bib
+# ── Participations sans dossard — le dédoublonnage ne peut pas s'appuyer sur le bib
 #
 # Certains chronométreurs n'attribuent pas de dossard (Sportinnovation : 5 599
 # participations sans bib, dont des finishers). Le repli se fait sur l'athlète,
 # en multiset : la même personne peut légitimement figurer plusieurs fois dans
 # la source (257 cas réels), et ces occurrences doivent survivre au réimport.
-# ---------------------------------------------------------------------------
 
 def test_import_sans_dossard_cree_les_participations(db_session, patch_scraper):
     patch_scraper([_result("", "CASROUGE", "Patrice"), _result("", "HOCHET", "Joséphine")])
@@ -367,9 +365,7 @@ def test_iter_import_event_force_bypasse_le_cache_ttl(db_session, patch_scraper)
     assert len(participation_repository.list_participations(db_session, page_size=100)) == 2
 
 
-# ---------------------------------------------------------------------------
-# Garde-fou : une épreuve sans nom n'est jamais persistée
-# ---------------------------------------------------------------------------
+# ── Garde-fou : une épreuve sans nom n'est jamais persistée ──────────────────
 
 
 def test_import_refuses_event_without_name(db_session, patch_scraper):
@@ -401,9 +397,7 @@ def test_iter_import_refuses_event_without_name(db_session, patch_scraper):
     assert course_repository.list_all(db_session) == []
 
 
-# ---------------------------------------------------------------------------
-# Réconciliation d'identité au re-scrape (issue #66)
-# ---------------------------------------------------------------------------
+# ── Réconciliation d'identité au re-scrape (issue #66) ───────────────────────
 
 def test_dossard_connu_athlete_divergent_est_reconcilie(db_session, patch_scraper):
     """La graphie fautive stockée est réassignée vers la graphie corrigée."""
@@ -563,11 +557,9 @@ def test_iter_persist_false_annule_la_transaction(db_session, patch_scraper):
     assert participation_repository.list_participations(db_session, page_size=100) == []
 
 
-# ---------------------------------------------------------------------------
-# Upsert prudent par dossard — un réimport corrige les lignes existantes au
+# ── Upsert prudent par dossard — un réimport corrige les lignes existantes au
 # lieu de les ignorer (fusion prudente : la source n'écrase que ses valeurs
 # non vides).
-# ---------------------------------------------------------------------------
 
 
 def test_reimport_rafraichit_un_temps_corrige(db_session, patch_scraper):
@@ -750,9 +742,7 @@ def test_cached_skipped_compte_les_participations_sans_dossard(db_session, patch
     assert out["skipped"] == 2
 
 
-# ---------------------------------------------------------------------------
-# Validation d'URL — seule garde du batch CLI, qui n'a pas de schéma Pydantic (#49)
-# ---------------------------------------------------------------------------
+# ── Validation d'URL — seule garde du batch CLI, qui n'a pas de schéma Pydantic (#49)
 
 
 @pytest.mark.parametrize("url", [
@@ -795,9 +785,7 @@ def test_validate_url_ne_reecrit_pas_l_url():
     assert _validate_url(url) == url
 
 
-# ---------------------------------------------------------------------------
-# Fan-out counters — SSE `done` étendu (issue #156, FR-008)
-# ---------------------------------------------------------------------------
+# ── Fan-out counters — SSE `done` étendu (issue #156, FR-008) ────────────────
 
 
 def test_scrape_all_streaming_use_cache_probe_false_desarme_la_sonde_par_heat(

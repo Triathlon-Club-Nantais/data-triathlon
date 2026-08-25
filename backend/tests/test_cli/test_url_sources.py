@@ -177,9 +177,7 @@ def test_ciblage_exclusif_valide_avant_toute_lecture():
     assert "--provider" in str(exc.value)
 
 
-# ---------------------------------------------------------------------------
-# valider_single_heat — échappatoire CLI Klikego (issue #156)
-# ---------------------------------------------------------------------------
+# ── valider_single_heat — échappatoire CLI Klikego (issue #156) ──────────────
 
 def test_single_heat_accepte_url_avec_heat_query():
     """Cas nominal : --single-heat + --url portant ?heat=X."""
