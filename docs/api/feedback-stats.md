@@ -14,8 +14,25 @@ exigent chacun leur pouvoir, donc elles vivent sous `/admin/feedback`
 | --- | --- | --- |
 | `POST /feedback` | `feedback.py` | aucun — publique |
 | `GET /admin/feedback`, `GET /admin/feedback/{id}` | `admin_feedback.py` | `feedback:read` |
+| `GET /admin/feedback/counts` | `admin_feedback.py` | `feedback:read` |
 | `PATCH /admin/feedback/{id}` (`status`, `github_url`) | `admin_feedback.py` | `feedback:manage` |
 
+- **La liste est une file de traitement, pas un journal** (#500) :
+  `GET /admin/feedback` accepte un `status` facultatif — omis, elle rend toute
+  la table, sa forme d'origine, donc la v1 publiée ne bouge pas ; fourni hors
+  des quatre valeurs de `FEEDBACK_STATUSES`, c'est un 422, le type du paramètre
+  étant **dérivé** de cette nomenclature (`Literal[*FEEDBACK_STATUSES]`) et non
+  réécrit. Le filtre s'appuie sur `ix_user_feedback_status_created_at`, l'index
+  que le modèle porte depuis #267.
+- **`/counts` est une route à part, et déclarée avant `/{feedback_id}`.** À part
+  parce qu'envelopper la liste dans une page pour y loger des totaux serait un
+  changement de contrat de v1 (Principe IV, patron de `GET /courses/count`) ;
+  **avant** parce que FastAPI résout les chemins dans l'ordre de déclaration —
+  l'inverse ferait lire « counts » comme un identifiant entier, soit 422 sur une
+  route qui existe. Elle rend **toujours** les quatre statuts, à zéro le cas
+  échéant : c'est ce qui permet au front d'afficher ses quatre filtres sur une
+  base vide. Le repository, lui, ne rend que les statuts présents — compléter
+  les manquants est une décision d'affichage, elle appartient au routeur.
 - **Pourquoi pas tout sous `/admin`** (revue de #315) : un verbe public y aurait
   côtoyé trois verbes gardés, et se serait lu comme une garde oubliée. Le cas
   existe encore une fois dans l'API — `POST /admin/pending-providers`, publique

@@ -36,6 +36,23 @@ class FeedbackCreated(BaseModel):
     status: str
 
 
+class FeedbackCounts(BaseModel):
+    """Le nombre de signalements par statut — le « N nouveaux » de la file (#500).
+
+    Les quatre statuts sont **toujours** des clés, à zéro le cas échéant : le
+    front en tire ses quatre filtres, et un filtre qui apparaîtrait seulement
+    quand il a des lignes serait un filtre introuvable. Une route à part, comme
+    `GET /courses/count` : envelopper `GET /admin/feedback` dans une page pour y
+    loger des totaux serait un changement de contrat de v1 (Principe IV).
+    """
+
+    nouveau: int = 0
+    en_cours: int = 0
+    traite: int = 0
+    ignore: int = 0
+    total: int = 0
+
+
 class FeedbackRead(BaseModel):
     """Un signalement, tel que rendu à un pouvoir `feedback:read`.
 

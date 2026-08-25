@@ -1,6 +1,7 @@
 """Accès données pour UserFeedback (#267)."""
 from datetime import datetime
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.user_feedback import UserFeedback
@@ -47,15 +48,39 @@ def count_recent_by_ip(db: Session, *, ip_address: str, since: datetime) -> int:
     )
 
 
-def list_sorted(db: Session, *, sort: str = "created_at", order: str = "desc") -> list[UserFeedback]:
+def list_sorted(
+    db: Session,
+    *,
+    sort: str = "created_at",
+    order: str = "desc",
+    status: str | None = None,
+) -> list[UserFeedback]:
+    """`status=None` rend toute la table — la forme historique de la route.
+
+    Le filtre s'appuie sur `ix_user_feedback_status_created_at`, l'index que le
+    modèle porte depuis #267 : (`status`, `created_at`) sert exactement la vue
+    par défaut de la file, « les nouveaux, du plus récent au plus ancien ».
+    """
     colonne = _COLONNES_TRI[sort]
     colonne = colonne.desc() if order == "desc" else colonne.asc()
-    return (
-        db.query(UserFeedback)
-        .options(joinedload(UserFeedback.user))
-        .order_by(colonne)
+    requete = db.query(UserFeedback).options(joinedload(UserFeedback.user))
+    if status is not None:
+        requete = requete.filter(UserFeedback.status == status)
+    return requete.order_by(colonne).all()
+
+
+def count_by_status(db: Session) -> dict[str, int]:
+    """Le nombre de signalements par statut, en **une** requête agrégée.
+
+    Ne rend que les statuts présents : compléter les manquants à zéro est une
+    décision d'affichage, elle appartient au routeur qui publie la forme.
+    """
+    lignes = (
+        db.query(UserFeedback.status, func.count(UserFeedback.id))
+        .group_by(UserFeedback.status)
         .all()
     )
+    return {statut: total for statut, total in lignes}
 
 
 def get(db: Session, feedback_id: int) -> UserFeedback | None:

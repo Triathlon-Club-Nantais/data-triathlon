@@ -683,10 +683,33 @@ export function useDeleteRole() {
 
 // ── Retours utilisateurs (#267) ──────────────────────────────────────────────
 
-export function useFeedbackList(sort: "created_at" | "type" | "status", order: "asc" | "desc") {
+/** `statut` à `"tous"` rend toute la table : la file affiche alors l'historique. */
+export function useFeedbackList(
+  sort: "created_at" | "type" | "status",
+  order: "asc" | "desc",
+  statut: Feedback["status"] | "tous",
+) {
   return useQuery({
-    queryKey: queryKeys.feedbackList(sort, order),
-    queryFn: () => apiClient.listFeedback(sort, order),
+    queryKey: queryKeys.feedbackList(sort, order, statut),
+    queryFn: () => apiClient.listFeedback(sort, order, statut === "tous" ? undefined : statut),
+    // Le filtre change à chaque clic de la barre : sans cela, la file clignote
+    // vers son squelette entre deux statuts déjà chargés.
+    placeholderData: (precedent) => precedent,
+  });
+}
+
+/**
+ * Le nombre de signalements par statut (#500) — ce qui remplit « N nouveaux »
+ * et le décompte de chaque filtre.
+ *
+ * Une requête à part, jamais un comptage sur la liste affichée : celle-ci est
+ * filtrée, donc elle ne peut pas dire combien de lignes portent les trois
+ * autres statuts.
+ */
+export function useFeedbackCounts() {
+  return useQuery({
+    queryKey: queryKeys.feedbackCounts(),
+    queryFn: () => apiClient.countFeedback(),
   });
 }
 

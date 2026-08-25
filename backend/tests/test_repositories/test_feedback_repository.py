@@ -123,3 +123,59 @@ def test_set_github_url(db_session):
     )
 
     assert mis_a_jour.github_url == "https://github.com/Triathlon-Club-Nantais/data-triathlon/issues/1"
+
+
+# --- File de traitement : filtre et comptage par statut (#500) ----------------
+
+
+def _create_avec_statut(db_session, statut, **kwargs):
+    """`create` ne prend pas de statut — un signalement naît toujours
+    « nouveau ». Une file de traitement a besoin des trois autres."""
+    entry = _create(db_session, **kwargs)
+    feedback_repository.update_status(db_session, entry.id, statut)
+    return entry
+
+
+def test_list_sorted_filtre_par_statut(db_session):
+    a_traiter = _create(db_session, title="Nouveau")
+    _create_avec_statut(db_session, "ignore", title="Ignoré")
+
+    retenus = feedback_repository.list_sorted(db_session, status="nouveau")
+
+    assert [entry.id for entry in retenus] == [a_traiter.id]
+
+
+def test_list_sorted_sans_statut_rend_tout(db_session):
+    _create(db_session, title="Nouveau")
+    _create_avec_statut(db_session, "ignore", title="Ignoré")
+
+    assert len(feedback_repository.list_sorted(db_session)) == 2
+
+
+def test_list_sorted_filtre_et_trie_ensemble(db_session):
+    """Le filtre ne remplace pas le tri : la file reste ordonnée dedans."""
+    _create_avec_statut(db_session, "traite", type="feedback", title="F")
+    _create_avec_statut(db_session, "traite", type="bug", title="B")
+    _create(db_session, type="bug", title="Nouveau")
+
+    retenus = feedback_repository.list_sorted(
+        db_session, sort="type", order="asc", status="traite"
+    )
+
+    assert [entry.title for entry in retenus] == ["B", "F"]
+
+
+def test_count_by_status_compte_chaque_statut(db_session):
+    _create(db_session)
+    _create(db_session)
+    _create_avec_statut(db_session, "traite")
+
+    comptes = feedback_repository.count_by_status(db_session)
+
+    assert comptes == {"nouveau": 2, "traite": 1}
+
+
+def test_count_by_status_sans_signalement_rend_vide(db_session):
+    """Les statuts absents ne sont pas des clés à zéro : c'est l'appelant qui
+    décide de leur affichage, pas le repository."""
+    assert feedback_repository.count_by_status(db_session) == {}
