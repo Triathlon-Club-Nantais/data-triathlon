@@ -41,12 +41,18 @@ function SheetContent({
   className,
   children,
   side = "left",
+  keepMounted,
   ...props
 }: DialogPrimitive.Popup.Props & {
   side?: "left" | "right"
+  /** Transmis au `Portal` : garde le contenu monté (juste masqué) une fois
+   *  fermé, au lieu de le démonter — un consommateur dont le contenu porte un
+   *  état local (un brouillon de formulaire, par ex.) en a besoin pour ne pas
+   *  perdre cet état à la fermeture. `false` par défaut, comme `Portal`. */
+  keepMounted?: boolean
 }) {
   return (
-    <SheetPortal>
+    <SheetPortal keepMounted={keepMounted}>
       <SheetOverlay />
       <DialogPrimitive.Popup
         data-slot="sheet-content"

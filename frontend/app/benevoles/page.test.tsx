@@ -251,6 +251,66 @@ describe("BenevolesPage", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("ne perd pas le brouillon quand on ferme la feuille sans confirmer (Échap)", async () => {
+    // La fermeture par Échap ou par un tap hors de la feuille n'est ni
+    // désactivée ni interceptée par le garde-fou — celui-ci ne vit que dans
+    // `selectionner`. Sans `keepMounted`, `Popup`/`Portal` démonteraient
+    // `ParticipationPanel` (et le brouillon de `useBrouillon` avec) dès cette
+    // fermeture, en silence (#490, revue ronde 1).
+    simulerLargeur(true);
+    render(<BenevolesPage />);
+
+    await waitFor(() => expect(screen.getByText("Coureur1 HERRMANN")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /Coureur1/ }));
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    await userEvent.type(screen.getByLabelText(/Dossard/), "412");
+
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    // Recouvrement : rouvrir la même entrée retrouve la saisie, intacte.
+    await userEvent.click(screen.getByRole("button", { name: /Coureur1/ }));
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    expect(screen.getByLabelText(/Dossard/)).toHaveValue("412");
+  });
+
+  it("garde le garde-fou actif après une réouverture de la même entrée", async () => {
+    // Rouvrir l'entrée déjà sélectionnée ne doit pas remettre `brouillonSale`
+    // à `false` en silence : le brouillon (toujours monté) n'a pas changé, et
+    // le garde-fou doit encore se déclencher sur un vrai changement d'entrée
+    // qui suit (#490, revue ronde 1).
+    simulerLargeur(true);
+    const confirmer = vi.fn().mockReturnValue(false);
+    vi.stubGlobal("confirm", confirmer);
+    render(<BenevolesPage />);
+
+    await waitFor(() => expect(screen.getByText("Coureur1 HERRMANN")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /Coureur1/ }));
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    await userEvent.type(screen.getByLabelText(/Dossard/), "412");
+
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /Coureur1/ }));
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+
+    // La réouverture elle-même ne doit pas avoir consulté le garde-fou.
+    expect(confirmer).not.toHaveBeenCalled();
+
+    // Le reste de la file est inerte tant que la feuille modale est ouverte
+    // (comportement Base UI) : un vrai changement d'entrée passe forcément
+    // par une fermeture d'abord, exactement comme un bénévole le ferait.
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /Coureur2/ }));
+
+    expect(confirmer).toHaveBeenCalled();
+    // Refus : on reste sur Coureur1 — le rouvrir retrouve la saisie intacte.
+    await userEvent.click(screen.getByRole("button", { name: /Coureur1/ }));
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    expect(screen.getByLabelText(/Dossard/)).toHaveValue("412");
+  });
+
   it("signale un résultat non conforme et le fait passer dans l'onglet non-conformes", async () => {
     const pendante = participation(1, { is_rejected: false });
     getBenevoleQueue.mockResolvedValue([pendante]);
