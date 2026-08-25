@@ -1,6 +1,6 @@
 """Le point unique d'exclusion des résultats non vérifiés (#270, FR-021/FR-022).
 
-Comportemental plutôt qu'AST : la règle traverse neuf fonctions publiques,
+Comportemental plutôt qu'AST : la règle traverse onze fonctions publiques,
 réparties sur trois repositories, via des helpers partagés (`_apply_filters`
 notamment), qu'un lecteur d'appels statique attribuerait mal. Un test par
 fonction publique, sur une participation pendante et une validée, vaut mieux
@@ -21,6 +21,10 @@ initiale), `course_repository._filtered` (branche `club_only`), et
 `athlete_repository.list_with_season_participation_count`/
 `.search_by_relevance`. Ces deux derniers fichiers n'importaient pas
 `app.core.validation` avant #562.
+
+#581 en ajoute deux de plus, sur deux repositories (`athlete_repository` et
+`participation_repository`) : `club_roster` et `club_podiums`, agrégations de
+synthèse d'un club pour la page `/club` (SSR côté frontend).
 """
 from datetime import date
 
@@ -234,3 +238,20 @@ def test_search_by_relevance_garde_lathlete_dont_lunique_resultat_est_pendant(db
     db_session.flush()
     resultats = athlete_repository.search_by_relevance(db_session, term="SOLOPENDING")
     assert resultats == [(athlete, 0)]
+
+
+# --- #581 : deux fonctions supplémentaires, agrégation club ---
+
+
+def test_club_roster_exclut_une_pendante(db_session):
+    course, _, validee = _duo(db_session)
+    lignes = athlete_repository.club_roster(db_session)
+    assert lignes[0][1] == 1  # count : seule la validée est comptée
+
+
+def test_club_podiums_exclut_une_pendante(db_session):
+    course, pendante, validee = _duo(db_session)
+    # `_duo` pose rank_overall=1 (pendante) et rank_overall=2 (validée) : les
+    # deux sont podium, seule la validée doit apparaître.
+    rows = participation_repository.club_podiums(db_session)
+    assert [r[0] for r in rows] == [validee.id]
