@@ -579,3 +579,82 @@ def test_search_by_relevance_respecte_la_limite(db_session):
     resultats = athlete_repository.search_by_relevance(db_session, term="herr", limit=2)
 
     assert len(resultats) == 2
+
+
+# ── club_roster (issue #581) ───────────────────────────────────────────────
+
+
+from app.repositories import course_repository, participation_repository
+
+
+def _course(db_session, nom, event_type="triathlon-m"):
+    return course_repository.get_or_create(
+        db_session, name=nom, event_date=date(2026, 5, 16), event_type=event_type
+    )
+
+
+def _part(db_session, athlete, course, bib, **kwargs):
+    kwargs.setdefault("club", "TCN")
+    kwargs.setdefault("status", "finisher")
+    return participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number=bib, **kwargs
+    )
+
+
+def test_club_roster_trie_par_volume_puis_podiums_puis_nom(db_session):
+    alice = athlete_repository.get_or_create(db_session, nom="ALICE", prenom="A", club="TCN")
+    bob = athlete_repository.get_or_create(db_session, nom="BOB", prenom="B", club="TCN")
+    c1 = _course(db_session, "C1")
+    c2 = _course(db_session, "C2")
+    _part(db_session, alice, c1, "1", rank_overall=1)
+    _part(db_session, alice, c2, "2")
+    _part(db_session, bob, c1, "3", rank_overall=2)
+    db_session.flush()
+
+    lignes = athlete_repository.club_roster(db_session)
+
+    assert [a.nom for a, *_ in lignes] == ["ALICE", "BOB"]
+    alice_row = lignes[0]
+    assert alice_row[1:] == (2, 1, 1, 0, 0)  # count, podiums, overall, gender, category
+
+
+def test_club_roster_ventile_les_podiums_par_portee_independamment(db_session):
+    # Une seule participation, podium sur les trois portées à la fois
+    # (cas mesuré Hadrien à Mesquer, #488) : les trois compteurs de portée
+    # s'incrémentent chacun, `podiums` (dédupliqué) ne compte qu'une fois.
+    ath = athlete_repository.get_or_create(db_session, nom="MULTI", prenom="M", club="TCN")
+    course = _course(db_session, "C")
+    _part(db_session, ath, course, "1", rank_overall=2, rank_category=1, rank_gender=2)
+    db_session.flush()
+
+    (a, count, podiums, po, pg, pc) = athlete_repository.club_roster(db_session)[0]
+    assert (count, podiums, po, pg, pc) == (1, 1, 1, 1, 1)
+
+
+def test_club_roster_exclut_hors_club(db_session):
+    exterieur = athlete_repository.get_or_create(db_session, nom="DEHORS", prenom="D", club="Un Autre Club")
+    course = _course(db_session, "C")
+    _part(db_session, exterieur, course, "1", club="Un Autre Club")
+    db_session.flush()
+
+    assert athlete_repository.club_roster(db_session) == []
+
+
+def test_club_roster_respecte_federal_only(db_session):
+    ath = athlete_repository.get_or_create(db_session, nom="TRAILEUR", prenom="T", club="TCN")
+    course = _course(db_session, "Trail", event_type="trail")
+    _part(db_session, ath, course, "1")
+    db_session.flush()
+
+    assert athlete_repository.club_roster(db_session, federal_only=False) != []
+    assert athlete_repository.club_roster(db_session, federal_only=True) == []
+
+
+def test_club_roster_plafonne_a_limit(db_session):
+    course = _course(db_session, "C")
+    for i in range(3):
+        ath = athlete_repository.get_or_create(db_session, nom=f"N{i}", prenom="P", club="TCN")
+        _part(db_session, ath, course, str(i))
+    db_session.flush()
+
+    assert len(athlete_repository.club_roster(db_session, limit=2)) == 2
