@@ -24,8 +24,17 @@ export function ClubBreakdown({
   /**
    * Rend chaque ligne activable vers le classement filtré sur ce club (#486,
    * RES-11) : on lit « BLAIN TRIATHLON 33 », on veut voir ces 33 athlètes.
+   *
+   * Reçoit `isTcn` parce que **la ligne du club ne se filtre pas comme les
+   * autres** : la synthèse fusionne les variantes de libellé sous le nom
+   * canonique (#200), qui n'est le verbatim d'**aucune** ligne en base — sur la
+   * base de dev, les quatre orthographes stockées sont « TRI CLUB NANTAIS »,
+   * « TRIATHLON CLUB NANTAIS », « Triathlon club nantais » et « Tcn ». Un
+   * `?club=Triathlon Club Nantais` en égalité exacte ne ramènerait donc
+   * personne, sous une carte qui vient d'annoncer 216. C'est `scope=club` qui
+   * porte cette sélection, et son prédicat vit côté serveur (#76).
    */
-  hrefFor?: (name: string) => string;
+  hrefFor?: (name: string, isTcn: boolean) => string;
 }) {
   const restants = Math.max(0, total - clubs.length);
 
@@ -48,7 +57,7 @@ export function ClubBreakdown({
               <td role="cell" style={{ fontSize: 13, fontWeight: own ? 700 : 600, color: own ? "var(--tcn-orange-deeper)" : "var(--tcn-ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {hrefFor ? (
                   <Link
-                    href={hrefFor(name)}
+                    href={hrefFor(name, own)}
                     aria-label={`${name}, ${count} athlète${count > 1 ? "s" : ""}. Voir ces participants dans le classement.`}
                     className="tcn-rowlink__cible"
                   >

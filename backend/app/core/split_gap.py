@@ -100,6 +100,12 @@ def gap(
         return None
 
     keys = schema_for(event_type)
+    # Gabarit vide — `raid-multisport`, dont `mapping` dit qu'aucun découpage n'est
+    # prévisible. Sans cette garde, `all(...)` sur une liste vide vaut `True`, la somme
+    # vaut 0, et **chaque** ligne rend un écart de 100 % : la page annoncerait qu'il
+    # « manque environ 100 % du temps total » dès le premier import d'un raid.
+    if not keys:
+        return None
     if not all(key in splits for key in keys):
         return None
 

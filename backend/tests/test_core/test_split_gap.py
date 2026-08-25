@@ -205,3 +205,52 @@ def test_python_and_typescript_share_the_same_segment_schemas():
         depuis_le_front[nom] = re.findall(r'key:\s*"([^"]+)"', corps)
 
     assert depuis_le_front == split_gap.SCHEMAS
+
+def test_the_thresholds_match_the_ones_the_screen_applies():
+    """Les quatre seuils existent des deux côtés, et **rien** ne peut les dériver.
+
+    Le produit applique ceux de l'écran ; le script de sondage applique ceux d'ici. Les
+    laisser diverger ferait dire « OK » au script pour une règle que le produit n'applique
+    plus — exactement le piège que ce lot invoque #76 pour interdire. Le gabarit de
+    segments, lui, se **dérive** de `mapping` et n'a pas besoin d'une telle garde ; un
+    nombre écrit dans un autre langage, si.
+    """
+    source = Path(__file__).parents[3] / "frontend" / "components" / "results"
+    texte = (source / "RaceFinishers.tsx").read_text("utf-8")
+    texte += (source / "ReliabilityMark.tsx").read_text("utf-8")
+
+    def constante(nom: str) -> float:
+        trouve = re.search(rf"const {nom} = ([\d.]+);", texte)
+        assert trouve, f"constante {nom} introuvable côté écran"
+        return float(trouve.group(1))
+
+    assert constante("ECART_SEUIL") == split_gap.OUTLIER_RATIO
+    assert constante("ECART_MIN_LIGNES") == split_gap.MIN_EVALUATED_ROWS
+    assert constante("ECART_MIN_SECONDES") == split_gap.MIN_GAP_SECONDS
+    assert constante("SEUIL_ECART_EPREUVE") == split_gap.EVENT_GAP_RATIO
+    assert constante("ECART_MIN_LIGNES_EPREUVE") == split_gap.MIN_EVALUATED_ROWS
+
+
+def test_a_sport_without_a_predictable_template_is_never_evaluated():
+    """`raid-multisport` a un gabarit **vide** — et `all()` sur du vide vaut `True`.
+
+    Sans garde, la somme vaut 0 et chaque ligne rend un écart de 100 % : la page
+    annoncerait qu'il manque tout le temps du parcours, sur toutes les lignes.
+    """
+    assert split_gap.schema_for("raid-multisport") == []
+    assert (
+        split_gap.ratio(
+            _row(splits={"Etape 1": "00:20:00"}, event_type="raid-multisport")
+        )
+        is None
+    )
+
+
+def test_a_bike_run_is_evaluated_on_its_three_segments():
+    """Régression : le gabarit maison omettait `segment1` et inventait un écart de 33 %."""
+    row = _row(
+        total="01:00:00",
+        splits={"segment1": "00:20:00", "bike": "00:25:00", "run": "00:15:00"},
+        event_type="bike-run",
+    )
+    assert split_gap.ratio(row) == pytest.approx(0.0)

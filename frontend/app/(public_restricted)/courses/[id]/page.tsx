@@ -14,7 +14,7 @@ import { formatEventName } from "@/lib/utils/event";
 import { Histogram } from "@/components/charts/Histogram";
 import { GenderDonut } from "@/components/charts/GenderDonut";
 import { CategoryBars } from "@/components/charts/CategoryBars";
-import { CATEGORY_PARAM, CLUB_PARAM, SCOPE_PARAM, scopeFromParam } from "@/lib/scope";
+import { CATEGORY_PARAM, CLUB_PARAM, SCOPE_CLUB, SCOPE_PARAM, scopeFromParam } from "@/lib/scope";
 import { PAGE_SIZE_PARAM, parsePageSize } from "@/lib/pageSize";
 
 /**
@@ -86,15 +86,43 @@ export default async function CoursePage({
   const club = sp[CLUB_PARAM]?.trim() || undefined;
   const category = sp[CATEGORY_PARAM]?.trim() || undefined;
 
-  /** Lien vers le classement filtré, les autres paramètres d'URL conservés. */
-  function lienFiltre(cle: string, valeur: string): string {
+  /**
+   * Lien vers le classement filtré, les autres paramètres d'URL conservés.
+   *
+   * `typeof v === "string"` et non `v != null` : Next rend un `string[]` pour une clé
+   * répétée (`?club=a&club=b`), que `URLSearchParams` sérialiserait en `"a,b"` —
+   * corrompant en silence tous les paramètres reportés dans les liens des cartes.
+   */
+  function lienFiltre(modifications: Record<string, string | null>): string {
     const params = new URLSearchParams(
-      Object.entries(sp).filter(([, v]) => v != null) as [string, string][],
+      Object.entries(sp).filter(([, v]) => typeof v === "string") as [string, string][],
     );
-    params.set(cle, valeur);
+    for (const [cle, valeur] of Object.entries(modifications)) {
+      if (valeur === null) params.delete(cle);
+      else params.set(cle, valeur);
+    }
     // Une sélection réduite atterrirait sinon sur une page vide.
     params.delete("page");
-    return `/courses/${id}?${params.toString()}`;
+    const query = params.toString();
+    return `/courses/${id}${query ? `?${query}` : ""}`;
+  }
+
+  /**
+   * Le club n'est pas un filtre comme les autres.
+   *
+   * La synthèse fusionne les variantes d'orthographe du TCN sous le libellé canonique
+   * (#200), qui n'est le verbatim d'**aucune** ligne en base : un `?club=` en égalité
+   * exacte sur ce nom ne ramènerait personne, sous une carte qui vient d'annoncer son
+   * effectif. La ligne du club passe donc par `scope=club`, dont le prédicat vit côté
+   * serveur (`app/core/club.py`, #76) et couvre les quatre orthographes.
+   *
+   * Les deux filtres s'excluent : cumuler `scope=club` et un club tiers rend un
+   * classement vide par construction.
+   */
+  function lienClub(nom: string, estTcn: boolean): string {
+    return estTcn
+      ? lienFiltre({ [SCOPE_PARAM]: SCOPE_CLUB, [CLUB_PARAM]: null })
+      : lienFiltre({ [CLUB_PARAM]: nom, [SCOPE_PARAM]: null });
   }
 
   const [data, summary, sources] = await Promise.all([
@@ -138,7 +166,7 @@ export default async function CoursePage({
           <ReliabilityMark isReliable={course.is_reliable} issues={course.quality_issues} />
           <CourseSourcesPanel courseId={course.id} initialSources={sources ?? []} />
         </div>
-        <SplitCoverageNote median={summary.split_gap_median} />
+        <SplitCoverageNote median={summary.split_gap_median} rows={summary.split_gap_rows} />
       </div>
 
       <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -152,7 +180,7 @@ export default async function CoursePage({
           <CategoryBars
             categories={summary.categories}
             total={summary.categories_total}
-            hrefFor={(nom) => lienFiltre(CATEGORY_PARAM, nom)}
+            hrefFor={(nom) => lienFiltre({ [CATEGORY_PARAM]: nom })}
           />
         </Card>
 
@@ -164,7 +192,7 @@ export default async function CoursePage({
           <ClubBreakdown
             clubs={clubs}
             total={summary.clubs_total}
-            hrefFor={(nom) => lienFiltre(CLUB_PARAM, nom)}
+            hrefFor={lienClub}
           />
         </Card>
       </div>

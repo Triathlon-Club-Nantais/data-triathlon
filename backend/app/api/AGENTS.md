@@ -102,6 +102,47 @@ Trois choses à ne pas défaire :
   sont départagés par libellé : `Counter.most_common` les ordonnait par ordre de
   lecture en base, donc par ordre d'import.
 
+### Ce que la page épreuve a ajouté (#486)
+
+Six champs et deux paramètres, tous **additifs**, tous à défaut neutre.
+
+- **`club` et `category` sur `GET /courses/{id}`** filtrent le classement en
+  **égalité exacte**, et se cumulent entre eux, avec `q` et avec `scope`. L'exactitude
+  n'est pas un détail d'implémentation : les valeurs viennent de `/summary`, qui les
+  tire d'un `Counter` sur ces colonnes — ce sont littéralement les chaînes stockées.
+  Un `ilike` ferait « BLAIN TRIATHLON » ramasser « BLAIN TRIATHLON JEUNES », et le
+  compteur de la carte cesserait de coïncider avec le total du classement, défaut que
+  #485 vient de corriger. **`club` n'est pas `scope=club`** : le second porte la
+  sémantique TCN arbitrée par `core/club.py` (dépositaire unique, #76), le premier un
+  club quelconque. Leur croisement peut être vide par construction, et c'est l'écran
+  qui l'explique — pas l'API qui l'interdit. Une valeur inconnue rend une sélection
+  vide, jamais un 404 : l'épreuve existe.
+- **`clubs_total` sur `/summary`** compte les clubs **distincts**, dénominateur du
+  « et N autres clubs ». Attention au faux ami : `categories_total`, son voisin, compte
+  des **participants**. Les deux disent ce que la carte omet, dans deux unités
+  différentes.
+- **`split_gap_ratio` (par participation), `split_gap_median` et `split_gap_rows`
+  (par synthèse)** publient l'écart entre le temps total et la somme des inters. Ce
+  sont des **mesures, jamais des verdicts** : les seuils d'affichage vivent côté écran,
+  ce qui permettra de les régler après re-sondage sans toucher au contrat. La règle
+  elle-même vit dans `app/services/split_gap.py` et **nulle part ailleurs** — le front en a
+  besoin par ligne, la synthèse pour la médiane, et deux implémentations divergeraient
+  comme les trois listes du critère club de #76. Son **gabarit de segments dérive de
+  `services/mapping._SPLIT_KEYS_BY_SPORT`**, la table qui pose les clés de `splits` : en
+  tenir une copie, c'est garantir la divergence, et le premier jet de ce module l'a
+  démontré — sa copie valait `bike/run` pour un bike-run là où le gabarit réel pose
+  `segment1/bike/run`, d'où un tiers du parcours ignoré et un écart fabriqué. Le point de
+  vérité des seuils est
+  `docs/superpowers/specs/2026-08-25-ecart-inters-total-sondage.md`, rejouable par
+  `scripts/sondage_ecart_inters.py`.
+- **`is_reliable` et `quality_issues` sur `EventOut`** — miroir de `CourseBrief`, pour
+  que `/resultats` marque ce qu'elle liste sans un second appel. `quality_issues` est
+  une colonne **JSON** : elle est sélectionnée mais **jamais** ajoutée au `GROUP BY`,
+  PostgreSQL n'ayant pas d'opérateur d'égalité sur ce type — la requête passerait en
+  SQLite et échouerait en production. Le `GROUP BY Course.id` suffit par dépendance
+  fonctionnelle. Ce chemin n'est **pas** couvert par les tests, qui tournent sur
+  SQLite : à vérifier au premier déploiement.
+
 **La recherche par nom est la seule du projet insensible aux accents.** `ilike`
 ignore la casse, jamais les accents, sur les **deux** moteurs — mesuré,
 `lower('LEMÉE') LIKE '%lemee%'` vaut faux, y compris avec le listener Unicode de

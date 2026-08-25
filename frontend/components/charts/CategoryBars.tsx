@@ -58,7 +58,11 @@ export function CategoryBars({
       role={hrefFor ? "list" : "img"}
       aria-label={
         hrefFor
-          ? "Répartition par catégorie — chaque barre filtre le classement"
+          ? // La répartition **entière** reste annoncée, part « Autres » comprise :
+            // c'est elle que RES-7 rend visible, et la reléguer à la variante non
+            // navigable la retirerait précisément de l'écran pour lequel elle a été
+            // écrite (relevé en revue de code).
+            `Répartition par catégorie : ${summary}. Chaque barre filtre le classement.`
           : `Répartition par catégorie : ${summary}.`
       }
       style={{ display: "flex", flexDirection: "column", gap: 10 }}
@@ -95,7 +99,15 @@ export function CategoryBars({
 
         if (!href) {
           return (
-            <div key={c.name} role={hrefFor ? "listitem" : undefined} style={ligne}>
+            // La barre « Autres » n'est pas activable, mais elle porte du sens :
+            // ses deux spans sont `aria-hidden`, donc son nom accessible vient
+            // d'ici — sans quoi elle serait un élément de liste muet.
+            <div
+              key={c.name}
+              role={hrefFor ? "listitem" : undefined}
+              aria-label={hrefFor ? `${nomCourt(c.name)}, ${pctFr(pct)} %` : undefined}
+              style={ligne}
+            >
               {barre}
             </div>
           );

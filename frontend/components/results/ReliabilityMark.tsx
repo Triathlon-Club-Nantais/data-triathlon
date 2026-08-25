@@ -70,15 +70,35 @@ export function ReliabilityMark({
 export const SEUIL_ECART_EPREUVE = 0.01;
 
 /**
- * Le second signal de `RES-10`, et le plus important du sondage : quand **toutes** les
- * lignes s'écartent du même ordre, ce n'est pas une ligne qui est fausse, c'est un
- * segment que le chronométreur ne publie pas. On le dit **une fois**, ici — le dire
- * treize fois sur les treize lignes de la course 66 serait du bruit.
+ * Effectif minimal de lignes évaluables pour qu'une médiane soit une référence — même
+ * garde que le marqueur de ligne (`ECART_MIN_LIGNES` de `RaceFinishers`). Sans elle, une
+ * épreuve à une seule ligne évaluable ferait une affirmation sur tout le classement.
  */
-export function SplitCoverageNote({ median }: { median: number | null }) {
-  if (median == null || Math.abs(median) <= SEUIL_ECART_EPREUVE) return null;
+export const ECART_MIN_LIGNES_EPREUVE = 10;
 
-  const part = Math.round(Math.abs(median) * 100);
+/**
+ * Le second signal de `RES-10`, et le plus important du sondage : quand **toutes** les
+ * lignes s'écartent du même ordre, ce n'est pas une ligne qui est fausse, c'est une
+ * propriété de la mesure sur cette épreuve. On le dit **une fois**, ici — le répéter sur
+ * chacune des 681 lignes de la course 47 serait du bruit.
+ */
+export function SplitCoverageNote({
+  median,
+  rows,
+}: {
+  median: number | null;
+  /** `split_gap_rows` : le nombre de lignes sur lesquelles la médiane est calculée. */
+  rows: number;
+}) {
+  if (median == null || rows < ECART_MIN_LIGNES_EPREUVE) return null;
+  // **Seul l'écart positif se dit.** Le signe porte l'information : positif, le total
+  // couvre plus que la somme des inters — du temps hors des points de mesure. Négatif,
+  // la somme dépasse le total, ce qui n'a pas d'explication bénigne (des inters
+  // cumulés plutôt que par segment, typiquement) : affirmer alors « il en manque N % »
+  // dirait exactement l'inverse de la vérité. Ce cas se tait, faute de savoir le dire.
+  if (median <= SEUIL_ECART_EPREUVE) return null;
+
+  const part = Math.round(median * 100);
 
   return (
     <p

@@ -400,9 +400,13 @@ describe("CoursePage", () => {
   });
 
   it("dit une seule fois, au niveau de l'épreuve, que les inters ne couvrent pas le parcours", async () => {
-    // Course 65 de la base de dev : médiane +11,4 %, la T1 d'un aquathlon n'est
-    // pas publiée. Le dire sur chacune des lignes serait du bruit (FR-005).
-    getCourseSummary.mockResolvedValue({ ...SUMMARY, split_gap_median: 0.114 });
+    // Le dire sur chacune des lignes serait du bruit (FR-005) : sur la course 47,
+    // ce serait la même phrase 681 fois.
+    getCourseSummary.mockResolvedValue({
+      ...SUMMARY,
+      split_gap_median: 0.114,
+      split_gap_rows: 681,
+    });
 
     await afficher();
 
@@ -410,11 +414,56 @@ describe("CoursePage", () => {
   });
 
   it("se tait quand les inters collent au total", async () => {
-    getCourseSummary.mockResolvedValue({ ...SUMMARY, split_gap_median: 0.0007 });
+    getCourseSummary.mockResolvedValue({
+      ...SUMMARY,
+      split_gap_median: 0.0007,
+      split_gap_rows: 681,
+    });
 
     await afficher();
 
     expect(screen.queryByText(/temps intermédiaires ne couvrent pas/i)).not.toBeInTheDocument();
+  });
+
+  it("se tait sous dix lignes évaluables — une ligne ne parle pas pour l'épreuve", async () => {
+    getCourseSummary.mockResolvedValue({
+      ...SUMMARY,
+      split_gap_median: 0.3,
+      split_gap_rows: 1,
+    });
+
+    await afficher();
+
+    expect(screen.queryByText(/temps intermédiaires ne couvrent pas/i)).not.toBeInTheDocument();
+  });
+
+  it("se tait sur une médiane négative, faute de savoir la dire", async () => {
+    // La somme des inters dépasse le total — des temps de passage cumulés, le plus
+    // souvent. Affirmer « il en manque N % » dirait l'inverse de la vérité.
+    getCourseSummary.mockResolvedValue({
+      ...SUMMARY,
+      split_gap_median: -0.2,
+      split_gap_rows: 681,
+    });
+
+    await afficher();
+
+    expect(screen.queryByText(/temps intermédiaires ne couvrent pas/i)).not.toBeInTheDocument();
+  });
+
+  it("route la ligne du club vers scope=club, pas vers un filtre par libellé", async () => {
+    // La synthèse fusionne « TRI CLUB NANTAIS », « Triathlon club nantais » et
+    // « Tcn » sous un libellé canonique qu'aucune ligne ne porte en base : un
+    // `?club=` en égalité exacte y rendrait un classement vide.
+    await afficher();
+
+    const tcn = screen.getByText("TRIATHLON CLUB NANTAIS").closest("a");
+    expect(tcn).toHaveAttribute("href", expect.stringContaining("scope=club"));
+    expect(tcn?.getAttribute("href")).not.toContain("club=TRIATHLON");
+
+    const autre = screen.getByText("GRAVELINES TRIATHLON").closest("a");
+    expect(autre?.getAttribute("href")).toContain("club=GRAVELINES");
+    expect(autre?.getAttribute("href")).not.toContain("scope=club");
   });
 
   // ── Ce que les cartes omettent (#486, RES-7) ───────────────────────────────
