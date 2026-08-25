@@ -5,6 +5,7 @@ import type {
   AdminCourseUpdate,
   AdminUser,
   AthleteBrief,
+  AthleteDetail,
   AthleteSearchResult,
   AuthMethod,
   BatchLaunched,
@@ -152,6 +153,15 @@ export const apiClient = {
 
   listParticipations: (filters: ParticipationFilters = {}) =>
     request<Participation[]>(`/participations${toQuery(filters as Record<string, unknown>)}`),
+
+  // Premier appel navigateur de cette route : `/athletes/{id}` n'était jusqu'ici
+  // lu que par le rendu serveur de la fiche athlète. La bande « Ma saison »
+  // (#502) l'appelle côté client, parce que l'athlète retenu vit en
+  // `localStorage` et ne franchit pas la frontière serveur (#467).
+  getAthlete: (
+    id: number,
+    filters: { seasons?: string; federal_only?: boolean } = {},
+  ) => request<AthleteDetail>(`/athletes/${id}${toQuery(filters)}`),
 
   // Palette ⌘K (#484) — distincte de `listParticipations` : interroge les
   // athlètes directement (classés par pertinence côté backend), plus
