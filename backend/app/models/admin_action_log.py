@@ -10,13 +10,14 @@ et le couple `(entity_type, entity_id)` est la seule clé de relecture.
 partout dans le dépôt — `database.py` n'émet aucun `PRAGMA foreign_keys=ON`, la
 contrainte serait inerte en SQLite (dev et tests) et active en PostgreSQL.
 
-**Écriture seule** : ni mise à jour, ni suppression, ni route de lecture. Un
-journal qu'on peut réécrire ne prouve rien.
+**Jamais modifiable** : ni mise à jour, ni suppression — un journal qu'on peut
+réécrire ne prouve rien. Une route de lecture existe (#501,
+`GET /admin/action-log`) ; c'est l'écriture qui reste fermée.
 """
 from datetime import datetime
 
 from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 from app.core.time import utcnow
@@ -34,3 +35,9 @@ class AdminActionLog(Base):
     #: Le contexte de relecture : avant/après, comptes, entités emportées (FR-013).
     payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+
+    # Sens unique : aucune collection n'est ajoutée sur `User`. `user_id` est
+    # `NOT NULL`, donc jamais `| None` — contrairement à `AllowedEmail.created_by`,
+    # nullable, elle. `list_recent` (#501) la charge par `joinedload` pour
+    # afficher l'auteur sur chaque ligne sans requête par ligne.
+    user: Mapped["User"] = relationship()  # noqa: F821
