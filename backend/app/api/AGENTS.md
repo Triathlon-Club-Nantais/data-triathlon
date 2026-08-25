@@ -27,27 +27,40 @@ feature).
 
 `app/core/validation.py` (`is_pending`/`validated_clause`) est le point
 **unique** de la règle, sur le patron de `core/club.tcn_clause` et
-`core/discipline.federal_clause`. Appliqué à cinq fonctions de
-`participation_repository.py` :
+`core/discipline.federal_clause`. Appliqué à neuf fonctions, réparties sur
+trois repositories :
 
-| Fonction | Alimente |
-| --- | --- |
-| `_apply_filters` | `list_participations`, et via `_grouped_events_query` : `events_with_counts`/`events_page` |
-| `for_stats` | tableau de bord, page club, podiums (calculés côté front sur ces données) |
-| `list_page_for_course` | classement paginé d'une épreuve |
-| `summary_rows_for_course` | synthèse d'épreuve |
-| `finishers_count_by_group` | `course_finishers` de la fiche athlète |
+| Fonction | Fichier | Alimente |
+| --- | --- | --- |
+| `_apply_filters` | `participation_repository.py` | `list_participations`, et via `_grouped_events_query` : `events_with_counts`/`events_page` |
+| `for_stats` | `participation_repository.py` | tableau de bord, page club, podiums (calculés côté front sur ces données) |
+| `list_page_for_course` | `participation_repository.py` | classement paginé d'une épreuve |
+| `summary_rows_for_course` | `participation_repository.py` | synthèse d'épreuve |
+| `finishers_count_by_group` | `participation_repository.py` | `course_finishers` de la fiche athlète |
+| `distinct_seasons` | `participation_repository.py` | `stats_service.list_seasons` → sélecteur de saisons |
+| `_filtered` (branche `club_only`) | `course_repository.py` | `GET /courses?scope=club` et `GET /courses/count?scope=club` |
+| `list_with_season_participation_count` | `athlete_repository.py` | `GET /athletes/season-activity` — page coureurs (#274, #382) |
+| `search_by_relevance` | `athlete_repository.py` | `GET /athletes/search` — `participation_count` de la palette ⌘K (#484) |
 
-**Délibérément absente** de six autres fonctions : `list_for_athlete` (la
-surface voulue par FR-019 — la filtrer viderait la feature de son objet),
-`list_for_course` (chemin d'import, pas d'affichage), `count_for_athlete`
-(purge des fiches orphelines, #117), `count_for_course`/`delete_for_course`
-(gestes d'administration), `count_bibs_absent_from` (aperçu de fusion, #286)
-et `existing_bibs_for_course` (dédoublonnage d'import). Verrouillé par un test
-**comportemental** (une participation pendante + une validée, assertion par
-fonction publique) dans `tests/test_repositories/test_pending_exclusion.py` —
-pas par lecture AST : `_apply_filters` est un helper partagé par trois
-fonctions publiques, qu'un lecteur d'appels statique attribuerait mal.
+**`search_by_relevance` joint `Participation` en `outerjoin`** (un athlète à
+zéro résultat doit rester trouvable) : `validated_clause` y vit dans la
+**condition du join**, jamais dans un `.filter()` après coup — un `.filter()`
+post-jointure dégraderait l'`outerjoin` en jointure interne de fait et ferait
+disparaître de la palette un athlète dont l'unique résultat est en attente,
+au lieu de l'y garder à 0 résultat validé (#562).
+
+**Délibérément absente** de six autres fonctions de `participation_repository.py` :
+`list_for_athlete` (la surface voulue par FR-019 — la filtrer viderait la
+feature de son objet), `list_for_course` (chemin d'import, pas d'affichage),
+`count_for_athlete` (purge des fiches orphelines, #117),
+`count_for_course`/`delete_for_course` (gestes d'administration),
+`count_bibs_absent_from` (aperçu de fusion, #286) et `existing_bibs_for_course`
+(dédoublonnage d'import). Verrouillé par un test **comportemental** (une
+participation pendante + une validée, assertion par fonction publique) dans
+`tests/test_repositories/test_pending_exclusion.py` — pas par lecture AST :
+`_apply_filters` est un helper partagé par trois fonctions publiques, qu'un
+lecteur d'appels statique attribuerait mal, et la règle traverse trois
+fichiers différents.
 
 ## Classement d'une épreuve : paginé, et l'ordre est en base (#163)
 

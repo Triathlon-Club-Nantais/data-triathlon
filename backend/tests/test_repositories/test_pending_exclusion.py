@@ -1,19 +1,26 @@
 """Le point unique d'exclusion des résultats non vérifiés (#270, FR-021/FR-022).
 
-Comportemental plutôt qu'AST : la règle traverse cinq fonctions publiques via
-un helper partagé (`_apply_filters`), qu'un lecteur d'appels statique
-attribuerait mal. Un test par fonction publique, sur une participation
-pendante et une validée, vaut mieux ici qu'un motif de code — sur le principe
-de `test_core/test_discipline.py`, pas sur la forme de
-`test_permissions_catalogue.py`.
+Comportemental plutôt qu'AST : la règle traverse neuf fonctions publiques,
+réparties sur trois repositories, via des helpers partagés (`_apply_filters`
+notamment), qu'un lecteur d'appels statique attribuerait mal. Un test par
+fonction publique, sur une participation pendante et une validée, vaut mieux
+ici qu'un motif de code — sur le principe de `test_core/test_discipline.py`,
+pas sur la forme de `test_permissions_catalogue.py`.
 
-Les six fonctions qui ne filtrent **pas** — `list_for_athlete` (la surface
-voulue par FR-019), `list_for_course` (chemin d'import), `count_for_athlete`,
-`count_for_course`/`delete_for_course` (gestes d'administration),
-`count_bibs_absent_from` (aperçu de fusion) et `existing_bibs_for_course`
-(dédoublonnage d'import) — sont couvertes ailleurs : `list_for_athlete` dans
-`test_participation_repository.py`, les autres n'ont pas été modifiées et
-restent sous leurs tests existants.
+Les six fonctions de `participation_repository.py` qui ne filtrent **pas** —
+`list_for_athlete` (la surface voulue par FR-019), `list_for_course` (chemin
+d'import), `count_for_athlete`, `count_for_course`/`delete_for_course`
+(gestes d'administration), `count_bibs_absent_from` (aperçu de fusion) et
+`existing_bibs_for_course` (dédoublonnage d'import) — sont couvertes
+ailleurs : `list_for_athlete` dans `test_participation_repository.py`, les
+autres n'ont pas été modifiées et restent sous leurs tests existants.
+
+#562 a ajouté quatre fonctions à la carte, sur deux autres repositories :
+`distinct_seasons` (`participation_repository.py`, angle mort de la carte
+initiale), `course_repository._filtered` (branche `club_only`), et
+`athlete_repository.list_with_season_participation_count`/
+`.search_by_relevance`. Ces deux derniers fichiers n'importaient pas
+`app.core.validation` avant #562.
 """
 from datetime import date
 
@@ -120,3 +127,81 @@ def test_une_participation_validee_apres_coup_entre_dans_les_cinq_sites(db_sessi
 
     counts = participation_repository.finishers_count_by_group(db_session, [course.id])
     assert counts == {(course.id, False): 2}
+
+
+# --- #562 : quatre fonctions supplémentaires, sur deux autres repositories ---
+
+
+def test_distinct_seasons_exclut_une_pendante(db_session):
+    _duo(db_session)
+    saisons = participation_repository.distinct_seasons(db_session, club_only=True)
+    assert saisons == [{"start_year": 2025, "event_count": 1, "participation_count": 1}]
+
+
+def test_list_all_club_only_exclut_une_epreuve_dont_lunique_participation_club_est_pendante(
+    db_session,
+):
+    course = course_repository.get_or_create(
+        db_session, name="Tri Fantome", event_date=date(2026, 5, 16), event_type="triathlon-m"
+    )
+    athlete = athlete_repository.get_or_create(db_session, nom="PENDING", prenom="Solo", club="TCN")
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1",
+        club="TCN", status="finisher", rank_overall=1, total_time="01:00:00",
+        is_pending_validation=True,
+    )
+    db_session.flush()
+    assert course_repository.list_all(db_session, club_only=True) == []
+    assert course_repository.count_all(db_session, club_only=True) == 0
+
+
+def test_list_with_season_participation_count_exclut_une_pendante(db_session):
+    _, _, validee = _duo(db_session)
+    athlete = athlete_repository.get(db_session, validee.athlete_id)
+    resultats = athlete_repository.list_with_season_participation_count(
+        db_session, seasons=[2025], club_only=True
+    )
+    assert resultats == [(athlete, 1)]
+
+
+def test_list_with_season_participation_count_exclut_un_athlete_100pourcent_pendant(db_session):
+    athlete = athlete_repository.get_or_create(db_session, nom="PENDING", prenom="Solo", club="TCN")
+    course = course_repository.get_or_create(
+        db_session, name="Tri Solo Deux", event_date=date(2026, 5, 16), event_type="triathlon-m"
+    )
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1",
+        club="TCN", status="finisher", rank_overall=1, total_time="01:00:00",
+        is_pending_validation=True,
+    )
+    db_session.flush()
+    resultats = athlete_repository.list_with_season_participation_count(
+        db_session, seasons=[2025], club_only=True
+    )
+    assert resultats == []
+
+
+def test_search_by_relevance_ne_compte_pas_la_pendante(db_session):
+    _, _, validee = _duo(db_session)
+    athlete = athlete_repository.get(db_session, validee.athlete_id)
+    resultats = athlete_repository.search_by_relevance(db_session, term="DUPONT")
+    assert resultats == [(athlete, 1)]
+
+
+def test_search_by_relevance_garde_lathlete_dont_lunique_resultat_est_pendant(db_session):
+    """Piège #562 : le filtre doit vivre dans la condition du `outerjoin`, pas
+    dans le `WHERE` — sinon l'athlète dont l'unique participation est pendante
+    disparaît entièrement de la palette ⌘K, au lieu d'y rester à 0 résultat
+    validé (comme un athlète qui n'a jamais couru, cf. #484)."""
+    athlete = athlete_repository.get_or_create(db_session, nom="SOLOPENDING", prenom="Jean", club="TCN")
+    course = course_repository.get_or_create(
+        db_session, name="Tri Solo Pendant", event_date=date(2026, 5, 16), event_type="triathlon-m"
+    )
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1",
+        club="TCN", status="finisher", rank_overall=1, total_time="01:00:00",
+        is_pending_validation=True,
+    )
+    db_session.flush()
+    resultats = athlete_repository.search_by_relevance(db_session, term="SOLOPENDING")
+    assert resultats == [(athlete, 0)]

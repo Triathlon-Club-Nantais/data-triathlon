@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core.club import tcn_clause
 from app.core.time import utcnow
+from app.core.validation import validated_clause
 from app.models.course import Course
 from app.models.course_source import CourseSource
 
@@ -340,6 +341,9 @@ def _filtered(
         q = (
             q.join(Participation, Participation.course_id == Course.id)
             .filter(tcn_clause(Participation.club))
+            # #562 : une épreuve dont l'unique participation club est en
+            # attente de validation ne doit pas apparaître dans le catalogue.
+            .filter(validated_clause(Participation.is_pending_validation))
             .distinct()
         )
     return q
