@@ -7,6 +7,7 @@ import type { CourseSummary, Participation } from "@/lib/types";
 import { SCOPE_CLUB, SCOPE_PARAM } from "@/lib/scope";
 import { CLUB_NAME } from "@/lib/club";
 import { writeAthlete } from "@/components/layout/AthletePicker";
+import { dansLesCartes } from "@/test/cartes";
 
 const push = vi.fn();
 let searchParams = new URLSearchParams();
@@ -488,20 +489,25 @@ describe("RaceFinishers", () => {
   it("signale l'inter illisible au lieu de le taire, et rappelle la valeur reçue", () => {
     // Masquer sans rien dire ferait croire que le chronométreur n'a rien publié.
     afficherInter();
-    expect(screen.getByRole("img", { name: /illisible/i })).toHaveAccessibleName(
-      new RegExp(ILLISIBLE),
-    );
+    // Scopé à la grille (#461) : le même ⚠ existe dans le dépliant de la carte.
+    expect(
+      within(screen.getByTestId("classement-grille")).getByRole("img", { name: /illisible/i }),
+    ).toHaveAccessibleName(new RegExp(ILLISIBLE));
   });
 
   it("laisse un inter absent en simple tiret, sans signal", () => {
     afficherInter({});
-    expect(screen.queryByRole("img", { name: /illisible/i })).not.toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("classement-grille")).queryByRole("img", { name: /illisible/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("rend tel quel un inter parsable", () => {
     afficherInter({ swim: "00:25:00" });
     expect(screen.getByText("00:25:00")).toBeInTheDocument();
-    expect(screen.queryByRole("img", { name: /illisible/i })).not.toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("classement-grille")).queryByRole("img", { name: /illisible/i }),
+    ).not.toBeInTheDocument();
   });
 
   // ── Tri par temps intermédiaire (#309) ─────────────────────────────────────
@@ -1270,5 +1276,97 @@ describe("RaceFinishers — filtres club et catégorie", () => {
     afficher();
 
     expect(screen.queryByRole("button", { name: /Retirer le filtre/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("rendu carte sous lg", () => {
+  const cartes = () => dansLesCartes("classement-cartes");
+  const grille = () => screen.getByTestId("classement-grille");
+
+  it("bascule la grille et les cartes aux seuils annoncés", () => {
+    render(
+      <RaceFinishers
+        participations={[p({ id: 1, nom: "DUPONT", rank_overall: 1, total_time: "01:04:12" })]}
+        summary={synthese()}
+        total={1}
+        page={1}
+        pageSize={20}
+      />,
+    );
+    expect(grille().className).toContain("hidden lg:block");
+    expect(screen.getByTestId("classement-cartes").className).toContain("lg:hidden");
+  });
+
+  it("porte place, nom, temps et méta dans la carte", () => {
+    render(
+      <RaceFinishers
+        participations={[
+          p({ id: 1, nom: "DUPONT", rank_overall: 1, total_time: "01:04:12", club: "TCN", is_tcn: true }),
+        ]}
+        summary={synthese()}
+        total={1}
+        page={1}
+        pageSize={20}
+      />,
+    );
+    const carte = cartes();
+    expect(carte.texte("DUPONT T")).toBeInTheDocument();
+    expect(carte.texte("01:04:12")).toBeInTheDocument();
+    expect(carte.texte("1")).toBeInTheDocument();
+    // La méta est une seule chaîne « club · catégorie · sexe ».
+    expect(carte.texte(/TCN · S4/)).toBeInTheDocument();
+  });
+
+  it("range les inters dans un dépliant, ⚠ compris", () => {
+    render(
+      <RaceFinishers
+        participations={[
+          p({ id: 1, nom: "DUPONT", rank_overall: 1, total_time: "01:04:12", splits: { swim: "0-2:-15:00" } }),
+        ]}
+        summary={synthese({ split_keys: ["swim"] })}
+        total={1}
+        page={1}
+        pageSize={20}
+        eventType="triathlon"
+      />,
+    );
+    const carte = cartes();
+    expect(carte.texte("Inters")).toBeInTheDocument();
+    // `getByRole` n'est pas concerné par `defaultIgnore`, mais reste scopé aux
+    // cartes : le même ⚠ existe dans l'arbre grille.
+    expect(carte.getByRole("img", { name: /illisible/i })).toBeInTheDocument();
+  });
+
+  // Trois lignes, dans un ordre backend qui n'est ni croissant ni décroissant :
+  // avec deux lignes, « décroissant » redonnerait l'ordre de départ et le test
+  // ne prouverait rien.
+  it("trie depuis le contrôle mobile, et la grille suit", async () => {
+    render(
+      <RaceFinishers
+        participations={[
+          p({ id: 1, nom: "MOYEN", rank_overall: 1, total_time: "01:30:00" }),
+          p({ id: 2, nom: "LENT", rank_overall: 2, total_time: "02:00:00" }),
+          p({ id: 3, nom: "RAPIDE", rank_overall: 3, total_time: "01:00:00" }),
+        ]}
+        summary={synthese()}
+        total={3}
+        page={1}
+        pageSize={20}
+      />,
+    );
+    const noms = () =>
+      within(grille())
+        .getAllByText(/^(MOYEN|LENT|RAPIDE) T$/)
+        .map((n) => n.textContent);
+
+    // L'ordre du backend d'abord : la vue n'est pas triée.
+    expect(noms()).toEqual(["MOYEN T", "LENT T", "RAPIDE T"]);
+
+    await userEvent.click(cartes().getByRole("button", { name: /Inverser l'ordre/ }));
+
+    // Le contrôle mobile écrit dans le même état `tri` que les en-têtes :
+    // l'arbre grille est réordonné lui aussi. Premier appui = décroissant, ce
+    // que le nom accessible du bouton annonçait (« actuellement croissant »).
+    expect(noms()).toEqual(["LENT T", "MOYEN T", "RAPIDE T"]);
   });
 });
