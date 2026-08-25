@@ -13,8 +13,12 @@ l'arborescence, et chaque dossier qui a ses propres pièges porte son
   `SecurityHeadersMiddleware` l'est à dessein, pour voir le schéma déjà réécrit
   par `ProxyHeadersMiddleware` (#396).
 - `app/core/` — `config.py` (pydantic-settings), `logging.py`, `database.py`,
-  `exceptions.py`, `time.py`, `club.py` (appartenance au TCN : **liste blanche**
-  de libellés, match à l'égalité — cf. #76), `discipline.py` (disciplines
+  `exceptions.py`, `time.py`, `chrono.py` (**seule** définition d'un temps de
+  course absent — `""`, `00:00:00` et les autres zéros ; partagée par
+  `services/quality`, `services/cache` et l'ordre du classement, qui en
+  portaient trois versions divergentes — #566), `club.py` (appartenance au TCN :
+  **liste blanche** de libellés, match à l'égalité — cf. #76),
+  `discipline.py` (disciplines
   fédérales vs trail / course à pied / cyclisme), `http.py` (**toute** sortie
   HTTP y passe, garde SSRF sur la requête et chaque redirection — #49, #101),
   `security_headers.py` (en-têtes de sécurité sur **toute** réponse — jumeau du

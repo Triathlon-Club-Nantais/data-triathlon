@@ -1002,3 +1002,37 @@ def test_delete_n_emet_aucun_commit(db_session):
         db_session.commit = original
 
     assert appels == []
+
+
+def test_le_classement_pagine_departage_deux_homonymes_exacts(db_session):
+    """Deux lignes que rien ne sépare doivent tout de même avoir un ordre.
+
+    Groupe d'affichage, rang, temps, nom et prénom égaux : sans clé finale,
+    l'ordre relatif est laissé au plan de requête, donc une même ligne peut
+    sortir deux fois — ou pas du tout — en feuilletant (#163). Le cas demande
+    un doublon d'identité (#66, #117), c'est-à-dire exactement ce que le dépôt
+    sait produire.
+    """
+    _, course = _setup(db_session)
+    jumeaux = []
+    for bib in ("1", "2"):
+        athlete = Athlete(nom="DUPONT", prenom="Jean")
+        db_session.add(athlete)
+        db_session.flush()
+        jumeaux.append(
+            participation_repository.create(
+                db_session, athlete_id=athlete.id, course_id=course.id, bib_number=bib,
+                total_time="01:59:00", rank_overall=None,
+            )
+        )
+    db_session.flush()
+
+    page1, total = participation_repository.list_page_for_course(
+        db_session, course.id, page=1, page_size=1
+    )
+    page2, _ = participation_repository.list_page_for_course(
+        db_session, course.id, page=2, page_size=1
+    )
+
+    assert total == 2
+    assert {p.id for p in page1 + page2} == {p.id for p in jumeaux}

@@ -51,3 +51,15 @@ def test_in_progress_short_ttl(db_session):
     # En cours, scrapée il y a 20 min → au-delà du TTL « en cours » (10 min)
     course.scraped_at = utcnow() - timedelta(minutes=20)
     assert cache.is_fresh(db_session, course, _settings()) is False
+
+
+def test_in_progress_when_time_is_zero(db_session):
+    """`00:00:00` vaut temps absent — définition partagée (`core/chrono`).
+
+    Un chronométreur qui publie sa liste de départ avant les temps réels rend
+    des zéros, pas des vides : sans ce cas, l'épreuve prenait le TTL « terminée »
+    (30 j) alors qu'elle est exactement ce que le cache dynamique existe pour
+    traiter.
+    """
+    course = _course_with_participation(db_session, total_time="00:00:00")
+    assert cache.is_in_progress(db_session, course.id) is True

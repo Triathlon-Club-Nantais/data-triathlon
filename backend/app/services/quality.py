@@ -14,6 +14,7 @@ un signal de revue humaine, pas une note. Tout seuil de tolérance serait arbitr
 from collections.abc import Iterable
 from dataclasses import dataclass
 
+from app.core.chrono import has_no_time
 from app.scrapers.base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER
 
 # Lignes scrapées jetées : deux lignes de la source partagent un dossard, la
@@ -35,9 +36,6 @@ KNOWN_STATUSES = frozenset(
     s.lower() for s in (STATUS_FINISHER, STATUS_DNF, STATUS_DNS, STATUS_DSQ)
 )
 
-# Un temps total « zéro » vaut temps absent : les chronos le rendent de plusieurs façons.
-_ZERO_TIMES = frozenset({"", "00:00:00", "0:00:00", "00:00", "0:00", "0"})
-
 
 @dataclass(frozen=True)
 class QualityReport:
@@ -47,10 +45,6 @@ class QualityReport:
 
 def _normalized_status(participation) -> str:
     return (participation.status or "").strip().lower()
-
-
-def _has_no_time(participation) -> bool:
-    return (participation.total_time or "").strip() in _ZERO_TIMES
 
 
 def _rank_anomalies(finishers: list) -> dict[str, int]:
@@ -100,7 +94,7 @@ def analyze(participations: Iterable, *, duplicate_bibs: int = 0) -> QualityRepo
         anomalies[ANOMALY_UNKNOWN_STATUS] = unknown
 
     finishers = [p for p in participations if _normalized_status(p) == STATUS_FINISHER]
-    without_time = sum(1 for p in finishers if _has_no_time(p))
+    without_time = sum(1 for p in finishers if has_no_time(p.total_time))
     if without_time:
         anomalies[ANOMALY_FINISHER_WITHOUT_TIME] = without_time
 

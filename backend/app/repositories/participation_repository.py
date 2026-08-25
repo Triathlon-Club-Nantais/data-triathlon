@@ -5,6 +5,7 @@ from datetime import date
 from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session, aliased, contains_eager, joinedload
 
+from app.core.chrono import ZERO_TIMES
 from app.core.club import tcn_clause
 from app.core.discipline import federal_clause
 from app.core.season import season_bounds, season_of
@@ -452,11 +453,11 @@ _GROUPE_AFFICHAGE = case(
     else_=0,
 )
 
-# Un temps vide ou `00:00:00` vaut temps absent — sémantique partagée avec le front.
+# Temps absent — sémantique partagée avec le front, et **une seule** définition
+# pour le dépôt depuis #566 : `core.chrono.ZERO_TIMES`.
 _TEMPS_ABSENT = or_(
     Participation.total_time.is_(None),
-    Participation.total_time == "",
-    Participation.total_time == "00:00:00",
+    Participation.total_time.in_(ZERO_TIMES),
 )
 
 
@@ -487,6 +488,11 @@ def _ordre_affichage():
         ),
         func.lower(Athlete.nom),
         func.lower(Athlete.prenom),
+        # Départage final : deux homonymes exacts sur une même épreuve — ce que
+        # produit un doublon d'identité (#66, #117) — ne sont séparés par aucune
+        # des clés précédentes, et leur ordre relatif serait laissé au plan de
+        # requête. Paginé, cela fait apparaître une ligne deux fois, ou jamais.
+        Participation.id,
     )
 
 

@@ -248,3 +248,36 @@ def test_le_plafond_de_connexion_est_plus_large_que_celui_des_ecritures(client):
     là où une écriture publique reste un geste rare et individuel.
     """
     assert deps.SITE_ACCESS_RATE_LIMIT_MAX_PER_WINDOW > deps.PUBLIC_WRITE_RATE_LIMIT_MAX_PER_WINDOW
+
+
+def test_la_purge_des_seaux_n_efface_pas_le_quota_d_une_autre_fenetre(monkeypatch):
+    """Point 4 de #566 : la purge appliquait la fenêtre de l'appel en cours.
+
+    Un appel sur un seau à fenêtre courte balayait donc les seaux à fenêtre
+    longue dont le dernier passage était plus vieux que *sa* fenêtre à lui —
+    ce que le commentaire d'en-tête de `_MAX_SEAUX` promet de ne pas faire.
+    Inoffensif tant que les quatre fenêtres valent 3600 s, silencieux le jour
+    où l'une change.
+    """
+    import time
+    from collections import deque
+    from types import SimpleNamespace
+
+    deps.reset_rate_limits()
+    monkeypatch.setattr(deps, "_MAX_SEAUX", 1)
+
+    long_seau = ("long", "203.0.113.7")
+    deps._enforce_rate_limit(
+        SimpleNamespace(client=SimpleNamespace(host="203.0.113.7")),
+        "long", max_per_window=10, window_seconds=3600,
+    )
+    # Dernier passage il y a 10 s : hors de la fenêtre courte, dans la longue.
+    deps._hits[long_seau] = deque([time.monotonic() - 10])
+    deps._hits[("remplissage", "198.51.100.1")] = deque([time.monotonic() - 10])
+
+    deps._enforce_rate_limit(
+        SimpleNamespace(client=SimpleNamespace(host="203.0.113.9")),
+        "court", max_per_window=10, window_seconds=1,
+    )
+
+    assert long_seau in deps._hits

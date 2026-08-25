@@ -149,6 +149,10 @@ def require_site_access(
 # peuvent passer au-delà du plafond — sans conséquence pour un garde de volume.
 _hits: dict[tuple[str, str], deque[float]] = {}
 
+#: Fenêtre en secondes de chaque seau, retenue au premier passage : la purge en
+#: a besoin pour ne pas juger un seau à l'aune de la fenêtre d'un autre.
+_fenetres: dict[str, int] = {}
+
 #: Au-delà, on purge les seaux dont la fenêtre est entièrement écoulée — un
 #: attaquant qui fait tourner ses adresses ne fait pas croître la mémoire sans
 #: fin. La purge n'efface aucun quota en cours.
@@ -187,6 +191,7 @@ SITE_ACCESS_RATE_LIMIT_WINDOW_SECONDS = 3600
 def reset_rate_limits() -> None:
     """Vide les compteurs. Réservé aux tests (fixture autouse de `conftest`)."""
     _hits.clear()
+    _fenetres.clear()
 
 
 def _enforce_rate_limit(
@@ -197,9 +202,14 @@ def _enforce_rate_limit(
         return
 
     now = time.monotonic()
+    _fenetres[bucket] = window_seconds
     if len(_hits) > _MAX_SEAUX:
+        # La fenêtre du seau purgé, jamais celle de l'appel en cours : un appel
+        # sur un seau à fenêtre courte effacerait sinon le quota d'un seau à
+        # fenêtre longue, ce que `_MAX_SEAUX` promet précisément de ne pas faire.
         for key, seen in list(_hits.items()):
-            if not seen or now - seen[-1] >= window_seconds:
+            fenetre = _fenetres.get(key[0], window_seconds)
+            if not seen or now - seen[-1] >= fenetre:
                 del _hits[key]
 
     seen = _hits.setdefault((bucket, ip), deque())

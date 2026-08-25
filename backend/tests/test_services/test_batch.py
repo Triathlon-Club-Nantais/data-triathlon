@@ -573,3 +573,27 @@ def test_a_registered_passive_source_is_neither_an_error_nor_an_import(
     assert totals.imported == 0
     assert totals.failures == []
     assert SheetOutcome(unique_supported=1, errors=0).echec_total is False
+
+
+def test_run_batch_exception_sans_message_compte_une_erreur(db_session, monkeypatch):
+    """`str(ValueError())` vaut `""` : sans repli, l'épreuve passait en succès.
+
+    Le `if result.error:` était alors faux, l'épreuve était comptée importée à
+    zéro participant et n'apparaissait ni dans `errors` ni dans `failures` —
+    donc au dénominateur d'`est_echec_total`, qui pouvait rendre un cron en
+    code 0 alors que tout avait échoué.
+    """
+    def _phases(db, url, settings, force=False, persist=True, **kwargs):
+        raise ValueError()
+        yield  # pragma: no cover — générateur
+
+    monkeypatch.setattr(import_service, "iter_import_event", _phases)
+
+    totals = batch.run_batch(
+        db_session, [BatchItem(url="https://k/1", label="A")], _settings(),
+        force=False, delay=0.0,
+    )
+
+    assert totals.errors == 1
+    assert totals.imported == 0
+    assert [f.message for f in totals.failures] == ["ValueError"]

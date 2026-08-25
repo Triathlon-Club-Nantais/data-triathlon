@@ -19,6 +19,7 @@ l'**autre** chronométreur sous l'URL qu'on vient de coller.
 """
 from sqlalchemy.orm import Session
 
+from app.core.chrono import ZERO_TIMES
 from app.core.config import Settings
 from app.core.time import utcnow
 from app.models.course import Course
@@ -26,12 +27,17 @@ from app.models.participation import Participation
 
 
 def is_in_progress(db: Session, course_id: int) -> bool:
-    """Vrai si au moins une participation n'a pas de temps final (course en cours)."""
+    """Vrai si au moins une participation n'a pas de temps final (course en cours).
+
+    « Pas de temps » suit `core.chrono.ZERO_TIMES` : un chronométreur qui publie
+    des `00:00:00` en attendant les temps réels décrit une épreuve en cours, pas
+    une épreuve terminée à zéro seconde.
+    """
     return (
         db.query(Participation.id)
         .filter(
             Participation.course_id == course_id,
-            (Participation.total_time.is_(None)) | (Participation.total_time == ""),
+            (Participation.total_time.is_(None)) | (Participation.total_time.in_(ZERO_TIMES)),
         )
         .first()
         is not None

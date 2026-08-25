@@ -241,7 +241,11 @@ def run_batch(
                     )
                 except Exception as exc:  # filet : un bug ne doit pas tuer le batch
                     logger.warning("Échec import %s : %s", item.url, exc)
-                    result = _ItemResult(error=str(exc))
+                    # `str(ValueError())` vaut `""`, et `if result.error:` serait
+                    # alors faux : l'épreuve passerait en succès à zéro
+                    # participant. Même repli que `_import_one`, qui lit
+                    # `phase.get("message", "erreur inconnue")`.
+                    result = _ItemResult(error=str(exc) or exc.__class__.__name__)
 
             if result.error:
                 totals.errors += 1
