@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { dansLesCartes } from "@/test/cartes";
 
 // jsdom ne fournit pas IntersectionObserver, requis par le défilement infini
 // dès que `hasNextPage` est vrai.
@@ -79,7 +80,10 @@ describe("EventList", () => {
 
     renderList();
 
-    const link = screen.getByRole("link", { name: /Tri de Nantes/ });
+    // Scopé à la grille (#461) : la carte sous `md` rend le même lien.
+    const link = within(screen.getByTestId("epreuves-grille")).getByRole("link", {
+      name: /Tri de Nantes/,
+    });
     expect(link).toHaveAttribute("href", "/courses/14");
     // Métadonnées conservées dans la ligne. Depuis #481 la ligne **est** le
     // `<tr>`, et le lien n'occupe que la cellule du nom : c'est la ligne qu'on
@@ -122,7 +126,10 @@ describe("EventList", () => {
     expect(screen.queryByRole("button", { name: /supprimer/i })).toBeNull();
     // L'épreuve est un lien plein, plus un trigger d'accordéon dépliable.
     expect(screen.queryByRole("button", { name: /Tri de Nantes/i })).toBeNull();
-    expect(screen.getByRole("link", { name: /Tri de Nantes/ })).toBeInTheDocument();
+    // Scopé à la grille (#461) : la carte sous `md` rend le même lien.
+    expect(
+      within(screen.getByTestId("epreuves-grille")).getByRole("link", { name: /Tri de Nantes/ }),
+    ).toBeInTheDocument();
   });
 
   it("affiche « (Relais) » dans le nom d'une épreuve relais", () => {
@@ -188,8 +195,12 @@ describe("EventList", () => {
 
     renderList();
 
-    // La ligne est le `<tr>` depuis #481 : c'est lui qui porte la grille.
-    const row = screen.getByRole("link", { name: /Quiberon/ }).closest("tr")!;
+    // La ligne est le `<tr>` depuis #481 : c'est lui qui porte la grille. Le
+    // lien se cherche dans la grille (#461) : la carte sous `md` rend le même,
+    // sans largeur plancher à vérifier.
+    const row = within(screen.getByTestId("epreuves-grille"))
+      .getByRole("link", { name: /Quiberon/ })
+      .closest("tr")!;
     const style = getComputedStyle(row);
     // Une valeur px par piste : sa largeur fixe, ou la borne basse de son minmax.
     const tracks = [...style.gridTemplateColumns.matchAll(/(\d+)px/g)].map((m) => Number(m[1]));
@@ -357,19 +368,23 @@ describe("EventList — regroupement par compétition parente (#463)", () => {
     setGroupe();
     renderList();
 
-    const entete = screen.getByRole("button", { name: new RegExp(PREFIXE) });
+    // Scopé à la grille (#461) : la carte sous `md` rend le même bouton.
+    const grille = within(screen.getByTestId("epreuves-grille"));
+    const entete = grille.getByRole("button", { name: new RegExp(PREFIXE) });
     expect(entete).toHaveAttribute("aria-expanded", "false");
     // Le bouton ne porte plus que le nom de la compétition : le reste de la
     // ligne vit dans les cellules voisines depuis #481.
     expect(entete.closest("tr")).toHaveTextContent("2 épreuves");
-    expect(screen.queryByRole("link", { name: /Fille/ })).toBeNull();
+    expect(grille.queryByRole("link", { name: /Fille/ })).toBeNull();
   });
 
   it("additionne résultats et TCN des épreuves chargées sur la ligne de compétition", () => {
     setGroupe();
     renderList();
 
-    const ligne = screen.getByRole("button", { name: new RegExp(PREFIXE) }).closest("tr")!;
+    const ligne = within(screen.getByTestId("epreuves-grille"))
+      .getByRole("button", { name: new RegExp(PREFIXE) })
+      .closest("tr")!;
     expect(ligne).toHaveTextContent("200 résultats");
     expect(ligne).toHaveTextContent("3");
   });
@@ -378,9 +393,10 @@ describe("EventList — regroupement par compétition parente (#463)", () => {
     setGroupe();
     renderList();
 
-    await userEvent.click(screen.getByRole("button", { name: new RegExp(PREFIXE) }));
+    const grille = within(screen.getByTestId("epreuves-grille"));
+    await userEvent.click(grille.getByRole("button", { name: new RegExp(PREFIXE) }));
 
-    const lien = screen.getByRole("link", { name: /2013\/2014 - Fille/ });
+    const lien = grille.getByRole("link", { name: /2013\/2014 - Fille/ });
     expect(lien).toHaveAttribute("href", "/courses/1");
     // Le préfixe commun est porté par la ligne de groupe, pas répété 15 fois.
     expect(lien).not.toHaveTextContent(PREFIXE);
@@ -416,10 +432,10 @@ describe("EventList — regroupement par compétition parente (#463)", () => {
     renderList();
 
     expect(screen.queryByRole("button", { name: /Tri de Nantes/ })).toBeNull();
-    expect(screen.getByRole("link", { name: /Tri de Nantes/ })).toHaveAttribute(
-      "href",
-      "/courses/14",
-    );
+    // Scopé à la grille (#461) : la carte sous `md` rend le même lien.
+    expect(
+      within(screen.getByTestId("epreuves-grille")).getByRole("link", { name: /Tri de Nantes/ }),
+    ).toHaveAttribute("href", "/courses/14");
   });
 });
 
@@ -465,7 +481,12 @@ describe("EventList — annonce du repliement (#463, WCAG 4.1.3)", () => {
     setDeuxSousEpreuves();
     renderList();
 
-    await userEvent.click(screen.getByRole("button", { name: new RegExp(PREFIXE) }));
+    // Scopé à la grille (#461) : la carte sous `md` rend le même bouton.
+    await userEvent.click(
+      within(screen.getByTestId("epreuves-grille")).getByRole("button", {
+        name: new RegExp(PREFIXE),
+      }),
+    );
 
     expect(screen.getByRole("status")).toHaveTextContent("2 épreuves, 200 résultats, 2 affichées");
     expect(screen.getByRole("status")).not.toHaveTextContent("repliée");
@@ -697,5 +718,87 @@ describe("EventList — entrée « Pertinence » pendant une recherche d'épreuv
 
     expect(screen.getByRole("combobox")).toHaveTextContent("Date (récent)");
     expect(screen.getByRole("combobox")).not.toHaveTextContent("Pertinence");
+  });
+});
+
+describe("rendu carte sous md", () => {
+  const cartes = () => dansLesCartes("epreuves-cartes");
+
+  /** Une épreuve minimale, au format que `useInfiniteEvents` sert. */
+  function epreuve(over: Record<string, unknown>) {
+    return {
+      id: 14,
+      event_name: "Tri de Nantes",
+      event_type: "triathlon-m",
+      event_date: "2026-05-16",
+      distance_km: null,
+      is_relay: false,
+      total: 148,
+      tcn_count: 3,
+      ...over,
+    };
+  }
+
+  it("bascule la grille et les cartes aux seuils annoncés", () => {
+    setEvents({
+      data: { pages: [{ items: [epreuve({})], total_events: 1, total_participations: 148 }] },
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+    });
+    renderList();
+
+    expect(screen.getByTestId("epreuves-grille").className).toContain("hidden md:block");
+    expect(screen.getByTestId("epreuves-cartes").className).toContain("md:hidden");
+  });
+
+  it("porte l'épreuve, ses compteurs et son lien dans la carte", () => {
+    setEvents({
+      data: { pages: [{ items: [epreuve({})], total_events: 1, total_participations: 148 }] },
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+    });
+    renderList();
+
+    const carte = cartes();
+    expect(carte.getByRole("link", { name: /Tri de Nantes/ })).toHaveAttribute(
+      "href",
+      "/courses/14",
+    );
+    expect(carte.texte(/148 résultats/)).toBeTruthy();
+  });
+
+  // L'état `ouverts` est au-dessus des deux arbres : replier au téléphone puis
+  // élargir garde le repli, et l'inverse aussi.
+  it("partage le repli d'une compétition entre les deux arbres", async () => {
+    setEvents({
+      data: {
+        pages: [
+          {
+            items: [
+              epreuve({ id: 1, event_name: "Coupe de Bretagne - Sprint H" }),
+              epreuve({ id: 2, event_name: "Coupe de Bretagne - Sprint F" }),
+            ],
+            total_events: 2,
+            total_participations: 296,
+          },
+        ],
+      },
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+    });
+    renderList();
+
+    const grille = () => within(screen.getByTestId("epreuves-grille"));
+    expect(grille().queryByRole("link", { name: /Sprint H/ })).toBeNull();
+
+    await userEvent.click(cartes().getByRole("button", { name: /Coupe de Bretagne/ }));
+
+    expect(grille().getByRole("link", { name: /Sprint H/ })).toBeTruthy();
   });
 });
