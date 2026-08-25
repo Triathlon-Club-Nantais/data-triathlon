@@ -21,8 +21,16 @@ router = APIRouter(tags=["participations"])
 
 def _to_scraped(body: ParticipationCreate) -> ScrapedResult:
     return ScrapedResult(
-        source_url=body.source_url,
-        provider=body.provider,
+        # Forcés, jamais lus depuis `body` (#565) : un appelant sans session
+        # ne doit choisir ni l'URL ni le fournisseur de la source active
+        # qu'une épreuve neuve prendrait sinon (`course_repository.get_or_create`),
+        # ni détourner une épreuve existante via la règle R de
+        # `course_reconciliation` (qui exige `provider` ∈ {klikego,
+        # breizhchrono} pour s'appliquer — jamais "manuel"). `evidence_url`
+        # reste le champ prévu pour le lien de vérification d'une saisie
+        # manuelle.
+        source_url="",
+        provider="manuel",
         athlete_name=body.athlete_name,
         athlete_firstname=body.athlete_firstname,
         club=body.club,

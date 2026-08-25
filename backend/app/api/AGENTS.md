@@ -201,6 +201,33 @@ sans forme imposée, la colonne `TEXT` en face accepte n'importe quelle taille.
 Le signalement suivant toujours un import échoué, l'URL est déjà passée par
 `ScrapeRequest` — la contrainte ne coûte rien à l'appelant légitime.
 
+**`POST /participations` ignore `source_url` et force `provider="manuel"`,
+côté serveur (#565).** Avant ce correctif, un appelant sans session choisissait
+l'URL et le fournisseur de la **source active** posée sur l'épreuve qu'il
+crée (`course_repository.get_or_create`, D3 de #278 — « la première source
+d'une épreuve neuve prend la main sans arbitrage »), avec deux effets :
+l'épreuve fabriquée entrait dans la file de re-scrape (`rescrape-db
+--provider klikego`) et changeait la clé de cache d'un import ultérieur de
+la même URL ; et — mesuré, pas seulement théorique — un `provider` ∈
+`{klikego, breizhchrono}` et une `source_url` partageant `platform_event_id`
++ `heat_slug` avec une épreuve déjà en base **détournait cette épreuve
+existante** via la règle R de `services/course_reconciliation`, qui
+s'applique **avant** l'identité stricte (nom/date/type) et ne les compare
+jamais. `ParticipationCreate.source_url` fait partie du contrat `/api/v1`
+publié : le Principe IV interdit de le modifier silencieusement, donc le
+champ reste **accepté** en entrée pour ne pas casser un appelant existant,
+mais `api/v1/participations._to_scraped` le remplace toujours par `""` et
+force `provider="manuel"` — sur le même patron que `is_pending_validation`
+juste en dessous. `provider`, lui, a été **retiré** du schéma d'entrée : le
+seul appelant (`ManualResultForm.tsx`) l'envoyait déjà en dur à `"manuel"`,
+sans autre usage légitime côté client. Forcer `provider="manuel"` ferme
+aussi le détournement d'épreuve existante en même temps que l'injection de
+source : `find_reconcilable_course` n'agit que pour `provider` ∈
+`{klikego, breizhchrono}`, jamais `"manuel"`. `evidence_url` reste le champ
+prévu pour le lien de vérification d'une saisie manuelle — il n'a jamais
+créé de `CourseSource` (#279, testé par
+`test_evidence_url_ne_cree_aucune_source_de_scraping`).
+
 ## Protéger une ressource (#115)
 
 `api/deps.require_permission(P.X)` fabrique la garde d'**une** route. Elle nomme

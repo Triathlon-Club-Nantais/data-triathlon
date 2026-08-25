@@ -1,18 +1,20 @@
+from datetime import date
+
 from app.models.admin_action_log import AdminActionLog
+from app.scrapers.base import ScrapedResult
+from app.services import scrape_service
 from tests.test_api.conftest import valider_toutes_les_participations
 
 
-def _payload(bib="42", nom="DUPONT", club="TCN", provider="manuel"):
-    """Payload de création, avec l'URL source qu'implique le fournisseur.
+def _payload(bib="42", nom="DUPONT", club="TCN"):
+    """Payload d'une saisie manuelle via `POST /participations`.
 
-    Depuis #279, `Course.provider` se lit sur la **source active** de l'épreuve,
-    et une source ne naît que d'une `source_url`. Un provider sans URL laisse
-    donc la course sans fournisseur : c'est exactement l'état d'une saisie
-    manuelle, et c'est pour ça que « manuel » n'en porte pas ici.
+    `provider` a été retiré du contrat d'entrée et `source_url` y est
+    silencieusement ignoré (#565) : la route force toujours `provider="manuel"`
+    et aucune source active. Ce comportement est couvert par
+    `tests/test_auth/test_manual_participation_no_active_source.py`, pas ici.
     """
     return {
-        "provider": provider,
-        "source_url": "" if provider == "manuel" else f"https://example.test/{provider}/nantes",
         "athlete_name": nom,
         "athlete_firstname": "Jean",
         "gender": "M",
@@ -204,31 +206,60 @@ def test_stats_is_null_when_provider_is_not_eligible(client):
     assert client.get(f"/api/v1/participations/{pid}").json()["stats"] is None
 
 
-def test_stats_is_null_for_a_relay(client):
-    payload = _payload(bib="9", provider="raceresult")
-    payload["is_relay"] = True
-    pid = client.post("/api/v1/participations", json=payload).json()["id"]
-    assert client.get(f"/api/v1/participations/{pid}").json()["stats"] is None
+def _scraped(bib, nom="DUPONT", club="TCN", **kw) -> ScrapedResult:
+    """Résultat scrapé d'un fournisseur éligible aux statistiques détaillées.
+
+    Construit hors de `POST /participations` (#565) : depuis le correctif,
+    cette route force toujours `provider="manuel"`, jamais éligible
+    (`core/splits_reliability.MANUAL_PROVIDER`) — ces tests visent
+    `participation_stats_service`, pas la garde de la route, donc le
+    fournisseur légitime passe par le chemin d'import (`scrape_service`).
+    """
+    base = dict(
+        source_url="https://raceresult.example/nantes",
+        provider="raceresult",
+        athlete_name=nom,
+        athlete_firstname="Jean",
+        gender="M",
+        club=club,
+        event_name="Triathlon de Nantes",
+        event_date=date(2026, 5, 16),
+        event_type="triathlon-m",
+        bib_number=bib,
+        category="V1H",
+        rank_overall=10,
+        total_time="01:59:00",
+        swim_time="00:20:00",
+        bike_time="01:00:00",
+        run_time="00:39:00",
+    )
+    base.update(kw)
+    return ScrapedResult(**base)
 
 
-def test_stats_is_populated_for_an_eligible_course(client):
-    client.post("/api/v1/participations", json=_payload(bib="1", nom="DUPONT", provider="raceresult"))
-    pid = client.post("/api/v1/participations", json=_payload(bib="2", nom="MARTIN", provider="raceresult")).json()["id"]
+def test_stats_is_null_for_a_relay(client, db_session):
+    participation = scrape_service.save_one(db_session, _scraped(bib="9", is_relay=True))
+    body = client.get(f"/api/v1/participations/{participation.id}").json()
+    assert body["stats"] is None
 
-    stats = client.get(f"/api/v1/participations/{pid}").json()["stats"]
+
+def test_stats_is_populated_for_an_eligible_course(client, db_session):
+    scrape_service.save_one(db_session, _scraped(bib="1", nom="DUPONT"))
+    participation = scrape_service.save_one(db_session, _scraped(bib="2", nom="MARTIN"))
+
+    stats = client.get(f"/api/v1/participations/{participation.id}").json()["stats"]
 
     assert stats is not None
     assert set(stats) == {"segments", "ranking_evolution", "comparison", "improvement"}
 
 
-def test_stats_ignores_club_membership(client):
+def test_stats_ignores_club_membership(client, db_session):
     """FR-004 : les splits sont déjà publics ailleurs, la page n'ajoute aucune confidentialité."""
-    pid = client.post(
-        "/api/v1/participations",
-        json=_payload(bib="3", nom="MARTIN", club="ASPTT", provider="raceresult"),
-    ).json()["id"]
+    participation = scrape_service.save_one(
+        db_session, _scraped(bib="3", nom="MARTIN", club="ASPTT")
+    )
 
-    body = client.get(f"/api/v1/participations/{pid}").json()
+    body = client.get(f"/api/v1/participations/{participation.id}").json()
 
     assert body["is_tcn"] is False
     assert body["stats"] is not None
@@ -236,9 +267,8 @@ def test_stats_ignores_club_membership(client):
 
 def test_course_listing_carries_the_field_without_computing_it(client, db_session):
     """Le champ est additif partout où `ParticipationOut` est sérialisé ; le calcul, lui, ne l'est pas."""
-    created = client.post("/api/v1/participations", json=_payload(bib="4", provider="raceresult")).json()
-    valider_toutes_les_participations(db_session)
+    participation = scrape_service.save_one(db_session, _scraped(bib="4"))
 
-    rows = client.get(f"/api/v1/courses/{created['course']['id']}").json()["participations"]
+    rows = client.get(f"/api/v1/courses/{participation.course_id}").json()["participations"]
 
     assert [row["stats"] for row in rows] == [None]
