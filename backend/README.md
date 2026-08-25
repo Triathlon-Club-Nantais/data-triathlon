@@ -158,12 +158,15 @@ uv run ruff check .                  # lint
 
 | Variable | Défaut | Rôle |
 |----------|--------|------|
-| `DATABASE_URL` | `sqlite:///./triathlon.db` | Connexion DB (Supabase en prod) |
+| `DATABASE_URL` | `sqlite:///./triathlon.db` | Connexion DB (Azure PostgreSQL Flexible Server en production, Supabase en preview — voir `docs/infra-azure.md`) |
 | `CORS_ORIGINS` | localhost:3000,5173 | Origines autorisées (CSV, **restreint**) |
 | `LOG_LEVEL` | `INFO` | Niveau de log |
 | `LOG_JSON` | `false` | Logs JSON (ingestion Render/Datadog) |
 | `CACHE_TTL_IN_PROGRESS_SECONDS` | `600` | TTL cache course en cours (10 min) |
 | `CACHE_TTL_FINISHED_SECONDS` | `2592000` | TTL cache course terminée (30 j) |
+| `DB_POOL_SIZE` | `5` | Connexions permanentes du pool SQLAlchemy (défaut SQLAlchemy, rendu explicite — #585) |
+| `DB_MAX_OVERFLOW` | `10` | Connexions temporaires au-delà de `DB_POOL_SIZE` (défaut SQLAlchemy) |
+| `DB_POOL_TIMEOUT_SECONDS` | `5` | Attente max d'une connexion avant `TimeoutError` (30 s par défaut chez SQLAlchemy — abaissé pour échouer vite plutôt qu'attendre en silence) |
 | `AUTH_SESSION_SECRET_KEY` | *(vide)* | Signe le jeton d'état du parcours. **≥ 32 caractères** ou le démarrage échoue ; vide = authentification non configurée |
 | `AUTH_GITHUB_CLIENT_ID` | *(vide)* | Application OAuth GitHub |
 | `AUTH_GITHUB_CLIENT_SECRET` | *(vide)* | Application OAuth GitHub |

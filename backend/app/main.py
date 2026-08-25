@@ -6,15 +6,38 @@ Lancement : `uvicorn app.main:app --reload --port 8001`
 import logging
 from contextlib import asynccontextmanager
 
+import anyio.to_thread
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.analytics import init_posthog, shutdown_posthog
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import setup_logging
 
 logger = logging.getLogger(__name__)
+
+
+def _thread_limit_for(settings: Settings) -> int:
+    """Nombre de threads AnyIO alignés sur la capacité totale du pool (#585).
+
+    115 des 118 routes sont synchrones : Starlette les exécute dans le pool de
+    threads AnyIO, dont le défaut (40) n'a jamais eu de rapport avec la
+    capacité réelle du pool de connexions (5 + 10 par défaut). Une seule
+    source de vérité, dérivée de `Settings`, empêche les deux réglages de
+    rediverger — au-delà, un thread supplémentaire n'attendrait qu'une
+    connexion qui ne se libère pas plus vite.
+
+    Compromis assumé : ce pool de threads est **partagé** par toutes les
+    routes synchrones, y compris `/scrape/event*`, qui tiennent un thread
+    plusieurs dizaines de secondes pour du HTTP sortant plutôt que pour la
+    base. Le réduire à la capacité du pool DB leur laisse donc moins de
+    marge qu'avant — accepté ici parce que le plafond de débit de ces routes
+    (`SCRAPE_RATE_LIMIT_MAX_PER_WINDOW`, `api/deps.py`, #395) borne déjà leur
+    usage concurrent ; un pool de threads distinct pour les routes HTTP-bound
+    serait une refonte, hors du périmètre diagnostic de #585.
+    """
+    return settings.db_pool_size + settings.db_max_overflow
 
 
 def _warn_if_auth_unconfigured() -> None:
@@ -74,6 +97,9 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        anyio.to_thread.current_default_thread_limiter().total_tokens = _thread_limit_for(
+            settings
+        )
         init_posthog(
             token=settings.posthog_project_token,
             host=settings.posthog_host,

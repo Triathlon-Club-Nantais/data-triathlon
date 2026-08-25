@@ -52,11 +52,19 @@ def _register_sqlite_unicode_case(dbapi_connection, _connection_record) -> None:
         dbapi_connection.execute("PRAGMA journal_mode=WAL")
         dbapi_connection.execute("PRAGMA busy_timeout=15000")
 
-engine = create_engine(
-    settings.database_url,
-    connect_args={"check_same_thread": False} if settings.is_sqlite else {},
-    pool_pre_ping=True,
-)
+def _create_engine(settings) -> Engine:
+    """Isolé pour être testable avec des `Settings` arbitraires (#585)."""
+    return create_engine(
+        settings.database_url,
+        connect_args={"check_same_thread": False} if settings.is_sqlite else {},
+        pool_pre_ping=True,
+        pool_size=settings.db_pool_size,
+        max_overflow=settings.db_max_overflow,
+        pool_timeout=settings.db_pool_timeout_seconds,
+    )
+
+
+engine = _create_engine(settings)
 
 # Observabilité SQL (#89) : seuil de lenteur toujours actif, bilan agrégé
 # activable. Les deux réglages à zéro/False → aucun listener posé.
