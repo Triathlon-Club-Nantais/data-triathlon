@@ -192,7 +192,9 @@ describe("MaSaison — annonce (#477)", () => {
     render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
     await screen.findByTestId("ma-saison-ligne");
 
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    // Le nœud existe dès la première peinture (montage inconditionnel) : seul
+    // son texte reste vide tant qu'aucun changement n'a eu lieu.
+    expect(screen.getByRole("status")).toHaveTextContent("");
   });
 
   it("annonce le nouveau résumé après un changement de ?rank=", async () => {
@@ -204,13 +206,35 @@ describe("MaSaison — annonce (#477)", () => {
       <MaSaison clubEvents={32} seasons="2025" federalOnly={true} />,
     );
     await screen.findByTestId("ma-saison-ligne");
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("");
 
     searchParams = new URLSearchParams("rank=category");
     rerender(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
 
     await waitFor(() =>
       expect(screen.getByRole("status")).toHaveTextContent(/1 podium/),
+    );
+  });
+
+  it("annonce le nouveau résumé après un changement de saison", async () => {
+    getAthlete.mockResolvedValueOnce({
+      athlete: ATHLETE,
+      participations: [ligne(1, { rank_overall: 2 })],
+    });
+    const { rerender } = render(
+      <MaSaison clubEvents={32} seasons="2025" federalOnly={true} />,
+    );
+    await screen.findByTestId("ma-saison-ligne");
+    expect(screen.getByRole("status")).toHaveTextContent("");
+
+    getAthlete.mockResolvedValueOnce({
+      athlete: ATHLETE,
+      participations: [ligne(1, { rank_overall: 2 }), ligne(2, { rank_overall: 5 })],
+    });
+    rerender(<MaSaison clubEvents={32} seasons="2024" federalOnly={true} />);
+
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(/2 épreuves/),
     );
   });
 });

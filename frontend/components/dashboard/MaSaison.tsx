@@ -42,6 +42,15 @@ const HAUTEUR_INTERIEURE = 68;
  * (`resumeCourant`), donc un seul mécanisme de comparaison au résumé
  * précédent couvre les trois. Muette à la **première** apparition, qui serait
  * du bruit à chaque chargement de page.
+ *
+ * La région `role="status"` est montée **inconditionnellement**, dans les
+ * quatre branches (y compris `chargement` et `echec`) — comme tous les autres
+ * usages du dépôt (`StatCardsRank`, `PodiumsList`, `EventList`,
+ * `RaceFinishers`). Une région ARIA live injectée déjà pleine (montage
+ * conditionnel sur son propre contenu) est le cas que les lecteurs d'écran
+ * laissent tomber : seul son **texte** doit changer après l'enregistrement de
+ * la région pour être annoncé. Le silence de la première apparition vient
+ * donc de `texteAnnonce` vide (`""`), jamais de l'absence du nœud.
  */
 export function MaSaison({
   clubEvents,
@@ -132,6 +141,7 @@ export function MaSaison({
   if (etat === "chargement") {
     return (
       <Bande>
+        <AnnonceStatut texte={texteAnnonce ?? ""} />
         <div
           data-testid="ma-saison-squelette"
           style={{ display: "flex", flexDirection: "column", gap: 10 }}
@@ -146,6 +156,7 @@ export function MaSaison({
   if (etat === "echec") {
     return (
       <Bande>
+        <AnnonceStatut texte={texteAnnonce ?? ""} />
         <Ligne
           principale={nom}
           secondaire="Chiffres indisponibles pour l'instant."
@@ -159,7 +170,7 @@ export function MaSaison({
     const texte = `${nom} — aucune épreuve sur cette sélection.`;
     return (
       <Bande>
-        {texteAnnonce && <AnnonceStatut texte={texteAnnonce} />}
+        <AnnonceStatut texte={texteAnnonce ?? ""} />
         <Ligne
           principale={texte}
           secondaire={`Le club en a couru ${clubEvents}.`}
@@ -178,7 +189,7 @@ export function MaSaison({
 
   return (
     <Bande>
-      {texteAnnonce && <AnnonceStatut texte={texteAnnonce} />}
+      <AnnonceStatut texte={texteAnnonce ?? ""} />
       <Ligne principale={principale} secondaire={secondaire} action={lienProfil} />
     </Bande>
   );
