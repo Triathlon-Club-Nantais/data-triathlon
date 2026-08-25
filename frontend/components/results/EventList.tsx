@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Card, Badge, FormatChip, AnnonceStatut } from "@/components/tcn";
+import { Card, Badge, FormatChip, AnnonceStatut, LigneCarte } from "@/components/tcn";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Select,
@@ -180,7 +180,11 @@ export function EventList({
         </Select>
       </div>
 
-      <div style={{ overflowX: "auto" }}>
+      <div
+        data-testid="epreuves-grille"
+        data-affichage="grille"
+        className="hidden md:block overflow-x-auto"
+      >
         <div style={{ minWidth: MIN_WIDTH }}>
           <table className="tcn-table" role="table">
           <thead role="rowgroup">
@@ -230,6 +234,24 @@ export function EventList({
         </div>
       </div>
 
+      {/* Sous 768 px, les 966 px de la grille sortaient de l'écran (#461,
+          WCAG 1.4.10). Le repli par compétition (#463) y est plus utile
+          encore : c'est en carte que quinze lignes coûtent quinze écrans. */}
+      <div data-testid="epreuves-cartes" data-affichage="cartes" className="md:hidden">
+        {groups.map((groupe) =>
+          groupe.events.length === 1 ? (
+            <CarteEpreuve key={groupe.events[0].id} event={groupe.events[0]} />
+          ) : (
+            <CartesCompetition
+              key={groupe.events[0].id}
+              groupe={groupe}
+              ouvert={ouverts.has(groupe.events[0].id)}
+              onBascule={() => basculer(groupe.events[0].id)}
+            />
+          ),
+        )}
+      </div>
+
       {isLoading && events.length === 0 && (
         <p style={{ padding: 24, textAlign: "center", fontSize: 14, color: "var(--tcn-text-faint)" }}>
           Chargement…
@@ -255,8 +277,33 @@ const ROW_STYLE = {
   borderBottom: "1px solid var(--tcn-border-faint)",
 } as const;
 
+/**
+ * Ce que la grille et les cartes lisent identiquement pour une épreuve — un
+ * seul calcul, pour que les deux arbres ne puissent pas diverger en silence
+ * (#461).
+ */
+function eventDerived(ev: EventOut, label?: string) {
+  return {
+    date: formatDate(ev.event_date),
+    nom: formatEventName(label ?? ev.event_name, ev.is_relay),
+    type: eventTypeLabel(ev.event_type),
+    format: formatToken(ev.event_type, ev.distance_km),
+    resultats: `${ev.total} résultat${ev.total > 1 ? "s" : ""}`,
+  };
+}
+
+/** Même dérivation pour une ligne de compétition parente. */
+function groupDerived(groupe: EventGroup) {
+  return {
+    date: formatDate(groupe.events[0].event_date),
+    epreuves: `${groupe.events.length} épreuves`,
+    resultats: `${groupe.total} résultat${groupe.total > 1 ? "s" : ""}`,
+  };
+}
+
 /** Une épreuve. `label` remplace son nom quand un groupe porte déjà le préfixe. */
 function EventRow({ event: ev, label, indent }: { event: EventOut; label?: string; indent?: boolean }) {
+  const { date, nom, type, format, resultats } = eventDerived(ev, label);
   return (
     <tr role="row" className="tcn-rowlink" style={ROW_STYLE}>
       <td
@@ -268,23 +315,23 @@ function EventRow({ event: ev, label, indent }: { event: EventOut; label?: strin
           paddingLeft: indent ? 22 : 0,
         }}
       >
-        {formatDate(ev.event_date)}
+        {date}
       </td>
       <td role="cell" style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
         <Link href={`/courses/${ev.id}`} className="tcn-rowlink__cible" style={{ fontSize: 15, color: "var(--tcn-ink)", fontWeight: 700 }}>
-          {formatEventName(label ?? ev.event_name, ev.is_relay)}
+          {nom}
         </Link>
         {ev.is_relay && <Badge variant="orange">Relais</Badge>}
         {/* Même marque et même vocabulaire que la page épreuve (#486) : la
             colonne n'a pas la place d'un libellé, d'où la forme compacte. */}
         <ReliabilityMark isReliable={ev.is_reliable} issues={ev.quality_issues} compact />
       </td>
-      <td role="cell" style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>{eventTypeLabel(ev.event_type)}</td>
+      <td role="cell" style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>{type}</td>
       <td role="cell">
-        <FormatChip>{formatToken(ev.event_type, ev.distance_km)}</FormatChip>
+        <FormatChip>{format}</FormatChip>
       </td>
       <td role="cell" style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>
-        {ev.total} résultat{ev.total > 1 ? "s" : ""}
+        {resultats}
       </td>
       <td role="cell">
         {ev.tcn_count > 0 ? (
@@ -308,6 +355,7 @@ function CompetitionRows({
   ouvert: boolean;
   onBascule: () => void;
 }) {
+  const { date, epreuves, resultats } = groupDerived(groupe);
   return (
     <tbody role="rowgroup">
       <tr
@@ -323,7 +371,7 @@ function CompetitionRows({
         // de groupe serait la seule de la liste sans retour au survol.
       >
         <td role="cell" style={{ fontSize: 14, color: "var(--tcn-text-muted)", fontWeight: 600 }}>
-          {formatDate(groupe.events[0].event_date)}
+          {date}
         </td>
         <td role="cell" style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
           {/* Un **bouton**, et il le reste : cette ligne déplie, elle ne
@@ -342,11 +390,11 @@ function CompetitionRows({
         {/* Le décompte tient la colonne « Type » : les épreuves d'une même
             compétition n'en partagent ni le type ni le format. */}
         <td role="cell" style={{ fontSize: 14, color: "var(--tcn-text-muted)" }}>
-          {groupe.events.length} épreuves
+          {epreuves}
         </td>
         <td role="cell" />
         <td role="cell" style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>
-          {groupe.total} résultat{groupe.total > 1 ? "s" : ""}
+          {resultats}
         </td>
         <td role="cell">
           {groupe.tcnCount > 0 ? (
@@ -372,5 +420,80 @@ function CompetitionRows({
           <EventRow key={ev.id} event={ev} label={eventSuffix(ev.event_name, groupe.prefix)} indent />
         ))}
     </tbody>
+  );
+}
+
+/** Une épreuve, repliée en carte. `label` remplace son nom sous un groupe. */
+function CarteEpreuve({ event: ev, label }: { event: EventOut; label?: string }) {
+  const { date, nom, type, format, resultats } = eventDerived(ev, label);
+  return (
+    <LigneCarte
+      href={`/courses/${ev.id}`}
+      surtitre={date}
+      titre={
+        <>
+          {nom}
+          {ev.is_relay && <Badge variant="orange">Relais</Badge>}
+          {/* Même marque que la ligne de grille (#486) : la perdre sous `md`
+              retirerait le signal de fiabilité à la moitié mobile du trafic. */}
+          <ReliabilityMark isReliable={ev.is_reliable} issues={ev.quality_issues} compact />
+        </>
+      }
+      valeur={
+        ev.tcn_count > 0 ? (
+          <Badge count>{ev.tcn_count}</Badge>
+        ) : (
+          <span style={{ color: "var(--tcn-text-faint)" }}>—</span>
+        )
+      }
+      meta={
+        <>
+          <span>{type}</span>
+          <FormatChip>{format}</FormatChip>
+          <span>{resultats}</span>
+        </>
+      }
+    />
+  );
+}
+
+/** Carte de compétition dépliable, suivie de ses épreuves quand elle l'est. */
+function CartesCompetition({
+  groupe,
+  ouvert,
+  onBascule,
+}: {
+  groupe: EventGroup;
+  ouvert: boolean;
+  onBascule: () => void;
+}) {
+  const { date, epreuves, resultats } = groupDerived(groupe);
+  return (
+    <>
+      <LigneCarte
+        onSelect={onBascule}
+        ariaLabel={`${ouvert ? "Replier" : "Déplier"} ${groupe.prefix}`}
+        ouvert={ouvert}
+        surtitre={date}
+        titre={groupe.prefix}
+        valeur={<span aria-hidden style={{ color: "var(--tcn-text-muted)" }}>{ouvert ? "▾" : "▸"}</span>}
+        meta={
+          <>
+            <span>{epreuves}</span>
+            <span>{resultats}</span>
+            {groupe.tcnCount > 0 ? <Badge count>{groupe.tcnCount}</Badge> : null}
+          </>
+        }
+      />
+      {ouvert && (
+        // Retrait : la même hiérarchie que le `indent` de la grille, portée
+        // ici par la marge du bloc plutôt que par le padding d'une cellule.
+        <div style={{ marginLeft: 16 }}>
+          {groupe.events.map((ev) => (
+            <CarteEpreuve key={ev.id} event={ev} label={eventSuffix(ev.event_name, groupe.prefix)} />
+          ))}
+        </div>
+      )}
+    </>
   );
 }
