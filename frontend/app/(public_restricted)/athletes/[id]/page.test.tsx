@@ -538,7 +538,7 @@ describe("AthletePage — l'en-tête identifie l'athlète (PROF-5, #488)", () =>
   it("offre un retour vers la liste des athlètes du club", async () => {
     await renderAthlete([part({ id: 1, rank_overall: 12 })]);
 
-    expect(screen.getByRole("link", { name: /Athlètes du club/ })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Athlètes par saison/ })).toHaveAttribute(
       "href",
       "/club/athletes",
     );
@@ -560,5 +560,38 @@ describe("AthletePage — l'en-tête identifie l'athlète (PROF-5, #488)", () =>
     expect(screen.queryByText("Catégorie")).not.toBeInTheDocument();
     // Le genre, lui, vient de l'athlète et reste affiché.
     expect(screen.getByText("Genre").parentElement).toHaveTextContent("M");
+  });
+
+  // #488, revue UI/UX : l'année de relevé était en `title`, sur un `<span>`
+  // non focusable — inaccessible au clavier et au tactile. Elle s'écrit
+  // désormais dans la pastille elle-même, aucun `title` ne subsiste.
+  it("écrit l'année de relevé dans la pastille de catégorie, sans `title`", async () => {
+    await renderAthlete([
+      part({
+        id: 1,
+        rank_overall: 12,
+        category: "V2",
+        course: { event_date: "2021-06-10" } as Participation["course"],
+      }),
+    ]);
+
+    const pastille = screen.getByText("Catégorie").parentElement as HTMLElement;
+    expect(pastille).toHaveTextContent("V2 (2021)");
+    expect(pastille).not.toHaveAttribute("title");
+  });
+
+  it("rend la seule catégorie, sans parenthèses, quand l'année est inconnue", async () => {
+    await renderAthlete([
+      part({
+        id: 1,
+        rank_overall: 12,
+        category: "V2",
+        course: { event_date: null } as unknown as Participation["course"],
+      }),
+    ]);
+
+    const pastille = screen.getByText("Catégorie").parentElement as HTMLElement;
+    expect(pastille).toHaveTextContent("V2");
+    expect(pastille).not.toHaveTextContent("(");
   });
 });

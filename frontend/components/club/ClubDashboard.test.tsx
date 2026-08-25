@@ -206,10 +206,12 @@ describe("ClubDashboard — smoke", () => {
   // #488 (PROF-3) : les podiums du roster cumulent les trois portées sans
   // condition, quand le KPI plus haut suit `?rank=`. Le dire est ce qui
   // manquait — aucun chiffre ne change.
-  it("nomme la portée des podiums du roster (PROF-3, #488)", () => {
+  it("nomme la portée des podiums du roster en légende des cartes (PROF-3, #488)", () => {
     render(<ClubDashboard stats={STATS} participations={PARTS} />);
 
-    expect(screen.getByText("podiums toutes portées confondues")).toBeInTheDocument();
+    expect(
+      screen.getByText("Les podiums comptés ici cumulent le général, le genre et la catégorie."),
+    ).toBeInTheDocument();
   });
 
   // Revue finale (#488) : la légende qualifiait des nombres absents de
@@ -223,6 +225,8 @@ describe("ClubDashboard — smoke", () => {
       />,
     );
 
-    expect(screen.queryByText("podiums toutes portées confondues")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Les podiums comptés ici cumulent le général, le genre et la catégorie."),
+    ).not.toBeInTheDocument();
   });
 });

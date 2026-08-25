@@ -73,6 +73,12 @@ describe("resumeAthlete — régimes (#488, PROF-4)", () => {
     expect(tuile(r, "Temps")).toMatchObject({ value: "01:02:03", hint: "16/05/2026" });
     // Le critère central de PROF-4 : aucune tuile ne rend un tiret nu.
     expect(r.tuiles.every((t) => t.value !== "—")).toBe(true);
+    // #488, revue UI/UX : la tuile Temps réduit sa police (68px déborde la
+    // piste entre 640 et ~926px) ; les autres tuiles gardent la taille par
+    // défaut de `StatCard`.
+    expect(tuile(r, "Temps")?.valueFontSize).toBe(40);
+    expect(tuile(r, "Épreuves")?.valueFontSize).toBeUndefined();
+    expect(tuile(r, "Discipline")?.valueFontSize).toBeUndefined();
   });
 
   it("sans temps mais avec un rang : la tuile Temps devient Place, rapportée au champ", () => {

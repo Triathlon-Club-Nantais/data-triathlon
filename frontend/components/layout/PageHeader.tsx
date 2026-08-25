@@ -50,7 +50,15 @@ export function PageHeader({
           )}
           {children}
         </div>
-        {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+        {actions && (
+          // `flex-wrap` : `.tcn-btn` porte `white-space: nowrap`, donc deux
+          // commandes larges (profil athlète) forment un bloc incompressible
+          // qui déborde à 360px sans repli à la ligne (WCAG 1.4.10, #488
+          // revue UI/UX). `items-start` plutôt que `items-center` : sur ce
+          // même profil, une colonne haute (`AthleteSelection`) et un bouton
+          // simple (`AthleteAdminPanel`) n'ont de rang commun qu'au sommet.
+          <div className="flex shrink-0 flex-wrap items-start gap-2">{actions}</div>
+        )}
       </div>
     </div>
   );
