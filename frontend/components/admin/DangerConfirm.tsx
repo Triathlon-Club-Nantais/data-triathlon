@@ -54,8 +54,11 @@ export type DangerConfirmProps = {
  * gestes qui chiffrent leur impact avant d'agir ; `useDangerConfirm` pour les
  * gestes simples, qui appelaient `window.confirm`.
  *
- * Vit dans `components/admin/` et non dans `ui/` ou `tcn/` : tous ses appelants
- * sont sous `/admin`, ce qui laisse intacte la frontière gelée par #460.
+ * Vit dans `components/admin/` et non dans `ui/` ou `tcn/` : la quasi-totalité
+ * de ses appelants sont sous `/admin`, ce qui laisse intacte la frontière
+ * gelée par #460 — seule exception, `app/benevoles/page.tsx` depuis #490, qui
+ * monte son propre `DangerConfirmProvider` (`app/benevoles/layout.tsx`) plutôt
+ * que d'ajouter un second mécanisme de confirmation hors back-office.
  */
 export function DangerConfirm({
   open,
@@ -154,8 +157,11 @@ const DangerConfirmContext = createContext<
  *
  * Un provider et non un `useState` par tableau : sans lui, chaque tableau
  * porterait l'état d'ouverture **et** la ligne visée, dupliqués autant de fois
- * qu'il y a d'écrans. Monté dans `app/admin/layout.tsx`, pas à la racine : tous
- * les appelants sont sous `/admin`.
+ * qu'il y a d'écrans. Monté dans `app/admin/layout.tsx`, pas à la racine du
+ * site : jusqu'à #490, tous les appelants étaient sous `/admin`. Depuis,
+ * `app/benevoles/layout.tsx` en monte un second, propre à cette route — pas de
+ * provider partagé à la racine pour un mécanisme que le reste du site
+ * n'utilise pas.
  */
 export function DangerConfirmProvider({ children }: { children: ReactNode }) {
   const [enCours, setEnCours] = useState<{

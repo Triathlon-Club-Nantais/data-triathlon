@@ -81,6 +81,24 @@ describe("ChampsParticipation", () => {
     expect(screen.getByText(/Valeur d'origine : vide/)).toBeInTheDocument();
   });
 
+  it("réserve la ligne de valeur d'origine dès le premier rendu (#490, revue UI/UX)", () => {
+    // Sans la réservation, la ligne n'existe dans le DOM qu'une fois `modifie`
+    // vrai : elle apparaît alors au premier caractère saisi et pousse les
+    // champs suivants (et la barre d'action collante) sous le doigt du
+    // bénévole. `nextElementSibling` du champ est cette ligne, montée à
+    // hauteur fixe qu'elle porte ou non du texte.
+    const p = participation();
+    render(<ChampsParticipation brouillon={brouillonDepuis(p)} origine={p} onChange={vi.fn()} />);
+
+    // `Input` (`components/tcn/Input.tsx`) enveloppe l'`<input>` dans un `<div>`
+    // de bordure : la ligne réservée est la sœur suivante de ce conteneur, pas
+    // de l'`<input>` lui-même.
+    const ligne = screen.getByLabelText(/Dossard/).parentElement?.nextElementSibling;
+    expect(ligne).not.toBeNull();
+    expect(ligne).toBeEmptyDOMElement();
+    expect(ligne).toHaveStyle({ minHeight: "16px" });
+  });
+
   it("remonte chaque frappe au parent", async () => {
     const p = participation({ bib_number: null });
     const onChange = vi.fn();

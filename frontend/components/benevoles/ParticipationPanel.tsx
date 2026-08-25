@@ -94,7 +94,19 @@ export function ParticipationPanel({
     <Card padding={24}>
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         <div>
-          <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 20, color: "var(--tcn-ink)", fontWeight: 400, margin: 0 }}>
+          {/* `id` + `tabIndex={-1}` : cible de focus programmatique après un
+              enchaînement (#490, revue UI/UX, item 1) — jamais dans l'ordre de
+              tabulation naturel. Un seul panneau est monté à la fois (desktop
+              ou feuille, jamais les deux), l'`id` fixe ne collisionne donc
+              jamais. `.tcn-panel-titre` lui donne le même anneau de focus que
+              `.tcn-btn` : sans classe dédiée il retomberait sur l'anneau
+              universel `outline-ring/50`, à 1,86:1 (#342). */}
+          <h2
+            id="benevole-panel-titre"
+            tabIndex={-1}
+            className="tcn-panel-titre"
+            style={{ fontFamily: "var(--tcn-font-display)", fontSize: 20, color: "var(--tcn-ink)", fontWeight: 400, margin: 0 }}
+          >
             {participation.athlete.prenom} {participation.athlete.nom}
           </h2>
           <div style={{ fontSize: 14, color: "var(--tcn-text-faint)" }}>
@@ -135,7 +147,7 @@ export function ParticipationPanel({
 
         {rejetee ? (
           <div style={{ borderTop: "1px solid var(--tcn-border)", paddingTop: 16, color: "var(--tcn-text-faint)", fontSize: 14 }}>
-            Annulez d&apos;abord le rejet pour modifier ce résultat.
+            Levez d&apos;abord le signalement pour modifier ce résultat.
           </div>
         ) : (
           <div style={{ borderTop: "1px solid var(--tcn-border)", paddingTop: 16, display: "flex", flexDirection: "column", gap: 16 }}>
@@ -183,7 +195,7 @@ export function ParticipationPanel({
           {!rejetee && (
             <>
               <Button onClick={validerEnEffacantErreurRejet} disabled={occupe} style={{ width: "100%" }}>
-                {validationEnCours ? "Validation…" : enCours ? "Enregistrement…" : "Valider ce résultat"}
+                {validationEnCours ? "Validation…" : "Valider ce résultat"}
               </Button>
               <Button
                 variant="secondary"
@@ -191,20 +203,31 @@ export function ParticipationPanel({
                 disabled={occupe || !sale}
                 style={{ width: "100%" }}
               >
-                Enregistrer
+                {/* Chaque bouton porte son propre indicatif d'attente : `enCours`
+                    reste vrai pendant tout `validerLeResultat` (l'éventuel
+                    `enregistrer()` compris), donc sans `!validationEnCours` un
+                    clic sur « Valider » affichait « Enregistrement… » sur le
+                    bouton « Enregistrer », que personne n'avait pressé (#490,
+                    revue UI/UX, item 5). */}
+                {enCours && !validationEnCours ? "Enregistrement…" : "Enregistrer"}
               </Button>
             </>
           )}
           {rejetee ? (
             <Button variant="secondary" onClick={() => agirSurLeRejet("annuler")} disabled={occupe} style={{ width: "100%" }}>
-              {enCoursRejet ? "Annulation…" : "Annuler le rejet"}
+              {enCoursRejet ? "Levée du signalement…" : "Lever le signalement"}
             </Button>
           ) : !confirmationRejet ? (
             <Button
               variant="secondary"
               onClick={() => setConfirmationRejet(true)}
               disabled={occupe}
-              style={{ width: "100%", color: "var(--tcn-danger-text)", borderColor: "var(--tcn-danger-border)" }}
+              // Bordure en `--tcn-danger-text` (5,28:1 sur `--tcn-surface`), pas
+              // `--tcn-danger-border` (1,60:1, sous le seuil WCAG 1.4.11 de 3:1
+              // pour un contour de composant) : à côté d'« Enregistrer » cerné
+              // de noir plein, le geste destructif se voyait à peine (#490,
+              // revue UI/UX, item 3).
+              style={{ width: "100%", color: "var(--tcn-danger-text)", borderColor: "var(--tcn-danger-text)" }}
             >
               Signaler non conforme
             </Button>
@@ -219,17 +242,28 @@ export function ParticipationPanel({
                   Les modifications non enregistrées seront perdues.
                 </div>
               )}
-              <div style={{ display: "flex", gap: 8 }}>
+              {/* Colonne, pas ligne : à 360 px de large, deux pistes `flex: 1`
+                  n'ont que 69 px de glyphes pour « Confirmer le signalement »
+                  et « Signalement… », et `.tcn-btn` interdit le retour à la
+                  ligne (`white-space: nowrap`) — le débordement horizontal de
+                  la feuille se déclenchait exactement en confirmant un
+                  signalement (#490, revue UI/UX, item 6). */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <Button
                   variant="secondary"
                   onClick={() => agirSurLeRejet("rejeter")}
                   disabled={occupe}
-                  style={{ flex: 1, color: "var(--tcn-danger-text)", borderColor: "var(--tcn-danger-border)" }}
+                  style={{ width: "100%", color: "var(--tcn-danger-text)", borderColor: "var(--tcn-danger-text)" }}
                 >
-                  {enCoursRejet ? "Signalement…" : "Confirmer ?"}
+                  {/* Vocabulaire unifié sur « non conforme »/« signalement » —
+                      « Confirmer ? » ne nommait pas son geste, et voisinait
+                      « Annuler le rejet »/« Annulez d'abord le rejet », la
+                      famille de mots que l'écran avait par ailleurs
+                      abandonnée (#490, revue UI/UX, item 7). */}
+                  {enCoursRejet ? "Signalement…" : "Confirmer le signalement"}
                 </Button>
-                <Button variant="ghost" onClick={() => setConfirmationRejet(false)} disabled={occupe} style={{ flex: 1 }}>
-                  Annuler
+                <Button variant="ghost" onClick={() => setConfirmationRejet(false)} disabled={occupe} style={{ width: "100%" }}>
+                  Revenir
                 </Button>
               </div>
             </>
