@@ -230,21 +230,36 @@ assertions.
 **Parade retenue**, dans `test/setup.ts` :
 
 ```ts
-configure({ defaultIgnore: 'script, style, [data-affichage="cartes"]' });
+configure({
+  defaultIgnore: 'script, style, [data-affichage="cartes"], [data-affichage="cartes"] *',
+});
 ```
 
-`defaultIgnore` est appliqué aux requêtes **texte** de
-`@testing-library/dom` (10.4.1, défaut `'script, style'`). L'arbre carte, marqué
-`data-affichage="cartes"`, en sort : les `getByText` existants passent sans être
-touchés. Restent à scoper les rares `getByRole` visant l'intérieur d'une ligne —
-`getByRole` n'utilise pas `ignore`.
+Le sélecteur de descendance n'est pas décoratif. `defaultIgnore` est appliqué
+par `node.matches(ignore)`
+(`@testing-library/dom@10.4.1`, `dist/queries/text.js:31`) : il n'écarte que les
+nœuds qui matchent **eux-mêmes**. `'script, style'` fonctionne parce que le
+texte y est porté *par* la balise ; le texte d'une carte, lui, est porté par un
+descendant du conteneur marqué. Sans `[data-affichage="cartes"] *`, la parade ne
+filtre rien du tout. Vérifié à l'exécution avant d'être retenu.
+
+Deux conséquences, l'une bénigne, l'autre à connaître :
+
+- **`getByRole` n'utilise pas `ignore`.** Une requête de rôle visant l'intérieur
+  d'une ligne reste à scoper à la main, avec `within`.
+- **`within` ne lève pas l'exclusion.** La configuration étant globale,
+  `within(cartes()).getByText(…)` ne trouve rien : l'arbre carte devient
+  invisible aux requêtes texte, y compris à celles qui le visent. Un test qui
+  porte sur les cartes doit passer `{ ignore: false }` par requête. L'oubli ne
+  se lit pas dans le message d'erreur — la requête dit simplement « unable to
+  find an element », comme si la carte n'existait pas. C'est pourquoi un
+  petit module `test/cartes.ts` expose `dansLesCartes(testId)`, dont la méthode
+  `texte()` porte le `{ ignore: false }` une fois pour toutes.
 
 Contrepartie assumée : c'est une **règle globale de test**, donc invisible à la
 lecture d'un fichier de test. Elle est verrouillée par un test dédié dans
 `test/`, qui rougit si la configuration disparaît — sans elle, une future carte
-dupliquerait silencieusement toute assertion texte. Un test qui porte sur le
-rendu carte doit entrer explicitement dans l'arbre :
-`within(screen.getByTestId(...))`.
+dupliquerait silencieusement toute assertion texte.
 
 ## Ce que les tests doivent prouver
 
