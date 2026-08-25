@@ -152,10 +152,10 @@ describe("WipeCoursesCard (#384, suite)", () => {
     expect(screen.getByRole("button", { name: /supprimer définitivement/i })).toBeDisabled();
   });
 
-  it("s'active une fois SUPPRIMER tapé, et purge à la confirmation", async () => {
+  it("s'active une fois SUPPRIMER tapé, et purge à la confirmation en annonçant le décompte réel", async () => {
     getSession.mockResolvedValue(session(["courses:wipe_all"]));
     getCoursesWipeImpact.mockResolvedValue({ courses: 53, participations: 412, athletes: 37 });
-    wipeAllCourses.mockResolvedValue(null);
+    wipeAllCourses.mockResolvedValue({ courses_deleted: 53, athletes_purged: 37 });
 
     afficher();
     await userEvent.click(
@@ -167,7 +167,9 @@ describe("WipeCoursesCard (#384, suite)", () => {
     await userEvent.click(screen.getByRole("button", { name: /supprimer définitivement/i }));
 
     await waitFor(() => expect(wipeAllCourses).toHaveBeenCalled());
-    expect(toastSuccess).toHaveBeenCalled();
+    expect(toastSuccess).toHaveBeenCalledWith(
+      "53 épreuves supprimées, 37 fiches coureur purgées.",
+    );
   });
 
   it("une saisie approximative ne suffit pas", async () => {

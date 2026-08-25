@@ -73,9 +73,13 @@ export function MergeCoursesDialog({
   async function confirmer() {
     if (cibleId === null || absorbee === null) return;
     try {
-      await fusion.mutateAsync({ courseId: cibleId, absorbedId: absorbee.id });
+      const resultat = await fusion.mutateAsync({ courseId: cibleId, absorbedId: absorbee.id });
+      const p = resultat.participations_deleted;
+      const a = resultat.athletes_purged;
       toast.success(
-        `« ${absorbee.name} » a été fusionnée dans la source conservée — ses résultats sans correspondance ont disparu.`,
+        `« ${absorbee.name} » a été fusionnée dans la source conservée — ` +
+          `${p} résultat${p === 1 ? "" : "s"} sans correspondance ${p === 1 ? "a" : "ont"} disparu, ` +
+          `${a} fiche${a === 1 ? "" : "s"} coureur purgée${a === 1 ? "" : "s"}.`,
       );
       onOpenChange(false);
     } catch (erreur) {

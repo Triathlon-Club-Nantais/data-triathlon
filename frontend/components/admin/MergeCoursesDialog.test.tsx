@@ -194,7 +194,10 @@ describe("MergeCoursesDialog", () => {
     await user.click(await screen.findByRole("button", { name: /^fusionner$/i }));
 
     await waitFor(() => expect(mergeCourses).toHaveBeenCalledWith(38, 50));
-    await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
+    expect(toastSuccess).toHaveBeenCalledWith(
+      "« Triathlon et SwimRun Mesquer-Quimiac 2026 » a été fusionnée dans la source conservée — " +
+        "179 résultats sans correspondance ont disparu, 4 fiches coureur purgées.",
+    );
   });
 
   it("notifie l'échec sans fermer la modale", async () => {

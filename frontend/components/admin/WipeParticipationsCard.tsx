@@ -33,8 +33,13 @@ export function WipeParticipationsCard() {
 
   async function confirmer() {
     try {
-      await purge.mutateAsync();
-      toast.success("Tous les résultats ont été supprimés.");
+      const resultat = await purge.mutateAsync();
+      const p = resultat.participations_deleted;
+      const a = resultat.athletes_purged;
+      toast.success(
+        `${p} résultat${p === 1 ? "" : "s"} supprimé${p === 1 ? "" : "s"}, ` +
+          `${a} fiche${a === 1 ? "" : "s"} coureur purgée${a === 1 ? "" : "s"}.`,
+      );
       setOuvert(false);
     } catch (erreur) {
       toast.error((erreur as Error).message);
