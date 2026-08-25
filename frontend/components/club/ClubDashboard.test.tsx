@@ -105,7 +105,13 @@ describe("ClubDashboard — smoke", () => {
       ...EMPTY_SUMMARY,
       roster: Array.from({ length: APERCU_ROSTER }, (_, i) => rosterEntry(i + 1)),
     };
-    render(<ClubDashboard stats={STATS} summary={summary} recent={[part({ id: 1 })]} />);
+    render(
+      <ClubDashboard
+        stats={{ ...STATS, athletes: 20 }}
+        summary={summary}
+        recent={[part({ id: 1 })]}
+      />,
+    );
 
     const section = screen
       .getByRole("heading", { name: "Les athlètes les plus actifs" })
