@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AnnonceStatut, Card, Eyebrow } from "@/components/tcn";
@@ -37,13 +37,11 @@ const HAUTEUR_INTERIEURE = 68;
  * participations déjà en main. Même arbitrage que `RankTypeToggle` (#328) et
  * qu'`EventsTable` (#489).
  *
- * Accessibilité (#477) : `AnnonceStatut` signale un changement de données
- * **sans navigation**, jamais la première apparition — sans quoi chaque
- * chargement de page serait annoncé comme un bruit. Elle ne s'annonce donc
- * qu'à partir du **second** chargement réussi (athlète ou saisons changés),
- * jamais sur `?rank=` seul : `StatCardsRank` porte déjà cette annonce pour la
- * même bascule, ailleurs sur la page — la redoubler ici serait une double
- * annonce du même événement à un lecteur d'écran.
+ * Accessibilité (#477) : `AnnonceStatut` sur changement de saison, de
+ * discipline **ou** de rang — les trois se répercutent sur le résumé calculé
+ * (`resumeCourant`), donc un seul mécanisme de comparaison au résumé
+ * précédent couvre les trois. Muette à la **première** apparition, qui serait
+ * du bruit à chaque chargement de page.
  */
 export function MaSaison({
   clubEvents,
@@ -62,11 +60,15 @@ export function MaSaison({
 
   const [etat, setEtat] = useState<Etat>("chargement");
   const [participations, setParticipations] = useState<Participation[]>([]);
-  // Compte les chargements réussis, pour distinguer la première apparition
-  // (silencieuse) d'un rechargement déclenché par un changement d'athlète ou
-  // de saisons (annoncé). État et non ref : sa lecture pendant le rendu doit
-  // rester réactive.
-  const [chargementsReussis, setChargementsReussis] = useState(0);
+  // Dernier texte effectivement annoncé — `null` avant la première annonce.
+  // État et non ref : sa lecture pendant le rendu doit rester réactive (c'est
+  // lui qui décide si `<AnnonceStatut>` est monté).
+  const [texteAnnonce, setTexteAnnonce] = useState<string | null>(null);
+  // Résumé silencieusement enregistré à la dernière comparaison. Ref et non
+  // état : sa seule mise à jour ne doit pas provoquer de rendu — c'est
+  // `texteAnnonce` qui en décide, via l'effet ci-dessous. Jamais lu pendant
+  // le rendu (`react-hooks/refs`), seulement dans l'effet.
+  const dernierResume = useRef<string | null>(null);
 
   const id = athlete?.id;
   useEffect(() => {
@@ -78,7 +80,6 @@ export function MaSaison({
       .getAthlete(id, { seasons, federal_only: federalOnly })
       .then((detail) => {
         if (annule) return;
-        setChargementsReussis((n) => n + 1);
         setParticipations(detail.participations);
         setEtat("ok");
       })
@@ -89,11 +90,36 @@ export function MaSaison({
       annule = true;
     };
   }, [id, seasons, federalOnly]);
-  const annoncer = chargementsReussis > 1;
+
+  // Calculés inconditionnellement (participations vide hors de l'état "ok",
+  // coût négligeable) : un Hook ne peut pas suivre un retour anticipé, et
+  // l'effet d'annonce ci-dessous a besoin du résumé à chaque rendu.
+  const nom = athlete ? nomComplet(athlete) : "";
+  const { epreuves, podiums } = compteMaSaison(participations, mode);
+  const rang = rankTypeLabel(mode, { form: "long" });
+  const resumeCourant =
+    etat === "ok"
+      ? epreuves === 0
+        ? `Ma saison : ${nom} — aucune épreuve sur cette sélection. Le club en a couru ${clubEvents}.`
+        : `Ma saison : ${nom} — ${motCompte(epreuves, "épreuve")} · ${motCompte(podiums, "podium")} (classement ${rang}). Le club a couru ${motCompte(clubEvents, "épreuve")} sur la même sélection.`
+      : null;
+
+  useEffect(() => {
+    if (resumeCourant === null) return;
+    if (dernierResume.current === null) {
+      // Première apparition : on retient le résumé pour comparaison future,
+      // sans l'annoncer (#477).
+      dernierResume.current = resumeCourant;
+      return;
+    }
+    if (dernierResume.current !== resumeCourant) {
+      dernierResume.current = resumeCourant;
+      setTexteAnnonce(resumeCourant);
+    }
+  }, [resumeCourant]);
 
   if (!athlete) return null;
 
-  const nom = nomComplet(athlete);
   const lienProfil = (
     <Link
       href={`/athletes/${athlete.id}`}
@@ -129,16 +155,11 @@ export function MaSaison({
     );
   }
 
-  const { epreuves, podiums } = compteMaSaison(participations, mode);
-  const rang = rankTypeLabel(mode, { form: "long" });
-
   if (epreuves === 0) {
     const texte = `${nom} — aucune épreuve sur cette sélection.`;
     return (
       <Bande>
-        {annoncer && (
-          <AnnonceStatut texte={`Ma saison : ${texte} Le club en a couru ${clubEvents}.`} />
-        )}
+        {texteAnnonce && <AnnonceStatut texte={texteAnnonce} />}
         <Ligne
           principale={texte}
           secondaire={`Le club en a couru ${clubEvents}.`}
@@ -157,7 +178,7 @@ export function MaSaison({
 
   return (
     <Bande>
-      {annoncer && <AnnonceStatut texte={`Ma saison : ${principale}. ${secondaire}`} />}
+      {texteAnnonce && <AnnonceStatut texte={texteAnnonce} />}
       <Ligne principale={principale} secondaire={secondaire} action={lienProfil} />
     </Bande>
   );
@@ -186,7 +207,10 @@ function Ligne({
   action: React.ReactNode;
 }) {
   return (
-    <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <div
+      data-testid="ma-saison-ligne"
+      className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+    >
       <div>
         <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 20, color: "var(--tcn-ink)" }}>
           {principale}
