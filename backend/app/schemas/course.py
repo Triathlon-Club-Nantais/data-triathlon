@@ -142,6 +142,11 @@ class CourseSummary(BaseModel):
     #: Somme sur **toutes** les catégories, dénominateur des pourcentages.
     categories_total: int
     clubs: list[ClubCount]
+    #: Nombre de **clubs distincts** renseignés — dénominateur du « et N autres
+    #: clubs » (#486). Attention au faux ami : `categories_total` ci-dessus compte
+    #: des **participants**, celui-ci compte des **clubs**. Les deux servent le
+    #: même besoin — dire ce que la carte omet — sans être homogènes.
+    clubs_total: int = 0
     histogram: Histogram | None = None
     split_keys: list[str]
     #: Médiane des écarts `(total − Σ inters) / total` des lignes évaluables (#486).

@@ -830,3 +830,44 @@ def test_course_summary_mediane_ignore_les_lignes_non_evaluables(db_session):
     synthese = stats_service.course_summary(db_session, course.id)
 
     assert synthese["split_gap_median"] == pytest.approx(60 / 3600)
+
+
+# ── Ce que les cartes omettent (issue #486, RES-7) ───────────────────────────
+
+
+def test_course_summary_compte_les_clubs_distincts(db_session):
+    """`clubs_total` compte des **clubs**, là où `categories_total` compte des participants.
+
+    Sans lui, le pied « et N autres clubs » n'est pas calculable : la carte ne peut pas
+    dire ce qu'elle omet, ce qui est exactement le défaut que RES-7 reproche.
+    """
+    lignes = []
+    for index in range(12):
+        for occurrence in range(12 - index):
+            lignes.append(
+                (f"N{index}", f"P{occurrence}", "M", f"CLUB{index}", "S1", "finisher", None, None)
+            )
+    course = _epreuve(db_session, lignes)
+
+    synthese = stats_service.course_summary(db_session, course.id)
+
+    assert len(synthese["clubs"]) == 9  # la carte n'en montre que neuf
+    assert synthese["clubs_total"] == 12  # …sur douze
+    # Et il ne se confond pas avec le compte de participants.
+    assert synthese["clubs_total"] != synthese["total"]
+
+
+def test_course_summary_clubs_total_est_nul_sans_club_renseigne(db_session):
+    """Cas réel de la course 47 : 696 lignes, aucun club. L'en-tête doit disparaître."""
+    course = _epreuve(
+        db_session,
+        [
+            ("A", "Un", "M", None, "S1", "finisher", None, None),
+            ("B", "Deux", "M", "", "S1", "finisher", None, None),
+        ],
+    )
+
+    synthese = stats_service.course_summary(db_session, course.id)
+
+    assert synthese["clubs"] == []
+    assert synthese["clubs_total"] == 0

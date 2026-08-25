@@ -62,7 +62,67 @@ describe("CategoryBars", () => {
       />,
     );
     expect(screen.getByRole("img")).toHaveAccessibleName(
-      "Répartition par catégorie : V1 30,0 %, S 20,0 %.",
+      "Répartition par catégorie : V1 30,0 %, S 20,0 %, Autres 50,0 %.",
     );
+  });
+
+  // ── Ce que la carte omet (#486, RES-7) ───────────────────────────────────
+  //
+  // Sur la course 27 de la base de dev, les huit barres affichées ne couvrent
+  // que 70,1 % des participants : 29,9 % n'apparaissaient nulle part, et rien
+  // ne le disait. L'audit relevait déjà 86,1 % sur la course 214.
+
+  it("ajoute une barre « Autres » pour la part que les catégories affichées ne couvrent pas", () => {
+    render(
+      <CategoryBars
+        categories={[
+          { name: "S1", count: 284 },
+          { name: "S2", count: 216 },
+        ]}
+        total={1000}
+      />,
+    );
+
+    expect(screen.getByText("Autres (500)")).toBeInTheDocument();
+    expect(screen.getByText("50,0%")).toBeInTheDocument();
+  });
+
+  it("fait sommer les barres à 100 % du dénominateur publié", () => {
+    render(
+      <CategoryBars
+        categories={[
+          { name: "S1", count: 60 },
+          { name: "S2", count: 30 },
+        ]}
+        total={100}
+      />,
+    );
+
+    const parts = screen
+      .getAllByText(/^\d+,\d%$/)
+      .map((el) => Number(el.textContent!.replace(",", ".").replace("%", "")));
+    expect(parts.reduce((a, b) => a + b, 0)).toBeCloseTo(100, 1);
+  });
+
+  it("n'ajoute aucune barre « Autres » quand le reste est nul", () => {
+    render(
+      <CategoryBars
+        categories={[
+          { name: "S1", count: 60 },
+          { name: "S2", count: 40 },
+        ]}
+        total={100}
+      />,
+    );
+
+    expect(screen.queryByText(/^Autres/)).not.toBeInTheDocument();
+  });
+
+  it("n'ajoute aucune barre « Autres » quand le dénominateur est incohérent", () => {
+    // Un reste négatif ne se dessine pas : mieux vaut ne rien dire que mentir
+    // dans l'autre sens.
+    render(<CategoryBars categories={[{ name: "S1", count: 120 }]} total={100} />);
+
+    expect(screen.queryByText(/^Autres/)).not.toBeInTheDocument();
   });
 });
