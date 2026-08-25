@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { eventTypeLabel } from "@/lib/constants";
 import { CLUB_NAME_SHORT } from "@/lib/club";
 import { formatMonth } from "@/lib/utils/date";
@@ -37,7 +38,9 @@ export function ListeEpreuves({ events }: { events: GeoEvent[] }) {
           {events.map((ev, i) => (
             <tr key={`${ev.event_name}-${i}`} className="border-t border-[var(--tcn-border-faint)]">
               <th scope="row" className="py-1.5 pr-3 font-medium text-[var(--tcn-text)]">
-                {ev.event_name}
+                <Link href={`/courses/${ev.course_id}`} className="underline">
+                  {ev.event_name}
+                </Link>
                 {ev.event_type ? <span className="text-[var(--tcn-text-faint)]"> · {eventTypeLabel(ev.event_type)}</span> : null}
               </th>
               <td className="py-1.5 pr-3 text-[var(--tcn-text-body)]">
