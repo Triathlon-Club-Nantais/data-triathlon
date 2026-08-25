@@ -108,7 +108,11 @@ describe("CoursePage", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "Triathlon de Nantes" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Répartition genre" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: "Répartition par catégorie" })).toBeInTheDocument();
+    // Les deux cartes tronquées **disent leur portée** depuis #486 (RES-7) : la
+    // fixture porte 2 catégories pour un dénominateur de 1000, et 2 clubs sur 2.
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Les 2 catégories les plus représentées" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Top clubs" })).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { level: 2, name: "Distribution des temps des finishers" }),
@@ -147,7 +151,7 @@ describe("CoursePage", () => {
   });
 
   it("garde l'en-tête de « Top clubs » quand aucun club n'est renseigné, l'état vide hors du tableau", async () => {
-    getCourseSummary.mockResolvedValue({ ...SUMMARY, clubs: [] });
+    getCourseSummary.mockResolvedValue({ ...SUMMARY, clubs: [], clubs_total: 0 });
     await afficher();
 
     const tableau = screen.getByRole("table", { name: "Top clubs" });
@@ -411,5 +415,45 @@ describe("CoursePage", () => {
     await afficher();
 
     expect(screen.queryByText(/temps intermédiaires ne couvrent pas/i)).not.toBeInTheDocument();
+  });
+
+  // ── Ce que les cartes omettent (#486, RES-7) ───────────────────────────────
+
+  it("garde les titres sobres quand les deux cartes sont exhaustives", async () => {
+    // Rien n'est tronqué : il n'y a rien à restreindre, donc rien à annoncer.
+    getCourseSummary.mockResolvedValue({
+      ...SUMMARY,
+      categories: [{ name: "S2", count: 600 }, { name: "S3", count: 400 }],
+      categories_total: 1000,
+      clubs_total: 2,
+    });
+
+    await afficher();
+
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Répartition par catégorie" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Top clubs" })).toBeInTheDocument();
+  });
+
+  it("dit le nombre de clubs non listés sous la carte", async () => {
+    getCourseSummary.mockResolvedValue({ ...SUMMARY, clubs_total: 174 });
+
+    await afficher();
+
+    expect(screen.getByText("et 172 autres clubs")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Les 2 clubs les plus représentés" }),
+    ).toBeInTheDocument();
+  });
+
+  it("garde l'en-tête de colonnes des clubs même quand aucun n'est renseigné (#481)", async () => {
+    // Cas réel de la course 47 : 696 lignes, aucun club renseigné.
+    getCourseSummary.mockResolvedValue({ ...SUMMARY, clubs: [], clubs_total: 0 });
+
+    await afficher();
+
+    expect(screen.getByText("Clubs non renseignés")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Athlètes" })).toBeInTheDocument();
   });
 });

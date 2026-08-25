@@ -529,7 +529,7 @@ interface CategoryCount {
   count: number;
 }
 
-interface ClubCount {
+export interface ClubCount {
   name: string;
   count: number;
   is_tcn: boolean;

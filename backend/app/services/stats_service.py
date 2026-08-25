@@ -343,6 +343,11 @@ def course_summary(db: Session, course_id: int) -> dict:
             {"name": nom, "count": nombre, "is_tcn": is_tcn(nom)}
             for nom, nombre in _plus_frequents(clubs, _MAX_CLUBS)
         ],
+        # Dénominateur du « et N autres clubs » (#486). **Pas homogène** à
+        # `categories_total` juste au-dessus, qui compte des participants : ici
+        # ce sont des clubs. Les deux disent ce que la carte omet, dans deux
+        # unités différentes.
+        "clubs_total": len(clubs),
         "histogram": _histogram(secondes),
         "split_keys": list(split_keys),
         # Une **mesure**, pas un verdict : la médiane sert de référence à l'écran,

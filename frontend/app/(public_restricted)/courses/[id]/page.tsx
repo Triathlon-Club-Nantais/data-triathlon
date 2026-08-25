@@ -3,10 +3,10 @@ import { apiServer } from "@/lib/api/server";
 import { ApiError } from "@/lib/api/client";
 import { Card, Eyebrow, MetaPill } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
-import { EmptyState } from "@/components/ui/empty-state";
 import { RaceFinishers } from "@/components/results/RaceFinishers";
 import { ReliabilityMark, SplitCoverageNote } from "@/components/results/ReliabilityMark";
 import { CourseSourcesPanel } from "@/components/courses/CourseSourcesPanel";
+import { ClubBreakdown } from "@/components/courses/ClubBreakdown";
 import { eventTypeLabel } from "@/lib/constants";
 import { formatToken } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
@@ -29,6 +29,29 @@ import { PAGE_SIZE_PARAM, parsePageSize } from "@/lib/pageSize";
 function rendreNullSi404(erreur: unknown): null {
   if (erreur instanceof ApiError && erreur.status === 404) return null;
   throw erreur;
+}
+
+/**
+ * Titres qui **disent leur portée** (#486, RES-7).
+ *
+ * « Répartition par catégorie » et « Top clubs » laissaient croire à un tout, alors que
+ * les deux cartes ne montrent qu'un extrait — huit catégories, neuf clubs. Le titre
+ * redevient exact dès qu'il nomme le nombre affiché, et reste sobre quand la liste est
+ * complète : il n'y a alors rien à restreindre.
+ */
+function titreCategories(
+  affichees: number,
+  total: number,
+  categories: { count: number }[],
+): string {
+  const couvertes = categories.reduce((somme, c) => somme + c.count, 0);
+  if (couvertes >= total) return "Répartition par catégorie";
+  return `Les ${affichees} catégories les plus représentées`;
+}
+
+function titreClubs(affiches: number, total: number): string {
+  if (total <= affiches) return "Top clubs";
+  return `Les ${affiches} clubs les plus représentés`;
 }
 
 /** Numéro de page lu dans l'URL : absent, illisible ou < 1 vaut 1, sans erreur. */
@@ -107,7 +130,7 @@ export default async function CoursePage({
         </Card>
 
         <Card padding={24}>
-          <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 18, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 18 }}>Répartition par catégorie</h2>
+          <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 18, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 18 }}>{titreCategories(summary.categories.length, summary.categories_total, summary.categories)}</h2>
           <CategoryBars categories={summary.categories} total={summary.categories_total} />
         </Card>
 
@@ -115,25 +138,8 @@ export default async function CoursePage({
           {/* `aria-labelledby` : l'écran porte deux tableaux (celui-ci et le
               classement). Sans nom, un lecteur d'écran les annonce tous deux
               « tableau » sans dire lequel. */}
-          <h2 id="titre-top-clubs" style={{ fontFamily: "var(--tcn-font-display)", fontSize: 18, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 14 }}>Top clubs</h2>
-          <table className="tcn-table" role="table" aria-labelledby="titre-top-clubs">
-            <thead role="rowgroup">
-              <tr role="row" style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, paddingBottom: 8, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--tcn-text-faint)", borderBottom: "1px solid var(--tcn-border)", marginBottom: 4 }}>
-                <th role="columnheader" scope="col">Club</th><th role="columnheader" scope="col" style={{ textAlign: "right" }}>Athlètes</th>
-              </tr>
-            </thead>
-            <tbody role="rowgroup">
-              {clubs.map(({ name, count, is_tcn: own }) => (
-                <tr key={name} role="row" style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, padding: "7px 0", borderBottom: "1px solid var(--tcn-border-faint2)" }}>
-                  <td role="cell" style={{ fontSize: 13, fontWeight: own ? 700 : 600, color: own ? "var(--tcn-orange-deeper)" : "var(--tcn-ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</td>
-                  <td role="cell" style={{ fontFamily: "var(--tcn-font-display)", fontSize: 16, color: own ? "var(--tcn-orange-deeper)" : "var(--tcn-ink)", textAlign: "right" }}>{count}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {clubs.length === 0 && (
-            <EmptyState bare className="px-0 py-4" title="Clubs non renseignés" />
-          )}
+          <h2 id="titre-top-clubs" style={{ fontFamily: "var(--tcn-font-display)", fontSize: 18, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 14 }}>{titreClubs(clubs.length, summary.clubs_total)}</h2>
+          <ClubBreakdown clubs={clubs} total={summary.clubs_total} />
         </Card>
       </div>
 
