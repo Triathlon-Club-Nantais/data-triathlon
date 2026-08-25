@@ -76,10 +76,37 @@ def test_events_page_ne_compte_pas_les_pendantes(db_session):
     assert page["total_participations"] == 1
 
 
-def test_for_stats_exclut_une_pendante(db_session):
+def test_stats_totals_exclut_une_pendante(db_session):
+    """`for_stats` a été remplacée par cinq fonctions dédiées (#580) : chacune
+    reprend l'exclusion à son compte plutôt que de la déléguer à une fonction
+    commune, d'où un test par fonction plutôt qu'un seul pour `for_stats`."""
+    _duo(db_session)
+    total, athletes, events = participation_repository.stats_totals(db_session)
+    assert (total, athletes, events) == (1, 1, 1)
+
+
+def test_stats_by_type_exclut_une_pendante(db_session):
+    _duo(db_session)
+    rows = participation_repository.stats_by_type(db_session)
+    assert rows == [("triathlon-m", 1)]
+
+
+def test_stats_by_month_rows_exclut_une_pendante(db_session):
+    _duo(db_session)
+    rows = participation_repository.stats_by_month_rows(db_session)
+    assert [count for _event_date, count in rows] == [1]
+
+
+def test_stats_recent_rows_exclut_une_pendante(db_session):
     _, _, validee = _duo(db_session)
-    rows = participation_repository.for_stats(db_session)
-    assert [p.id for p in rows] == [validee.id]
+    rows = participation_repository.stats_recent_rows(db_session)
+    assert [row[0] for row in rows] == [validee.id]
+
+
+def test_stats_rank_rows_exclut_une_pendante(db_session):
+    _duo(db_session)
+    rows = participation_repository.stats_rank_rows(db_session)
+    assert [rank_overall for rank_overall, *_ in rows] == [2]  # rang de la validée
 
 
 def test_list_page_for_course_exclut_une_pendante(db_session):
@@ -118,7 +145,9 @@ def test_une_participation_validee_apres_coup_entre_dans_les_cinq_sites(db_sessi
     page = participation_repository.events_page(db_session)
     assert page["total_participations"] == 2
 
-    assert len(participation_repository.for_stats(db_session)) == 2
+    total_stats, _athletes, _events = participation_repository.stats_totals(db_session)
+    assert total_stats == 2
+    assert len(participation_repository.stats_rank_rows(db_session)) == 2
 
     _, total = participation_repository.list_page_for_course(db_session, course.id)
     assert total == 2

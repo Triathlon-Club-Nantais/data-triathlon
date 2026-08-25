@@ -33,7 +33,7 @@ trois repositories :
 | Fonction | Fichier | Alimente |
 | --- | --- | --- |
 | `_apply_filters` | `participation_repository.py` | `list_participations`, et via `_grouped_events_query` : `events_with_counts`/`events_page` |
-| `for_stats` | `participation_repository.py` | tableau de bord, page club, podiums (calculés côté front sur ces données) |
+| `stats_totals`/`stats_by_type`/`stats_by_month_rows`/`stats_recent_rows`/`stats_rank_rows` | `participation_repository.py` | tableau de bord, page club, podiums (calculés côté front sur ces données) — remplacent `for_stats`, supprimée (#580) |
 | `list_page_for_course` | `participation_repository.py` | classement paginé d'une épreuve |
 | `summary_rows_for_course` | `participation_repository.py` | synthèse d'épreuve |
 | `finishers_count_by_group` | `participation_repository.py` | `course_finishers` de la fiche athlète |

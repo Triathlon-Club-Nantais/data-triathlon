@@ -297,8 +297,9 @@ def list_with_season_participation_count(
     filtre demandé. `seasons` vide = pas de restriction de date (Principe V —
     neutralité par défaut), comme `season_clause` de `participation_repository`,
     réutilisée ici plutôt que recopiée. `federal_only` (#382) suit le même
-    défaut neutre et la même liste d'exclusion que `for_stats` (#76) —
-    `Course` est déjà jointe sans condition ici, contrairement à `for_stats`.
+    défaut neutre et la même liste d'exclusion que les fonctions `stats_*` de
+    `participation_repository` (#76, #580) — `Course` est déjà jointe sans
+    condition ici, contrairement à elles.
     """
     # Import local : participation_repository importe name_filter d'ici depuis
     # #357, un import en tête de module créerait un cycle.

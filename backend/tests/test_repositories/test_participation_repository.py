@@ -284,7 +284,9 @@ def test_events_page_sort_imported_desc_ordonne_par_date_import(db_session):
     assert [r.event_name for r in by_date["items"]] == ["Futur Tri", "Ancien Tri"]
 
 
-def test_for_stats_filtre_par_saison_unique(db_session):
+def test_stats_by_type_filtre_par_saison_unique(db_session):
+    """`for_stats` a été remplacée par cinq fonctions dédiées (#580) ; `seasons`
+    est un filtre commun aux cinq, vérifié ici sur l'une d'elles."""
     athlete, course_2025 = _setup(db_session)  # course "Tri Z" le 2026-05-16 → saison 2025
     c_autre = course_repository.get_or_create(
         db_session, name="Tri Automne", event_date=date(2024, 10, 1), event_type="triathlon-s"
@@ -297,11 +299,11 @@ def test_for_stats_filtre_par_saison_unique(db_session):
     )
     db_session.flush()
 
-    only_2025 = participation_repository.for_stats(db_session, seasons=[2025])
-    assert {p.course.name for p in only_2025} == {"Tri Z"}
+    only_2025 = participation_repository.stats_by_type(db_session, seasons=[2025])
+    assert only_2025 == [("triathlon-m", 1)]  # "Tri Z" est de ce type, "Tri Automne" est exclue
 
 
-def test_for_stats_multi_saisons_non_contigues(db_session):
+def test_stats_totals_multi_saisons_non_contigues(db_session):
     athlete, course_2025 = _setup(db_session)  # "Tri Z" 2026-05-16 → saison 2025
     c_2023 = course_repository.get_or_create(
         db_session, name="Tri 2023", event_date=date(2023, 10, 1), event_type="triathlon-s"
@@ -315,8 +317,10 @@ def test_for_stats_multi_saisons_non_contigues(db_session):
         )
     db_session.flush()
 
-    rows = participation_repository.for_stats(db_session, seasons=[2025, 2023])
-    assert {p.course.name for p in rows} == {"Tri Z", "Tri 2023"}
+    total, _athletes, events = participation_repository.stats_totals(
+        db_session, seasons=[2025, 2023]
+    )
+    assert (total, events) == (2, 2)  # "Tri Z" (2025) + "Tri 2023" — "Tri 2024" exclue
 
 
 def test_events_page_filtre_par_saison_exclut_sans_date(db_session):

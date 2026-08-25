@@ -1,7 +1,17 @@
-from datetime import date
+from collections import Counter
+from datetime import date, datetime, timedelta
 
+from sqlalchemy.orm import joinedload
+
+from app.core.club import tcn_clause
+from app.core.discipline import federal_clause
+from app.core.validation import validated_clause
+from app.models.course import Course
+from app.models.participation import Participation
 from app.repositories import athlete_repository, course_repository, participation_repository
+from app.repositories.participation_repository import season_clause
 from app.services import stats_service
+from app.services.stats_service import _accumule, _bucket, _meilleur_rang
 
 
 def _seed(db):
@@ -503,3 +513,253 @@ def test_course_summary_denominateur_des_categories_porte_sur_toutes(db_session)
     assert synthese["categories_total"] == 78  # 12 + 11 + … + 1
     assert synthese["categories_total"] > total_rendues
     assert synthese["categories_total"] < synthese["total"]  # la ligne sans catégorie est hors jeu
+
+
+# ── Non-régression #580 : refonte SQL de get_stats ───────────────────────────
+#
+# `get_stats` chargeait, via `for_stats`, toutes les participations (avec
+# `course`/`athlete` joints) et agrégeait en Python — 724 ms mesurés sur
+# 31 280 participations pour des compteurs qu'un `GROUP BY` rend en 8 ms
+# (#580). `_legacy_get_stats` ci-dessous est une copie figée de l'algorithme
+# d'avant refonte — elle ne dépend plus de `for_stats`, supprimée, ni de
+# `stats_service._rank_counters`, dont la signature a changé — et sert
+# d'oracle : `stats_service.get_stats`, désormais posé sur cinq requêtes SQL
+# agrégées, doit lui rendre un résultat identique au caractère près sur un
+# jeu de données couvrant plusieurs types d'épreuve, plusieurs mois, plusieurs
+# genres, des rangs variés (dont une égalité et un athlète sans aucun rang),
+# et un filtre de saison qui fait disparaître un mois entier du résultat.
+
+
+def _legacy_for_stats(db, *, club_only=False, seasons=None, federal_only=False):
+    """Copie figée de l'ancienne `participation_repository.for_stats` (#580)."""
+    q = db.query(Participation).options(
+        joinedload(Participation.course), joinedload(Participation.athlete)
+    ).filter(validated_clause(Participation.is_pending_validation))
+    if club_only:
+        q = q.filter(tcn_clause(Participation.club))
+    if seasons or federal_only:
+        q = q.join(Course, Participation.course_id == Course.id)
+    if seasons:
+        q = q.filter(season_clause(seasons))
+    if federal_only:
+        q = q.filter(federal_clause(Course.event_type))
+    return q.all()
+
+
+def _legacy_rank_counters(parts):
+    """Copie figée de l'ancienne `stats_service._rank_counters` (#580), qui
+    bouclait sur des `Participation` entières plutôt que sur des tuples."""
+    scratch, category, tous = _bucket(), _bucket(), _bucket()
+    genre = {"women": _bucket(), "men": _bucket()}
+    for p in parts:
+        _accumule(scratch, p.rank_overall)
+        _accumule(category, p.rank_category)
+        _accumule(tous, _meilleur_rang([p.rank_overall, p.rank_gender, p.rank_category]))
+        g = (p.athlete.gender or "").upper() if p.athlete else ""
+        if g == "F":
+            _accumule(genre["women"], p.rank_gender)
+        elif g == "M":
+            _accumule(genre["men"], p.rank_gender)
+    return {"scratch": scratch, "category": category, "all": tous, "gender": genre}
+
+
+def _legacy_get_stats(db, *, club_only=False, seasons=None, federal_only=False):
+    """Copie figée de l'ancienne `stats_service.get_stats` (#580) — l'oracle
+    de non-régression du refactor SQL."""
+    parts = _legacy_for_stats(db, club_only=club_only, seasons=seasons, federal_only=federal_only)
+    if not parts:
+        return {
+            "total": 0, "athletes": 0, "events": 0, "by_type": {}, "by_month": {}, "recent": [],
+            "rank_counters": _legacy_rank_counters([]),
+        }
+
+    athlete_set = {p.athlete_id for p in parts}
+    event_set = {p.course_id for p in parts}
+    by_type: Counter[str] = Counter()
+    by_month: Counter[str] = Counter()
+    for p in parts:
+        course = p.course
+        if course and course.event_type:
+            by_type[course.event_type] += 1
+        if course and course.event_date:
+            by_month[str(course.event_date)[:7]] += 1
+
+    recent = sorted(
+        (p for p in parts if p.created_at), key=lambda p: p.created_at, reverse=True
+    )[:20]
+
+    return {
+        "total": len(parts),
+        "athletes": len(athlete_set),
+        "events": len(event_set),
+        "by_type": dict(sorted(by_type.items(), key=lambda x: -x[1])),
+        "by_month": dict(sorted(by_month.items())),
+        "recent": [
+            {
+                "id": p.id,
+                "athlete_name": p.athlete.nom if p.athlete else "",
+                "athlete_firstname": p.athlete.prenom if p.athlete else "",
+                "club": p.club or "",
+                "event_name": p.course.name if p.course else "",
+                "event_type": p.course.event_type if p.course else "",
+                "event_date": p.course.event_date.isoformat()
+                if p.course and p.course.event_date
+                else None,
+                "total_time": p.total_time or "",
+                "scraped_at": p.created_at.isoformat() if p.created_at else None,
+            }
+            for p in recent
+        ],
+        "rank_counters": _legacy_rank_counters(parts),
+    }
+
+
+def _seed_580(db):
+    """Jeu de données réaliste : 5 épreuves (4 types, 5 mois, 2 saisons),
+    6 athlètes (genres variés, dont un genre ignoré et un vide), 27
+    participations validées + 1 pendante, dont une égalité de rang scratch et
+    un athlète sans aucun rang. Rend (participations créées, la pendante)."""
+    athletes = [
+        athlete_repository.get_or_create(db, nom=f"N{i}", prenom=f"P{i}", gender=genre, club=club)
+        for i, (genre, club) in enumerate(
+            [("M", "TCN"), ("F", "TCN"), ("M", "ASPTT"), ("F", "ASPTT"), ("", "TCN"), ("H", "ASPTT")]
+        )
+    ]
+
+    c1 = course_repository.get_or_create(
+        db, name="Triathlon de Nantes", event_date=date(2026, 5, 16), event_type="triathlon-m"
+    )  # saison 2025
+    c2 = course_repository.get_or_create(
+        db, name="Duathlon de Nantes", event_date=date(2026, 4, 10), event_type="triathlon-s"
+    )  # saison 2025
+    c3 = course_repository.get_or_create(
+        db, name="Trail des Marais", event_date=date(2026, 3, 1), event_type="trail"
+    )  # saison 2025, hors fédération
+    c4 = course_repository.get_or_create(
+        db, name="Cyclosportive Fondo", event_date=date(2025, 10, 5), event_type="cyclisme-route"
+    )  # saison 2025, hors fédération
+    c5 = course_repository.get_or_create(
+        db, name="Triathlon d'Antan", event_date=date(2024, 6, 1), event_type="triathlon-m"
+    )  # saison 2023, seule participation de ce mois
+
+    plan = [
+        # C1 : égalité scratch (deux rang 1) + un athlète sans aucun rang.
+        (c1, [
+            (1, 1, 1), (1, 2, 1),
+            (2, 1, 2), (3, 3, 2), (4, 2, 3), (5, 4, 3), (6, 5, 4), (7, 6, 4), (8, 7, 5),
+            (None, None, None),
+            (50, 20, 30), (60, 25, 35),
+        ]),
+        (c2, [(1, 1, 1), (2, 2, 1), (3, 1, 2), (4, 2, 2), (5, 3, 3), (6, 3, 3)]),
+        (c3, [(1, 1, 1), (2, 1, 1), (3, 2, 2), (4, 2, 2)]),
+        (c4, [(1, 1, 1), (2, 1, 2), (3, 2, 2)]),
+        (c5, [(1, 1, 1), (2, 2, 2)]),
+    ]
+
+    created = []
+    for course, ranks in plan:
+        for i, (r_all, r_cat, r_gen) in enumerate(ranks):
+            athlete = athletes[i % len(athletes)]
+            club = "TCN" if i % 2 == 0 else "ASPTT"
+            p = participation_repository.create(
+                db, athlete_id=athlete.id, course_id=course.id, bib_number=str(i),
+                club=club, rank_overall=r_all, rank_category=r_cat, rank_gender=r_gen,
+                total_time="01:00:00",
+            )
+            created.append(p)
+
+    # Une pendante, exclue par construction (#270) — même rang que la première
+    # victoire de C1, pour vérifier qu'elle ne s'y ajoute pas.
+    pendante = participation_repository.create(
+        db, athlete_id=athletes[0].id, course_id=c1.id, bib_number="pendante",
+        club="TCN", rank_overall=1, rank_category=1, rank_gender=1,
+        total_time="01:00:00", is_pending_validation=True,
+    )
+    db.flush()
+
+    # `created_at` distincts et strictement croissants : sans quoi l'ordre des
+    # 20 plus récentes n'est pas comparable entre les deux implémentations.
+    base = datetime(2026, 1, 1, 8, 0, 0)
+    for i, p in enumerate(created):
+        p.created_at = base + timedelta(seconds=i)
+    db.flush()
+
+    return created, pendante
+
+
+def test_get_stats_matches_legacy_implementation_sans_filtre(db_session):
+    _seed_580(db_session)
+    assert stats_service.get_stats(db_session) == _legacy_get_stats(db_session)
+
+
+def test_get_stats_matches_legacy_implementation_scope_club(db_session):
+    _seed_580(db_session)
+    assert stats_service.get_stats(db_session, club_only=True) == _legacy_get_stats(
+        db_session, club_only=True
+    )
+
+
+def test_get_stats_matches_legacy_implementation_federal_only(db_session):
+    _seed_580(db_session)
+    assert stats_service.get_stats(db_session, federal_only=True) == _legacy_get_stats(
+        db_session, federal_only=True
+    )
+
+
+def test_get_stats_matches_legacy_implementation_filtre_par_saison(db_session):
+    _seed_580(db_session)
+    nouveau = stats_service.get_stats(db_session, seasons=[2025])
+    assert nouveau == _legacy_get_stats(db_session, seasons=[2025])
+    # Cas limite : "Triathlon d'Antan" (saison 2023) est la seule épreuve de
+    # 2024-06 — le mois disparaît entièrement du résultat, il n'y figure pas à 0.
+    assert "2024-06" not in nouveau["by_month"]
+
+
+def test_get_stats_matches_legacy_implementation_saison_isolee(db_session):
+    """Le mois exclu ci-dessus réapparaît seul quand on cible sa propre saison."""
+    _seed_580(db_session)
+    nouveau = stats_service.get_stats(db_session, seasons=[2023])
+    assert nouveau == _legacy_get_stats(db_session, seasons=[2023])
+    assert nouveau["by_month"] == {"2024-06": 2}
+
+
+def test_get_stats_matches_legacy_implementation_filtres_combines(db_session):
+    _seed_580(db_session)
+    kwargs = {"club_only": True, "seasons": [2025], "federal_only": True}
+    assert stats_service.get_stats(db_session, **kwargs) == _legacy_get_stats(db_session, **kwargs)
+
+
+def test_get_stats_matches_legacy_implementation_saison_vide(db_session):
+    """Chemin de sortie anticipée (`total == 0`) des deux implémentations."""
+    _seed_580(db_session)
+    kwargs = {"seasons": [2020]}
+    nouveau = stats_service.get_stats(db_session, **kwargs)
+    assert nouveau == _legacy_get_stats(db_session, **kwargs)
+    assert nouveau == {
+        "total": 0, "athletes": 0, "events": 0, "by_type": {}, "by_month": {}, "recent": [],
+        "rank_counters": {
+            "scratch": {"victories": 0, "podiums": 0, "top10": 0},
+            "category": {"victories": 0, "podiums": 0, "top10": 0},
+            "all": {"victories": 0, "podiums": 0, "top10": 0},
+            "gender": {
+                "women": {"victories": 0, "podiums": 0, "top10": 0},
+                "men": {"victories": 0, "podiums": 0, "top10": 0},
+            },
+        },
+    }
+
+
+def test_get_stats_recent_est_borne_a_20_et_exclut_la_pendante(db_session):
+    _created, pendante = _seed_580(db_session)
+    recent = stats_service.get_stats(db_session)["recent"]
+    assert len(recent) == 20
+    assert pendante.id not in {r["id"] for r in recent}
+
+
+def test_get_stats_egalite_de_rang_compte_chaque_victoire(db_session):
+    """Deux athlètes classés 1ers ex æquo comptent chacun pour une victoire —
+    la règle porte sur chaque participation, pas sur une valeur de rang unique."""
+    _seed_580(db_session)
+    scratch = stats_service.get_stats(db_session)["rank_counters"]["scratch"]
+    # Une victoire par épreuve (5 épreuves), plus une seconde sur C1 (égalité).
+    assert scratch["victories"] == 6
