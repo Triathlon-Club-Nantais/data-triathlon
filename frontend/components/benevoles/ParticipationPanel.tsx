@@ -43,7 +43,32 @@ export function ParticipationPanel({
     onBrouillonSale?.(sale);
   }, [sale, onBrouillonSale]);
 
+  // Une seule zone d'erreur pour deux familles d'actions distinctes (le
+  // brouillon via `useBrouillon`, le rejet géré ici) : chacune efface l'erreur
+  // de l'*autre* au moment où elle démarre, jamais la sienne propre — `occupe`
+  // interdit déjà qu'elles tournent en même temps, donc au plus une des deux
+  // erreurs est posée quand ce rendu a lieu (#490, revue de #490). `modifier({})`
+  // ne change aucun champ : c'est la seule façon d'atteindre le `setErreur(null)`
+  // interne du hook sans dupliquer sa logique dans ce composant.
+  const erreurAffichee = erreur ?? erreurRejet;
+
+  function modifierEtEffacerErreurRejet(patch: Parameters<typeof modifier>[0]) {
+    setErreurRejet(null);
+    modifier(patch);
+  }
+
+  function enregistrerEnEffacantErreurRejet() {
+    setErreurRejet(null);
+    return enregistrer();
+  }
+
+  function validerEnEffacantErreurRejet() {
+    setErreurRejet(null);
+    return validerLeResultat();
+  }
+
   async function agirSurLeRejet(action: "rejeter" | "annuler") {
+    modifier({});
     setErreurRejet(null);
     setEnCoursRejet(true);
     try {
@@ -119,13 +144,13 @@ export function ParticipationPanel({
             <ChampsParticipation
               brouillon={brouillon}
               origine={participation}
-              onChange={modifier}
+              onChange={modifierEtEffacerErreurRejet}
               disabled={occupe}
             />
             <ReattributionField
               athleteActuel={participation.athlete}
               athleteCible={brouillon.athlete_cible}
-              onChoisir={(athlete) => modifier({ athlete_cible: athlete })}
+              onChoisir={(athlete) => modifierEtEffacerErreurRejet({ athlete_cible: athlete })}
               disabled={occupe}
             />
           </div>
@@ -152,17 +177,22 @@ export function ParticipationPanel({
               Modifications non enregistrées
             </div>
           )}
-          {erreur && (
+          {erreurAffichee && (
             <div role="alert" style={{ color: "var(--tcn-danger-text)", fontSize: 13 }}>
-              {erreur}
+              {erreurAffichee}
             </div>
           )}
           {!rejetee && (
             <>
-              <Button onClick={validerLeResultat} disabled={occupe} style={{ width: "100%" }}>
+              <Button onClick={validerEnEffacantErreurRejet} disabled={occupe} style={{ width: "100%" }}>
                 {enCours ? "Enregistrement…" : "Valider ce résultat"}
               </Button>
-              <Button variant="secondary" onClick={enregistrer} disabled={occupe || !sale} style={{ width: "100%" }}>
+              <Button
+                variant="secondary"
+                onClick={enregistrerEnEffacantErreurRejet}
+                disabled={occupe || !sale}
+                style={{ width: "100%" }}
+              >
                 Enregistrer
               </Button>
             </>
@@ -193,11 +223,6 @@ export function ParticipationPanel({
               <Button variant="ghost" onClick={() => setConfirmationRejet(false)} disabled={occupe} style={{ flex: 1 }}>
                 Annuler
               </Button>
-            </div>
-          )}
-          {erreurRejet && (
-            <div role="alert" style={{ color: "var(--tcn-danger-text)", fontSize: 13 }}>
-              {erreurRejet}
             </div>
           )}
         </div>

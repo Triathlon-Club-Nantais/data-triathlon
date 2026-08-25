@@ -161,6 +161,20 @@ describe("ParticipationPanel — enregistrement unique", () => {
     await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
     await waitFor(() => expect(reassignParticipationBenevole).toHaveBeenCalledWith(10, 2));
   });
+
+  it("valide un brouillon propre sans rien modifier au préalable", async () => {
+    const validee = participation({ is_pending_validation: false });
+    validateParticipationBenevole.mockResolvedValue(validee);
+    const onChanged = vi.fn();
+    render(<ParticipationPanel participation={participation()} onChanged={onChanged} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Valider ce résultat/ }));
+
+    await waitFor(() => expect(validateParticipationBenevole).toHaveBeenCalledWith(10));
+    expect(onChanged).toHaveBeenCalledWith(validee);
+    expect(updateParticipationFieldsBenevole).not.toHaveBeenCalled();
+    expect(renameCourseBenevole).not.toHaveBeenCalled();
+  });
 });
 
 describe("ParticipationPanel — erreurs", () => {
@@ -227,11 +241,34 @@ describe("ParticipationPanel — erreurs", () => {
     await waitFor(() => expect(onSessionExpired).toHaveBeenCalled());
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
+
+  it("ne montre jamais deux erreurs à la fois quand un rejet échoue après un enregistrement en échec", async () => {
+    updateParticipationFieldsBenevole.mockRejectedValue(new ApiError(409, "Ce dossard est déjà pris."));
+    render(<ParticipationPanel participation={participation()} onChanged={vi.fn()} />);
+
+    await userEvent.type(screen.getByLabelText(/Dossard/), "3");
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Les champs n'ont pas pu être enregistrés : Ce dossard est déjà pris.",
+      ),
+    );
+
+    rejectParticipationBenevole.mockRejectedValue(new ApiError(409, "Ce signalement n'a pas pu être enregistré."));
+    await userEvent.click(screen.getByRole("button", { name: /Signaler non conforme/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Confirmer/ }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent("Ce signalement n'a pas pu être enregistré."),
+    );
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+  });
 });
 
 describe("ParticipationPanel — rejet", () => {
-  it("signale non conforme après confirmation", async () => {
-    rejectParticipationBenevole.mockResolvedValue(participation({ is_rejected: true }));
+  it("signale non conforme après confirmation et propage le résultat au parent", async () => {
+    const rejetee = participation({ is_rejected: true });
+    rejectParticipationBenevole.mockResolvedValue(rejetee);
     const onChanged = vi.fn();
     render(<ParticipationPanel participation={participation()} onChanged={onChanged} />);
 
@@ -239,6 +276,7 @@ describe("ParticipationPanel — rejet", () => {
     await userEvent.click(screen.getByRole("button", { name: /Confirmer/ }));
 
     await waitFor(() => expect(rejectParticipationBenevole).toHaveBeenCalledWith(10));
+    expect(onChanged).toHaveBeenCalledWith(rejetee);
   });
 
   it("n'appelle rien si le signalement n'est pas confirmé", async () => {
@@ -263,6 +301,20 @@ describe("ParticipationPanel — rejet", () => {
     );
     expect(screen.getByLabelText(/Dossard/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Valider ce résultat/ })).toBeInTheDocument();
+  });
+
+  it("propage la réouverture au parent une fois le rejet annulé", async () => {
+    const reouverte = participation({ is_rejected: false });
+    unrejectParticipationBenevole.mockResolvedValue(reouverte);
+    const onChanged = vi.fn();
+    render(
+      <ParticipationPanel participation={participation({ is_rejected: true })} onChanged={onChanged} />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Annuler le rejet/ }));
+
+    await waitFor(() => expect(unrejectParticipationBenevole).toHaveBeenCalledWith(10));
+    expect(onChanged).toHaveBeenCalledWith(reouverte);
   });
 });
 

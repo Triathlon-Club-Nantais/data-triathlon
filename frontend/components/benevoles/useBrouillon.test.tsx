@@ -198,6 +198,37 @@ describe("useBrouillon", () => {
     expect(result.current.erreur).toBeNull();
   });
 
+  it("valide un brouillon propre et propage le résultat", async () => {
+    const { result, onChanged } = monter();
+    const validee = participation({ is_pending_validation: false });
+    validateParticipationBenevole.mockResolvedValue(validee);
+
+    await act(async () => void (await result.current.validerLeResultat()));
+
+    expect(validateParticipationBenevole).toHaveBeenCalledWith(10);
+    expect(onChanged).toHaveBeenCalledWith(validee);
+    expect(updateParticipationFieldsBenevole).not.toHaveBeenCalled();
+  });
+
+  it("prévient d'une session expirée quand la validation elle-même échoue en 401", async () => {
+    const { result, onSessionExpired } = monter();
+    validateParticipationBenevole.mockRejectedValue(new ApiError(401, "non autorisé"));
+
+    await act(async () => void (await result.current.validerLeResultat()));
+
+    await waitFor(() => expect(onSessionExpired).toHaveBeenCalled());
+    expect(result.current.erreur).toBeNull();
+  });
+
+  it("affiche l'erreur quand la validation elle-même échoue hors 401", async () => {
+    const { result } = monter();
+    validateParticipationBenevole.mockRejectedValue(new ApiError(409, "Ce résultat a déjà été validé."));
+
+    await act(async () => void (await result.current.validerLeResultat()));
+
+    expect(result.current.erreur).toBe("Ce résultat a déjà été validé.");
+  });
+
   it("resynchronise sa base sur un rechargement d'arrière-plan, sans toucher au brouillon en cours", () => {
     const initiale = participation();
     const { result, rerender } = renderHook(
