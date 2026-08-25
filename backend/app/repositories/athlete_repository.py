@@ -400,3 +400,41 @@ def search_by_relevance(
         .limit(limit)
         .all()
     )
+
+
+def club_roster(
+    db: Session, *, federal_only: bool = False, limit: int = 12
+) -> list[tuple[Athlete, int, int, int, int, int]]:
+    """Top athlètes du club par volume, podiums ventilés par portée (#581).
+
+    Agrégation entièrement en SQL — aucune participation individuelle n'est
+    chargée. `podiums` compte les participations avec au moins un podium
+    (dédupliqué) ; `podiums_overall`/`gender`/`category` sont des compteurs
+    indépendants, une même participation pouvant incrémenter les trois à la
+    fois (cf. #488 côté front, comportement repris à l'identique).
+    """
+    cond_overall = Participation.rank_overall.between(1, 3)
+    cond_gender = Participation.rank_gender.between(1, 3)
+    cond_category = Participation.rank_category.between(1, 3)
+
+    total = func.count(Participation.id)
+    podiums = func.sum(case((or_(cond_overall, cond_gender, cond_category), 1), else_=0))
+    podiums_overall = func.sum(case((cond_overall, 1), else_=0))
+    podiums_gender = func.sum(case((cond_gender, 1), else_=0))
+    podiums_category = func.sum(case((cond_category, 1), else_=0))
+
+    requete = (
+        db.query(Athlete, total, podiums, podiums_overall, podiums_gender, podiums_category)
+        .join(Participation, Participation.athlete_id == Athlete.id)
+        .join(Course, Participation.course_id == Course.id)
+        .filter(validated_clause(Participation.is_pending_validation))
+        .filter(tcn_clause(Participation.club))
+        .group_by(Athlete.id)
+    )
+    if federal_only:
+        requete = requete.filter(federal_clause(Course.event_type))
+    return (
+        requete.order_by(total.desc(), podiums.desc(), Athlete.nom, Athlete.prenom)
+        .limit(limit)
+        .all()
+    )
