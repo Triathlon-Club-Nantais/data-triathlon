@@ -82,12 +82,15 @@ jobs:
           # serait une distinction sans différence.
           echo "::add-mask::$service_id"
           # Reprise avant tout le reste : `render-sleep.yml` suspend ce service
-          # (la preview dort entre deux déploiements, la production entre 1 h et
-          # 4 h UTC — #530), et un deploy hook envoyé à un service suspendu ne le
-          # rallume pas. C'est aussi le filet si le cron de lever ne passe pas :
-          # un déploiement rallume toujours sa cible. Reprendre un service déjà
-          # éveillé n'est pas une erreur ici — `--fail-with-body` n'est pas armé
-          # sur cet appel, dont l'échec ne doit pas bloquer un déploiement.
+          # (la preview à chaque heure pile entre deux déploiements — #560 —, la
+          # production entre 1 h et 4 h UTC — #530), et un deploy hook envoyé à un
+          # service suspendu ne le rallume pas. Ce `resume` n'a pas à craindre le
+          # cron horaire qui suit : celui-ci s'abstient tant qu'un déploiement est
+          # en vol ou vient de finir. C'est aussi le filet si le cron de lever
+          # ne passe pas : un déploiement rallume toujours sa cible. Reprendre un
+          # service déjà éveillé n'est pas une erreur ici — `--fail-with-body`
+          # n'est pas armé sur cet appel, dont l'échec ne doit pas bloquer un
+          # déploiement.
           curl -sS -X POST -H "Authorization: Bearer $RENDER_API_KEY" \
             --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 \
             "https://api.render.com/v1/services/$service_id/resume" || true
@@ -192,12 +195,15 @@ jobs:
           # serait une distinction sans différence.
           echo "::add-mask::$service_id"
           # Reprise avant tout le reste : `render-sleep.yml` suspend ce service
-          # (la preview dort entre deux déploiements, la production entre 1 h et
-          # 4 h UTC — #530), et un deploy hook envoyé à un service suspendu ne le
-          # rallume pas. C'est aussi le filet si le cron de lever ne passe pas :
-          # un déploiement rallume toujours sa cible. Reprendre un service déjà
-          # éveillé n'est pas une erreur ici — `--fail-with-body` n'est pas armé
-          # sur cet appel, dont l'échec ne doit pas bloquer un déploiement.
+          # (la preview à chaque heure pile entre deux déploiements — #560 —, la
+          # production entre 1 h et 4 h UTC — #530), et un deploy hook envoyé à un
+          # service suspendu ne le rallume pas. Ce `resume` n'a pas à craindre le
+          # cron horaire qui suit : celui-ci s'abstient tant qu'un déploiement est
+          # en vol ou vient de finir. C'est aussi le filet si le cron de lever
+          # ne passe pas : un déploiement rallume toujours sa cible. Reprendre un
+          # service déjà éveillé n'est pas une erreur ici — `--fail-with-body`
+          # n'est pas armé sur cet appel, dont l'échec ne doit pas bloquer un
+          # déploiement.
           curl -sS -X POST -H "Authorization: Bearer $RENDER_API_KEY" \
             --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 \
             "https://api.render.com/v1/services/$service_id/resume" || true
