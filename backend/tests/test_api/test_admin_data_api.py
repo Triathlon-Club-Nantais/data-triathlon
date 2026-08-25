@@ -285,11 +285,15 @@ def test_l_impact_de_purge_sans_le_pouvoir_rend_403(client, db_session, base_ave
 # --- DELETE /admin/participations ---------------------------------------------
 
 
-def test_purger_rend_204_et_vide_la_table(client, db_session, base_avec_resultats):
+def test_purger_rend_le_decompte_reel_et_vide_la_table(client, db_session, base_avec_resultats):
     reponse = client.delete("/api/v1/admin/participations")
 
-    assert reponse.status_code == 204
-    assert reponse.content == b""
+    assert reponse.status_code == 200
+    assert reponse.json() == {
+        "participations_deleted": 2,
+        "athletes_purged": 2,
+        "courses_reset": 2,
+    }
     assert participation_repository.count_all(db_session) == 0
 
 
@@ -355,7 +359,7 @@ def test_purger_sans_le_pouvoir_rend_403(client, db_session, base_avec_resultats
 def test_purger_avec_le_seul_pouvoir_utile_reussit(client, db_session, base_avec_resultats):
     _session_etroite(client, db_session, P.PARTICIPATIONS_WIPE_ALL)
 
-    assert client.delete("/api/v1/admin/participations").status_code == 204
+    assert client.delete("/api/v1/admin/participations").status_code == 200
 
 
 def test_un_refus_de_pouvoir_ne_purge_rien(client, db_session, base_avec_resultats):
@@ -403,11 +407,13 @@ def test_l_impact_de_purge_des_epreuves_sans_le_pouvoir_rend_403(
 # --- DELETE /admin/courses -----------------------------------------------------
 
 
-def test_purger_les_epreuves_rend_204_et_vide_le_catalogue(client, db_session, base_avec_resultats):
+def test_purger_les_epreuves_rend_le_decompte_reel_et_vide_le_catalogue(
+    client, db_session, base_avec_resultats
+):
     reponse = client.delete("/api/v1/admin/courses")
 
-    assert reponse.status_code == 204
-    assert reponse.content == b""
+    assert reponse.status_code == 200
+    assert reponse.json() == {"courses_deleted": 2, "athletes_purged": 2}
     assert course_repository.count_all(db_session) == 0
     assert participation_repository.count_all(db_session) == 0
     assert athlete_repository.count_all(db_session) == 0
@@ -458,7 +464,7 @@ def test_purger_les_epreuves_avec_le_seul_pouvoir_utile_reussit(
 ):
     _session_etroite(client, db_session, P.COURSES_WIPE_ALL)
 
-    assert client.delete("/api/v1/admin/courses").status_code == 204
+    assert client.delete("/api/v1/admin/courses").status_code == 200
 
 
 def test_un_refus_de_pouvoir_ne_purge_pas_les_epreuves(client, db_session, base_avec_resultats):
