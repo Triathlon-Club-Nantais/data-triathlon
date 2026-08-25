@@ -8,11 +8,18 @@ vi.mock("next/navigation", () => ({
 }));
 
 const getAthlete = vi.fn();
-vi.mock("@/lib/api/client", () => ({
-  apiClient: { getAthlete: (...args: unknown[]) => getAthlete(...args) },
-}));
+vi.mock("@/lib/api/client", async () => {
+  // `ApiError` reste la vraie classe (le composant fait `instanceof`, #502
+  // item 11) — seul `apiClient.getAthlete` est simulé.
+  const reel = await vi.importActual<typeof import("@/lib/api/client")>("@/lib/api/client");
+  return {
+    ...reel,
+    apiClient: { getAthlete: (...args: unknown[]) => getAthlete(...args) },
+  };
+});
 
-import { writeAthlete } from "@/components/layout/AthletePicker";
+import { ApiError } from "@/lib/api/client";
+import { readAthlete, writeAthlete } from "@/components/layout/AthletePicker";
 import { MaSaison } from "./MaSaison";
 
 const ATHLETE = { id: 12, prenom: "Jean", nom: "Dupont" };
@@ -137,10 +144,11 @@ describe("MaSaison — état rempli", () => {
     expect(getAthlete).toHaveBeenCalledTimes(1);
   });
 
-  // #502, revue finale : le parenthétique inline n'est pas `RANK_LABEL_LONG`
-  // (`lib/labels.ts`) — trop lourd en mode `all` dans une phrase à 20px — et
-  // `all` s'y dit « meilleur classement », ce qu'il est réellement.
-  it("nomme le rang dans le parenthétique, `all` compris", async () => {
+  // #502, revue UI/UX item 1 : le rang a quitté la ligne principale (471px en
+  // Anton 20px, ne tenait sur une ligne qu'au-delà de ~814px de viewport) pour
+  // ouvrir la ligne secondaire, capitalisé — `all` s'y dit « meilleur
+  // classement », ce qu'il est réellement.
+  it("ouvre la ligne secondaire par le rang, capitalisé, `all` compris", async () => {
     getAthlete.mockResolvedValue({
       athlete: ATHLETE,
       participations: [ligne(1, { rank_overall: 2 })],
@@ -149,13 +157,15 @@ describe("MaSaison — état rempli", () => {
       <MaSaison clubEvents={32} seasons="2025" federalOnly={true} />,
     );
     const ligneVisible = await screen.findByTestId("ma-saison-ligne");
-    expect(within(ligneVisible).getByText(/\(classement général\)/)).toBeInTheDocument();
+    expect(within(ligneVisible).getByText(/^Classement général ·/)).toBeInTheDocument();
+    // La ligne principale ne porte plus le parenthétique.
+    expect(within(ligneVisible).queryByText(/\(classement général\)/)).not.toBeInTheDocument();
 
     searchParams = new URLSearchParams("rank=all");
     rerender(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
 
     expect(
-      await within(ligneVisible).findByText(/\(meilleur classement\)/),
+      await within(ligneVisible).findByText(/^Meilleur classement ·/),
     ).toBeInTheDocument();
   });
 
@@ -183,6 +193,19 @@ describe("MaSaison — états dégradés", () => {
     expect(screen.getByTestId("ma-saison-squelette")).toBeInTheDocument();
   });
 
+  // #502, item 7 : `AnnonceStatut` est déjà monté dans les quatre branches —
+  // seul `busy` restait sans porteur pendant l'attente, laissant un aller-
+  // retour muet côté auditif en plus du visuel (squelette #d6d1c8 à 1,52:1,
+  // hors périmètre de ce lot — `components/ui/skeleton.tsx`).
+  it("porte `aria-busy` sur la région d'annonce pendant le chargement", () => {
+    getAthlete.mockReturnValue(new Promise(() => {}));
+    render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
+    expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
+  });
+
+  // #502, item 4 : même destination `/ajouter` nommée « Ajouter une épreuve »
+  // partout ailleurs sur l'écran (`dashboard/page.tsx`, le rail) —
+  // « résultat » n'est le mot d'aucun autre appelant.
   it("propose une sortie quand ma saison est vide", async () => {
     getAthlete.mockResolvedValue({ athlete: ATHLETE, participations: [] });
     render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
@@ -190,19 +213,135 @@ describe("MaSaison — états dégradés", () => {
     const ligneVisible = await screen.findByTestId("ma-saison-ligne");
     expect(within(ligneVisible).getByText(/aucune épreuve/i)).toBeInTheDocument();
     expect(
-      within(ligneVisible).getByRole("link", { name: /ajouter un résultat/i }),
+      within(ligneVisible).getByRole("link", { name: /ajouter une épreuve/i }),
     ).toHaveAttribute("href", "/ajouter");
   });
 
-  it("garde le nom et le lien quand le fetch échoue", async () => {
-    getAthlete.mockRejectedValue(new Error("réseau"));
+  describe("échec réseau (#502, item 5)", () => {
+    it("garde le nom et le lien, et propose Réessayer", async () => {
+      getAthlete.mockRejectedValue(new TypeError("Failed to fetch"));
+      render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
+
+      expect(await screen.findByText(/chiffres indisponibles/i)).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /mon athlète/i })).toHaveAttribute(
+        "href",
+        "/athletes/12",
+      );
+      expect(getAthlete).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole("button", { name: /réessayer/i })).toBeInTheDocument();
+    });
+
+    it("« Réessayer » rejoue le fetch", async () => {
+      getAthlete.mockRejectedValue(new TypeError("Failed to fetch"));
+      render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
+      await screen.findByRole("button", { name: /réessayer/i });
+      expect(getAthlete).toHaveBeenCalledTimes(1);
+
+      getAthlete.mockResolvedValue({ athlete: ATHLETE, participations: [ligne(1)] });
+      await act(async () => {
+        screen.getByRole("button", { name: /réessayer/i }).click();
+      });
+
+      await waitFor(() => expect(getAthlete).toHaveBeenCalledTimes(2));
+      expect(await screen.findByTestId("ma-saison-ligne")).toBeInTheDocument();
+    });
+
+    // Ne jamais purger le stock sur une panne réseau (item 11) : ce serait
+    // perdre le choix de quelqu'un dont l'athlète existe très bien.
+    it("ne purge pas le stock sur une panne réseau", async () => {
+      getAthlete.mockRejectedValue(new TypeError("Failed to fetch"));
+      render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
+
+      await screen.findByText(/chiffres indisponibles/i);
+      expect(readAthlete()).toEqual(ATHLETE);
+    });
+  });
+
+  // #502, revue UI/UX item 11 (décision de l'utilisateur) : un 404 signe une
+  // fiche disparue (suppression, fusion admin) — la bande purge le stock et
+  // invite un nouveau choix, au lieu de rester bloquée sur un profil mort.
+  describe("athlète disparu — 404 (#502, item 11)", () => {
+    it("purge le stock et invite à choisir un nom à nouveau", async () => {
+      getAthlete.mockRejectedValue(new ApiError(404, "Not Found"));
+      render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
+
+      expect(await screen.findByText(/votre fiche a changé/i)).toBeInTheDocument();
+      expect(screen.getByText(/choisissez votre nom à nouveau/i)).toBeInTheDocument();
+      expect(readAthlete()).toBeNull();
+      // La bande reste montée à la même hauteur réservée, sous le même
+      // Eyebrow — jamais démontée, sans quoi rien ne relierait le message au
+      // geste de sélection qui l'a précédé. (Deux nœuds portent le texte :
+      // l'`Eyebrow` visible et le `h2` masqué du titre, item 6.)
+      expect(screen.getAllByText("Ma saison").length).toBeGreaterThan(0);
+    });
+
+    it("ne montre ni « chiffres indisponibles » ni le lien de profil mort", async () => {
+      getAthlete.mockRejectedValue(new ApiError(404, "Not Found"));
+      render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
+
+      await screen.findByText(/votre fiche a changé/i);
+      expect(screen.queryByText(/chiffres indisponibles/i)).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: /mon athlète/i })).not.toBeInTheDocument();
+    });
+
+    it("le bouton d'invitation ouvre la palette (OPEN_PICKER_EVENT)", async () => {
+      getAthlete.mockRejectedValue(new ApiError(404, "Not Found"));
+      render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
+
+      const bouton = await screen.findByRole("button", { name: /choisir mon athlète/i });
+      const ecouteur = vi.fn();
+      window.addEventListener("tcn-athlete-open-picker", ecouteur);
+
+      await act(async () => {
+        bouton.click();
+      });
+
+      expect(ecouteur).toHaveBeenCalledTimes(1);
+    });
+  });
+});
+
+// #502, revue UI/UX item 6 (WCAG 1.3.1) : `Eyebrow` rend un `<div>`, invisible
+// à un parcours par titres — le `h2` masqué relaie son texte pour que la
+// bande soit atteignable comme ses deux voisins immédiats (`dashboard/
+// page.tsx`, `RecentCourses.tsx`), tous deux des `h2`.
+describe("MaSaison — titre accessible (#502, item 6)", () => {
+  beforeEach(() => {
+    window.localStorage.setItem("tcn-athlete", JSON.stringify(ATHLETE));
+  });
+
+  it("expose un h2 masqué repris de l'Eyebrow visible", async () => {
+    getAthlete.mockResolvedValue({ athlete: ATHLETE, participations: [] });
     render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
 
-    expect(await screen.findByText(/chiffres indisponibles/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /mon athlète/i })).toHaveAttribute(
-      "href",
-      "/athletes/12",
-    );
+    await screen.findByTestId("ma-saison-ligne");
+    expect(screen.getByRole("heading", { level: 2, name: "Ma saison" })).toBeInTheDocument();
+  });
+});
+
+// #502, revue UI/UX item 10 : « Ma saison » présuppose une saison unique — faux
+// dès que `SeasonSelector` en retient plusieurs, où le h1 juste au-dessus dit
+// « N saisons sélectionnées » (`lib/utils/season.ts`).
+describe("MaSaison — titre au pluriel sur sélection multi-saisons (#502, item 10)", () => {
+  beforeEach(() => {
+    window.localStorage.setItem("tcn-athlete", JSON.stringify(ATHLETE));
+  });
+
+  it("reste « Ma saison » sur une saison unique", async () => {
+    getAthlete.mockResolvedValue({ athlete: ATHLETE, participations: [] });
+    render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
+
+    await screen.findByTestId("ma-saison-ligne");
+    expect(screen.getByRole("heading", { level: 2, name: "Ma saison" })).toBeInTheDocument();
+  });
+
+  it("devient « Mes saisons » sur une sélection multiple", async () => {
+    getAthlete.mockResolvedValue({ athlete: ATHLETE, participations: [] });
+    render(<MaSaison clubEvents={32} seasons="2026,2025" federalOnly={true} />);
+
+    await screen.findByTestId("ma-saison-ligne");
+    expect(screen.getByRole("heading", { level: 2, name: "Mes saisons" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 2, name: "Ma saison" })).not.toBeInTheDocument();
   });
 });
 
