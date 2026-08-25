@@ -259,6 +259,11 @@ export function RaceFinishers({
               // réussir.
               onClick={() => naviguer({ q: nomRetenu, [SCOPE_PARAM]: null })}
               aria-label={`Aller à ma ligne — ${nomRetenu}`}
+              // Bordé, pas un lien de texte : `.tcn-lien-action` ne convient
+              // pas. Stylé en ligne, il ne peut pas déclarer son propre
+              // `:focus-visible` — d'où `.tcn-cta-classement`, qui ne porte
+              // que l'anneau (globals.css).
+              className="tcn-cta-classement"
               style={{ height: 34, padding: "0 12px", fontSize: 13, fontWeight: 700, borderRadius: 8, border: "1.5px solid var(--tcn-orange-deep)", background: "var(--tcn-surface)", color: "var(--tcn-orange-deep)", cursor: "pointer" }}
             >
               Aller à ma ligne
@@ -324,7 +329,7 @@ export function RaceFinishers({
                     router.push(detailHref(p));
                   }
                 }}
-                className="tcn-rowlink"
+                className={moi ? "tcn-rowlink tcn-rowlink--moi" : "tcn-rowlink"}
                 style={{
                   display: "grid",
                   gridTemplateColumns: fcols,
@@ -333,14 +338,21 @@ export function RaceFinishers({
                   padding: "12px 22px",
                   borderBottom: "1px solid var(--tcn-border-faint)",
                   borderLeft: `3px solid ${own ? "var(--tcn-orange)" : "transparent"}`,
-                  // Ma ligne prime sur le gris des non-finishers : un athlète
-                  // qui a abandonné reste l'athlète retenu, et « c'est vous »
-                  // est l'information qu'il cherche.
-                  background: moi
-                    ? "var(--tcn-orange-08)"
-                    : nf
-                      ? "color-mix(in srgb, var(--tcn-grey-400) 15%, transparent)"
-                      : undefined,
+                  // Le fond de « ma ligne » vit en classe (`.tcn-rowlink--moi`,
+                  // globals.css), pas ici : un style en ligne battrait toute
+                  // couche CSS et couperait le survol de `.tcn-rowlink:hover`
+                  // (#439). Le chip « Vous » porte seul la distinction — le
+                  // fond n'est qu'un appui de teinte (1,11:1 mesuré contre une
+                  // ligne blanche, nul en luminance contre le gris ci-dessous :
+                  // WCAG 1.4.1 tient sur le chip, pas sur ce fond). Il reste
+                  // posé même sur un non-finisher : un athlète qui a abandonné
+                  // reste l'athlète retenu. Le gris des non-finishers, lui,
+                  // reste en ligne — il ne concerne que les lignes qui ne sont
+                  // pas la mienne, `.tcn-rowlink--moi` primant les siennes par
+                  // la classe.
+                  background: !moi && nf
+                    ? "color-mix(in srgb, var(--tcn-grey-400) 15%, transparent)"
+                    : undefined,
                 }}
               >
                 <div>

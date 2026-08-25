@@ -618,29 +618,22 @@ function NavContent({
                 `prefetch={false}` pour la même raison que le lien de profil
                 voisin (#425) : un athlète épinglé n'est pas une destination
                 probable. Le nom complet dans le nom accessible, jamais le
-                prénom seul : un libellé de lien se lit hors contexte. */}
+                prénom seul : un libellé de lien se lit hors contexte.
+                `.tcn-lien-action` porte la couleur, le poids et l'anneau de
+                focus — sans elle le focus retombait sur `outline-ring/50`
+                (1,85:1 sur le fond composite de la tuile, sous le seuil WCAG
+                1.4.11 de 3:1, revue #503). Seule sa hauteur, propre au rail,
+                reste en ligne : 36 px, au-dessus du plancher tactile WCAG 2.2
+                2.5.8 (24 px) sans doubler la hauteur de la tuile comme le
+                ferait la grille à 44 px du rail. */}
             {expanded && (
               <Link
                 href={`/resultats?name=${encodeURIComponent(nomComplet(athlete))}`}
                 prefetch={false}
                 onClick={onNavigate}
                 aria-label={`Mes résultats — ${nomComplet(athlete)}`}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  // 36 px : au-dessus du plancher tactile WCAG 2.2 2.5.8
-                  // (24 px) sans doubler la hauteur de la tuile comme le
-                  // ferait la grille à 44 px du rail.
-                  minHeight: 36,
-                  padding: "0 4px",
-                  fontWeight: 700,
-                  fontSize: 13,
-                  // `--tcn-orange-deeper` : même fond que le lien du prénom
-                  // ci-dessus, même verdict de contraste (4,13:1 en `-deep`
-                  // sur ce fond, contre 5,21:1 en `-deeper`).
-                  color: "var(--tcn-orange-deeper)",
-                  textDecoration: "none",
-                }}
+                className="tcn-lien-action"
+                style={{ minHeight: 36, fontSize: 13 }}
               >
                 Mes résultats
               </Link>

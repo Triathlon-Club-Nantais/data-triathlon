@@ -338,4 +338,15 @@ describe("ResultsFilters — pastille de l'athlète retenu (NAV-10, #503)", () =
     expect(screen.queryByRole("button", { name: /Mes résultats/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retirer Athlète : Jean Dupont" })).toBeInTheDocument();
   });
+
+  it("disparaît aussi quand le filtre posé diffère seulement par la casse ou les accents", () => {
+    // « jean dupont » tapé à la main et « Jean Dupont » retenu désignent le
+    // même filtre : sans comparaison insensible, la pastille et le chip actif
+    // s'affichaient en même temps pour dire la même chose (revue #503).
+    writeAthlete(JEAN);
+    searchParams = new URLSearchParams("name=jean dupont");
+    render(<ResultsFilters />);
+
+    expect(screen.queryByRole("button", { name: /Mes résultats/ })).not.toBeInTheDocument();
+  });
 });

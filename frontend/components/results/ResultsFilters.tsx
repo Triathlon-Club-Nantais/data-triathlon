@@ -48,7 +48,13 @@ export function ResultsFilters() {
   // commandes pour le même état se contrediraient (NAV-10, #503).
   const athleteRetenu = useSelectedAthlete();
   const nomRetenu = athleteRetenu ? nomComplet(athleteRetenu) : null;
-  const proposePastille = nomRetenu !== null && sp.get("name") !== nomRetenu;
+  // Comparaison insensible à la casse et aux accents (localeCompare, pas une
+  // table maison) : sinon un nom tapé à la main dans le champ (« jean dupont »)
+  // diffère à l'octet près du nom retenu (« Jean Dupont ») et la pastille
+  // s'affiche à côté du chip actif qui dit déjà la même chose (revue #503).
+  const proposePastille =
+    nomRetenu !== null &&
+    (sp.get("name") ?? "").localeCompare(nomRetenu, "fr", { sensitivity: "base" }) !== 0;
 
   // Compte des filtres **repliés** actifs, athlète exclu : il reste visible
   // hors du volet, le compter ferait mentir le bouton.
@@ -231,27 +237,36 @@ export function ResultsFilters() {
           </div>
         </div>
 
-        {proposePastille && (
-          // Sa propre rangée, sous les filtres plutôt que dans le `Field`
-          // « Athlète » : dans le `Field`, la pastille faisait grandir ce
-          // champ de ~30 px et lui faisait perdre la ligne de base que
-          // `items-end` partage avec les autres champs — un décalage qui
-          // survient à l'hydratation, `useSelectedAthlete()` rendant `null`
-          // au serveur. « Une commande en plus, pas un déplacement de
-          // contenu » (maquette approuvée).
-          <button
-            type="button"
-            onClick={() => {
-              setName(nomRetenu);
-              apply(nomRetenu);
-            }}
-            aria-label={`Mes résultats — ${nomRetenu}`}
-            className="flex min-h-6 items-center gap-1.5 self-start text-xs font-bold text-[var(--tcn-orange-deep)]"
-          >
-            <Avatar name={nomRetenu} size={18} />
-            Mes résultats
-          </button>
-        )}
+        {/* Rangée réservée **inconditionnellement**, sur le patron
+            `.tcn-avatar-frame` (#467) : `useSelectedAthlete()` rend `null` au
+            serveur, la pastille n'existe donc pas dans le HTML initial et
+            apparaît à l'hydratation. Sans cette place tenue d'avance, elle
+            ajoutait sa rangée en plus de la gouttière `space-y-3` de la carte
+            et la faisait grandir de ~36 px au moment de son apparition — le
+            déplacement de contenu que « une commande en plus, pas un
+            déplacement de contenu » (maquette approuvée) interdit. Seule la
+            pastille elle-même reste conditionnelle, à l'intérieur. */}
+        <div className="min-h-9">
+          {proposePastille && (
+            <button
+              type="button"
+              onClick={() => {
+                setName(nomRetenu);
+                apply(nomRetenu);
+              }}
+              aria-label={`Mes résultats — ${nomRetenu}`}
+              className="tcn-lien-action gap-1.5 self-start text-xs"
+              // `.tcn-lien-action` pose 24px, le plancher WCAG 2.5.8 : surchargé
+              // ici à 36px, la taille de son jumeau du rail (#503, correctif
+              // suggestion retenue) — un style en ligne pour être sûr de
+              // gagner sur la classe, quel que soit l'ordre des layers CSS.
+              style={{ minHeight: 36 }}
+            >
+              <Avatar name={nomRetenu} size={18} />
+              Mes résultats
+            </button>
+          )}
+        </div>
 
         {active.length > 0 && (
           <div className="flex flex-wrap gap-2 border-t pt-3">
