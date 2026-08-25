@@ -56,22 +56,37 @@ function PostHogSessionSync() {
  * `/login` ; ce composant le relit dès qu'une session existe et, s'il diffère
  * de l'atterrissage, y ramène côté client — sans jamais toucher au serveur ni
  * à l'URL d'`/authorize`.
+ *
+ * L'atterrissage est figé dans `atterrissageRef` au tout premier effet, jamais
+ * relu au chemin courant : entre le retour du fournisseur et la résolution de
+ * `useSession` (un aller-retour réseau), rien n'empêche l'utilisateur de
+ * naviguer ailleurs de lui-même — comparer au chemin courant à ce moment-là
+ * écraserait cette navigation par la destination mémorisée.
  */
 function PostLoginReturn() {
   const { data: session } = useSession();
   const pathname = usePathname();
   const router = useRouter();
+  const atterrissageRef = useRef<string | null>(null);
+  const traiteRef = useRef(false);
 
   useEffect(() => {
-    if (!session) return;
+    if (atterrissageRef.current === null) {
+      atterrissageRef.current = pathname + window.location.search;
+    }
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!session || traiteRef.current || atterrissageRef.current === null) return;
+    traiteRef.current = true;
     const cible = sessionStorage.getItem(RETOUR_CONNEXION_KEY);
     if (!cible) return;
     sessionStorage.removeItem(RETOUR_CONNEXION_KEY);
-    if (cible !== pathname) {
+    if (cible !== atterrissageRef.current) {
       router.replace(cible);
       toast.success("Connexion réussie");
     }
-  }, [session, pathname, router]);
+  }, [session, router]);
 
   return null;
 }

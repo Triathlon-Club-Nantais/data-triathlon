@@ -38,11 +38,18 @@ export function useSession() {
   });
 }
 
-/** Moyens de connexion disponibles. Une liste vide est une réponse valide. */
+/**
+ * Moyens de connexion disponibles. Une liste vide est une réponse valide.
+ *
+ * `retry: false`, comme `useAdminPermissions` : une panne (backend endormi,
+ * 500) doit lever `isError` immédiatement pour que `/login` l'affiche (#494),
+ * pas après le délai des trois essais par défaut.
+ */
 export function useAuthMethods() {
   return useQuery<AuthMethod[]>({
     queryKey: queryKeys.authMethods(),
     queryFn: () => apiClient.listAuthMethods(),
+    retry: false,
   });
 }
 

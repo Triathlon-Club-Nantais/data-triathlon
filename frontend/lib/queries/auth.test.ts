@@ -90,4 +90,21 @@ describe("useAuthMethods", () => {
     expect(result.current.data).toEqual([]);
     expect(result.current.isError).toBe(false);
   });
+
+  it("ne réessaie pas automatiquement : une panne lève isError sans délai (#494)", async () => {
+    // Sans `retry: false` porté par le hook lui-même, le défaut de React Query
+    // (3 essais, délais croissants) retarde `isError` de plusieurs secondes —
+    // exactement le silence que la page de connexion doit rompre. Ce test
+    // construit son propre client, sans l'écraser globalement, pour que ce
+    // soit bien le hook qui porte le réglage.
+    listAuthMethods.mockClear();
+    listAuthMethods.mockRejectedValue(new ApiError(500, "boum"));
+    const client = new QueryClient();
+    const { result } = renderHook(() => useAuthMethods(), {
+      wrapper: ({ children }) => createElement(QueryClientProvider, { client }, children),
+    });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(listAuthMethods).toHaveBeenCalledTimes(1);
+  });
 });

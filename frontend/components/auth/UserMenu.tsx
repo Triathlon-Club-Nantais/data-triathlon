@@ -59,7 +59,12 @@ export function UserMenu({
           // Mémorisé côté navigateur seulement (#494) : le backend redirige
           // toujours vers /admin (FR-026), `PostLoginReturn` (providers.tsx)
           // lit cette clé à l'atterrissage pour ramener au point de départ.
-          if (chemin !== "/login") sessionStorage.setItem(RETOUR_CONNEXION_KEY, chemin);
+          // `window.location.search` et non `useSearchParams()` : ce dernier
+          // impose une frontière Suspense, inutile pour une simple lecture au
+          // clic — voir le commentaire équivalent dans `app/login/page.tsx`.
+          if (chemin !== "/login") {
+            sessionStorage.setItem(RETOUR_CONNEXION_KEY, chemin + window.location.search);
+          }
           onNavigate?.();
           router.push("/login");
         }}
