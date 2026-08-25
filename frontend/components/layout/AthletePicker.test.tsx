@@ -1,7 +1,15 @@
+import { StrictMode } from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { readAthlete, writeAthlete, clearAthlete, AthletePicker } from "./AthletePicker";
+import {
+  readAthlete,
+  writeAthlete,
+  clearAthlete,
+  nomComplet,
+  useSelectedAthlete,
+  AthletePicker,
+} from "./AthletePicker";
 
 const searchAthletes = vi.fn();
 vi.mock("@/lib/api/client", () => ({
@@ -118,5 +126,42 @@ describe("événement de synchronisation tcn-athlete-changed", () => {
     window.addEventListener("tcn-athlete-changed", ecouteur);
     clearAthlete();
     expect(ecouteur).toHaveBeenCalledTimes(1);
+  });
+});
+
+function SondeAthlete() {
+  const athlete = useSelectedAthlete();
+  return <div data-testid="sonde">{athlete ? nomComplet(athlete) : "aucun"}</div>;
+}
+
+describe("useSelectedAthlete", () => {
+  it("rend null quand aucun athlète n'est retenu", () => {
+    render(<SondeAthlete />);
+    expect(screen.getByTestId("sonde")).toHaveTextContent("aucun");
+  });
+
+  it("rend l'athlète retenu sans boucler — le snapshot est mémorisé", () => {
+    // Sans cache, `getSnapshot` rendrait un objet neuf à chaque rendu et React
+    // lèverait « The result of getSnapshot should be cached to avoid an
+    // infinite loop » : ce rendu, en StrictMode (deux passes), est la seule
+    // façon d'établir la stabilité de la référence depuis l'extérieur.
+    writeAthlete(ATHLETE);
+    render(
+      <StrictMode>
+        <SondeAthlete />
+      </StrictMode>,
+    );
+    expect(screen.getByTestId("sonde")).toHaveTextContent("Marie Gaudin");
+  });
+
+  it("se resynchronise quand le stock change, sans remontage", () => {
+    render(<SondeAthlete />);
+    expect(screen.getByTestId("sonde")).toHaveTextContent("aucun");
+
+    act(() => writeAthlete(ATHLETE));
+    expect(screen.getByTestId("sonde")).toHaveTextContent("Marie Gaudin");
+
+    act(() => clearAthlete());
+    expect(screen.getByTestId("sonde")).toHaveTextContent("aucun");
   });
 });

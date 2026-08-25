@@ -99,6 +99,44 @@ export function useIsSelectedAthlete(id: number): boolean {
   );
 }
 
+/**
+ * Dernier instantané du stock, mémorisé au niveau du module.
+ *
+ * `useSyncExternalStore` compare le retour de `getSnapshot` au précédent avec
+ * `Object.is` : rendre le résultat de `readAthlete()`, qui reconstruit un
+ * objet à chaque lecture, ferait rendre React en boucle. On ne ré-analyse donc
+ * que si la chaîne brute a changé — la clé de cache est le texte du stock,
+ * seule chose qui change vraiment.
+ */
+let brutMemorise: string | null = null;
+let athleteMemorise: PickedAthlete | null = null;
+
+function snapshotAthlete(): PickedAthlete | null {
+  let brut: string | null;
+  try {
+    brut = window.localStorage.getItem(STORE);
+  } catch {
+    // Mode privé, quota : pas de stock lisible, donc pas d'athlète retenu.
+    return null;
+  }
+  if (brut !== brutMemorise) {
+    brutMemorise = brut;
+    athleteMemorise = readAthlete();
+  }
+  return athleteMemorise;
+}
+
+/**
+ * L'athlète retenu lui-même, côté client uniquement — le pendant de
+ * `useIsSelectedAthlete` pour les écrans qui ont besoin de son **nom** et non
+ * d'un booléen : la pastille de `/resultats`, le raccourci du rail et le saut
+ * vers sa ligne dans un classement (#503). Même arbitrage qu'en #467 : le
+ * stock se lit là où il vit, jamais par un cookie miroir.
+ */
+export function useSelectedAthlete(): PickedAthlete | null {
+  return useSyncExternalStore(subscribeAthlete, snapshotAthlete, () => null);
+}
+
 /** Nombre d'athlètes affichés — au-delà, la palette précise « trop de
  *  résultats » plutôt que d'en cacher silencieusement (défaut 4/5, #484). */
 const PAGE_SIZE = 12;
