@@ -26,6 +26,17 @@ const STORE = "tcn-athlete";
  */
 export const ATHLETE_CHANGED_EVENT = "tcn-athlete-changed";
 
+/**
+ * Émis sur `window` pour demander l'ouverture de la palette de sélection
+ * (#502, revue UI/UX item 11). Même forme que `ATHLETE_CHANGED_EVENT` — pas de
+ * payload, l'abonné (`AppNav`, seul à porter l'état `pickerOpen`) réagit en
+ * ouvrant sa propre modale. Premier appelant : la bande « Ma saison » du
+ * tableau de bord, qui n'a par elle-même ni route ni état pour ouvrir la
+ * palette quand l'athlète retenu a disparu ; #503 et #504 en auront besoin
+ * aussi.
+ */
+export const OPEN_PICKER_EVENT = "tcn-athlete-open-picker";
+
 /** Nom d'usage — `filter` couvre l'athlète dont un des deux champs est vide. */
 export function nomComplet(athlete: { prenom: string; nom: string }): string {
   return [athlete.prenom, athlete.nom].filter(Boolean).join(" ");
@@ -191,7 +202,7 @@ export function AthletePicker({
       width={520}
       footer={
         <div style={{ fontSize: 13, color: "var(--tcn-text-faint)", textAlign: "center" }}>
-          Votre tableau de bord affichera vos résultats en premier.
+          Votre saison s&apos;affichera en tête du tableau de bord.
         </div>
       }
     >

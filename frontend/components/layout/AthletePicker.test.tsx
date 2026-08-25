@@ -42,12 +42,20 @@ describe("microcopie — un seul nom pour l'objet (#502)", () => {
 
   // Le pied rassurait sur une inquiétude que personne n'a exprimée ; il énonce
   // désormais ce que le choix rapporte (audit § 10, gradient de but).
+  //
+  // #502, revue UI/UX item 9 : la promesse a divergé de ce qui arrive
+  // réellement — « vos résultats » ici, « voir sa saison » sous le bouton du
+  // rail, et le bloc livré s'appelle « Ma saison » et montre deux compteurs,
+  // pas des résultats. Les trois s'alignent désormais sur le nom du bloc.
   it("énonce la promesse au moment du choix", () => {
     render(<AthletePicker onClose={() => {}} onPick={() => {}} />);
     expect(
-      screen.getByText("Votre tableau de bord affichera vos résultats en premier."),
+      screen.getByText("Votre saison s'affichera en tête du tableau de bord."),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Pas de blocage d'accès/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Votre tableau de bord affichera vos résultats en premier."),
+    ).not.toBeInTheDocument();
   });
 });
 
