@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { buildResultsQuery, ResultsFilters } from "./ResultsFilters";
+import { nomComplet, writeAthlete } from "@/components/layout/AthletePicker";
 
 describe("buildResultsQuery", () => {
   it("ignore les champs vides", () => {
@@ -272,5 +273,61 @@ describe("ResultsFilters — volet mobile", () => {
     await screen.findByRole("dialog");
 
     expect(bouton).toHaveAttribute("aria-expanded", "true");
+  });
+});
+
+const JEAN = { id: 12, prenom: "Jean", nom: "Dupont" };
+
+describe("ResultsFilters — pastille de l'athlète retenu (NAV-10, #503)", () => {
+  beforeEach(() => {
+    push.mockReset();
+    replace.mockReset();
+    searchParams = new URLSearchParams();
+    const stock = new Map<string, string>();
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (cle: string) => stock.get(cle) ?? null,
+        setItem: (cle: string, valeur: string) => void stock.set(cle, valeur),
+        removeItem: (cle: string) => void stock.delete(cle),
+        clear: () => stock.clear(),
+      },
+    });
+  });
+
+  it("ne propose rien quand aucun athlète n'est retenu", () => {
+    render(<ResultsFilters />);
+    expect(screen.queryByRole("button", { name: /Mes résultats/ })).not.toBeInTheDocument();
+  });
+
+  it("propose le filtre sans jamais l'appliquer au chargement", () => {
+    writeAthlete(JEAN);
+    render(<ResultsFilters />);
+
+    expect(screen.getByRole("button", { name: "Mes résultats — Jean Dupont" })).toBeInTheDocument();
+    // Le cœur de NAV-10 : proposé, jamais posé en silence.
+    expect(push).not.toHaveBeenCalled();
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("pose ?name=<nom complet> au clic, les autres filtres conservés", async () => {
+    writeAthlete(JEAN);
+    searchParams = new URLSearchParams("event_type=triathlon-m&scope=club");
+    render(<ResultsFilters />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Mes résultats — Jean Dupont" }));
+
+    expect(push).toHaveBeenCalledWith(expect.stringContaining("name=Jean+Dupont"));
+    expect(push).toHaveBeenCalledWith(expect.stringContaining("event_type=triathlon-m"));
+    expect(push).toHaveBeenCalledWith(expect.stringContaining("scope=club"));
+  });
+
+  it("disparaît une fois le filtre posé — le chip actif porte déjà la révocation", () => {
+    writeAthlete(JEAN);
+    searchParams = new URLSearchParams(`name=${nomComplet(JEAN)}`);
+    render(<ResultsFilters />);
+
+    expect(screen.queryByRole("button", { name: /Mes résultats/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retirer Athlète : Jean Dupont" })).toBeInTheDocument();
   });
 });

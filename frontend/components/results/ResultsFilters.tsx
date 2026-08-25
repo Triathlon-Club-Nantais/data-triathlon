@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { X } from "lucide-react";
 import { captureEvent } from "@/lib/posthog";
+import { Avatar } from "@/components/tcn";
+import { nomComplet, useSelectedAthlete } from "@/components/layout/AthletePicker";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +42,14 @@ export function ResultsFilters() {
   const [dateTo, setDateTo] = useState(sp.get("date_to") ?? "");
   const [volet, setVolet] = useState(false);
 
+  // Athlète retenu (#467) : lu côté client, jamais par un cookie miroir. La
+  // pastille n'est proposée que tant que le filtre ne vaut pas déjà ce nom —
+  // une fois posé, le chip « Athlète : … ✕ » porte seul la révocation, et deux
+  // commandes pour le même état se contrediraient (NAV-10, #503).
+  const athleteRetenu = useSelectedAthlete();
+  const nomRetenu = athleteRetenu ? nomComplet(athleteRetenu) : null;
+  const proposePastille = nomRetenu !== null && sp.get("name") !== nomRetenu;
+
   // Compte des filtres **repliés** actifs, athlète exclu : il reste visible
   // hors du volet, le compter ferait mentir le bouton.
   const nbReplies = ["event_name", "event_type", "date_from", "date_to"].filter((cle) =>
@@ -58,20 +68,21 @@ export function ResultsFilters() {
     router.push(urlFor(filters));
   }
 
-  function apply() {
+  function apply(nomImpose?: string) {
+    const nomApplique = nomImpose ?? name;
     const activeFilters = Object.fromEntries(
-      Object.entries({ name, event_name: eventName, event_type: eventType, date_from: dateFrom, date_to: dateTo })
+      Object.entries({ name: nomApplique, event_name: eventName, event_type: eventType, date_from: dateFrom, date_to: dateTo })
         .filter(([, v]) => v !== ""),
     );
     captureEvent("results_filter_applied", {
       filter_count: Object.keys(activeFilters).length,
-      has_athlete_filter: !!name,
+      has_athlete_filter: !!nomApplique,
       has_event_name_filter: !!eventName,
       has_event_type_filter: !!eventType,
       has_date_filter: !!(dateFrom || dateTo),
     });
     push({
-      name,
+      name: nomApplique,
       event_name: eventName,
       event_type: eventType,
       date_from: dateFrom,
@@ -181,6 +192,20 @@ export function ResultsFilters() {
               placeholder="Rechercher un athlète"
               className="w-full sm:w-48"
             />
+            {proposePastille && (
+              <button
+                type="button"
+                onClick={() => {
+                  setName(nomRetenu);
+                  apply(nomRetenu);
+                }}
+                aria-label={`Mes résultats — ${nomRetenu}`}
+                className="flex min-h-6 items-center gap-1.5 self-start text-xs font-bold text-[var(--tcn-orange-deep)]"
+              >
+                <Avatar name={nomRetenu} size={18} />
+                Mes résultats
+              </button>
+            )}
           </Field>
           <div className="hidden sm:contents">
             <ChampsReplies
@@ -209,7 +234,7 @@ export function ResultsFilters() {
             </Button>
             {/* « Filtrer » ne sert plus sous `sm` : le champ athlète y filtre en
                 direct (#383) et le volet porte le même verbe (#485). */}
-            <Button className="hidden sm:inline-flex" onClick={apply}>
+            <Button className="hidden sm:inline-flex" onClick={() => apply()}>
               Filtrer
             </Button>
             {active.length > 0 && (
