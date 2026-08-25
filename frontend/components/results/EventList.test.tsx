@@ -764,11 +764,56 @@ describe("rendu carte sous md", () => {
     renderList();
 
     const carte = cartes();
-    expect(carte.getByRole("link", { name: /Tri de Nantes/ })).toHaveAttribute(
-      "href",
-      "/courses/14",
-    );
+    const lien = carte.getByRole("link", { name: /Tri de Nantes/ });
+    expect(lien).toHaveAttribute("href", "/courses/14");
     expect(carte.texte(/148 résultats/)).toBeTruthy();
+    // Compteur TCN porté par la carte, pas seulement par la grille (revue #461).
+    expect(lien).toHaveTextContent("3");
+  });
+
+  // Revue #461 : `CartesCompetition` rendait `null` (rien) plutôt que le
+  // tiret d'absence rendu par la grille — régression silencieuse du patron à
+  // deux arbres, non attrapée par le test ci-dessus faute d'assertion sur le
+  // cas zéro.
+  it("affiche le tiret d'absence de participant TCN dans la carte d'une épreuve isolée", () => {
+    setEvents({
+      data: {
+        pages: [{ items: [epreuve({ tcn_count: 0 })], total_events: 1, total_participations: 148 }],
+      },
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+    });
+    renderList();
+
+    const lien = cartes().getByRole("link", { name: /Tri de Nantes/ });
+    expect(lien).toHaveTextContent("—");
+  });
+
+  it("affiche le tiret d'absence de participant TCN dans la carte d'une compétition repliée", () => {
+    setEvents({
+      data: {
+        pages: [
+          {
+            items: [
+              epreuve({ id: 1, event_name: "Coupe de Bretagne - Sprint H", tcn_count: 0 }),
+              epreuve({ id: 2, event_name: "Coupe de Bretagne - Sprint F", tcn_count: 0 }),
+            ],
+            total_events: 2,
+            total_participations: 296,
+          },
+        ],
+      },
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+    });
+    renderList();
+
+    const entete = cartes().getByRole("button", { name: /Coupe de Bretagne/ });
+    expect(entete).toHaveTextContent("—");
   });
 
   // L'état `ouverts` est au-dessus des deux arbres : replier au téléphone puis

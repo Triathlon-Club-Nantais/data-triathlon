@@ -278,6 +278,19 @@ const ROW_STYLE = {
 } as const;
 
 /**
+ * Compteur TCN : la pastille du club, ou le tiret d'absence — jamais `null`,
+ * qui viderait la cellule au lieu de dire « zéro » (revue #461, régression
+ * réelle sur `CartesCompetition`).
+ */
+function tcnCompteur(count: number) {
+  return count > 0 ? (
+    <Badge count>{count}</Badge>
+  ) : (
+    <span style={{ color: "var(--tcn-text-faint)" }}>—</span>
+  );
+}
+
+/**
  * Ce que la grille et les cartes lisent identiquement pour une épreuve — un
  * seul calcul, pour que les deux arbres ne puissent pas diverger en silence
  * (#461).
@@ -286,9 +299,11 @@ function eventDerived(ev: EventOut, label?: string) {
   return {
     date: formatDate(ev.event_date),
     nom: formatEventName(label ?? ev.event_name, ev.is_relay),
+    relais: ev.is_relay ? <Badge variant="orange">Relais</Badge> : null,
     type: eventTypeLabel(ev.event_type),
     format: formatToken(ev.event_type, ev.distance_km),
     resultats: `${ev.total} résultat${ev.total > 1 ? "s" : ""}`,
+    tcn: tcnCompteur(ev.tcn_count),
   };
 }
 
@@ -298,12 +313,13 @@ function groupDerived(groupe: EventGroup) {
     date: formatDate(groupe.events[0].event_date),
     epreuves: `${groupe.events.length} épreuves`,
     resultats: `${groupe.total} résultat${groupe.total > 1 ? "s" : ""}`,
+    tcn: tcnCompteur(groupe.tcnCount),
   };
 }
 
 /** Une épreuve. `label` remplace son nom quand un groupe porte déjà le préfixe. */
 function EventRow({ event: ev, label, indent }: { event: EventOut; label?: string; indent?: boolean }) {
-  const { date, nom, type, format, resultats } = eventDerived(ev, label);
+  const { date, nom, relais, type, format, resultats, tcn } = eventDerived(ev, label);
   return (
     <tr role="row" className="tcn-rowlink" style={ROW_STYLE}>
       <td
@@ -321,7 +337,7 @@ function EventRow({ event: ev, label, indent }: { event: EventOut; label?: strin
         <Link href={`/courses/${ev.id}`} className="tcn-rowlink__cible" style={{ fontSize: 15, color: "var(--tcn-ink)", fontWeight: 700 }}>
           {nom}
         </Link>
-        {ev.is_relay && <Badge variant="orange">Relais</Badge>}
+        {relais}
         {/* Même marque et même vocabulaire que la page épreuve (#486) : la
             colonne n'a pas la place d'un libellé, d'où la forme compacte. */}
         <ReliabilityMark isReliable={ev.is_reliable} issues={ev.quality_issues} compact />
@@ -333,13 +349,7 @@ function EventRow({ event: ev, label, indent }: { event: EventOut; label?: strin
       <td role="cell" style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>
         {resultats}
       </td>
-      <td role="cell">
-        {ev.tcn_count > 0 ? (
-          <Badge count>{ev.tcn_count}</Badge>
-        ) : (
-          <span style={{ color: "var(--tcn-text-faint)" }}>—</span>
-        )}
-      </td>
+      <td role="cell">{tcn}</td>
       <td role="cell" style={{ textAlign: "right", color: "var(--tcn-text-disabled)", fontSize: 16 }}><span aria-hidden>→</span></td>
     </tr>
   );
@@ -355,7 +365,7 @@ function CompetitionRows({
   ouvert: boolean;
   onBascule: () => void;
 }) {
-  const { date, epreuves, resultats } = groupDerived(groupe);
+  const { date, epreuves, resultats, tcn } = groupDerived(groupe);
   return (
     <tbody role="rowgroup">
       <tr
@@ -396,13 +406,7 @@ function CompetitionRows({
         <td role="cell" style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>
           {resultats}
         </td>
-        <td role="cell">
-          {groupe.tcnCount > 0 ? (
-            <Badge count>{groupe.tcnCount}</Badge>
-          ) : (
-            <span style={{ color: "var(--tcn-text-faint)" }}>—</span>
-          )}
-        </td>
+        <td role="cell">{tcn}</td>
         {/* `aria-hidden` sur le glyphe, **jamais** sur la cellule : posé sur le
             `<td>`, il retirait la cellule de l'arbre et la ligne de groupe
             annonçait 6 cellules pour 7 colonnes — l'incohérence même que la
@@ -425,7 +429,7 @@ function CompetitionRows({
 
 /** Une épreuve, repliée en carte. `label` remplace son nom sous un groupe. */
 function CarteEpreuve({ event: ev, label }: { event: EventOut; label?: string }) {
-  const { date, nom, type, format, resultats } = eventDerived(ev, label);
+  const { date, nom, relais, type, format, resultats, tcn } = eventDerived(ev, label);
   return (
     <LigneCarte
       href={`/courses/${ev.id}`}
@@ -433,19 +437,13 @@ function CarteEpreuve({ event: ev, label }: { event: EventOut; label?: string })
       titre={
         <>
           {nom}
-          {ev.is_relay && <Badge variant="orange">Relais</Badge>}
+          {relais}
           {/* Même marque que la ligne de grille (#486) : la perdre sous `md`
               retirerait le signal de fiabilité à la moitié mobile du trafic. */}
           <ReliabilityMark isReliable={ev.is_reliable} issues={ev.quality_issues} compact />
         </>
       }
-      valeur={
-        ev.tcn_count > 0 ? (
-          <Badge count>{ev.tcn_count}</Badge>
-        ) : (
-          <span style={{ color: "var(--tcn-text-faint)" }}>—</span>
-        )
-      }
+      valeur={tcn}
       meta={
         <>
           <span>{type}</span>
@@ -467,7 +465,7 @@ function CartesCompetition({
   ouvert: boolean;
   onBascule: () => void;
 }) {
-  const { date, epreuves, resultats } = groupDerived(groupe);
+  const { date, epreuves, resultats, tcn } = groupDerived(groupe);
   return (
     <>
       <LigneCarte
@@ -481,7 +479,7 @@ function CartesCompetition({
           <>
             <span>{epreuves}</span>
             <span>{resultats}</span>
-            {groupe.tcnCount > 0 ? <Badge count>{groupe.tcnCount}</Badge> : null}
+            {tcn}
           </>
         }
       />
