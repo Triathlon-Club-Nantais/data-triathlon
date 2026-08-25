@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import type { CourseSource, CourseSummary } from "@/lib/types";
 import { ApiError } from "@/lib/api/client";
 
@@ -120,6 +120,37 @@ describe("CoursePage", () => {
     expect(nom.style.color).toBe("var(--tcn-orange-deeper)");
     expect(compte).toHaveTextContent("4");
     expect(compte.style.color).toBe("var(--tcn-orange-deeper)");
+  });
+
+  // ── Structure de tableau (#481, A11Y-3) ────────────────────────────────────
+
+  it("rend « Top clubs » comme un tableau nommé, ses deux colonnes nommées", async () => {
+    // Nommé, parce que l'écran en porte deux : sans nom, un lecteur d'écran
+    // annonce « tableau » deux fois sans dire lequel.
+    await afficher();
+
+    const tableau = screen.getByRole("table", { name: "Top clubs" });
+    expect(within(tableau).getByRole("columnheader", { name: "Club" })).toBeInTheDocument();
+    expect(within(tableau).getByRole("columnheader", { name: "Athlètes" })).toBeInTheDocument();
+    expect(within(tableau).getAllByRole("row")).toHaveLength(3); // en-tête + 2 clubs
+  });
+
+  it("laisse les lignes de « Top clubs » inertes : ni lien, ni arrêt clavier", async () => {
+    await afficher();
+
+    const ligne = within(screen.getByRole("table", { name: "Top clubs" })).getAllByRole("row")[1];
+    expect(within(ligne).queryByRole("link")).not.toBeInTheDocument();
+    expect(ligne.querySelectorAll("a[href], button, input, select, textarea")).toHaveLength(0);
+  });
+
+  it("garde l'en-tête de « Top clubs » quand aucun club n'est renseigné, l'état vide hors du tableau", async () => {
+    getCourseSummary.mockResolvedValue({ ...SUMMARY, clubs: [] });
+    await afficher();
+
+    const tableau = screen.getByRole("table", { name: "Top clubs" });
+    expect(within(tableau).getAllByRole("row")).toHaveLength(1);
+    expect(within(tableau).queryByText("Clubs non renseignés")).not.toBeInTheDocument();
+    expect(screen.getByText("Clubs non renseignés")).toBeInTheDocument();
   });
 
   it("alimente les six blocs depuis la synthèse, pas depuis les lignes affichées", async () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Participation } from "@/lib/types";
 
@@ -253,5 +253,86 @@ describe("EventsTable", () => {
     searchParams = new URLSearchParams("season=2024");
     render(<EventsTable participations={parts} athleteId={7} athleteName="Jean DUPONT" />);
     expect(screen.queryByText("Course sans date")).not.toBeInTheDocument();
+  });
+
+  // ── Structure de tableau (#481, A11Y-3) ────────────────────────────────────
+
+  it("s'annonce comme un tableau et nomme ses colonnes", () => {
+    render(<EventsTable participations={threeSeasons()} athleteId={7} athleteName="Jean DUPONT" />);
+
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    for (const nom of ["Date", "Épreuve", "Type", "Format", "Temps final", "Place"]) {
+      expect(screen.getByRole("columnheader", { name: nom })).toBeInTheDocument();
+    }
+    // Sept colonnes, la dernière nommée en `sr-only` : un `<th>` vide est une
+    // colonne anonyme, et sa flèche était annoncée à chaque ligne (revue UI/UX
+    // #481).
+    expect(screen.getAllByRole("columnheader")).toHaveLength(7);
+    expect(screen.getByRole("columnheader", { name: "Ouvrir" })).toBeInTheDocument();
+  });
+
+  it("groupe chaque entrée dans son propre rowgroup, ligne et sous-ligne ensemble", () => {
+    // Le trait de séparation porte sur le couple, jamais sur chaque moitié : il
+    // vivait sur un `<div>` enveloppant qu'un tableau n'autorise plus, et c'est
+    // le `<tbody>` qui le reprend (#481, D4 ; invariant de #270).
+    const [avecPreuve] = threeSeasons();
+    render(
+      <EventsTable
+        participations={[{ ...avecPreuve, evidence_url: "https://exemple.fr/preuve" }]}
+        athleteId={7}
+        athleteName="Jean DUPONT"
+      />,
+    );
+
+    const corps = screen.getAllByRole("rowgroup").filter((g) => g.tagName === "TBODY");
+    expect(corps).toHaveLength(1);
+    expect(within(corps[0]).getAllByRole("row")).toHaveLength(2);
+    expect(within(corps[0]).getByRole("link", { name: /Voir la preuve/ })).toBeInTheDocument();
+  });
+
+  it("déclare la portée de la sous-ligne en ARIA autant qu'en HTML", () => {
+    // `colSpan` est une sémantique de tableau comme les autres : la surcharge de
+    // `display` qui impose de redéclarer `role="cell"` peut la faire tomber elle
+    // aussi. Sans `aria-colspan`, la sous-ligne de preuve est exposée comme une
+    // cellule de la seule première colonne (revue de code #481).
+    const [avecPreuve] = threeSeasons();
+    render(
+      <EventsTable
+        participations={[{ ...avecPreuve, evidence_url: "https://exemple.fr/preuve" }]}
+        athleteId={7}
+        athleteName="Jean DUPONT"
+      />,
+    );
+
+    const sousLigne = screen.getByRole("link", { name: /Voir la preuve/ }).closest("td")!;
+    expect(sousLigne).toHaveAttribute("colspan", "7");
+    expect(sousLigne).toHaveAttribute("aria-colspan", "7");
+  });
+
+  it("n'offre qu'un arrêt clavier par ligne, la sous-ligne étant une ligne à part", () => {
+    // FR-011 se compte **par `<tr>`**, jamais par entrée : une entrée à preuve
+    // porte légitimement deux éléments focalisables, répartis sur ses deux
+    // lignes (contrat C3).
+    const [avecPreuve] = threeSeasons();
+    render(
+      <EventsTable
+        participations={[{ ...avecPreuve, evidence_url: "https://exemple.fr/preuve" }]}
+        athleteId={7}
+        athleteName="Jean DUPONT"
+      />,
+    );
+
+    for (const ligne of screen.getAllByRole("row")) {
+      expect(
+        ligne.querySelectorAll("a[href], button, input, select, textarea").length,
+      ).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("ne rend aucun tableau sur un athlète sans résultat : cette liste masque déjà son en-tête", () => {
+    render(<EventsTable participations={[]} athleteId={7} athleteName="Jean DUPONT" />);
+
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.getByText("Aucun résultat pour cet athlète")).toBeInTheDocument();
   });
 });

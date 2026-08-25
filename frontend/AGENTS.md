@@ -443,6 +443,60 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   HTML s'exprime en **pourcentage d'une rangée absolue dont la largeur épouse
   celle du SVG**, jamais du conteneur — celui-ci porte la gouttière des
   graduations, contre laquelle un `%` se résoudrait, gouttière comprise.
+- **Les six listes publiques sont des tableaux dont la géométrie reste une
+  grille** (#481, `A11Y-3`) — `RaceFinishers`, `EventList`, `EventsTable`,
+  « Derniers résultats enregistrés » (`ajouter`), `RecentCourses` et « Top
+  clubs » (`courses/[id]`). Quatre points qui se re-cassent séparément.
+  - **Les rôles ARIA doublent les balises, et ce n'est pas décoratif.**
+    `.tcn-table` (`globals.css`) surcharge `display` sur `<table>`, `<thead>`,
+    `<tbody>` — la géométrie mêle pistes fixes, pistes souples et `column-gap`,
+    qu'une disposition de tableau native n'a pas, et la retraduire rouvrirait le
+    dessin des six listes. Or surcharger `display` peut retirer la sémantique de
+    tableau à l'aide technique : les `role="table"/"rowgroup"/"row"/
+    "columnheader"/"cell"` la redéclarent. Les retirer casse WCAG 1.3.1 sans
+    qu'aucun test de rendu bronche.
+  - **La ligne n'est jamais la cible.** Un rôle ARIA **remplace** le rôle
+    implicite : un `<a role="row">` cesserait d'être annoncé comme un lien —
+    exactement le défaut que #481 corrige sur le classement, où la ligne était un
+    `role="button"` + `router.push` (donc aucun `href` dans le HTML, aucun
+    partage, aucun nouvel onglet). La cible vit dans la cellule qui porte le nom
+    de la ligne et couvre la ligne par le `::after` de `.tcn-rowlink__cible` ;
+    `.tcn-rowlink` est passée du lien au `<tr>`, qui porte `position: relative`,
+    le survol et l'anneau de focus (`:has(.tcn-rowlink__cible:focus-visible)`).
+    **Un seul arrêt clavier par `<tr>`**, jamais un `href` par cellule — c'est
+    testé liste par liste. La ligne de groupe d'`EventList` reste un
+    `<button aria-expanded>` : elle déplie, elle ne navigue pas.
+  - **Aucun `overflow: hidden` sur une cellule qui porte la cible.** Il rogne les
+    deux voiles absolus (couverture du lien, attente), et la ligne cesse d'être
+    cliquable hors du mot. La cellule prend `minWidth: 0` — même effet sur la
+    piste `1fr` — et l'ellipsis descend sur un `<span>` intérieur.
+  - **Les états vides suivent le comportement d'origine, liste par liste.**
+    `RaceFinishers`, `ajouter` et « Top clubs » gardent leur en-tête et rendent
+    l'`EmptyState` **après** le `</table>` ; `RecentCourses`, `EventsTable` et
+    `EventList` ne rendent aucun tableau, ils masquaient déjà leur en-tête. Ne
+    pas harmoniser : faire apparaître ou disparaître une en-tête est un
+    changement d'apparence.
+
+  Deux corollaires. `EventsTable` groupe chaque entrée dans **son** `<tbody>`,
+  qui reprend le trait de séparation porté jusque-là par un `<div>` enveloppant
+  qu'un tableau n'autorise plus — l'invariant de #270 (pas de trait pour une
+  ligne en attente sans sous-ligne) y survit tel quel ; et
+  `ParticipationAdminActions` porte lui-même sa `<tr>` via `colonnes`, sinon un
+  visiteur sans pouvoir hériterait d'une ligne vide par épreuve.
+
+  **L'attente de la ligne cliquée n'existe que sur le classement**, et c'est
+  assumé : c'est la seule des six listes dont la destination est une route
+  dynamique lente (0,67 à 1,43 s mesurées). Elle vient de `useLinkStatus()` lu
+  par un enfant du `<Link>`, ce qui **impose** `prefetch={false}` — la phase
+  d'attente est sautée sur une route déjà préchargée. Et c'est un **filet en
+  pied de ligne**, jamais une nappe par-dessus : un descendant positionné passe
+  au-dessus du contenu en flux de toutes les cellules, et la première version
+  faisait tomber le texte à 2,50:1 (`--tcn-ink`) et 1,74:1 (colonne Club), sous
+  le plancher WCAG 1.4.3 — tout en étant **invisible** sur la ligne survolée,
+  dont le `:hover` pose déjà ce fond. Étendre l'attente aux cinq autres listes
+  demande de refaire ce calcul, pas de recopier le composant.
+
+  Design complet : `specs/20260825-103900-tables-liees/`.
 - **Deux bibliothèques, une frontière.** `components/tcn/` porte l'identité
   visuelle (tokens `--tcn-*`, Anton/Barlow, dégradé orange) ; `components/ui/`
   porte les primitives complexes bâties sur `@base-ui/react` — `dialog`,

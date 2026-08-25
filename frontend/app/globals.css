@@ -435,7 +435,46 @@
     text-transform: uppercase;
     color: var(--tcn-orange-deeper);
   }
-  /* Ligne de tableau cliquable (survol surface sunk) — pages Server. */
+  /* Tableau public dont la géométrie reste une grille (#481).
+
+     Les six listes publiques reposent sur des `grid-template-columns` mêlant
+     pistes fixes, pistes souples et `column-gap` — que la disposition de
+     tableau native n'a pas. On garde donc la grille et on surcharge `display`.
+
+     **Corollaire, et c'est lui qui explique les rôles ARIA du JSX** :
+     surcharger `display` sur un élément de tableau peut lui retirer sa
+     sémantique de tableau auprès de l'aide technique. Les `role="table"`,
+     `"rowgroup"`, `"row"`, `"columnheader"` et `"cell"` posés dans le JSX ne
+     sont pas une redondance décorative — ils redéclarent ce que ce bloc fait
+     tomber. Les retirer casse WCAG 1.3.1 sans qu'aucun test de rendu bronche.
+
+     Les remises à zéro de `th`/`td` reproduisent le `<div>` qu'ils
+     remplacent : la feuille de style de l'agent utilisateur leur donne un
+     padding et, pour `th`, un gras centré dont aucune de ces listes ne veut. */
+  .tcn-table {
+    display: block;
+    width: 100%;
+  }
+  .tcn-table > thead,
+  .tcn-table > tbody {
+    display: block;
+  }
+  .tcn-table th,
+  .tcn-table td {
+    padding: 0;
+    text-align: left;
+    font-weight: inherit;
+    vertical-align: inherit;
+  }
+
+  /* Ligne de tableau cliquable (survol surface sunk) — pages Server.
+
+     La classe est portée par la **ligne**, jamais par la cible (#481). Une
+     ligne ne peut pas *être* le lien : un rôle ARIA remplace le rôle implicite,
+     donc un `<a role="row">` cesserait d'être annoncé comme un lien — et c'est
+     précisément le défaut que #481 corrige sur le classement d'épreuve. La
+     cible vit donc dans la cellule qui porte le nom de la ligne, et couvre la
+     ligne entière par le `::after` de `.tcn-rowlink__cible` ci-dessous. */
   .tcn-rowlink {
     cursor: pointer;
     transition: background var(--tcn-dur-fast);
@@ -446,13 +485,35 @@
        laisse le `:hover` ci-dessous gagner — un style en ligne battrait toute
        couche CSS, et le survol ne rendrait plus rien. */
     background: transparent;
+    /* Origine du voile de `.tcn-rowlink__cible::after` et de l'attente (#481). */
+    position: relative;
   }
   .tcn-rowlink:hover {
     background: var(--tcn-surface-sunk);
   }
-  .tcn-rowlink:focus-visible {
+  .tcn-rowlink:focus-visible,
+  .tcn-rowlink:has(.tcn-rowlink__cible:focus-visible) {
     outline: 2px solid var(--tcn-orange);
     outline-offset: -2px;
+  }
+  /* La cible réelle : un seul arrêt clavier par ligne, et les quatre gestes
+     natifs (nouvel onglet, copie du lien, aperçu au survol, `Entrée`) que le
+     `role="button"` + `router.push` d'avant #481 rendait impossibles. */
+  .tcn-rowlink__cible {
+    text-decoration: none;
+    color: inherit;
+  }
+  /* L'anneau se pose sur la ligne, pas sur le mot cliqué (règle ci-dessus) —
+     d'où cette remise à zéro, **conditionnée à la ligne qui le rattrape**. Une
+     cible posée hors d'un `.tcn-rowlink`, ou un moteur sans `:has()`, garderait
+     sinon un focus totalement invisible (WCAG 2.4.7). */
+  .tcn-rowlink .tcn-rowlink__cible {
+    outline: none;
+  }
+  .tcn-rowlink__cible::after {
+    content: "";
+    position: absolute;
+    inset: 0;
   }
   /* Champ texte TCN : focus clavier visible (l'outline natif est masqué hors
      :focus-visible), et une taille de police qui vit ici plutôt qu'en ligne.

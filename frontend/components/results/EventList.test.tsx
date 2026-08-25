@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -73,10 +73,13 @@ describe("EventList", () => {
 
     const link = screen.getByRole("link", { name: /Tri de Nantes/ });
     expect(link).toHaveAttribute("href", "/courses/14");
-    // Métadonnées conservées dans la ligne.
-    expect(link).toHaveTextContent("Triathlon M");
-    expect(link).toHaveTextContent("42 résultats");
-    expect(link).toHaveTextContent("3");
+    // Métadonnées conservées dans la ligne. Depuis #481 la ligne **est** le
+    // `<tr>`, et le lien n'occupe que la cellule du nom : c'est la ligne qu'on
+    // interroge, pas l'ancre.
+    const ligne = link.closest("tr")!;
+    expect(ligne).toHaveTextContent("Triathlon M");
+    expect(ligne).toHaveTextContent("42 résultats");
+    expect(ligne).toHaveTextContent("3");
   });
 
   it("n'affiche plus de bouton de suppression ni d'accordéon", () => {
@@ -177,7 +180,8 @@ describe("EventList", () => {
 
     renderList();
 
-    const row = screen.getByRole("link", { name: /Quiberon/ });
+    // La ligne est le `<tr>` depuis #481 : c'est lui qui porte la grille.
+    const row = screen.getByRole("link", { name: /Quiberon/ }).closest("tr")!;
     const style = getComputedStyle(row);
     // Une valeur px par piste : sa largeur fixe, ou la borne basse de son minmax.
     const tracks = [...style.gridTemplateColumns.matchAll(/(\d+)px/g)].map((m) => Number(m[1]));
@@ -190,7 +194,9 @@ describe("EventList", () => {
       parseFloat(style.paddingLeft) +
       parseFloat(style.paddingRight);
 
-    const scrollBody = row.parentElement!;
+    // Le conteneur à largeur plancher est le parent du `<table>`, la ligne
+    // étant désormais deux niveaux plus bas (`<tbody>` puis `<tr>`).
+    const scrollBody = row.closest("table")!.parentElement!;
     expect(parseFloat(getComputedStyle(scrollBody).minWidth)).toBeGreaterThanOrEqual(required);
   });
 
@@ -345,7 +351,9 @@ describe("EventList — regroupement par compétition parente (#463)", () => {
 
     const entete = screen.getByRole("button", { name: new RegExp(PREFIXE) });
     expect(entete).toHaveAttribute("aria-expanded", "false");
-    expect(entete).toHaveTextContent("2 épreuves");
+    // Le bouton ne porte plus que le nom de la compétition : le reste de la
+    // ligne vit dans les cellules voisines depuis #481.
+    expect(entete.closest("tr")).toHaveTextContent("2 épreuves");
     expect(screen.queryByRole("link", { name: /Fille/ })).toBeNull();
   });
 
@@ -353,9 +361,9 @@ describe("EventList — regroupement par compétition parente (#463)", () => {
     setGroupe();
     renderList();
 
-    const entete = screen.getByRole("button", { name: new RegExp(PREFIXE) });
-    expect(entete).toHaveTextContent("200 résultats");
-    expect(entete).toHaveTextContent("3");
+    const ligne = screen.getByRole("button", { name: new RegExp(PREFIXE) }).closest("tr")!;
+    expect(ligne).toHaveTextContent("200 résultats");
+    expect(ligne).toHaveTextContent("3");
   });
 
   it("déplie la compétition et n'affiche que la part distinctive de chaque épreuve", async () => {
@@ -453,5 +461,82 @@ describe("EventList — annonce du repliement (#463, WCAG 4.1.3)", () => {
 
     expect(screen.getByRole("status")).toHaveTextContent("2 épreuves, 200 résultats, 2 affichées");
     expect(screen.getByRole("status")).not.toHaveTextContent("repliée");
+  });
+
+  // ── Structure de tableau (#481, A11Y-3) ────────────────────────────────────
+
+  it("s'annonce comme un tableau et nomme ses colonnes, la dernière restant sans libellé", () => {
+    setDeuxSousEpreuves();
+    renderList();
+
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    for (const nom of ["Date", "Épreuve", "Type", "Format", "Résultats"]) {
+      expect(screen.getByRole("columnheader", { name: nom })).toBeInTheDocument();
+    }
+    // La 7e colonne est nommée en `sr-only` : un `<th>` vide est une colonne
+    // anonyme, et sa flèche était annoncée à chaque ligne (revue UI/UX #481).
+    expect(screen.getAllByRole("columnheader")).toHaveLength(7);
+    expect(screen.getByRole("columnheader", { name: "Ouvrir" })).toBeInTheDocument();
+  });
+
+  it("expose autant de cellules sur une ligne de groupe que de colonnes déclarées", () => {
+    // La cellule du chevron portait `aria-hidden` : l'arbre d'accessibilité la
+    // supprimait, et la ligne de groupe annonçait 6 cellules pour 7 colonnes —
+    // l'incohérence même que la promesse 1.3.1 du lot interdit (revue de code
+    // #481). Le glyphe reste décoratif, mais c'est le `<span>` qui se cache.
+    setDeuxSousEpreuves();
+    renderList();
+
+    const ligne = screen.getByRole("button", { name: new RegExp(PREFIXE) }).closest("tr")!;
+    expect(within(ligne).getAllByRole("cell")).toHaveLength(7);
+  });
+
+  it("garde la ligne de groupe en bouton — elle déplie, elle ne navigue pas", () => {
+    // En faire un lien serait la régression 4.1.2 qu'on corrige ailleurs.
+    setDeuxSousEpreuves();
+    renderList();
+
+    const groupe = screen.getByRole("button", { name: new RegExp(PREFIXE) });
+    expect(groupe).toHaveAttribute("aria-expanded", "false");
+    expect(groupe.closest("tr")).not.toBeNull();
+  });
+
+  it("révèle les épreuves d'une compétition dans le rowgroup de son groupe", async () => {
+    setDeuxSousEpreuves();
+    renderList();
+
+    const corpsAvant = screen.getAllByRole("rowgroup").filter((g) => g.tagName === "TBODY");
+    expect(corpsAvant).toHaveLength(1);
+    expect(within(corpsAvant[0]).getAllByRole("row")).toHaveLength(1);
+
+    await userEvent.click(screen.getByRole("button", { name: new RegExp(PREFIXE) }));
+
+    const corpsApres = screen.getAllByRole("rowgroup").filter((g) => g.tagName === "TBODY");
+    expect(within(corpsApres[0]).getAllByRole("row")).toHaveLength(3); // groupe + 2 épreuves
+  });
+
+  it("n'offre qu'un arrêt clavier par ligne", () => {
+    setDeuxSousEpreuves();
+    renderList();
+
+    for (const ligne of screen.getAllByRole("row")) {
+      expect(
+        ligne.querySelectorAll("a[href], button, input, select, textarea").length,
+      ).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("ne rend aucun tableau sur une liste vide : l'écran sort avant la carte", () => {
+    setEvents({
+      data: { pages: [{ items: [], total_events: 0, total_participations: 0 }] },
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+    });
+    renderList();
+
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.getByText("Aucun résultat")).toBeInTheDocument();
   });
 });

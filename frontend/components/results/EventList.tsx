@@ -164,7 +164,10 @@ export function EventList({
 
       <div style={{ overflowX: "auto" }}>
         <div style={{ minWidth: MIN_WIDTH }}>
-          <div
+          <table className="tcn-table" role="table">
+          <thead role="rowgroup">
+          <tr
+            role="row"
             style={{
               display: "grid",
               gridTemplateColumns: COLS,
@@ -178,18 +181,24 @@ export function EventList({
               borderBottom: "1px solid var(--tcn-border)",
             }}
           >
-            <div>Date</div>
-            <div>Épreuve</div>
-            <div>Type</div>
-            <div>Format</div>
-            <div>Résultats</div>
-            <div title={CLUB_NAME}>{CLUB_NAME_SHORT}</div>
-            <div></div>
-          </div>
+            <th role="columnheader" scope="col">Date</th>
+            <th role="columnheader" scope="col">Épreuve</th>
+            <th role="columnheader" scope="col">Type</th>
+            <th role="columnheader" scope="col">Format</th>
+            <th role="columnheader" scope="col">Résultats</th>
+            <th role="columnheader" scope="col" title={CLUB_NAME}>{CLUB_NAME_SHORT}</th>
+            {/* Nommée en `sr-only` plutôt que laissée vide : un `<th>` sans
+                nom accessible est une colonne anonyme, et son contenu — la
+                flèche — était annoncé à chaque ligne (revue UI/UX #481). */}
+            <th role="columnheader" scope="col"><span className="sr-only">Ouvrir</span></th>
+          </tr>
+          </thead>
 
           {groups.map((groupe) =>
             groupe.events.length === 1 ? (
-              <EventRow key={groupe.events[0].id} event={groupe.events[0]} />
+              <tbody role="rowgroup" key={groupe.events[0].id}>
+                <EventRow event={groupe.events[0]} />
+              </tbody>
             ) : (
               <CompetitionRows
                 key={groupe.events[0].id}
@@ -199,6 +208,7 @@ export function EventList({
               />
             ),
           )}
+          </table>
         </div>
       </div>
 
@@ -230,8 +240,9 @@ const ROW_STYLE = {
 /** Une épreuve. `label` remplace son nom quand un groupe porte déjà le préfixe. */
 function EventRow({ event: ev, label, indent }: { event: EventOut; label?: string; indent?: boolean }) {
   return (
-    <Link href={`/courses/${ev.id}`} className="tcn-rowlink" style={ROW_STYLE}>
-      <div
+    <tr role="row" className="tcn-rowlink" style={ROW_STYLE}>
+      <td
+        role="cell"
         style={{
           fontSize: 14,
           color: "var(--tcn-text-muted)",
@@ -240,29 +251,29 @@ function EventRow({ event: ev, label, indent }: { event: EventOut; label?: strin
         }}
       >
         {formatDate(ev.event_date)}
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-        <span style={{ fontSize: 15, color: "var(--tcn-ink)", fontWeight: 700 }}>
+      </td>
+      <td role="cell" style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+        <Link href={`/courses/${ev.id}`} className="tcn-rowlink__cible" style={{ fontSize: 15, color: "var(--tcn-ink)", fontWeight: 700 }}>
           {formatEventName(label ?? ev.event_name, ev.is_relay)}
-        </span>
+        </Link>
         {ev.is_relay && <Badge variant="orange">Relais</Badge>}
-      </div>
-      <div style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>{eventTypeLabel(ev.event_type)}</div>
-      <div>
+      </td>
+      <td role="cell" style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>{eventTypeLabel(ev.event_type)}</td>
+      <td role="cell">
         <FormatChip>{formatToken(ev.event_type, ev.distance_km)}</FormatChip>
-      </div>
-      <div style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>
+      </td>
+      <td role="cell" style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>
         {ev.total} résultat{ev.total > 1 ? "s" : ""}
-      </div>
-      <div>
+      </td>
+      <td role="cell">
         {ev.tcn_count > 0 ? (
           <Badge count>{ev.tcn_count}</Badge>
         ) : (
           <span style={{ color: "var(--tcn-text-faint)" }}>—</span>
         )}
-      </div>
-      <div style={{ textAlign: "right", color: "var(--tcn-text-disabled)", fontSize: 16 }}>→</div>
-    </Link>
+      </td>
+      <td role="cell" style={{ textAlign: "right", color: "var(--tcn-text-disabled)", fontSize: 16 }}><span aria-hidden>→</span></td>
+    </tr>
   );
 }
 
@@ -277,17 +288,12 @@ function CompetitionRows({
   onBascule: () => void;
 }) {
   return (
-    <>
-      <button
-        type="button"
-        onClick={onBascule}
-        aria-expanded={ouvert}
+    <tbody role="rowgroup">
+      <tr
+        role="row"
         className="tcn-rowlink"
         style={{
           ...ROW_STYLE,
-          width: "100%",
-          textAlign: "left",
-          border: "none",
           borderBottom: "1px solid var(--tcn-border-faint)",
           cursor: "pointer",
         }}
@@ -295,39 +301,55 @@ function CompetitionRows({
         // que son `:hover` gagne, et un style en ligne le battrait — la ligne
         // de groupe serait la seule de la liste sans retour au survol.
       >
-        <div style={{ fontSize: 14, color: "var(--tcn-text-muted)", fontWeight: 600 }}>
+        <td role="cell" style={{ fontSize: 14, color: "var(--tcn-text-muted)", fontWeight: 600 }}>
           {formatDate(groupe.events[0].event_date)}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-          <span style={{ fontSize: 15, color: "var(--tcn-ink)", fontWeight: 700 }}>{groupe.prefix}</span>
-        </div>
+        </td>
+        <td role="cell" style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+          {/* Un **bouton**, et il le reste : cette ligne déplie, elle ne
+              navigue pas. En faire un lien serait la régression 4.1.2 que #481
+              corrige sur le classement d'épreuve. */}
+          <button
+            type="button"
+            onClick={onBascule}
+            aria-expanded={ouvert}
+            className="tcn-rowlink__cible"
+            style={{ font: "inherit", fontSize: 15, color: "var(--tcn-ink)", fontWeight: 700, background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer" }}
+          >
+            {groupe.prefix}
+          </button>
+        </td>
         {/* Le décompte tient la colonne « Type » : les épreuves d'une même
             compétition n'en partagent ni le type ni le format. */}
-        <div style={{ fontSize: 14, color: "var(--tcn-text-muted)" }}>
+        <td role="cell" style={{ fontSize: 14, color: "var(--tcn-text-muted)" }}>
           {groupe.events.length} épreuves
-        </div>
-        <div />
-        <div style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>
+        </td>
+        <td role="cell" />
+        <td role="cell" style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>
           {groupe.total} résultat{groupe.total > 1 ? "s" : ""}
-        </div>
-        <div>
+        </td>
+        <td role="cell">
           {groupe.tcnCount > 0 ? (
             <Badge count>{groupe.tcnCount}</Badge>
           ) : (
             <span style={{ color: "var(--tcn-text-faint)" }}>—</span>
           )}
-        </div>
-        <div
-          aria-hidden
+        </td>
+        {/* `aria-hidden` sur le glyphe, **jamais** sur la cellule : posé sur le
+            `<td>`, il retirait la cellule de l'arbre et la ligne de groupe
+            annonçait 6 cellules pour 7 colonnes — l'incohérence même que la
+            promesse 1.3.1 de #481 interdit. L'état déplié est déjà porté par
+            l'`aria-expanded` du bouton. */}
+        <td
+          role="cell"
           style={{ textAlign: "right", color: "var(--tcn-text-muted)", fontSize: 16 }}
         >
-          {ouvert ? "▾" : "▸"}
-        </div>
-      </button>
+          <span aria-hidden>{ouvert ? "▾" : "▸"}</span>
+        </td>
+      </tr>
       {ouvert &&
         groupe.events.map((ev) => (
           <EventRow key={ev.id} event={ev} label={eventSuffix(ev.event_name, groupe.prefix)} indent />
         ))}
-    </>
+    </tbody>
   );
 }

@@ -109,21 +109,27 @@ export default async function CoursePage({
         </Card>
 
         <Card padding={24} className="sm:col-span-2 lg:col-span-1">
-          <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 18, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 14 }}>Top clubs</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, paddingBottom: 8, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--tcn-text-faint)", borderBottom: "1px solid var(--tcn-border)", marginBottom: 4 }}>
-            <div>Club</div><div style={{ textAlign: "right" }}>Athlètes</div>
-          </div>
-          {clubs.length === 0 ? (
+          {/* `aria-labelledby` : l'écran porte deux tableaux (celui-ci et le
+              classement). Sans nom, un lecteur d'écran les annonce tous deux
+              « tableau » sans dire lequel. */}
+          <h2 id="titre-top-clubs" style={{ fontFamily: "var(--tcn-font-display)", fontSize: 18, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 14 }}>Top clubs</h2>
+          <table className="tcn-table" role="table" aria-labelledby="titre-top-clubs">
+            <thead role="rowgroup">
+              <tr role="row" style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, paddingBottom: 8, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--tcn-text-faint)", borderBottom: "1px solid var(--tcn-border)", marginBottom: 4 }}>
+                <th role="columnheader" scope="col">Club</th><th role="columnheader" scope="col" style={{ textAlign: "right" }}>Athlètes</th>
+              </tr>
+            </thead>
+            <tbody role="rowgroup">
+              {clubs.map(({ name, count, is_tcn: own }) => (
+                <tr key={name} role="row" style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, padding: "7px 0", borderBottom: "1px solid var(--tcn-border-faint2)" }}>
+                  <td role="cell" style={{ fontSize: 13, fontWeight: own ? 700 : 600, color: own ? "var(--tcn-orange-deeper)" : "var(--tcn-ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</td>
+                  <td role="cell" style={{ fontFamily: "var(--tcn-font-display)", fontSize: 16, color: own ? "var(--tcn-orange-deeper)" : "var(--tcn-ink)", textAlign: "right" }}>{count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {clubs.length === 0 && (
             <EmptyState bare className="px-0 py-4" title="Clubs non renseignés" />
-          ) : (
-            clubs.map(({ name, count, is_tcn: own }) => {
-              return (
-                <div key={name} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, padding: "7px 0", borderBottom: "1px solid var(--tcn-border-faint2)" }}>
-                  <div style={{ fontSize: 13, fontWeight: own ? 700 : 600, color: own ? "var(--tcn-orange-deeper)" : "var(--tcn-ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
-                  <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 16, color: own ? "var(--tcn-orange-deeper)" : "var(--tcn-ink)", textAlign: "right" }}>{count}</div>
-                </div>
-              );
-            })
           )}
         </Card>
       </div>
