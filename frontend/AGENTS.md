@@ -349,7 +349,12 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   rendus au-dessus. Le besoin serveur qui aurait rouvert l'arbitrage n'est
   donc pas apparu : le filtrage est passé dans la requête, pas dans le rendu,
   et `/dashboard` garde sa fenêtre de revalidation de 30 s partagée entre tous
-  les visiteurs.
+  les visiteurs. Une dimension n'est **pas** partagée, elle : le club se
+  compte sur `for_stats(club_only=True)` (`tcn_clause`), quand
+  `list_for_athlete` n'a délibérément aucune clause de club (FR-019,
+  `backend/app/api/AGENTS.md`) — une participation dont le club diffère ou
+  est vide compte donc pour l'athlète sans compter pour le club. Assumé, pas
+  réglé : #503 et #504 en hériteront.
 
   Deux règles s'attrapent en passant, valables pour #503 et #504 : le podium
   d'un athlète doit se calculer sur le **même `?rank=`** que les compteurs
