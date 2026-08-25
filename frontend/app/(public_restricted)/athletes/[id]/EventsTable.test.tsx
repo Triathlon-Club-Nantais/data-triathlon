@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { dansLesCartes } from "@/test/cartes";
 import type { Participation } from "@/lib/types";
 
 const push = vi.fn();
@@ -93,7 +94,14 @@ function threeSeasons(): Participation[] {
 
 /** Les lignes du tableau : chacune est un lien vers le détail de participation. */
 function rowLinks(): string[] {
-  return screen
+  // Scopé à la grille quand elle est rendue : depuis #461, la même ligne
+  // existe aussi dans l'arbre carte (masqué par CSS, toujours dans le DOM),
+  // et `getByRole` n'est pas concerné par l'exclusion de `test/setup.ts`,
+  // réservée aux requêtes texte. L'état vide de filtre ne rend ni l'un ni
+  // l'autre arbre.
+  const grille = screen.queryByTestId("epreuves-grille");
+  const scope = grille ? within(grille) : screen;
+  return scope
     .queryAllByRole("link")
     .map((a) => a.getAttribute("href") ?? "")
     .filter((href) => href.startsWith("/courses/"));
@@ -334,5 +342,58 @@ describe("EventsTable", () => {
 
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.getByText("Aucun résultat pour cet athlète")).toBeInTheDocument();
+  });
+});
+
+describe("rendu carte sous md", () => {
+  const cartes = () => dansLesCartes("epreuves-cartes");
+
+  it("bascule la grille et les cartes aux seuils annoncés", () => {
+    render(
+      <EventsTable
+        participations={[participation(1, { name: "Triathlon de Nantes" })]}
+        athleteId={7}
+        athleteName="Jean DUPONT"
+      />,
+    );
+
+    expect(screen.getByTestId("epreuves-grille").className).toContain("hidden md:block");
+    expect(screen.getByTestId("epreuves-cartes").className).toContain("md:hidden");
+  });
+
+  it("porte date, épreuve, temps et place dans la carte", () => {
+    render(
+      <EventsTable
+        participations={[{ ...participation(1, { name: "Triathlon de Nantes" }), rank_overall: 2 }]}
+        athleteId={7}
+        athleteName="Jean DUPONT"
+      />,
+    );
+
+    const carte = cartes();
+    expect(carte.texte("16/05/2026")).toBeTruthy();
+    expect(carte.texte("Triathlon de Nantes")).toBeTruthy();
+    expect(carte.texte("01:59:00")).toBeTruthy();
+    expect(carte.texte("2")).toBeTruthy();
+  });
+
+  it("garde la preuve dans la carte, hors du lien de la ligne", () => {
+    render(
+      <EventsTable
+        participations={[
+          {
+            ...participation(1, { name: "Triathlon de Nantes" }),
+            evidence_url: "https://example.org/p.jpg",
+          },
+        ]}
+        athleteId={7}
+        athleteName="Jean DUPONT"
+      />,
+    );
+
+    const carte = cartes();
+    const preuve = carte.getByRole("link", { name: /Voir la preuve/ });
+    expect(preuve).toHaveAttribute("href", "https://example.org/p.jpg");
+    expect(carte.getByRole("link", { name: /Triathlon de Nantes/ })).not.toContainElement(preuve);
   });
 });

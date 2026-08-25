@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Eye } from "lucide-react";
-import { Button, Card, FormatChip, PlaceBadge, PendingBadge } from "@/components/tcn";
+import { Button, Card, FormatChip, PlaceBadge, PendingBadge, LigneCarte } from "@/components/tcn";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ParticipationAdminActions } from "@/components/athletes/ParticipationAdminActions";
 import {
@@ -52,6 +52,27 @@ function unreliableTooltip(issues: Record<string, number> | null | undefined): s
 function countLabel(shown: number, total: number): string {
   const noun = shown > 1 ? "épreuves" : "épreuve";
   return shown === total ? `${total} ${noun}` : `${shown} ${noun} sur ${total}`;
+}
+
+/**
+ * Ce que la grille et les cartes lisent identiquement par ligne — un seul
+ * calcul, pour que les deux arbres ne puissent pas diverger en silence
+ * (#461).
+ */
+function rowDerived(p: Participation) {
+  const { ratio } = rankRatio(p);
+  // AC5 : le marqueur ⚠ dépend de la fiabilité de la course, pas du rang ni
+  // du statut. Il doit apparaître à côté d'un DNF non fiable comme à côté
+  // d'un finisher classé.
+  const unreliableTitle =
+    p.course?.is_reliable === false ? unreliableTooltip(p.course?.quality_issues) : null;
+  return {
+    ratio,
+    unreliableTitle,
+    nonFinisher: isNonFinisher(p.status),
+    sigle: (p.status ?? "").toUpperCase(),
+    preuve: p.evidence_url && isHttpUrl(p.evidence_url) ? p.evidence_url : null,
+  };
 }
 
 /**
@@ -236,7 +257,12 @@ export function EventsTable({
           </Button>
         </div>
       ) : (
-        <div style={{ overflowX: "auto" }}>
+        <>
+        <div
+          data-testid="epreuves-grille"
+          data-affichage="grille"
+          className="hidden md:block overflow-x-auto"
+        >
           <div style={{ minWidth: MIN_WIDTH }}>
             <table className="tcn-table" role="table">
             <thead role="rowgroup">
@@ -245,17 +271,7 @@ export function EventsTable({
             </tr>
             </thead>
             {ordered.map((p) => {
-              const { ratio } = rankRatio(p);
-              // AC5 : le marqueur ⚠ dépend de la fiabilité de la course, pas
-              // du rang ni du statut. Il doit apparaître à côté d'un DNF non
-              // fiable comme à côté d'un finisher classé.
-              const unreliableTitle =
-                p.course.is_reliable === false
-                  ? unreliableTooltip(p.course.quality_issues)
-                  : null;
-              const nonFinisher = isNonFinisher(p.status);
-              const sigle = (p.status ?? "").toUpperCase();
-              const preuve = p.evidence_url && isHttpUrl(p.evidence_url) ? p.evidence_url : null;
+              const { ratio, unreliableTitle, nonFinisher, sigle, preuve } = rowDerived(p);
               return (
                 // Le trait de séparation est porté par le groupe, et non par la
                 // ligne ni par chacune de ses sous-lignes : la sous-ligne
@@ -382,6 +398,91 @@ export function EventsTable({
             </table>
           </div>
         </div>
+
+        {/* Sous 768 px, les 988 px de la grille laissaient FORMAT, TEMPS,
+            PLACE et le ⚠ hors écran : la donnée pour laquelle on ouvre un
+            profil était invisible sans geste (#461, WCAG 1.4.10). */}
+        <div data-testid="epreuves-cartes" data-affichage="cartes" className="md:hidden">
+          {ordered.map((p) => {
+            const { ratio, unreliableTitle, nonFinisher, sigle, preuve } = rowDerived(p);
+            return (
+              <LigneCarte
+                key={p.id}
+                href={`/courses/${p.course?.id}/participations/${p.id}`}
+                surtitre={formatDate(p.course?.event_date)}
+                titre={
+                  <>
+                    {p.course?.name}
+                    {p.is_pending_validation && <PendingBadge rejected={p.is_rejected} />}
+                  </>
+                }
+                valeur={p.total_time ?? "—"}
+                meta={
+                  <>
+                    <span>{eventTypeLabel(p.course?.event_type)}</span>
+                    <FormatChip>{formatToken(p.course?.event_type, p.course?.distance_km)}</FormatChip>
+                    {nonFinisher ? (
+                      <span style={{ fontWeight: 700, color: "var(--tcn-text-muted)" }}>
+                        {sigle}
+                        {p.rank_overall != null ? <>({p.rank_overall}{ratio ? `/${ratio.total}` : ""})</> : null}
+                      </span>
+                    ) : p.rank_overall != null ? (
+                      <span style={{ display: "inline-flex", alignItems: "baseline", gap: 4 }}>
+                        <PlaceBadge place={p.rank_overall} />
+                        {ratio ? (
+                          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--tcn-text-faint)" }}>
+                            /{ratio.total}
+                          </span>
+                        ) : null}
+                      </span>
+                    ) : (
+                      <span style={{ color: "var(--tcn-text-faint)" }}>—</span>
+                    )}
+                    {unreliableTitle ? (
+                      <span
+                        data-testid="unreliable-marker"
+                        title={unreliableTitle}
+                        aria-label={unreliableTitle}
+                        role="img"
+                        style={{ fontSize: 13, color: "var(--tcn-text-faint)", cursor: "help", userSelect: "none" }}
+                      >
+                        ⚠
+                      </span>
+                    ) : null}
+                  </>
+                }
+                actions={
+                  <>
+                    {preuve ? (
+                      <div style={{ padding: "0 16px 12px" }}>
+                        <a
+                          href={preuve}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="tcn-btn tcn-btn--sm tcn-btn--secondary"
+                        >
+                          <Eye size={14} aria-hidden="true" />
+                          Voir la preuve
+                        </a>
+                      </div>
+                    ) : null}
+                    <ParticipationAdminActions
+                      resultat={{
+                        id: p.id,
+                        epreuve: p.course?.name ?? "cette épreuve",
+                        date: p.course?.event_date ?? null,
+                        coureur: athleteName,
+                        coureurId: athleteId,
+                      }}
+                      style={{ padding: "0 16px 14px" }}
+                    />
+                  </>
+                }
+              />
+            );
+          })}
+        </div>
+        </>
       )}
     </Card>
   );
