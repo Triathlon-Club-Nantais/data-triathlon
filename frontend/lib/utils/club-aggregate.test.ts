@@ -230,4 +230,51 @@ describe("clubSummary", () => {
     expect(s.events).toBe(1);
     expect(s.podiums).toBe(1);
   });
+
+  it("distingue deux heats de même nom et même date (TimePulse, #564)", () => {
+    // Cas réellement mesuré (backend/app/services/course_duplicates.py) :
+    // TimePulse publie ses heats sous une URL et un nom d'épreuve uniques,
+    // seuls `id`/`event_type` les distinguent. Une clé (nom, date) les fond
+    // à tort en une seule épreuve — clubSummary doit se caler sur `course.id`
+    // comme le fait le backend (stats_service.get_stats, course_id distincts).
+    const parts = [
+      part({
+        id: 1,
+        course: {
+          id: 101,
+          name: "Triathlon de Nantes",
+          event_date: "2026-05-10",
+          event_type: "triathlon-s",
+          provider: "timepulse",
+          source_url: "http://x",
+          is_relay: false,
+        },
+      }),
+      part({
+        id: 2,
+        course: {
+          id: 102,
+          name: "Triathlon de Nantes",
+          event_date: "2026-05-10",
+          event_type: "triathlon-m",
+          provider: "timepulse",
+          source_url: "http://x",
+          is_relay: false,
+        },
+      }),
+    ];
+    expect(clubSummary(parts).events).toBe(2);
+  });
+
+  it("écarte une participation sans épreuve, sans créer de groupe fantôme", () => {
+    const withCourse = part({ id: 1 });
+    const withoutCourse = part({ id: 2 }) as Participation;
+    // @ts-expect-error — sonde volontairement une donnée orpheline (course
+    // absente) : le champ est requis côté type, mais le cas doit rester géré
+    // sans planter, exactement comme l'ancienne garde `if (p.course?.name)`.
+    withoutCourse.course = undefined;
+    const s = clubSummary([withCourse, withoutCourse]);
+    expect(s.results).toBe(2);
+    expect(s.events).toBe(1);
+  });
 });

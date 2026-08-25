@@ -169,12 +169,18 @@ interface ClubSummary {
 /** Indicateurs de synthèse du club. */
 export function clubSummary(parts: Participation[]): ClubSummary {
   const athletes = new Set<number>();
-  const events = new Set<string>();
+  const events = new Set<number>();
   let podiums = 0;
   for (const p of parts) {
     if (p.athlete?.id != null) athletes.add(p.athlete.id);
-    const key = `${p.course?.name ?? ""}||${p.course?.event_date ?? ""}`;
-    if (p.course?.name) events.add(key);
+    // Clé sur `course.id`, jamais sur (nom, date) : un même événement
+    // TimePulse publie ses heats sous un nom et une URL uniques, seul
+    // `event_type`/`id` les distingue (#564, backend/app/services/
+    // course_duplicates.py). `course.id` est l'identité que porte déjà le
+    // backend (stats_service.get_stats compte des `course_id` distincts).
+    // `course` absent/nul écarte la participation, comme avant — surtout
+    // pas de fusion dans un groupe « undefined ».
+    if (p.course?.id != null) events.add(p.course.id);
     if (isPodium(p)) podiums += 1;
   }
   return {
