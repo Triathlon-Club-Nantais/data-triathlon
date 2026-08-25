@@ -676,25 +676,36 @@ def events_with_counts(
 
 
 def _events_order(db: Session, sort: str, event_name: str | None):
-    """Ordre de tri des épreuves. Si recherche fuzzy (Postgres), tri par similarité."""
-    if event_name and _is_postgres(db):
-        return (
-            func.similarity(Course.name, event_name).desc(),
-            Course.event_date.desc().nullslast(),
-        )
+    """Ordre de tri des épreuves, toujours terminé par `Course.id` (#567).
+
+    `_grouped_events_query` rend une ligne par `Course.id`, et plusieurs
+    `Course` peuvent partager nom et date (six heats TimePulse, cas Mesquer —
+    cf. `services/course_duplicates`) : sans clé de départage unique, ces
+    lignes sont entièrement à égalité et `LIMIT/OFFSET` peut en rendre une
+    deux fois, ou aucune.
+
+    Si une recherche fuzzy est active (Postgres), la similarité **complète**
+    le tri demandé au lieu de le remplacer — `sort` reste consulté, et
+    `courses.name` reste dans l'ordre : le regroupement par compétition du
+    front (#568) en dépend.
+    """
     if sort == "date_asc":
-        return (Course.event_date.asc().nullslast(), Course.name)
-    if sort == "name":
-        return (Course.name.asc(), Course.event_date.desc())
-    if sort == "imported_desc":
+        order = (Course.event_date.asc().nullslast(), Course.name, Course.id)
+    elif sort == "name":
+        order = (Course.name.asc(), Course.event_date.desc(), Course.id)
+    elif sort == "imported_desc":
         # « Derniers résultats enregistrés » de /ajouter (#201) : trier par date
         # d'entrée en base, pas par date d'épreuve — une épreuve ancienne qu'on
         # vient d'importer doit apparaître en tête, sans quoi la carte semble ne
         # rien avoir enregistré. `created_at` est figé au premier import (un
         # re-scrape ne le bouge pas, cf. modèle `Course`).
-        return (Course.created_at.desc(), Course.name)
-    # date_desc par défaut : dates nulles en dernier.
-    return (Course.event_date.desc().nullslast(), Course.name)
+        order = (Course.created_at.desc(), Course.name, Course.id)
+    else:
+        # date_desc par défaut : dates nulles en dernier.
+        order = (Course.event_date.desc().nullslast(), Course.name, Course.id)
+    if event_name and _is_postgres(db):
+        return (func.similarity(Course.name, event_name).desc(), *order)
+    return order
 
 
 def events_page(
