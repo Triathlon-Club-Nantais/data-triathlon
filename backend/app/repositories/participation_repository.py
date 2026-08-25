@@ -786,6 +786,46 @@ def stats_rank_rows(
     return q.all()
 
 
+def club_podiums(db: Session, *, federal_only: bool = False):
+    """Participations podium du club (rang ≤3 sur au moins une portée), #581.
+
+    Colonnes utiles seulement — jamais l'entité `Participation` complète
+    (même logique que `summary_rows_for_course`). Pas de tri ni de plafond
+    ici : la ventilation par mode de rang et le tri se font en Python, côté
+    `app.services.club_service` — `PodiumsList` promet la liste complète.
+    """
+    q = (
+        db.query(
+            Participation.id,
+            Participation.rank_overall,
+            Participation.rank_gender,
+            Participation.rank_category,
+            Participation.total_time,
+            Athlete.id,
+            Athlete.prenom,
+            Athlete.nom,
+            Course.name,
+            Course.event_type,
+            Course.is_relay,
+            Course.event_date,
+        )
+        .join(Athlete, Participation.athlete_id == Athlete.id)
+        .join(Course, Participation.course_id == Course.id)
+        .filter(validated_clause(Participation.is_pending_validation))
+        .filter(tcn_clause(Participation.club))
+        .filter(
+            or_(
+                Participation.rank_overall.between(1, 3),
+                Participation.rank_gender.between(1, 3),
+                Participation.rank_category.between(1, 3),
+            )
+        )
+    )
+    if federal_only:
+        q = q.filter(federal_clause(Course.event_type))
+    return q.all()
+
+
 def _grouped_events_query(
     db: Session,
     *,
