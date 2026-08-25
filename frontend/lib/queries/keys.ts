@@ -53,4 +53,5 @@ export const queryKeys = {
   // Clé distincte de la liste : celle-ci stocke un `Feedback` unique, l'autre
   // un tableau. Même patron que `group`/`groups`.
   feedback: (id: number) => ["admin-feedback-detail", id] as const,
+  adminActionLog: (page: number) => ["admin-action-log", page] as const,
 };
