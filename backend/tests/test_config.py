@@ -109,13 +109,13 @@ def test_une_cle_de_signature_vide_vaut_non_configure(monkeypatch):
 
 
 def test_dimensionnement_pool_defauts(monkeypatch):
-    """Défauts alignés sur ceux de SQLAlchemy (5 + 10) — inchangés tant que le
-    plafond réel de la base (Azure en prod, Supabase en preview) n'est pas
-    établi (#585)."""
+    """Défauts alignés sur le plafond réel d'Azure B1ms (35 connexions
+    utilisateur) : 15 + 10 pour le pool applicatif, marge de 10 laissée aux
+    migrations, au batch GitHub Actions et aux connexions manuelles (#585)."""
     for var in ("DB_POOL_SIZE", "DB_MAX_OVERFLOW", "DB_POOL_TIMEOUT_SECONDS"):
         monkeypatch.delenv(var, raising=False)
     settings = Settings()
-    assert settings.db_pool_size == 5
+    assert settings.db_pool_size == 15
     assert settings.db_max_overflow == 10
     assert settings.db_pool_timeout_seconds == 5
 

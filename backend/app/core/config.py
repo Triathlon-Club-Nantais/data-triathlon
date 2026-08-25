@@ -23,16 +23,19 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./triathlon.db"
 
     # ── Dimensionnement du pool de connexions (#585) ───────────────────────────
-    # Défauts inchangés — ceux que SQLAlchemy applique déjà en silence quand
-    # `create_engine()` ne reçoit ni `pool_size` ni `max_overflow`. Les rendre
-    # explicites, réglables par variable d'environnement, est ce qui permet de
-    # les aligner un jour sur un plafond connu — Azure PostgreSQL Flexible
-    # Server en production, Supabase (pooler) en preview (docs/infra-azure.md,
-    # docs/ci-cd.md) — sans toucher au code. **Ne pas les augmenter « pour
-    # voir »** : sur un serveur au quota partagé (Azure Burstable B1ms, pooler
-    # Supabase), c'est le geste qui fait tomber l'environnement voisin. Le
-    # relevé du plafond réel reste à faire (#585) ; ce commit ne fait que poser
-    # le levier.
+    # Plafond réel relevé : `tcndatabdd` (Azure PostgreSQL Flexible Server,
+    # docs/infra-azure.md) tourne en SKU Burstable **Standard_B1ms**, dont Azure
+    # fixe par défaut `max_connections=50` — 15 réservées à la réplication et au
+    # monitoring, donc **35 connexions utilisateur**. Les serveurs Burstable
+    # n'ont pas accès au pooler PgBouncer intégré d'Azure.
+    #
+    # 15 + 10 = 25 pour le pool applicatif (le seul service Render prod,
+    # mono-process, plan free, sans `--workers`), en laissant 10 connexions de
+    # marge pour ce qui se connecte à côté : `alembic upgrade head` au
+    # démarrage (séquentiel, libéré avant uvicorn), le batch GitHub Actions
+    # quand `GITHUB_BATCH_TARGET=production`, et les connexions manuelles
+    # ponctuelles (`ClientIPAddress_*`). Côté Supabase (preview), ce plafond ne
+    # s'applique pas — projet distinct, capacité non mesurée.
     #
     # `ge=1` / `ge=0` : SQLAlchemy traite `pool_size=0` et `max_overflow=-1`
     # comme des *sentinels* — respectivement « pool illimité » (et force alors
@@ -42,7 +45,7 @@ class Settings(BaseSettings):
     # la lettre : les laisser passer ferait tomber le limiteur AnyIO à 0 en
     # silence — un blocage total de toutes les routes synchrones, sans la
     # moindre exception dans les journaux.
-    db_pool_size: int = Field(default=5, ge=1)
+    db_pool_size: int = Field(default=15, ge=1)
     db_max_overflow: int = Field(default=10, ge=0)
     # SQLAlchemy attend 30 s par défaut avant `TimeoutError` — le pire
     # comportement pour une requête web publique : une latence qui s'effondre
