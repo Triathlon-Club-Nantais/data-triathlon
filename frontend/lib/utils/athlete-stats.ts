@@ -27,15 +27,24 @@ export interface ResumeAthlete {
   regime: "complet" | "reduit" | "vide";
   validees: Participation[];
   enAttente: number;
+  /**
+   * La dernière participation validée (départage à date égale : la dernière
+   * du tableau — voir `derniere()`). `null` en régime `vide`. Seule source de
+   * vérité pour « la dernière épreuve » : la page ne doit pas la recalculer
+   * (#488, revue finale — deux règles de départage divergentes y avaient
+   * laissé la pastille Catégorie de l'en-tête décrire une autre course que
+   * les tuiles Discipline/Temps juste en dessous).
+   */
+  derniere: Participation | null;
   /** Tuiles du régime `reduit` uniquement — vide dans les deux autres. */
   tuiles: TuileResume[];
 }
 
 /** La plus récente par date d'épreuve ; à date égale ou absente, la dernière reçue. */
-function derniere(parts: Participation[]): Participation {
-  let best = parts[0];
+function derniere(parts: Participation[]): Participation | null {
+  let best: Participation | null = null;
   for (const p of parts) {
-    if ((p.course?.event_date ?? "") >= (best.course?.event_date ?? "")) best = p;
+    if (best === null || (p.course?.event_date ?? "") >= (best.course?.event_date ?? "")) best = p;
   }
   return best;
 }
@@ -45,13 +54,16 @@ export function resumeAthlete(participations: Participation[]): ResumeAthlete {
   // validation ne doit pas peser sur les chiffres avant vérification.
   const validees = participations.filter((p) => !p.is_pending_validation);
   const enAttente = participations.length - validees.length;
+  const derniereValidee = derniere(validees);
 
-  if (validees.length === 0) return { regime: "vide", validees, enAttente, tuiles: [] };
+  if (validees.length === 0) {
+    return { regime: "vide", validees, enAttente, derniere: null, tuiles: [] };
+  }
   if (validees.length >= SEUIL_TUILES_COMPLETES) {
-    return { regime: "complet", validees, enAttente, tuiles: [] };
+    return { regime: "complet", validees, enAttente, derniere: derniereValidee, tuiles: [] };
   }
 
-  const p = derniere(validees);
+  const p = derniereValidee as Participation;
   const date = formatDate(p.course?.event_date) || null;
   const tuiles: TuileResume[] = [
     {
@@ -80,5 +92,5 @@ export function resumeAthlete(participations: Participation[]): ResumeAthlete {
     });
   }
 
-  return { regime: "reduit", validees, enAttente, tuiles };
+  return { regime: "reduit", validees, enAttente, derniere: p, tuiles };
 }

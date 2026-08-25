@@ -29,11 +29,12 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
   const { validees: validated, enAttente: pendingCount } = resume;
 
   // La catégorie n'est pas sur l'athlète : elle vit sur la participation et
-  // change avec l'âge. On prend celle de la dernière épreuve validée, et son
-  // année part en `title` de la pastille pour dire de quand elle date (#488).
-  const derniereValidee = [...validated].sort((a, b) =>
-    (b.course?.event_date ?? "").localeCompare(a.course?.event_date ?? ""),
-  )[0];
+  // change avec l'âge. On prend celle de la dernière épreuve validée — la même
+  // que `resumeAthlete` expose déjà, seule source de vérité pour éviter que la
+  // pastille Catégorie et les tuiles Discipline/Temps décrivent deux courses
+  // différentes à date égale (#488, revue finale) — et son année part en
+  // `title` de la pastille pour dire de quand elle date.
+  const derniereValidee = resume.derniere;
   const categorie = derniereValidee?.category ?? null;
   const anneeCategorie = derniereValidee?.course?.event_date?.slice(0, 4) ?? null;
 
@@ -92,7 +93,11 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
 
       {resume.regime === "reduit" && (
         <div className="mb-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          {/* Une seule colonne sous 640px : `.tcn-stat-value` rend 68px display
+              sans clamp, et la tuile Temps ("01:02:03") force une piste à
+              ~225px — en deux colonnes sous 640px la piste s'élargit au
+              contenu et provoque un scroll horizontal (#488, revue finale). */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {resume.tuiles.map((t) => (
               <StatCard key={t.label} label={t.label} value={t.value} hint={t.hint} accent={false} />
             ))}
