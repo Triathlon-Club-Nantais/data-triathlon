@@ -8,43 +8,34 @@ import { BarList } from "@/components/charts/BarList";
 import { MonthlyTrend } from "@/components/charts/MonthlyTrend";
 import { eventTypeLabel } from "@/lib/constants";
 import { eventTypeColor } from "@/lib/sport-colors";
-import {
-  buildRoster,
-  clubSummary,
-  recentParticipations,
-  type PodiumScope,
-  type RosterEntry,
-} from "@/lib/utils/club-aggregate";
 import { PODIUM_SCOPE_META } from "@/lib/podium-scope";
-import { CLUB_PARTICIPATIONS_PAGE_SIZE } from "@/lib/club";
-import type { Participation, Stats } from "@/lib/types";
+import type { PodiumScope } from "@/lib/podium-scope";
+import type { ClubSummary, Participation, Stats } from "@/lib/types";
 import { PodiumsList } from "./PodiumsList";
 import { ClubPodiumKpi } from "./ClubPodiumKpi";
 
 /**
- * Taille de l'aperçu du roster (#487). La liste complète — 350 fiches triées
- * par volume décroissant — vit sur `/club/athletes`, qui porte déjà la
- * recherche insensible aux accents et le tri. Ce que l'aperçu retire est le
- * **rendu** : 338 liens, autant d'`Avatar` et de badges, et leur hydratation.
- * Le transport, lui, ne bouge pas — voir le `ponytail:` de
- * `CLUB_PARTICIPATIONS_PAGE_SIZE`.
+ * Miroir non exporté de `club_roster(..., limit=12)` côté backend (#581,
+ * Task 2) — le plafond de l'aperçu vit désormais là-bas ; ce seuil ne sert
+ * plus qu'à décider le titre de la section, pas à tronquer quoi que ce soit
+ * ici. Le roster arrivant toujours à ≤ 12 entrées, l'atteindre est le seul
+ * signe local qu'il existe potentiellement d'autres athlètes au-delà de
+ * l'aperçu.
  */
-export const APERCU_ROSTER = 12;
+const ROSTER_APERCU_CAP = 12;
 
 export function ClubDashboard({
   stats,
-  participations,
+  summary,
+  recent,
 }: {
   stats: Stats;
-  participations: Participation[];
+  summary: ClubSummary;
+  recent: Participation[];
 }) {
-  const summary = clubSummary(participations);
-  const roster = buildRoster(participations);
-  const apercu = roster.slice(0, APERCU_ROSTER);
-  const tronque = participations.length >= CLUB_PARTICIPATIONS_PAGE_SIZE;
-  const recent = recentParticipations(participations, 6);
+  const roster = summary.roster;
 
-  if (participations.length === 0) {
+  if (stats.total === 0) {
     return (
       <EmptyState
         title="Aucun résultat de club"
@@ -63,27 +54,13 @@ export function ClubDashboard({
 
   return (
     <div className="space-y-8">
-      {tronque && (
-        // « importés », et non « les plus récents » : `list_participations`
-        // trie par `created_at desc` hors détail d'épreuve — la date d'import,
-        // pas celle de la course. Une épreuve de 2019 importée hier est dans
-        // la tranche. Pas de `role="status"` : rendue au SSR, une région live
-        // n'annonce que ce qui change **après** son entrée dans l'arbre. Pas
-        // de `bg-muted` non plus — il vaut exactement `--background`
-        // (cf. frontend/AGENTS.md, le piège des squelettes).
-        <p className="rounded-xl bg-[var(--tcn-surface)] p-3 text-sm text-[var(--tcn-text-faint)] ring-1 ring-[var(--tcn-border-strong)]">
-          Cette synthèse porte sur les {CLUB_PARTICIPATIONS_PAGE_SIZE.toLocaleString("fr-FR")}{" "}
-          derniers résultats importés. Les résultats importés avant n&apos;y figurent pas.
-        </p>
-      )}
-
       {/* Synthèse — les 3 premiers KPI ne dépendent pas du rank et restent SSR.
           Le KPI Podiums, lui, suit `?rank=…` via un composant client (#132). */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard label="Résultats" value={summary.results} accent />
-        <KpiCard label="Athlètes" value={summary.athletes} />
-        <KpiCard label="Épreuves" value={summary.events} />
-        <ClubPodiumKpi participations={participations} />
+        <KpiCard label="Résultats" value={stats.total} accent />
+        <KpiCard label="Athlètes" value={stats.athletes} />
+        <KpiCard label="Épreuves" value={stats.events} />
+        <ClubPodiumKpi rankCounters={stats.rank_counters} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -93,7 +70,7 @@ export function ClubDashboard({
             <CardTitle>Podiums & performances</CardTitle>
           </CardHeader>
           <CardContent>
-            <PodiumsList participations={participations} />
+            <PodiumsList podiums={summary.podiums} />
           </CardContent>
         </Card>
 
@@ -129,7 +106,7 @@ export function ClubDashboard({
       <section className="space-y-4">
         <div className="flex items-baseline justify-between gap-4">
           <h2 className="font-heading text-lg font-semibold">
-            {roster.length > APERCU_ROSTER ? "Les athlètes les plus actifs" : "Athlètes du club"}
+            {roster.length >= ROSTER_APERCU_CAP ? "Les athlètes les plus actifs" : "Athlètes du club"}
           </h2>
           {/* Inconditionnel : « les deux écrans reliés dans les deux sens »
               est une garantie de navigation, elle ne peut pas s'éteindre sous
@@ -144,8 +121,8 @@ export function ClubDashboard({
             Voir saison par saison →
           </Link>
         </div>
-        {/* #488 (PROF-3, revue UI/UX) : `buildRoster` compte les podiums sur
-            les trois portées sans condition, quand le KPI « Podiums » plus
+        {/* #488 (PROF-3, revue UI/UX) : `club_roster` (backend) compte les
+            podiums sur les trois portées sans condition, quand le KPI « Podiums » plus
             haut suit `?rank=`. Les deux nombres sont justes et incomparables ;
             sans cette légende, basculer le toggle faisait bouger l'un et pas
             l'autre, sans explication à l'écran. Déplacée du bloc de titre (où
@@ -157,29 +134,38 @@ export function ClubDashboard({
             elles-mêmes ne rendent leur décompte que sous cette condition
             (`r.podiums > 0` ci-dessous) — sur un club sans podium, la légende
             qualifiait des nombres absents de l'écran (revue finale). */}
-        {apercu.some((r) => r.podiums > 0) && (
+        {roster.some((r) => r.podiums > 0) && (
           <p className="text-sm text-[var(--tcn-text-faint)]">
             Les podiums comptés ici cumulent le général, le genre et la catégorie.
           </p>
         )}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {apercu.map((r) => (
-            <Link
-              key={r.athleteId}
-              href={`/athletes/${r.athleteId}`}
-              className="flex items-center gap-3 rounded-xl bg-card p-3 ring-1 ring-foreground/10 transition-colors hover:bg-muted/50"
-            >
-              <Avatar name={r.name} size={40} />
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-semibold">{r.name}</div>
-                <div className="text-xs text-[var(--tcn-text-faint)]">
-                  {r.count} épreuve{r.count > 1 ? "s" : ""}
-                  {r.podiums > 0 && ` · ${r.podiums} podium${r.podiums > 1 ? "s" : ""}`}
+          {roster.map((r) => {
+            const name = `${r.prenom} ${r.nom}`;
+            return (
+              <Link
+                key={r.athlete_id}
+                href={`/athletes/${r.athlete_id}`}
+                className="flex items-center gap-3 rounded-xl bg-card p-3 ring-1 ring-foreground/10 transition-colors hover:bg-muted/50"
+              >
+                <Avatar name={name} size={40} />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-semibold">{name}</div>
+                  <div className="text-xs text-[var(--tcn-text-faint)]">
+                    {r.count} épreuve{r.count > 1 ? "s" : ""}
+                    {r.podiums > 0 && ` · ${r.podiums} podium${r.podiums > 1 ? "s" : ""}`}
+                  </div>
                 </div>
-              </div>
-              {r.podiums > 0 && <RosterPodiumBadges roster={r} />}
-            </Link>
-          ))}
+                {r.podiums > 0 && (
+                  <RosterPodiumBadges
+                    overall={r.podiums_overall}
+                    gender={r.podiums_gender}
+                    category={r.podiums_category}
+                  />
+                )}
+              </Link>
+            );
+          })}
         </div>
       </section>
 
@@ -210,12 +196,21 @@ export function ClubDashboard({
  * de distinguer « 3 podiums scratch » de « 3 podiums de catégorie » là où
  * l'ancien `🏅3` amalgamait tout.
  */
-function RosterPodiumBadges({ roster }: { roster: RosterEntry }) {
+function RosterPodiumBadges({
+  overall,
+  gender,
+  category,
+}: {
+  overall: number;
+  gender: number;
+  category: number;
+}) {
+  const values: Record<PodiumScope, number> = { overall, gender, category };
   const scopes: PodiumScope[] = ["overall", "gender", "category"];
   return (
     <span className="flex shrink-0 items-center gap-1.5">
       {scopes.map((scope) => {
-        const n = roster.podiumsByScope[scope];
+        const n = values[scope];
         if (n === 0) return null;
         const { Icon, label, title } = PODIUM_SCOPE_META[scope];
         return (
