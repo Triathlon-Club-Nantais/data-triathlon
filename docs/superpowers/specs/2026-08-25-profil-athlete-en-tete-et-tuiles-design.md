@@ -81,10 +81,16 @@ d'épreuve y déborde. Le nom va donc en `hint`, `value` reste court.
 Trois régimes, sur le décompte des participations **validées**
 (`!is_pending_validation`, comme les KPI actuels depuis #438) :
 
-- **0 épreuve validée** — pas de grille. Un bloc « Aucune épreuve enregistrée
-  pour l'instant. » suivi de l'appel à l'action « Ajouter une épreuve → »
-  (`/ajouter`, cohérent avec l'`EmptyState` de `/club`). Si `pendingCount > 0`,
-  le bloc le mentionne.
+- **0 épreuve validée** — pas de grille. Deux sous-cas, et **aucun appel à
+  l'action ajouté** : `EventsTable` porte déjà l'`EmptyState` « Aucun résultat
+  pour cet athlète » + « Ajouter un résultat → » (`ETAT-3`), et un second CTA
+  sur le même écran serait un doublon.
+  - Aucune participation du tout : la grille disparaît, l'`EmptyState` existant
+    dit tout.
+  - Aucune **validée** mais des participations en attente : une ligne « Aucun
+    résultat validé pour l'instant — N en attente de validation. » à la place de
+    la grille. Le tableau plus bas montre bien les lignes, il faut expliquer
+    pourquoi les chiffres, eux, sont absents.
 - **1 ou 2 épreuves** — trois tuiles au plus, tirées de la **dernière
   participation validée** (par `course.event_date`) :
   - `Épreuves` = décompte, `hint` = « N en attente de validation » si besoin
