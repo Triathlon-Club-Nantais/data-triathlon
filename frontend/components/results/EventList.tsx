@@ -27,6 +27,13 @@ const SORT_OPTIONS = [
   { value: "name", label: "Nom" },
 ];
 
+// #577 : pendant une recherche d'épreuve, le backend classe toujours par
+// similarité en tête (`event_name` déclenche `similarity(Course.name, …)`,
+// `_events_order`) — le tri choisi ne fait que départager. « Pertinence »
+// n'a de sens que dans ce contexte, donc n'apparaît qu'alors, sélectionnée
+// d'office tant qu'aucun tri n'a été explicitement posé.
+const PERTINENCE_OPTION = { value: "pertinence", label: "Pertinence" };
+
 // Date | Épreuve | Type | Format | Résultats | TCN | →
 const TRACKS: Track[] = [120, { flexMin: 200 }, 150, 90, 110, 90, 28];
 const GAP = 18;
@@ -83,11 +90,21 @@ export function EventList({
 
   function setSort(value: string) {
     const params = new URLSearchParams(sp.toString());
-    params.set("sort", value);
+    // « Pertinence » n'est pas une clé de tri backend : elle représente
+    // l'absence de tri explicitement choisi (`sort` par défaut, similarité en
+    // tête). La reposer, c'est retirer le paramètre.
+    if (value === "pertinence") {
+      params.delete("sort");
+    } else {
+      params.set("sort", value);
+    }
     router.push(`/resultats?${params.toString()}`);
   }
 
-  const currentSort = sp.get("sort") ?? "date_desc";
+  const rechercheEpreuveActive = !!sp.get("event_name");
+  const sortOptions = rechercheEpreuveActive ? [PERTINENCE_OPTION, ...SORT_OPTIONS] : SORT_OPTIONS;
+  const currentSort =
+    rechercheEpreuveActive && !sp.get("sort") ? "pertinence" : (sp.get("sort") ?? "date_desc");
 
   // WCAG 4.1.3 (#477) : filtrer ou trier remplace la liste sans déplacer le
   // focus, et le défilement infini y ajoute des pages sans un mot — sans
@@ -149,11 +166,11 @@ export function EventList({
         <Select value={currentSort} onValueChange={(v) => setSort(v as string)}>
           <SelectTrigger className="h-9 w-44">
             <SelectValue>
-              {(v) => SORT_OPTIONS.find((o) => o.value === v)?.label ?? "Trier"}
+              {(v) => sortOptions.find((o) => o.value === v)?.label ?? "Trier"}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            {SORT_OPTIONS.map((o) => (
+            {sortOptions.map((o) => (
               <SelectItem key={o.value} value={o.value}>
                 {o.label}
               </SelectItem>
