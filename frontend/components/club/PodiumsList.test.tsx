@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { Participation } from "@/lib/types";
 
 let searchParams = new URLSearchParams();
@@ -145,5 +146,47 @@ describe("PodiumsList — annonce du changement (#477)", () => {
     render(<PodiumsList participations={[]} />);
 
     expect(screen.getByRole("status")).toHaveTextContent("0 podium affiché");
+  });
+});
+
+describe("PodiumsList — extension de la liste (PROF-3, #488)", () => {
+  // 9 podiums scratch : au-delà de l'aperçu de 6, donc 3 restants.
+  const NEUF = Array.from({ length: 9 }, (_, i) => part({ id: i + 1, rank_overall: 1 }));
+
+  it("n'offre pas d'extension quand tout tient dans l'aperçu", () => {
+    searchParams = new URLSearchParams();
+    render(<PodiumsList participations={NEUF.slice(0, 6)} />);
+
+    expect(screen.queryByRole("button", { name: /Voir les/ })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("listitem")).toHaveLength(6);
+  });
+
+  it("dit combien de podiums restent sous l'aperçu", () => {
+    searchParams = new URLSearchParams();
+    render(<PodiumsList participations={NEUF} />);
+
+    expect(screen.getAllByRole("listitem")).toHaveLength(6);
+    expect(screen.getByRole("button", { name: "Voir les 3 autres podiums" })).toBeInTheDocument();
+  });
+
+  it("ouvre la liste entière au clic, et l'annonce suit", async () => {
+    searchParams = new URLSearchParams();
+    const user = userEvent.setup();
+    render(<PodiumsList participations={NEUF} />);
+
+    await user.click(screen.getByRole("button", { name: "Voir les 3 autres podiums" }));
+
+    expect(screen.getAllByRole("listitem")).toHaveLength(9);
+    expect(screen.queryByRole("button", { name: /Voir les/ })).not.toBeInTheDocument();
+    // L'`AnnonceStatut` en place reflète le décompte affiché : l'extension est
+    // annoncée sans région live supplémentaire (WCAG 4.1.3, cf. #477).
+    expect(screen.getByText("9 podiums affichés")).toBeInTheDocument();
+  });
+
+  it("accorde le singulier quand il ne reste qu'un podium", () => {
+    searchParams = new URLSearchParams();
+    render(<PodiumsList participations={NEUF.slice(0, 7)} />);
+
+    expect(screen.getByRole("button", { name: "Voir l'autre podium" })).toBeInTheDocument();
   });
 });
