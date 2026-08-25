@@ -100,7 +100,7 @@ describe("CategoryBars", () => {
 
     const parts = screen
       .getAllByText(/^\d+,\d%$/)
-      .map((el) => Number(el.textContent!.replace(",", ".").replace("%", "")));
+      .map((el) => Number(el.textContent!.replace(",", ".").replaceAll("%", "")));
     expect(parts.reduce((a, b) => a + b, 0)).toBeCloseTo(100, 1);
   });
 
