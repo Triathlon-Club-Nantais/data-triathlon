@@ -108,8 +108,8 @@ export function useIsSelectedAthlete(id: number): boolean {
  * que si la chaîne brute a changé — la clé de cache est le texte du stock,
  * seule chose qui change vraiment.
  */
-let brutMemorise: string | null = null;
-let athleteMemorise: PickedAthlete | null = null;
+let cachedRaw: string | null = null;
+let cachedAthlete: PickedAthlete | null = null;
 
 function snapshotAthlete(): PickedAthlete | null {
   let brut: string | null;
@@ -119,11 +119,11 @@ function snapshotAthlete(): PickedAthlete | null {
     // Mode privé, quota : pas de stock lisible, donc pas d'athlète retenu.
     return null;
   }
-  if (brut !== brutMemorise) {
-    brutMemorise = brut;
-    athleteMemorise = readAthlete();
+  if (brut !== cachedRaw) {
+    cachedRaw = brut;
+    cachedAthlete = readAthlete();
   }
-  return athleteMemorise;
+  return cachedAthlete;
 }
 
 /**

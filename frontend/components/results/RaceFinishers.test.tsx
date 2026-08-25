@@ -1,5 +1,5 @@
 // frontend/components/results/RaceFinishers.test.tsx
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { StrictMode } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -768,6 +768,10 @@ describe("RaceFinishers", () => {
 });
 
 describe("RaceFinishers — ma ligne dans le classement (NAV-10, #503)", () => {
+  // Restauré en `afterEach` : sans lui, le prochain `describe` hériterait en
+  // silence de ce faux `localStorage`.
+  const descripteurOriginal = Object.getOwnPropertyDescriptor(window, "localStorage")!;
+
   beforeEach(() => {
     const stock = new Map<string, string>();
     Object.defineProperty(window, "localStorage", {
@@ -779,6 +783,10 @@ describe("RaceFinishers — ma ligne dans le classement (NAV-10, #503)", () => {
         clear: () => stock.clear(),
       },
     });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, "localStorage", descripteurOriginal);
   });
 
   it("ne marque aucune ligne quand aucun athlète n'est retenu", () => {
@@ -838,5 +846,28 @@ describe("RaceFinishers — ma ligne dans le classement (NAV-10, #503)", () => {
     afficher({ participations: [], total: 0 });
 
     expect(screen.getByText("Aucun athlète ne correspond à cette recherche")).toBeInTheDocument();
+  });
+
+  it("retire la portée club en même temps qu'il pose la recherche, sinon le saut peut ne pas mener à ma ligne", async () => {
+    writeAthlete({ id: 3, prenom: "Thomas", nom: "DNFGUY" });
+    searchParams = new URLSearchParams(SCOPE_PARAM + "=" + SCOPE_CLUB);
+    afficher();
+
+    await userEvent.click(screen.getByRole("button", { name: "Aller à ma ligne — Thomas DNFGUY" }));
+
+    const url = push.mock.calls.at(-1)?.[0] ?? "";
+    expect(url).not.toContain(SCOPE_PARAM);
+    expect(url).toContain("q=Thomas+DNFGUY");
+  });
+
+  it("« Voir tous les participants » de l'état « ne figure pas » ramène à l'épreuve nue, portée club retirée", async () => {
+    writeAthlete({ id: 99, prenom: "Marie", nom: "GAUDIN" });
+    searchParams = new URLSearchParams(`q=Marie GAUDIN&${SCOPE_PARAM}=${SCOPE_CLUB}`);
+    afficher({ participations: [], total: 0 });
+
+    expect(screen.getByText("Marie GAUDIN ne figure pas sur cette épreuve")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Voir tous les participants" }));
+
+    expect(push).toHaveBeenCalledWith("/courses/1");
   });
 });

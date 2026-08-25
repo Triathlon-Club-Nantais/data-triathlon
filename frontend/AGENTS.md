@@ -314,9 +314,13 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 - **Les trois surfaces qui propagent l'athlète retenu** (#503) — la pastille
   « Mes résultats » de `/resultats`, la ligne marquée « Vous » et le bouton
   « Aller à ma ligne » du classement d'épreuve, le raccourci de la tuile du
-  rail. Toutes lisent `useSelectedAthlete()`
-  (`components/layout/AthletePicker.tsx`, à côté de `useIsSelectedAthlete`),
-  dont le snapshot est **mémorisé sur la chaîne brute du stock** :
+  rail. Les deux surfaces de contenu — `/resultats` et le classement — lisent
+  `useSelectedAthlete()` (`components/layout/AthletePicker.tsx`, à côté de
+  `useIsSelectedAthlete`) ; `AppNav` garde sa propre lecture (`useState` +
+  `readAthlete()` + l'écouteur de `ATHLETE_CHANGED_EVENT`), son état portant
+  aussi `expanded` et le raccourci clavier — une duplication assumée, non
+  résorbée, hors du périmètre de #503. Le snapshot de `useSelectedAthlete()`
+  est **mémorisé sur la chaîne brute du stock** :
   `readAthlete()` reconstruit un objet à chaque lecture, et le rendre tel quel
   fait rendre `useSyncExternalStore` en boucle. Trois invariants :
   **aucun filtre n'est appliqué au chargement** — chaque geste demande un clic
