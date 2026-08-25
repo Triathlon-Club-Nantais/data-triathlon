@@ -80,4 +80,28 @@ describe("ClubPodiumKpi — recalcul selon ?rank= (#104, #132)", () => {
     render(<ClubPodiumKpi participations={PARTS} />);
     expect(screen.getByText("1")).toBeInTheDocument();
   });
+
+  // #488 (PROF-3) : le KPI et le roster comptent les podiums différemment et
+  // les deux sont justes. Faute de le dire, basculer le toggle faisait bouger
+  // un nombre et pas l'autre. La portée voyage donc avec le chiffre.
+  it("nomme la portée du décompte, mode par mode (PROF-3, #488)", () => {
+    searchParams = new URLSearchParams();
+    const { unmount } = render(<ClubPodiumKpi participations={PARTS} />);
+    expect(screen.getByText("général")).toBeInTheDocument();
+    unmount();
+
+    searchParams = new URLSearchParams("rank=category");
+    const b = render(<ClubPodiumKpi participations={PARTS} />);
+    expect(screen.getByText("catégorie")).toBeInTheDocument();
+    b.unmount();
+
+    searchParams = new URLSearchParams("rank=gender");
+    const c = render(<ClubPodiumKpi participations={PARTS} />);
+    expect(screen.getByText("genre")).toBeInTheDocument();
+    c.unmount();
+
+    searchParams = new URLSearchParams("rank=all");
+    render(<ClubPodiumKpi participations={PARTS} />);
+    expect(screen.getByText("général, genre ou catégorie")).toBeInTheDocument();
+  });
 });
