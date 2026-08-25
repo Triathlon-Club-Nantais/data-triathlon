@@ -336,6 +336,38 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   (WCAG 1.4.1) ; et **« Aller à ma ligne » cherche, il ne saute pas** —
   l'ordre d'affichage est une propriété de la requête SQL depuis #163, le
   front ne sait pas calculer « ma page », et `q` y mène à coût backend nul.
+
+  **Constaté sur #502**, premier consommateur réel de l'arbitrage : la bande
+  « Ma saison » lit le stock par `useSelectedAthlete()` — pendant de
+  `useIsSelectedAthlete`, ajouté à côté de lui dans `AthletePicker.tsx`,
+  mémoïsé sur la chaîne brute du `localStorage` plutôt que sur l'objet
+  reconstruit — puis appelle `apiClient.getAthlete(id, { seasons,
+  federal_only })`. C'est le **premier appel navigateur** de `/athletes/{id}`,
+  jusque-là lue par le seul rendu serveur de la fiche athlète ; les deux
+  filtres y ont été ajoutés **optionnels et neutres par défaut**, pour que
+  « mes » chiffres se comptent sur exactement la même base que ceux du club
+  rendus au-dessus. Le besoin serveur qui aurait rouvert l'arbitrage n'est
+  donc pas apparu : le filtrage est passé dans la requête, pas dans le rendu,
+  et `/dashboard` garde sa fenêtre de revalidation de 30 s partagée entre tous
+  les visiteurs.
+
+  Deux règles s'attrapent en passant, valables pour #503 et #504 : le podium
+  d'un athlète doit se calculer sur le **même `?rank=`** que les compteurs
+  club (`lib/utils/ma-saison.ts`, miroir de `stats_service._rank_counters`),
+  et un bloc client monté au-dessus de contenu serveur réserve sa hauteur dès
+  l'hydratation — sinon le retour du fetch ajoute un **second** décalage au
+  premier.
+
+  Une troisième, trouvée en revue de #502 : une région `AnnonceStatut` se
+  monte **inconditionnellement**, texte vide (`""`) quand il n'y a rien à
+  annoncer, jamais insérée au moment où son texte apparaît — une région ARIA
+  live n'annonce que les changements observés **après** son enregistrement, et
+  une région déjà pleine à l'injection est le cas que NVDA, JAWS et VoiceOver
+  laissent tomber. Les tests jsdom passent quand même : ils ne vérifient que
+  le texte du DOM. Tous les autres consommateurs du dépôt le faisaient déjà
+  (`StatCardsRank.tsx`, `PodiumsList.tsx`, `EventList.tsx`,
+  `RaceFinishers.tsx`) ; `MaSaison.tsx` avait été le seul à s'en écarter, et la
+  revue l'a rattrapé.
 - **Rail replié, cookie de largeur, nav mobile** (#482) — le rail replié
   porte désormais un monogramme texte lié à `/dashboard` en plus du bouton de
   pliage (l'en-tête passe en colonne à cet état, faute de place pour les
