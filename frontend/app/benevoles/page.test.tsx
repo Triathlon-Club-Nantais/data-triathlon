@@ -1,8 +1,8 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
-import type { Participation } from "@/lib/types";
+import type { AthleteBrief, Participation } from "@/lib/types";
 
 const {
   getBenevoleQueue,
@@ -11,6 +11,8 @@ const {
   validateParticipationBenevole,
   rejectParticipationBenevole,
   unrejectParticipationBenevole,
+  searchAthletesBenevole,
+  updateParticipationFieldsBenevole,
 } = vi.hoisted(() => ({
   getBenevoleQueue: vi.fn(),
   getBenevoleRejected: vi.fn(),
@@ -18,6 +20,8 @@ const {
   validateParticipationBenevole: vi.fn(),
   rejectParticipationBenevole: vi.fn(),
   unrejectParticipationBenevole: vi.fn(),
+  searchAthletesBenevole: vi.fn(),
+  updateParticipationFieldsBenevole: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
@@ -31,22 +35,28 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
       validateParticipationBenevole,
       rejectParticipationBenevole,
       unrejectParticipationBenevole,
+      searchAthletesBenevole,
+      updateParticipationFieldsBenevole,
     },
   };
 });
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import BenevolesPage from "./page";
 
-function participation(over: Partial<Participation> & { id: number }): Participation {
+const ATHLETE: AthleteBrief = { id: 1, nom: "HERRMANN", prenom: "Mathieu", gender: "M", club: "TCN" };
+
+function participation(id: number, over: Partial<Participation> = {}): Participation {
   return {
-    athlete: over.athlete ?? { id: over.id, nom: "DUPONT", prenom: "Jean", gender: "M", club: "TCN" },
-    course: over.course ?? {
-      id: over.id,
-      name: `Course ${over.id}`,
-      event_date: "2026-05-10",
-      event_type: "triathlon-m",
-      provider: "manuel",
-      source_url: "",
+    id,
+    athlete: { ...ATHLETE, id, prenom: `Coureur${id}` },
+    course: {
+      id: 99,
+      name: "Triathlon de Nantes",
+      event_date: "2026-06-14",
+      event_type: "triathlon",
+      provider: "njuko",
+      source_url: "https://example.test/r",
       is_relay: false,
     },
     club: "TCN",
@@ -56,21 +66,37 @@ function participation(over: Partial<Participation> & { id: number }): Participa
     rank_overall: null,
     rank_category: null,
     rank_gender: null,
-    total_time: "01:00:00",
+    total_time: null,
     status: "finisher",
     is_relay: false,
-    team_name: null,
-    evidence_url: null,
-    is_pending_validation: true,
     splits: null,
-    created_at: "2026-05-11T10:00:00Z",
+    created_at: null,
+    is_pending_validation: true,
     ...over,
   };
 }
 
+/** Le panneau n'est en feuille que sous `md` : par défaut on simule le desktop. */
+function simulerLargeur(compact: boolean) {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn().mockReturnValue({
+      matches: compact,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }),
+  );
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  simulerLargeur(false);
+  getBenevoleQueue.mockResolvedValue([participation(1), participation(2), participation(3)]);
   getBenevoleRejected.mockResolvedValue([]);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe("BenevolesPage", () => {
@@ -83,7 +109,7 @@ describe("BenevolesPage", () => {
 
   it("affiche la file après une connexion réussie", async () => {
     getBenevoleQueue.mockRejectedValueOnce(new ApiError(401, "Non autorisé"));
-    getBenevoleQueue.mockResolvedValueOnce([participation({ id: 1 })]);
+    getBenevoleQueue.mockResolvedValueOnce([participation(1)]);
     benevoleLogin.mockResolvedValue(null);
     const user = userEvent.setup();
     render(<BenevolesPage />);
@@ -91,37 +117,35 @@ describe("BenevolesPage", () => {
     await user.type(await screen.findByLabelText(/mot de passe/i), "secret-du-club");
     await user.click(screen.getByRole("button", { name: /se connecter/i }));
 
-    expect(await screen.findByText(/Course 1/)).toBeInTheDocument();
+    expect(await screen.findByText("Coureur1 HERRMANN")).toBeInTheDocument();
   });
 
   it("affiche directement la file quand la session est déjà valide", async () => {
-    getBenevoleQueue.mockResolvedValue([participation({ id: 1 }), participation({ id: 2 })]);
+    getBenevoleQueue.mockResolvedValue([participation(1), participation(2)]);
     render(<BenevolesPage />);
 
-    expect(await screen.findByText(/Course 1/)).toBeInTheDocument();
-    expect(screen.getByText(/Course 2/)).toBeInTheDocument();
+    expect(await screen.findByText("Coureur1 HERRMANN")).toBeInTheDocument();
+    expect(screen.getByText("Coureur2 HERRMANN")).toBeInTheDocument();
   });
 
   it("sélectionne un résultat et affiche son panneau de détail", async () => {
-    getBenevoleQueue.mockResolvedValue([participation({ id: 1 })]);
+    getBenevoleQueue.mockResolvedValue([participation(1)]);
     const user = userEvent.setup();
     render(<BenevolesPage />);
 
-    await user.click(await screen.findByRole("button", { name: /Course 1/ }));
+    await user.click(await screen.findByRole("button", { name: /Coureur1/ }));
 
     expect(screen.getByRole("button", { name: /valider ce résultat/i })).toBeInTheDocument();
   });
 
-  it("retire un résultat de la file une fois validé", async () => {
-    getBenevoleQueue.mockResolvedValue([participation({ id: 1 })]);
-    validateParticipationBenevole.mockResolvedValue(
-      participation({ id: 1, is_pending_validation: false }),
-    );
-    const user = userEvent.setup();
+  it("montre l'état de réussite quand la file est épuisée", async () => {
+    getBenevoleQueue.mockResolvedValue([participation(1)]);
+    validateParticipationBenevole.mockResolvedValue(participation(1, { is_pending_validation: false }));
     render(<BenevolesPage />);
 
-    await user.click(await screen.findByRole("button", { name: /Course 1/ }));
-    await user.click(screen.getByRole("button", { name: /valider ce résultat/i }));
+    await waitFor(() => expect(screen.getByText("Coureur1 HERRMANN")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /Coureur1/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Valider ce résultat/ }));
 
     await waitFor(() => expect(screen.getByText("File vide, merci !")).toBeInTheDocument());
   });
@@ -134,68 +158,132 @@ describe("BenevolesPage", () => {
 
   it("propose de réessayer après un échec de chargement", async () => {
     getBenevoleQueue.mockRejectedValueOnce(new Error("Panne réseau"));
-    getBenevoleQueue.mockResolvedValueOnce([participation({ id: 1 })]);
+    getBenevoleQueue.mockResolvedValueOnce([participation(1)]);
     const user = userEvent.setup();
     render(<BenevolesPage />);
 
     const reessayer = await screen.findByRole("button", { name: /réessayer/i });
     await user.click(reessayer);
 
-    expect(await screen.findByText(/Course 1/)).toBeInTheDocument();
+    expect(await screen.findByText("Coureur1 HERRMANN")).toBeInTheDocument();
   });
 
-  it("réinitialise le panneau de détail quand on change de résultat sélectionné", async () => {
-    getBenevoleQueue.mockResolvedValue([participation({ id: 1 }), participation({ id: 2 })]);
-    const user = userEvent.setup();
+  it("enchaîne sur l'entrée suivante après une validation", async () => {
+    validateParticipationBenevole.mockResolvedValue(participation(2, { is_pending_validation: false }));
     render(<BenevolesPage />);
 
-    await user.click(await screen.findByRole("button", { name: /Course 1/ }));
-    const champNom = screen.getByLabelText(/nom de l.épreuve/i);
-    await user.clear(champNom);
-    await user.type(champNom, "Texte non enregistré");
+    await waitFor(() => expect(screen.getByText("Coureur2 HERRMANN")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /Coureur2/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Valider ce résultat/ }));
 
-    await user.click(screen.getByRole("button", { name: /Course 2/ }));
+    // Le panneau ne repart pas sur l'état vide : il montre déjà la suivante.
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { level: 2, name: /Coureur3/ })).toBeInTheDocument(),
+    );
+    expect(screen.queryByText(/Sélectionnez un résultat/)).not.toBeInTheDocument();
+  });
 
-    expect(screen.getByLabelText(/nom de l.épreuve/i)).toHaveValue("Course 2");
+  it("annonce le reste de la file aux lecteurs d'écran", async () => {
+    validateParticipationBenevole.mockResolvedValue(participation(1, { is_pending_validation: false }));
+    render(<BenevolesPage />);
+
+    await waitFor(() => expect(screen.getByText("Coureur1 HERRMANN")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /Coureur1/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Valider ce résultat/ }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent("Résultat validé — 2 restants."),
+    );
+  });
+
+  it("demande confirmation avant de quitter une entrée aux modifications non enregistrées", async () => {
+    const confirmer = vi.fn().mockReturnValue(false);
+    vi.stubGlobal("confirm", confirmer);
+    render(<BenevolesPage />);
+
+    await waitFor(() => expect(screen.getByText("Coureur1 HERRMANN")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /Coureur1/ }));
+    await userEvent.type(screen.getByLabelText(/Dossard/), "412");
+    await userEvent.click(screen.getByRole("button", { name: /Coureur2/ }));
+
+    expect(confirmer).toHaveBeenCalled();
+    // Refus : on reste sur l'entrée en cours, la saisie n'est pas perdue.
+    expect(screen.getByRole("heading", { level: 2, name: /Coureur1/ })).toBeInTheDocument();
+  });
+
+  it("bascule sur le résultat suivant après confirmation d'abandon du brouillon", async () => {
+    // Remplace l'ancien « réinitialise le panneau de détail quand on change de
+    // résultat sélectionné » (#271) : jusqu'à #490, un brouillon non enregistré
+    // était abandonné en silence au changement de sélection. Le garde-fou
+    // l'interdit désormais — seule la confirmation acceptée déclenche la
+    // bascule, qui reste le comportement observable d'origine.
+    vi.stubGlobal("confirm", vi.fn().mockReturnValue(true));
+    render(<BenevolesPage />);
+
+    await waitFor(() => expect(screen.getByText("Coureur1 HERRMANN")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /Coureur1/ }));
+    await userEvent.type(screen.getByLabelText(/Dossard/), "412");
+
+    await userEvent.click(screen.getByRole("button", { name: /Coureur2/ }));
+
+    expect(window.confirm).toHaveBeenCalled();
+    expect(screen.getByRole("heading", { level: 2, name: /Coureur2/ })).toBeInTheDocument();
+  });
+
+  it("ouvre le panneau en feuille sous le point de rupture md", async () => {
+    simulerLargeur(true);
+    render(<BenevolesPage />);
+
+    await waitFor(() => expect(screen.getByText("Coureur1 HERRMANN")).toBeInTheDocument());
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /Coureur1/ }));
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+  });
+
+  it("garde le panneau dans la grille au-dessus de md", async () => {
+    render(<BenevolesPage />);
+    await waitFor(() => expect(screen.getByText("Coureur1 HERRMANN")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /Coureur1/ }));
+
+    expect(screen.getByRole("heading", { level: 2, name: /Coureur1/ })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("signale un résultat non conforme et le fait passer dans l'onglet non-conformes", async () => {
-    const pendante = participation({ id: 1, is_pending_validation: true, is_rejected: false });
+    const pendante = participation(1, { is_rejected: false });
     getBenevoleQueue.mockResolvedValue([pendante]);
     getBenevoleRejected.mockResolvedValue([]);
-    rejectParticipationBenevole.mockResolvedValue(
-      participation({ id: 1, is_pending_validation: true, is_rejected: true }),
-    );
+    rejectParticipationBenevole.mockResolvedValue(participation(1, { is_rejected: true }));
     const user = userEvent.setup();
     render(<BenevolesPage />);
 
-    await user.click(await screen.findByRole("button", { name: /Course 1/ }));
+    await user.click(await screen.findByRole("button", { name: /Coureur1/ }));
     await user.click(screen.getByRole("button", { name: /signaler non conforme/i }));
     await user.click(screen.getByRole("button", { name: /confirmer/i }));
 
     await waitFor(() => expect(rejectParticipationBenevole).toHaveBeenCalledWith(1));
-    expect(screen.queryByRole("button", { name: /Course 1/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Coureur1/ })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /non conformes/i }));
-    expect(screen.getByRole("button", { name: /Course 1/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Coureur1/ })).toBeInTheDocument();
   });
 
   it("annule un rejet et fait revenir le résultat dans la file", async () => {
-    const rejetee = participation({ id: 1, is_pending_validation: true, is_rejected: true });
+    const rejetee = participation(1, { is_rejected: true });
     getBenevoleQueue.mockResolvedValue([]);
     getBenevoleRejected.mockResolvedValue([rejetee]);
-    unrejectParticipationBenevole.mockResolvedValue(
-      participation({ id: 1, is_pending_validation: true, is_rejected: false }),
-    );
+    unrejectParticipationBenevole.mockResolvedValue(participation(1, { is_rejected: false }));
     const user = userEvent.setup();
     render(<BenevolesPage />);
 
     await user.click(await screen.findByRole("button", { name: /non conformes/i }));
-    await user.click(screen.getByRole("button", { name: /Course 1/ }));
+    await user.click(screen.getByRole("button", { name: /Coureur1/ }));
     await user.click(screen.getByRole("button", { name: /annuler le rejet/i }));
 
     await waitFor(() => expect(unrejectParticipationBenevole).toHaveBeenCalledWith(1));
     await user.click(screen.getByRole("button", { name: /^file/i }));
-    expect(screen.getByRole("button", { name: /Course 1/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Coureur1/ })).toBeInTheDocument();
   });
 });
