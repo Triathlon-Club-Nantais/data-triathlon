@@ -28,6 +28,15 @@ def test_in_progress_when_missing_total_time(db_session):
     assert cache.is_in_progress(db_session, course.id) is True
 
 
+def test_in_progress_when_time_is_zero(db_session):
+    """`00:00:00` est un temps « placeholder » publié en attendant le temps réel —
+    même sémantique que `quality._ZERO_TIMES` et
+    `participation_repository._TEMPS_ABSENT` : ce n'est pas un temps final.
+    """
+    course = _course_with_participation(db_session, total_time="00:00:00")
+    assert cache.is_in_progress(db_session, course.id) is True
+
+
 def test_finished_when_all_have_time(db_session):
     course = _course_with_participation(db_session, total_time="01:59:00")
     assert cache.is_in_progress(db_session, course.id) is False

@@ -241,7 +241,7 @@ def run_batch(
                     )
                 except Exception as exc:  # filet : un bug ne doit pas tuer le batch
                     logger.warning("Échec import %s : %s", item.url, exc)
-                    result = _ItemResult(error=str(exc))
+                    result = _ItemResult(error=str(exc) or exc.__class__.__name__)
 
             if result.error:
                 totals.errors += 1

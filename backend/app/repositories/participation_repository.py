@@ -487,6 +487,11 @@ def _ordre_affichage():
         ),
         func.lower(Athlete.nom),
         func.lower(Athlete.prenom),
+        # Départage final : deux homonymes exacts (même nom/prénom, même groupe,
+        # même rang, même temps) ne sont sinon départagés par rien, et un
+        # feuilletage peut alors voir la même ligne deux fois ou pas du tout
+        # (#566). `Participation.id` ne peut jamais être à égalité.
+        Participation.id,
     )
 
 
