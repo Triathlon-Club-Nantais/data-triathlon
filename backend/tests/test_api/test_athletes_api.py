@@ -214,3 +214,90 @@ def test_search_nest_pas_capturee_par_la_route_athlete_id(client, db_session):
     resp = client.get("/api/v1/athletes/search", params={"q": "zzzzz"})
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+# ── GET /athletes/{id} : filtres saison / discipline (#502) ──────────────────
+
+
+def _athlete_trois_saisons(db_session):
+    """Le même corpus que le test de repository, vu depuis la route."""
+    from app.repositories import athlete_repository, course_repository, participation_repository
+
+    athlete = athlete_repository.get_or_create(db_session, nom="BANDE", prenom="Bruno")
+    db_session.flush()
+    corpus = [
+        ("Tri 2025", date(2025, 10, 5), "triathlon-m"),
+        ("Trail 2025", date(2025, 10, 12), "trail"),
+        ("Tri 2024", date(2024, 10, 5), "triathlon-m"),
+    ]
+    for i, (nom, jour, type_epreuve) in enumerate(corpus, start=1):
+        course = course_repository.get_or_create(
+            db_session, name=nom, event_date=jour, event_type=type_epreuve,
+            source_url=f"https://k/{nom}", provider="klikego",
+        )
+        db_session.flush()
+        participation_repository.create(
+            db_session, athlete_id=athlete.id, course_id=course.id,
+            bib_number=str(i), club="Triathlon Club Nantais",
+        )
+    db_session.commit()
+    return athlete
+
+
+def test_fiche_athlete_sans_parametre_rend_la_carriere_entiere(client, db_session):
+    """Non-régression du contrat publié : les deux filtres de #502 sont neutres
+    par défaut, la fiche athlète ne change pas de comportement."""
+    athlete = _athlete_trois_saisons(db_session)
+
+    detail = client.get(f"/api/v1/athletes/{athlete.id}").json()
+
+    assert len(detail["participations"]) == 3
+
+
+def test_fiche_athlete_filtre_par_saison(client, db_session):
+    athlete = _athlete_trois_saisons(db_session)
+
+    detail = client.get(
+        f"/api/v1/athletes/{athlete.id}", params={"seasons": "2025"}
+    ).json()
+
+    assert sorted(p["course"]["name"] for p in detail["participations"]) == [
+        "Trail 2025",
+        "Tri 2025",
+    ]
+
+
+def test_fiche_athlete_federal_only_retire_les_disciplines_hors_federation(client, db_session):
+    athlete = _athlete_trois_saisons(db_session)
+
+    detail = client.get(
+        f"/api/v1/athletes/{athlete.id}", params={"federal_only": "true"}
+    ).json()
+
+    assert sorted(p["course"]["name"] for p in detail["participations"]) == [
+        "Tri 2024",
+        "Tri 2025",
+    ]
+
+
+def test_fiche_athlete_combine_les_deux_filtres(client, db_session):
+    athlete = _athlete_trois_saisons(db_session)
+
+    detail = client.get(
+        f"/api/v1/athletes/{athlete.id}",
+        params={"seasons": "2025", "federal_only": "true"},
+    ).json()
+
+    assert [p["course"]["name"] for p in detail["participations"]] == ["Tri 2025"]
+
+
+def test_fiche_athlete_saisons_non_parsables_valent_toutes_saisons(client, db_session):
+    """`parse_seasons` ignore les valeurs non entières et rend une liste vide,
+    qui vaut « pas de filtre » — pas de 422, pas de 500."""
+    athlete = _athlete_trois_saisons(db_session)
+
+    detail = client.get(
+        f"/api/v1/athletes/{athlete.id}", params={"seasons": "abc"}
+    ).json()
+
+    assert len(detail["participations"]) == 3
