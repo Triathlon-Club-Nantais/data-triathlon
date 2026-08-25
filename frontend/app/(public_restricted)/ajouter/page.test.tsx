@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
+import { dansLesCartes } from "@/test/cartes";
 
 const listEvents = vi.fn();
 
@@ -96,5 +97,65 @@ describe("AjouterPage", () => {
     expect(
       within(screen.getByRole("table")).queryByText("Aucun résultat enregistré pour l'instant"),
     ).not.toBeInTheDocument();
+  });
+
+  it("bascule la grille et les cartes aux seuils annoncés", async () => {
+    const ui = await AjouterPage();
+    render(ui);
+
+    expect(screen.getByTestId("recents-grille").className).toContain("hidden sm:block");
+    expect(screen.getByTestId("recents-cartes").className).toContain("sm:hidden");
+  });
+
+  it("porte date, épreuve et format dans la carte", async () => {
+    listEvents.mockResolvedValue({
+      items: [
+        {
+          id: 14,
+          event_name: "Tri de Nantes",
+          event_type: "triathlon-m",
+          event_date: "2026-05-16",
+          distance_km: null,
+          is_relay: false,
+          total: 148,
+          tcn_count: 3,
+        },
+      ],
+      total_events: 1,
+      total_participations: 148,
+    });
+    const ui = await AjouterPage();
+    render(ui);
+
+    const carte = dansLesCartes("recents-cartes");
+    expect(carte.getByRole("link", { name: /Tri de Nantes/ })).toHaveAttribute(
+      "href",
+      "/courses/14",
+    );
+    expect(carte.texte("16/05/2026")).toBeTruthy();
+  });
+
+  it("affiche un tiret dans la carte quand aucun membre du club n'a participé", async () => {
+    listEvents.mockResolvedValue({
+      items: [
+        {
+          id: 22,
+          event_name: "Marathon de Paris",
+          event_type: "run",
+          event_date: "2026-04-12",
+          distance_km: 42.195,
+          is_relay: false,
+          total: 5000,
+          tcn_count: 0,
+        },
+      ],
+      total_events: 1,
+      total_participations: 5000,
+    });
+    const ui = await AjouterPage();
+    render(ui);
+
+    const carte = dansLesCartes("recents-cartes");
+    expect(carte.texte("—")).toBeTruthy();
   });
 });
