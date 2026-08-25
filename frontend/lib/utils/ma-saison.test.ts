@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { Participation } from "@/lib/types";
-import { compteMaSaison, rangPourMode } from "./ma-saison";
+import { compteMaSaison } from "./ma-saison";
 
 /** Participation minimale : seuls les champs que le comptage lit sont posés. */
 function participation(over: {
@@ -19,48 +19,14 @@ function participation(over: {
   } as unknown as Participation;
 }
 
-describe("rangPourMode — miroir de stats_service._rank_counters", () => {
-  const p = participation({
-    courseId: 1,
-    rank_overall: 12,
-    rank_category: 3,
-    rank_gender: 7,
-  });
-
-  it("scratch lit rank_overall", () => {
-    expect(rangPourMode(p, "scratch")).toBe(12);
-  });
-
-  it("category lit rank_category", () => {
-    expect(rangPourMode(p, "category")).toBe(3);
-  });
-
-  it("gender lit rank_gender", () => {
-    expect(rangPourMode(p, "gender")).toBe(7);
-  });
-
-  it("all prend le meilleur des trois", () => {
-    expect(rangPourMode(p, "all")).toBe(3);
-  });
-
-  it("all ignore les rangs absents", () => {
-    const partiel = participation({ courseId: 1, rank_overall: null, rank_gender: 5 });
-    expect(rangPourMode(partiel, "all")).toBe(5);
-  });
-
-  it("all rend null quand aucun rang n'est connu", () => {
-    expect(rangPourMode(participation({ courseId: 1 }), "all")).toBeNull();
-  });
-
-  // `_accumule` sort tout de suite sur `rang < 1` : un 0 est une donnée
-  // aberrante du chronométreur, pas une victoire.
-  it("laisse passer le rang 0, que compteMaSaison écarte", () => {
-    expect(rangPourMode(participation({ courseId: 1, rank_overall: 0 }), "scratch")).toBe(0);
-    expect(compteMaSaison([participation({ courseId: 1, rank_overall: 0 })], "scratch").podiums).toBe(0);
-  });
-});
-
 describe("compteMaSaison", () => {
+  // Un 0 est une donnée aberrante du chronométreur, pas une victoire —
+  // `isPodium`/`bestRank` (club-aggregate.ts) l'exigent `>= 1`.
+  it("n'est pas un podium au rang 0", () => {
+    const lignes = [participation({ courseId: 1, rank_overall: 0 })];
+    expect(compteMaSaison(lignes, "scratch").podiums).toBe(0);
+  });
+
   it("compte les courses distinctes, pas les dossards", () => {
     // Solo + relais sur la même course : une seule épreuve courue.
     const lignes = [
