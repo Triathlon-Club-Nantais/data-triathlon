@@ -58,4 +58,16 @@ describe("formatPayload", () => {
     expect(lignes).toContainEqual({ label: "Relais", value: "non" });
     expect(lignes).toContainEqual({ label: "Source ajoutée", value: "—" });
   });
+
+  it("rend un tableau comme un décompte suivi des valeurs, jamais un CSV nu", () => {
+    const lignes = formatPayload({ athletes_purged: [12, 43, 88] });
+
+    expect(lignes).toContainEqual({ label: "Fiches coureur purgées", value: "3 (12, 43, 88)" });
+  });
+
+  it("rend un tableau vide comme « aucun »", () => {
+    const lignes = formatPayload({ athletes_purged: [] });
+
+    expect(lignes).toContainEqual({ label: "Fiches coureur purgées", value: "aucun" });
+  });
 });

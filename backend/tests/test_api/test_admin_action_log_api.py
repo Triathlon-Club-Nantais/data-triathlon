@@ -90,3 +90,41 @@ def test_lister_avec_le_seul_pouvoir_utile_reussit(client, db_session):
     _session_etroite(client, db_session, P.ADMIN_LOG_READ)
 
     assert client.get("/api/v1/admin/action-log").status_code == 200
+
+
+def test_lister_redacte_birth_date_du_payload(client, db_session):
+    """`admin_log:read` seul ne doit pas rendre `birth_date` — la seule donnée
+    personnelle fermée du site (revue finale de #501)."""
+    auteur = user_repository.create(db_session, email="auteur@exemple.fr")
+    db_session.flush()
+    admin_action_log_repository.create(
+        db_session,
+        user_id=auteur.id,
+        action="athlete.update",
+        entity_type="athlete",
+        entity_id=1,
+        payload={
+            "before": {
+                "nom": "Dupont",
+                "prenom": "Jean",
+                "birth_date": "1990-01-01",
+                "club": "TCN",
+            },
+            "after": {
+                "nom": "Dupont",
+                "prenom": "Jeanne",
+                "birth_date": "1990-01-01",
+                "club": "TCN",
+            },
+        },
+    )
+    db_session.commit()
+
+    reponse = client.get("/api/v1/admin/action-log")
+
+    assert reponse.status_code == 200
+    entree = reponse.json()["entries"][0]
+    assert "birth_date" not in entree["payload"]["before"]
+    assert "birth_date" not in entree["payload"]["after"]
+    assert entree["payload"]["before"]["nom"] == "Dupont"
+    assert entree["payload"]["after"]["prenom"] == "Jeanne"

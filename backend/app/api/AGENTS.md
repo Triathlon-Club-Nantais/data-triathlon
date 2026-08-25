@@ -278,11 +278,12 @@ bouger. Un groupe **n'accorde rien** : la garde ne les lit jamais, et
 
 ## Administration : révocation, gestes correctifs, doublons, feedback, stats
 
-Cinq sujets indépendants, chacun sous `/admin/` ou son pendant public, chacun
+Six sujets indépendants, chacun sous `/admin/` ou son pendant public, chacun
 gardé par son propre pouvoir (jamais le préfixe, cf. ci-dessus) : révocation
 d'urgence des sessions (#169), les dix ressources de `admin_data.py` (#117),
-doublons suspects (#288) — détail dans `docs/api/admin-donnees.md` ; retours
-utilisateurs (#267) et statistiques détaillées d'une participation (#272) —
+doublons suspects (#288), le journal d'administration en lecture (#501) —
+détail dans `docs/api/admin-donnees.md` ; retours utilisateurs (#267) et
+statistiques détaillées d'une participation (#272) —
 détail dans `docs/api/feedback-stats.md`.
 
 ## Page bénévoles : une seconde garde, hors du socle SSO (#271)
