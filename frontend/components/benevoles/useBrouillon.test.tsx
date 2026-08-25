@@ -143,6 +143,7 @@ describe("useBrouillon", () => {
     );
     expect(result.current.brouillon.nom_epreuve).toBe("Nouveau nom");
     expect(result.current.brouillon.bib_number).toBe("413");
+    expect(result.current.sale).toBe(true);
     // Le renommage est commité : le parent le sait, même si l'ensemble a échoué.
     expect(onChanged).toHaveBeenCalled();
   });
@@ -195,5 +196,25 @@ describe("useBrouillon", () => {
 
     await waitFor(() => expect(onSessionExpired).toHaveBeenCalled());
     expect(result.current.erreur).toBeNull();
+  });
+
+  it("resynchronise sa base sur un rechargement d'arrière-plan, sans toucher au brouillon en cours", () => {
+    const initiale = participation();
+    const { result, rerender } = renderHook(
+      ({ p }) => useBrouillon(p, { onChanged: vi.fn() }),
+      { initialProps: { p: initiale } },
+    );
+    expect(result.current.sale).toBe(false);
+
+    // Le parent recharge la file en arrière-plan (`useFileValidation.charger()`)
+    // et repasse un objet différent pour le même id — sans qu'aucun geste de ce
+    // hook n'en soit la cause.
+    const fraiche = participation({ bib_number: "999" });
+    rerender({ p: fraiche });
+
+    // Le brouillon, lui, n'a pas bougé — le bénévole n'a rien tapé.
+    expect(result.current.brouillon.bib_number).toBe("412");
+    // Mais la base de comparaison a suivi le rechargement : l'écart devient visible.
+    expect(result.current.sale).toBe(true);
   });
 });
