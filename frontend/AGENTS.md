@@ -274,6 +274,22 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   pour que son apparition ne déplace rien. Seul un besoin **serveur** authentique
   — une requête API qui dépendrait de l'athlète retenu — rouvrirait
   l'arbitrage ; de la mise en avant, non.
+- **Les trois surfaces qui propagent l'athlète retenu** (#503) — la pastille
+  « Mes résultats » de `/resultats`, la ligne marquée « Vous » et le bouton
+  « Aller à ma ligne » du classement d'épreuve, le raccourci de la tuile du
+  rail. Toutes lisent `useSelectedAthlete()`
+  (`components/layout/AthletePicker.tsx`, à côté de `useIsSelectedAthlete`),
+  dont le snapshot est **mémorisé sur la chaîne brute du stock** :
+  `readAthlete()` reconstruit un objet à chaque lecture, et le rendre tel quel
+  fait rendre `useSyncExternalStore` en boucle. Trois invariants :
+  **aucun filtre n'est appliqué au chargement** — chaque geste demande un clic
+  et se révoque par une commande déjà à l'écran (le chip `Athlète : … ✕`, le
+  bandeau « … · Effacer » de #485) ; **le liseré orange gauche du classement
+  reste réservé à `is_tcn`**, d'où le fond `--tcn-orange-08` et le chip
+  « Vous », qui porte le sens que la couleur seule ne peut pas porter
+  (WCAG 1.4.1) ; et **« Aller à ma ligne » cherche, il ne saute pas** —
+  l'ordre d'affichage est une propriété de la requête SQL depuis #163, le
+  front ne sait pas calculer « ma page », et `q` y mène à coût backend nul.
 - **Rail replié, cookie de largeur, nav mobile** (#482) — le rail replié
   porte désormais un monogramme texte lié à `/dashboard` en plus du bouton de
   pliage (l'en-tête passe en colonne à cet état, faute de place pour les
