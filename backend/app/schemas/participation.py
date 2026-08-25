@@ -92,9 +92,11 @@ class ParticipationCreate(BaseModel):
     (forme plate) ; le service les normalise en Athlete + Course + Participation.
     """
 
-    # Source / provider
+    # Ignoré par la route, jamais lu (#565) : accepté pour ne pas casser un
+    # appelant `/api/v1` existant (Principe IV), mais `provider="manuel"` et
+    # l'absence de source active sont forcés côté serveur, voir
+    # `api/v1/participations._to_scraped` et `backend/app/api/AGENTS.md`.
     source_url: str = ""
-    provider: str = "manuel"
     # Athlète
     athlete_name: str = ""
     athlete_firstname: str = ""
