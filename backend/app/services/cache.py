@@ -23,15 +23,22 @@ from app.core.config import Settings
 from app.core.time import utcnow
 from app.models.course import Course
 from app.models.participation import Participation
+from app.services.quality import _ZERO_TIMES
 
 
 def is_in_progress(db: Session, course_id: int) -> bool:
-    """Vrai si au moins une participation n'a pas de temps final (course en cours)."""
+    """Vrai si au moins une participation n'a pas de temps final (course en cours).
+
+    Un temps « zéro » (`00:00:00`, `0:00`…) vaut temps absent — même définition
+    que `quality._ZERO_TIMES`, réutilisée ici plutôt que dupliquée : un
+    chronométreur qui publie ce placeholder en attendant les temps réels ne doit
+    pas faire passer l'épreuve au TTL long (#566).
+    """
     return (
         db.query(Participation.id)
         .filter(
             Participation.course_id == course_id,
-            (Participation.total_time.is_(None)) | (Participation.total_time == ""),
+            (Participation.total_time.is_(None)) | (Participation.total_time.in_(_ZERO_TIMES)),
         )
         .first()
         is not None

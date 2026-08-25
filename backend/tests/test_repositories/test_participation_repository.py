@@ -569,6 +569,73 @@ def test_ordre_affichage_non_classes_apres_les_classes_parmi_les_finishers(db_se
     assert ids.index(lignes["sansrang_a"].id) < ids.index(lignes["dnf_temps"].id)
 
 
+def test_feuilletage_page_size_1_stable_avec_deux_homonymes_exacts(db_session):
+    """Deux athlètes distincts, mêmes nom/prénom, même groupe/rang/temps : rien
+    ne les distingue avant la clé finale de `_ordre_affichage`. Sur cette
+    épreuve figée (aucune écriture concurrente entre les pages), SQLite rend un
+    plan stable même sans clé finale — ce test ne peut donc pas, à lui seul,
+    reproduire le doublon/l'oubli en feuilletant (le défaut est un plan de
+    requête non garanti, cf. docstring de `summary_rows_for_course` sur
+    PostgreSQL : « l'ordre du tas n'est pas stable (UPDATE, VACUUM) »). Il fige
+    quand même le contrat observable : chaque page est disjointe des autres et
+    leur réunion couvre tout le classement.
+    """
+    course = course_repository.get_or_create(
+        db_session, name="Tri Homonymes", event_date=date(2026, 6, 3), event_type="triathlon-m"
+    )
+    # Deux athlètes distincts (dates de naissance différentes) mais nom et
+    # prénom identiques — et la même absence de rang/temps : rien ne les
+    # distingue avant la clé finale.
+    homonyme_1 = athlete_repository.get_or_create(
+        db_session, nom="MARTIN", prenom="Alex", birth_date=date(1990, 1, 1)
+    )
+    homonyme_2 = athlete_repository.get_or_create(
+        db_session, nom="MARTIN", prenom="Alex", birth_date=date(1995, 6, 15)
+    )
+    autre = athlete_repository.get_or_create(db_session, nom="ZOLA", prenom="Bertrand")
+
+    lignes = [
+        participation_repository.create(
+            db_session, athlete_id=homonyme_1.id, course_id=course.id, bib_number="1",
+            status="finisher", rank_overall=None, total_time=None,
+        ),
+        participation_repository.create(
+            db_session, athlete_id=homonyme_2.id, course_id=course.id, bib_number="2",
+            status="finisher", rank_overall=None, total_time=None,
+        ),
+        participation_repository.create(
+            db_session, athlete_id=autre.id, course_id=course.id, bib_number="3",
+            status="finisher", rank_overall=None, total_time=None,
+        ),
+    ]
+    db_session.flush()
+    ids_attendus = {p.id for p in lignes}
+
+    vues: list[int] = []
+    for page in range(1, len(lignes) + 1):
+        rows, total = participation_repository.list_page_for_course(
+            db_session, course.id, page=page, page_size=1
+        )
+        assert total == len(lignes)
+        vues.extend(p.id for p in rows)
+
+    assert len(vues) == len(ids_attendus)  # aucune ligne vue deux fois
+    assert set(vues) == ids_attendus  # aucune ligne manquante
+
+
+def test_ordre_affichage_departage_sur_l_id_en_dernier_recours(db_session):
+    """La garantie réelle derrière le test de feuilletage ci-dessus : la requête
+    SQL elle-même porte une clé de départage unique. `Participation.id` est
+    l'unique clé qui ne peut jamais être à égalité entre deux lignes — c'est
+    elle qui doit fermer `_ordre_affichage`, comme `summary_rows_for_course`
+    le fait déjà via `.order_by(Participation.id)`.
+    """
+    derniere_cle = participation_repository._ordre_affichage()[-1]
+    compiled = derniere_cle.compile(db_session.bind, compile_kwargs={"literal_binds": True})
+
+    assert str(compiled) == "participations.id"
+
+
 def _classement_accents(db_session):
     course = course_repository.get_or_create(
         db_session, name="Tri Accents", event_date=date(2026, 6, 2), event_type="triathlon-m"

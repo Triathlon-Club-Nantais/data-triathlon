@@ -123,6 +123,29 @@ def test_run_batch_une_exception_reelle_compte_aussi_une_erreur(db_session, monk
     assert totals.imported == 0
 
 
+def test_run_batch_une_exception_a_message_vide_compte_une_erreur(db_session, monkeypatch):
+    """`str(ValueError())` vaut `""` : sans repli sur le nom de la classe, le
+    `if result.error:` de `run_batch` est faux et l'épreuve est comptée en
+    succès (zéro participant) au lieu d'une erreur.
+    """
+    def _phases(db, url, settings, force=False, persist=True, **kwargs):
+        raise ValueError
+        yield  # pragma: no cover — fait de _phases un générateur
+
+    monkeypatch.setattr(import_service, "iter_import_event", _phases)
+
+    totals = batch.run_batch(
+        db_session, [BatchItem(url="https://k/1", label="A")], _settings(),
+        force=False, delay=0.0,
+    )
+
+    assert totals.errors == 1
+    assert totals.imported == 0
+    assert totals.failures == [
+        batch.BatchFailure(url="https://k/1", label="A", message="ValueError"),
+    ]
+
+
 def test_run_batch_ctrl_c_conserve_le_travail_deja_fait(db_session, monkeypatch, fake_reporter):
     def _phases(db, url, settings, force=False, persist=True, **kwargs):
         if "stop" in url:
