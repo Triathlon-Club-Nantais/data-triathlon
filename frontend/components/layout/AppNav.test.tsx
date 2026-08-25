@@ -471,6 +471,20 @@ describe("AppNav — actions primaires", () => {
     expect(within(modale).getByText("Saisissez au moins 2 lettres de votre nom.")).toBeInTheDocument();
   });
 
+  // #502, revue UI/UX item 11 : la bande « Ma saison » n'a ni route ni état
+  // pour ouvrir la palette quand l'athlète retenu a disparu (404) — elle le
+  // demande par cet événement, qu'`AppNav` seul sait exaucer (`pickerOpen`
+  // est local à ce composant). #503 et #504 en auront besoin aussi.
+  it("ouvre le picker sur OPEN_PICKER_EVENT", async () => {
+    afficher(null);
+    act(() => {
+      window.dispatchEvent(new Event("tcn-athlete-open-picker"));
+    });
+
+    const modale = await screen.findByRole("dialog");
+    expect(within(modale).getByText("Sélectionnez votre nom")).toBeInTheDocument();
+  });
+
   it("garde la recherche accessible en plus de la tuile, athlète retenu, rail déplié (#323)", async () => {
     window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 12, prenom: "Jean", nom: "Dupont" }));
     afficher(null);
