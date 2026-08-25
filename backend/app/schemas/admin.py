@@ -380,6 +380,29 @@ class CoursesWipeImpact(BaseModel):
     athletes: int
 
 
+class ParticipationsWipeResult(BaseModel):
+    """Ce qu'une purge totale des résultats a détruit, une fois faite (#501).
+
+    Miroir du `resume` que `admin_actions.wipe_all_participations` calcule déjà
+    — la route ne le jetait pas moins qu'elle ne le rendait, elle rendait un
+    `204` sans corps. `courses_reset` n'apparaît jamais dans le payload
+    journalisé (la règle du journal borne ce qu'il garde à ce que la
+    confirmation a chiffré), mais il fait partie de la réponse : c'est
+    l'appelant HTTP qui en a besoin pour l'annoncer, pas le journal.
+    """
+
+    participations_deleted: int
+    athletes_purged: int
+    courses_reset: int
+
+
+class CoursesWipeResult(BaseModel):
+    """Ce qu'une purge totale des épreuves a détruit, une fois faite (#501)."""
+
+    courses_deleted: int
+    athletes_purged: int
+
+
 class MergeImpactCourse(BaseModel):
     """Un des deux côtés d'une fusion, tel qu'il se présente à l'arbitrage (#286).
 
@@ -594,3 +617,27 @@ class SessionRevocationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     email: str | None = None
+
+
+class AdminActionLogEntry(BaseModel):
+    """Une entrée du journal d'administration, prête à afficher (#501).
+
+    `user_name` vient de `AdminActionLog.user.display_name`, résolu côté route
+    — pas de `| None` ici contrairement à `AllowedEmailRead.created_by_name` :
+    `user_id` est une FK `NOT NULL`, l'auteur existe toujours.
+    """
+
+    id: int
+    created_at: datetime
+    user_name: str
+    action: str
+    entity_type: str
+    entity_id: int
+    payload: dict | None = None
+
+
+class AdminActionLogPage(BaseModel):
+    """Une page du journal — `total` porte le compte plein, pas celui de la page."""
+
+    entries: list[AdminActionLogEntry]
+    total: int
