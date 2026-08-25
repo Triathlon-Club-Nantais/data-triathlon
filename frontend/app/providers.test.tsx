@@ -70,6 +70,7 @@ describe("PostLoginReturn (#494)", () => {
     vi.mocked(toast.success).mockClear();
     sessionStorage.clear();
     pathname.value = "/dashboard";
+    window.history.pushState({}, "", "/dashboard");
   });
 
   it("ramène vers le chemin mémorisé quand il diffère de l'atterrissage, et confirme la connexion", async () => {
@@ -111,5 +112,36 @@ describe("PostLoginReturn (#494)", () => {
 
     expect(replace).not.toHaveBeenCalled();
     expect(sessionStorage.getItem(RETOUR_CONNEXION_KEY)).toBeNull();
+  });
+
+  it("compare au chemin d'atterrissage, pas à une navigation survenue avant que la session ne soit connue", () => {
+    // Atterrissage : déjà au bon endroit, rien à faire.
+    pathname.value = "/carte";
+    window.history.pushState({}, "", "/carte");
+    sessionStorage.setItem(RETOUR_CONNEXION_KEY, "/carte");
+    useSession.mockReturnValue({ data: undefined });
+    const { rerender } = render(<Providers>{null}</Providers>);
+
+    // L'utilisateur navigue ailleurs avant que la session ne soit connue : le
+    // chemin courant n'est plus celui de l'atterrissage.
+    pathname.value = "/dashboard";
+    window.history.pushState({}, "", "/dashboard");
+    useSession.mockReturnValue({ data: SESSION });
+    rerender(<Providers>{null}</Providers>);
+
+    // Comparer au chemin courant (/dashboard) renverrait à tort vers /carte,
+    // écrasant la navigation que l'utilisateur vient de faire lui-même.
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("compare aussi la chaîne de requête à l'atterrissage, pas seulement le chemin", () => {
+    pathname.value = "/club";
+    window.history.pushState({}, "", "/club?scope=club");
+    sessionStorage.setItem(RETOUR_CONNEXION_KEY, "/club?scope=federal");
+    useSession.mockReturnValue({ data: SESSION });
+
+    render(<Providers>{null}</Providers>);
+
+    expect(replace).toHaveBeenCalledWith("/club?scope=federal");
   });
 });

@@ -38,6 +38,7 @@ function afficher(session: SessionUser | null, props: { pleineLargeur?: boolean;
   push.mockClear();
   logout.mockClear();
   sessionStorage.clear();
+  window.history.pushState({}, "", "/");
   logout.mockResolvedValue(undefined);
   if (session) getSession.mockResolvedValue(session);
   else getSession.mockRejectedValue(new ApiError(401, "anonyme"));
@@ -84,6 +85,15 @@ describe("UserMenu — anonyme (AC5)", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Se connecter" }));
 
     expect(sessionStorage.getItem(RETOUR_CONNEXION_KEY)).toBe("/dashboard");
+  });
+
+  it("mémorise aussi la chaîne de requête, sans quoi un filtre d'URL se perd au retour (#494)", async () => {
+    afficher(null);
+    window.history.pushState({}, "", "/dashboard?scope=club");
+
+    await userEvent.click(await screen.findByRole("button", { name: "Se connecter" }));
+
+    expect(sessionStorage.getItem(RETOUR_CONNEXION_KEY)).toBe("/dashboard?scope=club");
   });
 });
 
