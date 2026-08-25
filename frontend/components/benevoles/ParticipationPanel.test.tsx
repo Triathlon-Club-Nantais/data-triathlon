@@ -175,6 +175,28 @@ describe("ParticipationPanel — enregistrement unique", () => {
     expect(updateParticipationFieldsBenevole).not.toHaveBeenCalled();
     expect(renameCourseBenevole).not.toHaveBeenCalled();
   });
+
+  it("affiche « Validation… », pas « Enregistrement… », en validant un brouillon propre", async () => {
+    // Le geste le plus fréquent de l'écran — valider une entrée non
+    // modifiée — n'enregistre rien : seul l'appel de validation tourne. Avant
+    // #490 (revue de branche finale), le bouton affichait quand même
+    // « Enregistrement… » pendant cet appel.
+    let resoudre!: (p: Participation) => void;
+    validateParticipationBenevole.mockReturnValue(
+      new Promise<Participation>((resolve) => {
+        resoudre = resolve;
+      }),
+    );
+    render(<ParticipationPanel participation={participation()} onChanged={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Valider ce résultat/ }));
+
+    expect(await screen.findByRole("button", { name: "Validation…" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Enregistrement…" })).not.toBeInTheDocument();
+
+    resoudre(participation({ is_pending_validation: false }));
+    await waitFor(() => expect(validateParticipationBenevole).toHaveBeenCalled());
+  });
 });
 
 describe("ParticipationPanel — erreurs", () => {

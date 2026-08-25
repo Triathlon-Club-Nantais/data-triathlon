@@ -44,6 +44,13 @@ export function useBrouillon(
   const [brouillon, setBrouillon] = useState<Brouillon>(() => brouillonDepuis(participationInitiale));
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
+  // Distinct d'`enCours` : celui-ci reste vrai pendant tout `validerLeResultat`
+  // (l'éventuel `enregistrer()` compris), `validationEnCours` ne l'est que
+  // pendant l'appel de validation lui-même — le seul appel réseau du geste le
+  // plus fréquent de l'écran, un brouillon propre (#490, revue de branche
+  // finale : le bouton affichait « Enregistrement… » pour un appel qui ne
+  // fait que valider).
+  const [validationEnCours, setValidationEnCours] = useState(false);
 
   // La dernière participation que *ce hook* a lui-même posée comme base après
   // un enregistrement. Si la prop qui arrive est cette même référence — le
@@ -127,6 +134,7 @@ export function useBrouillon(
   const validerLeResultat = useCallback(async () => {
     if (!(await enregistrer())) return;
     setEnCours(true);
+    setValidationEnCours(true);
     try {
       onChanged(await apiClient.validateParticipationBenevole(participation.id));
     } catch (err) {
@@ -137,6 +145,7 @@ export function useBrouillon(
       setErreur(err instanceof ApiError ? err.message : "La validation a échoué. Réessayez plus tard.");
     } finally {
       setEnCours(false);
+      setValidationEnCours(false);
     }
   }, [enregistrer, participation.id, onChanged, onSessionExpired]);
 
@@ -146,6 +155,7 @@ export function useBrouillon(
     sale: estSale(brouillon, participation),
     erreur,
     enCours,
+    validationEnCours,
     enregistrer,
     validerLeResultat,
   };
