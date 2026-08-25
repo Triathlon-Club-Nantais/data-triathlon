@@ -86,6 +86,12 @@ describe("PodiumsList — annonce du changement (#477)", () => {
     render(<PodiumsList podiums={PODIUMS} />);
     expect(screen.getByRole("status")).toHaveTextContent("1 podium affiché");
   });
+
+  it("reste montée et annonce zéro quand la bascule ne laisse plus aucun podium (revue de code)", () => {
+    searchParams = new URLSearchParams();
+    render(<PodiumsList podiums={EMPTY} />);
+    expect(screen.getByRole("status")).toHaveTextContent("0 podium affiché");
+  });
 });
 
 describe("PodiumsList — extension de la liste (PROF-3, #488)", () => {
@@ -115,5 +121,39 @@ describe("PodiumsList — extension de la liste (PROF-3, #488)", () => {
     await user.click(screen.getByRole("button", { name: "Voir les 3 autres podiums" }));
 
     expect(screen.getAllByRole("listitem")).toHaveLength(9);
+  });
+
+  it("porte aria-expanded, à jour après le clic", async () => {
+    searchParams = new URLSearchParams();
+    const user = userEvent.setup();
+    render(<PodiumsList podiums={NEUF} />);
+    const bouton = screen.getByRole("button", { name: "Voir les 3 autres podiums" });
+    expect(bouton).toHaveAttribute("aria-expanded", "false");
+    await user.click(bouton);
+    expect(screen.getByRole("button", { name: "Réduire la liste" })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("réduit la liste au second clic, focus préservé, et l'annonce suit", async () => {
+    searchParams = new URLSearchParams();
+    const user = userEvent.setup();
+    render(<PodiumsList podiums={NEUF} />);
+    const bouton = screen.getByRole("button", { name: "Voir les 3 autres podiums" });
+    await user.click(bouton);
+    const reduire = screen.getByRole("button", { name: "Réduire la liste" });
+    expect(reduire).toBe(bouton);
+    await user.click(reduire);
+    expect(screen.getAllByRole("listitem")).toHaveLength(APERCU_PODIUMS);
+    expect(screen.getByRole("button", { name: "Voir les 3 autres podiums" })).toHaveFocus();
+    expect(screen.getByText("6 podiums affichés")).toBeInTheDocument();
+  });
+
+  it("accorde le singulier quand il ne reste qu'un podium", () => {
+    searchParams = new URLSearchParams();
+    render(
+      <PodiumsList
+        podiums={{ ...EMPTY, scratch: NEUF.scratch.slice(0, APERCU_PODIUMS + 1) }}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Voir l'autre podium" })).toBeInTheDocument();
   });
 });
