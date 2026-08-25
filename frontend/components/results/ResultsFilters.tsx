@@ -192,20 +192,6 @@ export function ResultsFilters() {
               placeholder="Rechercher un athlète"
               className="w-full sm:w-48"
             />
-            {proposePastille && (
-              <button
-                type="button"
-                onClick={() => {
-                  setName(nomRetenu);
-                  apply(nomRetenu);
-                }}
-                aria-label={`Mes résultats — ${nomRetenu}`}
-                className="flex min-h-6 items-center gap-1.5 self-start text-xs font-bold text-[var(--tcn-orange-deep)]"
-              >
-                <Avatar name={nomRetenu} size={18} />
-                Mes résultats
-              </button>
-            )}
           </Field>
           <div className="hidden sm:contents">
             <ChampsReplies
@@ -244,6 +230,28 @@ export function ResultsFilters() {
             )}
           </div>
         </div>
+
+        {proposePastille && (
+          // Sa propre rangée, sous les filtres plutôt que dans le `Field`
+          // « Athlète » : dans le `Field`, la pastille faisait grandir ce
+          // champ de ~30 px et lui faisait perdre la ligne de base que
+          // `items-end` partage avec les autres champs — un décalage qui
+          // survient à l'hydratation, `useSelectedAthlete()` rendant `null`
+          // au serveur. « Une commande en plus, pas un déplacement de
+          // contenu » (maquette approuvée).
+          <button
+            type="button"
+            onClick={() => {
+              setName(nomRetenu);
+              apply(nomRetenu);
+            }}
+            aria-label={`Mes résultats — ${nomRetenu}`}
+            className="flex min-h-6 items-center gap-1.5 self-start text-xs font-bold text-[var(--tcn-orange-deep)]"
+          >
+            <Avatar name={nomRetenu} size={18} />
+            Mes résultats
+          </button>
+        )}
 
         {active.length > 0 && (
           <div className="flex flex-wrap gap-2 border-t pt-3">

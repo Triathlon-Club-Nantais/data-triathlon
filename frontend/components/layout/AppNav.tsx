@@ -562,7 +562,12 @@ function NavContent({
                     href={`/athletes/${athlete.id}`}
                     prefetch={false}
                     onClick={onNavigate}
-                    style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 14, color: "var(--tcn-orange-deep)", textDecoration: "none", ...tronque }}
+                    // `--tcn-orange-deeper`, pas `-deep` : posé sur le fond de
+                    // la tuile (`--tcn-orange-08` composé sur `--tcn-surface`,
+                    // soit #fdf1ec), `-deep` ne tient que 4,13:1 (WCAG 1.4.3),
+                    // contre 4,57:1 sur blanc — c'est le fond, pas le token,
+                    // qui a changé le verdict. `-deeper` tient 5,21:1.
+                    style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 14, color: "var(--tcn-orange-deeper)", textDecoration: "none", ...tronque }}
                   >
                     {/* Le prénom vient de l'API, jamais d'un découpage du nom
                         complet : « Jean Gael » est **un** prénom, et
@@ -630,7 +635,10 @@ function NavContent({
                   padding: "0 4px",
                   fontWeight: 700,
                   fontSize: 13,
-                  color: "var(--tcn-orange-deep)",
+                  // `--tcn-orange-deeper` : même fond que le lien du prénom
+                  // ci-dessus, même verdict de contraste (4,13:1 en `-deep`
+                  // sur ce fond, contre 5,21:1 en `-deeper`).
+                  color: "var(--tcn-orange-deeper)",
                   textDecoration: "none",
                 }}
               >

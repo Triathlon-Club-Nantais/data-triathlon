@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { buildResultsQuery, ResultsFilters } from "./ResultsFilters";
@@ -279,6 +279,10 @@ describe("ResultsFilters — volet mobile", () => {
 const JEAN = { id: 12, prenom: "Jean", nom: "Dupont" };
 
 describe("ResultsFilters — pastille de l'athlète retenu (NAV-10, #503)", () => {
+  // Restauré en `afterEach` : sans lui, le prochain `describe` hériterait en
+  // silence de ce faux `localStorage`.
+  const descripteurOriginal = Object.getOwnPropertyDescriptor(window, "localStorage")!;
+
   beforeEach(() => {
     push.mockReset();
     replace.mockReset();
@@ -293,6 +297,10 @@ describe("ResultsFilters — pastille de l'athlète retenu (NAV-10, #503)", () =
         clear: () => stock.clear(),
       },
     });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, "localStorage", descripteurOriginal);
   });
 
   it("ne propose rien quand aucun athlète n'est retenu", () => {

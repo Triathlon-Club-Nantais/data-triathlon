@@ -122,6 +122,9 @@ export function RaceFinishers({
   // tranche affichée — c'est tout ce que le client tient. Un seul appel, en
   // tête : un hook ne s'appelle pas dans la boucle des lignes.
   const athleteRetenu = useSelectedAthlete();
+  // Même patron que `ResultsFilters` (`nomRetenu`) : les deux surfaces se
+  // lisent pareil, et évite de recalculer `nomComplet` à chaque usage du rendu.
+  const nomRetenu = athleteRetenu ? nomComplet(athleteRetenu) : null;
 
   function trierSur(cle: string) {
     setTri((precedent) =>
@@ -250,8 +253,12 @@ export function RaceFinishers({
           {athleteRetenu && (
             <button
               type="button"
-              onClick={() => naviguer({ q: nomComplet(athleteRetenu) })}
-              aria-label={`Aller à ma ligne — ${nomComplet(athleteRetenu)}`}
+              // La portée club ne survit pas au saut : `scope=club` filtre déjà
+              // sur `is_tcn`, or la recherche par nom peut viser un athlète
+              // hors club — le garder pouvait faire échouer un saut qui devrait
+              // réussir.
+              onClick={() => naviguer({ q: nomRetenu, [SCOPE_PARAM]: null })}
+              aria-label={`Aller à ma ligne — ${nomRetenu}`}
               style={{ height: 34, padding: "0 12px", fontSize: 13, fontWeight: 700, borderRadius: 8, border: "1.5px solid var(--tcn-orange-deep)", background: "var(--tcn-surface)", color: "var(--tcn-orange-deep)", cursor: "pointer" }}
             >
               Aller à ma ligne
@@ -394,17 +401,21 @@ export function RaceFinishers({
                   </Link>
                 }
               />
-            ) : rechercheUrl && athleteRetenu && rechercheUrl === nomComplet(athleteRetenu) ? (
+            ) : rechercheUrl && athleteRetenu && rechercheUrl === nomRetenu ? (
               // « Aller à ma ligne » ne peut pas savoir d'avance si l'athlète
               // retenu a couru : ici, il n'a pas couru. Le dire, plutôt que
-              // d'annoncer un échec de recherche que personne n'a lancée.
+              // d'annoncer un échec de recherche que personne n'a lancée. La
+              // portée club tombe avec la recherche : la sélection club n'est
+              // pas une intention que « aller à ma ligne » doit préserver, et
+              // « Voir tous les participants » doit montrer tous les
+              // participants, pas seulement ceux du club.
               <EmptyState
                 bare
-                title={`${nomComplet(athleteRetenu)} ne figure pas sur cette épreuve`}
+                title={`${nomRetenu} ne figure pas sur cette épreuve`}
                 action={
                   <button
                     type="button"
-                    onClick={() => naviguer({ q: null })}
+                    onClick={() => naviguer({ q: null, [SCOPE_PARAM]: null })}
                     style={STYLE_BOUTON_ABSENCE}
                   >
                     Voir tous les participants
