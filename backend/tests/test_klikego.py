@@ -15,6 +15,7 @@ Chaque test correspond à un cas réel rencontré lors du développement :
 import base64
 from pathlib import Path
 
+import httpx
 import pytest
 from bs4 import BeautifulSoup
 
@@ -1437,6 +1438,182 @@ def test_scrape_event_all_fetches_detail_for_non_tcn(monkeypatch):
     assert r182.run_time == "00:08:55"
 
 
+def test_scrape_event_all_phase_c_paralleles_avec_plafond(monkeypatch):
+    """Phase C : les requêtes de détail partent en parallèle, plafonnées (#583).
+
+    Sonde thread-safe : compte la concurrence effective des GET vers
+    resultat-participant.jsp. Une boucle séquentielle ne dépasserait jamais 1.
+    """
+    import threading
+    import time
+
+    page0 = (FIXTURES / "klikego_datablock_page0.html").read_text()
+
+    concurrency = {"current": 0, "peak": 0}
+    lock = threading.Lock()
+
+    class FakeResp:
+        def __init__(self, t, code=200):
+            self.text, self.status_code = t, code
+
+    class FakeClient:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+        def get(self, url):
+            if "resultat-participant.jsp" in url:
+                with lock:
+                    concurrency["current"] += 1
+                    concurrency["peak"] = max(concurrency["peak"], concurrency["current"])
+                time.sleep(0.05)
+                with lock:
+                    concurrency["current"] -= 1
+                return FakeResp("<html></html>")
+            if "course-result.jsp" in url and "inter=&page=0" in url:
+                return FakeResp(page0)
+            if "course-result.jsp" in url:
+                return FakeResp("<html></html>")
+            if "resultats-search.jsp" in url:
+                return FakeResp("<html></html>")
+            return FakeResp("<html></html>")
+
+    monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
+    monkeypatch.setattr(klikego, "_fetch_event_meta", lambda *a, **k: ("triathlon-s-light", None))
+
+    klikego.scrape_event_all(
+        "1488071608761-572", "triathlon-s-light",
+        "Triathlon Test 2024", "triathlon-test-2024",
+    )
+
+    assert concurrency["peak"] > 1, (
+        f"les requêtes de détail devraient partir en parallèle, pic={concurrency['peak']}"
+    )
+    assert concurrency["peak"] <= 10, f"plafond de 10 workers dépassé : pic={concurrency['peak']}"
+
+
+def test_scrape_event_all_phase_c_ignore_les_echecs_reseau_par_participant(monkeypatch, caplog):
+    """Un GET de détail qui lève (réseau) ne fait pas échouer tout le heat (#583).
+
+    Avant ce correctif, l'exception remontait par `future.result()` et faisait
+    échouer `_scrape_single_heat` — mais `ThreadPoolExecutor.__exit__` (sans
+    `cancel_futures`) attend d'abord que **toutes** les tâches déjà soumises se
+    terminent, donc un flake sur un gros heat aurait payé le coût de la
+    quasi-totalité des requêtes avant d'abandonner. Le participant en échec
+    garde ses splits de phase B (inter, non écrasés) ; les autres reçoivent
+    leurs splits fins normalement.
+    """
+    page0 = (FIXTURES / "klikego_datablock_page0.html").read_text()
+
+    detail_182 = make_detail_html(
+        meta="F - Dossard N°182 - V3 - ST NAZAIRE",
+        total_time="01:14:35",
+        splits=[
+            ("Natation", "00:16:24"),
+            ("Vélo",     "00:31:00"),
+            ("Course",   "00:08:55"),
+        ],
+    )
+
+    class FakeResp:
+        def __init__(self, t, code=200):
+            self.text, self.status_code = t, code
+
+    class FakeClient:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+        def get(self, url):
+            if "resultat-participant.jsp" in url and "dossard=422" in url:
+                raise httpx.ConnectError("boom")
+            if "resultat-participant.jsp" in url and "dossard=182" in url:
+                return FakeResp(detail_182)
+            if "resultat-participant.jsp" in url:
+                return FakeResp("<html></html>")
+            if "course-result.jsp" in url and "inter=&page=0" in url:
+                return FakeResp(page0)
+            if "course-result.jsp" in url:
+                return FakeResp("<html></html>")
+            if "resultats-search.jsp" in url:
+                return FakeResp("<html></html>")
+            return FakeResp("<html></html>")
+
+    monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
+    monkeypatch.setattr(klikego, "_fetch_event_meta", lambda *a, **k: ("triathlon-s-light", None))
+
+    import logging as _log
+    with caplog.at_level(_log.WARNING, logger="app.scrapers.klikego"):
+        results = klikego.scrape_event_all(
+            "1488071608761-572", "triathlon-s-light",
+            "Triathlon Test 2024", "triathlon-test-2024",
+        )
+
+    r422 = next(r for r in results if r.bib_number == "422")
+    r182 = next(r for r in results if r.bib_number == "182")
+
+    assert r422 is not None, "le participant en échec réseau reste dans le résultat"
+    assert r182.swim_time == "00:16:24", "182 doit recevoir ses splits fins malgré l'échec de 422"
+    assert any("422" in rec.message for rec in caplog.records), "l'échec réseau doit être journalisé"
+
+
+def test_scrape_event_fanout_on_detail_progress_notifie_pendant_la_phase_c(monkeypatch):
+    """`on_detail_progress` rapporte l'avancement dans la phase C d'un heat (#583).
+
+    Sans lui, la progression SSE reste figée sur tout un heat (jusqu'à ~4 min
+    sur 250 participants) : elle doit être notifiée par lot, pas seulement une
+    fois par heat comme `on_heat_start`.
+    """
+    event_html = load_klikego_fixture("mesquer-2026-event.html")
+    page0 = (FIXTURES / "klikego_datablock_page0.html").read_text()
+
+    class FakeResp:
+        def __init__(self, text: str, code: int = 200):
+            self.text, self.status_code = text, code
+
+    class FakeClient:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+        def get(self, url: str):
+            if "course-result.jsp" in url:
+                if "inter=&page=0" in url:
+                    return FakeResp(page0)
+                return FakeResp("<html></html>")
+            if "resultats-search.jsp" in url:
+                return FakeResp("<html></html>")
+            if "resultat-participant.jsp" in url:
+                return FakeResp("<html></html>")
+            if "?heat=" in url:
+                return FakeResp("<html></html>")
+            return FakeResp(event_html)
+
+    monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
+    monkeypatch.setattr(klikego, "_fetch_event_meta", lambda *a, **k: ("", None))
+
+    # Ne laisser passer qu'un seul heat, sans quoi les 50 requêtes de détail
+    # de page0 se répéteraient sur les 8 heats de la fixture.
+    def probe(heat_url: str) -> bool:
+        return "?heat=triathlon-s-indiv" not in heat_url
+
+    notifications: list[tuple[str, int, int, int, int]] = []
+
+    def on_detail_progress(heat_slug, heat_label, heat_index, heats_total, done, total):
+        notifications.append((heat_slug, heat_index, heats_total, done, total))
+
+    klikego.scrape_event_fanout(
+        "1677015306084-12", "Mesquer", "triathlon-et-swimrun-mesquer-quimiac-2026",
+        cache_probe=probe, on_detail_progress=on_detail_progress,
+    )
+
+    assert notifications, "la phase C d'un heat de 50 participants doit notifier au moins une fois"
+    assert all(n[0] == "triathlon-s-indiv" for n in notifications)
+    assert all(n[1] == 1 and n[2] == 1 for n in notifications), "seul heat non-caché : index 1/1"
+    assert notifications[-1][3] == notifications[-1][4] == 50, "la dernière notification couvre la totalité"
+    assert len(notifications) < 50, "notifié par lot, pas à chaque participant"
+
+
 # ── _enumerate_heats — fan-out event (issue #156) ────────────────────────────
 
 
@@ -1577,10 +1754,10 @@ def test_scrape_event_fanout_heat_failure_isolated(monkeypatch, caplog):
     from app.scrapers import klikego as kli_mod
     original = kli_mod._scrape_single_heat
 
-    def flaky(event_id, heat, heat_label, event_name, slug, event_date, client):
+    def flaky(event_id, heat, heat_label, event_name, slug, event_date, client, **kwargs):
         if heat == "triathlon-xs-relais":
             raise RuntimeError("boom on xs-relais")
-        return original(event_id, heat, heat_label, event_name, slug, event_date, client)
+        return original(event_id, heat, heat_label, event_name, slug, event_date, client, **kwargs)
 
     monkeypatch.setattr(kli_mod, "_scrape_single_heat", flaky)
 

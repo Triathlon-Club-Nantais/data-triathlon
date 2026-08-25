@@ -237,9 +237,15 @@ class KlikegoProvider(FanoutProvider):
         *,
         cache_probe: Callable[[str], bool] | None = None,
         on_heat_start: Callable[[str, str, int, int], None] | None = None,
+        on_detail_progress: Callable[[str, str, int, int, int, int], None] | None = None,
         single_heat: bool = False,
     ) -> list[ScrapedResult]:
-        """Fan-out par défaut ; `single_heat=True` cible le `?heat=X` de l'URL."""
+        """Fan-out par défaut ; `single_heat=True` cible le `?heat=X` de l'URL.
+
+        `on_detail_progress` (#583) : seul Klikego a une phase C coûteuse par
+        participant — c'est pourquoi ce paramètre n'existe que sur ce provider,
+        et pas sur `FanoutProvider.scrape_event_all`.
+        """
         event_id, heat_query, slug, event_name = self._parse_url(url)
 
         if single_heat:
@@ -258,6 +264,7 @@ class KlikegoProvider(FanoutProvider):
         results, trace = klikego.scrape_event_fanout(
             event_id, event_name, slug,
             cache_probe=cache_probe, on_heat_start=on_heat_start,
+            on_detail_progress=on_detail_progress,
         )
         self.last_trace = trace
         return results

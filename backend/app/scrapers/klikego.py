@@ -11,6 +11,7 @@ Klikego API returns HTML (not JSON):
 import logging
 import re
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import httpx
 from bs4 import BeautifulSoup
@@ -38,6 +39,15 @@ HEADERS = {
     "Referer": "https://www.klikego.com/",
     "Accept": "text/html,*/*",
 }
+
+#: Phase C (#583) — concurrence des requêtes de détail par participant. 10,
+#: prudent envers une JSP dynamique (contre 20 pour `sportinnovation`, sur une
+#: API JSON stable).
+_DETAIL_MAX_WORKERS = 10
+#: Cadence des notifications `on_detail_progress` — tous les N participants
+#: traités, plus la dernière. Sans lot, la barre SSE resterait figée jusqu'à
+#: la fin du heat (#583).
+_DETAIL_PROGRESS_INTERVAL = 10
 
 
 def _fetch_event_meta(event_id: str, slug: str, client: httpx.Client) -> tuple[str, object]:
@@ -310,9 +320,47 @@ def _heat_source_url(event_id: str, slug: str, heat: str) -> str:
     )
 
 
+def _fetch_and_apply_detail(event_id: str, heat: str, bib: str, r: "ScrapedResult") -> None:
+    """Récupère la page détail d'un participant et lui applique ses splits fins.
+
+    Client httpx propre à cet appel (thread-safe, précédent
+    `sportinnovation._fetch_athlete_splits`) : les workers de la phase C
+    n'ont rien en commun qui ne soit déjà thread-safe (chaque `r` est unique
+    à son bib), donc pas de verrou nécessaire au-delà du client par appel.
+
+    Un échec réseau est journalisé et avalé, comme
+    `sportinnovation._fetch_athlete_splits` : sur une JSP dynamique, un flake
+    sur un participant ne doit ni faire échouer tout le heat, ni — pire —
+    laisser `ThreadPoolExecutor.__exit__` (sans `cancel_futures`) épuiser les
+    ~250 requêtes déjà soumises avant de laisser remonter l'exception. Le
+    participant garde alors ses splits de phase B (inter), déjà en place.
+    """
+    try:
+        with http.client(timeout=30, headers=HEADERS) as c:
+            dr = c.get(
+                f"{BASE}/v8/evenement/resultat-participant.jsp"
+                f"?embedded=1&e={event_id}&heat={heat}&dossard={bib}"
+            )
+    except httpx.HTTPError:
+        logger.warning("Détail illisible pour le dossard %s (heat %s) : réseau", bib, heat, exc_info=True)
+        return
+    if dr.status_code != 200:
+        return
+    # Reset des slots pour que les splits fins priment sur les inter pré-remplis.
+    inter_backup = {s: getattr(r, f"{s}_time") for s in _SPLIT_SLOTS}
+    for s in _SPLIT_SLOTS:
+        setattr(r, f"{s}_time", "")
+    _parse_detail(dr.text, r, {})
+    # Page détail sans splits (ex. non-partant) : on restaure les inter.
+    if not any(getattr(r, f"{s}_time") for s in _SPLIT_SLOTS):
+        for s, t in inter_backup.items():
+            setattr(r, f"{s}_time", t)
+
+
 def _scrape_single_heat(
     event_id: str, heat: str, heat_label: str, event_name: str, slug: str,
     event_date: object, client: httpx.Client,
+    *, on_detail_progress: Callable[[int, int], None] | None = None,
 ) -> list["ScrapedResult"]:
     """Scrape un heat Klikego (finishers + DNF/DNS/DSQ) — extraction du corps original.
 
@@ -358,23 +406,24 @@ def _scrape_single_heat(
     # Phase C — splits fins via la page détail pour TOUS les participants.
     # La page détail (natation/T1/vélo/T2/course) est la source fine ; elle
     # prime sur les splits inter grossiers de la phase B quand elle en fournit.
-    # Coût mesuré ~0,03 s/participant ; l'import tourne en arrière-plan (SSE).
-    for bib, r in bib_to_result.items():
-        dr = client.get(
-            f"{BASE}/v8/evenement/resultat-participant.jsp"
-            f"?embedded=1&e={event_id}&heat={heat}&dossard={bib}"
-        )
-        if dr.status_code != 200:
-            continue
-        # Reset des slots pour que les splits fins priment sur les inter pré-remplis.
-        inter_backup = {s: getattr(r, f"{s}_time") for s in _SPLIT_SLOTS}
-        for s in _SPLIT_SLOTS:
-            setattr(r, f"{s}_time", "")
-        _parse_detail(dr.text, r, {})
-        # Page détail sans splits (ex. non-partant) : on restaure les inter.
-        if not any(getattr(r, f"{s}_time") for s in _SPLIT_SLOTS):
-            for s, t in inter_backup.items():
-                setattr(r, f"{s}_time", t)
+    # Parallélisée (#583) : 94 % des requêtes d'un import Klikego étaient une
+    # requête séquentielle par participant, jusqu'à ~4 min sur 250 inscrits.
+    # Chaque `r` n'est touché que par le worker de son propre bib — aucun état
+    # partagé entre tâches, donc aucun verrou requis au-delà du client HTTP.
+    total = len(bib_to_result)
+    done = 0
+    with ThreadPoolExecutor(max_workers=_DETAIL_MAX_WORKERS) as pool:
+        futures = {
+            pool.submit(_fetch_and_apply_detail, event_id, heat, bib, r): bib
+            for bib, r in bib_to_result.items()
+        }
+        for future in as_completed(futures):
+            future.result()
+            done += 1
+            if on_detail_progress is not None and (
+                done % _DETAIL_PROGRESS_INTERVAL == 0 or done == total
+            ):
+                on_detail_progress(done, total)
 
     return results
 
@@ -401,6 +450,7 @@ def scrape_event_fanout(
     event_id: str, event_name: str, slug: str,
     *, cache_probe: Callable[[str], bool] | None = None,
     on_heat_start: Callable[[str, str, int, int], None] | None = None,
+    on_detail_progress: Callable[[str, str, int, int, int, int], None] | None = None,
 ) -> tuple[list["ScrapedResult"], FanoutTrace]:
     """Scrape tous les heats publiés d'un événement Klikego (issue #156).
 
@@ -416,6 +466,11 @@ def scrape_event_fanout(
     scrapés, sinon un événement à 6 heats sur 8 cachés paraîtrait progresser
     de 1 à 8 en 4 secondes. `heat_label` est le libellé publié par Klikego
     (« Triathlon S individuel », « SwimRun M duo »…), à afficher tel quel.
+
+    `on_detail_progress(heat_slug, heat_label, heat_index, heats_total, done,
+    total)` (#583) rapporte l'avancement de la phase C **dans** le heat en
+    cours — sans lui, un heat de 250 participants resterait figé plusieurs
+    minutes entre deux `on_heat_start`.
 
     Retour : `(results, trace)`. `trace.heats_imported` reste à 0 ici —
     dérivé par `import_service` via l'invariant
@@ -450,9 +505,17 @@ def scrape_event_fanout(
         for index, (heat_slug, heat_label) in enumerate(heats_a_scraper, start=1):
             if on_heat_start is not None:
                 on_heat_start(heat_slug, heat_label, index, total_a_scraper)
+            detail_progress = None
+            if on_detail_progress is not None:
+                def detail_progress(
+                    done, total,
+                    _slug=heat_slug, _label=heat_label, _index=index,
+                ) -> None:
+                    on_detail_progress(_slug, _label, _index, total_a_scraper, done, total)
             try:
                 all_results.extend(_scrape_single_heat(
                     event_id, heat_slug, heat_label, event_name, slug, event_date, client,
+                    on_detail_progress=detail_progress,
                 ))
             except Exception as exc:
                 logger.warning("Heat %s de %s en échec : %s", heat_slug, event_id, exc)
