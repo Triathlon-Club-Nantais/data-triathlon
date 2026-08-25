@@ -27,21 +27,6 @@ from app.services import benevole_access, shared_password
 MOT_DE_PASSE = "secret-du-club"
 
 
-@pytest.fixture
-def administrateur(db_session):
-    """Un utilisateur quelconque pour porter `updated_by_user_id` (NOT NULL).
-
-    Cette feature ne s'intéresse pas ici à *qui* administre, seulement au fait
-    qu'une configuration existe — la garde RBAC de l'écran d'administration
-    est testée séparément (`tests/test_auth/test_admin_benevole_access_api.py`).
-    """
-    compte = user_repository.create(
-        db_session, email="admin-test@exemple.fr", display_name="Admin Test"
-    )
-    db_session.flush()
-    return compte
-
-
 @pytest.fixture(autouse=True)
 def mot_de_passe_configure(db_session, administrateur):
     benevole_access.replace_password(

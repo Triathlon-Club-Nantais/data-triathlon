@@ -30,10 +30,10 @@ qu'on veut interdire.
 import pytest
 
 from app.main import app
+from tests.test_auth.conftest import chemin_concret, toutes_les_routes
 
 #: Le socle d'authentification est le seul préfixe exclu, et par **règle** (pas
 #: par énumération) : `GET /auth/me` rend 401 par contrat, c'est sa raison d'être.
-PREFIXE_AUTH = "/api/v1/auth/"
 
 #: Le préfixe des ressources d'administration. Il ne **garde** rien — c'est
 #: FR-018 : la protection se pose route par route. Il ne sert ici qu'à savoir
@@ -90,22 +90,6 @@ ROUTES_FERMEES = {
 CORPS_VIDE: dict = {}
 
 
-def _toutes_les_routes() -> list[tuple[str, str]]:
-    """Couples (méthode, chemin) de toutes les routes de l'application.
-
-    Lu dans le schéma OpenAPI et non dans `app.routes` : depuis FastAPI 0.139,
-    `app.routes` n'est plus une liste plate d'`APIRoute` — un `include_router`
-    y dépose un `_IncludedRouter` dont le dépliage passe par des internes
-    privés. Le schéma est l'inventaire **public** de la même information.
-    """
-    return [
-        (methode.upper(), chemin)
-        for chemin, operations in app.openapi()["paths"].items()
-        for methode in operations
-        if not chemin.startswith(PREFIXE_AUTH)
-    ]
-
-
 def _routes_publiques() -> list[tuple[str, str]]:
     """Les routes qui doivent répondre sans session.
 
@@ -114,7 +98,7 @@ def _routes_publiques() -> list[tuple[str, str]]:
     """
     return [
         (methode, chemin)
-        for methode, chemin in _toutes_les_routes()
+        for methode, chemin in toutes_les_routes()
         if (methode, chemin) in ADMIN_PUBLIQUES
         or (
             not chemin.startswith(PREFIXE_ADMIN)
@@ -128,7 +112,7 @@ def _routes_gardees() -> list[tuple[str, str]]:
     publiques nommées, plus les fermetures nommées hors préfixe."""
     return [
         (methode, chemin)
-        for methode, chemin in _toutes_les_routes()
+        for methode, chemin in toutes_les_routes()
         if (
             chemin.startswith(PREFIXE_ADMIN) and (methode, chemin) not in ADMIN_PUBLIQUES
         )
@@ -136,21 +120,13 @@ def _routes_gardees() -> list[tuple[str, str]]:
     ]
 
 
-def _chemin_concret(chemin: str) -> str:
-    """Substitue `1` à chaque paramètre de chemin — un 404 vaut mieux qu'un 401."""
-    morceaux = []
-    for morceau in chemin.split("/"):
-        morceaux.append("1" if morceau.startswith("{") and morceau.endswith("}") else morceau)
-    return "/".join(morceaux)
-
-
 def test_l_inventaire_des_routes_n_est_pas_vide():
     """Garde du garde : un inventaire vide ferait passer tous les tests ci-dessous."""
-    assert len(_toutes_les_routes()) >= 17
+    assert len(toutes_les_routes()) >= 17
     assert len(_routes_publiques()) >= 15
     assert len(_routes_gardees()) >= 4
     # Aucune route ne doit tomber dans les deux, ni dans aucun des deux.
-    assert set(_routes_publiques()) | set(_routes_gardees()) == set(_toutes_les_routes())
+    assert set(_routes_publiques()) | set(_routes_gardees()) == set(toutes_les_routes())
     assert not set(_routes_publiques()) & set(_routes_gardees())
 
 
@@ -166,7 +142,7 @@ def test_une_route_publique_repond_sans_cookie(client, methode, chemin):
     test) ou un 422 (corps minimal) sont des réponses normales — elles prouvent
     que la requête a été **traitée**, ce qui est précisément le point.
     """
-    reponse = client.request(methode, _chemin_concret(chemin), json=CORPS_VIDE)
+    reponse = client.request(methode, chemin_concret(chemin), json=CORPS_VIDE)
     assert reponse.status_code not in (401, 403), (
         f"{methode} {chemin} exige une session — le site public doit rester ouvert (FR-024)"
     )
@@ -185,7 +161,7 @@ def test_une_ressource_protegee_refuse_l_anonyme(client, methode, chemin):
     d'administration et pour chaque fermeture hors préfixe. L'oubli n'est plus
     silencieux.
     """
-    reponse = client.request(methode, _chemin_concret(chemin), json=CORPS_VIDE)
+    reponse = client.request(methode, chemin_concret(chemin), json=CORPS_VIDE)
 
     assert reponse.status_code == 401, (
         f"{methode} {chemin} répond {reponse.status_code} sans session : "

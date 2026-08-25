@@ -6,7 +6,6 @@ rattrapage** si l'installation se retrouve sans administrateur par un chemin que
 l'application ne contrôle pas.
 """
 import logging
-from contextlib import contextmanager
 
 from typer.testing import CliRunner
 
@@ -17,14 +16,6 @@ from app.models.role import Role
 from app.repositories import user_repository, user_role_repository
 
 runner = CliRunner()
-
-
-def _brancher_session(monkeypatch, db_session):
-    @contextmanager
-    def _session():
-        yield db_session
-
-    monkeypatch.setattr(cmd, "session_scope", _session)
 
 
 def _installation(db_session, *, organisations=("tcn",)):
@@ -51,10 +42,10 @@ def _lancer(*arguments):
     return runner.invoke(app, ["grant-role", *arguments])
 
 
-def test_attribuer_un_role_sort_en_0_et_le_dit(monkeypatch, db_session):
+def test_attribuer_un_role_sort_en_0_et_le_dit(brancher_session, db_session):
     _installation(db_session)
     user = _utilisateur(db_session)
-    _brancher_session(monkeypatch, db_session)
+    brancher_session(cmd)
 
     resultat = _lancer("--email", "contributeur@exemple.fr", "--role", "admin")
 
@@ -65,7 +56,7 @@ def test_attribuer_un_role_sort_en_0_et_le_dit(monkeypatch, db_session):
     assert len(user_role_repository.list_for_user(db_session, user.id)) == 1
 
 
-def test_reattribuer_est_un_succes_qui_ne_fait_rien(monkeypatch, db_session):
+def test_reattribuer_est_un_succes_qui_ne_fait_rien(brancher_session, db_session):
     """FR-029 — « rien à faire » et **0**, jamais une erreur.
 
     La commande est le rattrapage d'urgence : la relancer par acquit de
@@ -73,7 +64,7 @@ def test_reattribuer_est_un_succes_qui_ne_fait_rien(monkeypatch, db_session):
     """
     _installation(db_session)
     user = _utilisateur(db_session)
-    _brancher_session(monkeypatch, db_session)
+    brancher_session(cmd)
     _lancer("--email", "contributeur@exemple.fr", "--role", "admin")
 
     resultat = _lancer("--email", "contributeur@exemple.fr", "--role", "admin")
@@ -83,7 +74,7 @@ def test_reattribuer_est_un_succes_qui_ne_fait_rien(monkeypatch, db_session):
     assert len(user_role_repository.list_for_user(db_session, user.id)) == 1
 
 
-def test_une_adresse_inconnue_sort_en_2_et_explique(monkeypatch, db_session):
+def test_une_adresse_inconnue_sort_en_2_et_explique(brancher_session, db_session):
     """FR-028 — elle **ne crée pas d'utilisateur**.
 
     Un utilisateur naît d'une connexion réussie et autorisée, son identité venant
@@ -91,7 +82,7 @@ def test_une_adresse_inconnue_sort_en_2_et_explique(monkeypatch, db_session):
     invitation à fabriquer un compte fantôme que rien ne pourra rattacher.
     """
     _installation(db_session)
-    _brancher_session(monkeypatch, db_session)
+    brancher_session(cmd)
 
     resultat = _lancer("--email", "inconnu@exemple.fr", "--role", "admin")
 
@@ -102,10 +93,10 @@ def test_une_adresse_inconnue_sort_en_2_et_explique(monkeypatch, db_session):
     assert user_repository.list_all(db_session) == []
 
 
-def test_un_slug_de_role_inconnu_sort_en_2_en_nommant_les_roles(monkeypatch, db_session):
+def test_un_slug_de_role_inconnu_sort_en_2_en_nommant_les_roles(brancher_session, db_session):
     _installation(db_session)
     _utilisateur(db_session)
-    _brancher_session(monkeypatch, db_session)
+    brancher_session(cmd)
 
     resultat = _lancer("--email", "contributeur@exemple.fr", "--role", "archiviste")
 
@@ -115,9 +106,7 @@ def test_un_slug_de_role_inconnu_sort_en_2_en_nommant_les_roles(monkeypatch, db_
         assert slug in sortie
 
 
-def test_un_role_d_une_autre_organisation_sort_en_2_en_la_nommant(
-    monkeypatch, db_session
-):
+def test_un_role_d_une_autre_organisation_sort_en_2_en_la_nommant(brancher_session, db_session):
     """FR-008 — la règle que le SQL portable ne peut pas exprimer.
 
     Elle croise deux tables ; c'est un contrôle de service, et la CLI le subit
@@ -130,7 +119,7 @@ def test_un_role_d_une_autre_organisation_sort_en_2_en_la_nommant(
     )
     _utilisateur(db_session)
     db_session.flush()
-    _brancher_session(monkeypatch, db_session)
+    brancher_session(cmd)
 
     resultat = _lancer(
         "--email", "contributeur@exemple.fr", "--role", "archiviste",
@@ -141,7 +130,7 @@ def test_un_role_d_une_autre_organisation_sort_en_2_en_la_nommant(
     assert "AUTRE" in resultat.stdout + (resultat.stderr or "")
 
 
-def test_une_adresse_ambigue_sort_en_2_avec_les_candidats(monkeypatch, db_session):
+def test_une_adresse_ambigue_sort_en_2_avec_les_candidats(brancher_session, db_session):
     """FR-030 — et **ce n'est pas un cas d'école**.
 
     `users.email` n'est pas unique, délibérément (#114) : deux identités externes
@@ -152,7 +141,7 @@ def test_une_adresse_ambigue_sort_en_2_avec_les_candidats(monkeypatch, db_sessio
     _installation(db_session)
     premier = _utilisateur(db_session, nom="Premier")
     second = _utilisateur(db_session, nom="Second")
-    _brancher_session(monkeypatch, db_session)
+    brancher_session(cmd)
 
     resultat = _lancer("--email", "contributeur@exemple.fr", "--role", "admin")
 
@@ -163,10 +152,10 @@ def test_une_adresse_ambigue_sort_en_2_avec_les_candidats(monkeypatch, db_sessio
     assert user_role_repository.list_for_user(db_session, premier.id) == []
 
 
-def test_une_organisation_inconnue_sort_en_2(monkeypatch, db_session):
+def test_une_organisation_inconnue_sort_en_2(brancher_session, db_session):
     _installation(db_session)
     _utilisateur(db_session)
-    _brancher_session(monkeypatch, db_session)
+    brancher_session(cmd)
 
     resultat = _lancer(
         "--email", "contributeur@exemple.fr", "--role", "admin",
@@ -177,7 +166,9 @@ def test_une_organisation_inconnue_sort_en_2(monkeypatch, db_session):
 
 
 def test_le_rapport_sort_sur_stdout_et_les_journaux_sur_stderr(
-    monkeypatch, db_session, caplog
+    brancher_session,
+    db_session,
+    caplog,
 ):
     """SC-010 — contrainte dure de la CLI : **stdout reste parsable**.
 
@@ -187,7 +178,7 @@ def test_le_rapport_sort_sur_stdout_et_les_journaux_sur_stderr(
     """
     _installation(db_session)
     _utilisateur(db_session)
-    _brancher_session(monkeypatch, db_session)
+    brancher_session(cmd)
 
     with caplog.at_level(logging.INFO, logger="app.cli.commands.grant_role"):
         resultat = _lancer("--email", "contributeur@exemple.fr", "--role", "admin")
@@ -199,12 +190,14 @@ def test_le_rapport_sort_sur_stdout_et_les_journaux_sur_stderr(
 
 
 def test_l_attribution_est_journalisee_avec_acteur_cible_role_et_sens(
-    monkeypatch, db_session, caplog
+    brancher_session,
+    db_session,
+    caplog,
 ):
     """FR-033 — même trace que côté API, l'acteur étant ici la ligne de commande."""
     _installation(db_session)
     user = _utilisateur(db_session)
-    _brancher_session(monkeypatch, db_session)
+    brancher_session(cmd)
 
     with caplog.at_level(logging.INFO, logger="app.cli.commands.grant_role"):
         _lancer("--email", "contributeur@exemple.fr", "--role", "admin")

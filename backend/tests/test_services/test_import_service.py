@@ -41,17 +41,7 @@ def _result(bib, nom, prenom="Jean", **kw) -> ScrapedResult:
     return ScrapedResult(**base)
 
 
-@pytest.fixture
-def patch_scraper(monkeypatch):
-    def _set(results):
-        # `**kwargs` accepte `cache_probe` (fan-out Klikego #156) sans le consulter.
-        monkeypatch.setattr(
-            import_service, "registry_scrape_event_all", lambda url, **kwargs: results
-        )
-    return _set
-
-
-URL = "https://www.klikego.com/resultats/event/123"
+URL ="https://www.klikego.com/resultats/event/123"
 
 
 def _counters(out: dict) -> dict:

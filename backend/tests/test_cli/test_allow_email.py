@@ -6,7 +6,6 @@ Cette commande rompt le cercle. Elle contourne délibérément la garde de pouvo
 comme `grant-role` — sans session, il n'y a pas d'acteur dont comparer les
 pouvoirs, et l'accès au serveur *est* le privilège.
 """
-from contextlib import contextmanager
 
 from typer.testing import CliRunner
 
@@ -17,20 +16,12 @@ from app.repositories import allowed_email_repository, user_repository
 runner = CliRunner()
 
 
-def _brancher_session(monkeypatch, db_session):
-    @contextmanager
-    def _session():
-        yield db_session
-
-    monkeypatch.setattr(cmd, "session_scope", _session)
-
-
 def _lancer(*arguments):
     return runner.invoke(app, ["allow-email", *arguments])
 
 
-def test_inscrire_une_adresse_sort_en_0_et_le_dit(monkeypatch, db_session):
-    _brancher_session(monkeypatch, db_session)
+def test_inscrire_une_adresse_sort_en_0_et_le_dit(brancher_session, db_session):
+    brancher_session(cmd)
 
     resultat = _lancer("--email", " Vous@Exemple.FR ")
 
@@ -39,8 +30,8 @@ def test_inscrire_une_adresse_sort_en_0_et_le_dit(monkeypatch, db_session):
     assert allowed_email_repository.exists(db_session, "vous@exemple.fr")
 
 
-def test_reinscrire_sort_en_0_sans_doublon(monkeypatch, db_session):
-    _brancher_session(monkeypatch, db_session)
+def test_reinscrire_sort_en_0_sans_doublon(brancher_session, db_session):
+    brancher_session(cmd)
     _lancer("--email", "vous@exemple.fr")
 
     resultat = _lancer("--email", "VOUS@EXEMPLE.FR")
@@ -50,8 +41,8 @@ def test_reinscrire_sort_en_0_sans_doublon(monkeypatch, db_session):
     assert len(allowed_email_repository.list_all(db_session)) == 1
 
 
-def test_une_adresse_mal_formee_sort_en_2_sans_rien_ecrire(monkeypatch, db_session):
-    _brancher_session(monkeypatch, db_session)
+def test_une_adresse_mal_formee_sort_en_2_sans_rien_ecrire(brancher_session, db_session):
+    brancher_session(cmd)
 
     resultat = _lancer("--email", "pas-une-adresse")
 
@@ -59,9 +50,9 @@ def test_une_adresse_mal_formee_sort_en_2_sans_rien_ecrire(monkeypatch, db_sessi
     assert allowed_email_repository.list_all(db_session) == []
 
 
-def test_reinscrire_rouvre_les_comptes_et_le_dit(monkeypatch, db_session):
+def test_reinscrire_rouvre_les_comptes_et_le_dit(brancher_session, db_session):
     """La symétrie de l'écran vaut pour la CLI : elles passent par le même service."""
-    _brancher_session(monkeypatch, db_session)
+    brancher_session(cmd)
     cible = user_repository.create(db_session, email="cible@exemple.fr")
     cible.is_active = False
     db_session.flush()

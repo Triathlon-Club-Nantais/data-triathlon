@@ -20,8 +20,6 @@ créée ou d'être appariée.
 """
 from datetime import date
 
-import pytest
-
 from app.core.config import Settings
 from app.models.course import Course
 from app.repositories import course_repository, course_source_repository, participation_repository
@@ -58,15 +56,6 @@ def _result(bib: str, *, source_url: str, provider: str, nom: str = "DUPONT") ->
         event_type="triathlon-s",
         total_time="01:59:00",
     )
-
-
-@pytest.fixture
-def patch_scraper(monkeypatch):
-    def _set(results):
-        monkeypatch.setattr(
-            import_service, "registry_scrape_event_all", lambda url, **kwargs: results
-        )
-    return _set
 
 
 def _importer(db, patch_scraper, url: str, provider: str, *, bibs=("1",), force=False) -> dict:

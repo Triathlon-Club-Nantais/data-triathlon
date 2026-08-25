@@ -12,14 +12,6 @@ from app.repositories import group_repository, user_repository
 
 
 @pytest.fixture
-def organisation(db_session) -> Organisation:
-    ligne = Organisation(slug="tcn", name="Triathlon Club Nantais")
-    db_session.add(ligne)
-    db_session.flush()
-    return ligne
-
-
-@pytest.fixture
 def group(db_session, organisation):
     return group_repository.create(
         db_session, organisation_id=organisation.id, slug="codir", name="Codir"

@@ -23,8 +23,6 @@ depuis #289, mais elle gardait le verdict de son *premier* scrape.
 """
 from datetime import date
 
-import pytest
-
 from app.core.config import Settings
 from app.models.course import Course
 from app.scrapers.base import ScrapedResult
@@ -72,15 +70,6 @@ def _mesquer(bib: str, event_type: str) -> ScrapedResult:
     return _result(
         bib, url=WICLAX, provider="wiclax", event_name=MESQUER, event_type=event_type
     )
-
-
-@pytest.fixture
-def patch_scraper(monkeypatch):
-    def _set(results):
-        monkeypatch.setattr(
-            import_service, "registry_scrape_event_all", lambda url, **kwargs: results
-        )
-    return _set
 
 
 def _importer(db, patch_scraper, url, resultats, *, force=False) -> dict:

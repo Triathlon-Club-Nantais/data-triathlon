@@ -205,3 +205,38 @@ def ouvrir_session(client, db_session, organisation):
         return user
 
     return _ouvrir
+
+
+#: Le socle SSO a ses propres tests d'ouverture : `/auth/` sort des inventaires
+#: qui parcourent l'application route par route.
+PREFIXE_AUTH = "/api/v1/auth/"
+
+
+def toutes_les_routes() -> list[tuple[str, str]]:
+    """Couples (méthode, chemin) de toutes les routes de l'application.
+
+    Lu dans le schéma OpenAPI et non dans `app.routes` : depuis FastAPI 0.139,
+    `app.routes` n'est plus une liste plate d'`APIRoute` — un `include_router`
+    y dépose un `_IncludedRouter` dont le dépliage passe par des internes
+    privés. Le schéma est l'inventaire **public** de la même information.
+
+    Recopiée à l'identique dans deux modules jusqu'à #590. Appelée au moment de
+    la collecte (`@pytest.mark.parametrize`), donc une fonction et non une
+    fixture — comme `valider_toutes_les_participations` de `test_api/`.
+    """
+    from app.main import app
+
+    return [
+        (methode.upper(), chemin)
+        for chemin, operations in app.openapi()["paths"].items()
+        for methode in operations
+        if not chemin.startswith(PREFIXE_AUTH)
+    ]
+
+
+def chemin_concret(chemin: str) -> str:
+    """Substitue `1` à chaque paramètre de chemin — un 404 vaut mieux qu'un 401."""
+    return "/".join(
+        "1" if morceau.startswith("{") and morceau.endswith("}") else morceau
+        for morceau in chemin.split("/")
+    )

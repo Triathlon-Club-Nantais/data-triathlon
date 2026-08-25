@@ -9,17 +9,7 @@ from fastapi.testclient import TestClient
 from app.api.deps import require_site_access
 from app.core.database import get_db
 from app.core.exceptions import register_exception_handlers
-from app.repositories import user_repository
 from app.services import shared_password, site_access
-
-
-@pytest.fixture
-def administrateur(db_session):
-    compte = user_repository.create(
-        db_session, email="admin-test@exemple.fr", display_name="Admin Test"
-    )
-    db_session.flush()
-    return compte
 
 
 @pytest.fixture(autouse=True)
