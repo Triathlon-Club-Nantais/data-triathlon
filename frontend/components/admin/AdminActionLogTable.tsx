@@ -67,8 +67,8 @@ export function AdminActionLogTable() {
                 <TableCell>{entree.user_name}</TableCell>
                 <TableCell>{actionLabel(entree.action)}</TableCell>
                 <TableCell className="text-sm text-[var(--tcn-text-faint)]">
-                  {formatPayload(entree.payload).map(({ label, value }) => (
-                    <div key={label}>
+                  {formatPayload(entree.payload).map(({ label, value }, i) => (
+                    <div key={i}>
                       {label} : {value}
                     </div>
                   ))}

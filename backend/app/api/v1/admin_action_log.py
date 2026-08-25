@@ -21,6 +21,21 @@ from app.schemas.admin import AdminActionLogEntry, AdminActionLogPage
 router = APIRouter(tags=["admin"])
 
 
+def _redacted_payload(payload: dict | None) -> dict | None:
+    """Retire `birth_date` de `before`/`after` — la seule donnée personnelle
+    fermée du site (#501, revue finale) : `admin_log:read` ne doit pas la
+    rendre à qui ne porte pas `athletes:read`.
+    """
+    if payload is None:
+        return None
+    redacted = dict(payload)
+    for cle in ("before", "after"):
+        valeur = redacted.get(cle)
+        if isinstance(valeur, dict) and "birth_date" in valeur:
+            redacted[cle] = {k: v for k, v in valeur.items() if k != "birth_date"}
+    return redacted
+
+
 @router.get("/admin/action-log", response_model=AdminActionLogPage)
 def list_action_log(
     page: int = Query(1, ge=1),
@@ -48,7 +63,7 @@ def list_action_log(
                 action=entry.action,
                 entity_type=entry.entity_type,
                 entity_id=entry.entity_id,
-                payload=entry.payload,
+                payload=_redacted_payload(entry.payload),
             )
             for entry in entries
         ],

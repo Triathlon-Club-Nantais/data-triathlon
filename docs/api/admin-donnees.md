@@ -50,6 +50,21 @@ ressource).
 | `PATCH /admin/athletes/{id}` | `athletes:write` |
 | `POST /admin/participations/{id}/reassign` | `participations:reassign` |
 
+**`DELETE /admin/courses` et `DELETE /admin/participations` rendent un corps
+depuis #501** : `200` avec le décompte réel (`{courses_deleted, athletes_purged}`
+et `{participations_deleted, athletes_purged, courses_reset}` respectivement),
+plus `204` vide — la purge annonçait son ampleur avant le geste mais rendait un
+succès muet, sans confirmer ce qu'elle avait détruit.
+
+## Journal d'administration, en lecture (#501)
+
+`GET /admin/action-log` (`admin_log:read`) rend les dernières entrées du
+journal d'audit (`AdminActionLog`), paginées (`page`, `page_size`, défaut
+20/max 100), la plus récente d'abord. Pouvoir dédié plutôt que réutilisation
+de `courses:delete`/`participations:wipe_all` : le journal couvre des entités
+que ces pouvoirs ne gardent pas. `payload` est redacté de `birth_date` quand
+présent — voir `admin_action_log.py._redacted_payload`.
+
 **Un geste correctif vit hors de ce tableau** : `DELETE /participations/{id}`,
 gardée par `participations:delete`, est restée dans `participations.py` — chemin,
 verbe et `204` sont publiés, et les déplacer sous `/admin/` serait la

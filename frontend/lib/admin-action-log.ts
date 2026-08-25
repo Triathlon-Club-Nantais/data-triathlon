@@ -81,6 +81,9 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 function formatValue(v: unknown): string {
   if (v === null || v === undefined) return "—";
   if (typeof v === "boolean") return v ? "oui" : "non";
+  if (Array.isArray(v)) {
+    return v.length === 0 ? "aucun" : `${v.length} (${v.map((item) => formatValue(item)).join(", ")})`;
+  }
   if (isRecord(v)) {
     return Object.entries(v)
       .map(([k, vv]) => `${labelFor(k)} : ${formatValue(vv)}`)

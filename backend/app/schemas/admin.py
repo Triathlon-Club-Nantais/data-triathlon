@@ -387,8 +387,8 @@ class ParticipationsWipeResult(BaseModel):
     — la route ne le jetait pas moins qu'elle ne le rendait, elle rendait un
     `204` sans corps. `courses_reset` n'apparaît jamais dans le payload
     journalisé (la règle du journal borne ce qu'il garde à ce que la
-    confirmation a chiffré), mais il fait partie de la réponse : c'est
-    l'appelant HTTP qui en a besoin pour l'annoncer, pas le journal.
+    confirmation a chiffré), mais il fait partie de la réponse : disponible à
+    tout appelant qui en aurait besoin, même si l'écran actuel ne l'affiche pas.
     """
 
     participations_deleted: int
@@ -634,6 +634,13 @@ class AdminActionLogEntry(BaseModel):
     entity_type: str
     entity_id: int
     payload: dict | None = None
+
+    @field_serializer("created_at")
+    def _serialize_utc(self, value: datetime) -> str:
+        """Suffixe `Z`, comme `SessionUserRead` : les colonnes sont des datetimes
+        **naïfs en UTC**, et un naïf sérialisé tel quel serait lu comme une heure
+        locale par le client."""
+        return f"{value.isoformat()}Z"
 
 
 class AdminActionLogPage(BaseModel):
