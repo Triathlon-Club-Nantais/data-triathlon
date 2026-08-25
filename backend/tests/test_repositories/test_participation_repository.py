@@ -1110,3 +1110,70 @@ def test_delete_n_emet_aucun_commit(db_session):
         db_session.commit = original
 
     assert appels == []
+
+
+# ── list_for_athlete : filtres saison / discipline (#502) ────────────────────
+
+
+def _course_pour_filtre(db_session, nom, event_date, event_type):
+    course = course_repository.get_or_create(
+        db_session, name=nom, event_date=event_date, event_type=event_type
+    )
+    db_session.flush()
+    return course
+
+
+def _athlete_avec_trois_courses(db_session):
+    """Un athlète, trois participations : saison 2025 triathlon, saison 2025
+    trail, saison 2024 triathlon. Chaque filtre en retire une différente."""
+    athlete = athlete_repository.get_or_create(db_session, nom="FILTRE", prenom="Fanny")
+    db_session.flush()
+    courses = {
+        "tri_2025": _course_pour_filtre(db_session, "Tri 2025", date(2025, 10, 5), "triathlon-m"),
+        "trail_2025": _course_pour_filtre(db_session, "Trail 2025", date(2025, 10, 12), "trail"),
+        "tri_2024": _course_pour_filtre(db_session, "Tri 2024", date(2024, 10, 5), "triathlon-m"),
+    }
+    for i, course in enumerate(courses.values(), start=1):
+        participation_repository.create(
+            db_session,
+            athlete_id=athlete.id,
+            course_id=course.id,
+            bib_number=str(i),
+            club="Triathlon Club Nantais",
+        )
+    db_session.commit()
+    return athlete
+
+
+def test_list_for_athlete_sans_filtre_rend_tout(db_session):
+    athlete = _athlete_avec_trois_courses(db_session)
+
+    lignes = participation_repository.list_for_athlete(db_session, athlete.id)
+
+    assert len(lignes) == 3
+
+
+def test_list_for_athlete_filtre_par_saison(db_session):
+    athlete = _athlete_avec_trois_courses(db_session)
+
+    lignes = participation_repository.list_for_athlete(db_session, athlete.id, seasons=[2025])
+
+    assert sorted(p.course.name for p in lignes) == ["Trail 2025", "Tri 2025"]
+
+
+def test_list_for_athlete_federal_only_retire_le_trail(db_session):
+    athlete = _athlete_avec_trois_courses(db_session)
+
+    lignes = participation_repository.list_for_athlete(db_session, athlete.id, federal_only=True)
+
+    assert sorted(p.course.name for p in lignes) == ["Tri 2024", "Tri 2025"]
+
+
+def test_list_for_athlete_combine_saison_et_discipline(db_session):
+    athlete = _athlete_avec_trois_courses(db_session)
+
+    lignes = participation_repository.list_for_athlete(
+        db_session, athlete.id, seasons=[2025], federal_only=True
+    )
+
+    assert [p.course.name for p in lignes] == ["Tri 2025"]

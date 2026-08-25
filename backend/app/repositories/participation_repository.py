@@ -373,14 +373,33 @@ def list_participations(
     return q.order_by(*order).offset(offset).limit(page_size).all()
 
 
-def list_for_athlete(db: Session, athlete_id: int) -> list[Participation]:
-    return (
+def list_for_athlete(
+    db: Session,
+    athlete_id: int,
+    *,
+    seasons: list[int] | None = None,
+    federal_only: bool = False,
+) -> list[Participation]:
+    """Participations d'un athlète, filtrables comme les agrégats du club (#502).
+
+    Les deux filtres sont **neutres par défaut** : la fiche athlète
+    (`GET /athletes/{id}` sans paramètre) continue de rendre une carrière
+    entière. Ils n'existent que pour la bande « Ma saison » du tableau de bord,
+    qui doit compter sur exactement la même base que les compteurs club — d'où
+    les mêmes clauses que `for_stats`, et non une recopie.
+    """
+    q = (
         db.query(Participation)
         .options(joinedload(Participation.course).selectinload(Course.sources))
         .filter(Participation.athlete_id == athlete_id)
-        .order_by(Participation.created_at.desc())
-        .all()
     )
+    if seasons or federal_only:
+        q = q.join(Course, Participation.course_id == Course.id)
+    if seasons:
+        q = q.filter(season_clause(seasons))
+    if federal_only:
+        q = q.filter(federal_clause(Course.event_type))
+    return q.order_by(Participation.created_at.desc()).all()
 
 
 def list_pending(db: Session) -> list[Participation]:
