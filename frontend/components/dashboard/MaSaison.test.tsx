@@ -105,6 +105,18 @@ describe("MaSaison — état rempli", () => {
     await waitFor(() => expect(getAthlete).toHaveBeenCalledTimes(2));
   });
 
+  it("refetch quand federalOnly change", async () => {
+    getAthlete.mockResolvedValue({ athlete: ATHLETE, participations: [] });
+    const { rerender } = render(
+      <MaSaison clubEvents={32} seasons="2025" federalOnly={true} />,
+    );
+    await waitFor(() => expect(getAthlete).toHaveBeenCalledTimes(1));
+
+    rerender(<MaSaison clubEvents={32} seasons="2025" federalOnly={false} />);
+
+    await waitFor(() => expect(getAthlete).toHaveBeenCalledTimes(2));
+  });
+
   // Même arbitrage que RankTypeToggle (#328) : le mode de rang ne change que
   // la lecture d'un champ déjà en main.
   it("ne refetch pas au changement de ?rank=, mais recompte le podium", async () => {
@@ -123,6 +135,28 @@ describe("MaSaison — état rempli", () => {
 
     expect(await within(ligneVisible).findByText(/1 podium/)).toBeInTheDocument();
     expect(getAthlete).toHaveBeenCalledTimes(1);
+  });
+
+  // #502, revue finale : le parenthétique inline n'est pas `RANK_LABEL_LONG`
+  // (`lib/labels.ts`) — trop lourd en mode `all` dans une phrase à 20px — et
+  // `all` s'y dit « meilleur classement », ce qu'il est réellement.
+  it("nomme le rang dans le parenthétique, `all` compris", async () => {
+    getAthlete.mockResolvedValue({
+      athlete: ATHLETE,
+      participations: [ligne(1, { rank_overall: 2 })],
+    });
+    const { rerender } = render(
+      <MaSaison clubEvents={32} seasons="2025" federalOnly={true} />,
+    );
+    const ligneVisible = await screen.findByTestId("ma-saison-ligne");
+    expect(within(ligneVisible).getByText(/\(classement général\)/)).toBeInTheDocument();
+
+    searchParams = new URLSearchParams("rank=all");
+    rerender(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
+
+    expect(
+      await within(ligneVisible).findByText(/\(meilleur classement\)/),
+    ).toBeInTheDocument();
   });
 
   it("apparaît quand l'athlète est choisi en cours de page", async () => {
