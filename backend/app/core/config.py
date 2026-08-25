@@ -8,7 +8,7 @@ Toutes les variables d'environnement passent par cet objet `Settings` typé
 from functools import lru_cache
 from typing import Annotated, Literal
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -21,6 +21,35 @@ class Settings(BaseSettings):
 
     # ── Base de données ───────────────────────────────────────────────────────
     database_url: str = "sqlite:///./triathlon.db"
+
+    # ── Dimensionnement du pool de connexions (#585) ───────────────────────────
+    # Défauts inchangés — ceux que SQLAlchemy applique déjà en silence quand
+    # `create_engine()` ne reçoit ni `pool_size` ni `max_overflow`. Les rendre
+    # explicites, réglables par variable d'environnement, est ce qui permet de
+    # les aligner un jour sur un plafond connu — Azure PostgreSQL Flexible
+    # Server en production, Supabase (pooler) en preview (docs/infra-azure.md,
+    # docs/ci-cd.md) — sans toucher au code. **Ne pas les augmenter « pour
+    # voir »** : sur un serveur au quota partagé (Azure Burstable B1ms, pooler
+    # Supabase), c'est le geste qui fait tomber l'environnement voisin. Le
+    # relevé du plafond réel reste à faire (#585) ; ce commit ne fait que poser
+    # le levier.
+    #
+    # `ge=1` / `ge=0` : SQLAlchemy traite `pool_size=0` et `max_overflow=-1`
+    # comme des *sentinels* — respectivement « pool illimité » (et force alors
+    # `max_overflow=-1` en interne, quoi qu'on ait réglé) et « débordement
+    # illimité ». Aucun des deux n'est souhaitable sur une base au quota
+    # partagé, et `_thread_limit_for` (app/main.py) somme ces deux valeurs à
+    # la lettre : les laisser passer ferait tomber le limiteur AnyIO à 0 en
+    # silence — un blocage total de toutes les routes synchrones, sans la
+    # moindre exception dans les journaux.
+    db_pool_size: int = Field(default=5, ge=1)
+    db_max_overflow: int = Field(default=10, ge=0)
+    # SQLAlchemy attend 30 s par défaut avant `TimeoutError` — le pire
+    # comportement pour une requête web publique : une latence qui s'effondre
+    # sans erreur franche. Le front sait déjà afficher un écran de panne avec
+    # « Réessayer » (#464) ; échouer vite est plus honnête qu'attendre en
+    # silence.
+    db_pool_timeout_seconds: int = 5
 
     # ── CORS ──────────────────────────────────────────────────────────────────
     # Liste restreinte en production (plus de "*"). Format : URLs séparées par des

@@ -103,3 +103,47 @@ def test_une_cle_de_signature_vide_vaut_non_configure(monkeypatch):
     """
     monkeypatch.setenv("AUTH_SESSION_SECRET_KEY", "")
     assert Settings().auth_session_secret_key == ""
+
+
+# ── Dimensionnement du pool de connexions (#585) ──────────────────────────────
+
+
+def test_dimensionnement_pool_defauts(monkeypatch):
+    """Défauts alignés sur ceux de SQLAlchemy (5 + 10) — inchangés tant que le
+    plafond réel de la base (Azure en prod, Supabase en preview) n'est pas
+    établi (#585)."""
+    for var in ("DB_POOL_SIZE", "DB_MAX_OVERFLOW", "DB_POOL_TIMEOUT_SECONDS"):
+        monkeypatch.delenv(var, raising=False)
+    settings = Settings()
+    assert settings.db_pool_size == 5
+    assert settings.db_max_overflow == 10
+    assert settings.db_pool_timeout_seconds == 5
+
+
+def test_dimensionnement_pool_depuis_env(monkeypatch):
+    monkeypatch.setenv("DB_POOL_SIZE", "7")
+    monkeypatch.setenv("DB_MAX_OVERFLOW", "3")
+    monkeypatch.setenv("DB_POOL_TIMEOUT_SECONDS", "12")
+    settings = Settings()
+    assert settings.db_pool_size == 7
+    assert settings.db_max_overflow == 3
+    assert settings.db_pool_timeout_seconds == 12
+
+
+def test_pool_size_zero_est_refuse(monkeypatch):
+    """`pool_size=0` est un sentinel SQLAlchemy (« pool illimité », force
+    `max_overflow=-1` en interne) — jamais ce que #585 vise sur une base au
+    quota partagé. Le refuser au démarrage évite aussi que le limiteur AnyIO
+    dérivé (`_thread_limit_for`) tombe silencieusement à 0 et bloque toutes
+    les routes synchrones."""
+    monkeypatch.setenv("DB_POOL_SIZE", "0")
+    with pytest.raises(ValidationError):
+        Settings()
+
+
+def test_max_overflow_negatif_est_refuse(monkeypatch):
+    """`max_overflow=-1` est le sentinel SQLAlchemy « débordement illimité » —
+    même raison que `pool_size=0` : jamais souhaité ici."""
+    monkeypatch.setenv("DB_MAX_OVERFLOW", "-1")
+    with pytest.raises(ValidationError):
+        Settings()
