@@ -30,10 +30,8 @@ export function ParticipationPanel({
   /** La page en fait son garde-fou : on ne quitte pas une entrée sale sans confirmer. */
   onBrouillonSale?: (sale: boolean) => void;
 }) {
-  const { brouillon, modifier, sale, erreur, enCours, enregistrer, validerLeResultat } = useBrouillon(
-    participation,
-    { onChanged, onSessionExpired },
-  );
+  const { brouillon, modifier, sale, erreur, enCours, validationEnCours, enregistrer, validerLeResultat } =
+    useBrouillon(participation, { onChanged, onSessionExpired });
 
   const [confirmationRejet, setConfirmationRejet] = useState(false);
   const [erreurRejet, setErreurRejet] = useState<string | null>(null);
@@ -185,7 +183,7 @@ export function ParticipationPanel({
           {!rejetee && (
             <>
               <Button onClick={validerEnEffacantErreurRejet} disabled={occupe} style={{ width: "100%" }}>
-                {enCours ? "Enregistrement…" : "Valider ce résultat"}
+                {validationEnCours ? "Validation…" : enCours ? "Enregistrement…" : "Valider ce résultat"}
               </Button>
               <Button
                 variant="secondary"

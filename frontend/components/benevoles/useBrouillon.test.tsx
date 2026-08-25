@@ -229,6 +229,37 @@ describe("useBrouillon", () => {
     expect(result.current.erreur).toBe("Ce résultat a déjà été validé.");
   });
 
+  it("distingue la validation de l'enregistrement pendant le geste le plus fréquent : valider un brouillon propre", async () => {
+    // Sur un brouillon propre, `enregistrer()` ressort immédiatement sans
+    // toucher `enCours` — seul l'appel de validation tourne. Avant #490
+    // (revue de branche finale), rien ne distinguait ce cas de
+    // l'enregistrement des champs, et le bouton affichait « Enregistrement… »
+    // pour un appel qui ne fait que valider.
+    const { result } = monter();
+    let resoudre!: (p: Participation) => void;
+    validateParticipationBenevole.mockReturnValue(
+      new Promise<Participation>((resolve) => {
+        resoudre = resolve;
+      }),
+    );
+
+    let promesse!: Promise<void>;
+    act(() => {
+      promesse = result.current.validerLeResultat();
+    });
+
+    await waitFor(() => expect(result.current.validationEnCours).toBe(true));
+    expect(result.current.enCours).toBe(true);
+
+    await act(async () => {
+      resoudre(participation({ is_pending_validation: false }));
+      await promesse;
+    });
+
+    expect(result.current.validationEnCours).toBe(false);
+    expect(result.current.enCours).toBe(false);
+  });
+
   it("resynchronise sa base sur un rechargement d'arrière-plan, sans toucher au brouillon en cours", () => {
     const initiale = participation();
     const { result, rerender } = renderHook(
