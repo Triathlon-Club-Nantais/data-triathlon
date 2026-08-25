@@ -315,13 +315,21 @@ describe("LigneCarte", () => {
     expect(screen.getByText("Inters").closest("summary")).toHaveStyle({ minHeight: "44px" });
   });
 
+  // `toHaveStyle` ne voit PAS un `var()` posé dans un raccourci sous jsdom :
+  // cssstyle abandonne la déclaration au calcul, et l'assertion échoue sur du
+  // code correct (vérifié à l'exécution). L'attribut `style`, lui, la porte
+  // telle quelle — c'est donc lui qu'on lit. `toHaveStyle` reste bon pour les
+  // valeurs sans variable, comme le `minHeight` du test précédent.
   it("pose le liseré orange sur une ligne du club et le retire sinon", () => {
     const { rerender } = render(<LigneCarte href="/x" titre="Jean DUPONT" accent />);
-    expect(screen.getByRole("article")).toHaveStyle({
-      borderLeft: "3px solid var(--tcn-orange)",
-    });
+    expect(screen.getByRole("article").getAttribute("style")).toContain(
+      "border-left: 3px solid var(--tcn-orange)",
+    );
+
     rerender(<LigneCarte href="/x" titre="Jean DUPONT" />);
-    expect(screen.getByRole("article")).toHaveStyle({ borderLeft: "3px solid transparent" });
+    expect(screen.getByRole("article").getAttribute("style")).toContain(
+      "border-left: 3px solid transparent",
+    );
   });
 });
 ```
