@@ -147,6 +147,15 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
     promotion en issue. Symétriquement, « aucun retour utilisateur » ne
     s'affirme que si les décomptes le disent — une vue **filtrée** vide ne
     prouve rien sur la base, et le comptage peut échouer.
+  - **Le contrôle en ligne n'est jamais `disabled` pendant sa requête** —
+    `aria-busy` et une opacité, la ré-entrée gardée dans le gestionnaire : un
+    navigateur retire le focus d'un contrôle désactivé, et l'écran existe pour
+    enchaîner les gestes au clavier. Quand le changement fait quitter la vue
+    filtrée à la ligne, le focus est reposé sur la puce du filtre courant.
+  - **`--tcn-fill` ne sert pas de survol** : il vaut exactement `--background`
+    (`#f4f3f0`), donc un survol à 1,00:1 — même piège que le `bg-muted` des
+    squelettes. Les puces prennent `--tcn-orange-08`, et `cursor-pointer`,
+    norme de `ui/button.tsx`.
   - **`queryKeys.feedbackCounts()` vit sous le préfixe `["admin-feedback"]`**,
     celui de la liste : un changement de statut périme les deux, et
     l'invalidation existante les emporte alors d'un seul geste.

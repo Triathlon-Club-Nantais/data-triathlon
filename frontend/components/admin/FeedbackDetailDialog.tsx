@@ -54,7 +54,10 @@ export function FeedbackDetailDialog({
   async function changer(status: Feedback["status"]) {
     try {
       await changerStatut.mutateAsync({ id: feedback.id, status });
-      toast.success("Statut mis à jour.");
+      // Formulation partagée avec le contrôle en ligne de `FeedbackTable` : la
+      // même action, déclenchée depuis deux endroits du même écran, ne peut pas
+      // rendre deux accusés différents.
+      toast.success(`« ${affiche.title} » passe en « ${LIBELLE_STATUT[status]} ».`);
     } catch (e) {
       toast.error((e as Error).message);
     }
