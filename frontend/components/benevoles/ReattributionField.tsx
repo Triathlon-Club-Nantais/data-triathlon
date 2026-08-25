@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button, Input } from "@/components/tcn";
 import { apiClient } from "@/lib/api/client";
 import type { AthleteBrief } from "@/lib/types";
@@ -29,6 +29,7 @@ export function ReattributionField({
   const [resultats, setResultats] = useState<AthleteBrief[] | null>(null);
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+  const requestTokenRef = useRef(0);
 
   async function rechercher(valeur: string) {
     setRecherche(valeur);
@@ -37,17 +38,31 @@ export function ReattributionField({
       setResultats(null);
       return;
     }
+
+    // Incrémenter le token pour garder seule la réponse la plus récente.
+    // Évite qu'une réponse lente ne remplace une réponse plus nouvelle.
+    // (#490 — un bénévole qui tape vite doit voir le résultat de sa dernière
+    // frappe, jamais celui d'une recherche intermédiaire, même s'il arrive plus tard)
+    const token = ++requestTokenRef.current;
+
     setEnCours(true);
     try {
-      setResultats(await apiClient.searchAthletesBenevole(valeur));
+      const resultSet = await apiClient.searchAthletesBenevole(valeur);
+      if (token === requestTokenRef.current) {
+        setResultats(resultSet);
+      }
     } catch {
       // `null` et non `[]` : rendre une liste vide affichait « aucun coureur
       // trouvé » sur une recherche **en échec** (relevé en revue de #513), et
       // le bénévole en concluait que l'athlète n'existe pas.
-      setResultats(null);
-      setErreur("Recherche impossible pour le moment. Réessayez dans un instant.");
+      if (token === requestTokenRef.current) {
+        setResultats(null);
+        setErreur("Recherche impossible pour le moment. Réessayez dans un instant.");
+      }
     } finally {
-      setEnCours(false);
+      if (token === requestTokenRef.current) {
+        setEnCours(false);
+      }
     }
   }
 
@@ -114,7 +129,6 @@ export function ReattributionField({
                 minHeight: 44,
                 border: "1px solid var(--tcn-border)",
                 borderRadius: "var(--tcn-radius-md)",
-                background: "var(--tcn-surface)",
               }}
             >
               {nomComplet(athlete)}
