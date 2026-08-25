@@ -21,6 +21,11 @@ export interface ImportState {
   heatsScrapingTotal: number;
   heatLabel: string;
   heatSlug: string;
+  // Progression phase C **dans** le heat en cours (#583) — participants dont
+  // la page détail a été récupérée. 0/0 = pas encore rapportée (heat non
+  // Klikego, ou pas assez avancé pour un premier lot).
+  detailDone: number;
+  detailTotal: number;
   // Courses touchées par le dernier import : câble « Voir les résultats » (#135).
   // Multi (heats, listes) → autant d'entrées. Vide en dehors de la phase `done`.
   courses: ImportedCourse[];
@@ -54,6 +59,8 @@ const INITIAL: ImportState = {
   heatsScrapingTotal: 0,
   heatLabel: "",
   heatSlug: "",
+  detailDone: 0,
+  detailTotal: 0,
   courses: [],
   heatsEnumerated: 0,
   heatsImported: 0,
@@ -91,6 +98,11 @@ export function useImportStream() {
             heatsScrapingTotal: ev.heats_total ?? s.heatsScrapingTotal,
             heatLabel: ev.heat_label ?? s.heatLabel,
             heatSlug: ev.heat_slug ?? s.heatSlug,
+            // Un nouveau heat (heat_index sans detail_done, l'event
+            // `on_heat_start`) remet la progression de phase C à zéro : sans
+            // ça, le heat suivant afficherait encore le compte du précédent.
+            detailDone: ev.detail_done ?? (ev.heat_index !== undefined ? 0 : s.detailDone),
+            detailTotal: ev.detail_total ?? (ev.heat_index !== undefined ? 0 : s.detailTotal),
           }));
         } else if (ev.phase === "saving") {
           setState((s) => ({

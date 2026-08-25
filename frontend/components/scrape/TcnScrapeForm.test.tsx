@@ -32,6 +32,8 @@ const importMock = vi.hoisted(() => {
     heatIndex: 0,
     heatsScrapingTotal: 0,
     heatLabel: "",
+    detailDone: 0,
+    detailTotal: 0,
   };
   return {
     start: vi.fn(),
@@ -122,6 +124,8 @@ beforeEach(() => {
     heatIndex: 0,
     heatsScrapingTotal: 0,
     heatLabel: "",
+    detailDone: 0,
+    detailTotal: 0,
   });
 });
 
@@ -814,5 +818,35 @@ describe("TcnScrapeForm — accusé de réception de la saisie manuelle (ACT-1)"
     expect(
       screen.getByRole("button", { name: "Enregistrer votre participation" }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("TcnScrapeForm — progression phase C Klikego (#583)", () => {
+  it("affiche l'avancement des participants au sein de la série en cours", () => {
+    importMock.set({
+      phase: "scraping",
+      heatIndex: 1,
+      heatsScrapingTotal: 3,
+      heatLabel: "Triathlon S",
+      detailDone: 20,
+      detailTotal: 50,
+    });
+    renderForm();
+
+    expect(screen.getByText("20/50 participants")).toBeInTheDocument();
+  });
+
+  it("n'affiche rien tant que la phase C n'a pas rapporté sa première tranche", () => {
+    importMock.set({
+      phase: "scraping",
+      heatIndex: 1,
+      heatsScrapingTotal: 3,
+      heatLabel: "Triathlon S",
+      detailDone: 0,
+      detailTotal: 0,
+    });
+    renderForm();
+
+    expect(screen.queryByText(/participants$/)).not.toBeInTheDocument();
   });
 });

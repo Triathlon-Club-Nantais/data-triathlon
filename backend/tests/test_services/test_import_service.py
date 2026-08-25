@@ -968,6 +968,66 @@ def test_iter_import_event_streame_les_evenements_de_scraping_par_heat(
     ]
 
 
+def test_iter_import_event_streame_la_progression_de_detail_phase_c(
+    db_session, monkeypatch,
+):
+    """`on_detail_progress` (#583) émet des events `scraping` porteurs de
+    `detail_done`/`detail_total`, en plus des events par heat.
+
+    Sans eux, un heat de 250 participants restait figé plusieurs minutes entre
+    deux events `on_heat_start`.
+    """
+    def fake_scrape(url, *, cache_probe=None, on_heat_start=None, on_detail_progress=None):
+        if on_heat_start is not None:
+            on_heat_start("triathlon-s-indiv", "Triathlon S", 1, 1)
+        if on_detail_progress is not None:
+            on_detail_progress("triathlon-s-indiv", "Triathlon S", 1, 1, 10, 50)
+            on_detail_progress("triathlon-s-indiv", "Triathlon S", 1, 1, 50, 50)
+        return [_result("1", "DUPONT")]
+
+    monkeypatch.setattr(import_service, "registry_scrape_event_all", fake_scrape)
+    _fake_klikego_provider(monkeypatch, enumerated=1, cached=0, failures=[])
+
+    phases = list(import_service.iter_import_event(db_session, URL, _settings()))
+
+    scraping = [p for p in phases if p["phase"] == "scraping"]
+    detail_events = [p for p in scraping if "detail_done" in p]
+    assert [e["detail_done"] for e in detail_events] == [10, 50]
+    assert all(e["detail_total"] == 50 for e in detail_events)
+    assert all(e["heat_slug"] == "triathlon-s-indiv" for e in detail_events)
+    assert all(e["heat_index"] == 1 and e["heats_total"] == 1 for e in detail_events)
+
+
+def test_scrape_all_streaming_wiring_on_detail_progress_seulement_pour_klikego(
+    db_session, monkeypatch,
+):
+    """`on_detail_progress` n'est câblé que pour Klikego (#583).
+
+    C'est le seul fournisseur dont la phase C par participant justifie une
+    notification par lot ; un autre fan-out (`FanoutProvider.scrape_event_all`,
+    ex. Wiclax) ne l'accepte pas dans sa signature — le lui passer lèverait.
+    """
+    from app.scrapers import registry
+
+    captured = {}
+
+    def fake_scrape(url, *, cache_probe=None, on_heat_start=None):
+        # Signature stricte : lèverait un TypeError si on_detail_progress
+        # était passé, comme le vrai `FanoutProvider.scrape_event_all`.
+        captured["called"] = True
+        return [_result("1", "DUPONT")]
+
+    monkeypatch.setattr(import_service, "registry_scrape_event_all", fake_scrape)
+    provider = registry.WiclaxProvider()
+    provider.last_trace = FanoutTrace(heats_enumerated=1)
+    monkeypatch.setattr(import_service.registry, "get_provider", lambda url: provider)
+
+    phases = list(import_service.iter_import_event(db_session, URL, _settings()))
+
+    assert captured.get("called") is True
+    assert phases[-1]["phase"] == "done"
+
+
 def test_iter_import_event_scraping_non_klikego_reste_un_seul_event(
     db_session, patch_scraper, monkeypatch,
 ):

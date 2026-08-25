@@ -284,6 +284,10 @@ export interface ImportResult {
 // heat (`heat_index`/`heats_total`/`heat_slug`/`heat_label`). Ces clés sont
 // optionnelles — un provider mono-course émet le seul yield initial avec
 // `message`, sans elles.
+// Phase C Klikego (#583) : `detail_done`/`detail_total` portent en plus la
+// progression **dans** le heat en cours (participants dont la page détail a
+// été récupérée) — sans elles, un gros heat restait figé plusieurs minutes
+// entre deux events par heat.
 export type ImportProgressEvent =
   | {
       phase: "scraping";
@@ -292,6 +296,8 @@ export type ImportProgressEvent =
       heats_total?: number;
       heat_slug?: string;
       heat_label?: string;
+      detail_done?: number;
+      detail_total?: number;
     }
   | { phase: "saving"; total: number; imported: number; updated: number; skipped: number; progress: number }
   | {

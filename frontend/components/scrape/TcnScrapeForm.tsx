@@ -52,7 +52,7 @@ export function TcnScrapeForm() {
   const importStream = useImportStream();
   const {
     phase, error, errorStatus, retryAfter, running, imported, updated, skipped, total, progress,
-    cached, message, courses, heatIndex, heatsScrapingTotal, heatLabel,
+    cached, message, courses, heatIndex, heatsScrapingTotal, heatLabel, detailDone, detailTotal,
     heatsEnumerated, heatsImported, heatsCached, heatsFailed, failures,
   } = importStream.state;
 
@@ -335,6 +335,8 @@ export function TcnScrapeForm() {
               heatIndex={heatIndex}
               heatsScrapingTotal={heatsScrapingTotal}
               heatLabel={heatLabel}
+              detailDone={detailDone}
+              detailTotal={detailTotal}
               secondes={secondes}
               onAnnuler={annuler}
             />
@@ -790,6 +792,8 @@ function ImportBar({
   heatIndex,
   heatsScrapingTotal,
   heatLabel,
+  detailDone,
+  detailTotal,
   secondes,
   onAnnuler,
 }: {
@@ -802,6 +806,8 @@ function ImportBar({
   heatIndex: number;
   heatsScrapingTotal: number;
   heatLabel: string;
+  detailDone: number;
+  detailTotal: number;
   secondes: number;
   onAnnuler: () => void;
 }) {
@@ -811,6 +817,10 @@ function ImportBar({
   // clés restent à zéro et on retombe sur le message initial.
   const fanoutProgress = heatsScrapingTotal > 0 && heatIndex > 0;
   const heatPct = fanoutProgress ? Math.round((heatIndex / heatsScrapingTotal) * 100) : 0;
+  // Phase C Klikego (#583) : avancement des participants au sein de la série
+  // en cours. Absent tant que le premier lot n'est pas rapporté (`detailTotal`
+  // reste à 0 hors Klikego, ou avant la première notification).
+  const detailProgress = detailTotal > 0;
   return (
     <div style={{ padding: "14px 18px", background: "var(--tcn-fill)", border: "1px solid var(--tcn-border)", borderRadius: "var(--tcn-radius-xl)" }}>
       {phase === "scraping" ? (
@@ -823,6 +833,14 @@ function ImportBar({
             <div style={{ height: 8, background: "var(--tcn-surface)", borderRadius: 999, overflow: "hidden" }}>
               <div style={{ width: heatPct + "%", height: "100%", background: "var(--tcn-orange)", transition: "width var(--tcn-dur)" }} />
             </div>
+            {/* Phase C Klikego (#583) : sans elle, la barre ci-dessus (une
+                seule marche par série) reste figée jusqu'à 4 min sur un gros
+                heat — l'opérateur n'a aucun signe de vie entre deux séries. */}
+            {detailProgress && (
+              <div style={{ fontSize: 12, color: "var(--tcn-text-muted)", marginTop: 4, textAlign: "right" }}>
+                {detailDone}/{detailTotal} participants
+              </div>
+            )}
           </>
         ) : (
           <>

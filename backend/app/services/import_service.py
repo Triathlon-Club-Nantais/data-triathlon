@@ -233,11 +233,16 @@ def _scrape_all_streaming(
     que la requête est bloquée. Sur un provider non-Klikego (mono-course), on
     appelle directement `_scrape_all` — pas de yield intermédiaire.
 
+    Pour Klikego (seul fournisseur concerné, #583), les mêmes clés portent en
+    plus `detail_done`/`detail_total` : la progression de la phase C **dans**
+    le heat en cours, sans quoi un heat de 250 participants resterait figé
+    plusieurs minutes entre deux events par heat.
+
     Implémentation : le scrape tourne dans un thread pour permettre au
     générateur de lire une file d'événements en parallèle. Le thread pousse
-    dans `queue.Queue` à chaque `on_heat_start`, plus un sentinel en fin de
-    scrape. Le générateur draine la file avec `get(timeout=…)` pour rester
-    responsive tout en ne bufférisant pas.
+    dans `queue.Queue` à chaque `on_heat_start`/`on_detail_progress`, plus un
+    sentinel en fin de scrape. Le générateur draine la file avec
+    `get(timeout=…)` pour rester responsive tout en ne bufférisant pas.
 
     `use_cache_probe=False` retire le cache TTL **par heat** (#118, research.md
     R2), même paramètre que `_scrape_all` — sans lui, un re-scrape demandé sur
@@ -265,11 +270,29 @@ def _scrape_all_streaming(
             "heats_total": total,
         })
 
+    def on_detail_progress(
+        heat_slug: str, heat_label: str, heat_index: int, heats_total: int,
+        done: int, total: int,
+    ) -> None:
+        events.put({
+            "phase": "scraping",
+            "heat_slug": heat_slug,
+            "heat_label": heat_label,
+            "heat_index": heat_index,
+            "heats_total": heats_total,
+            "detail_done": done,
+            "detail_total": total,
+        })
+
     def scrape_in_thread() -> None:
         try:
-            results = registry_scrape_event_all(
-                url, cache_probe=cache_probe, on_heat_start=on_heat_start,
-            )
+            # `on_detail_progress` (#583) : seul Klikego a une phase C par
+            # participant à rapporter — les autres FanoutProvider ne
+            # l'acceptent pas dans leur signature.
+            kwargs: dict = {"cache_probe": cache_probe, "on_heat_start": on_heat_start}
+            if isinstance(provider, registry.KlikegoProvider):
+                kwargs["on_detail_progress"] = on_detail_progress
+            results = registry_scrape_event_all(url, **kwargs)
             holder["results"] = results
         except BaseException as exc:  # noqa: BLE001 — relayé au générateur
             holder["error"] = exc

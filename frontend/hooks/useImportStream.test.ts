@@ -109,3 +109,57 @@ describe("useImportStream — annulation", () => {
     expect(importEventStream).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("useImportStream — progression phase C Klikego (#583)", () => {
+  it("retient detailDone/detailTotal d'un event scraping", async () => {
+    importEventStream.mockReturnValue(flux([
+      {
+        phase: "scraping",
+        heat_slug: "triathlon-s-indiv",
+        heat_label: "Triathlon S",
+        heat_index: 1,
+        heats_total: 1,
+        detail_done: 10,
+        detail_total: 50,
+      } as ImportProgressEvent,
+    ]));
+    const { result } = renderHook(() => useImportStream());
+
+    act(() => {
+      result.current.start("http://x");
+    });
+
+    await waitFor(() => expect(result.current.state.detailDone).toBe(10));
+    expect(result.current.state.detailTotal).toBe(50);
+  });
+
+  it("remet detailDone/detailTotal à zéro quand un nouveau heat démarre", async () => {
+    importEventStream.mockReturnValue(flux([
+      {
+        phase: "scraping",
+        heat_slug: "triathlon-s-indiv",
+        heat_label: "Triathlon S",
+        heat_index: 1,
+        heats_total: 2,
+        detail_done: 40,
+        detail_total: 50,
+      } as ImportProgressEvent,
+      {
+        phase: "scraping",
+        heat_slug: "swim-run-m-duo",
+        heat_label: "SwimRun M duo",
+        heat_index: 2,
+        heats_total: 2,
+      } as ImportProgressEvent,
+    ]));
+    const { result } = renderHook(() => useImportStream());
+
+    act(() => {
+      result.current.start("http://x");
+    });
+
+    await waitFor(() => expect(result.current.state.heatIndex).toBe(2));
+    expect(result.current.state.detailDone).toBe(0);
+    expect(result.current.state.detailTotal).toBe(0);
+  });
+});
