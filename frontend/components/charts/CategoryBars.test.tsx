@@ -125,4 +125,65 @@ describe("CategoryBars", () => {
 
     expect(screen.queryByText(/^Autres/)).not.toBeInTheDocument();
   });
+
+  // ── Des barres qui mènent quelque part (#486, RES-11) ────────────────────
+
+  it("rend chaque barre activable vers le classement filtré quand un lien est fourni", () => {
+    render(
+      <CategoryBars
+        categories={[{ name: "V2", count: 120 }]}
+        total={1000}
+        hrefFor={(name) => `/courses/1?category=${name}`}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: /V2/ })).toHaveAttribute(
+      "href",
+      "/courses/1?category=V2",
+    );
+  });
+
+  it("porte le libellé complet dans le nom du lien — au clavier comme au doigt", () => {
+    // Une infobulle de survol n'existe ni pour l'un ni pour l'autre (FR-028).
+    render(
+      <CategoryBars
+        categories={[{ name: "PoM", count: 34 }]}
+        total={100}
+        hrefFor={() => "/x"}
+      />,
+    );
+
+    const lien = screen.getByRole("link");
+    expect(lien).toHaveAccessibleName(/PoM — Poussin, hommes/);
+    expect(lien).toHaveAttribute("title", "PoM — Poussin, hommes");
+  });
+
+  it("rend le code tel quel quand la table ne le connaît pas", () => {
+    render(
+      <CategoryBars categories={[{ name: "ZZZ9", count: 10 }]} total={100} hrefFor={() => "/x"} />,
+    );
+
+    expect(screen.getByRole("link")).toHaveAttribute("title", "ZZZ9");
+  });
+
+  it("ne rend jamais la barre « Autres » activable", () => {
+    // « Autres » n'est pas une catégorie : aucun filtre ne saurait la reproduire.
+    render(
+      <CategoryBars
+        categories={[{ name: "S1", count: 40 }]}
+        total={100}
+        hrefFor={(name) => `/courses/1?category=${name}`}
+      />,
+    );
+
+    expect(screen.getAllByRole("link")).toHaveLength(1);
+    expect(screen.getByText("Autres (60)")).toBeInTheDocument();
+  });
+
+  it("reste une image quand aucun lien n'est fourni", () => {
+    render(<CategoryBars categories={[{ name: "S1", count: 100 }]} total={100} />);
+
+    expect(screen.getByRole("img")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
 });

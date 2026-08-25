@@ -20,6 +20,17 @@ export function isClubScope(scope?: string | null): boolean {
   return scope === SCOPE_CLUB;
 }
 
+/**
+ * Filtres du classement venus des cartes de synthèse (#486, RES-11).
+ *
+ * Distincts de `SCOPE_PARAM` : celui-ci porte la sémantique **TCN**, arbitrée par le
+ * backend (`app/core/club.py`, dépositaire unique depuis #76). `CLUB_PARAM` porte un
+ * club **quelconque**, en égalité exacte sur le libellé que la carte a proposé. Les
+ * deux se cumulent, et leur intersection peut légitimement être vide.
+ */
+export const CLUB_PARAM = "club";
+export const CATEGORY_PARAM = "category";
+
 /** Nom du paramètre d'URL ouvrant les compteurs aux disciplines hors fédération. */
 export const SPORTS_PARAM = "sports";
 

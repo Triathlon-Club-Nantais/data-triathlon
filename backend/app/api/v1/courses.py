@@ -207,6 +207,14 @@ def get_course(
     ),
     q: str | None = Query(None, description="Recherche sur le nom ou le prénom de l'athlète."),
     scope: str | None = Query(None, description="« club » restreint aux membres du TCN."),
+    club: str | None = Query(
+        None,
+        description="Libellé **exact** du club, tel que rendu par `/summary`.",
+    ),
+    category: str | None = Query(
+        None,
+        description="Code **exact** de catégorie, tel que rendu par `/summary`.",
+    ),
     db: Session = Depends(get_db),
 ):
     """Classement d'une épreuve, **paginé par défaut**.
@@ -215,13 +223,26 @@ def get_course(
     rendait l'intégralité des participations, soit plus de 2500 lignes sur les
     grosses épreuves. `page_size=all` laisse ce comportement atteignable à qui
     le demande explicitement.
+
+    `club` et `category` ouvrent l'exploration depuis les cartes de synthèse
+    (#486) : on y lit « BLAIN TRIATHLON 33 » ou « V2 12,0 % », on veut voir ces
+    athlètes. Facultatifs et à défaut neutre (Principe V), ils se cumulent entre
+    eux, avec `q` et avec `scope`. Une valeur qui ne correspond à personne rend
+    une sélection vide, **jamais** un 404 : l'épreuve existe.
     """
     course = course_repository.get(db, course_id)
     if not course:
         raise NotFoundError("Course introuvable")
     taille = _resolve_page_size(page_size)
     participations, total = participation_repository.list_page_for_course(
-        db, course_id, page=page, page_size=taille, q=q, club_only=is_club_scope(scope)
+        db,
+        course_id,
+        page=page,
+        page_size=taille,
+        q=q,
+        club_only=is_club_scope(scope),
+        club=club,
+        category=category,
     )
     return {
         "course": CourseBrief.model_validate(course),

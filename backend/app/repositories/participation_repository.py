@@ -522,12 +522,26 @@ def list_page_for_course(
     page_size: int | None = 20,
     q: str | None = None,
     club_only: bool = False,
+    club: str | None = None,
+    category: str | None = None,
 ) -> tuple[list[Participation], int]:
     """Tranche ordonnée du classement d'une épreuve, et total de la sélection.
 
     `page_size=None` rend tout le classement en une page (`page_size=all` côté
-    API). Le total porte sur la sélection — recherche et portée club comprises —,
-    pas sur l'épreuve : les décomptes d'épreuve vivent dans la synthèse.
+    API). Le total porte sur la sélection — recherche, portée club, club et
+    catégorie comprises —, pas sur l'épreuve : les décomptes d'épreuve vivent
+    dans la synthèse.
+
+    `club` et `category` filtrent en **égalité exacte** (#486). Les valeurs
+    proposées à l'écran sont littéralement les chaînes stockées, puisqu'elles
+    viennent d'un `Counter` sur ces deux colonnes : une comparaison partielle
+    ferait « BLAIN TRIATHLON » ramasser « BLAIN TRIATHLON JEUNES », et le
+    compteur de la carte divergerait du total du classement — le défaut que le
+    lot #485 vient de corriger.
+
+    `club` n'a rien à voir avec `club_only`, qui porte la sémantique **TCN**
+    arbitrée par `app/core/club.py` (dépositaire unique, #76). Les deux se
+    cumulent, et leur intersection peut légitimement être vide.
 
     Exclut les résultats en attente de validation (#270, FR-021) : c'est le
     classement publié d'une épreuve.
@@ -551,6 +565,10 @@ def list_page_for_course(
     )
     if club_only:
         query = query.filter(tcn_clause(Participation.club))
+    if club:
+        query = query.filter(Participation.club == club)
+    if category:
+        query = query.filter(Participation.category == category)
     terme = (q or "").strip()
     if terme:
         query = query.filter(name_filter(terme))

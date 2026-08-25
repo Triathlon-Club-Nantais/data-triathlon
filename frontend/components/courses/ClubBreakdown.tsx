@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { ClubCount } from "@/lib/types";
 
@@ -14,11 +15,17 @@ import type { ClubCount } from "@/lib/types";
 export function ClubBreakdown({
   clubs,
   total,
+  hrefFor,
 }: {
   /** Les clubs affichés — un extrait, plafonné à neuf par le backend. */
   clubs: ClubCount[];
   /** Nombre de clubs **distincts** de l'épreuve entière (`clubs_total`). */
   total: number;
+  /**
+   * Rend chaque ligne activable vers le classement filtré sur ce club (#486,
+   * RES-11) : on lit « BLAIN TRIATHLON 33 », on veut voir ces 33 athlètes.
+   */
+  hrefFor?: (name: string) => string;
 }) {
   const restants = Math.max(0, total - clubs.length);
 
@@ -32,8 +39,25 @@ export function ClubBreakdown({
         </thead>
         <tbody role="rowgroup">
           {clubs.map(({ name, count, is_tcn: own }) => (
-            <tr key={name} role="row" style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, padding: "7px 0", borderBottom: "1px solid var(--tcn-border-faint2)" }}>
-              <td role="cell" style={{ fontSize: 13, fontWeight: own ? 700 : 600, color: own ? "var(--tcn-orange-deeper)" : "var(--tcn-ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</td>
+            <tr
+              key={name}
+              role="row"
+              className={hrefFor ? "tcn-rowlink" : undefined}
+              style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, padding: "7px 0", minHeight: 24, borderBottom: "1px solid var(--tcn-border-faint2)" }}
+            >
+              <td role="cell" style={{ fontSize: 13, fontWeight: own ? 700 : 600, color: own ? "var(--tcn-orange-deeper)" : "var(--tcn-ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {hrefFor ? (
+                  <Link
+                    href={hrefFor(name)}
+                    aria-label={`${name}, ${count} athlète${count > 1 ? "s" : ""}. Voir ces participants dans le classement.`}
+                    className="tcn-rowlink__cible"
+                  >
+                    {name}
+                  </Link>
+                ) : (
+                  name
+                )}
+              </td>
               <td role="cell" style={{ fontFamily: "var(--tcn-font-display)", fontSize: 16, color: own ? "var(--tcn-orange-deeper)" : "var(--tcn-ink)", textAlign: "right" }}>{count}</td>
             </tr>
           ))}

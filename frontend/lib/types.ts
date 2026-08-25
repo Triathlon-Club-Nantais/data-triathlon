@@ -522,6 +522,10 @@ export interface CourseQuery {
   /** Recherche sur le nom ou le prénom de l'athlète. */
   q?: string;
   scope?: "club";
+  /** Libellé **exact** d'un club, tel que rendu par `/summary` (#486). */
+  club?: string;
+  /** Code **exact** de catégorie, tel que rendu par `/summary` (#486). */
+  category?: string;
 }
 
 interface CategoryCount {

@@ -11,9 +11,10 @@ import { genderShort } from "@/lib/utils/format";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ClassementPagination } from "@/components/results/ClassementPagination";
 import { PAGE_SIZE_DEFAUT, PAGE_SIZE_PARAM, parsePageSize } from "@/lib/pageSize";
-import { SCOPE_CLUB, SCOPE_PARAM } from "@/lib/scope";
+import { CATEGORY_PARAM, CLUB_PARAM, SCOPE_CLUB, SCOPE_PARAM } from "@/lib/scope";
 import { CLUB_NAME } from "@/lib/club";
 import { nomComplet, useSelectedAthlete } from "@/components/layout/AthletePicker";
+import { categoryTitle } from "@/lib/categories";
 import type { CourseSummary, Participation } from "@/lib/types";
 
 // Colonnes fixes (rang, athlète, catég., sexe, temps total) + club en fin.
@@ -261,6 +262,11 @@ export function RaceFinishers({
   }
 
   const filtreClub = searchParams.get(SCOPE_PARAM) === SCOPE_CLUB;
+  // Filtres venus des cartes de synthèse (#486, RES-11). Distincts de
+  // `filtreClub`, qui porte la sémantique TCN arbitrée par le backend : ici,
+  // c'est un club quelconque, en égalité exacte.
+  const clubChoisi = searchParams.get(CLUB_PARAM) ?? "";
+  const categorieChoisie = searchParams.get(CATEGORY_PARAM) ?? "";
   // La taille vient de l'URL, pas de la prop `pageSize` : sous `all`, le
   // backend renvoie `null` et le sélecteur n'aurait plus quoi afficher.
   const tailleCourante = parsePageSize(searchParams.get(PAGE_SIZE_PARAM));
@@ -414,15 +420,47 @@ export function RaceFinishers({
           />
         </div>
       </div>
-      {(rechercheUrl || filtreClub) && (
+      {(rechercheUrl || filtreClub || clubChoisi || categorieChoisie) && (
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "10px 26px", borderBottom: "1px solid var(--tcn-border)", fontSize: 13, color: "var(--tcn-text-body)" }}>
-          <span>{libelleSelection(total, summary.total, rechercheUrl, filtreClub)}</span>
+          <span>
+            {libelleSelection(total, summary.total, {
+              recherche: rechercheUrl,
+              filtreClub,
+              club: clubChoisi,
+              categorie: categorieChoisie,
+            })}
+          </span>
+          {/* Un repère par filtre, **retirable indépendamment** : deux
+              sélections actives ne se retirent pas d'un bloc, sinon activer une
+              catégorie depuis la carte effacerait le club qu'on venait de
+              choisir (#486, FR-021). */}
+          {clubChoisi && (
+            <ChipRetirable
+              libelle={clubChoisi}
+              sujet="le filtre club"
+              onRetirer={() => naviguer({ [CLUB_PARAM]: null })}
+            />
+          )}
+          {categorieChoisie && (
+            <ChipRetirable
+              libelle={categoryTitle(categorieChoisie)}
+              sujet="le filtre catégorie"
+              onRetirer={() => naviguer({ [CATEGORY_PARAM]: null })}
+            />
+          )}
           <button
             type="button"
-            onClick={() => naviguer({ q: null, [SCOPE_PARAM]: null })}
+            onClick={() =>
+              naviguer({
+                q: null,
+                [SCOPE_PARAM]: null,
+                [CLUB_PARAM]: null,
+                [CATEGORY_PARAM]: null,
+              })
+            }
             style={{ background: "none", border: "none", padding: "4px 0", minHeight: 24, font: "inherit", fontWeight: 700, color: "var(--tcn-ink)", textDecoration: "underline", cursor: "pointer" }}
           >
-            Effacer
+            Tout effacer
           </button>
         </div>
       )}
@@ -604,6 +642,23 @@ export function RaceFinishers({
                   </button>
                 }
               />
+            ) : clubChoisi || categorieChoisie ? (
+              // L'état d'absence **nomme le filtre en cause** (#486, FR-025) et
+              // ne parle jamais de « recherche » quand aucune n'est active —
+              // c'est le défaut constaté sur `/courses/340?scope=club`.
+              <EmptyState
+                bare
+                title={titreAbsenceFiltre(clubChoisi, categorieChoisie, filtreClub)}
+                action={
+                  <button
+                    type="button"
+                    onClick={() => naviguer({ [CLUB_PARAM]: null, [CATEGORY_PARAM]: null })}
+                    style={STYLE_BOUTON_ABSENCE}
+                  >
+                    Voir tous les participants
+                  </button>
+                }
+              />
             ) : filtreClub ? (
               <EmptyState
                 bare
@@ -651,15 +706,106 @@ export function RaceFinishers({
  * entière — c'est leur opposition qui manquait, l'écran affirmant « 498
  * participants » sous deux lignes de résultats.
  */
-function libelleSelection(total: number, totalEpreuve: number, recherche: string, filtreClub: boolean): string {
+function libelleSelection(
+  total: number,
+  totalEpreuve: number,
+  selection: { recherche: string; filtreClub: boolean; club: string; categorie: string },
+): string {
   const tete = `${total} résultat${total > 1 ? "s" : ""} sur ${totalEpreuve}`;
   const morceaux = [];
-  if (recherche) morceaux.push(`pour « ${recherche} »`);
-  if (filtreClub) morceaux.push(`du ${CLUB_NAME}`);
+  if (selection.recherche) morceaux.push(`pour « ${selection.recherche} »`);
+  if (selection.filtreClub) morceaux.push(`du ${CLUB_NAME}`);
+  // Le club et la catégorie ne sont pas repris ici : leurs repères les portent
+  // juste à côté, et les redire allongerait la ligne sans rien apprendre.
   // `join(" ")`, pas `join(", ")` : les deux clauses n'ont pas la même nature
   // (l'une qualifie la recherche, l'autre le périmètre), la virgule les met à
   // tort sur le même plan (revue UI/UX #485).
-  return `${tete} ${morceaux.join(" ")}`;
+  return `${tete} ${morceaux.join(" ")}`.trimEnd();
+}
+
+/**
+ * Ce que l'écran dit quand un filtre de carte ne rend personne.
+ *
+ * Le cas le plus fréquent n'est pas l'erreur de saisie mais le **croisement vide par
+ * construction** : choisir un club autre que le TCN alors que la portée TCN est active
+ * ne peut rien rendre. Le taire laisserait chercher une cause ailleurs.
+ */
+function titreAbsenceFiltre(club: string, categorie: string, filtreClub: boolean): string {
+  if (club && filtreClub && !isTcnLabel(club)) {
+    return `Aucun athlète : le filtre « ${club} » et la portée ${CLUB_NAME} s'excluent`;
+  }
+  const morceaux = [];
+  if (club) morceaux.push(`du club « ${club} »`);
+  if (categorie) morceaux.push(`en catégorie « ${categorie} »`);
+  return `Aucun athlète ${morceaux.join(" ")} sur cette épreuve`;
+}
+
+/**
+ * Le club choisi est-il le TCN ? Comparaison de **libellé affiché**, pas le prédicat
+ * d'appartenance — celui-ci vit dans `app/core/club.py` côté serveur, dépositaire unique
+ * (#76), et n'a pas à être réimplémenté ici. On compare ce que la carte a proposé.
+ */
+function isTcnLabel(club: string): boolean {
+  return club.trim().toLowerCase() === CLUB_NAME.toLowerCase();
+}
+
+/**
+ * Repère d'un filtre actif, retirable **seul** (#486, FR-021).
+ *
+ * Le nom accessible dit ce qu'on retire, pas seulement « × » : sur un écran où
+ * quatre repères peuvent coexister, « Retirer » sans complément ne distingue rien.
+ */
+function ChipRetirable({
+  libelle,
+  sujet,
+  onRetirer,
+}: {
+  libelle: string;
+  sujet: string;
+  onRetirer: () => void;
+}) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "3px 6px 3px 10px",
+        borderRadius: 999,
+        border: "1px solid var(--tcn-border)",
+        background: "var(--tcn-fill)",
+        fontSize: 12,
+        fontWeight: 700,
+      }}
+    >
+      {libelle}
+      <button
+        type="button"
+        onClick={onRetirer}
+        aria-label={`Retirer ${sujet} « ${libelle} »`}
+        // 24 px pleins : plancher tactile WCAG 2.2 2.5.8 — la croix des chips
+        // était sous le seuil avant #479, et ce lot n'en réintroduit pas.
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 24,
+          height: 24,
+          padding: 0,
+          border: "none",
+          borderRadius: 999,
+          background: "none",
+          font: "inherit",
+          fontSize: 14,
+          lineHeight: 1,
+          color: "var(--tcn-text-muted)",
+          cursor: "pointer",
+        }}
+      >
+        ×
+      </button>
+    </span>
+  );
 }
 
 /**

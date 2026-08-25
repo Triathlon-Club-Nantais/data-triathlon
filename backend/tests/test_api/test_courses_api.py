@@ -386,3 +386,90 @@ def test_une_epreuve_jamais_evaluee_porte_des_champs_nuls(client, db_session):
 
     assert ligne["is_reliable"] is None
     assert ligne["quality_issues"] is None
+
+
+# ── Filtres club et catégorie (issue #486, RES-11) ───────────────────────────
+
+
+@pytest.fixture
+def epreuve_filtrable(db_session):
+    """Deux clubs, deux catégories — de quoi vérifier le cumul et l'exactitude."""
+    course = course_repository.get_or_create(
+        db_session, name="Tri Filtres API", event_date=date(2026, 8, 3), event_type="triathlon-m"
+    )
+    lignes = [
+        ("BLAINV2", "BLAIN TRIATHLON", "V2"),
+        ("BLAINS1", "BLAIN TRIATHLON", "S1"),
+        ("JEUNESV2", "BLAIN TRIATHLON JEUNES", "V2"),
+    ]
+    for nom, club, categorie in lignes:
+        athlete = athlete_repository.get_or_create(
+            db_session, nom=nom, prenom="Test", gender="M", club=club
+        )
+        participation_repository.create(
+            db_session,
+            athlete_id=athlete.id,
+            course_id=course.id,
+            bib_number=nom,
+            club=club,
+            category=categorie,
+            status="finisher",
+            rank_overall=1,
+            total_time="01:00:00",
+        )
+    db_session.commit()
+    return course
+
+
+def test_le_filtre_club_ne_ramasse_pas_les_libelles_voisins(client, epreuve_filtrable):
+    corps = client.get(
+        f"/api/v1/courses/{epreuve_filtrable.id}", params={"club": "BLAIN TRIATHLON"}
+    ).json()
+
+    assert corps["total"] == 2
+    assert all(p["club"] == "BLAIN TRIATHLON" for p in corps["participations"])
+
+
+def test_le_filtre_categorie_restreint_le_classement(client, epreuve_filtrable):
+    corps = client.get(
+        f"/api/v1/courses/{epreuve_filtrable.id}", params={"category": "V2"}
+    ).json()
+
+    assert corps["total"] == 2
+
+
+def test_les_deux_filtres_se_cumulent_sur_la_route(client, epreuve_filtrable):
+    corps = client.get(
+        f"/api/v1/courses/{epreuve_filtrable.id}",
+        params={"club": "BLAIN TRIATHLON", "category": "V2"},
+    ).json()
+
+    assert corps["total"] == 1
+
+
+def test_une_valeur_inconnue_rend_200_et_une_selection_vide(client, epreuve_filtrable):
+    """L'épreuve existe : c'est la sélection qui est vide, pas l'adresse qui est morte."""
+    reponse = client.get(
+        f"/api/v1/courses/{epreuve_filtrable.id}", params={"club": "CLUB INEXISTANT"}
+    )
+
+    assert reponse.status_code == 200
+    assert reponse.json()["participations"] == []
+    assert reponse.json()["total"] == 0
+
+
+def test_les_nouveaux_parametres_ont_un_defaut_neutre(client, epreuve_filtrable):
+    """Principe V, et additivité du contrat : absents, ils ne filtrent rien."""
+    sans = client.get(f"/api/v1/courses/{epreuve_filtrable.id}").json()
+
+    assert sans["total"] == 3
+    assert len(sans["participations"]) == 3
+
+
+def test_la_synthese_ignore_les_filtres_du_classement(client, epreuve_filtrable):
+    """La synthèse porte sur l'épreuve **entière** : elle n'accepte aucun paramètre (#163)."""
+    corps = client.get(
+        f"/api/v1/courses/{epreuve_filtrable.id}/summary", params={"club": "BLAIN TRIATHLON"}
+    ).json()
+
+    assert corps["total"] == 3
