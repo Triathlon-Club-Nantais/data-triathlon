@@ -24,6 +24,7 @@ from app.api.v1 import (
     athletes,
     auth,
     benevoles,
+    club,
     courses,
     feedback,
     health,
@@ -68,6 +69,7 @@ for module in _EXEMPTES_DE_LA_GARDE_SITE:
 for module in (
     scrape,
     athletes,
+    club,
     courses,
     participations,
     stats,
