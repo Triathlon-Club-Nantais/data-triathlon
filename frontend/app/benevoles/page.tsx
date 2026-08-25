@@ -33,13 +33,20 @@ export default function BenevolesPage() {
   }, []);
 
   function selectionner(id: number) {
-    if (id !== file.selectedId && brouillonSale.current) {
+    // Un simple ré-appui sur l'entrée déjà sélectionnée (rouvrir la feuille
+    // fermée, par ex.) n'est pas un changement d'entrée : le panneau reste
+    // monté (`keepMounted` sur la feuille) et son brouillon éventuel avec
+    // lui, donc `brouillonSale` ne doit ni être questionné ni remis à `false`
+    // — le remettre à `false` sur un ré-appui désynchroniserait le témoin du
+    // vrai état du panneau, qui lui n'a pas changé (revue de #490 ronde 1).
+    const changeDEntree = id !== file.selectedId;
+    if (changeDEntree && brouillonSale.current) {
       const ok = window.confirm(
         "Ce résultat porte des modifications non enregistrées. Les abandonner ?",
       );
       if (!ok) return;
     }
-    brouillonSale.current = false;
+    if (changeDEntree) brouillonSale.current = false;
     file.selectionner(id);
     if (compact) setFeuilleOuverte(true);
   }
@@ -103,7 +110,15 @@ export default function BenevolesPage() {
         />
         {compact ? (
           <Sheet open={feuilleOuverte && panneau !== null} onOpenChange={setFeuilleOuverte}>
-            <SheetContent side="right" className="w-full max-w-[520px] overflow-y-auto p-4">
+            {/* `keepMounted` : Échap ou un tap hors de la feuille la ferment
+                sans confirmation (aucun des deux n'est désactivé), et par
+                défaut `Popup`/`Portal` démontent alors `ParticipationPanel`
+                — avec lui le brouillon de `useBrouillon`, en silence. La
+                feuille reste montée (juste masquée) à la fermeture ; seul un
+                changement d'entrée via `selectionner` peut encore abandonner
+                un brouillon, et seulement après confirmation (#490, revue
+                ronde 1). */}
+            <SheetContent side="right" className="w-full max-w-[520px] overflow-y-auto p-4" keepMounted>
               <SheetTitle style={{ fontSize: 0 }}>Détail du résultat</SheetTitle>
               {panneau}
             </SheetContent>
