@@ -307,6 +307,27 @@ describe("ParticipationPanel — rejet", () => {
     expect(rejectParticipationBenevole).not.toHaveBeenCalled();
   });
 
+  it("avertit que les modifications seront perdues avant de confirmer un rejet sur un brouillon sale", async () => {
+    // `agirSurLeRejet("rejeter")` n'enregistre rien et ne vérifie pas `sale` :
+    // sans cet avertissement, une saisie en cours partait en silence au rejet
+    // — le même défaut que #490 (PROF-10) ferme côté validation (#490, revue
+    // de branche finale).
+    render(<ParticipationPanel participation={participation()} onChanged={vi.fn()} />);
+
+    await userEvent.type(screen.getByLabelText(/Dossard/), "3");
+    await userEvent.click(screen.getByRole("button", { name: /Signaler non conforme/ }));
+
+    expect(screen.getByText(/Les modifications non enregistrées seront perdues/)).toBeInTheDocument();
+  });
+
+  it("n'avertit pas d'une perte de saisie sur un brouillon propre", async () => {
+    render(<ParticipationPanel participation={participation()} onChanged={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Signaler non conforme/ }));
+
+    expect(screen.queryByText(/Les modifications non enregistrées seront perdues/)).not.toBeInTheDocument();
+  });
+
   it("laisse une entrée rejetée en lecture seule", () => {
     render(
       <ParticipationPanel participation={participation({ is_rejected: true })} onChanged={vi.fn()} />,

@@ -209,19 +209,30 @@ export function ParticipationPanel({
               Signaler non conforme
             </Button>
           ) : (
-            <div style={{ display: "flex", gap: 8 }}>
-              <Button
-                variant="secondary"
-                onClick={() => agirSurLeRejet("rejeter")}
-                disabled={occupe}
-                style={{ flex: 1, color: "var(--tcn-danger-text)", borderColor: "var(--tcn-danger-border)" }}
-              >
-                {enCoursRejet ? "Signalement…" : "Confirmer ?"}
-              </Button>
-              <Button variant="ghost" onClick={() => setConfirmationRejet(false)} disabled={occupe} style={{ flex: 1 }}>
-                Annuler
-              </Button>
-            </div>
+            <>
+              {/* Rejeter n'enregistre rien : sans cet avertissement, un
+                  brouillon sale était abandonné en silence, exactement la
+                  perte de saisie que #490 (PROF-10) ferme côté validation
+                  (#490, revue de branche finale). */}
+              {sale && (
+                <div style={{ fontSize: 13, color: "var(--tcn-danger-text)" }}>
+                  Les modifications non enregistrées seront perdues.
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 8 }}>
+                <Button
+                  variant="secondary"
+                  onClick={() => agirSurLeRejet("rejeter")}
+                  disabled={occupe}
+                  style={{ flex: 1, color: "var(--tcn-danger-text)", borderColor: "var(--tcn-danger-border)" }}
+                >
+                  {enCoursRejet ? "Signalement…" : "Confirmer ?"}
+                </Button>
+                <Button variant="ghost" onClick={() => setConfirmationRejet(false)} disabled={occupe} style={{ flex: 1 }}>
+                  Annuler
+                </Button>
+              </div>
+            </>
           )}
         </div>
       </div>
