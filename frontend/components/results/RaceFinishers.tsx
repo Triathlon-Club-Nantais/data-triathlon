@@ -1,7 +1,7 @@
 "use client";
 import Link, { useLinkStatus } from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState, useTransition, type CSSProperties } from "react";
 import { Card, SegmentedControl, PlaceBadge, AnnonceStatut, LigneCarte } from "@/components/tcn";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusBadge } from "@/components/results/StatusBadge";
@@ -211,6 +211,30 @@ function MarqueurEcart({
   );
 }
 
+/**
+ * Ce que la grille et les cartes lisent identiquement par ligne — un seul
+ * calcul, pour que les deux arbres ne puissent pas diverger en silence.
+ */
+function donneesLigne(p: Participation) {
+  return {
+    nf: isNonFinisher(p.status),
+    name: [p.athlete?.nom, p.athlete?.prenom].filter(Boolean).join(" "),
+    splits: p.splits ?? {},
+  };
+}
+
+/**
+ * Marqueur de rang, partagé par la grille et les cartes : les deux arbres
+ * doivent s'accorder sur ce qu'ils affichent — badge de statut, place, ou
+ * tiret d'absence. `stylePlace` reste un paramètre : seule la grille resserre
+ * `PlaceBadge` (`minWidth`, `fontSize`), la carte n'a pas cette contrainte.
+ */
+function marqueurRang(p: Participation, nf: boolean, stylePlace?: CSSProperties) {
+  if (nf) return <StatusBadge status={p.status} />;
+  if (p.rank_overall != null) return <PlaceBadge place={p.rank_overall} style={stylePlace} />;
+  return <span style={{ color: "var(--tcn-text-faint)" }}>—</span>;
+}
+
 export function RaceFinishers({
   participations,
   summary,
@@ -279,8 +303,9 @@ export function RaceFinishers({
       cle: precedent?.cle ?? CLE_TEMPS_TOTAL,
       // Non trié → « décroissant », et non « croissant » : le nom accessible du
       // bouton annonce alors « actuellement croissant », donc l'appuyer doit
-      // donner l'autre sens. Le test compare le sens **et** le libellé — les
-      // désaccorder est une régression silencieuse pour un lecteur d'écran.
+      // donner l'autre sens. Le test vérifie l'ordre des lignes **et** relit ce
+      // nom accessible avant/après le clic — les désaccorder est une
+      // régression silencieuse pour un lecteur d'écran.
       direction: precedent?.direction === "desc" ? "asc" : "desc",
     }));
   }
@@ -531,10 +556,8 @@ export function RaceFinishers({
           <tbody role="rowgroup">
           {lignes.map((p) => {
             const own = p.is_tcn;
-            const nf = isNonFinisher(p.status);
+            const { nf, name, splits } = donneesLigne(p);
             const moi = athleteRetenu?.id === p.athlete.id;
-            const name = [p.athlete.nom, p.athlete.prenom].filter(Boolean).join(" ");
-            const splits = p.splits ?? {};
             return (
               <tr
                 key={p.id}
@@ -565,15 +588,7 @@ export function RaceFinishers({
                     : undefined,
                 }}
               >
-                <td role="cell">
-                  {nf ? (
-                    <StatusBadge status={p.status} />
-                  ) : p.rank_overall != null ? (
-                    <PlaceBadge place={p.rank_overall} style={{ minWidth: 28, fontSize: 16 }} />
-                  ) : (
-                    <span style={{ color: "var(--tcn-text-faint)" }}>—</span>
-                  )}
-                </td>
+                <td role="cell">{marqueurRang(p, nf, { minWidth: 28, fontSize: 16 })}</td>
                 {/* `minWidth: 0` remplace l'`overflow: hidden` que portait la
                     cellule, et l'ellipsis descend sur le `<span>` intérieur.
                     Les deux faisaient le même travail sur la piste `1fr` — mais
@@ -693,9 +708,7 @@ export function RaceFinishers({
           </div>
         )}
         {lignes.map((p) => {
-          const nf = isNonFinisher(p.status);
-          const name = [p.athlete?.nom, p.athlete?.prenom].filter(Boolean).join(" ");
-          const splits = p.splits ?? {};
+          const { nf, name, splits } = donneesLigne(p);
           const meta = [p.club ?? "—", p.category ?? "—", genderShort(p.athlete?.gender)]
             .filter(Boolean)
             .join(" · ");
@@ -705,15 +718,7 @@ export function RaceFinishers({
               href={detailHref(p)}
               accent={p.is_tcn}
               attenue={nf}
-              marqueur={
-                nf ? (
-                  <StatusBadge status={p.status} />
-                ) : p.rank_overall != null ? (
-                  <PlaceBadge place={p.rank_overall} />
-                ) : (
-                  <span style={{ color: "var(--tcn-text-faint)" }}>—</span>
-                )
-              }
+              marqueur={marqueurRang(p, nf)}
               titre={name}
               valeur={p.total_time ?? "—"}
               meta={meta}

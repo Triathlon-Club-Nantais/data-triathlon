@@ -1362,11 +1362,56 @@ describe("rendu carte sous lg", () => {
     // L'ordre du backend d'abord : la vue n'est pas triée.
     expect(noms()).toEqual(["MOYEN T", "LENT T", "RAPIDE T"]);
 
-    await userEvent.click(cartes().getByRole("button", { name: /Inverser l'ordre/ }));
+    const bouton = cartes().getByRole("button", { name: /Inverser l'ordre/ });
+    expect(bouton).toHaveAccessibleName(/actuellement croissant/);
+
+    await userEvent.click(bouton);
 
     // Le contrôle mobile écrit dans le même état `tri` que les en-têtes :
     // l'arbre grille est réordonné lui aussi. Premier appui = décroissant, ce
     // que le nom accessible du bouton annonçait (« actuellement croissant »).
+    expect(noms()).toEqual(["LENT T", "MOYEN T", "RAPIDE T"]);
+    // Le nom accessible reste accordé à l'état réel après l'appui : un
+    // lecteur d'écran n'a que lui pour savoir dans quel sens ira le suivant.
+    expect(bouton).toHaveAccessibleName(/actuellement décroissant/);
+  });
+
+  it("ne bascule pas la direction quand on rechoisit depuis le sélecteur la colonne déjà active", async () => {
+    // `choisirTri` existe précisément pour ça, à la différence de `trierSur` :
+    // rechoisir dans une liste déroulante la valeur déjà active n'est pas un
+    // geste d'inversion — sinon rouvrir le menu et reconfirmer « Temps total »
+    // inverserait le tri à chaque fois qu'on referme le menu.
+    render(
+      <RaceFinishers
+        participations={[
+          p({ id: 1, nom: "MOYEN", rank_overall: 1, total_time: "01:30:00" }),
+          p({ id: 2, nom: "LENT", rank_overall: 2, total_time: "02:00:00" }),
+          p({ id: 3, nom: "RAPIDE", rank_overall: 3, total_time: "01:00:00" }),
+        ]}
+        summary={synthese()}
+        total={3}
+        page={1}
+        pageSize={20}
+      />,
+    );
+    const noms = () =>
+      within(grille())
+        .getAllByText(/^(MOYEN|LENT|RAPIDE) T$/)
+        .map((n) => n.textContent);
+
+    // Le tri est d'abord posé sur « Temps total », décroissant, par le bouton
+    // d'inversion — seul moyen d'obtenir un tri non `null` sur cette colonne.
+    await userEvent.click(cartes().getByRole("button", { name: /Inverser l'ordre/ }));
+    expect(noms()).toEqual(["LENT T", "MOYEN T", "RAPIDE T"]);
+
+    await userEvent.click(cartes().getByRole("combobox", { name: /Trier par/i }));
+    // Le menu se rend dans un portail, hors de `classement-cartes` : requête
+    // non scopée, comme `EventsTable.test.tsx` pour le même composant `Select`.
+    await userEvent.click(await screen.findByRole("option", { name: "Temps total" }));
+
+    // « Temps total » était déjà la colonne active : la reconfirmer garde la
+    // direction décroissante en cours. `trierSur` l'aurait inversée en
+    // croissant (["RAPIDE T", "MOYEN T", "LENT T"]) ; `choisirTri` ne le fait pas.
     expect(noms()).toEqual(["LENT T", "MOYEN T", "RAPIDE T"]);
   });
 });
