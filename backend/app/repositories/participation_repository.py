@@ -579,29 +579,173 @@ def summary_rows_for_course(db: Session, course_id: int) -> list[tuple]:
     )
 
 
-def for_stats(
+# ── Stats agrégées (issue #580) ──────────────────────────────────────────────
+#
+# `for_stats` chargeait les participations entières (avec `course`/`athlete`
+# joints) pour que `stats_service.get_stats` fasse en Python ce que cinq
+# `GROUP BY` triviaux, un `ORDER BY … LIMIT 20` et un balayage de tuples
+# réduits font en SQL — mesuré à 724 ms contre 8 ms pour les mêmes compteurs en
+# SQL agrégé, sur 31 280 participations (#580). Les cinq fonctions ci-dessous
+# la remplacent, chacune sur le patron d'une des quatre pistes de l'issue.
+# `for_stats` n'a plus d'appelant et a été supprimée.
+
+
+def _stats_filters(q, *, club_only: bool, seasons: list[int] | None, federal_only: bool):
+    """Filtres communs à toutes les stats agrégées, `Course` déjà joint.
+
+    Toujours après `validated_clause` (#270, FR-021) et `Course` déjà présent
+    dans `q` — appliqué par chaque appelante selon qu'elle a ou non déjà besoin
+    de la jointure pour ses propres colonnes.
+    """
+    if club_only:
+        q = q.filter(tcn_clause(Participation.club))
+    if seasons:
+        q = q.filter(season_clause(seasons))
+    if federal_only:
+        q = q.filter(federal_clause(Course.event_type))
+    return q
+
+
+def stats_totals(
     db: Session,
     *,
     club_only: bool = False,
     seasons: list[int] | None = None,
     federal_only: bool = False,
-) -> list[Participation]:
-    """Charge les participations (avec course + athlète) pour les agrégations stats.
-
-    Exclut les résultats en attente de validation (#270, FR-021) : c'est la
-    fonction qui alimente le tableau de bord, la page club et les podiums.
-    """
-    q = db.query(Participation).options(
-        joinedload(Participation.course), joinedload(Participation.athlete)
+) -> tuple[int, int, int]:
+    """`(total, athlètes distincts, épreuves distinctes)` en une requête agrégée."""
+    q = db.query(
+        func.count(Participation.id),
+        func.count(func.distinct(Participation.athlete_id)),
+        func.count(func.distinct(Participation.course_id)),
     ).filter(validated_clause(Participation.is_pending_validation))
-    if club_only:
-        q = q.filter(tcn_clause(Participation.club))
     if seasons or federal_only:
         q = q.join(Course, Participation.course_id == Course.id)
-    if seasons:
-        q = q.filter(season_clause(seasons))
-    if federal_only:
-        q = q.filter(federal_clause(Course.event_type))
+    q = _stats_filters(q, club_only=club_only, seasons=seasons, federal_only=federal_only)
+    total, athletes, events = q.one()
+    return int(total or 0), int(athletes or 0), int(events or 0)
+
+
+def stats_by_type(
+    db: Session,
+    *,
+    club_only: bool = False,
+    seasons: list[int] | None = None,
+    federal_only: bool = False,
+) -> list[tuple[str, int]]:
+    """Nombre de participations par `event_type`, un `GROUP BY`.
+
+    Un `event_type` vide ou absent n'entre pas dans la répartition, comme
+    l'ancien repli Python (`if course and course.event_type`).  Ordre
+    secondaire alphabétique pour départager les égalités de compte de façon
+    déterministe : `stats_service.get_stats` trie ensuite par compte
+    décroissant, ce que `sorted` (stable) préserve pour les non-égalités.
+    """
+    q = (
+        db.query(Course.event_type, func.count(Participation.id))
+        .join(Course, Participation.course_id == Course.id)
+        .filter(validated_clause(Participation.is_pending_validation))
+        .filter(Course.event_type.isnot(None), Course.event_type != "")
+    )
+    q = _stats_filters(q, club_only=club_only, seasons=seasons, federal_only=federal_only)
+    return q.group_by(Course.event_type).order_by(Course.event_type).all()
+
+
+def stats_by_month_rows(
+    db: Session,
+    *,
+    club_only: bool = False,
+    seasons: list[int] | None = None,
+    federal_only: bool = False,
+) -> list[tuple]:
+    """Une ligne par épreuve datée : `(event_date, nombre de participations)`.
+
+    Même patron que `distinct_seasons` : l'extraction du mois (`YYYY-MM`) n'a
+    pas d'expression SQL portable SQLite/PostgreSQL, donc `stats_service`
+    replie ce jeu **agrégé** (une ligne par épreuve, pas par participation) en
+    Python. Un `event_date` absent n'entre pas dans la répartition, comme
+    l'ancien repli Python (`if course and course.event_date`).
+    """
+    q = (
+        db.query(Course.event_date, func.count(Participation.id))
+        .join(Course, Participation.course_id == Course.id)
+        .filter(validated_clause(Participation.is_pending_validation))
+        .filter(Course.event_date.isnot(None))
+    )
+    q = _stats_filters(q, club_only=club_only, seasons=seasons, federal_only=federal_only)
+    return q.group_by(Course.id, Course.event_date).all()
+
+
+def stats_recent_rows(
+    db: Session,
+    *,
+    club_only: bool = False,
+    seasons: list[int] | None = None,
+    federal_only: bool = False,
+    limit: int = 20,
+) -> list[tuple]:
+    """Les `limit` participations les plus récentes, triées et bornées en SQL.
+
+    Rend des tuples (`id`, nom, prénom, club, nom d'épreuve, type, date,
+    temps, `created_at`) — les seules colonnes que rend le tableau de bord —
+    et non des `Participation` : trier 31 280 objets en mémoire pour en garder
+    20 est exactement le coût que #580 supprime. Départage à compte égal (rare
+    en pratique, `created_at` portant les microsecondes) par `id` décroissant,
+    pour un ordre déterministe qu'un `ORDER BY` sur la seule date ne garantit
+    pas d'un moteur à l'autre.
+    """
+    q = (
+        db.query(
+            Participation.id,
+            Athlete.nom,
+            Athlete.prenom,
+            Participation.club,
+            Course.name,
+            Course.event_type,
+            Course.event_date,
+            Participation.total_time,
+            Participation.created_at,
+        )
+        .join(Athlete, Participation.athlete_id == Athlete.id)
+        .join(Course, Participation.course_id == Course.id)
+        .filter(validated_clause(Participation.is_pending_validation))
+        .filter(Participation.created_at.isnot(None))
+    )
+    q = _stats_filters(q, club_only=club_only, seasons=seasons, federal_only=federal_only)
+    return (
+        q.order_by(Participation.created_at.desc(), Participation.id.desc())
+        .limit(limit)
+        .all()
+    )
+
+
+def stats_rank_rows(
+    db: Session,
+    *,
+    club_only: bool = False,
+    seasons: list[int] | None = None,
+    federal_only: bool = False,
+) -> list[tuple]:
+    """`(rank_overall, rank_category, rank_gender, gender)` — un balayage réduit.
+
+    Alimente `stats_service._rank_counters`, qui fait les douze compteurs en
+    une passe Python sur ces tuples plutôt que sur des `Participation`
+    entières avec leur `course`/`athlete` joints (#580) — le patron déjà suivi
+    par `summary_rows_for_course`.
+    """
+    q = (
+        db.query(
+            Participation.rank_overall,
+            Participation.rank_category,
+            Participation.rank_gender,
+            Athlete.gender,
+        )
+        .join(Athlete, Participation.athlete_id == Athlete.id)
+        .filter(validated_clause(Participation.is_pending_validation))
+    )
+    if seasons or federal_only:
+        q = q.join(Course, Participation.course_id == Course.id)
+    q = _stats_filters(q, club_only=club_only, seasons=seasons, federal_only=federal_only)
     return q.all()
 
 

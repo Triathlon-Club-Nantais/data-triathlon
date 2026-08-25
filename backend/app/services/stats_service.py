@@ -35,29 +35,31 @@ def _meilleur_rang(rangs: list[int | None]) -> int | None:
     return min(valides) if valides else None
 
 
-def _rank_counters(parts) -> dict:
+def _rank_counters(rows) -> dict:
     """Compteurs Victoires/Podiums/Top10 des 4 modes de rang du dashboard.
 
-    Calculés en une passe sur les participations déjà chargées par
-    `get_stats` — aucune requête supplémentaire. Miroir du calcul
-    auparavant fait côté client par `rankCounters`
-    (`frontend/lib/utils/club-aggregate.ts`) : le comportement de chaque
-    mode, y compris la ventilation genre limitée à "F"/"M", est repris à
-    l'identique (#376 déplace le calcul, ne le change pas).
+    Une passe sur des tuples `(rank_overall, rank_category, rank_gender,
+    gender)` — `participation_repository.stats_rank_rows`, réduite aux
+    colonnes utiles, pas des `Participation` entières avec leur `course`/
+    `athlete` joints (#580). Miroir du calcul auparavant fait côté client par
+    `rankCounters` (`frontend/lib/utils/club-aggregate.ts`) : le comportement
+    de chaque mode, y compris la ventilation genre limitée à "F"/"M", est
+    repris à l'identique (#376 déplace le calcul, ne le change pas — #580 ne
+    fait que déplacer une seconde fois **où** il tourne, pas ce qu'il fait).
     """
     scratch, category, tous = _bucket(), _bucket(), _bucket()
     genre = {"women": _bucket(), "men": _bucket()}
 
-    for p in parts:
-        _accumule(scratch, p.rank_overall)
-        _accumule(category, p.rank_category)
-        _accumule(tous, _meilleur_rang([p.rank_overall, p.rank_gender, p.rank_category]))
+    for rank_overall, rank_category_, rank_gender, gender in rows:
+        _accumule(scratch, rank_overall)
+        _accumule(category, rank_category_)
+        _accumule(tous, _meilleur_rang([rank_overall, rank_gender, rank_category_]))
 
-        g = (p.athlete.gender or "").upper() if p.athlete else ""
+        g = (gender or "").upper()
         if g == "F":
-            _accumule(genre["women"], p.rank_gender)
+            _accumule(genre["women"], rank_gender)
         elif g == "M":
-            _accumule(genre["men"], p.rank_gender)
+            _accumule(genre["men"], rank_gender)
 
     return {"scratch": scratch, "category": category, "all": tous, "gender": genre}
 
@@ -69,56 +71,64 @@ def get_stats(
     seasons: list[int] | None = None,
     federal_only: bool = False,
 ) -> dict:
-    """Stats agrégées : total, athlètes, épreuves, répartition par type/mois, récents."""
-    parts = participation_repository.for_stats(
+    """Stats agrégées : total, athlètes, épreuves, répartition par type/mois, récents.
+
+    Cinq requêtes SQL agrégées (#580) — `total`/`athletes`/`events` en une,
+    `by_type` et le jeu replié en `by_month` en un `GROUP BY` chacun, `recent`
+    en `ORDER BY … LIMIT 20`, les compteurs de rang sur un balayage de tuples
+    réduits — au lieu d'hydrater puis trier en Python les dizaines de milliers
+    de `Participation` que `for_stats` chargeait.
+    """
+    total, athletes, events = participation_repository.stats_totals(
         db, club_only=club_only, seasons=seasons, federal_only=federal_only
     )
-    if not parts:
+    if not total:
         return {
             "total": 0, "athletes": 0, "events": 0, "by_type": {}, "by_month": {}, "recent": [],
             "rank_counters": _rank_counters([]),
         }
 
-    athlete_set = {p.athlete_id for p in parts}
-    event_set = {p.course_id for p in parts}
-    by_type: Counter[str] = Counter()
-    by_month: Counter[str] = Counter()
-    for p in parts:
-        course = p.course
-        if course and course.event_type:
-            by_type[course.event_type] += 1
-        if course and course.event_date:
-            by_month[str(course.event_date)[:7]] += 1  # YYYY-MM
+    by_type_rows = participation_repository.stats_by_type(
+        db, club_only=club_only, seasons=seasons, federal_only=federal_only
+    )
+    by_month_rows = participation_repository.stats_by_month_rows(
+        db, club_only=club_only, seasons=seasons, federal_only=federal_only
+    )
+    recent_rows = participation_repository.stats_recent_rows(
+        db, club_only=club_only, seasons=seasons, federal_only=federal_only, limit=20
+    )
+    rank_rows = participation_repository.stats_rank_rows(
+        db, club_only=club_only, seasons=seasons, federal_only=federal_only
+    )
 
-    recent = sorted(
-        (p for p in parts if p.created_at),
-        key=lambda p: p.created_at,
-        reverse=True,
-    )[:20]
+    by_month: Counter[str] = Counter()
+    for event_date, count in by_month_rows:
+        by_month[str(event_date)[:7]] += int(count or 0)  # YYYY-MM
 
     return {
-        "total": len(parts),
-        "athletes": len(athlete_set),
-        "events": len(event_set),
-        "by_type": dict(sorted(by_type.items(), key=lambda x: -x[1])),
+        "total": total,
+        "athletes": athletes,
+        "events": events,
+        "by_type": dict(
+            sorted(((t, int(c or 0)) for t, c in by_type_rows), key=lambda x: -x[1])
+        ),
         "by_month": dict(sorted(by_month.items())),
         "recent": [
             {
-                "id": p.id,
-                "athlete_name": p.athlete.nom if p.athlete else "",
-                "athlete_firstname": p.athlete.prenom if p.athlete else "",
-                "club": p.club or "",
-                "event_name": p.course.name if p.course else "",
-                "event_type": p.course.event_type if p.course else "",
-                "event_date": p.course.event_date.isoformat()
-                if p.course and p.course.event_date
-                else None,
-                "total_time": p.total_time or "",
-                "scraped_at": p.created_at.isoformat() if p.created_at else None,
+                "id": id_,
+                "athlete_name": nom or "",
+                "athlete_firstname": prenom or "",
+                "club": club or "",
+                "event_name": event_name or "",
+                "event_type": event_type or "",
+                "event_date": event_date.isoformat() if event_date else None,
+                "total_time": total_time or "",
+                "scraped_at": created_at.isoformat() if created_at else None,
             }
-            for p in recent
+            for id_, nom, prenom, club, event_name, event_type, event_date, total_time, created_at
+            in recent_rows
         ],
-        "rank_counters": _rank_counters(parts),
+        "rank_counters": _rank_counters(rank_rows),
     }
 
 
