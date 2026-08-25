@@ -3,6 +3,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, computed_field
 
+from app.core import split_gap
 from app.core.club import is_tcn as _is_tcn
 from app.schemas.athlete import AthleteBrief
 from app.schemas.course import CourseBrief
@@ -49,6 +50,26 @@ class ParticipationOut(BaseModel):
         de l'issue #76.
         """
         return _is_tcn(self.club)
+
+    @computed_field
+    @property
+    def split_gap_ratio(self) -> float | None:
+        """Écart relatif **signé** entre le temps total et la somme des inters (#486).
+
+        Exposé pour la même raison que `is_tcn` juste au-dessus, et c'est le même
+        précédent qui l'impose : le front en a besoin par ligne, le serveur en a besoin
+        pour la médiane d'épreuve, et deux implémentations de la même règle divergent
+        (#76). Le serveur mesure, l'écran applique ses seuils d'affichage.
+
+        `None` dès qu'une des cinq conditions d'évaluabilité manque : relais, splits
+        absents, schéma de segments incomplet, temps total ou inter illisible.
+        """
+        return split_gap.gap(
+            self.total_time,
+            self.splits,
+            event_type=self.course.event_type,
+            is_relay=self.course.is_relay,
+        )
 
 
 class AthleteParticipationOut(ParticipationOut):

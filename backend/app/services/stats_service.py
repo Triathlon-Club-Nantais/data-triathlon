@@ -4,8 +4,9 @@ from collections import Counter
 from sqlalchemy.orm import Session
 
 from app.core import season as season_module
+from app.core import split_gap
 from app.core.club import TCN_CANONICAL_NAME, is_tcn
-from app.repositories import participation_repository
+from app.repositories import course_repository, participation_repository
 from app.scrapers.base import STATUS_FINISHER
 from app.scrapers.utils import to_seconds
 
@@ -178,6 +179,8 @@ def _event_row(r) -> dict:
         "distance_km": r.distance_km,
         "total": r.total,
         "tcn_count": int(r.tcn_count or 0),
+        "is_reliable": r.is_reliable,
+        "quality_issues": r.quality_issues,
     }
 
 
@@ -255,7 +258,11 @@ def course_summary(db: Session, course_id: int) -> dict:
     clubs: Counter[str] = Counter()
     split_keys: dict[str, None] = {}
     secondes: list[int] = []
+    ecarts: list[float | None] = []
 
+    # L'épreuve, lue une fois : le sport et le caractère de relais commandent le
+    # schéma de segments de l'écart, et ne varient pas d'une ligne à l'autre.
+    course = course_repository.get(db, course_id)
     lignes = participation_repository.summary_rows_for_course(db, course_id)
     for status, club, category, total_time, splits, gender in lignes:
         statut = (status or "").strip()
@@ -302,6 +309,15 @@ def course_summary(db: Session, course_id: int) -> dict:
         if seconde is not None and total_time != "00:00:00":
             secondes.append(seconde)
 
+        ecarts.append(
+            split_gap.gap(
+                total_time,
+                splits,
+                event_type=course.event_type if course else None,
+                is_relay=bool(course and course.is_relay),
+            )
+        )
+
     return {
         "total": len(lignes),
         "finishers": finishers,
@@ -329,4 +345,8 @@ def course_summary(db: Session, course_id: int) -> dict:
         ],
         "histogram": _histogram(secondes),
         "split_keys": list(split_keys),
+        # Une **mesure**, pas un verdict : la médiane sert de référence à l'écran,
+        # qui applique ses propres seuils. Les régler après re-sondage ne touche
+        # donc pas au contrat (#486).
+        "split_gap_median": split_gap.median(ecarts),
     }

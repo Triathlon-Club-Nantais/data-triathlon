@@ -134,6 +134,12 @@ export interface Participation {
   // Écarté par un bénévole comme non conforme (#437).
   is_rejected?: boolean;
   splits: Splits | null;
+  // Écart relatif **signé** entre `total_time` et la somme des inters :
+  // `(total − Σ inters) / total`. Calculé par le serveur, jamais ici — la
+  // médiane de l'épreuve porte sur toutes les lignes, et deux implémentations
+  // de la même règle divergeraient (#76, #486). `null` quand la ligne n'est pas
+  // évaluable : relais, splits absents, schéma incomplet, temps illisible.
+  split_gap_ratio?: number | null;
   created_at: string | null;
   // Nombre de finishers classés de la course (même groupe solo/relais).
   // Servi par la seule route /athletes/{id} — d'où l'optionnalité.
@@ -153,6 +159,11 @@ export interface EventOut {
   distance_km?: number | null;
   total: number;
   tcn_count: number;
+  // Miroir des deux champs de `CourseBrief` : sans eux, la liste ne peut pas
+  // marquer ce qu'elle liste sans un second appel (#486). `null` = épreuve
+  // jamais évaluée, état normal des imports antérieurs au calcul.
+  is_reliable?: boolean | null;
+  quality_issues?: Record<string, number> | null;
 }
 
 export interface EventPage {
@@ -553,9 +564,18 @@ export interface CourseSummary {
    *  et non la somme des 8 rendues — qui gonflerait chaque barre. */
   categories_total: number;
   clubs: ClubCount[];
+  /** Nombre de **clubs distincts** renseignés sur l'épreuve — dénominateur du
+   *  « et N autres clubs ». Attention au faux ami : `categories_total` compte
+   *  des **participants**, celui-ci compte des **clubs** (#486). */
+  clubs_total: number;
   histogram: Histogram | null;
   /** Colonnes de temps intermédiaires du tableau — stables d'une page à l'autre. */
   split_keys: string[];
+  /** Médiane des `split_gap_ratio` de l'épreuve — la **référence** à laquelle
+   *  se juge l'écart d'une ligne. Un écart partagé par toutes les lignes est un
+   *  segment que le chronométreur ne publie pas, pas une ligne fausse.
+   *  `null` quand aucune ligne n'est évaluable (#486). */
+  split_gap_median: number | null;
 }
 
 export interface ParticipationFilters {

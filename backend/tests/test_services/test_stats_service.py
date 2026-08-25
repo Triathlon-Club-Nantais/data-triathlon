@@ -1,6 +1,7 @@
 from collections import Counter
 from datetime import date, datetime, timedelta
 
+import pytest
 from sqlalchemy.orm import joinedload
 
 from app.core.club import tcn_clause
@@ -763,3 +764,69 @@ def test_get_stats_egalite_de_rang_compte_chaque_victoire(db_session):
     scratch = stats_service.get_stats(db_session)["rank_counters"]["scratch"]
     # Une victoire par épreuve (5 épreuves), plus une seconde sur C1 (égalité).
     assert scratch["victories"] == 6
+
+
+# ── Écart total / somme des inters (issue #486, RES-10) ──────────────────────
+#
+# Le point de vérité des seuils est le sondage
+# `docs/superpowers/specs/2026-08-25-ecart-inters-total-sondage.md`. La synthèse
+# publie la **médiane** de l'épreuve, jamais un verdict : c'est l'écran qui
+# applique ses seuils d'affichage, ce qui permet de les régler après re-sondage
+# sans toucher au contrat.
+
+_INTERS_EXACTS = {
+    "swim": "00:15:00",
+    "t1": "00:02:00",
+    "bike": "00:30:00",
+    "t2": "00:03:00",
+    "run": "00:10:00",
+}
+
+
+def test_course_summary_publie_la_mediane_des_ecarts(db_session):
+    """Deux lignes à 0 %, une à 60 s d'écart : la médiane vaut 0."""
+    inters_courts = dict(_INTERS_EXACTS, t1="00:01:00")
+    course = _epreuve(
+        db_session,
+        [
+            ("A", "Un", "M", "ASPTT", "S1", "finisher", "01:00:00", _INTERS_EXACTS),
+            ("B", "Deux", "M", "ASPTT", "S1", "finisher", "01:00:00", _INTERS_EXACTS),
+            ("C", "Trois", "M", "ASPTT", "S1", "finisher", "01:00:00", inters_courts),
+        ],
+    )
+
+    synthese = stats_service.course_summary(db_session, course.id)
+
+    assert synthese["split_gap_median"] == pytest.approx(0.0)
+
+
+def test_course_summary_mediane_nulle_sans_ligne_evaluable(db_session):
+    """Ni splits, ni schéma complet : rien à mesurer, et le produit ne prétend rien."""
+    course = _epreuve(
+        db_session,
+        [
+            ("A", "Un", "M", "ASPTT", "S1", "finisher", "01:00:00", None),
+            ("B", "Deux", "M", "ASPTT", "S1", "finisher", "01:00:00", {"swim": "00:15:00"}),
+        ],
+    )
+
+    synthese = stats_service.course_summary(db_session, course.id)
+
+    assert synthese["split_gap_median"] is None
+
+
+def test_course_summary_mediane_ignore_les_lignes_non_evaluables(db_session):
+    """La ligne au total illisible ne doit pas tirer la médiane vers zéro."""
+    inters_courts = dict(_INTERS_EXACTS, t1="00:01:00")
+    course = _epreuve(
+        db_session,
+        [
+            ("A", "Un", "M", "ASPTT", "S1", "finisher", "01:00:00", inters_courts),
+            ("B", "Deux", "M", "ASPTT", "S1", "finisher", None, _INTERS_EXACTS),
+            ("C", "Trois", "M", "ASPTT", "S1", "finisher", "01:00:00", inters_courts),
+        ],
+    )
+
+    synthese = stats_service.course_summary(db_session, course.id)
+
+    assert synthese["split_gap_median"] == pytest.approx(60 / 3600)
