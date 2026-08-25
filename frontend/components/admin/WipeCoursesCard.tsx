@@ -39,8 +39,13 @@ export function WipeCoursesCard() {
 
   async function confirmer() {
     try {
-      await purge.mutateAsync();
-      toast.success("Toutes les épreuves ont été supprimées.");
+      const resultat = await purge.mutateAsync();
+      const c = resultat.courses_deleted;
+      const a = resultat.athletes_purged;
+      toast.success(
+        `${c} épreuve${c === 1 ? "" : "s"} supprimée${c === 1 ? "" : "s"}, ` +
+          `${a} fiche${a === 1 ? "" : "s"} coureur purgée${a === 1 ? "" : "s"}.`,
+      );
       setOuvert(false);
     } catch (erreur) {
       toast.error((erreur as Error).message);
