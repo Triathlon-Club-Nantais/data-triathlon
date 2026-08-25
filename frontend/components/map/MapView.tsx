@@ -140,6 +140,26 @@ export function MapView({ scope }: { scope?: string }) {
   return (
     <div className="space-y-4">
       <div className="relative">
+        {verrouillee && (
+          // Avant `MapContainer` dans le DOM (et non seulement au-dessus par
+          // z-index) : tant que la carte est verrouillée, ses contrôles de zoom
+          // internes à Leaflet ne doivent pas être le premier arrêt clavier —
+          // leur anneau de focus se peindrait sous ce voile opaque, invisible.
+          <button
+            type="button"
+            onClick={() => setVerrouillee(false)}
+            className="absolute inset-0 z-[1000] flex items-center justify-center rounded-md text-center focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--tcn-orange)]"
+            // `--tcn-overlay` (45 %) est calibré pour un scrim de modale, sous un
+            // panneau opaque — ici le texte lui est posé dessus, directement sur
+            // des tuiles parfois claires : il faut son propre contraste garanti,
+            // d'où `--tcn-ink` à 85 % plutôt que le token de scrim.
+            style={{ background: "rgba(28, 30, 34, 0.85)" }}
+          >
+            <span className="rounded-full border border-white/70 px-4 py-2 font-semibold text-white">
+              Toucher pour activer la carte
+            </span>
+          </button>
+        )}
         <MapContainer center={[47.2, -1.5]} zoom={7} scrollWheelZoom={false} className="h-[320px] w-full rounded-md sm:h-[480px]">
           <TileLayer
             attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -165,7 +185,12 @@ export function MapView({ scope }: { scope?: string }) {
                 <Popup>
                   <div className="min-w-[180px]">
                     <b>
-                      <Link href={`/courses/${ev.course_id}`}>{ev.event_name}</Link>
+                      <Link
+                        href={`/courses/${ev.course_id}`}
+                        className="underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--tcn-orange)]"
+                      >
+                        {ev.event_name}
+                      </Link>
                     </b>
                     {ev.event_type && <div className="text-[var(--tcn-text-body)]">{eventTypeLabel(ev.event_type)}</div>}
                     {ev.event_date && <div className="text-xs">{formatMonth(ev.event_date.slice(0, 7))}</div>}
@@ -185,20 +210,6 @@ export function MapView({ scope }: { scope?: string }) {
           <FitBounds events={events} />
           <VerrouGlisse verrouillee={verrouillee} />
         </MapContainer>
-        {verrouillee && (
-          <button
-            type="button"
-            onClick={() => setVerrouillee(false)}
-            className="absolute inset-0 z-[1000] flex items-center justify-center rounded-md text-center font-semibold text-white"
-            // `--tcn-overlay` (45 %) est calibré pour un scrim de modale, sous un
-            // panneau opaque — ici le texte lui est posé dessus, directement sur
-            // des tuiles parfois claires : il faut son propre contraste garanti,
-            // d'où `--tcn-ink` à 85 % plutôt que le token de scrim.
-            style={{ background: "rgba(28, 30, 34, 0.85)" }}
-          >
-            Toucher pour activer la carte
-          </button>
-        )}
       </div>
       <ListeEpreuves events={events} />
     </div>
