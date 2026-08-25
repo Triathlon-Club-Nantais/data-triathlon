@@ -1,5 +1,5 @@
 import type { RankType } from "@/lib/rank";
-import type { PodiumScope } from "@/lib/utils/club-aggregate";
+import type { PodiumScope } from "@/lib/podium-scope";
 
 /**
  * Libellés utilisateur du vocabulaire de rang. Une seule source pour les trois

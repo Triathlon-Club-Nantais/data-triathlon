@@ -1,5 +1,6 @@
 import { Trophy, Ribbon, Users, type LucideIcon } from "lucide-react";
-import type { PodiumScope } from "@/lib/utils/club-aggregate";
+
+export type PodiumScope = "overall" | "category" | "gender";
 
 /**
  * Icône + libellés par scope de podium (#128) — partagés entre `PodiumsList`

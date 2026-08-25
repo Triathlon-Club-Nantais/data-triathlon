@@ -218,6 +218,43 @@ export interface Stats {
   rank_counters: DashboardRankCounters;
 }
 
+// Miroir de ClubRosterEntry/ClubPodiumEntry/ClubPodiums/ClubSummary backend (#581).
+export interface ClubRosterEntry {
+  athlete_id: number;
+  prenom: string;
+  nom: string;
+  count: number;
+  podiums: number;
+  podiums_overall: number;
+  podiums_gender: number;
+  podiums_category: number;
+}
+
+export interface ClubPodiumEntry {
+  participation_id: number;
+  athlete_id: number;
+  athlete_name: string;
+  event_name: string;
+  event_type: string;
+  is_relay: boolean;
+  event_date: string | null;
+  rank: number;
+  scope: "overall" | "gender" | "category";
+  total_time: string | null;
+}
+
+export interface ClubPodiums {
+  scratch: ClubPodiumEntry[];
+  category: ClubPodiumEntry[];
+  gender: ClubPodiumEntry[];
+  all: ClubPodiumEntry[];
+}
+
+export interface ClubSummary {
+  roster: ClubRosterEntry[];
+  podiums: ClubPodiums;
+}
+
 // Saison sportive disponible (miroir de SeasonOut backend).
 export interface Season {
   start_year: number;
