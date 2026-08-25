@@ -136,10 +136,16 @@ export function ClubDashboard({
                 portées sans condition, quand le KPI « Podiums » plus haut suit
                 `?rank=`. Les deux nombres sont justes et incomparables ; sans
                 cette ligne, basculer le toggle faisait bouger l'un et pas
-                l'autre, sans explication à l'écran. */}
-            <p className="text-sm text-[var(--tcn-text-faint)]">
-              podiums toutes portées confondues
-            </p>
+                l'autre, sans explication à l'écran. Rendue seulement si
+                l'aperçu montre au moins un podium : les cartes elles-mêmes ne
+                rendent leur décompte que sous cette condition (`r.podiums > 0`
+                ci-dessous) — sur un club sans podium, la légende qualifiait
+                des nombres absents de l'écran (revue finale). */}
+            {apercu.some((r) => r.podiums > 0) && (
+              <p className="text-sm text-[var(--tcn-text-faint)]">
+                podiums toutes portées confondues
+              </p>
+            )}
           </div>
           {/* Inconditionnel : « les deux écrans reliés dans les deux sens »
               est une garantie de navigation, elle ne peut pas s'éteindre sous

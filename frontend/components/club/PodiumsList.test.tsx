@@ -9,7 +9,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => searchParams,
 }));
 
-import { PodiumsList } from "./PodiumsList";
+import { PodiumsList, APERCU_PODIUMS } from "./PodiumsList";
 
 function part(over: Partial<Participation> & { id: number }): Participation {
   return {
@@ -150,22 +150,22 @@ describe("PodiumsList — annonce du changement (#477)", () => {
 });
 
 describe("PodiumsList — extension de la liste (PROF-3, #488)", () => {
-  // 9 podiums scratch : au-delà de l'aperçu de 6, donc 3 restants.
+  // 9 podiums scratch : au-delà de l'aperçu, donc 3 restants.
   const NEUF = Array.from({ length: 9 }, (_, i) => part({ id: i + 1, rank_overall: 1 }));
 
   it("n'offre pas d'extension quand tout tient dans l'aperçu", () => {
     searchParams = new URLSearchParams();
-    render(<PodiumsList participations={NEUF.slice(0, 6)} />);
+    render(<PodiumsList participations={NEUF.slice(0, APERCU_PODIUMS)} />);
 
     expect(screen.queryByRole("button", { name: /Voir les/ })).not.toBeInTheDocument();
-    expect(screen.getAllByRole("listitem")).toHaveLength(6);
+    expect(screen.getAllByRole("listitem")).toHaveLength(APERCU_PODIUMS);
   });
 
   it("dit combien de podiums restent sous l'aperçu", () => {
     searchParams = new URLSearchParams();
     render(<PodiumsList participations={NEUF} />);
 
-    expect(screen.getAllByRole("listitem")).toHaveLength(6);
+    expect(screen.getAllByRole("listitem")).toHaveLength(APERCU_PODIUMS);
     expect(screen.getByRole("button", { name: "Voir les 3 autres podiums" })).toBeInTheDocument();
   });
 
@@ -185,8 +185,27 @@ describe("PodiumsList — extension de la liste (PROF-3, #488)", () => {
 
   it("accorde le singulier quand il ne reste qu'un podium", () => {
     searchParams = new URLSearchParams();
-    render(<PodiumsList participations={NEUF.slice(0, 7)} />);
+    render(<PodiumsList participations={NEUF.slice(0, APERCU_PODIUMS + 1)} />);
 
     expect(screen.getByRole("button", { name: "Voir l'autre podium" })).toBeInTheDocument();
+  });
+
+  // Revue finale (#488) : le bouton se démontait à l'extension, faisant
+  // perdre le focus clavier au `<body>`. Il devient une bascule.
+  it("réduit la liste au second clic, focus préservé, et l'annonce suit", async () => {
+    searchParams = new URLSearchParams();
+    const user = userEvent.setup();
+    render(<PodiumsList participations={NEUF} />);
+
+    const bouton = screen.getByRole("button", { name: "Voir les 3 autres podiums" });
+    await user.click(bouton);
+
+    const reduire = screen.getByRole("button", { name: "Réduire la liste" });
+    expect(reduire).toBe(bouton); // même élément DOM : jamais démonté
+    await user.click(reduire);
+
+    expect(screen.getAllByRole("listitem")).toHaveLength(APERCU_PODIUMS);
+    expect(screen.getByRole("button", { name: "Voir les 3 autres podiums" })).toHaveFocus();
+    expect(screen.getByText("6 podiums affichés")).toBeInTheDocument();
   });
 });
