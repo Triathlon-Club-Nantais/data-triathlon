@@ -54,7 +54,7 @@ function part(over: Partial<Participation> & { id: number }): Participation {
     },
     club: "TCN",
     is_tcn: true,
-    category: null,
+    category: over.category ?? null,
     bib_number: null,
     rank_overall: over.rank_overall ?? null,
     rank_category: null,
@@ -513,5 +513,52 @@ describe("AthletePage — tuiles proportionnées au volume (PROF-4, #488)", () =
     for (const label of ["Épreuves", "Meilleure place", "Meilleur ratio", "Top 10", "Format favori"]) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
+  });
+});
+
+describe("AthletePage — l'en-tête identifie l'athlète (PROF-5, #488)", () => {
+  it("affiche le club en surtitre, le genre et la catégorie en pastilles", async () => {
+    // Un club distinct de « TCN » : la valeur voyage aussi dans la
+    // participation, et on veut viser le surtitre sans ambiguïté.
+    getAthlete.mockResolvedValue({
+      athlete: { ...ATHLETE, club: "Triathlon Club Nantais" },
+      participations: [part({ id: 1, rank_overall: 12, category: "V2H" })],
+    });
+    render(await AthletePage({ params: Promise.resolve({ id: "7" }) }));
+
+    expect(screen.getByText("Triathlon Club Nantais")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Jean DUPONT" })).toBeInTheDocument();
+    // Les pastilles rendent `<span>{label}</span>{valeur}` : on vise le
+    // contenu du chip, pas un nœud texte isolé — « M » vaut aussi pour le
+    // jeton de discipline de la tuile « Discipline » juste en dessous.
+    expect(screen.getByText("Catégorie").parentElement).toHaveTextContent("V2H");
+    expect(screen.getByText("Genre").parentElement).toHaveTextContent("M");
+  });
+
+  it("offre un retour vers la liste des athlètes du club", async () => {
+    await renderAthlete([part({ id: 1, rank_overall: 12 })]);
+
+    expect(screen.getByRole("link", { name: /Athlètes du club/ })).toHaveAttribute(
+      "href",
+      "/club/athletes",
+    );
+  });
+
+  it("retombe sur « Résultats enregistrés » quand l'athlète n'a pas de club", async () => {
+    getAthlete.mockResolvedValue({
+      athlete: { ...ATHLETE, club: null },
+      participations: [part({ id: 1, rank_overall: 12 })],
+    });
+    render(await AthletePage({ params: Promise.resolve({ id: "7" }) }));
+
+    expect(screen.getByText("Résultats enregistrés")).toBeInTheDocument();
+  });
+
+  it("omet la pastille de catégorie quand aucune participation n'en porte", async () => {
+    await renderAthlete([part({ id: 1, rank_overall: 12 })]);
+
+    expect(screen.queryByText("Catégorie")).not.toBeInTheDocument();
+    // Le genre, lui, vient de l'athlète et reste affiché.
+    expect(screen.getByText("Genre").parentElement).toHaveTextContent("M");
   });
 });
