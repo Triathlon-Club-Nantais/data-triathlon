@@ -214,7 +214,8 @@ sur un classement dont le contenu correspond à la valeur cliquée.
   s'éloigne nettement de celui des autres lignes de la même épreuve — jamais sur le seul
   fait qu'un écart existe, cet écart étant le plus souvent une propriété de l'épreuve et
   non de la ligne.
-- **FR-007**: Les seuils de ces deux signaux MUST être ceux établis par le sondage
+- **FR-007** *(traçabilité — se vérifie à travers FR-005 et FR-006, pas isolément)*: Les
+  seuils de ces deux signaux MUST être ceux établis par le sondage
   `docs/superpowers/specs/2026-08-25-ecart-inters-total-sondage.md`, qui en est le point de
   vérité : le seuil de 2 % proposé par l'audit est écarté, mesures à l'appui.
 - **FR-008**: Le texte de ces marqueurs MUST expliquer l'écart en français, et MUST être
@@ -276,8 +277,8 @@ sur un classement dont le contenu correspond à la valeur cliquée.
 
 #### Contraintes transverses
 
-- **FR-030**: Aucune règle d'identité visuelle ne MUST être rouverte : ni palette, ni
-  couple typographique, ni dégradé.
+- **FR-030**: Ce lot MUST NOT rouvrir l'identité visuelle : ni palette, ni couple
+  typographique, ni dégradé.
 - **FR-031**: Les nouveaux contrôles MUST respecter le plancher de cible tactile déjà en
   vigueur dans le produit.
 - **FR-032**: Tout changement de contenu du classement provoqué par un filtre MUST être

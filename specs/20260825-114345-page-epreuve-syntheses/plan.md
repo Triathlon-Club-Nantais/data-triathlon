@@ -11,7 +11,7 @@ mentent par omission (`RES-7`), présentent des temps impossibles sur le même t
 justes (`RES-10`), et ne mènent nulle part (`RES-11`).
 
 L'approche technique tient en une phrase : **le serveur publie ce que l'écran ne peut pas
-calculer, l'écran ne fait que le rendre visible.** Quatre champs additifs sur deux DTO de
+calculer, l'écran ne fait que le rendre visible.** Cinq champs additifs sur trois DTO de
 lecture, deux paramètres de requête facultatifs, et le reste est du rendu.
 
 Le sondage `docs/superpowers/specs/2026-08-25-ecart-inters-total-sondage.md` a réécrit la
@@ -59,7 +59,7 @@ catégorie distincts, 1 393 clubs distincts.
 | I | Langue métier français / technique English | ✅ | Identifiants nouveaux en anglais (`split_gap_ratio`, `split_gap_median`, `clubs_total`, `club`, `category`) ; libellés, marqueurs et infobulles en français ; le sondage et la spec en français. |
 | II | Architecture en couches (api → services → repositories → DB) | ✅ | Les deux filtres s'ajoutent à `participation_repository` (seule couche à toucher `Session`) ; les deux agrégats à `stats_service`. Aucun calcul métier ne monte dans le router ni ne descend dans le front — c'est précisément l'objet de R2. |
 | III | TDD sans réseau (non-négociable) | ✅ | Chaque tâche d'implémentation est précédée de son test. Aucun accès réseau : les fixtures existantes de `backend/tests/` et des composants suffisent. Le cas de la course 214 est figé en fixture (`SC-004`). |
-| IV | Contrats API et CLI stables | ✅ | Quatre champs **ajoutés** à `CourseSummary`, `ParticipationOut` et `EventOut` ; deux paramètres de requête **facultatifs**. Aucun champ retiré, aucune sémantique inversée, aucun code de retour modifié. `SC-010` le vérifie. |
+| IV | Contrats API et CLI stables | ✅ | Cinq champs **ajoutés** à `CourseSummary`, `ParticipationOut` et `EventOut` ; deux paramètres de requête **facultatifs**. Aucun champ retiré, aucune sémantique inversée, aucun code de retour modifié. `SC-010` le vérifie. |
 | V | Neutralité par défaut des paramètres transverses | ✅ | `club=None` et `category=None` ne filtrent rien. C'est l'écran qui les active en écrivant l'URL, jamais l'API. |
 | VI | Simplicité / YAGNI | ⚠️ | Le schéma de segments par sport est dupliqué en Python. Voir Complexity Tracking. |
 
@@ -72,7 +72,7 @@ specs/20260825-114345-page-epreuve-syntheses/
 ├── plan.md              # Ce fichier
 ├── spec.md              # Phase -1 (/speckit-specify)
 ├── research.md          # Phase 0 — six inconnues tranchées
-├── data-model.md        # Phase 1 — les quatre champs et les deux règles
+├── data-model.md        # Phase 1 — les cinq champs et les deux règles
 ├── quickstart.md        # Phase 1 — comment vérifier que ça marche
 ├── contracts/
 │   └── api-lecture.md   # Phase 1 — le delta de contrat /api/v1
@@ -109,7 +109,7 @@ frontend/
 ├── components/courses/ClubBreakdown.tsx            # NOUVEAU — carte clubs extraite
 ├── lib/categories.ts                               # NOUVEAU — libellés de catégorie
 ├── lib/quality.ts                                  # phrases d'anomalie (existant, réutilisé)
-└── lib/types.ts                                    # miroir TS des quatre champs
+└── lib/types.ts                                    # miroir TS des cinq champs
 ```
 
 **Structure Decision** : les deux applications existantes, sans nouveau module de premier

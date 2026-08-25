@@ -6,7 +6,7 @@ normalisé (`Athlete`, `Course`, `Participation`) est inchangé.
 
 ---
 
-## 1. Les quatre champs publiés
+## 1. Les cinq champs publiés
 
 ### `CourseSummary.clubs_total: int`
 
