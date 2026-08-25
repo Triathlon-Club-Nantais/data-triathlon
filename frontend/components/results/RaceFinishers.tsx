@@ -349,8 +349,18 @@ export function RaceFinishers({
     pageSize == null || lignes.length === 0
       ? ""
       : `, sur ${lignes.length === 1 ? "la ligne affichée" : `les ${lignes.length} lignes affichées`}`;
+  // Les filtres de carte sont **nommés** dans l'annonce, pas seulement reflétés
+  // par le décompte (#486, FR-032) : deux filtres différents peuvent rendre le
+  // même nombre de lignes, et le décompte seul ne dirait alors rien avoir changé.
+  const perimetreFiltres = [
+    clubChoisi ? `du club ${clubChoisi}` : "",
+    categorieChoisie ? `en catégorie ${categoryTitle(categorieChoisie)}` : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
   const texteAnnonce =
     `${lignes.length} résultat${lignes.length > 1 ? "s" : ""} affiché${lignes.length > 1 ? "s" : ""}` +
+    (perimetreFiltres ? `, ${perimetreFiltres}` : "") +
     (libelleTri
       ? `, trié par ${libelleTri}, ${tri!.direction === "asc" ? "croissant" : "décroissant"}${perimetreTri}`
       : "");
