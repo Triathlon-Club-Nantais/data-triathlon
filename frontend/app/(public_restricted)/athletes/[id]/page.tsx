@@ -36,7 +36,7 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
   // `title` de la pastille pour dire de quand elle date.
   const derniereValidee = resume.derniere;
   const categorie = derniereValidee?.category ?? null;
-  const anneeCategorie = derniereValidee?.course?.event_date?.slice(0, 4) ?? null;
+  const anneeCategorie = derniereValidee?.course.event_date?.slice(0, 4) ?? null;
 
   const places = validated.map((p) => p.rank_overall).filter((r): r is number => r != null);
   const best = places.length ? Math.min(...places) : null;
@@ -45,7 +45,7 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
   // Format favori : jeton le plus fréquent.
   const formatCounts = new Map<string, number>();
   for (const p of validated) {
-    const tok = formatToken(p.course?.event_type, p.course?.distance_km);
+    const tok = formatToken(p.course.event_type, p.course.distance_km);
     if (tok !== "—") formatCounts.set(tok, (formatCounts.get(tok) ?? 0) + 1);
   }
   const favFormat = [...formatCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";

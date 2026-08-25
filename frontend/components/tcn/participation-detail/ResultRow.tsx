@@ -31,7 +31,7 @@ export function ResultRow({
   segments: string[];
   steps: RankingEvolutionStep[];
 }) {
-  const columns = splitColumnsFromKeys(participation.course?.event_type ?? "", segments);
+  const columns = splitColumnsFromKeys(participation.course.event_type, segments);
   const splits = participation.splits ?? {};
   const positions = new Map(steps.map((step) => [step.segment, step.segment_position]));
   const name = [participation.athlete?.nom, participation.athlete?.prenom]

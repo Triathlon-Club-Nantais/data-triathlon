@@ -29,7 +29,7 @@ const MIN_CLASSES = 2;
 export function rankRatio(p: Participation): RankRatioResult {
   // Course explicitement marquée non fiable : mieux vaut ne rien afficher
   // qu'un ratio faux. `=== false` seulement : absent/null continue de produire un ratio.
-  if (p.course?.is_reliable === false) return { ratio: null, reason: "unreliable" };
+  if (p.course.is_reliable === false) return { ratio: null, reason: "unreliable" };
   const rank = p.rank_overall;
   const total = p.course_finishers ?? null;
   if (rank == null || rank < 1) return { ratio: null, reason: "incomplete" };

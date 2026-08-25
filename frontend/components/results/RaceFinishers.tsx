@@ -46,7 +46,7 @@ const STYLE_BOUTON_ABSENCE = {
  * cette course », pas « qui est ce coureur ».
  */
 function detailHref(p: Participation): string {
-  return `/courses/${p.course?.id}/participations/${p.id}`;
+  return `/courses/${p.course.id}/participations/${p.id}`;
 }
 
 /**
