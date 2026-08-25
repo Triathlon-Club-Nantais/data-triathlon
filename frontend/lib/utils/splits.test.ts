@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { splitColumns, splitSegments } from "./splits";
+import { splitColumns, splitColumnsFromKeys, splitSegments } from "./splits";
 
 describe("splitSegments", () => {
   it("triathlon : natation, T1, vélo, T2, course", () => {
@@ -40,6 +40,34 @@ describe("splitSegments", () => {
 
   it("renvoie un tableau vide si splits est null", () => {
     expect(splitSegments("triathlon-m", null)).toEqual([]);
+  });
+});
+
+// #563 : bike-run et swimrun ont un slot positionnel (mapping.build_splits :
+// segment1/segment2) que SCHEMAS ne connaît volontairement pas (le nommer
+// mentirait, cf. mapping.py). Avant #563, dès qu'une clé du schéma répondait
+// aussi (bike/run, swim/run), le repli « libellés de la source » — seul chemin
+// qui aurait rendu le slot positionnel — n'était jamais atteint : le temps
+// disparaissait silencieusement.
+describe("splitSegments — clé positionnelle mêlée à des clés de schéma (#563)", () => {
+  it("bike-run : segment1 (positionnel) + bike + run, segment1 en tête (chronologique)", () => {
+    const segs = splitSegments("bike-run", {
+      segment1: "00:25:00",
+      bike: "00:30:00",
+      run: "00:20:00",
+    });
+    expect(segs.map((s) => s.key)).toEqual(["segment1", "bike", "run"]);
+    expect(segs.map((s) => s.time)).toEqual(["00:25:00", "00:30:00", "00:20:00"]);
+  });
+
+  it("swimrun : swim + segment2 (positionnel) + run", () => {
+    const segs = splitSegments("swimrun", {
+      swim: "00:15:00",
+      segment2: "00:40:00",
+      run: "00:22:00",
+    });
+    expect(segs.map((s) => s.key)).toEqual(["swim", "segment2", "run"]);
+    expect(segs.map((s) => s.time)).toEqual(["00:15:00", "00:40:00", "00:22:00"]);
   });
 });
 
@@ -90,5 +118,24 @@ describe("splitColumns", () => {
 
   it("n'ouvre aucune colonne sans splits", () => {
     expect(splitColumns("triathlon-m", [null, undefined, {}])).toEqual([]);
+  });
+});
+
+describe("splitColumnsFromKeys", () => {
+  it("retombe sur le schéma du sport pour des clés canoniques", () => {
+    const cols = splitColumnsFromKeys("triathlon-m", ["swim", "bike"]);
+    expect(cols.map((c) => c.label)).toEqual(["Natation", "Vélo"]);
+  });
+
+  it("garde l'ordre des clés étrangères au schéma", () => {
+    const cols = splitColumnsFromKeys("triathlon-l", ["NATATION", "VELO"]);
+    expect(cols.map((c) => c.key)).toEqual(["NATATION", "VELO"]);
+  });
+
+  // #563 : mêmes clés que build_splits pour bike-run — segment1 est le slot
+  // positionnel, hors schéma, mais premier chronologiquement.
+  it("bike-run : segment1 (positionnel) + bike + run, dans cet ordre", () => {
+    const cols = splitColumnsFromKeys("bike-run", ["segment1", "bike", "run"]);
+    expect(cols.map((c) => c.key)).toEqual(["segment1", "bike", "run"]);
   });
 });
