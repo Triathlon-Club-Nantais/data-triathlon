@@ -25,6 +25,7 @@ import type {
   DuplicateCandidateList,
   EventPage,
   Feedback,
+  FeedbackCounts,
   FeedbackCreate,
   FeedbackCreated,
   FeedbackUpdate,
@@ -446,9 +447,16 @@ export const apiClient = {
       body: JSON.stringify(body),
     }),
   // Lecture réservée `feedback:read`. Pas de pagination dans cette v1
-  // (contracts/feedback-api.md — volume attendu modeste).
-  listFeedback: (sort: "created_at" | "type" | "status", order: "asc" | "desc") =>
-    request<Feedback[]>(`/admin/feedback${toQuery({ sort, order })}`),
+  // (contracts/feedback-api.md — volume attendu modeste). `status` est
+  // facultatif : omis, la route rend toute la table, sa forme d'origine.
+  listFeedback: (
+    sort: "created_at" | "type" | "status",
+    order: "asc" | "desc",
+    status?: Feedback["status"],
+  ) => request<Feedback[]>(`/admin/feedback${toQuery({ sort, order, status })}`),
+  // Le compteur de la file (#500) — une route à part, comme `/courses/count` :
+  // loger des totaux dans la liste changerait la forme publiée de v1.
+  countFeedback: () => request<FeedbackCounts>("/admin/feedback/counts"),
   getFeedback: (id: number) => request<Feedback>(`/admin/feedback/${id}`),
   // `feedback:manage`. `champs` est partiel par contrat — même convention que
   // `updateRole` : n'envoyer que ce qui a changé.

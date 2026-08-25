@@ -122,6 +122,28 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   codes », qui est faux. Et une session **illisible** n'est pas une session sans
   pouvoirs : `useSession` ne réessaie pas, donc son erreur entre dans la garde de
   l'écran plutôt que de figer les cases en affirmant qu'on ne porte rien.
+- **Retours utilisateurs : une file, pas une liste** (#500, ADM-10) —
+  `FeedbackTable` ouvre sur « Nouveau » seul et filtre **côté serveur**
+  (`?status=`), les décomptes venant de `GET /admin/feedback/counts`. Quatre
+  points qui se re-cassent séparément :
+  - **La barre de filtres reste montée dans tous les états** — chargement,
+    refus, résultat vide —, patron de `CoursesAdminTable` : la vue par défaut
+    est filtrée, donc la retirer enfermerait un administrateur sans nouveaux
+    signalements hors des trois autres statuts.
+  - **Le compteur, c'est le nombre porté par chaque entrée de la barre**, pas
+    une phrase au-dessus : celle-ci redirait le même chiffre, et pour un statut
+    sur quatre seulement.
+  - **Un seul contrôle de statut par ligne, et il est coloré.** Qui porte
+    `feedback:manage` voit un `<select>` habillé du couple aplat/encre du
+    statut ; les autres, un `Badge` du même couple. Un badge *et* un sélecteur
+    côte à côte diraient deux fois la même valeur — et sans couleur du tout,
+    « Nouveau » et « Ignoré » ont exactement le même poids visuel, ce que
+    l'audit reprochait. Les couples viennent du thème pour la raison de
+    `BatchRunList` : les variantes génériques de `Badge` ne tiennent pas 4,5:1
+    sous 12 px.
+  - **`queryKeys.feedbackCounts()` vit sous le préfixe `["admin-feedback"]`**,
+    celui de la liste : un changement de statut périme les deux, et
+    l'invalidation existante les emporte alors d'un seul geste.
 - **Gardes d'écriture du back-office** (#496) — un contrôle qui écrit teste
   **son** code de pouvoir avant de se rendre, jamais celui qui a ouvert l'écran :
   `session.data?.permissions.includes("x:y") ?? false`, puis `{peutX && …}`. Six

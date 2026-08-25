@@ -89,6 +89,71 @@ def test_lister_avec_le_pouvoir_rend_200(client, db_session):
     assert client.get(_URL).status_code == 200
 
 
+# --- File de traitement : filtre et comptage par statut (#500) ----------------
+
+
+def _cree(db_session, statut=None, **kwargs):
+    defaults = {"type": "bug", "title": "Titre", "body": "x"}
+    entry = feedback_repository.create(db_session, **{**defaults, **kwargs})
+    if statut:
+        feedback_repository.update_status(db_session, entry.id, statut)
+    db_session.commit()
+    return entry
+
+
+def test_lister_filtre_par_statut(client, db_session):
+    _cree(db_session, title="À traiter")
+    _cree(db_session, "ignore", title="Écarté")
+
+    reponse = client.get(_URL, params={"status": "nouveau"})
+
+    assert [ligne["title"] for ligne in reponse.json()] == ["À traiter"]
+
+
+def test_lister_sans_statut_rend_tout(client, db_session):
+    """Le paramètre est facultatif : la forme publiée de v1 ne change pas."""
+    _cree(db_session, title="À traiter")
+    _cree(db_session, "ignore", title="Écarté")
+
+    assert len(client.get(_URL).json()) == 2
+
+
+def test_lister_avec_un_statut_inconnu_rend_422(client):
+    assert client.get(_URL, params={"status": "archive"}).status_code == 422
+
+
+def test_comptage_par_statut(client, db_session):
+    _cree(db_session)
+    _cree(db_session)
+    _cree(db_session, "traite")
+
+    comptes = client.get(f"{_URL}/counts").json()
+
+    assert comptes == {"nouveau": 2, "en_cours": 0, "traite": 1, "ignore": 0, "total": 3}
+
+
+def test_comptage_dune_base_vide_rend_des_zeros(client):
+    """Chaque statut est toujours une clé : le front affiche ses quatre filtres
+    même quand aucun signalement n'existe encore."""
+    comptes = client.get(f"{_URL}/counts").json()
+
+    assert comptes == {"nouveau": 0, "en_cours": 0, "traite": 0, "ignore": 0, "total": 0}
+
+
+def test_comptage_sans_le_pouvoir_rend_403(client, db_session):
+    _session_etroite(client, db_session)
+
+    assert client.get(f"{_URL}/counts").status_code == 403
+
+
+def test_comptage_ne_se_lit_pas_comme_un_identifiant(client, db_session):
+    """`/counts` est déclaré avant `/{feedback_id}` — dans l'autre ordre, FastAPI
+    tenterait d'y lire un entier et rendrait 422."""
+    _cree(db_session)
+
+    assert client.get(f"{_URL}/counts").status_code == 200
+
+
 # --- Vue détail et changement de statut (US3) --------------------------------
 
 

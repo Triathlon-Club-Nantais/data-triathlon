@@ -929,6 +929,19 @@ export interface Feedback {
   email: string | null;
 }
 
+/**
+ * `GET /admin/feedback/counts` — le nombre de signalements par statut (#500).
+ * Les quatre statuts sont toujours présents, à zéro le cas échéant : la barre
+ * de filtres affiche ses quatre entrées même sur une base vide.
+ */
+export interface FeedbackCounts {
+  nouveau: number;
+  en_cours: number;
+  traite: number;
+  ignore: number;
+  total: number;
+}
+
 /** Corps de `PATCH /admin/feedback/{id}` — champs modifiés seulement. */
 export interface FeedbackUpdate {
   status?: Feedback["status"];
