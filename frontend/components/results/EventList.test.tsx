@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -12,9 +12,12 @@ class IntersectionObserverStub {
 }
 globalThis.IntersectionObserver = IntersectionObserverStub as unknown as typeof IntersectionObserver;
 
+const push = vi.fn();
+let searchParams = new URLSearchParams();
+
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ push, refresh: vi.fn() }),
+  useSearchParams: () => searchParams,
 }));
 
 const eventsMock = vi.hoisted(() => ({
@@ -42,6 +45,11 @@ function renderList(filters = {}) {
 }
 
 describe("EventList", () => {
+  beforeEach(() => {
+    searchParams = new URLSearchParams();
+    push.mockClear();
+  });
+
   it("rend chaque épreuve comme un lien vers sa fiche course", () => {
     setEvents({
       data: {
@@ -538,5 +546,91 @@ describe("EventList — annonce du repliement (#463, WCAG 4.1.3)", () => {
 
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.getByText("Aucun résultat")).toBeInTheDocument();
+  });
+});
+
+// Issue #577 : pendant une recherche d'épreuve, le backend classe toujours par
+// similarité en tête (`event_name` déclenche `similarity(Course.name, …)`,
+// `_events_order`) — le sélecteur doit le dire plutôt que prétendre appliquer
+// le tri affiché.
+describe("EventList — entrée « Pertinence » pendant une recherche d'épreuve (#577)", () => {
+  function setUnEvenement() {
+    setEvents({
+      data: {
+        pages: [
+          {
+            items: [
+              {
+                id: 14,
+                event_name: "Tri de Nantes",
+                event_type: "triathlon-m",
+                event_date: "2026-05-16",
+                is_relay: false,
+                total: 42,
+                tcn_count: 3,
+              },
+            ],
+            total_events: 1,
+            total_participations: 42,
+          },
+        ],
+      },
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+    });
+  }
+
+  it("n'offre pas « Pertinence » hors recherche d'épreuve", async () => {
+    setUnEvenement();
+    renderList();
+
+    await userEvent.click(screen.getByRole("combobox"));
+    const options = (await screen.findAllByRole("option")).map((o) => o.textContent);
+    expect(options).toEqual(["Date (récent)", "Date (ancien)", "Nom"]);
+  });
+
+  it("sélectionne « Pertinence » par défaut dès qu'une recherche d'épreuve est active", async () => {
+    searchParams = new URLSearchParams("event_name=nantes");
+    setUnEvenement();
+    renderList();
+
+    expect(screen.getByRole("combobox")).toHaveTextContent("Pertinence");
+
+    await userEvent.click(screen.getByRole("combobox"));
+    const options = (await screen.findAllByRole("option")).map((o) => o.textContent);
+    expect(options).toEqual(["Pertinence", "Date (récent)", "Date (ancien)", "Nom"]);
+  });
+
+  it("garde le tri choisi affiché quand il a été explicitement posé pendant une recherche", () => {
+    // La similarité reste prioritaire côté backend (_events_order) — ce tri ne
+    // fait que départager — mais un choix explicite reste dit tel quel, pas
+    // ramené à « Pertinence ».
+    searchParams = new URLSearchParams("event_name=nantes&sort=date_asc");
+    setUnEvenement();
+    renderList();
+
+    expect(screen.getByRole("combobox")).toHaveTextContent("Date (ancien)");
+  });
+
+  it("choisir « Pertinence » retire le paramètre sort de l'URL sans toucher aux autres", async () => {
+    searchParams = new URLSearchParams("event_name=nantes&sort=name");
+    setUnEvenement();
+    renderList();
+
+    await userEvent.click(screen.getByRole("combobox"));
+    await userEvent.click(await screen.findByRole("option", { name: "Pertinence" }));
+
+    expect(push).toHaveBeenCalledWith("/resultats?event_name=nantes");
+  });
+
+  it("revient au tri par défaut, sans « Pertinence », quand la recherche d'épreuve se vide", () => {
+    searchParams = new URLSearchParams();
+    setUnEvenement();
+    renderList();
+
+    expect(screen.getByRole("combobox")).toHaveTextContent("Date (récent)");
+    expect(screen.getByRole("combobox")).not.toHaveTextContent("Pertinence");
   });
 });
