@@ -1,166 +1,71 @@
 "use client";
 
-import { useState } from "react";
-import { Button, Card, Input } from "@/components/tcn";
+import { useEffect, useState } from "react";
+import { Button, Card } from "@/components/tcn";
 import { apiClient, ApiError } from "@/lib/api/client";
-import type { AthleteBrief, Participation } from "@/lib/types";
+import type { Participation } from "@/lib/types";
 import { formatEventName } from "@/lib/utils/event";
 import { isHttpUrl } from "@/lib/utils/url";
+import { ChampsParticipation } from "./ChampsParticipation";
+import { ReattributionField } from "./ReattributionField";
+import { useBrouillon } from "./useBrouillon";
 
-/** Détail d'un résultat en attente : relecture, renommage, réattribution, validation (#271). */
+/**
+ * Détail d'un résultat en attente : relecture, correction, validation (#271).
+ *
+ * Depuis #490 (PROF-10) le panneau n'a plus qu'**un** état de formulaire, **un**
+ * enregistrement et **une** zone d'erreur, et son action primaire vit dans une
+ * barre collante plutôt qu'en dernière position du DOM.
+ */
 export function ParticipationPanel({
   participation,
   onChanged,
   onSessionExpired,
+  onBrouillonSale,
 }: {
   participation: Participation;
   onChanged: (updated: Participation) => void;
   /** Le cookie a expiré ou le mot de passe a changé pendant que l'écran était ouvert. */
   onSessionExpired?: () => void;
+  /** La page en fait son garde-fou : on ne quitte pas une entrée sale sans confirmer. */
+  onBrouillonSale?: (sale: boolean) => void;
 }) {
-  const [erreurValidation, setErreurValidation] = useState<string | null>(null);
-  const [enCoursValidation, setEnCoursValidation] = useState(false);
-
-  const [nomEpreuve, setNomEpreuve] = useState(participation.course.name);
-  const [erreurRenommage, setErreurRenommage] = useState<string | null>(null);
-  const [enCoursRenommage, setEnCoursRenommage] = useState(false);
-
-  const [rechercheAthlete, setRechercheAthlete] = useState("");
-  const [resultatsAthletes, setResultatsAthletes] = useState<AthleteBrief[] | null>(null);
-  const [rechercheEnCours, setRechercheEnCours] = useState(false);
-  const [erreurReattribution, setErreurReattribution] = useState<string | null>(null);
-  const [enCoursReattribution, setEnCoursReattribution] = useState(false);
-
-  const [champs, setChamps] = useState({
-    bib_number: participation.bib_number ?? "",
-    rank_overall: participation.rank_overall != null ? String(participation.rank_overall) : "",
-    club: participation.club ?? "",
-    category: participation.category ?? "",
-  });
-  const [erreurChamps, setErreurChamps] = useState<string | null>(null);
-  const [enCoursChamps, setEnCoursChamps] = useState(false);
+  const { brouillon, modifier, sale, erreur, enCours, enregistrer, validerLeResultat } = useBrouillon(
+    participation,
+    { onChanged, onSessionExpired },
+  );
 
   const [confirmationRejet, setConfirmationRejet] = useState(false);
   const [erreurRejet, setErreurRejet] = useState<string | null>(null);
   const [enCoursRejet, setEnCoursRejet] = useState(false);
 
-  /** Une session expirée prévient le parent plutôt que d'afficher une erreur générique
-   *  sur un geste qui ne peut plus aboutir — sinon le bénévole reste bloqué sur cet
-   *  écran jusqu'au rechargement manuel de la page (revue de code). */
-  function gererErreur(err: unknown, setErreur: (message: string) => void, repli: string) {
-    if (err instanceof ApiError && err.status === 401) {
-      onSessionExpired?.();
-      return;
-    }
-    setErreur(err instanceof ApiError ? err.message : repli);
-  }
+  useEffect(() => {
+    onBrouillonSale?.(sale);
+  }, [sale, onBrouillonSale]);
 
-  async function valider() {
-    setErreurValidation(null);
-    setEnCoursValidation(true);
-    try {
-      const resultat = await apiClient.validateParticipationBenevole(participation.id);
-      onChanged(resultat);
-    } catch (err) {
-      gererErreur(err, setErreurValidation, "La validation a échoué. Réessayez plus tard.");
-    } finally {
-      setEnCoursValidation(false);
-    }
-  }
-
-  async function enregistrerNom() {
-    setErreurRenommage(null);
-    setEnCoursRenommage(true);
-    try {
-      const course = await apiClient.renameCourseBenevole(participation.course.id, nomEpreuve);
-      onChanged({ ...participation, course });
-    } catch (err) {
-      gererErreur(err, setErreurRenommage, "Le renommage a échoué. Réessayez plus tard.");
-    } finally {
-      setEnCoursRenommage(false);
-    }
-  }
-
-  async function rechercher(valeur: string) {
-    setRechercheAthlete(valeur);
-    setErreurReattribution(null);
-    if (valeur.trim().length < 2) {
-      setResultatsAthletes(null);
-      return;
-    }
-    setRechercheEnCours(true);
-    try {
-      setResultatsAthletes(await apiClient.searchAthletesBenevole(valeur));
-    } catch {
-      // `null` et non `[]` : rendre une liste vide affichait « aucun coureur
-      // trouvé » sur une recherche **en échec** (relevé en revue de #513), et
-      // le bénévole en concluait que l'athlète n'existe pas.
-      setResultatsAthletes(null);
-      setErreurReattribution("Recherche impossible pour le moment. Réessayez dans un instant.");
-    } finally {
-      setRechercheEnCours(false);
-    }
-  }
-
-  async function reattribuer(athlete: AthleteBrief) {
-    setErreurReattribution(null);
-    setEnCoursReattribution(true);
-    try {
-      const resultat = await apiClient.reassignParticipationBenevole(participation.id, athlete.id);
-      setResultatsAthletes(null);
-      setRechercheAthlete("");
-      onChanged(resultat);
-    } catch (err) {
-      gererErreur(err, setErreurReattribution, "La réattribution a échoué. Réessayez plus tard.");
-    } finally {
-      setEnCoursReattribution(false);
-    }
-  }
-
-  async function enregistrerChamps() {
-    setErreurChamps(null);
-    setEnCoursChamps(true);
-    try {
-      const resultat = await apiClient.updateParticipationFieldsBenevole(participation.id, {
-        bib_number: champs.bib_number || null,
-        rank_overall: champs.rank_overall ? Number(champs.rank_overall) : null,
-        club: champs.club || null,
-        category: champs.category || null,
-      });
-      onChanged(resultat);
-    } catch (err) {
-      gererErreur(err, setErreurChamps, "L'enregistrement a échoué. Réessayez plus tard.");
-    } finally {
-      setEnCoursChamps(false);
-    }
-  }
-
-  async function signalerNonConforme() {
+  async function agirSurLeRejet(action: "rejeter" | "annuler") {
     setErreurRejet(null);
     setEnCoursRejet(true);
     try {
-      const resultat = await apiClient.rejectParticipationBenevole(participation.id);
-      onChanged(resultat);
+      onChanged(
+        action === "rejeter"
+          ? await apiClient.rejectParticipationBenevole(participation.id)
+          : await apiClient.unrejectParticipationBenevole(participation.id),
+      );
     } catch (err) {
-      gererErreur(err, setErreurRejet, "Le signalement a échoué. Réessayez plus tard.");
+      if (err instanceof ApiError && err.status === 401) {
+        onSessionExpired?.();
+        return;
+      }
+      setErreurRejet(err instanceof ApiError ? err.message : "L'opération a échoué. Réessayez plus tard.");
     } finally {
       setEnCoursRejet(false);
       setConfirmationRejet(false);
     }
   }
 
-  async function annulerLeRejet() {
-    setErreurRejet(null);
-    setEnCoursRejet(true);
-    try {
-      const resultat = await apiClient.unrejectParticipationBenevole(participation.id);
-      onChanged(resultat);
-    } catch (err) {
-      gererErreur(err, setErreurRejet, "L'annulation a échoué. Réessayez plus tard.");
-    } finally {
-      setEnCoursRejet(false);
-    }
-  }
+  const rejetee = participation.is_rejected === true;
+  const occupe = enCours || enCoursRejet;
 
   return (
     <Card padding={24}>
@@ -205,163 +110,72 @@ export function ParticipationPanel({
           </div>
         )}
 
-        {participation.is_rejected && (
+        {rejetee ? (
           <div style={{ borderTop: "1px solid var(--tcn-border)", paddingTop: 16, color: "var(--tcn-text-faint)", fontSize: 14 }}>
             Annulez d&apos;abord le rejet pour modifier ce résultat.
           </div>
-        )}
-
-        {!participation.is_rejected && (
-          <div style={{ borderTop: "1px solid var(--tcn-border)", paddingTop: 16 }}>
-            <label htmlFor="benevole-nom-epreuve" style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-              Nom de l&apos;épreuve
-            </label>
-            <div style={{ display: "flex", gap: 8 }}>
-              <Input
-                id="benevole-nom-epreuve"
-                value={nomEpreuve}
-                onChange={(e) => setNomEpreuve(e.target.value)}
-                aria-describedby={erreurRenommage ? "benevole-nom-epreuve-erreur" : undefined}
-                containerStyle={{ flex: 1 }}
-              />
-              <Button
-                variant="secondary"
-                onClick={enregistrerNom}
-                disabled={enCoursRenommage || !nomEpreuve.trim() || nomEpreuve === participation.course.name}
-              >
-                Enregistrer le nom
-              </Button>
-            </div>
-            {erreurRenommage && (
-              <div id="benevole-nom-epreuve-erreur" role="alert" style={{ color: "var(--tcn-danger-text)", fontSize: 13, marginTop: 8 }}>
-                {erreurRenommage}
-              </div>
-            )}
-          </div>
-        )}
-
-        {!participation.is_rejected && (
-          <div style={{ borderTop: "1px solid var(--tcn-border)", paddingTop: 16 }}>
-            <label htmlFor="benevole-reattribution" style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-              Réattribuer à
-            </label>
-            <Input
-              id="benevole-reattribution"
-              value={rechercheAthlete}
-              onChange={(e) => rechercher(e.target.value)}
-              placeholder="Nom du coureur"
-              disabled={enCoursReattribution}
-              aria-describedby={erreurReattribution ? "benevole-reattribution-erreur" : undefined}
-              style={{ width: "100%" }}
+        ) : (
+          <div style={{ borderTop: "1px solid var(--tcn-border)", paddingTop: 16, display: "flex", flexDirection: "column", gap: 16 }}>
+            <ChampsParticipation
+              brouillon={brouillon}
+              origine={participation}
+              onChange={modifier}
+              disabled={occupe}
             />
-            {rechercheEnCours && (
-              <div style={{ color: "var(--tcn-text-faint)", fontSize: 13, marginTop: 8 }}>Recherche…</div>
-            )}
-            {!rechercheEnCours && resultatsAthletes !== null && resultatsAthletes.length === 0 && (
-              <div style={{ color: "var(--tcn-text-faint)", fontSize: 13, marginTop: 8 }}>
-                Aucun coureur trouvé.
-              </div>
-            )}
-            {!rechercheEnCours && resultatsAthletes !== null && resultatsAthletes.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
-                {resultatsAthletes.map((athlete) => (
-                  <button
-                    key={athlete.id}
-                    type="button"
-                    className="tcn-rowlink"
-                    onClick={() => reattribuer(athlete)}
-                    disabled={enCoursReattribution}
-                    style={{ textAlign: "left", padding: "8px 12px", minHeight: 44, border: "1px solid var(--tcn-border)", borderRadius: "var(--tcn-radius-md)", background: "var(--tcn-surface)" }}
-                  >
-                    {athlete.prenom} {athlete.nom}
-                    {athlete.club && <span style={{ color: "var(--tcn-text-faint)" }}> · {athlete.club}</span>}
-                  </button>
-                ))}
-              </div>
-            )}
-            {erreurReattribution && (
-              <div id="benevole-reattribution-erreur" role="alert" style={{ color: "var(--tcn-danger-text)", fontSize: 13, marginTop: 8 }}>
-                {erreurReattribution}
-              </div>
-            )}
+            <ReattributionField
+              athleteActuel={participation.athlete}
+              athleteCible={brouillon.athlete_cible}
+              onChoisir={(athlete) => modifier({ athlete_cible: athlete })}
+              disabled={occupe}
+            />
           </div>
         )}
 
-        {!participation.is_rejected && (
-          <div style={{ borderTop: "1px solid var(--tcn-border)", paddingTop: 16 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              <div>
-                <label htmlFor="benevole-dossard" style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                  Dossard
-                </label>
-                <Input
-                  id="benevole-dossard"
-                  value={champs.bib_number}
-                  onChange={(e) => setChamps((c) => ({ ...c, bib_number: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label htmlFor="benevole-place" style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                  Place au général
-                </label>
-                <Input
-                  id="benevole-place"
-                  type="number"
-                  value={champs.rank_overall}
-                  onChange={(e) => setChamps((c) => ({ ...c, rank_overall: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label htmlFor="benevole-club" style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                  Club
-                </label>
-                <Input
-                  id="benevole-club"
-                  value={champs.club}
-                  onChange={(e) => setChamps((c) => ({ ...c, club: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label htmlFor="benevole-categorie" style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                  Catégorie
-                </label>
-                <Input
-                  id="benevole-categorie"
-                  value={champs.category}
-                  onChange={(e) => setChamps((c) => ({ ...c, category: e.target.value }))}
-                />
-              </div>
+        {/* Barre d'action collante : l'action primaire est unique, visible et
+            sur le chemin de lecture — elle était la dernière du DOM, donc hors
+            écran au chargement sur mobile (#490, PROF-10). */}
+        <div
+          style={{
+            position: "sticky",
+            bottom: 0,
+            background: "var(--tcn-surface)",
+            borderTop: "1px solid var(--tcn-border)",
+            paddingTop: 16,
+            marginTop: 4,
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+          }}
+        >
+          {sale && (
+            <div style={{ fontSize: 13, color: "var(--tcn-text-body)", fontWeight: 600 }}>
+              Modifications non enregistrées
             </div>
-            <Button variant="secondary" onClick={enregistrerChamps} disabled={enCoursChamps} style={{ marginTop: 12 }}>
-              {enCoursChamps ? "Enregistrement…" : "Enregistrer les modifications"}
-            </Button>
-            {erreurChamps && (
-              <div role="alert" style={{ color: "var(--tcn-danger-text)", fontSize: 13, marginTop: 8 }}>
-                {erreurChamps}
-              </div>
-            )}
-          </div>
-        )}
-
-        <div style={{ borderTop: "1px solid var(--tcn-border)", paddingTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-          {!participation.is_rejected && (
-            <Button onClick={valider} disabled={enCoursValidation} style={{ width: "100%" }}>
-              {enCoursValidation ? "Validation…" : "Valider ce résultat"}
-            </Button>
           )}
-          {erreurValidation && (
+          {erreur && (
             <div role="alert" style={{ color: "var(--tcn-danger-text)", fontSize: 13 }}>
-              {erreurValidation}
+              {erreur}
             </div>
           )}
-          {participation.is_rejected ? (
-            <Button variant="secondary" onClick={annulerLeRejet} disabled={enCoursRejet} style={{ width: "100%" }}>
+          {!rejetee && (
+            <>
+              <Button onClick={validerLeResultat} disabled={occupe} style={{ width: "100%" }}>
+                {enCours ? "Enregistrement…" : "Valider ce résultat"}
+              </Button>
+              <Button variant="secondary" onClick={enregistrer} disabled={occupe || !sale} style={{ width: "100%" }}>
+                Enregistrer
+              </Button>
+            </>
+          )}
+          {rejetee ? (
+            <Button variant="secondary" onClick={() => agirSurLeRejet("annuler")} disabled={occupe} style={{ width: "100%" }}>
               {enCoursRejet ? "Annulation…" : "Annuler le rejet"}
             </Button>
           ) : !confirmationRejet ? (
             <Button
               variant="secondary"
               onClick={() => setConfirmationRejet(true)}
+              disabled={occupe}
               style={{ width: "100%", color: "var(--tcn-danger-text)", borderColor: "var(--tcn-danger-border)" }}
             >
               Signaler non conforme
@@ -370,13 +184,13 @@ export function ParticipationPanel({
             <div style={{ display: "flex", gap: 8 }}>
               <Button
                 variant="secondary"
-                onClick={signalerNonConforme}
-                disabled={enCoursRejet}
+                onClick={() => agirSurLeRejet("rejeter")}
+                disabled={occupe}
                 style={{ flex: 1, color: "var(--tcn-danger-text)", borderColor: "var(--tcn-danger-border)" }}
               >
                 {enCoursRejet ? "Signalement…" : "Confirmer ?"}
               </Button>
-              <Button variant="ghost" onClick={() => setConfirmationRejet(false)} disabled={enCoursRejet} style={{ flex: 1 }}>
+              <Button variant="ghost" onClick={() => setConfirmationRejet(false)} disabled={occupe} style={{ flex: 1 }}>
                 Annuler
               </Button>
             </div>
