@@ -396,11 +396,12 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   compose `ui/select` avec `tcn/Card` — c'est la composition attendue, pas un
   mélange ; `PendingBadge`, #270, est un nouvel ajout 100 % `tcn/`, exporté
   depuis `components/tcn/index.ts`, comme `ErrorScreen`, #464). La règle vaut
-  pour les **ajouts** : six écrans publics existants tirent encore
+  pour les **ajouts** : **cinq** écrans publics existants tirent encore
   `ui/{card,button,badge,input}` — `ClubDashboard`, `ResultCard`,
-  `ResultsFilters`, `StatusBadge`, `ManualResultForm`, `ProviderDetector`
-  (`app/error.tsx` en est sorti avec #464 : sa réécriture ne rend plus de bouton
-  elle-même, elle délègue à `tcn/ErrorScreen`). Dette assumée, pas une
+  `ResultsFilters`, `StatusBadge`, `ManualResultForm`. Ils étaient sept
+  (`app/error.tsx` en est sorti avec #464, sa réécriture déléguant à
+  `tcn/ErrorScreen` ; `ProviderDetector` avec #492, qui lui a retiré son dernier
+  `ui/badge`). Dette assumée, pas une
   exception à arbitrer au cas par cas : les basculer coûte 485 lignes de rendu à
   re-vérifier pour zéro gain fonctionnel. `ManualResultForm` reste sur `ui/`
   malgré sa refonte (#270) — ses sélecteurs discipline/format/statut restent des

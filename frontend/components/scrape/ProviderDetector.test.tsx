@@ -84,6 +84,30 @@ describe("ProviderDetector — un seul verdict, au même endroit (#492, ACT-6)",
     expect(apiClient.detectProvider).not.toHaveBeenCalled();
   });
 
+  it("au repos, tient en une ligne repliée qui annonce son compte", async () => {
+    // Déplié, le registre entier fait 14 noms — six à sept lignes sur un
+    // iPhone SE, qui poussent « Enregistrer les résultats » sous la ligne de
+    // flottaison avant même la première frappe.
+    const { container } = afficher(<ProviderDetector url="" />);
+
+    expect(await screen.findByText(/Chronométreurs pris en charge \(3\)/)).toBeInTheDocument();
+    const repli = container.querySelector("details") as HTMLDetailsElement;
+    expect(repli).not.toBeNull();
+    expect(repli.open).toBe(false);
+  });
+
+  it("annonce le verdict aux lecteurs d'écran", async () => {
+    // Le verdict remplace un badge **et** une alerte : consolidé en une ligne
+    // muette, coller une adresse non reconnue ne produisait plus aucune
+    // annonce, et le bouton principal se désactivait en silence (WCAG 4.1.3).
+    detectProvider.mockResolvedValue({ provider: "", supported: false });
+    afficher(<ProviderDetector url="https://chronopuce.test/x" />);
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Aucun chronométreur ne reconnaît cette adresse.",
+    );
+  });
+
   it("réserve la hauteur de la ligne pendant la détection, pour ne rien décaler", () => {
     detectProvider.mockReturnValue(new Promise(() => {}));
     const { container } = afficher(<ProviderDetector url="https://www.klikego.com/x" />);
@@ -92,7 +116,7 @@ describe("ProviderDetector — un seul verdict, au même endroit (#492, ACT-6)",
     // remonterait puis redescendrait à chaque frappe.
     const ligne = container.querySelector("[data-verdict]") as HTMLElement;
     expect(ligne).not.toBeNull();
-    expect(ligne.style.minHeight).toBe("22px");
+    expect(ligne.style.minHeight).toBe("24px");
     expect(ligne.textContent).toBe("");
   });
 });

@@ -4,14 +4,21 @@ import { apiClient } from "@/lib/api/client";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useProviders } from "@/lib/queries/batches";
 import { providerLabel } from "@/lib/constants";
+import { FormatChip } from "@/components/tcn";
 
 type Detected = { provider: string; supported: boolean };
 
 /** Hauteur du verdict, réservée avant qu'il n'existe.
  *
  *  Le badge apparaissait et disparaissait au rythme du débounce, et déplaçait
- *  le bouton d'import pendant la frappe (#492, ACT-6). */
-const HAUTEUR_VERDICT = 22;
+ *  le bouton d'import pendant la frappe (#492, ACT-6). 24 et non 22 : c'est la
+ *  hauteur de `.tcn-lien-action`, la plus haute des deux branches — deux pixels
+ *  de moins et la ligne bouge quand même. */
+const HAUTEUR_VERDICT = 24;
+
+/** L'identifiant du verdict, cité par `aria-describedby` du bouton principal :
+ *  c'est lui qui donne la raison du blocage à qui atteint le bouton désactivé. */
+export const ID_VERDICT = "scrape-provider-verdict";
 
 /**
  * La ligne sous le champ URL : **un seul** verdict, à un seul endroit.
@@ -76,6 +83,13 @@ export function ProviderDetector({
   return (
     <div
       data-verdict=""
+      id={ID_VERDICT}
+      // Le verdict remplace un badge **et** une alerte : consolidé en une ligne
+      // muette, il ne produisait plus aucune annonce, et le bouton principal se
+      // désactivait en silence (WCAG 4.1.3). La boîte est rendue en permanence,
+      // donc la région live préexiste à son contenu — condition pour que
+      // l'insertion soit annoncée.
+      role="status"
       style={{
         minHeight: HAUTEUR_VERDICT,
         display: "flex",
@@ -98,7 +112,7 @@ export function ProviderDetector({
         </span>
       ) : detected ? (
         <>
-          <span style={{ color: "var(--tcn-danger-text, var(--tcn-danger-border))" }}>
+          <span style={{ color: "var(--tcn-danger-text)" }}>
             Aucun chronométreur ne reconnaît cette adresse.
           </span>
           {onSaisieManuelle && (
@@ -116,29 +130,28 @@ export function ProviderDetector({
  *
  *  La liste vient du registre backend (`GET /scrape/providers`) : le front en
  *  a déjà tenu une à la main, et elle avait divergé. Muette tant qu'elle n'a
- *  pas répondu, et sur échec : c'est un repère, pas un prérequis au collage. */
+ *  pas répondu, et sur échec : c'est un repère, pas un prérequis au collage.
+ *
+ *  **Repliée par défaut**, sur un `<details>` natif — clavier, tactile et
+ *  lecteurs d'écran compris, sans une ligne de JavaScript. Les 14 fournisseurs
+ *  du registre étalés font six à sept lignes sur un iPhone SE, et poussaient
+ *  « Enregistrer les résultats » sous la ligne de flottaison avant même la
+ *  première frappe : le repère occupait plus de place que le geste qu'il
+ *  documente. Le compte reste visible replié — c'est lui qui donne envie
+ *  d'ouvrir. */
 function ChronometreursConnus() {
   const { data: providers } = useProviders();
   if (!providers?.length) return null;
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 6, fontSize: 13 }}>
-      <span style={{ color: "var(--tcn-text-muted)", fontWeight: 500 }}>
-        Chronométreurs pris en charge :
-      </span>
-      {providers.map((p) => (
-        <span
-          key={p}
-          style={{
-            padding: "2px 8px",
-            borderRadius: 999,
-            background: "var(--tcn-surface-sunk)",
-            color: "var(--tcn-text-body)",
-            fontWeight: 600,
-          }}
-        >
-          {providerLabel(p)}
-        </span>
-      ))}
-    </div>
+    <details style={{ fontSize: 13 }}>
+      <summary className="tcn-lien-action" style={{ display: "list-item", fontWeight: 500 }}>
+        Chronométreurs pris en charge ({providers.length})
+      </summary>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+        {providers.map((p) => (
+          <FormatChip key={p}>{providerLabel(p)}</FormatChip>
+        ))}
+      </div>
+    </details>
   );
 }

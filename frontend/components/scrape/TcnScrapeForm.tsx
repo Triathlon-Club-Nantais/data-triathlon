@@ -12,7 +12,7 @@ import { formatEventName } from "@/lib/utils/event";
 import { isHttpUrl } from "@/lib/utils/url";
 import { useSaveParticipation } from "@/lib/queries/participations";
 import { useImportStream } from "@/hooks/useImportStream";
-import { ProviderDetector } from "./ProviderDetector";
+import { ProviderDetector, ID_VERDICT } from "./ProviderDetector";
 import { ManualResultForm } from "./ManualResultForm";
 import type { ImportedCourse, Participation, ScrapedPreview } from "@/lib/types";
 
@@ -266,7 +266,7 @@ export function TcnScrapeForm() {
               // nouvelle et refermerait la porte de la saisie manuelle.
               onChange={(e) => { setUrl(e.target.value); setSaved(null); }}
               onKeyDown={(e) => e.key === "Enter" && submit()}
-              placeholder="https://www.klikego.com/resultats/…"
+              placeholder="https://www.klikego.com/…"
               type="url"
               inputMode="url"
               // Une URL n'est ni capitalisée, ni corrigée par le correcteur, et
@@ -296,7 +296,7 @@ export function TcnScrapeForm() {
               <div
                 id="scrape-url-error"
                 role="alert"
-                style={{ marginTop: 6, fontSize: 13, color: "var(--tcn-danger-text, var(--tcn-danger-border))", fontWeight: 500 }}
+                style={{ marginTop: 6, fontSize: 13, color: "var(--tcn-danger-text)", fontWeight: 500 }}
               >
                 Cette adresse n&apos;est pas une URL valide (elle doit commencer par http:// ou https://).
               </div>
@@ -305,15 +305,20 @@ export function TcnScrapeForm() {
               <ProviderDetector
                 url={url}
                 onDetected={handleProviderDetected}
-                // Une participation vient d'être saisie : réinviter à la saisir
-                // contredirait l'accusé de réception juste dessous.
-                onSaisieManuelle={saved ? undefined : () => setManual(true)}
+                // Deux cas où la sortie manuelle ne s'offre pas : une
+                // participation vient d'être saisie, et la réinviter
+                // contredirait l'accusé de réception ; ou un import tourne, et
+                // ouvrir le formulaire par-dessus sa barre de progression
+                // proposerait deux gestes concurrents sur la même épreuve.
+                onSaisieManuelle={saved || running ? undefined : () => setManual(true)}
               />
             </div>
           </div>
           {/* `providerUnsupported` dans `disabled` : le bouton restait actif et
-              promettait le contraire du verdict affiché sous le champ (ACT-6). */}
-          <Button size="lg" onClick={submit} disabled={running || !urlIsValid || providerUnsupported} iconRight={<span>→</span>} style={{ borderRadius: "var(--tcn-radius-xl)" }}>
+              promettait le contraire du verdict affiché sous le champ (ACT-6).
+              `aria-describedby` porte la raison du blocage jusqu'à qui atteint
+              le bouton sans voir la ligne (WCAG 4.1.3). */}
+          <Button size="lg" onClick={submit} disabled={running || !urlIsValid || providerUnsupported} aria-describedby={url ? ID_VERDICT : undefined} iconRight={<span>→</span>} style={{ borderRadius: "var(--tcn-radius-xl)" }}>
             {running ? "Import en cours…" : "Enregistrer les résultats"}
           </Button>
         </div>
@@ -493,7 +498,6 @@ function ActionChamp({
       type="button"
       className="tcn-action-champ"
       aria-label={label}
-      title={label}
       onClick={onClick}
     >
       {children}

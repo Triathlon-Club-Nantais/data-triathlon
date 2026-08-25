@@ -480,7 +480,15 @@
     min-width: 44px;
     height: 44px;
     padding: 0 10px;
+    /* L'affordance est portée par le contour et l'aplat, pas par le survol :
+       « Coller » est posé exactement là où finit le placeholder, sur le même
+       `--tcn-fill` que le champ, et rien ne le distinguait de son contenu.
+       Le survol ne pouvait pas s'en charger — aucun neutre de la palette ne
+       dépasse 1,4:1 sur `--tcn-fill`, et `--tcn-surface-sunk` y valait
+       1,05:1, soit un retour littéralement invisible. */
+    border: 1px solid var(--tcn-border-input);
     border-radius: var(--tcn-radius-lg);
+    background: var(--tcn-surface);
     color: var(--tcn-text-body);
     font-size: 18px;
     line-height: 1;
@@ -489,7 +497,7 @@
     transition: background var(--tcn-dur-fast);
   }
   .tcn-action-champ:hover {
-    background: var(--tcn-surface-sunk);
+    background: var(--tcn-grey-300);
   }
   .tcn-action-champ:focus-visible {
     outline: 2px solid var(--tcn-orange);

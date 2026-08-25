@@ -142,6 +142,22 @@ describe("champ TCN", () => {
   });
 });
 
+describe("actions posées dans un champ TCN", () => {
+  it("se distinguent du contenu du champ au repos", () => {
+    // Sans contour, « Coller » est un texte gras posé là où finit le
+    // placeholder, sur le même aplat que le champ : rien ne dit que c'est un
+    // bouton. Le survol ne peut pas porter cette charge — aucun neutre ne
+    // dépasse 1,4:1 sur `--tcn-fill`.
+    expect(rule(".tcn-action-champ")).toContain("border: 1px solid var(--tcn-border-input)");
+  });
+
+  it("gardent 44px de cible tactile", () => {
+    const action = rule(".tcn-action-champ");
+    expect(action).toContain("min-width: 44px");
+    expect(action).toContain("height: 44px");
+  });
+});
+
 describe("bouton TCN", () => {
   // `components/tcn/` stylait tout en `CSSProperties` en ligne, où `:hover`,
   // `:active`, `:focus-visible` et `disabled` sont **inexprimables** : c'était la

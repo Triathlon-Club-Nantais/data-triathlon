@@ -319,6 +319,33 @@ describe("TcnScrapeForm — un seul verdict avant d'essayer (#492, ACT-6)", () =
     );
   });
 
+  it("rattache le bouton principal au verdict qui le désactive", async () => {
+    // Le bouton se désactivait en silence : sans `aria-describedby`, la raison
+    // du blocage n'est nulle part pour qui l'atteint au clavier (WCAG 4.1.3).
+    vi.mocked(apiClient.detectProvider).mockResolvedValue({ provider: "", supported: false });
+    renderForm();
+    await userEvent.type(champUrl(), "https://chronopuce.test/x");
+
+    const verdict = await screen.findByRole("status");
+    expect(screen.getByRole("button", { name: /Enregistrer les résultats/ })).toHaveAttribute(
+      "aria-describedby",
+      verdict.id,
+    );
+  });
+
+  it("n'ouvre pas la saisie manuelle par-dessus un import qui tourne", async () => {
+    // L'ancienne alerte anticipée portait un `phase === "idle"` : éditer le
+    // champ pendant un import affichait sinon la sortie manuelle à côté de la
+    // barre de progression, et ouvrait un formulaire sous un import en cours.
+    vi.mocked(apiClient.detectProvider).mockResolvedValue({ provider: "", supported: false });
+    importMock.set({ phase: "scraping", running: true });
+    renderForm();
+    await userEvent.type(champUrl(), "https://chronopuce.test/x");
+
+    await screen.findByRole("status");
+    expect(screen.queryByRole("button", { name: "Saisir à la main" })).not.toBeInTheDocument();
+  });
+
   it("la touche Entrée ne contourne pas le bouton désactivé", async () => {
     vi.mocked(apiClient.detectProvider).mockResolvedValue({ provider: "", supported: false });
     renderForm();
@@ -735,10 +762,13 @@ describe("TcnScrapeForm — accusé de réception de la saisie manuelle (ACT-1)"
     await saisirEtEnregistrer();
 
     // Le formulaire est démonté au moment où la carte apparaît : sans région
-    // live, plus rien n'est annoncé ni focalisé (WCAG 4.1.3, #477).
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      /en attente de validation par un bénévole/i,
+    // live, plus rien n'est annoncé ni focalisé (WCAG 4.1.3, #477). L'écran en
+    // porte deux depuis #492 — le verdict du fournisseur reste sous le champ,
+    // qui n'a pas été vidé.
+    const annonce = (await screen.findAllByRole("status")).find(
+      (n) => n.id !== "scrape-provider-verdict",
     );
+    expect(annonce).toHaveTextContent(/en attente de validation par un bénévole/i);
   });
 
   it("offre une sortie pour saisir une seconde participation", async () => {
