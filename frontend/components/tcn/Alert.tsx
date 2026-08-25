@@ -16,14 +16,17 @@ export function Alert({
 }) {
   // `sur` = la couleur du glyphe sur sa pastille, choisie par mesure et non par
   // convention : le glyphe faisait 12px en blanc dans les trois cas, soit 1,98:1
-  // sur `--tcn-warning` #e6b020 et 3,68:1 sur `--tcn-danger` #E9530E (#299).
-  // L'encre y donne 8,42 et 4,54 ; sur `--tcn-success` #1f8a4d elle ferait
+  // sur `--tcn-warning` #e6b020 et 7,61:1 sur `--tcn-danger` #992f00 (#299, #499).
+  // L'encre y donne 8,42 et 2,19 ; sur `--tcn-success` #1f8a4d elle ferait
   // 3,82 contre 4,37 au blanc, qui reste donc le meilleur des deux là — atteindre
   // 4,5:1 sur le vert demanderait de bouger la couleur sémantique, hors périmètre.
+  // `--tcn-danger` a foncé avec #499 (AA sur son propre aplat) : l'encre, qui
+  // tenait sur l'ancien orange, tombe à 2,19:1 sur ce rouge plus sombre — c'est
+  // désormais le blanc qui porte le glyphe.
   const palettes = {
     success: { bg: "var(--tcn-success-bg)", border: "var(--tcn-success-border)", icon: "var(--tcn-success)", sur: "#fff", title: "var(--tcn-success-text)", body: "var(--tcn-success-text2)", glyph: "✓" },
     warning: { bg: "var(--tcn-warning-bg)", border: "var(--tcn-warning-border)", icon: "var(--tcn-warning)", sur: "var(--tcn-ink)", title: "var(--tcn-warning-text)", body: "var(--tcn-warning-text2)", glyph: "!" },
-    error: { bg: "var(--tcn-danger-bg)", border: "var(--tcn-danger-border)", icon: "var(--tcn-danger)", sur: "var(--tcn-ink)", title: "var(--tcn-danger-text)", body: "var(--tcn-danger-text2)", glyph: "!" },
+    error: { bg: "var(--tcn-danger-bg)", border: "var(--tcn-danger-border)", icon: "var(--tcn-danger)", sur: "#fff", title: "var(--tcn-danger-text)", body: "var(--tcn-danger-text2)", glyph: "!" },
   } as const;
   const p = palettes[status];
 

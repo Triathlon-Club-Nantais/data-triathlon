@@ -172,7 +172,14 @@
   --tcn-warning-text2: #8a6820;
 
   /* ── Sémantique — danger / doublon ────────────────────────────── */
-  --tcn-danger:        #E9530E;
+  /* Divorcé de `--tcn-orange` (#499) : un jeton sémantique doit se distinguer
+     de la couleur de marque pour que le code couleur des gestes destructifs
+     s'apprenne, et il portait la même valeur — le rouge du danger n'était que
+     l'orange du site. `--tcn-danger` sert aussi de fond de pastille (10-20 %),
+     donc il doit tenir AA sur son propre aplat, survol compris : au pire cas
+     (aplat 20 % au survol sur `--tcn-paper`), #E9530E tombait à 2,61:1,
+     #992f00 tient 4,94:1. */
+  --tcn-danger:        #992f00;
   --tcn-danger-bg:     #fff4f0;
   --tcn-danger-border: #f2c2ad;
   --tcn-danger-text:   #c04008;
