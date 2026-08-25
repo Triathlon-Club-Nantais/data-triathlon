@@ -358,10 +358,11 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 
   Deux règles s'attrapent en passant, valables pour #503 et #504 : le podium
   d'un athlète doit se calculer sur le **même `?rank=`** que les compteurs
-  club (`lib/utils/ma-saison.ts`, miroir de `stats_service._rank_counters`),
-  et un bloc client monté au-dessus de contenu serveur réserve sa hauteur dès
-  l'hydratation — sinon le retour du fetch ajoute un **second** décalage au
-  premier.
+  club (`lib/utils/club-aggregate.ts`, `bestRank`/`isPodium`, miroir de
+  `stats_service._rank_counters` — `ma-saison.ts` y délègue depuis la revue
+  finale de #502), et un bloc client monté au-dessus de contenu serveur
+  réserve sa hauteur dès l'hydratation — sinon le retour du fetch ajoute un
+  **second** décalage au premier.
 
   Une troisième, trouvée en revue de #502 : une région `AnnonceStatut` se
   monte **inconditionnellement**, texte vide (`""`) quand il n'y a rien à
