@@ -125,7 +125,7 @@ Six champs et deux paramètres, tous **additifs**, tous à défaut neutre.
   (par synthèse)** publient l'écart entre le temps total et la somme des inters. Ce
   sont des **mesures, jamais des verdicts** : les seuils d'affichage vivent côté écran,
   ce qui permettra de les régler après re-sondage sans toucher au contrat. La règle
-  elle-même vit dans `app/services/split_gap.py` et **nulle part ailleurs** — le front en a
+  elle-même vit dans `app/core/split_gap.py` et **nulle part ailleurs** — le front en a
   besoin par ligne, la synthèse pour la médiane, et deux implémentations divergeraient
   comme les trois listes du critère club de #76. Son **gabarit de segments dérive de
   `services/mapping._SPLIT_KEYS_BY_SPORT`**, la table qui pose les clés de `splits` : en

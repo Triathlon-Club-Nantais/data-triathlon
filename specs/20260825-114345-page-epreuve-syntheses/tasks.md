@@ -35,7 +35,7 @@ Aucune migration Alembic dans ce lot.
 
 **Purpose**: le seul intrant que les trois stories partagent — un relevé, pas du code.
 
-- [ ] T001 Relever depuis `backend/triathlon.db` les codes de catégorie distincts avec leur fréquence, et les identifiants d'épreuve témoins (au moins une à médiane d'écart > 1 %, une à médiane nulle, une sans club renseigné, une à plus de 8 catégories), et consigner le relevé dans `specs/20260825-114345-page-epreuve-syntheses/releve-donnees.md`
+- [x] T001 Relever depuis `backend/triathlon.db` les codes de catégorie distincts avec leur fréquence, et les identifiants d'épreuve témoins (au moins une à médiane d'écart > 1 %, une à médiane nulle, une sans club renseigné, une à plus de 8 catégories), et consigner le relevé dans `specs/20260825-114345-page-epreuve-syntheses/releve-donnees.md`
 
 **Checkpoint**: les trois stories ont leurs cas de test réels, pas inventés.
 
@@ -48,7 +48,7 @@ Aucune migration Alembic dans ce lot.
 **⚠️ CRITIQUE**: `frontend/lib/types.ts` est touché par les trois stories. Déclarer les
 six champs d'un coup évite un conflit à trois sur un fichier de types.
 
-- [ ] T002 Déclarer les six champs publiés dans `frontend/lib/types.ts` — `split_gap_ratio` sur `Participation`, `clubs_total` et `split_gap_median` sur `CourseSummary`, `is_reliable` et `quality_issues` sur `EventOut` — tous optionnels/nullables, conformément à `contracts/api-lecture.md`
+- [x] T002 Déclarer les six champs publiés dans `frontend/lib/types.ts` — `split_gap_ratio` sur `Participation`, `clubs_total` et `split_gap_median` sur `CourseSummary`, `is_reliable` et `quality_issues` sur `EventOut` — tous optionnels/nullables, conformément à `contracts/api-lecture.md`
 
 **Checkpoint**: fondation prête — les trois stories peuvent démarrer.
 
@@ -68,30 +68,30 @@ un marqueur de ligne réservé aux lignes qui s'écartent de leurs voisines.
 > **Écrire ces tests D'ABORD, vérifier qu'ils ÉCHOUENT avant toute implémentation**
 > (Principe III, non-négociable).
 
-- [ ] T003 [P] [US1] Test de l'évaluabilité d'une ligne — les cinq conditions cumulatives de `data-model.md` § 2, chacune rendant `None` — dans `backend/tests/test_core/test_split_gap.py`
-- [ ] T004 [US1] Test de captation : figer la ligne de tête de la course 214 (31 s + 34 s + 19 min 18 s pour 01:06:18, soit 69,3 %) en fixture et vérifier qu'elle est évaluée et signalée, dans `backend/tests/test_core/test_split_gap.py` (dépend de T003)
-- [ ] T005 [US1] Test du signe : un écart positif (segment non publié) et un écart négatif se distinguent, dans `backend/tests/test_core/test_split_gap.py` (dépend de T003)
-- [ ] T006 [P] [US1] Test de la médiane d'épreuve — `split_gap_median` sur une épreuve à lignes évaluables, `None` sur une épreuve de relais et sur une épreuve sans splits — dans `backend/tests/test_services/test_participation_stats_service.py`
-- [ ] T007 [P] [US1] Test du croisement des deux tables de schémas de segments, dans `backend/tests/test_core/test_split_gap.py` : lire `frontend/lib/utils/splits.ts` depuis le test (chemin résolu par `Path(__file__).parents[3] / "frontend/lib/utils/splits.ts"`), en extraire les entrées `SCHEMAS` par expression régulière sur `key: "…"`, et asserter l'égalité **stricte** — mêmes noms de schéma, mêmes clés, même ordre — avec la table Python. Le test **échoue** si le fichier est introuvable : c'est la garde qui justifie la dérogation au Principe VI, elle ne se saute pas. Aucun accès réseau, aucune dépendance de production sur le front.
-- [ ] T008 [P] [US1] Test API : `split_gap_ratio` publié par participation et `split_gap_median` par synthèse, `null` quand non évaluable, dans `backend/tests/test_api/test_courses_api.py`
-- [ ] T009 [US1] Test API : `EventOut` porte `is_reliable` et `quality_issues`, y compris `null`, dans `backend/tests/test_api/test_courses_api.py` (même fichier que T008)
-- [ ] T010 [P] [US1] Test repository : la requête agrégée d'épreuves rend les deux colonnes de fiabilité **sans** placer `quality_issues` dans le `GROUP BY`, dans `backend/tests/test_repositories/test_participation_repository.py`
-- [ ] T011 [P] [US1] Test composant : l'en-tête de `/courses/[id]` porte la marque « données douteuses » sur une épreuve à anomalies, rien sur une épreuve saine, et le signal d'épreuve quand `split_gap_median` dépasse 1 %, dans `frontend/app/(public_restricted)/courses/[id]/page.test.tsx`
-- [ ] T012 [P] [US1] Test composant : une ligne s'écartant de plus de 5 % de la médiane porte le marqueur, une ligne conforme n'en porte pas, aucune ligne n'est marquée sous 10 lignes évaluables ou sous 60 s d'écart, **et les temps rendus valent exactement ceux fournis — marqueur présent ou non** (`FR-009` : le marqueur informe, il ne réécrit pas la donnée), dans `frontend/components/results/RaceFinishers.test.tsx`
-- [ ] T013 [P] [US1] Test composant : une ligne d'épreuve à anomalies porte la marque, avec le même vocabulaire que le profil athlète, dans `frontend/components/results/EventList.test.tsx`
+- [x] T003 [P] [US1] Test de l'évaluabilité d'une ligne — les cinq conditions cumulatives de `data-model.md` § 2, chacune rendant `None` — dans `backend/tests/test_core/test_split_gap.py`
+- [x] T004 [US1] Test de captation : figer la ligne de tête de la course 214 (31 s + 34 s + 19 min 18 s pour 01:06:18, soit 69,3 %) en fixture et vérifier qu'elle est évaluée et signalée, dans `backend/tests/test_core/test_split_gap.py` (dépend de T003)
+- [x] T005 [US1] Test du signe : un écart positif (segment non publié) et un écart négatif se distinguent, dans `backend/tests/test_core/test_split_gap.py` (dépend de T003)
+- [x] T006 [P] [US1] Test de la médiane d'épreuve — `split_gap_median` sur une épreuve à lignes évaluables, `None` sur une épreuve de relais et sur une épreuve sans splits — dans `backend/tests/test_services/test_participation_stats_service.py`
+- [x] T007 [P] [US1] Test du croisement des deux tables de schémas de segments, dans `backend/tests/test_core/test_split_gap.py` : lire `frontend/lib/utils/splits.ts` depuis le test (chemin résolu par `Path(__file__).parents[3] / "frontend/lib/utils/splits.ts"`), en extraire les entrées `SCHEMAS` par expression régulière sur `key: "…"`, et asserter l'égalité **stricte** — mêmes noms de schéma, mêmes clés, même ordre — avec la table Python. Le test **échoue** si le fichier est introuvable : c'est la garde qui justifie la dérogation au Principe VI, elle ne se saute pas. Aucun accès réseau, aucune dépendance de production sur le front.
+- [x] T008 [P] [US1] Test API : `split_gap_ratio` publié par participation et `split_gap_median` par synthèse, `null` quand non évaluable, dans `backend/tests/test_api/test_courses_api.py`
+- [x] T009 [US1] Test API : `EventOut` porte `is_reliable` et `quality_issues`, y compris `null`, dans `backend/tests/test_api/test_courses_api.py` (même fichier que T008)
+- [x] T010 [P] [US1] Test repository : la requête agrégée d'épreuves rend les deux colonnes de fiabilité **sans** placer `quality_issues` dans le `GROUP BY`, dans `backend/tests/test_repositories/test_participation_repository.py`
+- [x] T011 [P] [US1] Test composant : l'en-tête de `/courses/[id]` porte la marque « données douteuses » sur une épreuve à anomalies, rien sur une épreuve saine, et le signal d'épreuve quand `split_gap_median` dépasse 1 %, dans `frontend/app/(public_restricted)/courses/[id]/page.test.tsx`
+- [x] T012 [P] [US1] Test composant : une ligne s'écartant de plus de 5 % de la médiane porte le marqueur, une ligne conforme n'en porte pas, aucune ligne n'est marquée sous 10 lignes évaluables ou sous 60 s d'écart, **et les temps rendus valent exactement ceux fournis — marqueur présent ou non** (`FR-009` : le marqueur informe, il ne réécrit pas la donnée), dans `frontend/components/results/RaceFinishers.test.tsx`
+- [x] T013 [P] [US1] Test composant : une ligne d'épreuve à anomalies porte la marque, avec le même vocabulaire que le profil athlète, dans `frontend/components/results/EventList.test.tsx`
 
 ### Implementation for User Story 1
 
-- [ ] T014 [US1] Créer `backend/app/core/split_gap.py` — les cinq schémas de segments par sport, la règle d'évaluabilité et le calcul de l'écart signé, avec la docstring qui nomme le sondage comme point de vérité (rend T003, T005, T007 verts)
-- [ ] T015 [US1] Calculer `split_gap_ratio` par ligne et `split_gap_median` par épreuve dans `backend/app/services/stats_service.py`, dans la boucle existante de `course_summary` (rend T006 vert)
-- [ ] T016 [P] [US1] Ajouter `split_gap_ratio: float | None` à `ParticipationOut` dans `backend/app/schemas/participation.py`
-- [ ] T017 [P] [US1] Ajouter `split_gap_median: float | None` à `CourseSummary` et `is_reliable` / `quality_issues` à `EventOut` dans `backend/app/schemas/course.py`
-- [ ] T018 [US1] Ajouter les deux colonnes de fiabilité au `SELECT` de `_grouped_events_query` — et **pas** au `GROUP BY`, la dépendance fonctionnelle à `Course.id` suffisant et PostgreSQL n'ayant pas d'opérateur d'égalité sur `json` — dans `backend/app/repositories/participation_repository.py` (rend T010 vert)
-- [ ] T019 [US1] Reporter les deux colonnes dans `_event_row` de `backend/app/services/stats_service.py` (rend T009 vert, dépend de T018)
-- [ ] T020 [P] [US1] Créer le composant de marque de fiabilité, réutilisant `describeQualityIssues` de `frontend/lib/quality.ts` et le patron `role="img"` + `title` + `aria-label` de `CelluleInter`, dans `frontend/components/results/ReliabilityMark.tsx`
-- [ ] T021 [US1] Rendre la marque et le signal d'épreuve dans l'en-tête de `frontend/app/(public_restricted)/courses/[id]/page.tsx` (rend T011 vert, dépend de T020)
-- [ ] T022 [US1] Poser le marqueur de ligne dans `frontend/components/results/RaceFinishers.tsx`, avec les trois gardes du sondage — écart à la médiane > 5 %, épreuve ≥ 10 lignes évaluables, ≥ 60 s (rend T012 vert)
-- [ ] T023 [US1] Rendre la marque sur les lignes de `frontend/components/results/EventList.tsx` (rend T013 vert, dépend de T020)
+- [x] T014 [US1] Créer `backend/app/services/split_gap.py` — les cinq schémas de segments par sport, la règle d'évaluabilité et le calcul de l'écart signé, avec la docstring qui nomme le sondage comme point de vérité (rend T003, T005, T007 verts)
+- [x] T015 [US1] Calculer `split_gap_ratio` par ligne et `split_gap_median` par épreuve dans `backend/app/services/stats_service.py`, dans la boucle existante de `course_summary` (rend T006 vert)
+- [x] T016 [P] [US1] Ajouter `split_gap_ratio: float | None` à `ParticipationOut` dans `backend/app/schemas/participation.py`
+- [x] T017 [P] [US1] Ajouter `split_gap_median: float | None` à `CourseSummary` et `is_reliable` / `quality_issues` à `EventOut` dans `backend/app/schemas/course.py`
+- [x] T018 [US1] Ajouter les deux colonnes de fiabilité au `SELECT` de `_grouped_events_query` — et **pas** au `GROUP BY`, la dépendance fonctionnelle à `Course.id` suffisant et PostgreSQL n'ayant pas d'opérateur d'égalité sur `json` — dans `backend/app/repositories/participation_repository.py` (rend T010 vert)
+- [x] T019 [US1] Reporter les deux colonnes dans `_event_row` de `backend/app/services/stats_service.py` (rend T009 vert, dépend de T018)
+- [x] T020 [P] [US1] Créer le composant de marque de fiabilité, réutilisant `describeQualityIssues` de `frontend/lib/quality.ts` et le patron `role="img"` + `title` + `aria-label` de `CelluleInter`, dans `frontend/components/results/ReliabilityMark.tsx`
+- [x] T021 [US1] Rendre la marque et le signal d'épreuve dans l'en-tête de `frontend/app/(public_restricted)/courses/[id]/page.tsx` (rend T011 vert, dépend de T020)
+- [x] T022 [US1] Poser le marqueur de ligne dans `frontend/components/results/RaceFinishers.tsx`, avec les trois gardes du sondage — écart à la médiane > 5 %, épreuve ≥ 10 lignes évaluables, ≥ 60 s (rend T012 vert)
+- [x] T023 [US1] Rendre la marque sur les lignes de `frontend/components/results/EventList.tsx` (rend T013 vert, dépend de T020)
 
 **Checkpoint**: `US1` est complète et vérifiable seule. Le produit dit quand douter.
 
@@ -107,19 +107,19 @@ une sans club renseigné — sans que `US1` ni `US3` existent. § `US2` de
 
 ### Tests for User Story 2
 
-- [ ] T024 [P] [US2] Test service : `clubs_total` compte les clubs **distincts** et vaut 0 sans club renseigné, dans `backend/tests/test_services/test_participation_stats_service.py`
-- [ ] T025 [P] [US2] Test API : `clubs_total` publié par la synthèse, dans `backend/tests/test_api/test_courses_api.py`
-- [ ] T026 [P] [US2] Test composant : la part « Autres (N) » apparaît quand le reste est positif, disparaît quand il est nul ou négatif, et l'ensemble totalise 100 %, dans `frontend/components/charts/CategoryBars.test.tsx`
-- [ ] T027 [P] [US2] Test composant : la description destinée aux lecteurs d'écran inclut la part « Autres », dans `frontend/components/charts/CategoryBars.test.tsx`
-- [ ] T028 [P] [US2] Test composant : le pied « et N autres clubs » n'apparaît que si la liste est tronquée, l'en-tête de colonnes disparaît sur liste vide, **et la description destinée aux lecteurs d'écran porte le nombre de clubs non listés** (seconde moitié de `FR-018`, la première étant couverte par T027), dans `frontend/components/courses/ClubBreakdown.test.tsx`
+- [x] T024 [P] [US2] Test service : `clubs_total` compte les clubs **distincts** et vaut 0 sans club renseigné, dans `backend/tests/test_services/test_participation_stats_service.py`
+- [x] T025 [P] [US2] Test API : `clubs_total` publié par la synthèse, dans `backend/tests/test_api/test_courses_api.py`
+- [x] T026 [P] [US2] Test composant : la part « Autres (N) » apparaît quand le reste est positif, disparaît quand il est nul ou négatif, et l'ensemble totalise 100 %, dans `frontend/components/charts/CategoryBars.test.tsx`
+- [x] T027 [P] [US2] Test composant : la description destinée aux lecteurs d'écran inclut la part « Autres », dans `frontend/components/charts/CategoryBars.test.tsx`
+- [x] T028 [P] [US2] Test composant : le pied « et N autres clubs » n'apparaît que si la liste est tronquée, l'en-tête de colonnes disparaît sur liste vide, **et la description destinée aux lecteurs d'écran porte le nombre de clubs non listés** (seconde moitié de `FR-018`, la première étant couverte par T027), dans `frontend/components/courses/ClubBreakdown.test.tsx`
 
 ### Implementation for User Story 2
 
-- [ ] T029 [US2] Calculer `clubs_total` dans `backend/app/services/stats_service.py` depuis le `Counter` de clubs déjà construit (rend T024 vert)
-- [ ] T030 [US2] Ajouter `clubs_total: int` à `CourseSummary` dans `backend/app/schemas/course.py`, avec la docstring qui avertit de l'asymétrie d'unité avec `categories_total` — l'un compte des clubs, l'autre des participants (rend T025 vert)
-- [ ] T031 [US2] Ajouter la part « Autres (N) » calculée par différence, et l'inclure dans l'`aria-label`, dans `frontend/components/charts/CategoryBars.tsx` (rend T026, T027 verts)
-- [ ] T032 [US2] Extraire la carte « Top clubs » de `page.tsx:108-127` vers `frontend/components/courses/ClubBreakdown.tsx`, avec pied « et N autres clubs » et en-tête conditionnel (rend T028 vert)
-- [ ] T033 [US2] Brancher `ClubBreakdown` et corriger les titres des deux cartes pour qu'ils énoncent leur portée, dans `frontend/app/(public_restricted)/courses/[id]/page.tsx` (dépend de T032)
+- [x] T029 [US2] Calculer `clubs_total` dans `backend/app/services/stats_service.py` depuis le `Counter` de clubs déjà construit (rend T024 vert)
+- [x] T030 [US2] Ajouter `clubs_total: int` à `CourseSummary` dans `backend/app/schemas/course.py`, avec la docstring qui avertit de l'asymétrie d'unité avec `categories_total` — l'un compte des clubs, l'autre des participants (rend T025 vert)
+- [x] T031 [US2] Ajouter la part « Autres (N) » calculée par différence, et l'inclure dans l'`aria-label`, dans `frontend/components/charts/CategoryBars.tsx` (rend T026, T027 verts)
+- [x] T032 [US2] Extraire la carte « Top clubs » de `page.tsx:108-127` vers `frontend/components/courses/ClubBreakdown.tsx`, avec pied « et N autres clubs » et en-tête conditionnel (rend T028 vert)
+- [x] T033 [US2] Brancher `ClubBreakdown` et corriger les titres des deux cartes pour qu'ils énoncent leur portée, dans `frontend/app/(public_restricted)/courses/[id]/page.tsx` (dépend de T032)
 
 **Checkpoint**: `US1` et `US2` fonctionnent indépendamment. Plus aucun chiffre ne ment par omission.
 
@@ -135,23 +135,23 @@ contenu correspond à la valeur activée. § `US3` de [quickstart.md](./quicksta
 
 ### Tests for User Story 3
 
-- [ ] T034 [P] [US3] Test repository : `club` et `category` filtrent en **égalité exacte**, se cumulent entre eux, avec `q` et avec `club_only`, et le `total` porte sur la sélection, dans `backend/tests/test_repositories/test_participation_repository.py`
-- [ ] T035 [P] [US3] Test API : les deux paramètres facultatifs, leur défaut neutre, et une valeur inconnue rendant `total: 0` **sans** 404, dans `backend/tests/test_api/test_courses_api.py`
-- [ ] T036 [US3] Test d'additivité du contrat : les appels sans les nouveaux paramètres rendent des réponses inchangées aux clés d'origine, dans `backend/tests/test_api/test_courses_api.py` (même fichier que T035)
-- [ ] T037 [P] [US3] Test unitaire : la table de libellés couvre les codes de base, la règle de suffixe de genre, la règle de genre en mot préfixe, et rend le code brut hors table, dans `frontend/lib/__tests__/categories.test.ts`
-- [ ] T038 [P] [US3] Test composant : une part de catégorie est activable et mène à `?category=…`, et le libellé complet est atteignable au clavier — pas seulement au survol, dans `frontend/components/charts/CategoryBars.test.tsx`
-- [ ] T039 [P] [US3] Test composant : une ligne de club est activable et mène à `?club=…`, dans `frontend/components/courses/ClubBreakdown.test.tsx`
-- [ ] T040 [P] [US3] Test composant : les repères de club et de catégorie sont retirables **indépendamment** l'un de l'autre et de la recherche, la ligne d'état annonce la sélection face au total, et l'état d'absence nomme le filtre en cause sans parler de « recherche », dans `frontend/components/results/RaceFinishers.test.tsx`
+- [x] T034 [P] [US3] Test repository : `club` et `category` filtrent en **égalité exacte**, se cumulent entre eux, avec `q` et avec `club_only`, et le `total` porte sur la sélection, dans `backend/tests/test_repositories/test_participation_repository.py`
+- [x] T035 [P] [US3] Test API : les deux paramètres facultatifs, leur défaut neutre, et une valeur inconnue rendant `total: 0` **sans** 404, dans `backend/tests/test_api/test_courses_api.py`
+- [x] T036 [US3] Test d'additivité du contrat : les appels sans les nouveaux paramètres rendent des réponses inchangées aux clés d'origine, dans `backend/tests/test_api/test_courses_api.py` (même fichier que T035)
+- [x] T037 [P] [US3] Test unitaire : la table de libellés couvre les codes de base, la règle de suffixe de genre, la règle de genre en mot préfixe, et rend le code brut hors table, dans `frontend/lib/__tests__/categories.test.ts`
+- [x] T038 [P] [US3] Test composant : une part de catégorie est activable et mène à `?category=…`, et le libellé complet est atteignable au clavier — pas seulement au survol, dans `frontend/components/charts/CategoryBars.test.tsx`
+- [x] T039 [P] [US3] Test composant : une ligne de club est activable et mène à `?club=…`, dans `frontend/components/courses/ClubBreakdown.test.tsx`
+- [x] T040 [P] [US3] Test composant : les repères de club et de catégorie sont retirables **indépendamment** l'un de l'autre et de la recherche, la ligne d'état annonce la sélection face au total, et l'état d'absence nomme le filtre en cause sans parler de « recherche », dans `frontend/components/results/RaceFinishers.test.tsx`
 
 ### Implementation for User Story 3
 
-- [ ] T041 [US3] Ajouter les filtres `club` et `category` en égalité exacte à `list_page_for_course` dans `backend/app/repositories/participation_repository.py` (rend T034 vert)
-- [ ] T042 [US3] Exposer les deux paramètres facultatifs sur `GET /courses/{course_id}` dans `backend/app/api/v1/courses.py`, défaut `None` (rend T035, T036 verts, dépend de T041)
-- [ ] T043 [P] [US3] Créer `frontend/lib/categories.ts` — table de codes de base, règle de suffixe de genre, règle de genre en mot préfixe, séries masters, et repli sur le code brut, alimentée par le relevé de T001 (rend T037 vert)
-- [ ] T044 [US3] Rendre les parts de catégorie activables vers `?category=…` et exposer le libellé complet au doigt et au clavier, dans `frontend/components/charts/CategoryBars.tsx` (rend T038 vert, dépend de T043)
-- [ ] T045 [US3] Rendre les lignes de club activables vers `?club=…` dans `frontend/components/courses/ClubBreakdown.tsx` (rend T039 vert)
-- [ ] T046 [US3] Étendre les repères de sélection, la ligne d'état et les états d'absence de `frontend/components/results/RaceFinishers.tsx` aux deux nouveaux filtres, en prolongeant `libelleSelection` et le motif livré par le lot #485 plutôt qu'en le réécrivant (rend T040 vert)
-- [ ] T047 [US3] Transmettre `club` et `category` de l'URL à `apiServer.getCourse` dans `frontend/app/(public_restricted)/courses/[id]/page.tsx`, et étendre `CourseQuery` dans `frontend/lib/api/server.ts` (dépend de T042)
+- [x] T041 [US3] Ajouter les filtres `club` et `category` en égalité exacte à `list_page_for_course` dans `backend/app/repositories/participation_repository.py` (rend T034 vert)
+- [x] T042 [US3] Exposer les deux paramètres facultatifs sur `GET /courses/{course_id}` dans `backend/app/api/v1/courses.py`, défaut `None` (rend T035, T036 verts, dépend de T041)
+- [x] T043 [P] [US3] Créer `frontend/lib/categories.ts` — table de codes de base, règle de suffixe de genre, règle de genre en mot préfixe, séries masters, et repli sur le code brut, alimentée par le relevé de T001 (rend T037 vert)
+- [x] T044 [US3] Rendre les parts de catégorie activables vers `?category=…` et exposer le libellé complet au doigt et au clavier, dans `frontend/components/charts/CategoryBars.tsx` (rend T038 vert, dépend de T043)
+- [x] T045 [US3] Rendre les lignes de club activables vers `?club=…` dans `frontend/components/courses/ClubBreakdown.tsx` (rend T039 vert)
+- [x] T046 [US3] Étendre les repères de sélection, la ligne d'état et les états d'absence de `frontend/components/results/RaceFinishers.tsx` aux deux nouveaux filtres, en prolongeant `libelleSelection` et le motif livré par le lot #485 plutôt qu'en le réécrivant (rend T040 vert)
+- [x] T047 [US3] Transmettre `club` et `category` de l'URL à `apiServer.getCourse` dans `frontend/app/(public_restricted)/courses/[id]/page.tsx`, et étendre `CourseQuery` dans `frontend/lib/api/server.ts` (dépend de T042)
 
 **Checkpoint**: les trois stories fonctionnent indépendamment.
 
@@ -159,13 +159,38 @@ contenu correspond à la valeur activée. § `US3` de [quickstart.md](./quicksta
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T048 [P] Documenter les deux nouveaux paramètres de `GET /courses/{course_id}` et les six champs publiés dans `backend/app/api/AGENTS.md`
-- [ ] T049 [P] Vérifier le plancher de cible tactile (24 px) sur les nouveaux contrôles de `frontend/components/charts/CategoryBars.tsx`, `frontend/components/courses/ClubBreakdown.tsx` et `frontend/components/results/RaceFinishers.tsx`, et l'annonce du changement de sélection par `AnnonceStatut` dans ce dernier
-- [ ] T050 Rejouer le sondage **contre le module livré** : mesurer, en important `backend/app/core/split_gap.py` et non un prototype, le nombre de lignes signalées sur les 4 150 lignes évaluables de `backend/triathlon.db`, vérifier qu'il vaut **0** (`SC-005`), et consigner l'écart éventuel dans `docs/superpowers/specs/2026-08-25-ecart-inters-total-sondage.md`
-- [ ] T051 Dérouler `specs/20260825-114345-page-epreuve-syntheses/quickstart.md` de bout en bout sur les épreuves témoins relevées en T001
-- [ ] T052 Vérifier l'additivité du contrat : `git diff origin/main -- backend/tests/test_api/` ne montre **aucune assertion existante modifiée**
-- [ ] T053 Passer les cinq suites depuis `backend/` et `frontend/` : `uv run pytest -m "not integration"`, `uv run ruff check .`, `npm test`, `npm run lint`, `npm run build`
-- [ ] T054 Fin de branche selon `docs/WORKFLOW-IA.md` : `requesting-code-review`, puis le sous-agent `ui-ux-review` (la branche touche `frontend/`), puis `verification-before-completion`
+- [x] T048 [P] Documenter les deux nouveaux paramètres de `GET /courses/{course_id}` et les six champs publiés dans `backend/app/api/AGENTS.md`
+- [x] T049 [P] Vérifier le plancher de cible tactile (24 px) sur les nouveaux contrôles de `frontend/components/charts/CategoryBars.tsx`, `frontend/components/courses/ClubBreakdown.tsx` et `frontend/components/results/RaceFinishers.tsx`, et l'annonce du changement de sélection par `AnnonceStatut` dans ce dernier
+- [x] T050 Rejouer le sondage **contre le module livré** : mesurer, en important `backend/app/services/split_gap.py` et non un prototype, le nombre de lignes signalées sur les 4 150 lignes évaluables de `backend/triathlon.db`, vérifier qu'il vaut **0** (`SC-005`), et consigner l'écart éventuel dans `docs/superpowers/specs/2026-08-25-ecart-inters-total-sondage.md`
+- [x] T051 Dérouler `specs/20260825-114345-page-epreuve-syntheses/quickstart.md` de bout en bout sur les épreuves témoins relevées en T001
+- [x] T052 Vérifier l'additivité du contrat : `git diff origin/main -- backend/tests/test_api/` ne montre **aucune assertion existante modifiée**
+- [x] T053 Passer les cinq suites depuis `backend/` et `frontend/` : `uv run pytest -m "not integration"`, `uv run ruff check .`, `npm test`, `npm run lint`, `npm run build`
+- [x] T054 Fin de branche selon `docs/WORKFLOW-IA.md` : `requesting-code-review`, puis le sous-agent `ui-ux-review` (la branche touche `frontend/`), puis `verification-before-completion`
+
+**Ce que les deux revues ont trouvé, et que ni les tests ni la relecture n'avaient vu :**
+
+| Revue | Constat | Gravité |
+| --- | --- | --- |
+| Code | La ligne du club menait à un classement **vide** — la synthèse fusionne les orthographes sous un libellé canonique qu'aucune ligne ne porte en base | haute |
+| Code | `raid-multisport` a un gabarit vide : `all()` sur du vide vaut `True`, donc **100 % d'écart sur chaque ligne** | moyenne |
+| Code | `SplitCoverageNote` ignorait la garde d'effectif, et affirmait un sens sur une médiane négative | moyenne |
+| UI/UX | La croix des repères retombait sur un anneau de focus à **1,86:1** | bloquante |
+| UI/UX | La barre « Autres » reprenait l'orange de la **plus grosse catégorie** (`8 % 8 = 0`) | à corriger |
+| UI/UX | Élargir le libellé « Autres » raccourcissait sa piste de 16 à 25 % : une part de 29,9 % s'y dessinait à la longueur d'un 22 % | à corriger |
+
+Et, hors revue, la contre-mesure de **T050** a révélé que le gabarit de segments du
+premier jet divergeait de `mapping._SPLIT_KEYS_BY_SPORT` — ce qui a invalidé une partie du
+sondage et fait tomber la dérogation au Principe VI.
+
+**Vérification finale** — les cinq suites, sur la branche à jour :
+
+| Suite | Résultat |
+| --- | --- |
+| `uv run pytest -m "not integration"` | 3949 ✓ |
+| `uv run ruff check .` | ✓ |
+| `uv run python scripts/sondage_ecart_inters.py` | 0/4150, verdict OK |
+| `npm test` | 1677 ✓ (162 fichiers) |
+| `npm run lint` / `npm run build` | ✓ / ✓ (TS strict) |
 
 ---
 
