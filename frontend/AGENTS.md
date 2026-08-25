@@ -180,7 +180,12 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   `components/admin/DangerConfirm.tsx`, jamais par `window.confirm` — ce
   dernier n'est ni traduisible, ni stylable, ni testable au même titre. Deux
   formes d'appel : `<DangerConfirm>` quand le geste chiffre son impact avant
-  d'agir, `useDangerConfirm()` — une promesse — pour les autres.
+  d'agir, `useDangerConfirm()` — une promesse — pour les autres. La règle vaut
+  **hors** back-office aussi : `app/benevoles/page.tsx` appelait `window.confirm`
+  pour son garde-fou de brouillon sale jusqu'à #490 (revue UI/UX), qui l'a
+  corrigé et a monté un second `DangerConfirmProvider` propre à cette route
+  (`app/benevoles/layout.tsx`) — celui d'`app/admin/layout.tsx` ne couvre que
+  le back-office.
 
   Quand le serveur refusera le geste et que le front le sait, **le dire avant
   le clic** : bouton inerte et raison visible, patron de `GroupsTable` et de

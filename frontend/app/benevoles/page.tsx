@@ -1,7 +1,8 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useDangerConfirm } from "@/components/admin/DangerConfirm";
 import { AccessGate } from "@/components/benevoles/AccessGate";
 import { ParticipationPanel } from "@/components/benevoles/ParticipationPanel";
 import { useFileValidation } from "@/components/benevoles/useFileValidation";
@@ -28,12 +29,21 @@ export default function BenevolesPage() {
   /** Une ref plutôt qu'un état : le garde-fou est lu dans un gestionnaire de
    *  clic, jamais rendu — un état ne ferait que déclencher un rendu de plus. */
   const brouillonSale = useRef(false);
+  /**
+   * `components/admin/DangerConfirm.tsx` — le seul mécanisme de confirmation
+   * du dépôt, jamais `window.confirm` : ce dernier n'est ni traduisible, ni
+   * stylable, ni testable, et sur téléphone il s'ouvre par-dessus la feuille
+   * modale sans que le produit ne le contrôle (#490, revue UI/UX, item 2). Le
+   * `DangerConfirmProvider` qu'exige ce hook vit dans `layout.tsx`, à côté de
+   * cette page : premier appelant hors `/admin` (revue de #499).
+   */
+  const confirmer = useDangerConfirm();
 
   const surBrouillonSale = useCallback((sale: boolean) => {
     brouillonSale.current = sale;
   }, []);
 
-  function selectionner(id: number) {
+  async function selectionner(id: number) {
     // Un simple ré-appui sur l'entrée déjà sélectionnée (rouvrir la feuille
     // fermée, par ex.) n'est pas un changement d'entrée : le panneau reste
     // monté (`keepMounted` sur la feuille) et son brouillon éventuel avec
@@ -42,9 +52,11 @@ export default function BenevolesPage() {
     // vrai état du panneau, qui lui n'a pas changé (revue de #490 ronde 1).
     const changeDEntree = id !== file.selectedId;
     if (changeDEntree && brouillonSale.current) {
-      const ok = window.confirm(
-        "Ce résultat porte des modifications non enregistrées. Les abandonner ?",
-      );
+      const ok = await confirmer({
+        titre: "Abandonner les modifications non enregistrées ?",
+        description: "Ce résultat porte des modifications non enregistrées.",
+        libelleAction: "Abandonner",
+      });
       if (!ok) return;
     }
     if (changeDEntree) brouillonSale.current = false;
@@ -57,9 +69,45 @@ export default function BenevolesPage() {
     file.surChangement(maj);
   }
 
+  /**
+   * Focus et scroll suivent l'enchaînement (WCAG 2.4.3), pas seulement la
+   * première sélection (#490, revue UI/UX, item 1).
+   *
+   * Le panneau est démonté et remonté à chaque changement d'entrée
+   * (`key={file.selectionnee.id}`) : le bouton qui portait le focus disparaît
+   * avec lui et le focus retombe sur `<body>`, obligeant à retabuler depuis le
+   * sommet du document sur le geste le plus fréquent de l'écran. Sous `md`,
+   * la feuille (`overflow-y-auto`) est le conteneur de défilement et son
+   * `scrollTop` survit à l'échange d'enfant : la validation se fait depuis la
+   * barre collante, donc en bas — la nouvelle entrée s'ouvrait sur ses champs
+   * et sa barre d'action plutôt que sur le nom de l'athlète.
+   *
+   * Seul un **remplacement** d'entrée déjà affichée est concerné
+   * (`precedent` et `courant` tous deux non nuls et distincts) : la toute
+   * première sélection n'a pas besoin de ce recentrage, son propre geste s'en
+   * charge déjà — l'ouverture de la feuille pour le tactile, le bouton de la
+   * file resté focus pour le bureau (`PROF-9`, déjà traitée).
+   */
+  const idPrecedent = useRef<number | null>(null);
+  useEffect(() => {
+    const precedent = idPrecedent.current;
+    const courant = file.selectionnee?.id ?? null;
+    idPrecedent.current = courant;
+    if (precedent === null || courant === null || precedent === courant) return;
+    const feuille = document.querySelector('[data-slot="sheet-content"]');
+    if (feuille) feuille.scrollTop = 0;
+    document.getElementById("benevole-panel-titre")?.focus();
+  }, [file.selectionnee?.id]);
+
   if (file.etat === "chargement") {
+    // `role="status"` + `<h1>` : un « Chargement… » nu n'était ni annoncé ni
+    // identifié — l'écran perdait jusqu'à son titre pendant l'attente (#490,
+    // revue UI/UX, P2).
     return (
-      <div style={{ maxWidth: 480, margin: "80px auto", textAlign: "center", color: "var(--tcn-text-faint)" }}>
+      <div role="status" style={{ maxWidth: 480, margin: "80px auto", textAlign: "center", color: "var(--tcn-text-faint)" }}>
+        <h1 style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(26px, 4vw, 34px)", color: "var(--tcn-ink)", marginBottom: 8, fontWeight: 400 }}>
+          Vérification des résultats
+        </h1>
         Chargement…
       </div>
     );
@@ -72,9 +120,9 @@ export default function BenevolesPage() {
   if (file.etat === "erreur") {
     return (
       <div style={{ maxWidth: 480, margin: "80px auto", textAlign: "center", color: "var(--tcn-text-faint)" }}>
-        <div style={{ marginBottom: 16 }}>
-          La file de validation n&apos;a pas pu être chargée. Réessayez plus tard.
-        </div>
+        {/* « Réessayez plus tard » juste au-dessus d'un bouton qui invite à
+            réessayer *maintenant* se contredisait (#490, revue UI/UX, P2). */}
+        <div style={{ marginBottom: 16 }}>La file n&apos;a pas pu être chargée.</div>
         <Button variant="secondary" onClick={file.charger}>
           Réessayer
         </Button>
@@ -143,10 +191,22 @@ export default function BenevolesPage() {
                   `max-w-[85%]` garde aussi une bande de secours (#490, revue
                   de branche finale). */}
               <div className="flex items-center justify-between">
-                <SheetTitle style={{ fontSize: 0 }}>Détail du résultat</SheetTitle>
+                {/* `sr-only`, pas `fontSize: 0` : certaines combinaisons
+                    navigateur/lecteur d'écran traitent une taille de police
+                    nulle comme « pas rendu », laissant le dialogue sans nom
+                    accessible (#490, revue UI/UX, item 9). */}
+                <SheetTitle className="sr-only">Détail du résultat</SheetTitle>
+                {/* `size-11` (44×44) plutôt que le `p-2.5` suggéré en revue :
+                    avec l'icône `size-4` (16 px), un padding de 10 px de
+                    chaque côté ne totalise que 36 px, sous le plancher WCAG
+                    2.5.8 — une dimension fixe l'atteint quelle que soit
+                    l'icône, comme la croix analogue d'`AppNav.tsx` (#490,
+                    revue UI/UX, item 4). `.tcn-icon-btn` porte le survol et
+                    l'anneau de focus ; `hover:` seul ne réagit jamais au
+                    tactile. */}
                 <SheetClose
                   aria-label="Fermer le détail du résultat"
-                  className="rounded-full p-1 text-[var(--tcn-text-faint)] hover:text-[var(--tcn-ink)]"
+                  className="tcn-icon-btn flex size-11 items-center justify-center rounded-full text-[var(--tcn-text-faint)] hover:text-[var(--tcn-ink)]"
                 >
                   <X className="size-4" />
                 </SheetClose>

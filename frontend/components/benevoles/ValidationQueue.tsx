@@ -57,11 +57,21 @@ export function ValidationQueue({
 
       {liste.length === 0 ? (
         <Card padding={24}>
+          {/* « File vide, merci ! » remercie un bénévole qui vient de traiter
+              la dernière entrée — pas celui qui arrive sur une file déjà vide
+              sans avoir rien fait (`traitees === 0`), pour qui la formule
+              sonnait faux (#490, revue UI/UX, P2). */}
           <EmptyState
             bare
-            title={onglet === "file" ? "File vide, merci !" : "Aucun résultat signalé non conforme"}
+            title={
+              onglet === "file"
+                ? traitees > 0
+                  ? "File vide, merci !"
+                  : "Aucune entrée en attente de validation"
+                : "Aucun résultat signalé non conforme"
+            }
             description={
-              onglet === "file" ? "Tous les résultats déclarés ont été relus." : undefined
+              onglet === "file" && traitees > 0 ? "Tous les résultats déclarés ont été relus." : undefined
             }
           />
         </Card>

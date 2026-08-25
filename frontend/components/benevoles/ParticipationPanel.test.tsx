@@ -197,6 +197,31 @@ describe("ParticipationPanel — enregistrement unique", () => {
     resoudre(participation({ is_pending_validation: false }));
     await waitFor(() => expect(validateParticipationBenevole).toHaveBeenCalled());
   });
+
+  it("ne fait pas dire « Enregistrement… » au bouton primaire en cliquant sur « Enregistrer » (#490, revue UI/UX, item 5)", async () => {
+    // Avant #490 (revue UI/UX), le ternaire du bouton primaire lisait
+    // `enCours` avant `validationEnCours` : `enregistrer()` pose `enCours`
+    // sans toucher `validationEnCours`, donc cliquer sur « Enregistrer »
+    // faisait passer le bouton primaire — jamais pressé — à
+    // « Enregistrement… », pendant que le bouton réellement pressé restait
+    // muet sur son propre état et se contentait de griser.
+    let resoudre!: (p: Participation) => void;
+    updateParticipationFieldsBenevole.mockReturnValue(
+      new Promise<Participation>((resolve) => {
+        resoudre = resolve;
+      }),
+    );
+    render(<ParticipationPanel participation={participation()} onChanged={vi.fn()} />);
+
+    await userEvent.type(screen.getByLabelText(/Dossard/), "3");
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    expect(await screen.findByRole("button", { name: "Enregistrement…" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Valider ce résultat" })).toBeInTheDocument();
+
+    resoudre(participation({ bib_number: "4123" }));
+    await waitFor(() => expect(updateParticipationFieldsBenevole).toHaveBeenCalled());
+  });
 });
 
 describe("ParticipationPanel — erreurs", () => {
@@ -335,7 +360,7 @@ describe("ParticipationPanel — rejet", () => {
     expect(screen.queryByLabelText(/Dossard/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Enregistrer" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Valider ce résultat/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Annuler le rejet/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Lever le signalement/ })).toBeInTheDocument();
   });
 
   it("rouvre l'édition une fois le rejet annulé", () => {
@@ -354,10 +379,63 @@ describe("ParticipationPanel — rejet", () => {
       <ParticipationPanel participation={participation({ is_rejected: true })} onChanged={onChanged} />,
     );
 
-    await userEvent.click(screen.getByRole("button", { name: /Annuler le rejet/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Lever le signalement/ }));
 
     await waitFor(() => expect(unrejectParticipationBenevole).toHaveBeenCalledWith(10));
     expect(onChanged).toHaveBeenCalledWith(reouverte);
+  });
+
+  it("garde un seul vocabulaire — « non conforme »/« signalement », jamais « rejet » (#490, revue UI/UX, item 7)", () => {
+    render(
+      <ParticipationPanel participation={participation({ is_rejected: true })} onChanged={vi.fn()} />,
+    );
+
+    expect(screen.getByText("Levez d'abord le signalement pour modifier ce résultat.")).toBeInTheDocument();
+    expect(screen.queryByText(/rejet/i)).not.toBeInTheDocument();
+  });
+
+  it("nomme le geste de confirmation, pas une question, et distingue son bouton frère (#490, revue UI/UX, item 7)", async () => {
+    render(<ParticipationPanel participation={participation()} onChanged={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Signaler non conforme/ }));
+
+    expect(screen.getByRole("button", { name: "Confirmer le signalement" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Revenir" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Confirmer ?" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/rejet/i)).not.toBeInTheDocument();
+  });
+
+  it("empile la ligne de confirmation du signalement plutôt que de la mettre en flex (#490, revue UI/UX, item 6)", async () => {
+    // À 360 px de large, deux pistes `flex: 1` n'ont que 69 px de glyphes pour
+    // « Confirmer le signalement » et « Signalement… », et `.tcn-btn` interdit
+    // le retour à la ligne : la feuille gagnait un défilement horizontal
+    // exactement en confirmant un signalement.
+    render(<ParticipationPanel participation={participation()} onChanged={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Signaler non conforme/ }));
+
+    const confirmer = screen.getByRole("button", { name: "Confirmer le signalement" });
+    const revenir = screen.getByRole("button", { name: "Revenir" });
+    const ligne = confirmer.parentElement;
+    expect(ligne).toBe(revenir.parentElement);
+    expect(ligne).toHaveStyle({ flexDirection: "column" });
+    expect(confirmer).toHaveStyle({ width: "100%" });
+  });
+
+  it("cerne « Signaler non conforme » d'une bordure lisible (WCAG 1.4.11, #490, revue UI/UX, item 3)", () => {
+    // `--tcn-danger-border` (#f2c2ad sur blanc) ne vaut que 1,60:1 — sous le
+    // seuil de 3:1 pour un contour de composant. `--tcn-danger-text`
+    // (#c04008) vaut 5,28:1.
+    render(<ParticipationPanel participation={participation()} onChanged={vi.fn()} />);
+
+    // `toHaveStyle` passe par `getComputedStyle`, dont l'implémentation
+    // simplifiée de jsdom résout `border-color: var(...)` à la couleur
+    // initiale (transparent) plutôt que d'échoir la chaîne brute — au
+    // contraire de `color`, qu'elle recopie telle quelle. La propriété
+    // `style` de l'élément, elle, porte la valeur non résolue que React y a
+    // posée.
+    const signaler = screen.getByRole("button", { name: /Signaler non conforme/ });
+    expect(signaler.style.borderColor).toBe("var(--tcn-danger-text)");
   });
 });
 

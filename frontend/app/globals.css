@@ -589,6 +589,15 @@
     outline-offset: 2px;
     border-radius: 4px;
   }
+  /* Titre du panneau bénévole (`ParticipationPanel`) : cible d'un focus
+     purement programmatique après un enchaînement de validation (#490, revue
+     UI/UX, item 1), donc sans classe dédiée retombé sur l'anneau universel
+     `outline-ring/50` — 1,86:1, sous le seuil WCAG 1.4.11 de 3:1 (#342). */
+  .tcn-panel-titre:focus-visible {
+    outline: 2px solid var(--tcn-orange);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
   /* SegmentedControl (`tcn/SegmentedControl.tsx`) est 100 % en style inline,
      sans classe : son focus retombait donc sur le seul anneau universel
      `outline-ring/50` (`@layer base`, règle `*`), qui ne vaut que 1,86:1 — sous

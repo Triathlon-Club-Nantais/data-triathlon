@@ -37,10 +37,14 @@ function p(over: Partial<Participation> & { id: number }): Participation {
 }
 
 describe("ValidationQueue — files vides (ETAT-3)", () => {
-  it("dit qu'il n'y a rien en attente de validation", () => {
+  it("ne remercie pas un bénévole qui arrive sur une file déjà vide (#490, revue UI/UX)", () => {
+    // `traitees` par défaut (0) : personne n'a rien traité dans cette
+    // session, donc « File vide, merci ! » remercierait un geste qui n'a pas
+    // eu lieu.
     render(<ValidationQueue participations={[]} selectedId={null} onSelect={vi.fn()} />);
 
-    expect(screen.getByText("File vide, merci !")).toBeInTheDocument();
+    expect(screen.getByText("Aucune entrée en attente de validation")).toBeInTheDocument();
+    expect(screen.queryByText("File vide, merci !")).not.toBeInTheDocument();
   });
 
   it("dit qu'il n'y a rien de signalé non conforme, sur l'onglet correspondant", async () => {
@@ -78,7 +82,7 @@ describe("ValidationQueue", () => {
   });
 
   it("affiche un état vide quand la file est vide", () => {
-    render(<ValidationQueue participations={[]} selectedId={null} onSelect={vi.fn()} />);
+    render(<ValidationQueue participations={[]} selectedId={null} onSelect={vi.fn()} traitees={2} />);
     expect(screen.getByText("File vide, merci !")).toBeInTheDocument();
   });
 

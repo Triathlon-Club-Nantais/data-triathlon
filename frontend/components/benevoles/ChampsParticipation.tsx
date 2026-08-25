@@ -61,11 +61,16 @@ export function ChampsParticipation({
               onChange={(e) => onChange({ [cle]: e.target.value } as Partial<Brouillon>)}
               style={{ width: "100%" }}
             />
-            {modifie && (
-              <div style={{ fontSize: 12, color: "var(--tcn-text-faint)", marginTop: 4 }}>
-                Valeur d&apos;origine : {valeursOrigine[cle].trim() || "vide"}
-              </div>
-            )}
+            {/* Ligne toujours montée, comme le verdict de `ProviderDetector`
+                (#492) : sans quoi son insertion au premier caractère saisi
+                pousse les quatre champs suivants et la barre d'action collante
+                sous le clavier logiciel, pendant que le bénévole tape (#490,
+                revue UI/UX, item 8). `minHeight` seul, pas de `visibility`
+                — le texte doit disparaître du DOM une fois le champ revenu à
+                sa valeur d'origine, seule la place reste. */}
+            <div style={{ fontSize: 12, color: "var(--tcn-text-faint)", marginTop: 4, minHeight: 16 }}>
+              {modifie && <>Valeur d&apos;origine : {valeursOrigine[cle].trim() || "vide"}</>}
+            </div>
           </div>
         );
       })}
