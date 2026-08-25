@@ -107,4 +107,38 @@ describe("ReattributionField", () => {
     expect(screen.getByText(/Hadrien KERMARREC/)).toBeInTheDocument();
     expect(screen.queryByText(/DURAND/)).not.toBeInTheDocument();
   });
+
+  it("ignore une réponse stale quand le champ est effacé en-dessous de 2 caractères", async () => {
+    let resolvePending: (value: AthleteBrief[]) => void;
+    const pendingPromise = new Promise<AthleteBrief[]>((resolve) => {
+      resolvePending = resolve;
+    });
+
+    // Chaque appel à searchAthletesBenevole retourne la même Promise (qui ne sera jamais résolue jusqu'à nos appels)
+    searchAthletesBenevole.mockReturnValue(pendingPromise);
+
+    render(<ReattributionField athleteActuel={ACTUEL} athleteCible={null} onChoisir={vi.fn()} />);
+    const input = screen.getByLabelText(/Réattribuer/);
+
+    // Lancer une recherche (3 caractères = OK pour déclencher)
+    await userEvent.type(input, "Ker");
+    // Vérifier qu'on est en train de chercher
+    await waitFor(() => expect(screen.getByText(/Recherche…/)).toBeInTheDocument());
+
+    // Effacer pour revenir en-dessous de 2 caractères
+    await userEvent.clear(input);
+
+    // À ce stade, le champ est vide et les résultats ont été clearés
+    expect(screen.queryByText(/Recherche…/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Aucun coureur trouvé/)).not.toBeInTheDocument();
+
+    // Résoudre la réponse stale (celle en vol depuis "Ker")
+    resolvePending!([CIBLE]);
+
+    // L'état doit rester vide — la réponse stale ne doit pas s'afficher
+    expect(screen.queryByText(/Hadrien KERMARREC/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Recherche…/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Recherche impossible/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Aucun coureur trouvé/)).not.toBeInTheDocument();
+  });
 });

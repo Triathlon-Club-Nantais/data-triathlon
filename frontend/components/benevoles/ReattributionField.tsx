@@ -34,16 +34,19 @@ export function ReattributionField({
   async function rechercher(valeur: string) {
     setRecherche(valeur);
     setErreur(null);
+
+    // Incrémenter le token dès le début pour invalider tout ce qui vole.
+    // Un keystroke qui quitte le champ en-dessous de 2 caractères doit aussi
+    // invalider les réponses en vol, pas seulement celles pour la prochaine
+    // recherche. (#490, #513 — le bénévole qui efface doit voir l'état vide,
+    // jamais un résultat stale qui arrive juste après)
+    const token = ++requestTokenRef.current;
+
     if (valeur.trim().length < 2) {
       setResultats(null);
+      setEnCours(false);
       return;
     }
-
-    // Incrémenter le token pour garder seule la réponse la plus récente.
-    // Évite qu'une réponse lente ne remplace une réponse plus nouvelle.
-    // (#490 — un bénévole qui tape vite doit voir le résultat de sa dernière
-    // frappe, jamais celui d'une recherche intermédiaire, même s'il arrive plus tard)
-    const token = ++requestTokenRef.current;
 
     setEnCours(true);
     try {
