@@ -202,6 +202,17 @@ describe("FeedbackTable", () => {
       expect(screen.queryByText(/aucun retour utilisateur/i)).not.toBeInTheDocument();
     });
 
+    it("offre la sortie du filtre plutôt que de la nommer", async () => {
+      listFeedback.mockResolvedValue([]);
+
+      afficher();
+      fireEvent.click(await screen.findByRole("button", { name: /voir tous les signalements/i }));
+
+      await waitFor(() =>
+        expect(listFeedback).toHaveBeenCalledWith("created_at", "desc", undefined),
+      );
+    });
+
     it("dit « aucun retour utilisateur » sur une base réellement vide", async () => {
       listFeedback.mockResolvedValue([]);
       countFeedback.mockResolvedValue({
@@ -259,6 +270,30 @@ describe("FeedbackTable", () => {
       await waitFor(() =>
         expect(updateFeedbackStatus).toHaveBeenCalledWith(1, { status: "traite" }),
       );
+    });
+
+    it("ne désactive pas le contrôle en vol — le focus survit au geste", async () => {
+      // Un navigateur retire le focus d'un contrôle qui devient `disabled` :
+      // instruire au clavier repartirait du haut du document à chaque ligne.
+      let resoudre: (v: unknown) => void = () => {};
+      updateFeedbackStatus.mockReturnValue(new Promise((r) => (resoudre = r)));
+
+      afficher();
+      const controle = await screen.findByRole("combobox", { name: /statut de/i });
+      fireEvent.change(controle, { target: { value: "traite" } });
+
+      await waitFor(() => expect(controle).toHaveAttribute("aria-busy", "true"));
+      expect(controle).not.toBeDisabled();
+      resoudre({ ...SIGNALEMENT, status: "traite" });
+    });
+
+    it("repose le focus sur le filtre quand la ligne quitte la vue", async () => {
+      afficher();
+      const controle = await screen.findByRole("combobox", { name: /statut de/i });
+
+      fireEvent.change(controle, { target: { value: "traite" } });
+
+      await waitFor(() => expect(filtre(/^nouveau/i)).toHaveFocus());
     });
 
     it("ne fait pas disparaître la modale quand la liste se vide sous elle", async () => {

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Table,
@@ -37,6 +37,11 @@ const LIBELLE_STATUT: Record<Statut, string> = {
 };
 
 const STATUTS = Object.keys(LIBELLE_STATUT) as Statut[];
+
+/** Le titre, ramené à ce qui distingue une ligne d'une autre à l'oreille. */
+function abrege(titre: string): string {
+  return titre.length <= 60 ? titre : `${titre.slice(0, 60).trimEnd()}…`;
+}
 
 /**
  * Un couple aplat/encre par statut, patron de `BatchRunList` (ADM-3).
@@ -113,10 +118,12 @@ function BarreDeStatuts({
   actif,
   comptes,
   onFiltrer,
+  refActif,
 }: {
   actif: Filtre;
   comptes?: FeedbackCounts;
   onFiltrer: (filtre: Filtre) => void;
+  refActif?: React.RefObject<HTMLButtonElement | null>;
 }) {
   const entrees: { filtre: Filtre; label: string; compte?: number }[] = [
     ...STATUTS.map((statut) => ({
@@ -133,14 +140,22 @@ function BarreDeStatuts({
         <button
           key={filtre}
           type="button"
+          ref={filtre === actif ? refActif : undefined}
           aria-pressed={filtre === actif}
           onClick={() => onFiltrer(filtre)}
           className={cn(
-            "rounded-full border px-3 py-1.5 text-sm transition-colors",
+            // `cursor-pointer` est la norme du dépôt (`ui/button.tsx`) : sans
+            // lui, un bouton n'annonce pas qu'il est cliquable — et ces
+            // puces-ci n'ont que du texte gris pour le dire.
+            "cursor-pointer rounded-full border px-3 py-1.5 text-sm transition-colors",
             FOCUS,
             filtre === actif
               ? "border-[var(--tcn-orange)] bg-[var(--tcn-orange-12)] text-[var(--tcn-text)]"
-              : "border-[var(--tcn-border-input)] text-[var(--tcn-text-muted)] hover:bg-[var(--tcn-fill)]",
+              : // Le survol prend une teinte orange et non `--tcn-fill` : celui-ci
+                // vaut **exactement** `--background` (`#f4f3f0`), donc un survol à
+                // 1,00:1 — le même piège que le `bg-muted` des squelettes.
+                "border-[var(--tcn-grey-400)] text-[var(--tcn-text-muted)] " +
+                "hover:bg-[var(--tcn-orange-08)] hover:text-[var(--tcn-text)]",
           )}
         >
           {/* Un seul nœud de texte, décompte compris : deux nœuds feraient du
@@ -163,6 +178,7 @@ export function FeedbackTable() {
   // **partagé** par tout le tableau et ses `variables` ne portent que le dernier
   // appel : s'y fier réactiverait la ligne A dès qu'on touche la ligne B.
   const [enVol, setEnVol] = useState<number[]>([]);
+  const filtreActif = useRef<HTMLButtonElement | null>(null);
   const { data, isLoading, error } = useFeedbackList(sort, order, statut);
   const { data: comptes } = useFeedbackCounts();
   const session = useSession();
@@ -182,10 +198,17 @@ export function FeedbackTable() {
   }
 
   async function changer(feedback: Feedback, vers: Statut) {
+    if (enVol.includes(feedback.id)) return;
+    // Le contrôle change de statut, donc la ligne quittera une vue filtrée : le
+    // focus tomberait sur `<body>` et l'instruction au clavier repartirait du
+    // haut du document, sur l'écran fait précisément pour enchaîner les gestes.
+    // On le repose sur la puce du filtre courant, le repère le plus proche.
+    const ligneVaPartir = statut !== "tous" && vers !== statut;
     setEnVol((vol) => [...vol, feedback.id]);
     try {
       await changerStatut.mutateAsync({ id: feedback.id, status: vers });
-      toast.success(`« ${feedback.title} » — ${LIBELLE_STATUT[vers]}.`);
+      toast.success(`« ${feedback.title} » passe en « ${LIBELLE_STATUT[vers]} ».`);
+      if (ligneVaPartir) filtreActif.current?.focus();
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -193,7 +216,14 @@ export function FeedbackTable() {
     }
   }
 
-  const barre = <BarreDeStatuts actif={statut} comptes={comptes} onFiltrer={setStatut} />;
+  const barre = (
+    <BarreDeStatuts
+      actif={statut}
+      comptes={comptes}
+      onFiltrer={setStatut}
+      refActif={filtreActif}
+    />
+  );
 
   // La modale est rendue **hors** de la cascade d'états, jamais dans la seule
   // branche nominale : instruire depuis elle le dernier signalement d'un filtre
@@ -243,7 +273,14 @@ export function FeedbackTable() {
         ) : (
           <EmptyState
             title="Aucun signalement sous ce filtre"
-            description="Rien à traiter ici. « Tous » rouvre l'ensemble des signalements."
+            description="Rien à traiter ici."
+            // La sortie est offerte plutôt que nommée : désigner « Tous »
+            // laisserait à l'administrateur le soin de retrouver la puce.
+            action={
+              <Button variant="outline" onClick={() => setStatut("tous")}>
+                Voir tous les signalements
+              </Button>
+            }
           />
         )}
         {modale}
@@ -291,7 +328,11 @@ export function FeedbackTable() {
                     {f.type === "bug" ? "Bug" : "Retour"}
                   </Badge>
                 </TableCell>
-                <TableCell className="max-w-xs truncate">
+                {/* Le titre plafonne plus bas sous `sm` : à `max-w-xs` la
+                    colonne d'action commençait au-delà du bord d'un téléphone
+                    de 360 px, atteignable seulement après un défilement
+                    latéral que rien n'annonce. */}
+                <TableCell className="max-w-[10rem] truncate sm:max-w-xs">
                   <Button
                     variant="link"
                     className="h-auto p-0 font-normal"
@@ -307,14 +348,23 @@ export function FeedbackTable() {
                       signalements demandait dix ouvertures de modale. */}
                   {peutInstruire ? (
                     <select
-                      aria-label={`Statut de « ${f.title} »`}
+                      // Le titre est borné à 200 caractères côté API et la
+                      // cellule voisine le tronque : le relire en entier à
+                      // chaque prise de focus n'aiderait personne.
+                      aria-label={`Statut de « ${abrege(f.title)} »`}
                       className={cn(
-                        "h-7 rounded-full border-transparent px-2 text-xs font-medium",
+                        "h-7 cursor-pointer rounded-full border-transparent px-2 text-xs font-medium",
                         FOCUS,
                         APLATS[f.status],
+                        // `aria-busy` plutôt que `disabled` : un navigateur
+                        // retire le focus d'un contrôle désactivé, et le
+                        // reprendre coûterait une tabulation depuis le haut du
+                        // document à chaque ligne traitée. La ré-entrée est
+                        // gardée dans `changer`, pas par l'attribut.
+                        enVol.includes(f.id) && "opacity-60",
                       )}
                       value={f.status}
-                      disabled={enVol.includes(f.id)}
+                      aria-busy={enVol.includes(f.id)}
                       onChange={(e) => changer(f, e.target.value as Statut)}
                     >
                       {STATUTS.map((valeur) => (
