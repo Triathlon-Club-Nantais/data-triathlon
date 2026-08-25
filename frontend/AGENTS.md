@@ -550,6 +550,39 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   demande de refaire ce calcul, pas de recopier le composant.
 
   Design complet : `specs/20260825-103900-tables-liees/`.
+
+- **Tableaux repliés en cartes sous leur seuil** (#461, `RESP-1`) — quatre
+  écrans rendent **deux arbres**, la grille et une liste de cartes, que deux
+  classes Tailwind font alterner en CSS pure : `hidden lg:block`/`lg:hidden`
+  pour le classement (plancher 1 080 px), `md` pour la fiche athlète (988 px)
+  et `/resultats` (948 px), `sm` pour `/ajouter` (480 px). Le dessin de la carte
+  vit une seule fois, dans `components/tcn/LigneCarte.tsx` — **sans état, donc
+  sans `"use client"`**, ce qui laisse `/ajouter` en Server Component. Trois
+  points qui se re-cassent :
+  - **Le dépliant et les actions sont frères de la zone cliquable**, jamais
+    enfants : un `<a>` ou un `<button>` dans un `<a>` est du HTML invalide.
+  - **jsdom ne charge aucune CSS**, donc les deux arbres coexistent en test.
+    `test/setup.ts` retire l'arbre carte des requêtes **texte** via
+    `configure({ defaultIgnore })`, et le sélecteur porte
+    `[data-affichage="cartes"] *` en plus du conteneur : `defaultIgnore` filtre
+    par `node.matches()`, donc sans le `*` il n'écarterait que le conteneur, et
+    la parade ne filtrerait rien. `test/affichage-cartes.test.tsx` verrouille la
+    règle. Deux angles morts : `getByRole` n'utilise pas `ignore` (une requête
+    de rôle visant l'intérieur d'une ligne se scope à la main), et **`within` ne
+    lève pas l'exclusion** — un test qui vise les cartes passe par
+    `dansLesCartes(testId)` de `test/cartes.ts`, dont `texte()` porte le
+    `{ ignore: false }`. L'oublier ne se lit pas : la requête dit « unable to
+    find an element », comme si la carte n'existait pas.
+  - **`ParticipationAdminActions` est monté deux fois par ligne**, une fois par
+    arbre. Accepté : `useSession` a une clé de cache unique, donc aucun appel
+    supplémentaire, et l'arbre masqué n'est ni cliquable ni atteignable au
+    clavier.
+
+  Les deux matrices du détail de participation (`ComparisonTable`,
+  `ImprovementMatrix`) ne suivent **pas** ce patron : ce sont de vrais
+  `<table>`, que WCAG 1.4.10 exempte, et qu'une carte par ligne priverait de
+  leur comparaison colonne à colonne. Elles réduisent leurs colonnes sous `sm:`,
+  et c'est de la lisibilité, pas de la conformité.
 - **Deux bibliothèques, une frontière.** `components/tcn/` porte l'identité
   visuelle (tokens `--tcn-*`, Anton/Barlow, dégradé orange) ; `components/ui/`
   porte les primitives complexes bâties sur `@base-ui/react` — `dialog`,
