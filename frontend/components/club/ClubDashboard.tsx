@@ -127,10 +127,20 @@ export function ClubDashboard({
 
       {/* Roster */}
       <section className="space-y-4">
-        <div className="flex items-baseline justify-between">
-          <h2 className="font-heading text-lg font-semibold">
-            {roster.length > APERCU_ROSTER ? "Les athlètes les plus actifs" : "Athlètes du club"}
-          </h2>
+        <div className="flex items-baseline justify-between gap-4">
+          <div>
+            <h2 className="font-heading text-lg font-semibold">
+              {roster.length > APERCU_ROSTER ? "Les athlètes les plus actifs" : "Athlètes du club"}
+            </h2>
+            {/* #488 (PROF-3) : `buildRoster` compte les podiums sur les trois
+                portées sans condition, quand le KPI « Podiums » plus haut suit
+                `?rank=`. Les deux nombres sont justes et incomparables ; sans
+                cette ligne, basculer le toggle faisait bouger l'un et pas
+                l'autre, sans explication à l'écran. */}
+            <p className="text-sm text-[var(--tcn-text-faint)]">
+              podiums toutes portées confondues
+            </p>
+          </div>
           {/* Inconditionnel : « les deux écrans reliés dans les deux sens »
               est une garantie de navigation, elle ne peut pas s'éteindre sous
               13 athlètes. Le libellé dit la destination et non un décompte —
@@ -139,7 +149,7 @@ export function ClubDashboard({
               dans le KPI « Athlètes », qui le tient déjà. */}
           <Link
             href="/club/athletes"
-            className="text-sm font-medium text-accent-ink hover:underline"
+            className="shrink-0 text-sm font-medium text-accent-ink hover:underline"
           >
             Voir saison par saison →
           </Link>

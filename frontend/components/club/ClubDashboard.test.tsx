@@ -62,6 +62,8 @@ function part(over: Partial<Participation> & { id: number }): Participation {
   };
 }
 
+const PARTS: Participation[] = [part({ id: 1, rank_overall: 2 })];
+
 // Le filtrage détaillé par mode vit désormais dans PodiumsList.test.tsx : ce
 // composant client lit `?rank=…` et recalcule localement (issue #132).
 // Ce test se limite au smoke : la section podiums est bien montée et affiche
@@ -199,5 +201,14 @@ describe("ClubDashboard — smoke", () => {
   it("ne dit rien du plafond sous le plafond", () => {
     render(<ClubDashboard stats={STATS} participations={[part({ id: 1 })]} />);
     expect(screen.queryByText(/derniers résultats importés/)).not.toBeInTheDocument();
+  });
+
+  // #488 (PROF-3) : les podiums du roster cumulent les trois portées sans
+  // condition, quand le KPI plus haut suit `?rank=`. Le dire est ce qui
+  // manquait — aucun chiffre ne change.
+  it("nomme la portée des podiums du roster (PROF-3, #488)", () => {
+    render(<ClubDashboard stats={STATS} participations={PARTS} />);
+
+    expect(screen.getByText("podiums toutes portées confondues")).toBeInTheDocument();
   });
 });
