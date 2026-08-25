@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 from sqlalchemy import func, select, text
 
@@ -436,3 +436,111 @@ def test_delete_all_supprime_toutes_les_epreuves_sources_et_resultats(db_session
     assert db_session.query(Course).count() == 0
     assert db_session.query(CourseSource).count() == 0
     assert db_session.query(Participation).count() == 0
+
+
+# --- Géocodage persisté (#579) -----------------------------------------------
+
+
+def test_coordinates_by_id_ne_rend_que_les_epreuves_geocodees(db_session):
+    geocodee = course_repository.get_or_create(
+        db_session, name="Tri Géocodée", event_date=date(2026, 5, 1), event_type="triathlon-m"
+    )
+    geocodee.latitude, geocodee.longitude = 47.2181, -1.5528
+    pas_geocodee = course_repository.get_or_create(
+        db_session, name="Tri Pas Géocodée", event_date=date(2026, 5, 2), event_type="triathlon-m"
+    )
+    db_session.flush()
+
+    coords = course_repository.coordinates_by_id(
+        db_session, [geocodee.id, pas_geocodee.id]
+    )
+
+    assert coords == {geocodee.id: (47.2181, -1.5528)}
+
+
+def test_coordinates_by_id_liste_vide_ne_requete_pas(db_session):
+    assert course_repository.coordinates_by_id(db_session, []) == {}
+
+
+def test_list_missing_geocode_ecarte_les_epreuves_deja_geocodees(db_session):
+    geocodee = course_repository.get_or_create(
+        db_session, name="Tri Géocodée", event_date=date(2026, 5, 1), event_type="triathlon-m"
+    )
+    geocodee.latitude, geocodee.longitude = 47.2, -1.5
+    jamais_tentee = course_repository.get_or_create(
+        db_session, name="Tri Jamais Tentée", event_date=date(2026, 5, 2), event_type="triathlon-m"
+    )
+    db_session.flush()
+
+    cibles = course_repository.list_missing_geocode(db_session, retry_after=utcnow())
+
+    assert [c.id for c in cibles] == [jamais_tentee.id]
+
+
+def test_list_missing_geocode_ecarte_un_echec_encore_frais(db_session):
+    """Un échec récent (`geocoded_at` posé, coordonnées nulles) n'est pas retenté."""
+    echec_recent = course_repository.get_or_create(
+        db_session, name="Tri Échec Récent", event_date=date(2026, 5, 1), event_type="triathlon-m"
+    )
+    echec_recent.geocoded_at = utcnow()
+    db_session.flush()
+
+    cibles = course_repository.list_missing_geocode(
+        db_session, retry_after=utcnow() - timedelta(days=7)
+    )
+
+    assert cibles == []
+
+
+def test_list_missing_geocode_retente_un_echec_perime(db_session):
+    """Passé le délai `retry_after`, l'échec redevient une cible."""
+    echec_perime = course_repository.get_or_create(
+        db_session, name="Tri Échec Périmé", event_date=date(2026, 5, 1), event_type="triathlon-m"
+    )
+    echec_perime.geocoded_at = utcnow() - timedelta(days=30)
+    db_session.flush()
+
+    cibles = course_repository.list_missing_geocode(
+        db_session, retry_after=utcnow() - timedelta(days=7)
+    )
+
+    assert [c.id for c in cibles] == [echec_perime.id]
+
+
+def test_list_missing_geocode_respecte_limit(db_session):
+    for index in range(3):
+        course_repository.get_or_create(
+            db_session, name=f"Tri {index}", event_date=date(2026, 5, index + 1),
+            event_type="triathlon-m",
+        )
+    db_session.flush()
+
+    cibles = course_repository.list_missing_geocode(db_session, retry_after=utcnow(), limit=2)
+
+    assert len(cibles) == 2
+
+
+def test_save_geocode_attempt_persiste_un_succes(db_session):
+    course = course_repository.get_or_create(
+        db_session, name="Tri Succès", event_date=date(2026, 5, 1), event_type="triathlon-m"
+    )
+    db_session.flush()
+
+    course_repository.save_geocode_attempt(db_session, course, (47.2181, -1.5528))
+
+    assert course.latitude == 47.2181
+    assert course.longitude == -1.5528
+    assert course.geocoded_at is not None
+
+
+def test_save_geocode_attempt_persiste_un_echec_sans_coordonnees(db_session):
+    course = course_repository.get_or_create(
+        db_session, name="Tri Échec", event_date=date(2026, 5, 1), event_type="triathlon-m"
+    )
+    db_session.flush()
+
+    course_repository.save_geocode_attempt(db_session, course, None)
+
+    assert course.latitude is None
+    assert course.longitude is None
+    assert course.geocoded_at is not None

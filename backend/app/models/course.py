@@ -74,6 +74,17 @@ class Course(Base):
     # cache.is_fresh` lit déjà `None` comme « jamais scrapée ».
     scraped_at: Mapped[datetime | None] = mapped_column(DateTime, default=utcnow, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    # Géocodage (#579) : persisté par la commande `geocode-courses`, jamais par
+    # une route — `GET /stats/events-geo` ne fait plus qu'un `SELECT`. NULL sur
+    # les deux = jamais géocodée avec succès (course neuve, ou tentative
+    # échouée : voir `geocoded_at`).
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Horodatage de la **dernière tentative**, réussie ou non — posé même sur un
+    # échec, pour ne pas re-tenter en boucle une épreuve que Nominatim ne sait
+    # pas géocoder. NULL = jamais tentée. `geocode_service.run_geocode_courses`
+    # est le seul point d'écriture des trois colonnes.
+    geocoded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     participations: Mapped[list["Participation"]] = relationship(  # noqa: F821
         back_populates="course", cascade="all, delete-orphan"

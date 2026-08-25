@@ -191,3 +191,151 @@ def test_extraction_de_la_ville_limites_connues(nom_epreuve, rendu):
     commune : il n'y a rien à en extraire.
     """
     assert geocode_service.extract_city(nom_epreuve) == rendu
+
+
+# --- Batch de géocodage persisté (#579) --------------------------------------
+
+
+class _CourseFactice:
+    """Objet minimal portant `.name`, `.latitude`/`.longitude`/`.geocoded_at` —
+    évite d'ouvrir une vraie base pour tester la seule orchestration du batch.
+    """
+
+    def __init__(self, name: str) -> None:
+        self.id = id(self)
+        self.name = name
+        self.latitude = None
+        self.longitude = None
+        self.geocoded_at = None
+
+
+def test_run_geocode_courses_persiste_les_succes_et_les_echecs(monkeypatch, db_session):
+    from app.repositories import course_repository as cr
+
+    succes = _CourseFactice("Triathlon de Nantes")
+    echec = _CourseFactice("Triathlon Introuvable")
+    monkeypatch.setattr(cr, "list_missing_geocode", lambda db, **kw: [succes, echec])
+    monkeypatch.setattr(
+        geocode_service, "geocode",
+        lambda nom: (47.2181, -1.5528) if "Nantes" in nom else None,
+    )
+
+    outcome = geocode_service.run_geocode_courses(db_session)
+
+    assert outcome.total == 2
+    assert outcome.geocoded == 1
+    assert outcome.errors == 1
+    assert outcome.processed == 2
+    assert not outcome.interrupted
+    assert (succes.latitude, succes.longitude) == (47.2181, -1.5528)
+    assert succes.geocoded_at is not None
+    assert echec.latitude is None
+    assert echec.geocoded_at is not None
+    assert [f.url for f in outcome.failures] == ["Triathlon Introuvable"]
+
+
+def test_run_geocode_courses_echec_total_si_rien_n_a_abouti(monkeypatch, db_session):
+    from app.repositories import course_repository as cr
+
+    monkeypatch.setattr(
+        cr, "list_missing_geocode", lambda db, **kw: [_CourseFactice("Introuvable")]
+    )
+    monkeypatch.setattr(geocode_service, "geocode", lambda nom: None)
+
+    outcome = geocode_service.run_geocode_courses(db_session)
+
+    assert outcome.echec_total is True
+
+
+def test_run_geocode_courses_zero_cible_n_est_pas_un_echec(monkeypatch, db_session):
+    from app.repositories import course_repository as cr
+
+    monkeypatch.setattr(cr, "list_missing_geocode", lambda db, **kw: [])
+
+    outcome = geocode_service.run_geocode_courses(db_session)
+
+    assert outcome.total == 0
+    assert outcome.echec_total is False
+
+
+def test_run_geocode_courses_respecte_le_cooldown_par_la_requete(monkeypatch, db_session):
+    """Le filtre de cooldown est délégué à `list_missing_geocode` : on vérifie
+    que `run_geocode_courses` lui transmet bien `retry_after`."""
+    from datetime import timedelta
+
+    from app.repositories import course_repository as cr
+
+    captes = {}
+
+    def _capture(db, *, retry_after, limit=None):
+        captes["retry_after"] = retry_after
+        return []
+
+    monkeypatch.setattr(cr, "list_missing_geocode", _capture)
+
+    delai = timedelta(days=3)
+    geocode_service.run_geocode_courses(db_session, retry_after=delai)
+
+    assert "retry_after" in captes
+
+
+def test_run_geocode_courses_dry_run_ne_touche_pas_nominatim(monkeypatch, db_session):
+    from app.repositories import course_repository as cr
+
+    def _echoue(nom):
+        raise AssertionError("dry-run ne doit appeler ni geocode ni save_geocode_attempt")
+
+    monkeypatch.setattr(
+        cr, "list_missing_geocode", lambda db, **kw: [_CourseFactice("Tri Cible")]
+    )
+    monkeypatch.setattr(geocode_service, "geocode", _echoue)
+    monkeypatch.setattr(cr, "save_geocode_attempt", _echoue)
+
+    outcome = geocode_service.run_geocode_courses(db_session, dry_run=True)
+
+    assert outcome.total == 1
+    assert outcome.dry_run_names == ["Tri Cible"]
+    assert outcome.geocoded == 0
+    assert outcome.echec_total is False
+
+
+def test_run_geocode_courses_notifie_on_item_apres_chaque_tentative(monkeypatch, db_session):
+    from app.repositories import course_repository as cr
+
+    monkeypatch.setattr(
+        cr, "list_missing_geocode", lambda db, **kw: [_CourseFactice("Tri Nantes")]
+    )
+    monkeypatch.setattr(geocode_service, "geocode", lambda nom: (47.2, -1.5))
+
+    vues = []
+    geocode_service.run_geocode_courses(
+        db_session, on_item=lambda index, total, nom, coord: vues.append((index, total, nom, coord))
+    )
+
+    assert vues == [(0, 1, "Tri Nantes", (47.2, -1.5))]
+
+
+def test_run_geocode_courses_interrompu_garde_le_bilan_partiel(monkeypatch, db_session):
+    """Ctrl-C au milieu du lot : les tentatives déjà faites restent dans le bilan."""
+    from app.repositories import course_repository as cr
+
+    premiere = _CourseFactice("Tri Un")
+    seconde = _CourseFactice("Tri Deux")
+    monkeypatch.setattr(cr, "list_missing_geocode", lambda db, **kw: [premiere, seconde])
+
+    appels = []
+
+    def _geocode(nom):
+        appels.append(nom)
+        if len(appels) == 2:
+            raise KeyboardInterrupt
+        return (47.2, -1.5)
+
+    monkeypatch.setattr(geocode_service, "geocode", _geocode)
+
+    outcome = geocode_service.run_geocode_courses(db_session)
+
+    assert outcome.interrupted is True
+    assert outcome.processed == 1
+    assert outcome.geocoded == 1
+    assert premiere.latitude == 47.2
