@@ -141,6 +141,7 @@ export interface EventPage {
 }
 
 export interface GeoEvent {
+  course_id: number;
   event_name: string;
   event_date: string | null;
   event_type: string;

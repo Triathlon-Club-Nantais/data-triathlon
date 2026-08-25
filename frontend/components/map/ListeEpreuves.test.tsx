@@ -4,7 +4,7 @@ import type { GeoEvent } from "@/lib/types";
 import { ListeEpreuves } from "./ListeEpreuves";
 
 function epreuve(over: Partial<GeoEvent> = {}): GeoEvent {
-  return { event_name: "Triathlon de Nantes", event_date: "2026-06-14", event_type: "triathlon", count: 320, tcn_count: 0, lat: 47.2, lon: -1.5, ...over };
+  return { course_id: 42, event_name: "Triathlon de Nantes", event_date: "2026-06-14", event_type: "triathlon", count: 320, tcn_count: 0, lat: 47.2, lon: -1.5, ...over };
 }
 
 describe("ListeEpreuves", () => {
@@ -36,5 +36,16 @@ describe("ListeEpreuves", () => {
   it("ne rend rien sans épreuve", () => {
     const { container } = render(<ListeEpreuves events={[]} />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("le nom de l'épreuve mène à sa fiche", () => {
+    // ACT-10 (2) : la carte était un cul-de-sac — on voit les participants,
+    // on ne peut pas atteindre l'épreuve.
+    render(<ListeEpreuves events={[epreuve({ course_id: 42 })]} />);
+
+    expect(screen.getByRole("link", { name: "Triathlon de Nantes" })).toHaveAttribute(
+      "href",
+      "/courses/42",
+    );
   });
 });

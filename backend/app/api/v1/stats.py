@@ -64,6 +64,7 @@ def get_events_geo(
         coord = geocode_service.geocode(r.event_name)
         if coord:
             geo_events.append({
+                "course_id": r.course_id,
                 "event_name": r.event_name,
                 "event_date": r.event_date.isoformat() if r.event_date else None,
                 "event_type": r.event_type or "",

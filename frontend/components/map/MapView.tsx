@@ -41,6 +41,26 @@ function FitBounds({ events }: { events: GeoEvent[] }) {
   return null;
 }
 
+/**
+ * Un doigt posé pour faire défiler la page glissait la carte à la place
+ * (piège de défilement, WCAG 2.2 2.5.7) : `dragging` suit `deverrouillee` au
+ * lieu de rester à sa valeur par défaut. Le pincement (`touchZoom`) exige déjà
+ * deux doigts, donc n'entre jamais en conflit avec un défilement à un doigt —
+ * seul le glisser-déposer à un doigt est le vrai piège.
+ */
+function VerrouGlisse({ deverrouillee }: { deverrouillee: boolean }) {
+  const map = useMap();
+  useEffect(() => {
+    if (deverrouillee) map.dragging.enable();
+    else map.dragging.disable();
+  }, [deverrouillee, map]);
+  return null;
+}
+
+function pointeurGrossier(): boolean {
+  return typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
+}
+
 export function MapView({ scope }: { scope?: string }) {
   const [events, setEvents] = useState<GeoEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,6 +69,9 @@ export function MapView({ scope }: { scope?: string }) {
   // permettait de redemander. Ce compteur est le seul état que « Réessayer »
   // change (#299).
   const [essai, setEssai] = useState(0);
+  // `MapView` est chargé en `next/dynamic({ ssr: false })` (app/(public_restricted)/carte/page.tsx) :
+  // toujours monté côté client, `window` y existe donc dès ce premier rendu.
+  const [verrouillee, setVerrouillee] = useState(pointeurGrossier);
 
   useEffect(() => {
     let abandonne = false;
@@ -116,48 +139,67 @@ export function MapView({ scope }: { scope?: string }) {
 
   return (
     <div className="space-y-4">
-      <MapContainer center={[47.2, -1.5]} zoom={7} scrollWheelZoom={false} className="h-[320px] w-full rounded-md sm:h-[480px]">
-        <TileLayer
-          attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          maxZoom={13}
-        />
-        {events.map((ev, i) => {
-          const radius = rayonCercle(ev.count, maxCount);
-          const teinte = ev.tcn_count > 0 ? COULEURS_CARTE.avecTcn : COULEURS_CARTE.sansTcn;
-          return (
-            <CircleMarker
-              key={`${ev.event_name}-${i}`}
-              center={[ev.lat, ev.lon]}
-              radius={radius}
-              pathOptions={{
-                fillColor: teinte.remplissage,
-                color: teinte.trait,
-                weight: teinte.epaisseur,
-                dashArray: teinte.pointilles,
-                fillOpacity: 0.55,
-              }}
-            >
-              <Popup>
-                <div className="min-w-[180px]">
-                  <b>{ev.event_name}</b>
-                  {ev.event_type && <div className="text-[var(--tcn-text-body)]">{eventTypeLabel(ev.event_type)}</div>}
-                  {ev.event_date && <div className="text-xs">{formatMonth(ev.event_date.slice(0, 7))}</div>}
-                  <div>
-                    {ev.count} participant{ev.count > 1 ? "s" : ""}
-                  </div>
-                  {ev.tcn_count > 0 && (
-                    <div className="font-semibold text-[var(--tcn-danger-text)]">
-                      {ev.tcn_count} membre{ev.tcn_count > 1 ? "s" : ""} {CLUB_NAME_SHORT}
+      <div className="relative">
+        <MapContainer center={[47.2, -1.5]} zoom={7} scrollWheelZoom={false} className="h-[320px] w-full rounded-md sm:h-[480px]">
+          <TileLayer
+            attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            maxZoom={13}
+          />
+          {events.map((ev, i) => {
+            const radius = rayonCercle(ev.count, maxCount);
+            const teinte = ev.tcn_count > 0 ? COULEURS_CARTE.avecTcn : COULEURS_CARTE.sansTcn;
+            return (
+              <CircleMarker
+                key={`${ev.event_name}-${i}`}
+                center={[ev.lat, ev.lon]}
+                radius={radius}
+                pathOptions={{
+                  fillColor: teinte.remplissage,
+                  color: teinte.trait,
+                  weight: teinte.epaisseur,
+                  dashArray: teinte.pointilles,
+                  fillOpacity: 0.55,
+                }}
+              >
+                <Popup>
+                  <div className="min-w-[180px]">
+                    <b>
+                      <Link href={`/courses/${ev.course_id}`}>{ev.event_name}</Link>
+                    </b>
+                    {ev.event_type && <div className="text-[var(--tcn-text-body)]">{eventTypeLabel(ev.event_type)}</div>}
+                    {ev.event_date && <div className="text-xs">{formatMonth(ev.event_date.slice(0, 7))}</div>}
+                    <div>
+                      {ev.count} participant{ev.count > 1 ? "s" : ""}
                     </div>
-                  )}
-                </div>
-              </Popup>
-            </CircleMarker>
-          );
-        })}
-        <FitBounds events={events} />
-      </MapContainer>
+                    {ev.tcn_count > 0 && (
+                      <div className="font-semibold text-[var(--tcn-danger-text)]">
+                        {ev.tcn_count} membre{ev.tcn_count > 1 ? "s" : ""} {CLUB_NAME_SHORT}
+                      </div>
+                    )}
+                  </div>
+                </Popup>
+              </CircleMarker>
+            );
+          })}
+          <FitBounds events={events} />
+          <VerrouGlisse deverrouillee={!verrouillee} />
+        </MapContainer>
+        {verrouillee && (
+          <button
+            type="button"
+            onClick={() => setVerrouillee(false)}
+            className="absolute inset-0 z-[1000] flex items-center justify-center rounded-md text-center font-semibold text-white"
+            // `--tcn-overlay` (45 %) est calibré pour un scrim de modale, sous un
+            // panneau opaque — ici le texte lui est posé dessus, directement sur
+            // des tuiles parfois claires : il faut son propre contraste garanti,
+            // d'où `--tcn-ink` à 85 % plutôt que le token de scrim.
+            style={{ background: "rgba(28, 30, 34, 0.85)" }}
+          >
+            Toucher pour activer la carte
+          </button>
+        )}
+      </div>
       <ListeEpreuves events={events} />
     </div>
   );
