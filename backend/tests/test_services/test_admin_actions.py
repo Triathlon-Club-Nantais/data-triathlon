@@ -946,12 +946,47 @@ def test_switch_replaces_the_ranking_purges_orphans_and_logs_the_switch(
     assert participation_repository.count_for_course(db_session, course.id) == 1
     assert athlete_repository.get(db_session, id_depart) is None
     assert athlete_repository.get(db_session, id_reste) is None
+    # `Course.source_url`/`.provider` (#279) sont ce que l'écran affiche et ce
+    # que le cache TTL indexe : une bascule qui les laisserait sur l'ancien
+    # chronométreur ferait afficher Klikego au-dessus d'un classement Breizh
+    # Chrono.
+    assert course.source_url == passive.url
+    assert course.provider == passive.provider
     entrees = _bascules(db_session, course.id)
     assert len(entrees) == 1
     assert entrees[0].payload["previous_url"] == url_active_avant
     assert entrees[0].payload["new_url"] == passive.url
     assert entrees[0].payload["participations_deleted"] == 2
     assert entrees[0].payload["athletes_purged"] == 2
+
+
+def test_switch_termine_et_commite_malgre_un_client_qui_arrete_de_lire(
+    db_session, auteur, scrape,
+):
+    """#624 — le thread de fond de la bascule persiste même si le générateur
+    est abandonné à mi-flux, patron exact de
+    `test_rescrape_termine_et_commite_malgre_un_client_qui_arrete_de_lire`
+    (sa docstring détaille le compromis `_attendre`/lecture concurrente de
+    `db_session`). C'est précisément le scénario que #624 corrige : un proxy
+    qui coupe la requête avant le premier octet ne doit pas empêcher la
+    suppression puis le réimport d'aboutir — la version bloquante d'origine
+    (#285) laissait alors une épreuve dans un état inconnu de l'administrateur."""
+    course, passive = _epreuve_deux_sources(db_session)
+    db_session.commit()
+    scrape([_resultat_bascule(course, passive, "1", "NOUVEAU")])
+
+    gen = admin_actions.iter_switch_course_source(
+        db_session, course_id=course.id, source_id=passive.id,
+        user_id=auteur.id, settings=_settings(),
+    )
+    for i, _event in enumerate(gen):
+        if i >= 1:
+            break  # le client cesse de lire — `gen` n'est plus jamais itéré
+
+    assert _attendre(
+        lambda: participation_repository.count_for_course(db_session, course.id) == 1
+    )
+    assert _attendre(lambda: len(_bascules(db_session, course.id)) == 1)
 
 
 def test_switch_refuses_zero_results_and_leaves_everything_untouched(
