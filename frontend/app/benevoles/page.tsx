@@ -2,6 +2,7 @@
 
 import { X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useDangerConfirm } from "@/components/admin/DangerConfirm";
 import { AccessGate } from "@/components/benevoles/AccessGate";
 import { ParticipationPanel } from "@/components/benevoles/ParticipationPanel";
@@ -38,6 +39,44 @@ export default function BenevolesPage() {
    * cette page : premier appelant hors `/admin` (revue de #499).
    */
   const confirmer = useDangerConfirm();
+
+  /**
+   * #609 — le panneau ne se rend plus qu'une seule fois dans l'arbre React
+   * (`createPortal(panneau, hote)` ci-dessous, à une position fixe), pour
+   * survivre au franchissement du point de rupture `md` : jusqu'ici il
+   * vivait dans deux sous-arbres structurellement différents
+   * (`compact ? <Sheet>…</Sheet> : panneau`), et React démonte puis remonte
+   * un composant dès que sa chaîne de parents change de forme — même à
+   * `key` inchangée. Une rotation d'écran en cours de saisie démontait donc
+   * `ParticipationPanel`, et avec lui le brouillon de `useBrouillon`, en
+   * silence.
+   *
+   * `hote` est un `<div>` créé une seule fois, jamais rendu par une balise
+   * JSX — React ne connaît donc de lui que son *contenu* (porté par le
+   * portail), jamais sa position dans le DOM réel. C'est cette absence de
+   * position DOM déclarée qui permet à l'effet ci-dessous de le déplacer
+   * *lui-même*, par une API DOM brute (`insertBefore`), entre l'ancrage de
+   * la feuille mobile et celui de la grille bureau, sans jamais démonter ce
+   * qu'il porte : un `<div ref>` React aurait, lui, sa propre position
+   * déclarée, et un changement de position aurait re-déclenché exactement
+   * le même défaut.
+   */
+  const hote = useState(() => (typeof document === "undefined" ? null : document.createElement("div")))[0];
+  const emplacementFeuilleRef = useRef<HTMLDivElement>(null);
+  const emplacementGrilleRef = useRef<HTMLDivElement>(null);
+
+  // Sans tableau de dépendances : la page rend d'abord un état de
+  // chargement/gate/erreur (aucun des deux ancrages n'existe encore), donc un
+  // effet dépendant de `[compact, hote]` ne se redéclencherait jamais une
+  // fois la grille réellement montée — `compact` et `hote` n'ayant pas changé
+  // entre-temps. La vérification est bon marché et idempotente (`cible ===
+  // hote.parentElement` sort tout de suite une fois le rangement à jour), la
+  // laisser tourner à chaque rendu est donc sans coût réel.
+  useEffect(() => {
+    if (!hote) return;
+    const cible = compact ? emplacementFeuilleRef.current : emplacementGrilleRef.current;
+    if (cible && cible !== hote.parentElement) cible.insertBefore(hote, cible.firstChild);
+  });
 
   const surBrouillonSale = useCallback((sale: boolean) => {
     brouillonSale.current = sale;
@@ -171,58 +210,68 @@ export default function BenevolesPage() {
           onSelect={selectionner}
           traitees={file.traitees}
         />
-        {compact ? (
-          <Sheet open={feuilleOuverte && panneau !== null} onOpenChange={setFeuilleOuverte}>
-            {/* `keepMounted` : Échap ou un tap hors de la feuille la ferment
-                sans confirmation (aucun des deux n'est désactivé), et par
-                défaut `Popup`/`Portal` démontent alors `ParticipationPanel`
-                — avec lui le brouillon de `useBrouillon`, en silence. La
-                feuille reste montée (juste masquée) à la fermeture ; seul un
-                changement d'entrée via `selectionner` peut encore abandonner
-                un brouillon, et seulement après confirmation (#490, revue
-                ronde 1). */}
-            <SheetContent side="right" className="w-full overflow-y-auto p-4" keepMounted>
-              {/* La largeur ne fige plus `max-w-[520px]` : sous 520px de
-                  viewport — tous les téléphones — cette valeur remplaçait
-                  entièrement le `max-w-[85%]` de la primitive (`cn` fait un
-                  `twMerge`, pas une union) et couvrait tout l'écran, sans
-                  bande de fond restant tactile pour fermer la feuille. Un
-                  `SheetClose` explicite couvre le cas général ; garder
-                  `max-w-[85%]` garde aussi une bande de secours (#490, revue
-                  de branche finale). */}
-              <div className="flex items-center justify-between">
-                {/* `sr-only`, pas `fontSize: 0` : certaines combinaisons
-                    navigateur/lecteur d'écran traitent une taille de police
-                    nulle comme « pas rendu », laissant le dialogue sans nom
-                    accessible (#490, revue UI/UX, item 9). */}
-                <SheetTitle className="sr-only">Détail du résultat</SheetTitle>
-                {/* `size-11` (44×44) plutôt que le `p-2.5` suggéré en revue :
-                    avec l'icône `size-4` (16 px), un padding de 10 px de
-                    chaque côté ne totalise que 36 px, sous le plancher WCAG
-                    2.5.8 — une dimension fixe l'atteint quelle que soit
-                    l'icône, comme la croix analogue d'`AppNav.tsx` (#490,
-                    revue UI/UX, item 4). `.tcn-icon-btn` porte le survol et
-                    l'anneau de focus ; `hover:` seul ne réagit jamais au
-                    tactile. */}
-                <SheetClose
-                  aria-label="Fermer le détail du résultat"
-                  className="tcn-icon-btn flex size-11 items-center justify-center rounded-full text-[var(--tcn-text-faint)] hover:text-[var(--tcn-ink)]"
-                >
-                  <X className="size-4" />
-                </SheetClose>
-              </div>
-              {compact && annonce}
-              {panneau}
-            </SheetContent>
-          </Sheet>
-        ) : (
-          (panneau ?? (quelqueChoseASelectionner ? (
+        {/* Ancrage bureau : accueille `hote` au-dessus de `md` (#609). Ne
+            porte lui-même que le texte d'invite quand rien n'est
+            sélectionné — `panneau` vit dans `hote`, jamais ici en JSX. */}
+        <div ref={emplacementGrilleRef}>
+          {panneau === null && (quelqueChoseASelectionner ? (
             <div style={{ color: "var(--tcn-text-faint)", fontSize: 14, padding: 24 }}>
               Sélectionnez un résultat dans la file pour le relire.
             </div>
-          ) : null))
-        )}
+          ) : null)}
+        </div>
       </div>
+      {compact && (
+        <Sheet open={feuilleOuverte && panneau !== null} onOpenChange={setFeuilleOuverte}>
+          {/* `keepMounted` : Échap ou un tap hors de la feuille la ferment
+              sans confirmation (aucun des deux n'est désactivé), et par
+              défaut `Popup`/`Portal` démontent alors ce que porte la feuille
+              — avec lui le brouillon de `useBrouillon`, en silence. La
+              feuille reste montée (juste masquée) à la fermeture ; seul un
+              changement d'entrée via `selectionner` peut encore abandonner
+              un brouillon, et seulement après confirmation (#490, revue
+              ronde 1). */}
+          <SheetContent side="right" className="w-full overflow-y-auto p-4" keepMounted>
+            {/* La largeur ne fige plus `max-w-[520px]` : sous 520px de
+                viewport — tous les téléphones — cette valeur remplaçait
+                entièrement le `max-w-[85%]` de la primitive (`cn` fait un
+                `twMerge`, pas une union) et couvrait tout l'écran, sans
+                bande de fond restant tactile pour fermer la feuille. Un
+                `SheetClose` explicite couvre le cas général ; garder
+                `max-w-[85%]` garde aussi une bande de secours (#490, revue
+                de branche finale). */}
+            <div className="flex items-center justify-between">
+              {/* `sr-only`, pas `fontSize: 0` : certaines combinaisons
+                  navigateur/lecteur d'écran traitent une taille de police
+                  nulle comme « pas rendu », laissant le dialogue sans nom
+                  accessible (#490, revue UI/UX, item 9). */}
+              <SheetTitle className="sr-only">Détail du résultat</SheetTitle>
+              {/* `size-11` (44×44) plutôt que le `p-2.5` suggéré en revue :
+                  avec l'icône `size-4` (16 px), un padding de 10 px de
+                  chaque côté ne totalise que 36 px, sous le plancher WCAG
+                  2.5.8 — une dimension fixe l'atteint quelle que soit
+                  l'icône, comme la croix analogue d'`AppNav.tsx` (#490,
+                  revue UI/UX, item 4). `.tcn-icon-btn` porte le survol et
+                  l'anneau de focus ; `hover:` seul ne réagit jamais au
+                  tactile. */}
+              <SheetClose
+                aria-label="Fermer le détail du résultat"
+                className="tcn-icon-btn flex size-11 items-center justify-center rounded-full text-[var(--tcn-text-faint)] hover:text-[var(--tcn-ink)]"
+              >
+                <X className="size-4" />
+              </SheetClose>
+            </div>
+            {annonce}
+            {/* Ancrage feuille : accueille `hote` sous `md` (#609). */}
+            <div ref={emplacementFeuilleRef} />
+          </SheetContent>
+        </Sheet>
+      )}
+      {/* `panneau` ne se rend qu'ici, à une position fixe de l'arbre React —
+          l'effet plus haut déplace `hote` lui-même (DOM brut, jamais un
+          second rendu React) vers l'ancrage bureau ou celui de la feuille
+          selon `compact` (#609). */}
+      {hote && createPortal(panneau, hote)}
     </div>
   );
 }
