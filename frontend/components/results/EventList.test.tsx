@@ -516,7 +516,10 @@ describe("EventList — annonce du repliement (#463, WCAG 4.1.3)", () => {
     setDeuxSousEpreuves();
     renderList();
 
-    const ligne = screen.getByRole("button", { name: new RegExp(PREFIXE) }).closest("tr")!;
+    // Scopé à la grille (#461) : la carte sous `md` rend le même bouton.
+    const ligne = within(screen.getByTestId("epreuves-grille"))
+      .getByRole("button", { name: new RegExp(PREFIXE) })
+      .closest("tr")!;
     expect(within(ligne).getAllByRole("cell")).toHaveLength(7);
   });
 
@@ -525,7 +528,9 @@ describe("EventList — annonce du repliement (#463, WCAG 4.1.3)", () => {
     setDeuxSousEpreuves();
     renderList();
 
-    const groupe = screen.getByRole("button", { name: new RegExp(PREFIXE) });
+    const groupe = within(screen.getByTestId("epreuves-grille")).getByRole("button", {
+      name: new RegExp(PREFIXE),
+    });
     expect(groupe).toHaveAttribute("aria-expanded", "false");
     expect(groupe.closest("tr")).not.toBeNull();
   });
@@ -538,7 +543,11 @@ describe("EventList — annonce du repliement (#463, WCAG 4.1.3)", () => {
     expect(corpsAvant).toHaveLength(1);
     expect(within(corpsAvant[0]).getAllByRole("row")).toHaveLength(1);
 
-    await userEvent.click(screen.getByRole("button", { name: new RegExp(PREFIXE) }));
+    await userEvent.click(
+      within(screen.getByTestId("epreuves-grille")).getByRole("button", {
+        name: new RegExp(PREFIXE),
+      }),
+    );
 
     const corpsApres = screen.getAllByRole("rowgroup").filter((g) => g.tagName === "TBODY");
     expect(within(corpsApres[0]).getAllByRole("row")).toHaveLength(3); // groupe + 2 épreuves
@@ -599,7 +608,9 @@ describe("EventList — annonce du repliement (#463, WCAG 4.1.3)", () => {
     // En liste, le nom accessible se réduit au verdict : la marque vit **dans**
     // le lien de ligne, dont le nom absorbe le sous-arbre — le détail complet y
     // ajoutait ~120 caractères relus à chaque parcours au rotor (revue UI/UX).
-    const marque = screen.getByRole("img", { name: "Données douteuses" });
+    const marque = within(screen.getByTestId("epreuves-grille")).getByRole("img", {
+      name: "Données douteuses",
+    });
     expect(marque).toBeInTheDocument();
     // Le détail reste au survol, dans le même vocabulaire que la page épreuve et
     // que le profil athlète : la source est `lib/quality.ts`, elle ne se dédouble pas.

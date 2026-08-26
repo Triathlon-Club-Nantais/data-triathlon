@@ -318,7 +318,10 @@ describe("EventsTable", () => {
       />,
     );
 
-    const sousLigne = screen.getByRole("link", { name: /Voir la preuve/ }).closest("td")!;
+    // Scopé à la grille (#461) : la carte rend la même preuve, hors tableau.
+    const sousLigne = within(screen.getByTestId("epreuves-grille"))
+      .getByRole("link", { name: /Voir la preuve/ })
+      .closest("td")!;
     expect(sousLigne).toHaveAttribute("colspan", "7");
     expect(sousLigne).toHaveAttribute("aria-colspan", "7");
   });
