@@ -198,6 +198,27 @@ def test_queue_vide_sans_erreur_si_rien_en_attente(benevole_connecte):
     assert reponse.json() == []
 
 
+# --- GET /benevoles/queue/history (US13, #466) -------------------------------
+
+
+def test_queue_history_refuse_sans_cookie(client):
+    assert client.get("/api/v1/benevoles/queue/history").status_code == 401
+
+
+def test_queue_history_vide_sans_resolution(benevole_connecte):
+    reponse = benevole_connecte.get("/api/v1/benevoles/queue/history")
+    assert reponse.status_code == 200
+    assert reponse.json() == {"backlog_by_day": [], "average_resolution_seconds": None}
+
+
+def test_queue_history_compte_une_entree_encore_en_attente(benevole_connecte, resultat_pendant):
+    reponse = benevole_connecte.get("/api/v1/benevoles/queue/history")
+    assert reponse.status_code == 200
+    charge = reponse.json()
+    assert len(charge["backlog_by_day"]) >= 1
+    assert charge["backlog_by_day"][-1]["pending_count"] >= 1
+
+
 # --- POST /benevoles/participations/{id}/validate (US1, T022) ---------------
 
 

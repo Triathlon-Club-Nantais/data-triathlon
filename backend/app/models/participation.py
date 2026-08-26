@@ -97,6 +97,14 @@ class Participation(Base):
         Boolean, default=False, server_default=false()
     )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    # Timestamps de résolution de la file bénévole (US13, #466) — posés par
+    # `validate_participation`/`reject_participation`, jamais rétroactifs :
+    # une résolution antérieure au déploiement de cette colonne reste NULL,
+    # sans historique reconstructible. `unreject_participation` efface
+    # `rejected_at` : une entrée réintégrée à la file n'a plus de délai de
+    # résolution à afficher.
+    validated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    rejected_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     athlete: Mapped["Athlete"] = relationship(back_populates="participations")  # noqa: F821
     course: Mapped["Course"] = relationship(back_populates="participations")  # noqa: F821

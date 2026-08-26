@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 
 import pytest
 
@@ -100,6 +100,40 @@ def test_list_pending_exclut_une_rejetee(db_session):
 
     assert [p.id for p in participation_repository.list_pending(db_session)] == [pendante.id]
     assert [p.id for p in participation_repository.list_rejected(db_session)] == [rejetee.id]
+
+
+# --- Historique de la file bénévole (US13, #466) -----------------------------
+
+
+def test_validation_queue_timestamps_separe_les_trois_populations(db_session):
+    """Actionnable, validée, rejetée : trois populations disjointes."""
+    athlete, course = _setup(db_session)
+    actionnable = participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1",
+        is_pending_validation=True, created_at=datetime(2026, 8, 1),
+    )
+    validee = participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="2",
+        is_pending_validation=False, created_at=datetime(2026, 8, 2),
+        validated_at=datetime(2026, 8, 5),
+    )
+    rejetee = participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="3",
+        is_pending_validation=True, is_rejected=True, created_at=datetime(2026, 8, 3),
+        rejected_at=datetime(2026, 8, 6),
+    )
+    # Résolue avant l'existence de la colonne (#466) : aucun timestamp, exclue.
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="4",
+        is_pending_validation=False, created_at=datetime(2026, 1, 1),
+    )
+    db_session.flush()
+
+    donnees = participation_repository.validation_queue_timestamps(db_session)
+
+    assert donnees.actionable_since == [actionnable.created_at]
+    assert donnees.validated == [(validee.created_at, validee.validated_at)]
+    assert donnees.rejected == [(rejetee.created_at, rejetee.rejected_at)]
 
 
 def test_create_and_dedup_by_bib(db_session):

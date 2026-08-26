@@ -1,6 +1,7 @@
 """Accès données pour Participation, incluant les filtres de la liste publique."""
 from collections.abc import Iterable
-from datetime import date
+from datetime import date, datetime
+from typing import NamedTuple
 
 from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session, aliased, contains_eager, joinedload
@@ -454,6 +455,51 @@ def list_rejected(db: Session) -> list[Participation]:
         .order_by(Participation.created_at.desc())
         .all()
     )
+
+
+class ValidationQueueTimestamps(NamedTuple):
+    """Trois populations disjointes, lues telles quelles (US13, #466).
+
+    Le calcul de l'arriéré par jour et du délai moyen de résolution vit dans
+    le service — cette fonction ne fait que lire, sens unique de l'archi
+    (Principe II).
+    """
+
+    #: Encore actionnable (`list_pending`) : une seule date, la file ne connaît pas de sortie.
+    actionable_since: list[datetime]
+    #: `(created_at, validated_at)` — résolutions validées dont le timestamp existe.
+    validated: list[tuple[datetime, datetime]]
+    #: `(created_at, rejected_at)` — résolutions rejetées dont le timestamp existe.
+    rejected: list[tuple[datetime, datetime]]
+
+
+def validation_queue_timestamps(db: Session) -> ValidationQueueTimestamps:
+    """Données brutes de l'historique de la file bénévole (US13, #466).
+
+    Une résolution antérieure au déploiement de `validated_at`/`rejected_at`
+    n'a pas de timestamp : elle est **exclue** plutôt que reconstituée à
+    l'aveugle (`data-model.md` de la feature) — d'où le filtre `isnot(None)`
+    sur `validated`/`rejected`, qui ne reprend pas simplement
+    `is_pending_validation`/`is_rejected`.
+    """
+    actionable_since = [
+        created_at
+        for (created_at,) in db.query(Participation.created_at).filter(
+            Participation.is_pending_validation.is_(True),
+            Participation.is_rejected.is_(False),
+        )
+    ]
+    validated = list(
+        db.query(Participation.created_at, Participation.validated_at).filter(
+            Participation.validated_at.isnot(None)
+        )
+    )
+    rejected = list(
+        db.query(Participation.created_at, Participation.rejected_at).filter(
+            Participation.rejected_at.isnot(None)
+        )
+    )
+    return ValidationQueueTimestamps(actionable_since=actionable_since, validated=validated, rejected=rejected)
 
 
 def has_pending_for_course(db: Session, course_id: int) -> bool:

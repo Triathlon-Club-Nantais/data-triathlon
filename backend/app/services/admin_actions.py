@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 from app.core.club import is_tcn
 from app.core.config import Settings
 from app.core.exceptions import DomainError, DuplicateError, NotFoundError, ScraperError
+from app.core.time import utcnow
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.participation import Participation
@@ -899,7 +900,9 @@ def validate_participation(db: Session, *, participation_id: int, user_id: int) 
     if not participation.is_pending_validation:
         return participation
 
-    participation_repository.update(db, participation, is_pending_validation=False)
+    participation_repository.update(
+        db, participation, is_pending_validation=False, validated_at=utcnow()
+    )
     # Compteurs dénormalisés (#623) : c'est le seul geste hors import qui fait
     # entrer une participation dans les agrégats publics après coup (#270).
     course_repository.adjust_counts(
@@ -935,7 +938,7 @@ def reject_participation(db: Session, *, participation_id: int, user_id: int) ->
     if participation.is_rejected:
         return participation
 
-    participation_repository.update(db, participation, is_rejected=True)
+    participation_repository.update(db, participation, is_rejected=True, rejected_at=utcnow())
 
     admin_action_log_repository.create(
         db,
@@ -959,7 +962,7 @@ def unreject_participation(db: Session, *, participation_id: int, user_id: int) 
     if not participation.is_rejected:
         return participation
 
-    participation_repository.update(db, participation, is_rejected=False)
+    participation_repository.update(db, participation, is_rejected=False, rejected_at=None)
 
     admin_action_log_repository.create(
         db,

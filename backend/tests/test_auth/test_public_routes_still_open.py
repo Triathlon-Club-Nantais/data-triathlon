@@ -70,6 +70,7 @@ ADMIN_PUBLIQUES = {
 ROUTES_BENEVOLES_FERMEES = {
     ("GET", "/api/v1/benevoles/athletes"),
     ("GET", "/api/v1/benevoles/queue"),
+    ("GET", "/api/v1/benevoles/queue/history"),
     ("GET", "/api/v1/benevoles/rejected"),
     ("PATCH", "/api/v1/benevoles/courses/{course_id}"),
     ("POST", "/api/v1/benevoles/participations/{participation_id}/reassign"),
