@@ -292,6 +292,43 @@ describe("CounterScopeCard, côté disciplines", () => {
     );
   });
 
+  /**
+   * Base UI rend **`null`** à `onValueChange` quand l'option retenue quitte la
+   * liste — ce qui arrive à chaque ajout : le rafraîchissement retire des
+   * propositions la discipline qu'on vient d'exclure. Sans repli, le
+   * `saisie.trim()` du rendu suivant fait tomber l'écran entier.
+   */
+  it("survit au rafraîchissement qui retire l'option choisie", async () => {
+    addCounterScopeEntry.mockResolvedValue(entree({ id: 2, value: "swimrun-m" }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const carte = (entrees: CounterScopeEntry[]) => (
+      <QueryClientProvider client={client}>
+        <CounterScopeCard
+          kind="disciplines"
+          titre="Disciplines hors compteurs"
+          nom="disciplines exclues"
+          regle="règle"
+          entrees={entrees}
+          isLoading={false}
+          libelleChamp="Discipline à exclure"
+          descriptionListeVide="vide"
+        />
+      </QueryClientProvider>
+    );
+    const { rerender } = render(carte([entree({ value: "trail" })]));
+
+    await userEvent.click(screen.getByRole("combobox", { name: /discipline à exclure/i }));
+    await userEvent.click(await screen.findByRole("option", { name: "SwimRun M" }));
+    await userEvent.click(screen.getByRole("button", { name: /ajouter/i }));
+    await waitFor(() => expect(addCounterScopeEntry).toHaveBeenCalled());
+
+    rerender(carte([entree({ value: "trail" }), entree({ id: 2, value: "swimrun-m" })]));
+
+    expect(
+      screen.getByRole("combobox", { name: /discipline à exclure/i }),
+    ).toBeInTheDocument();
+  });
+
   it("garde la saisie libre pour les libellés du club", () => {
     afficher();
 

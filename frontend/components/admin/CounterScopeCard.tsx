@@ -169,13 +169,26 @@ export function CounterScopeCard({
       </CardHeader>
       <CardContent className="space-y-6">
         <form onSubmit={soumettre} className="flex flex-wrap items-end gap-3">
-          <div className="min-w-56 flex-1 space-y-2">
+          {/* `flex flex-col gap-2` et non `space-y-2` : Base UI pose après le
+              déclencheur un champ caché en `position: fixed`, qui reste le
+              dernier enfant. `space-y-*` donne alors une marge basse au
+              déclencheur — 8 px qui décalent le bouton, aligné sur le bas du
+              bloc. Un `gap` ne compte pas les enfants hors flux. */}
+          <div className="flex min-w-56 flex-1 flex-col gap-2">
             <Label htmlFor={`ajout-${kind}`}>{libelleChamp}</Label>
             {choixDansLaNomenclature ? (
               // La nomenclature est fermée : une saisie libre n'offrirait ici
               // que des façons de se tromper de slug. Le nom affiché est celui
               // que le reste du site affiche déjà (`eventTypeLabel`).
-              <Select value={saisie} onValueChange={(v) => setSaisie(v as string)}>
+              // `onValueChange` rend **`null`** quand l'option retenue quitte
+              // la liste — ce qui arrive à chaque ajout, le rafraîchissement
+              // retirant des propositions la discipline qu'on vient d'exclure.
+              // Sans ce repli, la valeur devient `null` et le `saisie.trim()`
+              // du rendu suivant fait tomber l'écran entier.
+              <Select
+                value={saisie}
+                onValueChange={(v) => setSaisie((v as string | null) ?? "")}
+              >
                 <SelectTrigger
                   id={`ajout-${kind}`}
                   ref={declencheurDuChoix}
