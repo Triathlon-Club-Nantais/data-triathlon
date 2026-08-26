@@ -1,7 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AthleteSeasonActivity } from "@/lib/types";
+import { writeAthlete } from "@/components/layout/AthletePicker";
 
 let searchParams = new URLSearchParams();
 
@@ -177,5 +178,95 @@ describe("AthleteSeasonList", () => {
     await userEvent.type(screen.getByPlaceholderText(/rechercher un athlète/i), "dupont");
 
     expect(screen.getByRole("status")).toHaveTextContent(/1 athlète/i);
+  });
+});
+
+describe("AthleteSeasonList — retrouver sa ligne (#504)", () => {
+  const descripteurOriginal = Object.getOwnPropertyDescriptor(window, "localStorage")!;
+
+  beforeEach(() => {
+    searchParams = new URLSearchParams();
+    const stock = new Map<string, string>();
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (cle: string) => stock.get(cle) ?? null,
+        setItem: (cle: string, valeur: string) => void stock.set(cle, valeur),
+        removeItem: (cle: string) => void stock.delete(cle),
+        clear: () => stock.clear(),
+      },
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, "localStorage", descripteurOriginal);
+  });
+
+  it("ne marque aucune ligne et n'affiche pas de rappel quand aucun athlète n'est retenu", () => {
+    render(
+      <AthleteSeasonList
+        athletes={[athlete({ id: 1, nom: "DUPONT" }), athlete({ id: 2, nom: "MARTIN" })]}
+      />,
+    );
+
+    expect(screen.queryByText("Vous")).not.toBeInTheDocument();
+    expect(screen.queryByText(/du club/)).not.toBeInTheDocument();
+  });
+
+  it("marque ma ligne d'un chip et d'un fond, sans rappel, quand elle est dans les 12 premières", () => {
+    writeAthlete({ id: 2, prenom: "Julie", nom: "MARTIN" });
+    render(
+      <AthleteSeasonList
+        athletes={[
+          athlete({ id: 1, nom: "DUPONT", participation_count: 5 }),
+          athlete({ id: 2, nom: "MARTIN", participation_count: 3 }),
+        ]}
+      />,
+    );
+
+    const marque = screen.getByText("Vous");
+    const ligne = marque.closest("a") as HTMLElement;
+    expect(ligne).toHaveTextContent("MARTIN");
+    expect(ligne.className).toMatch(/(^|\s)tcn-rowlink--moi(\s|$)/);
+    expect(screen.queryByText(/du club/)).not.toBeInTheDocument();
+  });
+
+  it("chaque ligne porte un id d'ancre `athlete-{id}`", () => {
+    render(
+      <AthleteSeasonList
+        athletes={[athlete({ id: 7, nom: "DUPONT" }), athlete({ id: 8, nom: "MARTIN" })]}
+      />,
+    );
+
+    expect(document.getElementById("athlete-7")).toHaveTextContent("DUPONT");
+    expect(document.getElementById("athlete-8")).toHaveTextContent("MARTIN");
+  });
+
+  it("affiche un rappel épinglé quand ma ligne est hors des 12 premières, avec mon rang et mon ancre", () => {
+    // 13 athlètes triés par volume décroissant : celui d'id 99 (1 épreuve)
+    // est 13e, hors du seuil de 12.
+    const athletes = Array.from({ length: 12 }, (_, i) =>
+      athlete({ id: i + 1, nom: `N${i}`, participation_count: 12 - i + 1 }),
+    );
+    athletes.push(athlete({ id: 99, nom: "MOI", participation_count: 1 }));
+    writeAthlete({ id: 99, prenom: "M", nom: "MOI" });
+
+    render(<AthleteSeasonList athletes={athletes} />);
+
+    const rappel = screen.getByRole("link", { name: /Vous : 1 épreuve — 13ᵉ du club/ });
+    expect(rappel).toHaveAttribute("href", "#athlete-99");
+  });
+
+  it("le rang du rappel se calcule sur la liste complète, pas sur le résultat filtré par la recherche", async () => {
+    const athletes = Array.from({ length: 12 }, (_, i) =>
+      athlete({ id: i + 1, nom: `N${i}`, participation_count: 12 - i + 1 }),
+    );
+    athletes.push(athlete({ id: 99, nom: "MOI", participation_count: 1 }));
+    writeAthlete({ id: 99, prenom: "M", nom: "MOI" });
+
+    render(<AthleteSeasonList athletes={athletes} />);
+    await userEvent.type(screen.getByPlaceholderText(/rechercher un athlète/i), "N0");
+
+    expect(screen.getByRole("link", { name: /13ᵉ du club/ })).toBeInTheDocument();
   });
 });

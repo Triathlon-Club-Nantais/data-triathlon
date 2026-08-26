@@ -3,8 +3,12 @@ import { useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { AthleteSeasonActivity } from "@/lib/types";
-import { Card, Input } from "@/components/tcn";
+import { Card, Input, VousChip } from "@/components/tcn";
+import { useSelectedAthlete } from "@/components/layout/AthletePicker";
+import { trouverRang } from "@/lib/utils/rang";
+import { SEUIL_RAPPEL_POSITION } from "@/lib/club";
 import { AthleteSortToggle, SORT_PARAM, sortTypeFromParam } from "./AthleteSortToggle";
+import { RappelPosition } from "./RappelPosition";
 
 /** Insensible casse/accents, comme la recherche serveur (`core/text.deaccent`, #357). */
 function normalise(texte: string): string {
@@ -59,6 +63,9 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
   const sp = useSearchParams();
   const sort = sortTypeFromParam(sp.get(SORT_PARAM) ?? undefined);
   const [query, setQuery] = useState("");
+  // Athlète retenu (#504) : lu inconditionnellement — un hook ne se cale pas
+  // derrière le retour anticipé de la liste vide.
+  const athleteRetenu = useSelectedAthlete();
 
   if (athletes.length === 0) {
     return (
@@ -73,6 +80,15 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
   const filtered = filterAthletes(athletes, query);
   const sorted = sortAthletes(filtered, sort);
 
+  // Rang calculé sur la liste **complète**, triée mais non filtrée par la
+  // recherche — une recherche en cours ne doit pas faire bouger « 41ᵉ du
+  // club », qui parle du club, pas du résultat filtré.
+  const rangComplet = sortAthletes(athletes, sort);
+  const rang = athleteRetenu
+    ? trouverRang(athleteRetenu.id, rangComplet.map((a) => a.id))
+    : null;
+  const rappelVisible = rang !== null && rang > SEUIL_RAPPEL_POSITION;
+
   return (
     <div className="space-y-3">
       <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 12 }}>
@@ -86,6 +102,12 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
         />
         <AthleteSortToggle />
       </div>
+      <RappelPosition
+        visible={rappelVisible}
+        epreuves={rang ? rangComplet[rang - 1].participation_count : 0}
+        rang={rang ?? 0}
+        hrefAncre={athleteRetenu ? `#athlete-${athleteRetenu.id}` : "#"}
+      />
       {/* WCAG 4.1.3 — la recherche change le contenu de la liste sans déplacer
           le focus : sans cette annonce, un lecteur d'écran ne signale ni le
           nombre de résultats ni le basculement vers l'état vide (revue #382). */}
@@ -100,29 +122,36 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
         </Card>
       ) : (
         <Card padding={0} style={{ overflow: "hidden" }}>
-          {sorted.map((a) => (
-            <Link
-              key={a.id}
-              href={`/athletes/${a.id}`}
-              className="tcn-rowlink"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "14px 26px",
-                borderBottom: "1px solid var(--tcn-border-faint)",
-              }}
-            >
-              <div style={{ fontSize: 15, color: "var(--tcn-ink)", fontWeight: 700 }}>
-                <span data-testid="athlete-row-nom">{a.nom}</span>{" "}
-                <span style={{ fontWeight: 500, color: "var(--tcn-text-faint)" }}>{a.prenom}</span>
-              </div>
-              <div style={{ fontSize: 14, color: "var(--tcn-text-faint)", fontWeight: 600 }}>
-                <span>{a.participation_count}</span>{" "}
-                <span>épreuve{a.participation_count > 1 ? "s" : ""}</span>
-              </div>
-            </Link>
-          ))}
+          {sorted.map((a) => {
+            const moi = athleteRetenu?.id === a.id;
+            return (
+              <Link
+                key={a.id}
+                id={`athlete-${a.id}`}
+                href={`/athletes/${a.id}`}
+                className={moi ? "tcn-rowlink tcn-rowlink--moi" : "tcn-rowlink"}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "14px 26px",
+                  borderBottom: "1px solid var(--tcn-border-faint)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15, color: "var(--tcn-ink)", fontWeight: 700 }}>
+                  <span>
+                    <span data-testid="athlete-row-nom">{a.nom}</span>{" "}
+                    <span style={{ fontWeight: 500, color: "var(--tcn-text-faint)" }}>{a.prenom}</span>
+                  </span>
+                  {moi && <VousChip />}
+                </div>
+                <div style={{ fontSize: 14, color: "var(--tcn-text-faint)", fontWeight: 600 }}>
+                  <span>{a.participation_count}</span>{" "}
+                  <span>épreuve{a.participation_count > 1 ? "s" : ""}</span>
+                </div>
+              </Link>
+            );
+          })}
         </Card>
       )}
     </div>

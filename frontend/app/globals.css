@@ -679,6 +679,16 @@
   .tcn-rowlink--moi:hover {
     background: var(--tcn-orange-12);
   }
+  /* Ma fiche du roster (`RosterApercu`, `AthleteSeasonList`, #504) : même
+     patron que `.tcn-rowlink--moi` — un style en ligne battrait le survol
+     Tailwind existant (`hover:bg-muted/50`), d'où le remplacement complet de
+     la classe plutôt qu'un ajout. */
+  .tcn-roster-card--moi {
+    background: var(--tcn-orange-08);
+  }
+  .tcn-roster-card--moi:hover {
+    background: var(--tcn-orange-12);
+  }
   /* Ligne de la file de validation bénévole (`ValidationQueue`, #608) : même
      défaut que #439, déjà corrigé une fois sur ce composant — un `background`
      en ligne battrait `.tcn-rowlink:hover` et couperait tout survol. Le
