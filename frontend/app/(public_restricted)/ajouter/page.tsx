@@ -50,7 +50,14 @@ export default async function AjouterPage() {
         <div
           data-testid="recents-grille"
           data-affichage="grille"
+          // Le cran Tailwind `sm:` (640) reste sous les autres écrans du lot :
+          // 480 (grille) + CHROME_RAIL_REPLIE (157, `lib/utils/table.ts`) = 637,
+          // sous 640 par 3px — vérifié en revue UI/UX #461. Marge fine à
+          // resurveiller si `RCOLS` s'élargit.
           className="hidden sm:block overflow-x-auto"
+          role="region"
+          aria-label="Derniers résultats enregistrés, défilement horizontal"
+          tabIndex={0}
         >
           <div style={{ minWidth: 480 }}>
             <table className="tcn-table" role="table">

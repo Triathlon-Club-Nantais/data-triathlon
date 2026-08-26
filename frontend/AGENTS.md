@@ -553,12 +553,25 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 
 - **Tableaux repliés en cartes sous leur seuil** (#461, `RESP-1`) — quatre
   écrans rendent **deux arbres**, la grille et une liste de cartes, que deux
-  classes Tailwind font alterner en CSS pure : `hidden lg:block`/`lg:hidden`
-  pour le classement (plancher 1 080 px), `md` pour la fiche athlète (988 px)
-  et `/resultats` (948 px), `sm` pour `/ajouter` (480 px). Le dessin de la carte
-  vit une seule fois, dans `components/tcn/LigneCarte.tsx` — **sans état, donc
-  sans `"use client"`**, ce qui laisse `/ajouter` en Server Component. Quatre
-  points qui se re-cassent :
+  classes Tailwind font alterner en CSS pure : `hidden min-[Npx]:block`/
+  `min-[Npx]:hidden` pour le classement (plancher 1 080 px, seuil 1 237 px), la
+  fiche athlète (988 px, seuil 1 145 px) et `/resultats` (948 px, seuil
+  1 105 px) ; `sm` pour `/ajouter` (480 px, tient déjà sous 640 px une fois le
+  chrome ajouté). Le dessin de la carte vit une seule fois, dans
+  `components/tcn/LigneCarte.tsx` — **sans état, donc sans `"use client"`**, ce
+  qui laisse `/ajouter` en Server Component. Cinq points qui se re-cassent :
+  - **Le seuil n'est pas le cran Tailwind par défaut** (`lg:` 1024, `md:` 768)
+    mais `plancher + CHROME_RAIL_REPLIE` (`lib/utils/table.ts`, 157 px = rail
+    replié + gouttières `PageShell`) — sans ce chrome, la grille s'affichait
+    avant d'avoir la place de tenir et redéfilait à l'horizontale sur une bande
+    réelle (1024–1237 px sur le classement, mesuré en revue UI/UX), le défaut
+    même que #461 corrige. Le rail **déplié** (288 px, cookie #482) n'est pas
+    couvert par ce chrome ; le résiduel est documenté sur la constante, et
+    atténué par `role="region"`/`tabIndex` sur chaque grille scrollable, pour
+    qu'elle reste au moins atteignable au clavier si la bande réapparaît. Le
+    test `plancher de bascule grille/cartes` de `table.test.ts` est le
+    garde-fou : Tailwind ne scanne que du texte littéral, donc rien d'autre
+    n'empêche un écran de gagner une colonne sans que son seuil soit relevé.
   - **Le dépliant et les actions sont frères de la zone cliquable**, jamais
     enfants : un `<a>` ou un `<button>` dans un `<a>` est du HTML invalide.
   - **jsdom ne charge aucune CSS**, donc les deux arbres coexistent en test.

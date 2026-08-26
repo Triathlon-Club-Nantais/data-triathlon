@@ -30,8 +30,8 @@ bidirectionnel à 320 px de large.
 ### Technique : deux rendus, bascule CSS
 
 Chaque écran rend **deux arbres** : la grille existante et une liste de cartes.
-La bascule est une paire de classes Tailwind (`hidden lg:block` /
-`lg:hidden`), donc pure CSS : le rendu serveur reste complet, il n'y a ni
+La bascule est une paire de classes Tailwind (`hidden min-[Npx]:block` /
+`min-[Npx]:hidden`), donc pure CSS : le rendu serveur reste complet, il n'y a ni
 `matchMedia`, ni état client, ni saut de mise en page à l'hydratation.
 
 Deux techniques ont été écartées :
@@ -46,17 +46,28 @@ Deux techniques ont été écartées :
 
 ### Seuils : un par tableau, à son plancher
 
-| Écran | Seuil | Classe grille | Classe cartes |
-| --- | --- | --- | --- |
-| Classement (1 080 px) | `lg:` — 1 024 px | `hidden lg:block` | `lg:hidden` |
-| Fiche athlète (988 px) | `md:` — 768 px | `hidden md:block` | `md:hidden` |
-| `/resultats` (948 px) | `md:` — 768 px | `hidden md:block` | `md:hidden` |
-| `/ajouter` (480 px) | `sm:` — 640 px | `hidden sm:block` | `sm:hidden` |
+| Écran | Plancher grille | Seuil de bascule | Classe grille | Classe cartes |
+| --- | --- | --- | --- | --- |
+| Classement | 1 080 px | 1 237 px | `hidden min-[1237px]:block` | `min-[1237px]:hidden` |
+| Fiche athlète | 988 px | 1 145 px | `hidden min-[1145px]:block` | `min-[1145px]:hidden` |
+| `/resultats` | 948 px | 1 105 px | `hidden min-[1105px]:block` | `min-[1105px]:hidden` |
+| `/ajouter` | 480 px | 640 px (`sm:`) | `hidden sm:block` | `sm:hidden` |
 
 Un seuil unique à `sm:` aurait laissé la tablette et le petit portable sur un
 tableau qui défile ; un seuil unique à `lg:` aurait renoncé à un tableau qui
 tient encore sur `/ajouter` et `/resultats`. Chaque tableau bascule au point où
 il cesse de tenir, et aucun écran ne défile jamais à l'horizontale.
+
+**Correction (revue UI/UX #461, après la première implémentation) :** les crans
+Tailwind par défaut (`lg:` 1024, `md:` 768) ignoraient le rail de navigation
+(76 px replié) et les gouttières de `PageShell` (80 px à partir de `md:`) : sur
+la bande de largeur entre le cran et `plancher + chrome`, la grille s'affichait
+sans tenir, et redéfilait à l'horizontale — le défaut même que #461 corrige.
+Les seuils ci-dessus sont désormais `plancher + CHROME_RAIL_REPLIE` (157 px,
+`lib/utils/table.ts`), sauf `/ajouter` dont le plancher tient déjà sous `sm:`
+une fois ce chrome ajouté (637 px). Le rail **déplié** (288 px, cookie #482)
+n'est pas couvert par ce chrome — le résiduel documenté dans
+`lib/utils/table.ts`.
 
 ### Le composant partagé : `components/tcn/LigneCarte.tsx`
 

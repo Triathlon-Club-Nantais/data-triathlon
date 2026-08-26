@@ -363,8 +363,8 @@ describe("rendu carte sous md", () => {
       />,
     );
 
-    expect(screen.getByTestId("epreuves-grille").className).toContain("hidden md:block");
-    expect(screen.getByTestId("epreuves-cartes").className).toContain("md:hidden");
+    expect(screen.getByTestId("epreuves-grille").className).toContain("hidden min-[1145px]:block");
+    expect(screen.getByTestId("epreuves-cartes").className).toContain("min-[1145px]:hidden");
   });
 
   it("porte date, épreuve, temps et place dans la carte", () => {

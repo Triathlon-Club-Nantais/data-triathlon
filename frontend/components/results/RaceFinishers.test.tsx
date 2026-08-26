@@ -1305,8 +1305,8 @@ describe("rendu carte sous lg", () => {
         pageSize={20}
       />,
     );
-    expect(grille().className).toContain("hidden lg:block");
-    expect(screen.getByTestId("classement-cartes").className).toContain("lg:hidden");
+    expect(grille().className).toContain("hidden min-[1237px]:block");
+    expect(screen.getByTestId("classement-cartes").className).toContain("min-[1237px]:hidden");
   });
 
   it("porte place, nom, temps et méta dans la carte", () => {
