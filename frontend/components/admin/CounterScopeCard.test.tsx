@@ -40,6 +40,7 @@ function afficher({
   kind = "club-labels" as ScopeKind,
   entrees = [entree(), entree({ id: 2, value: "tri club nantais" })],
   isLoading = false,
+  nom = "libellés du club",
 } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -47,7 +48,7 @@ function afficher({
       <CounterScopeCard
         kind={kind}
         titre="Libellés comptés comme club"
-        nom="libellés du club"
+        nom={nom}
         regle="La comparaison ignore la casse."
         entrees={entrees}
         isLoading={isLoading}
@@ -237,5 +238,64 @@ describe("CounterScopeCard", () => {
 
     expect(screen.getByText(/ne correspond à aucune discipline connue/i)).toBeInTheDocument();
     expect(screen.getByText("Discipline inconnue")).not.toHaveAttribute("title");
+  });
+});
+
+/**
+ * La nomenclature des disciplines est fermée et porte des libellés : l'écran
+ * les montre, et ne fait jamais retaper un slug. Les libellés de club, eux,
+ * restent en saisie libre — un chronométreur écrit ce qu'il veut.
+ */
+describe("CounterScopeCard, côté disciplines", () => {
+  it("nomme chaque exclusion par son libellé, le slug en second", () => {
+    afficher({
+      kind: "disciplines",
+      nom: "disciplines exclues",
+      entrees: [entree({ value: "course-a-pied-marathon" })],
+    });
+
+    const ligne = within(
+      screen.getByRole("list", { name: "disciplines exclues" }),
+    ).getByRole("listitem");
+    expect(within(ligne).getByText("Marathon")).toBeInTheDocument();
+    expect(within(ligne).getByText("course-a-pied-marathon")).toBeInTheDocument();
+  });
+
+  it("montre ce qui est compté, soit la nomenclature moins les exclusions", () => {
+    afficher({ kind: "disciplines", entrees: [entree({ value: "trail" })] });
+
+    const comptees = screen.getByRole("region", { name: /disciplines comptées/i });
+    expect(within(comptees).getByText("Triathlon")).toBeInTheDocument();
+    expect(within(comptees).queryByText("Trail")).not.toBeInTheDocument();
+  });
+
+  it("ne propose au choix que les disciplines encore comptées", async () => {
+    afficher({ kind: "disciplines", entrees: [entree({ value: "trail" })] });
+
+    await userEvent.click(screen.getByRole("combobox", { name: /nouveau libellé/i }));
+
+    const options = screen.getAllByRole("option").map((o) => o.textContent);
+    expect(options).toContain("Triathlon");
+    expect(options).not.toContain("Trail");
+  });
+
+  it("envoie le slug de la discipline choisie, jamais son libellé", async () => {
+    addCounterScopeEntry.mockResolvedValue(entree({ value: "cyclisme-clm" }));
+    afficher({ kind: "disciplines", entrees: [entree({ value: "trail" })] });
+
+    await userEvent.click(screen.getByRole("combobox", { name: /nouveau libellé/i }));
+    await userEvent.click(await screen.findByRole("option", { name: "Cyclisme (CLM)" }));
+    await userEvent.click(screen.getByRole("button", { name: /ajouter/i }));
+
+    await waitFor(() =>
+      expect(addCounterScopeEntry).toHaveBeenCalledWith("disciplines", "cyclisme-clm"),
+    );
+  });
+
+  it("garde la saisie libre pour les libellés du club", () => {
+    afficher();
+
+    expect(screen.getByLabelText(/nouveau libellé/i)).toHaveAttribute("placeholder", "tcn 44");
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 });
