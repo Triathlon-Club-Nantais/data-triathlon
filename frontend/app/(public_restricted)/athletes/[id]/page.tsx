@@ -12,6 +12,7 @@ import { formatToken, genderShort, ordinalFr } from "@/lib/utils/format";
 import { bestRatio, progressionSeries, recurringWeakSegment } from "@/lib/utils/ranking";
 import { resumeAthlete } from "@/lib/utils/athlete-stats";
 import { ProgressionChart } from "@/components/charts/ProgressionChart";
+import { AthleteComparisonChart } from "@/components/charts/AthleteComparisonChart";
 
 export default async function AthletePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -174,6 +175,8 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
           )}
         </Card>
       )}
+
+      {validated.length > 0 && <AthleteComparisonChart mine={validated} />}
 
       <EventsTable participations={participations} athleteId={athlete.id} athleteName={fullName} />
     </PageShell>

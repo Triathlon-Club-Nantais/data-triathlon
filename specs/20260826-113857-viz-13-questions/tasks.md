@@ -153,14 +153,14 @@ Application web existante : `backend/app/`, `backend/tests/`, `frontend/app/`, `
 
 ### Tests for User Story 6
 
-- [ ] T030 [P] [US6] Test vitest pour le filtrage sur épreuve commune entre deux athlètes dans `frontend/lib/utils/athlete-comparison.test.ts`
-- [ ] T031 [P] [US6] Test vitest pour `AthleteComparisonChart`, y compris le cas sans épreuve commune, dans `frontend/components/charts/AthleteComparisonChart.test.tsx`
+- [X] T030 [P] [US6] Test vitest pour le filtrage sur épreuve commune entre deux athlètes dans `frontend/lib/utils/athlete-comparison.test.ts`
+- [X] T031 [P] [US6] Test vitest pour `AthleteComparisonChart`, y compris le cas sans épreuve commune, dans `frontend/components/charts/AthleteComparisonChart.test.tsx`
 
 ### Implementation for User Story 6
 
-- [ ] T032 [US6] Créer `frontend/lib/utils/athlete-comparison.ts` (filtre `listParticipations` sur épreuve commune)
-- [ ] T033 [US6] Créer le sélecteur d'athlète + `AthleteComparisonChart.tsx`
-- [ ] T034 [US6] Intégrer sur `athletes/[id]/page.tsx`
+- [X] T032 [US6] Créer `frontend/lib/utils/athlete-comparison.ts` (appariement sur épreuve commune entre deux listes de participations déjà chargées — `GET /athletes/{id}`, pas `listParticipations`, cf. écart ci-dessous)
+- [X] T033 [US6] Créer le sélecteur d'athlète + `AthleteComparisonChart.tsx`
+- [X] T034 [US6] Intégrer sur `athletes/[id]/page.tsx`
 
 **Checkpoint**: US1→US6 fonctionnelles indépendamment.
 
