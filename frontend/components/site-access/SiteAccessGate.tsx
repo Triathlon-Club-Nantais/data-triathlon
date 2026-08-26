@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Button, Card, Input } from "@/components/tcn";
+import { AnnonceStatut, Button, Card, Input } from "@/components/tcn";
 import { apiClient, ApiError } from "@/lib/api/client";
 
 /**
@@ -26,6 +26,7 @@ import { apiClient, ApiError } from "@/lib/api/client";
 // attente se lit comme un formulaire figé plutôt que comme le « réveil à froid »
 // déjà nommé ailleurs dans l'app (`ErrorScreen`, `app/admin/layout.tsx`).
 const DELAI_INDICE_REVEIL_MS = 2500;
+const TEXTE_INDICE_REVEIL = "Le service peut être en veille et se réveiller : patientez quelques secondes.";
 
 export function SiteAccessGate({ apres = "rafraichir" }: { apres?: "rafraichir" | "accueil" }) {
   const router = useRouter();
@@ -101,9 +102,12 @@ export function SiteAccessGate({ apres = "rafraichir" }: { apres?: "rafraichir" 
           <Button type="submit" disabled={enCours || !password} style={{ width: "100%", marginTop: 16 }}>
             {enCours ? "Connexion…" : "Se connecter"}
           </Button>
+          {/* Montée en permanence : une région live insérée seulement à l'apparition
+              du texte n'est pas annoncée par tous les lecteurs d'écran (#502). */}
+          <AnnonceStatut texte={indiceReveil ? TEXTE_INDICE_REVEIL : ""} busy={enCours} />
           {indiceReveil && (
             <div style={{ fontSize: 13, color: "var(--tcn-text-faint)", marginTop: 8 }}>
-              Le service peut être en veille et se réveiller : patientez quelques secondes.
+              {TEXTE_INDICE_REVEIL}
             </div>
           )}
         </form>

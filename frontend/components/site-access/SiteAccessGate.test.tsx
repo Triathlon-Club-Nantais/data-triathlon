@@ -85,20 +85,24 @@ describe("SiteAccessGate", () => {
         fireEvent.click(screen.getByRole("button", { name: /se connecter/i }));
       });
 
-      expect(screen.queryByText(/réveil/i)).not.toBeInTheDocument();
+      expect(screen.queryAllByText(/réveil/i)).toHaveLength(0);
+      // Toujours montée : c'est l'apparition du texte, pas de la région, qui doit
+      // se voir annoncée (#502 — un lecteur d'écran ignore une région insérée après coup).
+      expect(screen.getByRole("status")).toHaveTextContent("");
 
       await act(async () => {
         vi.advanceTimersByTime(2500);
       });
 
-      expect(screen.getByText(/réveil/i)).toBeInTheDocument();
+      expect(screen.queryAllByText(/réveil/i)).toHaveLength(2); // l'indice visible + son annonce sr-only
+      expect(screen.getByRole("status")).toHaveTextContent(/réveil/i);
 
       await act(async () => {
         resoudre();
         await Promise.resolve();
       });
 
-      expect(screen.queryByText(/réveil/i)).not.toBeInTheDocument();
+      expect(screen.queryAllByText(/réveil/i)).toHaveLength(0);
     } finally {
       vi.useRealTimers();
     }
