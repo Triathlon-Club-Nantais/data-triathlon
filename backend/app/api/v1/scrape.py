@@ -5,6 +5,7 @@ from dataclasses import asdict, is_dataclass
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
+from pydantic import HttpUrl
 from sqlalchemy.orm import Session
 
 from app.api.deps import optional_user, scrape_rate_limit
@@ -122,14 +123,21 @@ def scrape_event_stream(
 
 
 @router.get("/scrape/detect")
-def detect(url: str):
+def detect(url: HttpUrl):
     """Provider détecté + support réel, tous deux dérivés du registre.
 
     `supported` est renvoyé pour que le front n'ait pas à tenir sa propre liste
     de providers : la sienne avait divergé et affichait « Non supporté » sur
     Competitor, RaceResult et Chronoplace.
+
+    `HttpUrl` (#634) : même patron que `ScrapeRequest.url` (#49) et
+    `PendingProviderCreate.url` (#398) — troisième et dernière route tracée
+    par #251. Le front filtre déjà par `startsWith("http")` avant d'appeler
+    cette route (`ProviderDetector.tsx`), donc sans coût pour l'appelant
+    légitime.
     """
-    return {"provider": detect_provider(url), "supported": is_supported(url)}
+    raw = str(url)
+    return {"provider": detect_provider(raw), "supported": is_supported(raw)}
 
 
 @router.get("/scrape/providers")
