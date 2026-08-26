@@ -37,7 +37,7 @@ def open_session(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ):
-    config = site_access_config_repository.get_config(db)
+    config = site_access_config_repository.get_config(db, with_updated_by=False)
     if config is None or not shared_password.verify_password(
         body.password, password_hash=config.password_hash, password_salt=config.password_salt
     ):

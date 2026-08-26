@@ -20,16 +20,26 @@ import { apiClient, ApiError } from "@/lib/api/client";
  *   page n'était demandée, et un rafraîchissement ne ferait que réafficher ce
  *   formulaire.
  */
+// #622 — le backend Render (offre gratuite) se met en veille, la preview plus
+// agressivement encore (`render-sleep.yml`, suspendue à chaque heure pile) : une
+// connexion qui le réveille peut prendre plusieurs secondes. Sans indice, cette
+// attente se lit comme un formulaire figé plutôt que comme le « réveil à froid »
+// déjà nommé ailleurs dans l'app (`ErrorScreen`, `app/admin/layout.tsx`).
+const DELAI_INDICE_REVEIL_MS = 2500;
+
 export function SiteAccessGate({ apres = "rafraichir" }: { apres?: "rafraichir" | "accueil" }) {
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
+  const [indiceReveil, setIndiceReveil] = useState(false);
 
   async function soumettre(e: React.FormEvent) {
     e.preventDefault();
     setErreur(null);
     setEnCours(true);
+    setIndiceReveil(false);
+    const minuteur = setTimeout(() => setIndiceReveil(true), DELAI_INDICE_REVEIL_MS);
     try {
       await apiClient.siteAccessLogin(password);
       if (apres === "accueil") {
@@ -42,6 +52,8 @@ export function SiteAccessGate({ apres = "rafraichir" }: { apres?: "rafraichir" 
         err instanceof ApiError ? err.message : "Connexion impossible. Réessayez plus tard.",
       );
     } finally {
+      clearTimeout(minuteur);
+      setIndiceReveil(false);
       setEnCours(false);
     }
   }
@@ -89,6 +101,11 @@ export function SiteAccessGate({ apres = "rafraichir" }: { apres?: "rafraichir" 
           <Button type="submit" disabled={enCours || !password} style={{ width: "100%", marginTop: 16 }}>
             {enCours ? "Connexion…" : "Se connecter"}
           </Button>
+          {indiceReveil && (
+            <div style={{ fontSize: 13, color: "var(--tcn-text-faint)", marginTop: 8 }}>
+              Le service peut être en veille et se réveiller : patientez quelques secondes.
+            </div>
+          )}
         </form>
       </Card>
     </div>
