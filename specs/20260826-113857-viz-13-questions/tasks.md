@@ -269,13 +269,13 @@ Application web existante : `backend/app/`, `backend/tests/`, `frontend/app/`, `
 
 ### Tests for User Story 12
 
-- [ ] T050 [P] [US12] Test vitest pour le filtre "à venir" dans `frontend/lib/utils/map-filters.test.ts`
-- [ ] T051 [P] [US12] Test vitest pour le calcul de distance haversine dans `frontend/lib/utils/map-filters.test.ts`
+- [X] T050 [P] [US12] Test vitest pour le filtre "à venir" dans `frontend/lib/utils/map-filters.test.ts`
+- [X] T051 [P] [US12] Test vitest pour le calcul de distance haversine dans `frontend/lib/utils/map-filters.test.ts`
 
 ### Implementation for User Story 12
 
-- [ ] T052 [US12] Créer `frontend/lib/utils/map-filters.ts` (filtre à venir + haversine depuis un point de référence statique)
-- [ ] T053 [US12] Intégrer le filtre et le tri par distance sur `carte/page.tsx`/`MapView.tsx`
+- [X] T052 [US12] Créer `frontend/lib/utils/map-filters.ts` (filtre à venir + haversine depuis un point de référence statique)
+- [X] T053 [US12] Intégrer le filtre et le tri par distance sur `carte/page.tsx`/`MapView.tsx`
 
 **Checkpoint**: US1→US12 fonctionnelles indépendamment.
 

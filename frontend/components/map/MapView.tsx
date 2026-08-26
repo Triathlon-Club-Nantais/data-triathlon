@@ -1,15 +1,16 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { Alert, Button } from "@/components/tcn";
+import { Alert, Button, SegmentedControl } from "@/components/tcn";
 import { apiClient } from "@/lib/api/client";
 import { messageDeRefus } from "@/lib/api/refus";
 import { eventTypeLabel } from "@/lib/constants";
 import { CLUB_NAME_SHORT } from "@/lib/club";
 import { formatMonth } from "@/lib/utils/date";
+import { upcomingEvents, sortByDistance } from "@/lib/utils/map-filters";
 import type { GeoEvent } from "@/lib/types";
 import { COULEURS_CARTE, LIBELLE_CHARGEMENT } from "./carte";
 import { ListeEpreuves } from "./ListeEpreuves";
@@ -72,6 +73,9 @@ export function MapView({ scope }: { scope?: string }) {
   // `MapView` est chargé en `next/dynamic({ ssr: false })` (app/(public_restricted)/carte/page.tsx) :
   // toujours monté côté client, `window` y existe donc dès ce premier rendu.
   const [verrouillee, setVerrouillee] = useState(pointeurGrossier);
+  // Période et tri (US12, #466) : deux filtres indépendants, combinables.
+  const [periode, setPeriode] = useState<"toutes" | "a-venir">("toutes");
+  const [tri, setTri] = useState<"defaut" | "distance">("defaut");
 
   useEffect(() => {
     let abandonne = false;
@@ -95,6 +99,11 @@ export function MapView({ scope }: { scope?: string }) {
   }, [scope, essai]);
 
   const reessayer = useCallback(() => setEssai((n) => n + 1), []);
+
+  const eventsAffiches = useMemo(() => {
+    const filtres = periode === "a-venir" ? upcomingEvents(events, new Date()) : events;
+    return tri === "distance" ? sortByDistance(filtres) : filtres;
+  }, [events, periode, tri]);
 
   if (loading) return <p className="py-10 text-center text-[var(--tcn-text-body)]">{LIBELLE_CHARGEMENT}</p>;
 
@@ -139,6 +148,29 @@ export function MapView({ scope }: { scope?: string }) {
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3" role="group" aria-label="Filtrer les épreuves de la carte">
+        <SegmentedControl
+          options={[
+            { value: "toutes", label: "Toutes" },
+            { value: "a-venir", label: "À venir" },
+          ]}
+          value={periode}
+          onChange={(v) => setPeriode(v as "toutes" | "a-venir")}
+        />
+        <SegmentedControl
+          options={[
+            { value: "defaut", label: "Tri par défaut" },
+            { value: "distance", label: `Plus proches de ${CLUB_NAME_SHORT}` },
+          ]}
+          value={tri}
+          onChange={(v) => setTri(v as "defaut" | "distance")}
+        />
+      </div>
+      {eventsAffiches.length === 0 && (
+        <Alert status="warning" title="Aucune épreuve à venir">
+          Aucune épreuve géolocalisée ne correspond à ce filtre pour le moment.
+        </Alert>
+      )}
       <div className="relative">
         {verrouillee && (
           // Avant `MapContainer` dans le DOM (et non seulement au-dessus par
@@ -166,7 +198,7 @@ export function MapView({ scope }: { scope?: string }) {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             maxZoom={13}
           />
-          {events.map((ev, i) => {
+          {eventsAffiches.map((ev, i) => {
             const radius = rayonCercle(ev.count, maxCount);
             const teinte = ev.tcn_count > 0 ? COULEURS_CARTE.avecTcn : COULEURS_CARTE.sansTcn;
             return (
@@ -207,11 +239,11 @@ export function MapView({ scope }: { scope?: string }) {
               </CircleMarker>
             );
           })}
-          <FitBounds events={events} />
+          <FitBounds events={eventsAffiches} />
           <VerrouGlisse verrouillee={verrouillee} />
         </MapContainer>
       </div>
-      <ListeEpreuves events={events} />
+      <ListeEpreuves events={eventsAffiches} />
     </div>
   );
 }
