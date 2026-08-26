@@ -1,5 +1,13 @@
 # Sorties de la CLI (stdout parsable)
 
+**Toute invocation exige une base joignable, `--help` compris** (#95) :
+`__main__.py` remplit le registre de la portée des compteurs avant `app()`, et
+**sans garde**, là où le démarrage de l'API attrape l'échec et journalise un
+avertissement. L'asymétrie est voulue : un batch qui tourne sur une
+configuration périmée classe des milliers de participations à côté, en silence
+— échouer fort y est préférable. Le prix, assumé, est qu'un `--help` hors ligne
+échoue lui aussi.
+
 ## Les invocations, depuis `backend/`
 
 ```bash

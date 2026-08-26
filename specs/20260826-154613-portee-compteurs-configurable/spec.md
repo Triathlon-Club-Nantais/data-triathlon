@@ -122,7 +122,7 @@ Un administrateur ouvre l'écran de configuration pour comprendre pourquoi un r�
 ### Key Entities
 
 - **Discipline exclue** : une discipline que l'application ne compte pas comme discipline de la fédération triathlon. Porte l'identifiant de la discipline, l'auteur et la date d'ajout.
-- **Libellé du club** : une orthographe sous laquelle un chronométreur désigne le club. Porte le libellé sous sa forme comparable, la forme saisie, l'auteur et la date d'ajout.
+- **Libellé du club** : une orthographe sous laquelle un chronométreur désigne le club. Porte le libellé sous sa forme comparable, l'auteur et la date d'ajout. La forme saisie n'est **pas** conservée : la retenir obligerait à normaliser à la lecture des deux côtés du miroir SQL, deux occasions de plus de diverger pour un affichage à peine plus fidèle (`data-model.md`, § Forme stockée).
 
 ## Success Criteria *(mandatory)*
 

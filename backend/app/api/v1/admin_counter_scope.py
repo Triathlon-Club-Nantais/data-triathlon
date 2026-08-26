@@ -9,6 +9,8 @@ normalise, refuse le doublon et protège la liste des libellés ; le routeur
 commite, journalise, et **recharge le registre après le commit** — recharger
 avant exposerait une configuration que la transaction pourrait encore annuler.
 """
+import logging
+
 from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
@@ -29,6 +31,22 @@ from app.services import counter_scope
 router = APIRouter(tags=["admin"])
 
 _ENTITY_TYPE = "counter_scope_entry"
+
+logger = logging.getLogger(__name__)
+
+
+def _recharger(db: Session) -> None:
+    """Recharge le registre, **après** le commit, sans jamais faire échouer l'appel.
+
+    L'écriture est déjà persistée quand on arrive ici : rendre 500 dirait à
+    l'administrateur que son geste a échoué alors qu'il a réussi, et il le
+    referait. Le registre reste alors périmé jusqu'à la prochaine écriture ou au
+    redémarrage — dégradation visible dans les logs, pas perte de donnée.
+    """
+    try:
+        counter_scope.load_from_db(db)
+    except Exception:
+        logger.warning("counter scope reload failed after write", exc_info=True)
 
 
 def _vue(entry: CounterScopeEntry) -> CounterScopeEntryOut:
@@ -82,7 +100,7 @@ def add_counter_scope_entry(
         entity_id=entry.id,
     )
     db.commit()
-    counter_scope.load_from_db(db)
+    _recharger(db)
     return _vue(entry)
 
 
@@ -99,14 +117,14 @@ def remove_counter_scope_entry(
     porte des espaces, et le faire transiter par un segment d'URL est une source
     d'ennuis sans contrepartie.
     """
-    counter_scope.remove_entry(db, kind=kind.stored, entry_id=entry_id)
+    entry = counter_scope.remove_entry(db, kind=kind.stored, entry_id=entry_id)
     admin_action_log_repository.create(
         db,
         user_id=actor.id,
         action="counter_scope.entry_remove",
         entity_type=_ENTITY_TYPE,
-        entity_id=entry_id,
+        entity_id=entry.id,
     )
     db.commit()
-    counter_scope.load_from_db(db)
+    _recharger(db)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

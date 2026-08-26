@@ -48,18 +48,24 @@ DEFAULT_TCN_CLUB_LABELS: frozenset[str] = frozenset({
     "tcn",
 })
 
-_disciplines: frozenset[str] = DEFAULT_NON_FEDERAL_DISCIPLINES
-_club_labels: frozenset[str] = DEFAULT_TCN_CLUB_LABELS
+#: Les deux ensembles dans **un seul nom** : `(disciplines, libellés)`. Deux
+#: variables auraient donné deux affectations, donc une fenêtre — courte, mais
+#: réelle — où un lecteur voit les nouvelles disciplines et les anciens
+#: libellés. Un seul nom rend le remplacement atomique pour de bon.
+_scope: tuple[frozenset[str], frozenset[str]] = (
+    DEFAULT_NON_FEDERAL_DISCIPLINES,
+    DEFAULT_TCN_CLUB_LABELS,
+)
 
 
 def non_federal_disciplines() -> frozenset[str]:
     """Les disciplines exclues des compteurs, en vigueur."""
-    return _disciplines
+    return _scope[0]
 
 
 def tcn_club_labels() -> frozenset[str]:
     """Les libellés reconnus comme libellés du club, en vigueur."""
-    return _club_labels
+    return _scope[1]
 
 
 def load(*, disciplines: Iterable[str], club_labels: Iterable[str]) -> None:
@@ -67,8 +73,8 @@ def load(*, disciplines: Iterable[str], club_labels: Iterable[str]) -> None:
 
     Deux propriétés, et les deux comptent.
 
-    Les deux ensembles ensemble : une configuration à moitié rechargée est un
-    état que rien ne doit pouvoir produire.
+    Les deux ensembles ensemble : ils tiennent dans un seul nom, donc une
+    configuration à moitié rechargée est un état que rien ne peut produire.
 
     Par réassignation, jamais par mutation en place (`add`, `discard`, `clear`) :
     l'import d'épreuve tourne dans un **thread d'arrière-plan** — le scrape SSE
@@ -77,9 +83,8 @@ def load(*, disciplines: Iterable[str], club_labels: Iterable[str]) -> None:
     vue de ce thread ; muter en place lui exposerait un ensemble à moitié écrit,
     et le résultat serait quelques lignes mal classées, sans erreur ni trace.
     """
-    global _disciplines, _club_labels
-    _disciplines = frozenset(disciplines)
-    _club_labels = frozenset(club_labels)
+    global _scope
+    _scope = (frozenset(disciplines), frozenset(club_labels))
 
 
 def reset() -> None:
