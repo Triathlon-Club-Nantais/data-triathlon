@@ -3,6 +3,12 @@ name: CI
 on:
   pull_request:
   workflow_call:
+  # Relance manuelle depuis l'onglet Actions (« Run workflow » → choix de la
+  # branche) : `pull_request` ne se redéclenche pas tout seul quand l'exécution
+  # a été manquée (interruption GitHub, workflow ajouté après l'ouverture de la
+  # PR, checks jamais rapportés). Le job tourne alors sur la branche choisie, pas
+  # sur la fusion — un `merge_group` ou un rebase reste à faire avant de fusionner.
+  workflow_dispatch:
 
 # Déclaré explicitement plutôt qu'hérité du défaut du dépôt pour `GITHUB_TOKEN`
 # (constat A08-3, docs/superpowers/specs/2026-08-16-securite-owasp-audit.md) :
