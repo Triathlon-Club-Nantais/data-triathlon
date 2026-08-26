@@ -103,10 +103,14 @@ export function SiteAccessGate({ apres = "rafraichir" }: { apres?: "rafraichir" 
             {enCours ? "Connexion…" : "Se connecter"}
           </Button>
           {/* Montée en permanence : une région live insérée seulement à l'apparition
-              du texte n'est pas annoncée par tous les lecteurs d'écran (#502). */}
-          <AnnonceStatut texte={indiceReveil ? TEXTE_INDICE_REVEIL : ""} busy={enCours} />
+              du texte n'est pas annoncée par tous les lecteurs d'écran (#502). Pas
+              de `busy` : `enCours` et `indiceReveil` retombent dans le même rendu
+              (`finally`), donc `aria-busy="false"` n'apparaîtrait jamais pendant que
+              le texte est encore posé — un lecteur d'écran qui attend la fin de
+              l'occupation avant de lire la région ne lirait jamais le message. */}
+          <AnnonceStatut texte={indiceReveil ? TEXTE_INDICE_REVEIL : ""} />
           {indiceReveil && (
-            <div style={{ fontSize: 13, color: "var(--tcn-text-faint)", marginTop: 8 }}>
+            <div aria-hidden="true" style={{ fontSize: 13, color: "var(--tcn-text-faint)", marginTop: 8 }}>
               {TEXTE_INDICE_REVEIL}
             </div>
           )}
