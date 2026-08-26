@@ -1,6 +1,6 @@
 from datetime import date
 
-from app.repositories import athlete_repository
+from app.repositories import athlete_repository, course_repository, participation_repository
 
 
 def test_get_or_create_creates_then_dedups(db_session):
@@ -582,9 +582,6 @@ def test_search_by_relevance_respecte_la_limite(db_session):
 
 
 # ── club_roster (issue #581) ───────────────────────────────────────────────
-
-
-from app.repositories import course_repository, participation_repository
 
 
 def _course(db_session, nom, event_type="triathlon-m"):
