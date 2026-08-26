@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { AnnonceStatut, Button, Card, Eyebrow } from "@/components/tcn";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  ATHLETE_LOST_EVENT,
   clearAthlete,
   nomComplet,
   OPEN_PICKER_EVENT,
@@ -172,6 +173,10 @@ export function MaSaison({
           // une simple panne réseau (`TypeError`, pas `ApiError`) : ce
           // serait perdre le choix de quelqu'un dont l'athlète existe bien.
           clearAthlete();
+          // Après `clearAthlete()`, pour que la mise en veille de
+          // `InvitationAthlete` (#588) tienne compte de l'ordre des deux
+          // événements (`ATHLETE_CHANGED_EVENT` d'abord, celui-ci ensuite).
+          window.dispatchEvent(new Event(ATHLETE_LOST_EVENT));
           setEtat("perdu");
         } else {
           setEtat("echec");
