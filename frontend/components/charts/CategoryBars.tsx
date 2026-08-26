@@ -23,6 +23,7 @@ export function CategoryBars({
   categories,
   total,
   hrefFor,
+  highlight,
 }: {
   categories: { name: string; count: number }[];
   total: number;
@@ -32,6 +33,8 @@ export function CategoryBars({
    * il n'y a pas de classement à filtrer en dessous.
    */
   hrefFor?: (name: string) => string;
+  /** Catégorie de l'athlète consultant l'écran (US3, #466) : marquée dans la barre et le résumé, sans effet si absente des catégories affichées. */
+  highlight?: string;
 }) {
   if (categories.length === 0) {
     return <EmptyState bare className="px-0 py-4" title="Catégories non renseignées" />;
@@ -48,7 +51,9 @@ export function CategoryBars({
   const barres =
     reste > 0 ? [...categories, { name: `Autres (${reste})`, count: reste }] : categories;
 
-  const summary = barres.map((c) => `${nomCourt(c.name)} ${pctFr(scale(c.count))} %`).join(", ");
+  const summary = barres
+    .map((c) => `${nomCourt(c.name)} ${pctFr(scale(c.count))} %${c.name === highlight ? " (votre catégorie)" : ""}`)
+    .join(", ");
 
   // Sans lien, la carte est une image et se lit d'un bloc. Avec, elle devient une
   // liste de contrôles : la donner encore pour une image masquerait chaque lien au
@@ -80,6 +85,7 @@ export function CategoryBars({
         // aucun filtre ne saurait la reproduire.
         const estReste = i === categories.length;
         const href = !estReste && hrefFor ? hrefFor(c.name) : null;
+        const isHighlighted = highlight != null && c.name === highlight;
 
         const barre = (
           <>
@@ -124,14 +130,28 @@ export function CategoryBars({
 
         // `minHeight: 24` : plancher tactile WCAG 2.2 2.5.8 — la barre ne fait
         // que 13 px de haut.
-        const ligne = { display: "flex", alignItems: "center", gap: 10, minHeight: 24 } as const;
+        const ligne = {
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          minHeight: 24,
+          // Catégorie de l'athlète consultant l'écran (US3, #466) : seul signal
+          // visuel, sans dépendre de la couleur seule (WCAG 1.4.1).
+          ...(isHighlighted
+            ? { outline: "2px solid var(--tcn-orange)", borderRadius: 8, padding: "2px 4px" }
+            : undefined),
+        } as const;
 
         if (!href) {
           // La barre « Autres » n'est pas activable, mais elle porte du sens : ses
           // trois spans sont `aria-hidden`, donc son nom accessible vient d'ici —
           // sans quoi elle serait un élément de liste muet.
           const contenu = (
-            <div aria-label={hrefFor ? `${nomCourt(c.name)}, ${pctFr(pct)} %` : undefined} style={ligne}>
+            <div
+              aria-label={hrefFor ? `${nomCourt(c.name)}, ${pctFr(pct)} %` : undefined}
+              data-highlighted={isHighlighted ? "true" : undefined}
+              style={ligne}
+            >
               {barre}
             </div>
           );
@@ -154,6 +174,7 @@ export function CategoryBars({
             title={titre}
             aria-label={`${titre} — ${pctFr(pct)} %. Voir ces participants dans le classement.`}
             className="tcn-rowlink"
+            data-highlighted={isHighlighted ? "true" : undefined}
             style={{ ...ligne, color: "inherit", textDecoration: "none" }}
           >
             {barre}
