@@ -273,6 +273,24 @@ describe("AppNav — largeur du rail décidée avant la peinture (#482, NAV-3)",
   });
 });
 
+describe("AppNav — alignement de l'en-tête du rail (#620)", () => {
+  it("cale bouton et logo à gauche une fois le rail déplié, au lieu de les centrer", () => {
+    afficher(null, { initialExpanded: true });
+
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    const bouton = within(rail).getByRole("button", { name: "Replier la navigation" });
+    expect(bouton.parentElement).toHaveStyle({ justifyContent: "flex-start" });
+  });
+
+  it("garde bouton et monogramme centrés une fois le rail replié", () => {
+    afficher(null);
+
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    const bouton = within(rail).getByRole("button", { name: "Déplier la navigation" });
+    expect(bouton.parentElement).toHaveStyle({ justifyContent: "center" });
+  });
+});
+
 describe("AppNav — monogramme du rail replié (#482, NAV-2)", () => {
   it("porte un lien vers /dashboard même rail replié, alors qu'aucune marque n'existait avant", () => {
     afficher(null);
