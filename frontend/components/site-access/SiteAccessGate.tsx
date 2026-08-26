@@ -37,6 +37,7 @@ export function SiteAccessGate({ apres = "rafraichir" }: { apres?: "rafraichir" 
 
   async function soumettre(e: React.FormEvent) {
     e.preventDefault();
+    if (enCours) return;
     setErreur(null);
     setEnCours(true);
     setIndiceReveil(false);
@@ -99,7 +100,19 @@ export function SiteAccessGate({ apres = "rafraichir" }: { apres?: "rafraichir" 
               {erreur}
             </div>
           )}
-          <Button type="submit" disabled={enCours || !password} style={{ width: "100%", marginTop: 16 }}>
+          {/* `aria-busy` plutôt que `disabled` pendant la requête (#644) : un
+              navigateur retire le focus d'un contrôle qui devient désactivé, et
+              l'attente dure ici plusieurs secondes quand le backend Render sort
+              de veille (#622) — le clavier resterait tout ce temps sans point
+              d'accroche. La ré-entrée est gardée en tête de `soumettre`, pas par
+              l'attribut. Même patron que le contrôle en ligne de `FeedbackTable`
+              (§ ADM-10). */}
+          <Button
+            type="submit"
+            disabled={!password}
+            aria-busy={enCours}
+            style={{ width: "100%", marginTop: 16, opacity: enCours ? 0.6 : undefined }}
+          >
             {enCours ? "Connexion…" : "Se connecter"}
           </Button>
           {/* Montée en permanence : une région live insérée seulement à l'apparition
