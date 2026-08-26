@@ -7,6 +7,7 @@ import type {
   Feedback,
   RoleCreate,
   RoleUpdate,
+  ScopeKind,
 } from "@/lib/types";
 
 export function usePendingProviders() {
@@ -520,6 +521,52 @@ export function useGenerateSiteAccessPassword() {
   return useMutation({
     mutationFn: () => apiClient.generateSiteAccessPassword(),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.siteAccessConfig() }),
+  });
+}
+
+// ── Portée des compteurs (#95) ───────────────────────────────────────────────
+
+export function useCounterScope() {
+  return useQuery({
+    queryKey: queryKeys.counterScope(),
+    queryFn: () => apiClient.getCounterScope(),
+    retry: false,
+  });
+}
+
+/**
+ * Après une écriture, **tout** le cache est périmé — et c'est délibéré.
+ *
+ * Déclarer un libellé de club ou exclure une discipline change ce que chaque
+ * compteur du site additionne : classements, tableaux de bord, badges, listes
+ * filtrées. Énumérer les clés concernées reviendrait à tenir à jour, ici, la
+ * liste de tous les écrans qui comptent quelque chose — une liste qui se
+ * périmerait au prochain écran ajouté, en silence et en affichant des chiffres
+ * d'avant la modification.
+ *
+ * Le coût est nul à l'échelle : ces écritures sont rares (quelques par an), et
+ * elles ont lieu dans le back-office, pas sur un chemin chaud.
+ */
+function useInvalidationDeLaPorteeDesCompteurs() {
+  const qc = useQueryClient();
+  return () => qc.invalidateQueries();
+}
+
+export function useAddCounterScopeEntry() {
+  const toutPerimer = useInvalidationDeLaPorteeDesCompteurs();
+  return useMutation({
+    mutationFn: ({ kind, value }: { kind: ScopeKind; value: string }) =>
+      apiClient.addCounterScopeEntry(kind, value),
+    onSuccess: toutPerimer,
+  });
+}
+
+export function useRemoveCounterScopeEntry() {
+  const toutPerimer = useInvalidationDeLaPorteeDesCompteurs();
+  return useMutation({
+    mutationFn: ({ kind, entryId }: { kind: ScopeKind; entryId: number }) =>
+      apiClient.removeCounterScopeEntry(kind, entryId),
+    onSuccess: toutPerimer,
   });
 }
 

@@ -221,6 +221,17 @@ export const NAV: NavSection[] = [
       // de `DeleteCourseDialog`/`WipeCoursesCard` était invérifiable (#501,
       // ADM-5). Pouvoir dédié : le journal couvre des entités que
       // `courses:delete`/`participations:wipe_all` ne gardent pas.
+      // Distincte des Épreuves, et le libellé doit le rester : corriger une
+      // épreuve rectifie une ligne, changer cette configuration redéfinit ce
+      // que **tous** les compteurs additionnent.
+      {
+        id: "a-portee-compteurs",
+        label: "Portée des compteurs",
+        description:
+          "Les orthographes sous lesquelles un chronométreur désigne le club, et les disciplines que les compteurs de triathlon laissent de côté.",
+        href: "/admin/portee-compteurs",
+        permission: "counter_scope:manage",
+      },
       {
         id: "a-journal",
         label: "Journal d'administration",
