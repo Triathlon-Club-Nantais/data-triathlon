@@ -167,7 +167,10 @@ export function MapView({ scope }: { scope?: string }) {
         />
       </div>
       {eventsAffiches.length === 0 && (
-        <Alert status="warning" title="Aucune épreuve à venir">
+        <Alert
+          status="warning"
+          title={periode === "a-venir" ? "Aucune épreuve à venir" : "Aucune épreuve pour ce filtre"}
+        >
           Aucune épreuve géolocalisée ne correspond à ce filtre pour le moment.
         </Alert>
       )}

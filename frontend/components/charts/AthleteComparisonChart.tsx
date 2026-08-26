@@ -97,7 +97,7 @@ export function AthleteComparisonResult({
                 y={groupTop + BAR_HEIGHT + 4}
                 width={xScale(r.theirsSeconds ?? 0)}
                 height={BAR_HEIGHT}
-                fill="var(--tcn-ink-faint, #9a9186)"
+                fill="var(--tcn-ink-3)"
               />
             </g>
           );
@@ -114,7 +114,7 @@ export function AthleteComparisonResult({
           }}
         >
           <span style={{ color: "var(--tcn-orange)" }}>■</span> Vous ·{" "}
-          <span style={{ color: "var(--tcn-ink-faint, #9a9186)" }}>■</span> {theirsName}
+          <span style={{ color: "var(--tcn-ink-3)" }}>■</span> {theirsName}
         </span>
       </div>
 
@@ -212,7 +212,7 @@ export function AthleteComparisonChart({ mine }: { mine: Participation[] }) {
                       borderRadius: 6,
                       fontSize: 14,
                     }}
-                    className="hover:bg-accent"
+                    className="tcn-comparaison-lien hover:bg-accent"
                   >
                     {athlete.prenom} {athlete.nom}
                     {athlete.club ? ` · ${athlete.club}` : ""}
@@ -247,7 +247,7 @@ export function AthleteComparisonChart({ mine }: { mine: Participation[] }) {
                 setTheirs([]);
                 setEtat("idle");
               }}
-              className="text-sm font-semibold text-accent-ink hover:underline"
+              className="tcn-comparaison-lien text-sm font-semibold text-accent-ink hover:underline"
             >
               Changer
             </button>
