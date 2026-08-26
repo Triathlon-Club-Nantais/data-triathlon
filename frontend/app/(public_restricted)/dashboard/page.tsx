@@ -4,6 +4,7 @@ import { apiServer, SHORT_REVALIDATE_SECONDS } from "@/lib/api/server";
 import { SCOPE_CLUB, federalOnlyFromParam } from "@/lib/scope";
 import { DisciplineToggle } from "@/components/layout/DisciplineToggle";
 import { RankTypeToggle } from "@/components/layout/RankTypeToggle";
+import { InvitationAthlete } from "@/components/dashboard/InvitationAthlete";
 import { MaSaison } from "@/components/dashboard/MaSaison";
 import { RecentCourses } from "@/components/dashboard/RecentCourses";
 import { SeasonSelector, SeasonTags } from "@/components/dashboard/SeasonSelector";
@@ -137,8 +138,11 @@ export default async function DashboardPage({
           {/* Au-dessus des compteurs club, à dessein (#502, NAV-9) : l'écran
               d'atterrissage ne parlait que du club en agrégat. La bande n'existe
               que pour qui a désigné son nom — elle se monte donc côté client et
-              n'est pas dans le HTML initial (arbitrage #467, `frontend/AGENTS.md`). */}
+              n'est pas dans le HTML initial (arbitrage #467, `frontend/AGENTS.md`).
+              `InvitationAthlete` (#588) prend le relais, à la même place, pour
+              qui n'a encore rien choisi — les deux sont mutuellement exclusifs. */}
           <MaSaison clubEvents={stats.events} seasons={serializeSeasons(selected)} federalOnly={federal_only} />
+          <InvitationAthlete />
 
           <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,3fr)] lg:items-start">
             <StatCard variant="hero" label="Dossards enregistrés" value={stats.total.toLocaleString("fr-FR")} delta={`${stats.athletes} athlètes · ${stats.events} épreuves`} />
