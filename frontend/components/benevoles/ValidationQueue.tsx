@@ -29,7 +29,7 @@ export function ValidationQueue({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div style={{ display: "flex", gap: 8 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         {/* `minHeight: 28`, `padding` : plancher tactile WCAG 2.2 2.5.8, contre
             ~20 px sans padding avant #479. */}
         <button

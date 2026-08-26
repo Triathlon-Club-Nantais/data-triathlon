@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, Input } from "@/components/tcn";
 import { apiClient } from "@/lib/api/client";
+import { useDebounce } from "@/hooks/useDebounce";
 import type { AthleteBrief } from "@/lib/types";
 
 const nomComplet = (a: AthleteBrief) => `${a.prenom} ${a.nom}`;
@@ -29,45 +30,54 @@ export function ReattributionField({
   const [resultats, setResultats] = useState<AthleteBrief[] | null>(null);
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+  // Anti-rebond sur la requête réseau elle-même (#610) : la saisie partait à
+  // chaque frappe, sans lien avec `hooks/useDebounce.ts`, déjà utilisé par les
+  // recherches d'athlète similaires (`AthleteSearchPicker`,
+  // `ParticipationAdminActions`).
+  const debounced = useDebounce(recherche, 300);
   const requestTokenRef = useRef(0);
 
-  async function rechercher(valeur: string) {
-    setRecherche(valeur);
+  // Sous le seuil, l'état vide s'affiche immédiatement — jamais après le
+  // délai de l'anti-rebond, sinon un résultat resterait affiché le temps
+  // d'effacer le champ. Le token est incrémenté ici aussi : une réponse en
+  // vol pour une recherche plus longue doit être invalidée dès l'effacement,
+  // pas seulement quand l'anti-rebond aura rattrapé la valeur vide (#490,
+  // #513 — le bénévole qui efface doit voir l'état vide, jamais un résultat
+  // stale qui arrive juste après).
+  useEffect(() => {
+    if (recherche.trim().length >= 2) return;
+    requestTokenRef.current++;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setResultats(null);
+    setEnCours(false);
     setErreur(null);
+  }, [recherche]);
 
-    // Incrémenter le token dès le début pour invalider tout ce qui vole.
-    // Un keystroke qui quitte le champ en-dessous de 2 caractères doit aussi
-    // invalider les réponses en vol, pas seulement celles pour la prochaine
-    // recherche. (#490, #513 — le bénévole qui efface doit voir l'état vide,
-    // jamais un résultat stale qui arrive juste après)
+  useEffect(() => {
+    if (debounced.trim().length < 2) return;
+
     const token = ++requestTokenRef.current;
-
-    if (valeur.trim().length < 2) {
-      setResultats(null);
-      setEnCours(false);
-      return;
-    }
-
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setErreur(null);
     setEnCours(true);
-    try {
-      const resultSet = await apiClient.searchAthletesBenevole(valeur);
-      if (token === requestTokenRef.current) {
-        setResultats(resultSet);
-      }
-    } catch {
-      // `null` et non `[]` : rendre une liste vide affichait « aucun coureur
-      // trouvé » sur une recherche **en échec** (relevé en revue de #513), et
-      // le bénévole en concluait que l'athlète n'existe pas.
-      if (token === requestTokenRef.current) {
-        setResultats(null);
-        setErreur("Recherche impossible pour le moment. Réessayez dans un instant.");
-      }
-    } finally {
-      if (token === requestTokenRef.current) {
-        setEnCours(false);
-      }
-    }
-  }
+    apiClient
+      .searchAthletesBenevole(debounced)
+      .then((resultSet) => {
+        if (token === requestTokenRef.current) setResultats(resultSet);
+      })
+      .catch(() => {
+        // `null` et non `[]` : rendre une liste vide affichait « aucun
+        // coureur trouvé » sur une recherche **en échec** (relevé en revue de
+        // #513), et le bénévole en concluait que l'athlète n'existe pas.
+        if (token === requestTokenRef.current) {
+          setResultats(null);
+          setErreur("Recherche impossible pour le moment. Réessayez dans un instant.");
+        }
+      })
+      .finally(() => {
+        if (token === requestTokenRef.current) setEnCours(false);
+      });
+  }, [debounced]);
 
   function choisir(athlete: AthleteBrief) {
     setRecherche("");
@@ -103,7 +113,7 @@ export function ReattributionField({
       <Input
         id="benevole-reattribution"
         value={recherche}
-        onChange={(e) => rechercher(e.target.value)}
+        onChange={(e) => setRecherche(e.target.value)}
         placeholder="Nom du coureur"
         disabled={disabled}
         aria-describedby={erreur ? "benevole-reattribution-erreur" : undefined}
