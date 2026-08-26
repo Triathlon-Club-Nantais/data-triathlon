@@ -326,7 +326,13 @@ export function EventsTable({
         <div
           data-testid="epreuves-grille"
           data-affichage="grille"
-          className="hidden md:block overflow-x-auto"
+          // `min-[1145px]` = MIN_WIDTH (988) + CHROME_RAIL_REPLIE (`lib/utils/table.ts`),
+          // pas le cran Tailwind `md:` (768) : ce dernier rouvrait une bande de
+          // défilement horizontal entre 768 et 1145px (revue UI/UX #461).
+          className="hidden min-[1145px]:block overflow-x-auto"
+          role="region"
+          aria-label="Épreuves, défilement horizontal"
+          tabIndex={0}
         >
           <div style={{ minWidth: MIN_WIDTH }}>
             <table className="tcn-table" role="table">
@@ -427,10 +433,10 @@ export function EventsTable({
           </div>
         </div>
 
-        {/* Sous 768 px, les 988 px de la grille laissaient FORMAT, TEMPS,
-            PLACE et le ⚠ hors écran : la donnée pour laquelle on ouvre un
-            profil était invisible sans geste (#461, WCAG 1.4.10). */}
-        <div data-testid="epreuves-cartes" data-affichage="cartes" className="md:hidden">
+        {/* Sous 1145 px (988 px de grille + CHROME_RAIL_REPLIE), FORMAT, TEMPS,
+            PLACE et le ⚠ sortaient de l'écran : la donnée pour laquelle on
+            ouvre un profil était invisible sans geste (#461, WCAG 1.4.10). */}
+        <div data-testid="epreuves-cartes" data-affichage="cartes" className="min-[1145px]:hidden">
           {ordered.map((p) => {
             const { ratio, unreliableTitle, nonFinisher, sigle, preuve } = rowDerived(p);
             return (

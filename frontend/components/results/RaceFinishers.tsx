@@ -551,8 +551,15 @@ export function RaceFinishers({
       <div
         data-testid="classement-grille"
         data-affichage="grille"
-        className="hidden lg:block overflow-x-auto transition-opacity data-pending:opacity-60"
+        // `min-[1237px]` = MIN_WIDTH (1080) + CHROME_RAIL_REPLIE (`lib/utils/table.ts`),
+        // pas le cran Tailwind `lg:` (1024) : ce dernier ignorait la place prise par
+        // le rail de navigation et les gouttières de page, rouvrant une bande de
+        // défilement horizontal juste au-dessus du seuil (revue UI/UX #461).
+        className="hidden min-[1237px]:block overflow-x-auto transition-opacity data-pending:opacity-60"
         data-pending={pending || undefined}
+        role="region"
+        aria-label="Classement, défilement horizontal"
+        tabIndex={0}
       >
         <div style={{ minWidth: 1080 }}>
           <table className="tcn-table" role="table" aria-labelledby="titre-classement">
@@ -670,7 +677,7 @@ export function RaceFinishers({
       <div
         data-testid="classement-cartes"
         data-affichage="cartes"
-        className="transition-opacity data-pending:opacity-60 lg:hidden"
+        className="transition-opacity data-pending:opacity-60 min-[1237px]:hidden"
         data-pending={pending || undefined}
       >
         {lignes.length > 0 && (

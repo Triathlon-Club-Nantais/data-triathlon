@@ -749,8 +749,8 @@ describe("rendu carte sous md", () => {
     });
     renderList();
 
-    expect(screen.getByTestId("epreuves-grille").className).toContain("hidden md:block");
-    expect(screen.getByTestId("epreuves-cartes").className).toContain("md:hidden");
+    expect(screen.getByTestId("epreuves-grille").className).toContain("hidden min-[1105px]:block");
+    expect(screen.getByTestId("epreuves-cartes").className).toContain("min-[1105px]:hidden");
   });
 
   it("porte l'épreuve, ses compteurs et son lien dans la carte", () => {

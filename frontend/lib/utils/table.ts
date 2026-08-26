@@ -34,3 +34,21 @@ export function gridMinWidth(
   const gutters = Math.max(0, tracks.length - 1);
   return total + gap * gutters + paddingX * 2;
 }
+
+/**
+ * Chrome entre la largeur de viewport et la largeur réellement offerte à une
+ * grille sous `app/(public_restricted)`, rail de navigation **replié** compris
+ * (revue UI/UX #461) : 76px (`--tcn-nav-rail`) + 1px de bordure + 80px de
+ * gouttières (`PageShell`, `md:px-10`, actif à partir de 768px — la seule
+ * plage où ce chrome est consulté). Un seuil de bascule grille/cartes qui
+ * ignore ce chrome affiche la grille avant qu'elle n'ait la place de tenir :
+ * elle défile alors à l'horizontale dans sa propre carte, sans que rien ne
+ * l'indique — exactement le défilement bidirectionnel que #461 corrige.
+ *
+ * Ne couvre pas le rail **déplié** (`--tcn-nav-panel`, 288px, mémorisé par
+ * cookie, #482) : sur cette largeur-là, la bande de défilement réapparaît,
+ * plus étroite. Accepté — la majorité des sessions démarrent repliées — et
+ * atténué par un conteneur `tabIndex`/`role="region"` sur la grille, pour
+ * qu'elle reste au moins atteignable au clavier si la bande existe.
+ */
+export const CHROME_RAIL_REPLIE = 157;
