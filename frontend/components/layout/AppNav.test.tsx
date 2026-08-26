@@ -1037,16 +1037,7 @@ describe("AppNav — barre basse mobile (#482, NAV-4)", () => {
 });
 
 describe("AppNav — tiroir mobile réduit à l'administration et au compte (#482, NAV-4)", () => {
-  it("ne porte plus les sections publiques dans le tiroir, désormais dans la barre basse", async () => {
-    afficher(null);
-    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
-
-    const tiroir = await screen.findByRole("dialog");
-    expect(within(tiroir).queryByRole("link", { name: "Tableau de bord" })).not.toBeInTheDocument();
-    expect(within(tiroir).queryByText("Club")).not.toBeInTheDocument();
-  });
-
-  it("garde les sections privées dans le tiroir pour un connecté habilité", async () => {
+  it("garde les sections privées dans le tiroir pour un connecté habilité, sans y dupliquer les sections publiques", async () => {
     afficher(habilite("pending_providers:read"));
     await userEvent.click(await screen.findByRole("button", { name: "Ouvrir le menu" }));
 
@@ -1056,6 +1047,9 @@ describe("AppNav — tiroir mobile réduit à l'administration et au compte (#48
       "href",
       "/admin/fournisseurs",
     );
+    // Une section privée existe déjà : la barre basse mobile reste l'unique
+    // porteuse des sections publiques, pas de doublon dans le tiroir.
+    expect(within(tiroir).queryByRole("link", { name: "Tableau de bord" })).not.toBeInTheDocument();
   });
 
   it("garde les deux actions primaires en tête du tiroir même réduit", async () => {
@@ -1065,6 +1059,33 @@ describe("AppNav — tiroir mobile réduit à l'administration et au compte (#48
     const tiroir = await screen.findByRole("dialog");
     expect(within(tiroir).getByRole("link", { name: "Ajouter une épreuve" })).toBeInTheDocument();
     expect(within(tiroir).getByRole("button", { name: "Rechercher un athlète" })).toBeInTheDocument();
+  });
+});
+
+describe("AppNav — repli sur les sections publiques quand le tiroir n'a aucune section privée (#621)", () => {
+  /**
+   * La barre basse mobile (#482, NAV-4) qui porte les sections publiques est
+   * masquée pendant que le tiroir est ouvert (le `Sheet` passe par-dessus) :
+   * un visiteur sans section privée — anonyme, ou connecté sans aucun pouvoir
+   * d'administration, la quasi-totalité des adhérents — se retrouvait donc
+   * sans aucune destination à l'écran une fois le tiroir ouvert.
+   */
+  it("affiche les sections publiques dans le tiroir pour un visiteur anonyme", async () => {
+    afficher(null);
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+
+    const tiroir = await screen.findByRole("dialog");
+    expect(within(tiroir).getByRole("link", { name: "Résultats" })).toHaveAttribute("href", "/resultats");
+    expect(within(tiroir).getByText("Club")).toBeInTheDocument();
+  });
+
+  it("affiche les sections publiques dans le tiroir pour un connecté sans aucun pouvoir d'administration", async () => {
+    afficher(SESSION);
+    await waitFor(() => expect(screen.getByRole("button", { name: `Compte — ${SESSION.email}` })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+
+    const tiroir = await screen.findByRole("dialog");
+    expect(within(tiroir).getByRole("link", { name: "Résultats" })).toHaveAttribute("href", "/resultats");
   });
 });
 

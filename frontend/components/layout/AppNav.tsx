@@ -132,9 +132,19 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   // `nav.config.ts` au fil des livraisons futures (ex. « Carte », #10/#28).
   const publicItems = sections.filter((s) => s.minRole === ROLE.ANON).flatMap((s) => s.items);
 
-  // Le tiroir mobile ne garde plus que ce qui exige une session — les
-  // sections publiques vivent désormais dans la barre basse (#482, NAV-4).
+  // Le tiroir mobile ne garde que ce qui exige une session — les sections
+  // publiques vivent désormais dans la barre basse (#482, NAV-4).
   const sectionsPrivees = sections.filter((s) => s.minRole > ROLE.ANON);
+
+  // Repli sur les sections publiques quand il n'y a rien d'autre à montrer
+  // (#621) : la barre basse mobile est masquée pendant que le tiroir est
+  // ouvert (le `Sheet` passe par-dessus), donc un visiteur sans section
+  // privée — anonyme, ou connecté sans aucun pouvoir d'administration, la
+  // quasi-totalité des adhérents — se retrouvait sans aucune destination à
+  // l'écran une fois le tiroir ouvert. Le repli ne joue que si le tiroir
+  // serait sinon vide de catégories, pour ne pas dupliquer la barre basse
+  // chez qui a déjà des sections privées à y voir.
+  const sectionsTiroir = sectionsPrivees.length > 0 ? sectionsPrivees : sections;
 
   /**
    * Un `href` de la nav désigne **un** écran, pas une famille : c'est pourquoi
@@ -378,7 +388,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
             </SheetTitle>
           </div>
 
-          {contenu(true, () => setDrawerOpen(false), sectionsPrivees)}
+          {contenu(true, () => setDrawerOpen(false), sectionsTiroir)}
 
           {/* `pleineLargeur` : dans un tiroir, l'état connecté se déplie à plat —
               un menu déroulant y sortirait du piège de focus. */}
