@@ -1,7 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useDangerConfirm } from "@/components/admin/DangerConfirm";
 import { AccessGate } from "@/components/benevoles/AccessGate";
@@ -12,6 +12,16 @@ import { AnnonceStatut, Eyebrow, Button } from "@/components/tcn";
 import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useEstCompact } from "@/hooks/useEstCompact";
 import type { Participation } from "@/lib/types";
+
+/**
+ * `useLayoutEffect` avertit (sans effet réel) s'il tourne côté serveur ; ce
+ * fichier est `"use client"`, mais Next 16 rend quand même un premier passage
+ * serveur des composants client pour produire le HTML initial. `useEffect`
+ * là où `document` n'existe pas encore ne change rien à l'observable — aucun
+ * rendu serveur ne dépend de `hote` (#609, voir plus bas) — et supprime
+ * l'avertissement.
+ */
+const useEffetDeMiseEnPage = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 /**
  * Page de vérification des résultats par les bénévoles (#271).
@@ -61,7 +71,12 @@ export default function BenevolesPage() {
    * déclarée, et un changement de position aurait re-déclenché exactement
    * le même défaut.
    */
-  const hote = useState(() => (typeof document === "undefined" ? null : document.createElement("div")))[0];
+  // `useState` plutôt que `useRef` : c'est l'initialiseur paresseux qui
+  // garantit une création unique — un `useRef(document.createElement(...))`
+  // recréerait un `<div>` à *chaque* rendu (juste ignoré ensuite par la ref),
+  // coûteux et inutile. Le setter ne sert jamais : `hote` ne change plus une
+  // fois créé, seul son rangement dans le DOM bouge, en dehors de React.
+  const [hote] = useState(() => (typeof document === "undefined" ? null : document.createElement("div")));
   const emplacementFeuilleRef = useRef<HTMLDivElement>(null);
   const emplacementGrilleRef = useRef<HTMLDivElement>(null);
 
@@ -72,7 +87,16 @@ export default function BenevolesPage() {
   // entre-temps. La vérification est bon marché et idempotente (`cible ===
   // hote.parentElement` sort tout de suite une fois le rangement à jour), la
   // laisser tourner à chaque rendu est donc sans coût réel.
-  useEffect(() => {
+  //
+  // `useEffetDeMiseEnPage` (donc `useLayoutEffect` côté client), pas
+  // `useEffect` : celui-ci ne s'exécute qu'après la peinture. Sur une
+  // rotation, React démonte d'abord tout le sous-arbre `<Sheet>` (ou le
+  // monte) dans le même commit — `hote`, alors encore rattaché à l'ancien
+  // ancrage, partirait avec lui, puis réapparaîtrait un instant plus tard,
+  // sans jamais démonter `ParticipationPanel` (donc sans jamais perdre le
+  // brouillon) mais avec un battement visible. `useLayoutEffect` range `hote`
+  // avant que le navigateur ne peigne, ce battement disparaît.
+  useEffetDeMiseEnPage(() => {
     if (!hote) return;
     const cible = compact ? emplacementFeuilleRef.current : emplacementGrilleRef.current;
     if (cible && cible !== hote.parentElement) cible.insertBefore(hote, cible.firstChild);
