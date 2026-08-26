@@ -66,3 +66,30 @@ export function bestRatio(parts: Participation[]): RatioEntry | null {
   }
   return best;
 }
+
+export interface ProgressionPoint {
+  participationId: number;
+  eventDate: string;
+  percent: number;
+}
+
+/**
+ * Série chronologique du ratio de performance, la plus ancienne épreuve en
+ * premier. Exclut les participations sans ratio exploitable et celles sans
+ * date d'épreuve — un point sans date ne peut pas se ranger dans l'ordre
+ * chronologique.
+ */
+export function progressionSeries(parts: Participation[]): ProgressionPoint[] {
+  return parts
+    .map((p) => ({ participation: p, ratio: rankRatio(p).ratio }))
+    .filter(
+      (entry): entry is { participation: Participation; ratio: RankRatio } =>
+        entry.ratio != null && entry.participation.course.event_date != null,
+    )
+    .sort((a, b) => a.participation.course.event_date!.localeCompare(b.participation.course.event_date!))
+    .map((entry) => ({
+      participationId: entry.participation.id,
+      eventDate: entry.participation.course.event_date!,
+      percent: entry.ratio.percent,
+    }));
+}

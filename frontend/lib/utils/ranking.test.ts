@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { rankRatio, bestRatio } from "./ranking";
+import { rankRatio, bestRatio, progressionSeries } from "./ranking";
 import type { Participation } from "@/lib/types";
 
 function part(over: Partial<Participation> & { id: number }): Participation {
@@ -132,5 +132,44 @@ describe("bestRatio", () => {
     const p = part({ id: 1, rank_overall: 3, course_finishers: 300 });
     p.course = { ...p.course, is_reliable: false };
     expect(bestRatio([p])).toBeNull();
+  });
+});
+
+describe("progressionSeries", () => {
+  it("ordonne chronologiquement, du plus ancien au plus récent", () => {
+    const recent = part({ id: 1, rank_overall: 10, course_finishers: 100 });
+    recent.course = { ...recent.course, event_date: "2026-06-01" };
+    const ancien = part({ id: 2, rank_overall: 5, course_finishers: 50 });
+    ancien.course = { ...ancien.course, event_date: "2026-01-10" };
+
+    const series = progressionSeries([recent, ancien]);
+    expect(series.map((point) => point.participationId)).toEqual([2, 1]);
+  });
+
+  it("exclut les participations sans ratio exploitable", () => {
+    const sansRang = part({ id: 1, rank_overall: null, course_finishers: 100 });
+    const avecRatio = part({ id: 2, rank_overall: 5, course_finishers: 50 });
+    avecRatio.course = { ...avecRatio.course, event_date: "2026-01-10" };
+
+    const series = progressionSeries([sansRang, avecRatio]);
+    expect(series).toHaveLength(1);
+    expect(series[0].participationId).toBe(2);
+  });
+
+  it("exclut les participations sans date d'épreuve : l'ordre chronologique n'a pas de sens sans elle", () => {
+    const sansDate = part({ id: 1, rank_overall: 5, course_finishers: 50 });
+    sansDate.course = { ...sansDate.course, event_date: null };
+
+    expect(progressionSeries([sansDate])).toEqual([]);
+  });
+
+  it("renvoie une série vide sur une liste vide", () => {
+    expect(progressionSeries([])).toEqual([]);
+  });
+
+  it("porte le pourcentage de ratio de chaque point", () => {
+    const p = part({ id: 1, rank_overall: 42, course_finishers: 300 });
+    p.course = { ...p.course, event_date: "2026-05-16" };
+    expect(progressionSeries([p])).toEqual([{ participationId: 1, eventDate: "2026-05-16", percent: 14 }]);
   });
 });
