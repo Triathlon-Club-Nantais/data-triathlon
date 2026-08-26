@@ -67,6 +67,41 @@ describe("SiteAccessGate", () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 
+  it("garde le focus clavier pendant la requête et refuse la double soumission (#644)", async () => {
+    let resoudre!: () => void;
+    siteAccessLogin.mockReturnValue(
+      new Promise<null>((resolve) => {
+        resoudre = () => resolve(null);
+      }),
+    );
+    render(<SiteAccessGate />);
+
+    fireEvent.change(screen.getByLabelText(/mot de passe/i), {
+      target: { value: "secret-du-club" },
+    });
+    const bouton = screen.getByRole("button", { name: /se connecter/i });
+    bouton.focus();
+    await act(async () => {
+      fireEvent.click(bouton);
+    });
+
+    // `disabled` retirerait le focus ; `aria-busy` le laisse en place.
+    expect(bouton).not.toBeDisabled();
+    expect(bouton).toHaveAttribute("aria-busy", "true");
+    expect(document.activeElement).toBe(bouton);
+
+    // La ré-entrée est gardée dans le gestionnaire, pas par l'attribut.
+    await act(async () => {
+      fireEvent.click(bouton);
+    });
+    expect(siteAccessLogin).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resoudre();
+      await Promise.resolve();
+    });
+  });
+
   it("affiche un indice de réveil à froid si la connexion dépasse 2,5 s (#622)", async () => {
     vi.useFakeTimers();
     try {
