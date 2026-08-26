@@ -70,6 +70,13 @@ vi.mock("@/components/dashboard/MaSaison", () => ({
   ),
 }));
 
+// `InvitationAthlete` (#588) est un composant client sans props, testé pour
+// lui-même (`components/dashboard/InvitationAthlete.test.tsx`) : ici on ne
+// vérifie que sa présence et sa place dans le document.
+vi.mock("@/components/dashboard/InvitationAthlete", () => ({
+  InvitationAthlete: () => <div data-testid="invitation-athlete-stub" />,
+}));
+
 import DashboardPage from "./page";
 
 const ZERO_BUCKET = { victories: 0, podiums: 0, top10: 0 };
@@ -364,5 +371,31 @@ describe("DashboardPage — bande « Ma saison » (#502, NAV-9)", () => {
     const compteurClub = screen.getByText("Dossards enregistrés");
 
     expect(bande.compareDocumentPosition(compteurClub) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
+describe("DashboardPage — invitation à choisir un athlète (#588)", () => {
+  it("monte l'invitation sur une sélection non vide", async () => {
+    await renderDashboard({});
+
+    expect(screen.getByTestId("invitation-athlete-stub")).toBeInTheDocument();
+  });
+
+  it("ne monte pas l'invitation quand la sélection du club est vide — l'EmptyState porte déjà la sortie", async () => {
+    getStats.mockResolvedValue({ ...STATS, total: 0, athletes: 0, events: 0, by_type: {} });
+    listEvents.mockResolvedValue({ items: [], total_events: 0, total_participations: 0 });
+
+    await renderDashboard({ seasons: "2019" });
+
+    expect(screen.queryByTestId("invitation-athlete-stub")).not.toBeInTheDocument();
+  });
+
+  it("place l'invitation au-dessus de la grille de compteurs club, dans l'ordre du document", async () => {
+    await renderDashboard({});
+
+    const invitation = screen.getByTestId("invitation-athlete-stub");
+    const compteurClub = screen.getByText("Dossards enregistrés");
+
+    expect(invitation.compareDocumentPosition(compteurClub) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
