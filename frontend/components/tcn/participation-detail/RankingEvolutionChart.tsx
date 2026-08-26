@@ -5,6 +5,7 @@ import { line as d3Line, curveMonotoneX } from "d3-shape";
 import type { RankingEvolutionStep } from "@/lib/types";
 import { splitColumnsFromKeys } from "@/lib/utils/splits";
 import { ordinalFr } from "@/lib/utils/format";
+import { formatTickLabel } from "@/lib/utils/histogram-ticks";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card } from "../Card";
 import { Eyebrow } from "../Eyebrow";
@@ -28,6 +29,21 @@ const BOTTOM_GUTTER = 34;
 
 // Nombre de graduations de l'axe des positions, bornes comprises.
 const TICKS = 4;
+
+// Bandeau d'allure (US5, #466) : plus bas que le classement, une seule série.
+const PACE_HEIGHT = 120;
+const PACE_PAD = { top: 10, bottom: 10 };
+const PACE_PLOT_H = PACE_HEIGHT - PACE_PAD.top - PACE_PAD.bottom;
+const PACE_BOTTOM_GUTTER = 30;
+
+/** Secondes → `H:MM:SS`, sans troncature d'heures (ex. 7440 → « 2:04:00 »). */
+function formatClock(totalSeconds: number): string {
+  const total = Math.max(0, Math.round(totalSeconds));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}
 
 // Dimensions réelles de l'infobulle, en px : posée en HTML (#480, fix B), elle
 // n'est plus mise à l'échelle du viewBox — contrairement à l'ancien <text>
@@ -129,7 +145,30 @@ export function RankingEvolutionChart({
     Math.round(top + ((bottom - top) * index) / (TICKS - 1)),
   );
 
+  // Allure (US5, #466) : le backend saute toute étape sans temps cumulé
+  // exploitable (même garde que scratch_position) — `paceSteps` peut donc
+  // être un sous-ensemble de `steps`, y compris vide.
+  const paceSteps = steps
+    .map((step, index) => ({ step, index }))
+    .filter(({ step }) => step.cumulative_seconds != null);
+  const paceMax = paceSteps.length > 0 ? Math.max(...paceSteps.map((p) => p.step.cumulative_seconds!)) : 0;
+  const paceYScale = scaleLinear()
+    .domain([0, Math.max(1, paceMax)])
+    .range([PACE_PAD.top + PACE_PLOT_H, PACE_PAD.top]);
+  const paceYOf = (seconds: number) => paceYScale(seconds);
+  const pacePoints = paceSteps.map(({ step, index }) => ({
+    x: xOf(index),
+    y: paceYOf(step.cumulative_seconds!),
+  }));
+  const paceLine =
+    d3Line<{ x: number; y: number }>()
+      .x((point) => point.x)
+      .y((point) => point.y)
+      .curve(curveMonotoneX)(pacePoints) ?? "";
+  const paceTicks = Array.from({ length: TICKS }, (_, index) => Math.round((paceMax * index) / (TICKS - 1)));
+
   return (
+    <>
     <Card style={{ marginBottom: 24 }}>
       <Eyebrow>Évolution du classement</Eyebrow>
       <div
@@ -364,6 +403,101 @@ export function RankingEvolutionChart({
         </div>
       </div>
     </Card>
+    {paceSteps.length > 0 && (
+      <Card style={{ marginBottom: 24 }}>
+        <Eyebrow>Allure</Eyebrow>
+        <div
+          style={{ position: "relative", paddingLeft: LEFT_GUTTER, paddingBottom: PACE_BOTTOM_GUTTER, marginTop: 12 }}
+        >
+          {paceTicks.map((seconds) => (
+            <span
+              key={seconds}
+              aria-hidden
+              style={{
+                position: "absolute",
+                left: 0,
+                top: paceYOf(seconds) - 7,
+                width: LEFT_GUTTER - 10,
+                textAlign: "right",
+                fontSize: 12,
+                lineHeight: "14px",
+                color: "var(--tcn-text-faint)",
+              }}
+            >
+              {formatTickLabel(seconds)}
+            </span>
+          ))}
+
+          <svg
+            viewBox={`0 0 ${WIDTH} ${PACE_HEIGHT}`}
+            preserveAspectRatio="none"
+            style={{ width: "100%", height: PACE_HEIGHT, display: "block" }}
+            role="img"
+            aria-label={`Allure : ${paceSteps
+              .map(({ step }) => `${(labels.get(step.segment) ?? step.segment).toLowerCase()} ${formatClock(step.cumulative_seconds!)}`)
+              .join(", ")}.`}
+          >
+            {paceTicks.map((seconds) => (
+              <line
+                key={seconds}
+                x1={0}
+                y1={paceYOf(seconds)}
+                x2={PLOT_W}
+                y2={paceYOf(seconds)}
+                stroke="var(--tcn-border-faint)"
+                vectorEffect="non-scaling-stroke"
+              />
+            ))}
+            <path d={paceLine} fill="none" stroke="var(--tcn-orange)" strokeWidth={2.5} vectorEffect="non-scaling-stroke" />
+          </svg>
+
+          {/* Points et temps HTML, hors du SVG (même raison que le classement
+              ci-dessus) : un <text> mis à l'échelle du viewBox devient
+              illisible, et le temps cumulé doit être lisible sans survol
+              (WCAG 1.4.13) — pas d'infobulle ici, la valeur est déjà écrite. */}
+          <div style={{ position: "absolute", left: LEFT_GUTTER, right: 0, top: 0, height: PACE_HEIGHT, pointerEvents: "none" }}>
+            {paceSteps.map(({ step, index }) => (
+              <span
+                key={step.segment}
+                data-role="pace"
+                data-step={step.segment}
+                aria-hidden
+                style={{
+                  position: "absolute",
+                  left: `calc(${(xOf(index) / WIDTH) * 100}% - 5px)`,
+                  top: paceYOf(step.cumulative_seconds!) - 5,
+                  width: 10,
+                  height: 10,
+                  borderRadius: 999,
+                  background: "var(--tcn-orange)",
+                }}
+              />
+            ))}
+          </div>
+
+          <div style={{ position: "absolute", left: LEFT_GUTTER, right: 0, bottom: 0, height: PACE_BOTTOM_GUTTER }}>
+            {paceSteps.map(({ step, index }) => (
+              <span
+                key={step.segment}
+                style={{
+                  position: "absolute",
+                  left: `calc(${(xOf(index) / WIDTH) * 100}% - 50% / ${paceSteps.length})`,
+                  top: 0,
+                  width: `calc(100% / ${paceSteps.length})`,
+                  textAlign: "center",
+                  fontSize: 12,
+                  lineHeight: "15px",
+                  color: "var(--tcn-ink)",
+                }}
+              >
+                {formatClock(step.cumulative_seconds!)}
+              </span>
+            ))}
+          </div>
+        </div>
+      </Card>
+    )}
+    </>
   );
 }
 

@@ -235,6 +235,14 @@ def test_ranking_evolution_ranks_each_segment_in_isolation():
     assert steps["bike"].scratch_position == 2
 
 
+def test_ranking_evolution_exposes_cumulative_seconds():
+    """US5, #466 : temps cumulé déjà calculé pour classer, simplement pas exposé."""
+    steps = _evolution(_evolution_ranking(), 1)
+
+    assert steps["swim"].cumulative_seconds == 1200
+    assert steps["bike"].cumulative_seconds == 4800
+
+
 def test_ranking_evolution_has_one_step_per_published_segment():
     steps = _evolution(_evolution_ranking(), 1)
 

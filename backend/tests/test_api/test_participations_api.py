@@ -267,6 +267,19 @@ def test_stats_comparison_rows_carry_raw_seconds_additively(client, db_session):
     assert set(row["theirs_seconds"]) == set(row["percentages"])
 
 
+def test_stats_ranking_evolution_steps_carry_cumulative_seconds(client, db_session):
+    """US5 (#466) : extension additive de RankingEvolutionStep."""
+    scrape_service.save_one(db_session, _scraped(bib="6", nom="DUPONT"))
+    participation = scrape_service.save_one(db_session, _scraped(bib="7", nom="MARTIN"))
+
+    stats = client.get(f"/api/v1/participations/{participation.id}").json()["stats"]
+
+    assert stats["ranking_evolution"]
+    step = stats["ranking_evolution"][0]
+    assert set(step) == {"segment", "scratch_position", "segment_position", "cumulative_seconds"}
+    assert step["cumulative_seconds"] == 20 * 60
+
+
 def test_stats_ignores_club_membership(client, db_session):
     """FR-004 : les splits sont déjà publics ailleurs, la page n'ajoute aucune confidentialité."""
     participation = scrape_service.save_one(

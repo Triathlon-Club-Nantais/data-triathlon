@@ -13,6 +13,10 @@ class RankingEvolutionStep(BaseModel):
     segment: str
     scratch_position: int
     segment_position: int
+    #: Temps cumulé de l'athlète à la sortie de l'étape, en secondes ; déjà
+    #: calculé pour classer (`_cumulative_seconds`), simplement pas exposé
+    #: avant US5 (#466).
+    cumulative_seconds: int | None = None
 
 
 class ComparisonRow(BaseModel):
