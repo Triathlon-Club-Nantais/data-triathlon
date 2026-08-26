@@ -28,11 +28,15 @@ export function Histogram({
   max,
   startSec,
   bucketSec,
+  markerSec,
 }: {
   bars: number[];
   max: number;
   startSec: number;
   bucketSec: number;
+  /** Temps de l'athlète en secondes, pour un repère sur sa position (US2, #466).
+   *  `null`/`undefined`/hors de `[startSec, endSec]` : aucun repère rendu. */
+  markerSec?: number | null;
 }) {
   const barGap = W / Math.max(1, bars.length);
   const barW = Math.max(4, barGap * 0.72);
@@ -54,11 +58,16 @@ export function Histogram({
     y: BOTTOM - (i / Y_TICKS) * (BOTTOM - TOP),
   }));
 
+  const hasMarker =
+    markerSec != null && bars.length > 0 && markerSec >= startSec && markerSec <= endSec;
+  const markerX = hasMarker ? (secToPct(markerSec!) * W) / 100 : 0;
+
   const summary =
     bars.length === 0
       ? "Distribution des temps d'arrivée : aucune donnée."
       : `Distribution des temps d'arrivée, de ${formatTickLabel(startSec)} à ` +
-        `${formatTickLabel(endSec)}, maximum ${max} finishers sur une tranche.`;
+        `${formatTickLabel(endSec)}, maximum ${max} finishers sur une tranche.` +
+        (hasMarker ? ` Votre temps se situe à ${formatTickLabel(markerSec!)}.` : "");
 
   return (
     <div role="img" aria-label={summary} style={{ position: "relative", paddingLeft: 34, paddingBottom: 20 }}>
@@ -126,7 +135,44 @@ export function Histogram({
             vectorEffect="non-scaling-stroke"
           />
         ))}
+        {hasMarker && (
+          <line
+            data-athlete-marker
+            x1={markerX}
+            y1={TOP}
+            x2={markerX}
+            y2={BOTTOM}
+            stroke="var(--tcn-ink)"
+            strokeWidth={2}
+            strokeDasharray="4 3"
+            vectorEffect="non-scaling-stroke"
+          />
+        )}
       </svg>
+
+      {/* Libellé du repère, dans une rangée dont la largeur épouse celle du
+          SVG (même contrainte que la rangée d'axe X ci-dessous) : `left` s'y
+          exprime en pourcentage de `secToPct`, jamais du conteneur padding
+          compris. */}
+      {hasMarker && (
+        <div style={{ position: "absolute", left: 34, right: 0, top: TOP - 18, height: 14 }}>
+          <span
+            aria-hidden
+            style={{
+              position: "absolute",
+              left: `${secToPct(markerSec!)}%`,
+              transform: "translateX(-50%)",
+              fontSize: 11,
+              fontWeight: 700,
+              color: "var(--tcn-ink)",
+              fontFamily: "var(--tcn-font-body)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Vous
+          </span>
+        </div>
+      )}
 
       {/* Rangée des libellés d'axe X. Sa largeur épouse exactement celle du SVG,
           ce qui est la condition pour qu'une abscisse s'exprime en pourcentage.

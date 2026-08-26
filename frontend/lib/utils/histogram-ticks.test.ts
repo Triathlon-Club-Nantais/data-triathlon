@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildTicks, formatTickLabel, pickTickStep } from "./histogram-ticks";
+import { buildTicks, formatTickLabel, parseTotalTimeSeconds, pickTickStep } from "./histogram-ticks";
 
 // Raccourcis lisibles — secondes = minutes*60, heures*3600.
 const m = (n: number) => n * 60;
@@ -81,5 +81,27 @@ describe("formatTickLabel — format court H:MM (#129 AC1)", () => {
 
   it("arrondit à la seconde entière (les ticks tombent sur des minutes)", () => {
     expect(formatTickLabel(m(75) + 29)).toBe("1:15"); // 29s < 30 → tronqué à la minute
+  });
+});
+
+describe("parseTotalTimeSeconds — repère de l'athlète sur l'histogramme (US2, #466)", () => {
+  it("convertit HH:MM:SS en secondes", () => {
+    expect(parseTotalTimeSeconds("01:23:45")).toBe(h(1) + m(23) + 45);
+  });
+
+  it("gère un temps sous l'heure", () => {
+    expect(parseTotalTimeSeconds("00:45:10")).toBe(m(45) + 10);
+  });
+
+  it("renvoie null sur une valeur absente", () => {
+    expect(parseTotalTimeSeconds(null)).toBeNull();
+    expect(parseTotalTimeSeconds(undefined)).toBeNull();
+    expect(parseTotalTimeSeconds("")).toBeNull();
+  });
+
+  it("renvoie null sur une forme non conforme, jamais NaN", () => {
+    expect(parseTotalTimeSeconds("abc")).toBeNull();
+    expect(parseTotalTimeSeconds("12:34")).toBeNull();
+    expect(parseTotalTimeSeconds("12:34:56:78")).toBeNull();
   });
 });

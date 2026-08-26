@@ -3,10 +3,24 @@ import { render, screen } from "@testing-library/react";
 import type { Participation } from "@/lib/types";
 
 const getParticipation = vi.fn();
+const getCourseSummary = vi.fn();
 const notFound = vi.fn();
 
 vi.mock("@/lib/api/server", () => ({
-  apiServer: { getParticipation: (id: number) => getParticipation(id) },
+  apiServer: {
+    getParticipation: (id: number) => getParticipation(id),
+    getCourseSummary: (id: number) => getCourseSummary(id),
+  },
+}));
+
+vi.mock("@/lib/api/client", () => ({
+  ApiError: class ApiError extends Error {
+    status: number;
+    constructor(status: number, message: string) {
+      super(message);
+      this.status = status;
+    }
+  },
 }));
 
 // Le vrai `notFound()` interrompt le rendu en levant : un mock qui se contente
@@ -64,6 +78,9 @@ async function renderPage(row: Participation | null, courseId = "3") {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Synthèse d'épreuve absente par défaut (#466, US2/US3) : les tests qui ne
+  // portent pas sur l'histogramme n'ont pas à la configurer explicitement.
+  getCourseSummary.mockResolvedValue(null);
 });
 
 const STATS = {
@@ -157,5 +174,27 @@ describe("ParticipationDetailPage", () => {
     await expect(renderPage(null)).rejects.toThrow();
 
     expect(notFound).toHaveBeenCalled();
+  });
+
+  it("affiche l'histogramme des temps avec le repère de l'athlète quand la synthèse est disponible (US2, #466)", async () => {
+    getCourseSummary.mockResolvedValue({
+      histogram: { bars: [2, 5, 3], start_sec: 0, bucket_sec: 1800 },
+    });
+
+    await renderPage(participation({ stats: null, total_time: "00:22:31" }));
+
+    expect(
+      screen.getByRole("img", { name: /distribution des temps.*votre temps/is }),
+    ).toBeTruthy();
+  });
+
+  it("n'affiche pas de bloc histogramme quand la synthèse d'épreuve est indisponible", async () => {
+    getCourseSummary.mockRejectedValue(
+      new (await import("@/lib/api/client")).ApiError(404, "not found"),
+    );
+
+    await renderPage(participation({ stats: null }));
+
+    expect(screen.queryByText(/distribution des temps/i)).toBeNull();
   });
 });
