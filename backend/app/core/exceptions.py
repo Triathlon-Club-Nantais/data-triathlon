@@ -83,6 +83,22 @@ class DuplicateError(DomainError):
     message = "Cette ressource existe déjà"
 
 
+class LastClubLabelError(DomainError):
+    """Retrait du dernier libellé reconnu comme libellé du club (#95).
+
+    409 et non 400 : la demande est bien formée, c'est l'état de la ressource
+    qui s'y oppose. Sans aucun libellé, plus rien n'est compté comme résultat du
+    club et tous les compteurs du club tombent à zéro — sans erreur, sans trace,
+    et en ressemblant à un tableau de bord légitimement vide.
+    """
+
+    status_code = 409
+    message = (
+        "Au moins un libellé de club doit rester : sans lui, aucun résultat "
+        "ne serait compté comme résultat du club."
+    )
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Branche les handlers d'exceptions domaine sur l'application FastAPI."""
 

@@ -22,7 +22,8 @@ from pathlib import Path
 import httpx
 import pytest
 
-from app.core.club import TCN_CLUB_LABELS, is_tcn
+from app.core.club import is_tcn
+from app.core.counter_scope import DEFAULT_TCN_CLUB_LABELS
 from app.scrapers import sporthive
 from app.scrapers.base import (
     STATUS_DNF,
@@ -970,17 +971,18 @@ def test_the_module_never_reimplements_club_membership():
     not "a second implementation" but any mention **in the code**: no label, no
     predicate, not even an import of the module that owns them.
 
-    Derived from `TCN_CLUB_LABELS`, so adding a variant there extends this guard
-    on its own.
+    Derived from `counter_scope.DEFAULT_TCN_CLUB_LABELS` — the labels the code
+    ships with. The live list now lives in the database (#95), and a guard that
+    read it would only be as strong as the row a test happened to seed.
     """
     litteraux = " | ".join(_litteraux_de_code(sporthive)).lower()
     identifiants = _identifiants_de_code(sporthive)
 
-    for libelle in TCN_CLUB_LABELS:
+    for libelle in DEFAULT_TCN_CLUB_LABELS:
         assert libelle.lower() not in litteraux, libelle
     assert "nantais" not in litteraux
     # Neither the predicate, nor its SQL twin, nor the module holding them.
-    assert not identifiants & {"is_tcn", "tcn_clause", "normalize_club", "TCN_CLUB_LABELS", "club"}
+    assert not identifiants & {"is_tcn", "tcn_clause", "normalize_club", "counter_scope", "club"}
 
 
 # ── T025–T028 (US3) — a link that can't be imported names its cause ──────────

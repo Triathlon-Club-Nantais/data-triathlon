@@ -91,6 +91,34 @@ def _warn_if_auth_unconfigured() -> None:
         )
 
 
+def _load_counter_scope() -> None:
+    """Remplit le registre de la portée des compteurs depuis la base (#95).
+
+    Au démarrage, donc **après** `alembic upgrade head` — les deux tiennent dans
+    le même `startCommand` (`render.yaml`), dans cet ordre : la table et son
+    amorçage existent quand cette fonction s'exécute.
+
+    Une base injoignable au démarrage ne doit pas empêcher l'application de
+    monter : le registre garde alors ses défauts, qui sont les valeurs d'avant
+    la bascule. Un démarrage qui échouerait ici transformerait une panne de base
+    passagère en indisponibilité totale, là où le pire cas est de lire une
+    configuration périmée jusqu'au prochain redémarrage — et l'avertissement
+    dit exactement cela.
+    """
+    from app.core.database import session_scope
+    from app.services import counter_scope
+
+    try:
+        with session_scope() as db:
+            counter_scope.load_from_db(db)
+    except Exception:  # pragma: no cover — panne de base au démarrage
+        logger.warning(
+            "Counter scope configuration could not be read from the database; "
+            "falling back to the built-in defaults until the next restart.",
+            exc_info=True,
+        )
+
+
 def create_app() -> FastAPI:
     setup_logging()
     settings = get_settings()
@@ -105,6 +133,7 @@ def create_app() -> FastAPI:
             host=settings.posthog_host,
             debug=settings.is_sqlite,
         )
+        _load_counter_scope()
         yield
         shutdown_posthog()
 

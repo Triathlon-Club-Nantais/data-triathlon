@@ -6,37 +6,29 @@ membres : légitime à conserver, mais ces résultats gonflent des compteurs qu'
 lit comme des compteurs de triathlon (issue #76). D'où la partition.
 
 **Liste d'exclusion, pas d'inclusion** : est fédéral tout ce qui n'est pas
-explicitement listé ici. Une discipline future entre donc dans les compteurs par
+explicitement exclu. Une discipline future entre donc dans les compteurs par
 défaut, comme le repli du classifieur retombe déjà sur `triathlon`
 (`app/scrapers/classify.py`). Le contraire ferait disparaître des résultats sans
-que personne ne s'en aperçoive.
+que personne ne s'en aperçoive. La règle est ici ; **la liste, elle, vit en base
+et s'édite depuis le panel admin** (#95) — `core/counter_scope.py` en porte
+l'image en mémoire, et c'est la seule source que ce module lit.
 
 Les slugs sont comparés **entiers** des deux côtés (Python et SQL) : sur ce
-terrain, les deux implémentations ne peuvent pas diverger. Cette garantie
-suppose toutefois un `event_type` non-`NULL` — `is_federal(None)` rend `True`
-alors qu'un `NULL NOT IN (...)` SQL rend `NULL` (donc une ligne écartée) — ce
-qu'assure la colonne `Course.event_type`, `NOT NULL` en base.
+terrain, les deux implémentations ne peuvent pas diverger. Elles lisent en outre
+le même registre, ce qui étend la garantie à toute configuration et pas
+seulement à celle livrée. Elle suppose toutefois un `event_type` non-`NULL` —
+`is_federal(None)` rend `True` alors qu'un `NULL NOT IN (...)` SQL rend `NULL`
+(donc une ligne écartée) — ce qu'assure la colonne `Course.event_type`,
+`NOT NULL` en base.
 """
-
-#: Slugs canoniques (cf. `classify.CANONICAL_TYPES`) hors fédération triathlon.
-NON_FEDERAL_TYPES: frozenset[str] = frozenset({
-    "trail",
-    "cyclisme",
-    "cyclisme-route",
-    "cyclisme-clm",
-    "course-a-pied",
-    "course-a-pied-5k",
-    "course-a-pied-10k",
-    "course-a-pied-semi",
-    "course-a-pied-marathon",
-})
+from app.core import counter_scope
 
 
 def is_federal(event_type: str | None) -> bool:
     """Vrai si `event_type` relève d'une discipline de la fédération triathlon."""
-    return (event_type or "") not in NON_FEDERAL_TYPES
+    return (event_type or "") not in counter_scope.non_federal_disciplines()
 
 
 def federal_clause(column):
     """Clause SQLAlchemy : `column` (un `event_type`) est une discipline fédérale."""
-    return column.notin_(sorted(NON_FEDERAL_TYPES))
+    return column.notin_(sorted(counter_scope.non_federal_disciplines()))

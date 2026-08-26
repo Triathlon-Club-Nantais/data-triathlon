@@ -1,6 +1,7 @@
 import pytest
 
-from app.core.discipline import NON_FEDERAL_TYPES, is_federal
+from app.core.counter_scope import DEFAULT_NON_FEDERAL_DISCIPLINES as NON_FEDERAL_TYPES
+from app.core.discipline import is_federal
 from app.scrapers.classify import CANONICAL_TYPES
 
 FEDERALES = [

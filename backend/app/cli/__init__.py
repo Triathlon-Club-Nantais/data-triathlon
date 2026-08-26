@@ -34,6 +34,24 @@ app.command("rescrape-db")(rescrape_db)
 app.command("revoke-sessions")(revoke_sessions)
 
 
+def load_counter_scope() -> None:
+    """Remplit le registre de la portée des compteurs depuis la base (#95).
+
+    Appelé par le point d'entrée `python -m app.cli` (`__main__.py`), comme
+    `configure_cli_logging` et pour la même raison : remplir un registre de
+    processus est le rôle du process, pas d'une bibliothèque importée.
+
+    Sans ce chargement, `is_tcn` et `is_federal` se prononceraient sur les
+    défauts du code plutôt que sur ce qui est configuré — `club-labels`
+    signalerait comme manquant un libellé déclaré depuis le panel admin.
+    """
+    from app.core.database import session_scope
+    from app.services import counter_scope
+
+    with session_scope() as db:
+        counter_scope.load_from_db(db)
+
+
 def configure_cli_logging() -> None:
     """Logs de la CLI sur **stderr**, horodatés (utile en cron), jamais sur stdout.
 
@@ -44,4 +62,4 @@ def configure_cli_logging() -> None:
     setup_logging(stream=sys.stderr)
 
 
-__all__ = ["app", "configure_cli_logging"]
+__all__ = ["app", "configure_cli_logging", "load_counter_scope"]
