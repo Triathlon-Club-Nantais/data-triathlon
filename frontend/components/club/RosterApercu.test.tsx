@@ -2,18 +2,17 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { RosterApercu } from "./RosterApercu";
 import { writeAthlete } from "@/components/layout/AthletePicker";
-import type { RosterEntry } from "@/lib/utils/club-aggregate";
+import type { ClubRosterEntry } from "@/lib/types";
 
-function entry(over: Partial<RosterEntry> & { athleteId: number }): RosterEntry {
+function entry(over: Partial<ClubRosterEntry> & { athlete_id: number }): ClubRosterEntry {
   return {
-    name: `Athlète ${over.athleteId}`,
-    gender: "F",
-    club: "TCN",
+    prenom: "P",
+    nom: `Athlète ${over.athlete_id}`,
     count: 1,
     podiums: 0,
-    podiumsByScope: { overall: 0, gender: 0, category: 0 },
-    lastDate: null,
-    lastEvent: null,
+    podiums_overall: 0,
+    podiums_gender: 0,
+    podiums_category: 0,
     ...over,
   };
 }
@@ -39,72 +38,31 @@ describe("RosterApercu — retrouver sa ligne (#504)", () => {
   });
 
   it("ne marque aucune fiche et n'affiche pas de rappel quand aucun athlète n'est retenu", () => {
-    const roster = [entry({ athleteId: 1, count: 3 }), entry({ athleteId: 2, count: 2 })];
-    render(<RosterApercu roster={roster} apercuTaille={12} />);
+    const roster = [entry({ athlete_id: 1, count: 3 }), entry({ athlete_id: 2, count: 2 })];
+    render(<RosterApercu roster={roster} />);
 
     expect(screen.queryByText("Vous")).not.toBeInTheDocument();
-    expect(screen.queryByText(/du club/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/n'êtes pas parmi/)).not.toBeInTheDocument();
   });
 
   it("marque ma fiche d'un chip, sans rappel, quand elle est dans l'aperçu", () => {
     writeAthlete({ id: 2, prenom: "P", nom: "Athlète 2" });
-    const roster = [entry({ athleteId: 1, count: 3 }), entry({ athleteId: 2, count: 2 })];
-    render(<RosterApercu roster={roster} apercuTaille={12} />);
+    const roster = [entry({ athlete_id: 1, count: 3 }), entry({ athlete_id: 2, count: 2 })];
+    render(<RosterApercu roster={roster} />);
 
     const marque = screen.getByText("Vous");
     expect(marque.closest("a")).toHaveTextContent("Athlète 2");
-    expect(screen.queryByText(/du club/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/n'êtes pas parmi/)).not.toBeInTheDocument();
   });
 
-  it("affiche un rappel épinglé, lien vers /club/athletes ancré, quand je suis hors de l'aperçu", () => {
-    const roster = Array.from({ length: 12 }, (_, i) =>
-      entry({ athleteId: i + 1, count: 12 - i + 1 }),
-    );
-    roster.push(entry({ athleteId: 99, count: 1, lastDate: "2023-05-10" }));
+  it("affiche un rappel générique, lien vers /club/athletes ancré, quand je suis hors de l'aperçu", () => {
+    const roster = Array.from({ length: 12 }, (_, i) => entry({ athlete_id: i + 1, count: 12 - i + 1 }));
     writeAthlete({ id: 99, prenom: "M", nom: "Moi" });
 
-    render(<RosterApercu roster={roster} apercuTaille={12} />);
+    render(<RosterApercu roster={roster} />);
 
     expect(screen.queryByText("Vous")).not.toBeInTheDocument();
-    const rappel = screen.getByRole("link", { name: /Vous : 1 épreuve — 13ᵉ du club/ });
-    // La saison ciblée est celle de ma dernière participation (2022-2023, la
-    // date étant en mai) — /club/athletes s'ouvre par défaut sur la saison en
-    // cours, et `roster` agrège toutes les saisons (#487) : sans ce
-    // paramètre, l'ancre viserait une ligne absente de la page d'arrivée.
-    expect(rappel).toHaveAttribute("href", "/club/athletes?seasons=2022#athlete-99");
-  });
-
-  it("pas de rappel quand je suis exactement au seuil (12ᵉ, dans l'aperçu)", () => {
-    const roster = Array.from({ length: 12 }, (_, i) =>
-      entry({ athleteId: i + 1, count: 12 - i + 1 }),
-    );
-    writeAthlete({ id: 12, prenom: "M", nom: "Athlète 12" });
-
-    render(<RosterApercu roster={roster} apercuTaille={12} />);
-
-    expect(screen.queryByText(/du club/)).not.toBeInTheDocument();
-  });
-
-  it("aucun highlight ni rappel quand l'athlète retenu n'est pas dans ce roster", () => {
-    const roster = [entry({ athleteId: 1, count: 3 }), entry({ athleteId: 2, count: 2 })];
-    writeAthlete({ id: 404, prenom: "Absent", nom: "DuClub" });
-
-    render(<RosterApercu roster={roster} apercuTaille={12} />);
-
-    expect(screen.queryByText("Vous")).not.toBeInTheDocument();
-    expect(screen.queryByText(/du club/)).not.toBeInTheDocument();
-  });
-
-  it("sans date de dernière participation, le lien reste ancré sans paramètre de saison", () => {
-    const roster = Array.from({ length: 12 }, (_, i) =>
-      entry({ athleteId: i + 1, count: 12 - i + 1 }),
-    );
-    roster.push(entry({ athleteId: 99, count: 1, lastDate: null }));
-    writeAthlete({ id: 99, prenom: "M", nom: "Moi" });
-
-    render(<RosterApercu roster={roster} apercuTaille={12} />);
-
-    const rappel = screen.getByRole("link", { name: /Vous : 1 épreuve — 13ᵉ du club/ });
+    const rappel = screen.getByRole("link", { name: /n'êtes pas parmi les 12 athlètes/ });
     expect(rappel).toHaveAttribute("href", "/club/athletes#athlete-99");
   });
 });

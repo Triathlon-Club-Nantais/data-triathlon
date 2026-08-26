@@ -82,10 +82,12 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
 
   // Rang calculé sur la liste **complète**, triée par volume et non filtrée
   // par la recherche — jamais sur `sort` : « 41ᵉ du club » promet un rang de
-  // club, cohérent avec le rappel de `/club` (toujours trié par volume,
-  // `buildRoster`, aucun bouton de tri) ; le laisser suivre le tri
-  // d'affichage ferait mentir le mot « club » dès qu'on bascule sur le tri
-  // alphabétique (revue de code, #504).
+  // club, cohérent avec l'ordre de `club_roster` (backend, #581), toujours
+  // trié par volume ; le laisser suivre le tri d'affichage ferait mentir le
+  // mot « club » dès qu'on bascule sur le tri alphabétique (revue de code,
+  // #504). Le rappel de `/club` lui-même reste générique, sans numéro de
+  // rang : son roster arrive déjà plafonné côté SQL, `RosterApercu` n'a donc
+  // pas de liste complète où chercher un rang au-delà de l'aperçu.
   const rangComplet = sortAthletes(athletes, SORT_DEFAULT);
   const rang = athleteRetenu
     ? trouverRang(athleteRetenu.id, rangComplet.map((a) => a.id))
