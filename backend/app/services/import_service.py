@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session
 
+from app.core.club import is_tcn
 from app.core.config import Settings
 from app.core.database import SessionLocal
 from app.core.exceptions import InvalidUrlError, ProviderNotSupportedError, ScraperError
@@ -624,15 +625,24 @@ class _Persister:
     def finalize(self) -> None:
         for course_id, course in self._courses.items():
             course_repository.touch_scraped_at(self.db, course)
-            report = quality.analyze(
-                participation_repository.list_for_course(self.db, course_id),
-                duplicate_bibs=self._duplicate_bibs[course_id],
-            )
+            # `list_for_course` n'applique pas `validated_clause` (#270) — c'est
+            # le chemin d'import, pas d'affichage — donc filtrée ici pour les
+            # deux compteurs dénormalisés (#623), sur la même définition que
+            # `_apply_filters`/`validated_clause`.
+            rows = participation_repository.list_for_course(self.db, course_id)
+            report = quality.analyze(rows, duplicate_bibs=self._duplicate_bibs[course_id])
             course_repository.set_quality(
                 self.db,
                 course,
                 is_reliable_computed=report.is_reliable,
                 quality_issues=report.anomalies,
+            )
+            validees = [row for row in rows if not row.is_pending_validation]
+            course_repository.set_counts(
+                self.db,
+                course,
+                participation_count=len(validees),
+                tcn_count=sum(1 for row in validees if is_tcn(row.club)),
             )
 
 

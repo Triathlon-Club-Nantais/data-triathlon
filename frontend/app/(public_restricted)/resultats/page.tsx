@@ -1,4 +1,4 @@
-import { apiServer } from "@/lib/api/server";
+import { apiServer, SHORT_REVALIDATE_SECONDS } from "@/lib/api/server";
 import { scopeFromParam } from "@/lib/scope";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
@@ -26,7 +26,10 @@ export default async function ResultatsPage({
   };
 
   // Page 1 récupérée côté serveur : compteurs honnêtes + données initiales (pas de flash).
-  const firstPage = await apiServer.listEvents({ ...filters, page: 1, page_size: EVENTS_PAGE_SIZE });
+  const firstPage = await apiServer.listEvents(
+    { ...filters, page: 1, page_size: EVENTS_PAGE_SIZE },
+    { revalidateSeconds: SHORT_REVALIDATE_SECONDS },
+  );
   const { total_events, total_participations } = firstPage;
 
   return (

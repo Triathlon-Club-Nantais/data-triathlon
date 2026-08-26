@@ -286,6 +286,32 @@ def season_clause(seasons: list[int]):
     )
 
 
+def _apply_course_filters(
+    q, db, *, event_type, event_name, date_from, date_to, seasons, federal_only
+):
+    """Les filtres qui ne portent que sur `Course` — jamais sur une jointure.
+
+    Extrait d'`_apply_filters` pour `events_page`/`events_with_counts` (#623) :
+    ces six-là suffisent à filtrer `Course` seule, contrairement à `name`
+    (`Athlete`) et `club_only` (`Participation.club`), qui exigent la
+    jointure et sont incompatibles avec la lecture directe des compteurs
+    dénormalisés — cf. `_events_query_fast`.
+    """
+    if event_type:
+        q = q.filter(Course.event_type == event_type)
+    if event_name:
+        q = q.filter(_course_name_filter(db, event_name))
+    if date_from:
+        q = q.filter(Course.event_date >= date_from)
+    if date_to:
+        q = q.filter(Course.event_date <= date_to)
+    if seasons:
+        q = q.filter(season_clause(seasons))
+    if federal_only:
+        q = q.filter(federal_clause(Course.event_type))
+    return q
+
+
 def _apply_filters(
     q,
     db,
@@ -316,18 +342,16 @@ def _apply_filters(
         q = q.filter(name_filter(name))
     if club_only:
         q = q.filter(tcn_clause(Participation.club))
-    if event_type:
-        q = q.filter(Course.event_type == event_type)
-    if event_name:
-        q = q.filter(_course_name_filter(db, event_name))
-    if date_from:
-        q = q.filter(Course.event_date >= date_from)
-    if date_to:
-        q = q.filter(Course.event_date <= date_to)
-    if seasons:
-        q = q.filter(season_clause(seasons))
-    if federal_only:
-        q = q.filter(federal_clause(Course.event_type))
+    q = _apply_course_filters(
+        q,
+        db,
+        event_type=event_type,
+        event_name=event_name,
+        date_from=date_from,
+        date_to=date_to,
+        seasons=seasons,
+        federal_only=federal_only,
+    )
     return q
 
 
@@ -881,6 +905,51 @@ def _grouped_events_query(
     )
 
 
+def _events_query_fast(
+    db: Session,
+    *,
+    event_type=None,
+    event_name=None,
+    date_from=None,
+    date_to=None,
+    seasons=None,
+    federal_only=False,
+):
+    """Même forme de ligne que `_grouped_events_query`, lue sur les compteurs
+    dénormalisés de `Course` (#623) — **aucune jointure** `Participation`/
+    `Athlete`, donc valable seulement sans `name` ni `club_only` : les deux
+    filtrent au niveau de la participation, avant l'agrégat, ce qu'un compteur
+    déjà agrégé par épreuve ne peut plus reproduire (cf. `events_page`).
+
+    `Course.participation_count > 0` reproduit l'exclusion que la jointure
+    interne de `_grouped_events_query` fait par construction : une épreuve
+    sans aucune participation validée (#270) n'y apparaît jamais, faute de
+    ligne `Participation` à joindre.
+    """
+    q = db.query(
+        Course.id.label("course_id"),
+        Course.name.label("event_name"),
+        Course.event_date.label("event_date"),
+        Course.event_type.label("event_type"),
+        Course.is_relay.label("is_relay"),
+        Course.distance_km.label("distance_km"),
+        Course.is_reliable.label("is_reliable"),
+        Course.quality_issues.label("quality_issues"),
+        Course.participation_count.label("total"),
+        Course.tcn_count.label("tcn_count"),
+    ).filter(Course.participation_count > 0)
+    return _apply_course_filters(
+        q,
+        db,
+        event_type=event_type,
+        event_name=event_name,
+        date_from=date_from,
+        date_to=date_to,
+        seasons=seasons,
+        federal_only=federal_only,
+    )
+
+
 def events_with_counts(
     db: Session,
     *,
@@ -893,9 +962,24 @@ def events_with_counts(
     seasons: list[int] | None = None,
     federal_only: bool = False,
 ) -> list:
-    """Épreuves distinctes avec total participants et compte TCN (non paginé — carte/stats)."""
-    return (
-        _grouped_events_query(
+    """Épreuves distinctes avec total participants et compte TCN (non paginé — carte/stats).
+
+    Chemin rapide (#623) sans `name` ni `club_only` : lit les compteurs
+    dénormalisés de `Course`, sans jointure `Participation`/`Athlete` — cf.
+    `_events_query_fast`.
+    """
+    if name is None and not club_only:
+        q = _events_query_fast(
+            db,
+            event_type=event_type,
+            event_name=event_name,
+            date_from=date_from,
+            date_to=date_to,
+            seasons=seasons,
+            federal_only=federal_only,
+        )
+    else:
+        q = _grouped_events_query(
             db,
             name=name,
             event_type=event_type,
@@ -906,9 +990,7 @@ def events_with_counts(
             seasons=seasons,
             federal_only=federal_only,
         )
-        .order_by(Course.event_date.desc().nullslast(), Course.name)
-        .all()
-    )
+    return q.order_by(Course.event_date.desc().nullslast(), Course.name).all()
 
 
 def _events_order(db: Session, sort: str, event_name: str | None):
@@ -959,7 +1041,50 @@ def events_page(
     page: int = 1,
     page_size: int = 30,
 ) -> dict:
-    """Page d'épreuves (scroll infini) + total épreuves et total participations."""
+    """Page d'épreuves (scroll infini) + total épreuves et total participations.
+
+    **Chemin rapide (#623), sans `name` ni `club_only`** — le cas par défaut de
+    `/resultats` et de son défilement infini. `_grouped_events_query` joint
+    `Participation ⋈ Athlete ⋈ Course` et agrège **tout** l'ensemble filtré
+    avant d'appliquer `OFFSET/LIMIT` : rendre 30 lignes de la page 3 coûte
+    alors autant que rendre le classement entier, un coût proportionnel au
+    nombre de participations filtrées et non à `page_size` (mesuré : 6 s sur
+    la preview au chargement initial). `_events_query_fast` lit à la place les
+    compteurs dénormalisés de `Course` (#623), sans aucune jointure.
+
+    `name`/`club_only` restent sur l'ancien chemin, plus lent mais correct :
+    ils filtrent au niveau de la participation, avant l'agrégat par épreuve,
+    ce qu'un compteur déjà agrégé ne peut pas reproduire.
+    """
+    offset = (page - 1) * page_size
+    if name is None and not club_only:
+        q = _events_query_fast(
+            db,
+            event_type=event_type,
+            event_name=event_name,
+            date_from=date_from,
+            date_to=date_to,
+            seasons=seasons,
+            federal_only=federal_only,
+        )
+        totals = q.with_entities(
+            func.count(Course.id).label("total_events"),
+            func.coalesce(func.sum(Course.participation_count), 0).label("total_participations"),
+        ).one()
+        total_events = totals.total_events or 0
+        total_participations = totals.total_participations or 0
+        rows = (
+            q.order_by(*_events_order(db, sort, event_name))
+            .offset(offset)
+            .limit(page_size)
+            .all()
+        )
+        return {
+            "items": rows,
+            "total_events": int(total_events),
+            "total_participations": int(total_participations),
+        }
+
     grouped = _grouped_events_query(
         db,
         name=name,
@@ -997,7 +1122,6 @@ def events_page(
     total_events = counts.total_events or 0
     total_participations = counts.total_participations or 0
 
-    offset = (page - 1) * page_size
     rows = (
         grouped.order_by(*_events_order(db, sort, event_name))
         .offset(offset)

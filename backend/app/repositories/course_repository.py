@@ -362,6 +362,38 @@ def set_quality(
     course.quality_issues = quality_issues
 
 
+def set_counts(db: Session, course: Course, *, participation_count: int, tcn_count: int) -> None:
+    """Écrit les deux compteurs dénormalisés (#623) — recalcul complet, pour
+    l'import qui tient déjà en mémoire l'ensemble des participations de la
+    course (`_Persister.finalize`)."""
+    course.participation_count = participation_count
+    course.tcn_count = tcn_count
+
+
+def adjust_counts(db: Session, course: Course, *, participation_delta: int, tcn_delta: int) -> None:
+    """Ajuste les deux compteurs d'un delta — pour un geste qui touche une
+    seule participation (`admin_actions.validate_participation`/
+    `.delete_participation`), plutôt qu'un recalcul complet évité à dessein :
+    aucune requête supplémentaire, pas de risque de diverger de l'état qui
+    vient d'être lu.
+    """
+    course.participation_count = max(0, course.participation_count + participation_delta)
+    course.tcn_count = max(0, course.tcn_count + tcn_delta)
+
+
+def zero_counts_all(db: Session) -> int:
+    """Remet les deux compteurs à zéro sur **toutes** les épreuves. Rend le
+    nombre touché — même patron que `reset_scraped_at_all`, appelée juste à
+    côté par `wipe_all_participations` (#384) : `Course` reste intacte, seuls
+    ses agrégats retombent avec les participations qu'ils comptaient.
+    """
+    touchees = db.query(Course).update(
+        {Course.participation_count: 0, Course.tcn_count: 0}, synchronize_session=False
+    )
+    db.flush()
+    return touchees
+
+
 def _filtered(
     db: Session,
     *,

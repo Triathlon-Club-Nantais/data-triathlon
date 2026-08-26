@@ -47,6 +47,12 @@ def _duo(db_session, event_type="triathlon-m"):
         club="TCN", status="finisher", rank_overall=2, total_time="01:10:00",
         is_pending_validation=False,
     )
+    # Compteurs dénormalisés (#623) : cette fixture crée les participations
+    # directement, hors du chemin d'import qui les tient à jour d'ordinaire
+    # (`_Persister.finalize`) — même patron que `is_reliable_computed`/
+    # `quality_issues` (#486), posés directement par les fixtures qui en ont
+    # besoin plutôt que rejoués par un import complet. Seule `validee` compte.
+    course_repository.set_counts(db_session, course, participation_count=1, tcn_count=1)
     db_session.flush()
     return course, pendante, validee
 
@@ -139,6 +145,10 @@ def test_une_participation_validee_apres_coup_entre_dans_les_cinq_sites(db_sessi
     course, pendante, _ = _duo(db_session)
 
     pendante.is_pending_validation = False
+    # Compteurs dénormalisés (#623) : ce test bascule le champ directement,
+    # hors d'`admin_actions.validate_participation` (le point d'écriture réel
+    # qui ajuste les compteurs) — même geste répété ici pour cette fixture.
+    course_repository.adjust_counts(db_session, course, participation_delta=1, tcn_delta=1)
     db_session.flush()
 
     assert len(participation_repository.list_participations(db_session, course_id=course.id)) == 2

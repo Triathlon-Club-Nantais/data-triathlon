@@ -23,6 +23,8 @@ def _seed(db):
     )
     participation_repository.create(db, athlete_id=a1.id, course_id=c.id, bib_number="1", club="TCN")
     participation_repository.create(db, athlete_id=a2.id, course_id=c.id, bib_number="2", club="ASPTT")
+    # Compteur dénormalisé (#623) : posé directement, fixture hors import.
+    course_repository.set_counts(db, c, participation_count=2, tcn_count=1)
     db.flush()
 
 

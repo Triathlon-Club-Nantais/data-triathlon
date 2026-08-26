@@ -355,6 +355,8 @@ def test_la_liste_des_epreuves_porte_la_fiabilite(client, db_session):
         status="finisher",
         total_time="01:00:00",
     )
+    # Compteur dénormalisé (#623) : posé directement, fixture hors import.
+    course_repository.set_counts(db_session, course, participation_count=1, tcn_count=0)
     db_session.commit()
 
     items = client.get("/api/v1/courses/events").json()["items"]
@@ -379,6 +381,8 @@ def test_une_epreuve_jamais_evaluee_porte_des_champs_nuls(client, db_session):
         status="finisher",
         total_time="01:00:00",
     )
+    # Compteur dénormalisé (#623) : posé directement, fixture hors import.
+    course_repository.set_counts(db_session, course, participation_count=1, tcn_count=0)
     db_session.commit()
 
     items = client.get("/api/v1/courses/events").json()["items"]

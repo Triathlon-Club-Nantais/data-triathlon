@@ -48,6 +48,8 @@ def _course(db_session, *, nom, lat=None, lon=None):
         rank_overall=1,
         total_time="01:00:00",
     )
+    # Compteur dénormalisé (#623) : posé directement, fixture hors import.
+    course_repository.set_counts(db_session, course, participation_count=1, tcn_count=1)
     db_session.commit()
     return course
 

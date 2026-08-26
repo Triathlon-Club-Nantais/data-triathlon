@@ -210,6 +210,8 @@ def test_event_name_filter_substring_sqlite(db_session):
     participation_repository.create(
         db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1", club="TCN"
     )
+    # Compteur dénormalisé (#623) : posé directement, fixture hors import.
+    course_repository.set_counts(db_session, course, participation_count=1, tcn_count=1)
     db_session.flush()
 
     page = participation_repository.events_page(db_session, event_name="tri")
@@ -234,6 +236,9 @@ def test_events_page_pagination_and_sort(db_session):
     participation_repository.create(
         db_session, athlete_id=athlete.id, course_id=c_new.id, bib_number="1", club="TCN"
     )
+    # Compteurs dénormalisés (#623) : posés directement, fixture hors import.
+    course_repository.set_counts(db_session, c_old, participation_count=1, tcn_count=1)
+    course_repository.set_counts(db_session, c_new, participation_count=1, tcn_count=1)
     db_session.flush()
 
     first = participation_repository.events_page(db_session, page=1, page_size=1)
@@ -274,6 +279,9 @@ def test_events_page_sort_imported_desc_ordonne_par_date_import(db_session):
     participation_repository.create(
         db_session, athlete_id=athlete.id, course_id=futur.id, bib_number="1", club="TCN"
     )
+    # Compteurs dénormalisés (#623) : posés directement, fixture hors import.
+    course_repository.set_counts(db_session, ancien, participation_count=1, tcn_count=1)
+    course_repository.set_counts(db_session, futur, participation_count=1, tcn_count=1)
     db_session.flush()
 
     by_import = participation_repository.events_page(db_session, sort="imported_desc")
@@ -334,6 +342,9 @@ def test_events_page_filtre_par_saison_exclut_sans_date(db_session):
     participation_repository.create(
         db_session, athlete_id=athlete.id, course_id=c_sans_date.id, bib_number="2", club="TCN"
     )
+    # Compteurs dénormalisés (#623) : posés directement, fixture hors import.
+    course_repository.set_counts(db_session, course_2025, participation_count=1, tcn_count=1)
+    course_repository.set_counts(db_session, c_sans_date, participation_count=1, tcn_count=1)
     db_session.flush()
 
     page = participation_repository.events_page(db_session, seasons=[2025])
@@ -362,6 +373,9 @@ def test_events_page_meme_nom_meme_date_pagine_sans_doublon_ni_manque(db_session
     participation_repository.create(
         db_session, athlete_id=athlete.id, course_id=b.id, bib_number="1", club="TCN"
     )
+    # Compteurs dénormalisés (#623) : posés directement, fixture hors import.
+    course_repository.set_counts(db_session, a, participation_count=1, tcn_count=1)
+    course_repository.set_counts(db_session, b, participation_count=1, tcn_count=1)
     db_session.flush()
 
     seen: list[int] = []
@@ -376,6 +390,111 @@ def test_events_page_meme_nom_meme_date_pagine_sans_doublon_ni_manque(db_session
             break
 
     assert sorted(seen) == sorted([a.id, b.id])
+
+
+def _requetes(db_session, appel):
+    """Compte les requêtes SQL émises par `appel()` — patron de
+    `test_stats_service.test_course_summary_ne_charge_que_les_colonnes_utiles`."""
+    from sqlalchemy import event
+
+    requetes = []
+
+    def _mouchard(conn, cursor, statement, *reste):
+        requetes.append(statement)
+
+    engine = db_session.get_bind()
+    event.listen(engine, "before_cursor_execute", _mouchard)
+    try:
+        appel()
+    finally:
+        event.remove(engine, "before_cursor_execute", _mouchard)
+    return requetes
+
+
+def test_events_page_par_defaut_ne_joint_jamais_participation(db_session):
+    """#623 — le chemin rapide (sans `name` ni `club_only`) lit les compteurs
+    dénormalisés de `Course` : aucune requête ne doit référencer
+    `participations`, quel que soit le nombre de participations en base."""
+    athlete = athlete_repository.get_or_create(db_session, nom="A", prenom="A", club="TCN")
+    course = course_repository.get_or_create(
+        db_session, name="Tri Rapide", event_date=date(2026, 6, 1), event_type="triathlon-m"
+    )
+    for i in range(5):
+        participation_repository.create(
+            db_session, athlete_id=athlete.id, course_id=course.id, bib_number=str(i), club="TCN"
+        )
+    course_repository.set_counts(db_session, course, participation_count=5, tcn_count=5)
+    db_session.commit()
+
+    requetes = _requetes(db_session, lambda: participation_repository.events_page(db_session))
+
+    # `from participations`, pas la simple sous-chaîne "participations" : la
+    # colonne rendue `total_participations` la contient déjà, sans qu'aucune
+    # jointure n'ait eu lieu.
+    assert not any("from participations" in r.lower() for r in requetes), requetes
+
+
+def test_events_page_avec_name_ou_club_only_rejoint_participation(db_session):
+    """Contraste du test précédent : `name`/`club_only` filtrent au niveau de
+    la participation, avant l'agrégat par épreuve — ils restent sur l'ancien
+    chemin, qui joint bien `participations`."""
+    athlete = athlete_repository.get_or_create(db_session, nom="A", prenom="A", club="TCN")
+    course = course_repository.get_or_create(
+        db_session, name="Tri Lent", event_date=date(2026, 6, 1), event_type="triathlon-m"
+    )
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1", club="TCN"
+    )
+    course_repository.set_counts(db_session, course, participation_count=1, tcn_count=1)
+    db_session.commit()
+
+    requetes_name = _requetes(
+        db_session, lambda: participation_repository.events_page(db_session, name="A")
+    )
+    assert any("from participations" in r.lower() for r in requetes_name), requetes_name
+
+    requetes_club = _requetes(
+        db_session, lambda: participation_repository.events_page(db_session, club_only=True)
+    )
+    assert any("from participations" in r.lower() for r in requetes_club), requetes_club
+
+
+def test_events_page_chemin_rapide_et_lent_rendent_les_memes_compteurs(db_session):
+    """Le chemin rapide (#623) doit rendre exactement ce que rendait
+    l'ancienne agrégation, pour les mêmes filtres — même méthode de preuve que
+    #584 (`test_events_page_total_events.py`) : comparer les deux chemins sur
+    un jeu réaliste plutôt que de faire confiance à la relecture."""
+    athlete_tcn = athlete_repository.get_or_create(db_session, nom="T", prenom="T", club="TCN")
+    athlete_autre = athlete_repository.get_or_create(db_session, nom="A", prenom="A", club="ASPTT")
+    course = course_repository.get_or_create(
+        db_session, name="Tri Comparaison", event_date=date(2026, 6, 1), event_type="triathlon-m"
+    )
+    participation_repository.create(
+        db_session, athlete_id=athlete_tcn.id, course_id=course.id, bib_number="1", club="TCN"
+    )
+    participation_repository.create(
+        db_session, athlete_id=athlete_autre.id, course_id=course.id, bib_number="2", club="ASPTT"
+    )
+    participation_repository.create(
+        db_session, athlete_id=athlete_tcn.id, course_id=course.id, bib_number="3",
+        club="TCN", is_pending_validation=True,  # exclue des deux chemins
+    )
+    course_repository.set_counts(db_session, course, participation_count=2, tcn_count=1)
+    db_session.commit()
+
+    rapide = participation_repository.events_page(db_session)
+    # `club_only=False` explicite (au lieu de `name`) force l'ancien chemin
+    # sans changer le jeu de résultats attendu — seule la lecture diffère.
+    lent = participation_repository._grouped_events_query(db_session).all()
+    lent_page = {
+        "total_events": len(lent),
+        "total_participations": sum(r.total for r in lent),
+    }
+
+    ligne_rapide = next(r for r in rapide["items"] if r.course_id == course.id)
+    ligne_lente = next(r for r in lent if r.course_id == course.id)
+    assert (ligne_rapide.total, ligne_rapide.tcn_count) == (ligne_lente.total, ligne_lente.tcn_count)
+    assert rapide["total_participations"] == lent_page["total_participations"]
 
 
 def test_distinct_seasons_compte_et_exclut_epreuves_sans_date(db_session):

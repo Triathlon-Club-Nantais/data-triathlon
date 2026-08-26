@@ -327,6 +327,37 @@ def test_delete_participation_retire_la_ligne(db_session, auteur):
     assert participation_repository.get(db_session, ligne.id) is None
 
 
+def test_delete_participation_decremente_les_compteurs_denormalises(db_session, auteur):
+    """#623 — la ligne comptait (club TCN, non pendante) : les deux
+    compteurs de son épreuve doivent redescendre à zéro avec elle."""
+    course, _athlete, ligne = _resultat_complet(db_session)
+    course_repository.set_counts(db_session, course, participation_count=1, tcn_count=1)
+
+    admin_actions.delete_participation(db_session, participation_id=ligne.id, user_id=auteur.id)
+
+    db_session.refresh(course)
+    assert course.participation_count == 0
+    assert course.tcn_count == 0
+
+
+def test_delete_participation_pendante_ne_touche_pas_les_compteurs(db_session, auteur):
+    """Une participation en attente (#270) n'était déjà dans aucun agrégat
+    public — la supprimer n'en retire donc aucun."""
+    course = _epreuve(db_session, "Suppression pendante", date(2026, 3, 8))
+    athlete = _coureur(db_session, "PENDANT", "Léa")
+    ligne = participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1",
+        club="TCN", is_pending_validation=True,
+    )
+    db_session.flush()
+
+    admin_actions.delete_participation(db_session, participation_id=ligne.id, user_id=auteur.id)
+
+    db_session.refresh(course)
+    assert course.participation_count == 0
+    assert course.tcn_count == 0
+
+
 def test_delete_participation_consigne_de_quoi_relire_ce_qui_a_disparu(db_session, auteur):
     """FR-013 — une trace qui ne dirait pas *quoi* a disparu ne prouve rien.
 
@@ -1257,6 +1288,23 @@ def test_wipe_all_participations_remet_scraped_at_a_null(db_session, auteur):
     assert course_repository.get(db_session, course.id).scraped_at is None
 
 
+def test_wipe_all_participations_remet_les_compteurs_a_zero(db_session, auteur):
+    """#623 — même patron que `scraped_at` juste au-dessus : toutes les
+    participations disparaissent, les deux compteurs dénormalisés de chaque
+    épreuve doivent donc retomber, même sur une épreuve qui n'a pas bougé
+    depuis un import réel."""
+    course, _ = _epreuve_avec_resultat(db_session, "Tri A", "1")
+    course_repository.set_counts(db_session, course, participation_count=1, tcn_count=1)
+    db_session.flush()
+
+    admin_actions.wipe_all_participations(db_session, user_id=auteur.id)
+
+    db_session.expire(course)
+    apres = course_repository.get(db_session, course.id)
+    assert apres.participation_count == 0
+    assert apres.tcn_count == 0
+
+
 def test_wipe_all_participations_consigne_le_geste(db_session, auteur):
     """Le journal ne garde que les deux compteurs annoncés par `wipe_impact` — pas
     `courses_reset`, absent de la spec de l'issue #384 (« payload = les deux
@@ -1352,6 +1400,44 @@ def test_validate_participation_leve_l_etat_pendant(db_session, auteur):
     admin_actions.validate_participation(db_session, participation_id=ligne.id, user_id=auteur.id)
 
     assert participation_repository.get(db_session, ligne.id).is_pending_validation is False
+
+
+def test_validate_participation_incremente_les_compteurs_denormalises(db_session, auteur):
+    """#623 — c'est le seul geste hors import qui fait entrer une
+    participation dans les agrégats publics après coup (#270)."""
+    course = _epreuve(db_session)
+    coureur = _coureur(db_session, "DUPONT", club="TCN")
+    ligne = participation_repository.create(
+        db_session, athlete_id=coureur.id, course_id=course.id, bib_number="1",
+        club="TCN", is_pending_validation=True,
+    )
+    db_session.flush()
+
+    admin_actions.validate_participation(db_session, participation_id=ligne.id, user_id=auteur.id)
+
+    db_session.refresh(course)
+    assert course.participation_count == 1
+    assert course.tcn_count == 1
+
+
+def test_validate_participation_deja_validee_ne_touche_pas_deux_fois_les_compteurs(
+    db_session, auteur
+):
+    """FR-012 — idempotent : une seconde validation ne recompte pas la ligne."""
+    course = _epreuve(db_session)
+    coureur = _coureur(db_session, "DUPONT", club="TCN")
+    ligne = participation_repository.create(
+        db_session, athlete_id=coureur.id, course_id=course.id, bib_number="1",
+        club="TCN", is_pending_validation=True,
+    )
+    db_session.flush()
+    admin_actions.validate_participation(db_session, participation_id=ligne.id, user_id=auteur.id)
+
+    admin_actions.validate_participation(db_session, participation_id=ligne.id, user_id=auteur.id)
+
+    db_session.refresh(course)
+    assert course.participation_count == 1
+    assert course.tcn_count == 1
 
 
 def test_validate_participation_consigne_le_geste(db_session, auteur):
