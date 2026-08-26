@@ -103,6 +103,77 @@ Une page muette est un résultat : elle borne ce qui restait à corriger.
   (`prepare_external_dependency_stylesheet`), elle n'est pas posée — rien ne
   l'utilise aujourd'hui.
 
+## Second relevé — en mode **bloquant**, en local (review de la PR #639)
+
+Le premier relevé était en `Report-Only` : il disait ce qui *serait* bloqué. La
+review a demandé la preuve que l'app tient une fois la politique appliquée, et
+la question était fondée — **aucune preview n'est construite par PR** (les
+déploiements ne partent que de `main`), donc le mode bloquant n'était
+observable nulle part avant la fusion. Refait ici sur un **build de
+production** (`next build` + `next start`, `NODE_ENV=production`, donc la même
+politique qu'en production), backend de dev en face.
+
+**Témoin positif, et il mesure le bon mode** : un `<style>` non signé est
+rapporté `style-src-elem` avec `disposition: "enforce"` — pas `report` — et son
+`sheet` reste `null`. Le blocage est réel.
+
+**L'angle mort du premier relevé est levé.** Plutôt que d'inventorier les
+`<style>` à la main, le second détecte l'état : un `<style>` bloqué a
+`sheet === null`. Ce test est vrai quel que soit l'instant de l'injection, y
+compris avant la pose de l'écouteur — c'est ce qui manquait.
+
+### Rendu serveur : 25 routes, pas 11
+
+Toutes les routes de l'app (les 13 d'`/admin` comprises) relues sur le serveur
+de production. **Zéro** `<script>` sans nonce, **zéro** `<style>` sans nonce,
+**zéro** feuille sans nonce, et **zéro** gestionnaire en ligne (`on*=`) — ce
+dernier n'avait jamais été vérifié, alors qu'il tomberait sous `script-src`
+faute de `script-src-attr`.
+
+### Runtime : rien ne casse
+
+- `/dashboard`, `/resultats`, `/carte`, `/club`, `/club/athletes`, `/benevoles`,
+  `/login`, `/ajouter` : un seul `<style>` par page, celui de `sonner`,
+  **appliqué** (97 règles dans la CSSOM). Aucune violation.
+- **Popup Base UI** (sélecteur « Discipline » de `/resultats`) : ouvert, rendu
+  correct, et son `.base-ui-disable-scrollbar` est **appliqué** — `CSPProvider`
+  le signe. C'était le cas qui casse du visible.
+- **Dialogue de retour utilisateur** : ouvert, fond et carte rendus, aucune
+  violation.
+- **`zod` sur `/ajouter`** : validation d'une URL invalide, message d'erreur
+  français affiché, **aucune violation `script-src`** — `jitless` tient.
+- **`iframe`** : refusée, `frame-src 'none'` s'applique.
+
+### Les deux hashes de sonner, prouvés par rejeu
+
+Le CSS de `sonner` a été **réinjecté à la main**, dans les deux temps de
+`__insertCSS` (`<style>` vide attaché, puis rempli), sur un élément **sans
+nonce** : accepté, 97 règles, aucune violation. Les deux hashes correspondent
+donc au contenu réellement servi — et le témoin, lui, est bien bloqué. La liste
+n'est pas incomplète : elle est exacte.
+
+**Pourquoi aucun hash de script** : `script-src` porte le nonce et
+`'strict-dynamic'`. Un hash sert à signer un script hors de portée d'un nonce ;
+il n'en existe aucun ici (25 routes le montrent), et tout ce que ces scripts
+insèrent ensuite est autorisé par propagation. Épingler des hashes de script
+reviendrait à figer une liste qui dériverait à chaque build pour couvrir ce qui
+l'est déjà.
+
+### `img-src`, sondé en mode bloquant
+
+Tuile `tile.openstreetmap.org` et marqueur Leaflet `unpkg.com` : chargés. Une
+origine non listée : **bloquée**, `img-src | enforce`. La directive s'applique
+dans les deux sens.
+
+### Ce que ce second relevé ne couvre toujours pas
+
+- **Session SSO connectée** : `/admin` redirige vers `/login` sans identifiants.
+  Le rendu serveur de ses 13 routes est propre, ses toasts sont `sonner`, ses
+  dialogues sont Base UI — les trois causes traitées.
+- **Carte peuplée** : base de dev vide, aucune tuile réelle affichée. `img-src`
+  a été sondé directement à la place (ci-dessus).
+- **PostHog en production** : inchangé, cf. section suivante.
+
 ## Le point tranché
 
 **`style-src-attr 'unsafe-inline'` est assumé comme définitif.** La concession
