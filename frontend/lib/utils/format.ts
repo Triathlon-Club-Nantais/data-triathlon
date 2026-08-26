@@ -1,4 +1,5 @@
 import { FAMILY_ORDER, disciplineFamily, type FamilyName } from "@/lib/sport-colors";
+import type { Participation } from "@/lib/types";
 
 // Jeton court de format pour les FormatChip (XS / S / M / L, ou distance).
 const SIZE_RE = /-(xs|s|m|l|xl)$/i;
@@ -87,6 +88,41 @@ export function aggregateDisciplines(
       pct: total ? (count / total) * 100 : 0,
     }))
     .sort((a, b) => FAMILY_ORDER.indexOf(a.name as FamilyName) - FAMILY_ORDER.indexOf(b.name as FamilyName));
+}
+
+export interface SeasonDisciplineBreakdown {
+  season: string;
+  entries: [string, number][];
+}
+
+/**
+ * Répartition complète des jetons de format (`formatToken`) par saison,
+ * là où l'affichage historique du profil ne gardait que le mode toutes
+ * saisons confondues (US7, #466). Une entrée sans date ou dont le jeton ne
+ * se résout pas (« — ») n'entre dans aucune saison. Saisons triées de la
+ * plus récente à la plus ancienne ; au sein d'une saison, jetons triés par
+ * fréquence décroissante.
+ */
+export function disciplineBreakdownBySeason(participations: Participation[]): SeasonDisciplineBreakdown[] {
+  const bySeason = new Map<string, Map<string, number>>();
+  for (const p of participations) {
+    const season = p.course.event_date?.slice(0, 4);
+    if (!season) continue;
+    const tok = formatToken(p.course.event_type, p.course.distance_km);
+    if (tok === "—") continue;
+    let counts = bySeason.get(season);
+    if (!counts) {
+      counts = new Map();
+      bySeason.set(season, counts);
+    }
+    counts.set(tok, (counts.get(tok) ?? 0) + 1);
+  }
+  return [...bySeason.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([season, counts]) => ({
+      season,
+      entries: [...counts.entries()].sort((a, b) => b[1] - a[1]),
+    }));
 }
 
 /** Formate la valeur numérique d'un pourcentage à la française (« 71,2 »),
