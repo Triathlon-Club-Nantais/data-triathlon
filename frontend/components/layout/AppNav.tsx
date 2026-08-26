@@ -183,7 +183,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
             display: "flex",
             flexDirection: expanded ? "row" : "column",
             alignItems: "center",
-            justifyContent: "center",
+            justifyContent: expanded ? "flex-start" : "center",
             gap: expanded ? 10 : 4,
             height: 68,
             padding: expanded ? "0 14px" : "8px 0",
