@@ -177,6 +177,16 @@ export interface EventPage {
   total_participations: number;
 }
 
+export interface ValidationQueueBacklogPoint {
+  date: string;
+  pending_count: number;
+}
+
+export interface ValidationQueueHistory {
+  backlog_by_day: ValidationQueueBacklogPoint[];
+  average_resolution_seconds: number | null;
+}
+
 export interface GeoEvent {
   course_id: number;
   event_name: string;
