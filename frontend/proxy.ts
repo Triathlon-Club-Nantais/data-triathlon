@@ -42,6 +42,13 @@ const CSP_HEADER = "Content-Security-Policy";
  * Ajouter `'unsafe-inline'` à `style-src` ne serait pas une sortie : CSP niveau
  * 3 impose au navigateur de l'ignorer dès qu'un nonce ou un hash est présent
  * dans la même directive.
+ *
+ * **Deux hashes, et la liste est close** : `sonner` est la seule dépendance du
+ * front à injecter un `<style>` hors de portée d'un nonce. Base UI, l'autre
+ * injecteur, est signée par `CSPProvider` ; tout le reste du style est ou bien
+ * la feuille du build (`<link>` signé), ou bien un attribut (`style-src-attr`).
+ * Ce n'est pas un raisonnement, c'est un relevé : sondage du 2026-08-26, refait
+ * en mode bloquant sur les 25 routes de l'app.
  */
 const HASHES_STYLE_SONNER = [
   "'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='",
@@ -71,6 +78,18 @@ export function buildCspPolicy(nonce: string, { dev }: { dev: boolean }): string
     // — rien à énumérer — et cela ferme la classe de contournement par liste
     // blanche. `'unsafe-eval'` : React s'en sert en développement seulement,
     // pour reconstruire les piles d'erreurs serveur dans le navigateur.
+    //
+    // **Aucun hash ici, et c'est le fonctionnement nominal** — la question se
+    // pose à chaque relecture. Un hash sert à signer un script qu'on ne peut
+    // pas atteindre pour lui poser un nonce ; ici il n'en existe aucun. Les
+    // `<script>` du rendu serveur portent tous le nonce (relevé : 25 routes,
+    // zéro sans nonce), et tout ce qu'ils insèrent ensuite est couvert par
+    // `'strict-dynamic'`, qui autorise **par propagation** sans rien énumérer.
+    // Épingler des hashes de script reviendrait donc à figer une liste qui
+    // dériverait à chaque build, pour couvrir ce qui l'est déjà.
+    //
+    // `style-src` n'a pas cette chance : `'strict-dynamic'` ne s'applique
+    // qu'aux scripts, d'où les deux hashes de `sonner` juste en dessous.
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
     `style-src 'self' 'nonce-${nonce}' ${HASHES_STYLE_SONNER.join(" ")}`,
     // La seule concession, et elle est bornée aux **attributs** : un nonce ne

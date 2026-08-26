@@ -145,6 +145,18 @@ describe("buildCspPolicy", () => {
     expect(imgSrc).toContain("https://unpkg.com");
   });
 
+  it("couvre les scripts par 'strict-dynamic', ce qui rend tout hash de script inutile", () => {
+    // L'absence de hash dans `script-src` est le fonctionnement nominal, pas un
+    // oubli : les `<script>` du rendu serveur portent le nonce, et tout ce
+    // qu'ils insèrent ensuite passe par propagation. Ce test est le garde-fou
+    // de cette explication — retirer `'strict-dynamic'` sans épingler quoi que
+    // ce soit casserait `array.js`, que `posthog-js` insère lui-même.
+    const scriptSrc = directive(buildCspPolicy("abc", { dev: false }), "script-src")!;
+
+    expect(scriptSrc).toContain("'nonce-abc'");
+    expect(scriptSrc).toContain("'strict-dynamic'");
+  });
+
   it("n'autorise 'unsafe-eval' qu'en développement", () => {
     // React s'en sert pour reconstruire les piles d'erreurs serveur dans le
     // navigateur ; ni React ni Next n'en ont besoin en production.
