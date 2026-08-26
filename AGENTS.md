@@ -201,4 +201,5 @@ Guidelines d'écriture de code, valables dans les trois voies du workflow IA.
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
+at specs/20260826-113857-viz-13-questions/plan.md
 <!-- SPECKIT END -->
