@@ -13,9 +13,11 @@ l'arborescence, et chaque dossier qui a ses propres pièges porte son
   `SecurityHeadersMiddleware` l'est à dessein, pour voir le schéma déjà réécrit
   par `ProxyHeadersMiddleware` (#396).
 - `app/core/` — `config.py` (pydantic-settings), `logging.py`, `database.py`,
-  `exceptions.py`, `time.py`, `club.py` (appartenance au TCN : **liste blanche**
-  de libellés, match à l'égalité — cf. #76), `discipline.py` (disciplines
-  fédérales vs trail / course à pied / cyclisme), `http.py` (**toute** sortie
+  `exceptions.py`, `time.py`, `club.py` (appartenance au TCN : match à
+  l'**égalité** sur une liste de libellés — cf. #76), `discipline.py`
+  (disciplines fédérales vs trail / course à pied / cyclisme, par liste
+  d'**exclusion**), `counter_scope.py` (les deux listes que ces deux modules
+  lisent — voir `app/core/AGENTS.md`), `http.py` (**toute** sortie
   HTTP y passe, garde SSRF sur la requête et chaque redirection — #49, #101),
   `security_headers.py` (en-têtes de sécurité sur **toute** réponse — jumeau du
   `headers()` de `frontend/next.config.ts`, parce que les backends Render sont

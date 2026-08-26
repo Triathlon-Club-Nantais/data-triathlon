@@ -140,3 +140,61 @@ large parce qu'un humain relit. Les motifs sont un ensemble **fermé** de trois,
 chacun rattaché à un cas de terrain mesuré ; les élargir se tranche en
 re-sondant, pas en ajoutant une tolérance
 (`docs/superpowers/specs/2026-08-12-sources-multiples-epreuve-sondage.md`).
+
+## Portée des compteurs (#95)
+
+Les deux ensembles qui décident de ce que l'application compte — les disciplines
+exclues des compteurs et les libellés reconnus comme libellés du club — vivaient
+en dur dans `core/discipline.py` et `core/club.py`. Ils sont en base, éditables
+sous `counter_scope:manage`.
+
+| Route | Effet |
+| --- | --- |
+| `GET /admin/counter-scope` | Les **deux** listes d'un coup — l'écran les affiche ensemble, deux appels seraient deux allers-retours pour une page. Triées par valeur. |
+| `POST /admin/counter-scope/{kind}` | Déclare une entrée. `201` avec l'entrée créée. |
+| `DELETE /admin/counter-scope/{kind}/{entry_id}` | Retire une entrée. `204`. |
+
+`{kind}` vaut `disciplines` ou `club-labels` — la forme URL des deux natures,
+distincte de ce qui est stocké (`non_federal_discipline`, `tcn_club_label`) :
+l'URL est un contrat lu par des humains, la colonne un jeton technique. Une
+nature inconnue rend `422`, jamais une liste vide.
+
+**La valeur rendue est la forme retenue, pas la saisie.** Un libellé de club
+passe par `normalize_club`, la **même** fonction que `is_tcn` et son miroir SQL
+— une normalisation propre à l'écriture laisserait enregistrer un libellé que le
+prédicat ne retrouverait jamais : déclaré, invisible, sans erreur. Une discipline
+se contente des minuscules et des bords rognés.
+
+**Deux refus, dissymétriques à dessein.**
+
+- `409` sur le retrait du **dernier** libellé de club : sans aucun libellé, plus
+  rien n'est compté comme résultat du club et tous les compteurs du club tombent
+  à zéro — sans erreur, et en ressemblant à un tableau de bord légitimement vide.
+- **Aucun refus** sur le vidage de la liste des disciplines : tout devient
+  fédéral, ce qui est cohérent, visible et réversible.
+
+`409` également sur un doublon, adossé à la contrainte `UNIQUE (kind, value)` et
+pas seulement à une vérification préalable : deux administrateurs qui écrivent en
+même temps ne peuvent pas créer de doublon. `400` sur une valeur vide une fois
+normalisée.
+
+**Une discipline hors nomenclature est acceptée**, avec `is_known: false` — pas
+refusée. Exclure une discipline pas encore importée est un geste légitime, et le
+principe posé en #76 tient : une discipline inconnue reste fédérale par défaut,
+c'est la liste d'exclusion qui décide. `is_known` vaut toujours `true` pour un
+libellé de club, qui n'a pas de nomenclature de référence.
+
+**L'écriture prend effet sans redéploiement ni redémarrage** : le routeur
+commite, journalise (`counter_scope.entry_add` / `counter_scope.entry_remove`),
+puis recharge le registre en mémoire (`core/counter_scope.py`). Recharger
+**après** le commit et pas avant : sinon la configuration exposée serait celle
+d'une transaction que rien ne garantit d'aboutir.
+
+Aucun DTO existant ne change de forme. Ce qui change, c'est ce que ces DTO
+**valent** : `ParticipationOut.is_tcn` suit la liste des libellés, tout endpoint
+portant `scope=club` ou `federal_only=true` suit les deux. Les deux se
+prononcent depuis le même registre, donc restent d'accord pour n'importe quelle
+configuration — ce que `tests/test_repositories/test_club_filter.py` éprouve sur
+une configuration **modifiée**, pas seulement sur celle livrée.
+
+Conception : `specs/20260826-154613-portee-compteurs-configurable/`.
