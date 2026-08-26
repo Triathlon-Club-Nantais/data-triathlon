@@ -1341,7 +1341,7 @@ describe("rendu carte sous lg", () => {
             ...p({ id: 1, nom: "DUPONT", rank_overall: 1, total_time: "01:04:12" }),
             club: null,
             category: null,
-            athlete: { id: 1, nom: "DUPONT", prenom: "T", gender: null, club: null },
+            athlete: { id: 1, nom: "DUPONT", prenom: "T", gender: "", club: null },
           },
         ]}
         summary={synthese()}

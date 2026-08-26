@@ -22,7 +22,9 @@ vi.mock("next/navigation", () => ({
 // pouvoir. `useSessionMock` reste un `vi.fn()` — jamais réécrit dans son
 // défaut — pour qu'un unique describe dédié (plus bas) puisse le redéfinir
 // temporairement sans toucher ce mock global (revue finale #461, point 4).
-const { useSessionMock } = vi.hoisted(() => ({ useSessionMock: vi.fn(() => ({ data: null })) }));
+const { useSessionMock } = vi.hoisted(() => ({
+  useSessionMock: vi.fn<() => { data: { permissions: string[] } | null }>(() => ({ data: null })),
+}));
 vi.mock("@/lib/queries/auth", () => ({
   useSession: useSessionMock,
 }));
