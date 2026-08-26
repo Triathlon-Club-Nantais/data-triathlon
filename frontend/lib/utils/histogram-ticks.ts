@@ -68,3 +68,18 @@ export function formatTickLabel(sec: number): string {
   const m = Math.floor((total % 3600) / 60);
   return `${h}:${m.toString().padStart(2, "0")}`;
 }
+
+/**
+ * Convertit un temps normalisé `"HH:MM:SS"` (`app/scrapers/utils.py` côté
+ * backend) en secondes, pour placer un repère sur l'histogramme (US2, #466).
+ * `null` sur toute forme non conforme plutôt qu'un `NaN` qui produirait un
+ * repère hors champ silencieux.
+ */
+export function parseTotalTimeSeconds(totalTime: string | null | undefined): number | null {
+  if (!totalTime) return null;
+  const parts = totalTime.split(":");
+  if (parts.length !== 3) return null;
+  const [h, m, s] = parts.map(Number);
+  if (![h, m, s].every(Number.isFinite)) return null;
+  return h * 3600 + m * 60 + s;
+}

@@ -2,7 +2,9 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { apiServer } from "@/lib/api/server";
+import { ApiError } from "@/lib/api/client";
 import {
+  Card,
   ComparisonTable,
   ImprovementMatrix,
   RankingEvolutionChart,
@@ -12,6 +14,19 @@ import {
 import { PageShell } from "@/components/layout/PageShell";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { formatDate } from "@/lib/utils/date";
+import { Histogram } from "@/components/charts/Histogram";
+import { parseTotalTimeSeconds } from "@/lib/utils/histogram-ticks";
+
+/**
+ * Synthèse d'épreuve absente traitée comme optionnelle plutôt que fatale
+ * (US2/US3, #466) : l'histogramme et le repère de catégorie sont un
+ * enrichissement de cet écran, pas sa raison d'être — une synthèse en panne
+ * ne doit pas faire disparaître le détail de participation lui-même.
+ */
+function rendreNullSi404(erreur: unknown): null {
+  if (erreur instanceof ApiError && erreur.status === 404) return null;
+  throw erreur;
+}
 
 /**
  * Détail d'une participation : la performance de l'athlète confrontée au
@@ -29,9 +44,12 @@ export default async function ParticipationDetailPage({
   params: Promise<{ id: string; participationId: string }>;
 }) {
   const { id, participationId } = await params;
-  const participation = await apiServer
-    .getParticipation(Number(participationId))
-    .catch(() => null);
+  // Deux appels indépendants, en parallèle : la synthèse d'épreuve (US2/US3,
+  // #466) ne conditionne jamais le 404 de la participation elle-même.
+  const [participation, summary] = await Promise.all([
+    apiServer.getParticipation(Number(participationId)).catch(() => null),
+    apiServer.getCourseSummary(Number(id)).catch(rendreNullSi404),
+  ]);
 
   if (!participation || participation.course.id !== Number(id)) notFound();
 
@@ -41,6 +59,7 @@ export default async function ParticipationDetailPage({
   const { stats, course } = participation;
   const eventDate = formatDate(course.event_date);
   const segments = stats?.segments ?? Object.keys(participation.splits ?? {});
+  const markerSec = parseTotalTimeSeconds(participation.total_time);
 
   return (
     <PageShell>
@@ -75,6 +94,20 @@ export default async function ParticipationDetailPage({
           </>
         ) : (
           <UnavailableState />
+        )}
+
+        {summary?.histogram && (
+          <Card padding={28} style={{ marginTop: 18 }}>
+            <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 4 }}>Distribution des temps des finishers</h2>
+            <div style={{ fontSize: 13, color: "var(--tcn-text-muted)", marginBottom: 18 }}>Nombre d&apos;athlètes par tranche de 5 minutes — votre temps est repéré</div>
+            <Histogram
+              bars={summary.histogram.bars}
+              max={Math.max(...summary.histogram.bars)}
+              startSec={summary.histogram.start_sec}
+              bucketSec={summary.histogram.bucket_sec}
+              markerSec={markerSec}
+            />
+          </Card>
         )}
       </div>
     </PageShell>

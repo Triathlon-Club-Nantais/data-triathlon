@@ -67,14 +67,14 @@ Application web existante : `backend/app/`, `backend/tests/`, `frontend/app/`, `
 
 ### Tests for User Story 2
 
-- [ ] T008 [P] [US2] Test vitest pour le calcul du bucket de l'athlète à partir de `summary.histogram` (`start_sec`/`bucket_sec`) dans `frontend/lib/utils/histogram-ticks.test.ts`
-- [ ] T009 [P] [US2] Test vitest pour `Histogram` avec repère athlète dans `frontend/components/charts/Histogram.test.tsx`
+- [X] T008 [P] [US2] Test vitest pour le calcul du bucket de l'athlète à partir de `summary.histogram` (`start_sec`/`bucket_sec`) dans `frontend/lib/utils/histogram-ticks.test.ts`
+- [X] T009 [P] [US2] Test vitest pour `Histogram` avec repère athlète dans `frontend/components/charts/Histogram.test.tsx`
 
 ### Implementation for User Story 2
 
-- [ ] T010 [US2] Fetch `getCourseSummary` en parallèle sur `.../participations/[participationId]/page.tsx`, patron `courses/[id]/page.tsx:60-64`
-- [ ] T011 [US2] Étendre `Histogram.tsx` pour accepter et afficher un repère de position
-- [ ] T012 [US2] Intégrer l'histogramme avec repère sur l'écran détail participation
+- [X] T010 [US2] Fetch `getCourseSummary` en parallèle sur `.../participations/[participationId]/page.tsx`, patron `courses/[id]/page.tsx:60-64`
+- [X] T011 [US2] Étendre `Histogram.tsx` pour accepter et afficher un repère de position
+- [X] T012 [US2] Intégrer l'histogramme avec repère sur l'écran détail participation
 
 **Checkpoint**: US1+US2 fonctionnelles indépendamment.
 
