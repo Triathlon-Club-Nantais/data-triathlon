@@ -129,4 +129,17 @@ describe("ComparisonTable", () => {
 
     expect(screen.getByText(/écran plus large/)).toBeTruthy();
   });
+
+  it("ne réserve le rappel « écran plus large » qu'aux petits écrans, contrairement à l'avertissement sur le bruit (revue finale #461)", () => {
+    // Cette phrase-là est fausse dès 640 px, où T1/T2 sont déjà visibles : le
+    // lecteur y chercherait des colonnes qu'il a sous les yeux. L'avertissement
+    // sur le bruit de chronométrage, lui, reste vrai à toute largeur.
+    const { container } = renderTable();
+
+    const rappel = container.querySelector('span[class~="sm:hidden"]');
+    expect(rappel?.textContent).toMatch(/écran plus large/);
+
+    const avertissement = screen.getByText(/segments courts.*bruit de chronométrage/i);
+    expect(avertissement.className ?? "").not.toContain("sm:hidden");
+  });
 });
