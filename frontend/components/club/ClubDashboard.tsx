@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Avatar, StatCard } from "@/components/tcn";
+import { StatCard } from "@/components/tcn";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -8,11 +8,10 @@ import { BarList } from "@/components/charts/BarList";
 import { MonthlyTrend } from "@/components/charts/MonthlyTrend";
 import { eventTypeLabel } from "@/lib/constants";
 import { eventTypeColor } from "@/lib/sport-colors";
-import { PODIUM_SCOPE_META } from "@/lib/podium-scope";
-import type { PodiumScope } from "@/lib/podium-scope";
 import type { ClubSummary, Participation, Stats } from "@/lib/types";
 import { PodiumsList } from "./PodiumsList";
 import { ClubPodiumKpi } from "./ClubPodiumKpi";
+import { RosterApercu } from "./RosterApercu";
 
 export function ClubDashboard({
   stats,
@@ -119,44 +118,12 @@ export function ClubDashboard({
             elle qualifiait le `h2`, pas les cartes) vers ici, juste au-dessus
             de la grille qu'elle décrit, et reformulée avec le vocabulaire déjà
             posé par le KPI et les badges plutôt que « portée », un mot de
-            `PodiumScope` que l'utilisateur ne lit nulle part ailleurs. Rendue
-            seulement si l'aperçu montre au moins un podium : les cartes
-            elles-mêmes ne rendent leur décompte que sous cette condition
-            (`r.podiums > 0` ci-dessous) — sur un club sans podium, la légende
-            qualifiait des nombres absents de l'écran (revue finale). */}
-        {roster.some((r) => r.podiums > 0) && (
-          <p className="text-sm text-[var(--tcn-text-faint)]">
-            Les podiums comptés ici cumulent le général, le genre et la catégorie.
-          </p>
-        )}
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {roster.map((r) => {
-            const name = `${r.prenom} ${r.nom}`;
-            return (
-              <Link
-                key={r.athlete_id}
-                href={`/athletes/${r.athlete_id}`}
-                className="flex items-center gap-3 rounded-xl bg-card p-3 ring-1 ring-foreground/10 transition-colors hover:bg-muted/50"
-              >
-                <Avatar name={name} size={40} />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-semibold">{name}</div>
-                  <div className="text-xs text-[var(--tcn-text-faint)]">
-                    {r.count} épreuve{r.count > 1 ? "s" : ""}
-                    {r.podiums > 0 && ` · ${r.podiums} podium${r.podiums > 1 ? "s" : ""}`}
-                  </div>
-                </div>
-                {r.podiums > 0 && (
-                  <RosterPodiumBadges
-                    overall={r.podiums_overall}
-                    gender={r.podiums_gender}
-                    category={r.podiums_category}
-                  />
-                )}
-              </Link>
-            );
-          })}
-        </div>
+            `PodiumScope` que l'utilisateur ne lit nulle part ailleurs. La
+            condition d'affichage et la grille elle-même vivent dans
+            `RosterApercu` (#504), qui porte aussi la mise en avant de
+            l'athlète retenu et le rappel générique quand il est hors de
+            l'aperçu, lu côté client uniquement. */}
+        <RosterApercu roster={roster} />
       </section>
 
       {/* Résultats récents */}
@@ -177,45 +144,6 @@ export function ClubDashboard({
         </div>
       </section>
     </div>
-  );
-}
-
-/**
- * Podiums d'un athlète du roster, ventilés par scope (#128). Une icône +
- * décompte par scope non nul, chacun avec le tooltip natif partagé — permet
- * de distinguer « 3 podiums scratch » de « 3 podiums de catégorie » là où
- * l'ancien `🏅3` amalgamait tout.
- */
-function RosterPodiumBadges({
-  overall,
-  gender,
-  category,
-}: {
-  overall: number;
-  gender: number;
-  category: number;
-}) {
-  const values: Record<PodiumScope, number> = { overall, gender, category };
-  const scopes: PodiumScope[] = ["overall", "gender", "category"];
-  return (
-    <span className="flex shrink-0 items-center gap-1.5">
-      {scopes.map((scope) => {
-        const n = values[scope];
-        if (n === 0) return null;
-        const { Icon, label, title } = PODIUM_SCOPE_META[scope];
-        return (
-          <span
-            key={scope}
-            className="num inline-flex items-center gap-0.5 text-sm font-bold text-accent-ink"
-            title={`${n} ${title.toLowerCase()}`}
-            aria-label={`${n} ${label.toLowerCase()}`}
-          >
-            <Icon size={14} strokeWidth={2.5} aria-hidden="true" />
-            {n}
-          </span>
-        );
-      })}
-    </span>
   );
 }
 

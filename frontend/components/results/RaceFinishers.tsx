@@ -2,7 +2,7 @@
 import Link, { useLinkStatus } from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition, type CSSProperties } from "react";
-import { Card, SegmentedControl, PlaceBadge, AnnonceStatut, LigneCarte } from "@/components/tcn";
+import { Card, SegmentedControl, PlaceBadge, AnnonceStatut, VousChip, LigneCarte } from "@/components/tcn";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusBadge } from "@/components/results/StatusBadge";
 import { isNonFinisher } from "@/lib/utils/raceOrder";
@@ -234,23 +234,6 @@ function marqueurRang(p: Participation, nf: boolean, stylePlace?: CSSProperties)
   if (p.rank_overall != null) return <PlaceBadge place={p.rank_overall} style={stylePlace} />;
   return <span style={{ color: "var(--tcn-text-faint)" }}>—</span>;
 }
-
-/**
- * Chip « Vous » : le signifiant de « ma ligne » (#467), partagé par la grille
- * et les cartes — la couleur seule (fond `.tcn-rowlink--moi`) échouerait
- * WCAG 1.4.1.
- */
-const STYLE_CHIP_VOUS: CSSProperties = {
-  flex: "none",
-  padding: "1px 7px",
-  borderRadius: "var(--tcn-radius-sm)",
-  background: "var(--tcn-orange-deep)",
-  color: "#fff",
-  fontFamily: "var(--tcn-font-cond)",
-  fontWeight: 700,
-  fontSize: 11,
-  letterSpacing: ".04em",
-};
 
 export function RaceFinishers({
   participations,
@@ -630,10 +613,9 @@ export function RaceFinishers({
                     <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {name}
                     </span>
-                    {/* Le chip, pas le fond, est le signifiant : la couleur seule
-                        échouerait WCAG 1.4.1. `flex: none` pour qu'il survive à
-                        un nom long, dont c'est l'ellipse qui cède. */}
-                    {moi && <span style={STYLE_CHIP_VOUS}>Vous</span>}
+                    {/* Extrait en `VousChip` (#504) : même signifiant réutilisé
+                        sur les rosters de `/club` et `/club/athletes`. */}
+                    {moi && <VousChip />}
                     <VoileAttente />
                   </Link>
                 </td>
@@ -735,7 +717,7 @@ export function RaceFinishers({
               titre={
                 <>
                   {name}
-                  {moi && <span style={STYLE_CHIP_VOUS}>Vous</span>}
+                  {moi && <VousChip />}
                 </>
               }
               valeur={p.total_time ?? "—"}

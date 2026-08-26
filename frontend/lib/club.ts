@@ -13,3 +13,11 @@ export const CLUB_NAME = "Triathlon Club Nantais";
 
 /** Raccourci, pour les espaces contraints (badges, en-têtes de colonne, toggle). */
 export const CLUB_NAME_SHORT = "TCN";
+
+/**
+ * Seuil au-delà duquel « ma » ligne/fiche est jugée hors du premier écran, et
+ * déclenche le rappel épinglé (#504). Commun à `/club` — où le roster est déjà
+ * plafonné à 12 côté SQL (`athlete_repository.club_roster`) — et
+ * `/club/athletes`, pour que les deux écrans restent cohérents entre eux.
+ */
+export const SEUIL_RAPPEL_POSITION = 12;

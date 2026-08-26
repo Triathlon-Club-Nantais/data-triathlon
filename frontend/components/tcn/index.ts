@@ -20,6 +20,7 @@ export { ComparisonTable } from "./participation-detail/ComparisonTable";
 export { RankingEvolutionChart } from "./participation-detail/RankingEvolutionChart";
 export { ImprovementMatrix } from "./participation-detail/ImprovementMatrix";
 export { PendingBadge } from "./PendingBadge";
+export { VousChip } from "./VousChip";
 export { AnnonceStatut } from "./AnnonceStatut";
 export { ErrorScreen } from "./ErrorScreen";
 export { LigneCarte } from "./LigneCarte";
