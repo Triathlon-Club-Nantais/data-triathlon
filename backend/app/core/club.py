@@ -9,25 +9,30 @@ définition, et elle vit ici.
 
 Le match se fait à l'**égalité** sur une forme normalisée, jamais en
 sous-chaîne : « RACING CLUB NANTAIS » est un club nantais, pas le nôtre.
+
+**La règle est ici ; la liste des libellés vit en base** et s'édite depuis le
+panel admin (#95). `core/counter_scope.py` en porte l'image en mémoire, et c'est
+la seule source que `is_tcn` et `tcn_clause` lisent — ce qui étend leur accord à
+toute configuration, pas seulement à celle livrée.
+
+**Ce qui devient configurable est l'ensemble des libellés, jamais la
+normalisation.** La distinction n'est pas théorique : `_normalise_sql` est
+compilée dans un index fonctionnel (cf. `CLUB_NORMALIZED_INDEX_EXPRESSION` en
+bas de ce fichier), et la toucher sans migration de reconstruction périme cet
+index en silence. Ajouter un libellé ne change pas l'expression indexée ;
+changer la façon de comparer, si.
 """
 import re
 
 from sqlalchemy import column, func
+
+from app.core import counter_scope
 
 #: Libellé canonique affiché quand on parle du club — utilisé côté serveur pour
 #: fusionner les variantes scrapées dans « Top clubs » (issue #200). Le front
 #: garde sa propre constante pour ne pas dépendre d'un round-trip API sur les
 #: labels statiques (aria-label, meta, filtre) : deux définitions, même valeur.
 TCN_CANONICAL_NAME = "Triathlon Club Nantais"
-
-#: Libellés du club, sous leur forme normalisée (cf. `normalize_club`).
-#: Ajouter une variante ici est le geste prévu — `python -m app.cli club-labels`
-#: sert justement à repérer celles qui manquent.
-TCN_CLUB_LABELS: frozenset[str] = frozenset({
-    "triathlon club nantais",
-    "tri club nantais",
-    "tcn",
-})
 
 #: Valeur du paramètre d'API `scope` restreignant une réponse aux membres du club.
 SCOPE_CLUB = "club"
@@ -45,8 +50,13 @@ def normalize_club(club: str | None) -> str:
 
 
 def is_tcn(club: str | None) -> bool:
-    """Vrai si `club` désigne le Triathlon Club Nantais."""
-    return normalize_club(club) in TCN_CLUB_LABELS
+    """Vrai si `club` désigne le Triathlon Club Nantais.
+
+    Déclarer une variante d'orthographe est le geste prévu, et il se fait depuis
+    le panel admin — `python -m app.cli club-labels` sert à repérer celles qui
+    manquent.
+    """
+    return normalize_club(club) in counter_scope.tcn_club_labels()
 
 
 def is_club_scope(scope: str | None) -> bool:
@@ -86,7 +96,7 @@ def tcn_clause(column):
     `column` est passée en paramètre pour couvrir aussi bien `Participation.club`
     (le club inscrit sur la ligne de résultat) que `Athlete.club`.
     """
-    return _normalise_sql(column).in_(sorted(TCN_CLUB_LABELS))
+    return _normalise_sql(column).in_(sorted(counter_scope.tcn_club_labels()))
 
 
 #: Expression SQL de `_normalise_sql`, compilée en littéral DDL portable

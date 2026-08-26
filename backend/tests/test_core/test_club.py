@@ -1,6 +1,7 @@
 import pytest
 
-from app.core.club import TCN_CLUB_LABELS, is_club_scope, is_tcn, normalize_club
+from app.core.club import is_club_scope, is_tcn, normalize_club
+from app.core.counter_scope import DEFAULT_TCN_CLUB_LABELS
 from tests.club_corpus import CORPUS
 
 
@@ -17,7 +18,7 @@ def test_normalize_club_aplatit_casse_bords_et_espaces():
 
 def test_les_libelles_de_reference_sont_deja_normalises():
     """La liste blanche est comparée à des formes normalisées : elle doit l'être."""
-    for label in TCN_CLUB_LABELS:
+    for label in DEFAULT_TCN_CLUB_LABELS:
         assert normalize_club(label) == label
 
 

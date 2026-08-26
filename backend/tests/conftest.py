@@ -39,6 +39,27 @@ def _compteurs_de_debit_vierges():
     reset_rate_limits()
 
 
+@pytest.fixture(autouse=True)
+def _portee_des_compteurs_par_defaut():
+    """Le registre de `core/counter_scope` est un état de **processus** (#95).
+
+    Même raison que les plafonds de débit juste au-dessus : sans cette remise à
+    zéro, un test qui configure d'autres libellés de club les laisse au suivant,
+    et l'ordre d'exécution déciderait quels résultats sont comptés comme
+    résultats du club.
+
+    Les défauts du registre sont les valeurs d'avant la bascule en base : la
+    suite s'exécute donc sur la configuration livrée, sans avoir à semer quoi
+    que ce soit — les fixtures montent leur schéma par `create_all`, jamais par
+    les migrations qui portent l'amorçage.
+    """
+    from app.core import counter_scope
+
+    counter_scope.reset()
+    yield
+    counter_scope.reset()
+
+
 @pytest.fixture
 def db_session():
     """Session SQLAlchemy sur une base SQLite en mémoire, schéma créé via les modèles."""

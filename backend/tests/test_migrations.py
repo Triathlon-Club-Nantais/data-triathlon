@@ -688,3 +688,49 @@ def test_la_migration_ne_remplit_rien(sqlite_url):
     assert _lignes(
         sqlite_url, "SELECT latitude, longitude, geocoded_at FROM courses"
     ) == [(None, None, None)]
+
+
+# --- Portée des compteurs en base (#95) --------------------------------------
+
+
+def test_la_table_de_portee_des_compteurs_est_creee(base_migree):
+    assert "counter_scope_entries" in _tables(base_migree)
+
+
+def test_l_amorcage_vaut_exactement_les_defauts_du_registre(base_migree):
+    """Le garde-fou contre la divergence entre migration et code.
+
+    Les douze valeurs sont écrites **en littéral** dans la migration — une
+    migration doit rester lisible telle quelle des années après, indépendamment
+    de ce que le code est devenu. Le prix de ce choix est deux sources pour la
+    même valeur ; ce test est ce qui les empêche de diverger.
+    """
+    from app.core import counter_scope
+    from app.models.counter_scope_entry import CLUB_LABEL, NON_FEDERAL_DISCIPLINE
+
+    semees = _lignes(
+        base_migree, "SELECT kind, value, created_by_user_id FROM counter_scope_entries"
+    )
+
+    par_nature = {CLUB_LABEL: set(), NON_FEDERAL_DISCIPLINE: set()}
+    for kind, value, _ in semees:
+        par_nature[kind].add(value)
+
+    assert par_nature[NON_FEDERAL_DISCIPLINE] == set(
+        counter_scope.DEFAULT_NON_FEDERAL_DISCIPLINES
+    )
+    assert par_nature[CLUB_LABEL] == set(counter_scope.DEFAULT_TCN_CLUB_LABELS)
+    assert all(auteur is None for _, _, auteur in semees), (
+        "une ligne d'amorçage porte un auteur"
+    )
+
+
+def test_downgrade_puis_upgrade_de_la_portee_des_compteurs(sqlite_url):
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+
+    command.downgrade(cfg, "-1")
+    assert "counter_scope_entries" not in _tables(sqlite_url)
+
+    command.upgrade(cfg, "head")
+    assert _lignes(sqlite_url, "SELECT COUNT(*) FROM counter_scope_entries") == [(12,)]
