@@ -3,7 +3,9 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { ecran } from "@/components/layout/nav.config";
 import { PageShell } from "@/components/layout/PageShell";
 import { CounterScopeCard } from "@/components/admin/CounterScopeCard";
+import { EmptyState } from "@/components/ui/empty-state";
 import { CLUB_NAME } from "@/lib/club";
+import { messageDeRefus } from "@/lib/api/refus";
 import { useCounterScope } from "@/lib/queries/admin";
 
 /**
@@ -25,41 +27,58 @@ export default function AdminPorteeCompteursPage() {
     <PageShell>
       <div className="space-y-10">
         <PageHeader {...ecran("/admin/portee-compteurs")} />
-        <CounterScopeCard
-          kind="club-labels"
-          titre="Libellés du club"
-          regle={
-            <>
-              Les orthographes sous lesquelles un chronométreur désigne le club.
-              Un résultat n&apos;est compté comme résultat du club que si son libellé
-              figure ici, <strong>à l&apos;identique</strong> — la comparaison ignore
-              la casse et les espaces, mais « {CLUB_NAME} Sud » n&apos;est pas «{" "}
-              {CLUB_NAME} ».
-            </>
-          }
-          entrees={data?.club_labels}
-          isLoading={isLoading}
-          error={error}
-          libelleChamp="Nouveau libellé"
-          placeholder="TRIATHLON CLUB NANTAIS 44"
-        />
-        <CounterScopeCard
-          kind="disciplines"
-          titre="Disciplines hors compteurs"
-          regle={
-            <>
-              Les disciplines que le bouton « Inclure les autres disciplines »
-              retire des compteurs. C&apos;est une liste d&apos;<strong>exclusion</strong>{" "}
-              : une discipline qui n&apos;y figure pas est comptée, y compris une
-              discipline apparue depuis.
-            </>
-          }
-          entrees={data?.disciplines}
-          isLoading={isLoading}
-          error={error}
-          libelleChamp="Discipline à exclure"
-          placeholder="trail"
-        />
+        {/* Le refus se dit **une fois**, et sans rien offrir : la lecture et
+            l'écriture partagent `counter_scope:manage`, donc un refus de
+            lecture rend l'écran entier passif. Deux cartes surmontées chacune
+            d'un formulaire actif rendraient 403 à chaque soumission. */}
+        {error ? (
+          <EmptyState
+            {...messageDeRefus(error, {
+              sujet: "réglages de la portée des compteurs",
+              action: "gérer la portée des compteurs",
+            })}
+          />
+        ) : (
+          <>
+            <CounterScopeCard
+              kind="club-labels"
+              titre="Libellés comptés comme club"
+              nom="libellés du club"
+              regle={
+                <>
+                  Les orthographes sous lesquelles un chronométreur désigne le club.
+                  Un résultat n&apos;est compté comme résultat du club que si son libellé
+                  figure ici, <strong>à l&apos;identique</strong> — la comparaison ignore
+                  la casse et les espaces, mais « {CLUB_NAME} Sud » n&apos;est pas «{" "}
+                  {CLUB_NAME} ».
+                </>
+              }
+              entrees={data?.club_labels}
+              isLoading={isLoading}
+              libelleChamp="Nouveau libellé"
+              placeholder="triathlon club nantais 44"
+              descriptionListeVide="Aucun libellé : plus aucun résultat n'est compté comme résultat du club, et tous les compteurs du club sont à zéro."
+            />
+            <CounterScopeCard
+              kind="disciplines"
+              titre="Disciplines hors compteurs"
+              nom="disciplines exclues"
+              regle={
+                <>
+                  Les disciplines que le bouton « Inclure les autres disciplines »
+                  retire des compteurs. C&apos;est une liste d&apos;<strong>exclusion</strong>{" "}
+                  : une discipline qui n&apos;y figure pas est comptée, y compris une
+                  discipline apparue depuis.
+                </>
+              }
+              entrees={data?.disciplines}
+              isLoading={isLoading}
+              libelleChamp="Discipline à exclure"
+              placeholder="trail"
+              descriptionListeVide="Aucune discipline exclue : toutes les disciplines comptent, trail, cyclisme et course à pied comprises, et le bouton « Inclure les autres disciplines » ne retire plus rien."
+            />
+          </>
+        )}
       </div>
     </PageShell>
   );

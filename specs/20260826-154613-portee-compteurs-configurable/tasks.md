@@ -160,7 +160,7 @@ Sa propriété rachète son poids : **elle ne change aucun comportement**. À la
 - [X] T046 Vérifier FR-006 et SC-004 : lancer le classement d'une grosse épreuve avec `SQL_QUERY_STATS=true` avant et après la bascule, et constater un nombre de requêtes **identique** — le registre étant lu en mémoire, la feature ne doit ajouter aucune requête. Consigner les deux comptes dans la description de la PR. Le nombre de requêtes, et non le chrono : c'est la grandeur reproductible, et c'est elle qui régresserait si un chemin se remettait à lire la base par participation
 - [X] T047 Dérouler `specs/20260826-154613-portee-compteurs-configurable/quickstart.md` de bout en bout, §1 à §8
 - [X] T048 Vérification finale : `cd backend && uv run pytest -m "not integration"` et `uv run ruff check .` ; `cd frontend && npm test && npm run lint && npm run build`
-- [ ] T049 Sous-agent `ui-ux-review` sur l'écran d'administration — la branche touche `frontend/`, la revue de rendu s'insère après la revue de code (AGENTS.md §Workflow IA)
+- [X] T049 Sous-agent `ui-ux-review` sur l'écran d'administration — la branche touche `frontend/`, la revue de rendu s'insère après la revue de code (AGENTS.md §Workflow IA)
 
 ---
 
