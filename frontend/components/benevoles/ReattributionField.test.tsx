@@ -72,6 +72,25 @@ describe("ReattributionField", () => {
     await waitFor(() => expect(screen.getByText(/Aucun coureur trouvé/)).toBeInTheDocument());
   });
 
+  it("annonce la recherche en cours au lecteur d'écran (#608)", async () => {
+    let resolveRecherche: (value: AthleteBrief[]) => void;
+    searchAthletesBenevole.mockReturnValue(
+      new Promise<AthleteBrief[]>((resolve) => {
+        resolveRecherche = resolve;
+      }),
+    );
+    render(<ReattributionField athleteActuel={ACTUEL} athleteCible={null} onChoisir={vi.fn()} />);
+
+    await userEvent.type(screen.getByLabelText(/Réattribuer/), "Ker");
+
+    // `role="status"` (aria-live="polite" implicite) : jusqu'ici seul le
+    // voyant voyait « Recherche… », rien ne le signalait au lecteur d'écran.
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Recherche…"));
+
+    resolveRecherche!([CIBLE]);
+    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
+  });
+
   it("ignore les réponses en retard si une recherche plus récente a abouti", async () => {
     const other: AthleteBrief = { id: 3, nom: "DURAND", prenom: "Jean", gender: "M", club: "TCN" };
     let resolveFirst: (value: AthleteBrief[]) => void;

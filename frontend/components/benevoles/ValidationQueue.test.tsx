@@ -113,6 +113,26 @@ describe("ValidationQueue", () => {
     expect(screen.getByRole("button", { name: /Course 1/ })).not.toHaveAttribute("aria-current");
   });
 
+  it("peint le fond des lignes par une classe, pas un style en ligne (#608)", () => {
+    // Même défaut que #439 : un `background` en ligne battrait
+    // `.tcn-rowlink:hover` et couperait tout survol au clavier comme à la
+    // souris (`.tcn-rowlink--file` / `.tcn-rowlink--file[aria-current="true"]`,
+    // `app/globals.css`).
+    render(
+      <ValidationQueue
+        participations={[p({ id: 1 }), p({ id: 2 })]}
+        selectedId={2}
+        onSelect={vi.fn()}
+      />,
+    );
+    const selectionnee = screen.getByRole("button", { name: /Course 2/ });
+    const autre = screen.getByRole("button", { name: /Course 1/ });
+    expect(selectionnee.className).toMatch(/(^|\s)tcn-rowlink--file(\s|$)/);
+    expect(autre.className).toMatch(/(^|\s)tcn-rowlink--file(\s|$)/);
+    expect(selectionnee.style.background).toBe("");
+    expect(autre.style.background).toBe("");
+  });
+
   it("affiche un onglet Non conformes et bascule la liste affichée", async () => {
     const user = userEvent.setup();
     const dupont = p({ id: 1, athlete: { id: 1, nom: "DUPONT", prenom: "Jean", gender: "M", club: "TCN" } });

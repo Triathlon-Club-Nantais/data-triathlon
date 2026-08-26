@@ -81,6 +81,27 @@ describe("ChampsParticipation", () => {
     expect(screen.getByText(/Valeur d'origine : vide/)).toBeInTheDocument();
   });
 
+  it("relie le champ modifié à sa valeur d'origine pour le lecteur d'écran (#608)", () => {
+    const p = participation();
+    render(
+      <ChampsParticipation
+        brouillon={{ ...brouillonDepuis(p), bib_number: "413" }}
+        origine={p}
+        onChange={vi.fn()}
+      />,
+    );
+    const champ = screen.getByLabelText(/Dossard/);
+    const note = screen.getByText(/Valeur d'origine : 412/);
+    expect(note).toHaveAttribute("id");
+    expect(champ).toHaveAttribute("aria-describedby", note.id);
+  });
+
+  it("ne décrit pas un champ non modifié — la note reste montée mais vide", () => {
+    const p = participation();
+    render(<ChampsParticipation brouillon={brouillonDepuis(p)} origine={p} onChange={vi.fn()} />);
+    expect(screen.getByLabelText(/Dossard/)).not.toHaveAttribute("aria-describedby");
+  });
+
   it("réserve la ligne de valeur d'origine dès le premier rendu (#490, revue UI/UX)", () => {
     // Sans la réservation, la ligne n'existe dans le DOM qu'une fois `modifie`
     // vrai : elle apparaît alors au premier caractère saisi et pousse les
