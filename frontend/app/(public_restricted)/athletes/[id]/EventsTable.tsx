@@ -76,6 +76,71 @@ function rowDerived(p: Participation) {
 }
 
 /**
+ * Cellule Place, partagée par la grille et les cartes (#461) : DNF/DNS/DSQ
+ * (sigle + rang/total entre parenthèses), sinon `PlaceBadge` (+ `/N`), sinon
+ * un tiret d'absence. `carte` ne change que les écarts légitimes de
+ * disposition — la police du sigle non-finisher (14px en grille, héritée de
+ * la carte sinon) et le regroupement du badge et du `/N` sous un même
+ * `inline-flex`, nécessaire uniquement en carte : sans lui, les deux
+ * flotteraient comme deux éléments distincts dans la `meta` de `LigneCarte`
+ * (`flexWrap` + `gap: 8`).
+ */
+function marqueurPlace(
+  p: Participation,
+  { ratio, nonFinisher, sigle }: Pick<ReturnType<typeof rowDerived>, "ratio" | "nonFinisher" | "sigle">,
+  carte = false,
+) {
+  if (nonFinisher) {
+    return (
+      <span style={{ fontSize: carte ? undefined : 14, fontWeight: 700, color: "var(--tcn-text-muted)" }}>
+        {sigle}
+        {p.rank_overall != null ? (
+          <>({p.rank_overall}{ratio ? `/${ratio.total}` : ""})</>
+        ) : null}
+      </span>
+    );
+  }
+  if (p.rank_overall != null) {
+    const badge = (
+      <>
+        <PlaceBadge place={p.rank_overall} />
+        {ratio ? (
+          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--tcn-text-faint)" }}>
+            /{ratio.total}
+          </span>
+        ) : null}
+      </>
+    );
+    return carte ? (
+      <span style={{ display: "inline-flex", alignItems: "baseline", gap: 4 }}>{badge}</span>
+    ) : (
+      badge
+    );
+  }
+  return <span style={{ color: "var(--tcn-text-faint)" }}>—</span>;
+}
+
+/** Marqueur ⚠ de fiabilité, partagé par la grille et les cartes (#461). */
+function marqueurFiabilite(titre: string | null) {
+  if (!titre) return null;
+  return (
+    <span
+      data-testid="unreliable-marker"
+      title={titre}
+      aria-label={titre}
+      // `role="img"` : le texte est purement informatif, pas un contrôle.
+      role="img"
+      // `position: relative` : le `::after` de `.tcn-rowlink__cible` couvre la
+      // ligne et gagne le survol sur tout contenu en flux. Sans cette remontée,
+      // l'infobulle du marqueur — qui fonctionnait avant #481 — ne s'ouvre plus.
+      style={{ position: "relative", fontSize: 13, color: "var(--tcn-text-faint)", cursor: "help", userSelect: "none" }}
+    >
+      ⚠
+    </span>
+  );
+}
+
+/**
  * Le tableau des épreuves d'un profil, avec ses filtres saison et discipline
  * (#489). Sans eux, un membre de dix ans lit quarante lignes à plat, la
  * chronologie pour seul schéma d'organisation.
@@ -298,45 +363,8 @@ export function EventsTable({
                   <td role="cell"><FormatChip>{formatToken(p.course.event_type, p.course.distance_km)}</FormatChip></td>
                   <td role="cell" style={{ fontSize: 15, color: "var(--tcn-ink)", fontFamily: "var(--tcn-font-cond)", fontWeight: 700 }}>{p.total_time ?? "—"}</td>
                   <td role="cell" style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                    {nonFinisher ? (
-                      // Non-finisher : sigle sobre. DSQ garde le rang entre
-                      // parenthèses quand le chronométreur en a fourni un ;
-                      // le /N n'est ajouté que si la course est fiable.
-                      <span style={{ fontSize: 14, fontWeight: 700, color: "var(--tcn-text-muted)" }}>
-                        {sigle}
-                        {p.rank_overall != null ? (
-                          <>({p.rank_overall}{ratio ? `/${ratio.total}` : ""})</>
-                        ) : null}
-                      </span>
-                    ) : p.rank_overall != null ? (
-                      <>
-                        <PlaceBadge place={p.rank_overall} />
-                        {ratio ? (
-                          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--tcn-text-faint)" }}>
-                            /{ratio.total}
-                          </span>
-                        ) : null}
-                      </>
-                    ) : (
-                      <span style={{ color: "var(--tcn-text-faint)" }}>—</span>
-                    )}
-                    {unreliableTitle ? (
-                      <span
-                        data-testid="unreliable-marker"
-                        title={unreliableTitle}
-                        aria-label={unreliableTitle}
-                        // `role="img"` : le texte est purement informatif, pas un contrôle.
-                        role="img"
-                        // `position: relative` : le `::after` de
-                        // `.tcn-rowlink__cible` couvre la ligne et gagne le
-                        // survol sur tout contenu en flux. Sans cette remontée,
-                        // l'infobulle du marqueur — qui fonctionnait avant #481
-                        // — ne s'ouvre plus.
-                        style={{ position: "relative", fontSize: 13, color: "var(--tcn-text-faint)", cursor: "help", userSelect: "none" }}
-                      >
-                        ⚠
-                      </span>
-                    ) : null}
+                    {marqueurPlace(p, { ratio, nonFinisher, sigle })}
+                    {marqueurFiabilite(unreliableTitle)}
                   </td>
                   <td role="cell" style={{ textAlign: "right", color: "var(--tcn-text-disabled)", fontSize: 16 }}><span aria-hidden>→</span></td>
                 </tr>
@@ -421,34 +449,8 @@ export function EventsTable({
                   <>
                     <span>{eventTypeLabel(p.course?.event_type)}</span>
                     <FormatChip>{formatToken(p.course?.event_type, p.course?.distance_km)}</FormatChip>
-                    {nonFinisher ? (
-                      <span style={{ fontWeight: 700, color: "var(--tcn-text-muted)" }}>
-                        {sigle}
-                        {p.rank_overall != null ? <>({p.rank_overall}{ratio ? `/${ratio.total}` : ""})</> : null}
-                      </span>
-                    ) : p.rank_overall != null ? (
-                      <span style={{ display: "inline-flex", alignItems: "baseline", gap: 4 }}>
-                        <PlaceBadge place={p.rank_overall} />
-                        {ratio ? (
-                          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--tcn-text-faint)" }}>
-                            /{ratio.total}
-                          </span>
-                        ) : null}
-                      </span>
-                    ) : (
-                      <span style={{ color: "var(--tcn-text-faint)" }}>—</span>
-                    )}
-                    {unreliableTitle ? (
-                      <span
-                        data-testid="unreliable-marker"
-                        title={unreliableTitle}
-                        aria-label={unreliableTitle}
-                        role="img"
-                        style={{ fontSize: 13, color: "var(--tcn-text-faint)", cursor: "help", userSelect: "none" }}
-                      >
-                        ⚠
-                      </span>
-                    ) : null}
+                    {marqueurPlace(p, { ratio, nonFinisher, sigle }, true)}
+                    {marqueurFiabilite(unreliableTitle)}
                   </>
                 }
                 actions={
