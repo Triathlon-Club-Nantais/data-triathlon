@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { rankRatio, bestRatio, progressionSeries } from "./ranking";
+import { rankRatio, bestRatio, progressionSeries, recurringWeakSegment } from "./ranking";
 import type { Participation } from "@/lib/types";
 
 function part(over: Partial<Participation> & { id: number }): Participation {
@@ -171,5 +171,69 @@ describe("progressionSeries", () => {
     const p = part({ id: 1, rank_overall: 42, course_finishers: 300 });
     p.course = { ...p.course, event_date: "2026-05-16" };
     expect(progressionSeries([p])).toEqual([{ participationId: 1, eventDate: "2026-05-16", percent: 14 }]);
+  });
+});
+
+describe("recurringWeakSegment", () => {
+  function avecSplits(id: number, splits: Record<string, string>, total = "01:59:00"): Participation {
+    const p = part({ id });
+    p.total_time = total;
+    p.splits = splits;
+    return p;
+  }
+
+  it("US4 (#466) : signale le segment qui domine dans la majorité des participations", () => {
+    // Le vélo pèse le plus lourd sur trois participations sur trois.
+    const participations = [
+      avecSplits(1, { swim: "00:20:00", bike: "01:10:00", run: "00:29:00" }),
+      avecSplits(2, { swim: "00:18:00", bike: "01:15:00", run: "00:26:00" }),
+      avecSplits(3, { swim: "00:19:00", bike: "01:12:00", run: "00:28:00" }),
+    ];
+
+    const result = recurringWeakSegment(participations);
+
+    expect(result?.key).toBe("bike");
+    expect(result?.count).toBe(3);
+    expect(result?.total).toBe(3);
+  });
+
+  it("ne signale rien sans majorité claire", () => {
+    const participations = [
+      avecSplits(1, { swim: "00:40:00", bike: "00:40:00", run: "00:39:00" }),
+      avecSplits(2, { swim: "00:20:00", bike: "01:15:00", run: "00:24:00" }),
+      avecSplits(3, { swim: "00:20:00", bike: "00:24:00", run: "01:15:00" }),
+    ];
+
+    expect(recurringWeakSegment(participations)).toBeNull();
+  });
+
+  it("ignore les segments courts (transitions) dans le calcul", () => {
+    const participations = [
+      avecSplits(1, { swim: "00:20:00", t1: "01:50:00", bike: "01:10:00", run: "00:29:00" }),
+      avecSplits(2, { swim: "00:18:00", t1: "01:55:00", bike: "01:15:00", run: "00:26:00" }),
+      avecSplits(3, { swim: "00:19:00", t1: "01:52:00", bike: "01:12:00", run: "00:28:00" }),
+    ];
+
+    // T1 domine numériquement mais doit être écarté du calcul (segment "small").
+    expect(recurringWeakSegment(participations)?.key).toBe("bike");
+  });
+
+  it("renvoie null sous le seuil minimal de participations exploitables", () => {
+    const participations = [
+      avecSplits(1, { swim: "00:20:00", bike: "01:10:00", run: "00:29:00" }),
+      avecSplits(2, { swim: "00:18:00", bike: "01:15:00", run: "00:26:00" }),
+    ];
+
+    expect(recurringWeakSegment(participations)).toBeNull();
+  });
+
+  it("ignore les participations sans splits exploitables", () => {
+    const participations = [
+      avecSplits(1, { swim: "00:20:00", bike: "01:10:00", run: "00:29:00" }),
+      avecSplits(2, { swim: "00:18:00", bike: "01:15:00", run: "00:26:00" }),
+      part({ id: 3 }), // splits: null
+    ];
+
+    expect(recurringWeakSegment(participations)?.key).toBe("bike");
   });
 });

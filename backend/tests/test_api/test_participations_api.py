@@ -253,6 +253,20 @@ def test_stats_is_populated_for_an_eligible_course(client, db_session):
     assert set(stats) == {"segments", "ranking_evolution", "comparison", "improvement"}
 
 
+def test_stats_comparison_rows_carry_raw_seconds_additively(client, db_session):
+    """US4 (#466) : extension additive de ComparisonRow, ne casse pas la forme existante."""
+    scrape_service.save_one(db_session, _scraped(bib="4", nom="DUPONT"))
+    participation = scrape_service.save_one(db_session, _scraped(bib="5", nom="MARTIN"))
+
+    stats = client.get(f"/api/v1/participations/{participation.id}").json()["stats"]
+
+    assert stats["comparison"]
+    row = stats["comparison"][0]
+    assert set(row) == {"position_label", "rank", "percentages", "mine_seconds", "theirs_seconds"}
+    assert set(row["mine_seconds"]) == set(row["percentages"])
+    assert set(row["theirs_seconds"]) == set(row["percentages"])
+
+
 def test_stats_ignores_club_membership(client, db_session):
     """FR-004 : les splits sont déjà publics ailleurs, la page n'ajoute aucune confidentialité."""
     participation = scrape_service.save_one(

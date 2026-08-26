@@ -64,10 +64,12 @@ export function ComparisonTable({
               {columns.map((column) => (
                 <td key={column.key} className={classeColonne(column.small)} style={cellStyle}>
                   {formatPercentage(row.percentages[column.key])}
+                  <DeltaSeconds mine={row.mine_seconds?.[column.key]} theirs={row.theirs_seconds?.[column.key]} />
                 </td>
               ))}
               <td style={{ ...cellStyle, fontWeight: 700 }}>
                 {formatPercentage(row.percentages[TOTAL_KEY])}
+                <DeltaSeconds mine={row.mine_seconds?.[TOTAL_KEY]} theirs={row.theirs_seconds?.[TOTAL_KEY]} />
               </td>
             </tr>
           ))}
@@ -90,6 +92,42 @@ export function ComparisonTable({
 
 function formatPercentage(value: number | undefined): string {
   return value == null ? "—" : `${pctFr(value)} %`;
+}
+
+/**
+ * Écart brut en secondes sous le pourcentage — représentation visuelle en
+ * plus du ratio, un « 128 % » ne dit rien du temps réellement perdu (US4,
+ * #466). Une barre marque l'ampleur de l'écart ; le texte porte le signe.
+ */
+function DeltaSeconds({ mine, theirs }: { mine: number | undefined; theirs: number | undefined }) {
+  if (mine == null || theirs == null) return null;
+  const delta = mine - theirs;
+  const width = Math.min(100, (Math.abs(delta) / theirs) * 100 * 4);
+  return (
+    <div style={{ marginTop: 3 }}>
+      <div
+        aria-hidden
+        style={{
+          height: 3,
+          width: `${width}%`,
+          marginLeft: "auto",
+          background: delta > 0 ? "var(--tcn-orange)" : "var(--tcn-text-faint)",
+          borderRadius: 2,
+        }}
+      />
+      <span style={{ fontSize: 11, color: "var(--tcn-text-faint)" }}>{formatDeltaSeconds(delta)}</span>
+    </div>
+  );
+}
+
+function formatDeltaSeconds(delta: number): string {
+  const sign = delta > 0 ? "+" : delta < 0 ? "−" : "";
+  const abs = Math.round(Math.abs(delta));
+  const minutes = Math.floor(abs / 60);
+  const seconds = abs % 60;
+  if (minutes === 0) return `${sign}${seconds} s`;
+  if (seconds === 0) return `${sign}${minutes} min`;
+  return `${sign}${minutes} min ${seconds} s`;
 }
 
 const headStyle = {

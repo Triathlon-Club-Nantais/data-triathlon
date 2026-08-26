@@ -1,5 +1,7 @@
 // Ratio place / nombre de classés d'une participation. Fonctions pures et testables.
 import type { Participation } from "@/lib/types";
+import { splitSegments } from "./splits";
+import { secondsFromHms } from "./time";
 
 interface RankRatio {
   rank: number;
@@ -92,4 +94,55 @@ export function progressionSeries(parts: Participation[]): ProgressionPoint[] {
       eventDate: entry.participation.course.event_date!,
       percent: entry.ratio.percent,
     }));
+}
+
+export interface WeakSegment {
+  key: string;
+  label: string;
+  /** Nombre de participations exploitables où ce segment domine. */
+  count: number;
+  /** Nombre de participations exploitables prises en compte. */
+  total: number;
+}
+
+// Sous ce nombre de participations, une récurrence n'est qu'une coïncidence.
+const MIN_PARTICIPATIONS_FOR_RECURRENCE = 3;
+
+/**
+ * Segment (hors transitions) qui pèse le plus lourd dans le temps total, sur
+ * une majorité stricte des participations exploitables de l'athlète — un
+ * point faible relatif répété, pas une seule contre-performance isolée (US4,
+ * #466). Les transitions (T1/T2) sont exclues : elles sont sensibles au bruit
+ * de chronométrage, cf. le même écartement dans `ComparisonTable`.
+ */
+export function recurringWeakSegment(participations: Participation[]): WeakSegment | null {
+  if (participations.length < MIN_PARTICIPATIONS_FOR_RECURRENCE) return null;
+
+  const dominant: { key: string; label: string }[] = [];
+  for (const p of participations) {
+    const totalSeconds = secondsFromHms(p.total_time);
+    if (!totalSeconds) continue;
+    const segments = splitSegments(p.course.event_type, p.splits).filter((s) => !s.small);
+    let best: { key: string; label: string; share: number } | null = null;
+    for (const segment of segments) {
+      const seconds = secondsFromHms(segment.time);
+      if (!seconds) continue;
+      const share = seconds / totalSeconds;
+      if (!best || share > best.share) best = { key: segment.key, label: segment.label, share };
+    }
+    if (best) dominant.push({ key: best.key, label: best.label });
+  }
+  if (dominant.length < 2) return null;
+
+  const counts = new Map<string, { label: string; count: number }>();
+  for (const entry of dominant) {
+    const current = counts.get(entry.key) ?? { label: entry.label, count: 0 };
+    current.count += 1;
+    counts.set(entry.key, current);
+  }
+  const [key, { label, count }] = [...counts.entries()].sort((a, b) => b[1].count - a[1].count)[0];
+  // Majorité stricte : une répartition à égalité entre segments ne désigne rien.
+  if (count <= dominant.length / 2) return null;
+
+  return { key, label, count, total: dominant.length };
 }

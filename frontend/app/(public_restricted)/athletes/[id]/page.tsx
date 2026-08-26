@@ -9,7 +9,7 @@ import { AthleteSelection } from "./AthleteSelection";
 import { EventsTable } from "./EventsTable";
 import { AthleteAdminPanel } from "@/components/athletes/AthleteAdminPanel";
 import { formatToken, genderShort, ordinalFr } from "@/lib/utils/format";
-import { bestRatio, progressionSeries } from "@/lib/utils/ranking";
+import { bestRatio, progressionSeries, recurringWeakSegment } from "@/lib/utils/ranking";
 import { resumeAthlete } from "@/lib/utils/athlete-stats";
 import { ProgressionChart } from "@/components/charts/ProgressionChart";
 
@@ -53,6 +53,7 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
 
   const topRatio = bestRatio(validated);
   const progression = progressionSeries(validated);
+  const weakSegment = recurringWeakSegment(validated);
 
   return (
     <PageShell>
@@ -163,6 +164,14 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
         <Card style={{ marginBottom: 24 }}>
           <Eyebrow>Progression</Eyebrow>
           <ProgressionChart points={progression} />
+          {weakSegment && (
+            // US4 (#466) : un point faible répété, pas une contre-performance
+            // isolée — d'où le seuil de majorité stricte de `recurringWeakSegment`.
+            <p style={{ marginTop: 10, fontSize: 13, color: "var(--tcn-text-faint)" }}>
+              Point faible récurrent : <strong>{weakSegment.label}</strong> ({weakSegment.count} épreuves
+              sur {weakSegment.total}).
+            </p>
+          )}
         </Card>
       )}
 

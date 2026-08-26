@@ -71,6 +71,9 @@ export interface ComparisonRow {
   rank: number;
   /** Par clé de segment, plus « total » : temps de l'athlète en % de la référence. */
   percentages: Record<string, number>;
+  /** Mêmes clés que `percentages` : écart brut en secondes (US4, #466). */
+  mine_seconds?: Record<string, number>;
+  theirs_seconds?: Record<string, number>;
 }
 
 /** Places scratch gagnées si un segment avait été amélioré d'un pourcentage donné. */

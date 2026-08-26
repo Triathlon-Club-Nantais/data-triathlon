@@ -107,18 +107,18 @@ Application web existante : `backend/app/`, `backend/tests/`, `frontend/app/`, `
 
 ### Tests for User Story 4
 
-- [ ] T016 [P] [US4] Test pytest rouge pour `mine_seconds`/`theirs_seconds` de `ComparisonRow` dans `backend/tests/test_services/test_participation_stats_service.py`
-- [ ] T017 [P] [US4] Test contrat API pour la forme JSON étendue de `GET /api/v1/participations/{id}/stats` dans `backend/tests/test_api/test_participation_stats_api.py`
-- [ ] T018 [P] [US4] Test vitest pour la représentation visuelle des écarts dans `frontend/components/charts/ComparisonTable.test.tsx`
-- [ ] T019 [P] [US4] Test vitest pour l'agrégation de récurrence de segment dans `frontend/lib/utils/ranking.test.ts`
+- [X] T016 [P] [US4] Test pytest rouge pour `mine_seconds`/`theirs_seconds` de `ComparisonRow` dans `backend/tests/test_services/test_participation_stats_service.py`
+- [X] T017 [P] [US4] Test contrat API pour la forme JSON étendue de `GET /api/v1/participations/{id}` (champ `stats.comparison`) dans `backend/tests/test_api/test_participations_api.py`
+- [X] T018 [P] [US4] Test vitest pour la représentation visuelle des écarts dans `frontend/components/tcn/participation-detail/ComparisonTable.test.tsx`
+- [X] T019 [P] [US4] Test vitest pour l'agrégation de récurrence de segment dans `frontend/lib/utils/ranking.test.ts`
 
 ### Implementation for User Story 4
 
-- [ ] T020 [US4] Ajouter `mine_seconds`/`theirs_seconds` à `ComparisonRow` dans `backend/app/schemas/participation_stats.py`
-- [ ] T021 [US4] Exposer les valeurs déjà calculées par `_comparison` dans `backend/app/services/participation_stats_service.py`
-- [ ] T022 [US4] Étendre `ComparisonTable.tsx` pour afficher les écarts en représentation visuelle
-- [ ] T023 [US4] Ajouter l'agrégation de récurrence de segment dans `frontend/lib/utils/ranking.ts` (depuis `participation.splits`, déjà chargé)
-- [ ] T024 [US4] Afficher le signal de récurrence sur `athletes/[id]/page.tsx`
+- [X] T020 [US4] Ajouter `mine_seconds`/`theirs_seconds` à `ComparisonRow` dans `backend/app/schemas/participation_stats.py`
+- [X] T021 [US4] Exposer les valeurs déjà calculées par `_comparison` dans `backend/app/services/participation_stats_service.py`
+- [X] T022 [US4] Étendre `ComparisonTable.tsx` pour afficher les écarts en représentation visuelle
+- [X] T023 [US4] Ajouter l'agrégation de récurrence de segment dans `frontend/lib/utils/ranking.ts` (depuis `participation.splits`, déjà chargé)
+- [X] T024 [US4] Afficher le signal de récurrence sur `athletes/[id]/page.tsx`
 
 **Checkpoint**: US1→US4 fonctionnelles indépendamment.
 

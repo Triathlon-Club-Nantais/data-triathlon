@@ -129,6 +129,29 @@ def test_comparison_invents_no_percentage_when_a_split_is_missing():
     assert rows[1].percentages == {"bike": 125.0, "total": 125.0}
 
 
+def test_comparison_exposes_raw_seconds_alongside_percentages():
+    """US4 (#466) : l'écart en secondes brutes est déjà calculé, jamais exposé."""
+    rows = _comparison(_three_row_ranking(), 25)
+
+    assert rows[1].mine_seconds == {"swim": 1800, "bike": 5400, "total": 7200}
+    assert rows[1].theirs_seconds == {"swim": 1200, "bike": 3600, "total": 4800}
+
+
+def test_comparison_raw_seconds_share_the_same_keys_as_percentages():
+    """Même garde qu'un segment manquant côté pourcentages (FR-007) : pas de zéro inventé."""
+    ranking = [
+        _participation(rank=1, total="01:20:00", splits={"swim": "00:20:00", "bike": "01:00:00"}),
+        _participation(rank=10, total="01:40:00", splits={"bike": "01:15:00"}),
+    ]
+
+    rows = _comparison(ranking, 10)
+
+    assert "swim" not in rows[1].mine_seconds
+    assert "swim" not in rows[1].theirs_seconds
+    assert rows[1].mine_seconds == {"bike": 4500, "total": 6000}
+    assert rows[1].theirs_seconds == {"bike": 3600, "total": 4800}
+
+
 def _tight_ranking():
     """Peloton serré à l'arrivée : quelques secondes gagnées changent le rang."""
     return [
