@@ -44,6 +44,11 @@ export const SHORT_REVALIDATE_SECONDS = 30;
  * par l'API, mais qui ferait sinon partie de la clé du Data Cache (#526) —
  * exactement la fenêtre de partage inter-visiteurs que #352 cherche à
  * préserver le plus possible.
+ *
+ * Réservée à `serverFetchAuthed`/`serverFetchAuthedRaw` (#586) : ces deux
+ * variantes lisent des cookies que `serverFetch` n'a jamais besoin de
+ * connaître (`tcn_session`, la session SSO), donc une exclusion reste le bon
+ * outil. `serverFetch`, lui, prend un allowlist — voir `siteAccessCookieHeader`.
  */
 function cookieHeader(jar: Awaited<ReturnType<typeof cookies>>): string {
   return jar
@@ -54,7 +59,46 @@ function cookieHeader(jar: Awaited<ReturnType<typeof cookies>>): string {
 }
 
 /**
- * Relaie les cookies entrants, **y compris pour les routes publiques** (#526).
+ * Nom du cookie de session d'accès au site (#509) — miroir de
+ * `site_access.SITE_SESSION_COOKIE` côté backend (`backend/app/services/site_access.py`).
+ * Jamais préfixé `__Host-`, à la différence du cookie de session SSO
+ * (`app/api/v1/auth.py`) : `site_access.py` le pose tel quel.
+ */
+const SITE_SESSION_COOKIE = "tcn_site_session";
+
+/**
+ * En-tête `cookie` **minimal** relayé par `serverFetch` (#586) : seul
+ * `SITE_SESSION_COOKIE` conditionne l'accès aux routes qu'elle sert
+ * (`require_site_access`, backend — `athletes`, `courses`, `participations`,
+ * `stats`) ; aucune ne lit `tcn_session` (SSO), `tcn_benevole_session`, un
+ * cookie PostHog ni `NAV_WIDTH_COOKIE`. Un allowlist plutôt que l'exclusion de
+ * `cookieHeader` : la liste de ce qu'une route *ignore* grandit à chaque
+ * cookie ajouté au front (SSO, consentement, analytics…), celle de ce dont
+ * elle a *besoin* ne bouge que si le backend change de garde.
+ *
+ * Relayer le jar entier (comme avant #586) faisait varier la clé du Data
+ * Cache sur des cookies dont ces routes n'ont rien à faire — jusqu'à casser,
+ * pour un même visiteur qui recharge sa propre page dans les 30 s, le partage
+ * *intra-visiteur* que #526 avait laissé intact : un cookie PostHog qui
+ * tourne ou un `tcn_auth_state` posé puis retiré par une tentative de
+ * connexion SSO suffisait à changer la clé.
+ *
+ * Ne restaure **pas** le partage *inter-visiteurs* de #352 : `sign_cookie`
+ * (`backend/app/services/shared_password.py`) inclut l'horodatage de son
+ * émission dans la valeur du cookie, qui reste donc unique par visiteur quel
+ * que soit le filtrage ici. Le résoudre demande de découpler la garde de la
+ * clé de cache côté backend — une frontière de sécurité qu'#586 documente
+ * mais ne tranche pas, faute de mesure du taux de succès réel du Data Cache en
+ * production.
+ */
+function siteAccessCookieHeader(jar: Awaited<ReturnType<typeof cookies>>): string {
+  const cookie = jar.get(SITE_SESSION_COOKIE);
+  return cookie ? `${SITE_SESSION_COOKIE}=${cookie.value}` : "";
+}
+
+/**
+ * Relaie le cookie d'accès au site, **y compris pour les routes publiques**
+ * (#526).
  *
  * Cookie-libre jusqu'à #526, au nom du prérendu statique des six pages
  * publiques en rendu serveur. #509 a rendu la justification caduque (le layout
@@ -65,10 +109,6 @@ function cookieHeader(jar: Awaited<ReturnType<typeof cookies>>): string {
  * ces pages levait une `ApiError` 401 en pleine passe de rendu serveur, soit
  * l'écran d'erreur (React #441) sur tout le site dès qu'un mot de passe site
  * était configuré.
- *
- * Conséquence assumée sur la fenêtre de revalidation (#352) : la clé du Data
- * Cache inclut désormais l'en-tête, donc les 30 s ne se partagent plus entre
- * visiteurs — elles profitent encore à chacun sur sa propre navigation.
  */
 async function serverFetch<T>(path: string, opts: FetchOpts = {}): Promise<T> {
   const jar = await cookies();
@@ -76,7 +116,7 @@ async function serverFetch<T>(path: string, opts: FetchOpts = {}): Promise<T> {
     ...(opts.revalidateSeconds !== undefined
       ? { next: { revalidate: opts.revalidateSeconds } }
       : { cache: "no-store" }),
-    headers: { cookie: cookieHeader(jar) },
+    headers: { cookie: siteAccessCookieHeader(jar) },
   });
   if (!res.ok) {
     // `ApiError` plutôt qu'un `Error` nu : sans le statut, un appelant ne peut
@@ -187,9 +227,9 @@ export const apiServer = {
    * Publique, et exemptée de `require_site_access` : elle **répond** sans
    * session, ce qui permet à la garde `/admin` de distinguer « pas connecté »
    * (liste non vide → rediriger) de « aucune connexion possible » (liste vide →
-   * laisser passer, FR-036). Le cookie que `serverFetch` relaie depuis #526 n'y
-   * change rien : ce qui compte est qu'elle n'en exige aucun, pas qu'on
-   * s'abstienne de l'envoyer.
+   * laisser passer, FR-036). Le cookie que `serverFetch` relaie (#526, réduit
+   * au seul cookie d'accès au site par #586) n'y change rien : ce qui compte
+   * est qu'elle n'en exige aucun, pas qu'on s'abstienne de l'envoyer.
    */
   listAuthMethods: () => serverFetch<AuthMethod[]>("/auth/methods"),
   /** Session du mot de passe site (#509) — vrai si le cookie est valide. */

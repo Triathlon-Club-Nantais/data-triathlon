@@ -570,13 +570,18 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   `docs/superpowers/specs/2026-08-06-frontend-surengineering-audit.md`.
 - `lib/api/` — `client.ts` (appels `/api/v1`, `ApiError` porteur du statut HTTP),
   `server.ts`, `sse.ts` (streaming import SSE). **Les trois fonctions de
-  `server.ts` relaient les cookies entrants** (#526) ; ce qui les distingue est
-  leur lecture du 401, pas le cookie :
-  - `serverFetch` — lève une `ApiError` sur tout non-OK, 401 compris.
+  `server.ts` relaient un cookie d'accès entrant** (#526) ; ce qui les distingue
+  est leur lecture du 401, et quels cookies elles envoient :
+  - `serverFetch` — lève une `ApiError` sur tout non-OK, 401 compris. Relais
+    **minimal** depuis #586 : seul le cookie de session d'accès au site part,
+    le reste du jar (SSO, bénévoles, PostHog…) est ignoré — voir plus bas.
   - `serverFetchAuthed` — rend `null` sur 401 (anonyme est un état normal),
-    lève sur le reste. Sert `/auth/me`.
+    lève sur le reste. Sert `/auth/me`, donc relaie le jar entier (hors
+    `NAV_WIDTH_COOKIE`) : c'est la session SSO qu'elle a besoin de lire.
   - `serverFetchAuthedRaw` — rend `false` sur 401, `true` sur 200, lève sur le
-    reste, pour que la garde site distingue un refus avéré d'une panne.
+    reste, pour que la garde site distingue un refus avéré d'une panne. Relaie
+    aussi le jar entier, par simplicité (pas de fenêtre de revalidation ici,
+    donc pas de coût de cardinalité de clé de cache à réduire).
 
   `serverFetch` a été cookie-libre jusqu'à #526, au nom du prérendu statique de
   six pages publiques. #509 a rendu cette justification caduque (ces pages
@@ -592,9 +597,21 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   caractère public tient à ce qu'elle **répond** sans session (FR-036 — c'est ce
   qui permet à la garde `/admin` de distinguer « pas connecté » de « aucune
   connexion possible »), pas à ce que l'appelant s'abstienne d'envoyer un
-  cookie. Conséquence assumée sur #352 : la clé du Data Cache inclut désormais
-  l'en-tête `cookie`, donc la fenêtre de 30 s ne se partage plus entre
-  visiteurs — elle profite encore à chacun sur sa propre navigation.
+  cookie.
+
+  Conséquence assumée sur #352 : relayer le jar entier faisait varier la clé du
+  Data Cache sur **chaque** cookie du navigateur, y compris ceux dont l'API ne
+  fait jamais rien (session SSO, PostHog…) — cassant, pour un même visiteur
+  rechargeant sa propre page, jusqu'au partage *intra-visiteur* que #526 avait
+  laissé intact. #586 réduit `serverFetch` au seul cookie que `require_site_access`
+  lit (`siteAccessCookieHeader` dans `server.ts`), ce qui restaure ce partage
+  intra-visiteur mais **ne restaure pas** le partage inter-visiteurs des 30 s :
+  le cookie de session d'accès au site porte lui-même l'horodatage de son
+  émission (`shared_password.sign_cookie`), donc reste unique par visiteur quel
+  que soit le filtrage côté front. Le résoudre demande de découpler la garde
+  d'accès de la clé de cache côté backend — une frontière de sécurité, à
+  concevoir avec soin et à mesurer avant d'y toucher (#586 en détaille les
+  pistes, aucune tranchée).
 - `lib/types.ts` — types TypeScript partagés.
 - **`lib/sport-colors.ts` est la source unique de l'échelle des disciplines**
   (#480) — la redoubler ailleurs *est* le bug, et c'est déjà arrivé une fois
