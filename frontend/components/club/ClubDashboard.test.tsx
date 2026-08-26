@@ -1,5 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render as renderRTL, screen, type RenderResult } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
 import type { ClubSummary, Participation, Stats } from "@/lib/types";
 
 vi.mock("@/components/charts/BarList", () => ({ BarList: () => <div data-testid="barlist" /> }));
@@ -7,6 +10,14 @@ vi.mock("@/components/charts/MonthlyTrend", () => ({ MonthlyTrend: () => <div da
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams() }));
 
 import { ClubDashboard } from "./ClubDashboard";
+
+// `RosterApercu` appelle `useClubRosterRank` (#641), inconditionnellement
+// (l'`enabled` du hook ne change rien à l'obligation d'un `QueryClientProvider`
+// ancêtre) — il doit donc envelopper tout rendu de `ClubDashboard`.
+function render(ui: ReactElement): RenderResult {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return renderRTL(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
+}
 
 const APERCU_ROSTER = 12;
 
@@ -28,6 +39,8 @@ const STATS: Stats = {
 const EMPTY_SUMMARY: ClubSummary = {
   roster: [],
   podiums: { scratch: [], category: [], gender: [], all: [] },
+  podiums_by_discipline: {},
+  composition: { gender: {}, category: {} },
 };
 
 function rosterEntry(i: number, podiums = 0) {
@@ -143,6 +156,25 @@ describe("ClubDashboard — smoke", () => {
     expect(
       screen.queryByText("Les podiums comptés ici cumulent le général, le genre et la catégorie."),
     ).not.toBeInTheDocument();
+  });
+
+  // US9 (#466) : la composition du club (genre, catégorie), agrégée côté
+  // serveur (#642, `ClubSummary.composition`) — `/club` la transporte déjà,
+  // affichée dans son propre onglet.
+  it("affiche la composition du club (genre et catégorie) dans son propre onglet", async () => {
+    const summary: ClubSummary = {
+      ...EMPTY_SUMMARY,
+      composition: { gender: { F: 1, M: 1 }, category: { S3: 1, S4: 1 } },
+    };
+    render(<ClubDashboard stats={STATS} summary={summary} recent={[]} />);
+
+    const onglet = screen.getByRole("tab", { name: "Composition" });
+    expect(onglet).toBeInTheDocument();
+    await userEvent.click(onglet);
+
+    expect(await screen.findByText("Par genre")).toBeInTheDocument();
+    expect(screen.getByText("Par catégorie")).toBeInTheDocument();
+    expect(screen.getAllByTestId("barlist")).toHaveLength(2);
   });
 
   it("résultats récents : rend `recent` directement, sans re-tri", () => {

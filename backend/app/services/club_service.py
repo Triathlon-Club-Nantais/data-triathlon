@@ -6,10 +6,19 @@ Le bucketing par mode de rang reprend la sémantique déjà posée par
 retient le meilleur des trois rangs, départagé overall > gender > category
 à égalité.
 """
+from collections import defaultdict
+
 from sqlalchemy.orm import Session
 
 from app.repositories import athlete_repository, participation_repository
-from app.schemas.club import ClubPodiumEntry, ClubPodiums, ClubRosterEntry, ClubSummary
+from app.schemas.club import (
+    ClubComposition,
+    ClubPodiumEntry,
+    ClubPodiums,
+    ClubRosterEntry,
+    ClubSummary,
+    DisciplinePodiumCounts,
+)
 
 _SCOPES = ("overall", "gender", "category")
 
@@ -74,10 +83,53 @@ def _bucket_podiums(rows) -> ClubPodiums:
     return ClubPodiums(**{k: _trier(v) for k, v in buckets.items()})
 
 
+def _bucket_podiums_par_discipline(rows) -> dict[str, DisciplinePodiumCounts]:
+    """Décompte de podiums par discipline (#642, US10) — mêmes conditions que
+    `_bucket_podiums`, mais on ne garde que les compteurs, tally par
+    `event_type` plutôt qu'une liste d'entrées : `DisciplinePerformance`
+    (front) n'a besoin que des totaux, jamais du détail participation par
+    participation.
+    """
+    compteurs: dict[str, dict[str, int]] = defaultdict(
+        lambda: {"overall": 0, "gender": 0, "category": 0, "all": 0}
+    )
+    for row in rows:
+        (_, rank_overall, rank_gender, rank_category, *_, event_type, _is_relay,
+         _event_date, gender) = row
+        c = compteurs[event_type or ""]
+        if rank_overall is not None and 1 <= rank_overall <= 3:
+            c["overall"] += 1
+        if rank_category is not None and 1 <= rank_category <= 3:
+            c["category"] += 1
+        if (
+            rank_gender is not None and 1 <= rank_gender <= 3
+            and (gender or "").upper() in ("F", "M")
+        ):
+            c["gender"] += 1
+        if _meilleur({"overall": rank_overall, "gender": rank_gender, "category": rank_category}):
+            c["all"] += 1
+    return {discipline: DisciplinePodiumCounts(**c) for discipline, c in compteurs.items()}
+
+
+def _bucket_composition(rows: list[tuple[str, str | None]]) -> ClubComposition:
+    """Répartition genre/catégorie du club entier (#642), un couple par athlète
+    (`athlete_repository.club_composition`) — une clé vide couvre le genre ou
+    la catégorie non renseignés, même convention que l'ancien `buildRoster`
+    (front, `?? ""`)."""
+    gender_counts: dict[str, int] = {}
+    category_counts: dict[str, int] = {}
+    for gender, category in rows:
+        gender_counts[gender or ""] = gender_counts.get(gender or "", 0) + 1
+        category_counts[category or ""] = category_counts.get(category or "", 0) + 1
+    return ClubComposition(gender=gender_counts, category=category_counts)
+
+
 def get_club_summary(db: Session, *, federal_only: bool = False) -> ClubSummary:
-    """Roster (top 12) et podiums (4 modes de rang) du club, agrégés côté serveur."""
+    """Roster (top 12), podiums (4 modes de rang), podiums par discipline et
+    composition (genre/catégorie) du club, agrégés côté serveur."""
     roster_rows = athlete_repository.club_roster(db, federal_only=federal_only)
     podium_rows = participation_repository.club_podiums(db, federal_only=federal_only)
+    composition_rows = athlete_repository.club_composition(db, federal_only=federal_only)
     roster = [
         ClubRosterEntry(
             athlete_id=a.id, prenom=a.prenom, nom=a.nom,
@@ -86,4 +138,9 @@ def get_club_summary(db: Session, *, federal_only: bool = False) -> ClubSummary:
         )
         for a, count, podiums, po, pg, pc in roster_rows
     ]
-    return ClubSummary(roster=roster, podiums=_bucket_podiums(podium_rows))
+    return ClubSummary(
+        roster=roster,
+        podiums=_bucket_podiums(podium_rows),
+        podiums_by_discipline=_bucket_podiums_par_discipline(podium_rows),
+        composition=_bucket_composition(composition_rows),
+    )

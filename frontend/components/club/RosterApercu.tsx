@@ -1,7 +1,10 @@
 "use client";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Avatar, VousChip } from "@/components/tcn";
 import { useSelectedAthlete } from "@/components/layout/AthletePicker";
+import { useClubRosterRank } from "@/lib/queries/club";
+import { SPORTS_PARAM, federalOnlyFromParam } from "@/lib/scope";
 import { PODIUM_SCOPE_META } from "@/lib/podium-scope";
 import type { PodiumScope } from "@/lib/podium-scope";
 import type { ClubRosterEntry } from "@/lib/types";
@@ -13,15 +16,22 @@ import type { ClubRosterEntry } from "@/lib/types";
  * props sérialisées plutôt que de re-fetcher.
  *
  * `roster` arrive déjà plafonné à 12 côté SQL (#581,
- * `athlete_repository.club_roster`) : contrairement à `AthleteSeasonList`
- * (#274, liste complète d'une saison), rien ici ne permet de calculer un rang
- * exact au-delà de l'aperçu — le rappel reste donc générique, sans numéro de
- * rang ni ancre de saison, à la différence du rappel de `/club/athletes`
- * (`RappelPosition`, qui lui dispose de la liste complète).
+ * `athlete_repository.club_roster`) : rien ici ne permet de calculer un rang
+ * exact au-delà de l'aperçu **sans requête** — contrairement à
+ * `AthleteSeasonList` (#274, liste complète d'une saison). `useClubRosterRank`
+ * (#641) le demande donc à la demande, seulement quand l'athlète retenu en
+ * sort ; tant qu'il n'a pas répondu (ou si l'athlète est hors roster — `null`,
+ * un état normal), le rappel reste générique, sans numéro de rang.
  */
 export function RosterApercu({ roster }: { roster: ClubRosterEntry[] }) {
   const athleteRetenu = useSelectedAthlete();
   const horsApercu = athleteRetenu != null && !roster.some((r) => r.athlete_id === athleteRetenu.id);
+  const sp = useSearchParams();
+  const federalOnly = federalOnlyFromParam(sp.get(SPORTS_PARAM)) ?? false;
+  const { data: classement } = useClubRosterRank(athleteRetenu?.id ?? 0, {
+    federalOnly,
+    enabled: horsApercu,
+  });
 
   return (
     <>
@@ -36,8 +46,10 @@ export function RosterApercu({ roster }: { roster: ClubRosterEntry[] }) {
               color: "var(--tcn-orange-deeper)",
             }}
           >
-            Vous n&apos;êtes pas parmi les {roster.length} athlètes les plus actifs — Voir tous les
-            athlètes →
+            {classement
+              ? `Vous : ${classement.rank}ᵉ des ${classement.total} athlètes du club`
+              : `Vous n'êtes pas parmi les ${roster.length} athlètes les plus actifs`}{" "}
+            — Voir tous les athlètes →
           </Link>
         )}
       </div>

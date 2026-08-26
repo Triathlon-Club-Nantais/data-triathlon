@@ -402,16 +402,10 @@ def search_by_relevance(
     )
 
 
-def club_roster(
-    db: Session, *, federal_only: bool = False, limit: int = 12
-) -> list[tuple[Athlete, int, int, int, int, int]]:
-    """Top athlètes du club par volume, podiums ventilés par portée (#581).
-
-    Agrégation entièrement en SQL — aucune participation individuelle n'est
-    chargée. `podiums` compte les participations avec au moins un podium
-    (dédupliqué) ; `podiums_overall`/`gender`/`category` sont des compteurs
-    indépendants, une même participation pouvant incrémenter les trois à la
-    fois (cf. #488 côté front, comportement repris à l'identique).
+def _club_roster_requete(db: Session, *, federal_only: bool):
+    """Bâtit la requête d'agrégation partagée par `club_roster` et `club_rank`
+    (#641) : même tri, même filtrage, pour que le rang calculé au-delà de
+    l'aperçu de 12 corresponde exactement à l'ordre affiché.
     """
     cond_overall = Participation.rank_overall.between(1, 3)
     cond_gender = Participation.rank_gender.between(1, 3)
@@ -433,8 +427,75 @@ def club_roster(
     )
     if federal_only:
         requete = requete.filter(federal_clause(Course.event_type))
+    return requete.order_by(total.desc(), podiums.desc(), Athlete.nom, Athlete.prenom), total, podiums
+
+
+def club_roster(
+    db: Session, *, federal_only: bool = False, limit: int = 12
+) -> list[tuple[Athlete, int, int, int, int, int]]:
+    """Top athlètes du club par volume, podiums ventilés par portée (#581).
+
+    Agrégation entièrement en SQL — aucune participation individuelle n'est
+    chargée. `podiums` compte les participations avec au moins un podium
+    (dédupliqué) ; `podiums_overall`/`gender`/`category` sont des compteurs
+    indépendants, une même participation pouvant incrémenter les trois à la
+    fois (cf. #488 côté front, comportement repris à l'identique).
+    """
+    requete, _total, _podiums = _club_roster_requete(db, federal_only=federal_only)
+    return requete.limit(limit).all()
+
+
+def club_rank(
+    db: Session, athlete_id: int, *, federal_only: bool = False
+) -> tuple[int, int] | None:
+    """Rang (1-based) et taille du club, même ordre que `club_roster` (#641).
+
+    Le rappel épinglé de `/club` (#504) a besoin du rang exact au-delà de
+    l'aperçu de 12, sans dupliquer le tri ni charger de participation
+    individuelle — `None` si l'athlète n'a aucune participation validée au
+    club (absent du roster).
+    """
+    requete, _total, _podiums = _club_roster_requete(db, federal_only=federal_only)
+    ids = [a.id for a, *_ in requete.all()]
+    if athlete_id not in ids:
+        return None
+    return ids.index(athlete_id) + 1, len(ids)
+
+
+def club_composition(
+    db: Session, *, federal_only: bool = False
+) -> list[tuple[str, str | None]]:
+    """Genre et catégorie d'âge du club entier, un couple par athlète (#642).
+
+    `club_roster` plafonne à 12 (aperçu) ; ici il faut **tout le club**, mais
+    sans charger chaque participation individuelle — seul le couple
+    genre/catégorie compte. Le genre vient d'`Athlete` (fixe) ; la catégorie
+    vient de la participation la plus **récente** (elle change de saison en
+    saison), isolée par une fenêtre `row_number()` plutôt que de charger
+    l'historique complet pour ne garder que son maximum côté Python — même
+    sémantique que `buildRoster` (front, `lib/utils/club-aggregate.ts`).
+    """
+    rang_recence = (
+        func.row_number()
+        .over(partition_by=Participation.athlete_id, order_by=Course.event_date.desc())
+        .label("rang_recence")
+    )
+    sous_requete = (
+        db.query(
+            Athlete.gender.label("gender"),
+            Participation.category.label("category"),
+            rang_recence,
+        )
+        .join(Participation, Participation.athlete_id == Athlete.id)
+        .join(Course, Participation.course_id == Course.id)
+        .filter(validated_clause(Participation.is_pending_validation))
+        .filter(tcn_clause(Participation.club))
+    )
+    if federal_only:
+        sous_requete = sous_requete.filter(federal_clause(Course.event_type))
+    sous_requete = sous_requete.subquery()
     return (
-        requete.order_by(total.desc(), podiums.desc(), Athlete.nom, Athlete.prenom)
-        .limit(limit)
+        db.query(sous_requete.c.gender, sous_requete.c.category)
+        .filter(sous_requete.c.rang_recence == 1)
         .all()
     )

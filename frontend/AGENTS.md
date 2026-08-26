@@ -423,6 +423,27 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   celle de l'épreuve. Les 6 « Résultats récents » de `/club` sont donc les 6
   derniers **importés**, cohérents avec `/resultats?scope=club` où mène
   « Tout voir ».
+
+  Deux features livrées après #581 avaient rouvert une brèche dans ce
+  transport réduit — corrigée par #641/#642, à ne pas rouvrir : le rappel
+  épinglé de l'athlète retenu (#504, `RosterApercu`) et les onglets
+  « Performance »/« Composition » (#466, `DisciplinePerformance`/
+  `ClubComposition`) avaient tous les deux été conçus sur l'ancienne
+  architecture (`participations` complet en prop, ou un fetch client de la
+  liste entière via `GET /participations?scope=club`). Le premier est
+  résolu par `GET /club/roster/rank/{athlete_id}` (`athlete_repository.
+  club_rank`, chargé à la demande, seulement quand l'athlète retenu est hors
+  de l'aperçu de 12 — `null` sur 404, un état normal). Les seconds par deux
+  champs supplémentaires de `ClubSummary`, agrégés en SQL/Python côté
+  service (`club_service._bucket_podiums_par_discipline`/
+  `_bucket_composition`, `athlete_repository.club_composition`) :
+  `podiums_by_discipline` (par `event_type` **brut** — la famille normalisée,
+  `disciplineOf`, se recalcule côté client sur ce dictionnaire à quelques
+  entrées, jamais sur des participations) et `composition` (un couple
+  genre/catégorie par athlète du club entier, la catégorie venant de sa
+  participation la plus récente — `row_number()` en SQL, pas un maximum
+  calculé sur toutes ses participations chargées). Aucune des deux features
+  ne rouvre `/club` au transport intégral.
 - **Ce que l'import dit pendant, et après** (#491) — trois points qui se
   re-cassent séparément, et qui tiennent tous à une seule donnée : la **cause**
   de l'échec, que `importEventStream` jette dans une `ApiError` plutôt que dans
