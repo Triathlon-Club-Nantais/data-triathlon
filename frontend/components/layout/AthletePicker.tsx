@@ -37,6 +37,17 @@ export const ATHLETE_CHANGED_EVENT = "tcn-athlete-changed";
  */
 export const OPEN_PICKER_EVENT = "tcn-athlete-open-picker";
 
+/**
+ * Émis sur `window` quand l'athlète retenu vient d'être purgé parce que sa
+ * fiche a disparu (`MaSaison`, #502 item 11) — jamais lors d'un relâchement
+ * délibéré (`clearAthlete()` depuis la page profil, #323) : seul l'appelant
+ * sait distinguer les deux cas, donc c'est à lui de l'émettre, pas à
+ * `clearAthlete()` elle-même. Sert à `InvitationAthlete` (#588) à ne pas
+ * doubler l'invitation à choisir un athlète que `MaSaison` porte déjà dans
+ * son état « perdu ».
+ */
+export const ATHLETE_LOST_EVENT = "tcn-athlete-lost";
+
 /** Nom d'usage — `filter` couvre l'athlète dont un des deux champs est vide. */
 export function nomComplet(athlete: { prenom: string; nom: string }): string {
   return [athlete.prenom, athlete.nom].filter(Boolean).join(" ");
