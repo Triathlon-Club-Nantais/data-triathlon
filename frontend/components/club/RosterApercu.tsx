@@ -2,75 +2,68 @@
 import Link from "next/link";
 import { Avatar, VousChip } from "@/components/tcn";
 import { useSelectedAthlete } from "@/components/layout/AthletePicker";
-import { trouverRang } from "@/lib/utils/rang";
-import { seasonOf } from "@/lib/utils/season";
-import type { PodiumScope, RosterEntry } from "@/lib/utils/club-aggregate";
 import { PODIUM_SCOPE_META } from "@/lib/podium-scope";
-import { RappelPosition } from "./RappelPosition";
+import type { PodiumScope } from "@/lib/podium-scope";
+import type { ClubRosterEntry } from "@/lib/types";
 
 /**
- * Ancre du rappel vers `/club/athletes` — cette page s'ouvre par défaut sur
- * la **saison en cours** (`app/(public_restricted)/club/athletes/page.tsx`),
- * quand `roster` agrège toutes les saisons (#487). Sans `?seasons=`, l'ancre
- * viserait une ligne absente de la page d'arrivée pour un athlète actif sur
- * une saison passée seulement. La saison de sa dernière participation
- * garantit sa présence dans la vue ciblée.
+ * Aperçu du roster (#487) et sa mise en avant (#504) : bloc client monté
+ * au-dessus du reste, purement serveur, de `ClubDashboard` — même raison que
+ * `ClubPodiumKpi`/`PodiumsList`, qui recalculent déjà en mémoire à partir de
+ * props sérialisées plutôt que de re-fetcher.
+ *
+ * `roster` arrive déjà plafonné à 12 côté SQL (#581,
+ * `athlete_repository.club_roster`) : contrairement à `AthleteSeasonList`
+ * (#274, liste complète d'une saison), rien ici ne permet de calculer un rang
+ * exact au-delà de l'aperçu — le rappel reste donc générique, sans numéro de
+ * rang ni ancre de saison, à la différence du rappel de `/club/athletes`
+ * (`RappelPosition`, qui lui dispose de la liste complète).
  */
-function hrefRappel(athleteId: number, entry: RosterEntry | undefined): string {
-  const saison = entry?.lastDate ? `?seasons=${seasonOf(entry.lastDate)}` : "";
-  return `/club/athletes${saison}#athlete-${athleteId}`;
-}
-
-/**
- * Aperçu du roster (#487) et sa fiche mise en avant (#504) : bloc client
- * monté au-dessus du reste, purement serveur, de `ClubDashboard` — même
- * raison que `ClubPodiumKpi`/`PodiumsList`, qui recalculent déjà en mémoire à
- * partir de props sérialisées plutôt que de re-fetcher.
- */
-export function RosterApercu({
-  roster,
-  apercuTaille,
-}: {
-  roster: RosterEntry[];
-  apercuTaille: number;
-}) {
+export function RosterApercu({ roster }: { roster: ClubRosterEntry[] }) {
   const athleteRetenu = useSelectedAthlete();
-  const rang = athleteRetenu
-    ? trouverRang(athleteRetenu.id, roster.map((r) => r.athleteId))
-    : null;
-  const rappelVisible = rang !== null && rang > apercuTaille;
-  const apercu = roster.slice(0, apercuTaille);
+  const horsApercu = athleteRetenu != null && !roster.some((r) => r.athlete_id === athleteRetenu.id);
 
   return (
     <>
-      <RappelPosition
-        visible={rappelVisible}
-        epreuves={rang ? roster[rang - 1].count : 0}
-        rang={rang ?? 0}
-        hrefAncre={athleteRetenu ? hrefRappel(athleteRetenu.id, rang ? roster[rang - 1] : undefined) : "#"}
-      />
-      {apercu.some((r) => r.podiums > 0) && (
+      <div className="min-h-11">
+        {horsApercu && (
+          <Link
+            href={`/club/athletes#athlete-${athleteRetenu.id}`}
+            className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold"
+            style={{
+              background: "var(--tcn-orange-08)",
+              border: "1px solid rgba(233,83,14,.25)",
+              color: "var(--tcn-orange-deeper)",
+            }}
+          >
+            Vous n&apos;êtes pas parmi les {roster.length} athlètes les plus actifs — Voir tous les
+            athlètes →
+          </Link>
+        )}
+      </div>
+      {roster.some((r) => r.podiums > 0) && (
         <p className="text-sm text-[var(--tcn-text-faint)]">
           Les podiums comptés ici cumulent le général, le genre et la catégorie.
         </p>
       )}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {apercu.map((r) => {
-          const moi = athleteRetenu?.id === r.athleteId;
+        {roster.map((r) => {
+          const name = `${r.prenom} ${r.nom}`;
+          const moi = athleteRetenu?.id === r.athlete_id;
           return (
             <Link
-              key={r.athleteId}
-              href={`/athletes/${r.athleteId}`}
+              key={r.athlete_id}
+              href={`/athletes/${r.athlete_id}`}
               className={
                 moi
                   ? "flex items-center gap-3 rounded-xl p-3 ring-1 ring-foreground/10 transition-colors tcn-roster-card--moi"
                   : "flex items-center gap-3 rounded-xl bg-card p-3 ring-1 ring-foreground/10 transition-colors hover:bg-muted/50"
               }
             >
-              <Avatar name={r.name} size={40} />
+              <Avatar name={name} size={40} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 truncate font-semibold">
-                  <span className="truncate">{r.name}</span>
+                  <span className="truncate">{name}</span>
                   {moi && <VousChip />}
                 </div>
                 <div className="text-xs text-[var(--tcn-text-faint)]">
@@ -78,7 +71,13 @@ export function RosterApercu({
                   {r.podiums > 0 && ` · ${r.podiums} podium${r.podiums > 1 ? "s" : ""}`}
                 </div>
               </div>
-              {r.podiums > 0 && <RosterPodiumBadges roster={r} />}
+              {r.podiums > 0 && (
+                <RosterPodiumBadges
+                  overall={r.podiums_overall}
+                  gender={r.podiums_gender}
+                  category={r.podiums_category}
+                />
+              )}
             </Link>
           );
         })}
@@ -93,12 +92,21 @@ export function RosterApercu({
  * de distinguer « 3 podiums scratch » de « 3 podiums de catégorie » là où
  * l'ancien `🏅3` amalgamait tout.
  */
-function RosterPodiumBadges({ roster }: { roster: RosterEntry }) {
+function RosterPodiumBadges({
+  overall,
+  gender,
+  category,
+}: {
+  overall: number;
+  gender: number;
+  category: number;
+}) {
+  const values: Record<PodiumScope, number> = { overall, gender, category };
   const scopes: PodiumScope[] = ["overall", "gender", "category"];
   return (
     <span className="flex shrink-0 items-center gap-1.5">
       {scopes.map((scope) => {
-        const n = roster.podiumsByScope[scope];
+        const n = values[scope];
         if (n === 0) return null;
         const { Icon, label, title } = PODIUM_SCOPE_META[scope];
         return (
