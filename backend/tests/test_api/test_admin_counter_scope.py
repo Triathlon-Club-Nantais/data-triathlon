@@ -131,11 +131,15 @@ def test_vider_la_liste_des_disciplines_est_permis(client, db_session):
         db_session, kind=NON_FEDERAL_DISCIPLINE, value="trail"
     )
 
-    assert client.delete(f"{BASE}/disciplines/{cible.id}").status_code == 204
+    reponse = client.delete(f"{BASE}/disciplines/{cible.id}")
+
+    assert reponse.status_code == 204
 
 
 def test_un_identifiant_inconnu_est_introuvable(client):
-    assert client.delete(f"{BASE}/club-labels/4242").status_code == 404
+    reponse = client.delete(f"{BASE}/club-labels/4242")
+
+    assert reponse.status_code == 404
 
 
 def test_un_identifiant_de_l_autre_nature_est_introuvable(client, db_session):
@@ -145,7 +149,9 @@ def test_un_identifiant_de_l_autre_nature_est_introuvable(client, db_session):
         db_session, kind=NON_FEDERAL_DISCIPLINE, value="trail"
     )
 
-    assert client.delete(f"{BASE}/club-labels/{cible.id}").status_code == 404
+    reponse = client.delete(f"{BASE}/club-labels/{cible.id}")
+
+    assert reponse.status_code == 404
 
 
 # --- L'écriture prend effet immédiatement (FR-008) ----------------------------
