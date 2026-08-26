@@ -122,8 +122,12 @@ describe("CoursePage", () => {
   it("écrit le club TCN du classement « Top clubs » en `--tcn-orange-deeper`, seul token à tenir 4,5:1 (A11Y-4)", async () => {
     await afficher();
 
+    // Depuis #486 (RES-11), le nom vit dans le lien qui active la ligne — c'est
+    // ce lien, pas la cellule, que `getByText` rend (élément le plus profond
+    // portant le texte).
     const nom = screen.getByText("TRIATHLON CLUB NANTAIS");
-    const compte = nom.nextElementSibling as HTMLElement;
+    const ligne = nom.closest("tr")!;
+    const compte = within(ligne).getAllByRole("cell")[1];
     expect(nom.style.color).toBe("var(--tcn-orange-deeper)");
     expect(compte).toHaveTextContent("4");
     expect(compte.style.color).toBe("var(--tcn-orange-deeper)");
@@ -136,25 +140,28 @@ describe("CoursePage", () => {
     // annonce « tableau » deux fois sans dire lequel.
     await afficher();
 
-    const tableau = screen.getByRole("table", { name: "Top clubs" });
+    const tableau = screen.getByRole("table", { name: "Répartition par club" });
     expect(within(tableau).getByRole("columnheader", { name: "Club" })).toBeInTheDocument();
     expect(within(tableau).getByRole("columnheader", { name: "Athlètes" })).toBeInTheDocument();
     expect(within(tableau).getAllByRole("row")).toHaveLength(3); // en-tête + 2 clubs
   });
 
-  it("laisse les lignes de « Top clubs » inertes : ni lien, ni arrêt clavier", async () => {
+  it("n'offre qu'un arrêt clavier par ligne de « Top clubs » — le lien vers le classement filtré (#486, RES-11)", async () => {
+    // #481 voulait la ligne inerte ; #486 la rend activable vers `?club=` ou
+    // `scope=club` (RES-11). L'invariant qui survit est celui des autres listes
+    // du produit : un seul arrêt clavier par ligne, jamais un par cellule.
     await afficher();
 
-    const ligne = within(screen.getByRole("table", { name: "Top clubs" })).getAllByRole("row")[1];
-    expect(within(ligne).queryByRole("link")).not.toBeInTheDocument();
-    expect(ligne.querySelectorAll("a[href], button, input, select, textarea")).toHaveLength(0);
+    const ligne = within(screen.getByRole("table", { name: "Répartition par club" })).getAllByRole("row")[1];
+    expect(within(ligne).getByRole("link")).toBeInTheDocument();
+    expect(ligne.querySelectorAll("a[href], button, input, select, textarea")).toHaveLength(1);
   });
 
   it("garde l'en-tête de « Top clubs » quand aucun club n'est renseigné, l'état vide hors du tableau", async () => {
     getCourseSummary.mockResolvedValue({ ...SUMMARY, clubs: [], clubs_total: 0 });
     await afficher();
 
-    const tableau = screen.getByRole("table", { name: "Top clubs" });
+    const tableau = screen.getByRole("table", { name: "Répartition par club" });
     expect(within(tableau).getAllByRole("row")).toHaveLength(1);
     expect(within(tableau).queryByText("Clubs non renseignés")).not.toBeInTheDocument();
     expect(screen.getByText("Clubs non renseignés")).toBeInTheDocument();

@@ -5,32 +5,39 @@ synthèse en a besoin pour la médiane d'épreuve : l'implémenter des deux côt
 #76, où trois listes divergentes du critère club ont fait compter tout Nantes comme TCN.
 L'écran ne fait donc que comparer aux seuils d'affichage ce que ce module calcule.
 
-Dans `core/` et non `services/`, pour la même raison que `core/club.py` : logique de
-domaine pure, sans `Session`, consommée à la fois par un service (la médiane d'épreuve)
-et par un DTO (`ParticipationOut.split_gap_ratio`). Un schéma qui importerait un service
-inverserait le sens du flux `api → services → repositories`.
+Dans `services/`, à côté de `mapping` dont il dérive son gabarit de segments. Ses deux
+consommateurs sont `stats_service` (la médiane d'épreuve) et `schemas/participation.py`
+(le champ calculé d'une ligne) : les DTO relèvent de la couche API, donc les deux vont
+dans le sens autorisé `api → services`.
 
 Les seuils publiés ici viennent du sondage
 `docs/superpowers/specs/2026-08-25-ecart-inters-total-sondage.md`, qui **prime** sur ce
-module : le seuil de 2 % proposé par l'audit signalait 8,02 % du classement, dont 285
+module : le seuil de 2 % proposé par l'audit signalait 6,89 % du classement, dont 285
 lignes d'une épreuve que le produit tient pour fiable. Les ajuster se fait là-bas, en
 re-mesurant, pas ici.
 """
 import re
 import statistics
 
-#: Segments attendus par sport, **miroir strict** de `SCHEMAS` dans
-#: `frontend/lib/utils/splits.ts`. La duplication est assumée (plan.md, §Complexity
-#: Tracking) et gardée par `test_python_and_typescript_share_the_same_segment_schemas` :
-#: sans elle, sommer les inters côté serveur exigerait de connaître le schéma de sport,
-#: qui n'existe qu'en TypeScript.
+from app.services.mapping import _DEFAULT_SPLIT_KEYS, _SPLIT_KEYS_BY_SPORT, _sport_base
+
+#: Segments attendus par sport — **dérivés** de `mapping._SPLIT_KEYS_BY_SPORT`, jamais
+#: réécrits ici. Cette table est celle qui *produit* les clés de `Participation.splits` :
+#: en tenir une copie, c'était garantir la divergence. Le premier jet de ce module en
+#: avait une, et elle mentait déjà — `bike-run` y valait `bike/run` quand le gabarit
+#: réel pose `segment1/bike/run`, de sorte que la somme ignorait un tiers du parcours et
+#: fabriquait un écart systématique. Il y manquait aussi `swimrun`, `course-a-pied`,
+#: `trail`, `cyclisme`, `swim-bike` et `raid-multisport`.
+#:
+#: `_sport_base` vient du même module : les bases multi-mots (`bike-run`,
+#: `course-a-pied`) portent un tiret qui n'est pas un séparateur de taille, et
+#: `event_type.split("-")` ferait tomber `bike-run-s` sur le gabarit triathlon.
 SCHEMAS: dict[str, list[str]] = {
-    "duathlon": ["course1", "t1", "bike", "t2", "course2"],
-    "bike-run": ["bike", "run"],
-    "aquathlon": ["swim", "run"],
-    "aquarun": ["swim", "t1", "run"],
-    "triathlon": ["swim", "t1", "bike", "t2", "run"],
+    sport: list(gabarit.values()) for sport, gabarit in _SPLIT_KEYS_BY_SPORT.items()
 }
+
+#: Le triathlon est le gabarit par défaut, comme dans `mapping.build_splits`.
+_DEFAULT_SCHEMA: list[str] = list(_DEFAULT_SPLIT_KEYS.values())
 
 #: Écart relatif à la médiane de l'épreuve au-delà duquel une ligne est signalée.
 #: Mesuré : 0 ligne sur les 4 150 évaluables de la base de dev.
@@ -44,7 +51,7 @@ MIN_EVALUATED_ROWS = 10
 MIN_GAP_SECONDS = 60
 
 #: Médiane d'épreuve au-delà de laquelle les inters publiés ne couvrent manifestement
-#: pas tout le parcours. 5 épreuves sur 25 dans la base de dev.
+#: pas tout le parcours. 1 épreuve sur 25 dans la base de dev.
 EVENT_GAP_RATIO = 0.01
 
 # `fullmatch`, et non le `search` de `app.scrapers.utils.to_seconds` : cette dernière
@@ -69,11 +76,8 @@ def parse_duration(value: str | None) -> int | None:
 
 
 def schema_for(event_type: str | None) -> list[str]:
-    """Segments attendus pour ce sport — le triathlon est le repli, comme côté écran."""
-    event_type = event_type or ""
-    if event_type.startswith("duathlon"):
-        return SCHEMAS["duathlon"]
-    return SCHEMAS.get(event_type, SCHEMAS["triathlon"])
+    """Segments attendus pour ce sport, tels que `mapping.build_splits` les a posés."""
+    return SCHEMAS.get(_sport_base(event_type or ""), _DEFAULT_SCHEMA)
 
 
 def gap(

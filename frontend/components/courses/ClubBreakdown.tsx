@@ -8,9 +8,10 @@ import type { ClubCount } from "@/lib/types";
  * Extraite du JSX inline de `courses/[id]/page.tsx` : elle gagne un pied qui compte ce
  * qu'elle n'affiche pas, ce qui la rend testable pour elle-même.
  *
- * Reste un `<table>` à lignes inertes (#481, A11Y-3) : l'en-tête de colonnes
- * survit à la liste vide — `page.test.tsx` le verrouille — l'état vide se
- * rendant après le tableau, jamais à sa place.
+ * Reste un `<table>` (#481, A11Y-3) : l'en-tête de colonnes survit à la liste
+ * vide — `page.test.tsx` le verrouille — l'état vide se rendant après le
+ * tableau, jamais à sa place. Les lignes sont devenues activables avec #486
+ * (RES-11) sans rouvrir cette structure.
  */
 export function ClubBreakdown({
   clubs,
@@ -54,17 +55,22 @@ export function ClubBreakdown({
               className={hrefFor ? "tcn-rowlink" : undefined}
               style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, padding: "7px 0", minHeight: 24, borderBottom: "1px solid var(--tcn-border-faint2)" }}
             >
-              <td role="cell" style={{ fontSize: 13, fontWeight: own ? 700 : 600, color: own ? "var(--tcn-orange-deeper)" : "var(--tcn-ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <td role="cell" style={{ fontSize: 13, fontWeight: own ? 700 : 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {/* La couleur vit sur l'élément qui porte le nom — le lien une
+                    fois `hrefFor` fourni —, jamais sur la seule cellule : c'est
+                    lui que `getByText` rend, et le contraste TCN (A11Y-4) doit
+                    s'y lire directement. */}
                 {hrefFor ? (
                   <Link
                     href={hrefFor(name, own)}
                     aria-label={`${name}, ${count} athlète${count > 1 ? "s" : ""}. Voir ces participants dans le classement.`}
                     className="tcn-rowlink__cible"
+                    style={{ color: own ? "var(--tcn-orange-deeper)" : "var(--tcn-ink)" }}
                   >
                     {name}
                   </Link>
                 ) : (
-                  name
+                  <span style={{ color: own ? "var(--tcn-orange-deeper)" : "var(--tcn-ink)" }}>{name}</span>
                 )}
               </td>
               {/* Le chevron vit dans la même cellule que l'effectif, plutôt qu'une
