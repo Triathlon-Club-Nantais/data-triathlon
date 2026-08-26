@@ -75,6 +75,26 @@ def test_get_club_summary_podiums_all_prend_le_meilleur_des_trois(db_session):
     assert entry.rank == 2
 
 
+def test_get_club_summary_podiums_gender_exclut_un_genre_non_binaire(db_session):
+    # Miroir de stats_service._rank_counters (#376) : le bucket "gender" ne
+    # compte que F/M, jamais un genre vide ou hors binaire (#581, revue finale).
+    ath = athlete_repository.get_or_create(db_session, nom="A", prenom="A", club="TCN", gender="H")
+    course = _course(db_session, "C")
+    participation_repository.create(
+        db_session, athlete_id=ath.id, course_id=course.id, bib_number="1",
+        club="TCN", status="finisher", rank_gender=1,
+    )
+    db_session.flush()
+
+    summary = club_service.get_club_summary(db_session)
+
+    assert summary.podiums.gender == []
+    # Toujours compté en mode "all" — comportement inchangé, aucune
+    # restriction de genre sur ce bucket-là.
+    assert len(summary.podiums.all) == 1
+    assert summary.podiums.all[0].scope == "gender"
+
+
 def test_get_club_summary_podiums_tries_par_rang_puis_date_desc(db_session):
     ath = athlete_repository.get_or_create(db_session, nom="A", prenom="A", club="TCN")
     ancien = course_repository.get_or_create(

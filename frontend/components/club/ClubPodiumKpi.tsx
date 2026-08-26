@@ -20,6 +20,12 @@ export function ClubPodiumKpi({ rankCounters }: { rankCounters: DashboardRankCou
     rankType === "gender"
       ? rankCounters.gender.women.podiums + rankCounters.gender.men.podiums
       : rankCounters[rankType].podiums;
+  // `accent={false}` comme les trois KPI SSR de `ClubDashboard` : le trait
+  // orange reste à la seule tuile mise en avant (« Résultats »).
+  // Le `delta` nomme la portée du décompte (#488, PROF-3) : le roster deux
+  // blocs plus bas compte sur les trois portées cumulées, sans condition. Les
+  // deux nombres sont justes et incomparables — chacun porte donc le sien.
+  // Même geste que `StatCardsRank`, qui écrit déjà « 12 · général ».
   return (
     <StatCard
       label="Podiums"
