@@ -68,14 +68,21 @@ l'issue sont signalées explicitement.
 
 ## US6 — Comparaison athlète vs athlète
 
-- **Decision**: nouveau composant de sélection + comparaison, en s'appuyant
-  sur `apiClient.listParticipations` existant.
-- **Correction vs. l'issue**: `page_size` est plafonné à **5000**
-  (`backend/app/api/v1/participations.py`, `le=5000`), pas 1000 comme
-  l'énonçait l'issue #466 — corrigé dans `spec.md`.
+- **Decision (implémentée)** : recherche via `apiClient.searchAthletes`
+  (`GET /athletes/search`, #484, déjà public — la même route que la palette
+  ⌘K) plutôt que `listParticipations` filtré, puis `apiClient.getAthlete(id)`
+  pour récupérer **toutes** les participations du second athlète en un seul
+  appel — exactement le même patron que celui déjà utilisé pour « mes »
+  participations sur cette page. Plus simple que filtrer `listParticipations`
+  côté client sur un `athlete_id` (paramètre qui, vérification faite,
+  n'existe même pas sur `ParticipationFilters` côté frontend).
+- **Correction vs. l'issue**: `page_size` de `listParticipations` est
+  plafonné à **5000** (`backend/app/api/v1/participations.py`, `le=5000`),
+  pas 1000 comme l'énonçait l'issue #466 — corrigé dans `spec.md`, bien que
+  cette route ne soit finalement pas celle utilisée par l'implémentation.
 - **Alternatives considered**: endpoint dédié `/athletes/{id}/compare/{id2}`
-  — rejeté pour cette itération, `listParticipations` filtré côté client sur
-  une épreuve commune suffit sans nouveau contrat API.
+  — rejeté, aucun nouveau contrat API nécessaire, deux appels déjà existants
+  suffisent.
 
 ## US7 — Répartition disciplines/distances par saison
 
