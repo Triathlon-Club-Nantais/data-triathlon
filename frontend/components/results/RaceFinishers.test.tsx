@@ -1007,10 +1007,22 @@ describe("RaceFinishers — ma ligne dans le classement (NAV-10, #503)", () => {
     writeAthlete({ id: 3, prenom: "T", nom: "DNFGUY" });
     afficher();
 
-    const marques = screen.getAllByText("Vous");
+    // Scopé à la grille : depuis #461, la même ligne existe aussi dans
+    // l'arbre carte (masqué par CSS, toujours dans le DOM).
+    const marques = within(screen.getByTestId("classement-grille")).getAllByText("Vous");
     expect(marques).toHaveLength(1);
     // WCAG 1.4.1 : le chip est le signifiant, le fond ne fait que l'appuyer.
     expect(marques[0].closest("tr")).toHaveTextContent("DNFGUY");
+  });
+
+  it("marque aussi ma ligne d'un chip « Vous » dans l'arbre carte (revue finale #461)", () => {
+    // Régression relevée en revue finale : la boucle des cartes ne lisait
+    // jamais `moi`, donc sur téléphone rien ne distinguait ma ligne — alors
+    // que « Aller à ma ligne » y reste offert.
+    writeAthlete({ id: 3, prenom: "T", nom: "DNFGUY" });
+    afficher();
+
+    expect(dansLesCartes("classement-cartes").texte("Vous")).toBeInTheDocument();
   });
 
   it("peint le fond de ma ligne, y compris sur un non-finisher — par une classe, pas un style en ligne", () => {
@@ -1315,6 +1327,34 @@ describe("rendu carte sous lg", () => {
     expect(carte.texte("1")).toBeInTheDocument();
     // La méta est une seule chaîne « club · catégorie · sexe ».
     expect(carte.texte(/TCN · S4/)).toBeInTheDocument();
+  });
+
+  it("n'affiche aucune méta quand club, catégorie et sexe sont tous absents, plutôt que trois tirets accolés (revue finale #461)", () => {
+    // Le `.filter(Boolean)` de la méta portait sur des valeurs déjà repliées
+    // (« — », et `genderShort(null)` qui vaut lui-même « — ») : il ne
+    // retirait donc jamais rien, et affichait « — · — · — » là où la grille
+    // répartit trois tirets dans trois colonnes distinctes, ce qui se lit.
+    render(
+      <RaceFinishers
+        participations={[
+          {
+            ...p({ id: 1, nom: "DUPONT", rank_overall: 1, total_time: "01:04:12" }),
+            club: null,
+            category: null,
+            athlete: { id: 1, nom: "DUPONT", prenom: "T", gender: null, club: null },
+          },
+        ]}
+        summary={synthese()}
+        total={1}
+        page={1}
+        pageSize={20}
+      />,
+    );
+    // `textContent` brut, pas une requête texte : la carte est exclue des
+    // requêtes texte par `test/setup.ts`, et c'est une absence qu'on vérifie
+    // ici — `dansLesCartes` ne porte pas de pendant négatif à `.texte()`.
+    const carte = screen.getByTestId("classement-cartes");
+    expect(carte.textContent).not.toMatch(/—/);
   });
 
   it("range les inters dans un dépliant, ⚠ compris", () => {

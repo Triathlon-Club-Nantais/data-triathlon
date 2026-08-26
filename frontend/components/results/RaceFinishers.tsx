@@ -235,6 +235,23 @@ function marqueurRang(p: Participation, nf: boolean, stylePlace?: CSSProperties)
   return <span style={{ color: "var(--tcn-text-faint)" }}>—</span>;
 }
 
+/**
+ * Chip « Vous » : le signifiant de « ma ligne » (#467), partagé par la grille
+ * et les cartes — la couleur seule (fond `.tcn-rowlink--moi`) échouerait
+ * WCAG 1.4.1.
+ */
+const STYLE_CHIP_VOUS: CSSProperties = {
+  flex: "none",
+  padding: "1px 7px",
+  borderRadius: "var(--tcn-radius-sm)",
+  background: "var(--tcn-orange-deep)",
+  color: "#fff",
+  fontFamily: "var(--tcn-font-cond)",
+  fontWeight: 700,
+  fontSize: 11,
+  letterSpacing: ".04em",
+};
+
 export function RaceFinishers({
   participations,
   summary,
@@ -609,23 +626,7 @@ export function RaceFinishers({
                     {/* Le chip, pas le fond, est le signifiant : la couleur seule
                         échouerait WCAG 1.4.1. `flex: none` pour qu'il survive à
                         un nom long, dont c'est l'ellipse qui cède. */}
-                    {moi && (
-                      <span
-                        style={{
-                          flex: "none",
-                          padding: "1px 7px",
-                          borderRadius: "var(--tcn-radius-sm)",
-                          background: "var(--tcn-orange-deep)",
-                          color: "#fff",
-                          fontFamily: "var(--tcn-font-cond)",
-                          fontWeight: 700,
-                          fontSize: 11,
-                          letterSpacing: ".04em",
-                        }}
-                      >
-                        Vous
-                      </span>
-                    )}
+                    {moi && <span style={STYLE_CHIP_VOUS}>Vous</span>}
                     <VoileAttente />
                   </Link>
                 </td>
@@ -709,9 +710,14 @@ export function RaceFinishers({
         )}
         {lignes.map((p) => {
           const { nf, name, splits } = donneesLigne(p);
-          const meta = [p.club ?? "—", p.category ?? "—", genderShort(p.athlete?.gender)]
-            .filter(Boolean)
-            .join(" · ");
+          const moi = athleteRetenu?.id === p.athlete.id;
+          // `.filter(Boolean)` sur les valeurs **brutes** : les replis (« — »,
+          // `genderShort(null)`) sont eux-mêmes des chaînes non vides, donc un
+          // filtre posé après eux ne retire jamais rien — un participant sans
+          // club, catégorie ni sexe affichait « — · — · — » là où la grille
+          // répartissait trois tirets dans trois colonnes distinctes.
+          const genre = p.athlete?.gender ? genderShort(p.athlete.gender) : null;
+          const meta = [p.club, p.category, genre].filter(Boolean).join(" · ");
           return (
             <LigneCarte
               key={p.id}
@@ -719,7 +725,12 @@ export function RaceFinishers({
               accent={p.is_tcn}
               attenue={nf}
               marqueur={marqueurRang(p, nf)}
-              titre={name}
+              titre={
+                <>
+                  {name}
+                  {moi && <span style={STYLE_CHIP_VOUS}>Vous</span>}
+                </>
+              }
               valeur={p.total_time ?? "—"}
               meta={meta}
               depliant={
