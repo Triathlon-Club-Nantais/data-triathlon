@@ -3,7 +3,12 @@
 **Elle relit la base à chaque appel, et ne met rien en cache** (FR-016). C'est
 ce qui rend l'édition d'un rôle effective à la **requête suivante** de tous ses
 porteurs, sans reconnexion — et ce qu'un cache, si petit soit-il, rendrait faux :
-« c'est effectif tout de suite » deviendrait « au bout d'un moment ».
+« c'est effectif tout de suite » deviendrait « au bout d'un moment ». Seule
+nuance : `effective_permissions(attributions=…)` (#625) laisse un appelant qui a
+déjà lu ces lignes **dans le même appel HTTP** les réutiliser plutôt que de les
+relire une seconde fois — ce n'est pas un cache inter-requêtes, la donnée reste
+un fetch tout frais de cette requête-ci, seulement partagé plutôt que dupliqué.
+Voir sa docstring pour la borne exacte de cette exception.
 """
 import logging
 from contextlib import contextmanager
@@ -111,6 +116,10 @@ def effective_permissions(
     `attributions`, si fourni, évite un second aller-retour DB — passer les
     lignes déjà chargées par l'appelant (#625 : `GET /auth/me` les tient déjà
     par `user.roles`) plutôt que de laisser cette fonction les relire.
+    **Non revérifié contre `organisation_id`** : à l'appelant de garantir que
+    les deux sont cohérents (les lignes fournies doivent déjà être celles que
+    ce filtre aurait rendues), sans quoi le résultat porterait silencieusement
+    sur la mauvaise portée.
     """
     if not user.is_active:
         return frozenset()
@@ -145,9 +154,11 @@ def has_permission(
     migration ni recochage — même si le catalogue de ce processus l'ignore
     encore.
 
-    Un seul aller-retour DB (#625) : `_is_superuser` puis `effective_permissions`
-    relisaient chacun `list_for_user`, jusqu'à trois requêtes pour une décision
-    qui n'en réclame qu'une.
+    Un seul appel à `list_for_user` (#625) : `_is_superuser` puis
+    `effective_permissions` le relisaient chacun, jusqu'à trois appels pour une
+    décision qui n'en réclame qu'un — `list_for_user` elle-même reste trois
+    `SELECT` (`UserRole`, `Role`, `RolePermission` en `selectinload`), fixes
+    quel que soit le nombre de rôles portés, jamais un par rôle.
     """
     if not user.is_active:
         return False

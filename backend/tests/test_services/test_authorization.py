@@ -316,3 +316,10 @@ def test_effective_permissions_n_interroge_pas_la_base_quand_les_attributions_so
     )
 
     assert requetes == []
+    # Le chemin `attributions=` est neuf : sans cette assertion, un bug qui
+    # casserait `attribution.role.permissions` ou le filtre `is_known` sur
+    # cette branche précise passerait inaperçu — seule l'absence de requête
+    # serait vérifiée, jamais le résultat qu'elle retourne.
+    assert authorization.effective_permissions(
+        db_session, user, attributions=attributions
+    ) == {P.QUALITY_OVERRIDE.code}
