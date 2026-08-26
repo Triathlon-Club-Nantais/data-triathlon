@@ -816,6 +816,36 @@ describe("rendu carte sous md", () => {
     expect(entete).toHaveTextContent("—");
   });
 
+  it("porte le compte d'épreuves et de résultats dans le nom accessible du bouton de carte (revue finale #461)", () => {
+    // `aria-label` remplace le nom accessible calculé depuis le contenu : côté
+    // grille, un lecteur d'écran entend « 2 épreuves » et « 296 résultats » en
+    // plus du préfixe — précisément ce qui décide si un groupe replié vaut la
+    // peine d'être ouvert. Sans eux, la carte n'annonçait que le préfixe.
+    setEvents({
+      data: {
+        pages: [
+          {
+            items: [
+              epreuve({ id: 1, event_name: "Coupe de Bretagne - Sprint H" }),
+              epreuve({ id: 2, event_name: "Coupe de Bretagne - Sprint F" }),
+            ],
+            total_events: 2,
+            total_participations: 296,
+          },
+        ],
+      },
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+    });
+    renderList();
+
+    const entete = cartes().getByRole("button", { name: /Coupe de Bretagne/ });
+    expect(entete).toHaveAccessibleName(/2 épreuves/);
+    expect(entete).toHaveAccessibleName(/296 résultats/);
+  });
+
   // L'état `ouverts` est au-dessus des deux arbres : replier au téléphone puis
   // élargir garde le repli, et l'inverse aussi.
   it("partage le repli d'une compétition entre les deux arbres", async () => {

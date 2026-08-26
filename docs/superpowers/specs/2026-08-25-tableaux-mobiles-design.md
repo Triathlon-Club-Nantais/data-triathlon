@@ -12,7 +12,7 @@ Quatre écrans enferment une **liste d'enregistrements** dans une grille CSS à
 | --- | --- | --- | --- |
 | Classement d'une course | `components/results/RaceFinishers.tsx` | 1 080 px | 11 |
 | Fiche athlète | `app/(public_restricted)/athletes/[id]/EventsTable.tsx` | 988 px | 7 |
-| `/resultats` | `components/results/EventList.tsx` | 966 px | 7 |
+| `/resultats` | `components/results/EventList.tsx` | 948 px | 7 |
 | `/ajouter` | `app/(public_restricted)/ajouter/page.tsx` | 480 px | 4 |
 
 Sur un iPhone SE (375 px moins 32 px de gouttière `PageShell`), lire un
@@ -50,7 +50,7 @@ Deux techniques ont été écartées :
 | --- | --- | --- | --- |
 | Classement (1 080 px) | `lg:` — 1 024 px | `hidden lg:block` | `lg:hidden` |
 | Fiche athlète (988 px) | `md:` — 768 px | `hidden md:block` | `md:hidden` |
-| `/resultats` (966 px) | `md:` — 768 px | `hidden md:block` | `md:hidden` |
+| `/resultats` (948 px) | `md:` — 768 px | `hidden md:block` | `md:hidden` |
 | `/ajouter` (480 px) | `sm:` — 640 px | `hidden sm:block` | `sm:hidden` |
 
 Un seuil unique à `sm:` aurait laissé la tablette et le petit portable sur un
