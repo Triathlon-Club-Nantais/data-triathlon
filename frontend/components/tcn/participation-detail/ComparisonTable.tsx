@@ -6,6 +6,15 @@ import { Eyebrow } from "../Eyebrow";
 
 const TOTAL_KEY = "total";
 
+// Sous 640 px, sept colonnes tombent à ~500 px de large et le tableau défile
+// dans sa carte. Les segments courts sont les premiers à sortir : ils sont
+// déjà rendus en gris atténué, et la note du bas dit déjà que leurs
+// pourcentages sont bruités. Ce n'est pas une mise en conformité — un tableau
+// de données est exempté de WCAG 1.4.10 —, c'est de la lisibilité. Au niveau
+// module, comme son jumeau `classePalier` (`ImprovementMatrix.tsx`) : il ne
+// capture rien du scope du composant.
+const classeColonne = (small?: boolean) => (small ? "hidden sm:table-cell" : undefined);
+
 /**
  * Comparaison de l'athlète aux positions de référence du classement scratch.
  *
@@ -24,13 +33,6 @@ export function ComparisonTable({
 }) {
   const columns = splitColumnsFromKeys(eventType, segments);
   const shortSegmentLabels = columns.filter((column) => column.small).map((column) => column.label);
-
-  // Sous 640 px, sept colonnes tombent à ~500 px de large et le tableau défile
-  // dans sa carte. Les segments courts sont les premiers à sortir : ils sont
-  // déjà rendus en gris atténué, et la note du bas dit déjà que leurs
-  // pourcentages sont bruités. Ce n'est pas une mise en conformité — un tableau
-  // de données est exempté de WCAG 1.4.10 —, c'est de la lisibilité.
-  const classeColonne = (small?: boolean) => (small ? "hidden sm:table-cell" : undefined);
 
   return (
     <Card style={{ marginBottom: 24, overflowX: "auto" }}>
@@ -75,7 +77,11 @@ export function ComparisonTable({
         <p style={{ marginTop: 10, fontSize: 13, color: "var(--tcn-text-faint)" }}>
           Les segments courts ({shortSegmentLabels.join(", ")}) sont sensibles au bruit de
           chronométrage : leurs pourcentages peuvent ne pas décroître régulièrement d&apos;un
-          rang à l&apos;autre. Leurs colonnes s&apos;affichent sur un écran plus large.
+          rang à l&apos;autre.{" "}
+          {/* Seule cette phrase est fausse dès 640 px, où les colonnes sont déjà
+              visibles : la phrase sur le bruit de chronométrage, elle, reste
+              vraie à toute largeur. */}
+          <span className="sm:hidden">Leurs colonnes s&apos;affichent sur un écran plus large.</span>
         </p>
       )}
     </Card>
