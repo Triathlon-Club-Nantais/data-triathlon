@@ -557,7 +557,7 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   pour le classement (plancher 1 080 px), `md` pour la fiche athlète (988 px)
   et `/resultats` (948 px), `sm` pour `/ajouter` (480 px). Le dessin de la carte
   vit une seule fois, dans `components/tcn/LigneCarte.tsx` — **sans état, donc
-  sans `"use client"`**, ce qui laisse `/ajouter` en Server Component. Trois
+  sans `"use client"`**, ce qui laisse `/ajouter` en Server Component. Quatre
   points qui se re-cassent :
   - **Le dépliant et les actions sont frères de la zone cliquable**, jamais
     enfants : un `<a>` ou un `<button>` dans un `<a>` est du HTML invalide.
@@ -577,6 +577,12 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
     arbre. Accepté : `useSession` a une clé de cache unique, donc aucun appel
     supplémentaire, et l'arbre masqué n'est ni cliquable ni atteignable au
     clavier.
+  - **Le helper partagé entre les deux arbres rend le JSX, pas la donnée** :
+    c'est au niveau du rendu que la dérive s'est produite, deux fois — le
+    compteur du club d'une compétition (`CartesCompetition`, revue #461) et le
+    chip « Vous » (`RaceFinishers`, revue finale #461), tous deux calculés côté
+    grille et oubliés côté carte tant que le calcul restait à refaire à la main
+    plutôt que rendu par une fonction commune.
 
   Les deux matrices du détail de participation (`ComparisonTable`,
   `ImprovementMatrix`) ne suivent **pas** ce patron : ce sont de vrais
