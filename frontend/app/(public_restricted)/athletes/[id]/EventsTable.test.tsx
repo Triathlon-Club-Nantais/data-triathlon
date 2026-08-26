@@ -17,10 +17,14 @@ vi.mock("next/navigation", () => ({
 }));
 
 // `ParticipationAdminActions` vit sous chaque ligne depuis #439 et se teste pour
-// lui-même ailleurs. Ici, un visiteur anonyme et des requêtes neutres : le
-// tableau filtré doit être exactement celui d'un public sans pouvoir.
+// lui-même ailleurs. Ici, un visiteur anonyme et des requêtes neutres par
+// défaut : le tableau filtré doit être exactement celui d'un public sans
+// pouvoir. `useSessionMock` reste un `vi.fn()` — jamais réécrit dans son
+// défaut — pour qu'un unique describe dédié (plus bas) puisse le redéfinir
+// temporairement sans toucher ce mock global (revue finale #461, point 4).
+const { useSessionMock } = vi.hoisted(() => ({ useSessionMock: vi.fn(() => ({ data: null })) }));
 vi.mock("@/lib/queries/auth", () => ({
-  useSession: () => ({ data: null }),
+  useSession: useSessionMock,
 }));
 vi.mock("@/lib/queries/admin", () => ({
   useAdminAthlete: () => ({ data: undefined }),
@@ -395,5 +399,43 @@ describe("rendu carte sous md", () => {
     const preuve = carte.getByRole("link", { name: /Voir la preuve/ });
     expect(preuve).toHaveAttribute("href", "https://example.org/p.jpg");
     expect(carte.getByRole("link", { name: /Triathlon de Nantes/ })).not.toContainElement(preuve);
+  });
+});
+
+// La spec (#461, preuve de test n°6) : ce qui doit être vérifié n'est pas
+// l'unicité du montage de `ParticipationAdminActions`, mais que sa sous-ligne
+// existe aussi dans l'arbre carte — l'oublier retirerait aux administrateurs,
+// sur téléphone, des gestes qu'ils ont sur écran large. Le mock global de
+// `useSession` (« un visiteur anonyme ») rend ce cas irreprésentable dans les
+// autres tests du fichier : `ParticipationAdminActions` se rend nul dans les
+// deux arbres, donc supprimer sa ligne de rendu dans la carte ne ferait
+// rougir aucun test existant. D'où ce describe dédié, seul à redéfinir
+// `useSessionMock` — le mock global du fichier reste inchangé.
+describe("actions d'administration dans la carte (revue finale #461, point 4)", () => {
+  const cartes = () => dansLesCartes("epreuves-cartes");
+
+  beforeEach(() => {
+    // `participations:delete` suffit à faire apparaître la sous-ligne
+    // d'actions (voir `ParticipationAdminActions.tsx`) : le geste précis
+    // importe peu ici, seule compte sa présence dans l'arbre carte.
+    useSessionMock.mockReturnValue({ data: { permissions: ["participations:delete"] } });
+  });
+
+  afterEach(() => {
+    useSessionMock.mockReturnValue({ data: null });
+  });
+
+  it("offre le geste de suppression aussi dans l'arbre carte", async () => {
+    render(
+      <EventsTable
+        participations={[participation(1, { name: "Triathlon de Nantes" })]}
+        athleteId={7}
+        athleteName="Jean DUPONT"
+      />,
+    );
+
+    expect(
+      await cartes().findByRole("button", { name: /supprimer le résultat/i }),
+    ).toBeInTheDocument();
   });
 });
