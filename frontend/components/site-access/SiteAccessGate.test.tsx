@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
@@ -65,5 +65,42 @@ describe("SiteAccessGate", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/mot de passe incorrect/i);
     expect(push).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("affiche un indice de réveil à froid si la connexion dépasse 2,5 s (#622)", async () => {
+    vi.useFakeTimers();
+    try {
+      let resoudre!: () => void;
+      siteAccessLogin.mockReturnValue(
+        new Promise<null>((resolve) => {
+          resoudre = () => resolve(null);
+        }),
+      );
+      render(<SiteAccessGate />);
+
+      fireEvent.change(screen.getByLabelText(/mot de passe/i), {
+        target: { value: "secret-du-club" },
+      });
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /se connecter/i }));
+      });
+
+      expect(screen.queryByText(/réveil/i)).not.toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(2500);
+      });
+
+      expect(screen.getByText(/réveil/i)).toBeInTheDocument();
+
+      await act(async () => {
+        resoudre();
+        await Promise.resolve();
+      });
+
+      expect(screen.queryByText(/réveil/i)).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -28,10 +28,11 @@ CONFIG_ROW_ID = 1
 
 
 def get_config(db: Session, *, with_updated_by: bool = True) -> SiteAccessConfig | None:
-    """`with_updated_by=False` pour la garde (`api/deps.require_site_access`) :
-    posée sur pratiquement chaque requête (revue finale, Fix #7), elle ne lit
-    jamais que `session_secret` et n'a donc aucune raison de payer la jointure
-    sur `updated_by`, utile à la seule vue d'administration
+    """`with_updated_by=False` pour la garde (`api/deps.require_site_access`), posée
+    sur pratiquement chaque requête (revue finale, Fix #7), et pour `open_session`
+    (`POST /site-access/session`, #622) : ni l'une ni l'autre ne lit jamais que
+    `password_hash`/`password_salt`/`session_secret`, aucune raison de payer la
+    jointure sur `updated_by`, utile à la seule vue d'administration
     (`admin_site_access.get_access_config`), qui garde `with_updated_by=True`."""
     query = select(SiteAccessConfig)
     if with_updated_by:
