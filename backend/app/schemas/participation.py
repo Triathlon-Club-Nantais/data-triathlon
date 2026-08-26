@@ -3,11 +3,11 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, computed_field
 
-from app.core import split_gap
 from app.core.club import is_tcn as _is_tcn
 from app.schemas.athlete import AthleteBrief
 from app.schemas.course import CourseBrief
 from app.schemas.participation_stats import ParticipationStatsOut
+from app.services import split_gap
 
 
 class ParticipationOut(BaseModel):

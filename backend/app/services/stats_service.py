@@ -4,11 +4,11 @@ from collections import Counter
 from sqlalchemy.orm import Session
 
 from app.core import season as season_module
-from app.core import split_gap
 from app.core.club import TCN_CANONICAL_NAME, is_tcn
 from app.repositories import course_repository, participation_repository
 from app.scrapers.base import STATUS_FINISHER
 from app.scrapers.utils import to_seconds
+from app.services import split_gap
 
 
 def _athlete_key(part) -> int:

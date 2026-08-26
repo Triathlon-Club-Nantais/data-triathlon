@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.core import split_gap
+from app.services import mapping, split_gap
 
 
 def _row(*, total="01:00:00", splits=None, event_type="triathlon-m", is_relay=False):
@@ -100,12 +100,23 @@ def test_ratio_is_negative_when_the_splits_exceed_the_total():
     assert split_gap.ratio(_row(splits=long)) == pytest.approx(-600 / 3600)
 
 
-def test_the_aquathlon_schema_has_no_transition():
-    """C'est ce qui produit les +11,4 % de médiane de la course 65 : la T1 n'y est pas."""
-    row = _row(splits={"swim": "00:02:00", "run": "00:02:30"}, event_type="aquathlon")
-    # 270 s d'inters pour 300 s de total : les 30 s de transition manquent.
-    assert split_gap.ratio(_row(total="00:05:00", splits=row.splits, event_type="aquathlon")) == (
-        pytest.approx(30 / 300)
+def test_an_aquathlon_without_its_published_transition_is_not_evaluable():
+    """La T1 **est** au gabarit de l'aquathlon : sans elle, la ligne sort du calcul.
+
+    C'est ce qui explique les +11,4 % de médiane relevés sur la course 65 par le premier
+    sondage : le gabarit maison de l'époque ne connaissait pas cette T1 et sommait deux
+    segments sur trois. Avec le gabarit réel, ces lignes ne sont simplement pas
+    évaluables — le produit ne mesure pas ce qu'il n'a pas.
+    """
+    assert (
+        split_gap.ratio(
+            _row(
+                total="00:05:00",
+                splits={"swim": "00:02:00", "run": "00:02:30"},
+                event_type="aquathlon",
+            )
+        )
+        is None
     )
 
 
@@ -186,25 +197,40 @@ def test_is_outlier_is_false_without_a_median():
 # ── La garde de la dérogation au Principe VI (T007) ──────────────────────────
 
 
-def test_python_and_typescript_share_the_same_segment_schemas():
-    """La duplication du schéma est assumée en §Complexity Tracking — **par ce test**.
+def test_the_schema_table_is_derived_from_the_one_that_produces_the_splits():
+    """Aucune copie : le gabarit vient de `mapping`, qui **pose** les clés de `splits`.
 
-    Le plan justifie d'écrire les cinq listes de clés en Python alors qu'elles existent
-    déjà en TypeScript, au motif que la règle d'écart doit avoir un domicile unique.
-    Cette justification ne tient que si les deux tables ne peuvent pas diverger en
-    silence. Le test échoue si le fichier front est introuvable : la garde ne se saute pas.
+    Le premier jet de ce module tenait sa propre table, et elle mentait déjà — `bike-run`
+    y valait `bike/run` quand le gabarit réel pose `segment1/bike/run`, de sorte que la
+    somme ignorait un tiers du parcours et fabriquait un écart systématique. Ce test
+    interdit de la réintroduire.
     """
-    source = Path(__file__).parents[3] / "frontend" / "lib" / "utils" / "splits.ts"
-    assert source.exists(), f"garde de parité introuvable : {source}"
+    assert split_gap.SCHEMAS == {
+        sport: list(gabarit.values()) for sport, gabarit in mapping._SPLIT_KEYS_BY_SPORT.items()
+    }
 
-    bloc = re.search(r"const SCHEMAS[^=]*=\s*\{(.*?)\n\};", source.read_text("utf-8"), re.S)
-    assert bloc, "le bloc SCHEMAS n'a pas la forme attendue dans splits.ts"
 
-    depuis_le_front: dict[str, list[str]] = {}
-    for nom, corps in re.findall(r'\n  "?([\w-]+)"?:\s*\[(.*?)\n  \],', bloc.group(1), re.S):
-        depuis_le_front[nom] = re.findall(r'key:\s*"([^"]+)"', corps)
+@pytest.mark.parametrize(
+    ("event_type", "attendu"),
+    [
+        ("triathlon-m", ["swim", "t1", "bike", "t2", "run"]),
+        ("duathlon-s", ["course1", "t1", "bike", "t2", "course2"]),
+        ("aquathlon", ["swim", "t1", "run"]),
+        # Les bases multi-mots portent un tiret qui **n'est pas** un séparateur de
+        # taille : un `split("-")` naïf ferait tomber celles-ci sur le triathlon.
+        ("bike-run", ["segment1", "bike", "run"]),
+        ("bike-run-s", ["segment1", "bike", "run"]),
+        ("swimrun-l", ["swim", "segment2", "run"]),
+        ("course-a-pied", ["run"]),
+        ("trail", ["run"]),
+        # Sport inconnu : le triathlon est le défaut, comme dans `build_splits`.
+        ("", ["swim", "t1", "bike", "t2", "run"]),
+        ("cross-triathlon", ["swim", "t1", "bike", "t2", "run"]),
+    ],
+)
+def test_schema_for_follows_the_sport_base(event_type, attendu):
+    assert split_gap.schema_for(event_type) == attendu
 
-    assert depuis_le_front == split_gap.SCHEMAS
 
 def test_the_thresholds_match_the_ones_the_screen_applies():
     """Les quatre seuils existent des deux côtés, et **rien** ne peut les dériver.
