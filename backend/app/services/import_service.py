@@ -306,9 +306,13 @@ def _scrape_all_streaming(
 
     def scrape_in_thread() -> None:
         # `ponytail:` ci-dessus (#566, point 1) — Session dédiée au thread,
-        # jamais celle de l'appelant (`db`).
-        thread_db = SessionLocal() if use_cache_probe else None
+        # jamais celle de l'appelant (`db`). Construite **dans** le `try` : si
+        # `SessionLocal()` elle-même levait, le `finally` doit quand même
+        # poser le sentinel — sinon le générateur reste bloqué à attendre une
+        # file qui ne recevra jamais rien.
+        thread_db = None
         try:
+            thread_db = SessionLocal() if use_cache_probe else None
             cache_probe = _make_cache_probe(thread_db, settings) if thread_db is not None else None
             # `on_detail_progress` (#583) : seul Klikego a une phase C par
             # participant à rapporter — les autres FanoutProvider ne
