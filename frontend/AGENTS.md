@@ -393,12 +393,21 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   dynamiquement, jamais en dur) — quatre depuis #487, d'où le `labelCourt` de
   `nav.config.ts` : il ne change que le **texte visible**, le nom accessible du
   lien restant `label`, « Athlètes » ne distinguant pas deux écrans à
-  l'oreille ; le hamburger ne garde que les sections
-  `minRole > ROLE.ANON` et les deux actions primaires. Le pied du tiroir ne
-  ferme plus au clic : `UserMenu` ferme lui-même via `onNavigate`, au moment
-  où la navigation a réellement lieu (immédiat pour la connexion, après le
-  succès de la mutation pour la déconnexion) — jamais au clic de « Se
-  déconnecter » seul, qui couperait l'affichage de son état d'attente.
+  l'oreille ; le hamburger ne garde en priorité que les sections
+  `minRole > ROLE.ANON` et les deux actions primaires, **sauf** repli (#621) :
+  la barre basse est masquée pendant que le tiroir est ouvert (le `Sheet`
+  passe par-dessus), donc un visiteur sans section privée — anonyme, ou
+  connecté sans aucun pouvoir d'administration, la quasi-totalité des
+  adhérents — se retrouvait sans aucune destination à l'écran une fois le
+  tiroir ouvert. `sectionsTiroir` (`AppNav.tsx`) retombe sur l'ensemble des
+  sections dès que `sectionsPrivees` est vide, pour ne jamais présenter un
+  tiroir sans catégorie ; le doublon avec la barre basse ne se produit donc
+  que pour ce cas-là, jamais pour qui a déjà une section privée à y voir. Le
+  pied du tiroir ne ferme plus au clic : `UserMenu` ferme lui-même via
+  `onNavigate`, au moment où la navigation a réellement lieu (immédiat pour la
+  connexion, après le succès de la mutation pour la déconnexion) — jamais au
+  clic de « Se déconnecter » seul, qui couperait l'affichage de son état
+  d'attente.
 - **`/club` sérialise toutes les participations dans la charge RSC** (#487) —
   `ClubPodiumKpi` et `PodiumsList` sont deux composants **client** qui reçoivent
   `participations` **entier**, par construction : #132 les veut capables de
