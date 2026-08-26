@@ -212,12 +212,12 @@ describe("CategoryBars", () => {
           { name: "V1", count: 30 },
           { name: "S", count: 20 },
         ]}
-        total={100}
+        total={50}
         highlight="S"
       />,
     );
     expect(screen.getByRole("img")).toHaveAccessibleName(
-      "Répartition par catégorie : V1 30,0 %, S 20,0 % (votre catégorie).",
+      "Répartition par catégorie : V1 60,0 %, S 40,0 % (votre catégorie).",
     );
   });
 
