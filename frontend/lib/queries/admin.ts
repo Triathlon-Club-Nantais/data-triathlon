@@ -212,20 +212,11 @@ export function useWipeAllCourses() {
   });
 }
 
-/**
- * Bascule de la source active d'une épreuve (#285, #291).
- *
- * Bloquante côté backend — pas de SSE ici, décision tranchée par l'epic #275
- * (« le SSE d'administration appartient à #118 »). Aucune invalidation de
- * cache : la page publique n'est pas lue via React Query, l'appelant réaffiche
- * la liste de sources renvoyée par la réponse elle-même.
- */
-export function useSwitchCourseSource() {
-  return useMutation({
-    mutationFn: ({ courseId, sourceId }: { courseId: number; sourceId: number }) =>
-      apiClient.switchCourseSource(courseId, sourceId),
-  });
-}
+// Bascule de la source active d'une épreuve (#285, #291) : flux SSE depuis
+// #624 (`useSwitchSourceStream`, `hooks/useSwitchSourceStream.ts`), état géré
+// à la main comme `useRescrapeStream` — pas de mutation React Query ici,
+// patron identique et même raison (research.md R1 : un seul consommateur, le
+// navigateur qui a cliqué).
 
 /** Doublons suspects entre épreuves (#288), pour le panel d'administration (#292). */
 export function useCourseDuplicates() {

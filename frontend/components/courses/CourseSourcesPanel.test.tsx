@@ -2,21 +2,20 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ApiError } from "@/lib/api/client";
 import type { CourseSource, SessionUser } from "@/lib/types";
 
-const { getSession, switchCourseSource, rescrapeEventStream } = vi.hoisted(() => ({
+const { getSession, switchSourceEventStream, rescrapeEventStream } = vi.hoisted(() => ({
   getSession: vi.fn(),
-  switchCourseSource: vi.fn(),
+  switchSourceEventStream: vi.fn(),
   rescrapeEventStream: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { getSession, switchCourseSource } };
+  return { ...original, apiClient: { getSession } };
 });
 
-vi.mock("@/lib/api/sse", () => ({ rescrapeEventStream }));
+vi.mock("@/lib/api/sse", () => ({ rescrapeEventStream, switchSourceEventStream }));
 
 const { toastSuccess, toastError } = vi.hoisted(() => ({
   toastSuccess: vi.fn(),
@@ -111,18 +110,51 @@ describe("CourseSourcesPanel", () => {
       { id: 2, url: "https://exemple.fr/passif", provider: "breizhchrono", is_active: true, last_scraped_at: "2026-08-12T10:00:00Z" },
       { id: 1, url: "https://exemple.fr/actif", provider: "klikego", is_active: false, last_scraped_at: null },
     ];
-    switchCourseSource.mockResolvedValue(APRES_BASCULE);
+    async function* flux() {
+      yield {
+        phase: "done", participations_deleted: 2, participations_imported: 1,
+        athletes_purged: 0, sources: APRES_BASCULE,
+      };
+    }
+    switchSourceEventStream.mockReturnValue(flux());
     const user = userEvent.setup();
     afficher(DEUX_SOURCES);
 
     await user.click(await screen.findByRole("button", { name: /activer.*breizh chrono/i }));
     await user.click(await screen.findByRole("button", { name: /^basculer$/i }));
 
-    await waitFor(() => expect(switchCourseSource).toHaveBeenCalledWith(42, 2));
+    await waitFor(() => expect(switchSourceEventStream).toHaveBeenCalledWith(42, 2));
     await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
     // La source désormais active (Breizh Chrono) porte le label "Source active".
     const actif = await screen.findByRole("link", { name: /breizh chrono/i });
     expect(actif).toHaveAttribute("href", "https://exemple.fr/passif");
+  });
+
+  it("affiche la progression pendant la bascule avant de notifier le succès", async () => {
+    getSession.mockResolvedValue(ADMIN);
+    let liberer!: () => void;
+    const porte = new Promise<void>((resolve) => {
+      liberer = resolve;
+    });
+    async function* flux() {
+      yield { phase: "scraping", message: "Récupération des participants…" };
+      await porte;
+      yield {
+        phase: "done", participations_deleted: 2, participations_imported: 1,
+        athletes_purged: 0, sources: DEUX_SOURCES,
+      };
+    }
+    switchSourceEventStream.mockReturnValue(flux());
+    const user = userEvent.setup();
+    afficher(DEUX_SOURCES);
+
+    await user.click(await screen.findByRole("button", { name: /activer.*breizh chrono/i }));
+    await user.click(await screen.findByRole("button", { name: /^basculer$/i }));
+
+    await screen.findByText(/récupération des participants/i);
+    liberer();
+
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
   });
 
   it("annuler ne bascule rien", async () => {
@@ -133,13 +165,16 @@ describe("CourseSourcesPanel", () => {
     await user.click(await screen.findByRole("button", { name: /activer.*breizh chrono/i }));
     await user.click(await screen.findByRole("button", { name: /annuler/i }));
 
-    expect(switchCourseSource).not.toHaveBeenCalled();
+    expect(switchSourceEventStream).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: /^basculer$/i })).not.toBeInTheDocument();
   });
 
-  it("notifie l'échec sans modifier l'affichage (scrape en échec, 422)", async () => {
+  it("notifie l'échec sans modifier l'affichage (scrape en échec)", async () => {
     getSession.mockResolvedValue(ADMIN);
-    switchCourseSource.mockRejectedValue(new ApiError(422, "Le scrape n'a renvoyé aucun résultat"));
+    async function* flux() {
+      yield { phase: "error", message: "Le scrape n'a renvoyé aucun résultat" };
+    }
+    switchSourceEventStream.mockReturnValue(flux());
     const user = userEvent.setup();
     afficher(DEUX_SOURCES);
 

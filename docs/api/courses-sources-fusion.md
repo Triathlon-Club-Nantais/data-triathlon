@@ -17,7 +17,7 @@ rechargement à l'autre. Une épreuve inconnue est un **404**
 épreuve sans source une **liste vide** — confondre les deux ferait lire un
 identifiant inventé comme « aucune source ».
 
-## Basculer la source active : `PATCH /admin/courses/{id}/sources/{source_id}` (#285)
+## Basculer la source active : `PATCH /admin/courses/{id}/sources/{source_id}` (#285, #624)
 
 Le seul geste d'administration qui **scrape** — d'où son module à part,
 `admin_course_sources.py`, sa dépendance à `Settings` et sa durée en secondes.
@@ -25,40 +25,51 @@ Garde `courses:sources`, et non `courses:write` : le pouvoir voisin est borné a
 quatre champs d'identité, où corriger un libellé ne détruit rien ; ici le
 classement affiché est remplacé **en entier** (décision D2 de #275, un upsert par
 dossard laisserait survivre les lignes de l'ancienne source, donc exactement le
-mélange de deux chronométreurs que l'epic existe pour supprimer). Rend la liste
-des sources dans la forme et l'ordre de `GET /courses/{id}/sources`, pour que
-l'écran se réaffiche sans second appel.
+mélange de deux chronométreurs que l'epic existe pour supprimer). Le dernier
+événement du flux (`phase: "done"`) porte la liste des sources dans la forme et
+l'ordre de `GET /courses/{id}/sources`, pour que l'écran se réaffiche sans
+second appel.
 
-Cinq choses à ne pas défaire :
+**Flux SSE depuis #624**, même mécanisme que le re-scrape à la demande (#118,
+section suivante) : `admin_actions.iter_switch_course_source` →
+`_stream_switch_course_source`, thread dédié, verrou de concurrence **partagé**
+avec `iter_rescrape_course` (les deux écrivent les participations de la même
+course — un verrou distinct les laisserait courir en parallèle et corrompre le
+classement). La route d'origine (#285) était bloquante : #275 avait tranché que
+« la bascule et le re-scrape à la demande doivent partager le même mécanisme,
+pas en inventer deux », en renvoyant le SSE d'administration au seul #118, sans
+aucun critère d'acceptation de #285 sur la progression. #624 referme ce renvoi :
+une bascule sur une épreuve fan-out (Klikego, 30-40 s) dépassait le délai du
+proxy Vercel → Render et rendait un **502** avant même le premier octet — la
+suppression puis le réimport n'avaient donc jamais lieu, sans que rien ne le
+dise à l'administrateur.
 
-- **L'ordre des quatre étapes est le contrat** : scraper, valider, détruire,
-  réimporter. Rien de destructeur n'est écrit avant qu'on tienne un classement
-  utilisable — c'est ce qui rend impossible l'accident propre à cette route, une
-  épreuve vidée par un geste qui échoue ensuite à la remplir. Ce n'est pas un
-  choix de style : `import_event` **commite** en interne, et un `begin_nested()`
-  autour ne le contient pas (mesuré sur SQLAlchemy 2.0.51 — le `commit` clôt la
-  transaction *externe*). Aucun rollback n'était donc disponible ; n'avoir rien
-  écrit est plus solide de toute façon.
-- **Le cache TTL est neutralisé des deux côtés.** `is_fresh` court-circuiterait
-  le scrape, mais `force=True` ne suffit pas : la sonde par manche à l'intérieur
-  de `_scrape_all` juge chaque sous-épreuve fraîche indépendamment, et l'épreuve
-  qu'on bascule est par définition la plus fraîche de la base. D'où
-  `import_service.scrape_for_replacement`, qui passe `use_cache_probe=False` —
-  sans quoi une épreuve fan-out perdrait toutes ses manches.
-- **Un scrape qui publie une autre épreuve est refusé** (422), pas importé.
-  `mapping.get_or_create_course` apparie sur `(nom, date, type, relais)` à
-  l'égalité stricte : un libellé différent chez le second chronométreur créerait
-  une **nouvelle** épreuve et laisserait celle qu'on vient de vider à zéro
-  résultat, sans qu'aucune exception ne passe. Zéro résultat est refusé pour la
-  même raison — banal sur le chemin d'import ordinaire (succès à zéro compteur),
-  ici un classement effacé.
-- **`is_active: false` est refusé** (400). L'index partiel autorise zéro active,
-  et une épreuve sans active n'est plus scrapée (#282) ni affichée avec sa source
-  (#279) : le seul moyen de changer d'active est d'en désigner une autre.
-- **Bloquant, et sans progression.** #275 tranche que la bascule et le re-scrape
-  à la demande « doivent partager le même mécanisme, pas en inventer deux » : le
-  SSE d'administration appartient donc à #118, et aucun critère d'acceptation de
-  #285 ne porte sur la progression.
+Quatre choses à ne pas défaire, en plus des points communs au re-scrape
+détaillés dans sa propre section (garde synchrone hors du générateur, thread
+indépendant de la consommation du flux, verrou en mémoire process unique) :
+
+- **L'ordre des quatre étapes est le contrat, à l'intérieur du thread de
+  travail** : scraper, valider, détruire, réimporter. Rien de destructeur n'est
+  écrit avant qu'on tienne un classement utilisable — c'est ce qui rend
+  impossible l'accident propre à ce geste, une épreuve vidée par un scrape qui
+  échoue ensuite à la remplir. Un refus de cette nature (zéro résultat, épreuve
+  divergente) lève depuis `_require_same_event`, **dans le thread** : il ne
+  redevient donc plus un 422 HTTP comme sous #285, mais un événement `error`
+  dans un flux déjà ouvert à 200 — même compromis que le re-scrape, imposé par
+  `StreamingResponse` (son statut part avant le premier élément du générateur).
+- **Le cache TTL est neutralisé des deux côtés**, comme le re-scrape :
+  `_scrape_all_streaming(..., use_cache_probe=False)` — sans quoi une épreuve
+  fan-out perdrait toutes ses manches jugées fraîches, l'épreuve qu'on bascule
+  étant par construction la plus fraîche de la base.
+- **`is_active: false` reste un refus synchrone** (400), avant même l'ouverture
+  de la session dédiée. L'index partiel autorise zéro active, et une épreuve
+  sans active n'est plus scrapée (#282) ni affichée avec sa source (#279) : le
+  seul moyen de changer d'active est d'en désigner une autre.
+- **Sans effet si la source visée est déjà active** (double-clic, écran
+  rechargé) : `iter_switch_course_source` rend alors un flux d'un seul
+  événement `done` à zéro, sans thread ni verrou — re-scraper par acquit de
+  conscience détruirait un classement pour rien, et le journal se remplirait
+  de non-événements (FR-012).
 
 La purge des fiches coureur devenues vides relève ses candidats **avant** la
 suppression et ne tranche qu'**après** le réimport — même primitive et même piège
@@ -100,13 +111,17 @@ Quatre points à ne pas défaire :
   problème mesuré.
 - **Cache TTL désarmé par heat sur le chemin streamé** — `_scrape_all_streaming`
   et `iter_import_event` gagnent `use_cache_probe: bool = True`, défaut inchangé
-  pour tout appelant existant, désarmé (`False`) uniquement par l'appel admin.
-  Même besoin que #285 (`scrape_for_replacement(use_cache_probe=False)`), côté
-  streamé cette fois : sans lui, un re-scrape demandé sur une épreuve fan-out
-  fraîchement importée sauterait tous ses heats jugés frais.
+  pour tout appelant existant, désarmé (`False`) par le re-scrape **et** par la
+  bascule de source (#624, section précédente) : sans lui, l'un ou l'autre
+  demandé sur une épreuve fan-out fraîchement importée sauterait tous ses
+  heats jugés frais.
 - **Le verrou de concurrence est un `dict[int, bool]` en mémoire, process
-  unique** (FR-007/SC-005), acquis à l'entrée d'`iter_rescrape_course`, relâché
-  en `finally`. `ponytail:` migrer vers un verrou DB si le service passe un jour
+  unique** (FR-007/SC-005), **partagé avec la bascule de source depuis #624** —
+  acquis à l'entrée d'`iter_rescrape_course` et d'`iter_switch_course_source`,
+  relâché en `finally` de part et d'autre. Les deux gestes écrivent les
+  participations de la même course ; un verrou distinct par geste les
+  laisserait démarrer l'un pendant que l'autre tourne, et corrompre le
+  classement. `ponytail:` migrer vers un verrou DB si le service passe un jour
   multi-instance — cf. le docstring de `batch_runs.py` pour la même contrainte.
 
 **Piège de test à ne pas répéter** : la route utilise une session dédiée
