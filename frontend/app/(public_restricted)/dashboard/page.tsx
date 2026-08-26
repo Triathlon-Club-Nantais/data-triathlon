@@ -9,6 +9,7 @@ import { MaSaison } from "@/components/dashboard/MaSaison";
 import { RecentCourses } from "@/components/dashboard/RecentCourses";
 import { SeasonSelector, SeasonTags } from "@/components/dashboard/SeasonSelector";
 import { StatCardsRank } from "@/components/dashboard/StatCardsRank";
+import { ClubPerformanceChart } from "@/components/charts/ClubPerformanceChart";
 import { currentSeason, parseSeasonsParam, seasonAbsenceLabel, seasonSelectionLabel, serializeSeasons } from "@/lib/utils/season";
 import { sortEventsByDateDesc } from "@/lib/utils/event";
 import { StatCard, Card, Eyebrow } from "@/components/tcn";
@@ -154,6 +155,10 @@ export default async function DashboardPage({
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <StatCardsRank rankCounters={stats.rank_counters} />
               </div>
+              <Card className="mt-4">
+                <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 24, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 20 }}>Performance du club</h2>
+                <ClubPerformanceChart rankCounters={stats.rank_counters} />
+              </Card>
             </div>
           </div>
 

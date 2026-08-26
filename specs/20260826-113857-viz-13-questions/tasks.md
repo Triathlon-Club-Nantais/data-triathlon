@@ -193,12 +193,12 @@ Application web existante : `backend/app/`, `backend/tests/`, `frontend/app/`, `
 
 ### Tests for User Story 8
 
-- [ ] T038 [P] [US8] Test vitest pour `ClubPerformanceChart` piloté par `SeasonSelector` dans `frontend/components/charts/ClubPerformanceChart.test.tsx`
+- [X] T038 [P] [US8] Test vitest pour `ClubPerformanceChart` piloté par `SeasonSelector` dans `frontend/components/charts/ClubPerformanceChart.test.tsx`
 
 ### Implementation for User Story 8
 
-- [ ] T039 [US8] Créer `ClubPerformanceChart.tsx` consommant `rank_counters` (déjà servi par `GET /stats`)
-- [ ] T040 [US8] Intégrer sur `dashboard/page.tsx`, piloté par `SeasonSelector`
+- [X] T039 [US8] Créer `ClubPerformanceChart.tsx` consommant `rank_counters` (déjà servi par `GET /stats`)
+- [X] T040 [US8] Intégrer sur `dashboard/page.tsx`, piloté par `SeasonSelector`
 
 **Checkpoint**: US1→US8 fonctionnelles indépendamment.
 
