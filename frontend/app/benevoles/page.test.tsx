@@ -14,6 +14,7 @@ const {
   unrejectParticipationBenevole,
   searchAthletesBenevole,
   updateParticipationFieldsBenevole,
+  getValidationQueueHistory,
 } = vi.hoisted(() => ({
   getBenevoleQueue: vi.fn(),
   getBenevoleRejected: vi.fn(),
@@ -23,6 +24,9 @@ const {
   unrejectParticipationBenevole: vi.fn(),
   searchAthletesBenevole: vi.fn(),
   updateParticipationFieldsBenevole: vi.fn(),
+  // Toujours en attente : ValidationBacklogChart (US13, #466) est secondaire à
+  // cette page, cette suite n'a pas à en asserter le contenu.
+  getValidationQueueHistory: vi.fn(() => new Promise(() => {})),
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
@@ -38,6 +42,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
       unrejectParticipationBenevole,
       searchAthletesBenevole,
       updateParticipationFieldsBenevole,
+      getValidationQueueHistory,
     },
   };
 });

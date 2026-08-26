@@ -55,6 +55,7 @@ import type {
   SheetColumns,
   SiteAccessConfig,
   SiteAccessGenerated,
+  ValidationQueueHistory,
 } from "@/lib/types";
 
 const BASE = "/api/v1";
@@ -523,6 +524,7 @@ export const apiClient = {
     request<null>("/benevoles/session", { method: "POST", body: JSON.stringify({ password }) }),
   benevoleLogout: () => request<null>("/benevoles/session", { method: "DELETE" }),
   getBenevoleQueue: () => request<Participation[]>("/benevoles/queue"),
+  getValidationQueueHistory: () => request<ValidationQueueHistory>("/benevoles/queue/history"),
   validateParticipationBenevole: (participationId: number) =>
     request<Participation>(`/benevoles/participations/${participationId}/validate`, {
       method: "POST",

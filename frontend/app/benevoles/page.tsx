@@ -8,6 +8,7 @@ import { AccessGate } from "@/components/benevoles/AccessGate";
 import { ParticipationPanel } from "@/components/benevoles/ParticipationPanel";
 import { useFileValidation } from "@/components/benevoles/useFileValidation";
 import { ValidationQueue } from "@/components/benevoles/ValidationQueue";
+import { ValidationBacklogChart } from "@/components/charts/ValidationBacklogChart";
 import { AnnonceStatut, Eyebrow, Button } from "@/components/tcn";
 import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useEstCompact } from "@/hooks/useEstCompact";
@@ -226,6 +227,9 @@ export default function BenevolesPage() {
           en région `status` (WCAG 4.1.3, patron `AnnonceStatut`). Seulement
           au-dessus de `md` : sous `md` l'annonce vit dans la feuille. */}
       {!compact && annonce}
+      <div className="mb-6">
+        <ValidationBacklogChart />
+      </div>
       <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-[minmax(280px,360px)_1fr]">
         <ValidationQueue
           participations={file.participations}
