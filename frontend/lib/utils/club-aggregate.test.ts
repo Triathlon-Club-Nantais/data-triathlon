@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { recentParticipations } from "./club-aggregate";
-import type { Participation } from "@/lib/types";
+import { recentParticipations, disciplinePerformance } from "./club-aggregate";
+import type { Participation, DisciplinePodiumCounts } from "@/lib/types";
+
+function counts(over: Partial<DisciplinePodiumCounts> = {}): DisciplinePodiumCounts {
+  return { overall: 0, gender: 0, category: 0, all: 0, ...over };
+}
 
 function part(over: Partial<Participation> & { id: number }): Participation {
   return {
@@ -46,3 +50,48 @@ describe("recentParticipations", () => {
   });
 });
 
+describe("disciplinePerformance", () => {
+  it("groupe le décompte d'épreuves et de podiums par discipline, format mis de côté (US10, #466, #642)", () => {
+    // triathlon-m et triathlon-s → même discipline « triathlon ».
+    const podiumsByType = {
+      "triathlon-m": counts({ overall: 1, all: 1 }),
+      "trail-l": counts({ overall: 1, all: 1 }),
+    };
+    const countByType = { "triathlon-m": 1, "triathlon-s": 1, "trail-l": 1 };
+
+    const result = disciplinePerformance(podiumsByType, countByType);
+
+    expect(result).toEqual([
+      { discipline: "triathlon", count: 2, podiums: 1 },
+      { discipline: "trail", count: 1, podiums: 1 },
+    ]);
+  });
+
+  it("respecte le rankType passé", () => {
+    const podiumsByType = { "trail-l": counts({ overall: 0, category: 1, all: 1 }) };
+    const countByType = { "trail-l": 1 };
+
+    expect(disciplinePerformance(podiumsByType, countByType, "scratch")[0].podiums).toBe(0);
+    expect(disciplinePerformance(podiumsByType, countByType, "category")[0].podiums).toBe(1);
+  });
+
+  it("ignore les disciplines dont l'event_type ne se résout pas", () => {
+    expect(disciplinePerformance({}, { "": 1 })).toEqual([]);
+  });
+
+  it("garde une discipline sans podium (compte issu de countByType seul)", () => {
+    const result = disciplinePerformance({}, { "trail-l": 3 });
+    expect(result).toEqual([{ discipline: "trail", count: 3, podiums: 0 }]);
+  });
+
+  it("trie par podiums décroissant puis par nombre d'épreuves décroissant", () => {
+    // trail : 1 podium, 1 épreuve. cyclisme (deux sous-types fondus) :
+    // aucun podium, 2 épreuves — le podium l'emporte malgré le volume.
+    const podiumsByType = { "trail-l": counts({ overall: 1, all: 1 }) };
+    const countByType = { "trail-l": 1, "cyclisme-clm": 1, "cyclisme-route": 1 };
+
+    const result = disciplinePerformance(podiumsByType, countByType);
+
+    expect(result.map((r) => r.discipline)).toEqual(["trail", "cyclisme"]);
+  });
+});

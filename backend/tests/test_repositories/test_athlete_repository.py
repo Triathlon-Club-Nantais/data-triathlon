@@ -655,3 +655,95 @@ def test_club_roster_plafonne_a_limit(db_session):
     db_session.flush()
 
     assert len(athlete_repository.club_roster(db_session, limit=2)) == 2
+
+
+# ── club_composition (issue #642) ───────────────────────────────────────────
+
+
+def test_club_composition_compte_un_genre_par_athlete(db_session):
+    alice = athlete_repository.get_or_create(
+        db_session, nom="ALICE", prenom="A", gender="F", club="TCN"
+    )
+    bob = athlete_repository.get_or_create(
+        db_session, nom="BOB", prenom="B", gender="M", club="TCN"
+    )
+    course = _course(db_session, "C")
+    _part(db_session, alice, course, "1")
+    _part(db_session, bob, course, "2")
+    db_session.flush()
+
+    lignes = athlete_repository.club_composition(db_session)
+
+    assert sorted(lignes) == sorted([("F", None), ("M", None)])
+
+
+def test_club_composition_prend_la_categorie_de_la_derniere_participation(db_session):
+    ath = athlete_repository.get_or_create(db_session, nom="ALICE", prenom="A", club="TCN")
+    ancienne = course_repository.get_or_create(
+        db_session, name="Ancienne", event_date=date(2024, 5, 16), event_type="triathlon-m"
+    )
+    recente = course_repository.get_or_create(
+        db_session, name="Récente", event_date=date(2026, 5, 16), event_type="triathlon-m"
+    )
+    _part(db_session, ath, ancienne, "1", category="V1")
+    _part(db_session, ath, recente, "2", category="V2")
+    db_session.flush()
+
+    lignes = athlete_repository.club_composition(db_session)
+
+    assert lignes == [(ath.gender, "V2")]
+
+
+def test_club_composition_exclut_hors_club(db_session):
+    exterieur = athlete_repository.get_or_create(
+        db_session, nom="DEHORS", prenom="D", club="Un Autre Club"
+    )
+    course = _course(db_session, "C")
+    _part(db_session, exterieur, course, "1", club="Un Autre Club")
+    db_session.flush()
+
+    assert athlete_repository.club_composition(db_session) == []
+
+
+def test_club_composition_respecte_federal_only(db_session):
+    ath = athlete_repository.get_or_create(db_session, nom="TRAILEUR", prenom="T", club="TCN")
+    course = _course(db_session, "Trail", event_type="trail")
+    _part(db_session, ath, course, "1")
+    db_session.flush()
+
+    assert athlete_repository.club_composition(db_session, federal_only=False) != []
+    assert athlete_repository.club_composition(db_session, federal_only=True) == []
+
+
+# ── club_rank (issue #641) ──────────────────────────────────────────────────
+
+
+def test_club_rank_renvoie_le_rang_et_le_total_au_dela_de_laperçu(db_session):
+    course = _course(db_session, "C")
+    alice = athlete_repository.get_or_create(db_session, nom="ALICE", prenom="A", club="TCN")
+    bob = athlete_repository.get_or_create(db_session, nom="BOB", prenom="B", club="TCN")
+    carl = athlete_repository.get_or_create(db_session, nom="CARL", prenom="C", club="TCN")
+    for i in range(3):
+        _part(db_session, alice, course, f"a{i}")
+    for i in range(2):
+        _part(db_session, bob, course, f"b{i}")
+    _part(db_session, carl, course, "c0")
+    db_session.flush()
+
+    assert athlete_repository.club_rank(db_session, bob.id) == (2, 3)
+
+
+def test_club_rank_renvoie_none_hors_roster(db_session):
+    alice = athlete_repository.get_or_create(db_session, nom="ALICE", prenom="A", club="TCN")
+
+    assert athlete_repository.club_rank(db_session, alice.id) is None
+
+
+def test_club_rank_respecte_federal_only(db_session):
+    ath = athlete_repository.get_or_create(db_session, nom="TRAILEUR", prenom="T", club="TCN")
+    course = _course(db_session, "Trail", event_type="trail")
+    _part(db_session, ath, course, "1")
+    db_session.flush()
+
+    assert athlete_repository.club_rank(db_session, ath.id, federal_only=False) == (1, 1)
+    assert athlete_repository.club_rank(db_session, ath.id, federal_only=True) is None

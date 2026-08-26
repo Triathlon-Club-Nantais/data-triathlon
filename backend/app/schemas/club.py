@@ -39,6 +39,31 @@ class ClubPodiums(BaseModel):
     all: list[ClubPodiumEntry]
 
 
+class DisciplinePodiumCounts(BaseModel):
+    """Décompte de podiums d'une discipline, ventilé par mode de rang (#642)."""
+
+    overall: int
+    gender: int
+    category: int
+    all: int
+
+
+class ClubComposition(BaseModel):
+    """Répartition du club entier par genre et catégorie d'âge (#642)."""
+
+    gender: dict[str, int]
+    category: dict[str, int]
+
+
 class ClubSummary(BaseModel):
     roster: list[ClubRosterEntry]
     podiums: ClubPodiums
+    podiums_by_discipline: dict[str, DisciplinePodiumCounts]
+    composition: ClubComposition
+
+
+class ClubRosterRank(BaseModel):
+    """Rang exact d'un athlète dans le roster club, au-delà de l'aperçu de 12 (#641)."""
+
+    rank: int
+    total: int

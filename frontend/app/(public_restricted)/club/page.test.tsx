@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render } from "@testing-library/react";
+import { render as renderRTL } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
 import type { ClubSummary, Participation, Stats } from "@/lib/types";
 
 const getStats = vi.fn();
@@ -36,7 +38,12 @@ const STATS: Stats = {
   },
 };
 
-const SUMMARY: ClubSummary = { roster: [], podiums: { scratch: [], category: [], gender: [], all: [] } };
+const SUMMARY: ClubSummary = {
+  roster: [],
+  podiums: { scratch: [], category: [], gender: [], all: [] },
+  podiums_by_discipline: {},
+  composition: { gender: {}, category: {} },
+};
 
 function part(over: Partial<Participation> & { id: number }): Participation {
   return {
@@ -59,6 +66,13 @@ beforeEach(() => {
   getClubSummary.mockResolvedValue(SUMMARY);
   listParticipations.mockResolvedValue([part({ id: 1 })]);
 });
+
+// `RosterApercu` appelle `useClubRosterRank` (#641) : un `QueryClientProvider`
+// doit envelopper le rendu, même si aucun test ici ne sélectionne d'athlète.
+function render(ui: ReactElement) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return renderRTL(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
+}
 
 async function renderClub(searchParams: Record<string, string | undefined> = {}) {
   const ui = await ClubPage({ searchParams: Promise.resolve(searchParams) });

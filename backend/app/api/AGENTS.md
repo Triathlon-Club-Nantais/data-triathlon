@@ -28,7 +28,7 @@ feature).
 
 `app/core/validation.py` (`is_pending`/`validated_clause`) est le point
 **unique** de la règle, sur le patron de `core/club.tcn_clause` et
-`core/discipline.federal_clause`. Appliqué à onze fonctions, réparties sur
+`core/discipline.federal_clause`. Appliqué à douze fonctions, réparties sur
 trois repositories :
 
 | Fonction | Fichier | Alimente |
@@ -42,8 +42,9 @@ trois repositories :
 | `_filtered` (branche `club_only`) | `course_repository.py` | `GET /courses?scope=club` et `GET /courses/count?scope=club` |
 | `list_with_season_participation_count` | `athlete_repository.py` | `GET /athletes/season-activity` — page coureurs (#274, #382) |
 | `search_by_relevance` | `athlete_repository.py` | `GET /athletes/search` — `participation_count` de la palette ⌘K (#484) |
-| `club_roster` | `athlete_repository.py` | `GET /club/summary` → roster (#581) |
-| `club_podiums` | `participation_repository.py` | `GET /club/summary` → podiums (#581) |
+| `club_roster`/`club_rank` (même requête, partagée par `_club_roster_requete`) | `athlete_repository.py` | `GET /club/summary` → roster (#581) ; `GET /club/roster/rank/{id}` → rang exact hors aperçu (#641) |
+| `club_composition` | `athlete_repository.py` | `GET /club/summary` → composition genre/catégorie (#642) |
+| `club_podiums` | `participation_repository.py` | `GET /club/summary` → podiums et podiums par discipline (#581, #642) |
 
 **`search_by_relevance` joint `Participation` en `outerjoin`** (un athlète à
 zéro résultat doit rester trouvable) : `validated_clause` y vit dans la

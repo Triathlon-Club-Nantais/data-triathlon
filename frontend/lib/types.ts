@@ -265,9 +265,29 @@ export interface ClubPodiums {
   all: ClubPodiumEntry[];
 }
 
+// Miroir de DisciplinePodiumCounts/ClubComposition/ClubRosterRank backend (#642, #641).
+export interface DisciplinePodiumCounts {
+  overall: number;
+  gender: number;
+  category: number;
+  all: number;
+}
+
+export interface ClubComposition {
+  gender: Record<string, number>;
+  category: Record<string, number>;
+}
+
 export interface ClubSummary {
   roster: ClubRosterEntry[];
   podiums: ClubPodiums;
+  podiums_by_discipline: Record<string, DisciplinePodiumCounts>;
+  composition: ClubComposition;
+}
+
+export interface ClubRosterRank {
+  rank: number;
+  total: number;
 }
 
 // Saison sportive disponible (miroir de SeasonOut backend).

@@ -120,3 +120,57 @@ def test_get_club_summary_podiums_tries_par_rang_puis_date_desc(db_session):
     ids = [e.participation_id for e in club_service.get_club_summary(db_session).podiums.scratch]
     # rang 1 en tête, puis les deux rang 3 départagés par date décroissante.
     assert ids == [p_rang1_recent.id, p_rang3_recent.id, p_rang3_ancien.id]
+
+
+def test_get_club_summary_composition_vide_sans_participation(db_session):
+    summary = club_service.get_club_summary(db_session)
+    assert summary.composition.gender == {}
+    assert summary.composition.category == {}
+
+
+def test_get_club_summary_composition_compte_le_genre_et_la_derniere_categorie(db_session):
+    ath = athlete_repository.get_or_create(db_session, nom="A", prenom="A", club="TCN", gender="F")
+    ancien = course_repository.get_or_create(
+        db_session, name="Ancien", event_date=date(2024, 1, 1), event_type="triathlon-m"
+    )
+    recent = course_repository.get_or_create(
+        db_session, name="Recent", event_date=date(2026, 1, 1), event_type="triathlon-m"
+    )
+    participation_repository.create(
+        db_session, athlete_id=ath.id, course_id=ancien.id, bib_number="1",
+        club="TCN", status="finisher", category="V1",
+    )
+    participation_repository.create(
+        db_session, athlete_id=ath.id, course_id=recent.id, bib_number="2",
+        club="TCN", status="finisher", category="V2",
+    )
+    db_session.flush()
+
+    summary = club_service.get_club_summary(db_session)
+
+    assert summary.composition.gender == {"F": 1}
+    assert summary.composition.category == {"V2": 1}
+
+
+def test_get_club_summary_podiums_by_discipline_ventile_par_type_epreuve(db_session):
+    ath = athlete_repository.get_or_create(db_session, nom="A", prenom="A", club="TCN")
+    triathlon = _course(db_session, "C1", event_type="triathlon-m")
+    trail = _course(db_session, "C2", event_type="trail")
+    participation_repository.create(
+        db_session, athlete_id=ath.id, course_id=triathlon.id, bib_number="1",
+        club="TCN", status="finisher", rank_overall=1,
+    )
+    participation_repository.create(
+        db_session, athlete_id=ath.id, course_id=trail.id, bib_number="2",
+        club="TCN", status="finisher", rank_category=2,
+    )
+    db_session.flush()
+
+    par_discipline = club_service.get_club_summary(db_session).podiums_by_discipline
+
+    assert par_discipline["triathlon-m"].overall == 1
+    assert par_discipline["triathlon-m"].all == 1
+    assert par_discipline["triathlon-m"].category == 0
+    assert par_discipline["trail"].category == 1
+    assert par_discipline["trail"].all == 1
+    assert par_discipline["trail"].overall == 0

@@ -12,6 +12,8 @@ import type { ClubSummary, Participation, Stats } from "@/lib/types";
 import { PodiumsList } from "./PodiumsList";
 import { ClubPodiumKpi } from "./ClubPodiumKpi";
 import { RosterApercu } from "./RosterApercu";
+import { DisciplinePerformance } from "./DisciplinePerformance";
+import { ClubComposition } from "./ClubComposition";
 
 export function ClubDashboard({
   stats,
@@ -70,10 +72,14 @@ export function ClubDashboard({
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="type">
-              <TabsList>
-                <TabsTrigger value="type">Par discipline</TabsTrigger>
-                <TabsTrigger value="month">Par mois</TabsTrigger>
-              </TabsList>
+              <div className="overflow-x-auto">
+                <TabsList className="w-full">
+                  <TabsTrigger value="type">Par discipline</TabsTrigger>
+                  <TabsTrigger value="performance">Performance</TabsTrigger>
+                  <TabsTrigger value="month">Par mois</TabsTrigger>
+                  <TabsTrigger value="composition">Composition</TabsTrigger>
+                </TabsList>
+              </div>
               <TabsContent value="type" className="pt-4">
                 <BarList
                   entries={Object.entries(stats.by_type)}
@@ -83,8 +89,25 @@ export function ClubDashboard({
                   subjectLabel="type d'épreuve"
                 />
               </TabsContent>
+              {/* « Où le club performe-t-il ? » (US10, #466) — podiums par
+                  discipline, à ne pas confondre avec le volume ci-dessus. */}
+              <TabsContent value="performance" className="pt-4">
+                <DisciplinePerformance
+                  podiumsByDiscipline={summary.podiums_by_discipline}
+                  byType={stats.by_type}
+                />
+              </TabsContent>
               <TabsContent value="month" className="pt-4">
                 <MonthlyTrend byMonth={stats.by_month} />
+              </TabsContent>
+              {/* « À quoi ressemble le club ? » (US9, #466) — genre et
+                  catégorie d'âge, agrégés côté serveur (#642,
+                  `ClubSummary.composition`) mais jamais affichés (le fait le
+                  plus structurant du jeu de données selon l'audit UX). Un
+                  athlète compte une fois, pas une fois par épreuve : la
+                  composition porte sur des personnes. */}
+              <TabsContent value="composition" className="pt-4">
+                <ClubComposition composition={summary.composition} />
               </TabsContent>
             </Tabs>
           </CardContent>

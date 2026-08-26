@@ -55,4 +55,11 @@ export const queryKeys = {
   feedback: (id: number) => ["admin-feedback-detail", id] as const,
   counterScope: () => ["counter-scope"] as const,
   adminActionLog: (page: number) => ["admin-action-log", page] as const,
+  // Chargé à la demande, seulement quand l'athlète retenu est hors de
+  // l'aperçu de 12 du roster club (#504, #641) — `RosterApercu`, seul
+  // appelant. `federalOnly` fait partie de la clé : c'est un filtre distinct
+  // du roster affiché, un rang calculé sur l'autre base afficherait un nombre
+  // incohérent avec la liste sous les yeux.
+  clubRosterRank: (athleteId: number, federalOnly: boolean) =>
+    ["club-roster-rank", athleteId, federalOnly] as const,
 };

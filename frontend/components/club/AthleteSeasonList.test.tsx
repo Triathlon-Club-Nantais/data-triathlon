@@ -296,8 +296,8 @@ describe("AthleteSeasonList — retrouver sa ligne (#504)", () => {
   it("le rang du rappel reste celui du volume, même quand l'écran est trié par nom (#504, revue)", () => {
     // Triée par nom, MOI (« AAA ») serait 1ère — mais « Rᵉ du club » promet
     // un rang de club, cohérent avec le rappel de /club (toujours trié par
-    // volume, `buildRoster`) : basculer le tri d'affichage ne doit pas
-    // changer ce que ce nombre veut dire.
+    // volume, `club_roster`/`club_rank` côté backend) : basculer le tri
+    // d'affichage ne doit pas changer ce que ce nombre veut dire.
     searchParams = new URLSearchParams("sort=nom");
     const athletes = Array.from({ length: 12 }, (_, i) =>
       athlete({ id: i + 1, nom: `N${i}`, participation_count: 12 - i + 1 }),
