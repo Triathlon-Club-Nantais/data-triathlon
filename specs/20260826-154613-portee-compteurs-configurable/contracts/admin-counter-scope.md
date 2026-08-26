@@ -83,7 +83,7 @@ Une discipline hors nomenclature est **créée**, avec `is_known: false` — c'e
 | `400` | Valeur vide une fois normalisée | « Le libellé ne peut pas être vide. » |
 | `409` | Valeur déjà présente pour ce `kind` | « « triathlon club nantais » figure déjà dans la liste. » |
 
-Le `409` s'appuie sur la contrainte `UNIQUE (kind, value)`, pas seulement sur une vérification préalable : deux écritures concurrentes ne peuvent pas créer un doublon.
+Le `409` vient d'une **vérification préalable** sur la valeur normalisée. La contrainte `UNIQUE (kind, value)` empêche le doublon d'exister mais n'est pas le chemin de l'erreur HTTP : deux écritures rigoureusement concurrentes rendraient `500` pour la seconde. Assumé à cette échelle.
 
 Effets de bord, dans la même transaction : ligne dans `admin_action_log` (`counter_scope.entry_add`), puis **rechargement du registre après le commit**.
 

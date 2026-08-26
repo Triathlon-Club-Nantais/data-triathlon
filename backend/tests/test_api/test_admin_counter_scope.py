@@ -267,3 +267,24 @@ def test_un_compte_sans_le_pouvoir_est_refuse(client, db_session):
     client.cookies.set(session_cookie_name(get_settings()), jeton)
 
     assert client.get(BASE).status_code == 403
+
+
+def test_un_rechargement_en_echec_ne_fait_pas_echouer_l_ecriture(client, db_session, monkeypatch):
+    """L'écriture est déjà commitée quand le rechargement s'exécute.
+
+    Rendre 500 dirait à l'administrateur que son geste a échoué alors qu'il a
+    réussi, et il le referait — en récoltant cette fois un 409 de doublon.
+    """
+    from app.api.v1 import admin_counter_scope
+
+    def _en_panne(_db):
+        raise RuntimeError("base injoignable")
+
+    monkeypatch.setattr(admin_counter_scope.counter_scope, "load_from_db", _en_panne)
+
+    reponse = client.post(f"{BASE}/club-labels", json={"value": "TCN 44"})
+
+    assert reponse.status_code == 201
+    assert reponse.json()["value"] == "tcn 44"
+    # L'entrée est bien en base, malgré le registre resté périmé.
+    assert any(e["value"] == "tcn 44" for e in client.get(BASE).json()["club_labels"])

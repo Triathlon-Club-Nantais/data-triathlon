@@ -77,10 +77,14 @@ def _requetes_pour(db_session, *, lignes: int, marqueur: str) -> list[str]:
 def test_le_nombre_de_requetes_ne_croit_pas_avec_les_participations(db_session):
     """Deux tailles, un seul compte : la configuration est lue en mémoire.
 
-    Si `is_tcn`, `tcn_clause` ou `federal_clause` se remettait à interroger la
-    base — un chargement paresseux « au cas où », un cache à TTL relu par appel
-    —, ce test rougirait immédiatement, et il le ferait proportionnellement au
-    volume, ce qu'un chronomètre ne sait pas montrer.
+    Ce que ce test attrape, exactement : une lecture **par participation**,
+    donc une régression de `is_tcn` ou `is_federal` — un chargement paresseux
+    « au cas où » posé dans le prédicat Python. Il le ferait proportionnellement
+    au volume, ce qu'un chronomètre ne sait pas montrer.
+
+    Ce qu'il n'attrape pas, et il faut le savoir : une lecture **par requête**
+    reste O(1), donc un cache relu une fois par requête HTTP le laisserait vert.
+    Les deux miroirs SQL, appelés une fois par requête, sont dans ce cas.
     """
     petit = _requetes_pour(db_session, lignes=4, marqueur="petit")
     grand = _requetes_pour(db_session, lignes=40, marqueur="grand")

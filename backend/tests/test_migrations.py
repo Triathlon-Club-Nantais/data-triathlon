@@ -692,6 +692,8 @@ def test_la_migration_ne_remplit_rien(sqlite_url):
 
 # --- Portée des compteurs en base (#95) --------------------------------------
 
+_BEFORE_COUNTER_SCOPE = "1df0635fc2fd"
+
 
 def test_la_table_de_portee_des_compteurs_est_creee(base_migree):
     assert "counter_scope_entries" in _tables(base_migree)
@@ -729,7 +731,10 @@ def test_downgrade_puis_upgrade_de_la_portee_des_compteurs(sqlite_url):
     cfg = _alembic_config()
     command.upgrade(cfg, "head")
 
-    command.downgrade(cfg, "-1")
+    # La révision **nommée**, comme les sept autres descentes de ce fichier :
+    # un `-1` se décalerait à la première migration insérée entre-temps, et
+    # rougirait sans que le coupable soit lisible.
+    command.downgrade(cfg, _BEFORE_COUNTER_SCOPE)
     assert "counter_scope_entries" not in _tables(sqlite_url)
 
     command.upgrade(cfg, "head")

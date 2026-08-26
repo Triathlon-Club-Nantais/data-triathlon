@@ -109,4 +109,13 @@ normalisation.** `_normalise_sql` est compilée dans l'index fonctionnel
 reconstruction périme cet index en silence (cf. `club.py`). Ajouter un libellé
 ne change pas l'expression indexée ; changer la façon de comparer, si.
 
+La frontière est tenue par le code — aucune surface d'API n'atteint
+`_normalise_sql`, et `normalize_value` réutilise `normalize_club` — mais sa
+**garde de test** ne la couvre pas entièrement : la vérification de l'index
+(`tests/test_repositories/test_course_repository.py`) tourne sur un schéma monté
+par `create_all`, donc sur l'expression courante. Elle ne détecterait jamais un
+index devenu périmé dans une base déjà migrée. C'est antérieur à #95 (cf. #351),
+mais trois documents s'appuient désormais sur cette frontière : le jour où
+`_normalise_sql` change, la migration de reconstruction est à écrire à la main.
+
 Conception : `specs/20260826-154613-portee-compteurs-configurable/`.

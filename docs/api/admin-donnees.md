@@ -173,10 +173,13 @@ se contente des minuscules et des bords rognés.
 - **Aucun refus** sur le vidage de la liste des disciplines : tout devient
   fédéral, ce qui est cohérent, visible et réversible.
 
-`409` également sur un doublon, adossé à la contrainte `UNIQUE (kind, value)` et
-pas seulement à une vérification préalable : deux administrateurs qui écrivent en
-même temps ne peuvent pas créer de doublon. `400` sur une valeur vide une fois
-normalisée.
+`409` également sur un doublon, par **vérification préalable** — la valeur est
+normalisée, puis cherchée avant d'écrire. La contrainte `UNIQUE (kind, value)`
+reste le filet de la base et empêche le doublon d'exister, mais elle n'est pas
+le chemin de l'erreur HTTP : sur deux écritures rigoureusement concurrentes, la
+seconde rendrait `500` et non `409`. Assumé à cette échelle — quelques écritures
+par an, une poignée d'administrateurs —, et le doublon n'est pas créé pour
+autant. `400` sur une valeur vide une fois normalisée.
 
 **Une discipline hors nomenclature est acceptée**, avec `is_known: false` — pas
 refusée. Exclure une discipline pas encore importée est un geste légitime, et le
