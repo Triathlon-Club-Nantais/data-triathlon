@@ -54,6 +54,7 @@ CODES_ATTENDUS = {
     "batch:read",
     "feedback:read",
     "feedback:manage",
+    "counter_scope:manage",
     "admin_log:read",
 }
 

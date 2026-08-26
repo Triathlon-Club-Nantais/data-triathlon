@@ -35,6 +35,10 @@ FEATURE_PARTICIPATIONS = "Résultats"
 FEATURE_BATCH = "Batches"
 FEATURE_FEEDBACK = "Retours utilisateurs"
 FEATURE_ADMIN_LOG = "Journal d'administration"
+#: La portée des compteurs (#95) : ce que « fédéral » et « club » désignent.
+#: Distincte des Épreuves — corriger une épreuve rectifie une ligne, changer
+#: cette configuration redéfinit ce que tous les compteurs additionnent.
+FEATURE_COUNTER_SCOPE = "Portée des compteurs"
 
 
 @dataclass(frozen=True, slots=True)
@@ -251,6 +255,14 @@ class P:
         "Changer le statut d'un retour et enregistrer l'URL de l'issue GitHub associée.",
         FEATURE_FEEDBACK,
     )
+    COUNTER_SCOPE_MANAGE = Permission(
+        "counter_scope:manage",
+        "Gérer la portée des compteurs",
+        "Déclarer les orthographes sous lesquelles un chronométreur désigne le "
+        "club, et les disciplines que les compteurs de triathlon laissent de "
+        "côté. Une modification change ce que tous les compteurs additionnent.",
+        FEATURE_COUNTER_SCOPE,
+    )
     ADMIN_LOG_READ = Permission(
         "admin_log:read",
         "Consulter le journal d'administration",
@@ -290,6 +302,7 @@ ALL: tuple[Permission, ...] = (
     P.BATCH_READ,
     P.FEEDBACK_READ,
     P.FEEDBACK_MANAGE,
+    P.COUNTER_SCOPE_MANAGE,
     P.ADMIN_LOG_READ,
 )
 
