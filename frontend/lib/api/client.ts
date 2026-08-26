@@ -5,6 +5,7 @@ import type {
   AdminAthleteUpdate,
   AdminCourseUpdate,
   AdminUser,
+  AllowedEmail,
   AthleteBrief,
   AthleteDetail,
   AthleteSearchResult,
@@ -14,6 +15,8 @@ import type {
   BatchRun,
   BenevoleAccessConfig,
   BenevoleAccessGenerated,
+  CounterScope,
+  CounterScopeEntry,
   CourseBrief,
   CourseDeletionImpact,
   CourseDetail,
@@ -38,13 +41,13 @@ import type {
   ParticipationFilters,
   ParticipationsWipeImpact,
   ParticipationsWipeResult,
-  RescrapeLaunch,
-  AllowedEmail,
   PendingProvider,
   PermissionGroup,
+  RescrapeLaunch,
   Role,
   RoleCreate,
   RoleUpdate,
+  ScopeKind,
   ScrapedPreview,
   Season,
   SessionRevocation,
@@ -452,6 +455,21 @@ export const apiClient = {
     }),
   generateSiteAccessPassword: () =>
     request<SiteAccessGenerated>("/admin/site-access/generate", { method: "POST" }),
+
+  // ── Portée des compteurs (#95) ─────────────────────────────────────────────
+  // Une seule lecture pour les deux listes : l'écran les affiche ensemble, deux
+  // appels seraient deux allers-retours pour une page.
+  getCounterScope: () => request<CounterScope>("/admin/counter-scope"),
+  addCounterScopeEntry: (kind: ScopeKind, value: string) =>
+    request<CounterScopeEntry>(`/admin/counter-scope/${kind}`, {
+      method: "POST",
+      body: JSON.stringify({ value }),
+    }),
+  // L'entrée est désignée par son identifiant, jamais par sa valeur : un
+  // libellé porte des espaces, et le faire transiter par un segment d'URL est
+  // une source d'ennuis sans contrepartie.
+  removeCounterScopeEntry: (kind: ScopeKind, entryId: number) =>
+    request<void>(`/admin/counter-scope/${kind}/${entryId}`, { method: "DELETE" }),
 
   // ── Retours utilisateurs (#267) ────────────────────────────────────────────
   // Route publique, et son chemin le dit : `/feedback`, hors de `/admin` où

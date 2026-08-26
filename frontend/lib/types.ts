@@ -434,6 +434,30 @@ export interface SiteAccessGenerated {
   updated_by: string;
 }
 
+/** Les deux natures d'entrée de la portée des compteurs (#95), telles
+ * qu'elles s'écrivent dans l'URL. */
+export type ScopeKind = "disciplines" | "club-labels";
+
+/** Une entrée de la portée des compteurs — une chaîne, et sa provenance. */
+export interface CounterScopeEntry {
+  id: number;
+  /** La forme comparable : c'est elle qui est comparée, donc c'est elle qu'on
+   * affiche. La casse saisie n'est pas conservée. */
+  value: string;
+  /** Pour une discipline : le slug appartient-il à la nomenclature ? Porte
+   * l'avertissement. Toujours `true` pour un libellé de club. */
+  is_known: boolean;
+  created_at: string;
+  /** `null` pour les entrées d'amorçage — rendues « Configuration initiale ». */
+  created_by: string | null;
+}
+
+/** Les deux listes qui bornent les compteurs (#95). */
+export interface CounterScope {
+  disciplines: CounterScopeEntry[];
+  club_labels: CounterScopeEntry[];
+}
+
 /**
  * Un rôle et sa composition (#115).
  *
