@@ -408,20 +408,21 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   connexion, après le succès de la mutation pour la déconnexion) — jamais au
   clic de « Se déconnecter » seul, qui couperait l'affichage de son état
   d'attente.
-- **`/club` sérialise toutes les participations dans la charge RSC** (#487) —
-  `ClubPodiumKpi` et `PodiumsList` sont deux composants **client** qui reçoivent
-  `participations` **entier**, par construction : #132 les veut capables de
-  recalculer sur `?rank=` sans re-fetch. Le tableau part donc dans la charge RSC
-  du HTML, quel que soit ce qui est rendu. Conséquence à connaître avant de
-  profiler : l'aperçu de 12 fiches du roster (#487) retire le **rendu** de 338
-  cartes — DOM, liens, hydratation — mais **pas** le transport, qui reste
-  proportionnel au nombre de participations. `CLUB_PARTICIPATIONS_PAGE_SIZE`
-  (`lib/club.ts`) vaut 5000, le plafond de `GET /participations` ; le plafond
-  *servable* est plus bas, et la sortie est l'agrégation côté serveur
-  (#274, #382), pas un `page_size` plus bas qui retronquerait en silence.
-  Corollaire de lecture : `list_participations` trie par `created_at desc` hors
-  détail d'épreuve — la date d'**import**, jamais celle de l'épreuve —, d'où la
-  microcopie « derniers résultats importés » de la note de troncature.
+- **`/club` n'envoie plus les participations dans la charge RSC** (#487 → #581) —
+  `ClubPodiumKpi` et `PodiumsList` restent deux composants **client** qui
+  recalculent sur `?rank=` sans re-fetch (#132), mais ce qu'ils reçoivent est
+  désormais pré-agrégé : `rank_counters` (`GET /stats`) pour le KPI, un
+  `ClubPodiums` à quatre buckets (`GET /club/summary`) pour la liste. Le
+  transport de la page est passé de ~2,1 Mo à ~32 ko et ne croît plus avec le
+  nombre de participations, mais avec le seul nombre de podiums. Le roster est
+  plafonné à 12 **côté SQL** (`athlete_repository.club_roster`), plus par une
+  troncature d'affichage — d'où la disparition du bandeau « les N derniers
+  résultats importés » : plus rien n'est tronqué en silence.
+  Corollaire de lecture qui, lui, tient toujours : `list_participations` trie
+  par `created_at desc` hors détail d'épreuve — la date d'**import**, jamais
+  celle de l'épreuve. Les 6 « Résultats récents » de `/club` sont donc les 6
+  derniers **importés**, cohérents avec `/resultats?scope=club` où mène
+  « Tout voir ».
 - **Ce que l'import dit pendant, et après** (#491) — trois points qui se
   re-cassent séparément, et qui tiennent tous à une seule donnée : la **cause**
   de l'échec, que `importEventStream` jette dans une `ApiError` plutôt que dans

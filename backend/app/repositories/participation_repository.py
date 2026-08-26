@@ -793,6 +793,8 @@ def club_podiums(db: Session, *, federal_only: bool = False):
     (même logique que `summary_rows_for_course`). Pas de tri ni de plafond
     ici : la ventilation par mode de rang et le tri se font en Python, côté
     `app.services.club_service` — `PodiumsList` promet la liste complète.
+    `Athlete.gender` est inclus pour permettre au service de restreindre le
+    bucket "gender" aux F/M, en miroir de `stats_service._rank_counters`.
     """
     q = (
         db.query(
@@ -808,6 +810,7 @@ def club_podiums(db: Session, *, federal_only: bool = False):
             Course.event_type,
             Course.is_relay,
             Course.event_date,
+            Athlete.gender,
         )
         .join(Athlete, Participation.athlete_id == Athlete.id)
         .join(Course, Participation.course_id == Course.id)

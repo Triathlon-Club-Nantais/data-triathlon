@@ -23,7 +23,8 @@ def _meilleur(rangs: dict[str, int | None]) -> tuple[str, int] | None:
 
 def _entree(row, scope: str, rang: int) -> ClubPodiumEntry:
     (pid, _rank_overall, _rank_gender, _rank_category, total_time,
-     athlete_id, prenom, nom, event_name, event_type, is_relay, event_date) = row
+     athlete_id, prenom, nom, event_name, event_type, is_relay, event_date,
+     _gender) = row
     return ClubPodiumEntry(
         participation_id=pid,
         athlete_id=athlete_id,
@@ -50,12 +51,19 @@ def _bucket_podiums(rows) -> ClubPodiums:
         "scratch": [], "category": [], "gender": [], "all": [],
     }
     for row in rows:
-        _, rank_overall, rank_gender, rank_category, *_ = row
+        _, rank_overall, rank_gender, rank_category, *_, gender = row
         if rank_overall is not None and 1 <= rank_overall <= 3:
             buckets["scratch"].append(_entree(row, "overall", rank_overall))
         if rank_category is not None and 1 <= rank_category <= 3:
             buckets["category"].append(_entree(row, "category", rank_category))
-        if rank_gender is not None and 1 <= rank_gender <= 3:
+        # Miroir de stats_service._rank_counters (#376) : un podium de genre
+        # n'est compté que pour un athlète F ou M, jamais genre vide/hors
+        # binaire — sans quoi le KPI "Podiums" (rank_counters) et cette liste
+        # divergent en mode genre (relevé en revue finale de branche, #581).
+        if (
+            rank_gender is not None and 1 <= rank_gender <= 3
+            and (gender or "").upper() in ("F", "M")
+        ):
             buckets["gender"].append(_entree(row, "gender", rank_gender))
         meilleur = _meilleur(
             {"overall": rank_overall, "gender": rank_gender, "category": rank_category}

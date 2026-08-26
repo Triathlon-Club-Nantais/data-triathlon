@@ -146,6 +146,15 @@ describe("DashboardPage", () => {
     );
   });
 
+  it("demande 6 dernières épreuves, pas 200 (#581)", async () => {
+    await renderDashboard({});
+
+    expect(listEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ page_size: 6 }),
+      expect.anything(),
+    );
+  });
+
   it("demande une fenêtre de revalidation courte sur les trois appels (#352)", async () => {
     await renderDashboard({});
 

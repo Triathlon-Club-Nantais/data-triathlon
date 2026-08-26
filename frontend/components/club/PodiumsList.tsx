@@ -33,6 +33,11 @@ export function PodiumsList({ podiums }: { podiums: ClubPodiums }) {
   const affiches = etendu ? tous : tous.slice(0, APERCU_PODIUMS);
   const restants = tous.length - affiches.length;
 
+  // WCAG 4.1.3 (#477) : la bascule recalcule en mémoire (#132), sans
+  // navigation — sans cette annonce, la liste se réordonne (ou se vide) en
+  // silence. Rendue avant le retour anticipé sur liste vide, à dessein : sinon
+  // la région disparaît du DOM précisément quand un lecteur d'écran aurait le
+  // plus besoin d'être prévenu.
   const annonce = (
     <AnnonceStatut texte={`${affiches.length} podium${affiches.length > 1 ? "s" : ""} affiché${affiches.length > 1 ? "s" : ""}`} />
   );
@@ -81,6 +86,12 @@ export function PodiumsList({ podiums }: { podiums: ClubPodiums }) {
           );
         })}
       </ul>
+      {/* Bascule plutôt qu'un bouton qui se démonte : au clic, `restants`
+          tombait à 0 et le `<button>` disparaissait du DOM — un utilisateur
+          clavier perdait son focus au `<body>` et devait re-tabuler depuis le
+          début du document pour atteindre les podiums qu'il venait de
+          révéler, situés au-dessus (revue finale, #488). Le bouton reste
+          monté tant qu'il y a quelque chose à réduire ou à étendre. */}
       {tous.length > APERCU_PODIUMS && (
         <button
           type="button"
