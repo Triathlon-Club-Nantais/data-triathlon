@@ -60,12 +60,50 @@ describe("RosterApercu — retrouver sa ligne (#504)", () => {
     const roster = Array.from({ length: 12 }, (_, i) =>
       entry({ athleteId: i + 1, count: 12 - i + 1 }),
     );
-    roster.push(entry({ athleteId: 99, count: 1 }));
+    roster.push(entry({ athleteId: 99, count: 1, lastDate: "2023-05-10" }));
     writeAthlete({ id: 99, prenom: "M", nom: "Moi" });
 
     render(<RosterApercu roster={roster} apercuTaille={12} />);
 
     expect(screen.queryByText("Vous")).not.toBeInTheDocument();
+    const rappel = screen.getByRole("link", { name: /Vous : 1 épreuve — 13ᵉ du club/ });
+    // La saison ciblée est celle de ma dernière participation (2022-2023, la
+    // date étant en mai) — /club/athletes s'ouvre par défaut sur la saison en
+    // cours, et `roster` agrège toutes les saisons (#487) : sans ce
+    // paramètre, l'ancre viserait une ligne absente de la page d'arrivée.
+    expect(rappel).toHaveAttribute("href", "/club/athletes?seasons=2022#athlete-99");
+  });
+
+  it("pas de rappel quand je suis exactement au seuil (12ᵉ, dans l'aperçu)", () => {
+    const roster = Array.from({ length: 12 }, (_, i) =>
+      entry({ athleteId: i + 1, count: 12 - i + 1 }),
+    );
+    writeAthlete({ id: 12, prenom: "M", nom: "Athlète 12" });
+
+    render(<RosterApercu roster={roster} apercuTaille={12} />);
+
+    expect(screen.queryByText(/du club/)).not.toBeInTheDocument();
+  });
+
+  it("aucun highlight ni rappel quand l'athlète retenu n'est pas dans ce roster", () => {
+    const roster = [entry({ athleteId: 1, count: 3 }), entry({ athleteId: 2, count: 2 })];
+    writeAthlete({ id: 404, prenom: "Absent", nom: "DuClub" });
+
+    render(<RosterApercu roster={roster} apercuTaille={12} />);
+
+    expect(screen.queryByText("Vous")).not.toBeInTheDocument();
+    expect(screen.queryByText(/du club/)).not.toBeInTheDocument();
+  });
+
+  it("sans date de dernière participation, le lien reste ancré sans paramètre de saison", () => {
+    const roster = Array.from({ length: 12 }, (_, i) =>
+      entry({ athleteId: i + 1, count: 12 - i + 1 }),
+    );
+    roster.push(entry({ athleteId: 99, count: 1, lastDate: null }));
+    writeAthlete({ id: 99, prenom: "M", nom: "Moi" });
+
+    render(<RosterApercu roster={roster} apercuTaille={12} />);
+
     const rappel = screen.getByRole("link", { name: /Vous : 1 épreuve — 13ᵉ du club/ });
     expect(rappel).toHaveAttribute("href", "/club/athletes#athlete-99");
   });

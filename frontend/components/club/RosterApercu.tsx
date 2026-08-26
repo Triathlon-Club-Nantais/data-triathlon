@@ -3,9 +3,23 @@ import Link from "next/link";
 import { Avatar, VousChip } from "@/components/tcn";
 import { useSelectedAthlete } from "@/components/layout/AthletePicker";
 import { trouverRang } from "@/lib/utils/rang";
+import { seasonOf } from "@/lib/utils/season";
 import type { PodiumScope, RosterEntry } from "@/lib/utils/club-aggregate";
 import { PODIUM_SCOPE_META } from "@/lib/podium-scope";
 import { RappelPosition } from "./RappelPosition";
+
+/**
+ * Ancre du rappel vers `/club/athletes` — cette page s'ouvre par défaut sur
+ * la **saison en cours** (`app/(public_restricted)/club/athletes/page.tsx`),
+ * quand `roster` agrège toutes les saisons (#487). Sans `?seasons=`, l'ancre
+ * viserait une ligne absente de la page d'arrivée pour un athlète actif sur
+ * une saison passée seulement. La saison de sa dernière participation
+ * garantit sa présence dans la vue ciblée.
+ */
+function hrefRappel(athleteId: number, entry: RosterEntry | undefined): string {
+  const saison = entry?.lastDate ? `?seasons=${seasonOf(entry.lastDate)}` : "";
+  return `/club/athletes${saison}#athlete-${athleteId}`;
+}
 
 /**
  * Aperçu du roster (#487) et sa fiche mise en avant (#504) : bloc client
@@ -33,7 +47,7 @@ export function RosterApercu({
         visible={rappelVisible}
         epreuves={rang ? roster[rang - 1].count : 0}
         rang={rang ?? 0}
-        hrefAncre={athleteRetenu ? `/club/athletes#athlete-${athleteRetenu.id}` : "#"}
+        hrefAncre={athleteRetenu ? hrefRappel(athleteRetenu.id, rang ? roster[rang - 1] : undefined) : "#"}
       />
       {apercu.some((r) => r.podiums > 0) && (
         <p className="text-sm text-[var(--tcn-text-faint)]">

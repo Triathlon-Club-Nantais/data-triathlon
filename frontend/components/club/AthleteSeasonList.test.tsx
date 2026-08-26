@@ -269,4 +269,44 @@ describe("AthleteSeasonList — retrouver sa ligne (#504)", () => {
 
     expect(screen.getByRole("link", { name: /13ᵉ du club/ })).toBeInTheDocument();
   });
+
+  it("pas de rappel quand je suis exactement au seuil (12ᵉ, dans les 12 premières)", () => {
+    const athletes = Array.from({ length: 12 }, (_, i) =>
+      athlete({ id: i + 1, nom: `N${i}`, participation_count: 12 - i + 1 }),
+    );
+    writeAthlete({ id: 12, prenom: "M", nom: "N11" });
+
+    render(<AthleteSeasonList athletes={athletes} />);
+
+    expect(screen.queryByText(/du club/)).not.toBeInTheDocument();
+  });
+
+  it("aucun highlight ni rappel quand l'athlète retenu n'est pas dans cette saison", () => {
+    writeAthlete({ id: 404, prenom: "Absent", nom: "DeSaison" });
+    render(
+      <AthleteSeasonList
+        athletes={[athlete({ id: 1, nom: "DUPONT" }), athlete({ id: 2, nom: "MARTIN" })]}
+      />,
+    );
+
+    expect(screen.queryByText("Vous")).not.toBeInTheDocument();
+    expect(screen.queryByText(/du club/)).not.toBeInTheDocument();
+  });
+
+  it("le rang du rappel reste celui du volume, même quand l'écran est trié par nom (#504, revue)", () => {
+    // Triée par nom, MOI (« AAA ») serait 1ère — mais « Rᵉ du club » promet
+    // un rang de club, cohérent avec le rappel de /club (toujours trié par
+    // volume, `buildRoster`) : basculer le tri d'affichage ne doit pas
+    // changer ce que ce nombre veut dire.
+    searchParams = new URLSearchParams("sort=nom");
+    const athletes = Array.from({ length: 12 }, (_, i) =>
+      athlete({ id: i + 1, nom: `N${i}`, participation_count: 12 - i + 1 }),
+    );
+    athletes.push(athlete({ id: 99, nom: "AAA", participation_count: 1 }));
+    writeAthlete({ id: 99, prenom: "M", nom: "AAA" });
+
+    render(<AthleteSeasonList athletes={athletes} />);
+
+    expect(screen.getByRole("link", { name: /13ᵉ du club/ })).toBeInTheDocument();
+  });
 });

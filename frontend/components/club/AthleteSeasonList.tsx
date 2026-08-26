@@ -7,7 +7,7 @@ import { Card, Input, VousChip } from "@/components/tcn";
 import { useSelectedAthlete } from "@/components/layout/AthletePicker";
 import { trouverRang } from "@/lib/utils/rang";
 import { SEUIL_RAPPEL_POSITION } from "@/lib/club";
-import { AthleteSortToggle, SORT_PARAM, sortTypeFromParam } from "./AthleteSortToggle";
+import { AthleteSortToggle, SORT_DEFAULT, SORT_PARAM, sortTypeFromParam } from "./AthleteSortToggle";
 import { RappelPosition } from "./RappelPosition";
 
 /** Insensible casse/accents, comme la recherche serveur (`core/text.deaccent`, #357). */
@@ -80,10 +80,13 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
   const filtered = filterAthletes(athletes, query);
   const sorted = sortAthletes(filtered, sort);
 
-  // Rang calculé sur la liste **complète**, triée mais non filtrée par la
-  // recherche — une recherche en cours ne doit pas faire bouger « 41ᵉ du
-  // club », qui parle du club, pas du résultat filtré.
-  const rangComplet = sortAthletes(athletes, sort);
+  // Rang calculé sur la liste **complète**, triée par volume et non filtrée
+  // par la recherche — jamais sur `sort` : « 41ᵉ du club » promet un rang de
+  // club, cohérent avec le rappel de `/club` (toujours trié par volume,
+  // `buildRoster`, aucun bouton de tri) ; le laisser suivre le tri
+  // d'affichage ferait mentir le mot « club » dès qu'on bascule sur le tri
+  // alphabétique (revue de code, #504).
+  const rangComplet = sortAthletes(athletes, SORT_DEFAULT);
   const rang = athleteRetenu
     ? trouverRang(athleteRetenu.id, rangComplet.map((a) => a.id))
     : null;
