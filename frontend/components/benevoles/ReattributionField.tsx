@@ -109,8 +109,12 @@ export function ReattributionField({
         aria-describedby={erreur ? "benevole-reattribution-erreur" : undefined}
         style={{ width: "100%" }}
       />
+      {/* `role="status"` (aria-live="polite" implicite) : jusqu'ici rien ne
+          signalait au lecteur d'écran qu'une recherche était en vol, seul le
+          voyant le voyait (#608). Correctif ciblé — la sémantique
+          `combobox` complète du bloc de recherche reste un lot à part. */}
       {enCours && (
-        <div style={{ color: "var(--tcn-text-faint)", fontSize: 13, marginTop: 8 }}>Recherche…</div>
+        <div role="status" style={{ color: "var(--tcn-text-faint)", fontSize: 13, marginTop: 8 }}>Recherche…</div>
       )}
       {!enCours && resultats !== null && resultats.length === 0 && (
         <div style={{ color: "var(--tcn-text-faint)", fontSize: 13, marginTop: 8 }}>

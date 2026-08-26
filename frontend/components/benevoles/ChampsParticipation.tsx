@@ -45,6 +45,7 @@ export function ChampsParticipation({
       {CHAMPS.map(({ cle, id, label, ...reste }) => {
         const modifie = brouillon[cle].trim() !== valeursOrigine[cle].trim();
         const type = "type" in reste ? reste.type : undefined;
+        const idOrigine = `${id}-origine`;
         return (
           <div
             key={cle}
@@ -59,6 +60,7 @@ export function ChampsParticipation({
               value={brouillon[cle]}
               disabled={disabled}
               onChange={(e) => onChange({ [cle]: e.target.value } as Partial<Brouillon>)}
+              aria-describedby={modifie ? idOrigine : undefined}
               style={{ width: "100%" }}
             />
             {/* Ligne toujours montée, comme le verdict de `ProviderDetector`
@@ -67,8 +69,13 @@ export function ChampsParticipation({
                 sous le clavier logiciel, pendant que le bénévole tape (#490,
                 revue UI/UX, item 8). `minHeight` seul, pas de `visibility`
                 — le texte doit disparaître du DOM une fois le champ revenu à
-                sa valeur d'origine, seule la place reste. */}
-            <div style={{ fontSize: 12, color: "var(--tcn-text-faint)", marginTop: 4, minHeight: 16 }}>
+                sa valeur d'origine, seule la place reste.
+                `id` fixe + `aria-describedby` conditionnel sur le champ (#608) :
+                la note est une affordance neuve d'#490 qui dit au bénévole ce
+                qu'il s'apprête à écraser — sans ce lien, un lecteur d'écran
+                posé sur le champ n'en entendait rien, alors que le voyant la
+                voit à côté. */}
+            <div id={idOrigine} style={{ fontSize: 12, color: "var(--tcn-text-faint)", marginTop: 4, minHeight: 16 }}>
               {modifie && <>Valeur d&apos;origine : {valeursOrigine[cle].trim() || "vide"}</>}
             </div>
           </div>
