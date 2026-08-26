@@ -8,7 +8,8 @@ import { AthleteAvatar } from "./AthleteAvatar";
 import { AthleteSelection } from "./AthleteSelection";
 import { EventsTable } from "./EventsTable";
 import { AthleteAdminPanel } from "@/components/athletes/AthleteAdminPanel";
-import { formatToken, genderShort, ordinalFr } from "@/lib/utils/format";
+import { formatToken, disciplineBreakdownBySeason, genderShort, ordinalFr } from "@/lib/utils/format";
+import { BarList } from "@/components/charts/BarList";
 import { bestRatio, progressionSeries, recurringWeakSegment } from "@/lib/utils/ranking";
 import { resumeAthlete } from "@/lib/utils/athlete-stats";
 import { ProgressionChart } from "@/components/charts/ProgressionChart";
@@ -55,6 +56,7 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
   const topRatio = bestRatio(validated);
   const progression = progressionSeries(validated);
   const weakSegment = recurringWeakSegment(validated);
+  const disciplineBySeason = disciplineBreakdownBySeason(validated);
 
   return (
     <PageShell>
@@ -173,6 +175,20 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
               sur {weakSegment.total}).
             </p>
           )}
+        </Card>
+      )}
+
+      {disciplineBySeason.length > 0 && (
+        <Card style={{ marginBottom: 24 }}>
+          <Eyebrow>Répartition par saison</Eyebrow>
+          <div className="space-y-5">
+            {disciplineBySeason.map(({ season, entries }) => (
+              <div key={season}>
+                <p className="mb-2 text-sm font-semibold text-[var(--tcn-text-faint)]">{season}</p>
+                <BarList entries={entries} labeller={(key) => key} subjectLabel="format" />
+              </div>
+            ))}
+          </div>
         </Card>
       )}
 

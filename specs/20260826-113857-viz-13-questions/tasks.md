@@ -174,12 +174,12 @@ Application web existante : `backend/app/`, `backend/tests/`, `frontend/app/`, `
 
 ### Tests for User Story 7
 
-- [ ] T035 [P] [US7] Test vitest pour l'agrégation discipline × saison depuis `data.participations` dans `frontend/lib/utils/format.test.ts`
+- [X] T035 [P] [US7] Test vitest pour l'agrégation discipline × saison depuis `data.participations` dans `frontend/lib/utils/format.test.ts`
 
 ### Implementation for User Story 7
 
-- [ ] T036 [US7] Ajouter l'agrégation complète (au-delà du mode) dans `frontend/lib/utils/format.ts`
-- [ ] T037 [US7] Afficher la répartition sur `athletes/[id]/page.tsx`
+- [X] T036 [US7] Ajouter l'agrégation complète (au-delà du mode) dans `frontend/lib/utils/format.ts`
+- [X] T037 [US7] Afficher la répartition sur `athletes/[id]/page.tsx`
 
 **Checkpoint**: US1→US7 fonctionnelles indépendamment.
 
