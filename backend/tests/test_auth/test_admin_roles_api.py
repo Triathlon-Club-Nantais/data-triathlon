@@ -397,3 +397,77 @@ def test_toutes_les_ressources_de_roles_exigent_leur_pouvoir(client, ouvrir_sess
     ]
 
     assert [reponse.status_code for reponse in refus] == [403] * 7
+
+
+def test_lister_les_roles_rend_le_bon_nombre_de_porteurs_par_role(
+    client, ouvrir_session, db_session, organisation
+):
+    """#625 — `holders` venait d'un `count_holders` par rôle listé ; le passage
+    à une requête agrégée ne doit rien changer au résultat, seulement à son coût.
+    """
+    from app.repositories import role_repository, user_role_repository
+
+    ouvrir_session(superutilisateur=True)
+    solo = role_repository.create(db_session, slug="solo", name="Solo")
+    duo = role_repository.create(db_session, slug="duo", name="Duo")
+    role_repository.create(db_session, slug="orphelin", name="Orphelin")
+    db_session.flush()
+    for slug_role, nb_porteurs in ((solo, 1), (duo, 2)):
+        for i in range(nb_porteurs):
+            # `pose_le_cookie=False` : la session active pour la requête finale
+            # doit rester celle du superutilisateur ouverte plus haut.
+            porteur = ouvrir_session(
+                email=f"{slug_role.slug}-{i}@exemple.fr", pose_le_cookie=False
+            )
+            user_role_repository.grant(
+                db_session,
+                user_id=porteur.id,
+                role_id=slug_role.id,
+                organisation_id=organisation.id,
+            )
+    db_session.commit()
+
+    liste = client.get("/api/v1/admin/roles")
+    assert liste.status_code == 200
+    porteurs_par_slug = {ligne["slug"]: ligne["holders"] for ligne in liste.json()}
+    assert porteurs_par_slug["solo"] == 1
+    assert porteurs_par_slug["duo"] == 2
+    assert porteurs_par_slug["orphelin"] == 0
+
+
+def test_lister_les_roles_tient_en_un_nombre_de_requetes_fixe_quel_que_soit_le_nombre_de_roles(
+    client, ouvrir_session, db_session
+):
+    """#625 — un `count_holders` et un lazy-load de `.permissions` par rôle
+    faisaient scaler le coût de cette liste avec le nombre de rôles."""
+    from sqlalchemy import event
+
+    from app.repositories import role_repository
+
+    ouvrir_session(superutilisateur=True)
+    for i in range(5):
+        # `r-N`, jamais `role-N` : `ouvrir_session` nomme déjà son propre rôle
+        # `role-1` (compteur d'appels de la fixture), collision de slug sinon.
+        role_repository.create(db_session, slug=f"r-{i}", name=f"Rôle {i}")
+    db_session.commit()
+    db_session.expire_all()
+
+    requetes = []
+
+    def _mouchard(conn, cursor, statement, *reste):
+        requetes.append(statement)
+
+    engine = db_session.get_bind()
+    event.listen(engine, "before_cursor_execute", _mouchard)
+    try:
+        reponse = client.get("/api/v1/admin/roles")
+    finally:
+        event.remove(engine, "before_cursor_execute", _mouchard)
+
+    assert reponse.status_code == 200
+    # Fixe, quel que soit le nombre de rôles (6 ici) : résolution de session (1)
+    # + `has_permission` de la garde (3, cf. test_authorization.py) +
+    # `list_all` (2 : `Role`, `RolePermission`) + `count_holders_by_role` (1,
+    # agrégée). Avant #625 : 1 + 3 + 1 + (2 requêtes par rôle listé) — un
+    # sixième rôle en plus aurait fait grimper ce total, ici il ne bouge pas.
+    assert len(requetes) == 7, requetes

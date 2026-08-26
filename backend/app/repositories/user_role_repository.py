@@ -1,7 +1,7 @@
 """Accès données pour UserRole — l'attribution d'un rôle, seule couche Session."""
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.role import Role
 from app.models.user import User
@@ -11,7 +11,14 @@ from app.models.user_role import UserRole
 def list_for_user(
     db: Session, user_id: int, *, organisation_id: int | None = None
 ) -> list[UserRole]:
-    requete = select(UserRole).where(UserRole.user_id == user_id)
+    """Les attributions de cet utilisateur, `.role` et `.role.permissions`
+    déjà chargés — `authorization.py` lit systématiquement les deux pour
+    trancher le superutilisateur et les codes portés, et sans `selectinload`
+    chaque attribution paierait sa propre requête pour l'un et l'autre (#625).
+    """
+    requete = select(UserRole).where(UserRole.user_id == user_id).options(
+        selectinload(UserRole.role).selectinload(Role.permissions)
+    )
     if organisation_id is not None:
         requete = requete.where(UserRole.organisation_id == organisation_id)
     return list(db.scalars(requete.order_by(UserRole.id)))

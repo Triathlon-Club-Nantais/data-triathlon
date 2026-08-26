@@ -17,6 +17,7 @@ from app.core.permissions import Permission
 from app.models.role import Role
 from app.models.role_permission import RolePermission
 from app.models.user import User
+from app.models.user_role import UserRole
 from app.repositories import (
     allowed_email_repository,
     role_repository,
@@ -86,7 +87,11 @@ def _is_superuser(db: Session, user: User, organisation_id: int | None) -> bool:
 
 
 def effective_permissions(
-    db: Session, user: User, *, organisation_id: int | None = None
+    db: Session,
+    user: User,
+    *,
+    organisation_id: int | None = None,
+    attributions: list[UserRole] | None = None,
 ) -> frozenset[str]:
     """Les codes que cet utilisateur porte réellement — **union** de ses rôles.
 
@@ -102,16 +107,22 @@ def effective_permissions(
 
     Un compte désactivé ne porte rien : la décision est aussi appelée hors HTTP
     (CLI), où aucune session ne l'a filtré en amont.
+
+    `attributions`, si fourni, évite un second aller-retour DB — passer les
+    lignes déjà chargées par l'appelant (#625 : `GET /auth/me` les tient déjà
+    par `user.roles`) plutôt que de laisser cette fonction les relire.
     """
     if not user.is_active:
         return frozenset()
-    if _is_superuser(db, user, organisation_id):
+    if attributions is None:
+        attributions = user_role_repository.list_for_user(
+            db, user.id, organisation_id=organisation_id
+        )
+    if any(attribution.role.is_superuser for attribution in attributions):
         return permissions.CODES
     return frozenset(
         lien.permission_code
-        for attribution in user_role_repository.list_for_user(
-            db, user.id, organisation_id=organisation_id
-        )
+        for attribution in attributions
         for lien in attribution.role.permissions
         if permissions.is_known(lien.permission_code)
     )
@@ -133,13 +144,20 @@ def has_permission(
     la promesse de FR-014 : un pouvoir livré demain est franchi demain, sans
     migration ni recochage — même si le catalogue de ce processus l'ignore
     encore.
+
+    Un seul aller-retour DB (#625) : `_is_superuser` puis `effective_permissions`
+    relisaient chacun `list_for_user`, jusqu'à trois requêtes pour une décision
+    qui n'en réclame qu'une.
     """
     if not user.is_active:
         return False
-    if _is_superuser(db, user, organisation_id):
+    attributions = user_role_repository.list_for_user(
+        db, user.id, organisation_id=organisation_id
+    )
+    if any(attribution.role.is_superuser for attribution in attributions):
         return True
     return str(code) in effective_permissions(
-        db, user, organisation_id=organisation_id
+        db, user, organisation_id=organisation_id, attributions=attributions
     )
 
 
@@ -164,8 +182,14 @@ def _codes(role: Role) -> tuple[list[str], list[str]]:
     return connus, perimes
 
 
-def role_view(db: Session, role: Role) -> dict:
-    """La forme rendue par l'API, `contracts/admin-api.md`."""
+def role_view(db: Session, role: Role, *, holders: int | None = None) -> dict:
+    """La forme rendue par l'API, `contracts/admin-api.md`.
+
+    `holders`, si fourni, évite un `count_holders` par rôle (#625) — un appelant
+    qui rend une **liste** de rôles le précalcule en une requête agrégée
+    (`role_repository.count_holders_by_role`) plutôt que de laisser cette
+    fonction interroger une fois par rôle.
+    """
     connus, perimes = _codes(role)
     return {
         "id": role.id,
@@ -177,7 +201,7 @@ def role_view(db: Session, role: Role) -> dict:
         "is_superuser": role.is_superuser,
         "permissions": connus,
         "stale_permissions": perimes,
-        "holders": role_repository.count_holders(db, role.id),
+        "holders": holders if holders is not None else role_repository.count_holders(db, role.id),
     }
 
 

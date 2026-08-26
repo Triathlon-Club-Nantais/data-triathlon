@@ -283,3 +283,80 @@ def test_l_organisation_par_defaut_est_l_unique_semee(db_session):
 
 def test_l_organisation_par_defaut_est_absente_sur_une_base_vierge(db_session):
     assert role_repository.default_organisation(db_session) is None
+
+
+def _requetes(db_session, appel):
+    """Compte les requêtes SQL émises par `appel()` (#625)."""
+    from sqlalchemy import event
+
+    requetes = []
+
+    def _mouchard(conn, cursor, statement, *reste):
+        requetes.append(statement)
+
+    engine = db_session.get_bind()
+    event.listen(engine, "before_cursor_execute", _mouchard)
+    try:
+        appel()
+    finally:
+        event.remove(engine, "before_cursor_execute", _mouchard)
+    return requetes
+
+
+def test_count_holders_by_role_est_une_seule_requete_agregee(db_session):
+    """#625 — un `count_holders` par rôle listé coûtait une requête par rôle."""
+    organisation = _organisation(db_session)
+    roles = [_role(db_session, f"role-{i}") for i in range(3)]
+    porteur = user_repository.create(db_session, email="porteur@exemple.fr")
+    db_session.flush()
+    for role in roles:
+        user_role_repository.grant(
+            db_session,
+            user_id=porteur.id,
+            role_id=role.id,
+            organisation_id=organisation.id,
+        )
+    role_ids = [role.id for role in roles]
+    db_session.commit()
+    db_session.expire_all()
+
+    requetes = _requetes(
+        db_session, lambda: role_repository.count_holders_by_role(db_session, role_ids)
+    )
+
+    assert len(requetes) == 1, requetes
+    porteurs = role_repository.count_holders_by_role(db_session, role_ids)
+    assert porteurs == {role_id: 1 for role_id in role_ids}
+
+
+def test_count_holders_by_role_omet_un_role_sans_porteur(db_session):
+    role = _role(db_session, "archiviste")
+
+    assert role_repository.count_holders_by_role(db_session, [role.id]) == {}
+
+
+def test_count_holders_by_role_sans_role_n_interroge_pas_la_base(db_session):
+    requetes = _requetes(
+        db_session, lambda: role_repository.count_holders_by_role(db_session, [])
+    )
+
+    assert requetes == []
+
+
+def test_list_all_charge_les_permissions_sans_requete_par_role(db_session):
+    """#625 — `role.permissions` en lazy-loading coûtait une requête par rôle,
+    sans `selectinload` : `Role` puis `RolePermission`, chacun en un seul lot
+    (`selectinload`), jamais un aller-retour de plus par rôle listé."""
+    for i in range(3):
+        _role(db_session, f"role-perm-{i}", codes=[f"code:{i}"])
+    db_session.commit()
+    db_session.expire_all()
+
+    requetes = _requetes(db_session, lambda: role_repository.list_all(db_session))
+    assert len(requetes) == 2, requetes
+
+    roles = role_repository.list_all(db_session)
+    requetes = _requetes(
+        db_session, lambda: [list(role.permissions) for role in roles]
+    )
+    assert requetes == []
