@@ -110,10 +110,15 @@ describe("ReattributionField", () => {
     render(<ReattributionField athleteActuel={ACTUEL} athleteCible={null} onChoisir={vi.fn()} />);
     const input = screen.getByLabelText(/Réattribuer/);
 
-    // Première recherche (au moins 2 caractères)
-    await userEvent.type(input, "Ke");
-    // Deuxième recherche (on tape plus)
-    await userEvent.type(input, "r");
+    // Première recherche : laissée passer l'anti-rebond pour qu'elle parte
+    // réellement avant la seconde.
+    await userEvent.type(input, "Ker");
+    await waitFor(() => expect(searchAthletesBenevole).toHaveBeenCalledTimes(1));
+
+    // Deuxième recherche, plus récente : remplace la saisie et part à son tour.
+    await userEvent.clear(input);
+    await userEvent.type(input, "Dur");
+    await waitFor(() => expect(searchAthletesBenevole).toHaveBeenCalledTimes(2));
 
     // Résoudre la deuxième recherche d'abord (la plus récente)
     resolveSecond!([CIBLE]);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { apiClient, ApiError } from "@/lib/api/client";
 import {
   brouillonDepuis,
@@ -33,13 +33,7 @@ export function useBrouillon(
   // (même partiel) la met à jour localement dans le même geste que le
   // rebasage du brouillon, sans attendre le rendu suivant du parent — la prop
   // n'est pas garantie d'avoir rattrapé ce que ce hook vient lui-même
-  // d'obtenir. Elle peut aussi être **en retard** pour une tout autre raison
-  // (un rechargement d'arrière-plan du parent, `useFileValidation.charger()`,
-  // qui refait `GET /benevoles/queue` sans changer l'id sélectionné donc sans
-  // remonter ce hook) : l'effet ci-dessous la resynchronise sur cette base
-  // quand la prop change pour une raison qui n'est pas notre propre
-  // enregistrement — jamais le brouillon en cours, qui doit survivre intact à
-  // un rechargement d'arrière-plan.
+  // d'obtenir.
   const [participation, setParticipation] = useState(participationInitiale);
   const [brouillon, setBrouillon] = useState<Brouillon>(() => brouillonDepuis(participationInitiale));
   const [erreur, setErreur] = useState<string | null>(null);
@@ -51,18 +45,6 @@ export function useBrouillon(
   // finale : le bouton affichait « Enregistrement… » pour un appel qui ne
   // fait que valider).
   const [validationEnCours, setValidationEnCours] = useState(false);
-
-  // La dernière participation que *ce hook* a lui-même posée comme base après
-  // un enregistrement. Si la prop qui arrive est cette même référence — le
-  // parent nous renvoie exactement ce qu'on lui a donné via `onChanged` — la
-  // resynchronisation ci-dessous est un no-op sur des données déjà à jour,
-  // jamais un écrasement par quelque chose de plus vieux.
-  const derniereEnregistrementLocal = useRef<Participation | null>(null);
-
-  useEffect(() => {
-    if (participationInitiale === derniereEnregistrementLocal.current) return;
-    setParticipation(participationInitiale);
-  }, [participationInitiale]);
 
   const modifier = useCallback((patch: Partial<Brouillon>) => {
     setErreur(null);
@@ -124,7 +106,6 @@ export function useBrouillon(
       // apprend le nouvel état.
       if (reussies.length > 0) {
         setBrouillon((b) => rebaser(b, courante, reussies));
-        derniereEnregistrementLocal.current = courante;
         setParticipation(courante);
         onChanged(courante);
       }

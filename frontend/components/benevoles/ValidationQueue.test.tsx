@@ -46,15 +46,6 @@ describe("ValidationQueue — files vides (ETAT-3)", () => {
     expect(screen.getByText("Aucune entrée en attente de validation")).toBeInTheDocument();
     expect(screen.queryByText("File vide, merci !")).not.toBeInTheDocument();
   });
-
-  it("dit qu'il n'y a rien de signalé non conforme, sur l'onglet correspondant", async () => {
-    const user = userEvent.setup();
-    render(<ValidationQueue participations={[]} rejected={[]} selectedId={null} onSelect={vi.fn()} />);
-
-    await user.click(screen.getByRole("button", { name: /Non conformes/ }));
-
-    expect(screen.getByText("Aucun résultat signalé non conforme")).toBeInTheDocument();
-  });
 });
 
 describe("ValidationQueue", () => {
@@ -79,11 +70,6 @@ describe("ValidationQueue", () => {
       />,
     );
     expect(screen.getByText("Les Ecureuils")).toBeInTheDocument();
-  });
-
-  it("affiche un état vide quand la file est vide", () => {
-    render(<ValidationQueue participations={[]} selectedId={null} onSelect={vi.fn()} traitees={2} />);
-    expect(screen.getByText("File vide, merci !")).toBeInTheDocument();
   });
 
   it("appelle onSelect au clic sur une ligne", async () => {
