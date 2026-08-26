@@ -24,6 +24,7 @@ from collections.abc import Iterator
 
 from sqlalchemy.orm import Session
 
+from app.core.club import is_tcn
 from app.core.config import Settings
 from app.core.exceptions import DomainError, DuplicateError, NotFoundError, ScraperError
 from app.models.athlete import Athlete
@@ -169,6 +170,9 @@ def wipe_all_participations(db: Session, *, user_id: int) -> dict:
     resume = {"participations_deleted": participation_repository.delete_all(db)}
     resume["athletes_purged"] = athlete_repository.delete_all(db)
     resume["courses_reset"] = course_repository.reset_scraped_at_all(db)
+    # Compteurs dénormalisés (#623) : toutes les participations disparaissent,
+    # même patron bulk que la ligne au-dessus.
+    course_repository.zero_counts_all(db)
 
     admin_action_log_repository.create(
         db,
@@ -800,6 +804,16 @@ def delete_participation(db: Session, *, participation_id: int, user_id: int) ->
         entity_id=participation_id,
         payload=resume,
     )
+    # Compteurs dénormalisés (#623) : ajustés seulement si la ligne comptait
+    # déjà (#270) — une participation en attente n'entrait dans aucun agrégat
+    # public, la supprimer n'en retire donc aucun.
+    if not participation.is_pending_validation:
+        course_repository.adjust_counts(
+            db,
+            participation.course,
+            participation_delta=-1,
+            tcn_delta=-1 if is_tcn(participation.club) else 0,
+        )
     participation_repository.delete(db, participation)
     logger.info("Admin %s deleted participation %s", user_id, participation_id)
     return resume
@@ -886,6 +900,14 @@ def validate_participation(db: Session, *, participation_id: int, user_id: int) 
         return participation
 
     participation_repository.update(db, participation, is_pending_validation=False)
+    # Compteurs dénormalisés (#623) : c'est le seul geste hors import qui fait
+    # entrer une participation dans les agrégats publics après coup (#270).
+    course_repository.adjust_counts(
+        db,
+        participation.course,
+        participation_delta=1,
+        tcn_delta=1 if is_tcn(participation.club) else 0,
+    )
 
     admin_action_log_repository.create(
         db,

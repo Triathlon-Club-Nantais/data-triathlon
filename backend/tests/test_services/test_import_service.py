@@ -136,6 +136,52 @@ def test_import_calcule_l_indice_de_fiabilite(db_session, patch_scraper):
     assert course.quality_issues == {}
 
 
+def test_import_denormalise_les_compteurs_de_participants(db_session, patch_scraper):
+    """#623 — `_Persister.finalize` écrit `participation_count`/`tcn_count`,
+    même patron que l'indice de fiabilité juste au-dessus : c'est ce qui
+    permet à `GET /courses/events` de les lire sans plus jamais joindre
+    `participations`."""
+    patch_scraper([
+        _result("1", "DUPONT", rank_overall=1, club="Triathlon Club Nantais"),
+        _result("2", "MARTIN", rank_overall=2, club="ASPTT"),
+    ])
+    import_service.import_event(db_session, URL, _settings())
+
+    course = course_repository.get_latest_by_source_url(db_session, URL)
+    assert course.participation_count == 2
+    assert course.tcn_count == 1
+
+
+def test_import_denormalise_exclut_une_participation_en_attente_preexistante(
+    db_session, patch_scraper
+):
+    """Une saisie manuelle en attente (#270) sur la même épreuve, préexistante
+    à l'import, n'entre dans aucun des deux compteurs — sa seule sortie est
+    `admin_actions.validate_participation`, jamais un import."""
+    course = course_repository.get_or_create(
+        db_session, name="Triathlon de Nantes", event_date=date(2026, 5, 16),
+        event_type="triathlon-m", source_url=URL, provider="klikego",
+    )
+    athlete = athlete_repository.get_or_create(
+        db_session, nom="ATTENTE", prenom="Léa", club="Triathlon Club Nantais"
+    )
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="99",
+        club="Triathlon Club Nantais", is_pending_validation=True,
+    )
+    db_session.flush()
+    patch_scraper([_result("1", "DUPONT", rank_overall=1, club="ASPTT")])
+
+    # `force=True` : `get_or_create` ci-dessus vient de poser `scraped_at` à
+    # maintenant (défaut du modèle), donc la course est déjà « fraîche » —
+    # sans lui, `_cached_result` court-circuiterait le scrape entièrement.
+    import_service.import_event(db_session, URL, _settings(), force=True)
+
+    db_session.refresh(course)
+    assert course.participation_count == 1
+    assert course.tcn_count == 0
+
+
 def test_import_signale_une_course_suspecte(db_session, patch_scraper):
     # Dossard 1 en double dans la source → la 2e ligne est jetée, jamais persistée.
     # « DQ » est hors de la nomenclature finisher/DNF/DNS/DSQ.
