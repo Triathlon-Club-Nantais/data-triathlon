@@ -129,18 +129,36 @@ l'issue sont signalées explicitement.
 
 ## US11 — Couverture temporelle des épreuves
 
-- **Decision**: réutiliser la liste d'épreuves déjà exposée par l'API
-  (`page_size=all`, exception contractuelle documentée dans `AGENTS.md` /
-  Principe IV) et agréger mois/année côté client à partir de
-  `course.event_date`, en réutilisant `MonthlyTrend.tsx` (existant dans
-  `components/charts/`, non utilisé aujourd'hui sur `/resultats`).
-- **Rationale**: `GET /stats` (`rank_counters`/`by_month`) est scopé au club
-  et aux participations, pas à l'ensemble des 273 épreuves tous fournisseurs
-  confondus qu'affiche `/resultats` — il faut une agrégation par `Course`, pas
-  par `Participation`. La liste d'épreuves existante porte déjà `event_date`.
+- **Decision (implémentée)** : `monthlyCoverage()` (`frontend/lib/utils/
+  coverage.ts`) agrège mois/année côté serveur (page `resultats/page.tsx`),
+  à partir d'une boucle de pages sur `GET /courses/events` (`page_size=200`,
+  son plafond réel — voir correction ci-dessous). Nouveau composant
+  `CoverageTimeline` plutôt que `MonthlyTrend` réutilisé tel quel (voir
+  correction). La couverture porte sur **toutes** les épreuves (seul `scope`
+  respecté, pas les filtres de recherche ponctuels) : c'est une vue
+  d'ensemble qui précède le filtrage, pas un résumé du résultat filtré.
+- **Correction vs. la première version de ce document** : `page_size=all`
+  n'existe **que** sur `GET /courses/{id}` (classement d'une épreuve unique,
+  `backend/app/api/v1/courses.py:138-164`) — `GET /courses/events` (liste des
+  épreuves) plafonne `page_size` à **200** (`Query(30, ge=1, le=200)`,
+  `courses.py:46`), sans échappatoire « all ». La boucle de pages reste bon
+  marché à l'échelle actuelle (~2 requêtes pour 273 épreuves).
+- **Correction vs. la première version** : `MonthlyTrend.tsx` ne convient
+  **pas** tel quel — il ne montre que les 12 derniers mois glissants
+  (`entries.slice(-12)`) et n'affiche jamais un mois à zéro comme un « trou »
+  visible (un mois absent de son `byMonth` est simplement omis, pas marqué).
+  US11 demande l'historique complet (potentiellement plusieurs années) avec
+  les mois sans épreuve **visibles**, pas un résumé glissant. `CoverageTimeline`
+  reprend le même style visuel (barres, labels toujours rendus, `role="img"`)
+  mais sans le plafond de 12 mois, avec un défilement horizontal propre et un
+  marquage visuel distinct (bordure en pointillés) pour les mois à zéro.
 - **Alternatives considered**: nouvel endpoint d'agrégat mensuel dédié aux
-  épreuves — rejeté pour cette itération, `page_size=all` + agrégation client
-  suffit à l'échelle de 273 épreuves (pas de pagination lourde à ce volume).
+  épreuves — rejeté pour cette itération, la boucle de pages + agrégation
+  serveur suffit à l'échelle de 273 épreuves (pas de pagination lourde à ce
+  volume) ; étendre `MonthlyTrend` avec une prop désactivant le plafond de 12
+  mois — rejeté, ça aurait changé la sémantique d'un composant déjà utilisé
+  ailleurs (dashboard) pour un besoin différent (glissant vs. historique
+  complet), plus risqué qu'un composant dédié de 60 lignes.
 
 ## US12 — Carte : filtre à venir + distance
 

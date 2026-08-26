@@ -250,12 +250,12 @@ Application web existante : `backend/app/`, `backend/tests/`, `frontend/app/`, `
 
 ### Tests for User Story 11
 
-- [ ] T047 [P] [US11] Test vitest pour l'agrégation mois/année (`page_size=all`) dans `frontend/lib/utils/coverage.test.ts`
+- [X] T047 [P] [US11] Test vitest pour l'agrégation mois/année dans `frontend/lib/utils/coverage.test.ts`
 
 ### Implementation for User Story 11
 
-- [ ] T048 [US11] Créer `frontend/lib/utils/coverage.ts` (agrégation mois/année sur `course.event_date`)
-- [ ] T049 [US11] Intégrer `MonthlyTrend` (réutilisé) sur `resultats/page.tsx`
+- [X] T048 [US11] Créer `frontend/lib/utils/coverage.ts` (agrégation mois/année sur `event_date`, mois sans épreuve comptés à zéro)
+- [X] T049 [US11] Intégrer un nouveau `CoverageTimeline` (pas `MonthlyTrend`, voir research.md) sur `resultats/page.tsx`, alimenté par un fetch serveur dédié (boucle de pages `page_size=200`, plafond réel de `GET /courses/events`)
 
 **Checkpoint**: US1→US11 fonctionnelles indépendamment.
 
