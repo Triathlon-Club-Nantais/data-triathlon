@@ -25,8 +25,8 @@ Application web existante : `backend/app/`, `backend/tests/`, `frontend/app/`, `
 
 ## Phase 1: Setup
 
-- [ ] T001 [P] Vérifier que `d3-scale`/`d3-shape` sont présents dans `frontend/package.json` (aucune nouvelle dépendance de visualisation pour cette feature)
-- [ ] T002 [P] Aligner l'environnement du worktree sur les lockfiles : `cd backend && uv sync`, `cd frontend && npm install`
+- [X] T001 [P] Vérifier que `d3-scale`/`d3-shape` sont présents dans `frontend/package.json` (aucune nouvelle dépendance de visualisation pour cette feature)
+- [X] T002 [P] Aligner l'environnement du worktree sur les lockfiles : `cd backend && uv sync`, `cd frontend && npm install`
 
 ---
 
