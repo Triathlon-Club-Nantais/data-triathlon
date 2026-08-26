@@ -739,3 +739,20 @@ def test_downgrade_puis_upgrade_de_la_portee_des_compteurs(sqlite_url):
 
     command.upgrade(cfg, "head")
     assert _lignes(sqlite_url, "SELECT COUNT(*) FROM counter_scope_entries") == [(12,)]
+
+
+def test_upgrade_head_adds_participation_validation_timestamp_columns(base_migree):
+    assert {"validated_at", "rejected_at"} <= _columns(base_migree, "participations")
+
+
+def test_downgrade_puis_upgrade_des_timestamps_de_validation(sqlite_url):
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+
+    # Cible nommée : `-1` se décalerait à la première migration insérée
+    # entre-temps — même précaution que les autres tests de ce fichier.
+    command.downgrade(cfg, "05de2237111f")
+    assert not {"validated_at", "rejected_at"} & _columns(sqlite_url, "participations")
+
+    command.upgrade(cfg, "head")
+    assert {"validated_at", "rejected_at"} <= _columns(sqlite_url, "participations")

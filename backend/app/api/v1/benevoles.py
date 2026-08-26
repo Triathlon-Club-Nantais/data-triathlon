@@ -17,6 +17,7 @@ from app.api.deps import NotAuthenticatedError, require_benevole_access
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
+from app.core.time import utcnow
 from app.core.validation import is_actionable_pending
 from app.repositories import (
     athlete_repository,
@@ -28,7 +29,8 @@ from app.schemas.athlete import AthleteBrief
 from app.schemas.benevole import BenevoleCourseRename, BenevoleLogin, ParticipationFieldsUpdate
 from app.schemas.course import CourseBrief
 from app.schemas.participation import ParticipationOut
-from app.services import admin_actions, benevole_access, shared_password
+from app.schemas.validation_queue import ValidationQueueHistory
+from app.services import admin_actions, benevole_access, shared_password, validation_queue_service
 
 router = APIRouter(tags=["benevoles"])
 
@@ -81,6 +83,17 @@ def close_session(response: Response, settings: Settings = Depends(get_settings)
 def queue(db: Session = Depends(get_db)):
     """Résultats en attente de validation, tous clubs confondus (research.md §D5)."""
     return participation_repository.list_pending(db)
+
+
+@router.get(
+    "/benevoles/queue/history",
+    response_model=ValidationQueueHistory,
+    dependencies=[Depends(require_benevole_access)],
+)
+def queue_history(db: Session = Depends(get_db)):
+    """Arriéré de la file par jour et délai moyen de résolution (US13, #466)."""
+    donnees = participation_repository.validation_queue_timestamps(db)
+    return validation_queue_service.build_history(donnees, aujourdhui=utcnow().date())
 
 
 #: Taille de la liste rendue au sélecteur de réattribution. Fixée ici plutôt

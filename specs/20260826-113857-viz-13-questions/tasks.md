@@ -289,20 +289,20 @@ Application web existante : `backend/app/`, `backend/tests/`, `frontend/app/`, `
 
 ### Tests for User Story 13
 
-- [ ] T054 [P] [US13] Test de migration (upgrade/downgrade) pour `validated_at`/`rejected_at` dans `backend/tests/test_migrations.py`
-- [ ] T055 [P] [US13] Test pytest rouge pour l'écriture de `validated_at`/`rejected_at` dans `backend/tests/test_services/test_admin_actions.py`
-- [ ] T056 [P] [US13] Test pytest pour la nouvelle fonction de repository d'historique dans `backend/tests/test_repositories/test_participation_repository.py`
-- [ ] T057 [P] [US13] Test contrat API pour `GET /api/v1/benevoles/queue/history` dans `backend/tests/test_api/test_benevoles_api.py`
+- [X] T054 [P] [US13] Test de migration (upgrade/downgrade) pour `validated_at`/`rejected_at` dans `backend/tests/test_migrations.py`
+- [X] T055 [P] [US13] Test pytest rouge pour l'écriture de `validated_at`/`rejected_at` dans `backend/tests/test_services/test_admin_actions.py`
+- [X] T056 [P] [US13] Test pytest pour la nouvelle fonction de repository d'historique dans `backend/tests/test_repositories/test_participation_repository.py`
+- [X] T057 [P] [US13] Test contrat API pour `GET /api/v1/benevoles/queue/history` dans `backend/tests/test_api/test_benevoles_api.py`
 - [ ] T058 [P] [US13] Test vitest pour `ValidationBacklogChart` (état vide sans résolution post-migration) dans `frontend/components/charts/ValidationBacklogChart.test.tsx`
 
 ### Implementation for User Story 13
 
-- [ ] T059 [US13] Migration Alembic : `validated_at`/`rejected_at` nullable sur `Participation` (`uv run alembic revision --autogenerate`, relecture manuelle)
-- [ ] T060 [US13] Écrire `validated_at` dans `validate_participation`, `rejected_at` dans `reject_participation` (`backend/app/services/admin_actions.py`)
-- [ ] T061 [US13] Ajouter la fonction de lecture d'historique dans `backend/app/repositories/participation_repository.py`
-- [ ] T062 [US13] Créer le schéma `ValidationQueueHistory`/`ValidationQueueBacklogPoint` dans `backend/app/schemas/`
-- [ ] T063 [US13] Créer le service d'agrégation (arriéré par jour, délai moyen) dans `backend/app/services/`
-- [ ] T064 [US13] Ajouter la route `GET /benevoles/queue/history` dans `backend/app/api/v1/benevoles.py`, gardée par `require_benevole_access`
+- [X] T059 [US13] Migration Alembic : `validated_at`/`rejected_at` nullable sur `Participation` (`uv run alembic revision --autogenerate`, relecture manuelle)
+- [X] T060 [US13] Écrire `validated_at` dans `validate_participation`, `rejected_at` dans `reject_participation` (`backend/app/services/admin_actions.py`)
+- [X] T061 [US13] Ajouter la fonction de lecture d'historique dans `backend/app/repositories/participation_repository.py`
+- [X] T062 [US13] Créer le schéma `ValidationQueueHistory`/`ValidationQueueBacklogPoint` dans `backend/app/schemas/`
+- [X] T063 [US13] Créer le service d'agrégation (arriéré par jour, délai moyen) dans `backend/app/services/`
+- [X] T064 [US13] Ajouter la route `GET /benevoles/queue/history` dans `backend/app/api/v1/benevoles.py`, gardée par `require_benevole_access`
 - [ ] T065 [US13] Ajouter `getValidationQueueHistory` dans `frontend/lib/api/client.ts`
 - [ ] T066 [US13] Créer `ValidationBacklogChart.tsx` et l'intégrer sur `benevoles/page.tsx`
 
