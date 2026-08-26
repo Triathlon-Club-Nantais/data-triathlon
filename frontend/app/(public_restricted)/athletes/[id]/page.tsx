@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { apiServer } from "@/lib/api/server";
-import { StatCard, MetaPill } from "@/components/tcn";
+import { StatCard, MetaPill, Card, Eyebrow } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AthleteAvatar } from "./AthleteAvatar";
@@ -9,8 +9,9 @@ import { AthleteSelection } from "./AthleteSelection";
 import { EventsTable } from "./EventsTable";
 import { AthleteAdminPanel } from "@/components/athletes/AthleteAdminPanel";
 import { formatToken, genderShort, ordinalFr } from "@/lib/utils/format";
-import { bestRatio } from "@/lib/utils/ranking";
+import { bestRatio, progressionSeries } from "@/lib/utils/ranking";
 import { resumeAthlete } from "@/lib/utils/athlete-stats";
+import { ProgressionChart } from "@/components/charts/ProgressionChart";
 
 export default async function AthletePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -51,6 +52,7 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
   const favFormat = [...formatCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
 
   const topRatio = bestRatio(validated);
+  const progression = progressionSeries(validated);
 
   return (
     <PageShell>
@@ -155,6 +157,13 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
           <StatCard label="Top 10" value={top10} accent={false} />
           <StatCard label="Format favori" value={favFormat} accent={false} />
         </div>
+      )}
+
+      {validated.length > 0 && (
+        <Card style={{ marginBottom: 24 }}>
+          <Eyebrow>Progression</Eyebrow>
+          <ProgressionChart points={progression} />
+        </Card>
       )}
 
       <EventsTable participations={participations} athleteId={athlete.id} athleteName={fullName} />
