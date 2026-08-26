@@ -630,6 +630,15 @@
     outline: 2px solid var(--tcn-orange);
     outline-offset: 2px;
   }
+  /* Boutons de résultat de recherche et de changement d'athlète du
+     comparateur (`AthleteComparisonChart`, #466, revue UI/UX) : même défaut
+     que #299/#342/#442, retombés sur `outline-ring/50` faute de classe
+     dédiée. */
+  .tcn-comparaison-lien:focus-visible {
+    outline: 2px solid var(--tcn-orange);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
   /* Option d'un radio-toggle fait main (`AthleteSortToggle` — `RankTypeToggle`
      est passé à `SegmentedControl`, #342) : le `<input>` est masqué en
      opacité 0, donc son `outline` natif l'est aussi. Même défaut que #299
