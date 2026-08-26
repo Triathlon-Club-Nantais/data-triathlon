@@ -540,6 +540,24 @@ export type RescrapeProgressEvent =
     }
   | { phase: "error"; message: string };
 
+// Événements du flux SSE de `PATCH /admin/courses/{id}/sources/{sourceId}`
+// (#285, #624) — même mécanisme que `RescrapeProgressEvent`, mais `done` porte
+// les compteurs d'un **remplacement total** (pas un upsert) et la liste des
+// sources à jour, dans la forme de `GET /courses/{id}/sources` (#284) : elle
+// remplace l'ancien corps JSON de la réponse, pour que l'écran se réaffiche
+// sans second appel.
+export type SwitchSourceProgressEvent =
+  | { phase: "scraping"; message?: string; heat_index?: number; heats_total?: number; heat_slug?: string; heat_label?: string }
+  | { phase: "saving"; total: number }
+  | {
+      phase: "done";
+      participations_deleted: number;
+      participations_imported: number;
+      athletes_purged: number;
+      sources: CourseSource[];
+    }
+  | { phase: "error"; message: string };
+
 export interface CourseDetail {
   course: CourseBrief;
   /** La tranche demandée, déjà dans l'ordre d'affichage — ne pas la retrier. */

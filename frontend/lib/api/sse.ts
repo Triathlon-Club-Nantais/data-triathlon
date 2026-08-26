@@ -1,5 +1,9 @@
 import { ApiError, messageDErreur } from "@/lib/api/client";
-import type { ImportProgressEvent, RescrapeProgressEvent } from "@/lib/types";
+import type {
+  ImportProgressEvent,
+  RescrapeProgressEvent,
+  SwitchSourceProgressEvent,
+} from "@/lib/types";
 
 const BASE = "/api/v1";
 
@@ -86,4 +90,32 @@ export async function* rescrapeEventStream(
     );
   }
   yield* readEventStream<RescrapeProgressEvent>(res);
+}
+
+/**
+ * Flux SSE de la bascule de source active d'une épreuve (#285, #624).
+ *
+ * Un 400 (`is_active: false`, refus toujours synchrone) ou un 404
+ * (course/source introuvable) arrive **avant** tout octet du flux — même
+ * contrat que `rescrapeEventStream` ci-dessus (`admin_course_sources.py`) —
+ * donc `res.ok` suffit à les distinguer du chemin heureux, corps JSON
+ * `{"detail": "..."}` lu pour le message.
+ */
+export async function* switchSourceEventStream(
+  courseId: number,
+  sourceId: number,
+): AsyncGenerator<SwitchSourceProgressEvent> {
+  const res = await fetch(`${BASE}/admin/courses/${courseId}/sources/${sourceId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ is_active: true }),
+  });
+  if (!res.ok) {
+    const corps = await res.json().catch(() => null);
+    throw new ApiError(
+      res.status,
+      messageDErreur(corps?.detail, "Erreur lors du démarrage de la bascule"),
+    );
+  }
+  yield* readEventStream<SwitchSourceProgressEvent>(res);
 }

@@ -673,25 +673,6 @@ def _cached_result(db: Session, url: str, settings: Settings) -> dict | None:
     }
 
 
-def scrape_for_replacement(
-    url: str, db: Session, settings: Settings
-) -> tuple[list[ScrapedResult], FanoutTrace | None]:
-    """Scrape une URL **sans aucun cache**, pour un remplacement total (#285).
-
-    Les deux moitiés du cache TTL sont écartées, et il faut les deux : le
-    court-circuit global (`_cached_result`, propre à `import_event`) n'est pas
-    traversé du tout, et le probe par heat est désarmé. Un `force=True` sur le
-    chemin d'import ordinaire ne lève que le premier — la bascule d'une épreuve
-    fan-out y perdrait tous les heats jugés frais, c'est-à-dire tous.
-
-    Ne persiste rien : c'est `persist_results` qui écrit, et l'appelant décide
-    entre les deux s'il veut de ces résultats. Cet ordre est ce qui rend la
-    bascule sûre — rien de destructeur n'est écrit avant qu'on tienne un
-    classement utilisable.
-    """
-    return _scrape_all(_validate_url(url), db, settings, use_cache_probe=False)
-
-
 def _reclassify_heats(db: Session, event_url: str, results: list[ScrapedResult]) -> None:
     """Aligne la classification des épreuves déjà en base sur ce scrape-ci (#294).
 

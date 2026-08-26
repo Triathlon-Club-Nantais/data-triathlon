@@ -28,7 +28,6 @@ from app.core.config import Settings
 from app.core.exceptions import DomainError, DuplicateError, NotFoundError, ScraperError
 from app.models.athlete import Athlete
 from app.models.course import Course
-from app.models.course_source import CourseSource
 from app.models.participation import Participation
 from app.repositories import (
     admin_action_log_repository,
@@ -37,6 +36,7 @@ from app.repositories import (
     course_source_repository,
     participation_repository,
 )
+from app.schemas.course import CourseSourceOut
 from app.services import import_service
 
 logger = logging.getLogger(__name__)
@@ -256,10 +256,25 @@ def wipe_all_courses(db: Session, *, user_id: int) -> dict:
     return resume
 
 
-def switch_course_source(
+def _source_dicts(db: Session, course_id: int) -> list[dict]:
+    """La liste des sources d'une épreuve, dans la forme exacte de
+    `GET /courses/{id}/sources` (#284) — même schéma que la route consomme,
+    pour que l'écran (#291) se réaffiche sans second appel ni forme parallèle."""
+    return [
+        CourseSourceOut.model_validate(source).model_dump(mode="json")
+        for source in course_source_repository.list_for_course(db, course_id)
+    ]
+
+
+def iter_switch_course_source(
     db: Session, *, course_id: int, source_id: int, user_id: int, settings: Settings
-) -> list[CourseSource]:
-    """Fait d'une source passive l'active de son épreuve, et **réécrit le classement**.
+) -> Iterator[dict]:
+    """Fait d'une source passive l'active de son épreuve, et **réécrit le
+    classement** — en flux SSE (#624), même mécanisme que le re-scrape à la
+    demande (#118) : #275 tranche que les deux « doivent partager le même
+    mécanisme, pas en inventer deux », et la bascule bloquante dépassait le
+    délai du proxy sur une épreuve fan-out (Klikego, 30-40 s), d'où un 502
+    avant même le premier octet (#624).
 
     Décision D2 de #275 : le remplacement est **total**. Les participations de
     l'épreuve sont supprimées puis réimportées depuis le nouveau chronométreur, là
@@ -267,25 +282,32 @@ def switch_course_source(
     absentes de la nouvelle — le classement resterait le mélange de deux
     chronométreurs que l'epic existe pour supprimer.
 
-    **L'ordre des quatre étapes est le contrat, pas un détail d'écriture.**
-    On scrape, on valide, on détruit, on réimporte. Rien de destructeur n'est
-    écrit avant qu'on tienne un classement utilisable, et c'est ce qui rend
-    impossible l'accident que cette route pourrait provoquer : une épreuve vidée
-    par un geste d'administration qui échoue ensuite à la remplir. Aucun rollback
-    n'est aussi solide que de n'avoir rien écrit — et le refus, lui, lève avant le
-    `commit` de la route, donc n'écrit ni donnée ni entrée de journal (FR-015).
+    **La garde d'existence est synchrone, hors du générateur** — même raison
+    qu'`iter_rescrape_course` : `StreamingResponse` (Starlette) envoie le statut
+    HTTP **avant** de tirer le premier élément du générateur, donc une exception
+    levée depuis l'intérieur d'un générateur déjà en flux ne peut plus jamais
+    devenir un 404, seulement une coupure à 200.
 
-    Deux refus qu'aucun scraper ne signalerait, et qui coûteraient un classement :
+    Sans effet si la source visée est déjà active (double-clic, écran rechargé) :
+    rend alors un flux d'un seul événement `done` à zéro, sans thread ni verrou —
+    re-scraper par acquit de conscience détruirait un classement pour rien, et
+    le journal se remplirait de non-événements (FR-012).
 
-    - **Zéro résultat.** Sur le chemin d'import ordinaire c'est un succès à zéro
-      compteur ; ici ce serait un classement effacé. Le cas est banal — une page
-      de résultats retirée, une URL qui répond encore sans plus rien publier.
-    - **Une autre épreuve.** `mapping.get_or_create_course` apparie sur
-      `(nom, date, type, relais)` à l'égalité stricte : un libellé différent chez
-      le second chronométreur ferait naître une **nouvelle** épreuve et laisserait
-      celle qu'on vient de vider à zéro résultat, sans qu'aucune exception ne
-      passe. Faire converger deux identités est le travail de #289, les rapprocher
-      celui de #287 ; ici on refuse.
+    **L'ordre des quatre étapes reste le contrat, pas un détail d'écriture**, à
+    l'intérieur du thread de travail (`_stream_switch_course_source`) : on
+    scrape, on valide, on détruit, on réimporte. Rien de destructeur n'est
+    écrit avant qu'on tienne un classement utilisable — c'est ce qui rend
+    impossible l'accident propre à ce geste, une épreuve vidée puis abandonnée
+    à zéro résultat. Deux refus qu'aucun scraper ne signalerait, et qui
+    coûteraient un classement : zéro résultat (banal sur le chemin d'import
+    ordinaire, ici un classement effacé) et une autre épreuve
+    (`mapping.get_or_create_course` apparie sur `(nom, date, type, relais)` à
+    l'égalité stricte — un libellé différent chez le second chronométreur
+    créerait une **nouvelle** épreuve et laisserait celle qu'on vient de vider
+    à zéro résultat). Les deux lèvent depuis `_require_same_event`, dans le
+    thread, et deviennent un événement `error` plutôt qu'un refus HTTP — même
+    compromis que le re-scrape (`_stream_rescrape`), imposé par
+    `StreamingResponse`.
 
     La purge des fiches coureur devenues vides relève les candidats **avant** la
     suppression et ne tranche qu'**après** le réimport : avant, il n'y aurait plus
@@ -299,49 +321,141 @@ def switch_course_source(
     if source is None:
         raise NotFoundError("Source introuvable pour cette épreuve.")
     if source.is_active:
-        # Un double-clic, un écran rechargé : l'état voulu est l'état atteint.
-        # Re-scraper par acquit de conscience détruirait un classement pour rien,
-        # et le journal se remplirait de non-événements (FR-012).
-        return course_source_repository.list_for_course(db, course_id)
+        return iter([
+            {
+                "phase": "done",
+                "participations_deleted": 0,
+                "participations_imported": 0,
+                "athletes_purged": 0,
+                "sources": _source_dicts(db, course_id),
+            }
+        ])
 
     sortante = course_source_repository.get_active(db, course_id)
-    attendue = _instantane(course, _CHAMPS_COURSE)
 
-    results, _trace = import_service.scrape_for_replacement(source.url, db, settings)
-    _require_same_event(results, attendue)
-
-    candidats = athlete_repository.only_on_course(db, course_id)
-    supprimees = participation_repository.delete_for_course(db, course)
-    course_source_repository.set_active(db, source)
-    outcome = import_service.persist_results(db, source.url, results)
-    purges = athlete_repository.delete_orphans_among(db, candidats)
-
-    admin_action_log_repository.create(
+    _acquire_rescrape_lock(course_id)
+    return _stream_switch_course_source(
         db,
+        course_id=course_id,
+        course_name=course.name,
+        attendue=_instantane(course, _CHAMPS_COURSE),
+        source_id=source_id,
+        source_url=source.url,
+        sortante_url=sortante.url if sortante is not None else None,
         user_id=user_id,
-        action="course.source.switch",
-        entity_type="course",
-        entity_id=course_id,
-        payload={
-            "name": course.name,
-            # Les deux URLs, sans quoi l'entrée dirait « la source a changé » sans
-            # dire depuis quoi — donc sans permettre de défaire le geste de tête.
-            "previous_url": sortante.url if sortante is not None else None,
-            "new_url": source.url,
-            "participations_deleted": supprimees,
-            "participations_imported": outcome["imported"],
-            "athletes_purged": len(purges),
-        },
+        settings=settings,
     )
-    logger.info(
-        "Admin %s switched course %s source to %s (%s deleted, %s imported)",
-        user_id,
-        course_id,
-        source.url,
-        supprimees,
-        outcome["imported"],
-    )
-    return course_source_repository.list_for_course(db, course_id)
+
+
+def _stream_switch_course_source(
+    db: Session,
+    *,
+    course_id: int,
+    course_name: str,
+    attendue: dict,
+    source_id: int,
+    source_url: str,
+    sortante_url: str | None,
+    user_id: int,
+    settings: Settings,
+) -> Iterator[dict]:
+    """Le générateur SSE de la bascule — scrape, détruit, réimporte, dans un
+    thread dédié indépendant de la consommation du flux (FR-011, patron exact
+    de `_stream_rescrape`, dont la docstring détaille pourquoi la `Session`
+    n'est ni close ici ni ailleurs)."""
+    events: queue.Queue[dict | object] = queue.Queue()
+    sentinel = object()
+    holder: dict = {}
+
+    def worker() -> None:
+        try:
+            candidats = athlete_repository.only_on_course(db, course_id)
+            events.put({"phase": "scraping", "message": "Récupération des participants…"})
+
+            results, _trace = _drain_scrape(
+                import_service._scrape_all_streaming(
+                    source_url, db, settings, use_cache_probe=False
+                ),
+                events,
+            )
+            _require_same_event(results, attendue)
+
+            course = _course_or_404(db, course_id)
+            source = course_source_repository.find_on_course(
+                db, course_id=course_id, source_id=source_id
+            )
+            if source is None:
+                raise NotFoundError("Source introuvable pour cette épreuve.")
+
+            supprimees = participation_repository.delete_for_course(db, course)
+            course_source_repository.set_active(db, source)
+
+            events.put({"phase": "saving", "total": len(results)})
+            outcome = import_service.persist_results(db, source_url, results)
+            purges = athlete_repository.delete_orphans_among(db, candidats)
+
+            admin_action_log_repository.create(
+                db,
+                user_id=user_id,
+                action="course.source.switch",
+                entity_type="course",
+                entity_id=course_id,
+                payload={
+                    "name": course_name,
+                    # Les deux URLs, sans quoi l'entrée dirait « la source a
+                    # changé » sans dire depuis quoi — donc sans permettre de
+                    # défaire le geste de tête.
+                    "previous_url": sortante_url,
+                    "new_url": source_url,
+                    "participations_deleted": supprimees,
+                    "participations_imported": outcome["imported"],
+                    "athletes_purged": len(purges),
+                },
+            )
+            db.commit()
+            holder["done"] = {
+                "participations_deleted": supprimees,
+                "participations_imported": outcome["imported"],
+                "athletes_purged": len(purges),
+                "sources": _source_dicts(db, course_id),
+            }
+            logger.info(
+                "Admin %s switched course %s source to %s (%s deleted, %s imported)",
+                user_id,
+                course_id,
+                source_url,
+                supprimees,
+                outcome["imported"],
+            )
+        except DomainError as exc:
+            db.rollback()
+            holder["error"] = exc.message
+        except Exception:
+            db.rollback()
+            logger.exception("Rollback de la bascule de source de la course %s", course_id)
+            holder["error"] = "Erreur lors de l'enregistrement des résultats."
+        finally:
+            events.put(sentinel)
+            _release_rescrape_lock(course_id)
+
+    thread = threading.Thread(target=worker, daemon=True)
+    thread.start()
+
+    while True:
+        # Même compromis que `_stream_rescrape` : 0,5 s entre réactivité de
+        # la coupure côté client et coût CPU.
+        try:
+            item = events.get(timeout=0.5)
+        except queue.Empty:
+            continue
+        if item is sentinel:
+            break
+        yield item
+
+    if "error" in holder:
+        yield {"phase": "error", "message": holder["error"]}
+    else:
+        yield {"phase": "done", **holder["done"]}
 
 
 def _require_same_event(results: list, attendue: dict) -> None:
@@ -378,14 +492,19 @@ def _require_same_event(results: list, attendue: dict) -> None:
 
 
 class CourseRescrapeAlreadyRunningError(DomainError):
-    """Un re-scrape est déjà en cours sur cette course (FR-007, #118)."""
+    """Un scrape (re-scrape ou bascule de source) est déjà en cours sur cette
+    course (FR-007, #118 ; partagé avec la bascule de source depuis #624, les
+    deux écrivant les mêmes participations)."""
 
     status_code = 409
-    message = "Un re-scrape est déjà en cours sur cette épreuve."
+    message = "Une opération de scraping est déjà en cours sur cette épreuve."
 
 
 #: Verrou de concurrence par course (research.md R5) : un `dict[int, bool]` en
-#: mémoire, process unique. `ponytail:` verrou process unique — migrer vers un
+#: mémoire, process unique, partagé par le re-scrape et la bascule de source
+#: (#624) — les deux écrivent les participations de la même course, et
+#: laisser l'un démarrer pendant que l'autre tourne corromprait le classement.
+#: `ponytail:` verrou process unique — migrer vers un
 #: verrou DB (`SELECT … FOR UPDATE`, ou colonne `rescrape_lock_at`) si le
 #: service passe un jour multi-instance.
 _rescrape_locks: dict[int, bool] = {}

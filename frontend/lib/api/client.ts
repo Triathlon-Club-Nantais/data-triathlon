@@ -21,7 +21,6 @@ import type {
   CourseMergeResult,
   CourseQuery,
   CourseReliability,
-  CourseSource,
   CourseSummary,
   CoursesWipeImpact,
   CoursesWipeResult,
@@ -271,12 +270,10 @@ export const apiClient = {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
-  /** Bascule de la source active (#285) : bloquant, re-scrape et remplace les résultats. */
-  switchCourseSource: (courseId: number, sourceId: number) =>
-    request<CourseSource[]>(`/admin/courses/${courseId}/sources/${sourceId}`, {
-      method: "PATCH",
-      body: JSON.stringify({ is_active: true }),
-    }),
+  // Bascule de la source active (#285) : flux SSE depuis #624
+  // (`switchSourceEventStream`, `lib/api/sse.ts`) — plus un appel `request()`
+  // classique, le remplacement peut durer plusieurs dizaines de secondes sur
+  // une épreuve fan-out.
   listCourseDuplicates: () => request<DuplicateCandidateList>("/admin/courses/duplicates"),
   getCourseMergeImpact: (courseId: number, absorbedId: number) =>
     request<CourseMergeImpact>(

@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Button, MetaPill, Modal } from "@/components/tcn";
 import { Progress } from "@/components/ui/progress";
 import { useRescrapeStream, type RescrapeState } from "@/hooks/useRescrapeStream";
-import { useSwitchCourseSource } from "@/lib/queries/admin";
+import { useSwitchSourceStream } from "@/hooks/useSwitchSourceStream";
 import { useSession } from "@/lib/queries/auth";
 import { providerLabel } from "@/lib/constants";
 import type { CourseSource } from "@/lib/types";
@@ -54,7 +54,7 @@ export function CourseSourcesPanel({
   const [cible, setCible] = useState<CourseSource | null>(null);
   const session = useSession();
   const peutBasculer = session.data?.permissions.includes("courses:sources") ?? false;
-  const bascule = useSwitchCourseSource();
+  const bascule = useSwitchSourceStream();
   const rescrape = useRescrapeStream();
 
   // Notifie en fin de flux plutôt qu'à chaque `await` — `start()` ne rejette
@@ -148,17 +148,52 @@ export function CourseSourcesPanel({
     );
   }
 
+  // Réagit dans le gestionnaire d'événement, pas dans un `useEffect` sur
+  // `bascule.state.phase` : `start()` rend le dénouement du flux (patron
+  // `useSwitchSourceStream`), ce qui évite le `setState` synchrone en effet
+  // que React déconseille (cascading renders).
   async function confirmer() {
     if (!cible) return;
-    try {
-      const misesAJour = await bascule.mutateAsync({ courseId, sourceId: cible.id });
-      setSources(misesAJour);
-      toast.success(`${providerLabel(cible.provider)} est désormais la source active — résultats remplacés.`);
+    const label = providerLabel(cible.provider);
+    const resultat = await bascule.start(courseId, cible.id);
+    if (resultat?.phase === "done") {
+      setSources(resultat.sources);
+      toast.success(`${label} est désormais la source active — résultats remplacés.`);
       setCible(null);
-    } catch (e) {
-      toast.error((e as Error).message);
+      bascule.reset();
+    } else if (resultat?.phase === "error") {
+      toast.error(resultat.message);
     }
   }
+
+  // Même carte neutre que `progressionRescrape`, mais rendue **dans** la
+  // modale de confirmation (#624) : celle-ci reste ouverte tant que le flux
+  // tourne, contrairement au re-scrape qui n'a pas de confirmation.
+  const progressionBascule = bascule.state.running && (
+    <div
+      role="status"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        marginTop: 14,
+        padding: "12px 16px",
+        background: "var(--tcn-surface-sunk)",
+        border: "1.5px solid var(--tcn-border)",
+        borderRadius: "var(--tcn-radius-xl)",
+        fontSize: 13,
+        color: "var(--tcn-text-body)",
+      }}
+    >
+      <Loader2 size={16} className="animate-spin" style={{ flex: "none", color: "var(--tcn-orange)" }} aria-hidden="true" />
+      {bascule.state.phase === "scraping" && <span>{bascule.state.message}</span>}
+      {bascule.state.phase === "saving" && (
+        <span>
+          Enregistrement de {bascule.state.total} participant{bascule.state.total > 1 ? "s" : ""}…
+        </span>
+      )}
+    </div>
+  );
 
   return (
     <>
@@ -194,23 +229,34 @@ export function CourseSourcesPanel({
         <Modal
           eyebrow="Sources de l'épreuve"
           title="Basculer la source active ?"
-          onClose={() => (bascule.isPending ? null : setCible(null))}
+          onClose={() => {
+            if (bascule.state.running) return;
+            setCible(null);
+            bascule.reset();
+          }}
           footer={
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-              <Button variant="ghost" onClick={() => setCible(null)} disabled={bascule.isPending}>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setCible(null);
+                  bascule.reset();
+                }}
+                disabled={bascule.state.running}
+              >
                 Annuler
               </Button>
-              <Button onClick={confirmer} disabled={bascule.isPending}>
-                {bascule.isPending ? "Bascule en cours…" : "Basculer"}
+              <Button onClick={confirmer} disabled={bascule.state.running}>
+                {bascule.state.running ? "Bascule en cours…" : "Basculer"}
               </Button>
             </div>
           }
         >
           <p style={{ color: "var(--tcn-text-body)", fontSize: 14, lineHeight: 1.5, margin: 0 }}>
             {providerLabel(cible.provider)} va relancer un scrape complet de cette épreuve et
-            remplacer l&apos;intégralité des résultats actuellement affichés. L&apos;opération est
-            bloquante et peut prendre plusieurs secondes.
+            remplacer l&apos;intégralité des résultats actuellement affichés.
           </p>
+          {progressionBascule}
         </Modal>
       )}
     </>

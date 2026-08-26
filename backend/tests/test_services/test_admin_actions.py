@@ -10,10 +10,12 @@ import pytest
 
 from app.core.config import Settings
 from app.core.exceptions import DuplicateError, NotFoundError
+from app.core.time import utcnow
 from app.repositories import (
     admin_action_log_repository,
     athlete_repository,
     course_repository,
+    course_source_repository,
     participation_repository,
     user_repository,
 )
@@ -859,6 +861,298 @@ def test_rescrape_sur_course_inconnue_est_un_not_found(db_session, auteur):
         admin_actions.iter_rescrape_course(
             db_session, course_id=4242, user_id=auteur.id, settings=_settings()
         )
+
+
+# --- Basculer la source active d'une épreuve (#285, #624) -------------------
+#
+# Décision D2 de #275 : le remplacement est **total**, jamais un upsert par
+# dossard — sans quoi le classement resterait le mélange de deux
+# chronométreurs que l'epic existe pour supprimer. Depuis #624, la bascule
+# partage son mécanisme SSE (thread dédié, verrou de concurrence) avec le
+# re-scrape à la demande ci-dessus : les deux écrivent les participations de
+# la même course, et un verrou distinct les laisserait courir en parallèle.
+
+
+def _epreuve_deux_sources(db_session, nom="Triathlon de Mesquer", event_date=date(2026, 5, 16)):
+    """L'épreuve, son active `k`, sa passive `b` — pour la bascule."""
+    course = _epreuve(db_session, nom, event_date)
+    passive = course_source_repository.add(
+        db_session, course=course, url=f"https://b/{nom}", provider="breizhchrono"
+    )
+    db_session.flush()
+    return course, passive
+
+
+def _resultat_bascule(course, passive, bib, nom, *, event_name=None, prenom="Jean"):
+    """Un résultat publié par la source **entrante** — jamais `course.source_url`,
+    l'actuelle active : c'est `_resultat` (rescrape) qui suppose l'inverse."""
+    return ScrapedResult(
+        source_url=passive.url,
+        provider=passive.provider,
+        athlete_name=nom,
+        athlete_firstname=prenom,
+        bib_number=bib,
+        event_name=event_name if event_name is not None else course.name,
+        event_date=course.event_date,
+        event_type=course.event_type,
+        total_time="01:59:00",
+    )
+
+
+def _bascules(db_session, course_id):
+    return [
+        entree
+        for entree in _journal(db_session, "course", course_id)
+        if entree.action == "course.source.switch"
+    ]
+
+
+def test_switch_replaces_the_ranking_purges_orphans_and_logs_the_switch(
+    db_session, auteur, scrape
+):
+    """AC2/AC6 — remplacement total (pas un upsert), purge des orphelins,
+    journal portant les deux URLs et l'ampleur du geste."""
+    course, passive = _epreuve_deux_sources(db_session)
+    # `course.source_url` est dérivé de `course.sources` (#279) : capturé
+    # avant la bascule, sans quoi le relire après coup rendrait la **nouvelle**
+    # active, la mutation étant visible en mémoire dans la même transaction.
+    url_active_avant = course.source_url
+    depart = _coureur(db_session, "DEPART")
+    reste = _coureur(db_session, "RESTE")
+    # Capturés avant le geste : les deux fiches sont purgées ici (remplacement
+    # total, contrairement au re-scrape en upsert où RESTE survit) — accéder à
+    # `.id` sur l'objet ORM après sa suppression par lot lève `DetachedInstanceError`.
+    id_depart, id_reste = depart.id, reste.id
+    _inscrit(db_session, depart, course, "1")
+    _inscrit(db_session, reste, course, "2")
+    db_session.commit()
+    # Un seul dossard publié là où l'ancienne source en avait deux : c'est ce
+    # déséquilibre qui distingue un remplacement total d'un upsert.
+    scrape([_resultat_bascule(course, passive, "9", "NOUVEAU")])
+
+    events = list(admin_actions.iter_switch_course_source(
+        db_session, course_id=course.id, source_id=passive.id,
+        user_id=auteur.id, settings=_settings(),
+    ))
+
+    assert events[-1]["phase"] == "done"
+    assert events[-1]["participations_deleted"] == 2
+    assert events[-1]["participations_imported"] == 1
+    assert events[-1]["athletes_purged"] == 2
+    assert [(s["url"], s["is_active"]) for s in events[-1]["sources"]] == [
+        (passive.url, True),
+        (url_active_avant, False),
+    ]
+    assert participation_repository.count_for_course(db_session, course.id) == 1
+    assert athlete_repository.get(db_session, id_depart) is None
+    assert athlete_repository.get(db_session, id_reste) is None
+    entrees = _bascules(db_session, course.id)
+    assert len(entrees) == 1
+    assert entrees[0].payload["previous_url"] == url_active_avant
+    assert entrees[0].payload["new_url"] == passive.url
+    assert entrees[0].payload["participations_deleted"] == 2
+    assert entrees[0].payload["athletes_purged"] == 2
+
+
+def test_switch_refuses_zero_results_and_leaves_everything_untouched(
+    db_session, auteur, scrape
+):
+    """AC3 — zéro résultat est un refus, jamais un classement effacé."""
+    course, passive = _epreuve_deux_sources(db_session)
+    coureur = _coureur(db_session, "INTACT")
+    _inscrit(db_session, coureur, course, "1")
+    db_session.commit()
+    scrape([])
+
+    events = list(admin_actions.iter_switch_course_source(
+        db_session, course_id=course.id, source_id=passive.id,
+        user_id=auteur.id, settings=_settings(),
+    ))
+
+    assert events[-1]["phase"] == "error"
+    assert "aucun résultat" in events[-1]["message"].lower()
+    assert participation_repository.count_for_course(db_session, course.id) == 1
+    assert course_source_repository.get_active(db_session, course.id).url == course.source_url
+    assert _bascules(db_session, course.id) == []
+
+
+def test_switch_refuses_a_divergent_event_and_leaves_everything_untouched(
+    db_session, auteur, scrape
+):
+    """AC3 — une source qui publie une **autre** épreuve est refusée, pas
+    apparie sur une nouvelle identité (`get_or_create_course`, égalité
+    stricte)."""
+    course, passive = _epreuve_deux_sources(db_session)
+    coureur = _coureur(db_session, "INTACT")
+    _inscrit(db_session, coureur, course, "1")
+    db_session.commit()
+    scrape([_resultat_bascule(
+        course, passive, "9", "AUTRE", event_name="Une tout autre épreuve",
+    )])
+
+    events = list(admin_actions.iter_switch_course_source(
+        db_session, course_id=course.id, source_id=passive.id,
+        user_id=auteur.id, settings=_settings(),
+    ))
+
+    assert events[-1]["phase"] == "error"
+    assert "Une tout autre épreuve" in events[-1]["message"]
+    assert participation_repository.count_for_course(db_session, course.id) == 1
+    assert _bascules(db_session, course.id) == []
+    assert course_repository.get_by_identity(
+        db_session, "Une tout autre épreuve", course.event_date, course.event_type, False
+    ) is None, "le refus précède l'écriture : aucune épreuve homonyme n'a été créée"
+
+
+def test_switching_to_the_already_active_source_is_a_noop(db_session, auteur, scrape):
+    """AC4 — un double-clic, un écran rechargé : l'état voulu est l'état
+    atteint. Ni scrape ni verrou ni journal — un flux d'un seul `done` à zéro."""
+    course, _passive = _epreuve_deux_sources(db_session)
+    active = course_source_repository.get_active(db_session, course.id)
+    db_session.commit()
+    appels = scrape([_resultat_bascule(course, active, "9", "NOUVEAU")])
+
+    events = list(admin_actions.iter_switch_course_source(
+        db_session, course_id=course.id, source_id=active.id,
+        user_id=auteur.id, settings=_settings(),
+    ))
+
+    assert [e["phase"] for e in events] == ["done"]
+    assert events[0]["participations_deleted"] == 0
+    assert appels == [], "aucun scrape ne doit avoir lieu"
+    assert _bascules(db_session, course.id) == []
+
+
+def test_switch_bypasses_the_cache_ttl_even_on_a_freshly_scraped_course(
+    db_session, auteur, scrape
+):
+    """AC7 — une épreuve tout juste scrapée est **fraîche**, et c'est le cas
+    nominal d'une bascule : on ne bascule que sur une épreuve déjà importée.
+    Le court-circuit de fraîcheur sauterait tous les heats d'une épreuve
+    fan-out si `use_cache_probe` restait à son défaut."""
+    course, passive = _epreuve_deux_sources(db_session)
+    course.scraped_at = utcnow()
+    db_session.commit()
+    appels = scrape([_resultat_bascule(course, passive, "9", "NOUVEAU")])
+
+    events = list(admin_actions.iter_switch_course_source(
+        db_session, course_id=course.id, source_id=passive.id,
+        user_id=auteur.id, settings=_settings(),
+    ))
+
+    assert events[-1]["phase"] == "done"
+    assert appels == [passive.url]
+
+
+def test_switch_of_a_fanout_incoming_source_only_replaces_this_events_ranking(
+    db_session, auteur, scrape
+):
+    """Une URL entrante qui publie **plusieurs** épreuves ne verse pas tout
+    ici — `_require_same_event` se contente d'un résultat à la bonne identité,
+    précisément pour ne pas refuser ces adresses ; les manches voisines
+    suivent leur chemin d'import habituel."""
+    course, passive = _epreuve_deux_sources(db_session)
+    voisin = _resultat_bascule(course, passive, "77", "MANCHE-VOISINE")
+    voisin.event_type = "swimrun-m"
+    db_session.commit()
+    scrape([_resultat_bascule(course, passive, "9", "NOUVEAU"), voisin])
+
+    events = list(admin_actions.iter_switch_course_source(
+        db_session, course_id=course.id, source_id=passive.id,
+        user_id=auteur.id, settings=_settings(),
+    ))
+
+    assert events[-1]["phase"] == "done"
+    dossards = sorted(
+        p.bib_number for p in participation_repository.list_for_course(db_session, course.id)
+    )
+    assert dossards == ["9"]
+    autre = course_repository.get_by_identity(
+        db_session, course.name, course.event_date, "swimrun-m", False
+    )
+    assert autre is not None, "la manche voisine suit son chemin d'import habituel"
+
+
+def test_switch_of_an_unknown_source_on_the_course_is_a_not_found(db_session, auteur):
+    """AC5 — l'adresse ne désigne rien pour **cette** épreuve, elle n'est pas
+    interdite : `UNIQUE(course_id, url)` autorise la même URL sur N épreuves."""
+    course, _passive = _epreuve_deux_sources(db_session)
+    autre = _epreuve(db_session, "Autre épreuve", date(2026, 3, 1))
+    autre_source = course_source_repository.get_active(db_session, autre.id)
+    db_session.commit()
+
+    with pytest.raises(NotFoundError):
+        admin_actions.iter_switch_course_source(
+            db_session, course_id=course.id, source_id=autre_source.id,
+            user_id=auteur.id, settings=_settings(),
+        )
+
+
+def test_switch_on_an_unknown_course_is_a_not_found(db_session, auteur):
+    with pytest.raises(NotFoundError):
+        admin_actions.iter_switch_course_source(
+            db_session, course_id=4242, source_id=1,
+            user_id=auteur.id, settings=_settings(),
+        )
+
+
+def test_switch_refuses_a_second_trigger_on_the_same_course(db_session, auteur):
+    """FR-007/SC-005, premier volet : même course, refusé (#624 — verrou
+    partagé avec le re-scrape)."""
+    course, passive = _epreuve_deux_sources(db_session)
+    db_session.commit()
+
+    admin_actions._acquire_rescrape_lock(course.id)
+    try:
+        with pytest.raises(admin_actions.CourseRescrapeAlreadyRunningError):
+            admin_actions.iter_switch_course_source(
+                db_session, course_id=course.id, source_id=passive.id,
+                user_id=auteur.id, settings=_settings(),
+            )
+    finally:
+        admin_actions._release_rescrape_lock(course.id)
+
+
+def test_switch_on_another_course_is_not_blocked(db_session, auteur, scrape):
+    """Second volet : le refus ne porte que sur la même course."""
+    course_a, _passive_a = _epreuve_deux_sources(db_session, "Course A", date(2026, 5, 17))
+    course_b, passive_b = _epreuve_deux_sources(db_session, "Course B", date(2026, 5, 18))
+    db_session.commit()
+    scrape([_resultat_bascule(course_b, passive_b, "1", "X")])
+
+    admin_actions._acquire_rescrape_lock(course_a.id)
+    try:
+        events = list(admin_actions.iter_switch_course_source(
+            db_session, course_id=course_b.id, source_id=passive_b.id,
+            user_id=auteur.id, settings=_settings(),
+        ))
+        assert events[-1]["phase"] == "done"
+    finally:
+        admin_actions._release_rescrape_lock(course_a.id)
+
+
+def test_switch_is_blocked_by_a_running_rescrape_on_the_same_course(db_session, auteur):
+    """#624 — le verrou est partagé entre les deux gestes : une bascule ne doit
+    pas pouvoir démarrer pendant qu'un re-scrape écrit déjà les mêmes
+    participations. Démarre un **vrai** re-scrape (`iter_rescrape_course`,
+    jamais itéré, donc son thread ne démarre jamais — `_stream_rescrape` est
+    un générateur, son corps n'exécute rien avant le premier `next()`) plutôt
+    que d'acquérir le verrou à la main, pour éprouver le chemin réel : le
+    verrou, lui, est déjà pris de façon synchrone à ce stade (sa docstring)."""
+    course, passive = _epreuve_deux_sources(db_session)
+    db_session.commit()
+
+    admin_actions.iter_rescrape_course(
+        db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
+    )
+    try:
+        with pytest.raises(admin_actions.CourseRescrapeAlreadyRunningError):
+            admin_actions.iter_switch_course_source(
+                db_session, course_id=course.id, source_id=passive.id,
+                user_id=auteur.id, settings=_settings(),
+            )
+    finally:
+        admin_actions._release_rescrape_lock(course.id)
 
 
 # --- Purger tous les résultats (#384) ---------------------------------------
