@@ -103,6 +103,38 @@ function simulerLargeur(compact: boolean) {
   );
 }
 
+/**
+ * Simule une vraie rotation d'écran : contrairement à `simulerLargeur`, le
+ * `matchMedia` renvoyé ici garde le gestionnaire d'événement `change` que
+ * `useEstCompact` y abonne, pour pouvoir le déclencher en cours de test
+ * (#609) — `simulerLargeur` fige `matches` une fois pour toutes et ne
+ * convient donc qu'à un rendu qui démarre déjà dans le bon état.
+ */
+function simulerRotation(compactInitial: boolean) {
+  let matches = compactInitial;
+  let gestionnaire: (() => void) | null = null;
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn().mockReturnValue({
+      get matches() {
+        return matches;
+      },
+      addEventListener: (_evenement: string, cb: () => void) => {
+        gestionnaire = cb;
+      },
+      removeEventListener: () => {
+        gestionnaire = null;
+      },
+    }),
+  );
+  return {
+    basculer(nouveauCompact: boolean) {
+      matches = nouveauCompact;
+      gestionnaire?.();
+    },
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   simulerLargeur(false);
@@ -340,6 +372,43 @@ describe("BenevolesPage", () => {
 
     expect(screen.getByRole("heading", { level: 2, name: /Coureur1/ })).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("conserve le brouillon en cours quand une rotation d'écran franchit le point de rupture md (#609)", async () => {
+    // Avant #609, `compact ? <Sheet>…</Sheet> : panneau` plaçait le panneau
+    // dans deux sous-arbres React structurellement différents : franchir `md`
+    // démontait `ParticipationPanel` (et le brouillon de `useBrouillon` avec)
+    // en silence — sans confirmation, sans trace. Ce test démarre en bureau,
+    // saisit un brouillon, puis simule le passage en mode compact (rotation
+    // d'écran) sans jamais changer d'entrée sélectionnée.
+    const rotation = simulerRotation(false);
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText("Coureur1 HERRMANN")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /Coureur1/ }));
+    await userEvent.type(screen.getByLabelText(/Dossard/), "412");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    rotation.basculer(true);
+
+    // La rotation seule n'ouvre pas la feuille (`feuilleOuverte` n'est posé
+    // à `true` que par `selectionner`) : c'est en rouvrant la même entrée,
+    // déjà sélectionnée, que le bénévole retrouve son panneau — et son
+    // brouillon, s'il a survécu.
+    await userEvent.click(screen.getByRole("button", { name: /Coureur1/ }));
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    expect(screen.getByRole("heading", { level: 2, name: /Coureur1/ })).toBeInTheDocument();
+    // Sans confirmation d'abandon : un remount aurait aussi remis `sale` à
+    // `false`, masquant le défaut derrière une saisie qui semble intacte au
+    // premier coup d'œil mais n'a en fait jamais été reperdue à ce stade —
+    // c'est la valeur du champ, ci-dessous, qui tranche vraiment.
+    expect(screen.queryByRole("dialog", { name: /abandonner/i })).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/Dossard/)).toHaveValue("412");
+
+    // Et le trajet retour (rotation dans l'autre sens) ne perd rien non plus.
+    rotation.basculer(false);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByLabelText(/Dossard/)).toHaveValue("412");
   });
 
   it("offre un bouton de fermeture tactile dans la feuille mobile", async () => {
