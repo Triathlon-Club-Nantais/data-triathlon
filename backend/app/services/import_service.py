@@ -248,6 +248,24 @@ def _scrape_all_streaming(
     R2), même paramètre que `_scrape_all` — sans lui, un re-scrape demandé sur
     une épreuve fan-out fraîchement importée sauterait tous ses heats jugés
     frais, laissant le classement inchangé malgré la demande explicite.
+
+    `ponytail:` (#566, point 1) `cache_probe` referme sur `db`, exécuté sur le
+    thread de travail — pas sur celui qui possède la Session. Si le client SSE
+    se déconnecte pendant le scrape, Starlette clôt ce générateur : sans le
+    `finally: thread.join()` ci-dessous, `GeneratorExit` remonterait
+    immédiatement jusqu'au `finally: db.close()` de `scrape.py::generate()`
+    pendant que le thread continue d'appeler `cache_probe` sur cette Session
+    déjà fermée — usage concurrent d'un objet non thread-safe (une Session
+    fermée se rouvre silencieusement, donc pas d'exception franche, juste une
+    connexion fuitée et une race). `thread.join()` en `finally` garantit que le
+    thread a fini d'utiliser `db` **avant** que ce générateur ne rende la main
+    à `scrape.py`, donc avant sa fermeture — au prix d'attendre la fin du
+    scrape (jusqu'à 30-40 s) avant que la réponse SSE ne se termine vraiment
+    côté serveur sur une déconnexion. Contrairement à
+    `admin_actions._stream_rescrape` (même question, autre flux SSE), on ne
+    peut pas se permettre de laisser le thread continuer détaché : celui-ci
+    passe `use_cache_probe=True` par défaut, `admin_actions` le désactive
+    (`use_cache_probe=False`) et n'est donc pas exposé à cette race précise.
     """
     provider = registry.get_provider(url)
 
@@ -302,20 +320,24 @@ def _scrape_all_streaming(
     thread = threading.Thread(target=scrape_in_thread, daemon=True)
     thread.start()
 
-    while True:
-        # 0,5 s = compromis entre réactivité de la coupure côté client et coût
-        # CPU. Le scrape émet un événement toutes les ~4 s, on ne va pas plus
-        # vite. Le timeout permet aussi de laisser le thread mourir sans bloquer
-        # le générateur si un heat n'appelle jamais le callback (cache_probe).
-        try:
-            item = events.get(timeout=0.5)
-        except queue.Empty:
-            continue
-        if item is sentinel:
-            break
-        yield item
-
-    thread.join()
+    try:
+        while True:
+            # 0,5 s = compromis entre réactivité de la coupure côté client et coût
+            # CPU. Le scrape émet un événement toutes les ~4 s, on ne va pas plus
+            # vite. Le timeout permet aussi de laisser le thread mourir sans bloquer
+            # le générateur si un heat n'appelle jamais le callback (cache_probe).
+            try:
+                item = events.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            if item is sentinel:
+                break
+            yield item
+    finally:
+        # `ponytail:` ci-dessus (#566, point 1) — join même sur `GeneratorExit`
+        # (déconnexion client), pour que le thread ait fini d'utiliser `db`
+        # avant que l'appelant ne la ferme.
+        thread.join()
 
     if "error" in holder:
         exc = holder["error"]
