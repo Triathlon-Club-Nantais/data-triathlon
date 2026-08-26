@@ -69,7 +69,7 @@ export function InvitationAthlete() {
       <button
         type="button"
         onClick={() => window.dispatchEvent(new Event(OPEN_PICKER_EVENT))}
-        className="text-sm font-semibold text-accent-ink hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--tcn-orange)]"
+        className="-my-1 inline-block py-1 text-sm font-semibold text-accent-ink hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--tcn-orange)]"
       >
         Retrouvez vos épreuves et vos podiums en tête de cet écran →
       </button>
