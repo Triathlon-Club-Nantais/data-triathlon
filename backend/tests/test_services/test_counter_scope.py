@@ -18,7 +18,9 @@ from app.services import counter_scope
         ("TRIATHLON  CLUB NANTAIS", "triathlon club nantais"),
         ("  Tri Club Nantais  ", "tri club nantais"),
         ("TRI\tCLUB NANTAIS", "tri club nantais"),
-        ("TRI CLUB NANTAIS", "tri club nantais"),  # espace insécable
+        # Espace insécable, écrit en échappement : le HTML français en glisse via
+        # `get_text(strip=True)`, et écrit tel quel il est invisible à la relecture.
+        ("TRI\xa0CLUB NANTAIS", "tri club nantais"),
         ("", ""),
     ],
 )

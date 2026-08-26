@@ -80,6 +80,10 @@ def remove_entry(db: Session, *, kind: str, entry_id: int) -> CounterScopeEntry:
     compteurs du club tombent à zéro, sans erreur ni avertissement. Vider la
     liste des disciplines exclues, à l'inverse, est légitime — tout devient
     fédéral, ce qui est cohérent, visible et réversible.
+
+    Le comptage verrouille les lignes qu'il compte (`count_entries`) : deux
+    suppressions concurrentes qui liraient toutes deux « 2 » videraient la liste
+    à elles deux, sans qu'aucune ne voie de refus.
     """
     entry = counter_scope_repository.get_entry(db, kind=kind, entry_id=entry_id)
     if entry is None:

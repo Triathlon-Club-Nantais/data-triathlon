@@ -3,7 +3,7 @@
 Ne commite jamais : la transaction reste portée par le service appelant, patron
 de `site_access_config_repository.py`.
 """
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.counter_scope_entry import CounterScopeEntry
@@ -51,10 +51,24 @@ def find_by_value(db: Session, *, kind: str, value: str) -> CounterScopeEntry | 
 
 
 def count_entries(db: Session, *, kind: str) -> int:
-    return db.scalar(
-        select(func.count()).select_from(CounterScopeEntry).where(
-            CounterScopeEntry.kind == kind
-        )
+    """Compte les entrées de cette nature, **en verrouillant les lignes comptées**.
+
+    Son seul appelant est le refus « dernier libellé de club ». Sans verrou, ce
+    refus ne tient pas : deux suppressions concurrentes lisent chacune 2,
+    retirent chacune une ligne, et laissent la liste vide — exactement le cas
+    que ce refus existe pour empêcher, et qui ne lève aucune erreur.
+
+    `SELECT id … FOR UPDATE` plutôt qu'un `count(*)` : Postgres refuse
+    `FOR UPDATE` en présence d'une fonction d'agrégat. La liste tient en
+    quelques lignes, compter côté Python ne coûte rien. SQLite (dev, tests)
+    ignore la clause de verrouillage.
+    """
+    return len(
+        db.scalars(
+            select(CounterScopeEntry.id)
+            .where(CounterScopeEntry.kind == kind)
+            .with_for_update()
+        ).all()
     )
 
 
