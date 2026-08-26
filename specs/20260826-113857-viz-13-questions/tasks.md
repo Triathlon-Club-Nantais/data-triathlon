@@ -132,14 +132,14 @@ Application web existante : `backend/app/`, `backend/tests/`, `frontend/app/`, `
 
 ### Tests for User Story 5
 
-- [ ] T025 [P] [US5] Test pytest rouge pour `cumulative_seconds` de `RankingEvolutionStep` dans `backend/tests/test_services/test_participation_stats_service.py`
-- [ ] T026 [P] [US5] Test vitest pour le graphique d'allure dans `frontend/components/charts/RankingEvolutionChart.test.tsx`
+- [X] T025 [P] [US5] Test pytest rouge pour `cumulative_seconds` de `RankingEvolutionStep` dans `backend/tests/test_services/test_participation_stats_service.py`
+- [X] T026 [P] [US5] Test vitest pour le graphique d'allure dans `frontend/components/tcn/participation-detail/RankingEvolutionChart.test.tsx` (emplacement réel, corrigé depuis US4)
 
 ### Implementation for User Story 5
 
-- [ ] T027 [US5] Ajouter `cumulative_seconds` à `RankingEvolutionStep` dans `backend/app/schemas/participation_stats.py`
-- [ ] T028 [US5] Exposer la valeur déjà calculée par `_cumulative_seconds` dans `backend/app/services/participation_stats_service.py`
-- [ ] T029 [US5] Étendre `RankingEvolutionChart.tsx` avec le graphique de temps cumulés
+- [X] T027 [US5] Ajouter `cumulative_seconds` à `RankingEvolutionStep` dans `backend/app/schemas/participation_stats.py`
+- [X] T028 [US5] Exposer la valeur déjà calculée par `_cumulative_seconds` dans `backend/app/services/participation_stats_service.py`
+- [X] T029 [US5] Étendre `RankingEvolutionChart.tsx` avec le graphique de temps cumulés (nouvelle carte « Allure », rendue seulement si au moins une étape porte `cumulative_seconds`)
 
 **Checkpoint**: US1→US5 fonctionnelles indépendamment.
 

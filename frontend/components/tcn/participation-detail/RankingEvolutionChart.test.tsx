@@ -5,11 +5,11 @@ import type { RankingEvolutionStep } from "@/lib/types";
 import { RankingEvolutionChart } from "./RankingEvolutionChart";
 
 const STEPS: RankingEvolutionStep[] = [
-  { segment: "swim", scratch_position: 91, segment_position: 88 },
-  { segment: "t1", scratch_position: 91, segment_position: 112 },
-  { segment: "bike", scratch_position: 74, segment_position: 68 },
-  { segment: "t2", scratch_position: 63, segment_position: 60 },
-  { segment: "run", scratch_position: 56, segment_position: 63 },
+  { segment: "swim", scratch_position: 91, segment_position: 88, cumulative_seconds: 1200 },
+  { segment: "t1", scratch_position: 91, segment_position: 112, cumulative_seconds: 1320 },
+  { segment: "bike", scratch_position: 74, segment_position: 68, cumulative_seconds: 4920 },
+  { segment: "t2", scratch_position: 63, segment_position: 60, cumulative_seconds: 5040 },
+  { segment: "run", scratch_position: 56, segment_position: 63, cumulative_seconds: 7440 },
 ];
 
 function renderChart(steps = STEPS) {
@@ -380,6 +380,38 @@ describe("RankingEvolutionChart", () => {
     expect(screen.queryByRole("img")).toBeNull();
     expect(document.body.textContent).not.toMatch(/NaN/);
     expect(screen.getByText("Classement par étape indisponible")).toBeTruthy();
+  });
+
+  it("US5 : trace l'allure (temps cumulé) en complément du classement", () => {
+    const { container } = renderChart();
+
+    const points = container.querySelectorAll('[data-role="pace"]');
+    expect([...points].map((p) => p.getAttribute("data-step"))).toEqual([
+      "swim",
+      "t1",
+      "bike",
+      "t2",
+      "run",
+    ]);
+  });
+
+  it("US5 : écrit le temps cumulé de chaque étape en clair, sans survol", () => {
+    renderChart();
+
+    // 1200s → 0:20:00, 7440s → 2:04:00.
+    expect(screen.getByText("0:20:00")).toBeTruthy();
+    expect(screen.getByText("2:04:00")).toBeTruthy();
+  });
+
+  it("US5 : n'affiche pas le bloc d'allure quand aucune étape n'a de temps cumulé", () => {
+    render(
+      <RankingEvolutionChart
+        steps={[{ segment: "swim", scratch_position: 1, segment_position: 1 }]}
+        eventType="triathlon-m"
+      />,
+    );
+
+    expect(screen.queryByText(/allure/i)).toBeNull();
   });
 
   it("colore la légende avec un token déclaré dans la palette", () => {

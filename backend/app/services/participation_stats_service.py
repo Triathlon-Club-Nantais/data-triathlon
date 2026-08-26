@@ -166,6 +166,7 @@ def _ranking_evolution(
                 segment=segment,
                 scratch_position=scratch,
                 segment_position=isolated_position,
+                cumulative_seconds=cumulative.get(participation.id),
             )
         )
 

@@ -63,6 +63,8 @@ export interface RankingEvolutionStep {
   segment: string;
   scratch_position: number;
   segment_position: number;
+  /** Temps cumulé de l'athlète à la sortie de l'étape, en secondes (US5, #466). */
+  cumulative_seconds?: number | null;
 }
 
 /** Comparaison de l'athlète au coureur occupant une position de référence. */
