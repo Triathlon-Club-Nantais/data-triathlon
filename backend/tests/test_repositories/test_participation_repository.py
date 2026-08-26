@@ -1304,7 +1304,7 @@ def test_club_podiums_ne_rend_que_les_lignes_podium(db_session):
         db_session, athlete_id=ath.id, course_id=course.id, bib_number="1",
         club="TCN", status="finisher", rank_overall=2, total_time="01:00:00",
     )
-    hors_podium = participation_repository.create(
+    participation_repository.create(
         db_session, athlete_id=ath.id, course_id=course.id, bib_number="2",
         club="TCN", status="finisher", rank_overall=40, total_time="01:10:00",
     )
