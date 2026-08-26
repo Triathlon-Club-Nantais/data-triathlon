@@ -21,7 +21,10 @@ Toute PR déclenche la CI seule (aucun déploiement).
 ## Workflows GitHub Actions
 
 - **`.github/workflows/ci.yml`** — source unique des contrôles qualité,
-  réutilisable (`workflow_call`) et déclenché sur `pull_request`.
+  réutilisable (`workflow_call`) et déclenché sur `pull_request`, plus un
+  `workflow_dispatch` pour relancer la CI à la main (**Actions** → *CI* →
+  **Run workflow** → branche) quand elle ne s'est pas déclenchée seule ;
+  l'exécution porte alors sur la branche, pas sur sa fusion avec `main`.
   - Backend : `uv run ruff check .` + `uv run pytest -m "not integration"` (Python 3.13).
   - Frontend : `npm run lint` (eslint) + `npm test` (vitest) + `npm run build`
     (typecheck TS strict + build Next/RSC).
