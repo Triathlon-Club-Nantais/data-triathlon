@@ -1170,7 +1170,7 @@ Le conteneur de la grille devient :
 Puis l'arbre carte, juste après :
 
 ```tsx
-      {/* Sous 768 px, les 966 px de la grille sortaient de l'écran (#461,
+      {/* Sous 768 px, les 948 px de la grille sortaient de l'écran (#461,
           WCAG 1.4.10). Le repli par compétition (#463) y est plus utile
           encore : c'est en carte que quinze lignes coûtent quinze écrans. */}
       <div data-testid="epreuves-cartes" data-affichage="cartes" className="md:hidden">
@@ -1593,7 +1593,7 @@ Ajouter à `frontend/AGENTS.md`, dans la liste à puces de la section « Archite
   écrans rendent **deux arbres**, la grille et une liste de cartes, que deux
   classes Tailwind font alterner en CSS pure : `hidden lg:block`/`lg:hidden`
   pour le classement (plancher 1 080 px), `md` pour la fiche athlète (988 px)
-  et `/resultats` (966 px), `sm` pour `/ajouter` (480 px). Le dessin de la carte
+  et `/resultats` (948 px), `sm` pour `/ajouter` (480 px). Le dessin de la carte
   vit une seule fois, dans `components/tcn/LigneCarte.tsx` — **sans état, donc
   sans `"use client"`**, ce qui laisse `/ajouter` en Server Component. Trois
   points qui se re-cassent :

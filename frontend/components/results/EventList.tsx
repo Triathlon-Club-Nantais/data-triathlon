@@ -234,7 +234,7 @@ export function EventList({
         </div>
       </div>
 
-      {/* Sous 768 px, les 966 px de la grille sortaient de l'écran (#461,
+      {/* Sous 768 px, les 948 px de la grille sortaient de l'écran (#461,
           WCAG 1.4.10). Le repli par compétition (#463) y est plus utile
           encore : c'est en carte que quinze lignes coûtent quinze écrans. */}
       <div data-testid="epreuves-cartes" data-affichage="cartes" className="md:hidden">
@@ -470,7 +470,12 @@ function CartesCompetition({
     <>
       <LigneCarte
         onSelect={onBascule}
-        ariaLabel={`${ouvert ? "Replier" : "Déplier"} ${groupe.prefix}`}
+        // `aria-label` remplace le nom accessible calculé depuis le contenu :
+        // sans les compteurs, un lecteur d'écran n'entendrait que le préfixe,
+        // quand c'est précisément « 4 épreuves », « 512 résultats » qui
+        // décident si un groupe replié vaut la peine d'être ouvert — la
+        // grille les porte déjà, faute d'`aria-label` sur son propre bouton.
+        ariaLabel={`${ouvert ? "Replier" : "Déplier"} ${groupe.prefix} — ${epreuves}, ${resultats}`}
         ouvert={ouvert}
         surtitre={date}
         titre={groupe.prefix}
