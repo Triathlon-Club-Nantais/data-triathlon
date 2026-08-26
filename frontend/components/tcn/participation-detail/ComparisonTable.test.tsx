@@ -142,4 +142,43 @@ describe("ComparisonTable", () => {
     const avertissement = screen.getByText(/segments courts.*bruit de chronométrage/i);
     expect(avertissement.className ?? "").not.toContain("sm:hidden");
   });
+
+  it("US4 (#466) : affiche l'écart en secondes brutes sous le pourcentage quand il est fourni", () => {
+    renderTable([
+      {
+        position_label: "1er",
+        rank: 1,
+        percentages: { bike: 125.0, total: 128.0 },
+        mine_seconds: { bike: 4500, total: 7680 },
+        theirs_seconds: { bike: 3600, total: 6000 },
+      },
+    ]);
+
+    const ligne = screen.getByRole("row", { name: /1er/ });
+    // 4500 - 3600 = 900 s = 15 min ; 7680 - 6000 = 1680 s = 28 min
+    expect(within(ligne).getByText(/\+15 min/)).toBeTruthy();
+    expect(within(ligne).getByText(/\+28 min/)).toBeTruthy();
+  });
+
+  it("US4 (#466) : n'affiche aucun écart en secondes quand mine_seconds/theirs_seconds sont absents", () => {
+    renderTable([{ position_label: "1er", rank: 1, percentages: { bike: 124.9, total: 128.0 } }]);
+
+    const ligne = screen.getByRole("row", { name: /1er/ });
+    expect(within(ligne).queryByText(/min|s\)/)).toBeNull();
+  });
+
+  it("US4 (#466) : une performance plus rapide que la référence s'affiche en écart négatif", () => {
+    renderTable([
+      {
+        position_label: "1er",
+        rank: 1,
+        percentages: { bike: 90.0 },
+        mine_seconds: { bike: 3240 },
+        theirs_seconds: { bike: 3600 },
+      },
+    ]);
+
+    const ligne = screen.getByRole("row", { name: /1er/ });
+    expect(within(ligne).getByText(/−6 min/)).toBeTruthy();
+  });
 });

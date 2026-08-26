@@ -91,6 +91,8 @@ def _comparison(
         if reference is None:
             continue
         percentages = {}
+        mine_seconds = {}
+        theirs_seconds = {}
         for key in keys:
             mine = _segment_seconds(participation, key)
             theirs = _segment_seconds(reference, key)
@@ -99,7 +101,17 @@ def _comparison(
             if mine is None or not theirs:
                 continue
             percentages[key] = round(mine / theirs * 100, 1)
-        rows.append(ComparisonRow(position_label=label, rank=rank, percentages=percentages))
+            mine_seconds[key] = mine
+            theirs_seconds[key] = theirs
+        rows.append(
+            ComparisonRow(
+                position_label=label,
+                rank=rank,
+                percentages=percentages,
+                mine_seconds=mine_seconds,
+                theirs_seconds=theirs_seconds,
+            )
+        )
 
     return rows
 

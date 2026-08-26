@@ -22,6 +22,10 @@ class ComparisonRow(BaseModel):
     rank: int
     #: Par clé de segment, plus « total » : temps de l'athlète en pourcentage de la référence.
     percentages: dict[str, float]
+    #: Mêmes clés que `percentages` : temps bruts en secondes, déjà calculés
+    #: avant réduction en pourcentage (US4, #466).
+    mine_seconds: dict[str, int] = Field(default_factory=dict)
+    theirs_seconds: dict[str, int] = Field(default_factory=dict)
 
 
 class ImprovementRow(BaseModel):
