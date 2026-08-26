@@ -13,7 +13,7 @@ from app.core.club import tcn_clause
 from app.core.validation import validated_clause
 
 revision: str = '05de2237111f'
-down_revision: str | None = '1df0635fc2fd'
+down_revision: str | None = '35c74bb2c7b4'
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
