@@ -88,3 +88,63 @@ def test_me_n_expose_toujours_ni_jeton_ni_identifiant_de_session(client, ouvrir_
 
     assert "token" not in corps
     assert "session" not in corps
+
+
+def test_me_tient_en_un_nombre_de_requetes_fixe_quel_que_soit_le_nombre_de_roles_et_de_groupes(
+    client, db_session, ouvrir_session, organisation
+):
+    """#625 — `effective_permissions` (elle-même dupliquée), `user.roles`,
+    `user.groups` et leurs `.role`/`.group` en lazy-loading faisaient scaler ce
+    GET avec le nombre de rôles et de groupes portés.
+    """
+    from sqlalchemy import event
+
+    from app.models.role_permission import RolePermission
+    from app.repositories import group_repository, role_repository, user_role_repository
+
+    autres_codes = [P.ROLES_READ.code, P.FEEDBACK_READ.code, P.BATCH_READ.code]
+    user = ouvrir_session(P.QUALITY_OVERRIDE)
+    for i, code in enumerate(autres_codes):
+        role = role_repository.create(
+            db_session, slug=f"role-extra-{i}", name=f"Extra {i}"
+        )
+        role.permissions.append(RolePermission(permission_code=code))
+        db_session.flush()
+        user_role_repository.grant(
+            db_session,
+            user_id=user.id,
+            role_id=role.id,
+            organisation_id=organisation.id,
+        )
+    for i in range(3):
+        groupe = group_repository.create(
+            db_session,
+            organisation_id=organisation.id,
+            slug=f"groupe-{i}",
+            name=f"Groupe {i}",
+        )
+        group_repository.add_member(db_session, group_id=groupe.id, user_id=user.id)
+    db_session.commit()
+    db_session.expire_all()
+
+    requetes = []
+
+    def _mouchard(conn, cursor, statement, *reste):
+        requetes.append(statement)
+
+    engine = db_session.get_bind()
+    event.listen(engine, "before_cursor_execute", _mouchard)
+    try:
+        reponse = client.get("/api/v1/auth/me")
+    finally:
+        event.remove(engine, "before_cursor_execute", _mouchard)
+
+    assert reponse.status_code == 200
+    corps = reponse.json()
+    assert len(corps["roles"]) == 4
+    assert len(corps["groups"]) == 3
+    assert len(corps["permissions"]) == 4
+    # Fixe, quel que soit le nombre de rôles/groupes portés (4 et 3 ici) — la
+    # preuve tient dans la comparaison avec le total attendu avant #625 (1 par
+    # rôle en plus, 1 par groupe en plus), pas dans ce chiffre précis.
+    assert len(requetes) <= 8, requetes

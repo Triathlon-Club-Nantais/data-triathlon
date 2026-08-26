@@ -218,3 +218,101 @@ def test_compter_les_superutilisateurs_actifs(db_session):
     _porteur(db_session, organisation, admin)
 
     assert authorization.count_active_superusers(db_session, organisation.id) == 1
+
+
+def _requetes(db_session, appel):
+    """Compte les requêtes SQL émises par `appel()` (#625).
+
+    Patron de `test_stats_service.test_course_summary_ne_charge_que_les_colonnes_utiles`.
+    """
+    from sqlalchemy import event
+
+    requetes = []
+
+    def _mouchard(conn, cursor, statement, *reste):
+        requetes.append(statement)
+
+    engine = db_session.get_bind()
+    event.listen(engine, "before_cursor_execute", _mouchard)
+    try:
+        appel()
+    finally:
+        event.remove(engine, "before_cursor_execute", _mouchard)
+    return requetes
+
+
+#: `UserRole` (`list_for_user`), puis `Role` et `RolePermission` — les deux
+#: derniers en `selectinload`, donc chacun **une seule fois par lot**, jamais
+#: une fois par rôle porté (#625).
+REQUETES_UNE_RESOLUTION = 3
+
+
+def test_has_permission_tient_en_un_nombre_de_requetes_fixe_quel_que_soit_le_nombre_de_roles(
+    db_session,
+):
+    """#625 — `_is_superuser` puis `effective_permissions` relisaient chacun
+    `list_for_user`, jusqu'à trois fois cette même résolution pour une
+    décision qui n'en réclame qu'une, sans même compter le lazy-load de
+    `.role`/`.role.permissions` par rôle porté avant l'ajout du `selectinload`.
+    """
+    organisation = _organisation(db_session)
+    roles = [
+        _role(db_session, f"role-{i}", codes=[f"code:{i}"]) for i in range(3)
+    ]
+    user = _porteur(db_session, organisation, *roles)
+    db_session.commit()
+    db_session.expire_all()
+    # Un utilisateur relu à neuf, comme le ferait `current_user` sur une
+    # requête HTTP — la fixture le crée dans la même session, garder l'objet
+    # tel quel ferait compter la relecture de ses propres colonnes scalaires.
+    user = user_repository.get(db_session, user.id)
+
+    requetes = _requetes(
+        db_session,
+        lambda: authorization.has_permission(db_session, user, "code:1"),
+    )
+
+    assert len(requetes) == REQUETES_UNE_RESOLUTION, requetes
+
+
+def test_effective_permissions_tient_en_un_nombre_de_requetes_fixe_quel_que_soit_le_nombre_de_roles(
+    db_session,
+):
+    organisation = _organisation(db_session)
+    roles = [
+        _role(db_session, f"role-{i}", codes=[f"code:{i}"]) for i in range(3)
+    ]
+    user = _porteur(db_session, organisation, *roles)
+    db_session.commit()
+    db_session.expire_all()
+    user = user_repository.get(db_session, user.id)
+
+    requetes = _requetes(
+        db_session, lambda: authorization.effective_permissions(db_session, user)
+    )
+
+    assert len(requetes) == REQUETES_UNE_RESOLUTION, requetes
+
+
+def test_effective_permissions_n_interroge_pas_la_base_quand_les_attributions_sont_fournies(
+    db_session,
+):
+    """`attributions=` (#625) — l'appelant qui les tient déjà (`GET /auth/me`,
+    `user.roles` déjà chargé) ne doit provoquer aucun aller-retour DB de plus.
+    """
+    organisation = _organisation(db_session)
+    role = _role(db_session, "qualite", codes=[P.QUALITY_OVERRIDE.code])
+    user = _porteur(db_session, organisation, role)
+    db_session.commit()
+    db_session.expire_all()
+    user = user_repository.get(db_session, user.id)
+    attributions = user_role_repository.list_for_user(db_session, user.id)
+
+    requetes = _requetes(
+        db_session,
+        lambda: authorization.effective_permissions(
+            db_session, user, attributions=attributions
+        ),
+    )
+
+    assert requetes == []

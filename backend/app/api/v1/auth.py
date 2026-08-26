@@ -20,6 +20,7 @@ from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.core.exceptions import AuthUnavailableError, NotFoundError
 from app.models.user import User
+from app.repositories import user_repository
 from app.schemas.auth import (
     AuthMethodRead,
     SessionGroupRead,
@@ -300,13 +301,22 @@ def me(user: User = Depends(current_user), db: Session = Depends(get_db)):
     contrepartie de FR-003, qui réserve l'inventaire **général** des pouvoirs à
     `roles:read`. Un connecté sans rôle obtient deux listes vides, et c'est un
     état légitime — celui de tout le monde sur une installation neuve.
+
+    `user` est rechargé avec `roles`/`groups` déjà joints (#625) : sans ce
+    chargement anticipé, `user.roles`, `user.groups` et leurs `.role`/`.group`
+    sont autant de requêtes séparées, en plus de celle que
+    `effective_permissions` fait déjà pour les mêmes attributions — jusqu'à
+    huit ou dix aller-retours DB pour un GET censé être trivial.
     """
+    charge = user_repository.get_with_roles_and_groups(db, user.id) or user
     return SessionUserRead(
-        id=user.id,
-        email=user.email,
-        display_name=user.display_name,
-        created_at=user.created_at,
-        permissions=sorted(authorization.effective_permissions(db, user)),
+        id=charge.id,
+        email=charge.email,
+        display_name=charge.display_name,
+        created_at=charge.created_at,
+        permissions=sorted(
+            authorization.effective_permissions(db, charge, attributions=charge.roles)
+        ),
         roles=[
             SessionRoleRead(
                 id=attribution.role.id,
@@ -314,7 +324,7 @@ def me(user: User = Depends(current_user), db: Session = Depends(get_db)):
                 name=attribution.role.name,
                 organisation_id=attribution.organisation_id,
             )
-            for attribution in user.roles
+            for attribution in charge.roles
         ],
         groups=[
             SessionGroupRead(
@@ -323,6 +333,6 @@ def me(user: User = Depends(current_user), db: Session = Depends(get_db)):
                 name=appartenance.group.name,
                 organisation_id=appartenance.group.organisation_id,
             )
-            for appartenance in user.groups
+            for appartenance in charge.groups
         ],
     )

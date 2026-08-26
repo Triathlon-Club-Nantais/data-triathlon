@@ -4,7 +4,7 @@ La transaction reste portée par le service appelant (`services/auth/`), comme
 partout ailleurs : on `flush()` pour peupler l'id, on ne `commit()` jamais ici.
 """
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.organisation import Organisation
 from app.models.role import Role
@@ -19,14 +19,30 @@ def list_all(db: Session, *, organisation_id: int | None = None) -> list[Role]:
     """Les rôles visibles depuis une organisation : les siens **et** les globaux.
 
     Sans `organisation_id`, tous — c'est la vue d'un exploitant, l'installation
-    n'ayant qu'un club.
+    n'ayant qu'un club. `.permissions` déjà chargé (#625) : `role_view` le lit
+    systématiquement, et sans `selectinload` chaque rôle paierait sa propre
+    requête pour l'obtenir.
     """
-    requete = select(Role).order_by(Role.slug)
+    requete = select(Role).options(selectinload(Role.permissions)).order_by(Role.slug)
     if organisation_id is not None:
         requete = requete.where(
             (Role.organisation_id == organisation_id) | (Role.organisation_id.is_(None))
         )
     return list(db.scalars(requete))
+
+
+def count_holders_by_role(db: Session, role_ids: list[int]) -> dict[int, int]:
+    """Le nombre de porteurs par rôle, en une seule requête agrégée (#625) —
+    pour un écran qui rend une liste de rôles, plutôt qu'un `count_holders`
+    par rôle. Un `role_id` absent du résultat n'a aucun porteur."""
+    if not role_ids:
+        return {}
+    lignes = db.execute(
+        select(UserRole.role_id, func.count())
+        .where(UserRole.role_id.in_(role_ids))
+        .group_by(UserRole.role_id)
+    ).all()
+    return dict(lignes)
 
 
 def list_by_slug(db: Session, slug: str) -> list[Role]:

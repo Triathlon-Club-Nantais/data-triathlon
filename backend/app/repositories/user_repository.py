@@ -5,13 +5,37 @@ dans `import_service` et `scrape_service` : on `flush()` pour peupler l'id, on n
 `commit()` jamais ici.
 """
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
+from app.models.role import Role
 from app.models.user import User
+from app.models.user_group import UserGroup
+from app.models.user_role import UserRole
 
 
 def get(db: Session, user_id: int) -> User | None:
     return db.get(User, user_id)
+
+
+def get_with_roles_and_groups(db: Session, user_id: int) -> User | None:
+    """L'utilisateur, rôles et groupes déjà chargés — pour `GET /auth/me`.
+
+    Six requêtes fixes (l'utilisateur, ses `UserRole`, leurs `Role`, les
+    pouvoirs de ces rôles, ses `UserGroup`, leurs `Group`) au lieu d'une par
+    rôle et par groupe portés : sans ces `selectinload`, chaque accès à
+    `.role`, `.role.permissions` ou `.group` déclenche sa propre requête
+    (#625).
+    """
+    return db.scalar(
+        select(User)
+        .where(User.id == user_id)
+        .options(
+            selectinload(User.roles)
+            .selectinload(UserRole.role)
+            .selectinload(Role.permissions),
+            selectinload(User.groups).selectinload(UserGroup.group),
+        )
+    )
 
 
 def list_all(db: Session) -> list[User]:

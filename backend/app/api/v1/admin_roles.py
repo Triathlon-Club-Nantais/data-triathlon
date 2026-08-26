@@ -65,7 +65,12 @@ def list_roles(
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(P.ROLES_READ)),
 ):
-    return [authorization.role_view(db, role) for role in role_repository.list_all(db)]
+    roles = role_repository.list_all(db)
+    porteurs = role_repository.count_holders_by_role(db, [role.id for role in roles])
+    return [
+        authorization.role_view(db, role, holders=porteurs.get(role.id, 0))
+        for role in roles
+    ]
 
 
 @router.get("/admin/roles/{role_id}", response_model=RoleRead)
