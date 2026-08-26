@@ -18,11 +18,17 @@ def club_labels(
 ) -> None:
     """Liste les libellés de club distincts, en marquant ceux reconnus comme TCN.
 
-    Le filtre club match à l'égalité sur une liste blanche (`core/club.py`). Une
-    variante non répertoriée — « TCN TRIATHLON », « T.C.N. » — fait donc sortir
-    un membre des compteurs sans le moindre signal. Cette commande est le filet :
+    Le filtre club match à l'égalité sur une liste de libellés déclarés. Une
+    variante non déclarée — « TCN TRIATHLON », « T.C.N. » — fait donc sortir un
+    membre des compteurs sans le moindre signal. Cette commande est le filet :
 
         uv run python -m app.cli club-labels --like nant
+
+    Le verdict `is_tcn` se prononce sur la **configuration en vigueur** (#95),
+    lue en base au démarrage du process par `cli.load_counter_scope`. Un libellé
+    déclaré depuis le panel admin apparaît donc ici comme reconnu, sans
+    redéploiement — c'est exactement la boucle que cette commande ouvre :
+    repérer ici, déclarer là, revérifier ici.
     """
     with session_scope() as db:
         rows = participation_repository.club_label_counts(db, like=like)

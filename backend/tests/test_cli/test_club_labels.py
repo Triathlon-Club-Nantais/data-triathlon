@@ -75,3 +75,26 @@ def test_json_ne_met_que_le_json_sur_stdout(monkeypatch, db_session):
     assert charge["labels"][0] == {
         "club": "TRI CLUB NANTAIS", "participations": 3, "is_tcn": True
     }
+
+
+def test_le_verdict_suit_la_configuration_en_vigueur(monkeypatch, db_session):
+    """#95 — le filet ne sert à rien s'il juge sur autre chose que la vérité.
+
+    Un libellé déclaré depuis le panel admin doit ressortir ici comme reconnu :
+    sinon la commande signalerait comme manquant ce qui vient d'être ajouté, et
+    l'exploitant chercherait un problème qui n'existe pas.
+    """
+    from app.core import counter_scope
+
+    _brancher_session(monkeypatch, db_session)
+    counter_scope.load(
+        disciplines=counter_scope.non_federal_disciplines(),
+        club_labels={"racing club nantais *"},
+    )
+
+    charge = json.loads(runner.invoke(app, ["club-labels", "--json"]).stdout.strip())
+
+    verdicts = {ligne["club"]: ligne["is_tcn"] for ligne in charge["labels"]}
+    assert verdicts["RACING CLUB NANTAIS *"] is True
+    assert verdicts["TRI CLUB NANTAIS"] is False
+    assert charge["tcn_participations"] == 2
