@@ -38,22 +38,22 @@ function entree(surcharge: Partial<CounterScopeEntry> = {}): CounterScopeEntry {
 
 function afficher({
   kind = "club-labels" as ScopeKind,
-  entrees = [entree()],
+  entrees = [entree(), entree({ id: 2, value: "tri club nantais" })],
   isLoading = false,
-  error = null as Error | null,
 } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
       <CounterScopeCard
         kind={kind}
-        titre="Libellés du club"
+        titre="Libellés comptés comme club"
+        nom="libellés du club"
         regle="La comparaison ignore la casse."
         entrees={entrees}
         isLoading={isLoading}
-        error={error}
         libelleChamp="Nouveau libellé"
-        placeholder="TCN 44"
+        placeholder="tcn 44"
+        descriptionListeVide="Aucun libellé : plus aucun résultat n'est du club."
       />
     </QueryClientProvider>,
   );
@@ -66,7 +66,7 @@ describe("CounterScopeCard", () => {
     afficher();
 
     expect(screen.getByText("tcn")).toBeInTheDocument();
-    expect(screen.getByText(/ajouté par marie dupont/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/ajouté par marie dupont/i)).toHaveLength(2);
   });
 
   it("rend « Configuration initiale » pour une entrée sans auteur", () => {
@@ -81,13 +81,13 @@ describe("CounterScopeCard", () => {
       entrees: [entree({ value: "kayak-polo", is_known: false })],
     });
 
-    expect(screen.getByText(/discipline inconnue/i)).toBeInTheDocument();
+    expect(screen.getByText("Discipline inconnue")).toBeInTheDocument();
   });
 
   it("ne signale rien quand la discipline est connue", () => {
     afficher({ kind: "disciplines", entrees: [entree({ value: "trail" })] });
 
-    expect(screen.queryByText(/discipline inconnue/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("Discipline inconnue")).not.toBeInTheDocument();
   });
 
   it("ajoute une entrée et vide le champ", async () => {
@@ -148,7 +148,9 @@ describe("CounterScopeCard", () => {
   });
 
   it("avertit spécifiquement quand le libellé retiré est le nom affiché du club", async () => {
-    afficher({ entrees: [entree({ value: "triathlon club nantais" })] });
+    afficher({
+      entrees: [entree({ value: "triathlon club nantais" }), entree({ id: 2, value: "tcn" })],
+    });
 
     await userEvent.click(
       screen.getByRole("button", { name: /retirer « triathlon club nantais »/i }),
@@ -167,15 +169,73 @@ describe("CounterScopeCard", () => {
     expect(dialogue).not.toHaveTextContent(/nom affiché du club/i);
   });
 
-  it("dit le refus plutôt que d'afficher une liste vide", () => {
-    afficher({ entrees: undefined, error: new ApiError(403, "Interdit") });
-
-    expect(screen.getByText(/accès refusé/i)).toBeInTheDocument();
-  });
-
   it("distingue une liste vide d'un chargement", () => {
     afficher({ entrees: [] });
 
     expect(screen.getByText(/cette liste est vide/i)).toBeInTheDocument();
+  });
+
+  it("dit ce que le vide signifie pour cette liste-ci, pas seulement qu'elle est vide", () => {
+    afficher({ entrees: [] });
+
+    expect(
+      screen.getByText(/plus aucun résultat n'est du club/i),
+    ).toBeInTheDocument();
+  });
+
+  it("annonce le chargement aux aides techniques", () => {
+    afficher({ isLoading: true, entrees: undefined });
+
+    expect(screen.getByRole("status")).toHaveTextContent(/chargement de la liste/i);
+  });
+
+  it("refuse le retrait du dernier libellé du club, en disant pourquoi avant le clic", async () => {
+    afficher({ entrees: [entree()] });
+
+    expect(screen.getByRole("button", { name: /retirer « tcn »/i })).toBeDisabled();
+    expect(screen.getByText(/dernier libellé/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /retirer « tcn »/i }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("laisse retirer la dernière discipline — le serveur ne l'interdit pas", () => {
+    afficher({ kind: "disciplines", entrees: [entree({ value: "trail" })] });
+
+    expect(screen.getByRole("button", { name: /retirer « trail »/i })).toBeEnabled();
+  });
+
+  it("nomme la liste dans le toast, les deux cartes étant côte à côte", async () => {
+    addCounterScopeEntry.mockResolvedValue(entree({ value: "tcn 44" }));
+    afficher();
+
+    await userEvent.type(screen.getByLabelText(/nouveau libellé/i), "tcn 44");
+    await userEvent.click(screen.getByRole("button", { name: /ajouter/i }));
+
+    await waitFor(() =>
+      expect(toastSuccess).toHaveBeenCalledWith("« tcn 44 » ajouté aux libellés du club."),
+    );
+  });
+
+  it("repose le focus sur le champ d'ajout après un retrait", async () => {
+    removeCounterScopeEntry.mockResolvedValue(undefined);
+    afficher();
+
+    await userEvent.click(screen.getByRole("button", { name: /retirer « tcn »/i }));
+    const dialogue = await screen.findByRole("dialog");
+    await userEvent.click(within(dialogue).getByRole("button", { name: /^retirer$/i }));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText(/nouveau libellé/i)).toHaveFocus(),
+    );
+  });
+
+  it("explique « Discipline inconnue » en texte, pas dans une infobulle native", () => {
+    afficher({
+      kind: "disciplines",
+      entrees: [entree({ value: "kayak-polo", is_known: false })],
+    });
+
+    expect(screen.getByText(/ne correspond à aucune discipline connue/i)).toBeInTheDocument();
+    expect(screen.getByText("Discipline inconnue")).not.toHaveAttribute("title");
   });
 });
