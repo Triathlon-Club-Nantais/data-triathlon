@@ -4,14 +4,49 @@ import type { NextRequest } from "next/server";
 const LOGGED_IN_COOKIE = "tcn_logged_in";
 
 /**
- * En-tête d'observation (#448). `Report-Only` **injecte quand même le nonce** :
- * `app-render.js` lit `content-security-policy` *ou*
- * `content-security-policy-report-only` avant d'en extraire le nonce. La phase
- * d'observation reflète donc exactement ce que ferait le mode bloquant, au lieu
- * d'en être une simulation. Le passage au nom sans `-Report-Only` est la vraie
- * fin du constat A05-2, et fait l'objet d'une issue de suite.
+ * En-tête **bloquant** (#570) — fin du constat A05-2 de l'audit OWASP.
+ *
+ * La phase d'observation de #448 n'était pas une simulation : `Report-Only`
+ * injecte déjà le nonce (`app-render.js` lit les deux noms), donc elle
+ * rapportait exactement ce que ce nom applique. Le relevé mené sur la preview
+ * a sonné trois sources de style ou d'`eval` en ligne, toutes traitées à la
+ * source ou épinglées avant cette bascule :
+ *
+ * - `sonner`, qui injecte sa feuille à l'import → les deux hashes ci-dessous ;
+ * - Base UI, qui injecte `.base-ui-disable-scrollbar` au montage de ses popups
+ *   → nonce transmis par `CSPProvider` (`app/layout.tsx`) ;
+ * - `zod`, qui sonde `new Function("")` pour son JIT → `jitless`
+ *   (`components/scrape/ManualResultForm.tsx`).
+ *
+ * Le rendu serveur, lui, est propre : sur les onze routes relevées, 100 % des
+ * `<script>` et le `<link rel="stylesheet">` portent le nonce.
  */
-const CSP_HEADER = "Content-Security-Policy-Report-Only";
+const CSP_HEADER = "Content-Security-Policy";
+
+/**
+ * `sonner@2.0.8` injecte sa feuille de style **à l'import**, au niveau module,
+ * sans nonce et sans possibilité de s'y opposer (`dist/index.mjs`, `__insertCSS`) :
+ *
+ * ```js
+ * let style = document.createElement('style')
+ * head.appendChild(style)                                  // ← <style> encore vide
+ * style.appendChild(document.createTextNode(code))         // ← puis le CSS
+ * ```
+ *
+ * Le navigateur évalue les deux temps, d'où deux hashes : celui de la chaîne
+ * vide, constant, et celui du CSS, **qui dérive à chaque montée de version**.
+ * `proxy.test.ts` les recalcule depuis `node_modules/sonner/dist/index.mjs` et
+ * échoue si l'un des deux dérive — sans quoi les toasts perdraient tout leur
+ * style, silencieusement, en production.
+ *
+ * Ajouter `'unsafe-inline'` à `style-src` ne serait pas une sortie : CSP niveau
+ * 3 impose au navigateur de l'ignorer dès qu'un nonce ou un hash est présent
+ * dans la même directive.
+ */
+const HASHES_STYLE_SONNER = [
+  "'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='",
+  "'sha256-StEaX+se6YS7pqjzrzMIA0KaX9zF/8zAhvQXZAe5epY='",
+];
 
 /**
  * Politique de sécurité du contenu (#448, constat A05-2 de l'audit OWASP).
@@ -37,12 +72,13 @@ export function buildCspPolicy(nonce: string, { dev }: { dev: boolean }): string
     // blanche. `'unsafe-eval'` : React s'en sert en développement seulement,
     // pour reconstruire les piles d'erreurs serveur dans le navigateur.
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
-    `style-src 'self' 'nonce-${nonce}'`,
+    `style-src 'self' 'nonce-${nonce}' ${HASHES_STYLE_SONNER.join(" ")}`,
     // La seule concession, et elle est bornée aux **attributs** : un nonce ne
     // s'applique jamais à un attribut `style`, et le front en porte 412.
     // Écrire `style-src 'unsafe-inline'` à la place ouvrirait aussi les
-    // éléments `<style>` et les feuilles. Concession léguée à l'issue du mode
-    // bloquant.
+    // éléments `<style>` et les feuilles. **Assumée comme définitive** (#570) :
+    // la retirer supposerait de supprimer les 412 attributs du front, chantier
+    // sans rapport avec la politique elle-même.
     "style-src-attr 'unsafe-inline'",
     // Les deux seules origines tierces du front, toutes deux des images : les
     // tuiles de la carte et les trois marqueurs Leaflet servis par unpkg.
