@@ -51,14 +51,32 @@ def test_detect_url_inconnue_reste_non_supportee(client):
 
 
 def test_detect_sur_host_ipv6_malforme_ne_leve_pas_500(client):
-    """Résidu du finding Important n°2 (revue #49) : `WiclaxProvider.matches`
-    faisait son propre `urlparse` non protégé, appelé avant tout garde-fou —
-    cet endpoint ne passe ni par `HttpUrl` ni par `_validate_url`. Une entrée
-    dégradée doit rester un non-match (`provider: ""`), jamais une exception qui
-    remonte en 500."""
+    """Un host IPv6 malformé reste un 422 de Pydantic, jamais une 500.
+
+    Avant #634, cette entrée passait la porte (`url: str`) et atterrissait sur
+    `WiclaxProvider.matches`, protégé par son propre `urlparse` (finding
+    Important n°2, revue #49 — toujours couvert par `test_registry.py` et
+    `test_import_service.py` au niveau du registre). Depuis #634, `HttpUrl`
+    rejette la forme avant même d'atteindre le registre."""
     resp = client.get("/api/v1/scrape/detect", params={"url": "https://[oops/x"})
-    assert resp.status_code == 200
-    assert resp.json() == {"provider": "", "supported": False}
+    assert resp.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "file:///etc/passwd",
+        "gopher://169.254.169.254/",
+        "javascript:alert(1)",
+        "pas-une-url",
+        "",
+    ],
+)
+def test_detect_schema_non_http_rejete_a_la_porte(client, url):
+    """422 de Pydantic, même patron que `test_schema_non_http_rejete_a_la_porte`
+    pour `/scrape/event` (#49) — appliqué ici par #634."""
+    resp = client.get("/api/v1/scrape/detect", params={"url": url})
+    assert resp.status_code == 422
 
 
 def test_providers_derive_du_registre(client):
