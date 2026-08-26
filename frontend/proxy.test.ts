@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { NextRequest } from "next/server";
 import { describe, expect, it } from "vitest";
 import { buildCspPolicy, proxy } from "./proxy";
@@ -10,7 +12,7 @@ function requeteAvec(cookies: Record<string, string>) {
   return requete;
 }
 
-const CSP = "content-security-policy-report-only";
+const CSP = "content-security-policy";
 
 /** Nom de l'en-tête tel que `NextResponse.next({ request })` l'encode sur la
  * réponse pour le renderer (`server/web/spec-extension/response.js`). */
@@ -74,14 +76,14 @@ describe("proxy", () => {
   });
 });
 
-describe("proxy — Content-Security-Policy (#448)", () => {
-  it("pose la politique en Report-Only, jamais en mode bloquant", () => {
-    // Le mode bloquant est une issue de suite : il ne se décide qu'après avoir
-    // relu ce que la politique rapporte sur la preview.
+describe("proxy — Content-Security-Policy (#448, bascule #570)", () => {
+  it("pose la politique en mode bloquant, plus en observation", () => {
+    // Retournement du verrou de #453 : la phase d'observation est close, et un
+    // retour à `Report-Only` ne protégerait plus de rien.
     const reponse = proxy(requeteAvec({}));
 
     expect(reponse.headers.get(CSP)).toBeTruthy();
-    expect(reponse.headers.get("content-security-policy")).toBeNull();
+    expect(reponse.headers.get("content-security-policy-report-only")).toBeNull();
   });
 
   it("transmet la politique dans les en-têtes de la requête, seul endroit où Next lit le nonce", () => {
@@ -158,6 +160,45 @@ describe("buildCspPolicy", () => {
     );
     expect(buildCspPolicy("abc", { dev: true })).not.toContain(
       "upgrade-insecure-requests",
+    );
+  });
+});
+
+describe("buildCspPolicy — les deux hashes de sonner (#570)", () => {
+  /**
+   * Le CSS que `sonner` injecte au niveau module, lu **dans le paquet
+   * installé** : c'est ce qui fait de ce test un détecteur de dérive. Un
+   * `npm update sonner` change la chaîne, donc le hash, donc ce test casse —
+   * au lieu de laisser les toasts perdre leur style en production.
+   */
+  function cssInjecteParSonner(): string {
+    const source = readFileSync(
+      new URL("./node_modules/sonner/dist/index.mjs", import.meta.url),
+      "utf8",
+    );
+    const appel = source.match(/^__insertCSS\((".*")\);?\s*$/m);
+    expect(appel, "sonner n'injecte plus son CSS via __insertCSS").toBeTruthy();
+    return JSON.parse(appel![1]);
+  }
+
+  function hash(contenu: string): string {
+    return `'sha256-${createHash("sha256").update(contenu, "utf8").digest("base64")}'`;
+  }
+
+  it("épingle le <style> vide puis le <style> rempli, les deux temps de l'injection", () => {
+    // `sonner` crée le `<style>`, l'attache vide, *puis* y met le CSS : le
+    // navigateur évalue les deux états et rapporte donc deux hashes.
+    const styleSrc = directive(buildCspPolicy("abc", { dev: false }), "style-src")!;
+
+    expect(styleSrc).toContain(hash(""));
+    expect(styleSrc).toContain(hash(cssInjecteParSonner()));
+  });
+
+  it("garde le nonce sur style-src, que les hashes ne remplacent pas", () => {
+    // Les hashes n'autorisent que ces deux `<style>` précis ; tout le reste du
+    // style en ligne reste soumis au nonce.
+    expect(directive(buildCspPolicy("abc", { dev: false }), "style-src")).toContain(
+      "'nonce-abc'",
     );
   });
 });
