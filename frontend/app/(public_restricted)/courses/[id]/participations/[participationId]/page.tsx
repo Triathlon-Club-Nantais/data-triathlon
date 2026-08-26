@@ -14,7 +14,9 @@ import {
 import { PageShell } from "@/components/layout/PageShell";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { formatDate } from "@/lib/utils/date";
+import { ordinalFr } from "@/lib/utils/format";
 import { Histogram } from "@/components/charts/Histogram";
+import { CategoryBars } from "@/components/charts/CategoryBars";
 import { parseTotalTimeSeconds } from "@/lib/utils/histogram-ticks";
 
 /**
@@ -60,6 +62,11 @@ export default async function ParticipationDetailPage({
   const eventDate = formatDate(course.event_date);
   const segments = stats?.segments ?? Object.keys(participation.splits ?? {});
   const markerSec = parseTotalTimeSeconds(participation.total_time);
+  // Dénominateur du classement en catégorie (US3, #466) : `summary.categories`
+  // ne porte que les 8 catégories les plus fournies (RES-7, hors périmètre) —
+  // une catégorie absente de cette liste n'affiche aucun dénominateur plutôt
+  // qu'un chiffre faux.
+  const categoryCount = summary?.categories?.find((c) => c.name === participation.category);
 
   return (
     <PageShell>
@@ -106,6 +113,27 @@ export default async function ParticipationDetailPage({
               startSec={summary.histogram.start_sec}
               bucketSec={summary.histogram.bucket_sec}
               markerSec={markerSec}
+            />
+          </Card>
+        )}
+
+        {summary && summary.categories && summary.categories.length > 0 && (
+          <Card padding={28} style={{ marginTop: 18 }}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 4 }}>
+              <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: 0 }}>Répartition par catégorie</h2>
+              {participation.rank_category != null && categoryCount && (
+                <div style={{ fontFamily: "var(--tcn-font-cond)", fontWeight: 700, fontSize: 20, color: "var(--tcn-ink)" }}>
+                  {ordinalFr(participation.rank_category)} / {categoryCount.count}
+                </div>
+              )}
+            </div>
+            <div style={{ fontSize: 13, color: "var(--tcn-text-muted)", marginBottom: 18 }}>
+              Nombre d&apos;athlètes par catégorie — votre catégorie est repérée.
+            </div>
+            <CategoryBars
+              categories={summary.categories}
+              total={summary.categories_total}
+              highlight={participation.category ?? undefined}
             />
           </Card>
         )}

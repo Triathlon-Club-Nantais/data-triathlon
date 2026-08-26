@@ -88,12 +88,12 @@ Application web existante : `backend/app/`, `backend/tests/`, `frontend/app/`, `
 
 ### Tests for User Story 3
 
-- [ ] T013 [P] [US3] Test vitest pour `CategoryBars` avec marquage de la catégorie de l'athlète dans `frontend/components/charts/CategoryBars.test.tsx`
+- [X] T013 [P] [US3] Test vitest pour `CategoryBars` avec marquage de la catégorie de l'athlète dans `frontend/components/charts/CategoryBars.test.tsx`
 
 ### Implementation for User Story 3
 
-- [ ] T014 [US3] Étendre `CategoryBars.tsx` pour marquer la catégorie de l'athlète (depuis `summary.categories`/`categories_total`, déjà fetché en T010)
-- [ ] T015 [US3] Afficher « Nᵉ / M » à côté de la représentation visuelle sur l'écran détail participation
+- [X] T014 [US3] Étendre `CategoryBars.tsx` pour marquer la catégorie de l'athlète (depuis `summary.categories`/`categories_total`, déjà fetché en T010)
+- [X] T015 [US3] Afficher « Nᵉ / M » à côté de la représentation visuelle sur l'écran détail participation
 
 **Checkpoint**: US1→US3 fonctionnelles indépendamment.
 

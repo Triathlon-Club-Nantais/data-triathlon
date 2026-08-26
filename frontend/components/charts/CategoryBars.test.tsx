@@ -186,4 +186,45 @@ describe("CategoryBars", () => {
     expect(screen.getByRole("img")).toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
+
+  // ── Catégorie de l'athlète consultant l'écran (US3, #466) ────────────────
+
+  it("marque visuellement la catégorie de l'athlète quand highlight est fourni", () => {
+    const { container } = render(
+      <CategoryBars
+        categories={[
+          { name: "V1", count: 30 },
+          { name: "S", count: 20 },
+        ]}
+        total={100}
+        highlight="S"
+      />,
+    );
+    const rows = container.querySelectorAll("[data-highlighted]");
+    expect(rows.length).toBe(1);
+    expect(rows[0].getAttribute("data-highlighted")).toBe("true");
+  });
+
+  it("signale la catégorie mise en avant dans le résumé accessible", () => {
+    render(
+      <CategoryBars
+        categories={[
+          { name: "V1", count: 30 },
+          { name: "S", count: 20 },
+        ]}
+        total={100}
+        highlight="S"
+      />,
+    );
+    expect(screen.getByRole("img")).toHaveAccessibleName(
+      "Répartition par catégorie : V1 30,0 %, S 20,0 % (votre catégorie).",
+    );
+  });
+
+  it("n'ajoute aucun marquage quand highlight ne correspond à aucune catégorie affichée", () => {
+    const { container } = render(
+      <CategoryBars categories={[{ name: "V1", count: 30 }]} total={100} highlight="INEXISTANTE" />,
+    );
+    expect(container.querySelectorAll("[data-highlighted]").length).toBe(0);
+  });
 });
