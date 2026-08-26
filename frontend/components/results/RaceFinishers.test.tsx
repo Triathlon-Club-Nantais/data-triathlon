@@ -483,7 +483,11 @@ describe("RaceFinishers", () => {
     // marqueur parmi les comportements à préserver.
     afficherInter();
 
-    expect(screen.getByRole("img", { name: /illisible/i }).style.position).toBe("relative");
+    // Scopé à la grille (#461) : le même ⚠ existe dans le dépliant de la carte.
+    expect(
+      within(screen.getByTestId("classement-grille")).getByRole("img", { name: /illisible/i })
+        .style.position,
+    ).toBe("relative");
   });
 
   it("signale l'inter illisible au lieu de le taire, et rappelle la valeur reçue", () => {
