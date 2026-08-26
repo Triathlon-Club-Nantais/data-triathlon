@@ -811,6 +811,54 @@ def test_scrape_all_streaming_use_cache_probe_false_desarme_la_sonde_par_heat(
     assert captured["cache_probe"] is None
 
 
+def test_scrape_all_streaming_cache_probe_utilise_une_session_dediee_au_thread(
+    db_session, monkeypatch,
+):
+    """#566 point 1 — `cache_probe` ne doit jamais toucher la Session de l'appelant.
+
+    Elle s'exécute sur le thread de travail, indépendant du cycle de vie de
+    `db_session` (possédée par le générateur SSE, fermable par l'appelant à
+    tout moment sur déconnexion). Une Session dédiée, ouverte et fermée dans
+    le thread, élimine l'usage concurrent d'un objet non thread-safe.
+    """
+    from app.scrapers import registry
+
+    provider = registry.KlikegoProvider()
+    provider.last_trace = FanoutTrace(heats_enumerated=1)
+    monkeypatch.setattr(import_service.registry, "get_provider", lambda url: provider)
+
+    class _FakeThreadSession:
+        def __init__(self):
+            self.closed = False
+
+        def close(self):
+            self.closed = True
+
+    thread_sessions = []
+
+    def fake_session_local():
+        session = _FakeThreadSession()
+        thread_sessions.append(session)
+        return session
+
+    monkeypatch.setattr(import_service, "SessionLocal", fake_session_local)
+
+    captured = {}
+
+    def fake_scrape(url, *, cache_probe=None, on_heat_start=None, **kwargs):
+        captured["cache_probe"] = cache_probe
+        return [_result("1", "DUPONT")]
+
+    monkeypatch.setattr(import_service, "registry_scrape_event_all", fake_scrape)
+
+    gen = import_service._scrape_all_streaming(URL, db_session, _settings())
+    list(gen)  # draine les yields intermédiaires, ignore (results, trace)
+
+    assert captured["cache_probe"] is not None
+    assert len(thread_sessions) == 1, "une seule Session dédiée doit être ouverte"
+    assert thread_sessions[0].closed, "la Session du thread doit être fermée à la fin du scrape"
+
+
 def _fake_klikego_provider(monkeypatch, enumerated: int, cached: int, failures: list[dict]):
     """Fait que `registry.get_provider(url)` rend un KlikegoProvider avec last_trace prédéfinie."""
     from app.scrapers import registry

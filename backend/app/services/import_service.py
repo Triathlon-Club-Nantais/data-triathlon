@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
+from app.core.database import SessionLocal
 from app.core.exceptions import InvalidUrlError, ProviderNotSupportedError, ScraperError
 from app.models.course import Course
 from app.models.course_source import CourseSource
@@ -249,23 +250,25 @@ def _scrape_all_streaming(
     une épreuve fan-out fraîchement importée sauterait tous ses heats jugés
     frais, laissant le classement inchangé malgré la demande explicite.
 
-    `ponytail:` (#566, point 1) `cache_probe` referme sur `db`, exécuté sur le
-    thread de travail — pas sur celui qui possède la Session. Si le client SSE
-    se déconnecte pendant le scrape, Starlette clôt ce générateur : sans le
-    `finally: thread.join()` ci-dessous, `GeneratorExit` remonterait
-    immédiatement jusqu'au `finally: db.close()` de `scrape.py::generate()`
-    pendant que le thread continue d'appeler `cache_probe` sur cette Session
-    déjà fermée — usage concurrent d'un objet non thread-safe (une Session
-    fermée se rouvre silencieusement, donc pas d'exception franche, juste une
-    connexion fuitée et une race). `thread.join()` en `finally` garantit que le
-    thread a fini d'utiliser `db` **avant** que ce générateur ne rende la main
-    à `scrape.py`, donc avant sa fermeture — au prix d'attendre la fin du
-    scrape (jusqu'à 30-40 s) avant que la réponse SSE ne se termine vraiment
-    côté serveur sur une déconnexion. Contrairement à
-    `admin_actions._stream_rescrape` (même question, autre flux SSE), on ne
-    peut pas se permettre de laisser le thread continuer détaché : celui-ci
-    passe `use_cache_probe=True` par défaut, `admin_actions` le désactive
-    (`use_cache_probe=False`) et n'est donc pas exposé à cette race précise.
+    `ponytail:` (#566, point 1) `cache_probe` referme originellement sur `db` et
+    s'exécute sur le thread de travail — pas sur celui qui possède la Session.
+    Sur déconnexion SSE, Starlette/asyncio finit par clore ce générateur (le
+    plus souvent via le ramasse-miettes cyclique, pas un `close()` explicite
+    immédiat — l'abandon n'est pas synchrone). Ce close relance `GeneratorExit`
+    **sur le thread qui l'a déclenché**, quel qu'il soit : une première version
+    de ce correctif ajoutait un `finally: thread.join()` autour de la boucle de
+    drainage pour garantir que le thread ait fini d'utiliser `db` avant que
+    `scrape.py::generate()` ne la ferme — mesuré à la main (`iterate_in_threadpool`
+    + `asyncio`), ce close peut retomber sur le **thread de la boucle asyncio**
+    elle-même, donc `thread.join()` y bloque tout le worker (toutes les requêtes
+    concurrentes du même process) pour la durée du scrape, pas seulement ce flux
+    SSE — pire que le défaut d'origine. Le correctif retenu ne joint donc pas :
+    `scrape_in_thread` ouvre sa **propre** `Session` (`SessionLocal()`, patron de
+    `scrape.py`) pour la sonde de cache, qu'il referme dans son propre `finally`
+    — le thread ne touche plus jamais la Session de l'appelant, quelle que soit
+    la vitesse à laquelle celui-ci la ferme. Coût accepté, même nature que le
+    `ponytail:` d'`admin_actions._stream_rescrape` : une connexion tenue jusqu'à
+    la fin du thread détaché, upgrade si mesuré en production.
     """
     provider = registry.get_provider(url)
 
@@ -274,7 +277,6 @@ def _scrape_all_streaming(
         results, trace = _scrape_all(url, db, settings, use_cache_probe=use_cache_probe)
         return (results, trace)
 
-    cache_probe = _make_cache_probe(db, settings) if use_cache_probe else None
     events: queue.Queue[dict | object] = queue.Queue()
     sentinel = object()
     holder: dict = {}
@@ -303,7 +305,11 @@ def _scrape_all_streaming(
         })
 
     def scrape_in_thread() -> None:
+        # `ponytail:` ci-dessus (#566, point 1) — Session dédiée au thread,
+        # jamais celle de l'appelant (`db`).
+        thread_db = SessionLocal() if use_cache_probe else None
         try:
+            cache_probe = _make_cache_probe(thread_db, settings) if thread_db is not None else None
             # `on_detail_progress` (#583) : seul Klikego a une phase C par
             # participant à rapporter — les autres FanoutProvider ne
             # l'acceptent pas dans leur signature.
@@ -315,29 +321,27 @@ def _scrape_all_streaming(
         except BaseException as exc:  # noqa: BLE001 — relayé au générateur
             holder["error"] = exc
         finally:
+            if thread_db is not None:
+                thread_db.close()
             events.put(sentinel)
 
     thread = threading.Thread(target=scrape_in_thread, daemon=True)
     thread.start()
 
-    try:
-        while True:
-            # 0,5 s = compromis entre réactivité de la coupure côté client et coût
-            # CPU. Le scrape émet un événement toutes les ~4 s, on ne va pas plus
-            # vite. Le timeout permet aussi de laisser le thread mourir sans bloquer
-            # le générateur si un heat n'appelle jamais le callback (cache_probe).
-            try:
-                item = events.get(timeout=0.5)
-            except queue.Empty:
-                continue
-            if item is sentinel:
-                break
-            yield item
-    finally:
-        # `ponytail:` ci-dessus (#566, point 1) — join même sur `GeneratorExit`
-        # (déconnexion client), pour que le thread ait fini d'utiliser `db`
-        # avant que l'appelant ne la ferme.
-        thread.join()
+    while True:
+        # 0,5 s = compromis entre réactivité de la coupure côté client et coût
+        # CPU. Le scrape émet un événement toutes les ~4 s, on ne va pas plus
+        # vite. Le timeout permet aussi de laisser le thread mourir sans bloquer
+        # le générateur si un heat n'appelle jamais le callback (cache_probe).
+        try:
+            item = events.get(timeout=0.5)
+        except queue.Empty:
+            continue
+        if item is sentinel:
+            break
+        yield item
+
+    thread.join()
 
     if "error" in holder:
         exc = holder["error"]
