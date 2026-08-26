@@ -2,17 +2,25 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { apiServer } from "@/lib/api/server";
 import { NAV_WIDTH_COOKIE } from "@/lib/nav-cookies";
 
+const DEFAULT_COOKIES = [{ name: "tcn_site_session", value: "jeton-de-test" }];
+
 const { getAll } = vi.hoisted(() => ({
   getAll: vi.fn(() => [{ name: "tcn_site_session", value: "jeton-de-test" }]),
 }));
 
 vi.mock("next/headers", () => ({
-  cookies: async () => ({ getAll }),
+  // `get` doit refléter `getAll` : `serverFetch` (#586) ne lit plus le jar que
+  // par `get(SITE_SESSION_COOKIE)`, un mock qui ne porterait que `getAll`
+  // laisserait passer une régression sans qu'aucun test ne le voie planter.
+  cookies: async () => ({
+    getAll,
+    get: (name: string) => getAll().find((c) => c.name === name),
+  }),
 }));
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  getAll.mockReturnValue([{ name: "tcn_site_session", value: "jeton-de-test" }]);
+  getAll.mockReturnValue(DEFAULT_COOKIES);
 });
 
 function mockFetchOk(body: unknown) {
@@ -61,6 +69,68 @@ describe("serverFetch — relais du cookie d'accès au site (#526)", () => {
     // Sans quoi la clé du Data Cache (#526) varierait avec un cookie que
     // l'API n'utilise pas, cassant le partage inter-visiteurs de la fenêtre
     // de revalidation de #352 sur `/dashboard`, `/club` et `/ajouter`.
+    const [, options] = fetchMock.mock.calls[0];
+    expect(options.headers).toEqual({ cookie: "tcn_site_session=jeton-de-test" });
+  });
+
+  it("n'envoie que le cookie d'accès au site — pas la session SSO, ni un cookie bénévoles ou PostHog (#586)", async () => {
+    getAll.mockReturnValue([
+      { name: "tcn_site_session", value: "jeton-de-test" },
+      { name: "tcn_session", value: "session-sso" },
+      { name: "tcn_logged_in", value: "1" },
+      { name: "tcn_benevole_session", value: "session-benevoles" },
+      { name: "ph_phc_test", value: "device-id" },
+      { name: NAV_WIDTH_COOKIE, value: "1" },
+    ]);
+    const fetchMock = mockFetchOk([]);
+
+    await apiServer.listParticipations({ scope: "club" }, { revalidateSeconds: 30 });
+
+    // Avant #586, `serverFetch` relayait le jar entier (hors NAV_WIDTH_COOKIE) :
+    // un cookie que `require_site_access` ne lit jamais faisait quand même
+    // varier la clé du Data Cache, jusqu'à casser le partage *intra-visiteur*
+    // qu'un simple rechargement de page devrait garder — un cookie PostHog qui
+    // tourne, ou `tcn_session` posé/retiré par une connexion SSO, suffisait.
+    const [, options] = fetchMock.mock.calls[0];
+    expect(options.headers).toEqual({ cookie: "tcn_site_session=jeton-de-test" });
+  });
+
+  it("n'envoie aucun cookie si le visiteur n'a pas encore ouvert de session d'accès au site", async () => {
+    getAll.mockReturnValue([{ name: "tcn_session", value: "session-sso" }]);
+    const fetchMock = mockFetchOk([]);
+
+    await apiServer.listParticipations({ scope: "club" });
+
+    const [, options] = fetchMock.mock.calls[0];
+    expect(options.headers).toEqual({ cookie: "" });
+  });
+});
+
+describe("serverFetchAuthed / serverFetchAuthedRaw — relaient le jar entier (#586)", () => {
+  it("`getSession` relaie la session SSO — elle n'est jamais mise en cache, aucun coût de clé à réduire", async () => {
+    getAll.mockReturnValue([
+      { name: "tcn_site_session", value: "jeton-de-test" },
+      { name: "tcn_session", value: "session-sso" },
+    ]);
+    const fetchMock = mockFetchOk({ id: 1, email: "a@b.fr", permissions: [], roles: [], groups: [] });
+
+    await apiServer.getSession();
+
+    const [, options] = fetchMock.mock.calls[0];
+    expect(options.headers).toEqual({
+      cookie: "tcn_site_session=jeton-de-test; tcn_session=session-sso",
+    });
+  });
+
+  it("`checkSiteAccess` relaie le jar entier, hors cookie de largeur du rail", async () => {
+    getAll.mockReturnValue([
+      { name: "tcn_site_session", value: "jeton-de-test" },
+      { name: NAV_WIDTH_COOKIE, value: "1" },
+    ]);
+    const fetchMock = mockFetchOk({ ok: true });
+
+    await apiServer.checkSiteAccess();
+
     const [, options] = fetchMock.mock.calls[0];
     expect(options.headers).toEqual({ cookie: "tcn_site_session=jeton-de-test" });
   });
