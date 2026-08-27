@@ -181,4 +181,27 @@ describe("ComparisonTable", () => {
     const ligne = screen.getByRole("row", { name: /1er/ });
     expect(within(ligne).getByText(/−6 min/)).toBeTruthy();
   });
+
+  // #657 : les pourcentages n'indiquaient pas à quoi ils se comparaient.
+  it("#657 : explique au survol ce que compare la colonne Position", () => {
+    renderTable();
+
+    const position = screen.getByRole("columnheader", { name: "Position" });
+    expect(position.title).toMatch(/classement scratch/i);
+  });
+
+  it("#657 : explique au survol ce que représente un pourcentage de segment", () => {
+    renderTable();
+
+    const natation = screen.getByRole("columnheader", { name: "Natation" });
+    expect(natation.title).toMatch(/pourcentage du temps/i);
+    expect(natation.title).toMatch(/cette position/i);
+  });
+
+  it("#657 : explique au survol le pourcentage total différemment d'un segment", () => {
+    renderTable();
+
+    const total = screen.getByRole("columnheader", { name: "Total" });
+    expect(total.title).toMatch(/ensemble de la course/i);
+  });
 });

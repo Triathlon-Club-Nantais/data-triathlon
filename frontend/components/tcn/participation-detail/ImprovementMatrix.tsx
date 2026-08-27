@@ -13,6 +13,12 @@ const PALIERS_ETROITS = new Set(["1", "5", "25"]);
 const classePalier = (percentage: string) =>
   PALIERS_ETROITS.has(percentage) ? undefined : "hidden sm:table-cell";
 
+// #657 : un palier de pourcentage n'indiquait pas à quoi il s'appliquait, et
+// le point médian d'un gain nul ne se lisait pas comme une absence de gain.
+const titrePalier = (percentage: string) =>
+  `Nombre de places gagnées au classement scratch si ce segment avait été couru ${percentage.replace(".", ",")} % plus vite.`;
+const TITRE_GAIN_NUL = "Aucune place gagnée à ce palier.";
+
 /** Énumération française « Natation, T1 et T2 », sans dépendance ajoutée. */
 const LIST_FR = new Intl.ListFormat("fr", { style: "long", type: "conjunction" });
 
@@ -59,7 +65,12 @@ export function ImprovementMatrix({
             <tr>
               <th style={{ ...headStyle, width: 110, textAlign: "left" }}>Segment</th>
               {PERCENTAGES.map((percentage) => (
-                <th key={percentage} className={classePalier(percentage)} style={headStyle}>
+                <th
+                  key={percentage}
+                  className={classePalier(percentage)}
+                  style={headStyle}
+                  title={titrePalier(percentage)}
+                >
                   {percentage.replace(".", ",")} %
                 </th>
               ))}
@@ -71,11 +82,19 @@ export function ImprovementMatrix({
                 <th scope="row" style={{ ...cellStyle, textAlign: "left", fontWeight: 700 }}>
                   {label(row.segment)}
                 </th>
-                {PERCENTAGES.map((percentage) => (
-                  <td key={percentage} className={classePalier(percentage)} style={cellStyle}>
-                    {formatGain(row.gains[percentage])}
-                  </td>
-                ))}
+                {PERCENTAGES.map((percentage) => {
+                  const gain = row.gains[percentage];
+                  return (
+                    <td
+                      key={percentage}
+                      className={classePalier(percentage)}
+                      style={cellStyle}
+                      title={gain != null && gain <= 0 ? TITRE_GAIN_NUL : undefined}
+                    >
+                      {formatGain(gain)}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>
