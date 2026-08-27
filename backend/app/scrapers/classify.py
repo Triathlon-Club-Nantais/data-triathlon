@@ -201,6 +201,26 @@ def normalize_event_type(value: str) -> str:
     return classify_event_type(value)
 
 
+def refine_from_splits(event_type: str, *, has_swim: bool, has_bike: bool) -> str:
+    """Corrige `event_type` d'après les splits effectivement scrapés (#679).
+
+    « Foulées » nomme la catégorie « open » d'un triathlon chez certains
+    organisateurs (Diaoulman Pontivy) : `classify_event_type` seule, qui ne lit
+    que le nom, classe alors un heat triathlon complet en `course-a-pied`.
+    Une vraie course à pied ne publie jamais de natation **et** de vélo — quand
+    la page détail d'un participant fournit les deux, ce sont des segments
+    impossibles pour ce sport, qui priment sur le libellé et corrigent le slug
+    nu `course-a-pied` en `triathlon` (repli bare déjà utilisé par
+    `classify_event_type` — voir `_avec_taille`). Volontairement strict :
+    seul le slug nu est concerné, jamais ses suffixes de distance
+    (`course-a-pied-5k`…), dont le nom est un signal sans ambiguïté contrairement
+    à « foulées ».
+    """
+    if event_type == "course-a-pied" and has_swim and has_bike:
+        return "triathlon"
+    return event_type
+
+
 def extract_distance_km(text: str) -> float | None:
     """Extrait un kilométrage explicite (`23 km`, `42,2 km`, `120km`)."""
     m = re.search(r"(\d+(?:[.,]\d+)?)\s*km\b", _norm(text))

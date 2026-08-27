@@ -19,7 +19,7 @@ from bs4 import BeautifulSoup
 from app.core import http
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, FanoutTrace, ScrapedResult
-from .classify import classify_event_type
+from .classify import classify_event_type, refine_from_splits
 from .klikego_platform import heat_is_relay
 from .utils import (
     DEFAULT_HEADERS,
@@ -441,6 +441,15 @@ def _scrape_single_heat(
                 done % _DETAIL_PROGRESS_INTERVAL == 0 or done == total
             ):
                 on_detail_progress(done, total)
+
+    # Les splits fins de la phase C priment sur le libellé du heat (#679) :
+    # une course à pied ne publie jamais natation ET vélo, un heat mal nommé
+    # (« Diaoul Foulées Open ») est reclassé triathlon une fois ces deux
+    # splits confirmés sur un participant.
+    for r in results:
+        r.event_type = refine_from_splits(
+            r.event_type, has_swim=bool(r.swim_time), has_bike=bool(r.bike_time),
+        )
 
     return results
 
