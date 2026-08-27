@@ -186,7 +186,10 @@ export function AthleteComparisonChart({ mine }: { mine: Participation[] }) {
   }
 
   return (
-    <Card style={{ marginTop: 24 }}>
+    // Pas de marge inline ici : l'espacement avec les cartes voisines de
+    // `/athletes/[id]` vient du `space-y-6` posé par la page (#654) — une
+    // marge locale y ferait à nouveau cumuler deux systèmes.
+    <Card>
       <Eyebrow>Comparer avec un coéquipier</Eyebrow>
 
       {!selected && (
