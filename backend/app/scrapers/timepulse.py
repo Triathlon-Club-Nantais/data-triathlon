@@ -30,6 +30,7 @@ from .utils import (
     fmt_seconds,
     normalize_time,
     parse_fr_date,
+    qualify_event_name,
     split_athlete_name,
     to_seconds,
 )
@@ -361,7 +362,6 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
             continue
 
         result = ScrapedResult(source_url=url, provider="timepulse", bib_number=bib)
-        result.event_name = event_name
         result.event_date = event_date_val
         # Le format (S/M/L) est porté par le parcours `p` de chaque <E>, pas par
         # le nom global de l'épreuve (ex. « LE NORTH MAY » → Triathlon S/M/L SOLO).
@@ -369,6 +369,15 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         result.event_type = (
             classify_event_type(parcours) if parcours else event_type_fallback
         )
+        # Qualifié par le parcours, comme Klikego/ProLiveSport (#674) : deux parcours
+        # distincts peuvent partager un même event_type (« Trail 9 km »/« Trail 16 km »
+        # → tous deux `trail`), et `course_repository.get_or_create` ne clé son identité
+        # que sur (name, event_date, event_type, is_relay) — le parcours n'y entre pas.
+        # Sans qualification, ils fusionneraient en une seule Course dont les rangs, eux,
+        # sont calculés par `_compute_ranks` en aval **par parcours** : chaque rang 1..N
+        # se retrouverait dupliqué autant de fois que de parcours fusionnés (mesuré,
+        # épreuve 3201 « Trail + Run and Bike du Bignon »).
+        result.event_name = qualify_event_name(event_name, parcours)
 
         full_name = ea.get("n", "")
         surname, firstname = split_athlete_name(full_name)
