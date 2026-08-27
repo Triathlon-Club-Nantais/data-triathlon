@@ -57,16 +57,18 @@ describe("BarList", () => {
   });
 
   it("sans `colorer`, remplit la barre avec une variable CSS réellement définie (#651)", () => {
-    // `--accent-ink` n'existe nulle part dans globals.css — seul
-    // `--color-accent-ink` y est déclaré (alias `@theme` de Tailwind v4,
-    // consommé ailleurs via la classe `text-accent-ink`). Une référence à la
-    // mauvaise variable ne casse rien en apparence côté test — jsdom ne
-    // résout jamais `var()` — mais dans un vrai navigateur la propriété
-    // retombe sur sa valeur initiale (`transparent`), rendant toute barre
-    // sans `colorer` invisible sur son fond `bg-muted` (Performance du club
-    // sur /dashboard, composition du club, format sur la fiche athlète).
+    // `--accent-ink` n'existe nulle part dans globals.css — seul `--tcn-danger-text`
+    // y est déclaré (`--color-accent-ink` de Tailwind v4 n'en est qu'un alias
+    // `@theme`, consommé ailleurs via la classe `text-accent-ink`, jamais par un
+    // `var()` brut dans une feuille de style en ligne — convention que tient le
+    // reste du fichier, `lib/sport-colors.ts` compris). Une référence à la
+    // mauvaise variable ne casse rien en apparence côté test — jsdom ne résout
+    // jamais `var()` — mais dans un vrai navigateur la propriété retombe sur sa
+    // valeur initiale (`transparent`), rendant toute barre sans `colorer`
+    // invisible sur son fond `bg-muted` (Performance du club sur /dashboard,
+    // composition du club, format sur la fiche athlète).
     const { container } = render(<BarList entries={[["a", 1]]} labeller={(k) => k} />);
     const bar = container.querySelector("[data-bar]") as HTMLElement;
-    expect(bar.style.background).toContain("--color-accent-ink");
+    expect(bar.style.background).toContain("--tcn-danger-text");
   });
 });
