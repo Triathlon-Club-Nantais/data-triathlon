@@ -57,6 +57,42 @@ describe("ProgressionChart", () => {
     expect(getByText("Top 10 %")).toBeInTheDocument();
   });
 
+  it("ne grade jamais l'axe au-delà de 100 % (#677, revue de code)", () => {
+    // Un dernier de course a percent=100 (rankRatio refuse rank > total) : la
+    // marge ajoutée à `worst` ne doit pas produire une graduation « 114 % ».
+    const { container } = render(
+      <ProgressionChart
+        points={[
+          point({ participationId: 1, eventDate: "2026-01-10", percent: 10 }),
+          point({ participationId: 2, eventDate: "2026-03-10", percent: 50 }),
+          point({ participationId: 3, eventDate: "2026-05-10", percent: 100 }),
+        ]}
+      />,
+    );
+    const tickTexts = Array.from(container.querySelectorAll("[data-tick]")).map((el) => el.textContent ?? "");
+    for (const text of tickTexts) {
+      const value = Number(text.replace("%", "").trim());
+      expect(value).toBeLessThanOrEqual(100);
+    }
+  });
+
+  it("trace un segment droit entre les points, pas une courbe lissée (#677)", () => {
+    const { container } = render(
+      <ProgressionChart
+        points={[
+          point({ participationId: 1, eventDate: "2026-01-10", percent: 40 }),
+          point({ participationId: 2, eventDate: "2026-03-10", percent: 25 }),
+          point({ participationId: 3, eventDate: "2026-05-10", percent: 10 }),
+        ]}
+      />,
+    );
+    // `curveLinear` n'émet que des commandes M/L ; `curveMonotoneX` (rejeté,
+    // #677) émettrait des courbes de Bézier cubiques (commande C) qui
+    // dessineraient un creux ou un sommet absent des données.
+    const d = container.querySelector("path")?.getAttribute("d") ?? "";
+    expect(d).not.toMatch(/C/);
+  });
+
   it("explique la lecture du graphique en légende (#677)", () => {
     const { getByText } = render(
       <ProgressionChart

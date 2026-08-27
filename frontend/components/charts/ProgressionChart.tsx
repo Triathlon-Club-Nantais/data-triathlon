@@ -49,7 +49,10 @@ export function ProgressionChart({ points }: { points: ProgressionPoint[] }) {
   const worst = Math.max(...percents);
   const margin = Math.max(1, Math.round((worst - best) * 0.15));
   const top = Math.max(0, best - margin);
-  const bottom = worst + margin;
+  // `percent` ne dépasse jamais 100 (`rankRatio` refuse rank > total) : sans
+  // ce plafond, un dernier de course affiche une graduation « 114 % » (#677,
+  // revue de code — la marge ajoutée à `worst` n'était bornée que d'un côté).
+  const bottom = Math.min(100, worst + margin);
 
   const yScale = scaleLinear().domain([top, bottom]).range([TOP, BOTTOM]);
   const xOf = (index: number) => (points.length === 1 ? W / 2 : (W / (points.length - 1)) * index);
@@ -67,7 +70,9 @@ export function ProgressionChart({ points }: { points: ProgressionPoint[] }) {
 
   // Graduations de l'axe des pourcentages, réparties entre les deux bornes du
   // domaine — sans elles, la courbe montrait un sens de variation sans jamais
-  // dire de quel pourcentage à quel pourcentage (#677).
+  // dire de quel pourcentage à quel pourcentage (#677). S'appuie sur
+  // `percent` ∈ [1, 100] (`rankRatio`) pour que `bottom - top` ≥ 2 et que les
+  // TICKS graduations restent distinctes ; rien ne l'impose au niveau du type.
   const ticks = Array.from({ length: TICKS }, (_, index) =>
     Math.round(top + ((bottom - top) * index) / (TICKS - 1)),
   );
@@ -152,7 +157,10 @@ export function ProgressionChart({ points }: { points: ProgressionPoint[] }) {
         {/* Rangée des libellés, en HTML pour la même raison. Le pourcentage
             de chaque point s'affiche en permanence (#677) : l'infobulle au
             survol n'existe pas au doigt (WCAG 1.4.13), et ce composant reste
-            sans état pour rester un rendu serveur pur. */}
+            sans état pour rester un rendu serveur pur. `aria-hidden` ici,
+            contrairement au libellé bas de `RankingEvolutionChart` : le
+            résumé de `aria-label` du SVG répète déjà exactement date et
+            pourcentage, doubler l'annonce n'apporterait rien à l'oreille. */}
         <div style={{ position: "absolute", left: LEFT_GUTTER, right: 0, bottom: 0, height: BOTTOM_GUTTER }}>
           {points.map((p, index) => (
             <span
