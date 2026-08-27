@@ -28,6 +28,48 @@ describe("ProgressionChart", () => {
     expect(container.querySelector("path")).not.toBeNull();
   });
 
+  it("affiche un axe des ordonnées gradué (#677)", () => {
+    const { container } = render(
+      <ProgressionChart
+        points={[
+          point({ participationId: 1, eventDate: "2026-01-10", percent: 40 }),
+          point({ participationId: 2, eventDate: "2026-03-10", percent: 25 }),
+          point({ participationId: 3, eventDate: "2026-05-10", percent: 10 }),
+        ]}
+      />,
+    );
+    expect(container.querySelectorAll("[data-tick]").length).toBeGreaterThanOrEqual(2);
+    expect(container.querySelectorAll("svg line").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("affiche le pourcentage de chaque point en permanence, sans survol (#677)", () => {
+    const { getByText } = render(
+      <ProgressionChart
+        points={[
+          point({ participationId: 1, eventDate: "2026-01-10", percent: 40 }),
+          point({ participationId: 2, eventDate: "2026-03-10", percent: 25 }),
+          point({ participationId: 3, eventDate: "2026-05-10", percent: 10 }),
+        ]}
+      />,
+    );
+    expect(getByText("Top 40 %")).toBeInTheDocument();
+    expect(getByText("Top 25 %")).toBeInTheDocument();
+    expect(getByText("Top 10 %")).toBeInTheDocument();
+  });
+
+  it("explique la lecture du graphique en légende (#677)", () => {
+    const { getByText } = render(
+      <ProgressionChart
+        points={[
+          point({ participationId: 1, eventDate: "2026-01-10", percent: 40 }),
+          point({ participationId: 2, eventDate: "2026-03-10", percent: 25 }),
+          point({ participationId: 3, eventDate: "2026-05-10", percent: 10 }),
+        ]}
+      />,
+    );
+    getByText(/classement au sein du peloton/i);
+  });
+
   it("affiche un état vide explicite sous 3 points de données", () => {
     const { container, getByText } = render(
       <ProgressionChart points={[point({ participationId: 1 }), point({ participationId: 2 })]} />,
