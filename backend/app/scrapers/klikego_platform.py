@@ -373,7 +373,12 @@ def build_heat_results(
         r.total_time = d["total_time"]
         r.status = d["status"]
         r.raw_data["heat_slug"] = heat
-        for slot, t in splits.get(d["bib_number"], {}).items():
-            setattr(r, f"{slot}_time", t)
+        # #675 — un checkpoint inter peut publier un temps non nul pour un
+        # dossard DNS/DNF/DSQ (même incohérence de source que la page détail,
+        # cf. `klikego._parse_detail`) : on ignore ces splits plutôt que de
+        # ressusciter un participant déjà marqué non-partant/abandon/disqualifié.
+        if not d["status"]:
+            for slot, t in splits.get(d["bib_number"], {}).items():
+                setattr(r, f"{slot}_time", t)
         results.append(r)
     return results

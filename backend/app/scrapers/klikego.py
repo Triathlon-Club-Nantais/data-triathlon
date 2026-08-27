@@ -73,8 +73,10 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
     soup = BeautifulSoup(html, "lxml")
     raw["detail_html"] = html[:500]
 
-    # #675 — un statut DNS/DNF/DSQ déjà posé en phase B (`_parse_search_row`,
-    # sur la liste de recherche) ne doit jamais être contredit par la page
+    # #675 — un statut DNS/DNF/DSQ déjà posé en phase B (`klikego_platform.
+    # build_heat_results`/`parse_data_row`, sur le data block de
+    # `course-result.jsp` — `_parse_search_row` ci-dessous n'est plus le
+    # chemin de production) ne doit jamais être contredit par la page
     # détail : on ignore ses rang/temps/splits plutôt que de reclasser le
     # statut sur une page individuelle qui peut elle-même être incohérente
     # (cf. issue). Garde étendue à toutes les écritures de cette fonction —
