@@ -51,7 +51,7 @@ export function BarList({
               className="h-full rounded-full"
               style={{
                 width: `${Math.max(MIN_BAR_WIDTH, (value / max) * 100)}%`,
-                background: colorer ? colorer(key) : "var(--color-accent-ink)",
+                background: colorer ? colorer(key) : "var(--tcn-danger-text)",
               }}
             />
           </div>
