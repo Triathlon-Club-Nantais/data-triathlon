@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { commonParticipations } from "./athlete-comparison";
+import { commonParticipations, formatDelta } from "./athlete-comparison";
 import type { Participation, CourseBrief, AthleteBrief } from "@/lib/types";
 
 const athlete = (id: number): AthleteBrief => ({ id, nom: "Nom", prenom: "Prenom", gender: "F", club: "TCN" });
@@ -76,5 +76,29 @@ describe("commonParticipations", () => {
     ];
 
     expect(commonParticipations(mine, theirs).map((r) => r.courseId)).toEqual([20, 10]);
+  });
+});
+
+describe("formatDelta", () => {
+  it("annonce un retard quand mon temps est le plus long", () => {
+    // 3 min 25 s de plus que le coéquipier.
+    expect(formatDelta(12205, 12000)).toBe("3 min 25 s de retard");
+  });
+
+  it("annonce une avance quand mon temps est le plus court", () => {
+    expect(formatDelta(100, 145)).toBe("45 s d'avance");
+  });
+
+  it("annonce un temps identique sans écart", () => {
+    expect(formatDelta(3600, 3600)).toBe("Temps identique");
+  });
+
+  it("compte les heures dans l'écart, sans les secondes", () => {
+    // 1 h 05 min 00 s de retard.
+    expect(formatDelta(7500, 3600)).toBe("1 h 05 min de retard");
+  });
+
+  it("n'affiche que les secondes sous la minute", () => {
+    expect(formatDelta(45, 20)).toBe("25 s de retard");
   });
 });
