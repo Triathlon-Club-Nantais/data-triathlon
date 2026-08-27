@@ -192,8 +192,16 @@ describe("ClubDashboard — smoke", () => {
     expect(onglet).toBeInTheDocument();
     await userEvent.click(onglet);
 
-    expect(await screen.findByText("Par genre")).toBeInTheDocument();
-    expect(screen.getByText("Par catégorie")).toBeInTheDocument();
+    // Les deux sections sont repliées par défaut (#653) : leur contenu
+    // n'apparaît qu'une fois dépliées.
+    const declencheurGenre = await screen.findByRole("button", { name: "Par genre" });
+    const declencheurCategorie = screen.getByRole("button", { name: "Par catégorie" });
+    expect(declencheurGenre).toHaveAttribute("aria-expanded", "false");
+    expect(declencheurCategorie).toHaveAttribute("aria-expanded", "false");
+
+    await userEvent.click(declencheurGenre);
+    await userEvent.click(declencheurCategorie);
+
     expect(screen.getAllByTestId("barlist")).toHaveLength(2);
   });
 
