@@ -26,13 +26,24 @@ export function formatMonth(ym: string | null | undefined): string {
   });
 }
 
-export function formatMonthShort(ym: string | null | undefined): string {
+/**
+ * Mois abrégé (`"janv"`) ; `withYear` ajoute l'année (`"janv 2026"`) — à poser
+ * sur le premier repère d'un axe et à chaque changement d'année, jamais sur
+ * chaque mois : deux mois de même nom sont sinon indiscernables dès qu'une
+ * fenêtre glissante chevauche le nouvel an (#650), mais l'année sur chaque
+ * libellé alourdirait un graphique compact.
+ */
+export function formatMonthShort(
+  ym: string | null | undefined,
+  { withYear = false }: { withYear?: boolean } = {},
+): string {
   if (!ym) return "";
   const m = String(ym).match(/^(\d{4})-(\d{2})/);
   if (!m) return String(ym);
-  return new Date(+m[1], +m[2] - 1, 1)
+  const month = new Date(+m[1], +m[2] - 1, 1)
     .toLocaleDateString("fr-FR", { month: "short" })
     .replace(".", "");
+  return withYear ? `${month} ${m[1]}` : month;
 }
 
 export function timeAgo(iso: string | null | undefined): string {

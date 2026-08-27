@@ -65,9 +65,13 @@ describe("MonthlyTrend", () => {
     // toujours écrit. Le masquage reste voulu, mais seulement sous `sm:`
     // (spec § 4) et en `invisible` (pas `hidden`), pour que la place réservée
     // garde les barres alignées au bureau comme au téléphone.
+    // Jeu tenu sur une seule année civile : un jeu à cheval sur deux années
+    // ferait intervenir le remplacement forcé du masquage par le libellé
+    // d'année (#650, cf. le test dédié plus bas), hors de ce que ce test
+    // vérifie ici.
     const byMonth = {
-      "2025-09": 1, "2025-10": 2, "2025-11": 3, "2025-12": 4,
-      "2026-01": 5, "2026-02": 6,
+      "2026-01": 1, "2026-02": 2, "2026-03": 3, "2026-04": 4,
+      "2026-05": 5, "2026-06": 6,
     };
     const { container } = render(<MonthlyTrend byMonth={byMonth} />);
     const labels = [...container.querySelectorAll("[data-month-label]")] as HTMLElement[];
@@ -83,6 +87,49 @@ describe("MonthlyTrend", () => {
     render(<MonthlyTrend byMonth={{ "2026-01": 7, "2026-02": 20 }} />);
     expect(screen.getByRole("img")).toHaveAccessibleName(
       "Activité mensuelle : janv 7, févr 20.",
+    );
+  });
+
+  it("affiche l'année sur le premier mois et au changement d'année quand les 12 derniers mois chevauchent deux années civiles (#650)", () => {
+    // Régression : `formatMonthShort` n'affichait que le mois abrégé, jamais
+    // l'année — deux mois de même nom (ex: "janv") mais d'années différentes
+    // devenaient indiscernables dès que la fenêtre glissante de 12 mois
+    // chevauchait le nouvel an.
+    const byMonth = {
+      "2025-09": 1, "2025-10": 2, "2025-11": 3, "2025-12": 4,
+      "2026-01": 5, "2026-02": 6,
+    };
+    const { container } = render(<MonthlyTrend byMonth={byMonth} />);
+    const labelEls = [...container.querySelectorAll("[data-month-label]")] as HTMLElement[];
+    expect(labelEls.map((label) => label.textContent)).toEqual([
+      "sept 2025", "oct", "nov", "déc", "janv 2026", "févr",
+    ]);
+
+    // Un libellé qui porte l'année reste visible même sous `sm:` : c'est sur
+    // téléphone, carte compacte, que la désambiguïsation compte le plus — le
+    // masquage un-mois-sur-deux (#480) ne doit jamais retomber sur lui, sans
+    // quoi il réintroduirait l'ambiguïté que #650 corrige.
+    expect(labelEls[0].classList.contains("max-sm:invisible")).toBe(false);
+    expect(labelEls[4].classList.contains("max-sm:invisible")).toBe(false);
+  });
+
+  it("n'affiche jamais l'année quand les mois visibles tiennent dans une seule année civile", () => {
+    const byMonth = { "2026-01": 7, "2026-02": 20, "2026-03": 3 };
+    const { container } = render(<MonthlyTrend byMonth={byMonth} />);
+    const labels = [...container.querySelectorAll("[data-month-label]")].map(
+      (label) => label.textContent,
+    );
+    expect(labels).toEqual(["janv", "févr", "mars"]);
+  });
+
+  it("porte l'année dans le résumé accessible quand les mois chevauchent deux années civiles (#650)", () => {
+    const byMonth = {
+      "2025-09": 1, "2025-10": 2, "2025-11": 3, "2025-12": 4,
+      "2026-01": 5, "2026-02": 6,
+    };
+    render(<MonthlyTrend byMonth={byMonth} />);
+    expect(screen.getByRole("img")).toHaveAccessibleName(
+      "Activité mensuelle : sept 2025 1, oct 2, nov 3, déc 4, janv 2026 5, févr 6.",
     );
   });
 
