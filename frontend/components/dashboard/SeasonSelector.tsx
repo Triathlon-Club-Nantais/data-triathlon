@@ -1,6 +1,6 @@
 "use client";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { captureEvent } from "@/lib/posthog";
 import type { Season } from "@/lib/types";
 import { Badge } from "@/components/tcn";
@@ -50,6 +50,15 @@ function useSelectedSeasons(): number[] {
  * du déclencheur, elles élargissaient la barre au point de la faire passer
  * sous le titre, tout à gauche — les boutons de sélection changeaient donc de
  * place à la deuxième saison cochée.
+ *
+ * Choisir une saison **remplace** la sélection par défaut (boutons radio) :
+ * avant #694, chaque case cochait en plus de la sélection déjà en place, donc
+ * choisir une saison passée sans décocher d'abord la saison en cours (cochée
+ * par défaut) envoyait les deux au serveur — l'union dominée par la saison en
+ * cours donnait l'impression que le choix était ignoré. Le mode comparaison
+ * (case « Comparer plusieurs saisons ») rouvre le comportement additif pour
+ * qui veut vraiment plusieurs saisons à la fois ; il s'active seul quand
+ * l'URL en porte déjà plusieurs.
  */
 export function SeasonSelector({ seasons }: { seasons: Season[] }) {
   const router = useRouter();
@@ -57,10 +66,16 @@ export function SeasonSelector({ seasons }: { seasons: Season[] }) {
   const scope = useSearchParams().get("scope") ?? undefined;
   const [pending, startTransition] = useTransition();
   const selected = useSelectedSeasons();
+  const [compare, setCompare] = useState(selected.length > 1);
 
   function apply(next: number[]) {
     captureEvent("season_changed", { season_count: next.length, seasons: next });
     startTransition(() => router.push(buildSeasonsHref(next, scope, pathname)));
+  }
+
+  function toggleCompare(next: boolean) {
+    setCompare(next);
+    if (!next) apply([selected[0] ?? currentSeason()]);
   }
 
   return (
@@ -111,9 +126,12 @@ export function SeasonSelector({ seasons }: { seasons: Season[] }) {
                 }}
               >
                 <input
-                  type="checkbox"
+                  type={compare ? "checkbox" : "radio"}
+                  name={compare ? undefined : "season"}
                   checked={checked}
-                  onChange={() => apply(toggleSeason(selected, s.start_year))}
+                  onChange={() =>
+                    apply(compare ? toggleSeason(selected, s.start_year) : [s.start_year])
+                  }
                 />
                 <span style={{ flex: 1 }}>{s.label}</span>
                 <span style={{ color: "var(--tcn-text-faint)", fontSize: 12 }}>
@@ -123,6 +141,26 @@ export function SeasonSelector({ seasons }: { seasons: Season[] }) {
             );
           })}
         </div>
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "6px 8px",
+            borderRadius: 8,
+            cursor: "pointer",
+            fontSize: 13,
+            color: "var(--tcn-text-faint)",
+            borderTop: "1px solid var(--tcn-border)",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={compare}
+            onChange={(e) => toggleCompare(e.target.checked)}
+          />
+          Comparer plusieurs saisons
+        </label>
       </PopoverContent>
     </Popover>
   );

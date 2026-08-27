@@ -8,15 +8,17 @@ import type { Season } from "@/lib/types";
 // plusieurs saisons sélectionnées, donc `?seasons=` doit pouvoir varier d'un
 // test à l'autre.
 const url = vi.hoisted(() => ({ qs: "" }));
+const push = vi.hoisted(() => vi.fn());
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push }),
   usePathname: () => "/dashboard",
   useSearchParams: () => new URLSearchParams(url.qs),
 }));
 
 beforeEach(() => {
   url.qs = "";
+  push.mockClear();
 });
 
 const CS = currentSeason();
@@ -80,6 +82,71 @@ describe("SeasonSelector", () => {
     render(<SeasonSelector seasons={SEASONS} />);
     const declencheur = screen.getByLabelText("Choisir les saisons");
     expect(Number.parseInt(declencheur.style.minHeight, 10)).toBeGreaterThanOrEqual(28);
+  });
+});
+
+describe("SeasonSelector — sélection exclusive par défaut (#694)", () => {
+  it("choisir une saison passée remplace la sélection au lieu de l'ajouter à la saison en cours", () => {
+    // Avant #694 : cocher 2023 sans mode comparaison envoyait
+    // `?seasons=<CS>,2023` (union avec la saison en cours déjà cochée par
+    // défaut), pas `?seasons=2023` seul.
+    render(<SeasonSelector seasons={SEASONS} />);
+    fireEvent.click(screen.getByLabelText("Choisir les saisons"));
+    fireEvent.click(screen.getByLabelText("Saison 2023 — 2024", { exact: false }));
+
+    expect(push).toHaveBeenCalledWith("/dashboard?seasons=2023");
+  });
+
+  it("les saisons sont des boutons radio hors mode comparaison — un seul choix possible", () => {
+    render(<SeasonSelector seasons={SEASONS} />);
+    fireEvent.click(screen.getByLabelText("Choisir les saisons"));
+
+    for (const s of SEASONS) {
+      expect(screen.getByLabelText(s.label, { exact: false })).toHaveAttribute("type", "radio");
+    }
+  });
+
+  it("le mode comparaison est désactivé par défaut quand une seule saison est sélectionnée", () => {
+    render(<SeasonSelector seasons={SEASONS} />);
+    fireEvent.click(screen.getByLabelText("Choisir les saisons"));
+
+    expect(screen.getByLabelText("Comparer plusieurs saisons")).not.toBeChecked();
+  });
+
+  it("activer le mode comparaison bascule les saisons en cases à cocher, additives", () => {
+    render(<SeasonSelector seasons={SEASONS} />);
+    fireEvent.click(screen.getByLabelText("Choisir les saisons"));
+    fireEvent.click(screen.getByLabelText("Comparer plusieurs saisons"));
+
+    for (const s of SEASONS) {
+      expect(screen.getByLabelText(s.label, { exact: false })).toHaveAttribute("type", "checkbox");
+    }
+
+    fireEvent.click(screen.getByLabelText("Saison 2023 — 2024", { exact: false }));
+    expect(push).toHaveBeenCalledWith(`/dashboard?seasons=${CS}%2C2023`);
+  });
+
+  it("le mode comparaison s'active automatiquement si l'URL porte déjà plusieurs saisons", () => {
+    url.qs = `seasons=${CS},2023`;
+    render(<SeasonSelector seasons={SEASONS} />);
+    fireEvent.click(screen.getByLabelText("Choisir les saisons"));
+
+    expect(screen.getByLabelText("Comparer plusieurs saisons")).toBeChecked();
+    expect(screen.getByLabelText(SEASONS[0].label, { exact: false })).toHaveAttribute(
+      "type",
+      "checkbox",
+    );
+  });
+
+  it("désactiver le mode comparaison réduit la sélection à sa première saison", () => {
+    url.qs = `seasons=${CS},2023`;
+    render(<SeasonSelector seasons={SEASONS} />);
+    fireEvent.click(screen.getByLabelText("Choisir les saisons"));
+    fireEvent.click(screen.getByLabelText("Comparer plusieurs saisons"));
+
+    // Première saison retenue = la saison en cours (URL `seasons=${CS},2023`) :
+    // c'est aussi le défaut, donc `buildSeasonsHref` omet `?seasons=`.
+    expect(push).toHaveBeenCalledWith("/dashboard");
   });
 });
 
