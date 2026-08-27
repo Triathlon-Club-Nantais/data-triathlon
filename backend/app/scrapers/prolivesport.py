@@ -405,6 +405,11 @@ def _lignes_par_course(
       (comportement mesuré de la source) : elle est réutilisée pour toutes les
       autres courses, plutôt que de redemander N fois 14,7 Mo.
 
+    Une course déjà **couverte par sa propre requête directe** ignore les
+    lignes qui la concernent si elles resurgissent dans une réponse « événement
+    entier » tardive d'une autre course — sans quoi ses lignes seraient
+    comptées deux fois (#673).
+
     `on_heat_start` est notifié pour **chaque** course à scraper, y compris celles
     servies par une réponse déjà en main : la progression compte les courses
     importées, pas les requêtes émises. Un échec est isolé sur sa course.
