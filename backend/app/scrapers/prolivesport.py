@@ -433,7 +433,7 @@ def _lignes_par_course(
         for ligne in reponse:
             code = (ligne.get("race") or "").strip()
             vues.add(code)
-            if code in attendues:
+            if code in attendues and code not in couvertes:
                 lignes.setdefault(code, []).append(ligne)
         couvertes.update(courses if vues - {race} else {race})
 
