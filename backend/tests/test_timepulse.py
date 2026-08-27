@@ -388,6 +388,38 @@ def test_scrape_event_all_event_type_from_parcours(monkeypatch):
     assert by_bib["40"].event_type == "triathlon"  # repli nom global
 
 
+def test_scrape_event_all_qualifies_name_when_parcours_share_event_type(monkeypatch):
+    """Deux parcours distincts partageant le même event_type ne fusionnent pas
+    en une seule Course (issue #674).
+
+    Cas réel (épreuve 3201 « Trail + Run and Bike du Bignon ») : Trail 9 km,
+    16 km et 25 km sont trois parcours distincts, tous classés `trail`.
+    `course_repository.get_or_create` ne clé son identité que sur
+    `(name, event_date, event_type, is_relay)` — sans qualification par
+    parcours, les deux fusionneraient en une seule Course dont les rangs
+    (calculés par parcours en amont) se dupliqueraient.
+    """
+    xml = make_xml(
+        athletes=[
+            ("10", "ALPHA Jean", "SEH", "M", "Trail 9 km"),
+            ("20", "BETA Marie", "SEF", "F", "Trail 16 km"),
+        ],
+        results=[
+            ("10", "01:00:00", {}),
+            ("20", "02:00:00", {}),
+        ],
+        event_name="Trail + Run and Bike du Bignon",
+    )
+    monkeypatch.setattr("app.scrapers.timepulse._fetch_xml", lambda _id: xml)
+
+    results = scrape_event_all("https://www.timepulse.fr/resultats/3201")
+    by_bib = {r.bib_number: r for r in results}
+
+    assert by_bib["10"].event_type == by_bib["20"].event_type == "trail"
+    assert by_bib["10"].event_name == "Trail + Run and Bike du Bignon - Trail 9 km"
+    assert by_bib["20"].event_name == "Trail + Run and Bike du Bignon - Trail 16 km"
+
+
 def test_scrape_event_all_event_date_falls_back_to_dt1(monkeypatch):
     """Épreuve sans attribut `dates` mais avec `dt1` (cas réel 3232 « LE NORTH MAY »).
 
@@ -600,5 +632,5 @@ def test_scrape_event_all_racine_epreuve_sans_wrapper(monkeypatch):
 
     results = scrape_event_all("https://www.timepulse.fr/epreuves/resultats/3232")
 
-    assert results[0].event_name == "LE NORTH MAY"
+    assert results[0].event_name == "LE NORTH MAY - Triathlon S SOLO"
     assert results[0].total_time == "01:00:00"
