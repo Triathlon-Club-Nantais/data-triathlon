@@ -2,6 +2,7 @@ import { scaleLinear } from "d3-scale";
 import { line as d3Line, curveLinear } from "d3-shape";
 import type { ProgressionPoint } from "@/lib/utils/ranking";
 import { formatDate } from "@/lib/utils/date";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // Système de coordonnées horizontal seulement : le SVG s'étire à la largeur
 // disponible (`preserveAspectRatio="none"`), une abscisse ne vaut donc qu'en
@@ -38,9 +39,12 @@ const MIN_POINTS = 3;
 export function ProgressionChart({ points }: { points: ProgressionPoint[] }) {
   if (points.length < MIN_POINTS) {
     return (
-      <p className="py-8 text-center text-sm text-[var(--tcn-text-faint)]">
-        Pas encore assez d&apos;épreuves pour tracer une progression (3 minimum).
-      </p>
+      <EmptyState
+        bare
+        className="px-0 py-8"
+        title="Pas encore assez d'épreuves"
+        description="Trois épreuves classées sont nécessaires pour tracer une progression — encore un peu de patience."
+      />
     );
   }
 
@@ -178,8 +182,31 @@ export function ProgressionChart({ points }: { points: ProgressionPoint[] }) {
                 whiteSpace: "nowrap",
               }}
             >
-              {formatDate(p.eventDate)}
-              <b style={{ display: "block", fontSize: 12, lineHeight: "15px", color: "var(--tcn-ink)" }}>
+              {/* `overflow: hidden` + ellipse sur chaque ligne, jamais sur la
+                  rangée : au-delà d'une poignée de points la boîte
+                  (`100% / N`) devient plus étroite que le texte, et sans
+                  cette protection il déborde dans les colonnes voisines —
+                  exactement le défaut déjà qualifié de bloquant sur
+                  `RankingEvolutionChart` (#480, RESP-2, revue UI/UX). */}
+              <span
+                style={{
+                  display: "block",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {formatDate(p.eventDate)}
+              </span>
+              <b
+                style={{
+                  display: "block",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  fontSize: 12,
+                  lineHeight: "15px",
+                  color: "var(--tcn-ink)",
+                }}
+              >
                 Top {p.percent} %
               </b>
             </span>
