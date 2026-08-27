@@ -42,6 +42,7 @@ function BarRow({ name, seconds, maxSeconds, color }: { name: string; seconds: n
           whiteSpace: "nowrap",
         }}
         title={name}
+        aria-label={name}
       >
         {name}
       </span>
@@ -49,7 +50,7 @@ function BarRow({ name, seconds, maxSeconds, color }: { name: string; seconds: n
         style={{
           height: BAR_HEIGHT,
           borderRadius: 4,
-          background: "var(--tcn-border-faint)",
+          border: "1px solid var(--tcn-border-input)",
           position: "relative",
           overflow: "hidden",
         }}
@@ -126,7 +127,11 @@ export function AthleteComparisonResult({
         const mineSeconds = r.mineSeconds ?? 0;
         const theirsSeconds = r.theirsSeconds ?? 0;
         return (
-          <div key={r.courseId}>
+          // `role="group"` + `aria-label` restitue le regroupement que portait
+          // implicitement le `<li>` de la liste `sr-only` retirée avec le SVG :
+          // sans lui, un lecteur d'écran perd le repère « une épreuve = un
+          // groupe » entre deux paires de barres (revue UI/UX de #689).
+          <div key={r.courseId} role="group" aria-label={r.courseName}>
             <div style={{ marginBottom: 6 }}>
               <span style={{ fontSize: 14, fontWeight: 600, color: "var(--tcn-ink)" }}>{r.courseName}</span>
               {r.eventDate && (
