@@ -257,6 +257,27 @@ def test_parse_detail_km_checkpoint_does_not_shadow_section_summary():
     assert raw["split_cap km 14"] == "00:38:00"
 
 
+def test_parse_detail_km_checkpoint_alone_leaves_slot_empty():
+    """
+    Si la ligne récapitulative de section manque vraiment (pas encore postée,
+    pas seulement en retard sur le pointage), le pointage kilométrique ne doit
+    JAMAIS combler le slot principal à sa place : un slot vide est un signal
+    honnête d'absence de donnée, un temps partiel serait trompeur (#678).
+    """
+    splits = [
+        ("Natation", "00:15:00"),
+        ("T1", "00:02:30"),
+        ("Vélo km 85", "00:58:00"),   # seul pointage vélo présent — pas de "Vélo"
+    ]
+    html = make_detail_html(total_time="01:16:00", splits=splits)
+    result, raw = fresh_result()
+
+    _parse_detail(html, result, raw)
+
+    assert result.bike_time == ""
+    assert raw["split_vélo km 85"] == "00:58:00"
+
+
 def test_parse_detail_run_derived_when_cumulative_and_absent():
     """
     Cas Lacanau sans ligne run : le run est déduit de total - dernier segment mappé.
