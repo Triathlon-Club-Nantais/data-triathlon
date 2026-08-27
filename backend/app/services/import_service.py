@@ -763,21 +763,21 @@ def _renumber_relay_split_ranks(results: list[ScrapedResult]) -> None:
     local par heat n'est pas concernée, et y toucher serait sans effet — tri
     stable sur le rang d'origine, donc déjà 1..N ne change pas.
     """
-    groups: dict[tuple, dict[bool, list[ScrapedResult]]] = {}
+    groups: dict[tuple[str, object, str], dict[bool, list[ScrapedResult]]] = {}
     for scraped in results:
-        cle = (scraped.event_name, scraped.event_date, scraped.event_type)
-        groups.setdefault(cle, {}).setdefault(bool(scraped.is_relay), []).append(scraped)
+        key = (scraped.event_name, scraped.event_date, scraped.event_type)
+        groups.setdefault(key, {}).setdefault(bool(scraped.is_relay), []).append(scraped)
 
-    for par_relay in groups.values():
-        if len(par_relay) < 2:
+    for by_relay in groups.values():
+        if len(by_relay) < 2:
             continue  # pas de scission is_relay pour cette épreuve dans ce lot
-        for sous_groupe in par_relay.values():
-            classes = sorted(
-                (r for r in sous_groupe if r.rank_overall is not None),
+        for subgroup in by_relay.values():
+            ranked = sorted(
+                (r for r in subgroup if r.rank_overall is not None),
                 key=lambda r: r.rank_overall,
             )
-            for rang_local, scraped in enumerate(classes, start=1):
-                scraped.rank_overall = rang_local
+            for local_rank, scraped in enumerate(ranked, start=1):
+                scraped.rank_overall = local_rank
 
 
 def persist_results(db: Session, url: str, results: list[ScrapedResult]) -> dict:
