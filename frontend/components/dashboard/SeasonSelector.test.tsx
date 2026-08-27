@@ -148,6 +148,35 @@ describe("SeasonSelector — sélection exclusive par défaut (#694)", () => {
     // c'est aussi le défaut, donc `buildSeasonsHref` omet `?seasons=`.
     expect(push).toHaveBeenCalledWith("/dashboard");
   });
+
+  it("décocher la dernière saison en mode comparaison retombe sur la saison en cours (comportement assumé, hors #694)", () => {
+    render(<SeasonSelector seasons={SEASONS} />);
+    fireEvent.click(screen.getByLabelText("Choisir les saisons"));
+    fireEvent.click(screen.getByLabelText("Comparer plusieurs saisons"));
+    // Seule saison cochée par défaut : la saison en cours.
+    fireEvent.click(screen.getByLabelText(SEASONS[0].label, { exact: false }));
+
+    expect(push).toHaveBeenCalledWith("/dashboard");
+  });
+
+  it("le mode comparaison se resynchronise sur l'URL lors d'une navigation sans démontage (retour navigateur)", () => {
+    // Une navigation arrière/avant change l'URL sans démonter le composant,
+    // contrairement à un premier rendu : `compare` doit suivre `seasons`
+    // plutôt que de rester figé sur l'état d'avant la navigation.
+    url.qs = `seasons=${CS},2023`;
+    const { rerender } = render(<SeasonSelector seasons={SEASONS} />);
+    fireEvent.click(screen.getByLabelText("Choisir les saisons"));
+    expect(screen.getByLabelText("Comparer plusieurs saisons")).toBeChecked();
+
+    url.qs = "seasons=2023";
+    rerender(<SeasonSelector seasons={SEASONS} />);
+
+    expect(screen.getByLabelText("Comparer plusieurs saisons")).not.toBeChecked();
+    expect(screen.getByLabelText(SEASONS[1].label, { exact: false })).toHaveAttribute(
+      "type",
+      "radio",
+    );
+  });
 });
 
 describe("SeasonSelector — le déclencheur ne porte plus les tags (#445)", () => {

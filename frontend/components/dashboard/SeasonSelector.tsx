@@ -63,18 +63,39 @@ function useSelectedSeasons(): number[] {
 export function SeasonSelector({ seasons }: { seasons: Season[] }) {
   const router = useRouter();
   const pathname = usePathname();
-  const scope = useSearchParams().get("scope") ?? undefined;
+  const searchParams = useSearchParams();
+  const scope = searchParams.get("scope") ?? undefined;
+  const seasonsParam = searchParams.get("seasons");
   const [pending, startTransition] = useTransition();
   const selected = useSelectedSeasons();
-  const [compare, setCompare] = useState(selected.length > 1);
+
+  // Le mode comparaison suit l'URL par défaut ; `compareOverride` ne porte que
+  // le choix explicite de l'utilisateur, et se réinitialise dès que
+  // `seasonsParam` change (schéma React « ajuster un état pendant le rendu » —
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes).
+  // Une navigation arrière/avant change `seasonsParam` sans démonter le
+  // composant, contrairement à un premier rendu : sans cette réinitialisation,
+  // `compare` resterait figé sur l'état d'avant la navigation, en désaccord
+  // avec la sélection que l'URL affiche désormais — même défaut de source de
+  // vérité que #694, à un autre endroit.
+  const [prevSeasonsParam, setPrevSeasonsParam] = useState(seasonsParam);
+  const [compareOverride, setCompareOverride] = useState<boolean | null>(null);
+  if (seasonsParam !== prevSeasonsParam) {
+    setPrevSeasonsParam(seasonsParam);
+    setCompareOverride(null);
+  }
+  const compare = compareOverride ?? selected.length > 1;
 
   function apply(next: number[]) {
     captureEvent("season_changed", { season_count: next.length, seasons: next });
     startTransition(() => router.push(buildSeasonsHref(next, scope, pathname)));
   }
 
+  // Repli sur la première saison retenue, pas sur la saison en cours : quitter
+  // le mode comparaison doit garder la saison que l'utilisateur regardait,
+  // pas la remplacer par une troisième valeur qu'il n'a pas choisie.
   function toggleCompare(next: boolean) {
-    setCompare(next);
+    setCompareOverride(next);
     if (!next) apply([selected[0] ?? currentSeason()]);
   }
 
