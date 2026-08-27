@@ -144,6 +144,60 @@ def test_parse_detail_no_splits():
     assert raw.get("cumulative") is False
 
 
+# ── #676 — « temps réel » prime sur « Temps Officiel » pour total_time ───────
+
+def test_parse_detail_temps_reel_overrides_temps_officiel():
+    """Épreuve à vagues de départ (MEDOC Carcans, #676) : « Temps Officiel »
+    porte le chrono canon (décalé par la vague), « temps réel » le chrono net
+    — celui auquel collent les splits. total_time doit suivre les splits.
+    """
+    html = make_detail_html(
+        total_time="04:53:12",  # « Temps Officiel », jamais retenu ici
+        splits=[
+            ("Natation", "00:37:11"),
+            ("T1", "00:04:34"),
+            ("Vélo", "02:25:54"),
+            ("T2", "00:02:33"),
+            ("CAP", "01:37:24"),
+            ("temps réel", "04:47:36"),
+        ],
+    )
+    result, raw = fresh_result()
+
+    _parse_detail(html, result, raw)
+
+    assert result.total_time == "04:47:36"
+
+
+def test_parse_detail_temps_officiel_is_fallback_without_temps_reel():
+    """Sans ligne « temps réel » (cas courant, épreuve à vague unique) : le
+    repli « Temps Officiel » reste utilisé — non-régression du comportement
+    existant."""
+    html = make_detail_html(
+        total_time="01:15:00",
+        splits=[("Natation", "00:20:00"), ("Vélo", "00:40:00"), ("CAP", "00:15:00")],
+    )
+    result, raw = fresh_result()
+
+    _parse_detail(html, result, raw)
+
+    assert result.total_time == "01:15:00"
+
+
+def test_parse_detail_temps_reel_zero_does_not_clear_total_time():
+    """Un « temps réel » à 00:00:00 (non-finisher) ne doit pas effacer un
+    total_time valide déjà posé par « Temps Officiel »."""
+    html = make_detail_html(
+        total_time="01:15:00",
+        splits=[("temps réel", "00:00:00")],
+    )
+    result, raw = fresh_result()
+
+    _parse_detail(html, result, raw)
+
+    assert result.total_time == "01:15:00"
+
+
 # ── Domino : "Chg Nat." → t1, "Chg Vé." → t2 ─────────────────────────────────
 
 def test_parse_detail_chg_nat_velo():
