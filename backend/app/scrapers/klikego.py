@@ -69,6 +69,14 @@ def _detect_heat(event_id: str, client: httpx.Client) -> str:
     return heat
 
 
+#: Pointage kilométrique intermédiaire ("Vélo km 85", "CAP km 14", "KM42") — à
+#: distinguer de la ligne récapitulative de section ("Vélo", "Cap"). Le
+#: split_map de `_parse_detail` route par sous-chaîne ("vélo" ⊂ "vélo km 85"),
+#: donc sans cette garde un pointage matche le même champ que la vraie section
+#: et peut s'y substituer si la ligne récap n'est pas encore postée (#678).
+_RE_KM_CHECKPOINT = re.compile(r"\bkm\.?\s*\d+")
+
+
 def _parse_detail(html: str, result: ScrapedResult, raw: dict):
     soup = BeautifulSoup(html, "lxml")
     raw["detail_html"] = html[:500]
@@ -190,10 +198,11 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
             continue
 
         field: str | None = None
-        for key, f in split_map:
-            if key in stage:
-                field = f
-                break
+        if not _RE_KM_CHECKPOINT.search(stage):
+            for key, f in split_map:
+                if key in stage:
+                    field = f
+                    break
         splits_raw.append((stage, time_norm, field))
 
     # --- Detect cumulative times ---

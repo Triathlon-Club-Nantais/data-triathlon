@@ -224,6 +224,39 @@ def test_parse_detail_not_cumulative():
     assert result.run_time  == "00:40:00"
 
 
+def test_parse_detail_km_checkpoint_does_not_shadow_section_summary():
+    """
+    Course 295 (#678) : un pointage kilométrique intermédiaire ("Vélo km 85")
+    apparaît AVANT la ligne récapitulative "Vélo" dans le tableau détail
+    (résultats en cours de finalisation, la ligne récap n'est pas encore
+    postée). Le split_map d'origine matche les deux lignes par sous-chaîne
+    ("vélo" ⊂ "vélo km 85"), et en mode non cumulatif la règle "premier
+    arrivé, premier servi" de _set() figeait alors le temps partiel du
+    pointage comme bike_time — la vraie ligne récapitulative n'écrivait plus
+    que dans raw["split_vélo"], silencieusement. Idem côté course à pied avec
+    "CAP km 14" / "Cap".
+    """
+    splits = [
+        ("Natation", "00:15:00"),
+        ("T1", "00:02:30"),
+        ("Vélo km 85", "00:58:00"),   # pointage intermédiaire — PAS la vraie section
+        ("Vélo", "01:00:00"),          # ligne récapitulative — doit gagner
+        ("T2", "00:02:30"),
+        ("CAP km 14", "00:38:00"),    # idem côté course à pied
+        ("Course à pied", "00:40:00"),
+    ]
+    html = make_detail_html(total_time="02:00:00", splits=splits)
+    result, raw = fresh_result()
+
+    _parse_detail(html, result, raw)
+
+    assert raw["cumulative"] is False
+    assert result.bike_time == "01:00:00"
+    assert result.run_time == "00:40:00"
+    assert raw["split_vélo km 85"] == "00:58:00"
+    assert raw["split_cap km 14"] == "00:38:00"
+
+
 def test_parse_detail_run_derived_when_cumulative_and_absent():
     """
     Cas Lacanau sans ligne run : le run est déduit de total - dernier segment mappé.
