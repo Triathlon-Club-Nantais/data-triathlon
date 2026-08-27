@@ -18,6 +18,10 @@ const VALUE_COL = "72px";
 const BAR_HEIGHT = 14;
 const GRID_COLS = `${LABEL_COL} 1fr ${VALUE_COL}`;
 
+// Zéro-paddée façon chrono (« 01:05:45 »), distincte de la durée compacte
+// « 1 h 05 min » de `formatDelta` (lib/utils/athlete-comparison.ts) : l'une
+// affiche un temps de course absolu, l'autre un écart entre deux temps — pas
+// le même besoin, donc pas la même forme ni le même appelant.
 function formatSeconds(sec: number): string {
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
@@ -133,17 +137,16 @@ export function AthleteComparisonResult({
             </div>
             <BarRow name="Vous" seconds={mineSeconds} maxSeconds={maxSeconds} color="var(--tcn-orange)" />
             <BarRow name={theirsName} seconds={theirsSeconds} maxSeconds={maxSeconds} color="var(--tcn-ink-3)" />
-            <p
-              style={{
-                marginTop: 4,
-                marginLeft: LABEL_COL,
-                fontSize: 12,
-                fontWeight: 600,
-                color: "var(--tcn-text-muted)",
-              }}
-            >
-              Écart : {formatDelta(mineSeconds, theirsSeconds)}
-            </p>
+            {/* Même grille que `BarRow` et le repère min/max ci-dessus (cellule de
+                gauche vide) plutôt qu'un `marginLeft: LABEL_COL` : ce dernier
+                ignorait le `gap` de la grille et désalignait l'écart de 8px par
+                rapport aux barres (revue de #689). */}
+            <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, gap: 8, marginTop: 4 }}>
+              <span />
+              <p style={{ fontSize: 12, fontWeight: 600, color: "var(--tcn-text-muted)" }}>
+                Écart : {formatDelta(mineSeconds, theirsSeconds)}
+              </p>
+            </div>
           </div>
         );
       })}
