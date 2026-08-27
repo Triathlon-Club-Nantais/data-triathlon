@@ -18,7 +18,7 @@ from bs4 import BeautifulSoup
 
 from app.core import http
 
-from .base import FanoutTrace, ScrapedResult
+from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, FanoutTrace, ScrapedResult
 from .classify import classify_event_type
 from .klikego_platform import heat_is_relay
 from .utils import (
@@ -73,6 +73,14 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
     soup = BeautifulSoup(html, "lxml")
     raw["detail_html"] = html[:500]
 
+    # #675 — un statut DNS/DNF/DSQ déjà posé en phase B (`_parse_search_row`,
+    # sur la liste de recherche) ne doit jamais être contredit par la page
+    # détail : on ignore ses rang/temps/splits plutôt que de reclasser le
+    # statut sur une page individuelle qui peut elle-même être incohérente
+    # (cf. issue). Garde étendue à toutes les écritures de cette fonction —
+    # elle n'existait jusqu'ici que pour le bloc « temps réel » ci-dessous.
+    status_already_set = result.status in (STATUS_DNS, STATUS_DNF, STATUS_DSQ)
+
     # Name + metadata line: "M - Dossard N°2141 - V1 - LE MANS TRIATHLON"
     meta_p = soup.select_one("p.text-sm")
     if meta_p:
@@ -114,7 +122,7 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
             val_div = div.find_next_sibling("div")
             if val_div:
                 t = normalize_time(val_div.get_text(strip=True))
-                if t and t != "00:00:00":
+                if t and t != "00:00:00" and not status_already_set:
                     result.total_time = t
 
         for label, field in rank_map.items():
@@ -123,7 +131,7 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
                 if val_div:
                     rank_text = val_div.get_text(strip=True)
                     m = re.match(r"(\d+)", rank_text)
-                    if m and int(m.group(1)) > 0:
+                    if m and int(m.group(1)) > 0 and not status_already_set:
                         rank = int(m.group(1))
                         if field == "overall":
                             result.rank_overall = rank
@@ -183,9 +191,11 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
 
         # "temps réel" row = total time reported by timing system, not a split.
         # Garde symétrique au bloc « Temps Officiel » : un 00:00:00 (non-finisher
-        # DNS) ne doit pas ressusciter un total_time vidé en amont par le statut.
+        # DNS) ne doit pas ressusciter un total_time vidé en amont par le statut —
+        # et `status_already_set` couvre aussi le cas où la page détail publie ici
+        # une valeur non nulle malgré un DNS/DNF/DSQ déjà posé (#675).
         if "temps" in stage and "réel" in stage:
-            if not result.total_time and time_norm and time_norm != "00:00:00":
+            if not status_already_set and not result.total_time and time_norm and time_norm != "00:00:00":
                 result.total_time = time_norm
             continue
 
@@ -210,6 +220,11 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
     prev_secs = 0
     last_mapped_secs = 0
     for stage, time_norm, field in splits_raw:
+        # #675 — statut DNS/DNF/DSQ déjà posé en phase B : la page détail ne
+        # doit pas lui attribuer de splits, même non nuls.
+        if status_already_set:
+            continue
+
         secs = to_seconds(time_norm)
 
         if is_cumulative and secs > 0:

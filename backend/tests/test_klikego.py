@@ -1291,6 +1291,35 @@ def test_parse_detail_ignores_zero_placeholders():
     assert r.rank_overall is None    # le rang 0 est ignoré
 
 
+def test_parse_detail_does_not_overwrite_dns_participant():
+    """#675 — un statut DNS/DNF/DSQ déjà posé en phase B (`_parse_search_row`)
+    ne doit pas être ressuscité par des valeurs non nulles de la page détail.
+
+    Cas réel (Mesquer-Quimiac 2026, dossard 33) : la liste de recherche classe
+    le participant "DNS", mais sa page détail publie un rang, un temps total et
+    un split natation non nuls — ces trois champs doivent rester vides.
+    """
+    ranks = [("Classement général", "85 / 150")]
+    splits = [
+        ("Natation", "00:58:57"),
+        ("T1", "00:00:57"),
+        ("Vélo", "00:00:00"),
+        ("T2", "00:00:00"),
+        ("Course à pied", "00:00:00"),
+    ]
+    html = make_detail_html(total_time="01:22:43", ranks=ranks, splits=splits)
+    result, raw = fresh_result()
+    result.status = "DNS"
+
+    _parse_detail(html, result, raw)
+
+    assert result.status == "DNS"
+    assert result.total_time == ""
+    assert result.rank_overall is None
+    assert result.swim_time == ""
+    assert result.t1_time == ""
+
+
 def test_scrape_event_all_tcn_detail_overrides_inter_splits(monkeypatch):
     """Phase C : les splits fins de la page détail priment sur les splits inter pré-remplis.
 
