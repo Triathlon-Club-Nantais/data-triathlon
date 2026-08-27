@@ -107,3 +107,55 @@ def test_ordre_relatif_du_rang_source_preserve_apres_renumerotation(db_session, 
     # l'ordre du rang combiné d'origine prime sur l'ordre d'arrivée du scrape.
     assert rows["R1"] == 1
     assert rows["R2"] == 2
+
+
+def test_sans_scission_dans_le_lot_le_rang_source_est_conserve(db_session, patch_scraper):
+    """Garde-fou : un lot qui ne publie qu'une seule valeur `is_relay` pour
+    l'épreuve n'est pas touché — rien n'indique une scission par champ
+    combiné dans **ce** lot (ex. re-scrape d'un seul heat relais). Renuméroter
+    quand même corromprait un classement qui n'a peut-être aucun rapport avec
+    un champ combiné."""
+    patch_scraper(
+        [
+            _result("R1", 597, is_relay=True),
+            _result("R2", 598, is_relay=True),
+            _result("R3", 599, is_relay=True),
+        ]
+    )
+    import_service.import_event(db_session, URL, _settings())
+
+    relais = course_repository.get_by_identity(db_session, NOM, JOUR, TYPE, True)
+    ranks = sorted(
+        p.rank_overall
+        for p in participation_repository.list_for_course(db_session, relais.id)
+    )
+    assert ranks == [597, 598, 599]
+
+
+def test_lot_deja_scinde_et_numerote_localement_reste_inchange(db_session, patch_scraper):
+    """Sécurité : quand chaque sous-groupe `is_relay` du lot est déjà classé
+    localement en 1..N (ex. deux heats de la source, déjà distincts), la
+    renumérotation ne change rien — tri stable sur un rang déjà 1..N."""
+    patch_scraper(
+        [
+            _result("1", 1, is_relay=False),
+            _result("2", 2, is_relay=False),
+            _result("R1", 1, is_relay=True),
+            _result("R2", 2, is_relay=True),
+        ]
+    )
+    import_service.import_event(db_session, URL, _settings())
+
+    solo = course_repository.get_by_identity(db_session, NOM, JOUR, TYPE, False)
+    relais = course_repository.get_by_identity(db_session, NOM, JOUR, TYPE, True)
+
+    ranks_solo = {
+        p.bib_number: p.rank_overall
+        for p in participation_repository.list_for_course(db_session, solo.id)
+    }
+    ranks_relais = {
+        p.bib_number: p.rank_overall
+        for p in participation_repository.list_for_course(db_session, relais.id)
+    }
+    assert ranks_solo == {"1": 1, "2": 2}
+    assert ranks_relais == {"R1": 1, "R2": 2}
