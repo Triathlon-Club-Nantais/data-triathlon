@@ -22,7 +22,11 @@ export function Input({
   containerStyle?: CSSProperties;
 } & Omit<InputHTMLAttributes<HTMLInputElement>, "style">) {
   const statusBorders: Record<string, string> = {
-    default: "var(--tcn-border)",
+    // `--tcn-border` ne vaut que 1,10:1 sur le `--tcn-fill` du champ — un
+    // contour de composant illisible (WCAG 1.4.11, #652). `--tcn-text-faint`
+    // est déjà le premier jeton de bordure à passer 3:1 sur ce même fond
+    // (`ParticipationAdminActions`, #439).
+    default: "var(--tcn-text-faint)",
     error: "var(--tcn-danger-border)",
     warning: "var(--tcn-warning-border)",
     active: "var(--tcn-orange)",
