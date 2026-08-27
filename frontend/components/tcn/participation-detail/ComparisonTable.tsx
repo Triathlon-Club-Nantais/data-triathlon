@@ -15,6 +15,16 @@ const TOTAL_KEY = "total";
 // capture rien du scope du composant.
 const classeColonne = (small?: boolean) => (small ? "hidden sm:table-cell" : undefined);
 
+// #657 : les pourcentages n'indiquaient à aucun endroit à quoi ils se
+// comparaient. Un `title` natif suffit ici — ce sont des cellules de texte
+// inertes, pas des commandes qu'il faudrait rendre focalisables au clavier.
+const TITRE_POSITION =
+  "Position de référence au classement scratch, à laquelle votre temps est comparé.";
+const titreSegment = (label: string) =>
+  `Votre temps sur ${label.toLowerCase()}, en pourcentage du temps de l'athlète à cette position (100 % = temps identique, plus de 100 % = plus lent).`;
+const TITRE_TOTAL =
+  "Votre temps sur l'ensemble de la course, en pourcentage du temps de l'athlète à cette position (100 % = temps identique, plus de 100 % = plus lent).";
+
 /**
  * Comparaison de l'athlète aux positions de référence du classement scratch.
  *
@@ -42,17 +52,22 @@ export function ComparisonTable({
           <tr>
             {/* Largeur fixe : sans elle, la colonne de position absorbe tout
                 l'espace que les colonnes de pourcentage n'occupent pas. */}
-            <th style={{ ...headStyle, width: 72, textAlign: "left" }}>Position</th>
+            <th style={{ ...headStyle, width: 72, textAlign: "left" }} title={TITRE_POSITION}>
+              Position
+            </th>
             {columns.map((column) => (
               <th
                 key={column.key}
                 className={classeColonne(column.small)}
                 style={{ ...headStyle, color: column.small ? "var(--tcn-text-faint)" : column.color }}
+                title={titreSegment(column.label)}
               >
                 {column.label}
               </th>
             ))}
-            <th style={headStyle}>Total</th>
+            <th style={headStyle} title={TITRE_TOTAL}>
+              Total
+            </th>
           </tr>
         </thead>
         <tbody>

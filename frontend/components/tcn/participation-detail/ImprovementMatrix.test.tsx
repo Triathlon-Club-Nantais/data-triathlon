@@ -90,4 +90,23 @@ describe("ImprovementMatrix", () => {
     // +18 est le gain à 10 % de la ligne `swim` de `ROWS`.
     expect(within(natation).getByText("+18").className).toContain("hidden sm:table-cell");
   });
+
+  // #657 : un pourcentage de palier n'indiquait pas à quoi il s'appliquait.
+  it("#657 : explique au survol ce que représente un palier de pourcentage", () => {
+    renderMatrix();
+
+    const palier = screen.getByRole("columnheader", { name: "5 %" });
+    expect(palier.title).toMatch(/5 % plus vite/i);
+    expect(palier.title).toMatch(/places gagnées/i);
+  });
+
+  it("#657 : explique au survol pourquoi une cellule affiche un point plutôt qu'un chiffre", () => {
+    renderMatrix([
+      { segment: "swim", gains: { "0.5": 0, "1": 2, "2": 4, "5": 10, "10": 18, "25": 39 } },
+    ]);
+
+    const natation = screen.getByRole("row", { name: /Natation/ });
+    const cellule = within(natation).getByText("·");
+    expect(cellule.title).toMatch(/aucune place gagnée/i);
+  });
 });
