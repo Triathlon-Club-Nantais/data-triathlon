@@ -1582,6 +1582,73 @@ def test_scrape_event_all_fetches_detail_for_non_tcn(monkeypatch):
     assert r182.run_time == "00:08:55"
 
 
+def test_scrape_event_all_reclasse_course_a_pied_en_triathlon_si_splits_complets(monkeypatch):
+    """#679 : un heat nommé « foulées » (branding de catégorie, pas la discipline)
+    se classe course-a-pied par le seul nom, mais si la page détail d'un
+    participant publie natation ET vélo — impossibles pour une vraie course à
+    pied — la phase C corrige event_type en triathlon.
+
+    Le bib 182 n'a pas de club et n'apparaît dans aucune recherche city= : sa
+    seule source de splits est la page détail (comme
+    `test_scrape_event_all_fetches_detail_for_non_tcn`).
+    """
+    page0 = (FIXTURES / "klikego_datablock_page0.html").read_text()
+
+    detail_182 = make_detail_html(
+        meta="F - Dossard N°182 - V3 - ST NAZAIRE",
+        total_time="01:14:35",
+        splits=[
+            ("Natation", "00:16:24"),
+            ("Vélo",     "00:31:00"),
+            ("Course",   "00:08:55"),
+        ],
+    )
+
+    class FakeResp:
+        def __init__(self, t, code=200): self.text, self.status_code = t, code
+
+    class FakeClient:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def get(self, url):
+            if "course-result.jsp" in url and "inter=&page=0" in url:
+                return FakeResp(page0)
+            if "course-result.jsp" in url:
+                return FakeResp("<html></html>")
+            if "resultats-search.jsp" in url:
+                return FakeResp("<html></html>")
+            if "resultat-participant.jsp" in url and "dossard=182" in url:
+                return FakeResp(detail_182)
+            if "resultat-participant.jsp" in url:  # autres bibs : détail sans splits
+                return FakeResp("<html></html>")
+            return FakeResp("<html></html>")
+
+    monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
+    monkeypatch.setattr(klikego, "_fetch_event_meta", lambda *a, **k: ("diaoul-foulees-open", None))
+
+    results = klikego.scrape_event_all(
+        "1488071608761-572", "diaoul-foulees-open",
+        "Diaoulman Pontivy 2026 — DIAOUL FOULEES OPEN", "diaoulman-pontivy-2026",
+    )
+
+    r182 = next(r for r in results if r.bib_number == "182")
+    assert r182.swim_time == "00:16:24"
+    assert r182.bike_time == "00:31:00"
+    assert r182.event_type == "triathlon", (
+        "Les splits scrapés (natation + vélo) doivent primer sur le libellé "
+        f"« foulées » et corriger event_type en triathlon (#679). "
+        f"event_type={r182.event_type!r}"
+    )
+
+    # Non-régression : un participant sans détail exploitable (pas de swim/bike
+    # scrapé) garde le classement par nom, inchangé — la correction n'agit
+    # jamais à l'aveugle.
+    other = next((r for r in results if r.bib_number != "182"), None)
+    assert other is not None
+    assert other.event_type == "course-a-pied"
+
+
 def test_scrape_event_all_phase_c_paralleles_avec_plafond(monkeypatch):
     """Phase C : les requêtes de détail partent en parallèle, plafonnées (#583).
 

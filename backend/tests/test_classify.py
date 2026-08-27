@@ -5,6 +5,7 @@ from app.scrapers.classify import (
     classify_event_type,
     extract_distance_km,
     normalize_event_type,
+    refine_from_splits,
 )
 
 
@@ -175,6 +176,31 @@ def test_bike_run_pas_de_faux_positif():
     # mais les vraies formes restent reconnues
     assert classify_event_type("Run & Bike du Bignon") == "bike-run"
     assert classify_event_type("bikerun-sprint") == "bike-run"
+
+
+# --- refine_from_splits (#679) : les splits scrapés priment sur le libellé « foulées » ---
+@pytest.mark.parametrize("event_type,has_swim,has_bike,expected", [
+    # Course à pied avec natation ET vélo présents (impossible pour une vraie CAP)
+    # → les splits corrigent en triathlon nu.
+    ("course-a-pied", True, True, "triathlon"),
+    # Splits partiels : le libellé n'est pas assez contredit, on ne touche à rien.
+    ("course-a-pied", True, False, "course-a-pied"),
+    ("course-a-pied", False, True, "course-a-pied"),
+    ("course-a-pied", False, False, "course-a-pied"),
+    # Une variante avec distance nommée (5k/10k/semi/marathon) est un signal fort,
+    # sans ambiguïté façon « foulées » : la correction ne porte que sur le slug
+    # nu `course-a-pied`, jamais sur ses suffixes de distance.
+    ("course-a-pied-5k", True, True, "course-a-pied-5k"),
+    ("course-a-pied-5k", False, False, "course-a-pied-5k"),
+    # Un event_type déjà correct n'est jamais dégradé, même avec swim+bike.
+    ("triathlon", True, True, "triathlon"),
+    ("triathlon-m", True, True, "triathlon-m"),
+    ("trail", True, True, "trail"),
+    ("cyclisme", True, True, "cyclisme"),
+    ("swimrun", True, True, "swimrun"),
+])
+def test_refine_from_splits(event_type, has_swim, has_bike, expected):
+    assert refine_from_splits(event_type, has_swim=has_swim, has_bike=has_bike) == expected
 
 
 # --- Extraction du kilométrage ---
