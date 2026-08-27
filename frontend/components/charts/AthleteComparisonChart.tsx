@@ -1,23 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { scaleLinear } from "d3-scale";
 import { Card, Eyebrow, Input } from "@/components/tcn";
 import { useDebounce } from "@/hooks/useDebounce";
 import { apiClient } from "@/lib/api/client";
 import type { AthleteSearchResult, Participation } from "@/lib/types";
-import { commonParticipations } from "@/lib/utils/athlete-comparison";
+import { commonParticipations, formatDelta } from "@/lib/utils/athlete-comparison";
 import { formatDate } from "@/lib/utils/date";
 
-// Même système de coordonnées que `ProgressionChart` : SVG à `viewBox` fixe
-// étiré à 100%, labels en HTML (#480, RESP-2).
-const W = 900;
-const BAR_HEIGHT = 22;
-const BAR_GAP = 34;
-const TOP = 8;
-const LEFT = 4;
-const RIGHT = 4;
-const LABEL_GUTTER = 22;
+// Chaque barre n'est qu'un simple rectangle de largeur proportionnelle : pas
+// besoin du patron SVG « géométrie dans le SVG, texte en HTML » (#480,
+// RESP-2), réservé aux tracés continus (Histogram, RankingEvolutionChart).
+// Ici la grille CSS suffit et garde les libellés, valeurs et l'écart en HTML
+// natif — lisibles à l'écran, pas seulement à la synthèse vocale (#689).
+const LABEL_COL = "76px";
+const VALUE_COL = "72px";
+const BAR_HEIGHT = 14;
+const GRID_COLS = `${LABEL_COL} 1fr ${VALUE_COL}`;
 
 function formatSeconds(sec: number): string {
   const h = Math.floor(sec / 3600);
@@ -26,11 +25,55 @@ function formatSeconds(sec: number): string {
   return [h, m, s].map((v) => String(v).padStart(2, "0")).join(":");
 }
 
+function BarRow({ name, seconds, maxSeconds, color }: { name: string; seconds: number; maxSeconds: number; color: string }) {
+  const pct = maxSeconds > 0 ? Math.min(100, (seconds / maxSeconds) * 100) : 0;
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, gap: 8, alignItems: "center", marginBottom: 4 }}>
+      <span
+        style={{
+          fontSize: 12,
+          color: "var(--tcn-text-muted)",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+        title={name}
+      >
+        {name}
+      </span>
+      <span
+        style={{
+          height: BAR_HEIGHT,
+          borderRadius: 4,
+          background: "var(--tcn-border-faint)",
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
+        <span style={{ position: "absolute", inset: 0, width: `${pct}%`, background: color, borderRadius: 4 }} />
+      </span>
+      <span
+        style={{
+          fontSize: 12,
+          fontVariantNumeric: "tabular-nums",
+          color: "var(--tcn-ink)",
+          textAlign: "right",
+        }}
+      >
+        {formatSeconds(seconds)}
+      </span>
+    </div>
+  );
+}
+
 /**
  * Comparaison visuelle de deux athlètes sur leurs épreuves communes
- * (US6, #466) — un mini-diagramme en barres par épreuve, temps le plus court
- * en premier. Composant présentationnel pur, testable indépendamment du
- * sélecteur d'athlète qui l'alimente.
+ * (US6, #466) — une paire de barres par épreuve, temps le plus court en
+ * premier. Nom de l'épreuve, temps et écart chiffré sont visibles en clair
+ * (#689) : jusque-là seule la longueur des barres portait l'information,
+ * réservant tout le reste (temps, nom d'épreuve) à l'`aria-label` et à une
+ * liste `sr-only`, invisibles à l'écran. Composant présentationnel pur,
+ * testable indépendamment du sélecteur d'athlète qui l'alimente.
  */
 export function AthleteComparisonResult({
   mine,
@@ -62,70 +105,48 @@ export function AthleteComparisonResult({
   }
 
   const maxSeconds = Math.max(...rows.flatMap((r) => [r.mineSeconds ?? 0, r.theirsSeconds ?? 0]));
-  const xScale = scaleLinear().domain([0, maxSeconds]).range([0, W - LEFT - RIGHT]);
-  const H = TOP + rows.length * (2 * BAR_HEIGHT + BAR_GAP);
-
-  const summary = rows
-    .map(
-      (r) =>
-        `${formatDate(r.eventDate)} : vous ${formatSeconds(r.mineSeconds ?? 0)}, ${theirsName} ${formatSeconds(r.theirsSeconds ?? 0)}`,
-    )
-    .join(" ; ");
 
   return (
-    <div style={{ position: "relative", paddingBottom: LABEL_GUTTER }}>
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio="none"
-        style={{ width: "100%", height: H, display: "block" }}
-        role="img"
-        aria-label={`Comparaison avec ${theirsName} : ${summary}.`}
-      >
-        {rows.map((r, index) => {
-          const groupTop = TOP + index * (2 * BAR_HEIGHT + BAR_GAP);
-          return (
-            <g key={r.courseId}>
-              <rect
-                x={LEFT}
-                y={groupTop}
-                width={xScale(r.mineSeconds ?? 0)}
-                height={BAR_HEIGHT}
-                fill="var(--tcn-orange)"
-              />
-              <rect
-                x={LEFT}
-                y={groupTop + BAR_HEIGHT + 4}
-                width={xScale(r.theirsSeconds ?? 0)}
-                height={BAR_HEIGHT}
-                fill="var(--tcn-ink-3)"
-              />
-            </g>
-          );
-        })}
-      </svg>
-
-      <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: LABEL_GUTTER }}>
-        <span
-          aria-hidden
-          style={{
-            fontSize: 11,
-            color: "var(--tcn-text-faint)",
-            fontFamily: "var(--tcn-font-body)",
-          }}
-        >
-          <span style={{ color: "var(--tcn-orange)" }}>■</span> Vous ·{" "}
-          <span style={{ color: "var(--tcn-ink-3)" }}>■</span> {theirsName}
-        </span>
+    <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Repère min/max de l'échelle commune à toutes les paires (#689, point 4). */}
+      <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, gap: 8 }}>
+        <span />
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--tcn-text-faint)" }}>
+          <span>{formatSeconds(0)}</span>
+          <span>{formatSeconds(maxSeconds)}</span>
+        </div>
+        <span />
       </div>
 
-      <ul className="sr-only">
-        {rows.map((r) => (
-          <li key={r.courseId}>
-            {r.courseName} ({formatDate(r.eventDate)}) — vous {formatSeconds(r.mineSeconds ?? 0)}, {theirsName}{" "}
-            {formatSeconds(r.theirsSeconds ?? 0)}
-          </li>
-        ))}
-      </ul>
+      {rows.map((r) => {
+        const mineSeconds = r.mineSeconds ?? 0;
+        const theirsSeconds = r.theirsSeconds ?? 0;
+        return (
+          <div key={r.courseId}>
+            <div style={{ marginBottom: 6 }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: "var(--tcn-ink)" }}>{r.courseName}</span>
+              {r.eventDate && (
+                <span style={{ marginLeft: 8, fontSize: 12, color: "var(--tcn-text-faint)" }}>
+                  {formatDate(r.eventDate)}
+                </span>
+              )}
+            </div>
+            <BarRow name="Vous" seconds={mineSeconds} maxSeconds={maxSeconds} color="var(--tcn-orange)" />
+            <BarRow name={theirsName} seconds={theirsSeconds} maxSeconds={maxSeconds} color="var(--tcn-ink-3)" />
+            <p
+              style={{
+                marginTop: 4,
+                marginLeft: LABEL_COL,
+                fontSize: 12,
+                fontWeight: 600,
+                color: "var(--tcn-text-muted)",
+              }}
+            >
+              Écart : {formatDelta(mineSeconds, theirsSeconds)}
+            </p>
+          </div>
+        );
+      })}
     </div>
   );
 }

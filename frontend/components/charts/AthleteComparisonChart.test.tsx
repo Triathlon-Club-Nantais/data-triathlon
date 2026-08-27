@@ -41,16 +41,24 @@ describe("AthleteComparisonResult", () => {
     render(<AthleteComparisonResult mine={mine} theirs={theirs} theirsName="Camarade" />);
 
     expect(screen.getByText(/aucune épreuve commune/i)).toBeInTheDocument();
-    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    expect(screen.queryByText("Épreuve 10")).not.toBeInTheDocument();
   });
 
-  it("affiche un graphique de comparaison sur épreuve commune", () => {
+  it("affiche le nom de l'épreuve, les deux temps et l'écart chiffré (#689)", () => {
     const mine = [participation(1, 10, "2026-06-01", "02:00:00")];
     const theirs = [participation(11, 10, "2026-06-01", "01:55:00")];
 
     render(<AthleteComparisonResult mine={mine} theirs={theirs} theirsName="Camarade" />);
 
     expect(screen.queryByText(/aucune épreuve commune/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("img")).toBeInTheDocument();
+    // Le nom de l'épreuve, jusque-là réservé à l'aria-label, est visible.
+    expect(screen.getByText("Épreuve 10")).toBeInTheDocument();
+    // Les deux temps, jusque-là réservés à l'aria-label, sont visibles.
+    // « 02:00:00 » apparaît deux fois : sur la barre « Vous » et comme repère
+    // max de l'axe, puisque c'est ici le plus long des deux temps.
+    expect(screen.getAllByText("02:00:00").length).toBe(2);
+    expect(screen.getByText("01:55:00")).toBeInTheDocument();
+    // L'écart chiffré entre les deux temps — l'info recherchée par #689.
+    expect(screen.getByText(/5 min 00 s de retard/)).toBeInTheDocument();
   });
 });

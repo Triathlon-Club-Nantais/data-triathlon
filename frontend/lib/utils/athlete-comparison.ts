@@ -41,3 +41,27 @@ export function commonParticipations(mine: Participation[], theirs: Participatio
 
   return result.sort((a, b) => (a.eventDate ?? "9999").localeCompare(b.eventDate ?? "9999"));
 }
+
+/** Durée compacte et lisible : « 1 h 05 min », « 3 min 25 s », « 45 s ». */
+function formatDurationCompact(totalSeconds: number): string {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = Math.floor(totalSeconds % 60);
+  if (h > 0) return `${h} h ${String(m).padStart(2, "0")} min`;
+  if (m > 0) return `${m} min ${String(s).padStart(2, "0")} s`;
+  return `${s} s`;
+}
+
+/**
+ * Écart chiffré entre mon temps et celui du coéquipier comparé (#689) —
+ * l'information réellement recherchée par l'utilisateur, jusque-là déductible
+ * uniquement en comparant deux longueurs de barre à l'œil. « Retard » /
+ * « avance » dit le sens sans dépendre d'un signe +/- que rien n'explique à
+ * l'écran.
+ */
+export function formatDelta(mineSeconds: number, theirsSeconds: number): string {
+  const diff = mineSeconds - theirsSeconds;
+  if (diff === 0) return "Temps identique";
+  const duration = formatDurationCompact(Math.abs(diff));
+  return diff > 0 ? `${duration} de retard` : `${duration} d'avance`;
+}
