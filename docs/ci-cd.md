@@ -198,6 +198,11 @@ et laisser la preview sur le free. À ne décider que sur des heures relevées.
      de test n'a rien à faire dans les mêmes statistiques que celui du club
      (#426). Absentes, l'app tourne normalement, juste sans analytics et sans un
      mot en console (garde dans `instrumentation-client.ts`).
+   - `data-triathlon-preview` **seul** : `FAVICON_VARIANT=preview` (#665).
+     `VERCEL_ENV` vaut `production` sur les deux projets — inutilisable pour
+     distinguer prod et preview côté favicon — d'où cette variable dédiée,
+     lue par `frontend/app/icon.tsx`. Absente (donc en prod et en local),
+     l'icône reste l'orange de marque.
 5. Sur `data-triathlon-preview` seul : configurer la protection de déploiement /
    SSO sur son URL fixe, désormais stable.
 
