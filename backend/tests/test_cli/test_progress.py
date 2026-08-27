@@ -38,11 +38,11 @@ def test_plain_reporter_une_ligne_par_epreuve_sans_ansi():
     reporter = PlainReporter(write=lignes.append)
 
     reporter.batch_start(2)
-    reporter.item_start(0, "klikego · Triathlon de Nantes")
-    reporter.item_progress(20, 30)
-    reporter.item_done(28, 2, None)
-    reporter.item_start(1, "timepulse · Duathlon de Rezé")
-    reporter.item_done(0, 0, "timeout scrape")
+    reporter.item_start(0, "klikego · Triathlon de Nantes", "klikego")
+    reporter.item_progress(20, 30, "klikego")
+    reporter.item_done(28, 2, None, "klikego")
+    reporter.item_start(1, "timepulse · Duathlon de Rezé", "timepulse")
+    reporter.item_done(0, 0, "timeout scrape", "timepulse")
     reporter.batch_end()
 
     texte = "\n".join(lignes)
@@ -52,6 +52,33 @@ def test_plain_reporter_une_ligne_par_epreuve_sans_ansi():
     assert "28 importés, 2 ignorés" in texte
     assert "[2/2]" in texte
     assert "ERREUR : timeout scrape" in texte
+
+
+def test_plain_reporter_distingue_deux_chronometreurs_concurrents_sans_melanger_leurs_lignes():
+    """Deux épreuves « en cours » en même temps (chronométreurs différents) :
+    chaque ligne doit nommer son hôte, et `item_done` ne doit jamais reprendre
+    l'index/le libellé d'un autre hôte que le sien."""
+    lignes: list[str] = []
+    reporter = PlainReporter(write=lignes.append)
+
+    reporter.batch_start(2)
+    reporter.item_start(0, "klikego · Triathlon de Nantes", "klikego")
+    reporter.item_start(1, "timepulse · Duathlon de Rezé", "timepulse")
+    # Les deux sont "en cours" en même temps : `timepulse` se termine en premier.
+    reporter.item_done(0, 0, "timeout scrape", "timepulse")
+    reporter.item_done(28, 2, None, "klikego")
+    reporter.batch_end()
+
+    lignes_klikego = [ligne for ligne in lignes if "(klikego)" in ligne]
+    lignes_timepulse = [ligne for ligne in lignes if "(timepulse)" in ligne]
+
+    assert any("[1/2]" in ligne for ligne in lignes_klikego)
+    assert any("28 importés, 2 ignorés" in ligne for ligne in lignes_klikego)
+    assert any("[2/2]" in ligne for ligne in lignes_timepulse)
+    assert any("ERREUR : timeout scrape" in ligne for ligne in lignes_timepulse)
+    # Aucune ligne de klikego ne doit porter l'erreur de timepulse, ou l'inverse.
+    assert not any("timeout scrape" in ligne for ligne in lignes_klikego)
+    assert not any("importés" in ligne for ligne in lignes_timepulse)
 
 
 def test_plain_reporter_ecrit_sur_stderr_pas_stdout(capsys):
@@ -77,11 +104,11 @@ def test_rich_reporter_scenario_complet_n_ecrit_rien_sur_stdout(capsys):
     reporter = RichReporter()
 
     reporter.batch_start(2)
-    reporter.item_start(0, "klikego · Triathlon de Nantes")
-    reporter.item_progress(20, 30)
-    reporter.item_done(28, 2, None)
-    reporter.item_start(1, "timepulse · Duathlon de Rezé")
-    reporter.item_done(0, 0, "timeout scrape")
+    reporter.item_start(0, "klikego · Triathlon de Nantes", "klikego")
+    reporter.item_progress(20, 30, "klikego")
+    reporter.item_done(28, 2, None, "klikego")
+    reporter.item_start(1, "timepulse · Duathlon de Rezé", "timepulse")
+    reporter.item_done(0, 0, "timeout scrape", "timepulse")
     reporter.batch_end()
 
     capture = capsys.readouterr()
@@ -96,9 +123,9 @@ def test_rich_reporter_affiche_l_erreur_malgre_les_barres_transitoires():
     reporter = RichReporter(console=console)
 
     reporter.batch_start(1)
-    reporter.item_start(0, "timepulse · Duathlon de Rezé")
-    reporter.item_progress(5, 42)
-    reporter.item_done(0, 0, "timeout scrape")
+    reporter.item_start(0, "timepulse · Duathlon de Rezé", "timepulse")
+    reporter.item_progress(5, 42, "timepulse")
+    reporter.item_done(0, 0, "timeout scrape", "timepulse")
     reporter.batch_end()
 
     sortie = tampon.getvalue()
@@ -113,15 +140,40 @@ def test_rich_reporter_repart_en_indetermine_a_chaque_epreuve():
     reporter = RichReporter(console=console)
 
     reporter.batch_start(2)
-    reporter.item_start(0, "A")
-    reporter.item_progress(20, 30)
-    reporter.item_done(28, 2, None)
-    reporter.item_start(1, "B")
+    reporter.item_start(0, "A", "klikego")
+    reporter.item_progress(20, 30, "klikego")
+    reporter.item_done(28, 2, None, "klikego")
+    reporter.item_start(1, "B", "klikego")
 
     totaux = _totaux_par_tache(reporter)
-    assert totaux[reporter._item_task] is None   # et non 30, le total de l'épreuve A
+    assert totaux[reporter._item_tasks["klikego"]] is None  # et non 30, le total de l'épreuve A
     assert totaux[reporter._batch_task] == 2     # la barre du batch, elle, ne bouge pas
 
+    reporter.batch_end()
+
+
+def test_rich_reporter_maintient_une_tache_distincte_par_chronometreur_actif():
+    """Deux chronométreurs actifs en même temps : chacun sa tâche Rich, et le
+    démarrage de l'un n'efface ni n'écrase l'état de l'autre."""
+    console, _ = _console_capturante()
+    reporter = RichReporter(console=console)
+
+    reporter.batch_start(2)
+    reporter.item_start(0, "klikego · A", "klikego")
+    reporter.item_progress(10, 30, "klikego")
+    reporter.item_start(1, "timepulse · B", "timepulse")  # démarre pendant que klikego tourne
+
+    totaux = _totaux_par_tache(reporter)
+    assert reporter._item_tasks["klikego"] != reporter._item_tasks["timepulse"]
+    assert totaux[reporter._item_tasks["klikego"]] == 30  # inchangé par le démarrage de timepulse
+    assert totaux[reporter._item_tasks["timepulse"]] is None  # indéterminé, tout juste démarré
+
+    reporter.item_done(28, 2, None, "klikego")
+    # La tâche de timepulse doit survivre à la fin de klikego.
+    assert "timepulse" in reporter._item_tasks
+    assert "klikego" not in reporter._item_tasks
+
+    reporter.item_done(0, 5, None, "timepulse")
     reporter.batch_end()
 
 

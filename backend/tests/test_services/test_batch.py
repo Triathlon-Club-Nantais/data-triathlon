@@ -1,3 +1,5 @@
+import threading
+import time
 from contextlib import contextmanager
 from dataclasses import fields
 from datetime import date
@@ -14,6 +16,56 @@ def _settings() -> Settings:
     return Settings(cache_ttl_in_progress_seconds=600, cache_ttl_finished_seconds=2592000)
 
 
+# --- _group_by_host -----------------------------------------------------------
+
+
+def test_group_by_host_regroupe_par_chronometreur_et_preserve_l_ordre():
+    items = [
+        BatchItem(url="https://www.klikego.com/e/1", label="klikego · A"),
+        BatchItem(url="https://www.breizhchrono.com/e/1", label="breizhchrono · A"),
+        BatchItem(url="https://www.klikego.com/e/2", label="klikego · B"),
+    ]
+
+    groups = batch._group_by_host(items)
+
+    assert [host for host, _ in groups] == ["klikego", "breizhchrono"]
+    assert [item.label for item in dict(groups)["klikego"]] == ["klikego · A", "klikego · B"]
+    assert [item.label for item in dict(groups)["breizhchrono"]] == ["breizhchrono · A"]
+
+
+def test_group_by_host_ne_fusionne_jamais_deux_domaines_d_un_provider_multi_domaines():
+    """Wiclax publie sur trois domaines distincts : les regrouper par domaine
+    littéral romprait la politesse envers ce chronométreur (cf. Clarifications
+    de spec.md) — ils doivent porter le **même** `host_key`."""
+    items = [
+        BatchItem(url="https://www.wiclax-results.com/e/1", label="wiclax · A"),
+        BatchItem(url="https://www.chronowest.fr/e/1", label="wiclax · B"),
+        BatchItem(url="https://www.chronosmetron.com/e/1", label="wiclax · C"),
+    ]
+
+    groups = batch._group_by_host(items)
+
+    assert len(groups) == 1
+    host, group_items = groups[0]
+    assert host == "wiclax"
+    assert [item.label for item in group_items] == ["wiclax · A", "wiclax · B", "wiclax · C"]
+
+
+def test_group_by_host_donne_un_groupe_distinct_par_url_inconnue():
+    """Deux URLs non reconnues par le registre ne doivent pas être fusionnées
+    sous une même clé vide — sinon elles se sérialiseraient l'une l'autre sans
+    raison (aucun chronométreur réel ne les relie)."""
+    items = [
+        BatchItem(url="https://inconnu-a.example/e/1", label="A"),
+        BatchItem(url="https://inconnu-b.example/e/1", label="B"),
+    ]
+
+    groups = batch._group_by_host(items)
+
+    assert len(groups) == 2
+    assert {host for host, _ in groups} == {"inconnu-a.example", "inconnu-b.example"}
+
+
 def _phases_ok(db, url, settings, force=False, persist=True, **kwargs):
     """Simule iter_import_event pour une épreuve de 30 participants."""
     yield {"phase": "scraping", "message": "Récupération des participants…"}
@@ -21,6 +73,213 @@ def _phases_ok(db, url, settings, force=False, persist=True, **kwargs):
     yield {"phase": "saving", "total": 30, "imported": 20, "skipped": 0, "progress": 20}
     yield {"phase": "saving", "total": 30, "imported": 28, "skipped": 2, "progress": 30}
     yield {"phase": "done", "imported": 28, "skipped": 2, "total": 30}
+
+
+# --- concurrence entre chronométreurs (US1) -----------------------------------
+
+
+def test_run_batch_traite_deux_chronometreurs_en_meme_temps(
+    db_session_concurrent, monkeypatch, concurrency_gauge
+):
+    release = threading.Barrier(2, timeout=10)
+
+    def _phases(db, url, settings, force=False, persist=True, **kwargs):
+        with concurrency_gauge.track():
+            release.wait()
+        yield {"phase": "done", "imported": 1, "skipped": 0, "total": 1}
+
+    monkeypatch.setattr(import_service, "iter_import_event", _phases)
+
+    items = [
+        BatchItem(url="https://host-a.example/e/1", label="A"),
+        BatchItem(url="https://host-b.example/e/1", label="B"),
+    ]
+    totals = batch.run_batch(db_session_concurrent, items, _settings(), force=False, delay=0.0)
+
+    assert concurrency_gauge.peak == 2
+    assert totals.imported == 2
+
+
+def test_run_batch_respecte_le_plafond_de_concurrence(
+    db_session_concurrent, monkeypatch, concurrency_gauge
+):
+    """k+1 chronométreurs, `max_concurrent_hosts=k` : au plus k tournent en
+    même temps — le pic observé le confirme, la barrière garantit qu'il est
+    bien atteint (pas un minutage qui pourrait le manquer par chance)."""
+    k = 2
+    release = threading.Barrier(k, timeout=10)
+
+    def _phases(db, url, settings, force=False, persist=True, **kwargs):
+        with concurrency_gauge.track():
+            if "sync" in url:
+                release.wait()
+        yield {"phase": "done", "imported": 1, "skipped": 0, "total": 1}
+
+    monkeypatch.setattr(import_service, "iter_import_event", _phases)
+
+    items = [BatchItem(url=f"https://host-{i}.example/e/sync", label=str(i)) for i in range(k)]
+    items.append(BatchItem(url="https://host-last.example/e/plain", label="last"))
+
+    batch.run_batch(
+        db_session_concurrent, items, _settings(), force=False, delay=0.0, max_concurrent_hosts=k,
+    )
+
+    assert concurrency_gauge.peak == k
+
+
+def test_run_batch_bilan_identique_sous_concurrence_ou_non(
+    db_session, db_session_concurrent, monkeypatch
+):
+    def _phases(db, url, settings, force=False, persist=True, **kwargs):
+        yield from _phases_ok(db, url, settings, force)
+
+    monkeypatch.setattr(import_service, "iter_import_event", _phases)
+
+    items = [
+        BatchItem(url="https://host-a.example/e/1", label="A"),
+        BatchItem(url="https://host-b.example/e/1", label="B"),
+        BatchItem(url="https://host-c.example/e/1", label="C"),
+    ]
+
+    sequentiel = batch.run_batch(
+        db_session, items, _settings(), force=False, delay=0.0, max_concurrent_hosts=1,
+    )
+    parallele = batch.run_batch(
+        db_session_concurrent, items, _settings(), force=False, delay=0.0,
+    )
+
+    for champ in CHAMPS_COMMUNS:
+        valeur_sequentielle = getattr(sequentiel, champ)
+        valeur_parallele = getattr(parallele, champ)
+        if champ in ("failures", "passive_sources", "reassignments"):
+            assert sorted(valeur_sequentielle, key=str) == sorted(valeur_parallele, key=str), champ
+        else:
+            assert valeur_sequentielle == valeur_parallele, champ
+
+
+def test_run_batch_l_echec_d_un_groupe_n_affecte_pas_un_autre_groupe_concurrent(
+    db_session_concurrent, monkeypatch, concurrency_gauge
+):
+    release = threading.Barrier(2, timeout=10)
+
+    def _phases(db, url, settings, force=False, persist=True, **kwargs):
+        with concurrency_gauge.track():
+            release.wait()
+        if "boom" in url:
+            yield {"phase": "error", "message": "timeout scrape"}
+            return
+        yield from _phases_ok(db, url, settings, force)
+
+    monkeypatch.setattr(import_service, "iter_import_event", _phases)
+
+    items = [
+        BatchItem(url="https://host-boom.example/e/1", label="boom"),
+        BatchItem(url="https://host-ok.example/e/1", label="ok"),
+    ]
+
+    totals = batch.run_batch(db_session_concurrent, items, _settings(), force=False, delay=0.0)
+
+    assert concurrency_gauge.peak == 2  # elles ont bien tourné en même temps
+    assert totals.errors == 1
+    assert totals.imported == 28  # l'autre groupe a terminé normalement, sans être affecté
+    assert totals.failures == [
+        batch.BatchFailure(
+            url="https://host-boom.example/e/1", label="boom", message="timeout scrape",
+        ),
+    ]
+
+
+def test_run_batch_ctrl_c_multi_hotes_stoppe_les_nouvelles_epreuves(
+    db_session_concurrent, monkeypatch, fake_reporter
+):
+    """Un groupe reçoit le Ctrl-C ; l'autre, déjà en cours au même instant, va à
+    son terme ; un troisième, pas encore démarré, ne démarre jamais."""
+    release = threading.Barrier(2, timeout=10)
+
+    def _phases(db, url, settings, force=False, persist=True, **kwargs):
+        release.wait()
+        if "stop" in url:
+            raise KeyboardInterrupt
+        yield from _phases_ok(db, url, settings, force)
+
+    monkeypatch.setattr(import_service, "iter_import_event", _phases)
+
+    items = [
+        BatchItem(url="https://host-stop.example/e/1", label="stop"),
+        BatchItem(url="https://host-ok.example/e/1", label="ok"),
+        BatchItem(url="https://host-jamais.example/e/1", label="jamais"),
+    ]
+
+    totals = batch.run_batch(
+        db_session_concurrent, items, _settings(), force=False, delay=0.0,
+        reporter=fake_reporter, max_concurrent_hosts=2,
+    )
+
+    assert totals.interrupted is True
+    assert totals.imported == 28  # le groupe "ok" a terminé normalement
+    assert not any(call[0] == "item_start" and call[2] == "jamais" for call in fake_reporter.calls)
+
+
+# --- politesse par chronométreur, y compris multi-domaines (US2) --------------
+
+
+def test_run_batch_politesse_intra_hote_preservee_avec_un_autre_hote_en_parallele(
+    db_session_concurrent, monkeypatch
+):
+    """Aucune implémentation propre à cette story : elle verrouille par test ce
+    que le regroupement (Foundational) et le modèle un-thread-par-groupe (US1)
+    garantissent déjà par construction."""
+    ordre: list[str] = []
+    appels: list[float] = []
+    monkeypatch.setattr(batch.time, "sleep", lambda s: appels.append(s))
+
+    def _phases(db, url, settings, force=False, persist=True, **kwargs):
+        ordre.append(url)
+        yield {"phase": "done", "imported": 1, "skipped": 0, "total": 1}
+
+    monkeypatch.setattr(import_service, "iter_import_event", _phases)
+
+    items = [
+        BatchItem(url="https://host-same.example/e/1", label="A"),
+        BatchItem(url="https://host-other.example/e/1", label="B"),
+        BatchItem(url="https://host-same.example/e/2", label="C"),
+    ]
+
+    batch.run_batch(db_session_concurrent, items, _settings(), force=False, delay=2.5)
+
+    memes_hote = [url for url in ordre if "host-same" in url]
+    assert memes_hote == [
+        "https://host-same.example/e/1", "https://host-same.example/e/2",
+    ]  # ordre préservé au sein du même hôte
+    # Un seul délai de politesse : s'il y en avait zéro, les deux épreuves du
+    # même hôte auraient été traitées comme deux groupes séparés (bug de
+    # regroupement) ; s'il y en avait deux, le délai se serait appliqué au
+    # mauvais endroit (ex. après le dernier élément d'un groupe).
+    assert appels == [2.5]
+
+
+def test_run_batch_deux_domaines_d_un_provider_multi_domaines_ne_partent_jamais_en_parallele(
+    db_session_concurrent, monkeypatch, concurrency_gauge
+):
+    """Wiclax publie sur trois domaines distincts (research.md) : ils doivent
+    former un seul groupe de politesse, jamais deux scrapes en même temps."""
+
+    def _phases(db, url, settings, force=False, persist=True, **kwargs):
+        with concurrency_gauge.track():
+            time.sleep(0.05)  # élargit la fenêtre : un chevauchement réel serait vu
+        yield {"phase": "done", "imported": 1, "skipped": 0, "total": 1}
+
+    monkeypatch.setattr(import_service, "iter_import_event", _phases)
+
+    items = [
+        BatchItem(url="https://www.wiclax-results.com/e/1", label="wiclax · A"),
+        BatchItem(url="https://www.chronowest.fr/e/1", label="wiclax · B"),
+        BatchItem(url="https://www.chronosmetron.com/e/1", label="wiclax · C"),
+    ]
+
+    batch.run_batch(db_session_concurrent, items, _settings(), force=False, delay=0.0)
+
+    assert concurrency_gauge.peak == 1
 
 
 def test_run_batch_relaie_la_progression_intra_epreuve(db_session, monkeypatch, fake_reporter):
@@ -36,11 +295,11 @@ def test_run_batch_relaie_la_progression_intra_epreuve(db_session, monkeypatch, 
     assert totals.errors == 0
     assert fake_reporter.calls == [
         ("batch_start", 1),
-        ("item_start", 0, "klikego · A"),
-        ("item_progress", 0, 30),
-        ("item_progress", 20, 30),
-        ("item_progress", 30, 30),
-        ("item_done", 28, 2, None),
+        ("item_start", 0, "klikego · A", "k"),
+        ("item_progress", 0, 30, "k"),
+        ("item_progress", 20, 30, "k"),
+        ("item_progress", 30, 30, "k"),
+        ("item_done", 28, 2, None, "k"),
         ("batch_end",),
     ]
 
@@ -64,7 +323,7 @@ def test_run_batch_phase_error_compte_une_erreur_sans_interrompre(
 
     assert totals.errors == 1
     assert totals.imported == 28  # la 2e épreuve a bien été traitée
-    assert ("item_done", 0, 0, "timeout scrape") in fake_reporter.calls
+    assert ("item_done", 0, 0, "timeout scrape", "k") in fake_reporter.calls
 
 
 def test_run_batch_collecte_le_detail_des_echecs(db_session, monkeypatch):
@@ -323,9 +582,9 @@ def test_run_batch_un_reporter_qui_leve_ne_fait_pas_perdre_le_bilan(db_session, 
         """Tube fermé : tout écrit échoue."""
 
         def batch_start(self, total): raise BrokenPipeError("tube fermé")
-        def item_start(self, index, label): raise BrokenPipeError("tube fermé")
-        def item_progress(self, done, total): raise BrokenPipeError("tube fermé")
-        def item_done(self, imported, skipped, error): raise BrokenPipeError("tube fermé")
+        def item_start(self, index, label, host): raise BrokenPipeError("tube fermé")
+        def item_progress(self, done, total, host): raise BrokenPipeError("tube fermé")
+        def item_done(self, imported, skipped, error, host): raise BrokenPipeError("tube fermé")
         def batch_end(self): raise BrokenPipeError("tube fermé")
 
     monkeypatch.setattr(import_service, "iter_import_event", _phases_ok)
@@ -347,9 +606,9 @@ def test_run_batch_un_reporter_qui_leve_ne_masque_pas_le_ctrl_c(db_session, monk
 
     class ReporterCtrlC:
         def batch_start(self, total): pass
-        def item_start(self, index, label): raise KeyboardInterrupt
-        def item_progress(self, done, total): pass
-        def item_done(self, imported, skipped, error): pass
+        def item_start(self, index, label, host): raise KeyboardInterrupt
+        def item_progress(self, done, total, host): pass
+        def item_done(self, imported, skipped, error, host): pass
         def batch_end(self): pass
 
     monkeypatch.setattr(import_service, "iter_import_event", _phases_ok)

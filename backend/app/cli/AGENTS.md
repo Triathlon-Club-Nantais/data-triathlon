@@ -14,6 +14,7 @@ configuration périmée classe des milliers de participations à côté, en sile
 uv run python -m app.cli import-sheet --dry-run     # import de masse (Sheet) : ce qui serait importé
 uv run python -m app.cli import-sheet --limit 5     # import réel — progression en direct
 uv run python -m app.cli rescrape-db --limit 10     # re-scrape la DB (force=True) ; --plain, --no-progress
+uv run python -m app.cli rescrape-db --max-concurrent-hosts 8   # plus de chronométreurs en parallèle (défaut : 4)
 uv run python -m app.cli rescrape-db --json | jq    # bilan machine-lisible (stdout = JSON seul)
 uv run python -m app.cli rescrape-db --url <url> --url <url2>   # cible des épreuves précises
 uv run python -m app.cli rescrape-db --urls-from echecs.txt     # ou « - » pour lire stdin
@@ -51,6 +52,22 @@ Un batch interrompu (Ctrl-C) émet son **bilan partiel** — texte et, le cas
 n'est jamais perdu de vue (chaque épreuve est commitée séparément). `--no-progress`
 coupe la progression (le rapport final, lui, est toujours émis) ; `--plain` force
 les lignes simples même en terminal.
+
+**Parallélisation par chronométreur** (#690) — `run_batch` traite les
+épreuves d'un même chronométreur strictement en séquence (même délai de
+politesse qu'avant), mais des chronométreurs différents scrapent en même
+temps, bornés par `--max-concurrent-hosts` (défaut **4**, sur les deux
+commandes). Un chronométreur qui publie sur plusieurs domaines (Wiclax,
+RaceResult — cf. `_HOSTS` dans `app/scrapers/registry.py`) reste **un seul**
+groupe de politesse : la clé de regroupement (`batch._group_by_host`) vient de
+la résolution de provider du registre, jamais du domaine réseau littéral de
+l'URL. `--max-concurrent-hosts 1` retrouve le comportement strictement
+séquentiel d'avant #690. Conséquence sur `--json` : dès que le lot couvre plus
+d'un chronométreur, l'ordre des listes `failures` / `passive_sources` /
+`reassignments` n'est **plus garanti** égal à l'ordre du lot d'entrée — leur
+**contenu**, lui, reste identique à une exécution séquentielle. La
+progression (Rich et `--plain`) nomme désormais le chronométreur de chaque
+ligne/tâche, plusieurs épreuves pouvant être « en cours » à la fois.
 
 **Codes de sortie** (`cli/reports.emit_outcome`) — le bilan est **toujours émis
 avant** la sortie :

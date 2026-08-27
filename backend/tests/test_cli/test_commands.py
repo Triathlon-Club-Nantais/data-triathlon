@@ -61,6 +61,11 @@ class _SessionFactice:
 
     `query`/`commit` tolèrent le nettoyage des orphelins que `run_rescrape_db`
     déclenche désormais en fin de batch (hors dry-run) — zéro orphelin ici.
+
+    `get_bind` : `run_batch` en a besoin pour ouvrir une `Session` par groupe de
+    chronométreur (`sessionmaker(bind=db.get_bind())`) — `None` convient ici,
+    `iter_import_event` étant doublé (`_iter_en_echec`), aucune de ces Sessions
+    de groupe ne touche jamais réellement la base.
     """
 
     def rollback(self) -> None:
@@ -71,6 +76,9 @@ class _SessionFactice:
 
     def commit(self) -> None:
         pass
+
+    def get_bind(self, *args, **kwargs):
+        return None
 
 
 @contextmanager
@@ -301,6 +309,7 @@ def test_import_sheet_transmet_les_options_au_service(monkeypatch):
         "--limit", "3",
         "--only-provider", "klikego",
         "--delay", "0",
+        "--max-concurrent-hosts", "2",
         "--sheet-url", "https://exemple.test/feuille.csv",
     ])
 
@@ -310,7 +319,28 @@ def test_import_sheet_transmet_les_options_au_service(monkeypatch):
     assert espion.kwargs["limit"] == 3
     assert espion.kwargs["only_provider"] == "klikego"
     assert espion.kwargs["delay"] == 0.0
+    assert espion.kwargs["max_concurrent_hosts"] == 2
     assert espion.kwargs["dry_run"] is False
+
+
+def test_import_sheet_max_concurrent_hosts_par_defaut_vaut_4(monkeypatch):
+    espion = _brancher_import(monkeypatch, SheetOutcome(unique_supported=1))
+
+    result = runner.invoke(app, ["import-sheet"])
+
+    assert result.exit_code == 0
+    assert espion.kwargs["max_concurrent_hosts"] == 4
+
+
+def test_import_sheet_max_concurrent_hosts_invalide_echoue(monkeypatch):
+    """`0` (ou négatif) ne correspond à aucun degré de parallélisme sensé."""
+    espion = _brancher_import(monkeypatch, SheetOutcome(unique_supported=1))
+
+    result = runner.invoke(app, ["import-sheet", "--max-concurrent-hosts", "0"])
+
+    assert result.exit_code == 2
+    assert espion.kwargs == {}  # échoué avant tout travail
+    assert result.stdout == ""  # contrat stdout : aucune pollution
 
 
 def test_import_sheet_only_provider_inconnu_echoue(monkeypatch):
@@ -483,6 +513,7 @@ def test_rescrape_db_transmet_les_options_au_service(monkeypatch):
         "--provider", "timepulse",
         "--older-than", "30",
         "--delay", "0",
+        "--max-concurrent-hosts", "2",
     ])
 
     assert result.exit_code == 0
@@ -490,7 +521,27 @@ def test_rescrape_db_transmet_les_options_au_service(monkeypatch):
     assert espion.kwargs["provider"] == "timepulse"
     assert espion.kwargs["older_than"] == 30
     assert espion.kwargs["delay"] == 0.0
+    assert espion.kwargs["max_concurrent_hosts"] == 2
     assert espion.kwargs["dry_run"] is False
+
+
+def test_rescrape_db_max_concurrent_hosts_par_defaut_vaut_4(monkeypatch):
+    espion = _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
+
+    result = runner.invoke(app, ["rescrape-db"])
+
+    assert result.exit_code == 0
+    assert espion.kwargs["max_concurrent_hosts"] == 4
+
+
+def test_rescrape_db_max_concurrent_hosts_invalide_echoue(monkeypatch):
+    espion = _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
+
+    result = runner.invoke(app, ["rescrape-db", "--max-concurrent-hosts", "-1"])
+
+    assert result.exit_code == 2
+    assert espion.kwargs == {}  # échoué avant d'ouvrir la moindre Session
+    assert result.stdout == ""
 
 
 def test_rescrape_db_provider_inconnu_echoue(monkeypatch):

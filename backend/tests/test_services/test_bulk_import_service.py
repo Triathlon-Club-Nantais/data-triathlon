@@ -130,7 +130,7 @@ def test_run_import_sheet_libelle_provider_et_url(db_session, monkeypatch, fake_
         db_session, csv_text, _settings(), delay=0.0, reporter=fake_reporter
     )
 
-    assert ("item_start", 0, "klikego · https://www.klikego.com/e/1") in fake_reporter.calls
+    assert ("item_start", 0, "klikego · https://www.klikego.com/e/1", "klikego") in fake_reporter.calls
 
 
 def test_run_import_sheet_dry_run_ne_rapporte_aucune_progression(
