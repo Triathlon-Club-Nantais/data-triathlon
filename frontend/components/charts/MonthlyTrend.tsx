@@ -27,12 +27,27 @@ export function MonthlyTrend({ byMonth }: { byMonth: Record<string, number> }) {
   // du max, pas 50 % : deux formules différentes, pas juste deux écritures).
   const heightScale = scaleLinear().domain([0, max]).range([0, 100]);
 
+  // L'année n'est écrite que sur le premier mois et à chaque changement
+  // d'année — jamais sur chaque libellé, ni jamais si la fenêtre de 12 mois
+  // tient dans une seule année civile (#650) : deux mois de même nom
+  // deviennent sinon indiscernables dès que la fenêtre glissante chevauche le
+  // nouvel an, sans alourdir un graphique compact le reste du temps.
+  const spansMultipleYears = new Set(entries.map(([key]) => key.slice(0, 4))).size > 1;
+  const withYearFlags = entries.map(([key], index) => {
+    const year = key.slice(0, 4);
+    const previousYear = index > 0 ? entries[index - 1][0].slice(0, 4) : null;
+    return spansMultipleYears && year !== previousYear;
+  });
+  const labels = entries.map(([key], index) =>
+    formatMonthShort(key, { withYear: withYearFlags[index] }),
+  );
+
   // `role="img"` élague tous les descendants de l'arbre d'accessibilité : sans
   // énumération ici, les douze couples mois/valeur — pourtant lisibles à
   // l'écran — disparaissent pour un lecteur d'écran (#480). Même patron que
   // `DisciplineBar`, `BarList` et `CategoryBars` : « X : liste. ».
   const summary = entries
-    .map(([key, value]) => `${formatMonthShort(key)} ${value}`)
+    .map(([, value], index) => `${labels[index]} ${value}`)
     .join(", ");
 
   return (
@@ -72,15 +87,20 @@ export function MonthlyTrend({ byMonth }: { byMonth: Record<string, number> }) {
               récents (#480). `whitespace-nowrap`, sur ce libellé et sur la
               valeur au-dessus, les fait déborder proprement de leur colonne
               plutôt que de se casser en plusieurs lignes, ce qui décalerait
-              l'alignement des barres. */}
+              l'alignement des barres. Un libellé qui porte l'année (#650)
+              échappe au masquage : c'est sur téléphone, la carte la plus
+              compacte, que la désambiguïsation d'un changement d'année compte
+              le plus — la lui retirer un mois sur deux la réintroduirait. */}
           <span
             aria-hidden
             data-month-label
             className={`micro-label whitespace-nowrap text-[var(--tcn-text-faint)] ${
-              (entries.length - 1 - index) % 2 === 0 ? "" : "max-sm:invisible"
+              (entries.length - 1 - index) % 2 === 0 || withYearFlags[index]
+                ? ""
+                : "max-sm:invisible"
             }`}
           >
-            {formatMonthShort(key)}
+            {labels[index]}
           </span>
         </div>
       ))}
