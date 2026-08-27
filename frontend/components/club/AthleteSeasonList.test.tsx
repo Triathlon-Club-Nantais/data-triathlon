@@ -157,6 +157,12 @@ describe("AthleteSeasonList", () => {
     expect(screen.getByRole("searchbox", { name: /rechercher un athlète/i })).toBeInTheDocument();
   });
 
+  it("champ de recherche visible : porte une icône de recherche, comme AthletePicker (#652)", () => {
+    render(<AthleteSeasonList athletes={[athlete({ id: 1 })]} />);
+
+    expect(screen.getByText("⌕")).toBeInTheDocument();
+  });
+
   it("aucun résultat de recherche : invite à réessayer, pas un constat nu (revue ui-ux #382)", async () => {
     render(<AthleteSeasonList athletes={[athlete({ id: 1, nom: "DUPONT" })]} />);
 

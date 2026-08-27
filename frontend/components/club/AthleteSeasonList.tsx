@@ -99,6 +99,7 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
       <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 12 }}>
         <Input
           type="search"
+          icon={<span>⌕</span>}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Rechercher un athlète (nom, prénom)"
