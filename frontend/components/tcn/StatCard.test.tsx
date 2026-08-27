@@ -38,4 +38,17 @@ describe("StatCard", () => {
     }
     expect(screen.getByText("12 athlètes")).toHaveStyle({ background: "rgba(0,0,0,.12)" });
   });
+
+  it("répartit le contenu de la variante hero en colonne flex quand la carte est étirée (#688)", () => {
+    // La grille du tableau de bord peut faire de cette carte le voisin de
+    // colonnes plus hautes : sans `flex`, le contenu restait empilé en haut
+    // du `block`, laissant un vide en bas. `value` doit pouvoir grandir pour
+    // occuper l'espace disponible, et la pastille ne doit pas être étirée en
+    // largeur par le `stretch` par défaut de l'axe transverse.
+    render(<StatCard variant="hero" label="Dossards" value={120} delta="12 athlètes" />);
+
+    expect(screen.getByText("Dossards").parentElement).toHaveStyle({ display: "flex", flexDirection: "column" });
+    expect(screen.getByText("120")).toHaveStyle({ flex: "1 1 auto" });
+    expect(screen.getByText("12 athlètes")).toHaveStyle({ alignSelf: "flex-start" });
+  });
 });
