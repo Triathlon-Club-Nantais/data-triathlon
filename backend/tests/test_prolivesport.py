@@ -538,6 +538,34 @@ def test_fanout_reutilise_une_reponse_qui_couvre_plusieurs_courses(monkeypatch):
     assert len(api.appels_indiv) == 1
 
 
+def test_fanout_fuite_tardive_ne_duplique_pas_une_course_deja_couverte(monkeypatch):
+    """Non-régression #673.
+
+    « Triathlon XS » (première course de `raceList`) est scrapée avec succès
+    par sa propre requête directe — filtre honoré. « Triathlon S », requêtée
+    ensuite, fuite vers l'événement entier : sa réponse contient donc aussi les
+    lignes de « Triathlon XS », course **antérieure** dans la liste et déjà
+    couverte. Ces lignes ne doivent pas être comptées une deuxième fois.
+    """
+    def indiv(race):
+        if race == "Triathlon XS":
+            return [ligne for ligne in EVENEMENT_979 if ligne["race"] == race]
+        return EVENEMENT_979  # fuite : événement entier peu importe la course demandée
+
+    api = _api(monkeypatch, indiv=indiv)
+
+    resultats, _trace = prolivesport.scrape_event_fanout(URL_979)
+
+    assert len(api.appels_indiv) == 2  # XS (directe) + S (fuite) ; M réutilise la fuite
+    assert len(resultats) == 5  # et non 6 : la ligne XS n'est pas comptée deux fois
+    tailles = {url: len(rs) for url, rs in _par_course(resultats).items()}
+    assert tailles == {
+        _sub_source_url("979", "Triathlon XS"): 1,
+        _sub_source_url("979", "Triathlon S"): 2,
+        _sub_source_url("979", "Triathlon M"): 2,
+    }
+
+
 def test_fanout_appelle_chaque_course_quand_le_filtre_est_honore(monkeypatch):
     """Filtre honoré (codes sans espace ni tiret bas) : une requête par course."""
     api = _api(monkeypatch, indiv=lambda race: [
