@@ -76,8 +76,37 @@ jobs:
       - name: Lint (eslint)
         run: npm run lint
 
-      - name: Tests (vitest)
-        run: npm test
-
       - name: Typecheck + build
         run: npm run build # next build = typecheck TS strict + RSC
+
+  # Job à part, en matrice : les tests dominaient le job frontend (117 s sur ~178 s,
+  # mesuré sur #670) parce que le runner CI a moins de cœurs qu'un poste de dev — le
+  # goulot n'est pas le nombre de fichiers mais le coût d'instanciation de jsdom
+  # (~650 ms/fichier), et deux pistes de config seule ont été essayées et rejetées :
+  # `isolate: false` bloque la suite (état jsdom partagé entre fichiers), `pool:
+  # "threads"` est 3x plus lent (plusieurs jsdom sur un seul tas V8). Le sharding
+  # `--shard=N/M` de vitest répartit les fichiers de test sur des runners séparés,
+  # donc réellement parallèles plutôt qu'en contention sur les mêmes cœurs.
+  frontend-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ["1/4", "2/4", "3/4", "4/4"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: "26"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Tests (vitest, shard ${{ matrix.shard }})
+        run: npm test -- --shard=${{ matrix.shard }}
