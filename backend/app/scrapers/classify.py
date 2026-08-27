@@ -214,7 +214,9 @@ def refine_from_splits(event_type: str, *, has_swim: bool, has_bike: bool) -> st
     `classify_event_type` — voir `_avec_taille`). Volontairement strict :
     seul le slug nu est concerné, jamais ses suffixes de distance
     (`course-a-pied-5k`…), dont le nom est un signal sans ambiguïté contrairement
-    à « foulées ».
+    à « foulées ». Ne généralise pas non plus à tout `BARE_TYPES` : le mode de
+    défaillance visé (nom qui pointe vers course-a-pied alors que les splits
+    disent triathlon) n'a, à ce jour, été observé que sur ce sport.
     """
     if event_type == "course-a-pied" and has_swim and has_bike:
         return "triathlon"
