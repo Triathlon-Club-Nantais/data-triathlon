@@ -174,7 +174,13 @@ significativement inférieur à `--max-concurrent-hosts 1`.
   ouvrant sa propre `Session` via `session_scope()` — fait passer T006, T009
 - [X] T012 [US1] Protéger l'accumulation dans `BatchTotals` contre l'écriture
   concurrente (verrou léger autour du seul bloc de comptabilité par épreuve,
-  hors du scrape lui-même) — fait passer T007
+  hors du scrape lui-même) — fait passer T007. **Post-revue de code** :
+  l'ouverture de la `Session` d'un groupe (`session_factory()`) pouvait lever
+  hors de tout filet et faire perdre le bilan de tout le batch (pool épuisé,
+  coupure transitoire) — un groupe en échec d'ouverture compte désormais
+  chacune de ses épreuves en erreur au lieu de faire planter `run_batch` ;
+  test de régression ajouté
+  (`test_run_batch_echec_d_ouverture_de_session_de_groupe_ne_perd_pas_le_bilan`)
 - [X] T013 [US1] Remplacer la capture de `KeyboardInterrupt` autour de
   l'ancienne boucle séquentielle par un signal coopératif (`threading.Event`)
   vérifié par chaque thread de groupe entre deux épreuves de son lot ; le

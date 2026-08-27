@@ -39,8 +39,12 @@ chronométreur actif, borné par un plafond global configurable.
 GIL pendant l'attente I/O — le gain attendu (SC-001) est donc atteignable sans
 changer un seul scraper. `SessionLocal` (`app/core/database.py`) est déjà un
 `sessionmaker` sur un pool dimensionné (`db_pool_size=15`,
-`max_overflow=10`) : chaque thread peut ouvrir sa propre `Session` via
-`session_scope()`, l'idiome déjà utilisé par toutes les commandes CLI.
+`max_overflow=10`) : chaque thread peut ouvrir sa propre `Session`. En
+implémentation, `run_batch` construit ce `sessionmaker` localement via
+`sessionmaker(bind=db.get_bind())` plutôt que d'appeler `session_scope()`
+(qui est câblé sur l'engine global) — ça réutilise l'engine de la `Session`
+reçue en paramètre, quel qu'il soit, ce qui est aussi ce qui permet à un test
+de fournir un engine isolé.
 
 **Alternatives considered**:
 - Réécriture asyncio (`httpx.AsyncClient`) : rejetée — toucherait les 14

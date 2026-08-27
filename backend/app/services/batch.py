@@ -318,8 +318,20 @@ def run_batch(
     def _traiter_groupe(host: str, host_items: list[BatchItem]) -> None:
         if stop_event.is_set():
             return
-        group_db = session_factory()
         group_reporter = _ReporterPourGroupe(reporter, host)
+        try:
+            group_db = session_factory()
+        except Exception as exc:  # filet : l'échec d'un groupe ne doit pas perdre le bilan du batch
+            logger.warning("Échec d'ouverture de session pour l'hôte %s : %s", host, exc)
+            message = str(exc) or exc.__class__.__name__
+            with lock:
+                for item in host_items:
+                    totals.errors += 1
+                    totals.failures.append(
+                        BatchFailure(url=item.url, label=item.label, message=message)
+                    )
+                    totals.processed += 1
+            return
         try:
             for position, item in enumerate(host_items):
                 if stop_event.is_set():
@@ -327,8 +339,11 @@ def run_batch(
                 try:
                     _traiter_epreuve(group_db, item, group_reporter)
                 except KeyboardInterrupt:
-                    # Ctrl-C pendant cette épreuve : elle n'est pas comptée (comme
-                    # aujourd'hui), et plus aucun groupe ne démarre d'épreuve neuve.
+                    # Un appelant synchrone de ce thread (ex. un reporter) a levé
+                    # KeyboardInterrupt — un vrai Ctrl-C (SIGINT) n'arrive, lui,
+                    # jamais que sur le thread principal (cf. plus bas). L'épreuve
+                    # en cours n'est pas comptée (comme aujourd'hui), et plus aucun
+                    # groupe ne démarre d'épreuve neuve.
                     stop_event.set()
                     logger.warning("Interruption clavier — arrêt du batch")
                     _liberer_session(group_db)

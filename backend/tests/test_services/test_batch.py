@@ -220,6 +220,33 @@ def test_run_batch_ctrl_c_multi_hotes_stoppe_les_nouvelles_epreuves(
     assert not any(call[0] == "item_start" and call[2] == "jamais" for call in fake_reporter.calls)
 
 
+def test_run_batch_echec_d_ouverture_de_session_de_groupe_ne_perd_pas_le_bilan(
+    db_session_concurrent, monkeypatch
+):
+    """Un groupe dont la Session ne peut pas s'ouvrir (pool épuisé, coupure
+    transitoire) doit compter en échec — pas faire perdre le bilan de tout
+    le batch en laissant l'exception s'échapper de `run_batch`."""
+
+    def _sessionmaker_factice(*args, **kwargs):
+        def _leve(*a, **k):
+            raise RuntimeError("pool épuisé")
+        return _leve
+
+    monkeypatch.setattr(batch, "sessionmaker", _sessionmaker_factice)
+
+    items = [BatchItem(url="https://host-a.example/e/1", label="A")]
+
+    totals = batch.run_batch(db_session_concurrent, items, _settings(), force=False, delay=0.0)
+
+    assert totals.errors == 1
+    assert totals.processed == 1
+    assert totals.failures == [
+        batch.BatchFailure(
+            url="https://host-a.example/e/1", label="A", message="pool épuisé",
+        ),
+    ]
+
+
 # --- politesse par chronométreur, y compris multi-domaines (US2) --------------
 
 
