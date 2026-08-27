@@ -741,6 +741,45 @@ def _reclassify_heats(db: Session, event_url: str, results: list[ScrapedResult])
             course_repository.reclassify(db, course, event_type)
 
 
+def _renumber_relay_split_ranks(results: list[ScrapedResult]) -> None:
+    """Renumérote `rank_overall` en 1..N quand la scission par `is_relay` a lieu (#672).
+
+    L'identité `Course` (`name, event_date, event_type, is_relay`) scinde en
+    deux épreuves une source qui n'en publie qu'une (solo + relais/duo mêlés
+    dans un même « heat »). Le `rank_overall` scrapé porte alors le rang dans
+    le **champ combiné** de la source — inchangé après la scission, le petit
+    lot hérite d'un rang très écarté (ex. 597 pour 3 relayeurs), ce qui casse
+    l'hypothèse de `services/quality.py::_rank_anomalies` (classement local
+    1..N sans trou, cf. `ANOMALY_RANK_GAP`) et affiche un « trou » de
+    centaines de rangs sur une fiche de 1 à 16 participants — déroutant côté
+    site. Constaté sur ProLiveSport et Chronoplace, deux scrapers sans code
+    partagé : la cause commune est l'identité `Course`, pas un fournisseur.
+
+    Renuméroté ici, au point précis où le lot scrapé se répartit par
+    `is_relay` — pas dans les scrapers, puisque le bug ne dépend d'aucun
+    d'eux. Ne touche que les groupes réellement scindés dans **ce** lot (plus
+    d'une valeur `is_relay` pour un même `(event_name, event_date,
+    event_type)`) : une épreuve dont la source publie déjà un classement
+    local par heat n'est pas concernée, et y toucher serait sans effet — tri
+    stable sur le rang d'origine, donc déjà 1..N ne change pas.
+    """
+    groups: dict[tuple, dict[bool, list[ScrapedResult]]] = {}
+    for scraped in results:
+        cle = (scraped.event_name, scraped.event_date, scraped.event_type)
+        groups.setdefault(cle, {}).setdefault(bool(scraped.is_relay), []).append(scraped)
+
+    for par_relay in groups.values():
+        if len(par_relay) < 2:
+            continue  # pas de scission is_relay pour cette épreuve dans ce lot
+        for sous_groupe in par_relay.values():
+            classes = sorted(
+                (r for r in sous_groupe if r.rank_overall is not None),
+                key=lambda r: r.rank_overall,
+            )
+            for rang_local, scraped in enumerate(classes, start=1):
+                scraped.rank_overall = rang_local
+
+
 def persist_results(db: Session, url: str, results: list[ScrapedResult]) -> dict:
     """Écrit des résultats déjà scrapés. **Ne clôt pas la transaction.**
 
@@ -755,6 +794,7 @@ def persist_results(db: Session, url: str, results: list[ScrapedResult]) -> dict
     l'écriture.
     """
     _reclassify_heats(db, url, results)
+    _renumber_relay_split_ranks(results)
     persister = _Persister(db, url)
     for scraped in results:
         persister.add(scraped)
@@ -891,10 +931,13 @@ def iter_import_event(
     yield {"phase": "saving", "total": total, "imported": 0, "updated": 0, "skipped": 0, "progress": 0}
     try:
         # Le chemin SSE ré-implémente la boucle de `persist_results` pour émettre
-        # sa progression : le rattrapage de classification (#294) doit donc y être
-        # posé lui aussi, et **avant** la première ligne, sinon la seconde `Course`
-        # est déjà née quand on la cherche.
+        # sa progression : le rattrapage de classification (#294) et la
+        # renumérotation solo/relais (#672) doivent donc y être posés eux
+        # aussi, et **avant** la première ligne, sinon la seconde `Course`
+        # est déjà née — ou déjà écrite avec son rang combiné — quand on la
+        # cherche.
         _reclassify_heats(db, url, results)
+        _renumber_relay_split_ranks(results)
         for i, scraped in enumerate(results):
             persister.add(scraped)
             if (i + 1) % 20 == 0 or i == total - 1:
