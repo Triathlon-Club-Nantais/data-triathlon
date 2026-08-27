@@ -10,6 +10,7 @@ import { EventsTable } from "./EventsTable";
 import { AthleteAdminPanel } from "@/components/athletes/AthleteAdminPanel";
 import { formatToken, disciplineBreakdownBySeason, genderShort, ordinalFr } from "@/lib/utils/format";
 import { BarList } from "@/components/charts/BarList";
+import { CAT_COLORS } from "@/components/charts/CategoryBars";
 import { bestRatio, progressionSeries, recurringWeakSegment } from "@/lib/utils/ranking";
 import { resumeAthlete } from "@/lib/utils/athlete-stats";
 import { ProgressionChart } from "@/components/charts/ProgressionChart";
@@ -57,6 +58,15 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
   const progression = progressionSeries(validated);
   const weakSegment = recurringWeakSegment(validated);
   const disciplineBySeason = disciplineBreakdownBySeason(validated);
+  // Une couleur par jeton de format, stable d'une saison à l'autre (#655) : sans
+  // ça, toutes les barres de `BarList` partageaient la même teinte unique
+  // (`var(--accent-ink)`, son repli sans `colorer`). L'assignation part de
+  // l'ordre d'apparition, identique à chaque rendu pour un même jeu de
+  // participations, donc « M » garde la même couleur d'un bloc de saison à
+  // l'autre — condition nécessaire pour que la légende ci-dessous (#656) vaille
+  // pour l'ensemble des blocs plutôt que pour un seul.
+  const formatTokens = [...new Set(disciplineBySeason.flatMap(({ entries }) => entries.map(([key]) => key)))];
+  const formatColor = new Map(formatTokens.map((tok, i) => [tok, CAT_COLORS[i % CAT_COLORS.length]]));
 
   return (
     <PageShell>
@@ -184,13 +194,37 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
         )}
 
         {disciplineBySeason.length > 0 && (
-          <Card>
+          <Card data-testid="repartition-saison">
             <Eyebrow>Répartition par saison</Eyebrow>
+            {/* Légende posée une seule fois pour tous les blocs de saison
+                ci-dessous (#656) : sans elle, les mêmes jetons de format
+                (« M », « S »…) se répètent bloc après bloc sans qu'aucun repère
+                commun ne dise que leur couleur est stable d'une saison à
+                l'autre. `aria-hidden` : purement redondante avec le
+                récapitulatif texte de chaque `BarList` (son `role="img"`), qui
+                nomme déjà chaque jeton — la couleur n'y porte jamais
+                l'information seule (WCAG 1.4.1). */}
+            <div
+              aria-hidden
+              data-testid="legende-format"
+              className="mb-3 mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--tcn-text-faint)]"
+            >
+              {formatTokens.map((tok) => (
+                <span key={tok}>
+                  <span style={{ color: formatColor.get(tok) }}>■</span> {tok}
+                </span>
+              ))}
+            </div>
             <div className="space-y-5">
               {disciplineBySeason.map(({ season, entries }) => (
                 <div key={season}>
                   <p className="mb-2 text-sm font-semibold text-[var(--tcn-text-faint)]">{season}</p>
-                  <BarList entries={entries} labeller={(key) => key} subjectLabel="format" />
+                  <BarList
+                    entries={entries}
+                    labeller={(key) => key}
+                    colorer={(key) => formatColor.get(key) ?? "var(--accent-ink)"}
+                    subjectLabel="format"
+                  />
                 </div>
               ))}
             </div>

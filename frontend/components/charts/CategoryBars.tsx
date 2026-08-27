@@ -9,7 +9,11 @@ function nomCourt(name: string): string {
   return name.replace(/\s*\(\d+\)$/, "");
 }
 
-/** Exportée pour `ClubComposition` (#653), même palette positionnelle. */
+// Exportée : c'est la seule palette catégorielle générique du projet (couleurs
+// posées par position, pas par sens de la clé — à distinguer de
+// `lib/sport-colors.ts`, qui code une famille de discipline précise). Réutilisée
+// telle quelle par `ClubComposition` (#653) et par `BarList` sur la fiche
+// athlète (#655) plutôt que d'en ouvrir une seconde.
 export const CAT_COLORS = [
   "var(--tcn-orange)", "var(--tcn-orange-300)", "var(--tcn-ink)", "var(--tcn-ink-2)",
   "var(--tcn-ink-3)", "var(--tcn-grey-400)", "var(--tcn-orange-200)", "var(--tcn-grey-300)",

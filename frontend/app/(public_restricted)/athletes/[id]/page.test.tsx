@@ -622,3 +622,83 @@ describe("AthletePage — l'en-tête identifie l'athlète (PROF-5, #488)", () =>
     expect(pastille).not.toHaveTextContent("(");
   });
 });
+
+// --- Répartition par saison : couleurs et légende (#655, #656) ---
+
+describe("AthletePage — répartition par saison, couleurs et légende (#655, #656)", () => {
+  it("distingue les jetons de format par une couleur différente, pas une teinte unique pour toutes les barres (#655)", async () => {
+    const { getByTestId } = await renderAthlete([
+      part({
+        id: 1,
+        rank_overall: 12,
+        course: {
+          id: 1,
+          name: "Course 1",
+          event_date: "2026-05-16",
+          event_type: "triathlon-m",
+          provider: "manuel",
+          source_url: "",
+          is_relay: false,
+        },
+      }),
+      part({
+        id: 2,
+        rank_overall: 20,
+        course: {
+          id: 2,
+          name: "Course 2",
+          event_date: "2026-05-20",
+          event_type: "triathlon-s",
+          provider: "manuel",
+          source_url: "",
+          is_relay: false,
+        },
+      }),
+    ]);
+
+    const section = getByTestId("repartition-saison");
+    const bars = [...section.querySelectorAll("[data-bar]")] as HTMLElement[];
+    expect(bars).toHaveLength(2);
+    // Avant #655, `colorer` n'était jamais passé : les deux barres partageaient
+    // exactement `var(--accent-ink)`, quel que soit le jeton de format.
+    expect(bars[0].style.background).not.toBe(bars[1].style.background);
+    expect(bars[0].style.background).not.toBe("var(--accent-ink)");
+    expect(bars[1].style.background).not.toBe("var(--accent-ink)");
+  });
+
+  it("affiche une légende qui associe chaque jeton de format affiché à sa couleur (#656)", async () => {
+    const { getByTestId } = await renderAthlete([
+      part({
+        id: 1,
+        rank_overall: 12,
+        course: {
+          id: 1,
+          name: "Course 1",
+          event_date: "2026-05-16",
+          event_type: "triathlon-m",
+          provider: "manuel",
+          source_url: "",
+          is_relay: false,
+        },
+      }),
+      part({
+        id: 2,
+        rank_overall: 20,
+        course: {
+          id: 2,
+          name: "Course 2",
+          event_date: "2026-05-20",
+          event_type: "triathlon-s",
+          provider: "manuel",
+          source_url: "",
+          is_relay: false,
+        },
+      }),
+    ]);
+
+    const section = getByTestId("repartition-saison");
+    const legende = within(section).getByTestId("legende-format");
+    expect(legende).toHaveTextContent("M");
+    expect(legende).toHaveTextContent("S");
+  });
+});
