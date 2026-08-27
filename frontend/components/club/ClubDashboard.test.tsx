@@ -73,11 +73,29 @@ function part(over: Partial<Participation> & { id: number }): Participation {
 
 describe("ClubDashboard — smoke", () => {
   it("rend les 4 KPI de synthèse", () => {
-    render(<ClubDashboard stats={STATS} summary={EMPTY_SUMMARY} recent={[part({ id: 1 })]} />);
+    render(<ClubDashboard stats={STATS} summary={EMPTY_SUMMARY} recent={[part({ id: 1 })]} resultsTotal={STATS.total} />);
     expect(screen.getByText("Résultats")).toBeInTheDocument();
     expect(screen.getByText("Athlètes")).toBeInTheDocument();
     expect(screen.getByText("Épreuves")).toBeInTheDocument();
     expect(screen.getByText("Podiums")).toBeInTheDocument();
+  });
+
+  // #649 : le KPI « Résultats » divergeait de « Dossards enregistrés »
+  // du dashboard, qui filtre sur la saison en cours (repli par défaut). Le
+  // KPI recevait tout le total toutes saisons de `stats.total` — désormais
+  // il reçoit `resultsTotal`, calculé par la page avec le même filtre.
+  it("le KPI Résultats reflète le total scopé à la saison en cours, pas le total toutes saisons (#649)", () => {
+    render(
+      <ClubDashboard
+        stats={{ ...STATS, total: 42 }}
+        summary={EMPTY_SUMMARY}
+        recent={[part({ id: 1 })]}
+        resultsTotal={7}
+      />,
+    );
+    const carte = screen.getByText("Résultats").parentElement!.parentElement!;
+    expect(carte.querySelector(".tcn-stat-value")).toHaveTextContent("7");
+    expect(carte.querySelector(".tcn-stat-value")).not.toHaveTextContent("42");
   });
 
   it("empty state quand aucun résultat", () => {
@@ -86,6 +104,7 @@ describe("ClubDashboard — smoke", () => {
         stats={{ ...STATS, total: 0 }}
         summary={EMPTY_SUMMARY}
         recent={[]}
+        resultsTotal={0}
       />,
     );
     expect(screen.getByText("Aucun résultat de club")).toBeInTheDocument();
@@ -99,7 +118,7 @@ describe("ClubDashboard — smoke", () => {
         podiums: 1, podiums_overall: 1, podiums_gender: 1, podiums_category: 1,
       }],
     };
-    render(<ClubDashboard stats={STATS} summary={summary} recent={[part({ id: 1 })]} />);
+    render(<ClubDashboard stats={STATS} summary={summary} recent={[part({ id: 1 })]} resultsTotal={STATS.total} />);
     expect(screen.getByLabelText("1 podium général")).toBeInTheDocument();
     expect(screen.getByLabelText("1 podium de catégorie")).toBeInTheDocument();
     expect(screen.getByLabelText("1 podium de genre")).toBeInTheDocument();
@@ -107,7 +126,7 @@ describe("ClubDashboard — smoke", () => {
 
   it("roster : aucun badge scope pour un athlète sans podium", () => {
     const summary: ClubSummary = { ...EMPTY_SUMMARY, roster: [rosterEntry(1, 0)] };
-    render(<ClubDashboard stats={STATS} summary={summary} recent={[part({ id: 1 })]} />);
+    render(<ClubDashboard stats={STATS} summary={summary} recent={[part({ id: 1 })]} resultsTotal={STATS.total} />);
     expect(screen.queryByLabelText(/podium général/)).not.toBeInTheDocument();
   });
 
@@ -123,6 +142,7 @@ describe("ClubDashboard — smoke", () => {
         stats={{ ...STATS, athletes: 20 }}
         summary={summary}
         recent={[part({ id: 1 })]}
+        resultsTotal={STATS.total}
       />,
     );
 
@@ -138,13 +158,13 @@ describe("ClubDashboard — smoke", () => {
 
   it("roster : titre « Athlètes du club » sous le plafond", () => {
     const summary: ClubSummary = { ...EMPTY_SUMMARY, roster: [rosterEntry(1)] };
-    render(<ClubDashboard stats={STATS} summary={summary} recent={[part({ id: 1 })]} />);
+    render(<ClubDashboard stats={STATS} summary={summary} recent={[part({ id: 1 })]} resultsTotal={STATS.total} />);
     expect(screen.getByRole("heading", { name: "Athlètes du club" })).toBeInTheDocument();
   });
 
   it("nomme la portée des podiums du roster en légende (PROF-3, #488)", () => {
     const summary: ClubSummary = { ...EMPTY_SUMMARY, roster: [rosterEntry(1, 1)] };
-    render(<ClubDashboard stats={STATS} summary={summary} recent={[part({ id: 1 })]} />);
+    render(<ClubDashboard stats={STATS} summary={summary} recent={[part({ id: 1 })]} resultsTotal={STATS.total} />);
     expect(
       screen.getByText("Les podiums comptés ici cumulent le général, le genre et la catégorie."),
     ).toBeInTheDocument();
@@ -152,7 +172,7 @@ describe("ClubDashboard — smoke", () => {
 
   it("n'affiche pas la légende des podiums quand aucun athlète de l'aperçu n'en a", () => {
     const summary: ClubSummary = { ...EMPTY_SUMMARY, roster: [rosterEntry(1, 0)] };
-    render(<ClubDashboard stats={STATS} summary={summary} recent={[part({ id: 1 })]} />);
+    render(<ClubDashboard stats={STATS} summary={summary} recent={[part({ id: 1 })]} resultsTotal={STATS.total} />);
     expect(
       screen.queryByText("Les podiums comptés ici cumulent le général, le genre et la catégorie."),
     ).not.toBeInTheDocument();
@@ -166,7 +186,7 @@ describe("ClubDashboard — smoke", () => {
       ...EMPTY_SUMMARY,
       composition: { gender: { F: 1, M: 1 }, category: { S3: 1, S4: 1 } },
     };
-    render(<ClubDashboard stats={STATS} summary={summary} recent={[]} />);
+    render(<ClubDashboard stats={STATS} summary={summary} recent={[]} resultsTotal={STATS.total} />);
 
     const onglet = screen.getByRole("tab", { name: "Composition" });
     expect(onglet).toBeInTheDocument();
@@ -179,14 +199,14 @@ describe("ClubDashboard — smoke", () => {
 
   it("résultats récents : rend `recent` directement, sans re-tri", () => {
     const recent = [part({ id: 5 }), part({ id: 9 })];
-    render(<ClubDashboard stats={STATS} summary={EMPTY_SUMMARY} recent={recent} />);
+    render(<ClubDashboard stats={STATS} summary={EMPTY_SUMMARY} recent={recent} resultsTotal={STATS.total} />);
     expect(screen.getAllByRole("link", { name: /Course \d/ })).toHaveLength(2);
   });
 
   // #581 : le bandeau de troncature disparaît — roster et podiums sont exacts,
   // il n'y a plus de plafond à annoncer.
   it("ne rend plus de bandeau de troncature", () => {
-    render(<ClubDashboard stats={STATS} summary={EMPTY_SUMMARY} recent={[part({ id: 1 })]} />);
+    render(<ClubDashboard stats={STATS} summary={EMPTY_SUMMARY} recent={[part({ id: 1 })]} resultsTotal={STATS.total} />);
     expect(screen.queryByText(/derniers résultats importés/)).not.toBeInTheDocument();
   });
 });

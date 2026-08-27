@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render as renderRTL } from "@testing-library/react";
+import { render as renderRTL, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import type { ClubSummary, Participation, Stats } from "@/lib/types";
+import { currentSeason } from "@/lib/utils/season";
 
 const getStats = vi.fn();
 const getClubSummary = vi.fn();
@@ -96,5 +97,24 @@ describe("ClubPage", () => {
       expect.objectContaining({ page_size: 6 }),
       expect.anything(),
     );
+  });
+
+  // #649 : le KPI « Résultats » affichait le total toutes saisons de
+  // `/club/summary`, quand « Dossards enregistrés » du dashboard filtre sur
+  // la saison en cours (repli par défaut de `currentSeason()`) — deux
+  // compteurs pour ce qui semble à l'utilisateur la même donnée.
+  it("scope le total du KPI Résultats à la saison en cours, comme /dashboard", async () => {
+    getStats.mockImplementation((opts: { seasons?: number[] }) =>
+      Promise.resolve(opts?.seasons ? { ...STATS, total: 7 } : { ...STATS, total: 42 }),
+    );
+
+    await renderClub({});
+
+    expect(getStats).toHaveBeenCalledWith(
+      expect.objectContaining({ seasons: [currentSeason()] }),
+      expect.anything(),
+    );
+    const carte = screen.getByText("Résultats").parentElement!.parentElement!;
+    expect(carte.querySelector(".tcn-stat-value")).toHaveTextContent("7");
   });
 });
