@@ -109,7 +109,13 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
                 if result.club == "":
                     result.club = p
 
-    # Official time + Rankings — find label divs by exact text, then read sibling
+    # Rankings — find label divs by exact text, then read sibling. « Temps
+    # Officiel » n'est qu'un repli pour total_time : sur une épreuve à vagues de
+    # départ, il porte le temps canon (décalé par la vague de l'athlète), quand
+    # les splits — et « temps réel » plus bas — sont calculés sur le chrono net.
+    # Poser les deux référentiels sur une même ligne les rendait incohérents
+    # entre eux sans que rien ne le signale (#676). « temps réel », rencontré
+    # plus loin dans le document, prime donc dessus quand il existe.
     rank_map = {
         "classement général": "overall",
         "classement catégorie": "category",
@@ -125,7 +131,7 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
             if val_div:
                 t = normalize_time(val_div.get_text(strip=True))
                 if t and t != "00:00:00" and not status_already_set:
-                    result.total_time = t
+                    result.total_time = t  # repli, écrasé plus bas par « temps réel » s'il existe
 
         for label, field in rank_map.items():
             if text_low == label:
@@ -192,12 +198,15 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
         time_norm = normalize_time(tds[1].get_text(strip=True))
 
         # "temps réel" row = total time reported by timing system, not a split.
-        # Garde symétrique au bloc « Temps Officiel » : un 00:00:00 (non-finisher
-        # DNS) ne doit pas ressusciter un total_time vidé en amont par le statut —
-        # et `status_already_set` couvre aussi le cas où la page détail publie ici
-        # une valeur non nulle malgré un DNS/DNF/DSQ déjà posé (#675).
+        # Chrono net, cohérent avec la somme des splits ci-dessous — il prime sur
+        # « Temps Officiel » (#676), posé plus haut comme simple repli. Un
+        # 00:00:00 (non-finisher DNS) ne doit en revanche pas écraser un
+        # total_time valide déjà posé, ni ressusciter un total_time vidé en amont
+        # par le statut : `status_already_set` couvre aussi le cas où la page
+        # détail publie ici une valeur non nulle malgré un DNS/DNF/DSQ déjà posé
+        # (#675).
         if "temps" in stage and "réel" in stage:
-            if not status_already_set and not result.total_time and time_norm and time_norm != "00:00:00":
+            if not status_already_set and time_norm and time_norm != "00:00:00":
                 result.total_time = time_norm
             continue
 
