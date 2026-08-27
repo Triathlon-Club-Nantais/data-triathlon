@@ -35,6 +35,16 @@ export function StatCard({
           background: "var(--tcn-orange-grad)",
           borderRadius: "var(--tcn-radius-3xl)",
           boxShadow: "var(--tcn-shadow-orange-xl)",
+          // La grille du tableau de bord (`app/(public_restricted)/dashboard/page.tsx`)
+          // peut faire de cette carte le voisin de colonnes plus hautes : sans
+          // `flex`, le contenu restait empilé en haut du `block` et laissait un
+          // vide en bas dès que la carte dépassait sa hauteur naturelle (#688).
+          // `value` grandit pour occuper l'espace disponible et se centre
+          // verticalement dedans ; le libellé reste ancré en haut, la pastille
+          // en bas (`alignSelf: flex-start` l'empêche d'être étirée en largeur
+          // par le `stretch` par défaut de l'axe transverse).
+          display: "flex",
+          flexDirection: "column",
           ...style,
         }}
       >
@@ -59,11 +69,24 @@ export function StatCard({
         <div style={{ fontWeight: 700, fontSize: 13, letterSpacing: ".04em", textTransform: "uppercase", color: "#fff" }}>
           {label}
         </div>
-        <div className="tcn-stat-value" style={{ fontFamily: "var(--tcn-font-display)", fontSize: 86, lineHeight: 0.95, color: "#fff", margin: "10px 0 8px", whiteSpace: "nowrap" }}>
+        <div
+          className="tcn-stat-value"
+          style={{
+            fontFamily: "var(--tcn-font-display)",
+            fontSize: 86,
+            lineHeight: 0.95,
+            color: "#fff",
+            margin: "10px 0 8px",
+            whiteSpace: "nowrap",
+            flex: "1 1 auto",
+            display: "flex",
+            alignItems: "center",
+          }}
+        >
           {value}
         </div>
         {delta ? (
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 12px", background: "rgba(0,0,0,.12)", color: "#fff", borderRadius: 999, fontSize: 13, fontWeight: 800 }}>
+          <div style={{ display: "inline-flex", alignSelf: "flex-start", alignItems: "center", gap: 6, padding: "5px 12px", background: "rgba(0,0,0,.12)", color: "#fff", borderRadius: 999, fontSize: 13, fontWeight: 800 }}>
             {delta}
           </div>
         ) : null}
