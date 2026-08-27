@@ -9,7 +9,8 @@ function nomCourt(name: string): string {
   return name.replace(/\s*\(\d+\)$/, "");
 }
 
-const CAT_COLORS = [
+/** Exportée pour `ClubComposition` (#653), même palette positionnelle. */
+export const CAT_COLORS = [
   "var(--tcn-orange)", "var(--tcn-orange-300)", "var(--tcn-ink)", "var(--tcn-ink-2)",
   "var(--tcn-ink-3)", "var(--tcn-grey-400)", "var(--tcn-orange-200)", "var(--tcn-grey-300)",
 ];
