@@ -1235,6 +1235,64 @@ def test_build_heat_results_includes_dnf_and_total_times(monkeypatch):
     assert all(r.event_date == date(2024, 9, 28) for r in results)
 
 
+def test_build_heat_results_ignores_inter_splits_for_dns():
+    """#675 (suite) — les splits inter (phase B) ne doivent pas non plus être
+    appliqués à un statut DNS/DNF/DSQ.
+
+    `build_heat_results` applique `fetch_inter_splits` par dossard sans jamais
+    consulter le statut : un checkpoint (ex. natation) publiant un temps non nul
+    pour un dossard DNS le lui attribuait quand même. Sans cette garde, le
+    correctif de `_parse_detail` (phase C) ne suffit pas à éliminer le symptôme
+    de l'issue — `_fetch_and_apply_detail` restaure justement ces splits de
+    phase B dès que la page détail n'en fournit aucun (cas DNS attendu).
+    """
+    from app.scrapers.klikego_platform import build_heat_results
+
+    # Dossard 33 classé DNS dans le data block principal (clt="DNS").
+    data_block = _block(["33|true|DNS|DNS|DUPONT Jean|S3|M|CLUB||||"])
+    # Mais le checkpoint natation publie un temps non nul pour ce même dossard.
+    natation_inter = _block(["33|true|1|1|DUPONT Jean|S3|M|CLUB|00:58:57|||"])
+
+    class FakeResp:
+        status_code = 200
+        def __init__(self, t): self.text = t
+
+    class FakeClient:
+        def get(self, url):
+            if "inter=&page=0" in url:
+                return FakeResp(data_block)
+            if "inter=Natation" in url and "page=0" in url:
+                return FakeResp(natation_inter)
+            return FakeResp(_block([]))
+
+    heat_page_html = """
+    <html><body>
+      <select name="inter">
+        <option value="">Arrivée</option>
+        <option value="Natation">Natation</option>
+      </select>
+    </body></html>
+    """
+
+    results = build_heat_results(
+        base="https://www.klikego.com",
+        provider="klikego",
+        event_id="evt",
+        heat="triathlon-s-indiv",
+        heat_page_html=heat_page_html,
+        event_name="Triathlon Test",
+        slug="triathlon-test",
+        event_type="triathlon_s",
+        source_url="https://www.klikego.com/x",
+        event_date=None,
+        client=FakeClient(),
+    )
+    assert len(results) == 1
+    r = results[0]
+    assert r.status == "DNS"
+    assert r.swim_time == ""
+
+
 # ── scrape_event_all — import exhaustif via data block (finishers + DNF/DNS/DSQ)
 
 
@@ -1291,13 +1349,16 @@ def test_parse_detail_ignores_zero_placeholders():
     assert r.rank_overall is None    # le rang 0 est ignoré
 
 
-def test_parse_detail_does_not_overwrite_dns_participant():
-    """#675 — un statut DNS/DNF/DSQ déjà posé en phase B (`_parse_search_row`)
-    ne doit pas être ressuscité par des valeurs non nulles de la page détail.
+@pytest.mark.parametrize("status", ["DNS", "DNF", "DSQ"])
+def test_parse_detail_does_not_overwrite_participant_with_status(status):
+    """#675 — un statut DNS/DNF/DSQ déjà posé en phase B (data block de
+    `course-result.jsp`, via `klikego_platform.build_heat_results`) ne doit
+    pas être ressuscité par des valeurs non nulles de la page détail.
 
     Cas réel (Mesquer-Quimiac 2026, dossard 33) : la liste de recherche classe
     le participant "DNS", mais sa page détail publie un rang, un temps total et
-    un split natation non nuls — ces trois champs doivent rester vides.
+    un split natation non nuls — ces trois champs doivent rester vides. Vérifié
+    pour les trois statuts que la garde traite identiquement (DNF, DSQ compris).
     """
     ranks = [("Classement général", "85 / 150")]
     splits = [
@@ -1309,11 +1370,11 @@ def test_parse_detail_does_not_overwrite_dns_participant():
     ]
     html = make_detail_html(total_time="01:22:43", ranks=ranks, splits=splits)
     result, raw = fresh_result()
-    result.status = "DNS"
+    result.status = status
 
     _parse_detail(html, result, raw)
 
-    assert result.status == "DNS"
+    assert result.status == status
     assert result.total_time == ""
     assert result.rank_overall is None
     assert result.swim_time == ""
