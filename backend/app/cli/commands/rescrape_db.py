@@ -4,7 +4,7 @@ import typer
 from app.cli.progress import select_reporter
 from app.cli.reports import emit_outcome, render_rescrape_report
 from app.cli.url_sources import charger_urls, valider_ciblage_exclusif, valider_single_heat
-from app.cli.validators import valider_provider
+from app.cli.validators import valider_max_concurrent_hosts, valider_provider
 from app.core.config import get_settings
 from app.core.database import session_scope
 from app.services import rescrape_service
@@ -54,6 +54,10 @@ def rescrape_db(
     limit: int | None = typer.Option(None, "--limit", help="Borne le nombre d'épreuves."),
     delay: float = typer.Option(
         1.0, "--delay", help="Pause de politesse entre scrapes (s)."
+    ),
+    max_concurrent_hosts: int = typer.Option(
+        4, "--max-concurrent-hosts", callback=valider_max_concurrent_hosts,
+        help="Plafond de chronométreurs traités en même temps.",
     ),
     json_output: bool = typer.Option(
         False, "--json",
@@ -130,7 +134,7 @@ def rescrape_db(
             db, settings,
             dry_run=dry_run, older_than=older_than, provider=provider,
             limit=limit, delay=delay, reporter=reporter, urls=urls,
-            single_heat=single_heat,
+            single_heat=single_heat, max_concurrent_hosts=max_concurrent_hosts,
         )
 
     emit_outcome(

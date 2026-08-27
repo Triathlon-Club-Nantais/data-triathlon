@@ -5,16 +5,21 @@ le SSE du frontend — et relaie la progression à un `ProgressReporter`. Une
 épreuve en échec n'interrompt pas le batch ; un Ctrl-C l'arrête proprement en
 conservant le travail déjà persisté (chaque épreuve est commitée séparément).
 """
+import itertools
 import logging
+import threading
 import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from functools import partial
+from urllib.parse import urlparse
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings
 from app.core.sql_observability import measure_queries
+from app.scrapers.registry import detect_provider
 from app.services import import_service
 from app.services.import_service import PassiveSource, Reassignment
 from app.services.progress import NullReporter, ProgressReporter
@@ -168,6 +173,44 @@ def _liberer_session(db: Session) -> None:
         logger.warning("Rollback de rattrapage impossible — Session irrécupérable")
 
 
+def _group_by_host(items: list[BatchItem]) -> list[tuple[str, list[BatchItem]]]:
+    """Regroupe les épreuves par chronométreur, dans l'ordre de première rencontre.
+
+    La clé est celle du registre des scrapers (`detect_provider`), pas le
+    domaine réseau littéral de l'URL : un chronométreur qui publie sur
+    plusieurs domaines (Wiclax, RaceResult) doit rester une unité de politesse
+    unique — deux domaines du même provider ne doivent jamais tourner en
+    parallèle l'un de l'autre (clarification de `spec.md`). Une URL non
+    reconnue par le registre retombe sur son hôte réseau littéral, pour ne pas
+    fusionner deux inconnues sans rapport sous une même clé vide.
+    """
+    groups: dict[str, list[BatchItem]] = {}
+    for item in items:
+        host_key = detect_provider(item.url) or (urlparse(item.url).hostname or "")
+        groups.setdefault(host_key, []).append(item)
+    return list(groups.items())
+
+
+@dataclass(frozen=True)
+class _ReporterPourGroupe:
+    """Lie un `ProgressReporter` à un chronométreur : `_import_one` continue
+    d'appeler `item_start`/`item_progress`/`item_done` sans connaître le
+    regroupement — cet adaptateur ajoute `host` à chaque appel, seul endroit
+    qui a besoin de le savoir.
+    """
+    reporter: ProgressReporter
+    host: str
+
+    def item_start(self, index: int, label: str) -> None:
+        self.reporter.item_start(index, label, self.host)
+
+    def item_progress(self, done: int, total: int) -> None:
+        self.reporter.item_progress(done, total, self.host)
+
+    def item_done(self, imported: int, skipped: int, error: str | None) -> None:
+        self.reporter.item_done(imported, skipped, error, self.host)
+
+
 def _import_one(
     db: Session,
     url: str,
@@ -221,28 +264,41 @@ def run_batch(
     delay: float = 1.0,
     reporter: ProgressReporter | None = None,
     single_heat: bool = False,
+    max_concurrent_hosts: int = 4,
 ) -> BatchTotals:
-    """Importe chaque épreuve en séquence, en rapportant la progression.
+    """Importe les épreuves en parallèle par chronométreur, en rapportant la progression.
 
-    `delay` est une pause de politesse entre deux scrapes (pas après le dernier).
+    Les épreuves d'un même chronométreur (`_group_by_host`) restent traitées en
+    séquence — `delay` est une pause de politesse entre deux scrapes du même
+    chronométreur, pas après le dernier de son groupe. Des chronométreurs
+    différents scrapent en même temps, bornés par `max_concurrent_hosts`.
+
+    Chaque groupe ouvre sa propre `Session` (liée au même moteur que `db`, via
+    `db.get_bind()`) : une `Session` SQLAlchemy n'est pas thread-safe, `db` sert
+    donc uniquement au travail qui encadre le batch (l'appelant), jamais au
+    scrape lui-même.
     """
     reporter = reporter or NullReporter()
     totals = BatchTotals()
+    lock = threading.Lock()
+    stop_event = threading.Event()
+    compteur = itertools.count()
+    session_factory = sessionmaker(autocommit=False, autoflush=False, bind=db.get_bind())
 
-    _notify(partial(reporter.batch_start, len(items)))
-    try:
-        for i, item in enumerate(items):
-            _notify(partial(reporter.item_start, i, item.label))
-            with measure_queries(item.label):
-                try:
-                    result = _import_one(
-                        db, item.url, settings, force=force, persist=persist, reporter=reporter,
-                        single_heat=single_heat,
-                    )
-                except Exception as exc:  # filet : un bug ne doit pas tuer le batch
-                    logger.warning("Échec import %s : %s", item.url, exc)
-                    result = _ItemResult(error=str(exc) or exc.__class__.__name__)
+    def _traiter_epreuve(group_db: Session, item: BatchItem, group_reporter: ProgressReporter) -> None:
+        index = next(compteur)
+        _notify(partial(group_reporter.item_start, index, item.label))
+        with measure_queries(item.label):
+            try:
+                result = _import_one(
+                    group_db, item.url, settings, force=force, persist=persist,
+                    reporter=group_reporter, single_heat=single_heat,
+                )
+            except Exception as exc:  # filet : un bug ne doit pas tuer le batch
+                logger.warning("Échec import %s : %s", item.url, exc)
+                result = _ItemResult(error=str(exc) or exc.__class__.__name__)
 
+        with lock:
             if result.error:
                 totals.errors += 1
                 totals.failures.append(
@@ -256,17 +312,52 @@ def run_batch(
                 totals.reassignments.extend(result.reassignments)
                 totals.passive_sources.extend(result.passive_sources)
             totals.processed += 1  # tentée et allée au bout, réussie ou non
-            _notify(partial(reporter.item_done, result.imported, result.skipped, result.error))
-            _liberer_session(db)
+        _notify(partial(group_reporter.item_done, result.imported, result.skipped, result.error))
+        _liberer_session(group_db)
 
-            if delay and i < len(items) - 1:
-                time.sleep(delay)
-    except KeyboardInterrupt:
-        # Ctrl-C : on ne perd pas le bilan de ce qui est déjà en base.
-        totals.interrupted = True
-        logger.warning("Interruption clavier — arrêt du batch")
-        _liberer_session(db)  # le Ctrl-C a pu couper une épreuve en plein SELECT
+    def _traiter_groupe(host: str, host_items: list[BatchItem]) -> None:
+        if stop_event.is_set():
+            return
+        group_db = session_factory()
+        group_reporter = _ReporterPourGroupe(reporter, host)
+        try:
+            for position, item in enumerate(host_items):
+                if stop_event.is_set():
+                    return
+                try:
+                    _traiter_epreuve(group_db, item, group_reporter)
+                except KeyboardInterrupt:
+                    # Ctrl-C pendant cette épreuve : elle n'est pas comptée (comme
+                    # aujourd'hui), et plus aucun groupe ne démarre d'épreuve neuve.
+                    stop_event.set()
+                    logger.warning("Interruption clavier — arrêt du batch")
+                    _liberer_session(group_db)
+                    return
+                if delay and position < len(host_items) - 1 and not stop_event.is_set():
+                    time.sleep(delay)
+        finally:
+            group_db.close()
+
+    groupes = _group_by_host(items)
+
+    _notify(partial(reporter.batch_start, len(items)))
+    executor = ThreadPoolExecutor(max_workers=max(1, max_concurrent_hosts))
+    try:
+        futures = [executor.submit(_traiter_groupe, host, host_items) for host, host_items in groupes]
+        try:
+            for future in as_completed(futures):
+                future.result()
+            executor.shutdown(wait=True)
+        except KeyboardInterrupt:
+            # Ctrl-C reçu par le thread principal (cas réel : bloqué ici en
+            # attente). Aucun groupe pas encore démarré ne doit démarrer ; ceux
+            # déjà en cours vont à leur terme (on ne peut pas tuer un thread).
+            stop_event.set()
+            logger.warning("Interruption clavier — arrêt du batch")
+            executor.shutdown(wait=True, cancel_futures=True)
     finally:
+        if stop_event.is_set():
+            totals.interrupted = True
         _notify(reporter.batch_end)
 
     return totals

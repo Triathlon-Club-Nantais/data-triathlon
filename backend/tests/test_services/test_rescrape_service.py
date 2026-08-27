@@ -281,7 +281,7 @@ def test_run_rescrape_libelle_avec_le_nom_de_course(db_session, monkeypatch, fak
 
     rescrape_service.run_rescrape_db(db_session, _settings(), delay=0.0, reporter=fake_reporter)
 
-    assert ("item_start", 0, "klikego · Triathlon de Nantes") in fake_reporter.calls
+    assert ("item_start", 0, "klikego · Triathlon de Nantes", "k") in fake_reporter.calls
 
 
 def test_run_rescrape_echec_total_quand_toutes_les_epreuves_echouent(db_session, monkeypatch):
@@ -348,13 +348,13 @@ def test_mode_urls_libelle_depuis_la_base_sinon_l_url(db_session, monkeypatch):
         def batch_start(self, total: int) -> None:
             pass
 
-        def item_start(self, index: int, label: str) -> None:
+        def item_start(self, index: int, label: str, host: str) -> None:
             libelles.append(label)
 
-        def item_progress(self, done: int, total: int) -> None:
+        def item_progress(self, done: int, total: int, host: str) -> None:
             pass
 
-        def item_done(self, imported: int, skipped: int, error: str | None) -> None:
+        def item_done(self, imported: int, skipped: int, error: str | None, host: str) -> None:
             pass
 
         def batch_end(self) -> None:

@@ -74,6 +74,7 @@ def run_import_sheet(
     only_provider: str | None = None,
     delay: float = 1.0,
     reporter: ProgressReporter | None = None,
+    max_concurrent_hosts: int = 4,
 ) -> SheetOutcome:
     """Détecte, dédoublonne et importe les liens supportés du CSV du Sheet.
 
@@ -111,7 +112,8 @@ def run_import_sheet(
         for url in supported
     ]
     totals = run_batch(
-        db, items, settings, force=False, delay=delay, reporter=reporter
+        db, items, settings, force=False, delay=delay, reporter=reporter,
+        max_concurrent_hosts=max_concurrent_hosts,
     )
 
     copy_totals(outcome, totals)

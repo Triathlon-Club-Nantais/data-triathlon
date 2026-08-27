@@ -230,6 +230,7 @@ def run_rescrape_db(
     reporter: ProgressReporter | None = None,
     urls: list[str] | None = None,
     single_heat: bool = False,
+    max_concurrent_hosts: int = 4,
 ) -> RescrapeOutcome:
     """Re-scrape toutes les épreuves en DB avec force=True (bypass du cache TTL).
 
@@ -271,7 +272,7 @@ def run_rescrape_db(
 
     totals = run_batch(
         db, items, settings, force=True, persist=not dry_run, delay=delay, reporter=reporter,
-        single_heat=single_heat,
+        single_heat=single_heat, max_concurrent_hosts=max_concurrent_hosts,
     )
 
     copy_totals(outcome, totals)

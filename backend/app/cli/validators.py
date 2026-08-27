@@ -36,3 +36,18 @@ def valider_provider(value: str | None) -> str | None:
             f"Valeurs acceptées : {', '.join(connus)}."
         )
     return value
+
+
+def valider_max_concurrent_hosts(value: int) -> int:
+    """Callback Typer : refuse un plafond de concurrence non strictement positif.
+
+    `0` ou une valeur négative ne correspondent à aucun degré de parallélisme
+    sensé (`ThreadPoolExecutor` lève sur `max_workers <= 0`) — autant le dire
+    avant tout travail plutôt que de laisser l'exception interne remonter.
+    """
+    if value <= 0:
+        raise typer.BadParameter(
+            f"le plafond de concurrence doit être un entier strictement positif, "
+            f"reçu : {value}."
+        )
+    return value

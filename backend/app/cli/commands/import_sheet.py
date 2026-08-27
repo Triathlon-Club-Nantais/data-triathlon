@@ -3,7 +3,7 @@ import typer
 
 from app.cli.progress import select_reporter
 from app.cli.reports import emit_outcome, render_sheet_report
-from app.cli.validators import valider_provider
+from app.cli.validators import valider_max_concurrent_hosts, valider_provider
 from app.core.config import get_settings
 from app.core.database import session_scope
 from app.services import bulk_import_service, sheet_source
@@ -25,6 +25,10 @@ def import_sheet(
     delay: float = typer.Option(
         1.0, "--delay", help="Pause de politesse entre scrapes réels (s)."
     ),
+    max_concurrent_hosts: int = typer.Option(
+        4, "--max-concurrent-hosts", callback=valider_max_concurrent_hosts,
+        help="Plafond de chronométreurs traités en même temps.",
+    ),
     json_output: bool = typer.Option(
         False, "--json",
         help="stdout ne contient que le JSON ; le rapport texte passe sur stderr.",
@@ -45,7 +49,7 @@ def import_sheet(
         outcome = bulk_import_service.run_import_sheet(
             db, csv_text, settings,
             dry_run=dry_run, limit=limit, only_provider=only_provider,
-            delay=delay, reporter=reporter,
+            delay=delay, reporter=reporter, max_concurrent_hosts=max_concurrent_hosts,
         )
 
     emit_outcome(
