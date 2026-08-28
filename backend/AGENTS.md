@@ -25,7 +25,7 @@ l'arborescence, et chaque dossier qui a ses propres pièges porte son
 - `app/models/` — SQLAlchemy **normalisé** : `Athlete`, `Course`, `Participation`,
   `PendingProvider`.
 - `app/schemas/` — DTO Pydantic v2 (entrée/sortie).
-- `app/repositories/` — `*_repository.py` : **seule couche qui touche la Session**.
+- `app/repositories/` — `*_repository.py` : **seule couche qui construit des requêtes sur la Session** (les services peuvent commit/flush/rollback, jamais requêter).
 - `app/services/` — logique métier : `mapping`, `cache` (TTL), `scrape_service`,
   `import_service`, `stats_service`, `geocode_service`, plus les batches CLI
   (`sheet_source`, `batch`, `bulk_import_service`, `rescrape_service`,

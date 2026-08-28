@@ -131,7 +131,8 @@ port éphémère et le publie, son frontend le lit. `docs/dev-multi-worktree.md`
 
 Deux applications, une archi en couches côté backend dont le flux ne traverse
 qu'une direction : `api → services → repositories → DB`, les repositories étant
-la **seule** couche qui touche la Session SQLAlchemy. L'inventaire module par
+la **seule** couche qui construit des requêtes sur la Session SQLAlchemy.
+L'inventaire module par
 module et le cache TTL sont dans `backend/AGENTS.md`, le front dans
 `frontend/AGENTS.md` — les deux se chargent d'eux-mêmes dès qu'un fichier du
 dossier est lu.
