@@ -1583,24 +1583,20 @@ def test_scrape_event_all_tcn_detail_overrides_inter_splits(monkeypatch):
     )
 
 
-def test_scrape_event_all_fetches_detail_for_non_tcn(monkeypatch):
-    """Phase C : la page détail est récupérée pour TOUS les participants, pas seulement les TCN.
+def test_scrape_event_all_skips_phase_c_for_non_tcn(monkeypatch):
+    """Phase C (#699) : la page détail n'est récupérée que pour les membres du TCN.
 
-    Le bib 182 (BELATTAR Claudine) n'a aucun club et n'apparaît pas dans la
-    recherche city=nantais : sous l'ancienne logique il n'aurait aucun split.
-    Avec le correctif, sa page détail alimente ses splits fins.
+    Le bib 182 (BELATTAR Claudine) est licencié à ST NAZAIRE, un club non-TCN
+    (fixture `klikego_datablock_page0.html`) : sans le filtre, un événement
+    multi-heats déclenchait une requête de détail par participant de tous
+    clubs, jusqu'à un millier sur un gros événement (#699). Avec le filtre, sa
+    page détail n'est jamais requêtée et il garde les seuls champs connus
+    depuis la phase B (aucun split, cette fixture ne configure pas de
+    checkpoints inter).
     """
     page0 = (FIXTURES / "klikego_datablock_page0.html").read_text()
 
-    detail_182 = make_detail_html(
-        meta="F - Dossard N°182 - V3 - ST NAZAIRE",
-        total_time="01:14:35",
-        splits=[
-            ("Natation", "00:16:24"),
-            ("Vélo",     "00:31:00"),
-            ("Course",   "00:08:55"),
-        ],
-    )
+    detail_calls = []
 
     class FakeResp:
         def __init__(self, t, code=200): self.text, self.status_code = t, code
@@ -1614,11 +1610,8 @@ def test_scrape_event_all_fetches_detail_for_non_tcn(monkeypatch):
                 return FakeResp(page0)
             if "course-result.jsp" in url:
                 return FakeResp("<html></html>")
-            if "resultats-search.jsp" in url:  # aucun TCN (city=nantais vide)
-                return FakeResp("<html></html>")
-            if "resultat-participant.jsp" in url and "dossard=182" in url:
-                return FakeResp(detail_182)
-            if "resultat-participant.jsp" in url:  # autres bibs : détail sans splits
+            if "resultat-participant.jsp" in url:
+                detail_calls.append(url)
                 return FakeResp("<html></html>")
             return FakeResp("<html></html>")
 
@@ -1631,9 +1624,13 @@ def test_scrape_event_all_fetches_detail_for_non_tcn(monkeypatch):
     )
 
     r182 = next(r for r in results if r.bib_number == "182")
-    assert r182.swim_time == "00:16:24"
-    assert r182.bike_time == "00:31:00"
-    assert r182.run_time == "00:08:55"
+    assert r182.club == "ST NAZAIRE"
+    assert r182.swim_time == ""
+    assert r182.bike_time == ""
+    assert r182.run_time == ""
+    assert not any("dossard=182" in url for url in detail_calls), (
+        f"le bib 182 (non-TCN) ne doit recevoir aucune requête de détail, calls={detail_calls}"
+    )
 
 
 def test_scrape_event_all_reclasse_course_a_pied_en_triathlon_si_splits_complets(monkeypatch):
@@ -1642,15 +1639,17 @@ def test_scrape_event_all_reclasse_course_a_pied_en_triathlon_si_splits_complets
     participant publie natation ET vélo — impossibles pour une vraie course à
     pied — la phase C corrige event_type en triathlon.
 
-    Le bib 182 n'a pas de club et n'apparaît dans aucune recherche city= : sa
-    seule source de splits est la page détail (comme
-    `test_scrape_event_all_fetches_detail_for_non_tcn`).
+    Le bib 422 est TCN dans la fixture (#699) : c'est désormais la seule
+    catégorie de participant dont la page détail est requêtée (cf.
+    `test_scrape_event_all_skips_phase_c_for_non_tcn`), donc le seul chemin
+    par lequel des splits natation+vélo peuvent encore alimenter cette
+    reclassification.
     """
     page0 = (FIXTURES / "klikego_datablock_page0.html").read_text()
 
-    detail_182 = make_detail_html(
-        meta="F - Dossard N°182 - V3 - ST NAZAIRE",
-        total_time="01:14:35",
+    detail_422 = make_detail_html(
+        meta="M - Dossard N°422 - S2 - TRIATHLON CLUB NANTAIS",
+        total_time="01:14:31",
         splits=[
             ("Natation", "00:16:24"),
             ("Vélo",     "00:31:00"),
@@ -1672,9 +1671,9 @@ def test_scrape_event_all_reclasse_course_a_pied_en_triathlon_si_splits_complets
                 return FakeResp("<html></html>")
             if "resultats-search.jsp" in url:
                 return FakeResp("<html></html>")
-            if "resultat-participant.jsp" in url and "dossard=182" in url:
-                return FakeResp(detail_182)
-            if "resultat-participant.jsp" in url:  # autres bibs : détail sans splits
+            if "resultat-participant.jsp" in url and "dossard=422" in url:
+                return FakeResp(detail_422)
+            if "resultat-participant.jsp" in url:  # autres bibs TCN : détail sans splits
                 return FakeResp("<html></html>")
             return FakeResp("<html></html>")
 
@@ -1686,19 +1685,19 @@ def test_scrape_event_all_reclasse_course_a_pied_en_triathlon_si_splits_complets
         "Diaoulman Pontivy 2026 — DIAOUL FOULEES OPEN", "diaoulman-pontivy-2026",
     )
 
-    r182 = next(r for r in results if r.bib_number == "182")
-    assert r182.swim_time == "00:16:24"
-    assert r182.bike_time == "00:31:00"
-    assert r182.event_type == "triathlon", (
+    r422 = next(r for r in results if r.bib_number == "422")
+    assert r422.swim_time == "00:16:24"
+    assert r422.bike_time == "00:31:00"
+    assert r422.event_type == "triathlon", (
         "Les splits scrapés (natation + vélo) doivent primer sur le libellé "
         f"« foulées » et corriger event_type en triathlon (#679). "
-        f"event_type={r182.event_type!r}"
+        f"event_type={r422.event_type!r}"
     )
 
     # Non-régression : un participant sans détail exploitable (pas de swim/bike
     # scrapé) garde le classement par nom, inchangé — la correction n'agit
     # jamais à l'aveugle.
-    other = next((r for r in results if r.bib_number != "182"), None)
+    other = next((r for r in results if r.bib_number != "422"), None)
     assert other is not None
     assert other.event_type == "course-a-pied"
 
@@ -1767,12 +1766,15 @@ def test_scrape_event_all_phase_c_ignore_les_echecs_reseau_par_participant(monke
     quasi-totalité des requêtes avant d'abandonner. Le participant en échec
     garde ses splits de phase B (inter, non écrasés) ; les autres reçoivent
     leurs splits fins normalement.
+
+    Bib 422 et 220 sont tous deux TCN dans la fixture (#699) : seuls eux
+    passent le filtre de phase C et peuvent donc démontrer l'isolement.
     """
     page0 = (FIXTURES / "klikego_datablock_page0.html").read_text()
 
-    detail_182 = make_detail_html(
-        meta="F - Dossard N°182 - V3 - ST NAZAIRE",
-        total_time="01:14:35",
+    detail_220 = make_detail_html(
+        meta="F - Dossard N°220 - S2 - TRIATHLON CLUB NANTAIS",
+        total_time="01:14:42",
         splits=[
             ("Natation", "00:16:24"),
             ("Vélo",     "00:31:00"),
@@ -1792,8 +1794,8 @@ def test_scrape_event_all_phase_c_ignore_les_echecs_reseau_par_participant(monke
         def get(self, url):
             if "resultat-participant.jsp" in url and "dossard=422" in url:
                 raise httpx.ConnectError("boom")
-            if "resultat-participant.jsp" in url and "dossard=182" in url:
-                return FakeResp(detail_182)
+            if "resultat-participant.jsp" in url and "dossard=220" in url:
+                return FakeResp(detail_220)
             if "resultat-participant.jsp" in url:
                 return FakeResp("<html></html>")
             if "course-result.jsp" in url and "inter=&page=0" in url:
@@ -1815,10 +1817,10 @@ def test_scrape_event_all_phase_c_ignore_les_echecs_reseau_par_participant(monke
         )
 
     r422 = next(r for r in results if r.bib_number == "422")
-    r182 = next(r for r in results if r.bib_number == "182")
+    r220 = next(r for r in results if r.bib_number == "220")
 
     assert r422 is not None, "le participant en échec réseau reste dans le résultat"
-    assert r182.swim_time == "00:16:24", "182 doit recevoir ses splits fins malgré l'échec de 422"
+    assert r220.swim_time == "00:16:24", "220 doit recevoir ses splits fins malgré l'échec de 422"
     assert any("422" in rec.message for rec in caplog.records), "l'échec réseau doit être journalisé"
 
 
@@ -1872,11 +1874,12 @@ def test_scrape_event_fanout_on_detail_progress_notifie_pendant_la_phase_c(monke
         cache_probe=probe, on_detail_progress=on_detail_progress,
     )
 
-    assert notifications, "la phase C d'un heat de 50 participants doit notifier au moins une fois"
+    assert notifications, "la phase C des 32 TCN sur 50 participants doit notifier au moins une fois"
     assert all(n[0] == "triathlon-s-indiv" for n in notifications)
     assert all(n[1] == 1 and n[2] == 1 for n in notifications), "seul heat non-caché : index 1/1"
-    assert notifications[-1][3] == notifications[-1][4] == 50, "la dernière notification couvre la totalité"
-    assert len(notifications) < 50, "notifié par lot, pas à chaque participant"
+    # 32 des 50 participants sont TCN (#699) : seuls eux comptent dans la phase C.
+    assert notifications[-1][3] == notifications[-1][4] == 32, "la dernière notification couvre la totalité"
+    assert len(notifications) < 32, "notifié par lot, pas à chaque participant"
 
 
 # ── _enumerate_heats — fan-out event (issue #156) ────────────────────────────
