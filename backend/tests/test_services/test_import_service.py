@@ -702,6 +702,45 @@ def test_iter_import_event_expose_updated(db_session, patch_scraper):
     assert (done["imported"], done["updated"], done["skipped"]) == (0, 1, 0)
 
 
+def test_iter_import_event_accuse_de_commit_perdu_confirme_en_base(db_session, patch_scraper, monkeypatch):
+    """#704 : un `commit()` qui aboutit côté serveur mais dont l'accusé de
+    réception se perd (connexion recyclée en prod) ne doit pas annoncer
+    `error` — les données sont bel et bien écrites, une phase `done` fidèle
+    doit sortir plutôt qu'un faux échec qui pousse à ré-importer."""
+    patch_scraper([_result("1", "DUPONT")])
+    original_commit = db_session.commit
+
+    def _commit_puis_accuse_perdu():
+        original_commit()
+        raise RuntimeError("connexion recyclée après commit abouti")
+
+    monkeypatch.setattr(db_session, "commit", _commit_puis_accuse_perdu)
+
+    phases = list(import_service.iter_import_event(db_session, URL, _settings()))
+
+    done = phases[-1]
+    assert done["phase"] == "done"
+    assert done["imported"] == 1
+    assert course_repository.get_latest_by_source_url(db_session, URL) is not None
+
+
+def test_iter_import_event_commit_reellement_echoue_reste_une_erreur(db_session, patch_scraper, monkeypatch):
+    """Garde-fou du fix #704 : une vraie panne de commit, où rien n'atteint la
+    base, doit continuer à annoncer `error` — la re-vérification ne doit pas
+    transformer tout échec de commit en faux succès."""
+    patch_scraper([_result("1", "DUPONT")])
+
+    def _commit_echoue_vraiment():
+        raise RuntimeError("connexion perdue avant tout commit")
+
+    monkeypatch.setattr(db_session, "commit", _commit_echoue_vraiment)
+
+    phases = list(import_service.iter_import_event(db_session, URL, _settings()))
+
+    assert phases[-1]["phase"] == "error"
+    assert course_repository.get_latest_by_source_url(db_session, URL) is None
+
+
 def test_cached_return_porte_updated_zero(db_session, patch_scraper):
     """Le retour court-circuité par le cache TTL porte `updated: 0`."""
     patch_scraper([_result("1", "DUPONT")])
