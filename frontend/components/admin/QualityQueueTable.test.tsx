@@ -127,6 +127,13 @@ describe("QualityQueueTable", () => {
     expect(screen.getByText(/2 dossards en doublon/i)).toBeInTheDocument();
   });
 
+  it("le nom de l'épreuve est un lien vers sa page publique (#719)", async () => {
+    rendre();
+
+    const lien = await screen.findByRole("link", { name: "Triathlon de Vertou" });
+    expect(lien).toHaveAttribute("href", "/courses/7");
+  });
+
   it("« Marquer fiable » envoie le verdict favorable (AC4)", async () => {
     rendre();
     const ligne = (await screen.findByText("Triathlon de Vertou")).closest("tr")!;

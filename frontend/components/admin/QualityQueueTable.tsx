@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -236,7 +237,16 @@ export function QualityQueueTable({
                   {affichees.map((course) => (
                     <TableRow key={course.id}>
                       <TableCell className="whitespace-normal">
-                        <div className="font-medium">{course.name}</div>
+                        {/* Vers la page publique de l'épreuve — aucune page
+                            `/admin/courses/[id]` dédiée n'existe, et n'a pas
+                            à exister (#719) : même route que le lien « Voir la
+                            page publique » de `CoursesAdminTable`. */}
+                        <Link
+                          href={`/courses/${course.id}`}
+                          className="font-medium text-primary hover:underline"
+                        >
+                          {course.name}
+                        </Link>
                         <div className="text-xs text-muted-foreground">
                           {eventTypeLabel(course.event_type)} · {providerLabel(course.provider)}
                         </div>
