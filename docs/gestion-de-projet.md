@@ -42,15 +42,24 @@ Une issue qui ne peut pas être raffinée faute d'information reste en
 
 ## Priorité
 
-Champ `Priority` (single-select) du board « Data TCN ». Échelle standard
-GitHub :
+Champ `Priority` du board « Data TCN » — en réalité le miroir d'un *Issue
+Field* au niveau de l'organisation (`Triathlon-Club-Nantais`), pas un champ
+propre à ce seul projet : potentiellement partagé avec d'autres
+repos/projets du club. Il existe déjà avec 4 valeurs configurées côté
+organisation (vérifié le 28/08/2026 par introspection GraphQL — détail
+dans `reference/graphql.md`) :
 
 | Valeur | Quand |
 | --- | --- |
-| 🔴 Urgent | Sécurité, perte/corruption de données, prod cassée. |
-| 🟠 High | Bloque d'autres tâches, ou demande répétée/impact large. |
-| 🟡 Medium | Amélioration normale sans urgence. |
-| 🟢 Low | Cosmétique, nice-to-have. |
+| Urgent | Sécurité, perte/corruption de données, prod cassée. |
+| High | Bloque d'autres tâches, ou demande répétée/impact large. |
+| Medium | Amélioration normale sans urgence. |
+| Low | Cosmétique, nice-to-have. |
+
+Rien à configurer : ces 4 valeurs existent déjà et ne doivent pas être
+recréées ni renommées — ni via `updateProjectV2Field` (échoue : « Only
+custom fields can be updated »), ni via `updateIssueField` (modifierait un
+champ potentiellement partagé, hors du seul board « Data TCN »).
 
 ## Milestone
 

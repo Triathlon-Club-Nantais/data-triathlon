@@ -15,7 +15,7 @@
 - Issue titles: `type(scope): description`, English, Conventional Commits (Principe I).
 - Issue bodies: French, structured `## Constat de départ` / `## Demande` / `## Hors périmètre`.
 - `gh` v2.45.0 has no CLI flags for sub-issue linking or adding options to an existing project field — every such mutation goes through `gh api graphql` (exact queries verified by schema introspection on 2026-08-28, see Task 2).
-- Board "Data TCN": project node ID `PVT_kwDOEaPNkc4Bdwm2`, `Status` field ID `PVTSSF_lADOEaPNkc4Bdwm2zhYP1fg`, `Priority` field ID `PVTSSF_lADOEaPNkc4Bdwm2zhYP1qQ`.
+- Board "Data TCN": project node ID `PVT_kwDOEaPNkc4Bdwm2`, `Status` field ID `PVTSSF_lADOEaPNkc4Bdwm2zhYP1fg` (a real project field). `Priority` field ID `PVTSSF_lADOEaPNkc4Bdwm2zhYP1qQ` is a *mirror* of org-level Issue Field `IFSS_kgDOApchLg` (already has 4 options: Urgent/High/Medium/Low) — set it via `updateIssueFieldValue` on the issue, never via `gh project item-edit` or `updateProjectV2Field` (see Task 4).
 - Never write to GitHub without the user's explicit batch approval of the presented plan.
 - Never create a milestone automatically — always a separate, dedicated confirmation.
 
@@ -390,37 +390,33 @@ git commit -m "feat(product-owner): add /product-owner skill for backlog groomin
 
 ### Task 4: One-time board setup — configure the `Priority` field
 
-No file changes — this configures the live "Data TCN" project board, not the repo. No commit.
+**Superseded during execution (2026-08-28).** The field-update mutation
+below was run and rejected: `updateProjectV2Field` returned "Only custom
+fields can be updated. Fields derived from issues or pull requests must be
+updated through their respective APIs." Introspection showed why:
+`Priority` (`PVTSSF_lADOEaPNkc4Bdwm2zhYP1qQ`) has `isIssueField: true` — it
+mirrors an organization-level Issue Field (`IFSS_kgDOApchLg`), not a
+project-owned field, and that Issue Field **already has 4 options**
+(Urgent/High/Medium/Low — no emoji, unlike this task's original plan).
 
-- [ ] **Step 1: Run the field-update mutation**
+No configuration is needed or possible from the project side; recreating
+or renaming those options via `updateIssueField` would touch a field
+potentially shared with other repos/projects in the organization — an
+effect outside this worktree and outside this single board, so it was not
+attempted. `docs/gestion-de-projet.md` and
+`.claude/skills/product-owner/reference/graphql.md` were corrected to
+reflect this (see their "Priorité"/"Priority est un Issue Field partagé"
+sections) — those corrections are this task's actual deliverable.
 
-```bash
-gh api graphql -f query='
-mutation($fieldId: ID!) {
-  updateProjectV2Field(input: {
-    fieldId: $fieldId
-    singleSelectOptions: [
-      { name: "🔴 Urgent", color: RED, description: "" }
-      { name: "🟠 High", color: ORANGE, description: "" }
-      { name: "🟡 Medium", color: YELLOW, description: "" }
-      { name: "🟢 Low", color: GREEN, description: "" }
-    ]
-  }) {
-    projectV2Field { ... on ProjectV2SingleSelectField { id options { id name } } }
-  }
-}' -f fieldId="PVTSSF_lADOEaPNkc4Bdwm2zhYP1qQ"
-```
+No file changes beyond the corrections above. No commit beyond the one
+covering those doc corrections. Task 4 is complete as a documentation
+correction, not a board mutation.
 
-- [ ] **Step 2: Verify**
+~~Step 1: Run the field-update mutation~~ — do not run; fails as described
+above.
 
-```bash
-gh project field-list 1 --owner Triathlon-Club-Nantais --format json \
-  -q '.fields[] | select(.name == "Priority")'
-```
-
-Expected: the `Priority` field now lists exactly the four options above.
-Record the returned `option.id` values somewhere reachable for Task 5 (they
-are needed to actually set an item's priority).
+~~Step 2: Verify~~ — superseded; the four values already exist at
+`gh api graphql -f query='{ node(id: "PVTSSF_lADOEaPNkc4Bdwm2zhYP1qQ") { ... on ProjectV2SingleSelectField { issueField { ... on IssueFieldSingleSelect { options { id name } } } } } }'`.
 
 ---
 
