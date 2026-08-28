@@ -197,6 +197,71 @@ def test_import_event_stream_emet_un_padding_initial(client, monkeypatch):
     )
 
 
+def test_import_event_stream_emet_un_battement_sur_phase_longue(client, monkeypatch):
+    """Sans mécanisme de heartbeat, une pause entre deux phases (#705 — scraping
+    fan-out ralenti, ou persistance lente) laisse le flux SSE totalement
+    silencieux assez longtemps pour qu'un proxy d'infra (Vercel/Render) coupe
+    la connexion pour inactivité, sans que le flux n'atteigne jamais `done` ni
+    `error` côté client. Contrat : une ligne de commentaire SSE (`: heartbeat`,
+    ignorée par le parseur front comme le padding initial) est émise si aucun
+    événement métier n'arrive dans l'intervalle configuré.
+    """
+    import time as time_module
+
+    from app.api.v1 import scrape
+    from app.services import import_service
+
+    monkeypatch.setattr(scrape, "_SSE_HEARTBEAT_INTERVAL_SECONDS", 0.05)
+
+    def fake_iter_import_event(db, url, settings, force=False, persist=True):
+        yield {"phase": "scraping", "message": "Récupération des participants…"}
+        time_module.sleep(0.2)  # > intervalle de battement : simule la pause
+        yield {"phase": "done", "imported": 0, "updated": 0, "skipped": 0,
+               "reconciled": 0, "reassignments": [], "total": 0, "courses": []}
+
+    monkeypatch.setattr(import_service, "iter_import_event", fake_iter_import_event)
+
+    with client.stream(
+        "POST", "/api/v1/scrape/event/stream", json={"url": "https://www.klikego.com/x"}
+    ) as resp:
+        assert resp.status_code == 200
+        body = "".join(resp.iter_text())
+
+    frames = body.split("\n\n")
+    heartbeats = [f for f in frames if f.strip() == ": heartbeat"]
+    assert heartbeats, "aucun battement émis pendant la pause"
+
+
+def test_import_event_stream_emet_error_si_iter_import_event_leve(client, monkeypatch):
+    """Le thread producteur du battement (#705) ne doit pas avaler une
+    exception inattendue en cours d'itération : sans phase `error` émise,
+    le flux se termine en 200 bien formé mais tronqué (ni `done` ni `error`),
+    et `useImportStream` reste bloqué sur « running: true » indéfiniment —
+    pire que l'ancien comportement, où la même exception coupait la connexion
+    et remontait comme une panne réseau côté client.
+    """
+    from app.services import import_service
+
+    def fake_iter_import_event(db, url, settings, force=False, persist=True):
+        yield {"phase": "scraping", "message": "Récupération des participants…"}
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(import_service, "iter_import_event", fake_iter_import_event)
+
+    with client.stream(
+        "POST", "/api/v1/scrape/event/stream", json={"url": "https://www.klikego.com/x"}
+    ) as resp:
+        assert resp.status_code == 200
+        body = "".join(resp.iter_text())
+
+    frames = [
+        json.loads(line[len("data: "):])
+        for line in body.splitlines()
+        if line.startswith("data: ")
+    ]
+    assert frames[-1]["phase"] == "error"
+
+
 def test_import_event_stream_expose_les_courses_touchees(client, monkeypatch):
     """Le SSE `done` porte `courses: [{id, name, event_type}]` — le front en
     tire des boutons « Voir les résultats » (#135). Contrat stable : présent
