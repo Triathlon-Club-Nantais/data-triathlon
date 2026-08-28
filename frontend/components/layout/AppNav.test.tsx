@@ -956,6 +956,16 @@ describe("badge des doublons suspects (#726)", () => {
 
     expect(await screen.findByText("3 doublons suspects")).toHaveClass("sr-only");
   });
+
+  it("n'affiche aucun badge quand la liste est vide", async () => {
+    countCourseDuplicates.mockResolvedValue({ total: 0 });
+    afficher(habilite("courses:sources"));
+    await deplier();
+
+    const entree = await screen.findByRole("link", { name: /doublons suspects/i });
+    await waitFor(() => expect(countCourseDuplicates).toHaveBeenCalled());
+    expect(within(entree).queryByText("0")).not.toBeInTheDocument();
+  });
 });
 
 describe("badge des fournisseurs en attente (#726)", () => {
@@ -971,6 +981,32 @@ describe("badge des fournisseurs en attente (#726)", () => {
     const entree = await screen.findByRole("link", { name: /fournisseurs en attente/i });
     expect(await within(entree).findByText("2")).toBeInTheDocument();
   });
+
+  it("n'affiche aucun badge quand la liste est vide", async () => {
+    countPendingProviders.mockResolvedValue({ total: 0 });
+    afficher(habilite("pending_providers:read"));
+    await deplier();
+
+    const entree = await screen.findByRole("link", { name: /fournisseurs en attente/i });
+    await waitFor(() => expect(countPendingProviders).toHaveBeenCalled());
+    expect(within(entree).queryByText("0")).not.toBeInTheDocument();
+  });
+
+  it("n'émet aucun comptage pour qui ne porte pas le pouvoir", async () => {
+    afficher(habilite("feedback:read"));
+    await deplier();
+
+    await screen.findByRole("link", { name: /retours utilisateurs/i });
+    expect(countPendingProviders).not.toHaveBeenCalled();
+  });
+
+  it("porte un nom accessible explicite", async () => {
+    countPendingProviders.mockResolvedValue({ total: 2 });
+    afficher(habilite("pending_providers:read"));
+    await deplier();
+
+    expect(await screen.findByText("2 fournisseurs en attente")).toHaveClass("sr-only");
+  });
 });
 
 describe("badge des retours utilisateurs (#726)", () => {
@@ -985,6 +1021,32 @@ describe("badge des retours utilisateurs (#726)", () => {
 
     const entree = await screen.findByRole("link", { name: /retours utilisateurs/i });
     expect(await within(entree).findByText("5")).toBeInTheDocument();
+  });
+
+  it("n'affiche aucun badge quand il n'y a aucun nouveau retour", async () => {
+    countFeedback.mockResolvedValue({ nouveau: 0, en_cours: 1, traite: 2, ignore: 0, total: 3 });
+    afficher(habilite("feedback:read"));
+    await deplier();
+
+    const entree = await screen.findByRole("link", { name: /retours utilisateurs/i });
+    await waitFor(() => expect(countFeedback).toHaveBeenCalled());
+    expect(within(entree).queryByText("0")).not.toBeInTheDocument();
+  });
+
+  it("n'émet aucun comptage pour qui ne porte pas le pouvoir", async () => {
+    afficher(habilite("courses:sources"));
+    await deplier();
+
+    await screen.findByRole("link", { name: /doublons suspects/i });
+    expect(countFeedback).not.toHaveBeenCalled();
+  });
+
+  it("porte un nom accessible explicite", async () => {
+    countFeedback.mockResolvedValue({ nouveau: 2, en_cours: 0, traite: 0, ignore: 0, total: 2 });
+    afficher(habilite("feedback:read"));
+    await deplier();
+
+    expect(await screen.findByText("2 nouveaux retours utilisateurs")).toHaveClass("sr-only");
   });
 });
 
