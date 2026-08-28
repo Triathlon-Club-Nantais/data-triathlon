@@ -145,7 +145,7 @@ export default async function DashboardPage({
           <MaSaison clubEvents={stats.events} seasons={serializeSeasons(selected)} federalOnly={federal_only} />
           <InvitationAthlete />
 
-          <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,3fr)] lg:items-start">
+          <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]">
             <StatCard variant="hero" label="Dossards enregistrés" value={stats.total.toLocaleString("fr-FR")} delta={`${stats.athletes} athlètes · ${stats.events} épreuves`} />
             <div>
               <div className="mb-2 flex items-center justify-between">
