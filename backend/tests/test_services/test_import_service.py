@@ -741,6 +741,29 @@ def test_iter_import_event_commit_reellement_echoue_reste_une_erreur(db_session,
     assert course_repository.get_latest_by_source_url(db_session, URL) is None
 
 
+def test_iter_import_event_re_verification_qui_echoue_reste_une_erreur(
+    db_session, patch_scraper, monkeypatch,
+):
+    """Garde-fou du fix #704 : si la re-vérification post-commit échoue à son
+    tour (connexion vraiment perdue, pas seulement un accusé égaré), le flux
+    SSE doit quand même terminer sur une phase `error` explicite — jamais une
+    exception non gérée qui laisse le front bloqué sur `saving`."""
+    patch_scraper([_result("1", "DUPONT")])
+
+    def _commit_echoue_vraiment():
+        raise RuntimeError("connexion perdue avant tout commit")
+
+    def _get_echoue(db, course_id):
+        raise RuntimeError("connexion aussi perdue pour la re-vérification")
+
+    monkeypatch.setattr(db_session, "commit", _commit_echoue_vraiment)
+    monkeypatch.setattr(import_service.course_repository, "get", _get_echoue)
+
+    phases = list(import_service.iter_import_event(db_session, URL, _settings()))
+
+    assert phases[-1]["phase"] == "error"
+
+
 def test_cached_return_porte_updated_zero(db_session, patch_scraper):
     """Le retour court-circuité par le cache TTL porte `updated: 0`."""
     patch_scraper([_result("1", "DUPONT")])

@@ -974,14 +974,24 @@ def iter_import_event(
             db.commit()
         else:
             db.rollback()  # dry-run : traverser la persistance, ne rien écrire
-    except Exception:
+    except Exception as exc:
         db.rollback()
-        if not (persist and _confirm_committed(db, persister.courses_summary(), attempt_started_at)):
-            logger.exception("Rollback de l'import streaming %s", url)
+        confirmed = False
+        if persist:
+            try:
+                confirmed = _confirm_committed(db, persister.courses_summary(), attempt_started_at)
+            except Exception:
+                # La re-vérification elle-même peut échouer (connexion vraiment
+                # perdue, pas seulement un accusé égaré) : on ne laisse jamais
+                # cette panne secondaire faire disparaître la phase `error` que
+                # le flux SSE doit toujours émettre.
+                logger.exception("Échec de la re-vérification post-commit pour %s", url)
+        if not confirmed:
+            logger.error("Rollback de l'import streaming %s", url, exc_info=exc)
             yield {"phase": "error", "message": "Erreur lors de l'enregistrement des résultats."}
             return
         logger.warning(
-            "Accusé de commit perdu mais écriture confirmée en base pour %s", url
+            "Accusé de commit perdu mais écriture confirmée en base pour %s", url, exc_info=exc
         )
 
     yield {
