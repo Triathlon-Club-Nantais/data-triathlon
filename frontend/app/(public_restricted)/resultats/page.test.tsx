@@ -48,4 +48,14 @@ describe("ResultatsPage", () => {
 
     expect(listEvents).toHaveBeenCalledWith(expect.anything(), { revalidateSeconds: 30 });
   });
+
+  it("un ?sort= inconnu dans l'URL ne remonte pas tel quel à l'API (#711)", async () => {
+    listEvents.mockResolvedValue(FIRST_PAGE);
+
+    const jsx = await ResultatsPage({ searchParams: Promise.resolve({ sort: "banana" }) });
+    render(jsx);
+
+    const [filters] = listEvents.mock.calls[0] as [{ sort?: string }];
+    expect(filters.sort).toBeUndefined();
+  });
 });
