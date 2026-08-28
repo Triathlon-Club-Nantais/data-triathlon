@@ -447,14 +447,23 @@ class ChronoplaceProvider(FanoutProvider):
 
     _module = chronoplace
 
-    # Pas d'échappatoire `single_heat` : la signature ne l'accepte pas, une URL
-    # Chronoplace désigne toujours l'événement entier.
     def scrape_event_all(
         self, url: str,
         *,
         cache_probe: Callable[[str], bool] | None = None,
         on_heat_start: Callable[[str, str, int, int], None] | None = None,
+        single_heat: bool = False,
     ) -> list[ScrapedResult]:
+        """Fan-out par défaut ; `single_heat=True` (#698) retombe sur l'épreuve
+        visée par l'URL seule, sans ses onglets sœurs — même patron que
+        `ChronoWebProvider.scrape_event_all`. Chronoplace n'a pas de sélecteur
+        de sous-unité dans l'URL : `targets_single_heat` reste le défaut
+        `False` de `FanoutProvider`, comme les 5 autres providers fan-out sans
+        sélecteur d'URL.
+        """
+        if single_heat:
+            self.last_trace = FanoutTrace()
+            return chronoplace.scrape_event_all(url)
         results, trace = chronoplace.scrape_event_fanout(
             url, cache_probe=cache_probe, on_heat_start=on_heat_start,
         )
