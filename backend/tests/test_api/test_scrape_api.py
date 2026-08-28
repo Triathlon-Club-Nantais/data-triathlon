@@ -162,7 +162,7 @@ def test_import_event_stream_serializes_reassignments(client, monkeypatch):
     """
     from app.services import import_service
 
-    def fake_iter_import_event(db, url, settings, force=False, persist=True):
+    def fake_iter_import_event(db, url, settings, force=False, persist=True, **kwargs):
         yield {"phase": "scraping", "message": "Récupération des participants…"}
         yield {
             "phase": "done",
@@ -208,7 +208,7 @@ def test_import_event_stream_emet_un_padding_initial(client, monkeypatch):
     """
     from app.services import import_service
 
-    def fake_iter_import_event(db, url, settings, force=False, persist=True):
+    def fake_iter_import_event(db, url, settings, force=False, persist=True, **kwargs):
         yield {"phase": "done", "imported": 0, "updated": 0, "skipped": 0,
                "reconciled": 0, "reassignments": [], "total": 0, "courses": []}
 
@@ -315,7 +315,7 @@ def test_import_event_stream_expose_les_courses_touchees(client, monkeypatch):
     """
     from app.services import import_service
 
-    def fake_iter_import_event(db, url, settings, force=False, persist=True):
+    def fake_iter_import_event(db, url, settings, force=False, persist=True, **kwargs):
         yield {"phase": "scraping", "message": "Récupération des participants…"}
         yield {
             "phase": "done",
@@ -433,3 +433,68 @@ def test_httpurl_normalise_la_cle_de_cache(url, attendu):
     from app.schemas.scrape import ScrapeRequest
 
     assert str(ScrapeRequest(url=url).url) == attendu
+
+
+def test_scrape_event_single_heat_defaut_vrai_si_omis(client, monkeypatch):
+    """Le schéma par défaut à `True` (#698) : import unique si le front
+    n'envoie rien — moins de surprise sur le volume importé."""
+    from app.services import import_service
+
+    captured = {}
+
+    def fake_import_event(db, url, settings, force=False, persist=True, *, single_heat=False):
+        captured["single_heat"] = single_heat
+        return {
+            "imported": 0, "updated": 0, "skipped": 0, "reconciled": 0,
+            "passive_sources": [], "courses": [],
+        }
+
+    monkeypatch.setattr(import_service, "import_event", fake_import_event)
+    client.post("/api/v1/scrape/event", json={"url": "https://www.klikego.com/x"})
+    assert captured["single_heat"] is True
+
+
+def test_scrape_event_forwards_single_heat(client, monkeypatch):
+    """`single_heat` du corps de requête atteint `import_service.import_event` (#698)."""
+    from app.services import import_service
+
+    captured = {}
+
+    def fake_import_event(db, url, settings, force=False, persist=True, *, single_heat=False):
+        captured["single_heat"] = single_heat
+        return {
+            "imported": 0, "updated": 0, "skipped": 0, "reconciled": 0,
+            "passive_sources": [], "courses": [],
+        }
+
+    monkeypatch.setattr(import_service, "import_event", fake_import_event)
+    client.post(
+        "/api/v1/scrape/event",
+        json={"url": "https://www.klikego.com/x", "single_heat": False},
+    )
+    assert captured["single_heat"] is False
+
+
+def test_scrape_event_stream_forwards_single_heat(client, monkeypatch):
+    """Même relais côté SSE (#698)."""
+    from app.services import import_service
+
+    captured = {}
+
+    def fake_iter_import_event(
+        db, url, settings, force=False, persist=True, *, single_heat=False,
+    ):
+        captured["single_heat"] = single_heat
+        yield {
+            "phase": "done", "imported": 0, "updated": 0, "skipped": 0,
+            "reconciled": 0, "reassignments": [], "passive_sources": [],
+            "total": 0, "courses": [],
+        }
+
+    monkeypatch.setattr(import_service, "iter_import_event", fake_iter_import_event)
+    with client.stream(
+        "POST", "/api/v1/scrape/event/stream",
+        json={"url": "https://www.klikego.com/x", "single_heat": False},
+    ) as resp:
+        list(resp.iter_text())
+    assert captured["single_heat"] is False

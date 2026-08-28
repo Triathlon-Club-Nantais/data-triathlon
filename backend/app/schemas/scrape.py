@@ -19,6 +19,14 @@ class ScrapeRequest(BaseModel):
     #: Il ne dispense pas de `import_service._validate_url`, qui couvre la CLI.
     url: HttpUrl
 
+    #: Choix « import unique / fanout complet » (#698). Défaut `True` : moins
+    #: de surprise sur le volume importé qu'un fanout automatique. Pour
+    #: Klikego/BreizhChrono sans sélecteur de sous-unité dans l'URL, le front
+    #: pré-coche `False` (voir `GET /scrape/detect`, `default_single_heat`),
+    #: mais rien ici ne l'impose : c'est un choix utilisateur, pas une règle
+    #: serveur.
+    single_heat: bool = True
+
 
 class ImportedCourse(BaseModel):
     """Course touchée par un import — sert à câbler « Voir les résultats » (#135).

@@ -48,7 +48,9 @@ def scrape_event(
     user: User | None = Depends(optional_user),
 ):
     """Importe tous les participants d'une épreuve (bloquant)."""
-    result = import_service.import_event(db, str(body.url), settings)
+    result = import_service.import_event(
+        db, str(body.url), settings, single_heat=body.single_heat,
+    )
     capture_event(
         "event_scraped",
         distinct_id=str(user.id) if user else ANONYMOUS_DISTINCT_ID,
@@ -119,7 +121,9 @@ def scrape_event_stream(
         def produce() -> None:
             db = SessionLocal()
             try:
-                for event in import_service.iter_import_event(db, str(body.url), settings):
+                for event in import_service.iter_import_event(
+                    db, str(body.url), settings, single_heat=body.single_heat,
+                ):
                     events.put(event)
             except Exception:
                 # `iter_import_event` encapsule déjà ses échecs attendus en

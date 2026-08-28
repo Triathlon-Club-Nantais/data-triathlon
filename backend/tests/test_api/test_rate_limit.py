@@ -114,7 +114,7 @@ def test_le_sse_trace_qui_l_appelle(client, caplog, monkeypatch):
     monkeypatch.setattr(
         import_service,
         "iter_import_event",
-        lambda db, url, settings, force=False, persist=True: iter(
+        lambda db, url, settings, force=False, persist=True, **kwargs: iter(
             [{"phase": "done", "imported": 0, "total": 0}]
         ),
     )
