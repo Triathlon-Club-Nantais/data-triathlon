@@ -37,6 +37,16 @@ panne dégrade en heat unique sans libellé. Ce fan-out vit **dans le scraper**,
 non dans un `FanoutProvider` : ni `cache_probe`, ni `FanoutTrace` — un re-scrape
 repasse tous les heats et le SSE ne rapporte aucun compteur de heats.
 
+`_fetch_all_heats` exclut aussi les heats non-sportifs par préfixe de slug
+(`_is_non_sport_heat` / `_NON_SPORT_HEAT_PREFIXES`) : sur les épreuves
+éco-labellisées, Breizh Chrono publie un heat `classement-durable---…` qui
+re-classe le MÊME peloton par empreinte carbone plutôt que par temps — pas un
+heat sportif distinct. Non filtré, il s'importait comme une épreuve `triathlon`
+à part entière avec des « finishers » fantômes, doublant les athlètes de la
+vraie épreuve (#703, Trégastel 2026 — 352 finishers fantômes, épreuve id 840).
+Sont exclus par le même mécanisme : `classement-general`, `challenge-*`,
+`general-*`.
+
 ## Les splits fins ne couvrent que le club
 
 Deux étages. Les splits **inter** (checkpoints du `<select name="inter">`) sont
