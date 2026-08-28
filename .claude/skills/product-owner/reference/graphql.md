@@ -37,29 +37,40 @@ mutation($issueId: ID!, $subIssueId: ID!) {
 }' -f issueId="<node_id de l'epic>" -f subIssueId="<node_id de la sous-issue>"
 ```
 
-## Configurer le champ Priority (à faire une seule fois — voir Task 4)
+## Priority est un Issue Field partagé, pas un champ de projet
 
+`Priority` (id projet `PVTSSF_lADOEaPNkc4Bdwm2zhYP1qQ`) a `isIssueField:
+true` — c'est le miroir d'un `IssueFieldSingleSelect` au niveau de
+l'organisation (id `IFSS_kgDOApchLg`), avec déjà 4 options configurées :
+
+| Valeur | id d'option |
+| --- | --- |
+| Urgent | `IFSSO_kgDOBIiAkQ` |
+| High | `IFSSO_kgDOBIiAkg` |
+| Medium | `IFSSO_kgDOBIiAkw` |
+| Low | `IFSSO_kgDOBIiAlA` |
+
+Confirmé le 28/08/2026 par introspection :
 ```bash
 gh api graphql -f query='
-mutation($fieldId: ID!) {
-  updateProjectV2Field(input: {
-    fieldId: $fieldId
-    singleSelectOptions: [
-      { name: "🔴 Urgent", color: RED, description: "" }
-      { name: "🟠 High", color: ORANGE, description: "" }
-      { name: "🟡 Medium", color: YELLOW, description: "" }
-      { name: "🟢 Low", color: GREEN, description: "" }
-    ]
-  }) {
-    projectV2Field { ... on ProjectV2SingleSelectField { id options { id name } } }
+{
+  node(id: "PVTSSF_lADOEaPNkc4Bdwm2zhYP1qQ") {
+    ... on ProjectV2SingleSelectField {
+      isIssueField
+      issueField { ... on IssueFieldSingleSelect { id options { id name } } }
+    }
   }
-}' -f fieldId="PVTSSF_lADOEaPNkc4Bdwm2zhYP1qQ"
+}'
 ```
 
-Récupérer les `option.id` retournés — nécessaires pour poser une valeur sur
-un item (étape suivante).
+`updateProjectV2Field` échoue sur ce champ (« Only custom fields can be
+updated. Fields derived from issues or pull requests must be updated
+through their respective APIs. ») — **ne pas tenter de le recréer ou de le
+renommer**, ces options existent déjà et sont potentiellement partagées
+avec d'autres repos/projets de l'organisation ; les modifier aurait un
+effet de bord hors du seul board « Data TCN ».
 
-## Poser Status/Priority sur un item du board
+## Poser Status sur un item du board
 
 Il faut d'abord l'ID d'*item* de projet (pas le node_id de l'issue) :
 ```bash
@@ -67,13 +78,32 @@ gh project item-list 1 --owner Triathlon-Club-Nantais --format json \
   -q '.items[] | select(.content.number == <numéro>) | .id'
 ```
 
-Puis, une seule valeur de champ par appel (limite de `gh project item-edit`) :
+Puis (Status est un champ de projet normal, `isIssueField: false`), une
+seule valeur de champ par appel (limite de `gh project item-edit`) :
 ```bash
 gh project item-edit \
   --project-id "PVT_kwDOEaPNkc4Bdwm2" \
   --id "<item id>" \
-  --field-id "PVTSSF_lADOEaPNkc4Bdwm2zhYP1qQ" \
-  --single-select-option-id "<option id>"
+  --field-id "PVTSSF_lADOEaPNkc4Bdwm2zhYP1fg" \
+  --single-select-option-id "<option id de Status>"
+```
+
+## Poser Priority sur une issue
+
+Priority ne se pose **pas** via `gh project item-edit` — côté projet, ses
+options sont vides (seul le champ organisation en a). Il faut la mutation
+`updateIssueFieldValue`, sur le node_id de l'**issue** (pas de l'item de
+projet), avec l'id d'option de la table ci-dessus :
+```bash
+gh api graphql -f query='
+mutation($issueId: ID!, $fieldId: ID!, $optionId: ID!) {
+  updateIssueFieldValue(input: {
+    issueId: $issueId
+    issueField: { fieldId: $fieldId, singleSelectOptionId: $optionId }
+  }) {
+    clientMutationId
+  }
+}' -f issueId="<node_id de l'issue>" -f fieldId="IFSS_kgDOApchLg" -f optionId="<id de l'option>"
 ```
 
 ## Échec partiel

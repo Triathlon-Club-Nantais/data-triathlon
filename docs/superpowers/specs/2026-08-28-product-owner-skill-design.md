@@ -11,8 +11,10 @@ GitHub Projects « Data TCN » (org `Triathlon-Club-Nantais`, projet #1,
 
 - un champ `Status` single-select `Backlog → Ready → In progress → In
   review → Done` — inexploité comme gate de raffinement ;
-- un champ `Priority` single-select **existant mais sans options
-  configurées** ;
+- un champ `Priority` single-select, en fait le miroir d'un *Issue Field*
+  au niveau organisation, déjà pourvu de 4 valeurs (Urgent/High/Medium/Low)
+  — découvert en cours d'exécution (28/08/2026), corrige l'hypothèse
+  initiale de cette spec qui le pensait vide ;
 - des champs natifs `Parent issue` / `Sub-issues progress` (relation
   sub-issue GitHub, distincte d'une checklist markdown) — inexploités ;
 - `Size`, `Estimate`, `Start date`, `Target date`, `Milestone`.
@@ -95,14 +97,18 @@ poussée en `Ready` par défaut.
 
 ## Priorité et Milestone
 
-**Priorité** — le champ `Priority` du board est vide de valeurs ; la skill
-le configure une fois avec l'échelle standard GitHub (`🔴 Urgent`,
-`🟠 High`, `🟡 Medium`, `🟢 Low`) via `gh api graphql` (le champ existant
-doit être recréé avec `gh project field-create ... --single-select-options`,
-`field-create` ne gérant que la création d'un nouveau champ, pas l'ajout
-d'options à un champ existant — sans impact puisque le champ actuel n'a
-aucune valeur ni aucun item qui le référence). Critère d'attribution,
-volontairement simple :
+**Priorité** — le champ `Priority` du board est en réalité le miroir d'un
+*Issue Field* au niveau de l'organisation (`Triathlon-Club-Nantais`), pas
+un champ propre au projet (`isIssueField: true`, confirmé le 28/08/2026 par
+introspection GraphQL — corrige une hypothèse initiale de cette spec, qui
+le pensait vide et à configurer). Il a déjà 4 valeurs côté organisation
+(Urgent/High/Medium/Low) — rien à créer, et surtout rien à recréer via
+`updateProjectV2Field` (refuse explicitement les champs dérivés d'issues)
+ni à renommer via `updateIssueField` (toucherait un champ potentiellement
+partagé avec d'autres repos/projets du club). La skill pose une valeur sur
+une issue via `updateIssueFieldValue`, pas via `gh project item-edit`
+(détail : `reference/graphql.md`). Critère d'attribution, volontairement
+simple :
 
 - **Urgent** : sécurité, perte/corruption de données, prod cassée.
 - **High** : bloque d'autres tâches, ou demande répétée/impact large.
@@ -176,4 +182,5 @@ réduit avant un premier passage complet.
   cause racine d'un backlog déjà volumineux.
 - Création automatique de milestones (toujours une décision humaine).
 - Un board GitHub Projects à créer — le board « Data TCN » (#1) existe déjà
-  et est réutilisé tel quel, avec configuration du seul champ `Priority`.
+  et est réutilisé tel quel ; son champ `Priority` avait déjà ses 4 valeurs
+  au niveau organisation, aucune configuration n'a été nécessaire.
