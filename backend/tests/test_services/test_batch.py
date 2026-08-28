@@ -193,13 +193,35 @@ def test_run_batch_ctrl_c_multi_hotes_stoppe_les_nouvelles_epreuves(
     db_session_concurrent, monkeypatch, fake_reporter
 ):
     """Un groupe reçoit le Ctrl-C ; l'autre, déjà en cours au même instant, va à
-    son terme ; un troisième, pas encore démarré, ne démarre jamais."""
+    son terme ; un troisième, pas encore démarré, ne démarre jamais.
+
+    `release` ne garantit que le démarrage simultané de "stop" et "ok" — pas
+    l'ordre dans lequel leurs workers se libèrent ensuite. Sans
+    `stop_processed`, "ok" (import complet) peut libérer son worker avant que
+    "stop" (exception quasi immédiate) ait posé `stop_event`, et le worker
+    libre récupère alors "jamais" dans la queue de l'executor avant que
+    l'interruption soit prise en compte — flaky sous contention CPU (CI).
+    `stop_processed` force "ok" à attendre que le log d'interruption ait été
+    émis avant de terminer, ce qui rend l'ordre déterministe.
+    """
     release = threading.Barrier(2, timeout=10)
+    stop_processed = threading.Event()
+    original_warning = batch.logger.warning
+
+    def _warning_spy(msg, *args, **kwargs):
+        if msg == "Interruption clavier — arrêt du batch":
+            stop_processed.set()
+        return original_warning(msg, *args, **kwargs)
+
+    monkeypatch.setattr(batch.logger, "warning", _warning_spy)
 
     def _phases(db, url, settings, force=False, persist=True, **kwargs):
         release.wait()
         if "stop" in url:
             raise KeyboardInterrupt
+        assert stop_processed.wait(timeout=5), (
+            "le groupe stop n'a pas signalé l'interruption à temps"
+        )
         yield from _phases_ok(db, url, settings, force)
 
     monkeypatch.setattr(import_service, "iter_import_event", _phases)
