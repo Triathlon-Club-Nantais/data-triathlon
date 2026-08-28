@@ -111,6 +111,33 @@ def test_a_holder_of_courses_sources_streams_the_rescrape(client, monkeypatch):
     assert {"imported", "updated", "total", "orphans_removed"} <= set(done)
 
 
+def test_a_heartbeat_marker_becomes_a_comment_frame_not_a_data_frame(client, monkeypatch):
+    """#731 — la sentinelle `admin_actions.SSE_HEARTBEAT` (émise par
+    `_stream_rescrape` sur une phase longue) doit devenir une ligne de
+    commentaire SSE `: heartbeat`, jamais un `data:` JSON — même contrat que
+    `scrape.py::generate()` (#705), pour qu'un proxy d'infra la tienne pour
+    du trafic sans que `useImportStream` n'ait à connaître une nouvelle phase."""
+
+    def fake_iter_rescrape_course(db, *, course_id, user_id, settings):
+        yield {"phase": "scraping", "message": "Récupération des participants…"}
+        yield admin_actions.SSE_HEARTBEAT
+        yield {
+            "phase": "done", "imported": 1, "updated": 0, "skipped": 0,
+            "reconciled": 0, "total": 1, "orphans_removed": 0,
+        }
+
+    monkeypatch.setattr(admin_actions, "iter_rescrape_course", fake_iter_rescrape_course)
+
+    with client.stream("POST", _url(1)) as reponse:
+        assert reponse.status_code == 200
+        body = "".join(reponse.iter_text())
+
+    frames = body.split("\n\n")
+    heartbeats = [f for f in frames if f.strip() == ": heartbeat"]
+    assert heartbeats, "aucun battement émis"
+    assert _frames(body)[-1]["phase"] == "done"
+
+
 def test_a_rescrape_already_running_is_refused_before_any_byte(client, monkeypatch):
     """T018/T020 — FR-007 : 409 (`{"detail": ...}`), pas un event `error` dans un
     flux déjà ouvert."""

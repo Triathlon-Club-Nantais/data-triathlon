@@ -157,6 +157,37 @@ def test_a_holder_of_courses_sources_streams_the_switch(
     ]
 
 
+def test_a_heartbeat_marker_becomes_a_comment_frame_not_a_data_frame(
+    client, db_session, organisation, monkeypatch
+):
+    """#731 — la sentinelle `admin_actions.SSE_HEARTBEAT` (émise par
+    `_stream_switch_course_source` sur une phase longue) doit devenir une
+    ligne de commentaire SSE `: heartbeat`, jamais un `data:` JSON — même
+    contrat que `scrape.py::generate()` (#705)."""
+    connecte(client, db_session, organisation, P.COURSES_SOURCES.code)
+
+    def fake_iter_switch_course_source(db, *, course_id, source_id, user_id, settings):
+        yield {"phase": "scraping", "message": "Récupération des participants…"}
+        yield admin_actions.SSE_HEARTBEAT
+        yield {
+            "phase": "done", "participations_deleted": 0,
+            "participations_imported": 0, "athletes_purged": 0, "sources": [],
+        }
+
+    monkeypatch.setattr(
+        admin_actions, "iter_switch_course_source", fake_iter_switch_course_source
+    )
+
+    with client.stream("PATCH", _url(1, 2), json={"is_active": True}) as reponse:
+        assert reponse.status_code == 200
+        body = "".join(reponse.iter_text())
+
+    frames = body.split("\n\n")
+    heartbeats = [f for f in frames if f.strip() == ": heartbeat"]
+    assert heartbeats, "aucun battement émis"
+    assert _frames(body)[-1]["phase"] == "done"
+
+
 def test_a_switch_already_running_is_refused_before_any_byte(
     client, db_session, organisation, monkeypatch
 ):

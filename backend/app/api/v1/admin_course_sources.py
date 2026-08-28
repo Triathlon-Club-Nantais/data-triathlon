@@ -42,6 +42,11 @@ def _json_default(value: object) -> object:
 #: buffering de proxy/navigateur qui retiendrait les tout premiers octets.
 _SSE_INITIAL_PADDING = b":" + b" " * 2048 + b"\n\n"
 
+#: Même battement que `scrape.py::generate()`/`admin_course_rescrape.py` (#705,
+#: #731) — traduit la sentinelle `admin_actions.SSE_HEARTBEAT` en ligne de
+#: commentaire SSE, ignorée par le parseur front comme le padding initial.
+_SSE_HEARTBEAT = b": heartbeat\n\n"
+
 
 @router.patch("/admin/courses/{course_id}/sources/{source_id}")
 def switch_course_source(
@@ -106,6 +111,9 @@ def switch_course_source(
     def generate():
         yield _SSE_INITIAL_PADDING
         for event in events:
+            if event is admin_actions.SSE_HEARTBEAT:
+                yield _SSE_HEARTBEAT
+                continue
             yield f"data: {json.dumps(event, default=_json_default)}\n\n"
 
     return StreamingResponse(

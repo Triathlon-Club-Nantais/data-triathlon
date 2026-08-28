@@ -786,6 +786,33 @@ def test_rescrape_refuse_une_epreuve_divergente_et_ne_modifie_rien(db_session, a
     assert _rescrapes(db_session, course.id) == []
 
 
+def test_rescrape_emet_un_battement_pendant_une_phase_de_scraping_lente(
+    db_session, auteur, monkeypatch,
+):
+    """#731 — même faille que #705 côté import public : un fan-out lent
+    (Klikego, 30-40 s, documenté dans le code) laisse ce flux totalement
+    silencieux assez longtemps pour qu'un proxy d'infra (Vercel/Render) coupe
+    la connexion avant `done`. Contrat : passé `_SSE_HEARTBEAT_INTERVAL_SECONDS`
+    sans event métier, le générateur émet la sentinelle `admin_actions.SSE_HEARTBEAT`."""
+    course = _epreuve(db_session)
+    _inscrit(db_session, _coureur(db_session, "INTACT"), course, "1")
+    db_session.commit()
+    monkeypatch.setattr(admin_actions, "_SSE_HEARTBEAT_INTERVAL_SECONDS", 0.05)
+
+    def _scrape_lent(url, **kwargs):
+        time.sleep(0.6)
+        return [_resultat(course, "1", "NOUVEAU")]
+
+    monkeypatch.setattr(import_service, "registry_scrape_event_all", _scrape_lent)
+
+    events = list(admin_actions.iter_rescrape_course(
+        db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
+    ))
+
+    assert admin_actions.SSE_HEARTBEAT in events
+    assert events[-1]["phase"] == "done"
+
+
 def test_rescrape_termine_et_commite_malgre_un_client_qui_arrete_de_lire(
     db_session, auteur, scrape,
 ):
@@ -1137,6 +1164,30 @@ def test_switch_of_a_fanout_incoming_source_only_replaces_this_events_ranking(
         db_session, course.name, course.event_date, "swimrun-m", False
     )
     assert autre is not None, "la manche voisine suit son chemin d'import habituel"
+
+
+def test_switch_emet_un_battement_pendant_une_phase_de_scraping_lente(
+    db_session, auteur, monkeypatch,
+):
+    """#731 — pendant de `test_rescrape_emet_un_battement_pendant_une_phase_de_scraping_lente`
+    pour la bascule de source, même mécanisme SSE (#624)."""
+    course, passive = _epreuve_deux_sources(db_session)
+    db_session.commit()
+    monkeypatch.setattr(admin_actions, "_SSE_HEARTBEAT_INTERVAL_SECONDS", 0.05)
+
+    def _scrape_lent(url, **kwargs):
+        time.sleep(0.6)
+        return [_resultat_bascule(course, passive, "1", "NOUVEAU")]
+
+    monkeypatch.setattr(import_service, "registry_scrape_event_all", _scrape_lent)
+
+    events = list(admin_actions.iter_switch_course_source(
+        db_session, course_id=course.id, source_id=passive.id,
+        user_id=auteur.id, settings=_settings(),
+    ))
+
+    assert admin_actions.SSE_HEARTBEAT in events
+    assert events[-1]["phase"] == "done"
 
 
 def test_switch_of_an_unknown_source_on_the_course_is_a_not_found(db_session, auteur):

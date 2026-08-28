@@ -40,6 +40,11 @@ def _json_default(value: object) -> object:
 #: de buffering navigateur qu'il contourne.
 _SSE_INITIAL_PADDING = b":" + b" " * 2048 + b"\n\n"
 
+#: Même battement que `scrape.py::generate()` (#705) — traduit la sentinelle
+#: `admin_actions.SSE_HEARTBEAT` en ligne de commentaire SSE, ignorée par le
+#: parseur front comme le padding initial.
+_SSE_HEARTBEAT = b": heartbeat\n\n"
+
 
 @router.post("/admin/courses/{course_id}/rescrape")
 def rescrape_course(
@@ -69,6 +74,9 @@ def rescrape_course(
     def generate():
         yield _SSE_INITIAL_PADDING
         for event in events:
+            if event is admin_actions.SSE_HEARTBEAT:
+                yield _SSE_HEARTBEAT
+                continue
             yield f"data: {json.dumps(event, default=_json_default)}\n\n"
 
     return StreamingResponse(

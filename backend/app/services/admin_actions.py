@@ -446,13 +446,22 @@ def _stream_switch_course_source(
     thread = threading.Thread(target=worker, daemon=True)
     thread.start()
 
+    silence = 0.0
     while True:
         # Même compromis que `_stream_rescrape` : 0,5 s entre réactivité de
-        # la coupure côté client et coût CPU.
+        # la coupure côté client et coût CPU. Au-delà de
+        # `_SSE_HEARTBEAT_INTERVAL_SECONDS` sans event métier, un battement
+        # (#731) tient la connexion ouverte côté proxy d'infra — même besoin
+        # que `scrape.py::generate()` (#705).
         try:
             item = events.get(timeout=0.5)
         except queue.Empty:
+            silence += 0.5
+            if silence >= _SSE_HEARTBEAT_INTERVAL_SECONDS:
+                silence = 0.0
+                yield SSE_HEARTBEAT
             continue
+        silence = 0.0
         if item is sentinel:
             break
         yield item
@@ -494,6 +503,17 @@ def _require_same_event(results: list, attendue: dict) -> None:
         f"pas « {attendue['name']} ». Rapprochez d'abord les deux épreuves : "
         "une bascule laisserait celle-ci sans aucun résultat."
     )
+
+
+#: Battement SSE (#731) : même faille que #705 côté import public — une phase
+#: sans event métier (fan-out Klikego lent, 30-40 s, documenté ci-dessous) peut
+#: laisser ces deux flux totalement silencieux assez longtemps pour qu'un
+#: proxy d'infra (Vercel/Render) coupe la connexion avant `done`/`error`.
+#: Sentinelle dédiée, distincte d'un event métier et du `sentinel` de fin de
+#: flux local à chaque générateur : la route qui consomme ce générateur la
+#: reconnaît pour émettre une ligne de commentaire SSE plutôt que du JSON.
+_SSE_HEARTBEAT_INTERVAL_SECONDS = 15.0
+SSE_HEARTBEAT = object()
 
 
 class CourseRescrapeAlreadyRunningError(DomainError):
@@ -687,13 +707,22 @@ def _stream_rescrape(
     thread = threading.Thread(target=worker, daemon=True)
     thread.start()
 
+    silence = 0.0
     while True:
         # Même compromis que `_scrape_all_streaming` : 0,5 s entre réactivité de
-        # la coupure côté client et coût CPU.
+        # la coupure côté client et coût CPU. Au-delà de
+        # `_SSE_HEARTBEAT_INTERVAL_SECONDS` sans event métier, un battement
+        # (#731) tient la connexion ouverte côté proxy d'infra — même besoin
+        # que `scrape.py::generate()` (#705).
         try:
             item = events.get(timeout=0.5)
         except queue.Empty:
+            silence += 0.5
+            if silence >= _SSE_HEARTBEAT_INTERVAL_SECONDS:
+                silence = 0.0
+                yield SSE_HEARTBEAT
             continue
+        silence = 0.0
         if item is sentinel:
             break
         yield item
