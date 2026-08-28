@@ -96,6 +96,12 @@ GitHub :
 | 🟡 Medium | Amélioration normale sans urgence. |
 | 🟢 Low | Cosmétique, nice-to-have. |
 
+**Superseded by the Task 4 discovery — see the shipped `docs/gestion-de-projet.md`
+for the actual mechanism.** `Priority` turned out to be a mirror of an
+org-level Issue Field, already populated with 4 plain-text options (no
+emoji) — there is nothing to configure, and the values above (with emoji)
+were never the real ones.
+
 ## Milestone
 
 Les milestones GitHub représentent des **versions/releases**, alignées sur
@@ -202,6 +208,13 @@ mutation($issueId: ID!, $subIssueId: ID!) {
 
 ## Configurer le champ Priority (à faire une seule fois — voir Task 4)
 
+**Superseded by the Task 4 discovery — see the shipped
+`.claude/skills/product-owner/reference/graphql.md` for the actual
+mechanism.** This mutation was run during Task 4 and rejected:
+`updateProjectV2Field` fails on `Priority` because it is a mirror of an
+org-level Issue Field, not a project-owned field — "Only custom fields can
+be updated." Nothing to configure; the 4 options already exist.
+
 ```bash
 gh api graphql -f query='
 mutation($fieldId: ID!) {
@@ -224,9 +237,16 @@ un item (étape suivante).
 
 ## Poser Status/Priority sur un item du board
 
+**Superseded by the Task 4 discovery — see the shipped
+`.claude/skills/product-owner/reference/graphql.md` for the actual
+mechanism.** `gh project item-edit` only works for `Status` (a real project
+field); `Priority` is an Issue Field and must be set via the
+`updateIssueFieldValue` mutation on the issue's node_id instead — see
+`reference/graphql.md`'s "Poser Priority sur une issue" section.
+
 Il faut d'abord l'ID d'*item* de projet (pas le node_id de l'issue) :
 ```bash
-gh project item-list 1 --owner Triathlon-Club-Nantais --format json \
+gh project item-list 1 --owner Triathlon-Club-Nantais --limit 500 --format json \
   -q '.items[] | select(.content.number == <numéro>) | .id'
 ```
 
@@ -317,7 +337,7 @@ graphql`/`gh project` exactes (liaison sub-issue, champs du board, IDs).
 ## Déroulé
 
 1. **Collecter** : `gh issue list --state open` (backlog complet) +
-   `gh project item-list 1 --owner Triathlon-Club-Nantais` pour les items
+   `gh project item-list 1 --owner Triathlon-Club-Nantais --limit 500` pour les items
    du board. Résoudre une fois les IDs de champs (`reference/graphql.md`),
    les garder en mémoire pour le reste de l'invocation.
 2. **Analyser** chaque issue contre la Definition of Ready

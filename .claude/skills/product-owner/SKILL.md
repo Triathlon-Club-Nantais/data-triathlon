@@ -29,12 +29,13 @@ graphql`/`gh project` exactes (liaison sub-issue, champs du board, IDs).
 
 ## Déroulé
 
-1. **Collecter** : `gh issue list --state open` (backlog complet) +
-   `gh project item-list 1 --owner Triathlon-Club-Nantais --limit 500` pour
-   les items du board — la limite par défaut de `gh project item-list` est
-   30 et tronque silencieusement (le board compte plusieurs centaines
-   d'items). Résoudre une fois les IDs de champs (`reference/graphql.md`),
-   les garder en mémoire pour le reste de l'invocation.
+1. **Collecter** : `gh issue list --state open --limit 500` (backlog
+   complet) + `gh project item-list 1 --owner Triathlon-Club-Nantais --limit
+   500` pour les items du board — la limite par défaut est 30 pour les deux
+   commandes et elles tronquent silencieusement (le backlog et le board
+   comptent plusieurs centaines d'entrées). Résoudre une fois les IDs de
+   champs (`reference/graphql.md`), les garder en mémoire pour le reste de
+   l'invocation.
 2. **Analyser** chaque issue contre la Definition of Ready
    (`docs/gestion-de-projet.md`). Une issue qui la satisfait déjà sort de
    la liste de travail. Pour les autres, dispatcher un agent
@@ -57,8 +58,12 @@ graphql`/`gh project` exactes (liaison sub-issue, champs du board, IDs).
 6. **Appliquer**, dans l'ordre : créer les epics → scinder les issues
    bundlées → éditer titre/corps/labels/priorité → lier les sub-issues
    (`reference/graphql.md`) → poser les champs du board → passer `Ready`
-   si la Definition of Ready est atteinte. Ne jamais créer de milestone
-   sans confirmation dédiée.
+   si la Definition of Ready est atteinte → pour toute issue qui reste en
+   `Backlog` faute d'information, poster le commentaire listant ce qui
+   manque (Definition of Ready, `docs/gestion-de-projet.md`) — ce
+   commentaire est écrit sur GitHub au même titre que les autres
+   changements du lot, pas seulement décrit dans le rapport en chat. Ne
+   jamais créer de milestone sans confirmation dédiée.
 7. **Rapporter** : ce qui a été appliqué, ce qui a échoué (le cas échéant,
    sans retry automatique — voir `reference/graphql.md`), ce qui reste en
    `Backlog` faute d'information.
