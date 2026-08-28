@@ -3,6 +3,8 @@ import type { ParticipationFilters } from "@/lib/types";
 export const queryKeys = {
   events: (filters: ParticipationFilters = {}) => ["events", filters] as const,
   pendingProviders: () => ["pending-providers"] as const,
+  // Sous le même préfixe que la liste, à dessein : voir `adminCoursesCount`.
+  pendingProvidersCount: () => ["pending-providers", "count"] as const,
   allowedEmails: () => ["allowed-emails"] as const,
   benevoleAccessConfig: () => ["benevole-access-config"] as const,
   siteAccessConfig: () => ["site-access-config"] as const,
@@ -24,6 +26,8 @@ export const queryKeys = {
   participationsWipeImpact: () => ["participations-wipe-impact"] as const,
   coursesWipeImpact: () => ["courses-wipe-impact"] as const,
   courseDuplicates: () => ["course-duplicates"] as const,
+  // Sous le même préfixe que la liste, à dessein : voir `adminCoursesCount`.
+  courseDuplicatesCount: () => ["course-duplicates", "count"] as const,
   courseMergeImpact: (courseId: number, absorbedId: number) =>
     ["course-merge-impact", courseId, absorbedId] as const,
   adminUsers: () => ["admin-users"] as const,

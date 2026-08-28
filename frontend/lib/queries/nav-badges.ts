@@ -1,8 +1,13 @@
 "use client";
-import { useAdminCoursesCount } from "./admin";
+import {
+  useAdminCoursesCount,
+  useCourseDuplicatesCount,
+  useFeedbackCounts,
+  usePendingProvidersCount,
+} from "./admin";
 
 /**
- * Les compteurs annoncés par la navigation (#119).
+ * Les compteurs annoncés par la navigation (#119, #726).
  *
  * `nav.config.ts` ne porte qu'une **clé** — une table de configuration ne fait
  * pas de requête. La correspondance clé → requête vit ici, et chaque requête
@@ -10,13 +15,19 @@ import { useAdminCoursesCount } from "./admin";
  * sur toutes les pages, un comptage inconditionnel le ferait payer à chaque
  * visiteur, y compris anonyme.
  *
- * Une seule clé est branchée pour l'instant. Brancher « Doublons » ou « Retours
- * utilisateurs » tiendra en une ligne ici plus une dans `nav.config.ts` — mais
- * ces écrans rendent aujourd'hui des listes complètes sans route de comptage,
- * et télécharger une liste pour en afficher la taille serait payer cher un
- * chiffre.
+ * `feedback` compte `nouveau` et non `total` : c'est la file d'attente que la
+ * pastille annonce, pas l'historique complet — même sens que la vue par défaut
+ * de `FeedbackTable` (ADM-10).
  */
 export function useNavBadges(pouvoirs: Set<string>): Record<string, number | undefined> {
   const qualite = useAdminCoursesCount({ unreliable: true }, pouvoirs.has("quality:override"));
-  return { quality: qualite.data?.total };
+  const doublons = useCourseDuplicatesCount(pouvoirs.has("courses:sources"));
+  const fournisseurs = usePendingProvidersCount(pouvoirs.has("pending_providers:read"));
+  const retours = useFeedbackCounts(pouvoirs.has("feedback:read"));
+  return {
+    quality: qualite.data?.total,
+    duplicates: doublons.data?.total,
+    providers: fournisseurs.data?.total,
+    feedback: retours.data?.nouveau,
+  };
 }

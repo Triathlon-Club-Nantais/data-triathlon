@@ -43,6 +43,12 @@ class DuplicateCandidate(BaseModel):
     courses: list[DuplicateCourse]
 
 
+class DuplicateCandidateCount(BaseModel):
+    """Le nombre de paires suspectes — la pastille de la nav admin (#726)."""
+
+    total: int
+
+
 class DuplicateCandidateList(BaseModel):
     """Enveloppe, plutôt qu'une liste nue : la liste est la première d'une page
     d'administration qui accueillera des compteurs (#292), et un tableau JSON

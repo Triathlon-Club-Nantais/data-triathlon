@@ -143,6 +143,7 @@ export const NAV: NavSection[] = [
           "Fournisseurs de chronométrage non pris en charge, signalés automatiquement lors d'un import en échec.",
         href: "/admin/fournisseurs",
         permission: "pending_providers:read",
+        badge: "providers",
       },
       // `courses:write` : la correction est le geste courant de l'écran, et
       // c'était la seule entrée de la section sans aucun `permission` — donc la
@@ -169,6 +170,7 @@ export const NAV: NavSection[] = [
           "Paires d'épreuves qui désignent probablement le même événement — même URL, même identifiant de plateforme, ou noms proches à la même date.",
         href: "/admin/doublons",
         permission: "courses:sources",
+        badge: "duplicates",
       },
       // Les entrées `soon` ci-dessous n'ont pas de pouvoir nommé : le catalogue
       // n'en porte pas d'évident, et en deviner un serait poser une règle à
@@ -204,6 +206,7 @@ export const NAV: NavSection[] = [
           "Signalements de bug et retours soumis depuis le bouton du site public.",
         href: "/admin/retours-utilisateurs",
         permission: "feedback:read",
+        badge: "feedback",
       },
       // Les deux purges globales vivaient en pied de `/admin/courses`, l'écran
       // où l'on vient corriger une date : feuilleter le catalogue jusqu'au bout

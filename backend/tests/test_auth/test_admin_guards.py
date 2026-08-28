@@ -91,6 +91,32 @@ def test_lister_les_signalements_avec_le_pouvoir_rend_la_liste(
     assert [ligne["url"] for ligne in reponse.json()] == [signalement.url]
 
 
+# --- GET /admin/pending-providers/count -------------------------------------
+
+
+def test_compter_les_signalements_sans_session_rend_401(client, signalement):
+    assert client.get("/api/v1/admin/pending-providers/count").status_code == 401
+
+
+def test_compter_les_signalements_sans_le_pouvoir_rend_403(
+    client, db_session, organisation, signalement
+):
+    connecte(client, db_session, organisation)
+
+    assert client.get("/api/v1/admin/pending-providers/count").status_code == 403
+
+
+def test_compter_les_signalements_avec_le_pouvoir_rend_le_total(
+    client, db_session, organisation, signalement
+):
+    connecte(client, db_session, organisation, P.PENDING_PROVIDERS_READ.code)
+
+    reponse = client.get("/api/v1/admin/pending-providers/count")
+
+    assert reponse.status_code == 200
+    assert reponse.json() == {"total": 1}
+
+
 # --- DELETE /admin/pending-providers/{id} ----------------------------------
 
 

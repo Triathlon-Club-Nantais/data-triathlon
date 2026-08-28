@@ -20,6 +20,10 @@ def list_unhandled(db: Session) -> list[PendingProvider]:
     )
 
 
+def count_unhandled(db: Session) -> int:
+    return db.query(PendingProvider).filter(PendingProvider.handled.is_(False)).count()
+
+
 def mark_handled(db: Session, entry_id: int) -> None:
     entry = db.get(PendingProvider, entry_id)
     if entry:

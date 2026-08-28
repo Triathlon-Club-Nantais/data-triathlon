@@ -298,6 +298,9 @@ export const apiClient = {
   // classique, le remplacement peut durer plusieurs dizaines de secondes sur
   // une épreuve fan-out.
   listCourseDuplicates: () => request<DuplicateCandidateList>("/admin/courses/duplicates"),
+  // Pastille de la nav (#726) : même donnée que la liste ci-dessus, en taille.
+  countCourseDuplicates: () =>
+    request<{ total: number }>("/admin/courses/duplicates/count"),
   getCourseMergeImpact: (courseId: number, absorbedId: number) =>
     request<CourseMergeImpact>(
       `/admin/courses/${courseId}/merge-impact${toQuery({ absorbed_id: absorbedId })}`,
@@ -324,6 +327,9 @@ export const apiClient = {
 
   listPendingProviders: () =>
     request<PendingProvider[]>("/admin/pending-providers"),
+  // Pastille de la nav (#726) : même donnée que la liste ci-dessus, en taille.
+  countPendingProviders: () =>
+    request<{ total: number }>("/admin/pending-providers/count"),
   reportPendingProvider: (url: string) =>
     request<PendingProvider>("/admin/pending-providers", {
       method: "POST",
