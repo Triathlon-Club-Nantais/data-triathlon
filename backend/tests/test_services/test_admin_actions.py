@@ -1169,7 +1169,7 @@ def test_switch_of_a_fanout_incoming_source_only_replaces_this_events_ranking(
 def test_switch_emet_un_battement_pendant_une_phase_de_scraping_lente(
     db_session, auteur, monkeypatch,
 ):
-    """#731 — pendant de `test_rescrape_emet_un_battement_pendant_une_phase_de_scraping_lente`
+    """#731 — corollaire de `test_rescrape_emet_un_battement_pendant_une_phase_de_scraping_lente`
     pour la bascule de source, même mécanisme SSE (#624)."""
     course, passive = _epreuve_deux_sources(db_session)
     db_session.commit()
