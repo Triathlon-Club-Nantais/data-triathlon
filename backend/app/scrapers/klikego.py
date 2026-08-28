@@ -401,7 +401,8 @@ def _scrape_single_heat(
 
     Phase A' — HTML de la page heat (options inter).
     Phase B — liste complète + splits inter pour tous (moteur partagé).
-    Phase C — splits fins via page détail pour tous les participants (priment).
+    Phase C — splits fins via page détail, réservée aux membres du TCN (#699),
+    priment sur les splits grossiers de la phase B.
 
     `heat_label` (libellé publié, ex. « Triathlon Pupilles (10-11 ans) ») suffixe
     `event_name` via `klikego_platform.course_name` — la même fonction que Breizh
@@ -438,19 +439,26 @@ def _scrape_single_heat(
         r.event_name = plat.course_name(r.event_name, heat_label)
     bib_to_result = {r.bib_number: r for r in results}
 
-    # Phase C — splits fins via la page détail pour TOUS les participants.
+    # Phase C — splits fins via la page détail, réservée aux membres du TCN
+    # (#699) : sans ce filtre, un événement multi-heats déclenche une requête
+    # de détail par participant de tous clubs, jusqu'à un millier sur un gros
+    # événement multi-courses — même patron que Breizh Chrono
+    # (`breizhchrono._fetch_tcn_fine_splits`). Les autres participants gardent
+    # les splits grossiers de la phase B.
     # La page détail (natation/T1/vélo/T2/course) est la source fine ; elle
     # prime sur les splits inter grossiers de la phase B quand elle en fournit.
     # Parallélisée (#583) : 94 % des requêtes d'un import Klikego étaient une
     # requête séquentielle par participant, jusqu'à ~4 min sur 250 inscrits.
     # Chaque `r` n'est touché que par le worker de son propre bib — aucun état
     # partagé entre tâches, donc aucun verrou requis au-delà du client HTTP.
-    total = len(bib_to_result)
+    from app.core.club import is_tcn
+    tcn_bib_to_result = {bib: r for bib, r in bib_to_result.items() if is_tcn(r.club)}
+    total = len(tcn_bib_to_result)
     done = 0
     with ThreadPoolExecutor(max_workers=_DETAIL_MAX_WORKERS) as pool:
         futures = {
             pool.submit(_fetch_and_apply_detail, event_id, heat, bib, r): bib
-            for bib, r in bib_to_result.items()
+            for bib, r in tcn_bib_to_result.items()
         }
         for future in as_completed(futures):
             future.result()
