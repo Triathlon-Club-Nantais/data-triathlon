@@ -46,6 +46,40 @@ describe("importEventStream", () => {
     }).rejects.toThrow();
     vi.unstubAllGlobals();
   });
+
+  it("envoie single_heat dans le corps POST (#698)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      body: streamFromChunks(['data: {"phase":"done","imported":0,"skipped":0,"total":0}\n\n']),
+    } as unknown as Response);
+    vi.stubGlobal("fetch", fetchMock);
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const _ of importEventStream("http://x", undefined, false)) { /* noop */ }
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      url: "http://x", single_heat: false,
+    });
+    vi.unstubAllGlobals();
+  });
+
+  it("single_heat vaut true par défaut si omis", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      body: streamFromChunks(['data: {"phase":"done","imported":0,"skipped":0,"total":0}\n\n']),
+    } as unknown as Response);
+    vi.stubGlobal("fetch", fetchMock);
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const _ of importEventStream("http://x")) { /* noop */ }
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      url: "http://x", single_heat: true,
+    });
+    vi.unstubAllGlobals();
+  });
 });
 
 describe("importEventStream — refus avant le premier octet", () => {

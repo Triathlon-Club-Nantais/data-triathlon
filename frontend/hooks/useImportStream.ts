@@ -80,14 +80,14 @@ export function useImportStream() {
   // abandonné n'écrive plus dans l'état qu'il ne possède plus.
   const abortRef = useRef<AbortController | null>(null);
 
-  const start = useCallback(async (url: string) => {
+  const start = useCallback(async (url: string, singleHeat: boolean = true) => {
     if (abortRef.current) return;
     const controle = new AbortController();
     abortRef.current = controle;
     const courant = () => abortRef.current === controle;
     setState({ ...INITIAL, running: true, phase: "scraping", message: "Récupération des participants…" });
     try {
-      for await (const ev of importEventStream(url, controle.signal)) {
+      for await (const ev of importEventStream(url, controle.signal, singleHeat)) {
         if (!courant()) return;
         if (ev.phase === "scraping") {
           setState((s) => ({

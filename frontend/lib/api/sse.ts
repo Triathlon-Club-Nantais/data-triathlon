@@ -36,11 +36,12 @@ async function* readEventStream<T>(res: Response): AsyncGenerator<T> {
 export async function* importEventStream(
   url: string,
   signal?: AbortSignal,
+  singleHeat: boolean = true,
 ): AsyncGenerator<ImportProgressEvent> {
   const res = await fetch(`${BASE}/scrape/event/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url }),
+    body: JSON.stringify({ url, single_heat: singleHeat }),
     signal,
   });
   // Même patron que `rescrapeEventStream` ci-dessous : un refus arrive **avant**
