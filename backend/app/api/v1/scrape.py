@@ -1,6 +1,8 @@
 """Routers de scraping : import épreuve (sync + SSE), détection de provider."""
 import json
 import logging
+import queue
+import threading
 from dataclasses import asdict, is_dataclass
 
 from fastapi import APIRouter, Depends, Request
@@ -70,6 +72,16 @@ def scrape_event(
 # (c'est un hint pour nginx, pas pour le navigateur).
 _SSE_INITIAL_PADDING = b":" + b" " * 2048 + b"\n\n"
 
+# Battement SSE : (#705) certaines phases (fan-out ralenti par le fournisseur,
+# persistance de gros lots) peuvent rester plusieurs dizaines de secondes sans
+# émettre le moindre event métier. Sans rien sur le fil pendant ce temps, un
+# proxy d'infra (Vercel/Render) coupe la connexion pour inactivité — le flux
+# meurt sans jamais atteindre la phase `done` ni `error`, indiscernable côté
+# client d'une vraie panne réseau. Ligne `:`-commentaire, même patron que
+# `_SSE_INITIAL_PADDING` : ignorée par le parseur de `useImportStream`.
+_SSE_HEARTBEAT_INTERVAL_SECONDS = 15.0
+_SSE_HEARTBEAT = b": heartbeat\n\n"
+
 
 @router.post("/scrape/event/stream", dependencies=[Depends(scrape_rate_limit)])
 def scrape_event_stream(
@@ -92,14 +104,52 @@ def scrape_event_stream(
     )
 
     def generate():
-        # Session dédiée au générateur (cycle de vie isolé du streaming)
-        db = SessionLocal()
-        try:
-            yield _SSE_INITIAL_PADDING
-            for event in import_service.iter_import_event(db, str(body.url), settings):
-                yield f"data: {json.dumps(event, default=_json_default)}\n\n"
-        finally:
-            db.close()
+        # Le générateur d'import tourne dans son propre thread, avec sa propre
+        # Session (`SessionLocal()`, cycle de vie isolé du streaming) — jamais
+        # celle de ce générateur-ci. Même `ponytail:` que `_scrape_all_streaming`
+        # (#566, point 1) : sur déconnexion SSE, ce générateur-ci peut se faire
+        # clore par un thread autre que celui qui possède la Session du travail
+        # ; lui faire fermer une Session qu'il ne possède pas romprait ce
+        # travail pour toute requête concurrente du même worker. Le thread ferme
+        # donc sa propre Session dans son propre `finally`, quoi qu'il arrive
+        # côté client.
+        events: queue.Queue[dict | object] = queue.Queue()
+        sentinel = object()
+
+        def produce() -> None:
+            db = SessionLocal()
+            try:
+                for event in import_service.iter_import_event(db, str(body.url), settings):
+                    events.put(event)
+            except Exception:
+                # `iter_import_event` encapsule déjà ses échecs attendus en
+                # `{phase: error}` — ce filet ne couvre que l'imprévu (ex. le
+                # `SELECT` non protégé de `_cached_result`). Sans lui, le thread
+                # meurt en silence : le générateur ne reçoit que le sentinel, et
+                # `StreamingResponse` referme un 200 bien formé mais tronqué —
+                # `useImportStream` reste bloqué sur `running: true` pour
+                # toujours, pire que l'ancien défaut (l'exception coupait alors
+                # la connexion, remontant comme une panne réseau côté client).
+                db.rollback()
+                logger.exception("Échec inattendu du flux d'import SSE pour %s", body.url)
+                events.put({"phase": "error", "message": "Erreur lors de l'import."})
+            finally:
+                db.close()
+                events.put(sentinel)
+
+        thread = threading.Thread(target=produce, daemon=True)
+        thread.start()
+
+        yield _SSE_INITIAL_PADDING
+        while True:
+            try:
+                item = events.get(timeout=_SSE_HEARTBEAT_INTERVAL_SECONDS)
+            except queue.Empty:
+                yield _SSE_HEARTBEAT
+                continue
+            if item is sentinel:
+                return
+            yield f"data: {json.dumps(item, default=_json_default)}\n\n"
 
     return StreamingResponse(
         generate(),
