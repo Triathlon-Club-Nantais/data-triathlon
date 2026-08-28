@@ -48,6 +48,24 @@ HEADERS = {
     "Accept": "text/html,*/*",
 }
 
+#: Préfixes de slugs de heats non-sportifs publiés par Breizh Chrono sur
+#: certaines épreuves : le même peloton re-classé selon un autre critère
+#: (empreinte carbone, toutes épreuves confondues, par équipe/club), jamais un
+#: heat sportif distinct. Non filtrés, ils s'importaient comme une épreuve à
+#: part entière avec des « finishers » fantômes — double comptage des mêmes
+#: athlètes (#703, mesuré à Trégastel 2026 : heat `classement-durable---
+#: triathlon`, 352 finishers fantômes, épreuve id 840).
+_NON_SPORT_HEAT_PREFIXES = (
+    "classement-durable",
+    "classement-general",
+    "challenge-",
+    "general-",
+)
+
+
+def _is_non_sport_heat(heat_slug: str) -> bool:
+    return heat_slug.startswith(_NON_SPORT_HEAT_PREFIXES)
+
 
 def _parse_bc_date(html: str) -> date | None:
     """Extract event date from BC page HTML.
@@ -106,6 +124,12 @@ def _fetch_all_heats(slug_id: str, client: httpx.Client) -> list[tuple[str, str]
     Scrape the event root page and return all (heat_slug, heat_label) pairs.
     heat_label is used to detect relays ("Relais" in the display name).
 
+    Les heats non-sportifs (`_is_non_sport_heat`) sont exclus : sur les
+    épreuves éco-labellisées, Breizh Chrono publie un heat `classement-durable`
+    qui re-classe le MÊME peloton par empreinte carbone plutôt que par temps —
+    pas un heat sportif distinct. Non filtré, il s'importait comme une épreuve
+    à part entière avec des « finishers » fantômes (#703).
+
     La racine (`/resultats-courses/{slug_id}`) ne porte jamais elle-même la
     liste : elle répond systématiquement **302** vers un heat particulier
     (mesuré sur Mesquer 2026, `swim-run-m-duo`), corps vide. On ne suit donc
@@ -145,6 +169,8 @@ def _fetch_all_heats(slug_id: str, client: httpx.Client) -> list[tuple[str, str]
             continue
         rest = href[len(prefix):]
         if not rest or "/" in rest:  # skip empty or nested paths like /export
+            continue
+        if _is_non_sport_heat(rest):
             continue
         if rest in seen:
             continue

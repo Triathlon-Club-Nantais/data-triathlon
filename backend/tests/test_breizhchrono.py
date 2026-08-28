@@ -223,6 +223,57 @@ def test_fetch_all_heats_sans_redirection_reste_couvert():
     assert heats == [("triathlon-m", "Triathlon M")]
 
 
+def test_fetch_all_heats_exclut_le_classement_durable():
+    """Un heat `classement-durable---...` reclasse le MÊME peloton par empreinte
+    carbone : ce n'est pas un heat sportif distinct (#703). Non filtré, il
+    s'importait comme une épreuve à part entière avec des « finishers »
+    fantômes — double comptage des athlètes de la vraie épreuve triathlon
+    (mesuré à Trégastel 2026 : 352 finishers fantômes, épreuve id 840).
+    """
+
+    class _Resp:
+        status_code = 200
+        is_redirect = False
+        headers: dict = {}
+        text = (
+            '<a href="/resultats-courses/evt-1/triathlon-m">Triathlon M</a>'
+            '<a href="/resultats-courses/evt-1/classement-durable---triathlon">'
+            "Classement durable - Triathlon</a>"
+        )
+
+    class _Client:
+        def get(self, url, follow_redirects=True):
+            return _Resp()
+
+    heats = breizhchrono._fetch_all_heats("evt-1", _Client())
+    assert heats == [("triathlon-m", "Triathlon M")]
+
+
+def test_fetch_all_heats_exclut_les_classements_generaux_et_challenges():
+    """Autres heats non-sportifs connus sur cette plateforme : le classement
+    général toutes épreuves confondues, et les challenges par équipe/club.
+    Mêmes pelotons re-classés selon un autre critère, jamais un heat sportif.
+    """
+
+    class _Resp:
+        status_code = 200
+        is_redirect = False
+        headers: dict = {}
+        text = (
+            '<a href="/resultats-courses/evt-1/triathlon-m">Triathlon M</a>'
+            '<a href="/resultats-courses/evt-1/classement-general">Classement général</a>'
+            '<a href="/resultats-courses/evt-1/challenge-entreprises">Challenge Entreprises</a>'
+            '<a href="/resultats-courses/evt-1/general-jeunes">Général Jeunes</a>'
+        )
+
+    class _Client:
+        def get(self, url, follow_redirects=True):
+            return _Resp()
+
+    heats = breizhchrono._fetch_all_heats("evt-1", _Client())
+    assert heats == [("triathlon-m", "Triathlon M")]
+
+
 # --------------------------------------------------------------------------- #
 # _detect_relay — libellé et slug (#295)
 # --------------------------------------------------------------------------- #
