@@ -65,7 +65,9 @@ def list_events(
 
 @router.get("/courses", response_model=list[CourseBrief])
 def list_courses(
-    id: int | None = Query(None, description="Filtre exact par identifiant d'épreuve."),
+    course_id: int | None = Query(
+        None, alias="id", description="Filtre exact par identifiant d'épreuve."
+    ),
     name: str | None = Query(None, description="Recherche partielle sur le nom de l'épreuve."),
     event_type: str | None = Query(None),
     scope: str | None = Query(None, description="« club » restreint aux membres du TCN."),
@@ -93,7 +95,7 @@ def list_courses(
     """
     return course_repository.list_all(
         db,
-        id=id,
+        course_id=course_id,
         name=name,
         event_type=event_type,
         club_only=is_club_scope(scope),
@@ -107,7 +109,9 @@ def list_courses(
 
 @router.get("/courses/count", response_model=CourseCount)
 def count_courses(
-    id: int | None = Query(None, description="Filtre exact par identifiant d'épreuve."),
+    course_id: int | None = Query(
+        None, alias="id", description="Filtre exact par identifiant d'épreuve."
+    ),
     name: str | None = Query(None, description="Recherche partielle sur le nom de l'épreuve."),
     event_type: str | None = Query(None),
     scope: str | None = Query(None, description="« club » restreint aux membres du TCN."),
@@ -130,7 +134,7 @@ def count_courses(
     return CourseCount(
         total=course_repository.count_all(
             db,
-            id=id,
+            course_id=course_id,
             name=name,
             event_type=event_type,
             club_only=is_club_scope(scope),
