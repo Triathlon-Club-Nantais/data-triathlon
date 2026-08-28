@@ -30,8 +30,10 @@ graphql`/`gh project` exactes (liaison sub-issue, champs du board, IDs).
 ## Déroulé
 
 1. **Collecter** : `gh issue list --state open` (backlog complet) +
-   `gh project item-list 1 --owner Triathlon-Club-Nantais` pour les items
-   du board. Résoudre une fois les IDs de champs (`reference/graphql.md`),
+   `gh project item-list 1 --owner Triathlon-Club-Nantais --limit 500` pour
+   les items du board — la limite par défaut de `gh project item-list` est
+   30 et tronque silencieusement (le board compte plusieurs centaines
+   d'items). Résoudre une fois les IDs de champs (`reference/graphql.md`),
    les garder en mémoire pour le reste de l'invocation.
 2. **Analyser** chaque issue contre la Definition of Ready
    (`docs/gestion-de-projet.md`). Une issue qui la satisfait déjà sort de

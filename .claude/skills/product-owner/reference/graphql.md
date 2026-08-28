@@ -74,9 +74,11 @@ effet de bord hors du seul board « Data TCN ».
 
 Il faut d'abord l'ID d'*item* de projet (pas le node_id de l'issue) :
 ```bash
-gh project item-list 1 --owner Triathlon-Club-Nantais --format json \
+gh project item-list 1 --owner Triathlon-Club-Nantais --limit 500 --format json \
   -q '.items[] | select(.content.number == <numéro>) | .id'
 ```
+`--limit` par défaut est 30 et tronque silencieusement (aucune erreur) —
+le board compte plusieurs centaines d'items, toujours le préciser.
 
 Puis (Status est un champ de projet normal, `isIssueField: false`), une
 seule valeur de champ par appel (limite de `gh project item-edit`) :
