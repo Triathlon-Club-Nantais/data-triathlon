@@ -1,5 +1,5 @@
 """Accès données pour Participation, incluant les filtres de la liste publique."""
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from datetime import date, datetime
 from typing import NamedTuple
 
@@ -260,6 +260,20 @@ def create(db: Session, **fields) -> Participation:
     db.add(participation)
     db.flush()
     return participation
+
+
+def create_batch(db: Session, participations_fields: Sequence[dict]) -> list[Participation]:
+    """Crée un lot de participations neuves en un seul aller-retour DB (#706).
+
+    Même contrat que `athlete_repository.create_batch` : un seul `db.flush()`
+    pour tout le lot, instances restant suivies par la session.
+    """
+    if not participations_fields:
+        return []
+    created = [Participation(**fields) for fields in participations_fields]
+    db.add_all(created)
+    db.flush()
+    return created
 
 
 def update(db: Session, participation: Participation, **fields) -> Participation:

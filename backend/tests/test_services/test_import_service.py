@@ -1,7 +1,9 @@
+from collections import Counter
 from datetime import date, timedelta
 from types import SimpleNamespace
 
 import pytest
+from sqlalchemy import event
 
 from app.core.config import Settings
 from app.core.exceptions import ProviderNotSupportedError
@@ -1204,3 +1206,217 @@ def test_iter_import_event_scraping_non_klikego_reste_un_seul_event(
     scraping = [p for p in phases if p["phase"] == "scraping"]
     assert len(scraping) == 1
     assert "heat_index" not in scraping[0]
+
+
+# ── Persist par lot (#706) ───────────────────────────────────────────────────
+
+
+def _queries_for_persist(db_session, *, n: int, marker: str) -> list[str]:
+    """Persiste `n` lignes neuves sur une course dédiée à `marker`, et renvoie
+    le texte de toutes les requêtes SQL émises — même patron que
+    `test_course_merge.py::test_the_query_count_does_not_grow_with_the_number_of_results`.
+    """
+    results = [
+        _result(
+            str(i), f"NOM{marker}{i}",
+            event_name=f"Triathlon {marker}", source_url=f"https://www.klikego.com/{marker}",
+        )
+        for i in range(n)
+    ]
+    queries: list[str] = []
+
+    def _record(conn, cursor, statement, *rest):
+        queries.append(statement)
+
+    engine = db_session.get_bind()
+    event.listen(engine, "before_cursor_execute", _record)
+    try:
+        import_service.persist_results(db_session, f"https://www.klikego.com/{marker}", results)
+    finally:
+        event.remove(engine, "before_cursor_execute", _record)
+    return queries
+
+
+def test_persist_results_la_lecture_des_athletes_ne_croit_pas_lineairement(db_session):
+    """FR-001, FR-006 — la résolution (lecture) des athlètes est bornée par le
+    nombre de tranches, pas par le nombre de lignes.
+
+    Ce test porte sur les `SELECT ... FROM athletes`, pas sur le total brut de
+    requêtes : sur SQLite, un flush portant plusieurs `INSERT` neufs n'est pas
+    compilé en une seule instruction (contrairement à Postgres via
+    `insertmanyvalues`, cf. `research.md`) — chaque ligne créée reste une
+    requête distincte, et `get_or_create_course` (hors périmètre de #706, cf.
+    `spec.md` § Assumptions) en ajoute une par ligne. Aucun de ces deux
+    éléments n'est concerné par cette feature ; seule la lecture l'est, et
+    c'est elle qui doit rester plate."""
+    small = _queries_for_persist(db_session, n=10, marker="petitelect")
+    big = _queries_for_persist(db_session, n=1200, marker="grandelect")
+
+    def _select_athletes(queries: list[str]) -> list[str]:
+        return [
+            q for q in queries
+            if q.strip().upper().startswith("SELECT") and "FROM ATHLETES" in q.upper()
+        ]
+
+    assert len(_select_athletes(big)) <= len(_select_athletes(small)) + 4, (
+        f"{len(_select_athletes(small))} SELECT athletes pour 10 lignes, "
+        f"{len(_select_athletes(big))} pour 1200 : la résolution semble encore "
+        "émettre un SELECT par ligne plutôt que par tranche"
+    )
+
+
+def test_resolve_pending_appelle_les_fonctions_de_lot_par_tranche_pas_par_ligne(
+    db_session, monkeypatch,
+):
+    """FR-001, FR-002, FR-006 — vérifie directement, via des espions sur les
+    fonctions de repository, que `_Persister` les appelle un nombre de fois
+    borné par le nombre de tranches (≈500 lignes), jamais une fois par ligne.
+
+    Complète le test précédent : celui-ci isole le comportement du code de
+    `_Persister` (l'objet de cette feature) de ce que SQLAlchemy/le dialecte
+    font ensuite du SQL — une garantie qui tient quel que soit le dialecte,
+    contrairement au comptage brut de requêtes SQL.
+    """
+    calls: Counter[str] = Counter()
+    original_get_by_identities = athlete_repository.get_by_identities_batch
+    original_create_athletes = athlete_repository.create_batch
+    original_create_participations = participation_repository.create_batch
+
+    def _spy_get_by_identities(db, paires):
+        calls["get_by_identities_batch"] += 1
+        return original_get_by_identities(db, paires)
+
+    def _spy_create_athletes(db, fields):
+        calls["athlete_create_batch"] += 1
+        return original_create_athletes(db, fields)
+
+    def _spy_create_participations(db, fields):
+        calls["participation_create_batch"] += 1
+        return original_create_participations(db, fields)
+
+    monkeypatch.setattr(athlete_repository, "get_by_identities_batch", _spy_get_by_identities)
+    monkeypatch.setattr(athlete_repository, "create_batch", _spy_create_athletes)
+    monkeypatch.setattr(participation_repository, "create_batch", _spy_create_participations)
+
+    results = [_result(str(i), f"LOT{i}") for i in range(1200)]
+    import_service.persist_results(db_session, "https://www.klikego.com/lot706", results)
+
+    # 1200 lignes / tranche de ~500 → 3 tranches (500, 500, 200) : quelques
+    # appels seulement, jamais 1200.
+    assert calls["get_by_identities_batch"] <= 5
+    assert calls["athlete_create_batch"] <= 5
+    assert calls["participation_create_batch"] <= 5
+
+
+def test_finalize_ne_recharge_plus_les_participations_d_une_deuxieme_fois(db_session):
+    """FR-003 — `_index_course` charge déjà les participations de la course ;
+    `finalize()` ne doit plus émettre un second `SELECT ... FROM participations`
+    pour la même course."""
+    queries = _queries_for_persist(db_session, n=5, marker="finalize")
+
+    reloads = [
+        q for q in queries
+        if q.strip().upper().startswith("SELECT") and "FROM PARTICIPATIONS" in q.upper()
+    ]
+    assert len(reloads) == 1, (
+        f"{len(reloads)} requêtes SELECT...FROM participations pour une course : "
+        "finalize() semble encore recharger une deuxième fois"
+    )
+
+
+def test_import_volumineux_produit_les_memes_compteurs_que_ligne_a_ligne(db_session, patch_scraper):
+    """FR-004 — un scrape qui franchit une frontière de tranche (> 500 lignes)
+    et mêle dossard déjà connu (chemin `_reconcile`), dossard neuf et sans
+    dossard produit les mêmes compteurs que le comportement ligne à ligne."""
+    premiers = [_result(str(i), f"CONNU{i}") for i in range(520)]
+    patch_scraper(premiers)
+    premier_import = import_service.import_event(db_session, URL, _settings())
+    assert _counters(premier_import) == {
+        "imported": 520, "updated": 0, "skipped": 0, "reconciled": 0,
+    }
+
+    _expire_cache(db_session)
+
+    # Réimport : les 520 premiers dossards sont déjà connus (chemin
+    # `_reconcile`), 520 nouveaux dossards neufs, et 10 lignes sans dossard —
+    # de quoi franchir une frontière de tranche sur les trois chemins de
+    # résolution à la fois.
+    reimport = [_result(str(i), f"CONNU{i}") for i in range(520)]
+    reimport += [_result(str(500 + i), f"NEUF{i}") for i in range(520, 1040)]
+    reimport += [_result("", f"SANSDOSSARD{i}") for i in range(10)]
+    patch_scraper(reimport)
+
+    out = import_service.import_event(db_session, URL, _settings())
+
+    # 520 dossards déjà connus (identiques → skip), 520 dossards neufs +
+    # 10 lignes sans dossard, toutes nouvelles → imported.
+    assert _counters(out) == {
+        "imported": 530, "updated": 0, "skipped": 520, "reconciled": 0,
+    }
+
+
+def test_deux_lignes_du_meme_scrape_pour_le_meme_athlete_neuf_ne_creent_qu_une_fiche(
+    db_session, patch_scraper,
+):
+    """Edge case de `spec.md` — collision intra-lot : deux lignes du même
+    scrape désignent le même athlète neuf (même nom/prénom), sans dossard.
+    Le comportement ligne à ligne crée deux participations pour un seul
+    athlète (cf. `test_import_sans_dossard_conserve_les_homonymes`) — FR-004
+    exige que la résolution par lot produise exactement le même résultat, et
+    surtout **pas** deux fiches `Athlete` distinctes pour la même identité."""
+    patch_scraper(
+        [
+            _result("", "COLLISION", prenom="Ada"),
+            _result("", "COLLISION", prenom="Ada"),
+        ]
+    )
+
+    out = import_service.import_event(db_session, URL, _settings())
+
+    assert _counters(out) == {"imported": 2, "updated": 0, "skipped": 0, "reconciled": 0}
+    athletes = athlete_repository.search(db_session, name="Collision")
+    assert len(athletes) == 1
+
+
+def test_deux_reconciliations_du_meme_scrape_vers_la_meme_identite_neuve_distinguent_creation_et_fusion(
+    db_session, patch_scraper,
+):
+    """Edge case le plus risqué de la mise en lot (#706) : deux dossards
+    distincts, déjà connus sous deux graphies fautives différentes, sont
+    corrigés dans le même scrape vers la **même** identité neuve — un cas de
+    collision sur le chemin `_reconcile`, pas sur le chemin dossard neuf déjà
+    couvert ci-dessus.
+
+    Ligne à ligne, seule la **première** ligne traitée crée la fiche corrigée
+    (`fusion=False`, renommage) ; la seconde la retrouve déjà flushée
+    (`fusion=True`, fusion). La résolution par lot doit reproduire cet ordre
+    — pas marquer les deux `fusion=False`, ce qui arriverait si le
+    dédoublonnage de création ne trackait pas qui a « consommé » la création
+    en premier (cf. `_resolve_pending`, `creation_consumed`)."""
+    patch_scraper(
+        [_result("1", "BERRE", "Audrey LE"), _result("2", "BERR", "Audrey LE")]
+    )
+    import_service.import_event(db_session, URL, _settings())
+
+    patch_scraper(
+        [_result("1", "LE BERRE", "Audrey"), _result("2", "LE BERRE", "Audrey")]
+    )
+    phases = list(import_service.iter_import_event(db_session, URL, _settings(), force=True))
+    done = phases[-1]
+
+    assert done["reconciled"] == 2
+    by_ancien = {r.ancien: r for r in done["reassignments"]}
+    assert by_ancien["BERRE | Audrey LE"].fusion is False
+    assert by_ancien["BERR | Audrey LE"].fusion is True
+    assert by_ancien["BERRE | Audrey LE"].nouveau == "LE BERRE | Audrey"
+    assert by_ancien["BERR | Audrey LE"].nouveau == "LE BERRE | Audrey"
+
+    # Une seule fiche cible, et les deux participations y pointent — pas
+    # `search` (sous-chaîne mot à mot) qui retrouverait aussi les fiches
+    # fautives orphelines, non nettoyées par la réconciliation (comportement
+    # existant, hors périmètre de #706).
+    cible = athlete_repository.get_by_identity(db_session, "LE BERRE", "Audrey", None)
+    assert cible is not None
+    course = course_repository.get_latest_by_source_url(db_session, URL)
+    rows = participation_repository.list_for_course(db_session, course.id)
+    assert {row.athlete_id for row in rows} == {cible.id}

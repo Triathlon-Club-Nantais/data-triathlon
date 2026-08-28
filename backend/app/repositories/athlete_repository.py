@@ -1,7 +1,8 @@
 """Accès données pour Athlete — seule couche qui touche la Session pour cette table."""
+from collections.abc import Sequence
 from datetime import date
 
-from sqlalchemy import and_, case, false, func, or_
+from sqlalchemy import and_, case, false, func, or_, tuple_
 from sqlalchemy.orm import Session
 
 from app.core.club import tcn_clause
@@ -81,6 +82,50 @@ def get_by_identity(
         )
         .first()
     )
+
+
+def get_by_identities_batch(
+    db: Session, paires: Sequence[tuple[str, str]]
+) -> dict[tuple[str, str], Athlete]:
+    """Résout un lot de `(nom, prénom)` en une requête (#706).
+
+    Retourne les athlètes déjà connus, indexés par identité normalisée
+    (nom/prénom en minuscules, tels que la recherche les compare). Les paires
+    sans correspondance sont simplement absentes du résultat — à l'appelant de
+    créer les athlètes manquants. `birth_date IS NULL` en clause fixe : aucune
+    ligne scrapée n'en fournit une (cf. `research.md` de la feature #706), donc
+    l'identité effective à l'import se réduit à `(nom, prénom)`.
+    """
+    if not paires:
+        return {}
+    normalisees = {
+        ((nom or "").strip().lower(), (prenom or "").strip().lower()) for nom, prenom in paires
+    }
+    rows = (
+        db.query(Athlete)
+        .filter(
+            tuple_(func.lower(Athlete.nom), func.lower(Athlete.prenom)).in_(normalisees),
+            Athlete.birth_date.is_(None),
+        )
+        .all()
+    )
+    return {(athlete.nom.lower(), athlete.prenom.lower()): athlete for athlete in rows}
+
+
+def create_batch(db: Session, athletes_fields: Sequence[dict]) -> list[Athlete]:
+    """Crée un lot d'athlètes neufs en un seul aller-retour DB (#706).
+
+    Un seul `db.flush()` pour tout le lot — SQLAlchemy 2.0 compile les objets
+    `pending` de même classe en un `INSERT` multi-lignes. Les instances
+    restent suivies par la session (contrairement à `bulk_insert_mappings`),
+    donc l'appelant peut continuer à leur référer directement après l'appel.
+    """
+    if not athletes_fields:
+        return []
+    created = [Athlete(**fields) for fields in athletes_fields]
+    db.add_all(created)
+    db.flush()
+    return created
 
 
 def resolve(
