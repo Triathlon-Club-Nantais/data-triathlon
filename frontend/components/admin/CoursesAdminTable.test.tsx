@@ -69,6 +69,7 @@ function afficher(url = "") {
       <CoursesAdminTable
         page={Number(sp.get("page"))}
         filtres={{
+          id: sp.get("id") ?? undefined,
           name: sp.get("name") ?? undefined,
           event_type: sp.get("event_type") ?? undefined,
           date_from: sp.get("date_from") ?? undefined,
@@ -192,6 +193,29 @@ describe("CoursesAdminTable", () => {
     expect(countCourses).toHaveBeenCalledWith(
       expect.objectContaining({ name: "nantes", event_type: "triathlon-m" }),
     );
+  });
+
+  it("lit l'id depuis l'URL et le transmet aux deux requêtes", async () => {
+    listCourses.mockResolvedValue([EPREUVE]);
+
+    afficher("id=12");
+
+    await waitFor(() =>
+      expect(listCourses).toHaveBeenCalledWith(expect.objectContaining({ id: "12" })),
+    );
+    expect(countCourses).toHaveBeenCalledWith(expect.objectContaining({ id: "12" }));
+  });
+
+  it("filtre par identifiant d'épreuve et revient en page 1", async () => {
+    listCourses.mockResolvedValue(pleine());
+    countCourses.mockResolvedValue({ total: 45 });
+
+    afficher("page=3");
+    await screen.findByText("Épreuve 1");
+    await userEvent.type(screen.getByPlaceholderText(/identifiant/i), "12");
+    await userEvent.click(screen.getByRole("button", { name: "Filtrer" }));
+
+    expect(push).toHaveBeenCalledWith("/admin/courses?id=12");
   });
 
   it("retombe en page 1 sur un « page » illisible plutôt que de rendre vide", async () => {

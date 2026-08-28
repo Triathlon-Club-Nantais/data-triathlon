@@ -397,6 +397,7 @@ def zero_counts_all(db: Session) -> int:
 def _filtered(
     db: Session,
     *,
+    id: int | None = None,
     name: str | None,
     event_type: str | None,
     club_only: bool,
@@ -412,6 +413,8 @@ def _filtered(
     from app.models.participation import Participation
 
     q = db.query(Course)
+    if id is not None:
+        q = q.filter(Course.id == id)
     if name:
         q = q.filter(Course.name.ilike(f"%{name}%"))
     if event_type:
@@ -441,6 +444,7 @@ def _filtered(
 def list_all(
     db: Session,
     *,
+    id: int | None = None,
     name: str | None = None,
     event_type: str | None = None,
     club_only: bool = False,
@@ -452,6 +456,7 @@ def list_all(
 ) -> list[Course]:
     q = _filtered(
         db,
+        id=id,
         name=name,
         event_type=event_type,
         club_only=club_only,
@@ -476,6 +481,7 @@ def list_all(
 def count_all(
     db: Session,
     *,
+    id: int | None = None,
     name: str | None = None,
     event_type: str | None = None,
     club_only: bool = False,
@@ -486,6 +492,7 @@ def count_all(
     """Combien d'épreuves la liste rendrait sans pagination — le « sur 7 »."""
     return _filtered(
         db,
+        id=id,
         name=name,
         event_type=event_type,
         club_only=club_only,

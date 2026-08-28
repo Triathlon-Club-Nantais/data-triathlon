@@ -229,6 +229,8 @@ export const apiClient = {
   // cacher ce qu'il ne peut pas faire, il n'autorise rien.
   listCourses: (
     opts: {
+      // Filtre exact par identifiant d'épreuve (#718).
+      id?: string;
       name?: string;
       event_type?: string;
       date_from?: string;
@@ -243,6 +245,7 @@ export const apiClient = {
   ) => request<CourseBrief[]>(`/courses${toQuery(opts)}`),
   countCourses: (
     opts: {
+      id?: string;
       name?: string;
       event_type?: string;
       date_from?: string;

@@ -149,16 +149,24 @@ def test_synthese_epreuve_inconnue(client):
 
 @pytest.fixture
 def catalogue(db_session):
-    """Trois épreuves, trois dates, deux types — de quoi croiser les filtres."""
+    """Trois épreuves, trois dates, deux types — de quoi croiser les filtres.
+
+    Rend `{nom: id}` — inutile aux tests de filtre par nom/date/type, mais
+    c'est ce qui permet à ceux du filtre par `id` de cibler une épreuve
+    précise sans deviner sa clé primaire.
+    """
+    ids = {}
     for nom, jour, type_epreuve in (
         ("Triathlon de Nantes", date(2026, 5, 1), "triathlon-m"),
         ("Triathlon de Vierzon", date(2026, 6, 1), "triathlon-s"),
         ("Duathlon de Nantes", date(2026, 7, 1), "duathlon"),
     ):
-        course_repository.get_or_create(
+        course = course_repository.get_or_create(
             db_session, name=nom, event_date=jour, event_type=type_epreuve
         )
+        ids[nom] = course.id
     db_session.commit()
+    return ids
 
 
 def test_catalogue_filtre_par_nom_partiel(client, catalogue):
@@ -188,6 +196,25 @@ def test_catalogue_date_illisible_est_ignoree(client, catalogue):
     assert len(client.get("/api/v1/courses?date_from=hier").json()) == 3
 
 
+def test_catalogue_filtre_par_id(client, catalogue):
+    """#718 — retrouver une épreuve précise sans la chercher par nom."""
+    cible = catalogue["Triathlon de Vierzon"]
+
+    noms = [c["name"] for c in client.get(f"/api/v1/courses?id={cible}").json()]
+
+    assert noms == ["Triathlon de Vierzon"]
+
+
+def test_catalogue_filtre_par_id_inconnu_rend_une_liste_vide(client, catalogue):
+    assert client.get("/api/v1/courses?id=999999").json() == []
+
+
+def test_catalogue_id_illisible_est_une_erreur_d_usage(client, catalogue):
+    """Contrairement à `date_from`, `id` n'a pas de repli silencieux : une
+    valeur qui n'est pas un entier est une erreur d'usage, comme `page`."""
+    assert client.get("/api/v1/courses?id=abc").status_code == 422
+
+
 # ── GET /courses/count — le total qui rend « page 1 sur 7 » ──────────────────
 
 
@@ -199,7 +226,13 @@ def test_compte_le_catalogue_entier(client, catalogue):
 
 def test_compte_aux_memes_filtres_que_la_liste(client, catalogue):
     """Un total qui ignorerait les filtres annoncerait des pages vides."""
-    for query in ("?name=nantes", "?event_type=triathlon-m", "?date_to=2026-05-31"):
+    cible = catalogue["Triathlon de Vierzon"]
+    for query in (
+        "?name=nantes",
+        "?event_type=triathlon-m",
+        "?date_to=2026-05-31",
+        f"?id={cible}",
+    ):
         liste = client.get(f"/api/v1/courses{query}").json()
         assert client.get(f"/api/v1/courses/count{query}").json()["total"] == len(liste)
 

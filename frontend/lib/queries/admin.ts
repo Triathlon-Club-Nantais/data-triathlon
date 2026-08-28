@@ -72,6 +72,8 @@ export const TAILLE_PAGE_ADMIN = 20;
 
 /** Les filtres du catalogue, tels que `GET /courses` les accepte. */
 export type FiltresCourses = {
+  /** Filtre exact par identifiant d'épreuve (#718). */
+  id?: string;
   name?: string;
   event_type?: string;
   date_from?: string;

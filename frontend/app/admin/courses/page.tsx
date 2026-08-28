@@ -32,6 +32,7 @@ export default async function AdminCoursesPage({
         <CoursesAdminTable
           page={Number(sp.page)}
           filtres={{
+            id: sp.id,
             name: sp.name,
             event_type: sp.event_type,
             date_from: sp.date_from,

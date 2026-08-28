@@ -355,6 +355,7 @@ function CatalogueFilters({
   valeurs: FiltresCourses;
   onFiltrer: (valeurs: FiltresCourses) => void;
 }) {
+  const [id, setId] = useState(valeurs.id ?? "");
   const [nom, setNom] = useState(valeurs.name ?? "");
   const [type, setType] = useState(valeurs.event_type ?? "");
   const [du, setDu] = useState(valeurs.date_from ?? "");
@@ -363,10 +364,11 @@ function CatalogueFilters({
   const actifs = Object.values(valeurs).some(Boolean);
 
   function appliquer() {
-    onFiltrer({ name: nom, event_type: type, date_from: du, date_to: au });
+    onFiltrer({ id, name: nom, event_type: type, date_from: du, date_to: au });
   }
 
   function reinitialiser() {
+    setId("");
     setNom("");
     setType("");
     setDu("");
@@ -377,6 +379,16 @@ function CatalogueFilters({
   return (
     <Card>
       <CardContent className="flex flex-wrap items-end gap-3">
+        <Champ label="ID">
+          <Input
+            type="number"
+            value={id}
+            onChange={(e) => setId(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && appliquer()}
+            placeholder="Identifiant"
+            className="w-full sm:w-24"
+          />
+        </Champ>
         <Champ label="Épreuve">
           <Input
             value={nom}
