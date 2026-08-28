@@ -22,32 +22,71 @@ def _result(bib, nom):
 
 def test_detect(client):
     resp = client.get("/api/v1/scrape/detect", params={"url": "https://www.klikego.com/x"})
-    assert resp.json() == {"provider": "klikego", "supported": True}
+    assert resp.json() == {
+        "provider": "klikego", "supported": True,
+        "fanout": True, "default_single_heat": False,
+    }
 
 
 @pytest.mark.parametrize(
-    ("url", "provider"),
+    ("url", "provider", "fanout"),
     [
-        ("https://www.ironman.com/races/im703-vichy/results", "competitor"),
-        ("https://my.raceresult.com/406211/results", "raceresult"),
-        ("https://chronoplace.fr/evenement/x", "chronoplace"),
+        ("https://www.ironman.com/races/im703-vichy/results", "competitor", False),
+        ("https://my.raceresult.com/406211/results", "raceresult", True),
+        ("https://chronoplace.fr/evenement/x", "chronoplace", True),
     ],
 )
-def test_detect_expose_le_support_des_providers_recents(client, url, provider):
+def test_detect_expose_le_support_des_providers_recents(client, url, provider, fanout):
     """`supported` est dérivé du registre, jamais d'une liste à tenir à jour.
 
     Le front affichait « Non supporté (competitor) » sur une URL ironman.com :
     il portait sa propre liste de providers, figée à six noms — Competitor,
     RaceResult et Chronoplace en étaient absents (même piège de définition
     dupliquée que #76). C'est l'API qui tranche désormais.
+
+    `fanout`/`default_single_heat` (#698) : aucun des trois n'est Klikego ni
+    BreizhChrono, donc `default_single_heat` vaut toujours `True` ici, que le
+    provider soit fan-out ou non.
     """
     resp = client.get("/api/v1/scrape/detect", params={"url": url})
-    assert resp.json() == {"provider": provider, "supported": True}
+    assert resp.json() == {
+        "provider": provider, "supported": True,
+        "fanout": fanout, "default_single_heat": True,
+    }
 
 
 def test_detect_url_inconnue_reste_non_supportee(client):
     resp = client.get("/api/v1/scrape/detect", params={"url": "https://chronopuce.test/x"})
-    assert resp.json() == {"provider": "", "supported": False}
+    assert resp.json() == {
+        "provider": "", "supported": False,
+        "fanout": False, "default_single_heat": True,
+    }
+
+
+def test_detect_expose_default_single_heat_vrai_klikego_avec_heat(client):
+    """URL Klikego portant déjà `?heat=` : `single_heat=True` est un chemin
+    testé, le front peut proposer « import unique » coché par défaut (#698)."""
+    resp = client.get(
+        "/api/v1/scrape/detect",
+        params={"url": "https://www.klikego.com/resultats/foo/1?heat=triathlon-m"},
+    )
+    assert resp.json() == {
+        "provider": "klikego", "supported": True,
+        "fanout": True, "default_single_heat": True,
+    }
+
+
+def test_detect_expose_default_single_heat_faux_sans_selecteur_breizhchrono(client):
+    """URL BreizhChrono nue (sans heat) : `single_heat=True` viserait un chemin
+    jamais exécuté en production — le front ne le pré-coche pas (#698)."""
+    resp = client.get(
+        "/api/v1/scrape/detect",
+        params={"url": "https://resultats.breizhchrono.com/resultats-courses/tri-42"},
+    )
+    assert resp.json() == {
+        "provider": "breizhchrono", "supported": True,
+        "fanout": True, "default_single_heat": False,
+    }
 
 
 def test_detect_sur_host_ipv6_malforme_ne_leve_pas_500(client):

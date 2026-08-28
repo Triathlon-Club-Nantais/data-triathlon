@@ -16,7 +16,7 @@ from app.core.config import Settings, get_settings
 from app.core.database import SessionLocal, get_db
 from app.models.user import User
 from app.schemas.scrape import ImportResult, ScrapeRequest
-from app.scrapers import detect_provider, is_supported, provider_names
+from app.scrapers import detect_provider, is_supported, provider_names, registry
 from app.services import import_service
 
 logger = logging.getLogger(__name__)
@@ -174,11 +174,19 @@ def scrape_event_stream(
 
 @router.get("/scrape/detect")
 def detect(url: HttpUrl):
-    """Provider détecté + support réel, tous deux dérivés du registre.
+    """Provider détecté + support réel + portée du fan-out, dérivés du registre.
 
     `supported` est renvoyé pour que le front n'ait pas à tenir sa propre liste
     de providers : la sienne avait divergé et affichait « Non supporté » sur
     Competitor, RaceResult et Chronoplace.
+
+    `fanout`/`default_single_heat` (#698) servent le choix « import unique /
+    fanout complet » du front (`TcnScrapeForm`) sans qu'il tienne sa propre
+    liste de providers fan-out : `fanout` vaut `isinstance(provider,
+    FanoutProvider)` ; `default_single_heat` vaut `True` pour tout provider
+    (fan-out ou non), sauf Klikego/BreizhChrono sur une URL sans sélecteur de
+    heat, seul cas où `single_heat=True` est un chemin non testé en
+    production (cf. `targets_single_heat`, spec #698).
 
     `HttpUrl` (#634) : même patron que `ScrapeRequest.url` (#49) et
     `PendingProviderCreate.url` (#398) — troisième et dernière route tracée
@@ -187,7 +195,18 @@ def detect(url: HttpUrl):
     légitime.
     """
     raw = str(url)
-    return {"provider": detect_provider(raw), "supported": is_supported(raw)}
+    provider = registry.get_provider(raw)
+    fanout = isinstance(provider, registry.FanoutProvider)
+    if fanout and isinstance(provider, (registry.KlikegoProvider, registry.BreizhChronoProvider)):
+        default_single_heat = provider.targets_single_heat(raw)
+    else:
+        default_single_heat = True
+    return {
+        "provider": detect_provider(raw),
+        "supported": is_supported(raw),
+        "fanout": fanout,
+        "default_single_heat": default_single_heat,
+    }
 
 
 @router.get("/scrape/providers")
