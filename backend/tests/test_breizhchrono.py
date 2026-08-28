@@ -444,18 +444,18 @@ def test_live_import_one_heat_route_sur_lhote_live(monkeypatch):
 
 
 def test_registry_route_live_vers_moteur_klikego(monkeypatch):
-    """L'URL live.breizhchrono.com n'est plus rejetée : elle route vers
-    scrape_live_event_all avec (reference, heat) extraits de l'URL."""
+    """L'URL live.breizhchrono.com n'est plus rejetée : sans heat, elle route
+    vers le fan-out live instrumenté (#707) avec `reference` extraite de l'URL."""
     from app.scrapers import registry
+    from app.scrapers.base import FanoutTrace
 
     captured = {}
 
-    def fake_live(reference, heat=""):
+    def fake_live_fanout(reference, *, cache_probe=None, on_heat_start=None):
         captured["reference"] = reference
-        captured["heat"] = heat
-        return ["sentinel"]
+        return ["sentinel"], FanoutTrace(heats_enumerated=1)
 
-    monkeypatch.setattr(breizhchrono, "scrape_live_event_all", fake_live)
+    monkeypatch.setattr(breizhchrono, "scrape_live_event_fanout", fake_live_fanout)
 
     url = (
         "https://live.breizhchrono.com/external/live5/index.jsp"
@@ -464,20 +464,21 @@ def test_registry_route_live_vers_moteur_klikego(monkeypatch):
     assert registry.detect_provider(url) == "breizhchrono"
     out = registry.scrape_event_all(url)
     assert out == ["sentinel"]
-    assert captured == {"reference": "1488071608761-688", "heat": ""}
+    assert captured == {"reference": "1488071608761-688"}
 
 
 def test_registry_route_live_insensible_casse(monkeypatch):
     """Un hôte en majuscules (URL copiée/collée) route quand même vers le live."""
     from app.scrapers import registry
+    from app.scrapers.base import FanoutTrace
 
     captured = {}
 
-    def fake_live(reference, heat=""):
+    def fake_live_fanout(reference, *, cache_probe=None, on_heat_start=None):
         captured["reference"] = reference
-        return ["sentinel"]
+        return ["sentinel"], FanoutTrace(heats_enumerated=1)
 
-    monkeypatch.setattr(breizhchrono, "scrape_live_event_all", fake_live)
+    monkeypatch.setattr(breizhchrono, "scrape_live_event_fanout", fake_live_fanout)
 
     url = "https://LIVE.BreizhChrono.com/external/live5/index.jsp?reference=42-7"
     assert registry.scrape_event_all(url) == ["sentinel"]
@@ -765,3 +766,232 @@ def test_scrape_event_all_heats_de_meme_type_restent_distincts(monkeypatch):
     )
     assert poussins_names == {"Triathlon de Test - Triathlon Poussins (6-9 ans)"}
     assert pupilles_names == {"Triathlon de Test - Triathlon Pupilles (10-11 ans)"}
+
+
+# --------------------------------------------------------------------------- #
+# scrape_event_fanout — fan-out instrumenté cache_probe/on_heat_start (#707)
+# --------------------------------------------------------------------------- #
+
+_MESQUER_ROOT_HTML = """
+<html><body>
+  <a href="/resultats-courses/tri-mesquer-42/heat-a">Heat A</a>
+  <a href="/resultats-courses/tri-mesquer-42/heat-b">Heat B</a>
+</body></html>
+"""
+
+
+def _make_bc_fanout_fake_client(monkeypatch, root_html=_MESQUER_ROOT_HTML):
+    """Monkeypatch `http.client()` : sert `root_html` à la racine, vide ailleurs.
+
+    Même parti pris que `test_klikego._make_fanout_fake_client` : les pages de
+    heat rendent un HTML vide (aucun participant produit), les tests portent
+    sur l'orchestration du fan-out (compteurs, cache, progression), pas sur le
+    contenu — déjà couvert par `test_bc_import_one_heat_returns_dnf`.
+    """
+    calls = {"root": 0, "heat_pages": [], "detail": []}
+
+    class FakeResp:
+        def __init__(self, t, code=200):
+            self.text, self.status_code = t, code
+            self.is_redirect = False
+            self.headers: dict = {}
+
+    class FakeClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def get(self, url, follow_redirects=True):
+            if url.endswith("/resultats-courses/tri-mesquer-42"):
+                calls["root"] += 1
+                return FakeResp(root_html)
+            if "resultat-participant.jsp" in url:
+                calls["detail"].append(url)
+                return FakeResp("<html></html>")
+            calls["heat_pages"].append(url)
+            return FakeResp("<html></html>")
+
+    monkeypatch.setattr(breizhchrono.http, "client", lambda **k: FakeClient())
+    return calls
+
+
+def test_scrape_event_fanout_nominal_returns_trace(monkeypatch):
+    """Fan-out sans cache_probe : les 2 heats énumérés remontent une trace complète."""
+    calls = _make_bc_fanout_fake_client(monkeypatch)
+
+    results, trace = breizhchrono.scrape_event_fanout(
+        "42", "Mesquer 2026", "tri-mesquer",
+    )
+
+    assert trace.heats_enumerated == 2
+    assert trace.heats_cached == 0
+    assert trace.heats_imported == 0  # dérivé côté import_service
+    assert trace.failures == []
+    assert f"{breizhchrono.BASE}/resultats-courses/tri-mesquer-42/heat-a" in calls["heat_pages"]
+    assert f"{breizhchrono.BASE}/resultats-courses/tri-mesquer-42/heat-b" in calls["heat_pages"]
+
+
+def test_scrape_event_fanout_cache_probe_skips_heats(monkeypatch):
+    """cache_probe qui retourne True pour heat-a → seul heat-b est scrapé."""
+    calls = _make_bc_fanout_fake_client(monkeypatch)
+
+    def probe(heat_url: str) -> bool:
+        return heat_url.endswith("/heat-a")
+
+    results, trace = breizhchrono.scrape_event_fanout(
+        "42", "Mesquer", "tri-mesquer", cache_probe=probe,
+    )
+
+    assert trace.heats_enumerated == 2
+    assert trace.heats_cached == 1
+    assert trace.cached_urls == [f"{breizhchrono.BASE}/resultats-courses/tri-mesquer-42/heat-a"]
+    assert f"{breizhchrono.BASE}/resultats-courses/tri-mesquer-42/heat-a" not in calls["heat_pages"]
+    assert f"{breizhchrono.BASE}/resultats-courses/tri-mesquer-42/heat-b" in calls["heat_pages"]
+
+
+def test_scrape_event_fanout_heat_failure_isolated(monkeypatch, caplog):
+    """Un heat qui lève ne casse pas les autres — sa cause est capturée dans trace.failures."""
+    _make_bc_fanout_fake_client(monkeypatch)
+
+    original = breizhchrono._import_one_heat
+
+    def flaky(event_id, heat_slug, heat_label, event_name, slug, event_date, client, **kwargs):
+        if heat_slug == "heat-a":
+            raise RuntimeError("boom on heat-a")
+        return original(event_id, heat_slug, heat_label, event_name, slug, event_date, client, **kwargs)
+
+    monkeypatch.setattr(breizhchrono, "_import_one_heat", flaky)
+
+    with caplog.at_level("WARNING", logger="app.scrapers.breizhchrono"):
+        results, trace = breizhchrono.scrape_event_fanout("42", "Mesquer", "tri-mesquer")
+
+    assert trace.heats_enumerated == 2
+    assert len(trace.failures) == 1
+    assert trace.failures[0]["heat_slug"] == "heat-a"
+    assert "boom on heat-a" in trace.failures[0]["reason"]
+    assert any("heat-a" in rec.message for rec in caplog.records)
+
+
+def test_scrape_event_fanout_on_heat_start_notifie_par_heat_non_cache(monkeypatch):
+    """on_heat_start est notifié uniquement pour les heats effectivement scrapés,
+    avec un total borné aux heats non cachés (pas `heats_enumerated`)."""
+    _make_bc_fanout_fake_client(monkeypatch)
+
+    notified: list[tuple[str, str, int, int]] = []
+
+    def on_heat_start(heat_slug, heat_label, index, total):
+        notified.append((heat_slug, heat_label, index, total))
+
+    def probe(heat_url: str) -> bool:
+        return heat_url.endswith("/heat-a")
+
+    breizhchrono.scrape_event_fanout(
+        "42", "Mesquer", "tri-mesquer", cache_probe=probe, on_heat_start=on_heat_start,
+    )
+
+    assert notified == [("heat-b", "Heat B", 1, 1)]
+
+
+def test_scrape_event_fanout_repli_heat_vide_si_racine_sans_heats(monkeypatch):
+    """Aucun heat découvert (racine sans nav inter-heats) → repli 1 heat vide,
+    même comportement de dégradation que `scrape_event_all`."""
+    calls = _make_bc_fanout_fake_client(monkeypatch, root_html="<html><body>rien</body></html>")
+
+    results, trace = breizhchrono.scrape_event_fanout("42", "Mesquer", "tri-mesquer")
+
+    assert trace.heats_enumerated == 1
+    assert trace.failures == []
+    assert f"{breizhchrono.BASE}/resultats-courses/tri-mesquer-42/" in calls["heat_pages"]
+
+
+# --------------------------------------------------------------------------- #
+# scrape_live_event_fanout — pendant live du fan-out instrumenté (#707)
+# --------------------------------------------------------------------------- #
+
+
+def _patch_live_meta(monkeypatch, heats: list[tuple[str, str]]):
+    monkeypatch.setattr(
+        breizhchrono, "_fetch_live_meta",
+        lambda client, reference: ("slug-x", "Event X", {}, None, heats),
+    )
+
+
+def test_scrape_live_event_fanout_nominal_returns_trace(monkeypatch):
+    _patch_live_meta(monkeypatch, [("heat-a", "Heat A"), ("heat-b", "Heat B")])
+    seen: list[str] = []
+    monkeypatch.setattr(
+        breizhchrono, "_import_one_live_heat",
+        lambda reference, heat_slug, *a, **k: (seen.append(heat_slug), [])[1],
+    )
+
+    class FakeClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(breizhchrono.http, "client", lambda **k: FakeClient())
+
+    results, trace = breizhchrono.scrape_live_event_fanout("ref-1")
+
+    assert trace.heats_enumerated == 2
+    assert trace.heats_cached == 0
+    assert trace.failures == []
+    assert seen == ["heat-a", "heat-b"]
+
+
+def test_scrape_live_event_fanout_cache_probe_skips_heats(monkeypatch):
+    _patch_live_meta(monkeypatch, [("heat-a", "Heat A"), ("heat-b", "Heat B")])
+    seen: list[str] = []
+    monkeypatch.setattr(
+        breizhchrono, "_import_one_live_heat",
+        lambda reference, heat_slug, *a, **k: (seen.append(heat_slug), [])[1],
+    )
+
+    class FakeClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(breizhchrono.http, "client", lambda **k: FakeClient())
+
+    def probe(heat_url: str) -> bool:
+        return "heat=heat-a" in heat_url
+
+    results, trace = breizhchrono.scrape_live_event_fanout("ref-1", cache_probe=probe)
+
+    assert trace.heats_enumerated == 2
+    assert trace.heats_cached == 1
+    assert seen == ["heat-b"]
+
+
+def test_scrape_live_event_fanout_heat_failure_isolated(monkeypatch, caplog):
+    _patch_live_meta(monkeypatch, [("heat-a", "Heat A"), ("heat-b", "Heat B")])
+
+    def flaky(reference, heat_slug, *a, **k):
+        if heat_slug == "heat-a":
+            raise RuntimeError("boom on live heat-a")
+        return []
+
+    monkeypatch.setattr(breizhchrono, "_import_one_live_heat", flaky)
+
+    class FakeClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(breizhchrono.http, "client", lambda **k: FakeClient())
+
+    with caplog.at_level("WARNING", logger="app.scrapers.breizhchrono"):
+        results, trace = breizhchrono.scrape_live_event_fanout("ref-1")
+
+    assert len(trace.failures) == 1
+    assert trace.failures[0]["heat_slug"] == "heat-a"
+    assert "boom on live heat-a" in trace.failures[0]["reason"]
