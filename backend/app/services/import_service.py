@@ -12,6 +12,7 @@ import threading
 from collections import Counter
 from collections.abc import Iterator
 from dataclasses import dataclass
+from datetime import datetime
 from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session
@@ -20,6 +21,7 @@ from app.core.club import is_tcn
 from app.core.config import Settings
 from app.core.database import SessionLocal
 from app.core.exceptions import InvalidUrlError, ProviderNotSupportedError, ScraperError
+from app.core.time import utcnow
 from app.models.course import Course
 from app.models.course_source import CourseSource
 from app.models.participation import Participation
@@ -859,6 +861,23 @@ def import_event(
     }
 
 
+def _confirm_committed(db: Session, courses: list[dict], since: datetime) -> bool:
+    """Distingue un rollback réel d'un accusé de `commit()` perdu (#704).
+
+    Un `db.rollback()` après un `COMMIT` qui a abouti côté serveur est sans
+    effet : les données restent écrites. Re-vérifier en base — plutôt que se
+    fier à l'exception seule — sépare ce cas de celui d'un commit qui a
+    vraiment échoué, où `scraped_at` n'a jamais bougé.
+    """
+    if not courses:
+        return False
+    for c in courses:
+        course = course_repository.get(db, c["id"])
+        if course is None or course.scraped_at is None or course.scraped_at < since:
+            return False
+    return True
+
+
 def iter_import_event(
     db: Session, url: str, settings: Settings, force: bool = False, persist: bool = True,
     *, single_heat: bool = False,
@@ -929,6 +948,7 @@ def iter_import_event(
 
     persister = _Persister(db, url)
     yield {"phase": "saving", "total": total, "imported": 0, "updated": 0, "skipped": 0, "progress": 0}
+    attempt_started_at = utcnow()
     try:
         # Le chemin SSE ré-implémente la boucle de `persist_results` pour émettre
         # sa progression : le rattrapage de classification (#294) et la
@@ -954,11 +974,25 @@ def iter_import_event(
             db.commit()
         else:
             db.rollback()  # dry-run : traverser la persistance, ne rien écrire
-    except Exception:
+    except Exception as exc:
         db.rollback()
-        logger.exception("Rollback de l'import streaming %s", url)
-        yield {"phase": "error", "message": "Erreur lors de l'enregistrement des résultats."}
-        return
+        confirmed = False
+        if persist:
+            try:
+                confirmed = _confirm_committed(db, persister.courses_summary(), attempt_started_at)
+            except Exception:
+                # La re-vérification elle-même peut échouer (connexion vraiment
+                # perdue, pas seulement un accusé égaré) : on ne laisse jamais
+                # cette panne secondaire faire disparaître la phase `error` que
+                # le flux SSE doit toujours émettre.
+                logger.exception("Échec de la re-vérification post-commit pour %s", url)
+        if not confirmed:
+            logger.error("Rollback de l'import streaming %s", url, exc_info=exc)
+            yield {"phase": "error", "message": "Erreur lors de l'enregistrement des résultats."}
+            return
+        logger.warning(
+            "Accusé de commit perdu mais écriture confirmée en base pour %s", url, exc_info=exc
+        )
 
     yield {
         "phase": "done",
