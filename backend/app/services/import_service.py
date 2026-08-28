@@ -22,10 +22,11 @@ from app.core.config import Settings
 from app.core.database import SessionLocal
 from app.core.exceptions import InvalidUrlError, ProviderNotSupportedError, ScraperError
 from app.core.time import utcnow
+from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.course_source import CourseSource
 from app.models.participation import Participation
-from app.repositories import course_repository, participation_repository
+from app.repositories import athlete_repository, course_repository, participation_repository
 from app.scrapers import registry
 from app.scrapers import scrape_event_all as registry_scrape_event_all
 from app.scrapers.base import STATUS_DNF, STATUS_FINISHER, FanoutTrace, ScrapedResult
@@ -380,7 +381,7 @@ def _require_event_name(url: str, results: list[ScrapedResult]) -> None:
 
 #: Clés d'appariement / d'identité : jamais réécrites par la fusion prudente.
 #: `athlete_id` en fait partie — la réconciliation d'identité (#66) est un axe
-#: séparé, traité par `_Persister._reconcile`, pas par ce rafraîchissement de
+#: séparé, traité par `_Persister._reconcile_resolved`, pas par ce rafraîchissement de
 #: valeurs : les deux s'appliquent à la suite sans jamais écrire les mêmes champs.
 _CLES_APPARIEMENT = frozenset({"athlete_id", "course_id", "bib_number"})
 
@@ -426,6 +427,40 @@ def _resolve_status(existing, scraped: ScrapedResult, changes: dict) -> str:
     return STATUS_FINISHER if merged_total else STATUS_DNF
 
 
+#: Taille de la tranche de résolution par lot (#706) : au-delà, une course
+#: déclenche sa résolution d'athlètes avant la fin du scrape plutôt que
+#: d'accumuler une file sans borne. Ordre de grandeur repris de l'audit
+#: source (`research.md` de la feature #706) — un détail d'implémentation,
+#: pas un critère d'acceptation.
+_TRANCHE_SIZE = 500
+
+
+def _identity_key(scraped: ScrapedResult) -> tuple[str, str]:
+    """Clé d'identité normalisée d'une ligne scrapée — même formule que
+    `athlete_repository.get_by_identities_batch`, côté nom/prénom stockés
+    (déjà `.strip()`-és en base), pour que les deux se retrouvent."""
+    return (
+        (scraped.athlete_name or "").strip().lower(),
+        (scraped.athlete_firstname or "").strip().lower(),
+    )
+
+
+@dataclass(frozen=True)
+class _PendingResolution:
+    """Une ligne en attente de résolution d'athlète par lot (#706), mise en
+    file plutôt que résolue immédiatement par `add()`.
+
+    `participation` porte la ligne déjà appariée par dossard à réconcilier
+    (chemin `_reconcile`) ; `None` pour une participation neuve à créer
+    (chemin dossard neuf ou sans dossard — `bib` distingue les deux, `None`
+    valant « sans dossard », pour rejouer `_match_without_bib`/les crédits
+    une fois l'athlète connu).
+    """
+    scraped: ScrapedResult
+    bib: str | None
+    participation: Participation | None
+
+
 class _Persister:
     """Persiste les résultats scrapés en **upsert**, avec déduplication.
 
@@ -451,6 +486,11 @@ class _Persister:
         self._credits: dict[int, dict[int, int]] = {}
         self._updated_single: dict[int, set[int]] = {}
         self._courses: dict[int, Course] = {}
+        # Résolution par lot (#706) : lignes en attente et participations
+        # connues d'une course, par `course_id` — `_participations` remplace
+        # le second `list_for_course` de `finalize()` (cf. `_index_course`).
+        self._pending: dict[int, list[_PendingResolution]] = {}
+        self._participations: dict[int, list[Participation]] = {}
         self.imported = 0
         self.updated = 0
         self.skipped = 0
@@ -498,6 +538,10 @@ class _Persister:
         self._without_bib[course_id] = without
         self._credits[course_id] = {aid: len(rs) for aid, rs in without.items()}
         self._updated_single[course_id] = set()
+        # `finalize()` réutilise cette liste (#706) au lieu d'un second
+        # `list_for_course` : les créations de ce scrape s'y ajoutent au fil de
+        # `_resolve_pending`, les mises à jour mutent les objets déjà dedans.
+        self._participations[course_id] = list(rows)
 
     def _upsert(self, existing: Participation, scraped: ScrapedResult) -> None:
         """Fusionne prudemment une ligne appariée. Compte `updated` ou `skipped`."""
@@ -554,57 +598,161 @@ class _Persister:
             if existing is not None:
                 added.add(bib)
                 # Deux axes indépendants sur une ligne appariée : l'identité
-                # (`athlete_id`, #66) puis les valeurs (#68). `_reconcile` ne
-                # touche jamais aux valeurs, `_upsert` jamais à `athlete_id`.
-                self._reconcile(scraped, existing)
-                self._upsert(existing, scraped)
+                # (`athlete_id`, #66) puis les valeurs (#68). La réconciliation
+                # ne touche jamais aux valeurs, `_upsert` jamais à `athlete_id` —
+                # les deux se rejouent dans `_resolve_pending`, une fois
+                # l'athlète connu (#706, résolution par lot).
+                if self._reconcile_blocked(scraped, existing):
+                    # « BERGE | LOLA » → « LOLA BERGE |  » : refusé *avant*
+                    # toute résolution, sinon une identité `(nom, "")` neuve
+                    # serait mise en attente et créerait une fiche orpheline
+                    # que le chemin web/SSE ne nettoie jamais (#66) — la
+                    # garde doit trancher ici, pas après coup dans le lot.
+                    self._upsert(existing, scraped)
+                else:
+                    self._enqueue(course.id, scraped, bib=bib, participation=existing)
                 return
-            # Dossard neuf : on tombe sur la création commune plus bas.
+            # Dossard neuf : réservé tout de suite, sinon deux lignes neuves
+            # du même scrape avec le même dossard passeraient toutes les deux
+            # ce test (la résolution est différée, `_by_bib` ne les connaît
+            # pas encore) et heurteraient `uq_participation_bib` à la création.
+            added.add(bib)
 
-        athlete = mapping.get_or_create_athlete(self.db, scraped)
+        self._enqueue(course.id, scraped, bib=bib, participation=None)
 
-        if bib is None:
-            existing = self._match_without_bib(course.id, athlete.id)
-            if existing is not None:
-                self._upsert(existing, scraped)
-                return
-            if self._credits[course.id].get(athlete.id, 0) > 0:
-                self._credits[course.id][athlete.id] -= 1
-                self.skipped += 1
-                return
+    def _enqueue(
+        self, course_id: int, scraped: ScrapedResult, *, bib: str | None,
+        participation: Participation | None,
+    ) -> None:
+        """Met une ligne en attente de résolution d'athlète (#706) au lieu de
+        la résoudre immédiatement. Déclenche le lot dès que la tranche est
+        pleine — le reliquat de chaque course se résout à `finalize()`."""
+        pending = self._pending.setdefault(course_id, [])
+        pending.append(_PendingResolution(scraped=scraped, bib=bib, participation=participation))
+        if len(pending) >= _TRANCHE_SIZE:
+            self._resolve_pending(course_id)
 
-        created = participation_repository.create(
-            self.db,
-            **mapping.participation_fields(
-                scraped, athlete_id=athlete.id, course_id=course.id
-            ),
-        )
-        if bib is not None:
-            self._added_bibs[course.id].add(bib)
-            self._by_bib[course.id][bib] = created
-        self.imported += 1
+    def _resolve_pending(self, course_id: int) -> None:
+        """Résout par lot toutes les lignes en attente d'une course (#706).
 
-    def _reconcile(self, scraped: ScrapedResult, participation: Participation) -> None:
-        """Réassigne l'athlète d'une participation existante si sa graphie a divergé.
-
-        Ne touche QUE `athlete_id` (via la relation, pour un déplacement propre
-        entre fiches sans déclencher le cascade delete-orphan) : les valeurs de la
-        ligne relèvent d'`_upsert`, appelé juste après. Compte « réconciliée »
-        quand l'athlète change — jamais `skipped`, qui reste l'affaire d'`_upsert`
-        pour ne pas compter deux fois la même ligne. Garde des ambigus : jamais
-        une correction qui viderait le prénom.
+        Un seul aller-retour DB pour retrouver les athlètes déjà connus
+        (`get_by_identities_batch`), un seul pour créer les manquants
+        (`create_batch`, dédupliqué par identité — deux lignes du même scrape
+        pour un même athlète neuf ne créent qu'une fiche), un seul pour les
+        participations neuves. Rejoue ensuite, ligne par ligne mais sans
+        requête, exactement la logique de `add`/`_reconcile` d'origine.
         """
-        ancien = participation.athlete
-        if not (scraped.athlete_firstname or "").strip() and (ancien.prenom or "").strip():
-            # « BERGE | LOLA » → « LOLA BERGE |  » : refusé *avant* de résoudre
-            # l'athlète corrigé, sinon `resolve` créait une fiche orpheline que
-            # le chemin web/SSE commite sans jamais la nettoyer (cf. #66).
+        pending = self._pending.pop(course_id, [])
+        if not pending:
             return
-        athlete, cree = mapping.resolve_athlete(self.db, scraped)
+
+        pairs = [(item.scraped.athlete_name, item.scraped.athlete_firstname) for item in pending]
+        found: dict[tuple[str, str], Athlete] = athlete_repository.get_by_identities_batch(
+            self.db, pairs
+        )
+
+        to_create: dict[tuple[str, str], dict] = {}
+        creation_order: list[tuple[str, str]] = []
+        for item in pending:
+            key = _identity_key(item.scraped)
+            if key in found or key in to_create:
+                continue
+            to_create[key] = mapping.athlete_creation_fields(item.scraped)
+            creation_order.append(key)
+        if creation_order:
+            created_athletes = athlete_repository.create_batch(
+                self.db, [to_create[key] for key in creation_order]
+            )
+            found.update(zip(creation_order, created_athletes, strict=True))
+
+        created_keys = set(to_create.keys())
+        creation_consumed: set[tuple[str, str]] = set()
+        new_participation_fields: list[dict] = []
+        new_participation_items: list[_PendingResolution] = []
+
+        for item in pending:
+            key = _identity_key(item.scraped)
+            athlete = found[key]
+            club = item.scraped.club or None
+            if club and athlete.club != club and not athlete.club_locked:
+                # Même synchronisation que la branche « existant » de
+                # `athlete_repository.resolve` — sans effet sur la ligne qui
+                # vient de créer `athlete` (son club est déjà le sien).
+                athlete.club = club
+
+            is_creator = key in created_keys and key not in creation_consumed
+            if is_creator:
+                creation_consumed.add(key)
+
+            if item.participation is not None:
+                self._reconcile_resolved(
+                    item.scraped, item.participation, athlete, cree=is_creator
+                )
+                self._upsert(item.participation, item.scraped)
+                continue
+
+            if item.bib is None:
+                existing = self._match_without_bib(course_id, athlete.id)
+                if existing is not None:
+                    self._upsert(existing, item.scraped)
+                    continue
+                if self._credits[course_id].get(athlete.id, 0) > 0:
+                    self._credits[course_id][athlete.id] -= 1
+                    self.skipped += 1
+                    continue
+
+            new_participation_fields.append(
+                mapping.participation_fields(
+                    item.scraped, athlete_id=athlete.id, course_id=course_id
+                )
+            )
+            new_participation_items.append(item)
+
+        if new_participation_fields:
+            created_participations = participation_repository.create_batch(
+                self.db, new_participation_fields
+            )
+            self._participations[course_id].extend(created_participations)
+            for item, participation in zip(
+                new_participation_items, created_participations, strict=True
+            ):
+                # `_added_bibs` est déjà à jour depuis `add` (réservé dès
+                # l'enfilement, cf. commentaire associé) — seul `_by_bib` a
+                # besoin de l'objet créé, indisponible avant la création.
+                if item.bib is not None:
+                    self._by_bib[course_id][item.bib] = participation
+                self.imported += 1
+
+    def _reconcile_blocked(self, scraped: ScrapedResult, participation: Participation) -> bool:
+        """Vrai si la réconciliation de cette ligne doit être refusée sans
+        même résoudre d'athlète — jamais une correction qui viderait le
+        prénom : « BERGE | LOLA » → « LOLA BERGE |  » créerait une identité
+        `(nom, "")` neuve, orpheline, que le chemin web/SSE ne nettoie jamais
+        (#66). Vérifié à l'enfilement (`add`), avant toute mise en attente de
+        résolution — trancher après coup, une fois l'identité déjà mise en
+        lot, serait trop tard pour éviter la création."""
+        ancien = participation.athlete
+        return not (scraped.athlete_firstname or "").strip() and (ancien.prenom or "").strip()
+
+    def _reconcile_resolved(
+        self, scraped: ScrapedResult, participation: Participation, athlete: Athlete,
+        *, cree: bool,
+    ) -> None:
+        """Réassigne l'athlète d'une participation existante si sa graphie a
+        divergé. `athlete`/`cree` sont déjà connus (résolus par lot dans
+        `_resolve_pending`, `_reconcile_blocked` déjà écarté à l'enfilement) —
+        c'est la seule différence avec l'ancien `_reconcile`, qui résolvait
+        lui-même l'athlète par une requête. Ne touche QUE `athlete_id` (via la
+        relation, pour un déplacement propre entre fiches sans déclencher le
+        cascade delete-orphan) : les valeurs de la ligne relèvent d'`_upsert`,
+        appelé juste après. Compte « réconciliée » quand l'athlète change —
+        jamais `skipped`, qui reste l'affaire d'`_upsert` pour ne pas compter
+        deux fois la même ligne.
+        """
         if athlete.id == participation.athlete_id:
             return
         reassignment = Reassignment(
-            ancien=_identite(ancien), nouveau=_identite(athlete), fusion=not cree
+            ancien=_identite(participation.athlete), nouveau=_identite(athlete), fusion=not cree
         )
         participation.athlete = athlete
         self.reconciled += 1
@@ -625,13 +773,20 @@ class _Persister:
         return rows[0]
 
     def finalize(self) -> None:
+        # Reliquat de chaque course : ce qui n'a pas atteint une pleine
+        # tranche pendant `add` se résout ici (#706).
+        for course_id in list(self._pending.keys()):
+            self._resolve_pending(course_id)
         for course_id, course in self._courses.items():
             course_repository.touch_scraped_at(self.db, course)
-            # `list_for_course` n'applique pas `validated_clause` (#270) — c'est
-            # le chemin d'import, pas d'affichage — donc filtrée ici pour les
-            # deux compteurs dénormalisés (#623), sur la même définition que
+            # Réutilise la liste déjà chargée par `_index_course` (#706) —
+            # tenue à jour par `_resolve_pending` — au lieu d'un second
+            # `list_for_course`. `list_for_course` n'applique pas
+            # `validated_clause` (#270) — c'est le chemin d'import, pas
+            # d'affichage — donc filtrée ici pour les deux compteurs
+            # dénormalisés (#623), sur la même définition que
             # `_apply_filters`/`validated_clause`.
-            rows = participation_repository.list_for_course(self.db, course_id)
+            rows = self._participations[course_id]
             report = quality.analyze(rows, duplicate_bibs=self._duplicate_bibs[course_id])
             course_repository.set_quality(
                 self.db,

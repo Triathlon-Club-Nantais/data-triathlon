@@ -200,6 +200,20 @@ def get_or_create_athlete(db: Session, scraped: ScrapedResult) -> Athlete:
     return athlete
 
 
+def athlete_creation_fields(scraped: ScrapedResult) -> dict:
+    """Champs de création d'un athlète neuf — mêmes règles que la branche de
+    création d'`athlete_repository.resolve` (#706, résolution par lot :
+    `_Persister` crée les athlètes manquants via `athlete_repository.create_batch`
+    plutôt que ligne à ligne, mais doit leur poser exactement les mêmes champs)."""
+    return {
+        "nom": (scraped.athlete_name or "").strip(),
+        "prenom": (scraped.athlete_firstname or "").strip(),
+        "gender": scraped.gender or "",
+        "birth_date": None,
+        "club": scraped.club or None,
+    }
+
+
 def participation_fields(
     scraped: ScrapedResult, *, athlete_id: int, course_id: int
 ) -> dict:

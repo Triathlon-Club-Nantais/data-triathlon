@@ -747,3 +747,72 @@ def test_club_rank_respecte_federal_only(db_session):
 
     assert athlete_repository.club_rank(db_session, ath.id, federal_only=False) == (1, 1)
     assert athlete_repository.club_rank(db_session, ath.id, federal_only=True) is None
+
+
+# ── get_by_identities_batch (#706) ──────────────────────────────────────────
+
+
+def test_get_by_identities_batch_retrouve_toutes_les_paires_en_une_requete(db_session):
+    a1 = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean")
+    a2 = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul")
+    db_session.flush()
+
+    found = athlete_repository.get_by_identities_batch(
+        db_session, [("Dupont", "Jean"), ("MARTIN", "PAUL")]
+    )
+
+    assert found == {
+        ("dupont", "jean"): a1,
+        ("martin", "paul"): a2,
+    }
+
+
+def test_get_by_identities_batch_omet_les_paires_absentes(db_session):
+    athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean")
+    db_session.flush()
+
+    found = athlete_repository.get_by_identities_batch(
+        db_session, [("Dupont", "Jean"), ("Inconnu", "Personne")]
+    )
+
+    assert list(found.keys()) == [("dupont", "jean")]
+
+
+def test_get_by_identities_batch_filtre_sur_birth_date_none(db_session):
+    """La résolution d'import ne connaît jamais de date de naissance (#706,
+    research.md) : un homonyme avec `birth_date` renseignée ne doit pas
+    matcher."""
+    athlete_repository.get_or_create(
+        db_session, nom="MARTIN", prenom="Paul", birth_date=date(1985, 6, 2)
+    )
+    db_session.flush()
+
+    found = athlete_repository.get_by_identities_batch(db_session, [("Martin", "Paul")])
+
+    assert found == {}
+
+
+def test_get_by_identities_batch_paire_vide_ne_requete_rien(db_session):
+    assert athlete_repository.get_by_identities_batch(db_session, []) == {}
+
+
+# ── create_batch (#706) ──────────────────────────────────────────────────────
+
+
+def test_create_batch_cree_toutes_les_fiches_et_leur_id_est_peuple(db_session):
+    created = athlete_repository.create_batch(
+        db_session,
+        [
+            {"nom": "NOUVEAU", "prenom": "Nino", "club": "TCN"},
+            {"nom": "AUTRE", "prenom": "Alice", "gender": "F"},
+        ],
+    )
+
+    assert [a.nom for a in created] == ["NOUVEAU", "AUTRE"]
+    assert all(a.id is not None for a in created)
+    assert created[0].club == "TCN"
+    assert created[1].gender == "F"
+
+
+def test_create_batch_liste_vide_ne_cree_rien(db_session):
+    assert athlete_repository.create_batch(db_session, []) == []

@@ -1518,3 +1518,27 @@ def test_club_podiums_respecte_federal_only(db_session):
 
     assert participation_repository.club_podiums(db_session, federal_only=False) != []
     assert participation_repository.club_podiums(db_session, federal_only=True) == []
+
+
+# ── create_batch (#706) ──────────────────────────────────────────────────────
+
+
+def test_create_batch_cree_toutes_les_participations_et_leur_id_est_peuple(db_session):
+    athlete, course = _setup(db_session)
+    autre = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul", club="TCN")
+
+    created = participation_repository.create_batch(
+        db_session,
+        [
+            {"athlete_id": athlete.id, "course_id": course.id, "bib_number": "1", "club": "TCN"},
+            {"athlete_id": autre.id, "course_id": course.id, "bib_number": "2", "club": "TCN"},
+        ],
+    )
+
+    assert [p.bib_number for p in created] == ["1", "2"]
+    assert all(p.id is not None for p in created)
+    assert participation_repository.count_for_course(db_session, course.id) == 2
+
+
+def test_create_batch_liste_vide_ne_cree_rien(db_session):
+    assert participation_repository.create_batch(db_session, []) == []
