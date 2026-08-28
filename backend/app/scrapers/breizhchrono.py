@@ -25,6 +25,7 @@ is byte-for-byte identical, so _parse_detail is shared from klikego.
 """
 import logging
 import re
+from collections.abc import Callable
 from datetime import date
 from urllib.parse import parse_qs, urlparse
 
@@ -34,7 +35,7 @@ from bs4 import BeautifulSoup
 from app.core import http
 from app.core.exceptions import DomainError
 
-from .base import ScrapedResult
+from .base import FanoutTrace, ScrapedResult
 from .classify import classify_event_type
 from .klikego_platform import course_name, heat_is_relay
 from .utils import DEFAULT_HEADERS
@@ -240,6 +241,33 @@ def _import_one_heat(
     return results
 
 
+def _fetch_event_date(client: httpx.Client, slug_id: str, heat: str) -> date | None:
+    """Date d'épreuve, lue sur la page du heat donné (ou de la racine si `heat` vide).
+
+    Un refus du garde SSRF (#101) remonte en erreur d'épreuve ; toute autre panne
+    dégrade — l'épreuve s'importe sans date — mais laisse une trace : `None`
+    change la clé d'identité de `Course` (`UNIQUE(name, event_date, event_type)`),
+    et sans ce warning une épreuve importée sans date serait indiscernable d'une
+    épreuve qui n'en publie pas.
+    """
+    date_page_url = (
+        f"{BASE}/resultats-courses/{slug_id}/{heat}" if heat
+        else f"{BASE}/resultats-courses/{slug_id}"
+    )
+    try:
+        page_resp = client.get(date_page_url)
+        if page_resp.status_code == 200:
+            return _parse_bc_date(page_resp.text)
+    except DomainError:
+        raise
+    except Exception as exc:
+        logger.warning(
+            "breizhchrono: event date unreachable at %s (%s), importing without it",
+            date_page_url, exc,
+        )
+    return None
+
+
 def scrape_event_all(
     event_id: str, heat: str, event_name: str, slug: str
 ) -> list[ScrapedResult]:
@@ -248,34 +276,17 @@ def scrape_event_all(
     If no specific heat is given, auto-discovers all heats from the event root page
     and imports each one with the correct event_type and is_relay per discipline.
     Les splits complets ne sont récupérés que pour les athlètes du club.
+
+    Contrat historique, préservé pour les appelants directs (tests, `--single-heat`) :
+    le fan-out **instrumenté** (`cache_probe`, `on_heat_start`, `FanoutTrace`) vit
+    dans `scrape_event_fanout` (#707), utilisée par `BreizhChronoProvider` quand
+    aucun heat n'est fixé par l'URL.
     """
     slug_id = f"{slug}-{event_id}"
     results: list[ScrapedResult] = []
 
     with http.client(timeout=30, headers=HEADERS) as client:
-        # Event date — fetch from first available heat page
-        event_date = None
-        date_page_url = (
-            f"{BASE}/resultats-courses/{slug_id}/{heat}" if heat
-            else f"{BASE}/resultats-courses/{slug_id}"
-        )
-        try:
-            page_resp = client.get(date_page_url)
-            if page_resp.status_code == 200:
-                event_date = _parse_bc_date(page_resp.text)
-        # Idem : un refus du garde SSRF (#101) doit remonter en erreur d'épreuve
-        # plutôt que de laisser `event_date = None` sans la moindre trace.
-        except DomainError:
-            raise
-        # Toute autre panne dégrade — l'épreuve s'importe sans date — mais laisse
-        # une trace : `event_date = None` change la clé d'identité de `Course`
-        # (`UNIQUE(name, event_date, event_type)`), et sans ce warning une épreuve
-        # importée sans date est indiscernable d'une épreuve qui n'en publie pas.
-        except Exception as exc:
-            logger.warning(
-                "breizhchrono: event date unreachable at %s (%s), importing without it",
-                date_page_url, exc,
-            )
+        event_date = _fetch_event_date(client, slug_id, heat)
 
         # Discover heats
         if heat:
@@ -295,6 +306,67 @@ def scrape_event_all(
         _fetch_tcn_fine_splits(BASE, event_id, heat, results, client)
 
     return results
+
+
+def scrape_event_fanout(
+    event_id: str, event_name: str, slug: str,
+    *,
+    cache_probe: Callable[[str], bool] | None = None,
+    on_heat_start: Callable[[str, str, int, int], None] | None = None,
+) -> tuple[list[ScrapedResult], FanoutTrace]:
+    """Fan-out instrumenté sur tous les heats publiés d'un événement (issue #707).
+
+    Même patron que `klikego.scrape_event_fanout` : `cache_probe(heat_url)`
+    permet de sauter un heat déjà frais côté TTL, `on_heat_start(heat_slug,
+    heat_label, index, total)` notifie la progression avant chaque heat
+    effectivement scrapé (jamais un heat sauté). `heat_url` est construite
+    comme la `source_url` par défaut de `_import_one_heat`, pour matcher
+    exactement la `Course.source_url` déjà en base.
+
+    Repli identique à `scrape_event_all` : si `_fetch_all_heats` ne trouve rien
+    (racine injoignable, garde SSRF mis à part), on tente quand même le heat
+    vide en sous-unité unique plutôt que de rendre une épreuve totalement vide.
+
+    Les splits fins TCN (`_fetch_tcn_fine_splits`) restent appliqués une seule
+    fois, après la boucle, sur l'ensemble des heats scrapés — comme
+    `scrape_event_all`.
+
+    Retour : `(results, trace)`. `trace.heats_imported` reste à 0, dérivé par
+    `import_service` via l'invariant `enumerated = imported + cached + len(failures)`.
+    """
+    trace = FanoutTrace()
+    all_results: list[ScrapedResult] = []
+    slug_id = f"{slug}-{event_id}"
+
+    with http.client(timeout=30, headers=HEADERS) as client:
+        event_date = _fetch_event_date(client, slug_id, "")
+        heats = _fetch_all_heats(slug_id, client) or [("", "")]
+        trace.heats_enumerated = len(heats)
+
+        heats_a_scraper: list[tuple[str, str]] = []
+        for heat_slug, heat_label in heats:
+            heat_url = f"{BASE}/resultats-courses/{slug_id}/{heat_slug}"
+            if cache_probe is not None and cache_probe(heat_url):
+                trace.heats_cached += 1
+                trace.cached_urls.append(heat_url)
+                continue
+            heats_a_scraper.append((heat_slug, heat_label))
+
+        total_a_scraper = len(heats_a_scraper)
+        for index, (heat_slug, heat_label) in enumerate(heats_a_scraper, start=1):
+            if on_heat_start is not None:
+                on_heat_start(heat_slug, heat_label, index, total_a_scraper)
+            try:
+                all_results.extend(_import_one_heat(
+                    event_id, heat_slug, heat_label, event_name, slug, event_date, client,
+                ))
+            except Exception as exc:
+                logger.warning("Heat %s de %s en échec : %s", heat_slug, event_id, exc)
+                trace.failures.append({"heat_slug": heat_slug, "reason": str(exc)})
+
+        _fetch_tcn_fine_splits(BASE, event_id, "", all_results, client)
+
+    return all_results, trace
 
 
 # --------------------------------------------------------------------------- #
@@ -420,35 +492,62 @@ def _parse_live_index(html: str) -> tuple[str, dict[str, date]]:
     return event_name, dates
 
 
+def _fetch_live_meta(
+    client: httpx.Client, reference: str,
+) -> tuple[str, str, dict[str, date], date | None, list[tuple[str, str]]]:
+    """(slug, event_name, dates_by_heat, default_date, all_heats) des deux pages live.
+
+    `classements.jsp` liste les heats (slug + libellé) mais ne porte aucune
+    date ; `index.jsp` porte le nom d'épreuve accentué et la date de chaque
+    heat. On les joint par libellé (`_norm_label`). Partagé par
+    `scrape_live_event_all` et `scrape_live_event_fanout` (#707).
+    """
+    root = client.get(f"{LIVE_BASE}/external/live5/classements.jsp?reference={reference}")
+    root_html = root.text if root.status_code == 200 else ""
+    slug = _parse_live_slug(root_html)
+
+    index = client.get(f"{LIVE_BASE}/external/live5/index.jsp?reference={reference}")
+    index_html = index.text if index.status_code == 200 else ""
+    event_name, dates_by_heat = _parse_live_index(index_html)
+    if not event_name:
+        event_name = slug.replace("-", " ").title() if slug else ""
+    # Repli pour un heat absent de l'index : le premier jour de l'épreuve.
+    default_date = min(dates_by_heat.values()) if dates_by_heat else None
+
+    return slug, event_name, dates_by_heat, default_date, _parse_live_heats(root_html)
+
+
+def _import_one_live_heat(
+    reference: str, heat_slug: str, heat_label: str, event_name: str, slug: str,
+    dates_by_heat: dict[str, date], default_date: date | None, client: httpx.Client,
+) -> list[ScrapedResult]:
+    """Import d'un heat live, `source_url` et classification (heat seul) inclus."""
+    source_url = (
+        f"{LIVE_BASE}/external/live5/classements.jsp"
+        f"?version=new&reference={reference}&heat={heat_slug}"
+    )
+    return _import_one_heat(
+        reference, heat_slug, heat_label, event_name, slug,
+        dates_by_heat.get(_norm_label(heat_label), default_date), client,
+        base=LIVE_BASE, source_url=source_url,
+        event_type=classify_event_type(heat_slug),
+    )
+
+
 def scrape_live_event_all(reference: str, heat: str = "") -> list[ScrapedResult]:
     """Import complet d'une épreuve live.breizhchrono.com via le moteur Klikego.
 
-    Deux pages live sont nécessaires : `classements.jsp` liste les heats (slug +
-    libellé) mais ne porte aucune date ; `index.jsp` porte le nom d'épreuve
-    accentué et la date de chaque heat. On les joint par libellé (_norm_label).
-
-    La classification se fait sur le heat SEUL : les libellés de heats du live
-    sont descriptifs (« triathlon-distance-olympique »), alors que le slug de
-    l'événement mentionne souvent une seule discipline vedette et fausserait le
-    type des autres heats.
+    Contrat historique, préservé pour les appelants directs (tests,
+    `--single-heat`) : le fan-out **instrumenté** (`cache_probe`,
+    `on_heat_start`, `FanoutTrace`) vit dans `scrape_live_event_fanout` (#707),
+    utilisée par `BreizhChronoProvider` quand aucun heat n'est fixé par l'URL.
     """
     results: list[ScrapedResult] = []
     with http.client(timeout=30, headers=HEADERS) as client:
-        root = client.get(
-            f"{LIVE_BASE}/external/live5/classements.jsp?reference={reference}"
+        slug, event_name, dates_by_heat, default_date, all_heats = _fetch_live_meta(
+            client, reference,
         )
-        root_html = root.text if root.status_code == 200 else ""
-        slug = _parse_live_slug(root_html)
 
-        index = client.get(f"{LIVE_BASE}/external/live5/index.jsp?reference={reference}")
-        index_html = index.text if index.status_code == 200 else ""
-        event_name, dates_by_heat = _parse_live_index(index_html)
-        if not event_name:
-            event_name = slug.replace("-", " ").title() if slug else ""
-        # Repli pour un heat absent de l'index : le premier jour de l'épreuve.
-        default_date = min(dates_by_heat.values()) if dates_by_heat else None
-
-        all_heats = _parse_live_heats(root_html)
         if heat:
             # Mode heat unique : on récupère le libellé depuis la liste des heats
             # pour préserver la détection de relais (un slug live « ...---relais »
@@ -458,19 +557,64 @@ def scrape_live_event_all(reference: str, heat: str = "") -> list[ScrapedResult]
             heats_to_import = all_heats or [(heat, "")]
 
         for heat_slug, heat_label in heats_to_import:
-            source_url = (
-                f"{LIVE_BASE}/external/live5/classements.jsp"
-                f"?version=new&reference={reference}&heat={heat_slug}"
-            )
-            results.extend(
-                _import_one_heat(
-                    reference, heat_slug, heat_label, event_name, slug,
-                    dates_by_heat.get(_norm_label(heat_label), default_date), client,
-                    base=LIVE_BASE, source_url=source_url,
-                    event_type=classify_event_type(heat_slug),
-                )
-            )
+            results.extend(_import_one_live_heat(
+                reference, heat_slug, heat_label, event_name, slug,
+                dates_by_heat, default_date, client,
+            ))
 
         _fetch_tcn_fine_splits(LIVE_BASE, reference, heat, results, client)
 
     return results
+
+
+def scrape_live_event_fanout(
+    reference: str,
+    *,
+    cache_probe: Callable[[str], bool] | None = None,
+    on_heat_start: Callable[[str, str, int, int], None] | None = None,
+) -> tuple[list[ScrapedResult], FanoutTrace]:
+    """Fan-out instrumenté sur tous les heats live d'une épreuve (issue #707).
+
+    Pendant de `scrape_event_fanout` pour la façade `live.breizhchrono.com` :
+    même patron `cache_probe`/`on_heat_start`/`FanoutTrace` que Klikego,
+    `heat_url` construite comme la `source_url` de `_import_one_live_heat` pour
+    matcher exactement la `Course.source_url` déjà en base.
+    """
+    trace = FanoutTrace()
+    all_results: list[ScrapedResult] = []
+
+    with http.client(timeout=30, headers=HEADERS) as client:
+        slug, event_name, dates_by_heat, default_date, all_heats = _fetch_live_meta(
+            client, reference,
+        )
+        heats = all_heats or [("", "")]
+        trace.heats_enumerated = len(heats)
+
+        heats_a_scraper: list[tuple[str, str]] = []
+        for heat_slug, heat_label in heats:
+            heat_url = (
+                f"{LIVE_BASE}/external/live5/classements.jsp"
+                f"?version=new&reference={reference}&heat={heat_slug}"
+            )
+            if cache_probe is not None and cache_probe(heat_url):
+                trace.heats_cached += 1
+                trace.cached_urls.append(heat_url)
+                continue
+            heats_a_scraper.append((heat_slug, heat_label))
+
+        total_a_scraper = len(heats_a_scraper)
+        for index, (heat_slug, heat_label) in enumerate(heats_a_scraper, start=1):
+            if on_heat_start is not None:
+                on_heat_start(heat_slug, heat_label, index, total_a_scraper)
+            try:
+                all_results.extend(_import_one_live_heat(
+                    reference, heat_slug, heat_label, event_name, slug,
+                    dates_by_heat, default_date, client,
+                ))
+            except Exception as exc:
+                logger.warning("Heat live %s de %s en échec : %s", heat_slug, reference, exc)
+                trace.failures.append({"heat_slug": heat_slug, "reason": str(exc)})
+
+        _fetch_tcn_fine_splits(LIVE_BASE, reference, "", all_results, client)
+
+    return all_results, trace

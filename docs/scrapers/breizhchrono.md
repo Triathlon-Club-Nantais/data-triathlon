@@ -33,9 +33,16 @@ La racine `/resultats-courses/{slug}-{id}` ne porte jamais la liste des heats :
 elle répond **302** vers l'un d'eux (mesuré à Mesquer 2026). Le 302 est lu
 explicitement puis sa cible re-GETée — cette page embarque la même nav
 inter-heats. Un refus du garde SSRF (`DomainError`) **remonte** ; toute autre
-panne dégrade en heat unique sans libellé. Ce fan-out vit **dans le scraper**, et
-non dans un `FanoutProvider` : ni `cache_probe`, ni `FanoutTrace` — un re-scrape
-repasse tous les heats et le SSE ne rapporte aucun compteur de heats.
+panne dégrade en heat unique sans libellé.
+
+`BreizhChronoProvider` est un `FanoutProvider` (issue #707), comme Klikego :
+une URL **sans** heat déclenche `scrape_event_fanout`/`scrape_live_event_fanout`
+(`cache_probe` par heat, `on_heat_start` pour la progression SSE, `FanoutTrace`
+pour les 5 compteurs FR-008). Une URL qui fixe déjà un heat (`/…/{heat}`, ou
+`?heat=` côté live/`coureur.jsp`) retombe sur le contrat historique
+`scrape_event_all`/`scrape_live_event_all` — une seule sous-unité, pas de
+fan-out à instrumenter — avec une trace synthétique 1-heat, même patron que
+l'échappatoire `single_heat` des autres providers fan-out.
 
 `_fetch_all_heats` exclut aussi les heats non-sportifs par préfixe de slug
 (`_is_non_sport_heat` / `_NON_SPORT_HEAT_PREFIXES`) : sur les épreuves

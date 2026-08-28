@@ -560,3 +560,170 @@ def test_klikego_provider_forwards_cache_probe(monkeypatch):
     assert len(results) == 1  # seul heat-b scrapé
     assert provider.last_trace.heats_cached == 1
     assert provider.last_trace.heats_enumerated == 2
+
+
+# ── BreizhChronoProvider fan-out (issue #707) ────────────────────────────────
+
+
+def test_breizhchrono_provider_is_fanout_provider():
+    """BreizhChronoProvider hérite de `FanoutProvider`, comme Klikego : même
+    dispatch `isinstance` côté `import_service` (cache TTL, progression SSE)."""
+    from app.scrapers.registry import BreizhChronoProvider, FanoutProvider
+
+    assert isinstance(BreizhChronoProvider(), FanoutProvider)
+
+
+def test_breizhchrono_provider_fanouts_when_no_heat_in_url(monkeypatch):
+    """URL sans heat (`/resultats-courses/{slug}-{id}`) → `scrape_event_fanout`."""
+    from app.scrapers import breizhchrono
+    from app.scrapers.registry import BreizhChronoProvider
+
+    captured = {}
+
+    def fake_fanout(event_id, event_name, slug, *, cache_probe=None, on_heat_start=None):
+        captured.update(event_id=event_id, event_name=event_name, slug=slug)
+        trace = FanoutTrace(heats_enumerated=2)
+        return ["r1", "r2"], trace
+
+    monkeypatch.setattr(breizhchrono, "scrape_event_fanout", fake_fanout)
+
+    provider = BreizhChronoProvider()
+    url = "https://resultats.breizhchrono.com/resultats-courses/tri-mesquer-2026-1677015306084-12"
+    results = provider.scrape_event_all(url)
+
+    assert results == ["r1", "r2"]
+    assert captured == {
+        "event_id": "1677015306084-12", "event_name": "Tri Mesquer 2026", "slug": "tri-mesquer-2026",
+    }
+    assert provider.last_trace.heats_enumerated == 2
+
+
+def test_breizhchrono_provider_single_heat_url_uses_classic_scrape(monkeypatch):
+    """URL portant déjà un heat (`/…/{heat}`) → contrat historique, une sous-unité,
+    trace synthétique 1-heat — pas de fan-out à instrumenter pour un seul heat."""
+    from app.scrapers import breizhchrono
+    from app.scrapers.registry import BreizhChronoProvider
+
+    def fanout_refuse(*a, **k):
+        raise AssertionError("scrape_event_fanout ne doit pas être appelé pour un heat unique")
+
+    monkeypatch.setattr(breizhchrono, "scrape_event_fanout", fanout_refuse)
+    monkeypatch.setattr(breizhchrono, "scrape_event_all", lambda *a, **k: ["r1"])
+
+    provider = BreizhChronoProvider()
+    url = "https://resultats.breizhchrono.com/resultats-courses/tri-mesquer-2026-42/triathlon-m"
+    results = provider.scrape_event_all(url)
+
+    assert results == ["r1"]
+    assert provider.last_trace.heats_enumerated == 1
+    assert provider.last_trace.failures == []
+
+
+def test_breizhchrono_provider_forwards_cache_probe(monkeypatch):
+    """Le provider passe cache_probe à breizhchrono.scrape_event_fanout."""
+    from app.scrapers import breizhchrono
+    from app.scrapers.registry import BreizhChronoProvider
+
+    captured = {}
+
+    def fake_fanout(event_id, event_name, slug, *, cache_probe=None, on_heat_start=None):
+        captured["cache_probe"] = cache_probe
+        return [], FanoutTrace(heats_enumerated=0)
+
+    monkeypatch.setattr(breizhchrono, "scrape_event_fanout", fake_fanout)
+
+    provider = BreizhChronoProvider()
+    probe = lambda url: True  # noqa: E731
+    provider.scrape_event_all(
+        "https://resultats.breizhchrono.com/resultats-courses/tri-42", cache_probe=probe,
+    )
+
+    assert captured["cache_probe"] is probe
+
+
+def test_breizhchrono_provider_single_heat_escape_hatch(monkeypatch):
+    """`single_heat=True` (échappatoire CLI) retombe aussi sur le contrat
+    historique, même patron que les autres providers fan-out."""
+    from app.scrapers import breizhchrono
+    from app.scrapers.registry import BreizhChronoProvider
+
+    def fanout_refuse(*a, **k):
+        raise AssertionError("scrape_event_fanout ne doit pas être appelé")
+
+    monkeypatch.setattr(breizhchrono, "scrape_event_fanout", fanout_refuse)
+    monkeypatch.setattr(breizhchrono, "scrape_event_all", lambda *a, **k: ["r1"])
+
+    provider = BreizhChronoProvider()
+    url = "https://resultats.breizhchrono.com/bc/resultats/coureur.jsp?ref=42&heat=triathlon-m&dossard=7"
+    results = provider.scrape_event_all(url, single_heat=True)
+
+    assert results == ["r1"]
+    assert provider.last_trace.heats_enumerated == 1
+
+
+def test_breizhchrono_provider_live_fanouts_when_no_heat(monkeypatch):
+    """Façade live sans heat (`index.jsp?reference=`) → `scrape_live_event_fanout`."""
+    from app.scrapers import breizhchrono
+    from app.scrapers.registry import BreizhChronoProvider
+
+    captured = {}
+
+    def fake_live_fanout(reference, *, cache_probe=None, on_heat_start=None):
+        captured["reference"] = reference
+        return ["r1"], FanoutTrace(heats_enumerated=1)
+
+    monkeypatch.setattr(breizhchrono, "scrape_live_event_fanout", fake_live_fanout)
+
+    provider = BreizhChronoProvider()
+    url = "https://live.breizhchrono.com/external/live5/index.jsp?reference=1488071608761-688"
+    results = provider.scrape_event_all(url)
+
+    assert results == ["r1"]
+    assert captured["reference"] == "1488071608761-688"
+    assert provider.last_trace.heats_enumerated == 1
+
+
+def test_breizhchrono_provider_live_heat_uses_classic_scrape(monkeypatch):
+    """Façade live avec `?heat=` → contrat historique `scrape_live_event_all`."""
+    from app.scrapers import breizhchrono
+    from app.scrapers.registry import BreizhChronoProvider
+
+    def fanout_refuse(*a, **k):
+        raise AssertionError("scrape_live_event_fanout ne doit pas être appelé pour un heat unique")
+
+    monkeypatch.setattr(breizhchrono, "scrape_live_event_fanout", fanout_refuse)
+    monkeypatch.setattr(breizhchrono, "scrape_live_event_all", lambda *a, **k: ["r1"])
+
+    provider = BreizhChronoProvider()
+    url = (
+        "https://live.breizhchrono.com/external/live5/classements.jsp"
+        "?version=new&reference=1488071608761-688&heat=triathlon-distance-olympique"
+    )
+    results = provider.scrape_event_all(url)
+
+    assert results == ["r1"]
+    assert provider.last_trace.heats_enumerated == 1
+
+
+def test_breizhchrono_provider_last_trace_resets_between_calls(monkeypatch):
+    """Deux appels successifs → trace du deuxième, pas cumul (même patron que Klikego)."""
+    from app.scrapers import breizhchrono
+    from app.scrapers.registry import BreizhChronoProvider
+
+    provider = BreizhChronoProvider()
+    url = "https://resultats.breizhchrono.com/resultats-courses/tri-42"
+
+    monkeypatch.setattr(
+        breizhchrono, "scrape_event_fanout",
+        lambda *a, **k: ([], FanoutTrace(heats_enumerated=3, failures=[{"heat_slug": "x", "reason": "boom"}])),
+    )
+    provider.scrape_event_all(url)
+    assert provider.last_trace.heats_enumerated == 3
+    assert len(provider.last_trace.failures) == 1
+
+    monkeypatch.setattr(
+        breizhchrono, "scrape_event_fanout", lambda *a, **k: ([], FanoutTrace(heats_enumerated=1)),
+    )
+    provider.scrape_event_all(url)
+    assert provider.last_trace.heats_enumerated == 1
+    assert provider.last_trace.failures == []

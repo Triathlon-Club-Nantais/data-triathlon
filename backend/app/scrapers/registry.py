@@ -270,15 +270,37 @@ class KlikegoProvider(FanoutProvider):
         return results
 
 
-class BreizhChronoProvider(HostMatchedProvider):
+class BreizhChronoProvider(FanoutProvider):
+    """Breizh Chrono — mêmes deux façades que `HostMatchedProvider`, mais fan-out
+    par heat (issue #707) : le moteur enchaîne autant de heats que Klikego (même
+    back-office), sans jamais exposer de progression par heat ni de cache TTL par
+    sous-unité. Le fan-out expose sa progression dans `self.last_trace`, comme
+    Klikego — lue par `import_service` pour peupler le SSE `done`.
+
+    Chaque façade a son propre couple contrat historique / fan-out instrumenté
+    (`scrape_event_all`/`scrape_event_fanout`, `scrape_live_event_all`/
+    `scrape_live_event_fanout`) : une URL qui **fixe déjà un heat** (chemin
+    `/…/{heat}`, ou `?heat=` côté live/`coureur.jsp`) retombe sur le contrat
+    historique — une seule sous-unité, pas de fan-out à instrumenter — avec une
+    trace synthétique 1-heat, même patron que l'échappatoire `single_heat` des
+    autres providers.
+    """
     name = "breizhchrono"
     _HOSTS = ("breizhchrono.com",)
 
-    def scrape_event_all(self, url: str) -> list[ScrapedResult]:
+    def scrape_event_all(
+        self, url: str,
+        *,
+        cache_probe: Callable[[str], bool] | None = None,
+        on_heat_start: Callable[[str, str, int, int], None] | None = None,
+        single_heat: bool = False,
+    ) -> list[ScrapedResult]:
         from app.scrapers.breizhchrono import (
             _parse_bc_url,
             _parse_live_url,
+            scrape_event_fanout,
             scrape_live_event_all,
+            scrape_live_event_fanout,
         )
 
         # live.breizhchrono.com = même plateforme Klikego (cf. #34), façade
@@ -291,10 +313,35 @@ class BreizhChronoProvider(HostMatchedProvider):
                 raise ValueError(
                     "URL live.breizhchrono.com sans paramètre 'reference' exploitable."
                 )
-            return scrape_live_event_all(reference, heat)
+            if heat or single_heat:
+                self.last_trace = FanoutTrace(heats_enumerated=1)
+                try:
+                    return scrape_live_event_all(reference, heat)
+                except Exception as exc:
+                    self.last_trace.failures.append(
+                        {"heat_slug": heat, "reason": str(exc)}
+                    )
+                    raise
+            results, trace = scrape_live_event_fanout(
+                reference, cache_probe=cache_probe, on_heat_start=on_heat_start,
+            )
+            self.last_trace = trace
+            return results
+
         event_id, heat, slug = _parse_bc_url(url)
         event_name = slug.replace("-", " ").title() if slug else ""
-        return breizhchrono.scrape_event_all(event_id, heat, event_name, slug)
+        if heat or single_heat:
+            self.last_trace = FanoutTrace(heats_enumerated=1)
+            try:
+                return breizhchrono.scrape_event_all(event_id, heat, event_name, slug)
+            except Exception as exc:
+                self.last_trace.failures.append({"heat_slug": heat, "reason": str(exc)})
+                raise
+        results, trace = scrape_event_fanout(
+            event_id, event_name, slug, cache_probe=cache_probe, on_heat_start=on_heat_start,
+        )
+        self.last_trace = trace
+        return results
 
 
 class WiclaxProvider(FanoutProvider):
