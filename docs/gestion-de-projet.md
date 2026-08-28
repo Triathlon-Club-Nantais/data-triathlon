@@ -47,7 +47,7 @@ Field* au niveau de l'organisation (`Triathlon-Club-Nantais`), pas un champ
 propre à ce seul projet : potentiellement partagé avec d'autres
 repos/projets du club. Il existe déjà avec 4 valeurs configurées côté
 organisation (vérifié le 28/08/2026 par introspection GraphQL — détail
-dans `reference/graphql.md`) :
+dans `.claude/skills/product-owner/reference/graphql.md`) :
 
 | Valeur | Quand |
 | --- | --- |
@@ -74,7 +74,13 @@ conséquence automatique du raffinement d'une issue.
 - **Sous-issues** : un worktree par issue comme d'habitude
   (`docs/dev-multi-worktree.md`), mais basé sur `epic/<n°>-<slug>` et non
   `main` ; leur PR cible cette branche, avec `Refs #<epic>` — pas `Closes`,
-  l'epic ne se ferme qu'à la PR parapluie.
+  l'epic ne se ferme qu'à la PR parapluie. `EnterWorktree` ne sait pas
+  « baser sur une branche X » — il faut soit checkouter
+  `epic/<n°>-<slug>` en local puis appeler `EnterWorktree` avec
+  `worktree.baseRef: head`, soit créer le worktree à la main
+  (`git worktree add <chemin> -b <branche-sous-issue> epic/<n°>-<slug>`,
+  avec le rattrapage `.worktreeinclude` que ça implique — voir
+  `docs/dev-multi-worktree.md`).
 - **PR parapluie** : une fois toutes les sous-issues mergées dans la
   branche d'intégration, une PR `epic/<n°>-<slug>` → `main` avec
   `Closes #<epic>`.

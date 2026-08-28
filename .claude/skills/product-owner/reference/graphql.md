@@ -1,9 +1,10 @@
 # Mécaniques GitHub GraphQL/CLI pour `/product-owner`
 
 `gh` v2.45 (version installée sur les postes de dev) n'expose pas la
-relation *sub-issue* ni l'ajout d'options à un champ de projet existant en
-commande dédiée — ce fichier documente les appels `gh api graphql`
-nécessaires. Confirmé le 28/08/2026 par introspection du schéma
+relation *sub-issue* en commande dédiée — ce fichier documente les appels
+`gh api graphql` nécessaires : liaison des sub-issues, résolution des
+node ID, et les mécaniques `Status`/`Priority` du board. Confirmé le
+28/08/2026 par introspection du schéma
 (`gh api graphql -f query='{ __type(name: "...") { ... } }'`).
 
 ## IDs du projet « Data TCN »
@@ -16,8 +17,12 @@ nécessaires. Confirmé le 28/08/2026 par introspection du schéma
 
 Si un appel échoue avec « field not found », ré-résoudre avec :
 ```bash
-gh project field-list 1 --owner Triathlon-Club-Nantais
+gh project field-list 1 --owner Triathlon-Club-Nantais --format json
 ```
+(sans `--format json`, la commande n'imprime pas les options des champs
+single-select — pour les récupérer explicitement, l'introspection
+`node(id: ...)` ci-dessous, sur le modèle de celle utilisée pour `Priority`
+plus bas, fonctionne aussi pour `Status`.)
 
 ## Node ID d'une issue
 
@@ -71,6 +76,17 @@ avec d'autres repos/projets de l'organisation ; les modifier aurait un
 effet de bord hors du seul board « Data TCN ».
 
 ## Poser Status sur un item du board
+
+Options du champ `Status` (id d'option, résolues par introspection le
+28/08/2026) :
+
+| Status | id |
+| --- | --- |
+| Backlog | `f75ad846` |
+| Ready | `61e4505c` |
+| In progress | `47fc9ee4` |
+| In review | `df73e18b` |
+| Done | `98236657` |
 
 Il faut d'abord l'ID d'*item* de projet (pas le node_id de l'issue) :
 ```bash

@@ -107,8 +107,8 @@ le pensait vide et à configurer). Il a déjà 4 valeurs côté organisation
 ni à renommer via `updateIssueField` (toucherait un champ potentiellement
 partagé avec d'autres repos/projets du club). La skill pose une valeur sur
 une issue via `updateIssueFieldValue`, pas via `gh project item-edit`
-(détail : `reference/graphql.md`). Critère d'attribution, volontairement
-simple :
+(détail : `.claude/skills/product-owner/reference/graphql.md`). Critère
+d'attribution, volontairement simple :
 
 - **Urgent** : sécurité, perte/corruption de données, prod cassée.
 - **High** : bloque d'autres tâches, ou demande répétée/impact large.
