@@ -738,17 +738,22 @@ function NavContent({
  */
 
 /**
- * Nom accessible du compteur d'une entrée (#119) : un lecteur d'écran annonçant
- * juste le chiffre (« Revalidation qualité 4 ») ne dit pas ce qu'il dénombre.
- *
- * Une seule clé de badge existe aujourd'hui (`quality`) ; ce switch grandira
- * avec les prochaines, sur le même patron que `useNavBadges`.
+ * Nom accessible du compteur d'une entrée (#119, #726) : un lecteur d'écran
+ * annonçant juste le chiffre (« Revalidation qualité 4 ») ne dit pas ce qu'il
+ * dénombre. Une clé par entrée du `switch`, sur le même patron que
+ * `useNavBadges`.
  */
 function libelleCompteur(item: Destination): string {
   const n = item.count ?? 0;
   switch (item.badge) {
     case "quality":
       return `${n} épreuve${n > 1 ? "s" : ""} à revalider`;
+    case "duplicates":
+      return `${n} doublon${n > 1 ? "s" : ""} suspect${n > 1 ? "s" : ""}`;
+    case "providers":
+      return `${n} fournisseur${n > 1 ? "s" : ""} en attente`;
+    case "feedback":
+      return `${n} nouveau${n > 1 ? "x" : ""} retour${n > 1 ? "s" : ""} utilisateur${n > 1 ? "s" : ""}`;
     default:
       return String(n);
   }

@@ -17,6 +17,19 @@ export function usePendingProviders() {
   });
 }
 
+/**
+ * Le nombre de signalements en attente — pour la pastille de la nav (#726),
+ * même patron que `useAdminCoursesCount` : `actif` évite de le demander à un
+ * visiteur qui n'a pas le pouvoir de voir la liste.
+ */
+export function usePendingProvidersCount(actif = true) {
+  return useQuery({
+    queryKey: queryKeys.pendingProvidersCount(),
+    queryFn: () => apiClient.countPendingProviders(),
+    enabled: actif,
+  });
+}
+
 export function useMarkProviderHandled() {
   const qc = useQueryClient();
   return useMutation({
@@ -226,6 +239,18 @@ export function useCourseDuplicates() {
   return useQuery({
     queryKey: queryKeys.courseDuplicates(),
     queryFn: () => apiClient.listCourseDuplicates(),
+  });
+}
+
+/**
+ * Le nombre de paires suspectes — pour la pastille de la nav (#726), même
+ * patron que `useAdminCoursesCount`.
+ */
+export function useCourseDuplicatesCount(actif = true) {
+  return useQuery({
+    queryKey: queryKeys.courseDuplicatesCount(),
+    queryFn: () => apiClient.countCourseDuplicates(),
+    enabled: actif,
   });
 }
 
@@ -745,11 +770,16 @@ export function useFeedbackList(
  * Une requête à part, jamais un comptage sur la liste affichée : celle-ci est
  * filtrée, donc elle ne peut pas dire combien de lignes portent les trois
  * autres statuts.
+ *
+ * `actif` sert la pastille de la nav (#726), montée sur **toutes** les
+ * pages — même patron que `useAdminCoursesCount`. `FeedbackTable`, seul autre
+ * appelant, ne le passe pas : sa page exige déjà `feedback:read`.
  */
-export function useFeedbackCounts() {
+export function useFeedbackCounts(actif = true) {
   return useQuery({
     queryKey: queryKeys.feedbackCounts(),
     queryFn: () => apiClient.countFeedback(),
+    enabled: actif,
   });
 }
 

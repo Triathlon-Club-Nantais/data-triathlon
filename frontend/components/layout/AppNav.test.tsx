@@ -6,12 +6,24 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
 import type { SessionUser } from "@/lib/types";
 
-const { push, getSession, logout, searchAthletes, countCourses } = vi.hoisted(() => ({
+const {
+  push,
+  getSession,
+  logout,
+  searchAthletes,
+  countCourses,
+  countCourseDuplicates,
+  countPendingProviders,
+  countFeedback,
+} = vi.hoisted(() => ({
   push: vi.fn(),
   getSession: vi.fn(),
   logout: vi.fn(),
   searchAthletes: vi.fn(),
   countCourses: vi.fn(),
+  countCourseDuplicates: vi.fn(),
+  countPendingProviders: vi.fn(),
+  countFeedback: vi.fn(),
 }));
 
 /** Mutable : le surlignage se teste depuis plusieurs écrans. */
@@ -63,7 +75,18 @@ vi.mock("next/link", async () => {
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { searchAthletes, getSession, logout, countCourses } };
+  return {
+    ...original,
+    apiClient: {
+      searchAthletes,
+      getSession,
+      logout,
+      countCourses,
+      countCourseDuplicates,
+      countPendingProviders,
+      countFeedback,
+    },
+  };
 });
 
 import { AppNav } from "./AppNav";
@@ -112,6 +135,9 @@ beforeEach(() => {
   montages.clear();
   chemin.courant = "/dashboard";
   searchAthletes.mockResolvedValue([]);
+  countCourseDuplicates.mockResolvedValue({ total: 0 });
+  countPendingProviders.mockResolvedValue({ total: 0 });
+  countFeedback.mockResolvedValue({ nouveau: 0, en_cours: 0, traite: 0, ignore: 0, total: 0 });
 
   // Node 20 (la CI) fournit `window.localStorage` à jsdom, Node 26 non. Sans
   // stock déterministe, la persistance de l'état déplié fuit d'un test à
@@ -898,6 +924,67 @@ describe("badge de la file de revalidation (#119)", () => {
     // pastille chiffrée restant purement décorative.
     expect(await screen.findByText("4 épreuves à revalider")).toHaveClass("sr-only");
     expect(screen.getByText("4")).toHaveAttribute("aria-hidden", "true");
+  });
+});
+
+describe("badge des doublons suspects (#726)", () => {
+  beforeEach(() => {
+    countCourseDuplicates.mockReset();
+  });
+
+  it("affiche le nombre de paires suspectes sur son entrée", async () => {
+    countCourseDuplicates.mockResolvedValue({ total: 3 });
+    afficher(habilite("courses:sources"));
+    await deplier();
+
+    const entree = await screen.findByRole("link", { name: /doublons suspects/i });
+    expect(await within(entree).findByText("3")).toBeInTheDocument();
+  });
+
+  it("n'émet aucun comptage pour qui ne porte pas le pouvoir", async () => {
+    afficher(habilite("feedback:read"));
+    await deplier();
+
+    await screen.findByRole("link", { name: /retours utilisateurs/i });
+    expect(countCourseDuplicates).not.toHaveBeenCalled();
+  });
+
+  it("porte un nom accessible explicite", async () => {
+    countCourseDuplicates.mockResolvedValue({ total: 3 });
+    afficher(habilite("courses:sources"));
+    await deplier();
+
+    expect(await screen.findByText("3 doublons suspects")).toHaveClass("sr-only");
+  });
+});
+
+describe("badge des fournisseurs en attente (#726)", () => {
+  beforeEach(() => {
+    countPendingProviders.mockReset();
+  });
+
+  it("affiche le nombre de signalements en attente sur son entrée", async () => {
+    countPendingProviders.mockResolvedValue({ total: 2 });
+    afficher(habilite("pending_providers:read"));
+    await deplier();
+
+    const entree = await screen.findByRole("link", { name: /fournisseurs en attente/i });
+    expect(await within(entree).findByText("2")).toBeInTheDocument();
+  });
+});
+
+describe("badge des retours utilisateurs (#726)", () => {
+  beforeEach(() => {
+    countFeedback.mockReset();
+  });
+
+  it("affiche le nombre de nouveaux retours, pas le total tous statuts confondus", async () => {
+    countFeedback.mockResolvedValue({ nouveau: 5, en_cours: 1, traite: 2, ignore: 0, total: 8 });
+    afficher(habilite("feedback:read"));
+    await deplier();
+
+    const entree = await screen.findByRole("link", { name: /retours utilisateurs/i });
+    expect(await within(entree).findByText("5")).toBeInTheDocument();
   });
 });
 

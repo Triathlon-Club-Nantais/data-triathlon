@@ -65,6 +65,21 @@ def list_pending_providers(
     ]
 
 
+class PendingProviderCount(BaseModel):
+    """La taille de la liste ci-dessus — pour la pastille de la nav (#726)."""
+
+    total: int
+
+
+@router.get("/admin/pending-providers/count", response_model=PendingProviderCount)
+def count_pending_providers(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission(P.PENDING_PROVIDERS_READ)),
+) -> PendingProviderCount:
+    """Même garde que la liste : compter n'échappe pas à `pending_providers:read`."""
+    return PendingProviderCount(total=pending_provider_repository.count_unhandled(db))
+
+
 @router.delete("/admin/pending-providers/{entry_id}", status_code=204)
 def mark_handled(
     entry_id: int,

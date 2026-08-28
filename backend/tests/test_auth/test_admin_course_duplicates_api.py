@@ -132,3 +132,46 @@ def test_une_base_sans_doublon_rend_une_liste_vide(client, ouvrir_session, db_se
 
     assert reponse.status_code == 200
     assert reponse.json() == {"candidates": []}
+
+
+# --- GET /admin/courses/duplicates/count ------------------------------------
+
+COUNT_URL = "/api/v1/admin/courses/duplicates/count"
+
+
+def test_sans_session_le_compte_est_refuse(client):
+    assert client.get(COUNT_URL).status_code == 401
+
+
+def test_un_autre_pouvoir_ne_donne_pas_acces_au_compte(client, ouvrir_session):
+    ouvrir_session(P.COURSES_WRITE)
+
+    assert client.get(COUNT_URL).status_code == 403
+
+
+def test_avec_le_pouvoir_le_compte_est_rendu(client, ouvrir_session, mesquer):
+    """Même garde et même donnée que la liste : le compte est sa taille."""
+    ouvrir_session(P.COURSES_SOURCES)
+
+    reponse = client.get(COUNT_URL)
+
+    assert reponse.status_code == 200
+    assert reponse.json() == {"total": 1}
+
+
+def test_une_base_sans_doublon_rend_un_compte_a_zero(client, ouvrir_session, db_session):
+    course_repository.get_or_create(
+        db_session,
+        name="Triathlon de Vertou - S-Open",
+        event_date=date(2026, 5, 3),
+        event_type="triathlon-s",
+        source_url="https://www.chronosmetron.com/754-triathlon-de-vertou-2026",
+        provider="wiclax",
+    )
+    db_session.commit()
+    ouvrir_session(P.COURSES_SOURCES)
+
+    reponse = client.get(COUNT_URL)
+
+    assert reponse.status_code == 200
+    assert reponse.json() == {"total": 0}
