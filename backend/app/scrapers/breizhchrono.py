@@ -195,15 +195,21 @@ def _import_one_heat(
         event_id=event_id,
         heat=heat_slug,
         heat_page_html=heat_page_html,
-        event_name=course_name(event_name, heat_label),
+        event_name=event_name,
         slug=slug,
         event_type=event_type,
         source_url=source_url,
         event_date=event_date,
         client=client,
     )
-    # is_relay est une propriété du heat : on la propage à tous ses résultats.
+    # Composé APRÈS build_heat_results, jamais avant (#701) : le <title> d'une
+    # page de heat BC porte souvent déjà le libellé du heat, et
+    # `build_heat_results` en tire le nom nu via `parse_event_name` — s'il
+    # recevait un nom déjà composé, il lui retirerait le libellé qu'on vient d'y
+    # ajouter (régression réintroduisant #308 par un chemin différent). Même
+    # patron que Klikego (`klikego._scrape_single_heat`).
     for r in results:
+        r.event_name = course_name(r.event_name, heat_label)
         r.is_relay = is_relay
     return results
 

@@ -334,11 +334,16 @@ def test_parse_live_index_vide():
 def test_bc_utilise_le_course_name_partage_avec_klikego():
     """`course_name` vit désormais dans `klikego_platform` (partagée avec Klikego,
     #308) : Breizh Chrono ne porte plus sa propre implémentation. Les cas de
-    composition eux-mêmes sont couverts par test_klikego.py."""
+    composition eux-mêmes sont couverts par test_klikego.py.
+
+    La composition se fait sur le résultat de `build_heat_results`
+    (`r.event_name`), jamais avant (#701) : sinon `parse_event_name` — appelé à
+    l'intérieur de `build_heat_results` pour ne garder que le nom nu de
+    l'épreuve — retire le libellé qu'on vient d'y ajouter."""
     import inspect
 
     src = inspect.getsource(breizhchrono._import_one_heat)
-    assert "course_name(event_name, heat_label)" in src
+    assert "course_name(r.event_name, heat_label)" in src
     assert (
         course_name("Triathlon SwimRun Dinard Côte d'Emeraude", "Trail 11 KM")
         == "Triathlon SwimRun Dinard Côte d'Emeraude - Trail 11 KM"
@@ -628,3 +633,84 @@ def test_une_date_d_epreuve_injoignable_est_journalisee(monkeypatch, caplog):
 
     assert results == []
     assert "breizhchrono injoignable" in caplog.text
+
+
+def test_scrape_event_all_heats_de_meme_type_restent_distincts(monkeypatch):
+    """Deux heats Breizh Chrono de libellés différents ne doivent pas fusionner
+    en une seule Course (#701).
+
+    Mesuré sur Trégastel 2026 : les 8 heats importés ressortaient tous nommés
+    « Triathlon de la Côte de Granit Rose (Trégastel) 2026 », sans libellé —
+    seul le badge de sport les distinguait au catalogue, et deux heats de même
+    (event_type, is_relay) fusionnaient en une seule `Course` (#308).
+
+    Cause : `_import_one_heat` composait le nom (`course_name`) **avant**
+    d'appeler `build_heat_results`, qui écrase ensuite `event_name` avec
+    `parse_event_name(heat_page_html, heat)` dès que le `<title>` de la page
+    de heat suit le format BC (`- {code postal} - {ville}`) — ce nom nu ne
+    porte plus le libellé qu'on venait de composer.
+    """
+    slug = "triathlon-de-test"
+    event_id = "42"
+    slug_id = f"{slug}-{event_id}"
+    root_html = f"""
+    <html><body>
+      2026-06-07
+      <a href="/resultats-courses/{slug_id}/triathlon-poussins-6-9-ans">Triathlon Poussins (6-9 ans)</a>
+      <a href="/resultats-courses/{slug_id}/triathlon-pupilles-10-11-ans">Triathlon Pupilles (10-11 ans)</a>
+    </body></html>
+    """
+    page0 = (Path(__file__).parent / "fixtures" / "klikego_datablock_page0.html").read_text()
+
+    def heat_title_html(label: str) -> str:
+        # Gabarit BC : « Résultats {libellé du heat} - {épreuve} - {code postal} - {ville} ».
+        return (
+            f"<html><head><title>Résultats {label} - Triathlon de Test - "
+            "44000 - Nantes</title></head><body></body></html>"
+        )
+
+    class FakeResp:
+        def __init__(self, text: str, code: int = 200):
+            self.text, self.status_code, self.is_redirect = text, code, False
+
+    class FakeClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def get(self, url: str, follow_redirects: bool = True):
+            if url.endswith(f"/resultats-courses/{slug_id}"):
+                return FakeResp(root_html)
+            if "course-result.jsp" in url:
+                if "inter=&" in url and "page=0" in url:
+                    return FakeResp(page0)
+                return FakeResp("<html></html>")
+            if url.endswith("triathlon-poussins-6-9-ans"):
+                return FakeResp(heat_title_html("Triathlon Poussins (6-9 ans)"))
+            if url.endswith("triathlon-pupilles-10-11-ans"):
+                return FakeResp(heat_title_html("Triathlon Pupilles (10-11 ans)"))
+            return FakeResp("<html></html>")
+
+    monkeypatch.setattr(breizhchrono.http, "client", lambda **k: FakeClient())
+
+    results = breizhchrono.scrape_event_all(event_id, "", "Triathlon de Test", slug)
+
+    poussins_names = {
+        r.event_name for r in results
+        if r.raw_data.get("heat_slug") == "triathlon-poussins-6-9-ans"
+    }
+    pupilles_names = {
+        r.event_name for r in results
+        if r.raw_data.get("heat_slug") == "triathlon-pupilles-10-11-ans"
+    }
+
+    assert poussins_names, "le heat poussins doit produire des résultats"
+    assert pupilles_names, "le heat pupilles doit produire des résultats"
+    assert poussins_names.isdisjoint(pupilles_names), (
+        "sans le libellé de heat dans event_name, les deux heats fusionnent "
+        "sur l'identité de Course (#701/#308)"
+    )
+    assert poussins_names == {"Triathlon de Test - Triathlon Poussins (6-9 ans)"}
+    assert pupilles_names == {"Triathlon de Test - Triathlon Pupilles (10-11 ans)"}
