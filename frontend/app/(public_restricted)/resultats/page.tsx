@@ -1,5 +1,6 @@
 import { apiServer, SHORT_REVALIDATE_SECONDS } from "@/lib/api/server";
 import { scopeFromParam } from "@/lib/scope";
+import { sortFromParam } from "@/lib/sort";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { ScopeToggle } from "@/components/layout/ScopeToggle";
@@ -46,7 +47,7 @@ export default async function ResultatsPage({
     date_from: sp.date_from,
     date_to: sp.date_to,
     scope: scopeFromParam(sp.scope),
-    sort: sp.sort,
+    sort: sortFromParam(sp.sort),
   };
 
   // Page 1 récupérée côté serveur : compteurs honnêtes + données initiales (pas de flash).

@@ -41,7 +41,7 @@ def list_events(
         False,
         description="Exclut les disciplines hors fédération triathlon (trail, course à pied, cyclisme).",
     ),
-    sort: str = Query("date_desc"),
+    sort: Literal["date_desc", "date_asc", "name", "imported_desc"] = Query("date_desc"),
     page: int = Query(1, ge=1),
     page_size: int = Query(30, ge=1, le=200),
     db: Session = Depends(get_db),

@@ -51,6 +51,12 @@ def test_courses_events_and_detail(client, db_session):
     assert len(by_course) == 2
 
 
+def test_courses_events_sort_invalide_est_une_erreur_d_usage(client):
+    resp = client.get("/api/v1/courses/events", params={"sort": "banana"})
+
+    assert resp.status_code == 422
+
+
 def test_course_saisie_hors_import_na_pas_dindice(client):
     """Aucun import ne l'a évaluée : `is_reliable` vaut None, pas False."""
     client.post("/api/v1/participations", json=_payload())
