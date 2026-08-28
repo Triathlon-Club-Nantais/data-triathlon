@@ -23,6 +23,7 @@ n'accueille que ce qu'on voudrait relire à chaque session.
 | --- | --- |
 | Workflow IA : les trois voies, garde-fous, artefacts | `docs/WORKFLOW-IA.md` |
 | RTK : gains mesurés du préfixe `rtk`, et où il est interdit | `docs/rtk.md` |
+| Gestion de projet : Definition of Ready, epics, priorité, workflow git des epics | `docs/gestion-de-projet.md` |
 | Review UI/UX : grille, seuils chiffrés, faux positifs connus | `.claude/agents/ui-ux-review.md` |
 | Architecture backend : inventaire des modules, cache TTL | `backend/AGENTS.md` |
 | Conventions scrapers + les 14 fournisseurs supportés | `backend/app/scrapers/AGENTS.md` |
