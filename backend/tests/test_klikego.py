@@ -921,7 +921,7 @@ def test_decode_data_block_tolerant_on_invalid_payload():
 
 def test_parse_data_row_finisher():
     fields = "358|true|1|1|DE POORTER Axel|S3|M|LE MANS TRIATHLON||00:38:05||".split("|")
-    r = parse_data_row(fields)
+    r = parse_data_row(fields, event_id="1354050643080-23", heat="triathlon-m")
     assert r["bib_number"] == "358"
     assert r["athlete_name"] == "DE POORTER"
     assert r["athlete_firstname"] == "Axel"
@@ -936,7 +936,7 @@ def test_parse_data_row_finisher():
 
 def test_parse_data_row_dnf_neutralises_rank_and_time():
     fields = "282|false|DNF|DNF|DELAUNAY Juliette|S2|F|||||".split("|")
-    r = parse_data_row(fields)
+    r = parse_data_row(fields, event_id="1354050643080-23", heat="triathlon-m")
     assert r["status"] == "DNF"
     assert r["rank_overall"] is None
     assert r["rank_category"] is None
@@ -948,7 +948,7 @@ def test_parse_data_row_dnf_neutralises_rank_and_time():
 def test_parse_data_row_dns_and_dsq():
     # DNS
     dns_fields = "476|false|DNS|DNS|AVENARD Benedicte|S2|F|||||".split("|")
-    dns_result = parse_data_row(dns_fields)
+    dns_result = parse_data_row(dns_fields, event_id="1354050643080-23", heat="triathlon-m")
     assert dns_result["status"] == "DNS"
     assert dns_result["rank_overall"] is None
     assert dns_result["rank_category"] is None
@@ -956,7 +956,7 @@ def test_parse_data_row_dns_and_dsq():
 
     # DSQ
     dsq_fields = "375|false|DSQ|DSQ|MOTTAY Aude|V3|F|||||".split("|")
-    dsq_result = parse_data_row(dsq_fields)
+    dsq_result = parse_data_row(dsq_fields, event_id="1354050643080-23", heat="triathlon-m")
     assert dsq_result["status"] == "DSQ"
     assert dsq_result["rank_overall"] is None
     assert dsq_result["rank_category"] is None
@@ -966,7 +966,7 @@ def test_parse_data_row_dns_and_dsq():
 def test_parse_data_row_dnf_keeps_time_when_present():
     # DNF ayant couru avant d'abandonner : officiel (idx 9) rempli
     fields = "12|false|DNF|DNF|MARTIN Paul|S2|M|CLUB|00:41:10|01:05:00||".split("|")
-    r = parse_data_row(fields)
+    r = parse_data_row(fields, event_id="1354050643080-23", heat="triathlon-m")
     assert r["status"] == "DNF"
     assert r["total_time"] == "01:05:00"   # temps conservé
     assert r["rank_overall"] is None       # jamais classé
@@ -975,7 +975,7 @@ def test_parse_data_row_dnf_keeps_time_when_present():
 
 def test_parse_data_row_dsq_keeps_time_when_present():
     fields = "34|false|DSQ|DSQ|DURAND Lea|S3|F|CLUB||01:12:30||".split("|")
-    r = parse_data_row(fields)
+    r = parse_data_row(fields, event_id="1354050643080-23", heat="triathlon-m")
     assert r["status"] == "DSQ"
     assert r["total_time"] == "01:12:30"
     assert r["rank_overall"] is None
@@ -983,10 +983,57 @@ def test_parse_data_row_dsq_keeps_time_when_present():
 
 def test_parse_data_row_dns_has_no_time():
     fields = "114|false|DNS|DNS|CHAUVET Romain|S4|M|TRIATHLON CLUB NANTAIS||00:00:00||".split("|")
-    r = parse_data_row(fields)
+    r = parse_data_row(fields, event_id="1354050643080-23", heat="triathlon-m")
     assert r["status"] == "DNS"
     assert r["total_time"] == ""           # un non-partant n'a pas de temps
     assert r["rank_overall"] is None
+
+
+# ── parse_data_row — identités masquées par la source (#710) ─────────────────
+
+
+def test_parse_data_row_masked_name_gets_synthetic_identity_per_event_heat_and_bib():
+    fields = "232|true|5|5|XXX XXX|S2|F|PORNICHET (44380)|00:38:05||".split("|")
+    r = parse_data_row(fields, event_id="1354050643080-23", heat="triathlon-m")
+    assert r["athlete_name"] == "Anonyme 1354050643080-23-triathlon-m-232"
+    assert r["athlete_firstname"] == ""
+
+
+def test_parse_data_row_masked_name_differs_by_event_for_same_bib():
+    fields = "232|true|5|5|XXX XXX|S2|F|PORNICHET (44380)|00:38:05||".split("|")
+    a = parse_data_row(fields, event_id="1354050643080-23", heat="triathlon-m")
+    b = parse_data_row(fields, event_id="1571197277233-6", heat="triathlon-m")
+    assert a["athlete_name"] != b["athlete_name"]
+
+
+def test_parse_data_row_masked_name_differs_by_heat_for_same_event_and_bib():
+    # Un dossard peut être réutilisé d'un heat à l'autre du même événement
+    # (poussins/pupilles, cf. `course_name` #308) : deux masqués distincts,
+    # même dossard, ne doivent pas fusionner.
+    fields = "232|true|5|5|XXX XXX|S2|F|PORNICHET (44380)|00:38:05||".split("|")
+    a = parse_data_row(fields, event_id="1354050643080-23", heat="poussins")
+    b = parse_data_row(fields, event_id="1354050643080-23", heat="pupilles")
+    assert a["athlete_name"] != b["athlete_name"]
+
+
+def test_parse_data_row_masked_name_question_marks_also_detected():
+    fields = "45|true|3|3|???|S1|M|||00:41:10||".split("|")
+    r = parse_data_row(fields, event_id="1354050643080-23", heat="triathlon-m")
+    assert r["athlete_name"] == "Anonyme 1354050643080-23-triathlon-m-45"
+
+
+def test_parse_data_row_masked_name_without_bib_falls_through_unchanged():
+    fields = "|true|5|5|XXX XXX|S2|F|PORNICHET (44380)|00:38:05||".split("|")
+    r = parse_data_row(fields, event_id="1354050643080-23", heat="triathlon-m")
+    assert r["athlete_name"] == "XXX XXX"
+    assert r["athlete_firstname"] == ""
+
+
+def test_parse_data_row_real_name_is_not_treated_as_masked():
+    fields = "358|true|1|1|DE POORTER Axel|S3|M|LE MANS TRIATHLON||00:38:05||".split("|")
+    r = parse_data_row(fields, event_id="1354050643080-23", heat="triathlon-m")
+    assert r["athlete_name"] == "DE POORTER"
+    assert r["athlete_firstname"] == "Axel"
 
 
 # ── Fixture réelle page 0 — valide le décodage + parse sur données réelles ───
@@ -994,7 +1041,7 @@ def test_parse_data_row_dns_has_no_time():
 
 def test_fixture_page0_contains_dnf_and_finishers():
     html = (FIXTURES / "klikego_datablock_page0.html").read_text()
-    rows = [parse_data_row(r) for r in decode_data_block(html)]
+    rows = [parse_data_row(r, event_id="1354050643080-23", heat="triathlon-m") for r in decode_data_block(html)]
     assert len(rows) == 50  # page pleine
     statuses = {r["status"] for r in rows}
     assert "" in statuses  # des finishers

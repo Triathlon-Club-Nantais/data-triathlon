@@ -180,12 +180,50 @@ def _split_name(full: str) -> tuple[str, str]:
     return " ".join(parts[:i]), " ".join(parts[i:])
 
 
+_MASK_TOKEN_RE = re.compile(r"^[X?]+$", re.IGNORECASE)
+
+
+def _is_masked_name(nom: str) -> bool:
+    """Détecte un nom RGPD-anonymisé par la source (« XXX XXX », « ??? »...).
+
+    Composé uniquement des caractères de masquage constatés (`X`/`x`, `?`) sur
+    chacun de ses mots — un vrai nom porte toujours au moins une autre lettre.
+    """
+    tokens = nom.split()
+    return bool(tokens) and all(_MASK_TOKEN_RE.match(t) for t in tokens)
+
+
+def _athlete_identity(nom: str, dossard: str, *, event_id: str, heat: str) -> tuple[str, str]:
+    """(nom, prénom) — anonymise les identités masquées par la source (#710).
+
+    Klikego/Breizh Chrono masquent parfois un nom en pur bruit (« XXX XXX »,
+    « ??? »...) sans le distinguer d'un autre masqué de la même épreuve ni
+    d'un autre événement : laissé tel quel, `_split_name` fait atterrir tous
+    les masqués sur la même paire (nom, prénom) et
+    `athlete_repository.get_by_identity` (égalité stricte) les fusionne sur
+    une fiche unique, tous scrapers et événements confondus.
+
+    Identité synthétique « Anonyme <event_id>-<heat>-<dossard> », même
+    mécanisme que `oktime._athlete_identity` mais avec un troisième axe :
+    `event_id` évite qu'un même dossard de deux épreuves différentes
+    fusionne, `heat` évite qu'un dossard réutilisé d'un heat à l'autre du
+    même événement (poussins/pupilles — cf. `course_name`, #308) fusionne
+    deux masqués distincts, `dossard` évite que tous les masqués d'un même
+    heat fusionnent entre eux. Sans dossard, rien de stable à accrocher : on
+    laisse passer par `_split_name`, pas pire qu'un nom masqué constant
+    (même raisonnement que le régime 3 d'oktime).
+    """
+    if dossard and _is_masked_name(nom):
+        return f"Anonyme {event_id}-{heat}-{dossard}", ""
+    return _split_name(nom)
+
+
 def _parse_rank(value: str) -> int | None:
     m = re.match(r"\d+", value.strip())
     return int(m.group(0)) if m else None
 
 
-def parse_data_row(fields: list[str]) -> dict:
+def parse_data_row(fields: list[str], *, event_id: str, heat: str) -> dict:
     """Transforme une ligne du data block (12 champs) en dict de champs ScrapedResult."""
     f = (fields + [""] * 12)[:12]
     # `gender_raw` = champ `sexe` du data block (cf. docstring du module) ; on
@@ -193,7 +231,7 @@ def parse_data_row(fields: list[str]) -> dict:
     dossard, _diploma, clt, cltcat, nom, cat, gender_raw, club, _inter, officiel, _reel, _end = f
 
     status = _STATUS_BY_TOKEN.get(clt.strip().upper(), "")
-    nom_fam, prenom = _split_name(nom.strip())
+    nom_fam, prenom = _athlete_identity(nom.strip(), dossard.strip(), event_id=event_id, heat=heat)
     gender = gender_raw.strip().upper()
     if gender == "H":  # alias utilisé par certains systèmes
         gender = "M"
@@ -356,7 +394,7 @@ def build_heat_results(
 
     results: list[ScrapedResult] = []
     for raw in rows:
-        d = parse_data_row(raw)
+        d = parse_data_row(raw, event_id=event_id, heat=heat)
         r = ScrapedResult(source_url=source_url, provider=provider)
         r.event_name = event_name
         r.event_type = event_type
