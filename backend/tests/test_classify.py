@@ -203,6 +203,21 @@ def test_refine_from_splits(event_type, has_swim, has_bike, expected):
     assert refine_from_splits(event_type, has_swim=has_swim, has_bike=has_bike) == expected
 
 
+# --- Swim Bike (#702) : heat swim+bike sans course à pied, ne doit PAS fusionner
+# avec le vrai triathlon (repli par défaut avant ce fix) ---
+@pytest.mark.parametrize("text,expected", [
+    ("swimbike-m", "swim-bike-m"),
+    ("swim-bike-m", "swim-bike-m"),
+    ("swim bike m", "swim-bike-m"),
+    ("Swim & Bike de Trégastel", "swim-bike"),
+    ("swimbike-s", "swim-bike-s"),
+    ("swimbike-l", "swim-bike-l"),
+    ("swimbike-xl", "swim-bike-xl"),
+])
+def test_classify_swim_bike(text, expected):
+    assert classify_event_type(text) == expected
+
+
 # --- Extraction du kilométrage ---
 @pytest.mark.parametrize("text,expected", [
     ("Trail des Forts 23 km", 23.0),

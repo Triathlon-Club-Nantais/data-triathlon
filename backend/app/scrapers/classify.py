@@ -83,6 +83,7 @@ _TAILLES_PAR_SPORT = {
     "triathlon": ("xs", "s", "m", "l", "xl"),
     "duathlon": ("xs", "s", "m", "l", "xl"),
     "swimrun": ("s", "m", "l"),
+    "swim-bike": ("xs", "s", "m", "l", "xl"),
 }
 
 
@@ -144,6 +145,8 @@ def _sport_base(t: str) -> str | None:
     # 1. Multisports composites d'abord (sous-mots piégeux).
     if "swimrun" in t or "swim-run" in t or "swim run" in t or "swim&run" in t:
         return "swimrun"
+    if re.search(r"swim\s*[-&]?\s*bike", t):
+        return "swim-bike"
     if (
         (re.search(r"\bbike\b", t) and re.search(r"\brun\b", t))
         or "bikerun" in t or "bike-run" in t
