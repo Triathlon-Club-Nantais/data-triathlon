@@ -65,6 +65,9 @@ def list_events(
 
 @router.get("/courses", response_model=list[CourseBrief])
 def list_courses(
+    course_id: int | None = Query(
+        None, alias="id", description="Filtre exact par identifiant d'épreuve."
+    ),
     name: str | None = Query(None, description="Recherche partielle sur le nom de l'épreuve."),
     event_type: str | None = Query(None),
     scope: str | None = Query(None, description="« club » restreint aux membres du TCN."),
@@ -84,9 +87,15 @@ def list_courses(
     aurait dupliqué cette pagination, ce tri et cette sérialisation pour le seul
     bénéfice d'un préfixe d'URL. Le paramètre n'expose rien de neuf —
     `CourseBrief` rend `is_reliable` et `quality_issues` depuis l'origine.
+
+    `id` (#718) retrouve une épreuve précise sans deviner son nom exact —
+    utile quand on part d'un identifiant lu ailleurs (URL publique, journal
+    d'administration). Il se cumule avec les autres filtres comme eux tous,
+    même si en pratique une seule épreuve porte un `id` donné.
     """
     return course_repository.list_all(
         db,
+        course_id=course_id,
         name=name,
         event_type=event_type,
         club_only=is_club_scope(scope),
@@ -100,6 +109,9 @@ def list_courses(
 
 @router.get("/courses/count", response_model=CourseCount)
 def count_courses(
+    course_id: int | None = Query(
+        None, alias="id", description="Filtre exact par identifiant d'épreuve."
+    ),
     name: str | None = Query(None, description="Recherche partielle sur le nom de l'épreuve."),
     event_type: str | None = Query(None),
     scope: str | None = Query(None, description="« club » restreint aux membres du TCN."),
@@ -122,6 +134,7 @@ def count_courses(
     return CourseCount(
         total=course_repository.count_all(
             db,
+            course_id=course_id,
             name=name,
             event_type=event_type,
             club_only=is_club_scope(scope),
