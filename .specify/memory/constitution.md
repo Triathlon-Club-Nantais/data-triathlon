@@ -1,4 +1,54 @@
 <!--
+Sync Impact Report — Constitution v1.2.0
+========================================
+Version change    : 1.1.1 → 1.2.0
+Rationale         : MINOR — « ajout d'un principe ou d'une section » (Governance
+  §3). La section Development Workflow ne documentait que deux voies (Cycle
+  Speckit, workflow vibe) alors qu'`AGENTS.md` en documente trois depuis
+  l'introduction de Superpowers — la voie manquante est ajoutée avec sa règle
+  d'or (pas de croisement entre voies) et le tronc commun de fin de branche. Le
+  bump MINOR porte avec lui le PATCH de Principe II (reformulation de la liste
+  d'exemptions Session, devenue factuellement fausse : 10 fichiers touchent
+  `Session` aujourd'hui contre 2 nommés — vérifié par grep sur
+  `backend/app/services/*.py`, aucune construction de requête hors
+  `repositories/`, `cache.py` ou `reclassify.py`).
+  Proposition : issue #733. Approbation : mainteneur, 2026-08-28.
+Modified principles : II. Architecture en couches — reformulation distinguant
+  construction de requêtes (`app/repositories/`, sans exception) et limites de
+  transaction (`app/services/`, tolérées hors construction de requête) ; liste
+  d'exemptions nommée à deux entrées supprimée.
+Added sections    : Development Workflow — voie Superpowers (`brainstorming` →
+  `writing-plans` → exécution), règle des trois voies parallèles jamais
+  croisées, tronc commun de fin de branche (`requesting-code-review` →
+  `verification-before-completion` → `finishing-a-development-branch`, +
+  `ui-ux-review` si `frontend/` est touché).
+Removed sections  : (aucune) — la « Règle de transition » du Principe II
+  (liste à deux entrées) est retirée, remplacée par la distinction générique
+  ci-dessus.
+Drafting notes :
+  - Vérification terrain avant rédaction : grep sur `backend/app/services/*.py`
+    confirme qu'aucun service hors `cache.py`/`reclassify.py` ne construit de
+    requête (`.query()`/`select()`/`.filter()`) — la rationale du principe
+    (#76) n'est pas violée sur le fond. Mais 8 fichiers de plus que les 2
+    nommés touchent `Session` en limite de transaction (commit/flush/rollback/
+    refresh) : `admin_actions.py`, `import_service.py`, `rescrape_service.py`,
+    `scrape_service.py`, `batch.py`, `course_review.py`, `counter_scope.py`,
+    `course_merge.py`.
+  - Option générique retenue plutôt qu'énumération : la liste à 2 entrées
+    datait de moins d'un mois (amendement v1.1.0) et comptait déjà 4 fois trop
+    peu de fichiers au moment de l'audit — une énumération se démode plus vite
+    que le rythme des amendements.
+Templates alignés :
+  ✅ .specify/templates/plan-template.md   — aucune gate ne change, renvoi de
+     version à bumper.
+  ✅ .specify/templates/spec-template.md   — aucun ajustement nécessaire.
+  ✅ .specify/templates/tasks-template.md  — aucun ajustement nécessaire.
+  ✅ AGENTS.md / backend/AGENTS.md          — déjà alignés sur la voie
+     Superpowers (source du point 1) ; la phrase « seule couche qui touche la
+     Session » resserrée sur « construit des requêtes sur » dans les deux
+     fichiers pour matcher la distinction générique.
+Follow-up TODOs   : (aucun)
+
 Sync Impact Report — Constitution v1.1.1
 ========================================
 Version change    : 1.1.0 → 1.1.1
@@ -198,24 +248,28 @@ comportement.
 
 Le backend respecte le sens unique **`api → services → repositories → DB`**.
 Aucune couche ne saute la suivante et aucune ne remonte : un router n'ouvre
-pas de session SQLAlchemy, un service ne construit pas de requête SQL, un
-repository ne renvoie pas de DTO Pydantic. La **seule** couche autorisée à
-toucher `Session` est `app/repositories/`. Une règle projet critique
-— l'identification club (`is_tcn` / `tcn_clause`) — vit dans **un seul**
-endroit : `app/core/club.py`. La réimplémenter ailleurs (front, scraper, autre
-service) est interdit.
+pas de session SQLAlchemy, un repository ne renvoie pas de DTO Pydantic. Une
+règle projet critique — l'identification club (`is_tcn` / `tcn_clause`) — vit
+dans **un seul** endroit : `app/core/club.py`. La réimplémenter ailleurs
+(front, scraper, autre service) est interdit.
 
-**Règle de transition** : deux services touchent aujourd'hui `Session` et
-sont **exemptés nommément** — `app/services/cache.py` (`db.query(Participation.id)`
-dans `is_fresh`) et `app/services/reclassify.py`
-(`db.query(Course).options(load_only(...))`). Toute **nouvelle** occurrence
-en dehors d'`app/repositories/` est interdite. La résorption de ces deux
-exceptions (déplacement vers un repository dédié) est un chantier hors PR
-courante, à ouvrir en ticket suiveur.
+`Session` recouvre deux usages distincts, à traiter différemment :
+
+- **Construction de requêtes** (`.query()`, `select()`, `.filter()` et
+  équivalents) : réservée à `app/repositories/`, **sans exception**. Un
+  service qui construit une requête viole le principe, quel qu'en soit le
+  motif.
+- **Limites de transaction** (`commit`, `flush`, `rollback`, `refresh` —
+  unit-of-work) : tolérées dans `app/services/` tant qu'aucune requête n'y est
+  construite. Un service orchestre plusieurs appels de repository et décide où
+  commit / rollback ; ce n'est pas une violation du sens unique du flux.
 
 **Rationale** : trois listes divergentes du critère club ont fait compter tout
 libellé « nantais » comme TCN (#76). La monogamie des responsabilités par
-couche est la seule garde qui tienne dans la durée.
+couche est la seule garde qui tienne dans la durée. La distinction
+construction-de-requêtes / limites-de-transaction évite qu'une liste
+d'exemptions nommée se démode à chaque nouveau service transactionnel — le
+relevé du 2026-08-28 (issue #733) en comptait déjà 10 sur 2 nommés.
 
 ### III. TDD sans réseau (NON-NÉGOCIABLE)
 
@@ -299,11 +353,22 @@ faites *après* que les cas particuliers ont émergé, pas avant.
 
 ## Development Workflow
 
+- **Trois voies parallèles, jamais croisées** : Cycle Speckit, workflow vibe
+  (sans plan) et voie Superpowers. L'exécution suit l'outil qui a produit le
+  plan ; le choix de la voie appartient à l'utilisateur, qui ne bascule pas de
+  voie en cours de route.
 - **Cycle Speckit** pour les vraies features : `/speckit-specify` →
   `/speckit-clarify` → gate → `/speckit-plan` → gate → `/speckit-tasks` →
   `/speckit-analyze` → exécution.
 - **Workflow vibe** pour bugfix / typo / 1-2 fichiers : pas de dossier
   `specs/`. Test rouge → correctif → vérification.
+- **Voie Superpowers** pour le reste : `brainstorming` → `writing-plans` →
+  exécution (`executing-plans` ou `subagent-driven-development`, au choix
+  explicite de l'utilisateur — l'exécuteur n'a pas de défaut).
+- **Fin de branche, commune aux trois voies** : `requesting-code-review` →
+  `verification-before-completion` → `finishing-a-development-branch` ; si la
+  branche touche `frontend/`, le sous-agent `ui-ux-review` s'insère après la
+  revue de code (lecture seule, sur déclenchement de l'utilisateur).
 - **Commits** : Conventional Commits (`feat:`, `fix:`, `refactor:`, `docs:`,
   `test:`, `chore:`). Un commit = un changement cohérent. Pas d'`--amend` sur
   un commit poussé.
@@ -344,4 +409,4 @@ référence (architecture détaillée, commandes, conventions de scraping). En c
 de divergence entre `AGENTS.md` et cette constitution, la constitution prime
 et `AGENTS.md` doit être aligné.
 
-**Version**: 1.1.1 | **Ratified**: 2026-07-27 | **Last Amended**: 2026-08-05
+**Version**: 1.2.0 | **Ratified**: 2026-07-27 | **Last Amended**: 2026-08-28
