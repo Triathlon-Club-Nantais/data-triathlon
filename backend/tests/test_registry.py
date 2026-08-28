@@ -562,6 +562,65 @@ def test_klikego_provider_forwards_cache_probe(monkeypatch):
     assert provider.last_trace.heats_enumerated == 2
 
 
+# ── targets_single_heat (#698) ───────────────────────────────────────────────
+
+
+def test_fanout_provider_targets_single_heat_faux_par_defaut():
+    """Les providers fan-out sans sélecteur de sous-unité dans l'URL (Wiclax,
+    RaceResult, OkTime, Sporthive, ChronoWeb, ProLiveSport, Chronoplace) héritent
+    du défaut `False` — leur `single_heat=True` vaut « pas de fan-out », jamais
+    « cibler cette sous-unité précise »."""
+    from app.scrapers.registry import WiclaxProvider
+
+    assert WiclaxProvider().targets_single_heat("https://wiclax-results.com/x") is False
+
+
+def test_klikego_targets_single_heat_vrai_avec_heat():
+    from app.scrapers.registry import KlikegoProvider
+
+    url = "https://www.klikego.com/resultats/mesquer/1677015306084-12?heat=triathlon-s-indiv"
+    assert KlikegoProvider().targets_single_heat(url) is True
+
+
+def test_klikego_targets_single_heat_faux_sans_heat():
+    from app.scrapers.registry import KlikegoProvider
+
+    assert KlikegoProvider().targets_single_heat(
+        "https://www.klikego.com/resultats/foo/1234-5"
+    ) is False
+
+
+def test_breizhchrono_targets_single_heat_vrai_chemin_classique():
+    from app.scrapers.registry import BreizhChronoProvider
+
+    url = "https://resultats.breizhchrono.com/resultats-courses/tri-mesquer-2026-42/triathlon-m"
+    assert BreizhChronoProvider().targets_single_heat(url) is True
+
+
+def test_breizhchrono_targets_single_heat_faux_chemin_classique_sans_heat():
+    from app.scrapers.registry import BreizhChronoProvider
+
+    url = "https://resultats.breizhchrono.com/resultats-courses/tri-42"
+    assert BreizhChronoProvider().targets_single_heat(url) is False
+
+
+def test_breizhchrono_targets_single_heat_vrai_live_avec_heat():
+    from app.scrapers.registry import BreizhChronoProvider
+
+    url = (
+        "https://live.breizhchrono.com/external/live5/classements.jsp"
+        "?version=new&reference=1488071608761-688&heat=triathlon-distance-olympique"
+    )
+    assert BreizhChronoProvider().targets_single_heat(url) is True
+
+
+def test_breizhchrono_targets_single_heat_faux_live_sans_heat():
+    from app.scrapers.registry import BreizhChronoProvider
+
+    url = "https://live.breizhchrono.com/external/live5/index.jsp?reference=1488071608761-688"
+    assert BreizhChronoProvider().targets_single_heat(url) is False
+
+
 # ── BreizhChronoProvider fan-out (issue #707) ────────────────────────────────
 
 

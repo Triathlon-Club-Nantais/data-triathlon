@@ -151,6 +151,19 @@ class FanoutProvider(HostMatchedProvider):
     def __init__(self) -> None:
         self.last_trace: FanoutTrace | None = None
 
+    def targets_single_heat(self, url: str) -> bool:
+        """Vrai si l'URL cible déjà une sous-unité précise (#698).
+
+        Défaut `False` : la plupart des providers fan-out n'ont aucun sélecteur
+        de sous-unité dans l'URL (Wiclax, RaceResult, OkTime, Sporthive,
+        ChronoWeb, ProLiveSport, Chronoplace) — leur `single_heat=True` vaut
+        « pas de fan-out », jamais « cibler cette sous-unité précise ». Seuls
+        Klikego et BreizhChrono la surchargent : `GET /scrape/detect` s'en sert
+        pour ne proposer « import unique » par défaut que sur une URL où ce
+        chemin est réellement testé.
+        """
+        return False
+
     def scrape_event_all(
         self, url: str,
         *,
@@ -232,6 +245,11 @@ class KlikegoProvider(FanoutProvider):
         event_name = slug.replace("-", " ").title() if slug else ""
         return event_id, heat, slug, event_name
 
+    def targets_single_heat(self, url: str) -> bool:
+        """Vrai si l'URL porte déjà un `?heat=` non vide (#698)."""
+        _, heat_query, _, _ = self._parse_url(url)
+        return bool(heat_query)
+
     def scrape_event_all(
         self, url: str,
         *,
@@ -287,6 +305,17 @@ class BreizhChronoProvider(FanoutProvider):
     """
     name = "breizhchrono"
     _HOSTS = ("breizhchrono.com",)
+
+    def targets_single_heat(self, url: str) -> bool:
+        """Vrai si l'URL fixe déjà un heat — chemin classique ou `?heat=` live
+        (#698). Même détection que `scrape_event_all`, sans effet de bord."""
+        from app.scrapers.breizhchrono import _parse_bc_url, _parse_live_url
+
+        if _url_host(url) == breizhchrono.LIVE_HOST:
+            _, heat = _parse_live_url(url)
+            return bool(heat)
+        _, heat, _ = _parse_bc_url(url)
+        return bool(heat)
 
     def scrape_event_all(
         self, url: str,
