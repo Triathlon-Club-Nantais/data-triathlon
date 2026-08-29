@@ -17,10 +17,12 @@ from dataclasses import asdict, is_dataclass
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
+from sqlalchemy.orm import Session
 
 from app.api.deps import require_permission
+from app.core.analytics import capture_event
 from app.core.config import Settings, get_settings
-from app.core.database import SessionLocal
+from app.core.database import SessionLocal, get_db
 from app.core.exceptions import DomainError
 from app.core.permissions import P
 from app.models.user import User
@@ -124,4 +126,29 @@ def switch_course_source(
             "X-Accel-Buffering": "no",
             "Content-Encoding": "identity",
         },
+    )
+
+
+@router.delete("/admin/courses/{course_id}/sources/{source_id}", status_code=204)
+def delete_course_source(
+    course_id: int,
+    source_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission(P.COURSES_SOURCES)),
+):
+    """Supprime une source inactive (#739). Instantané et sans SSE — contrairement
+    à la bascule, ce geste ne scrape rien : `Depends(get_db)` suffit.
+
+    N'affecte aucun résultat déjà importé (les participations sont portées par
+    la `Course`, pas par la source) et refuse l'active — le journal reste le
+    seul filet de ce geste (FR-018 de #117, repris pour #739).
+    """
+    admin_actions.delete_course_source(
+        db, course_id=course_id, source_id=source_id, user_id=user.id
+    )
+    db.commit()
+    capture_event(
+        "course_source_deleted",
+        distinct_id=str(user.id),
+        properties={"course_id": course_id, "source_id": source_id},
     )

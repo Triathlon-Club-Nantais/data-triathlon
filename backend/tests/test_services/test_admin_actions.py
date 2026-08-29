@@ -9,7 +9,7 @@ from datetime import date
 import pytest
 
 from app.core.config import Settings
-from app.core.exceptions import DuplicateError, NotFoundError
+from app.core.exceptions import DomainError, DuplicateError, NotFoundError
 from app.core.time import utcnow
 from app.repositories import (
     admin_action_log_repository,
@@ -1270,6 +1270,92 @@ def test_switch_is_blocked_by_a_running_rescrape_on_the_same_course(db_session, 
             )
     finally:
         admin_actions._release_rescrape_lock(course.id)
+
+
+# --- Supprimer une source (#739) --------------------------------------------
+
+
+def _sources(db_session, entity_id):
+    return _journal(db_session, "course_source", entity_id)
+
+
+def test_delete_course_source_removes_a_passive_source(db_session, auteur):
+    course, passive = _epreuve_deux_sources(db_session)
+    db_session.commit()
+
+    admin_actions.delete_course_source(
+        db_session, course_id=course.id, source_id=passive.id, user_id=auteur.id
+    )
+
+    assert (
+        course_source_repository.find_on_course(
+            db_session, course_id=course.id, source_id=passive.id
+        )
+        is None
+    )
+
+
+def test_delete_course_source_refuses_the_active_source_and_changes_nothing(
+    db_session, auteur
+):
+    course, _passive = _epreuve_deux_sources(db_session)
+    active = course_source_repository.get_active(db_session, course.id)
+    db_session.commit()
+
+    with pytest.raises(DomainError):
+        admin_actions.delete_course_source(
+            db_session, course_id=course.id, source_id=active.id, user_id=auteur.id
+        )
+
+    assert (
+        course_source_repository.find_on_course(
+            db_session, course_id=course.id, source_id=active.id
+        )
+        is not None
+    )
+    assert _sources(db_session, active.id) == []
+
+
+def test_delete_course_source_consigne_le_geste(db_session, auteur):
+    course, passive = _epreuve_deux_sources(db_session)
+    db_session.commit()
+    passive_id, url, provider = passive.id, passive.url, passive.provider
+
+    admin_actions.delete_course_source(
+        db_session, course_id=course.id, source_id=passive_id, user_id=auteur.id
+    )
+
+    entrees = _sources(db_session, passive_id)
+    assert len(entrees) == 1
+    entree = entrees[0]
+    assert entree.action == "course_source.delete"
+    assert entree.user_id == auteur.id
+    assert entree.payload["course_id"] == course.id
+    assert entree.payload["url"] == url
+    assert entree.payload["provider"] == provider
+
+
+def test_delete_course_source_of_an_unknown_source_on_the_course_is_a_not_found(
+    db_session, auteur
+):
+    """L'adresse ne désigne rien pour **cette** épreuve — même raison
+    qu'`test_switch_of_an_unknown_source_on_the_course_is_a_not_found`."""
+    course, _passive = _epreuve_deux_sources(db_session)
+    autre = _epreuve(db_session, "Autre épreuve", date(2026, 3, 1))
+    autre_source = course_source_repository.get_active(db_session, autre.id)
+    db_session.commit()
+
+    with pytest.raises(NotFoundError):
+        admin_actions.delete_course_source(
+            db_session, course_id=course.id, source_id=autre_source.id, user_id=auteur.id
+        )
+
+
+def test_delete_course_source_on_an_unknown_course_is_a_not_found(db_session, auteur):
+    with pytest.raises(NotFoundError):
+        admin_actions.delete_course_source(
+            db_session, course_id=4242, source_id=1, user_id=auteur.id
+        )
 
 
 # --- Purger tous les résultats (#384) ---------------------------------------

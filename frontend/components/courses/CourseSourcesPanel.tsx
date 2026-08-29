@@ -2,10 +2,12 @@
 import { useEffect, useState } from "react";
 import { Loader2, RotateCw } from "lucide-react";
 import { toast } from "sonner";
+import { DangerConfirm } from "@/components/admin/DangerConfirm";
 import { Button, MetaPill, Modal } from "@/components/tcn";
 import { Progress } from "@/components/ui/progress";
 import { useRescrapeStream, type RescrapeState } from "@/hooks/useRescrapeStream";
 import { useSwitchSourceStream } from "@/hooks/useSwitchSourceStream";
+import { apiClient } from "@/lib/api/client";
 import { useSession } from "@/lib/queries/auth";
 import { providerLabel } from "@/lib/constants";
 import type { CourseSource } from "@/lib/types";
@@ -52,10 +54,28 @@ export function CourseSourcesPanel({
 }) {
   const [sources, setSources] = useState(initialSources);
   const [cible, setCible] = useState<CourseSource | null>(null);
+  const [pourSuppression, setPourSuppression] = useState<CourseSource | null>(null);
+  const [suppressionEnCours, setSuppressionEnCours] = useState(false);
   const session = useSession();
   const peutBasculer = session.data?.permissions.includes("courses:sources") ?? false;
   const bascule = useSwitchSourceStream();
   const rescrape = useRescrapeStream();
+
+  async function confirmerSuppression() {
+    if (!pourSuppression) return;
+    const source = pourSuppression;
+    setSuppressionEnCours(true);
+    try {
+      await apiClient.deleteCourseSource(courseId, source.id);
+      setSources((actuelles) => actuelles.filter((s) => s.id !== source.id));
+      toast.success(`${providerLabel(source.provider)} a été retirée des sources de l'épreuve.`);
+      setPourSuppression(null);
+    } catch (erreur) {
+      toast.error((erreur as Error).message);
+    } finally {
+      setSuppressionEnCours(false);
+    }
+  }
 
   // Notifie en fin de flux plutôt qu'à chaque `await` — `start()` ne rejette
   // jamais (le hook capture ses propres erreurs dans `state.error`, patron
@@ -218,6 +238,19 @@ export function CourseSourcesPanel({
               Activer
             </Button>
           )}
+          {/* Jamais sur l'active : l'index partiel autorise zéro active, mais
+              une épreuve sans active n'est plus scrapée (#282) ni affichée
+              avec sa source (#279) — refusé côté serveur, non proposé ici. */}
+          {peutBasculer && !source.is_active && (
+            <Button
+              size="sm"
+              variant="secondary"
+              aria-label={`Supprimer ${providerLabel(source.provider)} des sources`}
+              onClick={() => setPourSuppression(source)}
+            >
+              Supprimer
+            </Button>
+          )}
           {/* Le re-scrape cible toujours l'active (Assumptions, spec.md) —
               le bouton ne rejoint donc que sa pill, jamais celle d'une passive. */}
           {source.is_active && boutonRescraper}
@@ -259,6 +292,24 @@ export function CourseSourcesPanel({
           {progressionBascule}
         </Modal>
       )}
+
+      {/* Déclaratif, pas `useDangerConfirm()` : ce panneau se rend aussi sur
+          la page publique de l'épreuve, hors de tout `DangerConfirmProvider`
+          (monté seulement sous `/admin` et `/benevoles`). */}
+      <DangerConfirm
+        open={pourSuppression !== null}
+        onOpenChange={(ouvert) => {
+          if (!ouvert && !suppressionEnCours) setPourSuppression(null);
+        }}
+        titre={
+          pourSuppression
+            ? `Supprimer la source ${providerLabel(pourSuppression.provider)} ?`
+            : ""
+        }
+        description="Cette action est irréversible. Elle n'affecte aucun résultat déjà importé — seule la référence à ce chronométreur disparaît."
+        enAttente={suppressionEnCours}
+        onConfirm={confirmerSuppression}
+      />
     </>
   );
 }

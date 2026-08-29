@@ -17,6 +17,7 @@ sur une épreuve fan-out (Klikego, 30-40 s) dépassait le délai du proxy et
 rendait un 502 avant même le premier octet.
 """
 import json
+from datetime import date
 
 import pytest
 
@@ -26,7 +27,13 @@ from app.core.exceptions import NotFoundError
 from app.core.permissions import P
 from app.models.organisation import Organisation
 from app.models.role_permission import RolePermission
-from app.repositories import role_repository, user_repository, user_role_repository
+from app.repositories import (
+    course_repository,
+    course_source_repository,
+    role_repository,
+    user_repository,
+    user_role_repository,
+)
 from app.services import admin_actions
 from app.services.auth import session as session_service
 
@@ -240,6 +247,94 @@ def test_a_source_of_another_course_is_a_not_found(
     )
 
     reponse = client.patch(_url(1, 999999), json={"is_active": True})
+
+    assert reponse.status_code == 404
+
+
+# --- DELETE /admin/courses/{id}/sources/{source_id} (#739) ------------------
+
+
+def _epreuve_deux_sources(db_session):
+    """L'épreuve, son active `k`, sa passive `b` — même patron que
+    `test_admin_actions._epreuve_deux_sources`, en local à ce fichier HTTP."""
+    course = course_repository.get_or_create(
+        db_session, name="Triathlon de Mesquer", event_date=date(2026, 5, 16),
+        event_type="triathlon-m", source_url="https://k/mesquer", provider="klikego",
+    )
+    passive = course_source_repository.add(
+        db_session, course=course, url="https://b/mesquer", provider="breizhchrono",
+    )
+    db_session.commit()
+    return course, passive
+
+
+def test_the_delete_route_is_closed_to_anonymous_visitors(client, db_session):
+    course, passive = _epreuve_deux_sources(db_session)
+    client.cookies.clear()
+
+    reponse = client.delete(_url(course.id, passive.id))
+
+    assert reponse.status_code == 401
+
+
+def test_a_holder_of_courses_write_alone_is_refused_to_delete(
+    client, db_session, organisation
+):
+    """`courses:write` (le pouvoir voisin, borné à l'identité) ne suffit pas —
+    même garde que la bascule."""
+    course, passive = _epreuve_deux_sources(db_session)
+    connecte(client, db_session, organisation, P.COURSES_WRITE.code)
+
+    reponse = client.delete(_url(course.id, passive.id))
+
+    assert reponse.status_code == 403
+
+
+def test_deleting_a_passive_source_returns_204_and_removes_it(
+    client, db_session, organisation
+):
+    course, passive = _epreuve_deux_sources(db_session)
+    connecte(client, db_session, organisation, P.COURSES_SOURCES.code)
+
+    reponse = client.delete(_url(course.id, passive.id))
+
+    assert reponse.status_code == 204
+    assert reponse.content == b""
+    assert (
+        course_source_repository.find_on_course(
+            db_session, course_id=course.id, source_id=passive.id
+        )
+        is None
+    )
+
+
+def test_deleting_the_active_source_is_refused(client, db_session, organisation):
+    course, _passive = _epreuve_deux_sources(db_session)
+    active = course_source_repository.get_active(db_session, course.id)
+    connecte(client, db_session, organisation, P.COURSES_SOURCES.code)
+
+    reponse = client.delete(_url(course.id, active.id))
+
+    assert reponse.status_code == 400
+
+
+def test_deleting_a_source_on_an_unknown_course_is_a_not_found(
+    client, db_session, organisation
+):
+    connecte(client, db_session, organisation, P.COURSES_SOURCES.code)
+
+    reponse = client.delete(_url(999999, 1))
+
+    assert reponse.status_code == 404
+
+
+def test_deleting_an_unknown_source_on_the_course_is_a_not_found(
+    client, db_session, organisation
+):
+    course, _passive = _epreuve_deux_sources(db_session)
+    connecte(client, db_session, organisation, P.COURSES_SOURCES.code)
+
+    reponse = client.delete(_url(course.id, 999999))
 
     assert reponse.status_code == 404
 

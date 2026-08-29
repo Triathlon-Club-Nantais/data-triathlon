@@ -1,10 +1,18 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Pencil, RefreshCw, RotateCcw, ShieldAlert } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  Pencil,
+  RefreshCw,
+  RotateCcw,
+  ShieldAlert,
+} from "lucide-react";
 import {
   Table,
   TableBody,
@@ -25,6 +33,8 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
+import { CourseSourcesPanel } from "@/components/courses/CourseSourcesPanel";
+import { apiClient } from "@/lib/api/client";
 import { eventTypeLabel, providerLabel } from "@/lib/constants";
 import { describeQualityIssues, QUALITY_ISSUE_LABELS } from "@/lib/quality";
 import {
@@ -92,6 +102,21 @@ export function QualityQueueTable({
   // faire ici de son côté : c'est bien la ligne qui vient de cliquer qui doit
   // se réinitialiser, pas un effet global qui ne sait pas laquelle a cliqué.
   const [enCoursId, setEnCoursId] = useState<number | null>(null);
+  // Les sources dépliées (#739) — un `Set` et non un `number | null` : rien
+  // n'empêche de comparer les sources de deux épreuves à la fois.
+  const [sourcesOuvertes, setSourcesOuvertes] = useState<Set<number>>(new Set());
+
+  function basculerSources(courseId: number) {
+    setSourcesOuvertes((actuelles) => {
+      const suivantes = new Set(actuelles);
+      if (suivantes.has(courseId)) {
+        suivantes.delete(courseId);
+      } else {
+        suivantes.add(courseId);
+      }
+      return suivantes;
+    });
+  }
 
   async function lancerRescrape(course: CourseBrief) {
     setEnCoursId(course.id);
@@ -227,6 +252,9 @@ export function QualityQueueTable({
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-11">
+                      <span className="sr-only">Sources</span>
+                    </TableHead>
                     <TableHead>Épreuve</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Anomalies</TableHead>
@@ -234,8 +262,31 @@ export function QualityQueueTable({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {affichees.map((course) => (
-                    <TableRow key={course.id}>
+                  {affichees.map((course) => {
+                    const ouverte = sourcesOuvertes.has(course.id);
+                    return (
+                    <Fragment key={course.id}>
+                    <TableRow>
+                      <TableCell>
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          className="min-h-11 min-w-11"
+                          aria-expanded={ouverte}
+                          aria-label={
+                            ouverte
+                              ? `Masquer les sources — ${course.name}`
+                              : `Afficher les sources — ${course.name}`
+                          }
+                          onClick={() => basculerSources(course.id)}
+                        >
+                          {ouverte ? (
+                            <ChevronDown size={14} aria-hidden="true" />
+                          ) : (
+                            <ChevronRight size={14} aria-hidden="true" />
+                          )}
+                        </Button>
+                      </TableCell>
                       <TableCell className="whitespace-normal">
                         {/* Vers la page publique de l'épreuve — aucune page
                             `/admin/courses/[id]` dédiée n'existe, et n'a pas
@@ -347,7 +398,16 @@ export function QualityQueueTable({
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    {ouverte && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="bg-muted/30">
+                          <SourcesDepliees courseId={course.id} />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    </Fragment>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </Card>
@@ -424,6 +484,32 @@ export function QualityQueueTable({
       )}
     </div>
   );
+}
+
+/**
+ * Les sources d'une épreuve, chargées à la demande dans la ligne dépliée
+ * (#739). `CourseSourcesPanel` porte déjà l'affichage, la bascule, le
+ * re-scrape et la suppression — le réutiliser tel quel évite une seconde
+ * liste de sources à tenir dans le back-office.
+ */
+function SourcesDepliees({ courseId }: { courseId: number }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["course-sources", courseId],
+    queryFn: () => apiClient.getCourseSources(courseId),
+  });
+
+  if (isLoading) return <Skeleton className="h-8 w-48" />;
+  if (error) {
+    return (
+      <p className="text-sm text-destructive">
+        Les sources n&apos;ont pas pu être chargées.
+      </p>
+    );
+  }
+  if (!data || data.length === 0) {
+    return <p className="text-sm text-muted-foreground">Aucune source enregistrée.</p>;
+  }
+  return <CourseSourcesPanel courseId={courseId} initialSources={data} />;
 }
 
 /**

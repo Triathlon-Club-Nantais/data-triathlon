@@ -207,6 +207,14 @@ def move_to(db: Session, *, source: CourseSource, course: Course) -> CourseSourc
     return source
 
 
+def remove(db: Session, source: CourseSource) -> None:
+    """Retire une source. **N'écrit jamais l'active** — c'est à l'appelant
+    de le refuser (#739) : l'index partiel autorise zéro active, mais une
+    épreuve sans active n'est plus scrapée (#282) ni affichée (#279)."""
+    db.delete(source)
+    db.flush()
+
+
 def set_active(db: Session, source: CourseSource) -> CourseSource:
     """Fait de cette source l'active de son épreuve, et de l'ancienne une passive.
 

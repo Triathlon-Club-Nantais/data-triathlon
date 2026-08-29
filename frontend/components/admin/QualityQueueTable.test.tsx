@@ -2,16 +2,25 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { CourseBrief, SessionUser } from "@/lib/types";
+import type { CourseBrief, CourseSource, SessionUser } from "@/lib/types";
 
-const { listCourses, countCourses, setCourseReliability, getSession, rescrapeEventStream } =
-  vi.hoisted(() => ({
-    listCourses: vi.fn(),
-    countCourses: vi.fn(),
-    setCourseReliability: vi.fn(),
-    getSession: vi.fn(),
-    rescrapeEventStream: vi.fn(),
-  }));
+const {
+  listCourses,
+  countCourses,
+  setCourseReliability,
+  getSession,
+  getCourseSources,
+  deleteCourseSource,
+  rescrapeEventStream,
+} = vi.hoisted(() => ({
+  listCourses: vi.fn(),
+  countCourses: vi.fn(),
+  setCourseReliability: vi.fn(),
+  getSession: vi.fn(),
+  getCourseSources: vi.fn(),
+  deleteCourseSource: vi.fn(),
+  rescrapeEventStream: vi.fn(),
+}));
 
 const push = vi.fn();
 
@@ -19,7 +28,14 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
   return {
     ...original,
-    apiClient: { listCourses, countCourses, setCourseReliability, getSession },
+    apiClient: {
+      listCourses,
+      countCourses,
+      setCourseReliability,
+      getSession,
+      getCourseSources,
+      deleteCourseSource,
+    },
   };
 });
 
@@ -91,15 +107,23 @@ function rendre() {
   );
 }
 
+const DEUX_SOURCES: CourseSource[] = [
+  { id: 1, url: "https://klikego.com/x", provider: "klikego", is_active: true, last_scraped_at: null },
+  { id: 2, url: "https://breizhchrono.com/x", provider: "breizhchrono", is_active: false, last_scraped_at: null },
+];
+
 beforeEach(() => {
   push.mockReset();
   listCourses.mockReset();
   countCourses.mockReset();
   setCourseReliability.mockReset();
   getSession.mockReset();
+  getCourseSources.mockReset();
+  deleteCourseSource.mockReset();
   listCourses.mockResolvedValue([VERTOU, CARNAC]);
   countCourses.mockResolvedValue({ total: 2 });
   getSession.mockResolvedValue(AVEC_POUVOIR);
+  getCourseSources.mockResolvedValue(DEUX_SOURCES);
   setCourseReliability.mockResolvedValue({
     id: 7,
     is_reliable: true,
@@ -370,5 +394,64 @@ describe("QualityQueueTable", () => {
     const suivant = screen.getByRole("button", { name: /suivant/i });
     expect(suivant).toBeInTheDocument();
     expect(suivant).toBeEnabled();
+  });
+
+  // --- Sources d'une épreuve, dépliées dans la file (#739) --------------------
+
+  it("ne charge les sources qu'au dépliage, pas au chargement de la file", async () => {
+    rendre();
+    await screen.findByText("Triathlon de Vertou");
+
+    expect(getCourseSources).not.toHaveBeenCalled();
+  });
+
+  it("un chevron déplie les sources de l'épreuve, chargées à la demande", async () => {
+    const user = userEvent.setup();
+    rendre();
+    await screen.findByText("Triathlon de Vertou");
+
+    await user.click(screen.getByRole("button", { name: /afficher les sources.*vertou/i }));
+
+    await waitFor(() => expect(getCourseSources).toHaveBeenCalledWith(7));
+    expect(await screen.findByText("Breizh Chrono")).toBeInTheDocument();
+  });
+
+  it("replier masque à nouveau les sources", async () => {
+    const user = userEvent.setup();
+    rendre();
+    await screen.findByText("Triathlon de Vertou");
+
+    await user.click(screen.getByRole("button", { name: /afficher les sources.*vertou/i }));
+    await screen.findByText("Breizh Chrono");
+    await user.click(screen.getByRole("button", { name: /masquer les sources.*vertou/i }));
+
+    expect(screen.queryByText("Breizh Chrono")).not.toBeInTheDocument();
+  });
+
+  it("propose « Supprimer » sur la source passive dans la ligne dépliée", async () => {
+    getSession.mockResolvedValue(AVEC_RESCRAPE);
+    const user = userEvent.setup();
+    rendre();
+    await screen.findByText("Triathlon de Vertou");
+
+    await user.click(screen.getByRole("button", { name: /afficher les sources.*vertou/i }));
+
+    expect(
+      await screen.findByRole("button", { name: /supprimer.*breizh chrono/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("déplier une autre ligne ne touche pas la première", async () => {
+    const user = userEvent.setup();
+    rendre();
+    await screen.findByText("Triathlon de Vertou");
+
+    await user.click(screen.getByRole("button", { name: /afficher les sources.*vertou/i }));
+    await screen.findByText("Breizh Chrono");
+    await user.click(screen.getByRole("button", { name: /afficher les sources.*carnac/i }));
+
+    // Deux lignes dépliées à la fois : une seconde requête, pas un remplacement.
+    await waitFor(() => expect(getCourseSources).toHaveBeenCalledWith(8));
+    expect(screen.getAllByText("Breizh Chrono")).toHaveLength(2);
   });
 });

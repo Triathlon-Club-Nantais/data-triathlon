@@ -16,7 +16,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.models.course_source import CourseSource
-from app.repositories import course_repository
+from app.repositories import course_repository, course_source_repository
 
 URL = "https://www.klikego.com/resultats/mesquer-2026"
 
@@ -112,6 +112,21 @@ def test_deleting_a_course_deletes_its_sources(db_session):
 
     assert course_repository.get(db_session, course_id) is None
     assert db_session.query(CourseSource).filter_by(course_id=course_id).count() == 0
+
+
+def test_remove_deletes_the_source_and_spares_its_neighbours(db_session):
+    """`course_source_repository.remove` (#739) — pas la garde `is_active`,
+    portée par `admin_actions.delete_course_source`."""
+    course = _course(db_session, "Mesquer")
+    partant = _source(db_session, course, URL, is_active=True)
+    restant = _source(
+        db_session, course, "https://www.chronoplace.fr/mesquer", provider="chronoplace"
+    )
+
+    course_source_repository.remove(db_session, partant)
+
+    assert db_session.query(CourseSource).filter_by(id=partant.id).first() is None
+    assert db_session.query(CourseSource).filter_by(id=restant.id).first() is restant
 
 
 def test_deleting_a_course_spares_the_sources_of_its_neighbours(db_session):
