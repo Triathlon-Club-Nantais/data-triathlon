@@ -15,7 +15,17 @@ vi.mock("next/navigation", () => ({
 import { AthleteSeasonList } from "./AthleteSeasonList";
 
 function athlete(over: Partial<AthleteSeasonActivity> & { id: number }): AthleteSeasonActivity {
-  return { nom: "NOM", prenom: "Prénom", participation_count: 1, ...over };
+  const participation_count = over.participation_count ?? 1;
+  return {
+    nom: "NOM",
+    prenom: "Prénom",
+    participation_count,
+    total_count: participation_count,
+    validated_count: participation_count,
+    club_affiliated_count: participation_count,
+    season_validated: null,
+    ...over,
+  };
 }
 
 function rowNames(): string[] {
@@ -41,6 +51,74 @@ describe("AthleteSeasonList", () => {
     expect(screen.getByText("Jean")).toBeInTheDocument();
     expect(screen.getByText("3")).toBeInTheDocument();
     expect(screen.getByText("MARTIN")).toBeInTheDocument();
+  });
+
+  it("#709 : affiche le total réel en compteur principal, distinct des validées/affiliées club", () => {
+    render(
+      <AthleteSeasonList
+        athletes={[
+          athlete({
+            id: 1,
+            nom: "SOUSCOMPTE",
+            total_count: 5,
+            validated_count: 4,
+            club_affiliated_count: 3,
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByTestId("athlete-row-total")).toHaveTextContent("5");
+    expect(screen.getByTestId("athlete-row-detail")).toHaveTextContent(/4 validée/i);
+    expect(screen.getByTestId("athlete-row-detail")).toHaveTextContent(/3 affiliée/i);
+  });
+
+  it("#709 : n'affiche pas de détail redondant quand les trois compteurs sont identiques", () => {
+    render(
+      <AthleteSeasonList
+        athletes={[
+          athlete({ id: 1, nom: "COMPLET", total_count: 2, validated_count: 2, club_affiliated_count: 2 }),
+        ]}
+      />,
+    );
+
+    expect(screen.queryByTestId("athlete-row-detail")).not.toBeInTheDocument();
+  });
+
+  it("#709 : affiche un badge « Saison validée » quand season_validated est vrai (saison unique)", () => {
+    render(
+      <AthleteSeasonList
+        athletes={[athlete({ id: 1, nom: "VALIDE", season_validated: true })]}
+      />,
+    );
+
+    expect(screen.getByText(/saison validée/i)).toBeInTheDocument();
+  });
+
+  it("#709 : n'affiche aucun badge de validation quand plusieurs saisons sont sélectionnées (season_validated null)", () => {
+    render(
+      <AthleteSeasonList
+        athletes={[athlete({ id: 1, nom: "MULTI", season_validated: null })]}
+      />,
+    );
+
+    expect(screen.queryByText(/saison validée/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("radiogroup", { name: /statut de validation/i })).not.toBeInTheDocument();
+  });
+
+  it("#709 : filtre par statut de validation quand la saison est unique (FR-014)", async () => {
+    render(
+      <AthleteSeasonList
+        athletes={[
+          athlete({ id: 1, nom: "VALIDE", season_validated: true }),
+          athlete({ id: 2, nom: "NONVALIDE", season_validated: false }),
+        ]}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("radio", { name: /^validées$/i }));
+
+    expect(rowNames()).toEqual(["VALIDE"]);
   });
 
   it("liste vide (FR-007) : affiche un état vide explicite qui invite à changer de saison", () => {

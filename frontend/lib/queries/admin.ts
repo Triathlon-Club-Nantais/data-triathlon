@@ -404,6 +404,51 @@ export function useUpdateAthlete() {
   });
 }
 
+/** Déclare une action de bénévolat pour un coureur et une saison (#709). */
+export function useDeclareVolunteerAction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ athleteId, season }: { athleteId: number; season: number }) =>
+      apiClient.declareVolunteerAction(athleteId, season),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.coureurs });
+    },
+  });
+}
+
+/** Les trois signaux du barème de validation d'une saison (#709, FR-012). */
+export function useSeasonQuota(athleteId: number, season: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ["season-quota", athleteId, season],
+    queryFn: () => apiClient.getSeasonQuota(athleteId, season),
+    enabled,
+  });
+}
+
+export function useValidateSeason() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ athleteId, season }: { athleteId: number; season: number }) =>
+      apiClient.validateSeason(athleteId, season),
+    onSuccess: (_data, { athleteId, season }) => {
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.coureurs });
+      qc.invalidateQueries({ queryKey: ["season-quota", athleteId, season] });
+    },
+  });
+}
+
+export function useUnvalidateSeason() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ athleteId, season }: { athleteId: number; season: number }) =>
+      apiClient.unvalidateSeason(athleteId, season),
+    onSuccess: (_data, { athleteId, season }) => {
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.coureurs });
+      qc.invalidateQueries({ queryKey: ["season-quota", athleteId, season] });
+    },
+  });
+}
+
 // ── Rôles des utilisateurs (#239) ────────────────────────────────────────────
 
 export function useAdminUsers() {

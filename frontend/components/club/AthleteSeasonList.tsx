@@ -32,6 +32,18 @@ function filterAthletes(athletes: AthleteSeasonActivity[], query: string): Athle
   });
 }
 
+/** Statut de validation (#709, FR-014) — filtre client, comme le tri (research.md). */
+type FiltreValidation = "tous" | "valides" | "non_valides";
+
+function filterByValidation(
+  athletes: AthleteSeasonActivity[],
+  filtre: FiltreValidation,
+): AthleteSeasonActivity[] {
+  if (filtre === "valides") return athletes.filter((a) => a.season_validated === true);
+  if (filtre === "non_valides") return athletes.filter((a) => a.season_validated === false);
+  return athletes;
+}
+
 // Nom vide (import mal renseigné) en fin de tri, pas en tête (Edge Cases du
 // spec) : sans ce garde-fou, "" précède tout nom non vide en localeCompare.
 function byNomPrenom(a: AthleteSeasonActivity, b: AthleteSeasonActivity): number {
@@ -47,10 +59,8 @@ function sortAthletes(
   sort: ReturnType<typeof sortTypeFromParam>,
 ): AthleteSeasonActivity[] {
   if (sort === "nom") return [...athletes].sort(byNomPrenom);
-  // Défaut : nombre d'épreuves décroissant, égalité départagée par nom de famille.
-  return [...athletes].sort(
-    (a, b) => b.participation_count - a.participation_count || byNomPrenom(a, b),
-  );
+  // Défaut : total réel d'épreuves décroissant (#709), égalité départagée par nom de famille.
+  return [...athletes].sort((a, b) => b.total_count - a.total_count || byNomPrenom(a, b));
 }
 
 /**
@@ -63,6 +73,10 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
   const sp = useSearchParams();
   const sort = sortTypeFromParam(sp.get(SORT_PARAM) ?? undefined);
   const [query, setQuery] = useState("");
+  // #709 — le statut de validation n'est significatif que sur une saison
+  // unique (research.md D9) : l'API rend `season_validated: null` sinon.
+  const singleSeason = athletes.some((a) => a.season_validated !== null);
+  const [filtreValidation, setFiltreValidation] = useState<FiltreValidation>("tous");
   // Athlète retenu (#504) : lu inconditionnellement — un hook ne se cale pas
   // derrière le retour anticipé de la liste vide.
   const athleteRetenu = useSelectedAthlete();
@@ -77,7 +91,7 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
     );
   }
 
-  const filtered = filterAthletes(athletes, query);
+  const filtered = filterByValidation(filterAthletes(athletes, query), singleSeason ? filtreValidation : "tous");
   const sorted = sortAthletes(filtered, sort);
 
   // Rang calculé sur la liste **complète**, triée par volume et non filtrée
@@ -107,10 +121,32 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
           containerStyle={{ maxWidth: 320, flex: 1 }}
         />
         <AthleteSortToggle />
+        {singleSeason && (
+          <div role="radiogroup" aria-label="Statut de validation" style={{ display: "inline-flex", gap: 8 }}>
+            {(
+              [
+                ["tous", "Tous"],
+                ["valides", "Validées"],
+                ["non_valides", "Non validées"],
+              ] as [FiltreValidation, string][]
+            ).map(([valeur, libelle]) => (
+              <label key={valeur} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13 }}>
+                <input
+                  type="radio"
+                  name="filtre-validation"
+                  value={valeur}
+                  checked={filtreValidation === valeur}
+                  onChange={() => setFiltreValidation(valeur)}
+                />
+                {libelle}
+              </label>
+            ))}
+          </div>
+        )}
       </div>
       <RappelPosition
         visible={rappelVisible}
-        epreuves={rang ? rangComplet[rang - 1].participation_count : 0}
+        epreuves={rang ? rangComplet[rang - 1].total_count : 0}
         rang={rang ?? 0}
         hrefAncre={athleteRetenu ? `#athlete-${athleteRetenu.id}` : "#"}
       />
@@ -150,10 +186,42 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
                     <span style={{ fontWeight: 500, color: "var(--tcn-text-faint)" }}>{a.prenom}</span>
                   </span>
                   {moi && <VousChip />}
+                  {singleSeason && a.season_validated && (
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: "var(--tcn-orange)",
+                        border: "1px solid var(--tcn-orange)",
+                        borderRadius: 6,
+                        padding: "1px 6px",
+                      }}
+                    >
+                      Saison validée
+                    </span>
+                  )}
                 </div>
-                <div style={{ fontSize: 14, color: "var(--tcn-text-faint)", fontWeight: 600 }}>
-                  <span>{a.participation_count}</span>{" "}
-                  <span>épreuve{a.participation_count > 1 ? "s" : ""}</span>
+                <div style={{ textAlign: "right" }}>
+                  <div
+                    data-testid="athlete-row-total"
+                    style={{ fontSize: 14, color: "var(--tcn-text-faint)", fontWeight: 600 }}
+                  >
+                    <span>{a.total_count}</span>{" "}
+                    <span>épreuve{a.total_count > 1 ? "s" : ""}</span>
+                  </div>
+                  {(a.validated_count !== a.total_count ||
+                    a.club_affiliated_count !== a.total_count) && (
+                    // #709 — le détail n'apparaît que si les compteurs divergent
+                    // (FR-004) : pas de bruit répété sur les 315 lignes du cas
+                    // courant, où la donnée source est complète.
+                    <div
+                      data-testid="athlete-row-detail"
+                      style={{ fontSize: 12, color: "var(--tcn-text-faint)" }}
+                    >
+                      dont {a.validated_count} validée{a.validated_count > 1 ? "s" : ""} ·{" "}
+                      {a.club_affiliated_count} affiliée{a.club_affiliated_count > 1 ? "s" : ""} club
+                    </div>
+                  )}
                 </div>
               </Link>
             );

@@ -6,7 +6,11 @@ from app.core.club import is_club_scope
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.core.season import parse_seasons
-from app.repositories import athlete_repository, participation_repository
+from app.repositories import (
+    athlete_repository,
+    participation_repository,
+    season_validation_repository,
+)
 from app.schemas.athlete import AthleteBrief, AthleteSearchResult, AthleteSeasonActivity
 from app.schemas.participation import AthleteParticipationOut
 
@@ -35,16 +39,35 @@ def list_athletes_season_activity(
     federal_only: bool = Query(False, description="Retire trail, course à pied et cyclisme."),
     db: Session = Depends(get_db),
 ):
-    """Athlètes ayant ≥1 participation sur `seasons`, avec leur compte (#274, #382)."""
+    """Athlètes ayant ≥1 participation sur `seasons`, avec leurs compteurs (#274, #382, #709)."""
+    saisons = parse_seasons(seasons)
     lignes = athlete_repository.list_with_season_participation_count(
         db,
-        seasons=parse_seasons(seasons),
+        seasons=saisons,
         club_only=is_club_scope(scope),
         federal_only=federal_only,
     )
+    # Le statut de validation est mono-saison (research.md D9) : `null` dès que
+    # `seasons` n'en désigne pas exactement une, sinon la carte des validés.
+    validations = (
+        season_validation_repository.map_by_athlete(
+            db, athlete_ids=[a.id for a, *_ in lignes], season=saisons[0]
+        )
+        if len(saisons) == 1
+        else {}
+    )
     return [
-        AthleteSeasonActivity(id=a.id, nom=a.nom, prenom=a.prenom, participation_count=n)
-        for a, n in lignes
+        AthleteSeasonActivity(
+            id=a.id,
+            nom=a.nom,
+            prenom=a.prenom,
+            participation_count=affiliees_club,
+            total_count=total,
+            validated_count=validees,
+            club_affiliated_count=affiliees_club,
+            season_validated=validations.get(a.id, False) if len(saisons) == 1 else None,
+        )
+        for a, total, validees, affiliees_club in lignes
     ]
 
 

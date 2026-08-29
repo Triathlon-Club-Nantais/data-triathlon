@@ -8,6 +8,7 @@ import { AthleteAvatar } from "./AthleteAvatar";
 import { AthleteSelection } from "./AthleteSelection";
 import { EventsTable } from "./EventsTable";
 import { AthleteAdminPanel } from "@/components/athletes/AthleteAdminPanel";
+import { SeasonValidationPanel } from "@/components/athletes/SeasonValidationPanel";
 import { formatToken, disciplineBreakdownBySeason, genderShort, ordinalFr } from "@/lib/utils/format";
 import { BarList } from "@/components/charts/BarList";
 import { CAT_COLORS } from "@/components/charts/CategoryBars";
@@ -90,6 +91,9 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
               <AthleteSelection athlete={{ id: athlete.id, prenom: athlete.prenom, nom: athlete.nom }} />
               <AthleteAdminPanel
                 athlete={{ id: athlete.id, nom: athlete.nom, prenom: athlete.prenom, club: athlete.club }}
+              />
+              <SeasonValidationPanel
+                athlete={{ id: athlete.id, nom: athlete.nom, prenom: athlete.prenom }}
               />
             </>
           }

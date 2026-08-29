@@ -1926,3 +1926,163 @@ def test_update_participation_fields_deux_dossards_vides_ne_collisionnent_pas(db
 
     assert participation_repository.get(db_session, ligne_1.id).bib_number is None
     assert participation_repository.get(db_session, ligne_2.id).bib_number is None
+
+
+# --- Déclarer une action de bénévolat (#709, US2) ---------------------------
+
+
+def test_declare_volunteer_action_consigne_le_geste(db_session, auteur):
+    from app.repositories import volunteer_action_repository
+
+    athlete = _coureur(db_session, "BENEVOLE")
+    athlete_id = athlete.id
+
+    admin_actions.declare_volunteer_action(
+        db_session, athlete_id=athlete_id, season=2025, user_id=auteur.id
+    )
+
+    actions = volunteer_action_repository.list_for_athlete_season(
+        db_session, athlete_id=athlete_id, season=2025
+    )
+    assert len(actions) == 1
+    assert actions[0].declared_by_user_id == auteur.id
+
+    entrees = _journal(db_session, "athlete", athlete_id)
+    assert len(entrees) == 1
+    assert entrees[0].action == "athlete.volunteer_action.create"
+    assert entrees[0].user_id == auteur.id
+    assert entrees[0].payload["season"] == 2025
+
+
+def test_declare_volunteer_action_autorise_plusieurs_declarations(db_session, auteur):
+    from app.repositories import volunteer_action_repository
+
+    athlete = _coureur(db_session, "BENEVOLE")
+    athlete_id = athlete.id
+
+    admin_actions.declare_volunteer_action(
+        db_session, athlete_id=athlete_id, season=2025, user_id=auteur.id
+    )
+    admin_actions.declare_volunteer_action(
+        db_session, athlete_id=athlete_id, season=2025, user_id=auteur.id
+    )
+
+    actions = volunteer_action_repository.list_for_athlete_season(
+        db_session, athlete_id=athlete_id, season=2025
+    )
+    assert len(actions) == 2
+    assert len(_journal(db_session, "athlete", athlete_id)) == 2
+
+
+def test_declare_volunteer_action_sur_athlete_inexistant_refuse_et_n_ecrit_rien(db_session, auteur):
+    from app.models.admin_action_log import AdminActionLog
+
+    with pytest.raises(NotFoundError):
+        admin_actions.declare_volunteer_action(
+            db_session, athlete_id=4242, season=2025, user_id=auteur.id
+        )
+
+    assert db_session.query(AdminActionLog).count() == 0
+
+
+# --- Valider / dévalider la saison d'un athlète (#709, US3) -----------------
+
+
+def test_validate_season_consigne_le_geste(db_session, auteur):
+    from app.repositories import season_validation_repository
+
+    athlete = _coureur(db_session, "VALIDABLE")
+    athlete_id = athlete.id
+
+    admin_actions.validate_season(db_session, athlete_id=athlete_id, season=2025, user_id=auteur.id)
+
+    validation = season_validation_repository.get_for_athlete_season(
+        db_session, athlete_id=athlete_id, season=2025
+    )
+    assert validation is not None
+    assert validation.validated_by_user_id == auteur.id
+
+    entrees = _journal(db_session, "athlete", athlete_id)
+    assert len(entrees) == 1
+    assert entrees[0].action == "athlete.season_validation.create"
+    assert entrees[0].payload["season"] == 2025
+
+
+def test_validate_season_deja_validee_refuse_et_n_ecrit_rien_de_plus(db_session, auteur):
+    athlete = _coureur(db_session, "DEJAVALIDE")
+    athlete_id = athlete.id
+    admin_actions.validate_season(db_session, athlete_id=athlete_id, season=2025, user_id=auteur.id)
+
+    with pytest.raises(DuplicateError):
+        admin_actions.validate_season(
+            db_session, athlete_id=athlete_id, season=2025, user_id=auteur.id
+        )
+
+    assert len(_journal(db_session, "athlete", athlete_id)) == 1
+
+
+def test_validate_season_sur_athlete_inexistant_refuse(db_session, auteur):
+    with pytest.raises(NotFoundError):
+        admin_actions.validate_season(db_session, athlete_id=4242, season=2025, user_id=auteur.id)
+
+
+def test_unvalidate_season_retire_le_statut_et_consigne_le_geste(db_session, auteur):
+    from app.repositories import season_validation_repository
+
+    athlete = _coureur(db_session, "DEVALIDABLE")
+    athlete_id = athlete.id
+    admin_actions.validate_season(db_session, athlete_id=athlete_id, season=2025, user_id=auteur.id)
+
+    admin_actions.unvalidate_season(
+        db_session, athlete_id=athlete_id, season=2025, user_id=auteur.id
+    )
+
+    assert (
+        season_validation_repository.get_for_athlete_season(
+            db_session, athlete_id=athlete_id, season=2025
+        )
+        is None
+    )
+    entrees = _journal(db_session, "athlete", athlete_id)
+    assert [e.action for e in entrees] == [
+        "athlete.season_validation.delete",
+        "athlete.season_validation.create",
+    ]
+
+
+def test_unvalidate_season_non_validee_refuse(db_session, auteur):
+    athlete = _coureur(db_session, "NONVALIDE")
+
+    with pytest.raises(NotFoundError):
+        admin_actions.unvalidate_season(
+            db_session, athlete_id=athlete.id, season=2025, user_id=auteur.id
+        )
+
+
+def test_season_quota_reflete_les_trois_signaux(db_session, auteur):
+    """FR-012 — 3 épreuves validées + 1 bénévolat déclaré + statut de validation."""
+    athlete = _coureur(db_session, "QUOTA")
+    for dossard in ("1", "2", "3"):
+        _inscrit(db_session, athlete, _epreuve(db_session, f"Épreuve {dossard}", date(2025, 9, 1 + int(dossard))), dossard)
+    admin_actions.declare_volunteer_action(db_session, athlete_id=athlete.id, season=2025, user_id=auteur.id)
+    admin_actions.validate_season(db_session, athlete_id=athlete.id, season=2025, user_id=auteur.id)
+
+    quota = admin_actions.season_quota(db_session, athlete_id=athlete.id, season=2025)
+
+    assert quota == {
+        "validated_count": 3,
+        "has_volunteer_action": True,
+        "season_validated": True,
+    }
+
+
+def test_season_quota_sur_athlete_sans_activite(db_session, auteur):
+    athlete = _coureur(db_session, "VIERGE")
+
+    quota = admin_actions.season_quota(db_session, athlete_id=athlete.id, season=2025)
+
+    assert quota == {
+        "validated_count": 0,
+        "has_volunteer_action": False,
+        "season_validated": False,
+    }

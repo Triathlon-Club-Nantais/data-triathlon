@@ -8,14 +8,19 @@ export interface AthleteBrief {
   club: string | null;
 }
 
-// Miroir de AthleteSeasonActivity backend (#274) — athlète + son nombre
-// d'épreuves sur la saison filtrée. Pas de `club` : la route qui l'expose est
-// déjà scopée club côté appelant.
+// Miroir de AthleteSeasonActivity backend (#274, #709) — athlète + ses
+// compteurs d'épreuves sur la saison filtrée. Pas de `club` : la route qui
+// l'expose est déjà scopée club côté appelant. `participation_count` reste
+// égal à `club_affiliated_count` (compat, additif seulement).
 export interface AthleteSeasonActivity {
   id: number;
   nom: string;
   prenom: string;
   participation_count: number;
+  total_count: number;
+  validated_count: number;
+  club_affiliated_count: number;
+  season_validated: boolean | null;
 }
 
 // Miroir de AthleteSearchResult backend (#484) — recherche classée par
@@ -896,6 +901,30 @@ export interface AdminAthlete {
   gender: string;
   club: string | null;
   participations: number;
+}
+
+// Miroir de VolunteerActionOut backend (#709).
+export interface VolunteerAction {
+  id: number;
+  athlete_id: number;
+  season: number;
+  declared_by_user_id: number;
+  created_at: string;
+}
+
+// Miroir de SeasonValidationOut backend (#709).
+export interface SeasonValidation {
+  athlete_id: number;
+  season: number;
+  validated_by_user_id: number;
+  validated_at: string;
+}
+
+// Les trois signaux du barème de validation (#709, FR-012).
+export interface SeasonQuota {
+  validated_count: number;
+  has_volunteer_action: boolean;
+  season_validated: boolean;
 }
 
 /**

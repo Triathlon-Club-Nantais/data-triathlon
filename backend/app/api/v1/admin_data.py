@@ -31,6 +31,10 @@ from app.schemas.admin import (
     ParticipationReassign,
     ParticipationsWipeImpact,
     ParticipationsWipeResult,
+    SeasonValidationCreate,
+    SeasonValidationOut,
+    VolunteerActionCreate,
+    VolunteerActionOut,
 )
 from app.schemas.course import CourseBrief
 from app.schemas.participation import ParticipationOut
@@ -242,6 +246,70 @@ def update_athlete(
         properties={"fields_changed": list(champs.keys())},
     )
     return _fiche(athlete, participation_repository.count_for_athlete(db, athlete_id))
+
+
+@router.post(
+    "/admin/athletes/{athlete_id}/volunteer-actions",
+    response_model=VolunteerActionOut,
+    status_code=201,
+)
+def declare_volunteer_action(
+    athlete_id: int,
+    body: VolunteerActionCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission(P.ATHLETES_VOLUNTEER_MANAGE)),
+):
+    """Déclare une action de bénévolat pour un coureur et une saison (#709)."""
+    action = admin_actions.declare_volunteer_action(
+        db, athlete_id=athlete_id, season=body.season, user_id=user.id
+    )
+    db.commit()
+    return action
+
+
+@router.get("/admin/athletes/{athlete_id}/season-quota")
+def get_season_quota(
+    athlete_id: int,
+    season: int = Query(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission(P.ATHLETES_SEASON_VALIDATE)),
+):
+    """Les trois signaux du barème de validation d'une saison (#709, FR-012)."""
+    return admin_actions.season_quota(db, athlete_id=athlete_id, season=season)
+
+
+@router.post(
+    "/admin/athletes/{athlete_id}/season-validations",
+    response_model=SeasonValidationOut,
+    status_code=201,
+)
+def validate_season(
+    athlete_id: int,
+    body: SeasonValidationCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission(P.ATHLETES_SEASON_VALIDATE)),
+):
+    """Valide la saison d'un coureur du club (#709)."""
+    validation = admin_actions.validate_season(
+        db, athlete_id=athlete_id, season=body.season, user_id=user.id
+    )
+    db.commit()
+    return validation
+
+
+@router.delete(
+    "/admin/athletes/{athlete_id}/season-validations/{season}",
+    status_code=204,
+)
+def unvalidate_season(
+    athlete_id: int,
+    season: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission(P.ATHLETES_SEASON_VALIDATE)),
+):
+    """Dévalide la saison d'un coureur du club (#709)."""
+    admin_actions.unvalidate_season(db, athlete_id=athlete_id, season=season, user_id=user.id)
+    db.commit()
 
 
 @router.patch("/admin/courses/{course_id}", response_model=CourseBrief)

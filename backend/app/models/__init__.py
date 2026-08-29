@@ -13,12 +13,14 @@ from app.models.participation import Participation
 from app.models.pending_provider import PendingProvider
 from app.models.role import Role
 from app.models.role_permission import RolePermission
+from app.models.season_validation import SeasonValidation
 from app.models.site_access_config import SiteAccessConfig
 from app.models.user import User
 from app.models.user_feedback import UserFeedback
 from app.models.user_group import UserGroup
 from app.models.user_role import UserRole
 from app.models.user_session import UserSession
+from app.models.volunteer_action import VolunteerAction
 
 __all__ = [
     "AdminActionLog",
@@ -35,10 +37,12 @@ __all__ = [
     "PendingProvider",
     "Role",
     "RolePermission",
+    "SeasonValidation",
     "SiteAccessConfig",
     "User",
     "UserFeedback",
     "UserGroup",
     "UserRole",
     "UserSession",
+    "VolunteerAction",
 ]

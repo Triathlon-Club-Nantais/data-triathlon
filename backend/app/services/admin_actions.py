@@ -37,6 +37,8 @@ from app.repositories import (
     course_repository,
     course_source_repository,
     participation_repository,
+    season_validation_repository,
+    volunteer_action_repository,
 )
 from app.schemas.course import CourseSourceOut
 from app.services import import_service
@@ -1132,3 +1134,90 @@ def update_course(db: Session, *, course_id: int, champs: dict, user_id: int) ->
     )
     logger.info("Admin %s updated course %s", user_id, course_id)
     return course
+
+
+def declare_volunteer_action(db: Session, *, athlete_id: int, season: int, user_id: int):
+    """Déclare une action de bénévolat pour un athlète et une saison (#709, FR-006 à FR-008).
+
+    Plusieurs déclarations coexistent pour le même `(athlete_id, season)` —
+    un journal, pas un indicateur unique (research.md D4) : cette fonction ne
+    vérifie donc aucune unicité avant d'écrire, à la différence de
+    `update_athlete`.
+    """
+    _athlete_or_404(db, athlete_id)
+
+    action = volunteer_action_repository.create(
+        db, athlete_id=athlete_id, season=season, declared_by_user_id=user_id
+    )
+    admin_action_log_repository.create(
+        db,
+        user_id=user_id,
+        action="athlete.volunteer_action.create",
+        entity_type="athlete",
+        entity_id=athlete_id,
+        payload={"season": season},
+    )
+    logger.info("Admin %s declared volunteer action for athlete %s season %s", user_id, athlete_id, season)
+    return action
+
+
+def validate_season(db: Session, *, athlete_id: int, season: int, user_id: int):
+    """Valide la saison d'un athlète (#709, FR-009 à FR-013).
+
+    **L'unicité se vérifie par lecture préalable** (même règle que
+    `update_athlete`), pas par l'`IntegrityError` de `uq_season_validation_athlete_season`.
+    """
+    _athlete_or_404(db, athlete_id)
+    if season_validation_repository.get_for_athlete_season(db, athlete_id=athlete_id, season=season):
+        raise DuplicateError("La saison de ce coureur est déjà validée.")
+
+    validation = season_validation_repository.create(
+        db, athlete_id=athlete_id, season=season, validated_by_user_id=user_id
+    )
+    admin_action_log_repository.create(
+        db,
+        user_id=user_id,
+        action="athlete.season_validation.create",
+        entity_type="athlete",
+        entity_id=athlete_id,
+        payload={"season": season},
+    )
+    logger.info("Admin %s validated season %s for athlete %s", user_id, season, athlete_id)
+    return validation
+
+
+def unvalidate_season(db: Session, *, athlete_id: int, season: int, user_id: int) -> None:
+    """Dévalide la saison d'un athlète (#709, FR-013) — geste symétrique de `validate_season`."""
+    _athlete_or_404(db, athlete_id)
+    validation = season_validation_repository.get_for_athlete_season(
+        db, athlete_id=athlete_id, season=season
+    )
+    if validation is None:
+        raise NotFoundError("La saison de ce coureur n'est pas validée.")
+
+    season_validation_repository.delete(db, validation)
+    admin_action_log_repository.create(
+        db,
+        user_id=user_id,
+        action="athlete.season_validation.delete",
+        entity_type="athlete",
+        entity_id=athlete_id,
+        payload={"season": season},
+    )
+    logger.info("Admin %s unvalidated season %s for athlete %s", user_id, season, athlete_id)
+
+
+def season_quota(db: Session, *, athlete_id: int, season: int) -> dict:
+    """Les trois signaux du barème de validation (#709, FR-012) — ne modifie rien."""
+    participations = participation_repository.list_for_athlete(db, athlete_id, seasons=[season])
+    validated_count = sum(1 for p in participations if not p.is_pending_validation)
+    return {
+        "validated_count": validated_count,
+        "has_volunteer_action": volunteer_action_repository.exists_for_athlete_season(
+            db, athlete_id=athlete_id, season=season
+        ),
+        "season_validated": season_validation_repository.get_for_athlete_season(
+            db, athlete_id=athlete_id, season=season
+        )
+        is not None,
+    }

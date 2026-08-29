@@ -334,8 +334,8 @@ def list_with_season_participation_count(
     seasons: list[int],
     club_only: bool = False,
     federal_only: bool = False,
-) -> list[tuple[Athlete, int]]:
-    """Athlètes avec ≥1 participation sur `seasons`, et leur compte sur ces saisons (#274).
+) -> list[tuple[Athlete, int, int, int]]:
+    """Athlètes avec ≥1 participation sur `seasons`, et trois compteurs distincts (#274, #709).
 
     Jointure **interne** (à la différence de `search_admin`, qui veut voir les
     athlètes à 0) : c'est elle qui exclut les athlètes sans participation sur le
@@ -345,23 +345,40 @@ def list_with_season_participation_count(
     défaut neutre et la même liste d'exclusion que les fonctions `stats_*` de
     `participation_repository` (#76, #580) — `Course` est déjà jointe sans
     condition ici, contrairement à elles.
+
+    **`club_only` sélectionne le roster sur `Athlete.club`, pas
+    `Participation.club`** (#709, research.md D1) : deux fournisseurs ne
+    publient jamais l'affiliation club sur la ligne de résultat, et le
+    critère précédent (`tcn_clause(Participation.club)`) excluait de la liste
+    un membre confirmé du club faute d'affiliation publiée *sur cette
+    saison* — pas seulement le sous-comptait. Même critère que
+    `athlete_repository.search()`.
+
+    Trois agrégats indépendants sur les mêmes lignes jointes (research.md D2),
+    chacun nommé pour ce qu'il compte : `total_count` (toute participation de
+    la saison, validée ou non — identique à `list_for_athlete`, FR-001),
+    `validated_count` (validées uniquement, FR-002), `club_affiliated_count`
+    (validées **et** affiliées au club sur la ligne de résultat — comportement
+    historique de cette fonction avant #709, conservé à l'identique, FR-003).
     """
     # Import local : participation_repository importe name_filter d'ici depuis
     # #357, un import en tête de module créerait un cycle.
     from app.repositories.participation_repository import season_clause
 
-    compte = func.count(Participation.id)
+    est_valide = validated_clause(Participation.is_pending_validation)
+    total = func.count(Participation.id)
+    validees = func.sum(case((est_valide, 1), else_=0))
+    affiliees_club = func.sum(
+        case((and_(est_valide, tcn_clause(Participation.club)), 1), else_=0)
+    )
     requete = (
-        db.query(Athlete, compte)
+        db.query(Athlete, total, validees, affiliees_club)
         .join(Participation, Participation.athlete_id == Athlete.id)
         .join(Course, Participation.course_id == Course.id)
-        # #562 : jointure interne, comme le reste de cette fonction — un
-        # `.filter()` suffit, pas de piège d'`outerjoin` ici.
-        .filter(validated_clause(Participation.is_pending_validation))
         .group_by(Athlete.id)
     )
     if club_only:
-        requete = requete.filter(tcn_clause(Participation.club))
+        requete = requete.filter(tcn_clause(Athlete.club))
     if seasons:
         requete = requete.filter(season_clause(seasons))
     if federal_only:
@@ -370,7 +387,10 @@ def list_with_season_participation_count(
     # sans ce `case`, une chaîne vide précède tout nom non vide en tri lexicographique.
     nom_vide_en_fin = case((Athlete.nom == "", 1), else_=0)
     lignes = requete.order_by(nom_vide_en_fin, Athlete.nom, Athlete.prenom).all()
-    return [(athlete, nombre) for athlete, nombre in lignes]
+    return [
+        (athlete, int(total_n), int(validees_n), int(affiliees_n))
+        for athlete, total_n, validees_n, affiliees_n in lignes
+    ]
 
 
 def update_identity(db: Session, athlete: Athlete, **champs) -> Athlete:
