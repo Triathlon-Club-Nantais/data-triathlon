@@ -29,14 +29,16 @@ def test_detect(client):
 
 
 @pytest.mark.parametrize(
-    ("url", "provider", "fanout"),
+    ("url", "provider", "fanout", "default_single_heat"),
     [
-        ("https://www.ironman.com/races/im703-vichy/results", "competitor", False),
-        ("https://my.raceresult.com/406211/results", "raceresult", True),
-        ("https://chronoplace.fr/evenement/x", "chronoplace", True),
+        ("https://www.ironman.com/races/im703-vichy/results", "competitor", False, True),
+        ("https://my.raceresult.com/406211/results", "raceresult", True, False),
+        ("https://chronoplace.fr/evenement/x", "chronoplace", True, False),
     ],
 )
-def test_detect_expose_le_support_des_providers_recents(client, url, provider, fanout):
+def test_detect_expose_le_support_des_providers_recents(
+    client, url, provider, fanout, default_single_heat,
+):
     """`supported` est dérivé du registre, jamais d'une liste à tenir à jour.
 
     Le front affichait « Non supporté (competitor) » sur une URL ironman.com :
@@ -44,14 +46,17 @@ def test_detect_expose_le_support_des_providers_recents(client, url, provider, f
     RaceResult et Chronoplace en étaient absents (même piège de définition
     dupliquée que #76). C'est l'API qui tranche désormais.
 
-    `fanout`/`default_single_heat` (#698) : aucun des trois n'est Klikego ni
-    BreizhChrono, donc `default_single_heat` vaut toujours `True` ici, que le
-    provider soit fan-out ou non.
+    `fanout`/`default_single_heat` (#698) : Competitor n'est pas fan-out, donc
+    `default_single_heat` y vaut `True` (rien à fan-outer). RaceResult et
+    Chronoplace le sont, et n'ont aucun sélecteur de sous-unité dans leur URL :
+    leur `single_heat=True` rendrait le même volume de participants que le
+    fan-out en perdant la `source_url` par sous-unité et son cache — le défaut
+    y est donc `False`, c'est-à-dire le fan-out (revue finale #698).
     """
     resp = client.get("/api/v1/scrape/detect", params={"url": url})
     assert resp.json() == {
         "provider": provider, "supported": True,
-        "fanout": fanout, "default_single_heat": True,
+        "fanout": fanout, "default_single_heat": default_single_heat,
     }
 
 
@@ -86,6 +91,98 @@ def test_detect_expose_default_single_heat_faux_sans_selecteur_breizhchrono(clie
     assert resp.json() == {
         "provider": "breizhchrono", "supported": True,
         "fanout": True, "default_single_heat": False,
+    }
+
+
+def test_detect_expose_default_single_heat_vrai_prolivesport_avec_race(client):
+    """URL ProLiveSport portant un jeton `race` : `scrape_event_all` cible et
+    filtre cette course, le front peut pré-cocher « import unique » (#698)."""
+    resp = client.get(
+        "/api/v1/scrape/detect",
+        params={
+            "url": (
+                "https://www.prolivesport.fr/index.php"
+                "?chap=event&sub=liveV3&eventId=979&race=Triathlon%20M"
+            )
+        },
+    )
+    assert resp.json() == {
+        "provider": "prolivesport", "supported": True,
+        "fanout": True, "default_single_heat": True,
+    }
+
+
+def test_detect_expose_default_single_heat_faux_prolivesport_sans_race(client):
+    """URL ProLiveSport sans jeton `race` : `_resolve_race` retomberait sur la
+    première course de l'événement — un défaut, pas une cible choisie. Le
+    fan-out reste donc le défaut proposé (#698)."""
+    resp = client.get(
+        "/api/v1/scrape/detect",
+        params={
+            "url": "https://www.prolivesport.fr/index.php?chap=event&sub=liveV3&eventId=979"
+        },
+    )
+    assert resp.json() == {
+        "provider": "prolivesport", "supported": True,
+        "fanout": True, "default_single_heat": False,
+    }
+
+
+def test_detect_prolivesport_url_de_serie_ne_leve_pas_500(client):
+    """`prolivesport._parse_url` **lève** sur une page de série (aucun
+    `eventId`). `targets_single_heat` avale ce refus : la détection répond, et
+    c'est le scrape qui expliquera pourquoi cette URL n'est pas importable."""
+    resp = client.get(
+        "/api/v1/scrape/detect",
+        params={"url": "https://www.prolivesport.fr/fftri/grand-prix-duathlon"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["default_single_heat"] is False
+
+
+def test_detect_raceresult_avec_contest_dans_url_reste_fanout(client):
+    """Un `contest=` dans l'URL RaceResult ne change **rien** au scrape.
+
+    Vérifié en revue finale de #698 : `raceresult.scrape_event_all(url)` passe
+    par `_run_pipeline`, qui ne lit de l'URL que l'identifiant d'épreuve
+    (`_resolve_event_id`) et énumère ensuite **toutes** les listes annoncées par
+    la config. Le contest de l'URL n'est jamais parsé, donc `single_heat=True`
+    rendrait le même volume qu'un fan-out en perdant le découpage par contest.
+    Le défaut reste le fan-out, avec ou sans ce paramètre.
+    """
+    resp = client.get(
+        "/api/v1/scrape/detect",
+        params={"url": "https://my.raceresult.com/406211/results?contest=3"},
+    )
+    assert resp.json() == {
+        "provider": "raceresult", "supported": True,
+        "fanout": True, "default_single_heat": False,
+    }
+
+
+def test_detect_masque_la_bascule_sur_une_url_breizhchrono_deja_ciblee(client):
+    """URL BreizhChrono fixant déjà un heat → `fanout: false`, donc pas de choix.
+
+    `BreizhChronoProvider.scrape_event_all` teste `if heat or single_heat:` :
+    sur une telle URL, il fait le scrape mono-heat **même** avec
+    `single_heat=False`. Offrir « tout l'événement » serait donc un mensonge —
+    la réponse masque le contrôle plutôt que de laisser le backend ignorer le
+    choix en silence (revue finale #698). Le provider reste bel et bien un
+    `FanoutProvider` : c'est le contrat de la réponse qui change, pas le
+    registre.
+    """
+    resp = client.get(
+        "/api/v1/scrape/detect",
+        params={
+            "url": (
+                "https://resultats.breizhchrono.com/resultats-courses"
+                "/tri-mesquer-2026-42/triathlon-m"
+            )
+        },
+    )
+    assert resp.json() == {
+        "provider": "breizhchrono", "supported": True,
+        "fanout": False, "default_single_heat": True,
     }
 
 

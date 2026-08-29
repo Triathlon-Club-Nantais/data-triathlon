@@ -1156,6 +1156,69 @@ def test_iter_import_event_streame_la_progression_de_detail_phase_c(
     assert all(e["heat_index"] == 1 and e["heats_total"] == 1 for e in detail_events)
 
 
+def test_iter_import_event_single_heat_streame_la_progression_de_detail(
+    db_session, monkeypatch,
+):
+    """`single_heat=True` garde la progression de la phase C (#698).
+
+    L'ancienne branche appelait `_scrape_all` directement : le flux SSE restait
+    muet entre « Récupération des participants… » et la phase `saving`, alors
+    qu'un seul heat Klikego peut compter ~250 finishers et que la phase C est
+    justement la partie lente (#583).
+    """
+    def fake_scrape(url, *, single_heat=False, on_detail_progress=None, **kwargs):
+        assert single_heat is True
+        assert kwargs.get("cache_probe") is None, "une sous-unité demandée ne se saute pas"
+        on_detail_progress("triathlon-s", "triathlon-s", 1, 1, 10, 40)
+        on_detail_progress("triathlon-s", "triathlon-s", 1, 1, 40, 40)
+        return [_result("1", "DUPONT")]
+
+    monkeypatch.setattr(import_service, "registry_scrape_event_all", fake_scrape)
+    _fake_klikego_provider(monkeypatch, enumerated=1, cached=0, failures=[])
+
+    phases = list(
+        import_service.iter_import_event(db_session, URL, _settings(), single_heat=True)
+    )
+
+    scraping = [p for p in phases if p["phase"] == "scraping"]
+    detail_events = [p for p in scraping if "detail_done" in p]
+    assert [e["detail_done"] for e in detail_events] == [10, 40]
+    assert all(e["detail_total"] == 40 for e in detail_events)
+    assert all(e["heat_index"] == 1 and e["heats_total"] == 1 for e in detail_events)
+    assert phases[-1]["phase"] == "done"
+
+
+def test_iter_import_event_single_heat_hors_klikego_reste_un_seul_event(
+    db_session, monkeypatch,
+):
+    """Un fan-out sans phase C à rapporter garde le chemin bloquant (#698).
+
+    Wiclax n'accepte pas `on_detail_progress` dans sa signature : le lui passer
+    lèverait. Il n'y a rien à streamer, donc un seul event `scraping` — mais le
+    couple `(results, trace)` doit rester identique au chemin nominal.
+    """
+    from app.scrapers import registry
+
+    captured = {}
+
+    def fake_scrape(url, *, single_heat=False, cache_probe=None, on_heat_start=None):
+        captured["single_heat"] = single_heat
+        return [_result("1", "DUPONT")]
+
+    monkeypatch.setattr(import_service, "registry_scrape_event_all", fake_scrape)
+    provider = registry.WiclaxProvider()
+    provider.last_trace = FanoutTrace(heats_enumerated=1)
+    monkeypatch.setattr(import_service.registry, "get_provider", lambda url: provider)
+
+    phases = list(
+        import_service.iter_import_event(db_session, URL, _settings(), single_heat=True)
+    )
+
+    assert captured["single_heat"] is True
+    assert len([p for p in phases if p["phase"] == "scraping"]) == 1
+    assert phases[-1]["phase"] == "done"
+
+
 def test_scrape_all_streaming_wiring_on_detail_progress_seulement_pour_klikego(
     db_session, monkeypatch,
 ):

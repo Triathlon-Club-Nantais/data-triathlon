@@ -225,6 +225,7 @@ def _scrape_all(
 
 def _scrape_all_streaming(
     url: str, db: Session, settings: Settings, *, use_cache_probe: bool = True,
+    single_heat: bool = False,
 ) -> Iterator[dict]:
     """Variante générateur de `_scrape_all`, pour le SSE.
 
@@ -254,6 +255,16 @@ def _scrape_all_streaming(
     une épreuve fan-out fraîchement importée sauterait tous ses heats jugés
     frais, laissant le classement inchangé malgré la demande explicite.
 
+    `single_heat=True` (#698) prend l'échappatoire mono-sous-unité **sans
+    perdre la progression** : le générateur reste le même, seul le scrape
+    change de chemin. Sur Klikego — le seul provider dont l'URL cible un heat
+    *et* qui a une phase C par participant à rapporter —, `on_detail_progress`
+    est passé au provider, qui notifie `1/1` plus l'avancement des détails du
+    heat visé. Sur les autres, il n'y a rien à streamer : on retombe sur le
+    chemin bloquant, qui rend exactement le même couple `(results, trace)`.
+    Ce chemin n'appelle **jamais** `cache_probe`, comme `_scrape_all` : une
+    sous-unité unique explicitement demandée ne se saute pas.
+
     `ponytail:` (#566, point 1) `cache_probe` referme originellement sur `db` et
     s'exécute sur le thread de travail — pas sur celui qui possède la Session.
     Sur déconnexion SSE, Starlette/asyncio finit par clore ce générateur (le
@@ -279,6 +290,12 @@ def _scrape_all_streaming(
     if not isinstance(provider, registry.FanoutProvider):
         # Chemin non-fan-out : bloquant unique, aucun yield intermédiaire.
         results, trace = _scrape_all(url, db, settings, use_cache_probe=use_cache_probe)
+        return (results, trace)
+
+    if single_heat and not isinstance(provider, registry.KlikegoProvider):
+        # Mono-sous-unité sans phase C à rapporter : le thread et sa file
+        # n'auraient aucun événement à porter. Chemin bloquant, même couple.
+        results, trace = _scrape_all(url, db, settings, single_heat=True)
         return (results, trace)
 
     events: queue.Queue[dict | object] = queue.Queue()
@@ -316,14 +333,25 @@ def _scrape_all_streaming(
         # file qui ne recevra jamais rien.
         thread_db = None
         try:
-            thread_db = SessionLocal() if use_cache_probe else None
-            cache_probe = _make_cache_probe(thread_db, settings) if thread_db is not None else None
-            # `on_detail_progress` (#583) : seul Klikego a une phase C par
-            # participant à rapporter — les autres FanoutProvider ne
-            # l'acceptent pas dans leur signature.
-            kwargs: dict = {"cache_probe": cache_probe, "on_heat_start": on_heat_start}
-            if isinstance(provider, registry.KlikegoProvider):
-                kwargs["on_detail_progress"] = on_detail_progress
+            kwargs: dict
+            if single_heat:
+                # Ici, provider est forcément Klikego (filtré au-dessus) : pas
+                # de `cache_probe`, donc pas de Session de thread à ouvrir, mais
+                # la phase C du heat visé reste rapportée (#698).
+                kwargs = {
+                    "single_heat": True, "on_detail_progress": on_detail_progress,
+                }
+            else:
+                thread_db = SessionLocal() if use_cache_probe else None
+                cache_probe = (
+                    _make_cache_probe(thread_db, settings) if thread_db is not None else None
+                )
+                # `on_detail_progress` (#583) : seul Klikego a une phase C par
+                # participant à rapporter — les autres FanoutProvider ne
+                # l'acceptent pas dans leur signature.
+                kwargs = {"cache_probe": cache_probe, "on_heat_start": on_heat_start}
+                if isinstance(provider, registry.KlikegoProvider):
+                    kwargs["on_detail_progress"] = on_detail_progress
             results = registry_scrape_event_all(url, **kwargs)
             holder["results"] = results
         except BaseException as exc:  # noqa: BLE001 — relayé au générateur
@@ -1074,13 +1102,14 @@ def iter_import_event(
 
     yield {"phase": "scraping", "message": "Récupération des participants…"}
     try:
-        if single_heat:
-            # Chemin échappatoire mono-heat : pas de streaming intermédiaire nécessaire.
-            results, trace = _scrape_all(url, db, settings, single_heat=True)
-        else:
-            # Chemin nominal : yield les événements intermédiaires du fan-out
-            # via `yield from`, récupère `(results, trace)` en fin de générateur.
-            results, trace = yield from _scrape_all_streaming(url, db, settings)
+        # Un seul chemin, fan-out comme mono-heat : `yield from` relaie les
+        # événements intermédiaires et récupère `(results, trace)` en fin de
+        # générateur. L'ancienne branche mono-heat appelait `_scrape_all`
+        # directement et laissait donc le flux **muet** pendant tout le scrape,
+        # y compris sur un heat Klikego de 250 finishers (revue finale #698).
+        results, trace = yield from _scrape_all_streaming(
+            url, db, settings, single_heat=single_heat,
+        )
     except (ProviderNotSupportedError, ScraperError) as exc:
         yield {"phase": "error", "message": exc.message}
         return

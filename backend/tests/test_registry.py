@@ -565,14 +565,71 @@ def test_klikego_provider_forwards_cache_probe(monkeypatch):
 # ── targets_single_heat (#698) ───────────────────────────────────────────────
 
 
-def test_fanout_provider_targets_single_heat_faux_par_defaut():
-    """Les providers fan-out sans sélecteur de sous-unité dans l'URL (Wiclax,
-    RaceResult, OkTime, Sporthive, ChronoWeb, ProLiveSport, Chronoplace) héritent
+@pytest.mark.parametrize(
+    ("classe", "url"),
+    [
+        ("WiclaxProvider", "https://wiclax-results.com/x"),
+        ("RaceResultProvider", "https://my.raceresult.com/406211/results?contest=3"),
+        ("OkTimeProvider", "https://classement.ok-time.fr/12/race/34"),
+        ("SporthiveProvider", "https://results.sporthive.com/events/42"),
+        ("ChronoWebProvider", "https://www.chronoweb.com/resultats?e=42"),
+        ("ChronoplaceProvider", "https://chronoplace.fr/evenement/x"),
+    ],
+)
+def test_fanout_provider_targets_single_heat_faux_par_defaut(classe, url):
+    """Les 6 providers fan-out sans sélecteur de sous-unité dans l'URL héritent
     du défaut `False` — leur `single_heat=True` vaut « pas de fan-out », jamais
-    « cibler cette sous-unité précise »."""
-    from app.scrapers.registry import WiclaxProvider
+    « cibler cette sous-unité précise ».
 
-    assert WiclaxProvider().targets_single_heat("https://wiclax-results.com/x") is False
+    RaceResult en fait partie **même avec un `contest=` dans l'URL** : son
+    `scrape_event_all` passe par `_run_pipeline`, qui ne lit de l'URL que
+    l'identifiant d'épreuve et énumère ensuite toutes les listes de la config.
+    Le paramètre n'est jamais parsé (tracé en revue finale de #698).
+    """
+    from app.scrapers import registry
+
+    assert getattr(registry, classe)().targets_single_heat(url) is False
+
+
+def test_prolivesport_targets_single_heat_vrai_avec_race():
+    """`race=` dans l'URL : c'est le jeton que `scrape_event_all` résout puis
+    filtre — une vraie sous-unité ciblée (#698)."""
+    from app.scrapers.registry import ProLiveSportProvider
+
+    url = (
+        "https://www.prolivesport.fr/index.php"
+        "?chap=event&sub=liveV3&eventId=979&race=Triathlon%20M"
+    )
+    assert ProLiveSportProvider().targets_single_heat(url) is True
+
+
+def test_prolivesport_targets_single_heat_vrai_forme_front():
+    """Forme `/result/{eventId}/{race}` : le second segment porte le même jeton."""
+    from app.scrapers.registry import ProLiveSportProvider
+
+    assert ProLiveSportProvider().targets_single_heat(
+        "https://www.prolivesport.fr/result/979/6"
+    ) is True
+
+
+def test_prolivesport_targets_single_heat_faux_sans_race():
+    """Sans jeton, `_resolve_race` retombe sur la 1ʳᵉ course de l'événement —
+    un défaut, pas une cible choisie : le fan-out reste le défaut (#698)."""
+    from app.scrapers.registry import ProLiveSportProvider
+
+    assert ProLiveSportProvider().targets_single_heat(
+        "https://www.prolivesport.fr/index.php?chap=event&sub=liveV3&eventId=979"
+    ) is False
+
+
+def test_prolivesport_targets_single_heat_avale_le_refus_dune_url_de_serie():
+    """`_parse_url` lève sur une page de série : la détection rend `False`
+    plutôt que de propager, `GET /scrape/detect` n'a pas à répondre 500."""
+    from app.scrapers.registry import ProLiveSportProvider
+
+    assert ProLiveSportProvider().targets_single_heat(
+        "https://www.prolivesport.fr/fftri/grand-prix-duathlon"
+    ) is False
 
 
 def test_klikego_targets_single_heat_vrai_avec_heat():
@@ -588,6 +645,83 @@ def test_klikego_targets_single_heat_faux_sans_heat():
     assert KlikegoProvider().targets_single_heat(
         "https://www.klikego.com/resultats/foo/1234-5"
     ) is False
+
+
+def test_klikego_single_heat_sur_url_sans_heat_scrape_le_heat_vide(monkeypatch):
+    """Caractérisation : `single_heat=True` sur une URL Klikego **sans**
+    `?heat=` (#698).
+
+    Ce chemin était réservé à la CLI, dont le validateur refuse une URL nue en
+    amont. Il devient atteignable depuis l'API publique : `default_single_heat`
+    n'est qu'un défaut, l'utilisateur peut cocher « import unique » sur une URL
+    d'événement. Le test **fige le comportement observé**, il ne demande pas de
+    le changer : le heat vaut la chaîne vide, `_heat_source_url` construit donc
+    `…/resultats/{slug}/{event_id}?heat=` — une page qui, en production, ne
+    rend aucun participant plutôt qu'une erreur. Le garde-fou côté produit
+    reste `default_single_heat: False` sur cette URL, qui pré-coche le fan-out.
+    """
+    from app.scrapers import klikego
+    from app.scrapers.registry import KlikegoProvider
+
+    captured = {}
+
+    def fake_scrape_event_all(event_id, heat, event_name, slug, *, on_detail_progress=None):
+        captured.update(
+            event_id=event_id, heat=heat, event_name=event_name, slug=slug,
+        )
+        return []
+
+    def fanout_refuse(*a, **k):
+        raise AssertionError("scrape_event_fanout ne doit pas être appelé")
+
+    monkeypatch.setattr(klikego, "scrape_event_all", fake_scrape_event_all)
+    monkeypatch.setattr(klikego, "scrape_event_fanout", fanout_refuse)
+
+    provider = KlikegoProvider()
+    results = provider.scrape_event_all(
+        "https://www.klikego.com/resultats/mesquer/1677015306084-12", single_heat=True,
+    )
+
+    assert results == []
+    assert captured == {
+        "event_id": "1677015306084-12", "heat": "",
+        "event_name": "Mesquer", "slug": "mesquer",
+    }
+    assert klikego._heat_source_url("1677015306084-12", "mesquer", "") == (
+        "https://www.klikego.com/resultats/mesquer/1677015306084-12?heat="
+    )
+    assert provider.last_trace.heats_enumerated == 1
+
+
+def test_klikego_single_heat_relaie_la_progression_de_la_phase_c(monkeypatch):
+    """`on_detail_progress` traverse aussi le chemin mono-heat (#698).
+
+    Le heat visé étant seul, il est notifié en `1/1`, avec son jeton d'URL pour
+    slug **et** pour libellé : la page d'événement, seule à publier le libellé
+    d'un heat, n'est pas chargée sur ce chemin. Sans ce relais, le flux SSE
+    d'un import mono-heat restait muet pendant toute la phase C.
+    """
+    from app.scrapers import klikego
+    from app.scrapers.registry import KlikegoProvider
+
+    def fake_scrape_event_all(event_id, heat, event_name, slug, *, on_detail_progress=None):
+        on_detail_progress(12, 40)
+        on_detail_progress(40, 40)
+        return []
+
+    monkeypatch.setattr(klikego, "scrape_event_all", fake_scrape_event_all)
+
+    vus = []
+    KlikegoProvider().scrape_event_all(
+        "https://www.klikego.com/resultats/mesquer/1677015306084-12?heat=triathlon-s",
+        single_heat=True,
+        on_detail_progress=lambda *args: vus.append(args),
+    )
+
+    assert vus == [
+        ("triathlon-s", "triathlon-s", 1, 1, 12, 40),
+        ("triathlon-s", "triathlon-s", 1, 1, 40, 40),
+    ]
 
 
 def test_breizhchrono_targets_single_heat_vrai_chemin_classique():
