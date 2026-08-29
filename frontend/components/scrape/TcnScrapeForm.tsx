@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { captureEvent } from "@/lib/posthog";
 import { Card, Input, Button, Alert, PendingBadge, AnnonceStatut } from "@/components/tcn";
-import { apiClient } from "@/lib/api/client";
+import { apiClient, type DetectedProvider } from "@/lib/api/client";
 import { eventTypeLabel } from "@/lib/constants";
 import { eventTypeColor } from "@/lib/sport-colors";
 import { formatEventName } from "@/lib/utils/event";
@@ -38,14 +38,7 @@ export function TcnScrapeForm() {
   const [fanout, setFanout] = useState(false);
   const [singleHeat, setSingleHeat] = useState(true);
   const handleProviderDetected = useCallback(
-    (
-      detected: {
-        provider: string;
-        supported: boolean;
-        fanout?: boolean;
-        default_single_heat?: boolean;
-      } | null,
-    ) => {
+    (detected: DetectedProvider | null) => {
       setProviderUnsupported(detected !== null && !detected.supported);
       setFanout(detected?.fanout ?? false);
       setSingleHeat(detected?.default_single_heat ?? true);
@@ -328,12 +321,20 @@ export function TcnScrapeForm() {
                 onSaisieManuelle={saved || running ? undefined : () => setManual(true)}
               />
             </div>
+            {/* `<fieldset>`/`<legend>` plutôt qu'un `role="radiogroup"` porté par
+                une div et nommé par `aria-label` : ce dernier est **invisible**
+                aux yeux, et l'utilisateur voyait deux options sans savoir de
+                quoi elles étaient les deux faces. Patron déjà en place dans
+                `PermissionGrid`. Le `role="group"` implicite du `<fieldset>`
+                remplace `radiogroup` : les deux boutons restent groupés par la
+                frontière du fieldset et par leur `name` commun. */}
             {fanout && (
-              <div
-                role="radiogroup"
-                aria-label="Portée de l'import"
+              <fieldset
                 style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4, fontSize: 14 }}
               >
+                <legend style={{ fontWeight: 600, color: "var(--tcn-text-body)", marginBottom: 2 }}>
+                  Portée de l&apos;import
+                </legend>
                 <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <input
                     type="radio"
@@ -354,7 +355,7 @@ export function TcnScrapeForm() {
                   />
                   Importer tout l&apos;événement (toutes ses épreuves)
                 </label>
-              </div>
+              </fieldset>
             )}
           </div>
           {/* `providerUnsupported` dans `disabled` : le bouton restait actif et

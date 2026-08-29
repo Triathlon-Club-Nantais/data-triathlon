@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { act, render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { act, render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { HeatFailure, ImportedCourse } from "@/lib/types";
@@ -396,8 +396,25 @@ describe("TcnScrapeForm — portée de l'import (#698)", () => {
     });
     renderForm();
     await userEvent.type(champUrl(), "https://timepulse.fr/x");
-    await waitFor(() => expect(apiClient.detectProvider).toHaveBeenCalled());
-    expect(screen.queryByRole("radiogroup", { name: /Portée de l'import/ })).not.toBeInTheDocument();
+    // Le verdict d'abord : `toHaveBeenCalled` ne prouve que l'**appel**, et
+    // l'absence était donc constatée avant même que la réponse résolue ait été
+    // rendue — un négatif qui serait passé quoi qu'affiche le composant.
+    await screen.findByText(/Chronométreur reconnu/);
+    expect(screen.queryByRole("group", { name: /Portée de l'import/ })).not.toBeInTheDocument();
+  });
+
+  it("nomme le groupe d'options à l'écran, pas seulement aux lecteurs d'écran", async () => {
+    // `aria-label` sur un `role="radiogroup"` est invisible aux yeux : les deux
+    // options s'affichaient sans que rien ne dise de quoi elles sont les deux
+    // faces. `<fieldset>`/`<legend>` nomme le groupe pour tout le monde.
+    vi.mocked(apiClient.detectProvider).mockResolvedValue({
+      provider: "klikego", supported: true, fanout: true, default_single_heat: true,
+    });
+    renderForm();
+    await userEvent.type(champUrl(), "https://www.klikego.com/resultats/foo/1?heat=x");
+
+    const groupe = await screen.findByRole("group", { name: /Portée de l'import/ });
+    expect(within(groupe).getByText("Portée de l'import")).toBeVisible();
   });
 
   it("affiche le contrôle et pré-coche « import unique » quand le serveur le recommande", async () => {
