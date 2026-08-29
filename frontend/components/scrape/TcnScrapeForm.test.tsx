@@ -418,11 +418,14 @@ describe("TcnScrapeForm — portée de l'import (#698)", () => {
   });
 
   it("affiche le contrôle et pré-coche « import unique » quand le serveur le recommande", async () => {
+    // Klikego sur une URL portant `?heat=` : depuis la revue finale de #698,
+    // c'est le seul genre de réponse où le backend recommande vraiment
+    // « import unique » — un fan-out sans sélecteur d'URL rend `false`.
     vi.mocked(apiClient.detectProvider).mockResolvedValue({
-      provider: "wiclax", supported: true, fanout: true, default_single_heat: true,
+      provider: "klikego", supported: true, fanout: true, default_single_heat: true,
     });
     renderForm();
-    await userEvent.type(champUrl(), "https://wiclax-results.com/x");
+    await userEvent.type(champUrl(), "https://www.klikego.com/resultats/foo/1?heat=triathlon-s");
     await waitFor(() =>
       expect(screen.getByRole("radio", { name: /uniquement cette page/ })).toBeChecked(),
     );
@@ -445,17 +448,18 @@ describe("TcnScrapeForm — portée de l'import (#698)", () => {
   });
 
   it("permet de basculer vers le fanout complet, et `start` reçoit `false`", async () => {
+    const url = "https://www.klikego.com/resultats/foo/1?heat=triathlon-s";
     vi.mocked(apiClient.detectProvider).mockResolvedValue({
-      provider: "wiclax", supported: true, fanout: true, default_single_heat: true,
+      provider: "klikego", supported: true, fanout: true, default_single_heat: true,
     });
     renderForm();
-    await userEvent.type(champUrl(), "https://wiclax-results.com/x");
+    await userEvent.type(champUrl(), url);
     await waitFor(() =>
       expect(screen.getByRole("radio", { name: /tout l.événement/ })).toBeInTheDocument(),
     );
     await userEvent.click(screen.getByRole("radio", { name: /tout l.événement/ }));
     await userEvent.click(screen.getByRole("button", { name: /Enregistrer les résultats/ }));
-    expect(importMock.start).toHaveBeenCalledWith("https://wiclax-results.com/x", false);
+    expect(importMock.start).toHaveBeenCalledWith(url, false);
   });
 });
 
