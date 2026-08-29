@@ -74,8 +74,9 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
   const sort = sortTypeFromParam(sp.get(SORT_PARAM) ?? undefined);
   const [query, setQuery] = useState("");
   // #709 — le statut de validation n'est significatif que sur une saison
-  // unique (research.md D9) : l'API rend `season_validated: null` sinon.
-  const singleSeason = athletes.some((a) => a.season_validated !== null);
+  // unique (research.md D9) : l'API rend `season_validated` uniforme (`null`
+  // pour tous, ou non-`null` pour tous) selon `seasons`, jamais mixte.
+  const singleSeason = athletes[0]?.season_validated !== null;
   const [filtreValidation, setFiltreValidation] = useState<FiltreValidation>("tous");
   // Athlète retenu (#504) : lu inconditionnellement — un hook ne se cale pas
   // derrière le retour anticipé de la liste vide.

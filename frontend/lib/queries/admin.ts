@@ -410,8 +410,11 @@ export function useDeclareVolunteerAction() {
   return useMutation({
     mutationFn: ({ athleteId, season }: { athleteId: number; season: number }) =>
       apiClient.declareVolunteerAction(athleteId, season),
-    onSuccess: () => {
+    onSuccess: (_data, { athleteId, season }) => {
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.coureurs });
+      // #709 — sans ça, l'indicateur de quota (FR-012) reste sur
+      // « bénévolat non déclaré » juste après l'avoir déclaré.
+      qc.invalidateQueries({ queryKey: ["season-quota", athleteId, season] });
     },
   });
 }

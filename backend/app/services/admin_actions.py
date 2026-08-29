@@ -1208,7 +1208,13 @@ def unvalidate_season(db: Session, *, athlete_id: int, season: int, user_id: int
 
 
 def season_quota(db: Session, *, athlete_id: int, season: int) -> dict:
-    """Les trois signaux du barème de validation (#709, FR-012) — ne modifie rien."""
+    """Les trois signaux du barème de validation (#709, FR-012) — ne modifie rien.
+
+    `validated_count` recompte en Python plutôt que de réutiliser l'agrégat SQL
+    d'`athlete_repository.list_with_season_participation_count` : un seul
+    athlète, un coût négligeable à l'échelle du club. Même sémantique que là-bas
+    (`not is_pending_validation`) — à garder synchronisée si l'une des deux change.
+    """
     participations = participation_repository.list_for_athlete(db, athlete_id, seasons=[season])
     validated_count = sum(1 for p in participations if not p.is_pending_validation)
     return {
