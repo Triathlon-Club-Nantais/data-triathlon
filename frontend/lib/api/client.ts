@@ -144,9 +144,10 @@ export const apiClient = {
   // `supported` vient du registre backend : le front ne tient aucune liste de
   // providers (la sienne avait divergé, cf. ProviderDetector).
   detectProvider: (url: string) =>
-    request<{ provider: string; supported: boolean }>(
-      `/scrape/detect${toQuery({ url })}`,
-    ),
+    request<{
+      provider: string; supported: boolean;
+      fanout?: boolean; default_single_heat?: boolean;
+    }>(`/scrape/detect${toQuery({ url })}`),
 
   // Même registre, même ordre de détection : le sélecteur de fournisseur du
   // batch ne peut donc proposer que des noms que le lancement accepte.

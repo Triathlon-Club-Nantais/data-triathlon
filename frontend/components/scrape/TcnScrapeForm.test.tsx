@@ -254,7 +254,7 @@ describe("TcnScrapeForm — validation de l'URL avant appel backend (#249)", () 
     expect(bouton).not.toBeDisabled();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     await userEvent.click(bouton);
-    expect(importMock.start).toHaveBeenCalledWith("https://www.klikego.com/resultats/x");
+    expect(importMock.start).toHaveBeenCalledWith("https://www.klikego.com/resultats/x", true);
   });
 });
 
@@ -389,6 +389,59 @@ describe("TcnScrapeForm — un seul verdict avant d'essayer (#492, ACT-6)", () =
   });
 });
 
+describe("TcnScrapeForm — portée de l'import (#698)", () => {
+  it("n'affiche pas le contrôle pour un provider sans fanout", async () => {
+    vi.mocked(apiClient.detectProvider).mockResolvedValue({
+      provider: "timepulse", supported: true, fanout: false, default_single_heat: true,
+    });
+    renderForm();
+    await userEvent.type(champUrl(), "https://timepulse.fr/x");
+    await waitFor(() => expect(apiClient.detectProvider).toHaveBeenCalled());
+    expect(screen.queryByRole("radiogroup", { name: /Portée de l'import/ })).not.toBeInTheDocument();
+  });
+
+  it("affiche le contrôle et pré-coche « import unique » quand le serveur le recommande", async () => {
+    vi.mocked(apiClient.detectProvider).mockResolvedValue({
+      provider: "wiclax", supported: true, fanout: true, default_single_heat: true,
+    });
+    renderForm();
+    await userEvent.type(champUrl(), "https://wiclax-results.com/x");
+    await waitFor(() =>
+      expect(screen.getByRole("radio", { name: /uniquement cette page/ })).toBeChecked(),
+    );
+    expect(screen.getByRole("radio", { name: /tout l.événement/ })).not.toBeChecked();
+  });
+
+  it("pré-coche « fanout complet » quand le serveur le recommande (Klikego sans sélecteur)", async () => {
+    vi.mocked(apiClient.detectProvider).mockResolvedValue({
+      provider: "klikego", supported: true, fanout: true, default_single_heat: false,
+    });
+    renderForm();
+    await userEvent.type(champUrl(), "https://www.klikego.com/resultats/foo/1");
+    await waitFor(() =>
+      expect(screen.getByRole("radio", { name: /tout l.événement/ })).toBeChecked(),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /Enregistrer les résultats/ }));
+    expect(importMock.start).toHaveBeenCalledWith(
+      "https://www.klikego.com/resultats/foo/1", false,
+    );
+  });
+
+  it("permet de basculer vers le fanout complet, et `start` reçoit `false`", async () => {
+    vi.mocked(apiClient.detectProvider).mockResolvedValue({
+      provider: "wiclax", supported: true, fanout: true, default_single_heat: true,
+    });
+    renderForm();
+    await userEvent.type(champUrl(), "https://wiclax-results.com/x");
+    await waitFor(() =>
+      expect(screen.getByRole("radio", { name: /tout l.événement/ })).toBeInTheDocument(),
+    );
+    await userEvent.click(screen.getByRole("radio", { name: /tout l.événement/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Enregistrer les résultats/ }));
+    expect(importMock.start).toHaveBeenCalledWith("https://wiclax-results.com/x", false);
+  });
+});
+
 describe("TcnScrapeForm — le champ URL au doigt (#492, ACT-5)", () => {
   it("déclare le clavier que ce champ attend", async () => {
     renderForm();
@@ -476,7 +529,7 @@ describe("TcnScrapeForm — trois échecs, trois écrans (#491, ACT-2)", () => {
     expect(apiClient.reportPendingProvider).not.toHaveBeenCalled();
 
     await userEvent.click(screen.getByRole("button", { name: "Réessayer" }));
-    expect(importMock.start).toHaveBeenCalledWith("https://www.klikego.com/resultats/x");
+    expect(importMock.start).toHaveBeenCalledWith("https://www.klikego.com/resultats/x", true);
   });
 
   it("coupure réseau : même écran que le service muet", async () => {

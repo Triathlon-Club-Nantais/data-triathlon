@@ -31,9 +31,24 @@ export function TcnScrapeForm() {
   // d'import : elle permet d'avertir avant même le clic sur « Enregistrer les
   // résultats », plutôt que d'attendre l'échec réel du scrape.
   const [providerUnsupported, setProviderUnsupported] = useState(false);
+  // Portée de l'import (#698) : le contrôle ne s'affiche que si `fanout` est
+  // vrai, et `singleHeat` est réinitialisé au défaut serveur à chaque
+  // nouvelle détection — le front ne recalcule jamais ce défaut lui-même,
+  // même principe que `providerUnsupported`.
+  const [fanout, setFanout] = useState(false);
+  const [singleHeat, setSingleHeat] = useState(true);
   const handleProviderDetected = useCallback(
-    (detected: { provider: string; supported: boolean } | null) => {
+    (
+      detected: {
+        provider: string;
+        supported: boolean;
+        fanout?: boolean;
+        default_single_heat?: boolean;
+      } | null,
+    ) => {
       setProviderUnsupported(detected !== null && !detected.supported);
+      setFanout(detected?.fanout ?? false);
+      setSingleHeat(detected?.default_single_heat ?? true);
     },
     [],
   );
@@ -129,8 +144,8 @@ export function TcnScrapeForm() {
     setSecondes(0);
     setSaved(null);
     captureEvent("results_import_started", { url: v });
-    importStream.start(v);
-  }, [url, running, providerUnsupported, importStream]);
+    importStream.start(v, singleHeat);
+  }, [url, running, providerUnsupported, singleHeat, importStream]);
 
   // Sur échec de lecture **avéré** : signaler le fournisseur + proposer la
   // saisie manuelle. Un plafond de débit ou un service muet ne disent rien de
@@ -313,6 +328,34 @@ export function TcnScrapeForm() {
                 onSaisieManuelle={saved || running ? undefined : () => setManual(true)}
               />
             </div>
+            {fanout && (
+              <div
+                role="radiogroup"
+                aria-label="Portée de l'import"
+                style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4, fontSize: 14 }}
+              >
+                <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input
+                    type="radio"
+                    name="scrape-scope"
+                    checked={singleHeat}
+                    onChange={() => setSingleHeat(true)}
+                    disabled={running}
+                  />
+                  Importer uniquement cette page
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input
+                    type="radio"
+                    name="scrape-scope"
+                    checked={!singleHeat}
+                    onChange={() => setSingleHeat(false)}
+                    disabled={running}
+                  />
+                  Importer tout l&apos;événement (toutes ses épreuves)
+                </label>
+              </div>
+            )}
           </div>
           {/* `providerUnsupported` dans `disabled` : le bouton restait actif et
               promettait le contraire du verdict affiché sous le champ (ACT-6).
