@@ -349,7 +349,7 @@ def test_import_event_stream_emet_un_battement_sur_phase_longue(client, monkeypa
 
     monkeypatch.setattr(scrape, "_SSE_HEARTBEAT_INTERVAL_SECONDS", 0.05)
 
-    def fake_iter_import_event(db, url, settings, force=False, persist=True):
+    def fake_iter_import_event(db, url, settings, force=False, persist=True, **kwargs):
         yield {"phase": "scraping", "message": "Récupération des participants…"}
         time_module.sleep(0.2)  # > intervalle de battement : simule la pause
         yield {"phase": "done", "imported": 0, "updated": 0, "skipped": 0,
@@ -378,7 +378,7 @@ def test_import_event_stream_emet_error_si_iter_import_event_leve(client, monkey
     """
     from app.services import import_service
 
-    def fake_iter_import_event(db, url, settings, force=False, persist=True):
+    def fake_iter_import_event(db, url, settings, force=False, persist=True, **kwargs):
         yield {"phase": "scraping", "message": "Récupération des participants…"}
         raise RuntimeError("boom")
 
