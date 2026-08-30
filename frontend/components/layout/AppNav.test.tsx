@@ -590,6 +590,15 @@ describe("AppNav — actions primaires", () => {
       expect(within(rail).queryByRole("link", { name: /^Mon athlète —/ })).not.toBeInTheDocument(),
     );
   });
+
+  it("écrit le libellé « Actions » en `--tcn-orange-deeper`, seul token à tenir 4,5:1 (#744)", async () => {
+    // `--tcn-text-disabled` (#c4bdb1 sur blanc) ne tenait que 1,86:1 — sous
+    // le seuil WCAG 1.4.3 pour un texte de 10px.
+    afficher(null);
+    await deplier();
+
+    expect(screen.getByText("Actions").style.color).toBe("var(--tcn-orange-deeper)");
+  });
 });
 
 describe("AppNav — arborescence", () => {
