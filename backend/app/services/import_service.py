@@ -514,6 +514,16 @@ class _Persister:
         self._credits: dict[int, dict[int, int]] = {}
         self._updated_single: dict[int, set[int]] = {}
         self._courses: dict[int, Course] = {}
+        # Cache de résolution de course par lot (#759) : sans lui, `add()`
+        # rappelle `mapping.get_or_create_course` (3 requêtes DB minimum) à
+        # chaque participation, même quand tout le lot appartient à la même
+        # course — mesuré à ~7000 requêtes sur une course à 2396 participants.
+        # Clé = les deux axes dont dépend la course résolue : la réconciliation
+        # par URL (`provider`, `source_url`) et l'identité stricte
+        # (`uq_course_identity` : nom, date, type, relais) — une seule URL peut
+        # faire fan-out sur plusieurs heats au sein d'un même lot (#156), donc
+        # `(provider, url)` seul collapserait des courses distinctes.
+        self._course_resolutions: dict[tuple, mapping.CourseResolution] = {}
         # Résolution par lot (#706) : lignes en attente et participations
         # connues d'une course, par `course_id` — `_participations` remplace
         # le second `list_for_course` de `finalize()` (cf. `_index_course`).
@@ -606,7 +616,18 @@ class _Persister:
         )
 
     def add(self, scraped: ScrapedResult) -> None:
-        resolution = mapping.get_or_create_course(self.db, scraped, self.event_url)
+        cache_key = (
+            scraped.provider,
+            scraped.source_url or self.event_url,
+            scraped.event_name,
+            scraped.event_date,
+            scraped.event_type,
+            scraped.is_relay,
+        )
+        resolution = self._course_resolutions.get(cache_key)
+        if resolution is None:
+            resolution = mapping.get_or_create_course(self.db, scraped, self.event_url)
+            self._course_resolutions[cache_key] = resolution
         course = resolution.course
         if resolution.passive_source is not None:
             self._note_passive(course, resolution.passive_source)

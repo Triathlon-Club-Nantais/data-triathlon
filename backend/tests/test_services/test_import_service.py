@@ -64,6 +64,28 @@ def test_import_creates_entities(db_session, patch_scraper):
     assert len(participation_repository.list_participations(db_session, page_size=100)) == 2
 
 
+def test_import_ne_resout_la_course_qu_une_fois_par_lot(db_session, patch_scraper, monkeypatch):
+    """`_Persister.add()` doit consulter son cache avant `mapping.get_or_create_course` (#759).
+
+    Sans cache, chaque participation d'une même course re-résout la course depuis
+    zéro (doublon, get_or_create, attach) — mesuré à ~7000 requêtes sur une course
+    à 2396 participants en prod.
+    """
+    original = import_service.mapping.get_or_create_course
+    appels = []
+
+    def _compte(db, scraped, event_url):
+        appels.append(scraped.bib_number)
+        return original(db, scraped, event_url)
+
+    monkeypatch.setattr(import_service.mapping, "get_or_create_course", _compte)
+
+    patch_scraper([_result(str(i), "DUPONT", prenom=f"P{i}") for i in range(5)])
+    import_service.import_event(db_session, URL, _settings())
+
+    assert len(appels) == 1
+
+
 def test_reimport_is_cached_and_skips(db_session, patch_scraper):
     patch_scraper([_result("1", "DUPONT"), _result("2", "MARTIN")])
     import_service.import_event(db_session, URL, _settings())
