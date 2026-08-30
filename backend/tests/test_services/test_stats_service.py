@@ -382,6 +382,27 @@ def test_course_summary_sans_alias_declare_garde_le_libelle_brut(db_session):
     assert {c["name"] for c in synthese["clubs"]} == {"ASPTT"}
 
 
+def test_course_summary_fusionne_les_variantes_de_casse_sans_alias_declare(db_session):
+    """Le compteur de « Top clubs » doit rester cohérent avec le filtre :
+    #635 a rendu le filtre `club=` insensible à la casse même sans alias
+    déclaré (comparaison normalisée), donc l'agrégat d'affichage doit
+    fusionner les mêmes variantes, sous peine de diverger du total que le
+    filtre rendrait."""
+    course = _epreuve(
+        db_session,
+        [
+            ("A", "Un", "M", "BLAIN TRIATHLON", None, "finisher", None, None),
+            ("B", "Deux", "M", "Blain Triathlon", None, "finisher", None, None),
+        ],
+    )
+
+    synthese = stats_service.course_summary(db_session, course.id)
+
+    assert len(synthese["clubs"]) == 1
+    assert synthese["clubs"][0]["count"] == 2
+    assert synthese["clubs"][0]["name"] == "BLAIN TRIATHLON"
+
+
 def test_course_summary_borne_categories_a_8_et_clubs_a_9(db_session):
     lignes = []
     for index in range(12):

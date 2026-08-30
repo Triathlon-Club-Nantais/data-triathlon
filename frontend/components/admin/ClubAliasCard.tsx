@@ -1,7 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { DangerConfirm } from "@/components/admin/DangerConfirm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -18,6 +17,12 @@ import { timeAgo } from "@/lib/utils/date";
  * Curation manuelle assistée : aucune suggestion automatique — l'écran ne
  * fait que déclarer des rattachements choisis par l'administrateur, qui les
  * repère par ailleurs (`python -m app.cli club-labels`), comme pour le TCN.
+ *
+ * Le retrait d'un alias est un geste **neutre** (#499) : aucune donnée
+ * détruite, aucun accès fermé — le club retombe sur son libellé brut et se
+ * ré-associe en une saisie. Ni couleur destructive ni confirmation, à la
+ * différence du retrait d'un libellé TCN (`CounterScopeCard`), dont l'effet
+ * immédiat sur les compteurs `scope=club` justifie le traitement lourd.
  */
 export function ClubAliasCard({
   entrees,
@@ -30,7 +35,6 @@ export function ClubAliasCard({
   const retirer = useRemoveClubAlias();
   const [nomCanonique, setNomCanonique] = useState("");
   const [alias, setAlias] = useState("");
-  const [aRetirer, setARetirer] = useState<ClubAlias | null>(null);
   const champNomCanonique = useRef<HTMLInputElement>(null);
 
   async function soumettre(evenement?: React.FormEvent) {
@@ -47,15 +51,15 @@ export function ClubAliasCard({
     }
   }
 
-  async function confirmerRetrait() {
-    if (!aRetirer) return;
+  async function retirerAlias(entree: ClubAlias) {
     try {
-      await retirer.mutateAsync(aRetirer.id);
-      toast.success(`« ${aRetirer.alias} » retiré de « ${aRetirer.canonical_name} ».`);
-      setARetirer(null);
+      await retirer.mutateAsync(entree.id);
+      toast.success(`« ${entree.alias} » retiré de « ${entree.canonical_name} ».`);
+      // La ligne — et son bouton, celui qui avait le focus — quitte le DOM :
+      // sans ce report, le focus retombe sur `<body>` (même patron que
+      // CounterScopeCard, ici sans dialog à fermer d'abord).
       champNomCanonique.current?.focus();
     } catch (e) {
-      setARetirer(null);
       toast.error((e as Error).message);
     }
   }
@@ -73,10 +77,10 @@ export function ClubAliasCard({
         <CardTitle>Variantes de libellé de club</CardTitle>
         <p className="text-sm text-muted-foreground">
           Les orthographes sous lesquelles un chronométreur désigne le même club,
-          regroupées sous un nom affiché commun. Un club ne fusionne que sous les
-          libellés déclarés ici, casse et espacement compris — y compris
-          l&apos;orthographe qui correspond déjà au nom canonique, si elle
-          apparaît aussi telle quelle en base.
+          regroupées sous un nom affiché commun. Une orthographe déjà identique au
+          nom canonique se fusionne d&apos;elle-même ; seule une orthographe
+          <strong> différente</strong> — casse, espacement, abréviation — a besoin
+          d&apos;être déclarée ici en alias.
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -123,43 +127,40 @@ export function ClubAliasCard({
           />
         )}
 
-        {!isLoading &&
-          Array.from(groupes.entries()).map(([nom, alias_du_groupe]) => (
-            <section key={nom} className="space-y-2 border-t pt-4">
-              <h3 className="text-sm font-medium">{nom}</h3>
-              <ul className="divide-y" aria-label={`Alias de ${nom}`}>
-                {alias_du_groupe.map((entree) => (
-                  <li key={entree.id} className="flex flex-wrap items-center gap-3 py-3">
-                    <span className="font-mono text-sm">{entree.alias}</span>
-                    <span className="ml-auto text-xs text-muted-foreground">
-                      {entree.created_by
-                        ? `Ajouté par ${entree.created_by}, ${timeAgo(entree.created_at)}`
-                        : "Configuration initiale"}
-                    </span>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => setARetirer(entree)}
-                      aria-label={`Retirer « ${entree.alias} »`}
-                    >
-                      Retirer
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
+        {/* Pas de garde `!isLoading &&` ici : `entrees` vaut `undefined`
+            pendant le chargement (`data?.entries` côté appelant), donc
+            `groupes` est déjà vide et cette liste ne rend rien tant que
+            `isLoading` est vrai — une garde explicite ne change aucun
+            comportement, elle ne fait que déclencher un faux positif
+            d'eslint-plugin-react-hooks (`react-hooks/refs`) sur le bouton
+            de retrait plus bas, qui lit `champNomCanonique.current`. */}
+        {Array.from(groupes.entries()).map(([nom, alias_du_groupe]) => (
+          <section key={nom} className="space-y-2 border-t pt-4">
+            <h3 className="text-sm font-medium">{nom}</h3>
+            <ul className="divide-y" aria-label={`Alias de ${nom}`}>
+              {alias_du_groupe.map((entree) => (
+                <li key={entree.id} className="flex flex-wrap items-center gap-3 py-3">
+                  <span className="font-mono text-sm">{entree.alias}</span>
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    {entree.created_by
+                      ? `Ajouté par ${entree.created_by}, ${timeAgo(entree.created_at)}`
+                      : "Configuration initiale"}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => retirerAlias(entree)}
+                    disabled={retirer.isPending}
+                    aria-label={`Retirer « ${entree.alias} »`}
+                  >
+                    Retirer
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
       </CardContent>
-
-      <DangerConfirm
-        open={aRetirer !== null}
-        onOpenChange={(ouvert) => !ouvert && setARetirer(null)}
-        titre={aRetirer ? `Retirer « ${aRetirer.alias} » ?` : ""}
-        description="Ce libellé s'affichera et se filtrera de nouveau sous sa forme brute dès le prochain chargement."
-        libelleAction="Retirer"
-        enAttente={retirer.isPending}
-        onConfirm={confirmerRetrait}
-      />
     </Card>
   );
 }

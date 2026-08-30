@@ -52,6 +52,11 @@ def test_add_entry_refuse_un_alias_deja_rattache(db_session):
         club_alias.add_entry(db_session, canonical_name="Un Autre Nom", alias="RCN", admin_user_id=None)
 
 
+def test_add_entry_refuse_un_alias_deja_reconnu_tcn(db_session):
+    with pytest.raises(DomainError, match="TCN"):
+        club_alias.add_entry(db_session, canonical_name="Autre Nom", alias="TCN", admin_user_id=None)
+
+
 def test_remove_entry_retire_la_ligne(db_session):
     entree = club_alias.add_entry(db_session, canonical_name="RCN", alias="rcn", admin_user_id=None)
     db_session.flush()

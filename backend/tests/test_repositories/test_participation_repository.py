@@ -1448,11 +1448,11 @@ def test_le_filtre_club_sans_alias_declare_reste_inchange(db_session):
     course, lignes = _classement_filtrable(db_session)
 
     rows, total = participation_repository.list_page_for_course(
-        db_session, course.id, page_size=None, club="TRIATHLON CLUB NANTAIS"
+        db_session, course.id, page_size=None, club="BLAIN TRIATHLON JEUNES"
     )
 
     assert total == 1
-    assert [p.id for p in rows] == [lignes["tcn_v2"].id]
+    assert [p.id for p in rows] == [lignes["blain_jeunes"].id]
 
 
 def test_le_filtre_club_resout_le_registre_tcn_sans_passer_par_club_alias(db_session):

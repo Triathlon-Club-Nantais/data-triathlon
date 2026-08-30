@@ -92,12 +92,11 @@ describe("ClubAliasCard", () => {
     expect(toastSuccess).toHaveBeenCalled();
   });
 
-  it("retire un alias après confirmation", async () => {
+  it("retire un alias au clic, sans confirmation", async () => {
     removeClubAlias.mockResolvedValue(undefined);
     afficher({ entrees: [entree({ id: 5, alias: "rcn" })] });
 
     await userEvent.click(screen.getByRole("button", { name: /retirer « rcn »/i }));
-    await userEvent.click(screen.getByRole("button", { name: "Retirer" }));
 
     await waitFor(() => expect(removeClubAlias).toHaveBeenCalledWith(5));
     expect(toastSuccess).toHaveBeenCalled();
