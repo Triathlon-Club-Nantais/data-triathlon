@@ -99,7 +99,7 @@ describe("PendingProvidersTable", () => {
     expect(screen.queryByText(/accès refusé/i)).not.toBeInTheDocument();
   });
 
-  it("offre « Traité » à un porteur de pending_providers:handle", async () => {
+  it("offre « Marquer comme traité » à un porteur de pending_providers:handle", async () => {
     listPendingProviders.mockResolvedValue([SIGNALEMENT]);
 
     afficher();
@@ -107,7 +107,7 @@ describe("PendingProvidersTable", () => {
     expect(await screen.findByRole("button", { name: /traité/i })).toBeInTheDocument();
   });
 
-  it("n'offre pas « Traité » sans pending_providers:handle", async () => {
+  it("n'offre pas « Marquer comme traité » sans pending_providers:handle", async () => {
     // `pending_providers:read` a ouvert la liste ; le `DELETE` qui retire un
     // signalement exige `pending_providers:handle`, distinct et attribuable
     // séparément. Le bouton offert sans lui ne rend que des 403.

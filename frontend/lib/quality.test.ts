@@ -14,9 +14,9 @@ describe("describeQualityIssues", () => {
     ]);
     expect(describeQualityIssues({ rank_gap: 1 })).toEqual(["1 trou dans le classement"]);
     expect(describeQualityIssues({ duplicate_rank: 1 })).toEqual([
-      "1 rang partagé par plusieurs finishers",
+      "1 rang partagé par plusieurs arrivants",
     ]);
-    expect(describeQualityIssues({ finisher_without_time: 1 })).toEqual(["1 finisher sans temps"]);
+    expect(describeQualityIssues({ finisher_without_time: 1 })).toEqual(["1 arrivant sans temps"]);
     expect(describeQualityIssues({ unknown_status: 1 })).toEqual(["1 statut hors nomenclature"]);
   });
 
@@ -26,9 +26,9 @@ describe("describeQualityIssues", () => {
     ]);
     expect(describeQualityIssues({ rank_gap: 5 })).toEqual(["5 trous dans le classement"]);
     expect(describeQualityIssues({ duplicate_rank: 2 })).toEqual([
-      "2 rangs partagés par plusieurs finishers",
+      "2 rangs partagés par plusieurs arrivants",
     ]);
-    expect(describeQualityIssues({ finisher_without_time: 4 })).toEqual(["4 finishers sans temps"]);
+    expect(describeQualityIssues({ finisher_without_time: 4 })).toEqual(["4 arrivants sans temps"]);
     expect(describeQualityIssues({ unknown_status: 2 })).toEqual(["2 statuts hors nomenclature"]);
   });
 
@@ -55,7 +55,7 @@ describe("QUALITY_ISSUE_LABELS", () => {
     expect(QUALITY_ISSUE_LABELS.duplicate_bib).toBe("Dossards en doublon");
     expect(QUALITY_ISSUE_LABELS.rank_gap).toBe("Trous dans le classement");
     expect(QUALITY_ISSUE_LABELS.duplicate_rank).toBe("Rangs partagés");
-    expect(QUALITY_ISSUE_LABELS.finisher_without_time).toBe("Finishers sans temps");
+    expect(QUALITY_ISSUE_LABELS.finisher_without_time).toBe("Arrivants sans temps");
     expect(QUALITY_ISSUE_LABELS.unknown_status).toBe("Statuts hors nomenclature");
     expect(QUALITY_ISSUE_LABELS.no_participation).toBe("Épreuve importée sans aucun résultat");
   });

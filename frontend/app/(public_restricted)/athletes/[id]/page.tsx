@@ -228,7 +228,6 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
                     labeller={(key) => key}
                     colorer={(key) => formatColor.get(key) ?? "var(--accent-ink)"}
                     subjectLabel="format"
-                    emptyTitle="Aucune participation cette saison"
                   />
                 </div>
               ))}
