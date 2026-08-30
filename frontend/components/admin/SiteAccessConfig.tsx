@@ -128,7 +128,7 @@ export function SiteAccessConfig() {
             className="space-y-2 rounded-md border p-4"
             style={{ borderColor: "var(--tcn-warning-border)", background: "var(--tcn-warning-bg)" }}
           >
-            <p className="text-sm font-medium">
+            <p className="text-sm font-medium" style={{ color: "var(--tcn-warning-text)" }}>
               Ce mot de passe ne sera plus jamais affiché — copiez-le maintenant.
             </p>
             <div className="flex items-center gap-2">
