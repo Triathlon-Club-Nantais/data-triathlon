@@ -105,7 +105,7 @@ export default async function ParticipationDetailPage({
 
         {summary?.histogram && (
           <Card padding={28} style={{ marginTop: 18 }}>
-            <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 4 }}>Distribution des temps des finishers</h2>
+            <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 4 }}>Distribution des temps des arrivants</h2>
             <div style={{ fontSize: 13, color: "var(--tcn-text-muted)", marginBottom: 18 }}>Nombre d&apos;athlètes par tranche de 5 minutes — votre temps est repéré</div>
             <Histogram
               bars={summary.histogram.bars}

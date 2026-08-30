@@ -18,9 +18,9 @@ function describeIssue(code: string, count: number): string {
     case "rank_gap":
       return `${count} ${plural(count, "trou")} dans le classement`;
     case "duplicate_rank":
-      return `${count} ${plural(count, "rang")} partagé${plural(count, "", "s")} par plusieurs finishers`;
+      return `${count} ${plural(count, "rang")} partagé${plural(count, "", "s")} par plusieurs arrivants`;
     case "finisher_without_time":
-      return `${count} finisher${plural(count, "", "s")} sans temps`;
+      return `${count} arrivant${plural(count, "", "s")} sans temps`;
     case "unknown_status":
       return `${count} statut${plural(count, "", "s")} hors nomenclature`;
     case "no_participation":
@@ -46,7 +46,7 @@ export const QUALITY_ISSUE_LABELS: Record<string, string> = {
   duplicate_bib: "Dossards en doublon",
   rank_gap: "Trous dans le classement",
   duplicate_rank: "Rangs partagés",
-  finisher_without_time: "Finishers sans temps",
+  finisher_without_time: "Arrivants sans temps",
   unknown_status: "Statuts hors nomenclature",
   no_participation: "Épreuve importée sans aucun résultat",
 };
