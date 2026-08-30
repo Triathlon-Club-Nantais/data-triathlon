@@ -110,10 +110,10 @@ Trois choses à ne pas défaire :
 
 Six champs et deux paramètres, tous **additifs**, tous à défaut neutre.
 
-- **`club` et `category` sur `GET /courses/{id}`** filtrent le classement en
-  **égalité exacte**, et se cumulent entre eux, avec `q` et avec `scope`. L'exactitude
+- **`category` sur `GET /courses/{id}`** filtre le classement en
+  **égalité exacte**, et se cumule avec `club`, `q` et `scope`. L'exactitude
   n'est pas un détail d'implémentation : les valeurs viennent de `/summary`, qui les
-  tire d'un `Counter` sur ces colonnes — ce sont littéralement les chaînes stockées.
+  tire d'un `Counter` sur cette colonne — ce sont littéralement les chaînes stockées.
   Un `ilike` ferait « BLAIN TRIATHLON » ramasser « BLAIN TRIATHLON JEUNES », et le
   compteur de la carte cesserait de coïncider avec le total du classement, défaut que
   #485 vient de corriger.
