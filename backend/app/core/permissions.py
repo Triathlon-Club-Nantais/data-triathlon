@@ -198,6 +198,22 @@ class P:
         "les clubs portés par les résultats déjà enregistrés ne bougent pas.",
         FEATURE_ATHLETES,
     )
+    # Distinct de la validation de saison (#709) : un titulaire peut déclarer
+    # du bénévolat sans pouvoir valider une saison, et réciproquement.
+    ATHLETES_VOLUNTEER_MANAGE = Permission(
+        "athletes:volunteer_manage",
+        "Déclarer une action de bénévolat",
+        "Enregistrer qu'un coureur du club a réalisé une action de bénévolat "
+        "sur une saison, pour le quota de validation de saison.",
+        FEATURE_ATHLETES,
+    )
+    ATHLETES_SEASON_VALIDATE = Permission(
+        "athletes:season_validate",
+        "Valider la saison d'un coureur",
+        "Marquer — ou retirer — le statut de saison validée d'un coureur du "
+        "club, geste humain distinct du calcul des compteurs.",
+        FEATURE_ATHLETES,
+    )
     # `participations:write` a existé (#115) puis a été retiré (#270) :
     # POST /participations est redevenue publique, la mise en quarantaine
     # d'un résultat déclaré (`is_pending_validation`) protégeant désormais
@@ -295,6 +311,8 @@ ALL: tuple[Permission, ...] = (
     P.COURSES_WIPE_ALL,
     P.ATHLETES_READ,
     P.ATHLETES_WRITE,
+    P.ATHLETES_VOLUNTEER_MANAGE,
+    P.ATHLETES_SEASON_VALIDATE,
     P.PARTICIPATIONS_DELETE,
     P.PARTICIPATIONS_REASSIGN,
     P.PARTICIPATIONS_WIPE_ALL,

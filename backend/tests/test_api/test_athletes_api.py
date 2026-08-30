@@ -88,8 +88,8 @@ def test_season_activity_ne_rend_que_les_actifs_de_la_saison_scopes_club(client,
     from app.repositories import athlete_repository
 
     course = _epreuve(db_session, "Saison 2025", date(2025, 10, 1))
-    membre = athlete_repository.get_or_create(db_session, nom="ACTIF", prenom="A")
-    exterieur = athlete_repository.get_or_create(db_session, nom="EXTERIEUR", prenom="E")
+    membre = athlete_repository.get_or_create(db_session, nom="ACTIF", prenom="A", club="Triathlon Club Nantais")
+    exterieur = athlete_repository.get_or_create(db_session, nom="EXTERIEUR", prenom="E", club="Un Autre Club")
     db_session.commit()
     _inscrit(db_session, membre, course, "1")
     _inscrit(db_session, exterieur, course, "2", club="Un Autre Club")
@@ -102,6 +102,35 @@ def test_season_activity_ne_rend_que_les_actifs_de_la_saison_scopes_club(client,
     assert resp.status_code == 200
     body = resp.json()
     assert [a["nom"] for a in body] == ["ACTIF"]
+    assert body[0]["participation_count"] == 1
+    assert body[0]["total_count"] == 1
+    assert body[0]["validated_count"] == 1
+    assert body[0]["club_affiliated_count"] == 1
+
+
+def test_season_activity_expose_trois_compteurs_distincts_quand_ils_divergent(client, db_session):
+    """#709 — `total_count` compte tout, `validated_count`/`club_affiliated_count`
+    filtrent, et `participation_count` reste égal à `club_affiliated_count`
+    (compat, research.md D3)."""
+    from app.repositories import athlete_repository
+
+    course_affiliee = _epreuve(db_session, "Affiliée", date(2025, 9, 15))
+    course_sans_affiliation = _epreuve(db_session, "Sans affiliation", date(2025, 10, 1))
+    athlete = athlete_repository.get_or_create(db_session, nom="DIVERGENT", prenom="D", club="Triathlon Club Nantais")
+    db_session.commit()
+    _inscrit(db_session, athlete, course_affiliee, "1")
+    _inscrit(db_session, athlete, course_sans_affiliation, "2", club=None)
+    db_session.commit()
+
+    resp = client.get(
+        "/api/v1/athletes/season-activity", params={"scope": "club", "seasons": "2025"}
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body[0]["total_count"] == 2
+    assert body[0]["validated_count"] == 2
+    assert body[0]["club_affiliated_count"] == 1
     assert body[0]["participation_count"] == 1
 
 
@@ -121,6 +150,63 @@ def test_season_activity_accessible_sans_authentification(client, db_session):
     assert resp.status_code == 200
 
 
+def test_season_activity_season_validated_null_par_defaut(client, db_session):
+    """#709 — aucune validation en base : `season_validated` reste `False`/absent, jamais une erreur."""
+    from app.repositories import athlete_repository
+
+    course = _epreuve(db_session, "Saison 2025", date(2025, 10, 1))
+    membre = athlete_repository.get_or_create(db_session, nom="ACTIF", prenom="A", club="Triathlon Club Nantais")
+    db_session.commit()
+    _inscrit(db_session, membre, course, "1")
+    db_session.commit()
+
+    resp = client.get(
+        "/api/v1/athletes/season-activity", params={"scope": "club", "seasons": "2025"}
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()[0]["season_validated"] is False
+
+
+def test_season_activity_season_validated_vrai_apres_validation(client, db_session):
+    from app.repositories import athlete_repository, season_validation_repository, user_repository
+
+    course = _epreuve(db_session, "Saison 2025", date(2025, 10, 1))
+    membre = athlete_repository.get_or_create(db_session, nom="ACTIF", prenom="A", club="Triathlon Club Nantais")
+    auteur = user_repository.create(db_session, email="admin@exemple.fr")
+    db_session.commit()
+    _inscrit(db_session, membre, course, "1")
+    season_validation_repository.create(
+        db_session, athlete_id=membre.id, season=2025, validated_by_user_id=auteur.id
+    )
+    db_session.commit()
+
+    resp = client.get(
+        "/api/v1/athletes/season-activity", params={"scope": "club", "seasons": "2025"}
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()[0]["season_validated"] is True
+
+
+def test_season_activity_season_validated_absent_sur_plusieurs_saisons(client, db_session):
+    """research.md D9 — le statut est mono-saison ; sur une sélection multiple, `null`."""
+    from app.repositories import athlete_repository
+
+    course = _epreuve(db_session, "Saison 2025", date(2025, 10, 1))
+    membre = athlete_repository.get_or_create(db_session, nom="ACTIF", prenom="A", club="Triathlon Club Nantais")
+    db_session.commit()
+    _inscrit(db_session, membre, course, "1")
+    db_session.commit()
+
+    resp = client.get(
+        "/api/v1/athletes/season-activity", params={"scope": "club", "seasons": "2024,2025"}
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()[0]["season_validated"] is None
+
+
 def test_season_activity_federal_only_retire_les_disciplines_hors_federation(client, db_session):
     """#382 — même paramètre et même défaut neutre que sur /dashboard et /club (#76)."""
     from app.repositories import athlete_repository, course_repository
@@ -131,8 +217,8 @@ def test_season_activity_federal_only_retire_les_disciplines_hors_federation(cli
         source_url="https://k/Trail", provider="klikego",
     )
     db_session.flush()
-    triathlete = athlete_repository.get_or_create(db_session, nom="TRIATHLETE", prenom="T")
-    traileur = athlete_repository.get_or_create(db_session, nom="TRAILEUR", prenom="T")
+    triathlete = athlete_repository.get_or_create(db_session, nom="TRIATHLETE", prenom="T", club="Triathlon Club Nantais")
+    traileur = athlete_repository.get_or_create(db_session, nom="TRAILEUR", prenom="T", club="Triathlon Club Nantais")
     db_session.commit()
     _inscrit(db_session, triathlete, course_tri, "1")
     _inscrit(db_session, traileur, course_trail, "2")

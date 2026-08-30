@@ -57,7 +57,10 @@ import type {
   SheetColumns,
   SiteAccessConfig,
   SiteAccessGenerated,
+  SeasonQuota,
+  SeasonValidation,
   ValidationQueueHistory,
+  VolunteerAction,
 } from "@/lib/types";
 
 const BASE = "/api/v1";
@@ -351,6 +354,22 @@ export const apiClient = {
     request<Participation>(`/admin/participations/${participationId}/reassign`, {
       method: "POST",
       body: JSON.stringify({ athlete_id: athleteId }),
+    }),
+  declareVolunteerAction: (athleteId: number, season: number) =>
+    request<VolunteerAction>(`/admin/athletes/${athleteId}/volunteer-actions`, {
+      method: "POST",
+      body: JSON.stringify({ season }),
+    }),
+  getSeasonQuota: (athleteId: number, season: number) =>
+    request<SeasonQuota>(`/admin/athletes/${athleteId}/season-quota${toQuery({ season })}`),
+  validateSeason: (athleteId: number, season: number) =>
+    request<SeasonValidation>(`/admin/athletes/${athleteId}/season-validations`, {
+      method: "POST",
+      body: JSON.stringify({ season }),
+    }),
+  unvalidateSeason: (athleteId: number, season: number) =>
+    request<void>(`/admin/athletes/${athleteId}/season-validations/${season}`, {
+      method: "DELETE",
     }),
 
   listPendingProviders: () =>

@@ -399,7 +399,7 @@ def test_saison_ne_rend_que_les_athletes_avec_participation_dessus(db_session):
         db_session, seasons=[2025], club_only=False
     )
 
-    assert [a.nom for a, _ in resultats] == ["ACTIF"]
+    assert [a.nom for a, *_ in resultats] == ["ACTIF"]
 
 
 def test_saison_compte_les_participations_de_l_athlete_sur_la_saison(db_session):
@@ -414,23 +414,63 @@ def test_saison_compte_les_participations_de_l_athlete_sur_la_saison(db_session)
         db_session, seasons=[2025], club_only=False
     )
 
-    assert resultats == [(athlete, 2)]
+    assert resultats == [(athlete, 2, 2, 2)]
 
 
-def test_saison_club_only_filtre_sur_le_club_de_la_participation(db_session):
-    """Comme `_apply_filters` : le filtre porte sur `Participation.club`, pas `Athlete.club`."""
+def test_saison_club_only_filtre_sur_le_club_de_lathlete_pas_de_la_participation(db_session):
+    """#709 (issue) — la sélection du roster porte sur `Athlete.club` (comme
+    `search()`), pas sur `Participation.club` : un membre confirmé du club
+    reste dans la liste même si le fournisseur ne publie pas l'affiliation
+    club sur la ligne de résultat (research.md D1)."""
     course = _epreuve_datee(db_session, "Filtre club", date(2025, 9, 15))
-    membre = athlete_repository.get_or_create(db_session, nom="MEMBRE", prenom="M")
-    exterieur = athlete_repository.get_or_create(db_session, nom="EXTERIEUR", prenom="E")
+    membre = athlete_repository.get_or_create(db_session, nom="MEMBRE", prenom="M", club="Triathlon Club Nantais")
+    exterieur = athlete_repository.get_or_create(db_session, nom="EXTERIEUR", prenom="E", club="Un Autre Club")
     db_session.flush()
-    _inscrit_club(db_session, membre, course, "1", club="Triathlon Club Nantais")
-    _inscrit_club(db_session, exterieur, course, "2", club="Un Autre Club")
+    # Ni l'un ni l'autre n'a d'affiliation club publiée sur la ligne de résultat.
+    _inscrit_club(db_session, membre, course, "1", club=None)
+    _inscrit_club(db_session, exterieur, course, "2", club=None)
 
     resultats = athlete_repository.list_with_season_participation_count(
         db_session, seasons=[2025], club_only=True
     )
 
-    assert [a.nom for a, _ in resultats] == ["MEMBRE"]
+    assert [a.nom for a, *_ in resultats] == ["MEMBRE"]
+
+
+def test_saison_trois_compteurs_distincts(db_session):
+    """#709 (issue) — total réel / validées / affiliées club sont trois
+    agrégats indépendants sur les mêmes lignes (research.md D2)."""
+    from app.repositories import participation_repository
+
+    course_affiliee = _epreuve_datee(db_session, "Affiliée club", date(2025, 9, 15))
+    course_sans_affiliation = _epreuve_datee(db_session, "Sans affiliation", date(2025, 10, 1))
+    course_en_attente = _epreuve_datee(db_session, "En attente", date(2025, 11, 1))
+    athlete = athlete_repository.get_or_create(
+        db_session, nom="MULTI", prenom="M", club="Triathlon Club Nantais"
+    )
+    db_session.flush()
+    # Validée + affiliée club.
+    _inscrit_club(db_session, athlete, course_affiliee, "1", club="Triathlon Club Nantais")
+    # Validée mais sans affiliation club publiée par le fournisseur.
+    _inscrit_club(db_session, athlete, course_sans_affiliation, "2", club=None)
+    # En attente de validation (compte dans le total réel, pas dans les deux autres).
+    participation_repository.create(
+        db_session,
+        athlete_id=athlete.id,
+        course_id=course_en_attente.id,
+        bib_number="3",
+        club="Triathlon Club Nantais",
+        is_pending_validation=True,
+    )
+    db_session.flush()
+
+    resultats = athlete_repository.list_with_season_participation_count(
+        db_session, seasons=[2025], club_only=True
+    )
+
+    assert len(resultats) == 1
+    _, total, validees, affiliees_club = resultats[0]
+    assert (total, validees, affiliees_club) == (3, 2, 1)
 
 
 def test_saison_trie_par_nom_puis_prenom(db_session):
@@ -445,7 +485,7 @@ def test_saison_trie_par_nom_puis_prenom(db_session):
         db_session, seasons=[2025], club_only=False
     )
 
-    assert [a.nom for a, _ in resultats] == ["ALPHA", "ZEBRE"]
+    assert [a.nom for a, *_ in resultats] == ["ALPHA", "ZEBRE"]
 
 
 def test_saison_nom_vide_en_fin_de_tri(db_session):
@@ -462,7 +502,7 @@ def test_saison_nom_vide_en_fin_de_tri(db_session):
         db_session, seasons=[2025], club_only=False
     )
 
-    assert [a.nom for a, _ in resultats] == ["ALPHA", ""]
+    assert [a.nom for a, *_ in resultats] == ["ALPHA", ""]
 
 
 def test_saison_vide_sans_seasons_ne_filtre_pas_la_date(db_session):
@@ -476,7 +516,7 @@ def test_saison_vide_sans_seasons_ne_filtre_pas_la_date(db_session):
         db_session, seasons=[], club_only=False
     )
 
-    assert [a.nom for a, _ in resultats] == ["TOUTESSAISONS"]
+    assert [a.nom for a, *_ in resultats] == ["TOUTESSAISONS"]
 
 
 def test_count_all_compte_toute_la_base(db_session):
@@ -507,7 +547,7 @@ def test_saison_federal_only_retire_les_disciplines_hors_federation(db_session):
         db_session, seasons=[2025], club_only=False, federal_only=True
     )
 
-    assert [a.nom for a, _ in resultats] == ["TRIATHLETE"]
+    assert [a.nom for a, *_ in resultats] == ["TRIATHLETE"]
 
 
 # ── search_by_relevance (issue #484, NAV-8) ───────────────────────────────

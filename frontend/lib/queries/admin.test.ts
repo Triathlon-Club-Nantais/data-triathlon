@@ -16,6 +16,7 @@ const {
   deleteRole,
   countCourses,
   setCourseReliability,
+  declareVolunteerAction,
 } = vi.hoisted(() => ({
   updateAthlete: vi.fn(),
   reassignParticipation: vi.fn(),
@@ -28,6 +29,7 @@ const {
   deleteRole: vi.fn(),
   countCourses: vi.fn(),
   setCourseReliability: vi.fn(),
+  declareVolunteerAction: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
@@ -46,6 +48,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
       deleteRole,
       countCourses,
       setCourseReliability,
+      declareVolunteerAction,
     },
   };
 });
@@ -63,6 +66,7 @@ import {
   useDeleteRole,
   useAdminCoursesCount,
   useSetCourseReliability,
+  useDeclareVolunteerAction,
 } from "./admin";
 
 /**
@@ -86,6 +90,20 @@ describe("invalidations des gestes d'administration", () => {
     reassignParticipation.mockResolvedValue({});
     updateCourse.mockResolvedValue({});
     deleteCourse.mockResolvedValue(undefined);
+    declareVolunteerAction.mockResolvedValue({});
+  });
+
+  it("déclarer un bénévolat périme le quota de saison de l'athlète (#709, FR-012)", async () => {
+    // Sans ça, l'indicateur de quota reste sur « bénévolat non déclaré »
+    // juste après l'avoir déclaré (revue de code).
+    const invalider = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useDeclareVolunteerAction(), { wrapper });
+
+    result.current.mutate({ athleteId: 42, season: 2025 });
+
+    await waitFor(() =>
+      expect(invalider).toHaveBeenCalledWith({ queryKey: ["season-quota", 42, 2025] }),
+    );
   });
 
   const gestes = [
