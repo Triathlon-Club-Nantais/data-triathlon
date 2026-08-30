@@ -934,6 +934,23 @@ def test_parse_data_row_finisher():
     assert r["status"] == ""
 
 
+def test_parse_data_row_finisher_falls_back_to_reel_when_officiel_empty():
+    """#757 — sur certaines épreuves (Dinard 2024, Audencia 2024), `officiel`
+    (idx 9) est publié vide et seul `reel` (idx 10, temps net) porte le temps
+    d'arrivée. Sans repli, `total_time` reste vide alors que `classement` (idx 2)
+    est un rang valide : `services/mapping.derive_status` retombe alors sur son
+    heuristique (`STATUS_FINISHER if total_time else STATUS_DNF`) et reclasse en
+    DNF un finisher bel et bien classé — mesuré sur prod, épreuve 571
+    (« Triathlon SwimRun Dinard Côte d'Emeraude - Triathlon Distance Olympique »,
+    dossard 1, classement 1, `officiel=""`, `reel="01:58:37"`).
+    """
+    fields = "1|true|1|1|MALLARD Mathieu|S1|M|CLUB|||01:58:37|".split("|")
+    r = parse_data_row(fields, event_id="1354050643080-23", heat="triathlon-m")
+    assert r["status"] == ""
+    assert r["rank_overall"] == 1
+    assert r["total_time"] == "01:58:37"
+
+
 def test_parse_data_row_dnf_neutralises_rank_and_time():
     fields = "282|false|DNF|DNF|DELAUNAY Juliette|S2|F|||||".split("|")
     r = parse_data_row(fields, event_id="1354050643080-23", heat="triathlon-m")

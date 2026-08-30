@@ -71,6 +71,35 @@ couvrent plusieurs heats. D'où `breizhchrono` dans
 segment, un classement bâti sur les seuls membres du club se présenterait comme
 complet.
 
+## `officiel` peut être vide : replier sur `reel` (#757)
+
+Le data block partagé (`klikego_platform.parse_data_row`) porte deux champs de
+temps d'arrivée : `officiel` (temps canon, décalé par la vague de départ) et
+`reel` (chrono net). Le champ nominal est `officiel`, mais certaines épreuves
+le publient **vide** et ne renseignent que `reel` — constaté en direct sur
+Dinard 2024 (heat `triathlon-distance-olympique`, réf. `…-673`) et Audencia
+2024 (heat `triathlon-m`, réf. `…-572`), alors que les mêmes heats côté 2025
+(réf. `…-688`, `…-688`) publient `officiel` normalement. Sans repli, `clt`
+(`classement`) reste un rang valide mais `total_time` ressort vide : `status`
+part vide aussi (le token n'est pas DNF/DNS/DSQ), donc
+`services/mapping.derive_status` (`STATUS_FINISHER if total_time else
+STATUS_DNF`) reclasse en **DNF** un finisher pourtant classé — d'où des
+centaines de participations DNF portant un `rank_overall` peuplé, et le
+`rank_gap` massif qui en découle sur les finishers restants
+(`services/quality.py`). `parse_data_row` retient donc `officiel.strip() or
+reel.strip()`. Mesuré sur prod (2026-08-30) : Dinard 2024 passe de 10
+finishers/940 DNF (`rank_gap=776`) à 933 finishers/17 DNF (`rank_gap` résiduel
+1, comme la génération 2025) ; Audencia 2024 (`triathlon-m`) de 19
+finishers/695 DNF (`rank_gap=674`) à 705 finishers/9 DNF, ranks 1..705 sans
+trou.
+
+Les éditions 2024 déjà en base restent polluées tant qu'un rescrape ne les a
+pas repassées par le code corrigé — mise à jour **en place**
+(`course_id`+`bib_number` inchangés, appariement par dossard dans
+`import_service`), pas une purge : la correction ne touche qu'un champ dérivé
+par ligne (`status`/`total_time`), pas l'identité de la `Course` (nom, date,
+type, relais).
+
 ## Dates, types, relais
 
 `_parse_bc_date` cherche une date dans le **HTML entier**, pas dans un élément
