@@ -636,6 +636,36 @@ export function useRemoveCounterScopeEntry() {
   });
 }
 
+// ── Variantes de club (#635) ─────────────────────────────────────────────────
+
+export function useClubAliases() {
+  return useQuery({
+    queryKey: queryKeys.clubAliases(),
+    queryFn: () => apiClient.getClubAliases(),
+    retry: false,
+  });
+}
+
+export function useAddClubAlias() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ canonical_name, alias }: { canonical_name: string; alias: string }) =>
+      apiClient.addClubAlias(canonical_name, alias),
+    // Tout le cache est périmé, même raison que `useAddCounterScopeEntry` :
+    // ceci change ce que « Top clubs » et le filtre du classement affichent
+    // sur potentiellement toutes les épreuves.
+    onSuccess: () => qc.invalidateQueries(),
+  });
+}
+
+export function useRemoveClubAlias() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (entryId: number) => apiClient.removeClubAlias(entryId),
+    onSuccess: () => qc.invalidateQueries(),
+  });
+}
+
 // ── Groupes d'appartenance (#241) ────────────────────────────────────────────
 
 export function useGroups() {

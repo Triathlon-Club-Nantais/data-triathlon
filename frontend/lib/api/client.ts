@@ -15,6 +15,8 @@ import type {
   BatchRun,
   BenevoleAccessConfig,
   BenevoleAccessGenerated,
+  ClubAlias,
+  ClubAliasList,
   CounterScope,
   CounterScopeEntry,
   CourseBrief,
@@ -543,6 +545,16 @@ export const apiClient = {
   // une source d'ennuis sans contrepartie.
   removeCounterScopeEntry: (kind: ScopeKind, entryId: number) =>
     request<void>(`/admin/counter-scope/${kind}/${entryId}`, { method: "DELETE" }),
+
+  // ── Variantes de club (#635) ───────────────────────────────────────────────
+  getClubAliases: () => request<ClubAliasList>("/admin/club-aliases"),
+  addClubAlias: (canonicalName: string, alias: string) =>
+    request<ClubAlias>("/admin/club-aliases", {
+      method: "POST",
+      body: JSON.stringify({ canonical_name: canonicalName, alias }),
+    }),
+  removeClubAlias: (entryId: number) =>
+    request<void>(`/admin/club-aliases/${entryId}`, { method: "DELETE" }),
 
   // ── Retours utilisateurs (#267) ────────────────────────────────────────────
   // Route publique, et son chemin le dit : `/feedback`, hors de `/admin` où
