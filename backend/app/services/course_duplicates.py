@@ -48,6 +48,7 @@ Une paire ne sort **qu'une fois**, sous le premier motif qui la reconnaît, du
 plus spécifique au plus lâche : ce que dit le chronométreur (URL, puis
 identifiant) avant ce que suggère un libellé.
 """
+import logging
 import re
 from collections.abc import Callable
 from datetime import timedelta
@@ -56,8 +57,15 @@ from urllib.parse import parse_qs, urlparse
 
 from sqlalchemy.orm import Session
 
+from app.core.exceptions import DomainError, DuplicateError, NotFoundError
 from app.core.text import deaccent
-from app.repositories import course_repository
+from app.repositories import (
+    admin_action_log_repository,
+    course_repository,
+    ignored_course_duplicate_repository,
+)
+
+logger = logging.getLogger(__name__)
 
 #: Les motifs et leur formulation à l'écran (#292). En français : c'est **la**
 #: colonne qui rend la paire arbitrable sans aller ouvrir les deux épreuves.
@@ -292,6 +300,10 @@ def find_candidates(db: Session) -> list[dict]:
     Ordre stable, celui du catalogue (date décroissante, puis nom, puis id) : la
     liste est relue après chaque arbitrage, elle ne doit pas se réordonner sous
     les yeux de qui la traite.
+
+    **Les paires écartées par `ignore_pair` (#754) n'y reviennent jamais.** Sans
+    ce filtre, un faux positif vérifié une fois par un humain reviendrait à
+    chaque rechargement de l'écran — c'est exactement ce que #754 corrige.
     """
     courses = [
         {
@@ -308,6 +320,7 @@ def find_candidates(db: Session) -> list[dict]:
         for ligne in course_repository.list_identities_with_counts(db)
     ]
     rangs = {course["id"]: rang for rang, course in enumerate(courses)}
+    ecartees = ignored_course_duplicate_repository.all_pairs(db)
 
     motif_par_paire: dict[tuple[int, int], str] = {}
     for code, cle, garde in _REASONS:
@@ -319,7 +332,10 @@ def find_candidates(db: Session) -> list[dict]:
             for gauche, droite in combinations(groupe, 2):
                 if garde is not None and not garde(gauche, droite):
                     continue
-                motif_par_paire.setdefault((gauche["id"], droite["id"]), code)
+                paire = (gauche["id"], droite["id"])
+                if (min(paire), max(paire)) in ecartees:
+                    continue
+                motif_par_paire.setdefault(paire, code)
 
     par_id = {course["id"]: course for course in courses}
     return [
@@ -332,3 +348,54 @@ def find_candidates(db: Session) -> list[dict]:
             motif_par_paire.items(), key=lambda paire: (rangs[paire[0][0]], rangs[paire[0][1]])
         )
     ]
+
+
+def ignore_pair(db: Session, *, course_id_a: int, course_id_b: int, user_id: int) -> dict:
+    """Écarte une paire suspecte : un faux positif vérifié une fois par un
+    humain (#754).
+
+    Deux épreuves inconnues sont un 404, la même épreuve des deux côtés un 400 :
+    il n'y a rien à écarter d'une épreuve avec elle-même. Une paire déjà écartée
+    est un 409 — la décision existe déjà, la répéter ne changerait rien de plus
+    que l'horodatage et l'auteur, qu'on ne veut pas réécrire en silence.
+    `uq_ignored_course_duplicate_pair` reste le garde qui compte réellement sous
+    concurrence : la lecture préalable évite le 500 dans le cas courant, elle ne
+    l'élimine pas — deux requêtes simultanées sur la même paire peuvent encore
+    heurter la contrainte, même parti pris que `validate_season`.
+
+    `entity_id` du journal est le plus petit des deux ids, comme
+    `IgnoredCourseDuplicate.course_id_low` : c'est ce qui rend l'entrée
+    retrouvable par `list_for_entity` sans dépendre de l'ordre dans lequel
+    l'appelant a soumis la paire — `course_id_a`/`course_id_b` ne sont associés
+    à aucun rôle, contrairement à `target`/`absorbed` de la fusion (#287).
+    """
+    if course_id_a == course_id_b:
+        raise DomainError("Une épreuve ne peut pas être écartée avec elle-même.")
+    if course_repository.get(db, course_id_a) is None:
+        raise NotFoundError(f"Épreuve introuvable : {course_id_a}.")
+    if course_repository.get(db, course_id_b) is None:
+        raise NotFoundError(f"Épreuve introuvable : {course_id_b}.")
+    if ignored_course_duplicate_repository.exists(
+        db, course_id_a=course_id_a, course_id_b=course_id_b
+    ):
+        raise DuplicateError("Cette paire d'épreuves est déjà écartée.")
+
+    ignoree = ignored_course_duplicate_repository.create(
+        db, course_id_a=course_id_a, course_id_b=course_id_b, user_id=user_id
+    )
+    admin_action_log_repository.create(
+        db,
+        user_id=user_id,
+        action="course_duplicate.ignore",
+        entity_type="course_duplicate",
+        entity_id=min(course_id_a, course_id_b),
+        payload={"course_id_a": course_id_a, "course_id_b": course_id_b},
+    )
+    logger.info(
+        "Admin %s ignored course duplicate pair (%s, %s)", user_id, course_id_a, course_id_b
+    )
+    return {
+        "course_id_a": course_id_a,
+        "course_id_b": course_id_b,
+        "ignored_at": ignoree.ignored_at,
+    }

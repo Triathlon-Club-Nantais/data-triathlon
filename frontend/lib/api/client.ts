@@ -32,6 +32,7 @@ import type {
   CoursesWipeImpact,
   CoursesWipeResult,
   DuplicateCandidateList,
+  DuplicateIgnoreResult,
   EventPage,
   Feedback,
   FeedbackCounts,
@@ -343,6 +344,12 @@ export const apiClient = {
     request<CourseMergeResult>(`/admin/courses/${courseId}/merge`, {
       method: "POST",
       body: JSON.stringify({ absorbed_id: absorbedId }),
+    }),
+  /** Écarte une paire suspecte (#754) : elle ne revient plus dans la liste ci-dessus. */
+  ignoreCourseDuplicate: (courseIdA: number, courseIdB: number) =>
+    request<DuplicateIgnoreResult>("/admin/courses/duplicates/ignore", {
+      method: "POST",
+      body: JSON.stringify({ course_id_a: courseIdA, course_id_b: courseIdB }),
     }),
   updateAthlete: (id: number, champs: Partial<AdminAthleteUpdate>) =>
     request<AdminAthlete>(`/admin/athletes/${id}`, {

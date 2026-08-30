@@ -1,7 +1,7 @@
-"""DTO de la liste des doublons suspects (#288)."""
-from datetime import date
+"""DTO de la liste des doublons suspects (#288) et de leur mise à l'écart (#754)."""
+from datetime import date, datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, StrictInt
 
 
 class DuplicateCourse(BaseModel):
@@ -55,3 +55,23 @@ class DuplicateCandidateList(BaseModel):
     racine ne peut pas en recevoir sans casser le contrat."""
 
     candidates: list[DuplicateCandidate]
+
+
+class DuplicateIgnoreCreate(BaseModel):
+    """Corps de `POST /admin/courses/duplicates/ignore` (#754).
+
+    `StrictInt`, patron de `CourseMergeRequest.absorbed_id` : en mode permissif,
+    Pydantic coerce `true` en `1`, et une case à cocher mal sérialisée écarterait
+    l'épreuve `1` d'une paire qu'elle ne visait pas.
+    """
+
+    course_id_a: StrictInt
+    course_id_b: StrictInt
+
+
+class DuplicateIgnoreOut(BaseModel):
+    """Ce que l'écran reçoit après avoir écarté une paire (#754)."""
+
+    course_id_a: int
+    course_id_b: int
+    ignored_at: datetime

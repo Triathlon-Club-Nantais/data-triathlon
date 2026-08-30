@@ -15,6 +15,16 @@
   active, cf. plus bas. `source_url` reste la clé du cache TTL.
 - **CourseSource** — `UNIQUE(course_id, url)`, **jamais** `UNIQUE(url)` (cf. plus bas).
 - **Participation** — `UNIQUE(course_id, bib_number)` → plus de doublons à l'import.
+- **IgnoredCourseDuplicate** (#754) — `UNIQUE(course_id_low, course_id_high)`,
+  la paire normalisée (le plus petit id en premier). **Seule table à référencer
+  `courses.id` sans cascade ORM ni `ondelete`** : contrairement à `CourseSource`
+  (`Course.sources`, `delete-orphan`), rien sur `Course` ne la connaît.
+  `course_repository.delete`/`.delete_all` appellent explicitement
+  `ignored_course_duplicate_repository.delete_for_course`/`.delete_all` avant de
+  supprimer une épreuve — un futur point de suppression de `Course` (nouveau
+  chemin de fusion, purge…) doit faire de même, sous peine de
+  `ForeignKeyViolation` en PostgreSQL, invisible en SQLite (`database.py`
+  n'émet aucun `PRAGMA foreign_keys=ON`).
 - **`Course.format_label`** (#270) — précision libre du format quand il n'entre
   dans aucune taille normalisée (« Autre » du formulaire de saisie manuelle). Le
   format normalisé, lui, reste encodé **dans** `event_type` (`triathlon-m`) —

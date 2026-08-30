@@ -127,10 +127,16 @@ page publique du coureur (#439).
 
 ## Doublons suspects (#288)
 
-`admin_course_duplicates.py` — une seule ressource,
-`GET /admin/courses/duplicates`, gardée par `courses:sources` : la liste est la
-porte d'entrée de la fusion (#289) et de l'arbitrage entre chronométreurs
-(#285), pas une correction d'identité. Ni pagination ni filtre.
+`admin_course_duplicates.py` — trois routes, toutes gardées par
+`courses:sources` : `GET /admin/courses/duplicates` (la liste, ni pagination
+ni filtre), `GET .../count` (#726, la pastille de nav) et
+`POST .../ignore` (#754, écarte une paire — un faux positif vérifié une fois
+par un humain ne doit plus revenir). La liste est la porte d'entrée de la
+fusion (#289) et de l'arbitrage entre chronométreurs (#285), pas une
+correction d'identité — `courses:sources` et non `courses:write` pour les
+trois. `ignore` n'exige **pas** `courses:delete` comme la fusion : le geste ne
+supprime rien, il persiste un arbitrage (table `ignored_course_duplicates`,
+filtrée dans `find_candidates` avant de rendre la liste).
 
 Le router est mince à l'extrême ; **tout le jugement est dans
 `services/course_duplicates.py`**, et c'est là qu'il faut lire avant de toucher
