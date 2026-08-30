@@ -5,7 +5,7 @@ contracts/volunteer-declaration-api.md.
 session sur `client` — le membre standard de ces tests, aucune permission
 particulière n'étant vérifiée par ce router self-service.
 """
-from app.repositories import volunteer_declaration_repository
+from app.repositories import user_repository, volunteer_declaration_repository
 
 _URL = "/api/v1/volunteer-declarations"
 
@@ -38,8 +38,6 @@ def test_lister_ne_retourne_que_les_declarations_du_membre_connecte(client, db_s
     # Une déclaration d'un autre membre, créée directement via le repository
     # (le router self-service ne permet pas de déclarer pour un tiers — cf.
     # test_beneficiary_user_id_surnumeraire_est_ignore).
-    from app.repositories import user_repository
-
     autre = user_repository.create(db_session, email="autre@exemple.fr")
     db_session.flush()
     volunteer_declaration_repository.create(
@@ -84,8 +82,6 @@ def test_lister_sans_session_rend_401(client):
 def test_beneficiary_user_id_surnumeraire_est_ignore(client, db_session):
     """FR-003 : le schéma self-service n'expose aucun champ bénéficiaire — un
     champ surnuméraire ne doit jamais remonter jusqu'à la déclaration créée."""
-    from app.repositories import user_repository
-
     tiers = user_repository.create(db_session, email="tiers@exemple.fr")
     db_session.flush()
     db_session.commit()
@@ -99,3 +95,52 @@ def test_beneficiary_user_id_surnumeraire_est_ignore(client, db_session):
     corps = reponse.json()
     assert corps["beneficiary_user_id"] != tiers.id
     assert corps["beneficiary_user_id"] == corps["author_user_id"]
+
+
+# --- Suppression (US4, FR-006/FR-007/FR-008) ----------------------------------
+
+
+def test_supprimer_sa_propre_declaration(client, db_session):
+    creation = client.post(_URL, json={"title": "T", "description": "D"})
+    declaration_id = creation.json()["id"]
+
+    reponse = client.delete(f"{_URL}/{declaration_id}")
+
+    assert reponse.status_code == 204
+    assert volunteer_declaration_repository.get(db_session, declaration_id) is None
+
+
+def test_supprimer_la_declaration_dun_autre_membre_rend_404(client, db_session):
+    autre = user_repository.create(db_session, email="autre-auteur@exemple.fr")
+    db_session.flush()
+    declaration = volunteer_declaration_repository.create(
+        db_session,
+        title="T",
+        description="D",
+        beneficiary_user_id=autre.id,
+        author_user_id=autre.id,
+        status="en_attente",
+    )
+    db_session.commit()
+
+    reponse = client.delete(f"{_URL}/{declaration.id}")
+
+    assert reponse.status_code == 404
+    assert volunteer_declaration_repository.get(db_session, declaration.id) is not None
+
+
+def test_supprimer_deux_fois_la_meme_declaration_rend_404_la_seconde_fois(client):
+    """Double-clic / onglet dupliqué (spec.md, edge case) : pas d'erreur serveur."""
+    creation = client.post(_URL, json={"title": "T", "description": "D"})
+    declaration_id = creation.json()["id"]
+    client.delete(f"{_URL}/{declaration_id}")
+
+    reponse = client.delete(f"{_URL}/{declaration_id}")
+
+    assert reponse.status_code == 404
+
+
+def test_supprimer_sans_session_rend_401(client):
+    client.cookies.clear()
+
+    assert client.delete(f"{_URL}/999999").status_code == 401

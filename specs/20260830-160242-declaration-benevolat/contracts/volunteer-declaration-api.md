@@ -84,9 +84,12 @@ n'importe quel membre (FR-004).
 
 ### `GET /admin/volunteer-declarations`
 
-Réservé à `benevolat:read` (ou `benevolat:manage`, qui l'inclut — voir plan.md
-§ Constitution Check pour la règle d'inclusion des pouvoirs admin). Vue
-d'ensemble, tous membres, tous statuts (FR-010).
+Réservé à `benevolat:read` **seul** — aucune inclusion implicite de
+`benevolat:manage` (finding U1 de `/speckit-analyze`, confirmé sur
+`admin_feedback.py` : `FEEDBACK_MANAGE` sans `FEEDBACK_READ` est refusé sur
+les routes `GET`). Un rôle qui doit à la fois consulter et instruire se
+compose avec les deux codes. Vue d'ensemble, tous membres, tous statuts
+(FR-010).
 
 **Response** `200`: `list[VolunteerDeclarationOut]`, avec en plus l'identité
 du bénéficiaire pour l'affichage admin (voir schéma étendu
