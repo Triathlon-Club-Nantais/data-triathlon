@@ -116,7 +116,16 @@ Six champs et deux paramètres, tous **additifs**, tous à défaut neutre.
   tire d'un `Counter` sur ces colonnes — ce sont littéralement les chaînes stockées.
   Un `ilike` ferait « BLAIN TRIATHLON » ramasser « BLAIN TRIATHLON JEUNES », et le
   compteur de la carte cesserait de coïncider avec le total du classement, défaut que
-  #485 vient de corriger. **`club` n'est pas `scope=club`** : le second porte la
+  #485 vient de corriger.
+  **Depuis #635, `club` n'est plus une égalité stricte sur la colonne** : la
+  comparaison passe par la forme normalisée (`core.club.normalize_club`),
+  élargie aux alias déclarés dans `club_aliases` — ou, pour le TCN, à
+  `counter_scope.tcn_club_labels()`, resté un registre séparé (design
+  `docs/superpowers/specs/2026-08-30-fusion-variantes-club-design.md`).
+  Additif : un libellé sans alias déclaré retombe sur sa seule forme
+  normalisée, donc rien de ce qui matchait avant #635 ne cesse de matcher
+  (Principe IV). `category` reste en égalité exacte.
+  **`club` n'est pas `scope=club`** : le second porte la
   sémantique TCN arbitrée par `core/club.py` (dépositaire unique, #76), le premier un
   club quelconque. Leur croisement peut être vide par construction, et c'est l'écran
   qui l'explique — pas l'API qui l'interdit. Une valeur inconnue rend une sélection
