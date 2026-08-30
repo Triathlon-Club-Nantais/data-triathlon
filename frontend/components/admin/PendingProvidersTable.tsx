@@ -90,7 +90,7 @@ export function PendingProvidersTable() {
                 {peutTraiter && (
                   <TableCell>
                     <Button size="sm" variant="outline" onClick={() => handle(p.id)} disabled={mark.isPending}>
-                      Traité
+                      Marquer comme traité
                     </Button>
                   </TableCell>
                 )}

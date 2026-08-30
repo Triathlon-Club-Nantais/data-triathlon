@@ -50,6 +50,7 @@ export function ClubPerformanceChart({ rankCounters }: { rankCounters: Dashboard
       entries={entries}
       labeller={(key) => LABELS[key]}
       subjectLabel={`classement ${rankLabel}`}
+      emptyTitle="Aucun classement sur cette sélection"
     />
   );
 }

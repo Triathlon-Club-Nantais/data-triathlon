@@ -125,7 +125,8 @@ export function SiteAccessConfig() {
         {genere && (
           <div
             role="alert"
-            className="space-y-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-4"
+            className="space-y-2 rounded-md border p-4"
+            style={{ borderColor: "var(--tcn-warning-border)", background: "var(--tcn-warning-bg)" }}
           >
             <p className="text-sm font-medium">
               Ce mot de passe ne sera plus jamais affiché — copiez-le maintenant.
