@@ -1,5 +1,5 @@
 """Accès données pour VolunteerDeclaration — seule couche qui touche la Session (Principe II)."""
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.volunteer_declaration import VolunteerDeclaration
 
@@ -39,7 +39,16 @@ def list_for_beneficiary(db: Session, beneficiary_user_id: int) -> list[Voluntee
 
 
 def list_all(db: Session) -> list[VolunteerDeclaration]:
-    return db.query(VolunteerDeclaration).order_by(VolunteerDeclaration.created_at.desc()).all()
+    """`joinedload` sur `beneficiary` : la vue d'ensemble admin affiche
+    systématiquement son identité (`AdminVolunteerDeclarationOut`), sans quoi
+    chaque ligne déclenche une requête de plus (patron `feedback_repository`,
+    `admin_action_log_repository`)."""
+    return (
+        db.query(VolunteerDeclaration)
+        .options(joinedload(VolunteerDeclaration.beneficiary))
+        .order_by(VolunteerDeclaration.created_at.desc())
+        .all()
+    )
 
 
 def delete(db: Session, declaration_id: int) -> None:

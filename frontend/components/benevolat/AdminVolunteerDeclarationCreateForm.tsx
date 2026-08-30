@@ -7,19 +7,41 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { useAdminUsers } from "@/lib/queries/admin";
 import { useAdminCreateVolunteerDeclaration } from "@/lib/queries/admin";
+import { useSession } from "@/lib/queries/auth";
 
 /**
  * Formulaire admin « Déclarer pour un membre » (#751, US2) — réservé à
  * `benevolat:manage`, validée d'office (FR-004). Patron `GroupDetailDialog` :
  * `<select>` natif pour choisir le membre.
+ *
+ * Gardé par `benevolat:manage` **avant** rendu (`frontend/AGENTS.md` — « un
+ * contrôle qui écrit teste son code de pouvoir avant de se rendre ») : la
+ * page `/admin/benevolat` s'ouvre dès `benevolat:read` (nav.config.ts),
+ * composition légitime de rôle distincte de celle qui gère — patron
+ * `AdminVolunteerDeclarationTable`, la table sœur de cette même page.
  */
 export function AdminVolunteerDeclarationCreateForm() {
+  const session = useSession();
+  // Le sélecteur de membre dépend de GET /admin/users, gardé par `users:read`
+  // — un pouvoir indépendant de `benevolat:manage`. Un admin qui ne porte que
+  // ce dernier verrait ce sélecteur vide (403, `retry: false`) : trade-off
+  // assumé, même patron que le sélecteur de membre des groupes (#197).
   const utilisateurs = useAdminUsers();
   const creer = useAdminCreateVolunteerDeclaration();
   const [beneficiaryId, setBeneficiaryId] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
+  const peutGerer = session.data?.permissions.includes("benevolat:manage") ?? false;
+
+  if (!peutGerer) {
+    return (
+      <p className="text-sm text-[var(--tcn-text-faint)]">
+        Cet écran est en consultation : déclarer pour un membre demande le pouvoir
+        « Instruire les déclarations de bénévolat ».
+      </p>
+    );
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
