@@ -549,3 +549,37 @@ def test_heats_de_relais_distincts_sous_deux_facades_ne_sont_pas_un_doublon(db_s
     )
 
     assert course_duplicates.find_candidates(db_session) == []
+
+
+def test_close_names_reste_couvert_quand_un_seul_cote_porte_un_heat_slug(db_session):
+    """Vertou avec un heat d'un seul côté : `close_names` doit toujours le sortir.
+
+    La demande de #756 (cas 1) ne bloque le motif que si les **deux** heat
+    slugs sont non vides et différents — pas si un seul côté en porte un. C'est
+    ce qui garantit « pas de perte de couverture » sur Vertou, dont le sondage
+    d'origine ne mesure qu'un heat identique ou absent des deux côtés : ce test
+    couvre le troisième cas possible, un heat présent d'un seul côté, jamais
+    exercé par les fixtures existantes.
+    """
+    vertou_avec_heat = _epreuve(
+        db_session,
+        name="Triathlon de Vertou - S-Open",
+        event_date=date(2026, 5, 3),
+        event_type="triathlon-s",
+        url="https://www.chronosmetron.wiclax-results.com/Triathlon%20de%20Vertou%202026/?heat=s-open",
+        provider="wiclax",
+        participations=2,
+    )
+    vertou_sans_heat = _epreuve(
+        db_session,
+        name="Triathlon de Vertou 2026 - S-Open",
+        event_date=date(2026, 5, 3),
+        event_type="triathlon-s",
+        url=VERTOU_CHRONOSMETRON,
+        provider="wiclax",
+        participations=2,
+    )
+
+    assert _motifs_par_paire(course_duplicates.find_candidates(db_session)) == {
+        (vertou_avec_heat.id, vertou_sans_heat.id): "close_names"
+    }
