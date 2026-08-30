@@ -115,7 +115,7 @@ describe("CoursePage", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Répartition par club" })).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { level: 2, name: "Distribution des temps des finishers" }),
+      screen.getByRole("heading", { level: 2, name: "Distribution des temps des arrivants" }),
     ).toBeInTheDocument();
   });
 

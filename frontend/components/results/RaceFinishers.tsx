@@ -998,7 +998,7 @@ function resumeEpreuve(summary: CourseSummary): string {
   const { total, finishers, dnf, dns, dsq, unknown } = summary;
   const parts = [
     `${total} participant${total > 1 ? "s" : ""}`,
-    `${finishers} finisher${finishers > 1 ? "s" : ""}`,
+    `${finishers} arrivant${finishers > 1 ? "s" : ""}`,
   ];
   if (dnf > 0) parts.push(`${dnf} abandon${dnf > 1 ? "s" : ""}`);
   if (dns > 0) parts.push(`${dns} non-partant${dns > 1 ? "s" : ""}`);
